@@ -25,12 +25,17 @@ import (
 
 // BillingPackageUseCase defines the billing-package business operations consumed
 // by the billing-package handler.
+//
+// The by-ID operations take the ledger the request is scoped to. The
+// organization-scoped surface carries no ledger in its path, so it passes uuid.Nil
+// and keeps addressing a billing package on any ledger of the organization; a
+// request that does name a ledger only reaches a package that ledger owns.
 type BillingPackageUseCase interface {
 	CreateBillingPackage(ctx context.Context, bp *model.BillingPackage) (*model.BillingPackage, error)
-	GetBillingPackageByID(ctx context.Context, id, organizationID uuid.UUID) (*model.BillingPackage, error)
+	GetBillingPackageByID(ctx context.Context, id, organizationID, ledgerID uuid.UUID) (*model.BillingPackage, error)
 	GetAllBillingPackages(ctx context.Context, organizationID uuid.UUID, ledgerID *uuid.UUID, billingType string, limit, page int) ([]*model.BillingPackage, int64, error)
-	UpdateBillingPackage(ctx context.Context, id, organizationID uuid.UUID, updates map[string]any) (*model.BillingPackage, error)
-	DeleteBillingPackage(ctx context.Context, id, organizationID uuid.UUID) error
+	UpdateBillingPackage(ctx context.Context, id, organizationID, ledgerID uuid.UUID, updates map[string]any) (*model.BillingPackage, error)
+	DeleteBillingPackage(ctx context.Context, id, organizationID, ledgerID uuid.UUID) error
 }
 
 // BillingPackageHandler exposes the billing-package CRUD surface over HTTP.
@@ -77,6 +82,17 @@ func (handler *BillingPackageHandler) createBillingPackage(ctx context.Context, 
 
 	payload.OrganizationID = organizationID.String()
 
+	// The ledger is stored as the string the body carried, and every scoped read,
+	// listing and billing calculation matches it against the canonical
+	// lowercase-hyphenated form a path ledger resolves to. Any other spelling
+	// uuid.Parse accepts would persist a value none of them can match, so the
+	// package would be created and then be unreachable. Only a value that already
+	// parses is rewritten: this surface accepts free-form ledger strings and
+	// rejecting them here would turn a create that works today into a 400.
+	if parsedLedgerID, errParse := uuid.Parse(payload.LedgerID); errParse == nil {
+		payload.LedgerID = parsedLedgerID.String()
+	}
+
 	span.SetAttributes(
 		attribute.String("app.request.payload.type", payload.Type),
 		attribute.String("app.request.payload.label", payload.Label),
@@ -116,13 +132,35 @@ func (handler *BillingPackageHandler) GetAllBillingPackages(c fiber.Ctx) error {
 	return commonsHttp.Respond(c, fiber.StatusOK, pagination)
 }
 
-// getAllBillingPackages is the transport-agnostic core of the list op, shared by the
-// Fiber wrapper (GetAllBillingPackages) and the Huma shell. It owns the span, the
+// getAllBillingPackages lists the billing packages of an organization across every
+// ledger it owns, narrowed by whatever the caller's query asks for — the
+// organization-scoped surface.
+func (handler *BillingPackageHandler) getAllBillingPackages(ctx context.Context, organizationID uuid.UUID, queries map[string]string) (model.Pagination, error) {
+	return handler.listBillingPackages(ctx, organizationID, uuid.Nil, queries)
+}
+
+// getAllBillingPackagesInLedger lists the billing packages one ledger owns — the
+// ledger-scoped surface. The ledger comes from the path and the query cannot restate
+// it, for the same reason getAllPackagesInLedger refuses it.
+func (handler *BillingPackageHandler) getAllBillingPackagesInLedger(ctx context.Context, organizationID, ledgerID uuid.UUID, queries map[string]string) (model.Pagination, error) {
+	if err := rejectLedgerQueryParameter(queries); err != nil {
+		return model.Pagination{}, err
+	}
+
+	return handler.listBillingPackages(ctx, organizationID, ledgerID, queries)
+}
+
+// listBillingPackages is the transport-agnostic core of the list op, shared by the
+// Fiber wrapper (GetAllBillingPackages) and the Huma shells. It owns the span, the
 // ledgerId/type/limit/page query parsing+validation, the service call, and the
 // pagination envelope. The caller resolves the org id and passes the raw query map
 // (c.Queries() on Fiber, queriesFromValues(rawQuery) on Huma) so the binder is
 // byte-identical, then renders the envelope/error.
-func (handler *BillingPackageHandler) getAllBillingPackages(ctx context.Context, organizationID uuid.UUID, queries map[string]string) (model.Pagination, error) {
+//
+// A ledgerID of uuid.Nil leaves the ledger to the query filter, whose own empty value
+// lists every ledger of the organization. Any other value pins the listing to that
+// ledger and the query filter is not consulted at all.
+func (handler *BillingPackageHandler) listBillingPackages(ctx context.Context, organizationID, pathLedgerID uuid.UUID, queries map[string]string) (model.Pagination, error) {
 	_, tracer, reqId, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "handler.get_all_billing_packages")
@@ -137,7 +175,11 @@ func (handler *BillingPackageHandler) getAllBillingPackages(ctx context.Context,
 
 	var ledgerID *uuid.UUID
 
-	if ledgerIDParam != "" {
+	switch {
+	case pathLedgerID != uuid.Nil:
+		ledgerID = &pathLedgerID
+		ledgerIDParam = pathLedgerID.String()
+	case ledgerIDParam != "":
 		parsedLedgerID, errParse := uuid.Parse(ledgerIDParam)
 		if errParse != nil {
 			err := feeerrors.ValidateBusinessError(feeconstant.ErrInvalidQueryParameter, "", "ledgerId")
@@ -217,7 +259,7 @@ func (handler *BillingPackageHandler) GetBillingPackageByID(c fiber.Ctx) error {
 		return http.WithError(c, err)
 	}
 
-	result, err := handler.getBillingPackageByID(ctx, organizationID, id)
+	result, err := handler.getBillingPackageByID(ctx, organizationID, uuid.Nil, id)
 	if err != nil {
 		return http.WithError(c, err)
 	}
@@ -226,22 +268,22 @@ func (handler *BillingPackageHandler) GetBillingPackageByID(c fiber.Ctx) error {
 }
 
 // getBillingPackageByID is the transport-agnostic core of the get-by-id op, shared by
-// the Fiber wrapper (GetBillingPackageByID) and the Huma shell. It owns the span, the
-// service call, and the error log-level branch; the caller resolves the org+package
-// ids and renders the returned package/error.
-func (handler *BillingPackageHandler) getBillingPackageByID(ctx context.Context, organizationID, id uuid.UUID) (*model.BillingPackage, error) {
+// the Fiber wrapper (GetBillingPackageByID) and the Huma shells. It owns the span, the
+// service call, and the error log-level branch; the caller resolves the
+// org+ledger+package ids and renders the returned package/error. A ledgerID of
+// uuid.Nil reads at organization scope.
+func (handler *BillingPackageHandler) getBillingPackageByID(ctx context.Context, organizationID, ledgerID, id uuid.UUID) (*model.BillingPackage, error) {
 	logger, tracer, reqId, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "handler.get_billing_package_by_id")
 	defer span.End()
 
-	span.SetAttributes(
-		attribute.String("app.request.request_id", reqId),
-		attribute.String("app.request.organization_id", organizationID.String()),
-		attribute.String("app.request.billing_package_id", id.String()),
-	)
+	span.SetAttributes(append(
+		[]attribute.KeyValue{attribute.String("app.request.request_id", reqId)},
+		feeLedgerScopeAttributes(organizationID, ledgerID, "app.request.billing_package_id", id)...,
+	)...)
 
-	result, errGet := handler.Service.GetBillingPackageByID(ctx, id, organizationID)
+	result, errGet := handler.Service.GetBillingPackageByID(ctx, id, organizationID, ledgerID)
 	if errGet != nil {
 		handleSpanByErrorClass(span, "Failed to retrieve billing package", errGet)
 
@@ -277,7 +319,7 @@ func (handler *BillingPackageHandler) UpdateBillingPackage(p any, c fiber.Ctx) e
 		return http.WithError(c, feeerrors.ValidateInternalError(nil, feeconstant.EntityBillingPackage))
 	}
 
-	result, err := handler.updateBillingPackage(ctx, organizationID, id, payload)
+	result, err := handler.updateBillingPackage(ctx, organizationID, uuid.Nil, id, payload)
 	if err != nil {
 		return http.WithError(c, err)
 	}
@@ -286,20 +328,23 @@ func (handler *BillingPackageHandler) UpdateBillingPackage(p any, c fiber.Ctx) e
 }
 
 // updateBillingPackage is the transport-agnostic core of the update op, shared by the
-// Fiber wrapper (UpdateBillingPackage) and the Huma shell. It owns the span, the
+// Fiber wrapper (UpdateBillingPackage) and the Huma shells. It owns the span, the
 // merge-patch Validate() + ToMap() + empty-update (ErrNothingToUpdate) guard, and the
-// service call; the caller resolves the org+package ids, decodes the payload, and
-// renders the updated package/error.
-func (handler *BillingPackageHandler) updateBillingPackage(ctx context.Context, organizationID, id uuid.UUID, payload *model.BillingPackageUpdate) (*model.BillingPackage, error) {
+// service call; the caller resolves the org+ledger+package ids, decodes the payload,
+// and renders the updated package/error. A ledgerID of uuid.Nil writes at organization
+// scope.
+func (handler *BillingPackageHandler) updateBillingPackage(ctx context.Context, organizationID, ledgerID, id uuid.UUID, payload *model.BillingPackageUpdate) (*model.BillingPackage, error) {
 	_, tracer, reqId, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "handler.update_billing_package")
 	defer span.End()
 
+	span.SetAttributes(append(
+		[]attribute.KeyValue{attribute.String("app.request.request_id", reqId)},
+		feeLedgerScopeAttributes(organizationID, ledgerID, "app.request.billing_package_id", id)...,
+	)...)
+
 	span.SetAttributes(
-		attribute.String("app.request.request_id", reqId),
-		attribute.String("app.request.organization_id", organizationID.String()),
-		attribute.String("app.request.billing_package_id", id.String()),
 		attribute.Bool("app.request.payload.has_label", payload.Label != nil),
 		attribute.Bool("app.request.payload.has_description", payload.Description != nil),
 		attribute.Bool("app.request.payload.has_enable", payload.Enable != nil),
@@ -319,7 +364,7 @@ func (handler *BillingPackageHandler) updateBillingPackage(ctx context.Context, 
 		return nil, validationErr
 	}
 
-	result, errUpdate := handler.Service.UpdateBillingPackage(ctx, id, organizationID, updates)
+	result, errUpdate := handler.Service.UpdateBillingPackage(ctx, id, organizationID, ledgerID, updates)
 	if errUpdate != nil {
 		handleSpanByErrorClass(span, "Failed to update billing package", errUpdate)
 
@@ -343,7 +388,7 @@ func (handler *BillingPackageHandler) DeleteBillingPackage(c fiber.Ctx) error {
 		return http.WithError(c, err)
 	}
 
-	if err := handler.deleteBillingPackage(ctx, organizationID, id); err != nil {
+	if err := handler.deleteBillingPackage(ctx, organizationID, uuid.Nil, id); err != nil {
 		return http.WithError(c, err)
 	}
 
@@ -351,22 +396,22 @@ func (handler *BillingPackageHandler) DeleteBillingPackage(c fiber.Ctx) error {
 }
 
 // deleteBillingPackage is the transport-agnostic core of the delete op, shared by the
-// Fiber wrapper (DeleteBillingPackage) and the Huma shell. It owns the span, the
-// service call, and the error log-level branch; the caller resolves the org+package
-// ids and renders the 204/error.
-func (handler *BillingPackageHandler) deleteBillingPackage(ctx context.Context, organizationID, id uuid.UUID) error {
+// Fiber wrapper (DeleteBillingPackage) and the Huma shells. It owns the span, the
+// service call, and the error log-level branch; the caller resolves the
+// org+ledger+package ids and renders the 204/error. A ledgerID of uuid.Nil deletes at
+// organization scope.
+func (handler *BillingPackageHandler) deleteBillingPackage(ctx context.Context, organizationID, ledgerID, id uuid.UUID) error {
 	logger, tracer, reqId, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "handler.delete_billing_package")
 	defer span.End()
 
-	span.SetAttributes(
-		attribute.String("app.request.request_id", reqId),
-		attribute.String("app.request.organization_id", organizationID.String()),
-		attribute.String("app.request.billing_package_id", id.String()),
-	)
+	span.SetAttributes(append(
+		[]attribute.KeyValue{attribute.String("app.request.request_id", reqId)},
+		feeLedgerScopeAttributes(organizationID, ledgerID, "app.request.billing_package_id", id)...,
+	)...)
 
-	if errDelete := handler.Service.DeleteBillingPackage(ctx, id, organizationID); errDelete != nil {
+	if errDelete := handler.Service.DeleteBillingPackage(ctx, id, organizationID, ledgerID); errDelete != nil {
 		handleSpanByErrorClass(span, "Failed to delete billing package", errDelete)
 
 		logLevel := libLog.LevelError

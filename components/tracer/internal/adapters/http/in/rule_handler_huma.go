@@ -392,12 +392,13 @@ func RegisterRuleRoutes(api huma.API, h *Handler) {
 	// /v1 prefix rides the OpenAPI `servers` entry (set in openapi.New's Config),
 	// keeping operation paths relative and the routes single-prefixed.
 	huma.Register(api, huma.Operation{
-		OperationID: "createRule",
-		Method:      http.MethodPost,
-		Path:        "/rules",
-		Summary:     "Create a new fraud rule",
-		Tags:        []string{"Rules"},
-		Security:    secBearerOrAPIKey,
+		OperationID:   "createRule",
+		Method:        http.MethodPost,
+		Path:          "/rules",
+		DefaultStatus: http.StatusCreated,
+		Summary:       "Create a new fraud rule",
+		Tags:          []string{"Rules"},
+		Security:      secBearerOrAPIKey,
 		// SkipValidateBody: the body is taken as RawBody and validated
 		// imperatively by CreateRuleInput.Validate() inside the handler, which
 		// produces the canonical Midaz error codes. Without this, Huma validates

@@ -32,8 +32,8 @@ import (
 //
 // The scope guard protects system-managed balances (e.g. overdraft reserves)
 // from client-initiated operations. Enforcement lives in the transaction
-// command use case so that every entry point — HTTP, gRPC, DSL — benefits
-// from the same guarantee.
+// command use case so that every caller of it — not just the HTTP handler —
+// gets the same guarantee.
 func TestTransactionCreate_RejectsInternalBalance(t *testing.T) {
 	t.Parallel()
 

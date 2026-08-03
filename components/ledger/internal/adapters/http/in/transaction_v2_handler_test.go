@@ -6,6 +6,7 @@ package in
 
 import (
 	"context"
+	"encoding/json"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -21,10 +22,14 @@ import (
 	"github.com/danielgtaylor/huma/v2"
 	"github.com/gofiber/fiber/v3"
 	"github.com/google/uuid"
+	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 
+	"github.com/LerianStudio/midaz/v4/pkg"
+	cn "github.com/LerianStudio/midaz/v4/pkg/constant"
+	"github.com/LerianStudio/midaz/v4/pkg/mtransaction"
 	pkgHTTP "github.com/LerianStudio/midaz/v4/pkg/net/http"
 )
 
@@ -515,48 +520,497 @@ func TestDecodeAndBuildV2Transaction_BlockUnblockStampOverrideAndForceNonPending
 // hash source. Direct MUST stay byte-identical to the bare body (its established contract);
 // every other action prefixes its discriminator + NUL. This is the observable guarantee that
 // byte-identical bodies posted to different actions never share an idempotency slot.
+//
+// The mapping is a function of the ACTION alone, never of the body shape: the scalar and the
+// leg-array spellings are two byte sequences fed to the same source, so the table runs over
+// both and expects the identical per-action treatment.
 func TestV2IdempotencyHashSource_DiscriminatesActions(t *testing.T) {
 	t.Parallel()
 
-	body := []byte(v2DirectBody)
+	bodies := []struct {
+		name string
+		body string
+	}{
+		{name: "scalar body", body: v2DirectBody},
+		{name: "advanced body", body: v2AdvancedBody},
+	}
+
+	actions := []struct {
+		name     string
+		pending  bool
+		override string
+		wantDisc string
+	}{
+		{name: "direct stays bare body", pending: false, override: "", wantDisc: ""},
+		{name: "hold", pending: true, override: "", wantDisc: "HOLD"},
+		{name: "block", pending: false, override: "BLOCK", wantDisc: "BLOCK"},
+		{name: "unblock", pending: false, override: "UNBLOCK", wantDisc: "UNBLOCK"},
+	}
+
+	for _, bc := range bodies {
+		t.Run(bc.name, func(t *testing.T) {
+			t.Parallel()
+
+			raw := []byte(bc.body)
+
+			for _, tc := range actions {
+				t.Run(tc.name, func(t *testing.T) {
+					t.Parallel()
+
+					wantHashSrc := bc.body
+					if tc.wantDisc != "" {
+						wantHashSrc = tc.wantDisc + "\x00" + bc.body
+					}
+
+					assert.Equal(t, tc.wantDisc, idempotencyActionDiscriminator(tc.pending, tc.override),
+						"action discriminator mapping")
+					assert.Equal(t, wantHashSrc, v2IdempotencyHashSource(raw, tc.pending, tc.override),
+						"idempotency hash source")
+				})
+			}
+
+			// Direct is byte-identical to the bare body, whatever the body spells: this exact
+			// invariant keeps the existing direct idempotency tests green unchanged.
+			assert.Equal(t, bc.body, v2IdempotencyHashSource(raw, false, ""),
+				"direct's hash source MUST remain exactly the bare body")
+
+			// No two actions collide on the same body.
+			seen := map[string]string{}
+			for _, tc := range actions {
+				src := v2IdempotencyHashSource(raw, tc.pending, tc.override)
+				if prev, dup := seen[src]; dup {
+					t.Fatalf("actions %q and %q share an idempotency hash source", prev, tc.name)
+				}
+
+				seen[src] = tc.name
+			}
+		})
+	}
+}
+
+// v2AdvancedBody is the leg-array spelling of a 100 BRL transaction: two explicit-amount
+// debit legs and two 50% share credit legs, so one body exercises both per-leg value
+// expressions on both sides. It is the counterpart of v2DirectBody, which spells the same
+// total in the scalar from/to form. Two legs per side is what makes it a valid probe for a
+// per-leg claim — with one leg, "expanded per entry" and "collapsed onto one leg" are
+// indistinguishable.
+const v2AdvancedBody = `{"description":"v2 advanced","asset":"BRL","amount":"100",` +
+	`"sources":[{"account":"@srcA","amount":"60"},{"account":"@srcB","amount":"40"}],` +
+	`"destinations":[{"account":"@dstA","share":{"percentage":50}},{"account":"@dstB","share":{"percentage":50}}]}`
+
+// humaV2CreateOp is the shape every v2 create terminal shares. All four actions carry the
+// same request envelope and the same success envelope; only the identity they pass to
+// createTransactionV2 differs.
+type humaV2CreateOp = func(context.Context, *CreateTransactionV2InputHuma) (*CreateTransactionOutputHuma, error)
+
+// v2CreateActionCase describes one v2 create action by everything that distinguishes it: the
+// route suffix, the terminal, the (pending, override) identity the terminal passes to the
+// shared helper, the transaction status that identity opens, and the idempotency
+// discriminator it folds into the hash source.
+type v2CreateActionCase struct {
+	name       string
+	route      string
+	op         func(*TransactionHandler) humaV2CreateOp
+	pending    bool
+	override   string
+	wantStatus string
+	wantDisc   string
+}
+
+// v2CreateActionCases enumerates the four v2 create actions. Every test that must hold for
+// ALL of them iterates this table, so an action added to the surface without being covered
+// here is a visible omission rather than a silent gap.
+func v2CreateActionCases() []v2CreateActionCase {
+	return []v2CreateActionCase{
+		{
+			name:       "direct",
+			route:      "direct",
+			op:         func(h *TransactionHandler) humaV2CreateOp { return h.CreateTransactionDirectV2Huma },
+			pending:    false,
+			override:   "",
+			wantStatus: cn.CREATED,
+			wantDisc:   "",
+		},
+		{
+			name:       "hold",
+			route:      "hold",
+			op:         func(h *TransactionHandler) humaV2CreateOp { return h.CreateTransactionHoldV2Huma },
+			pending:    true,
+			override:   "",
+			wantStatus: cn.PENDING,
+			wantDisc:   "HOLD",
+		},
+		{
+			name:       "block",
+			route:      "block",
+			op:         func(h *TransactionHandler) humaV2CreateOp { return h.CreateTransactionBlockV2Huma },
+			pending:    false,
+			override:   cn.BLOCK,
+			wantStatus: cn.CREATED,
+			wantDisc:   cn.BLOCK,
+		},
+		{
+			name:       "unblock",
+			route:      "unblock",
+			op:         func(h *TransactionHandler) humaV2CreateOp { return h.CreateTransactionUnblockV2Huma },
+			pending:    false,
+			override:   cn.UNBLOCK,
+			wantStatus: cn.CREATED,
+			wantDisc:   cn.UNBLOCK,
+		},
+	}
+}
+
+// TestDecodeAndBuildV2Transaction_AdvancedFormAcrossActions proves every v2 create action
+// accepts the leg-array spelling and expands it into one canonical leg per entry, carrying
+// the action's own identity onto the result: hold opens PENDING while the other three open
+// CREATED, and block/unblock stamp their Operation.Type override. It asserts on
+// decodeAndBuildV2Transaction — the EXACT mtransaction.Transaction createTransactionV2 hands
+// to createTransactionShell — so the leg expansion and the stamped identity are checked on
+// the value the funnel receives. The per-OPERATION effect of the override across N legs is
+// asserted by the advanced integration test.
+func TestDecodeAndBuildV2Transaction_AdvancedFormAcrossActions(t *testing.T) {
+	t.Parallel()
+
+	for _, tc := range v2CreateActionCases() {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			tx, err := decodeAndBuildV2Transaction([]byte(v2AdvancedBody), tc.pending, tc.override)
+			require.NoError(t, err, "the %s action must accept the leg-array spelling", tc.name)
+
+			// One canonical leg per array entry, in submission order, each carrying the value
+			// expression its entry spelled.
+			from := tx.Send.Source.From
+			to := tx.Send.Distribute.To
+
+			require.Len(t, from, 2, "the %s action must expand both source legs", tc.name)
+			require.Len(t, to, 2, "the %s action must expand both destination legs", tc.name)
+
+			assert.Equal(t, "@srcA", from[0].AccountAlias)
+			require.NotNil(t, from[0].Amount, "the explicit-amount source leg must carry an amount")
+			assert.True(t, decimal.NewFromInt(60).Equal(from[0].Amount.Value), "source leg amount")
+			assert.Equal(t, "@srcB", from[1].AccountAlias)
+			require.NotNil(t, from[1].Amount, "the second explicit-amount source leg must carry an amount")
+			assert.True(t, decimal.NewFromInt(40).Equal(from[1].Amount.Value), "second source leg amount")
+
+			assert.Equal(t, "@dstA", to[0].AccountAlias)
+			require.NotNil(t, to[0].Share, "the share destination leg must carry a share")
+			assert.Equal(t, int64(50), to[0].Share.Percentage, "destination leg share percentage")
+			assert.Equal(t, "@dstB", to[1].AccountAlias)
+			require.NotNil(t, to[1].Share, "the second share destination leg must carry a share")
+			assert.Equal(t, int64(50), to[1].Share.Percentage, "second destination leg share percentage")
+
+			// The action identity rides on the advanced body exactly as it does on the scalar
+			// one: pending drives the opening status, the override is stamped verbatim.
+			assert.Equal(t, tc.pending, tx.Pending, "the %s action must carry its pending intent through Translate", tc.name)
+			assert.Equal(t, tc.wantStatus, tx.InitialStatus(), "the %s action must open the transaction as %s", tc.name, tc.wantStatus)
+			assert.Equal(t, tc.override, tx.OperationTypeOverride, "the %s action must stamp its Operation.Type override", tc.name)
+		})
+	}
+}
+
+// TestDecodeV2Body_RemainingLegRejectionIsSpellingSensitive pins what the decode boundary
+// ACTUALLY does with a `remaining` key on a v2 leg. The v2 leg publishes no such field, so
+// the intended answer is the unknown-field rejection (0053) — and that is what the truthy
+// spelling gets. The FALSY spelling does not: FindUnknownFields skips any key whose value is
+// boolean false (a deliberate carve-out so the per-call `skip.*` flags can send their own
+// default), so `"remaining": false` is silently accepted and the leg decodes as if the key
+// were never sent.
+//
+// The money impact is nil — a swallowed `false` asks for nothing — but "a client that sends
+// `remaining` gets the unknown-field rejection" is not true of both spellings, and this pin
+// is what stops that claim from being restated as unconditional. It asserts on
+// pkgHTTP.DecodeAndValidate, the exact boundary the v2 handlers call, so no funnel status
+// stands in for the decode verdict.
+func TestDecodeV2Body_RemainingLegRejectionIsSpellingSensitive(t *testing.T) {
+	t.Parallel()
 
 	tests := []struct {
-		name        string
-		pending     bool
-		override    string
-		wantDisc    string
-		wantHashSrc string
+		name       string
+		body       string
+		wantReject bool
+		wantCode   string
 	}{
-		{name: "direct stays bare body", pending: false, override: "", wantDisc: "", wantHashSrc: v2DirectBody},
-		{name: "hold", pending: true, override: "", wantDisc: "HOLD", wantHashSrc: "HOLD\x00" + v2DirectBody},
-		{name: "block", pending: false, override: "BLOCK", wantDisc: "BLOCK", wantHashSrc: "BLOCK\x00" + v2DirectBody},
-		{name: "unblock", pending: false, override: "UNBLOCK", wantDisc: "UNBLOCK", wantHashSrc: "UNBLOCK\x00" + v2DirectBody},
+		{
+			name:       "truthy remaining on a leg is an unknown field",
+			body:       `{"asset":"USD","amount":"100","sources":[{"account":"@srcA","remaining":true}],"to":"@dst"}`,
+			wantReject: true,
+			wantCode:   cn.ErrUnexpectedFieldsInTheRequest.Error(),
+		},
+		{
+			name:       "falsy remaining on a leg is swallowed by the boolean-false carve-out",
+			body:       `{"asset":"USD","amount":"100","sources":[{"account":"@srcA","amount":"100","remaining":false}],"to":"@dst"}`,
+			wantReject: false,
+		},
 	}
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			assert.Equal(t, tc.wantDisc, idempotencyActionDiscriminator(tc.pending, tc.override),
-				"action discriminator mapping")
-			assert.Equal(t, tc.wantHashSrc, v2IdempotencyHashSource(body, tc.pending, tc.override),
-				"idempotency hash source")
+			payload := new(mtransaction.CreateTransactionV2Input)
+
+			_, err := pkgHTTP.DecodeAndValidate([]byte(tc.body), payload)
+
+			if !tc.wantReject {
+				require.NoError(t, err, "the falsy spelling is accepted at the decode boundary")
+				assert.Nil(t, payload.Sources[0].Share, "a swallowed remaining key leaves the leg's value expressions untouched")
+				assert.Equal(t, "100", payload.Sources[0].Amount, "the leg decodes on its own amount, as if remaining were never sent")
+
+				return
+			}
+
+			require.Error(t, err, "the truthy spelling must be rejected at the decode boundary")
+
+			var unknownFields pkg.ValidationUnknownFieldsError
+			require.ErrorAs(t, err, &unknownFields, "the rejection must be the unknown-field class, not a generic decode failure")
+			assert.Equal(t, tc.wantCode, unknownFields.Code, "unknown-field rejections carry the canonical unexpected-fields code")
 		})
 	}
+}
 
-	// Direct is byte-identical to the bare body: this exact invariant keeps the existing direct
-	// idempotency tests green unchanged.
-	assert.Equal(t, v2DirectBody, v2IdempotencyHashSource(body, false, ""),
-		"direct's hash source MUST remain exactly the bare body")
+// externalUSDScalarAlias is the alias every ledger's USD external account carries, spelled from
+// the production prefix so a change to it surfaces here. The `/` is the point: the registered
+// account-alias charset (`invalidaliascharacters`) excludes it, so any guard derived from that
+// charset rejects this alias.
+const externalUSDScalarAlias = cn.DefaultExternalAccountAliasPrefix + "USD"
 
-	// No two actions collide.
-	seen := map[string]string{}
+// TestDecodeV2Body_ExternalAccountAliasSurvivesTheScalarPositions pins that the external-account
+// alias reaches the canonical leg through the two SCALAR side fields. On a surface that publishes
+// no inflow/outflow action, `{"from":"@external/USD","to":"@alice"}` is the canonical deposit call
+// and its mirror is the canonical withdrawal — so a rejection here 400s every deposit and every
+// withdrawal in production.
+//
+// It goes through pkgHTTP.DecodeAndValidate rather than straight into Translate because the
+// regression this guards is a TAG: `invalidaliascharacters` is registered and already applied that
+// way to mmodel.Account.Alias and mmodel.Composition.Alias, while CreateTransactionV2Input.From
+// and .To carry no `validate` tag at all. Appending it is a one-token change, and Translate
+// evaluates no struct tags — so a lock that calls Translate directly stays green through it. Only
+// the decode boundary sees the tag layer.
+func TestDecodeV2Body_ExternalAccountAliasSurvivesTheScalarPositions(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name     string
+		body     string
+		wantFrom string
+		wantTo   string
+	}{
+		{
+			name:     "a deposit names the external account in the scalar from",
+			body:     `{"asset":"USD","amount":"100","from":"` + externalUSDScalarAlias + `","to":"@alice"}`,
+			wantFrom: externalUSDScalarAlias,
+			wantTo:   "@alice",
+		},
+		{
+			name:     "a withdrawal names the external account in the scalar to",
+			body:     `{"asset":"USD","amount":"100","from":"@alice","to":"` + externalUSDScalarAlias + `"}`,
+			wantFrom: "@alice",
+			wantTo:   externalUSDScalarAlias,
+		},
+	}
+
 	for _, tc := range tests {
-		src := v2IdempotencyHashSource(body, tc.pending, tc.override)
-		if prev, dup := seen[src]; dup {
-			t.Fatalf("actions %q and %q share an idempotency hash source", prev, tc.name)
+		tc := tc
+
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			payload := new(mtransaction.CreateTransactionV2Input)
+
+			_, err := pkgHTTP.DecodeAndValidate([]byte(tc.body), payload)
+			require.NoError(t, err,
+				"the external-account alias must clear the decode boundary on the scalar positions — a charset tag on from/to would 400 every deposit")
+
+			assert.Equal(t, tc.wantFrom, payload.From, "the decoded scalar source must carry the submitted alias verbatim")
+			assert.Equal(t, tc.wantTo, payload.To, "the decoded scalar destination must carry the submitted alias verbatim")
+
+			tx, err := payload.Translate(false)
+			require.NoError(t, err, "the scalar spelling of the external account must translate")
+
+			require.Len(t, tx.Send.Source.From, 1, "the scalar source spelling yields exactly one leg")
+			require.Len(t, tx.Send.Distribute.To, 1, "the scalar destination spelling yields exactly one leg")
+
+			assert.Equal(t, tc.wantFrom, tx.Send.Source.From[0].AccountAlias,
+				"the alias must reach the canonical source leg unchanged — no rewrite, no truncation at the separator")
+			assert.Equal(t, tc.wantTo, tx.Send.Distribute.To[0].AccountAlias,
+				"the alias must reach the canonical destination leg unchanged")
+		})
+	}
+}
+
+// TestDecodeV2Body_ExplicitNullSideFields records what an explicit `null` on each of the four side
+// fields ACTUALLY does at the decode boundary, because the two pairs behave differently and only
+// one of the two behaviours is published.
+//
+// The two scalars are rejected: a nil JSON value decodes to "" and the decoder's re-marshal emits
+// `"from": ""`, which does not match the submitted `null`, so FindUnknownFields flags the key. The
+// two leg arrays are ACCEPTED: they carry no `omitempty` either, so a nil slice re-marshals as
+// `null` and matches the submitted value exactly — the key is indistinguishable from having been
+// left out. That asymmetry is invisible in every other test, so it is pinned here rather than
+// left to be discovered by a client.
+func TestDecodeV2Body_ExplicitNullSideFields(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name       string
+		body       string
+		wantReject bool
+	}{
+		{
+			name: "an explicit null sources array reads as an unspelled array side",
+			body: `{"asset":"USD","amount":"100","from":"@src","sources":null,"to":"@dst"}`,
+		},
+		{
+			name: "an explicit null destinations array reads as an unspelled array side",
+			body: `{"asset":"USD","amount":"100","from":"@src","to":"@dst","destinations":null}`,
+		},
+		{
+			name:       "an explicit null scalar from is an unknown field",
+			body:       `{"asset":"USD","amount":"100","from":null,"to":"@dst"}`,
+			wantReject: true,
+		},
+		{
+			name:       "an explicit null scalar to is an unknown field",
+			body:       `{"asset":"USD","amount":"100","from":"@src","to":null}`,
+			wantReject: true,
+		},
+	}
+
+	for _, tc := range tests {
+		tc := tc
+
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			payload := new(mtransaction.CreateTransactionV2Input)
+
+			_, err := pkgHTTP.DecodeAndValidate([]byte(tc.body), payload)
+
+			if tc.wantReject {
+				require.Error(t, err, "an explicit null on a scalar side field is rejected at the decode boundary")
+
+				var unknownFields pkg.ValidationUnknownFieldsError
+				require.ErrorAs(t, err, &unknownFields, "the rejection is the unknown-field class")
+				assert.Equal(t, cn.ErrUnexpectedFieldsInTheRequest.Error(), unknownFields.Code,
+					"unknown-field rejections carry the canonical unexpected-fields code")
+
+				return
+			}
+
+			require.NoError(t, err,
+				"an explicit null leg array is ACCEPTED: a nil slice re-marshals as null and matches the submitted value")
+
+			assert.Nil(t, payload.Sources, "a null (or omitted) sources array decodes to no legs")
+			assert.Nil(t, payload.Destinations, "a null (or omitted) destinations array decodes to no legs")
+
+			// And the accepted null does not count as a SPELLING of the array form: the side is
+			// still spelled once, by its scalar field, so Translate raises no exclusivity error.
+			tx, err := payload.Translate(false)
+			require.NoError(t, err, "a null array leaves the side spelled exactly once, by its scalar field")
+
+			require.Len(t, tx.Send.Source.From, 1, "the scalar source spelling still yields one leg")
+			require.Len(t, tx.Send.Distribute.To, 1, "the scalar destination spelling still yields one leg")
+		})
+	}
+}
+
+// TestV2CreateOps_OversizedBodyBehindAuthAnswers401 pins the ORDER of the two guards on the v2
+// create chain: the body-size guard sits AFTER auth, so a tokenless caller is answered 401 and is
+// never told what body size this endpoint accepts. That ordering is an information-disclosure
+// property, and moving the guard ahead of auth — the natural "reject early" optimisation — is
+// invisible to every other guard test, because they all build the app with auth DISABLED, and
+// invisible to the auth test, which posts a nil body.
+//
+// The assertion is therefore two-sided: the status must be 401, AND the answer must carry no trace
+// of the payload-too-large code. A 413 alone would already be the leak.
+func TestV2CreateOps_OversizedBodyBehindAuthAnswers401(t *testing.T) {
+	// NOT parallel: process-global huma state.
+	// Address must be non-empty so Authorize enforces the token check (it is never dialed: a
+	// missing token short-circuits with 401 first).
+	app := registerV2TransactionRoutesForTest(&middleware.AuthClient{Enabled: true, Address: "http://auth.invalid"})
+
+	// One byte past the declared ceiling, so the guard would fire if it ran at all.
+	oversized := oversizedV2CreateBody(v2CreateMaxBodyBytes + 1)
+
+	for _, rt := range v2Routes {
+		if !rt.hasBody {
+			continue
 		}
 
-		seen[src] = tc.name
+		t.Run(rt.action, func(t *testing.T) {
+			req := httptest.NewRequest(http.MethodPost, concreteV2Path(rt.fiberPath), strings.NewReader(oversized))
+			req.Header.Set(fiber.HeaderContentType, fiber.MIMEApplicationJSON)
+
+			resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
+			require.NoError(t, err)
+
+			defer func() { _ = resp.Body.Close() }()
+
+			raw, err := io.ReadAll(resp.Body)
+			require.NoError(t, err)
+
+			assert.Equalf(t, http.StatusUnauthorized, resp.StatusCode,
+				"an oversized TOKENLESS v2 %s request must be answered by auth, not by the body guard; got: %s", rt.action, raw)
+
+			assert.NotContainsf(t, string(raw), cn.ErrPayloadTooLarge.Error(),
+				"the v2 %s answer to an unauthenticated caller must not disclose the body-size rejection", rt.action)
+
+			var problem map[string]any
+			if json.Unmarshal(raw, &problem) == nil {
+				assert.NotEqualf(t, cn.ErrPayloadTooLarge.Error(), problem["code"],
+					"the v2 %s answer to an unauthenticated caller must not carry the payload-too-large code", rt.action)
+			}
+		})
+	}
+}
+
+// TestHuma_CreateTransactionV2_AdvancedBodyKeepsPerActionIdempotencySource is the idempotency
+// regression for the advanced form: an advanced body is just another byte sequence in the
+// SAME hash source each action already used, so direct still hashes the bare body and every
+// other action still hashes its discriminator + NUL + body. It probes the same first-repo
+// touch as the scalar idempotency tests (TransactionRedisRepo.SetNX, whose internalKey embeds
+// the hash source when no X-Idempotency header is sent). A per-action cross-check asserts no
+// action keys off another action's source.
+func TestHuma_CreateTransactionV2_AdvancedBodyKeepsPerActionIdempotencySource(t *testing.T) {
+	// NOT parallel: process-global huma state.
+	for _, tc := range v2CreateActionCases() {
+		t.Run(tc.name, func(t *testing.T) {
+			ctrl := gomock.NewController(t)
+			t.Cleanup(ctrl.Finish)
+
+			var gotKey string
+
+			handler := captureSetNXKey(t, ctrl, &gotKey, "{}")
+			app := buildHumaV2ActionApp(t, tc.route, tc.op(handler))
+
+			resp := postActionV2(t, app, tc.route, v2AdvancedBody)
+			defer func() { _ = resp.Body.Close() }()
+
+			wantSource := v2AdvancedBody
+			if tc.wantDisc != "" {
+				wantSource = tc.wantDisc + "\x00" + v2AdvancedBody
+			}
+
+			assert.Contains(t, gotKey, libCommons.HashSHA256(wantSource),
+				"the advanced %s body must key idempotency off the SAME source shape the scalar body uses; got internalKey=%q", tc.name, gotKey)
+
+			for _, other := range v2CreateActionCases() {
+				if other.wantDisc == tc.wantDisc {
+					continue
+				}
+
+				otherSource := v2AdvancedBody
+				if other.wantDisc != "" {
+					otherSource = other.wantDisc + "\x00" + v2AdvancedBody
+				}
+
+				assert.NotContains(t, gotKey, libCommons.HashSHA256(otherSource),
+					"the advanced %s body must NOT key off the %s action's source", tc.name, other.name)
+			}
+
+			assert.Equal(t, http.StatusCreated, resp.StatusCode, "a losing %s claim with a cached canonical value replays → 201", tc.name)
+		})
 	}
 }

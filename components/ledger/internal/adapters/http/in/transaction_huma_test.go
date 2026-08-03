@@ -13,6 +13,7 @@ import (
 
 	openapi "github.com/LerianStudio/lib-commons/v6/commons/net/http/openapi"
 	libProblem "github.com/LerianStudio/lib-commons/v6/commons/net/http/problem"
+	libLog "github.com/LerianStudio/lib-observability/v2/log"
 	"github.com/gofiber/fiber/v3"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
@@ -23,11 +24,11 @@ import (
 
 // buildHumaTransactionApp mounts the ten migrated transaction Huma operations on a /v1
 // group, mirroring the production wiring in unified-server.go: problem.Install() runs
-// before any huma.Register, the Huma API is built with openapi.New over a /v1 group, an
-// auth-shim middleware stands in for auth.Authorize("midaz","transactions",verb) + tenant
-// PostAuthMiddlewares, and http.ParseUUIDPathParameters("transaction") +
-// RegisterTransactionRoutes attach the chain. POST /transactions/dsl is deliberately NOT
-// mounted (SUNSET 2026-08-01, stays pure Fiber).
+// before any huma.Register, WithRecover is the first middleware so a panic in a handler
+// unwinds to a 500 attributed to the running subtest instead of killing the test process,
+// the Huma API is built with openapi.New over a /v1 group, an auth-shim middleware stands
+// in for auth.Authorize("midaz","transactions",verb) + tenant PostAuthMiddlewares, and
+// http.ParseUUIDPathParameters("transaction") + RegisterTransactionRoutes attach the chain.
 //
 // MUST-NOT-PARALLELIZE (same rationale as buildHumaCountApp/buildHumaHolderApp):
 // libProblem.Install() swaps the process-global huma.NewError hook and Huma validation
@@ -39,6 +40,8 @@ func buildHumaTransactionApp(t *testing.T, handler *TransactionHandler, authOK b
 	f := fiber.New(fiber.Config{
 		ErrorHandler: pkgHTTP.CanonicalFiberErrorHandler,
 	})
+
+	f.Use(pkgHTTP.WithRecover(pkgHTTP.WithRecoverLogger(&libLog.GoLogger{})))
 
 	libProblem.Install()
 

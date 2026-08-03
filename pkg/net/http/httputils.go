@@ -5,12 +5,9 @@
 package http
 
 import (
-	"bytes"
 	"encoding/base64"
 	"encoding/json"
 	"errors"
-	"io"
-	"mime/multipart"
 	"strconv"
 	"strings"
 	"time"
@@ -516,40 +513,6 @@ func ParseIdempotencyTTL(headerValue string) time.Duration {
 	}
 
 	return time.Duration(t)
-}
-
-// GetFileFromHeader method that get file from header and give a string fom this dsl gold file
-func GetFileFromHeader(ctx fiber.Ctx) (string, error) {
-	fileHeader, err := ctx.FormFile(libConstants.DSL)
-	if err != nil {
-		return "", pkg.ValidateBusinessError(constant.ErrInvalidDSLFileFormat, "")
-	}
-
-	if !strings.Contains(fileHeader.Filename, libConstants.FileExtension) {
-		return "", pkg.ValidateBusinessError(constant.ErrInvalidDSLFileFormat, "", fileHeader.Filename)
-	}
-
-	if fileHeader.Size == 0 {
-		return "", pkg.ValidateBusinessError(constant.ErrEmptyDSLFile, "", fileHeader.Filename)
-	}
-
-	file, err := fileHeader.Open()
-	if err != nil {
-		return "", err
-	}
-
-	defer func(file multipart.File) {
-		_ = file.Close()
-	}(file)
-
-	buf := new(bytes.Buffer)
-	if _, err := io.Copy(buf, file); err != nil {
-		return "", pkg.ValidateBusinessError(constant.ErrInvalidDSLFileFormat, "", fileHeader.Filename)
-	}
-
-	fileString := buf.String()
-
-	return fileString, nil
 }
 
 func (qh *QueryHeader) ToOffsetPagination() Pagination {

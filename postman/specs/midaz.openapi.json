@@ -103,8 +103,40 @@
       "x-displayName": "Metadata Indexes"
     },
     {
+      "name": "Midaz_Ledger_API_v2_Encryption",
+      "x-displayName": "Encryption"
+    },
+    {
+      "name": "Midaz_Ledger_API_v2_Holders",
+      "x-displayName": "Holders"
+    },
+    {
+      "name": "Midaz_Ledger_API_v2_Instruments",
+      "x-displayName": "Instruments"
+    },
+    {
+      "name": "Midaz_Ledger_API_v2_Billing Packages",
+      "x-displayName": "Billing Packages"
+    },
+    {
+      "name": "Midaz_Ledger_API_v2_Billing Calculate",
+      "x-displayName": "Billing Calculate"
+    },
+    {
+      "name": "Midaz_Ledger_API_v2_Fees",
+      "x-displayName": "Fees"
+    },
+    {
+      "name": "Midaz_Ledger_API_v2_Packages",
+      "x-displayName": "Packages"
+    },
+    {
       "name": "Midaz_Ledger_API_v2_Transactions",
       "x-displayName": "Transactions"
+    },
+    {
+      "name": "Midaz_Ledger_API_v2_Protection",
+      "x-displayName": "Protection"
     },
     {
       "name": "Midaz_Tracer_API_Audit",
@@ -294,7 +326,7 @@
           "required": true
         },
         "responses": {
-          "200": {
+          "201": {
             "content": {
               "application/json": {
                 "schema": {
@@ -302,7 +334,7 @@
                 }
               }
             },
-            "description": "OK"
+            "description": "Created"
           },
           "default": {
             "content": {
@@ -641,7 +673,7 @@
           "required": true
         },
         "responses": {
-          "200": {
+          "201": {
             "content": {
               "application/json": {
                 "schema": {
@@ -649,7 +681,7 @@
                 }
               }
             },
-            "description": "OK"
+            "description": "Created"
           },
           "default": {
             "content": {
@@ -945,7 +977,7 @@
           "required": true
         },
         "responses": {
-          "200": {
+          "201": {
             "content": {
               "application/json": {
                 "schema": {
@@ -953,7 +985,7 @@
                 }
               }
             },
-            "description": "OK"
+            "description": "Created"
           },
           "default": {
             "content": {
@@ -1257,7 +1289,7 @@
           "required": true
         },
         "responses": {
-          "200": {
+          "201": {
             "content": {
               "application/json": {
                 "schema": {
@@ -1265,7 +1297,7 @@
                 }
               }
             },
-            "description": "OK",
+            "description": "Created",
             "headers": {
               "X-Idempotency-Replayed": {
                 "schema": {
@@ -1352,7 +1384,7 @@
           "required": true
         },
         "responses": {
-          "200": {
+          "201": {
             "content": {
               "application/json": {
                 "schema": {
@@ -1360,7 +1392,7 @@
                 }
               }
             },
-            "description": "OK",
+            "description": "Created",
             "headers": {
               "X-Idempotency-Replayed": {
                 "schema": {
@@ -2265,7 +2297,7 @@
           "required": true
         },
         "responses": {
-          "200": {
+          "201": {
             "content": {
               "application/json": {
                 "schema": {
@@ -2273,7 +2305,7 @@
                 }
               }
             },
-            "description": "OK"
+            "description": "Created"
           },
           "default": {
             "content": {
@@ -2717,7 +2749,7 @@
           "required": true
         },
         "responses": {
-          "200": {
+          "201": {
             "content": {
               "application/json": {
                 "schema": {
@@ -2725,7 +2757,7 @@
                 }
               }
             },
-            "description": "OK"
+            "description": "Created"
           },
           "default": {
             "content": {
@@ -3232,7 +3264,7 @@
           "required": true
         },
         "responses": {
-          "200": {
+          "201": {
             "content": {
               "application/json": {
                 "schema": {
@@ -3240,7 +3272,7 @@
                 }
               }
             },
-            "description": "OK"
+            "description": "Created"
           },
           "default": {
             "content": {
@@ -3784,7 +3816,7 @@
           "required": true
         },
         "responses": {
-          "200": {
+          "201": {
             "content": {
               "application/json": {
                 "schema": {
@@ -3792,7 +3824,7 @@
                 }
               }
             },
-            "description": "OK"
+            "description": "Created"
           },
           "default": {
             "content": {
@@ -4419,7 +4451,7 @@
           "required": true
         },
         "responses": {
-          "200": {
+          "201": {
             "content": {
               "application/json": {
                 "schema": {
@@ -4427,7 +4459,7 @@
                 }
               }
             },
-            "description": "OK"
+            "description": "Created"
           },
           "default": {
             "content": {
@@ -4828,7 +4860,7 @@
           "required": true
         },
         "responses": {
-          "200": {
+          "201": {
             "content": {
               "application/json": {
                 "schema": {
@@ -4836,7 +4868,7 @@
                 }
               }
             },
-            "description": "OK"
+            "description": "Created"
           },
           "default": {
             "content": {
@@ -5606,7 +5638,7 @@
           "required": true
         },
         "responses": {
-          "200": {
+          "201": {
             "content": {
               "application/json": {
                 "schema": {
@@ -5614,7 +5646,7 @@
                 }
               }
             },
-            "description": "OK"
+            "description": "Created"
           },
           "default": {
             "content": {
@@ -5782,7 +5814,7 @@
           "required": true
         },
         "responses": {
-          "200": {
+          "201": {
             "content": {
               "application/json": {
                 "schema": {
@@ -5790,7 +5822,7 @@
                 }
               }
             },
-            "description": "OK"
+            "description": "Created"
           },
           "default": {
             "content": {
@@ -6196,7 +6228,7 @@
           "required": true
         },
         "responses": {
-          "200": {
+          "201": {
             "content": {
               "application/json": {
                 "schema": {
@@ -6204,7 +6236,7 @@
                 }
               }
             },
-            "description": "OK"
+            "description": "Created"
           },
           "default": {
             "content": {
@@ -6668,7 +6700,7 @@
           "required": true
         },
         "responses": {
-          "200": {
+          "201": {
             "content": {
               "application/json": {
                 "schema": {
@@ -6676,7 +6708,7 @@
                 }
               }
             },
-            "description": "OK"
+            "description": "Created"
           },
           "default": {
             "content": {
@@ -7259,7 +7291,7 @@
           "required": true
         },
         "responses": {
-          "200": {
+          "201": {
             "content": {
               "application/json": {
                 "schema": {
@@ -7267,7 +7299,7 @@
                 }
               }
             },
-            "description": "OK"
+            "description": "Created"
           },
           "default": {
             "content": {
@@ -7670,7 +7702,7 @@
           "required": true
         },
         "responses": {
-          "200": {
+          "201": {
             "content": {
               "application/json": {
                 "schema": {
@@ -7678,7 +7710,7 @@
                 }
               }
             },
-            "description": "OK",
+            "description": "Created",
             "headers": {
               "X-Idempotency-Replayed": {
                 "schema": {
@@ -7765,7 +7797,7 @@
           "required": true
         },
         "responses": {
-          "200": {
+          "201": {
             "content": {
               "application/json": {
                 "schema": {
@@ -7773,7 +7805,7 @@
                 }
               }
             },
-            "description": "OK",
+            "description": "Created",
             "headers": {
               "X-Idempotency-Replayed": {
                 "schema": {
@@ -7860,7 +7892,7 @@
           "required": true
         },
         "responses": {
-          "200": {
+          "201": {
             "content": {
               "application/json": {
                 "schema": {
@@ -7868,7 +7900,7 @@
                 }
               }
             },
-            "description": "OK",
+            "description": "Created",
             "headers": {
               "X-Idempotency-Replayed": {
                 "schema": {
@@ -7955,7 +7987,7 @@
           "required": true
         },
         "responses": {
-          "200": {
+          "201": {
             "content": {
               "application/json": {
                 "schema": {
@@ -7963,7 +7995,7 @@
                 }
               }
             },
-            "description": "OK",
+            "description": "Created",
             "headers": {
               "X-Idempotency-Replayed": {
                 "schema": {
@@ -8156,7 +8188,7 @@
           "required": true
         },
         "responses": {
-          "200": {
+          "201": {
             "content": {
               "application/json": {
                 "schema": {
@@ -8164,7 +8196,7 @@
                 }
               }
             },
-            "description": "OK",
+            "description": "Created",
             "headers": {
               "X-Idempotency-Replayed": {
                 "schema": {
@@ -8251,7 +8283,7 @@
           "required": true
         },
         "responses": {
-          "200": {
+          "201": {
             "content": {
               "application/json": {
                 "schema": {
@@ -8259,7 +8291,7 @@
                 }
               }
             },
-            "description": "OK",
+            "description": "Created",
             "headers": {
               "X-Idempotency-Replayed": {
                 "schema": {
@@ -8878,7 +8910,7 @@
           "required": true
         },
         "responses": {
-          "200": {
+          "201": {
             "content": {
               "application/json": {
                 "schema": {
@@ -8886,7 +8918,7 @@
                 }
               }
             },
-            "description": "OK"
+            "description": "Created"
           },
           "default": {
             "content": {
@@ -9307,7 +9339,7 @@
           "required": true
         },
         "responses": {
-          "200": {
+          "201": {
             "content": {
               "application/json": {
                 "schema": {
@@ -9315,7 +9347,7 @@
                 }
               }
             },
-            "description": "OK"
+            "description": "Created"
           },
           "default": {
             "content": {
@@ -9396,6 +9428,2103 @@
         ]
       }
     },
+    "/v2/organizations/{organization_id}/encryption/provision": {
+      "servers": [
+        {
+          "url": "/"
+        }
+      ],
+      "post": {
+        "operationId": "provisionEncryptionV2",
+        "parameters": [
+          {
+            "description": "Organization ID (UUID)",
+            "in": "path",
+            "name": "organization_id",
+            "required": true,
+            "schema": {
+              "description": "Organization ID (UUID)",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Bearer token; only required when the auth plugin is enabled",
+            "in": "header",
+            "name": "Authorization",
+            "schema": {
+              "description": "Bearer token; only required when the auth plugin is enabled",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "contentMediaType": "application/octet-stream",
+                "format": "binary",
+                "type": "string"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProvisionEncryptionResponse"
+                }
+              }
+            },
+            "description": "Created"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "summary": "Provision an Organization for Envelope Encryption",
+        "tags": [
+          "Midaz_Ledger_API_v2_Encryption"
+        ]
+      }
+    },
+    "/v2/organizations/{organization_id}/encryption/status": {
+      "servers": [
+        {
+          "url": "/"
+        }
+      ],
+      "get": {
+        "operationId": "getProvisioningStatusV2",
+        "parameters": [
+          {
+            "description": "Organization ID (UUID)",
+            "in": "path",
+            "name": "organization_id",
+            "required": true,
+            "schema": {
+              "description": "Organization ID (UUID)",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Bearer token; only required when the auth plugin is enabled",
+            "in": "header",
+            "name": "Authorization",
+            "schema": {
+              "description": "Bearer token; only required when the auth plugin is enabled",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProvisioningStatusResponse"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "summary": "Get Provisioning Status",
+        "tags": [
+          "Midaz_Ledger_API_v2_Encryption"
+        ]
+      }
+    },
+    "/v2/organizations/{organization_id}/holders": {
+      "servers": [
+        {
+          "url": "/"
+        }
+      ],
+      "get": {
+        "operationId": "listHoldersV2",
+        "parameters": [
+          {
+            "description": "Organization ID (UUID)",
+            "in": "path",
+            "name": "organization_id",
+            "required": true,
+            "schema": {
+              "description": "Organization ID (UUID)",
+              "type": "string"
+            }
+          },
+          {
+            "description": "JSON string to filter holders by metadata fields",
+            "explode": false,
+            "in": "query",
+            "name": "metadata",
+            "schema": {
+              "description": "JSON string to filter holders by metadata fields",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Max items per page (1-100, default 10)",
+            "explode": false,
+            "in": "query",
+            "name": "limit",
+            "schema": {
+              "description": "Max items per page (1-100, default 10)",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Page number (default 1)",
+            "explode": false,
+            "in": "query",
+            "name": "page",
+            "schema": {
+              "description": "Page number (default 1)",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Sort direction (asc, desc)",
+            "explode": false,
+            "in": "query",
+            "name": "sort_order",
+            "schema": {
+              "description": "Sort direction (asc, desc)",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Return includes logically deleted holders (true,false)",
+            "explode": false,
+            "in": "query",
+            "name": "include_deleted",
+            "schema": {
+              "description": "Return includes logically deleted holders (true,false)",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Filter holders by externalID",
+            "explode": false,
+            "in": "query",
+            "name": "external_id",
+            "schema": {
+              "description": "Filter holders by externalID",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Filter holders by document",
+            "explode": false,
+            "in": "query",
+            "name": "document",
+            "schema": {
+              "description": "Filter holders by document",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Pagination"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "summary": "List Holders",
+        "tags": [
+          "Midaz_Ledger_API_v2_Holders"
+        ]
+      },
+      "post": {
+        "operationId": "createHolderV2",
+        "parameters": [
+          {
+            "description": "Organization ID (UUID)",
+            "in": "path",
+            "name": "organization_id",
+            "required": true,
+            "schema": {
+              "description": "Organization ID (UUID)",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Idempotency key to safely retry the create; an identical retry returns the original holder",
+            "in": "header",
+            "name": "X-Idempotency",
+            "schema": {
+              "description": "Idempotency key to safely retry the create; an identical retry returns the original holder",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Idempotency slot TTL in seconds (default 300)",
+            "in": "header",
+            "name": "X-TTL",
+            "schema": {
+              "description": "Idempotency slot TTL in seconds (default 300)",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "contentMediaType": "application/octet-stream",
+                "format": "binary",
+                "type": "string"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Holder"
+                }
+              }
+            },
+            "description": "Created",
+            "headers": {
+              "X-Idempotency-Replayed": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "summary": "Create a Holder",
+        "tags": [
+          "Midaz_Ledger_API_v2_Holders"
+        ]
+      }
+    },
+    "/v2/organizations/{organization_id}/holders/{holder_id}/instruments": {
+      "servers": [
+        {
+          "url": "/"
+        }
+      ],
+      "post": {
+        "operationId": "createInstrumentV2",
+        "parameters": [
+          {
+            "description": "Organization ID (UUID)",
+            "in": "path",
+            "name": "organization_id",
+            "required": true,
+            "schema": {
+              "description": "Organization ID (UUID)",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Holder ID (UUID)",
+            "in": "path",
+            "name": "holder_id",
+            "required": true,
+            "schema": {
+              "description": "Holder ID (UUID)",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Idempotency key to safely retry the create; an identical retry returns the original instrument",
+            "in": "header",
+            "name": "X-Idempotency",
+            "schema": {
+              "description": "Idempotency key to safely retry the create; an identical retry returns the original instrument",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Idempotency slot TTL in seconds (default 300)",
+            "in": "header",
+            "name": "X-TTL",
+            "schema": {
+              "description": "Idempotency slot TTL in seconds (default 300)",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "contentMediaType": "application/octet-stream",
+                "format": "binary",
+                "type": "string"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Instrument"
+                }
+              }
+            },
+            "description": "Created",
+            "headers": {
+              "X-Idempotency-Replayed": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "summary": "Create an Instrument Account",
+        "tags": [
+          "Midaz_Ledger_API_v2_Instruments"
+        ]
+      }
+    },
+    "/v2/organizations/{organization_id}/holders/{holder_id}/instruments/{instrument_id}": {
+      "servers": [
+        {
+          "url": "/"
+        }
+      ],
+      "delete": {
+        "operationId": "deleteInstrumentV2",
+        "parameters": [
+          {
+            "description": "Organization ID (UUID)",
+            "in": "path",
+            "name": "organization_id",
+            "required": true,
+            "schema": {
+              "description": "Organization ID (UUID)",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Holder ID (UUID)",
+            "in": "path",
+            "name": "holder_id",
+            "required": true,
+            "schema": {
+              "description": "Holder ID (UUID)",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Instrument ID (UUID)",
+            "in": "path",
+            "name": "instrument_id",
+            "required": true,
+            "schema": {
+              "description": "Instrument ID (UUID)",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Use only to perform a physical deletion of the data. This action is irreversible. (true,false)",
+            "explode": false,
+            "in": "query",
+            "name": "hard_delete",
+            "schema": {
+              "description": "Use only to perform a physical deletion of the data. This action is irreversible. (true,false)",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No Content"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "summary": "Delete an Instrument",
+        "tags": [
+          "Midaz_Ledger_API_v2_Instruments"
+        ]
+      },
+      "get": {
+        "operationId": "getInstrumentByIDV2",
+        "parameters": [
+          {
+            "description": "Organization ID (UUID)",
+            "in": "path",
+            "name": "organization_id",
+            "required": true,
+            "schema": {
+              "description": "Organization ID (UUID)",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Holder ID (UUID)",
+            "in": "path",
+            "name": "holder_id",
+            "required": true,
+            "schema": {
+              "description": "Holder ID (UUID)",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Instrument ID (UUID)",
+            "in": "path",
+            "name": "instrument_id",
+            "required": true,
+            "schema": {
+              "description": "Instrument ID (UUID)",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Returns the instrument even if it was logically deleted (true,false)",
+            "explode": false,
+            "in": "query",
+            "name": "include_deleted",
+            "schema": {
+              "description": "Returns the instrument even if it was logically deleted (true,false)",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Instrument"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "summary": "Retrieve Instrument details",
+        "tags": [
+          "Midaz_Ledger_API_v2_Instruments"
+        ]
+      },
+      "patch": {
+        "operationId": "updateInstrumentV2",
+        "parameters": [
+          {
+            "description": "Organization ID (UUID)",
+            "in": "path",
+            "name": "organization_id",
+            "required": true,
+            "schema": {
+              "description": "Organization ID (UUID)",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Holder ID (UUID)",
+            "in": "path",
+            "name": "holder_id",
+            "required": true,
+            "schema": {
+              "description": "Holder ID (UUID)",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Instrument ID (UUID)",
+            "in": "path",
+            "name": "instrument_id",
+            "required": true,
+            "schema": {
+              "description": "Instrument ID (UUID)",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "contentMediaType": "application/octet-stream",
+                "format": "binary",
+                "type": "string"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Instrument"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "summary": "Update an Instrument",
+        "tags": [
+          "Midaz_Ledger_API_v2_Instruments"
+        ]
+      }
+    },
+    "/v2/organizations/{organization_id}/holders/{holder_id}/instruments/{instrument_id}/related-parties/{related_party_id}": {
+      "servers": [
+        {
+          "url": "/"
+        }
+      ],
+      "delete": {
+        "operationId": "deleteRelatedPartyV2",
+        "parameters": [
+          {
+            "description": "Organization ID (UUID)",
+            "in": "path",
+            "name": "organization_id",
+            "required": true,
+            "schema": {
+              "description": "Organization ID (UUID)",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Holder ID (UUID)",
+            "in": "path",
+            "name": "holder_id",
+            "required": true,
+            "schema": {
+              "description": "Holder ID (UUID)",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Instrument ID (UUID)",
+            "in": "path",
+            "name": "instrument_id",
+            "required": true,
+            "schema": {
+              "description": "Instrument ID (UUID)",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Related Party ID (UUID)",
+            "in": "path",
+            "name": "related_party_id",
+            "required": true,
+            "schema": {
+              "description": "Related Party ID (UUID)",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No Content"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "summary": "Delete a Related Party",
+        "tags": [
+          "Midaz_Ledger_API_v2_Instruments"
+        ]
+      }
+    },
+    "/v2/organizations/{organization_id}/holders/{id}": {
+      "servers": [
+        {
+          "url": "/"
+        }
+      ],
+      "delete": {
+        "operationId": "deleteHolderV2",
+        "parameters": [
+          {
+            "description": "Organization ID (UUID)",
+            "in": "path",
+            "name": "organization_id",
+            "required": true,
+            "schema": {
+              "description": "Organization ID (UUID)",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Holder ID (UUID)",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "description": "Holder ID (UUID)",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Use only to perform a physical deletion of the data. This action is irreversible. (true,false)",
+            "explode": false,
+            "in": "query",
+            "name": "hard_delete",
+            "schema": {
+              "description": "Use only to perform a physical deletion of the data. This action is irreversible. (true,false)",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No Content"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "summary": "Delete a Holder",
+        "tags": [
+          "Midaz_Ledger_API_v2_Holders"
+        ]
+      },
+      "get": {
+        "operationId": "getHolderByIDV2",
+        "parameters": [
+          {
+            "description": "Organization ID (UUID)",
+            "in": "path",
+            "name": "organization_id",
+            "required": true,
+            "schema": {
+              "description": "Organization ID (UUID)",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Holder ID (UUID)",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "description": "Holder ID (UUID)",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Returns the holder even if it was logically deleted (true,false)",
+            "explode": false,
+            "in": "query",
+            "name": "include_deleted",
+            "schema": {
+              "description": "Returns the holder even if it was logically deleted (true,false)",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Holder"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "summary": "Retrieve Holder details",
+        "tags": [
+          "Midaz_Ledger_API_v2_Holders"
+        ]
+      },
+      "patch": {
+        "operationId": "updateHolderV2",
+        "parameters": [
+          {
+            "description": "Organization ID (UUID)",
+            "in": "path",
+            "name": "organization_id",
+            "required": true,
+            "schema": {
+              "description": "Organization ID (UUID)",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Holder ID (UUID)",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "description": "Holder ID (UUID)",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "contentMediaType": "application/octet-stream",
+                "format": "binary",
+                "type": "string"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Holder"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "summary": "Update a Holder",
+        "tags": [
+          "Midaz_Ledger_API_v2_Holders"
+        ]
+      }
+    },
+    "/v2/organizations/{organization_id}/holders/{id}/accounts": {
+      "servers": [
+        {
+          "url": "/"
+        }
+      ],
+      "get": {
+        "operationId": "listAccountsByHolderV2",
+        "parameters": [
+          {
+            "description": "Organization ID (UUID)",
+            "in": "path",
+            "name": "organization_id",
+            "required": true,
+            "schema": {
+              "description": "Organization ID (UUID)",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Holder ID (UUID)",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "description": "Holder ID (UUID)",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Max items per page (1-100, default 10)",
+            "explode": false,
+            "in": "query",
+            "name": "limit",
+            "schema": {
+              "description": "Max items per page (1-100, default 10)",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Page number (default 1)",
+            "explode": false,
+            "in": "query",
+            "name": "page",
+            "schema": {
+              "description": "Page number (default 1)",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Sort direction (asc, desc)",
+            "explode": false,
+            "in": "query",
+            "name": "sort_order",
+            "schema": {
+              "description": "Sort direction (asc, desc)",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Pagination"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "summary": "List Accounts by Holder",
+        "tags": [
+          "Midaz_Ledger_API_v2_Holders"
+        ]
+      }
+    },
+    "/v2/organizations/{organization_id}/instruments": {
+      "servers": [
+        {
+          "url": "/"
+        }
+      ],
+      "get": {
+        "operationId": "listInstrumentsV2",
+        "parameters": [
+          {
+            "description": "Organization ID (UUID)",
+            "in": "path",
+            "name": "organization_id",
+            "required": true,
+            "schema": {
+              "description": "Organization ID (UUID)",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Filter instruments by holder ID (UUID)",
+            "explode": false,
+            "in": "query",
+            "name": "holder_id",
+            "schema": {
+              "description": "Filter instruments by holder ID (UUID)",
+              "type": "string"
+            }
+          },
+          {
+            "description": "JSON string to filter instruments by metadata fields",
+            "explode": false,
+            "in": "query",
+            "name": "metadata",
+            "schema": {
+              "description": "JSON string to filter instruments by metadata fields",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Max items per page (1-100, default 10)",
+            "explode": false,
+            "in": "query",
+            "name": "limit",
+            "schema": {
+              "description": "Max items per page (1-100, default 10)",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Page number (default 1)",
+            "explode": false,
+            "in": "query",
+            "name": "page",
+            "schema": {
+              "description": "Page number (default 1)",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Sort direction (asc, desc)",
+            "explode": false,
+            "in": "query",
+            "name": "sort_order",
+            "schema": {
+              "description": "Sort direction (asc, desc)",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Return includes logically deleted instruments (true,false)",
+            "explode": false,
+            "in": "query",
+            "name": "include_deleted",
+            "schema": {
+              "description": "Return includes logically deleted instruments (true,false)",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Filter instrument by accountID",
+            "explode": false,
+            "in": "query",
+            "name": "account_id",
+            "schema": {
+              "description": "Filter instrument by accountID",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Filter instrument by ledgerID",
+            "explode": false,
+            "in": "query",
+            "name": "ledger_id",
+            "schema": {
+              "description": "Filter instrument by ledgerID",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Filter instrument by document",
+            "explode": false,
+            "in": "query",
+            "name": "document",
+            "schema": {
+              "description": "Filter instrument by document",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Pagination"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "summary": "List Instruments",
+        "tags": [
+          "Midaz_Ledger_API_v2_Instruments"
+        ]
+      }
+    },
+    "/v2/organizations/{organization_id}/ledgers/{ledger_id}/billing-packages": {
+      "servers": [
+        {
+          "url": "/"
+        }
+      ],
+      "get": {
+        "operationId": "getAllBillingPackagesV2",
+        "parameters": [
+          {
+            "description": "Organization ID (UUID)",
+            "in": "path",
+            "name": "organization_id",
+            "required": true,
+            "schema": {
+              "description": "Organization ID (UUID)",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Ledger ID (UUID)",
+            "in": "path",
+            "name": "ledger_id",
+            "required": true,
+            "schema": {
+              "description": "Ledger ID (UUID)",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Filter by billing package type (volume, maintenance)",
+            "explode": false,
+            "in": "query",
+            "name": "type",
+            "schema": {
+              "description": "Filter by billing package type (volume, maintenance)",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Number of items per page (default 10)",
+            "explode": false,
+            "in": "query",
+            "name": "limit",
+            "schema": {
+              "description": "Number of items per page (default 10)",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Page number (default 1)",
+            "explode": false,
+            "in": "query",
+            "name": "page",
+            "schema": {
+              "description": "Page number (default 1)",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FeePagination"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "summary": "Get all billing packages of a ledger",
+        "tags": [
+          "Midaz_Ledger_API_v2_Billing Packages"
+        ]
+      },
+      "post": {
+        "operationId": "createBillingPackageV2",
+        "parameters": [
+          {
+            "description": "Organization ID (UUID)",
+            "in": "path",
+            "name": "organization_id",
+            "required": true,
+            "schema": {
+              "description": "Organization ID (UUID)",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Ledger ID (UUID)",
+            "in": "path",
+            "name": "ledger_id",
+            "required": true,
+            "schema": {
+              "description": "Ledger ID (UUID)",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "contentMediaType": "application/octet-stream",
+                "format": "binary",
+                "type": "string"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FeeBillingPackage"
+                }
+              }
+            },
+            "description": "Created"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "summary": "Create a BillingPackage",
+        "tags": [
+          "Midaz_Ledger_API_v2_Billing Packages"
+        ]
+      }
+    },
+    "/v2/organizations/{organization_id}/ledgers/{ledger_id}/billing-packages/{id}": {
+      "servers": [
+        {
+          "url": "/"
+        }
+      ],
+      "delete": {
+        "operationId": "deleteBillingPackageV2",
+        "parameters": [
+          {
+            "description": "Organization ID (UUID)",
+            "in": "path",
+            "name": "organization_id",
+            "required": true,
+            "schema": {
+              "description": "Organization ID (UUID)",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Ledger ID (UUID)",
+            "in": "path",
+            "name": "ledger_id",
+            "required": true,
+            "schema": {
+              "description": "Ledger ID (UUID)",
+              "type": "string"
+            }
+          },
+          {
+            "description": "BillingPackage ID (UUID)",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "description": "BillingPackage ID (UUID)",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No Content"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "summary": "SoftDelete a BillingPackage by ID",
+        "tags": [
+          "Midaz_Ledger_API_v2_Billing Packages"
+        ]
+      },
+      "get": {
+        "operationId": "getBillingPackageByIDV2",
+        "parameters": [
+          {
+            "description": "Organization ID (UUID)",
+            "in": "path",
+            "name": "organization_id",
+            "required": true,
+            "schema": {
+              "description": "Organization ID (UUID)",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Ledger ID (UUID)",
+            "in": "path",
+            "name": "ledger_id",
+            "required": true,
+            "schema": {
+              "description": "Ledger ID (UUID)",
+              "type": "string"
+            }
+          },
+          {
+            "description": "BillingPackage ID (UUID)",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "description": "BillingPackage ID (UUID)",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FeeBillingPackage"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "summary": "Get billing package",
+        "tags": [
+          "Midaz_Ledger_API_v2_Billing Packages"
+        ]
+      },
+      "patch": {
+        "operationId": "updateBillingPackageV2",
+        "parameters": [
+          {
+            "description": "Organization ID (UUID)",
+            "in": "path",
+            "name": "organization_id",
+            "required": true,
+            "schema": {
+              "description": "Organization ID (UUID)",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Ledger ID (UUID)",
+            "in": "path",
+            "name": "ledger_id",
+            "required": true,
+            "schema": {
+              "description": "Ledger ID (UUID)",
+              "type": "string"
+            }
+          },
+          {
+            "description": "BillingPackage ID (UUID)",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "description": "BillingPackage ID (UUID)",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "contentMediaType": "application/octet-stream",
+                "format": "binary",
+                "type": "string"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FeeBillingPackage"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "summary": "Update a billing package",
+        "tags": [
+          "Midaz_Ledger_API_v2_Billing Packages"
+        ]
+      }
+    },
+    "/v2/organizations/{organization_id}/ledgers/{ledger_id}/billing/calculate": {
+      "servers": [
+        {
+          "url": "/"
+        }
+      ],
+      "post": {
+        "operationId": "calculateBillingV2",
+        "parameters": [
+          {
+            "description": "Organization ID (UUID)",
+            "in": "path",
+            "name": "organization_id",
+            "required": true,
+            "schema": {
+              "description": "Organization ID (UUID)",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Ledger ID (UUID)",
+            "in": "path",
+            "name": "ledger_id",
+            "required": true,
+            "schema": {
+              "description": "Ledger ID (UUID)",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "contentMediaType": "application/octet-stream",
+                "format": "binary",
+                "type": "string"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FeeBillingCalculateResponse"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "summary": "Calculate billing",
+        "tags": [
+          "Midaz_Ledger_API_v2_Billing Calculate"
+        ]
+      }
+    },
+    "/v2/organizations/{organization_id}/ledgers/{ledger_id}/estimates": {
+      "servers": [
+        {
+          "url": "/"
+        }
+      ],
+      "post": {
+        "operationId": "estimateFeeCalculationV2",
+        "parameters": [
+          {
+            "description": "Organization ID (UUID)",
+            "in": "path",
+            "name": "organization_id",
+            "required": true,
+            "schema": {
+              "description": "Organization ID (UUID)",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Ledger ID (UUID)",
+            "in": "path",
+            "name": "ledger_id",
+            "required": true,
+            "schema": {
+              "description": "Ledger ID (UUID)",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "contentMediaType": "application/octet-stream",
+                "format": "binary",
+                "type": "string"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "contentEncoding": "base64",
+                  "type": "string"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "summary": "Create a fee estimate calculation",
+        "tags": [
+          "Midaz_Ledger_API_v2_Fees"
+        ]
+      }
+    },
+    "/v2/organizations/{organization_id}/ledgers/{ledger_id}/packages": {
+      "servers": [
+        {
+          "url": "/"
+        }
+      ],
+      "get": {
+        "operationId": "getAllPackagesV2",
+        "parameters": [
+          {
+            "description": "Organization ID (UUID)",
+            "in": "path",
+            "name": "organization_id",
+            "required": true,
+            "schema": {
+              "description": "Organization ID (UUID)",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Ledger ID (UUID)",
+            "in": "path",
+            "name": "ledger_id",
+            "required": true,
+            "schema": {
+              "description": "Ledger ID (UUID)",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Filter by segment ID (UUID)",
+            "explode": false,
+            "in": "query",
+            "name": "segmentId",
+            "schema": {
+              "description": "Filter by segment ID (UUID)",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Filter by transaction route",
+            "explode": false,
+            "in": "query",
+            "name": "transactionRoute",
+            "schema": {
+              "description": "Filter by transaction route",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Filter by enabled flag (true, false)",
+            "explode": false,
+            "in": "query",
+            "name": "enable",
+            "schema": {
+              "description": "Filter by enabled flag (true, false)",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Number of items per page (default 10)",
+            "explode": false,
+            "in": "query",
+            "name": "limit",
+            "schema": {
+              "description": "Number of items per page (default 10)",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Page number (default 1)",
+            "explode": false,
+            "in": "query",
+            "name": "page",
+            "schema": {
+              "description": "Page number (default 1)",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FeePagination"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "summary": "Get all packages of a ledger",
+        "tags": [
+          "Midaz_Ledger_API_v2_Packages"
+        ]
+      },
+      "post": {
+        "operationId": "createPackageV2",
+        "parameters": [
+          {
+            "description": "Organization ID (UUID)",
+            "in": "path",
+            "name": "organization_id",
+            "required": true,
+            "schema": {
+              "description": "Organization ID (UUID)",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Ledger ID (UUID)",
+            "in": "path",
+            "name": "ledger_id",
+            "required": true,
+            "schema": {
+              "description": "Ledger ID (UUID)",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "contentMediaType": "application/octet-stream",
+                "format": "binary",
+                "type": "string"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FeePackage"
+                }
+              }
+            },
+            "description": "Created"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "summary": "Create a Package",
+        "tags": [
+          "Midaz_Ledger_API_v2_Packages"
+        ]
+      }
+    },
+    "/v2/organizations/{organization_id}/ledgers/{ledger_id}/packages/{id}": {
+      "servers": [
+        {
+          "url": "/"
+        }
+      ],
+      "delete": {
+        "operationId": "deletePackageV2",
+        "parameters": [
+          {
+            "description": "Organization ID (UUID)",
+            "in": "path",
+            "name": "organization_id",
+            "required": true,
+            "schema": {
+              "description": "Organization ID (UUID)",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Ledger ID (UUID)",
+            "in": "path",
+            "name": "ledger_id",
+            "required": true,
+            "schema": {
+              "description": "Ledger ID (UUID)",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Package ID (UUID)",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "description": "Package ID (UUID)",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No Content"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "summary": "SoftDelete a Package by ID",
+        "tags": [
+          "Midaz_Ledger_API_v2_Packages"
+        ]
+      },
+      "get": {
+        "operationId": "getPackageByIDV2",
+        "parameters": [
+          {
+            "description": "Organization ID (UUID)",
+            "in": "path",
+            "name": "organization_id",
+            "required": true,
+            "schema": {
+              "description": "Organization ID (UUID)",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Ledger ID (UUID)",
+            "in": "path",
+            "name": "ledger_id",
+            "required": true,
+            "schema": {
+              "description": "Ledger ID (UUID)",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Package ID (UUID)",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "description": "Package ID (UUID)",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FeePackage"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "summary": "Get package",
+        "tags": [
+          "Midaz_Ledger_API_v2_Packages"
+        ]
+      },
+      "patch": {
+        "operationId": "updatePackageV2",
+        "parameters": [
+          {
+            "description": "Organization ID (UUID)",
+            "in": "path",
+            "name": "organization_id",
+            "required": true,
+            "schema": {
+              "description": "Organization ID (UUID)",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Ledger ID (UUID)",
+            "in": "path",
+            "name": "ledger_id",
+            "required": true,
+            "schema": {
+              "description": "Ledger ID (UUID)",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Package ID (UUID)",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "description": "Package ID (UUID)",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "contentMediaType": "application/octet-stream",
+                "format": "binary",
+                "type": "string"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FeePackage"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "summary": "Update a package",
+        "tags": [
+          "Midaz_Ledger_API_v2_Packages"
+        ]
+      }
+    },
     "/v2/organizations/{organization_id}/ledgers/{ledger_id}/transactions/block": {
       "servers": [
         {
@@ -9448,9 +11577,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "contentMediaType": "application/octet-stream",
-                "format": "binary",
-                "type": "string"
+                "$ref": "#/components/schemas/CreateTransactionV2Input"
               }
             }
           },
@@ -9548,9 +11675,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "contentMediaType": "application/octet-stream",
-                "format": "binary",
-                "type": "string"
+                "$ref": "#/components/schemas/CreateTransactionV2Input"
               }
             }
           },
@@ -9648,9 +11773,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "contentMediaType": "application/octet-stream",
-                "format": "binary",
-                "type": "string"
+                "$ref": "#/components/schemas/CreateTransactionV2Input"
               }
             }
           },
@@ -9748,9 +11871,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "contentMediaType": "application/octet-stream",
-                "format": "binary",
-                "type": "string"
+                "$ref": "#/components/schemas/CreateTransactionV2Input"
               }
             }
           },
@@ -10019,6 +12140,148 @@
         "summary": "Revert a Transaction (v2)",
         "tags": [
           "Midaz_Ledger_API_v2_Transactions"
+        ]
+      }
+    },
+    "/v2/organizations/{organization_id}/protection/audit": {
+      "servers": [
+        {
+          "url": "/"
+        }
+      ],
+      "get": {
+        "operationId": "getAuditEventsV2",
+        "parameters": [
+          {
+            "description": "Organization ID (UUID)",
+            "in": "path",
+            "name": "organization_id",
+            "required": true,
+            "schema": {
+              "description": "Organization ID (UUID)",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Bearer token; only required when the auth plugin is enabled",
+            "in": "header",
+            "name": "Authorization",
+            "schema": {
+              "description": "Bearer token; only required when the auth plugin is enabled",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Maximum number of events to return (default 20)",
+            "explode": false,
+            "in": "query",
+            "name": "limit",
+            "schema": {
+              "description": "Maximum number of events to return (default 20)",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Opaque pagination cursor",
+            "explode": false,
+            "in": "query",
+            "name": "cursor",
+            "schema": {
+              "description": "Opaque pagination cursor",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Sort order: asc or desc (default desc)",
+            "explode": false,
+            "in": "query",
+            "name": "sort_order",
+            "schema": {
+              "description": "Sort order: asc or desc (default desc)",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Filter by action",
+            "explode": false,
+            "in": "query",
+            "name": "action",
+            "schema": {
+              "description": "Filter by action",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Filter by actor",
+            "explode": false,
+            "in": "query",
+            "name": "actor",
+            "schema": {
+              "description": "Filter by actor",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Filter by outcome: success, failure, or already_exists",
+            "explode": false,
+            "in": "query",
+            "name": "outcome",
+            "schema": {
+              "description": "Filter by outcome: success, failure, or already_exists",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Inclusive lower time bound (yyyy-mm-dd or RFC3339)",
+            "explode": false,
+            "in": "query",
+            "name": "start_date",
+            "schema": {
+              "description": "Inclusive lower time bound (yyyy-mm-dd or RFC3339)",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Inclusive upper time bound (yyyy-mm-dd or RFC3339)",
+            "explode": false,
+            "in": "query",
+            "name": "end_date",
+            "schema": {
+              "description": "Inclusive upper time bound (yyyy-mm-dd or RFC3339)",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuditEventsEnvelope"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "summary": "List Protection Audit Events",
+        "tags": [
+          "Midaz_Ledger_API_v2_Protection"
         ]
       }
     },
@@ -10530,7 +12793,7 @@
           "required": true
         },
         "responses": {
-          "200": {
+          "201": {
             "content": {
               "application/json": {
                 "schema": {
@@ -10538,7 +12801,7 @@
                 }
               }
             },
-            "description": "OK"
+            "description": "Created"
           },
           "default": {
             "content": {
@@ -10939,7 +13202,7 @@
           "required": true
         },
         "responses": {
-          "200": {
+          "201": {
             "content": {
               "application/json": {
                 "schema": {
@@ -10947,7 +13210,7 @@
                 }
               }
             },
-            "description": "OK"
+            "description": "Created"
           },
           "default": {
             "content": {
@@ -11363,7 +13626,7 @@
           "required": true
         },
         "responses": {
-          "200": {
+          "201": {
             "content": {
               "application/json": {
                 "schema": {
@@ -11371,7 +13634,7 @@
                 }
               }
             },
-            "description": "OK"
+            "description": "Created"
           },
           "default": {
             "content": {
@@ -13890,7 +16153,7 @@
           },
           "document": {
             "examples": [
-              "91315026015"
+              "12345678900"
             ],
             "maxLength": 100,
             "type": "string"
@@ -14025,7 +16288,7 @@
           },
           "document": {
             "examples": [
-              "91315026015"
+              "12345678900"
             ],
             "maxLength": 100,
             "type": "string"
@@ -15138,7 +17401,7 @@
         "properties": {
           "document": {
             "examples": [
-              "91315026015"
+              "12345678900"
             ],
             "maxLength": 100,
             "type": "string"
@@ -15608,6 +17871,124 @@
             "type": "string"
           }
         },
+        "type": "object"
+      },
+      "CreateTransactionV2Input": {
+        "additionalProperties": false,
+        "description": "Transaction request body. Each side of the transaction is spelled EITHER with its scalar field (`from`, `to`) OR with its leg array (`sources`, `destinations`) — never both on the same side, though the two sides may choose differently. Leave the spelling you are not using OUT of the body: on `from` and `to` an explicit `null` is rejected. `asset`, `amount`, `description`, `code`, `routeId`, `operationRouteId` and `metadata` are common to both forms, and `amount` is always the transaction total that the legs' `share` expressions divide. Each leg array holds at most 500 legs.",
+        "properties": {
+          "amount": {
+            "type": "string"
+          },
+          "asset": {
+            "type": "string"
+          },
+          "code": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "destinations": {
+            "items": {
+              "$ref": "#/components/schemas/V2LegInput"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          },
+          "from": {
+            "type": "string"
+          },
+          "metadata": {
+            "additionalProperties": {},
+            "type": "object"
+          },
+          "operationRouteId": {
+            "examples": [
+              "00000000-0000-0000-0000-000000000000"
+            ],
+            "format": "uuid",
+            "type": "string"
+          },
+          "routeId": {
+            "examples": [
+              "00000000-0000-0000-0000-000000000000"
+            ],
+            "format": "uuid",
+            "type": "string"
+          },
+          "sources": {
+            "items": {
+              "$ref": "#/components/schemas/V2LegInput"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          },
+          "to": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "asset",
+          "amount"
+        ],
+        "type": "object"
+      },
+      "V2LegInput": {
+        "additionalProperties": false,
+        "description": "One leg of a transaction side. Fill EXACTLY ONE value expression per leg: `amount` for an explicit value, or `share` for a percentage of the transaction total. A leg carrying both, or neither, is rejected.",
+        "properties": {
+          "account": {
+            "type": "string"
+          },
+          "amount": {
+            "type": "string"
+          },
+          "operationRouteId": {
+            "examples": [
+              "00000000-0000-0000-0000-000000000000"
+            ],
+            "format": "uuid",
+            "type": "string"
+          },
+          "share": {
+            "$ref": "#/components/schemas/V2ShareInput"
+          }
+        },
+        "required": [
+          "account"
+        ],
+        "type": "object"
+      },
+      "V2ShareInput": {
+        "additionalProperties": false,
+        "properties": {
+          "percentage": {
+            "examples": [
+              60
+            ],
+            "format": "int64",
+            "maximum": 100,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "percentageOfPercentage": {
+            "examples": [
+              50
+            ],
+            "format": "int64",
+            "maximum": 100,
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "percentage"
+        ],
         "type": "object"
       },
       "AccountContext": {
@@ -16881,7 +19262,15 @@
     {
       "name": "Midaz Ledger API v2",
       "tags": [
-        "Midaz_Ledger_API_v2_Transactions"
+        "Midaz_Ledger_API_v2_Encryption",
+        "Midaz_Ledger_API_v2_Holders",
+        "Midaz_Ledger_API_v2_Instruments",
+        "Midaz_Ledger_API_v2_Billing Packages",
+        "Midaz_Ledger_API_v2_Billing Calculate",
+        "Midaz_Ledger_API_v2_Fees",
+        "Midaz_Ledger_API_v2_Packages",
+        "Midaz_Ledger_API_v2_Transactions",
+        "Midaz_Ledger_API_v2_Protection"
       ]
     },
     {

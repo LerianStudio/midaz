@@ -98,7 +98,7 @@ func TestUpdateBillingPackage_EmitsUpdatedEvent(t *testing.T) {
 	ledgerID := "33333333-3333-3333-3333-333333333333"
 
 	mockRepo.EXPECT().
-		Update(gomock.Any(), bpID.String(), orgID.String(), gomock.Any()).
+		Update(gomock.Any(), bpID.String(), orgID.String(), gomock.Eq(billing_package.AnyLedger), gomock.Any()).
 		Return(&model.BillingPackage{
 			ID:             bpID.String(),
 			OrganizationID: orgID.String(),
@@ -108,7 +108,7 @@ func TestUpdateBillingPackage_EmitsUpdatedEvent(t *testing.T) {
 			UpdatedAt:      "2026-01-02T00:00:00Z",
 		}, nil)
 
-	result, err := svc.UpdateBillingPackage(context.Background(), bpID, orgID, map[string]any{"label": "Updated"})
+	result, err := svc.UpdateBillingPackage(context.Background(), bpID, orgID, uuid.Nil, map[string]any{"label": "Updated"})
 	require.NoError(t, err)
 	require.NotNil(t, result)
 
@@ -139,7 +139,7 @@ func TestDeleteBillingPackage_EmitsDeletedEvent(t *testing.T) {
 	ledgerID := "33333333-3333-3333-3333-333333333333"
 
 	mockRepo.EXPECT().
-		FindByID(gomock.Any(), bpID.String(), orgID.String()).
+		FindByID(gomock.Any(), bpID.String(), orgID.String(), gomock.Eq(billing_package.AnyLedger)).
 		Return(&model.BillingPackage{
 			ID:             bpID.String(),
 			OrganizationID: orgID.String(),
@@ -147,10 +147,10 @@ func TestDeleteBillingPackage_EmitsDeletedEvent(t *testing.T) {
 		}, nil)
 
 	mockRepo.EXPECT().
-		SoftDelete(gomock.Any(), bpID.String(), orgID.String()).
+		SoftDelete(gomock.Any(), bpID.String(), orgID.String(), gomock.Eq(billing_package.AnyLedger)).
 		Return(nil)
 
-	err := svc.DeleteBillingPackage(context.Background(), bpID, orgID)
+	err := svc.DeleteBillingPackage(context.Background(), bpID, orgID, uuid.Nil)
 	require.NoError(t, err)
 
 	pkgStreaming.AssertEventEmitted(t, mock, "fee-billing-packages", "deleted")
@@ -179,14 +179,14 @@ func TestDeleteBillingPackage_FindByIDFails_StillDeletesNoEmit(t *testing.T) {
 	bpID := uuid.MustParse("22222222-2222-2222-2222-222222222222")
 
 	mockRepo.EXPECT().
-		FindByID(gomock.Any(), bpID.String(), orgID.String()).
+		FindByID(gomock.Any(), bpID.String(), orgID.String(), gomock.Eq(billing_package.AnyLedger)).
 		Return(nil, assert.AnError)
 
 	mockRepo.EXPECT().
-		SoftDelete(gomock.Any(), bpID.String(), orgID.String()).
+		SoftDelete(gomock.Any(), bpID.String(), orgID.String(), gomock.Eq(billing_package.AnyLedger)).
 		Return(nil)
 
-	err := svc.DeleteBillingPackage(context.Background(), bpID, orgID)
+	err := svc.DeleteBillingPackage(context.Background(), bpID, orgID, uuid.Nil)
 	require.NoError(t, err)
 
 	assert.Empty(t, mock.Events())
@@ -202,7 +202,7 @@ func TestBillingPackage_NilAndNoopEmitter_NoPanic(t *testing.T) {
 		svc, mockRepo, _ := newTestBillingPackageService(t)
 
 		mockRepo.EXPECT().
-			Update(gomock.Any(), bpID.String(), orgID.String(), gomock.Any()).
+			Update(gomock.Any(), bpID.String(), orgID.String(), gomock.Eq(billing_package.AnyLedger), gomock.Any()).
 			Return(&model.BillingPackage{
 				ID:             bpID.String(),
 				OrganizationID: orgID.String(),
@@ -211,7 +211,7 @@ func TestBillingPackage_NilAndNoopEmitter_NoPanic(t *testing.T) {
 			}, nil)
 
 		mockRepo.EXPECT().
-			FindByID(gomock.Any(), bpID.String(), orgID.String()).
+			FindByID(gomock.Any(), bpID.String(), orgID.String(), gomock.Eq(billing_package.AnyLedger)).
 			Return(&model.BillingPackage{
 				ID:             bpID.String(),
 				OrganizationID: orgID.String(),
@@ -219,7 +219,7 @@ func TestBillingPackage_NilAndNoopEmitter_NoPanic(t *testing.T) {
 			}, nil)
 
 		mockRepo.EXPECT().
-			SoftDelete(gomock.Any(), bpID.String(), orgID.String()).
+			SoftDelete(gomock.Any(), bpID.String(), orgID.String(), gomock.Eq(billing_package.AnyLedger)).
 			Return(nil)
 
 		return svc, mockRepo
@@ -231,10 +231,10 @@ func TestBillingPackage_NilAndNoopEmitter_NoPanic(t *testing.T) {
 		svc, _ := setup(t)
 		// Streaming stays nil (default).
 
-		_, err := svc.UpdateBillingPackage(context.Background(), bpID, orgID, map[string]any{"label": "x"})
+		_, err := svc.UpdateBillingPackage(context.Background(), bpID, orgID, uuid.Nil, map[string]any{"label": "x"})
 		require.NoError(t, err)
 
-		require.NoError(t, svc.DeleteBillingPackage(context.Background(), bpID, orgID))
+		require.NoError(t, svc.DeleteBillingPackage(context.Background(), bpID, orgID, uuid.Nil))
 	})
 
 	t.Run("noop emitter", func(t *testing.T) {
@@ -243,9 +243,9 @@ func TestBillingPackage_NilAndNoopEmitter_NoPanic(t *testing.T) {
 		svc, _ := setup(t)
 		svc.Streaming = libStreaming.NewNoopEmitter()
 
-		_, err := svc.UpdateBillingPackage(context.Background(), bpID, orgID, map[string]any{"label": "x"})
+		_, err := svc.UpdateBillingPackage(context.Background(), bpID, orgID, uuid.Nil, map[string]any{"label": "x"})
 		require.NoError(t, err)
 
-		require.NoError(t, svc.DeleteBillingPackage(context.Background(), bpID, orgID))
+		require.NoError(t, svc.DeleteBillingPackage(context.Background(), bpID, orgID, uuid.Nil))
 	})
 }

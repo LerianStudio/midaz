@@ -34,8 +34,10 @@ import (
 
 var ErrDatabaseItemNotFound = errors.New("errDatabaseItemNotFound")
 
-// UpdatePackageByID update an example from the repository.
-func (uc *UseCase) UpdatePackageByID(ctx context.Context, id, organizationID uuid.UUID, up *model.UpdatePackageInput) (err error) {
+// UpdatePackageByID update an example from the repository within the given ledger.
+// A ledgerID of uuid.Nil updates the package on whichever ledger of the
+// organization owns it.
+func (uc *UseCase) UpdatePackageByID(ctx context.Context, id, organizationID, ledgerID uuid.UUID, up *model.UpdatePackageInput) (err error) {
 	logger, tracer, reqId, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "service.update_package_by_id")
@@ -51,9 +53,10 @@ func (uc *UseCase) UpdatePackageByID(ctx context.Context, id, organizationID uui
 		attribute.String("app.request.request_id", reqId),
 		attribute.String("app.request.organization_id", organizationID.String()),
 		attribute.String("app.request.package_id", id.String()),
+		attribute.Bool("app.request.has_ledger_id", ledgerID != uuid.Nil),
 	)
 
-	setOperationFields, unsetOperationFields, ledgerID, errUpdateFields := uc.buildUpdateFields(ctx, logger, id, organizationID, up)
+	setOperationFields, unsetOperationFields, ownerLedgerID, errUpdateFields := uc.buildUpdateFields(ctx, logger, id, organizationID, ledgerID, up)
 	if errUpdateFields != nil {
 		return errUpdateFields
 	}
@@ -67,7 +70,7 @@ func (uc *UseCase) UpdatePackageByID(ctx context.Context, id, organizationID uui
 		updateFields["$unset"] = unsetOperationFields
 	}
 
-	updatedPackage, err := uc.packageRepo.Update(ctx, id, organizationID, &updateFields)
+	updatedPackage, err := uc.packageRepo.Update(ctx, id, organizationID, ledgerID, &updateFields)
 	if err != nil {
 		if errors.Is(err, ErrDatabaseItemNotFound) {
 			bizErr := pkg.ValidateBusinessError(constant.ErrEntityNotFound, constant.EntityPackage)
@@ -83,9 +86,9 @@ func (uc *UseCase) UpdatePackageByID(ctx context.Context, id, organizationID uui
 
 	// Invalidate the cached enabled-package set for this (org,ledger): an update
 	// can change amounts, fees, waivers, or the enable flag, all of which the
-	// cached set carries. The ledger is the one resolved while building the
-	// update fields.
-	uc.invalidatePackageCache(ctx, logger, organizationID, ledgerID)
+	// cached set carries. The ledger is the owning one resolved while building the
+	// update fields, which under organization scope is the only place it appears.
+	uc.invalidatePackageCache(ctx, logger, organizationID, ownerLedgerID)
 
 	uc.emitFeesPackageUpdatedEvent(ctx, span, logger, updatedPackage, organizationID)
 
@@ -107,7 +110,13 @@ func (uc *UseCase) emitFeesPackageUpdatedEvent(ctx context.Context, span trace.S
 // buildUpdateFields Build the fields that will be updated. It also returns the
 // package's ledger ID (resolved from the existing document) so the caller can
 // invalidate the per-(org,ledger) package cache after the update commits.
-func (uc *UseCase) buildUpdateFields(ctx context.Context, logger libLog.Logger, packageID, organizationID uuid.UUID, up *model.UpdatePackageInput) (bson.M, bson.M, uuid.UUID, error) {
+//
+// ledgerID is the ledger the caller is acting within, or uuid.Nil for organization
+// scope. A package owned by a different ledger is rejected as absent here rather
+// than by the write, because the validations below read and answer from the owning
+// ledger — its accounts, its amount range — and must not run for a caller that is
+// not entitled to it.
+func (uc *UseCase) buildUpdateFields(ctx context.Context, logger libLog.Logger, packageID, organizationID, ledgerID uuid.UUID, up *model.UpdatePackageInput) (bson.M, bson.M, uuid.UUID, error) {
 	setFields := bson.M{}
 	unsetFields := bson.M{}
 
@@ -117,12 +126,19 @@ func (uc *UseCase) buildUpdateFields(ctx context.Context, logger libLog.Logger, 
 		return nil, nil, uuid.Nil, errFindFees
 	}
 
-	ledgerID := feesAmountData.LedgerID
+	// The envelope is the one the lookup above produces for an id that exists
+	// nowhere, down to the entity type: two 404s that differ in any rendered field
+	// let a caller tell "exists on a ledger you cannot reach" from "does not exist".
+	if ledgerID != uuid.Nil && feesAmountData.LedgerID != ledgerID {
+		return nil, nil, uuid.Nil, pkg.ValidateBusinessError(constant.ErrEntityNotFound, "", "Package")
+	}
+
+	ownerLedgerID := feesAmountData.LedgerID
 
 	// Update amounts
 	if up.MinAmount != nil || up.MaxAmount != nil {
 		if errSetAmounts := uc.SetAmountsDataToUpdate(ctx, logger, up, feesAmountData, organizationID, &packageID, setFields); errSetAmounts != nil {
-			return nil, nil, ledgerID, errSetAmounts
+			return nil, nil, ownerLedgerID, errSetAmounts
 		}
 	}
 
@@ -146,17 +162,17 @@ func (uc *UseCase) buildUpdateFields(ctx context.Context, logger libLog.Logger, 
 	if up.Fee != nil {
 		errValidationFeesSet := uc.validationFeesSetUnset(ctx, feesAmountData.MinAmount, organizationID, feesAmountData.LedgerID, feesAmountData.Fees, up.Fee, setFields, unsetFields)
 		if errValidationFeesSet != nil {
-			return nil, nil, ledgerID, errValidationFeesSet
+			return nil, nil, ownerLedgerID, errValidationFeesSet
 		}
 	}
 
 	if len(setFields) == 0 && len(unsetFields) == 0 {
-		return setFields, unsetFields, ledgerID, pkg.ValidateBusinessError(constant.ErrNothingToUpdate, constant.EntityPackage)
+		return setFields, unsetFields, ownerLedgerID, pkg.ValidateBusinessError(constant.ErrNothingToUpdate, constant.EntityPackage)
 	}
 
 	setFields["updated_at"] = time.Now()
 
-	return setFields, unsetFields, ledgerID, nil
+	return setFields, unsetFields, ownerLedgerID, nil
 }
 
 // validationFeesSetUnset Validate the fee struct to update correctly

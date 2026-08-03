@@ -62,7 +62,7 @@ func TestGetPackageByID(t *testing.T) {
 			orgId:     orgId,
 			mockSetup: func() {
 				mockPackRepo.EXPECT().
-					FindByID(gomock.Any(), gomock.Any(), gomock.Any()).
+					FindByID(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Eq(uuid.Nil)).
 					Return(resultEntity, nil)
 			},
 			expectErr: false,
@@ -84,7 +84,7 @@ func TestGetPackageByID(t *testing.T) {
 			orgId:     orgId,
 			mockSetup: func() {
 				mockPackRepo.EXPECT().
-					FindByID(gomock.Any(), gomock.Any(), gomock.Any()).
+					FindByID(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Eq(uuid.Nil)).
 					Return(nil, constant.ErrBadRequest)
 			},
 			expectErr:      true,
@@ -97,7 +97,7 @@ func TestGetPackageByID(t *testing.T) {
 			orgId:     orgId,
 			mockSetup: func() {
 				mockPackRepo.EXPECT().
-					FindByID(gomock.Any(), gomock.Any(), gomock.Any()).
+					FindByID(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Eq(uuid.Nil)).
 					Return(nil, mongo.ErrNoDocuments)
 			},
 			expectErr:      true,
@@ -112,7 +112,7 @@ func TestGetPackageByID(t *testing.T) {
 			tt.mockSetup()
 
 			ctx := context.Background()
-			result, err := packSvc.GetPackageByID(ctx, tt.packageId, tt.orgId)
+			result, err := packSvc.GetPackageByID(ctx, tt.packageId, tt.orgId, uuid.Nil)
 
 			if tt.expectErr {
 				assert.Error(t, err)

@@ -86,25 +86,25 @@ func TestRecordDomainOperation_Fees(t *testing.T) {
 
 	// Success path.
 	mockPackRepo.EXPECT().
-		FindByID(gomock.Any(), gomock.Any(), gomock.Any()).
+		FindByID(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Eq(uuid.Nil)).
 		Return(&pack.Package{ID: packID, LedgerID: uuid.New()}, nil)
 
 	mockPackRepo.EXPECT().
-		SoftDelete(gomock.Any(), gomock.Any(), gomock.Any()).
+		SoftDelete(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Eq(uuid.Nil)).
 		Return(nil)
 
-	require.NoError(t, uc.DeletePackageByID(ctx, packID, orgID))
+	require.NoError(t, uc.DeletePackageByID(ctx, packID, orgID, uuid.Nil))
 
 	// Technical-error path.
 	mockPackRepo.EXPECT().
-		FindByID(gomock.Any(), gomock.Any(), gomock.Any()).
+		FindByID(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Eq(uuid.Nil)).
 		Return(&pack.Package{ID: packID, LedgerID: uuid.New()}, nil)
 
 	mockPackRepo.EXPECT().
-		SoftDelete(gomock.Any(), gomock.Any(), gomock.Any()).
+		SoftDelete(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Eq(uuid.Nil)).
 		Return(errors.New("connection refused"))
 
-	require.Error(t, uc.DeletePackageByID(ctx, packID, orgID))
+	require.Error(t, uc.DeletePackageByID(ctx, packID, orgID, uuid.Nil))
 
 	totals := collectDomainCounters(t, reader)
 

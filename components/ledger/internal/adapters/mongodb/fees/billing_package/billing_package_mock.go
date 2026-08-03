@@ -93,18 +93,18 @@ func (mr *MockRepositoryMockRecorder) FindAll(ctx, organizationID, ledgerID, bil
 }
 
 // FindByID mocks base method.
-func (m *MockRepository) FindByID(ctx context.Context, id, organizationID string) (*model.BillingPackage, error) {
+func (m *MockRepository) FindByID(ctx context.Context, id, organizationID, ledgerID string) (*model.BillingPackage, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "FindByID", ctx, id, organizationID)
+	ret := m.ctrl.Call(m, "FindByID", ctx, id, organizationID, ledgerID)
 	ret0, _ := ret[0].(*model.BillingPackage)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // FindByID indicates an expected call of FindByID.
-func (mr *MockRepositoryMockRecorder) FindByID(ctx, id, organizationID any) *gomock.Call {
+func (mr *MockRepositoryMockRecorder) FindByID(ctx, id, organizationID, ledgerID any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FindByID", reflect.TypeOf((*MockRepository)(nil).FindByID), ctx, id, organizationID)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FindByID", reflect.TypeOf((*MockRepository)(nil).FindByID), ctx, id, organizationID, ledgerID)
 }
 
 // FindMatchingPackages mocks base method.
@@ -123,30 +123,30 @@ func (mr *MockRepositoryMockRecorder) FindMatchingPackages(ctx, orgID, ledgerID,
 }
 
 // SoftDelete mocks base method.
-func (m *MockRepository) SoftDelete(ctx context.Context, id, organizationID string) error {
+func (m *MockRepository) SoftDelete(ctx context.Context, id, organizationID, ledgerID string) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "SoftDelete", ctx, id, organizationID)
+	ret := m.ctrl.Call(m, "SoftDelete", ctx, id, organizationID, ledgerID)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // SoftDelete indicates an expected call of SoftDelete.
-func (mr *MockRepositoryMockRecorder) SoftDelete(ctx, id, organizationID any) *gomock.Call {
+func (mr *MockRepositoryMockRecorder) SoftDelete(ctx, id, organizationID, ledgerID any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SoftDelete", reflect.TypeOf((*MockRepository)(nil).SoftDelete), ctx, id, organizationID)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SoftDelete", reflect.TypeOf((*MockRepository)(nil).SoftDelete), ctx, id, organizationID, ledgerID)
 }
 
 // Update mocks base method.
-func (m *MockRepository) Update(ctx context.Context, id, organizationID string, updateFields *bson.M) (*model.BillingPackage, error) {
+func (m *MockRepository) Update(ctx context.Context, id, organizationID, ledgerID string, updateFields *bson.M) (*model.BillingPackage, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Update", ctx, id, organizationID, updateFields)
+	ret := m.ctrl.Call(m, "Update", ctx, id, organizationID, ledgerID, updateFields)
 	ret0, _ := ret[0].(*model.BillingPackage)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // Update indicates an expected call of Update.
-func (mr *MockRepositoryMockRecorder) Update(ctx, id, organizationID, updateFields any) *gomock.Call {
+func (mr *MockRepositoryMockRecorder) Update(ctx, id, organizationID, ledgerID, updateFields any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Update", reflect.TypeOf((*MockRepository)(nil).Update), ctx, id, organizationID, updateFields)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Update", reflect.TypeOf((*MockRepository)(nil).Update), ctx, id, organizationID, ledgerID, updateFields)
 }

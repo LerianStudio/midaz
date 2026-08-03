@@ -11,27 +11,26 @@ import (
 	"testing"
 
 	"github.com/gofiber/fiber/v3"
+	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/LerianStudio/midaz/v4/pkg"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
+	"github.com/LerianStudio/midaz/v4/pkg/mtransaction"
 	"github.com/LerianStudio/midaz/v4/pkg/net/http"
 )
 
-// TestMainlineErrorContract_ReclassifiedCodes locks the wire contract for the 26
-// mainline error codes whose HTTP status class was re-typed in the four-family
-// consolidation (docs/plans/2026-06-07-error-code-migration.md
-// "Mainline 400 reclassification"). Each row pins code -> HTTP status -> title,
-// driven end-to-end through pkg/net/http.WithError so the typed struct class
-// (ValidationError-400, UnprocessableOperationError-422, EntityConflictError-409)
-// is exercised exactly as production routes it. A future silent re-type of any of
-// these arms in pkg/errors.go's errorMap breaks this lock.
+// TestMainlineErrorContract_ReclassifiedCodes locks the wire contract for the mainline error
+// codes whose HTTP status class was re-typed in the four-family consolidation. Each row pins
+// code -> HTTP status -> title, driven end-to-end through pkg/net/http.WithError so the typed
+// struct class (ValidationError-400, UnprocessableOperationError-422, EntityConflictError-409)
+// is exercised exactly as production routes it. A future silent re-type of any of these arms in
+// pkg/errors.go's errorMap breaks this lock.
 //
 // Coverage:
 //   - 23 codes 400 -> 422 (ValidationError -> UnprocessableOperationError)
-//   - 1 code 400 -> 409  (ValidationError -> EntityConflictError): 0156
-//   - 2 reverse fixes -> 400 (ValidationError): 0017 (was 409), 0096 (was 500)
+//   - 1 reverse fix -> 400 (ValidationError): 0096 (was 500)
 func TestMainlineErrorContract_ReclassifiedCodes(t *testing.T) {
 	tests := []struct {
 		name           string
@@ -202,14 +201,7 @@ func TestMainlineErrorContract_ReclassifiedCodes(t *testing.T) {
 			expectedCode:   "0170",
 			expectedTitle:  "Reserved Balance Key Error",
 		},
-		// --- 2 reverse fixes -> 400 (ValidationError) ---
-		{
-			name:           "0017 invalid script format is 400 (reverse fix from 409)",
-			err:            pkg.ValidateBusinessError(constant.ErrInvalidScriptFormat, constant.EntityTransaction),
-			expectedStatus: fiber.StatusBadRequest,
-			expectedCode:   "0017",
-			expectedTitle:  "Invalid Script Format Error",
-		},
+		// --- 1 reverse fix -> 400 (ValidationError) ---
 		{
 			name:           "0096 account alias invalid is 400 (reverse fix from 500)",
 			err:            pkg.ValidateBusinessError(constant.ErrAccountAliasInvalid, constant.EntityAccount),
@@ -219,15 +211,14 @@ func TestMainlineErrorContract_ReclassifiedCodes(t *testing.T) {
 		},
 	}
 
-	require.Len(t, tests, 25, "the reclassification table is 25 codes (23 move-422 + 2 reverse fixes)")
+	require.Len(t, tests, 24, "the reclassification table is 24 codes (23 move-422 + 1 reverse fix)")
 
 	runErrorContractCases(t, tests)
 }
 
-// TestMainlineErrorContract_DependencyFaultCodes locks the three error-platform
-// follow-up reclassifications (E5, E9, docs/plans/2026-06-07-v4-error-status-migration-notes.md
-// "Error-platform follow-up reclassifications"): codes whose typed struct
-// disagreed with the server-fault vs client-error class their own message describes.
+// TestMainlineErrorContract_DependencyFaultCodes locks the three error-platform follow-up
+// reclassifications: codes whose typed struct disagreed with the server-fault vs client-error
+// class their own message describes.
 //   - 0228 500 -> 503 (InternalServerError -> ServiceUnavailableError)
 //   - 0231 400 -> 500 (ValidationError -> FailedPreconditionError, routed to 500)
 //   - 0178 422 -> 503 (UnprocessableOperationError -> ServiceUnavailableError)
@@ -319,6 +310,245 @@ func TestMainlineErrorContract_TransactionLifecycleCodes(t *testing.T) {
 	require.Len(t, tests, 3, "the transaction-lifecycle lock set is 3 codes (0099 conflict, 0065 validation, 0150 unprocessable)")
 
 	runErrorContractCases(t, tests)
+}
+
+// v2SideSpellingError runs the v2 request through the production Translate and returns
+// the error it rejected with. Building the error through the real entry point rather
+// than by hand-calling ValidateBusinessError keeps the lock honest: it pins what a
+// client actually receives, not what a test-local call to the error factory renders.
+func v2SideSpellingError(t *testing.T, in mtransaction.CreateTransactionV2Input) error {
+	t.Helper()
+
+	_, err := in.Translate(false)
+	require.Error(t, err, "the input must be rejected by Translate")
+
+	return err
+}
+
+// TestMainlineErrorContract_V2SideSpellingCodes locks the wire contract for the two codes
+// the v2 per-side spelling rule answers with. Both come out of ONE production switch, so a
+// re-type or a swapped arm silently changes the status a client branches on:
+//   - 0009 ValidationError -> 400: a side spelled NEITHER way (no scalar alias, no legs)
+//   - 0498 ValidationError -> 400: a side spelled BOTH ways at once
+//
+// 0498 carries no per-side or per-index argument, so its message is constant and locked whole by
+// the title column plus the golden sweep's (code, status) tuple in pkg/net/http.
+func TestMainlineErrorContract_V2SideSpellingCodes(t *testing.T) {
+	legs := []mtransaction.V2LegInput{{Account: "@a", Amount: "100"}}
+
+	tests := []struct {
+		name           string
+		err            error
+		expectedStatus int
+		expectedCode   string
+		expectedTitle  string
+	}{
+		{
+			name: "0009 an unspelled source side is 400",
+			err: v2SideSpellingError(t, mtransaction.CreateTransactionV2Input{
+				Asset: "USD", Amount: "100", To: "@b",
+			}),
+			expectedStatus: fiber.StatusBadRequest,
+			expectedCode:   "0009",
+			expectedTitle:  "Missing Fields in Request",
+		},
+		{
+			name: "0009 an unspelled destination side is 400",
+			err: v2SideSpellingError(t, mtransaction.CreateTransactionV2Input{
+				Asset: "USD", Amount: "100", From: "@a",
+			}),
+			expectedStatus: fiber.StatusBadRequest,
+			expectedCode:   "0009",
+			expectedTitle:  "Missing Fields in Request",
+		},
+		{
+			name: "0498 a source side spelled both ways is 400",
+			err: v2SideSpellingError(t, mtransaction.CreateTransactionV2Input{
+				Asset: "USD", Amount: "100", From: "@a", Sources: legs, To: "@b",
+			}),
+			expectedStatus: fiber.StatusBadRequest,
+			expectedCode:   "0498",
+			expectedTitle:  "Mutually Exclusive Transaction Fields",
+		},
+		{
+			name: "0498 a destination side spelled both ways is 400",
+			err: v2SideSpellingError(t, mtransaction.CreateTransactionV2Input{
+				Asset: "USD", Amount: "100", From: "@a", To: "@b", Destinations: legs,
+			}),
+			expectedStatus: fiber.StatusBadRequest,
+			expectedCode:   "0498",
+			expectedTitle:  "Mutually Exclusive Transaction Fields",
+		},
+	}
+
+	require.Len(t, tests, 4, "the side-spelling lock set is both branches of the rule on both sides")
+
+	runErrorContractCases(t, tests)
+}
+
+// v1SingleTransactionTypeError produces the v1 rendering of 0072 by running the canonical
+// transaction shape through the SAME exported struct validator the v1 create ops run. The
+// offending leg fills two value expressions at once, which is the `singletransactiontype`
+// violation the v1 surface answers with 0072.
+func v1SingleTransactionTypeError(t *testing.T) error {
+	t.Helper()
+
+	tx := &mtransaction.Transaction{
+		Send: mtransaction.Send{
+			Asset: "USD",
+			Value: decimal.NewFromInt(100),
+			Source: mtransaction.Source{From: []mtransaction.FromTo{{
+				AccountAlias: "@a",
+				Amount:       &mtransaction.Amount{Asset: "USD", Value: decimal.NewFromInt(100)},
+				Share:        &mtransaction.Share{Percentage: 100},
+			}}},
+			Distribute: mtransaction.Distribute{To: []mtransaction.FromTo{{
+				AccountAlias: "@b",
+				Amount:       &mtransaction.Amount{Asset: "USD", Value: decimal.NewFromInt(100)},
+			}}},
+		},
+	}
+
+	err := http.ValidateStruct(tx)
+	require.Error(t, err, "a leg carrying two value expressions must violate singletransactiontype")
+
+	return err
+}
+
+// v2LegValueExpressionError produces the v2 rendering of 0072: a leg on the named side
+// filling NEITHER value expression, rejected by Translate.
+func v2LegValueExpressionError(t *testing.T, in mtransaction.CreateTransactionV2Input) error {
+	t.Helper()
+
+	_, err := in.Translate(false)
+	require.Error(t, err, "a leg with no value expression must be rejected by Translate")
+
+	return err
+}
+
+// v2ValueLeg is a leg carrying a valid explicit amount, used to pad an array so the
+// offending leg can be placed at a chosen index.
+func v2ValueLeg(alias, amount string) mtransaction.V2LegInput {
+	return mtransaction.V2LegInput{Account: alias, Amount: amount}
+}
+
+// TestMainlineErrorContract_InvalidTransactionTypeMessagePerSurface locks the MESSAGE of
+// 0072, not merely its (code, status) tuple. The two surfaces publish different sets of
+// value expressions — v1 legs accept `amount`, `share` or `remaining`; a v2 leg accepts
+// only `amount` or `share` — so one shared message cannot be correct for both. The status,
+// the code and the title stay shared; only the enumerated expressions and the field name
+// differ, and this is the only lock that reads the rendered string on either surface.
+//
+// The v1 row pins the released message BYTE FOR BYTE: v1 clients parse or display it, so
+// narrowing the v2 wording must not touch it. The v2 rows additionally pin the LEG INDEX in
+// the field name, and place the offending leg at index 1 as well as 0 so a hardcoded index
+// cannot satisfy them.
+func TestMainlineErrorContract_InvalidTransactionTypeMessagePerSurface(t *testing.T) {
+	const (
+		v1Detail        = "Only one transaction type ('amount', 'share', or 'remaining') must be specified in the 'send.source.from' field for each entry. Please review your input and try again."
+		v2Expressions   = "('amount' or 'share')"
+		v1OnlyRemaining = "remaining"
+	)
+
+	tests := []struct {
+		name string
+		err  error
+		// wantDetail, when non-empty, pins the rendered message byte for byte.
+		wantDetail string
+		// wantDetailContains / wantDetailOmits pin the surface-specific parts of a
+		// message whose field-name argument varies per side.
+		wantDetailContains []string
+		wantDetailOmits    []string
+	}{
+		{
+			name:       "v1 detailed body keeps its released three-expression message",
+			err:        v1SingleTransactionTypeError(t),
+			wantDetail: v1Detail,
+		},
+		{
+			name: "v2 sources leg names the two v2 expressions and the offending index",
+			err: v2LegValueExpressionError(t, mtransaction.CreateTransactionV2Input{
+				Asset: "USD", Amount: "100",
+				Sources:      []mtransaction.V2LegInput{{Account: "@a"}},
+				Destinations: []mtransaction.V2LegInput{v2ValueLeg("@b", "100")},
+			}),
+			wantDetailContains: []string{v2Expressions, "'sources[0]'"},
+			wantDetailOmits:    []string{v1OnlyRemaining},
+		},
+		{
+			name: "v2 destinations leg names the two v2 expressions and the offending index",
+			err: v2LegValueExpressionError(t, mtransaction.CreateTransactionV2Input{
+				Asset: "USD", Amount: "100",
+				Sources:      []mtransaction.V2LegInput{v2ValueLeg("@a", "100")},
+				Destinations: []mtransaction.V2LegInput{{Account: "@b"}},
+			}),
+			wantDetailContains: []string{v2Expressions, "'destinations[0]'"},
+			wantDetailOmits:    []string{v1OnlyRemaining},
+		},
+		{
+			// The offending leg is the SECOND one, so a field name that hardcoded index 0
+			// would fail here. This is what makes the index a real part of the contract.
+			name: "v2 sources leg at index one names its own index",
+			err: v2LegValueExpressionError(t, mtransaction.CreateTransactionV2Input{
+				Asset: "USD", Amount: "100",
+				Sources:      []mtransaction.V2LegInput{v2ValueLeg("@a", "60"), {Account: "@b"}},
+				Destinations: []mtransaction.V2LegInput{v2ValueLeg("@c", "100")},
+			}),
+			wantDetailContains: []string{v2Expressions, "'sources[1]'"},
+			wantDetailOmits:    []string{v1OnlyRemaining, "sources[0]"},
+		},
+		{
+			name: "v2 destinations leg at index one names its own index",
+			err: v2LegValueExpressionError(t, mtransaction.CreateTransactionV2Input{
+				Asset: "USD", Amount: "100",
+				Sources:      []mtransaction.V2LegInput{v2ValueLeg("@a", "100")},
+				Destinations: []mtransaction.V2LegInput{v2ValueLeg("@b", "60"), {Account: "@c"}},
+			}),
+			wantDetailContains: []string{v2Expressions, "'destinations[1]'"},
+			wantDetailOmits:    []string{v1OnlyRemaining, "destinations[0]"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			capturedErr := tt.err
+
+			app := fiber.New()
+			app.Get("/probe", func(c fiber.Ctx) error {
+				return http.WithError(c, capturedErr)
+			})
+
+			resp, err := app.Test(httptest.NewRequest("GET", "/probe", nil))
+			require.NoError(t, err)
+
+			body, err := io.ReadAll(resp.Body)
+			require.NoError(t, err)
+
+			var errResp map[string]any
+			require.NoError(t, json.Unmarshal(body, &errResp))
+
+			assert.Equal(t, fiber.StatusBadRequest, resp.StatusCode, "0072 is a ValidationError on both surfaces")
+			assert.Equal(t, "0072", errResp["code"], "both surfaces answer with the same canonical code")
+			assert.Equal(t, "Invalid Transaction Type", errResp["title"], "the title is shared across surfaces")
+
+			detail, ok := errResp["detail"].(string)
+			require.Truef(t, ok, "the problem envelope must carry a string detail; got: %s", string(body))
+
+			if tt.wantDetail != "" {
+				assert.Equal(t, tt.wantDetail, detail, "the v1 message is released wire text and must stay byte-identical")
+			}
+
+			for _, want := range tt.wantDetailContains {
+				assert.Contains(t, detail, want,
+					"the v2 message must name the expressions a v2 leg publishes and the offending leg's index")
+			}
+
+			for _, unwanted := range tt.wantDetailOmits {
+				assert.NotContains(t, detail, unwanted,
+					"the v2 message must not offer an expression the v2 leg has no field for, nor point at a leg that is valid")
+			}
+		})
+	}
 }
 
 func runErrorContractCases(t *testing.T, tests []struct {

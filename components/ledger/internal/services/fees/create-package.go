@@ -47,8 +47,13 @@ func (uc *UseCase) CreatePackage(ctx context.Context, cpi *model.CreatePackageIn
 		attribute.String("app.request.ledger_id", ledgerID.String()),
 	)
 
+	// uuid.Nil is the "no segment" value. The comparison is against uuid.Nil rather
+	// than against UUID.ID(), which reads only the first four bytes: a real segment
+	// whose leading four bytes happen to be zero reads as absent there, so the
+	// package is persisted unsegmented and the overlap check below runs across every
+	// segment of the ledger instead of within the requested one.
 	newSegmentID := &segmentID
-	if segmentID.ID() == 0 {
+	if segmentID == uuid.Nil {
 		newSegmentID = nil
 	}
 

@@ -93,15 +93,17 @@ func (handler *AuditHandler) GetAuditEventsHuma(ctx context.Context, in *GetAudi
 }
 
 // RegisterAuditRoutes registers the migrated protection-audit operation on the
-// shared Huma API. It is the per-file seam the unified server calls (conditionally,
+// given Huma API. It is the per-file seam the unified server calls (conditionally,
 // only in envelope encryption mode — mirroring the Fiber `if auditHandler != nil`
 // guard in crm_routes.go); the auth ("midaz","protection","get") + tenant +
-// ParseUUIDPathParameters("organization") middleware chain is attached on the /v1
-// group (Fiber-level) BEFORE the Huma terminal, not here. Paths are GROUP-RELATIVE
-// (see asset_handler_huma.go's RegisterAssetRoutes header for the /v1 rationale).
-func RegisterAuditRoutes(api huma.API, h *AuditHandler) {
+// ParseUUIDPathParameters("organization") middleware chain is attached on the
+// versioned Fiber group BEFORE the Huma terminal, not here. Paths are GROUP-RELATIVE
+// (see asset_handler_huma.go's RegisterAssetRoutes header for the rationale).
+//
+// opSuffix is appended to the operation ID — see crmOpSuffixV1.
+func RegisterAuditRoutes(api huma.API, h *AuditHandler, opSuffix string) {
 	huma.Register(api, huma.Operation{
-		OperationID: "getAuditEvents",
+		OperationID: "getAuditEvents" + opSuffix,
 		Method:      http.MethodGet,
 		Path:        "/organizations/{organization_id}/protection/audit",
 		Summary:     "List Protection Audit Events",

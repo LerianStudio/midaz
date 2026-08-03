@@ -5,9 +5,11 @@
 # PURPOSE
 #   PRs to this repo are gated by the REQUIRED check-docs job (pr-validation.yml):
 #   it runs `CHECK_DOCS_REGEN=1 make check-docs`, which regenerates the docs via
-#   generate-docs.sh and fails on `git diff -- 'components/*/api' postman/specs`.
-#   So a PR that changes ledger/tracer routes without refreshing the committed
-#   Huma dumps AND their consolidated postman/specs hub fails. DIRECT pushes
+#   generate-docs.sh and fails if any committed doc artifact changed. So a PR that
+#   changes ledger/tracer routes without refreshing the committed Huma dumps, their
+#   consolidated postman/specs hub, or the emitted Postman collection and
+#   environment fails. The `Commit & push fix-up` step below carries the pathspec
+#   this workflow keeps in step with that gate. DIRECT pushes
 #   bypass that gate — gandalf-at-lerian pushes straight to develop. This workflow
 #   closes that hole: after a direct push it regenerates the SAME artifact set the
 #   gate diffs and, if the push left it stale, commits + pushes a `[skip ci]`
@@ -21,15 +23,17 @@
 #     components/tracer/api/openapi.huma.yaml   (Huma OAS 3.1 dump)
 #     postman/specs/ledger/openapi.huma.yaml    (published copy)
 #     postman/specs/tracer/openapi.huma.yaml    (published copy)
+#     postman/specs/ledger/openapi.v2.huma.yaml (published copy)
 #     postman/specs/midaz.openapi.{yaml,json}   (redocly-joined hub spec)
+#     postman/MIDAZ.postman_collection.json     (converted Postman collection)
+#     postman/MIDAZ.postman_environment.json    (converted Postman environment)
 #   Reusing generate-docs.sh — rather than re-inlining its regen/publish/join
 #   steps here — is deliberate: it makes divergence from the gate impossible by
 #   construction. Toolchain is Go + Node/npm only (generate-docs.sh self-installs
 #   its npm deps; redocly + js-yaml are npm packages) — NO swag, NO Docker.
-#   generate-docs.sh also regenerates the Postman collection
-#   (postman/MIDAZ.postman_*.json) as a side effect, but the fix-up commit does
-#   NOT stage it: the check-docs gate diffs only `components/*/api` and
-#   postman/specs, so the commit stays scoped to exactly what the gate enforces.
+#   Every artifact above is staged, because the gate diffs every one of them: an
+#   artifact regenerated here but left unstaged would fail the required gate on the
+#   next PR, on a path that PR never touched.
 #
 # TRIGGER
 #   push to the branches the release pipeline builds from (develop,
@@ -38,10 +42,8 @@
 #   shared pkg/ code (e.g. the RFC 9457 Error schema) is embedded in the dumps,
 #   and release.yml/pr-validation.yml declare pkg/ as a shared_path for the
 #   same reason. `workflow_dispatch` remains available to force a regen check
-#   by hand. Push/schedule-style triggers only fire from the DEFAULT branch, so
-#   this file is INERT until the huma consolidation lands on develop — it rides
-#   that merge (same activation-gating as the docs-repo Phase 9 CI). Authoring it
-#   on the feature branch now is safe.
+#   by hand. Push-style triggers only fire from the DEFAULT branch, so this
+#   workflow is inert on any branch other than the default one.
 #
 # WHY NO SELF-TRIGGER LOOP
 #   Two independent guarantees:
@@ -171,16 +173,22 @@ jobs:
           BRANCH: ${{ github.ref_name }}
           REPO: ${{ github.repository }}
         run: |
-          # Same pathspec the required check-docs gate diffs
-          # (drift_check: git diff --exit-code -- 'components/*/api' postman/specs).
-          # The regenerated Postman collection is intentionally NOT staged — the
-          # gate does not diff it, so the fix-up stays scoped to what it enforces.
-          if git diff --quiet -- 'components/*/api' postman/specs; then
+          # Must stay identical to the drift pathspec in
+          # postman/generator/check-docs.sh. A path the gate diffs but this step does
+          # not stage is left stale, and every later PR then fails the required gate
+          # on a path it never touched.
+          DOC_PATHSPEC=(
+            'components/*/api/**'
+            postman/specs
+            postman/MIDAZ.postman_collection.json
+            postman/MIDAZ.postman_environment.json
+          )
+          if git diff --quiet -- "${DOC_PATHSPEC[@]}"; then
             echo "OpenAPI docs already fresh after regen — no fix-up needed."
             exit 0
           fi
           echo "OpenAPI docs drifted after a direct push — committing a [skip ci] fix-up."
-          git add 'components/*/api' postman/specs
+          git add -- "${DOC_PATHSPEC[@]}"
           git commit -m "chore(openapi): sync openapi docs after direct push [skip ci]"
           # Explicit App-token URL: carries its own auth (bypasses branch
           # protection) and is NOT rewritten by the MANAGE_TOKEN insteadOf above

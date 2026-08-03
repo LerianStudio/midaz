@@ -177,9 +177,8 @@ func RegisterCountTransactionRoutesToApp(group fiber.Router, api huma.API, auth 
 // auth.Authorize("midaz","transactions",verb) + tenant + ParseUUIDPathParameters
 // ("transaction"), attached as middleware-only on the /v1 group BEFORE the Huma terminals
 // — the SAME (appName, resource, verb) tuples the inline Fiber routes carried, preserved
-// byte-for-byte. POST /transactions/dsl is NOT wired here — it stays a pure Fiber terminal
-// in RegisterTransactionRoutesToApp (SUNSET 2026-08-01, out of the Huma spec). Paths are
-// relative to the /v1 group; the Huma terminals are attached by RegisterTransactionRoutes.
+// byte-for-byte. Paths are relative to the /v1 group; the Huma terminals are attached by
+// RegisterTransactionRoutes.
 func RegisterTransactionHumaRoutesToApp(group fiber.Router, api huma.API, auth *middleware.AuthClient, th *TransactionHandler, routeOptions *http.ProtectedRouteOptions) {
 	const (
 		listPath = "/organizations/:organization_id/ledgers/:ledger_id/transactions"
@@ -251,61 +250,6 @@ func RegisterTransactionRouteRoutesToApp(group fiber.Router, api huma.API, auth 
 	routeDelete(group, idPath, protectedRouting(auth, "transaction-routes", "delete", routeOptions, parse))
 
 	RegisterTransactionRouteRoutes(api, trh)
-}
-
-// RegisterTransactionRoutesToApp registers transaction routes to an existing Fiber app.
-// This is used by the unified ledger server to consolidate all routes in a single port.
-// The app should already have middleware configured (telemetry, cors, logging).
-func RegisterTransactionRoutesToApp(f fiber.Router, auth *middleware.AuthClient, th *TransactionHandler, oh *OperationHandler, ah *AssetRateHandler, bh *BalanceHandler, orh *OperationRouteHandler, trh *TransactionRouteHandler, routeOptions *http.ProtectedRouteOptions) {
-	// Transactions — POST /transactions/dsl is the ONLY transaction op that stays a pure
-	// inline Fiber terminal (multipart .casl upload, DEPRECATED, SUNSET 2026-08-01, out of
-	// the Huma spec). The other twelve transaction ops (json/inflow/outflow/annotation/
-	// block/unblock CREATE, commit/cancel/revert STATE, PATCH update, GET-by-id + list) are
-	// Wave-4 MIGRATED TO HUMA (see RegisterTransactionHumaRoutesToApp): their terminals live
-	// on the shared Huma API and their auth ("transactions",{post|patch|get}) + tenant +
-	// ParseUUIDPathParameters ("transaction") chains are attached on the /v1 group by
-	// RegisterTransactionHumaRoutesToApp, called from the unified server's humaMount. The
-	// (appName, resource, verb) tuples are preserved byte-for-byte there.
-	routePost(f, "/v1/organizations/:organization_id/ledgers/:ledger_id/transactions/dsl", protectedMidaz(auth, "transactions", "post", routeOptions, http.ParseUUIDPathParameters("transaction"), th.CreateTransactionDSL))
-
-	// Transaction-count HEAD — Wave-2 MIGRATED TO HUMA (see RegisterCountTransactionRoutesToApp).
-	// The metrics/count HEAD op no longer registers inline here; its terminal lives on the
-	// shared Huma API and its auth ("transactions","head") + tenant + ParseUUIDPathParameters
-	// ("transaction") chain is attached on the /v1 group by RegisterCountTransactionRoutesToApp,
-	// called from the unified server's humaMount. The tuple is preserved byte-for-byte there.
-
-	// Operations — the two read (GET) ops AND the PATCH (UpdateOperation, money-write leg)
-	// are MIGRATED TO HUMA (see RegisterOperationRoutesToApp): their terminals live on the
-	// shared Huma API and their auth ("operations",{get|patch}) + tenant +
-	// ParseUUIDPathParameters("operation") chains are attached on the /v1 group by
-	// RegisterOperationRoutesToApp, called from the unified server's humaMount. The
-	// (appName, resource, verb) tuples are preserved byte-for-byte there.
-
-	// Asset-rate — Wave-1 MIGRATED TO HUMA (see RegisterAssetRateRoutesToApp). The
-	// three asset-rate ops no longer register inline here; their terminal handlers
-	// live on the shared Huma API and their auth ("asset-rates", verb) + tenant +
-	// ParseUUIDPathParameters("asset-rate") chain is attached on the /v1 group by
-	// RegisterAssetRateRoutesToApp, called from the unified server's humaMount.
-	// asset-rate is MONEY-adjacent; the authz tuples are preserved byte-for-byte
-	// there. The ah *AssetRateHandler param is retained on this signature (blanked
-	// below) because the unified server and contract-spec test still pass it.
-	_ = ah
-
-	// Balance, operation-route, and transaction-route — Wave-2 MIGRATED TO HUMA. The ten
-	// balance ops, five operation-route ops, and five transaction-route ops no longer
-	// register inline here; their terminal handlers live on the shared Huma API and their
-	// auth + tenant + ParseUUIDPathParameters chains are attached on the /v1 group by the
-	// per-resource RegisterXxxRoutesToApp wrappers (RegisterBalanceRoutesToApp,
-	// RegisterOperationRouteRoutesToApp, RegisterTransactionRouteRoutesToApp), all called
-	// from the unified server's humaMount. The (appName, resource, verb) authz tuples are
-	// preserved byte-for-byte there — balance under "midaz","balances"; the two route
-	// resources under "routing","operation-routes"/"transaction-routes". The oh/ah/bh/orh/trh
-	// handler params are retained on this signature (blanked below) because the unified
-	// server and contract-spec test still construct and pass them; only the non-migrated
-	// POST /transactions/dsl op above still uses th (the operation PATCH that used oh is now
-	// Huma-migrated in RegisterOperationRoutesToApp).
-	_, _, _ = bh, orh, trh
-	_, _ = oh, ah
 }
 
 func protectedMidaz(auth *middleware.AuthClient, resource, action string, routeOptions *http.ProtectedRouteOptions, handlers ...fiber.Handler) []fiber.Handler {

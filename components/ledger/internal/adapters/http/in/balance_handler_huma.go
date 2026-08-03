@@ -522,6 +522,7 @@ func RegisterBalanceRoutes(api huma.API, h *BalanceHandler) {
 		Tags:             []string{tag},
 		Security:         secAssetBearerOrAPIKey,
 		SkipValidateBody: true, // body validated imperatively — see file header.
+		DefaultStatus:    http.StatusCreated,
 	}, h.CreateAdditionalBalanceHuma)
 
 	huma.Register(api, huma.Operation{

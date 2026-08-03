@@ -17,9 +17,7 @@ import (
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/transaction"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services/command"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services/query"
-	"github.com/LerianStudio/midaz/v4/pkg"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
-	goldTransaction "github.com/LerianStudio/midaz/v4/pkg/gold/transaction"
 	"github.com/LerianStudio/midaz/v4/pkg/mtransaction"
 	"github.com/LerianStudio/midaz/v4/pkg/net/http"
 )
@@ -219,72 +217,6 @@ func (handler *TransactionHandler) CreateTransactionOutflow(p any, c fiber.Ctx) 
 	recordSafePayloadAttributes(span, transactionInput)
 
 	return handler.createTransactionFiber(c, *transactionInput, transactionInput.InitialStatus())
-}
-
-// CreateTransactionDSL method that create transaction using DSL
-func (handler *TransactionHandler) CreateTransactionDSL(c fiber.Ctx) error {
-	ctx := c.Context()
-
-	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
-
-	ctx, span := tracer.Start(ctx, "handler.create_transaction_dsl")
-	defer span.End()
-
-	c.SetContext(ctx)
-
-	c.Set("Deprecation", "true")
-	c.Set("Sunset", "Sat, 01 Aug 2026 00:00:00 GMT")
-	c.Set("Link", "</v1/organizations/"+c.Params("organization_id")+
-		"/ledgers/"+c.Params("ledger_id")+
-		"/transactions/json>; rel=\"successor-version\"")
-
-	logger.Log(
-		ctx, libLog.LevelWarn, "DEPRECATED ENDPOINT: POST /transactions/dsl called, use POST /transactions/json instead",
-		libLog.String("request_id", c.Get("X-Request-Id")),
-		libLog.String("sunset_date", "2026-08-01"),
-	)
-
-	_, err := http.ValidateParameters(c.Queries())
-	if err != nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to validate query parameters", err)
-
-		logger.Log(ctx, libLog.LevelWarn, "Failed to validate query parameters", libLog.Err(err))
-
-		return http.WithError(c, err)
-	}
-
-	dsl, err := http.GetFileFromHeader(c)
-	if err != nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to get file from Header", err)
-
-		logger.Log(ctx, libLog.LevelWarn, "Failed to get file from header", libLog.Err(err))
-
-		return http.WithError(c, err)
-	}
-
-	errListener := goldTransaction.Validate(dsl)
-	if errListener != nil && len(errListener.Errors) > 0 {
-		err := pkg.ValidateBusinessError(constant.ErrInvalidDSLFileFormat, constant.EntityTransaction, errListener.Errors)
-
-		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to validate script in DSL", err)
-
-		return http.WithError(c, err)
-	}
-
-	parsed := goldTransaction.Parse(dsl)
-
-	transactionInput, ok := parsed.(mtransaction.Transaction)
-	if !ok {
-		err := pkg.ValidateBusinessError(constant.ErrInvalidDSLFileFormat, constant.EntityTransaction)
-
-		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to parse script in DSL", err)
-
-		return http.WithError(c, err)
-	}
-
-	recordSafePayloadAttributes(span, transactionInput.Send)
-
-	return handler.createTransactionFiber(c, transactionInput, transactionInput.InitialStatus())
 }
 
 // GetTransaction method that get transaction created before

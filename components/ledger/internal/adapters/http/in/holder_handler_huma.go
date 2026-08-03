@@ -335,13 +335,15 @@ func (handler *HolderAccountsHandler) GetAccountsByHolderHuma(ctx context.Contex
 	return &ListHolderAccountsOutputHuma{Status: http.StatusOK, Body: pagination}, nil
 }
 
-// RegisterHolderRoutes registers the five migrated holder operations on the shared
+// RegisterHolderRoutes registers the five migrated holder operations on the given
 // Huma API. It is the per-file seam the unified server calls; the auth
 // ("midaz","holders",verb) + tenant + ParseUUIDPathParameters("holder") middleware
-// chain is attached on the /v1 group (Fiber-level) BEFORE the Huma terminal, not here.
+// chain is attached on the versioned Fiber group BEFORE the Huma terminal, not here.
 // Paths are GROUP-RELATIVE (see asset_handler_huma.go's RegisterAssetRoutes header
-// for the /v1 rationale).
-func RegisterHolderRoutes(api huma.API, h *HolderHandler) {
+// for the rationale).
+//
+// opSuffix is appended to every operation ID — see crmOpSuffixV1.
+func RegisterHolderRoutes(api huma.API, h *HolderHandler, opSuffix string) {
 	const (
 		listPath = "/organizations/{organization_id}/holders"
 		idPath   = listPath + "/{id}"
@@ -349,7 +351,7 @@ func RegisterHolderRoutes(api huma.API, h *HolderHandler) {
 	)
 
 	huma.Register(api, huma.Operation{
-		OperationID: "createHolder",
+		OperationID: "createHolder" + opSuffix,
 		Method:      http.MethodPost,
 		Path:        listPath,
 		Summary:     "Create a Holder",
@@ -357,10 +359,11 @@ func RegisterHolderRoutes(api huma.API, h *HolderHandler) {
 		Security:    secHolderBearer,
 		// Body validated imperatively (http.DecodeAndValidate) — see file header.
 		SkipValidateBody: true,
+		DefaultStatus:    http.StatusCreated,
 	}, h.CreateHolderHuma)
 
 	huma.Register(api, huma.Operation{
-		OperationID: "getHolderByID",
+		OperationID: "getHolderByID" + opSuffix,
 		Method:      http.MethodGet,
 		Path:        idPath,
 		Summary:     "Retrieve Holder details",
@@ -369,7 +372,7 @@ func RegisterHolderRoutes(api huma.API, h *HolderHandler) {
 	}, h.GetHolderByIDHuma)
 
 	huma.Register(api, huma.Operation{
-		OperationID:      "updateHolder",
+		OperationID:      "updateHolder" + opSuffix,
 		Method:           http.MethodPatch,
 		Path:             idPath,
 		Summary:          "Update a Holder",
@@ -379,7 +382,7 @@ func RegisterHolderRoutes(api huma.API, h *HolderHandler) {
 	}, h.UpdateHolderHuma)
 
 	huma.Register(api, huma.Operation{
-		OperationID: "deleteHolder",
+		OperationID: "deleteHolder" + opSuffix,
 		Method:      http.MethodDelete,
 		Path:        idPath,
 		Summary:     "Delete a Holder",
@@ -390,7 +393,7 @@ func RegisterHolderRoutes(api huma.API, h *HolderHandler) {
 	}, h.DeleteHolderByIDHuma)
 
 	huma.Register(api, huma.Operation{
-		OperationID: "listHolders",
+		OperationID: "listHolders" + opSuffix,
 		Method:      http.MethodGet,
 		Path:        listPath,
 		Summary:     "List Holders",
@@ -400,13 +403,15 @@ func RegisterHolderRoutes(api huma.API, h *HolderHandler) {
 }
 
 // RegisterHolderAccountsRoutes registers the holder-scoped account listing on the
-// shared Huma API. It is a separate seam so the unified server can mount it
+// given Huma API. It is a separate seam so the unified server can mount it
 // conditionally (only when the ledger account-query backing is wired, matching the
 // Fiber `if hah != nil` guard in crm_routes.go). Auth is ("midaz","holders","get")
 // + ParseUUIDPathParameters("holder"), attached BEFORE the Huma terminal.
-func RegisterHolderAccountsRoutes(api huma.API, h *HolderAccountsHandler) {
+//
+// opSuffix is appended to the operation ID — see crmOpSuffixV1.
+func RegisterHolderAccountsRoutes(api huma.API, h *HolderAccountsHandler, opSuffix string) {
 	huma.Register(api, huma.Operation{
-		OperationID: "listAccountsByHolder",
+		OperationID: "listAccountsByHolder" + opSuffix,
 		Method:      http.MethodGet,
 		Path:        "/organizations/{organization_id}/holders/{id}/accounts",
 		Summary:     "List Accounts by Holder",

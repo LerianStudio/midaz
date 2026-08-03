@@ -137,8 +137,7 @@ func TestIntegration_TransactionV2Hold_CommitViaV2_ParityWithV1(t *testing.T) {
 	requireDecimalEqual(t, decimal.Zero, postgrestestutil.GetBalanceOnHold(t, infra.pgContainer.DB, v2Dst), "v2 dest on-hold after commit")
 
 	// Full lifecycle operation set: 1 ON_HOLD (hold) + 1 DEBIT (release) + 1 CREDIT (apply)
-	// on each, with the economic projection IDENTICAL between the two surfaces. fetchOperationRows
-	// orders by type, so the two 3-leg sets line up index-for-index.
+	// on each, with the economic projection IDENTICAL between the two surfaces.
 	v1Ops := fetchOperationRows(t, infra.pgContainer.DB, v1TxID)
 	v2Ops := fetchOperationRows(t, infra.pgContainer.DB, v2TxID)
 	require.Len(t, v1Ops, 3, "committed v1 hold should carry 3 operations (ON_HOLD + DEBIT + CREDIT)")
@@ -504,8 +503,7 @@ func TestIntegration_TransactionV2Revert_ParityWithV1(t *testing.T) {
 		requireDecimalEqual(t, decimal.Zero, revertOps["@dst"].AvailableAfter, "%s reverse drains the destination available balance", lane)
 	}
 
-	// Full economic parity of the two reverse operation sets: fetchOperationRows orders by
-	// type, so the two 2-leg sets line up index-for-index.
+	// Full economic parity of the two reverse operation sets.
 	assertOperationSetsEqual(t,
 		fetchOperationRows(t, infra.pgContainer.DB, v1RevertID),
 		fetchOperationRows(t, infra.pgContainer.DB, v2RevertID))

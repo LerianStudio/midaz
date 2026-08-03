@@ -1,5 +1,4 @@
 github.com/LerianStudio/midaz/v4/pkg/constant
-github.com/LerianStudio/midaz/v4/pkg/gold
 github.com/LerianStudio/midaz/v4/pkg/net/http
 github.com/LerianStudio/midaz/v4/components/onboarding/internal/bootstrap
 github.com/LerianStudio/midaz/v4/components/transaction/internal/bootstrap

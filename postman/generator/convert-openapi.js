@@ -78,6 +78,9 @@ const yaml = require('js-yaml');
 // runs so it can sit clean under a drift check.
 const EXAMPLE_DATE_TIME = '2025-01-01T00:00:00Z';
 
+// Placeholder for uuid-formatted fields whose schema declares no example of its own.
+const EXAMPLE_UUID = '00000000-0000-0000-0000-000000000000';
+
 //=============================================================================
 // COMMAND LINE ARGUMENT HANDLING
 //=============================================================================
@@ -104,8 +107,8 @@ function parseCommandLineArgs() {
   }
 
   // Component name drives ledger-only enrichment (base-URL routing, env template).
-  // Non-ledger components (tracer, reporter) get a generic single-base-URL
-  // collection and a minimal environment.
+  // Non-ledger components get a generic single-base-URL collection and a
+  // minimal environment.
   let component = 'ledger';
   if (args.includes('--component') && args.indexOf('--component') + 1 < args.length) {
     component = args[args.indexOf('--component') + 1];
@@ -626,14 +629,8 @@ function createPostmanCollection(spec) {
       }
       
       const operation = pathItem[method];
-      
-      // Skip transaction management endpoints that are still being implemented
-      if (path.includes('/commit') || path.includes('/cancel') || path.includes('/revert')) {
-        console.log(`Skipping endpoint ${method.toUpperCase()} ${path} - still being implemented`);
-        continue;
-      }
-      
-      // Skip asset-rates endpoints that are still being implemented  
+
+      // Skip asset-rates endpoints that are still being implemented
       if (path.includes('/asset-rates')) {
         console.log(`Skipping endpoint ${method.toUpperCase()} ${path} - still being implemented`);
         continue;
@@ -715,8 +712,8 @@ function createRequestItem(operation, path, method, spec) {
   // Determine the base URL variable. Ledger's unified binary historically split
   // onboarding vs transaction surfaces; both now serve on :3002, but the env
   // template keeps both aliases for backward compatibility. Non-ledger components
-  // (tracer, reporter) expose a single base URL under a component-scoped
-  // variable so the merged MIDAZ environment carries distinct, non-colliding keys.
+  // expose a single base URL under a component-scoped variable so the merged
+  // MIDAZ environment carries distinct, non-colliding keys.
   let baseUrlVariable = `{{${componentEnvPrefix(COMPONENT)}Url}}`;
   if (COMPONENT === 'ledger') {
     if (path.includes('/transactions') || path.includes('/operations') || path.includes('/balances') ||
@@ -733,7 +730,7 @@ function createRequestItem(operation, path, method, spec) {
     request: {
       method: method.toUpperCase(),
       header: [],
-      url: createUrl(path, baseUrlVariable),
+      url: createUrl(path, baseUrlVariable, spec),
       description: operation.description || ''
     },
     response: []
@@ -770,14 +767,49 @@ function createRequestItem(operation, path, method, spec) {
 }
 
 /**
+ * Resolve the base-path segments an operation is served under.
+ *
+ * OpenAPI keeps the base path in `servers`, not in the path keys: the Huma dumps
+ * declare `servers: [{ url: "/v1" }]` (or "/v2") and key their paths from there,
+ * so a Postman URL built from the path key alone is missing the version prefix.
+ * A path item's own `servers` takes precedence over the document's, which is how
+ * the consolidated spec carries per-version bases in one document.
+ *
+ * @param {Object} spec - The full OpenAPI spec
+ * @param {string} path - The path key of the endpoint
+ * @returns {string[]} Base-path segments, empty when the base path is "/"
+ */
+function serverPathSegments(spec, path) {
+  const servers = spec?.paths?.[path]?.servers || spec?.servers;
+  if (!Array.isArray(servers) || servers.length === 0 || !servers[0].url) {
+    return [];
+  }
+
+  let basePath = servers[0].url;
+
+  // Absolute server URLs carry the base path in their pathname; relative ones are
+  // already the base path.
+  if (/^[a-z][a-z0-9+.-]*:\/\//i.test(basePath)) {
+    try {
+      basePath = new URL(basePath).pathname;
+    } catch {
+      return [];
+    }
+  }
+
+  return basePath.split('/').filter(p => p);
+}
+
+/**
  * Create a URL object for the Postman collection
  * @param {string} path - The path of the endpoint
  * @param {string} baseUrlVariable - The base URL variable
+ * @param {Object} spec - The full OpenAPI spec
  * @returns {Object} The URL object
  */
-function createUrl(path, baseUrlVariable) {
+function createUrl(path, baseUrlVariable, spec) {
   // Convert path segments to use Postman environment variables
-  const convertedPathSegments = path.split('/').filter(p => p).map(p => {
+  const mappedPathSegments = path.split('/').filter(p => p).map(p => {
     // Handle path parameters to use environment variables (camelCase)
     if (p.startsWith('{') && p.endsWith('}')) {
       const paramName = p.slice(1, -1);
@@ -821,9 +853,12 @@ function createUrl(path, baseUrlVariable) {
     return p;
   });
 
+  // Prepend the base path so the request targets the version the spec serves it under
+  const convertedPathSegments = serverPathSegments(spec, path).concat(mappedPathSegments);
+
   // Build the raw URL using the converted path segments
   const convertedPath = '/' + convertedPathSegments.join('/');
-  
+
   return {
     raw: `${baseUrlVariable}${convertedPath}`,
     host: [`${baseUrlVariable}`],
@@ -948,7 +983,7 @@ function addParameters(requestItem, operation, path) {
   
   // Add X-Idempotency header for transaction creation endpoints
   const isTransactionEndpoint = (
-    (path.includes('/transactions/json') || path.includes('/transactions/dsl')) && 
+    path.includes('/transactions/json') &&
     requestItem.request.method === 'POST'
   );
   
@@ -1013,37 +1048,6 @@ function addParameters(requestItem, operation, path) {
  * @param {Object} spec - The full OpenAPI spec
  */
 function addRequestBody(requestItem, operation, spec) {
-  // Check if this is a DSL transaction endpoint
-  const url = requestItem.request.url.raw || '';
-  const isDslEndpoint = url.includes('/transactions/dsl');
-  
-  if (isDslEndpoint) {
-    // DSL endpoints require form-data for file upload
-    requestItem.request.body = {
-      mode: 'formdata',
-      formdata: [
-        {
-          key: 'dsl',
-          type: 'file',
-          description: 'DSL transaction file',
-          src: []
-        }
-      ]
-    };
-    
-    // Add content-type header for form-data
-    if (!requestItem.request.header) {
-      requestItem.request.header = [];
-    }
-    
-    // Remove any existing content-type headers and let Postman handle multipart
-    requestItem.request.header = requestItem.request.header.filter(h => 
-      h.key.toLowerCase() !== 'content-type'
-    );
-    
-    return; // Skip the normal JSON body processing
-  }
-  
   // Add request body if present in OpenAPI 3.0 format
   if (operation.requestBody) {
     const content = operation.requestBody.content || {};
@@ -1060,9 +1064,17 @@ function addRequestBody(requestItem, operation, spec) {
       // If there are explicit examples, use the first one
       if (jsonContent.examples && Object.keys(jsonContent.examples).length > 0) {
         const firstExampleKey = Object.keys(jsonContent.examples)[0];
-        example = jsonContent.examples[firstExampleKey].value;
+        const namedExample = jsonContent.examples[firstExampleKey];
+        example = namedExample.value;
+
+        // A named example may carry prose the body itself cannot: JSON has no comments, so a
+        // rule about the shape has nowhere else to go. It fills the request description only
+        // when the operation supplied none, so an operation's own prose always wins.
+        if (namedExample.description && !requestItem.request.description) {
+          requestItem.request.description = namedExample.description;
+        }
       }
-      
+
       // Remove fields marked with swagger:ignore
       example = removeIgnoredFields(example, jsonContent.schema, spec);
       
@@ -1165,8 +1177,7 @@ function addResponseExamples(requestItem, operation, spec) {
  */
 // Default host port per non-ledger component (single base URL each).
 const COMPONENT_PORTS = {
-  tracer: '4020',
-  reporter: '4005'
+  tracer: '4020'
 };
 
 // camelCase env-variable prefix for a component (strips hyphens, e.g. data-source -> datasource).
@@ -1176,8 +1187,8 @@ function componentEnvPrefix(component) {
 
 function createEnvironmentTemplate(spec) {
   // Non-ledger components get a minimal environment (host + component-scoped url/port)
-  // so tracer and reporter collections are not polluted with ledger resource keys,
-  // and their keys do not collide with ledger's on merge into the MIDAZ environment.
+  // so their collections are not polluted with ledger resource keys, and their keys
+  // do not collide with ledger's on merge into the MIDAZ environment.
   if (COMPONENT !== 'ledger') {
     const prefix = componentEnvPrefix(COMPONENT);
     const port = COMPONENT_PORTS[COMPONENT] || '3002';
@@ -1634,12 +1645,148 @@ internal systems rather than with the client's request.`,
   }
 };
 
-// Request body examples can now come from the OpenAPI spec directly
-const REQUEST_BODY_EXAMPLES = {};
+// Hand-written request bodies, keyed by the component schema name the request body $refs.
+// updateOpenApiSpec injects an entry as that media type's named examples, and addRequestBody
+// prefers a named example over anything it derives from the schema.
+//
+// An entry earns its place when the schema alone cannot yield a body a reader can send: a
+// constraint the schema has no structural expression for, or a value that must come from the
+// collection environment rather than from a type.
+const REQUEST_BODY_EXAMPLES = {
+  // The four v2 create actions (direct, hold, block, unblock) share this body. Each side is
+  // spelled EITHER with its scalar field or with its leg array, and the schema is one flat
+  // object listing both spellings, so a body derived from the schema carries both at once and
+  // the API rejects it. This one spells both sides scalar.
+  CreateTransactionV2Input: {
+    scalar_sides: {
+      summary: 'Both sides spelled scalar',
+      description: `Moves the whole \`amount\` from one account to another.
+
+Each side of the transaction is spelled EITHER with its scalar field (\`from\`, \`to\`) OR with its leg array (\`sources\`, \`destinations\`) — never both on the same side, though the two sides may choose differently. Leave the spelling you are not using out of the body.
+
+To split a side across several accounts, replace its scalar field with the matching leg array. Each leg names an \`account\` and carries EXACTLY ONE value expression: \`amount\` for an explicit value, or \`share\` for a percentage of the transaction total. Sending both, or neither, is rejected.
+
+\`\`\`json
+"sources": [
+  { "account": "@external/USD", "amount": "60.00" },
+  { "account": "@treasury/USD", "amount": "40.00" }
+]
+\`\`\`
+
+\`routeId\` (transaction route) and \`operationRouteId\` (per-leg operation route) are optional and left out here; both must name a route that exists in the ledger.`,
+      value: {
+        asset: 'USD',
+        amount: '100.00',
+        from: '@external/USD',
+        to: '{{accountAlias}}',
+        description: 'Example transaction',
+        code: 'EXAMPLE_TRANSACTION',
+        metadata: {
+          key: 'value'
+        }
+      }
+    }
+  }
+};
 
 //=============================================================================
 // EXAMPLE GENERATION
 //=============================================================================
+
+/**
+ * Read the example a schema declares for itself.
+ *
+ * OpenAPI 3.0 spells it as a singular `example`; 3.1 spells it as an `examples` array and
+ * drops the singular form. Both are read so one code path covers either dialect, and the
+ * caller learns whether an example was found rather than inferring it from the value (a
+ * declared `null`, `0` or `""` is a declaration).
+ *
+ * @param {Object} schema - The schema object from the OpenAPI spec
+ * @returns {{found: boolean, value: *}} The declared example
+ */
+function declaredExample(schema) {
+  if (!schema || typeof schema !== 'object') {
+    return { found: false, value: undefined };
+  }
+
+  if (schema.example !== undefined) {
+    return { found: true, value: schema.example };
+  }
+
+  if (Array.isArray(schema.examples) && schema.examples.length > 0) {
+    return { found: true, value: schema.examples[0] };
+  }
+
+  return { found: false, value: undefined };
+}
+
+/**
+ * Resolve a local $ref to the schema it names.
+ * @param {string} ref - The reference string
+ * @param {Object} spec - The full OpenAPI spec
+ * @returns {Object|undefined} The referenced schema, or undefined when it cannot be resolved
+ */
+function resolveSchemaRef(ref, spec) {
+  if (typeof ref !== 'string' || !spec) {
+    return undefined;
+  }
+
+  const refPath = ref.split('/');
+  const refName = refPath.pop();
+
+  if (refPath.includes('components') && refPath.includes('schemas') && spec.components && spec.components.schemas) {
+    return spec.components.schemas[refName];
+  }
+
+  if (spec.definitions) {
+    return spec.definitions[refName];
+  }
+
+  return undefined;
+}
+
+/**
+ * Generate an example for a referenced schema.
+ *
+ * seenRefs holds the refs already open on the current branch. A ref that reappears on its own
+ * branch yields null instead of descending again, so a self-referential or mutually
+ * referential schema cannot recurse without end.
+ *
+ * @param {string} ref - The reference string
+ * @param {string} path - The path of the current property
+ * @param {string} url - The URL context for special handling
+ * @param {Object} spec - The full OpenAPI spec
+ * @param {Set<string>} seenRefs - Refs already open on this branch
+ * @returns {*} Example value, or null when the ref cannot be resolved
+ */
+function generateRefExample(ref, path = '', url = '', spec = null, seenRefs = new Set()) {
+  if (seenRefs.has(ref)) {
+    return null;
+  }
+
+  const refSchema = resolveSchemaRef(ref, spec);
+  if (!refSchema) {
+    return null;
+  }
+
+  const declared = declaredExample(refSchema);
+  if (declared.found) {
+    return declared.value;
+  }
+
+  const branch = new Set(seenRefs);
+  branch.add(ref);
+
+  if (refSchema.properties) {
+    return generateObjectExample(refSchema, path, url, spec, branch);
+  }
+
+  if (refSchema.items) {
+    return generateArrayExample(refSchema, path, url, spec, branch);
+  }
+
+  return null;
+}
 
 /**
  * Generate an example for a Send object with URL-aware account logic
@@ -1749,30 +1896,33 @@ function generateSendExample(url = '') {
  * @param {Object} schema - The schema object from the OpenAPI spec
  * @param {string} path - The path of the current property
  * @param {string} url - The URL context for special handling
+ * @param {Object} spec - The full OpenAPI spec, needed to resolve property $refs
+ * @param {Set<string>} seenRefs - Refs already open on this branch
  * @returns {Object} Example object
  */
-function generateObjectExample(schema, path = '', url = '') {
+function generateObjectExample(schema, path = '', url = '', spec = null, seenRefs = new Set()) {
   const example = {};
-  
+
   if (!schema || !schema.properties) {
     return example;
   }
-  
+
   for (const [propName, propSchema] of Object.entries(schema.properties)) {
     // Build the current property path
     const currentPath = path ? `${path}.${propName}` : propName;
-    
-    // Use existing example if available
-    if (propSchema.example !== undefined) {
-      example[propName] = propSchema.example;
+
+    // Prefer what the property declares over anything derived from its type
+    const declared = declaredExample(propSchema);
+    if (declared.found) {
+      example[propName] = declared.value;
       continue;
     }
-    
+
     // Handle different property types
     switch (propSchema.type) {
       case 'string':
         if (propSchema.format === 'uuid') {
-          example[propName] = null;
+          example[propName] = EXAMPLE_UUID;
         } else if (propSchema.format === 'date-time') {
           example[propName] = EXAMPLE_DATE_TIME;
         } else if (propName.toLowerCase().includes('status')) {
@@ -1829,7 +1979,7 @@ function generateObjectExample(schema, path = '', url = '') {
         example[propName] = false;
         break;
       case 'array':
-        example[propName] = generateArrayExample(propSchema, currentPath, url);
+        example[propName] = generateArrayExample(propSchema, currentPath, url, spec, seenRefs);
         break;
       case 'object':
         if (propName.toLowerCase() === 'address') {
@@ -1839,7 +1989,7 @@ function generateObjectExample(schema, path = '', url = '') {
           // Follow project standard for status fields - always use {"code": "ACTIVE"}
           example[propName] = { code: "ACTIVE" };
         } else if (propSchema.properties) {
-          example[propName] = generateObjectExample(propSchema, currentPath, url);
+          example[propName] = generateObjectExample(propSchema, currentPath, url, spec, seenRefs);
         } else {
           example[propName] = { key: "value" };
         }
@@ -1848,7 +1998,7 @@ function generateObjectExample(schema, path = '', url = '') {
         if (propSchema.$ref) {
           // Handle reference to another schema
           const refName = propSchema.$ref.split('/').pop();
-          
+
           // Special handling for Send schema
           if (refName === 'Send') {
             example[propName] = generateSendExample(url);
@@ -1859,16 +2009,16 @@ function generateObjectExample(schema, path = '', url = '') {
             // Generate detailed address example
             example[propName] = generateAddressExample();
           } else {
-            example[propName] = null;
+            example[propName] = generateRefExample(propSchema.$ref, currentPath, url, spec, seenRefs);
           }
         } else if (propSchema.properties) {
-          example[propName] = generateObjectExample(propSchema, currentPath, url);
+          example[propName] = generateObjectExample(propSchema, currentPath, url, spec, seenRefs);
         } else {
           example[propName] = null;
         }
     }
   }
-  
+
   return example;
 }
 
@@ -1892,25 +2042,28 @@ function generateAddressExample() {
  * @param {Object} schema - The array schema object from the OpenAPI spec
  * @param {string} path - The path of the current property
  * @param {string} url - The URL context for special handling
+ * @param {Object} spec - The full OpenAPI spec, needed to resolve item $refs
+ * @param {Set<string>} seenRefs - Refs already open on this branch
  * @returns {Array} Example array
  */
-function generateArrayExample(schema, path = '', url = '') {
+function generateArrayExample(schema, path = '', url = '', spec = null, seenRefs = new Set()) {
   if (!schema.items) {
     return [];
   }
 
-  // Use existing example if available
-  if (schema.example) {
-    return schema.example;
+  // Prefer what the array declares over anything derived from its item schema
+  const declared = declaredExample(schema);
+  if (declared.found) {
+    return declared.value;
   }
 
   const itemSchema = schema.items;
-  
+
   // Generate an example item based on the item schema
   let exampleItem;
-  
+
   if (itemSchema.type === 'object' && itemSchema.properties) {
-    exampleItem = generateObjectExample(itemSchema, `${path}[]`, url);
+    exampleItem = generateObjectExample(itemSchema, `${path}[]`, url, spec, seenRefs);
   } else if (itemSchema.type === 'string') {
     exampleItem = 'Example string';
   } else if (itemSchema.type === 'number' || itemSchema.type === 'integer') {
@@ -1922,12 +2075,12 @@ function generateArrayExample(schema, path = '', url = '') {
     if (refName === 'Send') {
       exampleItem = generateSendExample(url);
     } else {
-      exampleItem = null;
+      exampleItem = generateRefExample(itemSchema.$ref, `${path}[]`, url, spec, seenRefs);
     }
   } else {
     exampleItem = null;
   }
-  
+
   // Return an array with a single example item
   return [exampleItem];
 }
@@ -1940,44 +2093,35 @@ function generateArrayExample(schema, path = '', url = '') {
  * @returns {Object} Example object
  */
 function generateExampleFromSchema(schema, spec, url = '') {
-  // If schema has an example, use it
-  if (schema.example !== undefined) {
-    return schema.example;
+  // Prefer what the schema declares over anything derived from its type
+  const declared = declaredExample(schema);
+  if (declared.found) {
+    return declared.value;
   }
-  
+
   // If schema has a reference, resolve it
   if (schema.$ref) {
-    const refPath = schema.$ref.split('/');
-    const refName = refPath.pop();
-    
-    // Handle different reference formats
-    let refSchema;
-    if (refPath.includes('components') && refPath.includes('schemas') && spec.components && spec.components.schemas) {
-      // OpenAPI 3.0 format
-      refSchema = spec.components.schemas[refName];
-    } else if (spec.definitions) {
-      // Swagger 2.0 format
-      refSchema = spec.definitions[refName];
-    }
-    
+    const refName = schema.$ref.split('/').pop();
+    const refSchema = resolveSchemaRef(schema.$ref, spec);
+
     if (refSchema) {
       // Special handling for specific schemas
       if (refName === 'Send') {
         return generateSendExample(url);
       }
-      
+
       return generateExampleFromSchema(refSchema, spec, url);
     }
   }
-  
+
   // Handle different schema types
   if (schema.type === 'object' || (!schema.type && schema.properties)) {
-    return generateObjectExample(schema, '', url);
+    return generateObjectExample(schema, '', url, spec);
   } else if (schema.type === 'array' && schema.items) {
-    return generateArrayExample(schema, '', url);
+    return generateArrayExample(schema, '', url, spec);
   } else if (schema.type === 'string') {
     if (schema.format === 'uuid') {
-      return '00000000-0000-0000-0000-000000000000';
+      return EXAMPLE_UUID;
     } else if (schema.format === 'date-time') {
       return EXAMPLE_DATE_TIME;
     } else if (schema.enum && schema.enum.length > 0) {
@@ -2408,13 +2552,6 @@ function ensureExamplesFollowStandards(collection) {
           }
         }
         
-        // Fix 4: Handle DSL Transaction endpoint - skip or provide proper DSL payload
-        if (method === 'POST' && requestPath.includes('/transactions/dsl')) {
-          // Remove the body for DSL endpoint as it requires special DSL syntax
-          delete item.request.body;
-          console.log(`Removed body from DSL transaction request: ${item.name} (requires DSL file format)`);
-        }
-        
         // Fix test assertions to match actual backend behavior
         if (item.event && Array.isArray(item.event)) {
           item.event.forEach(event => {
@@ -2458,23 +2595,6 @@ function ensureExamplesFollowStandards(collection) {
                   'if (pm.response.code === 200) { pm.response.to.be.json; } // Only validate JSON for successful responses'
                 );
                 console.log(`Fixed account lookup assertions for: ${item.name}`);
-              }
-              
-              // Fix 8: DSL Transaction assertions - handle 400 error and no variable extraction
-              if (requestPath.includes('/transactions/dsl')) {
-                scriptContent = scriptContent.replace(
-                  /pm\.expect\(pm\.response\.code\)\.to\.be\.oneOf\(\[200, 201\]\);/g,
-                  'pm.expect(pm.response.code).to.be.oneOf([400, 422]); // DSL endpoint requires proper DSL format'
-                );
-                scriptContent = scriptContent.replace(
-                  /pm\.expect\(extractedCount\)\.to\.be\.at\.least\(1, "At least one variable should be extracted"\);/g,
-                  '// Skip variable extraction for DSL endpoint due to format requirements'
-                );
-                scriptContent = scriptContent.replace(
-                  /if \(!pm\.environment\.get\("dslTransactionId"\)\) \{[\s\S]*?\}/g,
-                  '// DSL Transaction ID not available due to endpoint format requirements'
-                );
-                console.log(`Fixed DSL transaction assertions for: ${item.name}`);
               }
               
               // Update the script

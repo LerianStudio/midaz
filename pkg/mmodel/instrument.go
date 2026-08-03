@@ -114,9 +114,9 @@ type Instrument struct {
 	ID *uuid.UUID `json:"id,omitempty" example:"00000000-0000-0000-0000-000000000000" format:"uuid"`
 
 	// National or tax identification document of the holder linked to this instrument.
-	// example: 91315026015
+	// example: 12345678900
 	// maxLength: 100
-	Document *string `json:"document,omitempty" example:"91315026015" maxLength:"100"`
+	Document *string `json:"document,omitempty" example:"12345678900" maxLength:"100"`
 
 	// Holder type (NATURAL_PERSON or LEGAL_PERSON), derived from the associated holder.
 	// example: NATURAL_PERSON

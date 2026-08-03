@@ -367,7 +367,7 @@ func (uc *UseCase) SendTransactionToRedisQueue(ctx context.Context, organization
 	// balance (e.g. auto-created overdraft reserves) MUST be rejected
 	// BEFORE the transaction is published to the Redis queue. This keeps
 	// system-managed balances out of the user-initiated mutation path
-	// across every entry point (HTTP, gRPC, DSL).
+	// for every caller of this use case, not just the HTTP handler.
 	for _, b := range balances {
 		if b != nil && b.Settings != nil && b.Settings.BalanceScope == mmodel.BalanceScopeInternal {
 			logger.Log(ctx, libLog.LevelWarn, "Rejected transaction targeting internal balance",

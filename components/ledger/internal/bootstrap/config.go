@@ -1073,8 +1073,8 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 	//     ([authAssertion, WithTenantDB]) — as RegisterOnboardingRoutesToApp did.
 	//   - account-type uses onboardingRouteOptions too, but authorizes against the
 	//     "routing" appName (protectedRouting), exactly as the inline route did.
-	//   - asset-rate uses transactionRouteOptions ([authAssertion, WithTenantDB]) — it
-	//     lived in RegisterTransactionRoutesToApp; it is MONEY-adjacent (exchange rates).
+	//   - asset-rate uses transactionRouteOptions ([authAssertion, WithTenantDB]) — it is
+	//     MONEY-adjacent (exchange rates), so it shares the transaction tenant chain.
 	//   - metadata-index uses ledgerRouteOptions ([authAssertion] ONLY, no WithTenantDB)
 	//     — as RegisterMetadataRoutesToApp did via CreateRouteRegistrar. Passing the
 	//     onboarding options here would inject tenant-DB middleware the inline route
@@ -1091,24 +1091,20 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 		httpin.RegisterAssetRateRoutesToApp(group, api, auth, assetRateHandler, routeSetup.transactionRouteOptions)
 
 		// Wave-2 (money-read + routing) resources: balance, operation-read, transaction-
-		// count, operation-route, transaction-route. All lived in RegisterTransactionRoutesToApp
-		// before migration, so all carry transactionRouteOptions ([authAssertion, WithTenantDB]) —
-		// byte-for-byte the same tenant chain the inline routes used. balance/operation/count
-		// authorize against the "midaz" appName (protectedMidaz); operation-route/transaction-route
-		// authorize against the "routing" appName (protectedRouting), exactly as the inline routes did.
+		// count, operation-route, transaction-route. All carry transactionRouteOptions
+		// ([authAssertion, WithTenantDB]). balance/operation/count authorize against the
+		// "midaz" appName (protectedMidaz); operation-route/transaction-route authorize
+		// against the "routing" appName (protectedRouting).
 		httpin.RegisterBalanceRoutesToApp(group, api, auth, balanceHandler, routeSetup.transactionRouteOptions)
 		httpin.RegisterOperationRoutesToApp(group, api, auth, operationHandler, routeSetup.transactionRouteOptions)
 		httpin.RegisterCountTransactionRoutesToApp(group, api, auth, transactionHandler, routeSetup.transactionRouteOptions)
 		httpin.RegisterOperationRouteRoutesToApp(group, api, auth, operationRouteHandler, routeSetup.transactionRouteOptions)
 		httpin.RegisterTransactionRouteRoutesToApp(group, api, auth, transactionRouteHandler, routeSetup.transactionRouteOptions)
 
-		// Wave-4 (MONEY-WRITE): the ten transaction ops (json/inflow/outflow/annotation
-		// CREATE, commit/cancel/revert STATE, PATCH update, GET-by-id + list). They lived
-		// in RegisterTransactionRoutesToApp before migration, so they carry
-		// transactionRouteOptions ([authAssertion, WithTenantDB]) and authorize against the
-		// "midaz" appName (protectedMidaz) — byte-for-byte the same auth + tenant chain and
-		// (resource, verb) tuples the inline routes used. POST /transactions/dsl is NOT here:
-		// it stays a pure inline Fiber terminal in RegisterTransactionRoutesToApp (below).
+		// Wave-4 (MONEY-WRITE): the twelve transaction ops (json/inflow/outflow/annotation/
+		// block/unblock CREATE, commit/cancel/revert STATE, PATCH update, GET-by-id + list).
+		// They carry transactionRouteOptions ([authAssertion, WithTenantDB]) and authorize
+		// against the "midaz" appName (protectedMidaz).
 		httpin.RegisterTransactionHumaRoutesToApp(group, api, auth, transactionHandler, routeSetup.transactionRouteOptions)
 
 		// Wave-3 (additive) resources: CRM (holders/instruments/holder-accounts/
@@ -1127,17 +1123,28 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 	// humaMountV2 wires the /v2 Huma terminals + Fiber auth/tenant chain on the
 	// SECOND, independent contract instance (one OpenAPI document per API
 	// version, each with its OWN Huma component registry so v1 and v2 schema names
-	// never collide). It registers the `direct` transaction op: it carries
-	// transactionRouteOptions ([authAssertion, WithTenantDB]) and authorizes against
-	// the "midaz" appName (protectedMidaz, transactions:post) — the SAME auth + tenant
-	// chain the v1 transaction CREATE ops use, no new policy. Later phases add
-	// hold/block/commit/cancel/revert here.
+	// never collide).
+	//
+	// The transaction ops carry transactionRouteOptions ([authAssertion, WithTenantDB])
+	// and authorize against the "midaz" appName (protectedMidaz, transactions:post) —
+	// the SAME auth + tenant chain the v1 transaction CREATE ops use, no new policy.
+	//
+	// CRM (holders/instruments/holder-accounts/encryption/audit) carries its OWN
+	// crmRouteOptions so the CRM tenant Mongo never overwrites the transaction tenant
+	// DB, and authorizes against the same "midaz" (resource, verb) tuples the /v1 CRM
+	// routes use. The nil-guards (holder-accounts, encryption, audit) hold on this
+	// contract exactly as they do on /v1: a nil handler mounts neither the Fiber auth
+	// chain nor the Huma terminal. /v1 keeps serving CRM in parallel.
+	//
+	// The fee and billing ops carry their OWN feesRouteOptions, the same tenant chain
+	// the /v1 fee routes use, and authorize against the same "plugin-fees" (resource,
+	// verb) tuples — no new policy surface. They differ from /v1 in scope only: the
+	// path names the ledger, so a package another ledger owns is out of reach. /v1
+	// keeps serving the organization-scoped surface in parallel.
 	humaMountV2 := func(group fiber.Router, api huma.API) {
 		httpin.RegisterTransactionV2RoutesToApp(group, api, auth, transactionHandler, routeSetup.transactionRouteOptions)
-	}
-
-	transactionRouteRegistrar := func(router fiber.Router) {
-		httpin.RegisterTransactionRoutesToApp(router, auth, transactionHandler, operationHandler, assetRateHandler, balanceHandler, operationRouteHandler, transactionRouteHandler, routeSetup.transactionRouteOptions)
+		httpin.RegisterCRMV2RoutesToApp(group, api, auth, crmMgo.holderHandler, crmMgo.instrumentHandler, holderAccountsHandler, crmMgo.encryptionHandler, crmMgo.auditHandler, routeSetup.crmRouteOptions)
+		httpin.RegisterFeesV2RoutesToApp(group, api, auth, feePackageHandler, feeHandler, billingPackageHandler, billingCalculateHandler, routeSetup.feesRouteOptions)
 	}
 
 	ledgerRouteRegistrar := httpin.CreateRouteRegistrar(auth, metadataIndexHandler, routeSetup.ledgerRouteOptions)
@@ -1165,7 +1172,6 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 		humaMount,
 		humaMountV2,
 		onboardingRouteRegistrar,
-		transactionRouteRegistrar,
 		ledgerRouteRegistrar,
 	)
 

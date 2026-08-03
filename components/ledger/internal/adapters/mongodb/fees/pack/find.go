@@ -69,11 +69,16 @@ func (pm *PackageMongoDBRepository) FindList(ctx context.Context, filters http.Q
 		queryFilter["enable"] = filters.Enable
 	}
 
-	if filters.SegmentID.ID() != 0 {
+	// uuid.Nil is the "no scope requested" value for both filters. The comparison is
+	// against uuid.Nil rather than against UUID.ID(), which reads only the first four
+	// bytes: a real identifier whose leading four bytes happen to be zero reads as
+	// unset there, and the clause it should have added is dropped — widening a
+	// ledger-scoped listing to every ledger of the organization.
+	if filters.SegmentID != uuid.Nil {
 		queryFilter["segment_id"] = filters.SegmentID
 	}
 
-	if filters.LedgerID.ID() != 0 {
+	if filters.LedgerID != uuid.Nil {
 		queryFilter["ledger_id"] = filters.LedgerID
 	}
 
@@ -131,17 +136,16 @@ func (pm *PackageMongoDBRepository) FindList(ctx context.Context, filters http.Q
 }
 
 // FindByID finds a package by ID.
-func (pm *PackageMongoDBRepository) FindByID(ctx context.Context, id, organizationID uuid.UUID) (*Package, error) {
+func (pm *PackageMongoDBRepository) FindByID(ctx context.Context, id, organizationID, ledgerID uuid.UUID) (*Package, error) {
 	_, tracer, reqId, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "repository.package.find_by_entity")
 	defer span.End()
 
-	attributes := []attribute.KeyValue{
-		attribute.String("app.request.request_id", reqId),
-		attribute.String("app.request.organization_id", organizationID.String()),
-		attribute.String("app.request.package_id", id.String()),
-	}
+	attributes := append(
+		[]attribute.KeyValue{attribute.String("app.request.request_id", reqId)},
+		packageScopeAttributes(id, organizationID, ledgerID)...,
+	)
 
 	span.SetAttributes(attributes...)
 
@@ -162,7 +166,7 @@ func (pm *PackageMongoDBRepository) FindByID(ctx context.Context, id, organizati
 	spanFindOne.SetAttributes(attributes...)
 
 	if err = coll.
-		FindOne(ctx, bson.M{"_id": id, "organization_id": organizationID, "deleted_at": bson.D{{Key: "$eq", Value: nil}}}).
+		FindOne(ctx, packageScopeFilter(id, organizationID, ledgerID)).
 		Decode(&record); err != nil {
 		if errors.Is(err, mongo.ErrNoDocuments) {
 			libOpentelemetry.HandleSpanBusinessErrorEvent(spanFindOne, "Package not found", err)

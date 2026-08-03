@@ -10,6 +10,7 @@ import (
 	"net/url"
 
 	"github.com/danielgtaylor/huma/v2"
+	"github.com/google/uuid"
 
 	"github.com/LerianStudio/midaz/v4/components/ledger/pkg/feeshared/model"
 	pkgHTTP "github.com/LerianStudio/midaz/v4/pkg/net/http"
@@ -163,7 +164,7 @@ func (handler *BillingPackageHandler) GetBillingPackageByIDHuma(ctx context.Cont
 		return nil, pkgHTTP.HumaProblem(err)
 	}
 
-	result, err := handler.getBillingPackageByID(ctx, orgID, id)
+	result, err := handler.getBillingPackageByID(ctx, orgID, uuid.Nil, id)
 	if err != nil {
 		return nil, pkgHTTP.HumaProblem(err)
 	}
@@ -206,7 +207,7 @@ func (handler *BillingPackageHandler) UpdateBillingPackageHuma(ctx context.Conte
 		return nil, pkgHTTP.HumaProblem(err)
 	}
 
-	result, err := handler.updateBillingPackage(ctx, orgID, id, payload)
+	result, err := handler.updateBillingPackage(ctx, orgID, uuid.Nil, id, payload)
 	if err != nil {
 		return nil, pkgHTTP.HumaProblem(err)
 	}
@@ -233,7 +234,7 @@ func (handler *BillingPackageHandler) DeleteBillingPackageHuma(ctx context.Conte
 		return nil, pkgHTTP.HumaProblem(err)
 	}
 
-	if err := handler.deleteBillingPackage(ctx, orgID, id); err != nil {
+	if err := handler.deleteBillingPackage(ctx, orgID, uuid.Nil, id); err != nil {
 		return nil, pkgHTTP.HumaProblem(err)
 	}
 
@@ -241,17 +242,19 @@ func (handler *BillingPackageHandler) DeleteBillingPackageHuma(ctx context.Conte
 }
 
 // RegisterBillingPackageRoutes registers the five migrated billing-package operations
-// on the shared Huma API. It is the per-file seam the unified server calls; the auth
+// on the given Huma API. It is the per-file seam the unified server calls; the auth
 // ("plugin-fees","billing-packages",verb) + tenant +
-// ParseUUIDPathParameters("billing-packages") middleware chain is attached on the /v1
-// group (Fiber-level) BEFORE the Huma terminal, not here. Paths are GROUP-RELATIVE
-// (see asset_handler_huma.go's RegisterAssetRoutes header for the /v1 rationale).
+// ParseUUIDPathParameters("billing-packages") middleware chain is attached on the
+// versioned Fiber group BEFORE the Huma terminal, not here. Paths are GROUP-RELATIVE
+// (see asset_handler_huma.go's RegisterAssetRoutes header for the rationale).
+//
+// The resource hangs off feeBasePathV1. The operation IDs are literal — see
+// RegisterPackageRoutes.
 func RegisterBillingPackageRoutes(api huma.API, h *BillingPackageHandler) {
-	const (
-		listPath = "/organizations/{organization_id}/billing-packages"
-		idPath   = listPath + "/{id}"
-		tag      = "Billing Packages"
-	)
+	const tag = "Billing Packages"
+
+	listPath := feeBasePathV1 + "/billing-packages"
+	idPath := listPath + "/{id}"
 
 	huma.Register(api, huma.Operation{
 		OperationID: "createBillingPackage",
@@ -262,6 +265,7 @@ func RegisterBillingPackageRoutes(api huma.API, h *BillingPackageHandler) {
 		Security:    secBillingBearer,
 		// Body validated imperatively (feehttp.DecodeValidateBody) — see file header.
 		SkipValidateBody: true,
+		DefaultStatus:    http.StatusCreated,
 	}, h.CreateBillingPackageHuma)
 
 	huma.Register(api, huma.Operation{

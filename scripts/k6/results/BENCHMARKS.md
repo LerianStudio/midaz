@@ -163,4 +163,4 @@ revert-pending, non-existent) found **no remaining 5xx-on-bad-input or
 double-entry-integrity bugs** — every client error returns a precise 4xx (or
 409/404 for invalid state transitions), and the reserve lifecycle is idempotent.
 Not exhaustively fuzzed: org/asset/portfolio/segment CRUD, metadata edges,
-pagination, multi-leg/split and DSL transaction paths, multi-tenant, auth-on.
+pagination, multi-leg/split transaction paths, multi-tenant, auth-on.

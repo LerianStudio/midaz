@@ -161,7 +161,7 @@ func TestUpdatePackage(t *testing.T) {
 			packInput: &model.UpdatePackageInput{Fee: feeRemove},
 			mockSetup: func() {
 				mockPackageRepo.EXPECT().
-					Update(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+					Update(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Eq(uuid.Nil), gomock.Any()).
 					Return(updatedPkg, nil)
 
 				mockPackageRepo.EXPECT().
@@ -186,7 +186,7 @@ func TestUpdatePackage(t *testing.T) {
 					Return(packEntity, nil)
 
 				mockPackageRepo.EXPECT().
-					Update(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+					Update(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Eq(uuid.Nil), gomock.Any()).
 					Return(updatedPkg, nil)
 
 				mockPackageRepo.EXPECT().
@@ -211,7 +211,7 @@ func TestUpdatePackage(t *testing.T) {
 					Return(packEntity, nil)
 
 				mockPackageRepo.EXPECT().
-					Update(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+					Update(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Eq(uuid.Nil), gomock.Any()).
 					Return(nil, ErrDatabaseItemNotFound)
 
 				mockPackageRepo.EXPECT().
@@ -237,7 +237,7 @@ func TestUpdatePackage(t *testing.T) {
 					Return(packEntity, nil)
 
 				mockPackageRepo.EXPECT().
-					Update(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+					Update(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Eq(uuid.Nil), gomock.Any()).
 					Return(nil, constant.ErrBadRequest)
 
 				mockPackageRepo.EXPECT().
@@ -268,7 +268,7 @@ func TestUpdatePackage(t *testing.T) {
 			tt.mockSetup()
 
 			ctx := context.Background()
-			err := packSvc.UpdatePackageByID(ctx, tt.packId, tt.orgId, tt.packInput)
+			err := packSvc.UpdatePackageByID(ctx, tt.packId, tt.orgId, uuid.Nil, tt.packInput)
 
 			if tt.expectErr {
 				assert.Error(t, err)
@@ -318,13 +318,13 @@ func TestUpdatePackageByID_UpdatedAtFieldSet(t *testing.T) {
 		Return(amountData, nil)
 
 	mockPackageRepo.EXPECT().
-		Update(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
-		DoAndReturn(func(_ context.Context, id uuid.UUID, _ uuid.UUID, updateFields interface{}) (*pack.Package, error) {
+		Update(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Eq(uuid.Nil), gomock.Any()).
+		DoAndReturn(func(_ context.Context, id, _, _ uuid.UUID, updateFields interface{}) (*pack.Package, error) {
 			capturedUpdateFields = updateFields
 			return &pack.Package{ID: id, LedgerID: amountData.LedgerID}, nil
 		})
 
-	err := packSvc.UpdatePackageByID(context.Background(), packID, orgId, input)
+	err := packSvc.UpdatePackageByID(context.Background(), packID, orgId, uuid.Nil, input)
 	assert.NoError(t, err)
 
 	// Assert that updated_at is set in the updateFields
@@ -374,7 +374,7 @@ func TestUpdatePackageByID_EmitsFeesPackageUpdated(t *testing.T) {
 		FindFeesAndAmountDataByPackageID(gomock.Any(), gomock.Any(), gomock.Any()).
 		Return(amountData, nil)
 	mockPackRepo.EXPECT().
-		Update(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+		Update(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Eq(uuid.Nil), gomock.Any()).
 		Return(persisted, nil)
 
 	svc := &UseCase{
@@ -385,7 +385,7 @@ func TestUpdatePackageByID_EmitsFeesPackageUpdated(t *testing.T) {
 	newLabel := "updated"
 	input := &model.UpdatePackageInput{FeeGroupLabel: newLabel}
 
-	err := svc.UpdatePackageByID(context.Background(), packID, orgID, input)
+	err := svc.UpdatePackageByID(context.Background(), packID, orgID, uuid.Nil, input)
 	require.NoError(t, err)
 
 	pkgStreaming.AssertEventEmitted(t, mockEmitter, "fee-packages", "updated")

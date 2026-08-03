@@ -304,6 +304,7 @@ func RegisterLimitRoutes(api huma.API, h *LimitHandler) {
 		OperationID:      "createLimit",
 		Method:           http.MethodPost,
 		Path:             "/limits",
+		DefaultStatus:    http.StatusCreated,
 		Summary:          "Create a new spending limit",
 		Tags:             []string{"Limits"},
 		Security:         secBearerOrAPIKey,

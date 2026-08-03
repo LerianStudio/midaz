@@ -72,7 +72,6 @@ func (h *feeHarness) newApp() *fiber.App {
 		http.WithBody(new(mtransaction.CreateTransactionOutflowInput), h.handler.CreateTransactionOutflow))
 	app.Post(base+"/transactions/annotation", paramMiddleware,
 		http.WithBody(new(mtransaction.CreateTransactionInput), h.handler.CreateTransactionAnnotation))
-	app.Post(base+"/transactions/dsl", paramMiddleware, h.handler.CreateTransactionDSL)
 	app.Post(base+"/transactions/:transaction_id/commit", paramMiddleware, h.handler.CommitTransaction)
 	app.Post(base+"/transactions/:transaction_id/cancel", paramMiddleware, h.handler.CancelTransaction)
 	app.Post(base+"/transactions/:transaction_id/revert", paramMiddleware, h.handler.RevertTransaction)

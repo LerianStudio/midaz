@@ -156,6 +156,100 @@ func TestIntegration_BillingPackageRepo_Create_PersistsAllFields(t *testing.T) {
 	assert.Equal(t, int64(1), count, "Create must persist exactly one document")
 }
 
+// docKeys returns the field names of a decoded BSON document. The v2 driver
+// decodes a top-level document into the destination map but nested documents into
+// bson.D, so both shapes are accepted.
+func docKeys(t *testing.T, doc any) []string {
+	t.Helper()
+
+	switch d := doc.(type) {
+	case bson.M:
+		keys := make([]string, 0, len(d))
+		for k := range d {
+			keys = append(keys, k)
+		}
+
+		return keys
+	case bson.D:
+		keys := make([]string, 0, len(d))
+		for _, e := range d {
+			keys = append(keys, e.Key)
+		}
+
+		return keys
+	default:
+		t.Fatalf("not a BSON document: %T", doc)
+
+		return nil
+	}
+}
+
+// elemKeys returns the field names of the element at index i of a stored array.
+func elemKeys(t *testing.T, arr any, i int) []string {
+	t.Helper()
+
+	a, ok := arr.(bson.A)
+	require.True(t, ok, "expected a BSON array, got %T", arr)
+	require.Greater(t, len(a), i, "array is shorter than the requested index")
+
+	return docKeys(t, a[i])
+}
+
+// TestIntegration_BillingPackageRepo_DocumentShape pins the persisted field names.
+// The billing package document is read by the in-process billing calculation as
+// well as by this repository, so a renamed or dropped bson tag is a silent pricing
+// change, not a compile error. Scoping the by-ID verbs to a ledger must not move
+// a single key.
+func TestIntegration_BillingPackageRepo_DocumentShape(t *testing.T) {
+	container := mongotestutil.SetupContainer(t)
+	repo := newRepository(t, container)
+	ctx := context.Background()
+
+	orgID := uuid.New().String()
+	ledgerID := uuid.New().String()
+
+	volume := newVolumePackage(orgID, ledgerID)
+	_, err := repo.Create(ctx, volume)
+	require.NoError(t, err)
+
+	var raw bson.M
+	require.NoError(t, collection(container).FindOne(ctx, bson.M{"_id": volume.ID}).Decode(&raw))
+
+	assert.ElementsMatch(t, []string{
+		"_id", "organization_id", "ledger_id", "label", "description", "type", "enable",
+		"event_filter", "pricing_model", "tiers", "discount_tiers", "asset_code",
+		"debit_account_alias", "credit_account_alias", "created_at", "updated_at",
+	}, docKeys(t, raw), "the stored volume package key set must not drift")
+
+	assert.Equal(t, ledgerID, raw["ledger_id"],
+		"ledger_id must stay a plain string carrying the owning ledger")
+
+	assert.ElementsMatch(t, []string{"transaction_route", "status"},
+		docKeys(t, raw["event_filter"]), "event_filter key set must not drift")
+	assert.ElementsMatch(t, []string{"min_quantity", "max_quantity", "unit_price"},
+		elemKeys(t, raw["tiers"], 0), "bounded tier key set must not drift")
+	assert.ElementsMatch(t, []string{"min_quantity", "unit_price"},
+		elemKeys(t, raw["tiers"], 1), "an open-ended tier must omit max_quantity")
+	assert.ElementsMatch(t, []string{"min_quantity", "discount_percentage"},
+		elemKeys(t, raw["discount_tiers"], 0), "discount tier key set must not drift")
+
+	maintenance := newMaintenancePackage(orgID, ledgerID, "route-shape")
+	_, err = repo.Create(ctx, maintenance)
+	require.NoError(t, err)
+
+	var rawMaintenance bson.M
+	require.NoError(t, collection(container).FindOne(ctx, bson.M{"_id": maintenance.ID}).Decode(&rawMaintenance))
+
+	assert.ElementsMatch(t, []string{
+		"_id", "organization_id", "ledger_id", "label", "type", "enable",
+		"event_filter", "fee_amount", "account_target", "created_at", "updated_at",
+	}, docKeys(t, rawMaintenance), "the stored maintenance package key set must not drift")
+
+	assert.ElementsMatch(t, []string{"segment_id"},
+		docKeys(t, rawMaintenance["account_target"]),
+		"an unset portfolio/aliases target must omit those keys entirely")
+}
+
 func TestIntegration_BillingPackageRepo_Create_Nil(t *testing.T) {
 	container := mongotestutil.SetupContainer(t)
 	repo := newRepository(t, container)
@@ -181,7 +275,7 @@ func TestIntegration_BillingPackageRepo_FindByID(t *testing.T) {
 	_, err := repo.Create(ctx, bp)
 	require.NoError(t, err)
 
-	result, err := repo.FindByID(ctx, bp.ID, orgID)
+	result, err := repo.FindByID(ctx, bp.ID, orgID, billing_package.AnyLedger)
 	require.NoError(t, err)
 	require.NotNil(t, result)
 	assert.Equal(t, bp.ID, result.ID)
@@ -193,7 +287,7 @@ func TestIntegration_BillingPackageRepo_FindByID_NotFound(t *testing.T) {
 	container := mongotestutil.SetupContainer(t)
 	repo := newRepository(t, container)
 
-	result, err := repo.FindByID(context.Background(), uuid.New().String(), uuid.New().String())
+	result, err := repo.FindByID(context.Background(), uuid.New().String(), uuid.New().String(), billing_package.AnyLedger)
 
 	require.Error(t, err)
 	assert.Nil(t, result)
@@ -210,7 +304,7 @@ func TestIntegration_BillingPackageRepo_FindByID_WrongOrgIsolation(t *testing.T)
 	require.NoError(t, err)
 
 	// Same id, different org must not leak across organizations.
-	result, err := repo.FindByID(ctx, bp.ID, uuid.New().String())
+	result, err := repo.FindByID(ctx, bp.ID, uuid.New().String(), billing_package.AnyLedger)
 	require.Error(t, err)
 	assert.Nil(t, result)
 	assert.ErrorIs(t, err, mongo.ErrNoDocuments)
@@ -226,12 +320,120 @@ func TestIntegration_BillingPackageRepo_FindByID_ExcludesSoftDeleted(t *testing.
 	_, err := repo.Create(ctx, bp)
 	require.NoError(t, err)
 
-	require.NoError(t, repo.SoftDelete(ctx, bp.ID, orgID))
+	require.NoError(t, repo.SoftDelete(ctx, bp.ID, orgID, billing_package.AnyLedger))
 
-	result, err := repo.FindByID(ctx, bp.ID, orgID)
+	result, err := repo.FindByID(ctx, bp.ID, orgID, billing_package.AnyLedger)
 	require.Error(t, err, "soft-deleted package must not be returned by FindByID")
 	assert.Nil(t, result)
 	assert.ErrorIs(t, err, mongo.ErrNoDocuments)
+}
+
+// ============================================================================
+// Cross-ledger isolation
+//
+// Each of the three by-ID verbs must treat a package owned by another ledger of
+// the same organization as absent. Every isolation assertion is paired with a
+// positive control on the owning ledger, so a filter that matches nothing at all
+// cannot satisfy these tests.
+// ============================================================================
+
+func TestIntegration_BillingPackageRepo_FindByID_WrongLedgerIsolation(t *testing.T) {
+	container := mongotestutil.SetupContainer(t)
+	repo := newRepository(t, container)
+	ctx := context.Background()
+
+	orgID := uuid.New().String()
+	ledgerA := uuid.New().String()
+	ledgerB := uuid.New().String()
+
+	bp := newVolumePackage(orgID, ledgerA)
+	_, err := repo.Create(ctx, bp)
+	require.NoError(t, err)
+
+	result, err := repo.FindByID(ctx, bp.ID, orgID, ledgerB)
+	require.Error(t, err, "a package on ledger A must not be readable through ledger B")
+	assert.Nil(t, result)
+	assert.ErrorIs(t, err, mongo.ErrNoDocuments,
+		"the cross-ledger read must report the same absence a nonexistent id produces")
+
+	// Positive control: the owning ledger reads it.
+	owned, err := repo.FindByID(ctx, bp.ID, orgID, ledgerA)
+	require.NoError(t, err, "the owning ledger must still read its own package")
+	require.NotNil(t, owned)
+	assert.Equal(t, bp.ID, owned.ID)
+
+	// Positive control: organization scope still reaches it on any ledger.
+	orgScoped, err := repo.FindByID(ctx, bp.ID, orgID, billing_package.AnyLedger)
+	require.NoError(t, err, "organization scope must keep reaching the package on any ledger")
+	require.NotNil(t, orgScoped)
+	assert.Equal(t, bp.ID, orgScoped.ID)
+}
+
+func TestIntegration_BillingPackageRepo_Update_WrongLedgerIsolation(t *testing.T) {
+	container := mongotestutil.SetupContainer(t)
+	repo := newRepository(t, container)
+	ctx := context.Background()
+
+	orgID := uuid.New().String()
+	ledgerA := uuid.New().String()
+	ledgerB := uuid.New().String()
+
+	bp := newVolumePackage(orgID, ledgerA)
+	_, err := repo.Create(ctx, bp)
+	require.NoError(t, err)
+
+	update := &bson.M{"$set": bson.M{"label": "Written Through Ledger B"}}
+	returned, errUpdate := repo.Update(ctx, bp.ID, orgID, ledgerB, update)
+	require.Error(t, errUpdate, "a package on ledger A must not be writable through ledger B")
+	assert.Nil(t, returned)
+
+	var notFound pkg.EntityNotFoundError
+	require.ErrorAs(t, errUpdate, &notFound)
+	assert.Equal(t, "0007", notFound.Code)
+
+	var raw bson.M
+	require.NoError(t, collection(container).FindOne(ctx, bson.M{"_id": bp.ID}).Decode(&raw))
+	assert.Equal(t, bp.Label, raw["label"],
+		"the cross-ledger update must not have touched the stored document")
+
+	// Positive control: the same update through the owning ledger lands.
+	ownedUpdate := &bson.M{"$set": bson.M{"label": "Written Through Ledger A"}}
+	owned, errOwned := repo.Update(ctx, bp.ID, orgID, ledgerA, ownedUpdate)
+	require.NoError(t, errOwned, "the owning ledger must still write its own package")
+	require.NotNil(t, owned)
+	assert.Equal(t, "Written Through Ledger A", owned.Label)
+}
+
+func TestIntegration_BillingPackageRepo_SoftDelete_WrongLedgerIsolation(t *testing.T) {
+	container := mongotestutil.SetupContainer(t)
+	repo := newRepository(t, container)
+	ctx := context.Background()
+
+	orgID := uuid.New().String()
+	ledgerA := uuid.New().String()
+	ledgerB := uuid.New().String()
+
+	bp := newVolumePackage(orgID, ledgerA)
+	_, err := repo.Create(ctx, bp)
+	require.NoError(t, err)
+
+	errDelete := repo.SoftDelete(ctx, bp.ID, orgID, ledgerB)
+	require.Error(t, errDelete, "a package on ledger A must not be deletable through ledger B")
+
+	var notFound pkg.EntityNotFoundError
+	require.ErrorAs(t, errDelete, &notFound)
+	assert.Equal(t, "0007", notFound.Code)
+
+	var raw bson.M
+	require.NoError(t, collection(container).FindOne(ctx, bson.M{"_id": bp.ID}).Decode(&raw))
+	assert.Nil(t, raw["deleted_at"], "the cross-ledger delete must not have soft-deleted the document")
+
+	// Positive control: the owning ledger deletes it.
+	require.NoError(t, repo.SoftDelete(ctx, bp.ID, orgID, ledgerA),
+		"the owning ledger must still delete its own package")
+
+	require.NoError(t, collection(container).FindOne(ctx, bson.M{"_id": bp.ID}).Decode(&raw))
+	assert.NotNil(t, raw["deleted_at"], "the owning-ledger delete must set deleted_at")
 }
 
 // ============================================================================
@@ -310,13 +512,57 @@ func TestIntegration_BillingPackageRepo_FindAll_ExcludesSoftDeleted(t *testing.T
 	_, err = repo.Create(ctx, deleted)
 	require.NoError(t, err)
 
-	require.NoError(t, repo.SoftDelete(ctx, deleted.ID, orgID))
+	require.NoError(t, repo.SoftDelete(ctx, deleted.ID, orgID, billing_package.AnyLedger))
 
 	all, total, err := repo.FindAll(ctx, orgID, ledgerID, "", 10, 1)
 	require.NoError(t, err)
 	assert.Equal(t, int64(1), total)
 	require.Len(t, all, 1)
 	assert.Equal(t, kept.ID, all[0].ID)
+}
+
+// TestIntegration_BillingPackageRepo_FindAll_AnyLedgerListsEveryLedger pins the
+// widening AnyLedger performs on the list. It is the same "no ledger clause"
+// sentinel the by-ID verbs use, but on a list the consequence is a result SET that
+// spans ledgers, so a surface whose path names a ledger must never reach here with
+// it. The organization boundary still holds under the widening.
+func TestIntegration_BillingPackageRepo_FindAll_AnyLedgerListsEveryLedger(t *testing.T) {
+	container := mongotestutil.SetupContainer(t)
+	repo := newRepository(t, container)
+	ctx := context.Background()
+
+	orgID := uuid.New().String()
+	ledgerA := uuid.New().String()
+	ledgerB := uuid.New().String()
+
+	onA := newVolumePackage(orgID, ledgerA)
+	onB := newVolumePackage(orgID, ledgerB)
+	_, err := repo.Create(ctx, onA)
+	require.NoError(t, err)
+	_, err = repo.Create(ctx, onB)
+	require.NoError(t, err)
+
+	// A package of a different organization on the same ledger id must stay out.
+	otherOrg := newVolumePackage(uuid.New().String(), ledgerA)
+	_, err = repo.Create(ctx, otherOrg)
+	require.NoError(t, err)
+
+	all, total, err := repo.FindAll(ctx, orgID, billing_package.AnyLedger, "", 10, 1)
+	require.NoError(t, err)
+	assert.Equal(t, int64(2), total, "AnyLedger must list every ledger of the organization")
+	require.Len(t, all, 2)
+
+	ids := map[string]bool{all[0].ID: true, all[1].ID: true}
+	assert.True(t, ids[onA.ID])
+	assert.True(t, ids[onB.ID])
+	assert.False(t, ids[otherOrg.ID], "the organization boundary must hold under the widening")
+
+	// Positive control: naming a ledger narrows the same query to that ledger.
+	scoped, total, err := repo.FindAll(ctx, orgID, ledgerA, "", 10, 1)
+	require.NoError(t, err)
+	assert.Equal(t, int64(1), total)
+	require.Len(t, scoped, 1)
+	assert.Equal(t, onA.ID, scoped[0].ID)
 }
 
 func TestIntegration_BillingPackageRepo_FindAll_Empty(t *testing.T) {
@@ -414,14 +660,14 @@ func TestIntegration_BillingPackageRepo_Update_PersistsChange(t *testing.T) {
 	require.NoError(t, err)
 
 	update := &bson.M{"$set": bson.M{"label": "Updated Label", "enable": false}}
-	updated, err := repo.Update(ctx, bp.ID, orgID, update)
+	updated, err := repo.Update(ctx, bp.ID, orgID, billing_package.AnyLedger, update)
 	require.NoError(t, err)
 	require.NotNil(t, updated, "Update must return the persisted entity")
 	assert.Equal(t, "Updated Label", updated.Label, "returned entity reflects the label change")
 	require.NotNil(t, updated.Enable)
 	assert.False(t, *updated.Enable, "returned entity reflects the enable change")
 
-	got, err := repo.FindByID(ctx, bp.ID, orgID)
+	got, err := repo.FindByID(ctx, bp.ID, orgID, billing_package.AnyLedger)
 	require.NoError(t, err)
 	assert.Equal(t, "Updated Label", got.Label, "label change must be persisted")
 	require.NotNil(t, got.Enable)
@@ -433,7 +679,7 @@ func TestIntegration_BillingPackageRepo_Update_NotFound(t *testing.T) {
 	repo := newRepository(t, container)
 
 	update := &bson.M{"$set": bson.M{"label": "x"}}
-	got, err := repo.Update(context.Background(), uuid.New().String(), uuid.New().String(), update)
+	got, err := repo.Update(context.Background(), uuid.New().String(), uuid.New().String(), billing_package.AnyLedger, update)
 
 	require.Nil(t, got, "no entity is returned when the document is missing")
 	require.Error(t, err, "updating a missing document must report not found")
@@ -456,7 +702,7 @@ func TestIntegration_BillingPackageRepo_SoftDelete_SetsDeletedAt(t *testing.T) {
 	_, err := repo.Create(ctx, bp)
 	require.NoError(t, err)
 
-	require.NoError(t, repo.SoftDelete(ctx, bp.ID, orgID))
+	require.NoError(t, repo.SoftDelete(ctx, bp.ID, orgID, billing_package.AnyLedger))
 
 	// Document remains physically present but carries deleted_at.
 	var raw bson.M
@@ -470,7 +716,7 @@ func TestIntegration_BillingPackageRepo_SoftDelete_NotFound(t *testing.T) {
 	container := mongotestutil.SetupContainer(t)
 	repo := newRepository(t, container)
 
-	err := repo.SoftDelete(context.Background(), uuid.New().String(), uuid.New().String())
+	err := repo.SoftDelete(context.Background(), uuid.New().String(), uuid.New().String(), billing_package.AnyLedger)
 
 	require.Error(t, err)
 	var notFound pkg.EntityNotFoundError
@@ -488,10 +734,10 @@ func TestIntegration_BillingPackageRepo_SoftDelete_Idempotency(t *testing.T) {
 	_, err := repo.Create(ctx, bp)
 	require.NoError(t, err)
 
-	require.NoError(t, repo.SoftDelete(ctx, bp.ID, orgID))
+	require.NoError(t, repo.SoftDelete(ctx, bp.ID, orgID, billing_package.AnyLedger))
 
 	// Second delete must fail: the deleted_at filter excludes the already-deleted doc.
-	err = repo.SoftDelete(ctx, bp.ID, orgID)
+	err = repo.SoftDelete(ctx, bp.ID, orgID, billing_package.AnyLedger)
 	require.Error(t, err, "deleting an already-deleted package must report not found")
 	var notFound pkg.EntityNotFoundError
 	require.ErrorAs(t, err, &notFound)

@@ -504,12 +504,6 @@ func ValidateBusinessError(err error, entityType string, args ...any) error {
 			Title:      "Duplicate Segment Name Error",
 			Message:    fmt.Sprintf("A segment with the name %v already exists for this ledger ID %v. Please try again with a different ledger or name.", args...),
 		},
-		constant.ErrInvalidScriptFormat: ValidationError{
-			EntityType: entityType,
-			Code:       constant.ErrInvalidScriptFormat.Error(),
-			Title:      "Invalid Script Format Error",
-			Message:    "The script provided in your request is invalid or in an unsupported format. Please verify the script format and try again.",
-		},
 		constant.ErrInsufficientFunds: UnprocessableOperationError{
 			EntityType: entityType,
 			Code:       constant.ErrInsufficientFunds.Error(),
@@ -750,18 +744,6 @@ func ValidateBusinessError(err error, entityType string, args ...any) error {
 			Title:      "JWK Fetch Error",
 			Message:    "The JWK keys could not be fetched from the source. Please verify the source environment variable configuration and try again.",
 		},
-		constant.ErrInvalidDSLFileFormat: ValidationError{
-			EntityType: entityType,
-			Code:       constant.ErrInvalidDSLFileFormat.Error(),
-			Title:      "Invalid DSL File Format",
-			Message:    fmt.Sprintf("The submitted DSL file %v is in an incorrect format. Please ensure that the file follows the expected structure and syntax.", args...),
-		},
-		constant.ErrEmptyDSLFile: ValidationError{
-			EntityType: entityType,
-			Code:       constant.ErrEmptyDSLFile.Error(),
-			Title:      "Empty DSL File",
-			Message:    fmt.Sprintf("The submitted DSL file %v is empty. Please provide a valid file with content.", args...),
-		},
 		constant.ErrMetadataKeyLengthExceeded: ValidationError{
 			EntityType: entityType,
 			Code:       constant.ErrMetadataKeyLengthExceeded.Error(),
@@ -892,7 +874,19 @@ func ValidateBusinessError(err error, entityType string, args ...any) error {
 			EntityType: entityType,
 			Code:       constant.ErrInvalidTransactionType.Error(),
 			Title:      "Invalid Transaction Type",
-			Message:    fmt.Sprintf("Only one transaction type ('amount', 'share', or 'remaining') must be specified in the '%v' field for each entry. Please review your input and try again.", args...),
+			// Takes the accepted option set as its FIRST argument (see
+			// constant.TransactionTypeOptions*) because the sentinel is shared by
+			// surfaces that accept different expressions, and the second as the field
+			// reference. Naming an expression the rejecting surface does not accept
+			// steers the caller into resubmitting something answered with a different
+			// rejection.
+			Message: fmt.Sprintf("Only one transaction type (%v) must be specified in the '%v' field for each entry. Please review your input and try again.", args...),
+		},
+		constant.ErrMutuallyExclusiveTransactionFields: ValidationError{
+			EntityType: entityType,
+			Code:       constant.ErrMutuallyExclusiveTransactionFields.Error(),
+			Title:      "Mutually Exclusive Transaction Fields",
+			Message:    "Each side of the transaction must be spelled either with the scalar fields ('from' and 'to') or with the leg arrays ('sources' and 'destinations'), never both. Please review your input and send only one of the two spellings.",
 		},
 		constant.ErrTransactionValueMismatch: UnprocessableOperationError{
 			EntityType: entityType,
@@ -1768,6 +1762,18 @@ func ValidateBusinessError(err error, entityType string, args ...any) error {
 			Code:       constant.ErrDeductibleFeeExceedsAmount.Error(),
 			Title:      "Deductible fee exceeds the amount it deducts from",
 			Message:    "A deductible fee cannot be applied because it meets or exceeds the amount it is deducted from, which would leave the recipient with nothing or a negative balance. Reduce the fee, increase the transfer amount, or exempt the account.",
+		},
+		constant.ErrLedgerIDMismatch: ValidationError{
+			EntityType: entityType,
+			Code:       constant.ErrLedgerIDMismatch.Error(),
+			Title:      "Ledger Mismatch",
+			Message:    "The 'ledgerId' in the request body names a different ledger than the request path. The path is authoritative; send the same ledger in both, or remove the conflict, and try again.",
+		},
+		constant.ErrLedgerScopedQueryParameter: ValidationError{
+			EntityType: entityType,
+			Code:       constant.ErrLedgerScopedQueryParameter.Error(),
+			Title:      "Query Parameter Not Accepted",
+			Message:    fmt.Sprintf("The query parameter '%v' is not accepted on this endpoint because the request path already names the ledger. Please remove it and try again.", args...),
 		},
 		constant.ErrAccessMidaz: InternalServerError{
 			EntityType: entityType,
@@ -2887,6 +2893,21 @@ func ValidateBusinessError(err error, entityType string, args ...any) error {
 	}
 
 	return err
+}
+
+// ValidateTransactionTypeError builds the invalid-transaction-type rejection. Its message takes
+// TWO arguments — the set of value expressions the rejecting surface accepts, and the field
+// reference the caller should look at — and the sentinel is shared by surfaces that accept
+// different sets, so neither can be assumed.
+//
+// It exists so the arity is fixed by a signature rather than by a variadic call: a site that
+// passes one argument through ValidateBusinessError compiles and renders fmt's MISSING marker to
+// the client. Every site that raises constant.ErrInvalidTransactionType goes through here.
+//
+// entityType stays a parameter because it reaches the client in the response envelope, and the
+// surfaces sharing this sentinel do not all name one.
+func ValidateTransactionTypeError(entityType, options, fieldRef string) error {
+	return ValidateBusinessError(constant.ErrInvalidTransactionType, entityType, options, fieldRef)
 }
 
 func HandleKnownBusinessValidationErrors(err error) error {

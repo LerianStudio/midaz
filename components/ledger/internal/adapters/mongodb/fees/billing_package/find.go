@@ -20,18 +20,17 @@ import (
 	"github.com/LerianStudio/midaz/v4/components/ledger/pkg/feeshared/model"
 )
 
-// FindByID finds a billing package by ID and organization ID.
-func (r *BillingPackageMongoDBRepository) FindByID(ctx context.Context, id string, organizationID string) (*model.BillingPackage, error) {
+// FindByID finds a billing package by ID within the given organization and ledger.
+func (r *BillingPackageMongoDBRepository) FindByID(ctx context.Context, id, organizationID, ledgerID string) (*model.BillingPackage, error) {
 	_, tracer, reqId, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "repository.billing_package.find_by_id")
 	defer span.End()
 
-	attributes := []attribute.KeyValue{
-		attribute.String("app.request.request_id", reqId),
-		attribute.String("app.request.organization_id", organizationID),
-		attribute.String("app.request.billing_package_id", id),
-	}
+	attributes := append(
+		[]attribute.KeyValue{attribute.String("app.request.request_id", reqId)},
+		billingPackageScopeAttributes(id, organizationID, ledgerID)...,
+	)
 
 	span.SetAttributes(attributes...)
 
@@ -51,13 +50,7 @@ func (r *BillingPackageMongoDBRepository) FindByID(ctx context.Context, id strin
 
 	spanFindOne.SetAttributes(attributes...)
 
-	filter := bson.M{
-		"_id":             id,
-		"organization_id": organizationID,
-		"deleted_at":      bson.M{"$eq": nil},
-	}
-
-	if err = coll.FindOne(ctx, filter).Decode(&record); err != nil {
+	if err = coll.FindOne(ctx, billingPackageScopeFilter(id, organizationID, ledgerID)).Decode(&record); err != nil {
 		if err == mongo.ErrNoDocuments {
 			libOpentelemetry.HandleSpanBusinessErrorEvent(spanFindOne, "Billing package not found", err)
 
@@ -79,7 +72,8 @@ func (r *BillingPackageMongoDBRepository) FindByID(ctx context.Context, id strin
 	return entity, nil
 }
 
-// FindAll returns a paginated list of billing packages for an organization and ledger.
+// FindAll returns a paginated list of billing packages for an organization and
+// ledger. A ledgerID of AnyLedger lists every ledger of the organization.
 func (r *BillingPackageMongoDBRepository) FindAll(ctx context.Context, organizationID, ledgerID, billingType string, limit, page int) ([]*model.BillingPackage, int64, error) {
 	_, tracer, reqId, _ := libObservability.NewTrackingFromContext(ctx)
 
@@ -110,7 +104,7 @@ func (r *BillingPackageMongoDBRepository) FindAll(ctx context.Context, organizat
 		"deleted_at":      bson.M{"$eq": nil},
 	}
 
-	if ledgerID != "" {
+	if ledgerID != AnyLedger {
 		queryFilter["ledger_id"] = ledgerID
 	}
 
