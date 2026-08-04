@@ -3,25 +3,80 @@
 # The fees component ships inside the single `ledger` deployable but declares its
 # OWN permissions manifest under its own slug and M2M identity. Keys mirror the
 # yaml tags on lib-auth/v3 auth/declaration.DeclarationManifest (manifest.go).
+#
+# The (resource, action) tuples below are the EXACT authorization surface the fees
+# routes enforce at runtime via auth.Authorize("plugin-fees", resource, action).
+# They are the single source of truth `feeGuardRoutes` in
+# components/ledger/internal/adapters/http/in/fees_routes.go, attached to BOTH the
+# organization-scoped (/v1) and ledger-scoped (/v2) fee surfaces. The action is the
+# HTTP verb the guard authorizes under (post/get/patch/delete) — preserved verbatim
+# from the standalone plugin-fees service (R9) — NOT a semantic create/read/update
+# name, so a granted role's permission matches what the middleware checks.
+#
+# Role assignment mirrors read-vs-mutate intent: read (get) is granted to both
+# editor and viewer; every mutating verb (post/patch/delete, incl. the estimate and
+# billing calculate dry-runs served over POST) is granted to editor only. A viewer
+# is simply NOT granted the mutating tuples — no explicit deny is needed for
+# "no access" under lib-auth semantics.
 service: plugin-fees
 version: 3
 permissions:
-  - resource: billing-packages
-    action: create
+  # Fee packages (packages resource) — org-scoped /v1 + ledger-scoped /v2.
+  - resource: packages
+    action: post
     effect: allow
     roles:
       - fees/editor
-  - resource: billing-packages
-    action: read
+  - resource: packages
+    action: get
     effect: allow
     roles:
       - fees/editor
       - fees/viewer
+  - resource: packages
+    action: patch
+    effect: allow
+    roles:
+      - fees/editor
+  - resource: packages
+    action: delete
+    effect: allow
+    roles:
+      - fees/editor
+  # Fee estimate dry-run (estimates resource).
+  - resource: estimates
+    action: post
+    effect: allow
+    roles:
+      - fees/editor
+  # Billing packages (billing-packages resource).
+  - resource: billing-packages
+    action: post
+    effect: allow
+    roles:
+      - fees/editor
+  - resource: billing-packages
+    action: get
+    effect: allow
+    roles:
+      - fees/editor
+      - fees/viewer
+  - resource: billing-packages
+    action: patch
+    effect: allow
+    roles:
+      - fees/editor
   - resource: billing-packages
     action: delete
-    effect: deny
+    effect: allow
     roles:
-      - fees/viewer
+      - fees/editor
+  # Billing calculate dry-run (billing-calculate resource).
+  - resource: billing-calculate
+    action: post
+    effect: allow
+    roles:
+      - fees/editor
 roles:
   - name: fees/editor
     granted_to:
