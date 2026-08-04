@@ -17810,19 +17810,17 @@
             "items": {
               "$ref": "#/components/schemas/V2LegInput"
             },
-            "type": [
-              "array",
-              "null"
-            ]
+            "maxItems": 500,
+            "minItems": 1,
+            "type": "array"
           },
           "debits": {
             "items": {
               "$ref": "#/components/schemas/V2LegInput"
             },
-            "type": [
-              "array",
-              "null"
-            ]
+            "maxItems": 500,
+            "minItems": 1,
+            "type": "array"
           },
           "description": {
             "type": "string"

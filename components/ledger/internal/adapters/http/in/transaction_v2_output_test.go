@@ -6,6 +6,8 @@ package in
 
 import (
 	"encoding/json"
+	"reflect"
+	"strings"
 	"testing"
 	"time"
 
@@ -151,4 +153,81 @@ func TestRegisterTransactionV2Routes_ResponseSchemaNotNamedTransaction(t *testin
 			"a schema literally named Transaction must never be the v2 body — that would collide two "+
 				"documents' schemas under one name with two different shapes")
 	}
+}
+
+// TestTransactionV2_MirrorsTheCanonicalFieldSet is the drift lock between the canonical
+// transaction and its /v2 wire shape.
+//
+// TransactionV2 is a hand-written mirror, so nothing makes it follow the canonical struct.
+// Adding a field to the canonical one publishes it on /v1 and makes it absent from all seven
+// /v2 responses, and no other test notices: the shape tests assert the keys they know about,
+// and a field nobody wrote an assertion for is invisible to them.
+//
+// The two renames are the ONLY difference this asserts, so a third divergence — a rename, a
+// dropped field, a stray `omitempty` that changes when a key appears — fails here and names
+// the field. `json:"-"` fields are excluded on both sides: they never reach the wire.
+func TestTransactionV2_MirrorsTheCanonicalFieldSet(t *testing.T) {
+	t.Parallel()
+
+	renames := map[string]string{"source": "debit", "destination": "credit"}
+
+	canonical := wireFieldNames(t, transaction.Transaction{})
+	v2 := wireFieldNames(t, TransactionV2{})
+
+	want := make(map[string]struct{}, len(canonical))
+
+	for name := range canonical {
+		if renamed, ok := renames[name]; ok {
+			want[renamed] = struct{}{}
+
+			continue
+		}
+
+		want[name] = struct{}{}
+	}
+
+	for name := range want {
+		assert.Containsf(t, v2, name,
+			"the canonical transaction carries %q on the wire and the v2 shape does not: a field added "+
+				"to the canonical struct has to be mirrored here or it vanishes from every v2 response", name)
+	}
+
+	for name := range v2 {
+		assert.Containsf(t, want, name,
+			"the v2 shape carries %q and the canonical transaction does not expose it under that name: "+
+				"the only intended differences are source→debit and destination→credit", name)
+	}
+}
+
+// wireFieldNames returns the json key of every field of v that reaches the wire, keyed for
+// set comparison. A field tagged `json:"-"` is skipped, and an absent tag falls back to the
+// Go field name, which is what encoding/json itself would emit.
+func wireFieldNames(t *testing.T, v any) map[string]struct{} {
+	t.Helper()
+
+	typ := reflect.TypeOf(v)
+	require.Equal(t, reflect.Struct, typ.Kind(), "wireFieldNames needs a struct")
+
+	names := make(map[string]struct{}, typ.NumField())
+
+	for i := range typ.NumField() {
+		field := typ.Field(i)
+		if !field.IsExported() {
+			continue
+		}
+
+		tag := field.Tag.Get("json")
+		if tag == "-" {
+			continue
+		}
+
+		name, _, _ := strings.Cut(tag, ",")
+		if name == "" {
+			name = field.Name
+		}
+
+		names[name] = struct{}{}
+	}
+
+	return names
 }

@@ -443,13 +443,20 @@ func TestCreateTransactionV2Input_SameAliasAcrossLedgersIsNotOneAccount(t *testi
 	assert.Equal(t, mtransaction.V2Scope{}, scope, "the error path must not leak a scope")
 }
 
-// TestCreateTransactionV2Input_SameAliasIsAmbiguousAtTheFunnel pins where the same-account
-// guarantee now lives: Translate carries the legs forward without comparing the two sides — it no
-// longer has a single scalar pair to compare, and the general array case needs the resolved
-// balance-key entries only the funnel builds — so a body naming the same account on both sides
-// clears Translate and is caught by ValidateSendSourceAndDistribute instead, on the same path
-// production code runs (ApplyDefaultBalanceKeys -> MutateConcatAliases ->
-// ValidateSendSourceAndDistribute).
+// TestCreateTransactionV2Input_SameAliasIsAmbiguousAtTheFunnel pins WHERE the same-account
+// guarantee lives, and it is later than a reader expects.
+//
+// Translate carries the legs forward without comparing the two sides: it has no single pair to
+// compare, and the array case needs the resolved balance-key entries only the funnel builds. So
+// the body clears Translate and the funnel owns the rule.
+//
+// The funnel validates TWICE, and only the second pass catches this. Its ambiguity loop probes a
+// map keyed on each leg's alias AS IT STANDS with a key built by ConcatAlias, so the two only meet
+// once MutateConcatAliases has rewritten the aliases in place — which happens between the two
+// validate calls. The consequence is that the rejection lands AFTER the idempotency claim, the
+// ledger-settings read and the fee engine, not before them. Both passes are asserted below so the
+// ordering is a tested fact rather than an assumption, and so that moving either mutator or either
+// validate call fails here.
 func TestCreateTransactionV2Input_SameAliasIsAmbiguousAtTheFunnel(t *testing.T) {
 	t.Parallel()
 
@@ -462,8 +469,15 @@ func TestCreateTransactionV2Input_SameAliasIsAmbiguousAtTheFunnel(t *testing.T) 
 	require.NoError(t, err, "Translate does not compare the two sides, so a shared alias clears it")
 	assert.Equal(t, testScope(), scope)
 
+	// The state the FIRST validate sees: balance keys applied, aliases not yet concatenated.
 	mtransaction.ApplyDefaultBalanceKeys(transaction.Send.Source.From)
 	mtransaction.ApplyDefaultBalanceKeys(transaction.Send.Distribute.To)
+
+	_, err = mtransaction.ValidateSendSourceAndDistribute(context.Background(), transaction, constant.CREATED)
+	require.NoError(t, err,
+		"the first validate cannot see the collision: the probe is concatenated and the map keys are not")
+
+	// What the funnel does between its two validate calls.
 	transaction.Send.Source.From = mtransaction.MutateConcatAliases(transaction.Send.Source.From)
 	transaction.Send.Distribute.To = mtransaction.MutateConcatAliases(transaction.Send.Distribute.To)
 

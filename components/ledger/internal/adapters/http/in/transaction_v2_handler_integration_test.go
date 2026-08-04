@@ -640,8 +640,10 @@ func TestIntegration_TransactionV2Direct_ValidationBeforeLedgerEffect(t *testing
 }
 
 // =============================================================================
-// 3. BUSINESS RULE: `from == to` is a Translate business error -> 422, with NO ledger
-//    effect (the error fires before the create funnel touches any balance).
+// 3. BUSINESS RULE: naming one account on both sides is a business error -> 422, with NO
+//    ledger effect. The rule belongs to the funnel, not to Translate, and the funnel catches
+//    it on its SECOND validate — after the idempotency claim, the ledger-settings read and
+//    the fee engine. No balance moves, but the rejection is not an early one.
 // =============================================================================
 
 func TestIntegration_TransactionV2Direct_FromEqualsTo_BusinessError(t *testing.T) {
@@ -1338,8 +1340,8 @@ func TestIntegration_TransactionV2BlockUnblock_ValidationBeforeLedgerEffect(t *t
 			wantBodyContains: "debits",
 		},
 		{
-			// from == to is a Translate business error (ErrTransactionAmbiguous / 0090) -> 422,
-			// fired before the create funnel touches any balance.
+			// One account on both sides is ErrTransactionAmbiguous (0090) -> 422, answered by the
+			// funnel's second validate. No balance moves.
 			name:       "block from equals to business error",
 			url:        v2CreateURL("block"),
 			body:       `{"asset":"USD","amount":"100","debits":[{"alias":"@src",` + v2ScopeJSON + `,"amount":"100"}],"credits":[{"alias":"@src",` + v2ScopeJSON + `,"amount":"100"}],"metadata":{"reason":"regulatory-hold"}}`,

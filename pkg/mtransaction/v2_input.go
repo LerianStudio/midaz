@@ -51,11 +51,16 @@ type CreateTransactionV2Input struct {
 	// `max=500` bounds the per-side leg count, which nothing else does: the request-body
 	// byte ceiling alone admits tens of thousands of legs, and each one carries its own
 	// downstream cost. `dive` is what makes the per-leg tags apply to each element.
-	Debits []V2LegInput `json:"debits" validate:"min=1,max=500,dive"`
+	//
+	// `minItems`/`maxItems` publish the bounds the `validate` tags enforce, so a client reads
+	// them instead of discovering them by rejection. `nullable:"false"` keeps `null` out of
+	// the published type: a nil slice is refused, and a schema admitting null would promise a
+	// generated client that the server accepts a body it answers 400 to.
+	Debits []V2LegInput `json:"debits" validate:"min=1,max=500,dive" minItems:"1" maxItems:"500" nullable:"false"`
 
 	// Credits are the credit legs of the transaction, tagged for the same reasons as
 	// Debits.
-	Credits []V2LegInput `json:"credits" validate:"min=1,max=500,dive"`
+	Credits []V2LegInput `json:"credits" validate:"min=1,max=500,dive" minItems:"1" maxItems:"500" nullable:"false"`
 
 	// RouteID is the optional TRANSACTION route UUID. Validated as a UUID at
 	// decode (same tag as the v1 input) so a malformed value is a clean 400, not
