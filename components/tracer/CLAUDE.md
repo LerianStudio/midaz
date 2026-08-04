@@ -394,7 +394,7 @@ Empty line required before: `return`, `if`, `for`, `switch`, `defer`, assignment
 
 - **lib-auth/v3** (`v3.0.0`): Auth middleware, auth client
   - `authMiddleware.NewAuthClient(address, enabled, &logger)`
-- **lib-commons/v6** (`v6.3.0`): Common utilities, infrastructure
+- **lib-commons/v6** (`v6.4.0`): Common utilities, infrastructure
   - Tracking: `libCommons.NewTrackingFromContext(ctx)` → logger, tracer, headerID
   - Database: `libPostgres.New(config)` → Client with primary/replica
   - Config: `libCommons.SetConfigFromEnvVars(cfg)` — struct tag loading
