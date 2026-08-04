@@ -317,6 +317,27 @@ func TestCreateTransactionV2Input_TranslateRejectsScopeDisagreement(t *testing.T
 				return in
 			}(),
 		},
+		{
+			// An external account is the one alias a reader is tempted to treat as belonging
+			// everywhere, which makes it the natural place to carve an exception. It is bound
+			// to a ledger like any other account, so a divergent one is refused too.
+			name: "external source leg on another ledger",
+			input: mutateV2Legs(arrayV2Input(
+				[]mtransaction.V2LegInput{{Alias: "@external/BRL", Amount: "1000"}},
+				[]mtransaction.V2LegInput{{Alias: "@dstA", Amount: "1000"}},
+			), func(in *mtransaction.CreateTransactionV2Input) {
+				in.Sources[0].LedgerID = otherLedgerID
+			}),
+		},
+		{
+			name: "external destination leg in another organization",
+			input: mutateV2Legs(arrayV2Input(
+				[]mtransaction.V2LegInput{{Alias: "@srcA", Amount: "1000"}},
+				[]mtransaction.V2LegInput{{Alias: "@external/BRL", Amount: "1000"}},
+			), func(in *mtransaction.CreateTransactionV2Input) {
+				in.Destinations[0].OrganizationID = otherOrgID
+			}),
+		},
 	}
 
 	for _, tt := range tests {
@@ -443,6 +464,53 @@ func TestCreateTransactionV2Input_DecodeAndTranslateResolvesScope(t *testing.T) 
 	require.Len(t, got.Send.Distribute.To, 2)
 	assert.Equal(t, "@srcA", got.Send.Source.From[0].AccountAlias,
 		"renaming the leg field must not change the alias that reaches the canonical leg")
+}
+
+// TestCreateTransactionV2Input_SameAliasAcrossLedgersIsNotOneAccount pins that the two sides
+// sharing an alias is answered by WHICH rule. An alias identifies an account only inside a
+// ledger, so the same text in two ledgers names two accounts: that request is a scope
+// disagreement, not a transaction paying itself. Answering it as ambiguity would tell the
+// caller its source and destination are one account when they are not.
+func TestCreateTransactionV2Input_SameAliasAcrossLedgersIsNotOneAccount(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name     string
+		ledgerID string
+		wantCode string
+	}{
+		{
+			name:     "one alias in one ledger is the same account",
+			ledgerID: testLedgerID,
+			wantCode: constant.ErrTransactionAmbiguous.Error(),
+		},
+		{
+			name:     "one alias in two ledgers is two accounts",
+			ledgerID: otherLedgerID,
+			wantCode: constant.ErrTransactionScopeMismatch.Error(),
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			in := validV2Input()
+			in.From = v2Account("@shared")
+			in.To = v2Account("@shared")
+			in.To.LedgerID = tt.ledgerID
+
+			got, scope, err := in.Translate(false)
+			require.Error(t, err)
+
+			var uoErr pkg.UnprocessableOperationError
+			require.ErrorAs(t, err, &uoErr)
+			assert.Equal(t, tt.wantCode, uoErr.Code)
+
+			assert.True(t, got.IsEmpty(), "the error path must not leak a populated transaction")
+			assert.Equal(t, mtransaction.V2Scope{}, scope, "the error path must not leak a scope")
+		})
+	}
 }
 
 // mutateV2Legs applies mutate to a built input and hands it back, so a table case can plant a

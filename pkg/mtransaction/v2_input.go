@@ -281,7 +281,7 @@ func (in CreateTransactionV2Input) Translate(pending bool) (Transaction, V2Scope
 		return Transaction{}, V2Scope{}, pkg.ValidateBusinessError(constant.ErrInvalidTransactionNonPositiveValue, constant.EntityTransaction)
 	}
 
-	if in.From.Alias != "" && in.From.Alias == in.To.Alias {
+	if in.From.Alias != "" && in.From.namesSameAccountAs(in.To) {
 		return Transaction{}, V2Scope{}, pkg.ValidateBusinessError(constant.ErrTransactionAmbiguous, constant.EntityTransaction)
 	}
 
@@ -347,6 +347,13 @@ func (in CreateTransactionV2Input) resolveScope() (V2Scope, error) {
 	}
 
 	return resolved, nil
+}
+
+// namesSameAccountAs reports whether both sides name one account. An alias identifies an
+// account only inside a ledger, so two sides sharing an alias while naming different
+// ledgers name two different accounts.
+func (a V2AccountInput) namesSameAccountAs(other V2AccountInput) bool {
+	return a.Alias == other.Alias && a.scope().namesSameAs(other.scope())
 }
 
 // scopeRefs lists one entry per leg of the request, source side first, each carrying the field
