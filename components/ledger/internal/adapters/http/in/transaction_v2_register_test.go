@@ -378,9 +378,10 @@ const (
 	v2LegSchemaName        = "V2LegInput"
 	v2ShareSchemaName      = "V2ShareInput"
 
-	// v2ResponseSchemaName is the component the v2 ops answer with, and v1ResponseSchemaName
-	// the one the v1 ops answer with. They must differ; see the test below.
-	v2ResponseSchemaName = "TransactionV2"
+	// v1ResponseSchemaName is the component the v1 ops answer with. The v2 one is
+	// v2TransactionSchemaName, declared once in transaction_v2_output_test.go: a second
+	// spelling of the same literal would let a rename be applied to one and missed in the
+	// other, which is the drift both constants exist to catch.
 	v1ResponseSchemaName = "Transaction"
 )
 
@@ -395,10 +396,13 @@ const (
 func TestRegisterTransactionV2Routes_ResponseSchemaDoesNotShadowV1(t *testing.T) {
 	t.Parallel()
 
-	schemas := registerV2TransactionContractForTest().Components.Schemas.Map()
+	// Registered ONCE: the helper installs the schema namer, which is process-global Huma
+	// state, so registering per subtest would have parallel subtests racing on it.
+	oapi := registerV2TransactionContractForTest()
+	schemas := oapi.Components.Schemas.Map()
 
-	require.Containsf(t, schemas, v2ResponseSchemaName,
-		"v2 contract should publish its response component as %s", v2ResponseSchemaName)
+	require.Containsf(t, schemas, v2TransactionSchemaName,
+		"v2 contract should publish its response component as %s", v2TransactionSchemaName)
 	assert.NotContainsf(t, schemas, v1ResponseSchemaName,
 		"the v2 contract must not publish a %s component: the v1 contract already publishes that "+
 			"name with a different shape, and the hub join has no tested answer for one name carrying two",
@@ -408,7 +412,7 @@ func TestRegisterTransactionV2Routes_ResponseSchemaDoesNotShadowV1(t *testing.T)
 		t.Run(rt.action, func(t *testing.T) {
 			t.Parallel()
 
-			pathItem, ok := registerV2TransactionContractForTest().Paths[rt.opPath]
+			pathItem, ok := oapi.Paths[rt.opPath]
 			require.Truef(t, ok, "v2 contract should carry the %s op path %q", rt.action, rt.opPath)
 
 			for status, resp := range pathItem.Post.Responses {
@@ -418,7 +422,7 @@ func TestRegisterTransactionV2Routes_ResponseSchemaDoesNotShadowV1(t *testing.T)
 
 				media, ok := resp.Content["application/json"]
 				require.Truef(t, ok, "%s %s should answer application/json", rt.action, status)
-				assert.Equalf(t, "#/components/schemas/"+v2ResponseSchemaName, media.Schema.Ref,
+				assert.Equalf(t, "#/components/schemas/"+v2TransactionSchemaName, media.Schema.Ref,
 					"%s should answer with the v2 response component", rt.action)
 			}
 		})

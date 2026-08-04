@@ -133,8 +133,14 @@ func TestCreateTransactionV2Input_Validation(t *testing.T) {
 		{
 			name: "leg array form with several legs per side passes struct validation",
 			mutate: func(in *mtransaction.CreateTransactionV2Input) {
-				in.Debits = scopedLegs([]mtransaction.V2LegInput{{Alias: "@person1", Amount: "1000"}})
-				in.Credits = scopedLegs([]mtransaction.V2LegInput{{Alias: "@person2", Amount: "1000"}})
+				in.Debits = scopedLegs([]mtransaction.V2LegInput{
+					{Alias: "@person1", Amount: "600"},
+					{Alias: "@person3", Amount: "400"},
+				})
+				in.Credits = scopedLegs([]mtransaction.V2LegInput{
+					{Alias: "@person2", Amount: "250"},
+					{Alias: "@person4", Amount: "750"},
+				})
 			},
 			wantErr: false,
 		},

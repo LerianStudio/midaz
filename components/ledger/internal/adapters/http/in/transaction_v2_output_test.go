@@ -146,13 +146,6 @@ func TestRegisterTransactionV2Routes_ResponseSchemaNotNamedTransaction(t *testin
 	assert.Contains(t, schema.Properties, "credit", "%s must document the credit field", v2TransactionSchemaName)
 	assert.NotContains(t, schema.Properties, "source", "%s must not carry the v1 source field", v2TransactionSchemaName)
 	assert.NotContains(t, schema.Properties, "destination", "%s must not carry the v1 destination field", v2TransactionSchemaName)
-
-	txSchema, hasTransaction := schemas["Transaction"]
-	if hasTransaction {
-		assert.NotContains(t, txSchema.Properties, "debit",
-			"a schema literally named Transaction must never be the v2 body — that would collide two "+
-				"documents' schemas under one name with two different shapes")
-	}
 }
 
 // TestTransactionV2_MirrorsTheCanonicalFieldSet is the drift lock between the canonical
