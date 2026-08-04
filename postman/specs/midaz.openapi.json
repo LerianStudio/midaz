@@ -11570,7 +11570,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Transaction"
+                  "$ref": "#/components/schemas/TransactionV2"
                 }
               }
             },
@@ -11643,7 +11643,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Transaction"
+                  "$ref": "#/components/schemas/TransactionV2"
                 }
               }
             },
@@ -11716,7 +11716,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Transaction"
+                  "$ref": "#/components/schemas/TransactionV2"
                 }
               }
             },
@@ -11936,7 +11936,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Transaction"
+                  "$ref": "#/components/schemas/TransactionV2"
                 }
               }
             },
@@ -12014,7 +12014,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Transaction"
+                  "$ref": "#/components/schemas/TransactionV2"
                 }
               }
             },
@@ -12092,7 +12092,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Transaction"
+                  "$ref": "#/components/schemas/TransactionV2"
                 }
               }
             },
@@ -12170,7 +12170,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Transaction"
+                  "$ref": "#/components/schemas/TransactionV2"
                 }
               }
             },
@@ -17795,7 +17795,7 @@
       },
       "CreateTransactionV2Input": {
         "additionalProperties": false,
-        "description": "Transaction request body. Each side of the transaction is spelled EITHER with its scalar field (`from`, `to`) OR with its leg array (`sources`, `destinations`) — never both on the same side, though the two sides may choose differently. Leave the spelling you are not using OUT of the body: on `from` and `to` an explicit `null` is rejected. Every account, in either spelling, names the `organizationId` and `ledgerId` it belongs to; all of them must name the SAME pair, and that pair is the organization and ledger the transaction is created in. A request whose accounts name different pairs is rejected. `asset`, `amount`, `description`, `code`, `routeId`, `operationRouteId` and `metadata` are common to both forms, and `amount` is always the transaction total that the legs' `share` expressions divide. Each leg array holds at most 500 legs.",
+        "description": "Transaction request body. `debits` and `credits` are the two required, non-empty leg arrays of the transaction; one debit paired with many credits, or the reverse, is a valid request. Every leg names the `organizationId` and `ledgerId` its account belongs to; all of them must name the SAME pair, and that pair is the organization and ledger the transaction is created in. A request whose accounts name different pairs is rejected. `asset`, `amount`, `description`, `code`, `routeId`, `operationRouteId` and `metadata` sit alongside the two leg arrays, and `amount` is the transaction total that the legs' `share` expressions divide. Each leg array holds at most 500 legs.",
         "properties": {
           "amount": {
             "type": "string"
@@ -17806,10 +17806,7 @@
           "code": {
             "type": "string"
           },
-          "description": {
-            "type": "string"
-          },
-          "destinations": {
+          "credits": {
             "items": {
               "$ref": "#/components/schemas/V2LegInput"
             },
@@ -17818,8 +17815,17 @@
               "null"
             ]
           },
-          "from": {
-            "$ref": "#/components/schemas/V2AccountInput"
+          "debits": {
+            "items": {
+              "$ref": "#/components/schemas/V2LegInput"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          },
+          "description": {
+            "type": "string"
           },
           "metadata": {
             "additionalProperties": {},
@@ -17838,30 +17844,107 @@
             ],
             "format": "uuid",
             "type": "string"
+          }
+        },
+        "required": [
+          "asset",
+          "amount",
+          "debits",
+          "credits"
+        ],
+        "type": "object"
+      },
+      "TransactionV2": {
+        "additionalProperties": false,
+        "properties": {
+          "amount": {
+            "examples": [
+              "1500"
+            ],
+            "minimum": 0,
+            "type": [
+              "string",
+              "null"
+            ]
           },
-          "sources": {
+          "assetCode": {
+            "examples": [
+              "BRL"
+            ],
+            "maxLength": 10,
+            "minLength": 2,
+            "type": "string"
+          },
+          "chartOfAccountsGroupName": {
+            "examples": [
+              "Chart of accounts group name"
+            ],
+            "maxLength": 256,
+            "type": "string"
+          },
+          "createdAt": {
+            "examples": [
+              "2021-01-01T00:00:00Z"
+            ],
+            "format": "date-time",
+            "type": "string"
+          },
+          "credit": {
+            "examples": [
+              [
+                "@person2"
+              ]
+            ],
             "items": {
-              "$ref": "#/components/schemas/V2LegInput"
+              "type": "string"
             },
             "type": [
               "array",
               "null"
             ]
           },
-          "to": {
-            "$ref": "#/components/schemas/V2AccountInput"
-          }
-        },
-        "required": [
-          "asset",
-          "amount"
-        ],
-        "type": "object"
-      },
-      "V2AccountInput": {
-        "additionalProperties": false,
-        "properties": {
-          "alias": {
+          "debit": {
+            "examples": [
+              [
+                "@person1"
+              ]
+            ],
+            "items": {
+              "type": "string"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          },
+          "deletedAt": {
+            "examples": [
+              "2021-01-01T00:00:00Z"
+            ],
+            "format": "date-time",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "description": {
+            "examples": [
+              "Transaction description"
+            ],
+            "maxLength": 256,
+            "type": "string"
+          },
+          "feesSkipped": {
+            "examples": [
+              false
+            ],
+            "type": "boolean"
+          },
+          "id": {
+            "examples": [
+              "00000000-0000-0000-0000-000000000000"
+            ],
+            "format": "uuid",
             "type": "string"
           },
           "ledgerId": {
@@ -17871,18 +17954,82 @@
             "format": "uuid",
             "type": "string"
           },
+          "metadata": {
+            "additionalProperties": {},
+            "type": "object"
+          },
+          "operations": {
+            "items": {
+              "$ref": "#/components/schemas/Operation"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          },
           "organizationId": {
             "examples": [
               "00000000-0000-0000-0000-000000000000"
             ],
             "format": "uuid",
             "type": "string"
+          },
+          "parentTransactionId": {
+            "examples": [
+              "00000000-0000-0000-0000-000000000000"
+            ],
+            "format": "uuid",
+            "type": "string"
+          },
+          "route": {
+            "examples": [
+              "00000000-0000-0000-0000-000000000000"
+            ],
+            "maxLength": 250,
+            "type": "string"
+          },
+          "routeId": {
+            "examples": [
+              "00000000-0000-0000-0000-000000000000"
+            ],
+            "format": "uuid",
+            "type": "string"
+          },
+          "status": {
+            "$ref": "#/components/schemas/TransactionStatus"
+          },
+          "tracerSkipped": {
+            "examples": [
+              false
+            ],
+            "type": "boolean"
+          },
+          "updatedAt": {
+            "examples": [
+              "2021-01-01T00:00:00Z"
+            ],
+            "format": "date-time",
+            "type": "string"
           }
         },
         "required": [
-          "alias",
+          "id",
+          "description",
+          "status",
+          "amount",
+          "assetCode",
+          "chartOfAccountsGroupName",
+          "debit",
+          "credit",
+          "ledgerId",
           "organizationId",
-          "ledgerId"
+          "route",
+          "feesSkipped",
+          "tracerSkipped",
+          "createdAt",
+          "updatedAt",
+          "deletedAt",
+          "operations"
         ],
         "type": "object"
       },

@@ -184,7 +184,7 @@ components:
       type: object
     CreateTransactionV2Input:
       additionalProperties: false
-      description: "Transaction request body. Each side of the transaction is spelled EITHER with its scalar field (`from`, `to`) OR with its leg array (`sources`, `destinations`) — never both on the same side, though the two sides may choose differently. Leave the spelling you are not using OUT of the body: on `from` and `to` an explicit `null` is rejected. Every account, in either spelling, names the `organizationId` and `ledgerId` it belongs to; all of them must name the SAME pair, and that pair is the organization and ledger the transaction is created in. A request whose accounts name different pairs is rejected. `asset`, `amount`, `description`, `code`, `routeId`, `operationRouteId` and `metadata` are common to both forms, and `amount` is always the transaction total that the legs' `share` expressions divide. Each leg array holds at most 500 legs."
+      description: Transaction request body. `debits` and `credits` are the two required, non-empty leg arrays of the transaction; one debit paired with many credits, or the reverse, is a valid request. Every leg names the `organizationId` and `ledgerId` its account belongs to; all of them must name the SAME pair, and that pair is the organization and ledger the transaction is created in. A request whose accounts name different pairs is rejected. `asset`, `amount`, `description`, `code`, `routeId`, `operationRouteId` and `metadata` sit alongside the two leg arrays, and `amount` is the transaction total that the legs' `share` expressions divide. Each leg array holds at most 500 legs.
       properties:
         amount:
           type: string
@@ -192,16 +192,20 @@ components:
           type: string
         code:
           type: string
-        description:
-          type: string
-        destinations:
+        credits:
           items:
             $ref: "#/components/schemas/V2LegInput"
           type:
             - array
             - "null"
-        from:
-          $ref: "#/components/schemas/V2AccountInput"
+        debits:
+          items:
+            $ref: "#/components/schemas/V2LegInput"
+          type:
+            - array
+            - "null"
+        description:
+          type: string
         metadata:
           additionalProperties: {}
           type: object
@@ -215,17 +219,11 @@ components:
             - 00000000-0000-0000-0000-000000000000
           format: uuid
           type: string
-        sources:
-          items:
-            $ref: "#/components/schemas/V2LegInput"
-          type:
-            - array
-            - "null"
-        to:
-          $ref: "#/components/schemas/V2AccountInput"
       required:
         - asset
         - amount
+        - debits
+        - credits
       type: object
     Error:
       additionalProperties: false
@@ -1333,7 +1331,26 @@ components:
           maxLength: 100
           type: string
       type: object
-    Transaction:
+    TransactionStatus:
+      additionalProperties: false
+      properties:
+        code:
+          examples:
+            - ACTIVE
+          maxLength: 100
+          type: string
+        description:
+          examples:
+            - Active status
+          maxLength: 256
+          type:
+            - string
+            - "null"
+      required:
+        - code
+        - description
+      type: object
+    TransactionV2:
       additionalProperties: false
       properties:
         amount:
@@ -1359,6 +1376,22 @@ components:
             - "2021-01-01T00:00:00Z"
           format: date-time
           type: string
+        credit:
+          examples:
+            - - "@person2"
+          items:
+            type: string
+          type:
+            - array
+            - "null"
+        debit:
+          examples:
+            - - "@person1"
+          items:
+            type: string
+          type:
+            - array
+            - "null"
         deletedAt:
           examples:
             - "2021-01-01T00:00:00Z"
@@ -1371,14 +1404,6 @@ components:
             - Transaction description
           maxLength: 256
           type: string
-        destination:
-          examples:
-            - - "@person2"
-          items:
-            type: string
-          type:
-            - array
-            - "null"
         feesSkipped:
           examples:
             - false
@@ -1422,14 +1447,6 @@ components:
             - 00000000-0000-0000-0000-000000000000
           format: uuid
           type: string
-        source:
-          examples:
-            - - "@person1"
-          items:
-            type: string
-          type:
-            - array
-            - "null"
         status:
           $ref: "#/components/schemas/TransactionStatus"
         tracerSkipped:
@@ -1448,8 +1465,8 @@ components:
         - amount
         - assetCode
         - chartOfAccountsGroupName
-        - source
-        - destination
+        - debit
+        - credit
         - ledgerId
         - organizationId
         - route
@@ -1459,25 +1476,6 @@ components:
         - updatedAt
         - deletedAt
         - operations
-      type: object
-    TransactionStatus:
-      additionalProperties: false
-      properties:
-        code:
-          examples:
-            - ACTIVE
-          maxLength: 100
-          type: string
-        description:
-          examples:
-            - Active status
-          maxLength: 256
-          type:
-            - string
-            - "null"
-      required:
-        - code
-        - description
       type: object
     Upstream:
       additionalProperties: false
@@ -1492,26 +1490,6 @@ components:
           examples:
             - account not found at provider
           type: string
-      type: object
-    V2AccountInput:
-      additionalProperties: false
-      properties:
-        alias:
-          type: string
-        ledgerId:
-          examples:
-            - 00000000-0000-0000-0000-000000000000
-          format: uuid
-          type: string
-        organizationId:
-          examples:
-            - 00000000-0000-0000-0000-000000000000
-          format: uuid
-          type: string
-      required:
-        - alias
-        - organizationId
-        - ledgerId
       type: object
     V2LegInput:
       additionalProperties: false
@@ -2896,7 +2874,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/Transaction"
+                $ref: "#/components/schemas/TransactionV2"
           description: Created
         default:
           content:
@@ -2939,7 +2917,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/Transaction"
+                $ref: "#/components/schemas/TransactionV2"
           description: Created
         default:
           content:
@@ -2982,7 +2960,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/Transaction"
+                $ref: "#/components/schemas/TransactionV2"
           description: Created
           headers:
             X-Idempotency-Replayed:
@@ -3117,7 +3095,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/Transaction"
+                $ref: "#/components/schemas/TransactionV2"
           description: Created
           headers:
             X-Idempotency-Replayed:
@@ -3161,7 +3139,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/Transaction"
+                $ref: "#/components/schemas/TransactionV2"
           description: Created
           headers:
             X-Idempotency-Replayed:
@@ -3205,7 +3183,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/Transaction"
+                $ref: "#/components/schemas/TransactionV2"
           description: Created
           headers:
             X-Idempotency-Replayed:
@@ -3249,7 +3227,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/Transaction"
+                $ref: "#/components/schemas/TransactionV2"
           description: Created
           headers:
             X-Idempotency-Replayed:
