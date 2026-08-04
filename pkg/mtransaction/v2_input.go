@@ -18,13 +18,11 @@ import (
 // mirrors the canonical Transaction shape explicitly rather than embedding
 // mmodel/canonical types, so domain evolution never leaks onto the wire contract.
 //
-// Each side of the transaction is spelled EITHER as a scalar account (From/To) or as a
-// leg array (Sources/Destinations), and each side chooses independently: one payer
-// paired with many payees is a valid request. Either spelling names, per leg, the
-// account alias and the organization and ledger that account belongs to.
-// Description, Code, Asset, Amount, RouteID, OperationRouteID and Metadata are
-// common to both spellings. Amount stays mandatory in the array form too: it is
-// the transaction total that the legs' share expressions divide.
+// Each side of the transaction is a leg array (Debits/Credits): one debit paired with
+// many credits, or the reverse, is a valid request. Each leg names the account alias
+// and the organization and ledger that account belongs to. Description, Code, Asset,
+// Amount, RouteID, OperationRouteID and Metadata sit alongside the two leg arrays.
+// Amount is the transaction total that the legs' share expressions divide.
 type CreateTransactionV2Input struct {
 	// Human-readable description of the transaction.
 	Description string `json:"description,omitempty"`
@@ -39,39 +37,25 @@ type CreateTransactionV2Input struct {
 	// semantics as v1; Translate parses it into a decimal.
 	Amount string `json:"amount" validate:"required"`
 
-	// From is the source account of the scalar form (single debit leg). Mutually
-	// exclusive with Sources. It carries no `validate:"required"` because a struct tag
-	// cannot express "exactly one of a pair"; the side obligation is a Translate rule.
+	// Debits are the debit legs of the transaction. Required and non-empty: `min=1`
+	// rejects both an omitted key (which decodes to a nil slice) and an explicit
+	// `"debits": []`, naming the field either way.
 	//
-	// The json tag carries no `omitempty` so an explicit `"from": {}` stays a KNOWN
-	// field and is answered with the side error instead of an unknown-field error, and
-	// so the re-marshal the decoder diffs against the body always emits the key — which
-	// is what makes a submitted `"from": null` an unexpected field.
-	// `required:"false"` is what then keeps the published schema from declaring the
-	// scalar form mandatory.
+	// The json tag carries no `omitempty`: an explicit `"debits": []` must stay a KNOWN
+	// field, answered by the `min=1` rejection, rather than vanish from the re-marshal
+	// the decoder diffs against the submitted body and come back as an unknown field.
+	// Carrying no `omitempty` also leaves the field without a Huma `required` override,
+	// so the published schema marks it mandatory by Huma's own default for a field with
+	// no `omitempty`.
 	//
-	// It is a value and not a pointer for that same diff: a nil pointer would re-marshal
-	// as `null` and make a submitted `null` match instead of being rejected.
-	From V2AccountInput `json:"from" required:"false"`
+	// `max=500` bounds the per-side leg count, which nothing else does: the request-body
+	// byte ceiling alone admits tens of thousands of legs, and each one carries its own
+	// downstream cost. `dive` is what makes the per-leg tags apply to each element.
+	Debits []V2LegInput `json:"debits" validate:"min=1,max=500,dive"`
 
-	// To is the destination account of the scalar form (single credit leg). Mutually
-	// exclusive with Destinations, and typed and tagged for the same reasons as From.
-	To V2AccountInput `json:"to" required:"false"`
-
-	// Sources are the debit legs of the array form. Mutually exclusive with From.
-	//
-	// The json tag carries no `omitempty` for the same reason as From: an explicit
-	// `"sources": []` stays a KNOWN field and is answered with the side error.
-	// `required:"false"` keeps the published schema from declaring the array form
-	// mandatory. `max=500` bounds the per-side leg count, which nothing else does: the
-	// request-body byte ceiling alone admits tens of thousands of legs, and each one
-	// carries its own downstream cost. `dive` is what makes the per-leg tags apply to
-	// each element.
-	Sources []V2LegInput `json:"sources" validate:"max=500,dive" required:"false"`
-
-	// Destinations are the credit legs of the array form. Mutually exclusive with
-	// To. Same tag reasoning as Sources.
-	Destinations []V2LegInput `json:"destinations" validate:"max=500,dive" required:"false"`
+	// Credits are the credit legs of the transaction, tagged for the same reasons as
+	// Debits.
+	Credits []V2LegInput `json:"credits" validate:"min=1,max=500,dive"`
 
 	// RouteID is the optional TRANSACTION route UUID. Validated as a UUID at
 	// decode (same tag as the v1 input) so a malformed value is a clean 400, not
@@ -87,43 +71,18 @@ type CreateTransactionV2Input struct {
 	Metadata map[string]any `json:"metadata,omitempty" validate:"dive,keys,keymax=100,endkeys,omitempty,nonested,valuemax=2000"`
 }
 
-// V2AccountInput names one account of the scalar form together with the scope that account
-// belongs to. The scope travels in the body, per side, so a request states the organization
-// and ledger of every account it touches instead of inheriting one from the URL.
-//
-// None of the three fields carries `validate:"required"`, and that is not an oversight: the
-// validator walks a value struct whether or not the client spelled the side, so a `required`
-// tag here would reject every body that spells its sides with the leg arrays. The obligation
-// is a Translate rule for all three. The published schema still lists them as required,
-// which is the accurate contract: a body that spells the side must fill them.
-type V2AccountInput struct {
-	// Alias is the account alias. Same value semantics as v1.
-	Alias string `json:"alias"`
-
-	// OrganizationID is the organization the account belongs to. Validated as a UUID at
-	// decode (same tag as the route fields) so a malformed value is a clean 400, not a deep
-	// funnel error. `omitempty` is what lets an unspelled side through to the side rule.
-	OrganizationID string `json:"organizationId" validate:"omitempty,uuid" example:"00000000-0000-0000-0000-000000000000" format:"uuid"`
-
-	// LedgerID is the ledger the account belongs to, tagged for the same reasons as
-	// OrganizationID.
-	LedgerID string `json:"ledgerId" validate:"omitempty,uuid" example:"00000000-0000-0000-0000-000000000000" format:"uuid"`
-}
-
-// V2LegInput is one leg of the array form. Exactly ONE value expression per leg:
+// V2LegInput is one leg of a transaction side. Exactly ONE value expression per leg:
 // an explicit Amount or a Share of the transaction total. The leg exposes no
-// balance key, chart of accounts, description or metadata, keeping the array form
-// symmetric with the scalar one.
+// balance key, chart of accounts, description or metadata.
 type V2LegInput struct {
 	// Alias is the leg's account alias. The obligation is enforced BOTH by this tag and by
 	// an imperative check in Translate; see buildLeg for why the two are complementary.
 	Alias string `json:"alias" validate:"required"`
 
-	// OrganizationID is the organization the leg's account belongs to. An array entry is
-	// always spelled, so unlike the scalar form's fields this one can be tagged `required`
-	// outright; the `uuid` tag makes a malformed value a clean 400 rather than a deep funnel
-	// error. Translate enforces the presence obligation as well, for the same reason it does
-	// for Alias.
+	// OrganizationID is the organization the leg's account belongs to. The `required` tag
+	// makes an absent value a clean 400 at decode; the `uuid` tag does the same for a
+	// malformed one. Translate enforces the presence obligation as well, for the same
+	// reason it does for Alias.
 	OrganizationID string `json:"organizationId" validate:"required,uuid" example:"00000000-0000-0000-0000-000000000000" format:"uuid"`
 
 	// LedgerID is the ledger the leg's account belongs to, tagged for the same reasons as
@@ -204,26 +163,20 @@ func (s V2Scope) namesSameAs(other V2Scope) bool {
 }
 
 // v2ScopeRef is one leg's scope paired with the field reference a rejection names it by, so the
-// scope rules can report the offending entry without knowing which spelling produced it.
+// scope rules can report the offending entry.
 type v2ScopeRef struct {
 	scope V2Scope
 	ref   string
 }
 
-// scope reads the scope off a scalar side.
-func (a V2AccountInput) scope() V2Scope {
-	return V2Scope{OrganizationID: a.OrganizationID, LedgerID: a.LedgerID}
-}
-
-// scope reads the scope off an array entry.
+// scope reads the scope off a leg.
 func (l V2LegInput) scope() V2Scope {
 	return V2Scope{OrganizationID: l.OrganizationID, LedgerID: l.LedgerID}
 }
 
 // validateV2Alias rejects a v2 account alias carrying AliasSeparator. Every alias the v2 surface
-// accepts routes through here — the two scalar fields as much as the two leg arrays — so no
-// spelling of either side can reach the funnel with an alias that can be forged onto another
-// entry's map key.
+// accepts routes through here — both leg arrays — so no leg can reach the funnel with an alias
+// that can be forged onto another entry's map key.
 //
 // An alias is rewritten into a composite separator-joined form before downstream code keys its
 // per-entry maps on it, and isConcatedAlias leaves an alias that already looks composite spelled
@@ -255,11 +208,9 @@ func validateV2Alias(alias string) error {
 // same pair. A request whose legs disagree is refused, so the caller receives one scope or an
 // error and never has to pick between two.
 //
-// Each side is spelled EITHER scalar (From/To) or as a leg array
-// (Sources/Destinations), and each side chooses independently. The scalar spelling
-// produces one leg carrying the whole transaction total; the array spelling
-// produces one leg per entry, each with exactly one value expression — an explicit
-// amount parsed into a decimal, or a share of the total.
+// Both sides are required, non-empty leg arrays; each entry produces one canonical leg with
+// exactly one value expression — an explicit amount parsed into a decimal, or a share of the
+// total.
 //
 // Route identifiers map at two independent levels: RouteID is the TRANSACTION
 // route (Transaction.RouteID); OperationRouteID is the per-leg OPERATION route
@@ -267,12 +218,12 @@ func validateV2Alias(alias string) error {
 // request-level route. Nil route pointers stay nil so downstream ledger settings
 // resolve defaults.
 //
-// Whether the legs sum to the transaction total is NOT checked here: that comparison needs the
-// resolved per-leg values, which Translate does not compute — it only carries each leg's value
-// expression forward. The scalar From == To check below stays because comparing a single pair
-// costs nothing.
+// Whether the legs sum to the transaction total, and whether the same account was named on both
+// sides, are NOT checked here: the total check needs the resolved per-leg values, which Translate
+// does not compute, and the same-account check needs the resolved balance-key entries the funnel
+// builds. Both stay ValidateSendSourceAndDistribute's job.
 func (in CreateTransactionV2Input) Translate(pending bool) (Transaction, V2Scope, error) {
-	if err := in.validateSideSpelling(); err != nil {
+	if err := in.validateSidesPresent(); err != nil {
 		return Transaction{}, V2Scope{}, err
 	}
 
@@ -281,16 +232,12 @@ func (in CreateTransactionV2Input) Translate(pending bool) (Transaction, V2Scope
 		return Transaction{}, V2Scope{}, pkg.ValidateBusinessError(constant.ErrInvalidTransactionNonPositiveValue, constant.EntityTransaction)
 	}
 
-	if in.From.Alias != "" && in.From.namesSameAccountAs(in.To) {
-		return Transaction{}, V2Scope{}, pkg.ValidateBusinessError(constant.ErrTransactionAmbiguous, constant.EntityTransaction)
-	}
-
-	from, err := in.buildLegs(in.Sources, in.From.Alias, value, true, "sources")
+	from, err := in.buildLegs(in.Debits, true, "debits")
 	if err != nil {
 		return Transaction{}, V2Scope{}, err
 	}
 
-	to, err := in.buildLegs(in.Destinations, in.To.Alias, value, false, "destinations")
+	to, err := in.buildLegs(in.Credits, false, "credits")
 	if err != nil {
 		return Transaction{}, V2Scope{}, err
 	}
@@ -317,9 +264,26 @@ func (in CreateTransactionV2Input) Translate(pending bool) (Transaction, V2Scope
 	}, scope, nil
 }
 
-// resolveScope folds every leg's scope into the single pair the request is scoped by, whichever
-// spelling each side chose. Every leg must name a complete scope, and all of them must name the
-// SAME one.
+// validateSidesPresent rejects a request whose debit or credit side is empty, naming the field
+// the caller has to fill.
+//
+// The obligation is enforced here as well as by the two arrays' `min=1` tags, for the same
+// reason the leg alias obligation is: Translate is exported from a shared package, so a caller
+// that assembles the input in Go and skips the decoder meets no tag at all.
+func (in CreateTransactionV2Input) validateSidesPresent() error {
+	if len(in.Debits) == 0 {
+		return pkg.ValidateBusinessError(constant.ErrMissingFieldsInRequest, constant.EntityTransaction, "debits")
+	}
+
+	if len(in.Credits) == 0 {
+		return pkg.ValidateBusinessError(constant.ErrMissingFieldsInRequest, constant.EntityTransaction, "credits")
+	}
+
+	return nil
+}
+
+// resolveScope folds every leg's scope into the single pair the request is scoped by. Every leg
+// must name a complete scope, and all of them must name the SAME one.
 //
 // The agreement rule is what keeps a request inside one ledger: a body naming two would have no
 // single ledger to post against, and honouring each half against its own ledger leaves value
@@ -349,30 +313,18 @@ func (in CreateTransactionV2Input) resolveScope() (V2Scope, error) {
 	return resolved, nil
 }
 
-// namesSameAccountAs reports whether both sides name one account. An alias identifies an
-// account only inside a ledger, so two sides sharing an alias while naming different
-// ledgers name two different accounts.
-func (a V2AccountInput) namesSameAccountAs(other V2AccountInput) bool {
-	return a.Alias == other.Alias && a.scope().namesSameAs(other.scope())
-}
-
-// scopeRefs lists one entry per leg of the request, source side first, each carrying the field
+// scopeRefs lists one entry per leg of the request, debit side first, each carrying the field
 // reference its rejections are named by.
 func (in CreateTransactionV2Input) scopeRefs() []v2ScopeRef {
-	refs := make([]v2ScopeRef, 0, len(in.Sources)+len(in.Destinations)+2)
-	refs = appendSideScopeRefs(refs, in.From, in.Sources, "from", "sources")
+	refs := make([]v2ScopeRef, 0, len(in.Debits)+len(in.Credits))
+	refs = appendSideScopeRefs(refs, in.Debits, "debits")
 
-	return appendSideScopeRefs(refs, in.To, in.Destinations, "to", "destinations")
+	return appendSideScopeRefs(refs, in.Credits, "credits")
 }
 
-// appendSideScopeRefs appends one entry per leg of a single side. With no legs the side is in the
-// scalar spelling and contributes its one account; otherwise each array entry contributes its own,
-// referenced by index. scalarRef and legsField name the side in the two spellings.
-func appendSideScopeRefs(refs []v2ScopeRef, account V2AccountInput, legs []V2LegInput, scalarRef, legsField string) []v2ScopeRef {
-	if len(legs) == 0 {
-		return append(refs, v2ScopeRef{scope: account.scope(), ref: scalarRef})
-	}
-
+// appendSideScopeRefs appends one entry per leg of a single side, referenced by index.
+// legsField names the side.
+func appendSideScopeRefs(refs []v2ScopeRef, legs []V2LegInput, legsField string) []v2ScopeRef {
 	for i, leg := range legs {
 		refs = append(refs, v2ScopeRef{scope: leg.scope(), ref: legReference(legsField, i)})
 	}
@@ -385,8 +337,7 @@ func appendSideScopeRefs(refs []v2ScopeRef, account V2AccountInput, legs []V2Leg
 //
 // The obligation is enforced here as well as by the leg arrays' `required` tags, for the same
 // reason the alias obligation is: Translate is exported from a shared package, so a caller that
-// assembles the input in Go meets no tag at all, and the scalar spelling cannot carry a `required`
-// tag because the validator walks it whether or not the client spelled that side.
+// assembles the input in Go meets no tag at all.
 func (r v2ScopeRef) requireComplete() error {
 	switch {
 	case r.scope.OrganizationID == "":
@@ -398,56 +349,9 @@ func (r v2ScopeRef) requireComplete() error {
 	}
 }
 
-// validateSideSpelling checks that each side spells itself exactly one way. The
-// two sides are independent: a scalar payer paired with an array of payees is
-// valid, which is the shape a one-to-many payout takes.
-//
-// An explicit empty leg array counts as no legs, so it reads as an unspelled side
-// rather than as a choice of the array form.
-func (in CreateTransactionV2Input) validateSideSpelling() error {
-	if err := validateSideSpelledOnce(in.From.Alias, len(in.Sources) > 0, "from or sources"); err != nil {
-		return err
-	}
-
-	return validateSideSpelledOnce(in.To.Alias, len(in.Destinations) > 0, "to or destinations")
-}
-
-// validateSideSpelledOnce enforces "exactly one of (scalar alias, leg array)" for a
-// single side: neither spelling is a missing field, both spellings is a
-// mutual-exclusivity violation. fieldNames names the pair in the missing-field
-// message.
-func validateSideSpelledOnce(alias string, hasLegs bool, fieldNames string) error {
-	switch {
-	case alias == "" && !hasLegs:
-		return pkg.ValidateBusinessError(constant.ErrMissingFieldsInRequest, constant.EntityTransaction, fieldNames)
-	case alias != "" && hasLegs:
-		return pkg.ValidateBusinessError(constant.ErrMutuallyExclusiveTransactionFields, constant.EntityTransaction)
-	default:
-		return nil
-	}
-}
-
-// buildLegs expands one side into canonical legs. With no legs the side is in the
-// scalar spelling and yields a single leg carrying the whole transaction total;
-// otherwise each entry yields its own leg. fieldName names the side's leg array in
-// the per-leg error messages.
-//
-// The alias guard runs on BOTH spellings. The scalar alias arrives straight off the request
-// with no per-leg tag behind it, so this is the only place it is checked at all.
-func (in CreateTransactionV2Input) buildLegs(legs []V2LegInput, alias string, total decimal.Decimal, isFrom bool, fieldName string) ([]FromTo, error) {
-	if len(legs) == 0 {
-		if err := validateV2Alias(alias); err != nil {
-			return nil, err
-		}
-
-		return []FromTo{{
-			AccountAlias: alias,
-			Amount:       &Amount{Asset: in.Asset, Value: total},
-			RouteID:      cloneStringPtr(in.OperationRouteID),
-			IsFrom:       isFrom,
-		}}, nil
-	}
-
+// buildLegs expands one side's leg array into canonical legs, one per entry. fieldName names the
+// side in the per-leg error messages.
+func (in CreateTransactionV2Input) buildLegs(legs []V2LegInput, isFrom bool, fieldName string) ([]FromTo, error) {
 	out := make([]FromTo, 0, len(legs))
 
 	for i, leg := range legs {
@@ -462,7 +366,7 @@ func (in CreateTransactionV2Input) buildLegs(legs []V2LegInput, alias string, to
 	return out, nil
 }
 
-// legReference spells the indexed reference to one entry of a side — `sources[0]` — so a caller
+// legReference spells the indexed reference to one entry of a side — `debits[0]` — so a caller
 // at the 500-leg cap can locate the entry a rejection is about. The shape matches the validator's
 // own field namespace, so both classes of rejection read alike.
 //

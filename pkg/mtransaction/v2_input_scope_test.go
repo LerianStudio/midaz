@@ -5,6 +5,7 @@
 package mtransaction_test
 
 import (
+	"context"
 	"strings"
 	"testing"
 
@@ -26,12 +27,9 @@ const (
 )
 
 // TestCreateTransactionV2Input_TranslateResolvesScope pins that Translate hands the caller the
-// (organization, ledger) pair the body named, for every spelling of the two sides. The scope is
-// what the caller needs to know which ledger the transaction posts to, so a translation that
-// succeeds without producing it is unusable.
-//
-// The mixed spelling is covered here as well: each side chooses independently, so a scalar payer
-// paired with an array of payees is a valid request that must resolve one scope like any other.
+// (organization, ledger) pair the body named. The scope is what the caller needs to know which
+// ledger the transaction posts to, so a translation that succeeds without producing it is
+// unusable.
 func TestCreateTransactionV2Input_TranslateResolvesScope(t *testing.T) {
 	t.Parallel()
 
@@ -45,13 +43,13 @@ func TestCreateTransactionV2Input_TranslateResolvesScope(t *testing.T) {
 		verify       func(t *testing.T, got mtransaction.Transaction)
 	}{
 		{
-			name:         "scalar on both sides",
+			name:         "single leg on both sides",
 			input:        validV2Input(),
 			wantFromLegs: 1,
 			wantToLegs:   1,
 		},
 		{
-			name: "array on both sides with several legs per side",
+			name: "several legs per side",
 			input: arrayV2Input(
 				[]mtransaction.V2LegInput{
 					{Alias: "@srcA", Amount: "600"},
@@ -66,35 +64,29 @@ func TestCreateTransactionV2Input_TranslateResolvesScope(t *testing.T) {
 			wantToLegs:   2,
 		},
 		{
-			// The Phase 4 per-side independence: `from` paired with `destinations` stays a
-			// valid body, and the scope resolves across the two spellings.
-			name: "scalar source with array destinations",
-			input: func() mtransaction.CreateTransactionV2Input {
-				in := validV2Input()
-				in.To = mtransaction.V2AccountInput{}
-				in.Destinations = scopedLegs([]mtransaction.V2LegInput{
+			// One debit paired with many credits stays a valid body, and the scope resolves
+			// across the asymmetric leg counts.
+			name: "one debit leg with many credit legs",
+			input: arrayV2Input(
+				[]mtransaction.V2LegInput{{Alias: "@srcA", Amount: "1000"}},
+				[]mtransaction.V2LegInput{
 					{Alias: "@dstA", Amount: "600"},
 					{Alias: "@dstB", Amount: "400"},
-				})
-
-				return in
-			}(),
+				},
+			),
 			wantFromLegs: 1,
 			wantToLegs:   2,
 		},
 		{
-			// The mirror: `sources` paired with `to`.
-			name: "array sources with scalar destination",
-			input: func() mtransaction.CreateTransactionV2Input {
-				in := validV2Input()
-				in.From = mtransaction.V2AccountInput{}
-				in.Sources = scopedLegs([]mtransaction.V2LegInput{
+			// The mirror: many debit legs with one credit leg.
+			name: "many debit legs with one credit leg",
+			input: arrayV2Input(
+				[]mtransaction.V2LegInput{
 					{Alias: "@srcA", Amount: "600"},
 					{Alias: "@srcB", Amount: "400"},
-				})
-
-				return in
-			}(),
+				},
+				[]mtransaction.V2LegInput{{Alias: "@dstA", Amount: "1000"}},
+			),
 			wantFromLegs: 2,
 			wantToLegs:   1,
 		},
@@ -150,9 +142,9 @@ func TestCreateTransactionV2Input_TranslateResolvesScope(t *testing.T) {
 }
 
 // TestCreateTransactionV2Input_TranslateRequiresLegScope pins that every leg must name all three
-// parts of its account reference, in both spellings. A leg with no organization or no ledger says
-// nothing about where its account lives, so there is no scope to resolve and nothing downstream
-// can pick one for it.
+// parts of its account reference. A leg with no organization or no ledger says nothing about
+// where its account lives, so there is no scope to resolve and nothing downstream can pick one
+// for it.
 //
 // The obligation is checked at Translate and not only by the leg tags because Translate is
 // exported from a shared package: a caller that builds the input in Go meets no tag at all.
@@ -165,37 +157,37 @@ func TestCreateTransactionV2Input_TranslateRequiresLegScope(t *testing.T) {
 		wantMessagePart string
 	}{
 		{
-			name: "source leg without an alias",
+			name: "debit leg without an alias",
 			input: arrayV2Input(
 				[]mtransaction.V2LegInput{{Amount: "1000"}},
 				[]mtransaction.V2LegInput{{Alias: "@dstA", Amount: "1000"}},
 			),
-			wantMessagePart: "sources[0].alias",
+			wantMessagePart: "debits[0].alias",
 		},
 		{
-			name: "source leg without an organization",
+			name: "debit leg without an organization",
 			input: mutateV2Legs(arrayV2Input(
 				[]mtransaction.V2LegInput{{Alias: "@srcA", Amount: "1000"}},
 				[]mtransaction.V2LegInput{{Alias: "@dstA", Amount: "1000"}},
 			), func(in *mtransaction.CreateTransactionV2Input) {
-				in.Sources[0].OrganizationID = ""
+				in.Debits[0].OrganizationID = ""
 			}),
-			wantMessagePart: "sources[0].organizationId",
+			wantMessagePart: "debits[0].organizationId",
 		},
 		{
-			name: "source leg without a ledger",
+			name: "debit leg without a ledger",
 			input: mutateV2Legs(arrayV2Input(
 				[]mtransaction.V2LegInput{{Alias: "@srcA", Amount: "1000"}},
 				[]mtransaction.V2LegInput{{Alias: "@dstA", Amount: "1000"}},
 			), func(in *mtransaction.CreateTransactionV2Input) {
-				in.Sources[0].LedgerID = ""
+				in.Debits[0].LedgerID = ""
 			}),
-			wantMessagePart: "sources[0].ledgerId",
+			wantMessagePart: "debits[0].ledgerId",
 		},
 		{
 			// The second leg, not the first: a guard that only reads the head of the array
 			// passes every single-leg case while leaving the rest unscoped.
-			name: "second destination leg without a ledger",
+			name: "second credit leg without a ledger",
 			input: mutateV2Legs(arrayV2Input(
 				[]mtransaction.V2LegInput{{Alias: "@srcA", Amount: "1000"}},
 				[]mtransaction.V2LegInput{
@@ -203,29 +195,9 @@ func TestCreateTransactionV2Input_TranslateRequiresLegScope(t *testing.T) {
 					{Alias: "@dstB", Amount: "400"},
 				},
 			), func(in *mtransaction.CreateTransactionV2Input) {
-				in.Destinations[1].LedgerID = ""
+				in.Credits[1].LedgerID = ""
 			}),
-			wantMessagePart: "destinations[1].ledgerId",
-		},
-		{
-			name: "scalar source without an organization",
-			input: func() mtransaction.CreateTransactionV2Input {
-				in := validV2Input()
-				in.From.OrganizationID = ""
-
-				return in
-			}(),
-			wantMessagePart: "from.organizationId",
-		},
-		{
-			name: "scalar destination without a ledger",
-			input: func() mtransaction.CreateTransactionV2Input {
-				in := validV2Input()
-				in.To.LedgerID = ""
-
-				return in
-			}(),
-			wantMessagePart: "to.ledgerId",
+			wantMessagePart: "credits[1].ledgerId",
 		},
 	}
 
@@ -263,27 +235,27 @@ func TestCreateTransactionV2Input_TranslateRejectsScopeDisagreement(t *testing.T
 		input mtransaction.CreateTransactionV2Input
 	}{
 		{
-			name: "destination leg on another ledger",
+			name: "credit leg on another ledger",
 			input: mutateV2Legs(arrayV2Input(
 				[]mtransaction.V2LegInput{{Alias: "@srcA", Amount: "1000"}},
 				[]mtransaction.V2LegInput{{Alias: "@dstA", Amount: "1000"}},
 			), func(in *mtransaction.CreateTransactionV2Input) {
-				in.Destinations[0].LedgerID = otherLedgerID
+				in.Credits[0].LedgerID = otherLedgerID
 			}),
 		},
 		{
-			name: "destination leg in another organization",
+			name: "credit leg in another organization",
 			input: mutateV2Legs(arrayV2Input(
 				[]mtransaction.V2LegInput{{Alias: "@srcA", Amount: "1000"}},
 				[]mtransaction.V2LegInput{{Alias: "@dstA", Amount: "1000"}},
 			), func(in *mtransaction.CreateTransactionV2Input) {
-				in.Destinations[0].OrganizationID = otherOrgID
+				in.Credits[0].OrganizationID = otherOrgID
 			}),
 		},
 		{
 			// Two legs of the SAME side: the rule is about the whole request, not about the
 			// two sides matching each other.
-			name: "two source legs on different ledgers",
+			name: "two debit legs on different ledgers",
 			input: mutateV2Legs(arrayV2Input(
 				[]mtransaction.V2LegInput{
 					{Alias: "@srcA", Amount: "600"},
@@ -291,51 +263,28 @@ func TestCreateTransactionV2Input_TranslateRejectsScopeDisagreement(t *testing.T
 				},
 				[]mtransaction.V2LegInput{{Alias: "@dstA", Amount: "1000"}},
 			), func(in *mtransaction.CreateTransactionV2Input) {
-				in.Sources[1].LedgerID = otherLedgerID
+				in.Debits[1].LedgerID = otherLedgerID
 			}),
-		},
-		{
-			name: "scalar sides on different ledgers",
-			input: func() mtransaction.CreateTransactionV2Input {
-				in := validV2Input()
-				in.To.LedgerID = otherLedgerID
-
-				return in
-			}(),
-		},
-		{
-			// The mixed spelling has to be covered too: the scalar side and the array side
-			// are compared against each other, not each against itself.
-			name: "scalar source and array destination on different ledgers",
-			input: func() mtransaction.CreateTransactionV2Input {
-				in := validV2Input()
-				in.To = mtransaction.V2AccountInput{}
-				in.Destinations = []mtransaction.V2LegInput{
-					{Alias: "@dstA", Amount: "1000", OrganizationID: testOrgID, LedgerID: otherLedgerID},
-				}
-
-				return in
-			}(),
 		},
 		{
 			// An external account is the one alias a reader is tempted to treat as belonging
 			// everywhere, which makes it the natural place to carve an exception. It is bound
 			// to a ledger like any other account, so a divergent one is refused too.
-			name: "external source leg on another ledger",
+			name: "external debit leg on another ledger",
 			input: mutateV2Legs(arrayV2Input(
 				[]mtransaction.V2LegInput{{Alias: "@external/BRL", Amount: "1000"}},
 				[]mtransaction.V2LegInput{{Alias: "@dstA", Amount: "1000"}},
 			), func(in *mtransaction.CreateTransactionV2Input) {
-				in.Sources[0].LedgerID = otherLedgerID
+				in.Debits[0].LedgerID = otherLedgerID
 			}),
 		},
 		{
-			name: "external destination leg in another organization",
+			name: "external credit leg in another organization",
 			input: mutateV2Legs(arrayV2Input(
 				[]mtransaction.V2LegInput{{Alias: "@srcA", Amount: "1000"}},
 				[]mtransaction.V2LegInput{{Alias: "@external/BRL", Amount: "1000"}},
 			), func(in *mtransaction.CreateTransactionV2Input) {
-				in.Destinations[0].OrganizationID = otherOrgID
+				in.Credits[0].OrganizationID = otherOrgID
 			}),
 		},
 	}
@@ -368,8 +317,8 @@ func TestCreateTransactionV2Input_ScopeAgreementIgnoresLetterCase(t *testing.T) 
 		[]mtransaction.V2LegInput{{Alias: "@srcA", Amount: "1000"}},
 		[]mtransaction.V2LegInput{{Alias: "@dstA", Amount: "1000"}},
 	)
-	in.Destinations[0].OrganizationID = strings.ToUpper(testOrgID)
-	in.Destinations[0].LedgerID = strings.ToUpper(testLedgerID)
+	in.Credits[0].OrganizationID = strings.ToUpper(testOrgID)
+	in.Credits[0].LedgerID = strings.ToUpper(testLedgerID)
 
 	_, scope, err := in.Translate(false)
 	require.NoError(t, err, "one scope spelled in two letter cases is still one scope")
@@ -394,31 +343,31 @@ func TestCreateTransactionV2Input_MalformedScopeRejectedAtDecode(t *testing.T) {
 		wantField string
 	}{
 		{
-			name: "leg with a malformed organization",
+			name: "debit leg with a malformed organization",
 			body: `{"asset":"BRL","amount":"1000",` +
-				`"sources":[{"alias":"@srcA",` + badScope + `,"amount":"1000"}],` +
-				`"destinations":[{"alias":"@dstA",` + scopeJSON + `,"amount":"1000"}]}`,
+				`"debits":[{"alias":"@srcA",` + badScope + `,"amount":"1000"}],` +
+				`"credits":[{"alias":"@dstA",` + scopeJSON + `,"amount":"1000"}]}`,
 			wantField: "organizationId",
 		},
 		{
-			name: "leg with a malformed ledger",
+			name: "debit leg with a malformed ledger",
 			body: `{"asset":"BRL","amount":"1000",` +
-				`"sources":[{"alias":"@srcA",` + badLedger + `,"amount":"1000"}],` +
-				`"destinations":[{"alias":"@dstA",` + scopeJSON + `,"amount":"1000"}]}`,
+				`"debits":[{"alias":"@srcA",` + badLedger + `,"amount":"1000"}],` +
+				`"credits":[{"alias":"@dstA",` + scopeJSON + `,"amount":"1000"}]}`,
 			wantField: "ledgerId",
 		},
 		{
-			name: "scalar side with a malformed organization",
+			name: "credit leg with a malformed organization",
 			body: `{"asset":"BRL","amount":"1000",` +
-				`"from":{"alias":"@srcA",` + badScope + `},` +
-				`"to":{"alias":"@dstA",` + scopeJSON + `}}`,
+				`"debits":[{"alias":"@srcA",` + scopeJSON + `,"amount":"1000"}],` +
+				`"credits":[{"alias":"@dstA",` + badScope + `,"amount":"1000"}]}`,
 			wantField: "organizationId",
 		},
 		{
-			name: "scalar side with a malformed ledger",
+			name: "credit leg with a malformed ledger",
 			body: `{"asset":"BRL","amount":"1000",` +
-				`"from":{"alias":"@srcA",` + scopeJSON + `},` +
-				`"to":{"alias":"@dstA",` + badLedger + `}}`,
+				`"debits":[{"alias":"@srcA",` + scopeJSON + `,"amount":"1000"}],` +
+				`"credits":[{"alias":"@dstA",` + badLedger + `,"amount":"1000"}]}`,
 			wantField: "ledgerId",
 		},
 	}
@@ -447,8 +396,8 @@ func TestCreateTransactionV2Input_DecodeAndTranslateResolvesScope(t *testing.T) 
 	t.Parallel()
 
 	body := `{"asset":"BRL","amount":"1000",` +
-		`"from":{"alias":"@srcA",` + scopeJSON + `},` +
-		`"destinations":[{"alias":"@dstA",` + scopeJSON + `,"amount":"600"},` +
+		`"debits":[{"alias":"@srcA",` + scopeJSON + `,"amount":"1000"}],` +
+		`"credits":[{"alias":"@dstA",` + scopeJSON + `,"amount":"600"},` +
 		`{"alias":"@dstB",` + scopeJSON + `,"amount":"400"}]}`
 
 	var in mtransaction.CreateTransactionV2Input
@@ -467,50 +416,63 @@ func TestCreateTransactionV2Input_DecodeAndTranslateResolvesScope(t *testing.T) 
 }
 
 // TestCreateTransactionV2Input_SameAliasAcrossLedgersIsNotOneAccount pins that the two sides
-// sharing an alias is answered by WHICH rule. An alias identifies an account only inside a
-// ledger, so the same text in two ledgers names two accounts: that request is a scope
-// disagreement, not a transaction paying itself. Answering it as ambiguity would tell the
-// caller its source and destination are one account when they are not.
+// sharing an alias in DIFFERENT ledgers is answered by the scope rule, not the ambiguity rule.
+// An alias identifies an account only inside a ledger, so the same text in two ledgers names two
+// accounts: that request is a scope disagreement, not a transaction paying itself. Answering it
+// as ambiguity would tell the caller its debit and credit are one account when they are not.
+//
+// This is Translate's own check (resolveScope), so it fires before the funnel runs — unlike the
+// same-ledger case, which Translate cannot decide on its own; see
+// TestCreateTransactionV2Input_SameAliasIsAmbiguousAtTheFunnel.
 func TestCreateTransactionV2Input_SameAliasAcrossLedgersIsNotOneAccount(t *testing.T) {
 	t.Parallel()
 
-	tests := []struct {
-		name     string
-		ledgerID string
-		wantCode string
-	}{
-		{
-			name:     "one alias in one ledger is the same account",
-			ledgerID: testLedgerID,
-			wantCode: constant.ErrTransactionAmbiguous.Error(),
-		},
-		{
-			name:     "one alias in two ledgers is two accounts",
-			ledgerID: otherLedgerID,
-			wantCode: constant.ErrTransactionScopeMismatch.Error(),
-		},
-	}
+	in := arrayV2Input(
+		[]mtransaction.V2LegInput{{Alias: "@shared", Amount: "1000"}},
+		[]mtransaction.V2LegInput{{Alias: "@shared", Amount: "1000", LedgerID: otherLedgerID}},
+	)
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
+	got, scope, err := in.Translate(false)
+	require.Error(t, err)
 
-			in := validV2Input()
-			in.From = v2Account("@shared")
-			in.To = v2Account("@shared")
-			in.To.LedgerID = tt.ledgerID
+	var uoErr pkg.UnprocessableOperationError
+	require.ErrorAs(t, err, &uoErr)
+	assert.Equal(t, constant.ErrTransactionScopeMismatch.Error(), uoErr.Code)
 
-			got, scope, err := in.Translate(false)
-			require.Error(t, err)
+	assert.True(t, got.IsEmpty(), "the error path must not leak a populated transaction")
+	assert.Equal(t, mtransaction.V2Scope{}, scope, "the error path must not leak a scope")
+}
 
-			var uoErr pkg.UnprocessableOperationError
-			require.ErrorAs(t, err, &uoErr)
-			assert.Equal(t, tt.wantCode, uoErr.Code)
+// TestCreateTransactionV2Input_SameAliasIsAmbiguousAtTheFunnel pins where the same-account
+// guarantee now lives: Translate carries the legs forward without comparing the two sides — it no
+// longer has a single scalar pair to compare, and the general array case needs the resolved
+// balance-key entries only the funnel builds — so a body naming the same account on both sides
+// clears Translate and is caught by ValidateSendSourceAndDistribute instead, on the same path
+// production code runs (ApplyDefaultBalanceKeys -> MutateConcatAliases ->
+// ValidateSendSourceAndDistribute).
+func TestCreateTransactionV2Input_SameAliasIsAmbiguousAtTheFunnel(t *testing.T) {
+	t.Parallel()
 
-			assert.True(t, got.IsEmpty(), "the error path must not leak a populated transaction")
-			assert.Equal(t, mtransaction.V2Scope{}, scope, "the error path must not leak a scope")
-		})
-	}
+	in := arrayV2Input(
+		[]mtransaction.V2LegInput{{Alias: "@shared", Amount: "1000"}},
+		[]mtransaction.V2LegInput{{Alias: "@shared", Amount: "1000"}},
+	)
+
+	transaction, scope, err := in.Translate(false)
+	require.NoError(t, err, "Translate does not compare the two sides, so a shared alias clears it")
+	assert.Equal(t, testScope(), scope)
+
+	mtransaction.ApplyDefaultBalanceKeys(transaction.Send.Source.From)
+	mtransaction.ApplyDefaultBalanceKeys(transaction.Send.Distribute.To)
+	transaction.Send.Source.From = mtransaction.MutateConcatAliases(transaction.Send.Source.From)
+	transaction.Send.Distribute.To = mtransaction.MutateConcatAliases(transaction.Send.Distribute.To)
+
+	_, err = mtransaction.ValidateSendSourceAndDistribute(context.Background(), transaction, constant.CREATED)
+	require.Error(t, err, "the same account on both sides must be rejected as ambiguous")
+
+	var uoErr pkg.UnprocessableOperationError
+	require.ErrorAs(t, err, &uoErr)
+	assert.Equal(t, constant.ErrTransactionAmbiguous.Error(), uoErr.Code)
 }
 
 // mutateV2Legs applies mutate to a built input and hands it back, so a table case can plant a

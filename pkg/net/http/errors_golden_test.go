@@ -578,7 +578,6 @@ func allSentinels() map[string]error {
 		"ErrAuditEventRequired":                       constant.ErrAuditEventRequired,
 		"ErrAuditWriteFailed":                         constant.ErrAuditWriteFailed,
 		"ErrReservedTenantID":                         constant.ErrReservedTenantID,
-		"ErrMutuallyExclusiveTransactionFields":       constant.ErrMutuallyExclusiveTransactionFields,
 		"ErrTransactionScopeMismatch":                 constant.ErrTransactionScopeMismatch,
 		"ErrOverdraftRouteNotConfigured":              constant.ErrOverdraftRouteNotConfigured,
 		"ErrReadyzRedisConnectionNotEstablished":      constant.ErrReadyzRedisConnectionNotEstablished,
