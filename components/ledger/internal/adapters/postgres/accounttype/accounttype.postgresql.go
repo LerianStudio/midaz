@@ -39,6 +39,7 @@ var accountTypeColumnList = []string{
 	"name",
 	"description",
 	"key_value",
+	"default_direction",
 	"created_at",
 	"updated_at",
 	"deleted_at",
@@ -121,6 +122,12 @@ func (r *AccountTypePostgreSQLRepository) Create(ctx context.Context, organizati
 	record := &AccountTypePostgreSQLModel{}
 	record.FromEntity(accountType)
 
+	// An empty direction maps to the column default so the positional INSERT never
+	// sends an empty string that would violate the default_direction CHECK.
+	if record.DefaultDirection == "" {
+		record.DefaultDirection = constant.DirectionCredit
+	}
+
 	query, args, err := squirrel.Insert(r.tableName).
 		Columns(accountTypeColumnList...).
 		Values(
@@ -130,6 +137,7 @@ func (r *AccountTypePostgreSQLRepository) Create(ctx context.Context, organizati
 			record.Name,
 			record.Description,
 			record.KeyValue,
+			record.DefaultDirection,
 			record.CreatedAt,
 			record.UpdatedAt,
 			record.DeletedAt,
@@ -157,6 +165,7 @@ func (r *AccountTypePostgreSQLRepository) Create(ctx context.Context, organizati
 		&inserted.Name,
 		&inserted.Description,
 		&inserted.KeyValue,
+		&inserted.DefaultDirection,
 		&inserted.CreatedAt,
 		&inserted.UpdatedAt,
 		&inserted.DeletedAt,
@@ -207,8 +216,9 @@ func (r *AccountTypePostgreSQLRepository) FindByID(ctx context.Context, organiza
 			ledger_id, 
 			name, 
 			description, 
-			key_value, 
-			created_at, 
+			key_value,
+			default_direction,
+			created_at,
 			updated_at, 
 			deleted_at 
 		FROM account_type 
@@ -225,6 +235,7 @@ func (r *AccountTypePostgreSQLRepository) FindByID(ctx context.Context, organiza
 		&record.Name,
 		&record.Description,
 		&record.KeyValue,
+		&record.DefaultDirection,
 		&record.CreatedAt,
 		&record.UpdatedAt,
 		&record.DeletedAt,
@@ -272,8 +283,9 @@ func (r *AccountTypePostgreSQLRepository) FindByKey(ctx context.Context, organiz
 			ledger_id, 
 			name, 
 			description, 
-			key_value, 
-			created_at, 
+			key_value,
+			default_direction,
+			created_at,
 			updated_at, 
 			deleted_at 
 		FROM account_type 
@@ -290,6 +302,7 @@ func (r *AccountTypePostgreSQLRepository) FindByKey(ctx context.Context, organiz
 		&record.Name,
 		&record.Description,
 		&record.KeyValue,
+		&record.DefaultDirection,
 		&record.CreatedAt,
 		&record.UpdatedAt,
 		&record.DeletedAt,
@@ -345,6 +358,10 @@ func (r *AccountTypePostgreSQLRepository) Update(ctx context.Context, organizati
 		update = update.Set("description", record.Description)
 	}
 
+	if accountType.DefaultDirection != "" {
+		update = update.Set("default_direction", record.DefaultDirection)
+	}
+
 	update = update.Suffix("RETURNING " + strings.Join(accountTypeColumnList, ", "))
 
 	query, args, err := update.ToSql()
@@ -368,6 +385,7 @@ func (r *AccountTypePostgreSQLRepository) Update(ctx context.Context, organizati
 		&updated.Name,
 		&updated.Description,
 		&updated.KeyValue,
+		&updated.DefaultDirection,
 		&updated.CreatedAt,
 		&updated.UpdatedAt,
 		&updated.DeletedAt,
@@ -494,6 +512,7 @@ func (r *AccountTypePostgreSQLRepository) FindAll(ctx context.Context, organizat
 			&record.Name,
 			&record.Description,
 			&record.KeyValue,
+			&record.DefaultDirection,
 			&record.CreatedAt,
 			&record.UpdatedAt,
 			&record.DeletedAt,
@@ -556,8 +575,9 @@ func (r *AccountTypePostgreSQLRepository) ListByIDs(ctx context.Context, organiz
 		ledger_id, 
 		name, 
 		description, 
-		key_value, 
-		created_at, 
+		key_value,
+		default_direction,
+		created_at,
 		updated_at, 
 		deleted_at 
 	FROM account_type 
@@ -588,6 +608,7 @@ func (r *AccountTypePostgreSQLRepository) ListByIDs(ctx context.Context, organiz
 			&record.Name,
 			&record.Description,
 			&record.KeyValue,
+			&record.DefaultDirection,
 			&record.CreatedAt,
 			&record.UpdatedAt,
 			&record.DeletedAt,
