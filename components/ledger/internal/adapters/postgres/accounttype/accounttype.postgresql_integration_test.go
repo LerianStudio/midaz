@@ -24,6 +24,12 @@ import (
 	pgtestutil "github.com/LerianStudio/midaz/v4/tests/utils/postgres"
 )
 
+// fixedIntegrationTime is a deterministic UTC instant used by the persistence
+// tests. It carries microsecond precision (654321 micros) because Postgres
+// round-trips timestamps at microsecond precision; a fixed value keeps the
+// round-trip assertions reproducible without relying on time.Now().
+var fixedIntegrationTime = time.Date(2026, 1, 2, 3, 4, 5, 654321*1000, time.UTC)
+
 // createRepository creates an AccountTypePostgreSQLRepository connected to the test database.
 func createRepository(t *testing.T, container *pgtestutil.ContainerResult) *AccountTypePostgreSQLRepository {
 	t.Helper()
@@ -103,7 +109,7 @@ func TestIntegration_AccountTypeRepository_FindByID_IgnoresDeletedAccountType(t 
 	ledgerID := pgtestutil.CreateTestLedger(t, container.DB, orgID)
 
 	// Insert deleted account type
-	deletedAt := time.Now().Add(-1 * time.Hour)
+	deletedAt := fixedIntegrationTime.Add(-1 * time.Hour)
 	params := pgtestutil.AccountTypeParams{
 		Name:        "Deleted Type",
 		Description: "This type was deleted",
@@ -210,7 +216,7 @@ func TestIntegration_AccountTypeRepository_Create(t *testing.T) {
 	orgID := pgtestutil.CreateTestOrganization(t, container.DB)
 	ledgerID := pgtestutil.CreateTestLedger(t, container.DB, orgID)
 
-	now := time.Now().Truncate(time.Microsecond)
+	now := fixedIntegrationTime
 
 	accountType := &mmodel.AccountType{
 		ID:             uuid.Must(libCommons.GenerateUUIDv7()),
@@ -255,7 +261,7 @@ func TestIntegration_AccountTypeRepository_Create_DuplicateKeyValueFails(t *test
 	}
 	pgtestutil.CreateTestAccountType(t, container.DB, orgID, ledgerID, params)
 
-	now := time.Now().Truncate(time.Microsecond)
+	now := fixedIntegrationTime
 
 	// Try to create second with same key_value
 	accountType := &mmodel.AccountType{
@@ -287,7 +293,7 @@ func TestIntegration_AccountTypeRepository_Create_RoundTripsDefaultDirection(t *
 	orgID := pgtestutil.CreateTestOrganization(t, container.DB)
 	ledgerID := pgtestutil.CreateTestLedger(t, container.DB, orgID)
 
-	now := time.Now().Truncate(time.Microsecond)
+	now := fixedIntegrationTime
 
 	accountType := &mmodel.AccountType{
 		ID:               uuid.Must(libCommons.GenerateUUIDv7()),
@@ -322,7 +328,7 @@ func TestIntegration_AccountTypeRepository_Create_DefaultsDirectionToCredit(t *t
 	orgID := pgtestutil.CreateTestOrganization(t, container.DB)
 	ledgerID := pgtestutil.CreateTestLedger(t, container.DB, orgID)
 
-	now := time.Now().Truncate(time.Microsecond)
+	now := fixedIntegrationTime
 
 	// The command service is responsible for defaulting an absent direction to
 	// "credit"; simulate that contract at the adapter boundary.
@@ -364,7 +370,7 @@ func TestIntegration_AccountTypeRepository_Create_RejectsOutOfDomainDirection(t 
 	orgID := pgtestutil.CreateTestOrganization(t, container.DB)
 	ledgerID := pgtestutil.CreateTestLedger(t, container.DB, orgID)
 
-	now := time.Now().Truncate(time.Microsecond)
+	now := fixedIntegrationTime
 
 	// Insert directly on the DB handle so no upstream guard coerces the value.
 	_, err := container.DB.Exec(
@@ -730,7 +736,7 @@ func TestIntegration_AccountTypeRepository_ListByIDs_IgnoresDeletedAccountTypes(
 	activeID := pgtestutil.CreateTestAccountType(t, container.DB, orgID, ledgerID, activeParams)
 
 	// Create deleted account type
-	deletedAt := time.Now().Add(-1 * time.Hour)
+	deletedAt := fixedIntegrationTime.Add(-1 * time.Hour)
 	deletedParams := pgtestutil.AccountTypeParams{
 		Name:        "Deleted Type",
 		Description: "Deleted",
@@ -830,7 +836,7 @@ func TestIntegration_AccountTypeRepository_Delete_AllowsReusingSameKeyValue(t *t
 	require.NoError(t, err)
 
 	// Create new account type with same key_value
-	now := time.Now().Truncate(time.Microsecond)
+	now := fixedIntegrationTime
 	newAccountType := &mmodel.AccountType{
 		ID:             uuid.Must(libCommons.GenerateUUIDv7()),
 		OrganizationID: orgID,

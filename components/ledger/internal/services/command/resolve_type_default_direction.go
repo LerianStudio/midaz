@@ -37,6 +37,10 @@ func (uc *UseCase) resolveTypeDefaultDirection(ctx context.Context, organization
 		return ""
 	}
 
+	if ctx.Err() != nil {
+		return ""
+	}
+
 	logger, _, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	at, err := uc.AccountTypeRepo.FindByKey(ctx, organizationID, ledgerID, accountType)

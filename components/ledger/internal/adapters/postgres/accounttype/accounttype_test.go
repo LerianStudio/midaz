@@ -15,6 +15,10 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// fixedTestTime is a deterministic UTC instant used by the mapping tests so the
+// timestamps stay reproducible instead of relying on time.Now().
+var fixedTestTime = time.Date(2026, 1, 2, 3, 4, 5, 0, time.UTC)
+
 func TestAccountTypePostgreSQLModel_ToEntity(t *testing.T) {
 	t.Run("with_all_fields_populated", func(t *testing.T) {
 		deletedAt := time.Now().Add(-24 * time.Hour)
@@ -75,8 +79,8 @@ func TestAccountTypePostgreSQLModel_ToEntity(t *testing.T) {
 			Description:      "Testing default_direction mapping",
 			KeyValue:         "debit-type",
 			DefaultDirection: "debit",
-			CreatedAt:        time.Now(),
-			UpdatedAt:        time.Now(),
+			CreatedAt:        fixedTestTime,
+			UpdatedAt:        fixedTestTime,
 		}
 
 		entity := model.ToEntity()
@@ -146,8 +150,8 @@ func TestAccountTypePostgreSQLModel_FromEntity(t *testing.T) {
 			Description:      "Testing default_direction mapping",
 			KeyValue:         "debit-type",
 			DefaultDirection: "debit",
-			CreatedAt:        time.Now(),
-			UpdatedAt:        time.Now(),
+			CreatedAt:        fixedTestTime,
+			UpdatedAt:        fixedTestTime,
 		}
 
 		var model AccountTypePostgreSQLModel
