@@ -1657,19 +1657,37 @@ const REQUEST_BODY_EXAMPLES = {
   // spelled EITHER with its scalar field or with its leg array, and the schema is one flat
   // object listing both spellings, so a body derived from the schema carries both at once and
   // the API rejects it. This one spells both sides scalar.
+  //
+  // The organization and ledger ride the body rather than the path, so both accounts name the
+  // collection's organizationId and ledgerId: every account of a request has to name one pair,
+  // and a runner that sends this body unedited must satisfy that.
   CreateTransactionV2Input: {
     scalar_sides: {
       summary: 'Both sides spelled scalar',
       description: `Moves the whole \`amount\` from one account to another.
 
+The endpoint names no organization and no ledger: every account in the body names its own, so the pair the transaction is created in comes from the body.
+
 Each side of the transaction is spelled EITHER with its scalar field (\`from\`, \`to\`) OR with its leg array (\`sources\`, \`destinations\`) — never both on the same side, though the two sides may choose differently. Leave the spelling you are not using out of the body.
 
-To split a side across several accounts, replace its scalar field with the matching leg array. Each leg names an \`account\` and carries EXACTLY ONE value expression: \`amount\` for an explicit value, or \`share\` for a percentage of the transaction total. Sending both, or neither, is rejected.
+Every account the request names must sit in the same organization and ledger. A body whose accounts disagree is rejected: an alias identifies an account only inside a ledger, so the same alias in another ledger is a different account.
+
+To split a side across several accounts, replace its scalar field with the matching leg array. Each leg names an \`alias\` with the \`organizationId\` and \`ledgerId\` that alias belongs to, and carries EXACTLY ONE value expression: \`amount\` for an explicit value, or \`share\` for a percentage of the transaction total. Sending both, or neither, is rejected.
 
 \`\`\`json
 "sources": [
-  { "account": "@external/USD", "amount": "60.00" },
-  { "account": "@treasury/USD", "amount": "40.00" }
+  {
+    "alias": "@external/USD",
+    "organizationId": "{{organizationId}}",
+    "ledgerId": "{{ledgerId}}",
+    "amount": "60.00"
+  },
+  {
+    "alias": "@treasury/USD",
+    "organizationId": "{{organizationId}}",
+    "ledgerId": "{{ledgerId}}",
+    "amount": "40.00"
+  }
 ]
 \`\`\`
 
@@ -1677,8 +1695,16 @@ To split a side across several accounts, replace its scalar field with the match
       value: {
         asset: 'USD',
         amount: '100.00',
-        from: '@external/USD',
-        to: '{{accountAlias}}',
+        from: {
+          alias: '@external/USD',
+          organizationId: '{{organizationId}}',
+          ledgerId: '{{ledgerId}}'
+        },
+        to: {
+          alias: '{{accountAlias}}',
+          organizationId: '{{organizationId}}',
+          ledgerId: '{{ledgerId}}'
+        },
         description: 'Example transaction',
         code: 'EXAMPLE_TRANSACTION',
         metadata: {
