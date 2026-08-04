@@ -8,13 +8,16 @@ import (
 	"context"
 	"fmt"
 
+	authdecl "github.com/LerianStudio/lib-auth/v3/auth/declaration"
 	tmmongo "github.com/LerianStudio/lib-commons/v6/commons/tenant-manager/mongo"
 	libLog "github.com/LerianStudio/lib-observability/v2/log"
 	libStreaming "github.com/LerianStudio/lib-streaming/v2"
 
 	feesservices "github.com/LerianStudio/midaz/v4/components/ledger/internal/services/fees"
+	feesdecl "github.com/LerianStudio/midaz/v4/components/ledger/internal/services/fees/declaration"
 	feesmidaz "github.com/LerianStudio/midaz/v4/components/ledger/internal/services/fees/midaz"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services/query"
+	"github.com/LerianStudio/midaz/v4/pkg/constant"
 )
 
 // feesComponents holds the fee/billing slice of the unified ledger binary: the
@@ -91,4 +94,27 @@ func initFees(feeMongo *feesMongoComponents, queryUC *query.UseCase, cfg *Config
 		billingCalculateService: billingCalculateService,
 		mongoManager:            feeMongo.mongoManager,
 	}, nil
+}
+
+// initFeesDeclaration wires the fees component's D7 permissions declaration
+// publisher via lib-auth WireFromEnv (the SLIM single-call pattern). Fees is the
+// SOLE declarant inside the unified ledger binary — the ledger core does not
+// declare — so the FIXED, un-prefixed env contract WireFromEnv reads internally
+// (DECLARATION_ENABLED / PLUGIN_IDENTITY_HOST / M2M_CLIENT_ID / M2M_CLIENT_SECRET)
+// unambiguously belongs to fees, with no collision against any ledger env tag.
+//
+// The caller passes ONLY the fee slug + embedded manifest (+ logger); everything
+// operational (identity host, M2M creds, auth host) comes from the shared,
+// deployment-owned environment. The slug is constant.ModuleFees so it stays
+// locked to both the manifest's `service:` value (lib-auth's New enforces
+// slug==service via BOLA) and the tenant-manager provisioning name.
+//
+// Default OFF and fail-open: with DECLARATION_ENABLED unset this returns a
+// non-nil no-op stop and starts no goroutine, leaving the boot path unchanged.
+func initFeesDeclaration(ctx context.Context, logger libLog.Logger) (func(), error) {
+	return authdecl.WireFromEnv(ctx, authdecl.WireInput{
+		Slug:     constant.ModuleFees,
+		Manifest: feesdecl.Manifest,
+		Logger:   logger,
+	})
 }

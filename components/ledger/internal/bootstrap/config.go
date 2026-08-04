@@ -1016,6 +1016,25 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 
 	auth := middleware.NewAuthClient(sd.authHost, cfg.AuthEnabled, nil)
 
+	// === Fees D7 permissions declaration (default OFF, fail-open) ===
+	// Fees is the sole declarant inside the unified ledger binary. WireFromEnv
+	// reads the fixed un-prefixed env contract internally and, with
+	// DECLARATION_ENABLED unset, returns a non-nil no-op stop and starts no
+	// goroutine — so boot is unchanged when the flag is off. On the enabled
+	// path a missing required var (identity host / M2M creds) fails boot with a
+	// named error. The stop is registered in the startup cleanup stack (drained
+	// if a later boot step fails) AND threaded onto the Service so Run() drains
+	// it on SIGTERM — the two paths are disjoint (doCleanup runs only on a boot
+	// failure before the Service is returned), mirroring tracerClose.
+	declarationStop, err := initFeesDeclaration(context.Background(), logger)
+	if err != nil {
+		doCleanup()
+
+		return nil, fmt.Errorf("failed to initialize fees declaration publisher: %w", err)
+	}
+
+	addCleanup(declarationStop)
+
 	// === Multi-tenant middleware ===
 
 	routeSetup, err := buildUnifiedRouteSetup(cfg, logger, onbPG.pgManager, txnPG.pgManager, onbMgo.mongoManager, txnMgo.mongoManager, crmMgo.mongoManager, feeMgo.mongoManager, tenantCache, tenantLoader)
@@ -1227,6 +1246,7 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 		StreamingClose:           streamingClose,
 		StreamingEnabled:         cfg.StreamingEnabled,
 		TracerClose:              tracerClose,
+		DeclarationStop:          declarationStop,
 		ServiceDiscovery:         sd.manager,
 		ServiceDiscoveryEnabled:  sd.enabled,
 		ServiceDescriptor:        sd.descriptor,

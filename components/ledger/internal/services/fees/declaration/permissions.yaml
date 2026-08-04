@@ -1,0 +1,35 @@
+# D7 declaration manifest for the fees component (slug: plugin-fees).
+#
+# The fees component ships inside the single `ledger` deployable but declares its
+# OWN permissions manifest under its own slug and M2M identity. Keys mirror the
+# yaml tags on lib-auth/v3 auth/declaration.DeclarationManifest (manifest.go).
+service: plugin-fees
+version: 3
+permissions:
+  - resource: billing-packages
+    action: create
+    effect: allow
+    roles:
+      - fees/editor
+  - resource: billing-packages
+    action: read
+    effect: allow
+    roles:
+      - fees/editor
+      - fees/viewer
+  - resource: billing-packages
+    action: delete
+    effect: deny
+    roles:
+      - fees/viewer
+roles:
+  - name: fees/editor
+    granted_to:
+      - group: fees-admins
+  - name: fees/viewer
+    granted_to:
+      - group: fees-viewers
+m2m:
+  exposed: true
+  needs:
+    - midaz

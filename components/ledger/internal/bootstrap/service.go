@@ -51,6 +51,13 @@ type Service struct {
 	// client) so Run() can skip registering a no-op Launcher app. Non-nil
 	// only for transports that expose Close() error.
 	TracerClose func() error
+
+	// DeclarationStop is the stop hook for the fees D7 permissions declaration
+	// publisher (lib-auth WireFromEnv). It is non-nil on every path — including
+	// the default-OFF and error paths, where it is a no-op — so Run() registers
+	// the SIGTERM-drain Launcher app whenever the field is set. Draining it
+	// releases the publisher's (startup-only) background lifecycle before exit.
+	DeclarationStop func()
 	// ServiceDiscovery is the service-discovery Manager wrapper. It is always
 	// non-nil (a working no-op when discovery is disabled), so callers can
 	// invoke Register/Deregister/Resolve unconditionally. The concrete Manager
@@ -178,6 +185,17 @@ func (s *Service) launcherApps() []launcherApp {
 		})
 	}
 
+	// Fees declaration publisher: register only when a stop hook is set. The
+	// hook is non-nil on every WireFromEnv path (including default-OFF), so this
+	// drains the publisher's background lifecycle on SIGTERM whenever fees wiring
+	// ran — the no-op stop makes the disabled path a cheap, harmless drain.
+	if s.DeclarationStop != nil {
+		apps = append(apps, launcherApp{
+			"Fees Declaration Publisher",
+			&declarationStopRunnable{stop: s.DeclarationStop},
+		})
+	}
+
 	return apps
 }
 
@@ -243,6 +261,32 @@ func (r *streamingProducerRunnable) Run(_ *libCommons.Launcher) error {
 			libLog.String("error", err.Error()),
 		)
 	}
+
+	return nil
+}
+
+// declarationStopRunnable adapts the fees D7 declaration publisher's stop hook
+// (lib-auth WireFromEnv) to the libCommons.App interface. It blocks until
+// SIGINT/SIGTERM and then invokes stop() so the publisher's (startup-only)
+// background lifecycle is released before the process exits. The stop hook
+// returns no error and is safe to call on every path, including the no-op
+// disabled path.
+type declarationStopRunnable struct {
+	stop func()
+}
+
+// Run blocks until SIGINT/SIGTERM and then invokes the declaration stop hook.
+func (r *declarationStopRunnable) Run(_ *libCommons.Launcher) error {
+	if r == nil || r.stop == nil {
+		return nil
+	}
+
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+
+	<-ctx.Done()
+
+	r.stop()
 
 	return nil
 }
