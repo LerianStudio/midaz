@@ -44,9 +44,11 @@ import (
 
 const (
 	// v2DirectBody is a minimal valid flat v2 `direct` body: amount 100 > 0 clears the
-	// funnel's non-positive guard and reaches the idempotency claim; from != to clears
-	// the Translate ambiguity guard.
-	v2DirectBody = `{"description":"v2 direct","asset":"BRL","amount":"100","from":{"alias":"@src",` + v2ScopeJSON + `},"to":{"alias":"@dst",` + v2ScopeJSON + `}}`
+	// funnel's non-positive guard and reaches the idempotency claim; the debit and credit
+	// legs name different accounts, so nothing downstream flags the request as ambiguous.
+	v2DirectBody = `{"description":"v2 direct","asset":"BRL","amount":"100",` +
+		`"debits":[{"alias":"@src",` + v2ScopeJSON + `,"amount":"100"}],` +
+		`"credits":[{"alias":"@dst",` + v2ScopeJSON + `,"amount":"100"}]}`
 
 	// v1JSONBody is the v1 /json analogue whose CANONICAL built form differs from its raw
 	// bytes — so a hash over the canonical transaction can never collide with a hash over

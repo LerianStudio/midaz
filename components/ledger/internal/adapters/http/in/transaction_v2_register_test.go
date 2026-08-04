@@ -375,10 +375,55 @@ func TestV2LifecycleOps_StayOrganizationAndLedgerScoped(t *testing.T) {
 const (
 	v2CreateBodySchemaName = "CreateTransactionV2Input"
 	v2CreateBodySchemaRef  = "#/components/schemas/" + v2CreateBodySchemaName
-	v2AccountSchemaName    = "V2AccountInput"
 	v2LegSchemaName        = "V2LegInput"
 	v2ShareSchemaName      = "V2ShareInput"
+
+	// v2ResponseSchemaName is the component the v2 ops answer with, and v1ResponseSchemaName
+	// the one the v1 ops answer with. They must differ; see the test below.
+	v2ResponseSchemaName = "TransactionV2"
+	v1ResponseSchemaName = "Transaction"
 )
+
+// TestRegisterTransactionV2Routes_ResponseSchemaDoesNotShadowV1 pins that the v2 response
+// component does not reuse the name the v1 one is published under.
+//
+// The two API versions are served as separate Huma instances, so each keeps its own component
+// registry and both COULD publish a differently shaped schema under one name without either
+// complaining. They are then joined into a single hub document for the collection, and a name
+// carrying two shapes has to be disambiguated at that point — behaviour this repo has never
+// exercised. Keeping the names apart means the join never has to.
+func TestRegisterTransactionV2Routes_ResponseSchemaDoesNotShadowV1(t *testing.T) {
+	t.Parallel()
+
+	schemas := registerV2TransactionContractForTest().Components.Schemas.Map()
+
+	require.Containsf(t, schemas, v2ResponseSchemaName,
+		"v2 contract should publish its response component as %s", v2ResponseSchemaName)
+	assert.NotContainsf(t, schemas, v1ResponseSchemaName,
+		"the v2 contract must not publish a %s component: the v1 contract already publishes that "+
+			"name with a different shape, and the hub join has no tested answer for one name carrying two",
+		v1ResponseSchemaName)
+
+	for _, rt := range v2Routes {
+		t.Run(rt.action, func(t *testing.T) {
+			t.Parallel()
+
+			pathItem, ok := registerV2TransactionContractForTest().Paths[rt.opPath]
+			require.Truef(t, ok, "v2 contract should carry the %s op path %q", rt.action, rt.opPath)
+
+			for status, resp := range pathItem.Post.Responses {
+				if !strings.HasPrefix(status, "2") {
+					continue
+				}
+
+				media, ok := resp.Content["application/json"]
+				require.Truef(t, ok, "%s %s should answer application/json", rt.action, status)
+				assert.Equalf(t, "#/components/schemas/"+v2ResponseSchemaName, media.Schema.Ref,
+					"%s should answer with the v2 response component", rt.action)
+			}
+		})
+	}
+}
 
 // TestRegisterTransactionV2Routes_PublishesCreateBodySchema asserts the v2 create ops
 // describe their body with a $ref to the published input component instead of the opaque
@@ -422,25 +467,20 @@ func TestRegisterTransactionV2Routes_PublishesCreateBodySchema(t *testing.T) {
 	}
 }
 
-// v2CreateBodyRequiredFields are the ONLY fields the published create-body component may
-// mark required: the ones common to both request forms. The side fields are deliberately
-// absent — `from`/`to` and `sources`/`destinations` are alternative spellings of the same
-// two sides, so requiring any of them would declare one form mandatory.
-var v2CreateBodyRequiredFields = []string{"asset", "amount"}
+// v2CreateBodyRequiredFields are the fields the published create-body component must mark
+// required: the two fields common to every request plus the two leg arrays, both of which are
+// mandatory and non-empty now that the surface publishes only the array form.
+var v2CreateBodyRequiredFields = []string{"asset", "amount", "debits", "credits"}
 
-// v2CreateBodySideFields are the four side fields of the request body: the scalar pair and
-// the leg-array pair.
-var v2CreateBodySideFields = []string{"from", "to", "sources", "destinations"}
+// v2CreateBodySideFields are the two side fields of the request body.
+var v2CreateBodySideFields = []string{"debits", "credits"}
 
-// TestRegisterTransactionV2Routes_CreateBodyDocumentsBothSideForms asserts the published
-// create-body component keeps the or/or between the scalar and array forms out of
-// `required`: each side field is documented as a property but none of them is mandatory,
-// while the fields common to both forms stay required. This is what the explicit
-// `required:"false"` tags on the leg arrays buy — Huma treats a field without `omitempty`
-// as required unless the tag says otherwise, so without them the contract would advertise
-// the array form as the only one. Since the flat component cannot express the exclusivity
-// structurally, the component description must state it and name every side field.
-func TestRegisterTransactionV2Routes_CreateBodyDocumentsBothSideForms(t *testing.T) {
+// TestRegisterTransactionV2Routes_CreateBodyDocumentsBothSides asserts the published
+// create-body component marks BOTH leg arrays required, alongside the fields common to every
+// request. Dropping json `omitempty` from Debits/Credits is what buys this: Huma treats a field
+// without `omitempty` as required by default, and neither field carries a `required:"false"`
+// override to undo that.
+func TestRegisterTransactionV2Routes_CreateBodyDocumentsBothSides(t *testing.T) {
 	t.Parallel()
 
 	schema, ok := registerV2TransactionContractForTest().Components.Schemas.Map()[v2CreateBodySchemaName]
@@ -448,17 +488,9 @@ func TestRegisterTransactionV2Routes_CreateBodyDocumentsBothSideForms(t *testing
 	require.NotNilf(t, schema, "published %s component should not be nil", v2CreateBodySchemaName)
 
 	assert.ElementsMatchf(t, v2CreateBodyRequiredFields, schema.Required,
-		"%s should require only the fields common to both request forms", v2CreateBodySchemaName)
+		"%s should require the common fields and both leg arrays", v2CreateBodySchemaName)
 	require.NotEmptyf(t, schema.Description,
-		"%s is the only place the scalar-or-arrays exclusivity can be stated", v2CreateBodySchemaName)
-
-	// An explicit null is rejected on the two SCALAR side fields only. Dropping json `omitempty`
-	// makes the decoder's re-marshal always emit the key, and for a string that emitted value is
-	// `""`, which a submitted null does not match. The leg arrays re-marshal a nil slice as
-	// `null`, so a submitted null matches and is accepted as an unspelled side. The published
-	// description is the only place a client can learn which of the two behaviours applies.
-	assert.Containsf(t, schema.Description, "null",
-		"%s description should state where an explicit null side field is rejected", v2CreateBodySchemaName)
+		"%s description documents the two leg arrays", v2CreateBodySchemaName)
 
 	for _, field := range v2CreateBodySideFields {
 		t.Run(field, func(t *testing.T) {
@@ -466,10 +498,10 @@ func TestRegisterTransactionV2Routes_CreateBodyDocumentsBothSideForms(t *testing
 
 			assert.Containsf(t, schema.Properties, field,
 				"%s should document the %s side field as a property", v2CreateBodySchemaName, field)
-			assert.NotContainsf(t, schema.Required, field,
-				"%s must not mark the %s side field required", v2CreateBodySchemaName, field)
+			assert.Containsf(t, schema.Required, field,
+				"%s must mark the %s side field required", v2CreateBodySchemaName, field)
 			assert.Containsf(t, schema.Description, field,
-				"%s description should name the %s side field when spelling out the or/or", v2CreateBodySchemaName, field)
+				"%s description should name the %s side field", v2CreateBodySchemaName, field)
 		})
 	}
 }
@@ -500,21 +532,14 @@ func TestRegisterTransactionV2Routes_CreateBodyDocumentsTheScope(t *testing.T) {
 	assert.Containsf(t, schema.Description, "SAME pair",
 		"%s description must state that every account names the same organization and ledger", v2CreateBodySchemaName)
 
-	// The two fields live on the account components — the scalar spelling and the leg array each
-	// have their own, so both must document them.
-	for _, component := range []string{v2AccountSchemaName, v2LegSchemaName} {
-		t.Run(component, func(t *testing.T) {
-			t.Parallel()
+	// The two fields live on the leg component, which every leg of either side shares.
+	legSchema, ok := oapi.Components.Schemas.Map()[v2LegSchemaName]
+	require.Truef(t, ok, "v2 contract should publish the %s component", v2LegSchemaName)
+	require.NotNilf(t, legSchema, "published %s component should not be nil", v2LegSchemaName)
 
-			accountSchema, ok := oapi.Components.Schemas.Map()[component]
-			require.Truef(t, ok, "v2 contract should publish the %s component", component)
-			require.NotNilf(t, accountSchema, "published %s component should not be nil", component)
-
-			for _, field := range v2CreateBodyScopeFields {
-				assert.Containsf(t, accountSchema.Properties, field,
-					"%s must document the %s field", component, field)
-			}
-		})
+	for _, field := range v2CreateBodyScopeFields {
+		assert.Containsf(t, legSchema.Properties, field,
+			"%s must document the %s field", v2LegSchemaName, field)
 	}
 }
 
@@ -785,7 +810,9 @@ func TestV2CreateBodyLimit_MeasuresDecodedBody(t *testing.T) {
 // oversizedV2CreateBody spells a syntactically valid v2 create body padded to exactly size
 // bytes with a single description field, so the only thing a rejection can be about is length.
 func oversizedV2CreateBody(size int64) string {
-	const prefix = `{"asset":"BRL","amount":"100","from":{"alias":"@a",` + v2ScopeJSON + `},"to":{"alias":"@b",` + v2ScopeJSON + `},"description":"`
+	const prefix = `{"asset":"BRL","amount":"100",` +
+		`"debits":[{"alias":"@a",` + v2ScopeJSON + `,"amount":"100"}],` +
+		`"credits":[{"alias":"@b",` + v2ScopeJSON + `,"amount":"100"}],"description":"`
 	const suffix = `"}`
 
 	padding := size - int64(len(prefix)) - int64(len(suffix))
@@ -864,9 +891,7 @@ func TestRegisterTransactionV2Routes_LegComponentDescribesValueExpressions(t *te
 }
 
 // TestRegisterTransactionV2Routes_ComponentRequiredFields locks the `required` list of every
-// published v2 request component. The scalar side fields must stay out of the parent's list
-// even though they carry no json `omitempty` — that is what their explicit `required:"false"`
-// tags buy, and without them dropping `omitempty` would declare one spelling mandatory.
+// published v2 request component.
 func TestRegisterTransactionV2Routes_ComponentRequiredFields(t *testing.T) {
 	t.Parallel()
 
@@ -876,7 +901,7 @@ func TestRegisterTransactionV2Routes_ComponentRequiredFields(t *testing.T) {
 		component string
 		want      []string
 	}{
-		{component: v2CreateBodySchemaName, want: []string{"asset", "amount"}},
+		{component: v2CreateBodySchemaName, want: v2CreateBodyRequiredFields},
 		{component: v2LegSchemaName, want: []string{"alias", "organizationId", "ledgerId"}},
 		{component: v2ShareSchemaName, want: []string{"percentage"}},
 	}

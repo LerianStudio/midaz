@@ -44,8 +44,9 @@ const (
 
 // v2ForeignScopeBody is v2DirectBody moved wholesale into the foreign scope: same asset, same
 // amount, same aliases, different organization and ledger.
-const v2ForeignScopeBody = `{"description":"v2 direct","asset":"BRL","amount":"100","from":{"alias":"@src",` +
-	v2ForeignScopeJSON + `},"to":{"alias":"@dst",` + v2ForeignScopeJSON + `}}`
+const v2ForeignScopeBody = `{"description":"v2 direct","asset":"BRL","amount":"100",` +
+	`"debits":[{"alias":"@src",` + v2ForeignScopeJSON + `,"amount":"100"}],` +
+	`"credits":[{"alias":"@dst",` + v2ForeignScopeJSON + `,"amount":"100"}]}`
 
 // captureV2CreateSlotKey posts body to the named v2 create action and returns the idempotency slot
 // key the funnel computed. idempotencyKey is sent as X-Idempotency when non-empty.
@@ -202,8 +203,9 @@ func TestCreateTransactionV2_ScopeMismatchInBodyIsRejected(t *testing.T) {
 	// NOT parallel: process-global huma state.
 	app := buildHumaV2ActionApp(t, "direct", (&TransactionHandler{}).CreateTransactionDirectV2Huma)
 
-	mismatched := `{"asset":"BRL","amount":"100","from":{"alias":"@src",` + v2ScopeJSON +
-		`},"to":{"alias":"@dst",` + v2ForeignScopeJSON + `}}`
+	mismatched := `{"asset":"BRL","amount":"100",` +
+		`"debits":[{"alias":"@src",` + v2ScopeJSON + `,"amount":"100"}],` +
+		`"credits":[{"alias":"@dst",` + v2ForeignScopeJSON + `,"amount":"100"}]}`
 
 	resp := postActionV2(t, app, "direct", mismatched)
 	defer func() { _ = resp.Body.Close() }()
@@ -225,19 +227,19 @@ func TestCreateTransactionV2_MalformedBodyScopeIsRejected(t *testing.T) {
 		body string
 	}{
 		{
-			name: "malformed organization on a scalar side",
-			body: `{"asset":"BRL","amount":"100","from":{"alias":"@src","organizationId":"not-a-uuid","ledgerId":"` +
-				v2ScopeLedgerID + `"},"to":{"alias":"@dst",` + v2ScopeJSON + `}}`,
+			name: "malformed organization on a debit leg",
+			body: `{"asset":"BRL","amount":"100","debits":[{"alias":"@src","organizationId":"not-a-uuid","ledgerId":"` +
+				v2ScopeLedgerID + `","amount":"100"}],"credits":[{"alias":"@dst",` + v2ScopeJSON + `,"amount":"100"}]}`,
 		},
 		{
-			name: "malformed ledger on a scalar side",
-			body: `{"asset":"BRL","amount":"100","from":{"alias":"@src","organizationId":"` + v2ScopeOrgID +
-				`","ledgerId":"not-a-uuid"},"to":{"alias":"@dst",` + v2ScopeJSON + `}}`,
+			name: "malformed ledger on a debit leg",
+			body: `{"asset":"BRL","amount":"100","debits":[{"alias":"@src","organizationId":"` + v2ScopeOrgID +
+				`","ledgerId":"not-a-uuid","amount":"100"}],"credits":[{"alias":"@dst",` + v2ScopeJSON + `,"amount":"100"}]}`,
 		},
 		{
-			name: "malformed organization on a leg",
-			body: `{"asset":"BRL","amount":"100","sources":[{"alias":"@src","organizationId":"not-a-uuid","ledgerId":"` +
-				v2ScopeLedgerID + `","amount":"100"}],"to":{"alias":"@dst",` + v2ScopeJSON + `}}`,
+			name: "malformed organization on a credit leg",
+			body: `{"asset":"BRL","amount":"100","debits":[{"alias":"@src",` + v2ScopeJSON + `,"amount":"100"}],` +
+				`"credits":[{"alias":"@dst","organizationId":"not-a-uuid","ledgerId":"` + v2ScopeLedgerID + `","amount":"100"}]}`,
 		},
 	}
 
@@ -265,8 +267,8 @@ func TestDecodeAndBuildV2Transaction_ReturnsTheBodyScope(t *testing.T) {
 		name string
 		body string
 	}{
-		{name: "scalar spelling", body: v2DirectBody},
-		{name: "leg-array spelling", body: v2AdvancedBody},
+		{name: "single leg per side", body: v2DirectBody},
+		{name: "several legs per side", body: v2AdvancedBody},
 	}
 
 	for _, tt := range tests {

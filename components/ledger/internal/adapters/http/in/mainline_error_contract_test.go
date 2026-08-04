@@ -325,14 +325,9 @@ func v2SideSpellingError(t *testing.T, in mtransaction.CreateTransactionV2Input)
 	return err
 }
 
-// TestMainlineErrorContract_V2SideSpellingCodes locks the wire contract for the two codes
-// the v2 per-side spelling rule answers with. Both come out of ONE production switch, so a
-// re-type or a swapped arm silently changes the status a client branches on:
-//   - 0009 ValidationError -> 400: a side spelled NEITHER way (no scalar alias, no legs)
-//   - 0498 ValidationError -> 400: a side spelled BOTH ways at once
-//
-// 0498 carries no per-side or per-index argument, so its message is constant and locked whole by
-// the title column plus the golden sweep's (code, status) tuple in pkg/net/http.
+// TestMainlineErrorContract_V2SideSpellingCodes locks the wire contract for the code the v2
+// required-side rule answers with: 0009 ValidationError -> 400, for a side left empty (nil or
+// an explicit `[]`).
 func TestMainlineErrorContract_V2SideSpellingCodes(t *testing.T) {
 	legs := []mtransaction.V2LegInput{v2ValueLeg("@a", "100")}
 
@@ -344,44 +339,26 @@ func TestMainlineErrorContract_V2SideSpellingCodes(t *testing.T) {
 		expectedTitle  string
 	}{
 		{
-			name: "0009 an unspelled source side is 400",
+			name: "0009 an empty debits side is 400",
 			err: v2SideSpellingError(t, mtransaction.CreateTransactionV2Input{
-				Asset: "USD", Amount: "100", To: v2ScopedAccount("@b"),
+				Asset: "USD", Amount: "100", Credits: legs,
 			}),
 			expectedStatus: fiber.StatusBadRequest,
 			expectedCode:   "0009",
 			expectedTitle:  "Missing Fields in Request",
 		},
 		{
-			name: "0009 an unspelled destination side is 400",
+			name: "0009 an empty credits side is 400",
 			err: v2SideSpellingError(t, mtransaction.CreateTransactionV2Input{
-				Asset: "USD", Amount: "100", From: v2ScopedAccount("@a"),
+				Asset: "USD", Amount: "100", Debits: legs,
 			}),
 			expectedStatus: fiber.StatusBadRequest,
 			expectedCode:   "0009",
 			expectedTitle:  "Missing Fields in Request",
-		},
-		{
-			name: "0498 a source side spelled both ways is 400",
-			err: v2SideSpellingError(t, mtransaction.CreateTransactionV2Input{
-				Asset: "USD", Amount: "100", From: v2ScopedAccount("@a"), Sources: legs, To: v2ScopedAccount("@b"),
-			}),
-			expectedStatus: fiber.StatusBadRequest,
-			expectedCode:   "0498",
-			expectedTitle:  "Mutually Exclusive Transaction Fields",
-		},
-		{
-			name: "0498 a destination side spelled both ways is 400",
-			err: v2SideSpellingError(t, mtransaction.CreateTransactionV2Input{
-				Asset: "USD", Amount: "100", From: v2ScopedAccount("@a"), To: v2ScopedAccount("@b"), Destinations: legs,
-			}),
-			expectedStatus: fiber.StatusBadRequest,
-			expectedCode:   "0498",
-			expectedTitle:  "Mutually Exclusive Transaction Fields",
 		},
 	}
 
-	require.Len(t, tests, 4, "the side-spelling lock set is both branches of the rule on both sides")
+	require.Len(t, tests, 2, "the required-side lock set is both sides")
 
 	runErrorContractCases(t, tests)
 }
@@ -472,46 +449,46 @@ func TestMainlineErrorContract_InvalidTransactionTypeMessagePerSurface(t *testin
 			wantDetail: v1Detail,
 		},
 		{
-			name: "v2 sources leg names the two v2 expressions and the offending index",
+			name: "v2 debits leg names the two v2 expressions and the offending index",
 			err: v2LegValueExpressionError(t, mtransaction.CreateTransactionV2Input{
 				Asset: "USD", Amount: "100",
-				Sources:      []mtransaction.V2LegInput{v2NoValueLeg("@a")},
-				Destinations: []mtransaction.V2LegInput{v2ValueLeg("@b", "100")},
+				Debits:  []mtransaction.V2LegInput{v2NoValueLeg("@a")},
+				Credits: []mtransaction.V2LegInput{v2ValueLeg("@b", "100")},
 			}),
-			wantDetailContains: []string{v2Expressions, "'sources[0]'"},
+			wantDetailContains: []string{v2Expressions, "'debits[0]'"},
 			wantDetailOmits:    []string{v1OnlyRemaining},
 		},
 		{
-			name: "v2 destinations leg names the two v2 expressions and the offending index",
+			name: "v2 credits leg names the two v2 expressions and the offending index",
 			err: v2LegValueExpressionError(t, mtransaction.CreateTransactionV2Input{
 				Asset: "USD", Amount: "100",
-				Sources:      []mtransaction.V2LegInput{v2ValueLeg("@a", "100")},
-				Destinations: []mtransaction.V2LegInput{v2NoValueLeg("@b")},
+				Debits:  []mtransaction.V2LegInput{v2ValueLeg("@a", "100")},
+				Credits: []mtransaction.V2LegInput{v2NoValueLeg("@b")},
 			}),
-			wantDetailContains: []string{v2Expressions, "'destinations[0]'"},
+			wantDetailContains: []string{v2Expressions, "'credits[0]'"},
 			wantDetailOmits:    []string{v1OnlyRemaining},
 		},
 		{
 			// The offending leg is the SECOND one, so a field name that hardcoded index 0
 			// would fail here. This is what makes the index a real part of the contract.
-			name: "v2 sources leg at index one names its own index",
+			name: "v2 debits leg at index one names its own index",
 			err: v2LegValueExpressionError(t, mtransaction.CreateTransactionV2Input{
 				Asset: "USD", Amount: "100",
-				Sources:      []mtransaction.V2LegInput{v2ValueLeg("@a", "60"), v2NoValueLeg("@b")},
-				Destinations: []mtransaction.V2LegInput{v2ValueLeg("@c", "100")},
+				Debits:  []mtransaction.V2LegInput{v2ValueLeg("@a", "60"), v2NoValueLeg("@b")},
+				Credits: []mtransaction.V2LegInput{v2ValueLeg("@c", "100")},
 			}),
-			wantDetailContains: []string{v2Expressions, "'sources[1]'"},
-			wantDetailOmits:    []string{v1OnlyRemaining, "sources[0]"},
+			wantDetailContains: []string{v2Expressions, "'debits[1]'"},
+			wantDetailOmits:    []string{v1OnlyRemaining, "debits[0]"},
 		},
 		{
-			name: "v2 destinations leg at index one names its own index",
+			name: "v2 credits leg at index one names its own index",
 			err: v2LegValueExpressionError(t, mtransaction.CreateTransactionV2Input{
 				Asset: "USD", Amount: "100",
-				Sources:      []mtransaction.V2LegInput{v2ValueLeg("@a", "100")},
-				Destinations: []mtransaction.V2LegInput{v2ValueLeg("@b", "60"), v2NoValueLeg("@c")},
+				Debits:  []mtransaction.V2LegInput{v2ValueLeg("@a", "100")},
+				Credits: []mtransaction.V2LegInput{v2ValueLeg("@b", "60"), v2NoValueLeg("@c")},
 			}),
-			wantDetailContains: []string{v2Expressions, "'destinations[1]'"},
-			wantDetailOmits:    []string{v1OnlyRemaining, "destinations[0]"},
+			wantDetailContains: []string{v2Expressions, "'credits[1]'"},
+			wantDetailOmits:    []string{v1OnlyRemaining, "credits[0]"},
 		},
 	}
 

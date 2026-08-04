@@ -6,6 +6,7 @@ package in
 
 import (
 	"context"
+	"net/http"
 
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
 	"github.com/LerianStudio/midaz/v4/pkg/mtransaction"
@@ -46,10 +47,11 @@ type CreateTransactionV2InputHuma struct {
 
 // createTransactionV2 is the shared body of the v2 create actions. It guards the request
 // context, builds the canonical Transaction and the request's scope from the flat v2 body
-// (decodeAndBuildV2Transaction), and delegates to the shared createTransactionShell keyed by
-// the action-discriminated raw body (v2IdempotencyHashSource). Translate business errors and
-// the input's UUID validation surface as RFC 9457 4xx via pkgHTTP.HumaProblem.
-func (handler *TransactionHandler) createTransactionV2(ctx context.Context, rawBody []byte, idempotencyKey, idempotencyTTL string, pending bool, operationTypeOverride string) (*CreateTransactionOutputHuma, error) {
+// (decodeAndBuildV2Transaction), delegates to the shared createTransactionShell keyed by the
+// action-discriminated raw body (v2IdempotencyHashSource), and projects the v1 output onto the
+// /v2 wire shape (newTransactionV2). Translate business errors and the input's UUID validation
+// surface as RFC 9457 4xx via pkgHTTP.HumaProblem.
+func (handler *TransactionHandler) createTransactionV2(ctx context.Context, rawBody []byte, idempotencyKey, idempotencyTTL string, pending bool, operationTypeOverride string) (*CreateTransactionOutputV2Huma, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, pkgHTTP.HumaProblem(err)
 	}
@@ -61,7 +63,16 @@ func (handler *TransactionHandler) createTransactionV2(ctx context.Context, rawB
 
 	hashSource := v2IdempotencyHashSource(rawBody, pending, operationTypeOverride)
 
-	return handler.createTransactionShell(ctx, scope.OrganizationID, scope.LedgerID, transactionInput, transactionInput.InitialStatus(), idempotencyKey, idempotencyTTL, hashSource)
+	out, err := handler.createTransactionShell(ctx, scope.OrganizationID, scope.LedgerID, transactionInput, transactionInput.InitialStatus(), idempotencyKey, idempotencyTTL, hashSource)
+	if err != nil {
+		return nil, err
+	}
+
+	return &CreateTransactionOutputV2Huma{
+		Status:              out.Status,
+		IdempotencyReplayed: out.IdempotencyReplayed,
+		Body:                newTransactionV2(out.Body),
+	}, nil
 }
 
 // decodeAndBuildV2Transaction decodes+validates the flat v2 body imperatively (the SAME
@@ -122,9 +133,9 @@ func v2IdempotencyHashSource(rawBody []byte, pending bool, operationTypeOverride
 
 // CreateTransactionDirectV2Huma creates a v2 transaction with the direct (non-pending)
 // action: it delegates to createTransactionV2 with pending=false and no Operation.Type
-// override, reusing the v1 createTransaction funnel and its CreateTransactionOutputHuma
-// success envelope (201 + X-Idempotency-Replayed).
-func (handler *TransactionHandler) CreateTransactionDirectV2Huma(ctx context.Context, in *CreateTransactionV2InputHuma) (*CreateTransactionOutputHuma, error) {
+// override, reusing the v1 createTransaction funnel and answering with the /v2
+// CreateTransactionOutputV2Huma success envelope (201 + X-Idempotency-Replayed).
+func (handler *TransactionHandler) CreateTransactionDirectV2Huma(ctx context.Context, in *CreateTransactionV2InputHuma) (*CreateTransactionOutputV2Huma, error) {
 	return handler.createTransactionV2(ctx, in.RawBody, in.IdempotencyKey, in.IdempotencyTTL, false, "")
 }
 
@@ -132,7 +143,7 @@ func (handler *TransactionHandler) CreateTransactionDirectV2Huma(ctx context.Con
 // to createTransactionV2 with pending=true so the funnel opens the transaction as PENDING
 // (held for later commit/cancel). It reuses the same flat input envelope and success
 // envelope as the direct action.
-func (handler *TransactionHandler) CreateTransactionHoldV2Huma(ctx context.Context, in *CreateTransactionV2InputHuma) (*CreateTransactionOutputHuma, error) {
+func (handler *TransactionHandler) CreateTransactionHoldV2Huma(ctx context.Context, in *CreateTransactionV2InputHuma) (*CreateTransactionOutputV2Huma, error) {
 	return handler.createTransactionV2(ctx, in.RawBody, in.IdempotencyKey, in.IdempotencyTTL, true, "")
 }
 
@@ -143,13 +154,73 @@ func (handler *TransactionHandler) CreateTransactionHoldV2Huma(ctx context.Conte
 // pending=false gives InitialStatus()=CREATED, matching the v1 block action which forces
 // Pending=false. The reason travels as a metadata key copied by Translate. It reuses the same
 // flat input envelope and success envelope as the direct action.
-func (handler *TransactionHandler) CreateTransactionBlockV2Huma(ctx context.Context, in *CreateTransactionV2InputHuma) (*CreateTransactionOutputHuma, error) {
+func (handler *TransactionHandler) CreateTransactionBlockV2Huma(ctx context.Context, in *CreateTransactionV2InputHuma) (*CreateTransactionOutputV2Huma, error) {
 	return handler.createTransactionV2(ctx, in.RawBody, in.IdempotencyKey, in.IdempotencyTTL, false, constant.BLOCK)
 }
 
 // CreateTransactionUnblockV2Huma creates a v2 transaction with the unblock action: it delegates
 // to createTransactionV2 with pending=false and the constant.UNBLOCK Operation.Type override,
 // mirroring the block action's contract with the opposing override label.
-func (handler *TransactionHandler) CreateTransactionUnblockV2Huma(ctx context.Context, in *CreateTransactionV2InputHuma) (*CreateTransactionOutputHuma, error) {
+func (handler *TransactionHandler) CreateTransactionUnblockV2Huma(ctx context.Context, in *CreateTransactionV2InputHuma) (*CreateTransactionOutputV2Huma, error) {
 	return handler.createTransactionV2(ctx, in.RawBody, in.IdempotencyKey, in.IdempotencyTTL, false, constant.UNBLOCK)
+}
+
+// --- POST /organizations/{organization_id}/ledgers/{ledger_id}/transactions/{transaction_id}/{commit,cancel,revert} ---
+
+// CommitTransactionV2Huma is the /v2 shell over the SAME commitTransaction core the v1
+// CommitTransactionHuma shell calls (fetch write-behind/DB, then commitOrCancelTransaction with
+// APPROVED). It differs from the v1 shell only in the response envelope: the /v2 wire shape
+// (TransactionV2) instead of the canonical transaction.Transaction. Returns 201.
+func (handler *TransactionHandler) CommitTransactionV2Huma(ctx context.Context, in *StateTransactionInputHuma) (*StateTransactionOutputV2Huma, error) {
+	orgID, ledgerID, txID, err := parseOrgLedgerTx(in)
+	if err != nil {
+		return nil, pkgHTTP.HumaProblem(err)
+	}
+
+	tran, err := handler.commitTransaction(ctx, orgID, ledgerID, txID, constant.APPROVED)
+	if err != nil {
+		return nil, pkgHTTP.HumaProblem(err)
+	}
+
+	return &StateTransactionOutputV2Huma{Status: http.StatusCreated, Body: newTransactionV2(tran)}, nil
+}
+
+// CancelTransactionV2Huma is the /v2 shell over the SAME commitTransaction core the v1
+// CancelTransactionHuma shell calls (CANCELED, which runs the tracer release-by-transaction
+// two-phase), differing only in the /v2 response envelope. Returns 201.
+func (handler *TransactionHandler) CancelTransactionV2Huma(ctx context.Context, in *StateTransactionInputHuma) (*StateTransactionOutputV2Huma, error) {
+	orgID, ledgerID, txID, err := parseOrgLedgerTx(in)
+	if err != nil {
+		return nil, pkgHTTP.HumaProblem(err)
+	}
+
+	tran, err := handler.commitTransaction(ctx, orgID, ledgerID, txID, constant.CANCELED)
+	if err != nil {
+		return nil, pkgHTTP.HumaProblem(err)
+	}
+
+	return &StateTransactionOutputV2Huma{Status: http.StatusCreated, Body: newTransactionV2(tran)}, nil
+}
+
+// RevertTransactionV2Huma is the /v2 shell over the SAME revertTransaction core the v1
+// RevertTransactionHuma shell calls (parent/revert eligibility + bidirectional-route checks,
+// then createRevertTransaction), differing only in the /v2 response envelope
+// (CreateTransactionOutputV2Huma instead of CreateTransactionOutputHuma) — a revert IS a
+// create, so it carries the same 201 + X-Idempotency-Replayed shape as the v2 create actions.
+func (handler *TransactionHandler) RevertTransactionV2Huma(ctx context.Context, in *StateTransactionInputHuma) (*CreateTransactionOutputV2Huma, error) {
+	orgID, ledgerID, txID, err := parseOrgLedgerTx(in)
+	if err != nil {
+		return nil, pkgHTTP.HumaProblem(err)
+	}
+
+	tran, replayed, err := handler.revertTransaction(ctx, orgID, ledgerID, txID)
+	if err != nil {
+		return nil, pkgHTTP.HumaProblem(err)
+	}
+
+	return &CreateTransactionOutputV2Huma{
+		Status:              http.StatusCreated,
+		IdempotencyReplayed: replayedHeader(replayed),
+		Body:                newTransactionV2(tran),
+	}, nil
 }

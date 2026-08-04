@@ -39,24 +39,26 @@ import (
 // resolved. They therefore hang off a path that names no organization and no ledger.
 // The LIFECYCLE terminals (commit/cancel/revert) address an EXISTING transaction and
 // carry no body, so their scope can only come from the URL: they stay under the
-// organization/ledger prefix and REUSE the transport-neutral v1 shells in
-// transaction_handler_huma.go (CommitTransactionHuma / CancelTransactionHuma /
-// RevertTransactionHuma) verbatim — the v2 surface adds only the route, not a duplicate
-// handler. Their path params follow the asset/CRM Huma convention — plain strings with
-// only `doc:` (no format:uuid tag) so ParseUUIDPathParameters stays the sole path-UUID
-// validator on the Fiber chain, not a native Huma 422.
+// organization/ledger prefix. They are thin v2-specific shells
+// (CommitTransactionV2Huma / CancelTransactionV2Huma / RevertTransactionV2Huma, also in
+// transaction_v2_handler.go) over the SAME transport-neutral core the v1 shells in
+// transaction_handler_huma.go call (commitTransaction / revertTransaction) — the only
+// difference is the response envelope, which answers the /v2 wire shape (TransactionV2,
+// `debit`/`credit`) instead of the canonical transaction.Transaction. Their path params
+// follow the asset/CRM Huma convention — plain strings with only `doc:` (no format:uuid
+// tag) so ParseUUIDPathParameters stays the sole path-UUID validator on the Fiber chain,
+// not a native Huma 422.
 
 // RegisterTransactionV2Routes registers the v2 transaction ops on the INDEPENDENT
 // v2 Huma API. It registers the create ops `direct`, `hold`, `block`, and `unblock` on the
 // scope-free create path, plus the bodiless lifecycle ops `commit`, `cancel`, and `revert`
 // (by organization, ledger and transaction_id).
-// The lifecycle ops reuse the transport-neutral v1 shells
-// (CommitTransactionHuma/CancelTransactionHuma/RevertTransactionHuma) verbatim — no
-// v2-specific handler, and no idempotency HEADERS, since they carry no body or headers.
-// Auth is the Fiber guard chain attached in RegisterTransactionV2RoutesToApp BEFORE
-// this terminal, not here — the per-op Security metadata is SPEC-ONLY. Paths are
-// GROUP-RELATIVE (the /v2 prefix rides the OpenAPI servers entry). Once every op is
-// registered, publishV2CreateBodySchema gives the create ops a typed request-body schema.
+// The lifecycle ops are thin v2 shells over the SAME transport-neutral core the v1 shells
+// call — no idempotency HEADERS, since they carry no body or headers. Auth is the Fiber
+// guard chain attached in RegisterTransactionV2RoutesToApp BEFORE this terminal, not here —
+// the per-op Security metadata is SPEC-ONLY. Paths are GROUP-RELATIVE (the /v2 prefix rides
+// the OpenAPI servers entry). Once every op is registered, publishV2CreateBodySchema gives
+// the create ops a typed request-body schema.
 func RegisterTransactionV2Routes(api huma.API, h *TransactionHandler) {
 	const transactionsIDBasePath = "/organizations/{organization_id}/ledgers/{ledger_id}/transactions/{transaction_id}"
 
@@ -86,7 +88,7 @@ func RegisterTransactionV2Routes(api huma.API, h *TransactionHandler) {
 		Tags:          []string{transactionsTag},
 		Security:      secTransactionBearer,
 		DefaultStatus: http.StatusCreated, // bodiless lifecycle op — no SkipValidateBody, mirroring v1.
-	}, h.CommitTransactionHuma)
+	}, h.CommitTransactionV2Huma)
 
 	huma.Register(api, huma.Operation{
 		OperationID:   "cancelTransactionV2",
@@ -96,7 +98,7 @@ func RegisterTransactionV2Routes(api huma.API, h *TransactionHandler) {
 		Tags:          []string{transactionsTag},
 		Security:      secTransactionBearer,
 		DefaultStatus: http.StatusCreated, // bodiless lifecycle op — no SkipValidateBody, mirroring v1.
-	}, h.CancelTransactionHuma)
+	}, h.CancelTransactionV2Huma)
 
 	huma.Register(api, huma.Operation{
 		OperationID:   "revertTransactionV2",
@@ -106,7 +108,7 @@ func RegisterTransactionV2Routes(api huma.API, h *TransactionHandler) {
 		Tags:          []string{transactionsTag},
 		Security:      secTransactionBearer,
 		DefaultStatus: http.StatusCreated, // bodiless lifecycle op — no SkipValidateBody, mirroring v1.
-	}, h.RevertTransactionHuma)
+	}, h.RevertTransactionV2Huma)
 
 	publishV2CreateBodySchema(api, v2CreateBasePath)
 }
@@ -125,7 +127,7 @@ const v2CreateBodyContentType = "application/json"
 // v2CreateTerminal is the shape every v2 create terminal shares. All four actions accept the
 // same request envelope and answer with the same success envelope; only the identity they pass
 // to createTransactionV2 differs.
-type v2CreateTerminal func(context.Context, *CreateTransactionV2InputHuma) (*CreateTransactionOutputHuma, error)
+type v2CreateTerminal func(context.Context, *CreateTransactionV2InputHuma) (*CreateTransactionOutputV2Huma, error)
 
 // v2CreateAction is one v2 create action: the suffix it hangs off v2CreateBasePath plus the
 // identity the published contract gives it. It exists so BOTH sides of the create surface walk
@@ -187,23 +189,17 @@ var v2CreateActions = []v2CreateAction{
 // its own read too.
 const v2CreateMaxBodyBytes int64 = 1 << 20
 
-// v2CreateBodyDescription is the prose the published create-body component carries. The
-// component stays ONE flat object listing both spellings of the transaction sides, so the
-// mutual exclusivity between them has no structural expression in the schema and has to be
-// stated here. The scope rule is stated here for a different reason: the create endpoint names
-// no organization and no ledger, so this component is the only place a client can learn where
-// to state them.
-const v2CreateBodyDescription = "Transaction request body. Each side of the transaction is " +
-	"spelled EITHER with its scalar field (`from`, `to`) OR with its leg array (`sources`, " +
-	"`destinations`) — never both on the same side, though the two sides may choose " +
-	"differently. Leave the spelling you are not using OUT of the body: on `from` and `to` an " +
-	"explicit `null` is rejected. Every account, in either spelling, names the " +
-	"`organizationId` and `ledgerId` it belongs to; all of them must name the SAME pair, and " +
-	"that pair is the organization and ledger the transaction is created in. A request whose " +
-	"accounts name different pairs is rejected. `asset`, `amount`, `description`, `code`, " +
-	"`routeId`, `operationRouteId` and `metadata` are common to both forms, and `amount` is " +
-	"always the transaction total that the legs' `share` expressions divide. Each leg array " +
-	"holds at most 500 legs."
+// v2CreateBodyDescription is the prose the published create-body component carries. The scope
+// rule is stated here because the create endpoint names no organization and no ledger, so this
+// component is the only place a client can learn where to state it.
+const v2CreateBodyDescription = "Transaction request body. `debits` and `credits` are the two " +
+	"required, non-empty leg arrays of the transaction; one debit paired with many credits, or " +
+	"the reverse, is a valid request. Every leg names the `organizationId` and `ledgerId` its " +
+	"account belongs to; all of them must name the SAME pair, and that pair is the organization " +
+	"and ledger the transaction is created in. A request whose accounts name different pairs is " +
+	"rejected. `asset`, `amount`, `description`, `code`, `routeId`, `operationRouteId` and " +
+	"`metadata` sit alongside the two leg arrays, and `amount` is the transaction total that " +
+	"the legs' `share` expressions divide. Each leg array holds at most 500 legs."
 
 // v2LegDescription is the prose the published leg component carries. Like the parent
 // component, the leg stays one flat object, so the "exactly one value expression" rule has no

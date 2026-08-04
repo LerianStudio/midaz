@@ -67,8 +67,8 @@ const (
 	}`
 
 	duplicateLegV2Body = `{"description":"duplicate source leg","asset":"USD","amount":"1000",` +
-		`"sources":[{"alias":"@srcA",` + v2ScopeJSON + `,"amount":"600"},{"alias":"@srcA",` + v2ScopeJSON + `,"amount":"400"}],` +
-		`"destinations":[{"alias":"@dstA",` + v2ScopeJSON + `,"amount":"1000"}]}`
+		`"debits":[{"alias":"@srcA",` + v2ScopeJSON + `,"amount":"600"},{"alias":"@srcA",` + v2ScopeJSON + `,"amount":"400"}],` +
+		`"credits":[{"alias":"@dstA",` + v2ScopeJSON + `,"amount":"1000"}]}`
 )
 
 func TestIntegration_TransactionDuplicateSourceLeg_BothLegsSurvive(t *testing.T) {

@@ -146,7 +146,7 @@ func TestIntegration_TransactionV2Hold_CommitViaV2_ParityWithV1(t *testing.T) {
 
 	// Commit response deep-equal, ignoring IDs/timestamps: the v2 commit response (with the
 	// settled operations embedded) is indistinguishable from the v1 commit response.
-	require.Equal(t, stripVolatile(v1CommitResp), stripVolatile(v2CommitResp),
+	require.Equal(t, stripVolatile(v1CommitResp), stripVolatile(renameV2LegKeys(v2CommitResp)),
 		"v2 commit response must be indistinguishable from the v1 commit equivalent (ignoring IDs/timestamps)")
 }
 
@@ -211,7 +211,7 @@ func TestIntegration_TransactionV2Hold_CancelViaV2_ParityWithV1(t *testing.T) {
 	// Cancel response deep-equal, ignoring IDs/timestamps: the v2 cancel response (with its
 	// persisted operations embedded) is indistinguishable from the v1 cancel response, which
 	// proves cross-surface operation-level parity without pinning the release leg's Type.
-	require.Equal(t, stripVolatile(v1CancelResp), stripVolatile(v2CancelResp),
+	require.Equal(t, stripVolatile(v1CancelResp), stripVolatile(renameV2LegKeys(v2CancelResp)),
 		"v2 cancel response must be indistinguishable from the v1 cancel equivalent (ignoring IDs/timestamps)")
 }
 
@@ -510,7 +510,7 @@ func TestIntegration_TransactionV2Revert_ParityWithV1(t *testing.T) {
 
 	// Revert response deep-equal, ignoring IDs/timestamps: the v2 revert response (with the
 	// reverse operations embedded) is indistinguishable from the v1 revert response.
-	require.Equal(t, stripVolatile(v1RevertResp), stripVolatile(v2RevertResp),
+	require.Equal(t, stripVolatile(v1RevertResp), stripVolatile(renameV2LegKeys(v2RevertResp)),
 		"v2 revert response must be indistinguishable from the v1 revert equivalent (ignoring IDs/timestamps)")
 
 	// Exactly one origin + one reverse per ledger: neither surface produced a stray extra
@@ -626,14 +626,14 @@ func TestIntegration_TransactionV2Revert_IneligibilityAndIDErrors(t *testing.T) 
 	// Subject 2: a hold left PENDING. Its description differs from the cancel subject below so
 	// the two no-key holds hash into DISTINCT idempotency slots instead of replaying.
 	pendingResp := decodeTxResponse(t, postV2Create(t, v2App, "hold", infra.orgID, infra.ledgerID,
-		`{"description":"revert gate pending subject","asset":"USD","amount":"100","from":{"alias":"@src",`+v2ScopeJSON+`},"to":{"alias":"@dst",`+v2ScopeJSON+`}}`, ""), nethttp.StatusCreated)
+		`{"description":"revert gate pending subject","asset":"USD","amount":"100","debits":[{"alias":"@src",`+v2ScopeJSON+`,"amount":"100"}],"credits":[{"alias":"@dst",`+v2ScopeJSON+`,"amount":"100"}]}`, ""), nethttp.StatusCreated)
 	pendingTxID := uuid.MustParse(pendingResp["id"].(string))
 	require.Equal(t, cn.PENDING, postgrestestutil.GetTransactionStatus(t, infra.pgContainer.DB, pendingTxID), "the hold subject should be PENDING")
 	drainBalanceSync(t, ctx, infra.handler.Command, infra.redisRepo, infra.orgID, infra.ledgerID)
 
 	// Subject 3: a hold cancelled through the v2 cancel op -> CANCELED.
 	cancelResp := decodeTxResponse(t, postV2Create(t, v2App, "hold", infra.orgID, infra.ledgerID,
-		`{"description":"revert gate cancel subject","asset":"USD","amount":"100","from":{"alias":"@src",`+v2ScopeJSON+`},"to":{"alias":"@dst",`+v2ScopeJSON+`}}`, ""), nethttp.StatusCreated)
+		`{"description":"revert gate cancel subject","asset":"USD","amount":"100","debits":[{"alias":"@src",`+v2ScopeJSON+`,"amount":"100"}],"credits":[{"alias":"@dst",`+v2ScopeJSON+`,"amount":"100"}]}`, ""), nethttp.StatusCreated)
 	canceledTxID := uuid.MustParse(cancelResp["id"].(string))
 	drainBalanceSync(t, ctx, infra.handler.Command, infra.redisRepo, infra.orgID, infra.ledgerID)
 
@@ -651,7 +651,7 @@ func TestIntegration_TransactionV2Revert_IneligibilityAndIDErrors(t *testing.T) 
 	// transaction's operations and resolves the route by id, so the ledger's route-validation
 	// setting (off in this harness) is irrelevant to reaching it.
 	nonBidiResp := decodeTxResponse(t, postV2Create(t, v2App, "direct", infra.orgID, infra.ledgerID,
-		`{"description":"revert gate non bidirectional subject","asset":"USD","amount":"100","from":{"alias":"@src",`+v2ScopeJSON+`},"to":{"alias":"@dst",`+v2ScopeJSON+`}}`, ""), nethttp.StatusCreated)
+		`{"description":"revert gate non bidirectional subject","asset":"USD","amount":"100","debits":[{"alias":"@src",`+v2ScopeJSON+`,"amount":"100"}],"credits":[{"alias":"@dst",`+v2ScopeJSON+`,"amount":"100"}]}`, ""), nethttp.StatusCreated)
 	nonBidiTxID := uuid.MustParse(nonBidiResp["id"].(string))
 	require.Equal(t, cn.APPROVED, postgrestestutil.GetTransactionStatus(t, infra.pgContainer.DB, nonBidiTxID), "the non-bidirectional subject should be APPROVED")
 	drainBalanceSync(t, ctx, infra.handler.Command, infra.redisRepo, infra.orgID, infra.ledgerID)
@@ -832,7 +832,7 @@ func TestIntegration_TransactionV2Revert_IdempotencyNotScopedByOrigin_KnownDefec
 	// they are what keeps the two origins two transactions instead of one create replay. The
 	// reversals derived from them are byte-identical payloads, which is precisely the input
 	// class that collides when the revert slot is keyed on the reversal payload alone.
-	const identicalOriginBody = `{"description":"cross origin revert subject","asset":"USD","amount":"100","from":{"alias":"@src",` + v2ScopeJSON + `},"to":{"alias":"@dst",` + v2ScopeJSON + `}}`
+	const identicalOriginBody = `{"description":"cross origin revert subject","asset":"USD","amount":"100","debits":[{"alias":"@src",` + v2ScopeJSON + `,"amount":"100"}],"credits":[{"alias":"@dst",` + v2ScopeJSON + `,"amount":"100"}]}`
 
 	originAResp := decodeTxResponse(t, postV2Create(t, v2App, "direct", infra.orgID, infra.ledgerID, identicalOriginBody, "cross-origin-create-a"), nethttp.StatusCreated)
 	originAID := uuid.MustParse(originAResp["id"].(string))
