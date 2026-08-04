@@ -143,12 +143,14 @@ func (h *acceptanceDirectionHarness) seedAccountType(t *testing.T, key string, d
 
 // readBackBalanceDirection reads the persisted direction for a balance by ID
 // directly from the balance database.
-func (h *acceptanceDirectionHarness) readBackBalanceDirection(t *testing.T, balanceID string) string {
+func (h *acceptanceDirectionHarness) readBackBalanceDirection(ctx context.Context, t *testing.T, balanceID string) string {
 	t.Helper()
+
+	require.NoError(t, ctx.Err())
 
 	var direction string
 
-	err := h.balanceDB.QueryRow(`SELECT direction FROM balance WHERE id = $1`, balanceID).Scan(&direction)
+	err := h.balanceDB.QueryRowContext(ctx, `SELECT direction FROM balance WHERE id = $1`, balanceID).Scan(&direction)
 	require.NoError(t, err, "failed to read back balance direction")
 
 	return direction
@@ -157,12 +159,14 @@ func (h *acceptanceDirectionHarness) readBackBalanceDirection(t *testing.T, bala
 // countBalancesForAccount returns the number of balance rows persisted for the
 // given account, used to assert that a rejected additional-balance request
 // wrote nothing.
-func (h *acceptanceDirectionHarness) countBalancesForAccount(t *testing.T, accountID uuid.UUID) int {
+func (h *acceptanceDirectionHarness) countBalancesForAccount(ctx context.Context, t *testing.T, accountID uuid.UUID) int {
 	t.Helper()
+
+	require.NoError(t, ctx.Err())
 
 	var count int
 
-	err := h.balanceDB.QueryRow(`SELECT COUNT(*) FROM balance WHERE account_id = $1`, accountID).Scan(&count)
+	err := h.balanceDB.QueryRowContext(ctx, `SELECT COUNT(*) FROM balance WHERE account_id = $1`, accountID).Scan(&count)
 	require.NoError(t, err, "failed to count balances for account")
 
 	return count
@@ -272,7 +276,7 @@ func TestIntegration_AcceptanceInitialBalanceDirection(t *testing.T) {
 
 			assert.Equal(t, tt.expectedDirection, bal.Direction, "returned balance direction")
 
-			persisted := h.readBackBalanceDirection(t, bal.ID)
+			persisted := h.readBackBalanceDirection(ctx, t, bal.ID)
 			assert.Equal(t, tt.expectedDirection, persisted, "persisted balance direction")
 		})
 	}
@@ -285,7 +289,7 @@ func TestIntegration_AcceptanceInitialBalanceDirection(t *testing.T) {
 // default balance to exist so CreateAdditionalBalance can read the account's
 // AccountType from it; A6 uses it to materialize B1/B2 at distinct type-default
 // snapshots.
-func (h *acceptanceDirectionHarness) createDefaultBalanceForAccount(t *testing.T, ctx context.Context, accountID uuid.UUID, typeKey string) *mmodel.Balance {
+func (h *acceptanceDirectionHarness) createDefaultBalanceForAccount(ctx context.Context, t *testing.T, accountID uuid.UUID, typeKey string) *mmodel.Balance {
 	t.Helper()
 
 	dir := h.uc.resolveDefaultBalanceDirectionForType(ctx, h.orgID, h.ledgerID, typeKey, false)
@@ -354,7 +358,7 @@ func TestIntegration_AcceptanceAdditionalBalanceOverride(t *testing.T) {
 
 			// The default balance must exist first: CreateAdditionalBalance reads
 			// the account's AccountType from it (and rejects external types).
-			h.createDefaultBalanceForAccount(t, ctx, accountID, typeKey)
+			h.createDefaultBalanceForAccount(ctx, t, accountID, typeKey)
 
 			additional, err := h.uc.CreateAdditionalBalance(ctx, h.orgID, h.ledgerID, accountID, &mmodel.CreateAdditionalBalance{
 				Key:       tt.key,
@@ -365,7 +369,7 @@ func TestIntegration_AcceptanceAdditionalBalanceOverride(t *testing.T) {
 
 			assert.Equal(t, tt.expectedDirection, additional.Direction, "returned additional balance direction")
 
-			persisted := h.readBackBalanceDirection(t, additional.ID)
+			persisted := h.readBackBalanceDirection(ctx, t, additional.ID)
 			assert.Equal(t, tt.expectedDirection, persisted, "persisted additional balance direction")
 		})
 	}
@@ -396,7 +400,7 @@ func TestIntegration_AcceptanceAdditionalBalanceExternalRejected(t *testing.T) {
 	externalDefaultParams.AccountType = constant.ExternalAccountType
 	pgtestutil.CreateTestBalance(t, h.balanceDB, h.orgID, h.ledgerID, accountID, externalDefaultParams)
 
-	require.Equal(t, 1, h.countBalancesForAccount(t, accountID), "only the seeded default balance must exist before the rejected request")
+	require.Equal(t, 1, h.countBalancesForAccount(ctx, t, accountID), "only the seeded default balance must exist before the rejected request")
 
 	additional, err := h.uc.CreateAdditionalBalance(ctx, h.orgID, h.ledgerID, accountID, &mmodel.CreateAdditionalBalance{
 		Key: "external-additional",
@@ -413,7 +417,7 @@ func TestIntegration_AcceptanceAdditionalBalanceExternalRejected(t *testing.T) {
 	assert.Equal(t, constant.ErrAdditionalBalanceNotAllowed.Error(), unprocessable.Code, "error code must be the additional-balance-not-allowed sentinel")
 
 	// No additional row was persisted: still only the seeded default balance.
-	assert.Equal(t, 1, h.countBalancesForAccount(t, accountID), "no additional balance row must be persisted after rejection")
+	assert.Equal(t, 1, h.countBalancesForAccount(ctx, t, accountID), "no additional balance row must be persisted after rejection")
 }
 
 // TestIntegration_AcceptanceEditDefaultAffectsFutureOnly proves that editing an
@@ -442,7 +446,7 @@ func TestIntegration_AcceptanceEditDefaultAffectsFutureOnly(t *testing.T) {
 
 	// B1: created while the type default is credit.
 	accountID1 := uuid.Must(libCommons.GenerateUUIDv7())
-	b1 := h.createDefaultBalanceForAccount(t, ctx, accountID1, typeKey)
+	b1 := h.createDefaultBalanceForAccount(ctx, t, accountID1, typeKey)
 	assert.Equal(t, constant.DirectionCredit, b1.Direction, "B1 must inherit the type default credit at creation")
 
 	// Flip the type default to debit.
@@ -453,10 +457,10 @@ func TestIntegration_AcceptanceEditDefaultAffectsFutureOnly(t *testing.T) {
 
 	// B2: same type key, created AFTER the edit -> inherits the new debit default.
 	accountID2 := uuid.Must(libCommons.GenerateUUIDv7())
-	b2 := h.createDefaultBalanceForAccount(t, ctx, accountID2, typeKey)
+	b2 := h.createDefaultBalanceForAccount(ctx, t, accountID2, typeKey)
 	assert.Equal(t, constant.DirectionDebit, b2.Direction, "B2 must inherit the updated type default debit at creation")
 
 	// B1 re-read: immutable — still credit despite the type edit.
-	b1Persisted := h.readBackBalanceDirection(t, b1.ID)
+	b1Persisted := h.readBackBalanceDirection(ctx, t, b1.ID)
 	assert.Equal(t, constant.DirectionCredit, b1Persisted, "B1 must remain credit after the type default is edited")
 }
