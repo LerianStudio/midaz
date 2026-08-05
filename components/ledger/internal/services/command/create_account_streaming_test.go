@@ -57,6 +57,12 @@ func newStreamingTestUseCase(t *testing.T, ctrl *gomock.Controller, emitter libS
 		GetSettings(gomock.Any(), gomock.Any(), gomock.Any()).
 		Return(nil, nil).AnyTimes()
 
+	// Best-effort account-type default-direction lookup (non-external path).
+	// A miss degrades gracefully to no type default -> credit fallback.
+	mockAccountTypeRepo.EXPECT().
+		FindByKey(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+		Return(nil, errors.New("not found")).AnyTimes()
+
 	mockAssetRepo.EXPECT().
 		FindByNameOrCode(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
 		Return(true, nil).AnyTimes()

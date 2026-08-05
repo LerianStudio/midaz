@@ -15138,7 +15138,7 @@
                 }
               ],
               "cookie": [],
-              "body": "{\n  \"createdAt\": \"2021-01-01T00:00:00Z\",\n  \"deletedAt\": \"2021-01-01T00:00:00Z\",\n  \"description\": \"Assets that are expected to be converted to cash within one year\",\n  \"id\": \"01965ed9-7fa4-75b2-8872-fc9e8509ab0a\",\n  \"keyValue\": \"current_assets\",\n  \"ledgerId\": \"01965ed9-7fa4-75b2-8872-fc9e8509ab0a\",\n  \"metadata\": {\n    \"key\": \"value\"\n  },\n  \"name\": \"Current Assets\",\n  \"organizationId\": \"01965ed9-7fa4-75b2-8872-fc9e8509ab0a\",\n  \"updatedAt\": \"2021-01-01T00:00:00Z\"\n}"
+              "body": "{\n  \"createdAt\": \"2021-01-01T00:00:00Z\",\n  \"defaultDirection\": \"credit\",\n  \"deletedAt\": \"2021-01-01T00:00:00Z\",\n  \"description\": \"Assets that are expected to be converted to cash within one year\",\n  \"id\": \"01965ed9-7fa4-75b2-8872-fc9e8509ab0a\",\n  \"keyValue\": \"current_assets\",\n  \"ledgerId\": \"01965ed9-7fa4-75b2-8872-fc9e8509ab0a\",\n  \"metadata\": {\n    \"key\": \"value\"\n  },\n  \"name\": \"Current Assets\",\n  \"organizationId\": \"01965ed9-7fa4-75b2-8872-fc9e8509ab0a\",\n  \"updatedAt\": \"2021-01-01T00:00:00Z\"\n}"
             }
           ],
           "event": [
@@ -15446,7 +15446,7 @@
                 }
               ],
               "cookie": [],
-              "body": "{\n  \"createdAt\": \"2021-01-01T00:00:00Z\",\n  \"deletedAt\": \"2021-01-01T00:00:00Z\",\n  \"description\": \"Assets that are expected to be converted to cash within one year\",\n  \"id\": \"01965ed9-7fa4-75b2-8872-fc9e8509ab0a\",\n  \"keyValue\": \"current_assets\",\n  \"ledgerId\": \"01965ed9-7fa4-75b2-8872-fc9e8509ab0a\",\n  \"metadata\": {\n    \"key\": \"value\"\n  },\n  \"name\": \"Current Assets\",\n  \"organizationId\": \"01965ed9-7fa4-75b2-8872-fc9e8509ab0a\",\n  \"updatedAt\": \"2021-01-01T00:00:00Z\"\n}"
+              "body": "{\n  \"createdAt\": \"2021-01-01T00:00:00Z\",\n  \"defaultDirection\": \"credit\",\n  \"deletedAt\": \"2021-01-01T00:00:00Z\",\n  \"description\": \"Assets that are expected to be converted to cash within one year\",\n  \"id\": \"01965ed9-7fa4-75b2-8872-fc9e8509ab0a\",\n  \"keyValue\": \"current_assets\",\n  \"ledgerId\": \"01965ed9-7fa4-75b2-8872-fc9e8509ab0a\",\n  \"metadata\": {\n    \"key\": \"value\"\n  },\n  \"name\": \"Current Assets\",\n  \"organizationId\": \"01965ed9-7fa4-75b2-8872-fc9e8509ab0a\",\n  \"updatedAt\": \"2021-01-01T00:00:00Z\"\n}"
             }
           ],
           "event": [
@@ -15650,7 +15650,7 @@
                 }
               ],
               "cookie": [],
-              "body": "{\n  \"createdAt\": \"2021-01-01T00:00:00Z\",\n  \"deletedAt\": \"2021-01-01T00:00:00Z\",\n  \"description\": \"Assets that are expected to be converted to cash within one year\",\n  \"id\": \"01965ed9-7fa4-75b2-8872-fc9e8509ab0a\",\n  \"keyValue\": \"current_assets\",\n  \"ledgerId\": \"01965ed9-7fa4-75b2-8872-fc9e8509ab0a\",\n  \"metadata\": {\n    \"key\": \"value\"\n  },\n  \"name\": \"Current Assets\",\n  \"organizationId\": \"01965ed9-7fa4-75b2-8872-fc9e8509ab0a\",\n  \"updatedAt\": \"2021-01-01T00:00:00Z\"\n}"
+              "body": "{\n  \"createdAt\": \"2021-01-01T00:00:00Z\",\n  \"defaultDirection\": \"credit\",\n  \"deletedAt\": \"2021-01-01T00:00:00Z\",\n  \"description\": \"Assets that are expected to be converted to cash within one year\",\n  \"id\": \"01965ed9-7fa4-75b2-8872-fc9e8509ab0a\",\n  \"keyValue\": \"current_assets\",\n  \"ledgerId\": \"01965ed9-7fa4-75b2-8872-fc9e8509ab0a\",\n  \"metadata\": {\n    \"key\": \"value\"\n  },\n  \"name\": \"Current Assets\",\n  \"organizationId\": \"01965ed9-7fa4-75b2-8872-fc9e8509ab0a\",\n  \"updatedAt\": \"2021-01-01T00:00:00Z\"\n}"
             }
           ],
           "event": [

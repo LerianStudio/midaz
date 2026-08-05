@@ -124,13 +124,25 @@ func (uc *UseCase) CreateAdditionalBalance(ctx context.Context, organizationID, 
 		return nil, pkg.ValidateBusinessError(constant.ErrAdditionalBalanceNotAllowed, constant.EntityBalance, defaultBalance.Alias)
 	}
 
-	// Direction defaults to "credit" when the caller omits it. Validation
-	// above guarantees that any provided value is one of the supported
-	// enum members.
-	direction := constant.DirectionCredit
+	// Direction is resolved by precedence: an explicit caller override wins
+	// (validated above), otherwise the account type's default is inherited,
+	// otherwise the account-type-implied default applies (non-external ->
+	// credit). The type-default lookup is best-effort and non-external here
+	// (external returns above); a miss/error degrades to no type default.
+	var explicitDirection string
 	if cbi.Direction != nil {
-		direction = *cbi.Direction
+		explicitDirection = *cbi.Direction
 	}
+
+	// The type-default lookup is only consulted when there is no explicit
+	// override; an explicit direction wins in resolveBalanceDirection anyway,
+	// so the DB read is pure waste when one is present.
+	var typeDefaultDirection string
+	if explicitDirection == "" {
+		typeDefaultDirection = uc.resolveTypeDefaultDirection(ctx, organizationID, ledgerID, defaultBalance.AccountType)
+	}
+
+	direction := resolveBalanceDirection(explicitDirection, typeDefaultDirection, defaultBalance.AccountType)
 
 	additionalBalance := &mmodel.Balance{
 		ID:             uuid.Must(libCommons.GenerateUUIDv7()).String(),
