@@ -77,6 +77,11 @@ func TestCreateAccountScenarios(t *testing.T) {
 					GetSettings(gomock.Any(), gomock.Any(), gomock.Any()).
 					Return(nil, nil).AnyTimes()
 
+				// Best-effort default-direction resolution (non-external).
+				mockAccountTypeRepo.EXPECT().
+					FindByKey(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+					Return(nil, services.ErrDatabaseItemNotFound).AnyTimes()
+
 				mockAssetRepo.EXPECT().
 					FindByNameOrCode(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
 					Return(true, nil).AnyTimes()
@@ -121,13 +126,15 @@ func TestCreateAccountScenarios(t *testing.T) {
 					GetSettings(gomock.Any(), gomock.Any(), gomock.Any()).
 					Return(map[string]any{"accounting": map[string]any{"validateAccountType": true}}, nil).AnyTimes()
 
+				// Called by accounting validation AND by the best-effort
+				// default-direction resolution (both non-external).
 				mockAccountTypeRepo.EXPECT().
 					FindByKey(gomock.Any(), organizationID, ledgerID, "deposit").
 					Return(&mmodel.AccountType{
 						KeyValue: "deposit",
 						Name:     "Deposit Account",
 					}, nil).
-					Times(1)
+					MinTimes(1)
 
 				mockAssetRepo.EXPECT().
 					FindByNameOrCode(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
@@ -313,6 +320,11 @@ func TestCreateAccountScenarios(t *testing.T) {
 					GetSettings(gomock.Any(), gomock.Any(), gomock.Any()).
 					Return(nil, nil).AnyTimes()
 
+				// Best-effort default-direction resolution (non-external).
+				mockAccountTypeRepo.EXPECT().
+					FindByKey(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+					Return(nil, services.ErrDatabaseItemNotFound).AnyTimes()
+
 				mockAssetRepo.EXPECT().
 					FindByNameOrCode(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
 					Return(true, nil).AnyTimes()
@@ -357,6 +369,11 @@ func TestCreateAccountScenarios(t *testing.T) {
 				mockLedgerRepo.EXPECT().
 					GetSettings(gomock.Any(), gomock.Any(), gomock.Any()).
 					Return(nil, nil).AnyTimes()
+
+				// Best-effort default-direction resolution (non-external).
+				mockAccountTypeRepo.EXPECT().
+					FindByKey(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+					Return(nil, services.ErrDatabaseItemNotFound).AnyTimes()
 
 				mockAssetRepo.EXPECT().
 					FindByNameOrCode(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
@@ -853,6 +870,12 @@ func TestCreateAccountEdgeCases(t *testing.T) {
 
 			tt.mockSetup(mockAssetRepo, mockPortfolioRepo, mockAccountRepo, mockMetadataRepo, mockAccountTypeRepo, mockBalance, mockLedgerRepo)
 
+			// Best-effort default-direction resolution looks up the (non-external)
+			// account type; a miss degrades gracefully to the credit fallback.
+			mockAccountTypeRepo.EXPECT().
+				FindByKey(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+				Return(nil, services.ErrDatabaseItemNotFound).AnyTimes()
+
 			account, err := uc.CreateAccount(ctx, organizationID, ledgerID, tt.input, token)
 
 			if tt.expectError {
@@ -917,10 +940,11 @@ func TestCreateAccountValidationEdgeCases(t *testing.T) {
 					GetSettings(gomock.Any(), gomock.Any(), gomock.Any()).
 					Return(nil, nil).AnyTimes()
 
-				// Should not call AccountTypeRepo since validation is disabled
+				// Validation is disabled, but the best-effort default-direction
+				// resolution still looks up the (non-external) account type.
 				mockAccountTypeRepo.EXPECT().
 					FindByKey(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
-					Times(0)
+					Return(nil, services.ErrDatabaseItemNotFound).AnyTimes()
 
 				mockAssetRepo.EXPECT().
 					FindByNameOrCode(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
@@ -966,14 +990,16 @@ func TestCreateAccountValidationEdgeCases(t *testing.T) {
 					GetSettings(gomock.Any(), gomock.Any(), gomock.Any()).
 					Return(map[string]any{"accounting": map[string]any{"validateAccountType": true}}, nil).AnyTimes()
 
-				// Mock account type found - repository handles case insensitivity
+				// Mock account type found - repository handles case insensitivity.
+				// Called by accounting validation AND by the best-effort
+				// default-direction resolution (both non-external).
 				mockAccountTypeRepo.EXPECT().
 					FindByKey(gomock.Any(), organizationID, ledgerID, "DePoSiT").
 					Return(&mmodel.AccountType{
 						KeyValue: "deposit", // Lowercase in database
 						Name:     "Deposit Account",
 					}, nil).
-					Times(1)
+					MinTimes(1)
 
 				mockAssetRepo.EXPECT().
 					FindByNameOrCode(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
@@ -1220,11 +1246,17 @@ func TestCreateAccountExternalAlias(t *testing.T) {
 			ctrl := gomock.NewController(t)
 			defer ctrl.Finish()
 
-			uc, mockAssetRepo, _, mockAccountRepo, mockMetadataRepo, _, mockBalance, mockLedgerRepo := setupTest(ctrl)
+			uc, mockAssetRepo, _, mockAccountRepo, mockMetadataRepo, mockAccountTypeRepo, mockBalance, mockLedgerRepo := setupTest(ctrl)
 
 			mockLedgerRepo.EXPECT().
 				GetSettings(gomock.Any(), gomock.Any(), gomock.Any()).
 				Return(nil, nil).AnyTimes()
+
+			// Best-effort default-direction resolution looks up the (non-external)
+			// account type; external accounts bypass it. A miss degrades gracefully.
+			mockAccountTypeRepo.EXPECT().
+				FindByKey(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+				Return(nil, services.ErrDatabaseItemNotFound).AnyTimes()
 
 			mockAssetRepo.EXPECT().
 				FindByNameOrCode(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
@@ -1364,6 +1396,11 @@ func TestCreateAccountBlockedFlag(t *testing.T) {
 	mockLedgerRepo.EXPECT().
 		GetSettings(gomock.Any(), gomock.Any(), gomock.Any()).
 		Return(nil, nil).AnyTimes()
+
+	// Best-effort account-type default-direction lookup (non-external path).
+	mockAccountTypeRepo.EXPECT().
+		FindByKey(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+		Return(nil, services.ErrDatabaseItemNotFound).AnyTimes()
 
 	mockAssetRepo.EXPECT().
 		FindByNameOrCode(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
