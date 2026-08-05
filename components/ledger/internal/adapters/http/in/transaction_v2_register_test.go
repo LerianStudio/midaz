@@ -166,20 +166,43 @@ func TestRegisterTransactionV2RoutesToApp_MountsRoutes(t *testing.T) {
 	}
 }
 
-// registerV2TransactionContractForTest builds a fresh /v2 Huma document with its own
+// noGroupPrefix registers the contract straight onto the API, which is how production assembles
+// the v2 document. v2GroupPrefix registers it through a Huma group carrying /v2, which keys every
+// path WITH that prefix while changing nothing a client sees. Both spell the same contract.
+const (
+	noGroupPrefix = ""
+	v2GroupPrefix = "/v2"
+)
+
+// registerV2TransactionContractOnGroupForTest builds a fresh /v2 Huma document with its own
 // component registry and registers only the v2 transaction contract onto it, mirroring the
-// production humaMountV2 seam (namer installed before any huma.Register). It returns the
-// document so contract assertions read paths and components off the same instance.
-func registerV2TransactionContractForTest() *huma.OpenAPI {
+// production humaMountV2 seam (namer installed before any huma.Register). A non-empty prefix
+// registers through a Huma group carrying it, so the document keys every path with that prefix. It
+// returns the document so contract assertions read paths and components off the same instance.
+//
+// The Fiber app is handed to openapi.New as its own router so the Huma group is the ONLY thing that
+// can prefix a path; a Fiber /v2 group alongside a /v2 Huma group would mount the routes at
+// /v2/v2/..., a shape no deployment has.
+func registerV2TransactionContractOnGroupForTest(prefix string) *huma.OpenAPI {
 	app := fiber.New()
 
-	apiV2 := app.Group("/v2")
-	humaAPI := openapi.New(app, apiV2, openapi.Config{Title: "Midaz Ledger API v2", Version: "4.0.0", Servers: []string{"/v2"}})
+	humaAPI := openapi.New(app, app, openapi.Config{Title: "Midaz Ledger API v2", Version: "4.0.0", Servers: []string{"/v2"}})
 	pkgHTTP.InstallLedgerSchemaNamer(humaAPI)
 
-	RegisterTransactionV2Routes(humaAPI, &TransactionHandler{})
+	api := humaAPI
+	if prefix != noGroupPrefix {
+		api = huma.NewGroup(humaAPI, prefix)
+	}
+
+	RegisterTransactionV2Routes(api, &TransactionHandler{})
 
 	return humaAPI.OpenAPI()
+}
+
+// registerV2TransactionContractForTest is the unprefixed spelling, which every assertion that does
+// not care about path keys reads from.
+func registerV2TransactionContractForTest() *huma.OpenAPI {
+	return registerV2TransactionContractOnGroupForTest(noGroupPrefix)
 }
 
 // TestRegisterTransactionV2Routes_RegistersHumaOperations asserts every v2 transaction op
@@ -429,120 +452,81 @@ func TestRegisterTransactionV2Routes_ResponseSchemaDoesNotShadowV1(t *testing.T)
 	}
 }
 
-// TestRegisterTransactionV2Routes_PublishesCreateBodySchema asserts the v2 create ops
-// describe their body with a $ref to the published input component instead of the opaque
-// `string`/`binary` schema Huma derives from a RawBody field. The bodiless lifecycle ops
-// must stay free of a requestBody.
+// v2ContractAssemblies are the two ways the v2 contract gets assembled. The property under test is
+// that publication is blind to which one was used, so the assertions run over the pair rather than
+// once per shape.
+var v2ContractAssemblies = []struct {
+	name   string
+	prefix string
+}{
+	{name: "registered straight onto the api", prefix: noGroupPrefix},
+	{name: "registered through a prefixed group", prefix: v2GroupPrefix},
+}
+
+// TestRegisterTransactionV2Routes_PublishesCreateBodySchema asserts the v2 create ops describe
+// their body with a $ref to the published input component instead of the opaque `string`/`binary`
+// schema Huma derives from a RawBody field, that both prose components carry their prose, and that
+// the bodiless lifecycle ops stay free of a requestBody — under EITHER assembly.
+//
+// A group's prefix decides the document's path keys and nothing a client sees, and it is not
+// readable from inside the contract, so a path key is not a handle the publisher can spell.
+// Identifying the ops by operation ID is what makes the two assemblies agree; a publisher keyed on
+// paths finds nothing in the prefixed one and fails silently — the ops keep the opaque RawBody
+// schema, both prose descriptions go unstamped, and registration itself still succeeds.
 func TestRegisterTransactionV2Routes_PublishesCreateBodySchema(t *testing.T) {
 	t.Parallel()
 
-	oapi := registerV2TransactionContractForTest()
-
-	assert.Containsf(t, oapi.Components.Schemas.Map(), v2CreateBodySchemaName,
-		"v2 contract should publish the create-body component %s", v2CreateBodySchemaName)
-
-	for _, rt := range v2Routes {
-		t.Run(rt.action, func(t *testing.T) {
+	for _, tt := range v2ContractAssemblies {
+		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			pathItem, ok := oapi.Paths[rt.opPath]
-			require.Truef(t, ok, "v2 contract should carry the %s op path %q", rt.action, rt.opPath)
-			require.NotNilf(t, pathItem.Post, "%s op path should carry a POST operation", rt.action)
+			oapi := registerV2TransactionContractOnGroupForTest(tt.prefix)
+			schemas := oapi.Components.Schemas.Map()
 
-			if !rt.hasBody {
-				assert.Nilf(t, pathItem.Post.RequestBody,
-					"bodiless lifecycle op %s must not advertise a requestBody", rt.action)
+			bodySchema, ok := schemas[v2CreateBodySchemaName]
+			require.Truef(t, ok, "v2 contract should publish the create-body component %s", v2CreateBodySchemaName)
+			require.NotNilf(t, bodySchema, "published %s component should not be nil", v2CreateBodySchemaName)
+			assert.Equalf(t, v2CreateBodyDescription, bodySchema.Description,
+				"%s should carry the create-body prose", v2CreateBodySchemaName)
 
-				return
+			legSchema, ok := schemas[v2LegSchemaName]
+			require.Truef(t, ok, "v2 contract should publish the %s component", v2LegSchemaName)
+			require.NotNilf(t, legSchema, "published %s component should not be nil", v2LegSchemaName)
+			assert.Equalf(t, v2LegDescription, legSchema.Description,
+				"%s should carry the leg prose", v2LegSchemaName)
+
+			for _, rt := range v2Routes {
+				t.Run(rt.action, func(t *testing.T) {
+					t.Parallel()
+
+					opPath := tt.prefix + rt.opPath
+
+					pathItem, ok := oapi.Paths[opPath]
+					require.Truef(t, ok, "v2 contract should carry the %s op path %q", rt.action, opPath)
+					require.NotNilf(t, pathItem.Post, "%s op path should carry a POST operation", rt.action)
+					require.Equalf(t, rt.operationID, pathItem.Post.OperationID,
+						"a single-prefix group must leave the %s operation ID alone", rt.action)
+
+					if !rt.hasBody {
+						assert.Nilf(t, pathItem.Post.RequestBody,
+							"bodiless lifecycle op %s must not advertise a requestBody", rt.action)
+
+						return
+					}
+
+					require.NotNilf(t, pathItem.Post.RequestBody, "%s op should advertise a requestBody", rt.action)
+
+					media, ok := pathItem.Post.RequestBody.Content["application/json"]
+					require.Truef(t, ok, "%s op requestBody should carry an application/json media type", rt.action)
+					require.NotNilf(t, media, "%s op application/json media type should not be nil", rt.action)
+					require.NotNilf(t, media.Schema, "%s op application/json media type should carry a schema", rt.action)
+
+					assert.Equalf(t, v2CreateBodySchemaRef, media.Schema.Ref,
+						"%s op body schema should $ref the published v2 input component", rt.action)
+					assert.Emptyf(t, media.Schema.Format,
+						"%s op body schema must not stay the opaque binary RawBody schema", rt.action)
+				})
 			}
-
-			require.NotNilf(t, pathItem.Post.RequestBody, "%s op should advertise a requestBody", rt.action)
-
-			media, ok := pathItem.Post.RequestBody.Content["application/json"]
-			require.Truef(t, ok, "%s op requestBody should carry an application/json media type", rt.action)
-			require.NotNilf(t, media, "%s op application/json media type should not be nil", rt.action)
-			require.NotNilf(t, media.Schema, "%s op application/json media type should carry a schema", rt.action)
-
-			assert.Equalf(t, v2CreateBodySchemaRef, media.Schema.Ref,
-				"%s op body schema should $ref the published v2 input component", rt.action)
-			assert.Emptyf(t, media.Schema.Format,
-				"%s op body schema must not stay the opaque binary RawBody schema", rt.action)
-		})
-	}
-}
-
-// v2GroupPrefix is the prefix a Huma group stamps onto every path it registers, so a
-// document assembled that way keys the create ops as "/v2/transactions/direct" while the
-// paths the ops declare stay group-relative.
-const v2GroupPrefix = "/v2"
-
-// registerV2TransactionContractOnPrefixedGroupForTest registers the v2 transaction contract
-// through a Huma GROUP carrying the /v2 prefix, so the document keys every path WITH that
-// prefix. Operation IDs come through untouched: huma.PrefixModifier rewrites an ID only for a
-// group declaring more than one prefix.
-func registerV2TransactionContractOnPrefixedGroupForTest() *huma.OpenAPI {
-	app := fiber.New()
-
-	apiV2 := app.Group("/v2")
-	humaAPI := openapi.New(app, apiV2, openapi.Config{Title: "Midaz Ledger API v2", Version: "4.0.0", Servers: []string{"/v2"}})
-	pkgHTTP.InstallLedgerSchemaNamer(humaAPI)
-
-	RegisterTransactionV2Routes(huma.NewGroup(humaAPI, v2GroupPrefix), &TransactionHandler{})
-
-	return humaAPI.OpenAPI()
-}
-
-// TestRegisterTransactionV2Routes_PublishesCreateBodySchemaUnderAPrefixedPathKey asserts the
-// create ops keep the typed body $ref and the prose components when the contract is assembled
-// through a prefixed Huma group, which is the case that changes the document's path keys
-// without changing anything a client sees.
-//
-// The prefix is not readable from inside the contract — huma.Group keeps it private — so a
-// publisher that finds its ops by path key finds none here, and the failure is silent: the ops
-// keep the opaque RawBody schema, both prose descriptions go unstamped, and registration itself
-// still succeeds. Identifying the ops by operation ID is what survives, because a single-prefix
-// group leaves the ID alone.
-func TestRegisterTransactionV2Routes_PublishesCreateBodySchemaUnderAPrefixedPathKey(t *testing.T) {
-	t.Parallel()
-
-	oapi := registerV2TransactionContractOnPrefixedGroupForTest()
-
-	bodySchema, ok := oapi.Components.Schemas.Map()[v2CreateBodySchemaName]
-	require.Truef(t, ok, "v2 contract should publish the create-body component %s", v2CreateBodySchemaName)
-	require.NotNilf(t, bodySchema, "published %s component should not be nil", v2CreateBodySchemaName)
-	assert.Equalf(t, v2CreateBodyDescription, bodySchema.Description,
-		"%s should carry the create-body prose", v2CreateBodySchemaName)
-
-	legSchema, ok := oapi.Components.Schemas.Map()[v2LegSchemaName]
-	require.Truef(t, ok, "v2 contract should publish the %s component", v2LegSchemaName)
-	require.NotNilf(t, legSchema, "published %s component should not be nil", v2LegSchemaName)
-	assert.Equalf(t, v2LegDescription, legSchema.Description,
-		"%s should carry the leg prose", v2LegSchemaName)
-
-	for _, rt := range v2Routes {
-		if !rt.hasBody {
-			continue
-		}
-
-		t.Run(rt.action, func(t *testing.T) {
-			t.Parallel()
-
-			pathItem, ok := oapi.Paths[v2GroupPrefix+rt.opPath]
-			require.Truef(t, ok, "prefixed contract should carry the %s op path %q", rt.action, v2GroupPrefix+rt.opPath)
-			require.NotNilf(t, pathItem.Post, "%s op path should carry a POST operation", rt.action)
-			require.Equalf(t, rt.operationID, pathItem.Post.OperationID,
-				"a single-prefix group must leave the %s operation ID alone", rt.action)
-			require.NotNilf(t, pathItem.Post.RequestBody, "%s op should advertise a requestBody", rt.action)
-
-			media, ok := pathItem.Post.RequestBody.Content["application/json"]
-			require.Truef(t, ok, "%s op requestBody should carry an application/json media type", rt.action)
-			require.NotNilf(t, media, "%s op application/json media type should not be nil", rt.action)
-			require.NotNilf(t, media.Schema, "%s op application/json media type should carry a schema", rt.action)
-
-			assert.Equalf(t, v2CreateBodySchemaRef, media.Schema.Ref,
-				"%s op body schema should $ref the published v2 input component", rt.action)
-			assert.Emptyf(t, media.Schema.Format,
-				"%s op body schema must not stay the opaque binary RawBody schema", rt.action)
 		})
 	}
 }
@@ -1014,8 +998,10 @@ func newV2DocForTest() huma.API {
 // TestPublishV2CreateBodySchema_DegradesToNoOp asserts the publisher leaves the contract
 // alone instead of panicking when there is nothing to attach a body schema to: a spec-disabled
 // API, a document missing its component registry, a document carrying no create ops, a path item
-// whose POST is nil, and a create op whose body is not JSON. None of them may publish the
-// component either — it is registered only when it is actually referenced.
+// whose POST is nil, a create op whose body is not JSON, and a document carrying only SOME of the
+// create ops. None of them may publish the component either — it is registered only when every
+// create action has been found, so a partial match answers like the empty one instead of leaving
+// three of four ops typed and the shortfall invisible.
 func TestPublishV2CreateBodySchema_DegradesToNoOp(t *testing.T) {
 	t.Parallel()
 
@@ -1076,6 +1062,23 @@ func TestPublishV2CreateBodySchema_DegradesToNoOp(t *testing.T) {
 				return api
 			},
 		},
+		{
+			// All the create ops but one. A publisher that typed whatever it happened to find
+			// would report success here while one op still advertised an opaque byte stream.
+			name: "not every create op registered",
+			api: func() huma.API {
+				api := newV2DocForTest()
+
+				paths := make(map[string]*huma.PathItem, len(v2CreateActions)-1)
+				for _, action := range v2CreateActions[1:] {
+					paths[v2CreateBasePath+action.suffix] = postWithJSONBodyForTest(action.operationID, v2UnrewrittenBodyRef)
+				}
+
+				api.OpenAPI().Paths = paths
+
+				return api
+			},
+		},
 	}
 
 	for _, tc := range tests {
@@ -1098,38 +1101,91 @@ func TestPublishV2CreateBodySchema_DegradesToNoOp(t *testing.T) {
 	}
 }
 
-// TestPublishV2CreateBodySchema_LeavesForeignOpsAlone asserts an op that is not a v2 create
-// action keeps its own request-body schema, using a v1 create operation ID as the foreign one.
-// The publisher walks the whole document rather than a known set of paths, so nothing but the
-// operation ID separates a v2 create op from any other op carrying a JSON body.
+// v2ForeignOperationID is a v1 create operation ID, standing in for an op the publisher must leave
+// alone. It is checked against the committed v1 dump rather than only spelled here: renaming the v1
+// op would otherwise leave this test asserting over an ID no contract carries, still green while it
+// no longer represents the collision it is named for.
+const v2ForeignOperationID = "createTransactionJSON"
+
+// v2UnrewrittenBodyRef is the body schema every op in the fixture below starts out with. It names a
+// component neither contract publishes, so "left alone" and "rewritten" cannot be confused: a
+// skipped op still carries this ref, a rewritten one carries v2CreateBodySchemaRef.
+const v2UnrewrittenBodyRef = "#/components/schemas/UnrewrittenRequestBody"
+
+// postWithJSONBodyForTest spells one path item: a POST advertising a JSON request body under ref.
+func postWithJSONBodyForTest(operationID, ref string) *huma.PathItem {
+	return &huma.PathItem{Post: &huma.Operation{
+		OperationID: operationID,
+		RequestBody: &huma.RequestBody{
+			Content: map[string]*huma.MediaType{
+				"application/json": {Schema: &huma.Schema{Ref: ref}},
+			},
+		},
+	}}
+}
+
+// TestPublishV2CreateBodySchema_LeavesForeignOpsAlone asserts the operation ID is the ONLY thing
+// separating a v2 create op from any other op carrying a JSON body: the publisher walks every path
+// in the document, so a v1 create op sitting alongside the v2 ones comes through untouched while
+// the v2 ops take the published component. Both outcomes are read off ONE run of the publisher, so
+// the discriminator is stated as a single property rather than as two separate tests.
 func TestPublishV2CreateBodySchema_LeavesForeignOpsAlone(t *testing.T) {
 	t.Parallel()
 
-	const (
-		foreignPath      = "/transactions/json"
-		foreignSchemaRef = "#/components/schemas/CreateTransactionInput"
-	)
+	const foreignPath = "/transactions/json"
+
+	require.Containsf(t, collectSpecOperationIDs(t, specPath), v2ForeignOperationID,
+		"%s must be a real v1 operation ID, or the foreign op is fictional and covers no collision",
+		v2ForeignOperationID)
 
 	api := newV2DocForTest()
-	api.OpenAPI().Paths = map[string]*huma.PathItem{
-		foreignPath: {Post: &huma.Operation{
-			OperationID: "createTransactionJSON",
-			RequestBody: &huma.RequestBody{
-				Content: map[string]*huma.MediaType{
-					"application/json": {Schema: &huma.Schema{Ref: foreignSchemaRef}},
-				},
-			},
-		}},
+
+	paths := map[string]*huma.PathItem{
+		foreignPath: postWithJSONBodyForTest(v2ForeignOperationID, v2UnrewrittenBodyRef),
 	}
+
+	// EVERY create action is present: the publisher rewrites only once it has found them all, so a
+	// fixture carrying fewer would exercise the no-op path instead of the discriminator.
+	for _, action := range v2CreateActions {
+		paths[v2CreateBasePath+action.suffix] = postWithJSONBodyForTest(action.operationID, v2UnrewrittenBodyRef)
+	}
+
+	api.OpenAPI().Paths = paths
 
 	publishV2CreateBodySchema(api)
 
-	media, ok := api.OpenAPI().Paths[foreignPath].Post.RequestBody.Content["application/json"]
-	require.True(t, ok, "the foreign op should keep its application/json media type")
-	require.NotNil(t, media.Schema, "the foreign op should keep its body schema")
+	require.Containsf(t, api.OpenAPI().Components.Schemas.Map(), v2CreateBodySchemaName,
+		"a document carrying every create action should publish the %s component", v2CreateBodySchemaName)
 
-	assert.Equal(t, foreignSchemaRef, media.Schema.Ref,
-		"an op outside v2CreateActions must keep the body schema its own registration gave it")
-	assert.NotContains(t, api.OpenAPI().Components.Schemas.Map(), v2CreateBodySchemaName,
-		"the v2 create-body component must not be published for an op that does not reference it")
+	tests := []struct {
+		name    string
+		opPath  string
+		wantRef string
+	}{
+		{
+			name:    "op outside v2CreateActions keeps its own body schema",
+			opPath:  foreignPath,
+			wantRef: v2UnrewrittenBodyRef,
+		},
+		{
+			name:    "create op takes the published v2 input component",
+			opPath:  v2CreateBasePath + v2CreateActions[0].suffix,
+			wantRef: v2CreateBodySchemaRef,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			pathItem, ok := api.OpenAPI().Paths[tt.opPath]
+			require.Truef(t, ok, "the document should still carry the op path %q", tt.opPath)
+
+			media, ok := pathItem.Post.RequestBody.Content["application/json"]
+			require.Truef(t, ok, "%s should keep its application/json media type", tt.opPath)
+			require.NotNilf(t, media.Schema, "%s should keep a body schema", tt.opPath)
+
+			assert.Equalf(t, tt.wantRef, media.Schema.Ref, "the body schema of %s", tt.opPath)
+		})
+	}
 }

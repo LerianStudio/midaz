@@ -216,20 +216,28 @@ const v2LegDescription = "One leg of a transaction side. Fill EXACTLY ONE value 
 // It must run AFTER every huma.Register in this function, because registration is what
 // creates op.RequestBody.
 //
-// The create ops are identified by OPERATION ID, over a scan of the whole document. The path key
-// a document files an op under carries whatever prefix the API was assembled with, and that prefix
-// is not readable from the API value — huma.Group holds it privately and exposes no accessor — so
-// a path key is not something this function can construct. An operation ID is prefix-independent:
-// huma.PrefixModifier rewrites the ID only for a group declaring more than one prefix, and each
-// contract here is assembled from a single prefix. Scanning every path is safe because the v1 and
-// v2 operation IDs are disjoint sets, so no v1 op can answer to a v2 create ID by accident.
+// The create ops are identified by OPERATION ID, over a scan of the whole document. A path key
+// carries whatever prefix the API was assembled with and is not readable back off the API value, so
+// a path key is not something this function can spell; an operation ID does not depend on the
+// prefix. Within one document an ID identifies at most one operation, and that is ENFORCED rather
+// than assumed: huma.OpenAPI.AddOperation panics with "duplicate operation ID" when an ID already
+// present in the document is added again, so a colliding op fails the boot instead of being
+// silently mis-matched here. Scanning every path is therefore safe, and
+// TestContractOperationIDsAreUniqueAcrossVersions holds the v1 and v2 ID sets disjoint across the
+// two published contracts, so no v1 op can answer to a v2 create ID.
 //
 // Rewriting media.Schema changes DOCUMENTATION only: the create ops declare SkipValidateBody
 // with a RawBody field, so Huma validates nothing against the schema this publishes and the
 // request body is decoded imperatively either way.
 //
-// Nil-guards the document and every op it touches so a spec-disabled build, or a create
-// action that stops registering, degrades to a no-op instead of panicking.
+// Nil-guards the document so a spec-disabled build degrades to a no-op instead of panicking, and
+// the rewrite is ALL-OR-NOTHING: it runs only once the scan has found the JSON body of EVERY v2
+// create action. Typing three of four ops would publish a contract that reads as correct while one
+// op still advertises an opaque byte stream — a partial match indistinguishable from success, which
+// is the silent half-failure identifying ops by ID exists to rule out. Publishing nothing instead
+// surfaces the same defect as a uniform regression across every create op and both prose
+// components. Only an edit to this file can produce a partial match: the ops are registered by
+// walking the same list this scan matches against.
 func publishV2CreateBodySchema(api huma.API) {
 	if api == nil {
 		return
@@ -245,12 +253,12 @@ func publishV2CreateBodySchema(api huma.API) {
 		createOperationIDs[action.operationID] = struct{}{}
 	}
 
-	inputType := reflect.TypeFor[mtransaction.CreateTransactionV2Input]()
-
-	var bodyRef string
+	// Keyed by operation ID so the count is one entry per create ACTION: a document that filed
+	// the same op under two path keys cannot inflate it into a full match.
+	createBodies := make(map[string]*huma.MediaType, len(v2CreateActions))
 
 	for _, pathItem := range oapi.Paths {
-		if pathItem == nil || pathItem.Post == nil || pathItem.Post.RequestBody == nil {
+		if pathItem.Post == nil || pathItem.Post.RequestBody == nil {
 			continue
 		}
 
@@ -258,23 +266,24 @@ func publishV2CreateBodySchema(api huma.API) {
 			continue
 		}
 
-		media, ok := pathItem.Post.RequestBody.Content[v2CreateBodyContentType]
-		if !ok || media == nil {
-			continue
+		if media, ok := pathItem.Post.RequestBody.Content[v2CreateBodyContentType]; ok {
+			createBodies[pathItem.Post.OperationID] = media
 		}
-
-		// Registering is idempotent for a given type; each call hands back a fresh $ref
-		// so the ops never share one schema value.
-		media.Schema = oapi.Components.Schemas.Schema(inputType, true, "")
-		bodyRef = media.Schema.Ref
 	}
 
-	// Empty when no create op referenced the type, in which case nothing was registered
-	// and there is no component to describe.
-	if bodyRef == "" {
+	if len(createBodies) != len(v2CreateActions) {
 		return
 	}
 
+	inputType := reflect.TypeFor[mtransaction.CreateTransactionV2Input]()
+
+	// Registering is idempotent for a given type; each call hands back a fresh $ref
+	// so the ops never share one schema value.
+	for _, media := range createBodies {
+		media.Schema = oapi.Components.Schemas.Schema(inputType, true, "")
+	}
+
+	bodyRef := oapi.Components.Schemas.Schema(inputType, true, "").Ref
 	describeV2Component(oapi, bodyRef, v2CreateBodyDescription)
 
 	legRef := oapi.Components.Schemas.Schema(reflect.TypeFor[mtransaction.V2LegInput](), true, "").Ref
