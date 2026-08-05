@@ -56,9 +56,9 @@ import (
 // The lifecycle ops are thin v2 shells over the SAME transport-neutral core the v1 shells
 // call — no idempotency HEADERS, since they carry no body or headers. Auth is the Fiber
 // guard chain attached in RegisterTransactionV2RoutesToApp BEFORE this terminal, not here —
-// the per-op Security metadata is SPEC-ONLY. Paths are GROUP-RELATIVE (the /v2 prefix rides
-// the OpenAPI servers entry). Once every op is registered, publishV2CreateBodySchema gives
-// the create ops a typed request-body schema.
+// the per-op Security metadata is SPEC-ONLY. Every path is declared GROUP-RELATIVE: it names
+// no /v2 segment. Once every op is registered, publishV2CreateBodySchema gives the create ops
+// a typed request-body schema.
 func RegisterTransactionV2Routes(api huma.API, h *TransactionHandler) {
 	const transactionsIDBasePath = "/organizations/{organization_id}/ledgers/{ledger_id}/transactions/{transaction_id}"
 
@@ -110,13 +110,13 @@ func RegisterTransactionV2Routes(api huma.API, h *TransactionHandler) {
 		DefaultStatus: http.StatusCreated, // bodiless lifecycle op — no SkipValidateBody, mirroring v1.
 	}, h.RevertTransactionV2Huma)
 
-	publishV2CreateBodySchema(api, v2CreateBasePath)
+	publishV2CreateBodySchema(api)
 }
 
 // v2CreateBasePath is the collection the v2 create actions hang off, group-relative to /v2.
-// It names no organization and no ledger, so the Huma contract and the Fiber guard chain spell
-// it identically and both read it from HERE — the two sides of the create surface have one
-// spelling between them, not two that have to be kept equal.
+// It names no organization and no ledger, so the path each op registers with Huma and the path
+// the Fiber guard chain mounts are spelled from HERE — the two sides of the create surface have
+// one spelling between them, not two that have to be kept equal.
 const v2CreateBasePath = "/transactions"
 
 // v2CreateBodyContentType is the media type the v2 create ops accept, matching the
@@ -216,9 +216,21 @@ const v2LegDescription = "One leg of a transaction side. Fill EXACTLY ONE value 
 // It must run AFTER every huma.Register in this function, because registration is what
 // creates op.RequestBody.
 //
+// The create ops are identified by OPERATION ID, over a scan of the whole document. The path key
+// a document files an op under carries whatever prefix the API was assembled with, and that prefix
+// is not readable from the API value — huma.Group holds it privately and exposes no accessor — so
+// a path key is not something this function can construct. An operation ID is prefix-independent:
+// huma.PrefixModifier rewrites the ID only for a group declaring more than one prefix, and each
+// contract here is assembled from a single prefix. Scanning every path is safe because the v1 and
+// v2 operation IDs are disjoint sets, so no v1 op can answer to a v2 create ID by accident.
+//
+// Rewriting media.Schema changes DOCUMENTATION only: the create ops declare SkipValidateBody
+// with a RawBody field, so Huma validates nothing against the schema this publishes and the
+// request body is decoded imperatively either way.
+//
 // Nil-guards the document and every op it touches so a spec-disabled build, or a create
 // action that stops registering, degrades to a no-op instead of panicking.
-func publishV2CreateBodySchema(api huma.API, basePath string) {
+func publishV2CreateBodySchema(api huma.API) {
 	if api == nil {
 		return
 	}
@@ -228,13 +240,21 @@ func publishV2CreateBodySchema(api huma.API, basePath string) {
 		return
 	}
 
+	createOperationIDs := make(map[string]struct{}, len(v2CreateActions))
+	for _, action := range v2CreateActions {
+		createOperationIDs[action.operationID] = struct{}{}
+	}
+
 	inputType := reflect.TypeFor[mtransaction.CreateTransactionV2Input]()
 
 	var bodyRef string
 
-	for _, action := range v2CreateActions {
-		pathItem, ok := oapi.Paths[basePath+action.suffix]
-		if !ok || pathItem.Post == nil || pathItem.Post.RequestBody == nil {
+	for _, pathItem := range oapi.Paths {
+		if pathItem == nil || pathItem.Post == nil || pathItem.Post.RequestBody == nil {
+			continue
+		}
+
+		if _, ok := createOperationIDs[pathItem.Post.OperationID]; !ok {
 			continue
 		}
 
