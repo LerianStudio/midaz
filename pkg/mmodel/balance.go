@@ -388,6 +388,12 @@ type CreateBalanceInput struct {
 	// maxLength: 50
 	AccountType string
 
+	// DefaultDirection is the account type's configured default balance
+	// direction ("credit" or "debit"), resolved by the caller. Empty means
+	// the type has no configured default; the direction then falls back to
+	// the account-type-implied default (external -> debit, others -> credit).
+	DefaultDirection string
+
 	// Whether the account should be allowed to send funds from this balance
 	// example: true
 	AllowSending bool

@@ -24,6 +24,8 @@ type AccountType struct {
 	Description string `json:"description,omitempty" example:"Assets that are expected to be converted to cash within one year"`
 	// A unique key value identifier for the account type.
 	KeyValue string `json:"keyValue,omitempty" example:"current_assets"`
+	// The default operation direction (credit or debit) for accounts of this type. Empty means no default.
+	DefaultDirection string `json:"defaultDirection,omitempty" example:"credit"`
 	// The timestamp when the account type was created.
 	CreatedAt time.Time `json:"createdAt" example:"2021-01-01T00:00:00Z" format:"date-time"`
 	// The timestamp when the account type was last updated.
@@ -43,6 +45,8 @@ type CreateAccountTypeInput struct {
 	Description string `json:"description,omitempty" validate:"max=500" example:"Assets that are expected to be converted to cash within one year"`
 	// A unique key value identifier for the account type.
 	KeyValue string `json:"keyValue" validate:"required,max=50,invalidaccounttype" example:"current_assets"`
+	// The default operation direction (credit or debit) for accounts of this type.
+	DefaultDirection *string `json:"defaultDirection,omitempty" validate:"omitempty,accounttypedirection" example:"credit"`
 	// Custom key-value pairs for extending the account type information
 	// required: false
 	// example: {"department": "Treasury", "purpose": "Operating Expenses", "region": "Global"}
@@ -55,6 +59,8 @@ type UpdateAccountTypeInput struct {
 	Name string `json:"name,omitempty" validate:"max=100" example:"Current Assets"`
 	// Detailed description of the account type.
 	Description string `json:"description,omitempty" validate:"max=500" example:"Assets that are expected to be converted to cash within one year"`
+	// The default operation direction (credit or debit) for accounts of this type.
+	DefaultDirection *string `json:"defaultDirection,omitempty" validate:"omitempty,accounttypedirection" example:"credit"`
 	// Custom key-value pairs for extending the account type information
 	// required: false
 	// example: {"department": "Treasury", "purpose": "Operating Expenses", "region": "Global"}

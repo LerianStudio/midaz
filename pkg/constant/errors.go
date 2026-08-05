@@ -475,6 +475,8 @@ var (
 	ErrReadyzRedisPingFailed                  = errors.New("0494")
 	ErrReadyzTenantManagerUnavailable         = errors.New("0495")
 	ErrReadyzStreamingUnhealthy               = errors.New("0496")
+	// 0499 is intentionally skipped: it is the last slot of the reserved Tracer platform block (0328-0499); 0500 starts fresh beyond all documented blocks.
+	ErrInvalidAccountTypeDirection = errors.New("0500")
 )
 
 // List of CRM domain errors.

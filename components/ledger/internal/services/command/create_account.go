@@ -211,16 +211,17 @@ func (uc *UseCase) CreateAccount(ctx context.Context, organizationID, ledgerID u
 	}
 
 	balanceInput := mmodel.CreateBalanceInput{
-		RequestID:      requestID,
-		OrganizationID: organizationID,
-		LedgerID:       ledgerID,
-		AccountID:      accountID,
-		Alias:          *alias,
-		Key:            constant.DefaultBalanceKey,
-		AssetCode:      cai.AssetCode,
-		AccountType:    cai.Type,
-		AllowSending:   true,
-		AllowReceiving: true,
+		RequestID:        requestID,
+		OrganizationID:   organizationID,
+		LedgerID:         ledgerID,
+		AccountID:        accountID,
+		Alias:            *alias,
+		Key:              constant.DefaultBalanceKey,
+		AssetCode:        cai.AssetCode,
+		AccountType:      cai.Type,
+		DefaultDirection: uc.resolveDefaultBalanceDirectionForType(ctx, organizationID, ledgerID, cai.Type, isExternal),
+		AllowSending:     true,
+		AllowReceiving:   true,
 	}
 
 	_, err = uc.CreateDefaultBalance(ctx, balanceInput)

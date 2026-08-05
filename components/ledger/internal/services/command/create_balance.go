@@ -22,9 +22,11 @@ import (
 
 // CreateDefaultBalance creates the default balance for a newly-created
 // account or asset. The balance key is hardcoded to
-// constant.DefaultBalanceKey and the direction is derived from the account
-// type: external accounts get constant.DirectionDebit, all others get
-// constant.DirectionCredit.
+// constant.DefaultBalanceKey and the direction is resolved by precedence:
+// the account type's default (input.DefaultDirection, when set) wins,
+// otherwise the account-type-implied default applies (external ->
+// constant.DirectionDebit, all others -> constant.DirectionCredit). The
+// default path has no explicit caller override.
 //
 // Additional (non-default) balances are created via CreateAdditionalBalance,
 // which is exposed through the POST /balances HTTP endpoint and applies
@@ -93,7 +95,7 @@ func (uc *UseCase) CreateDefaultBalance(ctx context.Context, input mmodel.Create
 		AccountType:    input.AccountType,
 		AllowSending:   input.AllowSending,
 		AllowReceiving: input.AllowReceiving,
-		Direction:      defaultBalanceDirection(input.AccountType),
+		Direction:      resolveBalanceDirection("", input.DefaultDirection, input.AccountType),
 		CreatedAt:      now,
 		UpdatedAt:      now,
 	}

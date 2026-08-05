@@ -14352,6 +14352,12 @@
             "format": "date-time",
             "type": "string"
           },
+          "defaultDirection": {
+            "examples": [
+              "credit"
+            ],
+            "type": "string"
+          },
           "deletedAt": {
             "examples": [
               "2021-01-01T00:00:00Z"
