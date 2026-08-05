@@ -219,12 +219,9 @@ const v2LegDescription = "One leg of a transaction side. Fill EXACTLY ONE value 
 // The create ops are identified by OPERATION ID, over a scan of the whole document. A path key
 // carries whatever prefix the API was assembled with and is not readable back off the API value, so
 // a path key is not something this function can spell; an operation ID does not depend on the
-// prefix. Within one document an ID identifies at most one operation, and that is ENFORCED rather
-// than assumed: huma.OpenAPI.AddOperation panics with "duplicate operation ID" when an ID already
-// present in the document is added again, so a colliding op fails the boot instead of being
-// silently mis-matched here. Scanning every path is therefore safe, and
-// TestContractOperationIDsAreUniqueAcrossVersions holds the v1 and v2 ID sets disjoint across the
-// two published contracts, so no v1 op can answer to a v2 create ID.
+// prefix. Scanning every path is safe because of two invariants: an operation ID names at most one
+// operation within a document, and the v1 and v2 ID sets are held disjoint across the two published
+// contracts by the contract tests — so no other op can answer to a v2 create ID.
 //
 // Rewriting media.Schema changes DOCUMENTATION only: the create ops declare SkipValidateBody
 // with a RawBody field, so Huma validates nothing against the schema this publishes and the
@@ -233,11 +230,11 @@ const v2LegDescription = "One leg of a transaction side. Fill EXACTLY ONE value 
 // Nil-guards the document so a spec-disabled build degrades to a no-op instead of panicking, and
 // the rewrite is ALL-OR-NOTHING: it runs only once the scan has found the JSON body of EVERY v2
 // create action. Typing three of four ops would publish a contract that reads as correct while one
-// op still advertises an opaque byte stream — a partial match indistinguishable from success, which
-// is the silent half-failure identifying ops by ID exists to rule out. Publishing nothing instead
-// surfaces the same defect as a uniform regression across every create op and both prose
-// components. Only an edit to this file can produce a partial match: the ops are registered by
-// walking the same list this scan matches against.
+// op still advertises an opaque byte stream — a partial match that is easy to miss, which is the
+// silent half-failure identifying ops by ID exists to rule out. Publishing nothing instead surfaces
+// the same defect as a uniform regression across every create op and both prose components. The ops
+// are registered by walking the same list this scan matches against, so a partial match means
+// registration and this scan have fallen out of step.
 func publishV2CreateBodySchema(api huma.API) {
 	if api == nil {
 		return
@@ -278,12 +275,15 @@ func publishV2CreateBodySchema(api huma.API) {
 	inputType := reflect.TypeFor[mtransaction.CreateTransactionV2Input]()
 
 	// Registering is idempotent for a given type; each call hands back a fresh $ref
-	// so the ops never share one schema value.
+	// so the ops never share one schema value. Every one of them names the same component, so
+	// the last is the ref the description is stamped through.
+	var bodyRef string
+
 	for _, media := range createBodies {
 		media.Schema = oapi.Components.Schemas.Schema(inputType, true, "")
+		bodyRef = media.Schema.Ref
 	}
 
-	bodyRef := oapi.Components.Schemas.Schema(inputType, true, "").Ref
 	describeV2Component(oapi, bodyRef, v2CreateBodyDescription)
 
 	legRef := oapi.Components.Schemas.Schema(reflect.TypeFor[mtransaction.V2LegInput](), true, "").Ref

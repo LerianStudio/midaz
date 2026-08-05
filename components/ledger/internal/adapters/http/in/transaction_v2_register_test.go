@@ -516,7 +516,7 @@ func TestRegisterTransactionV2Routes_PublishesCreateBodySchema(t *testing.T) {
 
 					require.NotNilf(t, pathItem.Post.RequestBody, "%s op should advertise a requestBody", rt.action)
 
-					media, ok := pathItem.Post.RequestBody.Content["application/json"]
+					media, ok := pathItem.Post.RequestBody.Content[v2CreateBodyContentType]
 					require.Truef(t, ok, "%s op requestBody should carry an application/json media type", rt.action)
 					require.NotNilf(t, media, "%s op application/json media type should not be nil", rt.action)
 					require.NotNilf(t, media.Schema, "%s op application/json media type should carry a schema", rt.action)
@@ -1113,12 +1113,14 @@ const v2ForeignOperationID = "createTransactionJSON"
 const v2UnrewrittenBodyRef = "#/components/schemas/UnrewrittenRequestBody"
 
 // postWithJSONBodyForTest spells one path item: a POST advertising a JSON request body under ref.
+// The media type is the one the publisher scans for, so a fixture cannot file its body under a key
+// the publisher never reads.
 func postWithJSONBodyForTest(operationID, ref string) *huma.PathItem {
 	return &huma.PathItem{Post: &huma.Operation{
 		OperationID: operationID,
 		RequestBody: &huma.RequestBody{
 			Content: map[string]*huma.MediaType{
-				"application/json": {Schema: &huma.Schema{Ref: ref}},
+				v2CreateBodyContentType: {Schema: &huma.Schema{Ref: ref}},
 			},
 		},
 	}}
@@ -1137,6 +1139,12 @@ func TestPublishV2CreateBodySchema_LeavesForeignOpsAlone(t *testing.T) {
 	require.Containsf(t, collectSpecOperationIDs(t, specPath), v2ForeignOperationID,
 		"%s must be a real v1 operation ID, or the foreign op is fictional and covers no collision",
 		v2ForeignOperationID)
+
+	// The two refs are the whole discriminator: were they equal, both rows below would expect
+	// the ref every op ends up with and neither outcome would say anything.
+	require.NotEqualf(t, v2CreateBodySchemaRef, v2UnrewrittenBodyRef,
+		"the unrewritten sentinel ref must differ from the published ref %s, or left-alone and "+
+			"rewritten are the same outcome", v2CreateBodySchemaRef)
 
 	api := newV2DocForTest()
 
@@ -1181,7 +1189,7 @@ func TestPublishV2CreateBodySchema_LeavesForeignOpsAlone(t *testing.T) {
 			pathItem, ok := api.OpenAPI().Paths[tt.opPath]
 			require.Truef(t, ok, "the document should still carry the op path %q", tt.opPath)
 
-			media, ok := pathItem.Post.RequestBody.Content["application/json"]
+			media, ok := pathItem.Post.RequestBody.Content[v2CreateBodyContentType]
 			require.Truef(t, ok, "%s should keep its application/json media type", tt.opPath)
 			require.NotNilf(t, media.Schema, "%s should keep a body schema", tt.opPath)
 
