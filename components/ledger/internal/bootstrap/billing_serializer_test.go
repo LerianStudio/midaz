@@ -39,51 +39,88 @@ func (c *captureLogger) Enabled(_ libLog.Level) bool          { return true }
 func (c *captureLogger) Sync(_ context.Context) error         { return nil }
 
 func (c *captureLogger) warnCount() int {
+	return len(c.warnMessages())
+}
+
+func (c *captureLogger) warnMessages() []string {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
-	n := 0
+	var msgs []string
+
 	for _, e := range c.entries {
 		if e.level == libLog.LevelWarn {
-			n++
+			msgs = append(msgs, e.msg)
 		}
 	}
 
-	return n
+	return msgs
 }
 
-// TestBuildBillingSerializer_DisabledShortCircuitsToNil asserts that when the
-// streaming master switch is off the builder returns a nil serializer without
-// contacting the registry, propagating no error and never panicking.
-func TestBuildBillingSerializer_DisabledShortCircuitsToNil(t *testing.T) {
+// TestBuildBillingSerializer exercises the network-free decision core across its
+// graceful-degradation branches: every branch yields a nil serializer, never a
+// propagated error or a panic. The disabled case additionally proves the builder
+// neither warns nor contacts the registry (wantWarnCount 0); the empty-URL case
+// proves the fail-closed registry-client error is swallowed into a single, named
+// WARN; the nil-logger case proves the graceful branch tolerates a nil logger.
+func TestBuildBillingSerializer(t *testing.T) {
 	t.Parallel()
 
-	got := buildBillingSerializer(context.Background(), libStreaming.Config{Enabled: false}, nil)
-	if got != nil {
-		t.Fatalf("expected nil serializer when streaming disabled, got %v", got)
+	tests := []struct {
+		name          string
+		cfg           libStreaming.Config
+		logger        libLog.Logger
+		wantWarnCount int
+		wantWarnMsg   string
+	}{
+		{
+			name:          "disabled short-circuits to nil without registry contact",
+			cfg:           libStreaming.Config{Enabled: false},
+			logger:        &captureLogger{},
+			wantWarnCount: 0,
+		},
+		{
+			name:          "empty registry url degrades to nil with one warn",
+			cfg:           libStreaming.Config{Enabled: true, SchemaRegistryURL: ""},
+			logger:        &captureLogger{},
+			wantWarnCount: 1,
+			wantWarnMsg:   "Billing serializer disabled",
+		},
+		{
+			name:   "nil logger does not panic on graceful branch",
+			cfg:    libStreaming.Config{Enabled: true, SchemaRegistryURL: ""},
+			logger: nil,
+		},
 	}
-}
 
-// TestBuildBillingSerializer_EmptyRegistryURLGracefullyNil asserts that an
-// enabled config with no Schema Registry URL degrades gracefully: the fail-closed
-// registry-client constructor error is swallowed into a nil serializer plus a
-// single WARN, never a propagated error or a panic.
-func TestBuildBillingSerializer_EmptyRegistryURLGracefullyNil(t *testing.T) {
-	t.Parallel()
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 
-	logger := &captureLogger{}
+			got := buildBillingSerializer(context.Background(), tt.cfg, tt.logger)
+			if got != nil {
+				t.Fatalf("expected nil serializer, got %v", got)
+			}
 
-	got := buildBillingSerializer(
-		context.Background(),
-		libStreaming.Config{Enabled: true, SchemaRegistryURL: ""},
-		logger,
-	)
-	if got != nil {
-		t.Fatalf("expected nil serializer when registry URL empty, got %v", got)
-	}
+			cl, ok := tt.logger.(*captureLogger)
+			if !ok {
+				// nil-logger case: the nil-serializer assertion above already
+				// proves no panic on the graceful branch.
+				return
+			}
 
-	if logger.warnCount() != 1 {
-		t.Fatalf("expected exactly one WARN on the graceful branch, got %d", logger.warnCount())
+			if cl.warnCount() != tt.wantWarnCount {
+				t.Fatalf("expected %d WARN(s), got %d", tt.wantWarnCount, cl.warnCount())
+			}
+
+			if tt.wantWarnMsg != "" {
+				msgs := cl.warnMessages()
+				if len(msgs) != 1 || msgs[0] != tt.wantWarnMsg {
+					t.Fatalf("expected single WARN %q, got %v", tt.wantWarnMsg, msgs)
+				}
+			}
+		})
 	}
 }
 
@@ -97,20 +134,5 @@ func TestBuildBillingSerializerFromEnv_DisabledReturnsNil(t *testing.T) {
 	got := buildBillingSerializerFromEnv(context.Background(), nil)
 	if got != nil {
 		t.Fatalf("expected nil serializer when streaming disabled via env, got %v", got)
-	}
-}
-
-// TestBuildBillingSerializer_NilLoggerNoPanic asserts the builder tolerates a
-// nil logger on its graceful branches without dereferencing it.
-func TestBuildBillingSerializer_NilLoggerNoPanic(t *testing.T) {
-	t.Parallel()
-
-	got := buildBillingSerializer(
-		context.Background(),
-		libStreaming.Config{Enabled: true, SchemaRegistryURL: ""},
-		nil,
-	)
-	if got != nil {
-		t.Fatalf("expected nil serializer, got %v", got)
 	}
 }

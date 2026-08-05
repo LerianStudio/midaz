@@ -855,14 +855,12 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 		MetricsFactory: metricsFactory,
 	}
 
-	// Nil-guard the billing serializer assignment: buildBillingSerializerFromEnv
-	// returns a concrete *billing.Serializer, and a nil one assigned directly to
-	// the interface field would become a non-nil typed-nil interface. Assigning
-	// only when non-nil keeps commandUseCase.BillingSerializer == nil (the
-	// "billing disabled" signal) intact.
-	if billingSerializer != nil {
-		commandUseCase.BillingSerializer = billingSerializer
-	}
+	// Nil-guard the billing serializer assignment via the tested UseCase setter:
+	// buildBillingSerializerFromEnv returns a concrete *billing.Serializer, and a
+	// nil one assigned directly to the interface field would become a non-nil
+	// typed-nil interface. SetBillingSerializer keeps that guard in one place, so
+	// commandUseCase.BillingSerializer stays nil (the "billing disabled" signal).
+	commandUseCase.SetBillingSerializer(billingSerializer)
 
 	queryUseCase := &query.UseCase{
 		// Onboarding domain

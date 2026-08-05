@@ -40,6 +40,17 @@ type billingSerializer interface {
 
 var _ billingSerializer = (*billing.Serializer)(nil)
 
+// SetBillingSerializer assigns the billing serializer through the typed-nil
+// guard. It exists so the nil-interface trap — a nil *billing.Serializer
+// assigned straight to the billingSerializer interface field compares NON-nil —
+// is defended in ONE tested place shared by bootstrap and any future caller.
+// A nil pointer leaves BillingSerializer as a nil interface ("billing disabled").
+func (uc *UseCase) SetBillingSerializer(s *billing.Serializer) {
+	if s != nil {
+		uc.BillingSerializer = s
+	}
+}
+
 // UseCase is a struct that aggregates all repositories for both onboarding and transaction
 // domains, providing simplified access in use case implementations.
 type UseCase struct {

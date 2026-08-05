@@ -19,30 +19,50 @@ func TestBillingSerializerSeam_ConcreteSatisfies(t *testing.T) {
 	var _ billingSerializer = (*billing.Serializer)(nil)
 }
 
-// TestBillingSerializer_NilGuardKeepsFieldNil is the typed-nil trap guard. A
-// disabled build yields a nil *billing.Serializer; the nil-guarded injection
-// (mirroring bootstrap config.go) must leave UseCase.BillingSerializer == nil,
-// and the test also documents the trap the guard exists to prevent.
-func TestBillingSerializer_NilGuardKeepsFieldNil(t *testing.T) {
+// TestUseCase_SetBillingSerializer exercises the REAL production guard
+// (UseCase.SetBillingSerializer), the single place the typed-nil-interface trap
+// is defended. A nil *billing.Serializer must leave BillingSerializer == nil
+// (dropping the guard would assign a typed-nil pointer that compares NON-nil, so
+// this case FAILS on a regression); a non-nil pointer must be assigned.
+func TestUseCase_SetBillingSerializer(t *testing.T) {
 	t.Parallel()
 
-	var disabled *billing.Serializer // nil, as returned on the disabled branch
-
-	uc := &UseCase{}
-
-	// Correct guarded injection: only assign when non-nil.
-	if disabled != nil {
-		uc.BillingSerializer = disabled
+	tests := []struct {
+		name       string
+		serializer *billing.Serializer
+		wantNil    bool
+	}{
+		{
+			name:       "typed-nil pointer leaves field nil",
+			serializer: (*billing.Serializer)(nil),
+			wantNil:    true,
+		},
+		{
+			name:       "non-nil pointer is assigned",
+			serializer: &billing.Serializer{},
+			wantNil:    false,
+		},
 	}
 
-	if uc.BillingSerializer != nil {
-		t.Fatalf("expected BillingSerializer == nil when disabled, got a non-nil typed-nil interface")
-	}
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 
-	// Document the trap the guard protects against: a typed-nil pointer assigned
-	// straight to the interface compares NON-nil.
-	var trap billingSerializer = disabled
-	if trap == nil {
-		t.Fatalf("expected typed-nil *billing.Serializer assigned to interface to be non-nil")
+			uc := &UseCase{}
+			uc.SetBillingSerializer(tt.serializer)
+
+			if tt.wantNil {
+				if uc.BillingSerializer != nil {
+					t.Fatalf("expected BillingSerializer == nil, got a non-nil typed-nil interface")
+				}
+
+				return
+			}
+
+			if uc.BillingSerializer == nil {
+				t.Fatalf("expected BillingSerializer to be assigned, got nil")
+			}
+		})
 	}
 }
