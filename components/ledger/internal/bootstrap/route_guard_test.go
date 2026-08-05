@@ -28,10 +28,10 @@ const (
 	probeSegment = "route-guard-probe"
 )
 
-// concreteRouteURL turns a Fiber raw path into a requestable URL. Id-shaped parameters get
-// a UUID because the surface's UUID parsers reject anything else, and every other
-// parameter gets one opaque segment that is not a literal segment of any registered path,
-// so a substituted value can never make a URL match a route it was not derived from.
+// concreteRouteURL turns a Fiber raw path into a requestable URL. Id-shaped parameters get the
+// UUID-shaped substitute and every other parameter gets one opaque segment that is not a
+// literal segment of any registered path, so a substituted value can never make a URL match a
+// route it was not derived from.
 func concreteRouteURL(rawPath string) string {
 	segments := strings.Split(rawPath, "/")
 
@@ -56,16 +56,15 @@ func concreteRouteURL(rawPath string) string {
 // rawPathMatchesURL reports whether a Fiber raw path would match a concrete URL, treating
 // each ":name" segment as a wildcard over exactly one segment.
 //
-// It exists to police an attribution gap rather than to route anything: when two DIFFERENT
-// raw paths on one method both match the URL derived from one of them, the response to that
-// URL says nothing about which of the two was exercised, and a missing guard on the loser
-// could hide behind a 401 from the winner. TestFullSurfaceRoutes_RejectTokenlessRequests
-// fails loudly on any such pair instead of quietly probing one and reporting on both.
+// It exists to police an attribution gap rather than to route anything: when two DIFFERENT raw
+// paths on one method both match the URL derived from one of them, the response to that URL says
+// nothing about which of the two was exercised, and a missing guard on the loser could hide
+// behind a 401 from the winner.
 //
-// The surface registers no optional ("?") and no wildcard ("*", "+") parameters, so
-// segment-count equality plus literal equality is the entire matching rule. A path shape
-// that broke that assumption would have to be handled here before this function could be
-// trusted again.
+// It is correct only while every parameter spans exactly one segment: segment-count equality plus
+// literal equality is then the entire matching rule. Fiber's optional ("?"), plus ("+") and
+// wildcard ("*") forms span zero or many, so requireUnambiguousProbeURLs asserts the surface
+// registers none of them before consuming this function.
 func rawPathMatchesURL(rawPath, url string) bool {
 	pathSegments := strings.Split(rawPath, "/")
 	urlSegments := strings.Split(url, "/")
@@ -90,11 +89,18 @@ func rawPathMatchesURL(rawPath, url string) bool {
 // requireUnambiguousProbeURLs fails when a probe URL matches more than one registered raw
 // path on its own method, naming every colliding pair. See rawPathMatchesURL for why a
 // collision voids the attribution the guard assertions depend on.
+//
+// It first enforces that function's precondition: single-segment parameters only.
 func requireUnambiguousProbeURLs(t *testing.T, groups []routeGroup) {
 	t.Helper()
 
 	pathsByMethod := make(map[string][]string, len(groups))
+
 	for _, group := range groups {
+		require.Falsef(t, strings.ContainsAny(group.rows[0].path, "?+*"),
+			"%s carries an optional or multi-segment parameter, which rawPathMatchesURL treats as one mandatory segment: "+
+				"handle that form there before trusting this gate", group.display())
+
 		pathsByMethod[group.rows[0].method] = append(pathsByMethod[group.rows[0].method], group.rows[0].path)
 	}
 
@@ -124,17 +130,15 @@ func requireUnambiguousProbeURLs(t *testing.T, groups []routeGroup) {
 		strings.Join(collisions, "\n"))
 }
 
-// TestFullSurfaceRoutes_RejectTokenlessRequests proves every route the unified server
-// registers sits BEHIND the auth guard, by asserting BEHAVIOR: with auth enabled and no
-// credentials presented, the request must be refused rather than reach its terminal.
+// TestFullSurfaceRoutes_RejectTokenlessRequests asserts BEHAVIOR over the whole registered
+// surface: with auth enabled and no credentials presented, every route except the carved-out
+// public probes must be answered 401, and the harness post-auth observer must never have run —
+// so the refusal came from the FIRST handler on the chain, the authorizer, rather than from
+// something further down that also answers 401 on a missing token.
 //
-// This is the gate the route-table golden cannot be. The golden asserts shape, and two
-// shapes it cannot distinguish are exactly the dangerous ones: Fiber merges an adjacent
-// same-path registration into the row before it and the merged handler count is the sum in
-// either order, so a terminal registered AHEAD of its guard produces byte-identical rows
-// while serving unauthenticated; and the handler count is blind to which
-// namespace/resource/action the guard authorizes. A tokenless request is blind to none of
-// that — either the guard answers, or the terminal does.
+// It proves REFUSAL, never REACHABILITY. A globally broken chain that answered 401 to every
+// request on the surface would be green here, and so would a surface whose terminals are
+// unreachable for reasons that have nothing to do with auth.
 //
 // It extends the same pattern the transaction v2 surface uses in
 // components/ledger/internal/adapters/http/in, over the whole registered surface instead
@@ -147,7 +151,7 @@ func TestFullSurfaceRoutes_RejectTokenlessRequests(t *testing.T) {
 
 	server := buildFullSurfaceServer(t)
 
-	rows := collectRouteRows(server.app)
+	rows := collectRouteRows(t, server.app)
 	require.GreaterOrEqualf(t, len(rows), routeTableMinRows,
 		"route table holds %d rows, under the %d floor: the harness is not mounting the full surface, so passing here "+
 			"would mean nothing", len(rows), routeTableMinRows)
@@ -182,7 +186,14 @@ func TestFullSurfaceRoutes_RejectTokenlessRequests(t *testing.T) {
 		})
 	}
 
-	assert.Equalf(t, len(groups)-len(unguardedPublicRoutes), probed,
-		"every endpoint except the %d justified public probes must be probed; %d of %d were",
-		len(unguardedPublicRoutes), probed, len(groups))
+	// Counted against the PINNED carve-out size, not against len(unguardedPublicRoutes): both
+	// sides of that comparison move with the map, so adding a key would subtract one from each
+	// and disarm the very skip it authorizes.
+	assert.Equalf(t, len(groups)-unguardedPublicRouteCount, probed,
+		"%d of %d registered endpoints were probed, leaving more than the %d pinned carve-outs unprobed",
+		probed, len(groups), unguardedPublicRouteCount)
+
+	assert.Falsef(t, fullSurfaceMarkerRan.Load(),
+		"the harness post-auth observer ran during a credential-less request: a handler behind the authorizer answered, so "+
+			"the 401s above are not attributable to the auth guard")
 }

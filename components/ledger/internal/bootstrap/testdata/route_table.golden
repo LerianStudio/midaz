@@ -1,14 +1,18 @@
 # Unified server Fiber route table: METHOD<TAB>RAW PATH<TAB>HANDLER COUNT.
 # app.Use middleware is excluded: it is fanned across every HTTP method, so it yields rows
 # for methods the API never serves and encodes nothing about any route's guard.
-# Rows sharing a method and a path are in registration order, and the first of them is
-# the guard chain — every guard chain here carries at least two handlers, every Huma
-# terminal exactly one.
-# The count does NOT pin the authorize tuple: swapping namespace, resource or action
-# changes neither path nor count. Nor does a COLLAPSED row (one row whose count already
-# sums a guard and its terminal) distinguish guard-first from terminal-first registration.
-# Both gaps are covered by TestFullSurfaceRoutes_RejectTokenlessRequests, which asserts
-# behavior instead of shape.
+# Rows sharing a method and a path are in registration order.
+# GET /health, GET /version and GET /readyz are neither guard chains nor Huma terminals: they
+# are mounted outside the authorized surface and carved out in unguardedPublicRoutes.
+#
+# This file pins WHICH (method, raw path, handler count) triples are registered. What the
+# count does not say:
+#   - which handler on a chain is the authorizer: a chain of the same length built from
+#     non-auth middleware reads identically.
+#   - the authorize tuple: swapping namespace, resource or action moves neither path nor
+#     count, and no gate in this repository covers that tuple.
+#   - registration order inside a COLLAPSED row (one row whose count already sums a guard and
+#     its terminal): the merged count is the sum whichever was registered first.
 # Generated — do not hand-edit. Regenerate with:
 #   go test ./components/ledger/internal/bootstrap/ -run TestRouteTableGolden -update-route-table
 DELETE	/v1/organizations/:id	4

@@ -11,6 +11,7 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+	"sync/atomic"
 	"testing"
 
 	"github.com/LerianStudio/lib-auth/v3/auth/middleware"
@@ -42,37 +43,46 @@ var updateRouteTable = flag.Bool("update-route-table", false, "rewrite the commi
 // COUNT.
 const routeTableGoldenPath = "testdata/route_table.golden"
 
-// routeTableMinRows is a FLOOR on the served surface, not a count of it — the golden
-// bytes pin the exact set. It exists because -update-route-table writes whatever the
-// harness produced, so a harness that mounted almost nothing (a registrar list that lost
-// its contents, a mount closure that returned early) would regenerate cleanly and pass
-// forever after. The value sits below today's row count with room for routes to be
-// retired, and far above anything a broken harness yields.
-const routeTableMinRows = 200
+// routeTableMinRows is a FLOOR on the served surface, not a count of it — the golden bytes pin
+// the exact set. It exists because -update-route-table writes whatever the harness produced, so
+// a harness that mounted almost nothing would regenerate cleanly and pass forever after. It
+// sits just under today's row count, so losing a registrar trips it.
+//
+// It catches REMOVALS only. A registrar mounted in production but never added to this harness is
+// invisible to it, and to every other gate in this package.
+const routeTableMinRows = 235
 
-// routeTableGoldenHeader prefixes the golden so a reader who opens the file knows what
-// the third column means, what it does and does not prove, and how to regenerate. It is
-// part of the compared bytes, so it cannot drift away from the rows it describes.
+// routeTableGoldenHeader prefixes the golden so a reader who opens the file knows what the
+// third column means and how to regenerate. It is part of the compared bytes, so it cannot
+// drift away from the rows it describes.
 const routeTableGoldenHeader = `# Unified server Fiber route table: METHOD<TAB>RAW PATH<TAB>HANDLER COUNT.
 # app.Use middleware is excluded: it is fanned across every HTTP method, so it yields rows
 # for methods the API never serves and encodes nothing about any route's guard.
-# Rows sharing a method and a path are in registration order, and the first of them is
-# the guard chain — every guard chain here carries at least two handlers, every Huma
-# terminal exactly one.
-# The count does NOT pin the authorize tuple: swapping namespace, resource or action
-# changes neither path nor count. Nor does a COLLAPSED row (one row whose count already
-# sums a guard and its terminal) distinguish guard-first from terminal-first registration.
-# Both gaps are covered by TestFullSurfaceRoutes_RejectTokenlessRequests, which asserts
-# behavior instead of shape.
+# Rows sharing a method and a path are in registration order.
+# GET /health, GET /version and GET /readyz are neither guard chains nor Huma terminals: they
+# are mounted outside the authorized surface and carved out in unguardedPublicRoutes.
+#
+# This file pins WHICH (method, raw path, handler count) triples are registered. What the
+# count does not say:
+#   - which handler on a chain is the authorizer: a chain of the same length built from
+#     non-auth middleware reads identically.
+#   - the authorize tuple: swapping namespace, resource or action moves neither path nor
+#     count, and no gate in this repository covers that tuple.
+#   - registration order inside a COLLAPSED row (one row whose count already sums a guard and
+#     its terminal): the merged count is the sum whichever was registered first.
 # Generated — do not hand-edit. Regenerate with:
 #   go test ./components/ledger/internal/bootstrap/ -run TestRouteTableGolden -update-route-table
 `
 
+// unguardedPublicRouteCount pins the size of unguardedPublicRoutes as a literal. Adding a key
+// is how a real endpoint would be carved out of the tokenless-request probe, and that probe
+// reconciles against this constant rather than against the map, so a carve-out takes a second
+// deliberate edit here.
+const unguardedPublicRouteCount = 3
+
 // unguardedPublicRoutes is the LOCKED set of routes the unified server mounts OUTSIDE the
-// authorized API surface. Each is a lone one-handler route — the exact shape every other
-// route is asserted not to have — and each must be justified inline, because adding an
-// entry here is how a genuinely unguarded endpoint would be hidden from both the shape
-// invariants and the tokenless-request test.
+// authorized API surface. Each must be justified inline, because adding an entry here is how a
+// genuinely unguarded endpoint would be skipped by the tokenless-request probe.
 //
 // It mirrors the excludedPaths carve-out the contract-spec gate in
 // components/ledger/internal/adapters/http/in uses for the same three probes.
@@ -96,23 +106,27 @@ func fullSurfaceAuthClient() *middleware.AuthClient {
 	return &middleware.AuthClient{Enabled: true, Address: "http://auth.invalid"}
 }
 
-// fullSurfaceRouteOptions is the non-nil ProtectedRouteOptions every registrar in the
-// harness receives. It MUST stay non-nil, for two reasons.
+// fullSurfaceMarkerRan records whether the harness post-auth marker executed. A credential-less
+// request must be refused by the FIRST handler on the chain, so a marker sitting behind that
+// handler must never run. Package-level state is safe because every test in this package is
+// sequential: goleak_test.go verifies the whole package.
+var fullSurfaceMarkerRan atomic.Bool
+
+// fullSurfaceRouteOptions is the ProtectedRouteOptions every registrar in the harness
+// receives. Its single post-auth handler is an OBSERVER: it records that it ran and passes
+// through, so a refusal that reaches it is a refusal that did not come from the authorizer.
 //
-// Realism: every deployment supplies post-auth middleware here (tenant resolution in
-// multi-tenant mode), so nil options build a chain no deployment serves, and a registrar
-// that silently stops threading its options through is then indistinguishable from one
-// that threads them.
-//
-// Separability: with nil options, the guard on a route that has no UUID parameter is a
-// ONE-handler chain, and the Huma terminal it protects is also one handler. Two rows of one
-// handler each are byte-identical, so the table cannot say which came first — and only the
-// guard-first order guards. One marker handler puts every guard chain at two or more, which
-// is what makes the HANDLER COUNT column separate guard from terminal.
+// It MUST stay a bare passthrough. The production post-auth handler
+// pkgHTTP.MarkTrustedAuthAssertion answers 401 on a missing token itself, so substituting it
+// here would make the observer indistinguishable from the authorizer.
 func fullSurfaceRouteOptions() *pkgHTTP.ProtectedRouteOptions {
-	return &pkgHTTP.ProtectedRouteOptions{
-		PostAuthMiddlewares: []fiber.Handler{func(c fiber.Ctx) error { return c.Next() }},
+	marker := func(c fiber.Ctx) error {
+		fullSurfaceMarkerRan.Store(true)
+
+		return c.Next()
 	}
+
+	return &pkgHTTP.ProtectedRouteOptions{PostAuthMiddlewares: []fiber.Handler{marker}}
 }
 
 // buildFullSurfaceServer builds a UnifiedServer that mounts BOTH contract instances
@@ -121,12 +135,13 @@ func fullSurfaceRouteOptions() *pkgHTTP.ProtectedRouteOptions {
 // registration stores handler funcs and never calls them, and the conditional CRM
 // handlers (holder-accounts, encryption, audit) are non-nil so their routes mount.
 //
-// Absolute handler counts stay lower than a running ledger's, because the harness
-// supplies one post-auth marker where a deployment supplies its per-module tenant
-// middleware. What the counts have to support is the guard/terminal distinction, and one
-// marker is enough for that.
+// Absolute handler counts stay lower than a running ledger's, because the harness supplies
+// one post-auth observer where a multi-tenant deployment supplies its per-module tenant
+// middleware, and a single-tenant deployment supplies none at all.
 func buildFullSurfaceServer(t *testing.T) *UnifiedServer {
 	t.Helper()
+
+	fullSurfaceMarkerRan.Store(false)
 
 	logger := newTestLogger()
 	telemetry := &libOpentelemetry.Telemetry{}
@@ -216,21 +231,59 @@ func (g routeGroup) display() string {
 	return strings.ReplaceAll(g.key, "\t", " ")
 }
 
-// collectRouteRows reads the unified server's routes, grouped by method and path.
+// requireDroppedUseRowsAreRootOnly fails when the GetRoutes(true) filter dropped a row whose
+// path is not "/". The filter drops by the route's use flag, not by its path, so a Use mounted on
+// a CONCRETE path serves requests while appearing in no route table and in no probe.
 //
-// GetRoutes(true) filters the app.Use registrations. Fiber fans those across every HTTP
-// method, so they yield rows on path "/" for methods the API never serves; nothing about a
-// route's guard is encoded there, and any middleware reshuffle churns all of them. Every
-// guard chain on this surface is registered through the router's Add rather than Use, so
-// the filter cannot remove one.
+// The comparison is a multiset on (method, path), so a Use that shadows a path an Add also
+// registers still leaves one unmatched row.
+func requireDroppedUseRowsAreRootOnly(t *testing.T, all, filtered []fiber.Route) {
+	t.Helper()
+
+	remaining := make(map[string]int, len(filtered))
+	for _, r := range filtered {
+		remaining[r.Method+"\t"+r.Path]++
+	}
+
+	dropped := make([]string, 0)
+
+	for _, r := range all {
+		key := r.Method + "\t" + r.Path
+
+		if remaining[key] > 0 {
+			remaining[key]--
+
+			continue
+		}
+
+		if r.Path != "/" {
+			dropped = append(dropped, strings.ReplaceAll(key, "\t", " "))
+		}
+	}
+
+	sort.Strings(dropped)
+
+	require.Emptyf(t, dropped,
+		"the app.Use filter dropped these rows on concrete paths, so they serve requests while appearing in neither the "+
+			"route table nor the tokenless probe:\n%s", strings.Join(dropped, "\n"))
+}
+
+// collectRouteRows reads the unified server's routes, grouped by method and path. What the
+// GetRoutes(true) filter dropped is checked first: Fiber fans app.Use across every HTTP method,
+// so those rows say nothing about any route's guard and any middleware reshuffle churns all of
+// them, but only while they sit on "/".
 //
-// GetRoutes promises no ordering across the per-method stacks it walks, so grouping by
-// key is what makes the bytes stable. The sort is STABLE and the handler count is
-// deliberately outside the key: rows sharing a key keep the order Fiber holds them in,
-// which is the order they were registered, and that order is load-bearing — a guard only
-// reaches its terminal by sitting ahead of it.
-func collectRouteRows(app *fiber.App) []routeRow {
+// GetRoutes promises no ordering across the per-method stacks it walks, so grouping by key is
+// what makes the bytes stable. The sort is STABLE and the handler count is deliberately outside
+// the key: rows sharing a key keep the order Fiber holds them in, which is the order they were
+// registered, and that order is load-bearing — a guard only reaches its terminal by sitting
+// ahead of it.
+func collectRouteRows(t *testing.T, app *fiber.App) []routeRow {
+	t.Helper()
+
 	routes := app.GetRoutes(true)
+
+	requireDroppedUseRowsAreRootOnly(t, app.GetRoutes(false), routes)
 
 	rows := make([]routeRow, 0, len(routes))
 	for _, r := range routes {
@@ -271,57 +324,24 @@ func serializeRouteTable(rows []routeRow) string {
 	return routeTableGoldenHeader + strings.Join(lines, "\n") + "\n"
 }
 
-// assertRouteTableInvariants asserts the properties that must hold of ANY correct route
-// table, independently of the committed bytes. It runs BEFORE the byte comparison and
-// before -update-route-table can write, so a careless regeneration cannot bake a broken
-// surface into the golden and turn the file green over it.
-//
-// These are shape properties. They cannot see the authorize tuple, and they cannot see
-// registration order inside a collapsed row — TestFullSurfaceRoutes_RejectTokenlessRequests
-// covers both.
+// assertRouteTableInvariants asserts the properties that protect the HARNESS and its carve-out
+// rather than the surface: that a plausible surface was mounted, that the carve-out is the size
+// it is pinned to, and that no entry in it is dead. It runs BEFORE the byte comparison and
+// before -update-route-table can write.
 func assertRouteTableInvariants(t *testing.T, rows []routeRow) {
 	t.Helper()
 
 	require.GreaterOrEqualf(t, len(rows), routeTableMinRows,
 		"route table holds %d rows, under the %d floor: the harness is not mounting the full surface, "+
-			"so neither the golden bytes nor these invariants are asserting anything", len(rows), routeTableMinRows)
+			"so the golden bytes are not pinning it", len(rows), routeTableMinRows)
+
+	assert.Lenf(t, unguardedPublicRoutes, unguardedPublicRouteCount,
+		"unguardedPublicRoutes holds %d entries against the %d pinned in unguardedPublicRouteCount: a carve-out has to be "+
+			"added in both places", len(unguardedPublicRoutes), unguardedPublicRouteCount)
 
 	seen := make(map[string]bool, len(rows))
-
-	for _, group := range groupRouteRows(rows) {
-		seen[group.key] = true
-
-		if len(group.rows) == 1 {
-			// A lone row is only safe if it is a guard chain long enough to be one. A lone
-			// one-handler row is a terminal with no guard registered on its path.
-			if group.rows[0].handlers < 2 {
-				assert.Truef(t, unguardedPublicRoutes[group.key],
-					"%s is a single one-handler route: no guard chain on its path and no sibling row that could be one, "+
-						"so it answers without auth. If that is intended, add it to unguardedPublicRoutes with a justification",
-					group.display())
-			}
-
-			continue
-		}
-
-		assert.Greaterf(t, group.rows[0].handlers, 1,
-			"%s registers %d rows and the FIRST one carries a single handler: the terminal is registered ahead of its "+
-				"guard chain, so the guard never runs", group.display(), len(group.rows))
-
-		// Equal counts inside a group make the two registration orders byte-identical, so
-		// the golden would absorb a guard/terminal swap without moving. Guard chains carry
-		// at least two handlers and Huma terminals exactly one, so equality means something
-		// changed about that shape.
-		counts := make(map[int]bool, len(group.rows))
-
-		for _, r := range group.rows {
-			assert.Falsef(t, counts[r.handlers],
-				"%s has two rows carrying %d handlers each: with equal counts the golden bytes are identical whichever "+
-					"row was registered first, so it can no longer show a guard that slipped behind its terminal",
-				group.display(), r.handlers)
-
-			counts[r.handlers] = true
-		}
+	for _, r := range rows {
+		seen[r.key()] = true
 	}
 
 	// A carve-out for a route that is no longer mounted is dead, and dead carve-outs are
@@ -332,28 +352,10 @@ func assertRouteTableInvariants(t *testing.T, rows []routeRow) {
 	}
 }
 
-// TestRouteTableGolden locks the SHAPE of the unified server's route table: which
-// (method, raw path) pairs are registered, how many rows each pair holds, and how many
-// handlers each row carries.
-//
-// What the HANDLER COUNT proves. Auth on this surface is not app.Use middleware: a guard
-// chain and the Huma terminal it protects are two separate registrations on the same
-// method and the same RAW path, and equality of that raw path is the whole mechanism
-// binding them. A terminal that lands on a raw path its guard does not share therefore
-// moves the bytes — the guard row loses its partner, or a collapsed row loses handlers —
-// and a guard chain that stops being built at all drops a count to the bare terminal's one.
-//
-// What it does NOT prove, and must not be read as proving:
-//   - The authorize tuple. protectedMidaz and protectedRouting build chains of the same
-//     length, and ("transactions","post") is the same length as ("transactions","get"), so
-//     a namespace, resource or action swap moves neither path nor count.
-//   - Registration order inside a COLLAPSED row. Fiber merges an adjacent same-path
-//     registration into the row before it and the merged count is the sum either way, so a
-//     row that already sums a guard and its terminal reads identically whichever was
-//     registered first — and only guard-first actually guards.
-//
-// TestFullSurfaceRoutes_RejectTokenlessRequests is the gate for both, because it asserts
-// what the surface DOES rather than how its rows are shaped.
+// TestRouteTableGolden pins which (method, raw path, handler count) triples the unified server
+// registers, so a change to the served surface has to move the committed bytes and show up in
+// review. routeTableGoldenHeader above enumerates what the HANDLER COUNT does NOT say, and is
+// serialized into the file so the enumeration reaches whoever opens it.
 func TestRouteTableGolden(t *testing.T) {
 	// The docs surface is gated on OPENAPI_DOCS_ENABLED and the golden pins the
 	// default deployment posture, so the variable must be genuinely absent.
@@ -362,13 +364,20 @@ func TestRouteTableGolden(t *testing.T) {
 
 	server := buildFullSurfaceServer(t)
 
-	rows := collectRouteRows(server.app)
+	rows := collectRouteRows(t, server.app)
 
 	assertRouteTableInvariants(t, rows)
 
 	got := serializeRouteTable(rows)
 
 	if *updateRouteTable {
+		// The invariants above are assert-based, so a failure marks the test and execution
+		// continues to here. Writing then bakes the broken surface into the golden and turns
+		// the file green over it.
+		if t.Failed() {
+			return
+		}
+
 		require.NoError(t, os.MkdirAll(filepath.Dir(routeTableGoldenPath), 0o755),
 			"create golden directory for %s", routeTableGoldenPath)
 		require.NoError(t, os.WriteFile(routeTableGoldenPath, []byte(got), 0o644),
@@ -381,9 +390,8 @@ func TestRouteTableGolden(t *testing.T) {
 	want, err := os.ReadFile(routeTableGoldenPath)
 	require.NoErrorf(t, err, "read golden route table %s (run with -update-route-table to generate)", routeTableGoldenPath)
 	require.Equalf(t, string(want), got,
-		"unified server route table drifted from %s. Check the HANDLER COUNT column first: a count that dropped, or a "+
-			"guard row that lost its terminal, means that route may now answer without auth. The column does not pin the "+
-			"authorize tuple, so an unmoved table is not evidence the namespace/resource/action is unchanged",
+		"unified server route table drifted from %s: the served surface changed. The column does not pin the authorize "+
+			"tuple, so an unmoved table is not evidence the namespace/resource/action is unchanged either",
 		routeTableGoldenPath)
 
 	t.Logf("route table matches golden: %d rows", len(rows))
