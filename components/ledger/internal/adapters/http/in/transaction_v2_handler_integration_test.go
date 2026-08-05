@@ -33,7 +33,7 @@ import (
 )
 
 // This file is the integration + v1↔v2 parity proof for the v2
-// `direct` transaction endpoint (POST /v2/.../transactions/direct). It mounts BOTH the
+// `direct` transaction endpoint (POST /v2/transactions/direct). It mounts BOTH the
 // v2 `direct` op and the v1 `/json` op through the SAME production Huma seams
 // (buildHumaV2DirectApp -> RegisterTransactionV2RoutesToApp and buildHumaTransactionApp
 // -> RegisterTransactionRoutes, both defined in the sibling unit-test files) against the
@@ -50,9 +50,29 @@ import (
 
 // --- request helpers ----------------------------------------------------------
 
-// v2DirectURL builds the concrete v2 direct path for the given org/ledger.
-func v2DirectURL(orgID, ledgerID uuid.UUID) string {
-	return "/v2/organizations/" + orgID.String() + "/ledgers/" + ledgerID.String() + "/transactions/direct"
+// v2CreateURL builds the v2 create path for an action. It names no organization and no
+// ledger: a v2 create is scoped by the organization and ledger its request body names.
+func v2CreateURL(action string) string {
+	return "/v2/transactions/" + action
+}
+
+// v2ScopedBody restates a v2 body's placeholder scope as the organization and ledger the caller
+// seeded. The shared bodies are package-level constants, so they spell one fixed placeholder
+// pair, while the seeded pair is generated per test — and it is the body that decides which
+// ledger a create posts against.
+func v2ScopedBody(body string, orgID, ledgerID uuid.UUID) string {
+	return strings.NewReplacer(
+		v2ScopeOrgID, orgID.String(),
+		v2ScopeLedgerID, ledgerID.String(),
+	).Replace(body)
+}
+
+// postV2Create posts a v2 create body to the scope-free action path under the given scope,
+// restating that scope inside the body.
+func postV2Create(t *testing.T, app *fiber.App, action string, orgID, ledgerID uuid.UUID, body, idempotencyKey string) *nethttp.Response {
+	t.Helper()
+
+	return postTransaction(t, app, v2CreateURL(action), v2ScopedBody(body, orgID, ledgerID), idempotencyKey)
 }
 
 // v1JSONURL builds the concrete v1 /json path for the given org/ledger.
@@ -236,6 +256,25 @@ var volatileResponseKeys = map[string]struct{}{
 // therefore UNCOVERED by this suite. The nearest case — the revert bidirectional-route subject
 // in the lifecycle file — asserts REJECTION (422 on a non-bidirectional route), not that a
 // route-stamped origin resolves to the same routeId on both surfaces.
+// renameV2LegKeys renames a /v2 response's `debit`/`credit` keys back to the v1 `source`/
+// `destination` spelling, IN PLACE. The rename is the ONE deliberate difference the /v2 wire
+// contract introduces on the Transaction body — every other field name and value stays
+// identical — so a v1<->v2 parity deep-equal normalizes it here rather than treating it as a
+// spurious mismatch.
+func renameV2LegKeys(resp map[string]any) map[string]any {
+	if debit, ok := resp["debit"]; ok {
+		resp["source"] = debit
+		delete(resp, "debit")
+	}
+
+	if credit, ok := resp["credit"]; ok {
+		resp["destination"] = credit
+		delete(resp, "credit")
+	}
+
+	return resp
+}
+
 func stripVolatile(v any) any {
 	switch node := v.(type) {
 	case map[string]any:
@@ -323,7 +362,7 @@ func seedFundedTransfer(t *testing.T, db *sql.DB, orgID, ledgerID uuid.UUID, sou
 // bodies for the two surfaces, using the same aliases so the resulting transactions differ
 // only by IDs/timestamps.
 const (
-	equivalentV2Body = `{"description":"v1 v2 parity transfer","asset":"USD","amount":"100","from":"@src","to":"@dst"}`
+	equivalentV2Body = `{"description":"v1 v2 parity transfer","asset":"USD","amount":"100","debits":[{"alias":"@src",` + v2ScopeJSON + `,"amount":"100"}],"credits":[{"alias":"@dst",` + v2ScopeJSON + `,"amount":"100"}]}`
 
 	equivalentV1Body = `{
 		"description":"v1 v2 parity transfer",
@@ -379,7 +418,7 @@ func TestIntegration_TransactionV2Direct_ParityWithV1JSON(t *testing.T) {
 	assert.Equal(t, cn.APPROVED, postgrestestutil.GetTransactionStatus(t, infra.pgContainer.DB, v1TxID), "v1 transaction should be APPROVED in DB")
 	drainBalanceSync(t, ctx, infra.handler.Command, infra.redisRepo, infra.orgID, ledgerV1)
 
-	v2Resp := decodeTxResponse(t, postTransaction(t, v2App, v2DirectURL(infra.orgID, ledgerV2), equivalentV2Body, ""), nethttp.StatusCreated)
+	v2Resp := decodeTxResponse(t, postV2Create(t, v2App, "direct", infra.orgID, ledgerV2, equivalentV2Body, ""), nethttp.StatusCreated)
 	v2TxID := uuid.MustParse(v2Resp["id"].(string))
 	assert.Equal(t, cn.APPROVED, postgrestestutil.GetTransactionStatus(t, infra.pgContainer.DB, v2TxID), "v2 transaction should be APPROVED in DB")
 	drainBalanceSync(t, ctx, infra.handler.Command, infra.redisRepo, infra.orgID, ledgerV2)
@@ -408,7 +447,7 @@ func TestIntegration_TransactionV2Direct_ParityWithV1JSON(t *testing.T) {
 	assert.Equal(t, "USD", v1Resp["assetCode"])
 	assert.Equal(t, "USD", v2Resp["assetCode"])
 
-	require.Equal(t, stripVolatile(v1Resp), stripVolatile(v2Resp),
+	require.Equal(t, stripVolatile(v1Resp), stripVolatile(renameV2LegKeys(v2Resp)),
 		"v2 direct transaction must be indistinguishable from the v1 /json equivalent (ignoring IDs/timestamps)")
 }
 
@@ -487,7 +526,7 @@ func TestIntegration_TransactionV2Direct_ValidationBeforeLedgerEffect(t *testing
 	srcID, dstID := seedTransfer(t, infra.pgContainer.DB, infra.orgID, infra.ledgerID, "@src", "@dst", 1000)
 
 	v2App := buildHumaV2DirectApp(t, infra.handler)
-	url := v2DirectURL(infra.orgID, infra.ledgerID)
+	url := v2CreateURL("direct")
 
 	// The table deliberately spans FOUR rejection layers, and the canonical code plus the
 	// layer-specific text in the body is the only thing that identifies which one answered.
@@ -506,24 +545,27 @@ func TestIntegration_TransactionV2Direct_ValidationBeforeLedgerEffect(t *testing
 		wantBodyContains string
 	}{
 		{
-			// Each side is spelled EITHER scalar (`from`) or as a leg array
-			// (`sources`), so requiring a side is a request-shape rule across a pair of
-			// fields, not a per-field one. No struct tag expresses that, which is why —
-			// unlike the `asset` case below — this body is not rejected by
-			// DecodeAndValidate's struct validation. Translate owns the rule instead and
-			// rejects it with ErrMissingFieldsInRequest (0009) -> ValidationError -> 400.
-			name:             "missing from field",
-			body:             `{"asset":"USD","amount":"100","to":"@dst"}`,
+			// Both sides are required, non-empty leg arrays (`debits`/`credits`); no scalar
+			// spelling exists anymore. An absent debits key decodes to a nil slice, and the
+			// `min=1` struct tag (not `required`) catches it at the decode boundary: the
+			// validator-error translator routes a `min`-tag failure to the generic
+			// ErrBadRequest (0047) bucket, distinct from the `required`-tag bucket
+			// (ErrMissingFieldsInRequest / 0009) the next row pins. Translate's own
+			// presence check (validateSidesPresent, ALSO 0009) never runs here — it exists
+			// for a caller that builds the input in Go and skips the decoder entirely, which
+			// an HTTP request never does.
+			name:             "missing debits field",
+			body:             `{"asset":"USD","amount":"100","credits":[{"alias":"@dst",` + v2ScopeJSON + `,"amount":"100"}]}`,
 			wantStatus:       nethttp.StatusBadRequest,
-			wantCode:         "0009",
-			wantBodyContains: "from or sources",
+			wantCode:         "0047",
+			wantBodyContains: "debits",
 		},
 		{
 			// The struct-tag `required` layer. It answers with the SAME 0009 the Translate
 			// side rule uses, so only the per-field entry in the errors array tells the two
-			// apart — which is why this row pins that text and the row above pins the pair.
+			// apart — which is why this row pins that text and the row above pins the field.
 			name:             "missing required asset field",
-			body:             `{"amount":"100","from":"@src","to":"@dst"}`,
+			body:             `{"amount":"100","debits":[{"alias":"@src",` + v2ScopeJSON + `,"amount":"100"}],"credits":[{"alias":"@dst",` + v2ScopeJSON + `,"amount":"100"}]}`,
 			wantStatus:       nethttp.StatusBadRequest,
 			wantCode:         "0009",
 			wantBodyContains: "asset is a required field",
@@ -536,53 +578,49 @@ func TestIntegration_TransactionV2Direct_ValidationBeforeLedgerEffect(t *testing
 			wantCode:   "0094",
 		},
 		{
-			// A leg naming no account. The obligation is enforced TWICE — as a `required`
+			// A leg naming no alias. The obligation is enforced TWICE — as a `required`
 			// struct tag and imperatively in Translate — and both renderings mention the
 			// indexed reference, so naming the leg is NOT what tells the two apart. The tag
 			// layer runs first (DecodeAndValidate validates the struct before Translate is
 			// reached) and only IT phrases the rejection as "<ref> is a required field", so
 			// that full phrasing is what pins the answering layer. The offending leg is the
 			// SECOND one, so a rendering that hardcoded index 0 fails this row too.
-			name:             "leg without an account",
-			body:             `{"asset":"USD","amount":"100","sources":[{"account":"@srcA","amount":"100"},{"amount":"100"}],"to":"@dst"}`,
+			name:             "leg without an alias",
+			body:             `{"asset":"USD","amount":"100","debits":[{"alias":"@srcA",` + v2ScopeJSON + `,"amount":"100"},{"amount":"100"}],"credits":[{"alias":"@dst",` + v2ScopeJSON + `,"amount":"100"}]}`,
 			wantStatus:       nethttp.StatusBadRequest,
 			wantCode:         "0009",
-			wantBodyContains: "sources[1].account is a required field",
-		},
-		{
-			// Both spellings on ONE side is the mutual-exclusivity violation (0498). The
-			// destination side is used because per-side exclusivity makes the mixed shape
-			// (scalar source + array destinations) legal, so only a side spelled twice is
-			// a violation.
-			name:       "destination side spelled both scalar and as a leg array",
-			body:       `{"asset":"USD","amount":"100","from":"@src","to":"@dst","destinations":[{"account":"@dst","amount":"100"}]}`,
-			wantStatus: nethttp.StatusBadRequest,
-			wantCode:   "0498",
+			wantBodyContains: "debits[1].alias is a required field",
 		},
 		{
 			// A leg filling NEITHER value expression: 0072, naming the offending side AND
 			// the offending leg's index. The leg here is the SECOND one, so a message that
 			// hardcoded index 0 fails this row.
 			name:             "leg with no value expression",
-			body:             `{"asset":"USD","amount":"100","sources":[{"account":"@srcA","amount":"100"},{"account":"@srcB"}],"to":"@dst"}`,
+			body:             `{"asset":"USD","amount":"100","debits":[{"alias":"@srcA",` + v2ScopeJSON + `,"amount":"100"},{"alias":"@srcB",` + v2ScopeJSON + `}],"credits":[{"alias":"@dst",` + v2ScopeJSON + `,"amount":"100"}]}`,
 			wantStatus:       nethttp.StatusBadRequest,
 			wantCode:         "0072",
-			wantBodyContains: "'sources[1]'",
+			wantBodyContains: "'debits[1]'",
 		},
 		{
 			// A leg whose explicit amount is zero. Unlike the four rows above this is a
 			// VALUE rule, not a shape rule, so it is a 422 rather than a 400 — the status
 			// and the code move together and both are pinned.
 			name:       "leg with a zero amount",
-			body:       `{"asset":"USD","amount":"100","sources":[{"account":"@srcA","amount":"0"}],"to":"@dst"}`,
+			body:       `{"asset":"USD","amount":"100","debits":[{"alias":"@srcA",` + v2ScopeJSON + `,"amount":"0"}],"credits":[{"alias":"@dst",` + v2ScopeJSON + `,"amount":"100"}]}`,
 			wantStatus: nethttp.StatusUnprocessableEntity,
 			wantCode:   "0125",
 		},
 	}
+	// A row asserting the retired scalar-vs-array mutual-exclusivity rule (0498, "a side
+	// spelled both scalar and as a leg array") used to live here. It tested a shape
+	// (`from`/`to` scalar fields alongside `sources`/`destinations` arrays) that
+	// CreateTransactionV2Input no longer has a Go field for — the request carries ONLY
+	// `debits`/`credits` arrays now — so the rule it exercised cannot be expressed anymore
+	// and the row was removed rather than reworded onto an unrelated case.
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			resp := postTransaction(t, v2App, url, tc.body, "")
+			resp := postTransaction(t, v2App, url, v2ScopedBody(tc.body, infra.orgID, infra.ledgerID), "")
 			body := drainBody(t, resp)
 
 			assert.Equal(t, tc.wantStatus, resp.StatusCode, "%s should be rejected before any ledger effect; body: %s", tc.name, string(body))
@@ -602,8 +640,10 @@ func TestIntegration_TransactionV2Direct_ValidationBeforeLedgerEffect(t *testing
 }
 
 // =============================================================================
-// 3. BUSINESS RULE: `from == to` is a Translate business error -> 422, with NO ledger
-//    effect (the error fires before the create funnel touches any balance).
+// 3. BUSINESS RULE: naming one account on both sides is a business error -> 422, with NO
+//    ledger effect. The rule belongs to the funnel, not to Translate, and the funnel catches
+//    it on its SECOND validate — after the idempotency claim, the ledger-settings read and
+//    the fee engine. No balance moves, but the rejection is not an early one.
 // =============================================================================
 
 func TestIntegration_TransactionV2Direct_FromEqualsTo_BusinessError(t *testing.T) {
@@ -621,7 +661,7 @@ func TestIntegration_TransactionV2Direct_FromEqualsTo_BusinessError(t *testing.T
 
 	v2App := buildHumaV2DirectApp(t, infra.handler)
 
-	resp := postTransaction(t, v2App, v2DirectURL(infra.orgID, infra.ledgerID), `{"asset":"USD","amount":"100","from":"@same","to":"@same"}`, "")
+	resp := postV2Create(t, v2App, "direct", infra.orgID, infra.ledgerID, `{"asset":"USD","amount":"100","debits":[{"alias":"@same",`+v2ScopeJSON+`,"amount":"100"}],"credits":[{"alias":"@same",`+v2ScopeJSON+`,"amount":"100"}]}`, "")
 	body := drainBody(t, resp)
 
 	assert.Equal(t, nethttp.StatusUnprocessableEntity, resp.StatusCode,
@@ -664,9 +704,9 @@ func TestIntegration_TransactionV2Direct_Idempotency(t *testing.T) {
 	seedTransfer(t, infra.pgContainer.DB, infra.orgID, infra.ledgerID, "@src", "@dst", 1000)
 
 	idempotencyKey := uuid.NewString()
-	url := v2DirectURL(infra.orgID, infra.ledgerID)
+	url := v2CreateURL("direct")
 
-	first := postTransaction(t, v2App, url, equivalentV2Body, idempotencyKey)
+	first := postTransaction(t, v2App, url, v2ScopedBody(equivalentV2Body, infra.orgID, infra.ledgerID), idempotencyKey)
 	firstResult := decodeTxResponse(t, first, nethttp.StatusCreated)
 	assert.Equal(t, "false", first.Header.Get("X-Idempotency-Replayed"), "first call must not be a replay")
 
@@ -675,7 +715,7 @@ func TestIntegration_TransactionV2Direct_Idempotency(t *testing.T) {
 	// Wait for the async idempotency-value store before replaying (see helper doc).
 	waitForIdempotencyStored(t, ctx, infra.redisRepo, infra.orgID, infra.ledgerID, idempotencyKey)
 
-	second := postTransaction(t, v2App, url, equivalentV2Body, idempotencyKey)
+	second := postTransaction(t, v2App, url, v2ScopedBody(equivalentV2Body, infra.orgID, infra.ledgerID), idempotencyKey)
 	secondResult := decodeTxResponse(t, second, nethttp.StatusCreated)
 
 	assert.Equal(t, "true", second.Header.Get("X-Idempotency-Replayed"), "second identical call must be a replay")
@@ -693,7 +733,7 @@ func TestIntegration_TransactionV2Direct_Idempotency(t *testing.T) {
 	seedTransfer(t, infra.pgContainer.DB, infra.orgID, infra.ledgerID, "@xsrc", "@xdst", 1000)
 	seedTransfer(t, infra.pgContainer.DB, infra.orgID, infra.ledgerID, "@ysrc", "@ydst", 1000)
 
-	v2CrossBody := `{"description":"cross dedup","asset":"USD","amount":"100","from":"@xsrc","to":"@xdst"}`
+	v2CrossBody := `{"description":"cross dedup","asset":"USD","amount":"100","debits":[{"alias":"@xsrc",` + v2ScopeJSON + `,"amount":"100"}],"credits":[{"alias":"@xdst",` + v2ScopeJSON + `,"amount":"100"}]}`
 	v1CrossBody := `{
 		"description":"cross dedup",
 		"send":{
@@ -706,7 +746,7 @@ func TestIntegration_TransactionV2Direct_Idempotency(t *testing.T) {
 
 	countBefore := countTransactionsInLedger(t, infra.pgContainer.DB, infra.ledgerID)
 
-	v2Cross := postTransaction(t, v2App, url, v2CrossBody, "")
+	v2Cross := postTransaction(t, v2App, url, v2ScopedBody(v2CrossBody, infra.orgID, infra.ledgerID), "")
 	v2CrossResult := decodeTxResponse(t, v2Cross, nethttp.StatusCreated)
 
 	v1Cross := postTransaction(t, v1App, v1JSONURL(infra.orgID, infra.ledgerID), v1CrossBody, "")
@@ -744,8 +784,8 @@ func TestIntegration_TransactionV2Direct_InsufficientFunds(t *testing.T) {
 
 	v2App := buildHumaV2DirectApp(t, infra.handler)
 
-	resp := postTransaction(t, v2App, v2DirectURL(infra.orgID, infra.ledgerID),
-		`{"description":"v2 insufficient funds","asset":"USD","amount":"5000","from":"@src","to":"@dst"}`, "")
+	resp := postV2Create(t, v2App, "direct", infra.orgID, infra.ledgerID,
+		`{"description":"v2 insufficient funds","asset":"USD","amount":"5000","debits":[{"alias":"@src",`+v2ScopeJSON+`,"amount":"5000"}],"credits":[{"alias":"@dst",`+v2ScopeJSON+`,"amount":"5000"}]}`, "")
 	body := drainBody(t, resp)
 
 	assert.Equal(t, nethttp.StatusUnprocessableEntity, resp.StatusCode,
@@ -762,13 +802,6 @@ func TestIntegration_TransactionV2Direct_InsufficientFunds(t *testing.T) {
 	requireDecimalEqual(t, decimal.Zero, postgrestestutil.GetBalanceOnHold(t, infra.pgContainer.DB, dstID), "destination on-hold must be untouched")
 }
 
-// v2HoldURL builds the concrete v2 hold path for the given org/ledger. The hold op is
-// mounted by the SAME RegisterTransactionV2RoutesToApp seam as direct, so the v2 app
-// built by buildHumaV2DirectApp serves both.
-func v2HoldURL(orgID, ledgerID uuid.UUID) string {
-	return "/v2/organizations/" + orgID.String() + "/ledgers/" + ledgerID.String() + "/transactions/hold"
-}
-
 // v1CommitURL builds the concrete v1 commit path for a pending transaction. It is used
 // deliberately against transactions held through v2, to prove the two surfaces settle the
 // same hold — not because v2 lacks a commit op of its own.
@@ -781,7 +814,7 @@ func v1CommitURL(orgID, ledgerID, txID uuid.UUID) string {
 // PENDING transactions differ only by IDs/timestamps. The v2 flat `hold` action carries
 // its pending intent in the endpoint; the v1 `/json` action carries it in `pending:true`.
 const (
-	holdParityV2Body = `{"description":"v1 v2 hold parity transfer","asset":"USD","amount":"100","from":"@src","to":"@dst"}`
+	holdParityV2Body = `{"description":"v1 v2 hold parity transfer","asset":"USD","amount":"100","debits":[{"alias":"@src",` + v2ScopeJSON + `,"amount":"100"}],"credits":[{"alias":"@dst",` + v2ScopeJSON + `,"amount":"100"}]}`
 
 	holdParityV1PendingBody = `{
 		"description":"v1 v2 hold parity transfer",
@@ -836,7 +869,7 @@ func TestIntegration_TransactionV2Hold_ParityWithV1PendingJSON(t *testing.T) {
 	assert.Equal(t, cn.PENDING, postgrestestutil.GetTransactionStatus(t, infra.pgContainer.DB, v1TxID), "v1 pending transaction should be PENDING in DB")
 	drainBalanceSync(t, ctx, infra.handler.Command, infra.redisRepo, infra.orgID, ledgerV1)
 
-	v2Resp := decodeTxResponse(t, postTransaction(t, v2App, v2HoldURL(infra.orgID, ledgerV2), holdParityV2Body, ""), nethttp.StatusCreated)
+	v2Resp := decodeTxResponse(t, postV2Create(t, v2App, "hold", infra.orgID, ledgerV2, holdParityV2Body, ""), nethttp.StatusCreated)
 	v2TxID := uuid.MustParse(v2Resp["id"].(string))
 	assert.Equal(t, cn.PENDING, postgrestestutil.GetTransactionStatus(t, infra.pgContainer.DB, v2TxID), "v2 hold transaction should be PENDING in DB")
 	drainBalanceSync(t, ctx, infra.handler.Command, infra.redisRepo, infra.orgID, ledgerV2)
@@ -866,7 +899,7 @@ func TestIntegration_TransactionV2Hold_ParityWithV1PendingJSON(t *testing.T) {
 	assert.Equal(t, "USD", v1Resp["assetCode"])
 	assert.Equal(t, "USD", v2Resp["assetCode"])
 
-	require.Equal(t, stripVolatile(v1Resp), stripVolatile(v2Resp),
+	require.Equal(t, stripVolatile(v1Resp), stripVolatile(renameV2LegKeys(v2Resp)),
 		"v2 hold transaction must be indistinguishable from the v1 /json pending equivalent (ignoring IDs/timestamps)")
 }
 
@@ -891,7 +924,7 @@ func TestIntegration_TransactionV2Hold_CommitSettles(t *testing.T) {
 	v2App := buildHumaV2DirectApp(t, infra.handler)
 
 	// Create the hold on the v2 surface.
-	holdResp := decodeTxResponse(t, postTransaction(t, v2App, v2HoldURL(infra.orgID, infra.ledgerID), holdParityV2Body, ""), nethttp.StatusCreated)
+	holdResp := decodeTxResponse(t, postV2Create(t, v2App, "hold", infra.orgID, infra.ledgerID, holdParityV2Body, ""), nethttp.StatusCreated)
 	txID := uuid.MustParse(holdResp["id"].(string))
 
 	assert.Equal(t, cn.PENDING, postgrestestutil.GetTransactionStatus(t, infra.pgContainer.DB, txID), "v2 hold should open the transaction as PENDING")
@@ -953,9 +986,9 @@ func TestIntegration_TransactionV2Hold_Idempotency(t *testing.T) {
 
 	v2App := buildHumaV2DirectApp(t, infra.handler)
 	idempotencyKey := uuid.NewString()
-	url := v2HoldURL(infra.orgID, infra.ledgerID)
+	url := v2CreateURL("hold")
 
-	first := postTransaction(t, v2App, url, holdParityV2Body, idempotencyKey)
+	first := postTransaction(t, v2App, url, v2ScopedBody(holdParityV2Body, infra.orgID, infra.ledgerID), idempotencyKey)
 	firstResult := decodeTxResponse(t, first, nethttp.StatusCreated)
 	assert.Equal(t, "false", first.Header.Get("X-Idempotency-Replayed"), "first hold call must not be a replay")
 
@@ -964,7 +997,7 @@ func TestIntegration_TransactionV2Hold_Idempotency(t *testing.T) {
 	// Wait for the async idempotency-value store before replaying (see helper doc).
 	waitForIdempotencyStored(t, ctx, infra.redisRepo, infra.orgID, infra.ledgerID, idempotencyKey)
 
-	second := postTransaction(t, v2App, url, holdParityV2Body, idempotencyKey)
+	second := postTransaction(t, v2App, url, v2ScopedBody(holdParityV2Body, infra.orgID, infra.ledgerID), idempotencyKey)
 	secondResult := decodeTxResponse(t, second, nethttp.StatusCreated)
 
 	assert.Equal(t, "true", second.Header.Get("X-Idempotency-Replayed"), "second identical hold call must be a replay")
@@ -998,15 +1031,15 @@ func TestIntegration_TransactionV2_DirectHoldNoKeyCrossDedup(t *testing.T) {
 	// Byte-identical flat body; the ONLY difference between the two POSTs is the endpoint.
 	// No X-Idempotency header, so each surface derives its key from the (discriminated) body
 	// hash — the exact collision path that cross-dedup would exploit.
-	body := `{"description":"direct hold cross dedup","asset":"USD","amount":"100","from":"@src","to":"@dst"}`
+	body := `{"description":"direct hold cross dedup","asset":"USD","amount":"100","debits":[{"alias":"@src",` + v2ScopeJSON + `,"amount":"100"}],"credits":[{"alias":"@dst",` + v2ScopeJSON + `,"amount":"100"}]}`
 
-	directResp := postTransaction(t, v2App, v2DirectURL(infra.orgID, infra.ledgerID), body, "")
+	directResp := postV2Create(t, v2App, "direct", infra.orgID, infra.ledgerID, body, "")
 	directResult := decodeTxResponse(t, directResp, nethttp.StatusCreated)
 	assert.Equal(t, "false", directResp.Header.Get("X-Idempotency-Replayed"), "direct create must not be a replay")
 
 	directTxID := uuid.MustParse(directResult["id"].(string))
 
-	holdResp := postTransaction(t, v2App, v2HoldURL(infra.orgID, infra.ledgerID), body, "")
+	holdResp := postV2Create(t, v2App, "hold", infra.orgID, infra.ledgerID, body, "")
 	holdResult := decodeTxResponse(t, holdResp, nethttp.StatusCreated)
 	assert.Equal(t, "false", holdResp.Header.Get("X-Idempotency-Replayed"),
 		"the hold create must NOT replay the direct transaction (distinct action identity, distinct idempotency slot)")
@@ -1028,21 +1061,11 @@ func TestIntegration_TransactionV2_DirectHoldNoKeyCrossDedup(t *testing.T) {
 		"direct + hold with an identical no-key body must persist two transactions, not replay one")
 }
 
-// v2BlockURL / v2UnblockURL build the concrete v2 block/unblock paths. Both ops are mounted
-// by the SAME RegisterTransactionV2RoutesToApp seam as direct/hold, so the v2 app built by
-// buildHumaV2DirectApp serves all four.
-func v2BlockURL(orgID, ledgerID uuid.UUID) string {
-	return "/v2/organizations/" + orgID.String() + "/ledgers/" + ledgerID.String() + "/transactions/block"
-}
-
-func v2UnblockURL(orgID, ledgerID uuid.UUID) string {
-	return "/v2/organizations/" + orgID.String() + "/ledgers/" + ledgerID.String() + "/transactions/unblock"
-}
-
 // v1BlockURL / v1UnblockURL build the concrete v1 block/unblock paths. The v1 block/unblock
 // Huma ops are registered by RegisterTransactionRoutes (inside buildHumaTransactionApp) and
-// enter the SAME createTransactionShell funnel the v2 actions do — the funnel parses org/ledger
-// from the path string, so these are the parity reference for the v2 block/unblock actions.
+// enter the SAME createTransactionShell funnel the v2 actions do, which is what makes them the
+// parity reference for the v2 block/unblock actions. Only where each surface reads the scope
+// differs: v1 from these path segments, v2 from the request body.
 func v1BlockURL(orgID, ledgerID uuid.UUID) string {
 	return "/v1/organizations/" + orgID.String() + "/ledgers/" + ledgerID.String() + "/transactions/block"
 }
@@ -1139,7 +1162,7 @@ func TestIntegration_TransactionV2BlockUnblock_ParityWithV1(t *testing.T) {
 		name         string
 		expectedType string
 		reason       string
-		v2URL        func(orgID, ledgerID uuid.UUID) string
+		v2Action     string
 		v1URL        func(orgID, ledgerID uuid.UUID) string
 		v2Body       string
 		v1Body       string
@@ -1148,9 +1171,9 @@ func TestIntegration_TransactionV2BlockUnblock_ParityWithV1(t *testing.T) {
 			name:         "block v2 matches v1 block ledger effect",
 			expectedType: cn.BLOCK,
 			reason:       "regulatory-hold",
-			v2URL:        v2BlockURL,
+			v2Action:     "block",
 			v1URL:        v1BlockURL,
-			v2Body:       `{"description":"v1 v2 block parity transfer","asset":"USD","amount":"100","from":"@src","to":"@dst","metadata":{"reason":"regulatory-hold"}}`,
+			v2Body:       `{"description":"v1 v2 block parity transfer","asset":"USD","amount":"100","debits":[{"alias":"@src",` + v2ScopeJSON + `,"amount":"100"}],"credits":[{"alias":"@dst",` + v2ScopeJSON + `,"amount":"100"}],"metadata":{"reason":"regulatory-hold"}}`,
 			v1Body: `{
 				"description":"v1 v2 block parity transfer",
 				"metadata":{"reason":"regulatory-hold"},
@@ -1166,9 +1189,9 @@ func TestIntegration_TransactionV2BlockUnblock_ParityWithV1(t *testing.T) {
 			name:         "unblock v2 matches v1 unblock ledger effect",
 			expectedType: cn.UNBLOCK,
 			reason:       "regulatory-release",
-			v2URL:        v2UnblockURL,
+			v2Action:     "unblock",
 			v1URL:        v1UnblockURL,
-			v2Body:       `{"description":"v1 v2 unblock parity transfer","asset":"USD","amount":"100","from":"@src","to":"@dst","metadata":{"reason":"regulatory-release"}}`,
+			v2Body:       `{"description":"v1 v2 unblock parity transfer","asset":"USD","amount":"100","debits":[{"alias":"@src",` + v2ScopeJSON + `,"amount":"100"}],"credits":[{"alias":"@dst",` + v2ScopeJSON + `,"amount":"100"}],"metadata":{"reason":"regulatory-release"}}`,
 			v1Body: `{
 				"description":"v1 v2 unblock parity transfer",
 				"metadata":{"reason":"regulatory-release"},
@@ -1219,7 +1242,7 @@ func TestIntegration_TransactionV2BlockUnblock_ParityWithV1(t *testing.T) {
 			// A routeless, default-settings ledger has no Block/Unblock AccountingEntry: reaching
 			// StatusCreated here (no error) is the observable proof the override resolved the
 			// rubric via the Direct fallback rather than demanding a dedicated block rubric.
-			v2Resp := decodeTxResponse(t, postTransaction(t, v2App, tc.v2URL(infra.orgID, ledgerV2), tc.v2Body, ""), nethttp.StatusCreated)
+			v2Resp := decodeTxResponse(t, postV2Create(t, v2App, tc.v2Action, infra.orgID, ledgerV2, tc.v2Body, ""), nethttp.StatusCreated)
 			v2TxID := uuid.MustParse(v2Resp["id"].(string))
 			assert.Equal(t, cn.APPROVED, postgrestestutil.GetTransactionStatus(t, infra.pgContainer.DB, v2TxID), "v2 block/unblock transaction should be APPROVED in DB")
 			drainBalanceSync(t, ctx, infra.handler.Command, infra.redisRepo, infra.orgID, ledgerV2)
@@ -1260,7 +1283,7 @@ func TestIntegration_TransactionV2BlockUnblock_ParityWithV1(t *testing.T) {
 			assert.Equal(t, "USD", v1Resp["assetCode"])
 			assert.Equal(t, "USD", v2Resp["assetCode"])
 
-			require.Equal(t, stripVolatile(v1Resp), stripVolatile(v2Resp),
+			require.Equal(t, stripVolatile(v1Resp), stripVolatile(renameV2LegKeys(v2Resp)),
 				"v2 block/unblock transaction must be indistinguishable from the v1 equivalent (ignoring IDs/timestamps)")
 		})
 	}
@@ -1297,31 +1320,31 @@ func TestIntegration_TransactionV2BlockUnblock_ValidationBeforeLedgerEffect(t *t
 		wantBodyContains string
 	}{
 		{
-			// Spelling a side is a rule across a pair of fields (`from`/`sources`), which no
-			// struct tag expresses, so Translate owns it and rejects an unspelled side with
-			// ErrMissingFieldsInRequest (0009) -> ValidationError -> 400, before the funnel.
-			// Identical to the direct-action validation contract; block/unblock share the seam.
-			name:             "block missing required from field",
-			url:              v2BlockURL(infra.orgID, infra.ledgerID),
-			body:             `{"asset":"USD","amount":"100","to":"@dst","metadata":{"reason":"regulatory-hold"}}`,
+			// A missing `debits` array is caught at the decode boundary: an omitted key
+			// decodes to a nil slice, and the `min=1` struct tag (not `required`) routes
+			// through the generic ErrBadRequest (0047) bucket — identical to the direct-action
+			// validation contract's "missing debits field" row; block/unblock share the seam.
+			name:             "block missing required debits field",
+			url:              v2CreateURL("block"),
+			body:             `{"asset":"USD","amount":"100","credits":[{"alias":"@dst",` + v2ScopeJSON + `,"amount":"100"}],"metadata":{"reason":"regulatory-hold"}}`,
 			wantStatus:       nethttp.StatusBadRequest,
-			wantCode:         "0009",
-			wantBodyContains: "from or sources",
+			wantCode:         "0047",
+			wantBodyContains: "debits",
 		},
 		{
-			name:             "unblock missing required from field",
-			url:              v2UnblockURL(infra.orgID, infra.ledgerID),
-			body:             `{"asset":"USD","amount":"100","to":"@dst","metadata":{"reason":"regulatory-release"}}`,
+			name:             "unblock missing required debits field",
+			url:              v2CreateURL("unblock"),
+			body:             `{"asset":"USD","amount":"100","credits":[{"alias":"@dst",` + v2ScopeJSON + `,"amount":"100"}],"metadata":{"reason":"regulatory-release"}}`,
 			wantStatus:       nethttp.StatusBadRequest,
-			wantCode:         "0009",
-			wantBodyContains: "from or sources",
+			wantCode:         "0047",
+			wantBodyContains: "debits",
 		},
 		{
-			// from == to is a Translate business error (ErrTransactionAmbiguous / 0090) -> 422,
-			// fired before the create funnel touches any balance.
+			// One account on both sides is ErrTransactionAmbiguous (0090) -> 422, answered by the
+			// funnel's second validate. No balance moves.
 			name:       "block from equals to business error",
-			url:        v2BlockURL(infra.orgID, infra.ledgerID),
-			body:       `{"asset":"USD","amount":"100","from":"@src","to":"@src","metadata":{"reason":"regulatory-hold"}}`,
+			url:        v2CreateURL("block"),
+			body:       `{"asset":"USD","amount":"100","debits":[{"alias":"@src",` + v2ScopeJSON + `,"amount":"100"}],"credits":[{"alias":"@src",` + v2ScopeJSON + `,"amount":"100"}],"metadata":{"reason":"regulatory-hold"}}`,
 			wantStatus: nethttp.StatusUnprocessableEntity,
 			wantCode:   "0090",
 		},
@@ -1329,7 +1352,7 @@ func TestIntegration_TransactionV2BlockUnblock_ValidationBeforeLedgerEffect(t *t
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			resp := postTransaction(t, v2App, tc.url, tc.body, "")
+			resp := postTransaction(t, v2App, tc.url, v2ScopedBody(tc.body, infra.orgID, infra.ledgerID), "")
 			body := drainBody(t, resp)
 
 			assert.Equal(t, tc.wantStatus, resp.StatusCode, "%s should be rejected before any ledger effect; body: %s", tc.name, string(body))
@@ -1353,8 +1376,8 @@ func TestIntegration_TransactionV2BlockUnblock_ValidationBeforeLedgerEffect(t *t
 // Four legs is what makes it the right probe for a per-leg claim — with a single leg,
 // "stamped on every leg" and "stamped once" are indistinguishable.
 const advancedLegV2Body = `{"description":"v2 advanced multi-leg","asset":"USD","amount":"100",` +
-	`"sources":[{"account":"@srcA","amount":"60"},{"account":"@srcB","amount":"40"}],` +
-	`"destinations":[{"account":"@dstA","share":{"percentage":50}},{"account":"@dstB","share":{"percentage":50}}]}`
+	`"debits":[{"alias":"@srcA",` + v2ScopeJSON + `,"amount":"60"},{"alias":"@srcB",` + v2ScopeJSON + `,"amount":"40"}],` +
+	`"credits":[{"alias":"@dstA",` + v2ScopeJSON + `,"share":{"percentage":50}},{"alias":"@dstB",` + v2ScopeJSON + `,"share":{"percentage":50}}]}`
 
 // advancedLegBalances are the seeded balance IDs of the four accounts advancedLegV2Body names.
 type advancedLegBalances struct {
@@ -1448,13 +1471,13 @@ func directAdvancedLegOps() map[string]advancedLegExpectation {
 func TestIntegration_TransactionV2Advanced_FourActionsAcceptLegArrays(t *testing.T) {
 	cases := []struct {
 		name       string
-		url        func(orgID, ledgerID uuid.UUID) string
+		action     string
 		wantStatus string
 		wantOps    map[string]advancedLegExpectation
 	}{
 		{
 			name:       "direct settles every leg with plain debit and credit labels",
-			url:        v2DirectURL,
+			action:     "direct",
 			wantStatus: cn.APPROVED,
 			wantOps:    directAdvancedLegOps(),
 		},
@@ -1462,7 +1485,7 @@ func TestIntegration_TransactionV2Advanced_FourActionsAcceptLegArrays(t *testing
 			// A hold reserves the sources only; the destination credit lands on commit, so a
 			// pending transaction persists one ON_HOLD operation per SOURCE leg.
 			name:       "hold opens pending and reserves every source leg",
-			url:        v2HoldURL,
+			action:     "hold",
 			wantStatus: cn.PENDING,
 			wantOps: map[string]advancedLegExpectation{
 				"@srcA": {opType: cn.ONHOLD, amount: decimal.NewFromInt(60)},
@@ -1471,7 +1494,7 @@ func TestIntegration_TransactionV2Advanced_FourActionsAcceptLegArrays(t *testing
 		},
 		{
 			name:       "block stamps its override on every expanded leg",
-			url:        v2BlockURL,
+			action:     "block",
 			wantStatus: cn.APPROVED,
 			wantOps: map[string]advancedLegExpectation{
 				"@srcA": {opType: cn.BLOCK, amount: decimal.NewFromInt(60)},
@@ -1482,7 +1505,7 @@ func TestIntegration_TransactionV2Advanced_FourActionsAcceptLegArrays(t *testing
 		},
 		{
 			name:       "unblock stamps its override on every expanded leg",
-			url:        v2UnblockURL,
+			action:     "unblock",
 			wantStatus: cn.APPROVED,
 			wantOps: map[string]advancedLegExpectation{
 				"@srcA": {opType: cn.UNBLOCK, amount: decimal.NewFromInt(60)},
@@ -1509,7 +1532,7 @@ func TestIntegration_TransactionV2Advanced_FourActionsAcceptLegArrays(t *testing
 
 			v2App := buildHumaV2DirectApp(t, infra.handler)
 
-			resp := decodeTxResponse(t, postTransaction(t, v2App, tc.url(infra.orgID, infra.ledgerID), advancedLegV2Body, ""), nethttp.StatusCreated)
+			resp := decodeTxResponse(t, postV2Create(t, v2App, tc.action, infra.orgID, infra.ledgerID, advancedLegV2Body, ""), nethttp.StatusCreated)
 			txID := uuid.MustParse(resp["id"].(string))
 
 			assert.Equal(t, tc.wantStatus, postgrestestutil.GetTransactionStatus(t, infra.pgContainer.DB, txID),
@@ -1630,7 +1653,7 @@ func TestIntegration_TransactionV1Detailed_RemainingLegDropped_KnownDefect(t *te
 
 // =============================================================================
 // 14. FUNDING VIA A LEG NAMING THE EXTERNAL ACCOUNT: `@external/<ASSET>` reaches the ledger
-//     through a `sources` leg and settles. The v2 surface publishes no inflow/outflow action,
+//     through a `debits` leg and settles. The v2 surface publishes no inflow/outflow action,
 //     so naming that alias explicitly is the ONLY way to spell a deposit — and the alias
 //     contains `/`, which the registered account-alias charset excludes. This test is the
 //     end-to-end lock on that: the leg guard rejects `#` alone, so a charset-based guard
@@ -1682,10 +1705,10 @@ func TestIntegration_TransactionV2Advanced_ExternalAccountLegFundsAccount(t *tes
 	v2App := buildHumaV2DirectApp(t, infra.handler)
 
 	body := `{"description":"fund alice","asset":"USD","amount":"100",` +
-		`"sources":[{"account":"` + externalUSDAlias + `","amount":"100"}],` +
-		`"destinations":[{"account":"@alice","amount":"100"}]}`
+		`"debits":[{"alias":"` + externalUSDAlias + `",` + v2ScopeJSON + `,"amount":"100"}],` +
+		`"credits":[{"alias":"@alice",` + v2ScopeJSON + `,"amount":"100"}]}`
 
-	resp := decodeTxResponse(t, postTransaction(t, v2App, v2DirectURL(infra.orgID, infra.ledgerID), body, ""), nethttp.StatusCreated)
+	resp := decodeTxResponse(t, postV2Create(t, v2App, "direct", infra.orgID, infra.ledgerID, body, ""), nethttp.StatusCreated)
 	txID := uuid.MustParse(resp["id"].(string))
 
 	assert.Equal(t, cn.APPROVED, postgrestestutil.GetTransactionStatus(t, infra.pgContainer.DB, txID),
@@ -1713,58 +1736,12 @@ func TestIntegration_TransactionV2Advanced_ExternalAccountLegFundsAccount(t *tes
 		"the external account funds the deposit from its overdraft")
 }
 
-// =============================================================================
-// 14b. THE SAME DEPOSIT SPELLED ON THE SCALAR POSITION: `{"from":"@external/USD","to":"@alice"}`
-//      is what a client actually sends, and it is a DIFFERENT code path from the leg-array
-//      spelling above — the scalar alias arrives straight off the request with no per-leg tag
-//      behind it, and it is the only spelling a caller who never reads the leg schema will find.
-//      Above proves the alias survives a `sources` entry; this proves it survives `from`, and
-//      that the resulting deposit settles identically.
-// =============================================================================
-
-func TestIntegration_TransactionV2Direct_ExternalAccountScalarFundsAccount(t *testing.T) {
-	// NOT parallel: process-global huma state (see file header).
-	t.Setenv("ALLOW_INSECURE_TLS", "true")
-
-	infra := setupTestInfra(t)
-	t.Setenv("RABBITMQ_TRANSACTION_ASYNC", "false")
-
-	ctx := context.Background()
-
-	externalID, aliceID := seedExternalFundingBalances(t, infra.pgContainer.DB, infra.orgID, infra.ledgerID)
-
-	v2App := buildHumaV2DirectApp(t, infra.handler)
-
-	body := `{"description":"fund alice","asset":"USD","amount":"100",` +
-		`"from":"` + externalUSDAlias + `","to":"@alice"}`
-
-	resp := decodeTxResponse(t, postTransaction(t, v2App, v2DirectURL(infra.orgID, infra.ledgerID), body, ""), nethttp.StatusCreated)
-	txID := uuid.MustParse(resp["id"].(string))
-
-	assert.Equal(t, cn.APPROVED, postgrestestutil.GetTransactionStatus(t, infra.pgContainer.DB, txID),
-		"a deposit spelled with the external account in the scalar from must settle")
-	drainBalanceSync(t, ctx, infra.handler.Command, infra.redisRepo, infra.orgID, infra.ledgerID)
-
-	// Both operations persisted against their own alias: the `/` in the external alias survived
-	// the scalar-side guard and round-tripped through the funnel's per-entry map.
-	byAlias := indexOpsByAlias(t, fetchOperationRows(t, infra.pgContainer.DB, txID))
-
-	externalOp, ok := byAlias[externalUSDAlias]
-	require.Truef(t, ok, "the scalar external source must persist an operation under %s", externalUSDAlias)
-	assert.Equal(t, cn.DEBIT, externalOp.Type, "the external account is the debit side of a deposit")
-	requireDecimalEqual(t, decimal.NewFromInt(100), externalOp.Amount, "external debit amount")
-
-	aliceOp, ok := byAlias["@alice"]
-	require.True(t, ok, "the scalar destination must persist an operation")
-	assert.Equal(t, cn.CREDIT, aliceOp.Type)
-	requireDecimalEqual(t, decimal.NewFromInt(100), aliceOp.Amount, "destination credit amount")
-
-	// Economic proof: the funds landed, drawn from the external account's overdraft.
-	requireDecimalEqual(t, decimal.NewFromInt(100), postgrestestutil.GetBalanceAvailable(t, infra.pgContainer.DB, aliceID),
-		"@alice must hold the deposited funds")
-	requireDecimalEqual(t, decimal.NewFromInt(-100), postgrestestutil.GetBalanceAvailable(t, infra.pgContainer.DB, externalID),
-		"the external account funds the deposit from its overdraft")
-}
+// TestIntegration_TransactionV2Direct_ExternalAccountScalarFundsAccount used to live here,
+// proving the same deposit settled identically when spelled with scalar `from`/`to` fields
+// instead of the `debits`/`credits` leg arrays the test above uses. CreateTransactionV2Input
+// no longer has From/To fields — the request carries ONLY leg arrays — so there is no separate
+// scalar code path left to distinguish, and the test was removed rather than pointed at the
+// (now identical) array mechanism the test above already covers.
 
 // =============================================================================
 // 15. UNBALANCED LEG ARRAY: `amount` is mandatory in the array form BECAUSE it is the total
@@ -1785,15 +1762,15 @@ func TestIntegration_TransactionV2Advanced_UnbalancedLegsRejected(t *testing.T) 
 			// Explicit amounts: 60 + 30 = 90 against a declared total of 100.
 			name: "explicit amount legs that do not sum to the declared total",
 			body: `{"description":"unbalanced explicit legs","asset":"USD","amount":"100",` +
-				`"sources":[{"account":"@srcA","amount":"60"},{"account":"@srcB","amount":"30"}],` +
-				`"destinations":[{"account":"@dstA","amount":"100"}]}`,
+				`"debits":[{"alias":"@srcA",` + v2ScopeJSON + `,"amount":"60"},{"alias":"@srcB",` + v2ScopeJSON + `,"amount":"30"}],` +
+				`"credits":[{"alias":"@dstA",` + v2ScopeJSON + `,"amount":"100"}]}`,
 		},
 		{
 			// Shares: 60% + 30% = 90% of the total, so the resolved legs sum to 90.
 			name: "share legs whose percentages do not sum to the whole total",
 			body: `{"description":"unbalanced share legs","asset":"USD","amount":"100",` +
-				`"sources":[{"account":"@srcA","share":{"percentage":60}},{"account":"@srcB","share":{"percentage":30}}],` +
-				`"destinations":[{"account":"@dstA","amount":"100"}]}`,
+				`"debits":[{"alias":"@srcA",` + v2ScopeJSON + `,"share":{"percentage":60}},{"alias":"@srcB",` + v2ScopeJSON + `,"share":{"percentage":30}}],` +
+				`"credits":[{"alias":"@dstA",` + v2ScopeJSON + `,"amount":"100"}]}`,
 		},
 	}
 
@@ -1809,7 +1786,7 @@ func TestIntegration_TransactionV2Advanced_UnbalancedLegsRejected(t *testing.T) 
 
 			v2App := buildHumaV2DirectApp(t, infra.handler)
 
-			resp := postTransaction(t, v2App, v2DirectURL(infra.orgID, infra.ledgerID), tc.body, "")
+			resp := postV2Create(t, v2App, "direct", infra.orgID, infra.ledgerID, tc.body, "")
 			body := drainBody(t, resp)
 
 			assert.Equal(t, nethttp.StatusUnprocessableEntity, resp.StatusCode,
@@ -1863,11 +1840,11 @@ func TestIntegration_TransactionV2Advanced_PercentageOfPercentageResolvesNarrowe
 	// remaining 70 as a plain share, so the two resolved legs sum to the declared total and
 	// the funnel's balance rule cannot be what makes the request pass or fail.
 	body := `{"description":"narrowed share","asset":"USD","amount":"100",` +
-		`"sources":[{"account":"@srcA","amount":"100"}],` +
-		`"destinations":[{"account":"@dstA","share":{"percentage":60,"percentageOfPercentage":50}},` +
-		`{"account":"@dstB","share":{"percentage":70}}]}`
+		`"debits":[{"alias":"@srcA",` + v2ScopeJSON + `,"amount":"100"}],` +
+		`"credits":[{"alias":"@dstA",` + v2ScopeJSON + `,"share":{"percentage":60,"percentageOfPercentage":50}},` +
+		`{"alias":"@dstB",` + v2ScopeJSON + `,"share":{"percentage":70}}]}`
 
-	resp := decodeTxResponse(t, postTransaction(t, v2App, v2DirectURL(infra.orgID, infra.ledgerID), body, ""), nethttp.StatusCreated)
+	resp := decodeTxResponse(t, postV2Create(t, v2App, "direct", infra.orgID, infra.ledgerID, body, ""), nethttp.StatusCreated)
 	txID := uuid.MustParse(resp["id"].(string))
 
 	assert.Equal(t, cn.APPROVED, postgrestestutil.GetTransactionStatus(t, infra.pgContainer.DB, txID),
@@ -1912,19 +1889,15 @@ func operationsByAliasAndType(t *testing.T, ops []operationEconomicRow) map[stri
 }
 
 // =============================================================================
-// 17. SAME ACCOUNT ON BOTH SIDES OF ONE TRANSACTION. Per-side exclusivity newly legalises a
-//     scalar source paired with a destination ARRAY, a shape that could not be spelled before,
-//     and the scalar From == To check cannot see it (To is empty). The funnel's ambiguity guard
-//     is the only thing left, and it compares the two sides INDEX-POSITIONALLY — so it fires
-//     when the alias sits at the same index on both sides and not otherwise.
+// 17. SAME ACCOUNT ON BOTH SIDES OF ONE TRANSACTION. Translate names no ambiguity rule of its
+//     own — the funnel's ambiguity guard is the only check that runs, and it compares the two
+//     sides INDEX-POSITIONALLY, so it fires when the alias sits at the same index on both sides
+//     and not otherwise.
 //
-//     Both outcomes are pinned. The caught row records an accidental guarantee that no
-//     refactor should be free to drop silently. The escaping row is a KNOWN-DEFECT pin in the
-//     same discipline as the v1 `remaining` pin above: it asserts the CURRENT WRONG behavior on
-//     purpose, so tightening the funnel guard goes red here and this is the place to record the
-//     corrected contract. The escaping shape was already reachable through array/array bodies
-//     before per-side exclusivity existed, so this pins parity with the released surface rather
-//     than a regression introduced by it.
+//     Both outcomes are pinned. The caught row records a guarantee that no refactor should be
+//     free to drop silently. The escaping row is a KNOWN-DEFECT pin: it asserts the CURRENT
+//     WRONG behavior on purpose, so tightening the funnel guard goes red here and this is the
+//     place to record the corrected contract.
 // =============================================================================
 
 func TestIntegration_TransactionV2_SameAccountOnBothSides(t *testing.T) {
@@ -1939,10 +1912,10 @@ func TestIntegration_TransactionV2_SameAccountOnBothSides(t *testing.T) {
 
 		v2App := buildHumaV2DirectApp(t, infra.handler)
 
-		body := `{"description":"self transfer","asset":"USD","amount":"100","from":"@self",` +
-			`"destinations":[{"account":"@self","amount":"100"}]}`
+		body := `{"description":"self transfer","asset":"USD","amount":"100","debits":[{"alias":"@self",` + v2ScopeJSON + `,"amount":"100"}],` +
+			`"credits":[{"alias":"@self",` + v2ScopeJSON + `,"amount":"100"}]}`
 
-		resp := postTransaction(t, v2App, v2DirectURL(infra.orgID, infra.ledgerID), body, "")
+		resp := postV2Create(t, v2App, "direct", infra.orgID, infra.ledgerID, body, "")
 		respBody := drainBody(t, resp)
 
 		assert.Equal(t, nethttp.StatusUnprocessableEntity, resp.StatusCode,
@@ -1970,10 +1943,10 @@ func TestIntegration_TransactionV2_SameAccountOnBothSides(t *testing.T) {
 
 		// @self is the whole source side and ALSO the second destination leg. The guard misses
 		// it because it does not sit at index 0 of the destination array.
-		body := `{"description":"self at index one","asset":"USD","amount":"100","from":"@self",` +
-			`"destinations":[{"account":"@other","amount":"60"},{"account":"@self","amount":"40"}]}`
+		body := `{"description":"self at index one","asset":"USD","amount":"100","debits":[{"alias":"@self",` + v2ScopeJSON + `,"amount":"100"}],` +
+			`"credits":[{"alias":"@other",` + v2ScopeJSON + `,"amount":"60"},{"alias":"@self",` + v2ScopeJSON + `,"amount":"40"}]}`
 
-		resp := decodeTxResponse(t, postTransaction(t, v2App, v2DirectURL(infra.orgID, infra.ledgerID), body, ""), nethttp.StatusCreated)
+		resp := decodeTxResponse(t, postV2Create(t, v2App, "direct", infra.orgID, infra.ledgerID, body, ""), nethttp.StatusCreated)
 		txID := uuid.MustParse(resp["id"].(string))
 
 		assert.Equal(t, cn.APPROVED, postgrestestutil.GetTransactionStatus(t, infra.pgContainer.DB, txID),
@@ -2025,7 +1998,7 @@ func TestIntegration_TransactionV2Advanced_MultiLegHoldCommitSettles(t *testing.
 
 	v2App := buildHumaV2DirectApp(t, infra.handler)
 
-	holdResp := decodeTxResponse(t, postTransaction(t, v2App, v2HoldURL(infra.orgID, infra.ledgerID), advancedLegV2Body, ""), nethttp.StatusCreated)
+	holdResp := decodeTxResponse(t, postV2Create(t, v2App, "hold", infra.orgID, infra.ledgerID, advancedLegV2Body, ""), nethttp.StatusCreated)
 	txID := uuid.MustParse(holdResp["id"].(string))
 
 	assert.Equal(t, cn.PENDING, postgrestestutil.GetTransactionStatus(t, infra.pgContainer.DB, txID),
@@ -2083,8 +2056,8 @@ func TestIntegration_TransactionV2Advanced_MultiLegHoldCommitSettles(t *testing.
 // same intent in two ledgers and the resulting rows differ only by IDs and timestamps.
 const (
 	splitV2Body = `{"description":"multi-leg parity","asset":"USD","amount":"1000",` +
-		`"sources":[{"account":"@srcA","amount":"1000"}],` +
-		`"destinations":[{"account":"@dstA","amount":"600"},{"account":"@dstB","amount":"400"}]}`
+		`"debits":[{"alias":"@srcA",` + v2ScopeJSON + `,"amount":"1000"}],` +
+		`"credits":[{"alias":"@dstA",` + v2ScopeJSON + `,"amount":"600"},{"alias":"@dstB",` + v2ScopeJSON + `,"amount":"400"}]}`
 
 	splitV1Body = `{
 		"description":"multi-leg parity",
@@ -2099,8 +2072,8 @@ const (
 	}`
 
 	multiSourceV2Body = `{"description":"multi-leg parity","asset":"USD","amount":"1000",` +
-		`"sources":[{"account":"@srcA","amount":"600"},{"account":"@srcB","amount":"400"}],` +
-		`"destinations":[{"account":"@dstA","amount":"1000"}]}`
+		`"debits":[{"alias":"@srcA",` + v2ScopeJSON + `,"amount":"600"},{"alias":"@srcB",` + v2ScopeJSON + `,"amount":"400"}],` +
+		`"credits":[{"alias":"@dstA",` + v2ScopeJSON + `,"amount":"1000"}]}`
 
 	multiSourceV1Body = `{
 		"description":"multi-leg parity",
@@ -2264,7 +2237,7 @@ func TestIntegration_TransactionV2Advanced_MultiLegParityWithV1Detailed(t *testi
 			assert.Equal(t, cn.APPROVED, postgrestestutil.GetTransactionStatus(t, infra.pgContainer.DB, v1TxID), "v1 transaction should be APPROVED in DB")
 			drainBalanceSync(t, ctx, infra.handler.Command, infra.redisRepo, infra.orgID, ledgerV1)
 
-			v2Resp := decodeTxResponse(t, postTransaction(t, v2App, v2DirectURL(infra.orgID, ledgerV2), tc.v2Body, ""), nethttp.StatusCreated)
+			v2Resp := decodeTxResponse(t, postV2Create(t, v2App, "direct", infra.orgID, ledgerV2, tc.v2Body, ""), nethttp.StatusCreated)
 			v2TxID := uuid.MustParse(v2Resp["id"].(string))
 			assert.Equal(t, cn.APPROVED, postgrestestutil.GetTransactionStatus(t, infra.pgContainer.DB, v2TxID), "v2 transaction should be APPROVED in DB")
 			drainBalanceSync(t, ctx, infra.handler.Command, infra.redisRepo, infra.orgID, ledgerV2)
@@ -2299,7 +2272,7 @@ func TestIntegration_TransactionV2Advanced_MultiLegParityWithV1Detailed(t *testi
 			// reach through the same create funnel; every alias these bodies name is distinct, so
 			// that key orders the set totally and the two arrays line up index-for-index. A body
 			// naming one account twice would tie on that key and could not be compared this way.
-			require.Equal(t, stripVolatile(v1Resp), stripVolatile(v2Resp),
+			require.Equal(t, stripVolatile(v1Resp), stripVolatile(renameV2LegKeys(v2Resp)),
 				"the v2 leg-array response must be indistinguishable from the v1 detailed equivalent (ignoring IDs/timestamps)")
 		})
 	}
@@ -2311,8 +2284,8 @@ func TestIntegration_TransactionV2Advanced_MultiLegParityWithV1Detailed(t *testi
 // commit were not atomic across legs, @srcA would be short 600 after the rejection.
 const (
 	underfundedSourceLegV2Body = `{"description":"underfunded source leg","asset":"USD","amount":"5600",` +
-		`"sources":[{"account":"@srcA","amount":"600"},{"account":"@srcB","amount":"5000"}],` +
-		`"destinations":[{"account":"@dstA","amount":"5600"}]}`
+		`"debits":[{"alias":"@srcA",` + v2ScopeJSON + `,"amount":"600"},{"alias":"@srcB",` + v2ScopeJSON + `,"amount":"5000"}],` +
+		`"credits":[{"alias":"@dstA",` + v2ScopeJSON + `,"amount":"5600"}]}`
 
 	underfundedSourceLegV1Body = `{
 		"description":"underfunded source leg",
@@ -2378,7 +2351,7 @@ func TestIntegration_TransactionV2Advanced_UnderfundedSourceLegRejectsWholeTrans
 		balances map[string]uuid.UUID
 	}{
 		{"v1", v1App, v1JSONURL(infra.orgID, ledgerV1), underfundedSourceLegV1Body, ledgerV1, v1Balances},
-		{"v2", v2App, v2DirectURL(infra.orgID, ledgerV2), underfundedSourceLegV2Body, ledgerV2, v2Balances},
+		{"v2", v2App, v2CreateURL("direct"), v2ScopedBody(underfundedSourceLegV2Body, infra.orgID, ledgerV2), ledgerV2, v2Balances},
 	} {
 		// A subtest per surface: the helpers below are require-based, so a v1 failure would
 		// otherwise end the test before v2 ran at all.
@@ -2418,8 +2391,8 @@ func TestIntegration_TransactionV2Advanced_UnderfundedSourceLegRejectsWholeTrans
 // the decimal divide rounds.
 const (
 	shareSplitV2Body = `{"description":"share leg parity","asset":"USD","amount":"1000",` +
-		`"sources":[{"account":"@srcA","amount":"1000"}],` +
-		`"destinations":[{"account":"@dstA","share":{"percentage":70}},{"account":"@dstB","share":{"percentage":30}}]}`
+		`"debits":[{"alias":"@srcA",` + v2ScopeJSON + `,"amount":"1000"}],` +
+		`"credits":[{"alias":"@dstA",` + v2ScopeJSON + `,"share":{"percentage":70}},{"alias":"@dstB",` + v2ScopeJSON + `,"share":{"percentage":30}}]}`
 
 	shareSplitV1Body = `{
 		"description":"share leg parity",
@@ -2434,9 +2407,9 @@ const (
 	}`
 
 	sharePopV2Body = `{"description":"share leg parity","asset":"USD","amount":"1000",` +
-		`"sources":[{"account":"@srcA","amount":"1000"}],` +
-		`"destinations":[{"account":"@dstA","share":{"percentage":80,"percentageOfPercentage":25}},` +
-		`{"account":"@dstB","share":{"percentage":80}}]}`
+		`"debits":[{"alias":"@srcA",` + v2ScopeJSON + `,"amount":"1000"}],` +
+		`"credits":[{"alias":"@dstA",` + v2ScopeJSON + `,"share":{"percentage":80,"percentageOfPercentage":25}},` +
+		`{"alias":"@dstB",` + v2ScopeJSON + `,"share":{"percentage":80}}]}`
 
 	sharePopV1Body = `{
 		"description":"share leg parity",
@@ -2548,7 +2521,7 @@ func TestIntegration_TransactionV2Advanced_ShareLegParityWithV1Detailed(t *testi
 			assert.Equal(t, cn.APPROVED, postgrestestutil.GetTransactionStatus(t, infra.pgContainer.DB, v1TxID), "v1 transaction should be APPROVED in DB")
 			drainBalanceSync(t, ctx, infra.handler.Command, infra.redisRepo, infra.orgID, ledgerV1)
 
-			v2Resp := decodeTxResponse(t, postTransaction(t, v2App, v2DirectURL(infra.orgID, ledgerV2), tc.v2Body, ""), nethttp.StatusCreated)
+			v2Resp := decodeTxResponse(t, postV2Create(t, v2App, "direct", infra.orgID, ledgerV2, tc.v2Body, ""), nethttp.StatusCreated)
 			v2TxID := uuid.MustParse(v2Resp["id"].(string))
 			assert.Equal(t, cn.APPROVED, postgrestestutil.GetTransactionStatus(t, infra.pgContainer.DB, v2TxID), "v2 transaction should be APPROVED in DB")
 			drainBalanceSync(t, ctx, infra.handler.Command, infra.redisRepo, infra.orgID, ledgerV2)
@@ -2575,7 +2548,7 @@ func TestIntegration_TransactionV2Advanced_ShareLegParityWithV1Detailed(t *testi
 			// in balance-internal-key ("alias#balanceKey") order, which both surfaces reach
 			// through the same create funnel; every alias these bodies name is distinct, so that
 			// key orders the set totally and the two arrays line up index-for-index.
-			require.Equal(t, stripVolatile(v1Resp), stripVolatile(v2Resp),
+			require.Equal(t, stripVolatile(v1Resp), stripVolatile(renameV2LegKeys(v2Resp)),
 				"the v2 share-leg response must be indistinguishable from the v1 detailed equivalent (ignoring IDs/timestamps)")
 		})
 	}
@@ -2587,8 +2560,8 @@ func TestIntegration_TransactionV2Advanced_ShareLegParityWithV1Detailed(t *testi
 // a whole-body property, and the funnel's own comparison is the only thing that owns it.
 const (
 	shareShortV2Body = `{"description":"share legs short of the total","asset":"USD","amount":"1000",` +
-		`"sources":[{"account":"@srcA","amount":"1000"}],` +
-		`"destinations":[{"account":"@dstA","share":{"percentage":70}},{"account":"@dstB","share":{"percentage":20}}]}`
+		`"debits":[{"alias":"@srcA",` + v2ScopeJSON + `,"amount":"1000"}],` +
+		`"credits":[{"alias":"@dstA",` + v2ScopeJSON + `,"share":{"percentage":70}},{"alias":"@dstB",` + v2ScopeJSON + `,"share":{"percentage":20}}]}`
 
 	shareShortV1Body = `{
 		"description":"share legs short of the total",
@@ -2648,7 +2621,7 @@ func TestIntegration_TransactionV2Advanced_ShareLegsNotClosingTotalRejected(t *t
 		balances map[string]uuid.UUID
 	}{
 		{"v1", v1App, v1JSONURL(infra.orgID, ledgerV1), shareShortV1Body, ledgerV1, v1Balances},
-		{"v2", v2App, v2DirectURL(infra.orgID, ledgerV2), shareShortV2Body, ledgerV2, v2Balances},
+		{"v2", v2App, v2CreateURL("direct"), v2ScopedBody(shareShortV2Body, infra.orgID, ledgerV2), ledgerV2, v2Balances},
 	} {
 		// A subtest per surface: the helpers below are require-based, so a v1 failure would
 		// otherwise end the test before v2 ran at all.
@@ -2671,8 +2644,8 @@ func TestIntegration_TransactionV2Advanced_ShareLegsNotClosingTotalRejected(t *t
 // advancedLegPermutedV2Body is advancedLegV2Body with its two source legs written in the
 // opposite order. Economically it is the same transaction; as bytes it is a different request.
 const advancedLegPermutedV2Body = `{"description":"v2 advanced multi-leg","asset":"USD","amount":"100",` +
-	`"sources":[{"account":"@srcB","amount":"40"},{"account":"@srcA","amount":"60"}],` +
-	`"destinations":[{"account":"@dstA","share":{"percentage":50}},{"account":"@dstB","share":{"percentage":50}}]}`
+	`"debits":[{"alias":"@srcB",` + v2ScopeJSON + `,"amount":"40"},{"alias":"@srcA",` + v2ScopeJSON + `,"amount":"60"}],` +
+	`"credits":[{"alias":"@dstA",` + v2ScopeJSON + `,"share":{"percentage":50}},{"alias":"@dstB",` + v2ScopeJSON + `,"share":{"percentage":50}}]}`
 
 // responseOperationsByAliasAndType projects a transaction RESPONSE's operations array into a map
 // keyed by "<accountAlias>/<type>", each value the operation object with its identity, timestamp
@@ -2741,10 +2714,10 @@ func TestIntegration_TransactionV2Advanced_Idempotency(t *testing.T) {
 		balances := seedAdvancedLegBalances(t, infra.pgContainer.DB, infra.orgID, infra.ledgerID, 1000)
 
 		v2App := buildHumaV2DirectApp(t, infra.handler)
-		url := v2DirectURL(infra.orgID, infra.ledgerID)
+		url := v2CreateURL("direct")
 		idempotencyKey := uuid.NewString()
 
-		first := postTransaction(t, v2App, url, advancedLegV2Body, idempotencyKey)
+		first := postTransaction(t, v2App, url, v2ScopedBody(advancedLegV2Body, infra.orgID, infra.ledgerID), idempotencyKey)
 		firstResult := decodeTxResponse(t, first, nethttp.StatusCreated)
 		assert.Equal(t, "false", first.Header.Get("X-Idempotency-Replayed"), "first advanced call must not be a replay")
 
@@ -2753,7 +2726,7 @@ func TestIntegration_TransactionV2Advanced_Idempotency(t *testing.T) {
 		// Wait for the async idempotency-value store before replaying (see helper doc).
 		waitForIdempotencyStored(t, ctx, infra.redisRepo, infra.orgID, infra.ledgerID, idempotencyKey)
 
-		second := postTransaction(t, v2App, url, advancedLegV2Body, idempotencyKey)
+		second := postTransaction(t, v2App, url, v2ScopedBody(advancedLegV2Body, infra.orgID, infra.ledgerID), idempotencyKey)
 		secondResult := decodeTxResponse(t, second, nethttp.StatusCreated)
 
 		assert.Equal(t, "true", second.Header.Get("X-Idempotency-Replayed"), "second identical advanced call must be a replay")
@@ -2800,12 +2773,12 @@ func TestIntegration_TransactionV2Advanced_Idempotency(t *testing.T) {
 		balances := seedAdvancedLegBalances(t, infra.pgContainer.DB, infra.orgID, infra.ledgerID, 1000)
 
 		v2App := buildHumaV2DirectApp(t, infra.handler)
-		url := v2DirectURL(infra.orgID, infra.ledgerID)
+		url := v2CreateURL("direct")
 
 		// No X-Idempotency header on either call, so each derives its key from its own body bytes.
-		firstResult := decodeTxResponse(t, postTransaction(t, v2App, url, advancedLegV2Body, ""), nethttp.StatusCreated)
+		firstResult := decodeTxResponse(t, postTransaction(t, v2App, url, v2ScopedBody(advancedLegV2Body, infra.orgID, infra.ledgerID), ""), nethttp.StatusCreated)
 
-		permuted := postTransaction(t, v2App, url, advancedLegPermutedV2Body, "")
+		permuted := postTransaction(t, v2App, url, v2ScopedBody(advancedLegPermutedV2Body, infra.orgID, infra.ledgerID), "")
 		permutedResult := decodeTxResponse(t, permuted, nethttp.StatusCreated)
 
 		assert.Equal(t, "false", permuted.Header.Get("X-Idempotency-Replayed"),
@@ -2850,13 +2823,13 @@ func TestIntegration_TransactionV2Advanced_DirectHoldNoKeyCrossDedup(t *testing.
 
 	v2App := buildHumaV2DirectApp(t, infra.handler)
 
-	directResp := postTransaction(t, v2App, v2DirectURL(infra.orgID, infra.ledgerID), advancedLegV2Body, "")
+	directResp := postV2Create(t, v2App, "direct", infra.orgID, infra.ledgerID, advancedLegV2Body, "")
 	directResult := decodeTxResponse(t, directResp, nethttp.StatusCreated)
 	assert.Equal(t, "false", directResp.Header.Get("X-Idempotency-Replayed"), "the advanced direct create must not be a replay")
 
 	directTxID := uuid.MustParse(directResult["id"].(string))
 
-	holdResp := postTransaction(t, v2App, v2HoldURL(infra.orgID, infra.ledgerID), advancedLegV2Body, "")
+	holdResp := postV2Create(t, v2App, "hold", infra.orgID, infra.ledgerID, advancedLegV2Body, "")
 	holdResult := decodeTxResponse(t, holdResp, nethttp.StatusCreated)
 	assert.Equal(t, "false", holdResp.Header.Get("X-Idempotency-Replayed"),
 		"the advanced hold create must NOT replay the advanced direct transaction (distinct action identity, distinct slot)")
@@ -2874,4 +2847,67 @@ func TestIntegration_TransactionV2Advanced_DirectHoldNoKeyCrossDedup(t *testing.
 
 	assert.Equal(t, 2, countTransactionsInLedger(t, infra.pgContainer.DB, infra.ledgerID),
 		"an advanced direct + hold with an identical no-key body must persist two transactions, not replay one")
+}
+
+// =============================================================================
+// 20. BODY SCOPE DECIDES THE LEDGER: the v2 create path names no organization and no
+//     ledger, so the pair the request body states is the only thing that can decide where
+//     the transaction lands. Two ledgers are seeded with the SAME aliases and the SAME
+//     starting balances, so nothing but the scope in the body distinguishes them — and the
+//     transaction must appear in the one the body named and nowhere else.
+// =============================================================================
+
+func TestIntegration_TransactionV2Direct_BodyScopeDecidesTheLedger(t *testing.T) {
+	// NOT parallel: process-global huma state (see file header).
+	// The postgres client constructor enforces TLS by the ENV_NAME security tier and refuses
+	// plaintext unless ALLOW_INSECURE_TLS=true.
+	t.Setenv("ALLOW_INSECURE_TLS", "true")
+
+	infra := setupTestInfra(t)
+	t.Setenv("RABBITMQ_TRANSACTION_ASYNC", "false")
+
+	ctx := context.Background()
+
+	// Two ledgers under one organization, seeded identically. The named one receives the
+	// transaction; the other is the control.
+	unnamedLedger := infra.ledgerID
+	namedLedger := uuid.Must(libCommons.GenerateUUIDv7())
+	seedLedgerSettings(t, infra.pgContainer.DB, infra.orgID, namedLedger)
+
+	unnamedSrc, unnamedDst := seedTransfer(t, infra.pgContainer.DB, infra.orgID, unnamedLedger, "@src", "@dst", 1000)
+	namedSrc, namedDst := seedTransfer(t, infra.pgContainer.DB, infra.orgID, namedLedger, "@src", "@dst", 1000)
+
+	v2App := buildHumaV2DirectApp(t, infra.handler)
+
+	resp := decodeTxResponse(t,
+		postV2Create(t, v2App, "direct", infra.orgID, namedLedger, equivalentV2Body, ""),
+		nethttp.StatusCreated)
+
+	txID := uuid.MustParse(resp["id"].(string))
+	assert.Equal(t, cn.APPROVED, postgrestestutil.GetTransactionStatus(t, infra.pgContainer.DB, txID),
+		"the transaction must settle in the ledger the body named")
+
+	assert.Equal(t, namedLedger.String(), resp["ledgerId"],
+		"the response must report the ledger the body named")
+	assert.Equal(t, infra.orgID.String(), resp["organizationId"],
+		"the response must report the organization the body named")
+
+	assert.Equal(t, 1, countTransactionsInLedger(t, infra.pgContainer.DB, namedLedger),
+		"the named ledger must hold the transaction")
+	assert.Equal(t, 0, countTransactionsInLedger(t, infra.pgContainer.DB, unnamedLedger),
+		"no other ledger may hold a transaction the body never named")
+
+	// Balances move in the named ledger only. Both ledgers are drained so an effect landing in
+	// the wrong one cannot hide behind an unflushed hot balance.
+	drainBalanceSync(t, ctx, infra.handler.Command, infra.redisRepo, infra.orgID, namedLedger)
+	drainBalanceSync(t, ctx, infra.handler.Command, infra.redisRepo, infra.orgID, unnamedLedger)
+
+	requireDecimalEqual(t, decimal.NewFromInt(900), postgrestestutil.GetBalanceAvailable(t, infra.pgContainer.DB, namedSrc),
+		"the named ledger's source must be debited")
+	requireDecimalEqual(t, decimal.NewFromInt(100), postgrestestutil.GetBalanceAvailable(t, infra.pgContainer.DB, namedDst),
+		"the named ledger's destination must be credited")
+	requireDecimalEqual(t, decimal.NewFromInt(1000), postgrestestutil.GetBalanceAvailable(t, infra.pgContainer.DB, unnamedSrc),
+		"a ledger the body never named must be untouched")
+	requireDecimalEqual(t, decimal.Zero, postgrestestutil.GetBalanceAvailable(t, infra.pgContainer.DB, unnamedDst),
+		"a ledger the body never named must be untouched")
 }

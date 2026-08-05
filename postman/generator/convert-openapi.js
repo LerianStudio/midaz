@@ -1653,32 +1653,64 @@ internal systems rather than with the client's request.`,
 // constraint the schema has no structural expression for, or a value that must come from the
 // collection environment rather than from a type.
 const REQUEST_BODY_EXAMPLES = {
-  // The four v2 create actions (direct, hold, block, unblock) share this body. Each side is
-  // spelled EITHER with its scalar field or with its leg array, and the schema is one flat
-  // object listing both spellings, so a body derived from the schema carries both at once and
-  // the API rejects it. This one spells both sides scalar.
+  // The four v2 create actions (direct, hold, block, unblock) share this body. Two things it
+  // needs cannot come from the schema: the account identifiers, which have to be the ones the
+  // collection environment already holds rather than a placeholder derived from `string`; and
+  // the rule that every account named by one request sits in the same organization and ledger,
+  // which no per-field constraint can express. A runner sending this body unedited satisfies
+  // both.
   CreateTransactionV2Input: {
-    scalar_sides: {
-      summary: 'Both sides spelled scalar',
+    single_leg_per_side: {
+      summary: 'One debit paired with one credit',
       description: `Moves the whole \`amount\` from one account to another.
 
-Each side of the transaction is spelled EITHER with its scalar field (\`from\`, \`to\`) OR with its leg array (\`sources\`, \`destinations\`) — never both on the same side, though the two sides may choose differently. Leave the spelling you are not using out of the body.
+The endpoint names no organization and no ledger: every account in the body names its own, so the pair the transaction is created in comes from the body.
 
-To split a side across several accounts, replace its scalar field with the matching leg array. Each leg names an \`account\` and carries EXACTLY ONE value expression: \`amount\` for an explicit value, or \`share\` for a percentage of the transaction total. Sending both, or neither, is rejected.
+Both sides are arrays and both are required. \`debits\` carries the accounts value leaves, \`credits\` the accounts it reaches. Each leg names an \`alias\` with the \`organizationId\` and \`ledgerId\` that alias belongs to, and carries EXACTLY ONE value expression: \`amount\` for an explicit value, or \`share\` for a percentage of the transaction total. Sending both, or neither, is rejected.
+
+Every account the request names must sit in the same organization and ledger. A body whose accounts disagree is rejected: an alias identifies an account only inside a ledger, so the same alias in another ledger is a different account.
+
+To split a side across several accounts, add legs to it — the legs of a side divide the transaction total between them:
 
 \`\`\`json
-"sources": [
-  { "account": "@external/USD", "amount": "60.00" },
-  { "account": "@treasury/USD", "amount": "40.00" }
+"debits": [
+  {
+    "alias": "@external/USD",
+    "organizationId": "{{organizationId}}",
+    "ledgerId": "{{ledgerId}}",
+    "amount": "60.00"
+  },
+  {
+    "alias": "@treasury/USD",
+    "organizationId": "{{organizationId}}",
+    "ledgerId": "{{ledgerId}}",
+    "amount": "40.00"
+  }
 ]
 \`\`\`
+
+The response spells the two sides \`debit\` and \`credit\`, matching the request.
 
 \`routeId\` (transaction route) and \`operationRouteId\` (per-leg operation route) are optional and left out here; both must name a route that exists in the ledger.`,
       value: {
         asset: 'USD',
         amount: '100.00',
-        from: '@external/USD',
-        to: '{{accountAlias}}',
+        debits: [
+          {
+            alias: '@external/USD',
+            organizationId: '{{organizationId}}',
+            ledgerId: '{{ledgerId}}',
+            amount: '100.00'
+          }
+        ],
+        credits: [
+          {
+            alias: '{{accountAlias}}',
+            organizationId: '{{organizationId}}',
+            ledgerId: '{{ledgerId}}',
+            amount: '100.00'
+          }
+        ],
         description: 'Example transaction',
         code: 'EXAMPLE_TRANSACTION',
         metadata: {

@@ -116,7 +116,7 @@ func TestIntegration_TransactionV2Hold_CommitViaV2_ParityWithV1(t *testing.T) {
 	drainBalanceSync(t, ctx, infra.handler.Command, infra.redisRepo, infra.orgID, ledgerV1)
 
 	// v2 lane: hold -> commit through the v2 commit op.
-	v2HoldResp := decodeTxResponse(t, postTransaction(t, v2App, v2HoldURL(infra.orgID, ledgerV2), holdParityV2Body, ""), nethttp.StatusCreated)
+	v2HoldResp := decodeTxResponse(t, postV2Create(t, v2App, "hold", infra.orgID, ledgerV2, holdParityV2Body, ""), nethttp.StatusCreated)
 	v2TxID := uuid.MustParse(v2HoldResp["id"].(string))
 	assert.Equal(t, cn.PENDING, postgrestestutil.GetTransactionStatus(t, infra.pgContainer.DB, v2TxID), "v2 hold should open PENDING")
 	drainBalanceSync(t, ctx, infra.handler.Command, infra.redisRepo, infra.orgID, ledgerV2)
@@ -146,7 +146,7 @@ func TestIntegration_TransactionV2Hold_CommitViaV2_ParityWithV1(t *testing.T) {
 
 	// Commit response deep-equal, ignoring IDs/timestamps: the v2 commit response (with the
 	// settled operations embedded) is indistinguishable from the v1 commit response.
-	require.Equal(t, stripVolatile(v1CommitResp), stripVolatile(v2CommitResp),
+	require.Equal(t, stripVolatile(v1CommitResp), stripVolatile(renameV2LegKeys(v2CommitResp)),
 		"v2 commit response must be indistinguishable from the v1 commit equivalent (ignoring IDs/timestamps)")
 }
 
@@ -188,7 +188,7 @@ func TestIntegration_TransactionV2Hold_CancelViaV2_ParityWithV1(t *testing.T) {
 	drainBalanceSync(t, ctx, infra.handler.Command, infra.redisRepo, infra.orgID, ledgerV1)
 
 	// v2 lane: hold -> cancel through the v2 cancel op.
-	v2HoldResp := decodeTxResponse(t, postTransaction(t, v2App, v2HoldURL(infra.orgID, ledgerV2), holdParityV2Body, ""), nethttp.StatusCreated)
+	v2HoldResp := decodeTxResponse(t, postV2Create(t, v2App, "hold", infra.orgID, ledgerV2, holdParityV2Body, ""), nethttp.StatusCreated)
 	v2TxID := uuid.MustParse(v2HoldResp["id"].(string))
 	assert.Equal(t, cn.PENDING, postgrestestutil.GetTransactionStatus(t, infra.pgContainer.DB, v2TxID), "v2 hold should open PENDING")
 	drainBalanceSync(t, ctx, infra.handler.Command, infra.redisRepo, infra.orgID, ledgerV2)
@@ -211,7 +211,7 @@ func TestIntegration_TransactionV2Hold_CancelViaV2_ParityWithV1(t *testing.T) {
 	// Cancel response deep-equal, ignoring IDs/timestamps: the v2 cancel response (with its
 	// persisted operations embedded) is indistinguishable from the v1 cancel response, which
 	// proves cross-surface operation-level parity without pinning the release leg's Type.
-	require.Equal(t, stripVolatile(v1CancelResp), stripVolatile(v2CancelResp),
+	require.Equal(t, stripVolatile(v1CancelResp), stripVolatile(renameV2LegKeys(v2CancelResp)),
 		"v2 cancel response must be indistinguishable from the v1 cancel equivalent (ignoring IDs/timestamps)")
 }
 
@@ -246,7 +246,7 @@ func TestIntegration_TransactionV2Hold_CrossSurfaceCommit(t *testing.T) {
 
 	// (a) v2-held, committed through the EXISTING v1 commit endpoint (v1App). Fully processed
 	// BEFORE ledger B (global ZSET discipline).
-	aHoldResp := decodeTxResponse(t, postTransaction(t, v2App, v2HoldURL(infra.orgID, ledgerA), holdParityV2Body, ""), nethttp.StatusCreated)
+	aHoldResp := decodeTxResponse(t, postV2Create(t, v2App, "hold", infra.orgID, ledgerA, holdParityV2Body, ""), nethttp.StatusCreated)
 	aTxID := uuid.MustParse(aHoldResp["id"].(string))
 	assert.Equal(t, cn.PENDING, postgrestestutil.GetTransactionStatus(t, infra.pgContainer.DB, aTxID), "v2 hold on ledger A should open PENDING")
 	drainBalanceSync(t, ctx, infra.handler.Command, infra.redisRepo, infra.orgID, ledgerA)
@@ -312,7 +312,7 @@ func TestIntegration_TransactionV2Lifecycle_StateAndIDErrors(t *testing.T) {
 
 	// A v2 `direct` transfer settles immediately (APPROVED): it is the non-PENDING subject for
 	// the commit/cancel state-error cases below.
-	directResp := decodeTxResponse(t, postTransaction(t, v2App, v2DirectURL(infra.orgID, infra.ledgerID), equivalentV2Body, ""), nethttp.StatusCreated)
+	directResp := decodeTxResponse(t, postV2Create(t, v2App, "direct", infra.orgID, infra.ledgerID, equivalentV2Body, ""), nethttp.StatusCreated)
 	approvedTxID := uuid.MustParse(directResp["id"].(string))
 	assert.Equal(t, cn.APPROVED, postgrestestutil.GetTransactionStatus(t, infra.pgContainer.DB, approvedTxID), "the v2 direct transaction should be APPROVED")
 	drainBalanceSync(t, ctx, infra.handler.Command, infra.redisRepo, infra.orgID, infra.ledgerID)
@@ -435,7 +435,7 @@ func TestIntegration_TransactionV2Revert_ParityWithV1(t *testing.T) {
 	drainBalanceSync(t, ctx, infra.handler.Command, infra.redisRepo, infra.orgID, ledgerV1)
 
 	// v2 lane: transfer -> revert through the v2 revert op.
-	v2OriginResp := decodeTxResponse(t, postTransaction(t, v2App, v2DirectURL(infra.orgID, ledgerV2), equivalentV2Body, ""), nethttp.StatusCreated)
+	v2OriginResp := decodeTxResponse(t, postV2Create(t, v2App, "direct", infra.orgID, ledgerV2, equivalentV2Body, ""), nethttp.StatusCreated)
 	v2OriginID := uuid.MustParse(v2OriginResp["id"].(string))
 	require.Equal(t, cn.APPROVED, postgrestestutil.GetTransactionStatus(t, infra.pgContainer.DB, v2OriginID), "the v2 origin transfer should be APPROVED")
 	drainBalanceSync(t, ctx, infra.handler.Command, infra.redisRepo, infra.orgID, ledgerV2)
@@ -510,7 +510,7 @@ func TestIntegration_TransactionV2Revert_ParityWithV1(t *testing.T) {
 
 	// Revert response deep-equal, ignoring IDs/timestamps: the v2 revert response (with the
 	// reverse operations embedded) is indistinguishable from the v1 revert response.
-	require.Equal(t, stripVolatile(v1RevertResp), stripVolatile(v2RevertResp),
+	require.Equal(t, stripVolatile(v1RevertResp), stripVolatile(renameV2LegKeys(v2RevertResp)),
 		"v2 revert response must be indistinguishable from the v1 revert equivalent (ignoring IDs/timestamps)")
 
 	// Exactly one origin + one reverse per ledger: neither surface produced a stray extra
@@ -613,7 +613,7 @@ func TestIntegration_TransactionV2Revert_IneligibilityAndIDErrors(t *testing.T) 
 
 	// Subject pair 1: an APPROVED direct transfer and its reverse. After this pair the origin
 	// HAS a child revert and the reverse IS one, so each is the subject of its own gate.
-	originResp := decodeTxResponse(t, postTransaction(t, v2App, v2DirectURL(infra.orgID, infra.ledgerID), equivalentV2Body, ""), nethttp.StatusCreated)
+	originResp := decodeTxResponse(t, postV2Create(t, v2App, "direct", infra.orgID, infra.ledgerID, equivalentV2Body, ""), nethttp.StatusCreated)
 	originTxID := uuid.MustParse(originResp["id"].(string))
 	require.Equal(t, cn.APPROVED, postgrestestutil.GetTransactionStatus(t, infra.pgContainer.DB, originTxID), "the origin transfer should be APPROVED")
 	drainBalanceSync(t, ctx, infra.handler.Command, infra.redisRepo, infra.orgID, infra.ledgerID)
@@ -625,15 +625,15 @@ func TestIntegration_TransactionV2Revert_IneligibilityAndIDErrors(t *testing.T) 
 
 	// Subject 2: a hold left PENDING. Its description differs from the cancel subject below so
 	// the two no-key holds hash into DISTINCT idempotency slots instead of replaying.
-	pendingResp := decodeTxResponse(t, postTransaction(t, v2App, v2HoldURL(infra.orgID, infra.ledgerID),
-		`{"description":"revert gate pending subject","asset":"USD","amount":"100","from":"@src","to":"@dst"}`, ""), nethttp.StatusCreated)
+	pendingResp := decodeTxResponse(t, postV2Create(t, v2App, "hold", infra.orgID, infra.ledgerID,
+		`{"description":"revert gate pending subject","asset":"USD","amount":"100","debits":[{"alias":"@src",`+v2ScopeJSON+`,"amount":"100"}],"credits":[{"alias":"@dst",`+v2ScopeJSON+`,"amount":"100"}]}`, ""), nethttp.StatusCreated)
 	pendingTxID := uuid.MustParse(pendingResp["id"].(string))
 	require.Equal(t, cn.PENDING, postgrestestutil.GetTransactionStatus(t, infra.pgContainer.DB, pendingTxID), "the hold subject should be PENDING")
 	drainBalanceSync(t, ctx, infra.handler.Command, infra.redisRepo, infra.orgID, infra.ledgerID)
 
 	// Subject 3: a hold cancelled through the v2 cancel op -> CANCELED.
-	cancelResp := decodeTxResponse(t, postTransaction(t, v2App, v2HoldURL(infra.orgID, infra.ledgerID),
-		`{"description":"revert gate cancel subject","asset":"USD","amount":"100","from":"@src","to":"@dst"}`, ""), nethttp.StatusCreated)
+	cancelResp := decodeTxResponse(t, postV2Create(t, v2App, "hold", infra.orgID, infra.ledgerID,
+		`{"description":"revert gate cancel subject","asset":"USD","amount":"100","debits":[{"alias":"@src",`+v2ScopeJSON+`,"amount":"100"}],"credits":[{"alias":"@dst",`+v2ScopeJSON+`,"amount":"100"}]}`, ""), nethttp.StatusCreated)
 	canceledTxID := uuid.MustParse(cancelResp["id"].(string))
 	drainBalanceSync(t, ctx, infra.handler.Command, infra.redisRepo, infra.orgID, infra.ledgerID)
 
@@ -650,8 +650,8 @@ func TestIntegration_TransactionV2Revert_IneligibilityAndIDErrors(t *testing.T) 
 	// so nothing about the create path changes; the gate reads only op.RouteID off the
 	// transaction's operations and resolves the route by id, so the ledger's route-validation
 	// setting (off in this harness) is irrelevant to reaching it.
-	nonBidiResp := decodeTxResponse(t, postTransaction(t, v2App, v2DirectURL(infra.orgID, infra.ledgerID),
-		`{"description":"revert gate non bidirectional subject","asset":"USD","amount":"100","from":"@src","to":"@dst"}`, ""), nethttp.StatusCreated)
+	nonBidiResp := decodeTxResponse(t, postV2Create(t, v2App, "direct", infra.orgID, infra.ledgerID,
+		`{"description":"revert gate non bidirectional subject","asset":"USD","amount":"100","debits":[{"alias":"@src",`+v2ScopeJSON+`,"amount":"100"}],"credits":[{"alias":"@dst",`+v2ScopeJSON+`,"amount":"100"}]}`, ""), nethttp.StatusCreated)
 	nonBidiTxID := uuid.MustParse(nonBidiResp["id"].(string))
 	require.Equal(t, cn.APPROVED, postgrestestutil.GetTransactionStatus(t, infra.pgContainer.DB, nonBidiTxID), "the non-bidirectional subject should be APPROVED")
 	drainBalanceSync(t, ctx, infra.handler.Command, infra.redisRepo, infra.orgID, infra.ledgerID)
@@ -832,14 +832,14 @@ func TestIntegration_TransactionV2Revert_IdempotencyNotScopedByOrigin_KnownDefec
 	// they are what keeps the two origins two transactions instead of one create replay. The
 	// reversals derived from them are byte-identical payloads, which is precisely the input
 	// class that collides when the revert slot is keyed on the reversal payload alone.
-	const identicalOriginBody = `{"description":"cross origin revert subject","asset":"USD","amount":"100","from":"@src","to":"@dst"}`
+	const identicalOriginBody = `{"description":"cross origin revert subject","asset":"USD","amount":"100","debits":[{"alias":"@src",` + v2ScopeJSON + `,"amount":"100"}],"credits":[{"alias":"@dst",` + v2ScopeJSON + `,"amount":"100"}]}`
 
-	originAResp := decodeTxResponse(t, postTransaction(t, v2App, v2DirectURL(infra.orgID, infra.ledgerID), identicalOriginBody, "cross-origin-create-a"), nethttp.StatusCreated)
+	originAResp := decodeTxResponse(t, postV2Create(t, v2App, "direct", infra.orgID, infra.ledgerID, identicalOriginBody, "cross-origin-create-a"), nethttp.StatusCreated)
 	originAID := uuid.MustParse(originAResp["id"].(string))
 	require.Equal(t, cn.APPROVED, postgrestestutil.GetTransactionStatus(t, infra.pgContainer.DB, originAID), "origin A should be APPROVED")
 	drainBalanceSync(t, ctx, infra.handler.Command, infra.redisRepo, infra.orgID, infra.ledgerID)
 
-	originBResp := decodeTxResponse(t, postTransaction(t, v2App, v2DirectURL(infra.orgID, infra.ledgerID), identicalOriginBody, "cross-origin-create-b"), nethttp.StatusCreated)
+	originBResp := decodeTxResponse(t, postV2Create(t, v2App, "direct", infra.orgID, infra.ledgerID, identicalOriginBody, "cross-origin-create-b"), nethttp.StatusCreated)
 	originBID := uuid.MustParse(originBResp["id"].(string))
 	require.Equal(t, cn.APPROVED, postgrestestutil.GetTransactionStatus(t, infra.pgContainer.DB, originBID), "origin B should be APPROVED")
 	drainBalanceSync(t, ctx, infra.handler.Command, infra.redisRepo, infra.orgID, infra.ledgerID)
@@ -998,7 +998,7 @@ func TestIntegration_TransactionV2Revert_ConcurrentSingleWinner(t *testing.T) {
 
 	v2App := buildHumaV2DirectApp(t, infra.handler)
 
-	originResp := decodeTxResponse(t, postTransaction(t, v2App, v2DirectURL(infra.orgID, infra.ledgerID), equivalentV2Body, ""), nethttp.StatusCreated)
+	originResp := decodeTxResponse(t, postV2Create(t, v2App, "direct", infra.orgID, infra.ledgerID, equivalentV2Body, ""), nethttp.StatusCreated)
 	originID := uuid.MustParse(originResp["id"].(string))
 	require.Equal(t, cn.APPROVED, postgrestestutil.GetTransactionStatus(t, infra.pgContainer.DB, originID), "the origin transfer should be APPROVED")
 	drainBalanceSync(t, ctx, infra.handler.Command, infra.redisRepo, infra.orgID, infra.ledgerID)

@@ -44,9 +44,11 @@ import (
 
 const (
 	// v2DirectBody is a minimal valid flat v2 `direct` body: amount 100 > 0 clears the
-	// funnel's non-positive guard and reaches the idempotency claim; from != to clears
-	// the Translate ambiguity guard.
-	v2DirectBody = `{"description":"v2 direct","asset":"BRL","amount":"100","from":"@src","to":"@dst"}`
+	// funnel's non-positive guard and reaches the idempotency claim; the debit and credit
+	// legs name different accounts, so nothing downstream flags the request as ambiguous.
+	v2DirectBody = `{"description":"v2 direct","asset":"BRL","amount":"100",` +
+		`"debits":[{"alias":"@src",` + v2ScopeJSON + `,"amount":"100"}],` +
+		`"credits":[{"alias":"@dst",` + v2ScopeJSON + `,"amount":"100"}]}`
 
 	// v1JSONBody is the v1 /json analogue whose CANONICAL built form differs from its raw
 	// bytes — so a hash over the canonical transaction can never collide with a hash over
@@ -109,9 +111,6 @@ func canonicalV1IdempotencyHash(t *testing.T, rawBody string) string {
 // raw bytes as the hash source.
 func TestHuma_CreateTransactionDirectV2_IdempotencyKeyedByRawV2Body(t *testing.T) {
 	// NOT parallel: process-global huma state.
-	orgID := uuid.New()
-	ledgerID := uuid.New()
-
 	ctrl := gomock.NewController(t)
 	t.Cleanup(ctrl.Finish)
 
@@ -120,8 +119,7 @@ func TestHuma_CreateTransactionDirectV2_IdempotencyKeyedByRawV2Body(t *testing.T
 	handler := captureSetNXKey(t, ctrl, &gotKey, "{}")
 	app := buildHumaV2DirectApp(t, handler)
 
-	url := "/v2/organizations/" + orgID.String() + "/ledgers/" + ledgerID.String() + "/transactions/direct"
-	req := httptest.NewRequest(http.MethodPost, url, strings.NewReader(v2DirectBody))
+	req := httptest.NewRequest(http.MethodPost, directV2ConcretePath, strings.NewReader(v2DirectBody))
 	req.Header.Set("Content-Type", "application/json")
 	// No X-Idempotency header on purpose: the key falls back to the computed hash, so the
 	// SetNX internalKey embeds the hash SOURCE.
@@ -142,7 +140,7 @@ func TestHuma_CreateTransactionDirectV2_IdempotencyKeyedByRawV2Body(t *testing.T
 	_, derr := pkgHTTP.DecodeAndValidate([]byte(v2DirectBody), payload)
 	require.NoError(t, derr)
 
-	canonical, terr := payload.Translate(false)
+	canonical, _, terr := payload.Translate(false)
 	require.NoError(t, terr)
 
 	mtransaction.ApplyDefaultBalanceKeys(canonical.Send.Source.From)
@@ -161,9 +159,6 @@ func TestHuma_CreateTransactionDirectV2_IdempotencyKeyedByRawV2Body(t *testing.T
 // that canonical result (201 + X-Idempotency-Replayed:true) without creating a new one.
 func TestHuma_CreateTransactionDirectV2_ReplayReturnsCanonicalResult(t *testing.T) {
 	// NOT parallel: process-global huma state.
-	orgID := uuid.New()
-	ledgerID := uuid.New()
-
 	ctrl := gomock.NewController(t)
 	t.Cleanup(ctrl.Finish)
 
@@ -176,8 +171,7 @@ func TestHuma_CreateTransactionDirectV2_ReplayReturnsCanonicalResult(t *testing.
 	handler := captureSetNXKey(t, ctrl, &gotKey, `{"id":"`+canonicalID+`"}`)
 	app := buildHumaV2DirectApp(t, handler)
 
-	url := "/v2/organizations/" + orgID.String() + "/ledgers/" + ledgerID.String() + "/transactions/direct"
-	req := httptest.NewRequest(http.MethodPost, url, strings.NewReader(v2DirectBody))
+	req := httptest.NewRequest(http.MethodPost, directV2ConcretePath, strings.NewReader(v2DirectBody))
 	req.Header.Set("Content-Type", "application/json")
 
 	resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})

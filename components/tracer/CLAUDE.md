@@ -394,13 +394,13 @@ Empty line required before: `return`, `if`, `for`, `switch`, `defer`, assignment
 
 - **lib-auth/v3** (`v3.0.0`): Auth middleware, auth client
   - `authMiddleware.NewAuthClient(address, enabled, &logger)`
-- **lib-commons/v6** (`v6.2.0`): Common utilities, infrastructure
+- **lib-commons/v6** (`v6.5.1`): Common utilities, infrastructure
   - Tracking: `libCommons.NewTrackingFromContext(ctx)` → logger, tracer, headerID
   - Database: `libPostgres.New(config)` → Client with primary/replica
   - Config: `libCommons.SetConfigFromEnvVars(cfg)` — struct tag loading
   - HTTP: `libHTTP.OK()`, `libHTTP.Created()`, `libHTTP.WithError()`, `libHTTP.HandleFiberError()`
   - Launcher: `libCommons.NewLauncher(opts...).Run()` — graceful multi-service lifecycle
-- **lib-observability/v2** (`v2.1.0`): OpenTelemetry, logging (observability split out of lib-commons)
+- **lib-observability/v2** (`v2.1.1`): OpenTelemetry, logging (observability split out of lib-commons)
   - OpenTelemetry: `libOtel.HandleSpanError(span, "msg", err)`, `libOtel.HandleSpanBusinessErrorEvent(span, "msg", err)`
   - Logging: `libZap.New()`, `libLog.Logger` interface
   - Packages: `lib-observability/v2/{log,metrics,runtime,tracing,zap}`

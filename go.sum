@@ -19,8 +19,8 @@ github.com/DATA-DOG/go-sqlmock v1.5.2/go.mod h1:88MAG/4G7SMwSE3CeA0ZKzrT5CiOU3OJ
 github.com/DataDog/datadog-go v3.2.0+incompatible/go.mod h1:LButxg5PwREeZtORoXG3tL4fMGNddJ+vMq1mwgfaqoQ=
 github.com/LerianStudio/lib-auth/v3 v3.3.0 h1:aDpJnAeER6CjBipggA7mVK951anOQzvkzqa8YzZgb0Q=
 github.com/LerianStudio/lib-auth/v3 v3.3.0/go.mod h1:mKU9zG1AeHE7Ux3iu1n+hZlzLA9KHDa5s+vC+XtbOM4=
-github.com/LerianStudio/lib-commons/v6 v6.4.0 h1:0oLtobZ7XsBXx0QvHLGG6SByXn9YqMjkjYmSVrMuxoM=
-github.com/LerianStudio/lib-commons/v6 v6.4.0/go.mod h1:yo2QHBbXXwKNw1Wygip+Z/AANpIunyuXnEAZZT8hGQg=
+github.com/LerianStudio/lib-commons/v6 v6.5.1 h1:05EdXikUpTza6zRMOoO4UzNezakPY/zg2VHmGk6zW10=
+github.com/LerianStudio/lib-commons/v6 v6.5.1/go.mod h1:yo2QHBbXXwKNw1Wygip+Z/AANpIunyuXnEAZZT8hGQg=
 github.com/LerianStudio/lib-observability v1.1.0 h1:e/OrIoTKo8gI1RKXgKDyDDKcrddR4beh53al5ZmB6vQ=
 github.com/LerianStudio/lib-observability v1.1.0/go.mod h1:PBtmXygWXmcsTnyNLBetyYb/OtsWq6WT9fSJvoppeUQ=
 github.com/LerianStudio/lib-observability/v2 v2.1.1 h1:YpzgylqUqPg5g1FGpcf561SRbrgKT8wfUoD236CMGHo=

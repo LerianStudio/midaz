@@ -172,6 +172,36 @@ func TestParseUUIDPathParameters(t *testing.T) {
 	}
 }
 
+// TestParseUUIDPathParameters_RouteWithoutParameters records what the middleware does on a
+// route that declares NO path parameter: it walks the route's declared parameter names, so an
+// empty list leaves it with nothing to parse and the request continues to the next handler.
+//
+// It is pinned because callers decide whether to keep the middleware on a chain by this
+// behaviour, and the three possible answers — pass through, reject, panic — are not
+// distinguishable by reading the signature.
+func TestParseUUIDPathParameters_RouteWithoutParameters(t *testing.T) {
+	t.Parallel()
+
+	app := fiber.New()
+
+	reached := false
+
+	app.Post("/v2/transactions/direct", ParseUUIDPathParameters("transaction"), func(c fiber.Ctx) error {
+		reached = true
+
+		return c.SendStatus(fiber.StatusOK)
+	})
+
+	req := httptest.NewRequest(fiber.MethodPost, "/v2/transactions/direct", nil)
+	resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
+	require.NoError(t, err)
+
+	defer func() { _ = resp.Body.Close() }()
+
+	assert.True(t, reached, "a parameterless route must reach the next handler")
+	assert.Equal(t, fiber.StatusOK, resp.StatusCode, "a parameterless route must not be rejected")
+}
+
 func TestFindUnknownFields(t *testing.T) {
 	t.Parallel()
 

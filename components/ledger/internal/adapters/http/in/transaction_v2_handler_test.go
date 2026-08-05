@@ -21,7 +21,6 @@ import (
 	libLog "github.com/LerianStudio/lib-observability/v2/log"
 	"github.com/danielgtaylor/huma/v2"
 	"github.com/gofiber/fiber/v3"
-	"github.com/google/uuid"
 	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -33,13 +32,24 @@ import (
 	pkgHTTP "github.com/LerianStudio/midaz/v4/pkg/net/http"
 )
 
+// v2ScopeOrgID and v2ScopeLedgerID are the organization and ledger every leg of a v2 test body
+// names, and therefore the scope the request is posted against: a v2 create URL names neither.
+const (
+	v2ScopeOrgID    = "77777777-7777-7777-7777-777777777777"
+	v2ScopeLedgerID = "88888888-8888-8888-8888-888888888888"
+)
+
+// v2ScopeJSON is that scope spelled for a JSON body, ready to splice into a leg alongside its
+// alias.
+const v2ScopeJSON = `"organizationId":"` + v2ScopeOrgID + `","ledgerId":"` + v2ScopeLedgerID + `"`
+
 // buildHumaV2DirectApp mounts the v2 `direct` transaction op through the SAME
 // production seam (RegisterTransactionV2RoutesToApp) the unified server uses, on a
 // fresh Fiber app + its own /v2 Huma contract. It mirrors buildHumaTransactionApp:
 // problem.Install() before any huma.Register, WithRecover as the first middleware so
 // a nil-repo panic in the unwired funnel unwinds to a 500 (not a dropped connection),
 // the ledger schema namer installed after openapi.New and before registration (the v2
-// output embeds transaction.Transaction, which nests operation.{Status,Balance,Amount}
+// output body, TransactionV2, nests operation.Operation → operation.{Status,Balance,Amount}
 // and clashes on the bare names without it), and auth disabled so requests reach the
 // terminal. A bare handler is enough: these tests prove the transport boundary (decode,
 // translate, route-UUID hygiene, error class) and funnel entry — the committed money
@@ -80,17 +90,15 @@ func buildHumaV2DirectApp(t *testing.T, handler *TransactionHandler, logger ...l
 	return app
 }
 
-// directV2ConcretePath builds the concrete /v2 direct path for a random org+ledger so
-// ParseUUIDPathParameters passes and dispatch reaches the terminal.
-func directV2ConcretePath() string {
-	return "/v2/organizations/" + uuid.New().String() + "/ledgers/" + uuid.New().String() + "/transactions/direct"
-}
+// directV2ConcretePath is the v2 direct path. It names no organization and no ledger: the
+// scope a create is posted against travels in the request body.
+const directV2ConcretePath = "/v2/transactions/direct"
 
 // postDirectV2 issues an authenticated POST to the v2 direct route with the given JSON body.
 func postDirectV2(t *testing.T, app *fiber.App, body string) *http.Response {
 	t.Helper()
 
-	req := httptest.NewRequest(http.MethodPost, directV2ConcretePath(), strings.NewReader(body))
+	req := httptest.NewRequest(http.MethodPost, directV2ConcretePath, strings.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
 
 	resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
@@ -123,7 +131,7 @@ func TestCreateTransactionDirectV2Huma_MalformedRouteUUID_400(t *testing.T) {
 	// NOT parallel: process-global huma state.
 	app := buildHumaV2DirectApp(t, &TransactionHandler{})
 
-	resp := postDirectV2(t, app, `{"asset":"BRL","amount":"100","from":"@src","to":"@dst","routeId":"not-a-uuid"}`)
+	resp := postDirectV2(t, app, `{"asset":"BRL","amount":"100","debits":[{"alias":"@src",`+v2ScopeJSON+`,"amount":"100"}],"credits":[{"alias":"@dst",`+v2ScopeJSON+`,"amount":"100"}],"routeId":"not-a-uuid"}`)
 	defer func() { _ = resp.Body.Close() }()
 
 	assert.Equal(t, http.StatusBadRequest, resp.StatusCode, "malformed routeId must be a clean 400, not a deep 500")
@@ -135,33 +143,19 @@ func TestCreateTransactionDirectV2Huma_MalformedOperationRouteUUID_400(t *testin
 	// NOT parallel: process-global huma state.
 	app := buildHumaV2DirectApp(t, &TransactionHandler{})
 
-	resp := postDirectV2(t, app, `{"asset":"BRL","amount":"100","from":"@src","to":"@dst","operationRouteId":"not-a-uuid"}`)
+	resp := postDirectV2(t, app, `{"asset":"BRL","amount":"100","debits":[{"alias":"@src",`+v2ScopeJSON+`,"amount":"100"}],"credits":[{"alias":"@dst",`+v2ScopeJSON+`,"amount":"100"}],"operationRouteId":"not-a-uuid"}`)
 	defer func() { _ = resp.Body.Close() }()
 
 	assert.Equal(t, http.StatusBadRequest, resp.StatusCode, "malformed operationRouteId must be a clean 400, not a deep 500")
 }
 
-// TestCreateTransactionDirectV2Huma_Ambiguous_422 proves a Translate business error
-// (from == to) maps to the canonical 422 RFC 9457 problem (span stays green) — the
-// handler decodes, translates, and surfaces the business error without reaching the
-// funnel.
-func TestCreateTransactionDirectV2Huma_Ambiguous_422(t *testing.T) {
-	// NOT parallel: process-global huma state.
-	app := buildHumaV2DirectApp(t, &TransactionHandler{})
-
-	resp := postDirectV2(t, app, `{"asset":"BRL","amount":"100","from":"@same","to":"@same"}`)
-	defer func() { _ = resp.Body.Close() }()
-
-	assert.Equal(t, http.StatusUnprocessableEntity, resp.StatusCode, "source == destination is a Translate business error → 422")
-}
-
-// TestCreateTransactionDirectV2Huma_NonPositiveAmount_422 proves the second Translate
-// business branch (non-positive amount) also maps to a canonical 422.
+// TestCreateTransactionDirectV2Huma_NonPositiveAmount_422 proves the Translate business
+// branch (non-positive amount) maps to a canonical 422.
 func TestCreateTransactionDirectV2Huma_NonPositiveAmount_422(t *testing.T) {
 	// NOT parallel: process-global huma state.
 	app := buildHumaV2DirectApp(t, &TransactionHandler{})
 
-	resp := postDirectV2(t, app, `{"asset":"BRL","amount":"0","from":"@src","to":"@dst"}`)
+	resp := postDirectV2(t, app, `{"asset":"BRL","amount":"0","debits":[{"alias":"@src",`+v2ScopeJSON+`,"amount":"100"}],"credits":[{"alias":"@dst",`+v2ScopeJSON+`,"amount":"100"}]}`)
 	defer func() { _ = resp.Body.Close() }()
 
 	assert.Equal(t, http.StatusUnprocessableEntity, resp.StatusCode, "non-positive amount is a Translate business error → 422")
@@ -178,7 +172,7 @@ func TestCreateTransactionDirectV2Huma_ValidBodyEntersFunnel(t *testing.T) {
 	// NOT parallel: process-global huma state.
 	app := buildHumaV2DirectApp(t, &TransactionHandler{})
 
-	resp := postDirectV2(t, app, `{"description":"v2 direct","asset":"BRL","amount":"100","from":"@src","to":"@dst"}`)
+	resp := postDirectV2(t, app, `{"description":"v2 direct","asset":"BRL","amount":"100","debits":[{"alias":"@src",`+v2ScopeJSON+`,"amount":"100"}],"credits":[{"alias":"@dst",`+v2ScopeJSON+`,"amount":"100"}]}`)
 	defer func() { _ = resp.Body.Close() }()
 
 	assert.Equal(t, http.StatusInternalServerError, resp.StatusCode,
@@ -200,20 +194,6 @@ func TestCreateTransactionHoldV2Huma_MalformedBody_400(t *testing.T) {
 	assert.Contains(t, string(body), "status", "error body must be the RFC 9457 problem envelope")
 }
 
-// TestCreateTransactionHoldV2Huma_Ambiguous_422 proves a Translate business error
-// (from == to) on the hold action maps to the canonical 422 RFC 9457 problem (span stays
-// green) — the shared helper decodes, translates with pending=true, and surfaces the
-// business error before reaching the funnel.
-func TestCreateTransactionHoldV2Huma_Ambiguous_422(t *testing.T) {
-	// NOT parallel: process-global huma state.
-	app := buildHumaV2ActionApp(t, "hold", (&TransactionHandler{}).CreateTransactionHoldV2Huma)
-
-	resp := postActionV2(t, app, "hold", `{"asset":"BRL","amount":"100","from":"@same","to":"@same"}`)
-	defer func() { _ = resp.Body.Close() }()
-
-	assert.Equal(t, http.StatusUnprocessableEntity, resp.StatusCode, "source == destination is a Translate business error → 422")
-}
-
 // TestCreateTransactionHoldV2Huma_ValidBodyEntersFunnel proves the hold happy-path wiring
 // up to the funnel: a fully valid flat body passes decode + Translate(true) and is handed
 // to the SAME createTransaction funnel. With a bare handler the funnel's first repository
@@ -223,7 +203,7 @@ func TestCreateTransactionHoldV2Huma_ValidBodyEntersFunnel(t *testing.T) {
 	// NOT parallel: process-global huma state.
 	app := buildHumaV2ActionApp(t, "hold", (&TransactionHandler{}).CreateTransactionHoldV2Huma)
 
-	resp := postActionV2(t, app, "hold", `{"description":"v2 hold","asset":"BRL","amount":"100","from":"@src","to":"@dst"}`)
+	resp := postActionV2(t, app, "hold", `{"description":"v2 hold","asset":"BRL","amount":"100","debits":[{"alias":"@src",`+v2ScopeJSON+`,"amount":"100"}],"credits":[{"alias":"@dst",`+v2ScopeJSON+`,"amount":"100"}]}`)
 	defer func() { _ = resp.Body.Close() }()
 
 	assert.Equal(t, http.StatusInternalServerError, resp.StatusCode,
@@ -269,7 +249,7 @@ func TestCreateTransactionV2_CancelledContext(t *testing.T) {
 
 	handler := &TransactionHandler{}
 
-	out, err := handler.createTransactionV2(ctx, uuid.New().String(), uuid.New().String(), []byte(v2DirectBody), "", "", false, "")
+	out, err := handler.createTransactionV2(ctx, []byte(v2DirectBody), "", "", false, "")
 
 	require.Error(t, err, "a cancelled context must short-circuit before the funnel")
 	assert.Nil(t, out, "no output envelope on the cancelled-context guard")
@@ -287,7 +267,7 @@ func TestCreateTransactionV2_StampsOperationTypeOverride(t *testing.T) {
 	t.Parallel()
 
 	// block action identity: (pending=false, override="BLOCK").
-	tx, err := decodeAndBuildV2Transaction([]byte(v2DirectBody), false, "BLOCK")
+	tx, _, err := decodeAndBuildV2Transaction([]byte(v2DirectBody), false, "BLOCK")
 	require.NoError(t, err)
 
 	assert.Equal(t, "BLOCK", tx.OperationTypeOverride,
@@ -297,12 +277,11 @@ func TestCreateTransactionV2_StampsOperationTypeOverride(t *testing.T) {
 }
 
 // buildHumaV2ActionApp mounts a single named v2 create action on a fresh Fiber app + its own
-// /v2 Huma contract. Wiring one terminal at a time — with the SAME Fiber
-// auth/tenant/ParseUUIDPathParameters chain and SkipValidateBody Huma op the production route
-// carries — keeps a failure attributable to the handler under test rather than to any sibling
-// op. Same MUST-NOT-PARALLELIZE rationale as buildHumaV2DirectApp: libProblem.Install() and
-// Huma validation use process-global state.
-func buildHumaV2ActionApp(t *testing.T, action string, op func(context.Context, *CreateTransactionV2InputHuma) (*CreateTransactionOutputHuma, error)) *fiber.App {
+// /v2 Huma contract. Wiring one terminal at a time — with the SAME Fiber auth/tenant chain and
+// SkipValidateBody Huma op the production route carries — keeps a failure attributable to the
+// handler under test rather than to any sibling op. Same MUST-NOT-PARALLELIZE rationale as
+// buildHumaV2DirectApp: libProblem.Install() and Huma validation use process-global state.
+func buildHumaV2ActionApp(t *testing.T, action string, op func(context.Context, *CreateTransactionV2InputHuma) (*CreateTransactionOutputV2Huma, error)) *fiber.App {
 	t.Helper()
 
 	app := fiber.New(fiber.Config{
@@ -318,15 +297,14 @@ func buildHumaV2ActionApp(t *testing.T, action string, op func(context.Context, 
 	humaAPI := openapi.New(app, apiV2, openapi.Config{Title: "ledger-test-v2-" + action, Version: "test", Servers: []string{"/v2"}})
 	pkgHTTP.InstallLedgerSchemaNamer(humaAPI)
 
-	middlewarePath := "/organizations/:organization_id/ledgers/:ledger_id/transactions/" + action
+	actionPath := "/transactions/" + action
 
-	parse := pkgHTTP.ParseUUIDPathParameters("transaction")
-	routePost(apiV2, middlewarePath, protectedMidaz(&middleware.AuthClient{Enabled: false}, "transactions", "post", nil, parse))
+	routePost(apiV2, actionPath, protectedMidaz(&middleware.AuthClient{Enabled: false}, "transactions", "post", nil))
 
 	huma.Register(humaAPI, huma.Operation{
 		OperationID:      "createTransaction" + strings.ToUpper(action[:1]) + action[1:] + "V2",
 		Method:           http.MethodPost,
-		Path:             "/organizations/{organization_id}/ledgers/{ledger_id}/transactions/" + action,
+		Path:             actionPath,
 		Summary:          "Create a Transaction using the v2 " + action + " model",
 		Tags:             []string{"Transactions"},
 		Security:         secTransactionBearer,
@@ -337,19 +315,40 @@ func buildHumaV2ActionApp(t *testing.T, action string, op func(context.Context, 
 	return app
 }
 
-// postActionV2 issues an authenticated POST to a v2 action route for a random org+ledger so
-// ParseUUIDPathParameters passes and dispatch reaches the terminal.
+// postActionV2 issues an authenticated POST to a v2 create action route. The route names no
+// organization and no ledger; the scope comes from the body the caller passes.
 func postActionV2(t *testing.T, app *fiber.App, action, body string) *http.Response {
 	t.Helper()
 
-	path := "/v2/organizations/" + uuid.New().String() + "/ledgers/" + uuid.New().String() + "/transactions/" + action
-	req := httptest.NewRequest(http.MethodPost, path, strings.NewReader(body))
+	return postActionV2WithIdempotency(t, app, action, body, "")
+}
+
+// postActionV2WithIdempotency is postActionV2 with an X-Idempotency header, sent only when
+// idempotencyKey is non-empty so the no-key path stays reachable.
+func postActionV2WithIdempotency(t *testing.T, app *fiber.App, action, body, idempotencyKey string) *http.Response {
+	t.Helper()
+
+	req := httptest.NewRequest(http.MethodPost, "/v2/transactions/"+action, strings.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
+
+	if idempotencyKey != "" {
+		req.Header.Set("X-Idempotency", idempotencyKey)
+	}
 
 	resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
 	require.NoError(t, err)
 
 	return resp
+}
+
+// readAllForTest reads a response body into a string for assertions that inspect it.
+func readAllForTest(t *testing.T, resp *http.Response) string {
+	t.Helper()
+
+	raw, err := io.ReadAll(resp.Body)
+	require.NoError(t, err)
+
+	return string(raw)
 }
 
 // TestCreateTransactionBlockV2Huma_MalformedBody_400 proves the block handler decodes the flat
@@ -367,19 +366,6 @@ func TestCreateTransactionBlockV2Huma_MalformedBody_400(t *testing.T) {
 	assert.Contains(t, string(body), "status", "error body must be the RFC 9457 problem envelope")
 }
 
-// TestCreateTransactionBlockV2Huma_Ambiguous_422 proves a Translate business error (from == to)
-// on the block action maps to the canonical 422 RFC 9457 problem (span stays green) — the shared
-// helper decodes, translates with pending=false, and surfaces the business error before the funnel.
-func TestCreateTransactionBlockV2Huma_Ambiguous_422(t *testing.T) {
-	// NOT parallel: process-global huma state.
-	app := buildHumaV2ActionApp(t, "block", (&TransactionHandler{}).CreateTransactionBlockV2Huma)
-
-	resp := postActionV2(t, app, "block", `{"asset":"BRL","amount":"100","from":"@same","to":"@same"}`)
-	defer func() { _ = resp.Body.Close() }()
-
-	assert.Equal(t, http.StatusUnprocessableEntity, resp.StatusCode, "source == destination is a Translate business error → 422")
-}
-
 // TestCreateTransactionBlockV2Huma_ValidBodyEntersFunnel proves the block happy-path wiring up
 // to the funnel: a fully valid flat body passes decode + Translate(false) and is handed to the
 // SAME createTransaction funnel. With a bare handler the funnel's first repository call has no
@@ -389,7 +375,7 @@ func TestCreateTransactionBlockV2Huma_ValidBodyEntersFunnel(t *testing.T) {
 	// NOT parallel: process-global huma state.
 	app := buildHumaV2ActionApp(t, "block", (&TransactionHandler{}).CreateTransactionBlockV2Huma)
 
-	resp := postActionV2(t, app, "block", `{"description":"v2 block","asset":"BRL","amount":"100","from":"@src","to":"@dst"}`)
+	resp := postActionV2(t, app, "block", `{"description":"v2 block","asset":"BRL","amount":"100","debits":[{"alias":"@src",`+v2ScopeJSON+`,"amount":"100"}],"credits":[{"alias":"@dst",`+v2ScopeJSON+`,"amount":"100"}]}`)
 	defer func() { _ = resp.Body.Close() }()
 
 	assert.Equal(t, http.StatusInternalServerError, resp.StatusCode,
@@ -436,25 +422,13 @@ func TestCreateTransactionUnblockV2Huma_MalformedBody_400(t *testing.T) {
 	assert.Contains(t, string(body), "status", "error body must be the RFC 9457 problem envelope")
 }
 
-// TestCreateTransactionUnblockV2Huma_Ambiguous_422 mirrors the block business-error contract for
-// the unblock action.
-func TestCreateTransactionUnblockV2Huma_Ambiguous_422(t *testing.T) {
-	// NOT parallel: process-global huma state.
-	app := buildHumaV2ActionApp(t, "unblock", (&TransactionHandler{}).CreateTransactionUnblockV2Huma)
-
-	resp := postActionV2(t, app, "unblock", `{"asset":"BRL","amount":"100","from":"@same","to":"@same"}`)
-	defer func() { _ = resp.Body.Close() }()
-
-	assert.Equal(t, http.StatusUnprocessableEntity, resp.StatusCode, "source == destination is a Translate business error → 422")
-}
-
 // TestCreateTransactionUnblockV2Huma_ValidBodyEntersFunnel mirrors the block funnel-entry contract
 // for the unblock action.
 func TestCreateTransactionUnblockV2Huma_ValidBodyEntersFunnel(t *testing.T) {
 	// NOT parallel: process-global huma state.
 	app := buildHumaV2ActionApp(t, "unblock", (&TransactionHandler{}).CreateTransactionUnblockV2Huma)
 
-	resp := postActionV2(t, app, "unblock", `{"description":"v2 unblock","asset":"BRL","amount":"100","from":"@src","to":"@dst"}`)
+	resp := postActionV2(t, app, "unblock", `{"description":"v2 unblock","asset":"BRL","amount":"100","debits":[{"alias":"@src",`+v2ScopeJSON+`,"amount":"100"}],"credits":[{"alias":"@dst",`+v2ScopeJSON+`,"amount":"100"}]}`)
 	defer func() { _ = resp.Body.Close() }()
 
 	assert.Equal(t, http.StatusInternalServerError, resp.StatusCode,
@@ -504,7 +478,7 @@ func TestDecodeAndBuildV2Transaction_BlockUnblockStampOverrideAndForceNonPending
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			tx, err := decodeAndBuildV2Transaction([]byte(v2DirectBody), false, tc.override)
+			tx, _, err := decodeAndBuildV2Transaction([]byte(v2DirectBody), false, tc.override)
 			require.NoError(t, err)
 
 			assert.Equal(t, tc.override, tx.OperationTypeOverride,
@@ -521,9 +495,9 @@ func TestDecodeAndBuildV2Transaction_BlockUnblockStampOverrideAndForceNonPending
 // every other action prefixes its discriminator + NUL. This is the observable guarantee that
 // byte-identical bodies posted to different actions never share an idempotency slot.
 //
-// The mapping is a function of the ACTION alone, never of the body shape: the scalar and the
-// leg-array spellings are two byte sequences fed to the same source, so the table runs over
-// both and expects the identical per-action treatment.
+// The mapping is a function of the ACTION alone, never of the body shape: the single-leg and
+// multi-leg bodies are two byte sequences fed to the same source, so the table runs over both
+// and expects the identical per-action treatment.
 func TestV2IdempotencyHashSource_DiscriminatesActions(t *testing.T) {
 	t.Parallel()
 
@@ -531,7 +505,7 @@ func TestV2IdempotencyHashSource_DiscriminatesActions(t *testing.T) {
 		name string
 		body string
 	}{
-		{name: "scalar body", body: v2DirectBody},
+		{name: "single-leg body", body: v2DirectBody},
 		{name: "advanced body", body: v2AdvancedBody},
 	}
 
@@ -591,17 +565,17 @@ func TestV2IdempotencyHashSource_DiscriminatesActions(t *testing.T) {
 // v2AdvancedBody is the leg-array spelling of a 100 BRL transaction: two explicit-amount
 // debit legs and two 50% share credit legs, so one body exercises both per-leg value
 // expressions on both sides. It is the counterpart of v2DirectBody, which spells the same
-// total in the scalar from/to form. Two legs per side is what makes it a valid probe for a
+// total with one leg per side. Two legs per side is what makes it a valid probe for a
 // per-leg claim — with one leg, "expanded per entry" and "collapsed onto one leg" are
 // indistinguishable.
 const v2AdvancedBody = `{"description":"v2 advanced","asset":"BRL","amount":"100",` +
-	`"sources":[{"account":"@srcA","amount":"60"},{"account":"@srcB","amount":"40"}],` +
-	`"destinations":[{"account":"@dstA","share":{"percentage":50}},{"account":"@dstB","share":{"percentage":50}}]}`
+	`"debits":[{"alias":"@srcA",` + v2ScopeJSON + `,"amount":"60"},{"alias":"@srcB",` + v2ScopeJSON + `,"amount":"40"}],` +
+	`"credits":[{"alias":"@dstA",` + v2ScopeJSON + `,"share":{"percentage":50}},{"alias":"@dstB",` + v2ScopeJSON + `,"share":{"percentage":50}}]}`
 
 // humaV2CreateOp is the shape every v2 create terminal shares. All four actions carry the
 // same request envelope and the same success envelope; only the identity they pass to
 // createTransactionV2 differs.
-type humaV2CreateOp = func(context.Context, *CreateTransactionV2InputHuma) (*CreateTransactionOutputHuma, error)
+type humaV2CreateOp = func(context.Context, *CreateTransactionV2InputHuma) (*CreateTransactionOutputV2Huma, error)
 
 // v2CreateActionCase describes one v2 create action by everything that distinguishes it: the
 // route suffix, the terminal, the (pending, override) identity the terminal passes to the
@@ -676,7 +650,7 @@ func TestDecodeAndBuildV2Transaction_AdvancedFormAcrossActions(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			tx, err := decodeAndBuildV2Transaction([]byte(v2AdvancedBody), tc.pending, tc.override)
+			tx, _, err := decodeAndBuildV2Transaction([]byte(v2AdvancedBody), tc.pending, tc.override)
 			require.NoError(t, err, "the %s action must accept the leg-array spelling", tc.name)
 
 			// One canonical leg per array entry, in submission order, each carrying the value
@@ -701,8 +675,9 @@ func TestDecodeAndBuildV2Transaction_AdvancedFormAcrossActions(t *testing.T) {
 			require.NotNil(t, to[1].Share, "the second share destination leg must carry a share")
 			assert.Equal(t, int64(50), to[1].Share.Percentage, "second destination leg share percentage")
 
-			// The action identity rides on the advanced body exactly as it does on the scalar
-			// one: pending drives the opening status, the override is stamped verbatim.
+			// The action identity rides on the advanced body exactly as it does on the
+			// single-leg one: pending drives the opening status, the override is stamped
+			// verbatim.
 			assert.Equal(t, tc.pending, tx.Pending, "the %s action must carry its pending intent through Translate", tc.name)
 			assert.Equal(t, tc.wantStatus, tx.InitialStatus(), "the %s action must open the transaction as %s", tc.name, tc.wantStatus)
 			assert.Equal(t, tc.override, tx.OperationTypeOverride, "the %s action must stamp its Operation.Type override", tc.name)
@@ -734,13 +709,13 @@ func TestDecodeV2Body_RemainingLegRejectionIsSpellingSensitive(t *testing.T) {
 	}{
 		{
 			name:       "truthy remaining on a leg is an unknown field",
-			body:       `{"asset":"USD","amount":"100","sources":[{"account":"@srcA","remaining":true}],"to":"@dst"}`,
+			body:       `{"asset":"USD","amount":"100","debits":[{"alias":"@srcA",` + v2ScopeJSON + `,"remaining":true}],"credits":[{"alias":"@dst",` + v2ScopeJSON + `,"amount":"100"}]}`,
 			wantReject: true,
 			wantCode:   cn.ErrUnexpectedFieldsInTheRequest.Error(),
 		},
 		{
 			name:       "falsy remaining on a leg is swallowed by the boolean-false carve-out",
-			body:       `{"asset":"USD","amount":"100","sources":[{"account":"@srcA","amount":"100","remaining":false}],"to":"@dst"}`,
+			body:       `{"asset":"USD","amount":"100","debits":[{"alias":"@srcA",` + v2ScopeJSON + `,"amount":"100","remaining":false}],"credits":[{"alias":"@dst",` + v2ScopeJSON + `,"amount":"100"}]}`,
 			wantReject: false,
 		},
 	}
@@ -755,8 +730,8 @@ func TestDecodeV2Body_RemainingLegRejectionIsSpellingSensitive(t *testing.T) {
 
 			if !tc.wantReject {
 				require.NoError(t, err, "the falsy spelling is accepted at the decode boundary")
-				assert.Nil(t, payload.Sources[0].Share, "a swallowed remaining key leaves the leg's value expressions untouched")
-				assert.Equal(t, "100", payload.Sources[0].Amount, "the leg decodes on its own amount, as if remaining were never sent")
+				assert.Nil(t, payload.Debits[0].Share, "a swallowed remaining key leaves the leg's value expressions untouched")
+				assert.Equal(t, "100", payload.Debits[0].Amount, "the leg decodes on its own amount, as if remaining were never sent")
 
 				return
 			}
@@ -770,25 +745,25 @@ func TestDecodeV2Body_RemainingLegRejectionIsSpellingSensitive(t *testing.T) {
 	}
 }
 
-// externalUSDScalarAlias is the alias every ledger's USD external account carries, spelled from
+// externalUSDLegAlias is the alias every ledger's USD external account carries, spelled from
 // the production prefix so a change to it surfaces here. The `/` is the point: the registered
 // account-alias charset (`invalidaliascharacters`) excludes it, so any guard derived from that
 // charset rejects this alias.
-const externalUSDScalarAlias = cn.DefaultExternalAccountAliasPrefix + "USD"
+const externalUSDLegAlias = cn.DefaultExternalAccountAliasPrefix + "USD"
 
-// TestDecodeV2Body_ExternalAccountAliasSurvivesTheScalarPositions pins that the external-account
-// alias reaches the canonical leg through the two SCALAR side fields. On a surface that publishes
-// no inflow/outflow action, `{"from":"@external/USD","to":"@alice"}` is the canonical deposit call
-// and its mirror is the canonical withdrawal — so a rejection here 400s every deposit and every
-// withdrawal in production.
+// TestDecodeV2Body_ExternalAccountAliasSurvivesTheLegPositions pins that the external-account
+// alias reaches the canonical leg through both leg arrays. On a surface that publishes no
+// inflow/outflow action, a single debit leg naming `@external/USD` is the canonical deposit call
+// and its mirror on the credit side is the canonical withdrawal — so a rejection here 400s every
+// deposit and every withdrawal in production.
 //
 // It goes through pkgHTTP.DecodeAndValidate rather than straight into Translate because the
-// regression this guards is a TAG: `invalidaliascharacters` is registered and already applied that
-// way to mmodel.Account.Alias and mmodel.Composition.Alias, while CreateTransactionV2Input.From
-// and .To carry no `validate` tag at all. Appending it is a one-token change, and Translate
-// evaluates no struct tags — so a lock that calls Translate directly stays green through it. Only
-// the decode boundary sees the tag layer.
-func TestDecodeV2Body_ExternalAccountAliasSurvivesTheScalarPositions(t *testing.T) {
+// regression this guards is a TAG: `invalidaliascharacters` is registered and already applied
+// that way to mmodel.Account.Alias and mmodel.Composition.Alias, while V2LegInput.Alias carries
+// no such tag. Appending it is a one-token change, and Translate evaluates no struct tags — so a
+// lock that calls Translate directly stays green through it. Only the decode boundary sees the
+// tag layer.
+func TestDecodeV2Body_ExternalAccountAliasSurvivesTheLegPositions(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
@@ -798,22 +773,24 @@ func TestDecodeV2Body_ExternalAccountAliasSurvivesTheScalarPositions(t *testing.
 		wantTo   string
 	}{
 		{
-			name:     "a deposit names the external account in the scalar from",
-			body:     `{"asset":"USD","amount":"100","from":"` + externalUSDScalarAlias + `","to":"@alice"}`,
-			wantFrom: externalUSDScalarAlias,
+			name: "a deposit names the external account in the debit leg",
+			body: `{"asset":"USD","amount":"100",` +
+				`"debits":[{"alias":"` + externalUSDLegAlias + `",` + v2ScopeJSON + `,"amount":"100"}],` +
+				`"credits":[{"alias":"@alice",` + v2ScopeJSON + `,"amount":"100"}]}`,
+			wantFrom: externalUSDLegAlias,
 			wantTo:   "@alice",
 		},
 		{
-			name:     "a withdrawal names the external account in the scalar to",
-			body:     `{"asset":"USD","amount":"100","from":"@alice","to":"` + externalUSDScalarAlias + `"}`,
+			name: "a withdrawal names the external account in the credit leg",
+			body: `{"asset":"USD","amount":"100",` +
+				`"debits":[{"alias":"@alice",` + v2ScopeJSON + `,"amount":"100"}],` +
+				`"credits":[{"alias":"` + externalUSDLegAlias + `",` + v2ScopeJSON + `,"amount":"100"}]}`,
 			wantFrom: "@alice",
-			wantTo:   externalUSDScalarAlias,
+			wantTo:   externalUSDLegAlias,
 		},
 	}
 
 	for _, tc := range tests {
-		tc := tc
-
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
@@ -821,97 +798,23 @@ func TestDecodeV2Body_ExternalAccountAliasSurvivesTheScalarPositions(t *testing.
 
 			_, err := pkgHTTP.DecodeAndValidate([]byte(tc.body), payload)
 			require.NoError(t, err,
-				"the external-account alias must clear the decode boundary on the scalar positions — a charset tag on from/to would 400 every deposit")
+				"the external-account alias must clear the decode boundary on the leg positions — a charset tag on the leg alias would 400 every deposit")
 
-			assert.Equal(t, tc.wantFrom, payload.From, "the decoded scalar source must carry the submitted alias verbatim")
-			assert.Equal(t, tc.wantTo, payload.To, "the decoded scalar destination must carry the submitted alias verbatim")
+			require.Len(t, payload.Debits, 1)
+			require.Len(t, payload.Credits, 1)
+			assert.Equal(t, tc.wantFrom, payload.Debits[0].Alias, "the decoded debit leg must carry the submitted alias verbatim")
+			assert.Equal(t, tc.wantTo, payload.Credits[0].Alias, "the decoded credit leg must carry the submitted alias verbatim")
 
-			tx, err := payload.Translate(false)
-			require.NoError(t, err, "the scalar spelling of the external account must translate")
+			tx, _, err := payload.Translate(false)
+			require.NoError(t, err, "the leg-array spelling of the external account must translate")
 
-			require.Len(t, tx.Send.Source.From, 1, "the scalar source spelling yields exactly one leg")
-			require.Len(t, tx.Send.Distribute.To, 1, "the scalar destination spelling yields exactly one leg")
+			require.Len(t, tx.Send.Source.From, 1)
+			require.Len(t, tx.Send.Distribute.To, 1)
 
 			assert.Equal(t, tc.wantFrom, tx.Send.Source.From[0].AccountAlias,
-				"the alias must reach the canonical source leg unchanged — no rewrite, no truncation at the separator")
+				"the alias must reach the canonical debit leg unchanged — no rewrite, no truncation at the separator")
 			assert.Equal(t, tc.wantTo, tx.Send.Distribute.To[0].AccountAlias,
-				"the alias must reach the canonical destination leg unchanged")
-		})
-	}
-}
-
-// TestDecodeV2Body_ExplicitNullSideFields records what an explicit `null` on each of the four side
-// fields ACTUALLY does at the decode boundary, because the two pairs behave differently and only
-// one of the two behaviours is published.
-//
-// The two scalars are rejected: a nil JSON value decodes to "" and the decoder's re-marshal emits
-// `"from": ""`, which does not match the submitted `null`, so FindUnknownFields flags the key. The
-// two leg arrays are ACCEPTED: they carry no `omitempty` either, so a nil slice re-marshals as
-// `null` and matches the submitted value exactly — the key is indistinguishable from having been
-// left out. That asymmetry is invisible in every other test, so it is pinned here rather than
-// left to be discovered by a client.
-func TestDecodeV2Body_ExplicitNullSideFields(t *testing.T) {
-	t.Parallel()
-
-	tests := []struct {
-		name       string
-		body       string
-		wantReject bool
-	}{
-		{
-			name: "an explicit null sources array reads as an unspelled array side",
-			body: `{"asset":"USD","amount":"100","from":"@src","sources":null,"to":"@dst"}`,
-		},
-		{
-			name: "an explicit null destinations array reads as an unspelled array side",
-			body: `{"asset":"USD","amount":"100","from":"@src","to":"@dst","destinations":null}`,
-		},
-		{
-			name:       "an explicit null scalar from is an unknown field",
-			body:       `{"asset":"USD","amount":"100","from":null,"to":"@dst"}`,
-			wantReject: true,
-		},
-		{
-			name:       "an explicit null scalar to is an unknown field",
-			body:       `{"asset":"USD","amount":"100","from":"@src","to":null}`,
-			wantReject: true,
-		},
-	}
-
-	for _, tc := range tests {
-		tc := tc
-
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-
-			payload := new(mtransaction.CreateTransactionV2Input)
-
-			_, err := pkgHTTP.DecodeAndValidate([]byte(tc.body), payload)
-
-			if tc.wantReject {
-				require.Error(t, err, "an explicit null on a scalar side field is rejected at the decode boundary")
-
-				var unknownFields pkg.ValidationUnknownFieldsError
-				require.ErrorAs(t, err, &unknownFields, "the rejection is the unknown-field class")
-				assert.Equal(t, cn.ErrUnexpectedFieldsInTheRequest.Error(), unknownFields.Code,
-					"unknown-field rejections carry the canonical unexpected-fields code")
-
-				return
-			}
-
-			require.NoError(t, err,
-				"an explicit null leg array is ACCEPTED: a nil slice re-marshals as null and matches the submitted value")
-
-			assert.Nil(t, payload.Sources, "a null (or omitted) sources array decodes to no legs")
-			assert.Nil(t, payload.Destinations, "a null (or omitted) destinations array decodes to no legs")
-
-			// And the accepted null does not count as a SPELLING of the array form: the side is
-			// still spelled once, by its scalar field, so Translate raises no exclusivity error.
-			tx, err := payload.Translate(false)
-			require.NoError(t, err, "a null array leaves the side spelled exactly once, by its scalar field")
-
-			require.Len(t, tx.Send.Source.From, 1, "the scalar source spelling still yields one leg")
-			require.Len(t, tx.Send.Distribute.To, 1, "the scalar destination spelling still yields one leg")
+				"the alias must reach the canonical credit leg unchanged")
 		})
 	}
 }
@@ -970,7 +873,7 @@ func TestV2CreateOps_OversizedBodyBehindAuthAnswers401(t *testing.T) {
 // regression for the advanced form: an advanced body is just another byte sequence in the
 // SAME hash source each action already used, so direct still hashes the bare body and every
 // other action still hashes its discriminator + NUL + body. It probes the same first-repo
-// touch as the scalar idempotency tests (TransactionRedisRepo.SetNX, whose internalKey embeds
+// touch as the single-leg idempotency tests (TransactionRedisRepo.SetNX, whose internalKey embeds
 // the hash source when no X-Idempotency header is sent). A per-action cross-check asserts no
 // action keys off another action's source.
 func TestHuma_CreateTransactionV2_AdvancedBodyKeepsPerActionIdempotencySource(t *testing.T) {
@@ -994,7 +897,7 @@ func TestHuma_CreateTransactionV2_AdvancedBodyKeepsPerActionIdempotencySource(t 
 			}
 
 			assert.Contains(t, gotKey, libCommons.HashSHA256(wantSource),
-				"the advanced %s body must key idempotency off the SAME source shape the scalar body uses; got internalKey=%q", tc.name, gotKey)
+				"the advanced %s body must key idempotency off the SAME source shape the single-leg body uses; got internalKey=%q", tc.name, gotKey)
 
 			for _, other := range v2CreateActionCases() {
 				if other.wantDisc == tc.wantDisc {

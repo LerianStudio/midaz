@@ -67,8 +67,8 @@ const (
 	}`
 
 	duplicateLegV2Body = `{"description":"duplicate source leg","asset":"USD","amount":"1000",` +
-		`"sources":[{"account":"@srcA","amount":"600"},{"account":"@srcA","amount":"400"}],` +
-		`"destinations":[{"account":"@dstA","amount":"1000"}]}`
+		`"debits":[{"alias":"@srcA",` + v2ScopeJSON + `,"amount":"600"},{"alias":"@srcA",` + v2ScopeJSON + `,"amount":"400"}],` +
+		`"credits":[{"alias":"@dstA",` + v2ScopeJSON + `,"amount":"1000"}]}`
 )
 
 func TestIntegration_TransactionDuplicateSourceLeg_BothLegsSurvive(t *testing.T) {
@@ -76,24 +76,28 @@ func TestIntegration_TransactionDuplicateSourceLeg_BothLegsSurvive(t *testing.T)
 	// of the persisted entry must sum to.
 	duplicateLegTotal := decimal.NewFromInt(1000)
 
+	// Each surface names the request it posts differently: v1 carries the scope in the URL, v2 in
+	// the body. post therefore owns the whole call, so neither surface has to describe the other's
+	// spelling.
 	cases := []struct {
 		name     string
-		url      func(orgID, ledgerID uuid.UUID) string
-		body     string
+		post     func(*testing.T, *fiber.App, uuid.UUID, uuid.UUID) *nethttp.Response
 		buildApp func(*testing.T, *TransactionHandler) *fiber.App
 	}{
 		{
 			name: "v1 detailed",
-			url:  v1JSONURL,
-			body: duplicateLegV1Body,
+			post: func(t *testing.T, app *fiber.App, orgID, ledgerID uuid.UUID) *nethttp.Response {
+				return postTransaction(t, app, v1JSONURL(orgID, ledgerID), duplicateLegV1Body, "")
+			},
 			buildApp: func(t *testing.T, h *TransactionHandler) *fiber.App {
 				return buildHumaTransactionApp(t, h, true)
 			},
 		},
 		{
 			name: "v2 leg arrays",
-			url:  v2DirectURL,
-			body: duplicateLegV2Body,
+			post: func(t *testing.T, app *fiber.App, orgID, ledgerID uuid.UUID) *nethttp.Response {
+				return postV2Create(t, app, "direct", orgID, ledgerID, duplicateLegV2Body, "")
+			},
 			buildApp: func(t *testing.T, h *TransactionHandler) *fiber.App {
 				return buildHumaV2DirectApp(t, h)
 			},
@@ -116,7 +120,7 @@ func TestIntegration_TransactionDuplicateSourceLeg_BothLegsSurvive(t *testing.T)
 
 			app := tc.buildApp(t, infra.handler)
 
-			result := decodeTxResponse(t, postTransaction(t, app, tc.url(infra.orgID, infra.ledgerID), tc.body, ""), nethttp.StatusCreated)
+			result := decodeTxResponse(t, tc.post(t, app, infra.orgID, infra.ledgerID), nethttp.StatusCreated)
 			txID := uuid.MustParse(result["id"].(string))
 
 			assert.Equal(t, cn.APPROVED, postgrestestutil.GetTransactionStatus(t, infra.pgContainer.DB, txID),

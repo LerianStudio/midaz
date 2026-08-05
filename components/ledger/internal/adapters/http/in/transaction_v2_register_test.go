@@ -26,13 +26,13 @@ import (
 	pkgHTTP "github.com/LerianStudio/midaz/v4/pkg/net/http"
 )
 
-const directV2RoutePath = "/v2/organizations/:organization_id/ledgers/:ledger_id/transactions/direct"
+const directV2RoutePath = "/v2/transactions/direct"
 
-const holdV2RoutePath = "/v2/organizations/:organization_id/ledgers/:ledger_id/transactions/hold"
+const holdV2RoutePath = "/v2/transactions/hold"
 
-const blockV2RoutePath = "/v2/organizations/:organization_id/ledgers/:ledger_id/transactions/block"
+const blockV2RoutePath = "/v2/transactions/block"
 
-const unblockV2RoutePath = "/v2/organizations/:organization_id/ledgers/:ledger_id/transactions/unblock"
+const unblockV2RoutePath = "/v2/transactions/unblock"
 
 const commitV2RoutePath = "/v2/organizations/:organization_id/ledgers/:ledger_id/transactions/:transaction_id/commit"
 
@@ -42,12 +42,13 @@ const revertV2RoutePath = "/v2/organizations/:organization_id/ledgers/:ledger_id
 
 // v2Routes enumerates every registered v2 transaction op: the Fiber path the protected
 // chain mounts, the group-relative path the Huma contract advertises, the OperationID
-// clients key off, and whether the op carries a request body. The create actions take the
-// action name straight off the collection path; the lifecycle actions hang off
-// :transaction_id and are bodiless. Defaulting to 201 Created holds for all of them, so it
-// is asserted as a shared invariant instead of a per-case field. opPath is spelled out
-// rather than derived from fiberPath so a typo in either const cannot pass both the mount
-// and the contract assertion.
+// clients key off, and whether the op carries a request body. The create actions name no
+// organization or ledger — they are scoped by the request body; the lifecycle actions
+// address an existing transaction, so they stay under the organization/ledger prefix and
+// hang off :transaction_id, and they are bodiless. Defaulting to 201 Created holds for all
+// of them, so it is asserted as a shared invariant instead of a per-case field. opPath is
+// spelled out rather than derived from fiberPath so a typo in either const cannot pass both
+// the mount and the contract assertion.
 var v2Routes = []struct {
 	action      string
 	fiberPath   string
@@ -58,28 +59,28 @@ var v2Routes = []struct {
 	{
 		action:      "direct",
 		fiberPath:   directV2RoutePath,
-		opPath:      "/organizations/{organization_id}/ledgers/{ledger_id}/transactions/direct",
+		opPath:      "/transactions/direct",
 		operationID: "createTransactionDirectV2",
 		hasBody:     true,
 	},
 	{
 		action:      "hold",
 		fiberPath:   holdV2RoutePath,
-		opPath:      "/organizations/{organization_id}/ledgers/{ledger_id}/transactions/hold",
+		opPath:      "/transactions/hold",
 		operationID: "createTransactionHoldV2",
 		hasBody:     true,
 	},
 	{
 		action:      "block",
 		fiberPath:   blockV2RoutePath,
-		opPath:      "/organizations/{organization_id}/ledgers/{ledger_id}/transactions/block",
+		opPath:      "/transactions/block",
 		operationID: "createTransactionBlockV2",
 		hasBody:     true,
 	},
 	{
 		action:      "unblock",
 		fiberPath:   unblockV2RoutePath,
-		opPath:      "/organizations/{organization_id}/ledgers/{ledger_id}/transactions/unblock",
+		opPath:      "/transactions/unblock",
 		operationID: "createTransactionUnblockV2",
 		hasBody:     true,
 	},
@@ -103,11 +104,11 @@ var v2Routes = []struct {
 	},
 }
 
-// concreteV2Path substitutes the Fiber path params with fixed UUIDs so a request reaches
-// the mounted route (ParseUUIDPathParameters passes) instead of 404ing. Deriving it from
-// fiberPath is deliberate here: it aims the auth assertion at the SAME route the mount
-// test proves is registered, and a wrong path would surface as a 404 rather than the
-// expected 401.
+// concreteV2Path substitutes whichever Fiber path params a route declares with fixed UUIDs so
+// a request reaches the mounted route instead of 404ing; a create path declares none and comes
+// back unchanged. Deriving it from fiberPath is deliberate here: it aims the auth assertion at
+// the SAME route the mount test proves is registered, and a wrong path would surface as a 404
+// rather than the expected 401.
 func concreteV2Path(fiberPath string) string {
 	return strings.NewReplacer(
 		":organization_id", "00000000-0000-0000-0000-000000000001",
@@ -116,10 +117,13 @@ func concreteV2Path(fiberPath string) string {
 	).Replace(fiberPath)
 }
 
-// registerV2TransactionRoutesForTest wires the v2 transaction ops onto a fresh Fiber app +
-// its own /v2 Huma contract, exactly as the production humaMountV2 seam does. A zero-value
-// TransactionHandler is safe because registration never invokes the handler.
-func registerV2TransactionRoutesForTest(auth *middleware.AuthClient) *fiber.App {
+// registerV2TransactionSurfaceForTest wires the v2 transaction ops onto a fresh Fiber app +
+// its own /v2 Huma contract, exactly as the production humaMountV2 seam does, and returns
+// BOTH halves of that one registration: the app the Fiber chain is mounted on and the
+// document the Huma contract was written to. Returning them together is what lets a test
+// compare the two sides against each other instead of against a literal it also owns. A
+// zero-value TransactionHandler is safe because registration never invokes the handler.
+func registerV2TransactionSurfaceForTest(auth *middleware.AuthClient) (*fiber.App, *huma.OpenAPI) {
 	app := fiber.New()
 
 	apiV2 := app.Group("/v2")
@@ -127,6 +131,14 @@ func registerV2TransactionRoutesForTest(auth *middleware.AuthClient) *fiber.App 
 	pkgHTTP.InstallLedgerSchemaNamer(humaAPI)
 
 	RegisterTransactionV2RoutesToApp(apiV2, humaAPI, auth, &TransactionHandler{}, nil)
+
+	return app, humaAPI.OpenAPI()
+}
+
+// registerV2TransactionRoutesForTest keeps the app-only view for the tests that assert on
+// routing alone.
+func registerV2TransactionRoutesForTest(auth *middleware.AuthClient) *fiber.App {
+	app, _ := registerV2TransactionSurfaceForTest(auth)
 
 	return app
 }
@@ -221,6 +233,141 @@ func TestV2Routes_RequireAuth(t *testing.T) {
 	}
 }
 
+// humaPathToConcreteURL turns a group-relative Huma path into a request URL on the /v2 group,
+// substituting the fixed UUIDs concreteV2Path uses for the Fiber spelling of the same params.
+// The two spellings must resolve to the same URL for a path both sides declare, which is what
+// makes them comparable.
+func humaPathToConcreteURL(opPath string) string {
+	return "/v2" + strings.NewReplacer(
+		"{organization_id}", "00000000-0000-0000-0000-000000000001",
+		"{ledger_id}", "00000000-0000-0000-0000-000000000002",
+		"{transaction_id}", "00000000-0000-0000-0000-000000000003",
+	).Replace(opPath)
+}
+
+// TestV2CreateOps_ContractPathsSitBehindTheGuardChain proves the published contract and the
+// mounted Fiber chain name the SAME path for every v2 create op, by reading the paths off the
+// live contract and requesting them against the live app from ONE registration — never off a
+// literal this test also owns.
+//
+// A tokenless request answers 401 only when the guard chain is mounted at the requested path.
+// A create path the contract advertises but the chain does not guard reaches the Huma terminal
+// instead and is answered by the body decoder, so editing either side alone turns this red:
+// move the chain and the contract's path is unguarded; move the contract and its new path is
+// unguarded. The Fiber route the Huma adapter installs is what makes the unguarded case
+// observable as a non-401 rather than as a 404.
+func TestV2CreateOps_ContractPathsSitBehindTheGuardChain(t *testing.T) {
+	t.Parallel()
+
+	// Address must be non-empty so Authorize enforces the token check (it is never dialed:
+	// a missing token short-circuits with 401 first).
+	app, oapi := registerV2TransactionSurfaceForTest(&middleware.AuthClient{Enabled: true, Address: "http://auth.invalid"})
+
+	// The create ops are exactly the ops carrying a request body; the lifecycle ops are
+	// bodiless, which is asserted independently by the create-body-schema test.
+	contractCreatePaths := make([]string, 0, len(v2CreateActions))
+
+	for opPath, item := range oapi.Paths {
+		if item.Post != nil && item.Post.RequestBody != nil {
+			contractCreatePaths = append(contractCreatePaths, opPath)
+		}
+	}
+
+	require.Len(t, contractCreatePaths, len(v2CreateActions),
+		"the contract must advertise one body-carrying op per v2 create action")
+
+	for _, opPath := range contractCreatePaths {
+		t.Run(opPath, func(t *testing.T) {
+			t.Parallel()
+
+			req := httptest.NewRequest(http.MethodPost, humaPathToConcreteURL(opPath), nil)
+
+			resp, err := app.Test(req)
+			require.NoError(t, err)
+
+			defer func() { _ = resp.Body.Close() }()
+
+			assert.Equalf(t, fiber.StatusUnauthorized, resp.StatusCode,
+				"the contract path %q must be the path the transactions:post guard chain is mounted on", opPath)
+		})
+	}
+}
+
+// v2LegacyScopedCreateURLs are the organization/ledger-scoped create URLs the v2 surface no
+// longer serves. A create is scoped by its body, so the same request posted under a URL prefix
+// naming an organization and a ledger must not be routed: routing it would leave two disagreeing
+// sources of scope on one request.
+var v2LegacyScopedCreateURLs = []string{
+	"/v2/organizations/00000000-0000-0000-0000-000000000001/ledgers/00000000-0000-0000-0000-000000000002/transactions/direct",
+	"/v2/organizations/00000000-0000-0000-0000-000000000001/ledgers/00000000-0000-0000-0000-000000000002/transactions/hold",
+	"/v2/organizations/00000000-0000-0000-0000-000000000001/ledgers/00000000-0000-0000-0000-000000000002/transactions/block",
+	"/v2/organizations/00000000-0000-0000-0000-000000000001/ledgers/00000000-0000-0000-0000-000000000002/transactions/unblock",
+}
+
+// TestV2CreateOps_ScopedPathIsNotRouted proves the scope-carrying create paths answer 404 —
+// neither the guard chain nor a Huma terminal is mounted on them. Auth is DISABLED so a 401
+// cannot stand in for the absence of a route.
+func TestV2CreateOps_ScopedPathIsNotRouted(t *testing.T) {
+	t.Parallel()
+
+	app := registerV2TransactionRoutesForTest(&middleware.AuthClient{Enabled: false})
+
+	for _, url := range v2LegacyScopedCreateURLs {
+		t.Run(url, func(t *testing.T) {
+			t.Parallel()
+
+			req := httptest.NewRequest(http.MethodPost, url, strings.NewReader(`{}`))
+			req.Header.Set(fiber.HeaderContentType, fiber.MIMEApplicationJSON)
+
+			resp, err := app.Test(req)
+			require.NoError(t, err)
+
+			defer func() { _ = resp.Body.Close() }()
+
+			assert.Equalf(t, fiber.StatusNotFound, resp.StatusCode,
+				"the scope-carrying create URL %q must not be routed", url)
+		})
+	}
+}
+
+// v2LifecycleActions are the three v2 ops that act on an existing transaction.
+var v2LifecycleActions = []string{"commit", "cancel", "revert"}
+
+// TestV2LifecycleOps_StayOrganizationAndLedgerScoped locks the lifecycle ops to the
+// organization/ledger-scoped path on BOTH sides of the surface. They create no transaction and
+// carry no body, so they have no body scope to read: their scope can only come from the URL, and
+// dropping it from their path would leave them unable to name the transaction they act on.
+func TestV2LifecycleOps_StayOrganizationAndLedgerScoped(t *testing.T) {
+	t.Parallel()
+
+	app, oapi := registerV2TransactionSurfaceForTest(&middleware.AuthClient{Enabled: true, Address: "http://auth.invalid"})
+
+	routeSet := make(map[string]bool)
+	for _, r := range app.GetRoutes() {
+		routeSet[r.Method+":"+r.Path] = true
+	}
+
+	for _, action := range v2LifecycleActions {
+		t.Run(action, func(t *testing.T) {
+			t.Parallel()
+
+			const (
+				fiberPrefix = "/v2/organizations/:organization_id/ledgers/:ledger_id/transactions/:transaction_id/"
+				opPrefix    = "/organizations/{organization_id}/ledgers/{ledger_id}/transactions/{transaction_id}/"
+			)
+
+			assert.Truef(t, routeSet[http.MethodPost+":"+fiberPrefix+action],
+				"the %s op must stay mounted on the organization/ledger-scoped Fiber path", action)
+
+			pathItem, ok := oapi.Paths[opPrefix+action]
+			require.Truef(t, ok, "the %s op must stay published on the organization/ledger-scoped contract path", action)
+			require.NotNilf(t, pathItem.Post, "the %s op path must carry a POST operation", action)
+			assert.Nilf(t, pathItem.Post.RequestBody,
+				"the %s op stays bodiless, so it has no body scope to read", action)
+		})
+	}
+}
+
 // v2CreateBodySchemaName is the component name the v2 create-body schema is published
 // under, and v2CreateBodySchemaRef the ref that names it. Both are spelled literally so a
 // rename of the registered Go type shows up here instead of silently changing the served
@@ -230,7 +377,57 @@ const (
 	v2CreateBodySchemaRef  = "#/components/schemas/" + v2CreateBodySchemaName
 	v2LegSchemaName        = "V2LegInput"
 	v2ShareSchemaName      = "V2ShareInput"
+
+	// v1ResponseSchemaName is the component the v1 ops answer with. The v2 one is
+	// v2TransactionSchemaName, declared once in transaction_v2_output_test.go: a second
+	// spelling of the same literal would let a rename be applied to one and missed in the
+	// other, which is the drift both constants exist to catch.
+	v1ResponseSchemaName = "Transaction"
 )
+
+// TestRegisterTransactionV2Routes_ResponseSchemaDoesNotShadowV1 pins that the v2 response
+// component does not reuse the name the v1 one is published under.
+//
+// The two API versions are served as separate Huma instances, so each keeps its own component
+// registry and both COULD publish a differently shaped schema under one name without either
+// complaining. They are then joined into a single hub document for the collection, and a name
+// carrying two shapes has to be disambiguated at that point — behaviour this repo has never
+// exercised. Keeping the names apart means the join never has to.
+func TestRegisterTransactionV2Routes_ResponseSchemaDoesNotShadowV1(t *testing.T) {
+	t.Parallel()
+
+	// Registered ONCE: the helper installs the schema namer, which is process-global Huma
+	// state, so registering per subtest would have parallel subtests racing on it.
+	oapi := registerV2TransactionContractForTest()
+	schemas := oapi.Components.Schemas.Map()
+
+	require.Containsf(t, schemas, v2TransactionSchemaName,
+		"v2 contract should publish its response component as %s", v2TransactionSchemaName)
+	assert.NotContainsf(t, schemas, v1ResponseSchemaName,
+		"the v2 contract must not publish a %s component: the v1 contract already publishes that "+
+			"name with a different shape, and the hub join has no tested answer for one name carrying two",
+		v1ResponseSchemaName)
+
+	for _, rt := range v2Routes {
+		t.Run(rt.action, func(t *testing.T) {
+			t.Parallel()
+
+			pathItem, ok := oapi.Paths[rt.opPath]
+			require.Truef(t, ok, "v2 contract should carry the %s op path %q", rt.action, rt.opPath)
+
+			for status, resp := range pathItem.Post.Responses {
+				if !strings.HasPrefix(status, "2") {
+					continue
+				}
+
+				media, ok := resp.Content["application/json"]
+				require.Truef(t, ok, "%s %s should answer application/json", rt.action, status)
+				assert.Equalf(t, "#/components/schemas/"+v2TransactionSchemaName, media.Schema.Ref,
+					"%s should answer with the v2 response component", rt.action)
+			}
+		})
+	}
+}
 
 // TestRegisterTransactionV2Routes_PublishesCreateBodySchema asserts the v2 create ops
 // describe their body with a $ref to the published input component instead of the opaque
@@ -274,25 +471,20 @@ func TestRegisterTransactionV2Routes_PublishesCreateBodySchema(t *testing.T) {
 	}
 }
 
-// v2CreateBodyRequiredFields are the ONLY fields the published create-body component may
-// mark required: the ones common to both request forms. The side fields are deliberately
-// absent — `from`/`to` and `sources`/`destinations` are alternative spellings of the same
-// two sides, so requiring any of them would declare one form mandatory.
-var v2CreateBodyRequiredFields = []string{"asset", "amount"}
+// v2CreateBodyRequiredFields are the fields the published create-body component must mark
+// required: the two fields common to every request plus the two leg arrays, both of which are
+// mandatory and non-empty now that the surface publishes only the array form.
+var v2CreateBodyRequiredFields = []string{"asset", "amount", "debits", "credits"}
 
-// v2CreateBodySideFields are the four side fields of the request body: the scalar pair and
-// the leg-array pair.
-var v2CreateBodySideFields = []string{"from", "to", "sources", "destinations"}
+// v2CreateBodySideFields are the two side fields of the request body.
+var v2CreateBodySideFields = []string{"debits", "credits"}
 
-// TestRegisterTransactionV2Routes_CreateBodyDocumentsBothSideForms asserts the published
-// create-body component keeps the or/or between the scalar and array forms out of
-// `required`: each side field is documented as a property but none of them is mandatory,
-// while the fields common to both forms stay required. This is what the explicit
-// `required:"false"` tags on the leg arrays buy — Huma treats a field without `omitempty`
-// as required unless the tag says otherwise, so without them the contract would advertise
-// the array form as the only one. Since the flat component cannot express the exclusivity
-// structurally, the component description must state it and name every side field.
-func TestRegisterTransactionV2Routes_CreateBodyDocumentsBothSideForms(t *testing.T) {
+// TestRegisterTransactionV2Routes_CreateBodyDocumentsBothSides asserts the published
+// create-body component marks BOTH leg arrays required, alongside the fields common to every
+// request. Dropping json `omitempty` from Debits/Credits is what buys this: Huma treats a field
+// without `omitempty` as required by default, and neither field carries a `required:"false"`
+// override to undo that.
+func TestRegisterTransactionV2Routes_CreateBodyDocumentsBothSides(t *testing.T) {
 	t.Parallel()
 
 	schema, ok := registerV2TransactionContractForTest().Components.Schemas.Map()[v2CreateBodySchemaName]
@@ -300,17 +492,9 @@ func TestRegisterTransactionV2Routes_CreateBodyDocumentsBothSideForms(t *testing
 	require.NotNilf(t, schema, "published %s component should not be nil", v2CreateBodySchemaName)
 
 	assert.ElementsMatchf(t, v2CreateBodyRequiredFields, schema.Required,
-		"%s should require only the fields common to both request forms", v2CreateBodySchemaName)
+		"%s should require the common fields and both leg arrays", v2CreateBodySchemaName)
 	require.NotEmptyf(t, schema.Description,
-		"%s is the only place the scalar-or-arrays exclusivity can be stated", v2CreateBodySchemaName)
-
-	// An explicit null is rejected on the two SCALAR side fields only. Dropping json `omitempty`
-	// makes the decoder's re-marshal always emit the key, and for a string that emitted value is
-	// `""`, which a submitted null does not match. The leg arrays re-marshal a nil slice as
-	// `null`, so a submitted null matches and is accepted as an unspelled side. The published
-	// description is the only place a client can learn which of the two behaviours applies.
-	assert.Containsf(t, schema.Description, "null",
-		"%s description should state where an explicit null side field is rejected", v2CreateBodySchemaName)
+		"%s description documents the two leg arrays", v2CreateBodySchemaName)
 
 	for _, field := range v2CreateBodySideFields {
 		t.Run(field, func(t *testing.T) {
@@ -318,11 +502,48 @@ func TestRegisterTransactionV2Routes_CreateBodyDocumentsBothSideForms(t *testing
 
 			assert.Containsf(t, schema.Properties, field,
 				"%s should document the %s side field as a property", v2CreateBodySchemaName, field)
-			assert.NotContainsf(t, schema.Required, field,
-				"%s must not mark the %s side field required", v2CreateBodySchemaName, field)
+			assert.Containsf(t, schema.Required, field,
+				"%s must mark the %s side field required", v2CreateBodySchemaName, field)
 			assert.Containsf(t, schema.Description, field,
-				"%s description should name the %s side field when spelling out the or/or", v2CreateBodySchemaName, field)
+				"%s description should name the %s side field", v2CreateBodySchemaName, field)
 		})
+	}
+}
+
+// v2CreateBodyScopeFields are the two fields an account names its scope with. The create path
+// carries neither, so the published body component is the only place a client can read them off.
+var v2CreateBodyScopeFields = []string{"organizationId", "ledgerId"}
+
+// TestRegisterTransactionV2Routes_CreateBodyDocumentsTheScope asserts the published create-body
+// component states where the organization and ledger are named and that all accounts must agree
+// on one pair. The create endpoint names no scope, so a client that cannot read this off the
+// contract has nowhere else to look; and the agreement rule has no structural expression in a
+// flat schema, so prose is the only place it can be stated.
+func TestRegisterTransactionV2Routes_CreateBodyDocumentsTheScope(t *testing.T) {
+	t.Parallel()
+
+	oapi := registerV2TransactionContractForTest()
+
+	schema, ok := oapi.Components.Schemas.Map()[v2CreateBodySchemaName]
+	require.Truef(t, ok, "v2 contract should publish the create-body component %s", v2CreateBodySchemaName)
+	require.NotNilf(t, schema, "published %s component should not be nil", v2CreateBodySchemaName)
+
+	for _, field := range v2CreateBodyScopeFields {
+		assert.Containsf(t, schema.Description, field,
+			"%s description must name the %s field an account carries", v2CreateBodySchemaName, field)
+	}
+
+	assert.Containsf(t, schema.Description, "SAME pair",
+		"%s description must state that every account names the same organization and ledger", v2CreateBodySchemaName)
+
+	// The two fields live on the leg component, which every leg of either side shares.
+	legSchema, ok := oapi.Components.Schemas.Map()[v2LegSchemaName]
+	require.Truef(t, ok, "v2 contract should publish the %s component", v2LegSchemaName)
+	require.NotNilf(t, legSchema, "published %s component should not be nil", v2LegSchemaName)
+
+	for _, field := range v2CreateBodyScopeFields {
+		assert.Containsf(t, legSchema.Properties, field,
+			"%s must document the %s field", v2LegSchemaName, field)
 	}
 }
 
@@ -593,7 +814,9 @@ func TestV2CreateBodyLimit_MeasuresDecodedBody(t *testing.T) {
 // oversizedV2CreateBody spells a syntactically valid v2 create body padded to exactly size
 // bytes with a single description field, so the only thing a rejection can be about is length.
 func oversizedV2CreateBody(size int64) string {
-	const prefix = `{"asset":"BRL","amount":"100","from":"@a","to":"@b","description":"`
+	const prefix = `{"asset":"BRL","amount":"100",` +
+		`"debits":[{"alias":"@a",` + v2ScopeJSON + `,"amount":"100"}],` +
+		`"credits":[{"alias":"@b",` + v2ScopeJSON + `,"amount":"100"}],"description":"`
 	const suffix = `"}`
 
 	padding := size - int64(len(prefix)) - int64(len(suffix))
@@ -672,9 +895,7 @@ func TestRegisterTransactionV2Routes_LegComponentDescribesValueExpressions(t *te
 }
 
 // TestRegisterTransactionV2Routes_ComponentRequiredFields locks the `required` list of every
-// published v2 request component. The scalar side fields must stay out of the parent's list
-// even though they carry no json `omitempty` — that is what their explicit `required:"false"`
-// tags buy, and without them dropping `omitempty` would declare one spelling mandatory.
+// published v2 request component.
 func TestRegisterTransactionV2Routes_ComponentRequiredFields(t *testing.T) {
 	t.Parallel()
 
@@ -684,8 +905,8 @@ func TestRegisterTransactionV2Routes_ComponentRequiredFields(t *testing.T) {
 		component string
 		want      []string
 	}{
-		{component: v2CreateBodySchemaName, want: []string{"asset", "amount"}},
-		{component: v2LegSchemaName, want: []string{"account"}},
+		{component: v2CreateBodySchemaName, want: v2CreateBodyRequiredFields},
+		{component: v2LegSchemaName, want: []string{"alias", "organizationId", "ledgerId"}},
 		{component: v2ShareSchemaName, want: []string{"percentage"}},
 	}
 

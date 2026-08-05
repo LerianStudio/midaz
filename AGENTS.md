@@ -14,7 +14,7 @@ Midaz is a **source-available core banking platform** written in Go, built aroun
 | Architecture | Hexagonal + CQRS |
 | HTTP Framework | Huma v2 (OAS 3.1) over Fiber v3 — Fiber is the runtime router/auth chain; Huma generates the API contract and validates requests |
 | Databases | PostgreSQL 17, MongoDB (also holds CRM keysets/registry in envelope mode), RabbitMQ 4.1, Valkey |
-| lib-commons | `github.com/LerianStudio/lib-commons/v6` v6.2.0 (+ `lib-observability/v2` v2.1.0) |
+| lib-commons | `github.com/LerianStudio/lib-commons/v6` v6.5.1 (+ `lib-observability/v2` v2.1.1) |
 | KMS / crypto | `danielgtaylor/huma/v2` v2.38.0, `hashicorp/vault/api` (CRM envelope KEK), `tink-crypto/tink-go/v2` (per-org DEKs) |
 | Deploy surfaces | Ledger+CRM+Fees (:3002), Tracer (:4020), Infra (Docker Compose) |
 
