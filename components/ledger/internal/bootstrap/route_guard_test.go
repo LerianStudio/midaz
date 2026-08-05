@@ -5,6 +5,8 @@
 package bootstrap
 
 import (
+	"encoding/json"
+	"io"
 	"net/http/httptest"
 	"sort"
 	"strings"
@@ -13,6 +15,8 @@ import (
 	"github.com/gofiber/fiber/v3"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/LerianStudio/midaz/v4/pkg/constant"
 )
 
 // probeUUID and probeSegment are the FIXED values substituted for path parameters when a
@@ -130,11 +134,42 @@ func requireUnambiguousProbeURLs(t *testing.T, groups []routeGroup) {
 		strings.Join(collisions, "\n"))
 }
 
+// canonicalRefusalCode reads the business code out of a response body, returning "" when the body
+// is not JSON carrying one. It separates the two 401 producers on this surface by their OUTPUT,
+// since their handler identity is not observable: two auth.Authorize closures compare unequal by
+// pointer, so runtime.FuncForPC pins nothing.
+//
+// lib-auth's authorizer writes its 401 body itself and returns nil, so the app ErrorHandler never
+// sees it and no business code appears. Everything else that refuses here returns an error, which
+// CanonicalFiberErrorHandler renders as the RFC 9457 envelope — its 401 arm carries
+// constant.ErrInvalidToken.
+//
+// Only the code field is read. The envelope also carries type/title/status/detail/instance, and
+// asserting over more of them would couple this gate to envelope changes that say nothing about
+// which handler refused.
+func canonicalRefusalCode(body []byte) string {
+	var envelope struct {
+		Code string `json:"code"`
+	}
+
+	if err := json.Unmarshal(body, &envelope); err != nil {
+		return ""
+	}
+
+	return envelope.Code
+}
+
 // TestFullSurfaceRoutes_RejectTokenlessRequests asserts BEHAVIOR over the whole registered
 // surface: with auth enabled and no credentials presented, every route except the carved-out
-// public probes must be answered 401, and the harness post-auth observer must never have run —
-// so the refusal came from the FIRST handler on the chain, the authorizer, rather than from
-// something further down that also answers 401 on a missing token.
+// public probes must be answered 401, that 401 must NOT be the canonical midaz error envelope,
+// and the harness post-auth observer must not have run.
+//
+// Those three together place the refusal at chain position 0 and rule out the midaz-rendered
+// producers behind it — pkgHTTP.MarkTrustedAuthAssertion, which production puts at position 1 on
+// every chain, answers 401 on a missing token and renders through the app ErrorHandler. What they
+// do NOT establish is which handler position 0 holds: any handler that writes a 401 body directly
+// instead of returning an error reads the same from outside. Nothing in this repository pins that
+// identity, and nothing pins the authorize tuple either.
 //
 // It proves REFUSAL, never REACHABILITY. A globally broken chain that answered 401 to every
 // request on the surface would be green here, and so would a surface whose terminals are
@@ -173,6 +208,12 @@ func TestFullSurfaceRoutes_RejectTokenlessRequests(t *testing.T) {
 		probed++
 
 		t.Run(group.display(), func(t *testing.T) {
+			// Reset beside the read rather than once per harness, so a marker that ran names the
+			// route it ran on. Valid only while these subtests stay sequential: a t.Parallel()
+			// here would let siblings overwrite each other's flag and the read would go vacuous.
+			// The parent's t.Setenv does not forbid that — see fullSurfaceMarkerRan.
+			fullSurfaceMarkerRan.Store(false)
+
 			req := httptest.NewRequest(group.rows[0].method, concreteRouteURL(group.rows[0].path), nil)
 
 			resp, err := server.app.Test(req)
@@ -180,9 +221,22 @@ func TestFullSurfaceRoutes_RejectTokenlessRequests(t *testing.T) {
 
 			defer func() { _ = resp.Body.Close() }()
 
+			body, err := io.ReadAll(resp.Body)
+			require.NoError(t, err)
+
 			assert.Equalf(t, fiber.StatusUnauthorized, resp.StatusCode,
 				"a credential-less request to %s was answered %d instead of 401: the auth guard did not run ahead of "+
 					"the terminal on this path", group.display(), resp.StatusCode)
+
+			assert.NotEqualf(t, constant.ErrInvalidToken.Error(), canonicalRefusalCode(body),
+				"the 401 for %s is the canonical midaz envelope, so it was rendered by the app ErrorHandler from a "+
+					"returned error rather than written by lib-auth's authorizer: a different 401 producer answered on "+
+					"this chain, and pkgHTTP.MarkTrustedAuthAssertion is one that production puts behind the authorizer",
+				group.display())
+
+			assert.Falsef(t, fullSurfaceMarkerRan.Load(),
+				"the harness post-auth observer ran during a credential-less request to %s: a handler behind chain "+
+					"position 0 answered, so this 401 is not attributable to the guard at position 0", group.display())
 		})
 	}
 
@@ -192,8 +246,4 @@ func TestFullSurfaceRoutes_RejectTokenlessRequests(t *testing.T) {
 	assert.Equalf(t, len(groups)-unguardedPublicRouteCount, probed,
 		"%d of %d registered endpoints were probed, leaving more than the %d pinned carve-outs unprobed",
 		probed, len(groups), unguardedPublicRouteCount)
-
-	assert.Falsef(t, fullSurfaceMarkerRan.Load(),
-		"the harness post-auth observer ran during a credential-less request: a handler behind the authorizer answered, so "+
-			"the 401s above are not attributable to the auth guard")
 }

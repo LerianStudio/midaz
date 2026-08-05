@@ -45,12 +45,18 @@ const routeTableGoldenPath = "testdata/route_table.golden"
 
 // routeTableMinRows is a FLOOR on the served surface, not a count of it — the golden bytes pin
 // the exact set. It exists because -update-route-table writes whatever the harness produced, so
-// a harness that mounted almost nothing would regenerate cleanly and pass forever after. It
-// sits just under today's row count, so losing a registrar trips it.
+// a harness that mounted almost nothing would regenerate cleanly and pass forever after.
+//
+// It sits ONE row below today's count, so it trips when two or more rows disappear and tolerates
+// exactly one. That makes it no kind of per-registrar guarantee: a registrar whose guard chain
+// and Huma terminal collapse into a single row contributes one row, two of them do today, and
+// losing either clears this floor — the golden bytes are what catch that. Pinning it at the exact
+// count instead would turn every legitimate route retirement into a two-line edit while adding no
+// coverage the bytes do not already give.
 //
 // It catches REMOVALS only. A registrar mounted in production but never added to this harness is
 // invisible to it, and to every other gate in this package.
-const routeTableMinRows = 235
+const routeTableMinRows = 238
 
 // routeTableGoldenHeader prefixes the golden so a reader who opens the file knows what the
 // third column means and how to regenerate. It is part of the compared bytes, so it cannot
@@ -70,6 +76,14 @@ const routeTableGoldenHeader = `# Unified server Fiber route table: METHOD<TAB>R
 #     count, and no gate in this repository covers that tuple.
 #   - registration order inside a COLLAPSED row (one row whose count already sums a guard and
 #     its terminal): the merged count is the sum whichever was registered first.
+#   - which route-scoped ProtectedRouteOptions instance a registrar received. In multi-tenant
+#     mode config.go buildUnifiedRouteSetup builds SIX distinct instances: five carry a tenant-DB
+#     handler drawn from four separate tenant middlewares, one carries none. Five of the six hold
+#     exactly two post-auth handlers, so swapping two of those moves neither path nor count — and
+#     the crm and fees instances both write the GENERIC GetMBContext key over different Mongo
+#     managers, so that particular swap resolves CRM holder PII against the fees tenant database.
+#     This harness threads ONE instance to every registrar, so nothing in this package can tell
+#     the six apart, and no gate in this repository pins the pairing.
 # Generated — do not hand-edit. Regenerate with:
 #   go test ./components/ledger/internal/bootstrap/ -run TestRouteTableGolden -update-route-table
 `
@@ -108,17 +122,24 @@ func fullSurfaceAuthClient() *middleware.AuthClient {
 
 // fullSurfaceMarkerRan records whether the harness post-auth marker executed. A credential-less
 // request must be refused by the FIRST handler on the chain, so a marker sitting behind that
-// handler must never run. Package-level state is safe because every test in this package is
-// sequential: goleak_test.go verifies the whole package.
+// handler must never run.
+//
+// Package-level state cannot be raced between the two TESTS that share it: both open with
+// unsetDocsGate, whose t.Setenv makes t.Parallel panic in the test that called it, so neither can
+// run concurrently with anything. It says nothing about their subtests — Go's parallel denial is a
+// field on the T that called Setenv and subtests get a fresh one — so the reset lives next to the
+// read, inside the subtest, and that subtest must stay sequential. Nothing enforces that.
 var fullSurfaceMarkerRan atomic.Bool
 
 // fullSurfaceRouteOptions is the ProtectedRouteOptions every registrar in the harness
 // receives. Its single post-auth handler is an OBSERVER: it records that it ran and passes
 // through, so a refusal that reaches it is a refusal that did not come from the authorizer.
 //
-// It MUST stay a bare passthrough. The production post-auth handler
-// pkgHTTP.MarkTrustedAuthAssertion answers 401 on a missing token itself, so substituting it
-// here would make the observer indistinguishable from the authorizer.
+// It MUST stay a bare passthrough. A post-auth handler that answered 401 itself — the production
+// one, pkgHTTP.MarkTrustedAuthAssertion, does — would leave the marker false on a route whose
+// authorizer had gone missing, because the refusal would never reach past it. That class is
+// caught instead by the envelope assertion in TestFullSurfaceRoutes_RejectTokenlessRequests, and
+// only for substitutes whose 401 renders through the app ErrorHandler.
 func fullSurfaceRouteOptions() *pkgHTTP.ProtectedRouteOptions {
 	marker := func(c fiber.Ctx) error {
 		fullSurfaceMarkerRan.Store(true)
@@ -140,8 +161,6 @@ func fullSurfaceRouteOptions() *pkgHTTP.ProtectedRouteOptions {
 // middleware, and a single-tenant deployment supplies none at all.
 func buildFullSurfaceServer(t *testing.T) *UnifiedServer {
 	t.Helper()
-
-	fullSurfaceMarkerRan.Store(false)
 
 	logger := newTestLogger()
 	telemetry := &libOpentelemetry.Telemetry{}
@@ -324,10 +343,11 @@ func serializeRouteTable(rows []routeRow) string {
 	return routeTableGoldenHeader + strings.Join(lines, "\n") + "\n"
 }
 
-// assertRouteTableInvariants asserts the properties that protect the HARNESS and its carve-out
-// rather than the surface: that a plausible surface was mounted, that the carve-out is the size
-// it is pinned to, and that no entry in it is dead. It runs BEFORE the byte comparison and
-// before -update-route-table can write.
+// assertRouteTableInvariants asserts what must hold of the table independently of the committed
+// bytes: that a plausible surface was mounted, that the carve-out is the size it is pinned to,
+// that no entry in it is dead, and that no route is registered as a lone unguarded terminal. It
+// runs BEFORE the byte comparison and before -update-route-table can write, so a regeneration
+// cannot bake an unguarded route into the golden and turn the file green over it.
 func assertRouteTableInvariants(t *testing.T, rows []routeRow) {
 	t.Helper()
 
@@ -338,6 +358,28 @@ func assertRouteTableInvariants(t *testing.T, rows []routeRow) {
 	assert.Lenf(t, unguardedPublicRoutes, unguardedPublicRouteCount,
 		"unguardedPublicRoutes holds %d entries against the %d pinned in unguardedPublicRouteCount: a carve-out has to be "+
 			"added in both places", len(unguardedPublicRoutes), unguardedPublicRouteCount)
+
+	// A lone row is safe only if it is a guard chain long enough to be one. A lone ONE-handler row
+	// is a terminal with no guard registered on its path — the shape a dropped guard chain leaves
+	// behind, and the one shape a collapsed row cannot counterfeit: a collapsed row already sums a
+	// guard and its terminal, so it carries two handlers or more and never reaches this branch.
+	//
+	// It is the only shape invariant here. The two that were scoped to groups of more than one row
+	// are covered by the behavioural sweep in route_guard_test.go instead, and THAT subsumption
+	// rests on no terminal ever answering 401. The 401 producers on this surface are lib-auth's
+	// authorizer at chain position 0 and pkgHTTP.MarkTrustedAuthAssertion behind it, and the only
+	// site rendering constant.ErrInvalidToken is CanonicalFiberErrorHandler's 401 arm. Should a
+	// terminal ever answer 401, those two become load-bearing again.
+	for _, group := range groupRouteRows(rows) {
+		if len(group.rows) != 1 || group.rows[0].handlers >= 2 {
+			continue
+		}
+
+		assert.Truef(t, unguardedPublicRoutes[group.key],
+			"%s is a single one-handler route: no guard chain on its path and no sibling row that could be one, so it "+
+				"answers without auth. If that is intended, add it to unguardedPublicRoutes with a justification",
+			group.display())
+	}
 
 	seen := make(map[string]bool, len(rows))
 	for _, r := range rows {
