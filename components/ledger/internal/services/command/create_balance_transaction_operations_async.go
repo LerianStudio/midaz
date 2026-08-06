@@ -158,7 +158,7 @@ func (uc *UseCase) CreateBalanceTransactionOperationsAsync(ctx context.Context, 
 
 		var wg sync.WaitGroup
 
-		wg.Add(3)
+		wg.Add(4)
 
 		go func() {
 			defer wg.Done()
@@ -170,6 +170,11 @@ func (uc *UseCase) CreateBalanceTransactionOperationsAsync(ctx context.Context, 
 			defer wg.Done()
 
 			runWithTimeout(func(c context.Context) { uc.SendBalanceChangedEvents(c, tran) })
+		}()
+		go func() {
+			defer wg.Done()
+
+			runWithTimeout(func(c context.Context) { uc.SendActiveAccountBillingEvents(c, tran) })
 		}()
 
 		wg.Wait()

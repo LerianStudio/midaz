@@ -5,15 +5,36 @@
 package command
 
 import (
+	"context"
+	"errors"
 	"testing"
 
 	"github.com/LerianStudio/lib-streaming/v2/billing"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/operation"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/transaction"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
+	pkgStreaming "github.com/LerianStudio/midaz/v4/pkg/streaming"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+// fakeSerializer is a hand-rolled double for the unexported billingSerializer
+// seam. GoMock cannot generate a mock for a package-private interface without
+// exporting it, and the codebase already hand-rolls its streaming double
+// (pkgStreaming.MockEmitter) for the same reason, so this mirrors that
+// convention: canned, deterministic bytes or a configured error.
+type fakeSerializer struct {
+	raw []byte
+	err error
+}
+
+func (f fakeSerializer) Serialize(*billing.BillablePayload) ([]byte, error) {
+	if f.err != nil {
+		return nil, f.err
+	}
+
+	return f.raw, nil
+}
 
 func newBillingTransaction(id, status string, ops ...*operation.Operation) *transaction.Transaction {
 	return &transaction.Transaction{
@@ -108,6 +129,125 @@ func TestBuildActiveAccountBillingPayloads(t *testing.T) {
 				require.Contains(t, props, "transaction_id")
 				assert.Equal(t, wantID, props["account_id"].GetStringValue())
 				assert.Equal(t, txID, props["transaction_id"].GetStringValue())
+			}
+		})
+	}
+}
+
+func TestSendActiveAccountBillingEvents(t *testing.T) {
+	t.Parallel()
+
+	const (
+		txID = "11111111-1111-1111-1111-111111111111"
+		accA = "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"
+		accB = "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb"
+	)
+
+	fakeBytes := []byte{0x00, 0x00, 0x00, 0x00, 0x01}
+
+	approvedTwo := newBillingTransaction(txID, constant.APPROVED,
+		&operation.Operation{AccountID: accA, AccountAlias: "@person1"},
+		&operation.Operation{AccountID: accB, AccountAlias: "@person2"},
+	)
+
+	tests := []struct {
+		name           string
+		tran           *transaction.Transaction
+		withStreaming  bool
+		withSerializer bool
+		emitErr        error
+		serializeErr   error
+		wantSubjects   []string
+	}{
+		{
+			name:           "two unique internal accounts emit two events",
+			tran:           approvedTwo,
+			withStreaming:  true,
+			withSerializer: true,
+			wantSubjects:   []string{accA, accB},
+		},
+		{
+			name:           "emitter error is swallowed and nothing captured",
+			tran:           approvedTwo,
+			withStreaming:  true,
+			withSerializer: true,
+			emitErr:        errors.New("broker down"),
+			wantSubjects:   nil,
+		},
+		{
+			name:           "serializer error skips emit",
+			tran:           approvedTwo,
+			withStreaming:  true,
+			withSerializer: true,
+			serializeErr:   errors.New("registry down"),
+			wantSubjects:   nil,
+		},
+		{
+			name:           "nil serializer is a clean no-op",
+			tran:           approvedTwo,
+			withStreaming:  true,
+			withSerializer: false,
+			wantSubjects:   nil,
+		},
+		{
+			name:           "nil streaming is a clean no-op",
+			tran:           approvedTwo,
+			withStreaming:  false,
+			withSerializer: true,
+			wantSubjects:   nil,
+		},
+		{
+			name:           "non-approved transaction emits nothing",
+			tran:           newBillingTransaction(txID, constant.PENDING, &operation.Operation{AccountID: accA, AccountAlias: "@person1"}),
+			withStreaming:  true,
+			withSerializer: true,
+			wantSubjects:   nil,
+		},
+		{
+			name:           "nil transaction is a clean no-op",
+			tran:           nil,
+			withStreaming:  true,
+			withSerializer: true,
+			wantSubjects:   nil,
+		},
+	}
+
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			var mockEmitter *pkgStreaming.MockEmitter
+
+			uc := &UseCase{}
+
+			if tt.withStreaming {
+				mockEmitter = pkgStreaming.NewMockEmitter()
+				mockEmitter.SetError(tt.emitErr)
+				uc.Streaming = mockEmitter
+			}
+
+			if tt.withSerializer {
+				uc.BillingSerializer = fakeSerializer{raw: fakeBytes, err: tt.serializeErr}
+			}
+
+			require.NotPanics(t, func() {
+				uc.SendActiveAccountBillingEvents(context.Background(), tt.tran)
+			})
+
+			if mockEmitter == nil {
+				return
+			}
+
+			events := mockEmitter.Events()
+			require.Len(t, events, len(tt.wantSubjects))
+
+			for i, wantSubject := range tt.wantSubjects {
+				assert.Equal(t, billing.Definition().Key, events[i].DefinitionKey)
+				assert.Equal(t, "billing_recorded", events[i].DefinitionKey)
+				assert.Equal(t, wantSubject, events[i].Subject)
+				assert.Equal(t, pkgStreaming.DefaultTenantID, events[i].TenantID)
+				assert.Equal(t, fakeBytes, []byte(events[i].Payload))
 			}
 		})
 	}
