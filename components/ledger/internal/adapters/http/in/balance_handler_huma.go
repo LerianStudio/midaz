@@ -423,11 +423,16 @@ func (handler *BalanceHandler) GetAccountBalancesAtTimestampHuma(ctx context.Con
 }
 
 // RegisterBalanceRoutes registers the ten migrated balance operations on the
-// shared Huma API. It is the per-file seam the unified server calls; the auth
+// shared Huma API. The auth
 // (auth.Authorize("midaz","balances",verb)) + tenant + ParseUUIDPathParameters
 // ("balance") chain for these routes is attached in the unified server (Fiber
-// level) BEFORE the Huma terminal, not here. Paths are GROUP-RELATIVE (the group's
-// PrefixModifier writes "/v1" into each op's op.Path, not into a servers entry).
+// level) BEFORE the Huma terminal, not here. Paths are GROUP-RELATIVE (the Huma API
+// is bound to a versioned Fiber group; the group's PrefixModifier writes the version
+// into each op's op.Path, not into a servers entry).
+//
+// opSuffix distinguishes the operation IDs one version group publishes from another's —
+// see routeOpSuffixV1. A straight v1/v2 mirror reuses the same handler methods and the
+// same input/output types, so only the operation IDs differ between the twins.
 func RegisterBalanceRoutes(api huma.API, h *BalanceHandler, opSuffix string) {
 	const (
 		orgLedger      = "/organizations/{organization_id}/ledgers/{ledger_id}"

@@ -167,8 +167,9 @@ func (handler *MetadataIndexHandler) DeleteMetadataIndexHuma(ctx context.Context
 // the Fiber level BEFORE the Huma terminal, not here.
 //
 // Paths are GROUP-RELATIVE: the Huma API is bound to a versioned Fiber group, so the
-// humafiber adapter registers on that group and Fiber prepends the version prefix. That
-// prefix rides the OpenAPI `servers` entry (openapi.New Config), keeping op paths relative.
+// humafiber adapter registers on that group and Fiber prepends the version prefix. The
+// group's PrefixModifier writes the version prefix into each op's op.Path, not into a
+// servers entry.
 //
 // opSuffix distinguishes the operation IDs one version group publishes from another's —
 // see routeOpSuffixV1. A straight v1/v2 mirror reuses the same handler methods and the

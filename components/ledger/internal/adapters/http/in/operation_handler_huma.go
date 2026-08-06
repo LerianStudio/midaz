@@ -219,7 +219,7 @@ func (handler *OperationHandler) UpdateOperationHuma(ctx context.Context, in *Up
 // server calls; the auth (auth.Authorize("midaz","operations",verb)) + tenant +
 // ParseUUIDPathParameters("operation") chain for these routes is attached in the unified
 // server (Fiber level) BEFORE the Huma terminal, not here. Paths are GROUP-RELATIVE (the
-// group's PrefixModifier writes "/v1" into each op's op.Path, not into a servers entry).
+// group's PrefixModifier writes the version into each op's op.Path, not into a servers entry).
 //
 // opSuffix distinguishes the operation IDs one version group publishes from another's — see
 // routeOpSuffixV1. The v1 group passes the empty suffix so its IDs stay exactly what published

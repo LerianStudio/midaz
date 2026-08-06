@@ -167,12 +167,16 @@ func (d HumaMountDeps) registerWave3(group fiber.Router, api huma.API) {
 // chain the v1 transaction CREATE ops use, no new policy. asset-rate is MONEY-adjacent
 // (exchange rates): it likewise carries TransactionOptions and authorizes against the
 // "midaz" appName, exactly as on v1 (see registerWave1 / registerAssetRateRoutesToApp).
+// balance (resource "balances") and operation (resource "operations") also carry
+// TransactionOptions and authorize against the "midaz" appName, matching their v1 twins.
 //
 // CRM carries its OWN CRMOptions and authorizes against the same "midaz" tuples the
 // v1 CRM routes use; the nil-guards (holder-accounts, encryption, audit) hold here
 // exactly as on v1. The fee/billing ops carry FeesOptions and authorize against the
 // same "plugin-fees" tuples as v1 — they differ from v1 in scope only: the path
-// names the ledger, so a package another ledger owns is out of reach.
+// names the ledger, so a package another ledger owns is out of reach. composition
+// carries CompositionOptions and authorizes under the "midaz" appName's "accounts"
+// resource, exactly as on v1 (see registerWave3 / RegisterCompositionRoutesToApp).
 func (d HumaMountDeps) MountV2(group fiber.Router, api huma.API) {
 	RegisterOrganizationV2RoutesToApp(group, api, d.Auth, d.Organization, d.OnboardingOptions)
 	RegisterLedgerV2RoutesToApp(group, api, d.Auth, d.Ledger, d.OnboardingOptions)
