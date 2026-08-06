@@ -168,6 +168,10 @@ GET	/v2/organizations/:organization_id/ledgers/:ledger_id/accounts/:account_id/b
 GET	/v2/organizations/:organization_id/ledgers/:ledger_id/accounts/:account_id/balances	1
 GET	/v2/organizations/:organization_id/ledgers/:ledger_id/accounts/:account_id/balances/history	3
 GET	/v2/organizations/:organization_id/ledgers/:ledger_id/accounts/:account_id/balances/history	1
+GET	/v2/organizations/:organization_id/ledgers/:ledger_id/accounts/:account_id/operations	3
+GET	/v2/organizations/:organization_id/ledgers/:ledger_id/accounts/:account_id/operations	1
+GET	/v2/organizations/:organization_id/ledgers/:ledger_id/accounts/:account_id/operations/:operation_id	3
+GET	/v2/organizations/:organization_id/ledgers/:ledger_id/accounts/:account_id/operations/:operation_id	1
 GET	/v2/organizations/:organization_id/ledgers/:ledger_id/accounts/:id	3
 GET	/v2/organizations/:organization_id/ledgers/:ledger_id/accounts/:id	1
 GET	/v2/organizations/:organization_id/ledgers/:ledger_id/accounts/alias/:alias	3
@@ -263,6 +267,7 @@ PATCH	/v2/organizations/:organization_id/ledgers/:ledger_id/portfolios/:id	4
 PATCH	/v2/organizations/:organization_id/ledgers/:ledger_id/segments/:id	4
 PATCH	/v2/organizations/:organization_id/ledgers/:ledger_id/settings	3
 PATCH	/v2/organizations/:organization_id/ledgers/:ledger_id/settings	1
+PATCH	/v2/organizations/:organization_id/ledgers/:ledger_id/transactions/:transaction_id/operations/:operation_id	4
 POST	/v1/organizations	3
 POST	/v1/organizations/:organization_id/billing-packages	3
 POST	/v1/organizations/:organization_id/billing-packages	1

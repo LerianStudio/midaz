@@ -162,14 +162,34 @@ func registerBalanceRoutesToApp(group fiber.Router, api huma.API, auth *middlewa
 	RegisterBalanceRoutes(api, bh, opSuffix)
 }
 
-// RegisterOperationRoutesToApp wires the three Huma-migrated operation ops: two READ
-// (GET, on the account path) plus the PATCH (UpdateOperation, on the transaction path —
-// a money-write LEG of the double-entry). Auth is
-// auth.Authorize("midaz","operations",verb) + tenant +
-// ParseUUIDPathParameters("operation"), attached as middleware-only on the /v1 group
-// before the Huma terminals — the SAME (appName, resource, verb) tuples the inline Fiber
-// routes carried, preserved byte-for-byte.
+// RegisterOperationRoutesToApp wires the Huma-migrated operation surface onto the /v1
+// contract. See registerOperationRoutesToApp for what it attaches.
 func RegisterOperationRoutesToApp(group fiber.Router, api huma.API, auth *middleware.AuthClient, oh *OperationHandler, routeOptions *http.ProtectedRouteOptions) {
+	registerOperationRoutesToApp(group, api, auth, oh, routeOptions, routeOpSuffixV1)
+}
+
+// RegisterOperationV2RoutesToApp wires the same operation surface onto the /v2 contract: same
+// paths, same handlers, same authz tuples and tenant chain, differing only in the operation IDs
+// the contract publishes. It is additive — /v1 keeps serving operations in parallel — and
+// introduces no new policy surface.
+func RegisterOperationV2RoutesToApp(group fiber.Router, api huma.API, auth *middleware.AuthClient, oh *OperationHandler, routeOptions *http.ProtectedRouteOptions) {
+	registerOperationRoutesToApp(group, api, auth, oh, routeOptions, routeOpSuffixV2)
+}
+
+// registerOperationRoutesToApp is the single description of the operation route surface, shared
+// by every versioned contract that serves it. It attaches the Fiber auth chain for the three
+// ops — two READ (GET, on the account path) plus the PATCH (UpdateOperation, on the transaction
+// path — a money-write LEG of the double-entry) —
+// auth.Authorize("midaz","operations",verb) + tenant PostAuthMiddlewares +
+// ParseUUIDPathParameters("operation") — as MIDDLEWARE ONLY (group-relative paths, no terminal)
+// on the VERSIONED GROUP, then registers the Huma terminals via RegisterOperationRoutes on the
+// SAME group's Huma API. This preserves the pre-Huma ("midaz","operations",verb) authz tuples
+// and tenant resolution BYTE-FOR-BYTE on whichever version group it is mounted on.
+//
+// opSuffix distinguishes the operation IDs one version group publishes from another's — see
+// routeOpSuffixV1. Nothing else varies between contracts, so a change to the surface reaches
+// every version it is mounted on.
+func registerOperationRoutesToApp(group fiber.Router, api huma.API, auth *middleware.AuthClient, oh *OperationHandler, routeOptions *http.ProtectedRouteOptions, opSuffix string) {
 	const (
 		listPath  = "/organizations/:organization_id/ledgers/:ledger_id/accounts/:account_id/operations"
 		idPath    = listPath + "/:operation_id"
@@ -185,7 +205,7 @@ func RegisterOperationRoutesToApp(group fiber.Router, api huma.API, auth *middle
 	// PATCH (money-write leg) — ("operations","patch").
 	routePatch(group, patchPath, protectedMidaz(auth, "operations", "patch", routeOptions, parse))
 
-	RegisterOperationRoutes(api, oh)
+	RegisterOperationRoutes(api, oh, opSuffix)
 }
 
 // RegisterCountTransactionRoutesToApp wires the Huma-migrated transaction-count HEAD

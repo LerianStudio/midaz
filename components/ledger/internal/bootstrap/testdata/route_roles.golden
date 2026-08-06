@@ -98,6 +98,8 @@ GET	/v2/organizations/:organization_id/ledgers/:ledger_id/account-types/:id	onbo
 GET	/v2/organizations/:organization_id/ledgers/:ledger_id/accounts	onboarding
 GET	/v2/organizations/:organization_id/ledgers/:ledger_id/accounts/:account_id/balances	transaction
 GET	/v2/organizations/:organization_id/ledgers/:ledger_id/accounts/:account_id/balances/history	transaction
+GET	/v2/organizations/:organization_id/ledgers/:ledger_id/accounts/:account_id/operations	transaction
+GET	/v2/organizations/:organization_id/ledgers/:ledger_id/accounts/:account_id/operations/:operation_id	transaction
 GET	/v2/organizations/:organization_id/ledgers/:ledger_id/accounts/:id	onboarding
 GET	/v2/organizations/:organization_id/ledgers/:ledger_id/accounts/alias/:alias	onboarding
 GET	/v2/organizations/:organization_id/ledgers/:ledger_id/accounts/alias/:alias/balances	transaction
@@ -163,6 +165,7 @@ PATCH	/v2/organizations/:organization_id/ledgers/:ledger_id/packages/:id	fees
 PATCH	/v2/organizations/:organization_id/ledgers/:ledger_id/portfolios/:id	onboarding
 PATCH	/v2/organizations/:organization_id/ledgers/:ledger_id/segments/:id	onboarding
 PATCH	/v2/organizations/:organization_id/ledgers/:ledger_id/settings	onboarding
+PATCH	/v2/organizations/:organization_id/ledgers/:ledger_id/transactions/:transaction_id/operations/:operation_id	transaction
 POST	/v1/organizations	onboarding
 POST	/v1/organizations/:organization_id/billing-packages	fees
 POST	/v1/organizations/:organization_id/billing/calculate	fees

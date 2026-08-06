@@ -10836,6 +10836,171 @@ paths:
       summary: Get Account Balances history at date
       tags:
         - Balances
+  /v2/organizations/{organization_id}/ledgers/{ledger_id}/accounts/{account_id}/operations:
+    get:
+      operationId: getAllOperationsByAccountV2
+      parameters:
+        - description: Organization ID (UUID)
+          in: path
+          name: organization_id
+          required: true
+          schema:
+            description: Organization ID (UUID)
+            type: string
+        - description: Ledger ID (UUID)
+          in: path
+          name: ledger_id
+          required: true
+          schema:
+            description: Ledger ID (UUID)
+            type: string
+        - description: Account ID (UUID)
+          in: path
+          name: account_id
+          required: true
+          schema:
+            description: Account ID (UUID)
+            type: string
+        - description: JSON string to filter operations by metadata fields
+          explode: false
+          in: query
+          name: metadata
+          schema:
+            description: JSON string to filter operations by metadata fields
+            type: string
+        - description: Max items per page (max 100, default 10)
+          explode: false
+          in: query
+          name: limit
+          schema:
+            description: Max items per page (max 100, default 10)
+            type: string
+        - description: Filter operations created on/after this date (YYYY-MM-DD)
+          explode: false
+          in: query
+          name: start_date
+          schema:
+            description: Filter operations created on/after this date (YYYY-MM-DD)
+            type: string
+        - description: Filter operations created on/before this date (YYYY-MM-DD)
+          explode: false
+          in: query
+          name: end_date
+          schema:
+            description: Filter operations created on/before this date (YYYY-MM-DD)
+            type: string
+        - description: Sort direction (asc, desc)
+          explode: false
+          in: query
+          name: sort_order
+          schema:
+            description: Sort direction (asc, desc)
+            type: string
+        - description: Opaque cursor token for pagination
+          explode: false
+          in: query
+          name: cursor
+          schema:
+            description: Opaque cursor token for pagination
+            type: string
+        - description: Filter by operation type (DEBIT, CREDIT)
+          explode: false
+          in: query
+          name: type
+          schema:
+            description: Filter by operation type (DEBIT, CREDIT)
+            type: string
+        - description: Filter by direction (debit, credit)
+          explode: false
+          in: query
+          name: direction
+          schema:
+            description: Filter by direction (debit, credit)
+            type: string
+        - description: Filter by operation route ID (UUID)
+          explode: false
+          in: query
+          name: route_id
+          schema:
+            description: Filter by operation route ID (UUID)
+            type: string
+        - description: Filter by operation route code
+          explode: false
+          in: query
+          name: route_code
+          schema:
+            description: Filter by operation route code
+            type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Pagination"
+          description: OK
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Error
+      security:
+        - BearerAuth: []
+        - ApiKeyAuth: []
+      summary: Get all Operations by account
+      tags:
+        - Operations
+  /v2/organizations/{organization_id}/ledgers/{ledger_id}/accounts/{account_id}/operations/{operation_id}:
+    get:
+      operationId: getOperationByAccountV2
+      parameters:
+        - description: Organization ID (UUID)
+          in: path
+          name: organization_id
+          required: true
+          schema:
+            description: Organization ID (UUID)
+            type: string
+        - description: Ledger ID (UUID)
+          in: path
+          name: ledger_id
+          required: true
+          schema:
+            description: Ledger ID (UUID)
+            type: string
+        - description: Account ID (UUID)
+          in: path
+          name: account_id
+          required: true
+          schema:
+            description: Account ID (UUID)
+            type: string
+        - description: Operation ID (UUID)
+          in: path
+          name: operation_id
+          required: true
+          schema:
+            description: Operation ID (UUID)
+            type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Operation"
+          description: OK
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Error
+      security:
+        - BearerAuth: []
+        - ApiKeyAuth: []
+      summary: Get Operation
+      tags:
+        - Operations
   /v2/organizations/{organization_id}/ledgers/{ledger_id}/accounts/{id}:
     delete:
       operationId: deleteAccountV2
@@ -13055,6 +13220,64 @@ paths:
       summary: Commit a Transaction (v2)
       tags:
         - Transactions
+  /v2/organizations/{organization_id}/ledgers/{ledger_id}/transactions/{transaction_id}/operations/{operation_id}:
+    patch:
+      operationId: updateOperationV2
+      parameters:
+        - description: Organization ID (UUID)
+          in: path
+          name: organization_id
+          required: true
+          schema:
+            description: Organization ID (UUID)
+            type: string
+        - description: Ledger ID (UUID)
+          in: path
+          name: ledger_id
+          required: true
+          schema:
+            description: Ledger ID (UUID)
+            type: string
+        - description: Transaction ID (UUID)
+          in: path
+          name: transaction_id
+          required: true
+          schema:
+            description: Transaction ID (UUID)
+            type: string
+        - description: Operation ID (UUID)
+          in: path
+          name: operation_id
+          required: true
+          schema:
+            description: Operation ID (UUID)
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              contentMediaType: application/octet-stream
+              format: binary
+              type: string
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Operation"
+          description: OK
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Error
+      security:
+        - BearerAuth: []
+      summary: Update an Operation
+      tags:
+        - Operations
   /v2/organizations/{organization_id}/ledgers/{ledger_id}/transactions/{transaction_id}/revert:
     post:
       operationId: revertTransactionV2
