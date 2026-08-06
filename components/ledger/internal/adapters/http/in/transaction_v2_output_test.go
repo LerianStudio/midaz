@@ -193,6 +193,30 @@ func TestTransactionV2_MirrorsTheCanonicalFieldSet(t *testing.T) {
 	}
 }
 
+// TestUnifiedDocument_V1AndV2TransactionSchemasCoexist locks the shared-registry property at the
+// heart of the single-document consolidation: the one huma.API that generates the committed dump
+// carries BOTH the v1 "Transaction" component and the v2 "TransactionV2" component together. The
+// two bodies differ in shape (source/destination vs debit/credit), so their coexistence under
+// distinct names in one component registry is exactly what keeps the merged document consistent —
+// a regression that reused a single name for both shapes would drop one key from this map.
+func TestUnifiedDocument_V1AndV2TransactionSchemasCoexist(t *testing.T) {
+	t.Parallel()
+
+	const v1TransactionSchemaName = "Transaction"
+
+	_, api := buildUnifiedHumaAPI()
+	schemas := api.OpenAPI().Components.Schemas.Map()
+
+	v1, okV1 := schemas[v1TransactionSchemaName]
+	v2, okV2 := schemas[v2TransactionSchemaName]
+
+	require.Truef(t, okV1, "the unified document must register the v1 %q component", v1TransactionSchemaName)
+	require.Truef(t, okV2, "the unified document must register the v2 %q component", v2TransactionSchemaName)
+	require.NotNil(t, v1, "%q must resolve to a non-nil schema", v1TransactionSchemaName)
+	require.NotNil(t, v2, "%q must resolve to a non-nil schema", v2TransactionSchemaName)
+	assert.NotSame(t, v1, v2, "the two coexisting components must be distinct schema objects")
+}
+
 // wireFieldNames returns the json key of every field of v that reaches the wire, keyed for
 // set comparison. A field tagged `json:"-"` is skipped, and an absent tag falls back to the
 // Go field name, which is what encoding/json itself would emit.

@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"io"
 	"net/http"
+	"strings"
 	"testing"
 
 	"github.com/gofiber/fiber/v3"
@@ -132,6 +133,11 @@ func TestNewUnifiedServer_V2DirectOpDoesNotLeakIntoV1(t *testing.T) {
 	_, hasV2 := paths[directOpV2Path]
 	assert.Truef(t, hasV2, "the single document MUST carry the v2 direct op key %q; paths=%v", directOpV2Path, keysOf(paths))
 
-	_, hasV1 := paths["/v1/transactions/direct"]
-	assert.Falsef(t, hasV1, "the v2 direct op MUST NOT appear under a /v1 key; paths=%v", keysOf(paths))
+	// Derive the v1 sibling from the v2 key so the two stay mirror images: a hardcoded
+	// v1 literal would keep probing a never-registered key if directOpV2Path changed,
+	// letting the negative assertion pass vacuously and miss a real cross-version leak.
+	directOpV1Path := strings.Replace(directOpV2Path, "/v2/", "/v1/", 1)
+
+	_, hasV1 := paths[directOpV1Path]
+	assert.Falsef(t, hasV1, "the v2 direct op MUST NOT appear under the v1 key %q; paths=%v", directOpV1Path, keysOf(paths))
 }
