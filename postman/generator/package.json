@@ -21,7 +21,8 @@
   },
   "devDependencies": {
     "@redocly/cli": "^2.40.0",
-    "commander": "^9.4.1"
+    "commander": "^9.4.1",
+    "newman": "^6.2.1"
   },
   "engines": {
     "node": ">=16.0.0"
