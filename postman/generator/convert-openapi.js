@@ -847,11 +847,15 @@ function versionSuffix(path) {
 /**
  * Resolve the base-path segments an operation is served under.
  *
- * OpenAPI keeps the base path in `servers`, not in the path keys: the Huma dumps
- * declare `servers: [{ url: "/v1" }]` (or "/v2") and key their paths from there,
- * so a Postman URL built from the path key alone is missing the version prefix.
- * A path item's own `servers` takes precedence over the document's, which is how
- * the consolidated spec carries per-version bases in one document.
+ * OpenAPI can keep the base path in `servers` rather than the path keys, and the
+ * two Huma dumps split the version differently. The ledger dump declares
+ * `servers: [{ url: "/" }]` and carries the version inside each path key
+ * (`/v1/...`, `/v2/...`), so the base path is "/" and this returns `[]`. The
+ * tracer dump declares `servers: [{ url: "/v1" }]` with unprefixed path keys, so
+ * this returns `["v1"]`. Either way `createUrl` rejoins these segments with the
+ * path key to reconstruct the same absolute URL the service actually serves.
+ * A path item's own `servers` takes precedence over the document's, which lets a
+ * consolidated spec carry per-version bases in one document.
  *
  * @param {Object} spec - The full OpenAPI spec
  * @param {string} path - The path key of the endpoint
