@@ -11,7 +11,6 @@ import (
 	libCommons "github.com/LerianStudio/lib-commons/v6/commons"
 	libHTTP "github.com/LerianStudio/lib-commons/v6/commons/net/http"
 	openapi "github.com/LerianStudio/lib-commons/v6/commons/net/http/openapi"
-	problem "github.com/LerianStudio/lib-commons/v6/commons/net/http/problem"
 	libCommonsServer "github.com/LerianStudio/lib-commons/v6/commons/server"
 	libLog "github.com/LerianStudio/lib-observability/v2/log"
 	libObsMiddleware "github.com/LerianStudio/lib-observability/v2/middleware"
@@ -20,6 +19,7 @@ import (
 	"github.com/gofiber/fiber/v3"
 	"github.com/gofiber/fiber/v3/middleware/cors"
 
+	httpin "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/http/in"
 	"github.com/LerianStudio/midaz/v4/pkg/buildinfo"
 	midazhttp "github.com/LerianStudio/midaz/v4/pkg/net/http"
 )
@@ -170,24 +170,18 @@ func NewUnifiedServer(
 	}
 }
 
-// mountHumaContract mounts one independent Huma contract instance under prefix and
-// encapsulates the INVARIANT scaffolding shared by every version: problem.Install()
-// (idempotent RFC 9457 model override, MUST precede any huma.Register), the Fiber
-// group + Huma document creation, the ledger schema namer, the BearerAuth + ApiKeyAuth
-// SPEC-ONLY security scheme declarations, the mount closure invocation, and the
-// openAPIDocsEnabled()-gated native OpenAPI 3.1 spec + Scalar docs surface.
+// mountHumaContract mounts one independent Huma contract instance under prefix. The
+// INVARIANT scaffolding every version shares — problem.Install, the framework-error
+// mapping, the Huma document, the ledger schema namer and the BearerAuth + ApiKeyAuth
+// SPEC-ONLY security schemes — is owned by httpin.AssembleHumaContract, the same seam
+// the offline dump harnesses build through, so production and the committed dumps
+// describe one document.
 //
-// Every contract installs the ledger schema namer within its own registry to
-// disambiguate the nested operation.* schemas (operation.{Status,Balance,Amount})
-// against the top-level transaction.* schemas (transaction.Status): the v2 create
-// output embeds transaction.Transaction, which nests operation.Operation, and the v1
-// contract carries the same cross-package clash — so the namer applies uniformly.
-//
-// The DIVERGENT bits are parameters: prefix (Fiber group + Servers entry + ServeSpec
+// The DIVERGENT bits stay here: prefix (Fiber group + Servers entry + ServeSpec
 // prefix), title/description/version (Info metadata), and the mount closure (per-version
 // op registration + the per-group Fiber auth/tenant chain). ServeSpec runs AFTER mount
-// so the snapshotted spec is complete. Security schemes are SPEC metadata only — runtime
-// auth stays the Fiber guard chain the mount closure attaches.
+// so the snapshotted spec is complete, and stays here because exposing the docs surface
+// is bootstrap policy gated on openAPIDocsEnabled(), not contract scaffolding.
 func mountHumaContract(
 	app *fiber.App,
 	logger libLog.Logger,
@@ -197,33 +191,14 @@ func mountHumaContract(
 	version string,
 	mount HumaRouteRegistrar,
 ) {
-	problem.Install()
-	midazhttp.InstallHumaFrameworkErrors()
-
 	group := app.Group(prefix)
 
-	api := openapi.New(app, group, openapi.Config{
+	api := httpin.AssembleHumaContract(app, group, openapi.Config{
 		Title:       title,
 		Version:     version,
 		Description: description,
 		Servers:     []string{prefix},
 	})
-
-	midazhttp.InstallLedgerSchemaNamer(api)
-
-	openapi.DeclareBearerAuth(api)
-
-	components := api.OpenAPI().Components
-	if components.SecuritySchemes == nil {
-		components.SecuritySchemes = map[string]*huma.SecurityScheme{}
-	}
-
-	components.SecuritySchemes["ApiKeyAuth"] = &huma.SecurityScheme{
-		Type:        "apiKey",
-		In:          "header",
-		Name:        "X-API-Key",
-		Description: "Static API key presented in the X-API-Key header.",
-	}
 
 	mount(group, api)
 

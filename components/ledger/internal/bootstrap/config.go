@@ -32,7 +32,6 @@ import (
 	libRuntime "github.com/LerianStudio/lib-observability/v2/runtime"
 	libOpentelemetry "github.com/LerianStudio/lib-observability/v2/tracing"
 	libZap "github.com/LerianStudio/lib-observability/v2/zap"
-	"github.com/danielgtaylor/huma/v2"
 	"github.com/gofiber/fiber/v3"
 	"github.com/google/uuid"
 	"google.golang.org/grpc"
@@ -1030,8 +1029,9 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 		httpin.RegisterOnboardingRoutesToApp(router, auth, accountHandler, portfolioHandler, ledgerHandler, organizationHandler, segmentHandler, accountTypeHandler, routeSetup.onboardingRouteOptions)
 	}
 
-	// Wave-3 (additive) handlers are constructed here, BEFORE humaMount, because the
-	// mount closure wires their Huma terminals + Fiber auth chain on the shared /v1 API.
+	// Wave-3 (additive) handlers are constructed here, BEFORE the HumaMountDeps that
+	// carries them, because MountV1/MountV2 wire their Huma terminals + Fiber auth
+	// chain on the shared contract.
 	//
 	// CRM uses the SAME auth client as ledger; only the authz resource namespace differs
 	// (midaz:{holders,instruments}, encoded in the route definitions). The CRM-scoped
@@ -1064,87 +1064,51 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 		libLog.String("default_currency", fees.useCase.DefaultCurrency()),
 	)
 
-	// Wave-1 resources are migrated to Huma: their terminal handlers + Fiber auth
-	// chain are wired on the shared /v1 Huma API/group via this mount seam, run by
-	// NewUnifiedServer after it builds the humaAPI. Each RegisterXxxRoutesToApp
-	// reproduces the SAME (resource, verb) authz tuple and the SAME routeOptions
-	// (tenant PostAuthMiddlewares) the pre-Huma inline route used, byte-for-byte:
-	//   - organization/ledger/portfolio/segment/account/asset use onboardingRouteOptions
-	//     ([authAssertion, WithTenantDB]) — as RegisterOnboardingRoutesToApp did.
-	//   - account-type uses onboardingRouteOptions too, but authorizes against the
-	//     "routing" appName (protectedRouting), exactly as the inline route did.
-	//   - asset-rate uses transactionRouteOptions ([authAssertion, WithTenantDB]) — it is
-	//     MONEY-adjacent (exchange rates), so it shares the transaction tenant chain.
-	//   - metadata-index uses ledgerRouteOptions ([authAssertion] ONLY, no WithTenantDB)
-	//     — as RegisterMetadataRoutesToApp did via CreateRouteRegistrar. Passing the
-	//     onboarding options here would inject tenant-DB middleware the inline route
-	//     never had, so ledgerRouteOptions is load-bearing.
-	humaMount := func(group fiber.Router, api huma.API) {
-		httpin.RegisterOrganizationRoutesToApp(group, api, auth, organizationHandler, routeSetup.onboardingRouteOptions)
-		httpin.RegisterLedgerRoutesToApp(group, api, auth, ledgerHandler, routeSetup.onboardingRouteOptions)
-		httpin.RegisterPortfolioRoutesToApp(group, api, auth, portfolioHandler, routeSetup.onboardingRouteOptions)
-		httpin.RegisterSegmentRoutesToApp(group, api, auth, segmentHandler, routeSetup.onboardingRouteOptions)
-		httpin.RegisterAccountRoutesToApp(group, api, auth, accountHandler, routeSetup.onboardingRouteOptions)
-		httpin.RegisterAccountTypeRoutesToApp(group, api, auth, accountTypeHandler, routeSetup.onboardingRouteOptions)
-		httpin.RegisterMetadataIndexRoutesToApp(group, api, auth, metadataIndexHandler, routeSetup.ledgerRouteOptions)
-		httpin.RegisterAssetRoutesToApp(group, api, auth, assetHandler, routeSetup.onboardingRouteOptions)
-		httpin.RegisterAssetRateRoutesToApp(group, api, auth, assetRateHandler, routeSetup.transactionRouteOptions)
+	// humaMountDeps is the single mount list both contract versions build from. The
+	// per-registrar options rationale (why metadata-index takes ledgerRouteOptions
+	// without WithTenantDB, why the CRM/fee/composition tenant options stay distinct)
+	// lives on HumaMountDeps.MountV1 / MountV2 in the http/in package, next to the
+	// registrar calls it governs. Handlers and route options are threaded by NAME so
+	// the CRM↔Fees tenant-option pairing cannot silently swap.
+	humaMountDeps := httpin.HumaMountDeps{
+		Auth: auth,
 
-		// Wave-2 (money-read + routing) resources: balance, operation-read, transaction-
-		// count, operation-route, transaction-route. All carry transactionRouteOptions
-		// ([authAssertion, WithTenantDB]). balance/operation/count authorize against the
-		// "midaz" appName (protectedMidaz); operation-route/transaction-route authorize
-		// against the "routing" appName (protectedRouting).
-		httpin.RegisterBalanceRoutesToApp(group, api, auth, balanceHandler, routeSetup.transactionRouteOptions)
-		httpin.RegisterOperationRoutesToApp(group, api, auth, operationHandler, routeSetup.transactionRouteOptions)
-		httpin.RegisterCountTransactionRoutesToApp(group, api, auth, transactionHandler, routeSetup.transactionRouteOptions)
-		httpin.RegisterOperationRouteRoutesToApp(group, api, auth, operationRouteHandler, routeSetup.transactionRouteOptions)
-		httpin.RegisterTransactionRouteRoutesToApp(group, api, auth, transactionRouteHandler, routeSetup.transactionRouteOptions)
+		Organization:  organizationHandler,
+		Ledger:        ledgerHandler,
+		Portfolio:     portfolioHandler,
+		Segment:       segmentHandler,
+		Account:       accountHandler,
+		AccountType:   accountTypeHandler,
+		MetadataIndex: metadataIndexHandler,
+		Asset:         assetHandler,
+		AssetRate:     assetRateHandler,
 
-		// Wave-4 (MONEY-WRITE): the twelve transaction ops (json/inflow/outflow/annotation/
-		// block/unblock CREATE, commit/cancel/revert STATE, PATCH update, GET-by-id + list).
-		// They carry transactionRouteOptions ([authAssertion, WithTenantDB]) and authorize
-		// against the "midaz" appName (protectedMidaz).
-		httpin.RegisterTransactionHumaRoutesToApp(group, api, auth, transactionHandler, routeSetup.transactionRouteOptions)
+		Balance:          balanceHandler,
+		Operation:        operationHandler,
+		OperationRoute:   operationRouteHandler,
+		TransactionRoute: transactionRouteHandler,
 
-		// Wave-3 (additive) resources: CRM (holders/instruments/holder-accounts/
-		// encryption/audit) under "midaz", fees/billing under "plugin-fees", and
-		// composition under "midaz". Each carries its OWN route-scoped tenant options
-		// (crm/fees/composition) so the CRM/fee/composition tenant Mongo never
-		// overwrites the onboarding/transaction tenant DB. The nil-guards (holder-
-		// accounts, encryption, audit) are preserved inside RegisterCRMRoutesToApp:
-		// a nil handler mounts neither the Fiber auth chain nor the Huma terminal,
-		// matching the pre-Huma `if hah/eh/auditHandler != nil` posture.
-		httpin.RegisterCRMRoutesToApp(group, api, auth, crmMgo.holderHandler, crmMgo.instrumentHandler, holderAccountsHandler, crmMgo.encryptionHandler, crmMgo.auditHandler, routeSetup.crmRouteOptions)
-		httpin.RegisterFeesRoutesToApp(group, api, auth, feePackageHandler, feeHandler, billingPackageHandler, billingCalculateHandler, routeSetup.feesRouteOptions)
-		httpin.RegisterCompositionRoutesToApp(group, api, auth, compositionHandler, routeSetup.compositionRouteOptions)
-	}
+		Transaction: transactionHandler,
 
-	// humaMountV2 wires the /v2 Huma terminals + Fiber auth/tenant chain on the
-	// SECOND, independent contract instance (one OpenAPI document per API
-	// version, each with its OWN Huma component registry so v1 and v2 schema names
-	// never collide).
-	//
-	// The transaction ops carry transactionRouteOptions ([authAssertion, WithTenantDB])
-	// and authorize against the "midaz" appName (protectedMidaz, transactions:post) —
-	// the SAME auth + tenant chain the v1 transaction CREATE ops use, no new policy.
-	//
-	// CRM (holders/instruments/holder-accounts/encryption/audit) carries its OWN
-	// crmRouteOptions so the CRM tenant Mongo never overwrites the transaction tenant
-	// DB, and authorizes against the same "midaz" (resource, verb) tuples the /v1 CRM
-	// routes use. The nil-guards (holder-accounts, encryption, audit) hold on this
-	// contract exactly as they do on /v1: a nil handler mounts neither the Fiber auth
-	// chain nor the Huma terminal. /v1 keeps serving CRM in parallel.
-	//
-	// The fee and billing ops carry their OWN feesRouteOptions, the same tenant chain
-	// the /v1 fee routes use, and authorize against the same "plugin-fees" (resource,
-	// verb) tuples — no new policy surface. They differ from /v1 in scope only: the
-	// path names the ledger, so a package another ledger owns is out of reach. /v1
-	// keeps serving the organization-scoped surface in parallel.
-	humaMountV2 := func(group fiber.Router, api huma.API) {
-		httpin.RegisterTransactionV2RoutesToApp(group, api, auth, transactionHandler, routeSetup.transactionRouteOptions)
-		httpin.RegisterCRMV2RoutesToApp(group, api, auth, crmMgo.holderHandler, crmMgo.instrumentHandler, holderAccountsHandler, crmMgo.encryptionHandler, crmMgo.auditHandler, routeSetup.crmRouteOptions)
-		httpin.RegisterFeesV2RoutesToApp(group, api, auth, feePackageHandler, feeHandler, billingPackageHandler, billingCalculateHandler, routeSetup.feesRouteOptions)
+		Holder:         crmMgo.holderHandler,
+		Instrument:     crmMgo.instrumentHandler,
+		HolderAccounts: holderAccountsHandler,
+		Encryption:     crmMgo.encryptionHandler,
+		Audit:          crmMgo.auditHandler,
+
+		FeePackage:       feePackageHandler,
+		Fee:              feeHandler,
+		BillingPackage:   billingPackageHandler,
+		BillingCalculate: billingCalculateHandler,
+
+		Composition: compositionHandler,
+
+		OnboardingOptions:  routeSetup.onboardingRouteOptions,
+		LedgerOptions:      routeSetup.ledgerRouteOptions,
+		TransactionOptions: routeSetup.transactionRouteOptions,
+		CRMOptions:         routeSetup.crmRouteOptions,
+		FeesOptions:        routeSetup.feesRouteOptions,
+		CompositionOptions: routeSetup.compositionRouteOptions,
 	}
 
 	ledgerRouteRegistrar := httpin.CreateRouteRegistrar(auth, metadataIndexHandler, routeSetup.ledgerRouteOptions)
@@ -1169,8 +1133,8 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 		logger,
 		telemetry,
 		readyzHandler,
-		humaMount,
-		humaMountV2,
+		humaMountDeps.MountV1,
+		humaMountDeps.MountV2,
 		onboardingRouteRegistrar,
 		ledgerRouteRegistrar,
 	)

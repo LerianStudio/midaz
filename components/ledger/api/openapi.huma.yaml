@@ -2599,6 +2599,17 @@ components:
             - account not found at provider
           type: string
       type: object
+  securitySchemes:
+    ApiKeyAuth:
+      description: Static API key presented in the X-API-Key header.
+      in: header
+      name: X-API-Key
+      type: apiKey
+    BearerAuth:
+      bearerFormat: JWT
+      description: JWT bearer token issued by the identity provider.
+      scheme: bearer
+      type: http
 info:
   title: Midaz Ledger API
   version: 4.0.0

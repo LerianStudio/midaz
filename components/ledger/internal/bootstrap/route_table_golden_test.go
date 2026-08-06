@@ -16,7 +16,6 @@ import (
 
 	"github.com/LerianStudio/lib-auth/v3/auth/middleware"
 	libOpentelemetry "github.com/LerianStudio/lib-observability/v2/tracing"
-	"github.com/danielgtaylor/huma/v2"
 	"github.com/gofiber/fiber/v3"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -170,42 +169,53 @@ func buildFullSurfaceServer(t *testing.T) *UnifiedServer {
 	transactionHandler := &httpin.TransactionHandler{}
 	metadataIndexHandler := &httpin.MetadataIndexHandler{}
 
-	humaMount := func(group fiber.Router, api huma.API) {
-		httpin.RegisterOrganizationRoutesToApp(group, api, auth, &httpin.OrganizationHandler{}, routeOptions)
-		httpin.RegisterLedgerRoutesToApp(group, api, auth, &httpin.LedgerHandler{}, routeOptions)
-		httpin.RegisterPortfolioRoutesToApp(group, api, auth, &httpin.PortfolioHandler{}, routeOptions)
-		httpin.RegisterSegmentRoutesToApp(group, api, auth, &httpin.SegmentHandler{}, routeOptions)
-		httpin.RegisterAccountRoutesToApp(group, api, auth, &httpin.AccountHandler{}, routeOptions)
-		httpin.RegisterAccountTypeRoutesToApp(group, api, auth, &httpin.AccountTypeHandler{}, routeOptions)
-		httpin.RegisterMetadataIndexRoutesToApp(group, api, auth, metadataIndexHandler, routeOptions)
-		httpin.RegisterAssetRoutesToApp(group, api, auth, &httpin.AssetHandler{}, routeOptions)
-		httpin.RegisterAssetRateRoutesToApp(group, api, auth, &httpin.AssetRateHandler{}, routeOptions)
+	// The full-surface harness threads ONE ProtectedRouteOptions to every role, so all
+	// six named option fields carry routeOptions. The handler counts the golden pins are
+	// therefore the counts a single post-auth observer produces — below a running
+	// deployment's, which supplies per-module tenant middleware (MT) or none (ST).
+	// Handlers are non-nil zero-value structs so every route mounts, including the
+	// conditional CRM holder-accounts/encryption/audit routes. It mounts through the
+	// SAME HumaMountDeps.MountV1/MountV2 production runs, so a registrar added there
+	// reaches this golden.
+	humaDeps := httpin.HumaMountDeps{
+		Auth: auth,
 
-		httpin.RegisterBalanceRoutesToApp(group, api, auth, &httpin.BalanceHandler{}, routeOptions)
-		httpin.RegisterOperationRoutesToApp(group, api, auth, &httpin.OperationHandler{}, routeOptions)
-		httpin.RegisterCountTransactionRoutesToApp(group, api, auth, transactionHandler, routeOptions)
-		httpin.RegisterOperationRouteRoutesToApp(group, api, auth, &httpin.OperationRouteHandler{}, routeOptions)
-		httpin.RegisterTransactionRouteRoutesToApp(group, api, auth, &httpin.TransactionRouteHandler{}, routeOptions)
+		Organization:  &httpin.OrganizationHandler{},
+		Ledger:        &httpin.LedgerHandler{},
+		Portfolio:     &httpin.PortfolioHandler{},
+		Segment:       &httpin.SegmentHandler{},
+		Account:       &httpin.AccountHandler{},
+		AccountType:   &httpin.AccountTypeHandler{},
+		MetadataIndex: metadataIndexHandler,
+		Asset:         &httpin.AssetHandler{},
+		AssetRate:     &httpin.AssetRateHandler{},
 
-		httpin.RegisterTransactionHumaRoutesToApp(group, api, auth, transactionHandler, routeOptions)
+		Balance:          &httpin.BalanceHandler{},
+		Operation:        &httpin.OperationHandler{},
+		OperationRoute:   &httpin.OperationRouteHandler{},
+		TransactionRoute: &httpin.TransactionRouteHandler{},
 
-		httpin.RegisterCRMRoutesToApp(group, api, auth,
-			&httpin.HolderHandler{}, &httpin.InstrumentHandler{}, &httpin.HolderAccountsHandler{},
-			&httpin.EncryptionHandler{}, &httpin.AuditHandler{}, routeOptions)
-		httpin.RegisterFeesRoutesToApp(group, api, auth,
-			&httpin.PackageHandler{}, &httpin.FeeHandler{},
-			&httpin.BillingPackageHandler{}, &httpin.BillingCalculateHandler{}, routeOptions)
-		httpin.RegisterCompositionRoutesToApp(group, api, auth, &httpin.CompositionHandler{}, routeOptions)
-	}
+		Transaction: transactionHandler,
 
-	humaMountV2 := func(group fiber.Router, api huma.API) {
-		httpin.RegisterTransactionV2RoutesToApp(group, api, auth, transactionHandler, routeOptions)
-		httpin.RegisterCRMV2RoutesToApp(group, api, auth,
-			&httpin.HolderHandler{}, &httpin.InstrumentHandler{}, &httpin.HolderAccountsHandler{},
-			&httpin.EncryptionHandler{}, &httpin.AuditHandler{}, routeOptions)
-		httpin.RegisterFeesV2RoutesToApp(group, api, auth,
-			&httpin.PackageHandler{}, &httpin.FeeHandler{},
-			&httpin.BillingPackageHandler{}, &httpin.BillingCalculateHandler{}, routeOptions)
+		Holder:         &httpin.HolderHandler{},
+		Instrument:     &httpin.InstrumentHandler{},
+		HolderAccounts: &httpin.HolderAccountsHandler{},
+		Encryption:     &httpin.EncryptionHandler{},
+		Audit:          &httpin.AuditHandler{},
+
+		FeePackage:       &httpin.PackageHandler{},
+		Fee:              &httpin.FeeHandler{},
+		BillingPackage:   &httpin.BillingPackageHandler{},
+		BillingCalculate: &httpin.BillingCalculateHandler{},
+
+		Composition: &httpin.CompositionHandler{},
+
+		OnboardingOptions:  routeOptions,
+		LedgerOptions:      routeOptions,
+		TransactionOptions: routeOptions,
+		CRMOptions:         routeOptions,
+		FeesOptions:        routeOptions,
+		CompositionOptions: routeOptions,
 	}
 
 	onboardingRouteRegistrar := func(router fiber.Router) {
@@ -218,7 +228,7 @@ func buildFullSurfaceServer(t *testing.T) *UnifiedServer {
 	readyzHandler := NewReadyzHandler(ReadyzHandlerConfig{Logger: logger, Version: "test-version"})
 
 	server := NewUnifiedServer(":0", "test-version", logger, telemetry, readyzHandler,
-		humaMount, humaMountV2, onboardingRouteRegistrar, ledgerRouteRegistrar)
+		humaDeps.MountV1, humaDeps.MountV2, onboardingRouteRegistrar, ledgerRouteRegistrar)
 	require.NotNil(t, server, "NewUnifiedServer should return a non-nil server")
 	require.NotNil(t, server.app, "server should hold a Fiber app")
 
