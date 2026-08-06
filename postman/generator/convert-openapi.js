@@ -342,6 +342,57 @@ const DEPENDENCY_MAP = {
   }
 };
 
+// Endpoint keys that resolved to a real operation during this run. A key present in
+// DEPENDENCY_MAP but never recorded here matched nothing — the exact condition that
+// once let the entire map silently no-op after the ledger path keys were renamed.
+// reportUnmatchedDependencyKeys reads this set so a dead key can never pass unnoticed.
+const MATCHED_DEPENDENCY_KEYS = new Set();
+
+/**
+ * Resolve an endpoint's declared dependencies from DEPENDENCY_MAP and record a real
+ * match. The endpoint key is the raw spec path key, so a map key whose parameter labels
+ * or shape drift from the spec resolves to nothing and is never recorded.
+ * @param {string} method - The HTTP method of the endpoint
+ * @param {string} path - The raw spec path key of the endpoint
+ * @returns {{requires: string[], provides: string[]}} Declared dependencies, or empty arrays
+ */
+function lookupDependencies(method, path) {
+  const endpointKey = `${method.toUpperCase()} ${path}`;
+  const dependencies = DEPENDENCY_MAP[endpointKey];
+  if (dependencies) {
+    MATCHED_DEPENDENCY_KEYS.add(endpointKey);
+    return dependencies;
+  }
+  return { requires: [], provides: [] };
+}
+
+/**
+ * Emit a stderr warning for every DEPENDENCY_MAP key that matched no processed
+ * operation. A silently-unmatched key is dead configuration: it adds neither a
+ * dependency check nor a variable extraction, and a whole map of such keys once
+ * no-opped undetected. The map describes the ledger surface, so only report while
+ * converting that component to avoid flagging every key against components the map was
+ * never meant to cover.
+ */
+function reportUnmatchedDependencyKeys() {
+  if (COMPONENT !== 'ledger') {
+    return;
+  }
+
+  const unmatched = Object.keys(DEPENDENCY_MAP).filter(
+    key => !MATCHED_DEPENDENCY_KEYS.has(key)
+  );
+  if (unmatched.length === 0) {
+    return;
+  }
+
+  console.error(
+    `Warning: ${unmatched.length} DEPENDENCY_MAP key(s) matched no operation in the ` +
+    `${COMPONENT} surface (dead entries — they add no dependency check or variable extraction):`
+  );
+  unmatched.forEach(key => console.error(`  - ${key}`));
+}
+
 /**
  * Generate a pre-request script based on the endpoint dependencies
  * @param {Object} operation - The operation object from the OpenAPI spec
@@ -351,11 +402,10 @@ const DEPENDENCY_MAP = {
  */
 function generatePreRequestScript(operation, path, method) {
   let script = '';
-  
-  // Get the endpoint key for the dependency map
-  const endpointKey = `${method.toUpperCase()} ${path}`;
-  const dependencies = DEPENDENCY_MAP[endpointKey] || { requires: [], provides: [] };
-  
+
+  // Resolve declared dependencies (records a real match for the unmatched-key guard)
+  const dependencies = lookupDependencies(method, path);
+
   // Add authentication handling
   script += `
 // Check for auth token
@@ -404,11 +454,10 @@ if (!pm.environment.get("${variable}")) {
  */
 function generateTestScript(operation, path, method) {
   let script = '';
-  
-  // Get the endpoint key for the dependency map
-  const endpointKey = `${method.toUpperCase()} ${path}`;
-  const dependencies = DEPENDENCY_MAP[endpointKey] || { requires: [], provides: [] };
-  
+
+  // Resolve declared dependencies (records a real match for the unmatched-key guard)
+  const dependencies = lookupDependencies(method, path);
+
   // Basic status code validation
   script += `
 // Test for successful response status
@@ -2511,7 +2560,11 @@ function main() {
   // Create Postman collection
   console.log('Creating Postman collection...');
   const collection = createPostmanCollection(finalSpec);
-  
+
+  // The whole surface has now been processed; surface any DEPENDENCY_MAP key that
+  // matched no operation before the map can silently rot again.
+  reportUnmatchedDependencyKeys();
+
   // Create Postman environment
   let environment = null;
   if (envOutputFile) {
