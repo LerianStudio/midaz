@@ -88,7 +88,7 @@ func TestCreateAccountTypeNormalizesKeyValueToLowercase(t *testing.T) {
 		KeyValue:    "Current_Assets",
 	}
 
-	now := time.Now()
+	now := time.Date(2026, time.January, 1, 0, 0, 0, 0, time.UTC)
 
 	expectedAccountType := &mmodel.AccountType{
 		ID:             uuid.Must(libCommons.GenerateUUIDv7()),

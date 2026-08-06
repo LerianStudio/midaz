@@ -309,6 +309,57 @@ func TestCreateAccountScenarios(t *testing.T) {
 			expectError:  true,
 		},
 		{
+			name: "asset duplicate-match signal is treated as existing asset",
+			input: &mmodel.CreateAccountInput{
+				Name:      "Test Account",
+				Type:      "deposit",
+				AssetCode: "USD",
+			},
+			mockSetup: func(mockAssetRepo *asset.MockRepository, mockPortfolioRepo *portfolio.MockRepository, mockAccountRepo *account.MockRepository, mockMetadataRepo *mongodb.MockRepository, mockAccountTypeRepo *accounttype.MockRepository, mockBalance *balance.MockRepository, mockLedgerRepo *ledger.MockRepository) {
+				mockLedgerRepo.EXPECT().
+					GetSettings(gomock.Any(), gomock.Any(), gomock.Any()).
+					Return(nil, nil).AnyTimes()
+
+				// Best-effort default-direction resolution (non-external).
+				mockAccountTypeRepo.EXPECT().
+					FindByKey(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+					Return(nil, services.ErrDatabaseItemNotFound).AnyTimes()
+
+				// FindByNameOrCode signals a match via (true, ErrAssetNameOrCodeDuplicate);
+				// account creation must continue.
+				mockAssetRepo.EXPECT().
+					FindByNameOrCode(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+					Return(true, pkg.ValidateBusinessError(constant.ErrAssetNameOrCodeDuplicate, "Asset")).AnyTimes()
+
+				mockAccountRepo.EXPECT().
+					FindByAlias(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+					Return(false, nil).AnyTimes()
+
+				mockAccountRepo.EXPECT().
+					Create(gomock.Any(), gomock.Any()).
+					DoAndReturn(func(_ context.Context, in *mmodel.Account) (*mmodel.Account, error) {
+						out := *in
+						out.ID = uuid.New().String()
+						return &out, nil
+					}).AnyTimes()
+
+				mockMetadataRepo.EXPECT().
+					Create(gomock.Any(), gomock.Any(), gomock.Any()).
+					Return(nil).AnyTimes()
+
+				mockBalance.EXPECT().
+					ExistsByAccountIDAndKey(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+					Return(false, nil).AnyTimes()
+
+				mockBalance.EXPECT().
+					Create(gomock.Any(), gomock.Any()).
+					Return(nil, nil).AnyTimes()
+			},
+			expectedErr:  "",
+			expectedName: "Test Account",
+			expectError:  false,
+		},
+		{
 			name: "invalid account type with validation enabled",
 			input: &mmodel.CreateAccountInput{
 				Name:      "Test Account",
