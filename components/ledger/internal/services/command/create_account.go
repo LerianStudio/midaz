@@ -102,10 +102,8 @@ func (uc *UseCase) CreateAccount(ctx context.Context, organizationID, ledgerID u
 
 	status := uc.determineStatus(cai)
 
-	isAsset, _ := uc.AssetRepo.FindByNameOrCode(ctx, organizationID, ledgerID, "", cai.AssetCode)
-	if !isAsset {
-		err := pkg.ValidateBusinessError(constant.ErrAssetCodeNotFound, constant.EntityAccount)
-		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to find asset", err)
+	if err := uc.resolveAssetExistence(ctx, span, organizationID, ledgerID, cai.AssetCode); err != nil {
+		logger.Log(ctx, libLog.LevelError, "Failed to resolve asset", libLog.Err(err))
 
 		return nil, err
 	}
@@ -311,6 +309,31 @@ func (uc *UseCase) determineStatus(cai *mmodel.CreateAccountInput) mmodel.Status
 	status.Description = cai.Status.Description
 
 	return status
+}
+
+// resolveAssetExistence returns nil when an asset with the given code exists in
+// the ledger, ErrAssetCodeNotFound (business) when it does not, and the underlying
+// technical error unchanged on persistence failure. FindByNameOrCode signals a
+// match via (true, ErrAssetNameOrCodeDuplicate) — expected on the open-account
+// path — while (false, err) is a genuine technical failure that must surface as
+// a 5xx, never masked as "asset not found". Recording is class-aware (T5):
+// business stays green, technical flips the span red.
+func (uc *UseCase) resolveAssetExistence(ctx context.Context, span trace.Span, organizationID, ledgerID uuid.UUID, assetCode string) error {
+	found, err := uc.AssetRepo.FindByNameOrCode(ctx, organizationID, ledgerID, "", assetCode)
+	if err != nil && !found {
+		libOpentelemetry.HandleSpanError(span, "Failed to check asset existence", err)
+
+		return err
+	}
+
+	if !found {
+		err := pkg.ValidateBusinessError(constant.ErrAssetCodeNotFound, constant.EntityAccount)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to find asset", err)
+
+		return err
+	}
+
+	return nil
 }
 
 // resolveHolderRequirement reads the cached holder gate keys for a ledger in a

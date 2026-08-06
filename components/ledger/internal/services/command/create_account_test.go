@@ -289,6 +289,26 @@ func TestCreateAccountScenarios(t *testing.T) {
 			expectError:  true,
 		},
 		{
+			name: "asset repo technical error is not masked as not found",
+			input: &mmodel.CreateAccountInput{
+				Name:      "Test Account",
+				Type:      "deposit",
+				AssetCode: "USD",
+			},
+			mockSetup: func(mockAssetRepo *asset.MockRepository, mockPortfolioRepo *portfolio.MockRepository, mockAccountRepo *account.MockRepository, mockMetadataRepo *mongodb.MockRepository, mockAccountTypeRepo *accounttype.MockRepository, mockBalance *balance.MockRepository, mockLedgerRepo *ledger.MockRepository) {
+				mockLedgerRepo.EXPECT().
+					GetSettings(gomock.Any(), gomock.Any(), gomock.Any()).
+					Return(nil, nil).AnyTimes()
+
+				mockAssetRepo.EXPECT().
+					FindByNameOrCode(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+					Return(false, errors.New("asset existence check failed"))
+			},
+			expectedErr:  "asset existence check failed",
+			expectedName: "",
+			expectError:  true,
+		},
+		{
 			name: "invalid account type with validation enabled",
 			input: &mmodel.CreateAccountInput{
 				Name:      "Test Account",

@@ -72,6 +72,56 @@ func TestCreateAccountTypeSuccess(t *testing.T) {
 	assert.Equal(t, expectedAccountType, result)
 }
 
+// TestCreateAccountTypeNormalizesKeyValueToLowercase verifies an uppercase/mixed-case
+// key is stored lowercase, keeping registration consistent with the FindByKey
+// lookup (which lowercases the query key) so accounts of the type can always be opened.
+func TestCreateAccountTypeNormalizesKeyValueToLowercase(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	organizationID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
+
+	payload := &mmodel.CreateAccountTypeInput{
+		Name:        "Current Assets",
+		Description: "Assets convertible to cash within one year",
+		KeyValue:    "Current_Assets",
+	}
+
+	now := time.Now()
+
+	expectedAccountType := &mmodel.AccountType{
+		ID:             uuid.Must(libCommons.GenerateUUIDv7()),
+		OrganizationID: organizationID,
+		LedgerID:       ledgerID,
+		Name:           payload.Name,
+		Description:    payload.Description,
+		KeyValue:       "current_assets",
+		CreatedAt:      now,
+		UpdatedAt:      now,
+	}
+
+	mockAccountTypeRepo := accounttype.NewMockRepository(ctrl)
+
+	uc := UseCase{
+		AccountTypeRepo: mockAccountTypeRepo,
+	}
+
+	mockAccountTypeRepo.EXPECT().
+		Create(gomock.Any(), organizationID, ledgerID, gomock.Any()).
+		DoAndReturn(func(ctx context.Context, orgID, ledID interface{}, accountType *mmodel.AccountType) (*mmodel.AccountType, error) {
+			assert.Equal(t, "current_assets", accountType.KeyValue)
+
+			return expectedAccountType, nil
+		}).
+		Times(1)
+
+	result, err := uc.CreateAccountType(context.Background(), organizationID, ledgerID, payload)
+
+	assert.NoError(t, err)
+	assert.Equal(t, expectedAccountType, result)
+}
+
 // TestCreateAccountTypeError tests creating account type with database error
 func TestCreateAccountTypeError(t *testing.T) {
 	ctrl := gomock.NewController(t)
