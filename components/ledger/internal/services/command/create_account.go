@@ -104,14 +104,7 @@ func (uc *UseCase) CreateAccount(ctx context.Context, organizationID, ledgerID u
 	status := uc.determineStatus(cai)
 
 	if err := uc.resolveAssetExistence(ctx, span, organizationID, ledgerID, cai.AssetCode); err != nil {
-		// Business not-found is a validation outcome (Warn); anything else is an
-		// infrastructure failure (Error).
-		var notFound pkg.EntityNotFoundError
-		if errors.As(err, &notFound) {
-			logger.Log(ctx, libLog.LevelWarn, "Asset code does not exist", libLog.Err(err))
-		} else {
-			logger.Log(ctx, libLog.LevelError, "Failed to resolve asset", libLog.Err(err))
-		}
+		logAssetResolutionFailure(ctx, logger, err)
 
 		return nil, err
 	}
@@ -317,6 +310,20 @@ func (uc *UseCase) determineStatus(cai *mmodel.CreateAccountInput) mmodel.Status
 	status.Description = cai.Status.Description
 
 	return status
+}
+
+// logAssetResolutionFailure logs an asset-resolution failure class-aware:
+// the business not-found outcome is a validation result (Warn), anything
+// else is an infrastructure failure (Error).
+func logAssetResolutionFailure(ctx context.Context, logger libLog.Logger, err error) {
+	var notFound pkg.EntityNotFoundError
+	if errors.As(err, &notFound) {
+		logger.Log(ctx, libLog.LevelWarn, "Asset code does not exist", libLog.Err(err))
+
+		return
+	}
+
+	logger.Log(ctx, libLog.LevelError, "Failed to resolve asset", libLog.Err(err))
 }
 
 // resolveAssetExistence returns nil when an asset with the given code exists in
