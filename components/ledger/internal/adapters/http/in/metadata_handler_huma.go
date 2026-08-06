@@ -166,10 +166,14 @@ func (handler *MetadataIndexHandler) DeleteMetadataIndexHuma(ctx context.Context
 // wiring calls; the auth + tenant middleware chain for these routes is attached at
 // the Fiber level BEFORE the Huma terminal, not here.
 //
-// Paths are GROUP-RELATIVE: the Huma API is bound to the /v1 Fiber group, so the
-// humafiber adapter registers on that group and Fiber prepends /v1. The /v1 prefix
-// rides the OpenAPI `servers` entry (openapi.New Config), keeping op paths relative.
-func RegisterMetadataIndexRoutes(api huma.API, h *MetadataIndexHandler) {
+// Paths are GROUP-RELATIVE: the Huma API is bound to a versioned Fiber group, so the
+// humafiber adapter registers on that group and Fiber prepends the version prefix. That
+// prefix rides the OpenAPI `servers` entry (openapi.New Config), keeping op paths relative.
+//
+// opSuffix distinguishes the operation IDs one version group publishes from another's —
+// see routeOpSuffixV1. A straight v1/v2 mirror reuses the same handler methods and the
+// same input/output types, so only the operation IDs differ between the twins.
+func RegisterMetadataIndexRoutes(api huma.API, h *MetadataIndexHandler, opSuffix string) {
 	const (
 		listPath   = "/settings/metadata-indexes"
 		entityPath = listPath + "/entities/{entity_name}"
@@ -178,7 +182,7 @@ func RegisterMetadataIndexRoutes(api huma.API, h *MetadataIndexHandler) {
 	)
 
 	huma.Register(api, huma.Operation{
-		OperationID: "createMetadataIndex",
+		OperationID: "createMetadataIndex" + opSuffix,
 		Method:      http.MethodPost,
 		Path:        entityPath,
 		Summary:     "Create Metadata Index",
@@ -190,7 +194,7 @@ func RegisterMetadataIndexRoutes(api huma.API, h *MetadataIndexHandler) {
 	}, h.CreateMetadataIndexHuma)
 
 	huma.Register(api, huma.Operation{
-		OperationID: "getAllMetadataIndexes",
+		OperationID: "getAllMetadataIndexes" + opSuffix,
 		Method:      http.MethodGet,
 		Path:        listPath,
 		Summary:     "Get all Metadata Indexes",
@@ -199,7 +203,7 @@ func RegisterMetadataIndexRoutes(api huma.API, h *MetadataIndexHandler) {
 	}, h.ListMetadataIndexesHuma)
 
 	huma.Register(api, huma.Operation{
-		OperationID: "deleteMetadataIndex",
+		OperationID: "deleteMetadataIndex" + opSuffix,
 		Method:      http.MethodDelete,
 		Path:        keyPath,
 		Summary:     "Delete Metadata Index",
@@ -210,22 +214,39 @@ func RegisterMetadataIndexRoutes(api huma.API, h *MetadataIndexHandler) {
 	}, h.DeleteMetadataIndexHuma)
 }
 
-// RegisterMetadataIndexRoutesToApp wires the Huma-migrated metadata-index resource,
-// mirroring RegisterAssetRoutesToApp. For each of the three ops it attaches the Fiber
-// auth chain — protectedMidaz(auth,"settings",verb) (= auth.Authorize("midaz",
-// "settings",verb) + tenant PostAuthMiddlewares) — as MIDDLEWARE ONLY (no terminal)
-// on the /v1 GROUP with GROUP-RELATIVE paths, then registers the Huma terminals via
-// RegisterMetadataIndexRoutes on the SAME group's Huma API. This preserves the
-// pre-Huma ("settings", verb) authz tuples — the resource is "settings", NOT
-// "metadata-indexes" — and tenant resolution BYTE-FOR-BYTE; no metadata-index route
-// becomes public.
-//
-// No ParseUUIDPathParameters is attached: the pre-migration routes.go metadata-index
-// ops carried none (their path params — entity_name, index_key — are not UUIDs). The
-// terminal auth/tenant middleware calls c.Next(), advancing into the Huma terminal.
-// The op order (post, get, delete) matches routes.go. Called from the unified
-// server's humaMount seam (integration task), NOT from routes.go.
+// RegisterMetadataIndexRoutesToApp wires the Huma-migrated metadata-index surface onto the
+// /v1 contract. See registerMetadataIndexRoutesToApp for what it attaches.
 func RegisterMetadataIndexRoutesToApp(group fiber.Router, api huma.API, auth *middleware.AuthClient, h *MetadataIndexHandler, routeOptions *pkgHTTP.ProtectedRouteOptions) {
+	registerMetadataIndexRoutesToApp(group, api, auth, h, routeOptions, routeOpSuffixV1)
+}
+
+// RegisterMetadataIndexV2RoutesToApp wires the same metadata-index surface onto the /v2
+// contract: same paths, same handlers, same authz tuples and tenant chain, differing only
+// in the operation IDs the contract publishes. It is additive — /v1 keeps serving
+// metadata-indexes in parallel — and introduces no new policy surface.
+func RegisterMetadataIndexV2RoutesToApp(group fiber.Router, api huma.API, auth *middleware.AuthClient, h *MetadataIndexHandler, routeOptions *pkgHTTP.ProtectedRouteOptions) {
+	registerMetadataIndexRoutesToApp(group, api, auth, h, routeOptions, routeOpSuffixV2)
+}
+
+// registerMetadataIndexRoutesToApp is the single description of the metadata-index route
+// surface, shared by every versioned contract that serves it, mirroring
+// RegisterAssetRoutesToApp. For each of the three ops it attaches the Fiber auth chain —
+// protectedMidaz(auth,"settings",verb) (= auth.Authorize("midaz","settings",verb) + tenant
+// PostAuthMiddlewares) — as MIDDLEWARE ONLY (no terminal) on the VERSIONED GROUP with
+// GROUP-RELATIVE paths, then registers the Huma terminals via RegisterMetadataIndexRoutes on
+// the SAME group's Huma API. This preserves the pre-Huma ("settings", verb) authz tuples —
+// the resource is "settings", NOT "metadata-indexes" — and tenant resolution BYTE-FOR-BYTE
+// on whichever version group it is mounted on; no metadata-index route becomes public.
+//
+// No ParseUUIDPathParameters is attached: the pre-migration routes.go metadata-index ops
+// carried none (their path params — entity_name, index_key — are not UUIDs). The terminal
+// auth/tenant middleware calls c.Next(), advancing into the Huma terminal. The op order
+// (post, get, delete) matches routes.go.
+//
+// opSuffix distinguishes the operation IDs one version group publishes from another's —
+// see routeOpSuffixV1. Nothing else varies between contracts, so a change to the surface
+// reaches every version it is mounted on.
+func registerMetadataIndexRoutesToApp(group fiber.Router, api huma.API, auth *middleware.AuthClient, h *MetadataIndexHandler, routeOptions *pkgHTTP.ProtectedRouteOptions, opSuffix string) {
 	const (
 		listPath   = "/settings/metadata-indexes"
 		entityPath = listPath + "/entities/:entity_name"
@@ -236,5 +257,5 @@ func RegisterMetadataIndexRoutesToApp(group fiber.Router, api huma.API, auth *mi
 	routeGet(group, listPath, protectedMidaz(auth, "settings", "get", routeOptions))
 	routeDelete(group, keyPath, protectedMidaz(auth, "settings", "delete", routeOptions))
 
-	RegisterMetadataIndexRoutes(api, h)
+	RegisterMetadataIndexRoutes(api, h, opSuffix)
 }

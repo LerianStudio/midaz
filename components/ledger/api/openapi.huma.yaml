@@ -13416,6 +13416,111 @@ paths:
       summary: List Protection Audit Events
       tags:
         - Protection
+  /v2/settings/metadata-indexes:
+    get:
+      operationId: getAllMetadataIndexesV2
+      parameters:
+        - description: Optional entity name filter
+          explode: false
+          in: query
+          name: entity_name
+          schema:
+            description: Optional entity name filter
+            type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                items:
+                  $ref: "#/components/schemas/MetadataIndex"
+                type:
+                  - array
+                  - "null"
+          description: OK
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Error
+      security:
+        - BearerAuth: []
+        - ApiKeyAuth: []
+      summary: Get all Metadata Indexes
+      tags:
+        - Metadata Indexes
+  /v2/settings/metadata-indexes/entities/{entity_name}:
+    post:
+      operationId: createMetadataIndexV2
+      parameters:
+        - description: Entity name (organization, ledger, segment, account, portfolio, asset, account_type, transaction, operation, operation_route, transaction_route)
+          in: path
+          name: entity_name
+          required: true
+          schema:
+            description: Entity name (organization, ledger, segment, account, portfolio, asset, account_type, transaction, operation, operation_route, transaction_route)
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              contentMediaType: application/octet-stream
+              format: binary
+              type: string
+        required: true
+      responses:
+        "201":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MetadataIndex"
+          description: Created
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Error
+      security:
+        - BearerAuth: []
+        - ApiKeyAuth: []
+      summary: Create Metadata Index
+      tags:
+        - Metadata Indexes
+  /v2/settings/metadata-indexes/entities/{entity_name}/key/{index_key}:
+    delete:
+      operationId: deleteMetadataIndexV2
+      parameters:
+        - description: Entity name (organization, ledger, segment, account, portfolio, asset, account_type, transaction, operation, operation_route, transaction_route)
+          in: path
+          name: entity_name
+          required: true
+          schema:
+            description: Entity name (organization, ledger, segment, account, portfolio, asset, account_type, transaction, operation, operation_route, transaction_route)
+            type: string
+        - description: Index key (metadata key, e.g. 'tier')
+          in: path
+          name: index_key
+          required: true
+          schema:
+            description: Index key (metadata key, e.g. 'tier')
+            type: string
+      responses:
+        "204":
+          description: No Content
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Error
+      security:
+        - BearerAuth: []
+        - ApiKeyAuth: []
+      summary: Delete Metadata Index
+      tags:
+        - Metadata Indexes
   /v2/transactions/block:
     post:
       operationId: createTransactionBlockV2

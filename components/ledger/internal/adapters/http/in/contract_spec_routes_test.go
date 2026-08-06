@@ -299,10 +299,10 @@ func TestUnifiedHumaContractIsSingleDocument(t *testing.T) {
 		}
 	}
 
-	require.Len(t, doc.Paths, 131, "single document must enumerate every versioned path key")
+	require.Len(t, doc.Paths, 134, "single document must enumerate every versioned path key")
 	require.Equal(t, 72, v1, "path keys under /v1")
-	require.Equal(t, 59, v2, "path keys under /v2")
-	require.Equal(t, 210, ops, "operations across both versions")
+	require.Equal(t, 62, v2, "path keys under /v2")
+	require.Equal(t, 213, ops, "operations across both versions")
 
 	require.Len(t, doc.Servers, 1, "single document advertises exactly one server")
 	require.Equal(t, "/", doc.Servers[0].URL, "the version rides the operation path, so the server is the root")

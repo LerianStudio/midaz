@@ -156,6 +156,12 @@ func (d HumaMountDeps) registerWave3(group fiber.Router, api huma.API) {
 // "routing" appName (protectedRouting), NOT "midaz", exactly as on v1 (see
 // registerWave1 / registerAccountTypeRoutesToApp).
 //
+// metadata-index is the LEDGER-AGNOSTIC settings resource: it carries LedgerOptions
+// ([authAssertion] ONLY, no WithTenantDB) and authorizes against the "midaz" appName under
+// the "settings" resource, exactly as on v1 (see registerWave1 / registerMetadataIndexRoutesToApp).
+// Passing OnboardingOptions here would inject tenant-DB middleware the route never had, so
+// LedgerOptions is load-bearing.
+//
 // The transaction ops carry TransactionOptions ([authAssertion, WithTenantDB]) and
 // authorize against the "midaz" appName (protectedMidaz) — the same auth + tenant
 // chain the v1 transaction CREATE ops use, no new policy. asset-rate is MONEY-adjacent
@@ -174,6 +180,7 @@ func (d HumaMountDeps) MountV2(group fiber.Router, api huma.API) {
 	RegisterSegmentV2RoutesToApp(group, api, d.Auth, d.Segment, d.OnboardingOptions)
 	RegisterAccountV2RoutesToApp(group, api, d.Auth, d.Account, d.OnboardingOptions)
 	RegisterAccountTypeV2RoutesToApp(group, api, d.Auth, d.AccountType, d.OnboardingOptions)
+	RegisterMetadataIndexV2RoutesToApp(group, api, d.Auth, d.MetadataIndex, d.LedgerOptions)
 	RegisterAssetV2RoutesToApp(group, api, d.Auth, d.Asset, d.OnboardingOptions)
 	RegisterAssetRateV2RoutesToApp(group, api, d.Auth, d.AssetRate, d.TransactionOptions)
 	RegisterTransactionV2RoutesToApp(group, api, d.Auth, d.Transaction, d.TransactionOptions)

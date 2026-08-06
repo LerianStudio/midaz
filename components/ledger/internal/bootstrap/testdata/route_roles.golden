@@ -37,6 +37,7 @@ DELETE	/v2/organizations/:organization_id/ledgers/:ledger_id/billing-packages/:i
 DELETE	/v2/organizations/:organization_id/ledgers/:ledger_id/packages/:id	fees
 DELETE	/v2/organizations/:organization_id/ledgers/:ledger_id/portfolios/:id	onboarding
 DELETE	/v2/organizations/:organization_id/ledgers/:ledger_id/segments/:id	onboarding
+DELETE	/v2/settings/metadata-indexes/entities/:entity_name/key/:index_key	ledger
 GET	/v1/organizations	onboarding
 GET	/v1/organizations/:id	onboarding
 GET	/v1/organizations/:organization_id/billing-packages	fees
@@ -122,6 +123,7 @@ GET	/v2/organizations/:organization_id/ledgers/:ledger_id/segments	onboarding
 GET	/v2/organizations/:organization_id/ledgers/:ledger_id/segments/:id	onboarding
 GET	/v2/organizations/:organization_id/ledgers/:ledger_id/settings	onboarding
 GET	/v2/organizations/:organization_id/protection/audit	crm
+GET	/v2/settings/metadata-indexes	ledger
 HEAD	/v1/organizations/:organization_id/ledgers/:ledger_id/accounts/metrics/count	onboarding
 HEAD	/v1/organizations/:organization_id/ledgers/:ledger_id/assets/metrics/count	onboarding
 HEAD	/v1/organizations/:organization_id/ledgers/:ledger_id/portfolios/metrics/count	onboarding
@@ -212,6 +214,7 @@ POST	/v2/organizations/:organization_id/ledgers/:ledger_id/segments	onboarding
 POST	/v2/organizations/:organization_id/ledgers/:ledger_id/transactions/:transaction_id/cancel	transaction
 POST	/v2/organizations/:organization_id/ledgers/:ledger_id/transactions/:transaction_id/commit	transaction
 POST	/v2/organizations/:organization_id/ledgers/:ledger_id/transactions/:transaction_id/revert	transaction
+POST	/v2/settings/metadata-indexes/entities/:entity_name	ledger
 POST	/v2/transactions/block	transaction
 POST	/v2/transactions/direct	transaction
 POST	/v2/transactions/hold	transaction
