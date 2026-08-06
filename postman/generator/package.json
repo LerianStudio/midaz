@@ -24,6 +24,9 @@
     "commander": "^9.4.1",
     "newman": "^6.2.1"
   },
+  "overrides": {
+    "handlebars": "4.7.9"
+  },
   "engines": {
     "node": ">=16.0.0"
   },
