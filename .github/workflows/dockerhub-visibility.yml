@@ -61,7 +61,10 @@ jobs:
         run: ./scripts/ensure-dockerhub-public.sh
 
       - name: Warn that images are not public
-        if: steps.visibility.outcome == 'failure'
+        # An if without a status function gets an implicit success(), which is false
+        # when strict mode lets the failure through; !cancelled() keeps the warning
+        # in both modes.
+        if: ${{ !cancelled() && steps.visibility.outcome == 'failure' }}
         run: |
           echo "::warning::Released images are not all public (see the step above and the job summary). \
           Give DOCKERHUB_REPO_ADMIN_TOKEN an organization access token with repo:admin, then set strict: true in release.yml to gate releases on this."
