@@ -61,22 +61,8 @@ func CreateRouteRegistrar(auth *middleware.AuthClient, mdi *MetadataIndexHandler
 func RegisterOnboardingRoutesToApp(_ fiber.Router, _ *middleware.AuthClient, _ *AccountHandler, _ *PortfolioHandler, _ *LedgerHandler, _ *OrganizationHandler, _ *SegmentHandler, _ *AccountTypeHandler, _ *http.ProtectedRouteOptions) {
 }
 
-// RegisterAssetRoutesToApp wires the Huma-migrated asset resource. For each of the
-// six ops it attaches the Fiber auth chain — auth.Authorize("midaz","assets",verb)
-// + the tenant PostAuthMiddlewares + ParseUUIDPathParameters("asset") — as
-// MIDDLEWARE ONLY (no terminal handler) on the /v1 GROUP with GROUP-RELATIVE paths,
-// then registers the Huma terminals via RegisterAssetRoutes on the SAME group's
-// Huma API. Fiber runs the middleware chain first; its final ParseUUIDPathParameters
-// calls c.Next(), advancing into the Huma terminal. This preserves the pre-Huma
-// (resource, verb) authz tuples and tenant resolution BYTE-FOR-BYTE — no asset
-// route becomes public — while the Huma terminal owns request/response shaping.
-//
-// The group-relative middleware paths (e.g. "/organizations/:organization_id/.../assets")
-// resolve to the same absolute "/v1/organizations/.../assets" the Huma op paths do
-// (the group's PrefixModifier writes "/v1" into each op's op.Path, not into a servers
-// entry, so the Huma absolute path matches the Fiber chain's raw path byte-for-byte).
-// Param names
-// (:organization_id/:ledger_id/:id) match the Huma path tags exactly.
+// RegisterAssetRoutesToApp wires the Huma-migrated asset surface onto the /v1
+// contract. See registerAssetRoutesToApp for what it attaches.
 func RegisterAssetRoutesToApp(group fiber.Router, api huma.API, auth *middleware.AuthClient, ih *AssetHandler, routeOptions *http.ProtectedRouteOptions) {
 	registerAssetRoutesToApp(group, api, auth, ih, routeOptions, routeOpSuffixV1)
 }

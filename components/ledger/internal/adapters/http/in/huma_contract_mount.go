@@ -149,6 +149,13 @@ func (d HumaMountDeps) registerWave3(group fiber.Router, api huma.API) {
 // type is a deliberate boot panic in mapRegistry.Schema — distinct wire shapes MUST
 // carry distinct schema names.
 //
+// The six onboarding families — organizations, ledgers, portfolios, segments,
+// account-types, assets — carry OnboardingOptions and reuse the same authz tuples and
+// tenant chain as their v1 twins; they are straight mirrors, additive over v1, with no
+// new policy surface. account-types is the one nuance: it authorizes against the
+// "routing" appName (protectedRouting), NOT "midaz", exactly as on v1 (see
+// registerWave1 / registerAccountTypeRoutesToApp).
+//
 // The transaction ops carry TransactionOptions ([authAssertion, WithTenantDB]) and
 // authorize against the "midaz" appName (protectedMidaz) — the same auth + tenant
 // chain the v1 transaction CREATE ops use, no new policy.

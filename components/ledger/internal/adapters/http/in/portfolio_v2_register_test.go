@@ -75,35 +75,6 @@ func TestRegisterPortfolioV2Routes_MirrorsV1UnderV2(t *testing.T) {
 	}
 }
 
-// TestRegisterPortfolioV2Routes_NoDuplicateOperationIDs asserts every operationId in the
-// assembled document is unique. huma.OpenAPI.AddOperation panics on a duplicate id, so the
-// served contract cannot boot with two ops sharing one — this pins the invariant at the
-// document level, catching a v2 twin that dropped its suffix before it becomes a boot panic.
-func TestRegisterPortfolioV2Routes_NoDuplicateOperationIDs(t *testing.T) {
-	t.Parallel()
-
-	_, api := buildUnifiedHumaAPI()
-
-	seen := make(map[string]string)
-
-	for key, item := range api.OpenAPI().Paths {
-		for _, method := range []string{http.MethodGet, http.MethodPost, http.MethodPut, http.MethodPatch, http.MethodDelete, http.MethodHead} {
-			operation := operationForMethod(item, method)
-			if operation == nil {
-				continue
-			}
-
-			where := method + " " + key
-
-			prior, dup := seen[operation.OperationID]
-			require.Falsef(t, dup, "operationId %q is published twice: %s and %s",
-				operation.OperationID, prior, where)
-
-			seen[operation.OperationID] = where
-		}
-	}
-}
-
 // portfolioOpBodyRefs projects an operation onto the component $refs its JSON request body
 // and its 2xx JSON response body name. A body Huma describes inline (the opaque RawBody
 // request schema the create/update ops carry) has no $ref, so its slot comes back "". The

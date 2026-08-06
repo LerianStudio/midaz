@@ -90,35 +90,6 @@ func TestRegisterOrganizationV2Routes_MirrorsV1UnderV2(t *testing.T) {
 	}
 }
 
-// TestRegisterOrganizationV2Routes_NoDuplicateOperationIDs asserts every operationId in
-// the assembled document is unique. huma.OpenAPI.AddOperation panics on a duplicate id, so
-// the served contract cannot boot with two ops sharing one — this pins the invariant at the
-// document level, catching a v2 twin that dropped its suffix before it becomes a boot panic.
-func TestRegisterOrganizationV2Routes_NoDuplicateOperationIDs(t *testing.T) {
-	t.Parallel()
-
-	_, api := buildUnifiedHumaAPI()
-
-	seen := make(map[string]string)
-
-	for key, item := range api.OpenAPI().Paths {
-		for _, method := range []string{http.MethodGet, http.MethodPost, http.MethodPut, http.MethodPatch, http.MethodDelete, http.MethodHead} {
-			operation := operationForMethod(item, method)
-			if operation == nil {
-				continue
-			}
-
-			where := method + " " + key
-
-			prior, dup := seen[operation.OperationID]
-			require.Falsef(t, dup, "operationId %q is published twice: %s and %s",
-				operation.OperationID, prior, where)
-
-			seen[operation.OperationID] = where
-		}
-	}
-}
-
 // orgJSONMediaType is the content type the organization ops publish their request and
 // response bodies under. The reuse invariant below is asserted only over these bodies.
 const orgJSONMediaType = "application/json"
