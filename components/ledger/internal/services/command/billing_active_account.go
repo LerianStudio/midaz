@@ -8,8 +8,9 @@ import (
 	"context"
 	"strings"
 
-	libObs "github.com/LerianStudio/lib-observability/v2"
+	libObservability "github.com/LerianStudio/lib-observability/v2"
 	libLog "github.com/LerianStudio/lib-observability/v2/log"
+	libOpentelemetry "github.com/LerianStudio/lib-observability/v2/tracing"
 	libStreaming "github.com/LerianStudio/lib-streaming/v2"
 	"github.com/LerianStudio/lib-streaming/v2/billing"
 
@@ -26,19 +27,33 @@ const activeAccountMetric = "active_account"
 // internal account that participated in an approved transaction, encoding each
 // payload through the billing serializer's Confluent-Protobuf wire format.
 //
+// phase is the lifecycle phase resolved by CreateOrUpdateTransaction. A
+// TransactionLifecyclePhaseNoop phase means the caller observed no state change
+// (e.g. a unique-violation redelivery with no eligible status transition), so
+// billing early-returns without emitting — this keeps billing at idempotency
+// parity with SendTransactionEvents, which skips the same phase, preventing a
+// double-emit on reprocessing.
+//
 // Fire-and-forget: a nil emitter or nil serializer means billing is disabled and
-// the call is a clean no-op, and serialize/emit failures are warn-logged and
-// swallowed — this MUST NOT fail the parent transaction. Billing does not use
-// pkgStreaming.EmitImportant/ToEmitRequest (the JSON path); it emits the raw
-// Protobuf bytes directly through the Emitter seam.
-func (uc *UseCase) SendActiveAccountBillingEvents(ctx context.Context, tran *transaction.Transaction) {
-	logger, _, _, _ := libObs.NewTrackingFromContext(ctx)
+// the call is a clean no-op, and serialize/emit failures are span-recorded,
+// warn-logged and swallowed — this MUST NOT fail the parent transaction. Billing
+// does not use pkgStreaming.EmitImportant/ToEmitRequest (the JSON path); it emits
+// the raw Protobuf bytes directly through the Emitter seam.
+func (uc *UseCase) SendActiveAccountBillingEvents(ctx context.Context, tran *transaction.Transaction, phase string) {
+	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
+
+	if phase == TransactionLifecyclePhaseNoop {
+		return
+	}
 
 	if uc.Streaming == nil || uc.BillingSerializer == nil {
 		return
 	}
 
-	tenantID := pkgStreaming.ResolveTenantID(ctx)
+	ctxSend, span := tracer.Start(ctx, "command.send_active_account_billing_events_async")
+	defer span.End()
+
+	tenantID := pkgStreaming.ResolveTenantID(ctxSend)
 
 	payloads := buildActiveAccountBillingPayloads(tran)
 
@@ -49,7 +64,9 @@ func (uc *UseCase) SendActiveAccountBillingEvents(ctx context.Context, tran *tra
 
 		raw, err := uc.BillingSerializer.Serialize(p)
 		if err != nil {
-			logger.Log(ctx, libLog.LevelWarn, "billing serialize failed; skipping emit",
+			libOpentelemetry.HandleSpanError(span, "billing serialize failed; skipping emit", err)
+
+			logger.Log(ctxSend, libLog.LevelWarn, "billing serialize failed; skipping emit",
 				libLog.String("metric", p.GetMetric()),
 				libLog.String("subscription_id", p.GetSubscriptionId()),
 				libLog.String("tenant_id", tenantID),
@@ -58,13 +75,16 @@ func (uc *UseCase) SendActiveAccountBillingEvents(ctx context.Context, tran *tra
 			continue
 		}
 
-		if err := uc.Streaming.Emit(ctx, libStreaming.EmitRequest{
+		if err := uc.Streaming.Emit(ctxSend, libStreaming.EmitRequest{
 			DefinitionKey: billing.Definition().Key,
 			TenantID:      tenantID,
 			Subject:       p.GetSubscriptionId(),
+			Timestamp:     tran.CreatedAt,
 			Payload:       raw,
 		}); err != nil {
-			logger.Log(ctx, libLog.LevelWarn, "billing emit failed",
+			libOpentelemetry.HandleSpanError(span, "billing emit failed", err)
+
+			logger.Log(ctxSend, libLog.LevelWarn, "billing emit failed",
 				libLog.String("metric", p.GetMetric()),
 				libLog.String("subscription_id", p.GetSubscriptionId()),
 				libLog.String("tenant_id", tenantID),
@@ -91,6 +111,10 @@ func buildActiveAccountBillingPayloads(tran *transaction.Transaction) []billing.
 
 	for _, op := range tran.Operations {
 		if op == nil {
+			continue
+		}
+
+		if op.AccountID == "" {
 			continue
 		}
 

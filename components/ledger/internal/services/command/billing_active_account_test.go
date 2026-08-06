@@ -105,6 +105,22 @@ func TestBuildActiveAccountBillingPayloads(t *testing.T) {
 			),
 			wantAccountIDs: []string{accA, accB, accC},
 		},
+		{
+			name: "operation with empty account id is skipped",
+			tran: newBillingTransaction(txID, constant.APPROVED,
+				&operation.Operation{AccountID: "", AccountAlias: "@person1"},
+				&operation.Operation{AccountID: accA, AccountAlias: "@person1"},
+			),
+			wantAccountIDs: []string{accA},
+		},
+		{
+			name: "nil operation entry is skipped",
+			tran: newBillingTransaction(txID, constant.APPROVED,
+				nil,
+				&operation.Operation{AccountID: accA, AccountAlias: "@person1"},
+			),
+			wantAccountIDs: []string{accA},
+		},
 	}
 
 	for _, tt := range tests {
@@ -117,10 +133,8 @@ func TestBuildActiveAccountBillingPayloads(t *testing.T) {
 			require.Len(t, got, len(tt.wantAccountIDs))
 
 			for i, wantID := range tt.wantAccountIDs {
-				payload := got[i]
-				require.NotNil(t, payload)
+				payload := &got[i]
 
-				assert.Equal(t, activeAccountMetric, payload.GetMetric())
 				assert.Equal(t, "active_account", payload.GetMetric())
 				assert.Equal(t, wantID, payload.GetSubscriptionId())
 
@@ -153,6 +167,7 @@ func TestSendActiveAccountBillingEvents(t *testing.T) {
 	tests := []struct {
 		name           string
 		tran           *transaction.Transaction
+		phase          string
 		withStreaming  bool
 		withSerializer bool
 		emitErr        error
@@ -162,13 +177,23 @@ func TestSendActiveAccountBillingEvents(t *testing.T) {
 		{
 			name:           "two unique internal accounts emit two events",
 			tran:           approvedTwo,
+			phase:          TransactionLifecyclePhaseCreated,
 			withStreaming:  true,
 			withSerializer: true,
 			wantSubjects:   []string{accA, accB},
 		},
 		{
+			name:           "noop phase emits nothing even when approved",
+			tran:           approvedTwo,
+			phase:          TransactionLifecyclePhaseNoop,
+			withStreaming:  true,
+			withSerializer: true,
+			wantSubjects:   nil,
+		},
+		{
 			name:           "emitter error is swallowed and nothing captured",
 			tran:           approvedTwo,
+			phase:          TransactionLifecyclePhaseCreated,
 			withStreaming:  true,
 			withSerializer: true,
 			emitErr:        errors.New("broker down"),
@@ -177,6 +202,7 @@ func TestSendActiveAccountBillingEvents(t *testing.T) {
 		{
 			name:           "serializer error skips emit",
 			tran:           approvedTwo,
+			phase:          TransactionLifecyclePhaseCreated,
 			withStreaming:  true,
 			withSerializer: true,
 			serializeErr:   errors.New("registry down"),
@@ -185,6 +211,7 @@ func TestSendActiveAccountBillingEvents(t *testing.T) {
 		{
 			name:           "nil serializer is a clean no-op",
 			tran:           approvedTwo,
+			phase:          TransactionLifecyclePhaseCreated,
 			withStreaming:  true,
 			withSerializer: false,
 			wantSubjects:   nil,
@@ -192,6 +219,7 @@ func TestSendActiveAccountBillingEvents(t *testing.T) {
 		{
 			name:           "nil streaming is a clean no-op",
 			tran:           approvedTwo,
+			phase:          TransactionLifecyclePhaseCreated,
 			withStreaming:  false,
 			withSerializer: true,
 			wantSubjects:   nil,
@@ -199,6 +227,7 @@ func TestSendActiveAccountBillingEvents(t *testing.T) {
 		{
 			name:           "non-approved transaction emits nothing",
 			tran:           newBillingTransaction(txID, constant.PENDING, &operation.Operation{AccountID: accA, AccountAlias: "@person1"}),
+			phase:          TransactionLifecyclePhaseCreated,
 			withStreaming:  true,
 			withSerializer: true,
 			wantSubjects:   nil,
@@ -206,6 +235,7 @@ func TestSendActiveAccountBillingEvents(t *testing.T) {
 		{
 			name:           "nil transaction is a clean no-op",
 			tran:           nil,
+			phase:          TransactionLifecyclePhaseCreated,
 			withStreaming:  true,
 			withSerializer: true,
 			wantSubjects:   nil,
@@ -232,7 +262,7 @@ func TestSendActiveAccountBillingEvents(t *testing.T) {
 			}
 
 			require.NotPanics(t, func() {
-				uc.SendActiveAccountBillingEvents(context.Background(), tt.tran)
+				uc.SendActiveAccountBillingEvents(context.Background(), tt.tran, tt.phase)
 			})
 
 			if mockEmitter == nil {
@@ -243,7 +273,6 @@ func TestSendActiveAccountBillingEvents(t *testing.T) {
 			require.Len(t, events, len(tt.wantSubjects))
 
 			for i, wantSubject := range tt.wantSubjects {
-				assert.Equal(t, billing.Definition().Key, events[i].DefinitionKey)
 				assert.Equal(t, "billing_recorded", events[i].DefinitionKey)
 				assert.Equal(t, wantSubject, events[i].Subject)
 				assert.Equal(t, pkgStreaming.DefaultTenantID, events[i].TenantID)
@@ -252,6 +281,3 @@ func TestSendActiveAccountBillingEvents(t *testing.T) {
 		})
 	}
 }
-
-// ensure the billing import is exercised even if the table changes.
-var _ = billing.BillablePayload{}
