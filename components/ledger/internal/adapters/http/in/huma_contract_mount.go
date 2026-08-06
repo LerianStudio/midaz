@@ -158,7 +158,9 @@ func (d HumaMountDeps) registerWave3(group fiber.Router, api huma.API) {
 //
 // The transaction ops carry TransactionOptions ([authAssertion, WithTenantDB]) and
 // authorize against the "midaz" appName (protectedMidaz) — the same auth + tenant
-// chain the v1 transaction CREATE ops use, no new policy.
+// chain the v1 transaction CREATE ops use, no new policy. asset-rate is MONEY-adjacent
+// (exchange rates): it likewise carries TransactionOptions and authorizes against the
+// "midaz" appName, exactly as on v1 (see registerWave1 / registerAssetRateRoutesToApp).
 //
 // CRM carries its OWN CRMOptions and authorizes against the same "midaz" tuples the
 // v1 CRM routes use; the nil-guards (holder-accounts, encryption, audit) hold here
@@ -173,6 +175,7 @@ func (d HumaMountDeps) MountV2(group fiber.Router, api huma.API) {
 	RegisterAccountV2RoutesToApp(group, api, d.Auth, d.Account, d.OnboardingOptions)
 	RegisterAccountTypeV2RoutesToApp(group, api, d.Auth, d.AccountType, d.OnboardingOptions)
 	RegisterAssetV2RoutesToApp(group, api, d.Auth, d.Asset, d.OnboardingOptions)
+	RegisterAssetRateV2RoutesToApp(group, api, d.Auth, d.AssetRate, d.TransactionOptions)
 	RegisterTransactionV2RoutesToApp(group, api, d.Auth, d.Transaction, d.TransactionOptions)
 	RegisterBalanceV2RoutesToApp(group, api, d.Auth, d.Balance, d.TransactionOptions)
 	RegisterCRMV2RoutesToApp(group, api, d.Auth, d.Holder, d.Instrument, d.HolderAccounts, d.Encryption, d.Audit, d.CRMOptions)
