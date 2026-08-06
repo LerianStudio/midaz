@@ -22,7 +22,8 @@ import (
 // v2TransactionSchemaName is the component name the /v2 response envelope publishes its
 // transaction body under. It is spelled literally, distinct from "Transaction" (the v1
 // component name), so a rename of the registered Go type shows up here instead of silently
-// reintroducing a name collision between the two documents' differently-shaped bodies.
+// reintroducing a name collision between v1's and v2's differently-shaped bodies in the
+// shared document.
 const v2TransactionSchemaName = "TransactionV2"
 
 // buildCanonicalTransactionFixture returns a fully-populated canonical transaction.Transaction,

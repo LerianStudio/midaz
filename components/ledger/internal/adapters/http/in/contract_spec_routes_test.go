@@ -111,11 +111,9 @@ const specPath = "../../../../api/openapi.huma.yaml"
 // hide a genuine served-vs-mounted divergence. Each entry is the CANONICALIZED path
 // (positional "{}" params — see pathParam) and must be justified inline.
 //
-// It is passed explicitly to collectMountedRoutes rather than read globally. When the
-// contract was two documents this kept the carve-outs per-contract, so a /v1 exclusion
-// could never blind a /v2 finding. Under one document that separation dissolves — but
-// nothing real is lost: every entry is an app-level public probe, mounted outside any
-// versioned group, so there is no version whose finding it could ever have suppressed.
+// It is passed explicitly to collectMountedRoutes rather than read globally. Every entry
+// is an app-level public probe, mounted outside any versioned group, so excluding it
+// cannot blind a finding in any version group.
 //
 // No /swagger* entries: the swaggo UI + spec routes were retired with the migration.
 var excludedPaths = map[string]bool{
