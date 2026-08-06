@@ -25,8 +25,8 @@ import (
 
 // This file is the v2 transaction contract seam (filename-suffix
 // versioning — v1 files are left untouched). It registers the v2 `direct`, `hold`,
-// `block`, `unblock`, `commit`, `cancel`, and `revert` transaction ops onto the SECOND,
-// independent Huma contract instance and attaches
+// `block`, `unblock`, `commit`, `cancel`, and `revert` transaction ops onto the /v2
+// version group of the shared Huma contract and attaches
 // the SAME Fiber auth chain the v1 transaction ops carry (protectedMidaz,
 // authz namespace "midaz", (resource, verb) = ("transactions","post")). No new
 // policy is introduced: authorization is per-tenant, identical to v1 — the tuple names
@@ -49,8 +49,8 @@ import (
 // tag) so ParseUUIDPathParameters stays the sole path-UUID validator on the Fiber chain,
 // not a native Huma 422.
 
-// RegisterTransactionV2Routes registers the v2 transaction ops on the INDEPENDENT
-// v2 Huma API. It registers the create ops `direct`, `hold`, `block`, and `unblock` on the
+// RegisterTransactionV2Routes registers the v2 transaction ops on the /v2 version
+// group of the shared Huma API. It registers the create ops `direct`, `hold`, `block`, and `unblock` on the
 // scope-free create path, plus the bodiless lifecycle ops `commit`, `cancel`, and `revert`
 // (by organization, ledger and transaction_id).
 // The lifecycle ops are thin v2 shells over the SAME transport-neutral core the v1 shells

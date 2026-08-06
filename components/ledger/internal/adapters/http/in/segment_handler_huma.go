@@ -277,7 +277,7 @@ func (handler *SegmentHandler) CountSegmentsHuma(ctx context.Context, in *CountS
 
 // RegisterSegmentRoutes registers the six migrated segment operations on the shared
 // Huma API. Paths are GROUP-RELATIVE (the Huma API is bound to the /v1 Fiber group;
-// the /v1 prefix rides the OpenAPI servers entry). Mirrors RegisterAssetRoutes.
+// the group's PrefixModifier writes "/v1" into each op's op.Path, not into a servers entry). Mirrors RegisterAssetRoutes.
 func RegisterSegmentRoutes(api huma.API, h *SegmentHandler) {
 	const (
 		listPath  = "/organizations/{organization_id}/ledgers/{ledger_id}/segments"

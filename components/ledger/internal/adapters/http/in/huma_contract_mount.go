@@ -143,9 +143,11 @@ func (d HumaMountDeps) registerWave3(group fiber.Router, api huma.API) {
 	RegisterCompositionRoutesToApp(group, api, d.Auth, d.Composition, d.CompositionOptions)
 }
 
-// MountV2 registers the /v2 Huma terminals + Fiber auth/tenant chain on the SECOND,
-// independent contract instance (its own Huma component registry, so v1 and v2
-// schema names never collide).
+// MountV2 registers the /v2 Huma terminals + Fiber auth/tenant chain on the /v2 version
+// group of the shared Huma contract. Both version groups share one huma.API and one
+// component registry, so a NAMED-type schema-name collision between a v1 type and a v2
+// type is a deliberate boot panic in mapRegistry.Schema — distinct wire shapes MUST
+// carry distinct schema names.
 //
 // The transaction ops carry TransactionOptions ([authAssertion, WithTenantDB]) and
 // authorize against the "midaz" appName (protectedMidaz) — the same auth + tenant
