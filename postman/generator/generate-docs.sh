@@ -159,7 +159,6 @@ consolidate_openapi() {
     #     exactly what produced the overrides.
     local tracer_dump="${ROOT_DIR}/components/tracer/api/openapi.huma.yaml"
     local tracer_join_input="${LOG_DIR}/tracer_join_input.yaml"
-    local tracer_derived=0
 
     # LOG_DIR survives between runs, so discard whatever an earlier run left here.
     # Joining below keys off THIS run having derived the input, never off the file
@@ -194,16 +193,11 @@ consolidate_openapi() {
         return 1
     fi
 
-    tracer_derived=1
-
     # 2b. Join (ledger first => takes precedence on shared metadata and supplies the
     #     joined root servers). The derived tracer input follows. Run the
     #     locally-installed binary directly so the component paths stay relative to
     #     ROOT_DIR.
-    local join_inputs=(components/ledger/api/openapi.huma.yaml)
-    if [ "${tracer_derived}" -eq 1 ]; then
-        join_inputs+=("${tracer_join_input}")
-    fi
+    local join_inputs=(components/ledger/api/openapi.huma.yaml "${tracer_join_input}")
 
     if ! (cd "${ROOT_DIR}" && "${redocly_bin}" join \
             "${join_inputs[@]}" \

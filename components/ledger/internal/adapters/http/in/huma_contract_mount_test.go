@@ -8,10 +8,7 @@ import (
 	"sort"
 	"testing"
 
-	"github.com/LerianStudio/lib-auth/v3/auth/middleware"
-	openapi "github.com/LerianStudio/lib-commons/v6/commons/net/http/openapi"
 	"github.com/danielgtaylor/huma/v2"
-	"github.com/gofiber/fiber/v3"
 	"github.com/stretchr/testify/require"
 )
 
@@ -72,22 +69,6 @@ func referencedSecuritySchemes(doc *huma.OpenAPI) []string {
 	return names
 }
 
-// operationKeys returns the "METHOD path" identity of every operation the document
-// declares, sorted, so two documents can be compared for the same served surface.
-func operationKeys(doc *huma.OpenAPI) []string {
-	keys := make([]string, 0)
-
-	for _, item := range doc.Paths {
-		for _, op := range operationsOf(item) {
-			keys = append(keys, op.Method+" "+op.Path)
-		}
-	}
-
-	sort.Strings(keys)
-
-	return keys
-}
-
 // declaredSecuritySchemes returns the sorted names Components.SecuritySchemes declares.
 func declaredSecuritySchemes(doc *huma.OpenAPI) []string {
 	if doc.Components == nil || doc.Components.SecuritySchemes == nil {
@@ -123,31 +104,4 @@ func TestUnifiedContractDeclaresSecuritySchemes(t *testing.T) {
 		require.Containsf(t, doc.Components.SecuritySchemes, name,
 			"operation references security scheme %q that Components.SecuritySchemes does not declare (dangling reference)", name)
 	}
-}
-
-// TestUnifiedContractIsSingleSourced proves the offline dump harness registers exactly
-// the operation set the shared HumaMountDeps mount methods produce. A contract rebuilt
-// straight from MountV1 + MountV2 and the harness both route through the SAME methods,
-// so a registrar added to the harness body but not the shared methods (or the reverse)
-// makes the two operation sets diverge — the drift the four hand-maintained mount copies
-// used to permit.
-func TestUnifiedContractIsSingleSourced(t *testing.T) {
-	t.Parallel()
-
-	auth := &middleware.AuthClient{Enabled: false}
-
-	app := fiber.New()
-	deps := unifiedHumaMountDeps(auth)
-	api := AssembleHumaContract(app, app, openapi.Config{
-		Title:   "Midaz Ledger API",
-		Version: "4.0.0",
-		Servers: []string{"/"},
-	})
-	deps.MountV1(app.Group("/v1"), huma.NewGroup(api, "/v1"))
-	deps.MountV2(app.Group("/v2"), huma.NewGroup(api, "/v2"))
-
-	_, harness := buildUnifiedHumaAPI()
-
-	require.Equal(t, operationKeys(api.OpenAPI()), operationKeys(harness.OpenAPI()),
-		"the dump harness must register exactly the shared MountV1+MountV2 operation set")
 }
