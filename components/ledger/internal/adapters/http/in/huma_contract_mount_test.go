@@ -106,113 +106,48 @@ func declaredSecuritySchemes(doc *huma.OpenAPI) []string {
 
 // TestUnifiedContractDeclaresSecuritySchemes proves the harness-produced ledger
 // contract carries the BearerAuth + ApiKeyAuth security schemes and that every
-// per-operation security reference resolves against them — the property the
-// committed dump must describe. Each contract is built through the same seam that
-// generates the committed dump, so a contract missing the schemes is a dump with
-// dangling security references.
+// per-operation security reference resolves against them — the property the committed
+// dump must describe. The single document carries both the /v1 and /v2 operations, so
+// one contract built through the dump seam covers the whole surface; a contract missing
+// the schemes is a dump with dangling security references.
 func TestUnifiedContractDeclaresSecuritySchemes(t *testing.T) {
 	t.Parallel()
 
-	want := []string{"ApiKeyAuth", "BearerAuth"}
+	_, api := buildUnifiedHumaAPI()
+	doc := api.OpenAPI()
 
-	tests := []struct {
-		name  string
-		build func() *huma.OpenAPI
-	}{
-		{
-			name: "v1",
-			build: func() *huma.OpenAPI {
-				_, api := buildUnifiedHumaAPI()
+	require.Equal(t, []string{"ApiKeyAuth", "BearerAuth"}, declaredSecuritySchemes(doc),
+		"contract must declare exactly the BearerAuth + ApiKeyAuth security schemes")
 
-				return api.OpenAPI()
-			},
-		},
-		{
-			name: "v2",
-			build: func() *huma.OpenAPI {
-				_, api := buildUnifiedHumaAPIV2()
-
-				return api.OpenAPI()
-			},
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-
-			doc := tt.build()
-
-			require.Equal(t, want, declaredSecuritySchemes(doc),
-				"contract must declare exactly the BearerAuth + ApiKeyAuth security schemes")
-
-			for _, name := range referencedSecuritySchemes(doc) {
-				require.Containsf(t, doc.Components.SecuritySchemes, name,
-					"operation references security scheme %q that Components.SecuritySchemes does not declare (dangling reference)", name)
-			}
-		})
+	for _, name := range referencedSecuritySchemes(doc) {
+		require.Containsf(t, doc.Components.SecuritySchemes, name,
+			"operation references security scheme %q that Components.SecuritySchemes does not declare (dangling reference)", name)
 	}
 }
 
-// TestUnifiedContractIsSingleSourced proves each offline dump harness registers
-// exactly the operation set its shared HumaMountDeps mount method produces. The
-// harness and a freshly-mounted contract both route through the SAME MountV1/MountV2,
-// so a registrar added to a harness body but not the shared method (or the reverse)
-// makes the two operation sets diverge — the drift the four hand-maintained mount
-// copies used to permit.
+// TestUnifiedContractIsSingleSourced proves the offline dump harness registers exactly
+// the operation set the shared HumaMountDeps mount methods produce. A contract rebuilt
+// straight from MountV1 + MountV2 and the harness both route through the SAME methods,
+// so a registrar added to the harness body but not the shared methods (or the reverse)
+// makes the two operation sets diverge — the drift the four hand-maintained mount copies
+// used to permit.
 func TestUnifiedContractIsSingleSourced(t *testing.T) {
 	t.Parallel()
 
 	auth := &middleware.AuthClient{Enabled: false}
 
-	tests := []struct {
-		name    string
-		harness func() *huma.OpenAPI
-		mount   func(fiber.Router, huma.API)
-		cfg     openapi.Config
-	}{
-		{
-			name: "v1",
-			harness: func() *huma.OpenAPI {
-				_, api := buildUnifiedHumaAPI()
+	app := fiber.New()
+	deps := unifiedHumaMountDeps(auth)
+	api := AssembleHumaContract(app, app, openapi.Config{
+		Title:   "Midaz Ledger API",
+		Version: "4.0.0",
+		Servers: []string{"/"},
+	})
+	deps.MountV1(app.Group("/v1"), huma.NewGroup(api, "/v1"))
+	deps.MountV2(app.Group("/v2"), huma.NewGroup(api, "/v2"))
 
-				return api.OpenAPI()
-			},
-			mount: unifiedHumaMountDeps(auth).MountV1,
-			cfg: openapi.Config{
-				Title:   "Midaz Ledger API",
-				Version: "4.0.0",
-				Servers: []string{specServerPrefix},
-			},
-		},
-		{
-			name: "v2",
-			harness: func() *huma.OpenAPI {
-				_, api := buildUnifiedHumaAPIV2()
+	_, harness := buildUnifiedHumaAPI()
 
-				return api.OpenAPI()
-			},
-			mount: unifiedHumaMountDeps(auth).MountV2,
-			cfg: openapi.Config{
-				Title:       "Midaz Ledger API v2",
-				Version:     "4.0.0",
-				Description: "Midaz Ledger v2 API contract.",
-				Servers:     []string{specServerPrefixV2},
-			},
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-
-			app := fiber.New()
-			group := app.Group(tt.cfg.Servers[0])
-			api := AssembleHumaContract(app, group, tt.cfg)
-			tt.mount(group, api)
-
-			require.Equal(t, operationKeys(api.OpenAPI()), operationKeys(tt.harness()),
-				"%s dump harness must register exactly the shared mount method's operation set", tt.name)
-		})
-	}
+	require.Equal(t, operationKeys(api.OpenAPI()), operationKeys(harness.OpenAPI()),
+		"the dump harness must register exactly the shared MountV1+MountV2 operation set")
 }

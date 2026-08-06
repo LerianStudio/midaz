@@ -176,7 +176,7 @@ func TestFeesV2RoutesParameterNamesAgree(t *testing.T) {
 	spellings := make(map[string]map[string][]string)
 
 	for path := range api.OpenAPI().Paths {
-		spellings[canonicalizePath(specServerPrefixV2+path)] = make(map[string][]string)
+		spellings[canonicalizePath("/v2"+path)] = make(map[string][]string)
 	}
 
 	require.Len(t, spellings, 6, "the v2 fee surface publishes six distinct path structures")
