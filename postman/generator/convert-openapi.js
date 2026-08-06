@@ -638,22 +638,31 @@ function createPostmanCollection(spec) {
       
       // Get tags for this operation
       const tags = operation.tags || ['default'];
-      
+
+      // Derive a per-operation folder suffix from the path-key version prefix. Folder
+      // names come from OpenAPI tags, and one consolidated document serves both API
+      // versions over the same tags (e.g. Transactions), so v1 and v2 operations would
+      // otherwise collapse into a single folder. Splitting by the version prefix keeps
+      // today's Transactions / Transactions (v2) layout within one document, and leaves
+      // unversioned path keys (e.g. the tracer's) unsuffixed.
+      const suffix = versionSuffix(path);
+
       // Add operation to each tag group
       tags.forEach(tag => {
-        if (!tagGroups[tag]) {
-          tagGroups[tag] = {
-            name: tag,
+        const groupName = `${tag}${suffix}`;
+        if (!tagGroups[groupName]) {
+          tagGroups[groupName] = {
+            name: groupName,
             description: getTagDescription(spec, tag),
             item: []
           };
         }
-        
+
         // Create request item for this operation
         const requestItem = createRequestItem(operation, path, method, spec);
-        
+
         // Add request item to tag group
-        tagGroups[tag].item.push(requestItem);
+        tagGroups[groupName].item.push(requestItem);
       });
     }
   }
@@ -764,6 +773,26 @@ function createRequestItem(operation, path, method, spec) {
   addResponseExamples(requestItem, operation, spec);
   
   return requestItem;
+}
+
+/**
+ * Derive the folder-name suffix for an operation from its path-key version prefix.
+ *
+ * The consolidated document keys every operation under its version (/v1/... or
+ * /v2/...). v1 is the unadorned baseline, so it gets no suffix; any higher version
+ * prefix becomes a parenthesised suffix (v2 -> " (v2)") so its folders stay distinct
+ * from the v1 folders that share the same tag. A first segment that is not a version
+ * prefix (the tracer keys its paths without one) yields no suffix.
+ *
+ * @param {string} path - The path key of the endpoint
+ * @returns {string} The suffix to append to the tag-derived folder name, or ""
+ */
+function versionSuffix(path) {
+  const firstSegment = path.split('/').filter(p => p)[0];
+  if (firstSegment && /^v\d+$/.test(firstSegment) && firstSegment !== 'v1') {
+    return ` (${firstSegment})`;
+  }
+  return '';
 }
 
 /**
