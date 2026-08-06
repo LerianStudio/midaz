@@ -27,8 +27,8 @@ github.com/LerianStudio/lib-observability/v2 v2.1.1 h1:YpzgylqUqPg5g1FGpcf561SRb
 github.com/LerianStudio/lib-observability/v2 v2.1.1/go.mod h1:iXspGM6PRTf6BDtkTc0Z69R2HEv1GtjBsI/YSvewDgA=
 github.com/LerianStudio/lib-service-discovery v1.1.0 h1:rREGTNnlwoHdfsqDbDoOXAQkqQazVYT/b0yTypSWrk8=
 github.com/LerianStudio/lib-service-discovery v1.1.0/go.mod h1:d6pW/QMo1hYzLgzcxiTg3updjSs6m5sZkuOG3L4gwxo=
-github.com/LerianStudio/lib-streaming/v2 v2.0.0 h1:E5TokAl9vuMGKrfOc9Up2jazxjoxt1Dh6PwyNf0ZFKo=
-github.com/LerianStudio/lib-streaming/v2 v2.0.0/go.mod h1:LNPnBAgyCx1wZ4a+9XvxQieRc/Dl8AZ9A2sFrFmrz88=
+github.com/LerianStudio/lib-streaming/v2 v2.1.0 h1:3UjLKGww2o3DXiTEJak2z42oE/rkc34gLrBf91rT3n4=
+github.com/LerianStudio/lib-streaming/v2 v2.1.0/go.mod h1:LvPEIyvJ2hzoljLWhpKs6eRMQ3WytvET4P3lSC63mw8=
 github.com/Masterminds/squirrel v1.5.4 h1:uUcX/aBc8O7Fg9kaISIUsHXdKuqehiXAMQTYX8afzqM=
 github.com/Masterminds/squirrel v1.5.4/go.mod h1:NNaOrjSoIDfDA40n7sr2tPNZRfjzjA400rg+riTZj10=
 github.com/Microsoft/go-winio v0.6.2 h1:F2VQgta7ecxGYO8k3ZZz3RS8fVIXVxONVUPlNERoyfY=
@@ -514,6 +514,8 @@ github.com/twmb/franz-go/pkg/kfake v0.0.0-20260606182254-a0f8f332c495 h1:Yls60qh
 github.com/twmb/franz-go/pkg/kfake v0.0.0-20260606182254-a0f8f332c495/go.mod h1:9j4VxU2ng6tHgD4lIkNJ5OJ3D6vgPhhIp3tBa7dJgLA=
 github.com/twmb/franz-go/pkg/kmsg v1.13.1 h1:fG5kItwysTk5UXqVwb64EpQEy3TydF3vYYK21nUQ+bI=
 github.com/twmb/franz-go/pkg/kmsg v1.13.1/go.mod h1:+DPt4NC8RmI6hqb8G09+3giKObE6uD2Eya6CfqBpeJY=
+github.com/twmb/franz-go/pkg/sr v1.8.0 h1:50iiB5/p9fEntgzd5S/FCd6v3Kkt0D26OtjBxNKjZcs=
+github.com/twmb/franz-go/pkg/sr v1.8.0/go.mod h1:64CsHlsQnyFRq1sYPcCmlRrEG3PlLPb6cDddx2wGr28=
 github.com/valyala/bytebufferpool v1.0.0 h1:GqA5TC/0021Y/b9FG4Oi9Mr3q7XYx6KllzawFIhcdPw=
 github.com/valyala/bytebufferpool v1.0.0/go.mod h1:6bBcMArwyJ5K/AmCkWv1jt77kVWyCJ6HpOuEn7z0Csc=
 github.com/valyala/fasthttp v1.72.0 h1:R7kYdoWhn1ye1fVpP+cDHDJwYm3NkwLliwgzJ/Abg7M=

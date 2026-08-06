@@ -12,6 +12,7 @@ import (
 	libLog "github.com/LerianStudio/lib-observability/v2/log"
 	libOpentelemetry "github.com/LerianStudio/lib-observability/v2/tracing"
 	libStreaming "github.com/LerianStudio/lib-streaming/v2"
+	billing "github.com/LerianStudio/lib-streaming/v2/billing"
 
 	pkgStreaming "github.com/LerianStudio/midaz/v4/pkg/streaming"
 	"github.com/LerianStudio/midaz/v4/pkg/streaming/events"
@@ -126,6 +127,12 @@ func BuildStreamingEmitter(
 		Source(streamingCfg.CloudEventsSource).
 		Catalog(catalog).
 		Routes(routes...).
+		// The shared billing_recorded route targets a FIXED literal topic owned
+		// by the billing package (not a per-product topic from pkgStreaming.TopicName),
+		// so it is wired explicitly here rather than through buildRoutes. Merge is
+		// replace-by-DefinitionKey: billing_recorded matches no domain route, so it
+		// is appended and every domain route stays intact.
+		RouteOverrides(billing.Route()).
 		Target(libStreaming.TargetConfig{
 			Name:    streamingPrimaryTargetName,
 			Kind:    libStreaming.TransportKafkaLike,
@@ -166,6 +173,81 @@ func BuildStreamingEmitter(
 	}
 
 	return emitter, emitter.Close, nil
+}
+
+// buildBillingSerializerFromEnv loads the streaming config from the environment
+// and delegates to buildBillingSerializer. It is the composition-root entry
+// point (config.go) uses; the env read is separated from the network-free
+// decision core so the latter stays unit-testable with a hand-built config.
+//
+// A LoadConfig failure degrades gracefully to a nil serializer (billing
+// disabled) rather than failing boot — mirroring the builder's posture.
+func buildBillingSerializerFromEnv(ctx context.Context, logger libLog.Logger) *billing.Serializer {
+	cfg, _, err := libStreaming.LoadConfig()
+	if err != nil {
+		warnBillingDisabled(ctx, logger, err)
+
+		return nil
+	}
+
+	return buildBillingSerializer(ctx, cfg, logger)
+}
+
+// buildBillingSerializer builds the billing Serializer with graceful
+// degradation: any wiring failure yields a nil serializer (billing disabled)
+// and a single WARN, never a boot failure. This preserves backward-compatible
+// startup for deployments without a Schema Registry.
+//
+// It returns the concrete *billing.Serializer (not the command seam) so the
+// caller can nil-guard the interface assignment at the injection site and avoid
+// the typed-nil-interface trap: a nil *billing.Serializer assigned straight to
+// an interface compares NON-nil, so the caller assigns only when non-nil.
+//
+// Branches:
+//   - streaming disabled (Enabled=false): return nil, no registry contact.
+//   - context canceled/expired: WARN + nil, before any registry contact.
+//   - NewSchemaRegistryClient fails (empty URL or partial credentials, both
+//     fail-closed): WARN + nil.
+//   - billing.NewSerializer fails (registry round-trip): WARN + nil.
+//   - success: the constructed serializer.
+func buildBillingSerializer(ctx context.Context, cfg libStreaming.Config, logger libLog.Logger) *billing.Serializer {
+	if !cfg.Enabled {
+		return nil
+	}
+
+	if err := ctx.Err(); err != nil {
+		warnBillingDisabled(ctx, logger, err)
+
+		return nil
+	}
+
+	client, err := libStreaming.NewSchemaRegistryClient(cfg)
+	if err != nil {
+		warnBillingDisabled(ctx, logger, err)
+
+		return nil
+	}
+
+	serializer, err := billing.NewSerializer(ctx, client)
+	if err != nil {
+		warnBillingDisabled(ctx, logger, err)
+
+		return nil
+	}
+
+	return serializer
+}
+
+// warnBillingDisabled logs the single, uniform graceful-degradation WARN shared
+// by every billing-serializer failure branch. The err is attached; no secret is
+// ever included (NewSchemaRegistryClient's error never carries the password).
+func warnBillingDisabled(ctx context.Context, logger libLog.Logger, err error) {
+	if logger == nil {
+		return
+	}
+
+	logger.Log(ctx, libLog.LevelWarn, "Billing serializer disabled",
+		libLog.Bool("billing_enabled", false), libLog.Err(err))
 }
 
 // midazEventDefinitions returns the canonical, ordered list of midaz event
@@ -247,6 +329,11 @@ func buildCatalog() (libStreaming.Catalog, error) {
 			SchemaVersion: rd.def.SchemaVersion,
 		})
 	}
+
+	// The shared billing_recorded event is owned by lib-streaming's billing
+	// package: its Definition is a ready EventDefinition (Confluent-framed
+	// protobuf content type), added as-is rather than via the midaz registry.
+	entries = append(entries, billing.Definition())
 
 	return libStreaming.NewCatalog(entries...)
 }

@@ -30,8 +30,11 @@ func TestMidazCatalogRoutesAssembly(t *testing.T) {
 
 	routes := buildRoutes(streamingPrimaryTargetName)
 
-	// One catalog entry and one route per definition.
-	assert.Equal(t, len(defs), catalog.Len(), "catalog entry count must equal definition count")
+	// One catalog entry per domain definition, plus the single shared
+	// billing_recorded entry appended by buildCatalog (owned by lib-streaming's
+	// billing package, not part of midazEventDefinitions). Routes from buildRoutes
+	// remain domain-only; the billing route is wired via Builder.RouteOverrides.
+	assert.Equal(t, len(defs)+1, catalog.Len(), "catalog = one entry per domain definition plus the shared billing entry")
 	assert.Len(t, routes, len(defs), "route count must equal definition count")
 
 	// The set of definition keys is the source of truth for the bijection, and
