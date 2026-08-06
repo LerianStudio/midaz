@@ -30,13 +30,11 @@ ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 GENERATOR_DIR="${ROOT_DIR}/postman/generator"
 
 # Huma OAS 3.1 dumps that must agree on shared metadata, as
-# "<label>|<repo-relative path>". A component may publish more than one dump:
-# ledger serves an independent /v2 contract alongside its /v1 dump, and both are
-# published to postman/specs and converted into the collection. The label is what
-# failure messages name; the first entry is the parity reference.
+# "<label>|<repo-relative path>". Each component publishes a single dump carrying its
+# full surface, published to postman/specs and converted into the collection. The label
+# is what failure messages name; the first entry is the parity reference.
 PARITY_DUMPS=(
     "ledger|components/ledger/api/openapi.huma.yaml"
-    "ledger-v2|components/ledger/api/openapi.v2.huma.yaml"
     "tracer|components/tracer/api/openapi.huma.yaml"
 )
 
@@ -182,13 +180,12 @@ parity_check() {
 }
 
 # Dumps whose every operation must declare a .security requirement, in the same
-# "<label>|<repo-relative path>" form as PARITY_DUMPS. Every ledger contract
-# belongs here: the /v2 surface is served by the same binary behind the same auth
-# chain, so an unsecured v2 operation is the same defect as an unsecured v1 one.
+# "<label>|<repo-relative path>" form as PARITY_DUMPS. The ledger dump carries the
+# full ledger surface — both the /v1 and /v2 paths served by the same binary behind
+# the same auth chain — so a single entry covers every ledger operation.
 # assert_security_coverage_complete enforces that this list stays exhaustive.
 SECURITY_COVERAGE_DUMPS=(
     "ledger|components/ledger/api/openapi.huma.yaml"
-    "ledger-v2|components/ledger/api/openapi.v2.huma.yaml"
 )
 
 # Glob of every published ledger contract. A dump matching this that is not on

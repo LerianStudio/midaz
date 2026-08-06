@@ -36,15 +36,16 @@ postman/generator/
 ## Scope
 
 `sync-postman.sh` converts one Postman collection per published spec and merges
-them. Its `SPEC_SOURCES` list names the specs, so a component can contribute more
-than one: ledger publishes `openapi.huma.yaml` (`/v1`) and `openapi.v2.huma.yaml`
-(`/v2`), and tracer publishes `openapi.huma.yaml`.
+them. Its `SPEC_SOURCES` list names the specs: ledger publishes `openapi.huma.yaml`
+(carrying both its `/v1` and `/v2` paths) and tracer publishes `openapi.huma.yaml`.
+The list still supports a component contributing more than one spec via the
+version-tag field, which keeps same-surface folders distinct after the merge.
 
 Each source is declared `required` or `optional`. A required source is fatal both
 when its spec fails to convert and when the spec file is absent, because either way
 that surface's folders vanish from the merged collection and the run would otherwise
 report success. An optional source tolerates an absent spec and contributes nothing.
-All three current sources are `required`: `generate-docs.sh` produces every one of
+Both current sources are `required`: `generate-docs.sh` produces every one of
 them and the results are committed under `postman/specs`, so a missing file means the
 pipeline is broken rather than trimmed.
 
