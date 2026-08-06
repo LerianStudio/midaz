@@ -208,6 +208,7 @@ POST	/v2/organizations/:organization_id/ledgers/:ledger_id/assets	onboarding
 POST	/v2/organizations/:organization_id/ledgers/:ledger_id/billing-packages	fees
 POST	/v2/organizations/:organization_id/ledgers/:ledger_id/billing/calculate	fees
 POST	/v2/organizations/:organization_id/ledgers/:ledger_id/estimates	fees
+POST	/v2/organizations/:organization_id/ledgers/:ledger_id/holders/:id/accounts	composition
 POST	/v2/organizations/:organization_id/ledgers/:ledger_id/packages	fees
 POST	/v2/organizations/:organization_id/ledgers/:ledger_id/portfolios	onboarding
 POST	/v2/organizations/:organization_id/ledgers/:ledger_id/segments	onboarding
