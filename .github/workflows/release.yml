@@ -13,16 +13,24 @@ permissions:
   packages: write
 
 jobs:
-  # Gate the build on Docker Hub visibility: repositories are created on first push
-  # with the organization's private default, so without this an image is only public
-  # if someone remembered to flip it by hand. Runs before the push so a brand-new
-  # image never exists private, and derives its image list from the
+  # Check Docker Hub visibility before the build: repositories are created on first
+  # push with the organization's private default, so without this an image is only
+  # public if someone remembered to flip it by hand. Runs before the push so a
+  # brand-new image never exists private, and derives its image list from the
   # gitops_yaml_key_mappings below.
+  #
+  # strict: false until DOCKERHUB_REPO_ADMIN_TOKEN holds an organization access token
+  # with repo:admin. The push token can read visibility but not change it (403), so a
+  # strict gate today would only block every release without publishing anything. Flip
+  # to true once the token is in place and this becomes a real gate.
   dockerhub-visibility:
     uses: ./.github/workflows/dockerhub-visibility.yml
+    with:
+      strict: false
     secrets:
       DOCKER_USERNAME: ${{ secrets.DOCKER_USERNAME }}
       DOCKERHUB_IMAGE_PUSH_TOKEN: ${{ secrets.DOCKERHUB_IMAGE_PUSH_TOKEN }}
+      DOCKERHUB_REPO_ADMIN_TOKEN: ${{ secrets.DOCKERHUB_REPO_ADMIN_TOKEN }}
 
   pipeline:
     needs: dockerhub-visibility

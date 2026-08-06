@@ -16,8 +16,13 @@
 # existing private ones. Run it before the images are pushed so a first release never
 # lands private.
 #
-# Env: DOCKERHUB_USERNAME, DOCKERHUB_TOKEN (Docker Hub PAT), optional DOCKERHUB_NAMESPACE
-# and RELEASE_WORKFLOW.
+# Changing visibility is an administrative operation: DOCKERHUB_TOKEN must carry
+# repo:admin (an organization access token, or an owner's credentials). A push token is
+# enough to read visibility but answers 403 on the write, which this script reports as
+# such instead of leaving the image quietly private.
+#
+# Env: DOCKERHUB_USERNAME, DOCKERHUB_TOKEN, optional DOCKERHUB_NAMESPACE and
+# RELEASE_WORKFLOW.
 
 set -euo pipefail
 
@@ -90,6 +95,16 @@ if [ "$status" != "200" ] || [ -z "$TOKEN" ]; then
 fi
 
 failed=0
+unresolved=""
+
+# fail_repo <repo> <message>
+# Records a repository this run could not leave public, so the job summary names the
+# work left to do instead of burying it in the step log.
+fail_repo() {
+  echo "error: $1: $2" >&2
+  unresolved="${unresolved}- \`$1\`: $2"$'\n'
+  failed=1
+}
 
 while read -r image; do
   [ -n "$image" ] || continue
@@ -109,17 +124,19 @@ while read -r image; do
           status=$(hub_call PATCH "${API}/repositories/${repo}/" '{"is_private": false}')
           if [ "$status" = "200" ]; then
             echo "${repo}: was private, now public"
+          elif [ "$status" = "403" ]; then
+            # Reading visibility only needs a push token; changing it does not. This is
+            # the credential telling us so, not a transient failure.
+            fail_repo "$repo" "still private: the Docker Hub token lacks repo:admin (HTTP 403)"
           else
-            echo "error: ${repo}: could not make public (HTTP ${status})" >&2
-            failed=1
+            fail_repo "$repo" "could not make public (HTTP ${status})"
           fi
           ;;
         false)
           echo "${repo}: already public"
           ;;
         *)
-          echo "error: ${repo}: response did not report is_private" >&2
-          failed=1
+          fail_repo "$repo" "response did not report is_private"
           ;;
       esac
       ;;
@@ -129,16 +146,26 @@ while read -r image; do
       status=$(hub_call POST "${API}/repositories/" "$payload")
       if [ "$status" = "201" ]; then
         echo "${repo}: created as public"
+      elif [ "$status" = "403" ]; then
+        fail_repo "$repo" "does not exist and the Docker Hub token lacks repo:admin to create it (HTTP 403)"
       else
-        echo "error: ${repo}: could not create (HTTP ${status})" >&2
-        failed=1
+        fail_repo "$repo" "could not create (HTTP ${status})"
       fi
       ;;
     *)
-      echo "error: ${repo}: unexpected response (HTTP ${status})" >&2
-      failed=1
+      fail_repo "$repo" "unexpected response (HTTP ${status})"
       ;;
   esac
 done <<<"$images"
+
+if [ -n "$unresolved" ] && [ -n "${GITHUB_STEP_SUMMARY:-}" ]; then
+  {
+    echo "### Images still not public"
+    echo
+    printf '%s' "$unresolved"
+    echo
+    echo "Anonymous \`docker pull\` and \`helm install\` of the midaz chart fail while this holds."
+  } >>"$GITHUB_STEP_SUMMARY"
+fi
 
 exit "$failed"
