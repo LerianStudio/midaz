@@ -7,12 +7,14 @@ package command
 import (
 	"context"
 	"strings"
+	"time"
 
 	libObservability "github.com/LerianStudio/lib-observability/v2"
 	libLog "github.com/LerianStudio/lib-observability/v2/log"
 	libOpentelemetry "github.com/LerianStudio/lib-observability/v2/tracing"
 	libStreaming "github.com/LerianStudio/lib-streaming/v2"
 	"github.com/LerianStudio/lib-streaming/v2/billing"
+	"go.opentelemetry.io/otel/trace"
 
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/transaction"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
@@ -50,6 +52,10 @@ func (uc *UseCase) SendActiveAccountBillingEvents(ctx context.Context, tran *tra
 		return
 	}
 
+	if ctx.Err() != nil {
+		return
+	}
+
 	ctxSend, span := tracer.Start(ctx, "command.send_active_account_billing_events_async")
 	defer span.End()
 
@@ -58,40 +64,50 @@ func (uc *UseCase) SendActiveAccountBillingEvents(ctx context.Context, tran *tra
 	payloads := buildActiveAccountBillingPayloads(tran)
 
 	for i := range payloads {
+		if ctxSend.Err() != nil {
+			return
+		}
+
 		// &payloads[i] rather than a copy: BillablePayload is a protobuf message
 		// embedding a sync.Mutex, so copying it by value trips govet copylocks.
-		p := &payloads[i]
+		uc.emitActiveAccountBillingEvent(ctxSend, span, logger, tenantID, &payloads[i], tran.CreatedAt)
+	}
+}
 
-		raw, err := uc.BillingSerializer.Serialize(p)
-		if err != nil {
-			libOpentelemetry.HandleSpanError(span, "billing serialize failed; skipping emit", err)
+// emitActiveAccountBillingEvent serializes one billable payload through the
+// billing serializer and emits it via the streaming seam. Serialize and emit
+// failures are span-recorded, warn-logged and swallowed — billing is
+// best-effort and MUST NOT fail the parent transaction.
+func (uc *UseCase) emitActiveAccountBillingEvent(ctx context.Context, span trace.Span, logger libLog.Logger, tenantID string, p *billing.BillablePayload, ts time.Time) {
+	raw, err := uc.BillingSerializer.Serialize(p)
+	if err != nil {
+		libOpentelemetry.HandleSpanError(span, "billing serialize failed; skipping emit", err)
 
-			logger.Log(ctxSend, libLog.LevelWarn, "billing serialize failed; skipping emit",
-				libLog.String("metric", p.GetMetric()),
-				libLog.String("subscription_id", p.GetSubscriptionId()),
-				libLog.String("tenant_id", tenantID),
-				libLog.Err(err))
+		logger.Log(ctx, libLog.LevelWarn, "billing serialize failed; skipping emit",
+			libLog.String("metric", p.GetMetric()),
+			libLog.String("subscription_id", p.GetSubscriptionId()),
+			libLog.String("tenant_id", tenantID),
+			libLog.Err(err))
 
-			continue
-		}
+		return
+	}
 
-		if err := uc.Streaming.Emit(ctxSend, libStreaming.EmitRequest{
-			DefinitionKey: billing.Definition().Key,
-			TenantID:      tenantID,
-			Subject:       p.GetSubscriptionId(),
-			Timestamp:     tran.CreatedAt,
-			Payload:       raw,
-		}); err != nil {
-			libOpentelemetry.HandleSpanError(span, "billing emit failed", err)
+	if err := uc.Streaming.Emit(ctx, libStreaming.EmitRequest{
+		DefinitionKey: billing.Definition().Key,
+		TenantID:      tenantID,
+		Subject:       p.GetSubscriptionId(),
+		Timestamp:     ts,
+		Payload:       raw,
+	}); err != nil {
+		libOpentelemetry.HandleSpanError(span, "billing emit failed", err)
 
-			logger.Log(ctxSend, libLog.LevelWarn, "billing emit failed",
-				libLog.String("metric", p.GetMetric()),
-				libLog.String("subscription_id", p.GetSubscriptionId()),
-				libLog.String("tenant_id", tenantID),
-				libLog.Err(err))
+		logger.Log(ctx, libLog.LevelWarn, "billing emit failed",
+			libLog.String("metric", p.GetMetric()),
+			libLog.String("subscription_id", p.GetSubscriptionId()),
+			libLog.String("tenant_id", tenantID),
+			libLog.Err(err))
 
-			continue
-		}
+		return
 	}
 }
 

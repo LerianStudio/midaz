@@ -8,6 +8,7 @@ import (
 	"context"
 	"errors"
 	"testing"
+	"time"
 
 	"github.com/LerianStudio/lib-streaming/v2/billing"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/operation"
@@ -23,6 +24,10 @@ import (
 // exporting it, and the codebase already hand-rolls its streaming double
 // (pkgStreaming.MockEmitter) for the same reason, so this mirrors that
 // convention: canned, deterministic bytes or a configured error.
+// fixedBillingTime is a deterministic timestamp for the emit-path fixture so the
+// EmitRequest.Timestamp assertion is stable and never reads time.Now().
+var fixedBillingTime = time.Date(2026, 1, 2, 3, 4, 5, 0, time.UTC)
+
 type fakeSerializer struct {
 	raw []byte
 	err error
@@ -163,6 +168,7 @@ func TestSendActiveAccountBillingEvents(t *testing.T) {
 		&operation.Operation{AccountID: accA, AccountAlias: "@person1"},
 		&operation.Operation{AccountID: accB, AccountAlias: "@person2"},
 	)
+	approvedTwo.CreatedAt = fixedBillingTime
 
 	tests := []struct {
 		name           string
@@ -277,6 +283,7 @@ func TestSendActiveAccountBillingEvents(t *testing.T) {
 				assert.Equal(t, wantSubject, events[i].Subject)
 				assert.Equal(t, pkgStreaming.DefaultTenantID, events[i].TenantID)
 				assert.Equal(t, fakeBytes, []byte(events[i].Payload))
+				assert.Equal(t, fixedBillingTime, events[i].Timestamp)
 			}
 		})
 	}
