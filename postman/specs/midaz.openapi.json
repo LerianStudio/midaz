@@ -11788,6 +11788,1702 @@
         ]
       }
     },
+    "/v2/organizations/{organization_id}/ledgers/{ledger_id}/accounts": {
+      "get": {
+        "operationId": "listAccountsV2",
+        "parameters": [
+          {
+            "description": "Organization ID (UUID)",
+            "in": "path",
+            "name": "organization_id",
+            "required": true,
+            "schema": {
+              "description": "Organization ID (UUID)",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Ledger ID (UUID)",
+            "in": "path",
+            "name": "ledger_id",
+            "required": true,
+            "schema": {
+              "description": "Ledger ID (UUID)",
+              "type": "string"
+            }
+          },
+          {
+            "description": "JSON string to filter accounts by metadata fields",
+            "explode": false,
+            "in": "query",
+            "name": "metadata",
+            "schema": {
+              "description": "JSON string to filter accounts by metadata fields",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Max items per page (1-100, default 10)",
+            "explode": false,
+            "in": "query",
+            "name": "limit",
+            "schema": {
+              "description": "Max items per page (1-100, default 10)",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Page number (default 1)",
+            "explode": false,
+            "in": "query",
+            "name": "page",
+            "schema": {
+              "description": "Page number (default 1)",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Filter accounts created on/after this date (YYYY-MM-DD)",
+            "explode": false,
+            "in": "query",
+            "name": "start_date",
+            "schema": {
+              "description": "Filter accounts created on/after this date (YYYY-MM-DD)",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Filter accounts created on/before this date (YYYY-MM-DD)",
+            "explode": false,
+            "in": "query",
+            "name": "end_date",
+            "schema": {
+              "description": "Filter accounts created on/before this date (YYYY-MM-DD)",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Sort direction (asc, desc)",
+            "explode": false,
+            "in": "query",
+            "name": "sort_order",
+            "schema": {
+              "description": "Sort direction (asc, desc)",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Filter accounts by portfolio ID (UUID)",
+            "explode": false,
+            "in": "query",
+            "name": "portfolio_id",
+            "schema": {
+              "description": "Filter accounts by portfolio ID (UUID)",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Filter accounts by segment ID (UUID)",
+            "explode": false,
+            "in": "query",
+            "name": "segment_id",
+            "schema": {
+              "description": "Filter accounts by segment ID (UUID)",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Filter accounts by status (ACTIVE, INACTIVE, BLOCKED)",
+            "explode": false,
+            "in": "query",
+            "name": "status",
+            "schema": {
+              "description": "Filter accounts by status (ACTIVE, INACTIVE, BLOCKED)",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Filter accounts by type (e.g., deposit, savings, external)",
+            "explode": false,
+            "in": "query",
+            "name": "type",
+            "schema": {
+              "description": "Filter accounts by type (e.g., deposit, savings, external)",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Filter accounts by asset code (e.g., USD, BRL, EUR)",
+            "explode": false,
+            "in": "query",
+            "name": "asset_code",
+            "schema": {
+              "description": "Filter accounts by asset code (e.g., USD, BRL, EUR)",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Filter accounts by entity ID",
+            "explode": false,
+            "in": "query",
+            "name": "entity_id",
+            "schema": {
+              "description": "Filter accounts by entity ID",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Filter accounts by blocked status (true, false)",
+            "explode": false,
+            "in": "query",
+            "name": "blocked",
+            "schema": {
+              "description": "Filter accounts by blocked status (true, false)",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Filter accounts by parent account ID (UUID)",
+            "explode": false,
+            "in": "query",
+            "name": "parent_account_id",
+            "schema": {
+              "description": "Filter accounts by parent account ID (UUID)",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Filter accounts by name (case-insensitive, prefix match)",
+            "explode": false,
+            "in": "query",
+            "name": "name",
+            "schema": {
+              "description": "Filter accounts by name (case-insensitive, prefix match)",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Filter accounts by alias (case-insensitive, prefix match)",
+            "explode": false,
+            "in": "query",
+            "name": "alias",
+            "schema": {
+              "description": "Filter accounts by alias (case-insensitive, prefix match)",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Pagination"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          },
+          {
+            "ApiKeyAuth": []
+          }
+        ],
+        "summary": "List all accounts",
+        "tags": [
+          "Midaz_Ledger_API_Accounts"
+        ]
+      },
+      "post": {
+        "operationId": "createAccountV2",
+        "parameters": [
+          {
+            "description": "Organization ID (UUID)",
+            "in": "path",
+            "name": "organization_id",
+            "required": true,
+            "schema": {
+              "description": "Organization ID (UUID)",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Ledger ID (UUID)",
+            "in": "path",
+            "name": "ledger_id",
+            "required": true,
+            "schema": {
+              "description": "Ledger ID (UUID)",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Bearer token (forwarded to the service)",
+            "in": "header",
+            "name": "Authorization",
+            "schema": {
+              "description": "Bearer token (forwarded to the service)",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "contentMediaType": "application/octet-stream",
+                "format": "binary",
+                "type": "string"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Account"
+                }
+              }
+            },
+            "description": "Created"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          },
+          {
+            "ApiKeyAuth": []
+          }
+        ],
+        "summary": "Create a new account",
+        "tags": [
+          "Midaz_Ledger_API_Accounts"
+        ]
+      }
+    },
+    "/v2/organizations/{organization_id}/ledgers/{ledger_id}/accounts/alias/{alias}": {
+      "get": {
+        "operationId": "getAccountByAliasV2",
+        "parameters": [
+          {
+            "description": "Organization ID (UUID)",
+            "in": "path",
+            "name": "organization_id",
+            "required": true,
+            "schema": {
+              "description": "Organization ID (UUID)",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Ledger ID (UUID)",
+            "in": "path",
+            "name": "ledger_id",
+            "required": true,
+            "schema": {
+              "description": "Ledger ID (UUID)",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Account alias (e.g. @person1)",
+            "in": "path",
+            "name": "alias",
+            "required": true,
+            "schema": {
+              "description": "Account alias (e.g. @person1)",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Account"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          },
+          {
+            "ApiKeyAuth": []
+          }
+        ],
+        "summary": "Retrieve an account by alias",
+        "tags": [
+          "Midaz_Ledger_API_Accounts"
+        ]
+      }
+    },
+    "/v2/organizations/{organization_id}/ledgers/{ledger_id}/accounts/alias/{alias}/balances": {
+      "get": {
+        "operationId": "getBalancesByAliasV2",
+        "parameters": [
+          {
+            "description": "Organization ID (UUID)",
+            "in": "path",
+            "name": "organization_id",
+            "required": true,
+            "schema": {
+              "description": "Organization ID (UUID)",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Ledger ID (UUID)",
+            "in": "path",
+            "name": "ledger_id",
+            "required": true,
+            "schema": {
+              "description": "Ledger ID (UUID)",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Alias (e.g. @person1)",
+            "in": "path",
+            "name": "alias",
+            "required": true,
+            "schema": {
+              "description": "Alias (e.g. @person1)",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Pagination"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          },
+          {
+            "ApiKeyAuth": []
+          }
+        ],
+        "summary": "Get Balances using Alias",
+        "tags": [
+          "Midaz_Ledger_API_Balances"
+        ]
+      }
+    },
+    "/v2/organizations/{organization_id}/ledgers/{ledger_id}/accounts/external/{code}": {
+      "get": {
+        "operationId": "getAccountExternalByCodeV2",
+        "parameters": [
+          {
+            "description": "Organization ID (UUID)",
+            "in": "path",
+            "name": "organization_id",
+            "required": true,
+            "schema": {
+              "description": "Organization ID (UUID)",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Ledger ID (UUID)",
+            "in": "path",
+            "name": "ledger_id",
+            "required": true,
+            "schema": {
+              "description": "Ledger ID (UUID)",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Account external code (e.g. BRL)",
+            "in": "path",
+            "name": "code",
+            "required": true,
+            "schema": {
+              "description": "Account external code (e.g. BRL)",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Account"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          },
+          {
+            "ApiKeyAuth": []
+          }
+        ],
+        "summary": "Retrieve an account by external code",
+        "tags": [
+          "Midaz_Ledger_API_Accounts"
+        ]
+      }
+    },
+    "/v2/organizations/{organization_id}/ledgers/{ledger_id}/accounts/external/{code}/balances": {
+      "get": {
+        "operationId": "getBalancesExternalByCodeV2",
+        "parameters": [
+          {
+            "description": "Organization ID (UUID)",
+            "in": "path",
+            "name": "organization_id",
+            "required": true,
+            "schema": {
+              "description": "Organization ID (UUID)",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Ledger ID (UUID)",
+            "in": "path",
+            "name": "ledger_id",
+            "required": true,
+            "schema": {
+              "description": "Ledger ID (UUID)",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Code (e.g. BRL)",
+            "in": "path",
+            "name": "code",
+            "required": true,
+            "schema": {
+              "description": "Code (e.g. BRL)",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Pagination"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          },
+          {
+            "ApiKeyAuth": []
+          }
+        ],
+        "summary": "Get External balances using code",
+        "tags": [
+          "Midaz_Ledger_API_Balances"
+        ]
+      }
+    },
+    "/v2/organizations/{organization_id}/ledgers/{ledger_id}/accounts/metrics/count": {
+      "head": {
+        "operationId": "countAccountsV2",
+        "parameters": [
+          {
+            "description": "Organization ID (UUID)",
+            "in": "path",
+            "name": "organization_id",
+            "required": true,
+            "schema": {
+              "description": "Organization ID (UUID)",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Ledger ID (UUID)",
+            "in": "path",
+            "name": "ledger_id",
+            "required": true,
+            "schema": {
+              "description": "Ledger ID (UUID)",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No Content",
+            "headers": {
+              "Content-Length": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "X-Total-Count": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          },
+          {
+            "ApiKeyAuth": []
+          }
+        ],
+        "summary": "Count accounts",
+        "tags": [
+          "Midaz_Ledger_API_Accounts"
+        ]
+      }
+    },
+    "/v2/organizations/{organization_id}/ledgers/{ledger_id}/accounts/{account_id}/balances": {
+      "get": {
+        "operationId": "getAllBalancesByAccountIDV2",
+        "parameters": [
+          {
+            "description": "Organization ID (UUID)",
+            "in": "path",
+            "name": "organization_id",
+            "required": true,
+            "schema": {
+              "description": "Organization ID (UUID)",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Ledger ID (UUID)",
+            "in": "path",
+            "name": "ledger_id",
+            "required": true,
+            "schema": {
+              "description": "Ledger ID (UUID)",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Account ID (UUID)",
+            "in": "path",
+            "name": "account_id",
+            "required": true,
+            "schema": {
+              "description": "Account ID (UUID)",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Max items per page (max 100, default 10)",
+            "explode": false,
+            "in": "query",
+            "name": "limit",
+            "schema": {
+              "description": "Max items per page (max 100, default 10)",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Filter balances created on/after this date (YYYY-MM-DD)",
+            "explode": false,
+            "in": "query",
+            "name": "start_date",
+            "schema": {
+              "description": "Filter balances created on/after this date (YYYY-MM-DD)",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Filter balances created on/before this date (YYYY-MM-DD)",
+            "explode": false,
+            "in": "query",
+            "name": "end_date",
+            "schema": {
+              "description": "Filter balances created on/before this date (YYYY-MM-DD)",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Sort direction (asc, desc)",
+            "explode": false,
+            "in": "query",
+            "name": "sort_order",
+            "schema": {
+              "description": "Sort direction (asc, desc)",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Opaque cursor token for pagination",
+            "explode": false,
+            "in": "query",
+            "name": "cursor",
+            "schema": {
+              "description": "Opaque cursor token for pagination",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Pagination"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          },
+          {
+            "ApiKeyAuth": []
+          }
+        ],
+        "summary": "Get all balances by account id",
+        "tags": [
+          "Midaz_Ledger_API_Balances"
+        ]
+      },
+      "post": {
+        "operationId": "createAdditionalBalanceV2",
+        "parameters": [
+          {
+            "description": "Organization ID (UUID)",
+            "in": "path",
+            "name": "organization_id",
+            "required": true,
+            "schema": {
+              "description": "Organization ID (UUID)",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Ledger ID (UUID)",
+            "in": "path",
+            "name": "ledger_id",
+            "required": true,
+            "schema": {
+              "description": "Ledger ID (UUID)",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Account ID (UUID)",
+            "in": "path",
+            "name": "account_id",
+            "required": true,
+            "schema": {
+              "description": "Account ID (UUID)",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "contentMediaType": "application/octet-stream",
+                "format": "binary",
+                "type": "string"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Balance"
+                }
+              }
+            },
+            "description": "Created"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          },
+          {
+            "ApiKeyAuth": []
+          }
+        ],
+        "summary": "Create Additional Balance",
+        "tags": [
+          "Midaz_Ledger_API_Balances"
+        ]
+      }
+    },
+    "/v2/organizations/{organization_id}/ledgers/{ledger_id}/accounts/{account_id}/balances/history": {
+      "get": {
+        "operationId": "getAccountBalancesAtTimestampV2",
+        "parameters": [
+          {
+            "description": "Organization ID (UUID)",
+            "in": "path",
+            "name": "organization_id",
+            "required": true,
+            "schema": {
+              "description": "Organization ID (UUID)",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Ledger ID (UUID)",
+            "in": "path",
+            "name": "ledger_id",
+            "required": true,
+            "schema": {
+              "description": "Ledger ID (UUID)",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Account ID (UUID)",
+            "in": "path",
+            "name": "account_id",
+            "required": true,
+            "schema": {
+              "description": "Account ID (UUID)",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Point in time (format: yyyy-mm-dd hh:mm:ss)",
+            "explode": false,
+            "in": "query",
+            "name": "date",
+            "schema": {
+              "description": "Point in time (format: yyyy-mm-dd hh:mm:ss)",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/BalanceHistory"
+                  },
+                  "type": [
+                    "array",
+                    "null"
+                  ]
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          },
+          {
+            "ApiKeyAuth": []
+          }
+        ],
+        "summary": "Get Account Balances history at date",
+        "tags": [
+          "Midaz_Ledger_API_Balances"
+        ]
+      }
+    },
+    "/v2/organizations/{organization_id}/ledgers/{ledger_id}/accounts/{account_id}/operations": {
+      "get": {
+        "operationId": "getAllOperationsByAccountV2",
+        "parameters": [
+          {
+            "description": "Organization ID (UUID)",
+            "in": "path",
+            "name": "organization_id",
+            "required": true,
+            "schema": {
+              "description": "Organization ID (UUID)",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Ledger ID (UUID)",
+            "in": "path",
+            "name": "ledger_id",
+            "required": true,
+            "schema": {
+              "description": "Ledger ID (UUID)",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Account ID (UUID)",
+            "in": "path",
+            "name": "account_id",
+            "required": true,
+            "schema": {
+              "description": "Account ID (UUID)",
+              "type": "string"
+            }
+          },
+          {
+            "description": "JSON string to filter operations by metadata fields",
+            "explode": false,
+            "in": "query",
+            "name": "metadata",
+            "schema": {
+              "description": "JSON string to filter operations by metadata fields",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Max items per page (max 100, default 10)",
+            "explode": false,
+            "in": "query",
+            "name": "limit",
+            "schema": {
+              "description": "Max items per page (max 100, default 10)",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Filter operations created on/after this date (YYYY-MM-DD)",
+            "explode": false,
+            "in": "query",
+            "name": "start_date",
+            "schema": {
+              "description": "Filter operations created on/after this date (YYYY-MM-DD)",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Filter operations created on/before this date (YYYY-MM-DD)",
+            "explode": false,
+            "in": "query",
+            "name": "end_date",
+            "schema": {
+              "description": "Filter operations created on/before this date (YYYY-MM-DD)",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Sort direction (asc, desc)",
+            "explode": false,
+            "in": "query",
+            "name": "sort_order",
+            "schema": {
+              "description": "Sort direction (asc, desc)",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Opaque cursor token for pagination",
+            "explode": false,
+            "in": "query",
+            "name": "cursor",
+            "schema": {
+              "description": "Opaque cursor token for pagination",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Filter by operation type (DEBIT, CREDIT)",
+            "explode": false,
+            "in": "query",
+            "name": "type",
+            "schema": {
+              "description": "Filter by operation type (DEBIT, CREDIT)",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Filter by direction (debit, credit)",
+            "explode": false,
+            "in": "query",
+            "name": "direction",
+            "schema": {
+              "description": "Filter by direction (debit, credit)",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Filter by operation route ID (UUID)",
+            "explode": false,
+            "in": "query",
+            "name": "route_id",
+            "schema": {
+              "description": "Filter by operation route ID (UUID)",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Filter by operation route code",
+            "explode": false,
+            "in": "query",
+            "name": "route_code",
+            "schema": {
+              "description": "Filter by operation route code",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Pagination"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          },
+          {
+            "ApiKeyAuth": []
+          }
+        ],
+        "summary": "Get all Operations by account",
+        "tags": [
+          "Midaz_Ledger_API_Operations"
+        ]
+      }
+    },
+    "/v2/organizations/{organization_id}/ledgers/{ledger_id}/accounts/{account_id}/operations/{operation_id}": {
+      "get": {
+        "operationId": "getOperationByAccountV2",
+        "parameters": [
+          {
+            "description": "Organization ID (UUID)",
+            "in": "path",
+            "name": "organization_id",
+            "required": true,
+            "schema": {
+              "description": "Organization ID (UUID)",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Ledger ID (UUID)",
+            "in": "path",
+            "name": "ledger_id",
+            "required": true,
+            "schema": {
+              "description": "Ledger ID (UUID)",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Account ID (UUID)",
+            "in": "path",
+            "name": "account_id",
+            "required": true,
+            "schema": {
+              "description": "Account ID (UUID)",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Operation ID (UUID)",
+            "in": "path",
+            "name": "operation_id",
+            "required": true,
+            "schema": {
+              "description": "Operation ID (UUID)",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Operation"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          },
+          {
+            "ApiKeyAuth": []
+          }
+        ],
+        "summary": "Get Operation",
+        "tags": [
+          "Midaz_Ledger_API_Operations"
+        ]
+      }
+    },
+    "/v2/organizations/{organization_id}/ledgers/{ledger_id}/accounts/{id}": {
+      "delete": {
+        "operationId": "deleteAccountV2",
+        "parameters": [
+          {
+            "description": "Organization ID (UUID)",
+            "in": "path",
+            "name": "organization_id",
+            "required": true,
+            "schema": {
+              "description": "Organization ID (UUID)",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Ledger ID (UUID)",
+            "in": "path",
+            "name": "ledger_id",
+            "required": true,
+            "schema": {
+              "description": "Ledger ID (UUID)",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Account ID (UUID)",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "description": "Account ID (UUID)",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Bearer token (forwarded to the service)",
+            "in": "header",
+            "name": "Authorization",
+            "schema": {
+              "description": "Bearer token (forwarded to the service)",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No Content"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          },
+          {
+            "ApiKeyAuth": []
+          }
+        ],
+        "summary": "Delete an account",
+        "tags": [
+          "Midaz_Ledger_API_Accounts"
+        ]
+      },
+      "get": {
+        "operationId": "getAccountByIDV2",
+        "parameters": [
+          {
+            "description": "Organization ID (UUID)",
+            "in": "path",
+            "name": "organization_id",
+            "required": true,
+            "schema": {
+              "description": "Organization ID (UUID)",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Ledger ID (UUID)",
+            "in": "path",
+            "name": "ledger_id",
+            "required": true,
+            "schema": {
+              "description": "Ledger ID (UUID)",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Account ID (UUID)",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "description": "Account ID (UUID)",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Account"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          },
+          {
+            "ApiKeyAuth": []
+          }
+        ],
+        "summary": "Retrieve a specific account",
+        "tags": [
+          "Midaz_Ledger_API_Accounts"
+        ]
+      },
+      "patch": {
+        "operationId": "updateAccountV2",
+        "parameters": [
+          {
+            "description": "Organization ID (UUID)",
+            "in": "path",
+            "name": "organization_id",
+            "required": true,
+            "schema": {
+              "description": "Organization ID (UUID)",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Ledger ID (UUID)",
+            "in": "path",
+            "name": "ledger_id",
+            "required": true,
+            "schema": {
+              "description": "Ledger ID (UUID)",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Account ID (UUID)",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "description": "Account ID (UUID)",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "contentMediaType": "application/octet-stream",
+                "format": "binary",
+                "type": "string"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Account"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          },
+          {
+            "ApiKeyAuth": []
+          }
+        ],
+        "summary": "Update an account",
+        "tags": [
+          "Midaz_Ledger_API_Accounts"
+        ]
+      }
+    },
+    "/v2/organizations/{organization_id}/ledgers/{ledger_id}/asset-rates": {
+      "put": {
+        "operationId": "createOrUpdateAssetRateV2",
+        "parameters": [
+          {
+            "description": "Organization ID (UUID)",
+            "in": "path",
+            "name": "organization_id",
+            "required": true,
+            "schema": {
+              "description": "Organization ID (UUID)",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Ledger ID (UUID)",
+            "in": "path",
+            "name": "ledger_id",
+            "required": true,
+            "schema": {
+              "description": "Ledger ID (UUID)",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "contentMediaType": "application/octet-stream",
+                "format": "binary",
+                "type": "string"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AssetRate"
+                }
+              }
+            },
+            "description": "Created"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          },
+          {
+            "ApiKeyAuth": []
+          }
+        ],
+        "summary": "Create or Update an AssetRate",
+        "tags": [
+          "Midaz_Ledger_API_Asset Rates"
+        ]
+      }
+    },
+    "/v2/organizations/{organization_id}/ledgers/{ledger_id}/asset-rates/from/{asset_code}": {
+      "get": {
+        "operationId": "getAllAssetRatesByAssetCodeV2",
+        "parameters": [
+          {
+            "description": "Organization ID (UUID)",
+            "in": "path",
+            "name": "organization_id",
+            "required": true,
+            "schema": {
+              "description": "Organization ID (UUID)",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Ledger ID (UUID)",
+            "in": "path",
+            "name": "ledger_id",
+            "required": true,
+            "schema": {
+              "description": "Ledger ID (UUID)",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Source asset code",
+            "in": "path",
+            "name": "asset_code",
+            "required": true,
+            "schema": {
+              "description": "Source asset code",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Filter by destination asset codes",
+            "explode": false,
+            "in": "query",
+            "name": "to",
+            "schema": {
+              "description": "Filter by destination asset codes",
+              "items": {
+                "type": "string"
+              },
+              "type": [
+                "array",
+                "null"
+              ]
+            }
+          },
+          {
+            "description": "Max items per page (1-100, default 10)",
+            "explode": false,
+            "in": "query",
+            "name": "limit",
+            "schema": {
+              "description": "Max items per page (1-100, default 10)",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Filter asset rates created on/after this date (YYYY-MM-DD)",
+            "explode": false,
+            "in": "query",
+            "name": "start_date",
+            "schema": {
+              "description": "Filter asset rates created on/after this date (YYYY-MM-DD)",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Filter asset rates created on/before this date (YYYY-MM-DD)",
+            "explode": false,
+            "in": "query",
+            "name": "end_date",
+            "schema": {
+              "description": "Filter asset rates created on/before this date (YYYY-MM-DD)",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Sort direction (asc, desc)",
+            "explode": false,
+            "in": "query",
+            "name": "sort_order",
+            "schema": {
+              "description": "Sort direction (asc, desc)",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Opaque cursor token for pagination",
+            "explode": false,
+            "in": "query",
+            "name": "cursor",
+            "schema": {
+              "description": "Opaque cursor token for pagination",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Pagination"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          },
+          {
+            "ApiKeyAuth": []
+          }
+        ],
+        "summary": "Get an AssetRate by the Asset Code",
+        "tags": [
+          "Midaz_Ledger_API_Asset Rates"
+        ]
+      }
+    },
+    "/v2/organizations/{organization_id}/ledgers/{ledger_id}/asset-rates/{external_id}": {
+      "get": {
+        "operationId": "getAssetRateByExternalIDV2",
+        "parameters": [
+          {
+            "description": "Organization ID (UUID)",
+            "in": "path",
+            "name": "organization_id",
+            "required": true,
+            "schema": {
+              "description": "Organization ID (UUID)",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Ledger ID (UUID)",
+            "in": "path",
+            "name": "ledger_id",
+            "required": true,
+            "schema": {
+              "description": "Ledger ID (UUID)",
+              "type": "string"
+            }
+          },
+          {
+            "description": "External ID (UUID)",
+            "in": "path",
+            "name": "external_id",
+            "required": true,
+            "schema": {
+              "description": "External ID (UUID)",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AssetRate"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          },
+          {
+            "ApiKeyAuth": []
+          }
+        ],
+        "summary": "Get an AssetRate by External ID",
+        "tags": [
+          "Midaz_Ledger_API_Asset Rates"
+        ]
+      }
+    },
     "/v2/organizations/{organization_id}/ledgers/{ledger_id}/assets": {
       "get": {
         "operationId": "listAssetsV2",
@@ -12266,6 +13962,412 @@
         "summary": "Update an asset",
         "tags": [
           "Midaz_Ledger_API_Assets"
+        ]
+      }
+    },
+    "/v2/organizations/{organization_id}/ledgers/{ledger_id}/balances": {
+      "get": {
+        "operationId": "getAllBalancesV2",
+        "parameters": [
+          {
+            "description": "Organization ID (UUID)",
+            "in": "path",
+            "name": "organization_id",
+            "required": true,
+            "schema": {
+              "description": "Organization ID (UUID)",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Ledger ID (UUID)",
+            "in": "path",
+            "name": "ledger_id",
+            "required": true,
+            "schema": {
+              "description": "Ledger ID (UUID)",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Max items per page (max 100, default 10)",
+            "explode": false,
+            "in": "query",
+            "name": "limit",
+            "schema": {
+              "description": "Max items per page (max 100, default 10)",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Filter balances created on/after this date (YYYY-MM-DD)",
+            "explode": false,
+            "in": "query",
+            "name": "start_date",
+            "schema": {
+              "description": "Filter balances created on/after this date (YYYY-MM-DD)",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Filter balances created on/before this date (YYYY-MM-DD)",
+            "explode": false,
+            "in": "query",
+            "name": "end_date",
+            "schema": {
+              "description": "Filter balances created on/before this date (YYYY-MM-DD)",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Sort direction (asc, desc)",
+            "explode": false,
+            "in": "query",
+            "name": "sort_order",
+            "schema": {
+              "description": "Sort direction (asc, desc)",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Opaque cursor token for pagination",
+            "explode": false,
+            "in": "query",
+            "name": "cursor",
+            "schema": {
+              "description": "Opaque cursor token for pagination",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Pagination"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          },
+          {
+            "ApiKeyAuth": []
+          }
+        ],
+        "summary": "Get all balances",
+        "tags": [
+          "Midaz_Ledger_API_Balances"
+        ]
+      }
+    },
+    "/v2/organizations/{organization_id}/ledgers/{ledger_id}/balances/{balance_id}": {
+      "delete": {
+        "operationId": "deleteBalanceV2",
+        "parameters": [
+          {
+            "description": "Organization ID (UUID)",
+            "in": "path",
+            "name": "organization_id",
+            "required": true,
+            "schema": {
+              "description": "Organization ID (UUID)",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Ledger ID (UUID)",
+            "in": "path",
+            "name": "ledger_id",
+            "required": true,
+            "schema": {
+              "description": "Ledger ID (UUID)",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Balance ID (UUID)",
+            "in": "path",
+            "name": "balance_id",
+            "required": true,
+            "schema": {
+              "description": "Balance ID (UUID)",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No Content"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          },
+          {
+            "ApiKeyAuth": []
+          }
+        ],
+        "summary": "Delete Balance by account",
+        "tags": [
+          "Midaz_Ledger_API_Balances"
+        ]
+      },
+      "get": {
+        "operationId": "getBalanceByIDV2",
+        "parameters": [
+          {
+            "description": "Organization ID (UUID)",
+            "in": "path",
+            "name": "organization_id",
+            "required": true,
+            "schema": {
+              "description": "Organization ID (UUID)",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Ledger ID (UUID)",
+            "in": "path",
+            "name": "ledger_id",
+            "required": true,
+            "schema": {
+              "description": "Ledger ID (UUID)",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Balance ID (UUID)",
+            "in": "path",
+            "name": "balance_id",
+            "required": true,
+            "schema": {
+              "description": "Balance ID (UUID)",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Balance"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          },
+          {
+            "ApiKeyAuth": []
+          }
+        ],
+        "summary": "Get Balance by id",
+        "tags": [
+          "Midaz_Ledger_API_Balances"
+        ]
+      },
+      "patch": {
+        "operationId": "updateBalanceV2",
+        "parameters": [
+          {
+            "description": "Organization ID (UUID)",
+            "in": "path",
+            "name": "organization_id",
+            "required": true,
+            "schema": {
+              "description": "Organization ID (UUID)",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Ledger ID (UUID)",
+            "in": "path",
+            "name": "ledger_id",
+            "required": true,
+            "schema": {
+              "description": "Ledger ID (UUID)",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Balance ID (UUID)",
+            "in": "path",
+            "name": "balance_id",
+            "required": true,
+            "schema": {
+              "description": "Balance ID (UUID)",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "contentMediaType": "application/octet-stream",
+                "format": "binary",
+                "type": "string"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Balance"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          },
+          {
+            "ApiKeyAuth": []
+          }
+        ],
+        "summary": "Update Balance",
+        "tags": [
+          "Midaz_Ledger_API_Balances"
+        ]
+      }
+    },
+    "/v2/organizations/{organization_id}/ledgers/{ledger_id}/balances/{balance_id}/history": {
+      "get": {
+        "operationId": "getBalanceAtTimestampV2",
+        "parameters": [
+          {
+            "description": "Organization ID (UUID)",
+            "in": "path",
+            "name": "organization_id",
+            "required": true,
+            "schema": {
+              "description": "Organization ID (UUID)",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Ledger ID (UUID)",
+            "in": "path",
+            "name": "ledger_id",
+            "required": true,
+            "schema": {
+              "description": "Ledger ID (UUID)",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Balance ID (UUID)",
+            "in": "path",
+            "name": "balance_id",
+            "required": true,
+            "schema": {
+              "description": "Balance ID (UUID)",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Point in time (format: yyyy-mm-dd hh:mm:ss)",
+            "explode": false,
+            "in": "query",
+            "name": "date",
+            "schema": {
+              "description": "Point in time (format: yyyy-mm-dd hh:mm:ss)",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BalanceHistory"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          },
+          {
+            "ApiKeyAuth": []
+          }
+        ],
+        "summary": "Get Balance history at date",
+        "tags": [
+          "Midaz_Ledger_API_Balances"
         ]
       }
     },
@@ -12768,6 +14870,95 @@
         "summary": "Create a fee estimate calculation",
         "tags": [
           "Midaz_Ledger_API_Fees"
+        ]
+      }
+    },
+    "/v2/organizations/{organization_id}/ledgers/{ledger_id}/holders/{id}/accounts": {
+      "post": {
+        "operationId": "createHolderAccountV2",
+        "parameters": [
+          {
+            "description": "Organization ID (UUID)",
+            "in": "path",
+            "name": "organization_id",
+            "required": true,
+            "schema": {
+              "description": "Organization ID (UUID)",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Ledger ID (UUID)",
+            "in": "path",
+            "name": "ledger_id",
+            "required": true,
+            "schema": {
+              "description": "Ledger ID (UUID)",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Holder ID (UUID)",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "description": "Holder ID (UUID)",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Bearer token (forwarded to the composed account-create use case)",
+            "in": "header",
+            "name": "Authorization",
+            "schema": {
+              "description": "Bearer token (forwarded to the composed account-create use case)",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "contentMediaType": "application/octet-stream",
+                "format": "binary",
+                "type": "string"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HolderAccountResponse"
+                }
+              }
+            },
+            "description": "Created"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "summary": "Open a holder-owned account (with optional instrument)",
+        "tags": [
+          "Midaz_Ledger_API_Composition"
         ]
       }
     },
@@ -14384,6 +16575,96 @@
         ]
       }
     },
+    "/v2/organizations/{organization_id}/ledgers/{ledger_id}/transactions/{transaction_id}/operations/{operation_id}": {
+      "patch": {
+        "operationId": "updateOperationV2",
+        "parameters": [
+          {
+            "description": "Organization ID (UUID)",
+            "in": "path",
+            "name": "organization_id",
+            "required": true,
+            "schema": {
+              "description": "Organization ID (UUID)",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Ledger ID (UUID)",
+            "in": "path",
+            "name": "ledger_id",
+            "required": true,
+            "schema": {
+              "description": "Ledger ID (UUID)",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Transaction ID (UUID)",
+            "in": "path",
+            "name": "transaction_id",
+            "required": true,
+            "schema": {
+              "description": "Transaction ID (UUID)",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Operation ID (UUID)",
+            "in": "path",
+            "name": "operation_id",
+            "required": true,
+            "schema": {
+              "description": "Operation ID (UUID)",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "contentMediaType": "application/octet-stream",
+                "format": "binary",
+                "type": "string"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Operation"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "summary": "Update an Operation",
+        "tags": [
+          "Midaz_Ledger_API_Operations"
+        ]
+      }
+    },
     "/v2/organizations/{organization_id}/ledgers/{ledger_id}/transactions/{transaction_id}/revert": {
       "post": {
         "operationId": "revertTransactionV2",
@@ -14593,6 +16874,180 @@
         "summary": "List Protection Audit Events",
         "tags": [
           "Midaz_Ledger_API_Protection"
+        ]
+      }
+    },
+    "/v2/settings/metadata-indexes": {
+      "get": {
+        "operationId": "getAllMetadataIndexesV2",
+        "parameters": [
+          {
+            "description": "Optional entity name filter",
+            "explode": false,
+            "in": "query",
+            "name": "entity_name",
+            "schema": {
+              "description": "Optional entity name filter",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/MetadataIndex"
+                  },
+                  "type": [
+                    "array",
+                    "null"
+                  ]
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          },
+          {
+            "ApiKeyAuth": []
+          }
+        ],
+        "summary": "Get all Metadata Indexes",
+        "tags": [
+          "Midaz_Ledger_API_Metadata Indexes"
+        ]
+      }
+    },
+    "/v2/settings/metadata-indexes/entities/{entity_name}": {
+      "post": {
+        "operationId": "createMetadataIndexV2",
+        "parameters": [
+          {
+            "description": "Entity name (organization, ledger, segment, account, portfolio, asset, account_type, transaction, operation, operation_route, transaction_route)",
+            "in": "path",
+            "name": "entity_name",
+            "required": true,
+            "schema": {
+              "description": "Entity name (organization, ledger, segment, account, portfolio, asset, account_type, transaction, operation, operation_route, transaction_route)",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "contentMediaType": "application/octet-stream",
+                "format": "binary",
+                "type": "string"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MetadataIndex"
+                }
+              }
+            },
+            "description": "Created"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          },
+          {
+            "ApiKeyAuth": []
+          }
+        ],
+        "summary": "Create Metadata Index",
+        "tags": [
+          "Midaz_Ledger_API_Metadata Indexes"
+        ]
+      }
+    },
+    "/v2/settings/metadata-indexes/entities/{entity_name}/key/{index_key}": {
+      "delete": {
+        "operationId": "deleteMetadataIndexV2",
+        "parameters": [
+          {
+            "description": "Entity name (organization, ledger, segment, account, portfolio, asset, account_type, transaction, operation, operation_route, transaction_route)",
+            "in": "path",
+            "name": "entity_name",
+            "required": true,
+            "schema": {
+              "description": "Entity name (organization, ledger, segment, account, portfolio, asset, account_type, transaction, operation, operation_route, transaction_route)",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Index key (metadata key, e.g. 'tier')",
+            "in": "path",
+            "name": "index_key",
+            "required": true,
+            "schema": {
+              "description": "Index key (metadata key, e.g. 'tier')",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No Content"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          },
+          {
+            "ApiKeyAuth": []
+          }
+        ],
+        "summary": "Delete Metadata Index",
+        "tags": [
+          "Midaz_Ledger_API_Metadata Indexes"
         ]
       }
     },
