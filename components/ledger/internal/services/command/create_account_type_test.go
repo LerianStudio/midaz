@@ -109,7 +109,7 @@ func TestCreateAccountTypeNormalizesKeyValueToLowercase(t *testing.T) {
 
 	mockAccountTypeRepo.EXPECT().
 		Create(gomock.Any(), organizationID, ledgerID, gomock.Any()).
-		DoAndReturn(func(ctx context.Context, orgID, ledID interface{}, accountType *mmodel.AccountType) (*mmodel.AccountType, error) {
+		DoAndReturn(func(ctx context.Context, orgID, ledID any, accountType *mmodel.AccountType) (*mmodel.AccountType, error) {
 			assert.Equal(t, "current_assets", accountType.KeyValue)
 
 			return expectedAccountType, nil

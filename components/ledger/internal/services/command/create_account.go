@@ -7,6 +7,7 @@ package command
 import (
 	"context"
 	"errors"
+	"fmt"
 	"strings"
 	"time"
 
@@ -103,7 +104,14 @@ func (uc *UseCase) CreateAccount(ctx context.Context, organizationID, ledgerID u
 	status := uc.determineStatus(cai)
 
 	if err := uc.resolveAssetExistence(ctx, span, organizationID, ledgerID, cai.AssetCode); err != nil {
-		logger.Log(ctx, libLog.LevelError, "Failed to resolve asset", libLog.Err(err))
+		// Business not-found is a validation outcome (Warn); anything else is an
+		// infrastructure failure (Error).
+		var notFound pkg.EntityNotFoundError
+		if errors.As(err, &notFound) {
+			logger.Log(ctx, libLog.LevelWarn, "Asset code does not exist", libLog.Err(err))
+		} else {
+			logger.Log(ctx, libLog.LevelError, "Failed to resolve asset", libLog.Err(err))
+		}
 
 		return nil, err
 	}
@@ -319,11 +327,15 @@ func (uc *UseCase) determineStatus(cai *mmodel.CreateAccountInput) mmodel.Status
 // a 5xx, never masked as "asset not found". Recording is class-aware (T5):
 // business stays green, technical flips the span red.
 func (uc *UseCase) resolveAssetExistence(ctx context.Context, span trace.Span, organizationID, ledgerID uuid.UUID, assetCode string) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+
 	found, err := uc.AssetRepo.FindByNameOrCode(ctx, organizationID, ledgerID, "", assetCode)
 	if err != nil && !found {
 		libOpentelemetry.HandleSpanError(span, "Failed to check asset existence", err)
 
-		return err
+		return fmt.Errorf("checking asset existence for account creation: %w", err)
 	}
 
 	if !found {
