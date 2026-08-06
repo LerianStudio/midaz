@@ -1068,48 +1068,18 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 	// per-registrar options rationale (why metadata-index takes ledgerRouteOptions
 	// without WithTenantDB, why the CRM/fee/composition tenant options stay distinct)
 	// lives on HumaMountDeps.MountV1 / MountV2 in the http/in package, next to the
-	// registrar calls it governs. Handlers and route options are threaded by NAME so
-	// the CRM↔Fees tenant-option pairing cannot silently swap.
-	humaMountDeps := httpin.HumaMountDeps{
-		Auth: auth,
-
-		Organization:  organizationHandler,
-		Ledger:        ledgerHandler,
-		Portfolio:     portfolioHandler,
-		Segment:       segmentHandler,
-		Account:       accountHandler,
-		AccountType:   accountTypeHandler,
-		MetadataIndex: metadataIndexHandler,
-		Asset:         assetHandler,
-		AssetRate:     assetRateHandler,
-
-		Balance:          balanceHandler,
-		Operation:        operationHandler,
-		OperationRoute:   operationRouteHandler,
-		TransactionRoute: transactionRouteHandler,
-
-		Transaction: transactionHandler,
-
-		Holder:         crmMgo.holderHandler,
-		Instrument:     crmMgo.instrumentHandler,
-		HolderAccounts: holderAccountsHandler,
-		Encryption:     crmMgo.encryptionHandler,
-		Audit:          crmMgo.auditHandler,
-
-		FeePackage:       feePackageHandler,
-		Fee:              feeHandler,
-		BillingPackage:   billingPackageHandler,
-		BillingCalculate: billingCalculateHandler,
-
-		Composition: compositionHandler,
-
-		OnboardingOptions:  routeSetup.onboardingRouteOptions,
-		LedgerOptions:      routeSetup.ledgerRouteOptions,
-		TransactionOptions: routeSetup.transactionRouteOptions,
-		CRMOptions:         routeSetup.crmRouteOptions,
-		FeesOptions:        routeSetup.feesRouteOptions,
-		CompositionOptions: routeSetup.compositionRouteOptions,
-	}
+	// registrar calls it governs. buildHumaMountDeps threads handlers and route options
+	// by NAME so the CRM↔Fees tenant-option pairing cannot silently swap.
+	humaMountDeps := buildHumaMountDeps(
+		auth,
+		organizationHandler, ledgerHandler, portfolioHandler, segmentHandler, accountHandler, accountTypeHandler, metadataIndexHandler, assetHandler, assetRateHandler,
+		balanceHandler, operationHandler, operationRouteHandler, transactionRouteHandler,
+		transactionHandler,
+		crmMgo.holderHandler, crmMgo.instrumentHandler, holderAccountsHandler, crmMgo.encryptionHandler, crmMgo.auditHandler,
+		feePackageHandler, feeHandler, billingPackageHandler, billingCalculateHandler,
+		compositionHandler,
+		routeSetup,
+	)
 
 	ledgerRouteRegistrar := httpin.CreateRouteRegistrar(auth, metadataIndexHandler, routeSetup.ledgerRouteOptions)
 
@@ -1637,6 +1607,82 @@ func buildUnifiedRouteSetup(
 	}
 
 	return setup, nil
+}
+
+// buildHumaMountDeps assembles the single Huma mount list from the auth client, every resource
+// handler, and the route-scoped options in setup. It is a pure, named function so the
+// role -> ProtectedRouteOptions pairing is pinnable by pointer identity: the crm and fees options
+// both write the generic tenant-context key over different Mongo managers, so a swapped pairing
+// resolves CRM holder PII against the fees tenant database. In single-tenant mode setup is a zero
+// value and every option field is nil.
+func buildHumaMountDeps(
+	auth *middleware.AuthClient,
+	organizationHandler *httpin.OrganizationHandler,
+	ledgerHandler *httpin.LedgerHandler,
+	portfolioHandler *httpin.PortfolioHandler,
+	segmentHandler *httpin.SegmentHandler,
+	accountHandler *httpin.AccountHandler,
+	accountTypeHandler *httpin.AccountTypeHandler,
+	metadataIndexHandler *httpin.MetadataIndexHandler,
+	assetHandler *httpin.AssetHandler,
+	assetRateHandler *httpin.AssetRateHandler,
+	balanceHandler *httpin.BalanceHandler,
+	operationHandler *httpin.OperationHandler,
+	operationRouteHandler *httpin.OperationRouteHandler,
+	transactionRouteHandler *httpin.TransactionRouteHandler,
+	transactionHandler *httpin.TransactionHandler,
+	holderHandler *httpin.HolderHandler,
+	instrumentHandler *httpin.InstrumentHandler,
+	holderAccountsHandler *httpin.HolderAccountsHandler,
+	encryptionHandler *httpin.EncryptionHandler,
+	auditHandler *httpin.AuditHandler,
+	feePackageHandler *httpin.PackageHandler,
+	feeHandler *httpin.FeeHandler,
+	billingPackageHandler *httpin.BillingPackageHandler,
+	billingCalculateHandler *httpin.BillingCalculateHandler,
+	compositionHandler *httpin.CompositionHandler,
+	setup *unifiedRouteSetup,
+) httpin.HumaMountDeps {
+	return httpin.HumaMountDeps{
+		Auth: auth,
+
+		Organization:  organizationHandler,
+		Ledger:        ledgerHandler,
+		Portfolio:     portfolioHandler,
+		Segment:       segmentHandler,
+		Account:       accountHandler,
+		AccountType:   accountTypeHandler,
+		MetadataIndex: metadataIndexHandler,
+		Asset:         assetHandler,
+		AssetRate:     assetRateHandler,
+
+		Balance:          balanceHandler,
+		Operation:        operationHandler,
+		OperationRoute:   operationRouteHandler,
+		TransactionRoute: transactionRouteHandler,
+
+		Transaction: transactionHandler,
+
+		Holder:         holderHandler,
+		Instrument:     instrumentHandler,
+		HolderAccounts: holderAccountsHandler,
+		Encryption:     encryptionHandler,
+		Audit:          auditHandler,
+
+		FeePackage:       feePackageHandler,
+		Fee:              feeHandler,
+		BillingPackage:   billingPackageHandler,
+		BillingCalculate: billingCalculateHandler,
+
+		Composition: compositionHandler,
+
+		OnboardingOptions:  setup.onboardingRouteOptions,
+		LedgerOptions:      setup.ledgerRouteOptions,
+		TransactionOptions: setup.transactionRouteOptions,
+		CRMOptions:         setup.crmRouteOptions,
+		FeesOptions:        setup.feesRouteOptions,
+		CompositionOptions: setup.compositionRouteOptions,
+	}
 }
 
 // midazErrorMapper converts tenant-manager errors into Midaz-specific HTTP responses.

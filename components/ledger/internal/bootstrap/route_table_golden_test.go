@@ -75,14 +75,6 @@ const routeTableGoldenHeader = `# Unified server Fiber route table: METHOD<TAB>R
 #     count, and no gate in this repository covers that tuple.
 #   - registration order inside a COLLAPSED row (one row whose count already sums a guard and
 #     its terminal): the merged count is the sum whichever was registered first.
-#   - which route-scoped ProtectedRouteOptions instance a registrar received. In multi-tenant
-#     mode config.go buildUnifiedRouteSetup builds SIX distinct instances: five carry a tenant-DB
-#     handler drawn from four separate tenant middlewares, one carries none. Five of the six hold
-#     exactly two post-auth handlers, so swapping two of those moves neither path nor count — and
-#     the crm and fees instances both write the GENERIC GetMBContext key over different Mongo
-#     managers, so that particular swap resolves CRM holder PII against the fees tenant database.
-#     This harness threads ONE instance to every registrar, so nothing in this package can tell
-#     the six apart, and no gate in this repository pins the pairing.
 # Generated — do not hand-edit. Regenerate with:
 #   go test ./components/ledger/internal/bootstrap/ -run TestRouteTableGolden -update-route-table
 `
