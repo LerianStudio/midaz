@@ -7,6 +7,11 @@ name: Docker Hub Visibility
 # already went out private.
 on:
   workflow_call:
+    secrets:
+      DOCKER_USERNAME:
+        required: true
+      DOCKERHUB_IMAGE_PUSH_TOKEN:
+        required: true
   workflow_dispatch:
 
 permissions:
