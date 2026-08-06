@@ -89,15 +89,15 @@ postman/
 
 ## Collection structure
 
-The merged collection is one **MIDAZ** collection. The ledger `/v1` spec is primary;
+The merged collection is one **MIDAZ** collection. The ledger spec is primary;
 every other published spec contributes its own folders, grouped by OpenAPI tag.
-Two specs from the same component would otherwise produce folders under the same
-tag name, so folders from a non-primary contract carry a version tag — ledger's
-`/v2` transaction endpoints land in **Transactions (v2)**.
+Within the single ledger spec, operations under `/v2` get a folder suffix ` (v2)`
+derived from the first path-key segment (`/v1` gets no suffix), so **Transactions**
+and **Transactions (v2)** stay distinct even though they share the OpenAPI tag.
 
-Request URLs carry the version prefix taken from the spec's `servers` block, so a
-generated URL targets the same path the service mounts the operation on, and `/v1`
-and `/v2` requests to the same resource stay distinct.
+Request URLs carry the version prefix from the path key (the spec's `servers` is
+`/`), so a generated URL targets the same path the service mounts the operation on,
+and `/v1`/`/v2` requests to the same resource stay distinct.
 
 Requests route to per-service base URLs:
 
