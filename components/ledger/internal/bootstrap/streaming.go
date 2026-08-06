@@ -205,12 +205,19 @@ func buildBillingSerializerFromEnv(ctx context.Context, logger libLog.Logger) *b
 //
 // Branches:
 //   - streaming disabled (Enabled=false): return nil, no registry contact.
+//   - context canceled/expired: WARN + nil, before any registry contact.
 //   - NewSchemaRegistryClient fails (empty URL or partial credentials, both
 //     fail-closed): WARN + nil.
 //   - billing.NewSerializer fails (registry round-trip): WARN + nil.
 //   - success: the constructed serializer.
 func buildBillingSerializer(ctx context.Context, cfg libStreaming.Config, logger libLog.Logger) *billing.Serializer {
 	if !cfg.Enabled {
+		return nil
+	}
+
+	if err := ctx.Err(); err != nil {
+		warnBillingDisabled(ctx, logger, err)
+
 		return nil
 	}
 

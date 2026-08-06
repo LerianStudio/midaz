@@ -22,15 +22,20 @@ type captureLogger struct {
 }
 
 type captureEntry struct {
-	level libLog.Level
-	msg   string
+	level  libLog.Level
+	msg    string
+	fields []libLog.Field
 }
 
-func (c *captureLogger) Log(_ context.Context, level libLog.Level, msg string, _ ...libLog.Field) {
+func (c *captureLogger) Log(_ context.Context, level libLog.Level, msg string, fields ...libLog.Field) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
-	c.entries = append(c.entries, captureEntry{level: level, msg: msg})
+	c.entries = append(c.entries, captureEntry{
+		level:  level,
+		msg:    msg,
+		fields: append([]libLog.Field(nil), fields...),
+	})
 }
 
 func (c *captureLogger) With(_ ...libLog.Field) libLog.Logger { return c }
@@ -57,6 +62,35 @@ func (c *captureLogger) warnMessages() []string {
 	return msgs
 }
 
+// warnErrMessages returns the `.Error()` string of every WARN entry's "error"
+// field, in order. It lets a test assert WHICH error drove a graceful-
+// degradation WARN — e.g. the guard's raw ctx error ("context canceled")
+// versus the wrapped registry error the without-guard path would produce.
+func (c *captureLogger) warnErrMessages() []string {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	var msgs []string
+
+	for _, e := range c.entries {
+		if e.level != libLog.LevelWarn {
+			continue
+		}
+
+		for _, f := range e.fields {
+			if f.Key != "error" {
+				continue
+			}
+
+			if err, ok := f.Value.(error); ok && err != nil {
+				msgs = append(msgs, err.Error())
+			}
+		}
+	}
+
+	return msgs
+}
+
 // TestBuildBillingSerializer exercises the network-free decision core across its
 // graceful-degradation branches: every branch yields a nil serializer, never a
 // propagated error or a panic. The disabled case additionally proves the builder
@@ -66,12 +100,17 @@ func (c *captureLogger) warnMessages() []string {
 func TestBuildBillingSerializer(t *testing.T) {
 	t.Parallel()
 
+	canceledCtx, cancel := context.WithCancel(context.Background())
+	cancel()
+
 	tests := []struct {
 		name          string
+		ctx           context.Context
 		cfg           libStreaming.Config
 		logger        libLog.Logger
 		wantWarnCount int
 		wantWarnMsg   string
+		wantWarnErr   string
 	}{
 		{
 			name:          "disabled short-circuits to nil without registry contact",
@@ -91,6 +130,20 @@ func TestBuildBillingSerializer(t *testing.T) {
 			cfg:    libStreaming.Config{Enabled: true, SchemaRegistryURL: ""},
 			logger: nil,
 		},
+		{
+			name:          "canceled context short-circuits before registry contact",
+			ctx:           canceledCtx,
+			cfg:           libStreaming.Config{Enabled: true, SchemaRegistryURL: "http://schema-registry.invalid:8081"},
+			logger:        &captureLogger{},
+			wantWarnCount: 1,
+			wantWarnMsg:   "Billing serializer disabled",
+			// The guard warns with the raw ctx.Err() ("context canceled"),
+			// proving it short-circuited BEFORE any registry contact. Without
+			// the guard the same inputs still degrade to nil+1 WARN, but the
+			// error is the wrapped registry round-trip failure — so this exact
+			// message is what distinguishes the guarded path.
+			wantWarnErr: context.Canceled.Error(),
+		},
 	}
 
 	for _, tt := range tests {
@@ -98,7 +151,12 @@ func TestBuildBillingSerializer(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			got := buildBillingSerializer(context.Background(), tt.cfg, tt.logger)
+			ctx := tt.ctx
+			if ctx == nil {
+				ctx = context.Background()
+			}
+
+			got := buildBillingSerializer(ctx, tt.cfg, tt.logger)
 			if got != nil {
 				t.Fatalf("expected nil serializer, got %v", got)
 			}
@@ -118,6 +176,14 @@ func TestBuildBillingSerializer(t *testing.T) {
 				msgs := cl.warnMessages()
 				if len(msgs) != 1 || msgs[0] != tt.wantWarnMsg {
 					t.Fatalf("expected single WARN %q, got %v", tt.wantWarnMsg, msgs)
+				}
+			}
+
+			if tt.wantWarnErr != "" {
+				errMsgs := cl.warnErrMessages()
+				if len(errMsgs) != 1 || errMsgs[0] != tt.wantWarnErr {
+					t.Fatalf("expected single WARN error %q (guard short-circuit), got %v",
+						tt.wantWarnErr, errMsgs)
 				}
 			}
 		})
