@@ -13,7 +13,17 @@ permissions:
   packages: write
 
 jobs:
+  # Gate the build on Docker Hub visibility: repositories are created on first push
+  # with the organization's private default, so without this an image is only public
+  # if someone remembered to flip it by hand. Runs before the push so a brand-new
+  # image never exists private, and derives its image list from the
+  # gitops_yaml_key_mappings below.
+  dockerhub-visibility:
+    uses: ./.github/workflows/dockerhub-visibility.yml
+    secrets: inherit
+
   pipeline:
+    needs: dockerhub-visibility
     uses: LerianStudio/github-actions-shared-workflows/.github/workflows/go-release.yml@v1.46.5
     with:
       enable_changelog: ${{ github.ref == 'refs/heads/main' }}
@@ -65,6 +75,8 @@ jobs:
       # Distinct schema from helm_values_key_mappings: keys carry a .tag suffix and
       # values are full dotted YAML paths (.image.tag). The *-migrations tags nest
       # under the parent service block (.ledger/.tracer .migrations.image.tag).
+      # This is also the image list the dockerhub-visibility job reads, so an image
+      # added here is kept public automatically; one added without a mapping is not.
       gitops_yaml_key_mappings: '{"midaz-ledger.tag": ".ledger.image.tag", "midaz-tracer.tag": ".tracer.image.tag", "midaz-ledger-migrations.tag": ".ledger.migrations.image.tag", "midaz-tracer-migrations.tag": ".tracer.migrations.image.tag"}'
       enable_apidog_e2e: true
       enable_e2e_tests: true
