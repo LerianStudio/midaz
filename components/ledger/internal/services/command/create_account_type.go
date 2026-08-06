@@ -6,6 +6,7 @@ package command
 
 import (
 	"context"
+	"strings"
 	"time"
 
 	libCommons "github.com/LerianStudio/lib-commons/v6/commons"
@@ -45,12 +46,16 @@ func (uc *UseCase) CreateAccountType(ctx context.Context, organizationID, ledger
 	}
 
 	accountType := &mmodel.AccountType{
-		ID:               uuid.Must(libCommons.GenerateUUIDv7()),
-		OrganizationID:   organizationID,
-		LedgerID:         ledgerID,
-		Name:             payload.Name,
-		Description:      payload.Description,
-		KeyValue:         payload.KeyValue,
+		ID:             uuid.Must(libCommons.GenerateUUIDv7()),
+		OrganizationID: organizationID,
+		LedgerID:       ledgerID,
+		Name:           payload.Name,
+		Description:    payload.Description,
+		// Normalize the account-type key to lowercase so registration can never
+		// diverge from the lookup path: FindByKey lowercases the query key, so a
+		// key stored with any uppercase letter would be unfindable when opening an
+		// account of that type (invalid type / silently wrong balance direction).
+		KeyValue:         strings.ToLower(payload.KeyValue),
 		DefaultDirection: defaultDirection,
 		CreatedAt:        now,
 		UpdatedAt:        now,
