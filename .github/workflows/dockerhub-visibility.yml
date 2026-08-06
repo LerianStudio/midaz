@@ -21,6 +21,13 @@ jobs:
   ensure-public:
     name: Ensure released images are public
     runs-on: blacksmith-4vcpu-ubuntu-2404
+    timeout-minutes: 10
+    # Serialize runs: a release run and a manual repair run racing the same 404 both
+    # POST /repositories/ and the loser fails on a non-201. Job-level (not workflow-level)
+    # because a called reusable workflow only honors concurrency on its jobs.
+    concurrency:
+      group: dockerhub-visibility-${{ github.repository }}
+      cancel-in-progress: false
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
