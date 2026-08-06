@@ -1,0 +1,29 @@
+name: Docker Hub Visibility
+
+# Docker Hub creates a repository on first push with the organization's default
+# visibility (private), and the shared release pipeline never changes it, so every
+# new image ships unpullable until someone flips it by hand. Callable from the
+# release pipeline as a pre-push gate, and dispatchable to repair the images that
+# already went out private.
+on:
+  workflow_call:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  ensure-public:
+    name: Ensure released images are public
+    runs-on: blacksmith-4vcpu-ubuntu-2404
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Ensure Docker Hub repositories are public
+        env:
+          DOCKERHUB_USERNAME: ${{ secrets.DOCKER_USERNAME }}
+          DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_IMAGE_PUSH_TOKEN }}
+        run: ./scripts/ensure-dockerhub-public.sh
