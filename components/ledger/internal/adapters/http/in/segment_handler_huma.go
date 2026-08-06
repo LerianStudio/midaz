@@ -276,9 +276,14 @@ func (handler *SegmentHandler) CountSegmentsHuma(ctx context.Context, in *CountS
 }
 
 // RegisterSegmentRoutes registers the six migrated segment operations on the shared
-// Huma API. Paths are GROUP-RELATIVE (the Huma API is bound to the /v1 Fiber group;
-// the group's PrefixModifier writes "/v1" into each op's op.Path, not into a servers entry). Mirrors RegisterAssetRoutes.
-func RegisterSegmentRoutes(api huma.API, h *SegmentHandler) {
+// Huma API. Paths are GROUP-RELATIVE (the Huma API is bound to a versioned Fiber group;
+// the group's PrefixModifier writes the version into each op's op.Path, not into a servers
+// entry). Mirrors RegisterAssetRoutes.
+//
+// opSuffix distinguishes the operation IDs one version group publishes from another's —
+// see routeOpSuffixV1. A straight v1/v2 mirror reuses the same handler methods and the
+// same input/output types, so only the operation IDs differ between the twins.
+func RegisterSegmentRoutes(api huma.API, h *SegmentHandler, opSuffix string) {
 	const (
 		listPath  = "/organizations/{organization_id}/ledgers/{ledger_id}/segments"
 		idPath    = listPath + "/{id}"
@@ -287,7 +292,7 @@ func RegisterSegmentRoutes(api huma.API, h *SegmentHandler) {
 	)
 
 	huma.Register(api, huma.Operation{
-		OperationID:      "createSegment",
+		OperationID:      "createSegment" + opSuffix,
 		Method:           http.MethodPost,
 		Path:             listPath,
 		Summary:          "Create a new segment",
@@ -298,7 +303,7 @@ func RegisterSegmentRoutes(api huma.API, h *SegmentHandler) {
 	}, h.CreateSegmentHuma)
 
 	huma.Register(api, huma.Operation{
-		OperationID: "listSegments",
+		OperationID: "listSegments" + opSuffix,
 		Method:      http.MethodGet,
 		Path:        listPath,
 		Summary:     "List all segments",
@@ -307,7 +312,7 @@ func RegisterSegmentRoutes(api huma.API, h *SegmentHandler) {
 	}, h.ListSegmentsHuma)
 
 	huma.Register(api, huma.Operation{
-		OperationID: "getSegmentByID",
+		OperationID: "getSegmentByID" + opSuffix,
 		Method:      http.MethodGet,
 		Path:        idPath,
 		Summary:     "Retrieve a specific segment",
@@ -316,7 +321,7 @@ func RegisterSegmentRoutes(api huma.API, h *SegmentHandler) {
 	}, h.GetSegmentByIDHuma)
 
 	huma.Register(api, huma.Operation{
-		OperationID:      "updateSegment",
+		OperationID:      "updateSegment" + opSuffix,
 		Method:           http.MethodPatch,
 		Path:             idPath,
 		Summary:          "Update a segment",
@@ -326,7 +331,7 @@ func RegisterSegmentRoutes(api huma.API, h *SegmentHandler) {
 	}, h.UpdateSegmentHuma)
 
 	huma.Register(api, huma.Operation{
-		OperationID:   "deleteSegment",
+		OperationID:   "deleteSegment" + opSuffix,
 		Method:        http.MethodDelete,
 		Path:          idPath,
 		Summary:       "Delete a segment",
@@ -336,7 +341,7 @@ func RegisterSegmentRoutes(api huma.API, h *SegmentHandler) {
 	}, h.DeleteSegmentByIDHuma)
 
 	huma.Register(api, huma.Operation{
-		OperationID:   "countSegments",
+		OperationID:   "countSegments" + opSuffix,
 		Method:        http.MethodHead,
 		Path:          countPath,
 		Summary:       "Count total segments",
@@ -346,16 +351,35 @@ func RegisterSegmentRoutes(api huma.API, h *SegmentHandler) {
 	}, h.CountSegmentsHuma)
 }
 
-// RegisterSegmentRoutesToApp wires the Huma-migrated segment resource. For each of the
-// six ops it attaches the Fiber auth chain — protectedMidaz(auth,"segments",verb) (=
-// auth.Authorize("midaz","segments",verb) + tenant PostAuthMiddlewares) +
-// ParseUUIDPathParameters("segment") — as MIDDLEWARE ONLY (no terminal) on the /v1
-// GROUP with GROUP-RELATIVE paths, then registers the Huma terminals via
-// RegisterSegmentRoutes on the SAME group's Huma API. This preserves the pre-Huma
-// (segments, verb) authz tuples and tenant resolution BYTE-FOR-BYTE — no segment
-// route becomes public. Mirrors RegisterAssetRoutesToApp; the integration task calls
-// this from the unified server's humaMount seam.
+// RegisterSegmentRoutesToApp wires the Huma-migrated segment surface onto the /v1
+// contract. See registerSegmentRoutesToApp for what it attaches.
 func RegisterSegmentRoutesToApp(group fiber.Router, api huma.API, auth *middleware.AuthClient, h *SegmentHandler, routeOptions *pkgHTTP.ProtectedRouteOptions) {
+	registerSegmentRoutesToApp(group, api, auth, h, routeOptions, routeOpSuffixV1)
+}
+
+// RegisterSegmentV2RoutesToApp wires the same segment surface onto the /v2 contract:
+// same paths, same handlers, same authz tuples and tenant chain, differing only in the
+// operation IDs the contract publishes. It is additive — /v1 keeps serving segments in
+// parallel — and introduces no new policy surface.
+func RegisterSegmentV2RoutesToApp(group fiber.Router, api huma.API, auth *middleware.AuthClient, h *SegmentHandler, routeOptions *pkgHTTP.ProtectedRouteOptions) {
+	registerSegmentRoutesToApp(group, api, auth, h, routeOptions, routeOpSuffixV2)
+}
+
+// registerSegmentRoutesToApp is the single description of the segment route surface,
+// shared by every versioned contract that serves it, mirroring RegisterAssetRoutesToApp.
+// For each of the six ops it attaches the Fiber auth chain —
+// protectedMidaz(auth,"segments",verb) (= auth.Authorize("midaz","segments",verb) +
+// tenant PostAuthMiddlewares) + ParseUUIDPathParameters("segment") — as MIDDLEWARE ONLY
+// (no terminal handler) on the VERSIONED GROUP with GROUP-RELATIVE paths, then registers
+// the Huma terminals via RegisterSegmentRoutes on the SAME group's Huma API. This
+// preserves the pre-Huma (segments, verb) authz tuples and tenant resolution
+// BYTE-FOR-BYTE on whichever version group it is mounted on — no segment route becomes
+// public.
+//
+// opSuffix distinguishes the operation IDs one version group publishes from another's —
+// see routeOpSuffixV1. Nothing else varies between contracts, so a change to the surface
+// reaches every version it is mounted on.
+func registerSegmentRoutesToApp(group fiber.Router, api huma.API, auth *middleware.AuthClient, h *SegmentHandler, routeOptions *pkgHTTP.ProtectedRouteOptions, opSuffix string) {
 	const (
 		listPath  = "/organizations/:organization_id/ledgers/:ledger_id/segments"
 		idPath    = listPath + "/:id"
@@ -371,5 +395,5 @@ func RegisterSegmentRoutesToApp(group fiber.Router, api huma.API, auth *middlewa
 	routeDelete(group, idPath, protectedMidaz(auth, "segments", "delete", routeOptions, parse))
 	routeHead(group, countPath, protectedMidaz(auth, "segments", "head", routeOptions, parse))
 
-	RegisterSegmentRoutes(api, h)
+	RegisterSegmentRoutes(api, h, opSuffix)
 }
