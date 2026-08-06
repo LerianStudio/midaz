@@ -35,6 +35,7 @@ DELETE	/v1/organizations/:organization_id/ledgers/:ledger_id/transaction-routes/
 DELETE	/v1/organizations/:organization_id/packages/:id	3
 DELETE	/v1/organizations/:organization_id/packages/:id	1
 DELETE	/v1/settings/metadata-indexes/entities/:entity_name/key/:index_key	3
+DELETE	/v2/organizations/:id	4
 DELETE	/v2/organizations/:organization_id/holders/:holder_id/instruments/:instrument_id	3
 DELETE	/v2/organizations/:organization_id/holders/:holder_id/instruments/:instrument_id	1
 DELETE	/v2/organizations/:organization_id/holders/:holder_id/instruments/:instrument_id/related-parties/:related_party_id	3
@@ -133,6 +134,10 @@ GET	/v1/organizations/:organization_id/packages/:id	3
 GET	/v1/organizations/:organization_id/packages/:id	1
 GET	/v1/organizations/:organization_id/protection/audit	4
 GET	/v1/settings/metadata-indexes	3
+GET	/v2/organizations	2
+GET	/v2/organizations	1
+GET	/v2/organizations/:id	3
+GET	/v2/organizations/:id	1
 GET	/v2/organizations/:organization_id/encryption/status	4
 GET	/v2/organizations/:organization_id/holders	3
 GET	/v2/organizations/:organization_id/holders	1
@@ -160,6 +165,7 @@ HEAD	/v1/organizations/:organization_id/ledgers/:ledger_id/segments/metrics/coun
 HEAD	/v1/organizations/:organization_id/ledgers/:ledger_id/transactions/metrics/count	4
 HEAD	/v1/organizations/:organization_id/ledgers/metrics/count	4
 HEAD	/v1/organizations/metrics/count	3
+HEAD	/v2/organizations/metrics/count	3
 PATCH	/v1/organizations/:id	4
 PATCH	/v1/organizations/:organization_id/billing-packages/:id	3
 PATCH	/v1/organizations/:organization_id/billing-packages/:id	1
@@ -181,6 +187,7 @@ PATCH	/v1/organizations/:organization_id/ledgers/:ledger_id/transactions/:transa
 PATCH	/v1/organizations/:organization_id/ledgers/:ledger_id/transactions/:transaction_id/operations/:operation_id	4
 PATCH	/v1/organizations/:organization_id/packages/:id	3
 PATCH	/v1/organizations/:organization_id/packages/:id	1
+PATCH	/v2/organizations/:id	4
 PATCH	/v2/organizations/:organization_id/holders/:holder_id/instruments/:instrument_id	4
 PATCH	/v2/organizations/:organization_id/holders/:id	4
 PATCH	/v2/organizations/:organization_id/ledgers/:ledger_id/billing-packages/:id	3
@@ -228,6 +235,7 @@ POST	/v1/organizations/:organization_id/ledgers/:ledger_id/transactions/unblock	
 POST	/v1/organizations/:organization_id/packages	3
 POST	/v1/organizations/:organization_id/packages	1
 POST	/v1/settings/metadata-indexes/entities/:entity_name	3
+POST	/v2/organizations	3
 POST	/v2/organizations/:organization_id/encryption/provision	4
 POST	/v2/organizations/:organization_id/holders	4
 POST	/v2/organizations/:organization_id/holders/:holder_id/instruments	4

@@ -89,7 +89,7 @@ func buildHumaOrganizationApp(t *testing.T, handler *OrganizationHandler, authOK
 	apiV1.Patch("/organizations/:id", parse)
 	apiV1.Delete("/organizations/:id", parse)
 
-	RegisterOrganizationRoutes(hAPI, handler)
+	RegisterOrganizationRoutes(hAPI, handler, routeOpSuffixV1)
 
 	return f
 }

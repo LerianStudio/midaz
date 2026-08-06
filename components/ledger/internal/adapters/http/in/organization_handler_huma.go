@@ -261,9 +261,13 @@ func (handler *OrganizationHandler) CountOrganizationsHuma(ctx context.Context, 
 // attached in RegisterOrganizationRoutesToApp (Fiber-level) BEFORE the Huma terminal,
 // not here.
 //
-// Paths are GROUP-RELATIVE: the Huma API is bound to the /v1 Fiber group, so the
-// humafiber adapter registers on that group and Fiber prepends /v1.
-func RegisterOrganizationRoutes(api huma.API, h *OrganizationHandler) {
+// Paths are GROUP-RELATIVE: the Huma API is bound to a versioned Fiber group, so the
+// humafiber adapter registers on that group and Fiber prepends the version prefix.
+//
+// opSuffix distinguishes the operation IDs one version group publishes from another's —
+// see routeOpSuffixV1. A straight v1/v2 mirror reuses the same handler methods and the
+// same input/output types, so only the operation IDs differ between the twins.
+func RegisterOrganizationRoutes(api huma.API, h *OrganizationHandler, opSuffix string) {
 	const (
 		listPath  = "/organizations"
 		idPath    = listPath + "/{id}"
@@ -272,7 +276,7 @@ func RegisterOrganizationRoutes(api huma.API, h *OrganizationHandler) {
 	)
 
 	huma.Register(api, huma.Operation{
-		OperationID: "createOrganization",
+		OperationID: "createOrganization" + opSuffix,
 		Method:      http.MethodPost,
 		Path:        listPath,
 		Summary:     "Create a new organization",
@@ -284,7 +288,7 @@ func RegisterOrganizationRoutes(api huma.API, h *OrganizationHandler) {
 	}, h.CreateOrganizationHuma)
 
 	huma.Register(api, huma.Operation{
-		OperationID: "listOrganizations",
+		OperationID: "listOrganizations" + opSuffix,
 		Method:      http.MethodGet,
 		Path:        listPath,
 		Summary:     "List all organizations",
@@ -293,7 +297,7 @@ func RegisterOrganizationRoutes(api huma.API, h *OrganizationHandler) {
 	}, h.ListOrganizationsHuma)
 
 	huma.Register(api, huma.Operation{
-		OperationID: "getOrganizationByID",
+		OperationID: "getOrganizationByID" + opSuffix,
 		Method:      http.MethodGet,
 		Path:        idPath,
 		Summary:     "Retrieve a specific organization",
@@ -302,7 +306,7 @@ func RegisterOrganizationRoutes(api huma.API, h *OrganizationHandler) {
 	}, h.GetOrganizationByIDHuma)
 
 	huma.Register(api, huma.Operation{
-		OperationID:      "updateOrganization",
+		OperationID:      "updateOrganization" + opSuffix,
 		Method:           http.MethodPatch,
 		Path:             idPath,
 		Summary:          "Update an existing organization",
@@ -312,7 +316,7 @@ func RegisterOrganizationRoutes(api huma.API, h *OrganizationHandler) {
 	}, h.UpdateOrganizationHuma)
 
 	huma.Register(api, huma.Operation{
-		OperationID: "deleteOrganization",
+		OperationID: "deleteOrganization" + opSuffix,
 		Method:      http.MethodDelete,
 		Path:        idPath,
 		Summary:     "Delete an organization",
@@ -323,7 +327,7 @@ func RegisterOrganizationRoutes(api huma.API, h *OrganizationHandler) {
 	}, h.DeleteOrganizationByIDHuma)
 
 	huma.Register(api, huma.Operation{
-		OperationID: "countOrganizations",
+		OperationID: "countOrganizations" + opSuffix,
 		Method:      http.MethodHead,
 		Path:        countPath,
 		Summary:     "Count total organizations",
@@ -335,20 +339,38 @@ func RegisterOrganizationRoutes(api huma.API, h *OrganizationHandler) {
 	}, h.CountOrganizationsHuma)
 }
 
-// RegisterOrganizationRoutesToApp wires the Huma-migrated organization resource,
-// mirroring RegisterAssetRoutesToApp. For each of the six ops it attaches the Fiber
-// auth chain — protectedMidaz(auth,"organizations",verb) (= auth.Authorize("midaz",
-// "organizations",verb) + tenant PostAuthMiddlewares) — as MIDDLEWARE ONLY (no
-// terminal) on the /v1 GROUP with GROUP-RELATIVE paths, then registers the Huma
-// terminals via RegisterOrganizationRoutes on the SAME group's Huma API. This
-// preserves the pre-Huma ("organizations", verb) authz tuples and tenant resolution
-// BYTE-FOR-BYTE — no organization route becomes public.
-//
-// ParseUUIDPathParameters("organization") is attached ONLY on the three ops that had
-// it pre-migration (patch/get-by-id/delete, i.e. the ":id" ops); create, list and
-// count carried no parse step in routes.go, so none is added here. Called from the
-// unified server's humaMount seam (integration task), NOT from routes.go.
+// RegisterOrganizationRoutesToApp wires the Huma-migrated organization surface onto the
+// /v1 contract. See registerOrganizationRoutesToApp for what it attaches.
 func RegisterOrganizationRoutesToApp(group fiber.Router, api huma.API, auth *middleware.AuthClient, h *OrganizationHandler, routeOptions *pkgHTTP.ProtectedRouteOptions) {
+	registerOrganizationRoutesToApp(group, api, auth, h, routeOptions, routeOpSuffixV1)
+}
+
+// RegisterOrganizationV2RoutesToApp wires the same organization surface onto the /v2
+// contract: same paths, same handlers, same authz tuples and tenant chain, differing only
+// in the operation IDs the contract publishes. It is additive — /v1 keeps serving
+// organizations in parallel — and introduces no new policy surface.
+func RegisterOrganizationV2RoutesToApp(group fiber.Router, api huma.API, auth *middleware.AuthClient, h *OrganizationHandler, routeOptions *pkgHTTP.ProtectedRouteOptions) {
+	registerOrganizationRoutesToApp(group, api, auth, h, routeOptions, routeOpSuffixV2)
+}
+
+// registerOrganizationRoutesToApp is the single description of the organization route
+// surface, shared by every versioned contract that serves it, mirroring
+// RegisterAssetRoutesToApp. For each of the six ops it attaches the Fiber auth chain —
+// protectedMidaz(auth,"organizations",verb) (= auth.Authorize("midaz","organizations",
+// verb) + tenant PostAuthMiddlewares) — as MIDDLEWARE ONLY (no terminal) on the VERSIONED
+// GROUP with GROUP-RELATIVE paths, then registers the Huma terminals via
+// RegisterOrganizationRoutes on the SAME group's Huma API. This preserves the pre-Huma
+// ("organizations", verb) authz tuples and tenant resolution BYTE-FOR-BYTE — no
+// organization route becomes public — on whichever version group it is mounted on.
+//
+// ParseUUIDPathParameters("organization") is attached ONLY on the three ops that had it
+// pre-migration (patch/get-by-id/delete, i.e. the ":id" ops); create, list and count
+// carried no parse step in routes.go, so none is added here.
+//
+// opSuffix distinguishes the operation IDs one version group publishes from another's —
+// see routeOpSuffixV1. Nothing else varies between contracts, so a change to the surface
+// reaches every version it is mounted on.
+func registerOrganizationRoutesToApp(group fiber.Router, api huma.API, auth *middleware.AuthClient, h *OrganizationHandler, routeOptions *pkgHTTP.ProtectedRouteOptions, opSuffix string) {
 	const (
 		listPath  = "/organizations"
 		idPath    = listPath + "/:id"
@@ -364,5 +386,5 @@ func RegisterOrganizationRoutesToApp(group fiber.Router, api huma.API, auth *mid
 	routeDelete(group, idPath, protectedMidaz(auth, "organizations", "delete", routeOptions, parse))
 	routeHead(group, countPath, protectedMidaz(auth, "organizations", "head", routeOptions))
 
-	RegisterOrganizationRoutes(api, h)
+	RegisterOrganizationRoutes(api, h, opSuffix)
 }

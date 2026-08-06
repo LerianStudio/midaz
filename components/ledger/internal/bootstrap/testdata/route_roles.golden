@@ -24,6 +24,7 @@ DELETE	/v1/organizations/:organization_id/ledgers/:ledger_id/segments/:id	onboar
 DELETE	/v1/organizations/:organization_id/ledgers/:ledger_id/transaction-routes/:transaction_route_id	transaction
 DELETE	/v1/organizations/:organization_id/packages/:id	fees
 DELETE	/v1/settings/metadata-indexes/entities/:entity_name/key/:index_key	ledger
+DELETE	/v2/organizations/:id	onboarding
 DELETE	/v2/organizations/:organization_id/holders/:holder_id/instruments/:instrument_id	crm
 DELETE	/v2/organizations/:organization_id/holders/:holder_id/instruments/:instrument_id/related-parties/:related_party_id	crm
 DELETE	/v2/organizations/:organization_id/holders/:id	crm
@@ -75,6 +76,8 @@ GET	/v1/organizations/:organization_id/packages	fees
 GET	/v1/organizations/:organization_id/packages/:id	fees
 GET	/v1/organizations/:organization_id/protection/audit	crm
 GET	/v1/settings/metadata-indexes	ledger
+GET	/v2/organizations	onboarding
+GET	/v2/organizations/:id	onboarding
 GET	/v2/organizations/:organization_id/encryption/status	crm
 GET	/v2/organizations/:organization_id/holders	crm
 GET	/v2/organizations/:organization_id/holders/:holder_id/instruments/:instrument_id	crm
@@ -93,6 +96,7 @@ HEAD	/v1/organizations/:organization_id/ledgers/:ledger_id/segments/metrics/coun
 HEAD	/v1/organizations/:organization_id/ledgers/:ledger_id/transactions/metrics/count	transaction
 HEAD	/v1/organizations/:organization_id/ledgers/metrics/count	onboarding
 HEAD	/v1/organizations/metrics/count	onboarding
+HEAD	/v2/organizations/metrics/count	onboarding
 PATCH	/v1/organizations/:id	onboarding
 PATCH	/v1/organizations/:organization_id/billing-packages/:id	fees
 PATCH	/v1/organizations/:organization_id/holders/:holder_id/instruments/:instrument_id	crm
@@ -110,6 +114,7 @@ PATCH	/v1/organizations/:organization_id/ledgers/:ledger_id/transaction-routes/:
 PATCH	/v1/organizations/:organization_id/ledgers/:ledger_id/transactions/:transaction_id	transaction
 PATCH	/v1/organizations/:organization_id/ledgers/:ledger_id/transactions/:transaction_id/operations/:operation_id	transaction
 PATCH	/v1/organizations/:organization_id/packages/:id	fees
+PATCH	/v2/organizations/:id	onboarding
 PATCH	/v2/organizations/:organization_id/holders/:holder_id/instruments/:instrument_id	crm
 PATCH	/v2/organizations/:organization_id/holders/:id	crm
 PATCH	/v2/organizations/:organization_id/ledgers/:ledger_id/billing-packages/:id	fees
@@ -142,6 +147,7 @@ POST	/v1/organizations/:organization_id/ledgers/:ledger_id/transactions/outflow	
 POST	/v1/organizations/:organization_id/ledgers/:ledger_id/transactions/unblock	transaction
 POST	/v1/organizations/:organization_id/packages	fees
 POST	/v1/settings/metadata-indexes/entities/:entity_name	ledger
+POST	/v2/organizations	onboarding
 POST	/v2/organizations/:organization_id/encryption/provision	crm
 POST	/v2/organizations/:organization_id/holders	crm
 POST	/v2/organizations/:organization_id/holders/:holder_id/instruments	crm

@@ -159,6 +159,7 @@ func (d HumaMountDeps) registerWave3(group fiber.Router, api huma.API) {
 // same "plugin-fees" tuples as v1 — they differ from v1 in scope only: the path
 // names the ledger, so a package another ledger owns is out of reach.
 func (d HumaMountDeps) MountV2(group fiber.Router, api huma.API) {
+	RegisterOrganizationV2RoutesToApp(group, api, d.Auth, d.Organization, d.OnboardingOptions)
 	RegisterTransactionV2RoutesToApp(group, api, d.Auth, d.Transaction, d.TransactionOptions)
 	RegisterCRMV2RoutesToApp(group, api, d.Auth, d.Holder, d.Instrument, d.HolderAccounts, d.Encryption, d.Audit, d.CRMOptions)
 	RegisterFeesV2RoutesToApp(group, api, d.Auth, d.FeePackage, d.Fee, d.BillingPackage, d.BillingCalculate, d.FeesOptions)
