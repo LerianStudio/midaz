@@ -428,7 +428,7 @@ func (handler *BalanceHandler) GetAccountBalancesAtTimestampHuma(ctx context.Con
 // ("balance") chain for these routes is attached in the unified server (Fiber
 // level) BEFORE the Huma terminal, not here. Paths are GROUP-RELATIVE (the group's
 // PrefixModifier writes "/v1" into each op's op.Path, not into a servers entry).
-func RegisterBalanceRoutes(api huma.API, h *BalanceHandler) {
+func RegisterBalanceRoutes(api huma.API, h *BalanceHandler, opSuffix string) {
 	const (
 		orgLedger      = "/organizations/{organization_id}/ledgers/{ledger_id}"
 		balancesPath   = orgLedger + "/balances"
@@ -442,7 +442,7 @@ func RegisterBalanceRoutes(api huma.API, h *BalanceHandler) {
 	)
 
 	huma.Register(api, huma.Operation{
-		OperationID: "getAllBalances",
+		OperationID: "getAllBalances" + opSuffix,
 		Method:      http.MethodGet,
 		Path:        balancesPath,
 		Summary:     "Get all balances",
@@ -451,7 +451,7 @@ func RegisterBalanceRoutes(api huma.API, h *BalanceHandler) {
 	}, h.GetAllBalancesHuma)
 
 	huma.Register(api, huma.Operation{
-		OperationID: "getBalanceByID",
+		OperationID: "getBalanceByID" + opSuffix,
 		Method:      http.MethodGet,
 		Path:        balanceIDPath,
 		Summary:     "Get Balance by id",
@@ -460,7 +460,7 @@ func RegisterBalanceRoutes(api huma.API, h *BalanceHandler) {
 	}, h.GetBalanceByIDHuma)
 
 	huma.Register(api, huma.Operation{
-		OperationID: "getBalanceAtTimestamp",
+		OperationID: "getBalanceAtTimestamp" + opSuffix,
 		Method:      http.MethodGet,
 		Path:        balanceHistory,
 		Summary:     "Get Balance history at date",
@@ -469,7 +469,7 @@ func RegisterBalanceRoutes(api huma.API, h *BalanceHandler) {
 	}, h.GetBalanceAtTimestampHuma)
 
 	huma.Register(api, huma.Operation{
-		OperationID: "getAllBalancesByAccountID",
+		OperationID: "getAllBalancesByAccountID" + opSuffix,
 		Method:      http.MethodGet,
 		Path:        acctBalances,
 		Summary:     "Get all balances by account id",
@@ -478,7 +478,7 @@ func RegisterBalanceRoutes(api huma.API, h *BalanceHandler) {
 	}, h.GetAllBalancesByAccountIDHuma)
 
 	huma.Register(api, huma.Operation{
-		OperationID: "getAccountBalancesAtTimestamp",
+		OperationID: "getAccountBalancesAtTimestamp" + opSuffix,
 		Method:      http.MethodGet,
 		Path:        acctHistory,
 		Summary:     "Get Account Balances history at date",
@@ -487,7 +487,7 @@ func RegisterBalanceRoutes(api huma.API, h *BalanceHandler) {
 	}, h.GetAccountBalancesAtTimestampHuma)
 
 	huma.Register(api, huma.Operation{
-		OperationID: "getBalancesByAlias",
+		OperationID: "getBalancesByAlias" + opSuffix,
 		Method:      http.MethodGet,
 		Path:        aliasBalances,
 		Summary:     "Get Balances using Alias",
@@ -496,7 +496,7 @@ func RegisterBalanceRoutes(api huma.API, h *BalanceHandler) {
 	}, h.GetBalancesByAliasHuma)
 
 	huma.Register(api, huma.Operation{
-		OperationID: "getBalancesExternalByCode",
+		OperationID: "getBalancesExternalByCode" + opSuffix,
 		Method:      http.MethodGet,
 		Path:        codeBalances,
 		Summary:     "Get External balances using code",
@@ -505,7 +505,7 @@ func RegisterBalanceRoutes(api huma.API, h *BalanceHandler) {
 	}, h.GetBalancesExternalByCodeHuma)
 
 	huma.Register(api, huma.Operation{
-		OperationID:      "updateBalance",
+		OperationID:      "updateBalance" + opSuffix,
 		Method:           http.MethodPatch,
 		Path:             balanceIDPath,
 		Summary:          "Update Balance",
@@ -515,7 +515,7 @@ func RegisterBalanceRoutes(api huma.API, h *BalanceHandler) {
 	}, h.UpdateBalanceHuma)
 
 	huma.Register(api, huma.Operation{
-		OperationID:      "createAdditionalBalance",
+		OperationID:      "createAdditionalBalance" + opSuffix,
 		Method:           http.MethodPost,
 		Path:             acctBalances,
 		Summary:          "Create Additional Balance",
@@ -526,7 +526,7 @@ func RegisterBalanceRoutes(api huma.API, h *BalanceHandler) {
 	}, h.CreateAdditionalBalanceHuma)
 
 	huma.Register(api, huma.Operation{
-		OperationID: "deleteBalance",
+		OperationID: "deleteBalance" + opSuffix,
 		Method:      http.MethodDelete,
 		Path:        balanceIDPath,
 		Summary:     "Delete Balance by account",

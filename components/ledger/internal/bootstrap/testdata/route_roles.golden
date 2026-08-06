@@ -32,6 +32,7 @@ DELETE	/v2/organizations/:organization_id/ledgers/:ledger_id	onboarding
 DELETE	/v2/organizations/:organization_id/ledgers/:ledger_id/account-types/:id	onboarding
 DELETE	/v2/organizations/:organization_id/ledgers/:ledger_id/accounts/:id	onboarding
 DELETE	/v2/organizations/:organization_id/ledgers/:ledger_id/assets/:id	onboarding
+DELETE	/v2/organizations/:organization_id/ledgers/:ledger_id/balances/:balance_id	transaction
 DELETE	/v2/organizations/:organization_id/ledgers/:ledger_id/billing-packages/:id	fees
 DELETE	/v2/organizations/:organization_id/ledgers/:ledger_id/packages/:id	fees
 DELETE	/v2/organizations/:organization_id/ledgers/:ledger_id/portfolios/:id	onboarding
@@ -95,11 +96,18 @@ GET	/v2/organizations/:organization_id/ledgers/:ledger_id	onboarding
 GET	/v2/organizations/:organization_id/ledgers/:ledger_id/account-types	onboarding
 GET	/v2/organizations/:organization_id/ledgers/:ledger_id/account-types/:id	onboarding
 GET	/v2/organizations/:organization_id/ledgers/:ledger_id/accounts	onboarding
+GET	/v2/organizations/:organization_id/ledgers/:ledger_id/accounts/:account_id/balances	transaction
+GET	/v2/organizations/:organization_id/ledgers/:ledger_id/accounts/:account_id/balances/history	transaction
 GET	/v2/organizations/:organization_id/ledgers/:ledger_id/accounts/:id	onboarding
 GET	/v2/organizations/:organization_id/ledgers/:ledger_id/accounts/alias/:alias	onboarding
+GET	/v2/organizations/:organization_id/ledgers/:ledger_id/accounts/alias/:alias/balances	transaction
 GET	/v2/organizations/:organization_id/ledgers/:ledger_id/accounts/external/:code	onboarding
+GET	/v2/organizations/:organization_id/ledgers/:ledger_id/accounts/external/:code/balances	transaction
 GET	/v2/organizations/:organization_id/ledgers/:ledger_id/assets	onboarding
 GET	/v2/organizations/:organization_id/ledgers/:ledger_id/assets/:id	onboarding
+GET	/v2/organizations/:organization_id/ledgers/:ledger_id/balances	transaction
+GET	/v2/organizations/:organization_id/ledgers/:ledger_id/balances/:balance_id	transaction
+GET	/v2/organizations/:organization_id/ledgers/:ledger_id/balances/:balance_id/history	transaction
 GET	/v2/organizations/:organization_id/ledgers/:ledger_id/billing-packages	fees
 GET	/v2/organizations/:organization_id/ledgers/:ledger_id/billing-packages/:id	fees
 GET	/v2/organizations/:organization_id/ledgers/:ledger_id/packages	fees
@@ -147,6 +155,7 @@ PATCH	/v2/organizations/:organization_id/ledgers/:ledger_id	onboarding
 PATCH	/v2/organizations/:organization_id/ledgers/:ledger_id/account-types/:id	onboarding
 PATCH	/v2/organizations/:organization_id/ledgers/:ledger_id/accounts/:id	onboarding
 PATCH	/v2/organizations/:organization_id/ledgers/:ledger_id/assets/:id	onboarding
+PATCH	/v2/organizations/:organization_id/ledgers/:ledger_id/balances/:balance_id	transaction
 PATCH	/v2/organizations/:organization_id/ledgers/:ledger_id/billing-packages/:id	fees
 PATCH	/v2/organizations/:organization_id/ledgers/:ledger_id/packages/:id	fees
 PATCH	/v2/organizations/:organization_id/ledgers/:ledger_id/portfolios/:id	onboarding
@@ -187,6 +196,7 @@ POST	/v2/organizations/:organization_id/holders/:holder_id/instruments	crm
 POST	/v2/organizations/:organization_id/ledgers	onboarding
 POST	/v2/organizations/:organization_id/ledgers/:ledger_id/account-types	onboarding
 POST	/v2/organizations/:organization_id/ledgers/:ledger_id/accounts	onboarding
+POST	/v2/organizations/:organization_id/ledgers/:ledger_id/accounts/:account_id/balances	transaction
 POST	/v2/organizations/:organization_id/ledgers/:ledger_id/assets	onboarding
 POST	/v2/organizations/:organization_id/ledgers/:ledger_id/billing-packages	fees
 POST	/v2/organizations/:organization_id/ledgers/:ledger_id/billing/calculate	fees

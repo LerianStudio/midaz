@@ -10479,6 +10479,50 @@ paths:
       summary: Retrieve an account by alias
       tags:
         - Accounts
+  /v2/organizations/{organization_id}/ledgers/{ledger_id}/accounts/alias/{alias}/balances:
+    get:
+      operationId: getBalancesByAliasV2
+      parameters:
+        - description: Organization ID (UUID)
+          in: path
+          name: organization_id
+          required: true
+          schema:
+            description: Organization ID (UUID)
+            type: string
+        - description: Ledger ID (UUID)
+          in: path
+          name: ledger_id
+          required: true
+          schema:
+            description: Ledger ID (UUID)
+            type: string
+        - description: Alias (e.g. @person1)
+          in: path
+          name: alias
+          required: true
+          schema:
+            description: Alias (e.g. @person1)
+            type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Pagination"
+          description: OK
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Error
+      security:
+        - BearerAuth: []
+        - ApiKeyAuth: []
+      summary: Get Balances using Alias
+      tags:
+        - Balances
   /v2/organizations/{organization_id}/ledgers/{ledger_id}/accounts/external/{code}:
     get:
       operationId: getAccountExternalByCodeV2
@@ -10523,6 +10567,50 @@ paths:
       summary: Retrieve an account by external code
       tags:
         - Accounts
+  /v2/organizations/{organization_id}/ledgers/{ledger_id}/accounts/external/{code}/balances:
+    get:
+      operationId: getBalancesExternalByCodeV2
+      parameters:
+        - description: Organization ID (UUID)
+          in: path
+          name: organization_id
+          required: true
+          schema:
+            description: Organization ID (UUID)
+            type: string
+        - description: Ledger ID (UUID)
+          in: path
+          name: ledger_id
+          required: true
+          schema:
+            description: Ledger ID (UUID)
+            type: string
+        - description: Code (e.g. BRL)
+          in: path
+          name: code
+          required: true
+          schema:
+            description: Code (e.g. BRL)
+            type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Pagination"
+          description: OK
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Error
+      security:
+        - BearerAuth: []
+        - ApiKeyAuth: []
+      summary: Get External balances using code
+      tags:
+        - Balances
   /v2/organizations/{organization_id}/ledgers/{ledger_id}/accounts/metrics/count:
     head:
       operationId: countAccountsV2
@@ -10563,6 +10651,191 @@ paths:
       summary: Count accounts
       tags:
         - Accounts
+  /v2/organizations/{organization_id}/ledgers/{ledger_id}/accounts/{account_id}/balances:
+    get:
+      operationId: getAllBalancesByAccountIDV2
+      parameters:
+        - description: Organization ID (UUID)
+          in: path
+          name: organization_id
+          required: true
+          schema:
+            description: Organization ID (UUID)
+            type: string
+        - description: Ledger ID (UUID)
+          in: path
+          name: ledger_id
+          required: true
+          schema:
+            description: Ledger ID (UUID)
+            type: string
+        - description: Account ID (UUID)
+          in: path
+          name: account_id
+          required: true
+          schema:
+            description: Account ID (UUID)
+            type: string
+        - description: Max items per page (max 100, default 10)
+          explode: false
+          in: query
+          name: limit
+          schema:
+            description: Max items per page (max 100, default 10)
+            type: string
+        - description: Filter balances created on/after this date (YYYY-MM-DD)
+          explode: false
+          in: query
+          name: start_date
+          schema:
+            description: Filter balances created on/after this date (YYYY-MM-DD)
+            type: string
+        - description: Filter balances created on/before this date (YYYY-MM-DD)
+          explode: false
+          in: query
+          name: end_date
+          schema:
+            description: Filter balances created on/before this date (YYYY-MM-DD)
+            type: string
+        - description: Sort direction (asc, desc)
+          explode: false
+          in: query
+          name: sort_order
+          schema:
+            description: Sort direction (asc, desc)
+            type: string
+        - description: Opaque cursor token for pagination
+          explode: false
+          in: query
+          name: cursor
+          schema:
+            description: Opaque cursor token for pagination
+            type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Pagination"
+          description: OK
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Error
+      security:
+        - BearerAuth: []
+        - ApiKeyAuth: []
+      summary: Get all balances by account id
+      tags:
+        - Balances
+    post:
+      operationId: createAdditionalBalanceV2
+      parameters:
+        - description: Organization ID (UUID)
+          in: path
+          name: organization_id
+          required: true
+          schema:
+            description: Organization ID (UUID)
+            type: string
+        - description: Ledger ID (UUID)
+          in: path
+          name: ledger_id
+          required: true
+          schema:
+            description: Ledger ID (UUID)
+            type: string
+        - description: Account ID (UUID)
+          in: path
+          name: account_id
+          required: true
+          schema:
+            description: Account ID (UUID)
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              contentMediaType: application/octet-stream
+              format: binary
+              type: string
+        required: true
+      responses:
+        "201":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Balance"
+          description: Created
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Error
+      security:
+        - BearerAuth: []
+        - ApiKeyAuth: []
+      summary: Create Additional Balance
+      tags:
+        - Balances
+  /v2/organizations/{organization_id}/ledgers/{ledger_id}/accounts/{account_id}/balances/history:
+    get:
+      operationId: getAccountBalancesAtTimestampV2
+      parameters:
+        - description: Organization ID (UUID)
+          in: path
+          name: organization_id
+          required: true
+          schema:
+            description: Organization ID (UUID)
+            type: string
+        - description: Ledger ID (UUID)
+          in: path
+          name: ledger_id
+          required: true
+          schema:
+            description: Ledger ID (UUID)
+            type: string
+        - description: Account ID (UUID)
+          in: path
+          name: account_id
+          required: true
+          schema:
+            description: Account ID (UUID)
+            type: string
+        - description: "Point in time (format: yyyy-mm-dd hh:mm:ss)"
+          explode: false
+          in: query
+          name: date
+          schema:
+            description: "Point in time (format: yyyy-mm-dd hh:mm:ss)"
+            type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                items:
+                  $ref: "#/components/schemas/BalanceHistory"
+                type:
+                  - array
+                  - "null"
+          description: OK
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Error
+      security:
+        - BearerAuth: []
+        - ApiKeyAuth: []
+      summary: Get Account Balances history at date
+      tags:
+        - Balances
   /v2/organizations/{organization_id}/ledgers/{ledger_id}/accounts/{id}:
     delete:
       operationId: deleteAccountV2
@@ -11006,6 +11279,263 @@ paths:
       summary: Update an asset
       tags:
         - Assets
+  /v2/organizations/{organization_id}/ledgers/{ledger_id}/balances:
+    get:
+      operationId: getAllBalancesV2
+      parameters:
+        - description: Organization ID (UUID)
+          in: path
+          name: organization_id
+          required: true
+          schema:
+            description: Organization ID (UUID)
+            type: string
+        - description: Ledger ID (UUID)
+          in: path
+          name: ledger_id
+          required: true
+          schema:
+            description: Ledger ID (UUID)
+            type: string
+        - description: Max items per page (max 100, default 10)
+          explode: false
+          in: query
+          name: limit
+          schema:
+            description: Max items per page (max 100, default 10)
+            type: string
+        - description: Filter balances created on/after this date (YYYY-MM-DD)
+          explode: false
+          in: query
+          name: start_date
+          schema:
+            description: Filter balances created on/after this date (YYYY-MM-DD)
+            type: string
+        - description: Filter balances created on/before this date (YYYY-MM-DD)
+          explode: false
+          in: query
+          name: end_date
+          schema:
+            description: Filter balances created on/before this date (YYYY-MM-DD)
+            type: string
+        - description: Sort direction (asc, desc)
+          explode: false
+          in: query
+          name: sort_order
+          schema:
+            description: Sort direction (asc, desc)
+            type: string
+        - description: Opaque cursor token for pagination
+          explode: false
+          in: query
+          name: cursor
+          schema:
+            description: Opaque cursor token for pagination
+            type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Pagination"
+          description: OK
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Error
+      security:
+        - BearerAuth: []
+        - ApiKeyAuth: []
+      summary: Get all balances
+      tags:
+        - Balances
+  /v2/organizations/{organization_id}/ledgers/{ledger_id}/balances/{balance_id}:
+    delete:
+      operationId: deleteBalanceV2
+      parameters:
+        - description: Organization ID (UUID)
+          in: path
+          name: organization_id
+          required: true
+          schema:
+            description: Organization ID (UUID)
+            type: string
+        - description: Ledger ID (UUID)
+          in: path
+          name: ledger_id
+          required: true
+          schema:
+            description: Ledger ID (UUID)
+            type: string
+        - description: Balance ID (UUID)
+          in: path
+          name: balance_id
+          required: true
+          schema:
+            description: Balance ID (UUID)
+            type: string
+      responses:
+        "204":
+          description: No Content
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Error
+      security:
+        - BearerAuth: []
+        - ApiKeyAuth: []
+      summary: Delete Balance by account
+      tags:
+        - Balances
+    get:
+      operationId: getBalanceByIDV2
+      parameters:
+        - description: Organization ID (UUID)
+          in: path
+          name: organization_id
+          required: true
+          schema:
+            description: Organization ID (UUID)
+            type: string
+        - description: Ledger ID (UUID)
+          in: path
+          name: ledger_id
+          required: true
+          schema:
+            description: Ledger ID (UUID)
+            type: string
+        - description: Balance ID (UUID)
+          in: path
+          name: balance_id
+          required: true
+          schema:
+            description: Balance ID (UUID)
+            type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Balance"
+          description: OK
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Error
+      security:
+        - BearerAuth: []
+        - ApiKeyAuth: []
+      summary: Get Balance by id
+      tags:
+        - Balances
+    patch:
+      operationId: updateBalanceV2
+      parameters:
+        - description: Organization ID (UUID)
+          in: path
+          name: organization_id
+          required: true
+          schema:
+            description: Organization ID (UUID)
+            type: string
+        - description: Ledger ID (UUID)
+          in: path
+          name: ledger_id
+          required: true
+          schema:
+            description: Ledger ID (UUID)
+            type: string
+        - description: Balance ID (UUID)
+          in: path
+          name: balance_id
+          required: true
+          schema:
+            description: Balance ID (UUID)
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              contentMediaType: application/octet-stream
+              format: binary
+              type: string
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Balance"
+          description: OK
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Error
+      security:
+        - BearerAuth: []
+        - ApiKeyAuth: []
+      summary: Update Balance
+      tags:
+        - Balances
+  /v2/organizations/{organization_id}/ledgers/{ledger_id}/balances/{balance_id}/history:
+    get:
+      operationId: getBalanceAtTimestampV2
+      parameters:
+        - description: Organization ID (UUID)
+          in: path
+          name: organization_id
+          required: true
+          schema:
+            description: Organization ID (UUID)
+            type: string
+        - description: Ledger ID (UUID)
+          in: path
+          name: ledger_id
+          required: true
+          schema:
+            description: Ledger ID (UUID)
+            type: string
+        - description: Balance ID (UUID)
+          in: path
+          name: balance_id
+          required: true
+          schema:
+            description: Balance ID (UUID)
+            type: string
+        - description: "Point in time (format: yyyy-mm-dd hh:mm:ss)"
+          explode: false
+          in: query
+          name: date
+          schema:
+            description: "Point in time (format: yyyy-mm-dd hh:mm:ss)"
+            type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BalanceHistory"
+          description: OK
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Error
+      security:
+        - BearerAuth: []
+        - ApiKeyAuth: []
+      summary: Get Balance history at date
+      tags:
+        - Balances
   /v2/organizations/{organization_id}/ledgers/{ledger_id}/billing-packages:
     get:
       operationId: getAllBillingPackagesV2
