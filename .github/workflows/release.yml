@@ -20,7 +20,9 @@ jobs:
   # gitops_yaml_key_mappings below.
   dockerhub-visibility:
     uses: ./.github/workflows/dockerhub-visibility.yml
-    secrets: inherit
+    secrets:
+      DOCKER_USERNAME: ${{ secrets.DOCKER_USERNAME }}
+      DOCKERHUB_IMAGE_PUSH_TOKEN: ${{ secrets.DOCKERHUB_IMAGE_PUSH_TOKEN }}
 
   pipeline:
     needs: dockerhub-visibility

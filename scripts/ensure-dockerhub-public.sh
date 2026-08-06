@@ -30,23 +30,31 @@ ATTEMPTS=3
 : "${DOCKERHUB_TOKEN:?DOCKERHUB_TOKEN is required}"
 
 BODY=$(mktemp)
-trap 'rm -f "$BODY"' EXIT
+PAYLOAD_FILE=$(mktemp)
+trap 'rm -f "$BODY" "$PAYLOAD_FILE"' EXIT
 
 # hub_call <method> <url> [json-payload]
 # Writes the response body to $BODY, prints the HTTP status, and retries transport
-# errors and 5xx so a flaky Docker Hub cannot fail a release on its own.
+# errors and 5xx so a flaky Docker Hub cannot fail a release on its own. The payload
+# goes through a file so secrets (the login call) never appear on curl's argv, and
+# curl's exit code is captured separately: on a transport error curl already prints
+# "000" for %{http_code}, so appending a fallback would produce "000000" and dodge
+# the retry branch.
 hub_call() {
   local method="$1" url="$2" payload="${3:-}" status="" attempt=1
+  local args=(-sS -o "$BODY" -w '%{http_code}' --connect-timeout 10 --max-time 60 -X "$method")
+
+  if [ -n "${TOKEN:-}" ]; then
+    args+=(-H "Authorization: Bearer ${TOKEN}")
+  fi
+  if [ -n "$payload" ]; then
+    printf '%s' "$payload" >"$PAYLOAD_FILE"
+    args+=(-H 'Content-Type: application/json' -d "@${PAYLOAD_FILE}")
+  fi
 
   while [ "$attempt" -le "$ATTEMPTS" ]; do
-    if [ -n "$payload" ]; then
-      status=$(curl -sS -o "$BODY" -w '%{http_code}' -X "$method" \
-        -H "Authorization: Bearer ${TOKEN}" \
-        -H 'Content-Type: application/json' \
-        -d "$payload" "$url" </dev/null || echo "000")
-    else
-      status=$(curl -sS -o "$BODY" -w '%{http_code}' -X "$method" \
-        -H "Authorization: Bearer ${TOKEN}" "$url" </dev/null || echo "000")
+    if ! status=$(curl "${args[@]}" "$url" </dev/null); then
+      status="000"
     fi
 
     case "$status" in
@@ -70,12 +78,14 @@ if [ -z "$images" ]; then
   exit 1
 fi
 
-TOKEN=$(jq -n --arg u "$DOCKERHUB_USERNAME" --arg p "$DOCKERHUB_TOKEN" '{username: $u, password: $p}' |
-  curl -sS -X POST -H 'Content-Type: application/json' -d @- "${API}/users/login/" |
-  jq -r '.token // empty')
+# Login goes through hub_call so it gets the same retry and timeout policy as every
+# other request: a single 5xx or a stalled connection at login must not fail a release.
+login_payload=$(jq -n --arg u "$DOCKERHUB_USERNAME" --arg p "$DOCKERHUB_TOKEN" '{username: $u, password: $p}')
+status=$(hub_call POST "${API}/users/login/" "$login_payload")
+TOKEN=$(jq -r '.token // empty' "$BODY" 2>/dev/null || true)
 
-if [ -z "$TOKEN" ]; then
-  echo "error: Docker Hub login failed for ${DOCKERHUB_USERNAME}" >&2
+if [ "$status" != "200" ] || [ -z "$TOKEN" ]; then
+  echo "error: Docker Hub login failed for ${DOCKERHUB_USERNAME} (HTTP ${status})" >&2
   exit 1
 fi
 
@@ -89,17 +99,29 @@ while read -r image; do
 
   case "$status" in
     200)
-      if [ "$(jq -r '.is_private' "$BODY")" = "true" ]; then
-        status=$(hub_call PATCH "${API}/repositories/${repo}/" '{"is_private": false}')
-        if [ "$status" = "200" ]; then
-          echo "${repo}: was private, now public"
-        else
-          echo "error: ${repo}: could not make public (HTTP ${status})" >&2
+      # Only trust an explicit boolean. A missing field or a malformed body means the
+      # visibility was never confirmed, and this script's job is verification, so that
+      # must fail rather than pass as "already public". (Not `.is_private // "unknown"`:
+      # jq's // treats false as empty, which would flag every public repo as unknown.)
+      is_private=$(jq -r '.is_private | if type == "boolean" then tostring else "unknown" end' "$BODY" 2>/dev/null || echo "unknown")
+      case "$is_private" in
+        true)
+          status=$(hub_call PATCH "${API}/repositories/${repo}/" '{"is_private": false}')
+          if [ "$status" = "200" ]; then
+            echo "${repo}: was private, now public"
+          else
+            echo "error: ${repo}: could not make public (HTTP ${status})" >&2
+            failed=1
+          fi
+          ;;
+        false)
+          echo "${repo}: already public"
+          ;;
+        *)
+          echo "error: ${repo}: response did not report is_private" >&2
           failed=1
-        fi
-      else
-        echo "${repo}: already public"
-      fi
+          ;;
+      esac
       ;;
     404)
       payload=$(jq -n --arg ns "$NAMESPACE" --arg name "$image" \
