@@ -6,6 +6,7 @@ package in
 
 import (
 	"net/http"
+	"strings"
 	"testing"
 
 	"github.com/danielgtaylor/huma/v2"
@@ -115,5 +116,164 @@ func TestRegisterOrganizationV2Routes_NoDuplicateOperationIDs(t *testing.T) {
 
 			seen[operation.OperationID] = where
 		}
+	}
+}
+
+// orgJSONMediaType is the content type the organization ops publish their request and
+// response bodies under. The reuse invariant below is asserted only over these bodies.
+const orgJSONMediaType = "application/json"
+
+// orgOpBodyRefs projects an operation onto the component $refs its JSON request body and
+// its 2xx JSON response body name. A body Huma describes inline (the opaque RawBody
+// request schema the create/update ops carry) has no $ref, so its slot comes back "".
+// Returning the refs — not the schemas — is the point: reuse of a v1 Go type is observable
+// precisely as the v2 twin pointing at the SAME "#/components/schemas/<Name>" string.
+func orgOpBodyRefs(op *huma.Operation) (reqRef string, respRefs []string) {
+	if op.RequestBody != nil {
+		if media, ok := op.RequestBody.Content[orgJSONMediaType]; ok && media.Schema != nil {
+			reqRef = media.Schema.Ref
+		}
+	}
+
+	for status, resp := range op.Responses {
+		if !strings.HasPrefix(status, "2") {
+			continue
+		}
+
+		if media, ok := resp.Content[orgJSONMediaType]; ok && media.Schema != nil {
+			respRefs = append(respRefs, media.Schema.Ref)
+		}
+	}
+
+	return reqRef, respRefs
+}
+
+// orgReferencedComponents gathers the base component names ("#/components/schemas/" prefix
+// stripped) the organization ops name in their JSON bodies, read off the assembled document
+// so a rename of an org type is followed here automatically. It walks both /v1 and /v2
+// twins; a straight mirror names the identical set on each side.
+func orgReferencedComponents(paths map[string]*huma.PathItem) map[string]bool {
+	const refPrefix = "#/components/schemas/"
+
+	refs := make(map[string]bool)
+
+	collect := func(ref string) {
+		if name, ok := strings.CutPrefix(ref, refPrefix); ok {
+			refs[name] = true
+		}
+	}
+
+	for _, op := range orgV2Ops {
+		for _, prefix := range []string{"/v1", "/v2"} {
+			item, ok := paths[prefix+op.opPath]
+			if !ok {
+				continue
+			}
+
+			operation := operationForMethod(item, op.method)
+			if operation == nil {
+				continue
+			}
+
+			reqRef, respRefs := orgOpBodyRefs(operation)
+
+			collect(reqRef)
+
+			for _, r := range respRefs {
+				collect(r)
+			}
+		}
+	}
+
+	return refs
+}
+
+// TestRegisterOrganizationV2Routes_ReusesV1SchemaComponents proves the core correctness
+// claim of the straight-mirror approach: the /v2 org twin REUSES the v1 request/response
+// Go types, so Huma's registry dedups them to ONE schema component and the v2 op's body
+// $ref is byte-identical to the v1 op's. It reads the REAL unified document, the same
+// huma.API the served contract and the committed dump come from.
+//
+// Were a v2 twin to mint its own type for any body, its op would $ref a different (V2-named)
+// component and the equality below would turn red.
+func TestRegisterOrganizationV2Routes_ReusesV1SchemaComponents(t *testing.T) {
+	t.Parallel()
+
+	_, api := buildUnifiedHumaAPI()
+	paths := api.OpenAPI().Paths
+
+	// Guards the assertions below against vacuously passing on a document where every ref
+	// came back "": at least one org op must actually name a response-body component.
+	sawSharedResponseRef := false
+
+	for _, op := range orgV2Ops {
+		v1Item, ok := paths["/v1"+op.opPath]
+		require.Truef(t, ok, "the /v1 surface must publish the %s org op", op.action)
+
+		v2Item, ok := paths["/v2"+op.opPath]
+		require.Truef(t, ok, "the /v2 surface must publish the %s org op", op.action)
+
+		v1Op := operationForMethod(v1Item, op.method)
+		require.NotNilf(t, v1Op, "the v1 %s org op must carry a %s operation", op.action, op.method)
+
+		v2Op := operationForMethod(v2Item, op.method)
+		require.NotNilf(t, v2Op, "the v2 %s org op must carry a %s operation", op.action, op.method)
+
+		v1Req, v1Resp := orgOpBodyRefs(v1Op)
+		v2Req, v2Resp := orgOpBodyRefs(v2Op)
+
+		assert.Equalf(t, v1Req, v2Req,
+			"the v2 %s org op must name the SAME request-body schema as v1 (a straight mirror mints no new request type)", op.action)
+		assert.ElementsMatchf(t, v1Resp, v2Resp,
+			"the v2 %s org op must name the SAME response-body component(s) as v1 (Huma dedups the reused Go type to one schema)", op.action)
+
+		for _, ref := range v2Resp {
+			if ref == "" {
+				continue
+			}
+
+			sawSharedResponseRef = true
+
+			assert.Falsef(t, strings.HasSuffix(ref, orgV2OperationSuffix),
+				"the v2 %s org op response ref %q must not name a %s-suffixed component — the v1 type is reused, not re-minted",
+				op.action, ref, orgV2OperationSuffix)
+		}
+	}
+
+	require.True(t, sawSharedResponseRef,
+		"at least one org op must reference a response-body component, or the reuse claim is vacuous")
+}
+
+// TestRegisterOrganizationV2Routes_MintsNoV2SchemaComponents guards against accidental
+// new-type creation for the straight mirror: no organization schema component may carry the
+// version suffix. TransactionV2 is a legitimate component (transaction v2 is NOT a straight
+// mirror and DOES introduce its own types); the organization mirror must add no such twin.
+func TestRegisterOrganizationV2Routes_MintsNoV2SchemaComponents(t *testing.T) {
+	t.Parallel()
+
+	_, api := buildUnifiedHumaAPI()
+	doc := api.OpenAPI()
+	schemas := doc.Components.Schemas.Map()
+
+	// The components the org ops actually name, gathered from the assembled document rather
+	// than hardcoded, so a renamed org type is followed here. The reused v1 type is
+	// registered ONCE, so the suffixed twin of each must be absent.
+	referenced := orgReferencedComponents(doc.Paths)
+	require.Containsf(t, referenced, "Organization",
+		"the org ops must reference the Organization body component, or this test guards nothing")
+
+	for name := range referenced {
+		assert.NotContainsf(t, schemas, name+orgV2OperationSuffix,
+			"no %s twin of the reused org body component %q may be minted", orgV2OperationSuffix, name)
+	}
+
+	// The document-wide guard: no organization-named schema carries the V2 suffix.
+	for name := range schemas {
+		if !strings.HasPrefix(name, "Organization") {
+			continue
+		}
+
+		assert.Falsef(t, strings.HasSuffix(name, orgV2OperationSuffix),
+			"no organization schema component may carry the %s suffix; found %q", orgV2OperationSuffix, name)
 	}
 }
