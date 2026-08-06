@@ -426,6 +426,24 @@ mirror_check() {
         fi
     done
 
+    # Symmetric published-side guard: a whole published component dir with no
+    # PARITY_DUMPS entry is never opened by the per-component loop below, so its
+    # per-file orphan check never runs and it passes by absence. Glob the published
+    # component dirs and fail on any not belonging to a scanned component. (Trailing
+    # slash matches only directories, so the top-level midaz.openapi.{yaml,json}
+    # hub files are not mistaken for components.)
+    local pub pub_comp
+    shopt -s nullglob
+    local pub_dirs=( "${ROOT_DIR}"/postman/specs/*/ )
+    shopt -u nullglob
+    for pub in ${pub_dirs[@]+"${pub_dirs[@]}"}; do
+        pub_comp="${pub#"${ROOT_DIR}/postman/specs/"}"
+        pub_comp="${pub_comp%%/*}"
+        if [[ "${components_hay}" != *" ${pub_comp} "* ]]; then
+            fail "Published dir 'postman/specs/${pub_comp}' belongs to component '${pub_comp}', which is absent from PARITY_DUMPS (orphan published component). Add it or remove the dir."
+        fi
+    done
+
     local compared=0 base
     for comp in "${components[@]}"; do
         local src_dir="${ROOT_DIR}/components/${comp}/api"

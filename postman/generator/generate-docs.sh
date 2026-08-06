@@ -245,20 +245,56 @@ consolidate_openapi() {
         return 1
     fi
 
-    # 4b. Membership count guard. A join_inputs list that silently dropped a member
-    #     still produces a valid, smaller document that every other check passes.
-    #     Pin the exact surface: 116 path keys and 177 operations across all inputs.
-    local expected_paths=116 expected_ops=177
-    local actual_paths actual_ops
-    actual_paths="$(jq '.paths | length' "${consolidated_json}")"
-    actual_ops="$(jq '[.paths[] | to_entries[]
-        | select(.key | test("^(get|post|put|patch|delete|head|options|trace)$"))]
-        | length' "${consolidated_json}")"
-    if [ "${actual_paths}" != "${expected_paths}" ] || [ "${actual_ops}" != "${expected_ops}" ]; then
+    # 4b. Membership guard (derived, not a brittle literal). A join that silently loses
+    #     a member — a dropped join_inputs entry, or a derivation that drops path keys —
+    #     still produces a valid, smaller document every other check passes. A hardcoded
+    #     count instead fails on any legitimate route change while misdirecting with a
+    #     "dropped member" message. So derive the expected surface from the two required
+    #     members' SOURCE dumps and assert each member's contribution to the hub is
+    #     whole:
+    #       - expected counts come from the committed dumps (ledger dump + the ORIGINAL
+    #         tracer dump), NOT the derived tracer input — deriving from the intermediate
+    #         would move in lockstep with a buggy derivation and hide a partial loss;
+    #       - the hub partitions cleanly because the tracer keys are /v1-prefixed and
+    #         disjoint from ledger's, so hub keys also present in the ledger dump are
+    #         ledger's contribution and everything else is the tracer input's.
+    #     A dropped or partially-lost member then fails the per-member "contributed X of
+    #     Y" check, while a normal route addition simply moves the derived totals.
+    if ! (cd "${ROOT_DIR}" && NODE_PATH="${GENERATOR_DIR}/node_modules" node -e '
+        const yaml = require("js-yaml");
+        const fs = require("fs");
+        const pathKeys = f => Object.keys((yaml.load(fs.readFileSync(f, "utf8")) || {}).paths || {});
+        const hub = JSON.parse(fs.readFileSync("postman/specs/midaz.openapi.json", "utf8"));
+        const hubKeys = Object.keys(hub.paths || {});
+
+        const ledgerKeys = new Set(pathKeys(process.argv[1]));
+        const expectedLedger = ledgerKeys.size;
+        const expectedTracer = pathKeys(process.argv[2]).length;
+
+        const ledgerActual = hubKeys.filter(k => ledgerKeys.has(k)).length;
+        const tracerActual = hubKeys.length - ledgerActual;
+
+        const problems = [];
+        if (ledgerActual !== expectedLedger) {
+            problems.push("ledger contributed " + ledgerActual + " of " + expectedLedger + " path keys");
+        }
+        if (tracerActual !== expectedTracer) {
+            problems.push("tracer contributed " + tracerActual + " of " + expectedTracer + " path keys");
+        }
+        if (problems.length > 0) {
+            console.error("Consolidated hub is missing a join input contribution: " + problems.join("; ") + ". A join input was likely dropped or partially lost.");
+            process.exit(1);
+        }
+
+        const expectedTotal = expectedLedger + expectedTracer;
+        if (hubKeys.length !== expectedTotal) {
+            console.error("Consolidated path-key count mismatch: hub has " + hubKeys.length + ", join inputs sum to " + expectedTotal + ".");
+            process.exit(1);
+        }
+    ' components/ledger/api/openapi.huma.yaml "${tracer_dump}" 2>"${err_log}"); then
         print_step "Consolidate OpenAPI specs" "FAILED"
         echo -e "      ${RED}Error details:${NC}"
-        echo "        Consolidated surface count mismatch: got ${actual_paths} paths / ${actual_ops} operations,"
-        echo "        expected ${expected_paths} paths / ${expected_ops} operations. A join input was likely dropped."
+        head -5 "${err_log}" | sed 's/^/        /'
         return 1
     fi
 

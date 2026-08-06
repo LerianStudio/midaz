@@ -367,12 +367,18 @@ function lookupDependencies(method, path) {
 }
 
 /**
- * Emit a stderr warning for every DEPENDENCY_MAP key that matched no processed
+ * Emit a stdout warning for every DEPENDENCY_MAP key that matched no processed
  * operation. A silently-unmatched key is dead configuration: it adds neither a
  * dependency check nor a variable extraction, and a whole map of such keys once
  * no-opped undetected. The map describes the ledger surface, so only report while
  * converting that component to avoid flagging every key against components the map was
  * never meant to cover.
+ *
+ * The report goes to stdout, not stderr: sync-postman.sh captures the converter's
+ * stderr into a temp file and prints it only when the conversion FAILS, so a warning
+ * on a SUCCESSFUL run would be written there and dropped — the exact silent no-op this
+ * guard exists to prevent. stdout is not swallowed, so the warning reaches the console
+ * on success. An unmatched key is a warning, never a build failure.
  */
 function reportUnmatchedDependencyKeys() {
   if (COMPONENT !== 'ledger') {
@@ -386,11 +392,11 @@ function reportUnmatchedDependencyKeys() {
     return;
   }
 
-  console.error(
+  console.log(
     `Warning: ${unmatched.length} DEPENDENCY_MAP key(s) matched no operation in the ` +
     `${COMPONENT} surface (dead entries — they add no dependency check or variable extraction):`
   );
-  unmatched.forEach(key => console.error(`  - ${key}`));
+  unmatched.forEach(key => console.log(`  - ${key}`));
 }
 
 /**
