@@ -224,6 +224,12 @@ func (r *AssetPostgreSQLRepository) FindByNameOrCode(ctx context.Context, organi
 		return true, err
 	}
 
+	if err := rows.Err(); err != nil {
+		libOpentelemetry.HandleSpanError(span, "Failed to iterate rows", err)
+
+		return false, err
+	}
+
 	return false, nil
 }
 
