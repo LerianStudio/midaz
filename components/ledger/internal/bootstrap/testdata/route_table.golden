@@ -48,6 +48,7 @@ DELETE	/v2/organizations/:organization_id/ledgers/:ledger_id/billing-packages/:i
 DELETE	/v2/organizations/:organization_id/ledgers/:ledger_id/billing-packages/:id	1
 DELETE	/v2/organizations/:organization_id/ledgers/:ledger_id/packages/:id	3
 DELETE	/v2/organizations/:organization_id/ledgers/:ledger_id/packages/:id	1
+DELETE	/v2/organizations/:organization_id/ledgers/:ledger_id/portfolios/:id	4
 GET	/health	1
 GET	/readyz	1
 GET	/v1/organizations	2
@@ -170,6 +171,10 @@ GET	/v2/organizations/:organization_id/ledgers/:ledger_id/packages	3
 GET	/v2/organizations/:organization_id/ledgers/:ledger_id/packages	1
 GET	/v2/organizations/:organization_id/ledgers/:ledger_id/packages/:id	3
 GET	/v2/organizations/:organization_id/ledgers/:ledger_id/packages/:id	1
+GET	/v2/organizations/:organization_id/ledgers/:ledger_id/portfolios	3
+GET	/v2/organizations/:organization_id/ledgers/:ledger_id/portfolios	1
+GET	/v2/organizations/:organization_id/ledgers/:ledger_id/portfolios/:id	3
+GET	/v2/organizations/:organization_id/ledgers/:ledger_id/portfolios/:id	1
 GET	/v2/organizations/:organization_id/ledgers/:ledger_id/settings	3
 GET	/v2/organizations/:organization_id/ledgers/:ledger_id/settings	1
 GET	/v2/organizations/:organization_id/protection/audit	4
@@ -182,6 +187,7 @@ HEAD	/v1/organizations/:organization_id/ledgers/:ledger_id/transactions/metrics/
 HEAD	/v1/organizations/:organization_id/ledgers/metrics/count	4
 HEAD	/v1/organizations/metrics/count	3
 HEAD	/v2/organizations/:organization_id/ledgers/:ledger_id/assets/metrics/count	4
+HEAD	/v2/organizations/:organization_id/ledgers/:ledger_id/portfolios/metrics/count	4
 HEAD	/v2/organizations/:organization_id/ledgers/metrics/count	4
 HEAD	/v2/organizations/metrics/count	3
 PATCH	/v1/organizations/:id	4
@@ -216,6 +222,7 @@ PATCH	/v2/organizations/:organization_id/ledgers/:ledger_id/billing-packages/:id
 PATCH	/v2/organizations/:organization_id/ledgers/:ledger_id/billing-packages/:id	1
 PATCH	/v2/organizations/:organization_id/ledgers/:ledger_id/packages/:id	3
 PATCH	/v2/organizations/:organization_id/ledgers/:ledger_id/packages/:id	1
+PATCH	/v2/organizations/:organization_id/ledgers/:ledger_id/portfolios/:id	4
 PATCH	/v2/organizations/:organization_id/ledgers/:ledger_id/settings	3
 PATCH	/v2/organizations/:organization_id/ledgers/:ledger_id/settings	1
 POST	/v1/organizations	3
@@ -274,6 +281,7 @@ POST	/v2/organizations/:organization_id/ledgers/:ledger_id/estimates	3
 POST	/v2/organizations/:organization_id/ledgers/:ledger_id/estimates	1
 POST	/v2/organizations/:organization_id/ledgers/:ledger_id/packages	3
 POST	/v2/organizations/:organization_id/ledgers/:ledger_id/packages	1
+POST	/v2/organizations/:organization_id/ledgers/:ledger_id/portfolios	4
 POST	/v2/organizations/:organization_id/ledgers/:ledger_id/transactions/:transaction_id/cancel	3
 POST	/v2/organizations/:organization_id/ledgers/:ledger_id/transactions/:transaction_id/cancel	1
 POST	/v2/organizations/:organization_id/ledgers/:ledger_id/transactions/:transaction_id/commit	3
