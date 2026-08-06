@@ -29,6 +29,7 @@ DELETE	/v2/organizations/:organization_id/holders/:holder_id/instruments/:instru
 DELETE	/v2/organizations/:organization_id/holders/:holder_id/instruments/:instrument_id/related-parties/:related_party_id	crm
 DELETE	/v2/organizations/:organization_id/holders/:id	crm
 DELETE	/v2/organizations/:organization_id/ledgers/:ledger_id	onboarding
+DELETE	/v2/organizations/:organization_id/ledgers/:ledger_id/account-types/:id	onboarding
 DELETE	/v2/organizations/:organization_id/ledgers/:ledger_id/billing-packages/:id	fees
 DELETE	/v2/organizations/:organization_id/ledgers/:ledger_id/packages/:id	fees
 GET	/v1/organizations	onboarding
@@ -87,6 +88,8 @@ GET	/v2/organizations/:organization_id/holders/:id/accounts	crm
 GET	/v2/organizations/:organization_id/instruments	crm
 GET	/v2/organizations/:organization_id/ledgers	onboarding
 GET	/v2/organizations/:organization_id/ledgers/:ledger_id	onboarding
+GET	/v2/organizations/:organization_id/ledgers/:ledger_id/account-types	onboarding
+GET	/v2/organizations/:organization_id/ledgers/:ledger_id/account-types/:id	onboarding
 GET	/v2/organizations/:organization_id/ledgers/:ledger_id/billing-packages	fees
 GET	/v2/organizations/:organization_id/ledgers/:ledger_id/billing-packages/:id	fees
 GET	/v2/organizations/:organization_id/ledgers/:ledger_id/packages	fees
@@ -123,6 +126,7 @@ PATCH	/v2/organizations/:id	onboarding
 PATCH	/v2/organizations/:organization_id/holders/:holder_id/instruments/:instrument_id	crm
 PATCH	/v2/organizations/:organization_id/holders/:id	crm
 PATCH	/v2/organizations/:organization_id/ledgers/:ledger_id	onboarding
+PATCH	/v2/organizations/:organization_id/ledgers/:ledger_id/account-types/:id	onboarding
 PATCH	/v2/organizations/:organization_id/ledgers/:ledger_id/billing-packages/:id	fees
 PATCH	/v2/organizations/:organization_id/ledgers/:ledger_id/packages/:id	fees
 PATCH	/v2/organizations/:organization_id/ledgers/:ledger_id/settings	onboarding
@@ -159,6 +163,7 @@ POST	/v2/organizations/:organization_id/encryption/provision	crm
 POST	/v2/organizations/:organization_id/holders	crm
 POST	/v2/organizations/:organization_id/holders/:holder_id/instruments	crm
 POST	/v2/organizations/:organization_id/ledgers	onboarding
+POST	/v2/organizations/:organization_id/ledgers/:ledger_id/account-types	onboarding
 POST	/v2/organizations/:organization_id/ledgers/:ledger_id/billing-packages	fees
 POST	/v2/organizations/:organization_id/ledgers/:ledger_id/billing/calculate	fees
 POST	/v2/organizations/:organization_id/ledgers/:ledger_id/estimates	fees
