@@ -172,6 +172,8 @@ func TestSendActiveAccountBillingEvents(t *testing.T) {
 
 	tests := []struct {
 		name           string
+		ctx            context.Context
+		cancelCtx      bool
 		tran           *transaction.Transaction
 		phase          string
 		withStreaming  bool
@@ -182,6 +184,7 @@ func TestSendActiveAccountBillingEvents(t *testing.T) {
 	}{
 		{
 			name:           "two unique internal accounts emit two events",
+			ctx:            context.Background(),
 			tran:           approvedTwo,
 			phase:          TransactionLifecyclePhaseCreated,
 			withStreaming:  true,
@@ -190,6 +193,7 @@ func TestSendActiveAccountBillingEvents(t *testing.T) {
 		},
 		{
 			name:           "noop phase emits nothing even when approved",
+			ctx:            context.Background(),
 			tran:           approvedTwo,
 			phase:          TransactionLifecyclePhaseNoop,
 			withStreaming:  true,
@@ -198,6 +202,7 @@ func TestSendActiveAccountBillingEvents(t *testing.T) {
 		},
 		{
 			name:           "emitter error is swallowed and nothing captured",
+			ctx:            context.Background(),
 			tran:           approvedTwo,
 			phase:          TransactionLifecyclePhaseCreated,
 			withStreaming:  true,
@@ -207,6 +212,7 @@ func TestSendActiveAccountBillingEvents(t *testing.T) {
 		},
 		{
 			name:           "serializer error skips emit",
+			ctx:            context.Background(),
 			tran:           approvedTwo,
 			phase:          TransactionLifecyclePhaseCreated,
 			withStreaming:  true,
@@ -216,6 +222,7 @@ func TestSendActiveAccountBillingEvents(t *testing.T) {
 		},
 		{
 			name:           "nil serializer is a clean no-op",
+			ctx:            context.Background(),
 			tran:           approvedTwo,
 			phase:          TransactionLifecyclePhaseCreated,
 			withStreaming:  true,
@@ -224,6 +231,7 @@ func TestSendActiveAccountBillingEvents(t *testing.T) {
 		},
 		{
 			name:           "nil streaming is a clean no-op",
+			ctx:            context.Background(),
 			tran:           approvedTwo,
 			phase:          TransactionLifecyclePhaseCreated,
 			withStreaming:  false,
@@ -232,6 +240,7 @@ func TestSendActiveAccountBillingEvents(t *testing.T) {
 		},
 		{
 			name:           "non-approved transaction emits nothing",
+			ctx:            context.Background(),
 			tran:           newBillingTransaction(txID, constant.PENDING, &operation.Operation{AccountID: accA, AccountAlias: "@person1"}),
 			phase:          TransactionLifecyclePhaseCreated,
 			withStreaming:  true,
@@ -240,7 +249,18 @@ func TestSendActiveAccountBillingEvents(t *testing.T) {
 		},
 		{
 			name:           "nil transaction is a clean no-op",
+			ctx:            context.Background(),
 			tran:           nil,
+			phase:          TransactionLifecyclePhaseCreated,
+			withStreaming:  true,
+			withSerializer: true,
+			wantSubjects:   nil,
+		},
+		{
+			name:           "canceled context emits nothing before build or emit",
+			ctx:            context.Background(),
+			cancelCtx:      true,
+			tran:           approvedTwo,
 			phase:          TransactionLifecyclePhaseCreated,
 			withStreaming:  true,
 			withSerializer: true,
@@ -267,8 +287,17 @@ func TestSendActiveAccountBillingEvents(t *testing.T) {
 				uc.BillingSerializer = fakeSerializer{raw: fakeBytes, err: tt.serializeErr}
 			}
 
+			// Build the canceled context per-run so parallel subtests never
+			// share one; a canceled context is deterministic (no time.Now()).
+			callCtx := tt.ctx
+			if tt.cancelCtx {
+				var cancel context.CancelFunc
+				callCtx, cancel = context.WithCancel(tt.ctx)
+				cancel()
+			}
+
 			require.NotPanics(t, func() {
-				uc.SendActiveAccountBillingEvents(context.Background(), tt.tran, tt.phase)
+				uc.SendActiveAccountBillingEvents(callCtx, tt.tran, tt.phase)
 			})
 
 			if mockEmitter == nil {

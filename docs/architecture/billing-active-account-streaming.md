@@ -48,6 +48,15 @@ leading `0x00` magic byte plus the schema ID, then the Protobuf body. Billing do
 `ToEmitRequest` / `EmitImportant` JSON path that the domain events use; it emits raw Protobuf bytes
 directly through the `Emitter` seam.
 
+> **Approved exception to the "IMPORTANT direct-emits go through `EmitImportant`" convention.**
+> Billing intentionally calls `Emitter.Emit` directly with a raw Confluent-Protobuf `Payload` rather
+> than routing through `pkgStreaming.EmitImportant` / `ToEmitRequest` (the JSON CloudEvents path),
+> because billable events are raw Protobuf and cannot use the JSON payload builder. The IMPORTANT-posture
+> mechanics that `EmitImportant` normally provides — a bounded per-emit context, span-error recording,
+> warn-and-swallow on failure, and the nil-emitter/nil-serializer guard — are provided **inline at the
+> emit site** in `SendActiveAccountBillingEvents` / `emitActiveAccountBillingEvent`
+> (`billing_active_account.go`). This is a reviewed, deliberate exception, not an oversight.
+
 ### Topic and CloudEvents envelope
 
 All active-account events land on a single shared topic:
@@ -98,6 +107,12 @@ app** — the service boots and serves normally with billing off.
 empty) is rejected fail-closed by `NewSchemaRegistryClient`, which disables billing rather than
 connecting half-authenticated. The password is **never logged**.
 
+**Use HTTPS when credentials are set.** When `USERNAME`/`PASSWORD` are supplied, point
+`STREAMING_SCHEMA_REGISTRY_URL` at an `https://` endpoint. Basic-auth credentials sent over plaintext
+`http://` are exposed on the wire; lib-streaming surfaces a warning for cleartext credentials. Plain
+`http://` is acceptable only for an unauthenticated local registry (e.g. compose Redpanda) with no
+credentials set.
+
 ### Local vs deployed
 
 - **Local (compose):** point the URL at Redpanda's built-in Schema Registry, which listens on `:8081`:
@@ -114,19 +129,31 @@ connecting half-authenticated. The password is **never logged**.
 
 Billing readiness is decided **once at bootstrap** and surfaced in the boot log.
 `buildBillingSerializer` (`streaming.go`) resolves — and on first run self-registers — the schema
-subject `lerian.streaming.billing.recorded-value`, then injects the serializer. Every failure branch
-(streaming disabled, context canceled, empty URL or partial credentials, registry round-trip failure)
-degrades to a **nil serializer** and emits exactly one WARN through `warnBillingDisabled`:
+subject `lerian.streaming.billing.recorded-value`, then injects the serializer.
+
+Two distinct outcomes leave billing off, and only one of them logs:
+
+- **Streaming disabled** (`STREAMING_ENABLED=false`, i.e. `cfg.Enabled` is false):
+  `buildBillingSerializer` returns a **nil serializer silently** — no `warnBillingDisabled` call, so
+  **no WARN is emitted**. Billing is simply not wired because streaming itself is off.
+- **Streaming on but the registry failed** (context canceled, empty URL or partial credentials,
+  registry round-trip failure): the branch degrades to a **nil serializer** and emits exactly one WARN
+  through `warnBillingDisabled`:
 
 ```
 WARN  Billing serializer disabled  billing_enabled=false  error=<cause>
 ```
 
+The `billing_enabled=false` WARN therefore specifically means **streaming is on but the Schema
+Registry could not be wired** — it is not the signal for "streaming disabled".
+
 **The check.** Grep the boot log for `billing_enabled`:
 
-- The `Billing serializer disabled` WARN with `billing_enabled=false` is present ⇒ **billing is off**.
-  Read the attached `error` and re-check the registry URL and its reachability.
-- A clean boot with billing **on** has **no** `Billing serializer disabled` line at all.
+- The `Billing serializer disabled` WARN with `billing_enabled=false` is present ⇒ **streaming is on
+  but the registry failed**, so billing is off. Read the attached `error` and re-check the registry
+  URL and its reachability.
+- No `Billing serializer disabled` line means either billing booted **on** cleanly, **or** streaming
+  is disabled entirely (no WARN in that case). Confirm `STREAMING_ENABLED` to tell the two apart.
 
 **Asymmetric dependency.** The Schema Registry is needed **at boot only**. Once the serializer
 resolves the schema, `Serialize` and `Emit` do **no** registry I/O on the request path — a registry
