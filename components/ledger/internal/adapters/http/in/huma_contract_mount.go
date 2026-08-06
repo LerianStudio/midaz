@@ -149,10 +149,10 @@ func (d HumaMountDeps) registerWave3(group fiber.Router, api huma.API) {
 // type is a deliberate boot panic in mapRegistry.Schema — distinct wire shapes MUST
 // carry distinct schema names.
 //
-// The six onboarding families — organizations, ledgers, portfolios, segments,
-// account-types, assets — carry OnboardingOptions and reuse the same authz tuples and
-// tenant chain as their v1 twins; they are straight mirrors, additive over v1, with no
-// new policy surface. account-types is the one nuance: it authorizes against the
+// The seven onboarding families — organizations, ledgers, portfolios, segments,
+// accounts, account-types, assets — carry OnboardingOptions and reuse the same authz
+// tuples and tenant chain as their v1 twins; they are straight mirrors, additive over v1,
+// with no new policy surface. account-types is the one nuance: it authorizes against the
 // "routing" appName (protectedRouting), NOT "midaz", exactly as on v1 (see
 // registerWave1 / registerAccountTypeRoutesToApp).
 //
@@ -170,6 +170,7 @@ func (d HumaMountDeps) MountV2(group fiber.Router, api huma.API) {
 	RegisterLedgerV2RoutesToApp(group, api, d.Auth, d.Ledger, d.OnboardingOptions)
 	RegisterPortfolioV2RoutesToApp(group, api, d.Auth, d.Portfolio, d.OnboardingOptions)
 	RegisterSegmentV2RoutesToApp(group, api, d.Auth, d.Segment, d.OnboardingOptions)
+	RegisterAccountV2RoutesToApp(group, api, d.Auth, d.Account, d.OnboardingOptions)
 	RegisterAccountTypeV2RoutesToApp(group, api, d.Auth, d.AccountType, d.OnboardingOptions)
 	RegisterAssetV2RoutesToApp(group, api, d.Auth, d.Asset, d.OnboardingOptions)
 	RegisterTransactionV2RoutesToApp(group, api, d.Auth, d.Transaction, d.TransactionOptions)

@@ -361,11 +361,15 @@ func (handler *AccountHandler) CountAccountsHuma(ctx context.Context, in *CountA
 }
 
 // RegisterAccountRoutes registers the eight migrated account operations on the
-// shared Huma API. Paths are GROUP-RELATIVE (the Huma API is bound to the /v1 Fiber
-// group; the /v1 prefix rides the OpenAPI `servers` entry). The auth + tenant +
-// ParseUUIDPathParameters chain is attached in RegisterAccountRoutesToApp
-// (Fiber-level) BEFORE the Huma terminals, not here.
-func RegisterAccountRoutes(api huma.API, h *AccountHandler) {
+// shared Huma API. Paths are GROUP-RELATIVE (the Huma API is bound to a versioned Fiber
+// group, so the humafiber adapter registers on that group and Fiber prepends the version
+// prefix). The auth + tenant + ParseUUIDPathParameters chain is attached in
+// registerAccountRoutesToApp (Fiber-level) BEFORE the Huma terminals, not here.
+//
+// opSuffix distinguishes the operation IDs one version group publishes from another's —
+// see routeOpSuffixV1. A straight v1/v2 mirror reuses the same handler methods and the
+// same input/output types, so only the operation IDs differ between the twins.
+func RegisterAccountRoutes(api huma.API, h *AccountHandler, opSuffix string) {
 	const (
 		listPath     = "/organizations/{organization_id}/ledgers/{ledger_id}/accounts"
 		idPath       = listPath + "/{id}"
@@ -376,7 +380,7 @@ func RegisterAccountRoutes(api huma.API, h *AccountHandler) {
 	)
 
 	huma.Register(api, huma.Operation{
-		OperationID:      "createAccount",
+		OperationID:      "createAccount" + opSuffix,
 		Method:           http.MethodPost,
 		Path:             listPath,
 		Summary:          "Create a new account",
@@ -387,7 +391,7 @@ func RegisterAccountRoutes(api huma.API, h *AccountHandler) {
 	}, h.CreateAccountHuma)
 
 	huma.Register(api, huma.Operation{
-		OperationID: "listAccounts",
+		OperationID: "listAccounts" + opSuffix,
 		Method:      http.MethodGet,
 		Path:        listPath,
 		Summary:     "List all accounts",
@@ -396,7 +400,7 @@ func RegisterAccountRoutes(api huma.API, h *AccountHandler) {
 	}, h.ListAccountsHuma)
 
 	huma.Register(api, huma.Operation{
-		OperationID: "getAccountByID",
+		OperationID: "getAccountByID" + opSuffix,
 		Method:      http.MethodGet,
 		Path:        idPath,
 		Summary:     "Retrieve a specific account",
@@ -405,7 +409,7 @@ func RegisterAccountRoutes(api huma.API, h *AccountHandler) {
 	}, h.GetAccountByIDHuma)
 
 	huma.Register(api, huma.Operation{
-		OperationID: "getAccountByAlias",
+		OperationID: "getAccountByAlias" + opSuffix,
 		Method:      http.MethodGet,
 		Path:        aliasPath,
 		Summary:     "Retrieve an account by alias",
@@ -414,7 +418,7 @@ func RegisterAccountRoutes(api huma.API, h *AccountHandler) {
 	}, h.GetAccountByAliasHuma)
 
 	huma.Register(api, huma.Operation{
-		OperationID: "getAccountExternalByCode",
+		OperationID: "getAccountExternalByCode" + opSuffix,
 		Method:      http.MethodGet,
 		Path:        externalPath,
 		Summary:     "Retrieve an account by external code",
@@ -423,7 +427,7 @@ func RegisterAccountRoutes(api huma.API, h *AccountHandler) {
 	}, h.GetAccountExternalByCodeHuma)
 
 	huma.Register(api, huma.Operation{
-		OperationID:      "updateAccount",
+		OperationID:      "updateAccount" + opSuffix,
 		Method:           http.MethodPatch,
 		Path:             idPath,
 		Summary:          "Update an account",
@@ -433,7 +437,7 @@ func RegisterAccountRoutes(api huma.API, h *AccountHandler) {
 	}, h.UpdateAccountHuma)
 
 	huma.Register(api, huma.Operation{
-		OperationID:   "deleteAccount",
+		OperationID:   "deleteAccount" + opSuffix,
 		Method:        http.MethodDelete,
 		Path:          idPath,
 		Summary:       "Delete an account",
@@ -443,7 +447,7 @@ func RegisterAccountRoutes(api huma.API, h *AccountHandler) {
 	}, h.DeleteAccountByIDHuma)
 
 	huma.Register(api, huma.Operation{
-		OperationID:   "countAccounts",
+		OperationID:   "countAccounts" + opSuffix,
 		Method:        http.MethodHead,
 		Path:          countPath,
 		Summary:       "Count accounts",
@@ -453,17 +457,34 @@ func RegisterAccountRoutes(api huma.API, h *AccountHandler) {
 	}, h.CountAccountsHuma)
 }
 
-// RegisterAccountRoutesToApp wires the Huma-migrated account resource, mirroring
-// RegisterAssetRoutesToApp / RegisterPortfolioRoutesToApp. For each of the eight ops
-// it attaches the Fiber auth chain — protectedMidaz(auth,"accounts",verb) (=
-// auth.Authorize("midaz","accounts",verb) + tenant PostAuthMiddlewares) +
-// ParseUUIDPathParameters("account") — as MIDDLEWARE ONLY (no terminal) on the /v1
-// GROUP with GROUP-RELATIVE paths, then registers the Huma terminals via
-// RegisterAccountRoutes on the SAME group's Huma API. This preserves the pre-Huma
-// (accounts, verb) authz tuples and tenant resolution BYTE-FOR-BYTE — no account
-// route becomes public. Called from the unified server's humaMount seam
-// (integration task), NOT from routes.go.
+// RegisterAccountRoutesToApp wires the Huma-migrated account surface onto the /v1
+// contract. See registerAccountRoutesToApp for what it attaches.
 func RegisterAccountRoutesToApp(group fiber.Router, api huma.API, auth *middleware.AuthClient, h *AccountHandler, routeOptions *pkgHTTP.ProtectedRouteOptions) {
+	registerAccountRoutesToApp(group, api, auth, h, routeOptions, routeOpSuffixV1)
+}
+
+// RegisterAccountV2RoutesToApp wires the same account surface onto the /v2 contract: same
+// paths, same handlers, same authz tuples and tenant chain, differing only in the operation
+// IDs the contract publishes. It is additive — /v1 keeps serving accounts in parallel — and
+// introduces no new policy surface.
+func RegisterAccountV2RoutesToApp(group fiber.Router, api huma.API, auth *middleware.AuthClient, h *AccountHandler, routeOptions *pkgHTTP.ProtectedRouteOptions) {
+	registerAccountRoutesToApp(group, api, auth, h, routeOptions, routeOpSuffixV2)
+}
+
+// registerAccountRoutesToApp is the single description of the account route surface, shared
+// by every versioned contract that serves it, mirroring RegisterAssetRoutesToApp /
+// RegisterPortfolioRoutesToApp. For each of the eight ops it attaches the Fiber auth chain —
+// protectedMidaz(auth,"accounts",verb) (= auth.Authorize("midaz","accounts",verb) + tenant
+// PostAuthMiddlewares) + ParseUUIDPathParameters("account") — as MIDDLEWARE ONLY (no
+// terminal) on the VERSIONED GROUP with GROUP-RELATIVE paths, then registers the Huma
+// terminals via RegisterAccountRoutes on the SAME group's Huma API. This preserves the
+// pre-Huma (accounts, verb) authz tuples and tenant resolution BYTE-FOR-BYTE on whichever
+// version group it is mounted on — no account route becomes public.
+//
+// opSuffix distinguishes the operation IDs one version group publishes from another's —
+// see routeOpSuffixV1. Nothing else varies between contracts, so a change to the surface
+// reaches every version it is mounted on.
+func registerAccountRoutesToApp(group fiber.Router, api huma.API, auth *middleware.AuthClient, h *AccountHandler, routeOptions *pkgHTTP.ProtectedRouteOptions, opSuffix string) {
 	const (
 		listPath     = "/organizations/:organization_id/ledgers/:ledger_id/accounts"
 		idPath       = listPath + "/:id"
@@ -483,5 +504,5 @@ func RegisterAccountRoutesToApp(group fiber.Router, api huma.API, auth *middlewa
 	routeDelete(group, idPath, protectedMidaz(auth, "accounts", "delete", routeOptions, parse))
 	routeHead(group, countPath, protectedMidaz(auth, "accounts", "head", routeOptions, parse))
 
-	RegisterAccountRoutes(api, h)
+	RegisterAccountRoutes(api, h, opSuffix)
 }

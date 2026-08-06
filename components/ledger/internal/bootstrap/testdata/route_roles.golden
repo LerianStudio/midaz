@@ -30,6 +30,7 @@ DELETE	/v2/organizations/:organization_id/holders/:holder_id/instruments/:instru
 DELETE	/v2/organizations/:organization_id/holders/:id	crm
 DELETE	/v2/organizations/:organization_id/ledgers/:ledger_id	onboarding
 DELETE	/v2/organizations/:organization_id/ledgers/:ledger_id/account-types/:id	onboarding
+DELETE	/v2/organizations/:organization_id/ledgers/:ledger_id/accounts/:id	onboarding
 DELETE	/v2/organizations/:organization_id/ledgers/:ledger_id/assets/:id	onboarding
 DELETE	/v2/organizations/:organization_id/ledgers/:ledger_id/billing-packages/:id	fees
 DELETE	/v2/organizations/:organization_id/ledgers/:ledger_id/packages/:id	fees
@@ -93,6 +94,10 @@ GET	/v2/organizations/:organization_id/ledgers	onboarding
 GET	/v2/organizations/:organization_id/ledgers/:ledger_id	onboarding
 GET	/v2/organizations/:organization_id/ledgers/:ledger_id/account-types	onboarding
 GET	/v2/organizations/:organization_id/ledgers/:ledger_id/account-types/:id	onboarding
+GET	/v2/organizations/:organization_id/ledgers/:ledger_id/accounts	onboarding
+GET	/v2/organizations/:organization_id/ledgers/:ledger_id/accounts/:id	onboarding
+GET	/v2/organizations/:organization_id/ledgers/:ledger_id/accounts/alias/:alias	onboarding
+GET	/v2/organizations/:organization_id/ledgers/:ledger_id/accounts/external/:code	onboarding
 GET	/v2/organizations/:organization_id/ledgers/:ledger_id/assets	onboarding
 GET	/v2/organizations/:organization_id/ledgers/:ledger_id/assets/:id	onboarding
 GET	/v2/organizations/:organization_id/ledgers/:ledger_id/billing-packages	fees
@@ -112,6 +117,7 @@ HEAD	/v1/organizations/:organization_id/ledgers/:ledger_id/segments/metrics/coun
 HEAD	/v1/organizations/:organization_id/ledgers/:ledger_id/transactions/metrics/count	transaction
 HEAD	/v1/organizations/:organization_id/ledgers/metrics/count	onboarding
 HEAD	/v1/organizations/metrics/count	onboarding
+HEAD	/v2/organizations/:organization_id/ledgers/:ledger_id/accounts/metrics/count	onboarding
 HEAD	/v2/organizations/:organization_id/ledgers/:ledger_id/assets/metrics/count	onboarding
 HEAD	/v2/organizations/:organization_id/ledgers/:ledger_id/portfolios/metrics/count	onboarding
 HEAD	/v2/organizations/:organization_id/ledgers/:ledger_id/segments/metrics/count	onboarding
@@ -139,6 +145,7 @@ PATCH	/v2/organizations/:organization_id/holders/:holder_id/instruments/:instrum
 PATCH	/v2/organizations/:organization_id/holders/:id	crm
 PATCH	/v2/organizations/:organization_id/ledgers/:ledger_id	onboarding
 PATCH	/v2/organizations/:organization_id/ledgers/:ledger_id/account-types/:id	onboarding
+PATCH	/v2/organizations/:organization_id/ledgers/:ledger_id/accounts/:id	onboarding
 PATCH	/v2/organizations/:organization_id/ledgers/:ledger_id/assets/:id	onboarding
 PATCH	/v2/organizations/:organization_id/ledgers/:ledger_id/billing-packages/:id	fees
 PATCH	/v2/organizations/:organization_id/ledgers/:ledger_id/packages/:id	fees
@@ -179,6 +186,7 @@ POST	/v2/organizations/:organization_id/holders	crm
 POST	/v2/organizations/:organization_id/holders/:holder_id/instruments	crm
 POST	/v2/organizations/:organization_id/ledgers	onboarding
 POST	/v2/organizations/:organization_id/ledgers/:ledger_id/account-types	onboarding
+POST	/v2/organizations/:organization_id/ledgers/:ledger_id/accounts	onboarding
 POST	/v2/organizations/:organization_id/ledgers/:ledger_id/assets	onboarding
 POST	/v2/organizations/:organization_id/ledgers/:ledger_id/billing-packages	fees
 POST	/v2/organizations/:organization_id/ledgers/:ledger_id/billing/calculate	fees

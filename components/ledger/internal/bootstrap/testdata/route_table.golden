@@ -43,6 +43,7 @@ DELETE	/v2/organizations/:organization_id/holders/:holder_id/instruments/:instru
 DELETE	/v2/organizations/:organization_id/holders/:id	4
 DELETE	/v2/organizations/:organization_id/ledgers/:ledger_id	4
 DELETE	/v2/organizations/:organization_id/ledgers/:ledger_id/account-types/:id	4
+DELETE	/v2/organizations/:organization_id/ledgers/:ledger_id/accounts/:id	4
 DELETE	/v2/organizations/:organization_id/ledgers/:ledger_id/assets/:id	4
 DELETE	/v2/organizations/:organization_id/ledgers/:ledger_id/billing-packages/:id	3
 DELETE	/v2/organizations/:organization_id/ledgers/:ledger_id/billing-packages/:id	1
@@ -160,6 +161,14 @@ GET	/v2/organizations/:organization_id/ledgers/:ledger_id	1
 GET	/v2/organizations/:organization_id/ledgers/:ledger_id/account-types	4
 GET	/v2/organizations/:organization_id/ledgers/:ledger_id/account-types/:id	3
 GET	/v2/organizations/:organization_id/ledgers/:ledger_id/account-types/:id	1
+GET	/v2/organizations/:organization_id/ledgers/:ledger_id/accounts	3
+GET	/v2/organizations/:organization_id/ledgers/:ledger_id/accounts	1
+GET	/v2/organizations/:organization_id/ledgers/:ledger_id/accounts/:id	3
+GET	/v2/organizations/:organization_id/ledgers/:ledger_id/accounts/:id	1
+GET	/v2/organizations/:organization_id/ledgers/:ledger_id/accounts/alias/:alias	3
+GET	/v2/organizations/:organization_id/ledgers/:ledger_id/accounts/alias/:alias	1
+GET	/v2/organizations/:organization_id/ledgers/:ledger_id/accounts/external/:code	3
+GET	/v2/organizations/:organization_id/ledgers/:ledger_id/accounts/external/:code	1
 GET	/v2/organizations/:organization_id/ledgers/:ledger_id/assets	3
 GET	/v2/organizations/:organization_id/ledgers/:ledger_id/assets	1
 GET	/v2/organizations/:organization_id/ledgers/:ledger_id/assets/:id	3
@@ -191,6 +200,7 @@ HEAD	/v1/organizations/:organization_id/ledgers/:ledger_id/segments/metrics/coun
 HEAD	/v1/organizations/:organization_id/ledgers/:ledger_id/transactions/metrics/count	4
 HEAD	/v1/organizations/:organization_id/ledgers/metrics/count	4
 HEAD	/v1/organizations/metrics/count	3
+HEAD	/v2/organizations/:organization_id/ledgers/:ledger_id/accounts/metrics/count	4
 HEAD	/v2/organizations/:organization_id/ledgers/:ledger_id/assets/metrics/count	4
 HEAD	/v2/organizations/:organization_id/ledgers/:ledger_id/portfolios/metrics/count	4
 HEAD	/v2/organizations/:organization_id/ledgers/:ledger_id/segments/metrics/count	4
@@ -223,6 +233,7 @@ PATCH	/v2/organizations/:organization_id/holders/:id	4
 PATCH	/v2/organizations/:organization_id/ledgers/:ledger_id	3
 PATCH	/v2/organizations/:organization_id/ledgers/:ledger_id	1
 PATCH	/v2/organizations/:organization_id/ledgers/:ledger_id/account-types/:id	4
+PATCH	/v2/organizations/:organization_id/ledgers/:ledger_id/accounts/:id	4
 PATCH	/v2/organizations/:organization_id/ledgers/:ledger_id/assets/:id	4
 PATCH	/v2/organizations/:organization_id/ledgers/:ledger_id/billing-packages/:id	3
 PATCH	/v2/organizations/:organization_id/ledgers/:ledger_id/billing-packages/:id	1
@@ -279,6 +290,7 @@ POST	/v2/organizations/:organization_id/holders	4
 POST	/v2/organizations/:organization_id/holders/:holder_id/instruments	4
 POST	/v2/organizations/:organization_id/ledgers	4
 POST	/v2/organizations/:organization_id/ledgers/:ledger_id/account-types	4
+POST	/v2/organizations/:organization_id/ledgers/:ledger_id/accounts	4
 POST	/v2/organizations/:organization_id/ledgers/:ledger_id/assets	4
 POST	/v2/organizations/:organization_id/ledgers/:ledger_id/billing-packages	3
 POST	/v2/organizations/:organization_id/ledgers/:ledger_id/billing-packages	1
