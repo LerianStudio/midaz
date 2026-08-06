@@ -43,6 +43,7 @@ DELETE	/v2/organizations/:organization_id/holders/:holder_id/instruments/:instru
 DELETE	/v2/organizations/:organization_id/holders/:id	4
 DELETE	/v2/organizations/:organization_id/ledgers/:ledger_id	4
 DELETE	/v2/organizations/:organization_id/ledgers/:ledger_id/account-types/:id	4
+DELETE	/v2/organizations/:organization_id/ledgers/:ledger_id/assets/:id	4
 DELETE	/v2/organizations/:organization_id/ledgers/:ledger_id/billing-packages/:id	3
 DELETE	/v2/organizations/:organization_id/ledgers/:ledger_id/billing-packages/:id	1
 DELETE	/v2/organizations/:organization_id/ledgers/:ledger_id/packages/:id	3
@@ -157,6 +158,10 @@ GET	/v2/organizations/:organization_id/ledgers/:ledger_id	1
 GET	/v2/organizations/:organization_id/ledgers/:ledger_id/account-types	4
 GET	/v2/organizations/:organization_id/ledgers/:ledger_id/account-types/:id	3
 GET	/v2/organizations/:organization_id/ledgers/:ledger_id/account-types/:id	1
+GET	/v2/organizations/:organization_id/ledgers/:ledger_id/assets	3
+GET	/v2/organizations/:organization_id/ledgers/:ledger_id/assets	1
+GET	/v2/organizations/:organization_id/ledgers/:ledger_id/assets/:id	3
+GET	/v2/organizations/:organization_id/ledgers/:ledger_id/assets/:id	1
 GET	/v2/organizations/:organization_id/ledgers/:ledger_id/billing-packages	3
 GET	/v2/organizations/:organization_id/ledgers/:ledger_id/billing-packages	1
 GET	/v2/organizations/:organization_id/ledgers/:ledger_id/billing-packages/:id	3
@@ -176,6 +181,7 @@ HEAD	/v1/organizations/:organization_id/ledgers/:ledger_id/segments/metrics/coun
 HEAD	/v1/organizations/:organization_id/ledgers/:ledger_id/transactions/metrics/count	4
 HEAD	/v1/organizations/:organization_id/ledgers/metrics/count	4
 HEAD	/v1/organizations/metrics/count	3
+HEAD	/v2/organizations/:organization_id/ledgers/:ledger_id/assets/metrics/count	4
 HEAD	/v2/organizations/:organization_id/ledgers/metrics/count	4
 HEAD	/v2/organizations/metrics/count	3
 PATCH	/v1/organizations/:id	4
@@ -205,6 +211,7 @@ PATCH	/v2/organizations/:organization_id/holders/:id	4
 PATCH	/v2/organizations/:organization_id/ledgers/:ledger_id	3
 PATCH	/v2/organizations/:organization_id/ledgers/:ledger_id	1
 PATCH	/v2/organizations/:organization_id/ledgers/:ledger_id/account-types/:id	4
+PATCH	/v2/organizations/:organization_id/ledgers/:ledger_id/assets/:id	4
 PATCH	/v2/organizations/:organization_id/ledgers/:ledger_id/billing-packages/:id	3
 PATCH	/v2/organizations/:organization_id/ledgers/:ledger_id/billing-packages/:id	1
 PATCH	/v2/organizations/:organization_id/ledgers/:ledger_id/packages/:id	3
@@ -258,6 +265,7 @@ POST	/v2/organizations/:organization_id/holders	4
 POST	/v2/organizations/:organization_id/holders/:holder_id/instruments	4
 POST	/v2/organizations/:organization_id/ledgers	4
 POST	/v2/organizations/:organization_id/ledgers/:ledger_id/account-types	4
+POST	/v2/organizations/:organization_id/ledgers/:ledger_id/assets	4
 POST	/v2/organizations/:organization_id/ledgers/:ledger_id/billing-packages	3
 POST	/v2/organizations/:organization_id/ledgers/:ledger_id/billing-packages	1
 POST	/v2/organizations/:organization_id/ledgers/:ledger_id/billing/calculate	3

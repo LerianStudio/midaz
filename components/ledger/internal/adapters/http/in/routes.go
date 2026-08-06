@@ -78,6 +78,30 @@ func RegisterOnboardingRoutesToApp(_ fiber.Router, _ *middleware.AuthClient, _ *
 // Param names
 // (:organization_id/:ledger_id/:id) match the Huma path tags exactly.
 func RegisterAssetRoutesToApp(group fiber.Router, api huma.API, auth *middleware.AuthClient, ih *AssetHandler, routeOptions *http.ProtectedRouteOptions) {
+	registerAssetRoutesToApp(group, api, auth, ih, routeOptions, routeOpSuffixV1)
+}
+
+// RegisterAssetV2RoutesToApp wires the same asset surface onto the /v2 contract: same paths,
+// same handlers, same authz tuples and tenant chain, differing only in the operation IDs the
+// contract publishes. It is additive — /v1 keeps serving assets in parallel — and introduces
+// no new policy surface.
+func RegisterAssetV2RoutesToApp(group fiber.Router, api huma.API, auth *middleware.AuthClient, ih *AssetHandler, routeOptions *http.ProtectedRouteOptions) {
+	registerAssetRoutesToApp(group, api, auth, ih, routeOptions, routeOpSuffixV2)
+}
+
+// registerAssetRoutesToApp is the single description of the asset route surface, shared by
+// every versioned contract that serves it. For each of the six ops it attaches the Fiber auth
+// chain — auth.Authorize("midaz","assets",verb) + tenant PostAuthMiddlewares +
+// ParseUUIDPathParameters("asset") — as MIDDLEWARE ONLY (no terminal) on the VERSIONED GROUP
+// with GROUP-RELATIVE paths, then registers the Huma terminals via RegisterAssetRoutes on the
+// SAME group's Huma API. This preserves the pre-Huma ("midaz","assets",verb) authz tuples and
+// tenant resolution BYTE-FOR-BYTE on whichever version group it is mounted on; no asset route
+// becomes public.
+//
+// opSuffix distinguishes the operation IDs one version group publishes from another's — see
+// routeOpSuffixV1. Nothing else varies between contracts, so a change to the surface reaches
+// every version it is mounted on.
+func registerAssetRoutesToApp(group fiber.Router, api huma.API, auth *middleware.AuthClient, ih *AssetHandler, routeOptions *http.ProtectedRouteOptions, opSuffix string) {
 	const (
 		listPath  = "/organizations/:organization_id/ledgers/:ledger_id/assets"
 		idPath    = listPath + "/:id"
@@ -93,7 +117,7 @@ func RegisterAssetRoutesToApp(group fiber.Router, api huma.API, auth *middleware
 	routeDelete(group, idPath, protectedMidaz(auth, "assets", "delete", routeOptions, parse))
 	routeHead(group, countPath, protectedMidaz(auth, "assets", "head", routeOptions, parse))
 
-	RegisterAssetRoutes(api, ih)
+	RegisterAssetRoutes(api, ih, opSuffix)
 }
 
 // RegisterBalanceRoutesToApp wires the Huma-migrated balance resource, mirroring
