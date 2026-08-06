@@ -392,10 +392,13 @@ func (handler *LedgerHandler) UpdateLedgerSettingsHuma(ctx context.Context, in *
 // ParseUUIDPathParameters middleware chain for these routes is attached at the
 // Fiber level BEFORE the Huma terminal, not here.
 //
-// Paths are GROUP-RELATIVE: the Huma API is bound to the /v1 Fiber group, so Fiber
-// prepends /v1. The /v1 prefix rides the OpenAPI `servers` entry, keeping op paths
-// relative.
-func RegisterLedgerRoutes(api huma.API, h *LedgerHandler) {
+// Paths are GROUP-RELATIVE: the Huma API is bound to a versioned Fiber group, so the
+// humafiber adapter registers on that group and Fiber prepends the version prefix.
+//
+// opSuffix distinguishes the operation IDs one version group publishes from another's —
+// see routeOpSuffixV1. A straight v1/v2 mirror reuses the same handler methods and the
+// same input/output types, so only the operation IDs differ between the twins.
+func RegisterLedgerRoutes(api huma.API, h *LedgerHandler, opSuffix string) {
 	const (
 		listPath     = "/organizations/{organization_id}/ledgers"
 		idPath       = listPath + "/{ledger_id}"
@@ -405,7 +408,7 @@ func RegisterLedgerRoutes(api huma.API, h *LedgerHandler) {
 	)
 
 	huma.Register(api, huma.Operation{
-		OperationID:      "createLedger",
+		OperationID:      "createLedger" + opSuffix,
 		Method:           http.MethodPost,
 		Path:             listPath,
 		Summary:          "Create a new ledger",
@@ -416,7 +419,7 @@ func RegisterLedgerRoutes(api huma.API, h *LedgerHandler) {
 	}, h.CreateLedgerHuma)
 
 	huma.Register(api, huma.Operation{
-		OperationID: "listLedgers",
+		OperationID: "listLedgers" + opSuffix,
 		Method:      http.MethodGet,
 		Path:        listPath,
 		Summary:     "List all ledgers",
@@ -425,7 +428,7 @@ func RegisterLedgerRoutes(api huma.API, h *LedgerHandler) {
 	}, h.ListLedgersHuma)
 
 	huma.Register(api, huma.Operation{
-		OperationID: "getLedgerByID",
+		OperationID: "getLedgerByID" + opSuffix,
 		Method:      http.MethodGet,
 		Path:        idPath,
 		Summary:     "Retrieve a specific ledger",
@@ -434,7 +437,7 @@ func RegisterLedgerRoutes(api huma.API, h *LedgerHandler) {
 	}, h.GetLedgerByIDHuma)
 
 	huma.Register(api, huma.Operation{
-		OperationID:      "updateLedger",
+		OperationID:      "updateLedger" + opSuffix,
 		Method:           http.MethodPatch,
 		Path:             idPath,
 		Summary:          "Update an existing ledger",
@@ -444,7 +447,7 @@ func RegisterLedgerRoutes(api huma.API, h *LedgerHandler) {
 	}, h.UpdateLedgerHuma)
 
 	huma.Register(api, huma.Operation{
-		OperationID:   "deleteLedger",
+		OperationID:   "deleteLedger" + opSuffix,
 		Method:        http.MethodDelete,
 		Path:          idPath,
 		Summary:       "Delete a ledger",
@@ -454,7 +457,7 @@ func RegisterLedgerRoutes(api huma.API, h *LedgerHandler) {
 	}, h.DeleteLedgerByIDHuma)
 
 	huma.Register(api, huma.Operation{
-		OperationID:   "countLedgers",
+		OperationID:   "countLedgers" + opSuffix,
 		Method:        http.MethodHead,
 		Path:          countPath,
 		Summary:       "Count total ledgers",
@@ -464,7 +467,7 @@ func RegisterLedgerRoutes(api huma.API, h *LedgerHandler) {
 	}, h.CountLedgersHuma)
 
 	huma.Register(api, huma.Operation{
-		OperationID: "getLedgerSettings",
+		OperationID: "getLedgerSettings" + opSuffix,
 		Method:      http.MethodGet,
 		Path:        settingsPath,
 		Summary:     "Get ledger settings",
@@ -473,7 +476,7 @@ func RegisterLedgerRoutes(api huma.API, h *LedgerHandler) {
 	}, h.GetLedgerSettingsHuma)
 
 	huma.Register(api, huma.Operation{
-		OperationID:      "updateLedgerSettings",
+		OperationID:      "updateLedgerSettings" + opSuffix,
 		Method:           http.MethodPatch,
 		Path:             settingsPath,
 		Summary:          "Update ledger settings",
@@ -483,20 +486,37 @@ func RegisterLedgerRoutes(api huma.API, h *LedgerHandler) {
 	}, h.UpdateLedgerSettingsHuma)
 }
 
-// RegisterLedgerRoutesToApp wires the Huma-migrated ledger resource, mirroring
-// RegisterAssetRoutesToApp. For each of the eight ops it attaches the Fiber auth
-// chain — protectedMidaz(auth,"ledgers",verb) (= auth.Authorize("midaz","ledgers",
-// verb) + tenant PostAuthMiddlewares) + ParseUUIDPathParameters("ledger") — as
-// MIDDLEWARE ONLY (no terminal) on the /v1 GROUP with GROUP-RELATIVE paths, then
-// registers the Huma terminals via RegisterLedgerRoutes on the SAME group's Huma
-// API. This preserves the pre-Huma ("ledgers", verb) authz tuples and tenant
-// resolution BYTE-FOR-BYTE — no ledger route becomes public. All eight ops carried
-// ParseUUIDPathParameters("ledger") in the pre-migration routes.go, so it is
-// attached on every op here. The settings PATCH's Fiber WithBodyLimit is not
-// reproduced: body handling is now owned by the Huma terminal, and the body limit
-// was never an authz concern. Called from the unified server's humaMount seam
-// (integration task), NOT from routes.go.
+// RegisterLedgerRoutesToApp wires the Huma-migrated ledger surface onto the /v1
+// contract. See registerLedgerRoutesToApp for what it attaches.
 func RegisterLedgerRoutesToApp(group fiber.Router, api huma.API, auth *middleware.AuthClient, h *LedgerHandler, routeOptions *pkgHTTP.ProtectedRouteOptions) {
+	registerLedgerRoutesToApp(group, api, auth, h, routeOptions, routeOpSuffixV1)
+}
+
+// RegisterLedgerV2RoutesToApp wires the same ledger surface onto the /v2 contract: same
+// paths, same handlers, same authz tuples and tenant chain, differing only in the operation
+// IDs the contract publishes. It is additive — /v1 keeps serving ledgers in parallel — and
+// introduces no new policy surface.
+func RegisterLedgerV2RoutesToApp(group fiber.Router, api huma.API, auth *middleware.AuthClient, h *LedgerHandler, routeOptions *pkgHTTP.ProtectedRouteOptions) {
+	registerLedgerRoutesToApp(group, api, auth, h, routeOptions, routeOpSuffixV2)
+}
+
+// registerLedgerRoutesToApp is the single description of the ledger route surface, shared by
+// every versioned contract that serves it, mirroring RegisterAssetRoutesToApp. For each of
+// the eight ops it attaches the Fiber auth chain — protectedMidaz(auth,"ledgers",verb) (=
+// auth.Authorize("midaz","ledgers",verb) + tenant PostAuthMiddlewares) +
+// ParseUUIDPathParameters("ledger") — as MIDDLEWARE ONLY (no terminal) on the VERSIONED
+// GROUP with GROUP-RELATIVE paths, then registers the Huma terminals via RegisterLedgerRoutes
+// on the SAME group's Huma API. This preserves the pre-Huma ("ledgers", verb) authz tuples
+// and tenant resolution BYTE-FOR-BYTE — no ledger route becomes public — on whichever version
+// group it is mounted on. All eight ops carried ParseUUIDPathParameters("ledger") in the
+// pre-migration routes.go, so it is attached on every op here. The settings PATCH's Fiber
+// WithBodyLimit is not reproduced: body handling is now owned by the Huma terminal, and the
+// body limit was never an authz concern.
+//
+// opSuffix distinguishes the operation IDs one version group publishes from another's — see
+// routeOpSuffixV1. Nothing else varies between contracts, so a change to the surface reaches
+// every version it is mounted on.
+func registerLedgerRoutesToApp(group fiber.Router, api huma.API, auth *middleware.AuthClient, h *LedgerHandler, routeOptions *pkgHTTP.ProtectedRouteOptions, opSuffix string) {
 	const (
 		listPath     = "/organizations/:organization_id/ledgers"
 		idPath       = listPath + "/:ledger_id"
@@ -515,5 +535,5 @@ func RegisterLedgerRoutesToApp(group fiber.Router, api huma.API, auth *middlewar
 	routeDelete(group, idPath, protectedMidaz(auth, "ledgers", "delete", routeOptions, parse))
 	routeHead(group, countPath, protectedMidaz(auth, "ledgers", "head", routeOptions, parse))
 
-	RegisterLedgerRoutes(api, h)
+	RegisterLedgerRoutes(api, h, opSuffix)
 }

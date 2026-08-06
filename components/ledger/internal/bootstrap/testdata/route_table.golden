@@ -41,6 +41,7 @@ DELETE	/v2/organizations/:organization_id/holders/:holder_id/instruments/:instru
 DELETE	/v2/organizations/:organization_id/holders/:holder_id/instruments/:instrument_id/related-parties/:related_party_id	3
 DELETE	/v2/organizations/:organization_id/holders/:holder_id/instruments/:instrument_id/related-parties/:related_party_id	1
 DELETE	/v2/organizations/:organization_id/holders/:id	4
+DELETE	/v2/organizations/:organization_id/ledgers/:ledger_id	4
 DELETE	/v2/organizations/:organization_id/ledgers/:ledger_id/billing-packages/:id	3
 DELETE	/v2/organizations/:organization_id/ledgers/:ledger_id/billing-packages/:id	1
 DELETE	/v2/organizations/:organization_id/ledgers/:ledger_id/packages/:id	3
@@ -148,6 +149,10 @@ GET	/v2/organizations/:organization_id/holders/:id	1
 GET	/v2/organizations/:organization_id/holders/:id/accounts	4
 GET	/v2/organizations/:organization_id/instruments	3
 GET	/v2/organizations/:organization_id/instruments	1
+GET	/v2/organizations/:organization_id/ledgers	3
+GET	/v2/organizations/:organization_id/ledgers	1
+GET	/v2/organizations/:organization_id/ledgers/:ledger_id	3
+GET	/v2/organizations/:organization_id/ledgers/:ledger_id	1
 GET	/v2/organizations/:organization_id/ledgers/:ledger_id/billing-packages	3
 GET	/v2/organizations/:organization_id/ledgers/:ledger_id/billing-packages	1
 GET	/v2/organizations/:organization_id/ledgers/:ledger_id/billing-packages/:id	3
@@ -156,6 +161,8 @@ GET	/v2/organizations/:organization_id/ledgers/:ledger_id/packages	3
 GET	/v2/organizations/:organization_id/ledgers/:ledger_id/packages	1
 GET	/v2/organizations/:organization_id/ledgers/:ledger_id/packages/:id	3
 GET	/v2/organizations/:organization_id/ledgers/:ledger_id/packages/:id	1
+GET	/v2/organizations/:organization_id/ledgers/:ledger_id/settings	3
+GET	/v2/organizations/:organization_id/ledgers/:ledger_id/settings	1
 GET	/v2/organizations/:organization_id/protection/audit	4
 GET	/version	1
 HEAD	/v1/organizations/:organization_id/ledgers/:ledger_id/accounts/metrics/count	4
@@ -165,6 +172,7 @@ HEAD	/v1/organizations/:organization_id/ledgers/:ledger_id/segments/metrics/coun
 HEAD	/v1/organizations/:organization_id/ledgers/:ledger_id/transactions/metrics/count	4
 HEAD	/v1/organizations/:organization_id/ledgers/metrics/count	4
 HEAD	/v1/organizations/metrics/count	3
+HEAD	/v2/organizations/:organization_id/ledgers/metrics/count	4
 HEAD	/v2/organizations/metrics/count	3
 PATCH	/v1/organizations/:id	4
 PATCH	/v1/organizations/:organization_id/billing-packages/:id	3
@@ -190,10 +198,14 @@ PATCH	/v1/organizations/:organization_id/packages/:id	1
 PATCH	/v2/organizations/:id	4
 PATCH	/v2/organizations/:organization_id/holders/:holder_id/instruments/:instrument_id	4
 PATCH	/v2/organizations/:organization_id/holders/:id	4
+PATCH	/v2/organizations/:organization_id/ledgers/:ledger_id	3
+PATCH	/v2/organizations/:organization_id/ledgers/:ledger_id	1
 PATCH	/v2/organizations/:organization_id/ledgers/:ledger_id/billing-packages/:id	3
 PATCH	/v2/organizations/:organization_id/ledgers/:ledger_id/billing-packages/:id	1
 PATCH	/v2/organizations/:organization_id/ledgers/:ledger_id/packages/:id	3
 PATCH	/v2/organizations/:organization_id/ledgers/:ledger_id/packages/:id	1
+PATCH	/v2/organizations/:organization_id/ledgers/:ledger_id/settings	3
+PATCH	/v2/organizations/:organization_id/ledgers/:ledger_id/settings	1
 POST	/v1/organizations	3
 POST	/v1/organizations/:organization_id/billing-packages	3
 POST	/v1/organizations/:organization_id/billing-packages	1
@@ -239,6 +251,7 @@ POST	/v2/organizations	3
 POST	/v2/organizations/:organization_id/encryption/provision	4
 POST	/v2/organizations/:organization_id/holders	4
 POST	/v2/organizations/:organization_id/holders/:holder_id/instruments	4
+POST	/v2/organizations/:organization_id/ledgers	4
 POST	/v2/organizations/:organization_id/ledgers/:ledger_id/billing-packages	3
 POST	/v2/organizations/:organization_id/ledgers/:ledger_id/billing-packages	1
 POST	/v2/organizations/:organization_id/ledgers/:ledger_id/billing/calculate	3
