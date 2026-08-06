@@ -166,43 +166,28 @@ func TestRegisterTransactionV2RoutesToApp_MountsRoutes(t *testing.T) {
 	}
 }
 
-// noGroupPrefix registers the contract straight onto the API, which is how production assembles
-// the v2 document. v2GroupPrefix registers it through a Huma group carrying /v2, which keys every
-// path WITH that prefix while changing nothing a client sees. Both spell the same contract.
-const (
-	noGroupPrefix = ""
-	v2GroupPrefix = "/v2"
-)
-
-// registerV2TransactionContractOnGroupForTest builds a fresh /v2 Huma document with its own
-// component registry and registers only the v2 transaction contract onto it, mirroring the
-// production humaMountV2 seam (namer installed before any huma.Register). A non-empty prefix
-// registers through a Huma group carrying it, so the document keys every path with that prefix. It
-// returns the document so contract assertions read paths and components off the same instance.
+// registerIsolatedV2TransactionContractForTest builds a fresh Huma document with its own
+// component registry and registers only the v2 transaction contract onto it, group-relative with
+// no version prefix (namer installed before any huma.Register). It returns the document so the
+// component / required-fields / bounds assertions read schemas and group-relative paths off one
+// instance.
 //
-// The Fiber app is handed to openapi.New as its own router so the Huma group is the ONLY thing that
-// can prefix a path; a Fiber /v2 group alongside a /v2 Huma group would mount the routes at
-// /v2/v2/..., a shape no deployment has.
-func registerV2TransactionContractOnGroupForTest(prefix string) *huma.OpenAPI {
+// This is an ISOLATED document, NOT how production assembles the served contract. Production mounts
+// v2 through a /v2 Huma group hung off the single shared contract — the seam buildUnifiedHumaAPI
+// (contract_spec_routes_test.go) exercises and the one that generates the committed dump. The
+// assertions reading this document care only about component shape and the group-relative
+// registration, neither of which depends on the version prefix a client sees; keeping it bare
+// spares them from reaching across the whole ledger surface to name a v2 component. Path-key
+// assertions that DO depend on the /v2 prefix read the real document instead.
+func registerIsolatedV2TransactionContractForTest() *huma.OpenAPI {
 	app := fiber.New()
 
 	humaAPI := openapi.New(app, app, openapi.Config{Title: "Midaz Ledger API v2", Version: "4.0.0", Servers: []string{"/v2"}})
 	pkgHTTP.InstallLedgerSchemaNamer(humaAPI)
 
-	api := humaAPI
-	if prefix != noGroupPrefix {
-		api = huma.NewGroup(humaAPI, prefix)
-	}
-
-	RegisterTransactionV2Routes(api, &TransactionHandler{})
+	RegisterTransactionV2Routes(humaAPI, &TransactionHandler{})
 
 	return humaAPI.OpenAPI()
-}
-
-// registerV2TransactionContractForTest is the unprefixed spelling, which every assertion that does
-// not care about path keys reads from.
-func registerV2TransactionContractForTest() *huma.OpenAPI {
-	return registerV2TransactionContractOnGroupForTest(noGroupPrefix)
 }
 
 // TestRegisterTransactionV2Routes_RegistersHumaOperations asserts every v2 transaction op
@@ -211,7 +196,7 @@ func registerV2TransactionContractForTest() *huma.OpenAPI {
 func TestRegisterTransactionV2Routes_RegistersHumaOperations(t *testing.T) {
 	t.Parallel()
 
-	paths := registerV2TransactionContractForTest().Paths
+	paths := registerIsolatedV2TransactionContractForTest().Paths
 
 	for _, rt := range v2Routes {
 		t.Run(rt.action, func(t *testing.T) {
@@ -421,7 +406,7 @@ func TestRegisterTransactionV2Routes_ResponseSchemaDoesNotShadowV1(t *testing.T)
 
 	// Registered ONCE: the helper installs the schema namer, which is process-global Huma
 	// state, so registering per subtest would have parallel subtests racing on it.
-	oapi := registerV2TransactionContractForTest()
+	oapi := registerIsolatedV2TransactionContractForTest()
 	schemas := oapi.Components.Schemas.Map()
 
 	require.Containsf(t, schemas, v2TransactionSchemaName,
@@ -452,15 +437,34 @@ func TestRegisterTransactionV2Routes_ResponseSchemaDoesNotShadowV1(t *testing.T)
 	}
 }
 
-// v2ContractAssemblies are the two ways the v2 contract gets assembled. The property under test is
-// that publication is blind to which one was used, so the assertions run over the pair rather than
-// once per shape.
+// v2ContractAssemblies are the two documents the v2 create surface reaches a client through: the
+// ISOLATED bare document a test builds for component assertions (group-relative, no prefix), and
+// the REAL /v2-prefixed document the unified server assembles — buildUnifiedHumaAPI
+// (contract_spec_routes_test.go), the same huma.API that generates the committed dump. The property
+// under test is that the body-schema publisher keys on operation ID, so it stamps the create ops
+// the SAME way whether or not the document carries a /v2 prefix; the assertions therefore run over
+// both, each with the prefix it keys its paths under. Reading the real document is what proves the
+// property against the mount a client actually hits, not only against a fixture — a publisher keyed
+// on paths would find nothing under /v2 and leave those create ops with the opaque RawBody schema.
 var v2ContractAssemblies = []struct {
 	name   string
 	prefix string
+	doc    func() *huma.OpenAPI
 }{
-	{name: "registered straight onto the api", prefix: noGroupPrefix},
-	{name: "registered through a prefixed group", prefix: v2GroupPrefix},
+	{
+		name:   "isolated document, no prefix",
+		prefix: "",
+		doc:    registerIsolatedV2TransactionContractForTest,
+	},
+	{
+		name:   "real /v2 document assembled by the unified server",
+		prefix: "/v2",
+		doc: func() *huma.OpenAPI {
+			_, api := buildUnifiedHumaAPI()
+
+			return api.OpenAPI()
+		},
+	},
 }
 
 // TestRegisterTransactionV2Routes_PublishesCreateBodySchema asserts the v2 create ops describe
@@ -480,7 +484,7 @@ func TestRegisterTransactionV2Routes_PublishesCreateBodySchema(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			oapi := registerV2TransactionContractOnGroupForTest(tt.prefix)
+			oapi := tt.doc()
 			schemas := oapi.Components.Schemas.Map()
 
 			bodySchema, ok := schemas[v2CreateBodySchemaName]
@@ -505,7 +509,7 @@ func TestRegisterTransactionV2Routes_PublishesCreateBodySchema(t *testing.T) {
 					require.Truef(t, ok, "v2 contract should carry the %s op path %q", rt.action, opPath)
 					require.NotNilf(t, pathItem.Post, "%s op path should carry a POST operation", rt.action)
 					require.Equalf(t, rt.operationID, pathItem.Post.OperationID,
-						"a single-prefix group must leave the %s operation ID alone", rt.action)
+						"assembly must leave the %s operation ID alone", rt.action)
 
 					if !rt.hasBody {
 						assert.Nilf(t, pathItem.Post.RequestBody,
@@ -547,7 +551,7 @@ var v2CreateBodySideFields = []string{"debits", "credits"}
 func TestRegisterTransactionV2Routes_CreateBodyDocumentsBothSides(t *testing.T) {
 	t.Parallel()
 
-	schema, ok := registerV2TransactionContractForTest().Components.Schemas.Map()[v2CreateBodySchemaName]
+	schema, ok := registerIsolatedV2TransactionContractForTest().Components.Schemas.Map()[v2CreateBodySchemaName]
 	require.Truef(t, ok, "v2 contract should publish the create-body component %s", v2CreateBodySchemaName)
 	require.NotNilf(t, schema, "published %s component should not be nil", v2CreateBodySchemaName)
 
@@ -582,7 +586,7 @@ var v2CreateBodyScopeFields = []string{"organizationId", "ledgerId"}
 func TestRegisterTransactionV2Routes_CreateBodyDocumentsTheScope(t *testing.T) {
 	t.Parallel()
 
-	oapi := registerV2TransactionContractForTest()
+	oapi := registerIsolatedV2TransactionContractForTest()
 
 	schema, ok := oapi.Components.Schemas.Map()[v2CreateBodySchemaName]
 	require.Truef(t, ok, "v2 contract should publish the create-body component %s", v2CreateBodySchemaName)
@@ -641,7 +645,7 @@ func TestRegisterTransactionV2Routes_CreateOpsBoundBodyReads(t *testing.T) {
 	assert.LessOrEqual(t, v2CreateMaxBodyBytes, v2CreateBodyCeilingCap,
 		"the request-body ceiling must not pass the app-wide Fiber body limit, which refuses a body first")
 
-	paths := registerV2TransactionContractForTest().Paths
+	paths := registerIsolatedV2TransactionContractForTest().Paths
 
 	for _, rt := range v2Routes {
 		t.Run(rt.action, func(t *testing.T) {
@@ -905,7 +909,7 @@ var v2ShareBounds = map[string]struct{ min, max float64 }{
 func TestRegisterTransactionV2Routes_ShareComponentPublishesBounds(t *testing.T) {
 	t.Parallel()
 
-	schema, ok := registerV2TransactionContractForTest().Components.Schemas.Map()[v2ShareSchemaName]
+	schema, ok := registerIsolatedV2TransactionContractForTest().Components.Schemas.Map()[v2ShareSchemaName]
 	require.Truef(t, ok, "v2 contract should publish the share component %s", v2ShareSchemaName)
 	require.NotNilf(t, schema, "published %s component should not be nil", v2ShareSchemaName)
 
@@ -938,7 +942,7 @@ func TestRegisterTransactionV2Routes_ShareComponentPublishesBounds(t *testing.T)
 func TestRegisterTransactionV2Routes_LegComponentDescribesValueExpressions(t *testing.T) {
 	t.Parallel()
 
-	schema, ok := registerV2TransactionContractForTest().Components.Schemas.Map()[v2LegSchemaName]
+	schema, ok := registerIsolatedV2TransactionContractForTest().Components.Schemas.Map()[v2LegSchemaName]
 	require.Truef(t, ok, "v2 contract should publish the leg component %s", v2LegSchemaName)
 	require.NotNilf(t, schema, "published %s component should not be nil", v2LegSchemaName)
 
@@ -959,7 +963,7 @@ func TestRegisterTransactionV2Routes_LegComponentDescribesValueExpressions(t *te
 func TestRegisterTransactionV2Routes_ComponentRequiredFields(t *testing.T) {
 	t.Parallel()
 
-	schemas := registerV2TransactionContractForTest().Components.Schemas.Map()
+	schemas := registerIsolatedV2TransactionContractForTest().Components.Schemas.Map()
 
 	tests := []struct {
 		component string
@@ -1002,6 +1006,12 @@ func newV2DocForTest() huma.API {
 // create ops. None of them may publish the component either — it is registered only when every
 // create action has been found, so a partial match answers like the empty one instead of leaving
 // three of four ops typed and the shortfall invisible.
+//
+// The documents here are SYNTHETIC on purpose: each hand-builds a degenerate shape the real
+// mounted surface never produces (nil api, dropped registry, a non-JSON body, a partial op set),
+// which is the only way to reach the publisher's guard branches. Do NOT repoint these at the real
+// buildUnifiedHumaAPI document by analogy with the path-key tests — a well-formed document cannot
+// exercise a single case below.
 func TestPublishV2CreateBodySchema_DegradesToNoOp(t *testing.T) {
 	t.Parallel()
 
@@ -1131,6 +1141,11 @@ func postWithJSONBodyForTest(operationID, ref string) *huma.PathItem {
 // in the document, so a v1 create op sitting alongside the v2 ones comes through untouched while
 // the v2 ops take the published component. Both outcomes are read off ONE run of the publisher, so
 // the discriminator is stated as a single property rather than as two separate tests.
+//
+// The document here is SYNTHETIC on purpose: it seats a foreign op carrying a sentinel body ref
+// beside the v2 ops so "left alone" and "rewritten" are two distinguishable refs. The real mounted
+// surface never puts a v1 op on the v2 document, so it cannot stage this collision — do NOT repoint
+// this at buildUnifiedHumaAPI by analogy with the path-key tests.
 func TestPublishV2CreateBodySchema_LeavesForeignOpsAlone(t *testing.T) {
 	t.Parallel()
 

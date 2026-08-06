@@ -135,7 +135,7 @@ func TestTransactionV2_JSONUsesDebitCreditKeys(t *testing.T) {
 func TestRegisterTransactionV2Routes_ResponseSchemaNotNamedTransaction(t *testing.T) {
 	t.Parallel()
 
-	oapi := registerV2TransactionContractForTest()
+	oapi := registerIsolatedV2TransactionContractForTest()
 	schemas := oapi.Components.Schemas.Map()
 
 	schema, ok := schemas[v2TransactionSchemaName]
