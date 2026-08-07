@@ -334,14 +334,17 @@ func (handler *AssetHandler) CountAssetsHuma(ctx context.Context, in *CountAsset
 }
 
 // RegisterAssetRoutes registers the six migrated asset operations on the shared
-// Huma API. It is the per-file seam unified-server.go calls; the auth + tenant +
+// Huma API. It is the per-file seam registerAssetRoutesToApp calls; the auth + tenant +
 // ParseUUIDPathParameters middleware chain for these routes is attached in
-// unified-server.go (Fiber-level) BEFORE the Huma terminal, not here.
+// registerAssetRoutesToApp (Fiber-level) BEFORE the Huma terminal, not here.
 //
-// Paths are GROUP-RELATIVE: the Huma API is bound to the /v1 Fiber group, so the
-// humafiber adapter registers on that group and Fiber prepends /v1. The /v1 prefix
-// rides the OpenAPI `servers` entry (openapi.New Config), keeping op paths relative.
-func RegisterAssetRoutes(api huma.API, h *AssetHandler) {
+// Paths are GROUP-RELATIVE: the Huma API is bound to a versioned Fiber group, so the
+// humafiber adapter registers on that group and Fiber prepends the version prefix.
+//
+// opSuffix distinguishes the operation IDs one version group publishes from another's —
+// see routeOpSuffixV1. A straight v1/v2 mirror reuses the same handler methods and the
+// same input/output types, so only the operation IDs differ between the twins.
+func RegisterAssetRoutes(api huma.API, h *AssetHandler, opSuffix string) {
 	const (
 		listPath  = "/organizations/{organization_id}/ledgers/{ledger_id}/assets"
 		idPath    = listPath + "/{id}"
@@ -350,7 +353,7 @@ func RegisterAssetRoutes(api huma.API, h *AssetHandler) {
 	)
 
 	huma.Register(api, huma.Operation{
-		OperationID: "createAsset",
+		OperationID: "createAsset" + opSuffix,
 		Method:      http.MethodPost,
 		Path:        listPath,
 		Summary:     "Create a new asset",
@@ -362,7 +365,7 @@ func RegisterAssetRoutes(api huma.API, h *AssetHandler) {
 	}, h.CreateAssetHuma)
 
 	huma.Register(api, huma.Operation{
-		OperationID: "listAssets",
+		OperationID: "listAssets" + opSuffix,
 		Method:      http.MethodGet,
 		Path:        listPath,
 		Summary:     "List all assets",
@@ -371,7 +374,7 @@ func RegisterAssetRoutes(api huma.API, h *AssetHandler) {
 	}, h.ListAssetsHuma)
 
 	huma.Register(api, huma.Operation{
-		OperationID: "getAssetByID",
+		OperationID: "getAssetByID" + opSuffix,
 		Method:      http.MethodGet,
 		Path:        idPath,
 		Summary:     "Retrieve a specific asset",
@@ -380,7 +383,7 @@ func RegisterAssetRoutes(api huma.API, h *AssetHandler) {
 	}, h.GetAssetByIDHuma)
 
 	huma.Register(api, huma.Operation{
-		OperationID:      "updateAsset",
+		OperationID:      "updateAsset" + opSuffix,
 		Method:           http.MethodPatch,
 		Path:             idPath,
 		Summary:          "Update an asset",
@@ -390,7 +393,7 @@ func RegisterAssetRoutes(api huma.API, h *AssetHandler) {
 	}, h.UpdateAssetHuma)
 
 	huma.Register(api, huma.Operation{
-		OperationID: "deleteAsset",
+		OperationID: "deleteAsset" + opSuffix,
 		Method:      http.MethodDelete,
 		Path:        idPath,
 		Summary:     "Delete an asset",
@@ -401,7 +404,7 @@ func RegisterAssetRoutes(api huma.API, h *AssetHandler) {
 	}, h.DeleteAssetByIDHuma)
 
 	huma.Register(api, huma.Operation{
-		OperationID: "countAssets",
+		OperationID: "countAssets" + opSuffix,
 		Method:      http.MethodHead,
 		Path:        countPath,
 		Summary:     "Count total assets",

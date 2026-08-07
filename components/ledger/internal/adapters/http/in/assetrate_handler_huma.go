@@ -195,13 +195,18 @@ func (handler *AssetRateHandler) ListAssetRatesByAssetCodeHuma(ctx context.Conte
 }
 
 // RegisterAssetRateRoutes registers the three migrated asset-rate operations on the
-// shared Huma API. It is the per-file seam the routes wiring calls; the auth +
+// shared Huma API. It is the per-file seam registerAssetRateRoutesToApp calls; the auth +
 // tenant + ParseUUIDPathParameters middleware chain for these routes is attached at
 // the Fiber level BEFORE the Huma terminal, not here.
 //
-// Paths are GROUP-RELATIVE: the Huma API is bound to the /v1 Fiber group, so the
-// humafiber adapter registers on that group and Fiber prepends /v1.
-func RegisterAssetRateRoutes(api huma.API, h *AssetRateHandler) {
+// Paths are GROUP-RELATIVE: the Huma API is bound to a versioned Fiber group, so the
+// humafiber adapter registers on that group and Fiber prepends the version prefix.
+//
+// opSuffix distinguishes the operation IDs one version group publishes from another's —
+// see routeOpSuffixV1. A straight v1/v2 mirror reuses the same handler methods and the
+// same input/output types, so only the operation IDs differ between the twins; the PUT
+// upsert carries the suffix exactly like the two GETs.
+func RegisterAssetRateRoutes(api huma.API, h *AssetRateHandler, opSuffix string) {
 	const (
 		basePath     = "/organizations/{organization_id}/ledgers/{ledger_id}/asset-rates"
 		externalPath = basePath + "/{external_id}"
@@ -210,7 +215,7 @@ func RegisterAssetRateRoutes(api huma.API, h *AssetRateHandler) {
 	)
 
 	huma.Register(api, huma.Operation{
-		OperationID: "createOrUpdateAssetRate",
+		OperationID: "createOrUpdateAssetRate" + opSuffix,
 		Method:      http.MethodPut,
 		Path:        basePath,
 		Summary:     "Create or Update an AssetRate",
@@ -222,7 +227,7 @@ func RegisterAssetRateRoutes(api huma.API, h *AssetRateHandler) {
 	}, h.CreateOrUpdateAssetRateHuma)
 
 	huma.Register(api, huma.Operation{
-		OperationID: "getAssetRateByExternalID",
+		OperationID: "getAssetRateByExternalID" + opSuffix,
 		Method:      http.MethodGet,
 		Path:        externalPath,
 		Summary:     "Get an AssetRate by External ID",
@@ -231,7 +236,7 @@ func RegisterAssetRateRoutes(api huma.API, h *AssetRateHandler) {
 	}, h.GetAssetRateByExternalIDHuma)
 
 	huma.Register(api, huma.Operation{
-		OperationID: "getAllAssetRatesByAssetCode",
+		OperationID: "getAllAssetRatesByAssetCode" + opSuffix,
 		Method:      http.MethodGet,
 		Path:        fromPath,
 		Summary:     "Get an AssetRate by the Asset Code",
@@ -240,18 +245,36 @@ func RegisterAssetRateRoutes(api huma.API, h *AssetRateHandler) {
 	}, h.ListAssetRatesByAssetCodeHuma)
 }
 
-// RegisterAssetRateRoutesToApp wires the Huma-migrated asset-rate resource. For each
-// of the three ops it attaches the Fiber auth chain — protectedMidaz(auth,"asset-rates",
-// verb) (= auth.Authorize("midaz","asset-rates",verb) + tenant PostAuthMiddlewares) +
-// ParseUUIDPathParameters("asset-rate") — as MIDDLEWARE ONLY (no terminal) on the /v1
+// RegisterAssetRateRoutesToApp wires the Huma-migrated asset-rate surface onto the /v1
+// contract. See registerAssetRateRoutesToApp for what it attaches.
+func RegisterAssetRateRoutesToApp(group fiber.Router, api huma.API, auth *middleware.AuthClient, h *AssetRateHandler, routeOptions *pkgHTTP.ProtectedRouteOptions) {
+	registerAssetRateRoutesToApp(group, api, auth, h, routeOptions, routeOpSuffixV1)
+}
+
+// RegisterAssetRateV2RoutesToApp wires the same asset-rate surface onto the /v2 contract:
+// same paths, same handlers, same authz tuples and tenant chain, differing only in the
+// operation IDs the contract publishes. It is additive — /v1 keeps serving asset-rates in
+// parallel — and introduces no new policy surface.
+func RegisterAssetRateV2RoutesToApp(group fiber.Router, api huma.API, auth *middleware.AuthClient, h *AssetRateHandler, routeOptions *pkgHTTP.ProtectedRouteOptions) {
+	registerAssetRateRoutesToApp(group, api, auth, h, routeOptions, routeOpSuffixV2)
+}
+
+// registerAssetRateRoutesToApp is the single description of the asset-rate route surface,
+// shared by every versioned contract that serves it. For each of the three ops it attaches
+// the Fiber auth chain — protectedMidaz(auth,"asset-rates",verb) (=
+// auth.Authorize("midaz","asset-rates",verb) + tenant PostAuthMiddlewares) +
+// ParseUUIDPathParameters("asset-rate") — as MIDDLEWARE ONLY (no terminal) on the VERSIONED
 // GROUP with GROUP-RELATIVE paths, then registers the Huma terminals via
 // RegisterAssetRateRoutes on the SAME group's Huma API. This preserves the pre-Huma
 // ("asset-rates", verb) authz tuples and tenant resolution BYTE-FOR-BYTE (the plural
-// resource + the "asset-rate" entity-name for ParseUUIDPathParameters, exactly as in
-// the pre-migration routes.go) — no asset-rate route becomes public. asset-rate is
-// MONEY-adjacent (exchange rates). Mirrors RegisterSegmentRoutesToApp; the integration
-// task calls this from the unified server's humaMount seam.
-func RegisterAssetRateRoutesToApp(group fiber.Router, api huma.API, auth *middleware.AuthClient, h *AssetRateHandler, routeOptions *pkgHTTP.ProtectedRouteOptions) {
+// resource + the "asset-rate" entity-name for ParseUUIDPathParameters, exactly as in the
+// pre-migration routes.go) — no asset-rate route becomes public on whichever version group
+// it is mounted on. asset-rate is MONEY-adjacent (exchange rates).
+//
+// opSuffix distinguishes the operation IDs one version group publishes from another's —
+// see routeOpSuffixV1. Nothing else varies between contracts, so a change to the surface
+// reaches every version it is mounted on.
+func registerAssetRateRoutesToApp(group fiber.Router, api huma.API, auth *middleware.AuthClient, h *AssetRateHandler, routeOptions *pkgHTTP.ProtectedRouteOptions, opSuffix string) {
 	const (
 		basePath     = "/organizations/:organization_id/ledgers/:ledger_id/asset-rates"
 		externalPath = basePath + "/:external_id"
@@ -264,5 +287,5 @@ func RegisterAssetRateRoutesToApp(group fiber.Router, api huma.API, auth *middle
 	routeGet(group, externalPath, protectedMidaz(auth, "asset-rates", "get", routeOptions, parse))
 	routeGet(group, fromPath, protectedMidaz(auth, "asset-rates", "get", routeOptions, parse))
 
-	RegisterAssetRateRoutes(api, h)
+	RegisterAssetRateRoutes(api, h, opSuffix)
 }

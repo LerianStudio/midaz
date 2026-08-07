@@ -81,7 +81,7 @@ func buildHumaAssetRateApp(t *testing.T, handler *AssetRateHandler, authOK bool)
 	apiV1.Get(base+"/:external_id", parse)
 	apiV1.Get(base+"/from/:asset_code", parse)
 
-	RegisterAssetRateRoutes(hAPI, handler)
+	RegisterAssetRateRoutes(hAPI, handler, routeOpSuffixV1)
 
 	return f
 }

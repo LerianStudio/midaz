@@ -8718,6 +8718,252 @@ paths:
       summary: Delete Metadata Index
       tags:
         - Metadata Indexes
+  /v2/organizations:
+    get:
+      operationId: listOrganizationsV2
+      parameters:
+        - description: JSON string to filter organizations by metadata fields
+          explode: false
+          in: query
+          name: metadata
+          schema:
+            description: JSON string to filter organizations by metadata fields
+            type: string
+        - description: Max items per page (1-100, default 10)
+          explode: false
+          in: query
+          name: limit
+          schema:
+            description: Max items per page (1-100, default 10)
+            type: string
+        - description: Page number (default 1)
+          explode: false
+          in: query
+          name: page
+          schema:
+            description: Page number (default 1)
+            type: string
+        - description: Filter organizations created on/after this date (YYYY-MM-DD)
+          explode: false
+          in: query
+          name: start_date
+          schema:
+            description: Filter organizations created on/after this date (YYYY-MM-DD)
+            type: string
+        - description: Filter organizations created on/before this date (YYYY-MM-DD)
+          explode: false
+          in: query
+          name: end_date
+          schema:
+            description: Filter organizations created on/before this date (YYYY-MM-DD)
+            type: string
+        - description: Sort direction (asc, desc)
+          explode: false
+          in: query
+          name: sort_order
+          schema:
+            description: Sort direction (asc, desc)
+            type: string
+        - description: Filter by legal name (case-insensitive, prefix match)
+          explode: false
+          in: query
+          name: legal_name
+          schema:
+            description: Filter by legal name (case-insensitive, prefix match)
+            type: string
+        - description: Filter by doing business as name (case-insensitive, prefix match)
+          explode: false
+          in: query
+          name: doing_business_as
+          schema:
+            description: Filter by doing business as name (case-insensitive, prefix match)
+            type: string
+        - description: Filter by status
+          explode: false
+          in: query
+          name: status
+          schema:
+            description: Filter by status
+            type: string
+        - description: Filter by legal document (exact match)
+          explode: false
+          in: query
+          name: legal_document
+          schema:
+            description: Filter by legal document (exact match)
+            type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Pagination"
+          description: OK
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Error
+      security:
+        - BearerAuth: []
+        - ApiKeyAuth: []
+      summary: List all organizations
+      tags:
+        - Organizations
+    post:
+      operationId: createOrganizationV2
+      parameters:
+        - description: Bearer token (forwarded to the service)
+          in: header
+          name: Authorization
+          schema:
+            description: Bearer token (forwarded to the service)
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              contentMediaType: application/octet-stream
+              format: binary
+              type: string
+        required: true
+      responses:
+        "201":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Organization"
+          description: Created
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Error
+      security:
+        - BearerAuth: []
+        - ApiKeyAuth: []
+      summary: Create a new organization
+      tags:
+        - Organizations
+  /v2/organizations/metrics/count:
+    head:
+      operationId: countOrganizationsV2
+      responses:
+        "204":
+          description: No Content
+          headers:
+            Content-Length:
+              schema:
+                type: string
+            X-Total-Count:
+              schema:
+                type: string
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Error
+      security:
+        - BearerAuth: []
+        - ApiKeyAuth: []
+      summary: Count total organizations
+      tags:
+        - Organizations
+  /v2/organizations/{id}:
+    delete:
+      operationId: deleteOrganizationV2
+      parameters:
+        - description: Organization ID (UUID)
+          in: path
+          name: id
+          required: true
+          schema:
+            description: Organization ID (UUID)
+            type: string
+      responses:
+        "204":
+          description: No Content
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Error
+      security:
+        - BearerAuth: []
+        - ApiKeyAuth: []
+      summary: Delete an organization
+      tags:
+        - Organizations
+    get:
+      operationId: getOrganizationByIDV2
+      parameters:
+        - description: Organization ID (UUID)
+          in: path
+          name: id
+          required: true
+          schema:
+            description: Organization ID (UUID)
+            type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Organization"
+          description: OK
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Error
+      security:
+        - BearerAuth: []
+        - ApiKeyAuth: []
+      summary: Retrieve a specific organization
+      tags:
+        - Organizations
+    patch:
+      operationId: updateOrganizationV2
+      parameters:
+        - description: Organization ID (UUID)
+          in: path
+          name: id
+          required: true
+          schema:
+            description: Organization ID (UUID)
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              contentMediaType: application/octet-stream
+              format: binary
+              type: string
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Organization"
+          description: OK
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Error
+      security:
+        - BearerAuth: []
+        - ApiKeyAuth: []
+      summary: Update an existing organization
+      tags:
+        - Organizations
   /v2/organizations/{organization_id}/encryption/provision:
     post:
       operationId: provisionEncryptionV2
@@ -9450,6 +9696,2190 @@ paths:
       summary: List Instruments
       tags:
         - Instruments
+  /v2/organizations/{organization_id}/ledgers:
+    get:
+      operationId: listLedgersV2
+      parameters:
+        - description: Organization ID (UUID)
+          in: path
+          name: organization_id
+          required: true
+          schema:
+            description: Organization ID (UUID)
+            type: string
+        - description: JSON string to filter ledgers by metadata fields
+          explode: false
+          in: query
+          name: metadata
+          schema:
+            description: JSON string to filter ledgers by metadata fields
+            type: string
+        - description: Max items per page (1-100, default 10)
+          explode: false
+          in: query
+          name: limit
+          schema:
+            description: Max items per page (1-100, default 10)
+            type: string
+        - description: Page number (default 1)
+          explode: false
+          in: query
+          name: page
+          schema:
+            description: Page number (default 1)
+            type: string
+        - description: Filter ledgers created on/after this date (YYYY-MM-DD)
+          explode: false
+          in: query
+          name: start_date
+          schema:
+            description: Filter ledgers created on/after this date (YYYY-MM-DD)
+            type: string
+        - description: Filter ledgers created on/before this date (YYYY-MM-DD)
+          explode: false
+          in: query
+          name: end_date
+          schema:
+            description: Filter ledgers created on/before this date (YYYY-MM-DD)
+            type: string
+        - description: Sort direction (asc, desc)
+          explode: false
+          in: query
+          name: sort_order
+          schema:
+            description: Sort direction (asc, desc)
+            type: string
+        - description: Filter ledgers by name (case-insensitive, prefix match)
+          explode: false
+          in: query
+          name: name
+          schema:
+            description: Filter ledgers by name (case-insensitive, prefix match)
+            type: string
+        - description: Filter ledgers by status (ACTIVE, INACTIVE)
+          explode: false
+          in: query
+          name: status
+          schema:
+            description: Filter ledgers by status (ACTIVE, INACTIVE)
+            type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Pagination"
+          description: OK
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Error
+      security:
+        - BearerAuth: []
+        - ApiKeyAuth: []
+      summary: List all ledgers
+      tags:
+        - Ledgers
+    post:
+      operationId: createLedgerV2
+      parameters:
+        - description: Organization ID (UUID)
+          in: path
+          name: organization_id
+          required: true
+          schema:
+            description: Organization ID (UUID)
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              contentMediaType: application/octet-stream
+              format: binary
+              type: string
+        required: true
+      responses:
+        "201":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Ledger"
+          description: Created
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Error
+      security:
+        - BearerAuth: []
+        - ApiKeyAuth: []
+      summary: Create a new ledger
+      tags:
+        - Ledgers
+  /v2/organizations/{organization_id}/ledgers/metrics/count:
+    head:
+      operationId: countLedgersV2
+      parameters:
+        - description: Organization ID (UUID)
+          in: path
+          name: organization_id
+          required: true
+          schema:
+            description: Organization ID (UUID)
+            type: string
+      responses:
+        "204":
+          description: No Content
+          headers:
+            Content-Length:
+              schema:
+                type: string
+            X-Total-Count:
+              schema:
+                type: string
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Error
+      security:
+        - BearerAuth: []
+        - ApiKeyAuth: []
+      summary: Count total ledgers
+      tags:
+        - Ledgers
+  /v2/organizations/{organization_id}/ledgers/{ledger_id}:
+    delete:
+      operationId: deleteLedgerV2
+      parameters:
+        - description: Organization ID (UUID)
+          in: path
+          name: organization_id
+          required: true
+          schema:
+            description: Organization ID (UUID)
+            type: string
+        - description: Ledger ID (UUID)
+          in: path
+          name: ledger_id
+          required: true
+          schema:
+            description: Ledger ID (UUID)
+            type: string
+      responses:
+        "204":
+          description: No Content
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Error
+      security:
+        - BearerAuth: []
+        - ApiKeyAuth: []
+      summary: Delete a ledger
+      tags:
+        - Ledgers
+    get:
+      operationId: getLedgerByIDV2
+      parameters:
+        - description: Organization ID (UUID)
+          in: path
+          name: organization_id
+          required: true
+          schema:
+            description: Organization ID (UUID)
+            type: string
+        - description: Ledger ID (UUID)
+          in: path
+          name: ledger_id
+          required: true
+          schema:
+            description: Ledger ID (UUID)
+            type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Ledger"
+          description: OK
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Error
+      security:
+        - BearerAuth: []
+        - ApiKeyAuth: []
+      summary: Retrieve a specific ledger
+      tags:
+        - Ledgers
+    patch:
+      operationId: updateLedgerV2
+      parameters:
+        - description: Organization ID (UUID)
+          in: path
+          name: organization_id
+          required: true
+          schema:
+            description: Organization ID (UUID)
+            type: string
+        - description: Ledger ID (UUID)
+          in: path
+          name: ledger_id
+          required: true
+          schema:
+            description: Ledger ID (UUID)
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              contentMediaType: application/octet-stream
+              format: binary
+              type: string
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Ledger"
+          description: OK
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Error
+      security:
+        - BearerAuth: []
+        - ApiKeyAuth: []
+      summary: Update an existing ledger
+      tags:
+        - Ledgers
+  /v2/organizations/{organization_id}/ledgers/{ledger_id}/account-types:
+    get:
+      operationId: listAccountTypesV2
+      parameters:
+        - description: Organization ID (UUID)
+          in: path
+          name: organization_id
+          required: true
+          schema:
+            description: Organization ID (UUID)
+            type: string
+        - description: Ledger ID (UUID)
+          in: path
+          name: ledger_id
+          required: true
+          schema:
+            description: Ledger ID (UUID)
+            type: string
+        - description: JSON string to filter account types by metadata fields
+          explode: false
+          in: query
+          name: metadata
+          schema:
+            description: JSON string to filter account types by metadata fields
+            type: string
+        - description: Filter account types by key value
+          explode: false
+          in: query
+          name: key_value
+          schema:
+            description: Filter account types by key value
+            type: string
+        - description: Max items per page (1-100, default 10)
+          explode: false
+          in: query
+          name: limit
+          schema:
+            description: Max items per page (1-100, default 10)
+            type: string
+        - description: Page number (default 1)
+          explode: false
+          in: query
+          name: page
+          schema:
+            description: Page number (default 1)
+            type: string
+        - description: Cursor for cursor-based pagination
+          explode: false
+          in: query
+          name: cursor
+          schema:
+            description: Cursor for cursor-based pagination
+            type: string
+        - description: Filter account types created on/after this date (YYYY-MM-DD)
+          explode: false
+          in: query
+          name: start_date
+          schema:
+            description: Filter account types created on/after this date (YYYY-MM-DD)
+            type: string
+        - description: Filter account types created on/before this date (YYYY-MM-DD)
+          explode: false
+          in: query
+          name: end_date
+          schema:
+            description: Filter account types created on/before this date (YYYY-MM-DD)
+            type: string
+        - description: Sort direction (asc, desc)
+          explode: false
+          in: query
+          name: sort_order
+          schema:
+            description: Sort direction (asc, desc)
+            type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Pagination"
+          description: OK
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Error
+      security:
+        - BearerAuth: []
+        - ApiKeyAuth: []
+      summary: List all account types
+      tags:
+        - Account Types
+    post:
+      operationId: createAccountTypeV2
+      parameters:
+        - description: Organization ID (UUID)
+          in: path
+          name: organization_id
+          required: true
+          schema:
+            description: Organization ID (UUID)
+            type: string
+        - description: Ledger ID (UUID)
+          in: path
+          name: ledger_id
+          required: true
+          schema:
+            description: Ledger ID (UUID)
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              contentMediaType: application/octet-stream
+              format: binary
+              type: string
+        required: true
+      responses:
+        "201":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AccountType"
+          description: Created
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Error
+      security:
+        - BearerAuth: []
+        - ApiKeyAuth: []
+      summary: Create a new account type
+      tags:
+        - Account Types
+  /v2/organizations/{organization_id}/ledgers/{ledger_id}/account-types/{id}:
+    delete:
+      operationId: deleteAccountTypeV2
+      parameters:
+        - description: Organization ID (UUID)
+          in: path
+          name: organization_id
+          required: true
+          schema:
+            description: Organization ID (UUID)
+            type: string
+        - description: Ledger ID (UUID)
+          in: path
+          name: ledger_id
+          required: true
+          schema:
+            description: Ledger ID (UUID)
+            type: string
+        - description: Account Type ID (UUID)
+          in: path
+          name: id
+          required: true
+          schema:
+            description: Account Type ID (UUID)
+            type: string
+      responses:
+        "204":
+          description: No Content
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Error
+      security:
+        - BearerAuth: []
+        - ApiKeyAuth: []
+      summary: Delete an account type
+      tags:
+        - Account Types
+    get:
+      operationId: getAccountTypeByIDV2
+      parameters:
+        - description: Organization ID (UUID)
+          in: path
+          name: organization_id
+          required: true
+          schema:
+            description: Organization ID (UUID)
+            type: string
+        - description: Ledger ID (UUID)
+          in: path
+          name: ledger_id
+          required: true
+          schema:
+            description: Ledger ID (UUID)
+            type: string
+        - description: Account Type ID (UUID)
+          in: path
+          name: id
+          required: true
+          schema:
+            description: Account Type ID (UUID)
+            type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AccountType"
+          description: OK
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Error
+      security:
+        - BearerAuth: []
+        - ApiKeyAuth: []
+      summary: Retrieve a specific account type
+      tags:
+        - Account Types
+    patch:
+      operationId: updateAccountTypeV2
+      parameters:
+        - description: Organization ID (UUID)
+          in: path
+          name: organization_id
+          required: true
+          schema:
+            description: Organization ID (UUID)
+            type: string
+        - description: Ledger ID (UUID)
+          in: path
+          name: ledger_id
+          required: true
+          schema:
+            description: Ledger ID (UUID)
+            type: string
+        - description: Account Type ID (UUID)
+          in: path
+          name: id
+          required: true
+          schema:
+            description: Account Type ID (UUID)
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              contentMediaType: application/octet-stream
+              format: binary
+              type: string
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AccountType"
+          description: OK
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Error
+      security:
+        - BearerAuth: []
+        - ApiKeyAuth: []
+      summary: Update an account type
+      tags:
+        - Account Types
+  /v2/organizations/{organization_id}/ledgers/{ledger_id}/accounts:
+    get:
+      operationId: listAccountsV2
+      parameters:
+        - description: Organization ID (UUID)
+          in: path
+          name: organization_id
+          required: true
+          schema:
+            description: Organization ID (UUID)
+            type: string
+        - description: Ledger ID (UUID)
+          in: path
+          name: ledger_id
+          required: true
+          schema:
+            description: Ledger ID (UUID)
+            type: string
+        - description: JSON string to filter accounts by metadata fields
+          explode: false
+          in: query
+          name: metadata
+          schema:
+            description: JSON string to filter accounts by metadata fields
+            type: string
+        - description: Max items per page (1-100, default 10)
+          explode: false
+          in: query
+          name: limit
+          schema:
+            description: Max items per page (1-100, default 10)
+            type: string
+        - description: Page number (default 1)
+          explode: false
+          in: query
+          name: page
+          schema:
+            description: Page number (default 1)
+            type: string
+        - description: Filter accounts created on/after this date (YYYY-MM-DD)
+          explode: false
+          in: query
+          name: start_date
+          schema:
+            description: Filter accounts created on/after this date (YYYY-MM-DD)
+            type: string
+        - description: Filter accounts created on/before this date (YYYY-MM-DD)
+          explode: false
+          in: query
+          name: end_date
+          schema:
+            description: Filter accounts created on/before this date (YYYY-MM-DD)
+            type: string
+        - description: Sort direction (asc, desc)
+          explode: false
+          in: query
+          name: sort_order
+          schema:
+            description: Sort direction (asc, desc)
+            type: string
+        - description: Filter accounts by portfolio ID (UUID)
+          explode: false
+          in: query
+          name: portfolio_id
+          schema:
+            description: Filter accounts by portfolio ID (UUID)
+            type: string
+        - description: Filter accounts by segment ID (UUID)
+          explode: false
+          in: query
+          name: segment_id
+          schema:
+            description: Filter accounts by segment ID (UUID)
+            type: string
+        - description: Filter accounts by status (ACTIVE, INACTIVE, BLOCKED)
+          explode: false
+          in: query
+          name: status
+          schema:
+            description: Filter accounts by status (ACTIVE, INACTIVE, BLOCKED)
+            type: string
+        - description: Filter accounts by type (e.g., deposit, savings, external)
+          explode: false
+          in: query
+          name: type
+          schema:
+            description: Filter accounts by type (e.g., deposit, savings, external)
+            type: string
+        - description: Filter accounts by asset code (e.g., USD, BRL, EUR)
+          explode: false
+          in: query
+          name: asset_code
+          schema:
+            description: Filter accounts by asset code (e.g., USD, BRL, EUR)
+            type: string
+        - description: Filter accounts by entity ID
+          explode: false
+          in: query
+          name: entity_id
+          schema:
+            description: Filter accounts by entity ID
+            type: string
+        - description: Filter accounts by blocked status (true, false)
+          explode: false
+          in: query
+          name: blocked
+          schema:
+            description: Filter accounts by blocked status (true, false)
+            type: string
+        - description: Filter accounts by parent account ID (UUID)
+          explode: false
+          in: query
+          name: parent_account_id
+          schema:
+            description: Filter accounts by parent account ID (UUID)
+            type: string
+        - description: Filter accounts by name (case-insensitive, prefix match)
+          explode: false
+          in: query
+          name: name
+          schema:
+            description: Filter accounts by name (case-insensitive, prefix match)
+            type: string
+        - description: Filter accounts by alias (case-insensitive, prefix match)
+          explode: false
+          in: query
+          name: alias
+          schema:
+            description: Filter accounts by alias (case-insensitive, prefix match)
+            type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Pagination"
+          description: OK
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Error
+      security:
+        - BearerAuth: []
+        - ApiKeyAuth: []
+      summary: List all accounts
+      tags:
+        - Accounts
+    post:
+      operationId: createAccountV2
+      parameters:
+        - description: Organization ID (UUID)
+          in: path
+          name: organization_id
+          required: true
+          schema:
+            description: Organization ID (UUID)
+            type: string
+        - description: Ledger ID (UUID)
+          in: path
+          name: ledger_id
+          required: true
+          schema:
+            description: Ledger ID (UUID)
+            type: string
+        - description: Bearer token (forwarded to the service)
+          in: header
+          name: Authorization
+          schema:
+            description: Bearer token (forwarded to the service)
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              contentMediaType: application/octet-stream
+              format: binary
+              type: string
+        required: true
+      responses:
+        "201":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Account"
+          description: Created
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Error
+      security:
+        - BearerAuth: []
+        - ApiKeyAuth: []
+      summary: Create a new account
+      tags:
+        - Accounts
+  /v2/organizations/{organization_id}/ledgers/{ledger_id}/accounts/alias/{alias}:
+    get:
+      operationId: getAccountByAliasV2
+      parameters:
+        - description: Organization ID (UUID)
+          in: path
+          name: organization_id
+          required: true
+          schema:
+            description: Organization ID (UUID)
+            type: string
+        - description: Ledger ID (UUID)
+          in: path
+          name: ledger_id
+          required: true
+          schema:
+            description: Ledger ID (UUID)
+            type: string
+        - description: Account alias (e.g. @person1)
+          in: path
+          name: alias
+          required: true
+          schema:
+            description: Account alias (e.g. @person1)
+            type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Account"
+          description: OK
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Error
+      security:
+        - BearerAuth: []
+        - ApiKeyAuth: []
+      summary: Retrieve an account by alias
+      tags:
+        - Accounts
+  /v2/organizations/{organization_id}/ledgers/{ledger_id}/accounts/alias/{alias}/balances:
+    get:
+      operationId: getBalancesByAliasV2
+      parameters:
+        - description: Organization ID (UUID)
+          in: path
+          name: organization_id
+          required: true
+          schema:
+            description: Organization ID (UUID)
+            type: string
+        - description: Ledger ID (UUID)
+          in: path
+          name: ledger_id
+          required: true
+          schema:
+            description: Ledger ID (UUID)
+            type: string
+        - description: Alias (e.g. @person1)
+          in: path
+          name: alias
+          required: true
+          schema:
+            description: Alias (e.g. @person1)
+            type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Pagination"
+          description: OK
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Error
+      security:
+        - BearerAuth: []
+        - ApiKeyAuth: []
+      summary: Get Balances using Alias
+      tags:
+        - Balances
+  /v2/organizations/{organization_id}/ledgers/{ledger_id}/accounts/external/{code}:
+    get:
+      operationId: getAccountExternalByCodeV2
+      parameters:
+        - description: Organization ID (UUID)
+          in: path
+          name: organization_id
+          required: true
+          schema:
+            description: Organization ID (UUID)
+            type: string
+        - description: Ledger ID (UUID)
+          in: path
+          name: ledger_id
+          required: true
+          schema:
+            description: Ledger ID (UUID)
+            type: string
+        - description: Account external code (e.g. BRL)
+          in: path
+          name: code
+          required: true
+          schema:
+            description: Account external code (e.g. BRL)
+            type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Account"
+          description: OK
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Error
+      security:
+        - BearerAuth: []
+        - ApiKeyAuth: []
+      summary: Retrieve an account by external code
+      tags:
+        - Accounts
+  /v2/organizations/{organization_id}/ledgers/{ledger_id}/accounts/external/{code}/balances:
+    get:
+      operationId: getBalancesExternalByCodeV2
+      parameters:
+        - description: Organization ID (UUID)
+          in: path
+          name: organization_id
+          required: true
+          schema:
+            description: Organization ID (UUID)
+            type: string
+        - description: Ledger ID (UUID)
+          in: path
+          name: ledger_id
+          required: true
+          schema:
+            description: Ledger ID (UUID)
+            type: string
+        - description: Code (e.g. BRL)
+          in: path
+          name: code
+          required: true
+          schema:
+            description: Code (e.g. BRL)
+            type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Pagination"
+          description: OK
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Error
+      security:
+        - BearerAuth: []
+        - ApiKeyAuth: []
+      summary: Get External balances using code
+      tags:
+        - Balances
+  /v2/organizations/{organization_id}/ledgers/{ledger_id}/accounts/metrics/count:
+    head:
+      operationId: countAccountsV2
+      parameters:
+        - description: Organization ID (UUID)
+          in: path
+          name: organization_id
+          required: true
+          schema:
+            description: Organization ID (UUID)
+            type: string
+        - description: Ledger ID (UUID)
+          in: path
+          name: ledger_id
+          required: true
+          schema:
+            description: Ledger ID (UUID)
+            type: string
+      responses:
+        "204":
+          description: No Content
+          headers:
+            Content-Length:
+              schema:
+                type: string
+            X-Total-Count:
+              schema:
+                type: string
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Error
+      security:
+        - BearerAuth: []
+        - ApiKeyAuth: []
+      summary: Count accounts
+      tags:
+        - Accounts
+  /v2/organizations/{organization_id}/ledgers/{ledger_id}/accounts/{account_id}/balances:
+    get:
+      operationId: getAllBalancesByAccountIDV2
+      parameters:
+        - description: Organization ID (UUID)
+          in: path
+          name: organization_id
+          required: true
+          schema:
+            description: Organization ID (UUID)
+            type: string
+        - description: Ledger ID (UUID)
+          in: path
+          name: ledger_id
+          required: true
+          schema:
+            description: Ledger ID (UUID)
+            type: string
+        - description: Account ID (UUID)
+          in: path
+          name: account_id
+          required: true
+          schema:
+            description: Account ID (UUID)
+            type: string
+        - description: Max items per page (max 100, default 10)
+          explode: false
+          in: query
+          name: limit
+          schema:
+            description: Max items per page (max 100, default 10)
+            type: string
+        - description: Filter balances created on/after this date (YYYY-MM-DD)
+          explode: false
+          in: query
+          name: start_date
+          schema:
+            description: Filter balances created on/after this date (YYYY-MM-DD)
+            type: string
+        - description: Filter balances created on/before this date (YYYY-MM-DD)
+          explode: false
+          in: query
+          name: end_date
+          schema:
+            description: Filter balances created on/before this date (YYYY-MM-DD)
+            type: string
+        - description: Sort direction (asc, desc)
+          explode: false
+          in: query
+          name: sort_order
+          schema:
+            description: Sort direction (asc, desc)
+            type: string
+        - description: Opaque cursor token for pagination
+          explode: false
+          in: query
+          name: cursor
+          schema:
+            description: Opaque cursor token for pagination
+            type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Pagination"
+          description: OK
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Error
+      security:
+        - BearerAuth: []
+        - ApiKeyAuth: []
+      summary: Get all balances by account id
+      tags:
+        - Balances
+    post:
+      operationId: createAdditionalBalanceV2
+      parameters:
+        - description: Organization ID (UUID)
+          in: path
+          name: organization_id
+          required: true
+          schema:
+            description: Organization ID (UUID)
+            type: string
+        - description: Ledger ID (UUID)
+          in: path
+          name: ledger_id
+          required: true
+          schema:
+            description: Ledger ID (UUID)
+            type: string
+        - description: Account ID (UUID)
+          in: path
+          name: account_id
+          required: true
+          schema:
+            description: Account ID (UUID)
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              contentMediaType: application/octet-stream
+              format: binary
+              type: string
+        required: true
+      responses:
+        "201":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Balance"
+          description: Created
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Error
+      security:
+        - BearerAuth: []
+        - ApiKeyAuth: []
+      summary: Create Additional Balance
+      tags:
+        - Balances
+  /v2/organizations/{organization_id}/ledgers/{ledger_id}/accounts/{account_id}/balances/history:
+    get:
+      operationId: getAccountBalancesAtTimestampV2
+      parameters:
+        - description: Organization ID (UUID)
+          in: path
+          name: organization_id
+          required: true
+          schema:
+            description: Organization ID (UUID)
+            type: string
+        - description: Ledger ID (UUID)
+          in: path
+          name: ledger_id
+          required: true
+          schema:
+            description: Ledger ID (UUID)
+            type: string
+        - description: Account ID (UUID)
+          in: path
+          name: account_id
+          required: true
+          schema:
+            description: Account ID (UUID)
+            type: string
+        - description: "Point in time (format: yyyy-mm-dd hh:mm:ss)"
+          explode: false
+          in: query
+          name: date
+          schema:
+            description: "Point in time (format: yyyy-mm-dd hh:mm:ss)"
+            type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                items:
+                  $ref: "#/components/schemas/BalanceHistory"
+                type:
+                  - array
+                  - "null"
+          description: OK
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Error
+      security:
+        - BearerAuth: []
+        - ApiKeyAuth: []
+      summary: Get Account Balances history at date
+      tags:
+        - Balances
+  /v2/organizations/{organization_id}/ledgers/{ledger_id}/accounts/{account_id}/operations:
+    get:
+      operationId: getAllOperationsByAccountV2
+      parameters:
+        - description: Organization ID (UUID)
+          in: path
+          name: organization_id
+          required: true
+          schema:
+            description: Organization ID (UUID)
+            type: string
+        - description: Ledger ID (UUID)
+          in: path
+          name: ledger_id
+          required: true
+          schema:
+            description: Ledger ID (UUID)
+            type: string
+        - description: Account ID (UUID)
+          in: path
+          name: account_id
+          required: true
+          schema:
+            description: Account ID (UUID)
+            type: string
+        - description: JSON string to filter operations by metadata fields
+          explode: false
+          in: query
+          name: metadata
+          schema:
+            description: JSON string to filter operations by metadata fields
+            type: string
+        - description: Max items per page (max 100, default 10)
+          explode: false
+          in: query
+          name: limit
+          schema:
+            description: Max items per page (max 100, default 10)
+            type: string
+        - description: Filter operations created on/after this date (YYYY-MM-DD)
+          explode: false
+          in: query
+          name: start_date
+          schema:
+            description: Filter operations created on/after this date (YYYY-MM-DD)
+            type: string
+        - description: Filter operations created on/before this date (YYYY-MM-DD)
+          explode: false
+          in: query
+          name: end_date
+          schema:
+            description: Filter operations created on/before this date (YYYY-MM-DD)
+            type: string
+        - description: Sort direction (asc, desc)
+          explode: false
+          in: query
+          name: sort_order
+          schema:
+            description: Sort direction (asc, desc)
+            type: string
+        - description: Opaque cursor token for pagination
+          explode: false
+          in: query
+          name: cursor
+          schema:
+            description: Opaque cursor token for pagination
+            type: string
+        - description: Filter by operation type (DEBIT, CREDIT)
+          explode: false
+          in: query
+          name: type
+          schema:
+            description: Filter by operation type (DEBIT, CREDIT)
+            type: string
+        - description: Filter by direction (debit, credit)
+          explode: false
+          in: query
+          name: direction
+          schema:
+            description: Filter by direction (debit, credit)
+            type: string
+        - description: Filter by operation route ID (UUID)
+          explode: false
+          in: query
+          name: route_id
+          schema:
+            description: Filter by operation route ID (UUID)
+            type: string
+        - description: Filter by operation route code
+          explode: false
+          in: query
+          name: route_code
+          schema:
+            description: Filter by operation route code
+            type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Pagination"
+          description: OK
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Error
+      security:
+        - BearerAuth: []
+        - ApiKeyAuth: []
+      summary: Get all Operations by account
+      tags:
+        - Operations
+  /v2/organizations/{organization_id}/ledgers/{ledger_id}/accounts/{account_id}/operations/{operation_id}:
+    get:
+      operationId: getOperationByAccountV2
+      parameters:
+        - description: Organization ID (UUID)
+          in: path
+          name: organization_id
+          required: true
+          schema:
+            description: Organization ID (UUID)
+            type: string
+        - description: Ledger ID (UUID)
+          in: path
+          name: ledger_id
+          required: true
+          schema:
+            description: Ledger ID (UUID)
+            type: string
+        - description: Account ID (UUID)
+          in: path
+          name: account_id
+          required: true
+          schema:
+            description: Account ID (UUID)
+            type: string
+        - description: Operation ID (UUID)
+          in: path
+          name: operation_id
+          required: true
+          schema:
+            description: Operation ID (UUID)
+            type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Operation"
+          description: OK
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Error
+      security:
+        - BearerAuth: []
+        - ApiKeyAuth: []
+      summary: Get Operation
+      tags:
+        - Operations
+  /v2/organizations/{organization_id}/ledgers/{ledger_id}/accounts/{id}:
+    delete:
+      operationId: deleteAccountV2
+      parameters:
+        - description: Organization ID (UUID)
+          in: path
+          name: organization_id
+          required: true
+          schema:
+            description: Organization ID (UUID)
+            type: string
+        - description: Ledger ID (UUID)
+          in: path
+          name: ledger_id
+          required: true
+          schema:
+            description: Ledger ID (UUID)
+            type: string
+        - description: Account ID (UUID)
+          in: path
+          name: id
+          required: true
+          schema:
+            description: Account ID (UUID)
+            type: string
+        - description: Bearer token (forwarded to the service)
+          in: header
+          name: Authorization
+          schema:
+            description: Bearer token (forwarded to the service)
+            type: string
+      responses:
+        "204":
+          description: No Content
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Error
+      security:
+        - BearerAuth: []
+        - ApiKeyAuth: []
+      summary: Delete an account
+      tags:
+        - Accounts
+    get:
+      operationId: getAccountByIDV2
+      parameters:
+        - description: Organization ID (UUID)
+          in: path
+          name: organization_id
+          required: true
+          schema:
+            description: Organization ID (UUID)
+            type: string
+        - description: Ledger ID (UUID)
+          in: path
+          name: ledger_id
+          required: true
+          schema:
+            description: Ledger ID (UUID)
+            type: string
+        - description: Account ID (UUID)
+          in: path
+          name: id
+          required: true
+          schema:
+            description: Account ID (UUID)
+            type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Account"
+          description: OK
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Error
+      security:
+        - BearerAuth: []
+        - ApiKeyAuth: []
+      summary: Retrieve a specific account
+      tags:
+        - Accounts
+    patch:
+      operationId: updateAccountV2
+      parameters:
+        - description: Organization ID (UUID)
+          in: path
+          name: organization_id
+          required: true
+          schema:
+            description: Organization ID (UUID)
+            type: string
+        - description: Ledger ID (UUID)
+          in: path
+          name: ledger_id
+          required: true
+          schema:
+            description: Ledger ID (UUID)
+            type: string
+        - description: Account ID (UUID)
+          in: path
+          name: id
+          required: true
+          schema:
+            description: Account ID (UUID)
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              contentMediaType: application/octet-stream
+              format: binary
+              type: string
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Account"
+          description: OK
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Error
+      security:
+        - BearerAuth: []
+        - ApiKeyAuth: []
+      summary: Update an account
+      tags:
+        - Accounts
+  /v2/organizations/{organization_id}/ledgers/{ledger_id}/asset-rates:
+    put:
+      operationId: createOrUpdateAssetRateV2
+      parameters:
+        - description: Organization ID (UUID)
+          in: path
+          name: organization_id
+          required: true
+          schema:
+            description: Organization ID (UUID)
+            type: string
+        - description: Ledger ID (UUID)
+          in: path
+          name: ledger_id
+          required: true
+          schema:
+            description: Ledger ID (UUID)
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              contentMediaType: application/octet-stream
+              format: binary
+              type: string
+        required: true
+      responses:
+        "201":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AssetRate"
+          description: Created
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Error
+      security:
+        - BearerAuth: []
+        - ApiKeyAuth: []
+      summary: Create or Update an AssetRate
+      tags:
+        - Asset Rates
+  /v2/organizations/{organization_id}/ledgers/{ledger_id}/asset-rates/from/{asset_code}:
+    get:
+      operationId: getAllAssetRatesByAssetCodeV2
+      parameters:
+        - description: Organization ID (UUID)
+          in: path
+          name: organization_id
+          required: true
+          schema:
+            description: Organization ID (UUID)
+            type: string
+        - description: Ledger ID (UUID)
+          in: path
+          name: ledger_id
+          required: true
+          schema:
+            description: Ledger ID (UUID)
+            type: string
+        - description: Source asset code
+          in: path
+          name: asset_code
+          required: true
+          schema:
+            description: Source asset code
+            type: string
+        - description: Filter by destination asset codes
+          explode: false
+          in: query
+          name: to
+          schema:
+            description: Filter by destination asset codes
+            items:
+              type: string
+            type:
+              - array
+              - "null"
+        - description: Max items per page (1-100, default 10)
+          explode: false
+          in: query
+          name: limit
+          schema:
+            description: Max items per page (1-100, default 10)
+            type: string
+        - description: Filter asset rates created on/after this date (YYYY-MM-DD)
+          explode: false
+          in: query
+          name: start_date
+          schema:
+            description: Filter asset rates created on/after this date (YYYY-MM-DD)
+            type: string
+        - description: Filter asset rates created on/before this date (YYYY-MM-DD)
+          explode: false
+          in: query
+          name: end_date
+          schema:
+            description: Filter asset rates created on/before this date (YYYY-MM-DD)
+            type: string
+        - description: Sort direction (asc, desc)
+          explode: false
+          in: query
+          name: sort_order
+          schema:
+            description: Sort direction (asc, desc)
+            type: string
+        - description: Opaque cursor token for pagination
+          explode: false
+          in: query
+          name: cursor
+          schema:
+            description: Opaque cursor token for pagination
+            type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Pagination"
+          description: OK
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Error
+      security:
+        - BearerAuth: []
+        - ApiKeyAuth: []
+      summary: Get an AssetRate by the Asset Code
+      tags:
+        - Asset Rates
+  /v2/organizations/{organization_id}/ledgers/{ledger_id}/asset-rates/{external_id}:
+    get:
+      operationId: getAssetRateByExternalIDV2
+      parameters:
+        - description: Organization ID (UUID)
+          in: path
+          name: organization_id
+          required: true
+          schema:
+            description: Organization ID (UUID)
+            type: string
+        - description: Ledger ID (UUID)
+          in: path
+          name: ledger_id
+          required: true
+          schema:
+            description: Ledger ID (UUID)
+            type: string
+        - description: External ID (UUID)
+          in: path
+          name: external_id
+          required: true
+          schema:
+            description: External ID (UUID)
+            type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AssetRate"
+          description: OK
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Error
+      security:
+        - BearerAuth: []
+        - ApiKeyAuth: []
+      summary: Get an AssetRate by External ID
+      tags:
+        - Asset Rates
+  /v2/organizations/{organization_id}/ledgers/{ledger_id}/assets:
+    get:
+      operationId: listAssetsV2
+      parameters:
+        - description: Organization ID (UUID)
+          in: path
+          name: organization_id
+          required: true
+          schema:
+            description: Organization ID (UUID)
+            type: string
+        - description: Ledger ID (UUID)
+          in: path
+          name: ledger_id
+          required: true
+          schema:
+            description: Ledger ID (UUID)
+            type: string
+        - description: JSON string to filter assets by metadata fields
+          explode: false
+          in: query
+          name: metadata
+          schema:
+            description: JSON string to filter assets by metadata fields
+            type: string
+        - description: Max items per page (1-100, default 10)
+          explode: false
+          in: query
+          name: limit
+          schema:
+            description: Max items per page (1-100, default 10)
+            type: string
+        - description: Page number (default 1)
+          explode: false
+          in: query
+          name: page
+          schema:
+            description: Page number (default 1)
+            type: string
+        - description: Filter assets created on/after this date (YYYY-MM-DD)
+          explode: false
+          in: query
+          name: start_date
+          schema:
+            description: Filter assets created on/after this date (YYYY-MM-DD)
+            type: string
+        - description: Filter assets created on/before this date (YYYY-MM-DD)
+          explode: false
+          in: query
+          name: end_date
+          schema:
+            description: Filter assets created on/before this date (YYYY-MM-DD)
+            type: string
+        - description: Sort direction (asc, desc)
+          explode: false
+          in: query
+          name: sort_order
+          schema:
+            description: Sort direction (asc, desc)
+            type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Pagination"
+          description: OK
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Error
+      security:
+        - BearerAuth: []
+        - ApiKeyAuth: []
+      summary: List all assets
+      tags:
+        - Assets
+    post:
+      operationId: createAssetV2
+      parameters:
+        - description: Organization ID (UUID)
+          in: path
+          name: organization_id
+          required: true
+          schema:
+            description: Organization ID (UUID)
+            type: string
+        - description: Ledger ID (UUID)
+          in: path
+          name: ledger_id
+          required: true
+          schema:
+            description: Ledger ID (UUID)
+            type: string
+        - description: Bearer token (forwarded to the service)
+          in: header
+          name: Authorization
+          schema:
+            description: Bearer token (forwarded to the service)
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              contentMediaType: application/octet-stream
+              format: binary
+              type: string
+        required: true
+      responses:
+        "201":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Asset"
+          description: Created
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Error
+      security:
+        - BearerAuth: []
+        - ApiKeyAuth: []
+      summary: Create a new asset
+      tags:
+        - Assets
+  /v2/organizations/{organization_id}/ledgers/{ledger_id}/assets/metrics/count:
+    head:
+      operationId: countAssetsV2
+      parameters:
+        - description: Organization ID (UUID)
+          in: path
+          name: organization_id
+          required: true
+          schema:
+            description: Organization ID (UUID)
+            type: string
+        - description: Ledger ID (UUID)
+          in: path
+          name: ledger_id
+          required: true
+          schema:
+            description: Ledger ID (UUID)
+            type: string
+      responses:
+        "204":
+          description: No Content
+          headers:
+            Content-Length:
+              schema:
+                type: string
+            X-Total-Count:
+              schema:
+                type: string
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Error
+      security:
+        - BearerAuth: []
+        - ApiKeyAuth: []
+      summary: Count total assets
+      tags:
+        - Assets
+  /v2/organizations/{organization_id}/ledgers/{ledger_id}/assets/{id}:
+    delete:
+      operationId: deleteAssetV2
+      parameters:
+        - description: Organization ID (UUID)
+          in: path
+          name: organization_id
+          required: true
+          schema:
+            description: Organization ID (UUID)
+            type: string
+        - description: Ledger ID (UUID)
+          in: path
+          name: ledger_id
+          required: true
+          schema:
+            description: Ledger ID (UUID)
+            type: string
+        - description: Asset ID (UUID)
+          in: path
+          name: id
+          required: true
+          schema:
+            description: Asset ID (UUID)
+            type: string
+      responses:
+        "204":
+          description: No Content
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Error
+      security:
+        - BearerAuth: []
+        - ApiKeyAuth: []
+      summary: Delete an asset
+      tags:
+        - Assets
+    get:
+      operationId: getAssetByIDV2
+      parameters:
+        - description: Organization ID (UUID)
+          in: path
+          name: organization_id
+          required: true
+          schema:
+            description: Organization ID (UUID)
+            type: string
+        - description: Ledger ID (UUID)
+          in: path
+          name: ledger_id
+          required: true
+          schema:
+            description: Ledger ID (UUID)
+            type: string
+        - description: Asset ID (UUID)
+          in: path
+          name: id
+          required: true
+          schema:
+            description: Asset ID (UUID)
+            type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Asset"
+          description: OK
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Error
+      security:
+        - BearerAuth: []
+        - ApiKeyAuth: []
+      summary: Retrieve a specific asset
+      tags:
+        - Assets
+    patch:
+      operationId: updateAssetV2
+      parameters:
+        - description: Organization ID (UUID)
+          in: path
+          name: organization_id
+          required: true
+          schema:
+            description: Organization ID (UUID)
+            type: string
+        - description: Ledger ID (UUID)
+          in: path
+          name: ledger_id
+          required: true
+          schema:
+            description: Ledger ID (UUID)
+            type: string
+        - description: Asset ID (UUID)
+          in: path
+          name: id
+          required: true
+          schema:
+            description: Asset ID (UUID)
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              contentMediaType: application/octet-stream
+              format: binary
+              type: string
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Asset"
+          description: OK
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Error
+      security:
+        - BearerAuth: []
+        - ApiKeyAuth: []
+      summary: Update an asset
+      tags:
+        - Assets
+  /v2/organizations/{organization_id}/ledgers/{ledger_id}/balances:
+    get:
+      operationId: getAllBalancesV2
+      parameters:
+        - description: Organization ID (UUID)
+          in: path
+          name: organization_id
+          required: true
+          schema:
+            description: Organization ID (UUID)
+            type: string
+        - description: Ledger ID (UUID)
+          in: path
+          name: ledger_id
+          required: true
+          schema:
+            description: Ledger ID (UUID)
+            type: string
+        - description: Max items per page (max 100, default 10)
+          explode: false
+          in: query
+          name: limit
+          schema:
+            description: Max items per page (max 100, default 10)
+            type: string
+        - description: Filter balances created on/after this date (YYYY-MM-DD)
+          explode: false
+          in: query
+          name: start_date
+          schema:
+            description: Filter balances created on/after this date (YYYY-MM-DD)
+            type: string
+        - description: Filter balances created on/before this date (YYYY-MM-DD)
+          explode: false
+          in: query
+          name: end_date
+          schema:
+            description: Filter balances created on/before this date (YYYY-MM-DD)
+            type: string
+        - description: Sort direction (asc, desc)
+          explode: false
+          in: query
+          name: sort_order
+          schema:
+            description: Sort direction (asc, desc)
+            type: string
+        - description: Opaque cursor token for pagination
+          explode: false
+          in: query
+          name: cursor
+          schema:
+            description: Opaque cursor token for pagination
+            type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Pagination"
+          description: OK
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Error
+      security:
+        - BearerAuth: []
+        - ApiKeyAuth: []
+      summary: Get all balances
+      tags:
+        - Balances
+  /v2/organizations/{organization_id}/ledgers/{ledger_id}/balances/{balance_id}:
+    delete:
+      operationId: deleteBalanceV2
+      parameters:
+        - description: Organization ID (UUID)
+          in: path
+          name: organization_id
+          required: true
+          schema:
+            description: Organization ID (UUID)
+            type: string
+        - description: Ledger ID (UUID)
+          in: path
+          name: ledger_id
+          required: true
+          schema:
+            description: Ledger ID (UUID)
+            type: string
+        - description: Balance ID (UUID)
+          in: path
+          name: balance_id
+          required: true
+          schema:
+            description: Balance ID (UUID)
+            type: string
+      responses:
+        "204":
+          description: No Content
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Error
+      security:
+        - BearerAuth: []
+        - ApiKeyAuth: []
+      summary: Delete Balance by account
+      tags:
+        - Balances
+    get:
+      operationId: getBalanceByIDV2
+      parameters:
+        - description: Organization ID (UUID)
+          in: path
+          name: organization_id
+          required: true
+          schema:
+            description: Organization ID (UUID)
+            type: string
+        - description: Ledger ID (UUID)
+          in: path
+          name: ledger_id
+          required: true
+          schema:
+            description: Ledger ID (UUID)
+            type: string
+        - description: Balance ID (UUID)
+          in: path
+          name: balance_id
+          required: true
+          schema:
+            description: Balance ID (UUID)
+            type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Balance"
+          description: OK
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Error
+      security:
+        - BearerAuth: []
+        - ApiKeyAuth: []
+      summary: Get Balance by id
+      tags:
+        - Balances
+    patch:
+      operationId: updateBalanceV2
+      parameters:
+        - description: Organization ID (UUID)
+          in: path
+          name: organization_id
+          required: true
+          schema:
+            description: Organization ID (UUID)
+            type: string
+        - description: Ledger ID (UUID)
+          in: path
+          name: ledger_id
+          required: true
+          schema:
+            description: Ledger ID (UUID)
+            type: string
+        - description: Balance ID (UUID)
+          in: path
+          name: balance_id
+          required: true
+          schema:
+            description: Balance ID (UUID)
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              contentMediaType: application/octet-stream
+              format: binary
+              type: string
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Balance"
+          description: OK
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Error
+      security:
+        - BearerAuth: []
+        - ApiKeyAuth: []
+      summary: Update Balance
+      tags:
+        - Balances
+  /v2/organizations/{organization_id}/ledgers/{ledger_id}/balances/{balance_id}/history:
+    get:
+      operationId: getBalanceAtTimestampV2
+      parameters:
+        - description: Organization ID (UUID)
+          in: path
+          name: organization_id
+          required: true
+          schema:
+            description: Organization ID (UUID)
+            type: string
+        - description: Ledger ID (UUID)
+          in: path
+          name: ledger_id
+          required: true
+          schema:
+            description: Ledger ID (UUID)
+            type: string
+        - description: Balance ID (UUID)
+          in: path
+          name: balance_id
+          required: true
+          schema:
+            description: Balance ID (UUID)
+            type: string
+        - description: "Point in time (format: yyyy-mm-dd hh:mm:ss)"
+          explode: false
+          in: query
+          name: date
+          schema:
+            description: "Point in time (format: yyyy-mm-dd hh:mm:ss)"
+            type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BalanceHistory"
+          description: OK
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Error
+      security:
+        - BearerAuth: []
+        - ApiKeyAuth: []
+      summary: Get Balance history at date
+      tags:
+        - Balances
   /v2/organizations/{organization_id}/ledgers/{ledger_id}/billing-packages:
     get:
       operationId: getAllBillingPackagesV2
@@ -9770,6 +12200,308 @@ paths:
       summary: Create a fee estimate calculation
       tags:
         - Fees
+  /v2/organizations/{organization_id}/ledgers/{ledger_id}/holders/{id}/accounts:
+    post:
+      operationId: createHolderAccountV2
+      parameters:
+        - description: Organization ID (UUID)
+          in: path
+          name: organization_id
+          required: true
+          schema:
+            description: Organization ID (UUID)
+            type: string
+        - description: Ledger ID (UUID)
+          in: path
+          name: ledger_id
+          required: true
+          schema:
+            description: Ledger ID (UUID)
+            type: string
+        - description: Holder ID (UUID)
+          in: path
+          name: id
+          required: true
+          schema:
+            description: Holder ID (UUID)
+            type: string
+        - description: Bearer token (forwarded to the composed account-create use case)
+          in: header
+          name: Authorization
+          schema:
+            description: Bearer token (forwarded to the composed account-create use case)
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              contentMediaType: application/octet-stream
+              format: binary
+              type: string
+        required: true
+      responses:
+        "201":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HolderAccountResponse"
+          description: Created
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Error
+      security:
+        - BearerAuth: []
+      summary: Open a holder-owned account (with optional instrument)
+      tags:
+        - Composition
+  /v2/organizations/{organization_id}/ledgers/{ledger_id}/operation-routes:
+    get:
+      operationId: listOperationRoutesV2
+      parameters:
+        - description: Organization ID (UUID)
+          in: path
+          name: organization_id
+          required: true
+          schema:
+            description: Organization ID (UUID)
+            type: string
+        - description: Ledger ID (UUID)
+          in: path
+          name: ledger_id
+          required: true
+          schema:
+            description: Ledger ID (UUID)
+            type: string
+        - description: Max items per page (default 10)
+          explode: false
+          in: query
+          name: limit
+          schema:
+            description: Max items per page (default 10)
+            type: string
+        - description: Filter created on/after this date (YYYY-MM-DD)
+          explode: false
+          in: query
+          name: start_date
+          schema:
+            description: Filter created on/after this date (YYYY-MM-DD)
+            type: string
+        - description: Filter created on/before this date (YYYY-MM-DD)
+          explode: false
+          in: query
+          name: end_date
+          schema:
+            description: Filter created on/before this date (YYYY-MM-DD)
+            type: string
+        - description: Sort direction (asc, desc)
+          explode: false
+          in: query
+          name: sort_order
+          schema:
+            description: Sort direction (asc, desc)
+            type: string
+        - description: Opaque cursor token for pagination
+          explode: false
+          in: query
+          name: cursor
+          schema:
+            description: Opaque cursor token for pagination
+            type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Pagination"
+          description: OK
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Error
+      security:
+        - BearerAuth: []
+      summary: Retrieve all operation routes
+      tags:
+        - Operation Routes
+    post:
+      operationId: createOperationRouteV2
+      parameters:
+        - description: Organization ID (UUID)
+          in: path
+          name: organization_id
+          required: true
+          schema:
+            description: Organization ID (UUID)
+            type: string
+        - description: Ledger ID (UUID)
+          in: path
+          name: ledger_id
+          required: true
+          schema:
+            description: Ledger ID (UUID)
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              contentMediaType: application/octet-stream
+              format: binary
+              type: string
+        required: true
+      responses:
+        "201":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OperationRoute"
+          description: Created
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Error
+      security:
+        - BearerAuth: []
+      summary: Create Operation Route
+      tags:
+        - Operation Routes
+  /v2/organizations/{organization_id}/ledgers/{ledger_id}/operation-routes/{operation_route_id}:
+    delete:
+      operationId: deleteOperationRouteV2
+      parameters:
+        - description: Organization ID (UUID)
+          in: path
+          name: organization_id
+          required: true
+          schema:
+            description: Organization ID (UUID)
+            type: string
+        - description: Ledger ID (UUID)
+          in: path
+          name: ledger_id
+          required: true
+          schema:
+            description: Ledger ID (UUID)
+            type: string
+        - description: Operation Route ID (UUID)
+          in: path
+          name: operation_route_id
+          required: true
+          schema:
+            description: Operation Route ID (UUID)
+            type: string
+      responses:
+        "204":
+          description: No Content
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Error
+      security:
+        - BearerAuth: []
+      summary: Delete an operation route
+      tags:
+        - Operation Routes
+    get:
+      operationId: getOperationRouteByIDV2
+      parameters:
+        - description: Organization ID (UUID)
+          in: path
+          name: organization_id
+          required: true
+          schema:
+            description: Organization ID (UUID)
+            type: string
+        - description: Ledger ID (UUID)
+          in: path
+          name: ledger_id
+          required: true
+          schema:
+            description: Ledger ID (UUID)
+            type: string
+        - description: Operation Route ID (UUID)
+          in: path
+          name: operation_route_id
+          required: true
+          schema:
+            description: Operation Route ID (UUID)
+            type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OperationRoute"
+          description: OK
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Error
+      security:
+        - BearerAuth: []
+      summary: Retrieve a specific operation route
+      tags:
+        - Operation Routes
+    patch:
+      operationId: updateOperationRouteV2
+      parameters:
+        - description: Organization ID (UUID)
+          in: path
+          name: organization_id
+          required: true
+          schema:
+            description: Organization ID (UUID)
+            type: string
+        - description: Ledger ID (UUID)
+          in: path
+          name: ledger_id
+          required: true
+          schema:
+            description: Ledger ID (UUID)
+            type: string
+        - description: Operation Route ID (UUID)
+          in: path
+          name: operation_route_id
+          required: true
+          schema:
+            description: Operation Route ID (UUID)
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              contentMediaType: application/octet-stream
+              format: binary
+              type: string
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OperationRoute"
+          description: OK
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Error
+      security:
+        - BearerAuth: []
+      summary: Update an operation route
+      tags:
+        - Operation Routes
   /v2/organizations/{organization_id}/ledgers/{ledger_id}/packages:
     get:
       operationId: getAllPackagesV2
@@ -10015,6 +12747,1423 @@ paths:
       summary: Update a package
       tags:
         - Packages
+  /v2/organizations/{organization_id}/ledgers/{ledger_id}/portfolios:
+    get:
+      operationId: listPortfoliosV2
+      parameters:
+        - description: Organization ID (UUID)
+          in: path
+          name: organization_id
+          required: true
+          schema:
+            description: Organization ID (UUID)
+            type: string
+        - description: Ledger ID (UUID)
+          in: path
+          name: ledger_id
+          required: true
+          schema:
+            description: Ledger ID (UUID)
+            type: string
+        - description: JSON string to filter portfolios by metadata fields
+          explode: false
+          in: query
+          name: metadata
+          schema:
+            description: JSON string to filter portfolios by metadata fields
+            type: string
+        - description: Filter portfolios by entity ID
+          explode: false
+          in: query
+          name: entity_id
+          schema:
+            description: Filter portfolios by entity ID
+            type: string
+        - description: Filter portfolios by status
+          explode: false
+          in: query
+          name: status
+          schema:
+            description: Filter portfolios by status
+            type: string
+        - description: Max items per page (1-100, default 10)
+          explode: false
+          in: query
+          name: limit
+          schema:
+            description: Max items per page (1-100, default 10)
+            type: string
+        - description: Page number (default 1)
+          explode: false
+          in: query
+          name: page
+          schema:
+            description: Page number (default 1)
+            type: string
+        - description: Filter portfolios created on/after this date (YYYY-MM-DD)
+          explode: false
+          in: query
+          name: start_date
+          schema:
+            description: Filter portfolios created on/after this date (YYYY-MM-DD)
+            type: string
+        - description: Filter portfolios created on/before this date (YYYY-MM-DD)
+          explode: false
+          in: query
+          name: end_date
+          schema:
+            description: Filter portfolios created on/before this date (YYYY-MM-DD)
+            type: string
+        - description: Sort direction (asc, desc)
+          explode: false
+          in: query
+          name: sort_order
+          schema:
+            description: Sort direction (asc, desc)
+            type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Pagination"
+          description: OK
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Error
+      security:
+        - BearerAuth: []
+        - ApiKeyAuth: []
+      summary: List all portfolios
+      tags:
+        - Portfolios
+    post:
+      operationId: createPortfolioV2
+      parameters:
+        - description: Organization ID (UUID)
+          in: path
+          name: organization_id
+          required: true
+          schema:
+            description: Organization ID (UUID)
+            type: string
+        - description: Ledger ID (UUID)
+          in: path
+          name: ledger_id
+          required: true
+          schema:
+            description: Ledger ID (UUID)
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              contentMediaType: application/octet-stream
+              format: binary
+              type: string
+        required: true
+      responses:
+        "201":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Portfolio"
+          description: Created
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Error
+      security:
+        - BearerAuth: []
+        - ApiKeyAuth: []
+      summary: Create a new portfolio
+      tags:
+        - Portfolios
+  /v2/organizations/{organization_id}/ledgers/{ledger_id}/portfolios/metrics/count:
+    head:
+      operationId: countPortfoliosV2
+      parameters:
+        - description: Organization ID (UUID)
+          in: path
+          name: organization_id
+          required: true
+          schema:
+            description: Organization ID (UUID)
+            type: string
+        - description: Ledger ID (UUID)
+          in: path
+          name: ledger_id
+          required: true
+          schema:
+            description: Ledger ID (UUID)
+            type: string
+      responses:
+        "204":
+          description: No Content
+          headers:
+            Content-Length:
+              schema:
+                type: string
+            X-Total-Count:
+              schema:
+                type: string
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Error
+      security:
+        - BearerAuth: []
+        - ApiKeyAuth: []
+      summary: Count total portfolios
+      tags:
+        - Portfolios
+  /v2/organizations/{organization_id}/ledgers/{ledger_id}/portfolios/{id}:
+    delete:
+      operationId: deletePortfolioV2
+      parameters:
+        - description: Organization ID (UUID)
+          in: path
+          name: organization_id
+          required: true
+          schema:
+            description: Organization ID (UUID)
+            type: string
+        - description: Ledger ID (UUID)
+          in: path
+          name: ledger_id
+          required: true
+          schema:
+            description: Ledger ID (UUID)
+            type: string
+        - description: Portfolio ID (UUID)
+          in: path
+          name: id
+          required: true
+          schema:
+            description: Portfolio ID (UUID)
+            type: string
+      responses:
+        "204":
+          description: No Content
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Error
+      security:
+        - BearerAuth: []
+        - ApiKeyAuth: []
+      summary: Delete a portfolio
+      tags:
+        - Portfolios
+    get:
+      operationId: getPortfolioByIDV2
+      parameters:
+        - description: Organization ID (UUID)
+          in: path
+          name: organization_id
+          required: true
+          schema:
+            description: Organization ID (UUID)
+            type: string
+        - description: Ledger ID (UUID)
+          in: path
+          name: ledger_id
+          required: true
+          schema:
+            description: Ledger ID (UUID)
+            type: string
+        - description: Portfolio ID (UUID)
+          in: path
+          name: id
+          required: true
+          schema:
+            description: Portfolio ID (UUID)
+            type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Portfolio"
+          description: OK
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Error
+      security:
+        - BearerAuth: []
+        - ApiKeyAuth: []
+      summary: Retrieve a specific portfolio
+      tags:
+        - Portfolios
+    patch:
+      operationId: updatePortfolioV2
+      parameters:
+        - description: Organization ID (UUID)
+          in: path
+          name: organization_id
+          required: true
+          schema:
+            description: Organization ID (UUID)
+            type: string
+        - description: Ledger ID (UUID)
+          in: path
+          name: ledger_id
+          required: true
+          schema:
+            description: Ledger ID (UUID)
+            type: string
+        - description: Portfolio ID (UUID)
+          in: path
+          name: id
+          required: true
+          schema:
+            description: Portfolio ID (UUID)
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              contentMediaType: application/octet-stream
+              format: binary
+              type: string
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Portfolio"
+          description: OK
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Error
+      security:
+        - BearerAuth: []
+        - ApiKeyAuth: []
+      summary: Update a portfolio
+      tags:
+        - Portfolios
+  /v2/organizations/{organization_id}/ledgers/{ledger_id}/segments:
+    get:
+      operationId: listSegmentsV2
+      parameters:
+        - description: Organization ID (UUID)
+          in: path
+          name: organization_id
+          required: true
+          schema:
+            description: Organization ID (UUID)
+            type: string
+        - description: Ledger ID (UUID)
+          in: path
+          name: ledger_id
+          required: true
+          schema:
+            description: Ledger ID (UUID)
+            type: string
+        - description: JSON string to filter segments by metadata fields
+          explode: false
+          in: query
+          name: metadata
+          schema:
+            description: JSON string to filter segments by metadata fields
+            type: string
+        - description: Max items per page (1-100, default 10)
+          explode: false
+          in: query
+          name: limit
+          schema:
+            description: Max items per page (1-100, default 10)
+            type: string
+        - description: Page number (default 1)
+          explode: false
+          in: query
+          name: page
+          schema:
+            description: Page number (default 1)
+            type: string
+        - description: Filter segments created on/after this date (YYYY-MM-DD)
+          explode: false
+          in: query
+          name: start_date
+          schema:
+            description: Filter segments created on/after this date (YYYY-MM-DD)
+            type: string
+        - description: Filter segments created on/before this date (YYYY-MM-DD)
+          explode: false
+          in: query
+          name: end_date
+          schema:
+            description: Filter segments created on/before this date (YYYY-MM-DD)
+            type: string
+        - description: Sort direction (asc, desc)
+          explode: false
+          in: query
+          name: sort_order
+          schema:
+            description: Sort direction (asc, desc)
+            type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Pagination"
+          description: OK
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Error
+      security:
+        - BearerAuth: []
+        - ApiKeyAuth: []
+      summary: List all segments
+      tags:
+        - Segments
+    post:
+      operationId: createSegmentV2
+      parameters:
+        - description: Organization ID (UUID)
+          in: path
+          name: organization_id
+          required: true
+          schema:
+            description: Organization ID (UUID)
+            type: string
+        - description: Ledger ID (UUID)
+          in: path
+          name: ledger_id
+          required: true
+          schema:
+            description: Ledger ID (UUID)
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              contentMediaType: application/octet-stream
+              format: binary
+              type: string
+        required: true
+      responses:
+        "201":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Segment"
+          description: Created
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Error
+      security:
+        - BearerAuth: []
+        - ApiKeyAuth: []
+      summary: Create a new segment
+      tags:
+        - Segments
+  /v2/organizations/{organization_id}/ledgers/{ledger_id}/segments/metrics/count:
+    head:
+      operationId: countSegmentsV2
+      parameters:
+        - description: Organization ID (UUID)
+          in: path
+          name: organization_id
+          required: true
+          schema:
+            description: Organization ID (UUID)
+            type: string
+        - description: Ledger ID (UUID)
+          in: path
+          name: ledger_id
+          required: true
+          schema:
+            description: Ledger ID (UUID)
+            type: string
+      responses:
+        "204":
+          description: No Content
+          headers:
+            Content-Length:
+              schema:
+                type: string
+            X-Total-Count:
+              schema:
+                type: string
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Error
+      security:
+        - BearerAuth: []
+        - ApiKeyAuth: []
+      summary: Count total segments
+      tags:
+        - Segments
+  /v2/organizations/{organization_id}/ledgers/{ledger_id}/segments/{id}:
+    delete:
+      operationId: deleteSegmentV2
+      parameters:
+        - description: Organization ID (UUID)
+          in: path
+          name: organization_id
+          required: true
+          schema:
+            description: Organization ID (UUID)
+            type: string
+        - description: Ledger ID (UUID)
+          in: path
+          name: ledger_id
+          required: true
+          schema:
+            description: Ledger ID (UUID)
+            type: string
+        - description: Segment ID (UUID)
+          in: path
+          name: id
+          required: true
+          schema:
+            description: Segment ID (UUID)
+            type: string
+      responses:
+        "204":
+          description: No Content
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Error
+      security:
+        - BearerAuth: []
+        - ApiKeyAuth: []
+      summary: Delete a segment
+      tags:
+        - Segments
+    get:
+      operationId: getSegmentByIDV2
+      parameters:
+        - description: Organization ID (UUID)
+          in: path
+          name: organization_id
+          required: true
+          schema:
+            description: Organization ID (UUID)
+            type: string
+        - description: Ledger ID (UUID)
+          in: path
+          name: ledger_id
+          required: true
+          schema:
+            description: Ledger ID (UUID)
+            type: string
+        - description: Segment ID (UUID)
+          in: path
+          name: id
+          required: true
+          schema:
+            description: Segment ID (UUID)
+            type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Segment"
+          description: OK
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Error
+      security:
+        - BearerAuth: []
+        - ApiKeyAuth: []
+      summary: Retrieve a specific segment
+      tags:
+        - Segments
+    patch:
+      operationId: updateSegmentV2
+      parameters:
+        - description: Organization ID (UUID)
+          in: path
+          name: organization_id
+          required: true
+          schema:
+            description: Organization ID (UUID)
+            type: string
+        - description: Ledger ID (UUID)
+          in: path
+          name: ledger_id
+          required: true
+          schema:
+            description: Ledger ID (UUID)
+            type: string
+        - description: Segment ID (UUID)
+          in: path
+          name: id
+          required: true
+          schema:
+            description: Segment ID (UUID)
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              contentMediaType: application/octet-stream
+              format: binary
+              type: string
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Segment"
+          description: OK
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Error
+      security:
+        - BearerAuth: []
+        - ApiKeyAuth: []
+      summary: Update a segment
+      tags:
+        - Segments
+  /v2/organizations/{organization_id}/ledgers/{ledger_id}/settings:
+    get:
+      operationId: getLedgerSettingsV2
+      parameters:
+        - description: Organization ID (UUID)
+          in: path
+          name: organization_id
+          required: true
+          schema:
+            description: Organization ID (UUID)
+            type: string
+        - description: Ledger ID (UUID)
+          in: path
+          name: ledger_id
+          required: true
+          schema:
+            description: Ledger ID (UUID)
+            type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LedgerSettings"
+          description: OK
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Error
+      security:
+        - BearerAuth: []
+        - ApiKeyAuth: []
+      summary: Get ledger settings
+      tags:
+        - Ledgers
+    patch:
+      operationId: updateLedgerSettingsV2
+      parameters:
+        - description: Organization ID (UUID)
+          in: path
+          name: organization_id
+          required: true
+          schema:
+            description: Organization ID (UUID)
+            type: string
+        - description: Ledger ID (UUID)
+          in: path
+          name: ledger_id
+          required: true
+          schema:
+            description: Ledger ID (UUID)
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              contentMediaType: application/octet-stream
+              format: binary
+              type: string
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LedgerSettings"
+          description: OK
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Error
+      security:
+        - BearerAuth: []
+        - ApiKeyAuth: []
+      summary: Update ledger settings
+      tags:
+        - Ledgers
+  /v2/organizations/{organization_id}/ledgers/{ledger_id}/transaction-routes:
+    get:
+      operationId: listTransactionRoutesV2
+      parameters:
+        - description: Organization ID (UUID)
+          in: path
+          name: organization_id
+          required: true
+          schema:
+            description: Organization ID (UUID)
+            type: string
+        - description: Ledger ID (UUID)
+          in: path
+          name: ledger_id
+          required: true
+          schema:
+            description: Ledger ID (UUID)
+            type: string
+        - description: Max items per page (default 10)
+          explode: false
+          in: query
+          name: limit
+          schema:
+            description: Max items per page (default 10)
+            type: string
+        - description: Filter created on/after this date (YYYY-MM-DD)
+          explode: false
+          in: query
+          name: start_date
+          schema:
+            description: Filter created on/after this date (YYYY-MM-DD)
+            type: string
+        - description: Filter created on/before this date (YYYY-MM-DD)
+          explode: false
+          in: query
+          name: end_date
+          schema:
+            description: Filter created on/before this date (YYYY-MM-DD)
+            type: string
+        - description: Sort direction (asc, desc)
+          explode: false
+          in: query
+          name: sort_order
+          schema:
+            description: Sort direction (asc, desc)
+            type: string
+        - description: Opaque cursor token for pagination
+          explode: false
+          in: query
+          name: cursor
+          schema:
+            description: Opaque cursor token for pagination
+            type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Pagination"
+          description: OK
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Error
+      security:
+        - BearerAuth: []
+      summary: Get all Transaction Routes
+      tags:
+        - Transaction Routes
+    post:
+      operationId: createTransactionRouteV2
+      parameters:
+        - description: Organization ID (UUID)
+          in: path
+          name: organization_id
+          required: true
+          schema:
+            description: Organization ID (UUID)
+            type: string
+        - description: Ledger ID (UUID)
+          in: path
+          name: ledger_id
+          required: true
+          schema:
+            description: Ledger ID (UUID)
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              contentMediaType: application/octet-stream
+              format: binary
+              type: string
+        required: true
+      responses:
+        "201":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TransactionRoute"
+          description: Created
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Error
+      security:
+        - BearerAuth: []
+      summary: Create Transaction Route
+      tags:
+        - Transaction Routes
+  /v2/organizations/{organization_id}/ledgers/{ledger_id}/transaction-routes/{transaction_route_id}:
+    delete:
+      operationId: deleteTransactionRouteV2
+      parameters:
+        - description: Organization ID (UUID)
+          in: path
+          name: organization_id
+          required: true
+          schema:
+            description: Organization ID (UUID)
+            type: string
+        - description: Ledger ID (UUID)
+          in: path
+          name: ledger_id
+          required: true
+          schema:
+            description: Ledger ID (UUID)
+            type: string
+        - description: Transaction Route ID (UUID)
+          in: path
+          name: transaction_route_id
+          required: true
+          schema:
+            description: Transaction Route ID (UUID)
+            type: string
+      responses:
+        "204":
+          description: No Content
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Error
+      security:
+        - BearerAuth: []
+      summary: Delete Transaction Route by ID
+      tags:
+        - Transaction Routes
+    get:
+      operationId: getTransactionRouteByIDV2
+      parameters:
+        - description: Organization ID (UUID)
+          in: path
+          name: organization_id
+          required: true
+          schema:
+            description: Organization ID (UUID)
+            type: string
+        - description: Ledger ID (UUID)
+          in: path
+          name: ledger_id
+          required: true
+          schema:
+            description: Ledger ID (UUID)
+            type: string
+        - description: Transaction Route ID (UUID)
+          in: path
+          name: transaction_route_id
+          required: true
+          schema:
+            description: Transaction Route ID (UUID)
+            type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TransactionRoute"
+          description: OK
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Error
+      security:
+        - BearerAuth: []
+      summary: Get Transaction Route by ID
+      tags:
+        - Transaction Routes
+    patch:
+      operationId: updateTransactionRouteV2
+      parameters:
+        - description: Organization ID (UUID)
+          in: path
+          name: organization_id
+          required: true
+          schema:
+            description: Organization ID (UUID)
+            type: string
+        - description: Ledger ID (UUID)
+          in: path
+          name: ledger_id
+          required: true
+          schema:
+            description: Ledger ID (UUID)
+            type: string
+        - description: Transaction Route ID (UUID)
+          in: path
+          name: transaction_route_id
+          required: true
+          schema:
+            description: Transaction Route ID (UUID)
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              contentMediaType: application/octet-stream
+              format: binary
+              type: string
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TransactionRoute"
+          description: OK
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Error
+      security:
+        - BearerAuth: []
+      summary: Update Transaction Route
+      tags:
+        - Transaction Routes
+  /v2/organizations/{organization_id}/ledgers/{ledger_id}/transactions:
+    get:
+      operationId: getAllTransactionsV2
+      parameters:
+        - description: Organization ID (UUID)
+          in: path
+          name: organization_id
+          required: true
+          schema:
+            description: Organization ID (UUID)
+            type: string
+        - description: Ledger ID (UUID)
+          in: path
+          name: ledger_id
+          required: true
+          schema:
+            description: Ledger ID (UUID)
+            type: string
+        - description: JSON string to filter transactions by metadata fields
+          explode: false
+          in: query
+          name: metadata
+          schema:
+            description: JSON string to filter transactions by metadata fields
+            type: string
+        - description: Max items per page (1-100, default 10)
+          explode: false
+          in: query
+          name: limit
+          schema:
+            description: Max items per page (1-100, default 10)
+            type: string
+        - description: Filter transactions created on/after this date
+          explode: false
+          in: query
+          name: start_date
+          schema:
+            description: Filter transactions created on/after this date
+            type: string
+        - description: Filter transactions created on/before this date
+          explode: false
+          in: query
+          name: end_date
+          schema:
+            description: Filter transactions created on/before this date
+            type: string
+        - description: Sort direction (asc, desc)
+          explode: false
+          in: query
+          name: sort_order
+          schema:
+            description: Sort direction (asc, desc)
+            type: string
+        - description: Pagination cursor
+          explode: false
+          in: query
+          name: cursor
+          schema:
+            description: Pagination cursor
+            type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Pagination"
+          description: OK
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Error
+      security:
+        - BearerAuth: []
+      summary: Get all Transactions
+      tags:
+        - Transactions
+  /v2/organizations/{organization_id}/ledgers/{ledger_id}/transactions/annotation:
+    post:
+      operationId: createTransactionAnnotationV2
+      parameters:
+        - description: Organization ID (UUID)
+          in: path
+          name: organization_id
+          required: true
+          schema:
+            description: Organization ID (UUID)
+            type: string
+        - description: Ledger ID (UUID)
+          in: path
+          name: ledger_id
+          required: true
+          schema:
+            description: Ledger ID (UUID)
+            type: string
+        - description: Idempotency key to safely retry the create; an identical retry returns the original transaction
+          in: header
+          name: X-Idempotency
+          schema:
+            description: Idempotency key to safely retry the create; an identical retry returns the original transaction
+            type: string
+        - description: Idempotency slot TTL in seconds (default 300)
+          in: header
+          name: X-TTL
+          schema:
+            description: Idempotency slot TTL in seconds (default 300)
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              contentMediaType: application/octet-stream
+              format: binary
+              type: string
+        required: true
+      responses:
+        "201":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Transaction"
+          description: Created
+          headers:
+            X-Idempotency-Replayed:
+              schema:
+                type: string
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Error
+      security:
+        - BearerAuth: []
+      summary: Create a Transaction Annotation using JSON
+      tags:
+        - Transactions
+  /v2/organizations/{organization_id}/ledgers/{ledger_id}/transactions/inflow:
+    post:
+      operationId: createTransactionInflowV2
+      parameters:
+        - description: Organization ID (UUID)
+          in: path
+          name: organization_id
+          required: true
+          schema:
+            description: Organization ID (UUID)
+            type: string
+        - description: Ledger ID (UUID)
+          in: path
+          name: ledger_id
+          required: true
+          schema:
+            description: Ledger ID (UUID)
+            type: string
+        - description: Idempotency key to safely retry the create; an identical retry returns the original transaction
+          in: header
+          name: X-Idempotency
+          schema:
+            description: Idempotency key to safely retry the create; an identical retry returns the original transaction
+            type: string
+        - description: Idempotency slot TTL in seconds (default 300)
+          in: header
+          name: X-TTL
+          schema:
+            description: Idempotency slot TTL in seconds (default 300)
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              contentMediaType: application/octet-stream
+              format: binary
+              type: string
+        required: true
+      responses:
+        "201":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Transaction"
+          description: Created
+          headers:
+            X-Idempotency-Replayed:
+              schema:
+                type: string
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Error
+      security:
+        - BearerAuth: []
+      summary: Create a Transaction without passing from source
+      tags:
+        - Transactions
+  /v2/organizations/{organization_id}/ledgers/{ledger_id}/transactions/json:
+    post:
+      operationId: createTransactionJSONV2
+      parameters:
+        - description: Organization ID (UUID)
+          in: path
+          name: organization_id
+          required: true
+          schema:
+            description: Organization ID (UUID)
+            type: string
+        - description: Ledger ID (UUID)
+          in: path
+          name: ledger_id
+          required: true
+          schema:
+            description: Ledger ID (UUID)
+            type: string
+        - description: Idempotency key to safely retry the create; an identical retry returns the original transaction
+          in: header
+          name: X-Idempotency
+          schema:
+            description: Idempotency key to safely retry the create; an identical retry returns the original transaction
+            type: string
+        - description: Idempotency slot TTL in seconds (default 300)
+          in: header
+          name: X-TTL
+          schema:
+            description: Idempotency slot TTL in seconds (default 300)
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              contentMediaType: application/octet-stream
+              format: binary
+              type: string
+        required: true
+      responses:
+        "201":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Transaction"
+          description: Created
+          headers:
+            X-Idempotency-Replayed:
+              schema:
+                type: string
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Error
+      security:
+        - BearerAuth: []
+      summary: Create a Transaction using JSON
+      tags:
+        - Transactions
+  /v2/organizations/{organization_id}/ledgers/{ledger_id}/transactions/metrics/count:
+    head:
+      operationId: countTransactionsByFiltersV2
+      parameters:
+        - description: Organization ID (UUID)
+          in: path
+          name: organization_id
+          required: true
+          schema:
+            description: Organization ID (UUID)
+            type: string
+        - description: Ledger ID (UUID)
+          in: path
+          name: ledger_id
+          required: true
+          schema:
+            description: Ledger ID (UUID)
+            type: string
+        - description: Filter by transaction route
+          explode: false
+          in: query
+          name: route
+          schema:
+            description: Filter by transaction route
+            type: string
+        - description: Filter by transaction status (CREATED, APPROVED, PENDING, CANCELED, NOTED)
+          explode: false
+          in: query
+          name: status
+          schema:
+            description: Filter by transaction status (CREATED, APPROVED, PENDING, CANCELED, NOTED)
+            type: string
+        - description: Start of date range (RFC 3339, defaults to today 00:00:00 UTC)
+          explode: false
+          in: query
+          name: start_date
+          schema:
+            description: Start of date range (RFC 3339, defaults to today 00:00:00 UTC)
+            type: string
+        - description: End of date range (RFC 3339, defaults to today 23:59:59 UTC)
+          explode: false
+          in: query
+          name: end_date
+          schema:
+            description: End of date range (RFC 3339, defaults to today 23:59:59 UTC)
+            type: string
+      responses:
+        "204":
+          description: No Content
+          headers:
+            Content-Length:
+              schema:
+                type: string
+            X-Total-Count:
+              schema:
+                type: string
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Error
+      security:
+        - BearerAuth: []
+        - ApiKeyAuth: []
+      summary: Count Transactions by Filters
+      tags:
+        - Transactions
+  /v2/organizations/{organization_id}/ledgers/{ledger_id}/transactions/outflow:
+    post:
+      operationId: createTransactionOutflowV2
+      parameters:
+        - description: Organization ID (UUID)
+          in: path
+          name: organization_id
+          required: true
+          schema:
+            description: Organization ID (UUID)
+            type: string
+        - description: Ledger ID (UUID)
+          in: path
+          name: ledger_id
+          required: true
+          schema:
+            description: Ledger ID (UUID)
+            type: string
+        - description: Idempotency key to safely retry the create; an identical retry returns the original transaction
+          in: header
+          name: X-Idempotency
+          schema:
+            description: Idempotency key to safely retry the create; an identical retry returns the original transaction
+            type: string
+        - description: Idempotency slot TTL in seconds (default 300)
+          in: header
+          name: X-TTL
+          schema:
+            description: Idempotency slot TTL in seconds (default 300)
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              contentMediaType: application/octet-stream
+              format: binary
+              type: string
+        required: true
+      responses:
+        "201":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Transaction"
+          description: Created
+          headers:
+            X-Idempotency-Replayed:
+              schema:
+                type: string
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Error
+      security:
+        - BearerAuth: []
+      summary: Create a Transaction without passing to distribution
+      tags:
+        - Transactions
+  /v2/organizations/{organization_id}/ledgers/{ledger_id}/transactions/{transaction_id}:
+    get:
+      operationId: getTransactionV2
+      parameters:
+        - description: Organization ID (UUID)
+          in: path
+          name: organization_id
+          required: true
+          schema:
+            description: Organization ID (UUID)
+            type: string
+        - description: Ledger ID (UUID)
+          in: path
+          name: ledger_id
+          required: true
+          schema:
+            description: Ledger ID (UUID)
+            type: string
+        - description: Transaction ID (UUID)
+          in: path
+          name: transaction_id
+          required: true
+          schema:
+            description: Transaction ID (UUID)
+            type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Transaction"
+          description: OK
+          headers:
+            X-Cache-Hit:
+              schema:
+                type: string
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Error
+      security:
+        - BearerAuth: []
+      summary: Get a Transaction by ID
+      tags:
+        - Transactions
+    patch:
+      operationId: updateTransactionV2
+      parameters:
+        - description: Organization ID (UUID)
+          in: path
+          name: organization_id
+          required: true
+          schema:
+            description: Organization ID (UUID)
+            type: string
+        - description: Ledger ID (UUID)
+          in: path
+          name: ledger_id
+          required: true
+          schema:
+            description: Ledger ID (UUID)
+            type: string
+        - description: Transaction ID (UUID)
+          in: path
+          name: transaction_id
+          required: true
+          schema:
+            description: Transaction ID (UUID)
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              contentMediaType: application/octet-stream
+              format: binary
+              type: string
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Transaction"
+          description: OK
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Error
+      security:
+        - BearerAuth: []
+      summary: Update a Transaction
+      tags:
+        - Transactions
   /v2/organizations/{organization_id}/ledgers/{ledger_id}/transactions/{transaction_id}/cancel:
     post:
       operationId: cancelTransactionV2
@@ -10101,6 +14250,64 @@ paths:
       summary: Commit a Transaction (v2)
       tags:
         - Transactions
+  /v2/organizations/{organization_id}/ledgers/{ledger_id}/transactions/{transaction_id}/operations/{operation_id}:
+    patch:
+      operationId: updateOperationV2
+      parameters:
+        - description: Organization ID (UUID)
+          in: path
+          name: organization_id
+          required: true
+          schema:
+            description: Organization ID (UUID)
+            type: string
+        - description: Ledger ID (UUID)
+          in: path
+          name: ledger_id
+          required: true
+          schema:
+            description: Ledger ID (UUID)
+            type: string
+        - description: Transaction ID (UUID)
+          in: path
+          name: transaction_id
+          required: true
+          schema:
+            description: Transaction ID (UUID)
+            type: string
+        - description: Operation ID (UUID)
+          in: path
+          name: operation_id
+          required: true
+          schema:
+            description: Operation ID (UUID)
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              contentMediaType: application/octet-stream
+              format: binary
+              type: string
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Operation"
+          description: OK
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Error
+      security:
+        - BearerAuth: []
+      summary: Update an Operation
+      tags:
+        - Operations
   /v2/organizations/{organization_id}/ledgers/{ledger_id}/transactions/{transaction_id}/revert:
     post:
       operationId: revertTransactionV2
@@ -10239,6 +14446,111 @@ paths:
       summary: List Protection Audit Events
       tags:
         - Protection
+  /v2/settings/metadata-indexes:
+    get:
+      operationId: getAllMetadataIndexesV2
+      parameters:
+        - description: Optional entity name filter
+          explode: false
+          in: query
+          name: entity_name
+          schema:
+            description: Optional entity name filter
+            type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                items:
+                  $ref: "#/components/schemas/MetadataIndex"
+                type:
+                  - array
+                  - "null"
+          description: OK
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Error
+      security:
+        - BearerAuth: []
+        - ApiKeyAuth: []
+      summary: Get all Metadata Indexes
+      tags:
+        - Metadata Indexes
+  /v2/settings/metadata-indexes/entities/{entity_name}:
+    post:
+      operationId: createMetadataIndexV2
+      parameters:
+        - description: Entity name (organization, ledger, segment, account, portfolio, asset, account_type, transaction, operation, operation_route, transaction_route)
+          in: path
+          name: entity_name
+          required: true
+          schema:
+            description: Entity name (organization, ledger, segment, account, portfolio, asset, account_type, transaction, operation, operation_route, transaction_route)
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              contentMediaType: application/octet-stream
+              format: binary
+              type: string
+        required: true
+      responses:
+        "201":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MetadataIndex"
+          description: Created
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Error
+      security:
+        - BearerAuth: []
+        - ApiKeyAuth: []
+      summary: Create Metadata Index
+      tags:
+        - Metadata Indexes
+  /v2/settings/metadata-indexes/entities/{entity_name}/key/{index_key}:
+    delete:
+      operationId: deleteMetadataIndexV2
+      parameters:
+        - description: Entity name (organization, ledger, segment, account, portfolio, asset, account_type, transaction, operation, operation_route, transaction_route)
+          in: path
+          name: entity_name
+          required: true
+          schema:
+            description: Entity name (organization, ledger, segment, account, portfolio, asset, account_type, transaction, operation, operation_route, transaction_route)
+            type: string
+        - description: Index key (metadata key, e.g. 'tier')
+          in: path
+          name: index_key
+          required: true
+          schema:
+            description: Index key (metadata key, e.g. 'tier')
+            type: string
+      responses:
+        "204":
+          description: No Content
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Error
+      security:
+        - BearerAuth: []
+        - ApiKeyAuth: []
+      summary: Delete Metadata Index
+      tags:
+        - Metadata Indexes
   /v2/transactions/block:
     post:
       operationId: createTransactionBlockV2
