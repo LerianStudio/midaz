@@ -225,6 +225,10 @@ GET	/v2/organizations/:organization_id/ledgers/:ledger_id/transaction-routes	3
 GET	/v2/organizations/:organization_id/ledgers/:ledger_id/transaction-routes	1
 GET	/v2/organizations/:organization_id/ledgers/:ledger_id/transaction-routes/:transaction_route_id	3
 GET	/v2/organizations/:organization_id/ledgers/:ledger_id/transaction-routes/:transaction_route_id	1
+GET	/v2/organizations/:organization_id/ledgers/:ledger_id/transactions	3
+GET	/v2/organizations/:organization_id/ledgers/:ledger_id/transactions	1
+GET	/v2/organizations/:organization_id/ledgers/:ledger_id/transactions/:transaction_id	3
+GET	/v2/organizations/:organization_id/ledgers/:ledger_id/transactions/:transaction_id	1
 GET	/v2/organizations/:organization_id/protection/audit	4
 GET	/v2/settings/metadata-indexes	3
 GET	/version	1
@@ -281,6 +285,7 @@ PATCH	/v2/organizations/:organization_id/ledgers/:ledger_id/segments/:id	4
 PATCH	/v2/organizations/:organization_id/ledgers/:ledger_id/settings	3
 PATCH	/v2/organizations/:organization_id/ledgers/:ledger_id/settings	1
 PATCH	/v2/organizations/:organization_id/ledgers/:ledger_id/transaction-routes/:transaction_route_id	4
+PATCH	/v2/organizations/:organization_id/ledgers/:ledger_id/transactions/:transaction_id	4
 PATCH	/v2/organizations/:organization_id/ledgers/:ledger_id/transactions/:transaction_id/operations/:operation_id	4
 POST	/v1/organizations	3
 POST	/v1/organizations/:organization_id/billing-packages	3
@@ -351,6 +356,14 @@ POST	/v2/organizations/:organization_id/ledgers/:ledger_id/transactions/:transac
 POST	/v2/organizations/:organization_id/ledgers/:ledger_id/transactions/:transaction_id/commit	1
 POST	/v2/organizations/:organization_id/ledgers/:ledger_id/transactions/:transaction_id/revert	3
 POST	/v2/organizations/:organization_id/ledgers/:ledger_id/transactions/:transaction_id/revert	1
+POST	/v2/organizations/:organization_id/ledgers/:ledger_id/transactions/annotation	3
+POST	/v2/organizations/:organization_id/ledgers/:ledger_id/transactions/annotation	1
+POST	/v2/organizations/:organization_id/ledgers/:ledger_id/transactions/inflow	3
+POST	/v2/organizations/:organization_id/ledgers/:ledger_id/transactions/inflow	1
+POST	/v2/organizations/:organization_id/ledgers/:ledger_id/transactions/json	3
+POST	/v2/organizations/:organization_id/ledgers/:ledger_id/transactions/json	1
+POST	/v2/organizations/:organization_id/ledgers/:ledger_id/transactions/outflow	3
+POST	/v2/organizations/:organization_id/ledgers/:ledger_id/transactions/outflow	1
 POST	/v2/settings/metadata-indexes/entities/:entity_name	3
 POST	/v2/transactions/block	3
 POST	/v2/transactions/block	1

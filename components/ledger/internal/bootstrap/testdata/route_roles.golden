@@ -128,6 +128,8 @@ GET	/v2/organizations/:organization_id/ledgers/:ledger_id/segments/:id	onboardin
 GET	/v2/organizations/:organization_id/ledgers/:ledger_id/settings	onboarding
 GET	/v2/organizations/:organization_id/ledgers/:ledger_id/transaction-routes	transaction
 GET	/v2/organizations/:organization_id/ledgers/:ledger_id/transaction-routes/:transaction_route_id	transaction
+GET	/v2/organizations/:organization_id/ledgers/:ledger_id/transactions	transaction
+GET	/v2/organizations/:organization_id/ledgers/:ledger_id/transactions/:transaction_id	transaction
 GET	/v2/organizations/:organization_id/protection/audit	crm
 GET	/v2/settings/metadata-indexes	ledger
 HEAD	/v1/organizations/:organization_id/ledgers/:ledger_id/accounts/metrics/count	onboarding
@@ -175,6 +177,7 @@ PATCH	/v2/organizations/:organization_id/ledgers/:ledger_id/portfolios/:id	onboa
 PATCH	/v2/organizations/:organization_id/ledgers/:ledger_id/segments/:id	onboarding
 PATCH	/v2/organizations/:organization_id/ledgers/:ledger_id/settings	onboarding
 PATCH	/v2/organizations/:organization_id/ledgers/:ledger_id/transaction-routes/:transaction_route_id	transaction
+PATCH	/v2/organizations/:organization_id/ledgers/:ledger_id/transactions/:transaction_id	transaction
 PATCH	/v2/organizations/:organization_id/ledgers/:ledger_id/transactions/:transaction_id/operations/:operation_id	transaction
 POST	/v1/organizations	onboarding
 POST	/v1/organizations/:organization_id/billing-packages	fees
@@ -225,6 +228,10 @@ POST	/v2/organizations/:organization_id/ledgers/:ledger_id/transaction-routes	tr
 POST	/v2/organizations/:organization_id/ledgers/:ledger_id/transactions/:transaction_id/cancel	transaction
 POST	/v2/organizations/:organization_id/ledgers/:ledger_id/transactions/:transaction_id/commit	transaction
 POST	/v2/organizations/:organization_id/ledgers/:ledger_id/transactions/:transaction_id/revert	transaction
+POST	/v2/organizations/:organization_id/ledgers/:ledger_id/transactions/annotation	transaction
+POST	/v2/organizations/:organization_id/ledgers/:ledger_id/transactions/inflow	transaction
+POST	/v2/organizations/:organization_id/ledgers/:ledger_id/transactions/json	transaction
+POST	/v2/organizations/:organization_id/ledgers/:ledger_id/transactions/outflow	transaction
 POST	/v2/settings/metadata-indexes/entities/:entity_name	ledger
 POST	/v2/transactions/block	transaction
 POST	/v2/transactions/direct	transaction
