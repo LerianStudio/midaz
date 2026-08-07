@@ -12,7 +12,7 @@ import (
 	libStreaming "github.com/LerianStudio/lib-streaming/v2"
 )
 
-// OperationRouteDeletedDefinition is the routing contract for operation-route.deleted.
+// OperationRouteDeletedDefinition is the routing contract for operation_route.deleted.
 // Emission anchor: components/ledger/internal/services/command/delete_operation_route.go,
 // immediately after OperationRouteRepo.Delete succeeds (post-commit).
 //
@@ -23,7 +23,7 @@ var OperationRouteDeletedDefinition = Definition{
 	SchemaVersion: "1.0.0",
 }
 
-// OperationRouteDeletedPayload is the wire payload for operation-route.deleted.
+// OperationRouteDeletedPayload is the wire payload for operation_route.deleted.
 // Kept intentionally minimal: identity, tenant scope (org/ledger), and
 // the soft-delete timestamp.
 //

@@ -14,25 +14,23 @@ import (
 	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
 )
 
-// TransactionRouteCreatedDefinition is the routing contract for transaction-route.created.
+// TransactionRouteCreatedDefinition is the routing contract for transaction_route.created.
 // Emission anchor: components/ledger/internal/services/command/create_transaction_route.go,
 // immediately after TransactionRouteRepo.Create succeeds and before the
 // metadata-write call.
 //
 // IMPORTANT posture: emit failures MUST NOT fail the request.
 //
-// Note on resource type: the canonical wire ResourceType is the underscored
-// `transaction_route`; only RouteDefinition.Key folds to the hyphenated
-// routing handle (RouteKey()) for lib-streaming's route-key grammar. The
-// canonical wire name diverges from the JSON entity name (`TransactionRoute`)
-// and the HTTP route segment (`transaction-routes`).
+// Note on resource type: the canonical wire name (`transaction_route`)
+// diverges from the JSON entity name (`TransactionRoute`) and the HTTP route
+// segment (`transaction-routes`).
 var TransactionRouteCreatedDefinition = Definition{
 	ResourceType:  "transaction_route",
 	EventType:     "created",
 	SchemaVersion: "1.0.0",
 }
 
-// TransactionRouteCreatedPayload is the wire payload for transaction-route.created.
+// TransactionRouteCreatedPayload is the wire payload for transaction_route.created.
 //
 // OperationRouteIDs carries the linked operation-route identifiers that
 // compose the routing topology — consumers replicate the join table

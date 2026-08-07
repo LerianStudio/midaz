@@ -39,13 +39,9 @@ const (
 // transaction.overdraft_events rabbit publish; the rabbit publish is
 // removed in a follow-up task once consumers migrate.
 //
-// IMPORTANT posture: emit failures MUST NOT fail the parent transaction.
-// EventType is the underscored canonical `overdraft_drawn`; wire topic:
-// `lerian.streaming.ledger_balance.overdraft_drawn`. Only RouteDefinition.Key
-// folds to the hyphenated routing handle (RouteKey()) for the lib-streaming
-// route-key grammar. The Action payload field
-// keeps the unsuffixed value "drawn" (consumers can match on either
-// the topic or the action field).
+// IMPORTANT posture: emit failures MUST NOT fail the parent transaction. The
+// Action payload field keeps the unsuffixed value "drawn" (consumers can
+// match on either the topic or the action field).
 var BalanceOverdraftDrawnDefinition = Definition{
 	ResourceType:  "balance",
 	EventType:     "overdraft_drawn",
@@ -60,9 +56,8 @@ var BalanceOverdraftDrawnDefinition = Definition{
 // DirectionCredit AND the companion balance's afterAvail is non-zero
 // (overdraft usage decreased but not fully cleared).
 //
-// IMPORTANT posture: emit failures MUST NOT fail the parent transaction.
-// EventType is the underscored canonical `overdraft_repaid`; only
-// RouteDefinition.Key folds to the hyphenated routing handle (RouteKey()).
+// IMPORTANT posture: emit failures MUST NOT fail the parent transaction. The
+// Action payload field keeps the unsuffixed value "repaid".
 var BalanceOverdraftRepaidDefinition = Definition{
 	ResourceType:  "balance",
 	EventType:     "overdraft_repaid",
@@ -77,9 +72,8 @@ var BalanceOverdraftRepaidDefinition = Definition{
 // DirectionCredit AND the companion balance's afterAvail is zero
 // (overdraft fully repaid — terminal signal).
 //
-// IMPORTANT posture: emit failures MUST NOT fail the parent transaction.
-// EventType is the underscored canonical `overdraft_cleared`; only
-// RouteDefinition.Key folds to the hyphenated routing handle (RouteKey()).
+// IMPORTANT posture: emit failures MUST NOT fail the parent transaction. The
+// Action payload field keeps the unsuffixed value "cleared".
 var BalanceOverdraftClearedDefinition = Definition{
 	ResourceType:  "balance",
 	EventType:     "overdraft_cleared",

@@ -13,7 +13,7 @@ import (
 )
 
 // FeesBillingPackageDeletedDefinition is the routing contract for
-// fee-billing-packages.deleted. IMPORTANT posture: emit failures MUST NOT fail
+// fee_billing_packages.deleted. IMPORTANT posture: emit failures MUST NOT fail
 // the request.
 var FeesBillingPackageDeletedDefinition = Definition{
 	ResourceType:  "fee_billing_packages",
@@ -22,7 +22,7 @@ var FeesBillingPackageDeletedDefinition = Definition{
 }
 
 // FeesBillingPackageDeletedPayload is the wire payload for
-// fee-billing-packages.deleted. Only identifiers, scope, and the deletion
+// fee_billing_packages.deleted. Only identifiers, scope, and the deletion
 // timestamp cross the wire.
 type FeesBillingPackageDeletedPayload struct {
 	ID             string `json:"id"`

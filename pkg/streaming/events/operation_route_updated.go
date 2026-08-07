@@ -14,7 +14,7 @@ import (
 	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
 )
 
-// OperationRouteUpdatedDefinition is the routing contract for operation-route.updated.
+// OperationRouteUpdatedDefinition is the routing contract for operation_route.updated.
 // Emission anchor: components/ledger/internal/services/command/update_operation_route.go,
 // immediately after OperationRouteRepo.Update succeeds and before the
 // metadata-write call.
@@ -30,10 +30,10 @@ var OperationRouteUpdatedDefinition = Definition{
 	SchemaVersion: "1.0.0",
 }
 
-// OperationRouteUpdatedPayload is the wire payload for operation-route.updated.
+// OperationRouteUpdatedPayload is the wire payload for operation_route.updated.
 // The payload carries the full mutable surface (title, description,
 // code, account, accountingEntries) plus the immutable operationType so
-// consumers don't need to join against operation-route.created to
+// consumers don't need to join against operation_route.created to
 // render the row. CreatedAt is intentionally omitted — pinned at create
 // time and not part of the update fact.
 type OperationRouteUpdatedPayload struct {

@@ -14,7 +14,7 @@ import (
 	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
 )
 
-// TransactionRouteUpdatedDefinition is the routing contract for transaction-route.updated.
+// TransactionRouteUpdatedDefinition is the routing contract for transaction_route.updated.
 // Emission anchor: components/ledger/internal/services/command/update_transaction_route.go,
 // immediately after TransactionRouteRepo.Update succeeds (and the
 // post-update operation-route hydration completes) and before the
@@ -31,10 +31,10 @@ var TransactionRouteUpdatedDefinition = Definition{
 	SchemaVersion: "1.0.0",
 }
 
-// TransactionRouteUpdatedPayload is the wire payload for transaction-route.updated.
+// TransactionRouteUpdatedPayload is the wire payload for transaction_route.updated.
 // The payload carries the full mutable surface (title, description,
 // operationRouteIds) so consumers don't need to join against
-// transaction-route.created to render the row. CreatedAt is
+// transaction_route.created to render the row. CreatedAt is
 // intentionally omitted — pinned at create time and not part of the
 // update fact.
 //

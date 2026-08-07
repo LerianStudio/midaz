@@ -13,9 +13,7 @@ import (
 )
 
 // InstrumentRelatedPartyDeletedDefinition is the routing contract for
-// instrument.related_party_deleted (the underscored canonical key). Only
-// RouteDefinition.Key folds to the hyphenated routing handle (RouteKey()) for
-// lib-streaming's route-key grammar. IMPORTANT posture: emit failures MUST NOT
+// instrument.related_party_deleted. IMPORTANT posture: emit failures MUST NOT
 // fail the request.
 var InstrumentRelatedPartyDeletedDefinition = Definition{
 	ResourceType:  "instrument",
@@ -24,7 +22,7 @@ var InstrumentRelatedPartyDeletedDefinition = Definition{
 }
 
 // InstrumentRelatedPartyDeletedPayload is the wire payload for
-// instrument.related-party-deleted. It carries the instrument + holder +
+// instrument.related_party_deleted. It carries the instrument + holder +
 // organization scope and the removed related-party ID. There is NO
 // deletionType: removing a related party is always a pointwise removal, not a
 // soft/hard distinction. No related-party PII (document, name, role, dates)

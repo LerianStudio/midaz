@@ -60,13 +60,9 @@ const (
 // (rejected by the scope guard in UseCase.Update). The companion
 // auto-create runs from the system, not the public PATCH path.
 //
-// IMPORTANT posture: emit failures MUST NOT fail the request.
-// EventType is the underscored canonical `config_changed`; the wire topic is
-// `lerian.streaming.ledger_balance.config_changed`. Only RouteDefinition.Key
-// folds to the hyphenated routing handle (RouteKey()) for lib-streaming's
-// route-key grammar. Payload field VALUES
-// (e.g. changeType="settings_updated") may keep snake_case because
-// they are payload data, not routing identifiers.
+// IMPORTANT posture: emit failures MUST NOT fail the request. Payload field
+// VALUES (e.g. changeType="settings_updated") stay snake_case: they are
+// payload data, not routing identifiers.
 var BalanceConfigChangedDefinition = Definition{
 	ResourceType:  "balance",
 	EventType:     "config_changed",

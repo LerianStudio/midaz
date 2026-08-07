@@ -12,7 +12,7 @@ import (
 	libStreaming "github.com/LerianStudio/lib-streaming/v2"
 )
 
-// FeesPackageCreatedDefinition is the routing contract for fee-packages.created.
+// FeesPackageCreatedDefinition is the routing contract for fee_packages.created.
 // IMPORTANT posture: emit failures MUST NOT fail the request.
 var FeesPackageCreatedDefinition = Definition{
 	ResourceType:  "fee_packages",
@@ -20,7 +20,7 @@ var FeesPackageCreatedDefinition = Definition{
 	SchemaVersion: "1.0.0",
 }
 
-// FeesPackageCreatedPayload is the wire payload for fee-packages.created. Only
+// FeesPackageCreatedPayload is the wire payload for fee_packages.created. Only
 // stable identifiers, the org/ledger scope, the segment/route classification,
 // the enable flag, and timestamps cross the wire. Fee-detail surface
 // (feeGroupLabel, description, minimum/maximum amount, fees, waivedAccounts) is

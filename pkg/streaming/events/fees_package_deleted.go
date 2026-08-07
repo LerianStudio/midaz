@@ -12,7 +12,7 @@ import (
 	libStreaming "github.com/LerianStudio/lib-streaming/v2"
 )
 
-// FeesPackageDeletedDefinition is the routing contract for fee-packages.deleted.
+// FeesPackageDeletedDefinition is the routing contract for fee_packages.deleted.
 // IMPORTANT posture: emit failures MUST NOT fail the request.
 var FeesPackageDeletedDefinition = Definition{
 	ResourceType:  "fee_packages",
@@ -20,7 +20,7 @@ var FeesPackageDeletedDefinition = Definition{
 	SchemaVersion: "1.0.0",
 }
 
-// FeesPackageDeletedPayload is the wire payload for fee-packages.deleted. Kept
+// FeesPackageDeletedPayload is the wire payload for fee_packages.deleted. Kept
 // minimal: identity, org/ledger scope, and the deletion timestamp. Fee-detail
 // surface never crosses the wire.
 //
