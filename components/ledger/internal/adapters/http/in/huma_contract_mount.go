@@ -149,19 +149,69 @@ func (d HumaMountDeps) registerWave3(group fiber.Router, api huma.API) {
 // type is a deliberate boot panic in mapRegistry.Schema — distinct wire shapes MUST
 // carry distinct schema names.
 //
+// The seven onboarding families — organizations, ledgers, portfolios, segments,
+// accounts, account-types, assets — carry OnboardingOptions and reuse the same authz
+// tuples and tenant chain as their v1 twins; they are straight mirrors, additive over v1,
+// with no new policy surface. account-types is the one nuance: it authorizes against the
+// "routing" appName (protectedRouting), NOT "midaz", exactly as on v1 (see
+// registerWave1 / registerAccountTypeRoutesToApp).
+//
+// metadata-index is the LEDGER-AGNOSTIC settings resource: it carries LedgerOptions
+// ([authAssertion] ONLY, no WithTenantDB) and authorizes against the "midaz" appName under
+// the "settings" resource, exactly as on v1 (see registerWave1 / registerMetadataIndexRoutesToApp).
+// Passing OnboardingOptions here would inject tenant-DB middleware the route never had, so
+// LedgerOptions is load-bearing.
+//
 // The transaction ops carry TransactionOptions ([authAssertion, WithTenantDB]) and
 // authorize against the "midaz" appName (protectedMidaz) — the same auth + tenant
-// chain the v1 transaction CREATE ops use, no new policy.
+// chain the v1 transaction CREATE ops use, no new policy. RegisterTransactionMirrorV2RoutesToApp
+// additionally mirrors the seven v1 ops that have no dedicated v2 wire shape — the legacy-create
+// twins (json/inflow/outflow/annotation), the PATCH update, and the two reads (get-by-id + list) —
+// as straight v1 twins carrying the same TransactionOptions and "midaz" appName. block/unblock
+// create and commit/cancel/revert lifecycle are intentionally absent from that mirror: they are
+// already published as v2 ops by RegisterTransactionV2RoutesToApp. asset-rate is MONEY-adjacent
+// (exchange rates): it likewise carries TransactionOptions and authorizes against the
+// "midaz" appName, exactly as on v1 (see registerWave1 / registerAssetRateRoutesToApp).
+// balance (resource "balances") and operation (resource "operations") also carry
+// TransactionOptions and authorize against the "midaz" appName, matching their v1 twins.
+// The transaction-count HEAD op (RegisterCountTransactionV2RoutesToApp) is a straight mirror:
+// it carries TransactionOptions and authorizes against the "midaz" appName under the
+// "transactions" resource with the "head" verb, exactly as on v1 (see registerWave2 /
+// RegisterCountTransactionRoutesToApp).
 //
 // CRM carries its OWN CRMOptions and authorizes against the same "midaz" tuples the
 // v1 CRM routes use; the nil-guards (holder-accounts, encryption, audit) hold here
 // exactly as on v1. The fee/billing ops carry FeesOptions and authorize against the
 // same "plugin-fees" tuples as v1 — they differ from v1 in scope only: the path
-// names the ledger, so a package another ledger owns is out of reach.
+// names the ledger, so a package another ledger owns is out of reach. composition
+// carries CompositionOptions and authorizes under the "midaz" appName's "accounts"
+// resource, exactly as on v1 (see registerWave3 / RegisterCompositionRoutesToApp).
+//
+// operation-routes carry TransactionOptions ([authAssertion, WithTenantDB]) and authorize
+// against the "routing" appName (protectedRouting), NOT "midaz", exactly as on v1 (see
+// registerWave2 / RegisterOperationRouteRoutesToApp). transaction-routes likewise carry
+// TransactionOptions and authorize against the "routing" appName (protectedRouting), NOT
+// "midaz", exactly as on v1 (see registerWave2 / RegisterTransactionRouteRoutesToApp).
 func (d HumaMountDeps) MountV2(group fiber.Router, api huma.API) {
+	RegisterOrganizationV2RoutesToApp(group, api, d.Auth, d.Organization, d.OnboardingOptions)
+	RegisterLedgerV2RoutesToApp(group, api, d.Auth, d.Ledger, d.OnboardingOptions)
+	RegisterPortfolioV2RoutesToApp(group, api, d.Auth, d.Portfolio, d.OnboardingOptions)
+	RegisterSegmentV2RoutesToApp(group, api, d.Auth, d.Segment, d.OnboardingOptions)
+	RegisterAccountV2RoutesToApp(group, api, d.Auth, d.Account, d.OnboardingOptions)
+	RegisterAccountTypeV2RoutesToApp(group, api, d.Auth, d.AccountType, d.OnboardingOptions)
+	RegisterMetadataIndexV2RoutesToApp(group, api, d.Auth, d.MetadataIndex, d.LedgerOptions)
+	RegisterAssetV2RoutesToApp(group, api, d.Auth, d.Asset, d.OnboardingOptions)
+	RegisterAssetRateV2RoutesToApp(group, api, d.Auth, d.AssetRate, d.TransactionOptions)
 	RegisterTransactionV2RoutesToApp(group, api, d.Auth, d.Transaction, d.TransactionOptions)
+	RegisterTransactionMirrorV2RoutesToApp(group, api, d.Auth, d.Transaction, d.TransactionOptions)
+	RegisterCountTransactionV2RoutesToApp(group, api, d.Auth, d.Transaction, d.TransactionOptions)
+	RegisterBalanceV2RoutesToApp(group, api, d.Auth, d.Balance, d.TransactionOptions)
+	RegisterOperationV2RoutesToApp(group, api, d.Auth, d.Operation, d.TransactionOptions)
 	RegisterCRMV2RoutesToApp(group, api, d.Auth, d.Holder, d.Instrument, d.HolderAccounts, d.Encryption, d.Audit, d.CRMOptions)
 	RegisterFeesV2RoutesToApp(group, api, d.Auth, d.FeePackage, d.Fee, d.BillingPackage, d.BillingCalculate, d.FeesOptions)
+	RegisterCompositionV2RoutesToApp(group, api, d.Auth, d.Composition, d.CompositionOptions)
+	RegisterOperationRouteV2RoutesToApp(group, api, d.Auth, d.OperationRoute, d.TransactionOptions)
+	RegisterTransactionRouteV2RoutesToApp(group, api, d.Auth, d.TransactionRoute, d.TransactionOptions)
 }
 
 // AssembleHumaContract builds one independent Huma contract instance on group and

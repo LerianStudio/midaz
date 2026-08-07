@@ -258,10 +258,15 @@ func (handler *OperationRouteHandler) DeleteOperationRouteByIDHuma(ctx context.C
 // RegisterOperationRouteRoutes registers the five migrated operation-route
 // operations on the shared Huma API. It is the per-file seam the unified server
 // calls; the auth ("routing","operation-routes",verb) + tenant +
-// ParseUUIDPathParameters("operation_route") middleware chain is attached on the /v1
-// group (Fiber-level) BEFORE the Huma terminal, not here. Paths are GROUP-RELATIVE
-// (see asset_handler_huma.go's RegisterAssetRoutes header for the /v1 rationale).
-func RegisterOperationRouteRoutes(api huma.API, h *OperationRouteHandler) {
+// ParseUUIDPathParameters("operation_route") middleware chain is attached on the
+// version group (Fiber-level) BEFORE the Huma terminal, not here. Paths are
+// GROUP-RELATIVE (see asset_handler_huma.go's RegisterAssetRoutes header for the
+// rationale).
+//
+// opSuffix is appended to every operation ID so the same surface can be published on
+// more than one version group of the one document without colliding — see
+// routeOpSuffixV1.
+func RegisterOperationRouteRoutes(api huma.API, h *OperationRouteHandler, opSuffix string) {
 	const (
 		listPath = "/organizations/{organization_id}/ledgers/{ledger_id}/operation-routes"
 		idPath   = listPath + "/{operation_route_id}"
@@ -269,7 +274,7 @@ func RegisterOperationRouteRoutes(api huma.API, h *OperationRouteHandler) {
 	)
 
 	huma.Register(api, huma.Operation{
-		OperationID: "createOperationRoute",
+		OperationID: "createOperationRoute" + opSuffix,
 		Method:      http.MethodPost,
 		Path:        listPath,
 		Summary:     "Create Operation Route",
@@ -281,7 +286,7 @@ func RegisterOperationRouteRoutes(api huma.API, h *OperationRouteHandler) {
 	}, h.CreateOperationRouteHuma)
 
 	huma.Register(api, huma.Operation{
-		OperationID: "listOperationRoutes",
+		OperationID: "listOperationRoutes" + opSuffix,
 		Method:      http.MethodGet,
 		Path:        listPath,
 		Summary:     "Retrieve all operation routes",
@@ -290,7 +295,7 @@ func RegisterOperationRouteRoutes(api huma.API, h *OperationRouteHandler) {
 	}, h.GetAllOperationRoutesHuma)
 
 	huma.Register(api, huma.Operation{
-		OperationID: "getOperationRouteByID",
+		OperationID: "getOperationRouteByID" + opSuffix,
 		Method:      http.MethodGet,
 		Path:        idPath,
 		Summary:     "Retrieve a specific operation route",
@@ -299,7 +304,7 @@ func RegisterOperationRouteRoutes(api huma.API, h *OperationRouteHandler) {
 	}, h.GetOperationRouteByIDHuma)
 
 	huma.Register(api, huma.Operation{
-		OperationID:      "updateOperationRoute",
+		OperationID:      "updateOperationRoute" + opSuffix,
 		Method:           http.MethodPatch,
 		Path:             idPath,
 		Summary:          "Update an operation route",
@@ -309,7 +314,7 @@ func RegisterOperationRouteRoutes(api huma.API, h *OperationRouteHandler) {
 	}, h.UpdateOperationRouteHuma)
 
 	huma.Register(api, huma.Operation{
-		OperationID: "deleteOperationRoute",
+		OperationID: "deleteOperationRoute" + opSuffix,
 		Method:      http.MethodDelete,
 		Path:        idPath,
 		Summary:     "Delete an operation route",

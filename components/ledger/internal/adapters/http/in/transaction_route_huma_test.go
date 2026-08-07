@@ -69,7 +69,7 @@ func buildHumaTransactionRouteApp(t *testing.T, handler *TransactionRouteHandler
 	apiV1.Patch(base+"/:transaction_route_id", parse)
 	apiV1.Delete(base+"/:transaction_route_id", parse)
 
-	RegisterTransactionRouteRoutes(hAPI, handler)
+	RegisterTransactionRouteRoutes(hAPI, handler, routeOpSuffixV1)
 
 	return f
 }

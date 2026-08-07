@@ -270,10 +270,14 @@ func (handler *PortfolioHandler) CountPortfoliosHuma(ctx context.Context, in *Co
 }
 
 // RegisterPortfolioRoutes registers the six migrated portfolio operations on the
-// shared Huma API. Paths are GROUP-RELATIVE (the Huma API is bound to the /v1 Fiber
+// shared Huma API. Paths are GROUP-RELATIVE (the Huma API is bound to a versioned Fiber
 // group). The auth + tenant + ParseUUIDPathParameters chain is attached by
-// RegisterPortfolioRoutesToApp (Fiber-level), NOT here.
-func RegisterPortfolioRoutes(api huma.API, h *PortfolioHandler) {
+// registerPortfolioRoutesToApp (Fiber-level), NOT here.
+//
+// opSuffix distinguishes the operation IDs one version group publishes from another's —
+// see routeOpSuffixV1. A straight v1/v2 mirror reuses the same handler methods and the
+// same input/output types, so only the operation IDs differ between the twins.
+func RegisterPortfolioRoutes(api huma.API, h *PortfolioHandler, opSuffix string) {
 	const (
 		listPath  = "/organizations/{organization_id}/ledgers/{ledger_id}/portfolios"
 		idPath    = listPath + "/{id}"
@@ -282,7 +286,7 @@ func RegisterPortfolioRoutes(api huma.API, h *PortfolioHandler) {
 	)
 
 	huma.Register(api, huma.Operation{
-		OperationID:      "createPortfolio",
+		OperationID:      "createPortfolio" + opSuffix,
 		Method:           http.MethodPost,
 		Path:             listPath,
 		Summary:          "Create a new portfolio",
@@ -293,7 +297,7 @@ func RegisterPortfolioRoutes(api huma.API, h *PortfolioHandler) {
 	}, h.CreatePortfolioHuma)
 
 	huma.Register(api, huma.Operation{
-		OperationID: "listPortfolios",
+		OperationID: "listPortfolios" + opSuffix,
 		Method:      http.MethodGet,
 		Path:        listPath,
 		Summary:     "List all portfolios",
@@ -302,7 +306,7 @@ func RegisterPortfolioRoutes(api huma.API, h *PortfolioHandler) {
 	}, h.ListPortfoliosHuma)
 
 	huma.Register(api, huma.Operation{
-		OperationID: "getPortfolioByID",
+		OperationID: "getPortfolioByID" + opSuffix,
 		Method:      http.MethodGet,
 		Path:        idPath,
 		Summary:     "Retrieve a specific portfolio",
@@ -311,7 +315,7 @@ func RegisterPortfolioRoutes(api huma.API, h *PortfolioHandler) {
 	}, h.GetPortfolioByIDHuma)
 
 	huma.Register(api, huma.Operation{
-		OperationID:      "updatePortfolio",
+		OperationID:      "updatePortfolio" + opSuffix,
 		Method:           http.MethodPatch,
 		Path:             idPath,
 		Summary:          "Update a portfolio",
@@ -321,7 +325,7 @@ func RegisterPortfolioRoutes(api huma.API, h *PortfolioHandler) {
 	}, h.UpdatePortfolioHuma)
 
 	huma.Register(api, huma.Operation{
-		OperationID:   "deletePortfolio",
+		OperationID:   "deletePortfolio" + opSuffix,
 		Method:        http.MethodDelete,
 		Path:          idPath,
 		Summary:       "Delete a portfolio",
@@ -331,7 +335,7 @@ func RegisterPortfolioRoutes(api huma.API, h *PortfolioHandler) {
 	}, h.DeletePortfolioByIDHuma)
 
 	huma.Register(api, huma.Operation{
-		OperationID:   "countPortfolios",
+		OperationID:   "countPortfolios" + opSuffix,
 		Method:        http.MethodHead,
 		Path:          countPath,
 		Summary:       "Count total portfolios",
@@ -341,17 +345,34 @@ func RegisterPortfolioRoutes(api huma.API, h *PortfolioHandler) {
 	}, h.CountPortfoliosHuma)
 }
 
-// RegisterPortfolioRoutesToApp wires the Huma-migrated portfolio resource,
-// mirroring RegisterAssetRoutesToApp. For each of the six ops it attaches the Fiber
-// auth chain — auth.Authorize("midaz","portfolios",verb) + tenant
-// PostAuthMiddlewares + ParseUUIDPathParameters("portfolio") — as MIDDLEWARE ONLY
-// (no terminal handler) on the /v1 GROUP with GROUP-RELATIVE paths, then registers
-// the Huma terminals via RegisterPortfolioRoutes on the SAME group's Huma API. This
-// preserves the pre-Huma (resource, verb) authz tuples and tenant resolution
-// BYTE-FOR-BYTE — no portfolio route becomes public.
-//
-// Called from the unified server's humaMount (integration task), NOT from routes.go.
+// RegisterPortfolioRoutesToApp wires the Huma-migrated portfolio surface onto the /v1
+// contract. See registerPortfolioRoutesToApp for what it attaches.
 func RegisterPortfolioRoutesToApp(group fiber.Router, api huma.API, auth *middleware.AuthClient, ph *PortfolioHandler, routeOptions *pkgHTTP.ProtectedRouteOptions) {
+	registerPortfolioRoutesToApp(group, api, auth, ph, routeOptions, routeOpSuffixV1)
+}
+
+// RegisterPortfolioV2RoutesToApp wires the same portfolio surface onto the /v2 contract:
+// same paths, same handlers, same authz tuples and tenant chain, differing only in the
+// operation IDs the contract publishes. It is additive — /v1 keeps serving portfolios in
+// parallel — and introduces no new policy surface.
+func RegisterPortfolioV2RoutesToApp(group fiber.Router, api huma.API, auth *middleware.AuthClient, ph *PortfolioHandler, routeOptions *pkgHTTP.ProtectedRouteOptions) {
+	registerPortfolioRoutesToApp(group, api, auth, ph, routeOptions, routeOpSuffixV2)
+}
+
+// registerPortfolioRoutesToApp is the single description of the portfolio route surface,
+// shared by every versioned contract that serves it, mirroring RegisterAssetRoutesToApp.
+// For each of the six ops it attaches the Fiber auth chain —
+// auth.Authorize("midaz","portfolios",verb) + tenant PostAuthMiddlewares +
+// ParseUUIDPathParameters("portfolio") — as MIDDLEWARE ONLY (no terminal handler) on the
+// VERSIONED GROUP with GROUP-RELATIVE paths, then registers the Huma terminals via
+// RegisterPortfolioRoutes on the SAME group's Huma API. This preserves the pre-Huma
+// (resource, verb) authz tuples and tenant resolution BYTE-FOR-BYTE on whichever version
+// group it is mounted on — no portfolio route becomes public.
+//
+// opSuffix distinguishes the operation IDs one version group publishes from another's —
+// see routeOpSuffixV1. Nothing else varies between contracts, so a change to the surface
+// reaches every version it is mounted on.
+func registerPortfolioRoutesToApp(group fiber.Router, api huma.API, auth *middleware.AuthClient, ph *PortfolioHandler, routeOptions *pkgHTTP.ProtectedRouteOptions, opSuffix string) {
 	const (
 		listPath  = "/organizations/:organization_id/ledgers/:ledger_id/portfolios"
 		idPath    = listPath + "/:id"
@@ -367,5 +388,5 @@ func RegisterPortfolioRoutesToApp(group fiber.Router, api huma.API, auth *middle
 	routeDelete(group, idPath, protectedMidaz(auth, "portfolios", "delete", routeOptions, parse))
 	routeHead(group, countPath, protectedMidaz(auth, "portfolios", "head", routeOptions, parse))
 
-	RegisterPortfolioRoutes(api, ph)
+	RegisterPortfolioRoutes(api, ph, opSuffix)
 }
