@@ -5,7 +5,6 @@
 package in
 
 import (
-	"net/http"
 	"strings"
 	"testing"
 
@@ -16,23 +15,12 @@ import (
 // with their HTTP verb, so a caller can assert per-operation metadata without
 // repeating the eight-method fan-out.
 func operationsForPathItem(item *huma.PathItem) map[string]*huma.Operation {
-	verbs := map[string]*huma.Operation{
-		http.MethodGet:     item.Get,
-		http.MethodPut:     item.Put,
-		http.MethodPost:    item.Post,
-		http.MethodDelete:  item.Delete,
-		http.MethodOptions: item.Options,
-		http.MethodHead:    item.Head,
-		http.MethodPatch:   item.Patch,
-		http.MethodTrace:   item.Trace,
-	}
+	ops := operationsOf(item)
 
-	present := make(map[string]*huma.Operation, len(verbs))
+	present := make(map[string]*huma.Operation, len(ops))
 
-	for verb, op := range verbs {
-		if op != nil {
-			present[verb] = op
-		}
+	for _, op := range ops {
+		present[op.Method] = op
 	}
 
 	return present

@@ -271,12 +271,34 @@ func MarkV1OperationsDeprecated(api huma.API) {
 			continue
 		}
 
-		for _, op := range []*huma.Operation{item.Get, item.Put, item.Post, item.Delete, item.Options, item.Head, item.Patch, item.Trace} {
-			if op != nil {
-				op.Deprecated = true
-			}
+		for _, op := range operationsOf(item) {
+			op.Deprecated = true
 		}
 	}
+}
+
+// operationsOf returns every declared operation on a PathItem, in a fixed order, so a
+// caller can walk the whole served surface without re-listing the eight method fields at
+// each call site. Nil methods are filtered out, and a nil item yields nil.
+func operationsOf(item *huma.PathItem) []*huma.Operation {
+	if item == nil {
+		return nil
+	}
+
+	candidates := []*huma.Operation{
+		item.Get, item.Put, item.Post, item.Delete,
+		item.Options, item.Head, item.Patch, item.Trace,
+	}
+
+	ops := make([]*huma.Operation, 0, len(candidates))
+
+	for _, op := range candidates {
+		if op != nil {
+			ops = append(ops, op)
+		}
+	}
+
+	return ops
 }
 
 // v1TagSuffix and v2TagSuffix are appended to each operation's resource tag so a
@@ -320,11 +342,7 @@ func ApplyVersionTagGroups(api huma.API) {
 			continue
 		}
 
-		for _, op := range []*huma.Operation{item.Get, item.Put, item.Post, item.Delete, item.Options, item.Head, item.Patch, item.Trace} {
-			if op == nil {
-				continue
-			}
-
+		for _, op := range operationsOf(item) {
 			for i, tag := range op.Tags {
 				suffixed := tag + suffix
 				op.Tags[i] = suffixed

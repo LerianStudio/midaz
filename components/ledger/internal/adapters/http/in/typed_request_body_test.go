@@ -71,24 +71,28 @@ func TestTypedRequestBodyRepresentativeSpread(t *testing.T) {
 	_, api := buildUnifiedHumaAPI()
 	doc := api.OpenAPI()
 
-	// operationID -> want a $ref specifically (all are struct inputs).
-	refOps := []string{
-		"createOrganization",
-		"createOrganizationV2",
-		"createAccount",
-		"updateLedger",
-		"createTransactionJSON",
-		"createPackage",
-		"createPackageV2",
+	// operationID -> the EXACT component the $ref must resolve to. Asserting the target
+	// name (not just non-empty) catches a wrong-T at a call site: a body op wired to the
+	// wrong concrete type would still publish a $ref, but to the wrong component.
+	refOps := map[string]string{
+		"createOrganization":    "CreateOrganizationInput",
+		"createOrganizationV2":  "CreateOrganizationInput",
+		"createAccount":         "CreateAccountInput",
+		"updateLedger":          "UpdateLedgerInput",
+		"createTransactionJSON": "CreateTransactionInput",
+		"createPackage":         "FeeCreatePackageInput",
+		"createPackageV2":       "FeeCreatePackageInput",
 	}
 
-	for _, id := range refOps {
+	for id, wantComponent := range refOps {
 		schema := jsonRequestSchema(doc, id)
 		require.NotNilf(t, schema, "op %q must have an application/json request-body schema", id)
 		require.Falsef(t, isBinaryBodySchema(schema),
 			"op %q request body must be typed, not the opaque binary RawBody schema", id)
 		require.NotEmptyf(t, schema.Ref,
 			"op %q request body must be a $ref to the concrete input component, got %+v", id, schema)
+		require.Equalf(t, "#/components/schemas/"+wantComponent, schema.Ref,
+			"op %q request body must $ref the %q component", id, wantComponent)
 	}
 }
 

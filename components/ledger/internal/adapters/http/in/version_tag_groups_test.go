@@ -24,11 +24,7 @@ func opsUnder(api huma.API, prefix string) []*huma.Operation {
 			continue
 		}
 
-		for _, op := range []*huma.Operation{item.Get, item.Put, item.Post, item.Delete, item.Options, item.Head, item.Patch, item.Trace} {
-			if op != nil {
-				ops = append(ops, op)
-			}
-		}
+		ops = append(ops, operationsOf(item)...)
 	}
 
 	return ops
@@ -37,6 +33,8 @@ func opsUnder(api huma.API, prefix string) []*huma.Operation {
 // TestVersionTagGroups_OperationsRetaggedPerVersion asserts every /v1/ op carries
 // only "(v1)"-suffixed resource tags and every /v2/ op only "(v2)"-suffixed ones.
 func TestVersionTagGroups_OperationsRetaggedPerVersion(t *testing.T) {
+	t.Parallel()
+
 	_, api := buildUnifiedHumaAPI()
 
 	v1Ops := opsUnder(api, "/v1/")
@@ -68,6 +66,8 @@ func TestVersionTagGroups_OperationsRetaggedPerVersion(t *testing.T) {
 // list every suffixed tag exactly once, and that set equals the union of the tags
 // carried by the operations.
 func TestVersionTagGroups_RootTagsDeclaredExactlyOnce(t *testing.T) {
+	t.Parallel()
+
 	_, api := buildUnifiedHumaAPI()
 
 	seen := map[string]int{}
@@ -100,6 +100,8 @@ func TestVersionTagGroups_RootTagsDeclaredExactlyOnce(t *testing.T) {
 // TestVersionTagGroups_ExtensionShape asserts x-tagGroups exists with exactly two
 // groups in order, V1 listing only (v1) tags and V2 only (v2) tags, each sorted.
 func TestVersionTagGroups_ExtensionShape(t *testing.T) {
+	t.Parallel()
+
 	_, api := buildUnifiedHumaAPI()
 
 	ext := api.OpenAPI().Extensions
@@ -134,11 +136,32 @@ func TestVersionTagGroups_ExtensionShape(t *testing.T) {
 	}
 
 	assert.True(t, sort.StringsAreSorted(v2Tags), "V2 group tags must be sorted for deterministic output")
+
+	// Coverage: the two groups together must list EXACTLY the tag set the operations
+	// carry, so no tag is rendered on an operation yet left ungrouped (hidden from the
+	// Scalar sidebar), and no group lists a phantom tag no operation uses.
+	grouped := map[string]bool{}
+	for _, tag := range append(append([]string{}, v1Tags...), v2Tags...) {
+		grouped[tag] = true
+	}
+
+	opTags := map[string]bool{}
+
+	for _, op := range append(opsUnder(api, "/v1/"), opsUnder(api, "/v2/")...) {
+		for _, tag := range op.Tags {
+			opTags[tag] = true
+		}
+	}
+
+	require.NotEmpty(t, opTags)
+	assert.Equal(t, opTags, grouped, "x-tagGroups must cover exactly the operation tag set (no ungrouped or phantom tags)")
 }
 
 // TestVersionTagGroups_RootTagsSorted asserts the document root Tags slice is
 // sorted by name — determinism guard for the committed dump.
 func TestVersionTagGroups_RootTagsSorted(t *testing.T) {
+	t.Parallel()
+
 	_, api := buildUnifiedHumaAPI()
 
 	names := make([]string, 0, len(api.OpenAPI().Tags))

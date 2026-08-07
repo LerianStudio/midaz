@@ -332,16 +332,6 @@ components:
           examples:
             - BRL
           type: string
-        direction:
-          type: string
-        operation:
-          type: string
-        overdraftAmount:
-          type: string
-        routeValidationEnabled:
-          type: boolean
-        transactionType:
-          type: string
         value:
           examples:
             - "1000"
@@ -3654,8 +3644,6 @@ components:
           type: string
         send:
           $ref: "#/components/schemas/Send"
-        skip:
-          $ref: "#/components/schemas/TransactionSkip"
         transactionDate:
           examples:
             - "2021-01-01T00:00:00Z"
