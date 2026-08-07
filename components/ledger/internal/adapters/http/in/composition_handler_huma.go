@@ -95,12 +95,16 @@ func (handler *CompositionHandler) CreateHolderAccountHuma(ctx context.Context, 
 // RegisterCompositionRoutes registers the single migrated composition operation on
 // the shared Huma API. It is the per-file seam the unified server calls; the auth
 // ("midaz","accounts","post") + tenant + ParseUUIDPathParameters("holder") middleware
-// chain is attached on the /v1 group (Fiber-level) BEFORE the Huma terminal, not
+// chain is attached on the versioned group (Fiber-level) BEFORE the Huma terminal, not
 // here. Path is GROUP-RELATIVE (see asset_handler_huma.go's RegisterAssetRoutes
-// header for the /v1 rationale).
-func RegisterCompositionRoutes(api huma.API, h *CompositionHandler) {
+// header for the version-prefix rationale).
+//
+// opSuffix distinguishes the operation ID one version group publishes from another's —
+// see routeOpSuffixV1. Both version groups share one document, so the v1 op and its v2
+// twin MUST carry distinct IDs or huma.OpenAPI.AddOperation panics at boot.
+func RegisterCompositionRoutes(api huma.API, h *CompositionHandler, opSuffix string) {
 	huma.Register(api, huma.Operation{
-		OperationID: "createHolderAccount",
+		OperationID: "createHolderAccount" + opSuffix,
 		Method:      http.MethodPost,
 		Path:        "/organizations/{organization_id}/ledgers/{ledger_id}/holders/{id}/accounts",
 		Summary:     "Open a holder-owned account (with optional instrument)",

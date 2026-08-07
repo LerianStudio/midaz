@@ -219,8 +219,12 @@ func (handler *OperationHandler) UpdateOperationHuma(ctx context.Context, in *Up
 // server calls; the auth (auth.Authorize("midaz","operations",verb)) + tenant +
 // ParseUUIDPathParameters("operation") chain for these routes is attached in the unified
 // server (Fiber level) BEFORE the Huma terminal, not here. Paths are GROUP-RELATIVE (the
-// group's PrefixModifier writes "/v1" into each op's op.Path, not into a servers entry).
-func RegisterOperationRoutes(api huma.API, h *OperationHandler) {
+// group's PrefixModifier writes the version into each op's op.Path, not into a servers entry).
+//
+// opSuffix distinguishes the operation IDs one version group publishes from another's — see
+// routeOpSuffixV1. The v1 group passes the empty suffix so its IDs stay exactly what published
+// SDKs bind to; the v2 group passes "V2" so its twins do not collide in the one document.
+func RegisterOperationRoutes(api huma.API, h *OperationHandler, opSuffix string) {
 	const (
 		listPath  = "/organizations/{organization_id}/ledgers/{ledger_id}/accounts/{account_id}/operations"
 		idPath    = listPath + "/{operation_id}"
@@ -229,7 +233,7 @@ func RegisterOperationRoutes(api huma.API, h *OperationHandler) {
 	)
 
 	huma.Register(api, huma.Operation{
-		OperationID: "getAllOperationsByAccount",
+		OperationID: "getAllOperationsByAccount" + opSuffix,
 		Method:      http.MethodGet,
 		Path:        listPath,
 		Summary:     "Get all Operations by account",
@@ -238,7 +242,7 @@ func RegisterOperationRoutes(api huma.API, h *OperationHandler) {
 	}, h.GetAllOperationsByAccountHuma)
 
 	huma.Register(api, huma.Operation{
-		OperationID: "getOperationByAccount",
+		OperationID: "getOperationByAccount" + opSuffix,
 		Method:      http.MethodGet,
 		Path:        idPath,
 		Summary:     "Get Operation",
@@ -247,7 +251,7 @@ func RegisterOperationRoutes(api huma.API, h *OperationHandler) {
 	}, h.GetOperationByAccountHuma)
 
 	huma.Register(api, huma.Operation{
-		OperationID:      "updateOperation",
+		OperationID:      "updateOperation" + opSuffix,
 		Method:           http.MethodPatch,
 		Path:             patchPath,
 		Summary:          "Update an Operation",

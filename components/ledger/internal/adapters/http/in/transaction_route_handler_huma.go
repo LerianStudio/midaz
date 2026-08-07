@@ -258,7 +258,12 @@ func (handler *TransactionRouteHandler) DeleteTransactionRouteByIDHuma(ctx conte
 // /v1 group (Fiber-level) BEFORE the Huma terminal, not here. Paths are
 // GROUP-RELATIVE (see asset_handler_huma.go's RegisterAssetRoutes header for the
 // /v1 rationale).
-func RegisterTransactionRouteRoutes(api huma.API, h *TransactionRouteHandler) {
+//
+// opSuffix distinguishes the operation IDs one version group publishes from another's (empty
+// for /v1, "V2" for /v2 — see routeOpSuffixV1). The v2 twin is a straight mirror: same handler
+// methods, same paths, same input/output types, differing only in the suffixed operation IDs so
+// the two twins do not collide as a duplicate operationId in the one shared document.
+func RegisterTransactionRouteRoutes(api huma.API, h *TransactionRouteHandler, opSuffix string) {
 	const (
 		listPath = "/organizations/{organization_id}/ledgers/{ledger_id}/transaction-routes"
 		idPath   = listPath + "/{transaction_route_id}"
@@ -266,7 +271,7 @@ func RegisterTransactionRouteRoutes(api huma.API, h *TransactionRouteHandler) {
 	)
 
 	huma.Register(api, huma.Operation{
-		OperationID: "createTransactionRoute",
+		OperationID: "createTransactionRoute" + opSuffix,
 		Method:      http.MethodPost,
 		Path:        listPath,
 		Summary:     "Create Transaction Route",
@@ -278,7 +283,7 @@ func RegisterTransactionRouteRoutes(api huma.API, h *TransactionRouteHandler) {
 	}, h.CreateTransactionRouteHuma)
 
 	huma.Register(api, huma.Operation{
-		OperationID: "listTransactionRoutes",
+		OperationID: "listTransactionRoutes" + opSuffix,
 		Method:      http.MethodGet,
 		Path:        listPath,
 		Summary:     "Get all Transaction Routes",
@@ -287,7 +292,7 @@ func RegisterTransactionRouteRoutes(api huma.API, h *TransactionRouteHandler) {
 	}, h.GetAllTransactionRoutesHuma)
 
 	huma.Register(api, huma.Operation{
-		OperationID: "getTransactionRouteByID",
+		OperationID: "getTransactionRouteByID" + opSuffix,
 		Method:      http.MethodGet,
 		Path:        idPath,
 		Summary:     "Get Transaction Route by ID",
@@ -296,7 +301,7 @@ func RegisterTransactionRouteRoutes(api huma.API, h *TransactionRouteHandler) {
 	}, h.GetTransactionRouteByIDHuma)
 
 	huma.Register(api, huma.Operation{
-		OperationID:      "updateTransactionRoute",
+		OperationID:      "updateTransactionRoute" + opSuffix,
 		Method:           http.MethodPatch,
 		Path:             idPath,
 		Summary:          "Update Transaction Route",
@@ -306,7 +311,7 @@ func RegisterTransactionRouteRoutes(api huma.API, h *TransactionRouteHandler) {
 	}, h.UpdateTransactionRouteHuma)
 
 	huma.Register(api, huma.Operation{
-		OperationID: "deleteTransactionRoute",
+		OperationID: "deleteTransactionRoute" + opSuffix,
 		Method:      http.MethodDelete,
 		Path:        idPath,
 		Summary:     "Delete Transaction Route by ID",
