@@ -135,6 +135,7 @@ func RegisterEncryptionRoutes(api huma.API, h *EncryptionHandler, opSuffix strin
 		SkipValidateBody: true,
 		DefaultStatus:    http.StatusCreated,
 	}, h.ProvisionHuma)
+	attachTypedRequestBody[mmodel.ProvisionEncryptionInput](api, "provisionEncryption"+opSuffix)
 
 	huma.Register(api, huma.Operation{
 		OperationID: "getProvisioningStatus" + opSuffix,

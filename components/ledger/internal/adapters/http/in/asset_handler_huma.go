@@ -363,6 +363,7 @@ func RegisterAssetRoutes(api huma.API, h *AssetHandler, opSuffix string) {
 		SkipValidateBody: true,
 		DefaultStatus:    http.StatusCreated,
 	}, h.CreateAssetHuma)
+	attachTypedRequestBody[mmodel.CreateAssetInput](api, "createAsset"+opSuffix)
 
 	huma.Register(api, huma.Operation{
 		OperationID: "listAssets" + opSuffix,
@@ -391,6 +392,7 @@ func RegisterAssetRoutes(api huma.API, h *AssetHandler, opSuffix string) {
 		Security:         secAssetBearerOrAPIKey,
 		SkipValidateBody: true, // body validated imperatively — see createAsset.
 	}, h.UpdateAssetHuma)
+	attachTypedRequestBody[mmodel.UpdateAssetInput](api, "updateAsset"+opSuffix)
 
 	huma.Register(api, huma.Operation{
 		OperationID: "deleteAsset" + opSuffix,

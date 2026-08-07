@@ -100,4 +100,5 @@ func RegisterBillingCalculateRoutes(api huma.API, h *BillingCalculateHandler) {
 		// Body validated imperatively (feehttp.DecodeValidateBody) — see file header.
 		SkipValidateBody: true,
 	}, h.CalculateBillingHuma)
+	attachTypedRequestBody[model.BillingCalculateRequest](api, "calculateBilling")
 }

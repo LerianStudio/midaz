@@ -283,9 +283,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "contentMediaType": "application/octet-stream",
-                "format": "binary",
-                "type": "string"
+                "$ref": "#/components/schemas/CreateOrganizationInput"
               }
             }
           },
@@ -485,9 +483,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "contentMediaType": "application/octet-stream",
-                "format": "binary",
-                "type": "string"
+                "$ref": "#/components/schemas/UpdateOrganizationInput"
               }
             }
           },
@@ -636,9 +632,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "contentMediaType": "application/octet-stream",
-                "format": "binary",
-                "type": "string"
+                "$ref": "#/components/schemas/FeeBillingPackage"
               }
             }
           },
@@ -814,9 +808,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "contentMediaType": "application/octet-stream",
-                "format": "binary",
-                "type": "string"
+                "$ref": "#/components/schemas/FeeBillingPackageUpdate"
               }
             }
           },
@@ -875,9 +867,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "contentMediaType": "application/octet-stream",
-                "format": "binary",
-                "type": "string"
+                "$ref": "#/components/schemas/FeeBillingCalculateRequest"
               }
             }
           },
@@ -945,9 +935,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "contentMediaType": "application/octet-stream",
-                "format": "binary",
-                "type": "string"
+                "$ref": "#/components/schemas/ProvisionEncryptionInput"
               }
             }
           },
@@ -1064,9 +1052,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "contentMediaType": "application/octet-stream",
-                "format": "binary",
-                "type": "string"
+                "$ref": "#/components/schemas/FeeEstimate"
               }
             }
           },
@@ -1261,9 +1247,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "contentMediaType": "application/octet-stream",
-                "format": "binary",
-                "type": "string"
+                "$ref": "#/components/schemas/CreateHolderInput"
               }
             }
           },
@@ -1357,9 +1341,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "contentMediaType": "application/octet-stream",
-                "format": "binary",
-                "type": "string"
+                "$ref": "#/components/schemas/CreateInstrumentInput"
               }
             }
           },
@@ -1592,9 +1574,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "contentMediaType": "application/octet-stream",
-                "format": "binary",
-                "type": "string"
+                "$ref": "#/components/schemas/UpdateInstrumentInput"
               }
             }
           },
@@ -1862,9 +1842,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "contentMediaType": "application/octet-stream",
-                "format": "binary",
-                "type": "string"
+                "$ref": "#/components/schemas/UpdateHolderInput"
               }
             }
           },
@@ -2281,9 +2259,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "contentMediaType": "application/octet-stream",
-                "format": "binary",
-                "type": "string"
+                "$ref": "#/components/schemas/CreateLedgerInput"
               }
             }
           },
@@ -2525,9 +2501,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "contentMediaType": "application/octet-stream",
-                "format": "binary",
-                "type": "string"
+                "$ref": "#/components/schemas/UpdateLedgerInput"
               }
             }
           },
@@ -2739,9 +2713,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "contentMediaType": "application/octet-stream",
-                "format": "binary",
-                "type": "string"
+                "$ref": "#/components/schemas/CreateAccountTypeInput"
               }
             }
           },
@@ -2956,9 +2928,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "contentMediaType": "application/octet-stream",
-                "format": "binary",
-                "type": "string"
+                "$ref": "#/components/schemas/UpdateAccountTypeInput"
               }
             }
           },
@@ -3259,9 +3229,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "contentMediaType": "application/octet-stream",
-                "format": "binary",
-                "type": "string"
+                "$ref": "#/components/schemas/CreateAccountInput"
               }
             }
           },
@@ -3818,9 +3786,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "contentMediaType": "application/octet-stream",
-                "format": "binary",
-                "type": "string"
+                "$ref": "#/components/schemas/CreateAdditionalBalance"
               }
             }
           },
@@ -4386,9 +4352,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "contentMediaType": "application/octet-stream",
-                "format": "binary",
-                "type": "string"
+                "$ref": "#/components/schemas/UpdateAccountInput"
               }
             }
           },
@@ -4460,9 +4424,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "contentMediaType": "application/octet-stream",
-                "format": "binary",
-                "type": "string"
+                "$ref": "#/components/schemas/CreateAssetRateInput"
               }
             }
           },
@@ -4873,9 +4835,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "contentMediaType": "application/octet-stream",
-                "format": "binary",
-                "type": "string"
+                "$ref": "#/components/schemas/CreateAssetInput"
               }
             }
           },
@@ -5157,9 +5117,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "contentMediaType": "application/octet-stream",
-                "format": "binary",
-                "type": "string"
+                "$ref": "#/components/schemas/UpdateAssetInput"
               }
             }
           },
@@ -5486,9 +5444,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "contentMediaType": "application/octet-stream",
-                "format": "binary",
-                "type": "string"
+                "$ref": "#/components/schemas/UpdateBalance"
               }
             }
           },
@@ -5661,9 +5617,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "contentMediaType": "application/octet-stream",
-                "format": "binary",
-                "type": "string"
+                "$ref": "#/components/schemas/CreateHolderAccountInput"
               }
             }
           },
@@ -5839,9 +5793,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "contentMediaType": "application/octet-stream",
-                "format": "binary",
-                "type": "string"
+                "$ref": "#/components/schemas/CreateOperationRouteInput"
               }
             }
           },
@@ -6047,9 +5999,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "contentMediaType": "application/octet-stream",
-                "format": "binary",
-                "type": "string"
+                "$ref": "#/components/schemas/UpdateOperationRouteInput"
               }
             }
           },
@@ -6258,9 +6208,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "contentMediaType": "application/octet-stream",
-                "format": "binary",
-                "type": "string"
+                "$ref": "#/components/schemas/CreatePortfolioInput"
               }
             }
           },
@@ -6542,9 +6490,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "contentMediaType": "application/octet-stream",
-                "format": "binary",
-                "type": "string"
+                "$ref": "#/components/schemas/UpdatePortfolioInput"
               }
             }
           },
@@ -6736,9 +6682,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "contentMediaType": "application/octet-stream",
-                "format": "binary",
-                "type": "string"
+                "$ref": "#/components/schemas/CreateSegmentInput"
               }
             }
           },
@@ -7020,9 +6964,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "contentMediaType": "application/octet-stream",
-                "format": "binary",
-                "type": "string"
+                "$ref": "#/components/schemas/UpdateSegmentInput"
               }
             }
           },
@@ -7154,9 +7096,8 @@
           "content": {
             "application/json": {
               "schema": {
-                "contentMediaType": "application/octet-stream",
-                "format": "binary",
-                "type": "string"
+                "additionalProperties": {},
+                "type": "object"
               }
             }
           },
@@ -7335,9 +7276,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "contentMediaType": "application/octet-stream",
-                "format": "binary",
-                "type": "string"
+                "$ref": "#/components/schemas/CreateTransactionRouteInput"
               }
             }
           },
@@ -7543,9 +7482,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "contentMediaType": "application/octet-stream",
-                "format": "binary",
-                "type": "string"
+                "$ref": "#/components/schemas/UpdateTransactionRouteInput"
               }
             }
           },
@@ -7751,9 +7688,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "contentMediaType": "application/octet-stream",
-                "format": "binary",
-                "type": "string"
+                "$ref": "#/components/schemas/CreateTransactionInput"
               }
             }
           },
@@ -7847,9 +7782,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "contentMediaType": "application/octet-stream",
-                "format": "binary",
-                "type": "string"
+                "$ref": "#/components/schemas/CreateTransactionInput"
               }
             }
           },
@@ -7943,9 +7876,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "contentMediaType": "application/octet-stream",
-                "format": "binary",
-                "type": "string"
+                "$ref": "#/components/schemas/CreateTransactionInflowInput"
               }
             }
           },
@@ -8039,9 +7970,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "contentMediaType": "application/octet-stream",
-                "format": "binary",
-                "type": "string"
+                "$ref": "#/components/schemas/CreateTransactionInput"
               }
             }
           },
@@ -8242,9 +8171,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "contentMediaType": "application/octet-stream",
-                "format": "binary",
-                "type": "string"
+                "$ref": "#/components/schemas/CreateTransactionOutflowInput"
               }
             }
           },
@@ -8338,9 +8265,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "contentMediaType": "application/octet-stream",
-                "format": "binary",
-                "type": "string"
+                "$ref": "#/components/schemas/CreateTransactionInput"
               }
             }
           },
@@ -8500,9 +8425,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "contentMediaType": "application/octet-stream",
-                "format": "binary",
-                "type": "string"
+                "$ref": "#/components/schemas/TransactionUpdateTransactionInput"
               }
             }
           },
@@ -8729,9 +8652,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "contentMediaType": "application/octet-stream",
-                "format": "binary",
-                "type": "string"
+                "$ref": "#/components/schemas/OperationUpdateOperationInput"
               }
             }
           },
@@ -8973,9 +8894,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "contentMediaType": "application/octet-stream",
-                "format": "binary",
-                "type": "string"
+                "$ref": "#/components/schemas/FeeCreatePackageInput"
               }
             }
           },
@@ -9151,9 +9070,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "contentMediaType": "application/octet-stream",
-                "format": "binary",
-                "type": "string"
+                "$ref": "#/components/schemas/FeeUpdatePackageInput"
               }
             }
           },
@@ -9408,9 +9325,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "contentMediaType": "application/octet-stream",
-                "format": "binary",
-                "type": "string"
+                "$ref": "#/components/schemas/CreateMetadataIndexInput"
               }
             }
           },
@@ -9664,9 +9579,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "contentMediaType": "application/octet-stream",
-                "format": "binary",
-                "type": "string"
+                "$ref": "#/components/schemas/CreateOrganizationInput"
               }
             }
           },
@@ -9862,9 +9775,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "contentMediaType": "application/octet-stream",
-                "format": "binary",
-                "type": "string"
+                "$ref": "#/components/schemas/UpdateOrganizationInput"
               }
             }
           },
@@ -9934,9 +9845,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "contentMediaType": "application/octet-stream",
-                "format": "binary",
-                "type": "string"
+                "$ref": "#/components/schemas/ProvisionEncryptionInput"
               }
             }
           },
@@ -10185,9 +10094,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "contentMediaType": "application/octet-stream",
-                "format": "binary",
-                "type": "string"
+                "$ref": "#/components/schemas/CreateHolderInput"
               }
             }
           },
@@ -10280,9 +10187,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "contentMediaType": "application/octet-stream",
-                "format": "binary",
-                "type": "string"
+                "$ref": "#/components/schemas/CreateInstrumentInput"
               }
             }
           },
@@ -10512,9 +10417,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "contentMediaType": "application/octet-stream",
-                "format": "binary",
-                "type": "string"
+                "$ref": "#/components/schemas/UpdateInstrumentInput"
               }
             }
           },
@@ -10778,9 +10681,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "contentMediaType": "application/octet-stream",
-                "format": "binary",
-                "type": "string"
+                "$ref": "#/components/schemas/UpdateHolderInput"
               }
             }
           },
@@ -11193,9 +11094,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "contentMediaType": "application/octet-stream",
-                "format": "binary",
-                "type": "string"
+                "$ref": "#/components/schemas/CreateLedgerInput"
               }
             }
           },
@@ -11433,9 +11332,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "contentMediaType": "application/octet-stream",
-                "format": "binary",
-                "type": "string"
+                "$ref": "#/components/schemas/UpdateLedgerInput"
               }
             }
           },
@@ -11645,9 +11542,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "contentMediaType": "application/octet-stream",
-                "format": "binary",
-                "type": "string"
+                "$ref": "#/components/schemas/CreateAccountTypeInput"
               }
             }
           },
@@ -11859,9 +11754,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "contentMediaType": "application/octet-stream",
-                "format": "binary",
-                "type": "string"
+                "$ref": "#/components/schemas/UpdateAccountTypeInput"
               }
             }
           },
@@ -12160,9 +12053,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "contentMediaType": "application/octet-stream",
-                "format": "binary",
-                "type": "string"
+                "$ref": "#/components/schemas/CreateAccountInput"
               }
             }
           },
@@ -12712,9 +12603,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "contentMediaType": "application/octet-stream",
-                "format": "binary",
-                "type": "string"
+                "$ref": "#/components/schemas/CreateAdditionalBalance"
               }
             }
           },
@@ -13274,9 +13163,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "contentMediaType": "application/octet-stream",
-                "format": "binary",
-                "type": "string"
+                "$ref": "#/components/schemas/UpdateAccountInput"
               }
             }
           },
@@ -13347,9 +13234,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "contentMediaType": "application/octet-stream",
-                "format": "binary",
-                "type": "string"
+                "$ref": "#/components/schemas/CreateAssetRateInput"
               }
             }
           },
@@ -13756,9 +13641,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "contentMediaType": "application/octet-stream",
-                "format": "binary",
-                "type": "string"
+                "$ref": "#/components/schemas/CreateAssetInput"
               }
             }
           },
@@ -14036,9 +13919,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "contentMediaType": "application/octet-stream",
-                "format": "binary",
-                "type": "string"
+                "$ref": "#/components/schemas/UpdateAssetInput"
               }
             }
           },
@@ -14361,9 +14242,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "contentMediaType": "application/octet-stream",
-                "format": "binary",
-                "type": "string"
+                "$ref": "#/components/schemas/UpdateBalance"
               }
             }
           },
@@ -14601,9 +14480,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "contentMediaType": "application/octet-stream",
-                "format": "binary",
-                "type": "string"
+                "$ref": "#/components/schemas/FeeBillingPackage"
               }
             }
           },
@@ -14806,9 +14683,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "contentMediaType": "application/octet-stream",
-                "format": "binary",
-                "type": "string"
+                "$ref": "#/components/schemas/FeeBillingPackageUpdate"
               }
             }
           },
@@ -14876,9 +14751,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "contentMediaType": "application/octet-stream",
-                "format": "binary",
-                "type": "string"
+                "$ref": "#/components/schemas/FeeBillingCalculateRequest"
               }
             }
           },
@@ -14946,9 +14819,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "contentMediaType": "application/octet-stream",
-                "format": "binary",
-                "type": "string"
+                "$ref": "#/components/schemas/FeeEstimate"
               }
             }
           },
@@ -15036,9 +14907,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "contentMediaType": "application/octet-stream",
-                "format": "binary",
-                "type": "string"
+                "$ref": "#/components/schemas/CreateHolderAccountInput"
               }
             }
           },
@@ -15212,9 +15081,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "contentMediaType": "application/octet-stream",
-                "format": "binary",
-                "type": "string"
+                "$ref": "#/components/schemas/CreateOperationRouteInput"
               }
             }
           },
@@ -15417,9 +15284,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "contentMediaType": "application/octet-stream",
-                "format": "binary",
-                "type": "string"
+                "$ref": "#/components/schemas/UpdateOperationRouteInput"
               }
             }
           },
@@ -15593,9 +15458,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "contentMediaType": "application/octet-stream",
-                "format": "binary",
-                "type": "string"
+                "$ref": "#/components/schemas/FeeCreatePackageInput"
               }
             }
           },
@@ -15798,9 +15661,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "contentMediaType": "application/octet-stream",
-                "format": "binary",
-                "type": "string"
+                "$ref": "#/components/schemas/FeeUpdatePackageInput"
               }
             }
           },
@@ -16007,9 +15868,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "contentMediaType": "application/octet-stream",
-                "format": "binary",
-                "type": "string"
+                "$ref": "#/components/schemas/CreatePortfolioInput"
               }
             }
           },
@@ -16287,9 +16146,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "contentMediaType": "application/octet-stream",
-                "format": "binary",
-                "type": "string"
+                "$ref": "#/components/schemas/UpdatePortfolioInput"
               }
             }
           },
@@ -16479,9 +16336,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "contentMediaType": "application/octet-stream",
-                "format": "binary",
-                "type": "string"
+                "$ref": "#/components/schemas/CreateSegmentInput"
               }
             }
           },
@@ -16759,9 +16614,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "contentMediaType": "application/octet-stream",
-                "format": "binary",
-                "type": "string"
+                "$ref": "#/components/schemas/UpdateSegmentInput"
               }
             }
           },
@@ -16891,9 +16744,8 @@
           "content": {
             "application/json": {
               "schema": {
-                "contentMediaType": "application/octet-stream",
-                "format": "binary",
-                "type": "string"
+                "additionalProperties": {},
+                "type": "object"
               }
             }
           },
@@ -17070,9 +16922,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "contentMediaType": "application/octet-stream",
-                "format": "binary",
-                "type": "string"
+                "$ref": "#/components/schemas/CreateTransactionRouteInput"
               }
             }
           },
@@ -17275,9 +17125,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "contentMediaType": "application/octet-stream",
-                "format": "binary",
-                "type": "string"
+                "$ref": "#/components/schemas/UpdateTransactionRouteInput"
               }
             }
           },
@@ -17481,9 +17329,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "contentMediaType": "application/octet-stream",
-                "format": "binary",
-                "type": "string"
+                "$ref": "#/components/schemas/CreateTransactionInput"
               }
             }
           },
@@ -17576,9 +17422,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "contentMediaType": "application/octet-stream",
-                "format": "binary",
-                "type": "string"
+                "$ref": "#/components/schemas/CreateTransactionInflowInput"
               }
             }
           },
@@ -17671,9 +17515,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "contentMediaType": "application/octet-stream",
-                "format": "binary",
-                "type": "string"
+                "$ref": "#/components/schemas/CreateTransactionInput"
               }
             }
           },
@@ -17872,9 +17714,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "contentMediaType": "application/octet-stream",
-                "format": "binary",
-                "type": "string"
+                "$ref": "#/components/schemas/CreateTransactionOutflowInput"
               }
             }
           },
@@ -18032,9 +17872,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "contentMediaType": "application/octet-stream",
-                "format": "binary",
-                "type": "string"
+                "$ref": "#/components/schemas/TransactionUpdateTransactionInput"
               }
             }
           },
@@ -18258,9 +18096,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "contentMediaType": "application/octet-stream",
-                "format": "binary",
-                "type": "string"
+                "$ref": "#/components/schemas/OperationUpdateOperationInput"
               }
             }
           },
@@ -18587,9 +18423,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "contentMediaType": "application/octet-stream",
-                "format": "binary",
-                "type": "string"
+                "$ref": "#/components/schemas/CreateMetadataIndexInput"
               }
             }
           },
@@ -21114,6 +20948,18 @@
         },
         "type": "object"
       },
+      "AccountSkip": {
+        "additionalProperties": false,
+        "properties": {
+          "holder": {
+            "examples": [
+              false
+            ],
+            "type": "boolean"
+          }
+        },
+        "type": "object"
+      },
       "AccountType": {
         "additionalProperties": false,
         "properties": {
@@ -21370,6 +21216,39 @@
           },
           "primary": {
             "$ref": "#/components/schemas/Address"
+          }
+        },
+        "type": "object"
+      },
+      "Amount": {
+        "additionalProperties": false,
+        "properties": {
+          "asset": {
+            "examples": [
+              "BRL"
+            ],
+            "type": "string"
+          },
+          "direction": {
+            "type": "string"
+          },
+          "operation": {
+            "type": "string"
+          },
+          "overdraftAmount": {
+            "type": "string"
+          },
+          "routeValidationEnabled": {
+            "type": "boolean"
+          },
+          "transactionType": {
+            "type": "string"
+          },
+          "value": {
+            "examples": [
+              "1000"
+            ],
+            "type": "string"
           }
         },
         "type": "object"
@@ -22079,6 +21958,973 @@
         },
         "type": "object"
       },
+      "CreateAccountInput": {
+        "additionalProperties": false,
+        "properties": {
+          "alias": {
+            "examples": [
+              "@treasury_checking"
+            ],
+            "maxLength": 100,
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "assetCode": {
+            "examples": [
+              "USD"
+            ],
+            "maxLength": 100,
+            "type": "string"
+          },
+          "blocked": {
+            "type": [
+              "boolean",
+              "null"
+            ]
+          },
+          "entityId": {
+            "examples": [
+              "EXT-ACC-12345"
+            ],
+            "maxLength": 256,
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "holderId": {
+            "format": "uuid",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "metadata": {
+            "additionalProperties": {},
+            "type": "object"
+          },
+          "name": {
+            "examples": [
+              "Corporate Checking Account"
+            ],
+            "maxLength": 256,
+            "type": "string"
+          },
+          "parentAccountId": {
+            "format": "uuid",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "portfolioId": {
+            "format": "uuid",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "segmentId": {
+            "format": "uuid",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "skip": {
+            "$ref": "#/components/schemas/AccountSkip"
+          },
+          "status": {
+            "$ref": "#/components/schemas/Status"
+          },
+          "type": {
+            "examples": [
+              "deposit"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "parentAccountId",
+          "entityId",
+          "holderId",
+          "assetCode",
+          "portfolioId",
+          "segmentId",
+          "status",
+          "alias",
+          "type",
+          "blocked",
+          "metadata"
+        ],
+        "type": "object"
+      },
+      "CreateAccountTypeInput": {
+        "additionalProperties": false,
+        "properties": {
+          "defaultDirection": {
+            "examples": [
+              "credit"
+            ],
+            "type": "string"
+          },
+          "description": {
+            "examples": [
+              "Assets that are expected to be converted to cash within one year"
+            ],
+            "type": "string"
+          },
+          "keyValue": {
+            "examples": [
+              "current_assets"
+            ],
+            "type": "string"
+          },
+          "metadata": {
+            "additionalProperties": {},
+            "type": "object"
+          },
+          "name": {
+            "examples": [
+              "Current Assets"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "keyValue",
+          "metadata"
+        ],
+        "type": "object"
+      },
+      "CreateAdditionalBalance": {
+        "additionalProperties": false,
+        "properties": {
+          "allowReceiving": {
+            "examples": [
+              true
+            ],
+            "type": [
+              "boolean",
+              "null"
+            ]
+          },
+          "allowSending": {
+            "examples": [
+              true
+            ],
+            "type": [
+              "boolean",
+              "null"
+            ]
+          },
+          "direction": {
+            "examples": [
+              "credit"
+            ],
+            "type": "string"
+          },
+          "key": {
+            "examples": [
+              "asset-freeze"
+            ],
+            "type": "string"
+          },
+          "settings": {
+            "$ref": "#/components/schemas/BalanceSettings"
+          }
+        },
+        "required": [
+          "key",
+          "allowSending",
+          "allowReceiving"
+        ],
+        "type": "object"
+      },
+      "CreateAssetInput": {
+        "additionalProperties": false,
+        "properties": {
+          "code": {
+            "examples": [
+              "USD"
+            ],
+            "type": "string"
+          },
+          "metadata": {
+            "additionalProperties": {},
+            "type": "object"
+          },
+          "name": {
+            "examples": [
+              "US Dollar"
+            ],
+            "type": "string"
+          },
+          "status": {
+            "$ref": "#/components/schemas/Status"
+          },
+          "type": {
+            "examples": [
+              "currency"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "type",
+          "code",
+          "status",
+          "metadata"
+        ],
+        "type": "object"
+      },
+      "CreateAssetRateInput": {
+        "additionalProperties": false,
+        "properties": {
+          "externalId": {
+            "examples": [
+              "00000000-0000-0000-0000-000000000000"
+            ],
+            "format": "uuid",
+            "type": "string"
+          },
+          "from": {
+            "examples": [
+              "USD"
+            ],
+            "maxLength": 10,
+            "minLength": 2,
+            "type": "string"
+          },
+          "metadata": {
+            "additionalProperties": {},
+            "type": "object"
+          },
+          "rate": {
+            "examples": [
+              100
+            ],
+            "format": "int64",
+            "type": "integer"
+          },
+          "scale": {
+            "examples": [
+              2
+            ],
+            "format": "int64",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "source": {
+            "examples": [
+              "External System"
+            ],
+            "maxLength": 200,
+            "type": "string"
+          },
+          "to": {
+            "examples": [
+              "BRL"
+            ],
+            "maxLength": 10,
+            "minLength": 2,
+            "type": "string"
+          },
+          "ttl": {
+            "examples": [
+              3600
+            ],
+            "format": "int64",
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "from",
+          "to",
+          "rate",
+          "metadata"
+        ],
+        "type": "object"
+      },
+      "CreateHolderAccountInput": {
+        "additionalProperties": false,
+        "properties": {
+          "alias": {
+            "examples": [
+              "@treasury_checking"
+            ],
+            "maxLength": 100,
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "assetCode": {
+            "examples": [
+              "USD"
+            ],
+            "maxLength": 100,
+            "type": "string"
+          },
+          "bankingDetails": {
+            "$ref": "#/components/schemas/BankingDetails"
+          },
+          "blocked": {
+            "type": [
+              "boolean",
+              "null"
+            ]
+          },
+          "entityId": {
+            "examples": [
+              "EXT-ACC-12345"
+            ],
+            "maxLength": 256,
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "metadata": {
+            "additionalProperties": {},
+            "type": "object"
+          },
+          "name": {
+            "examples": [
+              "Corporate Checking Account"
+            ],
+            "maxLength": 256,
+            "type": "string"
+          },
+          "parentAccountId": {
+            "format": "uuid",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "portfolioId": {
+            "format": "uuid",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "regulatoryFields": {
+            "$ref": "#/components/schemas/RegulatoryFields"
+          },
+          "relatedParties": {
+            "items": {
+              "$ref": "#/components/schemas/RelatedParty"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          },
+          "segmentId": {
+            "format": "uuid",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "skip": {
+            "$ref": "#/components/schemas/AccountSkip"
+          },
+          "status": {
+            "$ref": "#/components/schemas/Status"
+          },
+          "type": {
+            "examples": [
+              "deposit"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "parentAccountId",
+          "entityId",
+          "assetCode",
+          "portfolioId",
+          "segmentId",
+          "status",
+          "alias",
+          "type",
+          "blocked",
+          "metadata"
+        ],
+        "type": "object"
+      },
+      "CreateHolderInput": {
+        "additionalProperties": false,
+        "properties": {
+          "addresses": {
+            "$ref": "#/components/schemas/Addresses"
+          },
+          "contact": {
+            "$ref": "#/components/schemas/Contact"
+          },
+          "document": {
+            "examples": [
+              "12345678900"
+            ],
+            "maxLength": 100,
+            "type": "string"
+          },
+          "externalId": {
+            "examples": [
+              "G4K7N8M2"
+            ],
+            "maxLength": 256,
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "legalPerson": {
+            "$ref": "#/components/schemas/LegalPerson"
+          },
+          "metadata": {
+            "additionalProperties": {},
+            "type": "object"
+          },
+          "name": {
+            "examples": [
+              "John Doe"
+            ],
+            "maxLength": 256,
+            "type": "string"
+          },
+          "naturalPerson": {
+            "$ref": "#/components/schemas/NaturalPerson"
+          },
+          "type": {
+            "examples": [
+              "NATURAL_PERSON"
+            ],
+            "maxLength": 100,
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "externalId",
+          "type",
+          "name",
+          "document",
+          "addresses",
+          "contact",
+          "naturalPerson",
+          "legalPerson",
+          "metadata"
+        ],
+        "type": "object"
+      },
+      "CreateInstrumentInput": {
+        "additionalProperties": false,
+        "properties": {
+          "accountId": {
+            "examples": [
+              "00000000-0000-0000-0000-000000000000"
+            ],
+            "format": "uuid",
+            "type": "string"
+          },
+          "bankingDetails": {
+            "$ref": "#/components/schemas/BankingDetails"
+          },
+          "ledgerId": {
+            "examples": [
+              "00000000-0000-0000-0000-000000000000"
+            ],
+            "format": "uuid",
+            "type": "string"
+          },
+          "metadata": {
+            "additionalProperties": {},
+            "type": "object"
+          },
+          "regulatoryFields": {
+            "$ref": "#/components/schemas/RegulatoryFields"
+          },
+          "relatedParties": {
+            "items": {
+              "$ref": "#/components/schemas/RelatedParty"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "ledgerId",
+          "accountId",
+          "metadata",
+          "bankingDetails"
+        ],
+        "type": "object"
+      },
+      "CreateLedgerInput": {
+        "additionalProperties": false,
+        "properties": {
+          "metadata": {
+            "additionalProperties": {},
+            "type": "object"
+          },
+          "name": {
+            "maxLength": 256,
+            "type": "string"
+          },
+          "settings": {
+            "$ref": "#/components/schemas/LedgerSettings"
+          },
+          "status": {
+            "$ref": "#/components/schemas/Status"
+          }
+        },
+        "required": [
+          "name",
+          "status",
+          "metadata"
+        ],
+        "type": "object"
+      },
+      "CreateMetadataIndexInput": {
+        "additionalProperties": false,
+        "properties": {
+          "metadataKey": {
+            "examples": [
+              "tier"
+            ],
+            "type": "string"
+          },
+          "sparse": {
+            "examples": [
+              true
+            ],
+            "type": [
+              "boolean",
+              "null"
+            ]
+          },
+          "unique": {
+            "examples": [
+              false
+            ],
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "metadataKey",
+          "unique",
+          "sparse"
+        ],
+        "type": "object"
+      },
+      "CreateOperationRouteInput": {
+        "additionalProperties": false,
+        "properties": {
+          "account": {
+            "$ref": "#/components/schemas/AccountRule"
+          },
+          "accountingEntries": {
+            "$ref": "#/components/schemas/AccountingEntries"
+          },
+          "code": {
+            "examples": [
+              "EXT-001"
+            ],
+            "type": "string"
+          },
+          "description": {
+            "examples": [
+              "This operation route handles cash-in transactions from service charge collections"
+            ],
+            "type": "string"
+          },
+          "metadata": {
+            "additionalProperties": {},
+            "type": "object"
+          },
+          "operationType": {
+            "enum": [
+              "source",
+              "destination",
+              "bidirectional"
+            ],
+            "examples": [
+              "source"
+            ],
+            "type": "string"
+          },
+          "title": {
+            "examples": [
+              "Cashin from service charge"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "metadata"
+        ],
+        "type": "object"
+      },
+      "CreateOrganizationInput": {
+        "additionalProperties": false,
+        "properties": {
+          "address": {
+            "$ref": "#/components/schemas/Address"
+          },
+          "doingBusinessAs": {
+            "examples": [
+              "Lerian FS"
+            ],
+            "maxLength": 256,
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "legalDocument": {
+            "examples": [
+              "123456789012345"
+            ],
+            "maxLength": 256,
+            "type": "string"
+          },
+          "legalName": {
+            "examples": [
+              "Lerian Financial Services Ltd."
+            ],
+            "maxLength": 256,
+            "type": "string"
+          },
+          "metadata": {
+            "additionalProperties": {},
+            "type": "object"
+          },
+          "parentOrganizationId": {
+            "format": "uuid",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "status": {
+            "$ref": "#/components/schemas/Status"
+          }
+        },
+        "required": [
+          "legalName",
+          "parentOrganizationId",
+          "doingBusinessAs",
+          "legalDocument",
+          "address",
+          "status",
+          "metadata"
+        ],
+        "type": "object"
+      },
+      "CreatePortfolioInput": {
+        "additionalProperties": false,
+        "properties": {
+          "entityId": {
+            "examples": [
+              "00000000-0000-0000-0000-000000000000"
+            ],
+            "type": "string"
+          },
+          "metadata": {
+            "additionalProperties": {},
+            "type": "object"
+          },
+          "name": {
+            "examples": [
+              "My Portfolio"
+            ],
+            "type": "string"
+          },
+          "status": {
+            "$ref": "#/components/schemas/Status"
+          }
+        },
+        "required": [
+          "entityId",
+          "name",
+          "status",
+          "metadata"
+        ],
+        "type": "object"
+      },
+      "CreateSegmentInput": {
+        "additionalProperties": false,
+        "properties": {
+          "metadata": {
+            "additionalProperties": {},
+            "type": "object"
+          },
+          "name": {
+            "examples": [
+              "My Segment"
+            ],
+            "type": "string"
+          },
+          "status": {
+            "$ref": "#/components/schemas/Status"
+          }
+        },
+        "required": [
+          "name",
+          "status",
+          "metadata"
+        ],
+        "type": "object"
+      },
+      "CreateTransactionInflowInput": {
+        "additionalProperties": false,
+        "properties": {
+          "chartOfAccountsGroupName": {
+            "examples": [
+              "FUNDING"
+            ],
+            "maxLength": 256,
+            "type": "string"
+          },
+          "code": {
+            "examples": [
+              "TR12345"
+            ],
+            "maxLength": 100,
+            "type": "string"
+          },
+          "description": {
+            "examples": [
+              "New Transaction"
+            ],
+            "maxLength": 256,
+            "type": "string"
+          },
+          "metadata": {
+            "additionalProperties": {},
+            "type": "object"
+          },
+          "route": {
+            "examples": [
+              "00000000-0000-0000-0000-000000000000"
+            ],
+            "type": "string"
+          },
+          "routeId": {
+            "examples": [
+              "00000000-0000-0000-0000-000000000000"
+            ],
+            "format": "uuid",
+            "type": "string"
+          },
+          "send": {
+            "$ref": "#/components/schemas/SendInflow"
+          },
+          "skip": {
+            "$ref": "#/components/schemas/TransactionSkip"
+          },
+          "transactionDate": {
+            "examples": [
+              "2021-01-01T00:00:00Z"
+            ],
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "required": [
+          "metadata",
+          "send"
+        ],
+        "type": "object"
+      },
+      "CreateTransactionInput": {
+        "additionalProperties": false,
+        "properties": {
+          "chartOfAccountsGroupName": {
+            "examples": [
+              "FUNDING"
+            ],
+            "maxLength": 256,
+            "type": "string"
+          },
+          "code": {
+            "examples": [
+              "TR12345"
+            ],
+            "maxLength": 100,
+            "type": "string"
+          },
+          "description": {
+            "examples": [
+              "New Transaction"
+            ],
+            "maxLength": 256,
+            "type": "string"
+          },
+          "metadata": {
+            "additionalProperties": {},
+            "type": "object"
+          },
+          "pending": {
+            "default": false,
+            "examples": [
+              true
+            ],
+            "type": "boolean"
+          },
+          "route": {
+            "examples": [
+              "00000000-0000-0000-0000-000000000000"
+            ],
+            "type": "string"
+          },
+          "routeId": {
+            "examples": [
+              "00000000-0000-0000-0000-000000000000"
+            ],
+            "format": "uuid",
+            "type": "string"
+          },
+          "send": {
+            "$ref": "#/components/schemas/Send"
+          },
+          "skip": {
+            "$ref": "#/components/schemas/TransactionSkip"
+          },
+          "transactionDate": {
+            "examples": [
+              "2021-01-01T00:00:00Z"
+            ],
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "required": [
+          "pending",
+          "metadata",
+          "send"
+        ],
+        "type": "object"
+      },
+      "CreateTransactionOutflowInput": {
+        "additionalProperties": false,
+        "properties": {
+          "chartOfAccountsGroupName": {
+            "examples": [
+              "WITHDRAWAL"
+            ],
+            "maxLength": 256,
+            "type": "string"
+          },
+          "code": {
+            "examples": [
+              "TR12345"
+            ],
+            "maxLength": 100,
+            "type": "string"
+          },
+          "description": {
+            "examples": [
+              "New Outflow Transaction"
+            ],
+            "maxLength": 256,
+            "type": "string"
+          },
+          "metadata": {
+            "additionalProperties": {},
+            "type": "object"
+          },
+          "pending": {
+            "default": false,
+            "examples": [
+              true
+            ],
+            "type": "boolean"
+          },
+          "route": {
+            "examples": [
+              "00000000-0000-0000-0000-000000000000"
+            ],
+            "type": "string"
+          },
+          "routeId": {
+            "examples": [
+              "00000000-0000-0000-0000-000000000000"
+            ],
+            "format": "uuid",
+            "type": "string"
+          },
+          "send": {
+            "$ref": "#/components/schemas/SendOutflow"
+          },
+          "skip": {
+            "$ref": "#/components/schemas/TransactionSkip"
+          },
+          "transactionDate": {
+            "examples": [
+              "2021-01-01T00:00:00Z"
+            ],
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "required": [
+          "pending",
+          "metadata",
+          "send"
+        ],
+        "type": "object"
+      },
+      "CreateTransactionRouteInput": {
+        "additionalProperties": false,
+        "properties": {
+          "description": {
+            "examples": [
+              "Settlement route for service charges"
+            ],
+            "type": "string"
+          },
+          "metadata": {
+            "additionalProperties": {},
+            "type": "object"
+          },
+          "operationRoutes": {
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          },
+          "title": {
+            "examples": [
+              "Charge Settlement"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "metadata"
+        ],
+        "type": "object"
+      },
       "CreateTransactionV2Input": {
         "additionalProperties": false,
         "description": "Transaction request body. `debits` and `credits` are the two required, non-empty leg arrays of the transaction; one debit paired with many credits, or the reverse, is a valid request. Every leg names the `organizationId` and `ledgerId` its account belongs to; all of them must name the SAME pair, and that pair is the organization and ledger the transaction is created in. A request whose accounts name different pairs is rejected. `asset`, `amount`, `description`, `code`, `routeId`, `operationRouteId` and `metadata` sit alongside the two leg arrays, and `amount` is the transaction total that the legs' `share` expressions divide. Each leg array holds at most 500 legs.",
@@ -22136,6 +22982,24 @@
           "debits",
           "credits"
         ],
+        "type": "object"
+      },
+      "Distribute": {
+        "additionalProperties": false,
+        "properties": {
+          "remaining": {
+            "type": "string"
+          },
+          "to": {
+            "items": {
+              "$ref": "#/components/schemas/FromTo"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          }
+        },
         "type": "object"
       },
       "Error": {
@@ -22314,6 +23178,34 @@
             "type": "string"
           }
         },
+        "type": "object"
+      },
+      "FeeBillingCalculateRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "ledgerId": {
+            "examples": [
+              "00000000-0000-0000-0000-000000000000"
+            ],
+            "type": "string"
+          },
+          "period": {
+            "examples": [
+              "2026-01"
+            ],
+            "type": "string"
+          },
+          "type": {
+            "examples": [
+              "volume"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "ledgerId",
+          "period"
+        ],
         "type": "object"
       },
       "FeeBillingCalculateResponse": {
@@ -22598,6 +23490,30 @@
         ],
         "type": "object"
       },
+      "FeeBillingPackageUpdate": {
+        "additionalProperties": false,
+        "properties": {
+          "description": {
+            "examples": [
+              "Updated description for the billing package"
+            ],
+            "type": "string"
+          },
+          "enable": {
+            "examples": [
+              false
+            ],
+            "type": "boolean"
+          },
+          "label": {
+            "examples": [
+              "Updated Billing Label"
+            ],
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
       "FeeCalculation": {
         "additionalProperties": false,
         "properties": {
@@ -22645,6 +23561,92 @@
         ],
         "type": "object"
       },
+      "FeeCreatePackageInput": {
+        "additionalProperties": false,
+        "properties": {
+          "description": {
+            "examples": [
+              "Pacote de taxas administrativas padrão"
+            ],
+            "type": "string"
+          },
+          "enable": {
+            "type": [
+              "boolean",
+              "null"
+            ]
+          },
+          "feeGroupLabel": {
+            "examples": [
+              "Pacote Padrão"
+            ],
+            "type": "string"
+          },
+          "fees": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/Fee"
+            },
+            "type": "object"
+          },
+          "ledgerId": {
+            "examples": [
+              "00000000-0000-0000-0000-000000000000"
+            ],
+            "type": "string"
+          },
+          "maximumAmount": {
+            "examples": [
+              "1000.20"
+            ],
+            "minimum": 0,
+            "type": "string"
+          },
+          "minimumAmount": {
+            "examples": [
+              "100.00"
+            ],
+            "minimum": 0,
+            "type": "string"
+          },
+          "segmentId": {
+            "examples": [
+              "00000000-0000-0000-0000-000000000000"
+            ],
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "transactionRoute": {
+            "examples": [
+              "debitoted"
+            ],
+            "type": "string"
+          },
+          "waivedAccounts": {
+            "examples": [
+              [
+                "acc001",
+                "acc002"
+              ]
+            ],
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "feeGroupLabel",
+          "segmentId",
+          "ledgerId",
+          "minimumAmount",
+          "maximumAmount",
+          "fees",
+          "enable"
+        ],
+        "type": "object"
+      },
       "FeeDiscountTier": {
         "additionalProperties": false,
         "properties": {
@@ -22665,6 +23667,32 @@
         "required": [
           "minQuantity",
           "discountPercentage"
+        ],
+        "type": "object"
+      },
+      "FeeEstimate": {
+        "additionalProperties": false,
+        "properties": {
+          "ledgerId": {
+            "examples": [
+              "00000000-0000-0000-0000-000000000000"
+            ],
+            "type": "string"
+          },
+          "packageId": {
+            "examples": [
+              "00000000-0000-0000-0000-000000000000"
+            ],
+            "type": "string"
+          },
+          "transaction": {
+            "$ref": "#/components/schemas/TransactionInput"
+          }
+        },
+        "required": [
+          "packageId",
+          "ledgerId",
+          "transaction"
         ],
         "type": "object"
       },
@@ -22879,6 +23907,151 @@
         "required": [
           "minQuantity",
           "unitPrice"
+        ],
+        "type": "object"
+      },
+      "FeeUpdatePackageInput": {
+        "additionalProperties": false,
+        "properties": {
+          "description": {
+            "examples": [
+              "Pacote de taxas administrativas padrão"
+            ],
+            "type": "string"
+          },
+          "enable": {
+            "examples": [
+              true
+            ],
+            "type": "boolean"
+          },
+          "feeGroupLabel": {
+            "examples": [
+              "Pacote Padrão"
+            ],
+            "type": "string"
+          },
+          "fees": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/Fee"
+            },
+            "type": "object"
+          },
+          "maximumAmount": {
+            "examples": [
+              "1000"
+            ],
+            "minimum": 0,
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "minimumAmount": {
+            "examples": [
+              "100"
+            ],
+            "minimum": 0,
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "waivedAccounts": {
+            "examples": [
+              [
+                "acc001",
+                "acc002"
+              ]
+            ],
+            "items": {
+              "type": "string"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "feeGroupLabel",
+          "description",
+          "minimumAmount",
+          "maximumAmount",
+          "waivedAccounts",
+          "fees"
+        ],
+        "type": "object"
+      },
+      "FromTo": {
+        "additionalProperties": false,
+        "properties": {
+          "accountAlias": {
+            "examples": [
+              "@person1"
+            ],
+            "type": "string"
+          },
+          "amount": {
+            "$ref": "#/components/schemas/Amount"
+          },
+          "balanceKey": {
+            "examples": [
+              "asset-freeze"
+            ],
+            "type": "string"
+          },
+          "chartOfAccounts": {
+            "examples": [
+              "1000"
+            ],
+            "type": "string"
+          },
+          "description": {
+            "examples": [
+              "description"
+            ],
+            "type": "string"
+          },
+          "isFrom": {
+            "examples": [
+              true
+            ],
+            "type": "boolean"
+          },
+          "metadata": {
+            "additionalProperties": {},
+            "type": "object"
+          },
+          "rate": {
+            "$ref": "#/components/schemas/Rate"
+          },
+          "remaining": {
+            "examples": [
+              "remaining"
+            ],
+            "type": "string"
+          },
+          "route": {
+            "examples": [
+              "00000000-0000-0000-0000-000000000000"
+            ],
+            "type": "string"
+          },
+          "routeId": {
+            "examples": [
+              "00000000-0000-0000-0000-000000000000"
+            ],
+            "format": "uuid",
+            "type": "string"
+          },
+          "share": {
+            "$ref": "#/components/schemas/Share"
+          }
+        },
+        "required": [
+          "chartOfAccounts",
+          "metadata"
         ],
         "type": "object"
       },
@@ -23773,6 +24946,27 @@
         ],
         "type": "object"
       },
+      "OperationUpdateOperationInput": {
+        "additionalProperties": false,
+        "properties": {
+          "description": {
+            "examples": [
+              "Credit card operation"
+            ],
+            "maxLength": 256,
+            "type": "string"
+          },
+          "metadata": {
+            "additionalProperties": {},
+            "type": "object"
+          }
+        },
+        "required": [
+          "description",
+          "metadata"
+        ],
+        "type": "object"
+      },
       "Organization": {
         "additionalProperties": false,
         "properties": {
@@ -24011,6 +25205,28 @@
         ],
         "type": "object"
       },
+      "ProvisionEncryptionInput": {
+        "additionalProperties": false,
+        "properties": {
+          "actor": {
+            "examples": [
+              "admin@example.com"
+            ],
+            "type": "string"
+          },
+          "reason": {
+            "examples": [
+              "Initial encryption setup"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "actor",
+          "reason"
+        ],
+        "type": "object"
+      },
       "ProvisionEncryptionResponse": {
         "additionalProperties": false,
         "properties": {
@@ -24083,6 +25299,42 @@
         "required": [
           "organization_id",
           "provisioned"
+        ],
+        "type": "object"
+      },
+      "Rate": {
+        "additionalProperties": false,
+        "properties": {
+          "externalId": {
+            "examples": [
+              "00000000-0000-0000-0000-000000000000"
+            ],
+            "type": "string"
+          },
+          "from": {
+            "examples": [
+              "BRL"
+            ],
+            "type": "string"
+          },
+          "to": {
+            "examples": [
+              "USDe"
+            ],
+            "type": "string"
+          },
+          "value": {
+            "examples": [
+              "1000"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "from",
+          "to",
+          "value",
+          "externalId"
         ],
         "type": "object"
       },
@@ -24260,6 +25512,107 @@
           "updatedAt",
           "deletedAt"
         ],
+        "type": "object"
+      },
+      "Send": {
+        "additionalProperties": false,
+        "properties": {
+          "asset": {
+            "examples": [
+              "BRL"
+            ],
+            "type": "string"
+          },
+          "distribute": {
+            "$ref": "#/components/schemas/Distribute"
+          },
+          "source": {
+            "$ref": "#/components/schemas/Source"
+          },
+          "value": {
+            "examples": [
+              "1000"
+            ],
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "SendInflow": {
+        "additionalProperties": false,
+        "properties": {
+          "asset": {
+            "examples": [
+              "BRL"
+            ],
+            "type": "string"
+          },
+          "distribute": {
+            "$ref": "#/components/schemas/Distribute"
+          },
+          "value": {
+            "examples": [
+              "1000"
+            ],
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "SendOutflow": {
+        "additionalProperties": false,
+        "properties": {
+          "asset": {
+            "examples": [
+              "BRL"
+            ],
+            "type": "string"
+          },
+          "source": {
+            "$ref": "#/components/schemas/Source"
+          },
+          "value": {
+            "examples": [
+              "1000"
+            ],
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "Share": {
+        "additionalProperties": false,
+        "properties": {
+          "percentage": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "percentageOfPercentage": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "Source": {
+        "additionalProperties": false,
+        "properties": {
+          "from": {
+            "items": {
+              "$ref": "#/components/schemas/FromTo"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          },
+          "remaining": {
+            "examples": [
+              "remaining"
+            ],
+            "type": "string"
+          }
+        },
         "type": "object"
       },
       "Status": {
@@ -24505,6 +25858,69 @@
         ],
         "type": "object"
       },
+      "TransactionInput": {
+        "additionalProperties": false,
+        "properties": {
+          "chartOfAccountsGroupName": {
+            "examples": [
+              "FUNDING"
+            ],
+            "type": "string"
+          },
+          "code": {
+            "examples": [
+              "00000000-0000-0000-0000-000000000000"
+            ],
+            "type": "string"
+          },
+          "description": {
+            "examples": [
+              "Description"
+            ],
+            "type": "string"
+          },
+          "metadata": {
+            "additionalProperties": {},
+            "type": "object"
+          },
+          "pending": {
+            "examples": [
+              false
+            ],
+            "type": "boolean"
+          },
+          "route": {
+            "examples": [
+              "00000000-0000-0000-0000-000000000000"
+            ],
+            "type": "string"
+          },
+          "routeId": {
+            "examples": [
+              "00000000-0000-0000-0000-000000000000"
+            ],
+            "format": "uuid",
+            "type": "string"
+          },
+          "send": {
+            "$ref": "#/components/schemas/Send"
+          },
+          "skip": {
+            "$ref": "#/components/schemas/TransactionSkip"
+          },
+          "transactionDate": {
+            "examples": [
+              "2021-01-01T00:00:00Z"
+            ],
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "required": [
+          "send"
+        ],
+        "type": "object"
+      },
       "TransactionRoute": {
         "additionalProperties": false,
         "properties": {
@@ -24583,6 +25999,24 @@
         ],
         "type": "object"
       },
+      "TransactionSkip": {
+        "additionalProperties": false,
+        "properties": {
+          "fees": {
+            "examples": [
+              false
+            ],
+            "type": "boolean"
+          },
+          "tracer": {
+            "examples": [
+              false
+            ],
+            "type": "boolean"
+          }
+        },
+        "type": "object"
+      },
       "TransactionStatus": {
         "additionalProperties": false,
         "properties": {
@@ -24607,6 +26041,27 @@
         "required": [
           "code",
           "description"
+        ],
+        "type": "object"
+      },
+      "TransactionUpdateTransactionInput": {
+        "additionalProperties": false,
+        "properties": {
+          "description": {
+            "examples": [
+              "Transaction description"
+            ],
+            "maxLength": 256,
+            "type": "string"
+          },
+          "metadata": {
+            "additionalProperties": {},
+            "type": "object"
+          }
+        },
+        "required": [
+          "description",
+          "metadata"
         ],
         "type": "object"
       },
@@ -24786,6 +26241,428 @@
           "updatedAt",
           "deletedAt",
           "operations"
+        ],
+        "type": "object"
+      },
+      "UpdateAccountInput": {
+        "additionalProperties": false,
+        "properties": {
+          "blocked": {
+            "type": [
+              "boolean",
+              "null"
+            ]
+          },
+          "entityId": {
+            "examples": [
+              "EXT-ACC-12345"
+            ],
+            "maxLength": 256,
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "metadata": {
+            "additionalProperties": {},
+            "type": "object"
+          },
+          "name": {
+            "examples": [
+              "Primary Corporate Checking Account"
+            ],
+            "maxLength": 256,
+            "type": "string"
+          },
+          "portfolioId": {
+            "format": "uuid",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "segmentId": {
+            "format": "uuid",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "status": {
+            "$ref": "#/components/schemas/Status"
+          }
+        },
+        "required": [
+          "name",
+          "segmentId",
+          "portfolioId",
+          "entityId",
+          "status",
+          "blocked",
+          "metadata"
+        ],
+        "type": "object"
+      },
+      "UpdateAccountTypeInput": {
+        "additionalProperties": false,
+        "properties": {
+          "defaultDirection": {
+            "examples": [
+              "credit"
+            ],
+            "type": "string"
+          },
+          "description": {
+            "examples": [
+              "Assets that are expected to be converted to cash within one year"
+            ],
+            "type": "string"
+          },
+          "metadata": {
+            "additionalProperties": {},
+            "type": "object"
+          },
+          "name": {
+            "examples": [
+              "Current Assets"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "metadata"
+        ],
+        "type": "object"
+      },
+      "UpdateAssetInput": {
+        "additionalProperties": false,
+        "properties": {
+          "metadata": {
+            "additionalProperties": {},
+            "type": "object"
+          },
+          "name": {
+            "examples": [
+              "Bitcoin"
+            ],
+            "type": "string"
+          },
+          "status": {
+            "$ref": "#/components/schemas/Status"
+          }
+        },
+        "required": [
+          "name",
+          "status",
+          "metadata"
+        ],
+        "type": "object"
+      },
+      "UpdateBalance": {
+        "additionalProperties": false,
+        "properties": {
+          "allowReceiving": {
+            "examples": [
+              true
+            ],
+            "type": [
+              "boolean",
+              "null"
+            ]
+          },
+          "allowSending": {
+            "examples": [
+              true
+            ],
+            "type": [
+              "boolean",
+              "null"
+            ]
+          },
+          "settings": {
+            "$ref": "#/components/schemas/BalanceSettings"
+          }
+        },
+        "required": [
+          "allowSending",
+          "allowReceiving"
+        ],
+        "type": "object"
+      },
+      "UpdateHolderInput": {
+        "additionalProperties": false,
+        "properties": {
+          "addresses": {
+            "$ref": "#/components/schemas/Addresses"
+          },
+          "contact": {
+            "$ref": "#/components/schemas/Contact"
+          },
+          "externalId": {
+            "examples": [
+              "G4K7N8M"
+            ],
+            "maxLength": 256,
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "legalPerson": {
+            "$ref": "#/components/schemas/LegalPerson"
+          },
+          "metadata": {
+            "additionalProperties": {},
+            "type": "object"
+          },
+          "name": {
+            "examples": [
+              "Jonathan Doe"
+            ],
+            "maxLength": 256,
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "naturalPerson": {
+            "$ref": "#/components/schemas/NaturalPerson"
+          }
+        },
+        "required": [
+          "externalId",
+          "name",
+          "addresses",
+          "contact",
+          "naturalPerson",
+          "legalPerson",
+          "metadata"
+        ],
+        "type": "object"
+      },
+      "UpdateInstrumentInput": {
+        "additionalProperties": false,
+        "properties": {
+          "bankingDetails": {
+            "$ref": "#/components/schemas/BankingDetails"
+          },
+          "metadata": {
+            "additionalProperties": {},
+            "type": "object"
+          },
+          "regulatoryFields": {
+            "$ref": "#/components/schemas/RegulatoryFields"
+          },
+          "relatedParties": {
+            "items": {
+              "$ref": "#/components/schemas/RelatedParty"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "metadata",
+          "bankingDetails"
+        ],
+        "type": "object"
+      },
+      "UpdateLedgerInput": {
+        "additionalProperties": false,
+        "properties": {
+          "metadata": {
+            "additionalProperties": {},
+            "type": "object"
+          },
+          "name": {
+            "examples": [
+              "Treasury Operations Global"
+            ],
+            "maxLength": 256,
+            "type": "string"
+          },
+          "status": {
+            "$ref": "#/components/schemas/Status"
+          }
+        },
+        "required": [
+          "name",
+          "status",
+          "metadata"
+        ],
+        "type": "object"
+      },
+      "UpdateOperationRouteInput": {
+        "additionalProperties": false,
+        "properties": {
+          "account": {
+            "$ref": "#/components/schemas/AccountRule"
+          },
+          "accountingEntries": {
+            "$ref": "#/components/schemas/AccountingEntries"
+          },
+          "code": {
+            "examples": [
+              "EXT-001"
+            ],
+            "type": "string"
+          },
+          "description": {
+            "examples": [
+              "This operation route handles cash-in transactions from service charge collections"
+            ],
+            "type": "string"
+          },
+          "metadata": {
+            "additionalProperties": {},
+            "type": "object"
+          },
+          "title": {
+            "examples": [
+              "Cashin from service charge"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "metadata"
+        ],
+        "type": "object"
+      },
+      "UpdateOrganizationInput": {
+        "additionalProperties": false,
+        "properties": {
+          "address": {
+            "$ref": "#/components/schemas/Address"
+          },
+          "doingBusinessAs": {
+            "examples": [
+              "Lerian Group"
+            ],
+            "maxLength": 256,
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "legalName": {
+            "examples": [
+              "Lerian Financial Group Ltd."
+            ],
+            "maxLength": 256,
+            "type": "string"
+          },
+          "metadata": {
+            "additionalProperties": {},
+            "type": "object"
+          },
+          "parentOrganizationId": {
+            "format": "uuid",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "status": {
+            "$ref": "#/components/schemas/Status"
+          }
+        },
+        "required": [
+          "legalName",
+          "parentOrganizationId",
+          "doingBusinessAs",
+          "address",
+          "status",
+          "metadata"
+        ],
+        "type": "object"
+      },
+      "UpdatePortfolioInput": {
+        "additionalProperties": false,
+        "properties": {
+          "entityId": {
+            "examples": [
+              "00000000-0000-0000-0000-000000000000"
+            ],
+            "type": "string"
+          },
+          "metadata": {
+            "additionalProperties": {},
+            "type": "object"
+          },
+          "name": {
+            "examples": [
+              "My Portfolio Updated"
+            ],
+            "type": "string"
+          },
+          "status": {
+            "$ref": "#/components/schemas/Status"
+          }
+        },
+        "required": [
+          "entityId",
+          "name",
+          "status",
+          "metadata"
+        ],
+        "type": "object"
+      },
+      "UpdateSegmentInput": {
+        "additionalProperties": false,
+        "properties": {
+          "metadata": {
+            "additionalProperties": {},
+            "type": "object"
+          },
+          "name": {
+            "examples": [
+              "My Segment Updated"
+            ],
+            "type": "string"
+          },
+          "status": {
+            "$ref": "#/components/schemas/Status"
+          }
+        },
+        "required": [
+          "name",
+          "status",
+          "metadata"
+        ],
+        "type": "object"
+      },
+      "UpdateTransactionRouteInput": {
+        "additionalProperties": false,
+        "properties": {
+          "description": {
+            "examples": [
+              "Settlement route for service charges"
+            ],
+            "type": "string"
+          },
+          "metadata": {
+            "additionalProperties": {},
+            "type": "object"
+          },
+          "operationRoutes": {
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "title": {
+            "examples": [
+              "Charge Settlement"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "metadata"
         ],
         "type": "object"
       },

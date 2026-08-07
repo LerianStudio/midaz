@@ -417,6 +417,7 @@ func RegisterLedgerRoutes(api huma.API, h *LedgerHandler, opSuffix string) {
 		SkipValidateBody: true, // body validated imperatively (http.DecodeAndValidate).
 		DefaultStatus:    http.StatusCreated,
 	}, h.CreateLedgerHuma)
+	attachTypedRequestBody[mmodel.CreateLedgerInput](api, "createLedger"+opSuffix)
 
 	huma.Register(api, huma.Operation{
 		OperationID: "listLedgers" + opSuffix,
@@ -445,6 +446,7 @@ func RegisterLedgerRoutes(api huma.API, h *LedgerHandler, opSuffix string) {
 		Security:         secLedgerBearerOrAPIKey,
 		SkipValidateBody: true, // body validated imperatively — see createLedger.
 	}, h.UpdateLedgerHuma)
+	attachTypedRequestBody[mmodel.UpdateLedgerInput](api, "updateLedger"+opSuffix)
 
 	huma.Register(api, huma.Operation{
 		OperationID:   "deleteLedger" + opSuffix,
@@ -484,6 +486,9 @@ func RegisterLedgerRoutes(api huma.API, h *LedgerHandler, opSuffix string) {
 		Security:         secLedgerBearerOrAPIKey,
 		SkipValidateBody: true, // free-form map; allowlist enforced imperatively in the core.
 	}, h.UpdateLedgerSettingsHuma)
+	// updateLedgerSettings decodes into a free-form map[string]any (allowlist enforced
+	// in the core), so the published schema is a structured object, not a $ref component.
+	attachTypedRequestBody[map[string]any](api, "updateLedgerSettings"+opSuffix)
 }
 
 // RegisterLedgerRoutesToApp wires the Huma-migrated ledger surface onto the /v1

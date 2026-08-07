@@ -295,6 +295,7 @@ func RegisterPortfolioRoutes(api huma.API, h *PortfolioHandler, opSuffix string)
 		SkipValidateBody: true, // body validated imperatively (DecodeAndValidate).
 		DefaultStatus:    http.StatusCreated,
 	}, h.CreatePortfolioHuma)
+	attachTypedRequestBody[mmodel.CreatePortfolioInput](api, "createPortfolio"+opSuffix)
 
 	huma.Register(api, huma.Operation{
 		OperationID: "listPortfolios" + opSuffix,
@@ -323,6 +324,7 @@ func RegisterPortfolioRoutes(api huma.API, h *PortfolioHandler, opSuffix string)
 		Security:         secPortfolioBearerOrAPIKey,
 		SkipValidateBody: true, // body validated imperatively.
 	}, h.UpdatePortfolioHuma)
+	attachTypedRequestBody[mmodel.UpdatePortfolioInput](api, "updatePortfolio"+opSuffix)
 
 	huma.Register(api, huma.Operation{
 		OperationID:   "deletePortfolio" + opSuffix,

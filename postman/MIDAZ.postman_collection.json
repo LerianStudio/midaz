@@ -42,7 +42,7 @@
             "description": "**Workflow Step 1: Create Organization**\n\nCreates a new organization in the system",
             "body": {
               "mode": "raw",
-              "raw": "\"Example string\"",
+              "raw": "{\n  \"address\": {\n    \"city\": \"New York\",\n    \"country\": \"US\",\n    \"line1\": \"123 Financial Avenue\",\n    \"line2\": \"Suite 1500\",\n    \"state\": \"NY\",\n    \"zipCode\": \"10001\"\n  },\n  \"doingBusinessAs\": \"Lerian FS\",\n  \"legalDocument\": \"123456789012345\",\n  \"legalName\": \"Lerian Financial Services Ltd.\",\n  \"metadata\": {\n    \"key\": \"value\"\n  },\n  \"parentOrganizationId\": null,\n  \"status\": {\n    \"code\": \"ACTIVE\"\n  }\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -81,7 +81,7 @@
                 },
                 "body": {
                   "mode": "raw",
-                  "raw": "\"Example string\"",
+                  "raw": "{\n  \"address\": {\n    \"city\": \"New York\",\n    \"country\": \"US\",\n    \"line1\": \"123 Financial Avenue\",\n    \"line2\": \"Suite 1500\",\n    \"state\": \"NY\",\n    \"zipCode\": \"10001\"\n  },\n  \"doingBusinessAs\": \"Lerian FS\",\n  \"legalDocument\": \"123456789012345\",\n  \"legalName\": \"Lerian Financial Services Ltd.\",\n  \"metadata\": {\n    \"key\": \"value\"\n  },\n  \"parentOrganizationId\": null,\n  \"status\": {\n    \"code\": \"ACTIVE\"\n  }\n}",
                   "options": {
                     "raw": {
                       "language": "json"
@@ -288,7 +288,7 @@
             "description": "**Workflow Step 3: Update Organization**\n\nUpdates organization details\n\n---\n\n**Uses:**\n- `organizationId`\n",
             "body": {
               "mode": "raw",
-              "raw": "\"Example string\"",
+              "raw": "{\n  \"address\": {\n    \"city\": \"New York\",\n    \"country\": \"US\",\n    \"line1\": \"123 Financial Avenue\",\n    \"line2\": \"Suite 1500\",\n    \"state\": \"NY\",\n    \"zipCode\": \"10001\"\n  },\n  \"doingBusinessAs\": \"Lerian Group\",\n  \"legalName\": \"Lerian Financial Group Ltd.\",\n  \"metadata\": {\n    \"key\": \"value\"\n  },\n  \"parentOrganizationId\": null,\n  \"status\": {\n    \"code\": \"ACTIVE\"\n  }\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -335,7 +335,7 @@
                 },
                 "body": {
                   "mode": "raw",
-                  "raw": "\"Example string\"",
+                  "raw": "{\n  \"address\": {\n    \"city\": \"New York\",\n    \"country\": \"US\",\n    \"line1\": \"123 Financial Avenue\",\n    \"line2\": \"Suite 1500\",\n    \"state\": \"NY\",\n    \"zipCode\": \"10001\"\n  },\n  \"doingBusinessAs\": \"Lerian Group\",\n  \"legalName\": \"Lerian Financial Group Ltd.\",\n  \"metadata\": {\n    \"key\": \"value\"\n  },\n  \"parentOrganizationId\": null,\n  \"status\": {\n    \"code\": \"ACTIVE\"\n  }\n}",
                   "options": {
                     "raw": {
                       "language": "json"
@@ -651,7 +651,7 @@
             "description": "**Workflow Step 5: Create Ledger**\n\nCreates a new ledger within the organization\n\n---\n\n**Uses:**\n- `organizationId`\n",
             "body": {
               "mode": "raw",
-              "raw": "\"Example string\"",
+              "raw": "{\n  \"metadata\": {\n    \"key\": \"value\"\n  },\n  \"name\": \"Example name\",\n  \"settings\": {\n    \"accounting\": {\n      \"requireHolder\": false,\n      \"validateAccountType\": false,\n      \"validateRoutes\": false\n    },\n    \"overrides\": {\n      \"allowFeeSkip\": false,\n      \"allowHolderSkip\": false,\n      \"allowTracerSkip\": false\n    },\n    \"tracer\": {\n      \"failPosture\": \"open\",\n      \"mode\": \"off\",\n      \"timeoutMs\": 250\n    }\n  },\n  \"status\": {\n    \"code\": \"ACTIVE\"\n  }\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -699,7 +699,7 @@
                 },
                 "body": {
                   "mode": "raw",
-                  "raw": "\"Example string\"",
+                  "raw": "{\n  \"metadata\": {\n    \"key\": \"value\"\n  },\n  \"name\": \"Example name\",\n  \"settings\": {\n    \"accounting\": {\n      \"requireHolder\": false,\n      \"validateAccountType\": false,\n      \"validateRoutes\": false\n    },\n    \"overrides\": {\n      \"allowFeeSkip\": false,\n      \"allowHolderSkip\": false,\n      \"allowTracerSkip\": false\n    },\n    \"tracer\": {\n      \"failPosture\": \"open\",\n      \"mode\": \"off\",\n      \"timeoutMs\": 250\n    }\n  },\n  \"status\": {\n    \"code\": \"ACTIVE\"\n  }\n}",
                   "options": {
                     "raw": {
                       "language": "json"
@@ -927,7 +927,7 @@
             "description": "**Workflow Step 7: Update Ledger**\n\nUpdates ledger details\n\n---\n\n**Uses:**\n- `organizationId`\n- `ledgerId`\n",
             "body": {
               "mode": "raw",
-              "raw": "\"Example string\"",
+              "raw": "{\n  \"metadata\": {\n    \"key\": \"value\"\n  },\n  \"name\": \"Treasury Operations Global\",\n  \"status\": {\n    \"code\": \"ACTIVE\"\n  }\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -981,7 +981,7 @@
                 },
                 "body": {
                   "mode": "raw",
-                  "raw": "\"Example string\"",
+                  "raw": "{\n  \"metadata\": {\n    \"key\": \"value\"\n  },\n  \"name\": \"Treasury Operations Global\",\n  \"status\": {\n    \"code\": \"ACTIVE\"\n  }\n}",
                   "options": {
                     "raw": {
                       "language": "json"
@@ -1298,7 +1298,7 @@
             "description": "**Workflow Step 9: Create Asset**\n\nCreates a new asset (e.g., USD) in the ledger\n\n---\n\n**Uses:**\n- `organizationId`\n- `ledgerId`\n",
             "body": {
               "mode": "raw",
-              "raw": "\"Example string\"",
+              "raw": "{\n  \"code\": \"USD\",\n  \"metadata\": {\n    \"key\": \"value\"\n  },\n  \"name\": \"US Dollar\",\n  \"status\": {\n    \"code\": \"ACTIVE\"\n  },\n  \"type\": \"currency\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -1353,7 +1353,7 @@
                 },
                 "body": {
                   "mode": "raw",
-                  "raw": "\"Example string\"",
+                  "raw": "{\n  \"code\": \"USD\",\n  \"metadata\": {\n    \"key\": \"value\"\n  },\n  \"name\": \"US Dollar\",\n  \"status\": {\n    \"code\": \"ACTIVE\"\n  },\n  \"type\": \"currency\"\n}",
                   "options": {
                     "raw": {
                       "language": "json"
@@ -1602,7 +1602,7 @@
             "description": "**Workflow Step 11: Update Asset**\n\nUpdates asset details\n\n---\n\n**Uses:**\n- `organizationId`\n- `ledgerId`\n- `assetId`\n",
             "body": {
               "mode": "raw",
-              "raw": "\"Example string\"",
+              "raw": "{\n  \"metadata\": {\n    \"key\": \"value\"\n  },\n  \"name\": \"Bitcoin\",\n  \"status\": {\n    \"code\": \"ACTIVE\"\n  }\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -1663,7 +1663,7 @@
                 },
                 "body": {
                   "mode": "raw",
-                  "raw": "\"Example string\"",
+                  "raw": "{\n  \"metadata\": {\n    \"key\": \"value\"\n  },\n  \"name\": \"Bitcoin\",\n  \"status\": {\n    \"code\": \"ACTIVE\"\n  }\n}",
                   "options": {
                     "raw": {
                       "language": "json"
@@ -1970,7 +1970,7 @@
             "description": "**Workflow Step 13: Create Account**\n\nCreates a new account in the ledger\n\n---\n\n**Uses:**\n- `organizationId`\n- `ledgerId`\n",
             "body": {
               "mode": "raw",
-              "raw": "\"Example string\"",
+              "raw": "{\n  \"alias\": \"@treasury_checking\",\n  \"assetCode\": \"USD\",\n  \"blocked\": null,\n  \"entityId\": \"EXT-ACC-12345\",\n  \"holderId\": null,\n  \"metadata\": {\n    \"key\": \"value\"\n  },\n  \"name\": \"Corporate Checking Account\",\n  \"parentAccountId\": null,\n  \"portfolioId\": null,\n  \"segmentId\": null,\n  \"skip\": {\n    \"holder\": false\n  },\n  \"status\": {\n    \"code\": \"ACTIVE\"\n  },\n  \"type\": \"deposit\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -2025,7 +2025,7 @@
                 },
                 "body": {
                   "mode": "raw",
-                  "raw": "\"Example string\"",
+                  "raw": "{\n  \"alias\": \"@treasury_checking\",\n  \"assetCode\": \"USD\",\n  \"blocked\": null,\n  \"entityId\": \"EXT-ACC-12345\",\n  \"holderId\": null,\n  \"metadata\": {\n    \"key\": \"value\"\n  },\n  \"name\": \"Corporate Checking Account\",\n  \"parentAccountId\": null,\n  \"portfolioId\": null,\n  \"segmentId\": null,\n  \"skip\": {\n    \"holder\": false\n  },\n  \"status\": {\n    \"code\": \"ACTIVE\"\n  },\n  \"type\": \"deposit\"\n}",
                   "options": {
                     "raw": {
                       "language": "json"
@@ -2274,7 +2274,7 @@
             "description": "**Workflow Step 15: Update Account**\n\nUpdates account details\n\n---\n\n**Uses:**\n- `organizationId`\n- `ledgerId`\n- `accountId`\n",
             "body": {
               "mode": "raw",
-              "raw": "\"Example string\"",
+              "raw": "{\n  \"blocked\": null,\n  \"entityId\": \"EXT-ACC-12345\",\n  \"metadata\": {\n    \"key\": \"value\"\n  },\n  \"name\": \"Primary Corporate Checking Account\",\n  \"portfolioId\": null,\n  \"segmentId\": null,\n  \"status\": {\n    \"code\": \"ACTIVE\"\n  }\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -2335,7 +2335,7 @@
                 },
                 "body": {
                   "mode": "raw",
-                  "raw": "\"Example string\"",
+                  "raw": "{\n  \"blocked\": null,\n  \"entityId\": \"EXT-ACC-12345\",\n  \"metadata\": {\n    \"key\": \"value\"\n  },\n  \"name\": \"Primary Corporate Checking Account\",\n  \"portfolioId\": null,\n  \"segmentId\": null,\n  \"status\": {\n    \"code\": \"ACTIVE\"\n  }\n}",
                   "options": {
                     "raw": {
                       "language": "json"
@@ -2762,7 +2762,7 @@
             "description": "**Workflow Step 17: Create Portfolio**\n\nCreates a new portfolio in the ledger\n\n---\n\n**Uses:**\n- `organizationId`\n- `ledgerId`\n",
             "body": {
               "mode": "raw",
-              "raw": "\"Example string\"",
+              "raw": "{\n  \"entityId\": \"00000000-0000-0000-0000-000000000000\",\n  \"metadata\": {\n    \"key\": \"value\"\n  },\n  \"name\": \"My Portfolio\",\n  \"status\": {\n    \"code\": \"ACTIVE\"\n  }\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -2817,7 +2817,7 @@
                 },
                 "body": {
                   "mode": "raw",
-                  "raw": "\"Example string\"",
+                  "raw": "{\n  \"entityId\": \"00000000-0000-0000-0000-000000000000\",\n  \"metadata\": {\n    \"key\": \"value\"\n  },\n  \"name\": \"My Portfolio\",\n  \"status\": {\n    \"code\": \"ACTIVE\"\n  }\n}",
                   "options": {
                     "raw": {
                       "language": "json"
@@ -3066,7 +3066,7 @@
             "description": "**Workflow Step 19: Update Portfolio**\n\nUpdates portfolio details\n\n---\n\n**Uses:**\n- `organizationId`\n- `ledgerId`\n- `portfolioId`\n",
             "body": {
               "mode": "raw",
-              "raw": "\"Example string\"",
+              "raw": "{\n  \"entityId\": \"00000000-0000-0000-0000-000000000000\",\n  \"metadata\": {\n    \"key\": \"value\"\n  },\n  \"name\": \"My Portfolio Updated\",\n  \"status\": {\n    \"code\": \"ACTIVE\"\n  }\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -3127,7 +3127,7 @@
                 },
                 "body": {
                   "mode": "raw",
-                  "raw": "\"Example string\"",
+                  "raw": "{\n  \"entityId\": \"00000000-0000-0000-0000-000000000000\",\n  \"metadata\": {\n    \"key\": \"value\"\n  },\n  \"name\": \"My Portfolio Updated\",\n  \"status\": {\n    \"code\": \"ACTIVE\"\n  }\n}",
                   "options": {
                     "raw": {
                       "language": "json"
@@ -3458,7 +3458,7 @@
             "description": "**Workflow Step 21: Create Segment**\n\nCreates a new segment in the ledger\n\n---\n\n**Uses:**\n- `organizationId`\n- `ledgerId`\n",
             "body": {
               "mode": "raw",
-              "raw": "\"Example string\"",
+              "raw": "{\n  \"metadata\": {\n    \"key\": \"value\"\n  },\n  \"name\": \"My Segment\",\n  \"status\": {\n    \"code\": \"ACTIVE\"\n  }\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -3513,7 +3513,7 @@
                 },
                 "body": {
                   "mode": "raw",
-                  "raw": "\"Example string\"",
+                  "raw": "{\n  \"metadata\": {\n    \"key\": \"value\"\n  },\n  \"name\": \"My Segment\",\n  \"status\": {\n    \"code\": \"ACTIVE\"\n  }\n}",
                   "options": {
                     "raw": {
                       "language": "json"
@@ -3762,7 +3762,7 @@
             "description": "**Workflow Step 23: Update Segment**\n\nUpdates segment details\n\n---\n\n**Uses:**\n- `organizationId`\n- `ledgerId`\n- `segmentId`\n",
             "body": {
               "mode": "raw",
-              "raw": "\"Example string\"",
+              "raw": "{\n  \"metadata\": {\n    \"key\": \"value\"\n  },\n  \"name\": \"My Segment Updated\",\n  \"status\": {\n    \"code\": \"ACTIVE\"\n  }\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -3823,7 +3823,7 @@
                 },
                 "body": {
                   "mode": "raw",
-                  "raw": "\"Example string\"",
+                  "raw": "{\n  \"metadata\": {\n    \"key\": \"value\"\n  },\n  \"name\": \"My Segment Updated\",\n  \"status\": {\n    \"code\": \"ACTIVE\"\n  }\n}",
                   "options": {
                     "raw": {
                       "language": "json"
@@ -4964,7 +4964,7 @@
                 },
                 "body": {
                   "mode": "raw",
-                  "raw": "\"Example string\"",
+                  "raw": "{\n  \"chartOfAccountsGroupName\": \"FUNDING\",\n  \"code\": \"TR12345\",\n  \"description\": \"New Transaction\",\n  \"metadata\": {\n    \"key\": \"value\"\n  },\n  \"route\": \"00000000-0000-0000-0000-000000000000\",\n  \"routeId\": \"00000000-0000-0000-0000-000000000000\",\n  \"send\": {\n    \"asset\": \"USD\",\n    \"value\": \"100.00\",\n    \"source\": {\n      \"from\": [\n        {\n          \"accountAlias\": \"@external/USD\",\n          \"amount\": {\n            \"asset\": \"USD\",\n            \"value\": \"100.00\"\n          },\n          \"description\": \"External funding\",\n          \"chartOfAccounts\": \"FUNDING_DEBIT\",\n          \"metadata\": {\n            \"operation\": \"funding\",\n            \"type\": \"external\"\n          }\n        }\n      ]\n    },\n    \"distribute\": {\n      \"to\": [\n        {\n          \"account\": \"{{accountAlias}}\",\n          \"amount\": {\n            \"asset\": \"USD\",\n            \"value\": \"100.00\"\n          },\n          \"description\": \"Credit Operation\",\n          \"chartOfAccounts\": \"FUNDING_CREDIT\",\n          \"metadata\": {\n            \"operation\": \"funding\",\n            \"type\": \"account\"\n          }\n        }\n      ]\n    }\n  },\n  \"skip\": {\n    \"fees\": false,\n    \"tracer\": false\n  },\n  \"transactionDate\": \"2021-01-01T00:00:00Z\"\n}",
                   "options": {
                     "raw": {
                       "language": "json"
@@ -5142,7 +5142,7 @@
                 },
                 "body": {
                   "mode": "raw",
-                  "raw": "\"Example string\"",
+                  "raw": "{\n  \"chartOfAccountsGroupName\": \"FUNDING\",\n  \"code\": \"TR12345\",\n  \"description\": \"New Transaction\",\n  \"metadata\": {\n    \"key\": \"value\"\n  },\n  \"route\": \"00000000-0000-0000-0000-000000000000\",\n  \"routeId\": \"00000000-0000-0000-0000-000000000000\",\n  \"send\": {\n    \"asset\": \"BRL\",\n    \"distribute\": {\n      \"remaining\": \"Example remaining\",\n      \"to\": null\n    },\n    \"value\": \"1000\"\n  },\n  \"skip\": {\n    \"fees\": false,\n    \"tracer\": false\n  },\n  \"transactionDate\": \"2021-01-01T00:00:00Z\"\n}",
                   "options": {
                     "raw": {
                       "language": "json"
@@ -5320,7 +5320,7 @@
                 },
                 "body": {
                   "mode": "raw",
-                  "raw": "\"Example string\"",
+                  "raw": "{\n  \"chartOfAccountsGroupName\": \"WITHDRAWAL\",\n  \"code\": \"TR12345\",\n  \"description\": \"New Outflow Transaction\",\n  \"metadata\": {\n    \"key\": \"value\"\n  },\n  \"route\": \"00000000-0000-0000-0000-000000000000\",\n  \"routeId\": \"00000000-0000-0000-0000-000000000000\",\n  \"send\": {\n    \"asset\": \"BRL\",\n    \"source\": {\n      \"from\": null,\n      \"remaining\": \"remaining\"\n    },\n    \"value\": \"1000\"\n  },\n  \"skip\": {\n    \"fees\": false,\n    \"tracer\": false\n  },\n  \"transactionDate\": \"2021-01-01T00:00:00Z\"\n}",
                   "options": {
                     "raw": {
                       "language": "json"
@@ -5569,7 +5569,7 @@
             "description": "**Workflow Step 37: Update Transaction**\n\nUpdates transaction metadata\n\n---\n\n**Uses:**\n- `organizationId`\n- `ledgerId`\n- `transactionId`\n",
             "body": {
               "mode": "raw",
-              "raw": "\"Example string\"",
+              "raw": "{\n  \"description\": \"Transaction description\",\n  \"metadata\": {\n    \"key\": \"value\"\n  }\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -5630,7 +5630,7 @@
                 },
                 "body": {
                   "mode": "raw",
-                  "raw": "\"Example string\"",
+                  "raw": "{\n  \"description\": \"Transaction description\",\n  \"metadata\": {\n    \"key\": \"value\"\n  }\n}",
                   "options": {
                     "raw": {
                       "language": "json"
@@ -6382,7 +6382,7 @@
             "description": "**Workflow Step 41: Update Operation Metadata**\n\nUpdates operation metadata\n\n---\n\n**Uses:**\n- `organizationId`\n- `ledgerId`\n- `transactionId`\n- `operationId`\n",
             "body": {
               "mode": "raw",
-              "raw": "\"Example string\"",
+              "raw": "{\n  \"description\": \"Credit card operation\",\n  \"metadata\": {\n    \"key\": \"value\"\n  }\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -6450,7 +6450,7 @@
                 },
                 "body": {
                   "mode": "raw",
-                  "raw": "\"Example string\"",
+                  "raw": "{\n  \"description\": \"Credit card operation\",\n  \"metadata\": {\n    \"key\": \"value\"\n  }\n}",
                   "options": {
                     "raw": {
                       "language": "json"
@@ -7211,7 +7211,7 @@
             "description": "**Workflow Step 46: Update Balance**\n\nUpdates balance metadata\n\n---\n\n**Uses:**\n- `organizationId`\n- `ledgerId`\n- `balanceId`\n",
             "body": {
               "mode": "raw",
-              "raw": "\"Example string\"",
+              "raw": "{\n  \"allowReceiving\": true,\n  \"allowSending\": true,\n  \"settings\": {\n    \"allowOverdraft\": false,\n    \"balanceScope\": \"transactional\",\n    \"overdraftLimit\": \"1000.00\",\n    \"overdraftLimitEnabled\": false\n  }\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -7272,7 +7272,7 @@
                 },
                 "body": {
                   "mode": "raw",
-                  "raw": "\"Example string\"",
+                  "raw": "{\n  \"allowReceiving\": true,\n  \"allowSending\": true,\n  \"settings\": {\n    \"allowOverdraft\": false,\n    \"balanceScope\": \"transactional\",\n    \"overdraftLimit\": \"1000.00\",\n    \"overdraftLimitEnabled\": false\n  }\n}",
                   "options": {
                     "raw": {
                       "language": "json"
@@ -7810,7 +7810,7 @@
                 },
                 "body": {
                   "mode": "raw",
-                  "raw": "\"Example string\"",
+                  "raw": "{\n  \"chartOfAccountsGroupName\": \"FUNDING\",\n  \"code\": \"TR12345\",\n  \"description\": \"New Transaction\",\n  \"metadata\": {\n    \"key\": \"value\"\n  },\n  \"route\": \"00000000-0000-0000-0000-000000000000\",\n  \"routeId\": \"00000000-0000-0000-0000-000000000000\",\n  \"send\": {\n    \"asset\": \"USD\",\n    \"value\": \"100.00\",\n    \"source\": {\n      \"from\": [\n        {\n          \"accountAlias\": \"@external/USD\",\n          \"amount\": {\n            \"asset\": \"USD\",\n            \"value\": \"100.00\"\n          },\n          \"description\": \"External funding\",\n          \"chartOfAccounts\": \"FUNDING_DEBIT\",\n          \"metadata\": {\n            \"operation\": \"funding\",\n            \"type\": \"external\"\n          }\n        }\n      ]\n    },\n    \"distribute\": {\n      \"to\": [\n        {\n          \"account\": \"{{accountAlias}}\",\n          \"amount\": {\n            \"asset\": \"USD\",\n            \"value\": \"100.00\"\n          },\n          \"description\": \"Credit Operation\",\n          \"chartOfAccounts\": \"FUNDING_CREDIT\",\n          \"metadata\": {\n            \"operation\": \"funding\",\n            \"type\": \"account\"\n          }\n        }\n      ]\n    }\n  },\n  \"skip\": {\n    \"fees\": false,\n    \"tracer\": false\n  },\n  \"transactionDate\": \"2021-01-01T00:00:00Z\"\n}",
                   "options": {
                     "raw": {
                       "language": "json"
@@ -8746,7 +8746,7 @@
             "description": "",
             "body": {
               "mode": "raw",
-              "raw": "\"Example string\"",
+              "raw": "{\n  \"address\": {\n    \"city\": \"New York\",\n    \"country\": \"US\",\n    \"line1\": \"123 Financial Avenue\",\n    \"line2\": \"Suite 1500\",\n    \"state\": \"NY\",\n    \"zipCode\": \"10001\"\n  },\n  \"doingBusinessAs\": \"Lerian FS\",\n  \"legalDocument\": \"123456789012345\",\n  \"legalName\": \"Lerian Financial Services Ltd.\",\n  \"metadata\": {\n    \"key\": \"value\"\n  },\n  \"parentOrganizationId\": null,\n  \"status\": {\n    \"code\": \"ACTIVE\"\n  }\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -8785,7 +8785,7 @@
                 },
                 "body": {
                   "mode": "raw",
-                  "raw": "\"Example string\"",
+                  "raw": "{\n  \"address\": {\n    \"city\": \"New York\",\n    \"country\": \"US\",\n    \"line1\": \"123 Financial Avenue\",\n    \"line2\": \"Suite 1500\",\n    \"state\": \"NY\",\n    \"zipCode\": \"10001\"\n  },\n  \"doingBusinessAs\": \"Lerian FS\",\n  \"legalDocument\": \"123456789012345\",\n  \"legalName\": \"Lerian Financial Services Ltd.\",\n  \"metadata\": {\n    \"key\": \"value\"\n  },\n  \"parentOrganizationId\": null,\n  \"status\": {\n    \"code\": \"ACTIVE\"\n  }\n}",
                   "options": {
                     "raw": {
                       "language": "json"
@@ -9303,7 +9303,7 @@
             "description": "",
             "body": {
               "mode": "raw",
-              "raw": "\"Example string\"",
+              "raw": "{\n  \"address\": {\n    \"city\": \"New York\",\n    \"country\": \"US\",\n    \"line1\": \"123 Financial Avenue\",\n    \"line2\": \"Suite 1500\",\n    \"state\": \"NY\",\n    \"zipCode\": \"10001\"\n  },\n  \"doingBusinessAs\": \"Lerian Group\",\n  \"legalName\": \"Lerian Financial Group Ltd.\",\n  \"metadata\": {\n    \"key\": \"value\"\n  },\n  \"parentOrganizationId\": null,\n  \"status\": {\n    \"code\": \"ACTIVE\"\n  }\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -9350,7 +9350,7 @@
                 },
                 "body": {
                   "mode": "raw",
-                  "raw": "\"Example string\"",
+                  "raw": "{\n  \"address\": {\n    \"city\": \"New York\",\n    \"country\": \"US\",\n    \"line1\": \"123 Financial Avenue\",\n    \"line2\": \"Suite 1500\",\n    \"state\": \"NY\",\n    \"zipCode\": \"10001\"\n  },\n  \"doingBusinessAs\": \"Lerian Group\",\n  \"legalName\": \"Lerian Financial Group Ltd.\",\n  \"metadata\": {\n    \"key\": \"value\"\n  },\n  \"parentOrganizationId\": null,\n  \"status\": {\n    \"code\": \"ACTIVE\"\n  }\n}",
                   "options": {
                     "raw": {
                       "language": "json"
@@ -9698,7 +9698,7 @@
             "description": "",
             "body": {
               "mode": "raw",
-              "raw": "\"Example string\"",
+              "raw": "{\n  \"accountTarget\": {\n    \"aliases\": [\n      \"account_alpha\",\n      \"account_beta\"\n    ],\n    \"portfolioId\": \"00000000-0000-0000-0000-000000000000\",\n    \"segmentId\": \"00000000-0000-0000-0000-000000000000\"\n  },\n  \"assetCode\": \"BRL\",\n  \"countMode\": \"perRoute\",\n  \"createdAt\": \"2026-01-01T00:00:00Z\",\n  \"creditAccountAlias\": \"account_fees_credit\",\n  \"debitAccountAlias\": \"account_fees_debit\",\n  \"deletedAt\": \"2026-06-01T00:00:00Z\",\n  \"description\": \"Charges per completed transaction route\",\n  \"discountTiers\": null,\n  \"enable\": true,\n  \"eventFilter\": {\n    \"status\": \"APPROVED\",\n    \"transactionRoute\": \"payment_route\"\n  },\n  \"feeAmount\": \"50.00\",\n  \"freeQuota\": 100,\n  \"id\": \"00000000-0000-0000-0000-000000000000\",\n  \"label\": \"Monthly Volume Billing\",\n  \"ledgerId\": \"00000000-0000-0000-0000-000000000000\",\n  \"maintenanceCreditAccount\": \"account_maintenance_credit\",\n  \"organizationId\": \"00000000-0000-0000-0000-000000000000\",\n  \"pricingModel\": \"tiered\",\n  \"tiers\": null,\n  \"type\": \"volume\",\n  \"updatedAt\": \"2026-01-01T00:00:00Z\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -9746,7 +9746,7 @@
                 },
                 "body": {
                   "mode": "raw",
-                  "raw": "\"Example string\"",
+                  "raw": "{\n  \"accountTarget\": {\n    \"aliases\": [\n      \"account_alpha\",\n      \"account_beta\"\n    ],\n    \"portfolioId\": \"00000000-0000-0000-0000-000000000000\",\n    \"segmentId\": \"00000000-0000-0000-0000-000000000000\"\n  },\n  \"assetCode\": \"BRL\",\n  \"countMode\": \"perRoute\",\n  \"createdAt\": \"2026-01-01T00:00:00Z\",\n  \"creditAccountAlias\": \"account_fees_credit\",\n  \"debitAccountAlias\": \"account_fees_debit\",\n  \"deletedAt\": \"2026-06-01T00:00:00Z\",\n  \"description\": \"Charges per completed transaction route\",\n  \"discountTiers\": null,\n  \"enable\": true,\n  \"eventFilter\": {\n    \"status\": \"APPROVED\",\n    \"transactionRoute\": \"payment_route\"\n  },\n  \"feeAmount\": \"50.00\",\n  \"freeQuota\": 100,\n  \"id\": \"00000000-0000-0000-0000-000000000000\",\n  \"label\": \"Monthly Volume Billing\",\n  \"ledgerId\": \"00000000-0000-0000-0000-000000000000\",\n  \"maintenanceCreditAccount\": \"account_maintenance_credit\",\n  \"organizationId\": \"00000000-0000-0000-0000-000000000000\",\n  \"pricingModel\": \"tiered\",\n  \"tiers\": null,\n  \"type\": \"volume\",\n  \"updatedAt\": \"2026-01-01T00:00:00Z\"\n}",
                   "options": {
                     "raw": {
                       "language": "json"
@@ -10169,7 +10169,7 @@
             "description": "",
             "body": {
               "mode": "raw",
-              "raw": "\"Example string\"",
+              "raw": "{\n  \"description\": \"Updated description for the billing package\",\n  \"enable\": false,\n  \"label\": \"Updated Billing Label\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -10223,7 +10223,7 @@
                 },
                 "body": {
                   "mode": "raw",
-                  "raw": "\"Example string\"",
+                  "raw": "{\n  \"description\": \"Updated description for the billing package\",\n  \"enable\": false,\n  \"label\": \"Updated Billing Label\"\n}",
                   "options": {
                     "raw": {
                       "language": "json"
@@ -10360,7 +10360,7 @@
             "description": "",
             "body": {
               "mode": "raw",
-              "raw": "\"Example string\"",
+              "raw": "{\n  \"ledgerId\": \"00000000-0000-0000-0000-000000000000\",\n  \"period\": \"2026-01\",\n  \"type\": \"volume\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -10409,7 +10409,7 @@
                 },
                 "body": {
                   "mode": "raw",
-                  "raw": "\"Example string\"",
+                  "raw": "{\n  \"ledgerId\": \"00000000-0000-0000-0000-000000000000\",\n  \"period\": \"2026-01\",\n  \"type\": \"volume\"\n}",
                   "options": {
                     "raw": {
                       "language": "json"
@@ -10546,7 +10546,7 @@
             "description": "",
             "body": {
               "mode": "raw",
-              "raw": "\"Example string\"",
+              "raw": "{\n  \"actor\": \"admin@example.com\",\n  \"reason\": \"Initial encryption setup\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -10595,7 +10595,7 @@
                 },
                 "body": {
                   "mode": "raw",
-                  "raw": "\"Example string\"",
+                  "raw": "{\n  \"actor\": \"admin@example.com\",\n  \"reason\": \"Initial encryption setup\"\n}",
                   "options": {
                     "raw": {
                       "language": "json"
@@ -10893,7 +10893,7 @@
             "description": "",
             "body": {
               "mode": "raw",
-              "raw": "\"Example string\"",
+              "raw": "{\n  \"ledgerId\": \"00000000-0000-0000-0000-000000000000\",\n  \"packageId\": \"00000000-0000-0000-0000-000000000000\",\n  \"transaction\": {\n    \"chartOfAccountsGroupName\": \"FUNDING\",\n    \"code\": \"00000000-0000-0000-0000-000000000000\",\n    \"description\": \"Description\",\n    \"metadata\": {\n      \"key\": \"value\"\n    },\n    \"route\": \"00000000-0000-0000-0000-000000000000\",\n    \"routeId\": \"00000000-0000-0000-0000-000000000000\",\n    \"send\": {\n      \"asset\": \"USD\",\n      \"value\": \"100.00\",\n      \"source\": {\n        \"from\": [\n          {\n            \"accountAlias\": \"@external/USD\",\n            \"amount\": {\n              \"asset\": \"USD\",\n              \"value\": \"100.00\"\n            },\n            \"description\": \"External funding\",\n            \"chartOfAccounts\": \"FUNDING_DEBIT\",\n            \"metadata\": {\n              \"operation\": \"funding\",\n              \"type\": \"external\"\n            }\n          }\n        ]\n      },\n      \"distribute\": {\n        \"to\": [\n          {\n            \"account\": \"{{accountAlias}}\",\n            \"amount\": {\n              \"asset\": \"USD\",\n              \"value\": \"100.00\"\n            },\n            \"description\": \"Credit Operation\",\n            \"chartOfAccounts\": \"FUNDING_CREDIT\",\n            \"metadata\": {\n              \"operation\": \"funding\",\n              \"type\": \"account\"\n            }\n          }\n        ]\n      }\n    },\n    \"skip\": {\n      \"fees\": false,\n      \"tracer\": false\n    },\n    \"transactionDate\": \"2021-01-01T00:00:00Z\"\n  }\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -10941,7 +10941,7 @@
                 },
                 "body": {
                   "mode": "raw",
-                  "raw": "\"Example string\"",
+                  "raw": "{\n  \"ledgerId\": \"00000000-0000-0000-0000-000000000000\",\n  \"packageId\": \"00000000-0000-0000-0000-000000000000\",\n  \"transaction\": {\n    \"chartOfAccountsGroupName\": \"FUNDING\",\n    \"code\": \"00000000-0000-0000-0000-000000000000\",\n    \"description\": \"Description\",\n    \"metadata\": {\n      \"key\": \"value\"\n    },\n    \"route\": \"00000000-0000-0000-0000-000000000000\",\n    \"routeId\": \"00000000-0000-0000-0000-000000000000\",\n    \"send\": {\n      \"asset\": \"USD\",\n      \"value\": \"100.00\",\n      \"source\": {\n        \"from\": [\n          {\n            \"accountAlias\": \"@external/USD\",\n            \"amount\": {\n              \"asset\": \"USD\",\n              \"value\": \"100.00\"\n            },\n            \"description\": \"External funding\",\n            \"chartOfAccounts\": \"FUNDING_DEBIT\",\n            \"metadata\": {\n              \"operation\": \"funding\",\n              \"type\": \"external\"\n            }\n          }\n        ]\n      },\n      \"distribute\": {\n        \"to\": [\n          {\n            \"account\": \"{{accountAlias}}\",\n            \"amount\": {\n              \"asset\": \"USD\",\n              \"value\": \"100.00\"\n            },\n            \"description\": \"Credit Operation\",\n            \"chartOfAccounts\": \"FUNDING_CREDIT\",\n            \"metadata\": {\n              \"operation\": \"funding\",\n              \"type\": \"account\"\n            }\n          }\n        ]\n      }\n    },\n    \"skip\": {\n      \"fees\": false,\n      \"tracer\": false\n    },\n    \"transactionDate\": \"2021-01-01T00:00:00Z\"\n  }\n}",
                   "options": {
                     "raw": {
                       "language": "json"
@@ -11337,7 +11337,7 @@
             "description": "",
             "body": {
               "mode": "raw",
-              "raw": "\"Example string\"",
+              "raw": "{\n  \"addresses\": {\n    \"additional1\": {\n      \"city\": \"New York\",\n      \"country\": \"US\",\n      \"line1\": \"123 Financial Avenue\",\n      \"line2\": \"Suite 1500\",\n      \"state\": \"NY\",\n      \"zipCode\": \"10001\"\n    },\n    \"additional2\": {\n      \"city\": \"New York\",\n      \"country\": \"US\",\n      \"line1\": \"123 Financial Avenue\",\n      \"line2\": \"Suite 1500\",\n      \"state\": \"NY\",\n      \"zipCode\": \"10001\"\n    },\n    \"primary\": {\n      \"city\": \"New York\",\n      \"country\": \"US\",\n      \"line1\": \"123 Financial Avenue\",\n      \"line2\": \"Suite 1500\",\n      \"state\": \"NY\",\n      \"zipCode\": \"10001\"\n    }\n  },\n  \"contact\": {\n    \"mobilePhone\": \"+1555555555\",\n    \"otherPhone\": \"+1555555555\",\n    \"primaryEmail\": \"john.doe@example.com\",\n    \"secondaryEmail\": \"john.doe@example.com\"\n  },\n  \"document\": \"12345678900\",\n  \"externalId\": \"G4K7N8M2\",\n  \"legalPerson\": {\n    \"activity\": \"Electronic devices development\",\n    \"foundingDate\": \"2025-01-01\",\n    \"representative\": {\n      \"document\": \"12345678900\",\n      \"email\": \"john.doe@example.com\",\n      \"name\": \"John Doe\",\n      \"role\": \"CFO\"\n    },\n    \"size\": \"Medium\",\n    \"status\": \"Active\",\n    \"tradeName\": \"Lerian Studio\",\n    \"type\": \"Limited Liability\"\n  },\n  \"metadata\": {\n    \"key\": \"value\"\n  },\n  \"name\": \"John Doe\",\n  \"naturalPerson\": {\n    \"birthDate\": \"1990-01-01\",\n    \"civilStatus\": \"Single\",\n    \"fatherName\": \"John Doe\",\n    \"favoriteName\": \"John\",\n    \"gender\": \"Male\",\n    \"motherName\": \"Jane Doe\",\n    \"nationality\": \"Brazilian\",\n    \"socialName\": \"John Doe\",\n    \"status\": \"Active\"\n  },\n  \"type\": \"NATURAL_PERSON\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -11397,7 +11397,7 @@
                 },
                 "body": {
                   "mode": "raw",
-                  "raw": "\"Example string\"",
+                  "raw": "{\n  \"addresses\": {\n    \"additional1\": {\n      \"city\": \"New York\",\n      \"country\": \"US\",\n      \"line1\": \"123 Financial Avenue\",\n      \"line2\": \"Suite 1500\",\n      \"state\": \"NY\",\n      \"zipCode\": \"10001\"\n    },\n    \"additional2\": {\n      \"city\": \"New York\",\n      \"country\": \"US\",\n      \"line1\": \"123 Financial Avenue\",\n      \"line2\": \"Suite 1500\",\n      \"state\": \"NY\",\n      \"zipCode\": \"10001\"\n    },\n    \"primary\": {\n      \"city\": \"New York\",\n      \"country\": \"US\",\n      \"line1\": \"123 Financial Avenue\",\n      \"line2\": \"Suite 1500\",\n      \"state\": \"NY\",\n      \"zipCode\": \"10001\"\n    }\n  },\n  \"contact\": {\n    \"mobilePhone\": \"+1555555555\",\n    \"otherPhone\": \"+1555555555\",\n    \"primaryEmail\": \"john.doe@example.com\",\n    \"secondaryEmail\": \"john.doe@example.com\"\n  },\n  \"document\": \"12345678900\",\n  \"externalId\": \"G4K7N8M2\",\n  \"legalPerson\": {\n    \"activity\": \"Electronic devices development\",\n    \"foundingDate\": \"2025-01-01\",\n    \"representative\": {\n      \"document\": \"12345678900\",\n      \"email\": \"john.doe@example.com\",\n      \"name\": \"John Doe\",\n      \"role\": \"CFO\"\n    },\n    \"size\": \"Medium\",\n    \"status\": \"Active\",\n    \"tradeName\": \"Lerian Studio\",\n    \"type\": \"Limited Liability\"\n  },\n  \"metadata\": {\n    \"key\": \"value\"\n  },\n  \"name\": \"John Doe\",\n  \"naturalPerson\": {\n    \"birthDate\": \"1990-01-01\",\n    \"civilStatus\": \"Single\",\n    \"fatherName\": \"John Doe\",\n    \"favoriteName\": \"John\",\n    \"gender\": \"Male\",\n    \"motherName\": \"Jane Doe\",\n    \"nationality\": \"Brazilian\",\n    \"socialName\": \"John Doe\",\n    \"status\": \"Active\"\n  },\n  \"type\": \"NATURAL_PERSON\"\n}",
                   "options": {
                     "raw": {
                       "language": "json"
@@ -11844,7 +11844,7 @@
             "description": "",
             "body": {
               "mode": "raw",
-              "raw": "\"Example string\"",
+              "raw": "{\n  \"addresses\": {\n    \"additional1\": {\n      \"city\": \"New York\",\n      \"country\": \"US\",\n      \"line1\": \"123 Financial Avenue\",\n      \"line2\": \"Suite 1500\",\n      \"state\": \"NY\",\n      \"zipCode\": \"10001\"\n    },\n    \"additional2\": {\n      \"city\": \"New York\",\n      \"country\": \"US\",\n      \"line1\": \"123 Financial Avenue\",\n      \"line2\": \"Suite 1500\",\n      \"state\": \"NY\",\n      \"zipCode\": \"10001\"\n    },\n    \"primary\": {\n      \"city\": \"New York\",\n      \"country\": \"US\",\n      \"line1\": \"123 Financial Avenue\",\n      \"line2\": \"Suite 1500\",\n      \"state\": \"NY\",\n      \"zipCode\": \"10001\"\n    }\n  },\n  \"contact\": {\n    \"mobilePhone\": \"+1555555555\",\n    \"otherPhone\": \"+1555555555\",\n    \"primaryEmail\": \"john.doe@example.com\",\n    \"secondaryEmail\": \"john.doe@example.com\"\n  },\n  \"externalId\": \"G4K7N8M\",\n  \"legalPerson\": {\n    \"activity\": \"Electronic devices development\",\n    \"foundingDate\": \"2025-01-01\",\n    \"representative\": {\n      \"document\": \"12345678900\",\n      \"email\": \"john.doe@example.com\",\n      \"name\": \"John Doe\",\n      \"role\": \"CFO\"\n    },\n    \"size\": \"Medium\",\n    \"status\": \"Active\",\n    \"tradeName\": \"Lerian Studio\",\n    \"type\": \"Limited Liability\"\n  },\n  \"metadata\": {\n    \"key\": \"value\"\n  },\n  \"name\": \"Jonathan Doe\",\n  \"naturalPerson\": {\n    \"birthDate\": \"1990-01-01\",\n    \"civilStatus\": \"Single\",\n    \"fatherName\": \"John Doe\",\n    \"favoriteName\": \"John\",\n    \"gender\": \"Male\",\n    \"motherName\": \"Jane Doe\",\n    \"nationality\": \"Brazilian\",\n    \"socialName\": \"John Doe\",\n    \"status\": \"Active\"\n  }\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -11898,7 +11898,7 @@
                 },
                 "body": {
                   "mode": "raw",
-                  "raw": "\"Example string\"",
+                  "raw": "{\n  \"addresses\": {\n    \"additional1\": {\n      \"city\": \"New York\",\n      \"country\": \"US\",\n      \"line1\": \"123 Financial Avenue\",\n      \"line2\": \"Suite 1500\",\n      \"state\": \"NY\",\n      \"zipCode\": \"10001\"\n    },\n    \"additional2\": {\n      \"city\": \"New York\",\n      \"country\": \"US\",\n      \"line1\": \"123 Financial Avenue\",\n      \"line2\": \"Suite 1500\",\n      \"state\": \"NY\",\n      \"zipCode\": \"10001\"\n    },\n    \"primary\": {\n      \"city\": \"New York\",\n      \"country\": \"US\",\n      \"line1\": \"123 Financial Avenue\",\n      \"line2\": \"Suite 1500\",\n      \"state\": \"NY\",\n      \"zipCode\": \"10001\"\n    }\n  },\n  \"contact\": {\n    \"mobilePhone\": \"+1555555555\",\n    \"otherPhone\": \"+1555555555\",\n    \"primaryEmail\": \"john.doe@example.com\",\n    \"secondaryEmail\": \"john.doe@example.com\"\n  },\n  \"externalId\": \"G4K7N8M\",\n  \"legalPerson\": {\n    \"activity\": \"Electronic devices development\",\n    \"foundingDate\": \"2025-01-01\",\n    \"representative\": {\n      \"document\": \"12345678900\",\n      \"email\": \"john.doe@example.com\",\n      \"name\": \"John Doe\",\n      \"role\": \"CFO\"\n    },\n    \"size\": \"Medium\",\n    \"status\": \"Active\",\n    \"tradeName\": \"Lerian Studio\",\n    \"type\": \"Limited Liability\"\n  },\n  \"metadata\": {\n    \"key\": \"value\"\n  },\n  \"name\": \"Jonathan Doe\",\n  \"naturalPerson\": {\n    \"birthDate\": \"1990-01-01\",\n    \"civilStatus\": \"Single\",\n    \"fatherName\": \"John Doe\",\n    \"favoriteName\": \"John\",\n    \"gender\": \"Male\",\n    \"motherName\": \"Jane Doe\",\n    \"nationality\": \"Brazilian\",\n    \"socialName\": \"John Doe\",\n    \"status\": \"Active\"\n  }\n}",
                   "options": {
                     "raw": {
                       "language": "json"
@@ -12267,7 +12267,7 @@
             "description": "",
             "body": {
               "mode": "raw",
-              "raw": "\"Example string\"",
+              "raw": "{\n  \"accountId\": \"00000000-0000-0000-0000-000000000000\",\n  \"bankingDetails\": {\n    \"account\": \"123450\",\n    \"bankId\": \"12345\",\n    \"branch\": \"0001\",\n    \"closingDate\": \"2025-12-31\",\n    \"countryCode\": \"US\",\n    \"iban\": \"US12345678901234567890\",\n    \"openingDate\": \"2025-01-01\",\n    \"type\": \"CACC\"\n  },\n  \"ledgerId\": \"00000000-0000-0000-0000-000000000000\",\n  \"metadata\": {\n    \"key\": \"value\"\n  },\n  \"regulatoryFields\": {\n    \"participantDocument\": \"12345678912345\"\n  },\n  \"relatedParties\": null\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -12334,7 +12334,7 @@
                 },
                 "body": {
                   "mode": "raw",
-                  "raw": "\"Example string\"",
+                  "raw": "{\n  \"accountId\": \"00000000-0000-0000-0000-000000000000\",\n  \"bankingDetails\": {\n    \"account\": \"123450\",\n    \"bankId\": \"12345\",\n    \"branch\": \"0001\",\n    \"closingDate\": \"2025-12-31\",\n    \"countryCode\": \"US\",\n    \"iban\": \"US12345678901234567890\",\n    \"openingDate\": \"2025-01-01\",\n    \"type\": \"CACC\"\n  },\n  \"ledgerId\": \"00000000-0000-0000-0000-000000000000\",\n  \"metadata\": {\n    \"key\": \"value\"\n  },\n  \"regulatoryFields\": {\n    \"participantDocument\": \"12345678912345\"\n  },\n  \"relatedParties\": null\n}",
                   "options": {
                     "raw": {
                       "language": "json"
@@ -12809,7 +12809,7 @@
             "description": "",
             "body": {
               "mode": "raw",
-              "raw": "\"Example string\"",
+              "raw": "{\n  \"bankingDetails\": {\n    \"account\": \"123450\",\n    \"bankId\": \"12345\",\n    \"branch\": \"0001\",\n    \"closingDate\": \"2025-12-31\",\n    \"countryCode\": \"US\",\n    \"iban\": \"US12345678901234567890\",\n    \"openingDate\": \"2025-01-01\",\n    \"type\": \"CACC\"\n  },\n  \"metadata\": {\n    \"key\": \"value\"\n  },\n  \"regulatoryFields\": {\n    \"participantDocument\": \"12345678912345\"\n  },\n  \"relatedParties\": null\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -12870,7 +12870,7 @@
                 },
                 "body": {
                   "mode": "raw",
-                  "raw": "\"Example string\"",
+                  "raw": "{\n  \"bankingDetails\": {\n    \"account\": \"123450\",\n    \"bankId\": \"12345\",\n    \"branch\": \"0001\",\n    \"closingDate\": \"2025-12-31\",\n    \"countryCode\": \"US\",\n    \"iban\": \"US12345678901234567890\",\n    \"openingDate\": \"2025-01-01\",\n    \"type\": \"CACC\"\n  },\n  \"metadata\": {\n    \"key\": \"value\"\n  },\n  \"regulatoryFields\": {\n    \"participantDocument\": \"12345678912345\"\n  },\n  \"relatedParties\": null\n}",
                   "options": {
                     "raw": {
                       "language": "json"
@@ -13667,7 +13667,7 @@
             "description": "",
             "body": {
               "mode": "raw",
-              "raw": "\"Example string\"",
+              "raw": "{\n  \"metadata\": {\n    \"key\": \"value\"\n  },\n  \"name\": \"Example name\",\n  \"settings\": {\n    \"accounting\": {\n      \"requireHolder\": false,\n      \"validateAccountType\": false,\n      \"validateRoutes\": false\n    },\n    \"overrides\": {\n      \"allowFeeSkip\": false,\n      \"allowHolderSkip\": false,\n      \"allowTracerSkip\": false\n    },\n    \"tracer\": {\n      \"failPosture\": \"open\",\n      \"mode\": \"off\",\n      \"timeoutMs\": 250\n    }\n  },\n  \"status\": {\n    \"code\": \"ACTIVE\"\n  }\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -13715,7 +13715,7 @@
                 },
                 "body": {
                   "mode": "raw",
-                  "raw": "\"Example string\"",
+                  "raw": "{\n  \"metadata\": {\n    \"key\": \"value\"\n  },\n  \"name\": \"Example name\",\n  \"settings\": {\n    \"accounting\": {\n      \"requireHolder\": false,\n      \"validateAccountType\": false,\n      \"validateRoutes\": false\n    },\n    \"overrides\": {\n      \"allowFeeSkip\": false,\n      \"allowHolderSkip\": false,\n      \"allowTracerSkip\": false\n    },\n    \"tracer\": {\n      \"failPosture\": \"open\",\n      \"mode\": \"off\",\n      \"timeoutMs\": 250\n    }\n  },\n  \"status\": {\n    \"code\": \"ACTIVE\"\n  }\n}",
                   "options": {
                     "raw": {
                       "language": "json"
@@ -14270,7 +14270,7 @@
             "description": "",
             "body": {
               "mode": "raw",
-              "raw": "\"Example string\"",
+              "raw": "{\n  \"metadata\": {\n    \"key\": \"value\"\n  },\n  \"name\": \"Treasury Operations Global\",\n  \"status\": {\n    \"code\": \"ACTIVE\"\n  }\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -14324,7 +14324,7 @@
                 },
                 "body": {
                   "mode": "raw",
-                  "raw": "\"Example string\"",
+                  "raw": "{\n  \"metadata\": {\n    \"key\": \"value\"\n  },\n  \"name\": \"Treasury Operations Global\",\n  \"status\": {\n    \"code\": \"ACTIVE\"\n  }\n}",
                   "options": {
                     "raw": {
                       "language": "json"
@@ -14635,7 +14635,7 @@
             "description": "",
             "body": {
               "mode": "raw",
-              "raw": "\"Example string\"",
+              "raw": "{}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -14690,7 +14690,7 @@
                 },
                 "body": {
                   "mode": "raw",
-                  "raw": "\"Example string\"",
+                  "raw": "{}",
                   "options": {
                     "raw": {
                       "language": "json"
@@ -15107,7 +15107,7 @@
             "description": "",
             "body": {
               "mode": "raw",
-              "raw": "\"Example string\"",
+              "raw": "{\n  \"defaultDirection\": \"credit\",\n  \"description\": \"Assets that are expected to be converted to cash within one year\",\n  \"keyValue\": \"current_assets\",\n  \"metadata\": {\n    \"key\": \"value\"\n  },\n  \"name\": \"Current Assets\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -15162,7 +15162,7 @@
                 },
                 "body": {
                   "mode": "raw",
-                  "raw": "\"Example string\"",
+                  "raw": "{\n  \"defaultDirection\": \"credit\",\n  \"description\": \"Assets that are expected to be converted to cash within one year\",\n  \"keyValue\": \"current_assets\",\n  \"metadata\": {\n    \"key\": \"value\"\n  },\n  \"name\": \"Current Assets\"\n}",
                   "options": {
                     "raw": {
                       "language": "json"
@@ -15613,7 +15613,7 @@
             "description": "",
             "body": {
               "mode": "raw",
-              "raw": "\"Example string\"",
+              "raw": "{\n  \"defaultDirection\": \"credit\",\n  \"description\": \"Assets that are expected to be converted to cash within one year\",\n  \"metadata\": {\n    \"key\": \"value\"\n  },\n  \"name\": \"Current Assets\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -15674,7 +15674,7 @@
                 },
                 "body": {
                   "mode": "raw",
-                  "raw": "\"Example string\"",
+                  "raw": "{\n  \"defaultDirection\": \"credit\",\n  \"description\": \"Assets that are expected to be converted to cash within one year\",\n  \"metadata\": {\n    \"key\": \"value\"\n  },\n  \"name\": \"Current Assets\"\n}",
                   "options": {
                     "raw": {
                       "language": "json"
@@ -16187,7 +16187,7 @@
             "description": "",
             "body": {
               "mode": "raw",
-              "raw": "\"Example string\"",
+              "raw": "{\n  \"alias\": \"@treasury_checking\",\n  \"assetCode\": \"USD\",\n  \"blocked\": null,\n  \"entityId\": \"EXT-ACC-12345\",\n  \"holderId\": null,\n  \"metadata\": {\n    \"key\": \"value\"\n  },\n  \"name\": \"Corporate Checking Account\",\n  \"parentAccountId\": null,\n  \"portfolioId\": null,\n  \"segmentId\": null,\n  \"skip\": {\n    \"holder\": false\n  },\n  \"status\": {\n    \"code\": \"ACTIVE\"\n  },\n  \"type\": \"deposit\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -16242,7 +16242,7 @@
                 },
                 "body": {
                   "mode": "raw",
-                  "raw": "\"Example string\"",
+                  "raw": "{\n  \"alias\": \"@treasury_checking\",\n  \"assetCode\": \"USD\",\n  \"blocked\": null,\n  \"entityId\": \"EXT-ACC-12345\",\n  \"holderId\": null,\n  \"metadata\": {\n    \"key\": \"value\"\n  },\n  \"name\": \"Corporate Checking Account\",\n  \"parentAccountId\": null,\n  \"portfolioId\": null,\n  \"segmentId\": null,\n  \"skip\": {\n    \"holder\": false\n  },\n  \"status\": {\n    \"code\": \"ACTIVE\"\n  },\n  \"type\": \"deposit\"\n}",
                   "options": {
                     "raw": {
                       "language": "json"
@@ -17245,7 +17245,7 @@
             "description": "",
             "body": {
               "mode": "raw",
-              "raw": "\"Example string\"",
+              "raw": "{\n  \"blocked\": null,\n  \"entityId\": \"EXT-ACC-12345\",\n  \"metadata\": {\n    \"key\": \"value\"\n  },\n  \"name\": \"Primary Corporate Checking Account\",\n  \"portfolioId\": null,\n  \"segmentId\": null,\n  \"status\": {\n    \"code\": \"ACTIVE\"\n  }\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -17306,7 +17306,7 @@
                 },
                 "body": {
                   "mode": "raw",
-                  "raw": "\"Example string\"",
+                  "raw": "{\n  \"blocked\": null,\n  \"entityId\": \"EXT-ACC-12345\",\n  \"metadata\": {\n    \"key\": \"value\"\n  },\n  \"name\": \"Primary Corporate Checking Account\",\n  \"portfolioId\": null,\n  \"segmentId\": null,\n  \"status\": {\n    \"code\": \"ACTIVE\"\n  }\n}",
                   "options": {
                     "raw": {
                       "language": "json"
@@ -18140,7 +18140,7 @@
             "description": "",
             "body": {
               "mode": "raw",
-              "raw": "\"Example string\"",
+              "raw": "{\n  \"allowReceiving\": true,\n  \"allowSending\": true,\n  \"direction\": \"credit\",\n  \"key\": \"asset-freeze\",\n  \"settings\": {\n    \"allowOverdraft\": false,\n    \"balanceScope\": \"transactional\",\n    \"overdraftLimit\": \"1000.00\",\n    \"overdraftLimitEnabled\": false\n  },\n  \"assetCode\": \"USD\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -18202,7 +18202,7 @@
                 },
                 "body": {
                   "mode": "raw",
-                  "raw": "\"Example string\"",
+                  "raw": "{\n  \"allowReceiving\": true,\n  \"allowSending\": true,\n  \"direction\": \"credit\",\n  \"key\": \"asset-freeze\",\n  \"settings\": {\n    \"allowOverdraft\": false,\n    \"balanceScope\": \"transactional\",\n    \"overdraftLimit\": \"1000.00\",\n    \"overdraftLimitEnabled\": false\n  },\n  \"assetCode\": \"USD\"\n}",
                   "options": {
                     "raw": {
                       "language": "json"
@@ -19097,7 +19097,7 @@
             "description": "",
             "body": {
               "mode": "raw",
-              "raw": "\"Example string\"",
+              "raw": "{\n  \"allowReceiving\": true,\n  \"allowSending\": true,\n  \"settings\": {\n    \"allowOverdraft\": false,\n    \"balanceScope\": \"transactional\",\n    \"overdraftLimit\": \"1000.00\",\n    \"overdraftLimitEnabled\": false\n  }\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -19158,7 +19158,7 @@
                 },
                 "body": {
                   "mode": "raw",
-                  "raw": "\"Example string\"",
+                  "raw": "{\n  \"allowReceiving\": true,\n  \"allowSending\": true,\n  \"settings\": {\n    \"allowOverdraft\": false,\n    \"balanceScope\": \"transactional\",\n    \"overdraftLimit\": \"1000.00\",\n    \"overdraftLimitEnabled\": false\n  }\n}",
                   "options": {
                     "raw": {
                       "language": "json"
@@ -20109,7 +20109,7 @@
             "description": "",
             "body": {
               "mode": "raw",
-              "raw": "\"Example string\"",
+              "raw": "{\n  \"description\": \"Credit card operation\",\n  \"metadata\": {\n    \"key\": \"value\"\n  }\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -20177,7 +20177,7 @@
                 },
                 "body": {
                   "mode": "raw",
-                  "raw": "\"Example string\"",
+                  "raw": "{\n  \"description\": \"Credit card operation\",\n  \"metadata\": {\n    \"key\": \"value\"\n  }\n}",
                   "options": {
                     "raw": {
                       "language": "json"
@@ -20584,7 +20584,7 @@
             "description": "",
             "body": {
               "mode": "raw",
-              "raw": "\"Example string\"",
+              "raw": "{\n  \"code\": \"USD\",\n  \"metadata\": {\n    \"key\": \"value\"\n  },\n  \"name\": \"US Dollar\",\n  \"status\": {\n    \"code\": \"ACTIVE\"\n  },\n  \"type\": \"currency\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -20639,7 +20639,7 @@
                 },
                 "body": {
                   "mode": "raw",
-                  "raw": "\"Example string\"",
+                  "raw": "{\n  \"code\": \"USD\",\n  \"metadata\": {\n    \"key\": \"value\"\n  },\n  \"name\": \"US Dollar\",\n  \"status\": {\n    \"code\": \"ACTIVE\"\n  },\n  \"type\": \"currency\"\n}",
                   "options": {
                     "raw": {
                       "language": "json"
@@ -21257,7 +21257,7 @@
             "description": "",
             "body": {
               "mode": "raw",
-              "raw": "\"Example string\"",
+              "raw": "{\n  \"metadata\": {\n    \"key\": \"value\"\n  },\n  \"name\": \"Bitcoin\",\n  \"status\": {\n    \"code\": \"ACTIVE\"\n  }\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -21318,7 +21318,7 @@
                 },
                 "body": {
                   "mode": "raw",
-                  "raw": "\"Example string\"",
+                  "raw": "{\n  \"metadata\": {\n    \"key\": \"value\"\n  },\n  \"name\": \"Bitcoin\",\n  \"status\": {\n    \"code\": \"ACTIVE\"\n  }\n}",
                   "options": {
                     "raw": {
                       "language": "json"
@@ -21468,7 +21468,7 @@
             "description": "",
             "body": {
               "mode": "raw",
-              "raw": "\"Example string\"",
+              "raw": "{\n  \"alias\": \"@treasury_checking\",\n  \"assetCode\": \"USD\",\n  \"bankingDetails\": {\n    \"account\": \"123450\",\n    \"bankId\": \"12345\",\n    \"branch\": \"0001\",\n    \"closingDate\": \"2025-12-31\",\n    \"countryCode\": \"US\",\n    \"iban\": \"US12345678901234567890\",\n    \"openingDate\": \"2025-01-01\",\n    \"type\": \"CACC\"\n  },\n  \"blocked\": null,\n  \"entityId\": \"EXT-ACC-12345\",\n  \"metadata\": {\n    \"key\": \"value\"\n  },\n  \"name\": \"Corporate Checking Account\",\n  \"parentAccountId\": null,\n  \"portfolioId\": null,\n  \"regulatoryFields\": {\n    \"participantDocument\": \"12345678912345\"\n  },\n  \"relatedParties\": null,\n  \"segmentId\": null,\n  \"skip\": {\n    \"holder\": false\n  },\n  \"status\": {\n    \"code\": \"ACTIVE\"\n  },\n  \"type\": \"deposit\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -21530,7 +21530,7 @@
                 },
                 "body": {
                   "mode": "raw",
-                  "raw": "\"Example string\"",
+                  "raw": "{\n  \"alias\": \"@treasury_checking\",\n  \"assetCode\": \"USD\",\n  \"bankingDetails\": {\n    \"account\": \"123450\",\n    \"bankId\": \"12345\",\n    \"branch\": \"0001\",\n    \"closingDate\": \"2025-12-31\",\n    \"countryCode\": \"US\",\n    \"iban\": \"US12345678901234567890\",\n    \"openingDate\": \"2025-01-01\",\n    \"type\": \"CACC\"\n  },\n  \"blocked\": null,\n  \"entityId\": \"EXT-ACC-12345\",\n  \"metadata\": {\n    \"key\": \"value\"\n  },\n  \"name\": \"Corporate Checking Account\",\n  \"parentAccountId\": null,\n  \"portfolioId\": null,\n  \"regulatoryFields\": {\n    \"participantDocument\": \"12345678912345\"\n  },\n  \"relatedParties\": null,\n  \"segmentId\": null,\n  \"skip\": {\n    \"holder\": false\n  },\n  \"status\": {\n    \"code\": \"ACTIVE\"\n  },\n  \"type\": \"deposit\"\n}",
                   "options": {
                     "raw": {
                       "language": "json"
@@ -21911,7 +21911,7 @@
             "description": "",
             "body": {
               "mode": "raw",
-              "raw": "\"Example string\"",
+              "raw": "{\n  \"account\": {\n    \"ruleType\": \"alias\",\n    \"validIf\": null\n  },\n  \"accountingEntries\": {\n    \"block\": {\n      \"credit\": {\n        \"code\": \"1001\",\n        \"description\": \"Cash\"\n      },\n      \"debit\": {\n        \"code\": \"1001\",\n        \"description\": \"Cash\"\n      }\n    },\n    \"cancel\": {\n      \"credit\": {\n        \"code\": \"1001\",\n        \"description\": \"Cash\"\n      },\n      \"debit\": {\n        \"code\": \"1001\",\n        \"description\": \"Cash\"\n      }\n    },\n    \"commit\": {\n      \"credit\": {\n        \"code\": \"1001\",\n        \"description\": \"Cash\"\n      },\n      \"debit\": {\n        \"code\": \"1001\",\n        \"description\": \"Cash\"\n      }\n    },\n    \"direct\": {\n      \"credit\": {\n        \"code\": \"1001\",\n        \"description\": \"Cash\"\n      },\n      \"debit\": {\n        \"code\": \"1001\",\n        \"description\": \"Cash\"\n      }\n    },\n    \"hold\": {\n      \"credit\": {\n        \"code\": \"1001\",\n        \"description\": \"Cash\"\n      },\n      \"debit\": {\n        \"code\": \"1001\",\n        \"description\": \"Cash\"\n      }\n    },\n    \"overdraft\": {\n      \"credit\": {\n        \"code\": \"1001\",\n        \"description\": \"Cash\"\n      },\n      \"debit\": {\n        \"code\": \"1001\",\n        \"description\": \"Cash\"\n      }\n    },\n    \"revert\": {\n      \"credit\": {\n        \"code\": \"1001\",\n        \"description\": \"Cash\"\n      },\n      \"debit\": {\n        \"code\": \"1001\",\n        \"description\": \"Cash\"\n      }\n    },\n    \"unblock\": {\n      \"credit\": {\n        \"code\": \"1001\",\n        \"description\": \"Cash\"\n      },\n      \"debit\": {\n        \"code\": \"1001\",\n        \"description\": \"Cash\"\n      }\n    }\n  },\n  \"code\": \"EXT-001\",\n  \"description\": \"This operation route handles cash-in transactions from service charge collections\",\n  \"metadata\": {\n    \"key\": \"value\"\n  },\n  \"operationType\": \"source\",\n  \"title\": \"Cashin from service charge\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -21966,7 +21966,7 @@
                 },
                 "body": {
                   "mode": "raw",
-                  "raw": "\"Example string\"",
+                  "raw": "{\n  \"account\": {\n    \"ruleType\": \"alias\",\n    \"validIf\": null\n  },\n  \"accountingEntries\": {\n    \"block\": {\n      \"credit\": {\n        \"code\": \"1001\",\n        \"description\": \"Cash\"\n      },\n      \"debit\": {\n        \"code\": \"1001\",\n        \"description\": \"Cash\"\n      }\n    },\n    \"cancel\": {\n      \"credit\": {\n        \"code\": \"1001\",\n        \"description\": \"Cash\"\n      },\n      \"debit\": {\n        \"code\": \"1001\",\n        \"description\": \"Cash\"\n      }\n    },\n    \"commit\": {\n      \"credit\": {\n        \"code\": \"1001\",\n        \"description\": \"Cash\"\n      },\n      \"debit\": {\n        \"code\": \"1001\",\n        \"description\": \"Cash\"\n      }\n    },\n    \"direct\": {\n      \"credit\": {\n        \"code\": \"1001\",\n        \"description\": \"Cash\"\n      },\n      \"debit\": {\n        \"code\": \"1001\",\n        \"description\": \"Cash\"\n      }\n    },\n    \"hold\": {\n      \"credit\": {\n        \"code\": \"1001\",\n        \"description\": \"Cash\"\n      },\n      \"debit\": {\n        \"code\": \"1001\",\n        \"description\": \"Cash\"\n      }\n    },\n    \"overdraft\": {\n      \"credit\": {\n        \"code\": \"1001\",\n        \"description\": \"Cash\"\n      },\n      \"debit\": {\n        \"code\": \"1001\",\n        \"description\": \"Cash\"\n      }\n    },\n    \"revert\": {\n      \"credit\": {\n        \"code\": \"1001\",\n        \"description\": \"Cash\"\n      },\n      \"debit\": {\n        \"code\": \"1001\",\n        \"description\": \"Cash\"\n      }\n    },\n    \"unblock\": {\n      \"credit\": {\n        \"code\": \"1001\",\n        \"description\": \"Cash\"\n      },\n      \"debit\": {\n        \"code\": \"1001\",\n        \"description\": \"Cash\"\n      }\n    }\n  },\n  \"code\": \"EXT-001\",\n  \"description\": \"This operation route handles cash-in transactions from service charge collections\",\n  \"metadata\": {\n    \"key\": \"value\"\n  },\n  \"operationType\": \"source\",\n  \"title\": \"Cashin from service charge\"\n}",
                   "options": {
                     "raw": {
                       "language": "json"
@@ -22417,7 +22417,7 @@
             "description": "",
             "body": {
               "mode": "raw",
-              "raw": "\"Example string\"",
+              "raw": "{\n  \"account\": {\n    \"ruleType\": \"alias\",\n    \"validIf\": null\n  },\n  \"accountingEntries\": {\n    \"block\": {\n      \"credit\": {\n        \"code\": \"1001\",\n        \"description\": \"Cash\"\n      },\n      \"debit\": {\n        \"code\": \"1001\",\n        \"description\": \"Cash\"\n      }\n    },\n    \"cancel\": {\n      \"credit\": {\n        \"code\": \"1001\",\n        \"description\": \"Cash\"\n      },\n      \"debit\": {\n        \"code\": \"1001\",\n        \"description\": \"Cash\"\n      }\n    },\n    \"commit\": {\n      \"credit\": {\n        \"code\": \"1001\",\n        \"description\": \"Cash\"\n      },\n      \"debit\": {\n        \"code\": \"1001\",\n        \"description\": \"Cash\"\n      }\n    },\n    \"direct\": {\n      \"credit\": {\n        \"code\": \"1001\",\n        \"description\": \"Cash\"\n      },\n      \"debit\": {\n        \"code\": \"1001\",\n        \"description\": \"Cash\"\n      }\n    },\n    \"hold\": {\n      \"credit\": {\n        \"code\": \"1001\",\n        \"description\": \"Cash\"\n      },\n      \"debit\": {\n        \"code\": \"1001\",\n        \"description\": \"Cash\"\n      }\n    },\n    \"overdraft\": {\n      \"credit\": {\n        \"code\": \"1001\",\n        \"description\": \"Cash\"\n      },\n      \"debit\": {\n        \"code\": \"1001\",\n        \"description\": \"Cash\"\n      }\n    },\n    \"revert\": {\n      \"credit\": {\n        \"code\": \"1001\",\n        \"description\": \"Cash\"\n      },\n      \"debit\": {\n        \"code\": \"1001\",\n        \"description\": \"Cash\"\n      }\n    },\n    \"unblock\": {\n      \"credit\": {\n        \"code\": \"1001\",\n        \"description\": \"Cash\"\n      },\n      \"debit\": {\n        \"code\": \"1001\",\n        \"description\": \"Cash\"\n      }\n    }\n  },\n  \"code\": \"EXT-001\",\n  \"description\": \"This operation route handles cash-in transactions from service charge collections\",\n  \"metadata\": {\n    \"key\": \"value\"\n  },\n  \"title\": \"Cashin from service charge\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -22478,7 +22478,7 @@
                 },
                 "body": {
                   "mode": "raw",
-                  "raw": "\"Example string\"",
+                  "raw": "{\n  \"account\": {\n    \"ruleType\": \"alias\",\n    \"validIf\": null\n  },\n  \"accountingEntries\": {\n    \"block\": {\n      \"credit\": {\n        \"code\": \"1001\",\n        \"description\": \"Cash\"\n      },\n      \"debit\": {\n        \"code\": \"1001\",\n        \"description\": \"Cash\"\n      }\n    },\n    \"cancel\": {\n      \"credit\": {\n        \"code\": \"1001\",\n        \"description\": \"Cash\"\n      },\n      \"debit\": {\n        \"code\": \"1001\",\n        \"description\": \"Cash\"\n      }\n    },\n    \"commit\": {\n      \"credit\": {\n        \"code\": \"1001\",\n        \"description\": \"Cash\"\n      },\n      \"debit\": {\n        \"code\": \"1001\",\n        \"description\": \"Cash\"\n      }\n    },\n    \"direct\": {\n      \"credit\": {\n        \"code\": \"1001\",\n        \"description\": \"Cash\"\n      },\n      \"debit\": {\n        \"code\": \"1001\",\n        \"description\": \"Cash\"\n      }\n    },\n    \"hold\": {\n      \"credit\": {\n        \"code\": \"1001\",\n        \"description\": \"Cash\"\n      },\n      \"debit\": {\n        \"code\": \"1001\",\n        \"description\": \"Cash\"\n      }\n    },\n    \"overdraft\": {\n      \"credit\": {\n        \"code\": \"1001\",\n        \"description\": \"Cash\"\n      },\n      \"debit\": {\n        \"code\": \"1001\",\n        \"description\": \"Cash\"\n      }\n    },\n    \"revert\": {\n      \"credit\": {\n        \"code\": \"1001\",\n        \"description\": \"Cash\"\n      },\n      \"debit\": {\n        \"code\": \"1001\",\n        \"description\": \"Cash\"\n      }\n    },\n    \"unblock\": {\n      \"credit\": {\n        \"code\": \"1001\",\n        \"description\": \"Cash\"\n      },\n      \"debit\": {\n        \"code\": \"1001\",\n        \"description\": \"Cash\"\n      }\n    }\n  },\n  \"code\": \"EXT-001\",\n  \"description\": \"This operation route handles cash-in transactions from service charge collections\",\n  \"metadata\": {\n    \"key\": \"value\"\n  },\n  \"title\": \"Cashin from service charge\"\n}",
                   "options": {
                     "raw": {
                       "language": "json"
@@ -22895,7 +22895,7 @@
             "description": "",
             "body": {
               "mode": "raw",
-              "raw": "\"Example string\"",
+              "raw": "{\n  \"entityId\": \"00000000-0000-0000-0000-000000000000\",\n  \"metadata\": {\n    \"key\": \"value\"\n  },\n  \"name\": \"My Portfolio\",\n  \"status\": {\n    \"code\": \"ACTIVE\"\n  }\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -22950,7 +22950,7 @@
                 },
                 "body": {
                   "mode": "raw",
-                  "raw": "\"Example string\"",
+                  "raw": "{\n  \"entityId\": \"00000000-0000-0000-0000-000000000000\",\n  \"metadata\": {\n    \"key\": \"value\"\n  },\n  \"name\": \"My Portfolio\",\n  \"status\": {\n    \"code\": \"ACTIVE\"\n  }\n}",
                   "options": {
                     "raw": {
                       "language": "json"
@@ -23568,7 +23568,7 @@
             "description": "",
             "body": {
               "mode": "raw",
-              "raw": "\"Example string\"",
+              "raw": "{\n  \"entityId\": \"00000000-0000-0000-0000-000000000000\",\n  \"metadata\": {\n    \"key\": \"value\"\n  },\n  \"name\": \"My Portfolio Updated\",\n  \"status\": {\n    \"code\": \"ACTIVE\"\n  }\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -23629,7 +23629,7 @@
                 },
                 "body": {
                   "mode": "raw",
-                  "raw": "\"Example string\"",
+                  "raw": "{\n  \"entityId\": \"00000000-0000-0000-0000-000000000000\",\n  \"metadata\": {\n    \"key\": \"value\"\n  },\n  \"name\": \"My Portfolio Updated\",\n  \"status\": {\n    \"code\": \"ACTIVE\"\n  }\n}",
                   "options": {
                     "raw": {
                       "language": "json"
@@ -24022,7 +24022,7 @@
             "description": "",
             "body": {
               "mode": "raw",
-              "raw": "\"Example string\"",
+              "raw": "{\n  \"metadata\": {\n    \"key\": \"value\"\n  },\n  \"name\": \"My Segment\",\n  \"status\": {\n    \"code\": \"ACTIVE\"\n  }\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -24077,7 +24077,7 @@
                 },
                 "body": {
                   "mode": "raw",
-                  "raw": "\"Example string\"",
+                  "raw": "{\n  \"metadata\": {\n    \"key\": \"value\"\n  },\n  \"name\": \"My Segment\",\n  \"status\": {\n    \"code\": \"ACTIVE\"\n  }\n}",
                   "options": {
                     "raw": {
                       "language": "json"
@@ -24695,7 +24695,7 @@
             "description": "",
             "body": {
               "mode": "raw",
-              "raw": "\"Example string\"",
+              "raw": "{\n  \"metadata\": {\n    \"key\": \"value\"\n  },\n  \"name\": \"My Segment Updated\",\n  \"status\": {\n    \"code\": \"ACTIVE\"\n  }\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -24756,7 +24756,7 @@
                 },
                 "body": {
                   "mode": "raw",
-                  "raw": "\"Example string\"",
+                  "raw": "{\n  \"metadata\": {\n    \"key\": \"value\"\n  },\n  \"name\": \"My Segment Updated\",\n  \"status\": {\n    \"code\": \"ACTIVE\"\n  }\n}",
                   "options": {
                     "raw": {
                       "language": "json"
@@ -25137,7 +25137,7 @@
             "description": "",
             "body": {
               "mode": "raw",
-              "raw": "\"Example string\"",
+              "raw": "{\n  \"description\": \"Settlement route for service charges\",\n  \"metadata\": {\n    \"key\": \"value\"\n  },\n  \"operationRoutes\": null,\n  \"title\": \"Charge Settlement\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -25192,7 +25192,7 @@
                 },
                 "body": {
                   "mode": "raw",
-                  "raw": "\"Example string\"",
+                  "raw": "{\n  \"description\": \"Settlement route for service charges\",\n  \"metadata\": {\n    \"key\": \"value\"\n  },\n  \"operationRoutes\": null,\n  \"title\": \"Charge Settlement\"\n}",
                   "options": {
                     "raw": {
                       "language": "json"
@@ -25643,7 +25643,7 @@
             "description": "",
             "body": {
               "mode": "raw",
-              "raw": "\"Example string\"",
+              "raw": "{\n  \"description\": \"Settlement route for service charges\",\n  \"metadata\": {\n    \"key\": \"value\"\n  },\n  \"operationRoutes\": [\n    \"Example string\"\n  ],\n  \"title\": \"Charge Settlement\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -25704,7 +25704,7 @@
                 },
                 "body": {
                   "mode": "raw",
-                  "raw": "\"Example string\"",
+                  "raw": "{\n  \"description\": \"Settlement route for service charges\",\n  \"metadata\": {\n    \"key\": \"value\"\n  },\n  \"operationRoutes\": [\n    \"Example string\"\n  ],\n  \"title\": \"Charge Settlement\"\n}",
                   "options": {
                     "raw": {
                       "language": "json"
@@ -26110,7 +26110,7 @@
             "description": "",
             "body": {
               "mode": "raw",
-              "raw": "\"Example string\"",
+              "raw": "{\n  \"chartOfAccountsGroupName\": \"FUNDING\",\n  \"code\": \"TR12345\",\n  \"description\": \"New Transaction\",\n  \"metadata\": {\n    \"key\": \"value\"\n  },\n  \"route\": \"00000000-0000-0000-0000-000000000000\",\n  \"routeId\": \"00000000-0000-0000-0000-000000000000\",\n  \"send\": {\n    \"asset\": \"USD\",\n    \"value\": \"100.00\",\n    \"source\": {\n      \"from\": [\n        {\n          \"accountAlias\": \"@external/USD\",\n          \"amount\": {\n            \"asset\": \"USD\",\n            \"value\": \"100.00\"\n          },\n          \"description\": \"External funding\",\n          \"chartOfAccounts\": \"FUNDING_DEBIT\",\n          \"metadata\": {\n            \"operation\": \"funding\",\n            \"type\": \"external\"\n          }\n        }\n      ]\n    },\n    \"distribute\": {\n      \"to\": [\n        {\n          \"account\": \"{{accountAlias}}\",\n          \"amount\": {\n            \"asset\": \"USD\",\n            \"value\": \"100.00\"\n          },\n          \"description\": \"Credit Operation\",\n          \"chartOfAccounts\": \"FUNDING_CREDIT\",\n          \"metadata\": {\n            \"operation\": \"funding\",\n            \"type\": \"account\"\n          }\n        }\n      ]\n    }\n  },\n  \"skip\": {\n    \"fees\": false,\n    \"tracer\": false\n  },\n  \"transactionDate\": \"2021-01-01T00:00:00Z\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -26178,7 +26178,7 @@
                 },
                 "body": {
                   "mode": "raw",
-                  "raw": "\"Example string\"",
+                  "raw": "{\n  \"chartOfAccountsGroupName\": \"FUNDING\",\n  \"code\": \"TR12345\",\n  \"description\": \"New Transaction\",\n  \"metadata\": {\n    \"key\": \"value\"\n  },\n  \"route\": \"00000000-0000-0000-0000-000000000000\",\n  \"routeId\": \"00000000-0000-0000-0000-000000000000\",\n  \"send\": {\n    \"asset\": \"USD\",\n    \"value\": \"100.00\",\n    \"source\": {\n      \"from\": [\n        {\n          \"accountAlias\": \"@external/USD\",\n          \"amount\": {\n            \"asset\": \"USD\",\n            \"value\": \"100.00\"\n          },\n          \"description\": \"External funding\",\n          \"chartOfAccounts\": \"FUNDING_DEBIT\",\n          \"metadata\": {\n            \"operation\": \"funding\",\n            \"type\": \"external\"\n          }\n        }\n      ]\n    },\n    \"distribute\": {\n      \"to\": [\n        {\n          \"account\": \"{{accountAlias}}\",\n          \"amount\": {\n            \"asset\": \"USD\",\n            \"value\": \"100.00\"\n          },\n          \"description\": \"Credit Operation\",\n          \"chartOfAccounts\": \"FUNDING_CREDIT\",\n          \"metadata\": {\n            \"operation\": \"funding\",\n            \"type\": \"account\"\n          }\n        }\n      ]\n    }\n  },\n  \"skip\": {\n    \"fees\": false,\n    \"tracer\": false\n  },\n  \"transactionDate\": \"2021-01-01T00:00:00Z\"\n}",
                   "options": {
                     "raw": {
                       "language": "json"
@@ -26328,7 +26328,7 @@
             "description": "",
             "body": {
               "mode": "raw",
-              "raw": "\"Example string\"",
+              "raw": "{\n  \"chartOfAccountsGroupName\": \"FUNDING\",\n  \"code\": \"TR12345\",\n  \"description\": \"New Transaction\",\n  \"metadata\": {\n    \"key\": \"value\"\n  },\n  \"route\": \"00000000-0000-0000-0000-000000000000\",\n  \"routeId\": \"00000000-0000-0000-0000-000000000000\",\n  \"send\": {\n    \"asset\": \"USD\",\n    \"value\": \"100.00\",\n    \"source\": {\n      \"from\": [\n        {\n          \"accountAlias\": \"@external/USD\",\n          \"amount\": {\n            \"asset\": \"USD\",\n            \"value\": \"100.00\"\n          },\n          \"description\": \"External funding\",\n          \"chartOfAccounts\": \"FUNDING_DEBIT\",\n          \"metadata\": {\n            \"operation\": \"funding\",\n            \"type\": \"external\"\n          }\n        }\n      ]\n    },\n    \"distribute\": {\n      \"to\": [\n        {\n          \"account\": \"{{accountAlias}}\",\n          \"amount\": {\n            \"asset\": \"USD\",\n            \"value\": \"100.00\"\n          },\n          \"description\": \"Credit Operation\",\n          \"chartOfAccounts\": \"FUNDING_CREDIT\",\n          \"metadata\": {\n            \"operation\": \"funding\",\n            \"type\": \"account\"\n          }\n        }\n      ]\n    }\n  },\n  \"skip\": {\n    \"fees\": false,\n    \"tracer\": false\n  },\n  \"transactionDate\": \"2021-01-01T00:00:00Z\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -26396,7 +26396,7 @@
                 },
                 "body": {
                   "mode": "raw",
-                  "raw": "\"Example string\"",
+                  "raw": "{\n  \"chartOfAccountsGroupName\": \"FUNDING\",\n  \"code\": \"TR12345\",\n  \"description\": \"New Transaction\",\n  \"metadata\": {\n    \"key\": \"value\"\n  },\n  \"route\": \"00000000-0000-0000-0000-000000000000\",\n  \"routeId\": \"00000000-0000-0000-0000-000000000000\",\n  \"send\": {\n    \"asset\": \"USD\",\n    \"value\": \"100.00\",\n    \"source\": {\n      \"from\": [\n        {\n          \"accountAlias\": \"@external/USD\",\n          \"amount\": {\n            \"asset\": \"USD\",\n            \"value\": \"100.00\"\n          },\n          \"description\": \"External funding\",\n          \"chartOfAccounts\": \"FUNDING_DEBIT\",\n          \"metadata\": {\n            \"operation\": \"funding\",\n            \"type\": \"external\"\n          }\n        }\n      ]\n    },\n    \"distribute\": {\n      \"to\": [\n        {\n          \"account\": \"{{accountAlias}}\",\n          \"amount\": {\n            \"asset\": \"USD\",\n            \"value\": \"100.00\"\n          },\n          \"description\": \"Credit Operation\",\n          \"chartOfAccounts\": \"FUNDING_CREDIT\",\n          \"metadata\": {\n            \"operation\": \"funding\",\n            \"type\": \"account\"\n          }\n        }\n      ]\n    }\n  },\n  \"skip\": {\n    \"fees\": false,\n    \"tracer\": false\n  },\n  \"transactionDate\": \"2021-01-01T00:00:00Z\"\n}",
                   "options": {
                     "raw": {
                       "language": "json"
@@ -26546,7 +26546,7 @@
             "description": "",
             "body": {
               "mode": "raw",
-              "raw": "\"Example string\"",
+              "raw": "{\n  \"chartOfAccountsGroupName\": \"FUNDING\",\n  \"code\": \"TR12345\",\n  \"description\": \"New Transaction\",\n  \"metadata\": {\n    \"key\": \"value\"\n  },\n  \"route\": \"00000000-0000-0000-0000-000000000000\",\n  \"routeId\": \"00000000-0000-0000-0000-000000000000\",\n  \"send\": {\n    \"asset\": \"BRL\",\n    \"distribute\": {\n      \"remaining\": \"Example remaining\",\n      \"to\": null\n    },\n    \"value\": \"1000\"\n  },\n  \"skip\": {\n    \"fees\": false,\n    \"tracer\": false\n  },\n  \"transactionDate\": \"2021-01-01T00:00:00Z\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -26614,7 +26614,7 @@
                 },
                 "body": {
                   "mode": "raw",
-                  "raw": "\"Example string\"",
+                  "raw": "{\n  \"chartOfAccountsGroupName\": \"FUNDING\",\n  \"code\": \"TR12345\",\n  \"description\": \"New Transaction\",\n  \"metadata\": {\n    \"key\": \"value\"\n  },\n  \"route\": \"00000000-0000-0000-0000-000000000000\",\n  \"routeId\": \"00000000-0000-0000-0000-000000000000\",\n  \"send\": {\n    \"asset\": \"BRL\",\n    \"distribute\": {\n      \"remaining\": \"Example remaining\",\n      \"to\": null\n    },\n    \"value\": \"1000\"\n  },\n  \"skip\": {\n    \"fees\": false,\n    \"tracer\": false\n  },\n  \"transactionDate\": \"2021-01-01T00:00:00Z\"\n}",
                   "options": {
                     "raw": {
                       "language": "json"
@@ -26883,7 +26883,7 @@
             "description": "",
             "body": {
               "mode": "raw",
-              "raw": "\"Example string\"",
+              "raw": "{\n  \"chartOfAccountsGroupName\": \"FUNDING\",\n  \"code\": \"TR12345\",\n  \"description\": \"New Transaction\",\n  \"metadata\": {\n    \"key\": \"value\"\n  },\n  \"route\": \"00000000-0000-0000-0000-000000000000\",\n  \"routeId\": \"00000000-0000-0000-0000-000000000000\",\n  \"send\": {\n    \"asset\": \"USD\",\n    \"value\": \"100.00\",\n    \"source\": {\n      \"from\": [\n        {\n          \"accountAlias\": \"@external/USD\",\n          \"amount\": {\n            \"asset\": \"USD\",\n            \"value\": \"100.00\"\n          },\n          \"description\": \"External funding\",\n          \"chartOfAccounts\": \"FUNDING_DEBIT\",\n          \"metadata\": {\n            \"operation\": \"funding\",\n            \"type\": \"external\"\n          }\n        }\n      ]\n    },\n    \"distribute\": {\n      \"to\": [\n        {\n          \"account\": \"{{accountAlias}}\",\n          \"amount\": {\n            \"asset\": \"USD\",\n            \"value\": \"100.00\"\n          },\n          \"description\": \"Credit Operation\",\n          \"chartOfAccounts\": \"FUNDING_CREDIT\",\n          \"metadata\": {\n            \"operation\": \"funding\",\n            \"type\": \"account\"\n          }\n        }\n      ]\n    }\n  },\n  \"skip\": {\n    \"fees\": false,\n    \"tracer\": false\n  },\n  \"transactionDate\": \"2021-01-01T00:00:00Z\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -26957,7 +26957,7 @@
                 },
                 "body": {
                   "mode": "raw",
-                  "raw": "\"Example string\"",
+                  "raw": "{\n  \"chartOfAccountsGroupName\": \"FUNDING\",\n  \"code\": \"TR12345\",\n  \"description\": \"New Transaction\",\n  \"metadata\": {\n    \"key\": \"value\"\n  },\n  \"route\": \"00000000-0000-0000-0000-000000000000\",\n  \"routeId\": \"00000000-0000-0000-0000-000000000000\",\n  \"send\": {\n    \"asset\": \"USD\",\n    \"value\": \"100.00\",\n    \"source\": {\n      \"from\": [\n        {\n          \"accountAlias\": \"@external/USD\",\n          \"amount\": {\n            \"asset\": \"USD\",\n            \"value\": \"100.00\"\n          },\n          \"description\": \"External funding\",\n          \"chartOfAccounts\": \"FUNDING_DEBIT\",\n          \"metadata\": {\n            \"operation\": \"funding\",\n            \"type\": \"external\"\n          }\n        }\n      ]\n    },\n    \"distribute\": {\n      \"to\": [\n        {\n          \"account\": \"{{accountAlias}}\",\n          \"amount\": {\n            \"asset\": \"USD\",\n            \"value\": \"100.00\"\n          },\n          \"description\": \"Credit Operation\",\n          \"chartOfAccounts\": \"FUNDING_CREDIT\",\n          \"metadata\": {\n            \"operation\": \"funding\",\n            \"type\": \"account\"\n          }\n        }\n      ]\n    }\n  },\n  \"skip\": {\n    \"fees\": false,\n    \"tracer\": false\n  },\n  \"transactionDate\": \"2021-01-01T00:00:00Z\"\n}",
                   "options": {
                     "raw": {
                       "language": "json"
@@ -27368,7 +27368,7 @@
             "description": "",
             "body": {
               "mode": "raw",
-              "raw": "\"Example string\"",
+              "raw": "{\n  \"chartOfAccountsGroupName\": \"WITHDRAWAL\",\n  \"code\": \"TR12345\",\n  \"description\": \"New Outflow Transaction\",\n  \"metadata\": {\n    \"key\": \"value\"\n  },\n  \"route\": \"00000000-0000-0000-0000-000000000000\",\n  \"routeId\": \"00000000-0000-0000-0000-000000000000\",\n  \"send\": {\n    \"asset\": \"BRL\",\n    \"source\": {\n      \"from\": null,\n      \"remaining\": \"remaining\"\n    },\n    \"value\": \"1000\"\n  },\n  \"skip\": {\n    \"fees\": false,\n    \"tracer\": false\n  },\n  \"transactionDate\": \"2021-01-01T00:00:00Z\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -27436,7 +27436,7 @@
                 },
                 "body": {
                   "mode": "raw",
-                  "raw": "\"Example string\"",
+                  "raw": "{\n  \"chartOfAccountsGroupName\": \"WITHDRAWAL\",\n  \"code\": \"TR12345\",\n  \"description\": \"New Outflow Transaction\",\n  \"metadata\": {\n    \"key\": \"value\"\n  },\n  \"route\": \"00000000-0000-0000-0000-000000000000\",\n  \"routeId\": \"00000000-0000-0000-0000-000000000000\",\n  \"send\": {\n    \"asset\": \"BRL\",\n    \"source\": {\n      \"from\": null,\n      \"remaining\": \"remaining\"\n    },\n    \"value\": \"1000\"\n  },\n  \"skip\": {\n    \"fees\": false,\n    \"tracer\": false\n  },\n  \"transactionDate\": \"2021-01-01T00:00:00Z\"\n}",
                   "options": {
                     "raw": {
                       "language": "json"
@@ -27699,7 +27699,7 @@
             "description": "",
             "body": {
               "mode": "raw",
-              "raw": "\"Example string\"",
+              "raw": "{\n  \"chartOfAccountsGroupName\": \"FUNDING\",\n  \"code\": \"TR12345\",\n  \"description\": \"New Transaction\",\n  \"metadata\": {\n    \"key\": \"value\"\n  },\n  \"route\": \"00000000-0000-0000-0000-000000000000\",\n  \"routeId\": \"00000000-0000-0000-0000-000000000000\",\n  \"send\": {\n    \"asset\": \"USD\",\n    \"value\": \"100.00\",\n    \"source\": {\n      \"from\": [\n        {\n          \"accountAlias\": \"@external/USD\",\n          \"amount\": {\n            \"asset\": \"USD\",\n            \"value\": \"100.00\"\n          },\n          \"description\": \"External funding\",\n          \"chartOfAccounts\": \"FUNDING_DEBIT\",\n          \"metadata\": {\n            \"operation\": \"funding\",\n            \"type\": \"external\"\n          }\n        }\n      ]\n    },\n    \"distribute\": {\n      \"to\": [\n        {\n          \"account\": \"{{accountAlias}}\",\n          \"amount\": {\n            \"asset\": \"USD\",\n            \"value\": \"100.00\"\n          },\n          \"description\": \"Credit Operation\",\n          \"chartOfAccounts\": \"FUNDING_CREDIT\",\n          \"metadata\": {\n            \"operation\": \"funding\",\n            \"type\": \"account\"\n          }\n        }\n      ]\n    }\n  },\n  \"skip\": {\n    \"fees\": false,\n    \"tracer\": false\n  },\n  \"transactionDate\": \"2021-01-01T00:00:00Z\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -27767,7 +27767,7 @@
                 },
                 "body": {
                   "mode": "raw",
-                  "raw": "\"Example string\"",
+                  "raw": "{\n  \"chartOfAccountsGroupName\": \"FUNDING\",\n  \"code\": \"TR12345\",\n  \"description\": \"New Transaction\",\n  \"metadata\": {\n    \"key\": \"value\"\n  },\n  \"route\": \"00000000-0000-0000-0000-000000000000\",\n  \"routeId\": \"00000000-0000-0000-0000-000000000000\",\n  \"send\": {\n    \"asset\": \"USD\",\n    \"value\": \"100.00\",\n    \"source\": {\n      \"from\": [\n        {\n          \"accountAlias\": \"@external/USD\",\n          \"amount\": {\n            \"asset\": \"USD\",\n            \"value\": \"100.00\"\n          },\n          \"description\": \"External funding\",\n          \"chartOfAccounts\": \"FUNDING_DEBIT\",\n          \"metadata\": {\n            \"operation\": \"funding\",\n            \"type\": \"external\"\n          }\n        }\n      ]\n    },\n    \"distribute\": {\n      \"to\": [\n        {\n          \"account\": \"{{accountAlias}}\",\n          \"amount\": {\n            \"asset\": \"USD\",\n            \"value\": \"100.00\"\n          },\n          \"description\": \"Credit Operation\",\n          \"chartOfAccounts\": \"FUNDING_CREDIT\",\n          \"metadata\": {\n            \"operation\": \"funding\",\n            \"type\": \"account\"\n          }\n        }\n      ]\n    }\n  },\n  \"skip\": {\n    \"fees\": false,\n    \"tracer\": false\n  },\n  \"transactionDate\": \"2021-01-01T00:00:00Z\"\n}",
                   "options": {
                     "raw": {
                       "language": "json"
@@ -28096,7 +28096,7 @@
             "description": "",
             "body": {
               "mode": "raw",
-              "raw": "\"Example string\"",
+              "raw": "{\n  \"description\": \"Transaction description\",\n  \"metadata\": {\n    \"key\": \"value\"\n  }\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -28157,7 +28157,7 @@
                 },
                 "body": {
                   "mode": "raw",
-                  "raw": "\"Example string\"",
+                  "raw": "{\n  \"description\": \"Transaction description\",\n  \"metadata\": {\n    \"key\": \"value\"\n  }\n}",
                   "options": {
                     "raw": {
                       "language": "json"
@@ -29093,7 +29093,7 @@
             "description": "",
             "body": {
               "mode": "raw",
-              "raw": "\"Example string\"",
+              "raw": "{\n  \"description\": \"Pacote de taxas administrativas padrão\",\n  \"enable\": null,\n  \"feeGroupLabel\": \"Pacote Padrão\",\n  \"fees\": {\n    \"key\": \"value\"\n  },\n  \"ledgerId\": \"00000000-0000-0000-0000-000000000000\",\n  \"maximumAmount\": \"1000.20\",\n  \"minimumAmount\": \"100.00\",\n  \"segmentId\": \"00000000-0000-0000-0000-000000000000\",\n  \"transactionRoute\": \"debitoted\",\n  \"waivedAccounts\": [\n    \"acc001\",\n    \"acc002\"\n  ]\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -29141,7 +29141,7 @@
                 },
                 "body": {
                   "mode": "raw",
-                  "raw": "\"Example string\"",
+                  "raw": "{\n  \"description\": \"Pacote de taxas administrativas padrão\",\n  \"enable\": null,\n  \"feeGroupLabel\": \"Pacote Padrão\",\n  \"fees\": {\n    \"key\": \"value\"\n  },\n  \"ledgerId\": \"00000000-0000-0000-0000-000000000000\",\n  \"maximumAmount\": \"1000.20\",\n  \"minimumAmount\": \"100.00\",\n  \"segmentId\": \"00000000-0000-0000-0000-000000000000\",\n  \"transactionRoute\": \"debitoted\",\n  \"waivedAccounts\": [\n    \"acc001\",\n    \"acc002\"\n  ]\n}",
                   "options": {
                     "raw": {
                       "language": "json"
@@ -29564,7 +29564,7 @@
             "description": "",
             "body": {
               "mode": "raw",
-              "raw": "\"Example string\"",
+              "raw": "{\n  \"description\": \"Pacote de taxas administrativas padrão\",\n  \"enable\": true,\n  \"feeGroupLabel\": \"Pacote Padrão\",\n  \"fees\": {\n    \"key\": \"value\"\n  },\n  \"maximumAmount\": \"1000\",\n  \"minimumAmount\": \"100\",\n  \"waivedAccounts\": [\n    \"acc001\",\n    \"acc002\"\n  ]\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -29618,7 +29618,7 @@
                 },
                 "body": {
                   "mode": "raw",
-                  "raw": "\"Example string\"",
+                  "raw": "{\n  \"description\": \"Pacote de taxas administrativas padrão\",\n  \"enable\": true,\n  \"feeGroupLabel\": \"Pacote Padrão\",\n  \"fees\": {\n    \"key\": \"value\"\n  },\n  \"maximumAmount\": \"1000\",\n  \"minimumAmount\": \"100\",\n  \"waivedAccounts\": [\n    \"acc001\",\n    \"acc002\"\n  ]\n}",
                   "options": {
                     "raw": {
                       "language": "json"
@@ -30183,7 +30183,7 @@
             "description": "",
             "body": {
               "mode": "raw",
-              "raw": "\"Example string\"",
+              "raw": "{\n  \"metadataKey\": \"tier\",\n  \"sparse\": true,\n  \"unique\": false\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -30232,7 +30232,7 @@
                 },
                 "body": {
                   "mode": "raw",
-                  "raw": "\"Example string\"",
+                  "raw": "{\n  \"metadataKey\": \"tier\",\n  \"sparse\": true,\n  \"unique\": false\n}",
                   "options": {
                     "raw": {
                       "language": "json"
@@ -30742,7 +30742,7 @@
             "description": "",
             "body": {
               "mode": "raw",
-              "raw": "\"Example string\"",
+              "raw": "{\n  \"address\": {\n    \"city\": \"New York\",\n    \"country\": \"US\",\n    \"line1\": \"123 Financial Avenue\",\n    \"line2\": \"Suite 1500\",\n    \"state\": \"NY\",\n    \"zipCode\": \"10001\"\n  },\n  \"doingBusinessAs\": \"Lerian FS\",\n  \"legalDocument\": \"123456789012345\",\n  \"legalName\": \"Lerian Financial Services Ltd.\",\n  \"metadata\": {\n    \"key\": \"value\"\n  },\n  \"parentOrganizationId\": null,\n  \"status\": {\n    \"code\": \"ACTIVE\"\n  }\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -30781,7 +30781,7 @@
                 },
                 "body": {
                   "mode": "raw",
-                  "raw": "\"Example string\"",
+                  "raw": "{\n  \"address\": {\n    \"city\": \"New York\",\n    \"country\": \"US\",\n    \"line1\": \"123 Financial Avenue\",\n    \"line2\": \"Suite 1500\",\n    \"state\": \"NY\",\n    \"zipCode\": \"10001\"\n  },\n  \"doingBusinessAs\": \"Lerian FS\",\n  \"legalDocument\": \"123456789012345\",\n  \"legalName\": \"Lerian Financial Services Ltd.\",\n  \"metadata\": {\n    \"key\": \"value\"\n  },\n  \"parentOrganizationId\": null,\n  \"status\": {\n    \"code\": \"ACTIVE\"\n  }\n}",
                   "options": {
                     "raw": {
                       "language": "json"
@@ -31278,7 +31278,7 @@
             "description": "",
             "body": {
               "mode": "raw",
-              "raw": "\"Example string\"",
+              "raw": "{\n  \"address\": {\n    \"city\": \"New York\",\n    \"country\": \"US\",\n    \"line1\": \"123 Financial Avenue\",\n    \"line2\": \"Suite 1500\",\n    \"state\": \"NY\",\n    \"zipCode\": \"10001\"\n  },\n  \"doingBusinessAs\": \"Lerian Group\",\n  \"legalName\": \"Lerian Financial Group Ltd.\",\n  \"metadata\": {\n    \"key\": \"value\"\n  },\n  \"parentOrganizationId\": null,\n  \"status\": {\n    \"code\": \"ACTIVE\"\n  }\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -31325,7 +31325,7 @@
                 },
                 "body": {
                   "mode": "raw",
-                  "raw": "\"Example string\"",
+                  "raw": "{\n  \"address\": {\n    \"city\": \"New York\",\n    \"country\": \"US\",\n    \"line1\": \"123 Financial Avenue\",\n    \"line2\": \"Suite 1500\",\n    \"state\": \"NY\",\n    \"zipCode\": \"10001\"\n  },\n  \"doingBusinessAs\": \"Lerian Group\",\n  \"legalName\": \"Lerian Financial Group Ltd.\",\n  \"metadata\": {\n    \"key\": \"value\"\n  },\n  \"parentOrganizationId\": null,\n  \"status\": {\n    \"code\": \"ACTIVE\"\n  }\n}",
                   "options": {
                     "raw": {
                       "language": "json"
@@ -31462,7 +31462,7 @@
             "description": "",
             "body": {
               "mode": "raw",
-              "raw": "\"Example string\"",
+              "raw": "{\n  \"actor\": \"admin@example.com\",\n  \"reason\": \"Initial encryption setup\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -31511,7 +31511,7 @@
                 },
                 "body": {
                   "mode": "raw",
-                  "raw": "\"Example string\"",
+                  "raw": "{\n  \"actor\": \"admin@example.com\",\n  \"reason\": \"Initial encryption setup\"\n}",
                   "options": {
                     "raw": {
                       "language": "json"
@@ -32069,7 +32069,7 @@
             "description": "",
             "body": {
               "mode": "raw",
-              "raw": "\"Example string\"",
+              "raw": "{\n  \"addresses\": {\n    \"additional1\": {\n      \"city\": \"New York\",\n      \"country\": \"US\",\n      \"line1\": \"123 Financial Avenue\",\n      \"line2\": \"Suite 1500\",\n      \"state\": \"NY\",\n      \"zipCode\": \"10001\"\n    },\n    \"additional2\": {\n      \"city\": \"New York\",\n      \"country\": \"US\",\n      \"line1\": \"123 Financial Avenue\",\n      \"line2\": \"Suite 1500\",\n      \"state\": \"NY\",\n      \"zipCode\": \"10001\"\n    },\n    \"primary\": {\n      \"city\": \"New York\",\n      \"country\": \"US\",\n      \"line1\": \"123 Financial Avenue\",\n      \"line2\": \"Suite 1500\",\n      \"state\": \"NY\",\n      \"zipCode\": \"10001\"\n    }\n  },\n  \"contact\": {\n    \"mobilePhone\": \"+1555555555\",\n    \"otherPhone\": \"+1555555555\",\n    \"primaryEmail\": \"john.doe@example.com\",\n    \"secondaryEmail\": \"john.doe@example.com\"\n  },\n  \"document\": \"12345678900\",\n  \"externalId\": \"G4K7N8M2\",\n  \"legalPerson\": {\n    \"activity\": \"Electronic devices development\",\n    \"foundingDate\": \"2025-01-01\",\n    \"representative\": {\n      \"document\": \"12345678900\",\n      \"email\": \"john.doe@example.com\",\n      \"name\": \"John Doe\",\n      \"role\": \"CFO\"\n    },\n    \"size\": \"Medium\",\n    \"status\": \"Active\",\n    \"tradeName\": \"Lerian Studio\",\n    \"type\": \"Limited Liability\"\n  },\n  \"metadata\": {\n    \"key\": \"value\"\n  },\n  \"name\": \"John Doe\",\n  \"naturalPerson\": {\n    \"birthDate\": \"1990-01-01\",\n    \"civilStatus\": \"Single\",\n    \"fatherName\": \"John Doe\",\n    \"favoriteName\": \"John\",\n    \"gender\": \"Male\",\n    \"motherName\": \"Jane Doe\",\n    \"nationality\": \"Brazilian\",\n    \"socialName\": \"John Doe\",\n    \"status\": \"Active\"\n  },\n  \"type\": \"NATURAL_PERSON\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -32129,7 +32129,7 @@
                 },
                 "body": {
                   "mode": "raw",
-                  "raw": "\"Example string\"",
+                  "raw": "{\n  \"addresses\": {\n    \"additional1\": {\n      \"city\": \"New York\",\n      \"country\": \"US\",\n      \"line1\": \"123 Financial Avenue\",\n      \"line2\": \"Suite 1500\",\n      \"state\": \"NY\",\n      \"zipCode\": \"10001\"\n    },\n    \"additional2\": {\n      \"city\": \"New York\",\n      \"country\": \"US\",\n      \"line1\": \"123 Financial Avenue\",\n      \"line2\": \"Suite 1500\",\n      \"state\": \"NY\",\n      \"zipCode\": \"10001\"\n    },\n    \"primary\": {\n      \"city\": \"New York\",\n      \"country\": \"US\",\n      \"line1\": \"123 Financial Avenue\",\n      \"line2\": \"Suite 1500\",\n      \"state\": \"NY\",\n      \"zipCode\": \"10001\"\n    }\n  },\n  \"contact\": {\n    \"mobilePhone\": \"+1555555555\",\n    \"otherPhone\": \"+1555555555\",\n    \"primaryEmail\": \"john.doe@example.com\",\n    \"secondaryEmail\": \"john.doe@example.com\"\n  },\n  \"document\": \"12345678900\",\n  \"externalId\": \"G4K7N8M2\",\n  \"legalPerson\": {\n    \"activity\": \"Electronic devices development\",\n    \"foundingDate\": \"2025-01-01\",\n    \"representative\": {\n      \"document\": \"12345678900\",\n      \"email\": \"john.doe@example.com\",\n      \"name\": \"John Doe\",\n      \"role\": \"CFO\"\n    },\n    \"size\": \"Medium\",\n    \"status\": \"Active\",\n    \"tradeName\": \"Lerian Studio\",\n    \"type\": \"Limited Liability\"\n  },\n  \"metadata\": {\n    \"key\": \"value\"\n  },\n  \"name\": \"John Doe\",\n  \"naturalPerson\": {\n    \"birthDate\": \"1990-01-01\",\n    \"civilStatus\": \"Single\",\n    \"fatherName\": \"John Doe\",\n    \"favoriteName\": \"John\",\n    \"gender\": \"Male\",\n    \"motherName\": \"Jane Doe\",\n    \"nationality\": \"Brazilian\",\n    \"socialName\": \"John Doe\",\n    \"status\": \"Active\"\n  },\n  \"type\": \"NATURAL_PERSON\"\n}",
                   "options": {
                     "raw": {
                       "language": "json"
@@ -32576,7 +32576,7 @@
             "description": "",
             "body": {
               "mode": "raw",
-              "raw": "\"Example string\"",
+              "raw": "{\n  \"addresses\": {\n    \"additional1\": {\n      \"city\": \"New York\",\n      \"country\": \"US\",\n      \"line1\": \"123 Financial Avenue\",\n      \"line2\": \"Suite 1500\",\n      \"state\": \"NY\",\n      \"zipCode\": \"10001\"\n    },\n    \"additional2\": {\n      \"city\": \"New York\",\n      \"country\": \"US\",\n      \"line1\": \"123 Financial Avenue\",\n      \"line2\": \"Suite 1500\",\n      \"state\": \"NY\",\n      \"zipCode\": \"10001\"\n    },\n    \"primary\": {\n      \"city\": \"New York\",\n      \"country\": \"US\",\n      \"line1\": \"123 Financial Avenue\",\n      \"line2\": \"Suite 1500\",\n      \"state\": \"NY\",\n      \"zipCode\": \"10001\"\n    }\n  },\n  \"contact\": {\n    \"mobilePhone\": \"+1555555555\",\n    \"otherPhone\": \"+1555555555\",\n    \"primaryEmail\": \"john.doe@example.com\",\n    \"secondaryEmail\": \"john.doe@example.com\"\n  },\n  \"externalId\": \"G4K7N8M\",\n  \"legalPerson\": {\n    \"activity\": \"Electronic devices development\",\n    \"foundingDate\": \"2025-01-01\",\n    \"representative\": {\n      \"document\": \"12345678900\",\n      \"email\": \"john.doe@example.com\",\n      \"name\": \"John Doe\",\n      \"role\": \"CFO\"\n    },\n    \"size\": \"Medium\",\n    \"status\": \"Active\",\n    \"tradeName\": \"Lerian Studio\",\n    \"type\": \"Limited Liability\"\n  },\n  \"metadata\": {\n    \"key\": \"value\"\n  },\n  \"name\": \"Jonathan Doe\",\n  \"naturalPerson\": {\n    \"birthDate\": \"1990-01-01\",\n    \"civilStatus\": \"Single\",\n    \"fatherName\": \"John Doe\",\n    \"favoriteName\": \"John\",\n    \"gender\": \"Male\",\n    \"motherName\": \"Jane Doe\",\n    \"nationality\": \"Brazilian\",\n    \"socialName\": \"John Doe\",\n    \"status\": \"Active\"\n  }\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -32630,7 +32630,7 @@
                 },
                 "body": {
                   "mode": "raw",
-                  "raw": "\"Example string\"",
+                  "raw": "{\n  \"addresses\": {\n    \"additional1\": {\n      \"city\": \"New York\",\n      \"country\": \"US\",\n      \"line1\": \"123 Financial Avenue\",\n      \"line2\": \"Suite 1500\",\n      \"state\": \"NY\",\n      \"zipCode\": \"10001\"\n    },\n    \"additional2\": {\n      \"city\": \"New York\",\n      \"country\": \"US\",\n      \"line1\": \"123 Financial Avenue\",\n      \"line2\": \"Suite 1500\",\n      \"state\": \"NY\",\n      \"zipCode\": \"10001\"\n    },\n    \"primary\": {\n      \"city\": \"New York\",\n      \"country\": \"US\",\n      \"line1\": \"123 Financial Avenue\",\n      \"line2\": \"Suite 1500\",\n      \"state\": \"NY\",\n      \"zipCode\": \"10001\"\n    }\n  },\n  \"contact\": {\n    \"mobilePhone\": \"+1555555555\",\n    \"otherPhone\": \"+1555555555\",\n    \"primaryEmail\": \"john.doe@example.com\",\n    \"secondaryEmail\": \"john.doe@example.com\"\n  },\n  \"externalId\": \"G4K7N8M\",\n  \"legalPerson\": {\n    \"activity\": \"Electronic devices development\",\n    \"foundingDate\": \"2025-01-01\",\n    \"representative\": {\n      \"document\": \"12345678900\",\n      \"email\": \"john.doe@example.com\",\n      \"name\": \"John Doe\",\n      \"role\": \"CFO\"\n    },\n    \"size\": \"Medium\",\n    \"status\": \"Active\",\n    \"tradeName\": \"Lerian Studio\",\n    \"type\": \"Limited Liability\"\n  },\n  \"metadata\": {\n    \"key\": \"value\"\n  },\n  \"name\": \"Jonathan Doe\",\n  \"naturalPerson\": {\n    \"birthDate\": \"1990-01-01\",\n    \"civilStatus\": \"Single\",\n    \"fatherName\": \"John Doe\",\n    \"favoriteName\": \"John\",\n    \"gender\": \"Male\",\n    \"motherName\": \"Jane Doe\",\n    \"nationality\": \"Brazilian\",\n    \"socialName\": \"John Doe\",\n    \"status\": \"Active\"\n  }\n}",
                   "options": {
                     "raw": {
                       "language": "json"
@@ -32999,7 +32999,7 @@
             "description": "",
             "body": {
               "mode": "raw",
-              "raw": "\"Example string\"",
+              "raw": "{\n  \"accountId\": \"00000000-0000-0000-0000-000000000000\",\n  \"bankingDetails\": {\n    \"account\": \"123450\",\n    \"bankId\": \"12345\",\n    \"branch\": \"0001\",\n    \"closingDate\": \"2025-12-31\",\n    \"countryCode\": \"US\",\n    \"iban\": \"US12345678901234567890\",\n    \"openingDate\": \"2025-01-01\",\n    \"type\": \"CACC\"\n  },\n  \"ledgerId\": \"00000000-0000-0000-0000-000000000000\",\n  \"metadata\": {\n    \"key\": \"value\"\n  },\n  \"regulatoryFields\": {\n    \"participantDocument\": \"12345678912345\"\n  },\n  \"relatedParties\": null\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -33066,7 +33066,7 @@
                 },
                 "body": {
                   "mode": "raw",
-                  "raw": "\"Example string\"",
+                  "raw": "{\n  \"accountId\": \"00000000-0000-0000-0000-000000000000\",\n  \"bankingDetails\": {\n    \"account\": \"123450\",\n    \"bankId\": \"12345\",\n    \"branch\": \"0001\",\n    \"closingDate\": \"2025-12-31\",\n    \"countryCode\": \"US\",\n    \"iban\": \"US12345678901234567890\",\n    \"openingDate\": \"2025-01-01\",\n    \"type\": \"CACC\"\n  },\n  \"ledgerId\": \"00000000-0000-0000-0000-000000000000\",\n  \"metadata\": {\n    \"key\": \"value\"\n  },\n  \"regulatoryFields\": {\n    \"participantDocument\": \"12345678912345\"\n  },\n  \"relatedParties\": null\n}",
                   "options": {
                     "raw": {
                       "language": "json"
@@ -33541,7 +33541,7 @@
             "description": "",
             "body": {
               "mode": "raw",
-              "raw": "\"Example string\"",
+              "raw": "{\n  \"bankingDetails\": {\n    \"account\": \"123450\",\n    \"bankId\": \"12345\",\n    \"branch\": \"0001\",\n    \"closingDate\": \"2025-12-31\",\n    \"countryCode\": \"US\",\n    \"iban\": \"US12345678901234567890\",\n    \"openingDate\": \"2025-01-01\",\n    \"type\": \"CACC\"\n  },\n  \"metadata\": {\n    \"key\": \"value\"\n  },\n  \"regulatoryFields\": {\n    \"participantDocument\": \"12345678912345\"\n  },\n  \"relatedParties\": null\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -33602,7 +33602,7 @@
                 },
                 "body": {
                   "mode": "raw",
-                  "raw": "\"Example string\"",
+                  "raw": "{\n  \"bankingDetails\": {\n    \"account\": \"123450\",\n    \"bankId\": \"12345\",\n    \"branch\": \"0001\",\n    \"closingDate\": \"2025-12-31\",\n    \"countryCode\": \"US\",\n    \"iban\": \"US12345678901234567890\",\n    \"openingDate\": \"2025-01-01\",\n    \"type\": \"CACC\"\n  },\n  \"metadata\": {\n    \"key\": \"value\"\n  },\n  \"regulatoryFields\": {\n    \"participantDocument\": \"12345678912345\"\n  },\n  \"relatedParties\": null\n}",
                   "options": {
                     "raw": {
                       "language": "json"
@@ -34399,7 +34399,7 @@
             "description": "",
             "body": {
               "mode": "raw",
-              "raw": "\"Example string\"",
+              "raw": "{\n  \"metadata\": {\n    \"key\": \"value\"\n  },\n  \"name\": \"Example name\",\n  \"settings\": {\n    \"accounting\": {\n      \"requireHolder\": false,\n      \"validateAccountType\": false,\n      \"validateRoutes\": false\n    },\n    \"overrides\": {\n      \"allowFeeSkip\": false,\n      \"allowHolderSkip\": false,\n      \"allowTracerSkip\": false\n    },\n    \"tracer\": {\n      \"failPosture\": \"open\",\n      \"mode\": \"off\",\n      \"timeoutMs\": 250\n    }\n  },\n  \"status\": {\n    \"code\": \"ACTIVE\"\n  }\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -34447,7 +34447,7 @@
                 },
                 "body": {
                   "mode": "raw",
-                  "raw": "\"Example string\"",
+                  "raw": "{\n  \"metadata\": {\n    \"key\": \"value\"\n  },\n  \"name\": \"Example name\",\n  \"settings\": {\n    \"accounting\": {\n      \"requireHolder\": false,\n      \"validateAccountType\": false,\n      \"validateRoutes\": false\n    },\n    \"overrides\": {\n      \"allowFeeSkip\": false,\n      \"allowHolderSkip\": false,\n      \"allowTracerSkip\": false\n    },\n    \"tracer\": {\n      \"failPosture\": \"open\",\n      \"mode\": \"off\",\n      \"timeoutMs\": 250\n    }\n  },\n  \"status\": {\n    \"code\": \"ACTIVE\"\n  }\n}",
                   "options": {
                     "raw": {
                       "language": "json"
@@ -34981,7 +34981,7 @@
             "description": "",
             "body": {
               "mode": "raw",
-              "raw": "\"Example string\"",
+              "raw": "{\n  \"metadata\": {\n    \"key\": \"value\"\n  },\n  \"name\": \"Treasury Operations Global\",\n  \"status\": {\n    \"code\": \"ACTIVE\"\n  }\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -35035,7 +35035,7 @@
                 },
                 "body": {
                   "mode": "raw",
-                  "raw": "\"Example string\"",
+                  "raw": "{\n  \"metadata\": {\n    \"key\": \"value\"\n  },\n  \"name\": \"Treasury Operations Global\",\n  \"status\": {\n    \"code\": \"ACTIVE\"\n  }\n}",
                   "options": {
                     "raw": {
                       "language": "json"
@@ -35346,7 +35346,7 @@
             "description": "",
             "body": {
               "mode": "raw",
-              "raw": "\"Example string\"",
+              "raw": "{}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -35401,7 +35401,7 @@
                 },
                 "body": {
                   "mode": "raw",
-                  "raw": "\"Example string\"",
+                  "raw": "{}",
                   "options": {
                     "raw": {
                       "language": "json"
@@ -35818,7 +35818,7 @@
             "description": "",
             "body": {
               "mode": "raw",
-              "raw": "\"Example string\"",
+              "raw": "{\n  \"defaultDirection\": \"credit\",\n  \"description\": \"Assets that are expected to be converted to cash within one year\",\n  \"keyValue\": \"current_assets\",\n  \"metadata\": {\n    \"key\": \"value\"\n  },\n  \"name\": \"Current Assets\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -35873,7 +35873,7 @@
                 },
                 "body": {
                   "mode": "raw",
-                  "raw": "\"Example string\"",
+                  "raw": "{\n  \"defaultDirection\": \"credit\",\n  \"description\": \"Assets that are expected to be converted to cash within one year\",\n  \"keyValue\": \"current_assets\",\n  \"metadata\": {\n    \"key\": \"value\"\n  },\n  \"name\": \"Current Assets\"\n}",
                   "options": {
                     "raw": {
                       "language": "json"
@@ -36324,7 +36324,7 @@
             "description": "",
             "body": {
               "mode": "raw",
-              "raw": "\"Example string\"",
+              "raw": "{\n  \"defaultDirection\": \"credit\",\n  \"description\": \"Assets that are expected to be converted to cash within one year\",\n  \"metadata\": {\n    \"key\": \"value\"\n  },\n  \"name\": \"Current Assets\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -36385,7 +36385,7 @@
                 },
                 "body": {
                   "mode": "raw",
-                  "raw": "\"Example string\"",
+                  "raw": "{\n  \"defaultDirection\": \"credit\",\n  \"description\": \"Assets that are expected to be converted to cash within one year\",\n  \"metadata\": {\n    \"key\": \"value\"\n  },\n  \"name\": \"Current Assets\"\n}",
                   "options": {
                     "raw": {
                       "language": "json"
@@ -36898,7 +36898,7 @@
             "description": "",
             "body": {
               "mode": "raw",
-              "raw": "\"Example string\"",
+              "raw": "{\n  \"alias\": \"@treasury_checking\",\n  \"assetCode\": \"USD\",\n  \"blocked\": null,\n  \"entityId\": \"EXT-ACC-12345\",\n  \"holderId\": null,\n  \"metadata\": {\n    \"key\": \"value\"\n  },\n  \"name\": \"Corporate Checking Account\",\n  \"parentAccountId\": null,\n  \"portfolioId\": null,\n  \"segmentId\": null,\n  \"skip\": {\n    \"holder\": false\n  },\n  \"status\": {\n    \"code\": \"ACTIVE\"\n  },\n  \"type\": \"deposit\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -36953,7 +36953,7 @@
                 },
                 "body": {
                   "mode": "raw",
-                  "raw": "\"Example string\"",
+                  "raw": "{\n  \"alias\": \"@treasury_checking\",\n  \"assetCode\": \"USD\",\n  \"blocked\": null,\n  \"entityId\": \"EXT-ACC-12345\",\n  \"holderId\": null,\n  \"metadata\": {\n    \"key\": \"value\"\n  },\n  \"name\": \"Corporate Checking Account\",\n  \"parentAccountId\": null,\n  \"portfolioId\": null,\n  \"segmentId\": null,\n  \"skip\": {\n    \"holder\": false\n  },\n  \"status\": {\n    \"code\": \"ACTIVE\"\n  },\n  \"type\": \"deposit\"\n}",
                   "options": {
                     "raw": {
                       "language": "json"
@@ -37898,7 +37898,7 @@
             "description": "",
             "body": {
               "mode": "raw",
-              "raw": "\"Example string\"",
+              "raw": "{\n  \"blocked\": null,\n  \"entityId\": \"EXT-ACC-12345\",\n  \"metadata\": {\n    \"key\": \"value\"\n  },\n  \"name\": \"Primary Corporate Checking Account\",\n  \"portfolioId\": null,\n  \"segmentId\": null,\n  \"status\": {\n    \"code\": \"ACTIVE\"\n  }\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -37959,7 +37959,7 @@
                 },
                 "body": {
                   "mode": "raw",
-                  "raw": "\"Example string\"",
+                  "raw": "{\n  \"blocked\": null,\n  \"entityId\": \"EXT-ACC-12345\",\n  \"metadata\": {\n    \"key\": \"value\"\n  },\n  \"name\": \"Primary Corporate Checking Account\",\n  \"portfolioId\": null,\n  \"segmentId\": null,\n  \"status\": {\n    \"code\": \"ACTIVE\"\n  }\n}",
                   "options": {
                     "raw": {
                       "language": "json"
@@ -38741,7 +38741,7 @@
             "description": "",
             "body": {
               "mode": "raw",
-              "raw": "\"Example string\"",
+              "raw": "{\n  \"allowReceiving\": true,\n  \"allowSending\": true,\n  \"direction\": \"credit\",\n  \"key\": \"asset-freeze\",\n  \"settings\": {\n    \"allowOverdraft\": false,\n    \"balanceScope\": \"transactional\",\n    \"overdraftLimit\": \"1000.00\",\n    \"overdraftLimitEnabled\": false\n  },\n  \"assetCode\": \"USD\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -38803,7 +38803,7 @@
                 },
                 "body": {
                   "mode": "raw",
-                  "raw": "\"Example string\"",
+                  "raw": "{\n  \"allowReceiving\": true,\n  \"allowSending\": true,\n  \"direction\": \"credit\",\n  \"key\": \"asset-freeze\",\n  \"settings\": {\n    \"allowOverdraft\": false,\n    \"balanceScope\": \"transactional\",\n    \"overdraftLimit\": \"1000.00\",\n    \"overdraftLimitEnabled\": false\n  },\n  \"assetCode\": \"USD\"\n}",
                   "options": {
                     "raw": {
                       "language": "json"
@@ -39698,7 +39698,7 @@
             "description": "",
             "body": {
               "mode": "raw",
-              "raw": "\"Example string\"",
+              "raw": "{\n  \"allowReceiving\": true,\n  \"allowSending\": true,\n  \"settings\": {\n    \"allowOverdraft\": false,\n    \"balanceScope\": \"transactional\",\n    \"overdraftLimit\": \"1000.00\",\n    \"overdraftLimitEnabled\": false\n  }\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -39759,7 +39759,7 @@
                 },
                 "body": {
                   "mode": "raw",
-                  "raw": "\"Example string\"",
+                  "raw": "{\n  \"allowReceiving\": true,\n  \"allowSending\": true,\n  \"settings\": {\n    \"allowOverdraft\": false,\n    \"balanceScope\": \"transactional\",\n    \"overdraftLimit\": \"1000.00\",\n    \"overdraftLimitEnabled\": false\n  }\n}",
                   "options": {
                     "raw": {
                       "language": "json"
@@ -40631,7 +40631,7 @@
             "description": "",
             "body": {
               "mode": "raw",
-              "raw": "\"Example string\"",
+              "raw": "{\n  \"description\": \"Credit card operation\",\n  \"metadata\": {\n    \"key\": \"value\"\n  }\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -40699,7 +40699,7 @@
                 },
                 "body": {
                   "mode": "raw",
-                  "raw": "\"Example string\"",
+                  "raw": "{\n  \"description\": \"Credit card operation\",\n  \"metadata\": {\n    \"key\": \"value\"\n  }\n}",
                   "options": {
                     "raw": {
                       "language": "json"
@@ -41092,7 +41092,7 @@
             "description": "",
             "body": {
               "mode": "raw",
-              "raw": "\"Example string\"",
+              "raw": "{\n  \"code\": \"USD\",\n  \"metadata\": {\n    \"key\": \"value\"\n  },\n  \"name\": \"US Dollar\",\n  \"status\": {\n    \"code\": \"ACTIVE\"\n  },\n  \"type\": \"currency\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -41147,7 +41147,7 @@
                 },
                 "body": {
                   "mode": "raw",
-                  "raw": "\"Example string\"",
+                  "raw": "{\n  \"code\": \"USD\",\n  \"metadata\": {\n    \"key\": \"value\"\n  },\n  \"name\": \"US Dollar\",\n  \"status\": {\n    \"code\": \"ACTIVE\"\n  },\n  \"type\": \"currency\"\n}",
                   "options": {
                     "raw": {
                       "language": "json"
@@ -41716,7 +41716,7 @@
             "description": "",
             "body": {
               "mode": "raw",
-              "raw": "\"Example string\"",
+              "raw": "{\n  \"metadata\": {\n    \"key\": \"value\"\n  },\n  \"name\": \"Bitcoin\",\n  \"status\": {\n    \"code\": \"ACTIVE\"\n  }\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -41777,7 +41777,7 @@
                 },
                 "body": {
                   "mode": "raw",
-                  "raw": "\"Example string\"",
+                  "raw": "{\n  \"metadata\": {\n    \"key\": \"value\"\n  },\n  \"name\": \"Bitcoin\",\n  \"status\": {\n    \"code\": \"ACTIVE\"\n  }\n}",
                   "options": {
                     "raw": {
                       "language": "json"
@@ -42134,7 +42134,7 @@
             "description": "",
             "body": {
               "mode": "raw",
-              "raw": "\"Example string\"",
+              "raw": "{\n  \"accountTarget\": {\n    \"aliases\": [\n      \"account_alpha\",\n      \"account_beta\"\n    ],\n    \"portfolioId\": \"00000000-0000-0000-0000-000000000000\",\n    \"segmentId\": \"00000000-0000-0000-0000-000000000000\"\n  },\n  \"assetCode\": \"BRL\",\n  \"countMode\": \"perRoute\",\n  \"createdAt\": \"2026-01-01T00:00:00Z\",\n  \"creditAccountAlias\": \"account_fees_credit\",\n  \"debitAccountAlias\": \"account_fees_debit\",\n  \"deletedAt\": \"2026-06-01T00:00:00Z\",\n  \"description\": \"Charges per completed transaction route\",\n  \"discountTiers\": null,\n  \"enable\": true,\n  \"eventFilter\": {\n    \"status\": \"APPROVED\",\n    \"transactionRoute\": \"payment_route\"\n  },\n  \"feeAmount\": \"50.00\",\n  \"freeQuota\": 100,\n  \"id\": \"00000000-0000-0000-0000-000000000000\",\n  \"label\": \"Monthly Volume Billing\",\n  \"ledgerId\": \"00000000-0000-0000-0000-000000000000\",\n  \"maintenanceCreditAccount\": \"account_maintenance_credit\",\n  \"organizationId\": \"00000000-0000-0000-0000-000000000000\",\n  \"pricingModel\": \"tiered\",\n  \"tiers\": null,\n  \"type\": \"volume\",\n  \"updatedAt\": \"2026-01-01T00:00:00Z\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -42189,7 +42189,7 @@
                 },
                 "body": {
                   "mode": "raw",
-                  "raw": "\"Example string\"",
+                  "raw": "{\n  \"accountTarget\": {\n    \"aliases\": [\n      \"account_alpha\",\n      \"account_beta\"\n    ],\n    \"portfolioId\": \"00000000-0000-0000-0000-000000000000\",\n    \"segmentId\": \"00000000-0000-0000-0000-000000000000\"\n  },\n  \"assetCode\": \"BRL\",\n  \"countMode\": \"perRoute\",\n  \"createdAt\": \"2026-01-01T00:00:00Z\",\n  \"creditAccountAlias\": \"account_fees_credit\",\n  \"debitAccountAlias\": \"account_fees_debit\",\n  \"deletedAt\": \"2026-06-01T00:00:00Z\",\n  \"description\": \"Charges per completed transaction route\",\n  \"discountTiers\": null,\n  \"enable\": true,\n  \"eventFilter\": {\n    \"status\": \"APPROVED\",\n    \"transactionRoute\": \"payment_route\"\n  },\n  \"feeAmount\": \"50.00\",\n  \"freeQuota\": 100,\n  \"id\": \"00000000-0000-0000-0000-000000000000\",\n  \"label\": \"Monthly Volume Billing\",\n  \"ledgerId\": \"00000000-0000-0000-0000-000000000000\",\n  \"maintenanceCreditAccount\": \"account_maintenance_credit\",\n  \"organizationId\": \"00000000-0000-0000-0000-000000000000\",\n  \"pricingModel\": \"tiered\",\n  \"tiers\": null,\n  \"type\": \"volume\",\n  \"updatedAt\": \"2026-01-01T00:00:00Z\"\n}",
                   "options": {
                     "raw": {
                       "language": "json"
@@ -42640,7 +42640,7 @@
             "description": "",
             "body": {
               "mode": "raw",
-              "raw": "\"Example string\"",
+              "raw": "{\n  \"description\": \"Updated description for the billing package\",\n  \"enable\": false,\n  \"label\": \"Updated Billing Label\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -42701,7 +42701,7 @@
                 },
                 "body": {
                   "mode": "raw",
-                  "raw": "\"Example string\"",
+                  "raw": "{\n  \"description\": \"Updated description for the billing package\",\n  \"enable\": false,\n  \"label\": \"Updated Billing Label\"\n}",
                   "options": {
                     "raw": {
                       "language": "json"
@@ -42845,7 +42845,7 @@
             "description": "",
             "body": {
               "mode": "raw",
-              "raw": "\"Example string\"",
+              "raw": "{\n  \"ledgerId\": \"00000000-0000-0000-0000-000000000000\",\n  \"period\": \"2026-01\",\n  \"type\": \"volume\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -42901,7 +42901,7 @@
                 },
                 "body": {
                   "mode": "raw",
-                  "raw": "\"Example string\"",
+                  "raw": "{\n  \"ledgerId\": \"00000000-0000-0000-0000-000000000000\",\n  \"period\": \"2026-01\",\n  \"type\": \"volume\"\n}",
                   "options": {
                     "raw": {
                       "language": "json"
@@ -43044,7 +43044,7 @@
             "description": "",
             "body": {
               "mode": "raw",
-              "raw": "\"Example string\"",
+              "raw": "{\n  \"ledgerId\": \"00000000-0000-0000-0000-000000000000\",\n  \"packageId\": \"00000000-0000-0000-0000-000000000000\",\n  \"transaction\": {\n    \"chartOfAccountsGroupName\": \"FUNDING\",\n    \"code\": \"00000000-0000-0000-0000-000000000000\",\n    \"description\": \"Description\",\n    \"metadata\": {\n      \"key\": \"value\"\n    },\n    \"route\": \"00000000-0000-0000-0000-000000000000\",\n    \"routeId\": \"00000000-0000-0000-0000-000000000000\",\n    \"send\": {\n      \"asset\": \"USD\",\n      \"value\": \"100.00\",\n      \"source\": {\n        \"from\": [\n          {\n            \"accountAlias\": \"@external/USD\",\n            \"amount\": {\n              \"asset\": \"USD\",\n              \"value\": \"100.00\"\n            },\n            \"description\": \"External funding\",\n            \"chartOfAccounts\": \"FUNDING_DEBIT\",\n            \"metadata\": {\n              \"operation\": \"funding\",\n              \"type\": \"external\"\n            }\n          }\n        ]\n      },\n      \"distribute\": {\n        \"to\": [\n          {\n            \"account\": \"{{accountAlias}}\",\n            \"amount\": {\n              \"asset\": \"USD\",\n              \"value\": \"100.00\"\n            },\n            \"description\": \"Credit Operation\",\n            \"chartOfAccounts\": \"FUNDING_CREDIT\",\n            \"metadata\": {\n              \"operation\": \"funding\",\n              \"type\": \"account\"\n            }\n          }\n        ]\n      }\n    },\n    \"skip\": {\n      \"fees\": false,\n      \"tracer\": false\n    },\n    \"transactionDate\": \"2021-01-01T00:00:00Z\"\n  }\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -43099,7 +43099,7 @@
                 },
                 "body": {
                   "mode": "raw",
-                  "raw": "\"Example string\"",
+                  "raw": "{\n  \"ledgerId\": \"00000000-0000-0000-0000-000000000000\",\n  \"packageId\": \"00000000-0000-0000-0000-000000000000\",\n  \"transaction\": {\n    \"chartOfAccountsGroupName\": \"FUNDING\",\n    \"code\": \"00000000-0000-0000-0000-000000000000\",\n    \"description\": \"Description\",\n    \"metadata\": {\n      \"key\": \"value\"\n    },\n    \"route\": \"00000000-0000-0000-0000-000000000000\",\n    \"routeId\": \"00000000-0000-0000-0000-000000000000\",\n    \"send\": {\n      \"asset\": \"USD\",\n      \"value\": \"100.00\",\n      \"source\": {\n        \"from\": [\n          {\n            \"accountAlias\": \"@external/USD\",\n            \"amount\": {\n              \"asset\": \"USD\",\n              \"value\": \"100.00\"\n            },\n            \"description\": \"External funding\",\n            \"chartOfAccounts\": \"FUNDING_DEBIT\",\n            \"metadata\": {\n              \"operation\": \"funding\",\n              \"type\": \"external\"\n            }\n          }\n        ]\n      },\n      \"distribute\": {\n        \"to\": [\n          {\n            \"account\": \"{{accountAlias}}\",\n            \"amount\": {\n              \"asset\": \"USD\",\n              \"value\": \"100.00\"\n            },\n            \"description\": \"Credit Operation\",\n            \"chartOfAccounts\": \"FUNDING_CREDIT\",\n            \"metadata\": {\n              \"operation\": \"funding\",\n              \"type\": \"account\"\n            }\n          }\n        ]\n      }\n    },\n    \"skip\": {\n      \"fees\": false,\n      \"tracer\": false\n    },\n    \"transactionDate\": \"2021-01-01T00:00:00Z\"\n  }\n}",
                   "options": {
                     "raw": {
                       "language": "json"
@@ -43249,7 +43249,7 @@
             "description": "",
             "body": {
               "mode": "raw",
-              "raw": "\"Example string\"",
+              "raw": "{\n  \"alias\": \"@treasury_checking\",\n  \"assetCode\": \"USD\",\n  \"bankingDetails\": {\n    \"account\": \"123450\",\n    \"bankId\": \"12345\",\n    \"branch\": \"0001\",\n    \"closingDate\": \"2025-12-31\",\n    \"countryCode\": \"US\",\n    \"iban\": \"US12345678901234567890\",\n    \"openingDate\": \"2025-01-01\",\n    \"type\": \"CACC\"\n  },\n  \"blocked\": null,\n  \"entityId\": \"EXT-ACC-12345\",\n  \"metadata\": {\n    \"key\": \"value\"\n  },\n  \"name\": \"Corporate Checking Account\",\n  \"parentAccountId\": null,\n  \"portfolioId\": null,\n  \"regulatoryFields\": {\n    \"participantDocument\": \"12345678912345\"\n  },\n  \"relatedParties\": null,\n  \"segmentId\": null,\n  \"skip\": {\n    \"holder\": false\n  },\n  \"status\": {\n    \"code\": \"ACTIVE\"\n  },\n  \"type\": \"deposit\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -43311,7 +43311,7 @@
                 },
                 "body": {
                   "mode": "raw",
-                  "raw": "\"Example string\"",
+                  "raw": "{\n  \"alias\": \"@treasury_checking\",\n  \"assetCode\": \"USD\",\n  \"bankingDetails\": {\n    \"account\": \"123450\",\n    \"bankId\": \"12345\",\n    \"branch\": \"0001\",\n    \"closingDate\": \"2025-12-31\",\n    \"countryCode\": \"US\",\n    \"iban\": \"US12345678901234567890\",\n    \"openingDate\": \"2025-01-01\",\n    \"type\": \"CACC\"\n  },\n  \"blocked\": null,\n  \"entityId\": \"EXT-ACC-12345\",\n  \"metadata\": {\n    \"key\": \"value\"\n  },\n  \"name\": \"Corporate Checking Account\",\n  \"parentAccountId\": null,\n  \"portfolioId\": null,\n  \"regulatoryFields\": {\n    \"participantDocument\": \"12345678912345\"\n  },\n  \"relatedParties\": null,\n  \"segmentId\": null,\n  \"skip\": {\n    \"holder\": false\n  },\n  \"status\": {\n    \"code\": \"ACTIVE\"\n  },\n  \"type\": \"deposit\"\n}",
                   "options": {
                     "raw": {
                       "language": "json"
@@ -43692,7 +43692,7 @@
             "description": "",
             "body": {
               "mode": "raw",
-              "raw": "\"Example string\"",
+              "raw": "{\n  \"account\": {\n    \"ruleType\": \"alias\",\n    \"validIf\": null\n  },\n  \"accountingEntries\": {\n    \"block\": {\n      \"credit\": {\n        \"code\": \"1001\",\n        \"description\": \"Cash\"\n      },\n      \"debit\": {\n        \"code\": \"1001\",\n        \"description\": \"Cash\"\n      }\n    },\n    \"cancel\": {\n      \"credit\": {\n        \"code\": \"1001\",\n        \"description\": \"Cash\"\n      },\n      \"debit\": {\n        \"code\": \"1001\",\n        \"description\": \"Cash\"\n      }\n    },\n    \"commit\": {\n      \"credit\": {\n        \"code\": \"1001\",\n        \"description\": \"Cash\"\n      },\n      \"debit\": {\n        \"code\": \"1001\",\n        \"description\": \"Cash\"\n      }\n    },\n    \"direct\": {\n      \"credit\": {\n        \"code\": \"1001\",\n        \"description\": \"Cash\"\n      },\n      \"debit\": {\n        \"code\": \"1001\",\n        \"description\": \"Cash\"\n      }\n    },\n    \"hold\": {\n      \"credit\": {\n        \"code\": \"1001\",\n        \"description\": \"Cash\"\n      },\n      \"debit\": {\n        \"code\": \"1001\",\n        \"description\": \"Cash\"\n      }\n    },\n    \"overdraft\": {\n      \"credit\": {\n        \"code\": \"1001\",\n        \"description\": \"Cash\"\n      },\n      \"debit\": {\n        \"code\": \"1001\",\n        \"description\": \"Cash\"\n      }\n    },\n    \"revert\": {\n      \"credit\": {\n        \"code\": \"1001\",\n        \"description\": \"Cash\"\n      },\n      \"debit\": {\n        \"code\": \"1001\",\n        \"description\": \"Cash\"\n      }\n    },\n    \"unblock\": {\n      \"credit\": {\n        \"code\": \"1001\",\n        \"description\": \"Cash\"\n      },\n      \"debit\": {\n        \"code\": \"1001\",\n        \"description\": \"Cash\"\n      }\n    }\n  },\n  \"code\": \"EXT-001\",\n  \"description\": \"This operation route handles cash-in transactions from service charge collections\",\n  \"metadata\": {\n    \"key\": \"value\"\n  },\n  \"operationType\": \"source\",\n  \"title\": \"Cashin from service charge\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -43747,7 +43747,7 @@
                 },
                 "body": {
                   "mode": "raw",
-                  "raw": "\"Example string\"",
+                  "raw": "{\n  \"account\": {\n    \"ruleType\": \"alias\",\n    \"validIf\": null\n  },\n  \"accountingEntries\": {\n    \"block\": {\n      \"credit\": {\n        \"code\": \"1001\",\n        \"description\": \"Cash\"\n      },\n      \"debit\": {\n        \"code\": \"1001\",\n        \"description\": \"Cash\"\n      }\n    },\n    \"cancel\": {\n      \"credit\": {\n        \"code\": \"1001\",\n        \"description\": \"Cash\"\n      },\n      \"debit\": {\n        \"code\": \"1001\",\n        \"description\": \"Cash\"\n      }\n    },\n    \"commit\": {\n      \"credit\": {\n        \"code\": \"1001\",\n        \"description\": \"Cash\"\n      },\n      \"debit\": {\n        \"code\": \"1001\",\n        \"description\": \"Cash\"\n      }\n    },\n    \"direct\": {\n      \"credit\": {\n        \"code\": \"1001\",\n        \"description\": \"Cash\"\n      },\n      \"debit\": {\n        \"code\": \"1001\",\n        \"description\": \"Cash\"\n      }\n    },\n    \"hold\": {\n      \"credit\": {\n        \"code\": \"1001\",\n        \"description\": \"Cash\"\n      },\n      \"debit\": {\n        \"code\": \"1001\",\n        \"description\": \"Cash\"\n      }\n    },\n    \"overdraft\": {\n      \"credit\": {\n        \"code\": \"1001\",\n        \"description\": \"Cash\"\n      },\n      \"debit\": {\n        \"code\": \"1001\",\n        \"description\": \"Cash\"\n      }\n    },\n    \"revert\": {\n      \"credit\": {\n        \"code\": \"1001\",\n        \"description\": \"Cash\"\n      },\n      \"debit\": {\n        \"code\": \"1001\",\n        \"description\": \"Cash\"\n      }\n    },\n    \"unblock\": {\n      \"credit\": {\n        \"code\": \"1001\",\n        \"description\": \"Cash\"\n      },\n      \"debit\": {\n        \"code\": \"1001\",\n        \"description\": \"Cash\"\n      }\n    }\n  },\n  \"code\": \"EXT-001\",\n  \"description\": \"This operation route handles cash-in transactions from service charge collections\",\n  \"metadata\": {\n    \"key\": \"value\"\n  },\n  \"operationType\": \"source\",\n  \"title\": \"Cashin from service charge\"\n}",
                   "options": {
                     "raw": {
                       "language": "json"
@@ -44198,7 +44198,7 @@
             "description": "",
             "body": {
               "mode": "raw",
-              "raw": "\"Example string\"",
+              "raw": "{\n  \"account\": {\n    \"ruleType\": \"alias\",\n    \"validIf\": null\n  },\n  \"accountingEntries\": {\n    \"block\": {\n      \"credit\": {\n        \"code\": \"1001\",\n        \"description\": \"Cash\"\n      },\n      \"debit\": {\n        \"code\": \"1001\",\n        \"description\": \"Cash\"\n      }\n    },\n    \"cancel\": {\n      \"credit\": {\n        \"code\": \"1001\",\n        \"description\": \"Cash\"\n      },\n      \"debit\": {\n        \"code\": \"1001\",\n        \"description\": \"Cash\"\n      }\n    },\n    \"commit\": {\n      \"credit\": {\n        \"code\": \"1001\",\n        \"description\": \"Cash\"\n      },\n      \"debit\": {\n        \"code\": \"1001\",\n        \"description\": \"Cash\"\n      }\n    },\n    \"direct\": {\n      \"credit\": {\n        \"code\": \"1001\",\n        \"description\": \"Cash\"\n      },\n      \"debit\": {\n        \"code\": \"1001\",\n        \"description\": \"Cash\"\n      }\n    },\n    \"hold\": {\n      \"credit\": {\n        \"code\": \"1001\",\n        \"description\": \"Cash\"\n      },\n      \"debit\": {\n        \"code\": \"1001\",\n        \"description\": \"Cash\"\n      }\n    },\n    \"overdraft\": {\n      \"credit\": {\n        \"code\": \"1001\",\n        \"description\": \"Cash\"\n      },\n      \"debit\": {\n        \"code\": \"1001\",\n        \"description\": \"Cash\"\n      }\n    },\n    \"revert\": {\n      \"credit\": {\n        \"code\": \"1001\",\n        \"description\": \"Cash\"\n      },\n      \"debit\": {\n        \"code\": \"1001\",\n        \"description\": \"Cash\"\n      }\n    },\n    \"unblock\": {\n      \"credit\": {\n        \"code\": \"1001\",\n        \"description\": \"Cash\"\n      },\n      \"debit\": {\n        \"code\": \"1001\",\n        \"description\": \"Cash\"\n      }\n    }\n  },\n  \"code\": \"EXT-001\",\n  \"description\": \"This operation route handles cash-in transactions from service charge collections\",\n  \"metadata\": {\n    \"key\": \"value\"\n  },\n  \"title\": \"Cashin from service charge\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -44259,7 +44259,7 @@
                 },
                 "body": {
                   "mode": "raw",
-                  "raw": "\"Example string\"",
+                  "raw": "{\n  \"account\": {\n    \"ruleType\": \"alias\",\n    \"validIf\": null\n  },\n  \"accountingEntries\": {\n    \"block\": {\n      \"credit\": {\n        \"code\": \"1001\",\n        \"description\": \"Cash\"\n      },\n      \"debit\": {\n        \"code\": \"1001\",\n        \"description\": \"Cash\"\n      }\n    },\n    \"cancel\": {\n      \"credit\": {\n        \"code\": \"1001\",\n        \"description\": \"Cash\"\n      },\n      \"debit\": {\n        \"code\": \"1001\",\n        \"description\": \"Cash\"\n      }\n    },\n    \"commit\": {\n      \"credit\": {\n        \"code\": \"1001\",\n        \"description\": \"Cash\"\n      },\n      \"debit\": {\n        \"code\": \"1001\",\n        \"description\": \"Cash\"\n      }\n    },\n    \"direct\": {\n      \"credit\": {\n        \"code\": \"1001\",\n        \"description\": \"Cash\"\n      },\n      \"debit\": {\n        \"code\": \"1001\",\n        \"description\": \"Cash\"\n      }\n    },\n    \"hold\": {\n      \"credit\": {\n        \"code\": \"1001\",\n        \"description\": \"Cash\"\n      },\n      \"debit\": {\n        \"code\": \"1001\",\n        \"description\": \"Cash\"\n      }\n    },\n    \"overdraft\": {\n      \"credit\": {\n        \"code\": \"1001\",\n        \"description\": \"Cash\"\n      },\n      \"debit\": {\n        \"code\": \"1001\",\n        \"description\": \"Cash\"\n      }\n    },\n    \"revert\": {\n      \"credit\": {\n        \"code\": \"1001\",\n        \"description\": \"Cash\"\n      },\n      \"debit\": {\n        \"code\": \"1001\",\n        \"description\": \"Cash\"\n      }\n    },\n    \"unblock\": {\n      \"credit\": {\n        \"code\": \"1001\",\n        \"description\": \"Cash\"\n      },\n      \"debit\": {\n        \"code\": \"1001\",\n        \"description\": \"Cash\"\n      }\n    }\n  },\n  \"code\": \"EXT-001\",\n  \"description\": \"This operation route handles cash-in transactions from service charge collections\",\n  \"metadata\": {\n    \"key\": \"value\"\n  },\n  \"title\": \"Cashin from service charge\"\n}",
                   "options": {
                     "raw": {
                       "language": "json"
@@ -44640,7 +44640,7 @@
             "description": "",
             "body": {
               "mode": "raw",
-              "raw": "\"Example string\"",
+              "raw": "{\n  \"description\": \"Pacote de taxas administrativas padrão\",\n  \"enable\": null,\n  \"feeGroupLabel\": \"Pacote Padrão\",\n  \"fees\": {\n    \"key\": \"value\"\n  },\n  \"ledgerId\": \"00000000-0000-0000-0000-000000000000\",\n  \"maximumAmount\": \"1000.20\",\n  \"minimumAmount\": \"100.00\",\n  \"segmentId\": \"00000000-0000-0000-0000-000000000000\",\n  \"transactionRoute\": \"debitoted\",\n  \"waivedAccounts\": [\n    \"acc001\",\n    \"acc002\"\n  ]\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -44695,7 +44695,7 @@
                 },
                 "body": {
                   "mode": "raw",
-                  "raw": "\"Example string\"",
+                  "raw": "{\n  \"description\": \"Pacote de taxas administrativas padrão\",\n  \"enable\": null,\n  \"feeGroupLabel\": \"Pacote Padrão\",\n  \"fees\": {\n    \"key\": \"value\"\n  },\n  \"ledgerId\": \"00000000-0000-0000-0000-000000000000\",\n  \"maximumAmount\": \"1000.20\",\n  \"minimumAmount\": \"100.00\",\n  \"segmentId\": \"00000000-0000-0000-0000-000000000000\",\n  \"transactionRoute\": \"debitoted\",\n  \"waivedAccounts\": [\n    \"acc001\",\n    \"acc002\"\n  ]\n}",
                   "options": {
                     "raw": {
                       "language": "json"
@@ -45146,7 +45146,7 @@
             "description": "",
             "body": {
               "mode": "raw",
-              "raw": "\"Example string\"",
+              "raw": "{\n  \"description\": \"Pacote de taxas administrativas padrão\",\n  \"enable\": true,\n  \"feeGroupLabel\": \"Pacote Padrão\",\n  \"fees\": {\n    \"key\": \"value\"\n  },\n  \"maximumAmount\": \"1000\",\n  \"minimumAmount\": \"100\",\n  \"waivedAccounts\": [\n    \"acc001\",\n    \"acc002\"\n  ]\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -45207,7 +45207,7 @@
                 },
                 "body": {
                   "mode": "raw",
-                  "raw": "\"Example string\"",
+                  "raw": "{\n  \"description\": \"Pacote de taxas administrativas padrão\",\n  \"enable\": true,\n  \"feeGroupLabel\": \"Pacote Padrão\",\n  \"fees\": {\n    \"key\": \"value\"\n  },\n  \"maximumAmount\": \"1000\",\n  \"minimumAmount\": \"100\",\n  \"waivedAccounts\": [\n    \"acc001\",\n    \"acc002\"\n  ]\n}",
                   "options": {
                     "raw": {
                       "language": "json"
@@ -45624,7 +45624,7 @@
             "description": "",
             "body": {
               "mode": "raw",
-              "raw": "\"Example string\"",
+              "raw": "{\n  \"entityId\": \"00000000-0000-0000-0000-000000000000\",\n  \"metadata\": {\n    \"key\": \"value\"\n  },\n  \"name\": \"My Portfolio\",\n  \"status\": {\n    \"code\": \"ACTIVE\"\n  }\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -45679,7 +45679,7 @@
                 },
                 "body": {
                   "mode": "raw",
-                  "raw": "\"Example string\"",
+                  "raw": "{\n  \"entityId\": \"00000000-0000-0000-0000-000000000000\",\n  \"metadata\": {\n    \"key\": \"value\"\n  },\n  \"name\": \"My Portfolio\",\n  \"status\": {\n    \"code\": \"ACTIVE\"\n  }\n}",
                   "options": {
                     "raw": {
                       "language": "json"
@@ -46248,7 +46248,7 @@
             "description": "",
             "body": {
               "mode": "raw",
-              "raw": "\"Example string\"",
+              "raw": "{\n  \"entityId\": \"00000000-0000-0000-0000-000000000000\",\n  \"metadata\": {\n    \"key\": \"value\"\n  },\n  \"name\": \"My Portfolio Updated\",\n  \"status\": {\n    \"code\": \"ACTIVE\"\n  }\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -46309,7 +46309,7 @@
                 },
                 "body": {
                   "mode": "raw",
-                  "raw": "\"Example string\"",
+                  "raw": "{\n  \"entityId\": \"00000000-0000-0000-0000-000000000000\",\n  \"metadata\": {\n    \"key\": \"value\"\n  },\n  \"name\": \"My Portfolio Updated\",\n  \"status\": {\n    \"code\": \"ACTIVE\"\n  }\n}",
                   "options": {
                     "raw": {
                       "language": "json"
@@ -46702,7 +46702,7 @@
             "description": "",
             "body": {
               "mode": "raw",
-              "raw": "\"Example string\"",
+              "raw": "{\n  \"metadata\": {\n    \"key\": \"value\"\n  },\n  \"name\": \"My Segment\",\n  \"status\": {\n    \"code\": \"ACTIVE\"\n  }\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -46757,7 +46757,7 @@
                 },
                 "body": {
                   "mode": "raw",
-                  "raw": "\"Example string\"",
+                  "raw": "{\n  \"metadata\": {\n    \"key\": \"value\"\n  },\n  \"name\": \"My Segment\",\n  \"status\": {\n    \"code\": \"ACTIVE\"\n  }\n}",
                   "options": {
                     "raw": {
                       "language": "json"
@@ -47326,7 +47326,7 @@
             "description": "",
             "body": {
               "mode": "raw",
-              "raw": "\"Example string\"",
+              "raw": "{\n  \"metadata\": {\n    \"key\": \"value\"\n  },\n  \"name\": \"My Segment Updated\",\n  \"status\": {\n    \"code\": \"ACTIVE\"\n  }\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -47387,7 +47387,7 @@
                 },
                 "body": {
                   "mode": "raw",
-                  "raw": "\"Example string\"",
+                  "raw": "{\n  \"metadata\": {\n    \"key\": \"value\"\n  },\n  \"name\": \"My Segment Updated\",\n  \"status\": {\n    \"code\": \"ACTIVE\"\n  }\n}",
                   "options": {
                     "raw": {
                       "language": "json"
@@ -47768,7 +47768,7 @@
             "description": "",
             "body": {
               "mode": "raw",
-              "raw": "\"Example string\"",
+              "raw": "{\n  \"description\": \"Settlement route for service charges\",\n  \"metadata\": {\n    \"key\": \"value\"\n  },\n  \"operationRoutes\": null,\n  \"title\": \"Charge Settlement\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -47823,7 +47823,7 @@
                 },
                 "body": {
                   "mode": "raw",
-                  "raw": "\"Example string\"",
+                  "raw": "{\n  \"description\": \"Settlement route for service charges\",\n  \"metadata\": {\n    \"key\": \"value\"\n  },\n  \"operationRoutes\": null,\n  \"title\": \"Charge Settlement\"\n}",
                   "options": {
                     "raw": {
                       "language": "json"
@@ -48274,7 +48274,7 @@
             "description": "",
             "body": {
               "mode": "raw",
-              "raw": "\"Example string\"",
+              "raw": "{\n  \"description\": \"Settlement route for service charges\",\n  \"metadata\": {\n    \"key\": \"value\"\n  },\n  \"operationRoutes\": [\n    \"Example string\"\n  ],\n  \"title\": \"Charge Settlement\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -48335,7 +48335,7 @@
                 },
                 "body": {
                   "mode": "raw",
-                  "raw": "\"Example string\"",
+                  "raw": "{\n  \"description\": \"Settlement route for service charges\",\n  \"metadata\": {\n    \"key\": \"value\"\n  },\n  \"operationRoutes\": [\n    \"Example string\"\n  ],\n  \"title\": \"Charge Settlement\"\n}",
                   "options": {
                     "raw": {
                       "language": "json"
@@ -48741,7 +48741,7 @@
             "description": "",
             "body": {
               "mode": "raw",
-              "raw": "\"Example string\"",
+              "raw": "{\n  \"chartOfAccountsGroupName\": \"FUNDING\",\n  \"code\": \"TR12345\",\n  \"description\": \"New Transaction\",\n  \"metadata\": {\n    \"key\": \"value\"\n  },\n  \"route\": \"00000000-0000-0000-0000-000000000000\",\n  \"routeId\": \"00000000-0000-0000-0000-000000000000\",\n  \"send\": {\n    \"asset\": \"USD\",\n    \"value\": \"100.00\",\n    \"source\": {\n      \"from\": [\n        {\n          \"accountAlias\": \"@external/USD\",\n          \"amount\": {\n            \"asset\": \"USD\",\n            \"value\": \"100.00\"\n          },\n          \"description\": \"External funding\",\n          \"chartOfAccounts\": \"FUNDING_DEBIT\",\n          \"metadata\": {\n            \"operation\": \"funding\",\n            \"type\": \"external\"\n          }\n        }\n      ]\n    },\n    \"distribute\": {\n      \"to\": [\n        {\n          \"account\": \"{{accountAlias}}\",\n          \"amount\": {\n            \"asset\": \"USD\",\n            \"value\": \"100.00\"\n          },\n          \"description\": \"Credit Operation\",\n          \"chartOfAccounts\": \"FUNDING_CREDIT\",\n          \"metadata\": {\n            \"operation\": \"funding\",\n            \"type\": \"account\"\n          }\n        }\n      ]\n    }\n  },\n  \"skip\": {\n    \"fees\": false,\n    \"tracer\": false\n  },\n  \"transactionDate\": \"2021-01-01T00:00:00Z\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -48809,7 +48809,7 @@
                 },
                 "body": {
                   "mode": "raw",
-                  "raw": "\"Example string\"",
+                  "raw": "{\n  \"chartOfAccountsGroupName\": \"FUNDING\",\n  \"code\": \"TR12345\",\n  \"description\": \"New Transaction\",\n  \"metadata\": {\n    \"key\": \"value\"\n  },\n  \"route\": \"00000000-0000-0000-0000-000000000000\",\n  \"routeId\": \"00000000-0000-0000-0000-000000000000\",\n  \"send\": {\n    \"asset\": \"USD\",\n    \"value\": \"100.00\",\n    \"source\": {\n      \"from\": [\n        {\n          \"accountAlias\": \"@external/USD\",\n          \"amount\": {\n            \"asset\": \"USD\",\n            \"value\": \"100.00\"\n          },\n          \"description\": \"External funding\",\n          \"chartOfAccounts\": \"FUNDING_DEBIT\",\n          \"metadata\": {\n            \"operation\": \"funding\",\n            \"type\": \"external\"\n          }\n        }\n      ]\n    },\n    \"distribute\": {\n      \"to\": [\n        {\n          \"account\": \"{{accountAlias}}\",\n          \"amount\": {\n            \"asset\": \"USD\",\n            \"value\": \"100.00\"\n          },\n          \"description\": \"Credit Operation\",\n          \"chartOfAccounts\": \"FUNDING_CREDIT\",\n          \"metadata\": {\n            \"operation\": \"funding\",\n            \"type\": \"account\"\n          }\n        }\n      ]\n    }\n  },\n  \"skip\": {\n    \"fees\": false,\n    \"tracer\": false\n  },\n  \"transactionDate\": \"2021-01-01T00:00:00Z\"\n}",
                   "options": {
                     "raw": {
                       "language": "json"
@@ -48959,7 +48959,7 @@
             "description": "",
             "body": {
               "mode": "raw",
-              "raw": "\"Example string\"",
+              "raw": "{\n  \"chartOfAccountsGroupName\": \"FUNDING\",\n  \"code\": \"TR12345\",\n  \"description\": \"New Transaction\",\n  \"metadata\": {\n    \"key\": \"value\"\n  },\n  \"route\": \"00000000-0000-0000-0000-000000000000\",\n  \"routeId\": \"00000000-0000-0000-0000-000000000000\",\n  \"send\": {\n    \"asset\": \"BRL\",\n    \"distribute\": {\n      \"remaining\": \"Example remaining\",\n      \"to\": null\n    },\n    \"value\": \"1000\"\n  },\n  \"skip\": {\n    \"fees\": false,\n    \"tracer\": false\n  },\n  \"transactionDate\": \"2021-01-01T00:00:00Z\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -49027,7 +49027,7 @@
                 },
                 "body": {
                   "mode": "raw",
-                  "raw": "\"Example string\"",
+                  "raw": "{\n  \"chartOfAccountsGroupName\": \"FUNDING\",\n  \"code\": \"TR12345\",\n  \"description\": \"New Transaction\",\n  \"metadata\": {\n    \"key\": \"value\"\n  },\n  \"route\": \"00000000-0000-0000-0000-000000000000\",\n  \"routeId\": \"00000000-0000-0000-0000-000000000000\",\n  \"send\": {\n    \"asset\": \"BRL\",\n    \"distribute\": {\n      \"remaining\": \"Example remaining\",\n      \"to\": null\n    },\n    \"value\": \"1000\"\n  },\n  \"skip\": {\n    \"fees\": false,\n    \"tracer\": false\n  },\n  \"transactionDate\": \"2021-01-01T00:00:00Z\"\n}",
                   "options": {
                     "raw": {
                       "language": "json"
@@ -49183,7 +49183,7 @@
             "description": "",
             "body": {
               "mode": "raw",
-              "raw": "\"Example string\"",
+              "raw": "{\n  \"chartOfAccountsGroupName\": \"FUNDING\",\n  \"code\": \"TR12345\",\n  \"description\": \"New Transaction\",\n  \"metadata\": {\n    \"key\": \"value\"\n  },\n  \"route\": \"00000000-0000-0000-0000-000000000000\",\n  \"routeId\": \"00000000-0000-0000-0000-000000000000\",\n  \"send\": {\n    \"asset\": \"USD\",\n    \"value\": \"100.00\",\n    \"source\": {\n      \"from\": [\n        {\n          \"accountAlias\": \"@external/USD\",\n          \"amount\": {\n            \"asset\": \"USD\",\n            \"value\": \"100.00\"\n          },\n          \"description\": \"External funding\",\n          \"chartOfAccounts\": \"FUNDING_DEBIT\",\n          \"metadata\": {\n            \"operation\": \"funding\",\n            \"type\": \"external\"\n          }\n        }\n      ]\n    },\n    \"distribute\": {\n      \"to\": [\n        {\n          \"account\": \"{{accountAlias}}\",\n          \"amount\": {\n            \"asset\": \"USD\",\n            \"value\": \"100.00\"\n          },\n          \"description\": \"Credit Operation\",\n          \"chartOfAccounts\": \"FUNDING_CREDIT\",\n          \"metadata\": {\n            \"operation\": \"funding\",\n            \"type\": \"account\"\n          }\n        }\n      ]\n    }\n  },\n  \"skip\": {\n    \"fees\": false,\n    \"tracer\": false\n  },\n  \"transactionDate\": \"2021-01-01T00:00:00Z\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -49257,7 +49257,7 @@
                 },
                 "body": {
                   "mode": "raw",
-                  "raw": "\"Example string\"",
+                  "raw": "{\n  \"chartOfAccountsGroupName\": \"FUNDING\",\n  \"code\": \"TR12345\",\n  \"description\": \"New Transaction\",\n  \"metadata\": {\n    \"key\": \"value\"\n  },\n  \"route\": \"00000000-0000-0000-0000-000000000000\",\n  \"routeId\": \"00000000-0000-0000-0000-000000000000\",\n  \"send\": {\n    \"asset\": \"USD\",\n    \"value\": \"100.00\",\n    \"source\": {\n      \"from\": [\n        {\n          \"accountAlias\": \"@external/USD\",\n          \"amount\": {\n            \"asset\": \"USD\",\n            \"value\": \"100.00\"\n          },\n          \"description\": \"External funding\",\n          \"chartOfAccounts\": \"FUNDING_DEBIT\",\n          \"metadata\": {\n            \"operation\": \"funding\",\n            \"type\": \"external\"\n          }\n        }\n      ]\n    },\n    \"distribute\": {\n      \"to\": [\n        {\n          \"account\": \"{{accountAlias}}\",\n          \"amount\": {\n            \"asset\": \"USD\",\n            \"value\": \"100.00\"\n          },\n          \"description\": \"Credit Operation\",\n          \"chartOfAccounts\": \"FUNDING_CREDIT\",\n          \"metadata\": {\n            \"operation\": \"funding\",\n            \"type\": \"account\"\n          }\n        }\n      ]\n    }\n  },\n  \"skip\": {\n    \"fees\": false,\n    \"tracer\": false\n  },\n  \"transactionDate\": \"2021-01-01T00:00:00Z\"\n}",
                   "options": {
                     "raw": {
                       "language": "json"
@@ -49558,7 +49558,7 @@
             "description": "",
             "body": {
               "mode": "raw",
-              "raw": "\"Example string\"",
+              "raw": "{\n  \"chartOfAccountsGroupName\": \"WITHDRAWAL\",\n  \"code\": \"TR12345\",\n  \"description\": \"New Outflow Transaction\",\n  \"metadata\": {\n    \"key\": \"value\"\n  },\n  \"route\": \"00000000-0000-0000-0000-000000000000\",\n  \"routeId\": \"00000000-0000-0000-0000-000000000000\",\n  \"send\": {\n    \"asset\": \"BRL\",\n    \"source\": {\n      \"from\": null,\n      \"remaining\": \"remaining\"\n    },\n    \"value\": \"1000\"\n  },\n  \"skip\": {\n    \"fees\": false,\n    \"tracer\": false\n  },\n  \"transactionDate\": \"2021-01-01T00:00:00Z\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -49626,7 +49626,7 @@
                 },
                 "body": {
                   "mode": "raw",
-                  "raw": "\"Example string\"",
+                  "raw": "{\n  \"chartOfAccountsGroupName\": \"WITHDRAWAL\",\n  \"code\": \"TR12345\",\n  \"description\": \"New Outflow Transaction\",\n  \"metadata\": {\n    \"key\": \"value\"\n  },\n  \"route\": \"00000000-0000-0000-0000-000000000000\",\n  \"routeId\": \"00000000-0000-0000-0000-000000000000\",\n  \"send\": {\n    \"asset\": \"BRL\",\n    \"source\": {\n      \"from\": null,\n      \"remaining\": \"remaining\"\n    },\n    \"value\": \"1000\"\n  },\n  \"skip\": {\n    \"fees\": false,\n    \"tracer\": false\n  },\n  \"transactionDate\": \"2021-01-01T00:00:00Z\"\n}",
                   "options": {
                     "raw": {
                       "language": "json"
@@ -49955,7 +49955,7 @@
             "description": "",
             "body": {
               "mode": "raw",
-              "raw": "\"Example string\"",
+              "raw": "{\n  \"description\": \"Transaction description\",\n  \"metadata\": {\n    \"key\": \"value\"\n  }\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -50016,7 +50016,7 @@
                 },
                 "body": {
                   "mode": "raw",
-                  "raw": "\"Example string\"",
+                  "raw": "{\n  \"description\": \"Transaction description\",\n  \"metadata\": {\n    \"key\": \"value\"\n  }\n}",
                   "options": {
                     "raw": {
                       "language": "json"
@@ -51889,7 +51889,7 @@
             "description": "",
             "body": {
               "mode": "raw",
-              "raw": "\"Example string\"",
+              "raw": "{\n  \"metadataKey\": \"tier\",\n  \"sparse\": true,\n  \"unique\": false\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -51938,7 +51938,7 @@
                 },
                 "body": {
                   "mode": "raw",
-                  "raw": "\"Example string\"",
+                  "raw": "{\n  \"metadataKey\": \"tier\",\n  \"sparse\": true,\n  \"unique\": false\n}",
                   "options": {
                     "raw": {
                       "language": "json"
