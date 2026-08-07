@@ -12,7 +12,7 @@ import (
 
 // TestBillingSerializerSeam_ConcreteSatisfies locks that the concrete
 // *billing.Serializer satisfies the unexported billingSerializer seam the
-// UseCase field is typed on, so bootstrap can inject it and Phase 2 can fake it.
+// UseCase field is typed on, so bootstrap can inject it and tests can fake it.
 func TestBillingSerializerSeam_ConcreteSatisfies(t *testing.T) {
 	t.Parallel()
 

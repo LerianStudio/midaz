@@ -13,7 +13,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// TestBillingEventWiredIntoCatalog locks Task 1.2.2: the shared billing_recorded
+// TestBillingEventWiredIntoCatalog locks that the shared billing_recorded
 // definition owned by lib-streaming's billing package is registered in the midaz
 // streaming catalog, and its route resolves to the FIXED shared billing topic
 // (owned by the billing package, NOT rendered via pkgStreaming.TopicName) without

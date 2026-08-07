@@ -30,7 +30,7 @@ import (
 )
 
 // billingSerializer is the narrow seam over lib-streaming's *billing.Serializer.
-// It exists so the billable-event emit path (Phase 2) can be unit-tested with a
+// It exists so the billable-event emit path can be unit-tested with a
 // fake and so a nil value cleanly means "billing disabled". The concrete
 // *billing.Serializer satisfies it; the assertion below locks that at compile
 // time.
