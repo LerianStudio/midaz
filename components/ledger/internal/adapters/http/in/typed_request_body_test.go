@@ -107,6 +107,8 @@ func TestEveryJSONBodyOperationIsTyped(t *testing.T) {
 
 	for _, id := range ids {
 		schema := jsonRequestSchema(doc, id)
+		require.NotNilf(t, schema,
+			"op %q must publish an application/json request-body schema", id)
 		require.Falsef(t, isBinaryBodySchema(schema),
 			"op %q still publishes the opaque binary RawBody schema; its typed request body is not wired", id)
 	}

@@ -5,6 +5,7 @@
 package in
 
 import (
+	"net/http"
 	"strings"
 	"testing"
 
@@ -16,14 +17,14 @@ import (
 // repeating the eight-method fan-out.
 func operationsForPathItem(item *huma.PathItem) map[string]*huma.Operation {
 	verbs := map[string]*huma.Operation{
-		"GET":     item.Get,
-		"PUT":     item.Put,
-		"POST":    item.Post,
-		"DELETE":  item.Delete,
-		"OPTIONS": item.Options,
-		"HEAD":    item.Head,
-		"PATCH":   item.Patch,
-		"TRACE":   item.Trace,
+		http.MethodGet:     item.Get,
+		http.MethodPut:     item.Put,
+		http.MethodPost:    item.Post,
+		http.MethodDelete:  item.Delete,
+		http.MethodOptions: item.Options,
+		http.MethodHead:    item.Head,
+		http.MethodPatch:   item.Patch,
+		http.MethodTrace:   item.Trace,
 	}
 
 	present := make(map[string]*huma.Operation, len(verbs))
