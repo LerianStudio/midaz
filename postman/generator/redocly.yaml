@@ -12,23 +12,18 @@
 # The per-component sources are now native Huma OAS 3.1 dumps
 # (components/{ledger,tracer}/api/openapi.huma.yaml), regenerated from struct
 # tags by TestOpenAPISpecDump; swaggo/openapi-generator have been fully retired.
-# Every rule below has been re-verified against those Huma dumps. Only three
-# remain relaxed, each because it still fires on the current Huma output — the
-# reason is documented per rule. The rest (no-server-trailing-slash,
+# Every rule below has been re-verified against the current joined output. Only
+# two remain relaxed, each because it still fires on that output — the reason is
+# documented per rule. The rest (no-empty-servers, no-server-trailing-slash,
 # no-server-example.com, security-defined, no-unused-components,
-# no-invalid-schema-examples) produced zero findings on the Huma dumps and were
-# re-enabled here.
+# no-invalid-schema-examples) produced zero findings and were re-enabled here:
+# no-empty-servers now passes because the join emits a single root server (/),
+# not an empty root servers block.
 
 extends:
   - recommended
 
 rules:
-  # JOIN ARTIFACT — intentional. `redocly join` relocates each component's
-  # server into a per-path `servers` block and leaves the root `servers` empty.
-  # That per-path relocation is the whole reason we use join; an empty root
-  # `servers` is the expected shape of the joined document.
-  no-empty-servers: off
-
   # HUMA OUTPUT — the ledger and tracer Huma handlers declare their error
   # responses via the shared RFC 9457 problem model, but the generated OAS does
   # not always emit an explicit 4xx entry per operation (71 operations across

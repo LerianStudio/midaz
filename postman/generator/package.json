@@ -7,7 +7,7 @@
     "convert": "node ./convert-openapi.js",
     "workflow": "node ./create-workflow.js",
     "enhance": "node ./enhance-tests.js",
-    "test:collection": "cd ../.. && make newman",
+    "test:collection": "cd ../.. && newman run postman/MIDAZ.postman_collection.json -e postman/MIDAZ.postman_environment.json --folder \"Complete API Workflow\"",
     "test:collection:verbose": "cd ../.. && newman run postman/MIDAZ.postman_collection.json -e postman/MIDAZ.postman_environment.json --folder \"Complete API Workflow\" --verbose",
     "validate:collection": "cd ../.. && jq . postman/MIDAZ.postman_collection.json > /dev/null && echo 'Collection JSON is valid'",
     "validate:environment": "cd ../.. && jq . postman/MIDAZ.postman_environment.json > /dev/null && echo 'Environment JSON is valid'",
@@ -21,7 +21,11 @@
   },
   "devDependencies": {
     "@redocly/cli": "^2.40.0",
-    "commander": "^9.4.1"
+    "commander": "^9.4.1",
+    "newman": "^6.2.1"
+  },
+  "overrides": {
+    "handlebars": "4.7.9"
   },
   "engines": {
     "node": ">=16.0.0"

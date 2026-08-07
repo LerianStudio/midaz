@@ -219,7 +219,7 @@ func (handler *OperationHandler) UpdateOperationHuma(ctx context.Context, in *Up
 // server calls; the auth (auth.Authorize("midaz","operations",verb)) + tenant +
 // ParseUUIDPathParameters("operation") chain for these routes is attached in the unified
 // server (Fiber level) BEFORE the Huma terminal, not here. Paths are GROUP-RELATIVE (the
-// /v1 prefix rides the OpenAPI servers entry).
+// group's PrefixModifier writes "/v1" into each op's op.Path, not into a servers entry).
 func RegisterOperationRoutes(api huma.API, h *OperationHandler) {
 	const (
 		listPath  = "/organizations/{organization_id}/ledgers/{ledger_id}/accounts/{account_id}/operations"

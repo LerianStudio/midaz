@@ -11,7 +11,6 @@ import (
 	libCommons "github.com/LerianStudio/lib-commons/v6/commons"
 	libHTTP "github.com/LerianStudio/lib-commons/v6/commons/net/http"
 	openapi "github.com/LerianStudio/lib-commons/v6/commons/net/http/openapi"
-	problem "github.com/LerianStudio/lib-commons/v6/commons/net/http/problem"
 	libCommonsServer "github.com/LerianStudio/lib-commons/v6/commons/server"
 	libLog "github.com/LerianStudio/lib-observability/v2/log"
 	libObsMiddleware "github.com/LerianStudio/lib-observability/v2/middleware"
@@ -20,6 +19,7 @@ import (
 	"github.com/gofiber/fiber/v3"
 	"github.com/gofiber/fiber/v3/middleware/cors"
 
+	httpin "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/http/in"
 	"github.com/LerianStudio/midaz/v4/pkg/buildinfo"
 	midazhttp "github.com/LerianStudio/midaz/v4/pkg/net/http"
 )
@@ -28,15 +28,17 @@ import (
 // Each module (onboarding, transaction) implements this to register its routes.
 type RouteRegistrar func(router fiber.Router)
 
-// HumaRouteRegistrar registers Huma-migrated routes on the shared /v1 Huma API and
-// its backing Fiber group (for the Fiber-level auth/tenant middleware chain that
-// runs before each Huma terminal). Nil means no Huma routes are mounted.
+// HumaRouteRegistrar registers one API version's Huma-migrated operations on a
+// version-prefixed Huma Group and its backing Fiber group (which carries the
+// Fiber-level auth/tenant middleware chain that runs before each Huma terminal).
+// The Group and the Fiber group resolve to the same raw path, so guard and terminal
+// chain on one route. Nil means that version mounts no routes.
 type HumaRouteRegistrar func(group fiber.Router, api huma.API)
 
 // openAPIDocsEnabled reports whether the native Huma OpenAPI 3.1 spec + Scalar docs
-// surface should be served (openapi.ServeSpec: openapi.{json,yaml} and docs under
-// every mounted contract prefix). Off by default; opt in with OPENAPI_DOCS_ENABLED=true.
-// An absent or unparseable value leaves the contract unserved.
+// surface should be served (openapi.ServeSpec: openapi.{json,yaml} and docs at the
+// root, since one document backs every version). Off by default; opt in with
+// OPENAPI_DOCS_ENABLED=true. An absent or unparseable value leaves the contract unserved.
 func openAPIDocsEnabled() bool {
 	return libCommons.GetenvBoolOrDefault("OPENAPI_DOCS_ENABLED", false)
 }
@@ -110,21 +112,18 @@ func NewUnifiedServer(
 		}
 	}
 
-	// Huma bootstrap (asset migration DE-RISK). Each contract instance binds to its
-	// own Fiber GROUP with a GROUP-RELATIVE op path set and its own Huma document;
-	// the auth+tenant middleware chain is attached on the SAME group inside the mount
-	// closure, before each Huma terminal. Both the /v1 and the /v2 mounts route
-	// through mountHumaContract, which owns the invariant scaffolding.
-	if humaMount != nil {
-		// v1: title "Midaz Ledger API", no Description.
-		mountHumaContract(app, logger, "/v1", "Midaz Ledger API", "", version, humaMount)
-	}
-
-	// Second, INDEPENDENT contract instance. The /v2 API owns a SEPARATE
-	// component registry, so v1 and v2 schema names never collide across contracts.
-	if humaMountV2 != nil {
-		mountHumaContract(app, logger, "/v2", "Midaz Ledger API v2", "Midaz Ledger v2 API contract.", version, humaMountV2)
-	}
+	// Huma bootstrap (asset migration DE-RISK). ONE OpenAPI document backs every
+	// version: mountHumaContracts assembles a single Huma contract on the app root and
+	// mounts each version under its own path prefix — a Fiber group for the auth/tenant
+	// guard chain and a Huma Group for the operations. v1 and v2 share the component
+	// registry, so a duplicate operation ID or a schema name reused for a different type
+	// is a boot panic rather than a silent second document. A nil registrar mounts
+	// nothing for that version; all-nil mounts no document at all.
+	mountHumaContracts(
+		app, logger, version,
+		humaContract{prefix: "/v1", mount: humaMount},
+		humaContract{prefix: "/v2", mount: humaMountV2},
+	)
 
 	// End tracing spans middleware (must be last)
 	app.Use(tlMid.EndTracingSpans)
@@ -170,65 +169,75 @@ func NewUnifiedServer(
 	}
 }
 
-// mountHumaContract mounts one independent Huma contract instance under prefix and
-// encapsulates the INVARIANT scaffolding shared by every version: problem.Install()
-// (idempotent RFC 9457 model override, MUST precede any huma.Register), the Fiber
-// group + Huma document creation, the ledger schema namer, the BearerAuth + ApiKeyAuth
-// SPEC-ONLY security scheme declarations, the mount closure invocation, and the
-// openAPIDocsEnabled()-gated native OpenAPI 3.1 spec + Scalar docs surface.
-//
-// Every contract installs the ledger schema namer within its own registry to
-// disambiguate the nested operation.* schemas (operation.{Status,Balance,Amount})
-// against the top-level transaction.* schemas (transaction.Status): the v2 create
-// output embeds transaction.Transaction, which nests operation.Operation, and the v1
-// contract carries the same cross-package clash — so the namer applies uniformly.
-//
-// The DIVERGENT bits are parameters: prefix (Fiber group + Servers entry + ServeSpec
-// prefix), title/description/version (Info metadata), and the mount closure (per-version
-// op registration + the per-group Fiber auth/tenant chain). ServeSpec runs AFTER mount
-// so the snapshotted spec is complete. Security schemes are SPEC metadata only — runtime
-// auth stays the Fiber guard chain the mount closure attaches.
-func mountHumaContract(
-	app *fiber.App,
-	logger libLog.Logger,
-	prefix string,
-	title string,
-	description string,
-	version string,
-	mount HumaRouteRegistrar,
-) {
-	problem.Install()
-	midazhttp.InstallHumaFrameworkErrors()
+// humaContract pairs a URL version prefix with the registrar that mounts that
+// version's operations. mountHumaContracts turns each into a Fiber guard-chain group
+// and a Huma operation Group over the ONE shared document.
+type humaContract struct {
+	prefix string
+	mount  HumaRouteRegistrar
+}
 
-	group := app.Group(prefix)
+// mountHumaContracts mounts every non-nil contract onto ONE OpenAPI document, so the
+// ledger describes itself with a single spec whose operation paths carry the version
+// prefix. Each numbered step reads as it does for a specific reason:
+//
+//  1. When every contract mount is nil there is no document to build and no route to
+//     serve, so return first — this preserves the pre-Huma posture of a server with no
+//     version mounted.
+//  2. Assemble the ONE contract on the app ROOT (app passed as both app and router):
+//     the Huma Group's PrefixModifier is then the only thing prefixing an operation
+//     path, so "/v1/organizations" is produced exactly once — a Fiber group feeding a
+//     Huma group of the same name would double the prefix. Servers is the explicit
+//     root "/": the version rides the operation PATH, not the servers block, and the
+//     explicit "/" keeps the dump symmetric for downstream spec consumers.
+//     AssembleHumaContract installs the schema namer, which REPLACES the component
+//     registry; it must run EXACTLY ONCE, which is why one document backs every
+//     version and a second AssembleHumaContract would discard the first's schemas.
+//  3. Per contract: a Fiber group carries the auth/tenant guard chain and a Huma Group
+//     carries the operations. Both resolve to the SAME raw path — the Fiber group's
+//     getGroupPath(prefix, opPath) equals the prefix the PrefixModifier writes into
+//     op.Path before the Fiber adapter sees it — so the guard and its terminal chain
+//     on one Fiber route.
+//  4. Serve the spec LAST and ONCE, at the root: ServeSpec snapshots the document
+//     bytes, so it must run after the final huma.Register. Exposure is bootstrap
+//     policy gated on openAPIDocsEnabled(), which is why it lives here and not inside
+//     AssembleHumaContract.
+func mountHumaContracts(app *fiber.App, logger libLog.Logger, version string, contracts ...humaContract) {
+	anyMounted := false
 
-	api := openapi.New(app, group, openapi.Config{
+	for _, c := range contracts {
+		if c.mount != nil {
+			anyMounted = true
+
+			break
+		}
+	}
+
+	if !anyMounted {
+		return
+	}
+
+	const title = "Midaz Ledger API"
+
+	api := httpin.AssembleHumaContract(app, app, openapi.Config{
 		Title:       title,
 		Version:     version,
-		Description: description,
-		Servers:     []string{prefix},
+		Description: "Midaz Ledger API. Operations are served under the /v1 and /v2 path prefixes on this single document.",
+		Servers:     []string{"/"},
 	})
 
-	midazhttp.InstallLedgerSchemaNamer(api)
+	for _, c := range contracts {
+		if c.mount == nil {
+			continue
+		}
 
-	openapi.DeclareBearerAuth(api)
-
-	components := api.OpenAPI().Components
-	if components.SecuritySchemes == nil {
-		components.SecuritySchemes = map[string]*huma.SecurityScheme{}
+		fiberGroup := app.Group(c.prefix)
+		humaGroup := huma.NewGroup(api, c.prefix)
+		c.mount(fiberGroup, humaGroup)
 	}
-
-	components.SecuritySchemes["ApiKeyAuth"] = &huma.SecurityScheme{
-		Type:        "apiKey",
-		In:          "header",
-		Name:        "X-API-Key",
-		Description: "Static API key presented in the X-API-Key header.",
-	}
-
-	mount(group, api)
 
 	if openAPIDocsEnabled() {
-		openapi.ServeSpec(app, api, logger, prefix, title)
+		openapi.ServeSpec(app, api, logger, "/", title)
 	}
 }
 

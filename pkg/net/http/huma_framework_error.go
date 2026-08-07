@@ -7,6 +7,7 @@ package http
 import (
 	"errors"
 	"net/http"
+	"sync"
 
 	"github.com/danielgtaylor/huma/v2"
 
@@ -40,7 +41,19 @@ var errEmptyJSONBody = errors.New("unexpected end of JSON input")
 // Operations without a body (RawBody absent => nil RequestBody) never trigger the
 // precondition, so bodiless mutations such as transaction commit/cancel/revert are
 // untouched.
+//
+// installHumaFrameworkErrorsMu serializes install-vs-install, mirroring
+// lib-commons problem.Install: huma.NewErrorWithContext is a plain package var, so
+// two goroutines assigning it concurrently is a data race. Huma READS it
+// unsynchronized on every error-constructing request, so this still MUST run during
+// bootstrap before the server serves — the mutex covers installs against each
+// other, not installs against those reads.
+var installHumaFrameworkErrorsMu sync.Mutex
+
 func InstallHumaFrameworkErrors() {
+	installHumaFrameworkErrorsMu.Lock()
+	defer installHumaFrameworkErrorsMu.Unlock()
+
 	huma.NewErrorWithContext = func(_ huma.Context, status int, msg string, errs ...error) huma.StatusError {
 		if status == http.StatusBadRequest && msg == humaEmptyBodyMessage {
 			if detail, ok := HumaProblem(pkg.ValidateUnmarshallingError(errEmptyJSONBody)).(huma.StatusError); ok {

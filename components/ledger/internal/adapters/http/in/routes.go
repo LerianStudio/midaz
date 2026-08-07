@@ -73,7 +73,9 @@ func RegisterOnboardingRoutesToApp(_ fiber.Router, _ *middleware.AuthClient, _ *
 //
 // The group-relative middleware paths (e.g. "/organizations/:organization_id/.../assets")
 // resolve to the same absolute "/v1/organizations/.../assets" the Huma op paths do
-// (Huma advertises the "/v1" server prefix and registers relative). Param names
+// (the group's PrefixModifier writes "/v1" into each op's op.Path, not into a servers
+// entry, so the Huma absolute path matches the Fiber chain's raw path byte-for-byte).
+// Param names
 // (:organization_id/:ledger_id/:id) match the Huma path tags exactly.
 func RegisterAssetRoutesToApp(group fiber.Router, api huma.API, auth *middleware.AuthClient, ih *AssetHandler, routeOptions *http.ProtectedRouteOptions) {
 	const (

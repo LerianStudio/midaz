@@ -185,14 +185,17 @@ chain, and middleware stack, while Huma sits on top to generate the OpenAPI cont
 typed request/response structs. API errors serialize as **RFC 9457 `application/problem+json`** — a
 `type`/`title`/`status`/`detail`/`instance` document extended with `code` and `entityType`; the
 `(code, status)` tuple per business error is preserved (HTTP status codes are unchanged). The native
-OpenAPI 3.1 spec and Scalar docs UI are served per contract version — `/v1/openapi.{json,yaml}` and
-`/v1/docs` on both components, plus `/v2/openapi.{json,yaml}` and `/v2/docs` on the ledger, which
-mounts a v2 contract. Both the ledger and the tracer gate them on `OPENAPI_DOCS_ENABLED`, off by
-default — opt in with `OPENAPI_DOCS_ENABLED=true`.
+OpenAPI 3.1 spec and Scalar docs UI are served differently per component. The ledger serves one spec
+and docs UI at the root — `/openapi.{json,yaml}` and `/docs` — from a single contract that carries
+both its `/v1` and `/v2` paths. The tracer serves its own spec and docs UI under `/v1` —
+`/v1/openapi.{json,yaml}` and `/v1/docs`. Both the ledger and the tracer gate them on
+`OPENAPI_DOCS_ENABLED`, off by default — opt in with `OPENAPI_DOCS_ENABLED=true`.
 
 ### 4.1 Ledger API (port 3002)
 
-Base path: `/v1`
+The ledger serves both the `/v1` and `/v2` path prefixes on the single root contract; there is
+no single base path. The onboarding, CRM, and fee resources below sit under `/v1`, while the v2
+transaction surface (for example `POST /v2/transactions/direct`) is exposed under `/v2`.
 
 #### Onboarding Resources
 
@@ -301,12 +304,9 @@ Base path: `/v1`
 | GET | /health | Health check |
 | GET | /readyz | Readiness probe |
 | GET | /version | Version info |
-| GET | /v1/openapi.json | v1 OpenAPI 3.1 spec (JSON) — served when `OPENAPI_DOCS_ENABLED=true` |
-| GET | /v1/openapi.yaml | v1 OpenAPI 3.1 spec (YAML) — served when `OPENAPI_DOCS_ENABLED=true` |
-| GET | /v1/docs | v1 Scalar API docs UI — served when `OPENAPI_DOCS_ENABLED=true` |
-| GET | /v2/openapi.json | v2 OpenAPI 3.1 spec (JSON) — served when `OPENAPI_DOCS_ENABLED=true` |
-| GET | /v2/openapi.yaml | v2 OpenAPI 3.1 spec (YAML) — served when `OPENAPI_DOCS_ENABLED=true` |
-| GET | /v2/docs | v2 Scalar API docs UI — served when `OPENAPI_DOCS_ENABLED=true` |
+| GET | /openapi.json | OpenAPI 3.1 spec (JSON) — served when `OPENAPI_DOCS_ENABLED=true` |
+| GET | /openapi.yaml | OpenAPI 3.1 spec (YAML) — served when `OPENAPI_DOCS_ENABLED=true` |
+| GET | /docs | Scalar API docs UI — served when `OPENAPI_DOCS_ENABLED=true` |
 
 ### 4.2 CRM API (served by the ledger binary on port 3002)
 
@@ -395,7 +395,7 @@ what that ledger owns.
 | DELETE | /v1/organizations/{organization_id}/billing-packages/:id | Delete billing package |
 | POST | /v1/organizations/{organization_id}/billing/calculate | Calculate billing |
 
-Ledger-scoped twins on the independent `/v2` contract (`{base}` =
+Ledger-scoped twins on the `/v2` contract (`{base}` =
 `/v2/organizations/{organization_id}/ledgers/{ledger_id}`):
 
 | Method | Path | Description |

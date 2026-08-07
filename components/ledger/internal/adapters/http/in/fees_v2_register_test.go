@@ -44,9 +44,10 @@ var feesV2FullRoutes = []string{
 }
 
 // feesV2OperationIDs is the operation ID each published v2 fee operation must carry,
-// keyed by "METHOD path" in OpenAPI template syntax (server-relative, as the document
-// keys them). Every ID repeats its /v1 counterpart with the version suffix appended,
-// which is what keeps the two documents joinable — see feeOpSuffixV2.
+// keyed by "METHOD path" in OpenAPI template syntax (group-relative: the op paths as
+// registered, without the /v2 prefix the shared document adds). Every ID repeats its
+// /v1 counterpart with the version suffix appended, which keeps the IDs unique within
+// the shared document and across the ledger↔tracer hub-spec join — see feeOpSuffixV2.
 var feesV2OperationIDs = map[string]string{
 	"POST /organizations/{organization_id}/ledgers/{ledger_id}/packages":                "createPackageV2",
 	"GET /organizations/{organization_id}/ledgers/{ledger_id}/packages":                 "getAllPackagesV2",
@@ -176,7 +177,7 @@ func TestFeesV2RoutesParameterNamesAgree(t *testing.T) {
 	spellings := make(map[string]map[string][]string)
 
 	for path := range api.OpenAPI().Paths {
-		spellings[canonicalizePath(specServerPrefixV2+path)] = make(map[string][]string)
+		spellings[canonicalizePath("/v2"+path)] = make(map[string][]string)
 	}
 
 	require.Len(t, spellings, 6, "the v2 fee surface publishes six distinct path structures")

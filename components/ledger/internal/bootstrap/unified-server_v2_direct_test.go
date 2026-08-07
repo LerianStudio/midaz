@@ -21,16 +21,18 @@ import (
 	httpin "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/http/in"
 )
 
-// directOpV2Path is the GROUP-RELATIVE op path the v2 `direct` operation registers
-// under (the /v2 prefix rides the OpenAPI servers entry, so it is absent here). It names
-// no organization and no ledger: a v2 create is scoped by its request body.
-const directOpV2Path = "/transactions/direct"
+// directOpV2Path is the key the v2 `direct` operation registers under in the single
+// OpenAPI document. The /v2 prefix lives IN the key — the Huma Group writes it into
+// op.Path — so the path is fully qualified here, not group-relative. It names no
+// organization and no ledger: a v2 create is scoped by its request body.
+const directOpV2Path = "/v2/transactions/direct"
 
-// newV2DirectServer builds a unified server whose /v2 contract mounts ONLY the
-// `direct` transaction op via the production seam httpin.RegisterTransactionV2RoutesToApp,
-// using the supplied auth client. The /v1 contract is left unmounted (nil humaMount):
-// this test isolates the v2 direct route + its Fiber auth chain. A zero-value
-// TransactionHandler is safe because registration never invokes the handler.
+// newV2DirectServer builds a unified server that mounts ONLY the `direct` transaction
+// op under the /v2 prefix via the production seam httpin.RegisterTransactionV2RoutesToApp,
+// using the supplied auth client. The v1 registrar is nil, so a single contract still
+// backs the one root document — this is the one-registrar case that proves
+// mountHumaContracts builds the root document whenever ANY version has a registrar. A
+// zero-value TransactionHandler is safe because registration never invokes the handler.
 func newV2DirectServer(t *testing.T, auth *middleware.AuthClient) *UnifiedServer {
 	t.Helper()
 
@@ -48,30 +50,66 @@ func newV2DirectServer(t *testing.T, auth *middleware.AuthClient) *UnifiedServer
 	return server
 }
 
-// TestNewUnifiedServer_V2DirectRouteInContract asserts the `direct`
-// operation is registered on the INDEPENDENT v2 contract and surfaces in
-// /v2/openapi.json with OperationID createTransactionDirectV2, method POST, at the
-// group-relative direct path.
+// newNoContractServer builds a unified server with NO Huma registrars: both the v1
+// and v2 mounts are nil. mountHumaContracts short-circuits before assembling any
+// contract, so no OpenAPI document exists and no spec route is served — the all-nil
+// counterpart to newV2DirectServer's one-registrar case.
+func newNoContractServer(t *testing.T) *UnifiedServer {
+	t.Helper()
+
+	logger := newTestLogger()
+	telemetry := &libOpentelemetry.Telemetry{}
+
+	server := NewUnifiedServer(":0", "test-version", logger, telemetry, nil, nil, nil)
+	require.NotNil(t, server, "NewUnifiedServer should return a non-nil server")
+	require.NotNil(t, server.app, "server should hold a Fiber app")
+
+	return server
+}
+
+// TestNewUnifiedServer_V2DirectRouteInContract asserts the `direct` operation is
+// registered on the ONE root document under its fully-qualified /v2 key, with
+// OperationID createTransactionDirectV2 and method POST. The one-registrar subtest
+// (v1 nil, v2 mounted) proves mountHumaContracts still builds the root document from a
+// single contract; the both-nil subtest proves it builds no document at all — even
+// with the docs gate ON.
 func TestNewUnifiedServer_V2DirectRouteInContract(t *testing.T) {
-	// ServeSpec is gated on OPENAPI_DOCS_ENABLED; enable it so /v2/openapi.json
-	// is mounted. t.Setenv precludes t.Parallel here.
+	// ServeSpec is gated on OPENAPI_DOCS_ENABLED; enable it so /openapi.json is mounted
+	// when a document exists. t.Setenv precludes t.Parallel here.
 	t.Setenv("OPENAPI_DOCS_ENABLED", "true")
 
-	server := newV2DirectServer(t, &middleware.AuthClient{Enabled: false})
+	t.Run("one registrar builds the root document", func(t *testing.T) {
+		server := newV2DirectServer(t, &middleware.AuthClient{Enabled: false})
 
-	v2doc := fetchOpenAPISpec(t, server.app, "/v2/openapi.json")
+		doc := fetchOpenAPISpec(t, server.app, "/openapi.json")
 
-	paths, ok := v2doc["paths"].(map[string]any)
-	require.True(t, ok, "v2 spec should carry a paths object")
+		paths, ok := doc["paths"].(map[string]any)
+		require.True(t, ok, "the single spec should carry a paths object")
 
-	pathItem, ok := paths[directOpV2Path].(map[string]any)
-	require.Truef(t, ok, "v2 spec should register the direct op path %q; paths=%v", directOpV2Path, keysOf(paths))
+		pathItem, ok := paths[directOpV2Path].(map[string]any)
+		require.Truef(t, ok, "the single document should register the direct op key %q; paths=%v", directOpV2Path, keysOf(paths))
 
-	post, ok := pathItem["post"].(map[string]any)
-	require.True(t, ok, "direct op path should carry a POST operation")
+		post, ok := pathItem["post"].(map[string]any)
+		require.True(t, ok, "direct op key should carry a POST operation")
 
-	assert.Equal(t, "createTransactionDirectV2", post["operationId"],
-		"direct op should advertise OperationID createTransactionDirectV2")
+		assert.Equal(t, "createTransactionDirectV2", post["operationId"],
+			"direct op should advertise OperationID createTransactionDirectV2")
+	})
+
+	t.Run("both registrars nil builds no document", func(t *testing.T) {
+		server := newNoContractServer(t)
+
+		req, err := http.NewRequest(http.MethodGet, "/openapi.json", nil)
+		require.NoError(t, err)
+
+		resp, err := server.app.Test(req)
+		require.NoError(t, err)
+
+		defer func() { _ = resp.Body.Close() }()
+
+		assert.Equal(t, http.StatusNotFound, resp.StatusCode,
+			"with both registrars nil there is no document, so /openapi.json 404s even with the gate ON")
+	})
 }
 
 // TestNewUnifiedServer_V2DirectRouteRequiresAuth asserts the v2
@@ -142,16 +180,17 @@ func TestNewUnifiedServer_V2DirectRouteReachesRealHandler(t *testing.T) {
 }
 
 // TestNewUnifiedServer_V2SpecNotServedWhenDocsDisabled asserts the openAPIDocsEnabled
-// NEGATIVE gate for v2: with OPENAPI_DOCS_ENABLED off, GET /v2/openapi.json is
-// NOT served (404). Every other v2-spec test enables the flag; this covers the
-// gated-off branch.
+// NEGATIVE gate on the parse branch: with OPENAPI_DOCS_ENABLED explicitly "false", a
+// document is assembled but ServeSpec never runs, so GET /openapi.json is NOT served
+// (404). This covers the explicit-false branch; the gate-absent deploy posture is
+// covered separately by TestNewUnifiedServer_SpecNotServedWhenDocsGateUnset.
 func TestNewUnifiedServer_V2SpecNotServedWhenDocsDisabled(t *testing.T) {
 	// Explicitly disable the docs gate. t.Setenv precludes t.Parallel here.
 	t.Setenv("OPENAPI_DOCS_ENABLED", "false")
 
 	server := newV2DirectServer(t, &middleware.AuthClient{Enabled: false})
 
-	req, err := http.NewRequest(http.MethodGet, "/v2/openapi.json", nil)
+	req, err := http.NewRequest(http.MethodGet, "/openapi.json", nil)
 	require.NoError(t, err)
 
 	resp, err := server.app.Test(req)
@@ -160,7 +199,7 @@ func TestNewUnifiedServer_V2SpecNotServedWhenDocsDisabled(t *testing.T) {
 	defer func() { _ = resp.Body.Close() }()
 
 	assert.Equal(t, http.StatusNotFound, resp.StatusCode,
-		"v2 openapi.json must not be served when OPENAPI_DOCS_ENABLED is off")
+		"openapi.json must not be served when OPENAPI_DOCS_ENABLED is explicitly false")
 }
 
 // keysOf returns the keys of a decoded JSON object for diagnostic messages.

@@ -8,16 +8,12 @@ import (
 	"encoding/json"
 	"io"
 	"net/http"
+	"strings"
 	"testing"
 
-	"github.com/LerianStudio/lib-auth/v3/auth/middleware"
-	libOpentelemetry "github.com/LerianStudio/lib-observability/v2/tracing"
-	"github.com/danielgtaylor/huma/v2"
 	"github.com/gofiber/fiber/v3"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-
-	httpin "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/http/in"
 )
 
 // fetchOpenAPISpec drives the in-process Fiber app for the given spec path and
@@ -69,84 +65,79 @@ func serverURLs(t *testing.T, doc map[string]any) []string {
 	return urls
 }
 
-// TestNewUnifiedServer_V2ContractMountedIndependently asserts that the
-// unified server exposes a SECOND, independent OpenAPI contract instance under
-// /v2 (OAS 3.1, servers ["/v2"]) alongside the untouched /v1 contract (servers
-// ["/v1"]). Each instance owns its Info metadata, proving two independent Huma
-// component registries rather than one shared document.
-func TestNewUnifiedServer_V2ContractMountedIndependently(t *testing.T) {
-	// ServeSpec is gated on OPENAPI_DOCS_ENABLED; enable it so both the /v1
-	// and /v2 spec routes are mounted. t.Setenv precludes t.Parallel here.
+// TestNewUnifiedServer_SingleDocumentAtRootSpansBothVersionPrefixes asserts the
+// consolidated topology that replaced the two-document layout: the unified server
+// serves ONE OpenAPI document at the root (/openapi.json), OAS 3.1, whose servers
+// block is exactly [{"url":"/"}] and whose info.title is "Midaz Ledger API". The
+// version rides each operation's PATH, so the single paths object carries BOTH the
+// /v1 and /v2 prefixes. The 404 negative is what makes "one document" falsifiable:
+// without it, one document and two-documents-plus-a-root-document read identically.
+func TestNewUnifiedServer_SingleDocumentAtRootSpansBothVersionPrefixes(t *testing.T) {
+	// ServeSpec is gated on OPENAPI_DOCS_ENABLED; enable it so the root spec route is
+	// mounted. t.Setenv precludes t.Parallel here.
 	t.Setenv("OPENAPI_DOCS_ENABLED", "true")
 
-	logger := newTestLogger()
-	telemetry := &libOpentelemetry.Telemetry{}
+	server := newSingleDocServer(t)
 
-	// Empty mounts: this task mounts the contract surfaces without registering
-	// ops (v2 ops arrive later). A non-nil mount is what triggers each
-	// version's Huma bootstrap block.
-	emptyMount := func(_ fiber.Router, _ huma.API) {}
+	doc := fetchOpenAPISpec(t, server.app, "/openapi.json")
+	assert.Equal(t, "3.1.0", doc["openapi"], "the single spec should be OAS 3.1")
+	assert.Equal(t, []string{"/"}, serverURLs(t, doc),
+		"the single document advertises the root server only; the version rides the op path")
 
-	server := NewUnifiedServer(":0", "test-version", logger, telemetry, nil, emptyMount, emptyMount)
-	require.NotNil(t, server, "NewUnifiedServer should return a non-nil server")
-	require.NotNil(t, server.app, "server should hold a Fiber app")
+	info, _ := doc["info"].(map[string]any)
+	require.NotNil(t, info, "the single spec should carry an info object")
+	assert.Equal(t, "Midaz Ledger API", info["title"], "the single document carries one title")
 
-	// v2 contract: served, OAS 3.1, advertises /v2 only.
-	v2doc := fetchOpenAPISpec(t, server.app, "/v2/openapi.json")
-	assert.Equal(t, "3.1.0", v2doc["openapi"], "v2 spec should be OAS 3.1")
-	assert.Equal(t, []string{"/v2"}, serverURLs(t, v2doc), "v2 spec should advertise the /v2 server only")
+	paths, ok := doc["paths"].(map[string]any)
+	require.True(t, ok, "the single spec should carry a paths object")
 
-	// v1 contract: unchanged, OAS 3.1, advertises /v1 only. v2 mounting must not
-	// leak into the v1 document.
-	v1doc := fetchOpenAPISpec(t, server.app, "/v1/openapi.json")
-	assert.Equal(t, "3.1.0", v1doc["openapi"], "v1 spec should remain OAS 3.1")
-	assert.Equal(t, []string{"/v1"}, serverURLs(t, v1doc), "v1 spec should still advertise the /v1 server only")
+	for _, want := range []string{"/v1/organizations", "/v2/transactions/direct"} {
+		_, has := paths[want]
+		assert.Truef(t, has, "the single document must carry the %q key; paths=%v", want, keysOf(paths))
+	}
 
-	// Independent Info objects prove two distinct contract instances (separate
-	// Huma component registries), not a single shared document.
-	v1info, _ := v1doc["info"].(map[string]any)
-	v2info, _ := v2doc["info"].(map[string]any)
-	require.NotNil(t, v1info, "v1 spec should carry an info object")
-	require.NotNil(t, v2info, "v2 spec should carry an info object")
-	assert.Equal(t, "Midaz Ledger API", v1info["title"], "v1 title unchanged")
-	assert.Equal(t, "Midaz Ledger API v2", v2info["title"], "v2 carries its own title")
+	// No per-version document exists: the prefixed spec routes 404. This inverts the
+	// old "mounted independently" claim — the version is a path prefix, not a document.
+	for _, path := range []string{"/v1/openapi.json", "/v2/openapi.json"} {
+		req, err := http.NewRequest(http.MethodGet, path, nil)
+		require.NoError(t, err)
+
+		resp, err := server.app.Test(req)
+		require.NoError(t, err)
+
+		func() {
+			defer func() { _ = resp.Body.Close() }()
+
+			assert.Equalf(t, http.StatusNotFound, resp.StatusCode,
+				"%s must 404: there is no per-version document, only the root one", path)
+		}()
+	}
 }
 
-// TestNewUnifiedServer_V2DirectOpDoesNotLeakIntoV1 asserts PATH isolation:
-// the v2 `direct` op (createTransactionDirectV2) appears ONLY in the /v2 document's
-// path set and NEVER in the /v1 document's, proving the two Huma contracts own
-// SEPARATE registries rather than sharing one. Both contracts are mounted in ONE
-// server: v1 carries no ops (empty mount) while v2 mounts the production direct-op
-// seam. Path-set isolation is a stronger guarantee than the Info-title check above.
+// TestNewUnifiedServer_V2DirectOpDoesNotLeakIntoV1 asserts the version prefix lives
+// IN the path key, not in a separate document: the single document carries the v2
+// `direct` op under /v2/transactions/direct and NEVER under /v1/transactions/direct.
+// The v1 prefix mounts a different op (organizations), so a v2 create is unreachable
+// through a v1 key — path-key isolation, not registry isolation.
 func TestNewUnifiedServer_V2DirectOpDoesNotLeakIntoV1(t *testing.T) {
-	// ServeSpec is gated on OPENAPI_DOCS_ENABLED; enable it so both spec routes
-	// are mounted. t.Setenv precludes t.Parallel here.
+	// ServeSpec is gated on OPENAPI_DOCS_ENABLED; enable it so the root spec route is
+	// mounted. t.Setenv precludes t.Parallel here.
 	t.Setenv("OPENAPI_DOCS_ENABLED", "true")
 
-	logger := newTestLogger()
-	telemetry := &libOpentelemetry.Telemetry{}
+	server := newSingleDocServer(t)
 
-	emptyMount := func(_ fiber.Router, _ huma.API) {}
-	directMountV2 := func(group fiber.Router, api huma.API) {
-		httpin.RegisterTransactionV2RoutesToApp(group, api, &middleware.AuthClient{Enabled: false}, &httpin.TransactionHandler{}, nil)
-	}
+	doc := fetchOpenAPISpec(t, server.app, "/openapi.json")
+	paths, ok := doc["paths"].(map[string]any)
+	require.True(t, ok, "the single spec should carry a paths object")
 
-	server := NewUnifiedServer(":0", "test-version", logger, telemetry, nil, emptyMount, directMountV2)
-	require.NotNil(t, server, "NewUnifiedServer should return a non-nil server")
-	require.NotNil(t, server.app, "server should hold a Fiber app")
+	_, hasV2 := paths[directOpV2Path]
+	assert.Truef(t, hasV2, "the single document MUST carry the v2 direct op key %q; paths=%v", directOpV2Path, keysOf(paths))
 
-	// v2 document MUST carry the direct op.
-	v2doc := fetchOpenAPISpec(t, server.app, "/v2/openapi.json")
-	v2paths, ok := v2doc["paths"].(map[string]any)
-	require.True(t, ok, "v2 spec should carry a paths object")
-	_, inV2 := v2paths[directOpV2Path]
-	assert.Truef(t, inV2, "v2 document MUST carry the direct op path %q; paths=%v", directOpV2Path, keysOf(v2paths))
+	// Derive the v1 sibling from the v2 key so the two stay mirror images: a hardcoded
+	// v1 literal would keep probing a never-registered key if directOpV2Path changed,
+	// letting the negative assertion pass vacuously and miss a real cross-version leak.
+	directOpV1Path := strings.Replace(directOpV2Path, "/v2/", "/v1/", 1)
 
-	// v1 document MUST NOT carry the direct op. A v1 document with no registered ops
-	// may omit the paths object entirely; if present, it must not leak the v2 op.
-	v1doc := fetchOpenAPISpec(t, server.app, "/v1/openapi.json")
-	if v1paths, ok := v1doc["paths"].(map[string]any); ok {
-		_, inV1 := v1paths[directOpV2Path]
-		assert.Falsef(t, inV1, "v2 direct op MUST NOT leak into the v1 document; v1 paths=%v", keysOf(v1paths))
-	}
+	_, hasV1 := paths[directOpV1Path]
+	assert.Falsef(t, hasV1, "the v2 direct op MUST NOT appear under the v1 key %q; paths=%v", directOpV1Path, keysOf(paths))
 }

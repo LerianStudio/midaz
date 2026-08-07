@@ -19,12 +19,14 @@ import (
 // plugin-crm:* to midaz:{holders,instruments}:* at v4 release (X1, Fred-owned).
 const ApplicationName = "midaz"
 
-// CRM operation-ID suffixes. The ledger serves the CRM surface on more than one
-// versioned contract, and each contract is a separate OpenAPI document; the published
-// hub spec joins those documents, so path keys are disambiguated by the version prefix
-// but operation IDs are not. Suffixing keeps them unique across the join, which client
-// SDK generators require. The v1 suffix is empty so the /v1 operation IDs — the ones
-// published SDKs already bind to — stay exactly what they were.
+// CRM operation-ID suffixes. The ledger serves the CRM surface on both the /v1 and
+// /v2 version groups of a single OpenAPI document. huma.OpenAPI.AddOperation scans the
+// whole document and panics on a duplicate operation ID, so a v1 op and its v2 twin —
+// same handler, same path shape under a different version prefix — MUST carry distinct
+// operation IDs or the ledger panics at boot. The V2 suffix makes that disjunction a
+// boot invariant; it secondarily keeps IDs unique across the ledger↔tracer hub-spec
+// join. The v1 suffix is empty so the /v1 operation IDs — the ones published SDKs
+// already bind to — stay exactly what they were.
 const (
 	crmOpSuffixV1 = ""
 	crmOpSuffixV2 = "V2"

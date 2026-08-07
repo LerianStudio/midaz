@@ -426,8 +426,8 @@ func (handler *BalanceHandler) GetAccountBalancesAtTimestampHuma(ctx context.Con
 // shared Huma API. It is the per-file seam the unified server calls; the auth
 // (auth.Authorize("midaz","balances",verb)) + tenant + ParseUUIDPathParameters
 // ("balance") chain for these routes is attached in the unified server (Fiber
-// level) BEFORE the Huma terminal, not here. Paths are GROUP-RELATIVE (the /v1
-// prefix rides the OpenAPI servers entry).
+// level) BEFORE the Huma terminal, not here. Paths are GROUP-RELATIVE (the group's
+// PrefixModifier writes "/v1" into each op's op.Path, not into a servers entry).
 func RegisterBalanceRoutes(api huma.API, h *BalanceHandler) {
 	const (
 		orgLedger      = "/organizations/{organization_id}/ledgers/{ledger_id}"

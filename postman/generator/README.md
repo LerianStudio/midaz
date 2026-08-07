@@ -36,21 +36,26 @@ postman/generator/
 ## Scope
 
 `sync-postman.sh` converts one Postman collection per published spec and merges
-them. Its `SPEC_SOURCES` list names the specs, so a component can contribute more
-than one: ledger publishes `openapi.huma.yaml` (`/v1`) and `openapi.v2.huma.yaml`
-(`/v2`), and tracer publishes `openapi.huma.yaml`.
+them. Its `SPEC_SOURCES` list names the specs, each entry carrying three fields —
+`component|spec-file|requirement`: ledger publishes `openapi.huma.yaml` (carrying
+both its `/v1` and `/v2` paths) and tracer publishes `openapi.huma.yaml`. Each
+component contributes exactly one consolidated spec, so there is no version-tag
+field and `convert_spec` takes no version argument.
 
 Each source is declared `required` or `optional`. A required source is fatal both
 when its spec fails to convert and when the spec file is absent, because either way
 that surface's folders vanish from the merged collection and the run would otherwise
 report success. An optional source tolerates an absent spec and contributes nothing.
-All three current sources are `required`: `generate-docs.sh` produces every one of
+Both current sources are `required`: `generate-docs.sh` produces every one of
 them and the results are committed under `postman/specs`, so a missing file means the
 pipeline is broken rather than trimmed.
 
-Specs from a non-primary contract get a version tag appended to their folder names,
-because OpenAPI tags are shared across versions and would otherwise merge into
-folders with identical names.
+Version suffixes on folder names are derived per operation from the path-key version
+prefix (`/v2/...` -> a ` (v2)` folder suffix) inside `convert-openapi.js`, not from a
+spec version tag. One consolidated document serves both API versions over the same
+OpenAPI tags, so without this per-operation split the `/v1` and `/v2` operations would
+merge into folders with identical names. Unversioned path keys (e.g. the tracer's) get
+no suffix.
 
 The **workflow generator** (`create-workflow.js`, `config/`, `lib/`) is
 **ledger-`/v1`-only by design**: it consumes `postman/WORKFLOW.md` (the ledger
@@ -131,9 +136,11 @@ transactions: {
 npm run test:collection
 ```
 
-This delegates to `make newman` at the repo root, which runs the generated
-collection (`postman/MIDAZ.postman_collection.json`) against the configured
-environment. For verbose output of just the workflow folder:
+This runs `newman run` directly against the generated collection
+(`postman/MIDAZ.postman_collection.json`) with the configured environment,
+scoped to the `Complete API Workflow` folder. `newman` is declared in
+`devDependencies`; install it with `npm install` in this directory first. For
+verbose output of just the workflow folder:
 
 ```bash
 npm run test:collection:verbose

@@ -342,6 +342,63 @@ const DEPENDENCY_MAP = {
   }
 };
 
+// Endpoint keys that resolved to a real operation during this run. A key present in
+// DEPENDENCY_MAP but never recorded here matched nothing — the exact condition that
+// once let the entire map silently no-op after the ledger path keys were renamed.
+// reportUnmatchedDependencyKeys reads this set so a dead key can never pass unnoticed.
+const MATCHED_DEPENDENCY_KEYS = new Set();
+
+/**
+ * Resolve an endpoint's declared dependencies from DEPENDENCY_MAP and record a real
+ * match. The endpoint key is the raw spec path key, so a map key whose parameter labels
+ * or shape drift from the spec resolves to nothing and is never recorded.
+ * @param {string} method - The HTTP method of the endpoint
+ * @param {string} path - The raw spec path key of the endpoint
+ * @returns {{requires: string[], provides: string[]}} Declared dependencies, or empty arrays
+ */
+function lookupDependencies(method, path) {
+  const endpointKey = `${method.toUpperCase()} ${path}`;
+  const dependencies = DEPENDENCY_MAP[endpointKey];
+  if (dependencies) {
+    MATCHED_DEPENDENCY_KEYS.add(endpointKey);
+    return dependencies;
+  }
+  return { requires: [], provides: [] };
+}
+
+/**
+ * Emit a stdout warning for every DEPENDENCY_MAP key that matched no processed
+ * operation. A silently-unmatched key is dead configuration: it adds neither a
+ * dependency check nor a variable extraction, and a whole map of such keys once
+ * no-opped undetected. The map describes the ledger surface, so only report while
+ * converting that component to avoid flagging every key against components the map was
+ * never meant to cover.
+ *
+ * The report goes to stdout, not stderr: sync-postman.sh captures the converter's
+ * stderr into a temp file and prints it only when the conversion FAILS, so a warning
+ * on a SUCCESSFUL run would be written there and dropped — the exact silent no-op this
+ * guard exists to prevent. stdout is not swallowed, so the warning reaches the console
+ * on success. An unmatched key is a warning, never a build failure.
+ */
+function reportUnmatchedDependencyKeys() {
+  if (COMPONENT !== 'ledger') {
+    return;
+  }
+
+  const unmatched = Object.keys(DEPENDENCY_MAP).filter(
+    key => !MATCHED_DEPENDENCY_KEYS.has(key)
+  );
+  if (unmatched.length === 0) {
+    return;
+  }
+
+  console.log(
+    `Warning: ${unmatched.length} DEPENDENCY_MAP key(s) matched no operation in the ` +
+    `${COMPONENT} surface (dead entries — they add no dependency check or variable extraction):`
+  );
+  unmatched.forEach(key => console.log(`  - ${key}`));
+}
+
 /**
  * Generate a pre-request script based on the endpoint dependencies
  * @param {Object} operation - The operation object from the OpenAPI spec
@@ -351,11 +408,10 @@ const DEPENDENCY_MAP = {
  */
 function generatePreRequestScript(operation, path, method) {
   let script = '';
-  
-  // Get the endpoint key for the dependency map
-  const endpointKey = `${method.toUpperCase()} ${path}`;
-  const dependencies = DEPENDENCY_MAP[endpointKey] || { requires: [], provides: [] };
-  
+
+  // Resolve declared dependencies (records a real match for the unmatched-key guard)
+  const dependencies = lookupDependencies(method, path);
+
   // Add authentication handling
   script += `
 // Check for auth token
@@ -404,11 +460,10 @@ if (!pm.environment.get("${variable}")) {
  */
 function generateTestScript(operation, path, method) {
   let script = '';
-  
-  // Get the endpoint key for the dependency map
-  const endpointKey = `${method.toUpperCase()} ${path}`;
-  const dependencies = DEPENDENCY_MAP[endpointKey] || { requires: [], provides: [] };
-  
+
+  // Resolve declared dependencies (records a real match for the unmatched-key guard)
+  const dependencies = lookupDependencies(method, path);
+
   // Basic status code validation
   script += `
 // Test for successful response status
@@ -638,22 +693,31 @@ function createPostmanCollection(spec) {
       
       // Get tags for this operation
       const tags = operation.tags || ['default'];
-      
+
+      // Derive a per-operation folder suffix from the path-key version prefix. Folder
+      // names come from OpenAPI tags, and one consolidated document serves both API
+      // versions over the same tags (e.g. Transactions), so v1 and v2 operations would
+      // otherwise collapse into a single folder. Splitting by the version prefix keeps
+      // today's Transactions / Transactions (v2) layout within one document, and leaves
+      // unversioned path keys (e.g. the tracer's) unsuffixed.
+      const suffix = versionSuffix(path);
+
       // Add operation to each tag group
       tags.forEach(tag => {
-        if (!tagGroups[tag]) {
-          tagGroups[tag] = {
-            name: tag,
+        const groupName = `${tag}${suffix}`;
+        if (!tagGroups[groupName]) {
+          tagGroups[groupName] = {
+            name: groupName,
             description: getTagDescription(spec, tag),
             item: []
           };
         }
-        
+
         // Create request item for this operation
         const requestItem = createRequestItem(operation, path, method, spec);
-        
+
         // Add request item to tag group
-        tagGroups[tag].item.push(requestItem);
+        tagGroups[groupName].item.push(requestItem);
       });
     }
   }
@@ -767,13 +831,37 @@ function createRequestItem(operation, path, method, spec) {
 }
 
 /**
+ * Derive the folder-name suffix for an operation from its path-key version prefix.
+ *
+ * The consolidated document keys every operation under its version (/v1/... or
+ * /v2/...). v1 is the unadorned baseline, so it gets no suffix; any higher version
+ * prefix becomes a parenthesised suffix (v2 -> " (v2)") so its folders stay distinct
+ * from the v1 folders that share the same tag. A first segment that is not a version
+ * prefix (the tracer keys its paths without one) yields no suffix.
+ *
+ * @param {string} path - The path key of the endpoint
+ * @returns {string} The suffix to append to the tag-derived folder name, or ""
+ */
+function versionSuffix(path) {
+  const firstSegment = path.split('/').filter(p => p)[0];
+  if (firstSegment && /^v\d+$/.test(firstSegment) && firstSegment !== 'v1') {
+    return ` (${firstSegment})`;
+  }
+  return '';
+}
+
+/**
  * Resolve the base-path segments an operation is served under.
  *
- * OpenAPI keeps the base path in `servers`, not in the path keys: the Huma dumps
- * declare `servers: [{ url: "/v1" }]` (or "/v2") and key their paths from there,
- * so a Postman URL built from the path key alone is missing the version prefix.
- * A path item's own `servers` takes precedence over the document's, which is how
- * the consolidated spec carries per-version bases in one document.
+ * OpenAPI can keep the base path in `servers` rather than the path keys, and the
+ * two Huma dumps split the version differently. The ledger dump declares
+ * `servers: [{ url: "/" }]` and carries the version inside each path key
+ * (`/v1/...`, `/v2/...`), so the base path is "/" and this returns `[]`. The
+ * tracer dump declares `servers: [{ url: "/v1" }]` with unprefixed path keys, so
+ * this returns `["v1"]`. Either way `createUrl` rejoins these segments with the
+ * path key to reconstruct the same absolute URL the service actually serves.
+ * A path item's own `servers` takes precedence over the document's, which lets a
+ * consolidated spec carry per-version bases in one document.
  *
  * @param {Object} spec - The full OpenAPI spec
  * @param {string} path - The path key of the endpoint
@@ -2482,7 +2570,11 @@ function main() {
   // Create Postman collection
   console.log('Creating Postman collection...');
   const collection = createPostmanCollection(finalSpec);
-  
+
+  // The whole surface has now been processed; surface any DEPENDENCY_MAP key that
+  // matched no operation before the map can silently rot again.
+  reportUnmatchedDependencyKeys();
+
   // Create Postman environment
   let environment = null;
   if (envOutputFile) {
