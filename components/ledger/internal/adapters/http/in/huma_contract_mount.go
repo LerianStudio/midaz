@@ -5,6 +5,8 @@
 package in
 
 import (
+	"strings"
+
 	"github.com/LerianStudio/lib-auth/v3/auth/middleware"
 	openapi "github.com/LerianStudio/lib-commons/v6/commons/net/http/openapi"
 	problem "github.com/LerianStudio/lib-commons/v6/commons/net/http/problem"
@@ -256,4 +258,22 @@ func AssembleHumaContract(app *fiber.App, group fiber.Router, cfg openapi.Config
 	}
 
 	return api
+}
+
+// MarkV1OperationsDeprecated flags every operation whose path key is under "/v1/"
+// as deprecated on the assembled document, leaving "/v2/" untouched. Run it AFTER
+// the last huma.Register and BEFORE the spec is snapshotted so the served spec and
+// the committed dump carry the flag identically.
+func MarkV1OperationsDeprecated(api huma.API) {
+	for key, item := range api.OpenAPI().Paths {
+		if !strings.HasPrefix(key, "/v1/") {
+			continue
+		}
+
+		for _, op := range []*huma.Operation{item.Get, item.Put, item.Post, item.Delete, item.Options, item.Head, item.Patch, item.Trace} {
+			if op != nil {
+				op.Deprecated = true
+			}
+		}
+	}
 }

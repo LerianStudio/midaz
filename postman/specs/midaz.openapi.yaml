@@ -64,6 +64,7 @@ tags:
 paths:
   /v1/organizations:
     get:
+      deprecated: true
       operationId: listOrganizations
       parameters:
         - description: JSON string to filter organizations by metadata fields
@@ -156,6 +157,7 @@ paths:
       tags:
         - Midaz_Ledger_API_Organizations
     post:
+      deprecated: true
       operationId: createOrganization
       parameters:
         - description: Bearer token (forwarded to the service)
@@ -193,6 +195,7 @@ paths:
         - Midaz_Ledger_API_Organizations
   /v1/organizations/metrics/count:
     head:
+      deprecated: true
       operationId: countOrganizations
       responses:
         '204':
@@ -218,6 +221,7 @@ paths:
         - Midaz_Ledger_API_Organizations
   /v1/organizations/{id}:
     delete:
+      deprecated: true
       operationId: deleteOrganization
       parameters:
         - description: Organization ID (UUID)
@@ -243,6 +247,7 @@ paths:
       tags:
         - Midaz_Ledger_API_Organizations
     get:
+      deprecated: true
       operationId: getOrganizationByID
       parameters:
         - description: Organization ID (UUID)
@@ -272,6 +277,7 @@ paths:
       tags:
         - Midaz_Ledger_API_Organizations
     patch:
+      deprecated: true
       operationId: updateOrganization
       parameters:
         - description: Organization ID (UUID)
@@ -310,6 +316,7 @@ paths:
         - Midaz_Ledger_API_Organizations
   /v1/organizations/{organization_id}/billing-packages:
     get:
+      deprecated: true
       operationId: getAllBillingPackages
       parameters:
         - description: Organization ID (UUID)
@@ -370,6 +377,7 @@ paths:
       tags:
         - Midaz_Ledger_API_Billing Packages
     post:
+      deprecated: true
       operationId: createBillingPackage
       parameters:
         - description: Organization ID (UUID)
@@ -407,6 +415,7 @@ paths:
         - Midaz_Ledger_API_Billing Packages
   /v1/organizations/{organization_id}/billing-packages/{id}:
     delete:
+      deprecated: true
       operationId: deleteBillingPackage
       parameters:
         - description: Organization ID (UUID)
@@ -438,6 +447,7 @@ paths:
       tags:
         - Midaz_Ledger_API_Billing Packages
     get:
+      deprecated: true
       operationId: getBillingPackageByID
       parameters:
         - description: Organization ID (UUID)
@@ -473,6 +483,7 @@ paths:
       tags:
         - Midaz_Ledger_API_Billing Packages
     patch:
+      deprecated: true
       operationId: updateBillingPackage
       parameters:
         - description: Organization ID (UUID)
@@ -517,6 +528,7 @@ paths:
         - Midaz_Ledger_API_Billing Packages
   /v1/organizations/{organization_id}/billing/calculate:
     post:
+      deprecated: true
       operationId: calculateBilling
       parameters:
         - description: Organization ID (UUID)
@@ -554,6 +566,7 @@ paths:
         - Midaz_Ledger_API_Billing Calculate
   /v1/organizations/{organization_id}/encryption/provision:
     post:
+      deprecated: true
       operationId: provisionEncryption
       parameters:
         - description: Organization ID (UUID)
@@ -597,6 +610,7 @@ paths:
         - Midaz_Ledger_API_Encryption
   /v1/organizations/{organization_id}/encryption/status:
     get:
+      deprecated: true
       operationId: getProvisioningStatus
       parameters:
         - description: Organization ID (UUID)
@@ -632,6 +646,7 @@ paths:
         - Midaz_Ledger_API_Encryption
   /v1/organizations/{organization_id}/estimates:
     post:
+      deprecated: true
       operationId: estimateFeeCalculation
       parameters:
         - description: Organization ID (UUID)
@@ -670,6 +685,7 @@ paths:
         - Midaz_Ledger_API_Fees
   /v1/organizations/{organization_id}/holders:
     get:
+      deprecated: true
       operationId: listHolders
       parameters:
         - description: Organization ID (UUID)
@@ -747,6 +763,7 @@ paths:
       tags:
         - Midaz_Ledger_API_Holders
     post:
+      deprecated: true
       operationId: createHolder
       parameters:
         - description: Organization ID (UUID)
@@ -804,6 +821,7 @@ paths:
         - Midaz_Ledger_API_Holders
   /v1/organizations/{organization_id}/holders/{holder_id}/instruments:
     post:
+      deprecated: true
       operationId: createInstrument
       parameters:
         - description: Organization ID (UUID)
@@ -868,6 +886,7 @@ paths:
         - Midaz_Ledger_API_Instruments
   /v1/organizations/{organization_id}/holders/{holder_id}/instruments/{instrument_id}:
     delete:
+      deprecated: true
       operationId: deleteInstrument
       parameters:
         - description: Organization ID (UUID)
@@ -917,6 +936,7 @@ paths:
       tags:
         - Midaz_Ledger_API_Instruments
     get:
+      deprecated: true
       operationId: getInstrumentByID
       parameters:
         - description: Organization ID (UUID)
@@ -968,6 +988,7 @@ paths:
       tags:
         - Midaz_Ledger_API_Instruments
     patch:
+      deprecated: true
       operationId: updateInstrument
       parameters:
         - description: Organization ID (UUID)
@@ -1019,6 +1040,7 @@ paths:
         - Midaz_Ledger_API_Instruments
   /v1/organizations/{organization_id}/holders/{holder_id}/instruments/{instrument_id}/related-parties/{related_party_id}:
     delete:
+      deprecated: true
       operationId: deleteRelatedParty
       parameters:
         - description: Organization ID (UUID)
@@ -1065,6 +1087,7 @@ paths:
         - Midaz_Ledger_API_Instruments
   /v1/organizations/{organization_id}/holders/{id}:
     delete:
+      deprecated: true
       operationId: deleteHolder
       parameters:
         - description: Organization ID (UUID)
@@ -1107,6 +1130,7 @@ paths:
       tags:
         - Midaz_Ledger_API_Holders
     get:
+      deprecated: true
       operationId: getHolderByID
       parameters:
         - description: Organization ID (UUID)
@@ -1149,6 +1173,7 @@ paths:
       tags:
         - Midaz_Ledger_API_Holders
     patch:
+      deprecated: true
       operationId: updateHolder
       parameters:
         - description: Organization ID (UUID)
@@ -1193,6 +1218,7 @@ paths:
         - Midaz_Ledger_API_Holders
   /v1/organizations/{organization_id}/holders/{id}/accounts:
     get:
+      deprecated: true
       operationId: listAccountsByHolder
       parameters:
         - description: Organization ID (UUID)
@@ -1250,6 +1276,7 @@ paths:
         - Midaz_Ledger_API_Holders
   /v1/organizations/{organization_id}/instruments:
     get:
+      deprecated: true
       operationId: listInstruments
       parameters:
         - description: Organization ID (UUID)
@@ -1342,6 +1369,7 @@ paths:
         - Midaz_Ledger_API_Instruments
   /v1/organizations/{organization_id}/ledgers:
     get:
+      deprecated: true
       operationId: listLedgers
       parameters:
         - description: Organization ID (UUID)
@@ -1427,6 +1455,7 @@ paths:
       tags:
         - Midaz_Ledger_API_Ledgers
     post:
+      deprecated: true
       operationId: createLedger
       parameters:
         - description: Organization ID (UUID)
@@ -1465,6 +1494,7 @@ paths:
         - Midaz_Ledger_API_Ledgers
   /v1/organizations/{organization_id}/ledgers/metrics/count:
     head:
+      deprecated: true
       operationId: countLedgers
       parameters:
         - description: Organization ID (UUID)
@@ -1498,6 +1528,7 @@ paths:
         - Midaz_Ledger_API_Ledgers
   /v1/organizations/{organization_id}/ledgers/{ledger_id}:
     delete:
+      deprecated: true
       operationId: deleteLedger
       parameters:
         - description: Organization ID (UUID)
@@ -1530,6 +1561,7 @@ paths:
       tags:
         - Midaz_Ledger_API_Ledgers
     get:
+      deprecated: true
       operationId: getLedgerByID
       parameters:
         - description: Organization ID (UUID)
@@ -1566,6 +1598,7 @@ paths:
       tags:
         - Midaz_Ledger_API_Ledgers
     patch:
+      deprecated: true
       operationId: updateLedger
       parameters:
         - description: Organization ID (UUID)
@@ -1611,6 +1644,7 @@ paths:
         - Midaz_Ledger_API_Ledgers
   /v1/organizations/{organization_id}/ledgers/{ledger_id}/account-types:
     get:
+      deprecated: true
       operationId: listAccountTypes
       parameters:
         - description: Organization ID (UUID)
@@ -1703,6 +1737,7 @@ paths:
       tags:
         - Midaz_Ledger_API_Account Types
     post:
+      deprecated: true
       operationId: createAccountType
       parameters:
         - description: Organization ID (UUID)
@@ -1748,6 +1783,7 @@ paths:
         - Midaz_Ledger_API_Account Types
   /v1/organizations/{organization_id}/ledgers/{ledger_id}/account-types/{id}:
     delete:
+      deprecated: true
       operationId: deleteAccountType
       parameters:
         - description: Organization ID (UUID)
@@ -1787,6 +1823,7 @@ paths:
       tags:
         - Midaz_Ledger_API_Account Types
     get:
+      deprecated: true
       operationId: getAccountTypeByID
       parameters:
         - description: Organization ID (UUID)
@@ -1830,6 +1867,7 @@ paths:
       tags:
         - Midaz_Ledger_API_Account Types
     patch:
+      deprecated: true
       operationId: updateAccountType
       parameters:
         - description: Organization ID (UUID)
@@ -1882,6 +1920,7 @@ paths:
         - Midaz_Ledger_API_Account Types
   /v1/organizations/{organization_id}/ledgers/{ledger_id}/accounts:
     get:
+      deprecated: true
       operationId: listAccounts
       parameters:
         - description: Organization ID (UUID)
@@ -2030,6 +2069,7 @@ paths:
       tags:
         - Midaz_Ledger_API_Accounts
     post:
+      deprecated: true
       operationId: createAccount
       parameters:
         - description: Organization ID (UUID)
@@ -2081,6 +2121,7 @@ paths:
         - Midaz_Ledger_API_Accounts
   /v1/organizations/{organization_id}/ledgers/{ledger_id}/accounts/alias/{alias}:
     get:
+      deprecated: true
       operationId: getAccountByAlias
       parameters:
         - description: Organization ID (UUID)
@@ -2125,6 +2166,7 @@ paths:
         - Midaz_Ledger_API_Accounts
   /v1/organizations/{organization_id}/ledgers/{ledger_id}/accounts/alias/{alias}/balances:
     get:
+      deprecated: true
       operationId: getBalancesByAlias
       parameters:
         - description: Organization ID (UUID)
@@ -2169,6 +2211,7 @@ paths:
         - Midaz_Ledger_API_Balances
   /v1/organizations/{organization_id}/ledgers/{ledger_id}/accounts/external/{code}:
     get:
+      deprecated: true
       operationId: getAccountExternalByCode
       parameters:
         - description: Organization ID (UUID)
@@ -2213,6 +2256,7 @@ paths:
         - Midaz_Ledger_API_Accounts
   /v1/organizations/{organization_id}/ledgers/{ledger_id}/accounts/external/{code}/balances:
     get:
+      deprecated: true
       operationId: getBalancesExternalByCode
       parameters:
         - description: Organization ID (UUID)
@@ -2257,6 +2301,7 @@ paths:
         - Midaz_Ledger_API_Balances
   /v1/organizations/{organization_id}/ledgers/{ledger_id}/accounts/metrics/count:
     head:
+      deprecated: true
       operationId: countAccounts
       parameters:
         - description: Organization ID (UUID)
@@ -2297,6 +2342,7 @@ paths:
         - Midaz_Ledger_API_Accounts
   /v1/organizations/{organization_id}/ledgers/{ledger_id}/accounts/{account_id}/balances:
     get:
+      deprecated: true
       operationId: getAllBalancesByAccountID
       parameters:
         - description: Organization ID (UUID)
@@ -2375,6 +2421,7 @@ paths:
       tags:
         - Midaz_Ledger_API_Balances
     post:
+      deprecated: true
       operationId: createAdditionalBalance
       parameters:
         - description: Organization ID (UUID)
@@ -2427,6 +2474,7 @@ paths:
         - Midaz_Ledger_API_Balances
   /v1/organizations/{organization_id}/ledgers/{ledger_id}/accounts/{account_id}/balances/history:
     get:
+      deprecated: true
       operationId: getAccountBalancesAtTimestamp
       parameters:
         - description: Organization ID (UUID)
@@ -2482,6 +2530,7 @@ paths:
         - Midaz_Ledger_API_Balances
   /v1/organizations/{organization_id}/ledgers/{ledger_id}/accounts/{account_id}/operations:
     get:
+      deprecated: true
       operationId: getAllOperationsByAccount
       parameters:
         - description: Organization ID (UUID)
@@ -2596,6 +2645,7 @@ paths:
         - Midaz_Ledger_API_Operations
   /v1/organizations/{organization_id}/ledgers/{ledger_id}/accounts/{account_id}/operations/{operation_id}:
     get:
+      deprecated: true
       operationId: getOperationByAccount
       parameters:
         - description: Organization ID (UUID)
@@ -2647,6 +2697,7 @@ paths:
         - Midaz_Ledger_API_Operations
   /v1/organizations/{organization_id}/ledgers/{ledger_id}/accounts/{id}:
     delete:
+      deprecated: true
       operationId: deleteAccount
       parameters:
         - description: Organization ID (UUID)
@@ -2692,6 +2743,7 @@ paths:
       tags:
         - Midaz_Ledger_API_Accounts
     get:
+      deprecated: true
       operationId: getAccountByID
       parameters:
         - description: Organization ID (UUID)
@@ -2735,6 +2787,7 @@ paths:
       tags:
         - Midaz_Ledger_API_Accounts
     patch:
+      deprecated: true
       operationId: updateAccount
       parameters:
         - description: Organization ID (UUID)
@@ -2787,6 +2840,7 @@ paths:
         - Midaz_Ledger_API_Accounts
   /v1/organizations/{organization_id}/ledgers/{ledger_id}/asset-rates:
     put:
+      deprecated: true
       operationId: createOrUpdateAssetRate
       parameters:
         - description: Organization ID (UUID)
@@ -2832,6 +2886,7 @@ paths:
         - Midaz_Ledger_API_Asset Rates
   /v1/organizations/{organization_id}/ledgers/{ledger_id}/asset-rates/from/{asset_code}:
     get:
+      deprecated: true
       operationId: getAllAssetRatesByAssetCode
       parameters:
         - description: Organization ID (UUID)
@@ -2922,6 +2977,7 @@ paths:
         - Midaz_Ledger_API_Asset Rates
   /v1/organizations/{organization_id}/ledgers/{ledger_id}/asset-rates/{external_id}:
     get:
+      deprecated: true
       operationId: getAssetRateByExternalID
       parameters:
         - description: Organization ID (UUID)
@@ -2966,6 +3022,7 @@ paths:
         - Midaz_Ledger_API_Asset Rates
   /v1/organizations/{organization_id}/ledgers/{ledger_id}/assets:
     get:
+      deprecated: true
       operationId: listAssets
       parameters:
         - description: Organization ID (UUID)
@@ -3044,6 +3101,7 @@ paths:
       tags:
         - Midaz_Ledger_API_Assets
     post:
+      deprecated: true
       operationId: createAsset
       parameters:
         - description: Organization ID (UUID)
@@ -3095,6 +3153,7 @@ paths:
         - Midaz_Ledger_API_Assets
   /v1/organizations/{organization_id}/ledgers/{ledger_id}/assets/metrics/count:
     head:
+      deprecated: true
       operationId: countAssets
       parameters:
         - description: Organization ID (UUID)
@@ -3135,6 +3194,7 @@ paths:
         - Midaz_Ledger_API_Assets
   /v1/organizations/{organization_id}/ledgers/{ledger_id}/assets/{id}:
     delete:
+      deprecated: true
       operationId: deleteAsset
       parameters:
         - description: Organization ID (UUID)
@@ -3174,6 +3234,7 @@ paths:
       tags:
         - Midaz_Ledger_API_Assets
     get:
+      deprecated: true
       operationId: getAssetByID
       parameters:
         - description: Organization ID (UUID)
@@ -3217,6 +3278,7 @@ paths:
       tags:
         - Midaz_Ledger_API_Assets
     patch:
+      deprecated: true
       operationId: updateAsset
       parameters:
         - description: Organization ID (UUID)
@@ -3269,6 +3331,7 @@ paths:
         - Midaz_Ledger_API_Assets
   /v1/organizations/{organization_id}/ledgers/{ledger_id}/balances:
     get:
+      deprecated: true
       operationId: getAllBalances
       parameters:
         - description: Organization ID (UUID)
@@ -3341,6 +3404,7 @@ paths:
         - Midaz_Ledger_API_Balances
   /v1/organizations/{organization_id}/ledgers/{ledger_id}/balances/{balance_id}:
     delete:
+      deprecated: true
       operationId: deleteBalance
       parameters:
         - description: Organization ID (UUID)
@@ -3380,6 +3444,7 @@ paths:
       tags:
         - Midaz_Ledger_API_Balances
     get:
+      deprecated: true
       operationId: getBalanceByID
       parameters:
         - description: Organization ID (UUID)
@@ -3423,6 +3488,7 @@ paths:
       tags:
         - Midaz_Ledger_API_Balances
     patch:
+      deprecated: true
       operationId: updateBalance
       parameters:
         - description: Organization ID (UUID)
@@ -3475,6 +3541,7 @@ paths:
         - Midaz_Ledger_API_Balances
   /v1/organizations/{organization_id}/ledgers/{ledger_id}/balances/{balance_id}/history:
     get:
+      deprecated: true
       operationId: getBalanceAtTimestamp
       parameters:
         - description: Organization ID (UUID)
@@ -3526,6 +3593,7 @@ paths:
         - Midaz_Ledger_API_Balances
   /v1/organizations/{organization_id}/ledgers/{ledger_id}/holders/{id}/accounts:
     post:
+      deprecated: true
       operationId: createHolderAccount
       parameters:
         - description: Organization ID (UUID)
@@ -3583,6 +3651,7 @@ paths:
         - Midaz_Ledger_API_Composition
   /v1/organizations/{organization_id}/ledgers/{ledger_id}/operation-routes:
     get:
+      deprecated: true
       operationId: listOperationRoutes
       parameters:
         - description: Organization ID (UUID)
@@ -3653,6 +3722,7 @@ paths:
       tags:
         - Midaz_Ledger_API_Operation Routes
     post:
+      deprecated: true
       operationId: createOperationRoute
       parameters:
         - description: Organization ID (UUID)
@@ -3697,6 +3767,7 @@ paths:
         - Midaz_Ledger_API_Operation Routes
   /v1/organizations/{organization_id}/ledgers/{ledger_id}/operation-routes/{operation_route_id}:
     delete:
+      deprecated: true
       operationId: deleteOperationRoute
       parameters:
         - description: Organization ID (UUID)
@@ -3735,6 +3806,7 @@ paths:
       tags:
         - Midaz_Ledger_API_Operation Routes
     get:
+      deprecated: true
       operationId: getOperationRouteByID
       parameters:
         - description: Organization ID (UUID)
@@ -3777,6 +3849,7 @@ paths:
       tags:
         - Midaz_Ledger_API_Operation Routes
     patch:
+      deprecated: true
       operationId: updateOperationRoute
       parameters:
         - description: Organization ID (UUID)
@@ -3828,6 +3901,7 @@ paths:
         - Midaz_Ledger_API_Operation Routes
   /v1/organizations/{organization_id}/ledgers/{ledger_id}/portfolios:
     get:
+      deprecated: true
       operationId: listPortfolios
       parameters:
         - description: Organization ID (UUID)
@@ -3920,6 +3994,7 @@ paths:
       tags:
         - Midaz_Ledger_API_Portfolios
     post:
+      deprecated: true
       operationId: createPortfolio
       parameters:
         - description: Organization ID (UUID)
@@ -3965,6 +4040,7 @@ paths:
         - Midaz_Ledger_API_Portfolios
   /v1/organizations/{organization_id}/ledgers/{ledger_id}/portfolios/metrics/count:
     head:
+      deprecated: true
       operationId: countPortfolios
       parameters:
         - description: Organization ID (UUID)
@@ -4005,6 +4081,7 @@ paths:
         - Midaz_Ledger_API_Portfolios
   /v1/organizations/{organization_id}/ledgers/{ledger_id}/portfolios/{id}:
     delete:
+      deprecated: true
       operationId: deletePortfolio
       parameters:
         - description: Organization ID (UUID)
@@ -4044,6 +4121,7 @@ paths:
       tags:
         - Midaz_Ledger_API_Portfolios
     get:
+      deprecated: true
       operationId: getPortfolioByID
       parameters:
         - description: Organization ID (UUID)
@@ -4087,6 +4165,7 @@ paths:
       tags:
         - Midaz_Ledger_API_Portfolios
     patch:
+      deprecated: true
       operationId: updatePortfolio
       parameters:
         - description: Organization ID (UUID)
@@ -4139,6 +4218,7 @@ paths:
         - Midaz_Ledger_API_Portfolios
   /v1/organizations/{organization_id}/ledgers/{ledger_id}/segments:
     get:
+      deprecated: true
       operationId: listSegments
       parameters:
         - description: Organization ID (UUID)
@@ -4217,6 +4297,7 @@ paths:
       tags:
         - Midaz_Ledger_API_Segments
     post:
+      deprecated: true
       operationId: createSegment
       parameters:
         - description: Organization ID (UUID)
@@ -4262,6 +4343,7 @@ paths:
         - Midaz_Ledger_API_Segments
   /v1/organizations/{organization_id}/ledgers/{ledger_id}/segments/metrics/count:
     head:
+      deprecated: true
       operationId: countSegments
       parameters:
         - description: Organization ID (UUID)
@@ -4302,6 +4384,7 @@ paths:
         - Midaz_Ledger_API_Segments
   /v1/organizations/{organization_id}/ledgers/{ledger_id}/segments/{id}:
     delete:
+      deprecated: true
       operationId: deleteSegment
       parameters:
         - description: Organization ID (UUID)
@@ -4341,6 +4424,7 @@ paths:
       tags:
         - Midaz_Ledger_API_Segments
     get:
+      deprecated: true
       operationId: getSegmentByID
       parameters:
         - description: Organization ID (UUID)
@@ -4384,6 +4468,7 @@ paths:
       tags:
         - Midaz_Ledger_API_Segments
     patch:
+      deprecated: true
       operationId: updateSegment
       parameters:
         - description: Organization ID (UUID)
@@ -4436,6 +4521,7 @@ paths:
         - Midaz_Ledger_API_Segments
   /v1/organizations/{organization_id}/ledgers/{ledger_id}/settings:
     get:
+      deprecated: true
       operationId: getLedgerSettings
       parameters:
         - description: Organization ID (UUID)
@@ -4472,6 +4558,7 @@ paths:
       tags:
         - Midaz_Ledger_API_Ledgers
     patch:
+      deprecated: true
       operationId: updateLedgerSettings
       parameters:
         - description: Organization ID (UUID)
@@ -4517,6 +4604,7 @@ paths:
         - Midaz_Ledger_API_Ledgers
   /v1/organizations/{organization_id}/ledgers/{ledger_id}/transaction-routes:
     get:
+      deprecated: true
       operationId: listTransactionRoutes
       parameters:
         - description: Organization ID (UUID)
@@ -4587,6 +4675,7 @@ paths:
       tags:
         - Midaz_Ledger_API_Transaction Routes
     post:
+      deprecated: true
       operationId: createTransactionRoute
       parameters:
         - description: Organization ID (UUID)
@@ -4631,6 +4720,7 @@ paths:
         - Midaz_Ledger_API_Transaction Routes
   /v1/organizations/{organization_id}/ledgers/{ledger_id}/transaction-routes/{transaction_route_id}:
     delete:
+      deprecated: true
       operationId: deleteTransactionRoute
       parameters:
         - description: Organization ID (UUID)
@@ -4669,6 +4759,7 @@ paths:
       tags:
         - Midaz_Ledger_API_Transaction Routes
     get:
+      deprecated: true
       operationId: getTransactionRouteByID
       parameters:
         - description: Organization ID (UUID)
@@ -4711,6 +4802,7 @@ paths:
       tags:
         - Midaz_Ledger_API_Transaction Routes
     patch:
+      deprecated: true
       operationId: updateTransactionRoute
       parameters:
         - description: Organization ID (UUID)
@@ -4762,6 +4854,7 @@ paths:
         - Midaz_Ledger_API_Transaction Routes
   /v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions:
     get:
+      deprecated: true
       operationId: getAllTransactions
       parameters:
         - description: Organization ID (UUID)
@@ -4840,6 +4933,7 @@ paths:
         - Midaz_Ledger_API_Transactions
   /v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions/annotation:
     post:
+      deprecated: true
       operationId: createTransactionAnnotation
       parameters:
         - description: Organization ID (UUID)
@@ -4904,6 +4998,7 @@ paths:
         - Midaz_Ledger_API_Transactions
   /v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions/block:
     post:
+      deprecated: true
       operationId: createTransactionBlock
       parameters:
         - description: Organization ID (UUID)
@@ -4968,6 +5063,7 @@ paths:
         - Midaz_Ledger_API_Transactions
   /v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions/inflow:
     post:
+      deprecated: true
       operationId: createTransactionInflow
       parameters:
         - description: Organization ID (UUID)
@@ -5032,6 +5128,7 @@ paths:
         - Midaz_Ledger_API_Transactions
   /v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions/json:
     post:
+      deprecated: true
       operationId: createTransactionJSON
       parameters:
         - description: Organization ID (UUID)
@@ -5096,6 +5193,7 @@ paths:
         - Midaz_Ledger_API_Transactions
   /v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions/metrics/count:
     head:
+      deprecated: true
       operationId: countTransactionsByFilters
       parameters:
         - description: Organization ID (UUID)
@@ -5168,6 +5266,7 @@ paths:
         - Midaz_Ledger_API_Transactions
   /v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions/outflow:
     post:
+      deprecated: true
       operationId: createTransactionOutflow
       parameters:
         - description: Organization ID (UUID)
@@ -5232,6 +5331,7 @@ paths:
         - Midaz_Ledger_API_Transactions
   /v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions/unblock:
     post:
+      deprecated: true
       operationId: createTransactionUnblock
       parameters:
         - description: Organization ID (UUID)
@@ -5296,6 +5396,7 @@ paths:
         - Midaz_Ledger_API_Transactions
   /v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions/{transaction_id}:
     get:
+      deprecated: true
       operationId: getTransaction
       parameters:
         - description: Organization ID (UUID)
@@ -5342,6 +5443,7 @@ paths:
       tags:
         - Midaz_Ledger_API_Transactions
     patch:
+      deprecated: true
       operationId: updateTransaction
       parameters:
         - description: Organization ID (UUID)
@@ -5393,6 +5495,7 @@ paths:
         - Midaz_Ledger_API_Transactions
   /v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions/{transaction_id}/cancel:
     post:
+      deprecated: true
       operationId: cancelTransaction
       parameters:
         - description: Organization ID (UUID)
@@ -5436,6 +5539,7 @@ paths:
         - Midaz_Ledger_API_Transactions
   /v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions/{transaction_id}/commit:
     post:
+      deprecated: true
       operationId: commitTransaction
       parameters:
         - description: Organization ID (UUID)
@@ -5479,6 +5583,7 @@ paths:
         - Midaz_Ledger_API_Transactions
   /v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions/{transaction_id}/operations/{operation_id}:
     patch:
+      deprecated: true
       operationId: updateOperation
       parameters:
         - description: Organization ID (UUID)
@@ -5537,6 +5642,7 @@ paths:
         - Midaz_Ledger_API_Operations
   /v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions/{transaction_id}/revert:
     post:
+      deprecated: true
       operationId: revertTransaction
       parameters:
         - description: Organization ID (UUID)
@@ -5584,6 +5690,7 @@ paths:
         - Midaz_Ledger_API_Transactions
   /v1/organizations/{organization_id}/packages:
     get:
+      deprecated: true
       operationId: getAllPackages
       parameters:
         - description: Organization ID (UUID)
@@ -5654,6 +5761,7 @@ paths:
       tags:
         - Midaz_Ledger_API_Packages
     post:
+      deprecated: true
       operationId: createPackage
       parameters:
         - description: Organization ID (UUID)
@@ -5691,6 +5799,7 @@ paths:
         - Midaz_Ledger_API_Packages
   /v1/organizations/{organization_id}/packages/{id}:
     delete:
+      deprecated: true
       operationId: deletePackage
       parameters:
         - description: Organization ID (UUID)
@@ -5722,6 +5831,7 @@ paths:
       tags:
         - Midaz_Ledger_API_Packages
     get:
+      deprecated: true
       operationId: getPackageByID
       parameters:
         - description: Organization ID (UUID)
@@ -5757,6 +5867,7 @@ paths:
       tags:
         - Midaz_Ledger_API_Packages
     patch:
+      deprecated: true
       operationId: updatePackage
       parameters:
         - description: Organization ID (UUID)
@@ -5801,6 +5912,7 @@ paths:
         - Midaz_Ledger_API_Packages
   /v1/organizations/{organization_id}/protection/audit:
     get:
+      deprecated: true
       operationId: getAuditEvents
       parameters:
         - description: Organization ID (UUID)
@@ -5892,6 +6004,7 @@ paths:
         - Midaz_Ledger_API_Protection
   /v1/settings/metadata-indexes:
     get:
+      deprecated: true
       operationId: getAllMetadataIndexes
       parameters:
         - description: Optional entity name filter
@@ -5926,6 +6039,7 @@ paths:
         - Midaz_Ledger_API_Metadata Indexes
   /v1/settings/metadata-indexes/entities/{entity_name}:
     post:
+      deprecated: true
       operationId: createMetadataIndex
       parameters:
         - description: >-
@@ -5970,6 +6084,7 @@ paths:
         - Midaz_Ledger_API_Metadata Indexes
   /v1/settings/metadata-indexes/entities/{entity_name}/key/{index_key}:
     delete:
+      deprecated: true
       operationId: deleteMetadataIndex
       parameters:
         - description: >-

@@ -126,6 +126,7 @@
   "paths": {
     "/v1/organizations": {
       "get": {
+        "deprecated": true,
         "operationId": "listOrganizations",
         "parameters": [
           {
@@ -265,6 +266,7 @@
         ]
       },
       "post": {
+        "deprecated": true,
         "operationId": "createOrganization",
         "parameters": [
           {
@@ -327,6 +329,7 @@
     },
     "/v1/organizations/metrics/count": {
       "head": {
+        "deprecated": true,
         "operationId": "countOrganizations",
         "responses": {
           "204": {
@@ -371,6 +374,7 @@
     },
     "/v1/organizations/{id}": {
       "delete": {
+        "deprecated": true,
         "operationId": "deleteOrganization",
         "parameters": [
           {
@@ -413,6 +417,7 @@
         ]
       },
       "get": {
+        "deprecated": true,
         "operationId": "getOrganizationByID",
         "parameters": [
           {
@@ -462,6 +467,7 @@
         ]
       },
       "patch": {
+        "deprecated": true,
         "operationId": "updateOrganization",
         "parameters": [
           {
@@ -525,6 +531,7 @@
     },
     "/v1/organizations/{organization_id}/billing-packages": {
       "get": {
+        "deprecated": true,
         "operationId": "getAllBillingPackages",
         "parameters": [
           {
@@ -611,6 +618,7 @@
         ]
       },
       "post": {
+        "deprecated": true,
         "operationId": "createBillingPackage",
         "parameters": [
           {
@@ -671,6 +679,7 @@
     },
     "/v1/organizations/{organization_id}/billing-packages/{id}": {
       "delete": {
+        "deprecated": true,
         "operationId": "deleteBillingPackage",
         "parameters": [
           {
@@ -720,6 +729,7 @@
         ]
       },
       "get": {
+        "deprecated": true,
         "operationId": "getBillingPackageByID",
         "parameters": [
           {
@@ -776,6 +786,7 @@
         ]
       },
       "patch": {
+        "deprecated": true,
         "operationId": "updateBillingPackage",
         "parameters": [
           {
@@ -846,6 +857,7 @@
     },
     "/v1/organizations/{organization_id}/billing/calculate": {
       "post": {
+        "deprecated": true,
         "operationId": "calculateBilling",
         "parameters": [
           {
@@ -906,6 +918,7 @@
     },
     "/v1/organizations/{organization_id}/encryption/provision": {
       "post": {
+        "deprecated": true,
         "operationId": "provisionEncryption",
         "parameters": [
           {
@@ -975,6 +988,7 @@
     },
     "/v1/organizations/{organization_id}/encryption/status": {
       "get": {
+        "deprecated": true,
         "operationId": "getProvisioningStatus",
         "parameters": [
           {
@@ -1032,6 +1046,7 @@
     },
     "/v1/organizations/{organization_id}/estimates": {
       "post": {
+        "deprecated": true,
         "operationId": "estimateFeeCalculation",
         "parameters": [
           {
@@ -1093,6 +1108,7 @@
     },
     "/v1/organizations/{organization_id}/holders": {
       "get": {
+        "deprecated": true,
         "operationId": "listHolders",
         "parameters": [
           {
@@ -1209,6 +1225,7 @@
         ]
       },
       "post": {
+        "deprecated": true,
         "operationId": "createHolder",
         "parameters": [
           {
@@ -1294,6 +1311,7 @@
     },
     "/v1/organizations/{organization_id}/holders/{holder_id}/instruments": {
       "post": {
+        "deprecated": true,
         "operationId": "createInstrument",
         "parameters": [
           {
@@ -1389,6 +1407,7 @@
     },
     "/v1/organizations/{organization_id}/holders/{holder_id}/instruments/{instrument_id}": {
       "delete": {
+        "deprecated": true,
         "operationId": "deleteInstrument",
         "parameters": [
           {
@@ -1458,6 +1477,7 @@
         ]
       },
       "get": {
+        "deprecated": true,
         "operationId": "getInstrumentByID",
         "parameters": [
           {
@@ -1534,6 +1554,7 @@
         ]
       },
       "patch": {
+        "deprecated": true,
         "operationId": "updateInstrument",
         "parameters": [
           {
@@ -1614,6 +1635,7 @@
     },
     "/v1/organizations/{organization_id}/holders/{holder_id}/instruments/{instrument_id}/related-parties/{related_party_id}": {
       "delete": {
+        "deprecated": true,
         "operationId": "deleteRelatedParty",
         "parameters": [
           {
@@ -1685,6 +1707,7 @@
     },
     "/v1/organizations/{organization_id}/holders/{id}": {
       "delete": {
+        "deprecated": true,
         "operationId": "deleteHolder",
         "parameters": [
           {
@@ -1744,6 +1767,7 @@
         ]
       },
       "get": {
+        "deprecated": true,
         "operationId": "getHolderByID",
         "parameters": [
           {
@@ -1810,6 +1834,7 @@
         ]
       },
       "patch": {
+        "deprecated": true,
         "operationId": "updateHolder",
         "parameters": [
           {
@@ -1880,6 +1905,7 @@
     },
     "/v1/organizations/{organization_id}/holders/{id}/accounts": {
       "get": {
+        "deprecated": true,
         "operationId": "listAccountsByHolder",
         "parameters": [
           {
@@ -1968,6 +1994,7 @@
     },
     "/v1/organizations/{organization_id}/instruments": {
       "get": {
+        "deprecated": true,
         "operationId": "listInstruments",
         "parameters": [
           {
@@ -2106,6 +2133,7 @@
     },
     "/v1/organizations/{organization_id}/ledgers": {
       "get": {
+        "deprecated": true,
         "operationId": "listLedgers",
         "parameters": [
           {
@@ -2235,6 +2263,7 @@
         ]
       },
       "post": {
+        "deprecated": true,
         "operationId": "createLedger",
         "parameters": [
           {
@@ -2298,6 +2327,7 @@
     },
     "/v1/organizations/{organization_id}/ledgers/metrics/count": {
       "head": {
+        "deprecated": true,
         "operationId": "countLedgers",
         "parameters": [
           {
@@ -2354,6 +2384,7 @@
     },
     "/v1/organizations/{organization_id}/ledgers/{ledger_id}": {
       "delete": {
+        "deprecated": true,
         "operationId": "deleteLedger",
         "parameters": [
           {
@@ -2406,6 +2437,7 @@
         ]
       },
       "get": {
+        "deprecated": true,
         "operationId": "getLedgerByID",
         "parameters": [
           {
@@ -2465,6 +2497,7 @@
         ]
       },
       "patch": {
+        "deprecated": true,
         "operationId": "updateLedger",
         "parameters": [
           {
@@ -2538,6 +2571,7 @@
     },
     "/v1/organizations/{organization_id}/ledgers/{ledger_id}/account-types": {
       "get": {
+        "deprecated": true,
         "operationId": "listAccountTypes",
         "parameters": [
           {
@@ -2677,6 +2711,7 @@
         ]
       },
       "post": {
+        "deprecated": true,
         "operationId": "createAccountType",
         "parameters": [
           {
@@ -2750,6 +2785,7 @@
     },
     "/v1/organizations/{organization_id}/ledgers/{ledger_id}/account-types/{id}": {
       "delete": {
+        "deprecated": true,
         "operationId": "deleteAccountType",
         "parameters": [
           {
@@ -2812,6 +2848,7 @@
         ]
       },
       "get": {
+        "deprecated": true,
         "operationId": "getAccountTypeByID",
         "parameters": [
           {
@@ -2881,6 +2918,7 @@
         ]
       },
       "patch": {
+        "deprecated": true,
         "operationId": "updateAccountType",
         "parameters": [
           {
@@ -2964,6 +3002,7 @@
     },
     "/v1/organizations/{organization_id}/ledgers/{ledger_id}/accounts": {
       "get": {
+        "deprecated": true,
         "operationId": "listAccounts",
         "parameters": [
           {
@@ -3183,6 +3222,7 @@
         ]
       },
       "post": {
+        "deprecated": true,
         "operationId": "createAccount",
         "parameters": [
           {
@@ -3265,6 +3305,7 @@
     },
     "/v1/organizations/{organization_id}/ledgers/{ledger_id}/accounts/alias/{alias}": {
       "get": {
+        "deprecated": true,
         "operationId": "getAccountByAlias",
         "parameters": [
           {
@@ -3336,6 +3377,7 @@
     },
     "/v1/organizations/{organization_id}/ledgers/{ledger_id}/accounts/alias/{alias}/balances": {
       "get": {
+        "deprecated": true,
         "operationId": "getBalancesByAlias",
         "parameters": [
           {
@@ -3407,6 +3449,7 @@
     },
     "/v1/organizations/{organization_id}/ledgers/{ledger_id}/accounts/external/{code}": {
       "get": {
+        "deprecated": true,
         "operationId": "getAccountExternalByCode",
         "parameters": [
           {
@@ -3478,6 +3521,7 @@
     },
     "/v1/organizations/{organization_id}/ledgers/{ledger_id}/accounts/external/{code}/balances": {
       "get": {
+        "deprecated": true,
         "operationId": "getBalancesExternalByCode",
         "parameters": [
           {
@@ -3549,6 +3593,7 @@
     },
     "/v1/organizations/{organization_id}/ledgers/{ledger_id}/accounts/metrics/count": {
       "head": {
+        "deprecated": true,
         "operationId": "countAccounts",
         "parameters": [
           {
@@ -3615,6 +3660,7 @@
     },
     "/v1/organizations/{organization_id}/ledgers/{ledger_id}/accounts/{account_id}/balances": {
       "get": {
+        "deprecated": true,
         "operationId": "getAllBalancesByAccountID",
         "parameters": [
           {
@@ -3734,6 +3780,7 @@
         ]
       },
       "post": {
+        "deprecated": true,
         "operationId": "createAdditionalBalance",
         "parameters": [
           {
@@ -3817,6 +3864,7 @@
     },
     "/v1/organizations/{organization_id}/ledgers/{ledger_id}/accounts/{account_id}/balances/history": {
       "get": {
+        "deprecated": true,
         "operationId": "getAccountBalancesAtTimestamp",
         "parameters": [
           {
@@ -3904,6 +3952,7 @@
     },
     "/v1/organizations/{organization_id}/ledgers/{ledger_id}/accounts/{account_id}/operations": {
       "get": {
+        "deprecated": true,
         "operationId": "getAllOperationsByAccount",
         "parameters": [
           {
@@ -4075,6 +4124,7 @@
     },
     "/v1/organizations/{organization_id}/ledgers/{ledger_id}/accounts/{account_id}/operations/{operation_id}": {
       "get": {
+        "deprecated": true,
         "operationId": "getOperationByAccount",
         "parameters": [
           {
@@ -4156,6 +4206,7 @@
     },
     "/v1/organizations/{organization_id}/ledgers/{ledger_id}/accounts/{id}": {
       "delete": {
+        "deprecated": true,
         "operationId": "deleteAccount",
         "parameters": [
           {
@@ -4227,6 +4278,7 @@
         ]
       },
       "get": {
+        "deprecated": true,
         "operationId": "getAccountByID",
         "parameters": [
           {
@@ -4296,6 +4348,7 @@
         ]
       },
       "patch": {
+        "deprecated": true,
         "operationId": "updateAccount",
         "parameters": [
           {
@@ -4379,6 +4432,7 @@
     },
     "/v1/organizations/{organization_id}/ledgers/{ledger_id}/asset-rates": {
       "put": {
+        "deprecated": true,
         "operationId": "createOrUpdateAssetRate",
         "parameters": [
           {
@@ -4452,6 +4506,7 @@
     },
     "/v1/organizations/{organization_id}/ledgers/{ledger_id}/asset-rates/from/{asset_code}": {
       "get": {
+        "deprecated": true,
         "operationId": "getAllAssetRatesByAssetCode",
         "parameters": [
           {
@@ -4589,6 +4644,7 @@
     },
     "/v1/organizations/{organization_id}/ledgers/{ledger_id}/asset-rates/{external_id}": {
       "get": {
+        "deprecated": true,
         "operationId": "getAssetRateByExternalID",
         "parameters": [
           {
@@ -4660,6 +4716,7 @@
     },
     "/v1/organizations/{organization_id}/ledgers/{ledger_id}/assets": {
       "get": {
+        "deprecated": true,
         "operationId": "listAssets",
         "parameters": [
           {
@@ -4779,6 +4836,7 @@
         ]
       },
       "post": {
+        "deprecated": true,
         "operationId": "createAsset",
         "parameters": [
           {
@@ -4861,6 +4919,7 @@
     },
     "/v1/organizations/{organization_id}/ledgers/{ledger_id}/assets/metrics/count": {
       "head": {
+        "deprecated": true,
         "operationId": "countAssets",
         "parameters": [
           {
@@ -4927,6 +4986,7 @@
     },
     "/v1/organizations/{organization_id}/ledgers/{ledger_id}/assets/{id}": {
       "delete": {
+        "deprecated": true,
         "operationId": "deleteAsset",
         "parameters": [
           {
@@ -4989,6 +5049,7 @@
         ]
       },
       "get": {
+        "deprecated": true,
         "operationId": "getAssetByID",
         "parameters": [
           {
@@ -5058,6 +5119,7 @@
         ]
       },
       "patch": {
+        "deprecated": true,
         "operationId": "updateAsset",
         "parameters": [
           {
@@ -5141,6 +5203,7 @@
     },
     "/v1/organizations/{organization_id}/ledgers/{ledger_id}/balances": {
       "get": {
+        "deprecated": true,
         "operationId": "getAllBalances",
         "parameters": [
           {
@@ -5252,6 +5315,7 @@
     },
     "/v1/organizations/{organization_id}/ledgers/{ledger_id}/balances/{balance_id}": {
       "delete": {
+        "deprecated": true,
         "operationId": "deleteBalance",
         "parameters": [
           {
@@ -5314,6 +5378,7 @@
         ]
       },
       "get": {
+        "deprecated": true,
         "operationId": "getBalanceByID",
         "parameters": [
           {
@@ -5383,6 +5448,7 @@
         ]
       },
       "patch": {
+        "deprecated": true,
         "operationId": "updateBalance",
         "parameters": [
           {
@@ -5466,6 +5532,7 @@
     },
     "/v1/organizations/{organization_id}/ledgers/{ledger_id}/balances/{balance_id}/history": {
       "get": {
+        "deprecated": true,
         "operationId": "getBalanceAtTimestamp",
         "parameters": [
           {
@@ -5547,6 +5614,7 @@
     },
     "/v1/organizations/{organization_id}/ledgers/{ledger_id}/holders/{id}/accounts": {
       "post": {
+        "deprecated": true,
         "operationId": "createHolderAccount",
         "parameters": [
           {
@@ -5636,6 +5704,7 @@
     },
     "/v1/organizations/{organization_id}/ledgers/{ledger_id}/operation-routes": {
       "get": {
+        "deprecated": true,
         "operationId": "listOperationRoutes",
         "parameters": [
           {
@@ -5742,6 +5811,7 @@
         ]
       },
       "post": {
+        "deprecated": true,
         "operationId": "createOperationRoute",
         "parameters": [
           {
@@ -5812,6 +5882,7 @@
     },
     "/v1/organizations/{organization_id}/ledgers/{ledger_id}/operation-routes/{operation_route_id}": {
       "delete": {
+        "deprecated": true,
         "operationId": "deleteOperationRoute",
         "parameters": [
           {
@@ -5871,6 +5942,7 @@
         ]
       },
       "get": {
+        "deprecated": true,
         "operationId": "getOperationRouteByID",
         "parameters": [
           {
@@ -5937,6 +6009,7 @@
         ]
       },
       "patch": {
+        "deprecated": true,
         "operationId": "updateOperationRoute",
         "parameters": [
           {
@@ -6017,6 +6090,7 @@
     },
     "/v1/organizations/{organization_id}/ledgers/{ledger_id}/portfolios": {
       "get": {
+        "deprecated": true,
         "operationId": "listPortfolios",
         "parameters": [
           {
@@ -6156,6 +6230,7 @@
         ]
       },
       "post": {
+        "deprecated": true,
         "operationId": "createPortfolio",
         "parameters": [
           {
@@ -6229,6 +6304,7 @@
     },
     "/v1/organizations/{organization_id}/ledgers/{ledger_id}/portfolios/metrics/count": {
       "head": {
+        "deprecated": true,
         "operationId": "countPortfolios",
         "parameters": [
           {
@@ -6295,6 +6371,7 @@
     },
     "/v1/organizations/{organization_id}/ledgers/{ledger_id}/portfolios/{id}": {
       "delete": {
+        "deprecated": true,
         "operationId": "deletePortfolio",
         "parameters": [
           {
@@ -6357,6 +6434,7 @@
         ]
       },
       "get": {
+        "deprecated": true,
         "operationId": "getPortfolioByID",
         "parameters": [
           {
@@ -6426,6 +6504,7 @@
         ]
       },
       "patch": {
+        "deprecated": true,
         "operationId": "updatePortfolio",
         "parameters": [
           {
@@ -6509,6 +6588,7 @@
     },
     "/v1/organizations/{organization_id}/ledgers/{ledger_id}/segments": {
       "get": {
+        "deprecated": true,
         "operationId": "listSegments",
         "parameters": [
           {
@@ -6628,6 +6708,7 @@
         ]
       },
       "post": {
+        "deprecated": true,
         "operationId": "createSegment",
         "parameters": [
           {
@@ -6701,6 +6782,7 @@
     },
     "/v1/organizations/{organization_id}/ledgers/{ledger_id}/segments/metrics/count": {
       "head": {
+        "deprecated": true,
         "operationId": "countSegments",
         "parameters": [
           {
@@ -6767,6 +6849,7 @@
     },
     "/v1/organizations/{organization_id}/ledgers/{ledger_id}/segments/{id}": {
       "delete": {
+        "deprecated": true,
         "operationId": "deleteSegment",
         "parameters": [
           {
@@ -6829,6 +6912,7 @@
         ]
       },
       "get": {
+        "deprecated": true,
         "operationId": "getSegmentByID",
         "parameters": [
           {
@@ -6898,6 +6982,7 @@
         ]
       },
       "patch": {
+        "deprecated": true,
         "operationId": "updateSegment",
         "parameters": [
           {
@@ -6981,6 +7066,7 @@
     },
     "/v1/organizations/{organization_id}/ledgers/{ledger_id}/settings": {
       "get": {
+        "deprecated": true,
         "operationId": "getLedgerSettings",
         "parameters": [
           {
@@ -7040,6 +7126,7 @@
         ]
       },
       "patch": {
+        "deprecated": true,
         "operationId": "updateLedgerSettings",
         "parameters": [
           {
@@ -7113,6 +7200,7 @@
     },
     "/v1/organizations/{organization_id}/ledgers/{ledger_id}/transaction-routes": {
       "get": {
+        "deprecated": true,
         "operationId": "listTransactionRoutes",
         "parameters": [
           {
@@ -7219,6 +7307,7 @@
         ]
       },
       "post": {
+        "deprecated": true,
         "operationId": "createTransactionRoute",
         "parameters": [
           {
@@ -7289,6 +7378,7 @@
     },
     "/v1/organizations/{organization_id}/ledgers/{ledger_id}/transaction-routes/{transaction_route_id}": {
       "delete": {
+        "deprecated": true,
         "operationId": "deleteTransactionRoute",
         "parameters": [
           {
@@ -7348,6 +7438,7 @@
         ]
       },
       "get": {
+        "deprecated": true,
         "operationId": "getTransactionRouteByID",
         "parameters": [
           {
@@ -7414,6 +7505,7 @@
         ]
       },
       "patch": {
+        "deprecated": true,
         "operationId": "updateTransactionRoute",
         "parameters": [
           {
@@ -7494,6 +7586,7 @@
     },
     "/v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions": {
       "get": {
+        "deprecated": true,
         "operationId": "getAllTransactions",
         "parameters": [
           {
@@ -7612,6 +7705,7 @@
     },
     "/v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions/annotation": {
       "post": {
+        "deprecated": true,
         "operationId": "createTransactionAnnotation",
         "parameters": [
           {
@@ -7707,6 +7801,7 @@
     },
     "/v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions/block": {
       "post": {
+        "deprecated": true,
         "operationId": "createTransactionBlock",
         "parameters": [
           {
@@ -7802,6 +7897,7 @@
     },
     "/v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions/inflow": {
       "post": {
+        "deprecated": true,
         "operationId": "createTransactionInflow",
         "parameters": [
           {
@@ -7897,6 +7993,7 @@
     },
     "/v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions/json": {
       "post": {
+        "deprecated": true,
         "operationId": "createTransactionJSON",
         "parameters": [
           {
@@ -7992,6 +8089,7 @@
     },
     "/v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions/metrics/count": {
       "head": {
+        "deprecated": true,
         "operationId": "countTransactionsByFilters",
         "parameters": [
           {
@@ -8098,6 +8196,7 @@
     },
     "/v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions/outflow": {
       "post": {
+        "deprecated": true,
         "operationId": "createTransactionOutflow",
         "parameters": [
           {
@@ -8193,6 +8292,7 @@
     },
     "/v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions/unblock": {
       "post": {
+        "deprecated": true,
         "operationId": "createTransactionUnblock",
         "parameters": [
           {
@@ -8288,6 +8388,7 @@
     },
     "/v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions/{transaction_id}": {
       "get": {
+        "deprecated": true,
         "operationId": "getTransaction",
         "parameters": [
           {
@@ -8361,6 +8462,7 @@
         ]
       },
       "patch": {
+        "deprecated": true,
         "operationId": "updateTransaction",
         "parameters": [
           {
@@ -8441,6 +8543,7 @@
     },
     "/v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions/{transaction_id}/cancel": {
       "post": {
+        "deprecated": true,
         "operationId": "cancelTransaction",
         "parameters": [
           {
@@ -8509,6 +8612,7 @@
     },
     "/v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions/{transaction_id}/commit": {
       "post": {
+        "deprecated": true,
         "operationId": "commitTransaction",
         "parameters": [
           {
@@ -8577,6 +8681,7 @@
     },
     "/v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions/{transaction_id}/operations/{operation_id}": {
       "patch": {
+        "deprecated": true,
         "operationId": "updateOperation",
         "parameters": [
           {
@@ -8667,6 +8772,7 @@
     },
     "/v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions/{transaction_id}/revert": {
       "post": {
+        "deprecated": true,
         "operationId": "revertTransaction",
         "parameters": [
           {
@@ -8742,6 +8848,7 @@
     },
     "/v1/organizations/{organization_id}/packages": {
       "get": {
+        "deprecated": true,
         "operationId": "getAllPackages",
         "parameters": [
           {
@@ -8848,6 +8955,7 @@
         ]
       },
       "post": {
+        "deprecated": true,
         "operationId": "createPackage",
         "parameters": [
           {
@@ -8908,6 +9016,7 @@
     },
     "/v1/organizations/{organization_id}/packages/{id}": {
       "delete": {
+        "deprecated": true,
         "operationId": "deletePackage",
         "parameters": [
           {
@@ -8957,6 +9066,7 @@
         ]
       },
       "get": {
+        "deprecated": true,
         "operationId": "getPackageByID",
         "parameters": [
           {
@@ -9013,6 +9123,7 @@
         ]
       },
       "patch": {
+        "deprecated": true,
         "operationId": "updatePackage",
         "parameters": [
           {
@@ -9083,6 +9194,7 @@
     },
     "/v1/organizations/{organization_id}/protection/audit": {
       "get": {
+        "deprecated": true,
         "operationId": "getAuditEvents",
         "parameters": [
           {
@@ -9220,6 +9332,7 @@
     },
     "/v1/settings/metadata-indexes": {
       "get": {
+        "deprecated": true,
         "operationId": "getAllMetadataIndexes",
         "parameters": [
           {
@@ -9277,6 +9390,7 @@
     },
     "/v1/settings/metadata-indexes/entities/{entity_name}": {
       "post": {
+        "deprecated": true,
         "operationId": "createMetadataIndex",
         "parameters": [
           {
@@ -9340,6 +9454,7 @@
     },
     "/v1/settings/metadata-indexes/entities/{entity_name}/key/{index_key}": {
       "delete": {
+        "deprecated": true,
         "operationId": "deleteMetadataIndex",
         "parameters": [
           {

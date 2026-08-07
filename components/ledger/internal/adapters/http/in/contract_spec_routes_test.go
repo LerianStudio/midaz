@@ -95,6 +95,8 @@ func buildUnifiedHumaAPI() (*fiber.App, huma.API) {
 	deps.MountV1(app.Group("/v1"), huma.NewGroup(api, "/v1"))
 	deps.MountV2(app.Group("/v2"), huma.NewGroup(api, "/v2"))
 
+	MarkV1OperationsDeprecated(api)
+
 	return app, api
 }
 
