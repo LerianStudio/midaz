@@ -141,6 +141,11 @@ type UseCase struct {
 	// nil-guard).
 	BillingSerializer billingSerializer
 
+	// MultiTenantEnabled selects the billing subscription identity: when true,
+	// active-account billing uses the resolved tenant ID as SubscriptionId; when
+	// false, the transaction's OrganizationID. Injected from config at bootstrap.
+	MultiTenantEnabled bool
+
 	// --- Holder ownership (CRM seam, wired at bootstrap) ---
 
 	// HolderReader asserts holder existence for the RequireHolder gate on the

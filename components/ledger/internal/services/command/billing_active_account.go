@@ -19,6 +19,7 @@ import (
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/transaction"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
 	pkgStreaming "github.com/LerianStudio/midaz/v4/pkg/streaming"
+	"github.com/LerianStudio/midaz/v4/pkg/streaming/events"
 )
 
 // activeAccountMetric is the Lago billable metric code emitted once per unique
@@ -56,37 +57,52 @@ func (uc *UseCase) SendActiveAccountBillingEvents(ctx context.Context, tran *tra
 		return
 	}
 
+	if tran == nil {
+		return
+	}
+
 	ctxSend, span := tracer.Start(ctx, "command.send_active_account_billing_events_async")
 	defer span.End()
 
 	tenantID := pkgStreaming.ResolveTenantID(ctxSend)
 
-	payloads := buildActiveAccountBillingPayloads(tran)
+	// SubscriptionId is the billing customer: the resolved tenant when
+	// multi-tenant is enabled, otherwise the transaction's organization.
+	subscriptionID := tran.OrganizationID
+	if uc.MultiTenantEnabled {
+		subscriptionID = tenantID
+	}
 
-	for i := range payloads {
+	billables := buildActiveAccountBillingPayloads(tran, subscriptionID)
+
+	for i := range billables {
 		if ctxSend.Err() != nil {
 			return
 		}
 
-		// &payloads[i] rather than a copy: BillablePayload is a protobuf message
-		// embedding a sync.Mutex, so copying it by value trips govet copylocks.
-		uc.emitActiveAccountBillingEvent(ctxSend, span, logger, tenantID, &payloads[i], tran.CreatedAt)
+		// &billables[i].Payload rather than a copy: BillablePayload is a protobuf
+		// message embedding a sync.Mutex, so copying it by value trips govet
+		// copylocks. The account ID is the ce-subject; SubscriptionId stays the
+		// billing customer.
+		uc.emitActiveAccountBillingEvent(ctxSend, span, logger, tenantID, billables[i].AccountID, &billables[i].Payload, tran.CreatedAt)
 	}
 }
 
 // emitActiveAccountBillingEvent serializes one billable payload through the
-// billing serializer and emits it via the streaming seam. Serialize and emit
-// failures are span-recorded, warn-logged and swallowed — billing is
-// best-effort and MUST NOT fail the parent transaction.
-func (uc *UseCase) emitActiveAccountBillingEvent(ctx context.Context, span trace.Span, logger libLog.Logger, tenantID string, p *billing.BillablePayload, ts time.Time) {
+// billing serializer and emits it via the streaming seam. subject is the
+// ce-subject (the internal account ID), kept distinct from the payload's
+// SubscriptionId (the billing customer). Serialize and emit failures are
+// span-recorded, warn-logged and swallowed — billing is best-effort and MUST
+// NOT fail the parent transaction.
+func (uc *UseCase) emitActiveAccountBillingEvent(ctx context.Context, span trace.Span, logger libLog.Logger, tenantID, subject string, p *billing.BillablePayload, ts time.Time) {
 	raw, err := uc.BillingSerializer.Serialize(p)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(span, "billing serialize failed; skipping emit", err)
 
 		logger.Log(ctx, libLog.LevelWarn, "billing serialize failed; skipping emit",
 			libLog.String("metric", p.GetMetric()),
+			libLog.String("subject", subject),
 			libLog.String("subscription_id", p.GetSubscriptionId()),
-			libLog.String("tenant_id", tenantID),
 			libLog.Err(err))
 
 		return
@@ -95,7 +111,7 @@ func (uc *UseCase) emitActiveAccountBillingEvent(ctx context.Context, span trace
 	if err := uc.Streaming.Emit(ctx, libStreaming.EmitRequest{
 		DefinitionKey: billing.Definition().Key,
 		TenantID:      tenantID,
-		Subject:       p.GetSubscriptionId(),
+		Subject:       subject,
 		Timestamp:     ts,
 		Payload:       raw,
 	}); err != nil {
@@ -103,25 +119,27 @@ func (uc *UseCase) emitActiveAccountBillingEvent(ctx context.Context, span trace
 
 		logger.Log(ctx, libLog.LevelWarn, "billing emit failed",
 			libLog.String("metric", p.GetMetric()),
+			libLog.String("subject", subject),
 			libLog.String("subscription_id", p.GetSubscriptionId()),
-			libLog.String("tenant_id", tenantID),
 			libLog.Err(err))
 
 		return
 	}
 }
 
-// buildActiveAccountBillingPayloads derives the active-account billable payloads
-// for a committed transaction. It returns one payload per unique internal
-// account referenced by the transaction's operations, preserving first-seen
-// order. External accounts (alias prefixed with constant.DefaultExternalAccountAliasPrefix)
-// are excluded, and a transaction that is nil or not APPROVED yields nothing.
-func buildActiveAccountBillingPayloads(tran *transaction.Transaction) []billing.BillablePayload {
+// buildActiveAccountBillingPayloads derives the active-account billables for a
+// committed transaction. It returns one entry per unique internal account
+// referenced by the transaction's operations, preserving first-seen order. Each
+// payload's SubscriptionId is set to subscriptionID (the billing customer);
+// account_id and transaction_id remain on Properties. External accounts (alias
+// prefixed with constant.DefaultExternalAccountAliasPrefix) are excluded, and a
+// transaction that is nil or not APPROVED yields nothing.
+func buildActiveAccountBillingPayloads(tran *transaction.Transaction, subscriptionID string) []events.ActiveAccountBillable {
 	if tran == nil || tran.Status.Code != constant.APPROVED {
 		return nil
 	}
 
-	var payloads []billing.BillablePayload
+	var billables []events.ActiveAccountBillable
 
 	seen := make(map[string]struct{})
 
@@ -144,15 +162,20 @@ func buildActiveAccountBillingPayloads(tran *transaction.Transaction) []billing.
 
 		seen[op.AccountID] = struct{}{}
 
-		payloads = append(payloads, billing.BillablePayload{
-			Metric:         activeAccountMetric,
-			SubscriptionId: op.AccountID,
-			Properties: map[string]*billing.PropertyValue{
-				"account_id":     billing.StringProperty(op.AccountID),
-				"transaction_id": billing.StringProperty(tran.ID),
+		// Constructed inline (not copied) so the embedded sync.Mutex is never
+		// moved by value; the emit loop then takes &billables[i].Payload.
+		billables = append(billables, events.ActiveAccountBillable{
+			AccountID: op.AccountID,
+			Payload: billing.BillablePayload{
+				Metric:         activeAccountMetric,
+				SubscriptionId: subscriptionID,
+				Properties: map[string]*billing.PropertyValue{
+					"account_id":     billing.StringProperty(op.AccountID),
+					"transaction_id": billing.StringProperty(tran.ID),
+				},
 			},
 		})
 	}
 
-	return payloads
+	return billables
 }

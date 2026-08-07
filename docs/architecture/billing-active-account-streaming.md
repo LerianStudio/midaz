@@ -39,7 +39,7 @@ Each payload is a `billing.BillablePayload` with these fields:
 | Field | Value |
 |---|---|
 | `Metric` | `active_account` (const `activeAccountMetric`) |
-| `SubscriptionId` | the internal account ID |
+| `SubscriptionId` | the billing subscription: the tenant ID when multi-tenant is enabled, otherwise the transaction's organization ID |
 | `Properties.account_id` | the internal account ID |
 | `Properties.transaction_id` | the transaction ID |
 
@@ -235,6 +235,10 @@ Before the emitted events produce revenue, a metric must exist in the billing te
 - A Lago billable metric with code **`active_account`** must exist in the billing tenant.
 - Its aggregation type is chosen by finance — for example `unique_count` over the `account_id`
   property, or `count`.
+- **Subscription keying.** Lago's subscription must be keyed by the **tenant ID** (multi-tenant) or
+  the **organization ID** (single-tenant), matching the `SubscriptionId` this ledger emits. The
+  `active_account` metric increments **once per event**; the individual account is available in
+  `Properties.account_id` (and in `ce-subject`) for `unique_count`-style aggregations.
 
 `billing-api` decodes the Confluent-Protobuf payload **best-effort** and forwards it to Lago with **no
 re-validation**, dead-lettering on Lago rejection. A missing or misconfigured `active_account` metric

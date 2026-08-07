@@ -861,6 +861,11 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 	// commandUseCase.BillingSerializer stays nil (the "billing disabled" signal).
 	commandUseCase.SetBillingSerializer(billingSerializer)
 
+	// Selects the active-account billing subscription identity: the resolved
+	// tenant ID when multi-tenant is enabled, otherwise the transaction's
+	// OrganizationID.
+	commandUseCase.MultiTenantEnabled = cfg.MultiTenantEnabled
+
 	queryUseCase := &query.UseCase{
 		// Onboarding domain
 		OrganizationRepo:       onbPG.organizationRepo,
