@@ -243,6 +243,7 @@ HEAD	/v2/organizations/:organization_id/ledgers/:ledger_id/accounts/metrics/coun
 HEAD	/v2/organizations/:organization_id/ledgers/:ledger_id/assets/metrics/count	4
 HEAD	/v2/organizations/:organization_id/ledgers/:ledger_id/portfolios/metrics/count	4
 HEAD	/v2/organizations/:organization_id/ledgers/:ledger_id/segments/metrics/count	4
+HEAD	/v2/organizations/:organization_id/ledgers/:ledger_id/transactions/metrics/count	4
 HEAD	/v2/organizations/:organization_id/ledgers/metrics/count	4
 HEAD	/v2/organizations/metrics/count	3
 PATCH	/v1/organizations/:id	4

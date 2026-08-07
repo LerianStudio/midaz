@@ -174,6 +174,10 @@ func (d HumaMountDeps) registerWave3(group fiber.Router, api huma.API) {
 // "midaz" appName, exactly as on v1 (see registerWave1 / registerAssetRateRoutesToApp).
 // balance (resource "balances") and operation (resource "operations") also carry
 // TransactionOptions and authorize against the "midaz" appName, matching their v1 twins.
+// The transaction-count HEAD op (RegisterCountTransactionV2RoutesToApp) is a straight mirror:
+// it carries TransactionOptions and authorizes against the "midaz" appName under the
+// "transactions" resource with the "head" verb, exactly as on v1 (see registerWave2 /
+// RegisterCountTransactionRoutesToApp).
 //
 // CRM carries its OWN CRMOptions and authorizes against the same "midaz" tuples the
 // v1 CRM routes use; the nil-guards (holder-accounts, encryption, audit) hold here
@@ -200,6 +204,7 @@ func (d HumaMountDeps) MountV2(group fiber.Router, api huma.API) {
 	RegisterAssetRateV2RoutesToApp(group, api, d.Auth, d.AssetRate, d.TransactionOptions)
 	RegisterTransactionV2RoutesToApp(group, api, d.Auth, d.Transaction, d.TransactionOptions)
 	RegisterTransactionMirrorV2RoutesToApp(group, api, d.Auth, d.Transaction, d.TransactionOptions)
+	RegisterCountTransactionV2RoutesToApp(group, api, d.Auth, d.Transaction, d.TransactionOptions)
 	RegisterBalanceV2RoutesToApp(group, api, d.Auth, d.Balance, d.TransactionOptions)
 	RegisterOperationV2RoutesToApp(group, api, d.Auth, d.Operation, d.TransactionOptions)
 	RegisterCRMV2RoutesToApp(group, api, d.Auth, d.Holder, d.Instrument, d.HolderAccounts, d.Encryption, d.Audit, d.CRMOptions)

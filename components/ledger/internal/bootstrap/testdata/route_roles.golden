@@ -143,6 +143,7 @@ HEAD	/v2/organizations/:organization_id/ledgers/:ledger_id/accounts/metrics/coun
 HEAD	/v2/organizations/:organization_id/ledgers/:ledger_id/assets/metrics/count	onboarding
 HEAD	/v2/organizations/:organization_id/ledgers/:ledger_id/portfolios/metrics/count	onboarding
 HEAD	/v2/organizations/:organization_id/ledgers/:ledger_id/segments/metrics/count	onboarding
+HEAD	/v2/organizations/:organization_id/ledgers/:ledger_id/transactions/metrics/count	transaction
 HEAD	/v2/organizations/:organization_id/ledgers/metrics/count	onboarding
 HEAD	/v2/organizations/metrics/count	onboarding
 PATCH	/v1/organizations/:id	onboarding
