@@ -9564,6 +9564,251 @@ paths:
       summary: Open a holder-owned account (with optional instrument)
       tags:
         - Midaz_Ledger_API_Composition
+  /v2/organizations/{organization_id}/ledgers/{ledger_id}/operation-routes:
+    get:
+      operationId: listOperationRoutesV2
+      parameters:
+        - description: Organization ID (UUID)
+          in: path
+          name: organization_id
+          required: true
+          schema:
+            description: Organization ID (UUID)
+            type: string
+        - description: Ledger ID (UUID)
+          in: path
+          name: ledger_id
+          required: true
+          schema:
+            description: Ledger ID (UUID)
+            type: string
+        - description: Max items per page (default 10)
+          explode: false
+          in: query
+          name: limit
+          schema:
+            description: Max items per page (default 10)
+            type: string
+        - description: Filter created on/after this date (YYYY-MM-DD)
+          explode: false
+          in: query
+          name: start_date
+          schema:
+            description: Filter created on/after this date (YYYY-MM-DD)
+            type: string
+        - description: Filter created on/before this date (YYYY-MM-DD)
+          explode: false
+          in: query
+          name: end_date
+          schema:
+            description: Filter created on/before this date (YYYY-MM-DD)
+            type: string
+        - description: Sort direction (asc, desc)
+          explode: false
+          in: query
+          name: sort_order
+          schema:
+            description: Sort direction (asc, desc)
+            type: string
+        - description: Opaque cursor token for pagination
+          explode: false
+          in: query
+          name: cursor
+          schema:
+            description: Opaque cursor token for pagination
+            type: string
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Pagination'
+          description: OK
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Error
+      security:
+        - BearerAuth: []
+      summary: Retrieve all operation routes
+      tags:
+        - Midaz_Ledger_API_Operation Routes
+    post:
+      operationId: createOperationRouteV2
+      parameters:
+        - description: Organization ID (UUID)
+          in: path
+          name: organization_id
+          required: true
+          schema:
+            description: Organization ID (UUID)
+            type: string
+        - description: Ledger ID (UUID)
+          in: path
+          name: ledger_id
+          required: true
+          schema:
+            description: Ledger ID (UUID)
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              contentMediaType: application/octet-stream
+              format: binary
+              type: string
+        required: true
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OperationRoute'
+          description: Created
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Error
+      security:
+        - BearerAuth: []
+      summary: Create Operation Route
+      tags:
+        - Midaz_Ledger_API_Operation Routes
+  /v2/organizations/{organization_id}/ledgers/{ledger_id}/operation-routes/{operation_route_id}:
+    delete:
+      operationId: deleteOperationRouteV2
+      parameters:
+        - description: Organization ID (UUID)
+          in: path
+          name: organization_id
+          required: true
+          schema:
+            description: Organization ID (UUID)
+            type: string
+        - description: Ledger ID (UUID)
+          in: path
+          name: ledger_id
+          required: true
+          schema:
+            description: Ledger ID (UUID)
+            type: string
+        - description: Operation Route ID (UUID)
+          in: path
+          name: operation_route_id
+          required: true
+          schema:
+            description: Operation Route ID (UUID)
+            type: string
+      responses:
+        '204':
+          description: No Content
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Error
+      security:
+        - BearerAuth: []
+      summary: Delete an operation route
+      tags:
+        - Midaz_Ledger_API_Operation Routes
+    get:
+      operationId: getOperationRouteByIDV2
+      parameters:
+        - description: Organization ID (UUID)
+          in: path
+          name: organization_id
+          required: true
+          schema:
+            description: Organization ID (UUID)
+            type: string
+        - description: Ledger ID (UUID)
+          in: path
+          name: ledger_id
+          required: true
+          schema:
+            description: Ledger ID (UUID)
+            type: string
+        - description: Operation Route ID (UUID)
+          in: path
+          name: operation_route_id
+          required: true
+          schema:
+            description: Operation Route ID (UUID)
+            type: string
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OperationRoute'
+          description: OK
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Error
+      security:
+        - BearerAuth: []
+      summary: Retrieve a specific operation route
+      tags:
+        - Midaz_Ledger_API_Operation Routes
+    patch:
+      operationId: updateOperationRouteV2
+      parameters:
+        - description: Organization ID (UUID)
+          in: path
+          name: organization_id
+          required: true
+          schema:
+            description: Organization ID (UUID)
+            type: string
+        - description: Ledger ID (UUID)
+          in: path
+          name: ledger_id
+          required: true
+          schema:
+            description: Ledger ID (UUID)
+            type: string
+        - description: Operation Route ID (UUID)
+          in: path
+          name: operation_route_id
+          required: true
+          schema:
+            description: Operation Route ID (UUID)
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              contentMediaType: application/octet-stream
+              format: binary
+              type: string
+        required: true
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OperationRoute'
+          description: OK
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Error
+      security:
+        - BearerAuth: []
+      summary: Update an operation route
+      tags:
+        - Midaz_Ledger_API_Operation Routes
   /v2/organizations/{organization_id}/ledgers/{ledger_id}/packages:
     get:
       operationId: getAllPackagesV2
@@ -10498,6 +10743,754 @@ paths:
       summary: Update ledger settings
       tags:
         - Midaz_Ledger_API_Ledgers
+  /v2/organizations/{organization_id}/ledgers/{ledger_id}/transaction-routes:
+    get:
+      operationId: listTransactionRoutesV2
+      parameters:
+        - description: Organization ID (UUID)
+          in: path
+          name: organization_id
+          required: true
+          schema:
+            description: Organization ID (UUID)
+            type: string
+        - description: Ledger ID (UUID)
+          in: path
+          name: ledger_id
+          required: true
+          schema:
+            description: Ledger ID (UUID)
+            type: string
+        - description: Max items per page (default 10)
+          explode: false
+          in: query
+          name: limit
+          schema:
+            description: Max items per page (default 10)
+            type: string
+        - description: Filter created on/after this date (YYYY-MM-DD)
+          explode: false
+          in: query
+          name: start_date
+          schema:
+            description: Filter created on/after this date (YYYY-MM-DD)
+            type: string
+        - description: Filter created on/before this date (YYYY-MM-DD)
+          explode: false
+          in: query
+          name: end_date
+          schema:
+            description: Filter created on/before this date (YYYY-MM-DD)
+            type: string
+        - description: Sort direction (asc, desc)
+          explode: false
+          in: query
+          name: sort_order
+          schema:
+            description: Sort direction (asc, desc)
+            type: string
+        - description: Opaque cursor token for pagination
+          explode: false
+          in: query
+          name: cursor
+          schema:
+            description: Opaque cursor token for pagination
+            type: string
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Pagination'
+          description: OK
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Error
+      security:
+        - BearerAuth: []
+      summary: Get all Transaction Routes
+      tags:
+        - Midaz_Ledger_API_Transaction Routes
+    post:
+      operationId: createTransactionRouteV2
+      parameters:
+        - description: Organization ID (UUID)
+          in: path
+          name: organization_id
+          required: true
+          schema:
+            description: Organization ID (UUID)
+            type: string
+        - description: Ledger ID (UUID)
+          in: path
+          name: ledger_id
+          required: true
+          schema:
+            description: Ledger ID (UUID)
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              contentMediaType: application/octet-stream
+              format: binary
+              type: string
+        required: true
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TransactionRoute'
+          description: Created
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Error
+      security:
+        - BearerAuth: []
+      summary: Create Transaction Route
+      tags:
+        - Midaz_Ledger_API_Transaction Routes
+  /v2/organizations/{organization_id}/ledgers/{ledger_id}/transaction-routes/{transaction_route_id}:
+    delete:
+      operationId: deleteTransactionRouteV2
+      parameters:
+        - description: Organization ID (UUID)
+          in: path
+          name: organization_id
+          required: true
+          schema:
+            description: Organization ID (UUID)
+            type: string
+        - description: Ledger ID (UUID)
+          in: path
+          name: ledger_id
+          required: true
+          schema:
+            description: Ledger ID (UUID)
+            type: string
+        - description: Transaction Route ID (UUID)
+          in: path
+          name: transaction_route_id
+          required: true
+          schema:
+            description: Transaction Route ID (UUID)
+            type: string
+      responses:
+        '204':
+          description: No Content
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Error
+      security:
+        - BearerAuth: []
+      summary: Delete Transaction Route by ID
+      tags:
+        - Midaz_Ledger_API_Transaction Routes
+    get:
+      operationId: getTransactionRouteByIDV2
+      parameters:
+        - description: Organization ID (UUID)
+          in: path
+          name: organization_id
+          required: true
+          schema:
+            description: Organization ID (UUID)
+            type: string
+        - description: Ledger ID (UUID)
+          in: path
+          name: ledger_id
+          required: true
+          schema:
+            description: Ledger ID (UUID)
+            type: string
+        - description: Transaction Route ID (UUID)
+          in: path
+          name: transaction_route_id
+          required: true
+          schema:
+            description: Transaction Route ID (UUID)
+            type: string
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TransactionRoute'
+          description: OK
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Error
+      security:
+        - BearerAuth: []
+      summary: Get Transaction Route by ID
+      tags:
+        - Midaz_Ledger_API_Transaction Routes
+    patch:
+      operationId: updateTransactionRouteV2
+      parameters:
+        - description: Organization ID (UUID)
+          in: path
+          name: organization_id
+          required: true
+          schema:
+            description: Organization ID (UUID)
+            type: string
+        - description: Ledger ID (UUID)
+          in: path
+          name: ledger_id
+          required: true
+          schema:
+            description: Ledger ID (UUID)
+            type: string
+        - description: Transaction Route ID (UUID)
+          in: path
+          name: transaction_route_id
+          required: true
+          schema:
+            description: Transaction Route ID (UUID)
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              contentMediaType: application/octet-stream
+              format: binary
+              type: string
+        required: true
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TransactionRoute'
+          description: OK
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Error
+      security:
+        - BearerAuth: []
+      summary: Update Transaction Route
+      tags:
+        - Midaz_Ledger_API_Transaction Routes
+  /v2/organizations/{organization_id}/ledgers/{ledger_id}/transactions:
+    get:
+      operationId: getAllTransactionsV2
+      parameters:
+        - description: Organization ID (UUID)
+          in: path
+          name: organization_id
+          required: true
+          schema:
+            description: Organization ID (UUID)
+            type: string
+        - description: Ledger ID (UUID)
+          in: path
+          name: ledger_id
+          required: true
+          schema:
+            description: Ledger ID (UUID)
+            type: string
+        - description: JSON string to filter transactions by metadata fields
+          explode: false
+          in: query
+          name: metadata
+          schema:
+            description: JSON string to filter transactions by metadata fields
+            type: string
+        - description: Max items per page (1-100, default 10)
+          explode: false
+          in: query
+          name: limit
+          schema:
+            description: Max items per page (1-100, default 10)
+            type: string
+        - description: Filter transactions created on/after this date
+          explode: false
+          in: query
+          name: start_date
+          schema:
+            description: Filter transactions created on/after this date
+            type: string
+        - description: Filter transactions created on/before this date
+          explode: false
+          in: query
+          name: end_date
+          schema:
+            description: Filter transactions created on/before this date
+            type: string
+        - description: Sort direction (asc, desc)
+          explode: false
+          in: query
+          name: sort_order
+          schema:
+            description: Sort direction (asc, desc)
+            type: string
+        - description: Pagination cursor
+          explode: false
+          in: query
+          name: cursor
+          schema:
+            description: Pagination cursor
+            type: string
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Pagination'
+          description: OK
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Error
+      security:
+        - BearerAuth: []
+      summary: Get all Transactions
+      tags:
+        - Midaz_Ledger_API_Transactions
+  /v2/organizations/{organization_id}/ledgers/{ledger_id}/transactions/annotation:
+    post:
+      operationId: createTransactionAnnotationV2
+      parameters:
+        - description: Organization ID (UUID)
+          in: path
+          name: organization_id
+          required: true
+          schema:
+            description: Organization ID (UUID)
+            type: string
+        - description: Ledger ID (UUID)
+          in: path
+          name: ledger_id
+          required: true
+          schema:
+            description: Ledger ID (UUID)
+            type: string
+        - description: >-
+            Idempotency key to safely retry the create; an identical retry
+            returns the original transaction
+          in: header
+          name: X-Idempotency
+          schema:
+            description: >-
+              Idempotency key to safely retry the create; an identical retry
+              returns the original transaction
+            type: string
+        - description: Idempotency slot TTL in seconds (default 300)
+          in: header
+          name: X-TTL
+          schema:
+            description: Idempotency slot TTL in seconds (default 300)
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              contentMediaType: application/octet-stream
+              format: binary
+              type: string
+        required: true
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Transaction'
+          description: Created
+          headers:
+            X-Idempotency-Replayed:
+              schema:
+                type: string
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Error
+      security:
+        - BearerAuth: []
+      summary: Create a Transaction Annotation using JSON
+      tags:
+        - Midaz_Ledger_API_Transactions
+  /v2/organizations/{organization_id}/ledgers/{ledger_id}/transactions/inflow:
+    post:
+      operationId: createTransactionInflowV2
+      parameters:
+        - description: Organization ID (UUID)
+          in: path
+          name: organization_id
+          required: true
+          schema:
+            description: Organization ID (UUID)
+            type: string
+        - description: Ledger ID (UUID)
+          in: path
+          name: ledger_id
+          required: true
+          schema:
+            description: Ledger ID (UUID)
+            type: string
+        - description: >-
+            Idempotency key to safely retry the create; an identical retry
+            returns the original transaction
+          in: header
+          name: X-Idempotency
+          schema:
+            description: >-
+              Idempotency key to safely retry the create; an identical retry
+              returns the original transaction
+            type: string
+        - description: Idempotency slot TTL in seconds (default 300)
+          in: header
+          name: X-TTL
+          schema:
+            description: Idempotency slot TTL in seconds (default 300)
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              contentMediaType: application/octet-stream
+              format: binary
+              type: string
+        required: true
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Transaction'
+          description: Created
+          headers:
+            X-Idempotency-Replayed:
+              schema:
+                type: string
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Error
+      security:
+        - BearerAuth: []
+      summary: Create a Transaction without passing from source
+      tags:
+        - Midaz_Ledger_API_Transactions
+  /v2/organizations/{organization_id}/ledgers/{ledger_id}/transactions/json:
+    post:
+      operationId: createTransactionJSONV2
+      parameters:
+        - description: Organization ID (UUID)
+          in: path
+          name: organization_id
+          required: true
+          schema:
+            description: Organization ID (UUID)
+            type: string
+        - description: Ledger ID (UUID)
+          in: path
+          name: ledger_id
+          required: true
+          schema:
+            description: Ledger ID (UUID)
+            type: string
+        - description: >-
+            Idempotency key to safely retry the create; an identical retry
+            returns the original transaction
+          in: header
+          name: X-Idempotency
+          schema:
+            description: >-
+              Idempotency key to safely retry the create; an identical retry
+              returns the original transaction
+            type: string
+        - description: Idempotency slot TTL in seconds (default 300)
+          in: header
+          name: X-TTL
+          schema:
+            description: Idempotency slot TTL in seconds (default 300)
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              contentMediaType: application/octet-stream
+              format: binary
+              type: string
+        required: true
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Transaction'
+          description: Created
+          headers:
+            X-Idempotency-Replayed:
+              schema:
+                type: string
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Error
+      security:
+        - BearerAuth: []
+      summary: Create a Transaction using JSON
+      tags:
+        - Midaz_Ledger_API_Transactions
+  /v2/organizations/{organization_id}/ledgers/{ledger_id}/transactions/metrics/count:
+    head:
+      operationId: countTransactionsByFiltersV2
+      parameters:
+        - description: Organization ID (UUID)
+          in: path
+          name: organization_id
+          required: true
+          schema:
+            description: Organization ID (UUID)
+            type: string
+        - description: Ledger ID (UUID)
+          in: path
+          name: ledger_id
+          required: true
+          schema:
+            description: Ledger ID (UUID)
+            type: string
+        - description: Filter by transaction route
+          explode: false
+          in: query
+          name: route
+          schema:
+            description: Filter by transaction route
+            type: string
+        - description: >-
+            Filter by transaction status (CREATED, APPROVED, PENDING, CANCELED,
+            NOTED)
+          explode: false
+          in: query
+          name: status
+          schema:
+            description: >-
+              Filter by transaction status (CREATED, APPROVED, PENDING,
+              CANCELED, NOTED)
+            type: string
+        - description: Start of date range (RFC 3339, defaults to today 00:00:00 UTC)
+          explode: false
+          in: query
+          name: start_date
+          schema:
+            description: Start of date range (RFC 3339, defaults to today 00:00:00 UTC)
+            type: string
+        - description: End of date range (RFC 3339, defaults to today 23:59:59 UTC)
+          explode: false
+          in: query
+          name: end_date
+          schema:
+            description: End of date range (RFC 3339, defaults to today 23:59:59 UTC)
+            type: string
+      responses:
+        '204':
+          description: No Content
+          headers:
+            Content-Length:
+              schema:
+                type: string
+            X-Total-Count:
+              schema:
+                type: string
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Error
+      security:
+        - BearerAuth: []
+        - ApiKeyAuth: []
+      summary: Count Transactions by Filters
+      tags:
+        - Midaz_Ledger_API_Transactions
+  /v2/organizations/{organization_id}/ledgers/{ledger_id}/transactions/outflow:
+    post:
+      operationId: createTransactionOutflowV2
+      parameters:
+        - description: Organization ID (UUID)
+          in: path
+          name: organization_id
+          required: true
+          schema:
+            description: Organization ID (UUID)
+            type: string
+        - description: Ledger ID (UUID)
+          in: path
+          name: ledger_id
+          required: true
+          schema:
+            description: Ledger ID (UUID)
+            type: string
+        - description: >-
+            Idempotency key to safely retry the create; an identical retry
+            returns the original transaction
+          in: header
+          name: X-Idempotency
+          schema:
+            description: >-
+              Idempotency key to safely retry the create; an identical retry
+              returns the original transaction
+            type: string
+        - description: Idempotency slot TTL in seconds (default 300)
+          in: header
+          name: X-TTL
+          schema:
+            description: Idempotency slot TTL in seconds (default 300)
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              contentMediaType: application/octet-stream
+              format: binary
+              type: string
+        required: true
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Transaction'
+          description: Created
+          headers:
+            X-Idempotency-Replayed:
+              schema:
+                type: string
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Error
+      security:
+        - BearerAuth: []
+      summary: Create a Transaction without passing to distribution
+      tags:
+        - Midaz_Ledger_API_Transactions
+  /v2/organizations/{organization_id}/ledgers/{ledger_id}/transactions/{transaction_id}:
+    get:
+      operationId: getTransactionV2
+      parameters:
+        - description: Organization ID (UUID)
+          in: path
+          name: organization_id
+          required: true
+          schema:
+            description: Organization ID (UUID)
+            type: string
+        - description: Ledger ID (UUID)
+          in: path
+          name: ledger_id
+          required: true
+          schema:
+            description: Ledger ID (UUID)
+            type: string
+        - description: Transaction ID (UUID)
+          in: path
+          name: transaction_id
+          required: true
+          schema:
+            description: Transaction ID (UUID)
+            type: string
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Transaction'
+          description: OK
+          headers:
+            X-Cache-Hit:
+              schema:
+                type: string
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Error
+      security:
+        - BearerAuth: []
+      summary: Get a Transaction by ID
+      tags:
+        - Midaz_Ledger_API_Transactions
+    patch:
+      operationId: updateTransactionV2
+      parameters:
+        - description: Organization ID (UUID)
+          in: path
+          name: organization_id
+          required: true
+          schema:
+            description: Organization ID (UUID)
+            type: string
+        - description: Ledger ID (UUID)
+          in: path
+          name: ledger_id
+          required: true
+          schema:
+            description: Ledger ID (UUID)
+            type: string
+        - description: Transaction ID (UUID)
+          in: path
+          name: transaction_id
+          required: true
+          schema:
+            description: Transaction ID (UUID)
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              contentMediaType: application/octet-stream
+              format: binary
+              type: string
+        required: true
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Transaction'
+          description: OK
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Error
+      security:
+        - BearerAuth: []
+      summary: Update a Transaction
+      tags:
+        - Midaz_Ledger_API_Transactions
   /v2/organizations/{organization_id}/ledgers/{ledger_id}/transactions/{transaction_id}/cancel:
     post:
       operationId: cancelTransactionV2
