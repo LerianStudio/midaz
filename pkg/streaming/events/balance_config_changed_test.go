@@ -15,8 +15,10 @@ import (
 )
 
 func TestBalanceConfigChangedDefinition_Key(t *testing.T) {
-	// Hyphen in the event type satisfies the lib-streaming route-key
-	// regex; the underscored discriminator lives ONLY inside payload.changeType.
+	// EventType is the underscored canonical form (config_changed): Key() is
+	// balance.config_changed and only RouteKey() folds it to the hyphenated
+	// balance.config-changed routing handle. The payload changeType discriminator
+	// (settings_updated / overdraft_enabled) is separate payload data.
 	assert.Equal(t, "balance.config_changed", events.BalanceConfigChangedDefinition.Key())
 	assert.Equal(t, "balance.config-changed", events.BalanceConfigChangedDefinition.RouteKey())
 	assert.Equal(t, "balance", events.BalanceConfigChangedDefinition.ResourceType)
