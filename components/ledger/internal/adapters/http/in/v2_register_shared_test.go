@@ -5,7 +5,6 @@
 package in
 
 import (
-	"net/http"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -25,13 +24,8 @@ func TestUnifiedContract_NoDuplicateOperationIDs(t *testing.T) {
 	seen := make(map[string]string)
 
 	for key, item := range api.OpenAPI().Paths {
-		for _, method := range []string{http.MethodGet, http.MethodPost, http.MethodPut, http.MethodPatch, http.MethodDelete, http.MethodHead} {
-			operation := operationForMethod(item, method)
-			if operation == nil {
-				continue
-			}
-
-			where := method + " " + key
+		for _, operation := range operationsOf(item) {
+			where := operation.Method + " " + key
 
 			prior, dup := seen[operation.OperationID]
 			require.Falsef(t, dup, "operationId %q is published twice: %s and %s",

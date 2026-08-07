@@ -220,8 +220,8 @@ func TestRegisterAssetV2Routes_MintsNoV2SchemaComponents(t *testing.T) {
 	}
 
 	// The document-wide guard: no asset-named schema carries the V2 suffix. The "Asset" prefix
-	// also spans the AssetRate family, which is intentional — AssetRate is not mirrored to v2,
-	// so no AssetRate schema may sprout a V2 twin either.
+	// also spans the AssetRate family, which is intentional — asset-rate is mirrored to v2 as a
+	// straight mirror too, so no AssetRate schema may sprout a V2 twin either.
 	for name := range schemas {
 		if !strings.HasPrefix(name, "Asset") {
 			continue
