@@ -188,7 +188,7 @@ func TestDeleteRelatedPartyByID_EmitsInstrumentRelatedPartyDeleted(t *testing.T)
 	assert.Equal(t, holderID.String(), payload.HolderID)
 	assert.Equal(t, organizationID, payload.OrganizationID)
 	assert.Equal(t, relatedPartyID.String(), payload.RelatedPartyID)
-	pkgStreaming.AssertEventEmitted(t, emitter, "instrument", "related-party-deleted")
+	pkgStreaming.AssertEventEmitted(t, emitter, "instrument", "related_party_deleted")
 }
 
 func TestDeleteRelatedPartyByID_NilEmitterSucceeds(t *testing.T) {
