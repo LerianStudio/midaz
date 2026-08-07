@@ -15,7 +15,7 @@ import (
 // FeesPackageUpdatedDefinition is the routing contract for fee-packages.updated.
 // IMPORTANT posture: emit failures MUST NOT fail the request.
 var FeesPackageUpdatedDefinition = Definition{
-	ResourceType:  "fee-packages",
+	ResourceType:  "fee_packages",
 	EventType:     "updated",
 	SchemaVersion: "1.0.0",
 }

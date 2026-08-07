@@ -21,7 +21,7 @@ import (
 )
 
 // newCreateOperationRouteStreamingTestUseCase wires a happy-path
-// UseCase suitable for exercising the operation-route.created emission.
+// UseCase suitable for exercising the operation_route.created emission.
 // OperationRouteRepo.Create echoes the input with a server-assigned ID
 // so the test body can assert the emitted Subject and payload.id
 // without prior coordination. The tests do not exercise the metadata
@@ -47,7 +47,7 @@ func newCreateOperationRouteStreamingTestUseCase(t *testing.T, ctrl *gomock.Cont
 
 // TestCreateOperationRoute_EmitsOperationRouteCreatedEvent verifies
 // that a successful CreateOperationRoute call publishes exactly one
-// operation-route.created event with the expected resource/event
+// operation_route.created event with the expected resource/event
 // types, tenant ID, subject and payload fields.
 func TestCreateOperationRoute_EmitsOperationRouteCreatedEvent(t *testing.T) {
 	ctrl := gomock.NewController(t)
@@ -77,10 +77,10 @@ func TestCreateOperationRoute_EmitsOperationRouteCreatedEvent(t *testing.T) {
 	emitted := mockEmitter.Events()
 	require.Len(t, emitted, 1, "expected exactly one Emit call")
 
-	pkgStreaming.AssertEventEmitted(t, mockEmitter, "operation-route", "created")
+	pkgStreaming.AssertEventEmitted(t, mockEmitter, "operation_route", "created")
 
 	evt := emitted[0]
-	assert.Equal(t, "operation-route.created", evt.DefinitionKey, "DefinitionKey must match the catalog key")
+	assert.Equal(t, "operation_route.created", evt.DefinitionKey, "DefinitionKey must match the catalog key")
 	assert.Equal(t, "default", evt.TenantID, "TenantID must come from ResolveTenantID (default fallback when no multi-tenant context)")
 	assert.Equal(t, o.ID.String(), evt.Subject, "Subject must be the new operation route ID")
 

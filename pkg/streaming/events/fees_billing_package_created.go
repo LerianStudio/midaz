@@ -16,7 +16,7 @@ import (
 // fee-billing-packages.created. IMPORTANT posture: emit failures MUST NOT fail
 // the request.
 var FeesBillingPackageCreatedDefinition = Definition{
-	ResourceType:  "fee-billing-packages",
+	ResourceType:  "fee_billing_packages",
 	EventType:     "created",
 	SchemaVersion: "1.0.0",
 }

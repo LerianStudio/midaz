@@ -26,7 +26,7 @@ import (
 // mutation; consumers safe-deduping on that pair can replay this event
 // without effect.
 var TransactionRouteUpdatedDefinition = Definition{
-	ResourceType:  "transaction-route",
+	ResourceType:  "transaction_route",
 	EventType:     "updated",
 	SchemaVersion: "1.0.0",
 }

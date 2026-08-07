@@ -21,7 +21,7 @@ import (
 )
 
 // newDeleteOperationRouteStreamingTestUseCase wires a happy-path
-// UseCase suitable for exercising the operation-route.deleted
+// UseCase suitable for exercising the operation_route.deleted
 // emission. OperationRouteRepo.HasTransactionRouteLinks reports no
 // links (so the delete path is not short-circuited) and
 // OperationRouteRepo.Delete returns nil for the success path.
@@ -46,7 +46,7 @@ func newDeleteOperationRouteStreamingTestUseCase(t *testing.T, ctrl *gomock.Cont
 
 // TestDeleteOperationRouteByID_EmitsOperationRouteDeletedEvent
 // verifies that a successful DeleteOperationRouteByID call publishes
-// exactly one operation-route.deleted event with the expected
+// exactly one operation_route.deleted event with the expected
 // resource/event types, tenant ID, subject and payload fields.
 func TestDeleteOperationRouteByID_EmitsOperationRouteDeletedEvent(t *testing.T) {
 	ctrl := gomock.NewController(t)
@@ -66,10 +66,10 @@ func TestDeleteOperationRouteByID_EmitsOperationRouteDeletedEvent(t *testing.T) 
 	emitted := mockEmitter.Events()
 	require.Len(t, emitted, 1, "expected exactly one Emit call")
 
-	pkgStreaming.AssertEventEmitted(t, mockEmitter, "operation-route", "deleted")
+	pkgStreaming.AssertEventEmitted(t, mockEmitter, "operation_route", "deleted")
 
 	evt := emitted[0]
-	assert.Equal(t, "operation-route.deleted", evt.DefinitionKey, "DefinitionKey must match the catalog key")
+	assert.Equal(t, "operation_route.deleted", evt.DefinitionKey, "DefinitionKey must match the catalog key")
 	assert.Equal(t, "default", evt.TenantID, "TenantID must come from ResolveTenantID (default fallback when no multi-tenant context)")
 	assert.Equal(t, operationRouteID.String(), evt.Subject, "Subject must be the deleted operation route ID")
 

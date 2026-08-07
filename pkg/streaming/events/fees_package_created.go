@@ -15,7 +15,7 @@ import (
 // FeesPackageCreatedDefinition is the routing contract for fee-packages.created.
 // IMPORTANT posture: emit failures MUST NOT fail the request.
 var FeesPackageCreatedDefinition = Definition{
-	ResourceType:  "fee-packages",
+	ResourceType:  "fee_packages",
 	EventType:     "created",
 	SchemaVersion: "1.0.0",
 }

@@ -15,7 +15,7 @@ import (
 // FeesAppliedDefinition is the routing contract for fee-charge.applied.
 // IMPORTANT posture: emit failures MUST NOT fail the request.
 var FeesAppliedDefinition = Definition{
-	ResourceType:  "fee-charge",
+	ResourceType:  "fee_charge",
 	EventType:     "applied",
 	SchemaVersion: "1.0.0",
 }

@@ -16,7 +16,7 @@ import (
 // fee-billing-packages.deleted. IMPORTANT posture: emit failures MUST NOT fail
 // the request.
 var FeesBillingPackageDeletedDefinition = Definition{
-	ResourceType:  "fee-billing-packages",
+	ResourceType:  "fee_billing_packages",
 	EventType:     "deleted",
 	SchemaVersion: "1.0.0",
 }

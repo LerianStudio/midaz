@@ -39,8 +39,9 @@ func minimalTransactionRoute() *mmodel.TransactionRoute {
 }
 
 func TestTransactionRouteCreatedDefinition_Key(t *testing.T) {
-	assert.Equal(t, "transaction-route.created", events.TransactionRouteCreatedDefinition.Key())
-	assert.Equal(t, "transaction-route", events.TransactionRouteCreatedDefinition.ResourceType)
+	assert.Equal(t, "transaction_route.created", events.TransactionRouteCreatedDefinition.Key())
+	assert.Equal(t, "transaction-route.created", events.TransactionRouteCreatedDefinition.RouteKey())
+	assert.Equal(t, "transaction_route", events.TransactionRouteCreatedDefinition.ResourceType)
 	assert.Equal(t, "created", events.TransactionRouteCreatedDefinition.EventType)
 	assert.Equal(t, "1.0.0", events.TransactionRouteCreatedDefinition.SchemaVersion)
 }

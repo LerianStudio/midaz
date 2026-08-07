@@ -18,7 +18,7 @@ import (
 //
 // IMPORTANT posture: emit failures MUST NOT fail the request.
 var TransactionRouteDeletedDefinition = Definition{
-	ResourceType:  "transaction-route",
+	ResourceType:  "transaction_route",
 	EventType:     "deleted",
 	SchemaVersion: "1.0.0",
 }

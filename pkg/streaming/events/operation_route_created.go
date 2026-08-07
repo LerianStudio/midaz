@@ -21,13 +21,13 @@ import (
 //
 // IMPORTANT posture: emit failures MUST NOT fail the request.
 //
-// Note on resource type: the wire format uses the hyphen form
-// `operation-route`. The lib-streaming route-key regex
-// `^[a-z0-9][a-z0-9-]*(\.[a-z0-9][a-z0-9-]*)+$` REJECTS underscores, so
-// the canonical wire name diverges from the JSON entity name
-// (`OperationRoute`) and the HTTP route segment (`operation-routes`).
+// Note on resource type: the canonical wire ResourceType is the underscored
+// `operation_route`; only RouteDefinition.Key folds to the hyphenated routing
+// handle (RouteKey()) for lib-streaming's route-key grammar. The canonical
+// wire name diverges from the JSON entity name (`OperationRoute`) and the HTTP
+// route segment (`operation-routes`).
 var OperationRouteCreatedDefinition = Definition{
-	ResourceType:  "operation-route",
+	ResourceType:  "operation_route",
 	EventType:     "created",
 	SchemaVersion: "1.0.0",
 }

@@ -13,21 +13,22 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// feesPackageID is the deterministic aggregate ID reused across fee-packages
+// feesPackageID is the deterministic aggregate ID reused across fee_packages
 // tests so Subject/ID assertions are exact-match.
 const feesPackageID = "0190d9e1-7c2a-7000-8000-0000000000f1"
 
-// feesPackageOrgID is the deterministic organization scope for fee-packages
+// feesPackageOrgID is the deterministic organization scope for fee_packages
 // event tests.
 const feesPackageOrgID = "0190d9e1-7c2a-7000-8000-0000000000f3"
 
-// feesPackageLedgerID is the deterministic ledger scope for fee-packages event
+// feesPackageLedgerID is the deterministic ledger scope for fee_packages event
 // tests.
 const feesPackageLedgerID = "0190d9e1-7c2a-7000-8000-0000000000f2"
 
 func TestFeesPackageCreatedDefinition_Key(t *testing.T) {
-	assert.Equal(t, "fee-packages.created", events.FeesPackageCreatedDefinition.Key())
-	assert.Equal(t, "fee-packages", events.FeesPackageCreatedDefinition.ResourceType)
+	assert.Equal(t, "fee_packages.created", events.FeesPackageCreatedDefinition.Key())
+	assert.Equal(t, "fee-packages.created", events.FeesPackageCreatedDefinition.RouteKey())
+	assert.Equal(t, "fee_packages", events.FeesPackageCreatedDefinition.ResourceType)
 	assert.Equal(t, "created", events.FeesPackageCreatedDefinition.EventType)
 	assert.Equal(t, "1.0.0", events.FeesPackageCreatedDefinition.SchemaVersion)
 }

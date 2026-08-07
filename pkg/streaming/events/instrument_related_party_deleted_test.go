@@ -13,14 +13,14 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// TestInstrumentRelatedPartyDeletedDefinition_Key locks the canonical event key.
-// The HYPHEN in "related-party-deleted" is the sensitive point: the route-key
-// validator rejects underscores, so this must never silently become
-// "related_party_deleted".
+// TestInstrumentRelatedPartyDeletedDefinition_Key locks the canonical event key
+// (underscored `related_party_deleted`) and the hyphenated RouteKey() used for
+// RouteDefinition.Key.
 func TestInstrumentRelatedPartyDeletedDefinition_Key(t *testing.T) {
-	assert.Equal(t, "instrument.related-party-deleted", events.InstrumentRelatedPartyDeletedDefinition.Key())
+	assert.Equal(t, "instrument.related_party_deleted", events.InstrumentRelatedPartyDeletedDefinition.Key())
+	assert.Equal(t, "instrument.related-party-deleted", events.InstrumentRelatedPartyDeletedDefinition.RouteKey())
 	assert.Equal(t, "instrument", events.InstrumentRelatedPartyDeletedDefinition.ResourceType)
-	assert.Equal(t, "related-party-deleted", events.InstrumentRelatedPartyDeletedDefinition.EventType)
+	assert.Equal(t, "related_party_deleted", events.InstrumentRelatedPartyDeletedDefinition.EventType)
 	assert.Equal(t, "1.0.0", events.InstrumentRelatedPartyDeletedDefinition.SchemaVersion)
 }
 

@@ -40,15 +40,15 @@ const (
 // removed in a follow-up task once consumers migrate.
 //
 // IMPORTANT posture: emit failures MUST NOT fail the parent transaction.
-// EventType uses the HYPHEN form `overdraft-drawn` because the
-// lib-streaming route-key regex rejects underscores. Wire topic:
-// `lerian.streaming.ledger_balance.overdraft_drawn` (hyphens in the route
-// key become underscores in the topic name only). The Action payload field
+// EventType is the underscored canonical `overdraft_drawn`; wire topic:
+// `lerian.streaming.ledger_balance.overdraft_drawn`. Only RouteDefinition.Key
+// folds to the hyphenated routing handle (RouteKey()) for the lib-streaming
+// route-key grammar. The Action payload field
 // keeps the unsuffixed value "drawn" (consumers can match on either
 // the topic or the action field).
 var BalanceOverdraftDrawnDefinition = Definition{
 	ResourceType:  "balance",
-	EventType:     "overdraft-drawn",
+	EventType:     "overdraft_drawn",
 	SchemaVersion: "1.0.0",
 }
 
@@ -61,12 +61,11 @@ var BalanceOverdraftDrawnDefinition = Definition{
 // (overdraft usage decreased but not fully cleared).
 //
 // IMPORTANT posture: emit failures MUST NOT fail the parent transaction.
-// EventType uses the HYPHEN form `overdraft-repaid` per the
-// lib-streaming route-key regex (no underscores allowed in routing
-// identifiers).
+// EventType is the underscored canonical `overdraft_repaid`; only
+// RouteDefinition.Key folds to the hyphenated routing handle (RouteKey()).
 var BalanceOverdraftRepaidDefinition = Definition{
 	ResourceType:  "balance",
-	EventType:     "overdraft-repaid",
+	EventType:     "overdraft_repaid",
 	SchemaVersion: "1.0.0",
 }
 
@@ -79,11 +78,11 @@ var BalanceOverdraftRepaidDefinition = Definition{
 // (overdraft fully repaid — terminal signal).
 //
 // IMPORTANT posture: emit failures MUST NOT fail the parent transaction.
-// EventType uses the HYPHEN form `overdraft-cleared` per the
-// lib-streaming route-key regex.
+// EventType is the underscored canonical `overdraft_cleared`; only
+// RouteDefinition.Key folds to the hyphenated routing handle (RouteKey()).
 var BalanceOverdraftClearedDefinition = Definition{
 	ResourceType:  "balance",
-	EventType:     "overdraft-cleared",
+	EventType:     "overdraft_cleared",
 	SchemaVersion: "1.0.0",
 }
 

@@ -10,18 +10,18 @@ import "strings"
 const TopicPrefix = "lerian.streaming."
 
 // TopicName renders the consumer-facing Kafka topic name for a producing
-// service ("ledger"/"crm"/"fee"/"tracer") and a definition key
-// ("<resource>.<event>").
+// service ("ledger"/"crm"/"fee"/"tracer") and a route key
+// ("<resource>.<event>", the hyphenated routing handle).
 //
 // The streaming-hub ingest consumer subscribes via kgo.ConsumeRegex to
 // ^lerian.streaming.<seg>.<seg>$ over the [a-z0-9_] charset — exactly two
 // segments, no hyphen. To satisfy that grammar while still namespacing topics by
 // producing service, the service is folded into the first segment
-// ("<service>_<resource>") and hyphens are normalized to underscores. The route
-// Key/DefinitionKey/ResourceType/EventType and the CloudEvents type keep their
-// hyphens: lib-streaming's route-key grammar requires hyphens and rejects "_",
-// so the underscore form lives ONLY on the wire topic name, not on the event
-// identity.
+// ("<service>_<resource>") and hyphens are normalized to underscores. Only
+// RouteDefinition.Key stays hyphenated (lib-streaming's route-key grammar
+// accepts only [a-z0-9-]); the DefinitionKey/ResourceType/EventType and the
+// CloudEvents type are the underscored canonical form. TopicName receives the
+// hyphenated route key and folds it to the underscore wire form.
 //
 // A leading "<service>-" on the key is stripped before the fold. Fee resources
 // carry a "fee-" prefix on their keys ("fee-packages.created"); without the strip

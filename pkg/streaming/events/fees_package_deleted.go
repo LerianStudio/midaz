@@ -15,7 +15,7 @@ import (
 // FeesPackageDeletedDefinition is the routing contract for fee-packages.deleted.
 // IMPORTANT posture: emit failures MUST NOT fail the request.
 var FeesPackageDeletedDefinition = Definition{
-	ResourceType:  "fee-packages",
+	ResourceType:  "fee_packages",
 	EventType:     "deleted",
 	SchemaVersion: "1.0.0",
 }

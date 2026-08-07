@@ -13,12 +13,13 @@ import (
 )
 
 // InstrumentRelatedPartyDeletedDefinition is the routing contract for
-// instrument.related-party-deleted. The EventType uses a HYPHEN: the
-// lib-streaming route-key validator rejects underscores, so this must stay
-// hyphenated. IMPORTANT posture: emit failures MUST NOT fail the request.
+// instrument.related_party_deleted (the underscored canonical key). Only
+// RouteDefinition.Key folds to the hyphenated routing handle (RouteKey()) for
+// lib-streaming's route-key grammar. IMPORTANT posture: emit failures MUST NOT
+// fail the request.
 var InstrumentRelatedPartyDeletedDefinition = Definition{
 	ResourceType:  "instrument",
-	EventType:     "related-party-deleted",
+	EventType:     "related_party_deleted",
 	SchemaVersion: "1.0.0",
 }
 

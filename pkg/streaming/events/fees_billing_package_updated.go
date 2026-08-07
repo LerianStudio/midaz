@@ -16,7 +16,7 @@ import (
 // fee-billing-packages.updated. IMPORTANT posture: emit failures MUST NOT fail
 // the request.
 var FeesBillingPackageUpdatedDefinition = Definition{
-	ResourceType:  "fee-billing-packages",
+	ResourceType:  "fee_billing_packages",
 	EventType:     "updated",
 	SchemaVersion: "1.0.0",
 }

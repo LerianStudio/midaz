@@ -52,9 +52,11 @@ func (d Definition) Key() string {
 	return d.ResourceType + "." + d.EventType
 }
 
-// RouteKey returns the hyphenated routing handle for this definition, used as
-// RouteDefinition.Key (its grammar rejects underscores). The wire identity —
-// Key() and the ce-type — stays the underscored canonical form.
+// RouteKey returns the hyphenated routing handle for this definition. It is the
+// value used for RouteDefinition.Key and as the input to the wire topic name;
+// lib-streaming's route-key grammar accepts only [a-z0-9-], so the underscored
+// canonical Key() is folded to hyphens here. Key() and the ce-type keep the
+// underscored canonical form.
 func (d Definition) RouteKey() string {
 	return strings.ReplaceAll(d.Key(), "_", "-")
 }

@@ -209,8 +209,8 @@ func streamingITExpectations() []streamingITExpectation {
 
 	return []streamingITExpectation{
 		{
-			name:       "fee-packages.created",
-			topic:      pkgStreaming.TopicName("fee", events.FeesPackageCreatedDefinition.Key()),
+			name:       "fee_packages.created",
+			topic:      pkgStreaming.TopicName("fee", events.FeesPackageCreatedDefinition.RouteKey()),
 			ceType:     "studio.lerian." + events.FeesPackageCreatedDefinition.Key(),
 			subject:    packageID,
 			requireKey: []string{"id", "organizationId", "ledgerId", "enable", "createdAt", "updatedAt"},
@@ -220,8 +220,8 @@ func streamingITExpectations() []streamingITExpectation {
 			},
 		},
 		{
-			name:       "fee-packages.updated",
-			topic:      pkgStreaming.TopicName("fee", events.FeesPackageUpdatedDefinition.Key()),
+			name:       "fee_packages.updated",
+			topic:      pkgStreaming.TopicName("fee", events.FeesPackageUpdatedDefinition.RouteKey()),
 			ceType:     "studio.lerian." + events.FeesPackageUpdatedDefinition.Key(),
 			subject:    packageID,
 			requireKey: []string{"id", "organizationId", "ledgerId", "enable", "createdAt", "updatedAt"},
@@ -231,8 +231,8 @@ func streamingITExpectations() []streamingITExpectation {
 			},
 		},
 		{
-			name:       "fee-packages.deleted",
-			topic:      pkgStreaming.TopicName("fee", events.FeesPackageDeletedDefinition.Key()),
+			name:       "fee_packages.deleted",
+			topic:      pkgStreaming.TopicName("fee", events.FeesPackageDeletedDefinition.RouteKey()),
 			ceType:     "studio.lerian." + events.FeesPackageDeletedDefinition.Key(),
 			subject:    packageID,
 			requireKey: []string{"id", "organizationId", "ledgerId", "deletedAt"},
@@ -242,8 +242,8 @@ func streamingITExpectations() []streamingITExpectation {
 			},
 		},
 		{
-			name:       "fee-billing-packages.created",
-			topic:      pkgStreaming.TopicName("fee", events.FeesBillingPackageCreatedDefinition.Key()),
+			name:       "fee_billing_packages.created",
+			topic:      pkgStreaming.TopicName("fee", events.FeesBillingPackageCreatedDefinition.RouteKey()),
 			ceType:     "studio.lerian." + events.FeesBillingPackageCreatedDefinition.Key(),
 			subject:    billingID,
 			requireKey: []string{"id", "organizationId", "ledgerId", "type", "enable", "createdAt", "updatedAt"},
@@ -256,8 +256,8 @@ func streamingITExpectations() []streamingITExpectation {
 			},
 		},
 		{
-			name:       "fee-billing-packages.updated",
-			topic:      pkgStreaming.TopicName("fee", events.FeesBillingPackageUpdatedDefinition.Key()),
+			name:       "fee_billing_packages.updated",
+			topic:      pkgStreaming.TopicName("fee", events.FeesBillingPackageUpdatedDefinition.RouteKey()),
 			ceType:     "studio.lerian." + events.FeesBillingPackageUpdatedDefinition.Key(),
 			subject:    billingID,
 			requireKey: []string{"id", "organizationId", "ledgerId", "type", "enable", "createdAt", "updatedAt"},
@@ -270,8 +270,8 @@ func streamingITExpectations() []streamingITExpectation {
 			},
 		},
 		{
-			name:       "fee-billing-packages.deleted",
-			topic:      pkgStreaming.TopicName("fee", events.FeesBillingPackageDeletedDefinition.Key()),
+			name:       "fee_billing_packages.deleted",
+			topic:      pkgStreaming.TopicName("fee", events.FeesBillingPackageDeletedDefinition.RouteKey()),
 			ceType:     "studio.lerian." + events.FeesBillingPackageDeletedDefinition.Key(),
 			subject:    billingID,
 			requireKey: []string{"id", "organizationId", "ledgerId", "deletedAt"},
@@ -281,9 +281,9 @@ func streamingITExpectations() []streamingITExpectation {
 			},
 		},
 		{
-			// ce-subject for fee-charge.applied is the TRANSACTION id, not a package id.
-			name:       "fee-charge.applied",
-			topic:      pkgStreaming.TopicName("fee", events.FeesAppliedDefinition.Key()),
+			// ce-subject for fee_charge.applied is the TRANSACTION id, not a package id.
+			name:       "fee_charge.applied",
+			topic:      pkgStreaming.TopicName("fee", events.FeesAppliedDefinition.RouteKey()),
 			ceType:     "studio.lerian." + events.FeesAppliedDefinition.Key(),
 			subject:    transactionID,
 			requireKey: []string{"transactionId", "organizationId", "ledgerId", "feePackageId", "appliedAt"},
