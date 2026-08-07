@@ -66,17 +66,18 @@ func TestOpenAPIDocsEnabled(t *testing.T) {
 	}
 }
 
-// TestNewUnifiedServer_SpecNotServedWhenDocsGateUnset asserts the default reaches
-// the mounted contract, not just the gate helper: with OPENAPI_DOCS_ENABLED absent,
-// ServeSpec never runs and no route it owns answers on the /v2 prefix. Distinct from
-// the explicit-false case — an absent variable is the real deployment posture.
+// TestNewUnifiedServer_SpecNotServedWhenDocsGateUnset asserts the default reaches the
+// assembled document, not just the gate helper: with OPENAPI_DOCS_ENABLED absent, a
+// document is assembled (one registrar) but ServeSpec never runs, so none of the spec
+// routes it owns answer at the root. Distinct from the explicit-"false" case — an
+// absent variable is the real deployment posture.
 func TestNewUnifiedServer_SpecNotServedWhenDocsGateUnset(t *testing.T) {
 	// t.Setenv (inside unsetDocsGate) precludes t.Parallel here.
 	unsetDocsGate(t)
 
 	server := newV2DirectServer(t, &middleware.AuthClient{Enabled: false})
 
-	for _, path := range []string{"/v2/openapi.json", "/v2/openapi.yaml", "/v2/docs"} {
+	for _, path := range []string{"/openapi.json", "/openapi.yaml", "/docs"} {
 		t.Run(path, func(t *testing.T) {
 			req, err := http.NewRequest(http.MethodGet, path, nil)
 			require.NoError(t, err)

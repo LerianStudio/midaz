@@ -831,6 +831,49 @@ components:
           maxLength: 256
           type: string
       type: object
+    CreateTransactionV2Input:
+      additionalProperties: false
+      description: Transaction request body. `debits` and `credits` are the two required, non-empty leg arrays of the transaction; one debit paired with many credits, or the reverse, is a valid request. Every leg names the `organizationId` and `ledgerId` its account belongs to; all of them must name the SAME pair, and that pair is the organization and ledger the transaction is created in. A request whose accounts name different pairs is rejected. `asset`, `amount`, `description`, `code`, `routeId`, `operationRouteId` and `metadata` sit alongside the two leg arrays, and `amount` is the transaction total that the legs' `share` expressions divide. Each leg array holds at most 500 legs.
+      properties:
+        amount:
+          type: string
+        asset:
+          type: string
+        code:
+          type: string
+        credits:
+          items:
+            $ref: "#/components/schemas/V2LegInput"
+          maxItems: 500
+          minItems: 1
+          type: array
+        debits:
+          items:
+            $ref: "#/components/schemas/V2LegInput"
+          maxItems: 500
+          minItems: 1
+          type: array
+        description:
+          type: string
+        metadata:
+          additionalProperties: {}
+          type: object
+        operationRouteId:
+          examples:
+            - 00000000-0000-0000-0000-000000000000
+          format: uuid
+          type: string
+        routeId:
+          examples:
+            - 00000000-0000-0000-0000-000000000000
+          format: uuid
+          type: string
+      required:
+        - asset
+        - amount
+        - debits
+        - credits
+      type: object
     Error:
       additionalProperties: false
       properties:
@@ -2585,6 +2628,133 @@ components:
         - code
         - description
       type: object
+    TransactionV2:
+      additionalProperties: false
+      properties:
+        amount:
+          examples:
+            - "1500"
+          minimum: 0
+          type:
+            - string
+            - "null"
+        assetCode:
+          examples:
+            - BRL
+          maxLength: 10
+          minLength: 2
+          type: string
+        chartOfAccountsGroupName:
+          examples:
+            - Chart of accounts group name
+          maxLength: 256
+          type: string
+        createdAt:
+          examples:
+            - "2021-01-01T00:00:00Z"
+          format: date-time
+          type: string
+        credit:
+          examples:
+            - - "@person2"
+          items:
+            type: string
+          type:
+            - array
+            - "null"
+        debit:
+          examples:
+            - - "@person1"
+          items:
+            type: string
+          type:
+            - array
+            - "null"
+        deletedAt:
+          examples:
+            - "2021-01-01T00:00:00Z"
+          format: date-time
+          type:
+            - string
+            - "null"
+        description:
+          examples:
+            - Transaction description
+          maxLength: 256
+          type: string
+        feesSkipped:
+          examples:
+            - false
+          type: boolean
+        id:
+          examples:
+            - 00000000-0000-0000-0000-000000000000
+          format: uuid
+          type: string
+        ledgerId:
+          examples:
+            - 00000000-0000-0000-0000-000000000000
+          format: uuid
+          type: string
+        metadata:
+          additionalProperties: {}
+          type: object
+        operations:
+          items:
+            $ref: "#/components/schemas/Operation"
+          type:
+            - array
+            - "null"
+        organizationId:
+          examples:
+            - 00000000-0000-0000-0000-000000000000
+          format: uuid
+          type: string
+        parentTransactionId:
+          examples:
+            - 00000000-0000-0000-0000-000000000000
+          format: uuid
+          type: string
+        route:
+          examples:
+            - 00000000-0000-0000-0000-000000000000
+          maxLength: 250
+          type: string
+        routeId:
+          examples:
+            - 00000000-0000-0000-0000-000000000000
+          format: uuid
+          type: string
+        status:
+          $ref: "#/components/schemas/TransactionStatus"
+        tracerSkipped:
+          examples:
+            - false
+          type: boolean
+        updatedAt:
+          examples:
+            - "2021-01-01T00:00:00Z"
+          format: date-time
+          type: string
+      required:
+        - id
+        - description
+        - status
+        - amount
+        - assetCode
+        - chartOfAccountsGroupName
+        - debit
+        - credit
+        - ledgerId
+        - organizationId
+        - route
+        - feesSkipped
+        - tracerSkipped
+        - createdAt
+        - updatedAt
+        - deletedAt
+        - operations
+      type: object
     Upstream:
       additionalProperties: false
       properties:
@@ -2599,12 +2769,73 @@ components:
             - account not found at provider
           type: string
       type: object
+    V2LegInput:
+      additionalProperties: false
+      description: "One leg of a transaction side. Fill EXACTLY ONE value expression per leg: `amount` for an explicit value, or `share` for a percentage of the transaction total. A leg carrying both, or neither, is rejected."
+      properties:
+        alias:
+          type: string
+        amount:
+          type: string
+        ledgerId:
+          examples:
+            - 00000000-0000-0000-0000-000000000000
+          format: uuid
+          type: string
+        operationRouteId:
+          examples:
+            - 00000000-0000-0000-0000-000000000000
+          format: uuid
+          type: string
+        organizationId:
+          examples:
+            - 00000000-0000-0000-0000-000000000000
+          format: uuid
+          type: string
+        share:
+          $ref: "#/components/schemas/V2ShareInput"
+      required:
+        - alias
+        - organizationId
+        - ledgerId
+      type: object
+    V2ShareInput:
+      additionalProperties: false
+      properties:
+        percentage:
+          examples:
+            - 60
+          format: int64
+          maximum: 100
+          minimum: 1
+          type: integer
+        percentageOfPercentage:
+          examples:
+            - 50
+          format: int64
+          maximum: 100
+          minimum: 0
+          type: integer
+      required:
+        - percentage
+      type: object
+  securitySchemes:
+    ApiKeyAuth:
+      description: Static API key presented in the X-API-Key header.
+      in: header
+      name: X-API-Key
+      type: apiKey
+    BearerAuth:
+      bearerFormat: JWT
+      description: JWT bearer token issued by the identity provider.
+      scheme: bearer
+      type: http
 info:
   title: Midaz Ledger API
   version: 4.0.0
 openapi: 3.1.0
 paths:
-  /organizations:
+  /v1/organizations:
     get:
       operationId: listOrganizations
       parameters:
@@ -2733,7 +2964,7 @@ paths:
       summary: Create a new organization
       tags:
         - Organizations
-  /organizations/metrics/count:
+  /v1/organizations/metrics/count:
     head:
       operationId: countOrganizations
       responses:
@@ -2758,7 +2989,7 @@ paths:
       summary: Count total organizations
       tags:
         - Organizations
-  /organizations/{id}:
+  /v1/organizations/{id}:
     delete:
       operationId: deleteOrganization
       parameters:
@@ -2850,7 +3081,7 @@ paths:
       summary: Update an existing organization
       tags:
         - Organizations
-  /organizations/{organization_id}/billing-packages:
+  /v1/organizations/{organization_id}/billing-packages:
     get:
       operationId: getAllBillingPackages
       parameters:
@@ -2943,7 +3174,7 @@ paths:
       summary: Create a BillingPackage
       tags:
         - Billing Packages
-  /organizations/{organization_id}/billing-packages/{id}:
+  /v1/organizations/{organization_id}/billing-packages/{id}:
     delete:
       operationId: deleteBillingPackage
       parameters:
@@ -3053,7 +3284,7 @@ paths:
       summary: Update a billing package
       tags:
         - Billing Packages
-  /organizations/{organization_id}/billing/calculate:
+  /v1/organizations/{organization_id}/billing/calculate:
     post:
       operationId: calculateBilling
       parameters:
@@ -3090,7 +3321,7 @@ paths:
       summary: Calculate billing
       tags:
         - Billing Calculate
-  /organizations/{organization_id}/encryption/provision:
+  /v1/organizations/{organization_id}/encryption/provision:
     post:
       operationId: provisionEncryption
       parameters:
@@ -3133,7 +3364,7 @@ paths:
       summary: Provision an Organization for Envelope Encryption
       tags:
         - Encryption
-  /organizations/{organization_id}/encryption/status:
+  /v1/organizations/{organization_id}/encryption/status:
     get:
       operationId: getProvisioningStatus
       parameters:
@@ -3168,7 +3399,7 @@ paths:
       summary: Get Provisioning Status
       tags:
         - Encryption
-  /organizations/{organization_id}/estimates:
+  /v1/organizations/{organization_id}/estimates:
     post:
       operationId: estimateFeeCalculation
       parameters:
@@ -3206,7 +3437,7 @@ paths:
       summary: Create a fee estimate calculation
       tags:
         - Fees
-  /organizations/{organization_id}/holders:
+  /v1/organizations/{organization_id}/holders:
     get:
       operationId: listHolders
       parameters:
@@ -3336,7 +3567,7 @@ paths:
       summary: Create a Holder
       tags:
         - Holders
-  /organizations/{organization_id}/holders/{holder_id}/instruments:
+  /v1/organizations/{organization_id}/holders/{holder_id}/instruments:
     post:
       operationId: createInstrument
       parameters:
@@ -3396,7 +3627,7 @@ paths:
       summary: Create an Instrument Account
       tags:
         - Instruments
-  /organizations/{organization_id}/holders/{holder_id}/instruments/{instrument_id}:
+  /v1/organizations/{organization_id}/holders/{holder_id}/instruments/{instrument_id}:
     delete:
       operationId: deleteInstrument
       parameters:
@@ -3541,7 +3772,7 @@ paths:
       summary: Update an Instrument
       tags:
         - Instruments
-  /organizations/{organization_id}/holders/{holder_id}/instruments/{instrument_id}/related-parties/{related_party_id}:
+  /v1/organizations/{organization_id}/holders/{holder_id}/instruments/{instrument_id}/related-parties/{related_party_id}:
     delete:
       operationId: deleteRelatedParty
       parameters:
@@ -3587,7 +3818,7 @@ paths:
       summary: Delete a Related Party
       tags:
         - Instruments
-  /organizations/{organization_id}/holders/{id}:
+  /v1/organizations/{organization_id}/holders/{id}:
     delete:
       operationId: deleteHolder
       parameters:
@@ -3711,7 +3942,7 @@ paths:
       summary: Update a Holder
       tags:
         - Holders
-  /organizations/{organization_id}/holders/{id}/accounts:
+  /v1/organizations/{organization_id}/holders/{id}/accounts:
     get:
       operationId: listAccountsByHolder
       parameters:
@@ -3768,7 +3999,7 @@ paths:
       summary: List Accounts by Holder
       tags:
         - Holders
-  /organizations/{organization_id}/instruments:
+  /v1/organizations/{organization_id}/instruments:
     get:
       operationId: listInstruments
       parameters:
@@ -3860,7 +4091,7 @@ paths:
       summary: List Instruments
       tags:
         - Instruments
-  /organizations/{organization_id}/ledgers:
+  /v1/organizations/{organization_id}/ledgers:
     get:
       operationId: listLedgers
       parameters:
@@ -3983,7 +4214,7 @@ paths:
       summary: Create a new ledger
       tags:
         - Ledgers
-  /organizations/{organization_id}/ledgers/metrics/count:
+  /v1/organizations/{organization_id}/ledgers/metrics/count:
     head:
       operationId: countLedgers
       parameters:
@@ -4016,7 +4247,7 @@ paths:
       summary: Count total ledgers
       tags:
         - Ledgers
-  /organizations/{organization_id}/ledgers/{ledger_id}:
+  /v1/organizations/{organization_id}/ledgers/{ledger_id}:
     delete:
       operationId: deleteLedger
       parameters:
@@ -4129,7 +4360,7 @@ paths:
       summary: Update an existing ledger
       tags:
         - Ledgers
-  /organizations/{organization_id}/ledgers/{ledger_id}/account-types:
+  /v1/organizations/{organization_id}/ledgers/{ledger_id}/account-types:
     get:
       operationId: listAccountTypes
       parameters:
@@ -4266,7 +4497,7 @@ paths:
       summary: Create a new account type
       tags:
         - Account Types
-  /organizations/{organization_id}/ledgers/{ledger_id}/account-types/{id}:
+  /v1/organizations/{organization_id}/ledgers/{ledger_id}/account-types/{id}:
     delete:
       operationId: deleteAccountType
       parameters:
@@ -4400,7 +4631,7 @@ paths:
       summary: Update an account type
       tags:
         - Account Types
-  /organizations/{organization_id}/ledgers/{ledger_id}/accounts:
+  /v1/organizations/{organization_id}/ledgers/{ledger_id}/accounts:
     get:
       operationId: listAccounts
       parameters:
@@ -4599,7 +4830,7 @@ paths:
       summary: Create a new account
       tags:
         - Accounts
-  /organizations/{organization_id}/ledgers/{ledger_id}/accounts/alias/{alias}:
+  /v1/organizations/{organization_id}/ledgers/{ledger_id}/accounts/alias/{alias}:
     get:
       operationId: getAccountByAlias
       parameters:
@@ -4643,7 +4874,7 @@ paths:
       summary: Retrieve an account by alias
       tags:
         - Accounts
-  /organizations/{organization_id}/ledgers/{ledger_id}/accounts/alias/{alias}/balances:
+  /v1/organizations/{organization_id}/ledgers/{ledger_id}/accounts/alias/{alias}/balances:
     get:
       operationId: getBalancesByAlias
       parameters:
@@ -4687,7 +4918,7 @@ paths:
       summary: Get Balances using Alias
       tags:
         - Balances
-  /organizations/{organization_id}/ledgers/{ledger_id}/accounts/external/{code}:
+  /v1/organizations/{organization_id}/ledgers/{ledger_id}/accounts/external/{code}:
     get:
       operationId: getAccountExternalByCode
       parameters:
@@ -4731,7 +4962,7 @@ paths:
       summary: Retrieve an account by external code
       tags:
         - Accounts
-  /organizations/{organization_id}/ledgers/{ledger_id}/accounts/external/{code}/balances:
+  /v1/organizations/{organization_id}/ledgers/{ledger_id}/accounts/external/{code}/balances:
     get:
       operationId: getBalancesExternalByCode
       parameters:
@@ -4775,7 +5006,7 @@ paths:
       summary: Get External balances using code
       tags:
         - Balances
-  /organizations/{organization_id}/ledgers/{ledger_id}/accounts/metrics/count:
+  /v1/organizations/{organization_id}/ledgers/{ledger_id}/accounts/metrics/count:
     head:
       operationId: countAccounts
       parameters:
@@ -4815,7 +5046,7 @@ paths:
       summary: Count accounts
       tags:
         - Accounts
-  /organizations/{organization_id}/ledgers/{ledger_id}/accounts/{account_id}/balances:
+  /v1/organizations/{organization_id}/ledgers/{ledger_id}/accounts/{account_id}/balances:
     get:
       operationId: getAllBalancesByAccountID
       parameters:
@@ -4945,7 +5176,7 @@ paths:
       summary: Create Additional Balance
       tags:
         - Balances
-  /organizations/{organization_id}/ledgers/{ledger_id}/accounts/{account_id}/balances/history:
+  /v1/organizations/{organization_id}/ledgers/{ledger_id}/accounts/{account_id}/balances/history:
     get:
       operationId: getAccountBalancesAtTimestamp
       parameters:
@@ -5000,7 +5231,7 @@ paths:
       summary: Get Account Balances history at date
       tags:
         - Balances
-  /organizations/{organization_id}/ledgers/{ledger_id}/accounts/{account_id}/operations:
+  /v1/organizations/{organization_id}/ledgers/{ledger_id}/accounts/{account_id}/operations:
     get:
       operationId: getAllOperationsByAccount
       parameters:
@@ -5114,7 +5345,7 @@ paths:
       summary: Get all Operations by account
       tags:
         - Operations
-  /organizations/{organization_id}/ledgers/{ledger_id}/accounts/{account_id}/operations/{operation_id}:
+  /v1/organizations/{organization_id}/ledgers/{ledger_id}/accounts/{account_id}/operations/{operation_id}:
     get:
       operationId: getOperationByAccount
       parameters:
@@ -5165,7 +5396,7 @@ paths:
       summary: Get Operation
       tags:
         - Operations
-  /organizations/{organization_id}/ledgers/{ledger_id}/accounts/{id}:
+  /v1/organizations/{organization_id}/ledgers/{ledger_id}/accounts/{id}:
     delete:
       operationId: deleteAccount
       parameters:
@@ -5305,7 +5536,7 @@ paths:
       summary: Update an account
       tags:
         - Accounts
-  /organizations/{organization_id}/ledgers/{ledger_id}/asset-rates:
+  /v1/organizations/{organization_id}/ledgers/{ledger_id}/asset-rates:
     put:
       operationId: createOrUpdateAssetRate
       parameters:
@@ -5350,7 +5581,7 @@ paths:
       summary: Create or Update an AssetRate
       tags:
         - Asset Rates
-  /organizations/{organization_id}/ledgers/{ledger_id}/asset-rates/from/{asset_code}:
+  /v1/organizations/{organization_id}/ledgers/{ledger_id}/asset-rates/from/{asset_code}:
     get:
       operationId: getAllAssetRatesByAssetCode
       parameters:
@@ -5440,7 +5671,7 @@ paths:
       summary: Get an AssetRate by the Asset Code
       tags:
         - Asset Rates
-  /organizations/{organization_id}/ledgers/{ledger_id}/asset-rates/{external_id}:
+  /v1/organizations/{organization_id}/ledgers/{ledger_id}/asset-rates/{external_id}:
     get:
       operationId: getAssetRateByExternalID
       parameters:
@@ -5484,7 +5715,7 @@ paths:
       summary: Get an AssetRate by External ID
       tags:
         - Asset Rates
-  /organizations/{organization_id}/ledgers/{ledger_id}/assets:
+  /v1/organizations/{organization_id}/ledgers/{ledger_id}/assets:
     get:
       operationId: listAssets
       parameters:
@@ -5613,7 +5844,7 @@ paths:
       summary: Create a new asset
       tags:
         - Assets
-  /organizations/{organization_id}/ledgers/{ledger_id}/assets/metrics/count:
+  /v1/organizations/{organization_id}/ledgers/{ledger_id}/assets/metrics/count:
     head:
       operationId: countAssets
       parameters:
@@ -5653,7 +5884,7 @@ paths:
       summary: Count total assets
       tags:
         - Assets
-  /organizations/{organization_id}/ledgers/{ledger_id}/assets/{id}:
+  /v1/organizations/{organization_id}/ledgers/{ledger_id}/assets/{id}:
     delete:
       operationId: deleteAsset
       parameters:
@@ -5787,7 +6018,7 @@ paths:
       summary: Update an asset
       tags:
         - Assets
-  /organizations/{organization_id}/ledgers/{ledger_id}/balances:
+  /v1/organizations/{organization_id}/ledgers/{ledger_id}/balances:
     get:
       operationId: getAllBalances
       parameters:
@@ -5859,7 +6090,7 @@ paths:
       summary: Get all balances
       tags:
         - Balances
-  /organizations/{organization_id}/ledgers/{ledger_id}/balances/{balance_id}:
+  /v1/organizations/{organization_id}/ledgers/{ledger_id}/balances/{balance_id}:
     delete:
       operationId: deleteBalance
       parameters:
@@ -5993,7 +6224,7 @@ paths:
       summary: Update Balance
       tags:
         - Balances
-  /organizations/{organization_id}/ledgers/{ledger_id}/balances/{balance_id}/history:
+  /v1/organizations/{organization_id}/ledgers/{ledger_id}/balances/{balance_id}/history:
     get:
       operationId: getBalanceAtTimestamp
       parameters:
@@ -6044,7 +6275,7 @@ paths:
       summary: Get Balance history at date
       tags:
         - Balances
-  /organizations/{organization_id}/ledgers/{ledger_id}/holders/{id}/accounts:
+  /v1/organizations/{organization_id}/ledgers/{ledger_id}/holders/{id}/accounts:
     post:
       operationId: createHolderAccount
       parameters:
@@ -6101,7 +6332,7 @@ paths:
       summary: Open a holder-owned account (with optional instrument)
       tags:
         - Composition
-  /organizations/{organization_id}/ledgers/{ledger_id}/operation-routes:
+  /v1/organizations/{organization_id}/ledgers/{ledger_id}/operation-routes:
     get:
       operationId: listOperationRoutes
       parameters:
@@ -6215,7 +6446,7 @@ paths:
       summary: Create Operation Route
       tags:
         - Operation Routes
-  /organizations/{organization_id}/ledgers/{ledger_id}/operation-routes/{operation_route_id}:
+  /v1/organizations/{organization_id}/ledgers/{ledger_id}/operation-routes/{operation_route_id}:
     delete:
       operationId: deleteOperationRoute
       parameters:
@@ -6346,7 +6577,7 @@ paths:
       summary: Update an operation route
       tags:
         - Operation Routes
-  /organizations/{organization_id}/ledgers/{ledger_id}/portfolios:
+  /v1/organizations/{organization_id}/ledgers/{ledger_id}/portfolios:
     get:
       operationId: listPortfolios
       parameters:
@@ -6483,7 +6714,7 @@ paths:
       summary: Create a new portfolio
       tags:
         - Portfolios
-  /organizations/{organization_id}/ledgers/{ledger_id}/portfolios/metrics/count:
+  /v1/organizations/{organization_id}/ledgers/{ledger_id}/portfolios/metrics/count:
     head:
       operationId: countPortfolios
       parameters:
@@ -6523,7 +6754,7 @@ paths:
       summary: Count total portfolios
       tags:
         - Portfolios
-  /organizations/{organization_id}/ledgers/{ledger_id}/portfolios/{id}:
+  /v1/organizations/{organization_id}/ledgers/{ledger_id}/portfolios/{id}:
     delete:
       operationId: deletePortfolio
       parameters:
@@ -6657,7 +6888,7 @@ paths:
       summary: Update a portfolio
       tags:
         - Portfolios
-  /organizations/{organization_id}/ledgers/{ledger_id}/segments:
+  /v1/organizations/{organization_id}/ledgers/{ledger_id}/segments:
     get:
       operationId: listSegments
       parameters:
@@ -6780,7 +7011,7 @@ paths:
       summary: Create a new segment
       tags:
         - Segments
-  /organizations/{organization_id}/ledgers/{ledger_id}/segments/metrics/count:
+  /v1/organizations/{organization_id}/ledgers/{ledger_id}/segments/metrics/count:
     head:
       operationId: countSegments
       parameters:
@@ -6820,7 +7051,7 @@ paths:
       summary: Count total segments
       tags:
         - Segments
-  /organizations/{organization_id}/ledgers/{ledger_id}/segments/{id}:
+  /v1/organizations/{organization_id}/ledgers/{ledger_id}/segments/{id}:
     delete:
       operationId: deleteSegment
       parameters:
@@ -6954,7 +7185,7 @@ paths:
       summary: Update a segment
       tags:
         - Segments
-  /organizations/{organization_id}/ledgers/{ledger_id}/settings:
+  /v1/organizations/{organization_id}/ledgers/{ledger_id}/settings:
     get:
       operationId: getLedgerSettings
       parameters:
@@ -7035,7 +7266,7 @@ paths:
       summary: Update ledger settings
       tags:
         - Ledgers
-  /organizations/{organization_id}/ledgers/{ledger_id}/transaction-routes:
+  /v1/organizations/{organization_id}/ledgers/{ledger_id}/transaction-routes:
     get:
       operationId: listTransactionRoutes
       parameters:
@@ -7149,7 +7380,7 @@ paths:
       summary: Create Transaction Route
       tags:
         - Transaction Routes
-  /organizations/{organization_id}/ledgers/{ledger_id}/transaction-routes/{transaction_route_id}:
+  /v1/organizations/{organization_id}/ledgers/{ledger_id}/transaction-routes/{transaction_route_id}:
     delete:
       operationId: deleteTransactionRoute
       parameters:
@@ -7280,7 +7511,7 @@ paths:
       summary: Update Transaction Route
       tags:
         - Transaction Routes
-  /organizations/{organization_id}/ledgers/{ledger_id}/transactions:
+  /v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions:
     get:
       operationId: getAllTransactions
       parameters:
@@ -7358,7 +7589,7 @@ paths:
       summary: Get all Transactions
       tags:
         - Transactions
-  /organizations/{organization_id}/ledgers/{ledger_id}/transactions/annotation:
+  /v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions/annotation:
     post:
       operationId: createTransactionAnnotation
       parameters:
@@ -7418,7 +7649,7 @@ paths:
       summary: Create a Transaction Annotation using JSON
       tags:
         - Transactions
-  /organizations/{organization_id}/ledgers/{ledger_id}/transactions/block:
+  /v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions/block:
     post:
       operationId: createTransactionBlock
       parameters:
@@ -7478,7 +7709,7 @@ paths:
       summary: Create a Block Transaction
       tags:
         - Transactions
-  /organizations/{organization_id}/ledgers/{ledger_id}/transactions/inflow:
+  /v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions/inflow:
     post:
       operationId: createTransactionInflow
       parameters:
@@ -7538,7 +7769,7 @@ paths:
       summary: Create a Transaction without passing from source
       tags:
         - Transactions
-  /organizations/{organization_id}/ledgers/{ledger_id}/transactions/json:
+  /v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions/json:
     post:
       operationId: createTransactionJSON
       parameters:
@@ -7598,7 +7829,7 @@ paths:
       summary: Create a Transaction using JSON
       tags:
         - Transactions
-  /organizations/{organization_id}/ledgers/{ledger_id}/transactions/metrics/count:
+  /v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions/metrics/count:
     head:
       operationId: countTransactionsByFilters
       parameters:
@@ -7666,7 +7897,7 @@ paths:
       summary: Count Transactions by Filters
       tags:
         - Transactions
-  /organizations/{organization_id}/ledgers/{ledger_id}/transactions/outflow:
+  /v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions/outflow:
     post:
       operationId: createTransactionOutflow
       parameters:
@@ -7726,7 +7957,7 @@ paths:
       summary: Create a Transaction without passing to distribution
       tags:
         - Transactions
-  /organizations/{organization_id}/ledgers/{ledger_id}/transactions/unblock:
+  /v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions/unblock:
     post:
       operationId: createTransactionUnblock
       parameters:
@@ -7786,7 +8017,7 @@ paths:
       summary: Create an Unblock Transaction
       tags:
         - Transactions
-  /organizations/{organization_id}/ledgers/{ledger_id}/transactions/{transaction_id}:
+  /v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions/{transaction_id}:
     get:
       operationId: getTransaction
       parameters:
@@ -7883,7 +8114,7 @@ paths:
       summary: Update a Transaction
       tags:
         - Transactions
-  /organizations/{organization_id}/ledgers/{ledger_id}/transactions/{transaction_id}/cancel:
+  /v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions/{transaction_id}/cancel:
     post:
       operationId: cancelTransaction
       parameters:
@@ -7926,7 +8157,7 @@ paths:
       summary: Cancel a pre transaction
       tags:
         - Transactions
-  /organizations/{organization_id}/ledgers/{ledger_id}/transactions/{transaction_id}/commit:
+  /v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions/{transaction_id}/commit:
     post:
       operationId: commitTransaction
       parameters:
@@ -7969,7 +8200,7 @@ paths:
       summary: Commit a Transaction
       tags:
         - Transactions
-  /organizations/{organization_id}/ledgers/{ledger_id}/transactions/{transaction_id}/operations/{operation_id}:
+  /v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions/{transaction_id}/operations/{operation_id}:
     patch:
       operationId: updateOperation
       parameters:
@@ -8027,7 +8258,7 @@ paths:
       summary: Update an Operation
       tags:
         - Operations
-  /organizations/{organization_id}/ledgers/{ledger_id}/transactions/{transaction_id}/revert:
+  /v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions/{transaction_id}/revert:
     post:
       operationId: revertTransaction
       parameters:
@@ -8074,7 +8305,7 @@ paths:
       summary: Revert a Transaction
       tags:
         - Transactions
-  /organizations/{organization_id}/packages:
+  /v1/organizations/{organization_id}/packages:
     get:
       operationId: getAllPackages
       parameters:
@@ -8181,7 +8412,7 @@ paths:
       summary: Create a Package
       tags:
         - Packages
-  /organizations/{organization_id}/packages/{id}:
+  /v1/organizations/{organization_id}/packages/{id}:
     delete:
       operationId: deletePackage
       parameters:
@@ -8291,7 +8522,7 @@ paths:
       summary: Update a package
       tags:
         - Packages
-  /organizations/{organization_id}/protection/audit:
+  /v1/organizations/{organization_id}/protection/audit:
     get:
       operationId: getAuditEvents
       parameters:
@@ -8382,7 +8613,7 @@ paths:
       summary: List Protection Audit Events
       tags:
         - Protection
-  /settings/metadata-indexes:
+  /v1/settings/metadata-indexes:
     get:
       operationId: getAllMetadataIndexes
       parameters:
@@ -8416,7 +8647,7 @@ paths:
       summary: Get all Metadata Indexes
       tags:
         - Metadata Indexes
-  /settings/metadata-indexes/entities/{entity_name}:
+  /v1/settings/metadata-indexes/entities/{entity_name}:
     post:
       operationId: createMetadataIndex
       parameters:
@@ -8454,7 +8685,7 @@ paths:
       summary: Create Metadata Index
       tags:
         - Metadata Indexes
-  /settings/metadata-indexes/entities/{entity_name}/key/{index_key}:
+  /v1/settings/metadata-indexes/entities/{entity_name}/key/{index_key}:
     delete:
       operationId: deleteMetadataIndex
       parameters:
@@ -8487,5 +8718,1702 @@ paths:
       summary: Delete Metadata Index
       tags:
         - Metadata Indexes
+  /v2/organizations/{organization_id}/encryption/provision:
+    post:
+      operationId: provisionEncryptionV2
+      parameters:
+        - description: Organization ID (UUID)
+          in: path
+          name: organization_id
+          required: true
+          schema:
+            description: Organization ID (UUID)
+            type: string
+        - description: Bearer token; only required when the auth plugin is enabled
+          in: header
+          name: Authorization
+          schema:
+            description: Bearer token; only required when the auth plugin is enabled
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              contentMediaType: application/octet-stream
+              format: binary
+              type: string
+        required: true
+      responses:
+        "201":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProvisionEncryptionResponse"
+          description: Created
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Error
+      security:
+        - BearerAuth: []
+      summary: Provision an Organization for Envelope Encryption
+      tags:
+        - Encryption
+  /v2/organizations/{organization_id}/encryption/status:
+    get:
+      operationId: getProvisioningStatusV2
+      parameters:
+        - description: Organization ID (UUID)
+          in: path
+          name: organization_id
+          required: true
+          schema:
+            description: Organization ID (UUID)
+            type: string
+        - description: Bearer token; only required when the auth plugin is enabled
+          in: header
+          name: Authorization
+          schema:
+            description: Bearer token; only required when the auth plugin is enabled
+            type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProvisioningStatusResponse"
+          description: OK
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Error
+      security:
+        - BearerAuth: []
+      summary: Get Provisioning Status
+      tags:
+        - Encryption
+  /v2/organizations/{organization_id}/holders:
+    get:
+      operationId: listHoldersV2
+      parameters:
+        - description: Organization ID (UUID)
+          in: path
+          name: organization_id
+          required: true
+          schema:
+            description: Organization ID (UUID)
+            type: string
+        - description: JSON string to filter holders by metadata fields
+          explode: false
+          in: query
+          name: metadata
+          schema:
+            description: JSON string to filter holders by metadata fields
+            type: string
+        - description: Max items per page (1-100, default 10)
+          explode: false
+          in: query
+          name: limit
+          schema:
+            description: Max items per page (1-100, default 10)
+            type: string
+        - description: Page number (default 1)
+          explode: false
+          in: query
+          name: page
+          schema:
+            description: Page number (default 1)
+            type: string
+        - description: Sort direction (asc, desc)
+          explode: false
+          in: query
+          name: sort_order
+          schema:
+            description: Sort direction (asc, desc)
+            type: string
+        - description: Return includes logically deleted holders (true,false)
+          explode: false
+          in: query
+          name: include_deleted
+          schema:
+            description: Return includes logically deleted holders (true,false)
+            type: string
+        - description: Filter holders by externalID
+          explode: false
+          in: query
+          name: external_id
+          schema:
+            description: Filter holders by externalID
+            type: string
+        - description: Filter holders by document
+          explode: false
+          in: query
+          name: document
+          schema:
+            description: Filter holders by document
+            type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Pagination"
+          description: OK
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Error
+      security:
+        - BearerAuth: []
+      summary: List Holders
+      tags:
+        - Holders
+    post:
+      operationId: createHolderV2
+      parameters:
+        - description: Organization ID (UUID)
+          in: path
+          name: organization_id
+          required: true
+          schema:
+            description: Organization ID (UUID)
+            type: string
+        - description: Idempotency key to safely retry the create; an identical retry returns the original holder
+          in: header
+          name: X-Idempotency
+          schema:
+            description: Idempotency key to safely retry the create; an identical retry returns the original holder
+            type: string
+        - description: Idempotency slot TTL in seconds (default 300)
+          in: header
+          name: X-TTL
+          schema:
+            description: Idempotency slot TTL in seconds (default 300)
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              contentMediaType: application/octet-stream
+              format: binary
+              type: string
+        required: true
+      responses:
+        "201":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Holder"
+          description: Created
+          headers:
+            X-Idempotency-Replayed:
+              schema:
+                type: string
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Error
+      security:
+        - BearerAuth: []
+      summary: Create a Holder
+      tags:
+        - Holders
+  /v2/organizations/{organization_id}/holders/{holder_id}/instruments:
+    post:
+      operationId: createInstrumentV2
+      parameters:
+        - description: Organization ID (UUID)
+          in: path
+          name: organization_id
+          required: true
+          schema:
+            description: Organization ID (UUID)
+            type: string
+        - description: Holder ID (UUID)
+          in: path
+          name: holder_id
+          required: true
+          schema:
+            description: Holder ID (UUID)
+            type: string
+        - description: Idempotency key to safely retry the create; an identical retry returns the original instrument
+          in: header
+          name: X-Idempotency
+          schema:
+            description: Idempotency key to safely retry the create; an identical retry returns the original instrument
+            type: string
+        - description: Idempotency slot TTL in seconds (default 300)
+          in: header
+          name: X-TTL
+          schema:
+            description: Idempotency slot TTL in seconds (default 300)
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              contentMediaType: application/octet-stream
+              format: binary
+              type: string
+        required: true
+      responses:
+        "201":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Instrument"
+          description: Created
+          headers:
+            X-Idempotency-Replayed:
+              schema:
+                type: string
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Error
+      security:
+        - BearerAuth: []
+      summary: Create an Instrument Account
+      tags:
+        - Instruments
+  /v2/organizations/{organization_id}/holders/{holder_id}/instruments/{instrument_id}:
+    delete:
+      operationId: deleteInstrumentV2
+      parameters:
+        - description: Organization ID (UUID)
+          in: path
+          name: organization_id
+          required: true
+          schema:
+            description: Organization ID (UUID)
+            type: string
+        - description: Holder ID (UUID)
+          in: path
+          name: holder_id
+          required: true
+          schema:
+            description: Holder ID (UUID)
+            type: string
+        - description: Instrument ID (UUID)
+          in: path
+          name: instrument_id
+          required: true
+          schema:
+            description: Instrument ID (UUID)
+            type: string
+        - description: Use only to perform a physical deletion of the data. This action is irreversible. (true,false)
+          explode: false
+          in: query
+          name: hard_delete
+          schema:
+            description: Use only to perform a physical deletion of the data. This action is irreversible. (true,false)
+            type: string
+      responses:
+        "204":
+          description: No Content
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Error
+      security:
+        - BearerAuth: []
+      summary: Delete an Instrument
+      tags:
+        - Instruments
+    get:
+      operationId: getInstrumentByIDV2
+      parameters:
+        - description: Organization ID (UUID)
+          in: path
+          name: organization_id
+          required: true
+          schema:
+            description: Organization ID (UUID)
+            type: string
+        - description: Holder ID (UUID)
+          in: path
+          name: holder_id
+          required: true
+          schema:
+            description: Holder ID (UUID)
+            type: string
+        - description: Instrument ID (UUID)
+          in: path
+          name: instrument_id
+          required: true
+          schema:
+            description: Instrument ID (UUID)
+            type: string
+        - description: Returns the instrument even if it was logically deleted (true,false)
+          explode: false
+          in: query
+          name: include_deleted
+          schema:
+            description: Returns the instrument even if it was logically deleted (true,false)
+            type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Instrument"
+          description: OK
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Error
+      security:
+        - BearerAuth: []
+      summary: Retrieve Instrument details
+      tags:
+        - Instruments
+    patch:
+      operationId: updateInstrumentV2
+      parameters:
+        - description: Organization ID (UUID)
+          in: path
+          name: organization_id
+          required: true
+          schema:
+            description: Organization ID (UUID)
+            type: string
+        - description: Holder ID (UUID)
+          in: path
+          name: holder_id
+          required: true
+          schema:
+            description: Holder ID (UUID)
+            type: string
+        - description: Instrument ID (UUID)
+          in: path
+          name: instrument_id
+          required: true
+          schema:
+            description: Instrument ID (UUID)
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              contentMediaType: application/octet-stream
+              format: binary
+              type: string
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Instrument"
+          description: OK
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Error
+      security:
+        - BearerAuth: []
+      summary: Update an Instrument
+      tags:
+        - Instruments
+  /v2/organizations/{organization_id}/holders/{holder_id}/instruments/{instrument_id}/related-parties/{related_party_id}:
+    delete:
+      operationId: deleteRelatedPartyV2
+      parameters:
+        - description: Organization ID (UUID)
+          in: path
+          name: organization_id
+          required: true
+          schema:
+            description: Organization ID (UUID)
+            type: string
+        - description: Holder ID (UUID)
+          in: path
+          name: holder_id
+          required: true
+          schema:
+            description: Holder ID (UUID)
+            type: string
+        - description: Instrument ID (UUID)
+          in: path
+          name: instrument_id
+          required: true
+          schema:
+            description: Instrument ID (UUID)
+            type: string
+        - description: Related Party ID (UUID)
+          in: path
+          name: related_party_id
+          required: true
+          schema:
+            description: Related Party ID (UUID)
+            type: string
+      responses:
+        "204":
+          description: No Content
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Error
+      security:
+        - BearerAuth: []
+      summary: Delete a Related Party
+      tags:
+        - Instruments
+  /v2/organizations/{organization_id}/holders/{id}:
+    delete:
+      operationId: deleteHolderV2
+      parameters:
+        - description: Organization ID (UUID)
+          in: path
+          name: organization_id
+          required: true
+          schema:
+            description: Organization ID (UUID)
+            type: string
+        - description: Holder ID (UUID)
+          in: path
+          name: id
+          required: true
+          schema:
+            description: Holder ID (UUID)
+            type: string
+        - description: Use only to perform a physical deletion of the data. This action is irreversible. (true,false)
+          explode: false
+          in: query
+          name: hard_delete
+          schema:
+            description: Use only to perform a physical deletion of the data. This action is irreversible. (true,false)
+            type: string
+      responses:
+        "204":
+          description: No Content
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Error
+      security:
+        - BearerAuth: []
+      summary: Delete a Holder
+      tags:
+        - Holders
+    get:
+      operationId: getHolderByIDV2
+      parameters:
+        - description: Organization ID (UUID)
+          in: path
+          name: organization_id
+          required: true
+          schema:
+            description: Organization ID (UUID)
+            type: string
+        - description: Holder ID (UUID)
+          in: path
+          name: id
+          required: true
+          schema:
+            description: Holder ID (UUID)
+            type: string
+        - description: Returns the holder even if it was logically deleted (true,false)
+          explode: false
+          in: query
+          name: include_deleted
+          schema:
+            description: Returns the holder even if it was logically deleted (true,false)
+            type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Holder"
+          description: OK
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Error
+      security:
+        - BearerAuth: []
+      summary: Retrieve Holder details
+      tags:
+        - Holders
+    patch:
+      operationId: updateHolderV2
+      parameters:
+        - description: Organization ID (UUID)
+          in: path
+          name: organization_id
+          required: true
+          schema:
+            description: Organization ID (UUID)
+            type: string
+        - description: Holder ID (UUID)
+          in: path
+          name: id
+          required: true
+          schema:
+            description: Holder ID (UUID)
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              contentMediaType: application/octet-stream
+              format: binary
+              type: string
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Holder"
+          description: OK
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Error
+      security:
+        - BearerAuth: []
+      summary: Update a Holder
+      tags:
+        - Holders
+  /v2/organizations/{organization_id}/holders/{id}/accounts:
+    get:
+      operationId: listAccountsByHolderV2
+      parameters:
+        - description: Organization ID (UUID)
+          in: path
+          name: organization_id
+          required: true
+          schema:
+            description: Organization ID (UUID)
+            type: string
+        - description: Holder ID (UUID)
+          in: path
+          name: id
+          required: true
+          schema:
+            description: Holder ID (UUID)
+            type: string
+        - description: Max items per page (1-100, default 10)
+          explode: false
+          in: query
+          name: limit
+          schema:
+            description: Max items per page (1-100, default 10)
+            type: string
+        - description: Page number (default 1)
+          explode: false
+          in: query
+          name: page
+          schema:
+            description: Page number (default 1)
+            type: string
+        - description: Sort direction (asc, desc)
+          explode: false
+          in: query
+          name: sort_order
+          schema:
+            description: Sort direction (asc, desc)
+            type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Pagination"
+          description: OK
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Error
+      security:
+        - BearerAuth: []
+      summary: List Accounts by Holder
+      tags:
+        - Holders
+  /v2/organizations/{organization_id}/instruments:
+    get:
+      operationId: listInstrumentsV2
+      parameters:
+        - description: Organization ID (UUID)
+          in: path
+          name: organization_id
+          required: true
+          schema:
+            description: Organization ID (UUID)
+            type: string
+        - description: Filter instruments by holder ID (UUID)
+          explode: false
+          in: query
+          name: holder_id
+          schema:
+            description: Filter instruments by holder ID (UUID)
+            type: string
+        - description: JSON string to filter instruments by metadata fields
+          explode: false
+          in: query
+          name: metadata
+          schema:
+            description: JSON string to filter instruments by metadata fields
+            type: string
+        - description: Max items per page (1-100, default 10)
+          explode: false
+          in: query
+          name: limit
+          schema:
+            description: Max items per page (1-100, default 10)
+            type: string
+        - description: Page number (default 1)
+          explode: false
+          in: query
+          name: page
+          schema:
+            description: Page number (default 1)
+            type: string
+        - description: Sort direction (asc, desc)
+          explode: false
+          in: query
+          name: sort_order
+          schema:
+            description: Sort direction (asc, desc)
+            type: string
+        - description: Return includes logically deleted instruments (true,false)
+          explode: false
+          in: query
+          name: include_deleted
+          schema:
+            description: Return includes logically deleted instruments (true,false)
+            type: string
+        - description: Filter instrument by accountID
+          explode: false
+          in: query
+          name: account_id
+          schema:
+            description: Filter instrument by accountID
+            type: string
+        - description: Filter instrument by ledgerID
+          explode: false
+          in: query
+          name: ledger_id
+          schema:
+            description: Filter instrument by ledgerID
+            type: string
+        - description: Filter instrument by document
+          explode: false
+          in: query
+          name: document
+          schema:
+            description: Filter instrument by document
+            type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Pagination"
+          description: OK
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Error
+      security:
+        - BearerAuth: []
+      summary: List Instruments
+      tags:
+        - Instruments
+  /v2/organizations/{organization_id}/ledgers/{ledger_id}/billing-packages:
+    get:
+      operationId: getAllBillingPackagesV2
+      parameters:
+        - description: Organization ID (UUID)
+          in: path
+          name: organization_id
+          required: true
+          schema:
+            description: Organization ID (UUID)
+            type: string
+        - description: Ledger ID (UUID)
+          in: path
+          name: ledger_id
+          required: true
+          schema:
+            description: Ledger ID (UUID)
+            type: string
+        - description: Filter by billing package type (volume, maintenance)
+          explode: false
+          in: query
+          name: type
+          schema:
+            description: Filter by billing package type (volume, maintenance)
+            type: string
+        - description: Number of items per page (default 10)
+          explode: false
+          in: query
+          name: limit
+          schema:
+            description: Number of items per page (default 10)
+            type: string
+        - description: Page number (default 1)
+          explode: false
+          in: query
+          name: page
+          schema:
+            description: Page number (default 1)
+            type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FeePagination"
+          description: OK
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Error
+      security:
+        - BearerAuth: []
+      summary: Get all billing packages of a ledger
+      tags:
+        - Billing Packages
+    post:
+      operationId: createBillingPackageV2
+      parameters:
+        - description: Organization ID (UUID)
+          in: path
+          name: organization_id
+          required: true
+          schema:
+            description: Organization ID (UUID)
+            type: string
+        - description: Ledger ID (UUID)
+          in: path
+          name: ledger_id
+          required: true
+          schema:
+            description: Ledger ID (UUID)
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              contentMediaType: application/octet-stream
+              format: binary
+              type: string
+        required: true
+      responses:
+        "201":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FeeBillingPackage"
+          description: Created
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Error
+      security:
+        - BearerAuth: []
+      summary: Create a BillingPackage
+      tags:
+        - Billing Packages
+  /v2/organizations/{organization_id}/ledgers/{ledger_id}/billing-packages/{id}:
+    delete:
+      operationId: deleteBillingPackageV2
+      parameters:
+        - description: Organization ID (UUID)
+          in: path
+          name: organization_id
+          required: true
+          schema:
+            description: Organization ID (UUID)
+            type: string
+        - description: Ledger ID (UUID)
+          in: path
+          name: ledger_id
+          required: true
+          schema:
+            description: Ledger ID (UUID)
+            type: string
+        - description: BillingPackage ID (UUID)
+          in: path
+          name: id
+          required: true
+          schema:
+            description: BillingPackage ID (UUID)
+            type: string
+      responses:
+        "204":
+          description: No Content
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Error
+      security:
+        - BearerAuth: []
+      summary: SoftDelete a BillingPackage by ID
+      tags:
+        - Billing Packages
+    get:
+      operationId: getBillingPackageByIDV2
+      parameters:
+        - description: Organization ID (UUID)
+          in: path
+          name: organization_id
+          required: true
+          schema:
+            description: Organization ID (UUID)
+            type: string
+        - description: Ledger ID (UUID)
+          in: path
+          name: ledger_id
+          required: true
+          schema:
+            description: Ledger ID (UUID)
+            type: string
+        - description: BillingPackage ID (UUID)
+          in: path
+          name: id
+          required: true
+          schema:
+            description: BillingPackage ID (UUID)
+            type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FeeBillingPackage"
+          description: OK
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Error
+      security:
+        - BearerAuth: []
+      summary: Get billing package
+      tags:
+        - Billing Packages
+    patch:
+      operationId: updateBillingPackageV2
+      parameters:
+        - description: Organization ID (UUID)
+          in: path
+          name: organization_id
+          required: true
+          schema:
+            description: Organization ID (UUID)
+            type: string
+        - description: Ledger ID (UUID)
+          in: path
+          name: ledger_id
+          required: true
+          schema:
+            description: Ledger ID (UUID)
+            type: string
+        - description: BillingPackage ID (UUID)
+          in: path
+          name: id
+          required: true
+          schema:
+            description: BillingPackage ID (UUID)
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              contentMediaType: application/octet-stream
+              format: binary
+              type: string
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FeeBillingPackage"
+          description: OK
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Error
+      security:
+        - BearerAuth: []
+      summary: Update a billing package
+      tags:
+        - Billing Packages
+  /v2/organizations/{organization_id}/ledgers/{ledger_id}/billing/calculate:
+    post:
+      operationId: calculateBillingV2
+      parameters:
+        - description: Organization ID (UUID)
+          in: path
+          name: organization_id
+          required: true
+          schema:
+            description: Organization ID (UUID)
+            type: string
+        - description: Ledger ID (UUID)
+          in: path
+          name: ledger_id
+          required: true
+          schema:
+            description: Ledger ID (UUID)
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              contentMediaType: application/octet-stream
+              format: binary
+              type: string
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FeeBillingCalculateResponse"
+          description: OK
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Error
+      security:
+        - BearerAuth: []
+      summary: Calculate billing
+      tags:
+        - Billing Calculate
+  /v2/organizations/{organization_id}/ledgers/{ledger_id}/estimates:
+    post:
+      operationId: estimateFeeCalculationV2
+      parameters:
+        - description: Organization ID (UUID)
+          in: path
+          name: organization_id
+          required: true
+          schema:
+            description: Organization ID (UUID)
+            type: string
+        - description: Ledger ID (UUID)
+          in: path
+          name: ledger_id
+          required: true
+          schema:
+            description: Ledger ID (UUID)
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              contentMediaType: application/octet-stream
+              format: binary
+              type: string
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                contentEncoding: base64
+                type: string
+          description: OK
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Error
+      security:
+        - BearerAuth: []
+      summary: Create a fee estimate calculation
+      tags:
+        - Fees
+  /v2/organizations/{organization_id}/ledgers/{ledger_id}/packages:
+    get:
+      operationId: getAllPackagesV2
+      parameters:
+        - description: Organization ID (UUID)
+          in: path
+          name: organization_id
+          required: true
+          schema:
+            description: Organization ID (UUID)
+            type: string
+        - description: Ledger ID (UUID)
+          in: path
+          name: ledger_id
+          required: true
+          schema:
+            description: Ledger ID (UUID)
+            type: string
+        - description: Filter by segment ID (UUID)
+          explode: false
+          in: query
+          name: segmentId
+          schema:
+            description: Filter by segment ID (UUID)
+            type: string
+        - description: Filter by transaction route
+          explode: false
+          in: query
+          name: transactionRoute
+          schema:
+            description: Filter by transaction route
+            type: string
+        - description: Filter by enabled flag (true, false)
+          explode: false
+          in: query
+          name: enable
+          schema:
+            description: Filter by enabled flag (true, false)
+            type: string
+        - description: Number of items per page (default 10)
+          explode: false
+          in: query
+          name: limit
+          schema:
+            description: Number of items per page (default 10)
+            type: string
+        - description: Page number (default 1)
+          explode: false
+          in: query
+          name: page
+          schema:
+            description: Page number (default 1)
+            type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FeePagination"
+          description: OK
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Error
+      security:
+        - BearerAuth: []
+      summary: Get all packages of a ledger
+      tags:
+        - Packages
+    post:
+      operationId: createPackageV2
+      parameters:
+        - description: Organization ID (UUID)
+          in: path
+          name: organization_id
+          required: true
+          schema:
+            description: Organization ID (UUID)
+            type: string
+        - description: Ledger ID (UUID)
+          in: path
+          name: ledger_id
+          required: true
+          schema:
+            description: Ledger ID (UUID)
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              contentMediaType: application/octet-stream
+              format: binary
+              type: string
+        required: true
+      responses:
+        "201":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FeePackage"
+          description: Created
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Error
+      security:
+        - BearerAuth: []
+      summary: Create a Package
+      tags:
+        - Packages
+  /v2/organizations/{organization_id}/ledgers/{ledger_id}/packages/{id}:
+    delete:
+      operationId: deletePackageV2
+      parameters:
+        - description: Organization ID (UUID)
+          in: path
+          name: organization_id
+          required: true
+          schema:
+            description: Organization ID (UUID)
+            type: string
+        - description: Ledger ID (UUID)
+          in: path
+          name: ledger_id
+          required: true
+          schema:
+            description: Ledger ID (UUID)
+            type: string
+        - description: Package ID (UUID)
+          in: path
+          name: id
+          required: true
+          schema:
+            description: Package ID (UUID)
+            type: string
+      responses:
+        "204":
+          description: No Content
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Error
+      security:
+        - BearerAuth: []
+      summary: SoftDelete a Package by ID
+      tags:
+        - Packages
+    get:
+      operationId: getPackageByIDV2
+      parameters:
+        - description: Organization ID (UUID)
+          in: path
+          name: organization_id
+          required: true
+          schema:
+            description: Organization ID (UUID)
+            type: string
+        - description: Ledger ID (UUID)
+          in: path
+          name: ledger_id
+          required: true
+          schema:
+            description: Ledger ID (UUID)
+            type: string
+        - description: Package ID (UUID)
+          in: path
+          name: id
+          required: true
+          schema:
+            description: Package ID (UUID)
+            type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FeePackage"
+          description: OK
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Error
+      security:
+        - BearerAuth: []
+      summary: Get package
+      tags:
+        - Packages
+    patch:
+      operationId: updatePackageV2
+      parameters:
+        - description: Organization ID (UUID)
+          in: path
+          name: organization_id
+          required: true
+          schema:
+            description: Organization ID (UUID)
+            type: string
+        - description: Ledger ID (UUID)
+          in: path
+          name: ledger_id
+          required: true
+          schema:
+            description: Ledger ID (UUID)
+            type: string
+        - description: Package ID (UUID)
+          in: path
+          name: id
+          required: true
+          schema:
+            description: Package ID (UUID)
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              contentMediaType: application/octet-stream
+              format: binary
+              type: string
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FeePackage"
+          description: OK
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Error
+      security:
+        - BearerAuth: []
+      summary: Update a package
+      tags:
+        - Packages
+  /v2/organizations/{organization_id}/ledgers/{ledger_id}/transactions/{transaction_id}/cancel:
+    post:
+      operationId: cancelTransactionV2
+      parameters:
+        - description: Organization ID (UUID)
+          in: path
+          name: organization_id
+          required: true
+          schema:
+            description: Organization ID (UUID)
+            type: string
+        - description: Ledger ID (UUID)
+          in: path
+          name: ledger_id
+          required: true
+          schema:
+            description: Ledger ID (UUID)
+            type: string
+        - description: Transaction ID (UUID)
+          in: path
+          name: transaction_id
+          required: true
+          schema:
+            description: Transaction ID (UUID)
+            type: string
+      responses:
+        "201":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TransactionV2"
+          description: Created
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Error
+      security:
+        - BearerAuth: []
+      summary: Cancel a pending Transaction (v2)
+      tags:
+        - Transactions
+  /v2/organizations/{organization_id}/ledgers/{ledger_id}/transactions/{transaction_id}/commit:
+    post:
+      operationId: commitTransactionV2
+      parameters:
+        - description: Organization ID (UUID)
+          in: path
+          name: organization_id
+          required: true
+          schema:
+            description: Organization ID (UUID)
+            type: string
+        - description: Ledger ID (UUID)
+          in: path
+          name: ledger_id
+          required: true
+          schema:
+            description: Ledger ID (UUID)
+            type: string
+        - description: Transaction ID (UUID)
+          in: path
+          name: transaction_id
+          required: true
+          schema:
+            description: Transaction ID (UUID)
+            type: string
+      responses:
+        "201":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TransactionV2"
+          description: Created
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Error
+      security:
+        - BearerAuth: []
+      summary: Commit a Transaction (v2)
+      tags:
+        - Transactions
+  /v2/organizations/{organization_id}/ledgers/{ledger_id}/transactions/{transaction_id}/revert:
+    post:
+      operationId: revertTransactionV2
+      parameters:
+        - description: Organization ID (UUID)
+          in: path
+          name: organization_id
+          required: true
+          schema:
+            description: Organization ID (UUID)
+            type: string
+        - description: Ledger ID (UUID)
+          in: path
+          name: ledger_id
+          required: true
+          schema:
+            description: Ledger ID (UUID)
+            type: string
+        - description: Transaction ID (UUID)
+          in: path
+          name: transaction_id
+          required: true
+          schema:
+            description: Transaction ID (UUID)
+            type: string
+      responses:
+        "201":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TransactionV2"
+          description: Created
+          headers:
+            X-Idempotency-Replayed:
+              schema:
+                type: string
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Error
+      security:
+        - BearerAuth: []
+      summary: Revert a Transaction (v2)
+      tags:
+        - Transactions
+  /v2/organizations/{organization_id}/protection/audit:
+    get:
+      operationId: getAuditEventsV2
+      parameters:
+        - description: Organization ID (UUID)
+          in: path
+          name: organization_id
+          required: true
+          schema:
+            description: Organization ID (UUID)
+            type: string
+        - description: Bearer token; only required when the auth plugin is enabled
+          in: header
+          name: Authorization
+          schema:
+            description: Bearer token; only required when the auth plugin is enabled
+            type: string
+        - description: Maximum number of events to return (default 20)
+          explode: false
+          in: query
+          name: limit
+          schema:
+            description: Maximum number of events to return (default 20)
+            type: string
+        - description: Opaque pagination cursor
+          explode: false
+          in: query
+          name: cursor
+          schema:
+            description: Opaque pagination cursor
+            type: string
+        - description: "Sort order: asc or desc (default desc)"
+          explode: false
+          in: query
+          name: sort_order
+          schema:
+            description: "Sort order: asc or desc (default desc)"
+            type: string
+        - description: Filter by action
+          explode: false
+          in: query
+          name: action
+          schema:
+            description: Filter by action
+            type: string
+        - description: Filter by actor
+          explode: false
+          in: query
+          name: actor
+          schema:
+            description: Filter by actor
+            type: string
+        - description: "Filter by outcome: success, failure, or already_exists"
+          explode: false
+          in: query
+          name: outcome
+          schema:
+            description: "Filter by outcome: success, failure, or already_exists"
+            type: string
+        - description: Inclusive lower time bound (yyyy-mm-dd or RFC3339)
+          explode: false
+          in: query
+          name: start_date
+          schema:
+            description: Inclusive lower time bound (yyyy-mm-dd or RFC3339)
+            type: string
+        - description: Inclusive upper time bound (yyyy-mm-dd or RFC3339)
+          explode: false
+          in: query
+          name: end_date
+          schema:
+            description: Inclusive upper time bound (yyyy-mm-dd or RFC3339)
+            type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuditEventsEnvelope"
+          description: OK
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Error
+      security:
+        - BearerAuth: []
+      summary: List Protection Audit Events
+      tags:
+        - Protection
+  /v2/transactions/block:
+    post:
+      operationId: createTransactionBlockV2
+      parameters:
+        - description: Idempotency key to safely retry the create; an identical retry returns the original transaction
+          in: header
+          name: X-Idempotency
+          schema:
+            description: Idempotency key to safely retry the create; an identical retry returns the original transaction
+            type: string
+        - description: Idempotency slot TTL in seconds (default 300)
+          in: header
+          name: X-TTL
+          schema:
+            description: Idempotency slot TTL in seconds (default 300)
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateTransactionV2Input"
+        required: true
+      responses:
+        "201":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TransactionV2"
+          description: Created
+          headers:
+            X-Idempotency-Replayed:
+              schema:
+                type: string
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Error
+      security:
+        - BearerAuth: []
+      summary: Create a Transaction using the v2 block model
+      tags:
+        - Transactions
+  /v2/transactions/direct:
+    post:
+      operationId: createTransactionDirectV2
+      parameters:
+        - description: Idempotency key to safely retry the create; an identical retry returns the original transaction
+          in: header
+          name: X-Idempotency
+          schema:
+            description: Idempotency key to safely retry the create; an identical retry returns the original transaction
+            type: string
+        - description: Idempotency slot TTL in seconds (default 300)
+          in: header
+          name: X-TTL
+          schema:
+            description: Idempotency slot TTL in seconds (default 300)
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateTransactionV2Input"
+        required: true
+      responses:
+        "201":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TransactionV2"
+          description: Created
+          headers:
+            X-Idempotency-Replayed:
+              schema:
+                type: string
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Error
+      security:
+        - BearerAuth: []
+      summary: Create a Transaction using the v2 direct model
+      tags:
+        - Transactions
+  /v2/transactions/hold:
+    post:
+      operationId: createTransactionHoldV2
+      parameters:
+        - description: Idempotency key to safely retry the create; an identical retry returns the original transaction
+          in: header
+          name: X-Idempotency
+          schema:
+            description: Idempotency key to safely retry the create; an identical retry returns the original transaction
+            type: string
+        - description: Idempotency slot TTL in seconds (default 300)
+          in: header
+          name: X-TTL
+          schema:
+            description: Idempotency slot TTL in seconds (default 300)
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateTransactionV2Input"
+        required: true
+      responses:
+        "201":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TransactionV2"
+          description: Created
+          headers:
+            X-Idempotency-Replayed:
+              schema:
+                type: string
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Error
+      security:
+        - BearerAuth: []
+      summary: Create a Transaction using the v2 hold model
+      tags:
+        - Transactions
+  /v2/transactions/unblock:
+    post:
+      operationId: createTransactionUnblockV2
+      parameters:
+        - description: Idempotency key to safely retry the create; an identical retry returns the original transaction
+          in: header
+          name: X-Idempotency
+          schema:
+            description: Idempotency key to safely retry the create; an identical retry returns the original transaction
+            type: string
+        - description: Idempotency slot TTL in seconds (default 300)
+          in: header
+          name: X-TTL
+          schema:
+            description: Idempotency slot TTL in seconds (default 300)
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateTransactionV2Input"
+        required: true
+      responses:
+        "201":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TransactionV2"
+          description: Created
+          headers:
+            X-Idempotency-Replayed:
+              schema:
+                type: string
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Error
+      security:
+        - BearerAuth: []
+      summary: Create a Transaction using the v2 unblock model
+      tags:
+        - Transactions
 servers:
-  - url: /v1
+  - url: /

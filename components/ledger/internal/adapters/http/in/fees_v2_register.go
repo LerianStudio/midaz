@@ -16,7 +16,7 @@ import (
 
 // This file is the v2 fee/billing contract seam (filename-suffix versioning — the v1
 // files are left untouched). It mounts the twelve fee and billing operations at
-// ledger scope on the SECOND, independent Huma contract, and attaches the SAME Fiber
+// ledger scope on the /v2 version group of the shared Huma contract, and attaches the SAME Fiber
 // guard chain the organization-scoped routes carry: auth.Authorize("plugin-fees",
 // resource, verb) with the same (resource, verb) tuples, the same fees-scoped tenant
 // PostAuthMiddlewares, and the same ParseUUIDPathParameters labels. No new policy
@@ -40,17 +40,19 @@ import (
 const feeBasePathV2 = "/organizations/{organization_id}/ledgers/{ledger_id}"
 
 // feeOpSuffixV2 is the operation-ID suffix the v2 fee contract carries. The ledger
-// publishes each versioned contract as a separate OpenAPI document and the published
-// hub spec joins them; the join makes path keys unique by the version prefix but
-// leaves operation IDs alone, so a contract that repeats another's IDs collides there.
-// The organization-scoped contract publishes its IDs unsuffixed: they are what already
-// published SDKs bind to, so they are frozen rather than versioned.
+// serves both fee versions on a single OpenAPI document, and huma.OpenAPI.AddOperation
+// scans the whole document and panics on a duplicate operation ID, so a v2 op MUST NOT
+// repeat the ID of its v1 twin or the ledger panics at boot. The V2 suffix makes that
+// disjunction a boot invariant; it secondarily keeps IDs unique across the ledger↔tracer
+// hub-spec join. The organization-scoped contract publishes its IDs unsuffixed: they are
+// what already published SDKs bind to, so they are frozen rather than versioned.
 const feeOpSuffixV2 = "V2"
 
 // RegisterFeesV2Routes registers the twelve ledger-scoped fee and billing operations
-// on the INDEPENDENT v2 Huma API. Auth is the Fiber guard chain attached in
+// on the /v2 version group of the shared Huma API. Auth is the Fiber guard chain attached in
 // RegisterFeesV2RoutesToApp BEFORE these terminals — the per-op Security metadata is
-// SPEC-ONLY. Paths are GROUP-RELATIVE (the /v2 prefix rides the OpenAPI servers entry).
+// SPEC-ONLY. Paths are GROUP-RELATIVE (the group's PrefixModifier writes the /v2 prefix
+// into each op's op.Path, not into a servers entry).
 func RegisterFeesV2Routes(api huma.API, ph *PackageHandler, fh *FeeHandler, bph *BillingPackageHandler, bch *BillingCalculateHandler) {
 	registerPackageV2Routes(api, ph)
 	registerFeeEstimateV2Routes(api, fh)

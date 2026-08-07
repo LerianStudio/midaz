@@ -6,7 +6,7 @@
   },
   "servers": [
     {
-      "url": "/v1"
+      "url": "/"
     }
   ],
   "tags": [
@@ -103,42 +103,6 @@
       "x-displayName": "Metadata Indexes"
     },
     {
-      "name": "Midaz_Ledger_API_v2_Encryption",
-      "x-displayName": "Encryption"
-    },
-    {
-      "name": "Midaz_Ledger_API_v2_Holders",
-      "x-displayName": "Holders"
-    },
-    {
-      "name": "Midaz_Ledger_API_v2_Instruments",
-      "x-displayName": "Instruments"
-    },
-    {
-      "name": "Midaz_Ledger_API_v2_Billing Packages",
-      "x-displayName": "Billing Packages"
-    },
-    {
-      "name": "Midaz_Ledger_API_v2_Billing Calculate",
-      "x-displayName": "Billing Calculate"
-    },
-    {
-      "name": "Midaz_Ledger_API_v2_Fees",
-      "x-displayName": "Fees"
-    },
-    {
-      "name": "Midaz_Ledger_API_v2_Packages",
-      "x-displayName": "Packages"
-    },
-    {
-      "name": "Midaz_Ledger_API_v2_Transactions",
-      "x-displayName": "Transactions"
-    },
-    {
-      "name": "Midaz_Ledger_API_v2_Protection",
-      "x-displayName": "Protection"
-    },
-    {
       "name": "Midaz_Tracer_API_Audit",
       "x-displayName": "Audit"
     },
@@ -160,7 +124,7 @@
     }
   ],
   "paths": {
-    "/organizations": {
+    "/v1/organizations": {
       "get": {
         "operationId": "listOrganizations",
         "parameters": [
@@ -361,7 +325,7 @@
         ]
       }
     },
-    "/organizations/metrics/count": {
+    "/v1/organizations/metrics/count": {
       "head": {
         "operationId": "countOrganizations",
         "responses": {
@@ -405,7 +369,7 @@
         ]
       }
     },
-    "/organizations/{id}": {
+    "/v1/organizations/{id}": {
       "delete": {
         "operationId": "deleteOrganization",
         "parameters": [
@@ -559,7 +523,7 @@
         ]
       }
     },
-    "/organizations/{organization_id}/billing-packages": {
+    "/v1/organizations/{organization_id}/billing-packages": {
       "get": {
         "operationId": "getAllBillingPackages",
         "parameters": [
@@ -705,7 +669,7 @@
         ]
       }
     },
-    "/organizations/{organization_id}/billing-packages/{id}": {
+    "/v1/organizations/{organization_id}/billing-packages/{id}": {
       "delete": {
         "operationId": "deleteBillingPackage",
         "parameters": [
@@ -880,7 +844,7 @@
         ]
       }
     },
-    "/organizations/{organization_id}/billing/calculate": {
+    "/v1/organizations/{organization_id}/billing/calculate": {
       "post": {
         "operationId": "calculateBilling",
         "parameters": [
@@ -940,7 +904,7 @@
         ]
       }
     },
-    "/organizations/{organization_id}/encryption/provision": {
+    "/v1/organizations/{organization_id}/encryption/provision": {
       "post": {
         "operationId": "provisionEncryption",
         "parameters": [
@@ -1009,7 +973,7 @@
         ]
       }
     },
-    "/organizations/{organization_id}/encryption/status": {
+    "/v1/organizations/{organization_id}/encryption/status": {
       "get": {
         "operationId": "getProvisioningStatus",
         "parameters": [
@@ -1066,7 +1030,7 @@
         ]
       }
     },
-    "/organizations/{organization_id}/estimates": {
+    "/v1/organizations/{organization_id}/estimates": {
       "post": {
         "operationId": "estimateFeeCalculation",
         "parameters": [
@@ -1127,7 +1091,7 @@
         ]
       }
     },
-    "/organizations/{organization_id}/holders": {
+    "/v1/organizations/{organization_id}/holders": {
       "get": {
         "operationId": "listHolders",
         "parameters": [
@@ -1328,7 +1292,7 @@
         ]
       }
     },
-    "/organizations/{organization_id}/holders/{holder_id}/instruments": {
+    "/v1/organizations/{organization_id}/holders/{holder_id}/instruments": {
       "post": {
         "operationId": "createInstrument",
         "parameters": [
@@ -1423,7 +1387,7 @@
         ]
       }
     },
-    "/organizations/{organization_id}/holders/{holder_id}/instruments/{instrument_id}": {
+    "/v1/organizations/{organization_id}/holders/{holder_id}/instruments/{instrument_id}": {
       "delete": {
         "operationId": "deleteInstrument",
         "parameters": [
@@ -1648,7 +1612,7 @@
         ]
       }
     },
-    "/organizations/{organization_id}/holders/{holder_id}/instruments/{instrument_id}/related-parties/{related_party_id}": {
+    "/v1/organizations/{organization_id}/holders/{holder_id}/instruments/{instrument_id}/related-parties/{related_party_id}": {
       "delete": {
         "operationId": "deleteRelatedParty",
         "parameters": [
@@ -1719,7 +1683,7 @@
         ]
       }
     },
-    "/organizations/{organization_id}/holders/{id}": {
+    "/v1/organizations/{organization_id}/holders/{id}": {
       "delete": {
         "operationId": "deleteHolder",
         "parameters": [
@@ -1914,7 +1878,7 @@
         ]
       }
     },
-    "/organizations/{organization_id}/holders/{id}/accounts": {
+    "/v1/organizations/{organization_id}/holders/{id}/accounts": {
       "get": {
         "operationId": "listAccountsByHolder",
         "parameters": [
@@ -2002,7 +1966,7 @@
         ]
       }
     },
-    "/organizations/{organization_id}/instruments": {
+    "/v1/organizations/{organization_id}/instruments": {
       "get": {
         "operationId": "listInstruments",
         "parameters": [
@@ -2140,7 +2104,7 @@
         ]
       }
     },
-    "/organizations/{organization_id}/ledgers": {
+    "/v1/organizations/{organization_id}/ledgers": {
       "get": {
         "operationId": "listLedgers",
         "parameters": [
@@ -2332,7 +2296,7 @@
         ]
       }
     },
-    "/organizations/{organization_id}/ledgers/metrics/count": {
+    "/v1/organizations/{organization_id}/ledgers/metrics/count": {
       "head": {
         "operationId": "countLedgers",
         "parameters": [
@@ -2388,7 +2352,7 @@
         ]
       }
     },
-    "/organizations/{organization_id}/ledgers/{ledger_id}": {
+    "/v1/organizations/{organization_id}/ledgers/{ledger_id}": {
       "delete": {
         "operationId": "deleteLedger",
         "parameters": [
@@ -2572,7 +2536,7 @@
         ]
       }
     },
-    "/organizations/{organization_id}/ledgers/{ledger_id}/account-types": {
+    "/v1/organizations/{organization_id}/ledgers/{ledger_id}/account-types": {
       "get": {
         "operationId": "listAccountTypes",
         "parameters": [
@@ -2784,7 +2748,7 @@
         ]
       }
     },
-    "/organizations/{organization_id}/ledgers/{ledger_id}/account-types/{id}": {
+    "/v1/organizations/{organization_id}/ledgers/{ledger_id}/account-types/{id}": {
       "delete": {
         "operationId": "deleteAccountType",
         "parameters": [
@@ -2998,7 +2962,7 @@
         ]
       }
     },
-    "/organizations/{organization_id}/ledgers/{ledger_id}/accounts": {
+    "/v1/organizations/{organization_id}/ledgers/{ledger_id}/accounts": {
       "get": {
         "operationId": "listAccounts",
         "parameters": [
@@ -3299,7 +3263,7 @@
         ]
       }
     },
-    "/organizations/{organization_id}/ledgers/{ledger_id}/accounts/alias/{alias}": {
+    "/v1/organizations/{organization_id}/ledgers/{ledger_id}/accounts/alias/{alias}": {
       "get": {
         "operationId": "getAccountByAlias",
         "parameters": [
@@ -3370,7 +3334,7 @@
         ]
       }
     },
-    "/organizations/{organization_id}/ledgers/{ledger_id}/accounts/alias/{alias}/balances": {
+    "/v1/organizations/{organization_id}/ledgers/{ledger_id}/accounts/alias/{alias}/balances": {
       "get": {
         "operationId": "getBalancesByAlias",
         "parameters": [
@@ -3441,7 +3405,7 @@
         ]
       }
     },
-    "/organizations/{organization_id}/ledgers/{ledger_id}/accounts/external/{code}": {
+    "/v1/organizations/{organization_id}/ledgers/{ledger_id}/accounts/external/{code}": {
       "get": {
         "operationId": "getAccountExternalByCode",
         "parameters": [
@@ -3512,7 +3476,7 @@
         ]
       }
     },
-    "/organizations/{organization_id}/ledgers/{ledger_id}/accounts/external/{code}/balances": {
+    "/v1/organizations/{organization_id}/ledgers/{ledger_id}/accounts/external/{code}/balances": {
       "get": {
         "operationId": "getBalancesExternalByCode",
         "parameters": [
@@ -3583,7 +3547,7 @@
         ]
       }
     },
-    "/organizations/{organization_id}/ledgers/{ledger_id}/accounts/metrics/count": {
+    "/v1/organizations/{organization_id}/ledgers/{ledger_id}/accounts/metrics/count": {
       "head": {
         "operationId": "countAccounts",
         "parameters": [
@@ -3649,7 +3613,7 @@
         ]
       }
     },
-    "/organizations/{organization_id}/ledgers/{ledger_id}/accounts/{account_id}/balances": {
+    "/v1/organizations/{organization_id}/ledgers/{ledger_id}/accounts/{account_id}/balances": {
       "get": {
         "operationId": "getAllBalancesByAccountID",
         "parameters": [
@@ -3851,7 +3815,7 @@
         ]
       }
     },
-    "/organizations/{organization_id}/ledgers/{ledger_id}/accounts/{account_id}/balances/history": {
+    "/v1/organizations/{organization_id}/ledgers/{ledger_id}/accounts/{account_id}/balances/history": {
       "get": {
         "operationId": "getAccountBalancesAtTimestamp",
         "parameters": [
@@ -3938,7 +3902,7 @@
         ]
       }
     },
-    "/organizations/{organization_id}/ledgers/{ledger_id}/accounts/{account_id}/operations": {
+    "/v1/organizations/{organization_id}/ledgers/{ledger_id}/accounts/{account_id}/operations": {
       "get": {
         "operationId": "getAllOperationsByAccount",
         "parameters": [
@@ -4109,7 +4073,7 @@
         ]
       }
     },
-    "/organizations/{organization_id}/ledgers/{ledger_id}/accounts/{account_id}/operations/{operation_id}": {
+    "/v1/organizations/{organization_id}/ledgers/{ledger_id}/accounts/{account_id}/operations/{operation_id}": {
       "get": {
         "operationId": "getOperationByAccount",
         "parameters": [
@@ -4190,7 +4154,7 @@
         ]
       }
     },
-    "/organizations/{organization_id}/ledgers/{ledger_id}/accounts/{id}": {
+    "/v1/organizations/{organization_id}/ledgers/{ledger_id}/accounts/{id}": {
       "delete": {
         "operationId": "deleteAccount",
         "parameters": [
@@ -4413,7 +4377,7 @@
         ]
       }
     },
-    "/organizations/{organization_id}/ledgers/{ledger_id}/asset-rates": {
+    "/v1/organizations/{organization_id}/ledgers/{ledger_id}/asset-rates": {
       "put": {
         "operationId": "createOrUpdateAssetRate",
         "parameters": [
@@ -4486,7 +4450,7 @@
         ]
       }
     },
-    "/organizations/{organization_id}/ledgers/{ledger_id}/asset-rates/from/{asset_code}": {
+    "/v1/organizations/{organization_id}/ledgers/{ledger_id}/asset-rates/from/{asset_code}": {
       "get": {
         "operationId": "getAllAssetRatesByAssetCode",
         "parameters": [
@@ -4623,7 +4587,7 @@
         ]
       }
     },
-    "/organizations/{organization_id}/ledgers/{ledger_id}/asset-rates/{external_id}": {
+    "/v1/organizations/{organization_id}/ledgers/{ledger_id}/asset-rates/{external_id}": {
       "get": {
         "operationId": "getAssetRateByExternalID",
         "parameters": [
@@ -4694,7 +4658,7 @@
         ]
       }
     },
-    "/organizations/{organization_id}/ledgers/{ledger_id}/assets": {
+    "/v1/organizations/{organization_id}/ledgers/{ledger_id}/assets": {
       "get": {
         "operationId": "listAssets",
         "parameters": [
@@ -4895,7 +4859,7 @@
         ]
       }
     },
-    "/organizations/{organization_id}/ledgers/{ledger_id}/assets/metrics/count": {
+    "/v1/organizations/{organization_id}/ledgers/{ledger_id}/assets/metrics/count": {
       "head": {
         "operationId": "countAssets",
         "parameters": [
@@ -4961,7 +4925,7 @@
         ]
       }
     },
-    "/organizations/{organization_id}/ledgers/{ledger_id}/assets/{id}": {
+    "/v1/organizations/{organization_id}/ledgers/{ledger_id}/assets/{id}": {
       "delete": {
         "operationId": "deleteAsset",
         "parameters": [
@@ -5175,7 +5139,7 @@
         ]
       }
     },
-    "/organizations/{organization_id}/ledgers/{ledger_id}/balances": {
+    "/v1/organizations/{organization_id}/ledgers/{ledger_id}/balances": {
       "get": {
         "operationId": "getAllBalances",
         "parameters": [
@@ -5286,7 +5250,7 @@
         ]
       }
     },
-    "/organizations/{organization_id}/ledgers/{ledger_id}/balances/{balance_id}": {
+    "/v1/organizations/{organization_id}/ledgers/{ledger_id}/balances/{balance_id}": {
       "delete": {
         "operationId": "deleteBalance",
         "parameters": [
@@ -5500,7 +5464,7 @@
         ]
       }
     },
-    "/organizations/{organization_id}/ledgers/{ledger_id}/balances/{balance_id}/history": {
+    "/v1/organizations/{organization_id}/ledgers/{ledger_id}/balances/{balance_id}/history": {
       "get": {
         "operationId": "getBalanceAtTimestamp",
         "parameters": [
@@ -5581,7 +5545,7 @@
         ]
       }
     },
-    "/organizations/{organization_id}/ledgers/{ledger_id}/holders/{id}/accounts": {
+    "/v1/organizations/{organization_id}/ledgers/{ledger_id}/holders/{id}/accounts": {
       "post": {
         "operationId": "createHolderAccount",
         "parameters": [
@@ -5670,7 +5634,7 @@
         ]
       }
     },
-    "/organizations/{organization_id}/ledgers/{ledger_id}/operation-routes": {
+    "/v1/organizations/{organization_id}/ledgers/{ledger_id}/operation-routes": {
       "get": {
         "operationId": "listOperationRoutes",
         "parameters": [
@@ -5846,7 +5810,7 @@
         ]
       }
     },
-    "/organizations/{organization_id}/ledgers/{ledger_id}/operation-routes/{operation_route_id}": {
+    "/v1/organizations/{organization_id}/ledgers/{ledger_id}/operation-routes/{operation_route_id}": {
       "delete": {
         "operationId": "deleteOperationRoute",
         "parameters": [
@@ -6051,7 +6015,7 @@
         ]
       }
     },
-    "/organizations/{organization_id}/ledgers/{ledger_id}/portfolios": {
+    "/v1/organizations/{organization_id}/ledgers/{ledger_id}/portfolios": {
       "get": {
         "operationId": "listPortfolios",
         "parameters": [
@@ -6263,7 +6227,7 @@
         ]
       }
     },
-    "/organizations/{organization_id}/ledgers/{ledger_id}/portfolios/metrics/count": {
+    "/v1/organizations/{organization_id}/ledgers/{ledger_id}/portfolios/metrics/count": {
       "head": {
         "operationId": "countPortfolios",
         "parameters": [
@@ -6329,7 +6293,7 @@
         ]
       }
     },
-    "/organizations/{organization_id}/ledgers/{ledger_id}/portfolios/{id}": {
+    "/v1/organizations/{organization_id}/ledgers/{ledger_id}/portfolios/{id}": {
       "delete": {
         "operationId": "deletePortfolio",
         "parameters": [
@@ -6543,7 +6507,7 @@
         ]
       }
     },
-    "/organizations/{organization_id}/ledgers/{ledger_id}/segments": {
+    "/v1/organizations/{organization_id}/ledgers/{ledger_id}/segments": {
       "get": {
         "operationId": "listSegments",
         "parameters": [
@@ -6735,7 +6699,7 @@
         ]
       }
     },
-    "/organizations/{organization_id}/ledgers/{ledger_id}/segments/metrics/count": {
+    "/v1/organizations/{organization_id}/ledgers/{ledger_id}/segments/metrics/count": {
       "head": {
         "operationId": "countSegments",
         "parameters": [
@@ -6801,7 +6765,7 @@
         ]
       }
     },
-    "/organizations/{organization_id}/ledgers/{ledger_id}/segments/{id}": {
+    "/v1/organizations/{organization_id}/ledgers/{ledger_id}/segments/{id}": {
       "delete": {
         "operationId": "deleteSegment",
         "parameters": [
@@ -7015,7 +6979,7 @@
         ]
       }
     },
-    "/organizations/{organization_id}/ledgers/{ledger_id}/settings": {
+    "/v1/organizations/{organization_id}/ledgers/{ledger_id}/settings": {
       "get": {
         "operationId": "getLedgerSettings",
         "parameters": [
@@ -7147,7 +7111,7 @@
         ]
       }
     },
-    "/organizations/{organization_id}/ledgers/{ledger_id}/transaction-routes": {
+    "/v1/organizations/{organization_id}/ledgers/{ledger_id}/transaction-routes": {
       "get": {
         "operationId": "listTransactionRoutes",
         "parameters": [
@@ -7323,7 +7287,7 @@
         ]
       }
     },
-    "/organizations/{organization_id}/ledgers/{ledger_id}/transaction-routes/{transaction_route_id}": {
+    "/v1/organizations/{organization_id}/ledgers/{ledger_id}/transaction-routes/{transaction_route_id}": {
       "delete": {
         "operationId": "deleteTransactionRoute",
         "parameters": [
@@ -7528,7 +7492,7 @@
         ]
       }
     },
-    "/organizations/{organization_id}/ledgers/{ledger_id}/transactions": {
+    "/v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions": {
       "get": {
         "operationId": "getAllTransactions",
         "parameters": [
@@ -7646,7 +7610,7 @@
         ]
       }
     },
-    "/organizations/{organization_id}/ledgers/{ledger_id}/transactions/annotation": {
+    "/v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions/annotation": {
       "post": {
         "operationId": "createTransactionAnnotation",
         "parameters": [
@@ -7741,7 +7705,7 @@
         ]
       }
     },
-    "/organizations/{organization_id}/ledgers/{ledger_id}/transactions/block": {
+    "/v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions/block": {
       "post": {
         "operationId": "createTransactionBlock",
         "parameters": [
@@ -7836,7 +7800,7 @@
         ]
       }
     },
-    "/organizations/{organization_id}/ledgers/{ledger_id}/transactions/inflow": {
+    "/v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions/inflow": {
       "post": {
         "operationId": "createTransactionInflow",
         "parameters": [
@@ -7931,7 +7895,7 @@
         ]
       }
     },
-    "/organizations/{organization_id}/ledgers/{ledger_id}/transactions/json": {
+    "/v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions/json": {
       "post": {
         "operationId": "createTransactionJSON",
         "parameters": [
@@ -8026,7 +7990,7 @@
         ]
       }
     },
-    "/organizations/{organization_id}/ledgers/{ledger_id}/transactions/metrics/count": {
+    "/v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions/metrics/count": {
       "head": {
         "operationId": "countTransactionsByFilters",
         "parameters": [
@@ -8132,7 +8096,7 @@
         ]
       }
     },
-    "/organizations/{organization_id}/ledgers/{ledger_id}/transactions/outflow": {
+    "/v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions/outflow": {
       "post": {
         "operationId": "createTransactionOutflow",
         "parameters": [
@@ -8227,7 +8191,7 @@
         ]
       }
     },
-    "/organizations/{organization_id}/ledgers/{ledger_id}/transactions/unblock": {
+    "/v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions/unblock": {
       "post": {
         "operationId": "createTransactionUnblock",
         "parameters": [
@@ -8322,7 +8286,7 @@
         ]
       }
     },
-    "/organizations/{organization_id}/ledgers/{ledger_id}/transactions/{transaction_id}": {
+    "/v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions/{transaction_id}": {
       "get": {
         "operationId": "getTransaction",
         "parameters": [
@@ -8475,7 +8439,7 @@
         ]
       }
     },
-    "/organizations/{organization_id}/ledgers/{ledger_id}/transactions/{transaction_id}/cancel": {
+    "/v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions/{transaction_id}/cancel": {
       "post": {
         "operationId": "cancelTransaction",
         "parameters": [
@@ -8543,7 +8507,7 @@
         ]
       }
     },
-    "/organizations/{organization_id}/ledgers/{ledger_id}/transactions/{transaction_id}/commit": {
+    "/v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions/{transaction_id}/commit": {
       "post": {
         "operationId": "commitTransaction",
         "parameters": [
@@ -8611,7 +8575,7 @@
         ]
       }
     },
-    "/organizations/{organization_id}/ledgers/{ledger_id}/transactions/{transaction_id}/operations/{operation_id}": {
+    "/v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions/{transaction_id}/operations/{operation_id}": {
       "patch": {
         "operationId": "updateOperation",
         "parameters": [
@@ -8701,7 +8665,7 @@
         ]
       }
     },
-    "/organizations/{organization_id}/ledgers/{ledger_id}/transactions/{transaction_id}/revert": {
+    "/v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions/{transaction_id}/revert": {
       "post": {
         "operationId": "revertTransaction",
         "parameters": [
@@ -8776,7 +8740,7 @@
         ]
       }
     },
-    "/organizations/{organization_id}/packages": {
+    "/v1/organizations/{organization_id}/packages": {
       "get": {
         "operationId": "getAllPackages",
         "parameters": [
@@ -8942,7 +8906,7 @@
         ]
       }
     },
-    "/organizations/{organization_id}/packages/{id}": {
+    "/v1/organizations/{organization_id}/packages/{id}": {
       "delete": {
         "operationId": "deletePackage",
         "parameters": [
@@ -9117,7 +9081,7 @@
         ]
       }
     },
-    "/organizations/{organization_id}/protection/audit": {
+    "/v1/organizations/{organization_id}/protection/audit": {
       "get": {
         "operationId": "getAuditEvents",
         "parameters": [
@@ -9254,7 +9218,7 @@
         ]
       }
     },
-    "/settings/metadata-indexes": {
+    "/v1/settings/metadata-indexes": {
       "get": {
         "operationId": "getAllMetadataIndexes",
         "parameters": [
@@ -9311,7 +9275,7 @@
         ]
       }
     },
-    "/settings/metadata-indexes/entities/{entity_name}": {
+    "/v1/settings/metadata-indexes/entities/{entity_name}": {
       "post": {
         "operationId": "createMetadataIndex",
         "parameters": [
@@ -9374,7 +9338,7 @@
         ]
       }
     },
-    "/settings/metadata-indexes/entities/{entity_name}/key/{index_key}": {
+    "/v1/settings/metadata-indexes/entities/{entity_name}/key/{index_key}": {
       "delete": {
         "operationId": "deleteMetadataIndex",
         "parameters": [
@@ -9429,11 +9393,6 @@
       }
     },
     "/v2/organizations/{organization_id}/encryption/provision": {
-      "servers": [
-        {
-          "url": "/"
-        }
-      ],
       "post": {
         "operationId": "provisionEncryptionV2",
         "parameters": [
@@ -9498,16 +9457,11 @@
         ],
         "summary": "Provision an Organization for Envelope Encryption",
         "tags": [
-          "Midaz_Ledger_API_v2_Encryption"
+          "Midaz_Ledger_API_Encryption"
         ]
       }
     },
     "/v2/organizations/{organization_id}/encryption/status": {
-      "servers": [
-        {
-          "url": "/"
-        }
-      ],
       "get": {
         "operationId": "getProvisioningStatusV2",
         "parameters": [
@@ -9560,16 +9514,11 @@
         ],
         "summary": "Get Provisioning Status",
         "tags": [
-          "Midaz_Ledger_API_v2_Encryption"
+          "Midaz_Ledger_API_Encryption"
         ]
       }
     },
     "/v2/organizations/{organization_id}/holders": {
-      "servers": [
-        {
-          "url": "/"
-        }
-      ],
       "get": {
         "operationId": "listHoldersV2",
         "parameters": [
@@ -9683,7 +9632,7 @@
         ],
         "summary": "List Holders",
         "tags": [
-          "Midaz_Ledger_API_v2_Holders"
+          "Midaz_Ledger_API_Holders"
         ]
       },
       "post": {
@@ -9766,16 +9715,11 @@
         ],
         "summary": "Create a Holder",
         "tags": [
-          "Midaz_Ledger_API_v2_Holders"
+          "Midaz_Ledger_API_Holders"
         ]
       }
     },
     "/v2/organizations/{organization_id}/holders/{holder_id}/instruments": {
-      "servers": [
-        {
-          "url": "/"
-        }
-      ],
       "post": {
         "operationId": "createInstrumentV2",
         "parameters": [
@@ -9866,16 +9810,11 @@
         ],
         "summary": "Create an Instrument Account",
         "tags": [
-          "Midaz_Ledger_API_v2_Instruments"
+          "Midaz_Ledger_API_Instruments"
         ]
       }
     },
     "/v2/organizations/{organization_id}/holders/{holder_id}/instruments/{instrument_id}": {
-      "servers": [
-        {
-          "url": "/"
-        }
-      ],
       "delete": {
         "operationId": "deleteInstrumentV2",
         "parameters": [
@@ -9942,7 +9881,7 @@
         ],
         "summary": "Delete an Instrument",
         "tags": [
-          "Midaz_Ledger_API_v2_Instruments"
+          "Midaz_Ledger_API_Instruments"
         ]
       },
       "get": {
@@ -10018,7 +9957,7 @@
         ],
         "summary": "Retrieve Instrument details",
         "tags": [
-          "Midaz_Ledger_API_v2_Instruments"
+          "Midaz_Ledger_API_Instruments"
         ]
       },
       "patch": {
@@ -10096,16 +10035,11 @@
         ],
         "summary": "Update an Instrument",
         "tags": [
-          "Midaz_Ledger_API_v2_Instruments"
+          "Midaz_Ledger_API_Instruments"
         ]
       }
     },
     "/v2/organizations/{organization_id}/holders/{holder_id}/instruments/{instrument_id}/related-parties/{related_party_id}": {
-      "servers": [
-        {
-          "url": "/"
-        }
-      ],
       "delete": {
         "operationId": "deleteRelatedPartyV2",
         "parameters": [
@@ -10172,16 +10106,11 @@
         ],
         "summary": "Delete a Related Party",
         "tags": [
-          "Midaz_Ledger_API_v2_Instruments"
+          "Midaz_Ledger_API_Instruments"
         ]
       }
     },
     "/v2/organizations/{organization_id}/holders/{id}": {
-      "servers": [
-        {
-          "url": "/"
-        }
-      ],
       "delete": {
         "operationId": "deleteHolderV2",
         "parameters": [
@@ -10238,7 +10167,7 @@
         ],
         "summary": "Delete a Holder",
         "tags": [
-          "Midaz_Ledger_API_v2_Holders"
+          "Midaz_Ledger_API_Holders"
         ]
       },
       "get": {
@@ -10304,7 +10233,7 @@
         ],
         "summary": "Retrieve Holder details",
         "tags": [
-          "Midaz_Ledger_API_v2_Holders"
+          "Midaz_Ledger_API_Holders"
         ]
       },
       "patch": {
@@ -10372,16 +10301,11 @@
         ],
         "summary": "Update a Holder",
         "tags": [
-          "Midaz_Ledger_API_v2_Holders"
+          "Midaz_Ledger_API_Holders"
         ]
       }
     },
     "/v2/organizations/{organization_id}/holders/{id}/accounts": {
-      "servers": [
-        {
-          "url": "/"
-        }
-      ],
       "get": {
         "operationId": "listAccountsByHolderV2",
         "parameters": [
@@ -10465,16 +10389,11 @@
         ],
         "summary": "List Accounts by Holder",
         "tags": [
-          "Midaz_Ledger_API_v2_Holders"
+          "Midaz_Ledger_API_Holders"
         ]
       }
     },
     "/v2/organizations/{organization_id}/instruments": {
-      "servers": [
-        {
-          "url": "/"
-        }
-      ],
       "get": {
         "operationId": "listInstrumentsV2",
         "parameters": [
@@ -10608,16 +10527,11 @@
         ],
         "summary": "List Instruments",
         "tags": [
-          "Midaz_Ledger_API_v2_Instruments"
+          "Midaz_Ledger_API_Instruments"
         ]
       }
     },
     "/v2/organizations/{organization_id}/ledgers/{ledger_id}/billing-packages": {
-      "servers": [
-        {
-          "url": "/"
-        }
-      ],
       "get": {
         "operationId": "getAllBillingPackagesV2",
         "parameters": [
@@ -10701,7 +10615,7 @@
         ],
         "summary": "Get all billing packages of a ledger",
         "tags": [
-          "Midaz_Ledger_API_v2_Billing Packages"
+          "Midaz_Ledger_API_Billing Packages"
         ]
       },
       "post": {
@@ -10769,16 +10683,11 @@
         ],
         "summary": "Create a BillingPackage",
         "tags": [
-          "Midaz_Ledger_API_v2_Billing Packages"
+          "Midaz_Ledger_API_Billing Packages"
         ]
       }
     },
     "/v2/organizations/{organization_id}/ledgers/{ledger_id}/billing-packages/{id}": {
-      "servers": [
-        {
-          "url": "/"
-        }
-      ],
       "delete": {
         "operationId": "deleteBillingPackageV2",
         "parameters": [
@@ -10835,7 +10744,7 @@
         ],
         "summary": "SoftDelete a BillingPackage by ID",
         "tags": [
-          "Midaz_Ledger_API_v2_Billing Packages"
+          "Midaz_Ledger_API_Billing Packages"
         ]
       },
       "get": {
@@ -10901,7 +10810,7 @@
         ],
         "summary": "Get billing package",
         "tags": [
-          "Midaz_Ledger_API_v2_Billing Packages"
+          "Midaz_Ledger_API_Billing Packages"
         ]
       },
       "patch": {
@@ -10979,16 +10888,11 @@
         ],
         "summary": "Update a billing package",
         "tags": [
-          "Midaz_Ledger_API_v2_Billing Packages"
+          "Midaz_Ledger_API_Billing Packages"
         ]
       }
     },
     "/v2/organizations/{organization_id}/ledgers/{ledger_id}/billing/calculate": {
-      "servers": [
-        {
-          "url": "/"
-        }
-      ],
       "post": {
         "operationId": "calculateBillingV2",
         "parameters": [
@@ -11054,16 +10958,11 @@
         ],
         "summary": "Calculate billing",
         "tags": [
-          "Midaz_Ledger_API_v2_Billing Calculate"
+          "Midaz_Ledger_API_Billing Calculate"
         ]
       }
     },
     "/v2/organizations/{organization_id}/ledgers/{ledger_id}/estimates": {
-      "servers": [
-        {
-          "url": "/"
-        }
-      ],
       "post": {
         "operationId": "estimateFeeCalculationV2",
         "parameters": [
@@ -11130,16 +11029,11 @@
         ],
         "summary": "Create a fee estimate calculation",
         "tags": [
-          "Midaz_Ledger_API_v2_Fees"
+          "Midaz_Ledger_API_Fees"
         ]
       }
     },
     "/v2/organizations/{organization_id}/ledgers/{ledger_id}/packages": {
-      "servers": [
-        {
-          "url": "/"
-        }
-      ],
       "get": {
         "operationId": "getAllPackagesV2",
         "parameters": [
@@ -11243,7 +11137,7 @@
         ],
         "summary": "Get all packages of a ledger",
         "tags": [
-          "Midaz_Ledger_API_v2_Packages"
+          "Midaz_Ledger_API_Packages"
         ]
       },
       "post": {
@@ -11311,16 +11205,11 @@
         ],
         "summary": "Create a Package",
         "tags": [
-          "Midaz_Ledger_API_v2_Packages"
+          "Midaz_Ledger_API_Packages"
         ]
       }
     },
     "/v2/organizations/{organization_id}/ledgers/{ledger_id}/packages/{id}": {
-      "servers": [
-        {
-          "url": "/"
-        }
-      ],
       "delete": {
         "operationId": "deletePackageV2",
         "parameters": [
@@ -11377,7 +11266,7 @@
         ],
         "summary": "SoftDelete a Package by ID",
         "tags": [
-          "Midaz_Ledger_API_v2_Packages"
+          "Midaz_Ledger_API_Packages"
         ]
       },
       "get": {
@@ -11443,7 +11332,7 @@
         ],
         "summary": "Get package",
         "tags": [
-          "Midaz_Ledger_API_v2_Packages"
+          "Midaz_Ledger_API_Packages"
         ]
       },
       "patch": {
@@ -11521,16 +11410,11 @@
         ],
         "summary": "Update a package",
         "tags": [
-          "Midaz_Ledger_API_v2_Packages"
+          "Midaz_Ledger_API_Packages"
         ]
       }
     },
     "/v2/organizations/{organization_id}/ledgers/{ledger_id}/transactions/{transaction_id}/cancel": {
-      "servers": [
-        {
-          "url": "/"
-        }
-      ],
       "post": {
         "operationId": "cancelTransactionV2",
         "parameters": [
@@ -11594,16 +11478,11 @@
         ],
         "summary": "Cancel a pending Transaction (v2)",
         "tags": [
-          "Midaz_Ledger_API_v2_Transactions"
+          "Midaz_Ledger_API_Transactions"
         ]
       }
     },
     "/v2/organizations/{organization_id}/ledgers/{ledger_id}/transactions/{transaction_id}/commit": {
-      "servers": [
-        {
-          "url": "/"
-        }
-      ],
       "post": {
         "operationId": "commitTransactionV2",
         "parameters": [
@@ -11667,16 +11546,11 @@
         ],
         "summary": "Commit a Transaction (v2)",
         "tags": [
-          "Midaz_Ledger_API_v2_Transactions"
+          "Midaz_Ledger_API_Transactions"
         ]
       }
     },
     "/v2/organizations/{organization_id}/ledgers/{ledger_id}/transactions/{transaction_id}/revert": {
-      "servers": [
-        {
-          "url": "/"
-        }
-      ],
       "post": {
         "operationId": "revertTransactionV2",
         "parameters": [
@@ -11747,16 +11621,11 @@
         ],
         "summary": "Revert a Transaction (v2)",
         "tags": [
-          "Midaz_Ledger_API_v2_Transactions"
+          "Midaz_Ledger_API_Transactions"
         ]
       }
     },
     "/v2/organizations/{organization_id}/protection/audit": {
-      "servers": [
-        {
-          "url": "/"
-        }
-      ],
       "get": {
         "operationId": "getAuditEventsV2",
         "parameters": [
@@ -11889,16 +11758,11 @@
         ],
         "summary": "List Protection Audit Events",
         "tags": [
-          "Midaz_Ledger_API_v2_Protection"
+          "Midaz_Ledger_API_Protection"
         ]
       }
     },
     "/v2/transactions/block": {
-      "servers": [
-        {
-          "url": "/"
-        }
-      ],
       "post": {
         "operationId": "createTransactionBlockV2",
         "parameters": [
@@ -11967,16 +11831,11 @@
         ],
         "summary": "Create a Transaction using the v2 block model",
         "tags": [
-          "Midaz_Ledger_API_v2_Transactions"
+          "Midaz_Ledger_API_Transactions"
         ]
       }
     },
     "/v2/transactions/direct": {
-      "servers": [
-        {
-          "url": "/"
-        }
-      ],
       "post": {
         "operationId": "createTransactionDirectV2",
         "parameters": [
@@ -12045,16 +11904,11 @@
         ],
         "summary": "Create a Transaction using the v2 direct model",
         "tags": [
-          "Midaz_Ledger_API_v2_Transactions"
+          "Midaz_Ledger_API_Transactions"
         ]
       }
     },
     "/v2/transactions/hold": {
-      "servers": [
-        {
-          "url": "/"
-        }
-      ],
       "post": {
         "operationId": "createTransactionHoldV2",
         "parameters": [
@@ -12123,16 +11977,11 @@
         ],
         "summary": "Create a Transaction using the v2 hold model",
         "tags": [
-          "Midaz_Ledger_API_v2_Transactions"
+          "Midaz_Ledger_API_Transactions"
         ]
       }
     },
     "/v2/transactions/unblock": {
-      "servers": [
-        {
-          "url": "/"
-        }
-      ],
       "post": {
         "operationId": "createTransactionUnblockV2",
         "parameters": [
@@ -12201,11 +12050,11 @@
         ],
         "summary": "Create a Transaction using the v2 unblock model",
         "tags": [
-          "Midaz_Ledger_API_v2_Transactions"
+          "Midaz_Ledger_API_Transactions"
         ]
       }
     },
-    "/audit-events": {
+    "/v1/audit-events": {
       "get": {
         "operationId": "listAuditEvents",
         "parameters": [
@@ -12426,7 +12275,7 @@
         ]
       }
     },
-    "/audit-events/{id}": {
+    "/v1/audit-events/{id}": {
       "get": {
         "operationId": "getAuditEvent",
         "parameters": [
@@ -12477,7 +12326,7 @@
         ]
       }
     },
-    "/audit-events/{id}/verify": {
+    "/v1/audit-events/{id}/verify": {
       "get": {
         "operationId": "verifyAuditEvent",
         "parameters": [
@@ -12528,7 +12377,7 @@
         ]
       }
     },
-    "/limits": {
+    "/v1/limits": {
       "get": {
         "operationId": "listLimits",
         "parameters": [
@@ -12748,7 +12597,7 @@
         ]
       }
     },
-    "/limits/{id}": {
+    "/v1/limits/{id}": {
       "delete": {
         "operationId": "deleteLimit",
         "parameters": [
@@ -12902,7 +12751,7 @@
         ]
       }
     },
-    "/limits/{id}/activate": {
+    "/v1/limits/{id}/activate": {
       "post": {
         "operationId": "activateLimit",
         "parameters": [
@@ -12953,7 +12802,7 @@
         ]
       }
     },
-    "/limits/{id}/deactivate": {
+    "/v1/limits/{id}/deactivate": {
       "post": {
         "operationId": "deactivateLimit",
         "parameters": [
@@ -13004,7 +12853,7 @@
         ]
       }
     },
-    "/limits/{id}/draft": {
+    "/v1/limits/{id}/draft": {
       "post": {
         "operationId": "draftLimit",
         "parameters": [
@@ -13055,7 +12904,7 @@
         ]
       }
     },
-    "/limits/{id}/usage": {
+    "/v1/limits/{id}/usage": {
       "get": {
         "operationId": "getLimitUsage",
         "parameters": [
@@ -13106,7 +12955,7 @@
         ]
       }
     },
-    "/reservations": {
+    "/v1/reservations": {
       "post": {
         "operationId": "createReservation",
         "requestBody": {
@@ -13157,7 +13006,7 @@
         ]
       }
     },
-    "/reservations/transaction/{transaction_id}/confirm": {
+    "/v1/reservations/transaction/{transaction_id}/confirm": {
       "post": {
         "operationId": "confirmReservationByTransaction",
         "parameters": [
@@ -13208,7 +13057,7 @@
         ]
       }
     },
-    "/reservations/transaction/{transaction_id}/release": {
+    "/v1/reservations/transaction/{transaction_id}/release": {
       "post": {
         "operationId": "releaseReservationByTransaction",
         "parameters": [
@@ -13259,7 +13108,7 @@
         ]
       }
     },
-    "/reservations/{id}/confirm": {
+    "/v1/reservations/{id}/confirm": {
       "post": {
         "operationId": "confirmReservation",
         "parameters": [
@@ -13310,7 +13159,7 @@
         ]
       }
     },
-    "/reservations/{id}/release": {
+    "/v1/reservations/{id}/release": {
       "post": {
         "operationId": "releaseReservation",
         "parameters": [
@@ -13361,7 +13210,7 @@
         ]
       }
     },
-    "/rules": {
+    "/v1/rules": {
       "get": {
         "operationId": "listRules",
         "parameters": [
@@ -13581,7 +13430,7 @@
         ]
       }
     },
-    "/rules/{id}": {
+    "/v1/rules/{id}": {
       "delete": {
         "operationId": "deleteRule",
         "parameters": [
@@ -13735,7 +13584,7 @@
         ]
       }
     },
-    "/rules/{id}/activate": {
+    "/v1/rules/{id}/activate": {
       "post": {
         "operationId": "activateRule",
         "parameters": [
@@ -13786,7 +13635,7 @@
         ]
       }
     },
-    "/rules/{id}/deactivate": {
+    "/v1/rules/{id}/deactivate": {
       "post": {
         "operationId": "deactivateRule",
         "parameters": [
@@ -13837,7 +13686,7 @@
         ]
       }
     },
-    "/rules/{id}/draft": {
+    "/v1/rules/{id}/draft": {
       "post": {
         "operationId": "draftRule",
         "parameters": [
@@ -13888,7 +13737,7 @@
         ]
       }
     },
-    "/validations": {
+    "/v1/validations": {
       "get": {
         "operationId": "listValidations",
         "parameters": [
@@ -14101,7 +13950,7 @@
         ]
       }
     },
-    "/validations/{id}": {
+    "/v1/validations/{id}": {
       "get": {
         "operationId": "getValidation",
         "parameters": [
@@ -15305,6 +15154,65 @@
             "type": "string"
           }
         },
+        "type": "object"
+      },
+      "CreateTransactionV2Input": {
+        "additionalProperties": false,
+        "description": "Transaction request body. `debits` and `credits` are the two required, non-empty leg arrays of the transaction; one debit paired with many credits, or the reverse, is a valid request. Every leg names the `organizationId` and `ledgerId` its account belongs to; all of them must name the SAME pair, and that pair is the organization and ledger the transaction is created in. A request whose accounts name different pairs is rejected. `asset`, `amount`, `description`, `code`, `routeId`, `operationRouteId` and `metadata` sit alongside the two leg arrays, and `amount` is the transaction total that the legs' `share` expressions divide. Each leg array holds at most 500 legs.",
+        "properties": {
+          "amount": {
+            "type": "string"
+          },
+          "asset": {
+            "type": "string"
+          },
+          "code": {
+            "type": "string"
+          },
+          "credits": {
+            "items": {
+              "$ref": "#/components/schemas/V2LegInput"
+            },
+            "maxItems": 500,
+            "minItems": 1,
+            "type": "array"
+          },
+          "debits": {
+            "items": {
+              "$ref": "#/components/schemas/V2LegInput"
+            },
+            "maxItems": 500,
+            "minItems": 1,
+            "type": "array"
+          },
+          "description": {
+            "type": "string"
+          },
+          "metadata": {
+            "additionalProperties": {},
+            "type": "object"
+          },
+          "operationRouteId": {
+            "examples": [
+              "00000000-0000-0000-0000-000000000000"
+            ],
+            "format": "uuid",
+            "type": "string"
+          },
+          "routeId": {
+            "examples": [
+              "00000000-0000-0000-0000-000000000000"
+            ],
+            "format": "uuid",
+            "type": "string"
+          }
+        },
+        "required": [
+          "asset",
+          "amount",
+          "debits",
+          "credits"
+        ],
         "type": "object"
       },
       "Error": {
@@ -17779,85 +17687,6 @@
         ],
         "type": "object"
       },
-      "Upstream": {
-        "additionalProperties": false,
-        "properties": {
-          "code": {
-            "description": "The upstream provider's own error code, verbatim.",
-            "examples": [
-              "E4001"
-            ],
-            "type": "string"
-          },
-          "message": {
-            "description": "The upstream provider's own error message, verbatim (bounded, never its raw response body).",
-            "examples": [
-              "account not found at provider"
-            ],
-            "type": "string"
-          }
-        },
-        "type": "object"
-      },
-      "CreateTransactionV2Input": {
-        "additionalProperties": false,
-        "description": "Transaction request body. `debits` and `credits` are the two required, non-empty leg arrays of the transaction; one debit paired with many credits, or the reverse, is a valid request. Every leg names the `organizationId` and `ledgerId` its account belongs to; all of them must name the SAME pair, and that pair is the organization and ledger the transaction is created in. A request whose accounts name different pairs is rejected. `asset`, `amount`, `description`, `code`, `routeId`, `operationRouteId` and `metadata` sit alongside the two leg arrays, and `amount` is the transaction total that the legs' `share` expressions divide. Each leg array holds at most 500 legs.",
-        "properties": {
-          "amount": {
-            "type": "string"
-          },
-          "asset": {
-            "type": "string"
-          },
-          "code": {
-            "type": "string"
-          },
-          "credits": {
-            "items": {
-              "$ref": "#/components/schemas/V2LegInput"
-            },
-            "maxItems": 500,
-            "minItems": 1,
-            "type": "array"
-          },
-          "debits": {
-            "items": {
-              "$ref": "#/components/schemas/V2LegInput"
-            },
-            "maxItems": 500,
-            "minItems": 1,
-            "type": "array"
-          },
-          "description": {
-            "type": "string"
-          },
-          "metadata": {
-            "additionalProperties": {},
-            "type": "object"
-          },
-          "operationRouteId": {
-            "examples": [
-              "00000000-0000-0000-0000-000000000000"
-            ],
-            "format": "uuid",
-            "type": "string"
-          },
-          "routeId": {
-            "examples": [
-              "00000000-0000-0000-0000-000000000000"
-            ],
-            "format": "uuid",
-            "type": "string"
-          }
-        },
-        "required": [
-          "asset",
-          "amount",
-          "debits",
-          "credits"
-        ],
-        "type": "object"
-      },
       "TransactionV2": {
         "additionalProperties": false,
         "properties": {
@@ -18035,6 +17864,26 @@
           "deletedAt",
           "operations"
         ],
+        "type": "object"
+      },
+      "Upstream": {
+        "additionalProperties": false,
+        "properties": {
+          "code": {
+            "description": "The upstream provider's own error code, verbatim.",
+            "examples": [
+              "E4001"
+            ],
+            "type": "string"
+          },
+          "message": {
+            "description": "The upstream provider's own error message, verbatim (bounded, never its raw response body).",
+            "examples": [
+              "account not found at provider"
+            ],
+            "type": "string"
+          }
+        },
         "type": "object"
       },
       "V2LegInput": {
@@ -19372,20 +19221,6 @@
         "Midaz_Ledger_API_Packages",
         "Midaz_Ledger_API_Protection",
         "Midaz_Ledger_API_Metadata Indexes"
-      ]
-    },
-    {
-      "name": "Midaz Ledger API v2",
-      "tags": [
-        "Midaz_Ledger_API_v2_Encryption",
-        "Midaz_Ledger_API_v2_Holders",
-        "Midaz_Ledger_API_v2_Instruments",
-        "Midaz_Ledger_API_v2_Billing Packages",
-        "Midaz_Ledger_API_v2_Billing Calculate",
-        "Midaz_Ledger_API_v2_Fees",
-        "Midaz_Ledger_API_v2_Packages",
-        "Midaz_Ledger_API_v2_Transactions",
-        "Midaz_Ledger_API_v2_Protection"
       ]
     },
     {

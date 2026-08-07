@@ -22,7 +22,8 @@ import (
 // v2TransactionSchemaName is the component name the /v2 response envelope publishes its
 // transaction body under. It is spelled literally, distinct from "Transaction" (the v1
 // component name), so a rename of the registered Go type shows up here instead of silently
-// reintroducing a name collision between the two documents' differently-shaped bodies.
+// reintroducing a name collision between v1's and v2's differently-shaped bodies in the
+// shared document.
 const v2TransactionSchemaName = "TransactionV2"
 
 // buildCanonicalTransactionFixture returns a fully-populated canonical transaction.Transaction,
@@ -135,7 +136,7 @@ func TestTransactionV2_JSONUsesDebitCreditKeys(t *testing.T) {
 func TestRegisterTransactionV2Routes_ResponseSchemaNotNamedTransaction(t *testing.T) {
 	t.Parallel()
 
-	oapi := registerV2TransactionContractForTest()
+	oapi := registerIsolatedV2TransactionContractForTest()
 	schemas := oapi.Components.Schemas.Map()
 
 	schema, ok := schemas[v2TransactionSchemaName]
@@ -190,6 +191,30 @@ func TestTransactionV2_MirrorsTheCanonicalFieldSet(t *testing.T) {
 			"the v2 shape carries %q and the canonical transaction does not expose it under that name: "+
 				"the only intended differences are source→debit and destination→credit", name)
 	}
+}
+
+// TestUnifiedDocument_V1AndV2TransactionSchemasCoexist locks the shared-registry property at the
+// heart of the single-document consolidation: the one huma.API that generates the committed dump
+// carries BOTH the v1 "Transaction" component and the v2 "TransactionV2" component together. The
+// two bodies differ in shape (source/destination vs debit/credit), so their coexistence under
+// distinct names in one component registry is exactly what keeps the merged document consistent —
+// a regression that reused a single name for both shapes would drop one key from this map.
+func TestUnifiedDocument_V1AndV2TransactionSchemasCoexist(t *testing.T) {
+	t.Parallel()
+
+	const v1TransactionSchemaName = "Transaction"
+
+	_, api := buildUnifiedHumaAPI()
+	schemas := api.OpenAPI().Components.Schemas.Map()
+
+	v1, okV1 := schemas[v1TransactionSchemaName]
+	v2, okV2 := schemas[v2TransactionSchemaName]
+
+	require.Truef(t, okV1, "the unified document must register the v1 %q component", v1TransactionSchemaName)
+	require.Truef(t, okV2, "the unified document must register the v2 %q component", v2TransactionSchemaName)
+	require.NotNil(t, v1, "%q must resolve to a non-nil schema", v1TransactionSchemaName)
+	require.NotNil(t, v2, "%q must resolve to a non-nil schema", v2TransactionSchemaName)
+	assert.NotSame(t, v1, v2, "the two coexisting components must be distinct schema objects")
 }
 
 // wireFieldNames returns the json key of every field of v that reaches the wire, keyed for

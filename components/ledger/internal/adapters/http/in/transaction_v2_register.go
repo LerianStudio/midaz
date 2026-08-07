@@ -25,8 +25,8 @@ import (
 
 // This file is the v2 transaction contract seam (filename-suffix
 // versioning — v1 files are left untouched). It registers the v2 `direct`, `hold`,
-// `block`, `unblock`, `commit`, `cancel`, and `revert` transaction ops onto the SECOND,
-// independent Huma contract instance and attaches
+// `block`, `unblock`, `commit`, `cancel`, and `revert` transaction ops onto the /v2
+// version group of the shared Huma contract and attaches
 // the SAME Fiber auth chain the v1 transaction ops carry (protectedMidaz,
 // authz namespace "midaz", (resource, verb) = ("transactions","post")). No new
 // policy is introduced: authorization is per-tenant, identical to v1 — the tuple names
@@ -49,16 +49,16 @@ import (
 // tag) so ParseUUIDPathParameters stays the sole path-UUID validator on the Fiber chain,
 // not a native Huma 422.
 
-// RegisterTransactionV2Routes registers the v2 transaction ops on the INDEPENDENT
-// v2 Huma API. It registers the create ops `direct`, `hold`, `block`, and `unblock` on the
+// RegisterTransactionV2Routes registers the v2 transaction ops on the /v2 version
+// group of the shared Huma API. It registers the create ops `direct`, `hold`, `block`, and `unblock` on the
 // scope-free create path, plus the bodiless lifecycle ops `commit`, `cancel`, and `revert`
 // (by organization, ledger and transaction_id).
 // The lifecycle ops are thin v2 shells over the SAME transport-neutral core the v1 shells
 // call — no idempotency HEADERS, since they carry no body or headers. Auth is the Fiber
 // guard chain attached in RegisterTransactionV2RoutesToApp BEFORE this terminal, not here —
-// the per-op Security metadata is SPEC-ONLY. Paths are GROUP-RELATIVE (the /v2 prefix rides
-// the OpenAPI servers entry). Once every op is registered, publishV2CreateBodySchema gives
-// the create ops a typed request-body schema.
+// the per-op Security metadata is SPEC-ONLY. Every path is declared GROUP-RELATIVE: it names
+// no /v2 segment. Once every op is registered, publishV2CreateBodySchema gives the create ops
+// a typed request-body schema.
 func RegisterTransactionV2Routes(api huma.API, h *TransactionHandler) {
 	const transactionsIDBasePath = "/organizations/{organization_id}/ledgers/{ledger_id}/transactions/{transaction_id}"
 
@@ -110,13 +110,13 @@ func RegisterTransactionV2Routes(api huma.API, h *TransactionHandler) {
 		DefaultStatus: http.StatusCreated, // bodiless lifecycle op — no SkipValidateBody, mirroring v1.
 	}, h.RevertTransactionV2Huma)
 
-	publishV2CreateBodySchema(api, v2CreateBasePath)
+	publishV2CreateBodySchema(api)
 }
 
 // v2CreateBasePath is the collection the v2 create actions hang off, group-relative to /v2.
-// It names no organization and no ledger, so the Huma contract and the Fiber guard chain spell
-// it identically and both read it from HERE — the two sides of the create surface have one
-// spelling between them, not two that have to be kept equal.
+// It names no organization and no ledger, so the path each op registers with Huma and the path
+// the Fiber guard chain mounts are spelled from HERE — the two sides of the create surface have
+// one spelling between them, not two that have to be kept equal.
 const v2CreateBasePath = "/transactions"
 
 // v2CreateBodyContentType is the media type the v2 create ops accept, matching the
@@ -216,9 +216,26 @@ const v2LegDescription = "One leg of a transaction side. Fill EXACTLY ONE value 
 // It must run AFTER every huma.Register in this function, because registration is what
 // creates op.RequestBody.
 //
-// Nil-guards the document and every op it touches so a spec-disabled build, or a create
-// action that stops registering, degrades to a no-op instead of panicking.
-func publishV2CreateBodySchema(api huma.API, basePath string) {
+// The create ops are identified by OPERATION ID, over a scan of the whole document. A path key
+// carries whatever prefix the API was assembled with and is not readable back off the API value, so
+// a path key is not something this function can spell; an operation ID does not depend on the
+// prefix. Scanning every path is safe because of two invariants: an operation ID names at most one
+// operation within a document, and the v1 and v2 ID sets are held disjoint across the two published
+// contracts by the contract tests — so no other op can answer to a v2 create ID.
+//
+// Rewriting media.Schema changes DOCUMENTATION only: the create ops declare SkipValidateBody
+// with a RawBody field, so Huma validates nothing against the schema this publishes and the
+// request body is decoded imperatively either way.
+//
+// Nil-guards the document so a spec-disabled build degrades to a no-op instead of panicking, and
+// the rewrite is ALL-OR-NOTHING: it runs only once the scan has found the JSON body of EVERY v2
+// create action. Typing three of four ops would publish a contract that reads as correct while one
+// op still advertises an opaque byte stream — a partial match that is easy to miss, which is the
+// silent half-failure identifying ops by ID exists to rule out. Publishing nothing instead surfaces
+// the same defect as a uniform regression across every create op and both prose components. The ops
+// are registered by walking the same list this scan matches against, so a partial match means
+// registration and this scan have fallen out of step.
+func publishV2CreateBodySchema(api huma.API) {
 	if api == nil {
 		return
 	}
@@ -228,31 +245,43 @@ func publishV2CreateBodySchema(api huma.API, basePath string) {
 		return
 	}
 
-	inputType := reflect.TypeFor[mtransaction.CreateTransactionV2Input]()
-
-	var bodyRef string
-
+	createOperationIDs := make(map[string]struct{}, len(v2CreateActions))
 	for _, action := range v2CreateActions {
-		pathItem, ok := oapi.Paths[basePath+action.suffix]
-		if !ok || pathItem.Post == nil || pathItem.Post.RequestBody == nil {
-			continue
-		}
-
-		media, ok := pathItem.Post.RequestBody.Content[v2CreateBodyContentType]
-		if !ok || media == nil {
-			continue
-		}
-
-		// Registering is idempotent for a given type; each call hands back a fresh $ref
-		// so the ops never share one schema value.
-		media.Schema = oapi.Components.Schemas.Schema(inputType, true, "")
-		bodyRef = media.Schema.Ref
+		createOperationIDs[action.operationID] = struct{}{}
 	}
 
-	// Empty when no create op referenced the type, in which case nothing was registered
-	// and there is no component to describe.
-	if bodyRef == "" {
+	// Keyed by operation ID so the count is one entry per create ACTION: a document that filed
+	// the same op under two path keys cannot inflate it into a full match.
+	createBodies := make(map[string]*huma.MediaType, len(v2CreateActions))
+
+	for _, pathItem := range oapi.Paths {
+		if pathItem.Post == nil || pathItem.Post.RequestBody == nil {
+			continue
+		}
+
+		if _, ok := createOperationIDs[pathItem.Post.OperationID]; !ok {
+			continue
+		}
+
+		if media, ok := pathItem.Post.RequestBody.Content[v2CreateBodyContentType]; ok {
+			createBodies[pathItem.Post.OperationID] = media
+		}
+	}
+
+	if len(createBodies) != len(v2CreateActions) {
 		return
+	}
+
+	inputType := reflect.TypeFor[mtransaction.CreateTransactionV2Input]()
+
+	// Registering is idempotent for a given type; each call hands back a fresh $ref
+	// so the ops never share one schema value. Every one of them names the same component, so
+	// the last is the ref the description is stamped through.
+	var bodyRef string
+
+	for _, media := range createBodies {
+		media.Schema = oapi.Components.Schemas.Schema(inputType, true, "")
+		bodyRef = media.Schema.Ref
 	}
 
 	describeV2Component(oapi, bodyRef, v2CreateBodyDescription)

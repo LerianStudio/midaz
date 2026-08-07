@@ -14,17 +14,19 @@ make generate-docs
 
 `make generate-docs` (root) runs `postman/generator/generate-docs.sh`, which:
 
-1. Regenerates each component's native Huma OAS 3.1 dumps by running the golden-dump
+1. Regenerates each component's native Huma OAS 3.1 dump by running the golden-dump
    tests with `-update`. No `swag`, no Docker — the spec comes straight from the Huma
-   router at build time. Ledger emits two independent contracts,
-   `components/ledger/api/openapi.huma.yaml` (served under `/v1`) and
-   `openapi.v2.huma.yaml` (served under `/v2`); tracer emits one.
+   router at build time. Ledger emits one dump, `components/ledger/api/openapi.huma.yaml`,
+   carrying both its `/v1` and `/v2` paths on self-describing keys; tracer emits one.
 2. Copies every dump into `postman/specs/<service>/` so the hub is self-describing.
 3. Joins the per-component specs into one consolidated spec
    (`postman/specs/midaz.openapi.{yaml,json}`) with `@redocly/cli join` (ledger
    first, so it acts as the "main" and takes precedence on shared metadata). The
-   ledger `/v2` document is transformed into a joinable input first, because its
-   path keys are server-relative and would otherwise collide with the `/v1` keys.
+   tracer dump is transformed into a joinable input first: its path keys are
+   server-relative (served under `/v1` with unprefixed keys), so they are prefixed
+   with `/v1` and its top-level `servers` is set to `/` to match the ledger dump.
+   Both inputs then reach the join symmetric — self-describing keys and `servers`
+   `/` — so the joined root `servers` is `/` and no path item carries an override.
    This consolidated spec is a published documentation artifact; it is not the
    Postman input.
 4. Converts each published per-component spec to its own Postman collection and
@@ -70,8 +72,7 @@ postman/
 ├── MIDAZ.postman_collection.json      # Merged collection (every published spec)
 ├── MIDAZ.postman_environment.json     # Merged environment
 ├── specs/                             # Published OpenAPI specs
-│   ├── ledger/openapi.huma.yaml       # Per-component Huma OAS 3.1 dumps
-│   ├── ledger/openapi.v2.huma.yaml    # Ledger's independent /v2 contract
+│   ├── ledger/openapi.huma.yaml       # Per-component Huma OAS 3.1 dumps (ledger /v1 + /v2)
 │   ├── tracer/openapi.huma.yaml
 │   └── midaz.openapi.{yaml,json}      # Consolidated (redocly join) spec
 ├── backups/                           # Timestamped collection/environment backups (gitignored)
@@ -88,15 +89,15 @@ postman/
 
 ## Collection structure
 
-The merged collection is one **MIDAZ** collection. The ledger `/v1` spec is primary;
+The merged collection is one **MIDAZ** collection. The ledger spec is primary;
 every other published spec contributes its own folders, grouped by OpenAPI tag.
-Two specs from the same component would otherwise produce folders under the same
-tag name, so folders from a non-primary contract carry a version tag — ledger's
-`/v2` transaction endpoints land in **Transactions (v2)**.
+Within the single ledger spec, operations under `/v2` get a folder suffix ` (v2)`
+derived from the first path-key segment (`/v1` gets no suffix), so **Transactions**
+and **Transactions (v2)** stay distinct even though they share the OpenAPI tag.
 
-Request URLs carry the version prefix taken from the spec's `servers` block, so a
-generated URL targets the same path the service mounts the operation on, and `/v1`
-and `/v2` requests to the same resource stay distinct.
+Request URLs carry the version prefix from the path key (the spec's `servers` is
+`/`), so a generated URL targets the same path the service mounts the operation on,
+and `/v1`/`/v2` requests to the same resource stay distinct.
 
 Requests route to per-service base URLs:
 

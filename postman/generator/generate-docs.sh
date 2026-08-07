@@ -93,14 +93,6 @@ publish_specs() {
         return 1
     fi
 
-    # Ledger serves a SECOND, independent /v2 Huma contract (openapi.v2.huma.yaml).
-    # Publish it alongside the v1 dump when present so postman/specs mirrors api/.
-    if [ -f "${api_dir}/openapi.v2.huma.yaml" ] && \
-        ! cp "${api_dir}/openapi.v2.huma.yaml" "${dest_dir}/"; then
-        print_step "Publish ${component} specs to postman/specs" "FAILED"
-        return 1
-    fi
-
     print_step "Published ${component} specs to postman/specs" "SUCCESS"
     return 0
 }
@@ -148,61 +140,64 @@ consolidate_openapi() {
         fi
     done
 
-    # 2a. Derive the ledger /v2 join input from its independent Huma dump. The v2
-    #     document is served under /v2 with server-relative paths (Servers ["/v2"]),
-    #     so its path keys (.../transactions/{block,unblock}) collide 1:1 with the v1
-    #     ledger dump and redocly join refuses colliding path+method. This transform
-    #     makes the v2 surface joinable WITHOUT mutating the committed v2 dump:
-    #       - prefix "/v2" onto every path key so the keys are globally unique;
-    #       - override each path item's servers to "/" so the "/v2/..." key resolves
-    #         to exactly "/v2/..." (not the joined doc's top-level "/v1" base);
-    #       - declare top-level servers "/v1" so it agrees with the ledger + tracer
-    #         inputs and redocly keeps the joined top-level servers as "/v1"
-    #         (a disagreement makes redocly drop the servers block entirely).
-    #     Net: the v1 + tracer join output is byte-identical to before, and the v2
-    #     operations appear under distinct, correctly-based "/v2/..." paths.
-    local ledger_v2_dump="${ROOT_DIR}/components/ledger/api/openapi.v2.huma.yaml"
-    local ledger_v2_join_input="${LOG_DIR}/ledger_v2_join_input.yaml"
-    local ledger_v2_derived=0
+    # 2a. Derive the tracer join input from its committed Huma dump. The dump is
+    #     served under /v1 with server-relative paths (servers ["/v1"]) and path keys
+    #     WITHOUT the /v1 prefix (e.g. "/audit-events"). The ledger dump, by contrast,
+    #     carries "/v1/" + "/v2/" directly on its keys and declares servers ["/"].
+    #     redocly join derives the joined document's root servers from the FIRST input
+    #     only; if any later input's servers differ from the first's (including a bare
+    #     "/v1" vs "/"), redocly compensates by stamping a servers array onto EVERY
+    #     path item of EVERY input. This transform makes the tracer input SYMMETRIC to
+    #     the ledger dump so no such override is emitted, WITHOUT mutating the committed
+    #     tracer dump (js-yaml parses a fresh copy; the source file is never written):
+    #       - prefix "/v1" onto every path key so each key is self-describing and
+    #         globally unique against the ledger keys;
+    #       - declare top-level servers "/" so it matches the ledger dump's servers.
+    #     Net: both inputs reach the join with self-describing keys and servers ["/"],
+    #     so the joined root servers is ["/"] and NOT ONE path item carries a servers
+    #     override. No per-path-item servers are written here — that asymmetry is
+    #     exactly what produced the overrides.
+    local tracer_dump="${ROOT_DIR}/components/tracer/api/openapi.huma.yaml"
+    local tracer_join_input="${LOG_DIR}/tracer_join_input.yaml"
 
     # LOG_DIR survives between runs, so discard whatever an earlier run left here.
-    # Joining below keys off this run having derived the input, never off the file
-    # merely being present — otherwise dropping or renaming the v2 dump would
-    # silently republish a stale set of "/v2/..." paths.
-    rm -f "${ledger_v2_join_input}"
+    # Joining below keys off THIS run having derived the input, never off the file
+    # merely being present — otherwise renaming the dump would silently republish a
+    # stale key set from a leftover output file.
+    rm -f "${tracer_join_input}"
 
-    if [ -f "${ledger_v2_dump}" ]; then
-        if ! (cd "${ROOT_DIR}" && NODE_PATH="${GENERATOR_DIR}/node_modules" node -e '
-            const yaml = require("js-yaml");
-            const fs = require("fs");
-            const doc = yaml.load(fs.readFileSync(process.argv[1], "utf8"));
-            const prefixed = {};
-            for (const key of Object.keys(doc.paths || {})) {
-                const item = doc.paths[key];
-                item.servers = [{ url: "/" }];
-                prefixed["/v2" + key] = item;
-            }
-            doc.paths = prefixed;
-            doc.servers = [{ url: "/v1" }];
-            fs.writeFileSync(process.argv[2], yaml.dump(doc));
-        ' "${ledger_v2_dump}" "${ledger_v2_join_input}" >> "${out_log}" 2>> "${err_log}"); then
-            print_step "Consolidate OpenAPI specs" "FAILED"
-            echo -e "      ${RED}Error details:${NC}"
-            head -5 "${err_log}" | sed 's/^/        /'
-            return 1
-        fi
-
-        ledger_v2_derived=1
+    # The tracer surface is a REQUIRED member of the hub: fail rather than degrade to
+    # a ledger-only document if its dump is missing.
+    if [ ! -f "${tracer_dump}" ]; then
+        print_step "Consolidate OpenAPI specs" "FAILED"
+        echo -e "      ${RED}Error details:${NC}"
+        echo "        Missing required tracer dump: ${tracer_dump}"
+        return 1
     fi
 
-    # 2b. Join (ledger first => takes precedence). The derived v2 input sits between
-    #     ledger and tracer. Run the locally-installed binary directly so the
-    #     component paths stay relative to ROOT_DIR.
-    local join_inputs=(components/ledger/api/openapi.huma.yaml)
-    if [ "${ledger_v2_derived}" -eq 1 ]; then
-        join_inputs+=("${ledger_v2_join_input}")
+    if ! (cd "${ROOT_DIR}" && NODE_PATH="${GENERATOR_DIR}/node_modules" node -e '
+        const yaml = require("js-yaml");
+        const fs = require("fs");
+        const doc = yaml.load(fs.readFileSync(process.argv[1], "utf8"));
+        const prefixed = {};
+        for (const key of Object.keys(doc.paths || {})) {
+            prefixed["/v1" + key] = doc.paths[key];
+        }
+        doc.paths = prefixed;
+        doc.servers = [{ url: "/" }];
+        fs.writeFileSync(process.argv[2], yaml.dump(doc));
+    ' "${tracer_dump}" "${tracer_join_input}" >> "${out_log}" 2>> "${err_log}"); then
+        print_step "Consolidate OpenAPI specs" "FAILED"
+        echo -e "      ${RED}Error details:${NC}"
+        head -5 "${err_log}" | sed 's/^/        /'
+        return 1
     fi
-    join_inputs+=(components/tracer/api/openapi.huma.yaml)
+
+    # 2b. Join (ledger first => takes precedence on shared metadata and supplies the
+    #     joined root servers). The derived tracer input follows. Run the
+    #     locally-installed binary directly so the component paths stay relative to
+    #     ROOT_DIR.
+    local join_inputs=(components/ledger/api/openapi.huma.yaml "${tracer_join_input}")
 
     if ! (cd "${ROOT_DIR}" && "${redocly_bin}" join \
             "${join_inputs[@]}" \
@@ -227,7 +222,83 @@ consolidate_openapi() {
         return 1
     fi
 
-    # 4. Security post-validation against the JSON twin. redocly join's security
+    # 4. Post-join validation against the JSON twin.
+
+    # 4a. Structural HTTP-neutrality guard. Both join inputs arrive with
+    #     self-describing keys and servers ["/"], so the joined document must expose a
+    #     single root server "/" and NOT ONE path item may carry a servers override. A
+    #     redocly upgrade that reverts to per-path-item stamping (the pre-symmetry
+    #     behaviour) is invisible to the effective URL of any operation but changes the
+    #     document shape; only this assertion catches that silent return.
+    if ! jq -e '.servers == [{"url":"/"}]' "${consolidated_json}" > /dev/null; then
+        print_step "Consolidate OpenAPI specs" "FAILED"
+        echo -e "      ${RED}Error details:${NC}"
+        echo "        Consolidated root servers is not exactly [{\"url\":\"/\"}]."
+        echo "        A non-first input's servers likely diverged from the ledger dump's."
+        return 1
+    fi
+    if ! jq -e '[.paths[] | select(has("servers"))] | length == 0' "${consolidated_json}" > /dev/null; then
+        print_step "Consolidate OpenAPI specs" "FAILED"
+        echo -e "      ${RED}Error details:${NC}"
+        echo "        One or more path items carry a servers override; expected none."
+        echo "        The join stamped per-path-item servers, meaning an input was asymmetric."
+        return 1
+    fi
+
+    # 4b. Membership guard (derived, not a brittle literal). A join that silently loses
+    #     a member — a dropped join_inputs entry, or a derivation that drops path keys —
+    #     still produces a valid, smaller document every other check passes. A hardcoded
+    #     count instead fails on any legitimate route change while misdirecting with a
+    #     "dropped member" message. So derive the expected surface from the two required
+    #     members' SOURCE dumps and assert each member's contribution to the hub is
+    #     whole:
+    #       - expected counts come from the committed dumps (ledger dump + the ORIGINAL
+    #         tracer dump), NOT the derived tracer input — deriving from the intermediate
+    #         would move in lockstep with a buggy derivation and hide a partial loss;
+    #       - the hub partitions cleanly because the tracer keys are /v1-prefixed and
+    #         disjoint from ledger's, so hub keys also present in the ledger dump are
+    #         ledger's contribution and everything else is the tracer input's.
+    #     A dropped or partially-lost member then fails the per-member "contributed X of
+    #     Y" check, while a normal route addition simply moves the derived totals.
+    if ! (cd "${ROOT_DIR}" && NODE_PATH="${GENERATOR_DIR}/node_modules" node -e '
+        const yaml = require("js-yaml");
+        const fs = require("fs");
+        const pathKeys = f => Object.keys((yaml.load(fs.readFileSync(f, "utf8")) || {}).paths || {});
+        const hub = JSON.parse(fs.readFileSync("postman/specs/midaz.openapi.json", "utf8"));
+        const hubKeys = Object.keys(hub.paths || {});
+
+        const ledgerKeys = new Set(pathKeys(process.argv[1]));
+        const expectedLedger = ledgerKeys.size;
+        const expectedTracer = pathKeys(process.argv[2]).length;
+
+        const ledgerActual = hubKeys.filter(k => ledgerKeys.has(k)).length;
+        const tracerActual = hubKeys.length - ledgerActual;
+
+        const problems = [];
+        if (ledgerActual !== expectedLedger) {
+            problems.push("ledger contributed " + ledgerActual + " of " + expectedLedger + " path keys");
+        }
+        if (tracerActual !== expectedTracer) {
+            problems.push("tracer contributed " + tracerActual + " of " + expectedTracer + " path keys");
+        }
+        if (problems.length > 0) {
+            console.error("Consolidated hub is missing a join input contribution: " + problems.join("; ") + ". A join input was likely dropped or partially lost.");
+            process.exit(1);
+        }
+
+        const expectedTotal = expectedLedger + expectedTracer;
+        if (hubKeys.length !== expectedTotal) {
+            console.error("Consolidated path-key count mismatch: hub has " + hubKeys.length + ", join inputs sum to " + expectedTotal + ".");
+            process.exit(1);
+        }
+    ' components/ledger/api/openapi.huma.yaml "${tracer_dump}" 2>"${err_log}"); then
+        print_step "Consolidate OpenAPI specs" "FAILED"
+        echo -e "      ${RED}Error details:${NC}"
+        head -5 "${err_log}" | sed 's/^/        /'
+        return 1
+    fi
+
+    # 4c. Security post-validation against the JSON twin. redocly join's security
     #    merge is undocumented and root security may be dropped (known issue), so
     #    this guard catches a regression where a scheme goes missing or an
     #    operation references a scheme that is not defined.

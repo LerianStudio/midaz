@@ -103,7 +103,7 @@ func (handler *TransactionHandler) CountTransactionsByFiltersHuma(ctx context.Co
 // the auth (auth.Authorize("midaz","transactions","head")) + tenant +
 // ParseUUIDPathParameters("transaction") chain for this route is attached in the
 // unified server (Fiber level) BEFORE the Huma terminal, not here. Paths are
-// GROUP-RELATIVE (the /v1 prefix rides the OpenAPI servers entry).
+// GROUP-RELATIVE (the group's PrefixModifier writes "/v1" into each op's op.Path, not into a servers entry).
 func RegisterCountTransactionRoutes(api huma.API, h *TransactionHandler) {
 	huma.Register(api, huma.Operation{
 		OperationID: "countTransactionsByFilters",

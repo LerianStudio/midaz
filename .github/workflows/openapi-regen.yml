@@ -23,7 +23,6 @@
 #     components/tracer/api/openapi.huma.yaml   (Huma OAS 3.1 dump)
 #     postman/specs/ledger/openapi.huma.yaml    (published copy)
 #     postman/specs/tracer/openapi.huma.yaml    (published copy)
-#     postman/specs/ledger/openapi.v2.huma.yaml (published copy)
 #     postman/specs/midaz.openapi.{yaml,json}   (redocly-joined hub spec)
 #     postman/MIDAZ.postman_collection.json     (converted Postman collection)
 #     postman/MIDAZ.postman_environment.json    (converted Postman environment)
