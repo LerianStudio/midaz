@@ -53,6 +53,7 @@ DELETE	/v2/organizations/:organization_id/ledgers/:ledger_id/packages/:id	3
 DELETE	/v2/organizations/:organization_id/ledgers/:ledger_id/packages/:id	1
 DELETE	/v2/organizations/:organization_id/ledgers/:ledger_id/portfolios/:id	4
 DELETE	/v2/organizations/:organization_id/ledgers/:ledger_id/segments/:id	4
+DELETE	/v2/organizations/:organization_id/ledgers/:ledger_id/transaction-routes/:transaction_route_id	4
 DELETE	/v2/settings/metadata-indexes/entities/:entity_name/key/:index_key	3
 GET	/health	1
 GET	/readyz	1
@@ -220,6 +221,10 @@ GET	/v2/organizations/:organization_id/ledgers/:ledger_id/segments/:id	3
 GET	/v2/organizations/:organization_id/ledgers/:ledger_id/segments/:id	1
 GET	/v2/organizations/:organization_id/ledgers/:ledger_id/settings	3
 GET	/v2/organizations/:organization_id/ledgers/:ledger_id/settings	1
+GET	/v2/organizations/:organization_id/ledgers/:ledger_id/transaction-routes	3
+GET	/v2/organizations/:organization_id/ledgers/:ledger_id/transaction-routes	1
+GET	/v2/organizations/:organization_id/ledgers/:ledger_id/transaction-routes/:transaction_route_id	3
+GET	/v2/organizations/:organization_id/ledgers/:ledger_id/transaction-routes/:transaction_route_id	1
 GET	/v2/organizations/:organization_id/protection/audit	4
 GET	/v2/settings/metadata-indexes	3
 GET	/version	1
@@ -275,6 +280,7 @@ PATCH	/v2/organizations/:organization_id/ledgers/:ledger_id/portfolios/:id	4
 PATCH	/v2/organizations/:organization_id/ledgers/:ledger_id/segments/:id	4
 PATCH	/v2/organizations/:organization_id/ledgers/:ledger_id/settings	3
 PATCH	/v2/organizations/:organization_id/ledgers/:ledger_id/settings	1
+PATCH	/v2/organizations/:organization_id/ledgers/:ledger_id/transaction-routes/:transaction_route_id	4
 PATCH	/v2/organizations/:organization_id/ledgers/:ledger_id/transactions/:transaction_id/operations/:operation_id	4
 POST	/v1/organizations	3
 POST	/v1/organizations/:organization_id/billing-packages	3
@@ -338,6 +344,7 @@ POST	/v2/organizations/:organization_id/ledgers/:ledger_id/packages	3
 POST	/v2/organizations/:organization_id/ledgers/:ledger_id/packages	1
 POST	/v2/organizations/:organization_id/ledgers/:ledger_id/portfolios	4
 POST	/v2/organizations/:organization_id/ledgers/:ledger_id/segments	4
+POST	/v2/organizations/:organization_id/ledgers/:ledger_id/transaction-routes	4
 POST	/v2/organizations/:organization_id/ledgers/:ledger_id/transactions/:transaction_id/cancel	3
 POST	/v2/organizations/:organization_id/ledgers/:ledger_id/transactions/:transaction_id/cancel	1
 POST	/v2/organizations/:organization_id/ledgers/:ledger_id/transactions/:transaction_id/commit	3

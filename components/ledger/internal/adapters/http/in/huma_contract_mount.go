@@ -180,7 +180,9 @@ func (d HumaMountDeps) registerWave3(group fiber.Router, api huma.API) {
 //
 // operation-routes carry TransactionOptions ([authAssertion, WithTenantDB]) and authorize
 // against the "routing" appName (protectedRouting), NOT "midaz", exactly as on v1 (see
-// registerWave2 / RegisterOperationRouteRoutesToApp).
+// registerWave2 / RegisterOperationRouteRoutesToApp). transaction-routes likewise carry
+// TransactionOptions and authorize against the "routing" appName (protectedRouting), NOT
+// "midaz", exactly as on v1 (see registerWave2 / RegisterTransactionRouteRoutesToApp).
 func (d HumaMountDeps) MountV2(group fiber.Router, api huma.API) {
 	RegisterOrganizationV2RoutesToApp(group, api, d.Auth, d.Organization, d.OnboardingOptions)
 	RegisterLedgerV2RoutesToApp(group, api, d.Auth, d.Ledger, d.OnboardingOptions)
@@ -198,6 +200,7 @@ func (d HumaMountDeps) MountV2(group fiber.Router, api huma.API) {
 	RegisterFeesV2RoutesToApp(group, api, d.Auth, d.FeePackage, d.Fee, d.BillingPackage, d.BillingCalculate, d.FeesOptions)
 	RegisterCompositionV2RoutesToApp(group, api, d.Auth, d.Composition, d.CompositionOptions)
 	RegisterOperationRouteV2RoutesToApp(group, api, d.Auth, d.OperationRoute, d.TransactionOptions)
+	RegisterTransactionRouteV2RoutesToApp(group, api, d.Auth, d.TransactionRoute, d.TransactionOptions)
 }
 
 // AssembleHumaContract builds one independent Huma contract instance on group and
