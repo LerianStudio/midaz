@@ -69,7 +69,7 @@ func buildHumaOperationRouteApp(t *testing.T, handler *OperationRouteHandler, au
 	apiV1.Patch(base+"/:operation_route_id", parse)
 	apiV1.Delete(base+"/:operation_route_id", parse)
 
-	RegisterOperationRouteRoutes(hAPI, handler)
+	RegisterOperationRouteRoutes(hAPI, handler, routeOpSuffixV1)
 
 	return f
 }

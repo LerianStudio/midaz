@@ -177,6 +177,10 @@ func (d HumaMountDeps) registerWave3(group fiber.Router, api huma.API) {
 // names the ledger, so a package another ledger owns is out of reach. composition
 // carries CompositionOptions and authorizes under the "midaz" appName's "accounts"
 // resource, exactly as on v1 (see registerWave3 / RegisterCompositionRoutesToApp).
+//
+// operation-routes carry TransactionOptions ([authAssertion, WithTenantDB]) and authorize
+// against the "routing" appName (protectedRouting), NOT "midaz", exactly as on v1 (see
+// registerWave2 / RegisterOperationRouteRoutesToApp).
 func (d HumaMountDeps) MountV2(group fiber.Router, api huma.API) {
 	RegisterOrganizationV2RoutesToApp(group, api, d.Auth, d.Organization, d.OnboardingOptions)
 	RegisterLedgerV2RoutesToApp(group, api, d.Auth, d.Ledger, d.OnboardingOptions)
@@ -193,6 +197,7 @@ func (d HumaMountDeps) MountV2(group fiber.Router, api huma.API) {
 	RegisterCRMV2RoutesToApp(group, api, d.Auth, d.Holder, d.Instrument, d.HolderAccounts, d.Encryption, d.Audit, d.CRMOptions)
 	RegisterFeesV2RoutesToApp(group, api, d.Auth, d.FeePackage, d.Fee, d.BillingPackage, d.BillingCalculate, d.FeesOptions)
 	RegisterCompositionV2RoutesToApp(group, api, d.Auth, d.Composition, d.CompositionOptions)
+	RegisterOperationRouteV2RoutesToApp(group, api, d.Auth, d.OperationRoute, d.TransactionOptions)
 }
 
 // AssembleHumaContract builds one independent Huma contract instance on group and

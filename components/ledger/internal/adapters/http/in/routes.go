@@ -261,11 +261,33 @@ func RegisterTransactionHumaRoutesToApp(group fiber.Router, api huma.API, auth *
 	RegisterTransactionRoutes(api, th)
 }
 
-// RegisterOperationRouteRoutesToApp wires the five Huma-migrated operation-route ops.
-// Auth is the "routing" appName: auth.Authorize("routing","operation-routes",verb) +
-// tenant + ParseUUIDPathParameters("operation_route"), attached as middleware-only on
-// the /v1 group before the Huma terminals.
+// RegisterOperationRouteRoutesToApp wires the Huma-migrated operation-route surface onto
+// the /v1 contract. See registerOperationRouteRoutesToApp for what it attaches.
 func RegisterOperationRouteRoutesToApp(group fiber.Router, api huma.API, auth *middleware.AuthClient, orh *OperationRouteHandler, routeOptions *http.ProtectedRouteOptions) {
+	registerOperationRouteRoutesToApp(group, api, auth, orh, routeOptions, routeOpSuffixV1)
+}
+
+// RegisterOperationRouteV2RoutesToApp wires the same operation-route surface onto the /v2
+// contract: same paths, same handlers, same authz tuples and tenant chain, differing only in
+// the operation IDs the contract publishes. It is additive — /v1 keeps serving operation
+// routes in parallel — and introduces no new policy surface.
+func RegisterOperationRouteV2RoutesToApp(group fiber.Router, api huma.API, auth *middleware.AuthClient, orh *OperationRouteHandler, routeOptions *http.ProtectedRouteOptions) {
+	registerOperationRouteRoutesToApp(group, api, auth, orh, routeOptions, routeOpSuffixV2)
+}
+
+// registerOperationRouteRoutesToApp is the single description of the operation-route surface,
+// shared by every versioned contract that serves it. Auth is the "routing" appName:
+// auth.Authorize("routing","operation-routes",verb) + tenant +
+// ParseUUIDPathParameters("operation_route"), attached as MIDDLEWARE ONLY (group-relative
+// paths, no terminal) on the versioned group, then it registers the Huma terminals via
+// RegisterOperationRouteRoutes on the SAME group's Huma API. This preserves the pre-Huma
+// ("routing","operation-routes",verb) authz tuples and tenant resolution BYTE-FOR-BYTE on
+// whichever version group it is mounted on.
+//
+// opSuffix distinguishes the operation IDs one version group publishes from another's — see
+// routeOpSuffixV1. Nothing else varies between contracts, so a change to the surface reaches
+// every version it is mounted on.
+func registerOperationRouteRoutesToApp(group fiber.Router, api huma.API, auth *middleware.AuthClient, orh *OperationRouteHandler, routeOptions *http.ProtectedRouteOptions, opSuffix string) {
 	const (
 		listPath = "/organizations/:organization_id/ledgers/:ledger_id/operation-routes"
 		idPath   = listPath + "/:operation_route_id"
@@ -279,7 +301,7 @@ func RegisterOperationRouteRoutesToApp(group fiber.Router, api huma.API, auth *m
 	routePatch(group, idPath, protectedRouting(auth, "operation-routes", "patch", routeOptions, parse))
 	routeDelete(group, idPath, protectedRouting(auth, "operation-routes", "delete", routeOptions, parse))
 
-	RegisterOperationRouteRoutes(api, orh)
+	RegisterOperationRouteRoutes(api, orh, opSuffix)
 }
 
 // RegisterTransactionRouteRoutesToApp wires the five Huma-migrated transaction-route

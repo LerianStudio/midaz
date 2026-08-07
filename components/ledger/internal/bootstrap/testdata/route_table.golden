@@ -48,6 +48,7 @@ DELETE	/v2/organizations/:organization_id/ledgers/:ledger_id/assets/:id	4
 DELETE	/v2/organizations/:organization_id/ledgers/:ledger_id/balances/:balance_id	4
 DELETE	/v2/organizations/:organization_id/ledgers/:ledger_id/billing-packages/:id	3
 DELETE	/v2/organizations/:organization_id/ledgers/:ledger_id/billing-packages/:id	1
+DELETE	/v2/organizations/:organization_id/ledgers/:ledger_id/operation-routes/:operation_route_id	4
 DELETE	/v2/organizations/:organization_id/ledgers/:ledger_id/packages/:id	3
 DELETE	/v2/organizations/:organization_id/ledgers/:ledger_id/packages/:id	1
 DELETE	/v2/organizations/:organization_id/ledgers/:ledger_id/portfolios/:id	4
@@ -201,6 +202,10 @@ GET	/v2/organizations/:organization_id/ledgers/:ledger_id/billing-packages	3
 GET	/v2/organizations/:organization_id/ledgers/:ledger_id/billing-packages	1
 GET	/v2/organizations/:organization_id/ledgers/:ledger_id/billing-packages/:id	3
 GET	/v2/organizations/:organization_id/ledgers/:ledger_id/billing-packages/:id	1
+GET	/v2/organizations/:organization_id/ledgers/:ledger_id/operation-routes	3
+GET	/v2/organizations/:organization_id/ledgers/:ledger_id/operation-routes	1
+GET	/v2/organizations/:organization_id/ledgers/:ledger_id/operation-routes/:operation_route_id	3
+GET	/v2/organizations/:organization_id/ledgers/:ledger_id/operation-routes/:operation_route_id	1
 GET	/v2/organizations/:organization_id/ledgers/:ledger_id/packages	3
 GET	/v2/organizations/:organization_id/ledgers/:ledger_id/packages	1
 GET	/v2/organizations/:organization_id/ledgers/:ledger_id/packages/:id	3
@@ -263,6 +268,7 @@ PATCH	/v2/organizations/:organization_id/ledgers/:ledger_id/assets/:id	4
 PATCH	/v2/organizations/:organization_id/ledgers/:ledger_id/balances/:balance_id	4
 PATCH	/v2/organizations/:organization_id/ledgers/:ledger_id/billing-packages/:id	3
 PATCH	/v2/organizations/:organization_id/ledgers/:ledger_id/billing-packages/:id	1
+PATCH	/v2/organizations/:organization_id/ledgers/:ledger_id/operation-routes/:operation_route_id	4
 PATCH	/v2/organizations/:organization_id/ledgers/:ledger_id/packages/:id	3
 PATCH	/v2/organizations/:organization_id/ledgers/:ledger_id/packages/:id	1
 PATCH	/v2/organizations/:organization_id/ledgers/:ledger_id/portfolios/:id	4
@@ -327,6 +333,7 @@ POST	/v2/organizations/:organization_id/ledgers/:ledger_id/billing/calculate	1
 POST	/v2/organizations/:organization_id/ledgers/:ledger_id/estimates	3
 POST	/v2/organizations/:organization_id/ledgers/:ledger_id/estimates	1
 POST	/v2/organizations/:organization_id/ledgers/:ledger_id/holders/:id/accounts	4
+POST	/v2/organizations/:organization_id/ledgers/:ledger_id/operation-routes	4
 POST	/v2/organizations/:organization_id/ledgers/:ledger_id/packages	3
 POST	/v2/organizations/:organization_id/ledgers/:ledger_id/packages	1
 POST	/v2/organizations/:organization_id/ledgers/:ledger_id/portfolios	4

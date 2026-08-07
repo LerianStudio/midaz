@@ -34,6 +34,7 @@ DELETE	/v2/organizations/:organization_id/ledgers/:ledger_id/accounts/:id	onboar
 DELETE	/v2/organizations/:organization_id/ledgers/:ledger_id/assets/:id	onboarding
 DELETE	/v2/organizations/:organization_id/ledgers/:ledger_id/balances/:balance_id	transaction
 DELETE	/v2/organizations/:organization_id/ledgers/:ledger_id/billing-packages/:id	fees
+DELETE	/v2/organizations/:organization_id/ledgers/:ledger_id/operation-routes/:operation_route_id	transaction
 DELETE	/v2/organizations/:organization_id/ledgers/:ledger_id/packages/:id	fees
 DELETE	/v2/organizations/:organization_id/ledgers/:ledger_id/portfolios/:id	onboarding
 DELETE	/v2/organizations/:organization_id/ledgers/:ledger_id/segments/:id	onboarding
@@ -115,6 +116,8 @@ GET	/v2/organizations/:organization_id/ledgers/:ledger_id/balances/:balance_id	t
 GET	/v2/organizations/:organization_id/ledgers/:ledger_id/balances/:balance_id/history	transaction
 GET	/v2/organizations/:organization_id/ledgers/:ledger_id/billing-packages	fees
 GET	/v2/organizations/:organization_id/ledgers/:ledger_id/billing-packages/:id	fees
+GET	/v2/organizations/:organization_id/ledgers/:ledger_id/operation-routes	transaction
+GET	/v2/organizations/:organization_id/ledgers/:ledger_id/operation-routes/:operation_route_id	transaction
 GET	/v2/organizations/:organization_id/ledgers/:ledger_id/packages	fees
 GET	/v2/organizations/:organization_id/ledgers/:ledger_id/packages/:id	fees
 GET	/v2/organizations/:organization_id/ledgers/:ledger_id/portfolios	onboarding
@@ -163,6 +166,7 @@ PATCH	/v2/organizations/:organization_id/ledgers/:ledger_id/accounts/:id	onboard
 PATCH	/v2/organizations/:organization_id/ledgers/:ledger_id/assets/:id	onboarding
 PATCH	/v2/organizations/:organization_id/ledgers/:ledger_id/balances/:balance_id	transaction
 PATCH	/v2/organizations/:organization_id/ledgers/:ledger_id/billing-packages/:id	fees
+PATCH	/v2/organizations/:organization_id/ledgers/:ledger_id/operation-routes/:operation_route_id	transaction
 PATCH	/v2/organizations/:organization_id/ledgers/:ledger_id/packages/:id	fees
 PATCH	/v2/organizations/:organization_id/ledgers/:ledger_id/portfolios/:id	onboarding
 PATCH	/v2/organizations/:organization_id/ledgers/:ledger_id/segments/:id	onboarding
@@ -209,6 +213,7 @@ POST	/v2/organizations/:organization_id/ledgers/:ledger_id/billing-packages	fees
 POST	/v2/organizations/:organization_id/ledgers/:ledger_id/billing/calculate	fees
 POST	/v2/organizations/:organization_id/ledgers/:ledger_id/estimates	fees
 POST	/v2/organizations/:organization_id/ledgers/:ledger_id/holders/:id/accounts	composition
+POST	/v2/organizations/:organization_id/ledgers/:ledger_id/operation-routes	transaction
 POST	/v2/organizations/:organization_id/ledgers/:ledger_id/packages	fees
 POST	/v2/organizations/:organization_id/ledgers/:ledger_id/portfolios	onboarding
 POST	/v2/organizations/:organization_id/ledgers/:ledger_id/segments	onboarding
