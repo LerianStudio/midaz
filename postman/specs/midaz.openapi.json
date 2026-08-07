@@ -11,96 +11,188 @@
   ],
   "tags": [
     {
-      "name": "Midaz_Ledger_API_Organizations",
-      "x-displayName": "Organizations"
+      "name": "Midaz_Ledger_API_Account Types (v1)",
+      "x-displayName": "Account Types (v1)"
     },
     {
-      "name": "Midaz_Ledger_API_Billing Packages",
-      "x-displayName": "Billing Packages"
+      "name": "Midaz_Ledger_API_Account Types (v2)",
+      "x-displayName": "Account Types (v2)"
     },
     {
-      "name": "Midaz_Ledger_API_Billing Calculate",
-      "x-displayName": "Billing Calculate"
+      "name": "Midaz_Ledger_API_Accounts (v1)",
+      "x-displayName": "Accounts (v1)"
     },
     {
-      "name": "Midaz_Ledger_API_Encryption",
-      "x-displayName": "Encryption"
+      "name": "Midaz_Ledger_API_Accounts (v2)",
+      "x-displayName": "Accounts (v2)"
     },
     {
-      "name": "Midaz_Ledger_API_Fees",
-      "x-displayName": "Fees"
+      "name": "Midaz_Ledger_API_Asset Rates (v1)",
+      "x-displayName": "Asset Rates (v1)"
     },
     {
-      "name": "Midaz_Ledger_API_Holders",
-      "x-displayName": "Holders"
+      "name": "Midaz_Ledger_API_Asset Rates (v2)",
+      "x-displayName": "Asset Rates (v2)"
     },
     {
-      "name": "Midaz_Ledger_API_Instruments",
-      "x-displayName": "Instruments"
+      "name": "Midaz_Ledger_API_Assets (v1)",
+      "x-displayName": "Assets (v1)"
     },
     {
-      "name": "Midaz_Ledger_API_Ledgers",
-      "x-displayName": "Ledgers"
+      "name": "Midaz_Ledger_API_Assets (v2)",
+      "x-displayName": "Assets (v2)"
     },
     {
-      "name": "Midaz_Ledger_API_Account Types",
-      "x-displayName": "Account Types"
+      "name": "Midaz_Ledger_API_Balances (v1)",
+      "x-displayName": "Balances (v1)"
     },
     {
-      "name": "Midaz_Ledger_API_Accounts",
-      "x-displayName": "Accounts"
+      "name": "Midaz_Ledger_API_Balances (v2)",
+      "x-displayName": "Balances (v2)"
     },
     {
-      "name": "Midaz_Ledger_API_Balances",
-      "x-displayName": "Balances"
+      "name": "Midaz_Ledger_API_Billing Calculate (v1)",
+      "x-displayName": "Billing Calculate (v1)"
     },
     {
-      "name": "Midaz_Ledger_API_Operations",
-      "x-displayName": "Operations"
+      "name": "Midaz_Ledger_API_Billing Calculate (v2)",
+      "x-displayName": "Billing Calculate (v2)"
     },
     {
-      "name": "Midaz_Ledger_API_Asset Rates",
-      "x-displayName": "Asset Rates"
+      "name": "Midaz_Ledger_API_Billing Packages (v1)",
+      "x-displayName": "Billing Packages (v1)"
     },
     {
-      "name": "Midaz_Ledger_API_Assets",
-      "x-displayName": "Assets"
+      "name": "Midaz_Ledger_API_Billing Packages (v2)",
+      "x-displayName": "Billing Packages (v2)"
     },
     {
-      "name": "Midaz_Ledger_API_Composition",
-      "x-displayName": "Composition"
+      "name": "Midaz_Ledger_API_Composition (v1)",
+      "x-displayName": "Composition (v1)"
     },
     {
-      "name": "Midaz_Ledger_API_Operation Routes",
-      "x-displayName": "Operation Routes"
+      "name": "Midaz_Ledger_API_Composition (v2)",
+      "x-displayName": "Composition (v2)"
     },
     {
-      "name": "Midaz_Ledger_API_Portfolios",
-      "x-displayName": "Portfolios"
+      "name": "Midaz_Ledger_API_Encryption (v1)",
+      "x-displayName": "Encryption (v1)"
     },
     {
-      "name": "Midaz_Ledger_API_Segments",
-      "x-displayName": "Segments"
+      "name": "Midaz_Ledger_API_Encryption (v2)",
+      "x-displayName": "Encryption (v2)"
     },
     {
-      "name": "Midaz_Ledger_API_Transaction Routes",
-      "x-displayName": "Transaction Routes"
+      "name": "Midaz_Ledger_API_Fees (v1)",
+      "x-displayName": "Fees (v1)"
     },
     {
-      "name": "Midaz_Ledger_API_Transactions",
-      "x-displayName": "Transactions"
+      "name": "Midaz_Ledger_API_Fees (v2)",
+      "x-displayName": "Fees (v2)"
     },
     {
-      "name": "Midaz_Ledger_API_Packages",
-      "x-displayName": "Packages"
+      "name": "Midaz_Ledger_API_Holders (v1)",
+      "x-displayName": "Holders (v1)"
     },
     {
-      "name": "Midaz_Ledger_API_Protection",
-      "x-displayName": "Protection"
+      "name": "Midaz_Ledger_API_Holders (v2)",
+      "x-displayName": "Holders (v2)"
     },
     {
-      "name": "Midaz_Ledger_API_Metadata Indexes",
-      "x-displayName": "Metadata Indexes"
+      "name": "Midaz_Ledger_API_Instruments (v1)",
+      "x-displayName": "Instruments (v1)"
+    },
+    {
+      "name": "Midaz_Ledger_API_Instruments (v2)",
+      "x-displayName": "Instruments (v2)"
+    },
+    {
+      "name": "Midaz_Ledger_API_Ledgers (v1)",
+      "x-displayName": "Ledgers (v1)"
+    },
+    {
+      "name": "Midaz_Ledger_API_Ledgers (v2)",
+      "x-displayName": "Ledgers (v2)"
+    },
+    {
+      "name": "Midaz_Ledger_API_Metadata Indexes (v1)",
+      "x-displayName": "Metadata Indexes (v1)"
+    },
+    {
+      "name": "Midaz_Ledger_API_Metadata Indexes (v2)",
+      "x-displayName": "Metadata Indexes (v2)"
+    },
+    {
+      "name": "Midaz_Ledger_API_Operation Routes (v1)",
+      "x-displayName": "Operation Routes (v1)"
+    },
+    {
+      "name": "Midaz_Ledger_API_Operation Routes (v2)",
+      "x-displayName": "Operation Routes (v2)"
+    },
+    {
+      "name": "Midaz_Ledger_API_Operations (v1)",
+      "x-displayName": "Operations (v1)"
+    },
+    {
+      "name": "Midaz_Ledger_API_Operations (v2)",
+      "x-displayName": "Operations (v2)"
+    },
+    {
+      "name": "Midaz_Ledger_API_Organizations (v1)",
+      "x-displayName": "Organizations (v1)"
+    },
+    {
+      "name": "Midaz_Ledger_API_Organizations (v2)",
+      "x-displayName": "Organizations (v2)"
+    },
+    {
+      "name": "Midaz_Ledger_API_Packages (v1)",
+      "x-displayName": "Packages (v1)"
+    },
+    {
+      "name": "Midaz_Ledger_API_Packages (v2)",
+      "x-displayName": "Packages (v2)"
+    },
+    {
+      "name": "Midaz_Ledger_API_Portfolios (v1)",
+      "x-displayName": "Portfolios (v1)"
+    },
+    {
+      "name": "Midaz_Ledger_API_Portfolios (v2)",
+      "x-displayName": "Portfolios (v2)"
+    },
+    {
+      "name": "Midaz_Ledger_API_Protection (v1)",
+      "x-displayName": "Protection (v1)"
+    },
+    {
+      "name": "Midaz_Ledger_API_Protection (v2)",
+      "x-displayName": "Protection (v2)"
+    },
+    {
+      "name": "Midaz_Ledger_API_Segments (v1)",
+      "x-displayName": "Segments (v1)"
+    },
+    {
+      "name": "Midaz_Ledger_API_Segments (v2)",
+      "x-displayName": "Segments (v2)"
+    },
+    {
+      "name": "Midaz_Ledger_API_Transaction Routes (v1)",
+      "x-displayName": "Transaction Routes (v1)"
+    },
+    {
+      "name": "Midaz_Ledger_API_Transaction Routes (v2)",
+      "x-displayName": "Transaction Routes (v2)"
+    },
+    {
+      "name": "Midaz_Ledger_API_Transactions (v1)",
+      "x-displayName": "Transactions (v1)"
+    },
+    {
+      "name": "Midaz_Ledger_API_Transactions (v2)",
+      "x-displayName": "Transactions (v2)"
     },
     {
       "name": "Midaz_Tracer_API_Audit",
@@ -262,7 +354,7 @@
         ],
         "summary": "List all organizations",
         "tags": [
-          "Midaz_Ledger_API_Organizations"
+          "Midaz_Ledger_API_Organizations (v1)"
         ]
       },
       "post": {
@@ -321,7 +413,7 @@
         ],
         "summary": "Create a new organization",
         "tags": [
-          "Midaz_Ledger_API_Organizations"
+          "Midaz_Ledger_API_Organizations (v1)"
         ]
       }
     },
@@ -366,7 +458,7 @@
         ],
         "summary": "Count total organizations",
         "tags": [
-          "Midaz_Ledger_API_Organizations"
+          "Midaz_Ledger_API_Organizations (v1)"
         ]
       }
     },
@@ -411,7 +503,7 @@
         ],
         "summary": "Delete an organization",
         "tags": [
-          "Midaz_Ledger_API_Organizations"
+          "Midaz_Ledger_API_Organizations (v1)"
         ]
       },
       "get": {
@@ -461,7 +553,7 @@
         ],
         "summary": "Retrieve a specific organization",
         "tags": [
-          "Midaz_Ledger_API_Organizations"
+          "Midaz_Ledger_API_Organizations (v1)"
         ]
       },
       "patch": {
@@ -521,7 +613,7 @@
         ],
         "summary": "Update an existing organization",
         "tags": [
-          "Midaz_Ledger_API_Organizations"
+          "Midaz_Ledger_API_Organizations (v1)"
         ]
       }
     },
@@ -610,7 +702,7 @@
         ],
         "summary": "Get all billing packages",
         "tags": [
-          "Midaz_Ledger_API_Billing Packages"
+          "Midaz_Ledger_API_Billing Packages (v1)"
         ]
       },
       "post": {
@@ -667,7 +759,7 @@
         ],
         "summary": "Create a BillingPackage",
         "tags": [
-          "Midaz_Ledger_API_Billing Packages"
+          "Midaz_Ledger_API_Billing Packages (v1)"
         ]
       }
     },
@@ -719,7 +811,7 @@
         ],
         "summary": "SoftDelete a BillingPackage by ID",
         "tags": [
-          "Midaz_Ledger_API_Billing Packages"
+          "Midaz_Ledger_API_Billing Packages (v1)"
         ]
       },
       "get": {
@@ -776,7 +868,7 @@
         ],
         "summary": "Get billing package",
         "tags": [
-          "Midaz_Ledger_API_Billing Packages"
+          "Midaz_Ledger_API_Billing Packages (v1)"
         ]
       },
       "patch": {
@@ -843,7 +935,7 @@
         ],
         "summary": "Update a billing package",
         "tags": [
-          "Midaz_Ledger_API_Billing Packages"
+          "Midaz_Ledger_API_Billing Packages (v1)"
         ]
       }
     },
@@ -902,7 +994,7 @@
         ],
         "summary": "Calculate billing",
         "tags": [
-          "Midaz_Ledger_API_Billing Calculate"
+          "Midaz_Ledger_API_Billing Calculate (v1)"
         ]
       }
     },
@@ -970,7 +1062,7 @@
         ],
         "summary": "Provision an Organization for Envelope Encryption",
         "tags": [
-          "Midaz_Ledger_API_Encryption"
+          "Midaz_Ledger_API_Encryption (v1)"
         ]
       }
     },
@@ -1028,7 +1120,7 @@
         ],
         "summary": "Get Provisioning Status",
         "tags": [
-          "Midaz_Ledger_API_Encryption"
+          "Midaz_Ledger_API_Encryption (v1)"
         ]
       }
     },
@@ -1088,7 +1180,7 @@
         ],
         "summary": "Create a fee estimate calculation",
         "tags": [
-          "Midaz_Ledger_API_Fees"
+          "Midaz_Ledger_API_Fees (v1)"
         ]
       }
     },
@@ -1207,7 +1299,7 @@
         ],
         "summary": "List Holders",
         "tags": [
-          "Midaz_Ledger_API_Holders"
+          "Midaz_Ledger_API_Holders (v1)"
         ]
       },
       "post": {
@@ -1289,7 +1381,7 @@
         ],
         "summary": "Create a Holder",
         "tags": [
-          "Midaz_Ledger_API_Holders"
+          "Midaz_Ledger_API_Holders (v1)"
         ]
       }
     },
@@ -1383,7 +1475,7 @@
         ],
         "summary": "Create an Instrument Account",
         "tags": [
-          "Midaz_Ledger_API_Instruments"
+          "Midaz_Ledger_API_Instruments (v1)"
         ]
       }
     },
@@ -1455,7 +1547,7 @@
         ],
         "summary": "Delete an Instrument",
         "tags": [
-          "Midaz_Ledger_API_Instruments"
+          "Midaz_Ledger_API_Instruments (v1)"
         ]
       },
       "get": {
@@ -1532,7 +1624,7 @@
         ],
         "summary": "Retrieve Instrument details",
         "tags": [
-          "Midaz_Ledger_API_Instruments"
+          "Midaz_Ledger_API_Instruments (v1)"
         ]
       },
       "patch": {
@@ -1609,7 +1701,7 @@
         ],
         "summary": "Update an Instrument",
         "tags": [
-          "Midaz_Ledger_API_Instruments"
+          "Midaz_Ledger_API_Instruments (v1)"
         ]
       }
     },
@@ -1681,7 +1773,7 @@
         ],
         "summary": "Delete a Related Party",
         "tags": [
-          "Midaz_Ledger_API_Instruments"
+          "Midaz_Ledger_API_Instruments (v1)"
         ]
       }
     },
@@ -1743,7 +1835,7 @@
         ],
         "summary": "Delete a Holder",
         "tags": [
-          "Midaz_Ledger_API_Holders"
+          "Midaz_Ledger_API_Holders (v1)"
         ]
       },
       "get": {
@@ -1810,7 +1902,7 @@
         ],
         "summary": "Retrieve Holder details",
         "tags": [
-          "Midaz_Ledger_API_Holders"
+          "Midaz_Ledger_API_Holders (v1)"
         ]
       },
       "patch": {
@@ -1877,7 +1969,7 @@
         ],
         "summary": "Update a Holder",
         "tags": [
-          "Midaz_Ledger_API_Holders"
+          "Midaz_Ledger_API_Holders (v1)"
         ]
       }
     },
@@ -1966,7 +2058,7 @@
         ],
         "summary": "List Accounts by Holder",
         "tags": [
-          "Midaz_Ledger_API_Holders"
+          "Midaz_Ledger_API_Holders (v1)"
         ]
       }
     },
@@ -2105,7 +2197,7 @@
         ],
         "summary": "List Instruments",
         "tags": [
-          "Midaz_Ledger_API_Instruments"
+          "Midaz_Ledger_API_Instruments (v1)"
         ]
       }
     },
@@ -2237,7 +2329,7 @@
         ],
         "summary": "List all ledgers",
         "tags": [
-          "Midaz_Ledger_API_Ledgers"
+          "Midaz_Ledger_API_Ledgers (v1)"
         ]
       },
       "post": {
@@ -2297,7 +2389,7 @@
         ],
         "summary": "Create a new ledger",
         "tags": [
-          "Midaz_Ledger_API_Ledgers"
+          "Midaz_Ledger_API_Ledgers (v1)"
         ]
       }
     },
@@ -2354,7 +2446,7 @@
         ],
         "summary": "Count total ledgers",
         "tags": [
-          "Midaz_Ledger_API_Ledgers"
+          "Midaz_Ledger_API_Ledgers (v1)"
         ]
       }
     },
@@ -2409,7 +2501,7 @@
         ],
         "summary": "Delete a ledger",
         "tags": [
-          "Midaz_Ledger_API_Ledgers"
+          "Midaz_Ledger_API_Ledgers (v1)"
         ]
       },
       "get": {
@@ -2469,7 +2561,7 @@
         ],
         "summary": "Retrieve a specific ledger",
         "tags": [
-          "Midaz_Ledger_API_Ledgers"
+          "Midaz_Ledger_API_Ledgers (v1)"
         ]
       },
       "patch": {
@@ -2539,7 +2631,7 @@
         ],
         "summary": "Update an existing ledger",
         "tags": [
-          "Midaz_Ledger_API_Ledgers"
+          "Midaz_Ledger_API_Ledgers (v1)"
         ]
       }
     },
@@ -2681,7 +2773,7 @@
         ],
         "summary": "List all account types",
         "tags": [
-          "Midaz_Ledger_API_Account Types"
+          "Midaz_Ledger_API_Account Types (v1)"
         ]
       },
       "post": {
@@ -2751,7 +2843,7 @@
         ],
         "summary": "Create a new account type",
         "tags": [
-          "Midaz_Ledger_API_Account Types"
+          "Midaz_Ledger_API_Account Types (v1)"
         ]
       }
     },
@@ -2816,7 +2908,7 @@
         ],
         "summary": "Delete an account type",
         "tags": [
-          "Midaz_Ledger_API_Account Types"
+          "Midaz_Ledger_API_Account Types (v1)"
         ]
       },
       "get": {
@@ -2886,7 +2978,7 @@
         ],
         "summary": "Retrieve a specific account type",
         "tags": [
-          "Midaz_Ledger_API_Account Types"
+          "Midaz_Ledger_API_Account Types (v1)"
         ]
       },
       "patch": {
@@ -2966,7 +3058,7 @@
         ],
         "summary": "Update an account type",
         "tags": [
-          "Midaz_Ledger_API_Account Types"
+          "Midaz_Ledger_API_Account Types (v1)"
         ]
       }
     },
@@ -3188,7 +3280,7 @@
         ],
         "summary": "List all accounts",
         "tags": [
-          "Midaz_Ledger_API_Accounts"
+          "Midaz_Ledger_API_Accounts (v1)"
         ]
       },
       "post": {
@@ -3267,7 +3359,7 @@
         ],
         "summary": "Create a new account",
         "tags": [
-          "Midaz_Ledger_API_Accounts"
+          "Midaz_Ledger_API_Accounts (v1)"
         ]
       }
     },
@@ -3339,7 +3431,7 @@
         ],
         "summary": "Retrieve an account by alias",
         "tags": [
-          "Midaz_Ledger_API_Accounts"
+          "Midaz_Ledger_API_Accounts (v1)"
         ]
       }
     },
@@ -3411,7 +3503,7 @@
         ],
         "summary": "Get Balances using Alias",
         "tags": [
-          "Midaz_Ledger_API_Balances"
+          "Midaz_Ledger_API_Balances (v1)"
         ]
       }
     },
@@ -3483,7 +3575,7 @@
         ],
         "summary": "Retrieve an account by external code",
         "tags": [
-          "Midaz_Ledger_API_Accounts"
+          "Midaz_Ledger_API_Accounts (v1)"
         ]
       }
     },
@@ -3555,7 +3647,7 @@
         ],
         "summary": "Get External balances using code",
         "tags": [
-          "Midaz_Ledger_API_Balances"
+          "Midaz_Ledger_API_Balances (v1)"
         ]
       }
     },
@@ -3622,7 +3714,7 @@
         ],
         "summary": "Count accounts",
         "tags": [
-          "Midaz_Ledger_API_Accounts"
+          "Midaz_Ledger_API_Accounts (v1)"
         ]
       }
     },
@@ -3744,7 +3836,7 @@
         ],
         "summary": "Get all balances by account id",
         "tags": [
-          "Midaz_Ledger_API_Balances"
+          "Midaz_Ledger_API_Balances (v1)"
         ]
       },
       "post": {
@@ -3824,7 +3916,7 @@
         ],
         "summary": "Create Additional Balance",
         "tags": [
-          "Midaz_Ledger_API_Balances"
+          "Midaz_Ledger_API_Balances (v1)"
         ]
       }
     },
@@ -3912,7 +4004,7 @@
         ],
         "summary": "Get Account Balances history at date",
         "tags": [
-          "Midaz_Ledger_API_Balances"
+          "Midaz_Ledger_API_Balances (v1)"
         ]
       }
     },
@@ -4084,7 +4176,7 @@
         ],
         "summary": "Get all Operations by account",
         "tags": [
-          "Midaz_Ledger_API_Operations"
+          "Midaz_Ledger_API_Operations (v1)"
         ]
       }
     },
@@ -4166,7 +4258,7 @@
         ],
         "summary": "Get Operation",
         "tags": [
-          "Midaz_Ledger_API_Operations"
+          "Midaz_Ledger_API_Operations (v1)"
         ]
       }
     },
@@ -4240,7 +4332,7 @@
         ],
         "summary": "Delete an account",
         "tags": [
-          "Midaz_Ledger_API_Accounts"
+          "Midaz_Ledger_API_Accounts (v1)"
         ]
       },
       "get": {
@@ -4310,7 +4402,7 @@
         ],
         "summary": "Retrieve a specific account",
         "tags": [
-          "Midaz_Ledger_API_Accounts"
+          "Midaz_Ledger_API_Accounts (v1)"
         ]
       },
       "patch": {
@@ -4390,7 +4482,7 @@
         ],
         "summary": "Update an account",
         "tags": [
-          "Midaz_Ledger_API_Accounts"
+          "Midaz_Ledger_API_Accounts (v1)"
         ]
       }
     },
@@ -4462,7 +4554,7 @@
         ],
         "summary": "Create or Update an AssetRate",
         "tags": [
-          "Midaz_Ledger_API_Asset Rates"
+          "Midaz_Ledger_API_Asset Rates (v1)"
         ]
       }
     },
@@ -4600,7 +4692,7 @@
         ],
         "summary": "Get an AssetRate by the Asset Code",
         "tags": [
-          "Midaz_Ledger_API_Asset Rates"
+          "Midaz_Ledger_API_Asset Rates (v1)"
         ]
       }
     },
@@ -4672,7 +4764,7 @@
         ],
         "summary": "Get an AssetRate by External ID",
         "tags": [
-          "Midaz_Ledger_API_Asset Rates"
+          "Midaz_Ledger_API_Asset Rates (v1)"
         ]
       }
     },
@@ -4794,7 +4886,7 @@
         ],
         "summary": "List all assets",
         "tags": [
-          "Midaz_Ledger_API_Assets"
+          "Midaz_Ledger_API_Assets (v1)"
         ]
       },
       "post": {
@@ -4873,7 +4965,7 @@
         ],
         "summary": "Create a new asset",
         "tags": [
-          "Midaz_Ledger_API_Assets"
+          "Midaz_Ledger_API_Assets (v1)"
         ]
       }
     },
@@ -4940,7 +5032,7 @@
         ],
         "summary": "Count total assets",
         "tags": [
-          "Midaz_Ledger_API_Assets"
+          "Midaz_Ledger_API_Assets (v1)"
         ]
       }
     },
@@ -5005,7 +5097,7 @@
         ],
         "summary": "Delete an asset",
         "tags": [
-          "Midaz_Ledger_API_Assets"
+          "Midaz_Ledger_API_Assets (v1)"
         ]
       },
       "get": {
@@ -5075,7 +5167,7 @@
         ],
         "summary": "Retrieve a specific asset",
         "tags": [
-          "Midaz_Ledger_API_Assets"
+          "Midaz_Ledger_API_Assets (v1)"
         ]
       },
       "patch": {
@@ -5155,7 +5247,7 @@
         ],
         "summary": "Update an asset",
         "tags": [
-          "Midaz_Ledger_API_Assets"
+          "Midaz_Ledger_API_Assets (v1)"
         ]
       }
     },
@@ -5267,7 +5359,7 @@
         ],
         "summary": "Get all balances",
         "tags": [
-          "Midaz_Ledger_API_Balances"
+          "Midaz_Ledger_API_Balances (v1)"
         ]
       }
     },
@@ -5332,7 +5424,7 @@
         ],
         "summary": "Delete Balance by account",
         "tags": [
-          "Midaz_Ledger_API_Balances"
+          "Midaz_Ledger_API_Balances (v1)"
         ]
       },
       "get": {
@@ -5402,7 +5494,7 @@
         ],
         "summary": "Get Balance by id",
         "tags": [
-          "Midaz_Ledger_API_Balances"
+          "Midaz_Ledger_API_Balances (v1)"
         ]
       },
       "patch": {
@@ -5482,7 +5574,7 @@
         ],
         "summary": "Update Balance",
         "tags": [
-          "Midaz_Ledger_API_Balances"
+          "Midaz_Ledger_API_Balances (v1)"
         ]
       }
     },
@@ -5564,7 +5656,7 @@
         ],
         "summary": "Get Balance history at date",
         "tags": [
-          "Midaz_Ledger_API_Balances"
+          "Midaz_Ledger_API_Balances (v1)"
         ]
       }
     },
@@ -5652,7 +5744,7 @@
         ],
         "summary": "Open a holder-owned account (with optional instrument)",
         "tags": [
-          "Midaz_Ledger_API_Composition"
+          "Midaz_Ledger_API_Composition (v1)"
         ]
       }
     },
@@ -5761,7 +5853,7 @@
         ],
         "summary": "Retrieve all operation routes",
         "tags": [
-          "Midaz_Ledger_API_Operation Routes"
+          "Midaz_Ledger_API_Operation Routes (v1)"
         ]
       },
       "post": {
@@ -5828,7 +5920,7 @@
         ],
         "summary": "Create Operation Route",
         "tags": [
-          "Midaz_Ledger_API_Operation Routes"
+          "Midaz_Ledger_API_Operation Routes (v1)"
         ]
       }
     },
@@ -5890,7 +5982,7 @@
         ],
         "summary": "Delete an operation route",
         "tags": [
-          "Midaz_Ledger_API_Operation Routes"
+          "Midaz_Ledger_API_Operation Routes (v1)"
         ]
       },
       "get": {
@@ -5957,7 +6049,7 @@
         ],
         "summary": "Retrieve a specific operation route",
         "tags": [
-          "Midaz_Ledger_API_Operation Routes"
+          "Midaz_Ledger_API_Operation Routes (v1)"
         ]
       },
       "patch": {
@@ -6034,7 +6126,7 @@
         ],
         "summary": "Update an operation route",
         "tags": [
-          "Midaz_Ledger_API_Operation Routes"
+          "Midaz_Ledger_API_Operation Routes (v1)"
         ]
       }
     },
@@ -6176,7 +6268,7 @@
         ],
         "summary": "List all portfolios",
         "tags": [
-          "Midaz_Ledger_API_Portfolios"
+          "Midaz_Ledger_API_Portfolios (v1)"
         ]
       },
       "post": {
@@ -6246,7 +6338,7 @@
         ],
         "summary": "Create a new portfolio",
         "tags": [
-          "Midaz_Ledger_API_Portfolios"
+          "Midaz_Ledger_API_Portfolios (v1)"
         ]
       }
     },
@@ -6313,7 +6405,7 @@
         ],
         "summary": "Count total portfolios",
         "tags": [
-          "Midaz_Ledger_API_Portfolios"
+          "Midaz_Ledger_API_Portfolios (v1)"
         ]
       }
     },
@@ -6378,7 +6470,7 @@
         ],
         "summary": "Delete a portfolio",
         "tags": [
-          "Midaz_Ledger_API_Portfolios"
+          "Midaz_Ledger_API_Portfolios (v1)"
         ]
       },
       "get": {
@@ -6448,7 +6540,7 @@
         ],
         "summary": "Retrieve a specific portfolio",
         "tags": [
-          "Midaz_Ledger_API_Portfolios"
+          "Midaz_Ledger_API_Portfolios (v1)"
         ]
       },
       "patch": {
@@ -6528,7 +6620,7 @@
         ],
         "summary": "Update a portfolio",
         "tags": [
-          "Midaz_Ledger_API_Portfolios"
+          "Midaz_Ledger_API_Portfolios (v1)"
         ]
       }
     },
@@ -6650,7 +6742,7 @@
         ],
         "summary": "List all segments",
         "tags": [
-          "Midaz_Ledger_API_Segments"
+          "Midaz_Ledger_API_Segments (v1)"
         ]
       },
       "post": {
@@ -6720,7 +6812,7 @@
         ],
         "summary": "Create a new segment",
         "tags": [
-          "Midaz_Ledger_API_Segments"
+          "Midaz_Ledger_API_Segments (v1)"
         ]
       }
     },
@@ -6787,7 +6879,7 @@
         ],
         "summary": "Count total segments",
         "tags": [
-          "Midaz_Ledger_API_Segments"
+          "Midaz_Ledger_API_Segments (v1)"
         ]
       }
     },
@@ -6852,7 +6944,7 @@
         ],
         "summary": "Delete a segment",
         "tags": [
-          "Midaz_Ledger_API_Segments"
+          "Midaz_Ledger_API_Segments (v1)"
         ]
       },
       "get": {
@@ -6922,7 +7014,7 @@
         ],
         "summary": "Retrieve a specific segment",
         "tags": [
-          "Midaz_Ledger_API_Segments"
+          "Midaz_Ledger_API_Segments (v1)"
         ]
       },
       "patch": {
@@ -7002,7 +7094,7 @@
         ],
         "summary": "Update a segment",
         "tags": [
-          "Midaz_Ledger_API_Segments"
+          "Midaz_Ledger_API_Segments (v1)"
         ]
       }
     },
@@ -7064,7 +7156,7 @@
         ],
         "summary": "Get ledger settings",
         "tags": [
-          "Midaz_Ledger_API_Ledgers"
+          "Midaz_Ledger_API_Ledgers (v1)"
         ]
       },
       "patch": {
@@ -7135,7 +7227,7 @@
         ],
         "summary": "Update ledger settings",
         "tags": [
-          "Midaz_Ledger_API_Ledgers"
+          "Midaz_Ledger_API_Ledgers (v1)"
         ]
       }
     },
@@ -7244,7 +7336,7 @@
         ],
         "summary": "Get all Transaction Routes",
         "tags": [
-          "Midaz_Ledger_API_Transaction Routes"
+          "Midaz_Ledger_API_Transaction Routes (v1)"
         ]
       },
       "post": {
@@ -7311,7 +7403,7 @@
         ],
         "summary": "Create Transaction Route",
         "tags": [
-          "Midaz_Ledger_API_Transaction Routes"
+          "Midaz_Ledger_API_Transaction Routes (v1)"
         ]
       }
     },
@@ -7373,7 +7465,7 @@
         ],
         "summary": "Delete Transaction Route by ID",
         "tags": [
-          "Midaz_Ledger_API_Transaction Routes"
+          "Midaz_Ledger_API_Transaction Routes (v1)"
         ]
       },
       "get": {
@@ -7440,7 +7532,7 @@
         ],
         "summary": "Get Transaction Route by ID",
         "tags": [
-          "Midaz_Ledger_API_Transaction Routes"
+          "Midaz_Ledger_API_Transaction Routes (v1)"
         ]
       },
       "patch": {
@@ -7517,7 +7609,7 @@
         ],
         "summary": "Update Transaction Route",
         "tags": [
-          "Midaz_Ledger_API_Transaction Routes"
+          "Midaz_Ledger_API_Transaction Routes (v1)"
         ]
       }
     },
@@ -7636,7 +7728,7 @@
         ],
         "summary": "Get all Transactions",
         "tags": [
-          "Midaz_Ledger_API_Transactions"
+          "Midaz_Ledger_API_Transactions (v1)"
         ]
       }
     },
@@ -7730,7 +7822,7 @@
         ],
         "summary": "Create a Transaction Annotation using JSON",
         "tags": [
-          "Midaz_Ledger_API_Transactions"
+          "Midaz_Ledger_API_Transactions (v1)"
         ]
       }
     },
@@ -7824,7 +7916,7 @@
         ],
         "summary": "Create a Block Transaction",
         "tags": [
-          "Midaz_Ledger_API_Transactions"
+          "Midaz_Ledger_API_Transactions (v1)"
         ]
       }
     },
@@ -7918,7 +8010,7 @@
         ],
         "summary": "Create a Transaction without passing from source",
         "tags": [
-          "Midaz_Ledger_API_Transactions"
+          "Midaz_Ledger_API_Transactions (v1)"
         ]
       }
     },
@@ -8012,7 +8104,7 @@
         ],
         "summary": "Create a Transaction using JSON",
         "tags": [
-          "Midaz_Ledger_API_Transactions"
+          "Midaz_Ledger_API_Transactions (v1)"
         ]
       }
     },
@@ -8119,7 +8211,7 @@
         ],
         "summary": "Count Transactions by Filters",
         "tags": [
-          "Midaz_Ledger_API_Transactions"
+          "Midaz_Ledger_API_Transactions (v1)"
         ]
       }
     },
@@ -8213,7 +8305,7 @@
         ],
         "summary": "Create a Transaction without passing to distribution",
         "tags": [
-          "Midaz_Ledger_API_Transactions"
+          "Midaz_Ledger_API_Transactions (v1)"
         ]
       }
     },
@@ -8307,7 +8399,7 @@
         ],
         "summary": "Create an Unblock Transaction",
         "tags": [
-          "Midaz_Ledger_API_Transactions"
+          "Midaz_Ledger_API_Transactions (v1)"
         ]
       }
     },
@@ -8383,7 +8475,7 @@
         ],
         "summary": "Get a Transaction by ID",
         "tags": [
-          "Midaz_Ledger_API_Transactions"
+          "Midaz_Ledger_API_Transactions (v1)"
         ]
       },
       "patch": {
@@ -8460,7 +8552,7 @@
         ],
         "summary": "Update a Transaction",
         "tags": [
-          "Midaz_Ledger_API_Transactions"
+          "Midaz_Ledger_API_Transactions (v1)"
         ]
       }
     },
@@ -8529,7 +8621,7 @@
         ],
         "summary": "Cancel a pre transaction",
         "tags": [
-          "Midaz_Ledger_API_Transactions"
+          "Midaz_Ledger_API_Transactions (v1)"
         ]
       }
     },
@@ -8598,7 +8690,7 @@
         ],
         "summary": "Commit a Transaction",
         "tags": [
-          "Midaz_Ledger_API_Transactions"
+          "Midaz_Ledger_API_Transactions (v1)"
         ]
       }
     },
@@ -8687,7 +8779,7 @@
         ],
         "summary": "Update an Operation",
         "tags": [
-          "Midaz_Ledger_API_Operations"
+          "Midaz_Ledger_API_Operations (v1)"
         ]
       }
     },
@@ -8763,7 +8855,7 @@
         ],
         "summary": "Revert a Transaction",
         "tags": [
-          "Midaz_Ledger_API_Transactions"
+          "Midaz_Ledger_API_Transactions (v1)"
         ]
       }
     },
@@ -8872,7 +8964,7 @@
         ],
         "summary": "Get all packages",
         "tags": [
-          "Midaz_Ledger_API_Packages"
+          "Midaz_Ledger_API_Packages (v1)"
         ]
       },
       "post": {
@@ -8929,7 +9021,7 @@
         ],
         "summary": "Create a Package",
         "tags": [
-          "Midaz_Ledger_API_Packages"
+          "Midaz_Ledger_API_Packages (v1)"
         ]
       }
     },
@@ -8981,7 +9073,7 @@
         ],
         "summary": "SoftDelete a Package by ID",
         "tags": [
-          "Midaz_Ledger_API_Packages"
+          "Midaz_Ledger_API_Packages (v1)"
         ]
       },
       "get": {
@@ -9038,7 +9130,7 @@
         ],
         "summary": "Get package",
         "tags": [
-          "Midaz_Ledger_API_Packages"
+          "Midaz_Ledger_API_Packages (v1)"
         ]
       },
       "patch": {
@@ -9105,7 +9197,7 @@
         ],
         "summary": "Update a package",
         "tags": [
-          "Midaz_Ledger_API_Packages"
+          "Midaz_Ledger_API_Packages (v1)"
         ]
       }
     },
@@ -9243,7 +9335,7 @@
         ],
         "summary": "List Protection Audit Events",
         "tags": [
-          "Midaz_Ledger_API_Protection"
+          "Midaz_Ledger_API_Protection (v1)"
         ]
       }
     },
@@ -9301,7 +9393,7 @@
         ],
         "summary": "Get all Metadata Indexes",
         "tags": [
-          "Midaz_Ledger_API_Metadata Indexes"
+          "Midaz_Ledger_API_Metadata Indexes (v1)"
         ]
       }
     },
@@ -9363,7 +9455,7 @@
         ],
         "summary": "Create Metadata Index",
         "tags": [
-          "Midaz_Ledger_API_Metadata Indexes"
+          "Midaz_Ledger_API_Metadata Indexes (v1)"
         ]
       }
     },
@@ -9418,7 +9510,7 @@
         ],
         "summary": "Delete Metadata Index",
         "tags": [
-          "Midaz_Ledger_API_Metadata Indexes"
+          "Midaz_Ledger_API_Metadata Indexes (v1)"
         ]
       }
     },
@@ -9559,7 +9651,7 @@
         ],
         "summary": "List all organizations",
         "tags": [
-          "Midaz_Ledger_API_Organizations"
+          "Midaz_Ledger_API_Organizations (v2)"
         ]
       },
       "post": {
@@ -9617,7 +9709,7 @@
         ],
         "summary": "Create a new organization",
         "tags": [
-          "Midaz_Ledger_API_Organizations"
+          "Midaz_Ledger_API_Organizations (v2)"
         ]
       }
     },
@@ -9661,7 +9753,7 @@
         ],
         "summary": "Count total organizations",
         "tags": [
-          "Midaz_Ledger_API_Organizations"
+          "Midaz_Ledger_API_Organizations (v2)"
         ]
       }
     },
@@ -9705,7 +9797,7 @@
         ],
         "summary": "Delete an organization",
         "tags": [
-          "Midaz_Ledger_API_Organizations"
+          "Midaz_Ledger_API_Organizations (v2)"
         ]
       },
       "get": {
@@ -9754,7 +9846,7 @@
         ],
         "summary": "Retrieve a specific organization",
         "tags": [
-          "Midaz_Ledger_API_Organizations"
+          "Midaz_Ledger_API_Organizations (v2)"
         ]
       },
       "patch": {
@@ -9813,7 +9905,7 @@
         ],
         "summary": "Update an existing organization",
         "tags": [
-          "Midaz_Ledger_API_Organizations"
+          "Midaz_Ledger_API_Organizations (v2)"
         ]
       }
     },
@@ -9880,7 +9972,7 @@
         ],
         "summary": "Provision an Organization for Envelope Encryption",
         "tags": [
-          "Midaz_Ledger_API_Encryption"
+          "Midaz_Ledger_API_Encryption (v2)"
         ]
       }
     },
@@ -9937,7 +10029,7 @@
         ],
         "summary": "Get Provisioning Status",
         "tags": [
-          "Midaz_Ledger_API_Encryption"
+          "Midaz_Ledger_API_Encryption (v2)"
         ]
       }
     },
@@ -10055,7 +10147,7 @@
         ],
         "summary": "List Holders",
         "tags": [
-          "Midaz_Ledger_API_Holders"
+          "Midaz_Ledger_API_Holders (v2)"
         ]
       },
       "post": {
@@ -10136,7 +10228,7 @@
         ],
         "summary": "Create a Holder",
         "tags": [
-          "Midaz_Ledger_API_Holders"
+          "Midaz_Ledger_API_Holders (v2)"
         ]
       }
     },
@@ -10229,7 +10321,7 @@
         ],
         "summary": "Create an Instrument Account",
         "tags": [
-          "Midaz_Ledger_API_Instruments"
+          "Midaz_Ledger_API_Instruments (v2)"
         ]
       }
     },
@@ -10300,7 +10392,7 @@
         ],
         "summary": "Delete an Instrument",
         "tags": [
-          "Midaz_Ledger_API_Instruments"
+          "Midaz_Ledger_API_Instruments (v2)"
         ]
       },
       "get": {
@@ -10376,7 +10468,7 @@
         ],
         "summary": "Retrieve Instrument details",
         "tags": [
-          "Midaz_Ledger_API_Instruments"
+          "Midaz_Ledger_API_Instruments (v2)"
         ]
       },
       "patch": {
@@ -10452,7 +10544,7 @@
         ],
         "summary": "Update an Instrument",
         "tags": [
-          "Midaz_Ledger_API_Instruments"
+          "Midaz_Ledger_API_Instruments (v2)"
         ]
       }
     },
@@ -10523,7 +10615,7 @@
         ],
         "summary": "Delete a Related Party",
         "tags": [
-          "Midaz_Ledger_API_Instruments"
+          "Midaz_Ledger_API_Instruments (v2)"
         ]
       }
     },
@@ -10584,7 +10676,7 @@
         ],
         "summary": "Delete a Holder",
         "tags": [
-          "Midaz_Ledger_API_Holders"
+          "Midaz_Ledger_API_Holders (v2)"
         ]
       },
       "get": {
@@ -10650,7 +10742,7 @@
         ],
         "summary": "Retrieve Holder details",
         "tags": [
-          "Midaz_Ledger_API_Holders"
+          "Midaz_Ledger_API_Holders (v2)"
         ]
       },
       "patch": {
@@ -10716,7 +10808,7 @@
         ],
         "summary": "Update a Holder",
         "tags": [
-          "Midaz_Ledger_API_Holders"
+          "Midaz_Ledger_API_Holders (v2)"
         ]
       }
     },
@@ -10804,7 +10896,7 @@
         ],
         "summary": "List Accounts by Holder",
         "tags": [
-          "Midaz_Ledger_API_Holders"
+          "Midaz_Ledger_API_Holders (v2)"
         ]
       }
     },
@@ -10942,7 +11034,7 @@
         ],
         "summary": "List Instruments",
         "tags": [
-          "Midaz_Ledger_API_Instruments"
+          "Midaz_Ledger_API_Instruments (v2)"
         ]
       }
     },
@@ -11073,7 +11165,7 @@
         ],
         "summary": "List all ledgers",
         "tags": [
-          "Midaz_Ledger_API_Ledgers"
+          "Midaz_Ledger_API_Ledgers (v2)"
         ]
       },
       "post": {
@@ -11132,7 +11224,7 @@
         ],
         "summary": "Create a new ledger",
         "tags": [
-          "Midaz_Ledger_API_Ledgers"
+          "Midaz_Ledger_API_Ledgers (v2)"
         ]
       }
     },
@@ -11188,7 +11280,7 @@
         ],
         "summary": "Count total ledgers",
         "tags": [
-          "Midaz_Ledger_API_Ledgers"
+          "Midaz_Ledger_API_Ledgers (v2)"
         ]
       }
     },
@@ -11242,7 +11334,7 @@
         ],
         "summary": "Delete a ledger",
         "tags": [
-          "Midaz_Ledger_API_Ledgers"
+          "Midaz_Ledger_API_Ledgers (v2)"
         ]
       },
       "get": {
@@ -11301,7 +11393,7 @@
         ],
         "summary": "Retrieve a specific ledger",
         "tags": [
-          "Midaz_Ledger_API_Ledgers"
+          "Midaz_Ledger_API_Ledgers (v2)"
         ]
       },
       "patch": {
@@ -11370,7 +11462,7 @@
         ],
         "summary": "Update an existing ledger",
         "tags": [
-          "Midaz_Ledger_API_Ledgers"
+          "Midaz_Ledger_API_Ledgers (v2)"
         ]
       }
     },
@@ -11511,7 +11603,7 @@
         ],
         "summary": "List all account types",
         "tags": [
-          "Midaz_Ledger_API_Account Types"
+          "Midaz_Ledger_API_Account Types (v2)"
         ]
       },
       "post": {
@@ -11580,7 +11672,7 @@
         ],
         "summary": "Create a new account type",
         "tags": [
-          "Midaz_Ledger_API_Account Types"
+          "Midaz_Ledger_API_Account Types (v2)"
         ]
       }
     },
@@ -11644,7 +11736,7 @@
         ],
         "summary": "Delete an account type",
         "tags": [
-          "Midaz_Ledger_API_Account Types"
+          "Midaz_Ledger_API_Account Types (v2)"
         ]
       },
       "get": {
@@ -11713,7 +11805,7 @@
         ],
         "summary": "Retrieve a specific account type",
         "tags": [
-          "Midaz_Ledger_API_Account Types"
+          "Midaz_Ledger_API_Account Types (v2)"
         ]
       },
       "patch": {
@@ -11792,7 +11884,7 @@
         ],
         "summary": "Update an account type",
         "tags": [
-          "Midaz_Ledger_API_Account Types"
+          "Midaz_Ledger_API_Account Types (v2)"
         ]
       }
     },
@@ -12013,7 +12105,7 @@
         ],
         "summary": "List all accounts",
         "tags": [
-          "Midaz_Ledger_API_Accounts"
+          "Midaz_Ledger_API_Accounts (v2)"
         ]
       },
       "post": {
@@ -12091,7 +12183,7 @@
         ],
         "summary": "Create a new account",
         "tags": [
-          "Midaz_Ledger_API_Accounts"
+          "Midaz_Ledger_API_Accounts (v2)"
         ]
       }
     },
@@ -12162,7 +12254,7 @@
         ],
         "summary": "Retrieve an account by alias",
         "tags": [
-          "Midaz_Ledger_API_Accounts"
+          "Midaz_Ledger_API_Accounts (v2)"
         ]
       }
     },
@@ -12233,7 +12325,7 @@
         ],
         "summary": "Get Balances using Alias",
         "tags": [
-          "Midaz_Ledger_API_Balances"
+          "Midaz_Ledger_API_Balances (v2)"
         ]
       }
     },
@@ -12304,7 +12396,7 @@
         ],
         "summary": "Retrieve an account by external code",
         "tags": [
-          "Midaz_Ledger_API_Accounts"
+          "Midaz_Ledger_API_Accounts (v2)"
         ]
       }
     },
@@ -12375,7 +12467,7 @@
         ],
         "summary": "Get External balances using code",
         "tags": [
-          "Midaz_Ledger_API_Balances"
+          "Midaz_Ledger_API_Balances (v2)"
         ]
       }
     },
@@ -12441,7 +12533,7 @@
         ],
         "summary": "Count accounts",
         "tags": [
-          "Midaz_Ledger_API_Accounts"
+          "Midaz_Ledger_API_Accounts (v2)"
         ]
       }
     },
@@ -12562,7 +12654,7 @@
         ],
         "summary": "Get all balances by account id",
         "tags": [
-          "Midaz_Ledger_API_Balances"
+          "Midaz_Ledger_API_Balances (v2)"
         ]
       },
       "post": {
@@ -12641,7 +12733,7 @@
         ],
         "summary": "Create Additional Balance",
         "tags": [
-          "Midaz_Ledger_API_Balances"
+          "Midaz_Ledger_API_Balances (v2)"
         ]
       }
     },
@@ -12728,7 +12820,7 @@
         ],
         "summary": "Get Account Balances history at date",
         "tags": [
-          "Midaz_Ledger_API_Balances"
+          "Midaz_Ledger_API_Balances (v2)"
         ]
       }
     },
@@ -12899,7 +12991,7 @@
         ],
         "summary": "Get all Operations by account",
         "tags": [
-          "Midaz_Ledger_API_Operations"
+          "Midaz_Ledger_API_Operations (v2)"
         ]
       }
     },
@@ -12980,7 +13072,7 @@
         ],
         "summary": "Get Operation",
         "tags": [
-          "Midaz_Ledger_API_Operations"
+          "Midaz_Ledger_API_Operations (v2)"
         ]
       }
     },
@@ -13053,7 +13145,7 @@
         ],
         "summary": "Delete an account",
         "tags": [
-          "Midaz_Ledger_API_Accounts"
+          "Midaz_Ledger_API_Accounts (v2)"
         ]
       },
       "get": {
@@ -13122,7 +13214,7 @@
         ],
         "summary": "Retrieve a specific account",
         "tags": [
-          "Midaz_Ledger_API_Accounts"
+          "Midaz_Ledger_API_Accounts (v2)"
         ]
       },
       "patch": {
@@ -13201,7 +13293,7 @@
         ],
         "summary": "Update an account",
         "tags": [
-          "Midaz_Ledger_API_Accounts"
+          "Midaz_Ledger_API_Accounts (v2)"
         ]
       }
     },
@@ -13272,7 +13364,7 @@
         ],
         "summary": "Create or Update an AssetRate",
         "tags": [
-          "Midaz_Ledger_API_Asset Rates"
+          "Midaz_Ledger_API_Asset Rates (v2)"
         ]
       }
     },
@@ -13409,7 +13501,7 @@
         ],
         "summary": "Get an AssetRate by the Asset Code",
         "tags": [
-          "Midaz_Ledger_API_Asset Rates"
+          "Midaz_Ledger_API_Asset Rates (v2)"
         ]
       }
     },
@@ -13480,7 +13572,7 @@
         ],
         "summary": "Get an AssetRate by External ID",
         "tags": [
-          "Midaz_Ledger_API_Asset Rates"
+          "Midaz_Ledger_API_Asset Rates (v2)"
         ]
       }
     },
@@ -13601,7 +13693,7 @@
         ],
         "summary": "List all assets",
         "tags": [
-          "Midaz_Ledger_API_Assets"
+          "Midaz_Ledger_API_Assets (v2)"
         ]
       },
       "post": {
@@ -13679,7 +13771,7 @@
         ],
         "summary": "Create a new asset",
         "tags": [
-          "Midaz_Ledger_API_Assets"
+          "Midaz_Ledger_API_Assets (v2)"
         ]
       }
     },
@@ -13745,7 +13837,7 @@
         ],
         "summary": "Count total assets",
         "tags": [
-          "Midaz_Ledger_API_Assets"
+          "Midaz_Ledger_API_Assets (v2)"
         ]
       }
     },
@@ -13809,7 +13901,7 @@
         ],
         "summary": "Delete an asset",
         "tags": [
-          "Midaz_Ledger_API_Assets"
+          "Midaz_Ledger_API_Assets (v2)"
         ]
       },
       "get": {
@@ -13878,7 +13970,7 @@
         ],
         "summary": "Retrieve a specific asset",
         "tags": [
-          "Midaz_Ledger_API_Assets"
+          "Midaz_Ledger_API_Assets (v2)"
         ]
       },
       "patch": {
@@ -13957,7 +14049,7 @@
         ],
         "summary": "Update an asset",
         "tags": [
-          "Midaz_Ledger_API_Assets"
+          "Midaz_Ledger_API_Assets (v2)"
         ]
       }
     },
@@ -14068,7 +14160,7 @@
         ],
         "summary": "Get all balances",
         "tags": [
-          "Midaz_Ledger_API_Balances"
+          "Midaz_Ledger_API_Balances (v2)"
         ]
       }
     },
@@ -14132,7 +14224,7 @@
         ],
         "summary": "Delete Balance by account",
         "tags": [
-          "Midaz_Ledger_API_Balances"
+          "Midaz_Ledger_API_Balances (v2)"
         ]
       },
       "get": {
@@ -14201,7 +14293,7 @@
         ],
         "summary": "Get Balance by id",
         "tags": [
-          "Midaz_Ledger_API_Balances"
+          "Midaz_Ledger_API_Balances (v2)"
         ]
       },
       "patch": {
@@ -14280,7 +14372,7 @@
         ],
         "summary": "Update Balance",
         "tags": [
-          "Midaz_Ledger_API_Balances"
+          "Midaz_Ledger_API_Balances (v2)"
         ]
       }
     },
@@ -14361,7 +14453,7 @@
         ],
         "summary": "Get Balance history at date",
         "tags": [
-          "Midaz_Ledger_API_Balances"
+          "Midaz_Ledger_API_Balances (v2)"
         ]
       }
     },
@@ -14449,7 +14541,7 @@
         ],
         "summary": "Get all billing packages of a ledger",
         "tags": [
-          "Midaz_Ledger_API_Billing Packages"
+          "Midaz_Ledger_API_Billing Packages (v2)"
         ]
       },
       "post": {
@@ -14515,7 +14607,7 @@
         ],
         "summary": "Create a BillingPackage",
         "tags": [
-          "Midaz_Ledger_API_Billing Packages"
+          "Midaz_Ledger_API_Billing Packages (v2)"
         ]
       }
     },
@@ -14576,7 +14668,7 @@
         ],
         "summary": "SoftDelete a BillingPackage by ID",
         "tags": [
-          "Midaz_Ledger_API_Billing Packages"
+          "Midaz_Ledger_API_Billing Packages (v2)"
         ]
       },
       "get": {
@@ -14642,7 +14734,7 @@
         ],
         "summary": "Get billing package",
         "tags": [
-          "Midaz_Ledger_API_Billing Packages"
+          "Midaz_Ledger_API_Billing Packages (v2)"
         ]
       },
       "patch": {
@@ -14718,7 +14810,7 @@
         ],
         "summary": "Update a billing package",
         "tags": [
-          "Midaz_Ledger_API_Billing Packages"
+          "Midaz_Ledger_API_Billing Packages (v2)"
         ]
       }
     },
@@ -14786,7 +14878,7 @@
         ],
         "summary": "Calculate billing",
         "tags": [
-          "Midaz_Ledger_API_Billing Calculate"
+          "Midaz_Ledger_API_Billing Calculate (v2)"
         ]
       }
     },
@@ -14855,7 +14947,7 @@
         ],
         "summary": "Create a fee estimate calculation",
         "tags": [
-          "Midaz_Ledger_API_Fees"
+          "Midaz_Ledger_API_Fees (v2)"
         ]
       }
     },
@@ -14942,7 +15034,7 @@
         ],
         "summary": "Open a holder-owned account (with optional instrument)",
         "tags": [
-          "Midaz_Ledger_API_Composition"
+          "Midaz_Ledger_API_Composition (v2)"
         ]
       }
     },
@@ -15050,7 +15142,7 @@
         ],
         "summary": "Retrieve all operation routes",
         "tags": [
-          "Midaz_Ledger_API_Operation Routes"
+          "Midaz_Ledger_API_Operation Routes (v2)"
         ]
       },
       "post": {
@@ -15116,7 +15208,7 @@
         ],
         "summary": "Create Operation Route",
         "tags": [
-          "Midaz_Ledger_API_Operation Routes"
+          "Midaz_Ledger_API_Operation Routes (v2)"
         ]
       }
     },
@@ -15177,7 +15269,7 @@
         ],
         "summary": "Delete an operation route",
         "tags": [
-          "Midaz_Ledger_API_Operation Routes"
+          "Midaz_Ledger_API_Operation Routes (v2)"
         ]
       },
       "get": {
@@ -15243,7 +15335,7 @@
         ],
         "summary": "Retrieve a specific operation route",
         "tags": [
-          "Midaz_Ledger_API_Operation Routes"
+          "Midaz_Ledger_API_Operation Routes (v2)"
         ]
       },
       "patch": {
@@ -15319,7 +15411,7 @@
         ],
         "summary": "Update an operation route",
         "tags": [
-          "Midaz_Ledger_API_Operation Routes"
+          "Midaz_Ledger_API_Operation Routes (v2)"
         ]
       }
     },
@@ -15427,7 +15519,7 @@
         ],
         "summary": "Get all packages of a ledger",
         "tags": [
-          "Midaz_Ledger_API_Packages"
+          "Midaz_Ledger_API_Packages (v2)"
         ]
       },
       "post": {
@@ -15493,7 +15585,7 @@
         ],
         "summary": "Create a Package",
         "tags": [
-          "Midaz_Ledger_API_Packages"
+          "Midaz_Ledger_API_Packages (v2)"
         ]
       }
     },
@@ -15554,7 +15646,7 @@
         ],
         "summary": "SoftDelete a Package by ID",
         "tags": [
-          "Midaz_Ledger_API_Packages"
+          "Midaz_Ledger_API_Packages (v2)"
         ]
       },
       "get": {
@@ -15620,7 +15712,7 @@
         ],
         "summary": "Get package",
         "tags": [
-          "Midaz_Ledger_API_Packages"
+          "Midaz_Ledger_API_Packages (v2)"
         ]
       },
       "patch": {
@@ -15696,7 +15788,7 @@
         ],
         "summary": "Update a package",
         "tags": [
-          "Midaz_Ledger_API_Packages"
+          "Midaz_Ledger_API_Packages (v2)"
         ]
       }
     },
@@ -15837,7 +15929,7 @@
         ],
         "summary": "List all portfolios",
         "tags": [
-          "Midaz_Ledger_API_Portfolios"
+          "Midaz_Ledger_API_Portfolios (v2)"
         ]
       },
       "post": {
@@ -15906,7 +15998,7 @@
         ],
         "summary": "Create a new portfolio",
         "tags": [
-          "Midaz_Ledger_API_Portfolios"
+          "Midaz_Ledger_API_Portfolios (v2)"
         ]
       }
     },
@@ -15972,7 +16064,7 @@
         ],
         "summary": "Count total portfolios",
         "tags": [
-          "Midaz_Ledger_API_Portfolios"
+          "Midaz_Ledger_API_Portfolios (v2)"
         ]
       }
     },
@@ -16036,7 +16128,7 @@
         ],
         "summary": "Delete a portfolio",
         "tags": [
-          "Midaz_Ledger_API_Portfolios"
+          "Midaz_Ledger_API_Portfolios (v2)"
         ]
       },
       "get": {
@@ -16105,7 +16197,7 @@
         ],
         "summary": "Retrieve a specific portfolio",
         "tags": [
-          "Midaz_Ledger_API_Portfolios"
+          "Midaz_Ledger_API_Portfolios (v2)"
         ]
       },
       "patch": {
@@ -16184,7 +16276,7 @@
         ],
         "summary": "Update a portfolio",
         "tags": [
-          "Midaz_Ledger_API_Portfolios"
+          "Midaz_Ledger_API_Portfolios (v2)"
         ]
       }
     },
@@ -16305,7 +16397,7 @@
         ],
         "summary": "List all segments",
         "tags": [
-          "Midaz_Ledger_API_Segments"
+          "Midaz_Ledger_API_Segments (v2)"
         ]
       },
       "post": {
@@ -16374,7 +16466,7 @@
         ],
         "summary": "Create a new segment",
         "tags": [
-          "Midaz_Ledger_API_Segments"
+          "Midaz_Ledger_API_Segments (v2)"
         ]
       }
     },
@@ -16440,7 +16532,7 @@
         ],
         "summary": "Count total segments",
         "tags": [
-          "Midaz_Ledger_API_Segments"
+          "Midaz_Ledger_API_Segments (v2)"
         ]
       }
     },
@@ -16504,7 +16596,7 @@
         ],
         "summary": "Delete a segment",
         "tags": [
-          "Midaz_Ledger_API_Segments"
+          "Midaz_Ledger_API_Segments (v2)"
         ]
       },
       "get": {
@@ -16573,7 +16665,7 @@
         ],
         "summary": "Retrieve a specific segment",
         "tags": [
-          "Midaz_Ledger_API_Segments"
+          "Midaz_Ledger_API_Segments (v2)"
         ]
       },
       "patch": {
@@ -16652,7 +16744,7 @@
         ],
         "summary": "Update a segment",
         "tags": [
-          "Midaz_Ledger_API_Segments"
+          "Midaz_Ledger_API_Segments (v2)"
         ]
       }
     },
@@ -16713,7 +16805,7 @@
         ],
         "summary": "Get ledger settings",
         "tags": [
-          "Midaz_Ledger_API_Ledgers"
+          "Midaz_Ledger_API_Ledgers (v2)"
         ]
       },
       "patch": {
@@ -16783,7 +16875,7 @@
         ],
         "summary": "Update ledger settings",
         "tags": [
-          "Midaz_Ledger_API_Ledgers"
+          "Midaz_Ledger_API_Ledgers (v2)"
         ]
       }
     },
@@ -16891,7 +16983,7 @@
         ],
         "summary": "Get all Transaction Routes",
         "tags": [
-          "Midaz_Ledger_API_Transaction Routes"
+          "Midaz_Ledger_API_Transaction Routes (v2)"
         ]
       },
       "post": {
@@ -16957,7 +17049,7 @@
         ],
         "summary": "Create Transaction Route",
         "tags": [
-          "Midaz_Ledger_API_Transaction Routes"
+          "Midaz_Ledger_API_Transaction Routes (v2)"
         ]
       }
     },
@@ -17018,7 +17110,7 @@
         ],
         "summary": "Delete Transaction Route by ID",
         "tags": [
-          "Midaz_Ledger_API_Transaction Routes"
+          "Midaz_Ledger_API_Transaction Routes (v2)"
         ]
       },
       "get": {
@@ -17084,7 +17176,7 @@
         ],
         "summary": "Get Transaction Route by ID",
         "tags": [
-          "Midaz_Ledger_API_Transaction Routes"
+          "Midaz_Ledger_API_Transaction Routes (v2)"
         ]
       },
       "patch": {
@@ -17160,7 +17252,7 @@
         ],
         "summary": "Update Transaction Route",
         "tags": [
-          "Midaz_Ledger_API_Transaction Routes"
+          "Midaz_Ledger_API_Transaction Routes (v2)"
         ]
       }
     },
@@ -17278,7 +17370,7 @@
         ],
         "summary": "Get all Transactions",
         "tags": [
-          "Midaz_Ledger_API_Transactions"
+          "Midaz_Ledger_API_Transactions (v2)"
         ]
       }
     },
@@ -17371,7 +17463,7 @@
         ],
         "summary": "Create a Transaction Annotation using JSON",
         "tags": [
-          "Midaz_Ledger_API_Transactions"
+          "Midaz_Ledger_API_Transactions (v2)"
         ]
       }
     },
@@ -17464,7 +17556,7 @@
         ],
         "summary": "Create a Transaction without passing from source",
         "tags": [
-          "Midaz_Ledger_API_Transactions"
+          "Midaz_Ledger_API_Transactions (v2)"
         ]
       }
     },
@@ -17557,7 +17649,7 @@
         ],
         "summary": "Create a Transaction using JSON",
         "tags": [
-          "Midaz_Ledger_API_Transactions"
+          "Midaz_Ledger_API_Transactions (v2)"
         ]
       }
     },
@@ -17663,7 +17755,7 @@
         ],
         "summary": "Count Transactions by Filters",
         "tags": [
-          "Midaz_Ledger_API_Transactions"
+          "Midaz_Ledger_API_Transactions (v2)"
         ]
       }
     },
@@ -17756,7 +17848,7 @@
         ],
         "summary": "Create a Transaction without passing to distribution",
         "tags": [
-          "Midaz_Ledger_API_Transactions"
+          "Midaz_Ledger_API_Transactions (v2)"
         ]
       }
     },
@@ -17831,7 +17923,7 @@
         ],
         "summary": "Get a Transaction by ID",
         "tags": [
-          "Midaz_Ledger_API_Transactions"
+          "Midaz_Ledger_API_Transactions (v2)"
         ]
       },
       "patch": {
@@ -17907,7 +17999,7 @@
         ],
         "summary": "Update a Transaction",
         "tags": [
-          "Midaz_Ledger_API_Transactions"
+          "Midaz_Ledger_API_Transactions (v2)"
         ]
       }
     },
@@ -17975,7 +18067,7 @@
         ],
         "summary": "Cancel a pending Transaction (v2)",
         "tags": [
-          "Midaz_Ledger_API_Transactions"
+          "Midaz_Ledger_API_Transactions (v2)"
         ]
       }
     },
@@ -18043,7 +18135,7 @@
         ],
         "summary": "Commit a Transaction (v2)",
         "tags": [
-          "Midaz_Ledger_API_Transactions"
+          "Midaz_Ledger_API_Transactions (v2)"
         ]
       }
     },
@@ -18131,7 +18223,7 @@
         ],
         "summary": "Update an Operation",
         "tags": [
-          "Midaz_Ledger_API_Operations"
+          "Midaz_Ledger_API_Operations (v2)"
         ]
       }
     },
@@ -18206,7 +18298,7 @@
         ],
         "summary": "Revert a Transaction (v2)",
         "tags": [
-          "Midaz_Ledger_API_Transactions"
+          "Midaz_Ledger_API_Transactions (v2)"
         ]
       }
     },
@@ -18343,7 +18435,7 @@
         ],
         "summary": "List Protection Audit Events",
         "tags": [
-          "Midaz_Ledger_API_Protection"
+          "Midaz_Ledger_API_Protection (v2)"
         ]
       }
     },
@@ -18400,7 +18492,7 @@
         ],
         "summary": "Get all Metadata Indexes",
         "tags": [
-          "Midaz_Ledger_API_Metadata Indexes"
+          "Midaz_Ledger_API_Metadata Indexes (v2)"
         ]
       }
     },
@@ -18461,7 +18553,7 @@
         ],
         "summary": "Create Metadata Index",
         "tags": [
-          "Midaz_Ledger_API_Metadata Indexes"
+          "Midaz_Ledger_API_Metadata Indexes (v2)"
         ]
       }
     },
@@ -18515,7 +18607,7 @@
         ],
         "summary": "Delete Metadata Index",
         "tags": [
-          "Midaz_Ledger_API_Metadata Indexes"
+          "Midaz_Ledger_API_Metadata Indexes (v2)"
         ]
       }
     },
@@ -18588,7 +18680,7 @@
         ],
         "summary": "Create a Transaction using the v2 block model",
         "tags": [
-          "Midaz_Ledger_API_Transactions"
+          "Midaz_Ledger_API_Transactions (v2)"
         ]
       }
     },
@@ -18661,7 +18753,7 @@
         ],
         "summary": "Create a Transaction using the v2 direct model",
         "tags": [
-          "Midaz_Ledger_API_Transactions"
+          "Midaz_Ledger_API_Transactions (v2)"
         ]
       }
     },
@@ -18734,7 +18826,7 @@
         ],
         "summary": "Create a Transaction using the v2 hold model",
         "tags": [
-          "Midaz_Ledger_API_Transactions"
+          "Midaz_Ledger_API_Transactions (v2)"
         ]
       }
     },
@@ -18807,7 +18899,7 @@
         ],
         "summary": "Create a Transaction using the v2 unblock model",
         "tags": [
-          "Midaz_Ledger_API_Transactions"
+          "Midaz_Ledger_API_Transactions (v2)"
         ]
       }
     },
@@ -27998,29 +28090,52 @@
     {
       "name": "Midaz Ledger API",
       "tags": [
-        "Midaz_Ledger_API_Organizations",
-        "Midaz_Ledger_API_Billing Packages",
-        "Midaz_Ledger_API_Billing Calculate",
-        "Midaz_Ledger_API_Encryption",
-        "Midaz_Ledger_API_Fees",
-        "Midaz_Ledger_API_Holders",
-        "Midaz_Ledger_API_Instruments",
-        "Midaz_Ledger_API_Ledgers",
-        "Midaz_Ledger_API_Account Types",
-        "Midaz_Ledger_API_Accounts",
-        "Midaz_Ledger_API_Balances",
-        "Midaz_Ledger_API_Operations",
-        "Midaz_Ledger_API_Asset Rates",
-        "Midaz_Ledger_API_Assets",
-        "Midaz_Ledger_API_Composition",
-        "Midaz_Ledger_API_Operation Routes",
-        "Midaz_Ledger_API_Portfolios",
-        "Midaz_Ledger_API_Segments",
-        "Midaz_Ledger_API_Transaction Routes",
-        "Midaz_Ledger_API_Transactions",
-        "Midaz_Ledger_API_Packages",
-        "Midaz_Ledger_API_Protection",
-        "Midaz_Ledger_API_Metadata Indexes"
+        "Midaz_Ledger_API_Account Types (v1)",
+        "Midaz_Ledger_API_Account Types (v2)",
+        "Midaz_Ledger_API_Accounts (v1)",
+        "Midaz_Ledger_API_Accounts (v2)",
+        "Midaz_Ledger_API_Asset Rates (v1)",
+        "Midaz_Ledger_API_Asset Rates (v2)",
+        "Midaz_Ledger_API_Assets (v1)",
+        "Midaz_Ledger_API_Assets (v2)",
+        "Midaz_Ledger_API_Balances (v1)",
+        "Midaz_Ledger_API_Balances (v2)",
+        "Midaz_Ledger_API_Billing Calculate (v1)",
+        "Midaz_Ledger_API_Billing Calculate (v2)",
+        "Midaz_Ledger_API_Billing Packages (v1)",
+        "Midaz_Ledger_API_Billing Packages (v2)",
+        "Midaz_Ledger_API_Composition (v1)",
+        "Midaz_Ledger_API_Composition (v2)",
+        "Midaz_Ledger_API_Encryption (v1)",
+        "Midaz_Ledger_API_Encryption (v2)",
+        "Midaz_Ledger_API_Fees (v1)",
+        "Midaz_Ledger_API_Fees (v2)",
+        "Midaz_Ledger_API_Holders (v1)",
+        "Midaz_Ledger_API_Holders (v2)",
+        "Midaz_Ledger_API_Instruments (v1)",
+        "Midaz_Ledger_API_Instruments (v2)",
+        "Midaz_Ledger_API_Ledgers (v1)",
+        "Midaz_Ledger_API_Ledgers (v2)",
+        "Midaz_Ledger_API_Metadata Indexes (v1)",
+        "Midaz_Ledger_API_Metadata Indexes (v2)",
+        "Midaz_Ledger_API_Operation Routes (v1)",
+        "Midaz_Ledger_API_Operation Routes (v2)",
+        "Midaz_Ledger_API_Operations (v1)",
+        "Midaz_Ledger_API_Operations (v2)",
+        "Midaz_Ledger_API_Organizations (v1)",
+        "Midaz_Ledger_API_Organizations (v2)",
+        "Midaz_Ledger_API_Packages (v1)",
+        "Midaz_Ledger_API_Packages (v2)",
+        "Midaz_Ledger_API_Portfolios (v1)",
+        "Midaz_Ledger_API_Portfolios (v2)",
+        "Midaz_Ledger_API_Protection (v1)",
+        "Midaz_Ledger_API_Protection (v2)",
+        "Midaz_Ledger_API_Segments (v1)",
+        "Midaz_Ledger_API_Segments (v2)",
+        "Midaz_Ledger_API_Transaction Routes (v1)",
+        "Midaz_Ledger_API_Transaction Routes (v2)",
+        "Midaz_Ledger_API_Transactions (v1)",
+        "Midaz_Ledger_API_Transactions (v2)"
       ]
     },
     {

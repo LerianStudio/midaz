@@ -127,7 +127,7 @@
           "_matchInfo": {
             "originalPath": "/v1/organizations",
             "normalizedPath": "/v1/organizations",
-            "folderPath": "Organizations",
+            "folderPath": "Organizations (v1)",
             "matchedTargetPath": "/v1/organizations"
           }
         },
@@ -245,7 +245,7 @@
           "_matchInfo": {
             "originalPath": "/v1/organizations/{{organizationId}}",
             "normalizedPath": "/v1/organizations/{}",
-            "folderPath": "Organizations",
+            "folderPath": "Organizations (v1)",
             "matchedTargetPath": "/v1/organizations/{}"
           }
         },
@@ -381,7 +381,7 @@
           "_matchInfo": {
             "originalPath": "/v1/organizations/{{organizationId}}",
             "normalizedPath": "/v1/organizations/{}",
-            "folderPath": "Organizations",
+            "folderPath": "Organizations (v1)",
             "matchedTargetPath": "/v1/organizations/{}"
           }
         },
@@ -607,7 +607,7 @@
           "_matchInfo": {
             "originalPath": "/v1/organizations",
             "normalizedPath": "/v1/organizations",
-            "folderPath": "Organizations",
+            "folderPath": "Organizations (v1)",
             "matchedTargetPath": "/v1/organizations"
           }
         },
@@ -745,7 +745,7 @@
           "_matchInfo": {
             "originalPath": "/v1/organizations/{{organizationId}}/ledgers",
             "normalizedPath": "/v1/organizations/{}/ledgers",
-            "folderPath": "Ledgers",
+            "folderPath": "Ledgers (v1)",
             "matchedTargetPath": "/v1/organizations/{}/ledgers"
           }
         },
@@ -877,7 +877,7 @@
           "_matchInfo": {
             "originalPath": "/v1/organizations/{{organizationId}}/ledgers/{{ledgerId}}",
             "normalizedPath": "/v1/organizations/{}/ledgers/{}",
-            "folderPath": "Ledgers",
+            "folderPath": "Ledgers (v1)",
             "matchedTargetPath": "/v1/organizations/{}/ledgers/{}"
           }
         },
@@ -1027,7 +1027,7 @@
           "_matchInfo": {
             "originalPath": "/v1/organizations/{{organizationId}}/ledgers/{{ledgerId}}",
             "normalizedPath": "/v1/organizations/{}/ledgers/{}",
-            "folderPath": "Ledgers",
+            "folderPath": "Ledgers (v1)",
             "matchedTargetPath": "/v1/organizations/{}/ledgers/{}"
           }
         },
@@ -1247,7 +1247,7 @@
           "_matchInfo": {
             "originalPath": "/v1/organizations/{{organizationId}}/ledgers",
             "normalizedPath": "/v1/organizations/{}/ledgers",
-            "folderPath": "Ledgers",
+            "folderPath": "Ledgers (v1)",
             "matchedTargetPath": "/v1/organizations/{}/ledgers"
           }
         },
@@ -1399,7 +1399,7 @@
           "_matchInfo": {
             "originalPath": "/v1/organizations/{{organizationId}}/ledgers/{{ledgerId}}/assets",
             "normalizedPath": "/v1/organizations/{}/ledgers/{}/assets",
-            "folderPath": "Assets",
+            "folderPath": "Assets (v1)",
             "matchedTargetPath": "/v1/organizations/{}/ledgers/{}/assets"
           }
         },
@@ -1545,7 +1545,7 @@
           "_matchInfo": {
             "originalPath": "/v1/organizations/{{organizationId}}/ledgers/{{ledgerId}}/assets/{{assetId}}",
             "normalizedPath": "/v1/organizations/{}/ledgers/{}/assets/{}",
-            "folderPath": "Assets",
+            "folderPath": "Assets (v1)",
             "matchedTargetPath": "/v1/organizations/{}/ledgers/{}/assets/{}"
           }
         },
@@ -1709,7 +1709,7 @@
           "_matchInfo": {
             "originalPath": "/v1/organizations/{{organizationId}}/ledgers/{{ledgerId}}/assets/{{assetId}}",
             "normalizedPath": "/v1/organizations/{}/ledgers/{}/assets/{}",
-            "folderPath": "Assets",
+            "folderPath": "Assets (v1)",
             "matchedTargetPath": "/v1/organizations/{}/ledgers/{}/assets/{}"
           }
         },
@@ -1919,7 +1919,7 @@
           "_matchInfo": {
             "originalPath": "/v1/organizations/{{organizationId}}/ledgers/{{ledgerId}}/assets",
             "normalizedPath": "/v1/organizations/{}/ledgers/{}/assets",
-            "folderPath": "Assets",
+            "folderPath": "Assets (v1)",
             "matchedTargetPath": "/v1/organizations/{}/ledgers/{}/assets"
           }
         },
@@ -2071,7 +2071,7 @@
           "_matchInfo": {
             "originalPath": "/v1/organizations/{{organizationId}}/ledgers/{{ledgerId}}/accounts",
             "normalizedPath": "/v1/organizations/{}/ledgers/{}/accounts",
-            "folderPath": "Accounts",
+            "folderPath": "Accounts (v1)",
             "matchedTargetPath": "/v1/organizations/{}/ledgers/{}/accounts"
           }
         },
@@ -2217,7 +2217,7 @@
           "_matchInfo": {
             "originalPath": "/v1/organizations/{{organizationId}}/ledgers/{{ledgerId}}/accounts/{{accountId}}",
             "normalizedPath": "/v1/organizations/{}/ledgers/{}/accounts/{}",
-            "folderPath": "Accounts",
+            "folderPath": "Accounts (v1)",
             "matchedTargetPath": "/v1/organizations/{}/ledgers/{}/accounts/{}"
           }
         },
@@ -2381,7 +2381,7 @@
           "_matchInfo": {
             "originalPath": "/v1/organizations/{{organizationId}}/ledgers/{{ledgerId}}/accounts/{{accountId}}",
             "normalizedPath": "/v1/organizations/{}/ledgers/{}/accounts/{}",
-            "folderPath": "Accounts",
+            "folderPath": "Accounts (v1)",
             "matchedTargetPath": "/v1/organizations/{}/ledgers/{}/accounts/{}"
           }
         },
@@ -2711,7 +2711,7 @@
           "_matchInfo": {
             "originalPath": "/v1/organizations/{{organizationId}}/ledgers/{{ledgerId}}/accounts",
             "normalizedPath": "/v1/organizations/{}/ledgers/{}/accounts",
-            "folderPath": "Accounts",
+            "folderPath": "Accounts (v1)",
             "matchedTargetPath": "/v1/organizations/{}/ledgers/{}/accounts"
           }
         },
@@ -2863,7 +2863,7 @@
           "_matchInfo": {
             "originalPath": "/v1/organizations/{{organizationId}}/ledgers/{{ledgerId}}/portfolios",
             "normalizedPath": "/v1/organizations/{}/ledgers/{}/portfolios",
-            "folderPath": "Portfolios",
+            "folderPath": "Portfolios (v1)",
             "matchedTargetPath": "/v1/organizations/{}/ledgers/{}/portfolios"
           }
         },
@@ -3009,7 +3009,7 @@
           "_matchInfo": {
             "originalPath": "/v1/organizations/{{organizationId}}/ledgers/{{ledgerId}}/portfolios/{{portfolioId}}",
             "normalizedPath": "/v1/organizations/{}/ledgers/{}/portfolios/{}",
-            "folderPath": "Portfolios",
+            "folderPath": "Portfolios (v1)",
             "matchedTargetPath": "/v1/organizations/{}/ledgers/{}/portfolios/{}"
           }
         },
@@ -3173,7 +3173,7 @@
           "_matchInfo": {
             "originalPath": "/v1/organizations/{{organizationId}}/ledgers/{{ledgerId}}/portfolios/{{portfolioId}}",
             "normalizedPath": "/v1/organizations/{}/ledgers/{}/portfolios/{}",
-            "folderPath": "Portfolios",
+            "folderPath": "Portfolios (v1)",
             "matchedTargetPath": "/v1/organizations/{}/ledgers/{}/portfolios/{}"
           }
         },
@@ -3407,7 +3407,7 @@
           "_matchInfo": {
             "originalPath": "/v1/organizations/{{organizationId}}/ledgers/{{ledgerId}}/portfolios",
             "normalizedPath": "/v1/organizations/{}/ledgers/{}/portfolios",
-            "folderPath": "Portfolios",
+            "folderPath": "Portfolios (v1)",
             "matchedTargetPath": "/v1/organizations/{}/ledgers/{}/portfolios"
           }
         },
@@ -3559,7 +3559,7 @@
           "_matchInfo": {
             "originalPath": "/v1/organizations/{{organizationId}}/ledgers/{{ledgerId}}/segments",
             "normalizedPath": "/v1/organizations/{}/ledgers/{}/segments",
-            "folderPath": "Segments",
+            "folderPath": "Segments (v1)",
             "matchedTargetPath": "/v1/organizations/{}/ledgers/{}/segments"
           }
         },
@@ -3705,7 +3705,7 @@
           "_matchInfo": {
             "originalPath": "/v1/organizations/{{organizationId}}/ledgers/{{ledgerId}}/segments/{{segmentId}}",
             "normalizedPath": "/v1/organizations/{}/ledgers/{}/segments/{}",
-            "folderPath": "Segments",
+            "folderPath": "Segments (v1)",
             "matchedTargetPath": "/v1/organizations/{}/ledgers/{}/segments/{}"
           }
         },
@@ -3869,7 +3869,7 @@
           "_matchInfo": {
             "originalPath": "/v1/organizations/{{organizationId}}/ledgers/{{ledgerId}}/segments/{{segmentId}}",
             "normalizedPath": "/v1/organizations/{}/ledgers/{}/segments/{}",
-            "folderPath": "Segments",
+            "folderPath": "Segments (v1)",
             "matchedTargetPath": "/v1/organizations/{}/ledgers/{}/segments/{}"
           }
         },
@@ -4079,7 +4079,7 @@
           "_matchInfo": {
             "originalPath": "/v1/organizations/{{organizationId}}/ledgers/{{ledgerId}}/segments",
             "normalizedPath": "/v1/organizations/{}/ledgers/{}/segments",
-            "folderPath": "Segments",
+            "folderPath": "Segments (v1)",
             "matchedTargetPath": "/v1/organizations/{}/ledgers/{}/segments"
           }
         },
@@ -4141,7 +4141,7 @@
           "_matchInfo": {
             "originalPath": "/v1/organizations/metrics/count",
             "normalizedPath": "/v1/organizations/metrics/count",
-            "folderPath": "Organizations",
+            "folderPath": "Organizations (v1)",
             "matchedTargetPath": "/v1/organizations/metrics/count"
           }
         },
@@ -4212,7 +4212,7 @@
           "_matchInfo": {
             "originalPath": "/v1/organizations/{{organizationId}}/ledgers/metrics/count",
             "normalizedPath": "/v1/organizations/{}/ledgers/metrics/count",
-            "folderPath": "Ledgers",
+            "folderPath": "Ledgers (v1)",
             "matchedTargetPath": "/v1/organizations/{}/ledgers/metrics/count"
           }
         },
@@ -4290,7 +4290,7 @@
           "_matchInfo": {
             "originalPath": "/v1/organizations/{{organizationId}}/ledgers/{{ledgerId}}/accounts/metrics/count",
             "normalizedPath": "/v1/organizations/{}/ledgers/{}/accounts/metrics/count",
-            "folderPath": "Accounts",
+            "folderPath": "Accounts (v1)",
             "matchedTargetPath": "/v1/organizations/{}/ledgers/{}/accounts/metrics/count"
           }
         },
@@ -4368,7 +4368,7 @@
           "_matchInfo": {
             "originalPath": "/v1/organizations/{{organizationId}}/ledgers/{{ledgerId}}/assets/metrics/count",
             "normalizedPath": "/v1/organizations/{}/ledgers/{}/assets/metrics/count",
-            "folderPath": "Assets",
+            "folderPath": "Assets (v1)",
             "matchedTargetPath": "/v1/organizations/{}/ledgers/{}/assets/metrics/count"
           }
         },
@@ -4446,7 +4446,7 @@
           "_matchInfo": {
             "originalPath": "/v1/organizations/{{organizationId}}/ledgers/{{ledgerId}}/portfolios/metrics/count",
             "normalizedPath": "/v1/organizations/{}/ledgers/{}/portfolios/metrics/count",
-            "folderPath": "Portfolios",
+            "folderPath": "Portfolios (v1)",
             "matchedTargetPath": "/v1/organizations/{}/ledgers/{}/portfolios/metrics/count"
           }
         },
@@ -4524,7 +4524,7 @@
           "_matchInfo": {
             "originalPath": "/v1/organizations/{{organizationId}}/ledgers/{{ledgerId}}/segments/metrics/count",
             "normalizedPath": "/v1/organizations/{}/ledgers/{}/segments/metrics/count",
-            "folderPath": "Segments",
+            "folderPath": "Segments (v1)",
             "matchedTargetPath": "/v1/organizations/{}/ledgers/{}/segments/metrics/count"
           }
         },
@@ -4672,7 +4672,7 @@
           "_matchInfo": {
             "originalPath": "/v1/organizations/{{organizationId}}/ledgers/{{ledgerId}}/accounts/alias/{{accountAlias}}",
             "normalizedPath": "/v1/organizations/{}/ledgers/{}/accounts/alias/{}",
-            "folderPath": "Accounts",
+            "folderPath": "Accounts (v1)",
             "matchedTargetPath": "/v1/organizations/{}/ledgers/{}/accounts/alias/{}"
           }
         },
@@ -4820,7 +4820,7 @@
           "_matchInfo": {
             "originalPath": "/v1/organizations/{{organizationId}}/ledgers/{{ledgerId}}/accounts/external/{{externalCode}}",
             "normalizedPath": "/v1/organizations/{}/ledgers/{}/accounts/external/{}",
-            "folderPath": "Accounts",
+            "folderPath": "Accounts (v1)",
             "matchedTargetPath": "/v1/organizations/{}/ledgers/{}/accounts/external/{}"
           }
         },
@@ -5010,7 +5010,7 @@
           "_matchInfo": {
             "originalPath": "/v1/organizations/{{organizationId}}/ledgers/{{ledgerId}}/transactions/json",
             "normalizedPath": "/v1/organizations/{}/ledgers/{}/transactions/json",
-            "folderPath": "Transactions",
+            "folderPath": "Transactions (v1)",
             "matchedTargetPath": "/v1/organizations/{}/ledgers/{}/transactions/json"
           }
         },
@@ -5188,7 +5188,7 @@
           "_matchInfo": {
             "originalPath": "/v1/organizations/{{organizationId}}/ledgers/{{ledgerId}}/transactions/inflow",
             "normalizedPath": "/v1/organizations/{}/ledgers/{}/transactions/inflow",
-            "folderPath": "Transactions",
+            "folderPath": "Transactions (v1)",
             "matchedTargetPath": "/v1/organizations/{}/ledgers/{}/transactions/inflow"
           }
         },
@@ -5366,7 +5366,7 @@
           "_matchInfo": {
             "originalPath": "/v1/organizations/{{organizationId}}/ledgers/{{ledgerId}}/transactions/outflow",
             "normalizedPath": "/v1/organizations/{}/ledgers/{}/transactions/outflow",
-            "folderPath": "Transactions",
+            "folderPath": "Transactions (v1)",
             "matchedTargetPath": "/v1/organizations/{}/ledgers/{}/transactions/outflow"
           }
         },
@@ -5512,7 +5512,7 @@
           "_matchInfo": {
             "originalPath": "/v1/organizations/{{organizationId}}/ledgers/{{ledgerId}}/transactions/{{transactionId}}",
             "normalizedPath": "/v1/organizations/{}/ledgers/{}/transactions/{}",
-            "folderPath": "Transactions",
+            "folderPath": "Transactions (v1)",
             "matchedTargetPath": "/v1/organizations/{}/ledgers/{}/transactions/{}"
           }
         },
@@ -5676,7 +5676,7 @@
           "_matchInfo": {
             "originalPath": "/v1/organizations/{{organizationId}}/ledgers/{{ledgerId}}/transactions/{{transactionId}}",
             "normalizedPath": "/v1/organizations/{}/ledgers/{}/transactions/{}",
-            "folderPath": "Transactions",
+            "folderPath": "Transactions (v1)",
             "matchedTargetPath": "/v1/organizations/{}/ledgers/{}/transactions/{}"
           }
         },
@@ -5886,7 +5886,7 @@
           "_matchInfo": {
             "originalPath": "/v1/organizations/{{organizationId}}/ledgers/{{ledgerId}}/transactions",
             "normalizedPath": "/v1/organizations/{}/ledgers/{}/transactions",
-            "folderPath": "Transactions",
+            "folderPath": "Transactions (v1)",
             "matchedTargetPath": "/v1/organizations/{}/ledgers/{}/transactions"
           }
         },
@@ -6046,7 +6046,7 @@
           "_matchInfo": {
             "originalPath": "/v1/organizations/{{organizationId}}/ledgers/{{ledgerId}}/accounts/{{accountId}}/operations/{{operationId}}",
             "normalizedPath": "/v1/organizations/{}/ledgers/{}/accounts/{}/operations/{}",
-            "folderPath": "Operations",
+            "folderPath": "Operations (v1)",
             "matchedTargetPath": "/v1/organizations/{}/ledgers/{}/accounts/{}/operations/{}"
           }
         },
@@ -6318,7 +6318,7 @@
           "_matchInfo": {
             "originalPath": "/v1/organizations/{{organizationId}}/ledgers/{{ledgerId}}/accounts/{{accountId}}/operations",
             "normalizedPath": "/v1/organizations/{}/ledgers/{}/accounts/{}/operations",
-            "folderPath": "Operations",
+            "folderPath": "Operations (v1)",
             "matchedTargetPath": "/v1/organizations/{}/ledgers/{}/accounts/{}/operations"
           }
         },
@@ -6496,7 +6496,7 @@
           "_matchInfo": {
             "originalPath": "/v1/organizations/{{organizationId}}/ledgers/{{ledgerId}}/transactions/{{transactionId}}/operations/{{operationId}}",
             "normalizedPath": "/v1/organizations/{}/ledgers/{}/transactions/{}/operations/{}",
-            "folderPath": "Operations",
+            "folderPath": "Operations (v1)",
             "matchedTargetPath": "/v1/organizations/{}/ledgers/{}/transactions/{}/operations/{}"
           }
         },
@@ -6642,7 +6642,7 @@
           "_matchInfo": {
             "originalPath": "/v1/organizations/{{organizationId}}/ledgers/{{ledgerId}}/balances/{{balanceId}}",
             "normalizedPath": "/v1/organizations/{}/ledgers/{}/balances/{}",
-            "folderPath": "Balances",
+            "folderPath": "Balances (v1)",
             "matchedTargetPath": "/v1/organizations/{}/ledgers/{}/balances/{}"
           }
         },
@@ -6854,7 +6854,7 @@
           "_matchInfo": {
             "originalPath": "/v1/organizations/{{organizationId}}/ledgers/{{ledgerId}}/accounts/{{accountId}}/balances",
             "normalizedPath": "/v1/organizations/{}/ledgers/{}/accounts/{}/balances",
-            "folderPath": "Balances",
+            "folderPath": "Balances (v1)",
             "matchedTargetPath": "/v1/organizations/{}/ledgers/{}/accounts/{}/balances"
           }
         },
@@ -7004,7 +7004,7 @@
           "_matchInfo": {
             "originalPath": "/v1/organizations/{{organizationId}}/ledgers/{{ledgerId}}/accounts/alias/{{accountAlias}}/balances",
             "normalizedPath": "/v1/organizations/{}/ledgers/{}/accounts/alias/{}/balances",
-            "folderPath": "Balances",
+            "folderPath": "Balances (v1)",
             "matchedTargetPath": "/v1/organizations/{}/ledgers/{}/accounts/alias/{}/balances"
           }
         },
@@ -7154,7 +7154,7 @@
           "_matchInfo": {
             "originalPath": "/v1/organizations/{{organizationId}}/ledgers/{{ledgerId}}/accounts/external/{{externalCode}}/balances",
             "normalizedPath": "/v1/organizations/{}/ledgers/{}/accounts/external/{}/balances",
-            "folderPath": "Balances",
+            "folderPath": "Balances (v1)",
             "matchedTargetPath": "/v1/organizations/{}/ledgers/{}/accounts/external/{}/balances"
           }
         },
@@ -7318,7 +7318,7 @@
           "_matchInfo": {
             "originalPath": "/v1/organizations/{{organizationId}}/ledgers/{{ledgerId}}/balances/{{balanceId}}",
             "normalizedPath": "/v1/organizations/{}/ledgers/{}/balances/{}",
-            "folderPath": "Balances",
+            "folderPath": "Balances (v1)",
             "matchedTargetPath": "/v1/organizations/{}/ledgers/{}/balances/{}"
           }
         },
@@ -7516,7 +7516,7 @@
           "_matchInfo": {
             "originalPath": "/v1/organizations/{{organizationId}}/ledgers/{{ledgerId}}/balances",
             "normalizedPath": "/v1/organizations/{}/ledgers/{}/balances",
-            "folderPath": "Balances",
+            "folderPath": "Balances (v1)",
             "matchedTargetPath": "/v1/organizations/{}/ledgers/{}/balances"
           }
         },
@@ -7666,7 +7666,7 @@
           "_matchInfo": {
             "originalPath": "/v1/organizations/{{organizationId}}/ledgers/{{ledgerId}}/accounts/alias/{{accountAlias}}/balances",
             "normalizedPath": "/v1/organizations/{}/ledgers/{}/accounts/alias/{}/balances",
-            "folderPath": "Balances",
+            "folderPath": "Balances (v1)",
             "matchedTargetPath": "/v1/organizations/{}/ledgers/{}/accounts/alias/{}/balances"
           }
         },
@@ -7856,7 +7856,7 @@
           "_matchInfo": {
             "originalPath": "/v1/organizations/{{organizationId}}/ledgers/{{ledgerId}}/transactions/json",
             "normalizedPath": "/v1/organizations/{}/ledgers/{}/transactions/json",
-            "folderPath": "Transactions",
+            "folderPath": "Transactions (v1)",
             "matchedTargetPath": "/v1/organizations/{}/ledgers/{}/transactions/json"
           }
         },
@@ -7938,7 +7938,7 @@
           "_matchInfo": {
             "originalPath": "/v1/organizations/{{organizationId}}/ledgers/{{ledgerId}}/balances/{{balanceId}}",
             "normalizedPath": "/v1/organizations/{}/ledgers/{}/balances/{}",
-            "folderPath": "Balances",
+            "folderPath": "Balances (v1)",
             "matchedTargetPath": "/v1/organizations/{}/ledgers/{}/balances/{}"
           }
         },
@@ -8020,7 +8020,7 @@
           "_matchInfo": {
             "originalPath": "/v1/organizations/{{organizationId}}/ledgers/{{ledgerId}}/segments/{{segmentId}}",
             "normalizedPath": "/v1/organizations/{}/ledgers/{}/segments/{}",
-            "folderPath": "Segments",
+            "folderPath": "Segments (v1)",
             "matchedTargetPath": "/v1/organizations/{}/ledgers/{}/segments/{}"
           }
         },
@@ -8102,7 +8102,7 @@
           "_matchInfo": {
             "originalPath": "/v1/organizations/{{organizationId}}/ledgers/{{ledgerId}}/portfolios/{{portfolioId}}",
             "normalizedPath": "/v1/organizations/{}/ledgers/{}/portfolios/{}",
-            "folderPath": "Portfolios",
+            "folderPath": "Portfolios (v1)",
             "matchedTargetPath": "/v1/organizations/{}/ledgers/{}/portfolios/{}"
           }
         },
@@ -8184,7 +8184,7 @@
           "_matchInfo": {
             "originalPath": "/v1/organizations/{{organizationId}}/ledgers/{{ledgerId}}/accounts/{{accountId}}",
             "normalizedPath": "/v1/organizations/{}/ledgers/{}/accounts/{}",
-            "folderPath": "Accounts",
+            "folderPath": "Accounts (v1)",
             "matchedTargetPath": "/v1/organizations/{}/ledgers/{}/accounts/{}"
           }
         },
@@ -8266,7 +8266,7 @@
           "_matchInfo": {
             "originalPath": "/v1/organizations/{{organizationId}}/ledgers/{{ledgerId}}/assets/{{assetId}}",
             "normalizedPath": "/v1/organizations/{}/ledgers/{}/assets/{}",
-            "folderPath": "Assets",
+            "folderPath": "Assets (v1)",
             "matchedTargetPath": "/v1/organizations/{}/ledgers/{}/assets/{}"
           }
         },
@@ -8341,7 +8341,7 @@
           "_matchInfo": {
             "originalPath": "/v1/organizations/{{organizationId}}/ledgers/{{ledgerId}}",
             "normalizedPath": "/v1/organizations/{}/ledgers/{}",
-            "folderPath": "Ledgers",
+            "folderPath": "Ledgers (v1)",
             "matchedTargetPath": "/v1/organizations/{}/ledgers/{}"
           }
         },
@@ -8409,7 +8409,7 @@
           "_matchInfo": {
             "originalPath": "/v1/organizations/{{organizationId}}",
             "normalizedPath": "/v1/organizations/{}",
-            "folderPath": "Organizations",
+            "folderPath": "Organizations (v1)",
             "matchedTargetPath": "/v1/organizations/{}"
           }
         },
@@ -8446,8 +8446,8 @@
       "event": []
     },
     {
-      "name": "Organizations",
-      "description": "Endpoints for managing organizations, which are the top-level entities in the MIDAZ system.",
+      "name": "Organizations (v1)",
+      "description": "Endpoints related to Organizations (v1).",
       "item": [
         {
           "name": "List all organizations",
@@ -9443,8 +9443,8 @@
       ]
     },
     {
-      "name": "Billing Packages",
-      "description": "Endpoints related to Billing Packages.",
+      "name": "Billing Packages (v1)",
+      "description": "Endpoints related to Billing Packages (v1).",
       "item": [
         {
           "name": "Get all billing packages",
@@ -10316,8 +10316,8 @@
       ]
     },
     {
-      "name": "Billing Calculate",
-      "description": "Endpoints related to Billing Calculate.",
+      "name": "Billing Calculate (v1)",
+      "description": "Endpoints related to Billing Calculate (v1).",
       "item": [
         {
           "name": "Calculate billing",
@@ -10502,8 +10502,8 @@
       ]
     },
     {
-      "name": "Encryption",
-      "description": "Endpoints related to Encryption.",
+      "name": "Encryption (v1)",
+      "description": "Endpoints related to Encryption (v1).",
       "item": [
         {
           "name": "Provision an Organization for Envelope Encryption",
@@ -10850,8 +10850,8 @@
       ]
     },
     {
-      "name": "Fees",
-      "description": "Endpoints related to Fees.",
+      "name": "Fees (v1)",
+      "description": "Endpoints related to Fees (v1).",
       "item": [
         {
           "name": "Create a fee estimate calculation",
@@ -11034,8 +11034,8 @@
       ]
     },
     {
-      "name": "Holders",
-      "description": "Endpoints related to Holders.",
+      "name": "Holders (v1)",
+      "description": "Endpoints related to Holders (v1).",
       "item": [
         {
           "name": "List Holders",
@@ -12205,8 +12205,8 @@
       ]
     },
     {
-      "name": "Instruments",
-      "description": "Endpoints related to Instruments.",
+      "name": "Instruments (v1)",
+      "description": "Endpoints related to Instruments (v1).",
       "item": [
         {
           "name": "Create an Instrument Account",
@@ -13364,8 +13364,8 @@
       ]
     },
     {
-      "name": "Ledgers",
-      "description": "Endpoints for managing ledgers, which are financial record-keeping systems for tracking assets, accounts, and transactions within an organization.",
+      "name": "Ledgers (v1)",
+      "description": "Endpoints related to Ledgers (v1).",
       "item": [
         {
           "name": "List all ledgers",
@@ -14783,8 +14783,8 @@
       ]
     },
     {
-      "name": "Account Types",
-      "description": "Endpoints related to Account Types.",
+      "name": "Account Types (v1)",
+      "description": "Endpoints related to Account Types (v1).",
       "item": [
         {
           "name": "List all account types",
@@ -15767,8 +15767,8 @@
       ]
     },
     {
-      "name": "Accounts",
-      "description": "Endpoints for managing accounts, which represent individual financial entities like bank accounts, credit cards, or expense categories within a ledger.",
+      "name": "Accounts (v1)",
+      "description": "Endpoints related to Accounts (v1).",
       "item": [
         {
           "name": "List all accounts",
@@ -17399,8 +17399,8 @@
       ]
     },
     {
-      "name": "Balances",
-      "description": "Endpoints for retrieving account balances, which represent the current value of an account.",
+      "name": "Balances (v1)",
+      "description": "Endpoints related to Balances (v1).",
       "item": [
         {
           "name": "Get Balances using Alias",
@@ -19455,8 +19455,8 @@
       ]
     },
     {
-      "name": "Operations",
-      "description": "Endpoints for managing operations, which are the individual debit and credit entries that make up a transaction.",
+      "name": "Operations (v1)",
+      "description": "Endpoints related to Operations (v1).",
       "item": [
         {
           "name": "Get all Operations by account",
@@ -20284,8 +20284,8 @@
       ]
     },
     {
-      "name": "Assets",
-      "description": "Endpoints for managing assets, which represent the types of value that can be transferred between accounts.",
+      "name": "Assets (v1)",
+      "description": "Endpoints related to Assets (v1).",
       "item": [
         {
           "name": "List all assets",
@@ -21411,8 +21411,8 @@
       ]
     },
     {
-      "name": "Composition",
-      "description": "Endpoints related to Composition.",
+      "name": "Composition (v1)",
+      "description": "Endpoints related to Composition (v1).",
       "item": [
         {
           "name": "Open a holder-owned account (with optional instrument)",
@@ -21623,8 +21623,8 @@
       ]
     },
     {
-      "name": "Operation Routes",
-      "description": "Endpoints related to Operation Routes.",
+      "name": "Operation Routes (v1)",
+      "description": "Endpoints related to Operation Routes (v1).",
       "item": [
         {
           "name": "Retrieve all operation routes",
@@ -22571,8 +22571,8 @@
       ]
     },
     {
-      "name": "Portfolios",
-      "description": "Endpoints for managing portfolios, which are collections of accounts grouped for reporting or management purposes.",
+      "name": "Portfolios (v1)",
+      "description": "Endpoints related to Portfolios (v1).",
       "item": [
         {
           "name": "List all portfolios",
@@ -23722,8 +23722,8 @@
       ]
     },
     {
-      "name": "Segments",
-      "description": "Endpoints for managing segments, which are used to categorize accounts for reporting or management purposes.",
+      "name": "Segments (v1)",
+      "description": "Endpoints related to Segments (v1).",
       "item": [
         {
           "name": "List all segments",
@@ -24849,8 +24849,8 @@
       ]
     },
     {
-      "name": "Transaction Routes",
-      "description": "Endpoints related to Transaction Routes.",
+      "name": "Transaction Routes (v1)",
+      "description": "Endpoints related to Transaction Routes (v1).",
       "item": [
         {
           "name": "Get all Transaction Routes",
@@ -25797,8 +25797,8 @@
       ]
     },
     {
-      "name": "Transactions",
-      "description": "Endpoints for managing transactions, which represent the movement of value between accounts.",
+      "name": "Transactions (v1)",
+      "description": "Endpoints related to Transactions (v1).",
       "item": [
         {
           "name": "Get all Transactions",
@@ -28814,8 +28814,8 @@
       ]
     },
     {
-      "name": "Packages",
-      "description": "Endpoints related to Packages.",
+      "name": "Packages (v1)",
+      "description": "Endpoints related to Packages (v1).",
       "item": [
         {
           "name": "Get all packages",
@@ -29711,8 +29711,8 @@
       ]
     },
     {
-      "name": "Protection",
-      "description": "Endpoints related to Protection.",
+      "name": "Protection (v1)",
+      "description": "Endpoints related to Protection (v1).",
       "item": [
         {
           "name": "List Protection Audit Events",
@@ -29979,8 +29979,8 @@
       ]
     },
     {
-      "name": "Metadata Indexes",
-      "description": "Endpoints related to Metadata Indexes.",
+      "name": "Metadata Indexes (v1)",
+      "description": "Endpoints related to Metadata Indexes (v1).",
       "item": [
         {
           "name": "Get all Metadata Indexes",
@@ -30442,8 +30442,8 @@
       ]
     },
     {
-      "name": "Organizations (v2)",
-      "description": "Endpoints for managing organizations, which are the top-level entities in the MIDAZ system.",
+      "name": "Organizations (v2) (v2)",
+      "description": "Endpoints related to Organizations (v2).",
       "item": [
         {
           "name": "List all organizations",
@@ -31418,8 +31418,8 @@
       ]
     },
     {
-      "name": "Encryption (v2)",
-      "description": "Endpoints related to Encryption.",
+      "name": "Encryption (v2) (v2)",
+      "description": "Endpoints related to Encryption (v2).",
       "item": [
         {
           "name": "Provision an Organization for Envelope Encryption",
@@ -31766,8 +31766,8 @@
       ]
     },
     {
-      "name": "Holders (v2)",
-      "description": "Endpoints related to Holders.",
+      "name": "Holders (v2) (v2)",
+      "description": "Endpoints related to Holders (v2).",
       "item": [
         {
           "name": "List Holders",
@@ -32937,8 +32937,8 @@
       ]
     },
     {
-      "name": "Instruments (v2)",
-      "description": "Endpoints related to Instruments.",
+      "name": "Instruments (v2) (v2)",
+      "description": "Endpoints related to Instruments (v2).",
       "item": [
         {
           "name": "Create an Instrument Account",
@@ -34096,8 +34096,8 @@
       ]
     },
     {
-      "name": "Ledgers (v2)",
-      "description": "Endpoints for managing ledgers, which are financial record-keeping systems for tracking assets, accounts, and transactions within an organization.",
+      "name": "Ledgers (v2) (v2)",
+      "description": "Endpoints related to Ledgers (v2).",
       "item": [
         {
           "name": "List all ledgers",
@@ -35494,8 +35494,8 @@
       ]
     },
     {
-      "name": "Account Types (v2)",
-      "description": "Endpoints related to Account Types.",
+      "name": "Account Types (v2) (v2)",
+      "description": "Endpoints related to Account Types (v2).",
       "item": [
         {
           "name": "List all account types",
@@ -36478,8 +36478,8 @@
       ]
     },
     {
-      "name": "Accounts (v2)",
-      "description": "Endpoints for managing accounts, which represent individual financial entities like bank accounts, credit cards, or expense categories within a ledger.",
+      "name": "Accounts (v2) (v2)",
+      "description": "Endpoints related to Accounts (v2).",
       "item": [
         {
           "name": "List all accounts",
@@ -38052,8 +38052,8 @@
       ]
     },
     {
-      "name": "Balances (v2)",
-      "description": "Endpoints for retrieving account balances, which represent the current value of an account.",
+      "name": "Balances (v2) (v2)",
+      "description": "Endpoints related to Balances (v2).",
       "item": [
         {
           "name": "Get Balances using Alias",
@@ -40056,8 +40056,8 @@
       ]
     },
     {
-      "name": "Operations (v2)",
-      "description": "Endpoints for managing operations, which are the individual debit and credit entries that make up a transaction.",
+      "name": "Operations (v2) (v2)",
+      "description": "Endpoints related to Operations (v2).",
       "item": [
         {
           "name": "Get all Operations by account",
@@ -40792,8 +40792,8 @@
       ]
     },
     {
-      "name": "Assets (v2)",
-      "description": "Endpoints for managing assets, which represent the types of value that can be transferred between accounts.",
+      "name": "Assets (v2) (v2)",
+      "description": "Endpoints related to Assets (v2).",
       "item": [
         {
           "name": "List all assets",
@@ -41870,8 +41870,8 @@
       ]
     },
     {
-      "name": "Billing Packages (v2)",
-      "description": "Endpoints related to Billing Packages.",
+      "name": "Billing Packages (v2) (v2)",
+      "description": "Endpoints related to Billing Packages (v2).",
       "item": [
         {
           "name": "Get all billing packages of a ledger",
@@ -42794,8 +42794,8 @@
       ]
     },
     {
-      "name": "Billing Calculate (v2)",
-      "description": "Endpoints related to Billing Calculate.",
+      "name": "Billing Calculate (v2) (v2)",
+      "description": "Endpoints related to Billing Calculate (v2).",
       "item": [
         {
           "name": "Calculate billing",
@@ -42994,8 +42994,8 @@
       ]
     },
     {
-      "name": "Fees (v2)",
-      "description": "Endpoints related to Fees.",
+      "name": "Fees (v2) (v2)",
+      "description": "Endpoints related to Fees (v2).",
       "item": [
         {
           "name": "Create a fee estimate calculation",
@@ -43192,8 +43192,8 @@
       ]
     },
     {
-      "name": "Composition (v2)",
-      "description": "Endpoints related to Composition.",
+      "name": "Composition (v2) (v2)",
+      "description": "Endpoints related to Composition (v2).",
       "item": [
         {
           "name": "Open a holder-owned account (with optional instrument)",
@@ -43404,8 +43404,8 @@
       ]
     },
     {
-      "name": "Operation Routes (v2)",
-      "description": "Endpoints related to Operation Routes.",
+      "name": "Operation Routes (v2) (v2)",
+      "description": "Endpoints related to Operation Routes (v2).",
       "item": [
         {
           "name": "Retrieve all operation routes",
@@ -44352,8 +44352,8 @@
       ]
     },
     {
-      "name": "Packages (v2)",
-      "description": "Endpoints related to Packages.",
+      "name": "Packages (v2) (v2)",
+      "description": "Endpoints related to Packages (v2).",
       "item": [
         {
           "name": "Get all packages of a ledger",
@@ -45300,8 +45300,8 @@
       ]
     },
     {
-      "name": "Portfolios (v2)",
-      "description": "Endpoints for managing portfolios, which are collections of accounts grouped for reporting or management purposes.",
+      "name": "Portfolios (v2) (v2)",
+      "description": "Endpoints related to Portfolios (v2).",
       "item": [
         {
           "name": "List all portfolios",
@@ -46402,8 +46402,8 @@
       ]
     },
     {
-      "name": "Segments (v2)",
-      "description": "Endpoints for managing segments, which are used to categorize accounts for reporting or management purposes.",
+      "name": "Segments (v2) (v2)",
+      "description": "Endpoints related to Segments (v2).",
       "item": [
         {
           "name": "List all segments",
@@ -47480,8 +47480,8 @@
       ]
     },
     {
-      "name": "Transaction Routes (v2)",
-      "description": "Endpoints related to Transaction Routes.",
+      "name": "Transaction Routes (v2) (v2)",
+      "description": "Endpoints related to Transaction Routes (v2).",
       "item": [
         {
           "name": "Get all Transaction Routes",
@@ -48428,8 +48428,8 @@
       ]
     },
     {
-      "name": "Transactions (v2)",
-      "description": "Endpoints for managing transactions, which represent the movement of value between accounts.",
+      "name": "Transactions (v2) (v2)",
+      "description": "Endpoints related to Transactions (v2).",
       "item": [
         {
           "name": "Get all Transactions",
@@ -51417,8 +51417,8 @@
       ]
     },
     {
-      "name": "Protection (v2)",
-      "description": "Endpoints related to Protection.",
+      "name": "Protection (v2) (v2)",
+      "description": "Endpoints related to Protection (v2).",
       "item": [
         {
           "name": "List Protection Audit Events",
@@ -51685,8 +51685,8 @@
       ]
     },
     {
-      "name": "Metadata Indexes (v2)",
-      "description": "Endpoints related to Metadata Indexes.",
+      "name": "Metadata Indexes (v2) (v2)",
+      "description": "Endpoints related to Metadata Indexes (v2).",
       "item": [
         {
           "name": "Get all Metadata Indexes",

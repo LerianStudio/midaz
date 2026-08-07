@@ -96,6 +96,7 @@ func buildUnifiedHumaAPI() (*fiber.App, huma.API) {
 	deps.MountV2(app.Group("/v2"), huma.NewGroup(api, "/v2"))
 
 	MarkV1OperationsDeprecated(api)
+	ApplyVersionTagGroups(api)
 
 	return app, api
 }

@@ -5,52 +5,98 @@ info:
 servers:
   - url: /
 tags:
-  - name: Midaz_Ledger_API_Organizations
-    x-displayName: Organizations
-  - name: Midaz_Ledger_API_Billing Packages
-    x-displayName: Billing Packages
-  - name: Midaz_Ledger_API_Billing Calculate
-    x-displayName: Billing Calculate
-  - name: Midaz_Ledger_API_Encryption
-    x-displayName: Encryption
-  - name: Midaz_Ledger_API_Fees
-    x-displayName: Fees
-  - name: Midaz_Ledger_API_Holders
-    x-displayName: Holders
-  - name: Midaz_Ledger_API_Instruments
-    x-displayName: Instruments
-  - name: Midaz_Ledger_API_Ledgers
-    x-displayName: Ledgers
-  - name: Midaz_Ledger_API_Account Types
-    x-displayName: Account Types
-  - name: Midaz_Ledger_API_Accounts
-    x-displayName: Accounts
-  - name: Midaz_Ledger_API_Balances
-    x-displayName: Balances
-  - name: Midaz_Ledger_API_Operations
-    x-displayName: Operations
-  - name: Midaz_Ledger_API_Asset Rates
-    x-displayName: Asset Rates
-  - name: Midaz_Ledger_API_Assets
-    x-displayName: Assets
-  - name: Midaz_Ledger_API_Composition
-    x-displayName: Composition
-  - name: Midaz_Ledger_API_Operation Routes
-    x-displayName: Operation Routes
-  - name: Midaz_Ledger_API_Portfolios
-    x-displayName: Portfolios
-  - name: Midaz_Ledger_API_Segments
-    x-displayName: Segments
-  - name: Midaz_Ledger_API_Transaction Routes
-    x-displayName: Transaction Routes
-  - name: Midaz_Ledger_API_Transactions
-    x-displayName: Transactions
-  - name: Midaz_Ledger_API_Packages
-    x-displayName: Packages
-  - name: Midaz_Ledger_API_Protection
-    x-displayName: Protection
-  - name: Midaz_Ledger_API_Metadata Indexes
-    x-displayName: Metadata Indexes
+  - name: Midaz_Ledger_API_Account Types (v1)
+    x-displayName: Account Types (v1)
+  - name: Midaz_Ledger_API_Account Types (v2)
+    x-displayName: Account Types (v2)
+  - name: Midaz_Ledger_API_Accounts (v1)
+    x-displayName: Accounts (v1)
+  - name: Midaz_Ledger_API_Accounts (v2)
+    x-displayName: Accounts (v2)
+  - name: Midaz_Ledger_API_Asset Rates (v1)
+    x-displayName: Asset Rates (v1)
+  - name: Midaz_Ledger_API_Asset Rates (v2)
+    x-displayName: Asset Rates (v2)
+  - name: Midaz_Ledger_API_Assets (v1)
+    x-displayName: Assets (v1)
+  - name: Midaz_Ledger_API_Assets (v2)
+    x-displayName: Assets (v2)
+  - name: Midaz_Ledger_API_Balances (v1)
+    x-displayName: Balances (v1)
+  - name: Midaz_Ledger_API_Balances (v2)
+    x-displayName: Balances (v2)
+  - name: Midaz_Ledger_API_Billing Calculate (v1)
+    x-displayName: Billing Calculate (v1)
+  - name: Midaz_Ledger_API_Billing Calculate (v2)
+    x-displayName: Billing Calculate (v2)
+  - name: Midaz_Ledger_API_Billing Packages (v1)
+    x-displayName: Billing Packages (v1)
+  - name: Midaz_Ledger_API_Billing Packages (v2)
+    x-displayName: Billing Packages (v2)
+  - name: Midaz_Ledger_API_Composition (v1)
+    x-displayName: Composition (v1)
+  - name: Midaz_Ledger_API_Composition (v2)
+    x-displayName: Composition (v2)
+  - name: Midaz_Ledger_API_Encryption (v1)
+    x-displayName: Encryption (v1)
+  - name: Midaz_Ledger_API_Encryption (v2)
+    x-displayName: Encryption (v2)
+  - name: Midaz_Ledger_API_Fees (v1)
+    x-displayName: Fees (v1)
+  - name: Midaz_Ledger_API_Fees (v2)
+    x-displayName: Fees (v2)
+  - name: Midaz_Ledger_API_Holders (v1)
+    x-displayName: Holders (v1)
+  - name: Midaz_Ledger_API_Holders (v2)
+    x-displayName: Holders (v2)
+  - name: Midaz_Ledger_API_Instruments (v1)
+    x-displayName: Instruments (v1)
+  - name: Midaz_Ledger_API_Instruments (v2)
+    x-displayName: Instruments (v2)
+  - name: Midaz_Ledger_API_Ledgers (v1)
+    x-displayName: Ledgers (v1)
+  - name: Midaz_Ledger_API_Ledgers (v2)
+    x-displayName: Ledgers (v2)
+  - name: Midaz_Ledger_API_Metadata Indexes (v1)
+    x-displayName: Metadata Indexes (v1)
+  - name: Midaz_Ledger_API_Metadata Indexes (v2)
+    x-displayName: Metadata Indexes (v2)
+  - name: Midaz_Ledger_API_Operation Routes (v1)
+    x-displayName: Operation Routes (v1)
+  - name: Midaz_Ledger_API_Operation Routes (v2)
+    x-displayName: Operation Routes (v2)
+  - name: Midaz_Ledger_API_Operations (v1)
+    x-displayName: Operations (v1)
+  - name: Midaz_Ledger_API_Operations (v2)
+    x-displayName: Operations (v2)
+  - name: Midaz_Ledger_API_Organizations (v1)
+    x-displayName: Organizations (v1)
+  - name: Midaz_Ledger_API_Organizations (v2)
+    x-displayName: Organizations (v2)
+  - name: Midaz_Ledger_API_Packages (v1)
+    x-displayName: Packages (v1)
+  - name: Midaz_Ledger_API_Packages (v2)
+    x-displayName: Packages (v2)
+  - name: Midaz_Ledger_API_Portfolios (v1)
+    x-displayName: Portfolios (v1)
+  - name: Midaz_Ledger_API_Portfolios (v2)
+    x-displayName: Portfolios (v2)
+  - name: Midaz_Ledger_API_Protection (v1)
+    x-displayName: Protection (v1)
+  - name: Midaz_Ledger_API_Protection (v2)
+    x-displayName: Protection (v2)
+  - name: Midaz_Ledger_API_Segments (v1)
+    x-displayName: Segments (v1)
+  - name: Midaz_Ledger_API_Segments (v2)
+    x-displayName: Segments (v2)
+  - name: Midaz_Ledger_API_Transaction Routes (v1)
+    x-displayName: Transaction Routes (v1)
+  - name: Midaz_Ledger_API_Transaction Routes (v2)
+    x-displayName: Transaction Routes (v2)
+  - name: Midaz_Ledger_API_Transactions (v1)
+    x-displayName: Transactions (v1)
+  - name: Midaz_Ledger_API_Transactions (v2)
+    x-displayName: Transactions (v2)
   - name: Midaz_Tracer_API_Audit
     x-displayName: Audit
   - name: Midaz_Tracer_API_Limits
@@ -155,7 +201,7 @@ paths:
         - ApiKeyAuth: []
       summary: List all organizations
       tags:
-        - Midaz_Ledger_API_Organizations
+        - Midaz_Ledger_API_Organizations (v1)
     post:
       deprecated: true
       operationId: createOrganization
@@ -190,7 +236,7 @@ paths:
         - ApiKeyAuth: []
       summary: Create a new organization
       tags:
-        - Midaz_Ledger_API_Organizations
+        - Midaz_Ledger_API_Organizations (v1)
   /v1/organizations/metrics/count:
     head:
       deprecated: true
@@ -216,7 +262,7 @@ paths:
         - ApiKeyAuth: []
       summary: Count total organizations
       tags:
-        - Midaz_Ledger_API_Organizations
+        - Midaz_Ledger_API_Organizations (v1)
   /v1/organizations/{id}:
     delete:
       deprecated: true
@@ -243,7 +289,7 @@ paths:
         - ApiKeyAuth: []
       summary: Delete an organization
       tags:
-        - Midaz_Ledger_API_Organizations
+        - Midaz_Ledger_API_Organizations (v1)
     get:
       deprecated: true
       operationId: getOrganizationByID
@@ -273,7 +319,7 @@ paths:
         - ApiKeyAuth: []
       summary: Retrieve a specific organization
       tags:
-        - Midaz_Ledger_API_Organizations
+        - Midaz_Ledger_API_Organizations (v1)
     patch:
       deprecated: true
       operationId: updateOrganization
@@ -309,7 +355,7 @@ paths:
         - ApiKeyAuth: []
       summary: Update an existing organization
       tags:
-        - Midaz_Ledger_API_Organizations
+        - Midaz_Ledger_API_Organizations (v1)
   /v1/organizations/{organization_id}/billing-packages:
     get:
       deprecated: true
@@ -371,7 +417,7 @@ paths:
         - BearerAuth: []
       summary: Get all billing packages
       tags:
-        - Midaz_Ledger_API_Billing Packages
+        - Midaz_Ledger_API_Billing Packages (v1)
     post:
       deprecated: true
       operationId: createBillingPackage
@@ -406,7 +452,7 @@ paths:
         - BearerAuth: []
       summary: Create a BillingPackage
       tags:
-        - Midaz_Ledger_API_Billing Packages
+        - Midaz_Ledger_API_Billing Packages (v1)
   /v1/organizations/{organization_id}/billing-packages/{id}:
     delete:
       deprecated: true
@@ -439,7 +485,7 @@ paths:
         - BearerAuth: []
       summary: SoftDelete a BillingPackage by ID
       tags:
-        - Midaz_Ledger_API_Billing Packages
+        - Midaz_Ledger_API_Billing Packages (v1)
     get:
       deprecated: true
       operationId: getBillingPackageByID
@@ -475,7 +521,7 @@ paths:
         - BearerAuth: []
       summary: Get billing package
       tags:
-        - Midaz_Ledger_API_Billing Packages
+        - Midaz_Ledger_API_Billing Packages (v1)
     patch:
       deprecated: true
       operationId: updateBillingPackage
@@ -517,7 +563,7 @@ paths:
         - BearerAuth: []
       summary: Update a billing package
       tags:
-        - Midaz_Ledger_API_Billing Packages
+        - Midaz_Ledger_API_Billing Packages (v1)
   /v1/organizations/{organization_id}/billing/calculate:
     post:
       deprecated: true
@@ -553,7 +599,7 @@ paths:
         - BearerAuth: []
       summary: Calculate billing
       tags:
-        - Midaz_Ledger_API_Billing Calculate
+        - Midaz_Ledger_API_Billing Calculate (v1)
   /v1/organizations/{organization_id}/encryption/provision:
     post:
       deprecated: true
@@ -595,7 +641,7 @@ paths:
         - BearerAuth: []
       summary: Provision an Organization for Envelope Encryption
       tags:
-        - Midaz_Ledger_API_Encryption
+        - Midaz_Ledger_API_Encryption (v1)
   /v1/organizations/{organization_id}/encryption/status:
     get:
       deprecated: true
@@ -631,7 +677,7 @@ paths:
         - BearerAuth: []
       summary: Get Provisioning Status
       tags:
-        - Midaz_Ledger_API_Encryption
+        - Midaz_Ledger_API_Encryption (v1)
   /v1/organizations/{organization_id}/estimates:
     post:
       deprecated: true
@@ -668,7 +714,7 @@ paths:
         - BearerAuth: []
       summary: Create a fee estimate calculation
       tags:
-        - Midaz_Ledger_API_Fees
+        - Midaz_Ledger_API_Fees (v1)
   /v1/organizations/{organization_id}/holders:
     get:
       deprecated: true
@@ -747,7 +793,7 @@ paths:
         - BearerAuth: []
       summary: List Holders
       tags:
-        - Midaz_Ledger_API_Holders
+        - Midaz_Ledger_API_Holders (v1)
     post:
       deprecated: true
       operationId: createHolder
@@ -802,7 +848,7 @@ paths:
         - BearerAuth: []
       summary: Create a Holder
       tags:
-        - Midaz_Ledger_API_Holders
+        - Midaz_Ledger_API_Holders (v1)
   /v1/organizations/{organization_id}/holders/{holder_id}/instruments:
     post:
       deprecated: true
@@ -865,7 +911,7 @@ paths:
         - BearerAuth: []
       summary: Create an Instrument Account
       tags:
-        - Midaz_Ledger_API_Instruments
+        - Midaz_Ledger_API_Instruments (v1)
   /v1/organizations/{organization_id}/holders/{holder_id}/instruments/{instrument_id}:
     delete:
       deprecated: true
@@ -916,7 +962,7 @@ paths:
         - BearerAuth: []
       summary: Delete an Instrument
       tags:
-        - Midaz_Ledger_API_Instruments
+        - Midaz_Ledger_API_Instruments (v1)
     get:
       deprecated: true
       operationId: getInstrumentByID
@@ -968,7 +1014,7 @@ paths:
         - BearerAuth: []
       summary: Retrieve Instrument details
       tags:
-        - Midaz_Ledger_API_Instruments
+        - Midaz_Ledger_API_Instruments (v1)
     patch:
       deprecated: true
       operationId: updateInstrument
@@ -1017,7 +1063,7 @@ paths:
         - BearerAuth: []
       summary: Update an Instrument
       tags:
-        - Midaz_Ledger_API_Instruments
+        - Midaz_Ledger_API_Instruments (v1)
   /v1/organizations/{organization_id}/holders/{holder_id}/instruments/{instrument_id}/related-parties/{related_party_id}:
     delete:
       deprecated: true
@@ -1064,7 +1110,7 @@ paths:
         - BearerAuth: []
       summary: Delete a Related Party
       tags:
-        - Midaz_Ledger_API_Instruments
+        - Midaz_Ledger_API_Instruments (v1)
   /v1/organizations/{organization_id}/holders/{id}:
     delete:
       deprecated: true
@@ -1108,7 +1154,7 @@ paths:
         - BearerAuth: []
       summary: Delete a Holder
       tags:
-        - Midaz_Ledger_API_Holders
+        - Midaz_Ledger_API_Holders (v1)
     get:
       deprecated: true
       operationId: getHolderByID
@@ -1151,7 +1197,7 @@ paths:
         - BearerAuth: []
       summary: Retrieve Holder details
       tags:
-        - Midaz_Ledger_API_Holders
+        - Midaz_Ledger_API_Holders (v1)
     patch:
       deprecated: true
       operationId: updateHolder
@@ -1193,7 +1239,7 @@ paths:
         - BearerAuth: []
       summary: Update a Holder
       tags:
-        - Midaz_Ledger_API_Holders
+        - Midaz_Ledger_API_Holders (v1)
   /v1/organizations/{organization_id}/holders/{id}/accounts:
     get:
       deprecated: true
@@ -1251,7 +1297,7 @@ paths:
         - BearerAuth: []
       summary: List Accounts by Holder
       tags:
-        - Midaz_Ledger_API_Holders
+        - Midaz_Ledger_API_Holders (v1)
   /v1/organizations/{organization_id}/instruments:
     get:
       deprecated: true
@@ -1344,7 +1390,7 @@ paths:
         - BearerAuth: []
       summary: List Instruments
       tags:
-        - Midaz_Ledger_API_Instruments
+        - Midaz_Ledger_API_Instruments (v1)
   /v1/organizations/{organization_id}/ledgers:
     get:
       deprecated: true
@@ -1431,7 +1477,7 @@ paths:
         - ApiKeyAuth: []
       summary: List all ledgers
       tags:
-        - Midaz_Ledger_API_Ledgers
+        - Midaz_Ledger_API_Ledgers (v1)
     post:
       deprecated: true
       operationId: createLedger
@@ -1467,7 +1513,7 @@ paths:
         - ApiKeyAuth: []
       summary: Create a new ledger
       tags:
-        - Midaz_Ledger_API_Ledgers
+        - Midaz_Ledger_API_Ledgers (v1)
   /v1/organizations/{organization_id}/ledgers/metrics/count:
     head:
       deprecated: true
@@ -1501,7 +1547,7 @@ paths:
         - ApiKeyAuth: []
       summary: Count total ledgers
       tags:
-        - Midaz_Ledger_API_Ledgers
+        - Midaz_Ledger_API_Ledgers (v1)
   /v1/organizations/{organization_id}/ledgers/{ledger_id}:
     delete:
       deprecated: true
@@ -1535,7 +1581,7 @@ paths:
         - ApiKeyAuth: []
       summary: Delete a ledger
       tags:
-        - Midaz_Ledger_API_Ledgers
+        - Midaz_Ledger_API_Ledgers (v1)
     get:
       deprecated: true
       operationId: getLedgerByID
@@ -1572,7 +1618,7 @@ paths:
         - ApiKeyAuth: []
       summary: Retrieve a specific ledger
       tags:
-        - Midaz_Ledger_API_Ledgers
+        - Midaz_Ledger_API_Ledgers (v1)
     patch:
       deprecated: true
       operationId: updateLedger
@@ -1615,7 +1661,7 @@ paths:
         - ApiKeyAuth: []
       summary: Update an existing ledger
       tags:
-        - Midaz_Ledger_API_Ledgers
+        - Midaz_Ledger_API_Ledgers (v1)
   /v1/organizations/{organization_id}/ledgers/{ledger_id}/account-types:
     get:
       deprecated: true
@@ -1709,7 +1755,7 @@ paths:
         - ApiKeyAuth: []
       summary: List all account types
       tags:
-        - Midaz_Ledger_API_Account Types
+        - Midaz_Ledger_API_Account Types (v1)
     post:
       deprecated: true
       operationId: createAccountType
@@ -1752,7 +1798,7 @@ paths:
         - ApiKeyAuth: []
       summary: Create a new account type
       tags:
-        - Midaz_Ledger_API_Account Types
+        - Midaz_Ledger_API_Account Types (v1)
   /v1/organizations/{organization_id}/ledgers/{ledger_id}/account-types/{id}:
     delete:
       deprecated: true
@@ -1793,7 +1839,7 @@ paths:
         - ApiKeyAuth: []
       summary: Delete an account type
       tags:
-        - Midaz_Ledger_API_Account Types
+        - Midaz_Ledger_API_Account Types (v1)
     get:
       deprecated: true
       operationId: getAccountTypeByID
@@ -1837,7 +1883,7 @@ paths:
         - ApiKeyAuth: []
       summary: Retrieve a specific account type
       tags:
-        - Midaz_Ledger_API_Account Types
+        - Midaz_Ledger_API_Account Types (v1)
     patch:
       deprecated: true
       operationId: updateAccountType
@@ -1887,7 +1933,7 @@ paths:
         - ApiKeyAuth: []
       summary: Update an account type
       tags:
-        - Midaz_Ledger_API_Account Types
+        - Midaz_Ledger_API_Account Types (v1)
   /v1/organizations/{organization_id}/ledgers/{ledger_id}/accounts:
     get:
       deprecated: true
@@ -2037,7 +2083,7 @@ paths:
         - ApiKeyAuth: []
       summary: List all accounts
       tags:
-        - Midaz_Ledger_API_Accounts
+        - Midaz_Ledger_API_Accounts (v1)
     post:
       deprecated: true
       operationId: createAccount
@@ -2086,7 +2132,7 @@ paths:
         - ApiKeyAuth: []
       summary: Create a new account
       tags:
-        - Midaz_Ledger_API_Accounts
+        - Midaz_Ledger_API_Accounts (v1)
   /v1/organizations/{organization_id}/ledgers/{ledger_id}/accounts/alias/{alias}:
     get:
       deprecated: true
@@ -2131,7 +2177,7 @@ paths:
         - ApiKeyAuth: []
       summary: Retrieve an account by alias
       tags:
-        - Midaz_Ledger_API_Accounts
+        - Midaz_Ledger_API_Accounts (v1)
   /v1/organizations/{organization_id}/ledgers/{ledger_id}/accounts/alias/{alias}/balances:
     get:
       deprecated: true
@@ -2176,7 +2222,7 @@ paths:
         - ApiKeyAuth: []
       summary: Get Balances using Alias
       tags:
-        - Midaz_Ledger_API_Balances
+        - Midaz_Ledger_API_Balances (v1)
   /v1/organizations/{organization_id}/ledgers/{ledger_id}/accounts/external/{code}:
     get:
       deprecated: true
@@ -2221,7 +2267,7 @@ paths:
         - ApiKeyAuth: []
       summary: Retrieve an account by external code
       tags:
-        - Midaz_Ledger_API_Accounts
+        - Midaz_Ledger_API_Accounts (v1)
   /v1/organizations/{organization_id}/ledgers/{ledger_id}/accounts/external/{code}/balances:
     get:
       deprecated: true
@@ -2266,7 +2312,7 @@ paths:
         - ApiKeyAuth: []
       summary: Get External balances using code
       tags:
-        - Midaz_Ledger_API_Balances
+        - Midaz_Ledger_API_Balances (v1)
   /v1/organizations/{organization_id}/ledgers/{ledger_id}/accounts/metrics/count:
     head:
       deprecated: true
@@ -2307,7 +2353,7 @@ paths:
         - ApiKeyAuth: []
       summary: Count accounts
       tags:
-        - Midaz_Ledger_API_Accounts
+        - Midaz_Ledger_API_Accounts (v1)
   /v1/organizations/{organization_id}/ledgers/{ledger_id}/accounts/{account_id}/balances:
     get:
       deprecated: true
@@ -2387,7 +2433,7 @@ paths:
         - ApiKeyAuth: []
       summary: Get all balances by account id
       tags:
-        - Midaz_Ledger_API_Balances
+        - Midaz_Ledger_API_Balances (v1)
     post:
       deprecated: true
       operationId: createAdditionalBalance
@@ -2437,7 +2483,7 @@ paths:
         - ApiKeyAuth: []
       summary: Create Additional Balance
       tags:
-        - Midaz_Ledger_API_Balances
+        - Midaz_Ledger_API_Balances (v1)
   /v1/organizations/{organization_id}/ledgers/{ledger_id}/accounts/{account_id}/balances/history:
     get:
       deprecated: true
@@ -2493,7 +2539,7 @@ paths:
         - ApiKeyAuth: []
       summary: Get Account Balances history at date
       tags:
-        - Midaz_Ledger_API_Balances
+        - Midaz_Ledger_API_Balances (v1)
   /v1/organizations/{organization_id}/ledgers/{ledger_id}/accounts/{account_id}/operations:
     get:
       deprecated: true
@@ -2608,7 +2654,7 @@ paths:
         - ApiKeyAuth: []
       summary: Get all Operations by account
       tags:
-        - Midaz_Ledger_API_Operations
+        - Midaz_Ledger_API_Operations (v1)
   /v1/organizations/{organization_id}/ledgers/{ledger_id}/accounts/{account_id}/operations/{operation_id}:
     get:
       deprecated: true
@@ -2660,7 +2706,7 @@ paths:
         - ApiKeyAuth: []
       summary: Get Operation
       tags:
-        - Midaz_Ledger_API_Operations
+        - Midaz_Ledger_API_Operations (v1)
   /v1/organizations/{organization_id}/ledgers/{ledger_id}/accounts/{id}:
     delete:
       deprecated: true
@@ -2707,7 +2753,7 @@ paths:
         - ApiKeyAuth: []
       summary: Delete an account
       tags:
-        - Midaz_Ledger_API_Accounts
+        - Midaz_Ledger_API_Accounts (v1)
     get:
       deprecated: true
       operationId: getAccountByID
@@ -2751,7 +2797,7 @@ paths:
         - ApiKeyAuth: []
       summary: Retrieve a specific account
       tags:
-        - Midaz_Ledger_API_Accounts
+        - Midaz_Ledger_API_Accounts (v1)
     patch:
       deprecated: true
       operationId: updateAccount
@@ -2801,7 +2847,7 @@ paths:
         - ApiKeyAuth: []
       summary: Update an account
       tags:
-        - Midaz_Ledger_API_Accounts
+        - Midaz_Ledger_API_Accounts (v1)
   /v1/organizations/{organization_id}/ledgers/{ledger_id}/asset-rates:
     put:
       deprecated: true
@@ -2845,7 +2891,7 @@ paths:
         - ApiKeyAuth: []
       summary: Create or Update an AssetRate
       tags:
-        - Midaz_Ledger_API_Asset Rates
+        - Midaz_Ledger_API_Asset Rates (v1)
   /v1/organizations/{organization_id}/ledgers/{ledger_id}/asset-rates/from/{asset_code}:
     get:
       deprecated: true
@@ -2936,7 +2982,7 @@ paths:
         - ApiKeyAuth: []
       summary: Get an AssetRate by the Asset Code
       tags:
-        - Midaz_Ledger_API_Asset Rates
+        - Midaz_Ledger_API_Asset Rates (v1)
   /v1/organizations/{organization_id}/ledgers/{ledger_id}/asset-rates/{external_id}:
     get:
       deprecated: true
@@ -2981,7 +3027,7 @@ paths:
         - ApiKeyAuth: []
       summary: Get an AssetRate by External ID
       tags:
-        - Midaz_Ledger_API_Asset Rates
+        - Midaz_Ledger_API_Asset Rates (v1)
   /v1/organizations/{organization_id}/ledgers/{ledger_id}/assets:
     get:
       deprecated: true
@@ -3061,7 +3107,7 @@ paths:
         - ApiKeyAuth: []
       summary: List all assets
       tags:
-        - Midaz_Ledger_API_Assets
+        - Midaz_Ledger_API_Assets (v1)
     post:
       deprecated: true
       operationId: createAsset
@@ -3110,7 +3156,7 @@ paths:
         - ApiKeyAuth: []
       summary: Create a new asset
       tags:
-        - Midaz_Ledger_API_Assets
+        - Midaz_Ledger_API_Assets (v1)
   /v1/organizations/{organization_id}/ledgers/{ledger_id}/assets/metrics/count:
     head:
       deprecated: true
@@ -3151,7 +3197,7 @@ paths:
         - ApiKeyAuth: []
       summary: Count total assets
       tags:
-        - Midaz_Ledger_API_Assets
+        - Midaz_Ledger_API_Assets (v1)
   /v1/organizations/{organization_id}/ledgers/{ledger_id}/assets/{id}:
     delete:
       deprecated: true
@@ -3192,7 +3238,7 @@ paths:
         - ApiKeyAuth: []
       summary: Delete an asset
       tags:
-        - Midaz_Ledger_API_Assets
+        - Midaz_Ledger_API_Assets (v1)
     get:
       deprecated: true
       operationId: getAssetByID
@@ -3236,7 +3282,7 @@ paths:
         - ApiKeyAuth: []
       summary: Retrieve a specific asset
       tags:
-        - Midaz_Ledger_API_Assets
+        - Midaz_Ledger_API_Assets (v1)
     patch:
       deprecated: true
       operationId: updateAsset
@@ -3286,7 +3332,7 @@ paths:
         - ApiKeyAuth: []
       summary: Update an asset
       tags:
-        - Midaz_Ledger_API_Assets
+        - Midaz_Ledger_API_Assets (v1)
   /v1/organizations/{organization_id}/ledgers/{ledger_id}/balances:
     get:
       deprecated: true
@@ -3359,7 +3405,7 @@ paths:
         - ApiKeyAuth: []
       summary: Get all balances
       tags:
-        - Midaz_Ledger_API_Balances
+        - Midaz_Ledger_API_Balances (v1)
   /v1/organizations/{organization_id}/ledgers/{ledger_id}/balances/{balance_id}:
     delete:
       deprecated: true
@@ -3400,7 +3446,7 @@ paths:
         - ApiKeyAuth: []
       summary: Delete Balance by account
       tags:
-        - Midaz_Ledger_API_Balances
+        - Midaz_Ledger_API_Balances (v1)
     get:
       deprecated: true
       operationId: getBalanceByID
@@ -3444,7 +3490,7 @@ paths:
         - ApiKeyAuth: []
       summary: Get Balance by id
       tags:
-        - Midaz_Ledger_API_Balances
+        - Midaz_Ledger_API_Balances (v1)
     patch:
       deprecated: true
       operationId: updateBalance
@@ -3494,7 +3540,7 @@ paths:
         - ApiKeyAuth: []
       summary: Update Balance
       tags:
-        - Midaz_Ledger_API_Balances
+        - Midaz_Ledger_API_Balances (v1)
   /v1/organizations/{organization_id}/ledgers/{ledger_id}/balances/{balance_id}/history:
     get:
       deprecated: true
@@ -3546,7 +3592,7 @@ paths:
         - ApiKeyAuth: []
       summary: Get Balance history at date
       tags:
-        - Midaz_Ledger_API_Balances
+        - Midaz_Ledger_API_Balances (v1)
   /v1/organizations/{organization_id}/ledgers/{ledger_id}/holders/{id}/accounts:
     post:
       deprecated: true
@@ -3602,7 +3648,7 @@ paths:
         - BearerAuth: []
       summary: Open a holder-owned account (with optional instrument)
       tags:
-        - Midaz_Ledger_API_Composition
+        - Midaz_Ledger_API_Composition (v1)
   /v1/organizations/{organization_id}/ledgers/{ledger_id}/operation-routes:
     get:
       deprecated: true
@@ -3674,7 +3720,7 @@ paths:
         - BearerAuth: []
       summary: Retrieve all operation routes
       tags:
-        - Midaz_Ledger_API_Operation Routes
+        - Midaz_Ledger_API_Operation Routes (v1)
     post:
       deprecated: true
       operationId: createOperationRoute
@@ -3716,7 +3762,7 @@ paths:
         - BearerAuth: []
       summary: Create Operation Route
       tags:
-        - Midaz_Ledger_API_Operation Routes
+        - Midaz_Ledger_API_Operation Routes (v1)
   /v1/organizations/{organization_id}/ledgers/{ledger_id}/operation-routes/{operation_route_id}:
     delete:
       deprecated: true
@@ -3756,7 +3802,7 @@ paths:
         - BearerAuth: []
       summary: Delete an operation route
       tags:
-        - Midaz_Ledger_API_Operation Routes
+        - Midaz_Ledger_API_Operation Routes (v1)
     get:
       deprecated: true
       operationId: getOperationRouteByID
@@ -3799,7 +3845,7 @@ paths:
         - BearerAuth: []
       summary: Retrieve a specific operation route
       tags:
-        - Midaz_Ledger_API_Operation Routes
+        - Midaz_Ledger_API_Operation Routes (v1)
     patch:
       deprecated: true
       operationId: updateOperationRoute
@@ -3848,7 +3894,7 @@ paths:
         - BearerAuth: []
       summary: Update an operation route
       tags:
-        - Midaz_Ledger_API_Operation Routes
+        - Midaz_Ledger_API_Operation Routes (v1)
   /v1/organizations/{organization_id}/ledgers/{ledger_id}/portfolios:
     get:
       deprecated: true
@@ -3942,7 +3988,7 @@ paths:
         - ApiKeyAuth: []
       summary: List all portfolios
       tags:
-        - Midaz_Ledger_API_Portfolios
+        - Midaz_Ledger_API_Portfolios (v1)
     post:
       deprecated: true
       operationId: createPortfolio
@@ -3985,7 +4031,7 @@ paths:
         - ApiKeyAuth: []
       summary: Create a new portfolio
       tags:
-        - Midaz_Ledger_API_Portfolios
+        - Midaz_Ledger_API_Portfolios (v1)
   /v1/organizations/{organization_id}/ledgers/{ledger_id}/portfolios/metrics/count:
     head:
       deprecated: true
@@ -4026,7 +4072,7 @@ paths:
         - ApiKeyAuth: []
       summary: Count total portfolios
       tags:
-        - Midaz_Ledger_API_Portfolios
+        - Midaz_Ledger_API_Portfolios (v1)
   /v1/organizations/{organization_id}/ledgers/{ledger_id}/portfolios/{id}:
     delete:
       deprecated: true
@@ -4067,7 +4113,7 @@ paths:
         - ApiKeyAuth: []
       summary: Delete a portfolio
       tags:
-        - Midaz_Ledger_API_Portfolios
+        - Midaz_Ledger_API_Portfolios (v1)
     get:
       deprecated: true
       operationId: getPortfolioByID
@@ -4111,7 +4157,7 @@ paths:
         - ApiKeyAuth: []
       summary: Retrieve a specific portfolio
       tags:
-        - Midaz_Ledger_API_Portfolios
+        - Midaz_Ledger_API_Portfolios (v1)
     patch:
       deprecated: true
       operationId: updatePortfolio
@@ -4161,7 +4207,7 @@ paths:
         - ApiKeyAuth: []
       summary: Update a portfolio
       tags:
-        - Midaz_Ledger_API_Portfolios
+        - Midaz_Ledger_API_Portfolios (v1)
   /v1/organizations/{organization_id}/ledgers/{ledger_id}/segments:
     get:
       deprecated: true
@@ -4241,7 +4287,7 @@ paths:
         - ApiKeyAuth: []
       summary: List all segments
       tags:
-        - Midaz_Ledger_API_Segments
+        - Midaz_Ledger_API_Segments (v1)
     post:
       deprecated: true
       operationId: createSegment
@@ -4284,7 +4330,7 @@ paths:
         - ApiKeyAuth: []
       summary: Create a new segment
       tags:
-        - Midaz_Ledger_API_Segments
+        - Midaz_Ledger_API_Segments (v1)
   /v1/organizations/{organization_id}/ledgers/{ledger_id}/segments/metrics/count:
     head:
       deprecated: true
@@ -4325,7 +4371,7 @@ paths:
         - ApiKeyAuth: []
       summary: Count total segments
       tags:
-        - Midaz_Ledger_API_Segments
+        - Midaz_Ledger_API_Segments (v1)
   /v1/organizations/{organization_id}/ledgers/{ledger_id}/segments/{id}:
     delete:
       deprecated: true
@@ -4366,7 +4412,7 @@ paths:
         - ApiKeyAuth: []
       summary: Delete a segment
       tags:
-        - Midaz_Ledger_API_Segments
+        - Midaz_Ledger_API_Segments (v1)
     get:
       deprecated: true
       operationId: getSegmentByID
@@ -4410,7 +4456,7 @@ paths:
         - ApiKeyAuth: []
       summary: Retrieve a specific segment
       tags:
-        - Midaz_Ledger_API_Segments
+        - Midaz_Ledger_API_Segments (v1)
     patch:
       deprecated: true
       operationId: updateSegment
@@ -4460,7 +4506,7 @@ paths:
         - ApiKeyAuth: []
       summary: Update a segment
       tags:
-        - Midaz_Ledger_API_Segments
+        - Midaz_Ledger_API_Segments (v1)
   /v1/organizations/{organization_id}/ledgers/{ledger_id}/settings:
     get:
       deprecated: true
@@ -4498,7 +4544,7 @@ paths:
         - ApiKeyAuth: []
       summary: Get ledger settings
       tags:
-        - Midaz_Ledger_API_Ledgers
+        - Midaz_Ledger_API_Ledgers (v1)
     patch:
       deprecated: true
       operationId: updateLedgerSettings
@@ -4542,7 +4588,7 @@ paths:
         - ApiKeyAuth: []
       summary: Update ledger settings
       tags:
-        - Midaz_Ledger_API_Ledgers
+        - Midaz_Ledger_API_Ledgers (v1)
   /v1/organizations/{organization_id}/ledgers/{ledger_id}/transaction-routes:
     get:
       deprecated: true
@@ -4614,7 +4660,7 @@ paths:
         - BearerAuth: []
       summary: Get all Transaction Routes
       tags:
-        - Midaz_Ledger_API_Transaction Routes
+        - Midaz_Ledger_API_Transaction Routes (v1)
     post:
       deprecated: true
       operationId: createTransactionRoute
@@ -4656,7 +4702,7 @@ paths:
         - BearerAuth: []
       summary: Create Transaction Route
       tags:
-        - Midaz_Ledger_API_Transaction Routes
+        - Midaz_Ledger_API_Transaction Routes (v1)
   /v1/organizations/{organization_id}/ledgers/{ledger_id}/transaction-routes/{transaction_route_id}:
     delete:
       deprecated: true
@@ -4696,7 +4742,7 @@ paths:
         - BearerAuth: []
       summary: Delete Transaction Route by ID
       tags:
-        - Midaz_Ledger_API_Transaction Routes
+        - Midaz_Ledger_API_Transaction Routes (v1)
     get:
       deprecated: true
       operationId: getTransactionRouteByID
@@ -4739,7 +4785,7 @@ paths:
         - BearerAuth: []
       summary: Get Transaction Route by ID
       tags:
-        - Midaz_Ledger_API_Transaction Routes
+        - Midaz_Ledger_API_Transaction Routes (v1)
     patch:
       deprecated: true
       operationId: updateTransactionRoute
@@ -4788,7 +4834,7 @@ paths:
         - BearerAuth: []
       summary: Update Transaction Route
       tags:
-        - Midaz_Ledger_API_Transaction Routes
+        - Midaz_Ledger_API_Transaction Routes (v1)
   /v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions:
     get:
       deprecated: true
@@ -4867,7 +4913,7 @@ paths:
         - BearerAuth: []
       summary: Get all Transactions
       tags:
-        - Midaz_Ledger_API_Transactions
+        - Midaz_Ledger_API_Transactions (v1)
   /v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions/annotation:
     post:
       deprecated: true
@@ -4930,7 +4976,7 @@ paths:
         - BearerAuth: []
       summary: Create a Transaction Annotation using JSON
       tags:
-        - Midaz_Ledger_API_Transactions
+        - Midaz_Ledger_API_Transactions (v1)
   /v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions/block:
     post:
       deprecated: true
@@ -4993,7 +5039,7 @@ paths:
         - BearerAuth: []
       summary: Create a Block Transaction
       tags:
-        - Midaz_Ledger_API_Transactions
+        - Midaz_Ledger_API_Transactions (v1)
   /v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions/inflow:
     post:
       deprecated: true
@@ -5056,7 +5102,7 @@ paths:
         - BearerAuth: []
       summary: Create a Transaction without passing from source
       tags:
-        - Midaz_Ledger_API_Transactions
+        - Midaz_Ledger_API_Transactions (v1)
   /v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions/json:
     post:
       deprecated: true
@@ -5119,7 +5165,7 @@ paths:
         - BearerAuth: []
       summary: Create a Transaction using JSON
       tags:
-        - Midaz_Ledger_API_Transactions
+        - Midaz_Ledger_API_Transactions (v1)
   /v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions/metrics/count:
     head:
       deprecated: true
@@ -5192,7 +5238,7 @@ paths:
         - ApiKeyAuth: []
       summary: Count Transactions by Filters
       tags:
-        - Midaz_Ledger_API_Transactions
+        - Midaz_Ledger_API_Transactions (v1)
   /v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions/outflow:
     post:
       deprecated: true
@@ -5255,7 +5301,7 @@ paths:
         - BearerAuth: []
       summary: Create a Transaction without passing to distribution
       tags:
-        - Midaz_Ledger_API_Transactions
+        - Midaz_Ledger_API_Transactions (v1)
   /v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions/unblock:
     post:
       deprecated: true
@@ -5318,7 +5364,7 @@ paths:
         - BearerAuth: []
       summary: Create an Unblock Transaction
       tags:
-        - Midaz_Ledger_API_Transactions
+        - Midaz_Ledger_API_Transactions (v1)
   /v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions/{transaction_id}:
     get:
       deprecated: true
@@ -5366,7 +5412,7 @@ paths:
         - BearerAuth: []
       summary: Get a Transaction by ID
       tags:
-        - Midaz_Ledger_API_Transactions
+        - Midaz_Ledger_API_Transactions (v1)
     patch:
       deprecated: true
       operationId: updateTransaction
@@ -5415,7 +5461,7 @@ paths:
         - BearerAuth: []
       summary: Update a Transaction
       tags:
-        - Midaz_Ledger_API_Transactions
+        - Midaz_Ledger_API_Transactions (v1)
   /v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions/{transaction_id}/cancel:
     post:
       deprecated: true
@@ -5459,7 +5505,7 @@ paths:
         - BearerAuth: []
       summary: Cancel a pre transaction
       tags:
-        - Midaz_Ledger_API_Transactions
+        - Midaz_Ledger_API_Transactions (v1)
   /v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions/{transaction_id}/commit:
     post:
       deprecated: true
@@ -5503,7 +5549,7 @@ paths:
         - BearerAuth: []
       summary: Commit a Transaction
       tags:
-        - Midaz_Ledger_API_Transactions
+        - Midaz_Ledger_API_Transactions (v1)
   /v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions/{transaction_id}/operations/{operation_id}:
     patch:
       deprecated: true
@@ -5560,7 +5606,7 @@ paths:
         - BearerAuth: []
       summary: Update an Operation
       tags:
-        - Midaz_Ledger_API_Operations
+        - Midaz_Ledger_API_Operations (v1)
   /v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions/{transaction_id}/revert:
     post:
       deprecated: true
@@ -5608,7 +5654,7 @@ paths:
         - BearerAuth: []
       summary: Revert a Transaction
       tags:
-        - Midaz_Ledger_API_Transactions
+        - Midaz_Ledger_API_Transactions (v1)
   /v1/organizations/{organization_id}/packages:
     get:
       deprecated: true
@@ -5680,7 +5726,7 @@ paths:
         - BearerAuth: []
       summary: Get all packages
       tags:
-        - Midaz_Ledger_API_Packages
+        - Midaz_Ledger_API_Packages (v1)
     post:
       deprecated: true
       operationId: createPackage
@@ -5715,7 +5761,7 @@ paths:
         - BearerAuth: []
       summary: Create a Package
       tags:
-        - Midaz_Ledger_API_Packages
+        - Midaz_Ledger_API_Packages (v1)
   /v1/organizations/{organization_id}/packages/{id}:
     delete:
       deprecated: true
@@ -5748,7 +5794,7 @@ paths:
         - BearerAuth: []
       summary: SoftDelete a Package by ID
       tags:
-        - Midaz_Ledger_API_Packages
+        - Midaz_Ledger_API_Packages (v1)
     get:
       deprecated: true
       operationId: getPackageByID
@@ -5784,7 +5830,7 @@ paths:
         - BearerAuth: []
       summary: Get package
       tags:
-        - Midaz_Ledger_API_Packages
+        - Midaz_Ledger_API_Packages (v1)
     patch:
       deprecated: true
       operationId: updatePackage
@@ -5826,7 +5872,7 @@ paths:
         - BearerAuth: []
       summary: Update a package
       tags:
-        - Midaz_Ledger_API_Packages
+        - Midaz_Ledger_API_Packages (v1)
   /v1/organizations/{organization_id}/protection/audit:
     get:
       deprecated: true
@@ -5918,7 +5964,7 @@ paths:
         - BearerAuth: []
       summary: List Protection Audit Events
       tags:
-        - Midaz_Ledger_API_Protection
+        - Midaz_Ledger_API_Protection (v1)
   /v1/settings/metadata-indexes:
     get:
       deprecated: true
@@ -5953,7 +5999,7 @@ paths:
         - ApiKeyAuth: []
       summary: Get all Metadata Indexes
       tags:
-        - Midaz_Ledger_API_Metadata Indexes
+        - Midaz_Ledger_API_Metadata Indexes (v1)
   /v1/settings/metadata-indexes/entities/{entity_name}:
     post:
       deprecated: true
@@ -5996,7 +6042,7 @@ paths:
         - ApiKeyAuth: []
       summary: Create Metadata Index
       tags:
-        - Midaz_Ledger_API_Metadata Indexes
+        - Midaz_Ledger_API_Metadata Indexes (v1)
   /v1/settings/metadata-indexes/entities/{entity_name}/key/{index_key}:
     delete:
       deprecated: true
@@ -6036,7 +6082,7 @@ paths:
         - ApiKeyAuth: []
       summary: Delete Metadata Index
       tags:
-        - Midaz_Ledger_API_Metadata Indexes
+        - Midaz_Ledger_API_Metadata Indexes (v1)
   /v2/organizations:
     get:
       operationId: listOrganizationsV2
@@ -6129,7 +6175,7 @@ paths:
         - ApiKeyAuth: []
       summary: List all organizations
       tags:
-        - Midaz_Ledger_API_Organizations
+        - Midaz_Ledger_API_Organizations (v2)
     post:
       operationId: createOrganizationV2
       parameters:
@@ -6163,7 +6209,7 @@ paths:
         - ApiKeyAuth: []
       summary: Create a new organization
       tags:
-        - Midaz_Ledger_API_Organizations
+        - Midaz_Ledger_API_Organizations (v2)
   /v2/organizations/metrics/count:
     head:
       operationId: countOrganizationsV2
@@ -6188,7 +6234,7 @@ paths:
         - ApiKeyAuth: []
       summary: Count total organizations
       tags:
-        - Midaz_Ledger_API_Organizations
+        - Midaz_Ledger_API_Organizations (v2)
   /v2/organizations/{id}:
     delete:
       operationId: deleteOrganizationV2
@@ -6214,7 +6260,7 @@ paths:
         - ApiKeyAuth: []
       summary: Delete an organization
       tags:
-        - Midaz_Ledger_API_Organizations
+        - Midaz_Ledger_API_Organizations (v2)
     get:
       operationId: getOrganizationByIDV2
       parameters:
@@ -6243,7 +6289,7 @@ paths:
         - ApiKeyAuth: []
       summary: Retrieve a specific organization
       tags:
-        - Midaz_Ledger_API_Organizations
+        - Midaz_Ledger_API_Organizations (v2)
     patch:
       operationId: updateOrganizationV2
       parameters:
@@ -6278,7 +6324,7 @@ paths:
         - ApiKeyAuth: []
       summary: Update an existing organization
       tags:
-        - Midaz_Ledger_API_Organizations
+        - Midaz_Ledger_API_Organizations (v2)
   /v2/organizations/{organization_id}/encryption/provision:
     post:
       operationId: provisionEncryptionV2
@@ -6319,7 +6365,7 @@ paths:
         - BearerAuth: []
       summary: Provision an Organization for Envelope Encryption
       tags:
-        - Midaz_Ledger_API_Encryption
+        - Midaz_Ledger_API_Encryption (v2)
   /v2/organizations/{organization_id}/encryption/status:
     get:
       operationId: getProvisioningStatusV2
@@ -6354,7 +6400,7 @@ paths:
         - BearerAuth: []
       summary: Get Provisioning Status
       tags:
-        - Midaz_Ledger_API_Encryption
+        - Midaz_Ledger_API_Encryption (v2)
   /v2/organizations/{organization_id}/holders:
     get:
       operationId: listHoldersV2
@@ -6432,7 +6478,7 @@ paths:
         - BearerAuth: []
       summary: List Holders
       tags:
-        - Midaz_Ledger_API_Holders
+        - Midaz_Ledger_API_Holders (v2)
     post:
       operationId: createHolderV2
       parameters:
@@ -6486,7 +6532,7 @@ paths:
         - BearerAuth: []
       summary: Create a Holder
       tags:
-        - Midaz_Ledger_API_Holders
+        - Midaz_Ledger_API_Holders (v2)
   /v2/organizations/{organization_id}/holders/{holder_id}/instruments:
     post:
       operationId: createInstrumentV2
@@ -6548,7 +6594,7 @@ paths:
         - BearerAuth: []
       summary: Create an Instrument Account
       tags:
-        - Midaz_Ledger_API_Instruments
+        - Midaz_Ledger_API_Instruments (v2)
   /v2/organizations/{organization_id}/holders/{holder_id}/instruments/{instrument_id}:
     delete:
       operationId: deleteInstrumentV2
@@ -6598,7 +6644,7 @@ paths:
         - BearerAuth: []
       summary: Delete an Instrument
       tags:
-        - Midaz_Ledger_API_Instruments
+        - Midaz_Ledger_API_Instruments (v2)
     get:
       operationId: getInstrumentByIDV2
       parameters:
@@ -6649,7 +6695,7 @@ paths:
         - BearerAuth: []
       summary: Retrieve Instrument details
       tags:
-        - Midaz_Ledger_API_Instruments
+        - Midaz_Ledger_API_Instruments (v2)
     patch:
       operationId: updateInstrumentV2
       parameters:
@@ -6697,7 +6743,7 @@ paths:
         - BearerAuth: []
       summary: Update an Instrument
       tags:
-        - Midaz_Ledger_API_Instruments
+        - Midaz_Ledger_API_Instruments (v2)
   /v2/organizations/{organization_id}/holders/{holder_id}/instruments/{instrument_id}/related-parties/{related_party_id}:
     delete:
       operationId: deleteRelatedPartyV2
@@ -6743,7 +6789,7 @@ paths:
         - BearerAuth: []
       summary: Delete a Related Party
       tags:
-        - Midaz_Ledger_API_Instruments
+        - Midaz_Ledger_API_Instruments (v2)
   /v2/organizations/{organization_id}/holders/{id}:
     delete:
       operationId: deleteHolderV2
@@ -6786,7 +6832,7 @@ paths:
         - BearerAuth: []
       summary: Delete a Holder
       tags:
-        - Midaz_Ledger_API_Holders
+        - Midaz_Ledger_API_Holders (v2)
     get:
       operationId: getHolderByIDV2
       parameters:
@@ -6828,7 +6874,7 @@ paths:
         - BearerAuth: []
       summary: Retrieve Holder details
       tags:
-        - Midaz_Ledger_API_Holders
+        - Midaz_Ledger_API_Holders (v2)
     patch:
       operationId: updateHolderV2
       parameters:
@@ -6869,7 +6915,7 @@ paths:
         - BearerAuth: []
       summary: Update a Holder
       tags:
-        - Midaz_Ledger_API_Holders
+        - Midaz_Ledger_API_Holders (v2)
   /v2/organizations/{organization_id}/holders/{id}/accounts:
     get:
       operationId: listAccountsByHolderV2
@@ -6926,7 +6972,7 @@ paths:
         - BearerAuth: []
       summary: List Accounts by Holder
       tags:
-        - Midaz_Ledger_API_Holders
+        - Midaz_Ledger_API_Holders (v2)
   /v2/organizations/{organization_id}/instruments:
     get:
       operationId: listInstrumentsV2
@@ -7018,7 +7064,7 @@ paths:
         - BearerAuth: []
       summary: List Instruments
       tags:
-        - Midaz_Ledger_API_Instruments
+        - Midaz_Ledger_API_Instruments (v2)
   /v2/organizations/{organization_id}/ledgers:
     get:
       operationId: listLedgersV2
@@ -7104,7 +7150,7 @@ paths:
         - ApiKeyAuth: []
       summary: List all ledgers
       tags:
-        - Midaz_Ledger_API_Ledgers
+        - Midaz_Ledger_API_Ledgers (v2)
     post:
       operationId: createLedgerV2
       parameters:
@@ -7139,7 +7185,7 @@ paths:
         - ApiKeyAuth: []
       summary: Create a new ledger
       tags:
-        - Midaz_Ledger_API_Ledgers
+        - Midaz_Ledger_API_Ledgers (v2)
   /v2/organizations/{organization_id}/ledgers/metrics/count:
     head:
       operationId: countLedgersV2
@@ -7172,7 +7218,7 @@ paths:
         - ApiKeyAuth: []
       summary: Count total ledgers
       tags:
-        - Midaz_Ledger_API_Ledgers
+        - Midaz_Ledger_API_Ledgers (v2)
   /v2/organizations/{organization_id}/ledgers/{ledger_id}:
     delete:
       operationId: deleteLedgerV2
@@ -7205,7 +7251,7 @@ paths:
         - ApiKeyAuth: []
       summary: Delete a ledger
       tags:
-        - Midaz_Ledger_API_Ledgers
+        - Midaz_Ledger_API_Ledgers (v2)
     get:
       operationId: getLedgerByIDV2
       parameters:
@@ -7241,7 +7287,7 @@ paths:
         - ApiKeyAuth: []
       summary: Retrieve a specific ledger
       tags:
-        - Midaz_Ledger_API_Ledgers
+        - Midaz_Ledger_API_Ledgers (v2)
     patch:
       operationId: updateLedgerV2
       parameters:
@@ -7283,7 +7329,7 @@ paths:
         - ApiKeyAuth: []
       summary: Update an existing ledger
       tags:
-        - Midaz_Ledger_API_Ledgers
+        - Midaz_Ledger_API_Ledgers (v2)
   /v2/organizations/{organization_id}/ledgers/{ledger_id}/account-types:
     get:
       operationId: listAccountTypesV2
@@ -7376,7 +7422,7 @@ paths:
         - ApiKeyAuth: []
       summary: List all account types
       tags:
-        - Midaz_Ledger_API_Account Types
+        - Midaz_Ledger_API_Account Types (v2)
     post:
       operationId: createAccountTypeV2
       parameters:
@@ -7418,7 +7464,7 @@ paths:
         - ApiKeyAuth: []
       summary: Create a new account type
       tags:
-        - Midaz_Ledger_API_Account Types
+        - Midaz_Ledger_API_Account Types (v2)
   /v2/organizations/{organization_id}/ledgers/{ledger_id}/account-types/{id}:
     delete:
       operationId: deleteAccountTypeV2
@@ -7458,7 +7504,7 @@ paths:
         - ApiKeyAuth: []
       summary: Delete an account type
       tags:
-        - Midaz_Ledger_API_Account Types
+        - Midaz_Ledger_API_Account Types (v2)
     get:
       operationId: getAccountTypeByIDV2
       parameters:
@@ -7501,7 +7547,7 @@ paths:
         - ApiKeyAuth: []
       summary: Retrieve a specific account type
       tags:
-        - Midaz_Ledger_API_Account Types
+        - Midaz_Ledger_API_Account Types (v2)
     patch:
       operationId: updateAccountTypeV2
       parameters:
@@ -7550,7 +7596,7 @@ paths:
         - ApiKeyAuth: []
       summary: Update an account type
       tags:
-        - Midaz_Ledger_API_Account Types
+        - Midaz_Ledger_API_Account Types (v2)
   /v2/organizations/{organization_id}/ledgers/{ledger_id}/accounts:
     get:
       operationId: listAccountsV2
@@ -7699,7 +7745,7 @@ paths:
         - ApiKeyAuth: []
       summary: List all accounts
       tags:
-        - Midaz_Ledger_API_Accounts
+        - Midaz_Ledger_API_Accounts (v2)
     post:
       operationId: createAccountV2
       parameters:
@@ -7747,7 +7793,7 @@ paths:
         - ApiKeyAuth: []
       summary: Create a new account
       tags:
-        - Midaz_Ledger_API_Accounts
+        - Midaz_Ledger_API_Accounts (v2)
   /v2/organizations/{organization_id}/ledgers/{ledger_id}/accounts/alias/{alias}:
     get:
       operationId: getAccountByAliasV2
@@ -7791,7 +7837,7 @@ paths:
         - ApiKeyAuth: []
       summary: Retrieve an account by alias
       tags:
-        - Midaz_Ledger_API_Accounts
+        - Midaz_Ledger_API_Accounts (v2)
   /v2/organizations/{organization_id}/ledgers/{ledger_id}/accounts/alias/{alias}/balances:
     get:
       operationId: getBalancesByAliasV2
@@ -7835,7 +7881,7 @@ paths:
         - ApiKeyAuth: []
       summary: Get Balances using Alias
       tags:
-        - Midaz_Ledger_API_Balances
+        - Midaz_Ledger_API_Balances (v2)
   /v2/organizations/{organization_id}/ledgers/{ledger_id}/accounts/external/{code}:
     get:
       operationId: getAccountExternalByCodeV2
@@ -7879,7 +7925,7 @@ paths:
         - ApiKeyAuth: []
       summary: Retrieve an account by external code
       tags:
-        - Midaz_Ledger_API_Accounts
+        - Midaz_Ledger_API_Accounts (v2)
   /v2/organizations/{organization_id}/ledgers/{ledger_id}/accounts/external/{code}/balances:
     get:
       operationId: getBalancesExternalByCodeV2
@@ -7923,7 +7969,7 @@ paths:
         - ApiKeyAuth: []
       summary: Get External balances using code
       tags:
-        - Midaz_Ledger_API_Balances
+        - Midaz_Ledger_API_Balances (v2)
   /v2/organizations/{organization_id}/ledgers/{ledger_id}/accounts/metrics/count:
     head:
       operationId: countAccountsV2
@@ -7963,7 +8009,7 @@ paths:
         - ApiKeyAuth: []
       summary: Count accounts
       tags:
-        - Midaz_Ledger_API_Accounts
+        - Midaz_Ledger_API_Accounts (v2)
   /v2/organizations/{organization_id}/ledgers/{ledger_id}/accounts/{account_id}/balances:
     get:
       operationId: getAllBalancesByAccountIDV2
@@ -8042,7 +8088,7 @@ paths:
         - ApiKeyAuth: []
       summary: Get all balances by account id
       tags:
-        - Midaz_Ledger_API_Balances
+        - Midaz_Ledger_API_Balances (v2)
     post:
       operationId: createAdditionalBalanceV2
       parameters:
@@ -8091,7 +8137,7 @@ paths:
         - ApiKeyAuth: []
       summary: Create Additional Balance
       tags:
-        - Midaz_Ledger_API_Balances
+        - Midaz_Ledger_API_Balances (v2)
   /v2/organizations/{organization_id}/ledgers/{ledger_id}/accounts/{account_id}/balances/history:
     get:
       operationId: getAccountBalancesAtTimestampV2
@@ -8146,7 +8192,7 @@ paths:
         - ApiKeyAuth: []
       summary: Get Account Balances history at date
       tags:
-        - Midaz_Ledger_API_Balances
+        - Midaz_Ledger_API_Balances (v2)
   /v2/organizations/{organization_id}/ledgers/{ledger_id}/accounts/{account_id}/operations:
     get:
       operationId: getAllOperationsByAccountV2
@@ -8260,7 +8306,7 @@ paths:
         - ApiKeyAuth: []
       summary: Get all Operations by account
       tags:
-        - Midaz_Ledger_API_Operations
+        - Midaz_Ledger_API_Operations (v2)
   /v2/organizations/{organization_id}/ledgers/{ledger_id}/accounts/{account_id}/operations/{operation_id}:
     get:
       operationId: getOperationByAccountV2
@@ -8311,7 +8357,7 @@ paths:
         - ApiKeyAuth: []
       summary: Get Operation
       tags:
-        - Midaz_Ledger_API_Operations
+        - Midaz_Ledger_API_Operations (v2)
   /v2/organizations/{organization_id}/ledgers/{ledger_id}/accounts/{id}:
     delete:
       operationId: deleteAccountV2
@@ -8357,7 +8403,7 @@ paths:
         - ApiKeyAuth: []
       summary: Delete an account
       tags:
-        - Midaz_Ledger_API_Accounts
+        - Midaz_Ledger_API_Accounts (v2)
     get:
       operationId: getAccountByIDV2
       parameters:
@@ -8400,7 +8446,7 @@ paths:
         - ApiKeyAuth: []
       summary: Retrieve a specific account
       tags:
-        - Midaz_Ledger_API_Accounts
+        - Midaz_Ledger_API_Accounts (v2)
     patch:
       operationId: updateAccountV2
       parameters:
@@ -8449,7 +8495,7 @@ paths:
         - ApiKeyAuth: []
       summary: Update an account
       tags:
-        - Midaz_Ledger_API_Accounts
+        - Midaz_Ledger_API_Accounts (v2)
   /v2/organizations/{organization_id}/ledgers/{ledger_id}/asset-rates:
     put:
       operationId: createOrUpdateAssetRateV2
@@ -8492,7 +8538,7 @@ paths:
         - ApiKeyAuth: []
       summary: Create or Update an AssetRate
       tags:
-        - Midaz_Ledger_API_Asset Rates
+        - Midaz_Ledger_API_Asset Rates (v2)
   /v2/organizations/{organization_id}/ledgers/{ledger_id}/asset-rates/from/{asset_code}:
     get:
       operationId: getAllAssetRatesByAssetCodeV2
@@ -8582,7 +8628,7 @@ paths:
         - ApiKeyAuth: []
       summary: Get an AssetRate by the Asset Code
       tags:
-        - Midaz_Ledger_API_Asset Rates
+        - Midaz_Ledger_API_Asset Rates (v2)
   /v2/organizations/{organization_id}/ledgers/{ledger_id}/asset-rates/{external_id}:
     get:
       operationId: getAssetRateByExternalIDV2
@@ -8626,7 +8672,7 @@ paths:
         - ApiKeyAuth: []
       summary: Get an AssetRate by External ID
       tags:
-        - Midaz_Ledger_API_Asset Rates
+        - Midaz_Ledger_API_Asset Rates (v2)
   /v2/organizations/{organization_id}/ledgers/{ledger_id}/assets:
     get:
       operationId: listAssetsV2
@@ -8705,7 +8751,7 @@ paths:
         - ApiKeyAuth: []
       summary: List all assets
       tags:
-        - Midaz_Ledger_API_Assets
+        - Midaz_Ledger_API_Assets (v2)
     post:
       operationId: createAssetV2
       parameters:
@@ -8753,7 +8799,7 @@ paths:
         - ApiKeyAuth: []
       summary: Create a new asset
       tags:
-        - Midaz_Ledger_API_Assets
+        - Midaz_Ledger_API_Assets (v2)
   /v2/organizations/{organization_id}/ledgers/{ledger_id}/assets/metrics/count:
     head:
       operationId: countAssetsV2
@@ -8793,7 +8839,7 @@ paths:
         - ApiKeyAuth: []
       summary: Count total assets
       tags:
-        - Midaz_Ledger_API_Assets
+        - Midaz_Ledger_API_Assets (v2)
   /v2/organizations/{organization_id}/ledgers/{ledger_id}/assets/{id}:
     delete:
       operationId: deleteAssetV2
@@ -8833,7 +8879,7 @@ paths:
         - ApiKeyAuth: []
       summary: Delete an asset
       tags:
-        - Midaz_Ledger_API_Assets
+        - Midaz_Ledger_API_Assets (v2)
     get:
       operationId: getAssetByIDV2
       parameters:
@@ -8876,7 +8922,7 @@ paths:
         - ApiKeyAuth: []
       summary: Retrieve a specific asset
       tags:
-        - Midaz_Ledger_API_Assets
+        - Midaz_Ledger_API_Assets (v2)
     patch:
       operationId: updateAssetV2
       parameters:
@@ -8925,7 +8971,7 @@ paths:
         - ApiKeyAuth: []
       summary: Update an asset
       tags:
-        - Midaz_Ledger_API_Assets
+        - Midaz_Ledger_API_Assets (v2)
   /v2/organizations/{organization_id}/ledgers/{ledger_id}/balances:
     get:
       operationId: getAllBalancesV2
@@ -8997,7 +9043,7 @@ paths:
         - ApiKeyAuth: []
       summary: Get all balances
       tags:
-        - Midaz_Ledger_API_Balances
+        - Midaz_Ledger_API_Balances (v2)
   /v2/organizations/{organization_id}/ledgers/{ledger_id}/balances/{balance_id}:
     delete:
       operationId: deleteBalanceV2
@@ -9037,7 +9083,7 @@ paths:
         - ApiKeyAuth: []
       summary: Delete Balance by account
       tags:
-        - Midaz_Ledger_API_Balances
+        - Midaz_Ledger_API_Balances (v2)
     get:
       operationId: getBalanceByIDV2
       parameters:
@@ -9080,7 +9126,7 @@ paths:
         - ApiKeyAuth: []
       summary: Get Balance by id
       tags:
-        - Midaz_Ledger_API_Balances
+        - Midaz_Ledger_API_Balances (v2)
     patch:
       operationId: updateBalanceV2
       parameters:
@@ -9129,7 +9175,7 @@ paths:
         - ApiKeyAuth: []
       summary: Update Balance
       tags:
-        - Midaz_Ledger_API_Balances
+        - Midaz_Ledger_API_Balances (v2)
   /v2/organizations/{organization_id}/ledgers/{ledger_id}/balances/{balance_id}/history:
     get:
       operationId: getBalanceAtTimestampV2
@@ -9180,7 +9226,7 @@ paths:
         - ApiKeyAuth: []
       summary: Get Balance history at date
       tags:
-        - Midaz_Ledger_API_Balances
+        - Midaz_Ledger_API_Balances (v2)
   /v2/organizations/{organization_id}/ledgers/{ledger_id}/billing-packages:
     get:
       operationId: getAllBillingPackagesV2
@@ -9237,7 +9283,7 @@ paths:
         - BearerAuth: []
       summary: Get all billing packages of a ledger
       tags:
-        - Midaz_Ledger_API_Billing Packages
+        - Midaz_Ledger_API_Billing Packages (v2)
     post:
       operationId: createBillingPackageV2
       parameters:
@@ -9278,7 +9324,7 @@ paths:
         - BearerAuth: []
       summary: Create a BillingPackage
       tags:
-        - Midaz_Ledger_API_Billing Packages
+        - Midaz_Ledger_API_Billing Packages (v2)
   /v2/organizations/{organization_id}/ledgers/{ledger_id}/billing-packages/{id}:
     delete:
       operationId: deleteBillingPackageV2
@@ -9317,7 +9363,7 @@ paths:
         - BearerAuth: []
       summary: SoftDelete a BillingPackage by ID
       tags:
-        - Midaz_Ledger_API_Billing Packages
+        - Midaz_Ledger_API_Billing Packages (v2)
     get:
       operationId: getBillingPackageByIDV2
       parameters:
@@ -9359,7 +9405,7 @@ paths:
         - BearerAuth: []
       summary: Get billing package
       tags:
-        - Midaz_Ledger_API_Billing Packages
+        - Midaz_Ledger_API_Billing Packages (v2)
     patch:
       operationId: updateBillingPackageV2
       parameters:
@@ -9407,7 +9453,7 @@ paths:
         - BearerAuth: []
       summary: Update a billing package
       tags:
-        - Midaz_Ledger_API_Billing Packages
+        - Midaz_Ledger_API_Billing Packages (v2)
   /v2/organizations/{organization_id}/ledgers/{ledger_id}/billing/calculate:
     post:
       operationId: calculateBillingV2
@@ -9449,7 +9495,7 @@ paths:
         - BearerAuth: []
       summary: Calculate billing
       tags:
-        - Midaz_Ledger_API_Billing Calculate
+        - Midaz_Ledger_API_Billing Calculate (v2)
   /v2/organizations/{organization_id}/ledgers/{ledger_id}/estimates:
     post:
       operationId: estimateFeeCalculationV2
@@ -9492,7 +9538,7 @@ paths:
         - BearerAuth: []
       summary: Create a fee estimate calculation
       tags:
-        - Midaz_Ledger_API_Fees
+        - Midaz_Ledger_API_Fees (v2)
   /v2/organizations/{organization_id}/ledgers/{ledger_id}/holders/{id}/accounts:
     post:
       operationId: createHolderAccountV2
@@ -9547,7 +9593,7 @@ paths:
         - BearerAuth: []
       summary: Open a holder-owned account (with optional instrument)
       tags:
-        - Midaz_Ledger_API_Composition
+        - Midaz_Ledger_API_Composition (v2)
   /v2/organizations/{organization_id}/ledgers/{ledger_id}/operation-routes:
     get:
       operationId: listOperationRoutesV2
@@ -9618,7 +9664,7 @@ paths:
         - BearerAuth: []
       summary: Retrieve all operation routes
       tags:
-        - Midaz_Ledger_API_Operation Routes
+        - Midaz_Ledger_API_Operation Routes (v2)
     post:
       operationId: createOperationRouteV2
       parameters:
@@ -9659,7 +9705,7 @@ paths:
         - BearerAuth: []
       summary: Create Operation Route
       tags:
-        - Midaz_Ledger_API_Operation Routes
+        - Midaz_Ledger_API_Operation Routes (v2)
   /v2/organizations/{organization_id}/ledgers/{ledger_id}/operation-routes/{operation_route_id}:
     delete:
       operationId: deleteOperationRouteV2
@@ -9698,7 +9744,7 @@ paths:
         - BearerAuth: []
       summary: Delete an operation route
       tags:
-        - Midaz_Ledger_API_Operation Routes
+        - Midaz_Ledger_API_Operation Routes (v2)
     get:
       operationId: getOperationRouteByIDV2
       parameters:
@@ -9740,7 +9786,7 @@ paths:
         - BearerAuth: []
       summary: Retrieve a specific operation route
       tags:
-        - Midaz_Ledger_API_Operation Routes
+        - Midaz_Ledger_API_Operation Routes (v2)
     patch:
       operationId: updateOperationRouteV2
       parameters:
@@ -9788,7 +9834,7 @@ paths:
         - BearerAuth: []
       summary: Update an operation route
       tags:
-        - Midaz_Ledger_API_Operation Routes
+        - Midaz_Ledger_API_Operation Routes (v2)
   /v2/organizations/{organization_id}/ledgers/{ledger_id}/packages:
     get:
       operationId: getAllPackagesV2
@@ -9859,7 +9905,7 @@ paths:
         - BearerAuth: []
       summary: Get all packages of a ledger
       tags:
-        - Midaz_Ledger_API_Packages
+        - Midaz_Ledger_API_Packages (v2)
     post:
       operationId: createPackageV2
       parameters:
@@ -9900,7 +9946,7 @@ paths:
         - BearerAuth: []
       summary: Create a Package
       tags:
-        - Midaz_Ledger_API_Packages
+        - Midaz_Ledger_API_Packages (v2)
   /v2/organizations/{organization_id}/ledgers/{ledger_id}/packages/{id}:
     delete:
       operationId: deletePackageV2
@@ -9939,7 +9985,7 @@ paths:
         - BearerAuth: []
       summary: SoftDelete a Package by ID
       tags:
-        - Midaz_Ledger_API_Packages
+        - Midaz_Ledger_API_Packages (v2)
     get:
       operationId: getPackageByIDV2
       parameters:
@@ -9981,7 +10027,7 @@ paths:
         - BearerAuth: []
       summary: Get package
       tags:
-        - Midaz_Ledger_API_Packages
+        - Midaz_Ledger_API_Packages (v2)
     patch:
       operationId: updatePackageV2
       parameters:
@@ -10029,7 +10075,7 @@ paths:
         - BearerAuth: []
       summary: Update a package
       tags:
-        - Midaz_Ledger_API_Packages
+        - Midaz_Ledger_API_Packages (v2)
   /v2/organizations/{organization_id}/ledgers/{ledger_id}/portfolios:
     get:
       operationId: listPortfoliosV2
@@ -10122,7 +10168,7 @@ paths:
         - ApiKeyAuth: []
       summary: List all portfolios
       tags:
-        - Midaz_Ledger_API_Portfolios
+        - Midaz_Ledger_API_Portfolios (v2)
     post:
       operationId: createPortfolioV2
       parameters:
@@ -10164,7 +10210,7 @@ paths:
         - ApiKeyAuth: []
       summary: Create a new portfolio
       tags:
-        - Midaz_Ledger_API_Portfolios
+        - Midaz_Ledger_API_Portfolios (v2)
   /v2/organizations/{organization_id}/ledgers/{ledger_id}/portfolios/metrics/count:
     head:
       operationId: countPortfoliosV2
@@ -10204,7 +10250,7 @@ paths:
         - ApiKeyAuth: []
       summary: Count total portfolios
       tags:
-        - Midaz_Ledger_API_Portfolios
+        - Midaz_Ledger_API_Portfolios (v2)
   /v2/organizations/{organization_id}/ledgers/{ledger_id}/portfolios/{id}:
     delete:
       operationId: deletePortfolioV2
@@ -10244,7 +10290,7 @@ paths:
         - ApiKeyAuth: []
       summary: Delete a portfolio
       tags:
-        - Midaz_Ledger_API_Portfolios
+        - Midaz_Ledger_API_Portfolios (v2)
     get:
       operationId: getPortfolioByIDV2
       parameters:
@@ -10287,7 +10333,7 @@ paths:
         - ApiKeyAuth: []
       summary: Retrieve a specific portfolio
       tags:
-        - Midaz_Ledger_API_Portfolios
+        - Midaz_Ledger_API_Portfolios (v2)
     patch:
       operationId: updatePortfolioV2
       parameters:
@@ -10336,7 +10382,7 @@ paths:
         - ApiKeyAuth: []
       summary: Update a portfolio
       tags:
-        - Midaz_Ledger_API_Portfolios
+        - Midaz_Ledger_API_Portfolios (v2)
   /v2/organizations/{organization_id}/ledgers/{ledger_id}/segments:
     get:
       operationId: listSegmentsV2
@@ -10415,7 +10461,7 @@ paths:
         - ApiKeyAuth: []
       summary: List all segments
       tags:
-        - Midaz_Ledger_API_Segments
+        - Midaz_Ledger_API_Segments (v2)
     post:
       operationId: createSegmentV2
       parameters:
@@ -10457,7 +10503,7 @@ paths:
         - ApiKeyAuth: []
       summary: Create a new segment
       tags:
-        - Midaz_Ledger_API_Segments
+        - Midaz_Ledger_API_Segments (v2)
   /v2/organizations/{organization_id}/ledgers/{ledger_id}/segments/metrics/count:
     head:
       operationId: countSegmentsV2
@@ -10497,7 +10543,7 @@ paths:
         - ApiKeyAuth: []
       summary: Count total segments
       tags:
-        - Midaz_Ledger_API_Segments
+        - Midaz_Ledger_API_Segments (v2)
   /v2/organizations/{organization_id}/ledgers/{ledger_id}/segments/{id}:
     delete:
       operationId: deleteSegmentV2
@@ -10537,7 +10583,7 @@ paths:
         - ApiKeyAuth: []
       summary: Delete a segment
       tags:
-        - Midaz_Ledger_API_Segments
+        - Midaz_Ledger_API_Segments (v2)
     get:
       operationId: getSegmentByIDV2
       parameters:
@@ -10580,7 +10626,7 @@ paths:
         - ApiKeyAuth: []
       summary: Retrieve a specific segment
       tags:
-        - Midaz_Ledger_API_Segments
+        - Midaz_Ledger_API_Segments (v2)
     patch:
       operationId: updateSegmentV2
       parameters:
@@ -10629,7 +10675,7 @@ paths:
         - ApiKeyAuth: []
       summary: Update a segment
       tags:
-        - Midaz_Ledger_API_Segments
+        - Midaz_Ledger_API_Segments (v2)
   /v2/organizations/{organization_id}/ledgers/{ledger_id}/settings:
     get:
       operationId: getLedgerSettingsV2
@@ -10666,7 +10712,7 @@ paths:
         - ApiKeyAuth: []
       summary: Get ledger settings
       tags:
-        - Midaz_Ledger_API_Ledgers
+        - Midaz_Ledger_API_Ledgers (v2)
     patch:
       operationId: updateLedgerSettingsV2
       parameters:
@@ -10709,7 +10755,7 @@ paths:
         - ApiKeyAuth: []
       summary: Update ledger settings
       tags:
-        - Midaz_Ledger_API_Ledgers
+        - Midaz_Ledger_API_Ledgers (v2)
   /v2/organizations/{organization_id}/ledgers/{ledger_id}/transaction-routes:
     get:
       operationId: listTransactionRoutesV2
@@ -10780,7 +10826,7 @@ paths:
         - BearerAuth: []
       summary: Get all Transaction Routes
       tags:
-        - Midaz_Ledger_API_Transaction Routes
+        - Midaz_Ledger_API_Transaction Routes (v2)
     post:
       operationId: createTransactionRouteV2
       parameters:
@@ -10821,7 +10867,7 @@ paths:
         - BearerAuth: []
       summary: Create Transaction Route
       tags:
-        - Midaz_Ledger_API_Transaction Routes
+        - Midaz_Ledger_API_Transaction Routes (v2)
   /v2/organizations/{organization_id}/ledgers/{ledger_id}/transaction-routes/{transaction_route_id}:
     delete:
       operationId: deleteTransactionRouteV2
@@ -10860,7 +10906,7 @@ paths:
         - BearerAuth: []
       summary: Delete Transaction Route by ID
       tags:
-        - Midaz_Ledger_API_Transaction Routes
+        - Midaz_Ledger_API_Transaction Routes (v2)
     get:
       operationId: getTransactionRouteByIDV2
       parameters:
@@ -10902,7 +10948,7 @@ paths:
         - BearerAuth: []
       summary: Get Transaction Route by ID
       tags:
-        - Midaz_Ledger_API_Transaction Routes
+        - Midaz_Ledger_API_Transaction Routes (v2)
     patch:
       operationId: updateTransactionRouteV2
       parameters:
@@ -10950,7 +10996,7 @@ paths:
         - BearerAuth: []
       summary: Update Transaction Route
       tags:
-        - Midaz_Ledger_API_Transaction Routes
+        - Midaz_Ledger_API_Transaction Routes (v2)
   /v2/organizations/{organization_id}/ledgers/{ledger_id}/transactions:
     get:
       operationId: getAllTransactionsV2
@@ -11028,7 +11074,7 @@ paths:
         - BearerAuth: []
       summary: Get all Transactions
       tags:
-        - Midaz_Ledger_API_Transactions
+        - Midaz_Ledger_API_Transactions (v2)
   /v2/organizations/{organization_id}/ledgers/{ledger_id}/transactions/annotation:
     post:
       operationId: createTransactionAnnotationV2
@@ -11090,7 +11136,7 @@ paths:
         - BearerAuth: []
       summary: Create a Transaction Annotation using JSON
       tags:
-        - Midaz_Ledger_API_Transactions
+        - Midaz_Ledger_API_Transactions (v2)
   /v2/organizations/{organization_id}/ledgers/{ledger_id}/transactions/inflow:
     post:
       operationId: createTransactionInflowV2
@@ -11152,7 +11198,7 @@ paths:
         - BearerAuth: []
       summary: Create a Transaction without passing from source
       tags:
-        - Midaz_Ledger_API_Transactions
+        - Midaz_Ledger_API_Transactions (v2)
   /v2/organizations/{organization_id}/ledgers/{ledger_id}/transactions/json:
     post:
       operationId: createTransactionJSONV2
@@ -11214,7 +11260,7 @@ paths:
         - BearerAuth: []
       summary: Create a Transaction using JSON
       tags:
-        - Midaz_Ledger_API_Transactions
+        - Midaz_Ledger_API_Transactions (v2)
   /v2/organizations/{organization_id}/ledgers/{ledger_id}/transactions/metrics/count:
     head:
       operationId: countTransactionsByFiltersV2
@@ -11286,7 +11332,7 @@ paths:
         - ApiKeyAuth: []
       summary: Count Transactions by Filters
       tags:
-        - Midaz_Ledger_API_Transactions
+        - Midaz_Ledger_API_Transactions (v2)
   /v2/organizations/{organization_id}/ledgers/{ledger_id}/transactions/outflow:
     post:
       operationId: createTransactionOutflowV2
@@ -11348,7 +11394,7 @@ paths:
         - BearerAuth: []
       summary: Create a Transaction without passing to distribution
       tags:
-        - Midaz_Ledger_API_Transactions
+        - Midaz_Ledger_API_Transactions (v2)
   /v2/organizations/{organization_id}/ledgers/{ledger_id}/transactions/{transaction_id}:
     get:
       operationId: getTransactionV2
@@ -11395,7 +11441,7 @@ paths:
         - BearerAuth: []
       summary: Get a Transaction by ID
       tags:
-        - Midaz_Ledger_API_Transactions
+        - Midaz_Ledger_API_Transactions (v2)
     patch:
       operationId: updateTransactionV2
       parameters:
@@ -11443,7 +11489,7 @@ paths:
         - BearerAuth: []
       summary: Update a Transaction
       tags:
-        - Midaz_Ledger_API_Transactions
+        - Midaz_Ledger_API_Transactions (v2)
   /v2/organizations/{organization_id}/ledgers/{ledger_id}/transactions/{transaction_id}/cancel:
     post:
       operationId: cancelTransactionV2
@@ -11486,7 +11532,7 @@ paths:
         - BearerAuth: []
       summary: Cancel a pending Transaction (v2)
       tags:
-        - Midaz_Ledger_API_Transactions
+        - Midaz_Ledger_API_Transactions (v2)
   /v2/organizations/{organization_id}/ledgers/{ledger_id}/transactions/{transaction_id}/commit:
     post:
       operationId: commitTransactionV2
@@ -11529,7 +11575,7 @@ paths:
         - BearerAuth: []
       summary: Commit a Transaction (v2)
       tags:
-        - Midaz_Ledger_API_Transactions
+        - Midaz_Ledger_API_Transactions (v2)
   /v2/organizations/{organization_id}/ledgers/{ledger_id}/transactions/{transaction_id}/operations/{operation_id}:
     patch:
       operationId: updateOperationV2
@@ -11585,7 +11631,7 @@ paths:
         - BearerAuth: []
       summary: Update an Operation
       tags:
-        - Midaz_Ledger_API_Operations
+        - Midaz_Ledger_API_Operations (v2)
   /v2/organizations/{organization_id}/ledgers/{ledger_id}/transactions/{transaction_id}/revert:
     post:
       operationId: revertTransactionV2
@@ -11632,7 +11678,7 @@ paths:
         - BearerAuth: []
       summary: Revert a Transaction (v2)
       tags:
-        - Midaz_Ledger_API_Transactions
+        - Midaz_Ledger_API_Transactions (v2)
   /v2/organizations/{organization_id}/protection/audit:
     get:
       operationId: getAuditEventsV2
@@ -11723,7 +11769,7 @@ paths:
         - BearerAuth: []
       summary: List Protection Audit Events
       tags:
-        - Midaz_Ledger_API_Protection
+        - Midaz_Ledger_API_Protection (v2)
   /v2/settings/metadata-indexes:
     get:
       operationId: getAllMetadataIndexesV2
@@ -11757,7 +11803,7 @@ paths:
         - ApiKeyAuth: []
       summary: Get all Metadata Indexes
       tags:
-        - Midaz_Ledger_API_Metadata Indexes
+        - Midaz_Ledger_API_Metadata Indexes (v2)
   /v2/settings/metadata-indexes/entities/{entity_name}:
     post:
       operationId: createMetadataIndexV2
@@ -11799,7 +11845,7 @@ paths:
         - ApiKeyAuth: []
       summary: Create Metadata Index
       tags:
-        - Midaz_Ledger_API_Metadata Indexes
+        - Midaz_Ledger_API_Metadata Indexes (v2)
   /v2/settings/metadata-indexes/entities/{entity_name}/key/{index_key}:
     delete:
       operationId: deleteMetadataIndexV2
@@ -11838,7 +11884,7 @@ paths:
         - ApiKeyAuth: []
       summary: Delete Metadata Index
       tags:
-        - Midaz_Ledger_API_Metadata Indexes
+        - Midaz_Ledger_API_Metadata Indexes (v2)
   /v2/transactions/block:
     post:
       operationId: createTransactionBlockV2
@@ -11886,7 +11932,7 @@ paths:
         - BearerAuth: []
       summary: Create a Transaction using the v2 block model
       tags:
-        - Midaz_Ledger_API_Transactions
+        - Midaz_Ledger_API_Transactions (v2)
   /v2/transactions/direct:
     post:
       operationId: createTransactionDirectV2
@@ -11934,7 +11980,7 @@ paths:
         - BearerAuth: []
       summary: Create a Transaction using the v2 direct model
       tags:
-        - Midaz_Ledger_API_Transactions
+        - Midaz_Ledger_API_Transactions (v2)
   /v2/transactions/hold:
     post:
       operationId: createTransactionHoldV2
@@ -11982,7 +12028,7 @@ paths:
         - BearerAuth: []
       summary: Create a Transaction using the v2 hold model
       tags:
-        - Midaz_Ledger_API_Transactions
+        - Midaz_Ledger_API_Transactions (v2)
   /v2/transactions/unblock:
     post:
       operationId: createTransactionUnblockV2
@@ -12030,7 +12076,7 @@ paths:
         - BearerAuth: []
       summary: Create a Transaction using the v2 unblock model
       tags:
-        - Midaz_Ledger_API_Transactions
+        - Midaz_Ledger_API_Transactions (v2)
   /v1/audit-events:
     get:
       operationId: listAuditEvents
@@ -18425,29 +18471,52 @@ components:
 x-tagGroups:
   - name: Midaz Ledger API
     tags:
-      - Midaz_Ledger_API_Organizations
-      - Midaz_Ledger_API_Billing Packages
-      - Midaz_Ledger_API_Billing Calculate
-      - Midaz_Ledger_API_Encryption
-      - Midaz_Ledger_API_Fees
-      - Midaz_Ledger_API_Holders
-      - Midaz_Ledger_API_Instruments
-      - Midaz_Ledger_API_Ledgers
-      - Midaz_Ledger_API_Account Types
-      - Midaz_Ledger_API_Accounts
-      - Midaz_Ledger_API_Balances
-      - Midaz_Ledger_API_Operations
-      - Midaz_Ledger_API_Asset Rates
-      - Midaz_Ledger_API_Assets
-      - Midaz_Ledger_API_Composition
-      - Midaz_Ledger_API_Operation Routes
-      - Midaz_Ledger_API_Portfolios
-      - Midaz_Ledger_API_Segments
-      - Midaz_Ledger_API_Transaction Routes
-      - Midaz_Ledger_API_Transactions
-      - Midaz_Ledger_API_Packages
-      - Midaz_Ledger_API_Protection
-      - Midaz_Ledger_API_Metadata Indexes
+      - Midaz_Ledger_API_Account Types (v1)
+      - Midaz_Ledger_API_Account Types (v2)
+      - Midaz_Ledger_API_Accounts (v1)
+      - Midaz_Ledger_API_Accounts (v2)
+      - Midaz_Ledger_API_Asset Rates (v1)
+      - Midaz_Ledger_API_Asset Rates (v2)
+      - Midaz_Ledger_API_Assets (v1)
+      - Midaz_Ledger_API_Assets (v2)
+      - Midaz_Ledger_API_Balances (v1)
+      - Midaz_Ledger_API_Balances (v2)
+      - Midaz_Ledger_API_Billing Calculate (v1)
+      - Midaz_Ledger_API_Billing Calculate (v2)
+      - Midaz_Ledger_API_Billing Packages (v1)
+      - Midaz_Ledger_API_Billing Packages (v2)
+      - Midaz_Ledger_API_Composition (v1)
+      - Midaz_Ledger_API_Composition (v2)
+      - Midaz_Ledger_API_Encryption (v1)
+      - Midaz_Ledger_API_Encryption (v2)
+      - Midaz_Ledger_API_Fees (v1)
+      - Midaz_Ledger_API_Fees (v2)
+      - Midaz_Ledger_API_Holders (v1)
+      - Midaz_Ledger_API_Holders (v2)
+      - Midaz_Ledger_API_Instruments (v1)
+      - Midaz_Ledger_API_Instruments (v2)
+      - Midaz_Ledger_API_Ledgers (v1)
+      - Midaz_Ledger_API_Ledgers (v2)
+      - Midaz_Ledger_API_Metadata Indexes (v1)
+      - Midaz_Ledger_API_Metadata Indexes (v2)
+      - Midaz_Ledger_API_Operation Routes (v1)
+      - Midaz_Ledger_API_Operation Routes (v2)
+      - Midaz_Ledger_API_Operations (v1)
+      - Midaz_Ledger_API_Operations (v2)
+      - Midaz_Ledger_API_Organizations (v1)
+      - Midaz_Ledger_API_Organizations (v2)
+      - Midaz_Ledger_API_Packages (v1)
+      - Midaz_Ledger_API_Packages (v2)
+      - Midaz_Ledger_API_Portfolios (v1)
+      - Midaz_Ledger_API_Portfolios (v2)
+      - Midaz_Ledger_API_Protection (v1)
+      - Midaz_Ledger_API_Protection (v2)
+      - Midaz_Ledger_API_Segments (v1)
+      - Midaz_Ledger_API_Segments (v2)
+      - Midaz_Ledger_API_Transaction Routes (v1)
+      - Midaz_Ledger_API_Transaction Routes (v2)
+      - Midaz_Ledger_API_Transactions (v1)
+      - Midaz_Ledger_API_Transactions (v2)
   - name: Midaz Tracer API
     tags:
       - Midaz_Tracer_API_Audit

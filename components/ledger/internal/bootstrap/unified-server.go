@@ -237,6 +237,7 @@ func mountHumaContracts(app *fiber.App, logger libLog.Logger, version string, co
 	}
 
 	httpin.MarkV1OperationsDeprecated(api)
+	httpin.ApplyVersionTagGroups(api)
 
 	if openAPIDocsEnabled() {
 		openapi.ServeSpec(app, api, logger, "/", title)
