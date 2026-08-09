@@ -36,8 +36,9 @@ type RouteRegistrar func(router fiber.Router)
 type HumaRouteRegistrar func(group fiber.Router, api huma.API)
 
 // openAPIDocsEnabled reports whether the native Huma OpenAPI 3.1 spec + Scalar docs
-// surface should be served (openapi.ServeSpec: openapi.{json,yaml} and docs at the
-// root, since one document backs every version). Off by default; opt in with
+// surface should be served (serveVersionedDocs: the unified /openapi.{json,yaml}, the
+// per-version /openapi.v{1,2}.json view specs, and the /docs version selector, all at
+// the root since one document backs every version). Off by default; opt in with
 // OPENAPI_DOCS_ENABLED=true. An absent or unparseable value leaves the contract unserved.
 func openAPIDocsEnabled() bool {
 	return libCommons.GetenvBoolOrDefault("OPENAPI_DOCS_ENABLED", false)
@@ -198,10 +199,10 @@ type humaContract struct {
 //     getGroupPath(prefix, opPath) equals the prefix the PrefixModifier writes into
 //     op.Path before the Fiber adapter sees it — so the guard and its terminal chain
 //     on one Fiber route.
-//  4. Serve the spec LAST and ONCE, at the root: ServeSpec snapshots the document
-//     bytes, so it must run after the final huma.Register. Exposure is bootstrap
-//     policy gated on openAPIDocsEnabled(), which is why it lives here and not inside
-//     AssembleHumaContract.
+//  4. Serve the docs LAST and ONCE, at the root: serveVersionedDocs snapshots the
+//     document bytes and derives the per-version view specs, so it must run after the
+//     final huma.Register. Exposure is bootstrap policy gated on openAPIDocsEnabled(),
+//     which is why it lives here and not inside AssembleHumaContract.
 func mountHumaContracts(app *fiber.App, logger libLog.Logger, version string, contracts ...humaContract) {
 	anyMounted := false
 
@@ -240,7 +241,7 @@ func mountHumaContracts(app *fiber.App, logger libLog.Logger, version string, co
 	httpin.ApplyVersionTagGroups(api)
 
 	if openAPIDocsEnabled() {
-		openapi.ServeSpec(app, api, logger, "/", title)
+		serveVersionedDocs(app, api, logger, title)
 	}
 }
 
