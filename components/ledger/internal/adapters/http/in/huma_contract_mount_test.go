@@ -12,30 +12,6 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// operationsOf returns every declared operation on a PathItem, in a fixed order,
-// so a caller can walk the whole served surface without re-listing the eight
-// method fields at each call site.
-func operationsOf(item *huma.PathItem) []*huma.Operation {
-	if item == nil {
-		return nil
-	}
-
-	candidates := []*huma.Operation{
-		item.Get, item.Put, item.Post, item.Delete,
-		item.Options, item.Head, item.Patch, item.Trace,
-	}
-
-	ops := make([]*huma.Operation, 0, len(candidates))
-
-	for _, op := range candidates {
-		if op != nil {
-			ops = append(ops, op)
-		}
-	}
-
-	return ops
-}
-
 // referencedSecuritySchemes collects the DISTINCT security-scheme names every
 // operation (and the document-level Security) references across the whole
 // document. A name here that is absent from Components.SecuritySchemes is a

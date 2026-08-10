@@ -267,6 +267,7 @@ func RegisterBillingPackageRoutes(api huma.API, h *BillingPackageHandler) {
 		SkipValidateBody: true,
 		DefaultStatus:    http.StatusCreated,
 	}, h.CreateBillingPackageHuma)
+	attachTypedRequestBody[model.BillingPackage](api, "createBillingPackage")
 
 	huma.Register(api, huma.Operation{
 		OperationID: "getAllBillingPackages",
@@ -295,6 +296,7 @@ func RegisterBillingPackageRoutes(api huma.API, h *BillingPackageHandler) {
 		Security:         secBillingBearer,
 		SkipValidateBody: true, // body validated imperatively — see createBillingPackage.
 	}, h.UpdateBillingPackageHuma)
+	attachTypedRequestBody[model.BillingPackageUpdate](api, "updateBillingPackage")
 
 	huma.Register(api, huma.Operation{
 		OperationID: "deleteBillingPackage",

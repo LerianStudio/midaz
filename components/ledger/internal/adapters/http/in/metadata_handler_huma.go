@@ -193,6 +193,7 @@ func RegisterMetadataIndexRoutes(api huma.API, h *MetadataIndexHandler, opSuffix
 		SkipValidateBody: true,
 		DefaultStatus:    http.StatusCreated,
 	}, h.CreateMetadataIndexHuma)
+	attachTypedRequestBody[mmodel.CreateMetadataIndexInput](api, "createMetadataIndex"+opSuffix)
 
 	huma.Register(api, huma.Operation{
 		OperationID: "getAllMetadataIndexes" + opSuffix,

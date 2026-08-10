@@ -361,6 +361,7 @@ func RegisterHolderRoutes(api huma.API, h *HolderHandler, opSuffix string) {
 		SkipValidateBody: true,
 		DefaultStatus:    http.StatusCreated,
 	}, h.CreateHolderHuma)
+	attachTypedRequestBody[mmodel.CreateHolderInput](api, "createHolder"+opSuffix)
 
 	huma.Register(api, huma.Operation{
 		OperationID: "getHolderByID" + opSuffix,
@@ -380,6 +381,7 @@ func RegisterHolderRoutes(api huma.API, h *HolderHandler, opSuffix string) {
 		Security:         secHolderBearer,
 		SkipValidateBody: true, // body validated imperatively — RFC 7396 merge-patch core.
 	}, h.UpdateHolderHuma)
+	attachTypedRequestBody[mmodel.UpdateHolderInput](api, "updateHolder"+opSuffix)
 
 	huma.Register(api, huma.Operation{
 		OperationID: "deleteHolder" + opSuffix,

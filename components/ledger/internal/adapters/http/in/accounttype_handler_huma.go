@@ -281,6 +281,7 @@ func RegisterAccountTypeRoutes(api huma.API, h *AccountTypeHandler, opSuffix str
 		SkipValidateBody: true,
 		DefaultStatus:    http.StatusCreated,
 	}, h.CreateAccountTypeHuma)
+	attachTypedRequestBody[mmodel.CreateAccountTypeInput](api, "createAccountType"+opSuffix)
 
 	huma.Register(api, huma.Operation{
 		OperationID: "listAccountTypes" + opSuffix,
@@ -309,6 +310,7 @@ func RegisterAccountTypeRoutes(api huma.API, h *AccountTypeHandler, opSuffix str
 		Security:         secAccountTypeBearerOrAPIKey,
 		SkipValidateBody: true, // body validated imperatively — see createAccountType.
 	}, h.UpdateAccountTypeHuma)
+	attachTypedRequestBody[mmodel.UpdateAccountTypeInput](api, "updateAccountType"+opSuffix)
 
 	huma.Register(api, huma.Operation{
 		OperationID: "deleteAccountType" + opSuffix,

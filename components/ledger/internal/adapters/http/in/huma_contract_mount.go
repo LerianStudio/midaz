@@ -5,6 +5,9 @@
 package in
 
 import (
+	"sort"
+	"strings"
+
 	"github.com/LerianStudio/lib-auth/v3/auth/middleware"
 	openapi "github.com/LerianStudio/lib-commons/v6/commons/net/http/openapi"
 	problem "github.com/LerianStudio/lib-commons/v6/commons/net/http/problem"
@@ -256,4 +259,128 @@ func AssembleHumaContract(app *fiber.App, group fiber.Router, cfg openapi.Config
 	}
 
 	return api
+}
+
+// MarkV1OperationsDeprecated flags every operation whose path key is under "/v1/"
+// as deprecated on the assembled document, leaving "/v2/" untouched. Run it AFTER
+// the last huma.Register and BEFORE the spec is snapshotted so the served spec and
+// the committed dump carry the flag identically.
+func MarkV1OperationsDeprecated(api huma.API) {
+	for key, item := range api.OpenAPI().Paths {
+		if !strings.HasPrefix(key, "/v1/") {
+			continue
+		}
+
+		for _, op := range operationsOf(item) {
+			op.Deprecated = true
+		}
+	}
+}
+
+// operationsOf returns every declared operation on a PathItem, in a fixed order, so a
+// caller can walk the whole served surface without re-listing the eight method fields at
+// each call site. Nil methods are filtered out, and a nil item yields nil.
+func operationsOf(item *huma.PathItem) []*huma.Operation {
+	if item == nil {
+		return nil
+	}
+
+	candidates := []*huma.Operation{
+		item.Get, item.Put, item.Post, item.Delete,
+		item.Options, item.Head, item.Patch, item.Trace,
+	}
+
+	ops := make([]*huma.Operation, 0, len(candidates))
+
+	for _, op := range candidates {
+		if op != nil {
+			ops = append(ops, op)
+		}
+	}
+
+	return ops
+}
+
+// v1TagSuffix and v2TagSuffix are appended to each operation's resource tag so a
+// v1 op and its v2 twin, which share one resource tag, become distinct tags that
+// Scalar can group under separate sidebar sections.
+const (
+	v1TagSuffix = " (v1)"
+	v2TagSuffix = " (v2)"
+
+	v1TagGroupName = "V1 (deprecated)"
+	v2TagGroupName = "V2"
+)
+
+// ApplyVersionTagGroups splits the sidebar into two version-scoped sections in the
+// rendered docs. It rewrites every operation's resource tag to a version-suffixed
+// tag ("Organizations" -> "Organizations (v1)" / "Organizations (v2)"), declares
+// the resulting tags at the document root, and sets the x-tagGroups vendor
+// extension with a "V1 (deprecated)" group (all v1 tags) followed by a "V2" group
+// (all v2 tags).
+//
+// Run it AFTER MarkV1OperationsDeprecated and BEFORE the spec is snapshotted so the
+// served spec and the committed dump carry the tags identically. Output is
+// deterministic: the root Tags slice and every group's tag list are sorted, so the
+// byte-reproducible golden dump does not flap on Go's randomized map iteration.
+func ApplyVersionTagGroups(api huma.API) {
+	v1Set := map[string]struct{}{}
+	v2Set := map[string]struct{}{}
+
+	for key, item := range api.OpenAPI().Paths {
+		var (
+			suffix string
+			target map[string]struct{}
+		)
+
+		switch {
+		case strings.HasPrefix(key, "/v1/"):
+			suffix, target = v1TagSuffix, v1Set
+		case strings.HasPrefix(key, "/v2/"):
+			suffix, target = v2TagSuffix, v2Set
+		default:
+			continue
+		}
+
+		for _, op := range operationsOf(item) {
+			for i, tag := range op.Tags {
+				suffixed := tag + suffix
+				op.Tags[i] = suffixed
+				target[suffixed] = struct{}{}
+			}
+		}
+	}
+
+	v1Tags := sortedKeys(v1Set)
+	v2Tags := sortedKeys(v2Set)
+
+	rootTags := make([]*huma.Tag, 0, len(v1Tags)+len(v2Tags))
+	for _, name := range append(append([]string{}, v1Tags...), v2Tags...) {
+		rootTags = append(rootTags, &huma.Tag{Name: name})
+	}
+
+	sort.Slice(rootTags, func(i, j int) bool { return rootTags[i].Name < rootTags[j].Name })
+	api.OpenAPI().Tags = rootTags
+
+	if api.OpenAPI().Extensions == nil {
+		api.OpenAPI().Extensions = map[string]any{}
+	}
+
+	api.OpenAPI().Extensions["x-tagGroups"] = []map[string]any{
+		{"name": v1TagGroupName, "tags": v1Tags},
+		{"name": v2TagGroupName, "tags": v2Tags},
+	}
+}
+
+// sortedKeys returns the keys of set as a sorted slice, or an empty (non-nil)
+// slice so the resulting group renders as [] rather than null.
+func sortedKeys(set map[string]struct{}) []string {
+	keys := make([]string, 0, len(set))
+	for k := range set {
+		keys = append(keys, k)
+	}
+
+	sort.Strings(keys)
+
+	return keys
 }

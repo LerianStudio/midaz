@@ -11,6 +11,8 @@ import (
 	"github.com/danielgtaylor/huma/v2"
 	"github.com/gofiber/fiber/v3"
 
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/transaction"
+	"github.com/LerianStudio/midaz/v4/pkg/mtransaction"
 	pkgHTTP "github.com/LerianStudio/midaz/v4/pkg/net/http"
 )
 
@@ -57,6 +59,7 @@ func RegisterTransactionMirrorV2Routes(api huma.API, h *TransactionHandler) {
 		SkipValidateBody: true, // body validated imperatively (http.DecodeAndValidate) — reuses the v1 handler.
 		DefaultStatus:    http.StatusCreated,
 	}, h.CreateTransactionJSONHuma)
+	attachTypedRequestBody[mtransaction.CreateTransactionInput](api, "createTransactionJSON"+routeOpSuffixV2)
 
 	huma.Register(api, huma.Operation{
 		OperationID:      "createTransactionInflow" + routeOpSuffixV2,
@@ -68,6 +71,7 @@ func RegisterTransactionMirrorV2Routes(api huma.API, h *TransactionHandler) {
 		SkipValidateBody: true,
 		DefaultStatus:    http.StatusCreated,
 	}, h.CreateTransactionInflowHuma)
+	attachTypedRequestBody[mtransaction.CreateTransactionInflowInput](api, "createTransactionInflow"+routeOpSuffixV2)
 
 	huma.Register(api, huma.Operation{
 		OperationID:      "createTransactionOutflow" + routeOpSuffixV2,
@@ -79,6 +83,7 @@ func RegisterTransactionMirrorV2Routes(api huma.API, h *TransactionHandler) {
 		SkipValidateBody: true,
 		DefaultStatus:    http.StatusCreated,
 	}, h.CreateTransactionOutflowHuma)
+	attachTypedRequestBody[mtransaction.CreateTransactionOutflowInput](api, "createTransactionOutflow"+routeOpSuffixV2)
 
 	huma.Register(api, huma.Operation{
 		OperationID:      "createTransactionAnnotation" + routeOpSuffixV2,
@@ -90,6 +95,7 @@ func RegisterTransactionMirrorV2Routes(api huma.API, h *TransactionHandler) {
 		SkipValidateBody: true,
 		DefaultStatus:    http.StatusCreated,
 	}, h.CreateTransactionAnnotationHuma)
+	attachTypedRequestBody[mtransaction.CreateTransactionInput](api, "createTransactionAnnotation"+routeOpSuffixV2)
 
 	huma.Register(api, huma.Operation{
 		OperationID:      "updateTransaction" + routeOpSuffixV2,
@@ -100,6 +106,7 @@ func RegisterTransactionMirrorV2Routes(api huma.API, h *TransactionHandler) {
 		Security:         secTransactionBearer,
 		SkipValidateBody: true, // body validated imperatively — plain decode, not merge-patch.
 	}, h.UpdateTransactionHuma)
+	attachTypedRequestBody[transaction.UpdateTransactionInput](api, "updateTransaction"+routeOpSuffixV2)
 
 	huma.Register(api, huma.Operation{
 		OperationID: "getTransaction" + routeOpSuffixV2,

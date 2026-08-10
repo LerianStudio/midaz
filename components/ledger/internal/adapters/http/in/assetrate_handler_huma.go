@@ -225,6 +225,7 @@ func RegisterAssetRateRoutes(api huma.API, h *AssetRateHandler, opSuffix string)
 		SkipValidateBody: true,
 		DefaultStatus:    http.StatusCreated,
 	}, h.CreateOrUpdateAssetRateHuma)
+	attachTypedRequestBody[assetrate.CreateAssetRateInput](api, "createOrUpdateAssetRate"+opSuffix)
 
 	huma.Register(api, huma.Operation{
 		OperationID: "getAssetRateByExternalID" + opSuffix,

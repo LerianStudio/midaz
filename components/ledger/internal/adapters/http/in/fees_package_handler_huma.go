@@ -264,6 +264,7 @@ func RegisterPackageRoutes(api huma.API, h *PackageHandler) {
 		SkipValidateBody: true,
 		DefaultStatus:    http.StatusCreated,
 	}, h.CreatePackageHuma)
+	attachTypedRequestBody[model.CreatePackageInput](api, "createPackage")
 
 	huma.Register(api, huma.Operation{
 		OperationID: "getAllPackages",
@@ -292,6 +293,7 @@ func RegisterPackageRoutes(api huma.API, h *PackageHandler) {
 		Security:         secPackageBearer,
 		SkipValidateBody: true, // body validated imperatively — see createPackage.
 	}, h.UpdatePackageByIDHuma)
+	attachTypedRequestBody[model.UpdatePackageInput](api, "updatePackage")
 
 	huma.Register(api, huma.Operation{
 		OperationID: "deletePackage",
