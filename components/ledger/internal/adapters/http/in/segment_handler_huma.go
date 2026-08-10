@@ -301,6 +301,7 @@ func RegisterSegmentRoutes(api huma.API, h *SegmentHandler, opSuffix string) {
 		SkipValidateBody: true, // body validated imperatively — see file header.
 		DefaultStatus:    http.StatusCreated,
 	}, h.CreateSegmentHuma)
+	attachTypedRequestBody[mmodel.CreateSegmentInput](api, "createSegment"+opSuffix)
 
 	huma.Register(api, huma.Operation{
 		OperationID: "listSegments" + opSuffix,
@@ -329,6 +330,7 @@ func RegisterSegmentRoutes(api huma.API, h *SegmentHandler, opSuffix string) {
 		Security:         secAssetBearerOrAPIKey,
 		SkipValidateBody: true, // body validated imperatively — see file header.
 	}, h.UpdateSegmentHuma)
+	attachTypedRequestBody[mmodel.UpdateSegmentInput](api, "updateSegment"+opSuffix)
 
 	huma.Register(api, huma.Operation{
 		OperationID:   "deleteSegment" + opSuffix,

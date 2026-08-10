@@ -11,96 +11,188 @@
   ],
   "tags": [
     {
-      "name": "Midaz_Ledger_API_Organizations",
-      "x-displayName": "Organizations"
+      "name": "Midaz_Ledger_API_Account Types (v1)",
+      "x-displayName": "Account Types (v1)"
     },
     {
-      "name": "Midaz_Ledger_API_Billing Packages",
-      "x-displayName": "Billing Packages"
+      "name": "Midaz_Ledger_API_Account Types (v2)",
+      "x-displayName": "Account Types (v2)"
     },
     {
-      "name": "Midaz_Ledger_API_Billing Calculate",
-      "x-displayName": "Billing Calculate"
+      "name": "Midaz_Ledger_API_Accounts (v1)",
+      "x-displayName": "Accounts (v1)"
     },
     {
-      "name": "Midaz_Ledger_API_Encryption",
-      "x-displayName": "Encryption"
+      "name": "Midaz_Ledger_API_Accounts (v2)",
+      "x-displayName": "Accounts (v2)"
     },
     {
-      "name": "Midaz_Ledger_API_Fees",
-      "x-displayName": "Fees"
+      "name": "Midaz_Ledger_API_Asset Rates (v1)",
+      "x-displayName": "Asset Rates (v1)"
     },
     {
-      "name": "Midaz_Ledger_API_Holders",
-      "x-displayName": "Holders"
+      "name": "Midaz_Ledger_API_Asset Rates (v2)",
+      "x-displayName": "Asset Rates (v2)"
     },
     {
-      "name": "Midaz_Ledger_API_Instruments",
-      "x-displayName": "Instruments"
+      "name": "Midaz_Ledger_API_Assets (v1)",
+      "x-displayName": "Assets (v1)"
     },
     {
-      "name": "Midaz_Ledger_API_Ledgers",
-      "x-displayName": "Ledgers"
+      "name": "Midaz_Ledger_API_Assets (v2)",
+      "x-displayName": "Assets (v2)"
     },
     {
-      "name": "Midaz_Ledger_API_Account Types",
-      "x-displayName": "Account Types"
+      "name": "Midaz_Ledger_API_Balances (v1)",
+      "x-displayName": "Balances (v1)"
     },
     {
-      "name": "Midaz_Ledger_API_Accounts",
-      "x-displayName": "Accounts"
+      "name": "Midaz_Ledger_API_Balances (v2)",
+      "x-displayName": "Balances (v2)"
     },
     {
-      "name": "Midaz_Ledger_API_Balances",
-      "x-displayName": "Balances"
+      "name": "Midaz_Ledger_API_Billing Calculate (v1)",
+      "x-displayName": "Billing Calculate (v1)"
     },
     {
-      "name": "Midaz_Ledger_API_Operations",
-      "x-displayName": "Operations"
+      "name": "Midaz_Ledger_API_Billing Calculate (v2)",
+      "x-displayName": "Billing Calculate (v2)"
     },
     {
-      "name": "Midaz_Ledger_API_Asset Rates",
-      "x-displayName": "Asset Rates"
+      "name": "Midaz_Ledger_API_Billing Packages (v1)",
+      "x-displayName": "Billing Packages (v1)"
     },
     {
-      "name": "Midaz_Ledger_API_Assets",
-      "x-displayName": "Assets"
+      "name": "Midaz_Ledger_API_Billing Packages (v2)",
+      "x-displayName": "Billing Packages (v2)"
     },
     {
-      "name": "Midaz_Ledger_API_Composition",
-      "x-displayName": "Composition"
+      "name": "Midaz_Ledger_API_Composition (v1)",
+      "x-displayName": "Composition (v1)"
     },
     {
-      "name": "Midaz_Ledger_API_Operation Routes",
-      "x-displayName": "Operation Routes"
+      "name": "Midaz_Ledger_API_Composition (v2)",
+      "x-displayName": "Composition (v2)"
     },
     {
-      "name": "Midaz_Ledger_API_Portfolios",
-      "x-displayName": "Portfolios"
+      "name": "Midaz_Ledger_API_Encryption (v1)",
+      "x-displayName": "Encryption (v1)"
     },
     {
-      "name": "Midaz_Ledger_API_Segments",
-      "x-displayName": "Segments"
+      "name": "Midaz_Ledger_API_Encryption (v2)",
+      "x-displayName": "Encryption (v2)"
     },
     {
-      "name": "Midaz_Ledger_API_Transaction Routes",
-      "x-displayName": "Transaction Routes"
+      "name": "Midaz_Ledger_API_Fees (v1)",
+      "x-displayName": "Fees (v1)"
     },
     {
-      "name": "Midaz_Ledger_API_Transactions",
-      "x-displayName": "Transactions"
+      "name": "Midaz_Ledger_API_Fees (v2)",
+      "x-displayName": "Fees (v2)"
     },
     {
-      "name": "Midaz_Ledger_API_Packages",
-      "x-displayName": "Packages"
+      "name": "Midaz_Ledger_API_Holders (v1)",
+      "x-displayName": "Holders (v1)"
     },
     {
-      "name": "Midaz_Ledger_API_Protection",
-      "x-displayName": "Protection"
+      "name": "Midaz_Ledger_API_Holders (v2)",
+      "x-displayName": "Holders (v2)"
     },
     {
-      "name": "Midaz_Ledger_API_Metadata Indexes",
-      "x-displayName": "Metadata Indexes"
+      "name": "Midaz_Ledger_API_Instruments (v1)",
+      "x-displayName": "Instruments (v1)"
+    },
+    {
+      "name": "Midaz_Ledger_API_Instruments (v2)",
+      "x-displayName": "Instruments (v2)"
+    },
+    {
+      "name": "Midaz_Ledger_API_Ledgers (v1)",
+      "x-displayName": "Ledgers (v1)"
+    },
+    {
+      "name": "Midaz_Ledger_API_Ledgers (v2)",
+      "x-displayName": "Ledgers (v2)"
+    },
+    {
+      "name": "Midaz_Ledger_API_Metadata Indexes (v1)",
+      "x-displayName": "Metadata Indexes (v1)"
+    },
+    {
+      "name": "Midaz_Ledger_API_Metadata Indexes (v2)",
+      "x-displayName": "Metadata Indexes (v2)"
+    },
+    {
+      "name": "Midaz_Ledger_API_Operation Routes (v1)",
+      "x-displayName": "Operation Routes (v1)"
+    },
+    {
+      "name": "Midaz_Ledger_API_Operation Routes (v2)",
+      "x-displayName": "Operation Routes (v2)"
+    },
+    {
+      "name": "Midaz_Ledger_API_Operations (v1)",
+      "x-displayName": "Operations (v1)"
+    },
+    {
+      "name": "Midaz_Ledger_API_Operations (v2)",
+      "x-displayName": "Operations (v2)"
+    },
+    {
+      "name": "Midaz_Ledger_API_Organizations (v1)",
+      "x-displayName": "Organizations (v1)"
+    },
+    {
+      "name": "Midaz_Ledger_API_Organizations (v2)",
+      "x-displayName": "Organizations (v2)"
+    },
+    {
+      "name": "Midaz_Ledger_API_Packages (v1)",
+      "x-displayName": "Packages (v1)"
+    },
+    {
+      "name": "Midaz_Ledger_API_Packages (v2)",
+      "x-displayName": "Packages (v2)"
+    },
+    {
+      "name": "Midaz_Ledger_API_Portfolios (v1)",
+      "x-displayName": "Portfolios (v1)"
+    },
+    {
+      "name": "Midaz_Ledger_API_Portfolios (v2)",
+      "x-displayName": "Portfolios (v2)"
+    },
+    {
+      "name": "Midaz_Ledger_API_Protection (v1)",
+      "x-displayName": "Protection (v1)"
+    },
+    {
+      "name": "Midaz_Ledger_API_Protection (v2)",
+      "x-displayName": "Protection (v2)"
+    },
+    {
+      "name": "Midaz_Ledger_API_Segments (v1)",
+      "x-displayName": "Segments (v1)"
+    },
+    {
+      "name": "Midaz_Ledger_API_Segments (v2)",
+      "x-displayName": "Segments (v2)"
+    },
+    {
+      "name": "Midaz_Ledger_API_Transaction Routes (v1)",
+      "x-displayName": "Transaction Routes (v1)"
+    },
+    {
+      "name": "Midaz_Ledger_API_Transaction Routes (v2)",
+      "x-displayName": "Transaction Routes (v2)"
+    },
+    {
+      "name": "Midaz_Ledger_API_Transactions (v1)",
+      "x-displayName": "Transactions (v1)"
+    },
+    {
+      "name": "Midaz_Ledger_API_Transactions (v2)",
+      "x-displayName": "Transactions (v2)"
     },
     {
       "name": "Midaz_Tracer_API_Audit",
@@ -126,6 +218,7 @@
   "paths": {
     "/v1/organizations": {
       "get": {
+        "deprecated": true,
         "operationId": "listOrganizations",
         "parameters": [
           {
@@ -261,10 +354,11 @@
         ],
         "summary": "List all organizations",
         "tags": [
-          "Midaz_Ledger_API_Organizations"
+          "Midaz_Ledger_API_Organizations (v1)"
         ]
       },
       "post": {
+        "deprecated": true,
         "operationId": "createOrganization",
         "parameters": [
           {
@@ -281,9 +375,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "contentMediaType": "application/octet-stream",
-                "format": "binary",
-                "type": "string"
+                "$ref": "#/components/schemas/CreateOrganizationInput"
               }
             }
           },
@@ -321,12 +413,13 @@
         ],
         "summary": "Create a new organization",
         "tags": [
-          "Midaz_Ledger_API_Organizations"
+          "Midaz_Ledger_API_Organizations (v1)"
         ]
       }
     },
     "/v1/organizations/metrics/count": {
       "head": {
+        "deprecated": true,
         "operationId": "countOrganizations",
         "responses": {
           "204": {
@@ -365,12 +458,13 @@
         ],
         "summary": "Count total organizations",
         "tags": [
-          "Midaz_Ledger_API_Organizations"
+          "Midaz_Ledger_API_Organizations (v1)"
         ]
       }
     },
     "/v1/organizations/{id}": {
       "delete": {
+        "deprecated": true,
         "operationId": "deleteOrganization",
         "parameters": [
           {
@@ -409,10 +503,11 @@
         ],
         "summary": "Delete an organization",
         "tags": [
-          "Midaz_Ledger_API_Organizations"
+          "Midaz_Ledger_API_Organizations (v1)"
         ]
       },
       "get": {
+        "deprecated": true,
         "operationId": "getOrganizationByID",
         "parameters": [
           {
@@ -458,10 +553,11 @@
         ],
         "summary": "Retrieve a specific organization",
         "tags": [
-          "Midaz_Ledger_API_Organizations"
+          "Midaz_Ledger_API_Organizations (v1)"
         ]
       },
       "patch": {
+        "deprecated": true,
         "operationId": "updateOrganization",
         "parameters": [
           {
@@ -479,9 +575,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "contentMediaType": "application/octet-stream",
-                "format": "binary",
-                "type": "string"
+                "$ref": "#/components/schemas/UpdateOrganizationInput"
               }
             }
           },
@@ -519,12 +613,13 @@
         ],
         "summary": "Update an existing organization",
         "tags": [
-          "Midaz_Ledger_API_Organizations"
+          "Midaz_Ledger_API_Organizations (v1)"
         ]
       }
     },
     "/v1/organizations/{organization_id}/billing-packages": {
       "get": {
+        "deprecated": true,
         "operationId": "getAllBillingPackages",
         "parameters": [
           {
@@ -607,10 +702,11 @@
         ],
         "summary": "Get all billing packages",
         "tags": [
-          "Midaz_Ledger_API_Billing Packages"
+          "Midaz_Ledger_API_Billing Packages (v1)"
         ]
       },
       "post": {
+        "deprecated": true,
         "operationId": "createBillingPackage",
         "parameters": [
           {
@@ -628,9 +724,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "contentMediaType": "application/octet-stream",
-                "format": "binary",
-                "type": "string"
+                "$ref": "#/components/schemas/FeeBillingPackage"
               }
             }
           },
@@ -665,12 +759,13 @@
         ],
         "summary": "Create a BillingPackage",
         "tags": [
-          "Midaz_Ledger_API_Billing Packages"
+          "Midaz_Ledger_API_Billing Packages (v1)"
         ]
       }
     },
     "/v1/organizations/{organization_id}/billing-packages/{id}": {
       "delete": {
+        "deprecated": true,
         "operationId": "deleteBillingPackage",
         "parameters": [
           {
@@ -716,10 +811,11 @@
         ],
         "summary": "SoftDelete a BillingPackage by ID",
         "tags": [
-          "Midaz_Ledger_API_Billing Packages"
+          "Midaz_Ledger_API_Billing Packages (v1)"
         ]
       },
       "get": {
+        "deprecated": true,
         "operationId": "getBillingPackageByID",
         "parameters": [
           {
@@ -772,10 +868,11 @@
         ],
         "summary": "Get billing package",
         "tags": [
-          "Midaz_Ledger_API_Billing Packages"
+          "Midaz_Ledger_API_Billing Packages (v1)"
         ]
       },
       "patch": {
+        "deprecated": true,
         "operationId": "updateBillingPackage",
         "parameters": [
           {
@@ -803,9 +900,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "contentMediaType": "application/octet-stream",
-                "format": "binary",
-                "type": "string"
+                "$ref": "#/components/schemas/FeeBillingPackageUpdate"
               }
             }
           },
@@ -840,12 +935,13 @@
         ],
         "summary": "Update a billing package",
         "tags": [
-          "Midaz_Ledger_API_Billing Packages"
+          "Midaz_Ledger_API_Billing Packages (v1)"
         ]
       }
     },
     "/v1/organizations/{organization_id}/billing/calculate": {
       "post": {
+        "deprecated": true,
         "operationId": "calculateBilling",
         "parameters": [
           {
@@ -863,9 +959,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "contentMediaType": "application/octet-stream",
-                "format": "binary",
-                "type": "string"
+                "$ref": "#/components/schemas/FeeBillingCalculateRequest"
               }
             }
           },
@@ -900,12 +994,13 @@
         ],
         "summary": "Calculate billing",
         "tags": [
-          "Midaz_Ledger_API_Billing Calculate"
+          "Midaz_Ledger_API_Billing Calculate (v1)"
         ]
       }
     },
     "/v1/organizations/{organization_id}/encryption/provision": {
       "post": {
+        "deprecated": true,
         "operationId": "provisionEncryption",
         "parameters": [
           {
@@ -932,9 +1027,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "contentMediaType": "application/octet-stream",
-                "format": "binary",
-                "type": "string"
+                "$ref": "#/components/schemas/ProvisionEncryptionInput"
               }
             }
           },
@@ -969,12 +1062,13 @@
         ],
         "summary": "Provision an Organization for Envelope Encryption",
         "tags": [
-          "Midaz_Ledger_API_Encryption"
+          "Midaz_Ledger_API_Encryption (v1)"
         ]
       }
     },
     "/v1/organizations/{organization_id}/encryption/status": {
       "get": {
+        "deprecated": true,
         "operationId": "getProvisioningStatus",
         "parameters": [
           {
@@ -1026,12 +1120,13 @@
         ],
         "summary": "Get Provisioning Status",
         "tags": [
-          "Midaz_Ledger_API_Encryption"
+          "Midaz_Ledger_API_Encryption (v1)"
         ]
       }
     },
     "/v1/organizations/{organization_id}/estimates": {
       "post": {
+        "deprecated": true,
         "operationId": "estimateFeeCalculation",
         "parameters": [
           {
@@ -1049,9 +1144,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "contentMediaType": "application/octet-stream",
-                "format": "binary",
-                "type": "string"
+                "$ref": "#/components/schemas/FeeEstimate"
               }
             }
           },
@@ -1087,12 +1180,13 @@
         ],
         "summary": "Create a fee estimate calculation",
         "tags": [
-          "Midaz_Ledger_API_Fees"
+          "Midaz_Ledger_API_Fees (v1)"
         ]
       }
     },
     "/v1/organizations/{organization_id}/holders": {
       "get": {
+        "deprecated": true,
         "operationId": "listHolders",
         "parameters": [
           {
@@ -1205,10 +1299,11 @@
         ],
         "summary": "List Holders",
         "tags": [
-          "Midaz_Ledger_API_Holders"
+          "Midaz_Ledger_API_Holders (v1)"
         ]
       },
       "post": {
+        "deprecated": true,
         "operationId": "createHolder",
         "parameters": [
           {
@@ -1244,9 +1339,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "contentMediaType": "application/octet-stream",
-                "format": "binary",
-                "type": "string"
+                "$ref": "#/components/schemas/CreateHolderInput"
               }
             }
           },
@@ -1288,12 +1381,13 @@
         ],
         "summary": "Create a Holder",
         "tags": [
-          "Midaz_Ledger_API_Holders"
+          "Midaz_Ledger_API_Holders (v1)"
         ]
       }
     },
     "/v1/organizations/{organization_id}/holders/{holder_id}/instruments": {
       "post": {
+        "deprecated": true,
         "operationId": "createInstrument",
         "parameters": [
           {
@@ -1339,9 +1433,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "contentMediaType": "application/octet-stream",
-                "format": "binary",
-                "type": "string"
+                "$ref": "#/components/schemas/CreateInstrumentInput"
               }
             }
           },
@@ -1383,12 +1475,13 @@
         ],
         "summary": "Create an Instrument Account",
         "tags": [
-          "Midaz_Ledger_API_Instruments"
+          "Midaz_Ledger_API_Instruments (v1)"
         ]
       }
     },
     "/v1/organizations/{organization_id}/holders/{holder_id}/instruments/{instrument_id}": {
       "delete": {
+        "deprecated": true,
         "operationId": "deleteInstrument",
         "parameters": [
           {
@@ -1454,10 +1547,11 @@
         ],
         "summary": "Delete an Instrument",
         "tags": [
-          "Midaz_Ledger_API_Instruments"
+          "Midaz_Ledger_API_Instruments (v1)"
         ]
       },
       "get": {
+        "deprecated": true,
         "operationId": "getInstrumentByID",
         "parameters": [
           {
@@ -1530,10 +1624,11 @@
         ],
         "summary": "Retrieve Instrument details",
         "tags": [
-          "Midaz_Ledger_API_Instruments"
+          "Midaz_Ledger_API_Instruments (v1)"
         ]
       },
       "patch": {
+        "deprecated": true,
         "operationId": "updateInstrument",
         "parameters": [
           {
@@ -1571,9 +1666,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "contentMediaType": "application/octet-stream",
-                "format": "binary",
-                "type": "string"
+                "$ref": "#/components/schemas/UpdateInstrumentInput"
               }
             }
           },
@@ -1608,12 +1701,13 @@
         ],
         "summary": "Update an Instrument",
         "tags": [
-          "Midaz_Ledger_API_Instruments"
+          "Midaz_Ledger_API_Instruments (v1)"
         ]
       }
     },
     "/v1/organizations/{organization_id}/holders/{holder_id}/instruments/{instrument_id}/related-parties/{related_party_id}": {
       "delete": {
+        "deprecated": true,
         "operationId": "deleteRelatedParty",
         "parameters": [
           {
@@ -1679,12 +1773,13 @@
         ],
         "summary": "Delete a Related Party",
         "tags": [
-          "Midaz_Ledger_API_Instruments"
+          "Midaz_Ledger_API_Instruments (v1)"
         ]
       }
     },
     "/v1/organizations/{organization_id}/holders/{id}": {
       "delete": {
+        "deprecated": true,
         "operationId": "deleteHolder",
         "parameters": [
           {
@@ -1740,10 +1835,11 @@
         ],
         "summary": "Delete a Holder",
         "tags": [
-          "Midaz_Ledger_API_Holders"
+          "Midaz_Ledger_API_Holders (v1)"
         ]
       },
       "get": {
+        "deprecated": true,
         "operationId": "getHolderByID",
         "parameters": [
           {
@@ -1806,10 +1902,11 @@
         ],
         "summary": "Retrieve Holder details",
         "tags": [
-          "Midaz_Ledger_API_Holders"
+          "Midaz_Ledger_API_Holders (v1)"
         ]
       },
       "patch": {
+        "deprecated": true,
         "operationId": "updateHolder",
         "parameters": [
           {
@@ -1837,9 +1934,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "contentMediaType": "application/octet-stream",
-                "format": "binary",
-                "type": "string"
+                "$ref": "#/components/schemas/UpdateHolderInput"
               }
             }
           },
@@ -1874,12 +1969,13 @@
         ],
         "summary": "Update a Holder",
         "tags": [
-          "Midaz_Ledger_API_Holders"
+          "Midaz_Ledger_API_Holders (v1)"
         ]
       }
     },
     "/v1/organizations/{organization_id}/holders/{id}/accounts": {
       "get": {
+        "deprecated": true,
         "operationId": "listAccountsByHolder",
         "parameters": [
           {
@@ -1962,12 +2058,13 @@
         ],
         "summary": "List Accounts by Holder",
         "tags": [
-          "Midaz_Ledger_API_Holders"
+          "Midaz_Ledger_API_Holders (v1)"
         ]
       }
     },
     "/v1/organizations/{organization_id}/instruments": {
       "get": {
+        "deprecated": true,
         "operationId": "listInstruments",
         "parameters": [
           {
@@ -2100,12 +2197,13 @@
         ],
         "summary": "List Instruments",
         "tags": [
-          "Midaz_Ledger_API_Instruments"
+          "Midaz_Ledger_API_Instruments (v1)"
         ]
       }
     },
     "/v1/organizations/{organization_id}/ledgers": {
       "get": {
+        "deprecated": true,
         "operationId": "listLedgers",
         "parameters": [
           {
@@ -2231,10 +2329,11 @@
         ],
         "summary": "List all ledgers",
         "tags": [
-          "Midaz_Ledger_API_Ledgers"
+          "Midaz_Ledger_API_Ledgers (v1)"
         ]
       },
       "post": {
+        "deprecated": true,
         "operationId": "createLedger",
         "parameters": [
           {
@@ -2252,9 +2351,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "contentMediaType": "application/octet-stream",
-                "format": "binary",
-                "type": "string"
+                "$ref": "#/components/schemas/CreateLedgerInput"
               }
             }
           },
@@ -2292,12 +2389,13 @@
         ],
         "summary": "Create a new ledger",
         "tags": [
-          "Midaz_Ledger_API_Ledgers"
+          "Midaz_Ledger_API_Ledgers (v1)"
         ]
       }
     },
     "/v1/organizations/{organization_id}/ledgers/metrics/count": {
       "head": {
+        "deprecated": true,
         "operationId": "countLedgers",
         "parameters": [
           {
@@ -2348,12 +2446,13 @@
         ],
         "summary": "Count total ledgers",
         "tags": [
-          "Midaz_Ledger_API_Ledgers"
+          "Midaz_Ledger_API_Ledgers (v1)"
         ]
       }
     },
     "/v1/organizations/{organization_id}/ledgers/{ledger_id}": {
       "delete": {
+        "deprecated": true,
         "operationId": "deleteLedger",
         "parameters": [
           {
@@ -2402,10 +2501,11 @@
         ],
         "summary": "Delete a ledger",
         "tags": [
-          "Midaz_Ledger_API_Ledgers"
+          "Midaz_Ledger_API_Ledgers (v1)"
         ]
       },
       "get": {
+        "deprecated": true,
         "operationId": "getLedgerByID",
         "parameters": [
           {
@@ -2461,10 +2561,11 @@
         ],
         "summary": "Retrieve a specific ledger",
         "tags": [
-          "Midaz_Ledger_API_Ledgers"
+          "Midaz_Ledger_API_Ledgers (v1)"
         ]
       },
       "patch": {
+        "deprecated": true,
         "operationId": "updateLedger",
         "parameters": [
           {
@@ -2492,9 +2593,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "contentMediaType": "application/octet-stream",
-                "format": "binary",
-                "type": "string"
+                "$ref": "#/components/schemas/UpdateLedgerInput"
               }
             }
           },
@@ -2532,12 +2631,13 @@
         ],
         "summary": "Update an existing ledger",
         "tags": [
-          "Midaz_Ledger_API_Ledgers"
+          "Midaz_Ledger_API_Ledgers (v1)"
         ]
       }
     },
     "/v1/organizations/{organization_id}/ledgers/{ledger_id}/account-types": {
       "get": {
+        "deprecated": true,
         "operationId": "listAccountTypes",
         "parameters": [
           {
@@ -2673,10 +2773,11 @@
         ],
         "summary": "List all account types",
         "tags": [
-          "Midaz_Ledger_API_Account Types"
+          "Midaz_Ledger_API_Account Types (v1)"
         ]
       },
       "post": {
+        "deprecated": true,
         "operationId": "createAccountType",
         "parameters": [
           {
@@ -2704,9 +2805,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "contentMediaType": "application/octet-stream",
-                "format": "binary",
-                "type": "string"
+                "$ref": "#/components/schemas/CreateAccountTypeInput"
               }
             }
           },
@@ -2744,12 +2843,13 @@
         ],
         "summary": "Create a new account type",
         "tags": [
-          "Midaz_Ledger_API_Account Types"
+          "Midaz_Ledger_API_Account Types (v1)"
         ]
       }
     },
     "/v1/organizations/{organization_id}/ledgers/{ledger_id}/account-types/{id}": {
       "delete": {
+        "deprecated": true,
         "operationId": "deleteAccountType",
         "parameters": [
           {
@@ -2808,10 +2908,11 @@
         ],
         "summary": "Delete an account type",
         "tags": [
-          "Midaz_Ledger_API_Account Types"
+          "Midaz_Ledger_API_Account Types (v1)"
         ]
       },
       "get": {
+        "deprecated": true,
         "operationId": "getAccountTypeByID",
         "parameters": [
           {
@@ -2877,10 +2978,11 @@
         ],
         "summary": "Retrieve a specific account type",
         "tags": [
-          "Midaz_Ledger_API_Account Types"
+          "Midaz_Ledger_API_Account Types (v1)"
         ]
       },
       "patch": {
+        "deprecated": true,
         "operationId": "updateAccountType",
         "parameters": [
           {
@@ -2918,9 +3020,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "contentMediaType": "application/octet-stream",
-                "format": "binary",
-                "type": "string"
+                "$ref": "#/components/schemas/UpdateAccountTypeInput"
               }
             }
           },
@@ -2958,12 +3058,13 @@
         ],
         "summary": "Update an account type",
         "tags": [
-          "Midaz_Ledger_API_Account Types"
+          "Midaz_Ledger_API_Account Types (v1)"
         ]
       }
     },
     "/v1/organizations/{organization_id}/ledgers/{ledger_id}/accounts": {
       "get": {
+        "deprecated": true,
         "operationId": "listAccounts",
         "parameters": [
           {
@@ -3179,10 +3280,11 @@
         ],
         "summary": "List all accounts",
         "tags": [
-          "Midaz_Ledger_API_Accounts"
+          "Midaz_Ledger_API_Accounts (v1)"
         ]
       },
       "post": {
+        "deprecated": true,
         "operationId": "createAccount",
         "parameters": [
           {
@@ -3219,9 +3321,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "contentMediaType": "application/octet-stream",
-                "format": "binary",
-                "type": "string"
+                "$ref": "#/components/schemas/CreateAccountInput"
               }
             }
           },
@@ -3259,12 +3359,13 @@
         ],
         "summary": "Create a new account",
         "tags": [
-          "Midaz_Ledger_API_Accounts"
+          "Midaz_Ledger_API_Accounts (v1)"
         ]
       }
     },
     "/v1/organizations/{organization_id}/ledgers/{ledger_id}/accounts/alias/{alias}": {
       "get": {
+        "deprecated": true,
         "operationId": "getAccountByAlias",
         "parameters": [
           {
@@ -3330,12 +3431,13 @@
         ],
         "summary": "Retrieve an account by alias",
         "tags": [
-          "Midaz_Ledger_API_Accounts"
+          "Midaz_Ledger_API_Accounts (v1)"
         ]
       }
     },
     "/v1/organizations/{organization_id}/ledgers/{ledger_id}/accounts/alias/{alias}/balances": {
       "get": {
+        "deprecated": true,
         "operationId": "getBalancesByAlias",
         "parameters": [
           {
@@ -3401,12 +3503,13 @@
         ],
         "summary": "Get Balances using Alias",
         "tags": [
-          "Midaz_Ledger_API_Balances"
+          "Midaz_Ledger_API_Balances (v1)"
         ]
       }
     },
     "/v1/organizations/{organization_id}/ledgers/{ledger_id}/accounts/external/{code}": {
       "get": {
+        "deprecated": true,
         "operationId": "getAccountExternalByCode",
         "parameters": [
           {
@@ -3472,12 +3575,13 @@
         ],
         "summary": "Retrieve an account by external code",
         "tags": [
-          "Midaz_Ledger_API_Accounts"
+          "Midaz_Ledger_API_Accounts (v1)"
         ]
       }
     },
     "/v1/organizations/{organization_id}/ledgers/{ledger_id}/accounts/external/{code}/balances": {
       "get": {
+        "deprecated": true,
         "operationId": "getBalancesExternalByCode",
         "parameters": [
           {
@@ -3543,12 +3647,13 @@
         ],
         "summary": "Get External balances using code",
         "tags": [
-          "Midaz_Ledger_API_Balances"
+          "Midaz_Ledger_API_Balances (v1)"
         ]
       }
     },
     "/v1/organizations/{organization_id}/ledgers/{ledger_id}/accounts/metrics/count": {
       "head": {
+        "deprecated": true,
         "operationId": "countAccounts",
         "parameters": [
           {
@@ -3609,12 +3714,13 @@
         ],
         "summary": "Count accounts",
         "tags": [
-          "Midaz_Ledger_API_Accounts"
+          "Midaz_Ledger_API_Accounts (v1)"
         ]
       }
     },
     "/v1/organizations/{organization_id}/ledgers/{ledger_id}/accounts/{account_id}/balances": {
       "get": {
+        "deprecated": true,
         "operationId": "getAllBalancesByAccountID",
         "parameters": [
           {
@@ -3730,10 +3836,11 @@
         ],
         "summary": "Get all balances by account id",
         "tags": [
-          "Midaz_Ledger_API_Balances"
+          "Midaz_Ledger_API_Balances (v1)"
         ]
       },
       "post": {
+        "deprecated": true,
         "operationId": "createAdditionalBalance",
         "parameters": [
           {
@@ -3771,9 +3878,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "contentMediaType": "application/octet-stream",
-                "format": "binary",
-                "type": "string"
+                "$ref": "#/components/schemas/CreateAdditionalBalance"
               }
             }
           },
@@ -3811,12 +3916,13 @@
         ],
         "summary": "Create Additional Balance",
         "tags": [
-          "Midaz_Ledger_API_Balances"
+          "Midaz_Ledger_API_Balances (v1)"
         ]
       }
     },
     "/v1/organizations/{organization_id}/ledgers/{ledger_id}/accounts/{account_id}/balances/history": {
       "get": {
+        "deprecated": true,
         "operationId": "getAccountBalancesAtTimestamp",
         "parameters": [
           {
@@ -3898,12 +4004,13 @@
         ],
         "summary": "Get Account Balances history at date",
         "tags": [
-          "Midaz_Ledger_API_Balances"
+          "Midaz_Ledger_API_Balances (v1)"
         ]
       }
     },
     "/v1/organizations/{organization_id}/ledgers/{ledger_id}/accounts/{account_id}/operations": {
       "get": {
+        "deprecated": true,
         "operationId": "getAllOperationsByAccount",
         "parameters": [
           {
@@ -4069,12 +4176,13 @@
         ],
         "summary": "Get all Operations by account",
         "tags": [
-          "Midaz_Ledger_API_Operations"
+          "Midaz_Ledger_API_Operations (v1)"
         ]
       }
     },
     "/v1/organizations/{organization_id}/ledgers/{ledger_id}/accounts/{account_id}/operations/{operation_id}": {
       "get": {
+        "deprecated": true,
         "operationId": "getOperationByAccount",
         "parameters": [
           {
@@ -4150,12 +4258,13 @@
         ],
         "summary": "Get Operation",
         "tags": [
-          "Midaz_Ledger_API_Operations"
+          "Midaz_Ledger_API_Operations (v1)"
         ]
       }
     },
     "/v1/organizations/{organization_id}/ledgers/{ledger_id}/accounts/{id}": {
       "delete": {
+        "deprecated": true,
         "operationId": "deleteAccount",
         "parameters": [
           {
@@ -4223,10 +4332,11 @@
         ],
         "summary": "Delete an account",
         "tags": [
-          "Midaz_Ledger_API_Accounts"
+          "Midaz_Ledger_API_Accounts (v1)"
         ]
       },
       "get": {
+        "deprecated": true,
         "operationId": "getAccountByID",
         "parameters": [
           {
@@ -4292,10 +4402,11 @@
         ],
         "summary": "Retrieve a specific account",
         "tags": [
-          "Midaz_Ledger_API_Accounts"
+          "Midaz_Ledger_API_Accounts (v1)"
         ]
       },
       "patch": {
+        "deprecated": true,
         "operationId": "updateAccount",
         "parameters": [
           {
@@ -4333,9 +4444,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "contentMediaType": "application/octet-stream",
-                "format": "binary",
-                "type": "string"
+                "$ref": "#/components/schemas/UpdateAccountInput"
               }
             }
           },
@@ -4373,12 +4482,13 @@
         ],
         "summary": "Update an account",
         "tags": [
-          "Midaz_Ledger_API_Accounts"
+          "Midaz_Ledger_API_Accounts (v1)"
         ]
       }
     },
     "/v1/organizations/{organization_id}/ledgers/{ledger_id}/asset-rates": {
       "put": {
+        "deprecated": true,
         "operationId": "createOrUpdateAssetRate",
         "parameters": [
           {
@@ -4406,9 +4516,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "contentMediaType": "application/octet-stream",
-                "format": "binary",
-                "type": "string"
+                "$ref": "#/components/schemas/CreateAssetRateInput"
               }
             }
           },
@@ -4446,12 +4554,13 @@
         ],
         "summary": "Create or Update an AssetRate",
         "tags": [
-          "Midaz_Ledger_API_Asset Rates"
+          "Midaz_Ledger_API_Asset Rates (v1)"
         ]
       }
     },
     "/v1/organizations/{organization_id}/ledgers/{ledger_id}/asset-rates/from/{asset_code}": {
       "get": {
+        "deprecated": true,
         "operationId": "getAllAssetRatesByAssetCode",
         "parameters": [
           {
@@ -4583,12 +4692,13 @@
         ],
         "summary": "Get an AssetRate by the Asset Code",
         "tags": [
-          "Midaz_Ledger_API_Asset Rates"
+          "Midaz_Ledger_API_Asset Rates (v1)"
         ]
       }
     },
     "/v1/organizations/{organization_id}/ledgers/{ledger_id}/asset-rates/{external_id}": {
       "get": {
+        "deprecated": true,
         "operationId": "getAssetRateByExternalID",
         "parameters": [
           {
@@ -4654,12 +4764,13 @@
         ],
         "summary": "Get an AssetRate by External ID",
         "tags": [
-          "Midaz_Ledger_API_Asset Rates"
+          "Midaz_Ledger_API_Asset Rates (v1)"
         ]
       }
     },
     "/v1/organizations/{organization_id}/ledgers/{ledger_id}/assets": {
       "get": {
+        "deprecated": true,
         "operationId": "listAssets",
         "parameters": [
           {
@@ -4775,10 +4886,11 @@
         ],
         "summary": "List all assets",
         "tags": [
-          "Midaz_Ledger_API_Assets"
+          "Midaz_Ledger_API_Assets (v1)"
         ]
       },
       "post": {
+        "deprecated": true,
         "operationId": "createAsset",
         "parameters": [
           {
@@ -4815,9 +4927,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "contentMediaType": "application/octet-stream",
-                "format": "binary",
-                "type": "string"
+                "$ref": "#/components/schemas/CreateAssetInput"
               }
             }
           },
@@ -4855,12 +4965,13 @@
         ],
         "summary": "Create a new asset",
         "tags": [
-          "Midaz_Ledger_API_Assets"
+          "Midaz_Ledger_API_Assets (v1)"
         ]
       }
     },
     "/v1/organizations/{organization_id}/ledgers/{ledger_id}/assets/metrics/count": {
       "head": {
+        "deprecated": true,
         "operationId": "countAssets",
         "parameters": [
           {
@@ -4921,12 +5032,13 @@
         ],
         "summary": "Count total assets",
         "tags": [
-          "Midaz_Ledger_API_Assets"
+          "Midaz_Ledger_API_Assets (v1)"
         ]
       }
     },
     "/v1/organizations/{organization_id}/ledgers/{ledger_id}/assets/{id}": {
       "delete": {
+        "deprecated": true,
         "operationId": "deleteAsset",
         "parameters": [
           {
@@ -4985,10 +5097,11 @@
         ],
         "summary": "Delete an asset",
         "tags": [
-          "Midaz_Ledger_API_Assets"
+          "Midaz_Ledger_API_Assets (v1)"
         ]
       },
       "get": {
+        "deprecated": true,
         "operationId": "getAssetByID",
         "parameters": [
           {
@@ -5054,10 +5167,11 @@
         ],
         "summary": "Retrieve a specific asset",
         "tags": [
-          "Midaz_Ledger_API_Assets"
+          "Midaz_Ledger_API_Assets (v1)"
         ]
       },
       "patch": {
+        "deprecated": true,
         "operationId": "updateAsset",
         "parameters": [
           {
@@ -5095,9 +5209,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "contentMediaType": "application/octet-stream",
-                "format": "binary",
-                "type": "string"
+                "$ref": "#/components/schemas/UpdateAssetInput"
               }
             }
           },
@@ -5135,12 +5247,13 @@
         ],
         "summary": "Update an asset",
         "tags": [
-          "Midaz_Ledger_API_Assets"
+          "Midaz_Ledger_API_Assets (v1)"
         ]
       }
     },
     "/v1/organizations/{organization_id}/ledgers/{ledger_id}/balances": {
       "get": {
+        "deprecated": true,
         "operationId": "getAllBalances",
         "parameters": [
           {
@@ -5246,12 +5359,13 @@
         ],
         "summary": "Get all balances",
         "tags": [
-          "Midaz_Ledger_API_Balances"
+          "Midaz_Ledger_API_Balances (v1)"
         ]
       }
     },
     "/v1/organizations/{organization_id}/ledgers/{ledger_id}/balances/{balance_id}": {
       "delete": {
+        "deprecated": true,
         "operationId": "deleteBalance",
         "parameters": [
           {
@@ -5310,10 +5424,11 @@
         ],
         "summary": "Delete Balance by account",
         "tags": [
-          "Midaz_Ledger_API_Balances"
+          "Midaz_Ledger_API_Balances (v1)"
         ]
       },
       "get": {
+        "deprecated": true,
         "operationId": "getBalanceByID",
         "parameters": [
           {
@@ -5379,10 +5494,11 @@
         ],
         "summary": "Get Balance by id",
         "tags": [
-          "Midaz_Ledger_API_Balances"
+          "Midaz_Ledger_API_Balances (v1)"
         ]
       },
       "patch": {
+        "deprecated": true,
         "operationId": "updateBalance",
         "parameters": [
           {
@@ -5420,9 +5536,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "contentMediaType": "application/octet-stream",
-                "format": "binary",
-                "type": "string"
+                "$ref": "#/components/schemas/UpdateBalance"
               }
             }
           },
@@ -5460,12 +5574,13 @@
         ],
         "summary": "Update Balance",
         "tags": [
-          "Midaz_Ledger_API_Balances"
+          "Midaz_Ledger_API_Balances (v1)"
         ]
       }
     },
     "/v1/organizations/{organization_id}/ledgers/{ledger_id}/balances/{balance_id}/history": {
       "get": {
+        "deprecated": true,
         "operationId": "getBalanceAtTimestamp",
         "parameters": [
           {
@@ -5541,12 +5656,13 @@
         ],
         "summary": "Get Balance history at date",
         "tags": [
-          "Midaz_Ledger_API_Balances"
+          "Midaz_Ledger_API_Balances (v1)"
         ]
       }
     },
     "/v1/organizations/{organization_id}/ledgers/{ledger_id}/holders/{id}/accounts": {
       "post": {
+        "deprecated": true,
         "operationId": "createHolderAccount",
         "parameters": [
           {
@@ -5593,9 +5709,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "contentMediaType": "application/octet-stream",
-                "format": "binary",
-                "type": "string"
+                "$ref": "#/components/schemas/CreateHolderAccountInput"
               }
             }
           },
@@ -5630,12 +5744,13 @@
         ],
         "summary": "Open a holder-owned account (with optional instrument)",
         "tags": [
-          "Midaz_Ledger_API_Composition"
+          "Midaz_Ledger_API_Composition (v1)"
         ]
       }
     },
     "/v1/organizations/{organization_id}/ledgers/{ledger_id}/operation-routes": {
       "get": {
+        "deprecated": true,
         "operationId": "listOperationRoutes",
         "parameters": [
           {
@@ -5738,10 +5853,11 @@
         ],
         "summary": "Retrieve all operation routes",
         "tags": [
-          "Midaz_Ledger_API_Operation Routes"
+          "Midaz_Ledger_API_Operation Routes (v1)"
         ]
       },
       "post": {
+        "deprecated": true,
         "operationId": "createOperationRoute",
         "parameters": [
           {
@@ -5769,9 +5885,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "contentMediaType": "application/octet-stream",
-                "format": "binary",
-                "type": "string"
+                "$ref": "#/components/schemas/CreateOperationRouteInput"
               }
             }
           },
@@ -5806,12 +5920,13 @@
         ],
         "summary": "Create Operation Route",
         "tags": [
-          "Midaz_Ledger_API_Operation Routes"
+          "Midaz_Ledger_API_Operation Routes (v1)"
         ]
       }
     },
     "/v1/organizations/{organization_id}/ledgers/{ledger_id}/operation-routes/{operation_route_id}": {
       "delete": {
+        "deprecated": true,
         "operationId": "deleteOperationRoute",
         "parameters": [
           {
@@ -5867,10 +5982,11 @@
         ],
         "summary": "Delete an operation route",
         "tags": [
-          "Midaz_Ledger_API_Operation Routes"
+          "Midaz_Ledger_API_Operation Routes (v1)"
         ]
       },
       "get": {
+        "deprecated": true,
         "operationId": "getOperationRouteByID",
         "parameters": [
           {
@@ -5933,10 +6049,11 @@
         ],
         "summary": "Retrieve a specific operation route",
         "tags": [
-          "Midaz_Ledger_API_Operation Routes"
+          "Midaz_Ledger_API_Operation Routes (v1)"
         ]
       },
       "patch": {
+        "deprecated": true,
         "operationId": "updateOperationRoute",
         "parameters": [
           {
@@ -5974,9 +6091,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "contentMediaType": "application/octet-stream",
-                "format": "binary",
-                "type": "string"
+                "$ref": "#/components/schemas/UpdateOperationRouteInput"
               }
             }
           },
@@ -6011,12 +6126,13 @@
         ],
         "summary": "Update an operation route",
         "tags": [
-          "Midaz_Ledger_API_Operation Routes"
+          "Midaz_Ledger_API_Operation Routes (v1)"
         ]
       }
     },
     "/v1/organizations/{organization_id}/ledgers/{ledger_id}/portfolios": {
       "get": {
+        "deprecated": true,
         "operationId": "listPortfolios",
         "parameters": [
           {
@@ -6152,10 +6268,11 @@
         ],
         "summary": "List all portfolios",
         "tags": [
-          "Midaz_Ledger_API_Portfolios"
+          "Midaz_Ledger_API_Portfolios (v1)"
         ]
       },
       "post": {
+        "deprecated": true,
         "operationId": "createPortfolio",
         "parameters": [
           {
@@ -6183,9 +6300,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "contentMediaType": "application/octet-stream",
-                "format": "binary",
-                "type": "string"
+                "$ref": "#/components/schemas/CreatePortfolioInput"
               }
             }
           },
@@ -6223,12 +6338,13 @@
         ],
         "summary": "Create a new portfolio",
         "tags": [
-          "Midaz_Ledger_API_Portfolios"
+          "Midaz_Ledger_API_Portfolios (v1)"
         ]
       }
     },
     "/v1/organizations/{organization_id}/ledgers/{ledger_id}/portfolios/metrics/count": {
       "head": {
+        "deprecated": true,
         "operationId": "countPortfolios",
         "parameters": [
           {
@@ -6289,12 +6405,13 @@
         ],
         "summary": "Count total portfolios",
         "tags": [
-          "Midaz_Ledger_API_Portfolios"
+          "Midaz_Ledger_API_Portfolios (v1)"
         ]
       }
     },
     "/v1/organizations/{organization_id}/ledgers/{ledger_id}/portfolios/{id}": {
       "delete": {
+        "deprecated": true,
         "operationId": "deletePortfolio",
         "parameters": [
           {
@@ -6353,10 +6470,11 @@
         ],
         "summary": "Delete a portfolio",
         "tags": [
-          "Midaz_Ledger_API_Portfolios"
+          "Midaz_Ledger_API_Portfolios (v1)"
         ]
       },
       "get": {
+        "deprecated": true,
         "operationId": "getPortfolioByID",
         "parameters": [
           {
@@ -6422,10 +6540,11 @@
         ],
         "summary": "Retrieve a specific portfolio",
         "tags": [
-          "Midaz_Ledger_API_Portfolios"
+          "Midaz_Ledger_API_Portfolios (v1)"
         ]
       },
       "patch": {
+        "deprecated": true,
         "operationId": "updatePortfolio",
         "parameters": [
           {
@@ -6463,9 +6582,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "contentMediaType": "application/octet-stream",
-                "format": "binary",
-                "type": "string"
+                "$ref": "#/components/schemas/UpdatePortfolioInput"
               }
             }
           },
@@ -6503,12 +6620,13 @@
         ],
         "summary": "Update a portfolio",
         "tags": [
-          "Midaz_Ledger_API_Portfolios"
+          "Midaz_Ledger_API_Portfolios (v1)"
         ]
       }
     },
     "/v1/organizations/{organization_id}/ledgers/{ledger_id}/segments": {
       "get": {
+        "deprecated": true,
         "operationId": "listSegments",
         "parameters": [
           {
@@ -6624,10 +6742,11 @@
         ],
         "summary": "List all segments",
         "tags": [
-          "Midaz_Ledger_API_Segments"
+          "Midaz_Ledger_API_Segments (v1)"
         ]
       },
       "post": {
+        "deprecated": true,
         "operationId": "createSegment",
         "parameters": [
           {
@@ -6655,9 +6774,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "contentMediaType": "application/octet-stream",
-                "format": "binary",
-                "type": "string"
+                "$ref": "#/components/schemas/CreateSegmentInput"
               }
             }
           },
@@ -6695,12 +6812,13 @@
         ],
         "summary": "Create a new segment",
         "tags": [
-          "Midaz_Ledger_API_Segments"
+          "Midaz_Ledger_API_Segments (v1)"
         ]
       }
     },
     "/v1/organizations/{organization_id}/ledgers/{ledger_id}/segments/metrics/count": {
       "head": {
+        "deprecated": true,
         "operationId": "countSegments",
         "parameters": [
           {
@@ -6761,12 +6879,13 @@
         ],
         "summary": "Count total segments",
         "tags": [
-          "Midaz_Ledger_API_Segments"
+          "Midaz_Ledger_API_Segments (v1)"
         ]
       }
     },
     "/v1/organizations/{organization_id}/ledgers/{ledger_id}/segments/{id}": {
       "delete": {
+        "deprecated": true,
         "operationId": "deleteSegment",
         "parameters": [
           {
@@ -6825,10 +6944,11 @@
         ],
         "summary": "Delete a segment",
         "tags": [
-          "Midaz_Ledger_API_Segments"
+          "Midaz_Ledger_API_Segments (v1)"
         ]
       },
       "get": {
+        "deprecated": true,
         "operationId": "getSegmentByID",
         "parameters": [
           {
@@ -6894,10 +7014,11 @@
         ],
         "summary": "Retrieve a specific segment",
         "tags": [
-          "Midaz_Ledger_API_Segments"
+          "Midaz_Ledger_API_Segments (v1)"
         ]
       },
       "patch": {
+        "deprecated": true,
         "operationId": "updateSegment",
         "parameters": [
           {
@@ -6935,9 +7056,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "contentMediaType": "application/octet-stream",
-                "format": "binary",
-                "type": "string"
+                "$ref": "#/components/schemas/UpdateSegmentInput"
               }
             }
           },
@@ -6975,12 +7094,13 @@
         ],
         "summary": "Update a segment",
         "tags": [
-          "Midaz_Ledger_API_Segments"
+          "Midaz_Ledger_API_Segments (v1)"
         ]
       }
     },
     "/v1/organizations/{organization_id}/ledgers/{ledger_id}/settings": {
       "get": {
+        "deprecated": true,
         "operationId": "getLedgerSettings",
         "parameters": [
           {
@@ -7036,10 +7156,11 @@
         ],
         "summary": "Get ledger settings",
         "tags": [
-          "Midaz_Ledger_API_Ledgers"
+          "Midaz_Ledger_API_Ledgers (v1)"
         ]
       },
       "patch": {
+        "deprecated": true,
         "operationId": "updateLedgerSettings",
         "parameters": [
           {
@@ -7067,9 +7188,8 @@
           "content": {
             "application/json": {
               "schema": {
-                "contentMediaType": "application/octet-stream",
-                "format": "binary",
-                "type": "string"
+                "additionalProperties": {},
+                "type": "object"
               }
             }
           },
@@ -7107,12 +7227,13 @@
         ],
         "summary": "Update ledger settings",
         "tags": [
-          "Midaz_Ledger_API_Ledgers"
+          "Midaz_Ledger_API_Ledgers (v1)"
         ]
       }
     },
     "/v1/organizations/{organization_id}/ledgers/{ledger_id}/transaction-routes": {
       "get": {
+        "deprecated": true,
         "operationId": "listTransactionRoutes",
         "parameters": [
           {
@@ -7215,10 +7336,11 @@
         ],
         "summary": "Get all Transaction Routes",
         "tags": [
-          "Midaz_Ledger_API_Transaction Routes"
+          "Midaz_Ledger_API_Transaction Routes (v1)"
         ]
       },
       "post": {
+        "deprecated": true,
         "operationId": "createTransactionRoute",
         "parameters": [
           {
@@ -7246,9 +7368,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "contentMediaType": "application/octet-stream",
-                "format": "binary",
-                "type": "string"
+                "$ref": "#/components/schemas/CreateTransactionRouteInput"
               }
             }
           },
@@ -7283,12 +7403,13 @@
         ],
         "summary": "Create Transaction Route",
         "tags": [
-          "Midaz_Ledger_API_Transaction Routes"
+          "Midaz_Ledger_API_Transaction Routes (v1)"
         ]
       }
     },
     "/v1/organizations/{organization_id}/ledgers/{ledger_id}/transaction-routes/{transaction_route_id}": {
       "delete": {
+        "deprecated": true,
         "operationId": "deleteTransactionRoute",
         "parameters": [
           {
@@ -7344,10 +7465,11 @@
         ],
         "summary": "Delete Transaction Route by ID",
         "tags": [
-          "Midaz_Ledger_API_Transaction Routes"
+          "Midaz_Ledger_API_Transaction Routes (v1)"
         ]
       },
       "get": {
+        "deprecated": true,
         "operationId": "getTransactionRouteByID",
         "parameters": [
           {
@@ -7410,10 +7532,11 @@
         ],
         "summary": "Get Transaction Route by ID",
         "tags": [
-          "Midaz_Ledger_API_Transaction Routes"
+          "Midaz_Ledger_API_Transaction Routes (v1)"
         ]
       },
       "patch": {
+        "deprecated": true,
         "operationId": "updateTransactionRoute",
         "parameters": [
           {
@@ -7451,9 +7574,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "contentMediaType": "application/octet-stream",
-                "format": "binary",
-                "type": "string"
+                "$ref": "#/components/schemas/UpdateTransactionRouteInput"
               }
             }
           },
@@ -7488,12 +7609,13 @@
         ],
         "summary": "Update Transaction Route",
         "tags": [
-          "Midaz_Ledger_API_Transaction Routes"
+          "Midaz_Ledger_API_Transaction Routes (v1)"
         ]
       }
     },
     "/v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions": {
       "get": {
+        "deprecated": true,
         "operationId": "getAllTransactions",
         "parameters": [
           {
@@ -7606,12 +7728,13 @@
         ],
         "summary": "Get all Transactions",
         "tags": [
-          "Midaz_Ledger_API_Transactions"
+          "Midaz_Ledger_API_Transactions (v1)"
         ]
       }
     },
     "/v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions/annotation": {
       "post": {
+        "deprecated": true,
         "operationId": "createTransactionAnnotation",
         "parameters": [
           {
@@ -7657,9 +7780,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "contentMediaType": "application/octet-stream",
-                "format": "binary",
-                "type": "string"
+                "$ref": "#/components/schemas/CreateTransactionInput"
               }
             }
           },
@@ -7701,12 +7822,13 @@
         ],
         "summary": "Create a Transaction Annotation using JSON",
         "tags": [
-          "Midaz_Ledger_API_Transactions"
+          "Midaz_Ledger_API_Transactions (v1)"
         ]
       }
     },
     "/v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions/block": {
       "post": {
+        "deprecated": true,
         "operationId": "createTransactionBlock",
         "parameters": [
           {
@@ -7752,9 +7874,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "contentMediaType": "application/octet-stream",
-                "format": "binary",
-                "type": "string"
+                "$ref": "#/components/schemas/CreateTransactionInput"
               }
             }
           },
@@ -7796,12 +7916,13 @@
         ],
         "summary": "Create a Block Transaction",
         "tags": [
-          "Midaz_Ledger_API_Transactions"
+          "Midaz_Ledger_API_Transactions (v1)"
         ]
       }
     },
     "/v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions/inflow": {
       "post": {
+        "deprecated": true,
         "operationId": "createTransactionInflow",
         "parameters": [
           {
@@ -7847,9 +7968,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "contentMediaType": "application/octet-stream",
-                "format": "binary",
-                "type": "string"
+                "$ref": "#/components/schemas/CreateTransactionInflowInput"
               }
             }
           },
@@ -7891,12 +8010,13 @@
         ],
         "summary": "Create a Transaction without passing from source",
         "tags": [
-          "Midaz_Ledger_API_Transactions"
+          "Midaz_Ledger_API_Transactions (v1)"
         ]
       }
     },
     "/v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions/json": {
       "post": {
+        "deprecated": true,
         "operationId": "createTransactionJSON",
         "parameters": [
           {
@@ -7942,9 +8062,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "contentMediaType": "application/octet-stream",
-                "format": "binary",
-                "type": "string"
+                "$ref": "#/components/schemas/CreateTransactionInput"
               }
             }
           },
@@ -7986,12 +8104,13 @@
         ],
         "summary": "Create a Transaction using JSON",
         "tags": [
-          "Midaz_Ledger_API_Transactions"
+          "Midaz_Ledger_API_Transactions (v1)"
         ]
       }
     },
     "/v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions/metrics/count": {
       "head": {
+        "deprecated": true,
         "operationId": "countTransactionsByFilters",
         "parameters": [
           {
@@ -8092,12 +8211,13 @@
         ],
         "summary": "Count Transactions by Filters",
         "tags": [
-          "Midaz_Ledger_API_Transactions"
+          "Midaz_Ledger_API_Transactions (v1)"
         ]
       }
     },
     "/v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions/outflow": {
       "post": {
+        "deprecated": true,
         "operationId": "createTransactionOutflow",
         "parameters": [
           {
@@ -8143,9 +8263,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "contentMediaType": "application/octet-stream",
-                "format": "binary",
-                "type": "string"
+                "$ref": "#/components/schemas/CreateTransactionOutflowInput"
               }
             }
           },
@@ -8187,12 +8305,13 @@
         ],
         "summary": "Create a Transaction without passing to distribution",
         "tags": [
-          "Midaz_Ledger_API_Transactions"
+          "Midaz_Ledger_API_Transactions (v1)"
         ]
       }
     },
     "/v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions/unblock": {
       "post": {
+        "deprecated": true,
         "operationId": "createTransactionUnblock",
         "parameters": [
           {
@@ -8238,9 +8357,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "contentMediaType": "application/octet-stream",
-                "format": "binary",
-                "type": "string"
+                "$ref": "#/components/schemas/CreateTransactionInput"
               }
             }
           },
@@ -8282,12 +8399,13 @@
         ],
         "summary": "Create an Unblock Transaction",
         "tags": [
-          "Midaz_Ledger_API_Transactions"
+          "Midaz_Ledger_API_Transactions (v1)"
         ]
       }
     },
     "/v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions/{transaction_id}": {
       "get": {
+        "deprecated": true,
         "operationId": "getTransaction",
         "parameters": [
           {
@@ -8357,10 +8475,11 @@
         ],
         "summary": "Get a Transaction by ID",
         "tags": [
-          "Midaz_Ledger_API_Transactions"
+          "Midaz_Ledger_API_Transactions (v1)"
         ]
       },
       "patch": {
+        "deprecated": true,
         "operationId": "updateTransaction",
         "parameters": [
           {
@@ -8398,9 +8517,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "contentMediaType": "application/octet-stream",
-                "format": "binary",
-                "type": "string"
+                "$ref": "#/components/schemas/TransactionUpdateTransactionInput"
               }
             }
           },
@@ -8435,12 +8552,13 @@
         ],
         "summary": "Update a Transaction",
         "tags": [
-          "Midaz_Ledger_API_Transactions"
+          "Midaz_Ledger_API_Transactions (v1)"
         ]
       }
     },
     "/v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions/{transaction_id}/cancel": {
       "post": {
+        "deprecated": true,
         "operationId": "cancelTransaction",
         "parameters": [
           {
@@ -8503,12 +8621,13 @@
         ],
         "summary": "Cancel a pre transaction",
         "tags": [
-          "Midaz_Ledger_API_Transactions"
+          "Midaz_Ledger_API_Transactions (v1)"
         ]
       }
     },
     "/v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions/{transaction_id}/commit": {
       "post": {
+        "deprecated": true,
         "operationId": "commitTransaction",
         "parameters": [
           {
@@ -8571,12 +8690,13 @@
         ],
         "summary": "Commit a Transaction",
         "tags": [
-          "Midaz_Ledger_API_Transactions"
+          "Midaz_Ledger_API_Transactions (v1)"
         ]
       }
     },
     "/v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions/{transaction_id}/operations/{operation_id}": {
       "patch": {
+        "deprecated": true,
         "operationId": "updateOperation",
         "parameters": [
           {
@@ -8624,9 +8744,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "contentMediaType": "application/octet-stream",
-                "format": "binary",
-                "type": "string"
+                "$ref": "#/components/schemas/OperationUpdateOperationInput"
               }
             }
           },
@@ -8661,12 +8779,13 @@
         ],
         "summary": "Update an Operation",
         "tags": [
-          "Midaz_Ledger_API_Operations"
+          "Midaz_Ledger_API_Operations (v1)"
         ]
       }
     },
     "/v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions/{transaction_id}/revert": {
       "post": {
+        "deprecated": true,
         "operationId": "revertTransaction",
         "parameters": [
           {
@@ -8736,12 +8855,13 @@
         ],
         "summary": "Revert a Transaction",
         "tags": [
-          "Midaz_Ledger_API_Transactions"
+          "Midaz_Ledger_API_Transactions (v1)"
         ]
       }
     },
     "/v1/organizations/{organization_id}/packages": {
       "get": {
+        "deprecated": true,
         "operationId": "getAllPackages",
         "parameters": [
           {
@@ -8844,10 +8964,11 @@
         ],
         "summary": "Get all packages",
         "tags": [
-          "Midaz_Ledger_API_Packages"
+          "Midaz_Ledger_API_Packages (v1)"
         ]
       },
       "post": {
+        "deprecated": true,
         "operationId": "createPackage",
         "parameters": [
           {
@@ -8865,9 +8986,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "contentMediaType": "application/octet-stream",
-                "format": "binary",
-                "type": "string"
+                "$ref": "#/components/schemas/FeeCreatePackageInput"
               }
             }
           },
@@ -8902,12 +9021,13 @@
         ],
         "summary": "Create a Package",
         "tags": [
-          "Midaz_Ledger_API_Packages"
+          "Midaz_Ledger_API_Packages (v1)"
         ]
       }
     },
     "/v1/organizations/{organization_id}/packages/{id}": {
       "delete": {
+        "deprecated": true,
         "operationId": "deletePackage",
         "parameters": [
           {
@@ -8953,10 +9073,11 @@
         ],
         "summary": "SoftDelete a Package by ID",
         "tags": [
-          "Midaz_Ledger_API_Packages"
+          "Midaz_Ledger_API_Packages (v1)"
         ]
       },
       "get": {
+        "deprecated": true,
         "operationId": "getPackageByID",
         "parameters": [
           {
@@ -9009,10 +9130,11 @@
         ],
         "summary": "Get package",
         "tags": [
-          "Midaz_Ledger_API_Packages"
+          "Midaz_Ledger_API_Packages (v1)"
         ]
       },
       "patch": {
+        "deprecated": true,
         "operationId": "updatePackage",
         "parameters": [
           {
@@ -9040,9 +9162,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "contentMediaType": "application/octet-stream",
-                "format": "binary",
-                "type": "string"
+                "$ref": "#/components/schemas/FeeUpdatePackageInput"
               }
             }
           },
@@ -9077,12 +9197,13 @@
         ],
         "summary": "Update a package",
         "tags": [
-          "Midaz_Ledger_API_Packages"
+          "Midaz_Ledger_API_Packages (v1)"
         ]
       }
     },
     "/v1/organizations/{organization_id}/protection/audit": {
       "get": {
+        "deprecated": true,
         "operationId": "getAuditEvents",
         "parameters": [
           {
@@ -9214,12 +9335,13 @@
         ],
         "summary": "List Protection Audit Events",
         "tags": [
-          "Midaz_Ledger_API_Protection"
+          "Midaz_Ledger_API_Protection (v1)"
         ]
       }
     },
     "/v1/settings/metadata-indexes": {
       "get": {
+        "deprecated": true,
         "operationId": "getAllMetadataIndexes",
         "parameters": [
           {
@@ -9271,12 +9393,13 @@
         ],
         "summary": "Get all Metadata Indexes",
         "tags": [
-          "Midaz_Ledger_API_Metadata Indexes"
+          "Midaz_Ledger_API_Metadata Indexes (v1)"
         ]
       }
     },
     "/v1/settings/metadata-indexes/entities/{entity_name}": {
       "post": {
+        "deprecated": true,
         "operationId": "createMetadataIndex",
         "parameters": [
           {
@@ -9294,9 +9417,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "contentMediaType": "application/octet-stream",
-                "format": "binary",
-                "type": "string"
+                "$ref": "#/components/schemas/CreateMetadataIndexInput"
               }
             }
           },
@@ -9334,12 +9455,13 @@
         ],
         "summary": "Create Metadata Index",
         "tags": [
-          "Midaz_Ledger_API_Metadata Indexes"
+          "Midaz_Ledger_API_Metadata Indexes (v1)"
         ]
       }
     },
     "/v1/settings/metadata-indexes/entities/{entity_name}/key/{index_key}": {
       "delete": {
+        "deprecated": true,
         "operationId": "deleteMetadataIndex",
         "parameters": [
           {
@@ -9388,7 +9510,7 @@
         ],
         "summary": "Delete Metadata Index",
         "tags": [
-          "Midaz_Ledger_API_Metadata Indexes"
+          "Midaz_Ledger_API_Metadata Indexes (v1)"
         ]
       }
     },
@@ -9529,7 +9651,7 @@
         ],
         "summary": "List all organizations",
         "tags": [
-          "Midaz_Ledger_API_Organizations"
+          "Midaz_Ledger_API_Organizations (v2)"
         ]
       },
       "post": {
@@ -9549,9 +9671,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "contentMediaType": "application/octet-stream",
-                "format": "binary",
-                "type": "string"
+                "$ref": "#/components/schemas/CreateOrganizationInput"
               }
             }
           },
@@ -9589,7 +9709,7 @@
         ],
         "summary": "Create a new organization",
         "tags": [
-          "Midaz_Ledger_API_Organizations"
+          "Midaz_Ledger_API_Organizations (v2)"
         ]
       }
     },
@@ -9633,7 +9753,7 @@
         ],
         "summary": "Count total organizations",
         "tags": [
-          "Midaz_Ledger_API_Organizations"
+          "Midaz_Ledger_API_Organizations (v2)"
         ]
       }
     },
@@ -9677,7 +9797,7 @@
         ],
         "summary": "Delete an organization",
         "tags": [
-          "Midaz_Ledger_API_Organizations"
+          "Midaz_Ledger_API_Organizations (v2)"
         ]
       },
       "get": {
@@ -9726,7 +9846,7 @@
         ],
         "summary": "Retrieve a specific organization",
         "tags": [
-          "Midaz_Ledger_API_Organizations"
+          "Midaz_Ledger_API_Organizations (v2)"
         ]
       },
       "patch": {
@@ -9747,9 +9867,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "contentMediaType": "application/octet-stream",
-                "format": "binary",
-                "type": "string"
+                "$ref": "#/components/schemas/UpdateOrganizationInput"
               }
             }
           },
@@ -9787,7 +9905,7 @@
         ],
         "summary": "Update an existing organization",
         "tags": [
-          "Midaz_Ledger_API_Organizations"
+          "Midaz_Ledger_API_Organizations (v2)"
         ]
       }
     },
@@ -9819,9 +9937,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "contentMediaType": "application/octet-stream",
-                "format": "binary",
-                "type": "string"
+                "$ref": "#/components/schemas/ProvisionEncryptionInput"
               }
             }
           },
@@ -9856,7 +9972,7 @@
         ],
         "summary": "Provision an Organization for Envelope Encryption",
         "tags": [
-          "Midaz_Ledger_API_Encryption"
+          "Midaz_Ledger_API_Encryption (v2)"
         ]
       }
     },
@@ -9913,7 +10029,7 @@
         ],
         "summary": "Get Provisioning Status",
         "tags": [
-          "Midaz_Ledger_API_Encryption"
+          "Midaz_Ledger_API_Encryption (v2)"
         ]
       }
     },
@@ -10031,7 +10147,7 @@
         ],
         "summary": "List Holders",
         "tags": [
-          "Midaz_Ledger_API_Holders"
+          "Midaz_Ledger_API_Holders (v2)"
         ]
       },
       "post": {
@@ -10070,9 +10186,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "contentMediaType": "application/octet-stream",
-                "format": "binary",
-                "type": "string"
+                "$ref": "#/components/schemas/CreateHolderInput"
               }
             }
           },
@@ -10114,7 +10228,7 @@
         ],
         "summary": "Create a Holder",
         "tags": [
-          "Midaz_Ledger_API_Holders"
+          "Midaz_Ledger_API_Holders (v2)"
         ]
       }
     },
@@ -10165,9 +10279,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "contentMediaType": "application/octet-stream",
-                "format": "binary",
-                "type": "string"
+                "$ref": "#/components/schemas/CreateInstrumentInput"
               }
             }
           },
@@ -10209,7 +10321,7 @@
         ],
         "summary": "Create an Instrument Account",
         "tags": [
-          "Midaz_Ledger_API_Instruments"
+          "Midaz_Ledger_API_Instruments (v2)"
         ]
       }
     },
@@ -10280,7 +10392,7 @@
         ],
         "summary": "Delete an Instrument",
         "tags": [
-          "Midaz_Ledger_API_Instruments"
+          "Midaz_Ledger_API_Instruments (v2)"
         ]
       },
       "get": {
@@ -10356,7 +10468,7 @@
         ],
         "summary": "Retrieve Instrument details",
         "tags": [
-          "Midaz_Ledger_API_Instruments"
+          "Midaz_Ledger_API_Instruments (v2)"
         ]
       },
       "patch": {
@@ -10397,9 +10509,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "contentMediaType": "application/octet-stream",
-                "format": "binary",
-                "type": "string"
+                "$ref": "#/components/schemas/UpdateInstrumentInput"
               }
             }
           },
@@ -10434,7 +10544,7 @@
         ],
         "summary": "Update an Instrument",
         "tags": [
-          "Midaz_Ledger_API_Instruments"
+          "Midaz_Ledger_API_Instruments (v2)"
         ]
       }
     },
@@ -10505,7 +10615,7 @@
         ],
         "summary": "Delete a Related Party",
         "tags": [
-          "Midaz_Ledger_API_Instruments"
+          "Midaz_Ledger_API_Instruments (v2)"
         ]
       }
     },
@@ -10566,7 +10676,7 @@
         ],
         "summary": "Delete a Holder",
         "tags": [
-          "Midaz_Ledger_API_Holders"
+          "Midaz_Ledger_API_Holders (v2)"
         ]
       },
       "get": {
@@ -10632,7 +10742,7 @@
         ],
         "summary": "Retrieve Holder details",
         "tags": [
-          "Midaz_Ledger_API_Holders"
+          "Midaz_Ledger_API_Holders (v2)"
         ]
       },
       "patch": {
@@ -10663,9 +10773,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "contentMediaType": "application/octet-stream",
-                "format": "binary",
-                "type": "string"
+                "$ref": "#/components/schemas/UpdateHolderInput"
               }
             }
           },
@@ -10700,7 +10808,7 @@
         ],
         "summary": "Update a Holder",
         "tags": [
-          "Midaz_Ledger_API_Holders"
+          "Midaz_Ledger_API_Holders (v2)"
         ]
       }
     },
@@ -10788,7 +10896,7 @@
         ],
         "summary": "List Accounts by Holder",
         "tags": [
-          "Midaz_Ledger_API_Holders"
+          "Midaz_Ledger_API_Holders (v2)"
         ]
       }
     },
@@ -10926,7 +11034,7 @@
         ],
         "summary": "List Instruments",
         "tags": [
-          "Midaz_Ledger_API_Instruments"
+          "Midaz_Ledger_API_Instruments (v2)"
         ]
       }
     },
@@ -11057,7 +11165,7 @@
         ],
         "summary": "List all ledgers",
         "tags": [
-          "Midaz_Ledger_API_Ledgers"
+          "Midaz_Ledger_API_Ledgers (v2)"
         ]
       },
       "post": {
@@ -11078,9 +11186,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "contentMediaType": "application/octet-stream",
-                "format": "binary",
-                "type": "string"
+                "$ref": "#/components/schemas/CreateLedgerInput"
               }
             }
           },
@@ -11118,7 +11224,7 @@
         ],
         "summary": "Create a new ledger",
         "tags": [
-          "Midaz_Ledger_API_Ledgers"
+          "Midaz_Ledger_API_Ledgers (v2)"
         ]
       }
     },
@@ -11174,7 +11280,7 @@
         ],
         "summary": "Count total ledgers",
         "tags": [
-          "Midaz_Ledger_API_Ledgers"
+          "Midaz_Ledger_API_Ledgers (v2)"
         ]
       }
     },
@@ -11228,7 +11334,7 @@
         ],
         "summary": "Delete a ledger",
         "tags": [
-          "Midaz_Ledger_API_Ledgers"
+          "Midaz_Ledger_API_Ledgers (v2)"
         ]
       },
       "get": {
@@ -11287,7 +11393,7 @@
         ],
         "summary": "Retrieve a specific ledger",
         "tags": [
-          "Midaz_Ledger_API_Ledgers"
+          "Midaz_Ledger_API_Ledgers (v2)"
         ]
       },
       "patch": {
@@ -11318,9 +11424,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "contentMediaType": "application/octet-stream",
-                "format": "binary",
-                "type": "string"
+                "$ref": "#/components/schemas/UpdateLedgerInput"
               }
             }
           },
@@ -11358,7 +11462,7 @@
         ],
         "summary": "Update an existing ledger",
         "tags": [
-          "Midaz_Ledger_API_Ledgers"
+          "Midaz_Ledger_API_Ledgers (v2)"
         ]
       }
     },
@@ -11499,7 +11603,7 @@
         ],
         "summary": "List all account types",
         "tags": [
-          "Midaz_Ledger_API_Account Types"
+          "Midaz_Ledger_API_Account Types (v2)"
         ]
       },
       "post": {
@@ -11530,9 +11634,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "contentMediaType": "application/octet-stream",
-                "format": "binary",
-                "type": "string"
+                "$ref": "#/components/schemas/CreateAccountTypeInput"
               }
             }
           },
@@ -11570,7 +11672,7 @@
         ],
         "summary": "Create a new account type",
         "tags": [
-          "Midaz_Ledger_API_Account Types"
+          "Midaz_Ledger_API_Account Types (v2)"
         ]
       }
     },
@@ -11634,7 +11736,7 @@
         ],
         "summary": "Delete an account type",
         "tags": [
-          "Midaz_Ledger_API_Account Types"
+          "Midaz_Ledger_API_Account Types (v2)"
         ]
       },
       "get": {
@@ -11703,7 +11805,7 @@
         ],
         "summary": "Retrieve a specific account type",
         "tags": [
-          "Midaz_Ledger_API_Account Types"
+          "Midaz_Ledger_API_Account Types (v2)"
         ]
       },
       "patch": {
@@ -11744,9 +11846,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "contentMediaType": "application/octet-stream",
-                "format": "binary",
-                "type": "string"
+                "$ref": "#/components/schemas/UpdateAccountTypeInput"
               }
             }
           },
@@ -11784,7 +11884,7 @@
         ],
         "summary": "Update an account type",
         "tags": [
-          "Midaz_Ledger_API_Account Types"
+          "Midaz_Ledger_API_Account Types (v2)"
         ]
       }
     },
@@ -12005,7 +12105,7 @@
         ],
         "summary": "List all accounts",
         "tags": [
-          "Midaz_Ledger_API_Accounts"
+          "Midaz_Ledger_API_Accounts (v2)"
         ]
       },
       "post": {
@@ -12045,9 +12145,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "contentMediaType": "application/octet-stream",
-                "format": "binary",
-                "type": "string"
+                "$ref": "#/components/schemas/CreateAccountInput"
               }
             }
           },
@@ -12085,7 +12183,7 @@
         ],
         "summary": "Create a new account",
         "tags": [
-          "Midaz_Ledger_API_Accounts"
+          "Midaz_Ledger_API_Accounts (v2)"
         ]
       }
     },
@@ -12156,7 +12254,7 @@
         ],
         "summary": "Retrieve an account by alias",
         "tags": [
-          "Midaz_Ledger_API_Accounts"
+          "Midaz_Ledger_API_Accounts (v2)"
         ]
       }
     },
@@ -12227,7 +12325,7 @@
         ],
         "summary": "Get Balances using Alias",
         "tags": [
-          "Midaz_Ledger_API_Balances"
+          "Midaz_Ledger_API_Balances (v2)"
         ]
       }
     },
@@ -12298,7 +12396,7 @@
         ],
         "summary": "Retrieve an account by external code",
         "tags": [
-          "Midaz_Ledger_API_Accounts"
+          "Midaz_Ledger_API_Accounts (v2)"
         ]
       }
     },
@@ -12369,7 +12467,7 @@
         ],
         "summary": "Get External balances using code",
         "tags": [
-          "Midaz_Ledger_API_Balances"
+          "Midaz_Ledger_API_Balances (v2)"
         ]
       }
     },
@@ -12435,7 +12533,7 @@
         ],
         "summary": "Count accounts",
         "tags": [
-          "Midaz_Ledger_API_Accounts"
+          "Midaz_Ledger_API_Accounts (v2)"
         ]
       }
     },
@@ -12556,7 +12654,7 @@
         ],
         "summary": "Get all balances by account id",
         "tags": [
-          "Midaz_Ledger_API_Balances"
+          "Midaz_Ledger_API_Balances (v2)"
         ]
       },
       "post": {
@@ -12597,9 +12695,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "contentMediaType": "application/octet-stream",
-                "format": "binary",
-                "type": "string"
+                "$ref": "#/components/schemas/CreateAdditionalBalance"
               }
             }
           },
@@ -12637,7 +12733,7 @@
         ],
         "summary": "Create Additional Balance",
         "tags": [
-          "Midaz_Ledger_API_Balances"
+          "Midaz_Ledger_API_Balances (v2)"
         ]
       }
     },
@@ -12724,7 +12820,7 @@
         ],
         "summary": "Get Account Balances history at date",
         "tags": [
-          "Midaz_Ledger_API_Balances"
+          "Midaz_Ledger_API_Balances (v2)"
         ]
       }
     },
@@ -12895,7 +12991,7 @@
         ],
         "summary": "Get all Operations by account",
         "tags": [
-          "Midaz_Ledger_API_Operations"
+          "Midaz_Ledger_API_Operations (v2)"
         ]
       }
     },
@@ -12976,7 +13072,7 @@
         ],
         "summary": "Get Operation",
         "tags": [
-          "Midaz_Ledger_API_Operations"
+          "Midaz_Ledger_API_Operations (v2)"
         ]
       }
     },
@@ -13049,7 +13145,7 @@
         ],
         "summary": "Delete an account",
         "tags": [
-          "Midaz_Ledger_API_Accounts"
+          "Midaz_Ledger_API_Accounts (v2)"
         ]
       },
       "get": {
@@ -13118,7 +13214,7 @@
         ],
         "summary": "Retrieve a specific account",
         "tags": [
-          "Midaz_Ledger_API_Accounts"
+          "Midaz_Ledger_API_Accounts (v2)"
         ]
       },
       "patch": {
@@ -13159,9 +13255,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "contentMediaType": "application/octet-stream",
-                "format": "binary",
-                "type": "string"
+                "$ref": "#/components/schemas/UpdateAccountInput"
               }
             }
           },
@@ -13199,7 +13293,7 @@
         ],
         "summary": "Update an account",
         "tags": [
-          "Midaz_Ledger_API_Accounts"
+          "Midaz_Ledger_API_Accounts (v2)"
         ]
       }
     },
@@ -13232,9 +13326,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "contentMediaType": "application/octet-stream",
-                "format": "binary",
-                "type": "string"
+                "$ref": "#/components/schemas/CreateAssetRateInput"
               }
             }
           },
@@ -13272,7 +13364,7 @@
         ],
         "summary": "Create or Update an AssetRate",
         "tags": [
-          "Midaz_Ledger_API_Asset Rates"
+          "Midaz_Ledger_API_Asset Rates (v2)"
         ]
       }
     },
@@ -13409,7 +13501,7 @@
         ],
         "summary": "Get an AssetRate by the Asset Code",
         "tags": [
-          "Midaz_Ledger_API_Asset Rates"
+          "Midaz_Ledger_API_Asset Rates (v2)"
         ]
       }
     },
@@ -13480,7 +13572,7 @@
         ],
         "summary": "Get an AssetRate by External ID",
         "tags": [
-          "Midaz_Ledger_API_Asset Rates"
+          "Midaz_Ledger_API_Asset Rates (v2)"
         ]
       }
     },
@@ -13601,7 +13693,7 @@
         ],
         "summary": "List all assets",
         "tags": [
-          "Midaz_Ledger_API_Assets"
+          "Midaz_Ledger_API_Assets (v2)"
         ]
       },
       "post": {
@@ -13641,9 +13733,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "contentMediaType": "application/octet-stream",
-                "format": "binary",
-                "type": "string"
+                "$ref": "#/components/schemas/CreateAssetInput"
               }
             }
           },
@@ -13681,7 +13771,7 @@
         ],
         "summary": "Create a new asset",
         "tags": [
-          "Midaz_Ledger_API_Assets"
+          "Midaz_Ledger_API_Assets (v2)"
         ]
       }
     },
@@ -13747,7 +13837,7 @@
         ],
         "summary": "Count total assets",
         "tags": [
-          "Midaz_Ledger_API_Assets"
+          "Midaz_Ledger_API_Assets (v2)"
         ]
       }
     },
@@ -13811,7 +13901,7 @@
         ],
         "summary": "Delete an asset",
         "tags": [
-          "Midaz_Ledger_API_Assets"
+          "Midaz_Ledger_API_Assets (v2)"
         ]
       },
       "get": {
@@ -13880,7 +13970,7 @@
         ],
         "summary": "Retrieve a specific asset",
         "tags": [
-          "Midaz_Ledger_API_Assets"
+          "Midaz_Ledger_API_Assets (v2)"
         ]
       },
       "patch": {
@@ -13921,9 +14011,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "contentMediaType": "application/octet-stream",
-                "format": "binary",
-                "type": "string"
+                "$ref": "#/components/schemas/UpdateAssetInput"
               }
             }
           },
@@ -13961,7 +14049,7 @@
         ],
         "summary": "Update an asset",
         "tags": [
-          "Midaz_Ledger_API_Assets"
+          "Midaz_Ledger_API_Assets (v2)"
         ]
       }
     },
@@ -14072,7 +14160,7 @@
         ],
         "summary": "Get all balances",
         "tags": [
-          "Midaz_Ledger_API_Balances"
+          "Midaz_Ledger_API_Balances (v2)"
         ]
       }
     },
@@ -14136,7 +14224,7 @@
         ],
         "summary": "Delete Balance by account",
         "tags": [
-          "Midaz_Ledger_API_Balances"
+          "Midaz_Ledger_API_Balances (v2)"
         ]
       },
       "get": {
@@ -14205,7 +14293,7 @@
         ],
         "summary": "Get Balance by id",
         "tags": [
-          "Midaz_Ledger_API_Balances"
+          "Midaz_Ledger_API_Balances (v2)"
         ]
       },
       "patch": {
@@ -14246,9 +14334,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "contentMediaType": "application/octet-stream",
-                "format": "binary",
-                "type": "string"
+                "$ref": "#/components/schemas/UpdateBalance"
               }
             }
           },
@@ -14286,7 +14372,7 @@
         ],
         "summary": "Update Balance",
         "tags": [
-          "Midaz_Ledger_API_Balances"
+          "Midaz_Ledger_API_Balances (v2)"
         ]
       }
     },
@@ -14367,7 +14453,7 @@
         ],
         "summary": "Get Balance history at date",
         "tags": [
-          "Midaz_Ledger_API_Balances"
+          "Midaz_Ledger_API_Balances (v2)"
         ]
       }
     },
@@ -14455,7 +14541,7 @@
         ],
         "summary": "Get all billing packages of a ledger",
         "tags": [
-          "Midaz_Ledger_API_Billing Packages"
+          "Midaz_Ledger_API_Billing Packages (v2)"
         ]
       },
       "post": {
@@ -14486,9 +14572,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "contentMediaType": "application/octet-stream",
-                "format": "binary",
-                "type": "string"
+                "$ref": "#/components/schemas/FeeBillingPackage"
               }
             }
           },
@@ -14523,7 +14607,7 @@
         ],
         "summary": "Create a BillingPackage",
         "tags": [
-          "Midaz_Ledger_API_Billing Packages"
+          "Midaz_Ledger_API_Billing Packages (v2)"
         ]
       }
     },
@@ -14584,7 +14668,7 @@
         ],
         "summary": "SoftDelete a BillingPackage by ID",
         "tags": [
-          "Midaz_Ledger_API_Billing Packages"
+          "Midaz_Ledger_API_Billing Packages (v2)"
         ]
       },
       "get": {
@@ -14650,7 +14734,7 @@
         ],
         "summary": "Get billing package",
         "tags": [
-          "Midaz_Ledger_API_Billing Packages"
+          "Midaz_Ledger_API_Billing Packages (v2)"
         ]
       },
       "patch": {
@@ -14691,9 +14775,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "contentMediaType": "application/octet-stream",
-                "format": "binary",
-                "type": "string"
+                "$ref": "#/components/schemas/FeeBillingPackageUpdate"
               }
             }
           },
@@ -14728,7 +14810,7 @@
         ],
         "summary": "Update a billing package",
         "tags": [
-          "Midaz_Ledger_API_Billing Packages"
+          "Midaz_Ledger_API_Billing Packages (v2)"
         ]
       }
     },
@@ -14761,9 +14843,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "contentMediaType": "application/octet-stream",
-                "format": "binary",
-                "type": "string"
+                "$ref": "#/components/schemas/FeeBillingCalculateRequest"
               }
             }
           },
@@ -14798,7 +14878,7 @@
         ],
         "summary": "Calculate billing",
         "tags": [
-          "Midaz_Ledger_API_Billing Calculate"
+          "Midaz_Ledger_API_Billing Calculate (v2)"
         ]
       }
     },
@@ -14831,9 +14911,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "contentMediaType": "application/octet-stream",
-                "format": "binary",
-                "type": "string"
+                "$ref": "#/components/schemas/FeeEstimate"
               }
             }
           },
@@ -14869,7 +14947,7 @@
         ],
         "summary": "Create a fee estimate calculation",
         "tags": [
-          "Midaz_Ledger_API_Fees"
+          "Midaz_Ledger_API_Fees (v2)"
         ]
       }
     },
@@ -14921,9 +14999,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "contentMediaType": "application/octet-stream",
-                "format": "binary",
-                "type": "string"
+                "$ref": "#/components/schemas/CreateHolderAccountInput"
               }
             }
           },
@@ -14958,7 +15034,7 @@
         ],
         "summary": "Open a holder-owned account (with optional instrument)",
         "tags": [
-          "Midaz_Ledger_API_Composition"
+          "Midaz_Ledger_API_Composition (v2)"
         ]
       }
     },
@@ -15066,7 +15142,7 @@
         ],
         "summary": "Retrieve all operation routes",
         "tags": [
-          "Midaz_Ledger_API_Operation Routes"
+          "Midaz_Ledger_API_Operation Routes (v2)"
         ]
       },
       "post": {
@@ -15097,9 +15173,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "contentMediaType": "application/octet-stream",
-                "format": "binary",
-                "type": "string"
+                "$ref": "#/components/schemas/CreateOperationRouteInput"
               }
             }
           },
@@ -15134,7 +15208,7 @@
         ],
         "summary": "Create Operation Route",
         "tags": [
-          "Midaz_Ledger_API_Operation Routes"
+          "Midaz_Ledger_API_Operation Routes (v2)"
         ]
       }
     },
@@ -15195,7 +15269,7 @@
         ],
         "summary": "Delete an operation route",
         "tags": [
-          "Midaz_Ledger_API_Operation Routes"
+          "Midaz_Ledger_API_Operation Routes (v2)"
         ]
       },
       "get": {
@@ -15261,7 +15335,7 @@
         ],
         "summary": "Retrieve a specific operation route",
         "tags": [
-          "Midaz_Ledger_API_Operation Routes"
+          "Midaz_Ledger_API_Operation Routes (v2)"
         ]
       },
       "patch": {
@@ -15302,9 +15376,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "contentMediaType": "application/octet-stream",
-                "format": "binary",
-                "type": "string"
+                "$ref": "#/components/schemas/UpdateOperationRouteInput"
               }
             }
           },
@@ -15339,7 +15411,7 @@
         ],
         "summary": "Update an operation route",
         "tags": [
-          "Midaz_Ledger_API_Operation Routes"
+          "Midaz_Ledger_API_Operation Routes (v2)"
         ]
       }
     },
@@ -15447,7 +15519,7 @@
         ],
         "summary": "Get all packages of a ledger",
         "tags": [
-          "Midaz_Ledger_API_Packages"
+          "Midaz_Ledger_API_Packages (v2)"
         ]
       },
       "post": {
@@ -15478,9 +15550,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "contentMediaType": "application/octet-stream",
-                "format": "binary",
-                "type": "string"
+                "$ref": "#/components/schemas/FeeCreatePackageInput"
               }
             }
           },
@@ -15515,7 +15585,7 @@
         ],
         "summary": "Create a Package",
         "tags": [
-          "Midaz_Ledger_API_Packages"
+          "Midaz_Ledger_API_Packages (v2)"
         ]
       }
     },
@@ -15576,7 +15646,7 @@
         ],
         "summary": "SoftDelete a Package by ID",
         "tags": [
-          "Midaz_Ledger_API_Packages"
+          "Midaz_Ledger_API_Packages (v2)"
         ]
       },
       "get": {
@@ -15642,7 +15712,7 @@
         ],
         "summary": "Get package",
         "tags": [
-          "Midaz_Ledger_API_Packages"
+          "Midaz_Ledger_API_Packages (v2)"
         ]
       },
       "patch": {
@@ -15683,9 +15753,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "contentMediaType": "application/octet-stream",
-                "format": "binary",
-                "type": "string"
+                "$ref": "#/components/schemas/FeeUpdatePackageInput"
               }
             }
           },
@@ -15720,7 +15788,7 @@
         ],
         "summary": "Update a package",
         "tags": [
-          "Midaz_Ledger_API_Packages"
+          "Midaz_Ledger_API_Packages (v2)"
         ]
       }
     },
@@ -15861,7 +15929,7 @@
         ],
         "summary": "List all portfolios",
         "tags": [
-          "Midaz_Ledger_API_Portfolios"
+          "Midaz_Ledger_API_Portfolios (v2)"
         ]
       },
       "post": {
@@ -15892,9 +15960,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "contentMediaType": "application/octet-stream",
-                "format": "binary",
-                "type": "string"
+                "$ref": "#/components/schemas/CreatePortfolioInput"
               }
             }
           },
@@ -15932,7 +15998,7 @@
         ],
         "summary": "Create a new portfolio",
         "tags": [
-          "Midaz_Ledger_API_Portfolios"
+          "Midaz_Ledger_API_Portfolios (v2)"
         ]
       }
     },
@@ -15998,7 +16064,7 @@
         ],
         "summary": "Count total portfolios",
         "tags": [
-          "Midaz_Ledger_API_Portfolios"
+          "Midaz_Ledger_API_Portfolios (v2)"
         ]
       }
     },
@@ -16062,7 +16128,7 @@
         ],
         "summary": "Delete a portfolio",
         "tags": [
-          "Midaz_Ledger_API_Portfolios"
+          "Midaz_Ledger_API_Portfolios (v2)"
         ]
       },
       "get": {
@@ -16131,7 +16197,7 @@
         ],
         "summary": "Retrieve a specific portfolio",
         "tags": [
-          "Midaz_Ledger_API_Portfolios"
+          "Midaz_Ledger_API_Portfolios (v2)"
         ]
       },
       "patch": {
@@ -16172,9 +16238,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "contentMediaType": "application/octet-stream",
-                "format": "binary",
-                "type": "string"
+                "$ref": "#/components/schemas/UpdatePortfolioInput"
               }
             }
           },
@@ -16212,7 +16276,7 @@
         ],
         "summary": "Update a portfolio",
         "tags": [
-          "Midaz_Ledger_API_Portfolios"
+          "Midaz_Ledger_API_Portfolios (v2)"
         ]
       }
     },
@@ -16333,7 +16397,7 @@
         ],
         "summary": "List all segments",
         "tags": [
-          "Midaz_Ledger_API_Segments"
+          "Midaz_Ledger_API_Segments (v2)"
         ]
       },
       "post": {
@@ -16364,9 +16428,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "contentMediaType": "application/octet-stream",
-                "format": "binary",
-                "type": "string"
+                "$ref": "#/components/schemas/CreateSegmentInput"
               }
             }
           },
@@ -16404,7 +16466,7 @@
         ],
         "summary": "Create a new segment",
         "tags": [
-          "Midaz_Ledger_API_Segments"
+          "Midaz_Ledger_API_Segments (v2)"
         ]
       }
     },
@@ -16470,7 +16532,7 @@
         ],
         "summary": "Count total segments",
         "tags": [
-          "Midaz_Ledger_API_Segments"
+          "Midaz_Ledger_API_Segments (v2)"
         ]
       }
     },
@@ -16534,7 +16596,7 @@
         ],
         "summary": "Delete a segment",
         "tags": [
-          "Midaz_Ledger_API_Segments"
+          "Midaz_Ledger_API_Segments (v2)"
         ]
       },
       "get": {
@@ -16603,7 +16665,7 @@
         ],
         "summary": "Retrieve a specific segment",
         "tags": [
-          "Midaz_Ledger_API_Segments"
+          "Midaz_Ledger_API_Segments (v2)"
         ]
       },
       "patch": {
@@ -16644,9 +16706,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "contentMediaType": "application/octet-stream",
-                "format": "binary",
-                "type": "string"
+                "$ref": "#/components/schemas/UpdateSegmentInput"
               }
             }
           },
@@ -16684,7 +16744,7 @@
         ],
         "summary": "Update a segment",
         "tags": [
-          "Midaz_Ledger_API_Segments"
+          "Midaz_Ledger_API_Segments (v2)"
         ]
       }
     },
@@ -16745,7 +16805,7 @@
         ],
         "summary": "Get ledger settings",
         "tags": [
-          "Midaz_Ledger_API_Ledgers"
+          "Midaz_Ledger_API_Ledgers (v2)"
         ]
       },
       "patch": {
@@ -16776,9 +16836,8 @@
           "content": {
             "application/json": {
               "schema": {
-                "contentMediaType": "application/octet-stream",
-                "format": "binary",
-                "type": "string"
+                "additionalProperties": {},
+                "type": "object"
               }
             }
           },
@@ -16816,7 +16875,7 @@
         ],
         "summary": "Update ledger settings",
         "tags": [
-          "Midaz_Ledger_API_Ledgers"
+          "Midaz_Ledger_API_Ledgers (v2)"
         ]
       }
     },
@@ -16924,7 +16983,7 @@
         ],
         "summary": "Get all Transaction Routes",
         "tags": [
-          "Midaz_Ledger_API_Transaction Routes"
+          "Midaz_Ledger_API_Transaction Routes (v2)"
         ]
       },
       "post": {
@@ -16955,9 +17014,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "contentMediaType": "application/octet-stream",
-                "format": "binary",
-                "type": "string"
+                "$ref": "#/components/schemas/CreateTransactionRouteInput"
               }
             }
           },
@@ -16992,7 +17049,7 @@
         ],
         "summary": "Create Transaction Route",
         "tags": [
-          "Midaz_Ledger_API_Transaction Routes"
+          "Midaz_Ledger_API_Transaction Routes (v2)"
         ]
       }
     },
@@ -17053,7 +17110,7 @@
         ],
         "summary": "Delete Transaction Route by ID",
         "tags": [
-          "Midaz_Ledger_API_Transaction Routes"
+          "Midaz_Ledger_API_Transaction Routes (v2)"
         ]
       },
       "get": {
@@ -17119,7 +17176,7 @@
         ],
         "summary": "Get Transaction Route by ID",
         "tags": [
-          "Midaz_Ledger_API_Transaction Routes"
+          "Midaz_Ledger_API_Transaction Routes (v2)"
         ]
       },
       "patch": {
@@ -17160,9 +17217,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "contentMediaType": "application/octet-stream",
-                "format": "binary",
-                "type": "string"
+                "$ref": "#/components/schemas/UpdateTransactionRouteInput"
               }
             }
           },
@@ -17197,7 +17252,7 @@
         ],
         "summary": "Update Transaction Route",
         "tags": [
-          "Midaz_Ledger_API_Transaction Routes"
+          "Midaz_Ledger_API_Transaction Routes (v2)"
         ]
       }
     },
@@ -17315,7 +17370,7 @@
         ],
         "summary": "Get all Transactions",
         "tags": [
-          "Midaz_Ledger_API_Transactions"
+          "Midaz_Ledger_API_Transactions (v2)"
         ]
       }
     },
@@ -17366,9 +17421,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "contentMediaType": "application/octet-stream",
-                "format": "binary",
-                "type": "string"
+                "$ref": "#/components/schemas/CreateTransactionInput"
               }
             }
           },
@@ -17410,7 +17463,7 @@
         ],
         "summary": "Create a Transaction Annotation using JSON",
         "tags": [
-          "Midaz_Ledger_API_Transactions"
+          "Midaz_Ledger_API_Transactions (v2)"
         ]
       }
     },
@@ -17461,9 +17514,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "contentMediaType": "application/octet-stream",
-                "format": "binary",
-                "type": "string"
+                "$ref": "#/components/schemas/CreateTransactionInflowInput"
               }
             }
           },
@@ -17505,7 +17556,7 @@
         ],
         "summary": "Create a Transaction without passing from source",
         "tags": [
-          "Midaz_Ledger_API_Transactions"
+          "Midaz_Ledger_API_Transactions (v2)"
         ]
       }
     },
@@ -17556,9 +17607,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "contentMediaType": "application/octet-stream",
-                "format": "binary",
-                "type": "string"
+                "$ref": "#/components/schemas/CreateTransactionInput"
               }
             }
           },
@@ -17600,7 +17649,7 @@
         ],
         "summary": "Create a Transaction using JSON",
         "tags": [
-          "Midaz_Ledger_API_Transactions"
+          "Midaz_Ledger_API_Transactions (v2)"
         ]
       }
     },
@@ -17706,7 +17755,7 @@
         ],
         "summary": "Count Transactions by Filters",
         "tags": [
-          "Midaz_Ledger_API_Transactions"
+          "Midaz_Ledger_API_Transactions (v2)"
         ]
       }
     },
@@ -17757,9 +17806,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "contentMediaType": "application/octet-stream",
-                "format": "binary",
-                "type": "string"
+                "$ref": "#/components/schemas/CreateTransactionOutflowInput"
               }
             }
           },
@@ -17801,7 +17848,7 @@
         ],
         "summary": "Create a Transaction without passing to distribution",
         "tags": [
-          "Midaz_Ledger_API_Transactions"
+          "Midaz_Ledger_API_Transactions (v2)"
         ]
       }
     },
@@ -17876,7 +17923,7 @@
         ],
         "summary": "Get a Transaction by ID",
         "tags": [
-          "Midaz_Ledger_API_Transactions"
+          "Midaz_Ledger_API_Transactions (v2)"
         ]
       },
       "patch": {
@@ -17917,9 +17964,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "contentMediaType": "application/octet-stream",
-                "format": "binary",
-                "type": "string"
+                "$ref": "#/components/schemas/TransactionUpdateTransactionInput"
               }
             }
           },
@@ -17954,7 +17999,7 @@
         ],
         "summary": "Update a Transaction",
         "tags": [
-          "Midaz_Ledger_API_Transactions"
+          "Midaz_Ledger_API_Transactions (v2)"
         ]
       }
     },
@@ -18022,7 +18067,7 @@
         ],
         "summary": "Cancel a pending Transaction (v2)",
         "tags": [
-          "Midaz_Ledger_API_Transactions"
+          "Midaz_Ledger_API_Transactions (v2)"
         ]
       }
     },
@@ -18090,7 +18135,7 @@
         ],
         "summary": "Commit a Transaction (v2)",
         "tags": [
-          "Midaz_Ledger_API_Transactions"
+          "Midaz_Ledger_API_Transactions (v2)"
         ]
       }
     },
@@ -18143,9 +18188,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "contentMediaType": "application/octet-stream",
-                "format": "binary",
-                "type": "string"
+                "$ref": "#/components/schemas/OperationUpdateOperationInput"
               }
             }
           },
@@ -18180,7 +18223,7 @@
         ],
         "summary": "Update an Operation",
         "tags": [
-          "Midaz_Ledger_API_Operations"
+          "Midaz_Ledger_API_Operations (v2)"
         ]
       }
     },
@@ -18255,7 +18298,7 @@
         ],
         "summary": "Revert a Transaction (v2)",
         "tags": [
-          "Midaz_Ledger_API_Transactions"
+          "Midaz_Ledger_API_Transactions (v2)"
         ]
       }
     },
@@ -18392,7 +18435,7 @@
         ],
         "summary": "List Protection Audit Events",
         "tags": [
-          "Midaz_Ledger_API_Protection"
+          "Midaz_Ledger_API_Protection (v2)"
         ]
       }
     },
@@ -18449,7 +18492,7 @@
         ],
         "summary": "Get all Metadata Indexes",
         "tags": [
-          "Midaz_Ledger_API_Metadata Indexes"
+          "Midaz_Ledger_API_Metadata Indexes (v2)"
         ]
       }
     },
@@ -18472,9 +18515,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "contentMediaType": "application/octet-stream",
-                "format": "binary",
-                "type": "string"
+                "$ref": "#/components/schemas/CreateMetadataIndexInput"
               }
             }
           },
@@ -18512,7 +18553,7 @@
         ],
         "summary": "Create Metadata Index",
         "tags": [
-          "Midaz_Ledger_API_Metadata Indexes"
+          "Midaz_Ledger_API_Metadata Indexes (v2)"
         ]
       }
     },
@@ -18566,7 +18607,7 @@
         ],
         "summary": "Delete Metadata Index",
         "tags": [
-          "Midaz_Ledger_API_Metadata Indexes"
+          "Midaz_Ledger_API_Metadata Indexes (v2)"
         ]
       }
     },
@@ -18639,7 +18680,7 @@
         ],
         "summary": "Create a Transaction using the v2 block model",
         "tags": [
-          "Midaz_Ledger_API_Transactions"
+          "Midaz_Ledger_API_Transactions (v2)"
         ]
       }
     },
@@ -18712,7 +18753,7 @@
         ],
         "summary": "Create a Transaction using the v2 direct model",
         "tags": [
-          "Midaz_Ledger_API_Transactions"
+          "Midaz_Ledger_API_Transactions (v2)"
         ]
       }
     },
@@ -18785,7 +18826,7 @@
         ],
         "summary": "Create a Transaction using the v2 hold model",
         "tags": [
-          "Midaz_Ledger_API_Transactions"
+          "Midaz_Ledger_API_Transactions (v2)"
         ]
       }
     },
@@ -18858,7 +18899,7 @@
         ],
         "summary": "Create a Transaction using the v2 unblock model",
         "tags": [
-          "Midaz_Ledger_API_Transactions"
+          "Midaz_Ledger_API_Transactions (v2)"
         ]
       }
     },
@@ -20999,6 +21040,18 @@
         },
         "type": "object"
       },
+      "AccountSkip": {
+        "additionalProperties": false,
+        "properties": {
+          "holder": {
+            "examples": [
+              false
+            ],
+            "type": "boolean"
+          }
+        },
+        "type": "object"
+      },
       "AccountType": {
         "additionalProperties": false,
         "properties": {
@@ -21255,6 +21308,24 @@
           },
           "primary": {
             "$ref": "#/components/schemas/Address"
+          }
+        },
+        "type": "object"
+      },
+      "Amount": {
+        "additionalProperties": false,
+        "properties": {
+          "asset": {
+            "examples": [
+              "BRL"
+            ],
+            "type": "string"
+          },
+          "value": {
+            "examples": [
+              "1000"
+            ],
+            "type": "string"
           }
         },
         "type": "object"
@@ -21964,6 +22035,973 @@
         },
         "type": "object"
       },
+      "CreateAccountInput": {
+        "additionalProperties": false,
+        "properties": {
+          "alias": {
+            "examples": [
+              "@treasury_checking"
+            ],
+            "maxLength": 100,
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "assetCode": {
+            "examples": [
+              "USD"
+            ],
+            "maxLength": 100,
+            "type": "string"
+          },
+          "blocked": {
+            "type": [
+              "boolean",
+              "null"
+            ]
+          },
+          "entityId": {
+            "examples": [
+              "EXT-ACC-12345"
+            ],
+            "maxLength": 256,
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "holderId": {
+            "format": "uuid",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "metadata": {
+            "additionalProperties": {},
+            "type": "object"
+          },
+          "name": {
+            "examples": [
+              "Corporate Checking Account"
+            ],
+            "maxLength": 256,
+            "type": "string"
+          },
+          "parentAccountId": {
+            "format": "uuid",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "portfolioId": {
+            "format": "uuid",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "segmentId": {
+            "format": "uuid",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "skip": {
+            "$ref": "#/components/schemas/AccountSkip"
+          },
+          "status": {
+            "$ref": "#/components/schemas/Status"
+          },
+          "type": {
+            "examples": [
+              "deposit"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "parentAccountId",
+          "entityId",
+          "holderId",
+          "assetCode",
+          "portfolioId",
+          "segmentId",
+          "status",
+          "alias",
+          "type",
+          "blocked",
+          "metadata"
+        ],
+        "type": "object"
+      },
+      "CreateAccountTypeInput": {
+        "additionalProperties": false,
+        "properties": {
+          "defaultDirection": {
+            "examples": [
+              "credit"
+            ],
+            "type": "string"
+          },
+          "description": {
+            "examples": [
+              "Assets that are expected to be converted to cash within one year"
+            ],
+            "type": "string"
+          },
+          "keyValue": {
+            "examples": [
+              "current_assets"
+            ],
+            "type": "string"
+          },
+          "metadata": {
+            "additionalProperties": {},
+            "type": "object"
+          },
+          "name": {
+            "examples": [
+              "Current Assets"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "keyValue",
+          "metadata"
+        ],
+        "type": "object"
+      },
+      "CreateAdditionalBalance": {
+        "additionalProperties": false,
+        "properties": {
+          "allowReceiving": {
+            "examples": [
+              true
+            ],
+            "type": [
+              "boolean",
+              "null"
+            ]
+          },
+          "allowSending": {
+            "examples": [
+              true
+            ],
+            "type": [
+              "boolean",
+              "null"
+            ]
+          },
+          "direction": {
+            "examples": [
+              "credit"
+            ],
+            "type": "string"
+          },
+          "key": {
+            "examples": [
+              "asset-freeze"
+            ],
+            "type": "string"
+          },
+          "settings": {
+            "$ref": "#/components/schemas/BalanceSettings"
+          }
+        },
+        "required": [
+          "key",
+          "allowSending",
+          "allowReceiving"
+        ],
+        "type": "object"
+      },
+      "CreateAssetInput": {
+        "additionalProperties": false,
+        "properties": {
+          "code": {
+            "examples": [
+              "USD"
+            ],
+            "type": "string"
+          },
+          "metadata": {
+            "additionalProperties": {},
+            "type": "object"
+          },
+          "name": {
+            "examples": [
+              "US Dollar"
+            ],
+            "type": "string"
+          },
+          "status": {
+            "$ref": "#/components/schemas/Status"
+          },
+          "type": {
+            "examples": [
+              "currency"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "type",
+          "code",
+          "status",
+          "metadata"
+        ],
+        "type": "object"
+      },
+      "CreateAssetRateInput": {
+        "additionalProperties": false,
+        "properties": {
+          "externalId": {
+            "examples": [
+              "00000000-0000-0000-0000-000000000000"
+            ],
+            "format": "uuid",
+            "type": "string"
+          },
+          "from": {
+            "examples": [
+              "USD"
+            ],
+            "maxLength": 10,
+            "minLength": 2,
+            "type": "string"
+          },
+          "metadata": {
+            "additionalProperties": {},
+            "type": "object"
+          },
+          "rate": {
+            "examples": [
+              100
+            ],
+            "format": "int64",
+            "type": "integer"
+          },
+          "scale": {
+            "examples": [
+              2
+            ],
+            "format": "int64",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "source": {
+            "examples": [
+              "External System"
+            ],
+            "maxLength": 200,
+            "type": "string"
+          },
+          "to": {
+            "examples": [
+              "BRL"
+            ],
+            "maxLength": 10,
+            "minLength": 2,
+            "type": "string"
+          },
+          "ttl": {
+            "examples": [
+              3600
+            ],
+            "format": "int64",
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "from",
+          "to",
+          "rate",
+          "metadata"
+        ],
+        "type": "object"
+      },
+      "CreateHolderAccountInput": {
+        "additionalProperties": false,
+        "properties": {
+          "alias": {
+            "examples": [
+              "@treasury_checking"
+            ],
+            "maxLength": 100,
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "assetCode": {
+            "examples": [
+              "USD"
+            ],
+            "maxLength": 100,
+            "type": "string"
+          },
+          "bankingDetails": {
+            "$ref": "#/components/schemas/BankingDetails"
+          },
+          "blocked": {
+            "type": [
+              "boolean",
+              "null"
+            ]
+          },
+          "entityId": {
+            "examples": [
+              "EXT-ACC-12345"
+            ],
+            "maxLength": 256,
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "metadata": {
+            "additionalProperties": {},
+            "type": "object"
+          },
+          "name": {
+            "examples": [
+              "Corporate Checking Account"
+            ],
+            "maxLength": 256,
+            "type": "string"
+          },
+          "parentAccountId": {
+            "format": "uuid",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "portfolioId": {
+            "format": "uuid",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "regulatoryFields": {
+            "$ref": "#/components/schemas/RegulatoryFields"
+          },
+          "relatedParties": {
+            "items": {
+              "$ref": "#/components/schemas/RelatedParty"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          },
+          "segmentId": {
+            "format": "uuid",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "skip": {
+            "$ref": "#/components/schemas/AccountSkip"
+          },
+          "status": {
+            "$ref": "#/components/schemas/Status"
+          },
+          "type": {
+            "examples": [
+              "deposit"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "parentAccountId",
+          "entityId",
+          "assetCode",
+          "portfolioId",
+          "segmentId",
+          "status",
+          "alias",
+          "type",
+          "blocked",
+          "metadata"
+        ],
+        "type": "object"
+      },
+      "CreateHolderInput": {
+        "additionalProperties": false,
+        "properties": {
+          "addresses": {
+            "$ref": "#/components/schemas/Addresses"
+          },
+          "contact": {
+            "$ref": "#/components/schemas/Contact"
+          },
+          "document": {
+            "examples": [
+              "12345678900"
+            ],
+            "maxLength": 100,
+            "type": "string"
+          },
+          "externalId": {
+            "examples": [
+              "G4K7N8M2"
+            ],
+            "maxLength": 256,
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "legalPerson": {
+            "$ref": "#/components/schemas/LegalPerson"
+          },
+          "metadata": {
+            "additionalProperties": {},
+            "type": "object"
+          },
+          "name": {
+            "examples": [
+              "John Doe"
+            ],
+            "maxLength": 256,
+            "type": "string"
+          },
+          "naturalPerson": {
+            "$ref": "#/components/schemas/NaturalPerson"
+          },
+          "type": {
+            "examples": [
+              "NATURAL_PERSON"
+            ],
+            "maxLength": 100,
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "externalId",
+          "type",
+          "name",
+          "document",
+          "addresses",
+          "contact",
+          "naturalPerson",
+          "legalPerson",
+          "metadata"
+        ],
+        "type": "object"
+      },
+      "CreateInstrumentInput": {
+        "additionalProperties": false,
+        "properties": {
+          "accountId": {
+            "examples": [
+              "00000000-0000-0000-0000-000000000000"
+            ],
+            "format": "uuid",
+            "type": "string"
+          },
+          "bankingDetails": {
+            "$ref": "#/components/schemas/BankingDetails"
+          },
+          "ledgerId": {
+            "examples": [
+              "00000000-0000-0000-0000-000000000000"
+            ],
+            "format": "uuid",
+            "type": "string"
+          },
+          "metadata": {
+            "additionalProperties": {},
+            "type": "object"
+          },
+          "regulatoryFields": {
+            "$ref": "#/components/schemas/RegulatoryFields"
+          },
+          "relatedParties": {
+            "items": {
+              "$ref": "#/components/schemas/RelatedParty"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "ledgerId",
+          "accountId",
+          "metadata",
+          "bankingDetails"
+        ],
+        "type": "object"
+      },
+      "CreateLedgerInput": {
+        "additionalProperties": false,
+        "properties": {
+          "metadata": {
+            "additionalProperties": {},
+            "type": "object"
+          },
+          "name": {
+            "maxLength": 256,
+            "type": "string"
+          },
+          "settings": {
+            "$ref": "#/components/schemas/LedgerSettings"
+          },
+          "status": {
+            "$ref": "#/components/schemas/Status"
+          }
+        },
+        "required": [
+          "name",
+          "status",
+          "metadata"
+        ],
+        "type": "object"
+      },
+      "CreateMetadataIndexInput": {
+        "additionalProperties": false,
+        "properties": {
+          "metadataKey": {
+            "examples": [
+              "tier"
+            ],
+            "type": "string"
+          },
+          "sparse": {
+            "examples": [
+              true
+            ],
+            "type": [
+              "boolean",
+              "null"
+            ]
+          },
+          "unique": {
+            "examples": [
+              false
+            ],
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "metadataKey",
+          "unique",
+          "sparse"
+        ],
+        "type": "object"
+      },
+      "CreateOperationRouteInput": {
+        "additionalProperties": false,
+        "properties": {
+          "account": {
+            "$ref": "#/components/schemas/AccountRule"
+          },
+          "accountingEntries": {
+            "$ref": "#/components/schemas/AccountingEntries"
+          },
+          "code": {
+            "examples": [
+              "EXT-001"
+            ],
+            "type": "string"
+          },
+          "description": {
+            "examples": [
+              "This operation route handles cash-in transactions from service charge collections"
+            ],
+            "type": "string"
+          },
+          "metadata": {
+            "additionalProperties": {},
+            "type": "object"
+          },
+          "operationType": {
+            "enum": [
+              "source",
+              "destination",
+              "bidirectional"
+            ],
+            "examples": [
+              "source"
+            ],
+            "type": "string"
+          },
+          "title": {
+            "examples": [
+              "Cashin from service charge"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "metadata"
+        ],
+        "type": "object"
+      },
+      "CreateOrganizationInput": {
+        "additionalProperties": false,
+        "properties": {
+          "address": {
+            "$ref": "#/components/schemas/Address"
+          },
+          "doingBusinessAs": {
+            "examples": [
+              "Lerian FS"
+            ],
+            "maxLength": 256,
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "legalDocument": {
+            "examples": [
+              "123456789012345"
+            ],
+            "maxLength": 256,
+            "type": "string"
+          },
+          "legalName": {
+            "examples": [
+              "Lerian Financial Services Ltd."
+            ],
+            "maxLength": 256,
+            "type": "string"
+          },
+          "metadata": {
+            "additionalProperties": {},
+            "type": "object"
+          },
+          "parentOrganizationId": {
+            "format": "uuid",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "status": {
+            "$ref": "#/components/schemas/Status"
+          }
+        },
+        "required": [
+          "legalName",
+          "parentOrganizationId",
+          "doingBusinessAs",
+          "legalDocument",
+          "address",
+          "status",
+          "metadata"
+        ],
+        "type": "object"
+      },
+      "CreatePortfolioInput": {
+        "additionalProperties": false,
+        "properties": {
+          "entityId": {
+            "examples": [
+              "00000000-0000-0000-0000-000000000000"
+            ],
+            "type": "string"
+          },
+          "metadata": {
+            "additionalProperties": {},
+            "type": "object"
+          },
+          "name": {
+            "examples": [
+              "My Portfolio"
+            ],
+            "type": "string"
+          },
+          "status": {
+            "$ref": "#/components/schemas/Status"
+          }
+        },
+        "required": [
+          "entityId",
+          "name",
+          "status",
+          "metadata"
+        ],
+        "type": "object"
+      },
+      "CreateSegmentInput": {
+        "additionalProperties": false,
+        "properties": {
+          "metadata": {
+            "additionalProperties": {},
+            "type": "object"
+          },
+          "name": {
+            "examples": [
+              "My Segment"
+            ],
+            "type": "string"
+          },
+          "status": {
+            "$ref": "#/components/schemas/Status"
+          }
+        },
+        "required": [
+          "name",
+          "status",
+          "metadata"
+        ],
+        "type": "object"
+      },
+      "CreateTransactionInflowInput": {
+        "additionalProperties": false,
+        "properties": {
+          "chartOfAccountsGroupName": {
+            "examples": [
+              "FUNDING"
+            ],
+            "maxLength": 256,
+            "type": "string"
+          },
+          "code": {
+            "examples": [
+              "TR12345"
+            ],
+            "maxLength": 100,
+            "type": "string"
+          },
+          "description": {
+            "examples": [
+              "New Transaction"
+            ],
+            "maxLength": 256,
+            "type": "string"
+          },
+          "metadata": {
+            "additionalProperties": {},
+            "type": "object"
+          },
+          "route": {
+            "examples": [
+              "00000000-0000-0000-0000-000000000000"
+            ],
+            "type": "string"
+          },
+          "routeId": {
+            "examples": [
+              "00000000-0000-0000-0000-000000000000"
+            ],
+            "format": "uuid",
+            "type": "string"
+          },
+          "send": {
+            "$ref": "#/components/schemas/SendInflow"
+          },
+          "skip": {
+            "$ref": "#/components/schemas/TransactionSkip"
+          },
+          "transactionDate": {
+            "examples": [
+              "2021-01-01T00:00:00Z"
+            ],
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "required": [
+          "metadata",
+          "send"
+        ],
+        "type": "object"
+      },
+      "CreateTransactionInput": {
+        "additionalProperties": false,
+        "properties": {
+          "chartOfAccountsGroupName": {
+            "examples": [
+              "FUNDING"
+            ],
+            "maxLength": 256,
+            "type": "string"
+          },
+          "code": {
+            "examples": [
+              "TR12345"
+            ],
+            "maxLength": 100,
+            "type": "string"
+          },
+          "description": {
+            "examples": [
+              "New Transaction"
+            ],
+            "maxLength": 256,
+            "type": "string"
+          },
+          "metadata": {
+            "additionalProperties": {},
+            "type": "object"
+          },
+          "pending": {
+            "default": false,
+            "examples": [
+              true
+            ],
+            "type": "boolean"
+          },
+          "route": {
+            "examples": [
+              "00000000-0000-0000-0000-000000000000"
+            ],
+            "type": "string"
+          },
+          "routeId": {
+            "examples": [
+              "00000000-0000-0000-0000-000000000000"
+            ],
+            "format": "uuid",
+            "type": "string"
+          },
+          "send": {
+            "$ref": "#/components/schemas/Send"
+          },
+          "skip": {
+            "$ref": "#/components/schemas/TransactionSkip"
+          },
+          "transactionDate": {
+            "examples": [
+              "2021-01-01T00:00:00Z"
+            ],
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "required": [
+          "pending",
+          "metadata",
+          "send"
+        ],
+        "type": "object"
+      },
+      "CreateTransactionOutflowInput": {
+        "additionalProperties": false,
+        "properties": {
+          "chartOfAccountsGroupName": {
+            "examples": [
+              "WITHDRAWAL"
+            ],
+            "maxLength": 256,
+            "type": "string"
+          },
+          "code": {
+            "examples": [
+              "TR12345"
+            ],
+            "maxLength": 100,
+            "type": "string"
+          },
+          "description": {
+            "examples": [
+              "New Outflow Transaction"
+            ],
+            "maxLength": 256,
+            "type": "string"
+          },
+          "metadata": {
+            "additionalProperties": {},
+            "type": "object"
+          },
+          "pending": {
+            "default": false,
+            "examples": [
+              true
+            ],
+            "type": "boolean"
+          },
+          "route": {
+            "examples": [
+              "00000000-0000-0000-0000-000000000000"
+            ],
+            "type": "string"
+          },
+          "routeId": {
+            "examples": [
+              "00000000-0000-0000-0000-000000000000"
+            ],
+            "format": "uuid",
+            "type": "string"
+          },
+          "send": {
+            "$ref": "#/components/schemas/SendOutflow"
+          },
+          "skip": {
+            "$ref": "#/components/schemas/TransactionSkip"
+          },
+          "transactionDate": {
+            "examples": [
+              "2021-01-01T00:00:00Z"
+            ],
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "required": [
+          "pending",
+          "metadata",
+          "send"
+        ],
+        "type": "object"
+      },
+      "CreateTransactionRouteInput": {
+        "additionalProperties": false,
+        "properties": {
+          "description": {
+            "examples": [
+              "Settlement route for service charges"
+            ],
+            "type": "string"
+          },
+          "metadata": {
+            "additionalProperties": {},
+            "type": "object"
+          },
+          "operationRoutes": {
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          },
+          "title": {
+            "examples": [
+              "Charge Settlement"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "metadata"
+        ],
+        "type": "object"
+      },
       "CreateTransactionV2Input": {
         "additionalProperties": false,
         "description": "Transaction request body. `debits` and `credits` are the two required, non-empty leg arrays of the transaction; one debit paired with many credits, or the reverse, is a valid request. Every leg names the `organizationId` and `ledgerId` its account belongs to; all of them must name the SAME pair, and that pair is the organization and ledger the transaction is created in. A request whose accounts name different pairs is rejected. `asset`, `amount`, `description`, `code`, `routeId`, `operationRouteId` and `metadata` sit alongside the two leg arrays, and `amount` is the transaction total that the legs' `share` expressions divide. Each leg array holds at most 500 legs.",
@@ -22021,6 +23059,24 @@
           "debits",
           "credits"
         ],
+        "type": "object"
+      },
+      "Distribute": {
+        "additionalProperties": false,
+        "properties": {
+          "remaining": {
+            "type": "string"
+          },
+          "to": {
+            "items": {
+              "$ref": "#/components/schemas/FromTo"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          }
+        },
         "type": "object"
       },
       "Error": {
@@ -22199,6 +23255,34 @@
             "type": "string"
           }
         },
+        "type": "object"
+      },
+      "FeeBillingCalculateRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "ledgerId": {
+            "examples": [
+              "00000000-0000-0000-0000-000000000000"
+            ],
+            "type": "string"
+          },
+          "period": {
+            "examples": [
+              "2026-01"
+            ],
+            "type": "string"
+          },
+          "type": {
+            "examples": [
+              "volume"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "ledgerId",
+          "period"
+        ],
         "type": "object"
       },
       "FeeBillingCalculateResponse": {
@@ -22483,6 +23567,30 @@
         ],
         "type": "object"
       },
+      "FeeBillingPackageUpdate": {
+        "additionalProperties": false,
+        "properties": {
+          "description": {
+            "examples": [
+              "Updated description for the billing package"
+            ],
+            "type": "string"
+          },
+          "enable": {
+            "examples": [
+              false
+            ],
+            "type": "boolean"
+          },
+          "label": {
+            "examples": [
+              "Updated Billing Label"
+            ],
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
       "FeeCalculation": {
         "additionalProperties": false,
         "properties": {
@@ -22530,6 +23638,92 @@
         ],
         "type": "object"
       },
+      "FeeCreatePackageInput": {
+        "additionalProperties": false,
+        "properties": {
+          "description": {
+            "examples": [
+              "Pacote de taxas administrativas padrão"
+            ],
+            "type": "string"
+          },
+          "enable": {
+            "type": [
+              "boolean",
+              "null"
+            ]
+          },
+          "feeGroupLabel": {
+            "examples": [
+              "Pacote Padrão"
+            ],
+            "type": "string"
+          },
+          "fees": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/Fee"
+            },
+            "type": "object"
+          },
+          "ledgerId": {
+            "examples": [
+              "00000000-0000-0000-0000-000000000000"
+            ],
+            "type": "string"
+          },
+          "maximumAmount": {
+            "examples": [
+              "1000.20"
+            ],
+            "minimum": 0,
+            "type": "string"
+          },
+          "minimumAmount": {
+            "examples": [
+              "100.00"
+            ],
+            "minimum": 0,
+            "type": "string"
+          },
+          "segmentId": {
+            "examples": [
+              "00000000-0000-0000-0000-000000000000"
+            ],
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "transactionRoute": {
+            "examples": [
+              "debitoted"
+            ],
+            "type": "string"
+          },
+          "waivedAccounts": {
+            "examples": [
+              [
+                "acc001",
+                "acc002"
+              ]
+            ],
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "feeGroupLabel",
+          "segmentId",
+          "ledgerId",
+          "minimumAmount",
+          "maximumAmount",
+          "fees",
+          "enable"
+        ],
+        "type": "object"
+      },
       "FeeDiscountTier": {
         "additionalProperties": false,
         "properties": {
@@ -22550,6 +23744,32 @@
         "required": [
           "minQuantity",
           "discountPercentage"
+        ],
+        "type": "object"
+      },
+      "FeeEstimate": {
+        "additionalProperties": false,
+        "properties": {
+          "ledgerId": {
+            "examples": [
+              "00000000-0000-0000-0000-000000000000"
+            ],
+            "type": "string"
+          },
+          "packageId": {
+            "examples": [
+              "00000000-0000-0000-0000-000000000000"
+            ],
+            "type": "string"
+          },
+          "transaction": {
+            "$ref": "#/components/schemas/TransactionInput"
+          }
+        },
+        "required": [
+          "packageId",
+          "ledgerId",
+          "transaction"
         ],
         "type": "object"
       },
@@ -22764,6 +23984,151 @@
         "required": [
           "minQuantity",
           "unitPrice"
+        ],
+        "type": "object"
+      },
+      "FeeUpdatePackageInput": {
+        "additionalProperties": false,
+        "properties": {
+          "description": {
+            "examples": [
+              "Pacote de taxas administrativas padrão"
+            ],
+            "type": "string"
+          },
+          "enable": {
+            "examples": [
+              true
+            ],
+            "type": "boolean"
+          },
+          "feeGroupLabel": {
+            "examples": [
+              "Pacote Padrão"
+            ],
+            "type": "string"
+          },
+          "fees": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/Fee"
+            },
+            "type": "object"
+          },
+          "maximumAmount": {
+            "examples": [
+              "1000"
+            ],
+            "minimum": 0,
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "minimumAmount": {
+            "examples": [
+              "100"
+            ],
+            "minimum": 0,
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "waivedAccounts": {
+            "examples": [
+              [
+                "acc001",
+                "acc002"
+              ]
+            ],
+            "items": {
+              "type": "string"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "feeGroupLabel",
+          "description",
+          "minimumAmount",
+          "maximumAmount",
+          "waivedAccounts",
+          "fees"
+        ],
+        "type": "object"
+      },
+      "FromTo": {
+        "additionalProperties": false,
+        "properties": {
+          "accountAlias": {
+            "examples": [
+              "@person1"
+            ],
+            "type": "string"
+          },
+          "amount": {
+            "$ref": "#/components/schemas/Amount"
+          },
+          "balanceKey": {
+            "examples": [
+              "asset-freeze"
+            ],
+            "type": "string"
+          },
+          "chartOfAccounts": {
+            "examples": [
+              "1000"
+            ],
+            "type": "string"
+          },
+          "description": {
+            "examples": [
+              "description"
+            ],
+            "type": "string"
+          },
+          "isFrom": {
+            "examples": [
+              true
+            ],
+            "type": "boolean"
+          },
+          "metadata": {
+            "additionalProperties": {},
+            "type": "object"
+          },
+          "rate": {
+            "$ref": "#/components/schemas/Rate"
+          },
+          "remaining": {
+            "examples": [
+              "remaining"
+            ],
+            "type": "string"
+          },
+          "route": {
+            "examples": [
+              "00000000-0000-0000-0000-000000000000"
+            ],
+            "type": "string"
+          },
+          "routeId": {
+            "examples": [
+              "00000000-0000-0000-0000-000000000000"
+            ],
+            "format": "uuid",
+            "type": "string"
+          },
+          "share": {
+            "$ref": "#/components/schemas/Share"
+          }
+        },
+        "required": [
+          "chartOfAccounts",
+          "metadata"
         ],
         "type": "object"
       },
@@ -23658,6 +25023,27 @@
         ],
         "type": "object"
       },
+      "OperationUpdateOperationInput": {
+        "additionalProperties": false,
+        "properties": {
+          "description": {
+            "examples": [
+              "Credit card operation"
+            ],
+            "maxLength": 256,
+            "type": "string"
+          },
+          "metadata": {
+            "additionalProperties": {},
+            "type": "object"
+          }
+        },
+        "required": [
+          "description",
+          "metadata"
+        ],
+        "type": "object"
+      },
       "Organization": {
         "additionalProperties": false,
         "properties": {
@@ -23896,6 +25282,28 @@
         ],
         "type": "object"
       },
+      "ProvisionEncryptionInput": {
+        "additionalProperties": false,
+        "properties": {
+          "actor": {
+            "examples": [
+              "admin@example.com"
+            ],
+            "type": "string"
+          },
+          "reason": {
+            "examples": [
+              "Initial encryption setup"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "actor",
+          "reason"
+        ],
+        "type": "object"
+      },
       "ProvisionEncryptionResponse": {
         "additionalProperties": false,
         "properties": {
@@ -23968,6 +25376,42 @@
         "required": [
           "organization_id",
           "provisioned"
+        ],
+        "type": "object"
+      },
+      "Rate": {
+        "additionalProperties": false,
+        "properties": {
+          "externalId": {
+            "examples": [
+              "00000000-0000-0000-0000-000000000000"
+            ],
+            "type": "string"
+          },
+          "from": {
+            "examples": [
+              "BRL"
+            ],
+            "type": "string"
+          },
+          "to": {
+            "examples": [
+              "USDe"
+            ],
+            "type": "string"
+          },
+          "value": {
+            "examples": [
+              "1000"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "from",
+          "to",
+          "value",
+          "externalId"
         ],
         "type": "object"
       },
@@ -24145,6 +25589,107 @@
           "updatedAt",
           "deletedAt"
         ],
+        "type": "object"
+      },
+      "Send": {
+        "additionalProperties": false,
+        "properties": {
+          "asset": {
+            "examples": [
+              "BRL"
+            ],
+            "type": "string"
+          },
+          "distribute": {
+            "$ref": "#/components/schemas/Distribute"
+          },
+          "source": {
+            "$ref": "#/components/schemas/Source"
+          },
+          "value": {
+            "examples": [
+              "1000"
+            ],
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "SendInflow": {
+        "additionalProperties": false,
+        "properties": {
+          "asset": {
+            "examples": [
+              "BRL"
+            ],
+            "type": "string"
+          },
+          "distribute": {
+            "$ref": "#/components/schemas/Distribute"
+          },
+          "value": {
+            "examples": [
+              "1000"
+            ],
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "SendOutflow": {
+        "additionalProperties": false,
+        "properties": {
+          "asset": {
+            "examples": [
+              "BRL"
+            ],
+            "type": "string"
+          },
+          "source": {
+            "$ref": "#/components/schemas/Source"
+          },
+          "value": {
+            "examples": [
+              "1000"
+            ],
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "Share": {
+        "additionalProperties": false,
+        "properties": {
+          "percentage": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "percentageOfPercentage": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "Source": {
+        "additionalProperties": false,
+        "properties": {
+          "from": {
+            "items": {
+              "$ref": "#/components/schemas/FromTo"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          },
+          "remaining": {
+            "examples": [
+              "remaining"
+            ],
+            "type": "string"
+          }
+        },
         "type": "object"
       },
       "Status": {
@@ -24390,6 +25935,66 @@
         ],
         "type": "object"
       },
+      "TransactionInput": {
+        "additionalProperties": false,
+        "properties": {
+          "chartOfAccountsGroupName": {
+            "examples": [
+              "FUNDING"
+            ],
+            "type": "string"
+          },
+          "code": {
+            "examples": [
+              "00000000-0000-0000-0000-000000000000"
+            ],
+            "type": "string"
+          },
+          "description": {
+            "examples": [
+              "Description"
+            ],
+            "type": "string"
+          },
+          "metadata": {
+            "additionalProperties": {},
+            "type": "object"
+          },
+          "pending": {
+            "examples": [
+              false
+            ],
+            "type": "boolean"
+          },
+          "route": {
+            "examples": [
+              "00000000-0000-0000-0000-000000000000"
+            ],
+            "type": "string"
+          },
+          "routeId": {
+            "examples": [
+              "00000000-0000-0000-0000-000000000000"
+            ],
+            "format": "uuid",
+            "type": "string"
+          },
+          "send": {
+            "$ref": "#/components/schemas/Send"
+          },
+          "transactionDate": {
+            "examples": [
+              "2021-01-01T00:00:00Z"
+            ],
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "required": [
+          "send"
+        ],
+        "type": "object"
+      },
       "TransactionRoute": {
         "additionalProperties": false,
         "properties": {
@@ -24468,6 +26073,24 @@
         ],
         "type": "object"
       },
+      "TransactionSkip": {
+        "additionalProperties": false,
+        "properties": {
+          "fees": {
+            "examples": [
+              false
+            ],
+            "type": "boolean"
+          },
+          "tracer": {
+            "examples": [
+              false
+            ],
+            "type": "boolean"
+          }
+        },
+        "type": "object"
+      },
       "TransactionStatus": {
         "additionalProperties": false,
         "properties": {
@@ -24492,6 +26115,27 @@
         "required": [
           "code",
           "description"
+        ],
+        "type": "object"
+      },
+      "TransactionUpdateTransactionInput": {
+        "additionalProperties": false,
+        "properties": {
+          "description": {
+            "examples": [
+              "Transaction description"
+            ],
+            "maxLength": 256,
+            "type": "string"
+          },
+          "metadata": {
+            "additionalProperties": {},
+            "type": "object"
+          }
+        },
+        "required": [
+          "description",
+          "metadata"
         ],
         "type": "object"
       },
@@ -24671,6 +26315,428 @@
           "updatedAt",
           "deletedAt",
           "operations"
+        ],
+        "type": "object"
+      },
+      "UpdateAccountInput": {
+        "additionalProperties": false,
+        "properties": {
+          "blocked": {
+            "type": [
+              "boolean",
+              "null"
+            ]
+          },
+          "entityId": {
+            "examples": [
+              "EXT-ACC-12345"
+            ],
+            "maxLength": 256,
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "metadata": {
+            "additionalProperties": {},
+            "type": "object"
+          },
+          "name": {
+            "examples": [
+              "Primary Corporate Checking Account"
+            ],
+            "maxLength": 256,
+            "type": "string"
+          },
+          "portfolioId": {
+            "format": "uuid",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "segmentId": {
+            "format": "uuid",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "status": {
+            "$ref": "#/components/schemas/Status"
+          }
+        },
+        "required": [
+          "name",
+          "segmentId",
+          "portfolioId",
+          "entityId",
+          "status",
+          "blocked",
+          "metadata"
+        ],
+        "type": "object"
+      },
+      "UpdateAccountTypeInput": {
+        "additionalProperties": false,
+        "properties": {
+          "defaultDirection": {
+            "examples": [
+              "credit"
+            ],
+            "type": "string"
+          },
+          "description": {
+            "examples": [
+              "Assets that are expected to be converted to cash within one year"
+            ],
+            "type": "string"
+          },
+          "metadata": {
+            "additionalProperties": {},
+            "type": "object"
+          },
+          "name": {
+            "examples": [
+              "Current Assets"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "metadata"
+        ],
+        "type": "object"
+      },
+      "UpdateAssetInput": {
+        "additionalProperties": false,
+        "properties": {
+          "metadata": {
+            "additionalProperties": {},
+            "type": "object"
+          },
+          "name": {
+            "examples": [
+              "Bitcoin"
+            ],
+            "type": "string"
+          },
+          "status": {
+            "$ref": "#/components/schemas/Status"
+          }
+        },
+        "required": [
+          "name",
+          "status",
+          "metadata"
+        ],
+        "type": "object"
+      },
+      "UpdateBalance": {
+        "additionalProperties": false,
+        "properties": {
+          "allowReceiving": {
+            "examples": [
+              true
+            ],
+            "type": [
+              "boolean",
+              "null"
+            ]
+          },
+          "allowSending": {
+            "examples": [
+              true
+            ],
+            "type": [
+              "boolean",
+              "null"
+            ]
+          },
+          "settings": {
+            "$ref": "#/components/schemas/BalanceSettings"
+          }
+        },
+        "required": [
+          "allowSending",
+          "allowReceiving"
+        ],
+        "type": "object"
+      },
+      "UpdateHolderInput": {
+        "additionalProperties": false,
+        "properties": {
+          "addresses": {
+            "$ref": "#/components/schemas/Addresses"
+          },
+          "contact": {
+            "$ref": "#/components/schemas/Contact"
+          },
+          "externalId": {
+            "examples": [
+              "G4K7N8M"
+            ],
+            "maxLength": 256,
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "legalPerson": {
+            "$ref": "#/components/schemas/LegalPerson"
+          },
+          "metadata": {
+            "additionalProperties": {},
+            "type": "object"
+          },
+          "name": {
+            "examples": [
+              "Jonathan Doe"
+            ],
+            "maxLength": 256,
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "naturalPerson": {
+            "$ref": "#/components/schemas/NaturalPerson"
+          }
+        },
+        "required": [
+          "externalId",
+          "name",
+          "addresses",
+          "contact",
+          "naturalPerson",
+          "legalPerson",
+          "metadata"
+        ],
+        "type": "object"
+      },
+      "UpdateInstrumentInput": {
+        "additionalProperties": false,
+        "properties": {
+          "bankingDetails": {
+            "$ref": "#/components/schemas/BankingDetails"
+          },
+          "metadata": {
+            "additionalProperties": {},
+            "type": "object"
+          },
+          "regulatoryFields": {
+            "$ref": "#/components/schemas/RegulatoryFields"
+          },
+          "relatedParties": {
+            "items": {
+              "$ref": "#/components/schemas/RelatedParty"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "metadata",
+          "bankingDetails"
+        ],
+        "type": "object"
+      },
+      "UpdateLedgerInput": {
+        "additionalProperties": false,
+        "properties": {
+          "metadata": {
+            "additionalProperties": {},
+            "type": "object"
+          },
+          "name": {
+            "examples": [
+              "Treasury Operations Global"
+            ],
+            "maxLength": 256,
+            "type": "string"
+          },
+          "status": {
+            "$ref": "#/components/schemas/Status"
+          }
+        },
+        "required": [
+          "name",
+          "status",
+          "metadata"
+        ],
+        "type": "object"
+      },
+      "UpdateOperationRouteInput": {
+        "additionalProperties": false,
+        "properties": {
+          "account": {
+            "$ref": "#/components/schemas/AccountRule"
+          },
+          "accountingEntries": {
+            "$ref": "#/components/schemas/AccountingEntries"
+          },
+          "code": {
+            "examples": [
+              "EXT-001"
+            ],
+            "type": "string"
+          },
+          "description": {
+            "examples": [
+              "This operation route handles cash-in transactions from service charge collections"
+            ],
+            "type": "string"
+          },
+          "metadata": {
+            "additionalProperties": {},
+            "type": "object"
+          },
+          "title": {
+            "examples": [
+              "Cashin from service charge"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "metadata"
+        ],
+        "type": "object"
+      },
+      "UpdateOrganizationInput": {
+        "additionalProperties": false,
+        "properties": {
+          "address": {
+            "$ref": "#/components/schemas/Address"
+          },
+          "doingBusinessAs": {
+            "examples": [
+              "Lerian Group"
+            ],
+            "maxLength": 256,
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "legalName": {
+            "examples": [
+              "Lerian Financial Group Ltd."
+            ],
+            "maxLength": 256,
+            "type": "string"
+          },
+          "metadata": {
+            "additionalProperties": {},
+            "type": "object"
+          },
+          "parentOrganizationId": {
+            "format": "uuid",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "status": {
+            "$ref": "#/components/schemas/Status"
+          }
+        },
+        "required": [
+          "legalName",
+          "parentOrganizationId",
+          "doingBusinessAs",
+          "address",
+          "status",
+          "metadata"
+        ],
+        "type": "object"
+      },
+      "UpdatePortfolioInput": {
+        "additionalProperties": false,
+        "properties": {
+          "entityId": {
+            "examples": [
+              "00000000-0000-0000-0000-000000000000"
+            ],
+            "type": "string"
+          },
+          "metadata": {
+            "additionalProperties": {},
+            "type": "object"
+          },
+          "name": {
+            "examples": [
+              "My Portfolio Updated"
+            ],
+            "type": "string"
+          },
+          "status": {
+            "$ref": "#/components/schemas/Status"
+          }
+        },
+        "required": [
+          "entityId",
+          "name",
+          "status",
+          "metadata"
+        ],
+        "type": "object"
+      },
+      "UpdateSegmentInput": {
+        "additionalProperties": false,
+        "properties": {
+          "metadata": {
+            "additionalProperties": {},
+            "type": "object"
+          },
+          "name": {
+            "examples": [
+              "My Segment Updated"
+            ],
+            "type": "string"
+          },
+          "status": {
+            "$ref": "#/components/schemas/Status"
+          }
+        },
+        "required": [
+          "name",
+          "status",
+          "metadata"
+        ],
+        "type": "object"
+      },
+      "UpdateTransactionRouteInput": {
+        "additionalProperties": false,
+        "properties": {
+          "description": {
+            "examples": [
+              "Settlement route for service charges"
+            ],
+            "type": "string"
+          },
+          "metadata": {
+            "additionalProperties": {},
+            "type": "object"
+          },
+          "operationRoutes": {
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "title": {
+            "examples": [
+              "Charge Settlement"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "metadata"
         ],
         "type": "object"
       },
@@ -26006,29 +28072,52 @@
     {
       "name": "Midaz Ledger API",
       "tags": [
-        "Midaz_Ledger_API_Organizations",
-        "Midaz_Ledger_API_Billing Packages",
-        "Midaz_Ledger_API_Billing Calculate",
-        "Midaz_Ledger_API_Encryption",
-        "Midaz_Ledger_API_Fees",
-        "Midaz_Ledger_API_Holders",
-        "Midaz_Ledger_API_Instruments",
-        "Midaz_Ledger_API_Ledgers",
-        "Midaz_Ledger_API_Account Types",
-        "Midaz_Ledger_API_Accounts",
-        "Midaz_Ledger_API_Balances",
-        "Midaz_Ledger_API_Operations",
-        "Midaz_Ledger_API_Asset Rates",
-        "Midaz_Ledger_API_Assets",
-        "Midaz_Ledger_API_Composition",
-        "Midaz_Ledger_API_Operation Routes",
-        "Midaz_Ledger_API_Portfolios",
-        "Midaz_Ledger_API_Segments",
-        "Midaz_Ledger_API_Transaction Routes",
-        "Midaz_Ledger_API_Transactions",
-        "Midaz_Ledger_API_Packages",
-        "Midaz_Ledger_API_Protection",
-        "Midaz_Ledger_API_Metadata Indexes"
+        "Midaz_Ledger_API_Account Types (v1)",
+        "Midaz_Ledger_API_Account Types (v2)",
+        "Midaz_Ledger_API_Accounts (v1)",
+        "Midaz_Ledger_API_Accounts (v2)",
+        "Midaz_Ledger_API_Asset Rates (v1)",
+        "Midaz_Ledger_API_Asset Rates (v2)",
+        "Midaz_Ledger_API_Assets (v1)",
+        "Midaz_Ledger_API_Assets (v2)",
+        "Midaz_Ledger_API_Balances (v1)",
+        "Midaz_Ledger_API_Balances (v2)",
+        "Midaz_Ledger_API_Billing Calculate (v1)",
+        "Midaz_Ledger_API_Billing Calculate (v2)",
+        "Midaz_Ledger_API_Billing Packages (v1)",
+        "Midaz_Ledger_API_Billing Packages (v2)",
+        "Midaz_Ledger_API_Composition (v1)",
+        "Midaz_Ledger_API_Composition (v2)",
+        "Midaz_Ledger_API_Encryption (v1)",
+        "Midaz_Ledger_API_Encryption (v2)",
+        "Midaz_Ledger_API_Fees (v1)",
+        "Midaz_Ledger_API_Fees (v2)",
+        "Midaz_Ledger_API_Holders (v1)",
+        "Midaz_Ledger_API_Holders (v2)",
+        "Midaz_Ledger_API_Instruments (v1)",
+        "Midaz_Ledger_API_Instruments (v2)",
+        "Midaz_Ledger_API_Ledgers (v1)",
+        "Midaz_Ledger_API_Ledgers (v2)",
+        "Midaz_Ledger_API_Metadata Indexes (v1)",
+        "Midaz_Ledger_API_Metadata Indexes (v2)",
+        "Midaz_Ledger_API_Operation Routes (v1)",
+        "Midaz_Ledger_API_Operation Routes (v2)",
+        "Midaz_Ledger_API_Operations (v1)",
+        "Midaz_Ledger_API_Operations (v2)",
+        "Midaz_Ledger_API_Organizations (v1)",
+        "Midaz_Ledger_API_Organizations (v2)",
+        "Midaz_Ledger_API_Packages (v1)",
+        "Midaz_Ledger_API_Packages (v2)",
+        "Midaz_Ledger_API_Portfolios (v1)",
+        "Midaz_Ledger_API_Portfolios (v2)",
+        "Midaz_Ledger_API_Protection (v1)",
+        "Midaz_Ledger_API_Protection (v2)",
+        "Midaz_Ledger_API_Segments (v1)",
+        "Midaz_Ledger_API_Segments (v2)",
+        "Midaz_Ledger_API_Transaction Routes (v1)",
+        "Midaz_Ledger_API_Transaction Routes (v2)",
+        "Midaz_Ledger_API_Transactions (v1)",
+        "Midaz_Ledger_API_Transactions (v2)"
       ]
     },
     {

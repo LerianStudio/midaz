@@ -136,6 +136,14 @@ components:
           type: string
         validIf: {}
       type: object
+    AccountSkip:
+      additionalProperties: false
+      properties:
+        holder:
+          examples:
+            - false
+          type: boolean
+      type: object
     AccountType:
       additionalProperties: false
       properties:
@@ -316,6 +324,18 @@ components:
           $ref: "#/components/schemas/Address"
         primary:
           $ref: "#/components/schemas/Address"
+      type: object
+    Amount:
+      additionalProperties: false
+      properties:
+        asset:
+          examples:
+            - BRL
+          type: string
+        value:
+          examples:
+            - "1000"
+          type: string
       type: object
     Asset:
       additionalProperties: false
@@ -831,6 +851,696 @@ components:
           maxLength: 256
           type: string
       type: object
+    CreateAccountInput:
+      additionalProperties: false
+      properties:
+        alias:
+          examples:
+            - "@treasury_checking"
+          maxLength: 100
+          type:
+            - string
+            - "null"
+        assetCode:
+          examples:
+            - USD
+          maxLength: 100
+          type: string
+        blocked:
+          type:
+            - boolean
+            - "null"
+        entityId:
+          examples:
+            - EXT-ACC-12345
+          maxLength: 256
+          type:
+            - string
+            - "null"
+        holderId:
+          format: uuid
+          type:
+            - string
+            - "null"
+        metadata:
+          additionalProperties: {}
+          type: object
+        name:
+          examples:
+            - Corporate Checking Account
+          maxLength: 256
+          type: string
+        parentAccountId:
+          format: uuid
+          type:
+            - string
+            - "null"
+        portfolioId:
+          format: uuid
+          type:
+            - string
+            - "null"
+        segmentId:
+          format: uuid
+          type:
+            - string
+            - "null"
+        skip:
+          $ref: "#/components/schemas/AccountSkip"
+        status:
+          $ref: "#/components/schemas/Status"
+        type:
+          examples:
+            - deposit
+          type: string
+      required:
+        - name
+        - parentAccountId
+        - entityId
+        - holderId
+        - assetCode
+        - portfolioId
+        - segmentId
+        - status
+        - alias
+        - type
+        - blocked
+        - metadata
+      type: object
+    CreateAccountTypeInput:
+      additionalProperties: false
+      properties:
+        defaultDirection:
+          examples:
+            - credit
+          type: string
+        description:
+          examples:
+            - Assets that are expected to be converted to cash within one year
+          type: string
+        keyValue:
+          examples:
+            - current_assets
+          type: string
+        metadata:
+          additionalProperties: {}
+          type: object
+        name:
+          examples:
+            - Current Assets
+          type: string
+      required:
+        - name
+        - keyValue
+        - metadata
+      type: object
+    CreateAdditionalBalance:
+      additionalProperties: false
+      properties:
+        allowReceiving:
+          examples:
+            - true
+          type:
+            - boolean
+            - "null"
+        allowSending:
+          examples:
+            - true
+          type:
+            - boolean
+            - "null"
+        direction:
+          examples:
+            - credit
+          type: string
+        key:
+          examples:
+            - asset-freeze
+          type: string
+        settings:
+          $ref: "#/components/schemas/BalanceSettings"
+      required:
+        - key
+        - allowSending
+        - allowReceiving
+      type: object
+    CreateAssetInput:
+      additionalProperties: false
+      properties:
+        code:
+          examples:
+            - USD
+          type: string
+        metadata:
+          additionalProperties: {}
+          type: object
+        name:
+          examples:
+            - US Dollar
+          type: string
+        status:
+          $ref: "#/components/schemas/Status"
+        type:
+          examples:
+            - currency
+          type: string
+      required:
+        - name
+        - type
+        - code
+        - status
+        - metadata
+      type: object
+    CreateAssetRateInput:
+      additionalProperties: false
+      properties:
+        externalId:
+          examples:
+            - 00000000-0000-0000-0000-000000000000
+          format: uuid
+          type: string
+        from:
+          examples:
+            - USD
+          maxLength: 10
+          minLength: 2
+          type: string
+        metadata:
+          additionalProperties: {}
+          type: object
+        rate:
+          examples:
+            - 100
+          format: int64
+          type: integer
+        scale:
+          examples:
+            - 2
+          format: int64
+          minimum: 0
+          type: integer
+        source:
+          examples:
+            - External System
+          maxLength: 200
+          type: string
+        to:
+          examples:
+            - BRL
+          maxLength: 10
+          minLength: 2
+          type: string
+        ttl:
+          examples:
+            - 3600
+          format: int64
+          minimum: 0
+          type: integer
+      required:
+        - from
+        - to
+        - rate
+        - metadata
+      type: object
+    CreateHolderAccountInput:
+      additionalProperties: false
+      properties:
+        alias:
+          examples:
+            - "@treasury_checking"
+          maxLength: 100
+          type:
+            - string
+            - "null"
+        assetCode:
+          examples:
+            - USD
+          maxLength: 100
+          type: string
+        bankingDetails:
+          $ref: "#/components/schemas/BankingDetails"
+        blocked:
+          type:
+            - boolean
+            - "null"
+        entityId:
+          examples:
+            - EXT-ACC-12345
+          maxLength: 256
+          type:
+            - string
+            - "null"
+        metadata:
+          additionalProperties: {}
+          type: object
+        name:
+          examples:
+            - Corporate Checking Account
+          maxLength: 256
+          type: string
+        parentAccountId:
+          format: uuid
+          type:
+            - string
+            - "null"
+        portfolioId:
+          format: uuid
+          type:
+            - string
+            - "null"
+        regulatoryFields:
+          $ref: "#/components/schemas/RegulatoryFields"
+        relatedParties:
+          items:
+            $ref: "#/components/schemas/RelatedParty"
+          type:
+            - array
+            - "null"
+        segmentId:
+          format: uuid
+          type:
+            - string
+            - "null"
+        skip:
+          $ref: "#/components/schemas/AccountSkip"
+        status:
+          $ref: "#/components/schemas/Status"
+        type:
+          examples:
+            - deposit
+          type: string
+      required:
+        - name
+        - parentAccountId
+        - entityId
+        - assetCode
+        - portfolioId
+        - segmentId
+        - status
+        - alias
+        - type
+        - blocked
+        - metadata
+      type: object
+    CreateHolderInput:
+      additionalProperties: false
+      properties:
+        addresses:
+          $ref: "#/components/schemas/Addresses"
+        contact:
+          $ref: "#/components/schemas/Contact"
+        document:
+          examples:
+            - "12345678900"
+          maxLength: 100
+          type: string
+        externalId:
+          examples:
+            - G4K7N8M2
+          maxLength: 256
+          type:
+            - string
+            - "null"
+        legalPerson:
+          $ref: "#/components/schemas/LegalPerson"
+        metadata:
+          additionalProperties: {}
+          type: object
+        name:
+          examples:
+            - John Doe
+          maxLength: 256
+          type: string
+        naturalPerson:
+          $ref: "#/components/schemas/NaturalPerson"
+        type:
+          examples:
+            - NATURAL_PERSON
+          maxLength: 100
+          type:
+            - string
+            - "null"
+      required:
+        - externalId
+        - type
+        - name
+        - document
+        - addresses
+        - contact
+        - naturalPerson
+        - legalPerson
+        - metadata
+      type: object
+    CreateInstrumentInput:
+      additionalProperties: false
+      properties:
+        accountId:
+          examples:
+            - 00000000-0000-0000-0000-000000000000
+          format: uuid
+          type: string
+        bankingDetails:
+          $ref: "#/components/schemas/BankingDetails"
+        ledgerId:
+          examples:
+            - 00000000-0000-0000-0000-000000000000
+          format: uuid
+          type: string
+        metadata:
+          additionalProperties: {}
+          type: object
+        regulatoryFields:
+          $ref: "#/components/schemas/RegulatoryFields"
+        relatedParties:
+          items:
+            $ref: "#/components/schemas/RelatedParty"
+          type:
+            - array
+            - "null"
+      required:
+        - ledgerId
+        - accountId
+        - metadata
+        - bankingDetails
+      type: object
+    CreateLedgerInput:
+      additionalProperties: false
+      properties:
+        metadata:
+          additionalProperties: {}
+          type: object
+        name:
+          maxLength: 256
+          type: string
+        settings:
+          $ref: "#/components/schemas/LedgerSettings"
+        status:
+          $ref: "#/components/schemas/Status"
+      required:
+        - name
+        - status
+        - metadata
+      type: object
+    CreateMetadataIndexInput:
+      additionalProperties: false
+      properties:
+        metadataKey:
+          examples:
+            - tier
+          type: string
+        sparse:
+          examples:
+            - true
+          type:
+            - boolean
+            - "null"
+        unique:
+          examples:
+            - false
+          type: boolean
+      required:
+        - metadataKey
+        - unique
+        - sparse
+      type: object
+    CreateOperationRouteInput:
+      additionalProperties: false
+      properties:
+        account:
+          $ref: "#/components/schemas/AccountRule"
+        accountingEntries:
+          $ref: "#/components/schemas/AccountingEntries"
+        code:
+          examples:
+            - EXT-001
+          type: string
+        description:
+          examples:
+            - This operation route handles cash-in transactions from service charge collections
+          type: string
+        metadata:
+          additionalProperties: {}
+          type: object
+        operationType:
+          enum:
+            - source
+            - destination
+            - bidirectional
+          examples:
+            - source
+          type: string
+        title:
+          examples:
+            - Cashin from service charge
+          type: string
+      required:
+        - metadata
+      type: object
+    CreateOrganizationInput:
+      additionalProperties: false
+      properties:
+        address:
+          $ref: "#/components/schemas/Address"
+        doingBusinessAs:
+          examples:
+            - Lerian FS
+          maxLength: 256
+          type:
+            - string
+            - "null"
+        legalDocument:
+          examples:
+            - "123456789012345"
+          maxLength: 256
+          type: string
+        legalName:
+          examples:
+            - Lerian Financial Services Ltd.
+          maxLength: 256
+          type: string
+        metadata:
+          additionalProperties: {}
+          type: object
+        parentOrganizationId:
+          format: uuid
+          type:
+            - string
+            - "null"
+        status:
+          $ref: "#/components/schemas/Status"
+      required:
+        - legalName
+        - parentOrganizationId
+        - doingBusinessAs
+        - legalDocument
+        - address
+        - status
+        - metadata
+      type: object
+    CreatePortfolioInput:
+      additionalProperties: false
+      properties:
+        entityId:
+          examples:
+            - 00000000-0000-0000-0000-000000000000
+          type: string
+        metadata:
+          additionalProperties: {}
+          type: object
+        name:
+          examples:
+            - My Portfolio
+          type: string
+        status:
+          $ref: "#/components/schemas/Status"
+      required:
+        - entityId
+        - name
+        - status
+        - metadata
+      type: object
+    CreateSegmentInput:
+      additionalProperties: false
+      properties:
+        metadata:
+          additionalProperties: {}
+          type: object
+        name:
+          examples:
+            - My Segment
+          type: string
+        status:
+          $ref: "#/components/schemas/Status"
+      required:
+        - name
+        - status
+        - metadata
+      type: object
+    CreateTransactionInflowInput:
+      additionalProperties: false
+      properties:
+        chartOfAccountsGroupName:
+          examples:
+            - FUNDING
+          maxLength: 256
+          type: string
+        code:
+          examples:
+            - TR12345
+          maxLength: 100
+          type: string
+        description:
+          examples:
+            - New Transaction
+          maxLength: 256
+          type: string
+        metadata:
+          additionalProperties: {}
+          type: object
+        route:
+          examples:
+            - 00000000-0000-0000-0000-000000000000
+          type: string
+        routeId:
+          examples:
+            - 00000000-0000-0000-0000-000000000000
+          format: uuid
+          type: string
+        send:
+          $ref: "#/components/schemas/SendInflow"
+        skip:
+          $ref: "#/components/schemas/TransactionSkip"
+        transactionDate:
+          examples:
+            - "2021-01-01T00:00:00Z"
+          format: date-time
+          type: string
+      required:
+        - metadata
+        - send
+      type: object
+    CreateTransactionInput:
+      additionalProperties: false
+      properties:
+        chartOfAccountsGroupName:
+          examples:
+            - FUNDING
+          maxLength: 256
+          type: string
+        code:
+          examples:
+            - TR12345
+          maxLength: 100
+          type: string
+        description:
+          examples:
+            - New Transaction
+          maxLength: 256
+          type: string
+        metadata:
+          additionalProperties: {}
+          type: object
+        pending:
+          default: false
+          examples:
+            - true
+          type: boolean
+        route:
+          examples:
+            - 00000000-0000-0000-0000-000000000000
+          type: string
+        routeId:
+          examples:
+            - 00000000-0000-0000-0000-000000000000
+          format: uuid
+          type: string
+        send:
+          $ref: "#/components/schemas/Send"
+        skip:
+          $ref: "#/components/schemas/TransactionSkip"
+        transactionDate:
+          examples:
+            - "2021-01-01T00:00:00Z"
+          format: date-time
+          type: string
+      required:
+        - pending
+        - metadata
+        - send
+      type: object
+    CreateTransactionOutflowInput:
+      additionalProperties: false
+      properties:
+        chartOfAccountsGroupName:
+          examples:
+            - WITHDRAWAL
+          maxLength: 256
+          type: string
+        code:
+          examples:
+            - TR12345
+          maxLength: 100
+          type: string
+        description:
+          examples:
+            - New Outflow Transaction
+          maxLength: 256
+          type: string
+        metadata:
+          additionalProperties: {}
+          type: object
+        pending:
+          default: false
+          examples:
+            - true
+          type: boolean
+        route:
+          examples:
+            - 00000000-0000-0000-0000-000000000000
+          type: string
+        routeId:
+          examples:
+            - 00000000-0000-0000-0000-000000000000
+          format: uuid
+          type: string
+        send:
+          $ref: "#/components/schemas/SendOutflow"
+        skip:
+          $ref: "#/components/schemas/TransactionSkip"
+        transactionDate:
+          examples:
+            - "2021-01-01T00:00:00Z"
+          format: date-time
+          type: string
+      required:
+        - pending
+        - metadata
+        - send
+      type: object
+    CreateTransactionRouteInput:
+      additionalProperties: false
+      properties:
+        description:
+          examples:
+            - Settlement route for service charges
+          type: string
+        metadata:
+          additionalProperties: {}
+          type: object
+        operationRoutes:
+          items:
+            format: uuid
+            type: string
+          type:
+            - array
+            - "null"
+        title:
+          examples:
+            - Charge Settlement
+          type: string
+      required:
+        - metadata
+      type: object
     CreateTransactionV2Input:
       additionalProperties: false
       description: Transaction request body. `debits` and `credits` are the two required, non-empty leg arrays of the transaction; one debit paired with many credits, or the reverse, is a valid request. Every leg names the `organizationId` and `ledgerId` its account belongs to; all of them must name the SAME pair, and that pair is the organization and ledger the transaction is created in. A request whose accounts name different pairs is rejected. `asset`, `amount`, `description`, `code`, `routeId`, `operationRouteId` and `metadata` sit alongside the two leg arrays, and `amount` is the transaction total that the legs' `share` expressions divide. Each leg array holds at most 500 legs.
@@ -873,6 +1583,18 @@ components:
         - amount
         - debits
         - credits
+      type: object
+    Distribute:
+      additionalProperties: false
+      properties:
+        remaining:
+          type: string
+        to:
+          items:
+            $ref: "#/components/schemas/FromTo"
+          type:
+            - array
+            - "null"
       type: object
     Error:
       additionalProperties: false
@@ -997,6 +1719,25 @@ components:
           examples:
             - 00000000-0000-0000-0000-000000000000
           type: string
+      type: object
+    FeeBillingCalculateRequest:
+      additionalProperties: false
+      properties:
+        ledgerId:
+          examples:
+            - 00000000-0000-0000-0000-000000000000
+          type: string
+        period:
+          examples:
+            - 2026-01
+          type: string
+        type:
+          examples:
+            - volume
+          type: string
+      required:
+        - ledgerId
+        - period
       type: object
     FeeBillingCalculateResponse:
       additionalProperties: false
@@ -1195,6 +1936,22 @@ components:
         - createdAt
         - updatedAt
       type: object
+    FeeBillingPackageUpdate:
+      additionalProperties: false
+      properties:
+        description:
+          examples:
+            - Updated description for the billing package
+          type: string
+        enable:
+          examples:
+            - false
+          type: boolean
+        label:
+          examples:
+            - Updated Billing Label
+          type: string
+      type: object
     FeeCalculation:
       additionalProperties: false
       properties:
@@ -1227,6 +1984,65 @@ components:
         - applicationRule
         - calculations
       type: object
+    FeeCreatePackageInput:
+      additionalProperties: false
+      properties:
+        description:
+          examples:
+            - Pacote de taxas administrativas padrão
+          type: string
+        enable:
+          type:
+            - boolean
+            - "null"
+        feeGroupLabel:
+          examples:
+            - Pacote Padrão
+          type: string
+        fees:
+          additionalProperties:
+            $ref: "#/components/schemas/Fee"
+          type: object
+        ledgerId:
+          examples:
+            - 00000000-0000-0000-0000-000000000000
+          type: string
+        maximumAmount:
+          examples:
+            - "1000.20"
+          minimum: 0
+          type: string
+        minimumAmount:
+          examples:
+            - "100.00"
+          minimum: 0
+          type: string
+        segmentId:
+          examples:
+            - 00000000-0000-0000-0000-000000000000
+          type:
+            - string
+            - "null"
+        transactionRoute:
+          examples:
+            - debitoted
+          type: string
+        waivedAccounts:
+          examples:
+            - - acc001
+              - acc002
+          items:
+            type: string
+          type: array
+      required:
+        - feeGroupLabel
+        - segmentId
+        - ledgerId
+        - minimumAmount
+        - maximumAmount
+        - fees
+        - enable
+      type: object
     FeeDiscountTier:
       additionalProperties: false
       properties:
@@ -1242,6 +2058,24 @@ components:
       required:
         - minQuantity
         - discountPercentage
+      type: object
+    FeeEstimate:
+      additionalProperties: false
+      properties:
+        ledgerId:
+          examples:
+            - 00000000-0000-0000-0000-000000000000
+          type: string
+        packageId:
+          examples:
+            - 00000000-0000-0000-0000-000000000000
+          type: string
+        transaction:
+          $ref: "#/components/schemas/TransactionInput"
+      required:
+        - packageId
+        - ledgerId
+        - transaction
       type: object
     FeeEventFilter:
       additionalProperties: false
@@ -1393,6 +2227,105 @@ components:
       required:
         - minQuantity
         - unitPrice
+      type: object
+    FeeUpdatePackageInput:
+      additionalProperties: false
+      properties:
+        description:
+          examples:
+            - Pacote de taxas administrativas padrão
+          type: string
+        enable:
+          examples:
+            - true
+          type: boolean
+        feeGroupLabel:
+          examples:
+            - Pacote Padrão
+          type: string
+        fees:
+          additionalProperties:
+            $ref: "#/components/schemas/Fee"
+          type: object
+        maximumAmount:
+          examples:
+            - "1000"
+          minimum: 0
+          type:
+            - string
+            - "null"
+        minimumAmount:
+          examples:
+            - "100"
+          minimum: 0
+          type:
+            - string
+            - "null"
+        waivedAccounts:
+          examples:
+            - - acc001
+              - acc002
+          items:
+            type: string
+          type:
+            - array
+            - "null"
+      required:
+        - feeGroupLabel
+        - description
+        - minimumAmount
+        - maximumAmount
+        - waivedAccounts
+        - fees
+      type: object
+    FromTo:
+      additionalProperties: false
+      properties:
+        accountAlias:
+          examples:
+            - "@person1"
+          type: string
+        amount:
+          $ref: "#/components/schemas/Amount"
+        balanceKey:
+          examples:
+            - asset-freeze
+          type: string
+        chartOfAccounts:
+          examples:
+            - "1000"
+          type: string
+        description:
+          examples:
+            - description
+          type: string
+        isFrom:
+          examples:
+            - true
+          type: boolean
+        metadata:
+          additionalProperties: {}
+          type: object
+        rate:
+          $ref: "#/components/schemas/Rate"
+        remaining:
+          examples:
+            - remaining
+          type: string
+        route:
+          examples:
+            - 00000000-0000-0000-0000-000000000000
+          type: string
+        routeId:
+          examples:
+            - 00000000-0000-0000-0000-000000000000
+          format: uuid
+          type: string
+        share:
+          $ref: "#/components/schemas/Share"
+      required:
+        - chartOfAccounts
+        - metadata
       type: object
     Holder:
       additionalProperties: false
@@ -2030,6 +2963,21 @@ components:
         - code
         - description
       type: object
+    OperationUpdateOperationInput:
+      additionalProperties: false
+      properties:
+        description:
+          examples:
+            - Credit card operation
+          maxLength: 256
+          type: string
+        metadata:
+          additionalProperties: {}
+          type: object
+      required:
+        - description
+        - metadata
+      type: object
     Organization:
       additionalProperties: false
       properties:
@@ -2202,6 +3150,21 @@ components:
         - updatedAt
         - deletedAt
       type: object
+    ProvisionEncryptionInput:
+      additionalProperties: false
+      properties:
+        actor:
+          examples:
+            - admin@example.com
+          type: string
+        reason:
+          examples:
+            - Initial encryption setup
+          type: string
+      required:
+        - actor
+        - reason
+      type: object
     ProvisionEncryptionResponse:
       additionalProperties: false
       properties:
@@ -2254,6 +3217,31 @@ components:
       required:
         - organization_id
         - provisioned
+      type: object
+    Rate:
+      additionalProperties: false
+      properties:
+        externalId:
+          examples:
+            - 00000000-0000-0000-0000-000000000000
+          type: string
+        from:
+          examples:
+            - BRL
+          type: string
+        to:
+          examples:
+            - USDe
+          type: string
+        value:
+          examples:
+            - "1000"
+          type: string
+      required:
+        - from
+        - to
+        - value
+        - externalId
       type: object
     RegulatoryFields:
       additionalProperties: false
@@ -2381,6 +3369,74 @@ components:
         - createdAt
         - updatedAt
         - deletedAt
+      type: object
+    Send:
+      additionalProperties: false
+      properties:
+        asset:
+          examples:
+            - BRL
+          type: string
+        distribute:
+          $ref: "#/components/schemas/Distribute"
+        source:
+          $ref: "#/components/schemas/Source"
+        value:
+          examples:
+            - "1000"
+          type: string
+      type: object
+    SendInflow:
+      additionalProperties: false
+      properties:
+        asset:
+          examples:
+            - BRL
+          type: string
+        distribute:
+          $ref: "#/components/schemas/Distribute"
+        value:
+          examples:
+            - "1000"
+          type: string
+      type: object
+    SendOutflow:
+      additionalProperties: false
+      properties:
+        asset:
+          examples:
+            - BRL
+          type: string
+        source:
+          $ref: "#/components/schemas/Source"
+        value:
+          examples:
+            - "1000"
+          type: string
+      type: object
+    Share:
+      additionalProperties: false
+      properties:
+        percentage:
+          format: int64
+          type: integer
+        percentageOfPercentage:
+          format: int64
+          type: integer
+      type: object
+    Source:
+      additionalProperties: false
+      properties:
+        from:
+          items:
+            $ref: "#/components/schemas/FromTo"
+          type:
+            - array
+            - "null"
+        remaining:
+          examples:
+            - remaining
+          type: string
       type: object
     Status:
       additionalProperties: false
@@ -2555,6 +3611,47 @@ components:
         - deletedAt
         - operations
       type: object
+    TransactionInput:
+      additionalProperties: false
+      properties:
+        chartOfAccountsGroupName:
+          examples:
+            - FUNDING
+          type: string
+        code:
+          examples:
+            - 00000000-0000-0000-0000-000000000000
+          type: string
+        description:
+          examples:
+            - Description
+          type: string
+        metadata:
+          additionalProperties: {}
+          type: object
+        pending:
+          examples:
+            - false
+          type: boolean
+        route:
+          examples:
+            - 00000000-0000-0000-0000-000000000000
+          type: string
+        routeId:
+          examples:
+            - 00000000-0000-0000-0000-000000000000
+          format: uuid
+          type: string
+        send:
+          $ref: "#/components/schemas/Send"
+        transactionDate:
+          examples:
+            - "2021-01-01T00:00:00Z"
+          format: date-time
+          type: string
+      required:
+        - send
+      type: object
     TransactionRoute:
       additionalProperties: false
       properties:
@@ -2609,6 +3706,18 @@ components:
         - updatedAt
         - deletedAt
       type: object
+    TransactionSkip:
+      additionalProperties: false
+      properties:
+        fees:
+          examples:
+            - false
+          type: boolean
+        tracer:
+          examples:
+            - false
+          type: boolean
+      type: object
     TransactionStatus:
       additionalProperties: false
       properties:
@@ -2627,6 +3736,21 @@ components:
       required:
         - code
         - description
+      type: object
+    TransactionUpdateTransactionInput:
+      additionalProperties: false
+      properties:
+        description:
+          examples:
+            - Transaction description
+          maxLength: 256
+          type: string
+        metadata:
+          additionalProperties: {}
+          type: object
+      required:
+        - description
+        - metadata
       type: object
     TransactionV2:
       additionalProperties: false
@@ -2755,6 +3879,304 @@ components:
         - deletedAt
         - operations
       type: object
+    UpdateAccountInput:
+      additionalProperties: false
+      properties:
+        blocked:
+          type:
+            - boolean
+            - "null"
+        entityId:
+          examples:
+            - EXT-ACC-12345
+          maxLength: 256
+          type:
+            - string
+            - "null"
+        metadata:
+          additionalProperties: {}
+          type: object
+        name:
+          examples:
+            - Primary Corporate Checking Account
+          maxLength: 256
+          type: string
+        portfolioId:
+          format: uuid
+          type:
+            - string
+            - "null"
+        segmentId:
+          format: uuid
+          type:
+            - string
+            - "null"
+        status:
+          $ref: "#/components/schemas/Status"
+      required:
+        - name
+        - segmentId
+        - portfolioId
+        - entityId
+        - status
+        - blocked
+        - metadata
+      type: object
+    UpdateAccountTypeInput:
+      additionalProperties: false
+      properties:
+        defaultDirection:
+          examples:
+            - credit
+          type: string
+        description:
+          examples:
+            - Assets that are expected to be converted to cash within one year
+          type: string
+        metadata:
+          additionalProperties: {}
+          type: object
+        name:
+          examples:
+            - Current Assets
+          type: string
+      required:
+        - metadata
+      type: object
+    UpdateAssetInput:
+      additionalProperties: false
+      properties:
+        metadata:
+          additionalProperties: {}
+          type: object
+        name:
+          examples:
+            - Bitcoin
+          type: string
+        status:
+          $ref: "#/components/schemas/Status"
+      required:
+        - name
+        - status
+        - metadata
+      type: object
+    UpdateBalance:
+      additionalProperties: false
+      properties:
+        allowReceiving:
+          examples:
+            - true
+          type:
+            - boolean
+            - "null"
+        allowSending:
+          examples:
+            - true
+          type:
+            - boolean
+            - "null"
+        settings:
+          $ref: "#/components/schemas/BalanceSettings"
+      required:
+        - allowSending
+        - allowReceiving
+      type: object
+    UpdateHolderInput:
+      additionalProperties: false
+      properties:
+        addresses:
+          $ref: "#/components/schemas/Addresses"
+        contact:
+          $ref: "#/components/schemas/Contact"
+        externalId:
+          examples:
+            - G4K7N8M
+          maxLength: 256
+          type:
+            - string
+            - "null"
+        legalPerson:
+          $ref: "#/components/schemas/LegalPerson"
+        metadata:
+          additionalProperties: {}
+          type: object
+        name:
+          examples:
+            - Jonathan Doe
+          maxLength: 256
+          type:
+            - string
+            - "null"
+        naturalPerson:
+          $ref: "#/components/schemas/NaturalPerson"
+      required:
+        - externalId
+        - name
+        - addresses
+        - contact
+        - naturalPerson
+        - legalPerson
+        - metadata
+      type: object
+    UpdateInstrumentInput:
+      additionalProperties: false
+      properties:
+        bankingDetails:
+          $ref: "#/components/schemas/BankingDetails"
+        metadata:
+          additionalProperties: {}
+          type: object
+        regulatoryFields:
+          $ref: "#/components/schemas/RegulatoryFields"
+        relatedParties:
+          items:
+            $ref: "#/components/schemas/RelatedParty"
+          type:
+            - array
+            - "null"
+      required:
+        - metadata
+        - bankingDetails
+      type: object
+    UpdateLedgerInput:
+      additionalProperties: false
+      properties:
+        metadata:
+          additionalProperties: {}
+          type: object
+        name:
+          examples:
+            - Treasury Operations Global
+          maxLength: 256
+          type: string
+        status:
+          $ref: "#/components/schemas/Status"
+      required:
+        - name
+        - status
+        - metadata
+      type: object
+    UpdateOperationRouteInput:
+      additionalProperties: false
+      properties:
+        account:
+          $ref: "#/components/schemas/AccountRule"
+        accountingEntries:
+          $ref: "#/components/schemas/AccountingEntries"
+        code:
+          examples:
+            - EXT-001
+          type: string
+        description:
+          examples:
+            - This operation route handles cash-in transactions from service charge collections
+          type: string
+        metadata:
+          additionalProperties: {}
+          type: object
+        title:
+          examples:
+            - Cashin from service charge
+          type: string
+      required:
+        - metadata
+      type: object
+    UpdateOrganizationInput:
+      additionalProperties: false
+      properties:
+        address:
+          $ref: "#/components/schemas/Address"
+        doingBusinessAs:
+          examples:
+            - Lerian Group
+          maxLength: 256
+          type:
+            - string
+            - "null"
+        legalName:
+          examples:
+            - Lerian Financial Group Ltd.
+          maxLength: 256
+          type: string
+        metadata:
+          additionalProperties: {}
+          type: object
+        parentOrganizationId:
+          format: uuid
+          type:
+            - string
+            - "null"
+        status:
+          $ref: "#/components/schemas/Status"
+      required:
+        - legalName
+        - parentOrganizationId
+        - doingBusinessAs
+        - address
+        - status
+        - metadata
+      type: object
+    UpdatePortfolioInput:
+      additionalProperties: false
+      properties:
+        entityId:
+          examples:
+            - 00000000-0000-0000-0000-000000000000
+          type: string
+        metadata:
+          additionalProperties: {}
+          type: object
+        name:
+          examples:
+            - My Portfolio Updated
+          type: string
+        status:
+          $ref: "#/components/schemas/Status"
+      required:
+        - entityId
+        - name
+        - status
+        - metadata
+      type: object
+    UpdateSegmentInput:
+      additionalProperties: false
+      properties:
+        metadata:
+          additionalProperties: {}
+          type: object
+        name:
+          examples:
+            - My Segment Updated
+          type: string
+        status:
+          $ref: "#/components/schemas/Status"
+      required:
+        - name
+        - status
+        - metadata
+      type: object
+    UpdateTransactionRouteInput:
+      additionalProperties: false
+      properties:
+        description:
+          examples:
+            - Settlement route for service charges
+          type: string
+        metadata:
+          additionalProperties: {}
+          type: object
+        operationRoutes:
+          items:
+            format: uuid
+            type: string
+          type: array
+        title:
+          examples:
+            - Charge Settlement
+          type: string
+      required:
+        - metadata
+      type: object
     Upstream:
       additionalProperties: false
       properties:
@@ -2837,6 +4259,7 @@ openapi: 3.1.0
 paths:
   /v1/organizations:
     get:
+      deprecated: true
       operationId: listOrganizations
       parameters:
         - description: JSON string to filter organizations by metadata fields
@@ -2927,8 +4350,9 @@ paths:
         - ApiKeyAuth: []
       summary: List all organizations
       tags:
-        - Organizations
+        - Organizations (v1)
     post:
+      deprecated: true
       operationId: createOrganization
       parameters:
         - description: Bearer token (forwarded to the service)
@@ -2941,9 +4365,7 @@ paths:
         content:
           application/json:
             schema:
-              contentMediaType: application/octet-stream
-              format: binary
-              type: string
+              $ref: "#/components/schemas/CreateOrganizationInput"
         required: true
       responses:
         "201":
@@ -2963,9 +4385,10 @@ paths:
         - ApiKeyAuth: []
       summary: Create a new organization
       tags:
-        - Organizations
+        - Organizations (v1)
   /v1/organizations/metrics/count:
     head:
+      deprecated: true
       operationId: countOrganizations
       responses:
         "204":
@@ -2988,9 +4411,10 @@ paths:
         - ApiKeyAuth: []
       summary: Count total organizations
       tags:
-        - Organizations
+        - Organizations (v1)
   /v1/organizations/{id}:
     delete:
+      deprecated: true
       operationId: deleteOrganization
       parameters:
         - description: Organization ID (UUID)
@@ -3014,8 +4438,9 @@ paths:
         - ApiKeyAuth: []
       summary: Delete an organization
       tags:
-        - Organizations
+        - Organizations (v1)
     get:
+      deprecated: true
       operationId: getOrganizationByID
       parameters:
         - description: Organization ID (UUID)
@@ -3043,8 +4468,9 @@ paths:
         - ApiKeyAuth: []
       summary: Retrieve a specific organization
       tags:
-        - Organizations
+        - Organizations (v1)
     patch:
+      deprecated: true
       operationId: updateOrganization
       parameters:
         - description: Organization ID (UUID)
@@ -3058,9 +4484,7 @@ paths:
         content:
           application/json:
             schema:
-              contentMediaType: application/octet-stream
-              format: binary
-              type: string
+              $ref: "#/components/schemas/UpdateOrganizationInput"
         required: true
       responses:
         "200":
@@ -3080,9 +4504,10 @@ paths:
         - ApiKeyAuth: []
       summary: Update an existing organization
       tags:
-        - Organizations
+        - Organizations (v1)
   /v1/organizations/{organization_id}/billing-packages:
     get:
+      deprecated: true
       operationId: getAllBillingPackages
       parameters:
         - description: Organization ID (UUID)
@@ -3137,8 +4562,9 @@ paths:
         - BearerAuth: []
       summary: Get all billing packages
       tags:
-        - Billing Packages
+        - Billing Packages (v1)
     post:
+      deprecated: true
       operationId: createBillingPackage
       parameters:
         - description: Organization ID (UUID)
@@ -3152,9 +4578,7 @@ paths:
         content:
           application/json:
             schema:
-              contentMediaType: application/octet-stream
-              format: binary
-              type: string
+              $ref: "#/components/schemas/FeeBillingPackage"
         required: true
       responses:
         "201":
@@ -3173,9 +4597,10 @@ paths:
         - BearerAuth: []
       summary: Create a BillingPackage
       tags:
-        - Billing Packages
+        - Billing Packages (v1)
   /v1/organizations/{organization_id}/billing-packages/{id}:
     delete:
+      deprecated: true
       operationId: deleteBillingPackage
       parameters:
         - description: Organization ID (UUID)
@@ -3205,8 +4630,9 @@ paths:
         - BearerAuth: []
       summary: SoftDelete a BillingPackage by ID
       tags:
-        - Billing Packages
+        - Billing Packages (v1)
     get:
+      deprecated: true
       operationId: getBillingPackageByID
       parameters:
         - description: Organization ID (UUID)
@@ -3240,8 +4666,9 @@ paths:
         - BearerAuth: []
       summary: Get billing package
       tags:
-        - Billing Packages
+        - Billing Packages (v1)
     patch:
+      deprecated: true
       operationId: updateBillingPackage
       parameters:
         - description: Organization ID (UUID)
@@ -3262,9 +4689,7 @@ paths:
         content:
           application/json:
             schema:
-              contentMediaType: application/octet-stream
-              format: binary
-              type: string
+              $ref: "#/components/schemas/FeeBillingPackageUpdate"
         required: true
       responses:
         "200":
@@ -3283,9 +4708,10 @@ paths:
         - BearerAuth: []
       summary: Update a billing package
       tags:
-        - Billing Packages
+        - Billing Packages (v1)
   /v1/organizations/{organization_id}/billing/calculate:
     post:
+      deprecated: true
       operationId: calculateBilling
       parameters:
         - description: Organization ID (UUID)
@@ -3299,9 +4725,7 @@ paths:
         content:
           application/json:
             schema:
-              contentMediaType: application/octet-stream
-              format: binary
-              type: string
+              $ref: "#/components/schemas/FeeBillingCalculateRequest"
         required: true
       responses:
         "200":
@@ -3320,9 +4744,10 @@ paths:
         - BearerAuth: []
       summary: Calculate billing
       tags:
-        - Billing Calculate
+        - Billing Calculate (v1)
   /v1/organizations/{organization_id}/encryption/provision:
     post:
+      deprecated: true
       operationId: provisionEncryption
       parameters:
         - description: Organization ID (UUID)
@@ -3342,9 +4767,7 @@ paths:
         content:
           application/json:
             schema:
-              contentMediaType: application/octet-stream
-              format: binary
-              type: string
+              $ref: "#/components/schemas/ProvisionEncryptionInput"
         required: true
       responses:
         "201":
@@ -3363,9 +4786,10 @@ paths:
         - BearerAuth: []
       summary: Provision an Organization for Envelope Encryption
       tags:
-        - Encryption
+        - Encryption (v1)
   /v1/organizations/{organization_id}/encryption/status:
     get:
+      deprecated: true
       operationId: getProvisioningStatus
       parameters:
         - description: Organization ID (UUID)
@@ -3398,9 +4822,10 @@ paths:
         - BearerAuth: []
       summary: Get Provisioning Status
       tags:
-        - Encryption
+        - Encryption (v1)
   /v1/organizations/{organization_id}/estimates:
     post:
+      deprecated: true
       operationId: estimateFeeCalculation
       parameters:
         - description: Organization ID (UUID)
@@ -3414,9 +4839,7 @@ paths:
         content:
           application/json:
             schema:
-              contentMediaType: application/octet-stream
-              format: binary
-              type: string
+              $ref: "#/components/schemas/FeeEstimate"
         required: true
       responses:
         "200":
@@ -3436,9 +4859,10 @@ paths:
         - BearerAuth: []
       summary: Create a fee estimate calculation
       tags:
-        - Fees
+        - Fees (v1)
   /v1/organizations/{organization_id}/holders:
     get:
+      deprecated: true
       operationId: listHolders
       parameters:
         - description: Organization ID (UUID)
@@ -3514,8 +4938,9 @@ paths:
         - BearerAuth: []
       summary: List Holders
       tags:
-        - Holders
+        - Holders (v1)
     post:
+      deprecated: true
       operationId: createHolder
       parameters:
         - description: Organization ID (UUID)
@@ -3541,9 +4966,7 @@ paths:
         content:
           application/json:
             schema:
-              contentMediaType: application/octet-stream
-              format: binary
-              type: string
+              $ref: "#/components/schemas/CreateHolderInput"
         required: true
       responses:
         "201":
@@ -3566,9 +4989,10 @@ paths:
         - BearerAuth: []
       summary: Create a Holder
       tags:
-        - Holders
+        - Holders (v1)
   /v1/organizations/{organization_id}/holders/{holder_id}/instruments:
     post:
+      deprecated: true
       operationId: createInstrument
       parameters:
         - description: Organization ID (UUID)
@@ -3601,9 +5025,7 @@ paths:
         content:
           application/json:
             schema:
-              contentMediaType: application/octet-stream
-              format: binary
-              type: string
+              $ref: "#/components/schemas/CreateInstrumentInput"
         required: true
       responses:
         "201":
@@ -3626,9 +5048,10 @@ paths:
         - BearerAuth: []
       summary: Create an Instrument Account
       tags:
-        - Instruments
+        - Instruments (v1)
   /v1/organizations/{organization_id}/holders/{holder_id}/instruments/{instrument_id}:
     delete:
+      deprecated: true
       operationId: deleteInstrument
       parameters:
         - description: Organization ID (UUID)
@@ -3672,8 +5095,9 @@ paths:
         - BearerAuth: []
       summary: Delete an Instrument
       tags:
-        - Instruments
+        - Instruments (v1)
     get:
+      deprecated: true
       operationId: getInstrumentByID
       parameters:
         - description: Organization ID (UUID)
@@ -3721,8 +5145,9 @@ paths:
         - BearerAuth: []
       summary: Retrieve Instrument details
       tags:
-        - Instruments
+        - Instruments (v1)
     patch:
+      deprecated: true
       operationId: updateInstrument
       parameters:
         - description: Organization ID (UUID)
@@ -3750,9 +5175,7 @@ paths:
         content:
           application/json:
             schema:
-              contentMediaType: application/octet-stream
-              format: binary
-              type: string
+              $ref: "#/components/schemas/UpdateInstrumentInput"
         required: true
       responses:
         "200":
@@ -3771,9 +5194,10 @@ paths:
         - BearerAuth: []
       summary: Update an Instrument
       tags:
-        - Instruments
+        - Instruments (v1)
   /v1/organizations/{organization_id}/holders/{holder_id}/instruments/{instrument_id}/related-parties/{related_party_id}:
     delete:
+      deprecated: true
       operationId: deleteRelatedParty
       parameters:
         - description: Organization ID (UUID)
@@ -3817,9 +5241,10 @@ paths:
         - BearerAuth: []
       summary: Delete a Related Party
       tags:
-        - Instruments
+        - Instruments (v1)
   /v1/organizations/{organization_id}/holders/{id}:
     delete:
+      deprecated: true
       operationId: deleteHolder
       parameters:
         - description: Organization ID (UUID)
@@ -3856,8 +5281,9 @@ paths:
         - BearerAuth: []
       summary: Delete a Holder
       tags:
-        - Holders
+        - Holders (v1)
     get:
+      deprecated: true
       operationId: getHolderByID
       parameters:
         - description: Organization ID (UUID)
@@ -3898,8 +5324,9 @@ paths:
         - BearerAuth: []
       summary: Retrieve Holder details
       tags:
-        - Holders
+        - Holders (v1)
     patch:
+      deprecated: true
       operationId: updateHolder
       parameters:
         - description: Organization ID (UUID)
@@ -3920,9 +5347,7 @@ paths:
         content:
           application/json:
             schema:
-              contentMediaType: application/octet-stream
-              format: binary
-              type: string
+              $ref: "#/components/schemas/UpdateHolderInput"
         required: true
       responses:
         "200":
@@ -3941,9 +5366,10 @@ paths:
         - BearerAuth: []
       summary: Update a Holder
       tags:
-        - Holders
+        - Holders (v1)
   /v1/organizations/{organization_id}/holders/{id}/accounts:
     get:
+      deprecated: true
       operationId: listAccountsByHolder
       parameters:
         - description: Organization ID (UUID)
@@ -3998,9 +5424,10 @@ paths:
         - BearerAuth: []
       summary: List Accounts by Holder
       tags:
-        - Holders
+        - Holders (v1)
   /v1/organizations/{organization_id}/instruments:
     get:
+      deprecated: true
       operationId: listInstruments
       parameters:
         - description: Organization ID (UUID)
@@ -4090,9 +5517,10 @@ paths:
         - BearerAuth: []
       summary: List Instruments
       tags:
-        - Instruments
+        - Instruments (v1)
   /v1/organizations/{organization_id}/ledgers:
     get:
+      deprecated: true
       operationId: listLedgers
       parameters:
         - description: Organization ID (UUID)
@@ -4176,8 +5604,9 @@ paths:
         - ApiKeyAuth: []
       summary: List all ledgers
       tags:
-        - Ledgers
+        - Ledgers (v1)
     post:
+      deprecated: true
       operationId: createLedger
       parameters:
         - description: Organization ID (UUID)
@@ -4191,9 +5620,7 @@ paths:
         content:
           application/json:
             schema:
-              contentMediaType: application/octet-stream
-              format: binary
-              type: string
+              $ref: "#/components/schemas/CreateLedgerInput"
         required: true
       responses:
         "201":
@@ -4213,9 +5640,10 @@ paths:
         - ApiKeyAuth: []
       summary: Create a new ledger
       tags:
-        - Ledgers
+        - Ledgers (v1)
   /v1/organizations/{organization_id}/ledgers/metrics/count:
     head:
+      deprecated: true
       operationId: countLedgers
       parameters:
         - description: Organization ID (UUID)
@@ -4246,9 +5674,10 @@ paths:
         - ApiKeyAuth: []
       summary: Count total ledgers
       tags:
-        - Ledgers
+        - Ledgers (v1)
   /v1/organizations/{organization_id}/ledgers/{ledger_id}:
     delete:
+      deprecated: true
       operationId: deleteLedger
       parameters:
         - description: Organization ID (UUID)
@@ -4279,8 +5708,9 @@ paths:
         - ApiKeyAuth: []
       summary: Delete a ledger
       tags:
-        - Ledgers
+        - Ledgers (v1)
     get:
+      deprecated: true
       operationId: getLedgerByID
       parameters:
         - description: Organization ID (UUID)
@@ -4315,8 +5745,9 @@ paths:
         - ApiKeyAuth: []
       summary: Retrieve a specific ledger
       tags:
-        - Ledgers
+        - Ledgers (v1)
     patch:
+      deprecated: true
       operationId: updateLedger
       parameters:
         - description: Organization ID (UUID)
@@ -4337,9 +5768,7 @@ paths:
         content:
           application/json:
             schema:
-              contentMediaType: application/octet-stream
-              format: binary
-              type: string
+              $ref: "#/components/schemas/UpdateLedgerInput"
         required: true
       responses:
         "200":
@@ -4359,9 +5788,10 @@ paths:
         - ApiKeyAuth: []
       summary: Update an existing ledger
       tags:
-        - Ledgers
+        - Ledgers (v1)
   /v1/organizations/{organization_id}/ledgers/{ledger_id}/account-types:
     get:
+      deprecated: true
       operationId: listAccountTypes
       parameters:
         - description: Organization ID (UUID)
@@ -4452,8 +5882,9 @@ paths:
         - ApiKeyAuth: []
       summary: List all account types
       tags:
-        - Account Types
+        - Account Types (v1)
     post:
+      deprecated: true
       operationId: createAccountType
       parameters:
         - description: Organization ID (UUID)
@@ -4474,9 +5905,7 @@ paths:
         content:
           application/json:
             schema:
-              contentMediaType: application/octet-stream
-              format: binary
-              type: string
+              $ref: "#/components/schemas/CreateAccountTypeInput"
         required: true
       responses:
         "201":
@@ -4496,9 +5925,10 @@ paths:
         - ApiKeyAuth: []
       summary: Create a new account type
       tags:
-        - Account Types
+        - Account Types (v1)
   /v1/organizations/{organization_id}/ledgers/{ledger_id}/account-types/{id}:
     delete:
+      deprecated: true
       operationId: deleteAccountType
       parameters:
         - description: Organization ID (UUID)
@@ -4536,8 +5966,9 @@ paths:
         - ApiKeyAuth: []
       summary: Delete an account type
       tags:
-        - Account Types
+        - Account Types (v1)
     get:
+      deprecated: true
       operationId: getAccountTypeByID
       parameters:
         - description: Organization ID (UUID)
@@ -4579,8 +6010,9 @@ paths:
         - ApiKeyAuth: []
       summary: Retrieve a specific account type
       tags:
-        - Account Types
+        - Account Types (v1)
     patch:
+      deprecated: true
       operationId: updateAccountType
       parameters:
         - description: Organization ID (UUID)
@@ -4608,9 +6040,7 @@ paths:
         content:
           application/json:
             schema:
-              contentMediaType: application/octet-stream
-              format: binary
-              type: string
+              $ref: "#/components/schemas/UpdateAccountTypeInput"
         required: true
       responses:
         "200":
@@ -4630,9 +6060,10 @@ paths:
         - ApiKeyAuth: []
       summary: Update an account type
       tags:
-        - Account Types
+        - Account Types (v1)
   /v1/organizations/{organization_id}/ledgers/{ledger_id}/accounts:
     get:
+      deprecated: true
       operationId: listAccounts
       parameters:
         - description: Organization ID (UUID)
@@ -4779,8 +6210,9 @@ paths:
         - ApiKeyAuth: []
       summary: List all accounts
       tags:
-        - Accounts
+        - Accounts (v1)
     post:
+      deprecated: true
       operationId: createAccount
       parameters:
         - description: Organization ID (UUID)
@@ -4807,9 +6239,7 @@ paths:
         content:
           application/json:
             schema:
-              contentMediaType: application/octet-stream
-              format: binary
-              type: string
+              $ref: "#/components/schemas/CreateAccountInput"
         required: true
       responses:
         "201":
@@ -4829,9 +6259,10 @@ paths:
         - ApiKeyAuth: []
       summary: Create a new account
       tags:
-        - Accounts
+        - Accounts (v1)
   /v1/organizations/{organization_id}/ledgers/{ledger_id}/accounts/alias/{alias}:
     get:
+      deprecated: true
       operationId: getAccountByAlias
       parameters:
         - description: Organization ID (UUID)
@@ -4873,9 +6304,10 @@ paths:
         - ApiKeyAuth: []
       summary: Retrieve an account by alias
       tags:
-        - Accounts
+        - Accounts (v1)
   /v1/organizations/{organization_id}/ledgers/{ledger_id}/accounts/alias/{alias}/balances:
     get:
+      deprecated: true
       operationId: getBalancesByAlias
       parameters:
         - description: Organization ID (UUID)
@@ -4917,9 +6349,10 @@ paths:
         - ApiKeyAuth: []
       summary: Get Balances using Alias
       tags:
-        - Balances
+        - Balances (v1)
   /v1/organizations/{organization_id}/ledgers/{ledger_id}/accounts/external/{code}:
     get:
+      deprecated: true
       operationId: getAccountExternalByCode
       parameters:
         - description: Organization ID (UUID)
@@ -4961,9 +6394,10 @@ paths:
         - ApiKeyAuth: []
       summary: Retrieve an account by external code
       tags:
-        - Accounts
+        - Accounts (v1)
   /v1/organizations/{organization_id}/ledgers/{ledger_id}/accounts/external/{code}/balances:
     get:
+      deprecated: true
       operationId: getBalancesExternalByCode
       parameters:
         - description: Organization ID (UUID)
@@ -5005,9 +6439,10 @@ paths:
         - ApiKeyAuth: []
       summary: Get External balances using code
       tags:
-        - Balances
+        - Balances (v1)
   /v1/organizations/{organization_id}/ledgers/{ledger_id}/accounts/metrics/count:
     head:
+      deprecated: true
       operationId: countAccounts
       parameters:
         - description: Organization ID (UUID)
@@ -5045,9 +6480,10 @@ paths:
         - ApiKeyAuth: []
       summary: Count accounts
       tags:
-        - Accounts
+        - Accounts (v1)
   /v1/organizations/{organization_id}/ledgers/{ledger_id}/accounts/{account_id}/balances:
     get:
+      deprecated: true
       operationId: getAllBalancesByAccountID
       parameters:
         - description: Organization ID (UUID)
@@ -5124,8 +6560,9 @@ paths:
         - ApiKeyAuth: []
       summary: Get all balances by account id
       tags:
-        - Balances
+        - Balances (v1)
     post:
+      deprecated: true
       operationId: createAdditionalBalance
       parameters:
         - description: Organization ID (UUID)
@@ -5153,9 +6590,7 @@ paths:
         content:
           application/json:
             schema:
-              contentMediaType: application/octet-stream
-              format: binary
-              type: string
+              $ref: "#/components/schemas/CreateAdditionalBalance"
         required: true
       responses:
         "201":
@@ -5175,9 +6610,10 @@ paths:
         - ApiKeyAuth: []
       summary: Create Additional Balance
       tags:
-        - Balances
+        - Balances (v1)
   /v1/organizations/{organization_id}/ledgers/{ledger_id}/accounts/{account_id}/balances/history:
     get:
+      deprecated: true
       operationId: getAccountBalancesAtTimestamp
       parameters:
         - description: Organization ID (UUID)
@@ -5230,9 +6666,10 @@ paths:
         - ApiKeyAuth: []
       summary: Get Account Balances history at date
       tags:
-        - Balances
+        - Balances (v1)
   /v1/organizations/{organization_id}/ledgers/{ledger_id}/accounts/{account_id}/operations:
     get:
+      deprecated: true
       operationId: getAllOperationsByAccount
       parameters:
         - description: Organization ID (UUID)
@@ -5344,9 +6781,10 @@ paths:
         - ApiKeyAuth: []
       summary: Get all Operations by account
       tags:
-        - Operations
+        - Operations (v1)
   /v1/organizations/{organization_id}/ledgers/{ledger_id}/accounts/{account_id}/operations/{operation_id}:
     get:
+      deprecated: true
       operationId: getOperationByAccount
       parameters:
         - description: Organization ID (UUID)
@@ -5395,9 +6833,10 @@ paths:
         - ApiKeyAuth: []
       summary: Get Operation
       tags:
-        - Operations
+        - Operations (v1)
   /v1/organizations/{organization_id}/ledgers/{ledger_id}/accounts/{id}:
     delete:
+      deprecated: true
       operationId: deleteAccount
       parameters:
         - description: Organization ID (UUID)
@@ -5441,8 +6880,9 @@ paths:
         - ApiKeyAuth: []
       summary: Delete an account
       tags:
-        - Accounts
+        - Accounts (v1)
     get:
+      deprecated: true
       operationId: getAccountByID
       parameters:
         - description: Organization ID (UUID)
@@ -5484,8 +6924,9 @@ paths:
         - ApiKeyAuth: []
       summary: Retrieve a specific account
       tags:
-        - Accounts
+        - Accounts (v1)
     patch:
+      deprecated: true
       operationId: updateAccount
       parameters:
         - description: Organization ID (UUID)
@@ -5513,9 +6954,7 @@ paths:
         content:
           application/json:
             schema:
-              contentMediaType: application/octet-stream
-              format: binary
-              type: string
+              $ref: "#/components/schemas/UpdateAccountInput"
         required: true
       responses:
         "200":
@@ -5535,9 +6974,10 @@ paths:
         - ApiKeyAuth: []
       summary: Update an account
       tags:
-        - Accounts
+        - Accounts (v1)
   /v1/organizations/{organization_id}/ledgers/{ledger_id}/asset-rates:
     put:
+      deprecated: true
       operationId: createOrUpdateAssetRate
       parameters:
         - description: Organization ID (UUID)
@@ -5558,9 +6998,7 @@ paths:
         content:
           application/json:
             schema:
-              contentMediaType: application/octet-stream
-              format: binary
-              type: string
+              $ref: "#/components/schemas/CreateAssetRateInput"
         required: true
       responses:
         "201":
@@ -5580,9 +7018,10 @@ paths:
         - ApiKeyAuth: []
       summary: Create or Update an AssetRate
       tags:
-        - Asset Rates
+        - Asset Rates (v1)
   /v1/organizations/{organization_id}/ledgers/{ledger_id}/asset-rates/from/{asset_code}:
     get:
+      deprecated: true
       operationId: getAllAssetRatesByAssetCode
       parameters:
         - description: Organization ID (UUID)
@@ -5670,9 +7109,10 @@ paths:
         - ApiKeyAuth: []
       summary: Get an AssetRate by the Asset Code
       tags:
-        - Asset Rates
+        - Asset Rates (v1)
   /v1/organizations/{organization_id}/ledgers/{ledger_id}/asset-rates/{external_id}:
     get:
+      deprecated: true
       operationId: getAssetRateByExternalID
       parameters:
         - description: Organization ID (UUID)
@@ -5714,9 +7154,10 @@ paths:
         - ApiKeyAuth: []
       summary: Get an AssetRate by External ID
       tags:
-        - Asset Rates
+        - Asset Rates (v1)
   /v1/organizations/{organization_id}/ledgers/{ledger_id}/assets:
     get:
+      deprecated: true
       operationId: listAssets
       parameters:
         - description: Organization ID (UUID)
@@ -5793,8 +7234,9 @@ paths:
         - ApiKeyAuth: []
       summary: List all assets
       tags:
-        - Assets
+        - Assets (v1)
     post:
+      deprecated: true
       operationId: createAsset
       parameters:
         - description: Organization ID (UUID)
@@ -5821,9 +7263,7 @@ paths:
         content:
           application/json:
             schema:
-              contentMediaType: application/octet-stream
-              format: binary
-              type: string
+              $ref: "#/components/schemas/CreateAssetInput"
         required: true
       responses:
         "201":
@@ -5843,9 +7283,10 @@ paths:
         - ApiKeyAuth: []
       summary: Create a new asset
       tags:
-        - Assets
+        - Assets (v1)
   /v1/organizations/{organization_id}/ledgers/{ledger_id}/assets/metrics/count:
     head:
+      deprecated: true
       operationId: countAssets
       parameters:
         - description: Organization ID (UUID)
@@ -5883,9 +7324,10 @@ paths:
         - ApiKeyAuth: []
       summary: Count total assets
       tags:
-        - Assets
+        - Assets (v1)
   /v1/organizations/{organization_id}/ledgers/{ledger_id}/assets/{id}:
     delete:
+      deprecated: true
       operationId: deleteAsset
       parameters:
         - description: Organization ID (UUID)
@@ -5923,8 +7365,9 @@ paths:
         - ApiKeyAuth: []
       summary: Delete an asset
       tags:
-        - Assets
+        - Assets (v1)
     get:
+      deprecated: true
       operationId: getAssetByID
       parameters:
         - description: Organization ID (UUID)
@@ -5966,8 +7409,9 @@ paths:
         - ApiKeyAuth: []
       summary: Retrieve a specific asset
       tags:
-        - Assets
+        - Assets (v1)
     patch:
+      deprecated: true
       operationId: updateAsset
       parameters:
         - description: Organization ID (UUID)
@@ -5995,9 +7439,7 @@ paths:
         content:
           application/json:
             schema:
-              contentMediaType: application/octet-stream
-              format: binary
-              type: string
+              $ref: "#/components/schemas/UpdateAssetInput"
         required: true
       responses:
         "200":
@@ -6017,9 +7459,10 @@ paths:
         - ApiKeyAuth: []
       summary: Update an asset
       tags:
-        - Assets
+        - Assets (v1)
   /v1/organizations/{organization_id}/ledgers/{ledger_id}/balances:
     get:
+      deprecated: true
       operationId: getAllBalances
       parameters:
         - description: Organization ID (UUID)
@@ -6089,9 +7532,10 @@ paths:
         - ApiKeyAuth: []
       summary: Get all balances
       tags:
-        - Balances
+        - Balances (v1)
   /v1/organizations/{organization_id}/ledgers/{ledger_id}/balances/{balance_id}:
     delete:
+      deprecated: true
       operationId: deleteBalance
       parameters:
         - description: Organization ID (UUID)
@@ -6129,8 +7573,9 @@ paths:
         - ApiKeyAuth: []
       summary: Delete Balance by account
       tags:
-        - Balances
+        - Balances (v1)
     get:
+      deprecated: true
       operationId: getBalanceByID
       parameters:
         - description: Organization ID (UUID)
@@ -6172,8 +7617,9 @@ paths:
         - ApiKeyAuth: []
       summary: Get Balance by id
       tags:
-        - Balances
+        - Balances (v1)
     patch:
+      deprecated: true
       operationId: updateBalance
       parameters:
         - description: Organization ID (UUID)
@@ -6201,9 +7647,7 @@ paths:
         content:
           application/json:
             schema:
-              contentMediaType: application/octet-stream
-              format: binary
-              type: string
+              $ref: "#/components/schemas/UpdateBalance"
         required: true
       responses:
         "200":
@@ -6223,9 +7667,10 @@ paths:
         - ApiKeyAuth: []
       summary: Update Balance
       tags:
-        - Balances
+        - Balances (v1)
   /v1/organizations/{organization_id}/ledgers/{ledger_id}/balances/{balance_id}/history:
     get:
+      deprecated: true
       operationId: getBalanceAtTimestamp
       parameters:
         - description: Organization ID (UUID)
@@ -6274,9 +7719,10 @@ paths:
         - ApiKeyAuth: []
       summary: Get Balance history at date
       tags:
-        - Balances
+        - Balances (v1)
   /v1/organizations/{organization_id}/ledgers/{ledger_id}/holders/{id}/accounts:
     post:
+      deprecated: true
       operationId: createHolderAccount
       parameters:
         - description: Organization ID (UUID)
@@ -6310,9 +7756,7 @@ paths:
         content:
           application/json:
             schema:
-              contentMediaType: application/octet-stream
-              format: binary
-              type: string
+              $ref: "#/components/schemas/CreateHolderAccountInput"
         required: true
       responses:
         "201":
@@ -6331,9 +7775,10 @@ paths:
         - BearerAuth: []
       summary: Open a holder-owned account (with optional instrument)
       tags:
-        - Composition
+        - Composition (v1)
   /v1/organizations/{organization_id}/ledgers/{ledger_id}/operation-routes:
     get:
+      deprecated: true
       operationId: listOperationRoutes
       parameters:
         - description: Organization ID (UUID)
@@ -6402,8 +7847,9 @@ paths:
         - BearerAuth: []
       summary: Retrieve all operation routes
       tags:
-        - Operation Routes
+        - Operation Routes (v1)
     post:
+      deprecated: true
       operationId: createOperationRoute
       parameters:
         - description: Organization ID (UUID)
@@ -6424,9 +7870,7 @@ paths:
         content:
           application/json:
             schema:
-              contentMediaType: application/octet-stream
-              format: binary
-              type: string
+              $ref: "#/components/schemas/CreateOperationRouteInput"
         required: true
       responses:
         "201":
@@ -6445,9 +7889,10 @@ paths:
         - BearerAuth: []
       summary: Create Operation Route
       tags:
-        - Operation Routes
+        - Operation Routes (v1)
   /v1/organizations/{organization_id}/ledgers/{ledger_id}/operation-routes/{operation_route_id}:
     delete:
+      deprecated: true
       operationId: deleteOperationRoute
       parameters:
         - description: Organization ID (UUID)
@@ -6484,8 +7929,9 @@ paths:
         - BearerAuth: []
       summary: Delete an operation route
       tags:
-        - Operation Routes
+        - Operation Routes (v1)
     get:
+      deprecated: true
       operationId: getOperationRouteByID
       parameters:
         - description: Organization ID (UUID)
@@ -6526,8 +7972,9 @@ paths:
         - BearerAuth: []
       summary: Retrieve a specific operation route
       tags:
-        - Operation Routes
+        - Operation Routes (v1)
     patch:
+      deprecated: true
       operationId: updateOperationRoute
       parameters:
         - description: Organization ID (UUID)
@@ -6555,9 +8002,7 @@ paths:
         content:
           application/json:
             schema:
-              contentMediaType: application/octet-stream
-              format: binary
-              type: string
+              $ref: "#/components/schemas/UpdateOperationRouteInput"
         required: true
       responses:
         "200":
@@ -6576,9 +8021,10 @@ paths:
         - BearerAuth: []
       summary: Update an operation route
       tags:
-        - Operation Routes
+        - Operation Routes (v1)
   /v1/organizations/{organization_id}/ledgers/{ledger_id}/portfolios:
     get:
+      deprecated: true
       operationId: listPortfolios
       parameters:
         - description: Organization ID (UUID)
@@ -6669,8 +8115,9 @@ paths:
         - ApiKeyAuth: []
       summary: List all portfolios
       tags:
-        - Portfolios
+        - Portfolios (v1)
     post:
+      deprecated: true
       operationId: createPortfolio
       parameters:
         - description: Organization ID (UUID)
@@ -6691,9 +8138,7 @@ paths:
         content:
           application/json:
             schema:
-              contentMediaType: application/octet-stream
-              format: binary
-              type: string
+              $ref: "#/components/schemas/CreatePortfolioInput"
         required: true
       responses:
         "201":
@@ -6713,9 +8158,10 @@ paths:
         - ApiKeyAuth: []
       summary: Create a new portfolio
       tags:
-        - Portfolios
+        - Portfolios (v1)
   /v1/organizations/{organization_id}/ledgers/{ledger_id}/portfolios/metrics/count:
     head:
+      deprecated: true
       operationId: countPortfolios
       parameters:
         - description: Organization ID (UUID)
@@ -6753,9 +8199,10 @@ paths:
         - ApiKeyAuth: []
       summary: Count total portfolios
       tags:
-        - Portfolios
+        - Portfolios (v1)
   /v1/organizations/{organization_id}/ledgers/{ledger_id}/portfolios/{id}:
     delete:
+      deprecated: true
       operationId: deletePortfolio
       parameters:
         - description: Organization ID (UUID)
@@ -6793,8 +8240,9 @@ paths:
         - ApiKeyAuth: []
       summary: Delete a portfolio
       tags:
-        - Portfolios
+        - Portfolios (v1)
     get:
+      deprecated: true
       operationId: getPortfolioByID
       parameters:
         - description: Organization ID (UUID)
@@ -6836,8 +8284,9 @@ paths:
         - ApiKeyAuth: []
       summary: Retrieve a specific portfolio
       tags:
-        - Portfolios
+        - Portfolios (v1)
     patch:
+      deprecated: true
       operationId: updatePortfolio
       parameters:
         - description: Organization ID (UUID)
@@ -6865,9 +8314,7 @@ paths:
         content:
           application/json:
             schema:
-              contentMediaType: application/octet-stream
-              format: binary
-              type: string
+              $ref: "#/components/schemas/UpdatePortfolioInput"
         required: true
       responses:
         "200":
@@ -6887,9 +8334,10 @@ paths:
         - ApiKeyAuth: []
       summary: Update a portfolio
       tags:
-        - Portfolios
+        - Portfolios (v1)
   /v1/organizations/{organization_id}/ledgers/{ledger_id}/segments:
     get:
+      deprecated: true
       operationId: listSegments
       parameters:
         - description: Organization ID (UUID)
@@ -6966,8 +8414,9 @@ paths:
         - ApiKeyAuth: []
       summary: List all segments
       tags:
-        - Segments
+        - Segments (v1)
     post:
+      deprecated: true
       operationId: createSegment
       parameters:
         - description: Organization ID (UUID)
@@ -6988,9 +8437,7 @@ paths:
         content:
           application/json:
             schema:
-              contentMediaType: application/octet-stream
-              format: binary
-              type: string
+              $ref: "#/components/schemas/CreateSegmentInput"
         required: true
       responses:
         "201":
@@ -7010,9 +8457,10 @@ paths:
         - ApiKeyAuth: []
       summary: Create a new segment
       tags:
-        - Segments
+        - Segments (v1)
   /v1/organizations/{organization_id}/ledgers/{ledger_id}/segments/metrics/count:
     head:
+      deprecated: true
       operationId: countSegments
       parameters:
         - description: Organization ID (UUID)
@@ -7050,9 +8498,10 @@ paths:
         - ApiKeyAuth: []
       summary: Count total segments
       tags:
-        - Segments
+        - Segments (v1)
   /v1/organizations/{organization_id}/ledgers/{ledger_id}/segments/{id}:
     delete:
+      deprecated: true
       operationId: deleteSegment
       parameters:
         - description: Organization ID (UUID)
@@ -7090,8 +8539,9 @@ paths:
         - ApiKeyAuth: []
       summary: Delete a segment
       tags:
-        - Segments
+        - Segments (v1)
     get:
+      deprecated: true
       operationId: getSegmentByID
       parameters:
         - description: Organization ID (UUID)
@@ -7133,8 +8583,9 @@ paths:
         - ApiKeyAuth: []
       summary: Retrieve a specific segment
       tags:
-        - Segments
+        - Segments (v1)
     patch:
+      deprecated: true
       operationId: updateSegment
       parameters:
         - description: Organization ID (UUID)
@@ -7162,9 +8613,7 @@ paths:
         content:
           application/json:
             schema:
-              contentMediaType: application/octet-stream
-              format: binary
-              type: string
+              $ref: "#/components/schemas/UpdateSegmentInput"
         required: true
       responses:
         "200":
@@ -7184,9 +8633,10 @@ paths:
         - ApiKeyAuth: []
       summary: Update a segment
       tags:
-        - Segments
+        - Segments (v1)
   /v1/organizations/{organization_id}/ledgers/{ledger_id}/settings:
     get:
+      deprecated: true
       operationId: getLedgerSettings
       parameters:
         - description: Organization ID (UUID)
@@ -7221,8 +8671,9 @@ paths:
         - ApiKeyAuth: []
       summary: Get ledger settings
       tags:
-        - Ledgers
+        - Ledgers (v1)
     patch:
+      deprecated: true
       operationId: updateLedgerSettings
       parameters:
         - description: Organization ID (UUID)
@@ -7243,9 +8694,8 @@ paths:
         content:
           application/json:
             schema:
-              contentMediaType: application/octet-stream
-              format: binary
-              type: string
+              additionalProperties: {}
+              type: object
         required: true
       responses:
         "200":
@@ -7265,9 +8715,10 @@ paths:
         - ApiKeyAuth: []
       summary: Update ledger settings
       tags:
-        - Ledgers
+        - Ledgers (v1)
   /v1/organizations/{organization_id}/ledgers/{ledger_id}/transaction-routes:
     get:
+      deprecated: true
       operationId: listTransactionRoutes
       parameters:
         - description: Organization ID (UUID)
@@ -7336,8 +8787,9 @@ paths:
         - BearerAuth: []
       summary: Get all Transaction Routes
       tags:
-        - Transaction Routes
+        - Transaction Routes (v1)
     post:
+      deprecated: true
       operationId: createTransactionRoute
       parameters:
         - description: Organization ID (UUID)
@@ -7358,9 +8810,7 @@ paths:
         content:
           application/json:
             schema:
-              contentMediaType: application/octet-stream
-              format: binary
-              type: string
+              $ref: "#/components/schemas/CreateTransactionRouteInput"
         required: true
       responses:
         "201":
@@ -7379,9 +8829,10 @@ paths:
         - BearerAuth: []
       summary: Create Transaction Route
       tags:
-        - Transaction Routes
+        - Transaction Routes (v1)
   /v1/organizations/{organization_id}/ledgers/{ledger_id}/transaction-routes/{transaction_route_id}:
     delete:
+      deprecated: true
       operationId: deleteTransactionRoute
       parameters:
         - description: Organization ID (UUID)
@@ -7418,8 +8869,9 @@ paths:
         - BearerAuth: []
       summary: Delete Transaction Route by ID
       tags:
-        - Transaction Routes
+        - Transaction Routes (v1)
     get:
+      deprecated: true
       operationId: getTransactionRouteByID
       parameters:
         - description: Organization ID (UUID)
@@ -7460,8 +8912,9 @@ paths:
         - BearerAuth: []
       summary: Get Transaction Route by ID
       tags:
-        - Transaction Routes
+        - Transaction Routes (v1)
     patch:
+      deprecated: true
       operationId: updateTransactionRoute
       parameters:
         - description: Organization ID (UUID)
@@ -7489,9 +8942,7 @@ paths:
         content:
           application/json:
             schema:
-              contentMediaType: application/octet-stream
-              format: binary
-              type: string
+              $ref: "#/components/schemas/UpdateTransactionRouteInput"
         required: true
       responses:
         "200":
@@ -7510,9 +8961,10 @@ paths:
         - BearerAuth: []
       summary: Update Transaction Route
       tags:
-        - Transaction Routes
+        - Transaction Routes (v1)
   /v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions:
     get:
+      deprecated: true
       operationId: getAllTransactions
       parameters:
         - description: Organization ID (UUID)
@@ -7588,9 +9040,10 @@ paths:
         - BearerAuth: []
       summary: Get all Transactions
       tags:
-        - Transactions
+        - Transactions (v1)
   /v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions/annotation:
     post:
+      deprecated: true
       operationId: createTransactionAnnotation
       parameters:
         - description: Organization ID (UUID)
@@ -7623,9 +9076,7 @@ paths:
         content:
           application/json:
             schema:
-              contentMediaType: application/octet-stream
-              format: binary
-              type: string
+              $ref: "#/components/schemas/CreateTransactionInput"
         required: true
       responses:
         "201":
@@ -7648,9 +9099,10 @@ paths:
         - BearerAuth: []
       summary: Create a Transaction Annotation using JSON
       tags:
-        - Transactions
+        - Transactions (v1)
   /v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions/block:
     post:
+      deprecated: true
       operationId: createTransactionBlock
       parameters:
         - description: Organization ID (UUID)
@@ -7683,9 +9135,7 @@ paths:
         content:
           application/json:
             schema:
-              contentMediaType: application/octet-stream
-              format: binary
-              type: string
+              $ref: "#/components/schemas/CreateTransactionInput"
         required: true
       responses:
         "201":
@@ -7708,9 +9158,10 @@ paths:
         - BearerAuth: []
       summary: Create a Block Transaction
       tags:
-        - Transactions
+        - Transactions (v1)
   /v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions/inflow:
     post:
+      deprecated: true
       operationId: createTransactionInflow
       parameters:
         - description: Organization ID (UUID)
@@ -7743,9 +9194,7 @@ paths:
         content:
           application/json:
             schema:
-              contentMediaType: application/octet-stream
-              format: binary
-              type: string
+              $ref: "#/components/schemas/CreateTransactionInflowInput"
         required: true
       responses:
         "201":
@@ -7768,9 +9217,10 @@ paths:
         - BearerAuth: []
       summary: Create a Transaction without passing from source
       tags:
-        - Transactions
+        - Transactions (v1)
   /v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions/json:
     post:
+      deprecated: true
       operationId: createTransactionJSON
       parameters:
         - description: Organization ID (UUID)
@@ -7803,9 +9253,7 @@ paths:
         content:
           application/json:
             schema:
-              contentMediaType: application/octet-stream
-              format: binary
-              type: string
+              $ref: "#/components/schemas/CreateTransactionInput"
         required: true
       responses:
         "201":
@@ -7828,9 +9276,10 @@ paths:
         - BearerAuth: []
       summary: Create a Transaction using JSON
       tags:
-        - Transactions
+        - Transactions (v1)
   /v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions/metrics/count:
     head:
+      deprecated: true
       operationId: countTransactionsByFilters
       parameters:
         - description: Organization ID (UUID)
@@ -7896,9 +9345,10 @@ paths:
         - ApiKeyAuth: []
       summary: Count Transactions by Filters
       tags:
-        - Transactions
+        - Transactions (v1)
   /v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions/outflow:
     post:
+      deprecated: true
       operationId: createTransactionOutflow
       parameters:
         - description: Organization ID (UUID)
@@ -7931,9 +9381,7 @@ paths:
         content:
           application/json:
             schema:
-              contentMediaType: application/octet-stream
-              format: binary
-              type: string
+              $ref: "#/components/schemas/CreateTransactionOutflowInput"
         required: true
       responses:
         "201":
@@ -7956,9 +9404,10 @@ paths:
         - BearerAuth: []
       summary: Create a Transaction without passing to distribution
       tags:
-        - Transactions
+        - Transactions (v1)
   /v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions/unblock:
     post:
+      deprecated: true
       operationId: createTransactionUnblock
       parameters:
         - description: Organization ID (UUID)
@@ -7991,9 +9440,7 @@ paths:
         content:
           application/json:
             schema:
-              contentMediaType: application/octet-stream
-              format: binary
-              type: string
+              $ref: "#/components/schemas/CreateTransactionInput"
         required: true
       responses:
         "201":
@@ -8016,9 +9463,10 @@ paths:
         - BearerAuth: []
       summary: Create an Unblock Transaction
       tags:
-        - Transactions
+        - Transactions (v1)
   /v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions/{transaction_id}:
     get:
+      deprecated: true
       operationId: getTransaction
       parameters:
         - description: Organization ID (UUID)
@@ -8063,8 +9511,9 @@ paths:
         - BearerAuth: []
       summary: Get a Transaction by ID
       tags:
-        - Transactions
+        - Transactions (v1)
     patch:
+      deprecated: true
       operationId: updateTransaction
       parameters:
         - description: Organization ID (UUID)
@@ -8092,9 +9541,7 @@ paths:
         content:
           application/json:
             schema:
-              contentMediaType: application/octet-stream
-              format: binary
-              type: string
+              $ref: "#/components/schemas/TransactionUpdateTransactionInput"
         required: true
       responses:
         "200":
@@ -8113,9 +9560,10 @@ paths:
         - BearerAuth: []
       summary: Update a Transaction
       tags:
-        - Transactions
+        - Transactions (v1)
   /v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions/{transaction_id}/cancel:
     post:
+      deprecated: true
       operationId: cancelTransaction
       parameters:
         - description: Organization ID (UUID)
@@ -8156,9 +9604,10 @@ paths:
         - BearerAuth: []
       summary: Cancel a pre transaction
       tags:
-        - Transactions
+        - Transactions (v1)
   /v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions/{transaction_id}/commit:
     post:
+      deprecated: true
       operationId: commitTransaction
       parameters:
         - description: Organization ID (UUID)
@@ -8199,9 +9648,10 @@ paths:
         - BearerAuth: []
       summary: Commit a Transaction
       tags:
-        - Transactions
+        - Transactions (v1)
   /v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions/{transaction_id}/operations/{operation_id}:
     patch:
+      deprecated: true
       operationId: updateOperation
       parameters:
         - description: Organization ID (UUID)
@@ -8236,9 +9686,7 @@ paths:
         content:
           application/json:
             schema:
-              contentMediaType: application/octet-stream
-              format: binary
-              type: string
+              $ref: "#/components/schemas/OperationUpdateOperationInput"
         required: true
       responses:
         "200":
@@ -8257,9 +9705,10 @@ paths:
         - BearerAuth: []
       summary: Update an Operation
       tags:
-        - Operations
+        - Operations (v1)
   /v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions/{transaction_id}/revert:
     post:
+      deprecated: true
       operationId: revertTransaction
       parameters:
         - description: Organization ID (UUID)
@@ -8304,9 +9753,10 @@ paths:
         - BearerAuth: []
       summary: Revert a Transaction
       tags:
-        - Transactions
+        - Transactions (v1)
   /v1/organizations/{organization_id}/packages:
     get:
+      deprecated: true
       operationId: getAllPackages
       parameters:
         - description: Organization ID (UUID)
@@ -8375,8 +9825,9 @@ paths:
         - BearerAuth: []
       summary: Get all packages
       tags:
-        - Packages
+        - Packages (v1)
     post:
+      deprecated: true
       operationId: createPackage
       parameters:
         - description: Organization ID (UUID)
@@ -8390,9 +9841,7 @@ paths:
         content:
           application/json:
             schema:
-              contentMediaType: application/octet-stream
-              format: binary
-              type: string
+              $ref: "#/components/schemas/FeeCreatePackageInput"
         required: true
       responses:
         "201":
@@ -8411,9 +9860,10 @@ paths:
         - BearerAuth: []
       summary: Create a Package
       tags:
-        - Packages
+        - Packages (v1)
   /v1/organizations/{organization_id}/packages/{id}:
     delete:
+      deprecated: true
       operationId: deletePackage
       parameters:
         - description: Organization ID (UUID)
@@ -8443,8 +9893,9 @@ paths:
         - BearerAuth: []
       summary: SoftDelete a Package by ID
       tags:
-        - Packages
+        - Packages (v1)
     get:
+      deprecated: true
       operationId: getPackageByID
       parameters:
         - description: Organization ID (UUID)
@@ -8478,8 +9929,9 @@ paths:
         - BearerAuth: []
       summary: Get package
       tags:
-        - Packages
+        - Packages (v1)
     patch:
+      deprecated: true
       operationId: updatePackage
       parameters:
         - description: Organization ID (UUID)
@@ -8500,9 +9952,7 @@ paths:
         content:
           application/json:
             schema:
-              contentMediaType: application/octet-stream
-              format: binary
-              type: string
+              $ref: "#/components/schemas/FeeUpdatePackageInput"
         required: true
       responses:
         "200":
@@ -8521,9 +9971,10 @@ paths:
         - BearerAuth: []
       summary: Update a package
       tags:
-        - Packages
+        - Packages (v1)
   /v1/organizations/{organization_id}/protection/audit:
     get:
+      deprecated: true
       operationId: getAuditEvents
       parameters:
         - description: Organization ID (UUID)
@@ -8612,9 +10063,10 @@ paths:
         - BearerAuth: []
       summary: List Protection Audit Events
       tags:
-        - Protection
+        - Protection (v1)
   /v1/settings/metadata-indexes:
     get:
+      deprecated: true
       operationId: getAllMetadataIndexes
       parameters:
         - description: Optional entity name filter
@@ -8646,9 +10098,10 @@ paths:
         - ApiKeyAuth: []
       summary: Get all Metadata Indexes
       tags:
-        - Metadata Indexes
+        - Metadata Indexes (v1)
   /v1/settings/metadata-indexes/entities/{entity_name}:
     post:
+      deprecated: true
       operationId: createMetadataIndex
       parameters:
         - description: Entity name (organization, ledger, segment, account, portfolio, asset, account_type, transaction, operation, operation_route, transaction_route)
@@ -8662,9 +10115,7 @@ paths:
         content:
           application/json:
             schema:
-              contentMediaType: application/octet-stream
-              format: binary
-              type: string
+              $ref: "#/components/schemas/CreateMetadataIndexInput"
         required: true
       responses:
         "201":
@@ -8684,9 +10135,10 @@ paths:
         - ApiKeyAuth: []
       summary: Create Metadata Index
       tags:
-        - Metadata Indexes
+        - Metadata Indexes (v1)
   /v1/settings/metadata-indexes/entities/{entity_name}/key/{index_key}:
     delete:
+      deprecated: true
       operationId: deleteMetadataIndex
       parameters:
         - description: Entity name (organization, ledger, segment, account, portfolio, asset, account_type, transaction, operation, operation_route, transaction_route)
@@ -8717,7 +10169,7 @@ paths:
         - ApiKeyAuth: []
       summary: Delete Metadata Index
       tags:
-        - Metadata Indexes
+        - Metadata Indexes (v1)
   /v2/organizations:
     get:
       operationId: listOrganizationsV2
@@ -8810,7 +10262,7 @@ paths:
         - ApiKeyAuth: []
       summary: List all organizations
       tags:
-        - Organizations
+        - Organizations (v2)
     post:
       operationId: createOrganizationV2
       parameters:
@@ -8824,9 +10276,7 @@ paths:
         content:
           application/json:
             schema:
-              contentMediaType: application/octet-stream
-              format: binary
-              type: string
+              $ref: "#/components/schemas/CreateOrganizationInput"
         required: true
       responses:
         "201":
@@ -8846,7 +10296,7 @@ paths:
         - ApiKeyAuth: []
       summary: Create a new organization
       tags:
-        - Organizations
+        - Organizations (v2)
   /v2/organizations/metrics/count:
     head:
       operationId: countOrganizationsV2
@@ -8871,7 +10321,7 @@ paths:
         - ApiKeyAuth: []
       summary: Count total organizations
       tags:
-        - Organizations
+        - Organizations (v2)
   /v2/organizations/{id}:
     delete:
       operationId: deleteOrganizationV2
@@ -8897,7 +10347,7 @@ paths:
         - ApiKeyAuth: []
       summary: Delete an organization
       tags:
-        - Organizations
+        - Organizations (v2)
     get:
       operationId: getOrganizationByIDV2
       parameters:
@@ -8926,7 +10376,7 @@ paths:
         - ApiKeyAuth: []
       summary: Retrieve a specific organization
       tags:
-        - Organizations
+        - Organizations (v2)
     patch:
       operationId: updateOrganizationV2
       parameters:
@@ -8941,9 +10391,7 @@ paths:
         content:
           application/json:
             schema:
-              contentMediaType: application/octet-stream
-              format: binary
-              type: string
+              $ref: "#/components/schemas/UpdateOrganizationInput"
         required: true
       responses:
         "200":
@@ -8963,7 +10411,7 @@ paths:
         - ApiKeyAuth: []
       summary: Update an existing organization
       tags:
-        - Organizations
+        - Organizations (v2)
   /v2/organizations/{organization_id}/encryption/provision:
     post:
       operationId: provisionEncryptionV2
@@ -8985,9 +10433,7 @@ paths:
         content:
           application/json:
             schema:
-              contentMediaType: application/octet-stream
-              format: binary
-              type: string
+              $ref: "#/components/schemas/ProvisionEncryptionInput"
         required: true
       responses:
         "201":
@@ -9006,7 +10452,7 @@ paths:
         - BearerAuth: []
       summary: Provision an Organization for Envelope Encryption
       tags:
-        - Encryption
+        - Encryption (v2)
   /v2/organizations/{organization_id}/encryption/status:
     get:
       operationId: getProvisioningStatusV2
@@ -9041,7 +10487,7 @@ paths:
         - BearerAuth: []
       summary: Get Provisioning Status
       tags:
-        - Encryption
+        - Encryption (v2)
   /v2/organizations/{organization_id}/holders:
     get:
       operationId: listHoldersV2
@@ -9119,7 +10565,7 @@ paths:
         - BearerAuth: []
       summary: List Holders
       tags:
-        - Holders
+        - Holders (v2)
     post:
       operationId: createHolderV2
       parameters:
@@ -9146,9 +10592,7 @@ paths:
         content:
           application/json:
             schema:
-              contentMediaType: application/octet-stream
-              format: binary
-              type: string
+              $ref: "#/components/schemas/CreateHolderInput"
         required: true
       responses:
         "201":
@@ -9171,7 +10615,7 @@ paths:
         - BearerAuth: []
       summary: Create a Holder
       tags:
-        - Holders
+        - Holders (v2)
   /v2/organizations/{organization_id}/holders/{holder_id}/instruments:
     post:
       operationId: createInstrumentV2
@@ -9206,9 +10650,7 @@ paths:
         content:
           application/json:
             schema:
-              contentMediaType: application/octet-stream
-              format: binary
-              type: string
+              $ref: "#/components/schemas/CreateInstrumentInput"
         required: true
       responses:
         "201":
@@ -9231,7 +10673,7 @@ paths:
         - BearerAuth: []
       summary: Create an Instrument Account
       tags:
-        - Instruments
+        - Instruments (v2)
   /v2/organizations/{organization_id}/holders/{holder_id}/instruments/{instrument_id}:
     delete:
       operationId: deleteInstrumentV2
@@ -9277,7 +10719,7 @@ paths:
         - BearerAuth: []
       summary: Delete an Instrument
       tags:
-        - Instruments
+        - Instruments (v2)
     get:
       operationId: getInstrumentByIDV2
       parameters:
@@ -9326,7 +10768,7 @@ paths:
         - BearerAuth: []
       summary: Retrieve Instrument details
       tags:
-        - Instruments
+        - Instruments (v2)
     patch:
       operationId: updateInstrumentV2
       parameters:
@@ -9355,9 +10797,7 @@ paths:
         content:
           application/json:
             schema:
-              contentMediaType: application/octet-stream
-              format: binary
-              type: string
+              $ref: "#/components/schemas/UpdateInstrumentInput"
         required: true
       responses:
         "200":
@@ -9376,7 +10816,7 @@ paths:
         - BearerAuth: []
       summary: Update an Instrument
       tags:
-        - Instruments
+        - Instruments (v2)
   /v2/organizations/{organization_id}/holders/{holder_id}/instruments/{instrument_id}/related-parties/{related_party_id}:
     delete:
       operationId: deleteRelatedPartyV2
@@ -9422,7 +10862,7 @@ paths:
         - BearerAuth: []
       summary: Delete a Related Party
       tags:
-        - Instruments
+        - Instruments (v2)
   /v2/organizations/{organization_id}/holders/{id}:
     delete:
       operationId: deleteHolderV2
@@ -9461,7 +10901,7 @@ paths:
         - BearerAuth: []
       summary: Delete a Holder
       tags:
-        - Holders
+        - Holders (v2)
     get:
       operationId: getHolderByIDV2
       parameters:
@@ -9503,7 +10943,7 @@ paths:
         - BearerAuth: []
       summary: Retrieve Holder details
       tags:
-        - Holders
+        - Holders (v2)
     patch:
       operationId: updateHolderV2
       parameters:
@@ -9525,9 +10965,7 @@ paths:
         content:
           application/json:
             schema:
-              contentMediaType: application/octet-stream
-              format: binary
-              type: string
+              $ref: "#/components/schemas/UpdateHolderInput"
         required: true
       responses:
         "200":
@@ -9546,7 +10984,7 @@ paths:
         - BearerAuth: []
       summary: Update a Holder
       tags:
-        - Holders
+        - Holders (v2)
   /v2/organizations/{organization_id}/holders/{id}/accounts:
     get:
       operationId: listAccountsByHolderV2
@@ -9603,7 +11041,7 @@ paths:
         - BearerAuth: []
       summary: List Accounts by Holder
       tags:
-        - Holders
+        - Holders (v2)
   /v2/organizations/{organization_id}/instruments:
     get:
       operationId: listInstrumentsV2
@@ -9695,7 +11133,7 @@ paths:
         - BearerAuth: []
       summary: List Instruments
       tags:
-        - Instruments
+        - Instruments (v2)
   /v2/organizations/{organization_id}/ledgers:
     get:
       operationId: listLedgersV2
@@ -9781,7 +11219,7 @@ paths:
         - ApiKeyAuth: []
       summary: List all ledgers
       tags:
-        - Ledgers
+        - Ledgers (v2)
     post:
       operationId: createLedgerV2
       parameters:
@@ -9796,9 +11234,7 @@ paths:
         content:
           application/json:
             schema:
-              contentMediaType: application/octet-stream
-              format: binary
-              type: string
+              $ref: "#/components/schemas/CreateLedgerInput"
         required: true
       responses:
         "201":
@@ -9818,7 +11254,7 @@ paths:
         - ApiKeyAuth: []
       summary: Create a new ledger
       tags:
-        - Ledgers
+        - Ledgers (v2)
   /v2/organizations/{organization_id}/ledgers/metrics/count:
     head:
       operationId: countLedgersV2
@@ -9851,7 +11287,7 @@ paths:
         - ApiKeyAuth: []
       summary: Count total ledgers
       tags:
-        - Ledgers
+        - Ledgers (v2)
   /v2/organizations/{organization_id}/ledgers/{ledger_id}:
     delete:
       operationId: deleteLedgerV2
@@ -9884,7 +11320,7 @@ paths:
         - ApiKeyAuth: []
       summary: Delete a ledger
       tags:
-        - Ledgers
+        - Ledgers (v2)
     get:
       operationId: getLedgerByIDV2
       parameters:
@@ -9920,7 +11356,7 @@ paths:
         - ApiKeyAuth: []
       summary: Retrieve a specific ledger
       tags:
-        - Ledgers
+        - Ledgers (v2)
     patch:
       operationId: updateLedgerV2
       parameters:
@@ -9942,9 +11378,7 @@ paths:
         content:
           application/json:
             schema:
-              contentMediaType: application/octet-stream
-              format: binary
-              type: string
+              $ref: "#/components/schemas/UpdateLedgerInput"
         required: true
       responses:
         "200":
@@ -9964,7 +11398,7 @@ paths:
         - ApiKeyAuth: []
       summary: Update an existing ledger
       tags:
-        - Ledgers
+        - Ledgers (v2)
   /v2/organizations/{organization_id}/ledgers/{ledger_id}/account-types:
     get:
       operationId: listAccountTypesV2
@@ -10057,7 +11491,7 @@ paths:
         - ApiKeyAuth: []
       summary: List all account types
       tags:
-        - Account Types
+        - Account Types (v2)
     post:
       operationId: createAccountTypeV2
       parameters:
@@ -10079,9 +11513,7 @@ paths:
         content:
           application/json:
             schema:
-              contentMediaType: application/octet-stream
-              format: binary
-              type: string
+              $ref: "#/components/schemas/CreateAccountTypeInput"
         required: true
       responses:
         "201":
@@ -10101,7 +11533,7 @@ paths:
         - ApiKeyAuth: []
       summary: Create a new account type
       tags:
-        - Account Types
+        - Account Types (v2)
   /v2/organizations/{organization_id}/ledgers/{ledger_id}/account-types/{id}:
     delete:
       operationId: deleteAccountTypeV2
@@ -10141,7 +11573,7 @@ paths:
         - ApiKeyAuth: []
       summary: Delete an account type
       tags:
-        - Account Types
+        - Account Types (v2)
     get:
       operationId: getAccountTypeByIDV2
       parameters:
@@ -10184,7 +11616,7 @@ paths:
         - ApiKeyAuth: []
       summary: Retrieve a specific account type
       tags:
-        - Account Types
+        - Account Types (v2)
     patch:
       operationId: updateAccountTypeV2
       parameters:
@@ -10213,9 +11645,7 @@ paths:
         content:
           application/json:
             schema:
-              contentMediaType: application/octet-stream
-              format: binary
-              type: string
+              $ref: "#/components/schemas/UpdateAccountTypeInput"
         required: true
       responses:
         "200":
@@ -10235,7 +11665,7 @@ paths:
         - ApiKeyAuth: []
       summary: Update an account type
       tags:
-        - Account Types
+        - Account Types (v2)
   /v2/organizations/{organization_id}/ledgers/{ledger_id}/accounts:
     get:
       operationId: listAccountsV2
@@ -10384,7 +11814,7 @@ paths:
         - ApiKeyAuth: []
       summary: List all accounts
       tags:
-        - Accounts
+        - Accounts (v2)
     post:
       operationId: createAccountV2
       parameters:
@@ -10412,9 +11842,7 @@ paths:
         content:
           application/json:
             schema:
-              contentMediaType: application/octet-stream
-              format: binary
-              type: string
+              $ref: "#/components/schemas/CreateAccountInput"
         required: true
       responses:
         "201":
@@ -10434,7 +11862,7 @@ paths:
         - ApiKeyAuth: []
       summary: Create a new account
       tags:
-        - Accounts
+        - Accounts (v2)
   /v2/organizations/{organization_id}/ledgers/{ledger_id}/accounts/alias/{alias}:
     get:
       operationId: getAccountByAliasV2
@@ -10478,7 +11906,7 @@ paths:
         - ApiKeyAuth: []
       summary: Retrieve an account by alias
       tags:
-        - Accounts
+        - Accounts (v2)
   /v2/organizations/{organization_id}/ledgers/{ledger_id}/accounts/alias/{alias}/balances:
     get:
       operationId: getBalancesByAliasV2
@@ -10522,7 +11950,7 @@ paths:
         - ApiKeyAuth: []
       summary: Get Balances using Alias
       tags:
-        - Balances
+        - Balances (v2)
   /v2/organizations/{organization_id}/ledgers/{ledger_id}/accounts/external/{code}:
     get:
       operationId: getAccountExternalByCodeV2
@@ -10566,7 +11994,7 @@ paths:
         - ApiKeyAuth: []
       summary: Retrieve an account by external code
       tags:
-        - Accounts
+        - Accounts (v2)
   /v2/organizations/{organization_id}/ledgers/{ledger_id}/accounts/external/{code}/balances:
     get:
       operationId: getBalancesExternalByCodeV2
@@ -10610,7 +12038,7 @@ paths:
         - ApiKeyAuth: []
       summary: Get External balances using code
       tags:
-        - Balances
+        - Balances (v2)
   /v2/organizations/{organization_id}/ledgers/{ledger_id}/accounts/metrics/count:
     head:
       operationId: countAccountsV2
@@ -10650,7 +12078,7 @@ paths:
         - ApiKeyAuth: []
       summary: Count accounts
       tags:
-        - Accounts
+        - Accounts (v2)
   /v2/organizations/{organization_id}/ledgers/{ledger_id}/accounts/{account_id}/balances:
     get:
       operationId: getAllBalancesByAccountIDV2
@@ -10729,7 +12157,7 @@ paths:
         - ApiKeyAuth: []
       summary: Get all balances by account id
       tags:
-        - Balances
+        - Balances (v2)
     post:
       operationId: createAdditionalBalanceV2
       parameters:
@@ -10758,9 +12186,7 @@ paths:
         content:
           application/json:
             schema:
-              contentMediaType: application/octet-stream
-              format: binary
-              type: string
+              $ref: "#/components/schemas/CreateAdditionalBalance"
         required: true
       responses:
         "201":
@@ -10780,7 +12206,7 @@ paths:
         - ApiKeyAuth: []
       summary: Create Additional Balance
       tags:
-        - Balances
+        - Balances (v2)
   /v2/organizations/{organization_id}/ledgers/{ledger_id}/accounts/{account_id}/balances/history:
     get:
       operationId: getAccountBalancesAtTimestampV2
@@ -10835,7 +12261,7 @@ paths:
         - ApiKeyAuth: []
       summary: Get Account Balances history at date
       tags:
-        - Balances
+        - Balances (v2)
   /v2/organizations/{organization_id}/ledgers/{ledger_id}/accounts/{account_id}/operations:
     get:
       operationId: getAllOperationsByAccountV2
@@ -10949,7 +12375,7 @@ paths:
         - ApiKeyAuth: []
       summary: Get all Operations by account
       tags:
-        - Operations
+        - Operations (v2)
   /v2/organizations/{organization_id}/ledgers/{ledger_id}/accounts/{account_id}/operations/{operation_id}:
     get:
       operationId: getOperationByAccountV2
@@ -11000,7 +12426,7 @@ paths:
         - ApiKeyAuth: []
       summary: Get Operation
       tags:
-        - Operations
+        - Operations (v2)
   /v2/organizations/{organization_id}/ledgers/{ledger_id}/accounts/{id}:
     delete:
       operationId: deleteAccountV2
@@ -11046,7 +12472,7 @@ paths:
         - ApiKeyAuth: []
       summary: Delete an account
       tags:
-        - Accounts
+        - Accounts (v2)
     get:
       operationId: getAccountByIDV2
       parameters:
@@ -11089,7 +12515,7 @@ paths:
         - ApiKeyAuth: []
       summary: Retrieve a specific account
       tags:
-        - Accounts
+        - Accounts (v2)
     patch:
       operationId: updateAccountV2
       parameters:
@@ -11118,9 +12544,7 @@ paths:
         content:
           application/json:
             schema:
-              contentMediaType: application/octet-stream
-              format: binary
-              type: string
+              $ref: "#/components/schemas/UpdateAccountInput"
         required: true
       responses:
         "200":
@@ -11140,7 +12564,7 @@ paths:
         - ApiKeyAuth: []
       summary: Update an account
       tags:
-        - Accounts
+        - Accounts (v2)
   /v2/organizations/{organization_id}/ledgers/{ledger_id}/asset-rates:
     put:
       operationId: createOrUpdateAssetRateV2
@@ -11163,9 +12587,7 @@ paths:
         content:
           application/json:
             schema:
-              contentMediaType: application/octet-stream
-              format: binary
-              type: string
+              $ref: "#/components/schemas/CreateAssetRateInput"
         required: true
       responses:
         "201":
@@ -11185,7 +12607,7 @@ paths:
         - ApiKeyAuth: []
       summary: Create or Update an AssetRate
       tags:
-        - Asset Rates
+        - Asset Rates (v2)
   /v2/organizations/{organization_id}/ledgers/{ledger_id}/asset-rates/from/{asset_code}:
     get:
       operationId: getAllAssetRatesByAssetCodeV2
@@ -11275,7 +12697,7 @@ paths:
         - ApiKeyAuth: []
       summary: Get an AssetRate by the Asset Code
       tags:
-        - Asset Rates
+        - Asset Rates (v2)
   /v2/organizations/{organization_id}/ledgers/{ledger_id}/asset-rates/{external_id}:
     get:
       operationId: getAssetRateByExternalIDV2
@@ -11319,7 +12741,7 @@ paths:
         - ApiKeyAuth: []
       summary: Get an AssetRate by External ID
       tags:
-        - Asset Rates
+        - Asset Rates (v2)
   /v2/organizations/{organization_id}/ledgers/{ledger_id}/assets:
     get:
       operationId: listAssetsV2
@@ -11398,7 +12820,7 @@ paths:
         - ApiKeyAuth: []
       summary: List all assets
       tags:
-        - Assets
+        - Assets (v2)
     post:
       operationId: createAssetV2
       parameters:
@@ -11426,9 +12848,7 @@ paths:
         content:
           application/json:
             schema:
-              contentMediaType: application/octet-stream
-              format: binary
-              type: string
+              $ref: "#/components/schemas/CreateAssetInput"
         required: true
       responses:
         "201":
@@ -11448,7 +12868,7 @@ paths:
         - ApiKeyAuth: []
       summary: Create a new asset
       tags:
-        - Assets
+        - Assets (v2)
   /v2/organizations/{organization_id}/ledgers/{ledger_id}/assets/metrics/count:
     head:
       operationId: countAssetsV2
@@ -11488,7 +12908,7 @@ paths:
         - ApiKeyAuth: []
       summary: Count total assets
       tags:
-        - Assets
+        - Assets (v2)
   /v2/organizations/{organization_id}/ledgers/{ledger_id}/assets/{id}:
     delete:
       operationId: deleteAssetV2
@@ -11528,7 +12948,7 @@ paths:
         - ApiKeyAuth: []
       summary: Delete an asset
       tags:
-        - Assets
+        - Assets (v2)
     get:
       operationId: getAssetByIDV2
       parameters:
@@ -11571,7 +12991,7 @@ paths:
         - ApiKeyAuth: []
       summary: Retrieve a specific asset
       tags:
-        - Assets
+        - Assets (v2)
     patch:
       operationId: updateAssetV2
       parameters:
@@ -11600,9 +13020,7 @@ paths:
         content:
           application/json:
             schema:
-              contentMediaType: application/octet-stream
-              format: binary
-              type: string
+              $ref: "#/components/schemas/UpdateAssetInput"
         required: true
       responses:
         "200":
@@ -11622,7 +13040,7 @@ paths:
         - ApiKeyAuth: []
       summary: Update an asset
       tags:
-        - Assets
+        - Assets (v2)
   /v2/organizations/{organization_id}/ledgers/{ledger_id}/balances:
     get:
       operationId: getAllBalancesV2
@@ -11694,7 +13112,7 @@ paths:
         - ApiKeyAuth: []
       summary: Get all balances
       tags:
-        - Balances
+        - Balances (v2)
   /v2/organizations/{organization_id}/ledgers/{ledger_id}/balances/{balance_id}:
     delete:
       operationId: deleteBalanceV2
@@ -11734,7 +13152,7 @@ paths:
         - ApiKeyAuth: []
       summary: Delete Balance by account
       tags:
-        - Balances
+        - Balances (v2)
     get:
       operationId: getBalanceByIDV2
       parameters:
@@ -11777,7 +13195,7 @@ paths:
         - ApiKeyAuth: []
       summary: Get Balance by id
       tags:
-        - Balances
+        - Balances (v2)
     patch:
       operationId: updateBalanceV2
       parameters:
@@ -11806,9 +13224,7 @@ paths:
         content:
           application/json:
             schema:
-              contentMediaType: application/octet-stream
-              format: binary
-              type: string
+              $ref: "#/components/schemas/UpdateBalance"
         required: true
       responses:
         "200":
@@ -11828,7 +13244,7 @@ paths:
         - ApiKeyAuth: []
       summary: Update Balance
       tags:
-        - Balances
+        - Balances (v2)
   /v2/organizations/{organization_id}/ledgers/{ledger_id}/balances/{balance_id}/history:
     get:
       operationId: getBalanceAtTimestampV2
@@ -11879,7 +13295,7 @@ paths:
         - ApiKeyAuth: []
       summary: Get Balance history at date
       tags:
-        - Balances
+        - Balances (v2)
   /v2/organizations/{organization_id}/ledgers/{ledger_id}/billing-packages:
     get:
       operationId: getAllBillingPackagesV2
@@ -11936,7 +13352,7 @@ paths:
         - BearerAuth: []
       summary: Get all billing packages of a ledger
       tags:
-        - Billing Packages
+        - Billing Packages (v2)
     post:
       operationId: createBillingPackageV2
       parameters:
@@ -11958,9 +13374,7 @@ paths:
         content:
           application/json:
             schema:
-              contentMediaType: application/octet-stream
-              format: binary
-              type: string
+              $ref: "#/components/schemas/FeeBillingPackage"
         required: true
       responses:
         "201":
@@ -11979,7 +13393,7 @@ paths:
         - BearerAuth: []
       summary: Create a BillingPackage
       tags:
-        - Billing Packages
+        - Billing Packages (v2)
   /v2/organizations/{organization_id}/ledgers/{ledger_id}/billing-packages/{id}:
     delete:
       operationId: deleteBillingPackageV2
@@ -12018,7 +13432,7 @@ paths:
         - BearerAuth: []
       summary: SoftDelete a BillingPackage by ID
       tags:
-        - Billing Packages
+        - Billing Packages (v2)
     get:
       operationId: getBillingPackageByIDV2
       parameters:
@@ -12060,7 +13474,7 @@ paths:
         - BearerAuth: []
       summary: Get billing package
       tags:
-        - Billing Packages
+        - Billing Packages (v2)
     patch:
       operationId: updateBillingPackageV2
       parameters:
@@ -12089,9 +13503,7 @@ paths:
         content:
           application/json:
             schema:
-              contentMediaType: application/octet-stream
-              format: binary
-              type: string
+              $ref: "#/components/schemas/FeeBillingPackageUpdate"
         required: true
       responses:
         "200":
@@ -12110,7 +13522,7 @@ paths:
         - BearerAuth: []
       summary: Update a billing package
       tags:
-        - Billing Packages
+        - Billing Packages (v2)
   /v2/organizations/{organization_id}/ledgers/{ledger_id}/billing/calculate:
     post:
       operationId: calculateBillingV2
@@ -12133,9 +13545,7 @@ paths:
         content:
           application/json:
             schema:
-              contentMediaType: application/octet-stream
-              format: binary
-              type: string
+              $ref: "#/components/schemas/FeeBillingCalculateRequest"
         required: true
       responses:
         "200":
@@ -12154,7 +13564,7 @@ paths:
         - BearerAuth: []
       summary: Calculate billing
       tags:
-        - Billing Calculate
+        - Billing Calculate (v2)
   /v2/organizations/{organization_id}/ledgers/{ledger_id}/estimates:
     post:
       operationId: estimateFeeCalculationV2
@@ -12177,9 +13587,7 @@ paths:
         content:
           application/json:
             schema:
-              contentMediaType: application/octet-stream
-              format: binary
-              type: string
+              $ref: "#/components/schemas/FeeEstimate"
         required: true
       responses:
         "200":
@@ -12199,7 +13607,7 @@ paths:
         - BearerAuth: []
       summary: Create a fee estimate calculation
       tags:
-        - Fees
+        - Fees (v2)
   /v2/organizations/{organization_id}/ledgers/{ledger_id}/holders/{id}/accounts:
     post:
       operationId: createHolderAccountV2
@@ -12235,9 +13643,7 @@ paths:
         content:
           application/json:
             schema:
-              contentMediaType: application/octet-stream
-              format: binary
-              type: string
+              $ref: "#/components/schemas/CreateHolderAccountInput"
         required: true
       responses:
         "201":
@@ -12256,7 +13662,7 @@ paths:
         - BearerAuth: []
       summary: Open a holder-owned account (with optional instrument)
       tags:
-        - Composition
+        - Composition (v2)
   /v2/organizations/{organization_id}/ledgers/{ledger_id}/operation-routes:
     get:
       operationId: listOperationRoutesV2
@@ -12327,7 +13733,7 @@ paths:
         - BearerAuth: []
       summary: Retrieve all operation routes
       tags:
-        - Operation Routes
+        - Operation Routes (v2)
     post:
       operationId: createOperationRouteV2
       parameters:
@@ -12349,9 +13755,7 @@ paths:
         content:
           application/json:
             schema:
-              contentMediaType: application/octet-stream
-              format: binary
-              type: string
+              $ref: "#/components/schemas/CreateOperationRouteInput"
         required: true
       responses:
         "201":
@@ -12370,7 +13774,7 @@ paths:
         - BearerAuth: []
       summary: Create Operation Route
       tags:
-        - Operation Routes
+        - Operation Routes (v2)
   /v2/organizations/{organization_id}/ledgers/{ledger_id}/operation-routes/{operation_route_id}:
     delete:
       operationId: deleteOperationRouteV2
@@ -12409,7 +13813,7 @@ paths:
         - BearerAuth: []
       summary: Delete an operation route
       tags:
-        - Operation Routes
+        - Operation Routes (v2)
     get:
       operationId: getOperationRouteByIDV2
       parameters:
@@ -12451,7 +13855,7 @@ paths:
         - BearerAuth: []
       summary: Retrieve a specific operation route
       tags:
-        - Operation Routes
+        - Operation Routes (v2)
     patch:
       operationId: updateOperationRouteV2
       parameters:
@@ -12480,9 +13884,7 @@ paths:
         content:
           application/json:
             schema:
-              contentMediaType: application/octet-stream
-              format: binary
-              type: string
+              $ref: "#/components/schemas/UpdateOperationRouteInput"
         required: true
       responses:
         "200":
@@ -12501,7 +13903,7 @@ paths:
         - BearerAuth: []
       summary: Update an operation route
       tags:
-        - Operation Routes
+        - Operation Routes (v2)
   /v2/organizations/{organization_id}/ledgers/{ledger_id}/packages:
     get:
       operationId: getAllPackagesV2
@@ -12572,7 +13974,7 @@ paths:
         - BearerAuth: []
       summary: Get all packages of a ledger
       tags:
-        - Packages
+        - Packages (v2)
     post:
       operationId: createPackageV2
       parameters:
@@ -12594,9 +13996,7 @@ paths:
         content:
           application/json:
             schema:
-              contentMediaType: application/octet-stream
-              format: binary
-              type: string
+              $ref: "#/components/schemas/FeeCreatePackageInput"
         required: true
       responses:
         "201":
@@ -12615,7 +14015,7 @@ paths:
         - BearerAuth: []
       summary: Create a Package
       tags:
-        - Packages
+        - Packages (v2)
   /v2/organizations/{organization_id}/ledgers/{ledger_id}/packages/{id}:
     delete:
       operationId: deletePackageV2
@@ -12654,7 +14054,7 @@ paths:
         - BearerAuth: []
       summary: SoftDelete a Package by ID
       tags:
-        - Packages
+        - Packages (v2)
     get:
       operationId: getPackageByIDV2
       parameters:
@@ -12696,7 +14096,7 @@ paths:
         - BearerAuth: []
       summary: Get package
       tags:
-        - Packages
+        - Packages (v2)
     patch:
       operationId: updatePackageV2
       parameters:
@@ -12725,9 +14125,7 @@ paths:
         content:
           application/json:
             schema:
-              contentMediaType: application/octet-stream
-              format: binary
-              type: string
+              $ref: "#/components/schemas/FeeUpdatePackageInput"
         required: true
       responses:
         "200":
@@ -12746,7 +14144,7 @@ paths:
         - BearerAuth: []
       summary: Update a package
       tags:
-        - Packages
+        - Packages (v2)
   /v2/organizations/{organization_id}/ledgers/{ledger_id}/portfolios:
     get:
       operationId: listPortfoliosV2
@@ -12839,7 +14237,7 @@ paths:
         - ApiKeyAuth: []
       summary: List all portfolios
       tags:
-        - Portfolios
+        - Portfolios (v2)
     post:
       operationId: createPortfolioV2
       parameters:
@@ -12861,9 +14259,7 @@ paths:
         content:
           application/json:
             schema:
-              contentMediaType: application/octet-stream
-              format: binary
-              type: string
+              $ref: "#/components/schemas/CreatePortfolioInput"
         required: true
       responses:
         "201":
@@ -12883,7 +14279,7 @@ paths:
         - ApiKeyAuth: []
       summary: Create a new portfolio
       tags:
-        - Portfolios
+        - Portfolios (v2)
   /v2/organizations/{organization_id}/ledgers/{ledger_id}/portfolios/metrics/count:
     head:
       operationId: countPortfoliosV2
@@ -12923,7 +14319,7 @@ paths:
         - ApiKeyAuth: []
       summary: Count total portfolios
       tags:
-        - Portfolios
+        - Portfolios (v2)
   /v2/organizations/{organization_id}/ledgers/{ledger_id}/portfolios/{id}:
     delete:
       operationId: deletePortfolioV2
@@ -12963,7 +14359,7 @@ paths:
         - ApiKeyAuth: []
       summary: Delete a portfolio
       tags:
-        - Portfolios
+        - Portfolios (v2)
     get:
       operationId: getPortfolioByIDV2
       parameters:
@@ -13006,7 +14402,7 @@ paths:
         - ApiKeyAuth: []
       summary: Retrieve a specific portfolio
       tags:
-        - Portfolios
+        - Portfolios (v2)
     patch:
       operationId: updatePortfolioV2
       parameters:
@@ -13035,9 +14431,7 @@ paths:
         content:
           application/json:
             schema:
-              contentMediaType: application/octet-stream
-              format: binary
-              type: string
+              $ref: "#/components/schemas/UpdatePortfolioInput"
         required: true
       responses:
         "200":
@@ -13057,7 +14451,7 @@ paths:
         - ApiKeyAuth: []
       summary: Update a portfolio
       tags:
-        - Portfolios
+        - Portfolios (v2)
   /v2/organizations/{organization_id}/ledgers/{ledger_id}/segments:
     get:
       operationId: listSegmentsV2
@@ -13136,7 +14530,7 @@ paths:
         - ApiKeyAuth: []
       summary: List all segments
       tags:
-        - Segments
+        - Segments (v2)
     post:
       operationId: createSegmentV2
       parameters:
@@ -13158,9 +14552,7 @@ paths:
         content:
           application/json:
             schema:
-              contentMediaType: application/octet-stream
-              format: binary
-              type: string
+              $ref: "#/components/schemas/CreateSegmentInput"
         required: true
       responses:
         "201":
@@ -13180,7 +14572,7 @@ paths:
         - ApiKeyAuth: []
       summary: Create a new segment
       tags:
-        - Segments
+        - Segments (v2)
   /v2/organizations/{organization_id}/ledgers/{ledger_id}/segments/metrics/count:
     head:
       operationId: countSegmentsV2
@@ -13220,7 +14612,7 @@ paths:
         - ApiKeyAuth: []
       summary: Count total segments
       tags:
-        - Segments
+        - Segments (v2)
   /v2/organizations/{organization_id}/ledgers/{ledger_id}/segments/{id}:
     delete:
       operationId: deleteSegmentV2
@@ -13260,7 +14652,7 @@ paths:
         - ApiKeyAuth: []
       summary: Delete a segment
       tags:
-        - Segments
+        - Segments (v2)
     get:
       operationId: getSegmentByIDV2
       parameters:
@@ -13303,7 +14695,7 @@ paths:
         - ApiKeyAuth: []
       summary: Retrieve a specific segment
       tags:
-        - Segments
+        - Segments (v2)
     patch:
       operationId: updateSegmentV2
       parameters:
@@ -13332,9 +14724,7 @@ paths:
         content:
           application/json:
             schema:
-              contentMediaType: application/octet-stream
-              format: binary
-              type: string
+              $ref: "#/components/schemas/UpdateSegmentInput"
         required: true
       responses:
         "200":
@@ -13354,7 +14744,7 @@ paths:
         - ApiKeyAuth: []
       summary: Update a segment
       tags:
-        - Segments
+        - Segments (v2)
   /v2/organizations/{organization_id}/ledgers/{ledger_id}/settings:
     get:
       operationId: getLedgerSettingsV2
@@ -13391,7 +14781,7 @@ paths:
         - ApiKeyAuth: []
       summary: Get ledger settings
       tags:
-        - Ledgers
+        - Ledgers (v2)
     patch:
       operationId: updateLedgerSettingsV2
       parameters:
@@ -13413,9 +14803,8 @@ paths:
         content:
           application/json:
             schema:
-              contentMediaType: application/octet-stream
-              format: binary
-              type: string
+              additionalProperties: {}
+              type: object
         required: true
       responses:
         "200":
@@ -13435,7 +14824,7 @@ paths:
         - ApiKeyAuth: []
       summary: Update ledger settings
       tags:
-        - Ledgers
+        - Ledgers (v2)
   /v2/organizations/{organization_id}/ledgers/{ledger_id}/transaction-routes:
     get:
       operationId: listTransactionRoutesV2
@@ -13506,7 +14895,7 @@ paths:
         - BearerAuth: []
       summary: Get all Transaction Routes
       tags:
-        - Transaction Routes
+        - Transaction Routes (v2)
     post:
       operationId: createTransactionRouteV2
       parameters:
@@ -13528,9 +14917,7 @@ paths:
         content:
           application/json:
             schema:
-              contentMediaType: application/octet-stream
-              format: binary
-              type: string
+              $ref: "#/components/schemas/CreateTransactionRouteInput"
         required: true
       responses:
         "201":
@@ -13549,7 +14936,7 @@ paths:
         - BearerAuth: []
       summary: Create Transaction Route
       tags:
-        - Transaction Routes
+        - Transaction Routes (v2)
   /v2/organizations/{organization_id}/ledgers/{ledger_id}/transaction-routes/{transaction_route_id}:
     delete:
       operationId: deleteTransactionRouteV2
@@ -13588,7 +14975,7 @@ paths:
         - BearerAuth: []
       summary: Delete Transaction Route by ID
       tags:
-        - Transaction Routes
+        - Transaction Routes (v2)
     get:
       operationId: getTransactionRouteByIDV2
       parameters:
@@ -13630,7 +15017,7 @@ paths:
         - BearerAuth: []
       summary: Get Transaction Route by ID
       tags:
-        - Transaction Routes
+        - Transaction Routes (v2)
     patch:
       operationId: updateTransactionRouteV2
       parameters:
@@ -13659,9 +15046,7 @@ paths:
         content:
           application/json:
             schema:
-              contentMediaType: application/octet-stream
-              format: binary
-              type: string
+              $ref: "#/components/schemas/UpdateTransactionRouteInput"
         required: true
       responses:
         "200":
@@ -13680,7 +15065,7 @@ paths:
         - BearerAuth: []
       summary: Update Transaction Route
       tags:
-        - Transaction Routes
+        - Transaction Routes (v2)
   /v2/organizations/{organization_id}/ledgers/{ledger_id}/transactions:
     get:
       operationId: getAllTransactionsV2
@@ -13758,7 +15143,7 @@ paths:
         - BearerAuth: []
       summary: Get all Transactions
       tags:
-        - Transactions
+        - Transactions (v2)
   /v2/organizations/{organization_id}/ledgers/{ledger_id}/transactions/annotation:
     post:
       operationId: createTransactionAnnotationV2
@@ -13793,9 +15178,7 @@ paths:
         content:
           application/json:
             schema:
-              contentMediaType: application/octet-stream
-              format: binary
-              type: string
+              $ref: "#/components/schemas/CreateTransactionInput"
         required: true
       responses:
         "201":
@@ -13818,7 +15201,7 @@ paths:
         - BearerAuth: []
       summary: Create a Transaction Annotation using JSON
       tags:
-        - Transactions
+        - Transactions (v2)
   /v2/organizations/{organization_id}/ledgers/{ledger_id}/transactions/inflow:
     post:
       operationId: createTransactionInflowV2
@@ -13853,9 +15236,7 @@ paths:
         content:
           application/json:
             schema:
-              contentMediaType: application/octet-stream
-              format: binary
-              type: string
+              $ref: "#/components/schemas/CreateTransactionInflowInput"
         required: true
       responses:
         "201":
@@ -13878,7 +15259,7 @@ paths:
         - BearerAuth: []
       summary: Create a Transaction without passing from source
       tags:
-        - Transactions
+        - Transactions (v2)
   /v2/organizations/{organization_id}/ledgers/{ledger_id}/transactions/json:
     post:
       operationId: createTransactionJSONV2
@@ -13913,9 +15294,7 @@ paths:
         content:
           application/json:
             schema:
-              contentMediaType: application/octet-stream
-              format: binary
-              type: string
+              $ref: "#/components/schemas/CreateTransactionInput"
         required: true
       responses:
         "201":
@@ -13938,7 +15317,7 @@ paths:
         - BearerAuth: []
       summary: Create a Transaction using JSON
       tags:
-        - Transactions
+        - Transactions (v2)
   /v2/organizations/{organization_id}/ledgers/{ledger_id}/transactions/metrics/count:
     head:
       operationId: countTransactionsByFiltersV2
@@ -14006,7 +15385,7 @@ paths:
         - ApiKeyAuth: []
       summary: Count Transactions by Filters
       tags:
-        - Transactions
+        - Transactions (v2)
   /v2/organizations/{organization_id}/ledgers/{ledger_id}/transactions/outflow:
     post:
       operationId: createTransactionOutflowV2
@@ -14041,9 +15420,7 @@ paths:
         content:
           application/json:
             schema:
-              contentMediaType: application/octet-stream
-              format: binary
-              type: string
+              $ref: "#/components/schemas/CreateTransactionOutflowInput"
         required: true
       responses:
         "201":
@@ -14066,7 +15443,7 @@ paths:
         - BearerAuth: []
       summary: Create a Transaction without passing to distribution
       tags:
-        - Transactions
+        - Transactions (v2)
   /v2/organizations/{organization_id}/ledgers/{ledger_id}/transactions/{transaction_id}:
     get:
       operationId: getTransactionV2
@@ -14113,7 +15490,7 @@ paths:
         - BearerAuth: []
       summary: Get a Transaction by ID
       tags:
-        - Transactions
+        - Transactions (v2)
     patch:
       operationId: updateTransactionV2
       parameters:
@@ -14142,9 +15519,7 @@ paths:
         content:
           application/json:
             schema:
-              contentMediaType: application/octet-stream
-              format: binary
-              type: string
+              $ref: "#/components/schemas/TransactionUpdateTransactionInput"
         required: true
       responses:
         "200":
@@ -14163,7 +15538,7 @@ paths:
         - BearerAuth: []
       summary: Update a Transaction
       tags:
-        - Transactions
+        - Transactions (v2)
   /v2/organizations/{organization_id}/ledgers/{ledger_id}/transactions/{transaction_id}/cancel:
     post:
       operationId: cancelTransactionV2
@@ -14206,7 +15581,7 @@ paths:
         - BearerAuth: []
       summary: Cancel a pending Transaction (v2)
       tags:
-        - Transactions
+        - Transactions (v2)
   /v2/organizations/{organization_id}/ledgers/{ledger_id}/transactions/{transaction_id}/commit:
     post:
       operationId: commitTransactionV2
@@ -14249,7 +15624,7 @@ paths:
         - BearerAuth: []
       summary: Commit a Transaction (v2)
       tags:
-        - Transactions
+        - Transactions (v2)
   /v2/organizations/{organization_id}/ledgers/{ledger_id}/transactions/{transaction_id}/operations/{operation_id}:
     patch:
       operationId: updateOperationV2
@@ -14286,9 +15661,7 @@ paths:
         content:
           application/json:
             schema:
-              contentMediaType: application/octet-stream
-              format: binary
-              type: string
+              $ref: "#/components/schemas/OperationUpdateOperationInput"
         required: true
       responses:
         "200":
@@ -14307,7 +15680,7 @@ paths:
         - BearerAuth: []
       summary: Update an Operation
       tags:
-        - Operations
+        - Operations (v2)
   /v2/organizations/{organization_id}/ledgers/{ledger_id}/transactions/{transaction_id}/revert:
     post:
       operationId: revertTransactionV2
@@ -14354,7 +15727,7 @@ paths:
         - BearerAuth: []
       summary: Revert a Transaction (v2)
       tags:
-        - Transactions
+        - Transactions (v2)
   /v2/organizations/{organization_id}/protection/audit:
     get:
       operationId: getAuditEventsV2
@@ -14445,7 +15818,7 @@ paths:
         - BearerAuth: []
       summary: List Protection Audit Events
       tags:
-        - Protection
+        - Protection (v2)
   /v2/settings/metadata-indexes:
     get:
       operationId: getAllMetadataIndexesV2
@@ -14479,7 +15852,7 @@ paths:
         - ApiKeyAuth: []
       summary: Get all Metadata Indexes
       tags:
-        - Metadata Indexes
+        - Metadata Indexes (v2)
   /v2/settings/metadata-indexes/entities/{entity_name}:
     post:
       operationId: createMetadataIndexV2
@@ -14495,9 +15868,7 @@ paths:
         content:
           application/json:
             schema:
-              contentMediaType: application/octet-stream
-              format: binary
-              type: string
+              $ref: "#/components/schemas/CreateMetadataIndexInput"
         required: true
       responses:
         "201":
@@ -14517,7 +15888,7 @@ paths:
         - ApiKeyAuth: []
       summary: Create Metadata Index
       tags:
-        - Metadata Indexes
+        - Metadata Indexes (v2)
   /v2/settings/metadata-indexes/entities/{entity_name}/key/{index_key}:
     delete:
       operationId: deleteMetadataIndexV2
@@ -14550,7 +15921,7 @@ paths:
         - ApiKeyAuth: []
       summary: Delete Metadata Index
       tags:
-        - Metadata Indexes
+        - Metadata Indexes (v2)
   /v2/transactions/block:
     post:
       operationId: createTransactionBlockV2
@@ -14594,7 +15965,7 @@ paths:
         - BearerAuth: []
       summary: Create a Transaction using the v2 block model
       tags:
-        - Transactions
+        - Transactions (v2)
   /v2/transactions/direct:
     post:
       operationId: createTransactionDirectV2
@@ -14638,7 +16009,7 @@ paths:
         - BearerAuth: []
       summary: Create a Transaction using the v2 direct model
       tags:
-        - Transactions
+        - Transactions (v2)
   /v2/transactions/hold:
     post:
       operationId: createTransactionHoldV2
@@ -14682,7 +16053,7 @@ paths:
         - BearerAuth: []
       summary: Create a Transaction using the v2 hold model
       tags:
-        - Transactions
+        - Transactions (v2)
   /v2/transactions/unblock:
     post:
       operationId: createTransactionUnblockV2
@@ -14726,6 +16097,104 @@ paths:
         - BearerAuth: []
       summary: Create a Transaction using the v2 unblock model
       tags:
-        - Transactions
+        - Transactions (v2)
 servers:
   - url: /
+tags:
+  - name: Account Types (v1)
+  - name: Account Types (v2)
+  - name: Accounts (v1)
+  - name: Accounts (v2)
+  - name: Asset Rates (v1)
+  - name: Asset Rates (v2)
+  - name: Assets (v1)
+  - name: Assets (v2)
+  - name: Balances (v1)
+  - name: Balances (v2)
+  - name: Billing Calculate (v1)
+  - name: Billing Calculate (v2)
+  - name: Billing Packages (v1)
+  - name: Billing Packages (v2)
+  - name: Composition (v1)
+  - name: Composition (v2)
+  - name: Encryption (v1)
+  - name: Encryption (v2)
+  - name: Fees (v1)
+  - name: Fees (v2)
+  - name: Holders (v1)
+  - name: Holders (v2)
+  - name: Instruments (v1)
+  - name: Instruments (v2)
+  - name: Ledgers (v1)
+  - name: Ledgers (v2)
+  - name: Metadata Indexes (v1)
+  - name: Metadata Indexes (v2)
+  - name: Operation Routes (v1)
+  - name: Operation Routes (v2)
+  - name: Operations (v1)
+  - name: Operations (v2)
+  - name: Organizations (v1)
+  - name: Organizations (v2)
+  - name: Packages (v1)
+  - name: Packages (v2)
+  - name: Portfolios (v1)
+  - name: Portfolios (v2)
+  - name: Protection (v1)
+  - name: Protection (v2)
+  - name: Segments (v1)
+  - name: Segments (v2)
+  - name: Transaction Routes (v1)
+  - name: Transaction Routes (v2)
+  - name: Transactions (v1)
+  - name: Transactions (v2)
+x-tagGroups:
+  - name: V1 (deprecated)
+    tags:
+      - Account Types (v1)
+      - Accounts (v1)
+      - Asset Rates (v1)
+      - Assets (v1)
+      - Balances (v1)
+      - Billing Calculate (v1)
+      - Billing Packages (v1)
+      - Composition (v1)
+      - Encryption (v1)
+      - Fees (v1)
+      - Holders (v1)
+      - Instruments (v1)
+      - Ledgers (v1)
+      - Metadata Indexes (v1)
+      - Operation Routes (v1)
+      - Operations (v1)
+      - Organizations (v1)
+      - Packages (v1)
+      - Portfolios (v1)
+      - Protection (v1)
+      - Segments (v1)
+      - Transaction Routes (v1)
+      - Transactions (v1)
+  - name: V2
+    tags:
+      - Account Types (v2)
+      - Accounts (v2)
+      - Asset Rates (v2)
+      - Assets (v2)
+      - Balances (v2)
+      - Billing Calculate (v2)
+      - Billing Packages (v2)
+      - Composition (v2)
+      - Encryption (v2)
+      - Fees (v2)
+      - Holders (v2)
+      - Instruments (v2)
+      - Ledgers (v2)
+      - Metadata Indexes (v2)
+      - Operation Routes (v2)
+      - Operations (v2)
+      - Organizations (v2)
+      - Packages (v2)
+      - Portfolios (v2)
+      - Protection (v2)
+      - Segments (v2)
+      - Transaction Routes (v2)
+      - Transactions (v2)

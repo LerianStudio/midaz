@@ -11,6 +11,7 @@ import (
 	"github.com/danielgtaylor/huma/v2"
 	"github.com/gofiber/fiber/v3"
 
+	"github.com/LerianStudio/midaz/v4/components/ledger/pkg/feeshared/model"
 	pkgHTTP "github.com/LerianStudio/midaz/v4/pkg/net/http"
 )
 
@@ -78,6 +79,7 @@ func registerPackageV2Routes(api huma.API, h *PackageHandler) {
 		SkipValidateBody: true,
 		DefaultStatus:    http.StatusCreated,
 	}, h.CreatePackageV2Huma)
+	attachTypedRequestBody[model.CreatePackageInput](api, "createPackage"+feeOpSuffixV2)
 
 	huma.Register(api, huma.Operation{
 		OperationID: "getAllPackages" + feeOpSuffixV2,
@@ -106,6 +108,7 @@ func registerPackageV2Routes(api huma.API, h *PackageHandler) {
 		Security:         secPackageBearer,
 		SkipValidateBody: true, // body validated imperatively — see createPackage.
 	}, h.UpdatePackageByIDV2Huma)
+	attachTypedRequestBody[model.UpdatePackageInput](api, "updatePackage"+feeOpSuffixV2)
 
 	huma.Register(api, huma.Operation{
 		OperationID: "deletePackage" + feeOpSuffixV2,
@@ -131,6 +134,7 @@ func registerFeeEstimateV2Routes(api huma.API, h *FeeHandler) {
 		// Body validated imperatively (feehttp.DecodeValidateBody) — see fees_v2_handler.go.
 		SkipValidateBody: true,
 	}, h.EstimateFeeCalculationV2Huma)
+	attachTypedRequestBody[model.FeeEstimate](api, "estimateFeeCalculation"+feeOpSuffixV2)
 }
 
 // registerBillingPackageV2Routes registers the five ledger-scoped billing-package
@@ -152,6 +156,7 @@ func registerBillingPackageV2Routes(api huma.API, h *BillingPackageHandler) {
 		SkipValidateBody: true,
 		DefaultStatus:    http.StatusCreated,
 	}, h.CreateBillingPackageV2Huma)
+	attachTypedRequestBody[model.BillingPackage](api, "createBillingPackage"+feeOpSuffixV2)
 
 	huma.Register(api, huma.Operation{
 		OperationID: "getAllBillingPackages" + feeOpSuffixV2,
@@ -180,6 +185,7 @@ func registerBillingPackageV2Routes(api huma.API, h *BillingPackageHandler) {
 		Security:         secBillingBearer,
 		SkipValidateBody: true, // body validated imperatively — see createBillingPackage.
 	}, h.UpdateBillingPackageV2Huma)
+	attachTypedRequestBody[model.BillingPackageUpdate](api, "updateBillingPackage"+feeOpSuffixV2)
 
 	huma.Register(api, huma.Operation{
 		OperationID: "deleteBillingPackage" + feeOpSuffixV2,
@@ -206,6 +212,7 @@ func registerBillingCalculateV2Routes(api huma.API, h *BillingCalculateHandler) 
 		// Body validated imperatively (feehttp.DecodeValidateBody) — see fees_v2_handler.go.
 		SkipValidateBody: true,
 	}, h.CalculateBillingV2Huma)
+	attachTypedRequestBody[model.BillingCalculateRequest](api, "calculateBilling"+feeOpSuffixV2)
 }
 
 // RegisterFeesV2RoutesToApp wires the ledger-scoped fee/billing surface end-to-end on

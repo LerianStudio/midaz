@@ -114,4 +114,5 @@ func RegisterCompositionRoutes(api huma.API, h *CompositionHandler, opSuffix str
 		SkipValidateBody: true,
 		DefaultStatus:    http.StatusCreated,
 	}, h.CreateHolderAccountHuma)
+	attachTypedRequestBody[mmodel.CreateHolderAccountInput](api, "createHolderAccount"+opSuffix)
 }
