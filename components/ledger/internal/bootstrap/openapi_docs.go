@@ -95,6 +95,11 @@ const scalarDocsCSP = "default-src 'self'; script-src 'self' 'unsafe-inline' htt
 // on a loading spinner). createApiReference consumes the sources array directly. With
 // no #api-reference element present, the bundle's auto-mount finds no target and is a
 // no-op, so only this explicit render runs.
+//
+// The Scalar bundle is pinned to an immutable versioned CDN URL and guarded with a
+// Subresource Integrity hash (crossorigin=anonymous), so a compromised or updated
+// package cannot execute unexpected script on the docs page. Bumping the version means
+// updating both the URL and the integrity hash.
 const docsHTMLTemplate = `<!doctype html>
 <html>
   <head>
@@ -104,7 +109,7 @@ const docsHTMLTemplate = `<!doctype html>
   </head>
   <body>
     <div id="app"></div>
-    <script src="https://cdn.jsdelivr.net/npm/@scalar/api-reference"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@scalar/api-reference@1.64.1/dist/browser/standalone.js" integrity="sha384-yNQdqLDpE2fst+aUqSHXcquVibo90vCkT+zBMLgYfCejLv85GXAR3tFg9lXDUJAd" crossorigin="anonymous"></script>
     <script>
       Scalar.createApiReference('#app', %[2]s)
     </script>
@@ -117,8 +122,8 @@ const docsHTMLTemplate = `<!doctype html>
 // trusted compile-time constant (no user input, no "</script>" or single quote), so
 // it is safe to inline verbatim into the createApiReference call in docsHTMLTemplate.
 // The sources/url/title/default/layout field names match the multi-document
-// configuration of the @scalar/api-reference bundle the docs page loads, which is
-// unpinned/latest (the CDN URL carries no version tag, mirroring lib-commons).
+// configuration of the @scalar/api-reference bundle the docs page loads (pinned to a
+// specific version in docsHTMLTemplate).
 const scalarConfig = `{"sources":[` +
 	`{"url":"/openapi.v2.json","title":"V2","default":true},` +
 	`{"url":"/openapi.v1.json","title":"V1 (deprecated)"}` +

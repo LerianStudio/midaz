@@ -228,6 +228,13 @@ func TestRegisterVersionedDocRoutes(t *testing.T) {
 	cfg := parseScalarConfig(t, string(page))
 	require.Equal(t, "/openapi.v2.json", defaultSource(t, cfg).URL, "V2 must be the default docs source")
 
+	// Supply-chain guard: the Scalar bundle must be pinned to an immutable version and
+	// carry a Subresource Integrity hash, so a bump can't silently drop either.
+	require.Contains(t, string(page), "@scalar/api-reference@1.64.1/dist/browser/standalone.js",
+		"the Scalar bundle must be pinned to an immutable versioned CDN URL")
+	require.Contains(t, string(page), `integrity="sha384-`,
+		"the Scalar bundle <script> must carry a Subresource Integrity hash")
+
 	urls := make([]string, 0, len(cfg.Sources))
 	for _, s := range cfg.Sources {
 		urls = append(urls, s.URL)
