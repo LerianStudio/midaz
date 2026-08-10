@@ -372,6 +372,20 @@ func (handler *TransactionHandler) commitOrCancelTransaction(ctx context.Context
 
 	ttl := time.Duration(300)
 
+	if tran.Status.Code != constant.PENDING {
+		err := pkg.ValidateBusinessError(constant.ErrCommitTransactionNotPending, "ValidateTransactionNotPending")
+
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Transaction is not pending", err)
+
+		logger.Log(ctx, libLog.LevelWarn, "Transaction is not pending", libLog.String("transaction_id", tran.ID), libLog.Err(err))
+
+		return nil, err
+	}
+
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+
 	success, err := handler.Command.TransactionRedisRepo.SetNX(ctx, lockPendingTransactionKey, "", ttl)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(span, "Failed to set on redis", err)
@@ -411,18 +425,6 @@ func (handler *TransactionHandler) commitOrCancelTransaction(ctx context.Context
 
 	if transactionStatus != constant.CANCELED {
 		fromTo = append(fromTo, to...)
-	}
-
-	if tran.Status.Code != constant.PENDING {
-		err := pkg.ValidateBusinessError(constant.ErrCommitTransactionNotPending, "ValidateTransactionNotPending")
-
-		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Transaction is not pending", err)
-
-		logger.Log(ctx, libLog.LevelWarn, "Transaction is not pending", libLog.String("transaction_id", tran.ID), libLog.Err(err))
-
-		deleteLockOnError()
-
-		return nil, err
 	}
 
 	// No fee seam here (P4-T13). tran.Body was persisted by the create path

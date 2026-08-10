@@ -380,17 +380,15 @@ func TestCommitTransaction_InvalidStatus_ReturnsError(t *testing.T) {
 				Return(nil, nil).
 				Times(1)
 
-			// Mock: Redis lock acquired successfully
+			// The status precondition short-circuits BEFORE the lock is acquired, so a
+			// terminal-status commit must never touch Redis: no SetNX, no cleanup Del.
 			mockRedisRepo.EXPECT().
 				SetNX(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
-				Return(true, nil).
-				Times(1)
+				Times(0)
 
-			// Mock: Redis lock cleanup after error
 			mockRedisRepo.EXPECT().
 				Del(gomock.Any(), gomock.Any()).
-				Return(nil).
-				Times(1)
+				Times(0)
 
 			// Write-behind cache miss (fall through to Postgres Find)
 			mockRedisRepo.EXPECT().
@@ -2559,17 +2557,15 @@ func TestCancelTransaction(t *testing.T) {
 					Return(nil, nil).
 					Times(1)
 
-				// Redis lock acquired successfully
+				// The status precondition short-circuits BEFORE the lock is acquired, so a
+				// terminal-status cancel must never touch Redis: no SetNX, no cleanup Del.
 				redisRepo.EXPECT().
 					SetNX(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
-					Return(true, nil).
-					Times(1)
+					Times(0)
 
-				// Redis lock cleanup after error
 				redisRepo.EXPECT().
 					Del(gomock.Any(), gomock.Any()).
-					Return(nil).
-					Times(1)
+					Times(0)
 			},
 			expectedStatus: 409,
 			validateBody: func(t *testing.T, body []byte) {
