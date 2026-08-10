@@ -229,6 +229,7 @@ services:
       - --advertise-kafka-addr=internal://midaz-redpanda:9092,external://localhost:19092
     ports:
       - "19092:19092"
+      - "127.0.0.1:8081:8081"
     healthcheck:
       test: ["CMD-SHELL", "rpk cluster health | grep -q 'Healthy:.*true'"]
       interval: 10s
@@ -247,7 +248,10 @@ services:
   # registration functions — DO NOT hand-edit stale entries; keep in sync with:
   #   - midazEventDefinitions()  (components/ledger/internal/bootstrap/streaming.go) — 49 ledger/fee/crm topics
   #   - tracerEventDefinitions() (components/tracer/internal/bootstrap/streaming.go) — 12 tracer_rule.*/tracer_limit.* topics
-  # Total: 61 topics. Topic name = "lerian.streaming.<service>_<resource>.<event>".
+  # Total: 62 topics. Topic name = "lerian.streaming.<service>_<resource>.<event>".
+  # Note: lerian.streaming.billing.recorded is registered separately via
+  # billing.Definition() (not midazEventDefinitions()), so it is an explicit
+  # addition below rather than a member of the two catalog functions above.
   midaz-redpanda-init:
     container_name: midaz-redpanda-init
     image: redpandadata/redpanda:v24.2.7
@@ -324,6 +328,7 @@ services:
         rpk topic create lerian.streaming.tracer_rule.deleted -r 1 -p 1 --brokers midaz-redpanda:9092 || true
         rpk topic create lerian.streaming.tracer_rule.drafted -r 1 -p 1 --brokers midaz-redpanda:9092 || true
         rpk topic create lerian.streaming.tracer_rule.updated -r 1 -p 1 --brokers midaz-redpanda:9092 || true
+        rpk topic create lerian.streaming.billing.recorded -r 1 -p 1 --brokers midaz-redpanda:9092 || true
     networks:
       - infra-network
 

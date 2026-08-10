@@ -87,7 +87,7 @@ require (
 	github.com/LerianStudio/lib-commons/v6 v6.7.0
 	github.com/LerianStudio/lib-observability/v2 v2.1.1
 	github.com/LerianStudio/lib-service-discovery v1.1.0
-	github.com/LerianStudio/lib-streaming/v2 v2.0.0
+	github.com/LerianStudio/lib-streaming/v2 v2.1.0
 	github.com/Shopify/toxiproxy/v2 v2.12.0
 	github.com/alicebob/miniredis/v2 v2.38.0
 	github.com/cucumber/godog v0.15.1
@@ -186,6 +186,7 @@ require (
 	github.com/sirupsen/logrus v1.9.4 // indirect
 	github.com/spf13/pflag v1.0.10 // indirect
 	github.com/tinylib/msgp v1.6.4 // indirect
+	github.com/twmb/franz-go/pkg/sr v1.8.0 // indirect
 	github.com/xdg-go/pbkdf2 v1.0.0 // indirect
 	github.com/xdg-go/scram v1.2.0 // indirect
 	github.com/xdg-go/stringprep v1.0.4 // indirect
