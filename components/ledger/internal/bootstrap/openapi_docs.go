@@ -85,8 +85,16 @@ const scalarDocsCSP = "default-src 'self'; script-src 'self' 'unsafe-inline' htt
 
 // docsHTMLTemplate is a minimal, dependency-free docs page that renders the specs
 // via Scalar loaded from a CDN <script>. %[1]s = HTML-escaped title, %[2]s = the
-// Scalar configuration JSON (a trusted package constant). Scalar reads its config
-// from the data-configuration attribute on the #api-reference script tag.
+// Scalar configuration JSON (a trusted package constant), passed as the argument to
+// Scalar.createApiReference.
+//
+// It uses the explicit createApiReference JS API rather than the #api-reference
+// auto-mount: the auto-mount resolves a single document from data-url/data-spec and,
+// given a multi-document sources-only configuration, composes a config with an
+// undefined single url and never enters the multi-source render path (the page hangs
+// on a loading spinner). createApiReference consumes the sources array directly. With
+// no #api-reference element present, the bundle's auto-mount finds no target and is a
+// no-op, so only this explicit render runs.
 const docsHTMLTemplate = `<!doctype html>
 <html>
   <head>
@@ -95,15 +103,20 @@ const docsHTMLTemplate = `<!doctype html>
     <meta name="viewport" content="width=device-width, initial-scale=1" />
   </head>
   <body>
-    <script id="api-reference" data-configuration='%[2]s'></script>
+    <div id="app"></div>
     <script src="https://cdn.jsdelivr.net/npm/@scalar/api-reference"></script>
+    <script>
+      Scalar.createApiReference('#app', %[2]s)
+    </script>
   </body>
 </html>`
 
 // scalarConfig declares the version selector: Scalar renders one dropdown entry
 // per element of the sources array, and the entry marked default:true is shown
-// first. V2 is the default source; V1 (deprecated) is available on demand. The
-// sources/url/title/default/layout field names match the multi-document
+// first. V2 is the default source; V1 (deprecated) is available on demand. It is a
+// trusted compile-time constant (no user input, no "</script>" or single quote), so
+// it is safe to inline verbatim into the createApiReference call in docsHTMLTemplate.
+// The sources/url/title/default/layout field names match the multi-document
 // configuration of the @scalar/api-reference bundle the docs page loads, which is
 // unpinned/latest (the CDN URL carries no version tag, mirroring lib-commons).
 const scalarConfig = `{"sources":[` +

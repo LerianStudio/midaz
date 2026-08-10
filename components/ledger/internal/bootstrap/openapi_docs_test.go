@@ -119,8 +119,8 @@ func TestFilterSpecByVersion(t *testing.T) {
 }
 
 // scalarSource / scalarConfigDoc mirror the fields the docs test reads back out of the
-// data-configuration attribute, so a regression that moved default:true onto V1 (or
-// changed a source URL) fails the assertion.
+// Scalar.createApiReference config argument, so a regression that moved default:true onto
+// V1 (or changed a source URL) fails the assertion.
 type scalarSource struct {
 	URL     string `json:"url"`
 	Title   string `json:"title"`
@@ -132,23 +132,21 @@ type scalarConfigDoc struct {
 	Layout  string         `json:"layout"`
 }
 
-// parseScalarConfig extracts and unmarshals the JSON carried in the docs page's
-// data-configuration attribute. The attribute is single-quoted and the JSON uses
-// double quotes, so the delimiter is unambiguous.
+// parseScalarConfig extracts and unmarshals the JSON config passed to
+// Scalar.createApiReference in the docs page. A json.Decoder reads exactly the first
+// JSON value (the config object) and ignores the trailing `)` and markup — robust to a
+// ')' appearing inside a string value such as the "V1 (deprecated)" title.
 func parseScalarConfig(t *testing.T, page string) scalarConfigDoc {
 	t.Helper()
 
-	const marker = `data-configuration='`
+	const marker = `Scalar.createApiReference('#app', `
 
 	i := strings.Index(page, marker)
-	require.GreaterOrEqual(t, i, 0, "docs page must carry a data-configuration attribute")
-
-	rest := page[i+len(marker):]
-	j := strings.Index(rest, `'`)
-	require.GreaterOrEqual(t, j, 0, "data-configuration attribute must be closed")
+	require.GreaterOrEqual(t, i, 0, "docs page must call Scalar.createApiReference with the config")
 
 	var cfg scalarConfigDoc
-	require.NoError(t, json.Unmarshal([]byte(rest[:j]), &cfg))
+	dec := json.NewDecoder(strings.NewReader(page[i+len(marker):]))
+	require.NoError(t, dec.Decode(&cfg))
 
 	return cfg
 }
