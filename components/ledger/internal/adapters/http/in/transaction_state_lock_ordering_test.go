@@ -103,10 +103,13 @@ func TestCommitOrCancelTransaction_StatusCheckedBeforeLock(t *testing.T) {
 					SetNX(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
 					Times(0)
 			}
+			// The function returns before owning the lock in every case here
+			// (terminal statuses short-circuit before SetNX; PENDING gets
+			// SetNX == false), so deleteLockOnError/Del must never run. Times(0)
+			// makes an erroneous unlock of another request's lock fail the test.
 			mockRedis.EXPECT().
 				Del(gomock.Any(), gomock.Any()).
-				Return(nil).
-				AnyTimes()
+				Times(0)
 
 			handler := &TransactionHandler{
 				Command: &command.UseCase{TransactionRedisRepo: mockRedis},
