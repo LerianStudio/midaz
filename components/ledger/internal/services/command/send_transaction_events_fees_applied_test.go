@@ -24,7 +24,7 @@ import (
 // TestSendTransactionEvents_FeesAppliedEmittedOnPostedCharge locks the
 // charged-only + posted-only contract: a POSTED (created + APPROVED + nil
 // parent) transaction carrying feeApplied=true and packageAppliedID emits both
-// transaction.posted AND fee-charge.applied.
+// transaction.posted AND fee_charge.applied.
 func TestSendTransactionEvents_FeesAppliedEmittedOnPostedCharge(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
@@ -43,19 +43,19 @@ func TestSendTransactionEvents_FeesAppliedEmittedOnPostedCharge(t *testing.T) {
 	uc.SendTransactionEvents(context.Background(), tran, TransactionLifecyclePhaseCreated)
 
 	pkgStreaming.AssertEventEmitted(t, mockEmitter, "transaction", "posted")
-	pkgStreaming.AssertEventEmitted(t, mockEmitter, "fee-charge", "applied")
+	pkgStreaming.AssertEventEmitted(t, mockEmitter, "fee_charge", "applied")
 
 	var feesApplied *libStreaming.EmitRequest
 	for i := range mockEmitter.Events() {
-		if mockEmitter.Events()[i].DefinitionKey == "fee-charge.applied" {
+		if mockEmitter.Events()[i].DefinitionKey == "fee_charge.applied" {
 			feesApplied = &mockEmitter.Events()[i]
 			break
 		}
 	}
-	require.NotNil(t, feesApplied, "fee-charge.applied request must be present in emitted events")
+	require.NotNil(t, feesApplied, "fee_charge.applied request must be present in emitted events")
 
 	assert.Equal(t, tran.ID, feesApplied.Subject,
-		"fee-charge.applied Subject must be the transaction id")
+		"fee_charge.applied Subject must be the transaction id")
 
 	var payload events.FeesAppliedPayload
 	require.NoError(t, json.Unmarshal(feesApplied.Payload, &payload))
@@ -67,7 +67,7 @@ func TestSendTransactionEvents_FeesAppliedEmittedOnPostedCharge(t *testing.T) {
 
 // TestSendTransactionEvents_FeesAppliedSkippedWhenExemptionOnly locks the
 // charged-only fence: a POSTED transaction with packageAppliedID but WITHOUT
-// feeApplied (exemption-only) emits transaction.posted but NOT fee-charge.applied.
+// feeApplied (exemption-only) emits transaction.posted but NOT fee_charge.applied.
 func TestSendTransactionEvents_FeesAppliedSkippedWhenExemptionOnly(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
@@ -85,14 +85,14 @@ func TestSendTransactionEvents_FeesAppliedSkippedWhenExemptionOnly(t *testing.T)
 	pkgStreaming.AssertEventEmitted(t, mockEmitter, "transaction", "posted")
 
 	for _, e := range mockEmitter.Events() {
-		assert.NotEqual(t, "fee-charge.applied", e.DefinitionKey,
-			"exemption-only transaction must not emit fee-charge.applied")
+		assert.NotEqual(t, "fee_charge.applied", e.DefinitionKey,
+			"exemption-only transaction must not emit fee_charge.applied")
 	}
 }
 
 // TestSendTransactionEvents_FeesAppliedSkippedWhenPackageIDEmpty locks the
 // second emit guard: a POSTED transaction with feeApplied=true but an empty
-// packageAppliedID emits transaction.posted but NOT fee-charge.applied.
+// packageAppliedID emits transaction.posted but NOT fee_charge.applied.
 func TestSendTransactionEvents_FeesAppliedSkippedWhenPackageIDEmpty(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
@@ -111,14 +111,14 @@ func TestSendTransactionEvents_FeesAppliedSkippedWhenPackageIDEmpty(t *testing.T
 	pkgStreaming.AssertEventEmitted(t, mockEmitter, "transaction", "posted")
 
 	for _, e := range mockEmitter.Events() {
-		assert.NotEqual(t, "fee-charge.applied", e.DefinitionKey,
-			"empty packageAppliedID must not emit fee-charge.applied")
+		assert.NotEqual(t, "fee_charge.applied", e.DefinitionKey,
+			"empty packageAppliedID must not emit fee_charge.applied")
 	}
 }
 
 // TestSendTransactionEvents_FeesAppliedSkippedOnNonPostedPhase locks the
 // posted-only fence: a charged transaction on the updated (committed) phase
-// does NOT re-emit fee-charge.applied.
+// does NOT re-emit fee_charge.applied.
 func TestSendTransactionEvents_FeesAppliedSkippedOnNonPostedPhase(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
@@ -137,8 +137,8 @@ func TestSendTransactionEvents_FeesAppliedSkippedOnNonPostedPhase(t *testing.T) 
 	pkgStreaming.AssertEventEmitted(t, mockEmitter, "transaction", "committed")
 
 	for _, e := range mockEmitter.Events() {
-		assert.NotEqual(t, "fee-charge.applied", e.DefinitionKey,
-			"committed (updated) phase must not emit fee-charge.applied")
+		assert.NotEqual(t, "fee_charge.applied", e.DefinitionKey,
+			"committed (updated) phase must not emit fee_charge.applied")
 	}
 }
 

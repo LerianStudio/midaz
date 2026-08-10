@@ -13,17 +13,16 @@ import (
 )
 
 // InstrumentRelatedPartyDeletedDefinition is the routing contract for
-// instrument.related-party-deleted. The EventType uses a HYPHEN: the
-// lib-streaming route-key validator rejects underscores, so this must stay
-// hyphenated. IMPORTANT posture: emit failures MUST NOT fail the request.
+// instrument.related_party_deleted. IMPORTANT posture: emit failures MUST NOT
+// fail the request.
 var InstrumentRelatedPartyDeletedDefinition = Definition{
 	ResourceType:  "instrument",
-	EventType:     "related-party-deleted",
+	EventType:     "related_party_deleted",
 	SchemaVersion: "1.0.0",
 }
 
 // InstrumentRelatedPartyDeletedPayload is the wire payload for
-// instrument.related-party-deleted. It carries the instrument + holder +
+// instrument.related_party_deleted. It carries the instrument + holder +
 // organization scope and the removed related-party ID. There is NO
 // deletionType: removing a related party is always a pointwise removal, not a
 // soft/hard distinction. No related-party PII (document, name, role, dates)

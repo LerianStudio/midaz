@@ -60,17 +60,12 @@ const (
 // (rejected by the scope guard in UseCase.Update). The companion
 // auto-create runs from the system, not the public PATCH path.
 //
-// IMPORTANT posture: emit failures MUST NOT fail the request.
-// EventType uses the HYPHEN form `config-changed` because the
-// lib-streaming route-key regex `^[a-z0-9][a-z0-9-]*(\.[a-z0-9][a-z0-9-]*)+$`
-// rejects underscores. The wire topic is
-// `lerian.streaming.ledger_balance.config_changed` (hyphens in the route
-// key become underscores in the topic name only). Payload field VALUES
-// (e.g. changeType="settings_updated") may keep snake_case because
-// they are payload data, not routing identifiers.
+// IMPORTANT posture: emit failures MUST NOT fail the request. Payload field
+// VALUES (e.g. changeType="settings_updated") stay snake_case: they are
+// payload data, not routing identifiers.
 var BalanceConfigChangedDefinition = Definition{
 	ResourceType:  "balance",
-	EventType:     "config-changed",
+	EventType:     "config_changed",
 	SchemaVersion: "1.0.0",
 }
 

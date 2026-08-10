@@ -26,8 +26,9 @@ const (
 
 // TestFeesBillingPackageCreatedDefinition_Key locks the canonical event key.
 func TestFeesBillingPackageCreatedDefinition_Key(t *testing.T) {
-	assert.Equal(t, "fee-billing-packages.created", events.FeesBillingPackageCreatedDefinition.Key())
-	assert.Equal(t, "fee-billing-packages", events.FeesBillingPackageCreatedDefinition.ResourceType)
+	assert.Equal(t, "fee_billing_packages.created", events.FeesBillingPackageCreatedDefinition.Key())
+	assert.Equal(t, "fee-billing-packages.created", events.FeesBillingPackageCreatedDefinition.RouteKey())
+	assert.Equal(t, "fee_billing_packages", events.FeesBillingPackageCreatedDefinition.ResourceType)
 	assert.Equal(t, "created", events.FeesBillingPackageCreatedDefinition.EventType)
 	assert.Equal(t, "1.0.0", events.FeesBillingPackageCreatedDefinition.SchemaVersion)
 }

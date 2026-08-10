@@ -343,7 +343,7 @@ func TestUpdatePackageByID_UpdatedAtFieldSet(t *testing.T) {
 }
 
 // TestUpdatePackageByID_EmitsFeesPackageUpdated asserts a successful update emits
-// the fee-packages.updated event, built from the entity returned by Update.
+// the fee_packages.updated event, built from the entity returned by Update.
 func TestUpdatePackageByID_EmitsFeesPackageUpdated(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
@@ -388,7 +388,7 @@ func TestUpdatePackageByID_EmitsFeesPackageUpdated(t *testing.T) {
 	err := svc.UpdatePackageByID(context.Background(), packID, orgID, uuid.Nil, input)
 	require.NoError(t, err)
 
-	pkgStreaming.AssertEventEmitted(t, mockEmitter, "fee-packages", "updated")
+	pkgStreaming.AssertEventEmitted(t, mockEmitter, "fee_packages", "updated")
 
 	emitted := mockEmitter.Events()
 	require.Len(t, emitted, 1)

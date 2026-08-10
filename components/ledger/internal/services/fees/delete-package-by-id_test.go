@@ -109,7 +109,7 @@ func TestDeletePackageById(t *testing.T) {
 }
 
 // TestDeletePackageByID_EmitsFeesPackageDeleted asserts a successful delete emits
-// the fee-packages.deleted event, using the ledger resolved by an independent
+// the fee_packages.deleted event, using the ledger resolved by an independent
 // FindByID call (DECISION 2).
 func TestDeletePackageByID_EmitsFeesPackageDeleted(t *testing.T) {
 	ctrl := gomock.NewController(t)
@@ -139,7 +139,7 @@ func TestDeletePackageByID_EmitsFeesPackageDeleted(t *testing.T) {
 	err := svc.DeletePackageByID(context.Background(), packID, orgID, uuid.Nil)
 	require.NoError(t, err)
 
-	pkgStreaming.AssertEventEmitted(t, mockEmitter, "fee-packages", "deleted")
+	pkgStreaming.AssertEventEmitted(t, mockEmitter, "fee_packages", "deleted")
 
 	emitted := mockEmitter.Events()
 	require.Len(t, emitted, 1)

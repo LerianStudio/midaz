@@ -14,25 +14,23 @@ import (
 	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
 )
 
-// OperationRouteCreatedDefinition is the routing contract for operation-route.created.
+// OperationRouteCreatedDefinition is the routing contract for operation_route.created.
 // Emission anchor: components/ledger/internal/services/command/create_operation_route.go,
 // immediately after OperationRouteRepo.Create succeeds and before the
 // metadata-write call.
 //
 // IMPORTANT posture: emit failures MUST NOT fail the request.
 //
-// Note on resource type: the wire format uses the hyphen form
-// `operation-route`. The lib-streaming route-key regex
-// `^[a-z0-9][a-z0-9-]*(\.[a-z0-9][a-z0-9-]*)+$` REJECTS underscores, so
-// the canonical wire name diverges from the JSON entity name
-// (`OperationRoute`) and the HTTP route segment (`operation-routes`).
+// Note on resource type: the canonical wire name (`operation_route`) diverges
+// from the JSON entity name (`OperationRoute`) and the HTTP route segment
+// (`operation-routes`).
 var OperationRouteCreatedDefinition = Definition{
-	ResourceType:  "operation-route",
+	ResourceType:  "operation_route",
 	EventType:     "created",
 	SchemaVersion: "1.0.0",
 }
 
-// OperationRouteCreatedPayload is the wire payload for operation-route.created.
+// OperationRouteCreatedPayload is the wire payload for operation_route.created.
 //
 // Optional fields (Description, Code, Account, AccountingEntries) use
 // omitempty to mirror the HTTP response contract: a route created with

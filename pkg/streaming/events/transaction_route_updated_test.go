@@ -14,8 +14,9 @@ import (
 )
 
 func TestTransactionRouteUpdatedDefinition_Key(t *testing.T) {
-	assert.Equal(t, "transaction-route.updated", events.TransactionRouteUpdatedDefinition.Key())
-	assert.Equal(t, "transaction-route", events.TransactionRouteUpdatedDefinition.ResourceType)
+	assert.Equal(t, "transaction_route.updated", events.TransactionRouteUpdatedDefinition.Key())
+	assert.Equal(t, "transaction-route.updated", events.TransactionRouteUpdatedDefinition.RouteKey())
+	assert.Equal(t, "transaction_route", events.TransactionRouteUpdatedDefinition.ResourceType)
 	assert.Equal(t, "updated", events.TransactionRouteUpdatedDefinition.EventType)
 	assert.Equal(t, "1.0.0", events.TransactionRouteUpdatedDefinition.SchemaVersion)
 }
@@ -65,7 +66,7 @@ func TestTransactionRouteUpdatedPayload_JSONShape_OmitsCreatedAt(t *testing.T) {
 	}
 
 	_, hasCreatedAt := generic["createdAt"]
-	assert.False(t, hasCreatedAt, "createdAt must NOT appear on transaction-route.updated")
+	assert.False(t, hasCreatedAt, "createdAt must NOT appear on transaction_route.updated")
 
 	_, hasDescription := generic["description"]
 	assert.False(t, hasDescription, "description must omitempty when empty")

@@ -55,8 +55,9 @@ func operationRouteWithAccountingEntries() *mmodel.OperationRoute {
 }
 
 func TestOperationRouteCreatedDefinition_Key(t *testing.T) {
-	assert.Equal(t, "operation-route.created", events.OperationRouteCreatedDefinition.Key())
-	assert.Equal(t, "operation-route", events.OperationRouteCreatedDefinition.ResourceType)
+	assert.Equal(t, "operation_route.created", events.OperationRouteCreatedDefinition.Key())
+	assert.Equal(t, "operation-route.created", events.OperationRouteCreatedDefinition.RouteKey())
+	assert.Equal(t, "operation_route", events.OperationRouteCreatedDefinition.ResourceType)
 	assert.Equal(t, "created", events.OperationRouteCreatedDefinition.EventType)
 	assert.Equal(t, "1.0.0", events.OperationRouteCreatedDefinition.SchemaVersion)
 }

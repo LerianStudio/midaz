@@ -344,22 +344,24 @@ func buildCatalog() (libStreaming.Catalog, error) {
 // is the event's producing product (ledger core / fee / crm) from the
 // per-product registry — NOT a single shared segment.
 //
-// Route Keys are composed as "<definition-key>.<target-name>" (e.g.
-// "account.created.primary") — Route.Key must match a lower-case
-// dot-delimited pattern, and the target-name suffix guarantees uniqueness
-// when the same event is later routed to multiple targets (e.g. a parallel
-// shadow route).
+// Route Keys are composed as "<route-key>.<target-name>" (e.g.
+// "account.created.primary"), where <route-key> is the hyphenated routing
+// handle (RouteKey()) — Route.Key must match lib-streaming's lower-case
+// hyphenated dot-delimited grammar, and the target-name suffix guarantees
+// uniqueness when the same event is later routed to multiple targets (e.g. a
+// parallel shadow route).
 func buildRoutes(targetName string) []libStreaming.RouteDefinition {
 	defs := midazEventDefinitions()
 	routes := make([]libStreaming.RouteDefinition, 0, len(defs))
 
 	for _, rd := range defs {
 		key := rd.def.Key()
+		routeKey := rd.def.RouteKey()
 		routes = append(routes, libStreaming.RouteDefinition{
-			Key:           key + "." + targetName,
+			Key:           routeKey + "." + targetName,
 			DefinitionKey: key,
 			Target:        targetName,
-			Destination:   libStreaming.KafkaTopic(pkgStreaming.TopicName(rd.service, key)),
+			Destination:   libStreaming.KafkaTopic(pkgStreaming.TopicName(rd.service, routeKey)),
 			Requirement:   libStreaming.RouteRequired,
 		})
 	}

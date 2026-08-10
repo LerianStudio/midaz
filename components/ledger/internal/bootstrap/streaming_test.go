@@ -82,16 +82,16 @@ func TestBuildRoutes_BalanceChangedTopic(t *testing.T) {
 }
 
 // TestBuildRoutes_HyphenatedTopics pins the wire topic names for the ledger
-// event keys whose <resource> or <event> segment is hyphenated — exactly the
-// keys where the hyphen-to-underscore fold on the topic name (but NOT on the
-// route Key / ce-type) is easiest to get wrong.
+// events whose <resource> or <event> segment carries an underscore in the
+// canonical key and a hyphen in the route key — exactly where the
+// route-key-to-topic fold is easiest to get wrong.
 func TestBuildRoutes_HyphenatedTopics(t *testing.T) {
 	t.Parallel()
 
 	want := map[string]string{
-		"operation-route.created": "lerian.streaming.ledger_operation_route.created",
-		"balance.config-changed":  "lerian.streaming.ledger_balance.config_changed",
-		"balance.overdraft-drawn": "lerian.streaming.ledger_balance.overdraft_drawn",
+		"operation_route.created": "lerian.streaming.ledger_operation_route.created",
+		"balance.config_changed":  "lerian.streaming.ledger_balance.config_changed",
+		"balance.overdraft_drawn": "lerian.streaming.ledger_balance.overdraft_drawn",
 	}
 
 	got := make(map[string]string, len(want))

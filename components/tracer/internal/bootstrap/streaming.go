@@ -343,21 +343,24 @@ func buildCatalog() (libStreaming.Catalog, error) {
 // "lerian.streaming.<service>_<resource>.<event>" (service = tracer),
 // rendered via pkgStreaming.TopicName.
 //
-// Route Keys are composed as "<definition-key>.<target-name>" (e.g.
-// "rule.created.primary") — Route.Key must match a lower-case dot-delimited
-// pattern, and the target-name suffix guarantees uniqueness when the same
-// event is later routed to multiple targets (e.g. a parallel shadow route).
+// Route Keys are composed as "<route-key>.<target-name>" (e.g.
+// "rule.created.primary"), where <route-key> is the hyphenated routing handle
+// (RouteKey()) — Route.Key must match lib-streaming's lower-case hyphenated
+// dot-delimited grammar, and the target-name suffix guarantees uniqueness when
+// the same event is later routed to multiple targets (e.g. a parallel shadow
+// route).
 func buildRoutes(targetName string) []libStreaming.RouteDefinition {
 	defs := tracerEventDefinitions()
 	routes := make([]libStreaming.RouteDefinition, 0, len(defs))
 
 	for _, d := range defs {
 		key := d.Key()
+		routeKey := d.RouteKey()
 		routes = append(routes, libStreaming.RouteDefinition{
-			Key:           key + "." + targetName,
+			Key:           routeKey + "." + targetName,
 			DefinitionKey: key,
 			Target:        targetName,
-			Destination:   libStreaming.KafkaTopic(pkgStreaming.TopicName(streamingServiceName, key)),
+			Destination:   libStreaming.KafkaTopic(pkgStreaming.TopicName(streamingServiceName, routeKey)),
 			Requirement:   libStreaming.RouteRequired,
 		})
 	}

@@ -30,8 +30,9 @@ var billingPkgDeletedTime = time.Date(2026, 6, 1, 0, 0, 0, 0, time.UTC)
 
 // TestFeesBillingPackageDeletedDefinition_Key locks the canonical event key.
 func TestFeesBillingPackageDeletedDefinition_Key(t *testing.T) {
-	assert.Equal(t, "fee-billing-packages.deleted", events.FeesBillingPackageDeletedDefinition.Key())
-	assert.Equal(t, "fee-billing-packages", events.FeesBillingPackageDeletedDefinition.ResourceType)
+	assert.Equal(t, "fee_billing_packages.deleted", events.FeesBillingPackageDeletedDefinition.Key())
+	assert.Equal(t, "fee-billing-packages.deleted", events.FeesBillingPackageDeletedDefinition.RouteKey())
+	assert.Equal(t, "fee_billing_packages", events.FeesBillingPackageDeletedDefinition.ResourceType)
 	assert.Equal(t, "deleted", events.FeesBillingPackageDeletedDefinition.EventType)
 	assert.Equal(t, "1.0.0", events.FeesBillingPackageDeletedDefinition.SchemaVersion)
 }

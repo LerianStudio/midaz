@@ -43,6 +43,11 @@ func TestMidazCatalogRoutesAssembly(t *testing.T) {
 	// carries the ".primary" target suffix).
 	defKeys := make(map[string]struct{}, len(defs))
 	serviceByKey := make(map[string]string, len(defs))
+	// routeKeyByKey folds the underscored canonical Key() back to the hyphenated
+	// RouteKey(). Expected topics must derive from the route key (what production
+	// feeds into TopicName), not the DefinitionKey — otherwise the "fee-" prefix
+	// strip cannot fire and the fee topics would regress to "fee_fee_*".
+	routeKeyByKey := make(map[string]string, len(defs))
 
 	for _, rd := range defs {
 		key := rd.def.Key()
@@ -50,6 +55,7 @@ func TestMidazCatalogRoutesAssembly(t *testing.T) {
 		require.False(t, dup, "duplicate definition key %q in midazEventDefinitions", key)
 		defKeys[key] = struct{}{}
 		serviceByKey[key] = rd.service
+		routeKeyByKey[key] = rd.def.RouteKey()
 	}
 
 	seenRouteKeys := make(map[string]struct{}, len(routes))
@@ -60,7 +66,7 @@ func TestMidazCatalogRoutesAssembly(t *testing.T) {
 		service, ok := serviceByKey[r.DefinitionKey]
 		require.Truef(t, ok, "route DefinitionKey %q has no matching event definition (dead/ghost route)", r.DefinitionKey)
 
-		wantTopic := libStreaming.KafkaTopic(pkgStreaming.TopicName(service, r.DefinitionKey))
+		wantTopic := libStreaming.KafkaTopic(pkgStreaming.TopicName(service, routeKeyByKey[r.DefinitionKey]))
 		assert.Equal(t, wantTopic, r.Destination,
 			"route for %q must target topic %q", r.DefinitionKey, wantTopic)
 
@@ -165,27 +171,51 @@ func TestMidazCatalogRoutesAssembly(t *testing.T) {
 			continue
 		}
 
-		wantTopic := libStreaming.KafkaTopic(pkgStreaming.TopicName(want, r.DefinitionKey))
+		wantTopic := libStreaming.KafkaTopic(pkgStreaming.TopicName(want, routeKeyByKey[r.DefinitionKey]))
 		assert.Equalf(t, wantTopic, r.Destination,
 			"route %q must target %q (independent service lock)", r.DefinitionKey, wantTopic)
+	}
+
+	// Fee-family destination lock (underscore canonicalization): the route key
+	// folds the underscored DefinitionKey back to the hyphenated routing handle
+	// before TopicName strips the "fee-" prefix, so fee topics keep a single
+	// "fee_" segment and never regress to "fee_fee_*". Literal broker topics so
+	// feeding the DefinitionKey (instead of the route key) into TopicName fails.
+	destByKey := make(map[string]string, len(routes))
+	for _, r := range routes {
+		destByKey[r.DefinitionKey] = r.Destination.Name
+	}
+
+	feeTopics := map[string]string{
+		"fee_packages.created":         "lerian.streaming.fee_packages.created",
+		"fee_packages.updated":         "lerian.streaming.fee_packages.updated",
+		"fee_packages.deleted":         "lerian.streaming.fee_packages.deleted",
+		"fee_billing_packages.created": "lerian.streaming.fee_billing_packages.created",
+		"fee_billing_packages.updated": "lerian.streaming.fee_billing_packages.updated",
+		"fee_billing_packages.deleted": "lerian.streaming.fee_billing_packages.deleted",
+		"fee_charge.applied":           "lerian.streaming.fee_charge.applied",
+	}
+	for key, topic := range feeTopics {
+		assert.Equalf(t, topic, destByKey[key],
+			"fee route %q must target %q (no fee_fee_* regression)", key, topic)
 	}
 }
 
 // TestFeesEventsRegistered locks the fee events into the assembled catalog: the
-// fee package / billing-package keys plus fee-charge.applied must be a subset of the
+// fee package / billing-package keys plus fee_charge.applied must be a subset of the
 // catalog keys, so a dropped fee registration is caught before it becomes a
 // silent gap.
 func TestFeesEventsRegistered(t *testing.T) {
 	t.Parallel()
 
 	expected := []string{
-		"fee-packages.created",
-		"fee-packages.updated",
-		"fee-packages.deleted",
-		"fee-billing-packages.created",
-		"fee-billing-packages.updated",
-		"fee-billing-packages.deleted",
-		"fee-charge.applied",
+		"fee_packages.created",
+		"fee_packages.updated",
+		"fee_packages.deleted",
+		"fee_billing_packages.created",
+		"fee_billing_packages.updated",
+		"fee_billing_packages.deleted",
+		"fee_charge.applied",
 	}
 
 	catalog, err := buildCatalog()
@@ -202,7 +232,7 @@ func TestFeesEventsRegistered(t *testing.T) {
 	}
 
 	// Guard against the key strings drifting from the Definition vars.
-	assert.Equal(t, "fee-packages.created", events.FeesPackageCreatedDefinition.Key())
-	assert.Equal(t, "fee-billing-packages.deleted", events.FeesBillingPackageDeletedDefinition.Key())
-	assert.Equal(t, "fee-charge.applied", events.FeesAppliedDefinition.Key())
+	assert.Equal(t, "fee_packages.created", events.FeesPackageCreatedDefinition.Key())
+	assert.Equal(t, "fee_billing_packages.deleted", events.FeesBillingPackageDeletedDefinition.Key())
+	assert.Equal(t, "fee_charge.applied", events.FeesAppliedDefinition.Key())
 }
