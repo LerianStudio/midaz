@@ -113,6 +113,19 @@ const operationPkgPath = "github.com/LerianStudio/midaz/v4/components/ledger/int
 // swaggo swagger.json contract is generated independently and untouched.
 const transactionPkgPath = "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/transaction"
 
+// mtransactionPkgPath is the import path of the transaction domain package. Its
+// mtransaction.Transaction (the transaction projection embedded in the fee-estimate
+// request body) carries the bare name "Transaction", which collides on the shared
+// registry with the postgres transaction.Transaction response body already named
+// "Transaction". The type documents its own contract name (`// @name TransactionInput`),
+// so it is published under that name — additive, since mtransaction.Transaction was
+// never schema-generated before typed request bodies. Only the "Transaction" name is
+// remapped: every other mtransaction type (CreateTransactionV2Input, V2LegInput, and the
+// v1 create-input graph — Send/Source/FromTo/Amount/Share/Rate/…) keeps its bare name,
+// which is what the already-published v2 contract binds to. Matched as a STRING for the
+// same layering reason as operationPkgPath.
+const mtransactionPkgPath = "github.com/LerianStudio/midaz/v4/pkg/mtransaction"
+
 // feePkgPathPrefix roots the Wave-3 fee/billing packages whose response-body types
 // register on the shared ledger Huma registry: feeshared/model (Pagination,
 // BillingPackage, BillingCalculateResponse, and their nested tiers) and
@@ -152,6 +165,10 @@ func ledgerSchemaNamer(t reflect.Type, hint string) string {
 
 	if dt.PkgPath() == transactionPkgPath {
 		return qualify(name, "Transaction")
+	}
+
+	if dt.PkgPath() == mtransactionPkgPath && name == "Transaction" {
+		return "TransactionInput"
 	}
 
 	if feePkgPaths[dt.PkgPath()] {

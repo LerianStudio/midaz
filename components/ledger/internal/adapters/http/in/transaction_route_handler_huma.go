@@ -281,6 +281,7 @@ func RegisterTransactionRouteRoutes(api huma.API, h *TransactionRouteHandler, op
 		SkipValidateBody: true,
 		DefaultStatus:    http.StatusCreated,
 	}, h.CreateTransactionRouteHuma)
+	attachTypedRequestBody[mmodel.CreateTransactionRouteInput](api, "createTransactionRoute"+opSuffix)
 
 	huma.Register(api, huma.Operation{
 		OperationID: "listTransactionRoutes" + opSuffix,
@@ -309,6 +310,7 @@ func RegisterTransactionRouteRoutes(api huma.API, h *TransactionRouteHandler, op
 		Security:         secTransactionRouteBearer,
 		SkipValidateBody: true, // body validated imperatively — see file header.
 	}, h.UpdateTransactionRouteHuma)
+	attachTypedRequestBody[mmodel.UpdateTransactionRouteInput](api, "updateTransactionRoute"+opSuffix)
 
 	huma.Register(api, huma.Operation{
 		OperationID: "deleteTransactionRoute" + opSuffix,

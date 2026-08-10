@@ -286,6 +286,7 @@ func RegisterOrganizationRoutes(api huma.API, h *OrganizationHandler, opSuffix s
 		SkipValidateBody: true,
 		DefaultStatus:    http.StatusCreated,
 	}, h.CreateOrganizationHuma)
+	attachTypedRequestBody[mmodel.CreateOrganizationInput](api, "createOrganization"+opSuffix)
 
 	huma.Register(api, huma.Operation{
 		OperationID: "listOrganizations" + opSuffix,
@@ -314,6 +315,7 @@ func RegisterOrganizationRoutes(api huma.API, h *OrganizationHandler, opSuffix s
 		Security:         secOrgBearerOrAPIKey,
 		SkipValidateBody: true, // body validated imperatively — see createOrganization.
 	}, h.UpdateOrganizationHuma)
+	attachTypedRequestBody[mmodel.UpdateOrganizationInput](api, "updateOrganization"+opSuffix)
 
 	huma.Register(api, huma.Operation{
 		OperationID: "deleteOrganization" + opSuffix,

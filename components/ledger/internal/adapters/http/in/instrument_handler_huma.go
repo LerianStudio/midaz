@@ -373,6 +373,7 @@ func RegisterInstrumentRoutes(api huma.API, h *InstrumentHandler, opSuffix strin
 		SkipValidateBody: true,
 		DefaultStatus:    http.StatusCreated,
 	}, h.CreateInstrumentHuma)
+	attachTypedRequestBody[mmodel.CreateInstrumentInput](api, "createInstrument"+opSuffix)
 
 	huma.Register(api, huma.Operation{
 		OperationID: "getInstrumentByID" + opSuffix,
@@ -392,6 +393,7 @@ func RegisterInstrumentRoutes(api huma.API, h *InstrumentHandler, opSuffix strin
 		Security:         secInstrumentBearer,
 		SkipValidateBody: true, // body validated imperatively — RFC 7396 merge-patch core.
 	}, h.UpdateInstrumentHuma)
+	attachTypedRequestBody[mmodel.UpdateInstrumentInput](api, "updateInstrument"+opSuffix)
 
 	huma.Register(api, huma.Operation{
 		OperationID: "deleteInstrument" + opSuffix,

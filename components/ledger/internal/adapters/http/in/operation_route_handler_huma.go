@@ -284,6 +284,7 @@ func RegisterOperationRouteRoutes(api huma.API, h *OperationRouteHandler, opSuff
 		SkipValidateBody: true,
 		DefaultStatus:    http.StatusCreated,
 	}, h.CreateOperationRouteHuma)
+	attachTypedRequestBody[mmodel.CreateOperationRouteInput](api, "createOperationRoute"+opSuffix)
 
 	huma.Register(api, huma.Operation{
 		OperationID: "listOperationRoutes" + opSuffix,
@@ -312,6 +313,7 @@ func RegisterOperationRouteRoutes(api huma.API, h *OperationRouteHandler, opSuff
 		Security:         secOperationRouteBearer,
 		SkipValidateBody: true, // body validated imperatively — RFC 7396 merge-patch core.
 	}, h.UpdateOperationRouteHuma)
+	attachTypedRequestBody[mmodel.UpdateOperationRouteInput](api, "updateOperationRoute"+opSuffix)
 
 	huma.Register(api, huma.Operation{
 		OperationID: "deleteOperationRoute" + opSuffix,

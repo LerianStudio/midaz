@@ -152,4 +152,5 @@ func RegisterFeeEstimateRoutes(api huma.API, h *FeeHandler) {
 		// Body validated imperatively (feehttp.DecodeValidateBody) — see file header.
 		SkipValidateBody: true,
 	}, h.EstimateFeeCalculationHuma)
+	attachTypedRequestBody[model.FeeEstimate](api, "estimateFeeCalculation")
 }

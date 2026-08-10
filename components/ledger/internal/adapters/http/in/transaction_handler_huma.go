@@ -511,6 +511,7 @@ func RegisterTransactionRoutes(api huma.API, h *TransactionHandler) {
 		SkipValidateBody: true, // body validated imperatively (http.DecodeAndValidate) — see file header.
 		DefaultStatus:    http.StatusCreated,
 	}, h.CreateTransactionJSONHuma)
+	attachTypedRequestBody[mtransaction.CreateTransactionInput](api, "createTransactionJSON")
 
 	huma.Register(api, huma.Operation{
 		OperationID:      "createTransactionInflow",
@@ -522,6 +523,7 @@ func RegisterTransactionRoutes(api huma.API, h *TransactionHandler) {
 		SkipValidateBody: true,
 		DefaultStatus:    http.StatusCreated,
 	}, h.CreateTransactionInflowHuma)
+	attachTypedRequestBody[mtransaction.CreateTransactionInflowInput](api, "createTransactionInflow")
 
 	huma.Register(api, huma.Operation{
 		OperationID:      "createTransactionOutflow",
@@ -533,6 +535,7 @@ func RegisterTransactionRoutes(api huma.API, h *TransactionHandler) {
 		SkipValidateBody: true,
 		DefaultStatus:    http.StatusCreated,
 	}, h.CreateTransactionOutflowHuma)
+	attachTypedRequestBody[mtransaction.CreateTransactionOutflowInput](api, "createTransactionOutflow")
 
 	huma.Register(api, huma.Operation{
 		OperationID:      "createTransactionAnnotation",
@@ -544,6 +547,7 @@ func RegisterTransactionRoutes(api huma.API, h *TransactionHandler) {
 		SkipValidateBody: true,
 		DefaultStatus:    http.StatusCreated,
 	}, h.CreateTransactionAnnotationHuma)
+	attachTypedRequestBody[mtransaction.CreateTransactionInput](api, "createTransactionAnnotation")
 
 	huma.Register(api, huma.Operation{
 		OperationID:      "createTransactionBlock",
@@ -555,6 +559,7 @@ func RegisterTransactionRoutes(api huma.API, h *TransactionHandler) {
 		SkipValidateBody: true,
 		DefaultStatus:    http.StatusCreated,
 	}, h.CreateTransactionBlockHuma)
+	attachTypedRequestBody[mtransaction.CreateTransactionInput](api, "createTransactionBlock")
 
 	huma.Register(api, huma.Operation{
 		OperationID:      "createTransactionUnblock",
@@ -566,6 +571,7 @@ func RegisterTransactionRoutes(api huma.API, h *TransactionHandler) {
 		SkipValidateBody: true,
 		DefaultStatus:    http.StatusCreated,
 	}, h.CreateTransactionUnblockHuma)
+	attachTypedRequestBody[mtransaction.CreateTransactionInput](api, "createTransactionUnblock")
 
 	huma.Register(api, huma.Operation{
 		OperationID: "commitTransaction",
@@ -607,6 +613,7 @@ func RegisterTransactionRoutes(api huma.API, h *TransactionHandler) {
 		Security:         secTransactionBearer,
 		SkipValidateBody: true, // body validated imperatively — plain decode, not merge-patch.
 	}, h.UpdateTransactionHuma)
+	attachTypedRequestBody[transaction.UpdateTransactionInput](api, "updateTransaction")
 
 	huma.Register(api, huma.Operation{
 		OperationID: "getTransaction",

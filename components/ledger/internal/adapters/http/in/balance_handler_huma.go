@@ -518,6 +518,7 @@ func RegisterBalanceRoutes(api huma.API, h *BalanceHandler, opSuffix string) {
 		Security:         secAssetBearerOrAPIKey,
 		SkipValidateBody: true, // body validated imperatively — see file header.
 	}, h.UpdateBalanceHuma)
+	attachTypedRequestBody[mmodel.UpdateBalance](api, "updateBalance"+opSuffix)
 
 	huma.Register(api, huma.Operation{
 		OperationID:      "createAdditionalBalance" + opSuffix,
@@ -529,6 +530,7 @@ func RegisterBalanceRoutes(api huma.API, h *BalanceHandler, opSuffix string) {
 		SkipValidateBody: true, // body validated imperatively — see file header.
 		DefaultStatus:    http.StatusCreated,
 	}, h.CreateAdditionalBalanceHuma)
+	attachTypedRequestBody[mmodel.CreateAdditionalBalance](api, "createAdditionalBalance"+opSuffix)
 
 	huma.Register(api, huma.Operation{
 		OperationID: "deleteBalance" + opSuffix,
