@@ -16,6 +16,7 @@ import (
 
 	libObservability "github.com/LerianStudio/lib-observability/v2"
 	libLog "github.com/LerianStudio/lib-observability/v2/log"
+	libRuntime "github.com/LerianStudio/lib-observability/v2/runtime"
 	libOpentelemetry "github.com/LerianStudio/lib-observability/v2/tracing"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgconn"
@@ -587,7 +588,7 @@ func (uc *UseCase) processMetadataAndEvents(
 
 			var wg sync.WaitGroup
 
-			wg.Add(3)
+			wg.Add(4)
 
 			go func() {
 				defer wg.Done()
@@ -599,6 +600,17 @@ func (uc *UseCase) processMetadataAndEvents(
 				defer wg.Done()
 
 				runWithTimeout(func(c context.Context) { uc.SendBalanceChangedEvents(c, tx) })
+			}()
+			// Billing shares the same phase gate as SendTransactionEvents above, so
+			// it inherits the same once-per-posted-tx idempotency. It is the newest
+			// emitter and is wrapped in panic recovery here; the three sibling
+			// goroutines above lack recovery as a pre-existing, separately tracked
+			// follow-up — do not wrap them in this change.
+			go func() {
+				defer wg.Done()
+				defer libRuntime.RecoverWithPolicyAndContext(base, logger, "transaction", "send-active-account-billing", libRuntime.KeepRunning)
+
+				runWithTimeout(func(c context.Context) { uc.SendActiveAccountBillingEvents(c, tx, phase) })
 			}()
 
 			wg.Wait()

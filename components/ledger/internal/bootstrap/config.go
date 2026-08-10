@@ -808,6 +808,12 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 		addCleanup(func() { _ = streamingClose() })
 	}
 
+	// === Billing serializer (metering) ===
+	// Built once here (one Schema Registry round-trip at construction), never on
+	// the request path. Graceful degradation: a nil value means billing is
+	// disabled (registry absent/unreachable at boot) and never fails startup.
+	billingSerializer := buildBillingSerializerFromEnv(context.Background(), logger)
+
 	// === Use cases ===
 
 	// Arm lib-observability's panic-observability trident so every
@@ -847,6 +853,18 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 		// Observability (D6)
 		MetricsFactory: metricsFactory,
 	}
+
+	// Nil-guard the billing serializer assignment via the tested UseCase setter:
+	// buildBillingSerializerFromEnv returns a concrete *billing.Serializer, and a
+	// nil one assigned directly to the interface field would become a non-nil
+	// typed-nil interface. SetBillingSerializer keeps that guard in one place, so
+	// commandUseCase.BillingSerializer stays nil (the "billing disabled" signal).
+	commandUseCase.SetBillingSerializer(billingSerializer)
+
+	// Selects the active-account billing subscription identity: the resolved
+	// tenant ID when multi-tenant is enabled, otherwise the transaction's
+	// OrganizationID.
+	commandUseCase.MultiTenantEnabled = cfg.MultiTenantEnabled
 
 	queryUseCase := &query.UseCase{
 		// Onboarding domain
