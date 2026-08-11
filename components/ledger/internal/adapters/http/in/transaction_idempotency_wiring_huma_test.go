@@ -236,7 +236,7 @@ func TestHuma_CreateHolder_CanonicalIdempotencyHeaderReachesCore(t *testing.T) {
 	app := buildHumaHolderApp(t, handler, true)
 
 	body, _ := json.Marshal(map[string]any{"type": "NATURAL_PERSON", "name": "John Doe", "document": "91315026015"})
-	req := httptest.NewRequest(http.MethodPost, "/v1/organizations/"+orgID.String()+"/holders", bytes.NewReader(body))
+	req := httptest.NewRequest(http.MethodPost, "/v2/organizations/"+orgID.String()+"/holders", bytes.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set(libConstants.IdempotencyKey, stableKey)
 	req.Header.Set(libConstants.IdempotencyTTL, customTTLSec)

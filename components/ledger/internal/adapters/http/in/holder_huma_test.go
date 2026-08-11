@@ -30,9 +30,9 @@ import (
 	pkgHTTP "github.com/LerianStudio/midaz/v4/pkg/net/http"
 )
 
-// buildHumaHolderApp mounts the five holder Huma operations on a /v1 group,
+// buildHumaHolderApp mounts the five holder Huma operations on a /v2 group,
 // faithfully mirroring the production wiring in unified-server.go: problem.Install()
-// runs before any huma.Register, the Huma API is built with openapi.New over a /v1
+// runs before any huma.Register, the Huma API is built with openapi.New over a /v2
 // group, an auth-shim middleware stands in for auth.Authorize("midaz","holders",verb)
 // + tenant PostAuthMiddlewares, and http.ParseUUIDPathParameters("holder") +
 // RegisterHolderRoutes attach the chain.
@@ -50,9 +50,9 @@ func buildHumaHolderApp(t *testing.T, handler *HolderHandler, authOK bool) *fibe
 
 	libProblem.Install()
 
-	apiV1 := f.Group("/v1")
+	apiV2 := f.Group("/v2")
 
-	apiV1.Use(func(c fiber.Ctx) error {
+	apiV2.Use(func(c fiber.Ctx) error {
 		if !authOK {
 			return pkgHTTP.Unauthorized(c, "0001", "Unauthorized", "auth required")
 		}
@@ -60,17 +60,17 @@ func buildHumaHolderApp(t *testing.T, handler *HolderHandler, authOK bool) *fibe
 		return c.Next()
 	})
 
-	hAPI := openapi.New(f, apiV1, openapi.Config{Title: "ledger-test", Version: "test", Servers: []string{"/v1"}})
+	hAPI := openapi.New(f, apiV2, openapi.Config{Title: "ledger-test", Version: "test", Servers: []string{"/v2"}})
 
 	parse := pkgHTTP.ParseUUIDPathParameters("holder")
 	base := "/organizations/:organization_id/holders"
-	apiV1.Post(base, parse)
-	apiV1.Get(base, parse)
-	apiV1.Get(base+"/:id", parse)
-	apiV1.Patch(base+"/:id", parse)
-	apiV1.Delete(base+"/:id", parse)
+	apiV2.Post(base, parse)
+	apiV2.Get(base, parse)
+	apiV2.Get(base+"/:id", parse)
+	apiV2.Patch(base+"/:id", parse)
+	apiV2.Delete(base+"/:id", parse)
 
-	RegisterHolderRoutes(hAPI, handler, crmOpSuffixV1)
+	RegisterHolderRoutes(hAPI, handler, crmOpSuffixV2)
 
 	return f
 }
@@ -103,7 +103,7 @@ func TestHuma_CreateHolder_Success(t *testing.T) {
 	app := buildHumaHolderApp(t, handler, true)
 
 	body, _ := json.Marshal(map[string]any{"type": "NATURAL_PERSON", "name": "John Doe", "document": "91315026015"})
-	req := httptest.NewRequest(http.MethodPost, "/v1/organizations/"+orgID.String()+"/holders", bytes.NewReader(body))
+	req := httptest.NewRequest(http.MethodPost, "/v2/organizations/"+orgID.String()+"/holders", bytes.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
 
 	resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
@@ -135,7 +135,7 @@ func TestHuma_CreateHolder_AuthPreserved(t *testing.T) {
 	app := buildHumaHolderApp(t, handler, false)
 
 	body, _ := json.Marshal(map[string]any{"type": "NATURAL_PERSON", "name": "John Doe", "document": "91315026015"})
-	req := httptest.NewRequest(http.MethodPost, "/v1/organizations/"+orgID.String()+"/holders", bytes.NewReader(body))
+	req := httptest.NewRequest(http.MethodPost, "/v2/organizations/"+orgID.String()+"/holders", bytes.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
 
 	resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
@@ -158,7 +158,7 @@ func TestHuma_CreateHolder_MalformedBody_Canonical400(t *testing.T) {
 
 	app := buildHumaHolderApp(t, handler, true)
 
-	req := httptest.NewRequest(http.MethodPost, "/v1/organizations/"+orgID.String()+"/holders", bytes.NewReader([]byte("{not valid json")))
+	req := httptest.NewRequest(http.MethodPost, "/v2/organizations/"+orgID.String()+"/holders", bytes.NewReader([]byte("{not valid json")))
 	req.Header.Set("Content-Type", "application/json")
 
 	resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
@@ -194,7 +194,7 @@ func TestHuma_GetHolderByID_Success(t *testing.T) {
 
 	app := buildHumaHolderApp(t, handler, true)
 
-	req := httptest.NewRequest(http.MethodGet, "/v1/organizations/"+orgID.String()+"/holders/"+holderID.String(), nil)
+	req := httptest.NewRequest(http.MethodGet, "/v2/organizations/"+orgID.String()+"/holders/"+holderID.String(), nil)
 	resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
 	require.NoError(t, err)
 	defer func() { _ = resp.Body.Close() }()
@@ -222,7 +222,7 @@ func TestHuma_GetHolderByID_BadUUID_Canonical400(t *testing.T) {
 
 	app := buildHumaHolderApp(t, handler, true)
 
-	req := httptest.NewRequest(http.MethodGet, "/v1/organizations/"+orgID.String()+"/holders/not-a-uuid", nil)
+	req := httptest.NewRequest(http.MethodGet, "/v2/organizations/"+orgID.String()+"/holders/not-a-uuid", nil)
 	resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
 	require.NoError(t, err)
 	defer func() { _ = resp.Body.Close() }()
@@ -268,7 +268,7 @@ func TestHuma_UpdateHolder_MergePatch_NullFieldRemoved(t *testing.T) {
 	app := buildHumaHolderApp(t, handler, true)
 
 	body := []byte(`{"name":"Jane","externalId":null}`)
-	req := httptest.NewRequest(http.MethodPatch, "/v1/organizations/"+orgID.String()+"/holders/"+holderID.String(), bytes.NewReader(body))
+	req := httptest.NewRequest(http.MethodPatch, "/v2/organizations/"+orgID.String()+"/holders/"+holderID.String(), bytes.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
 
 	resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
@@ -303,7 +303,7 @@ func TestHuma_DeleteHolder_204Empty(t *testing.T) {
 
 	app := buildHumaHolderApp(t, handler, true)
 
-	req := httptest.NewRequest(http.MethodDelete, "/v1/organizations/"+orgID.String()+"/holders/"+holderID.String(), nil)
+	req := httptest.NewRequest(http.MethodDelete, "/v2/organizations/"+orgID.String()+"/holders/"+holderID.String(), nil)
 	resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
 	require.NoError(t, err)
 	defer func() { _ = resp.Body.Close() }()
@@ -327,7 +327,7 @@ func TestHuma_GetAllHolders_Success(t *testing.T) {
 
 	app := buildHumaHolderApp(t, handler, true)
 
-	req := httptest.NewRequest(http.MethodGet, "/v1/organizations/"+orgID.String()+"/holders?limit=10&page=1", nil)
+	req := httptest.NewRequest(http.MethodGet, "/v2/organizations/"+orgID.String()+"/holders?limit=10&page=1", nil)
 	resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
 	require.NoError(t, err)
 	defer func() { _ = resp.Body.Close() }()
@@ -342,7 +342,7 @@ func TestHuma_GetAllHolders_Success(t *testing.T) {
 	assert.EqualValues(t, 10, got["limit"])
 }
 
-// buildHumaHolderAccountsApp mounts the holder-accounts Huma operation on a /v1
+// buildHumaHolderAccountsApp mounts the holder-accounts Huma operation on a /v2
 // group, mirroring buildHumaHolderApp with the accounts route + reader handler.
 func buildHumaHolderAccountsApp(t *testing.T, handler *HolderAccountsHandler) *fiber.App {
 	t.Helper()
@@ -353,14 +353,14 @@ func buildHumaHolderAccountsApp(t *testing.T, handler *HolderAccountsHandler) *f
 
 	libProblem.Install()
 
-	apiV1 := f.Group("/v1")
+	apiV2 := f.Group("/v2")
 
 	parse := pkgHTTP.ParseUUIDPathParameters("holder")
-	apiV1.Get("/organizations/:organization_id/holders/:id/accounts", parse)
+	apiV2.Get("/organizations/:organization_id/holders/:id/accounts", parse)
 
-	hAPI := openapi.New(f, apiV1, openapi.Config{Title: "ledger-test", Version: "test", Servers: []string{"/v1"}})
+	hAPI := openapi.New(f, apiV2, openapi.Config{Title: "ledger-test", Version: "test", Servers: []string{"/v2"}})
 
-	RegisterHolderAccountsRoutes(hAPI, handler, crmOpSuffixV1)
+	RegisterHolderAccountsRoutes(hAPI, handler, crmOpSuffixV2)
 
 	return f
 }
@@ -375,7 +375,7 @@ func TestHuma_GetAccountsByHolder_Success(t *testing.T) {
 
 	app := buildHumaHolderAccountsApp(t, handler)
 
-	req := httptest.NewRequest(http.MethodGet, "/v1/organizations/"+orgID.String()+"/holders/"+holderID.String()+"/accounts?limit=10&page=1", nil)
+	req := httptest.NewRequest(http.MethodGet, "/v2/organizations/"+orgID.String()+"/holders/"+holderID.String()+"/accounts?limit=10&page=1", nil)
 	resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
 	require.NoError(t, err)
 	defer func() { _ = resp.Body.Close() }()
@@ -408,7 +408,7 @@ func TestHuma_GetAllHolders_BadQuery_Canonical400(t *testing.T) {
 
 	app := buildHumaHolderApp(t, handler, true)
 
-	req := httptest.NewRequest(http.MethodGet, "/v1/organizations/"+orgID.String()+"/holders?limit=abc", nil)
+	req := httptest.NewRequest(http.MethodGet, "/v2/organizations/"+orgID.String()+"/holders?limit=abc", nil)
 	resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
 	require.NoError(t, err)
 	defer func() { _ = resp.Body.Close() }()

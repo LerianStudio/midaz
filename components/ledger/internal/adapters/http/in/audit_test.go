@@ -40,7 +40,7 @@ func validCursorToken(t *testing.T) string {
 func newAuditTestApp(handler *AuditHandler, orgID string) *fiber.App {
 	app := fiber.New()
 	app.Get(
-		"/v1/organizations/:organization_id/protection/audit",
+		"/v2/organizations/:organization_id/protection/audit",
 		func(c fiber.Ctx) error {
 			c.Locals("organization_id", uuid.MustParse(orgID))
 			return c.Next()
@@ -379,7 +379,7 @@ func TestAuditHandler_GetAuditEvents(t *testing.T) {
 			app := newAuditTestApp(handler, orgID)
 
 			req := httptest.NewRequest(fiber.MethodGet,
-				"/v1/organizations/"+orgID+"/protection/audit"+tt.query, nil)
+				"/v2/organizations/"+orgID+"/protection/audit"+tt.query, nil)
 			resp, err := app.Test(req)
 			require.NoError(t, err)
 			defer resp.Body.Close()

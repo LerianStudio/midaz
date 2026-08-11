@@ -133,15 +133,12 @@ func (d HumaMountDeps) registerWave2(group fiber.Router, api huma.API) {
 	RegisterTransactionRouteRoutesToApp(group, api, d.Auth, d.TransactionRoute, d.TransactionOptions)
 }
 
-// registerWave3 mounts the additive resources: CRM (holders/instruments/holder-
-// accounts/encryption/audit) under "midaz", fees/billing under "plugin-fees", and
-// composition under "midaz". Each carries its OWN route-scoped tenant options so the
-// CRM/fee/composition tenant Mongo never overwrites the onboarding/transaction
-// tenant DB. The nil-guards (holder-accounts, encryption, audit) are preserved
-// inside RegisterCRMRoutesToApp: a nil handler mounts neither the Fiber auth chain
-// nor the Huma terminal.
+// registerWave3 mounts the additive /v1 resources: fees/billing under "plugin-fees"
+// and composition under "midaz". Each carries its OWN route-scoped tenant options so the
+// fee/composition tenant Mongo never overwrites the onboarding/transaction tenant DB.
+// CRM (holders/instruments/encryption/protection) is NOT served on /v1: it mounts only
+// on the /v2 contract via RegisterCRMV2RoutesToApp (see MountV2).
 func (d HumaMountDeps) registerWave3(group fiber.Router, api huma.API) {
-	RegisterCRMRoutesToApp(group, api, d.Auth, d.Holder, d.Instrument, d.HolderAccounts, d.Encryption, d.Audit, d.CRMOptions)
 	RegisterFeesRoutesToApp(group, api, d.Auth, d.FeePackage, d.Fee, d.BillingPackage, d.BillingCalculate, d.FeesOptions)
 	RegisterCompositionRoutesToApp(group, api, d.Auth, d.Composition, d.CompositionOptions)
 }
@@ -182,9 +179,10 @@ func (d HumaMountDeps) registerWave3(group fiber.Router, api huma.API) {
 // "transactions" resource with the "head" verb, exactly as on v1 (see registerWave2 /
 // RegisterCountTransactionRoutesToApp).
 //
-// CRM carries its OWN CRMOptions and authorizes against the same "midaz" tuples the
-// v1 CRM routes use; the nil-guards (holder-accounts, encryption, audit) hold here
-// exactly as on v1. The fee/billing ops carry FeesOptions and authorize against the
+// CRM carries its OWN CRMOptions and authorizes against the "midaz" holders/instruments/
+// encryption/protection tuples; it is served ONLY on this /v2 contract. The nil-guards
+// (holder-accounts, encryption, audit) leave a route unregistered when its handler is
+// nil. The fee/billing ops carry FeesOptions and authorize against the
 // same "plugin-fees" tuples as v1 — they differ from v1 in scope only: the path
 // names the ledger, so a package another ledger owns is out of reach. composition
 // carries CompositionOptions and authorizes under the "midaz" appName's "accounts"

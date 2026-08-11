@@ -19,29 +19,17 @@ import (
 // plugin-crm:* to midaz:{holders,instruments}:* at v4 release (X1, Fred-owned).
 const ApplicationName = "midaz"
 
-// CRM operation-ID suffixes. The ledger serves the CRM surface on both the /v1 and
-// /v2 version groups of a single OpenAPI document. huma.OpenAPI.AddOperation scans the
-// whole document and panics on a duplicate operation ID, so a v1 op and its v2 twin —
-// same handler, same path shape under a different version prefix — MUST carry distinct
-// operation IDs or the ledger panics at boot. The V2 suffix makes that disjunction a
-// boot invariant; it secondarily keeps IDs unique across the ledger↔tracer hub-spec
-// join. The v1 suffix is empty so the /v1 operation IDs — the ones published SDKs
-// already bind to — stay exactly what they were.
-const (
-	crmOpSuffixV1 = ""
-	crmOpSuffixV2 = "V2"
-)
+// crmOpSuffixV2 is appended to every CRM operation ID published on the /v2 contract.
+// CRM is served only on the /v2 version group, but its operation IDs live in the same
+// OpenAPI document as the rest of the ledger surface (and, via the ledger↔tracer
+// hub-spec join, alongside the tracer's). huma.OpenAPI.AddOperation scans the whole
+// document and panics on a duplicate operation ID, so the V2 suffix keeps the CRM IDs
+// distinct within that shared document.
+const crmOpSuffixV2 = "V2"
 
-// RegisterCRMRoutesToApp wires the Huma-migrated CRM holder/instrument surface onto
-// the /v1 contract. See registerCRMRoutesToApp for what it attaches.
-func RegisterCRMRoutesToApp(group fiber.Router, api huma.API, auth *middleware.AuthClient, hh *HolderHandler, ah *InstrumentHandler, hah *HolderAccountsHandler, eh *EncryptionHandler, auditHandler *AuditHandler, routeOptions *http.ProtectedRouteOptions) {
-	registerCRMRoutesToApp(group, api, auth, hh, ah, hah, eh, auditHandler, routeOptions, crmOpSuffixV1)
-}
-
-// RegisterCRMV2RoutesToApp wires the same CRM surface onto the /v2 contract: same
-// paths, same handlers, same authz tuples and tenant chain, differing only in the
-// operation IDs the contract publishes. It is additive — /v1 keeps serving CRM in
-// parallel — and introduces no new policy surface.
+// RegisterCRMV2RoutesToApp wires the CRM holder/instrument surface onto the /v2
+// contract, which is the ONLY version group that serves CRM. See registerCRMRoutesToApp
+// for the auth chain, tenant options and nil-guards it attaches.
 func RegisterCRMV2RoutesToApp(group fiber.Router, api huma.API, auth *middleware.AuthClient, hh *HolderHandler, ah *InstrumentHandler, hah *HolderAccountsHandler, eh *EncryptionHandler, auditHandler *AuditHandler, routeOptions *http.ProtectedRouteOptions) {
 	registerCRMRoutesToApp(group, api, auth, hh, ah, hah, eh, auditHandler, routeOptions, crmOpSuffixV2)
 }
@@ -59,9 +47,8 @@ func RegisterCRMV2RoutesToApp(group fiber.Router, api huma.API, auth *middleware
 // span-attribute names the inline routes used; the middleware validates every UUID
 // path param regardless of label.
 //
-// opSuffix distinguishes the operation IDs one contract publishes from another's — see
-// crmOpSuffixV1. Nothing else varies between contracts, so a change to the surface
-// reaches every version it is mounted on.
+// opSuffix is appended to every operation ID this registrar publishes; the /v2 mount
+// passes crmOpSuffixV2 so the CRM IDs stay distinct within the shared OpenAPI document.
 //
 // hah may be nil (no ledger account-query backing); when nil the holder-accounts route
 // is neither auth-attached nor Huma-registered, matching the pre-Huma `if hah != nil`

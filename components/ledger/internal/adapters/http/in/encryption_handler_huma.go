@@ -116,7 +116,7 @@ func (handler *EncryptionHandler) GetProvisioningStatusHuma(ctx context.Context,
 // versioned Fiber group BEFORE the Huma terminal, not here. Paths are GROUP-RELATIVE
 // (see asset_handler_huma.go's RegisterAssetRoutes header for the rationale).
 //
-// opSuffix is appended to every operation ID — see crmOpSuffixV1.
+// opSuffix is appended to every operation ID — see crmOpSuffixV2.
 func RegisterEncryptionRoutes(api huma.API, h *EncryptionHandler, opSuffix string) {
 	const (
 		provisionPath = "/organizations/{organization_id}/encryption/provision"

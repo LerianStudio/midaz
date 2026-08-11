@@ -17,15 +17,15 @@ import (
 	pkgHTTP "github.com/LerianStudio/midaz/v4/pkg/net/http"
 )
 
-// mountWave3Routes wires the three Wave-3 (additive) Huma-migrated registrars —
-// CRM (holders/instruments/holder-accounts/encryption/audit), fees/billing, and
-// composition — on a /v1 group, mirroring the production humaMount seam:
-// problem.Install() before any huma.Register, the shared Huma API built with
-// openapi.New over the /v1 group, and each RegisterXxxRoutesToApp attaching the
-// Fiber auth+tenant middleware chain (as middleware only) plus the Huma terminals
-// on that group.
+// mountWave3Routes wires the three Wave-3 (additive) Huma-migrated registrars on the
+// version groups they serve, mirroring the production humaMount seam: fees/billing and
+// composition on /v1, and CRM (holders/instruments/holder-accounts/encryption/audit) on
+// /v2, since CRM is v2-only in the unified binary. One shared Huma document backs both
+// version groups (openapi.New over the root app + one huma.NewGroup per prefix), and
+// each RegisterXxxRoutesToApp attaches the Fiber auth+tenant middleware chain (as
+// middleware only) plus the Huma terminals on its group.
 //
-// Every conditional handler (hah/eh/auditHandler) is passed NON-nil here so the
+// Every conditional CRM handler (hah/eh/auditHandler) is passed NON-nil here so the
 // FULL surface mounts; the nil-guard conditionality is exercised separately by
 // TestWave3RoutesRespectNilGuards.
 //
@@ -33,16 +33,20 @@ import (
 // hook and Huma validation uses process-global sync.Pools.
 func mountWave3Routes(app *fiber.App, auth *middleware.AuthClient) huma.API {
 	libProblem.Install()
-	apiV1 := app.Group("/v1")
-	hAPI := openapi.New(app, apiV1, openapi.Config{Title: "ledger-test", Version: "test", Servers: []string{"/v1"}})
+	hAPI := openapi.New(app, app, openapi.Config{Title: "ledger-test", Version: "test", Servers: []string{"/"}})
 	pkgHTTP.InstallLedgerSchemaNamer(hAPI)
 
-	RegisterCRMRoutesToApp(apiV1, hAPI, auth,
+	fiberV1 := app.Group("/v1")
+	humaV1 := huma.NewGroup(hAPI, "/v1")
+	RegisterFeesRoutesToApp(fiberV1, humaV1, auth,
+		&PackageHandler{}, &FeeHandler{}, &BillingPackageHandler{}, &BillingCalculateHandler{}, nil)
+	RegisterCompositionRoutesToApp(fiberV1, humaV1, auth, &CompositionHandler{}, nil)
+
+	fiberV2 := app.Group("/v2")
+	humaV2 := huma.NewGroup(hAPI, "/v2")
+	RegisterCRMV2RoutesToApp(fiberV2, humaV2, auth,
 		&HolderHandler{}, &InstrumentHandler{}, &HolderAccountsHandler{},
 		&EncryptionHandler{}, &AuditHandler{}, nil)
-	RegisterFeesRoutesToApp(apiV1, hAPI, auth,
-		&PackageHandler{}, &FeeHandler{}, &BillingPackageHandler{}, &BillingCalculateHandler{}, nil)
-	RegisterCompositionRoutesToApp(apiV1, hAPI, auth, &CompositionHandler{}, nil)
 
 	return hAPI
 }
@@ -50,32 +54,35 @@ func mountWave3Routes(app *fiber.App, auth *middleware.AuthClient) huma.API {
 const (
 	wave3Org       = "/v1/organizations/:organization_id"
 	wave3OrgLedger = wave3Org + "/ledgers/:ledger_id"
+	// CRM is served on /v2 only.
+	wave3OrgV2 = "/v2/organizations/:organization_id"
 )
 
 // wave3FullRoutes is the byte-for-byte route surface the three Wave-3 registrars
 // mount when every conditional handler is present. Paths + methods are preserved
-// from the pre-Huma inline Fiber routes; only the transport changed.
+// from the pre-Huma inline Fiber routes; only the transport changed. CRM sits on /v2,
+// fees/billing and composition on /v1.
 var wave3FullRoutes = []string{
 	// CRM holders (5)
-	"POST:" + wave3Org + "/holders",
-	"GET:" + wave3Org + "/holders/:id",
-	"PATCH:" + wave3Org + "/holders/:id",
-	"DELETE:" + wave3Org + "/holders/:id",
-	"GET:" + wave3Org + "/holders",
+	"POST:" + wave3OrgV2 + "/holders",
+	"GET:" + wave3OrgV2 + "/holders/:id",
+	"PATCH:" + wave3OrgV2 + "/holders/:id",
+	"DELETE:" + wave3OrgV2 + "/holders/:id",
+	"GET:" + wave3OrgV2 + "/holders",
 	// CRM holder-accounts (1, conditional on hah)
-	"GET:" + wave3Org + "/holders/:id/accounts",
+	"GET:" + wave3OrgV2 + "/holders/:id/accounts",
 	// CRM instruments (6)
-	"GET:" + wave3Org + "/instruments",
-	"POST:" + wave3Org + "/holders/:holder_id/instruments",
-	"GET:" + wave3Org + "/holders/:holder_id/instruments/:instrument_id",
-	"PATCH:" + wave3Org + "/holders/:holder_id/instruments/:instrument_id",
-	"DELETE:" + wave3Org + "/holders/:holder_id/instruments/:instrument_id",
-	"DELETE:" + wave3Org + "/holders/:holder_id/instruments/:instrument_id/related-parties/:related_party_id",
+	"GET:" + wave3OrgV2 + "/instruments",
+	"POST:" + wave3OrgV2 + "/holders/:holder_id/instruments",
+	"GET:" + wave3OrgV2 + "/holders/:holder_id/instruments/:instrument_id",
+	"PATCH:" + wave3OrgV2 + "/holders/:holder_id/instruments/:instrument_id",
+	"DELETE:" + wave3OrgV2 + "/holders/:holder_id/instruments/:instrument_id",
+	"DELETE:" + wave3OrgV2 + "/holders/:holder_id/instruments/:instrument_id/related-parties/:related_party_id",
 	// CRM encryption (2, conditional on eh)
-	"POST:" + wave3Org + "/encryption/provision",
-	"GET:" + wave3Org + "/encryption/status",
+	"POST:" + wave3OrgV2 + "/encryption/provision",
+	"GET:" + wave3OrgV2 + "/encryption/status",
 	// CRM audit (1, conditional on auditHandler)
-	"GET:" + wave3Org + "/protection/audit",
+	"GET:" + wave3OrgV2 + "/protection/audit",
 	// Fees packages (5)
 	"POST:" + wave3Org + "/packages",
 	"GET:" + wave3Org + "/packages",
@@ -126,12 +133,12 @@ func TestWave3RoutesRespectNilGuards(t *testing.T) {
 	auth := &middleware.AuthClient{Enabled: false}
 
 	libProblem.Install()
-	apiV1 := app.Group("/v1")
-	hAPI := openapi.New(app, apiV1, openapi.Config{Title: "ledger-nilguard", Version: "test", Servers: []string{"/v1"}})
+	apiV2 := app.Group("/v2")
+	hAPI := openapi.New(app, apiV2, openapi.Config{Title: "ledger-nilguard", Version: "test", Servers: []string{"/v2"}})
 	pkgHTTP.InstallLedgerSchemaNamer(hAPI)
 
 	// hah, eh, auditHandler all nil -> holder-accounts + encryption + audit absent.
-	RegisterCRMRoutesToApp(apiV1, hAPI, auth,
+	RegisterCRMV2RoutesToApp(apiV2, hAPI, auth,
 		&HolderHandler{}, &InstrumentHandler{}, nil, nil, nil, nil)
 
 	routeSet := make(map[string]bool)
@@ -140,17 +147,17 @@ func TestWave3RoutesRespectNilGuards(t *testing.T) {
 	}
 
 	// Base holder/instrument routes MUST still mount.
-	assert.True(t, routeSet["POST:"+wave3Org+"/holders"], "holders POST must mount unconditionally")
-	assert.True(t, routeSet["GET:"+wave3Org+"/instruments"], "instruments GET must mount unconditionally")
+	assert.True(t, routeSet["POST:"+wave3OrgV2+"/holders"], "holders POST must mount unconditionally")
+	assert.True(t, routeSet["GET:"+wave3OrgV2+"/instruments"], "instruments GET must mount unconditionally")
 
 	// Conditional routes MUST be absent.
-	assert.False(t, routeSet["GET:"+wave3Org+"/holders/:id/accounts"],
+	assert.False(t, routeSet["GET:"+wave3OrgV2+"/holders/:id/accounts"],
 		"holder-accounts route must NOT mount when hah is nil")
-	assert.False(t, routeSet["POST:"+wave3Org+"/encryption/provision"],
+	assert.False(t, routeSet["POST:"+wave3OrgV2+"/encryption/provision"],
 		"encryption provision route must NOT mount when eh is nil")
-	assert.False(t, routeSet["GET:"+wave3Org+"/encryption/status"],
+	assert.False(t, routeSet["GET:"+wave3OrgV2+"/encryption/status"],
 		"encryption status route must NOT mount when eh is nil")
-	assert.False(t, routeSet["GET:"+wave3Org+"/protection/audit"],
+	assert.False(t, routeSet["GET:"+wave3OrgV2+"/protection/audit"],
 		"audit route must NOT mount when auditHandler is nil")
 }
 

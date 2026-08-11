@@ -128,7 +128,7 @@ func TestErrorContract_CanonicalCodes(t *testing.T) {
 			// change — they exercise body/validation paths that fail before org is used.
 			app := fiber.New()
 			app.Post(
-				"/v1/organizations/:organization_id/holders",
+				"/v2/organizations/:organization_id/holders",
 				func(c fiber.Ctx) error {
 					c.Locals("organization_id", orgUUID)
 					return c.Next()
@@ -136,7 +136,7 @@ func TestErrorContract_CanonicalCodes(t *testing.T) {
 				http.WithBody(new(mmodel.CreateHolderInput), handler.CreateHolder),
 			)
 
-			req := httptest.NewRequest("POST", "/v1/organizations/"+orgID+"/holders", bytes.NewBufferString(tt.jsonBody))
+			req := httptest.NewRequest("POST", "/v2/organizations/"+orgID+"/holders", bytes.NewBufferString(tt.jsonBody))
 			req.Header.Set("Content-Type", "application/json")
 
 			resp, err := app.Test(req)
@@ -186,7 +186,7 @@ func TestErrorContract_SurvivingDomainCodeUnchanged(t *testing.T) {
 	// real ParseUUIDPathParameters chain would store them); the header scope is gone.
 	app := fiber.New()
 	app.Get(
-		"/v1/organizations/:organization_id/holders/:id",
+		"/v2/organizations/:organization_id/holders/:id",
 		func(c fiber.Ctx) error {
 			c.Locals("organization_id", orgUUID)
 			c.Locals("id", holderID)
@@ -195,7 +195,7 @@ func TestErrorContract_SurvivingDomainCodeUnchanged(t *testing.T) {
 		handler.GetHolderByID,
 	)
 
-	req := httptest.NewRequest("GET", "/v1/organizations/"+orgID+"/holders/"+holderID.String(), nil)
+	req := httptest.NewRequest("GET", "/v2/organizations/"+orgID+"/holders/"+holderID.String(), nil)
 	resp, err := app.Test(req)
 	require.NoError(t, err)
 	assert.Equal(t, 404, resp.StatusCode)

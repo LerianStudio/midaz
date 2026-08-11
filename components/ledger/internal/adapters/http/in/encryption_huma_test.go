@@ -25,9 +25,9 @@ import (
 	pkgHTTP "github.com/LerianStudio/midaz/v4/pkg/net/http"
 )
 
-// buildHumaEncryptionApp mounts the two encryption Huma operations on a /v1 group,
+// buildHumaEncryptionApp mounts the two encryption Huma operations on a /v2 group,
 // faithfully mirroring the production wiring in unified-server.go: problem.Install()
-// runs before any huma.Register, the Huma API is built with openapi.New over a /v1
+// runs before any huma.Register, the Huma API is built with openapi.New over a /v2
 // group, an auth-shim middleware stands in for auth.Authorize("midaz","encryption",
 // verb) + tenant PostAuthMiddlewares, and http.ParseUUIDPathParameters("organization")
 // + RegisterEncryptionRoutes attach the chain.
@@ -45,9 +45,9 @@ func buildHumaEncryptionApp(t *testing.T, handler *EncryptionHandler, authOK boo
 
 	libProblem.Install()
 
-	apiV1 := f.Group("/v1")
+	apiV2 := f.Group("/v2")
 
-	apiV1.Use(func(c fiber.Ctx) error {
+	apiV2.Use(func(c fiber.Ctx) error {
 		if !authOK {
 			return pkgHTTP.Unauthorized(c, "0001", "Unauthorized", "auth required")
 		}
@@ -55,13 +55,13 @@ func buildHumaEncryptionApp(t *testing.T, handler *EncryptionHandler, authOK boo
 		return c.Next()
 	})
 
-	hAPI := openapi.New(f, apiV1, openapi.Config{Title: "ledger-test", Version: "test", Servers: []string{"/v1"}})
+	hAPI := openapi.New(f, apiV2, openapi.Config{Title: "ledger-test", Version: "test", Servers: []string{"/v2"}})
 
 	parse := pkgHTTP.ParseUUIDPathParameters("organization")
-	apiV1.Post("/organizations/:organization_id/encryption/provision", parse)
-	apiV1.Get("/organizations/:organization_id/encryption/status", parse)
+	apiV2.Post("/organizations/:organization_id/encryption/provision", parse)
+	apiV2.Get("/organizations/:organization_id/encryption/status", parse)
 
-	RegisterEncryptionRoutes(hAPI, handler, crmOpSuffixV1)
+	RegisterEncryptionRoutes(hAPI, handler, crmOpSuffixV2)
 
 	return f
 }
@@ -95,7 +95,7 @@ func TestHuma_ProvisionEncryption_Success(t *testing.T) {
 	app := buildHumaEncryptionApp(t, handler, true)
 
 	body, _ := json.Marshal(map[string]any{"actor": "admin@example.com", "reason": "Initial encryption setup"})
-	req := httptest.NewRequest(http.MethodPost, "/v1/organizations/"+orgID.String()+"/encryption/provision", bytes.NewReader(body))
+	req := httptest.NewRequest(http.MethodPost, "/v2/organizations/"+orgID.String()+"/encryption/provision", bytes.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
 
 	resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
@@ -128,7 +128,7 @@ func TestHuma_ProvisionEncryption_ValidationRejectedByCore(t *testing.T) {
 	app := buildHumaEncryptionApp(t, handler, true)
 
 	body, _ := json.Marshal(map[string]any{"reason": "Initial encryption setup"})
-	req := httptest.NewRequest(http.MethodPost, "/v1/organizations/"+orgID.String()+"/encryption/provision", bytes.NewReader(body))
+	req := httptest.NewRequest(http.MethodPost, "/v2/organizations/"+orgID.String()+"/encryption/provision", bytes.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
 
 	resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
@@ -151,7 +151,7 @@ func TestHuma_ProvisionEncryption_AuthPreserved(t *testing.T) {
 	app := buildHumaEncryptionApp(t, handler, false)
 
 	body, _ := json.Marshal(map[string]any{"actor": "admin@example.com", "reason": "Initial encryption setup"})
-	req := httptest.NewRequest(http.MethodPost, "/v1/organizations/"+orgID.String()+"/encryption/provision", bytes.NewReader(body))
+	req := httptest.NewRequest(http.MethodPost, "/v2/organizations/"+orgID.String()+"/encryption/provision", bytes.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
 
 	resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
@@ -178,7 +178,7 @@ func TestHuma_GetProvisioningStatus_Success(t *testing.T) {
 	handler := &EncryptionHandler{ProvisioningService: mockService}
 	app := buildHumaEncryptionApp(t, handler, true)
 
-	req := httptest.NewRequest(http.MethodGet, "/v1/organizations/"+orgID.String()+"/encryption/status", nil)
+	req := httptest.NewRequest(http.MethodGet, "/v2/organizations/"+orgID.String()+"/encryption/status", nil)
 
 	resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
 	require.NoError(t, err)

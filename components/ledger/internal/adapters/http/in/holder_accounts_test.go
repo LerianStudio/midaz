@@ -124,7 +124,7 @@ func TestHolderAccountsHandler_GetAccountsByHolder(t *testing.T) {
 
 			app := fiber.New()
 			app.Get(
-				"/v1/organizations/:organization_id/holders/:id/accounts",
+				"/v2/organizations/:organization_id/holders/:id/accounts",
 				func(c fiber.Ctx) error {
 					c.Locals("id", holderID)
 					c.Locals("organization_id", orgUUID)
@@ -134,7 +134,7 @@ func TestHolderAccountsHandler_GetAccountsByHolder(t *testing.T) {
 				handler.GetAccountsByHolder,
 			)
 
-			req := httptest.NewRequest("GET", "/v1/organizations/"+orgID+"/holders/"+holderID.String()+"/accounts", nil)
+			req := httptest.NewRequest("GET", "/v2/organizations/"+orgID+"/holders/"+holderID.String()+"/accounts", nil)
 			resp, err := app.Test(req)
 
 			require.NoError(t, err)

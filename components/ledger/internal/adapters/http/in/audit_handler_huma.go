@@ -100,7 +100,7 @@ func (handler *AuditHandler) GetAuditEventsHuma(ctx context.Context, in *GetAudi
 // versioned Fiber group BEFORE the Huma terminal, not here. Paths are GROUP-RELATIVE
 // (see asset_handler_huma.go's RegisterAssetRoutes header for the rationale).
 //
-// opSuffix is appended to the operation ID — see crmOpSuffixV1.
+// opSuffix is appended to the operation ID — see crmOpSuffixV2.
 func RegisterAuditRoutes(api huma.API, h *AuditHandler, opSuffix string) {
 	huma.Register(api, huma.Operation{
 		OperationID: "getAuditEvents" + opSuffix,

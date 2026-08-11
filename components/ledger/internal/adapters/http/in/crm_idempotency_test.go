@@ -89,7 +89,7 @@ func TestHolderHandler_CreateHolder_IdempotentReplay(t *testing.T) {
 
 	app := fiber.New()
 	app.Post(
-		"/v1/organizations/:organization_id/holders",
+		"/v2/organizations/:organization_id/holders",
 		func(c fiber.Ctx) error {
 			c.Locals("organization_id", orgUUID)
 			return c.Next()
@@ -100,7 +100,7 @@ func TestHolderHandler_CreateHolder_IdempotentReplay(t *testing.T) {
 	body := `{"type":"NATURAL_PERSON","name":"John Doe","document":"91315026015"}`
 
 	doRequest := func() (int, string, []byte) {
-		req := httptest.NewRequest("POST", "/v1/organizations/"+orgID+"/holders", bytes.NewBufferString(body))
+		req := httptest.NewRequest("POST", "/v2/organizations/"+orgID+"/holders", bytes.NewBufferString(body))
 		req.Header.Set("Content-Type", "application/json")
 		req.Header.Set(libConstants.IdempotencyKey, "holder-key-1")
 
@@ -173,7 +173,7 @@ func TestInstrumentHandler_CreateInstrument_IdempotentReplay(t *testing.T) {
 
 	app := fiber.New()
 	app.Post(
-		"/v1/organizations/:organization_id/holders/:holder_id/instruments",
+		"/v2/organizations/:organization_id/holders/:holder_id/instruments",
 		func(c fiber.Ctx) error {
 			c.Locals("organization_id", orgUUID)
 			c.Locals("holder_id", holderID)
@@ -185,7 +185,7 @@ func TestInstrumentHandler_CreateInstrument_IdempotentReplay(t *testing.T) {
 	body := `{"ledgerId":"00000000-0000-0000-0000-000000000001","accountId":"00000000-0000-0000-0000-000000000002"}`
 
 	doRequest := func() (int, string, []byte) {
-		req := httptest.NewRequest("POST", "/v1/organizations/"+orgID+"/holders/"+holderID.String()+"/instruments", bytes.NewBufferString(body))
+		req := httptest.NewRequest("POST", "/v2/organizations/"+orgID+"/holders/"+holderID.String()+"/instruments", bytes.NewBufferString(body))
 		req.Header.Set("Content-Type", "application/json")
 		req.Header.Set(libConstants.IdempotencyKey, "instrument-key-1")
 

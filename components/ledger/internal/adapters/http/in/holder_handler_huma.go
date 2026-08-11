@@ -342,7 +342,7 @@ func (handler *HolderAccountsHandler) GetAccountsByHolderHuma(ctx context.Contex
 // Paths are GROUP-RELATIVE (see asset_handler_huma.go's RegisterAssetRoutes header
 // for the rationale).
 //
-// opSuffix is appended to every operation ID — see crmOpSuffixV1.
+// opSuffix is appended to every operation ID — see crmOpSuffixV2.
 func RegisterHolderRoutes(api huma.API, h *HolderHandler, opSuffix string) {
 	const (
 		listPath = "/organizations/{organization_id}/holders"
@@ -410,7 +410,7 @@ func RegisterHolderRoutes(api huma.API, h *HolderHandler, opSuffix string) {
 // Fiber `if hah != nil` guard in crm_routes.go). Auth is ("midaz","holders","get")
 // + ParseUUIDPathParameters("holder"), attached BEFORE the Huma terminal.
 //
-// opSuffix is appended to the operation ID — see crmOpSuffixV1.
+// opSuffix is appended to the operation ID — see crmOpSuffixV2.
 func RegisterHolderAccountsRoutes(api huma.API, h *HolderAccountsHandler, opSuffix string) {
 	huma.Register(api, huma.Operation{
 		OperationID: "listAccountsByHolder" + opSuffix,

@@ -195,7 +195,7 @@ func TestIntegration_CRMCollapse(t *testing.T) {
 		// a CRM-00xx translation, because the standalone CRM error transformer is
 		// gone.
 		req := httptest.NewRequest(fiber.MethodPost,
-			"/v1/organizations/"+uuid.New().String()+"/holders", strings.NewReader("{}"))
+			"/v2/organizations/"+uuid.New().String()+"/holders", strings.NewReader("{}"))
 		req.Header.Set("Content-Type", "application/json")
 
 		resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
@@ -253,7 +253,7 @@ func TestIntegration_CRMCollapse(t *testing.T) {
 		mountCRMHuma(app, auth, crm.holderHandler, crm.instrumentHandler, nil, crm.encryptionHandler, crm.auditHandler, panicOptions)
 
 		req := httptest.NewRequest(fiber.MethodGet,
-			"/v1/organizations/"+uuid.New().String()+"/holders/"+uuid.New().String(), nil)
+			"/v2/organizations/"+uuid.New().String()+"/holders/"+uuid.New().String(), nil)
 
 		resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
 		require.NoError(t, err, "connection must NOT be dropped on panic")
@@ -394,21 +394,22 @@ func runHTTPCrossTenantIsolation(t *testing.T, breakIsolation bool) {
 
 // mountCRMHuma wires the Huma-migrated CRM registrar on app, mirroring the
 // production humaMount seam: problem.Install() before any huma.Register, the shared
-// Huma API built with openapi.New over a /v1 group, and RegisterCRMRoutesToApp
+// Huma API built with openapi.New over a /v2 group, and RegisterCRMV2RoutesToApp
 // attaching the Fiber auth+tenant middleware chain plus the Huma terminals on that
-// group. The middleware chain (auth + routeOptions PostAuthMiddlewares +
-// ParseUUIDPathParameters) runs BEFORE each Huma terminal, exactly as in the unified
-// server, so these integration tests exercise the real request path end-to-end.
+// group. CRM is served only on /v2 in the unified binary. The middleware chain (auth +
+// routeOptions PostAuthMiddlewares + ParseUUIDPathParameters) runs BEFORE each Huma
+// terminal, exactly as in the unified server, so these integration tests exercise the
+// real request path end-to-end.
 //
 // MUST-NOT-PARALLELIZE: libProblem.Install() swaps the process-global huma.NewError
 // hook and Huma validation uses process-global sync.Pools.
 func mountCRMHuma(app *fiber.App, auth *middleware.AuthClient, hh *httpin.HolderHandler, ah *httpin.InstrumentHandler, hah *httpin.HolderAccountsHandler, eh *httpin.EncryptionHandler, auditHandler *httpin.AuditHandler, routeOptions *http.ProtectedRouteOptions) {
 	libProblem.Install()
-	apiV1 := app.Group("/v1")
-	hAPI := openapi.New(app, apiV1, openapi.Config{Title: "crm-integration", Version: "test", Servers: []string{"/v1"}})
+	apiV2 := app.Group("/v2")
+	hAPI := openapi.New(app, apiV2, openapi.Config{Title: "crm-integration", Version: "test", Servers: []string{"/v2"}})
 	http.InstallLedgerSchemaNamer(hAPI)
 
-	httpin.RegisterCRMRoutesToApp(apiV1, hAPI, auth, hh, ah, hah, eh, auditHandler, routeOptions)
+	httpin.RegisterCRMV2RoutesToApp(apiV2, hAPI, auth, hh, ah, hah, eh, auditHandler, routeOptions)
 }
 
 // newCRMTestApp mounts the CRM registrar on a bare Fiber app with auth disabled
@@ -519,7 +520,7 @@ func createHolderHTTP(t *testing.T, app *fiber.App, tenantID, orgID, name, docum
 	require.NoError(t, err)
 
 	req := httptest.NewRequest(fiber.MethodPost,
-		"/v1/organizations/"+orgID+"/holders", strings.NewReader(string(body)))
+		"/v2/organizations/"+orgID+"/holders", strings.NewReader(string(body)))
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set(fiber.HeaderAuthorization, "Bearer "+tenantJWT(t, tenantID))
 
@@ -543,7 +544,7 @@ func getHolderStatusHTTP(t *testing.T, app *fiber.App, tenantID, orgID, holderID
 	t.Helper()
 
 	req := httptest.NewRequest(fiber.MethodGet,
-		"/v1/organizations/"+orgID+"/holders/"+holderID, nil)
+		"/v2/organizations/"+orgID+"/holders/"+holderID, nil)
 	req.Header.Set(fiber.HeaderAuthorization, "Bearer "+tenantJWT(t, tenantID))
 
 	resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
@@ -557,7 +558,7 @@ func listHolderNamesHTTP(t *testing.T, app *fiber.App, tenantID, orgID string) [
 	t.Helper()
 
 	req := httptest.NewRequest(fiber.MethodGet,
-		"/v1/organizations/"+orgID+"/holders?limit=100", nil)
+		"/v2/organizations/"+orgID+"/holders?limit=100", nil)
 	req.Header.Set(fiber.HeaderAuthorization, "Bearer "+tenantJWT(t, tenantID))
 
 	resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
