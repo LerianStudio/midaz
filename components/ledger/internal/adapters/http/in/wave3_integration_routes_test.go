@@ -17,13 +17,14 @@ import (
 	pkgHTTP "github.com/LerianStudio/midaz/v4/pkg/net/http"
 )
 
-// mountWave3Routes wires the three Wave-3 (additive) Huma-migrated registrars on the
-// version groups they serve, mirroring the production humaMount seam: fees/billing and
-// composition on /v1, and CRM (holders/instruments/holder-accounts/encryption/audit) on
-// /v2, since CRM is v2-only in the unified binary. One shared Huma document backs both
-// version groups (openapi.New over the root app + one huma.NewGroup per prefix), and
-// each RegisterXxxRoutesToApp attaches the Fiber auth+tenant middleware chain (as
-// middleware only) plus the Huma terminals on its group.
+// mountWave3Routes wires the two Wave-3 (additive) Huma-migrated registrars on the
+// version groups they serve, mirroring the production humaMount seam: composition on
+// /v1, and CRM (holders/instruments/holder-accounts/encryption/audit) on /v2, since CRM
+// is v2-only in the unified binary. Fees/billing are v2-only too and are mounted through
+// RegisterFeesV2RoutesToApp (exercised by fees_v2_register_test.go), not here. One shared
+// Huma document backs both version groups (openapi.New over the root app + one
+// huma.NewGroup per prefix), and each RegisterXxxRoutesToApp attaches the Fiber
+// auth+tenant middleware chain (as middleware only) plus the Huma terminals on its group.
 //
 // Every conditional CRM handler (hah/eh/auditHandler) is passed NON-nil here so the
 // FULL surface mounts; the nil-guard conditionality is exercised separately by
@@ -38,8 +39,6 @@ func mountWave3Routes(app *fiber.App, auth *middleware.AuthClient) huma.API {
 
 	fiberV1 := app.Group("/v1")
 	humaV1 := huma.NewGroup(hAPI, "/v1")
-	RegisterFeesRoutesToApp(fiberV1, humaV1, auth,
-		&PackageHandler{}, &FeeHandler{}, &BillingPackageHandler{}, &BillingCalculateHandler{}, nil)
 	RegisterCompositionRoutesToApp(fiberV1, humaV1, auth, &CompositionHandler{}, nil)
 
 	fiberV2 := app.Group("/v2")
@@ -58,10 +57,10 @@ const (
 	wave3OrgV2 = "/v2/organizations/:organization_id"
 )
 
-// wave3FullRoutes is the byte-for-byte route surface the three Wave-3 registrars
-// mount when every conditional handler is present. Paths + methods are preserved
-// from the pre-Huma inline Fiber routes; only the transport changed. CRM sits on /v2,
-// fees/billing and composition on /v1.
+// wave3FullRoutes is the byte-for-byte route surface the two Wave-3 registrars mount
+// when every conditional handler is present. Paths + methods are preserved from the
+// pre-Huma inline Fiber routes; only the transport changed. CRM sits on /v2, composition
+// on /v1.
 var wave3FullRoutes = []string{
 	// CRM holders (5)
 	"POST:" + wave3OrgV2 + "/holders",
@@ -83,22 +82,6 @@ var wave3FullRoutes = []string{
 	"GET:" + wave3OrgV2 + "/encryption/status",
 	// CRM audit (1, conditional on auditHandler)
 	"GET:" + wave3OrgV2 + "/protection/audit",
-	// Fees packages (5)
-	"POST:" + wave3Org + "/packages",
-	"GET:" + wave3Org + "/packages",
-	"GET:" + wave3Org + "/packages/:id",
-	"PATCH:" + wave3Org + "/packages/:id",
-	"DELETE:" + wave3Org + "/packages/:id",
-	// Fees estimate (1)
-	"POST:" + wave3Org + "/estimates",
-	// Billing packages (5)
-	"POST:" + wave3Org + "/billing-packages",
-	"GET:" + wave3Org + "/billing-packages",
-	"GET:" + wave3Org + "/billing-packages/:id",
-	"PATCH:" + wave3Org + "/billing-packages/:id",
-	"DELETE:" + wave3Org + "/billing-packages/:id",
-	// Billing calculate (1)
-	"POST:" + wave3Org + "/billing/calculate",
 	// Composition (1)
 	"POST:" + wave3OrgLedger + "/holders/:id/accounts",
 }
@@ -159,33 +142,4 @@ func TestWave3RoutesRespectNilGuards(t *testing.T) {
 		"encryption status route must NOT mount when eh is nil")
 	assert.False(t, routeSet["GET:"+wave3OrgV2+"/protection/audit"],
 		"audit route must NOT mount when auditHandler is nil")
-}
-
-// TestRegisterFeesRoutesToApp_DoesNotMountFeeCalculate asserts POST /v1/fees stays
-// unmounted after migration: in the unified binary fees run in-process via the
-// transaction seam, so only the dry-run POST /v1/.../estimates is exposed.
-//
-// Absence is checked on BOTH surfaces the registrar writes to — the Fiber router
-// (nothing is served) and the Huma document (nothing is published) — because a path
-// published without a route, or served without being published, is a divergence in its
-// own right. The ledger-scoped twin of this is
-// TestRegisterFeesV2RoutesToApp_DoesNotMountFeeCalculate.
-func TestRegisterFeesRoutesToApp_DoesNotMountFeeCalculate(t *testing.T) {
-	// NOT parallel: mutates process-global huma state.
-	app := fiber.New()
-	auth := &middleware.AuthClient{Enabled: false}
-
-	hAPI := mountWave3Routes(app, auth)
-
-	for _, r := range app.GetRoutes() {
-		assert.NotEqualf(t, fiber.MethodPost+":/v1/fees", r.Method+":"+r.Path,
-			"POST /v1/fees must NOT be mounted — fees run in-process via the seam")
-		assert.NotEqualf(t, fiber.MethodPost+":"+wave3Org+"/fees", r.Method+":"+r.Path,
-			"POST %s/fees must NOT be mounted — fees run in-process via the seam", wave3Org)
-	}
-
-	for path := range hAPI.OpenAPI().Paths {
-		assert.NotContainsf(t, path, "/fees",
-			"the v1 contract must not publish a fee-calculate path, found %q", path)
-	}
 }

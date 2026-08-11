@@ -469,42 +469,6 @@ func feesV2AnyServiceReached(s *feesV2Stubs) bool {
 		s.calcSvc.called
 }
 
-// TestFeesV1_ListsStillAcceptTheLedgerQueryParameter is the other side of the v2 query
-// decision: the organization-scoped listings are unchanged, because ledgerId is the only
-// way to narrow them to a ledger there. Without this the v2 refusal could be widened to
-// the shared core and silently break the surface it was never about.
-func TestFeesV1_ListsStillAcceptTheLedgerQueryParameter(t *testing.T) {
-	orgID := uuid.New()
-	ledgerID := uuid.MustParse("11111111-1111-4111-8111-111111111111")
-
-	t.Run("packages", func(t *testing.T) {
-		// NOT parallel: huma registration mutates process-global state.
-		stub := &stubPackageService{}
-		app := buildHumaPackageApp(t, &PackageHandler{Service: stub}, true)
-
-		status, body := driveFeeV2(t, app,
-			http.MethodGet, "/v1/organizations/"+orgID.String()+"/packages?ledgerId="+ledgerID.String(), "")
-
-		assert.Equal(t, http.StatusOK, status, "body: %v", body)
-		assert.Equal(t, ledgerID, stub.gotGetAllFilter.LedgerID,
-			"the organization-scoped listing still narrows by the ledgerId query")
-	})
-
-	t.Run("billing_packages", func(t *testing.T) {
-		// NOT parallel: huma registration mutates process-global state.
-		stub := &stubBillingPackageService{}
-		app := buildHumaBillingPackageApp(t, &BillingPackageHandler{Service: stub}, true)
-
-		status, body := driveFeeV2(t, app,
-			http.MethodGet, "/v1/organizations/"+orgID.String()+"/billing-packages?ledgerId="+ledgerID.String(), "")
-
-		assert.Equal(t, http.StatusOK, status, "body: %v", body)
-		require.NotNil(t, stub.gotGetAllLedger)
-		assert.Equal(t, ledgerID, *stub.gotGetAllLedger,
-			"the organization-scoped listing still narrows by the ledgerId query")
-	})
-}
-
 // TestFeesV2_CreateBillingPackageCanonicalisesTheBodyLedger pins that a billing
 // package created through the ledger-scoped surface is reachable through it
 // afterwards.

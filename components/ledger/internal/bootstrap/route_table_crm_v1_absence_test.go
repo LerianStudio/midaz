@@ -127,3 +127,49 @@ func TestMountV1_OmitsCRMSurface(t *testing.T) {
 		"MountV1 must not mount CRM routes — CRM is /v2-only in the unified binary; found:\n%s",
 		strings.Join(crmRoutes, "\n"))
 }
+
+// TestMountV1_OmitsFeesSurface pins that the /v1 version group serves NO fee or billing
+// surface. Fees/billing is org-scoped on /v1 but ledger-scoped on /v2; in the unified
+// binary the surface is served under /v2 only, so MountV1 must not mount any of its
+// routes. The org-scoped fee resources hang directly off the organization
+// (/organizations/:organization_id/packages|estimates|billing-packages|billing/calculate),
+// so the probe anchors there. Composition's holder-accounts route sits under a ledger
+// (/organizations/:organization_id/ledgers/:ledger_id/holders/:id/accounts) and CRM/v2
+// live on /v2, so neither can false-match.
+func TestMountV1_OmitsFeesSurface(t *testing.T) {
+	// NOT parallel: AssembleHumaContract mutates process-global huma state.
+	unsetDocsGate(t)
+
+	app := mountV1OnlySurface(t)
+
+	var feeRoutes []string
+
+	var hasLedgerRoute bool
+
+	for _, r := range app.GetRoutes(true) {
+		p := r.Path
+
+		if strings.Contains(p, "/organizations/:organization_id/ledgers") {
+			hasLedgerRoute = true
+		}
+
+		orgScope := "/organizations/:organization_id"
+
+		isFee := strings.Contains(p, orgScope+"/packages") ||
+			strings.Contains(p, orgScope+"/estimates") ||
+			strings.Contains(p, orgScope+"/billing-packages") ||
+			strings.Contains(p, orgScope+"/billing/calculate")
+
+		if isFee {
+			feeRoutes = append(feeRoutes, r.Method+" "+p)
+		}
+	}
+
+	// Non-vacuity guard: prove MountV1 actually mounted its non-fee surface, so the
+	// fee-absence assertion below cannot pass on an empty mount.
+	require.True(t, hasLedgerRoute, "MountV1 must mount its non-fee /v1 surface (ledgers routes)")
+
+	require.Emptyf(t, feeRoutes,
+		"MountV1 must not mount fee/billing routes — fees are /v2-only in the unified binary; found:\n%s",
+		strings.Join(feeRoutes, "\n"))
+}

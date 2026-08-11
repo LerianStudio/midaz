@@ -6,43 +6,26 @@ package in
 
 import (
 	"context"
-	"encoding/json"
-	"net/http"
 
-	"github.com/danielgtaylor/huma/v2"
 	"go.opentelemetry.io/otel/attribute"
 
 	libObservability "github.com/LerianStudio/lib-observability/v2"
 
-	"github.com/LerianStudio/midaz/v4/components/ledger/pkg/feeshared/model"
 	feehttp "github.com/LerianStudio/midaz/v4/components/ledger/pkg/feeshared/nethttp"
-	feeerrors "github.com/LerianStudio/midaz/v4/pkg"
-	feeconstant "github.com/LerianStudio/midaz/v4/pkg/constant"
-	pkgHTTP "github.com/LerianStudio/midaz/v4/pkg/net/http"
 )
 
-// This file is the ledger's Huma adoption of the fee-estimate (dry-run) op. It
-// mirrors the asset exemplar (asset_handler_huma.go); see that file's header for the
-// full conventions. Fee-specific notes:
+// This file holds the shared fee-body decode helper, the fee-estimate response envelope,
+// and the estimate operation's security metadata. The ledger-scoped estimate handler
+// that consumes them lives in fees_v2_handler.go; the auth
+// ("plugin-fees","estimates","post") + tenant + ParseUUIDPathParameters("estimates")
+// middleware chain is attached on the /v2 Fiber group BEFORE the Huma terminal (see
+// fees_v2_register.go), so the Security metadata here is SPEC metadata only.
 //
-//  1. AUTH is appName "plugin-fees" (fees_routes.go feesApplicationName — the LEGACY
-//     RBAC namespace preserved verbatim), resource "estimates", verb "post". The
-//     Fiber guard chain is Bearer-only, so the per-op Security
-//     metadata here is Bearer-only too — SPEC metadata only; runtime auth stays the
-//     Fiber guard chain (auth.Authorize("plugin-fees","estimates","post") + tenant +
-//     ParseUUIDPathParameters("estimates")) attached BEFORE the Huma terminal.
-//  2. ORG-SCOPED (no ledger in the path): the shell resolves only organization_id via
-//     the shared parseOrg helper (defined in ledger_handler_huma.go).
-//  3. LANDMINE — WithBodyTracing: the Fiber route decodes the body via the fee-package
-//     feehttp.WithBodyTracing, NOT the standard http.WithBody. WithBodyTracing (a)
-//     wraps the decode in a dedicated "middleware.body_parsing" span, and (b) runs the
-//     fee package's OWN decode+validate pipeline (feehttp.DecodeValidateBody — the fee
-//     ValidateStruct/findUnknownFields/parseMetadata, a DIFFERENT validator instance
-//     from pkg/net/http's). This shell PRESERVES BOTH: it decodes via
-//     feehttp.DecodeValidateBody (byte-identical validator) inside a replicated
-//     "middleware.body_parsing" span (observability parity). It does NOT use
-//     pkgHTTP.DecodeAndValidate — that would silently swap the validator.
-//  4. Errors go through the shared pkgHTTP.HumaProblem.
+// LANDMINE — the fee body is decoded via the fee-package feehttp.DecodeValidateBody (the
+// fee ValidateStruct/findUnknownFields/parseMetadata, a DIFFERENT validator instance
+// from pkg/net/http's), inside a replicated "middleware.body_parsing" span. Handlers MUST
+// route through decodeFeeBodyInSpan rather than pkgHTTP.DecodeAndValidate, which would
+// silently swap the validator.
 
 // secFeeBearer advertises that the estimate operation accepts a JWT bearer token
 // (Bearer-only, matching the Fiber guard chain). SPEC metadata only;
@@ -77,16 +60,6 @@ func decodeFeeBodyInSpan(ctx context.Context, rawBody []byte, payload any) error
 	return nil
 }
 
-// --- POST /estimates ----------------------------------------------------------
-
-// EstimateFeeInputHuma is the Huma request envelope for POST. RawBody keeps the body
-// out of Huma's validator (see file header); the org path param is validated by the
-// Fiber middleware, not by a format tag.
-type EstimateFeeInputHuma struct {
-	OrganizationID string `path:"organization_id" doc:"Organization ID (UUID)"`
-	RawBody        []byte `contentType:"application/json"`
-}
-
 // EstimateFeeOutputHuma carries the estimate envelope at 200 (the endpoint is a
 // compute/RPC-style calculation that persists nothing).
 //
@@ -103,54 +76,4 @@ type EstimateFeeInputHuma struct {
 type EstimateFeeOutputHuma struct {
 	Status int
 	Body   []byte `contentType:"application/json"`
-}
-
-// EstimateFeeCalculationHuma decodes+validates the raw body imperatively (fee-package
-// validator, inside the replicated body-parsing span) then delegates to the shared
-// estimateFeeCalculation core and serializes the envelope verbatim.
-func (handler *FeeHandler) EstimateFeeCalculationHuma(ctx context.Context, in *EstimateFeeInputHuma) (*EstimateFeeOutputHuma, error) {
-	orgID, err := parseOrg(in.OrganizationID)
-	if err != nil {
-		return nil, pkgHTTP.HumaProblem(err)
-	}
-
-	payload := new(model.FeeEstimate)
-	if err := decodeFeeBodyInSpan(ctx, in.RawBody, payload); err != nil {
-		return nil, pkgHTTP.HumaProblem(err)
-	}
-
-	response, err := handler.estimateFeeCalculation(ctx, orgID, payload)
-	if err != nil {
-		return nil, pkgHTTP.HumaProblem(err)
-	}
-
-	body, err := json.Marshal(response)
-	if err != nil {
-		return nil, pkgHTTP.HumaProblem(feeerrors.ValidateInternalError(feeconstant.ErrInternalServer, "Fee"))
-	}
-
-	return &EstimateFeeOutputHuma{Status: http.StatusOK, Body: body}, nil
-}
-
-// RegisterFeeEstimateRoutes registers the migrated fee-estimate operation on the
-// given Huma API. It is the per-file seam the unified server calls; the auth
-// ("plugin-fees","estimates","post") + tenant + ParseUUIDPathParameters("estimates")
-// middleware chain is attached on the versioned Fiber group BEFORE the Huma
-// terminal, not here. Paths are GROUP-RELATIVE (see asset_handler_huma.go's
-// RegisterAssetRoutes header for the rationale).
-//
-// The resource hangs off feeBasePathV1. The operation ID is literal — see
-// RegisterPackageRoutes.
-func RegisterFeeEstimateRoutes(api huma.API, h *FeeHandler) {
-	huma.Register(api, huma.Operation{
-		OperationID: "estimateFeeCalculation",
-		Method:      http.MethodPost,
-		Path:        feeBasePathV1 + "/estimates",
-		Summary:     "Create a fee estimate calculation",
-		Tags:        []string{"Fees"},
-		Security:    secFeeBearer,
-		// Body validated imperatively (feehttp.DecodeValidateBody) — see file header.
-		SkipValidateBody: true,
-	}, h.EstimateFeeCalculationHuma)
-	attachTypedRequestBody[model.FeeEstimate](api, "estimateFeeCalculation")
 }

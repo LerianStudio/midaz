@@ -133,13 +133,13 @@ func (d HumaMountDeps) registerWave2(group fiber.Router, api huma.API) {
 	RegisterTransactionRouteRoutesToApp(group, api, d.Auth, d.TransactionRoute, d.TransactionOptions)
 }
 
-// registerWave3 mounts the additive /v1 resources: fees/billing under "plugin-fees"
-// and composition under "midaz". Each carries its OWN route-scoped tenant options so the
-// fee/composition tenant Mongo never overwrites the onboarding/transaction tenant DB.
-// CRM (holders/instruments/encryption/protection) is NOT served on /v1: it mounts only
-// on the /v2 contract via RegisterCRMV2RoutesToApp (see MountV2).
+// registerWave3 mounts the additive /v1 resource: composition under "midaz", which
+// carries its OWN route-scoped tenant options so the composition tenant Mongo never
+// overwrites the onboarding/transaction tenant DB. CRM (holders/instruments/encryption/
+// protection) and fees/billing are NOT served on /v1: CRM mounts only on the /v2
+// contract via RegisterCRMV2RoutesToApp, and fees/billing only via
+// RegisterFeesV2RoutesToApp (see MountV2).
 func (d HumaMountDeps) registerWave3(group fiber.Router, api huma.API) {
-	RegisterFeesRoutesToApp(group, api, d.Auth, d.FeePackage, d.Fee, d.BillingPackage, d.BillingCalculate, d.FeesOptions)
 	RegisterCompositionRoutesToApp(group, api, d.Auth, d.Composition, d.CompositionOptions)
 }
 
@@ -182,9 +182,9 @@ func (d HumaMountDeps) registerWave3(group fiber.Router, api huma.API) {
 // CRM carries its OWN CRMOptions and authorizes against the "midaz" holders/instruments/
 // encryption/protection tuples; it is served ONLY on this /v2 contract. The nil-guards
 // (holder-accounts, encryption, audit) leave a route unregistered when its handler is
-// nil. The fee/billing ops carry FeesOptions and authorize against the
-// same "plugin-fees" tuples as v1 — they differ from v1 in scope only: the path
-// names the ledger, so a package another ledger owns is out of reach. composition
+// nil. The fee/billing ops carry FeesOptions and authorize against the "plugin-fees"
+// tuples at ledger scope: the path names the ledger, so a package another ledger owns
+// is out of reach. Fees/billing are served ONLY on this /v2 contract. composition
 // carries CompositionOptions and authorizes under the "midaz" appName's "accounts"
 // resource, exactly as on v1 (see registerWave3 / RegisterCompositionRoutesToApp).
 //

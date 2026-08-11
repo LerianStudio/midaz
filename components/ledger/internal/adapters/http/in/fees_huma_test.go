@@ -41,11 +41,18 @@ func feesAuthShim(authOK bool) fiber.Handler {
 // The stubPackageService / stubFeeService fakes and the validCreatePackageInput
 // helper live in fees_billing_handlers_test.go; these Huma tests reuse them.
 
-// buildHumaPackageApp mounts the five package Huma operations on a /v1 group,
-// mirroring production (fees_routes.go/unified-server.go): problem.Install() before
-// any huma.Register, the Huma API built with openapi.New over a /v1 group, an
-// auth-shim standing in for auth.Authorize("plugin-fees","packages",verb) + tenant,
-// and per-route ParseUUIDPathParameters("packages") + RegisterPackageRoutes.
+// feePkgV2Base is the ledger-scoped fee-package path the v2 surface serves, in Fiber
+// syntax. The org and ledger are substituted per test; create/estimate additionally
+// require the body ledger to equal the path ledger (see fees_ledger_scope.go), so the
+// tests that carry a body use validLedgerUUID() — the ledger validCreatePackageJSON /
+// estimateBodyJSON stamp — as the path ledger.
+const feePkgV2Base = "/v2/organizations/"
+
+// buildHumaPackageApp mounts the five ledger-scoped package Huma operations on a /v2
+// group, mirroring production (fees_v2_register.go/unified-server.go): problem.Install()
+// before any huma.Register, the Huma API built with openapi.New over a /v2 group, an
+// auth-shim standing in for auth.Authorize("plugin-fees","packages",verb) + tenant, and
+// per-route ParseUUIDPathParameters("packages") + registerPackageV2Routes.
 //
 // MUST-NOT-PARALLELIZE (same rationale as buildHumaInstrumentApp): libProblem.Install()
 // swaps the process-global huma.NewError hook and Huma validation uses process-global
@@ -59,29 +66,29 @@ func buildHumaPackageApp(t *testing.T, handler *PackageHandler, authOK bool) *fi
 
 	libProblem.Install()
 
-	apiV1 := f.Group("/v1")
+	apiV2 := f.Group("/v2")
 
-	apiV1.Use(feesAuthShim(authOK))
+	apiV2.Use(feesAuthShim(authOK))
 
 	parse := pkgHTTP.ParseUUIDPathParameters("packages")
 
-	listPath := "/organizations/:organization_id/packages"
+	listPath := "/organizations/:organization_id/ledgers/:ledger_id/packages"
 	idPath := listPath + "/:id"
 
-	apiV1.Post(listPath, parse)
-	apiV1.Get(listPath, parse)
-	apiV1.Get(idPath, parse)
-	apiV1.Patch(idPath, parse)
-	apiV1.Delete(idPath, parse)
+	apiV2.Post(listPath, parse)
+	apiV2.Get(listPath, parse)
+	apiV2.Get(idPath, parse)
+	apiV2.Patch(idPath, parse)
+	apiV2.Delete(idPath, parse)
 
-	hAPI := openapi.New(f, apiV1, openapi.Config{Title: "ledger-test", Version: "test", Servers: []string{"/v1"}})
+	hAPI := openapi.New(f, apiV2, openapi.Config{Title: "ledger-test", Version: "test", Servers: []string{"/v2"}})
 
-	RegisterPackageRoutes(hAPI, handler)
+	registerPackageV2Routes(hAPI, handler)
 
 	return f
 }
 
-// buildHumaFeeEstimateApp mounts the single estimate Huma operation.
+// buildHumaFeeEstimateApp mounts the single ledger-scoped estimate Huma operation.
 func buildHumaFeeEstimateApp(t *testing.T, handler *FeeHandler, authOK bool) *fiber.App {
 	t.Helper()
 
@@ -91,14 +98,14 @@ func buildHumaFeeEstimateApp(t *testing.T, handler *FeeHandler, authOK bool) *fi
 
 	libProblem.Install()
 
-	apiV1 := f.Group("/v1")
+	apiV2 := f.Group("/v2")
 
-	apiV1.Use(feesAuthShim(authOK))
-	apiV1.Post("/organizations/:organization_id/estimates", pkgHTTP.ParseUUIDPathParameters("estimates"))
+	apiV2.Use(feesAuthShim(authOK))
+	apiV2.Post("/organizations/:organization_id/ledgers/:ledger_id/estimates", pkgHTTP.ParseUUIDPathParameters("estimates"))
 
-	hAPI := openapi.New(f, apiV1, openapi.Config{Title: "ledger-test", Version: "test", Servers: []string{"/v1"}})
+	hAPI := openapi.New(f, apiV2, openapi.Config{Title: "ledger-test", Version: "test", Servers: []string{"/v2"}})
 
-	RegisterFeeEstimateRoutes(hAPI, handler)
+	registerFeeEstimateV2Routes(hAPI, handler)
 
 	return f
 }
@@ -117,9 +124,10 @@ func TestHuma_CreatePackage_Success(t *testing.T) {
 	// Minimal validator-valid create: min<=max, one non-deductible flatFee fee at
 	// priority 2 (avoids the priority-1 originalAmount rule), valid ledger. This
 	// exercises the REAL fee-package body validator the Huma shell delegates to
-	// (the WithBodyTracing landmine), not a pre-built payload injection.
+	// (the WithBodyTracing landmine), not a pre-built payload injection. The body
+	// ledger equals the path ledger, so the ledger-scoped guard admits it.
 	body := validCreatePackageJSON()
-	req := httptest.NewRequest(http.MethodPost, "/v1/organizations/"+orgID.String()+"/packages", bytes.NewBufferString(body))
+	req := httptest.NewRequest(http.MethodPost, feePkgV2Base+orgID.String()+"/ledgers/"+validLedgerUUID()+"/packages", bytes.NewBufferString(body))
 	req.Header.Set("Content-Type", "application/json")
 
 	resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
@@ -142,7 +150,7 @@ func TestHuma_CreatePackage_AuthPreserved(t *testing.T) {
 	handler := &PackageHandler{Service: &stubPackageService{}}
 	app := buildHumaPackageApp(t, handler, false)
 
-	req := httptest.NewRequest(http.MethodPost, "/v1/organizations/"+orgID.String()+"/packages", bytes.NewBufferString(`{}`))
+	req := httptest.NewRequest(http.MethodPost, feePkgV2Base+orgID.String()+"/ledgers/"+validLedgerUUID()+"/packages", bytes.NewBufferString(`{}`))
 	req.Header.Set("Content-Type", "application/json")
 
 	resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
@@ -158,7 +166,7 @@ func TestHuma_CreatePackage_MalformedBody_Canonical400(t *testing.T) {
 	handler := &PackageHandler{Service: &stubPackageService{}}
 	app := buildHumaPackageApp(t, handler, true)
 
-	req := httptest.NewRequest(http.MethodPost, "/v1/organizations/"+orgID.String()+"/packages", bytes.NewReader([]byte("{not valid json")))
+	req := httptest.NewRequest(http.MethodPost, feePkgV2Base+orgID.String()+"/ledgers/"+validLedgerUUID()+"/packages", bytes.NewReader([]byte("{not valid json")))
 	req.Header.Set("Content-Type", "application/json")
 
 	resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
@@ -183,7 +191,7 @@ func TestHuma_GetPackageByID_Success(t *testing.T) {
 
 	app := buildHumaPackageApp(t, handler, true)
 
-	req := httptest.NewRequest(http.MethodGet, "/v1/organizations/"+orgID.String()+"/packages/"+packID.String(), nil)
+	req := httptest.NewRequest(http.MethodGet, feePkgV2Base+orgID.String()+"/ledgers/"+validLedgerUUID()+"/packages/"+packID.String(), nil)
 	resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
 	require.NoError(t, err)
 	defer func() { _ = resp.Body.Close() }()
@@ -203,7 +211,7 @@ func TestHuma_GetPackageByID_BadUUID_Canonical400(t *testing.T) {
 	handler := &PackageHandler{Service: &stubPackageService{}}
 	app := buildHumaPackageApp(t, handler, true)
 
-	req := httptest.NewRequest(http.MethodGet, "/v1/organizations/"+orgID.String()+"/packages/not-a-uuid", nil)
+	req := httptest.NewRequest(http.MethodGet, feePkgV2Base+orgID.String()+"/ledgers/"+validLedgerUUID()+"/packages/not-a-uuid", nil)
 	resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
 	require.NoError(t, err)
 	defer func() { _ = resp.Body.Close() }()
@@ -224,7 +232,7 @@ func TestHuma_GetAllPackages_Success(t *testing.T) {
 
 	app := buildHumaPackageApp(t, handler, true)
 
-	req := httptest.NewRequest(http.MethodGet, "/v1/organizations/"+orgID.String()+"/packages?limit=5&page=2", nil)
+	req := httptest.NewRequest(http.MethodGet, feePkgV2Base+orgID.String()+"/ledgers/"+validLedgerUUID()+"/packages?limit=5&page=2", nil)
 	resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
 	require.NoError(t, err)
 	defer func() { _ = resp.Body.Close() }()
@@ -248,7 +256,7 @@ func TestHuma_GetAllPackages_BadQuery_Canonical400(t *testing.T) {
 	handler := &PackageHandler{Service: &stubPackageService{}}
 	app := buildHumaPackageApp(t, handler, true)
 
-	req := httptest.NewRequest(http.MethodGet, "/v1/organizations/"+orgID.String()+"/packages?limit=abc", nil)
+	req := httptest.NewRequest(http.MethodGet, feePkgV2Base+orgID.String()+"/ledgers/"+validLedgerUUID()+"/packages?limit=abc", nil)
 	resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
 	require.NoError(t, err)
 	defer func() { _ = resp.Body.Close() }()
@@ -272,7 +280,7 @@ func TestHuma_UpdatePackage_Success(t *testing.T) {
 	app := buildHumaPackageApp(t, handler, true)
 
 	body := `{"description":"new desc"}`
-	req := httptest.NewRequest(http.MethodPatch, "/v1/organizations/"+orgID.String()+"/packages/"+packID.String(), bytes.NewBufferString(body))
+	req := httptest.NewRequest(http.MethodPatch, feePkgV2Base+orgID.String()+"/ledgers/"+validLedgerUUID()+"/packages/"+packID.String(), bytes.NewBufferString(body))
 	req.Header.Set("Content-Type", "application/json")
 
 	resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
@@ -297,7 +305,7 @@ func TestHuma_DeletePackage_204Empty(t *testing.T) {
 
 	app := buildHumaPackageApp(t, handler, true)
 
-	req := httptest.NewRequest(http.MethodDelete, "/v1/organizations/"+orgID.String()+"/packages/"+packID.String(), nil)
+	req := httptest.NewRequest(http.MethodDelete, feePkgV2Base+orgID.String()+"/ledgers/"+validLedgerUUID()+"/packages/"+packID.String(), nil)
 	resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
 	require.NoError(t, err)
 	defer func() { _ = resp.Body.Close() }()
@@ -322,7 +330,7 @@ func TestHuma_EstimateFee_Success(t *testing.T) {
 	app := buildHumaFeeEstimateApp(t, handler, true)
 
 	body := estimateBodyJSON()
-	req := httptest.NewRequest(http.MethodPost, "/v1/organizations/"+orgID.String()+"/estimates", bytes.NewBufferString(body))
+	req := httptest.NewRequest(http.MethodPost, feePkgV2Base+orgID.String()+"/ledgers/"+validLedgerUUID()+"/estimates", bytes.NewBufferString(body))
 	req.Header.Set("Content-Type", "application/json")
 
 	resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
@@ -352,7 +360,7 @@ func TestHuma_EstimateFee_NoRules_EmptyMessage(t *testing.T) {
 	app := buildHumaFeeEstimateApp(t, handler, true)
 
 	body := estimateBodyJSON()
-	req := httptest.NewRequest(http.MethodPost, "/v1/organizations/"+orgID.String()+"/estimates", bytes.NewBufferString(body))
+	req := httptest.NewRequest(http.MethodPost, feePkgV2Base+orgID.String()+"/ledgers/"+validLedgerUUID()+"/estimates", bytes.NewBufferString(body))
 	req.Header.Set("Content-Type", "application/json")
 
 	resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
@@ -377,7 +385,7 @@ func TestHuma_EstimateFee_ServiceError_Mapped(t *testing.T) {
 	app := buildHumaFeeEstimateApp(t, handler, true)
 
 	body := estimateBodyJSON()
-	req := httptest.NewRequest(http.MethodPost, "/v1/organizations/"+orgID.String()+"/estimates", bytes.NewBufferString(body))
+	req := httptest.NewRequest(http.MethodPost, feePkgV2Base+orgID.String()+"/ledgers/"+validLedgerUUID()+"/estimates", bytes.NewBufferString(body))
 	req.Header.Set("Content-Type", "application/json")
 
 	resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
@@ -396,7 +404,8 @@ func TestHuma_EstimateFee_ServiceError_Mapped(t *testing.T) {
 // estimateBodyJSON returns a FeeEstimate payload that satisfies the fee-package
 // validator: packageId + ledgerId are required UUIDs and the embedded transaction's
 // send (asset + value + source.from + distribute.to) is required. The fee engine is
-// stubbed, so only decode+validate must pass.
+// stubbed, so only decode+validate must pass. ledgerId is validLedgerUUID(), so the
+// ledger-scoped estimate guard admits it when the path names the same ledger.
 func estimateBodyJSON() string {
 	return `{"packageId":"` + validLedgerUUID() + `","ledgerId":"` + validLedgerUUID() + `","transaction":{"send":` + validSendJSON() + `}}`
 }
@@ -411,6 +420,8 @@ func validSendJSON() string {
 // validCreatePackageJSON is a validator-valid create-package body: one non-deductible
 // flatFee fee at priority 2 with a single flat calculation (avoids the priority-1
 // originalAmount rule and the deductible min-amount check), min<=max, valid ledger.
+// ledgerId is validLedgerUUID(), so the ledger-scoped create guard admits it when the
+// path names the same ledger.
 func validCreatePackageJSON() string {
 	return `{"feeGroupLabel":"Standard","ledgerId":"` + validLedgerUUID() + `","minimumAmount":"100.00","maximumAmount":"1000.00","enable":true,"fees":{"f1":{"feeLabel":"Admin","referenceAmount":"afterFeesAmount","priority":2,"isDeductibleFrom":false,"creditAccount":"conta_receita","calculationModel":{"applicationRule":"flatFee","calculations":[{"type":"flat","value":"50.00"}]}}}}`
 }
