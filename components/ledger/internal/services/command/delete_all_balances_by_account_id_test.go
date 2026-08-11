@@ -17,6 +17,7 @@ import (
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/google/uuid"
+	goredis "github.com/redis/go-redis/v9"
 	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/mock/gomock"
@@ -205,6 +206,92 @@ func TestDeleteAllBalancesByAccountID(t *testing.T) {
 		err := uc.DeleteAllBalancesByAccountID(ctx, organizationID, ledgerID, accountID, requestID.String())
 		assert.NoError(t, err)
 	})
+}
+
+// TestDeleteAllBalancesByAccountIDCacheMissFundsGuard covers the funds guard on a Redis
+// cache miss: a balance absent from Redis (TTL expired) must still be checked against the
+// authoritative Postgres row so accounts holding funds are never soft-deleted.
+func TestDeleteAllBalancesByAccountIDCacheMissFundsGuard(t *testing.T) {
+	ctx := context.Background()
+	organizationID := uuid.New()
+	ledgerID := uuid.New()
+	accountID := uuid.New()
+	requestID := uuid.Must(libCommons.GenerateUUIDv7())
+
+	tests := []struct {
+		name          string
+		balance       *mmodel.Balance
+		cacheBalance  *mmodel.Balance
+		cacheErr      error
+		expectProceed bool
+	}{
+		{
+			name:          "on_hold funds with cache miss prevents deletion",
+			balance:       newTestBalance(decimal.Zero, decimal.NewFromInt(5)),
+			cacheBalance:  nil,
+			cacheErr:      goredis.Nil,
+			expectProceed: false,
+		},
+		{
+			name:          "available funds with cache miss prevents deletion",
+			balance:       newTestBalance(decimal.NewFromInt(7), decimal.Zero),
+			cacheBalance:  nil,
+			cacheErr:      goredis.Nil,
+			expectProceed: false,
+		},
+		{
+			name:          "cached balance still prevents deletion",
+			balance:       newTestBalance(decimal.Zero, decimal.Zero),
+			cacheBalance:  &mmodel.Balance{},
+			cacheErr:      nil,
+			expectProceed: false,
+		},
+		{
+			name:          "zero funds with cache miss proceeds to deletion",
+			balance:       newTestBalance(decimal.Zero, decimal.Zero),
+			cacheBalance:  nil,
+			cacheErr:      goredis.Nil,
+			expectProceed: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			uc, mockBalanceRepo, mockRedisRepo := setupDeleteAllBalancesUseCase(t)
+
+			mockBalanceRepo.EXPECT().
+				ListByAccountID(gomock.Any(), organizationID, ledgerID, accountID).
+				Return([]*mmodel.Balance{tt.balance}, nil)
+			mockRedisRepo.EXPECT().
+				ListBalanceByKey(gomock.Any(), organizationID, ledgerID, balanceRedisKey(tt.balance)).
+				Return(tt.cacheBalance, tt.cacheErr)
+
+			if tt.expectProceed {
+				mockBalanceRepo.EXPECT().
+					UpdateAllByAccountID(gomock.Any(), organizationID, ledgerID, accountID, gomock.Any()).
+					Return(nil)
+				mockBalanceRepo.EXPECT().
+					DeleteAllByIDs(gomock.Any(), organizationID, ledgerID, gomock.Any()).
+					Return(nil)
+			} else {
+				mockBalanceRepo.EXPECT().
+					DeleteAllByIDs(gomock.Any(), organizationID, ledgerID, gomock.Any()).
+					Times(0)
+			}
+
+			err := uc.DeleteAllBalancesByAccountID(ctx, organizationID, ledgerID, accountID, requestID.String())
+
+			if tt.expectProceed {
+				assert.NoError(t, err)
+				return
+			}
+
+			var validationErr midazpkg.ValidationError
+			assert.Error(t, err)
+			assert.True(t, errors.As(err, &validationErr))
+			assert.Equal(t, constant.ErrBalancesCantBeDeleted.Error(), validationErr.Code)
+		})
+	}
 }
 
 func setupDeleteAllBalancesUseCase(t *testing.T) (*UseCase, *balance.MockRepository, *redis.MockRedisRepository) {

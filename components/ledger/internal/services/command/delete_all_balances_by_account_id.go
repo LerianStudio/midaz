@@ -50,16 +50,12 @@ func (uc *UseCase) DeleteAllBalancesByAccountID(ctx context.Context, organizatio
 
 	for _, balance := range balances {
 		cacheBalance, err := uc.TransactionRedisRepo.ListBalanceByKey(ctx, organizationID, ledgerID, fmt.Sprintf("%s#%s", balance.Alias, balance.Key))
-		if err != nil {
-			if errors.Is(err, redis.Nil) {
-				continue
-			} else {
-				libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to get balance by key on redis", err)
+		if err != nil && !errors.Is(err, redis.Nil) {
+			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to get balance by key on redis", err)
 
-				logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Error getting balance by key on redis: %v", err))
+			logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Error getting balance by key on redis: %v", err))
 
-				return err
-			}
+			return err
 		}
 
 		if cacheBalance != nil {
