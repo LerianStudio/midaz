@@ -23,8 +23,8 @@ github.com/LerianStudio/lib-commons/v6 v6.7.0 h1:qXqltprs5gX9RDTrCAa4DOsrNJ9zc5X
 github.com/LerianStudio/lib-commons/v6 v6.7.0/go.mod h1:yo2QHBbXXwKNw1Wygip+Z/AANpIunyuXnEAZZT8hGQg=
 github.com/LerianStudio/lib-observability v1.1.0 h1:e/OrIoTKo8gI1RKXgKDyDDKcrddR4beh53al5ZmB6vQ=
 github.com/LerianStudio/lib-observability v1.1.0/go.mod h1:PBtmXygWXmcsTnyNLBetyYb/OtsWq6WT9fSJvoppeUQ=
-github.com/LerianStudio/lib-observability/v2 v2.1.1 h1:YpzgylqUqPg5g1FGpcf561SRbrgKT8wfUoD236CMGHo=
-github.com/LerianStudio/lib-observability/v2 v2.1.1/go.mod h1:iXspGM6PRTf6BDtkTc0Z69R2HEv1GtjBsI/YSvewDgA=
+github.com/LerianStudio/lib-observability/v2 v2.1.2 h1:j01bl9iz0GVhnlR7Tjv23fDAFrhRmtcC7HLBbApM6FI=
+github.com/LerianStudio/lib-observability/v2 v2.1.2/go.mod h1:iXspGM6PRTf6BDtkTc0Z69R2HEv1GtjBsI/YSvewDgA=
 github.com/LerianStudio/lib-service-discovery v1.1.0 h1:rREGTNnlwoHdfsqDbDoOXAQkqQazVYT/b0yTypSWrk8=
 github.com/LerianStudio/lib-service-discovery v1.1.0/go.mod h1:d6pW/QMo1hYzLgzcxiTg3updjSs6m5sZkuOG3L4gwxo=
 github.com/LerianStudio/lib-streaming/v2 v2.1.0 h1:3UjLKGww2o3DXiTEJak2z42oE/rkc34gLrBf91rT3n4=
