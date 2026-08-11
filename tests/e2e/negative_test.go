@@ -97,7 +97,7 @@ func TestNegativeAccountAndPackageContracts(t *testing.T) {
 	})
 
 	t.Run("fee package minimum greater than maximum", func(t *testing.T) {
-		r := call(t, http.MethodPost, ledgerURL()+"/v1/organizations/"+f.orgID+"/packages", map[string]any{
+		r := call(t, http.MethodPost, ledgerURL()+"/v2/organizations/"+f.orgID+"/ledgers/"+f.ledgerID+"/packages", map[string]any{
 			"feeGroupLabel": "bad", "ledgerId": f.ledgerID,
 			"minimumAmount": "1000", "maximumAmount": "10", "enable": true,
 			"fees": map[string]any{"f": map[string]any{

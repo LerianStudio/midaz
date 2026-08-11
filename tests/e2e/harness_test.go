@@ -256,7 +256,7 @@ func createHolderAccount(t *testing.T, f fixture, holderID string) map[string]an
 func createFeePackage(t *testing.T, f fixture, creditAlias, applicationRule, calcType, value string) map[string]any {
 	t.Helper()
 
-	return mustCreate(t, fmt.Sprintf("%s/v1/organizations/%s/packages", ledgerURL(), f.orgID), map[string]any{
+	return mustCreate(t, fmt.Sprintf("%s/v2/organizations/%s/ledgers/%s/packages", ledgerURL(), f.orgID, f.ledgerID), map[string]any{
 		"feeGroupLabel": "E2E Std", "ledgerId": f.ledgerID,
 		"minimumAmount": "0", "maximumAmount": "100000000", "enable": true,
 		"fees": map[string]any{

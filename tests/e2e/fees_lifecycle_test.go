@@ -22,7 +22,7 @@ import (
 // with the other parallel Epic test files sharing this package.
 //
 // Calibration notes pinned from live curl against the running stack:
-//   - PATCH /v1/organizations/{org}/packages/{id} returns 200 and merges the
+//   - PATCH /v2/organizations/{org}/ledgers/{ledger_id}/packages/{id} returns 200 and merges the
 //     `fees` map field-by-field (sending only a changed calculation is enough);
 //     the next transaction reflects the new value — the per-(org,ledger) cache
 //     invalidates on update.
@@ -53,9 +53,9 @@ type feelifecycleFeeSpec struct {
 	segmentID   string // package segmentId; "" leaves it unscoped
 }
 
-// feelifecyclePackagesURL is the org-scoped fee packages collection.
+// feelifecyclePackagesURL is the ledger-scoped fee packages collection.
 func feelifecyclePackagesURL(f fixture) string {
-	return fmt.Sprintf("%s/v1/organizations/%s/packages", ledgerURL(), f.orgID)
+	return fmt.Sprintf("%s/v2/organizations/%s/ledgers/%s/packages", ledgerURL(), f.orgID, f.ledgerID)
 }
 
 // feelifecycleCreateFlatPackage registers an enabled flat-fee package with the
