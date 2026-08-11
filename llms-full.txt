@@ -348,40 +348,21 @@ are still emitted on their own paths.
 ### 4.3 Fees API (served by the ledger binary on port 3002)
 
 The fee engine + billing-package surface is embedded in the ledger binary — it is **not** a
-standalone service. Routes are registered in `components/ledger/internal/adapters/http/in/fees_routes.go`
-(organization-scoped, `/v1`) and `fees_v2_register.go` (ledger-scoped, `/v2`), both under the
+standalone service. Routes are registered in
+`components/ledger/internal/adapters/http/in/fees_v2_register.go` (ledger-scoped, `/v2`), under the
 `plugin-fees` authz namespace and served on `:3002`.
 
-Scoping is **path-based**: fee endpoints read the organization from the `:organization_id` path
-segment, UUID-validated by the protected-route chain (`ParseUUIDPathParameters`) — the same
-convention as every other surface in the binary. The former `X-Organization-Id` header was
-removed; path-validation errors return the canonical midaz `ErrInvalidPathParameter` envelope
-(fee business errors use the canonical numeric error-code registry in `pkg/constant/errors.go` —
-the `FEE-` prefixed code family is retired). See `docs/api/SCOPING.md`.
+Scoping is **path-based**: fee endpoints read the organization and ledger from the
+`:organization_id` and `:ledger_id` path segments, UUID-validated by the protected-route chain
+(`ParseUUIDPathParameters`) — the same convention as every other surface in the binary. The former
+`X-Organization-Id` header was removed; path-validation errors return the canonical midaz
+`ErrInvalidPathParameter` envelope (fee business errors use the canonical numeric error-code
+registry in `pkg/constant/errors.go` — the `FEE-` prefixed code family is retired). See
+`docs/api/SCOPING.md`.
 
-**Two live surfaces.** The same twelve operations are served at two scopes, and neither replaces
-the other. On `/v1` the path names only the organization and a read reaches a resource on whichever
-ledger of the organization owns it; `ledger_id` there is a create-body field and an optional
-`?ledgerId=` list filter, never a scope. On `/v2` the path names the ledger and a read reaches only
-what that ledger owns.
-
-| Method | Path | Description |
-|--------|------|-------------|
-| POST | /v1/organizations/{organization_id}/packages | Create fee package |
-| GET | /v1/organizations/{organization_id}/packages | List fee packages |
-| GET | /v1/organizations/{organization_id}/packages/:id | Get fee package |
-| PATCH | /v1/organizations/{organization_id}/packages/:id | Update fee package |
-| DELETE | /v1/organizations/{organization_id}/packages/:id | Delete fee package |
-| POST | /v1/organizations/{organization_id}/estimates | Estimate fee calculation (dry run) |
-| POST | /v1/organizations/{organization_id}/billing-packages | Create billing package |
-| GET | /v1/organizations/{organization_id}/billing-packages | List billing packages |
-| GET | /v1/organizations/{organization_id}/billing-packages/:id | Get billing package |
-| PATCH | /v1/organizations/{organization_id}/billing-packages/:id | Update billing package |
-| DELETE | /v1/organizations/{organization_id}/billing-packages/:id | Delete billing package |
-| POST | /v1/organizations/{organization_id}/billing/calculate | Calculate billing |
-
-Ledger-scoped twins on the `/v2` contract (`{base}` =
-`/v2/organizations/{organization_id}/ledgers/{ledger_id}`):
+The twelve operations are served under the ledger-scoped `/v2` contract (`{base}` =
+`/v2/organizations/{organization_id}/ledgers/{ledger_id}`); the path names the ledger and a read
+reaches only what that ledger owns.
 
 | Method | Path | Description |
 |--------|------|-------------|
@@ -401,11 +382,11 @@ Ledger-scoped twins on the `/v2` contract (`{base}` =
 On the `/v2` paths the path is the sole authority on the ledger: the nil UUID is refused as a
 `ledger_id` path value, a request body naming a different ledger is refused (`0234`), and
 `?ledgerId=` is refused on the two listings (`0235`) — its empty value would mean "every ledger",
-the one scope a ledger-scoped listing must not express. Authz is identical to `/v1`: `plugin-fees` with the
-same `(resource, verb)` tuples, so no separate grant is needed for the second surface.
+the one scope a ledger-scoped listing must not express. Authz is `plugin-fees` with the usual
+`(resource, verb)` tuples.
 
-`POST /v1/fees` (live fee calculation) is intentionally **not** exposed — fees run in-process via
-the transaction-create seam, not over HTTP. The `/v2` surface omits it for the same reason.
+Live fee calculation (`POST .../fees`) is intentionally **not** exposed — fees run in-process via
+the transaction-create seam, not over HTTP.
 
 ### 4.4 Tracer API (port 4020)
 
