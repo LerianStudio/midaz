@@ -99,8 +99,14 @@ func TestMountV1_OmitsCRMSurface(t *testing.T) {
 
 	var crmRoutes []string
 
+	var hasLedgerRoute bool
+
 	for _, r := range app.GetRoutes(true) {
 		p := r.Path
+
+		if strings.Contains(p, "/organizations/:organization_id/ledgers") {
+			hasLedgerRoute = true
+		}
 
 		isCRM := strings.Contains(p, "/organizations/:organization_id/holders") ||
 			strings.Contains(p, "/organizations/:organization_id/instruments") ||
@@ -112,6 +118,10 @@ func TestMountV1_OmitsCRMSurface(t *testing.T) {
 			crmRoutes = append(crmRoutes, r.Method+" "+p)
 		}
 	}
+
+	// Non-vacuity guard: prove MountV1 actually mounted its non-CRM surface, so the
+	// CRM-absence assertion below cannot pass on an empty mount.
+	require.True(t, hasLedgerRoute, "MountV1 must mount its non-CRM /v1 surface (ledgers routes)")
 
 	require.Emptyf(t, crmRoutes,
 		"MountV1 must not mount CRM routes — CRM is /v2-only in the unified binary; found:\n%s",
