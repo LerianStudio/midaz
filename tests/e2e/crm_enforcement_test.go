@@ -68,7 +68,7 @@ func crmValidCPF() string {
 func crmCreateHolder(t *testing.T, orgID, name string) string {
 	t.Helper()
 
-	h := mustCreate(t, fmt.Sprintf("%s/v1/organizations/%s/holders", ledgerURL(), orgID), map[string]any{
+	h := mustCreate(t, fmt.Sprintf("%s/v2/organizations/%s/holders", ledgerURL(), orgID), map[string]any{
 		"type": "NATURAL_PERSON", "name": name, "document": crmValidCPF(),
 		"externalId": "E2E-CRM-" + uuid.NewString()[:8],
 	})
@@ -120,12 +120,12 @@ func crmRawAccount(t *testing.T, f fixture, body map[string]any) response {
 
 // crmInstrumentURL is the instrument-create endpoint for a holder.
 func crmInstrumentURL(orgID, holderID string) string {
-	return fmt.Sprintf("%s/v1/organizations/%s/holders/%s/instruments", ledgerURL(), orgID, holderID)
+	return fmt.Sprintf("%s/v2/organizations/%s/holders/%s/instruments", ledgerURL(), orgID, holderID)
 }
 
 // crmHolderURL is the single-holder endpoint (GET/DELETE).
 func crmHolderURL(orgID, holderID string) string {
-	return fmt.Sprintf("%s/v1/organizations/%s/holders/%s", ledgerURL(), orgID, holderID)
+	return fmt.Sprintf("%s/v2/organizations/%s/holders/%s", ledgerURL(), orgID, holderID)
 }
 
 // crmDeleteHolder issues DELETE on a holder and returns the raw response.
@@ -138,7 +138,7 @@ func crmDeleteHolder(t *testing.T, orgID, holderID string) response {
 func crmDeleteInstrument(t *testing.T, orgID, holderID, instrumentID string) response {
 	t.Helper()
 	return call(t, http.MethodDelete,
-		fmt.Sprintf("%s/v1/organizations/%s/holders/%s/instruments/%s", ledgerURL(), orgID, holderID, instrumentID), nil)
+		fmt.Sprintf("%s/v2/organizations/%s/holders/%s/instruments/%s", ledgerURL(), orgID, holderID, instrumentID), nil)
 }
 
 // crmGetHolder issues GET on a single holder and returns the raw response.

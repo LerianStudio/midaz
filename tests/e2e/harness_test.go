@@ -223,7 +223,7 @@ func createAccount(t *testing.T, f fixture, alias string) string {
 func createHolder(t *testing.T, orgID string) string {
 	t.Helper()
 
-	h := mustCreate(t, fmt.Sprintf("%s/v1/organizations/%s/holders", ledgerURL(), orgID), map[string]any{
+	h := mustCreate(t, fmt.Sprintf("%s/v2/organizations/%s/holders", ledgerURL(), orgID), map[string]any{
 		"type": "NATURAL_PERSON", "name": "Jane Doe", "document": "91315026015",
 		"externalId": "E2E-" + uuid.NewString()[:8],
 	})
@@ -291,7 +291,7 @@ func txnOp(t *testing.T, f fixture, txnID, op string) response {
 // createInstrument links a holder to a ledger account (CRM instrument).
 func createInstrument(t *testing.T, orgID, ledgerID, holderID, accountID string) map[string]any {
 	t.Helper()
-	return mustCreate(t, fmt.Sprintf("%s/v1/organizations/%s/holders/%s/instruments", ledgerURL(), orgID, holderID), map[string]any{
+	return mustCreate(t, fmt.Sprintf("%s/v2/organizations/%s/holders/%s/instruments", ledgerURL(), orgID, holderID), map[string]any{
 		"accountId": accountID, "ledgerId": ledgerID,
 	})
 }

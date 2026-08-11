@@ -162,13 +162,13 @@ func TestAuthUnauthenticatedCRMRejected(t *testing.T) {
 	}{
 		{
 			name: "holders",
-			// crm_routes.go:36 — POST /v1/organizations/{org}/holders
-			url: ledgerURL() + "/v1/organizations/" + org + "/holders",
+			// crm_routes.go:36 — POST /v2/organizations/{org}/holders
+			url: ledgerURL() + "/v2/organizations/" + org + "/holders",
 		},
 		{
 			name: "instruments",
 			// crm_routes.go:49 — POST .../holders/{holderId}/instruments
-			url: ledgerURL() + "/v1/organizations/" + org + "/holders/" + holder + "/instruments",
+			url: ledgerURL() + "/v2/organizations/" + org + "/holders/" + holder + "/instruments",
 		},
 	}
 
@@ -208,7 +208,7 @@ func TestAuthAuthorizedUnderMidazNamespace(t *testing.T) {
 
 	org := createOrg(t) // requires the same auth to succeed; if it can't, the env is misconfigured.
 
-	url := ledgerURL() + "/v1/organizations/" + org + "/holders"
+	url := ledgerURL() + "/v2/organizations/" + org + "/holders"
 	r := authCall(t, http.MethodPost, url, token, map[string]any{
 		"type": "NATURAL_PERSON", "name": "Auth Probe", "document": "91315026015",
 		"externalId": "E2E-AUTH-PROBE",
