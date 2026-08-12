@@ -64,7 +64,8 @@ func (uc *UseCase) plantBalanceTombstones(ctx context.Context, organizationID, l
 	for _, balance := range balances {
 		tombstoneKey := tombstoneKeyFor(organizationID, ledgerID, balance)
 
-		if _, err := uc.TransactionRedisRepo.SetNX(spanCtx, tombstoneKey, tombstoneMarkerValue, time.Duration(balanceDeleteTombstoneTTLSeconds)); err != nil {
+		set, err := uc.TransactionRedisRepo.SetNX(spanCtx, tombstoneKey, tombstoneMarkerValue, time.Duration(balanceDeleteTombstoneTTLSeconds))
+		if err != nil {
 			libOpentelemetry.HandleSpanError(span, "Failed to plant balance delete tombstone", err)
 
 			logger.Log(spanCtx, libLog.LevelWarn, "Failed to plant balance delete tombstone", libLog.Err(err))
@@ -72,7 +73,13 @@ func (uc *UseCase) plantBalanceTombstones(ctx context.Context, organizationID, l
 			continue
 		}
 
-		planted = append(planted, tombstoneKey)
+		// Track only a tombstone THIS operation acquired (SetNX true). A (false, nil)
+		// means a concurrent delete already owns the key: the guard is armed either
+		// way, so the delete proceeds, but releasing here would Del a sibling's
+		// tombstone and reopen the honored-lock hole. Only acquired keys are releasable.
+		if set {
+			planted = append(planted, tombstoneKey)
+		}
 	}
 
 	return func() {

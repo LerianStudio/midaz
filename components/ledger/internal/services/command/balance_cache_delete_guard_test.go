@@ -44,13 +44,13 @@ func TestTombstoneKeyFor(t *testing.T) {
 
 			got := tombstoneKeyFor(organizationID, ledgerID, balance)
 
-			want := utils.BalanceInternalKey(organizationID, ledgerID, tt.alias+"#"+tt.key) + ":deleted"
+			want := utils.BalanceInternalKey(organizationID, ledgerID, tt.alias+"#"+tt.key) + tombstoneKeySuffix
 
 			assert.Equal(t, want, got)
 			// Tombstone MUST be a separate key from the balance cache key.
 			assert.NotEqual(t, utils.BalanceInternalKey(organizationID, ledgerID, tt.alias+"#"+tt.key), got)
 			assert.Contains(t, got, "balance:{transactions}:")
-			assert.Contains(t, got, tt.alias+"#"+tt.key+":deleted")
+			assert.Contains(t, got, tt.alias+"#"+tt.key+tombstoneKeySuffix)
 		})
 	}
 }
@@ -68,8 +68,8 @@ func TestPlantBalanceTombstones(t *testing.T) {
 	second := tombstoneTestBalance("@bob", "brl")
 	balances := []*mmodel.Balance{first, second}
 
-	firstTomb := utils.BalanceInternalKey(organizationID, ledgerID, "@alice#usd") + ":deleted"
-	secondTomb := utils.BalanceInternalKey(organizationID, ledgerID, "@bob#brl") + ":deleted"
+	firstTomb := utils.BalanceInternalKey(organizationID, ledgerID, "@alice#usd") + tombstoneKeySuffix
+	secondTomb := utils.BalanceInternalKey(organizationID, ledgerID, "@bob#brl") + tombstoneKeySuffix
 
 	// SetNX is called once per balance, with the correct tombstone key, a marker value,
 	// and the whole-second TTL constant (SetNX multiplies it by time.Second internally).
@@ -100,7 +100,7 @@ func TestPlantBalanceTombstonesReleaseDelErrorSwallowed(t *testing.T) {
 	uc, _, mockRedisRepo := setupDeleteAllBalancesUseCase(t)
 
 	balance := tombstoneTestBalance("@alice", "usd")
-	tomb := utils.BalanceInternalKey(organizationID, ledgerID, "@alice#usd") + ":deleted"
+	tomb := utils.BalanceInternalKey(organizationID, ledgerID, "@alice#usd") + tombstoneKeySuffix
 
 	mockRedisRepo.EXPECT().
 		SetNX(gomock.Any(), tomb, "1", time.Duration(balanceDeleteTombstoneTTLSeconds)).
@@ -127,8 +127,8 @@ func TestPlantBalanceTombstonesSetNXErrorContinues(t *testing.T) {
 	second := tombstoneTestBalance("@bob", "brl")
 	balances := []*mmodel.Balance{first, second}
 
-	firstTomb := utils.BalanceInternalKey(organizationID, ledgerID, "@alice#usd") + ":deleted"
-	secondTomb := utils.BalanceInternalKey(organizationID, ledgerID, "@bob#brl") + ":deleted"
+	firstTomb := utils.BalanceInternalKey(organizationID, ledgerID, "@alice#usd") + tombstoneKeySuffix
+	secondTomb := utils.BalanceInternalKey(organizationID, ledgerID, "@bob#brl") + tombstoneKeySuffix
 
 	// First SetNX fails: it is logged and skipped, not planted. Second succeeds.
 	mockRedisRepo.EXPECT().
@@ -145,6 +145,62 @@ func TestPlantBalanceTombstonesSetNXErrorContinues(t *testing.T) {
 	mockRedisRepo.EXPECT().Del(gomock.Any(), secondTomb).Return(nil)
 
 	assert.NotPanics(t, func() { release() })
+}
+
+func TestPlantBalanceTombstonesTracksOnlyAcquiredKeys(t *testing.T) {
+	t.Parallel()
+
+	organizationID := uuid.New()
+	ledgerID := uuid.New()
+
+	tests := []struct {
+		name        string
+		setNXResult bool
+		released    bool
+	}{
+		{
+			// (true, nil): this operation acquired the tombstone, so it owns and
+			// releases the key on rollback.
+			name:        "acquired tombstone is released",
+			setNXResult: true,
+			released:    true,
+		},
+		{
+			// (false, nil): a concurrent delete already owns the tombstone. The
+			// guard is armed either way, so this operation proceeds, but it must
+			// NOT release a sibling's key.
+			name:        "already-owned tombstone is not released",
+			setNXResult: false,
+			released:    false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			ctx := context.Background()
+			uc, _, mockRedisRepo := setupDeleteAllBalancesUseCase(t)
+
+			balance := tombstoneTestBalance("@alice", "usd")
+			tomb := utils.BalanceInternalKey(organizationID, ledgerID, "@alice#usd") + tombstoneKeySuffix
+
+			mockRedisRepo.EXPECT().
+				SetNX(gomock.Any(), tomb, tombstoneMarkerValue, time.Duration(balanceDeleteTombstoneTTLSeconds)).
+				Return(tt.setNXResult, nil)
+
+			release := uc.plantBalanceTombstones(ctx, organizationID, ledgerID, []*mmodel.Balance{balance})
+			assert.NotNil(t, release)
+
+			if tt.released {
+				mockRedisRepo.EXPECT().Del(gomock.Any(), tomb).Return(nil)
+			} else {
+				mockRedisRepo.EXPECT().Del(gomock.Any(), tomb).Times(0)
+			}
+
+			assert.NotPanics(t, func() { release() })
+		})
+	}
 }
 
 func TestEvictBalanceCaches(t *testing.T) {

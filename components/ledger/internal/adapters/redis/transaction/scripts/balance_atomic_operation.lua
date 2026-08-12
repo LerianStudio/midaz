@@ -268,12 +268,15 @@ local function main()
     -- shares the balance key's {transactions} hash slot. Running this pre-pass
     -- ahead of the first SET below means a rejection here leaves zero side
     -- effects across the batch, so no rollback is required. The stride mirrors
-    -- the main loop below (groupSize=24; ARGV[i] is the balance key).
+    -- the main loop below (groupSize=24; ARGV[i] is the balance key). A single
+    -- variadic EXISTS returns the count of tombstones present; >0 means at least
+    -- one balance is tombstoned, so the whole batch is rejected.
+    local tombstoneKeys = {}
     for i = 1, #ARGV, groupSize do
-        local tombstoneKey = ARGV[i] .. ":deleted"
-        if redis.call("EXISTS", tombstoneKey) == 1 then
-            return redis.error_reply("0019")
-        end
+        tombstoneKeys[#tombstoneKeys + 1] = ARGV[i] .. ":deleted"
+    end
+    if #tombstoneKeys > 0 and redis.call("EXISTS", unpack(tombstoneKeys)) > 0 then
+        return redis.error_reply("0019")
     end
 
     for i = 1, #ARGV, groupSize do
