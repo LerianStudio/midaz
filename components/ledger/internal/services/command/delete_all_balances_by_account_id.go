@@ -59,13 +59,15 @@ func (uc *UseCase) DeleteAllBalancesByAccountID(ctx context.Context, organizatio
 		}
 
 		if cacheBalance != nil {
-			err = pkg.ValidateBusinessError(constant.ErrBalancesCantBeDeleted, "ListBalanceByAccountIDAndKey")
+			if !cacheBalance.Available.IsZero() || !cacheBalance.OnHold.IsZero() {
+				err = pkg.ValidateBusinessError(constant.ErrBalancesCantBeDeleted, "ListBalanceByAccountIDAndKey")
 
-			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Balance cannot be deleted because there is transactions happening.", err)
+				libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Balance cannot be deleted because it still has funds in it.", err)
 
-			logger.Log(ctx, libLog.LevelWarn, fmt.Sprintf("Balance cannot be deleted because there is transactions happening: %v", err))
+				logger.Log(ctx, libLog.LevelWarn, "Balance cannot be deleted because it still has funds in it", libLog.Err(err))
 
-			return err
+				return err
+			}
 		}
 
 		if !balance.Available.IsZero() || !balance.OnHold.IsZero() {

@@ -69,9 +69,9 @@ func TestDeleteAllBalancesByAccountID(t *testing.T) {
 		assert.ErrorIs(t, err, expectedErr)
 	})
 
-	t.Run("redis balance present prevents deletion", func(t *testing.T) {
+	t.Run("redis zero-funds balance present proceeds to deletion", func(t *testing.T) {
 		uc, mockBalanceRepo, mockRedisRepo := setupDeleteAllBalancesUseCase(t)
-		balanceItem := newTestBalance(decimal.NewFromInt(1), decimal.Zero)
+		balanceItem := newTestBalance(decimal.Zero, decimal.Zero)
 
 		mockBalanceRepo.EXPECT().
 			ListByAccountID(gomock.Any(), organizationID, ledgerID, accountID).
@@ -79,13 +79,15 @@ func TestDeleteAllBalancesByAccountID(t *testing.T) {
 		mockRedisRepo.EXPECT().
 			ListBalanceByKey(gomock.Any(), organizationID, ledgerID, balanceRedisKey(balanceItem)).
 			Return(&mmodel.Balance{}, nil)
+		mockBalanceRepo.EXPECT().
+			UpdateAllByAccountID(gomock.Any(), organizationID, ledgerID, accountID, gomock.Any()).
+			Return(nil)
+		mockBalanceRepo.EXPECT().
+			DeleteAllByIDs(gomock.Any(), organizationID, ledgerID, gomock.Any()).
+			Return(nil)
 
 		err := uc.DeleteAllBalancesByAccountID(ctx, organizationID, ledgerID, accountID, requestID.String())
-
-		var validationErr midazpkg.ValidationError
-		assert.Error(t, err)
-		assert.True(t, errors.As(err, &validationErr))
-		assert.Equal(t, constant.ErrBalancesCantBeDeleted.Error(), validationErr.Code)
+		assert.NoError(t, err)
 	})
 
 	t.Run("balances with funds remaining prevent deletion", func(t *testing.T) {
@@ -208,9 +210,10 @@ func TestDeleteAllBalancesByAccountID(t *testing.T) {
 	})
 }
 
-// TestDeleteAllBalancesByAccountIDCacheMissFundsGuard covers the funds guard on a Redis
-// cache miss: a balance absent from Redis (TTL expired) must still be checked against the
-// authoritative Postgres row so accounts holding funds are never soft-deleted.
+// TestDeleteAllBalancesByAccountIDCacheMissFundsGuard covers the funds guard for both a
+// Redis cache hit and a cache miss: a cached balance blocks deletion only when it still
+// holds funds, and a balance absent from Redis (TTL expired) must still be checked against
+// the authoritative Postgres row so accounts holding funds are never soft-deleted.
 func TestDeleteAllBalancesByAccountIDCacheMissFundsGuard(t *testing.T) {
 	t.Parallel()
 
@@ -242,11 +245,11 @@ func TestDeleteAllBalancesByAccountIDCacheMissFundsGuard(t *testing.T) {
 			expectProceed: false,
 		},
 		{
-			name:          "cached balance still prevents deletion",
+			name:          "cached zero-funds balance proceeds to deletion",
 			balance:       newTestBalance(decimal.Zero, decimal.Zero),
 			cacheBalance:  &mmodel.Balance{},
 			cacheErr:      nil,
-			expectProceed: false,
+			expectProceed: true,
 		},
 		{
 			name:          "zero funds with cache miss proceeds to deletion",
@@ -254,6 +257,27 @@ func TestDeleteAllBalancesByAccountIDCacheMissFundsGuard(t *testing.T) {
 			cacheBalance:  nil,
 			cacheErr:      goredis.Nil,
 			expectProceed: true,
+		},
+		{
+			name:          "cached available funds prevents deletion",
+			balance:       newTestBalance(decimal.Zero, decimal.Zero),
+			cacheBalance:  newTestBalance(decimal.NewFromInt(7), decimal.Zero),
+			cacheErr:      nil,
+			expectProceed: false,
+		},
+		{
+			name:          "cached on_hold funds prevents deletion",
+			balance:       newTestBalance(decimal.Zero, decimal.Zero),
+			cacheBalance:  newTestBalance(decimal.Zero, decimal.NewFromInt(9)),
+			cacheErr:      nil,
+			expectProceed: false,
+		},
+		{
+			name:          "cached zero-funds but postgres funds prevents deletion",
+			balance:       newTestBalance(decimal.NewFromInt(3), decimal.Zero),
+			cacheBalance:  &mmodel.Balance{},
+			cacheErr:      nil,
+			expectProceed: false,
 		},
 	}
 
