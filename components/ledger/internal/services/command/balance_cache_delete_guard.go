@@ -24,30 +24,26 @@ const (
 	// instead of leaving a permanently poisoned balance key. It is intentionally NOT the
 	// 3600s balance cache TTL. SetNX multiplies its ttl argument by time.Second, so it is
 	// passed as a whole-second count via time.Duration(balanceDeleteTombstoneTTLSeconds).
-	balanceDeleteTombstoneTTLSeconds = 30 //nolint:unused // referenced once the delete flows are wired
+	balanceDeleteTombstoneTTLSeconds = 30
 
 	// tombstoneKeySuffix is appended to a balance's internal cache key to form its tombstone
 	// key. It MUST match the suffix the Redis Lua pre-pass derives (ARGV[i] .. ":deleted").
-	tombstoneKeySuffix = ":deleted" //nolint:unused // referenced once the delete flows are wired
+	tombstoneKeySuffix = ":deleted"
 
 	// tombstoneMarkerValue is the placeholder stored under a tombstone key. The value is
 	// never read: only the key's existence is meaningful to the honored-lock pre-pass.
-	tombstoneMarkerValue = "1" //nolint:unused // referenced once the delete flows are wired
+	tombstoneMarkerValue = "1"
 )
 
 // balanceCacheKeyFor returns the un-prefixed internal cache key for a balance. The
 // TransactionRedisRepo wrappers apply tenant namespacing to the whole key, so callers pass
 // this output directly.
-//
-//nolint:unused // referenced once the delete flows are wired
 func balanceCacheKeyFor(organizationID, ledgerID uuid.UUID, balance *mmodel.Balance) string {
 	return utils.BalanceInternalKey(organizationID, ledgerID, balance.Alias+"#"+balance.Key)
 }
 
 // tombstoneKeyFor returns the tombstone key for a balance: its internal cache key plus the
 // ":deleted" suffix. The tombstone is a SEPARATE key from the balance cache key.
-//
-//nolint:unused // referenced once the delete flows are wired
 func tombstoneKeyFor(organizationID, ledgerID uuid.UUID, balance *mmodel.Balance) string {
 	return balanceCacheKeyFor(organizationID, ledgerID, balance) + tombstoneKeySuffix
 }
@@ -57,8 +53,6 @@ func tombstoneKeyFor(organizationID, ledgerID uuid.UUID, balance *mmodel.Balance
 // A failed SetNX is logged and skipped (it weakens the guard but must not crash the delete).
 // The returned release closure Dels exactly the tombstone keys that were planted, for
 // defer-on-error rollback by the caller.
-//
-//nolint:unused // referenced once the delete flows are wired
 func (uc *UseCase) plantBalanceTombstones(ctx context.Context, organizationID, ledgerID uuid.UUID, balances []*mmodel.Balance) func() {
 	logger, tracer, _, _ := libObs.NewTrackingFromContext(ctx)
 
@@ -88,8 +82,6 @@ func (uc *UseCase) plantBalanceTombstones(ctx context.Context, organizationID, l
 
 // releaseBalanceTombstones Dels each previously planted tombstone key, logging a Warn on
 // error and continuing. A no-op Del on a missing key is safe.
-//
-//nolint:unused // referenced once the delete flows are wired
 func (uc *UseCase) releaseBalanceTombstones(ctx context.Context, tombstoneKeys []string) {
 	logger, tracer, _, _ := libObs.NewTrackingFromContext(ctx)
 
@@ -108,8 +100,6 @@ func (uc *UseCase) releaseBalanceTombstones(ctx context.Context, tombstoneKeys [
 // evictBalanceCaches Dels each balance's internal cache key after a committed delete. A
 // lingering cache key after a persisted delete is the bug this guards against, so a failed
 // Del is Warn-worthy but must not fail the already-committed delete.
-//
-//nolint:unused // referenced once the delete flows are wired
 func (uc *UseCase) evictBalanceCaches(ctx context.Context, organizationID, ledgerID uuid.UUID, balances []*mmodel.Balance) {
 	logger, tracer, _, _ := libObs.NewTrackingFromContext(ctx)
 

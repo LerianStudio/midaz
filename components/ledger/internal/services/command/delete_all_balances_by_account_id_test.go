@@ -9,6 +9,7 @@ import (
 	"errors"
 	"fmt"
 	"testing"
+	"time"
 
 	libCommons "github.com/LerianStudio/lib-commons/v5/commons"
 	"github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/postgres/balance"
@@ -22,6 +23,27 @@ import (
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/mock/gomock"
 )
+
+// expectTombstonePlant expects the tombstone SetNX write that precedes the funds guard.
+func expectTombstonePlant(m *redis.MockRedisRepository, org, ledger uuid.UUID, b *mmodel.Balance) *gomock.Call {
+	return m.EXPECT().
+		SetNX(gomock.Any(), tombstoneKeyFor(org, ledger, b), tombstoneMarkerValue, time.Duration(balanceDeleteTombstoneTTLSeconds)).
+		Return(true, nil)
+}
+
+// expectCacheEvict expects the cache-key Del that follows a committed soft-delete.
+func expectCacheEvict(m *redis.MockRedisRepository, org, ledger uuid.UUID, b *mmodel.Balance) *gomock.Call {
+	return m.EXPECT().
+		Del(gomock.Any(), balanceCacheKeyFor(org, ledger, b)).
+		Return(nil)
+}
+
+// expectTombstoneRelease expects the tombstone-key Del that runs only when the delete fails.
+func expectTombstoneRelease(m *redis.MockRedisRepository, org, ledger uuid.UUID, b *mmodel.Balance) *gomock.Call {
+	return m.EXPECT().
+		Del(gomock.Any(), tombstoneKeyFor(org, ledger, b)).
+		Return(nil)
+}
 
 func TestDeleteAllBalancesByAccountID(t *testing.T) {
 	ctx := context.Background()
@@ -61,9 +83,11 @@ func TestDeleteAllBalancesByAccountID(t *testing.T) {
 		mockBalanceRepo.EXPECT().
 			ListByAccountID(gomock.Any(), organizationID, ledgerID, accountID).
 			Return([]*mmodel.Balance{balanceItem}, nil)
+		expectTombstonePlant(mockRedisRepo, organizationID, ledgerID, balanceItem)
 		mockRedisRepo.EXPECT().
 			ListBalanceByKey(gomock.Any(), organizationID, ledgerID, balanceRedisKey(balanceItem)).
 			Return(nil, expectedErr)
+		expectTombstoneRelease(mockRedisRepo, organizationID, ledgerID, balanceItem)
 
 		err := uc.DeleteAllBalancesByAccountID(ctx, organizationID, ledgerID, accountID, requestID.String())
 		assert.ErrorIs(t, err, expectedErr)
@@ -76,6 +100,7 @@ func TestDeleteAllBalancesByAccountID(t *testing.T) {
 		mockBalanceRepo.EXPECT().
 			ListByAccountID(gomock.Any(), organizationID, ledgerID, accountID).
 			Return([]*mmodel.Balance{balanceItem}, nil)
+		expectTombstonePlant(mockRedisRepo, organizationID, ledgerID, balanceItem)
 		mockRedisRepo.EXPECT().
 			ListBalanceByKey(gomock.Any(), organizationID, ledgerID, balanceRedisKey(balanceItem)).
 			Return(&mmodel.Balance{}, nil)
@@ -85,6 +110,7 @@ func TestDeleteAllBalancesByAccountID(t *testing.T) {
 		mockBalanceRepo.EXPECT().
 			DeleteAllByIDs(gomock.Any(), organizationID, ledgerID, gomock.Any()).
 			Return(nil)
+		expectCacheEvict(mockRedisRepo, organizationID, ledgerID, balanceItem)
 
 		err := uc.DeleteAllBalancesByAccountID(ctx, organizationID, ledgerID, accountID, requestID.String())
 		assert.NoError(t, err)
@@ -97,9 +123,11 @@ func TestDeleteAllBalancesByAccountID(t *testing.T) {
 		mockBalanceRepo.EXPECT().
 			ListByAccountID(gomock.Any(), organizationID, ledgerID, accountID).
 			Return([]*mmodel.Balance{balanceItem}, nil)
+		expectTombstonePlant(mockRedisRepo, organizationID, ledgerID, balanceItem)
 		mockRedisRepo.EXPECT().
 			ListBalanceByKey(gomock.Any(), organizationID, ledgerID, balanceRedisKey(balanceItem)).
 			Return(nil, nil)
+		expectTombstoneRelease(mockRedisRepo, organizationID, ledgerID, balanceItem)
 
 		err := uc.DeleteAllBalancesByAccountID(ctx, organizationID, ledgerID, accountID, requestID.String())
 
@@ -117,6 +145,7 @@ func TestDeleteAllBalancesByAccountID(t *testing.T) {
 		mockBalanceRepo.EXPECT().
 			ListByAccountID(gomock.Any(), organizationID, ledgerID, accountID).
 			Return([]*mmodel.Balance{balanceItem}, nil)
+		expectTombstonePlant(mockRedisRepo, organizationID, ledgerID, balanceItem)
 		mockRedisRepo.EXPECT().
 			ListBalanceByKey(gomock.Any(), organizationID, ledgerID, balanceRedisKey(balanceItem)).
 			Return(nil, nil)
@@ -140,6 +169,7 @@ func TestDeleteAllBalancesByAccountID(t *testing.T) {
 				return nil
 			})
 		gomock.InOrder(firstCall, secondCall)
+		expectTombstoneRelease(mockRedisRepo, organizationID, ledgerID, balanceItem)
 
 		err := uc.DeleteAllBalancesByAccountID(ctx, organizationID, ledgerID, accountID, requestID.String())
 		assert.ErrorIs(t, err, expectedErr)
@@ -153,6 +183,7 @@ func TestDeleteAllBalancesByAccountID(t *testing.T) {
 		mockBalanceRepo.EXPECT().
 			ListByAccountID(gomock.Any(), organizationID, ledgerID, accountID).
 			Return([]*mmodel.Balance{balanceItem}, nil)
+		expectTombstonePlant(mockRedisRepo, organizationID, ledgerID, balanceItem)
 		mockRedisRepo.EXPECT().
 			ListBalanceByKey(gomock.Any(), organizationID, ledgerID, balanceRedisKey(balanceItem)).
 			Return(nil, nil)
@@ -174,6 +205,7 @@ func TestDeleteAllBalancesByAccountID(t *testing.T) {
 				assert.True(t, *update.AllowSending)
 				return nil
 			})
+		expectTombstoneRelease(mockRedisRepo, organizationID, ledgerID, balanceItem)
 
 		err := uc.DeleteAllBalancesByAccountID(ctx, organizationID, ledgerID, accountID, requestID.String())
 		assert.ErrorIs(t, err, expectedErr)
@@ -187,6 +219,7 @@ func TestDeleteAllBalancesByAccountID(t *testing.T) {
 		mockBalanceRepo.EXPECT().
 			ListByAccountID(gomock.Any(), organizationID, ledgerID, accountID).
 			Return([]*mmodel.Balance{balanceItem}, nil)
+		expectTombstonePlant(mockRedisRepo, organizationID, ledgerID, balanceItem)
 		mockRedisRepo.EXPECT().
 			ListBalanceByKey(gomock.Any(), organizationID, ledgerID, balanceRedisKey(balanceItem)).
 			Return(nil, nil)
@@ -204,6 +237,113 @@ func TestDeleteAllBalancesByAccountID(t *testing.T) {
 				assert.Equal(t, expectedID, ids[0])
 				return nil
 			})
+		expectCacheEvict(mockRedisRepo, organizationID, ledgerID, balanceItem)
+
+		err := uc.DeleteAllBalancesByAccountID(ctx, organizationID, ledgerID, accountID, requestID.String())
+		assert.NoError(t, err)
+	})
+}
+
+// TestDeleteAllBalancesByAccountIDBlockThenEvict locks the block-then-evict ordering: the
+// tombstone is planted BEFORE the funds guard reads, the cache is evicted AFTER the soft
+// delete commits, the tombstone is released ONLY when the delete fails, and a failed eviction
+// never fails an already-committed delete.
+func TestDeleteAllBalancesByAccountIDBlockThenEvict(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	organizationID := uuid.New()
+	ledgerID := uuid.New()
+	accountID := uuid.New()
+	requestID := uuid.Must(libCommons.GenerateUUIDv7())
+
+	t.Run("plants tombstone before guard and evicts after delete", func(t *testing.T) {
+		t.Parallel()
+
+		uc, mockBalanceRepo, mockRedisRepo := setupDeleteAllBalancesUseCase(t)
+		balanceItem := newTestBalance(decimal.Zero, decimal.Zero)
+
+		mockBalanceRepo.EXPECT().
+			ListByAccountID(gomock.Any(), organizationID, ledgerID, accountID).
+			Return([]*mmodel.Balance{balanceItem}, nil)
+
+		plant := mockRedisRepo.EXPECT().
+			SetNX(gomock.Any(), tombstoneKeyFor(organizationID, ledgerID, balanceItem), tombstoneMarkerValue, time.Duration(balanceDeleteTombstoneTTLSeconds)).
+			Return(true, nil)
+		guard := mockRedisRepo.EXPECT().
+			ListBalanceByKey(gomock.Any(), organizationID, ledgerID, balanceRedisKey(balanceItem)).
+			Return(&mmodel.Balance{}, nil)
+		mockBalanceRepo.EXPECT().
+			UpdateAllByAccountID(gomock.Any(), organizationID, ledgerID, accountID, gomock.Any()).
+			Return(nil)
+		del := mockBalanceRepo.EXPECT().
+			DeleteAllByIDs(gomock.Any(), organizationID, ledgerID, gomock.Any()).
+			Return(nil)
+		evict := mockRedisRepo.EXPECT().
+			Del(gomock.Any(), balanceCacheKeyFor(organizationID, ledgerID, balanceItem)).
+			Return(nil)
+
+		// tombstone-before-guard and evict-after-soft-delete.
+		gomock.InOrder(plant, guard)
+		gomock.InOrder(del, evict)
+
+		err := uc.DeleteAllBalancesByAccountID(ctx, organizationID, ledgerID, accountID, requestID.String())
+		assert.NoError(t, err)
+		// On success the tombstone release must NOT run: no Del of the tombstone key is set up,
+		// so the strict controller would fail if the release closure fired.
+	})
+
+	t.Run("delete error releases tombstone and skips evict", func(t *testing.T) {
+		t.Parallel()
+
+		uc, mockBalanceRepo, mockRedisRepo := setupDeleteAllBalancesUseCase(t)
+		balanceItem := newTestBalance(decimal.Zero, decimal.Zero)
+		expectedErr := errors.New("delete balances error")
+
+		mockBalanceRepo.EXPECT().
+			ListByAccountID(gomock.Any(), organizationID, ledgerID, accountID).
+			Return([]*mmodel.Balance{balanceItem}, nil)
+		expectTombstonePlant(mockRedisRepo, organizationID, ledgerID, balanceItem)
+		mockRedisRepo.EXPECT().
+			ListBalanceByKey(gomock.Any(), organizationID, ledgerID, balanceRedisKey(balanceItem)).
+			Return(&mmodel.Balance{}, nil)
+		// Flip to false before delete, then rollback to true after delete fails.
+		mockBalanceRepo.EXPECT().
+			UpdateAllByAccountID(gomock.Any(), organizationID, ledgerID, accountID, gomock.Any()).
+			Return(nil).
+			Times(2)
+		mockBalanceRepo.EXPECT().
+			DeleteAllByIDs(gomock.Any(), organizationID, ledgerID, gomock.Any()).
+			Return(expectedErr)
+		// Release Dels the tombstone key; the cache key is never evicted on the error path.
+		expectTombstoneRelease(mockRedisRepo, organizationID, ledgerID, balanceItem)
+
+		err := uc.DeleteAllBalancesByAccountID(ctx, organizationID, ledgerID, accountID, requestID.String())
+		assert.ErrorIs(t, err, expectedErr)
+	})
+
+	t.Run("evict del failure on success is non-fatal", func(t *testing.T) {
+		t.Parallel()
+
+		uc, mockBalanceRepo, mockRedisRepo := setupDeleteAllBalancesUseCase(t)
+		balanceItem := newTestBalance(decimal.Zero, decimal.Zero)
+
+		mockBalanceRepo.EXPECT().
+			ListByAccountID(gomock.Any(), organizationID, ledgerID, accountID).
+			Return([]*mmodel.Balance{balanceItem}, nil)
+		expectTombstonePlant(mockRedisRepo, organizationID, ledgerID, balanceItem)
+		mockRedisRepo.EXPECT().
+			ListBalanceByKey(gomock.Any(), organizationID, ledgerID, balanceRedisKey(balanceItem)).
+			Return(&mmodel.Balance{}, nil)
+		mockBalanceRepo.EXPECT().
+			UpdateAllByAccountID(gomock.Any(), organizationID, ledgerID, accountID, gomock.Any()).
+			Return(nil)
+		mockBalanceRepo.EXPECT().
+			DeleteAllByIDs(gomock.Any(), organizationID, ledgerID, gomock.Any()).
+			Return(nil)
+		mockRedisRepo.EXPECT().
+			Del(gomock.Any(), balanceCacheKeyFor(organizationID, ledgerID, balanceItem)).
+			Return(errors.New("evict failed"))
 
 		err := uc.DeleteAllBalancesByAccountID(ctx, organizationID, ledgerID, accountID, requestID.String())
 		assert.NoError(t, err)
@@ -290,6 +430,7 @@ func TestDeleteAllBalancesByAccountIDCacheMissFundsGuard(t *testing.T) {
 			mockBalanceRepo.EXPECT().
 				ListByAccountID(gomock.Any(), organizationID, ledgerID, accountID).
 				Return([]*mmodel.Balance{tt.balance}, nil)
+			expectTombstonePlant(mockRedisRepo, organizationID, ledgerID, tt.balance)
 			mockRedisRepo.EXPECT().
 				ListBalanceByKey(gomock.Any(), organizationID, ledgerID, balanceRedisKey(tt.balance)).
 				Return(tt.cacheBalance, tt.cacheErr)
@@ -301,10 +442,12 @@ func TestDeleteAllBalancesByAccountIDCacheMissFundsGuard(t *testing.T) {
 				mockBalanceRepo.EXPECT().
 					DeleteAllByIDs(gomock.Any(), organizationID, ledgerID, gomock.Any()).
 					Return(nil)
+				expectCacheEvict(mockRedisRepo, organizationID, ledgerID, tt.balance)
 			} else {
 				mockBalanceRepo.EXPECT().
 					DeleteAllByIDs(gomock.Any(), organizationID, ledgerID, gomock.Any()).
 					Times(0)
+				expectTombstoneRelease(mockRedisRepo, organizationID, ledgerID, tt.balance)
 			}
 
 			err := uc.DeleteAllBalancesByAccountID(ctx, organizationID, ledgerID, accountID, requestID.String())
@@ -336,6 +479,10 @@ func TestDeleteAllBalancesByAccountIDCacheMissFundsGuard(t *testing.T) {
 			ListByAccountID(gomock.Any(), organizationID, ledgerID, accountID).
 			Return([]*mmodel.Balance{zeroFundsBalance, onHoldFundsBalance}, nil)
 
+		// Both tombstones are planted up front, before the guard loop runs.
+		expectTombstonePlant(mockRedisRepo, organizationID, ledgerID, zeroFundsBalance)
+		expectTombstonePlant(mockRedisRepo, organizationID, ledgerID, onHoldFundsBalance)
+
 		firstLookup := mockRedisRepo.EXPECT().
 			ListBalanceByKey(gomock.Any(), organizationID, ledgerID, balanceRedisKey(zeroFundsBalance)).
 			Return(nil, goredis.Nil)
@@ -347,6 +494,10 @@ func TestDeleteAllBalancesByAccountIDCacheMissFundsGuard(t *testing.T) {
 		mockBalanceRepo.EXPECT().
 			DeleteAllByIDs(gomock.Any(), organizationID, ledgerID, gomock.Any()).
 			Times(0)
+
+		// On rejection both planted tombstones are released.
+		expectTombstoneRelease(mockRedisRepo, organizationID, ledgerID, zeroFundsBalance)
+		expectTombstoneRelease(mockRedisRepo, organizationID, ledgerID, onHoldFundsBalance)
 
 		err := uc.DeleteAllBalancesByAccountID(ctx, organizationID, ledgerID, accountID, requestID.String())
 

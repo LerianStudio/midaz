@@ -23,7 +23,7 @@ import (
 )
 
 // DeleteAllBalancesByAccountID delete all balances by account id in the repository.
-func (uc *UseCase) DeleteAllBalancesByAccountID(ctx context.Context, organizationID, ledgerID, accountID uuid.UUID, requestID string) error {
+func (uc *UseCase) DeleteAllBalancesByAccountID(ctx context.Context, organizationID, ledgerID, accountID uuid.UUID, requestID string) (err error) {
 	logger, tracer, _, _ := libObs.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "exec.delete_all_balances_by_account_id")
@@ -47,6 +47,18 @@ func (uc *UseCase) DeleteAllBalancesByAccountID(ctx context.Context, organizatio
 	if len(balances) == 0 {
 		return nil
 	}
+
+	// Plant tombstones so the honored-lock pre-pass rejects concurrent mutations for the
+	// whole delete. Release them only when the delete fails, so a rejected guard, permission
+	// flip, or soft-delete leaves the account usable; a successful delete lets the tombstone
+	// expire by its own TTL.
+	release := uc.plantBalanceTombstones(ctx, organizationID, ledgerID, balances)
+
+	defer func() {
+		if err != nil {
+			release()
+		}
+	}()
 
 	for _, balance := range balances {
 		cacheBalance, err := uc.TransactionRedisRepo.ListBalanceByKey(ctx, organizationID, ledgerID, fmt.Sprintf("%s#%s", balance.Alias, balance.Key))
@@ -107,6 +119,10 @@ func (uc *UseCase) DeleteAllBalancesByAccountID(ctx context.Context, organizatio
 
 		return err
 	}
+
+	// Drop the stale cache entries now that the rows are soft-deleted. Non-fatal: a failed
+	// eviction is logged and never fails the already-committed delete.
+	uc.evictBalanceCaches(ctx, organizationID, ledgerID, balances)
 
 	return nil
 }
