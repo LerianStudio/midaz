@@ -41,11 +41,13 @@ func feesAuthShim(authOK bool) fiber.Handler {
 // The stubPackageService / stubFeeService fakes and the validCreatePackageInput
 // helper live in fees_billing_handlers_test.go; these Huma tests reuse them.
 
-// feePkgV2Base is the ledger-scoped fee-package path the v2 surface serves, in Fiber
-// syntax. The org and ledger are substituted per test; create/estimate additionally
-// require the body ledger to equal the path ledger (see fees_ledger_scope.go), so the
-// tests that carry a body use validLedgerUUID() — the ledger validCreatePackageJSON /
-// estimateBodyJSON stamp — as the path ledger.
+// feePkgV2Base is the request-URL prefix for the v2 fee surface. Each test completes it
+// by hand, appending the org, "/ledgers/"+ledger, and the resource segment (packages /
+// estimates). It is not a Fiber route template — those are the separate listPath/idPath
+// literals in buildHumaPackageApp. Create/estimate additionally require the body ledger to
+// equal the path ledger (see fees_ledger_scope.go), so the tests that carry a body use
+// validLedgerUUID() — the ledger validCreatePackageJSON / estimateBodyJSON stamp — as the
+// path ledger.
 const feePkgV2Base = "/v2/organizations/"
 
 // buildHumaPackageApp mounts the five ledger-scoped package Huma operations on a /v2
