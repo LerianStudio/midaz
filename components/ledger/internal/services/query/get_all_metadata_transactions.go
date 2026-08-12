@@ -102,7 +102,7 @@ func (uc *UseCase) GetAllMetadataTransactions(ctx context.Context, organizationI
 		}
 
 		trans[i].Source = source
-		trans[i].Destination = destination
+		trans[i].Destination = resolveDestination(destination, trans[i].Body)
 
 		if data, ok := metadataMap[trans[i].ID]; ok {
 			trans[i].Metadata = data
