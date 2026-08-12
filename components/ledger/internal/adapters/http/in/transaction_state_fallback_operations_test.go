@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
+	"net/http"
 	"net/http/httptest"
 	"testing"
 
@@ -149,7 +150,7 @@ func TestCancelTransaction_WriteBehindMiss_FallbackLoadsOperations(t *testing.T)
 		handler.CancelTransaction,
 	)
 
-	req := httptest.NewRequest("POST",
+	req := httptest.NewRequest(http.MethodPost,
 		"/test/"+orgID.String()+"/"+ledgerID.String()+"/transactions/"+transactionID.String()+"/cancel",
 		nil)
 	resp, err := app.Test(req)
@@ -235,7 +236,7 @@ func TestCancelTransaction_WriteBehindMiss_NonexistentTransaction_Returns404(t *
 		handler.CancelTransaction,
 	)
 
-	req := httptest.NewRequest("POST",
+	req := httptest.NewRequest(http.MethodPost,
 		"/test/"+orgID.String()+"/"+ledgerID.String()+"/transactions/"+transactionID.String()+"/cancel",
 		nil)
 	resp, err := app.Test(req)
@@ -249,4 +250,112 @@ func TestCancelTransaction_WriteBehindMiss_NonexistentTransaction_Returns404(t *
 	var errResp map[string]any
 	require.NoError(t, json.Unmarshal(body, &errResp), "error response should be valid JSON")
 	assert.Equal(t, cn.ErrEntityNotFound.Error(), errResp["code"], "expected entity-not-found code")
+}
+
+// TestCancelTransaction_WriteBehindMiss_RowOnlyFallbackReturnsRealTransaction pins the
+// OTHER branch of the empty-value guard: FindWithOperations returns an empty transaction
+// (its INNER JOIN matched no operation rows), but the transaction itself exists and simply
+// has no operations. The guard must fall back to the row-only read, which returns the REAL
+// row — not a not-found. Here that row is APPROVED, so the state machine short-circuits at
+// its not-pending guard and answers 409, proving the fallback carried a live transaction
+// (not a nil/empty value) into commitOrCancelTransaction.
+func TestCancelTransaction_WriteBehindMiss_RowOnlyFallbackReturnsRealTransaction(t *testing.T) {
+	t.Parallel()
+
+	ctrl := gomock.NewController(t)
+	t.Cleanup(ctrl.Finish)
+
+	orgID := uuid.New()
+	ledgerID := uuid.New()
+	transactionID := uuid.New()
+
+	mockTransactionRepo := transaction.NewMockRepository(ctrl)
+	mockMetadataRepo := mongodb.NewMockRepository(ctrl)
+	mockRedisRepo := redis.NewMockRedisRepository(ctrl)
+
+	amount := decimal.NewFromInt(100)
+
+	// A REAL, operation-less transaction: valid ids and APPROVED status so
+	// commitOrCancelTransaction parses the ids and returns at the not-pending guard.
+	tranRowOnly := &transaction.Transaction{
+		ID:             transactionID.String(),
+		OrganizationID: orgID.String(),
+		LedgerID:       ledgerID.String(),
+		AssetCode:      "BRL",
+		Amount:         &amount,
+		Status:         transaction.Status{Code: cn.APPROVED},
+	}
+
+	// Write-behind cache miss forces the database fallback.
+	mockRedisRepo.EXPECT().
+		GetBytes(gomock.Any(), gomock.Any()).
+		Return(nil, errors.New("cache miss")).
+		AnyTimes()
+
+	// INNER JOIN matched no operation rows: empty transaction, no error — triggers the guard.
+	mockTransactionRepo.EXPECT().
+		FindWithOperations(gomock.Any(), orgID, ledgerID, transactionID).
+		Return(&transaction.Transaction{}, nil).
+		Times(1)
+
+	// The guard falls back to the row-only read, which returns the REAL operation-less row.
+	mockTransactionRepo.EXPECT().
+		Find(gomock.Any(), orgID, ledgerID, transactionID).
+		Return(tranRowOnly, nil).
+		Times(1)
+
+	// Metadata lookup runs on both reads (with-operations empty result + row-only result).
+	mockMetadataRepo.EXPECT().
+		FindByEntity(gomock.Any(), "Transaction", transactionID.String()).
+		Return(nil, nil).
+		Times(2)
+
+	// Lock acquired, then released on the not-pending guard error path.
+	mockRedisRepo.EXPECT().
+		SetNX(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+		Return(true, nil).
+		Times(1)
+	mockRedisRepo.EXPECT().
+		Del(gomock.Any(), gomock.Any()).
+		Return(nil).
+		Times(1)
+
+	queryUC := &query.UseCase{
+		TransactionRepo:         mockTransactionRepo,
+		TransactionMetadataRepo: mockMetadataRepo,
+		TransactionRedisRepo:    mockRedisRepo,
+	}
+	commandUC := &command.UseCase{
+		TransactionRedisRepo: mockRedisRepo,
+	}
+	handler := &TransactionHandler{Query: queryUC, Command: commandUC}
+
+	app := fiber.New()
+	app.Post(
+		"/test/:organization_id/:ledger_id/transactions/:transaction_id/cancel",
+		func(c fiber.Ctx) error {
+			c.Locals("organization_id", orgID)
+			c.Locals("ledger_id", ledgerID)
+			c.Locals("transaction_id", transactionID)
+			return c.Next()
+		},
+		handler.CancelTransaction,
+	)
+
+	req := httptest.NewRequest(http.MethodPost,
+		"/test/"+orgID.String()+"/"+ledgerID.String()+"/transactions/"+transactionID.String()+"/cancel",
+		nil)
+	resp, err := app.Test(req)
+
+	require.NoError(t, err)
+	assert.Equal(t, 409, resp.StatusCode,
+		"a real operation-less transaction from the row-only fallback must reach the not-pending guard")
+
+	body, err := io.ReadAll(resp.Body)
+	require.NoError(t, err)
+
+	var errResp map[string]any
+	require.NoError(t, json.Unmarshal(body, &errResp), "error response should be valid JSON")
+	assert.Equal(t, cn.ErrCommitTransactionNotPending.Error(), errResp["code"],
+		"expected error code 0099 (ErrCommitTransactionNotPending)")
 }
