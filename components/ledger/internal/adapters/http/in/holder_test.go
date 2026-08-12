@@ -284,7 +284,7 @@ func TestHolderHandler_CreateHolder(t *testing.T) {
 				http.WithBody(new(mmodel.CreateHolderInput), handler.CreateHolder),
 			)
 
-			req := httptest.NewRequest("POST", "/v2/organizations/"+orgID+"/holders", bytes.NewBufferString(tt.jsonBody))
+			req := httptest.NewRequest(fiber.MethodPost, "/v2/organizations/"+orgID+"/holders", bytes.NewBufferString(tt.jsonBody))
 			req.Header.Set("Content-Type", "application/json")
 			resp, err := app.Test(req)
 
@@ -448,7 +448,7 @@ func TestHolderHandler_GetHolderByID(t *testing.T) {
 			if tt.includeDeleted != "" {
 				url += "?include_deleted=" + tt.includeDeleted
 			}
-			req := httptest.NewRequest("GET", url, nil)
+			req := httptest.NewRequest(fiber.MethodGet, url, nil)
 			resp, err := app.Test(req)
 
 			require.NoError(t, err)
@@ -621,7 +621,7 @@ func TestHolderHandler_UpdateHolder(t *testing.T) {
 				http.WithBody(new(mmodel.UpdateHolderInput), handler.UpdateHolder),
 			)
 
-			req := httptest.NewRequest("PATCH", "/v2/organizations/"+orgID+"/holders/"+holderID.String(), bytes.NewBufferString(tt.jsonBody))
+			req := httptest.NewRequest(fiber.MethodPatch, "/v2/organizations/"+orgID+"/holders/"+holderID.String(), bytes.NewBufferString(tt.jsonBody))
 			req.Header.Set("Content-Type", "application/json")
 			resp, err := app.Test(req)
 
@@ -813,7 +813,7 @@ func TestHolderHandler_DeleteHolderByID(t *testing.T) {
 			if tt.hardDelete != "" {
 				url += "?hard_delete=" + tt.hardDelete
 			}
-			req := httptest.NewRequest("DELETE", url, nil)
+			req := httptest.NewRequest(fiber.MethodDelete, url, nil)
 			resp, err := app.Test(req)
 
 			require.NoError(t, err)
@@ -1108,7 +1108,7 @@ func TestHolderHandler_GetAllHolders(t *testing.T) {
 				handler.GetAllHolders,
 			)
 
-			req := httptest.NewRequest("GET", "/v2/organizations/"+orgID+"/holders"+tt.queryParams, nil)
+			req := httptest.NewRequest(fiber.MethodGet, "/v2/organizations/"+orgID+"/holders"+tt.queryParams, nil)
 			resp, err := app.Test(req)
 
 			require.NoError(t, err)

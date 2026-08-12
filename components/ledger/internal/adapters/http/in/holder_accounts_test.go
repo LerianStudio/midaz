@@ -134,7 +134,7 @@ func TestHolderAccountsHandler_GetAccountsByHolder(t *testing.T) {
 				handler.GetAccountsByHolder,
 			)
 
-			req := httptest.NewRequest("GET", "/v2/organizations/"+orgID+"/holders/"+holderID.String()+"/accounts", nil)
+			req := httptest.NewRequest(fiber.MethodGet, "/v2/organizations/"+orgID+"/holders/"+holderID.String()+"/accounts", nil)
 			resp, err := app.Test(req)
 
 			require.NoError(t, err)

@@ -293,7 +293,7 @@ func TestEncryption_Provision(t *testing.T) {
 				http.WithBody(new(mmodel.ProvisionEncryptionInput), handler.Provision),
 			)
 
-			req := httptest.NewRequest("POST", "/v2/organizations/"+tt.organizationID+"/encryption/provision", bytes.NewBufferString(tt.jsonBody))
+			req := httptest.NewRequest(fiber.MethodPost, "/v2/organizations/"+tt.organizationID+"/encryption/provision", bytes.NewBufferString(tt.jsonBody))
 			req.Header.Set("Content-Type", "application/json")
 			resp, err := app.Test(req)
 
@@ -407,7 +407,7 @@ func TestEncryptionHandler_GetProvisioningStatus(t *testing.T) {
 				handler.GetProvisioningStatus,
 			)
 
-			req := httptest.NewRequest("GET", "/v2/organizations/"+tt.organizationID+"/encryption/status", nil)
+			req := httptest.NewRequest(fiber.MethodGet, "/v2/organizations/"+tt.organizationID+"/encryption/status", nil)
 			resp, err := app.Test(req)
 
 			require.NoError(t, err)

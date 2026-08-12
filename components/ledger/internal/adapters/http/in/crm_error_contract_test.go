@@ -136,7 +136,7 @@ func TestErrorContract_CanonicalCodes(t *testing.T) {
 				http.WithBody(new(mmodel.CreateHolderInput), handler.CreateHolder),
 			)
 
-			req := httptest.NewRequest("POST", "/v2/organizations/"+orgID+"/holders", bytes.NewBufferString(tt.jsonBody))
+			req := httptest.NewRequest(fiber.MethodPost, "/v2/organizations/"+orgID+"/holders", bytes.NewBufferString(tt.jsonBody))
 			req.Header.Set("Content-Type", "application/json")
 
 			resp, err := app.Test(req)
@@ -195,7 +195,7 @@ func TestErrorContract_SurvivingDomainCodeUnchanged(t *testing.T) {
 		handler.GetHolderByID,
 	)
 
-	req := httptest.NewRequest("GET", "/v2/organizations/"+orgID+"/holders/"+holderID.String(), nil)
+	req := httptest.NewRequest(fiber.MethodGet, "/v2/organizations/"+orgID+"/holders/"+holderID.String(), nil)
 	resp, err := app.Test(req)
 	require.NoError(t, err)
 	assert.Equal(t, 404, resp.StatusCode)

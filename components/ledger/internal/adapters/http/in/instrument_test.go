@@ -435,7 +435,7 @@ func TestInstrumentHandler_CreateInstrument(t *testing.T) {
 				http.WithBody(new(mmodel.CreateInstrumentInput), handler.CreateInstrument),
 			)
 
-			req := httptest.NewRequest("POST", "/v2/organizations/"+orgID+"/holders/"+holderID.String()+"/instruments", bytes.NewBufferString(tt.jsonBody))
+			req := httptest.NewRequest(fiber.MethodPost, "/v2/organizations/"+orgID+"/holders/"+holderID.String()+"/instruments", bytes.NewBufferString(tt.jsonBody))
 			req.Header.Set("Content-Type", "application/json")
 			resp, err := app.Test(req)
 
@@ -607,7 +607,7 @@ func TestInstrumentHandler_GetInstrumentByID(t *testing.T) {
 			if tt.includeDeleted != "" {
 				url += "?include_deleted=" + tt.includeDeleted
 			}
-			req := httptest.NewRequest("GET", url, nil)
+			req := httptest.NewRequest(fiber.MethodGet, url, nil)
 			resp, err := app.Test(req)
 
 			require.NoError(t, err)
@@ -864,7 +864,7 @@ func TestInstrumentHandler_UpdateInstrument(t *testing.T) {
 				http.WithBody(new(mmodel.UpdateInstrumentInput), handler.UpdateInstrument),
 			)
 
-			req := httptest.NewRequest("PATCH", "/v2/organizations/"+orgID+"/holders/"+holderID.String()+"/instruments/"+instrumentID.String(), bytes.NewBufferString(tt.jsonBody))
+			req := httptest.NewRequest(fiber.MethodPatch, "/v2/organizations/"+orgID+"/holders/"+holderID.String()+"/instruments/"+instrumentID.String(), bytes.NewBufferString(tt.jsonBody))
 			req.Header.Set("Content-Type", "application/json")
 			resp, err := app.Test(req)
 
@@ -992,7 +992,7 @@ func TestInstrumentHandler_DeleteInstrumentByID(t *testing.T) {
 			if tt.hardDelete != "" {
 				url += "?hard_delete=" + tt.hardDelete
 			}
-			req := httptest.NewRequest("DELETE", url, nil)
+			req := httptest.NewRequest(fiber.MethodDelete, url, nil)
 			resp, err := app.Test(req)
 
 			require.NoError(t, err)
@@ -1102,7 +1102,7 @@ func TestInstrumentHandler_DeleteRelatedParty(t *testing.T) {
 			)
 
 			url := "/v2/organizations/" + orgID + "/holders/" + holderID.String() + "/instruments/" + instrumentID.String() + "/related-parties/" + relatedPartyID.String()
-			req := httptest.NewRequest("DELETE", url, nil)
+			req := httptest.NewRequest(fiber.MethodDelete, url, nil)
 			resp, err := app.Test(req)
 
 			require.NoError(t, err)
@@ -1339,7 +1339,7 @@ func TestInstrumentHandler_GetAllInstruments(t *testing.T) {
 				handler.GetAllInstruments,
 			)
 
-			req := httptest.NewRequest("GET", "/v2/organizations/"+orgID+"/instruments"+tt.queryParams, nil)
+			req := httptest.NewRequest(fiber.MethodGet, "/v2/organizations/"+orgID+"/instruments"+tt.queryParams, nil)
 			resp, err := app.Test(req)
 
 			require.NoError(t, err)
