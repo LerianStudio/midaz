@@ -83,11 +83,32 @@ func (handler *TransactionHandler) commitTransaction(ctx context.Context, organi
 
 	tran, err := handler.Query.GetWriteBehindTransaction(ctx, organizationID, ledgerID, transactionID)
 	if err != nil {
-		tran, err = handler.Query.GetTransactionByID(ctx, organizationID, ledgerID, transactionID)
+		// Load the operations with the transaction: cancel needs them to unwind an
+		// overdraft hold. The write-behind cache is cleared once the create persists,
+		// so this fallback carries the transaction into commitOrCancelTransaction and
+		// its annotateCanceledOverdraftAmounts step, which reads tran.Operations to
+		// size the overdraft deficit. A row-only read leaves Operations empty and the
+		// cancel restores the full hold to available instead of only the non-overdraft
+		// portion.
+		tran, err = handler.Query.GetTransactionWithOperationsByID(ctx, organizationID, ledgerID, transactionID)
 		if err != nil {
 			handleSpanByErrorClass(span, "Failed to retrieve transaction on query", err)
 
 			return nil, err
+		}
+
+		// FindWithOperations joins on operations, so a transaction with no rows comes
+		// back as an empty value with no error. Fall back to the row-only read, which
+		// reports not-found for a missing transaction and returns the real row for an
+		// operation-less one — either way commitOrCancelTransaction never parses an
+		// empty organization id.
+		if tran == nil || tran.ID == "" {
+			tran, err = handler.Query.GetTransactionByID(ctx, organizationID, ledgerID, transactionID)
+			if err != nil {
+				handleSpanByErrorClass(span, "Failed to retrieve transaction on query", err)
+
+				return nil, err
+			}
 		}
 	}
 
