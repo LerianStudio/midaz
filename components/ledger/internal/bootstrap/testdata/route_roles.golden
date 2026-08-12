@@ -9,10 +9,6 @@
 # Generated — do not hand-edit. Regenerate with:
 #   go test ./components/ledger/internal/bootstrap/ -run TestRouteRoles -update-route-roles
 DELETE	/v1/organizations/:id	onboarding
-DELETE	/v1/organizations/:organization_id/billing-packages/:id	fees
-DELETE	/v1/organizations/:organization_id/holders/:holder_id/instruments/:instrument_id	crm
-DELETE	/v1/organizations/:organization_id/holders/:holder_id/instruments/:instrument_id/related-parties/:related_party_id	crm
-DELETE	/v1/organizations/:organization_id/holders/:id	crm
 DELETE	/v1/organizations/:organization_id/ledgers/:ledger_id	onboarding
 DELETE	/v1/organizations/:organization_id/ledgers/:ledger_id/account-types/:id	onboarding
 DELETE	/v1/organizations/:organization_id/ledgers/:ledger_id/accounts/:id	onboarding
@@ -22,7 +18,6 @@ DELETE	/v1/organizations/:organization_id/ledgers/:ledger_id/operation-routes/:o
 DELETE	/v1/organizations/:organization_id/ledgers/:ledger_id/portfolios/:id	onboarding
 DELETE	/v1/organizations/:organization_id/ledgers/:ledger_id/segments/:id	onboarding
 DELETE	/v1/organizations/:organization_id/ledgers/:ledger_id/transaction-routes/:transaction_route_id	transaction
-DELETE	/v1/organizations/:organization_id/packages/:id	fees
 DELETE	/v1/settings/metadata-indexes/entities/:entity_name/key/:index_key	ledger
 DELETE	/v2/organizations/:id	onboarding
 DELETE	/v2/organizations/:organization_id/holders/:holder_id/instruments/:instrument_id	crm
@@ -42,14 +37,6 @@ DELETE	/v2/organizations/:organization_id/ledgers/:ledger_id/transaction-routes/
 DELETE	/v2/settings/metadata-indexes/entities/:entity_name/key/:index_key	ledger
 GET	/v1/organizations	onboarding
 GET	/v1/organizations/:id	onboarding
-GET	/v1/organizations/:organization_id/billing-packages	fees
-GET	/v1/organizations/:organization_id/billing-packages/:id	fees
-GET	/v1/organizations/:organization_id/encryption/status	crm
-GET	/v1/organizations/:organization_id/holders	crm
-GET	/v1/organizations/:organization_id/holders/:holder_id/instruments/:instrument_id	crm
-GET	/v1/organizations/:organization_id/holders/:id	crm
-GET	/v1/organizations/:organization_id/holders/:id/accounts	crm
-GET	/v1/organizations/:organization_id/instruments	crm
 GET	/v1/organizations/:organization_id/ledgers	onboarding
 GET	/v1/organizations/:organization_id/ledgers/:ledger_id	onboarding
 GET	/v1/organizations/:organization_id/ledgers/:ledger_id/account-types	onboarding
@@ -82,9 +69,6 @@ GET	/v1/organizations/:organization_id/ledgers/:ledger_id/transaction-routes	tra
 GET	/v1/organizations/:organization_id/ledgers/:ledger_id/transaction-routes/:transaction_route_id	transaction
 GET	/v1/organizations/:organization_id/ledgers/:ledger_id/transactions	transaction
 GET	/v1/organizations/:organization_id/ledgers/:ledger_id/transactions/:transaction_id	transaction
-GET	/v1/organizations/:organization_id/packages	fees
-GET	/v1/organizations/:organization_id/packages/:id	fees
-GET	/v1/organizations/:organization_id/protection/audit	crm
 GET	/v1/settings/metadata-indexes	ledger
 GET	/v2/organizations	onboarding
 GET	/v2/organizations/:id	onboarding
@@ -147,9 +131,6 @@ HEAD	/v2/organizations/:organization_id/ledgers/:ledger_id/transactions/metrics/
 HEAD	/v2/organizations/:organization_id/ledgers/metrics/count	onboarding
 HEAD	/v2/organizations/metrics/count	onboarding
 PATCH	/v1/organizations/:id	onboarding
-PATCH	/v1/organizations/:organization_id/billing-packages/:id	fees
-PATCH	/v1/organizations/:organization_id/holders/:holder_id/instruments/:instrument_id	crm
-PATCH	/v1/organizations/:organization_id/holders/:id	crm
 PATCH	/v1/organizations/:organization_id/ledgers/:ledger_id	onboarding
 PATCH	/v1/organizations/:organization_id/ledgers/:ledger_id/account-types/:id	onboarding
 PATCH	/v1/organizations/:organization_id/ledgers/:ledger_id/accounts/:id	onboarding
@@ -162,7 +143,6 @@ PATCH	/v1/organizations/:organization_id/ledgers/:ledger_id/settings	onboarding
 PATCH	/v1/organizations/:organization_id/ledgers/:ledger_id/transaction-routes/:transaction_route_id	transaction
 PATCH	/v1/organizations/:organization_id/ledgers/:ledger_id/transactions/:transaction_id	transaction
 PATCH	/v1/organizations/:organization_id/ledgers/:ledger_id/transactions/:transaction_id/operations/:operation_id	transaction
-PATCH	/v1/organizations/:organization_id/packages/:id	fees
 PATCH	/v2/organizations/:id	onboarding
 PATCH	/v2/organizations/:organization_id/holders/:holder_id/instruments/:instrument_id	crm
 PATCH	/v2/organizations/:organization_id/holders/:id	crm
@@ -181,12 +161,6 @@ PATCH	/v2/organizations/:organization_id/ledgers/:ledger_id/transaction-routes/:
 PATCH	/v2/organizations/:organization_id/ledgers/:ledger_id/transactions/:transaction_id	transaction
 PATCH	/v2/organizations/:organization_id/ledgers/:ledger_id/transactions/:transaction_id/operations/:operation_id	transaction
 POST	/v1/organizations	onboarding
-POST	/v1/organizations/:organization_id/billing-packages	fees
-POST	/v1/organizations/:organization_id/billing/calculate	fees
-POST	/v1/organizations/:organization_id/encryption/provision	crm
-POST	/v1/organizations/:organization_id/estimates	fees
-POST	/v1/organizations/:organization_id/holders	crm
-POST	/v1/organizations/:organization_id/holders/:holder_id/instruments	crm
 POST	/v1/organizations/:organization_id/ledgers	onboarding
 POST	/v1/organizations/:organization_id/ledgers/:ledger_id/account-types	onboarding
 POST	/v1/organizations/:organization_id/ledgers/:ledger_id/accounts	onboarding
@@ -206,7 +180,6 @@ POST	/v1/organizations/:organization_id/ledgers/:ledger_id/transactions/inflow	t
 POST	/v1/organizations/:organization_id/ledgers/:ledger_id/transactions/json	transaction
 POST	/v1/organizations/:organization_id/ledgers/:ledger_id/transactions/outflow	transaction
 POST	/v1/organizations/:organization_id/ledgers/:ledger_id/transactions/unblock	transaction
-POST	/v1/organizations/:organization_id/packages	fees
 POST	/v1/settings/metadata-indexes/entities/:entity_name	ledger
 POST	/v2/organizations	onboarding
 POST	/v2/organizations/:organization_id/encryption/provision	crm

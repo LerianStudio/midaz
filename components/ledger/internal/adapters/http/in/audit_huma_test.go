@@ -24,9 +24,9 @@ import (
 	pkgHTTP "github.com/LerianStudio/midaz/v4/pkg/net/http"
 )
 
-// buildHumaAuditApp mounts the protection-audit Huma operation on a /v1 group,
+// buildHumaAuditApp mounts the protection-audit Huma operation on a /v2 group,
 // faithfully mirroring the production wiring in unified-server.go: problem.Install()
-// runs before any huma.Register, the Huma API is built with openapi.New over a /v1
+// runs before any huma.Register, the Huma API is built with openapi.New over a /v2
 // group, an auth-shim middleware stands in for auth.Authorize("midaz","protection",
 // "get") + tenant PostAuthMiddlewares, and http.ParseUUIDPathParameters("organization")
 // + RegisterAuditRoutes attach the chain.
@@ -44,9 +44,9 @@ func buildHumaAuditApp(t *testing.T, handler *AuditHandler, authOK bool) *fiber.
 
 	libProblem.Install()
 
-	apiV1 := f.Group("/v1")
+	apiV2 := f.Group("/v2")
 
-	apiV1.Use(func(c fiber.Ctx) error {
+	apiV2.Use(func(c fiber.Ctx) error {
 		if !authOK {
 			return pkgHTTP.Unauthorized(c, "0001", "Unauthorized", "auth required")
 		}
@@ -54,11 +54,11 @@ func buildHumaAuditApp(t *testing.T, handler *AuditHandler, authOK bool) *fiber.
 		return c.Next()
 	})
 
-	hAPI := openapi.New(f, apiV1, openapi.Config{Title: "ledger-test", Version: "test", Servers: []string{"/v1"}})
+	hAPI := openapi.New(f, apiV2, openapi.Config{Title: "ledger-test", Version: "test", Servers: []string{"/v2"}})
 
-	apiV1.Get("/organizations/:organization_id/protection/audit", pkgHTTP.ParseUUIDPathParameters("organization"))
+	apiV2.Get("/organizations/:organization_id/protection/audit", pkgHTTP.ParseUUIDPathParameters("organization"))
 
-	RegisterAuditRoutes(hAPI, handler, crmOpSuffixV1)
+	RegisterAuditRoutes(hAPI, handler, crmOpSuffixV2)
 
 	return f
 }
@@ -95,7 +95,7 @@ func TestHuma_GetAuditEvents_Success(t *testing.T) {
 	handler := &AuditHandler{Service: stub}
 	app := buildHumaAuditApp(t, handler, true)
 
-	req := httptest.NewRequest(http.MethodGet, "/v1/organizations/"+orgID.String()+"/protection/audit?limit=2&sort_order=desc", nil)
+	req := httptest.NewRequest(http.MethodGet, "/v2/organizations/"+orgID.String()+"/protection/audit?limit=2&sort_order=desc", nil)
 
 	resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
 	require.NoError(t, err)
@@ -141,7 +141,7 @@ func TestHuma_GetAuditEvents_UnsupportedOutcomeRejectedByCore(t *testing.T) {
 	handler := &AuditHandler{Service: stub}
 	app := buildHumaAuditApp(t, handler, true)
 
-	req := httptest.NewRequest(http.MethodGet, "/v1/organizations/"+orgID.String()+"/protection/audit?outcome=conflict", nil)
+	req := httptest.NewRequest(http.MethodGet, "/v2/organizations/"+orgID.String()+"/protection/audit?outcome=conflict", nil)
 
 	resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
 	require.NoError(t, err)
@@ -159,7 +159,7 @@ func TestHuma_GetAuditEvents_AuthPreserved(t *testing.T) {
 	handler := &AuditHandler{Service: stub}
 	app := buildHumaAuditApp(t, handler, false)
 
-	req := httptest.NewRequest(http.MethodGet, "/v1/organizations/"+orgID.String()+"/protection/audit", nil)
+	req := httptest.NewRequest(http.MethodGet, "/v2/organizations/"+orgID.String()+"/protection/audit", nil)
 
 	resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
 	require.NoError(t, err)

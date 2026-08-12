@@ -136,7 +136,7 @@ func feematrixTryCreatePackage(t *testing.T, f fixture, opts feematrixPackageOpt
 		body["waivedAccounts"] = opts.Waived
 	}
 
-	return call(t, http.MethodPost, fmt.Sprintf("%s/v1/organizations/%s/packages", ledgerURL(), f.orgID), body)
+	return call(t, http.MethodPost, fmt.Sprintf("%s/v2/organizations/%s/ledgers/%s/packages", ledgerURL(), f.orgID, f.ledgerID), body)
 }
 
 // feematrixTransfer POSTs a plain JSON transfer of value from->to and requires

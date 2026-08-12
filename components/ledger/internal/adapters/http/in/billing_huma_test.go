@@ -29,12 +29,12 @@ import (
 // fees_billing_handlers_test.go; these Huma tests reuse them (mirroring how the fee
 // Huma tests reuse stubPackageService/stubFeeService).
 
-// buildHumaBillingPackageApp mounts the five billing-package Huma operations on a /v1
-// group, mirroring production (fees_routes.go/unified-server.go): problem.Install()
-// before any huma.Register, the Huma API built with openapi.New over a /v1 group, an
-// auth-shim standing in for auth.Authorize("plugin-fees","billing-packages",verb) +
-// tenant, and per-route ParseUUIDPathParameters("billing-packages") +
-// RegisterBillingPackageRoutes.
+// buildHumaBillingPackageApp mounts the five ledger-scoped billing-package Huma
+// operations on a /v2 group, mirroring production
+// (fees_v2_register.go/unified-server.go): problem.Install() before any huma.Register,
+// the Huma API built with openapi.New over a /v2 group, an auth-shim standing in for
+// auth.Authorize("plugin-fees","billing-packages",verb) + tenant, and per-route
+// ParseUUIDPathParameters("billing-packages") + registerBillingPackageV2Routes.
 //
 // MUST-NOT-PARALLELIZE (same rationale as buildHumaPackageApp): libProblem.Install()
 // swaps the process-global huma.NewError hook and Huma validation uses process-global
@@ -48,29 +48,30 @@ func buildHumaBillingPackageApp(t *testing.T, handler *BillingPackageHandler, au
 
 	libProblem.Install()
 
-	apiV1 := f.Group("/v1")
+	apiV2 := f.Group("/v2")
 
-	apiV1.Use(feesAuthShim(authOK))
+	apiV2.Use(feesAuthShim(authOK))
 
 	parse := pkgHTTP.ParseUUIDPathParameters("billing-packages")
 
-	listPath := "/organizations/:organization_id/billing-packages"
+	listPath := "/organizations/:organization_id/ledgers/:ledger_id/billing-packages"
 	idPath := listPath + "/:id"
 
-	apiV1.Post(listPath, parse)
-	apiV1.Get(listPath, parse)
-	apiV1.Get(idPath, parse)
-	apiV1.Patch(idPath, parse)
-	apiV1.Delete(idPath, parse)
+	apiV2.Post(listPath, parse)
+	apiV2.Get(listPath, parse)
+	apiV2.Get(idPath, parse)
+	apiV2.Patch(idPath, parse)
+	apiV2.Delete(idPath, parse)
 
-	hAPI := openapi.New(f, apiV1, openapi.Config{Title: "ledger-test", Version: "test", Servers: []string{"/v1"}})
+	hAPI := openapi.New(f, apiV2, openapi.Config{Title: "ledger-test", Version: "test", Servers: []string{"/v2"}})
 
-	RegisterBillingPackageRoutes(hAPI, handler)
+	registerBillingPackageV2Routes(hAPI, handler)
 
 	return f
 }
 
-// buildHumaBillingCalculateApp mounts the single billing-calculate Huma operation.
+// buildHumaBillingCalculateApp mounts the single ledger-scoped billing-calculate Huma
+// operation.
 func buildHumaBillingCalculateApp(t *testing.T, handler *BillingCalculateHandler, authOK bool) *fiber.App {
 	t.Helper()
 
@@ -80,22 +81,35 @@ func buildHumaBillingCalculateApp(t *testing.T, handler *BillingCalculateHandler
 
 	libProblem.Install()
 
-	apiV1 := f.Group("/v1")
+	apiV2 := f.Group("/v2")
 
-	apiV1.Use(feesAuthShim(authOK))
-	apiV1.Post("/organizations/:organization_id/billing/calculate", pkgHTTP.ParseUUIDPathParameters("billing-calculate"))
+	apiV2.Use(feesAuthShim(authOK))
+	apiV2.Post("/organizations/:organization_id/ledgers/:ledger_id/billing/calculate", pkgHTTP.ParseUUIDPathParameters("billing-calculate"))
 
-	hAPI := openapi.New(f, apiV1, openapi.Config{Title: "ledger-test", Version: "test", Servers: []string{"/v1"}})
+	hAPI := openapi.New(f, apiV2, openapi.Config{Title: "ledger-test", Version: "test", Servers: []string{"/v2"}})
 
-	RegisterBillingCalculateRoutes(hAPI, handler)
+	registerBillingCalculateV2Routes(hAPI, handler)
 
 	return f
+}
+
+// billingPkgV2URL builds the ledger-scoped billing-package collection URL for a given
+// organization and ledger.
+func billingPkgV2URL(orgID, ledgerID string) string {
+	return "/v2/organizations/" + orgID + "/ledgers/" + ledgerID + "/billing-packages"
+}
+
+// billingCalcV2URL builds the ledger-scoped billing-calculate URL.
+func billingCalcV2URL(orgID, ledgerID string) string {
+	return "/v2/organizations/" + orgID + "/ledgers/" + ledgerID + "/billing/calculate"
 }
 
 // validBillingPackageJSON is a decode-valid create-billing-package body: label + type
 // + ledgerId are the fields the create path stamps/forwards. DecodeValidateBody runs
 // ValidateStruct (no struct tags on BillingPackage → no-op) + unknown-field check;
-// business Validate() runs in the service layer (stubbed), so this clears decode.
+// business Validate() runs in the service layer (stubbed), so this clears decode. The
+// ledger is validLedgerUUID(), so the ledger-scoped create guard admits it when the
+// path names the same ledger.
 func validBillingPackageJSON() string {
 	return `{"label":"Monthly Volume","type":"volume","ledgerId":"` + validLedgerUUID() + `"}`
 }
@@ -110,7 +124,7 @@ func TestHuma_CreateBillingPackage_Success(t *testing.T) {
 
 	app := buildHumaBillingPackageApp(t, handler, true)
 
-	req := httptest.NewRequest(http.MethodPost, "/v1/organizations/"+orgID.String()+"/billing-packages", bytes.NewBufferString(validBillingPackageJSON()))
+	req := httptest.NewRequest(http.MethodPost, billingPkgV2URL(orgID.String(), validLedgerUUID()), bytes.NewBufferString(validBillingPackageJSON()))
 	req.Header.Set("Content-Type", "application/json")
 
 	resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
@@ -134,7 +148,7 @@ func TestHuma_CreateBillingPackage_AuthPreserved(t *testing.T) {
 	handler := &BillingPackageHandler{Service: &stubBillingPackageService{}}
 	app := buildHumaBillingPackageApp(t, handler, false)
 
-	req := httptest.NewRequest(http.MethodPost, "/v1/organizations/"+orgID.String()+"/billing-packages", bytes.NewBufferString(`{}`))
+	req := httptest.NewRequest(http.MethodPost, billingPkgV2URL(orgID.String(), validLedgerUUID()), bytes.NewBufferString(`{}`))
 	req.Header.Set("Content-Type", "application/json")
 
 	resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
@@ -150,7 +164,7 @@ func TestHuma_CreateBillingPackage_MalformedBody_Canonical400(t *testing.T) {
 	handler := &BillingPackageHandler{Service: &stubBillingPackageService{}}
 	app := buildHumaBillingPackageApp(t, handler, true)
 
-	req := httptest.NewRequest(http.MethodPost, "/v1/organizations/"+orgID.String()+"/billing-packages", bytes.NewReader([]byte("{not valid json")))
+	req := httptest.NewRequest(http.MethodPost, billingPkgV2URL(orgID.String(), validLedgerUUID()), bytes.NewReader([]byte("{not valid json")))
 	req.Header.Set("Content-Type", "application/json")
 
 	resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
@@ -175,7 +189,7 @@ func TestHuma_GetBillingPackageByID_Success(t *testing.T) {
 
 	app := buildHumaBillingPackageApp(t, handler, true)
 
-	req := httptest.NewRequest(http.MethodGet, "/v1/organizations/"+orgID.String()+"/billing-packages/"+bpID.String(), nil)
+	req := httptest.NewRequest(http.MethodGet, billingPkgV2URL(orgID.String(), validLedgerUUID())+"/"+bpID.String(), nil)
 	resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
 	require.NoError(t, err)
 	defer func() { _ = resp.Body.Close() }()
@@ -196,7 +210,7 @@ func TestHuma_GetBillingPackageByID_BadUUID_Canonical400(t *testing.T) {
 	handler := &BillingPackageHandler{Service: &stubBillingPackageService{}}
 	app := buildHumaBillingPackageApp(t, handler, true)
 
-	req := httptest.NewRequest(http.MethodGet, "/v1/organizations/"+orgID.String()+"/billing-packages/not-a-uuid", nil)
+	req := httptest.NewRequest(http.MethodGet, billingPkgV2URL(orgID.String(), validLedgerUUID())+"/not-a-uuid", nil)
 	resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
 	require.NoError(t, err)
 	defer func() { _ = resp.Body.Close() }()
@@ -221,7 +235,9 @@ func TestHuma_GetAllBillingPackages_Success(t *testing.T) {
 
 	app := buildHumaBillingPackageApp(t, handler, true)
 
-	req := httptest.NewRequest(http.MethodGet, "/v1/organizations/"+orgID.String()+"/billing-packages?limit=5&page=2&type=volume&ledgerId="+ledgerID.String(), nil)
+	// The ledger-scoped listing pins to the path ledger; the ledgerId query is refused
+	// (see TestFeesV2_ListsRefuseTheLedgerQueryParameter), so it is absent here.
+	req := httptest.NewRequest(http.MethodGet, billingPkgV2URL(orgID.String(), ledgerID.String())+"?limit=5&page=2&type=volume", nil)
 	resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
 	require.NoError(t, err)
 	defer func() { _ = resp.Body.Close() }()
@@ -232,8 +248,8 @@ func TestHuma_GetAllBillingPackages_Success(t *testing.T) {
 	assert.Equal(t, 5, stub.gotGetAllLimit, "query binder must feed the parsed limit")
 	assert.Equal(t, 2, stub.gotGetAllPage)
 	assert.Equal(t, "volume", stub.gotGetAllType)
-	require.NotNil(t, stub.gotGetAllLedger)
-	assert.Equal(t, ledgerID, *stub.gotGetAllLedger)
+	require.NotNil(t, stub.gotGetAllLedger, "the ledger-scoped listing must be pinned to the path ledger")
+	assert.Equal(t, ledgerID, *stub.gotGetAllLedger, "the listing must scope to the ledger the path named")
 
 	var got map[string]any
 	require.NoError(t, json.Unmarshal(respBody, &got), "body: %s", string(respBody))
@@ -248,32 +264,13 @@ func TestHuma_GetAllBillingPackages_BadLimit_Canonical400(t *testing.T) {
 	handler := &BillingPackageHandler{Service: &stubBillingPackageService{}}
 	app := buildHumaBillingPackageApp(t, handler, true)
 
-	req := httptest.NewRequest(http.MethodGet, "/v1/organizations/"+orgID.String()+"/billing-packages?limit=abc", nil)
+	req := httptest.NewRequest(http.MethodGet, billingPkgV2URL(orgID.String(), validLedgerUUID())+"?limit=abc", nil)
 	resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
 	require.NoError(t, err)
 	defer func() { _ = resp.Body.Close() }()
 
 	respBody, _ := io.ReadAll(resp.Body)
 	assert.Equal(t, http.StatusBadRequest, resp.StatusCode, "bad query stays canonical 400 — no native 422")
-
-	var got map[string]any
-	require.NoError(t, json.Unmarshal(respBody, &got), "body: %s", string(respBody))
-	assert.Equal(t, constant.ErrInvalidQueryParameter.Error(), got["code"])
-}
-
-func TestHuma_GetAllBillingPackages_BadLedgerID_Canonical400(t *testing.T) {
-	orgID := uuid.New()
-
-	handler := &BillingPackageHandler{Service: &stubBillingPackageService{}}
-	app := buildHumaBillingPackageApp(t, handler, true)
-
-	req := httptest.NewRequest(http.MethodGet, "/v1/organizations/"+orgID.String()+"/billing-packages?ledgerId=not-a-uuid", nil)
-	resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
-	require.NoError(t, err)
-	defer func() { _ = resp.Body.Close() }()
-
-	respBody, _ := io.ReadAll(resp.Body)
-	assert.Equal(t, http.StatusBadRequest, resp.StatusCode, "bad ledgerId stays canonical 400")
 
 	var got map[string]any
 	require.NoError(t, json.Unmarshal(respBody, &got), "body: %s", string(respBody))
@@ -290,7 +287,7 @@ func TestHuma_UpdateBillingPackage_Success(t *testing.T) {
 	app := buildHumaBillingPackageApp(t, handler, true)
 
 	body := `{"label":"Updated"}`
-	req := httptest.NewRequest(http.MethodPatch, "/v1/organizations/"+orgID.String()+"/billing-packages/"+bpID.String(), bytes.NewBufferString(body))
+	req := httptest.NewRequest(http.MethodPatch, billingPkgV2URL(orgID.String(), validLedgerUUID())+"/"+bpID.String(), bytes.NewBufferString(body))
 	req.Header.Set("Content-Type", "application/json")
 
 	resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
@@ -317,7 +314,7 @@ func TestHuma_UpdateBillingPackage_Empty_NothingToUpdate(t *testing.T) {
 
 	app := buildHumaBillingPackageApp(t, handler, true)
 
-	req := httptest.NewRequest(http.MethodPatch, "/v1/organizations/"+orgID.String()+"/billing-packages/"+bpID.String(), bytes.NewBufferString(`{}`))
+	req := httptest.NewRequest(http.MethodPatch, billingPkgV2URL(orgID.String(), validLedgerUUID())+"/"+bpID.String(), bytes.NewBufferString(`{}`))
 	req.Header.Set("Content-Type", "application/json")
 
 	resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
@@ -342,7 +339,7 @@ func TestHuma_DeleteBillingPackage_204Empty(t *testing.T) {
 
 	app := buildHumaBillingPackageApp(t, handler, true)
 
-	req := httptest.NewRequest(http.MethodDelete, "/v1/organizations/"+orgID.String()+"/billing-packages/"+bpID.String(), nil)
+	req := httptest.NewRequest(http.MethodDelete, billingPkgV2URL(orgID.String(), validLedgerUUID())+"/"+bpID.String(), nil)
 	resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
 	require.NoError(t, err)
 	defer func() { _ = resp.Body.Close() }()
@@ -369,7 +366,7 @@ func TestHuma_CalculateBilling_Success(t *testing.T) {
 
 	app := buildHumaBillingCalculateApp(t, handler, true)
 
-	req := httptest.NewRequest(http.MethodPost, "/v1/organizations/"+orgID.String()+"/billing/calculate", bytes.NewBufferString(validBillingCalculateJSON(ledgerID.String())))
+	req := httptest.NewRequest(http.MethodPost, billingCalcV2URL(orgID.String(), ledgerID.String()), bytes.NewBufferString(validBillingCalculateJSON(ledgerID.String())))
 	req.Header.Set("Content-Type", "application/json")
 
 	resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
@@ -395,7 +392,7 @@ func TestHuma_CalculateBilling_AuthPreserved(t *testing.T) {
 	handler := &BillingCalculateHandler{Service: &stubBillingCalculateService{}}
 	app := buildHumaBillingCalculateApp(t, handler, false)
 
-	req := httptest.NewRequest(http.MethodPost, "/v1/organizations/"+orgID.String()+"/billing/calculate", bytes.NewBufferString(`{}`))
+	req := httptest.NewRequest(http.MethodPost, billingCalcV2URL(orgID.String(), validLedgerUUID()), bytes.NewBufferString(`{}`))
 	req.Header.Set("Content-Type", "application/json")
 
 	resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
@@ -413,10 +410,10 @@ func TestHuma_CalculateBilling_MissingLedger_Canonical400(t *testing.T) {
 
 	// ledgerId omitted → the fee body validator (WithBodyTracing/DecodeValidateBody,
 	// which the shell preserves via decodeFeeBodyInSpan) rejects it on the
-	// `validate:"required"` struct tag with ErrMissingFieldsInRequest (0009) BEFORE
-	// the handler-level validateBillingCalculateRequest runs. This is byte-identical
-	// to the Fiber path — a native Huma 422 must NOT appear.
-	req := httptest.NewRequest(http.MethodPost, "/v1/organizations/"+orgID.String()+"/billing/calculate", bytes.NewBufferString(`{"period":"2026-01"}`))
+	// `validate:"required"` struct tag with ErrMissingFieldsInRequest (0009) BEFORE the
+	// body-ledger-match guard and the handler-level validateBillingCalculateRequest run.
+	// This is byte-identical to the Fiber path — a native Huma 422 must NOT appear.
+	req := httptest.NewRequest(http.MethodPost, billingCalcV2URL(orgID.String(), validLedgerUUID()), bytes.NewBufferString(`{"period":"2026-01"}`))
 	req.Header.Set("Content-Type", "application/json")
 
 	resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
@@ -439,9 +436,9 @@ func TestHuma_CalculateBilling_MalformedLedger_Canonical400(t *testing.T) {
 	app := buildHumaBillingCalculateApp(t, handler, true)
 
 	// ledgerId present but not a UUID → clears the `required` struct tag, so the
-	// handler-level validateBillingCalculateRequest (in the shared calculateBilling
-	// core) rejects it with ErrInvalidLedgerID (0203) BEFORE the service call.
-	req := httptest.NewRequest(http.MethodPost, "/v1/organizations/"+orgID.String()+"/billing/calculate", bytes.NewBufferString(`{"ledgerId":"not-a-uuid","period":"2026-01"}`))
+	// ledger-scoped body-match guard (requireBodyLedgerMatchesPath) rejects it with
+	// ErrInvalidLedgerID (0203) when uuid.Parse fails, BEFORE the service call.
+	req := httptest.NewRequest(http.MethodPost, billingCalcV2URL(orgID.String(), validLedgerUUID()), bytes.NewBufferString(`{"ledgerId":"not-a-uuid","period":"2026-01"}`))
 	req.Header.Set("Content-Type", "application/json")
 
 	resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
@@ -465,7 +462,7 @@ func TestHuma_CalculateBilling_ServiceError_Mapped(t *testing.T) {
 
 	app := buildHumaBillingCalculateApp(t, handler, true)
 
-	req := httptest.NewRequest(http.MethodPost, "/v1/organizations/"+orgID.String()+"/billing/calculate", bytes.NewBufferString(validBillingCalculateJSON(ledgerID.String())))
+	req := httptest.NewRequest(http.MethodPost, billingCalcV2URL(orgID.String(), ledgerID.String()), bytes.NewBufferString(validBillingCalculateJSON(ledgerID.String())))
 	req.Header.Set("Content-Type", "application/json")
 
 	resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})

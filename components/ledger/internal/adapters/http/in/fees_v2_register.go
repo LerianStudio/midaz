@@ -15,38 +15,30 @@ import (
 	pkgHTTP "github.com/LerianStudio/midaz/v4/pkg/net/http"
 )
 
-// This file is the v2 fee/billing contract seam (filename-suffix versioning — the v1
-// files are left untouched). It mounts the twelve fee and billing operations at
-// ledger scope on the /v2 version group of the shared Huma contract, and attaches the SAME Fiber
-// guard chain the organization-scoped routes carry: auth.Authorize("plugin-fees",
-// resource, verb) with the same (resource, verb) tuples, the same fees-scoped tenant
-// PostAuthMiddlewares, and the same ParseUUIDPathParameters labels. No new policy
-// surface: the fees namespace stays "plugin-fees".
+// This file is the fee/billing contract seam. It mounts the twelve fee and billing
+// operations at ledger scope on the /v2 version group of the shared Huma contract, and
+// attaches the shared feeGuardRoutes table under the "plugin-fees" namespace:
+// auth.Authorize("plugin-fees", resource, verb) tuples, the fees-scoped tenant
+// PostAuthMiddlewares, and the ParseUUIDPathParameters labels.
 //
-// The registrations are written out here rather than routed through the four
-// organization-scoped registrars, even though those take a base path. A ledger-scoped
-// path carries a parameter the organization-scoped input structs do not declare, and
-// Huma does not object: it registers the operation, publishes only the parameters the
-// struct declares, and the terminal never sees the ledger. Reusing them would
-// therefore produce a contract whose path template names a parameter the operation
-// does not document, served by a handler acting at the wrong scope.
+// Each operation is registered directly here off the ledger-scoped base path. That path
+// carries the ledger_id parameter, which every fee and billing input struct declares, so
+// the published contract names exactly the parameters the handler acts on.
 //
-// POST /fees is absent here for the reason it is absent from /v1: in the unified
-// binary fees run in-process via the transaction seam, so only the dry-run estimate is
-// exposed over HTTP.
+// POST /fees is not exposed over HTTP: in the unified binary fees run in-process via the
+// transaction seam, so only the dry-run estimate is served.
 
 // feeBasePathV2 is the scope every v2 fee and billing resource hangs off, in OpenAPI
 // template syntax. Each registration appends its own segments to it, and feeChainPath
 // restates it in Fiber syntax for the guard chain.
 const feeBasePathV2 = "/organizations/{organization_id}/ledgers/{ledger_id}"
 
-// feeOpSuffixV2 is the operation-ID suffix the v2 fee contract carries. The ledger
-// serves both fee versions on a single OpenAPI document, and huma.OpenAPI.AddOperation
-// scans the whole document and panics on a duplicate operation ID, so a v2 op MUST NOT
-// repeat the ID of its v1 twin or the ledger panics at boot. The V2 suffix makes that
-// disjunction a boot invariant; it secondarily keeps IDs unique across the ledger↔tracer
-// hub-spec join. The organization-scoped contract publishes its IDs unsuffixed: they are
-// what already published SDKs bind to, so they are frozen rather than versioned.
+// feeOpSuffixV2 is the operation-ID suffix every fee and billing operation carries. It
+// is load-bearing for two reasons. First, published and generated SDKs are frozen to
+// these suffixed operation IDs. Second, huma.OpenAPI.AddOperation scans the whole
+// document and panics on a duplicate operation ID, and the ledger and tracer share one
+// Huma document, so the suffix keeps every fee operation ID unique within that shared
+// document.
 const feeOpSuffixV2 = "V2"
 
 // RegisterFeesV2Routes registers the twelve ledger-scoped fee and billing operations
@@ -219,16 +211,15 @@ func registerBillingCalculateV2Routes(api huma.API, h *BillingCalculateHandler) 
 // the /v2 contract: the Fiber guard chain on the /v2 group with group-relative paths,
 // then the Huma terminals on that group's Huma API.
 //
-// The guard chain comes from feeGuardRoutes, the table the organization-scoped surface
-// attaches too, so the (resource, verb) tuples of the two scopes cannot drift. Only the
-// scope they hang off differs, and it is derived from feeBasePathV2 by feeChainPath
+// The guard chain comes from feeGuardRoutes, so the (resource, verb) tuples cannot drift
+// from the contract. The scope it hangs off is derived from feeBasePathV2 by feeChainPath
 // rather than restated by hand: a Fiber spelling that drifts from the contract's is not
 // caught by the contract diff, and a path parameter whose name falls outside the
 // identifier allowlist is carried through as an unvalidated string.
 // TestFeesV2RoutesParameterNamesAgree pins that every route agrees on its parameter
 // names and that every name is one the UUID validator recognizes.
 //
-// It is additive — /v1 keeps serving the organization-scoped surface in parallel.
+// This ledger-scoped /v2 surface is the sole fees HTTP surface.
 func RegisterFeesV2RoutesToApp(
 	group fiber.Router,
 	api huma.API,

@@ -29,10 +29,10 @@ import (
 	pkgHTTP "github.com/LerianStudio/midaz/v4/pkg/net/http"
 )
 
-// buildHumaInstrumentApp mounts the six instrument Huma operations on a /v1 group,
+// buildHumaInstrumentApp mounts the six instrument Huma operations on a /v2 group,
 // faithfully mirroring the production wiring in crm_routes.go/unified-server.go:
 // problem.Install() runs before any huma.Register, the Huma API is built with
-// openapi.New over a /v1 group, an auth-shim middleware stands in for
+// openapi.New over a /v2 group, an auth-shim middleware stands in for
 // auth.Authorize("midaz","instruments",verb) + tenant PostAuthMiddlewares, and the
 // per-route ParseUUIDPathParameters ("instruments", except "related-parties" on the
 // related-party delete) + RegisterInstrumentRoutes attach the chain.
@@ -50,9 +50,9 @@ func buildHumaInstrumentApp(t *testing.T, handler *InstrumentHandler, authOK boo
 
 	libProblem.Install()
 
-	apiV1 := f.Group("/v1")
+	apiV2 := f.Group("/v2")
 
-	apiV1.Use(func(c fiber.Ctx) error {
+	apiV2.Use(func(c fiber.Ctx) error {
 		if !authOK {
 			return pkgHTTP.Unauthorized(c, "0001", "Unauthorized", "auth required")
 		}
@@ -67,16 +67,16 @@ func buildHumaInstrumentApp(t *testing.T, handler *InstrumentHandler, authOK boo
 	holderScoped := "/organizations/:organization_id/holders/:holder_id/instruments"
 	idPath := holderScoped + "/:instrument_id"
 
-	apiV1.Get(listPath, parse)
-	apiV1.Post(holderScoped, parse)
-	apiV1.Get(idPath, parse)
-	apiV1.Patch(idPath, parse)
-	apiV1.Delete(idPath, parse)
-	apiV1.Delete(idPath+"/related-parties/:related_party_id", parseRP)
+	apiV2.Get(listPath, parse)
+	apiV2.Post(holderScoped, parse)
+	apiV2.Get(idPath, parse)
+	apiV2.Patch(idPath, parse)
+	apiV2.Delete(idPath, parse)
+	apiV2.Delete(idPath+"/related-parties/:related_party_id", parseRP)
 
-	hAPI := openapi.New(f, apiV1, openapi.Config{Title: "ledger-test", Version: "test", Servers: []string{"/v1"}})
+	hAPI := openapi.New(f, apiV2, openapi.Config{Title: "ledger-test", Version: "test", Servers: []string{"/v2"}})
 
-	RegisterInstrumentRoutes(hAPI, handler, crmOpSuffixV1)
+	RegisterInstrumentRoutes(hAPI, handler, crmOpSuffixV2)
 
 	return f
 }
@@ -132,7 +132,7 @@ func TestHuma_CreateInstrument_IdempotentReplay(t *testing.T) {
 	body := `{"ledgerId":"00000000-0000-0000-0000-000000000001","accountId":"00000000-0000-0000-0000-000000000002"}`
 
 	doRequest := func() (int, string, []byte) {
-		req := httptest.NewRequest(http.MethodPost, "/v1/organizations/"+orgID.String()+"/holders/"+holderID.String()+"/instruments", bytes.NewBufferString(body))
+		req := httptest.NewRequest(http.MethodPost, "/v2/organizations/"+orgID.String()+"/holders/"+holderID.String()+"/instruments", bytes.NewBufferString(body))
 		req.Header.Set("Content-Type", "application/json")
 		req.Header.Set("X-Idempotency-Key", "instrument-key-1")
 
@@ -178,7 +178,7 @@ func TestHuma_CreateInstrument_AuthPreserved(t *testing.T) {
 	app := buildHumaInstrumentApp(t, handler, false)
 
 	body := `{"ledgerId":"00000000-0000-0000-0000-000000000001","accountId":"00000000-0000-0000-0000-000000000002"}`
-	req := httptest.NewRequest(http.MethodPost, "/v1/organizations/"+orgID.String()+"/holders/"+holderID.String()+"/instruments", bytes.NewBufferString(body))
+	req := httptest.NewRequest(http.MethodPost, "/v2/organizations/"+orgID.String()+"/holders/"+holderID.String()+"/instruments", bytes.NewBufferString(body))
 	req.Header.Set("Content-Type", "application/json")
 
 	resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
@@ -202,7 +202,7 @@ func TestHuma_CreateInstrument_MalformedBody_Canonical400(t *testing.T) {
 
 	app := buildHumaInstrumentApp(t, handler, true)
 
-	req := httptest.NewRequest(http.MethodPost, "/v1/organizations/"+orgID.String()+"/holders/"+holderID.String()+"/instruments", bytes.NewReader([]byte("{not valid json")))
+	req := httptest.NewRequest(http.MethodPost, "/v2/organizations/"+orgID.String()+"/holders/"+holderID.String()+"/instruments", bytes.NewReader([]byte("{not valid json")))
 	req.Header.Set("Content-Type", "application/json")
 
 	resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
@@ -236,7 +236,7 @@ func TestHuma_GetInstrumentByID_Success(t *testing.T) {
 
 	app := buildHumaInstrumentApp(t, handler, true)
 
-	req := httptest.NewRequest(http.MethodGet, "/v1/organizations/"+orgID.String()+"/holders/"+holderID.String()+"/instruments/"+instrumentID.String(), nil)
+	req := httptest.NewRequest(http.MethodGet, "/v2/organizations/"+orgID.String()+"/holders/"+holderID.String()+"/instruments/"+instrumentID.String(), nil)
 	resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
 	require.NoError(t, err)
 	defer func() { _ = resp.Body.Close() }()
@@ -264,7 +264,7 @@ func TestHuma_GetInstrumentByID_BadUUID_Canonical400(t *testing.T) {
 
 	app := buildHumaInstrumentApp(t, handler, true)
 
-	req := httptest.NewRequest(http.MethodGet, "/v1/organizations/"+orgID.String()+"/holders/"+holderID.String()+"/instruments/not-a-uuid", nil)
+	req := httptest.NewRequest(http.MethodGet, "/v2/organizations/"+orgID.String()+"/holders/"+holderID.String()+"/instruments/not-a-uuid", nil)
 	resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
 	require.NoError(t, err)
 	defer func() { _ = resp.Body.Close() }()
@@ -311,7 +311,7 @@ func TestHuma_UpdateInstrument_MergePatch_NullFieldRemoved(t *testing.T) {
 	app := buildHumaInstrumentApp(t, handler, true)
 
 	body := []byte(`{"metadata":{"k":"v"},"bankingDetails":null}`)
-	req := httptest.NewRequest(http.MethodPatch, "/v1/organizations/"+orgID.String()+"/holders/"+holderID.String()+"/instruments/"+instrumentID.String(), bytes.NewReader(body))
+	req := httptest.NewRequest(http.MethodPatch, "/v2/organizations/"+orgID.String()+"/holders/"+holderID.String()+"/instruments/"+instrumentID.String(), bytes.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
 
 	resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
@@ -336,7 +336,7 @@ func TestHuma_DeleteInstrument_204Empty(t *testing.T) {
 
 	app := buildHumaInstrumentApp(t, handler, true)
 
-	req := httptest.NewRequest(http.MethodDelete, "/v1/organizations/"+orgID.String()+"/holders/"+holderID.String()+"/instruments/"+instrumentID.String(), nil)
+	req := httptest.NewRequest(http.MethodDelete, "/v2/organizations/"+orgID.String()+"/holders/"+holderID.String()+"/instruments/"+instrumentID.String(), nil)
 	resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
 	require.NoError(t, err)
 	defer func() { _ = resp.Body.Close() }()
@@ -363,7 +363,7 @@ func TestHuma_DeleteRelatedParty_204Empty(t *testing.T) {
 
 	app := buildHumaInstrumentApp(t, handler, true)
 
-	req := httptest.NewRequest(http.MethodDelete, "/v1/organizations/"+orgID.String()+"/holders/"+holderID.String()+"/instruments/"+instrumentID.String()+"/related-parties/"+relatedPartyID.String(), nil)
+	req := httptest.NewRequest(http.MethodDelete, "/v2/organizations/"+orgID.String()+"/holders/"+holderID.String()+"/instruments/"+instrumentID.String()+"/related-parties/"+relatedPartyID.String(), nil)
 	resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
 	require.NoError(t, err)
 	defer func() { _ = resp.Body.Close() }()
@@ -389,7 +389,7 @@ func TestHuma_GetAllInstruments_Success(t *testing.T) {
 
 	app := buildHumaInstrumentApp(t, handler, true)
 
-	req := httptest.NewRequest(http.MethodGet, "/v1/organizations/"+orgID.String()+"/instruments?limit=10&page=1", nil)
+	req := httptest.NewRequest(http.MethodGet, "/v2/organizations/"+orgID.String()+"/instruments?limit=10&page=1", nil)
 	resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
 	require.NoError(t, err)
 	defer func() { _ = resp.Body.Close() }()
@@ -417,7 +417,7 @@ func TestHuma_GetAllInstruments_BadQuery_Canonical400(t *testing.T) {
 
 	app := buildHumaInstrumentApp(t, handler, true)
 
-	req := httptest.NewRequest(http.MethodGet, "/v1/organizations/"+orgID.String()+"/instruments?limit=abc", nil)
+	req := httptest.NewRequest(http.MethodGet, "/v2/organizations/"+orgID.String()+"/instruments?limit=abc", nil)
 	resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
 	require.NoError(t, err)
 	defer func() { _ = resp.Body.Close() }()

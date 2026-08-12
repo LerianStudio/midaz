@@ -63,8 +63,8 @@ func jsonBodyOperationIDs(doc *huma.OpenAPI) []string {
 // ops on BOTH the /v1 and /v2 surfaces publishes a TYPED request-body schema (a $ref
 // to the concrete input component, or at minimum a structured object) rather than the
 // opaque type:string/format:binary RawBody schema. It spans an onboarding create on
-// both version twins, an onboarding update, a money-path create, and a fees op on both
-// twins, so a regression that reverts any one family surfaces here.
+// both version twins, an onboarding update, a money-path create, and the ledger-scoped
+// (v2-only) fees create, so a regression that reverts any one family surfaces here.
 func TestTypedRequestBodyRepresentativeSpread(t *testing.T) {
 	t.Parallel()
 
@@ -80,7 +80,6 @@ func TestTypedRequestBodyRepresentativeSpread(t *testing.T) {
 		"createAccount":         "CreateAccountInput",
 		"updateLedger":          "UpdateLedgerInput",
 		"createTransactionJSON": "CreateTransactionInput",
-		"createPackage":         "FeeCreatePackageInput",
 		"createPackageV2":       "FeeCreatePackageInput",
 	}
 

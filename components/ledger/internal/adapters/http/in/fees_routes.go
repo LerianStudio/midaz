@@ -10,7 +10,6 @@ import (
 	"github.com/LerianStudio/midaz/v4/pkg/net/http"
 
 	"github.com/LerianStudio/lib-auth/v3/auth/middleware"
-	"github.com/danielgtaylor/huma/v2"
 	"github.com/gofiber/fiber/v3"
 )
 
@@ -18,11 +17,6 @@ import (
 // is preserved verbatim from the standalone plugin-fees service: tenant-manager
 // RBAC policies key on this string, so it MUST NOT be renamed (R9).
 const feesApplicationName = "plugin-fees"
-
-// feeBasePathV1 is the scope every organization-scoped fee and billing resource hangs
-// off, in OpenAPI template syntax. Each resource registrar appends its own segments to
-// it, and feeChainPath restates it in Fiber syntax for the guard chain.
-const feeBasePathV1 = "/organizations/{organization_id}"
 
 // feeSpecPathParam matches a single OpenAPI path-parameter segment, "{name}".
 var feeSpecPathParam = regexp.MustCompile(`\{([^{}/]+)\}`)
@@ -53,11 +47,9 @@ type feeGuardRoute struct {
 }
 
 // feeGuardRoutes is the fee and billing authorization surface, written down once.
-// Both scopes attach it: the organization-scoped surface through
-// RegisterFeesRoutesToApp and the ledger-scoped one through
-// RegisterFeesV2RoutesToApp. Re-tupling a grant here therefore reaches both, which
-// is what keeps them from drifting — the two surfaces describe their CONTRACTS
-// separately (see fees_v2_register.go), and only this table is shared.
+// The ledger-scoped surface attaches it through RegisterFeesV2RoutesToApp. Keeping the
+// (resource, verb) tuples in one table is what lets the guard chain and the Huma
+// contract be cut from one source (see fees_v2_register.go).
 //
 // The resource doubles as the ParseUUIDPathParameters label: it is the span-attribute
 // name the pre-Huma inline routes used, and the middleware validates every UUID path
@@ -94,33 +86,6 @@ func attachFeeGuards(group fiber.Router, auth *middleware.AuthClient, routeOptio
 		chain := protectedFees(auth, route.resource, route.action, routeOptions, http.ParseUUIDPathParameters(route.resource))
 		registerRoute(group, route.method, chainBase+route.suffix, chain)
 	}
-}
-
-// RegisterFeesRoutesToApp wires the ORGANIZATION-SCOPED fee and billing surface
-// end-to-end on the /v1 contract: the Fiber guard chain on the versioned group with
-// group-relative paths, then the Huma terminals on that group's Huma API.
-//
-// This describes one of the two scopes the surface is served at. The ledger-scoped
-// twin is described independently in fees_v2_register.go, with its own registrations
-// and its own chain wiring, so a change to the shape of this surface does NOT reach
-// it — the two must be mirrored by hand. The one exception is the authorization
-// surface: both attach feeGuardRoutes, so the (resource, verb) tuples cannot drift.
-func RegisterFeesRoutesToApp(
-	group fiber.Router,
-	api huma.API,
-	auth *middleware.AuthClient,
-	ph *PackageHandler,
-	fh *FeeHandler,
-	bph *BillingPackageHandler,
-	bch *BillingCalculateHandler,
-	routeOptions *http.ProtectedRouteOptions,
-) {
-	attachFeeGuards(group, auth, routeOptions, feeChainPath(feeBasePathV1))
-
-	RegisterPackageRoutes(api, ph)
-	RegisterFeeEstimateRoutes(api, fh)
-	RegisterBillingPackageRoutes(api, bph)
-	RegisterBillingCalculateRoutes(api, bch)
 }
 
 // protectedFees is the plugin-fees analogue of protectedMidaz/protectedRouting: it

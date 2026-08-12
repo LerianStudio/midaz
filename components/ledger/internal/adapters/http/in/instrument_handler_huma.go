@@ -343,7 +343,7 @@ func (handler *InstrumentHandler) GetAllInstrumentsHuma(ctx context.Context, in 
 // "instruments" (see crm_routes.go). Paths are GROUP-RELATIVE (see
 // asset_handler_huma.go's RegisterAssetRoutes header for the rationale).
 //
-// opSuffix is appended to every operation ID — see crmOpSuffixV1.
+// opSuffix is appended to every operation ID — see crmOpSuffixV2.
 func RegisterInstrumentRoutes(api huma.API, h *InstrumentHandler, opSuffix string) {
 	const (
 		listPath     = "/organizations/{organization_id}/instruments"
