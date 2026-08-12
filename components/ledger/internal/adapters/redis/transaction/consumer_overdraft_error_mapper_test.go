@@ -99,6 +99,44 @@ func TestMapError_ExistingCodes_StillWork(t *testing.T) {
 	}
 }
 
+func TestMapError_AccountIneligibility(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		name    string
+		luaErr  string
+		wantErr error
+	}{
+		{
+			name:    "bare code",
+			luaErr:  "0019",
+			wantErr: constant.ErrAccountIneligibility,
+		},
+		{
+			name:    "prefixed message",
+			luaErr:  "ERR 0019 account ineligible: balance carries a deletion tombstone",
+			wantErr: constant.ErrAccountIneligibility,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			tracer := noop.NewTracerProvider().Tracer("test")
+			_, span := tracer.Start(t.Context(), "test")
+			defer span.End()
+
+			rawErr := errors.New(tc.luaErr)
+			mapped := mapBalanceAtomicScriptError(span, rawErr)
+
+			expectedMsg := pkg.ValidateBusinessError(tc.wantErr, "validateBalance").Error()
+			assert.Equal(t, expectedMsg, mapped.Error(),
+				"Lua error %q must map to ErrAccountIneligibility", tc.luaErr)
+		})
+	}
+}
+
 func TestMapError_StaleBalance(t *testing.T) {
 	t.Parallel()
 

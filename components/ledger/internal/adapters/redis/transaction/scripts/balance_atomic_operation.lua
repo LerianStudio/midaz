@@ -262,6 +262,20 @@ local function main()
     local timeNow = redis.call("TIME")
     local dueAt = tonumber(timeNow[1]) + tonumber(timeNow[2]) / 1000000
 
+    -- Tombstone guard: reject the whole batch before any mutation if any balance
+    -- in it carries a live deletion tombstone. The tombstone is a SEPARATE key
+    -- "<balanceKey>:deleted" that never overwrites the balance itself, and it
+    -- shares the balance key's {transactions} hash slot. Running this pre-pass
+    -- ahead of the first SET below means a rejection here leaves zero side
+    -- effects across the batch, so no rollback is required. The stride mirrors
+    -- the main loop below (groupSize=24; ARGV[i] is the balance key).
+    for i = 1, #ARGV, groupSize do
+        local tombstoneKey = ARGV[i] .. ":deleted"
+        if redis.call("EXISTS", tombstoneKey) == 1 then
+            return redis.error_reply("0019")
+        end
+    end
+
     for i = 1, #ARGV, groupSize do
         local redisBalanceKey = ARGV[i]
         local isPending = tonumber(ARGV[i + 1])
