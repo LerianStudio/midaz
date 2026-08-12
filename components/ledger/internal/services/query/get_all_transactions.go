@@ -7,6 +7,7 @@ package query
 import (
 	"context"
 	"errors"
+	"strings"
 	"time"
 
 	libHTTP "github.com/LerianStudio/lib-commons/v6/commons/net/http"
@@ -19,12 +20,65 @@ import (
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services"
 	"github.com/LerianStudio/midaz/v4/pkg"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
+	"github.com/LerianStudio/midaz/v4/pkg/mtransaction"
 	"github.com/LerianStudio/midaz/v4/pkg/net/http"
 	"github.com/LerianStudio/midaz/v4/pkg/utils"
 
 	// GetAllTransactions fetch all Transactions from the repository
 	libLog "github.com/LerianStudio/lib-observability/v2/log"
 )
+
+// resolveDestination returns the operation-reconstructed destination when it is
+// non-empty; otherwise it falls back to the submitted destination derived from
+// the body. A reconstructed destination is never overwritten, and a transaction
+// with no submitted destination stays empty. Keeping this decision in one place
+// keeps GET-listing and GET-individual reads consistent.
+func resolveDestination(reconstructed []string, body mtransaction.Transaction) []string {
+	if len(reconstructed) > 0 {
+		return reconstructed
+	}
+
+	if derived := deriveDestinationFromBody(body); len(derived) > 0 {
+		return derived
+	}
+
+	return reconstructed
+}
+
+// deriveDestinationFromBody returns the submitted destination aliases from a
+// persisted transaction body, in the same bare-alias form the write path caches
+// via getAliasWithoutKey(filterCompanionAliases(...)): the system-managed
+// overdraft companion is skipped and any "#balanceKey" suffix is stripped.
+//
+// It is the canonical fallback when operation-based reconstruction yields no
+// destination — typically a pre-commit overdraft, whose persisted legs are all
+// source-side (DEBIT + ON_HOLD + OVERDRAFT) with no CREDIT leg, so the submitted
+// destination survives only in the body. Keeping the alias treatment identical
+// to the cache path avoids trading a cache-vs-DB emptiness gap for a cache-vs-DB
+// format gap.
+func deriveDestinationFromBody(body mtransaction.Transaction) []string {
+	to := body.Send.Distribute.To
+	if len(to) == 0 {
+		return nil
+	}
+
+	destination := make([]string, 0, len(to))
+
+	for _, entry := range to {
+		if entry.BalanceKey == constant.OverdraftBalanceKey {
+			continue
+		}
+
+		alias := entry.AccountAlias
+		if idx := strings.Index(alias, mtransaction.AliasSeparatorString); idx >= 0 {
+			alias = alias[:idx]
+		}
+
+		destination = append(destination, alias)
+	}
+
+	return destination
+}
 
 func (uc *UseCase) GetAllTransactions(ctx context.Context, organizationID, ledgerID uuid.UUID, filter http.QueryHeader) (_ []*transaction.Transaction, _ libHTTP.CursorPagination, err error) {
 	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
@@ -112,7 +166,7 @@ func (uc *UseCase) GetAllTransactions(ctx context.Context, organizationID, ledge
 		}
 
 		trans[i].Source = source
-		trans[i].Destination = destination
+		trans[i].Destination = resolveDestination(destination, trans[i].Body)
 
 		if data, ok := metadataMap[trans[i].ID]; ok {
 			trans[i].Metadata = data
@@ -197,7 +251,7 @@ func (uc *UseCase) GetOperationsByTransaction(ctx context.Context, organizationI
 	}
 
 	tran.Source = source
-	tran.Destination = destination
+	tran.Destination = resolveDestination(destination, tran.Body)
 	tran.Operations = operations
 
 	return tran, nil

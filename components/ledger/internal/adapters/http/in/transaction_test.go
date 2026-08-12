@@ -368,9 +368,9 @@ func TestCommitTransaction_InvalidStatus_ReturnsError(t *testing.T) {
 				Body: txBody,
 			}
 
-			// Mock: Find transaction
+			// Mock: fetch transaction with its operations (commit/cancel fallback)
 			mockTransactionRepo.EXPECT().
-				Find(gomock.Any(), orgID, ledgerID, transactionID).
+				FindWithOperations(gomock.Any(), orgID, ledgerID, transactionID).
 				Return(tran, nil).
 				Times(1)
 
@@ -1425,7 +1425,7 @@ func TestCommitTransaction_GetTransactionError_ReturnsError(t *testing.T) {
 
 	// Mock: Transaction lookup returns error
 	mockTransactionRepo.EXPECT().
-		Find(gomock.Any(), orgID, ledgerID, transactionID).
+		FindWithOperations(gomock.Any(), orgID, ledgerID, transactionID).
 		Return(nil, pkg.EntityNotFoundError{
 			EntityType: "Transaction",
 			Code:       cn.ErrEntityNotFound.Error(),
@@ -1516,9 +1516,9 @@ func TestCommitTransaction_RedisLockError_ReturnsError(t *testing.T) {
 		Body: txBody,
 	}
 
-	// Mock: Transaction found successfully
+	// Mock: commit/cancel fallback fetch (with operations)
 	mockTransactionRepo.EXPECT().
-		Find(gomock.Any(), orgID, ledgerID, transactionID).
+		FindWithOperations(gomock.Any(), orgID, ledgerID, transactionID).
 		Return(tran, nil).
 		Times(1)
 
@@ -1630,9 +1630,9 @@ func TestCommitTransaction_LockNotAcquired_ReturnsError(t *testing.T) {
 		Body: txBody,
 	}
 
-	// Mock: Transaction found successfully
+	// Mock: commit/cancel fallback fetch (with operations)
 	mockTransactionRepo.EXPECT().
-		Find(gomock.Any(), orgID, ledgerID, transactionID).
+		FindWithOperations(gomock.Any(), orgID, ledgerID, transactionID).
 		Return(tran, nil).
 		Times(1)
 
@@ -2498,7 +2498,7 @@ func TestCancelTransaction(t *testing.T) {
 			name: "transaction not found returns 404",
 			setupMocks: func(transactionRepo *transaction.MockRepository, metadataRepo *mongodb.MockRepository, operationRepo *operation.MockRepository, redisRepo *redis.MockRedisRepository, orgID, ledgerID, transactionID uuid.UUID) {
 				transactionRepo.EXPECT().
-					Find(gomock.Any(), orgID, ledgerID, transactionID).
+					FindWithOperations(gomock.Any(), orgID, ledgerID, transactionID).
 					Return(nil, pkg.EntityNotFoundError{
 						EntityType: "Transaction",
 						Code:       cn.ErrEntityNotFound.Error(),
@@ -2548,9 +2548,9 @@ func TestCancelTransaction(t *testing.T) {
 					Body: txBody,
 				}
 
-				// Query.GetTransactionByID
+				// commit/cancel fallback fetch (with operations)
 				transactionRepo.EXPECT().
-					Find(gomock.Any(), orgID, ledgerID, transactionID).
+					FindWithOperations(gomock.Any(), orgID, ledgerID, transactionID).
 					Return(tran, nil).
 					Times(1)
 
@@ -2612,9 +2612,9 @@ func TestCancelTransaction(t *testing.T) {
 					Body: txBody,
 				}
 
-				// Query.GetTransactionByID
+				// commit/cancel fallback fetch (with operations)
 				transactionRepo.EXPECT().
-					Find(gomock.Any(), orgID, ledgerID, transactionID).
+					FindWithOperations(gomock.Any(), orgID, ledgerID, transactionID).
 					Return(tran, nil).
 					Times(1)
 
@@ -2673,9 +2673,9 @@ func TestCancelTransaction(t *testing.T) {
 					Body: txBody,
 				}
 
-				// Query.GetTransactionByID
+				// commit/cancel fallback fetch (with operations)
 				transactionRepo.EXPECT().
-					Find(gomock.Any(), orgID, ledgerID, transactionID).
+					FindWithOperations(gomock.Any(), orgID, ledgerID, transactionID).
 					Return(tran, nil).
 					Times(1)
 
@@ -2716,9 +2716,9 @@ func TestCancelTransaction(t *testing.T) {
 					},
 				}
 
-				// Query.GetTransactionByID - Find succeeds
+				// commit/cancel fallback fetch (with operations) succeeds
 				transactionRepo.EXPECT().
-					Find(gomock.Any(), orgID, ledgerID, transactionID).
+					FindWithOperations(gomock.Any(), orgID, ledgerID, transactionID).
 					Return(tran, nil).
 					Times(1)
 
@@ -2895,7 +2895,7 @@ func TestCancelTransaction_WriteBehindMiss_PostgresMiss(t *testing.T) {
 
 	// Postgres miss
 	mockTransactionRepo.EXPECT().
-		Find(gomock.Any(), orgID, ledgerID, tranID).
+		FindWithOperations(gomock.Any(), orgID, ledgerID, tranID).
 		Return(nil, errors.New("record not found")).
 		Times(1)
 
@@ -2946,7 +2946,7 @@ func TestCancelTransaction_WriteBehindMiss_PostgresHit(t *testing.T) {
 
 	// Postgres hit
 	mockTransactionRepo.EXPECT().
-		Find(gomock.Any(), orgID, ledgerID, tranID).
+		FindWithOperations(gomock.Any(), orgID, ledgerID, tranID).
 		Return(tran, nil).
 		Times(1)
 
@@ -3058,7 +3058,7 @@ func TestCommitTransaction_WriteBehindMiss_PostgresMiss(t *testing.T) {
 
 	// Postgres miss
 	mockTransactionRepo.EXPECT().
-		Find(gomock.Any(), orgID, ledgerID, tranID).
+		FindWithOperations(gomock.Any(), orgID, ledgerID, tranID).
 		Return(nil, errors.New("record not found")).
 		Times(1)
 
@@ -3109,7 +3109,7 @@ func TestCommitTransaction_WriteBehindMiss_PostgresHit(t *testing.T) {
 
 	// Postgres hit
 	mockTransactionRepo.EXPECT().
-		Find(gomock.Any(), orgID, ledgerID, tranID).
+		FindWithOperations(gomock.Any(), orgID, ledgerID, tranID).
 		Return(tran, nil).
 		Times(1)
 
