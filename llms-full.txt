@@ -194,7 +194,8 @@ both its `/v1` and `/v2` paths. The tracer serves its own spec and docs UI under
 ### 4.1 Ledger API (port 3002)
 
 The ledger serves both the `/v1` and `/v2` path prefixes on the single root contract; there is
-no single base path. The onboarding, CRM, and fee resources below sit under `/v1`, while the v2
+no single base path. The onboarding resources below sit under `/v1`. The fee resources are
+ledger-scoped under `/v2` (see section 4.3), the CRM resources are under `/v2`, and the v2
 transaction surface (for example `POST /v2/transactions/direct`) is exposed under `/v2`.
 
 #### Onboarding Resources
