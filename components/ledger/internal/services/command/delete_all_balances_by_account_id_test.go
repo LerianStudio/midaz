@@ -212,6 +212,8 @@ func TestDeleteAllBalancesByAccountID(t *testing.T) {
 // cache miss: a balance absent from Redis (TTL expired) must still be checked against the
 // authoritative Postgres row so accounts holding funds are never soft-deleted.
 func TestDeleteAllBalancesByAccountIDCacheMissFundsGuard(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	organizationID := uuid.New()
 	ledgerID := uuid.New()
@@ -257,6 +259,8 @@ func TestDeleteAllBalancesByAccountIDCacheMissFundsGuard(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			uc, mockBalanceRepo, mockRedisRepo := setupDeleteAllBalancesUseCase(t)
 
 			mockBalanceRepo.EXPECT().
@@ -292,6 +296,41 @@ func TestDeleteAllBalancesByAccountIDCacheMissFundsGuard(t *testing.T) {
 			assert.Equal(t, constant.ErrBalancesCantBeDeleted.Error(), validationErr.Code)
 		})
 	}
+
+	// Guards the loop across MULTIPLE balances: the first balance has zero funds on a cache
+	// miss (loop proceeds), the second holds on_hold funds on a cache miss (loop rejects).
+	// Deletion must be refused and DeleteAllByIDs must never run.
+	t.Run("multiple balances reject when a later balance still holds funds", func(t *testing.T) {
+		t.Parallel()
+
+		uc, mockBalanceRepo, mockRedisRepo := setupDeleteAllBalancesUseCase(t)
+
+		zeroFundsBalance := newTestBalance(decimal.Zero, decimal.Zero)
+		onHoldFundsBalance := newTestBalance(decimal.Zero, decimal.NewFromInt(5))
+
+		mockBalanceRepo.EXPECT().
+			ListByAccountID(gomock.Any(), organizationID, ledgerID, accountID).
+			Return([]*mmodel.Balance{zeroFundsBalance, onHoldFundsBalance}, nil)
+
+		firstLookup := mockRedisRepo.EXPECT().
+			ListBalanceByKey(gomock.Any(), organizationID, ledgerID, balanceRedisKey(zeroFundsBalance)).
+			Return(nil, goredis.Nil)
+		secondLookup := mockRedisRepo.EXPECT().
+			ListBalanceByKey(gomock.Any(), organizationID, ledgerID, balanceRedisKey(onHoldFundsBalance)).
+			Return(nil, goredis.Nil)
+		gomock.InOrder(firstLookup, secondLookup)
+
+		mockBalanceRepo.EXPECT().
+			DeleteAllByIDs(gomock.Any(), organizationID, ledgerID, gomock.Any()).
+			Times(0)
+
+		err := uc.DeleteAllBalancesByAccountID(ctx, organizationID, ledgerID, accountID, requestID.String())
+
+		var validationErr midazpkg.ValidationError
+		assert.Error(t, err)
+		assert.True(t, errors.As(err, &validationErr))
+		assert.Equal(t, constant.ErrBalancesCantBeDeleted.Error(), validationErr.Code)
+	})
 }
 
 func setupDeleteAllBalancesUseCase(t *testing.T) (*UseCase, *balance.MockRepository, *redis.MockRedisRepository) {
