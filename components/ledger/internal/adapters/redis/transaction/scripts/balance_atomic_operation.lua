@@ -268,15 +268,13 @@ local function main()
     -- shares the balance key's {transactions} hash slot. Running this pre-pass
     -- ahead of the first SET below means a rejection here leaves zero side
     -- effects across the batch, so no rollback is required. The stride mirrors
-    -- the main loop below (groupSize=24; ARGV[i] is the balance key). A single
-    -- variadic EXISTS returns the count of delete markers present; >0 means at least
-    -- one balance carries a delete marker, so the whole batch is rejected.
-    local deleteMarkerKeys = {}
+    -- the main loop below (groupSize=24; ARGV[i] is the balance key). A bounded
+    -- per-key EXISTS check early-returns on the first delete marker found, so the
+    -- whole batch is rejected without unpacking a client-influenced number of keys.
     for i = 1, #ARGV, groupSize do
-        deleteMarkerKeys[#deleteMarkerKeys + 1] = ARGV[i] .. ":deleted"
-    end
-    if #deleteMarkerKeys > 0 and redis.call("EXISTS", unpack(deleteMarkerKeys)) > 0 then
-        return redis.error_reply("0019")
+        if redis.call("EXISTS", ARGV[i] .. ":deleted") == 1 then
+            return redis.error_reply("0019")
+        end
     end
 
     for i = 1, #ARGV, groupSize do

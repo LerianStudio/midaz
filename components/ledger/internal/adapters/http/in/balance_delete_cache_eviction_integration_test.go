@@ -11,6 +11,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
@@ -85,7 +86,7 @@ func postTransactionJSON(t *testing.T, infra *testInfra, sourceAlias, destAlias,
 		}
 	}`, asset, value, sourceAlias, destAlias)
 
-	req := httptest.NewRequest("POST",
+	req := httptest.NewRequest(http.MethodPost,
 		"/v1/organizations/"+infra.orgID.String()+"/ledgers/"+infra.ledgerID.String()+"/transactions/json",
 		bytes.NewBufferString(body))
 	req.Header.Set("Content-Type", "application/json")
