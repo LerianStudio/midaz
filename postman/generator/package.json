@@ -16,7 +16,7 @@
     "setup": "cd ../.. && bash scripts/setup-deps.sh"
   },
   "dependencies": {
-    "js-yaml": "^5.2.1",
+    "js-yaml": "^5.2.2",
     "uuid": "^14.0.0"
   },
   "devDependencies": {
@@ -25,7 +25,14 @@
     "newman": "^6.2.1"
   },
   "overrides": {
-    "handlebars": "4.7.9"
+    "handlebars": "4.7.9",
+    "node-forge": "1.4.0",
+    "flatted": "3.4.2",
+    "lodash": "4.18.1",
+    "qs": "6.15.2",
+    "newman": {
+      "uuid": "11.1.1"
+    }
   },
   "engines": {
     "node": ">=16.0.0"
