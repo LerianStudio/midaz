@@ -87,10 +87,9 @@ func mountV1OnlySurface(t *testing.T) *fiber.App {
 
 // TestMountV1_OmitsCRMSurface pins that the /v1 version group serves NO CRM surface.
 // CRM (holders/instruments/encryption/protection) is v2-only in the unified binary, so
-// MountV1 must not mount any of its routes. The composition route
-// (/organizations/:organization_id/ledgers/:ledger_id/holders/:id/accounts) is NOT CRM
-// and legitimately stays on v1, so the CRM holder probe anchors on the holders segment
-// sitting directly under the organization to avoid matching it.
+// MountV1 must not mount any of its routes. The CRM holder probe anchors on the holders
+// segment sitting directly under the organization so it targets only the org-scoped CRM
+// holder routes and does not depend on the shape of any deeper holders path.
 func TestMountV1_OmitsCRMSurface(t *testing.T) {
 	// NOT parallel: AssembleHumaContract mutates process-global huma state.
 	unsetDocsGate(t)
