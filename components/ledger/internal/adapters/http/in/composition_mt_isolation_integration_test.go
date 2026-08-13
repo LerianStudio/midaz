@@ -83,7 +83,8 @@ type compositionTenant struct {
 // WithMB(crmMongoManager)) over HTTP, with two tenants (A, B) each owning a
 // distinct onboarding-PG database AND a distinct CRM-Mongo database, resolved
 // per request from a fake tenant-manager via the JWT tenantId — exactly the
-// production seam. It fires the composition POST /v1/holders/:id/accounts for
+// production seam. It fires the composition POST
+// /v2/organizations/:organization_id/ledgers/:ledger_id/holders/:id/accounts for
 // both tenants CONCURRENTLY (errgroup), each with an instrument, and asserts:
 //
 //	(1) tenant A's account lands ONLY in A's onboarding PG, never in B's;
@@ -351,7 +352,7 @@ func postComposition(app *fiber.App, tn *compositionTenant) error {
 
 	// Org and ledger are path-scoped now; the full target path carries both as
 	// validated UUID segments. Tenant is still addressed only via the JWT claim.
-	target := "/v1/organizations/" + tn.orgID.String() + "/ledgers/" + tn.ledgerID.String() + "/holders/" + tn.holderID.String() + "/accounts"
+	target := "/v2/organizations/" + tn.orgID.String() + "/ledgers/" + tn.ledgerID.String() + "/holders/" + tn.holderID.String() + "/accounts"
 	req := httptest.NewRequest(fiber.MethodPost, target, strings.NewReader(string(body)))
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set(fiber.HeaderAuthorization, "Bearer "+compositionTenantJWT(tn.tenantID))

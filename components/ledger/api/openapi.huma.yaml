@@ -6707,62 +6707,6 @@ paths:
       summary: Get Balance history at date
       tags:
         - Balances (v1)
-  /v1/organizations/{organization_id}/ledgers/{ledger_id}/holders/{id}/accounts:
-    post:
-      deprecated: true
-      operationId: createHolderAccount
-      parameters:
-        - description: Organization ID (UUID)
-          in: path
-          name: organization_id
-          required: true
-          schema:
-            description: Organization ID (UUID)
-            type: string
-        - description: Ledger ID (UUID)
-          in: path
-          name: ledger_id
-          required: true
-          schema:
-            description: Ledger ID (UUID)
-            type: string
-        - description: Holder ID (UUID)
-          in: path
-          name: id
-          required: true
-          schema:
-            description: Holder ID (UUID)
-            type: string
-        - description: Bearer token (forwarded to the composed account-create use case)
-          in: header
-          name: Authorization
-          schema:
-            description: Bearer token (forwarded to the composed account-create use case)
-            type: string
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/CreateHolderAccountInput"
-        required: true
-      responses:
-        "201":
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/HolderAccountResponse"
-          description: Created
-        default:
-          content:
-            application/problem+json:
-              schema:
-                $ref: "#/components/schemas/Error"
-          description: Error
-      security:
-        - BearerAuth: []
-      summary: Open a holder-owned account (with optional instrument)
-      tags:
-        - Composition (v1)
   /v1/organizations/{organization_id}/ledgers/{ledger_id}/operation-routes:
     get:
       deprecated: true
@@ -14790,7 +14734,6 @@ tags:
   - name: Balances (v2)
   - name: Billing Calculate (v2)
   - name: Billing Packages (v2)
-  - name: Composition (v1)
   - name: Composition (v2)
   - name: Encryption (v2)
   - name: Fees (v2)
@@ -14824,7 +14767,6 @@ x-tagGroups:
       - Asset Rates (v1)
       - Assets (v1)
       - Balances (v1)
-      - Composition (v1)
       - Ledgers (v1)
       - Metadata Indexes (v1)
       - Operation Routes (v1)

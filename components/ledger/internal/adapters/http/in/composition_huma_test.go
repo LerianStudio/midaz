@@ -26,10 +26,10 @@ import (
 	pkgHTTP "github.com/LerianStudio/midaz/v4/pkg/net/http"
 )
 
-// buildHumaCompositionApp mounts the single composition Huma operation on a /v1
+// buildHumaCompositionApp mounts the single composition Huma operation on a /v2
 // group, faithfully mirroring the production wiring in unified-server.go:
 // problem.Install() runs before any huma.Register, the Huma API is built with
-// openapi.New over a /v1 group, an auth-shim middleware stands in for
+// openapi.New over a /v2 group, an auth-shim middleware stands in for
 // auth.Authorize("midaz","accounts","post") + tenant PostAuthMiddlewares, and
 // http.ParseUUIDPathParameters("holder") + RegisterCompositionRoutes attach the
 // chain. See asset_huma_test.go's buildHumaAssetApp for the full rationale.
@@ -47,9 +47,9 @@ func buildHumaCompositionApp(t *testing.T, handler *CompositionHandler, authOK b
 
 	libProblem.Install()
 
-	apiV1 := f.Group("/v1")
+	apiV2 := f.Group("/v2")
 
-	apiV1.Use(func(c fiber.Ctx) error {
+	apiV2.Use(func(c fiber.Ctx) error {
 		if !authOK {
 			return pkgHTTP.Unauthorized(c, "0001", "Unauthorized", "auth required")
 		}
@@ -57,20 +57,20 @@ func buildHumaCompositionApp(t *testing.T, handler *CompositionHandler, authOK b
 		return c.Next()
 	})
 
-	hAPI := openapi.New(f, apiV1, openapi.Config{Title: "ledger-test", Version: "test", Servers: []string{"/v1"}})
+	hAPI := openapi.New(f, apiV2, openapi.Config{Title: "ledger-test", Version: "test", Servers: []string{"/v2"}})
 
 	// The :id path param is the holder; ParseUUIDPathParameters("holder") validates
-	// it (mirrors composition_routes.go). Registered group-relative on apiV1.
+	// it (mirrors composition_routes.go). Registered group-relative on apiV2.
 	parse := pkgHTTP.ParseUUIDPathParameters("holder")
-	apiV1.Post("/organizations/:organization_id/ledgers/:ledger_id/holders/:id/accounts", parse)
+	apiV2.Post("/organizations/:organization_id/ledgers/:ledger_id/holders/:id/accounts", parse)
 
-	RegisterCompositionRoutes(hAPI, handler, routeOpSuffixV1)
+	RegisterCompositionRoutes(hAPI, handler, routeOpSuffixV2)
 
 	return f
 }
 
 func compositionURL(orgID, ledgerID, holderID uuid.UUID) string {
-	return "/v1/organizations/" + orgID.String() + "/ledgers/" + ledgerID.String() +
+	return "/v2/organizations/" + orgID.String() + "/ledgers/" + ledgerID.String() +
 		"/holders/" + holderID.String() + "/accounts"
 }
 
@@ -210,7 +210,7 @@ func TestHuma_CreateHolderAccount_BadUUID_Canonical400(t *testing.T) {
 
 	app := buildHumaCompositionApp(t, handler, true)
 
-	url := "/v1/organizations/" + orgID.String() + "/ledgers/" + ledgerID.String() + "/holders/not-a-uuid/accounts"
+	url := "/v2/organizations/" + orgID.String() + "/ledgers/" + ledgerID.String() + "/holders/not-a-uuid/accounts"
 	req := httptest.NewRequest(http.MethodPost, url, bytes.NewReader(validCompositionBody()))
 	req.Header.Set("Content-Type", "application/json")
 

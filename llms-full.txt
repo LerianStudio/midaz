@@ -346,7 +346,7 @@ an instrument create-body field and an optional `GET .../instruments` list filte
 | POST | /v2/organizations/{organization_id}/encryption/provision | Provision org encryption keys (authz `midaz`/`encryption`; envelope mode only) |
 | GET | /v2/organizations/{organization_id}/encryption/status | Encryption provisioning status (authz `midaz`/`encryption`; envelope mode only) |
 | GET | /v2/organizations/{organization_id}/protection/audit | PII protection audit (authz `midaz`/`protection`; envelope mode only) |
-| POST | /v1/organizations/{organization_id}/ledgers/{ledger_id}/holders/:id/accounts | Create a holder ↔ account association (composition; authz `midaz`/`accounts`; always mounted) |
+| POST | /v2/organizations/{organization_id}/ledgers/{ledger_id}/holders/:id/accounts | Create a holder ↔ account association (composition; authz `midaz`/`accounts`; always mounted) |
 
 The three encryption/protection routes are registered **only in envelope mode** (`KMS_VENDOR=hashicorp-vault`);
 in legacy mode their handlers are nil and the routes are never mounted.

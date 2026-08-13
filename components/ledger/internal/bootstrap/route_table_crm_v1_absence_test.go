@@ -87,10 +87,9 @@ func mountV1OnlySurface(t *testing.T) *fiber.App {
 
 // TestMountV1_OmitsCRMSurface pins that the /v1 version group serves NO CRM surface.
 // CRM (holders/instruments/encryption/protection) is v2-only in the unified binary, so
-// MountV1 must not mount any of its routes. The composition route
-// (/organizations/:organization_id/ledgers/:ledger_id/holders/:id/accounts) is NOT CRM
-// and legitimately stays on v1, so the CRM holder probe anchors on the holders segment
-// sitting directly under the organization to avoid matching it.
+// MountV1 must not mount any of its routes. The CRM holder probe anchors on the holders
+// segment sitting directly under the organization so it targets only the org-scoped CRM
+// holder routes and does not depend on the shape of any deeper holders path.
 func TestMountV1_OmitsCRMSurface(t *testing.T) {
 	// NOT parallel: AssembleHumaContract mutates process-global huma state.
 	unsetDocsGate(t)
@@ -126,6 +125,43 @@ func TestMountV1_OmitsCRMSurface(t *testing.T) {
 	require.Emptyf(t, crmRoutes,
 		"MountV1 must not mount CRM routes — CRM is /v2-only in the unified binary; found:\n%s",
 		strings.Join(crmRoutes, "\n"))
+}
+
+// TestMountV1_OmitsCompositionSurface pins that the /v1 version group serves NO
+// composition route. The holder-account composition orchestration
+// (POST /organizations/:organization_id/ledgers/:ledger_id/holders/:id/accounts) is
+// /v2-only in the unified binary, so MountV1 must not mount it. The probe anchors on the
+// POST method plus the "/holders/:id/accounts" tail so it cannot match the CRM
+// holder-accounts read (GET .../holders/:id/accounts), which is /v2-only anyway.
+func TestMountV1_OmitsCompositionSurface(t *testing.T) {
+	// NOT parallel: AssembleHumaContract mutates process-global huma state.
+	unsetDocsGate(t)
+
+	app := mountV1OnlySurface(t)
+
+	var compositionRoutes []string
+
+	var hasLedgerRoute bool
+
+	for _, r := range app.GetRoutes(true) {
+		p := r.Path
+
+		if strings.Contains(p, "/organizations/:organization_id/ledgers") {
+			hasLedgerRoute = true
+		}
+
+		if r.Method == fiber.MethodPost && strings.Contains(p, "/holders/:id/accounts") {
+			compositionRoutes = append(compositionRoutes, r.Method+" "+p)
+		}
+	}
+
+	// Non-vacuity guard: prove MountV1 actually mounted its non-composition surface, so
+	// the absence assertion below cannot pass on an empty mount.
+	require.True(t, hasLedgerRoute, "MountV1 must mount its non-composition /v1 surface (ledgers routes)")
+
+	require.Emptyf(t, compositionRoutes,
+		"MountV1 must not mount the composition route — composition is /v2-only in the unified binary; found:\n%s",
+		strings.Join(compositionRoutes, "\n"))
 }
 
 // TestMountV1_OmitsFeesSurface pins that the /v1 version group serves NO fee or billing
