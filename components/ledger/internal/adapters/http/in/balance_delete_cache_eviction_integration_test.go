@@ -35,7 +35,7 @@ import (
 // survived the delete, so a later transaction kept operating on the removed
 // balance ("phantom" activity on a deleted account).
 //
-// With the fix, a delete plants a short-lived "<balanceKey>:deleted" tombstone,
+// With the fix, a delete plants a short-lived "<balanceKey>:deleted" delete marker,
 // soft-deletes the PostgreSQL row, then evicts (Del) the balance cache key. A
 // later transaction can no longer find the balance (cache evicted + row
 // soft-deleted, which the PG query filters out), so it is rejected with
@@ -116,15 +116,15 @@ func wireEmptyLedgerSettings(t *testing.T, infra *testInfra) {
 	infra.handler.Query.LedgerRepo = mockLedgerRepo
 }
 
-// tombstoneCacheKey returns the tombstone key Redis holds for a balance while a
+// deleteMarkerCacheKey returns the delete marker key Redis holds for a balance while a
 // delete is armed: the balance's internal cache key plus the ":deleted" suffix.
-func tombstoneCacheKey(orgID, ledgerID uuid.UUID, alias, key string) string {
+func deleteMarkerCacheKey(orgID, ledgerID uuid.UUID, alias, key string) string {
 	return utils.BalanceInternalKey(orgID, ledgerID, alias+"#"+key) + ":deleted"
 }
 
 // TestIntegration_BalanceDeleteCacheEviction_AccountCascade drives the account
 // cascade delete path (DeleteAllBalancesByAccountID): after a drained balance's
-// account is deleted, its cache key is evicted, a delete tombstone is armed, and
+// account is deleted, its cache key is evicted, a delete marker is armed, and
 // a subsequent crediting transaction is rejected with 0019 instead of mutating
 // the removed balance.
 func TestIntegration_BalanceDeleteCacheEviction_AccountCascade(t *testing.T) {
@@ -187,10 +187,10 @@ func TestIntegration_BalanceDeleteCacheEviction_AccountCascade(t *testing.T) {
 	evicted := getBalanceFromRedis(t, ctx, infra.redisRepo, infra.orgID, infra.ledgerID, deletedAlias, "default")
 	assert.Nil(t, evicted, "balance cache key must be evicted after delete")
 
-	// (ii) The honored-lock tombstone is armed on the separate ":deleted" key.
-	tombstone, err := infra.redisRepo.Get(ctx, tombstoneCacheKey(infra.orgID, infra.ledgerID, deletedAlias, "default"))
+	// (ii) The honored-lock delete marker is armed on the separate ":deleted" key.
+	deleteMarker, err := infra.redisRepo.Get(ctx, deleteMarkerCacheKey(infra.orgID, infra.ledgerID, deletedAlias, "default"))
 	require.NoError(t, err)
-	assert.Equal(t, "1", tombstone, "delete tombstone must be present after delete")
+	assert.Equal(t, "1", deleteMarker, "delete marker must be present after delete")
 
 	// (iii) A crediting transaction to the deleted balance is rejected with 0019.
 	// Pre-fix this would have succeeded on the lingering cache entry.
@@ -208,7 +208,7 @@ func TestIntegration_BalanceDeleteCacheEviction_AccountCascade(t *testing.T) {
 
 // TestIntegration_BalanceDeleteCacheEviction_SingleBalance drives the
 // single-balance delete path (DeleteBalance): after a drained balance is deleted
-// by id, its cache key is evicted, a delete tombstone is armed, and a subsequent
+// by id, its cache key is evicted, a delete marker is armed, and a subsequent
 // crediting transaction is rejected with 0019 instead of mutating the removed
 // balance.
 func TestIntegration_BalanceDeleteCacheEviction_SingleBalance(t *testing.T) {
@@ -267,10 +267,10 @@ func TestIntegration_BalanceDeleteCacheEviction_SingleBalance(t *testing.T) {
 	evicted := getBalanceFromRedis(t, ctx, infra.redisRepo, infra.orgID, infra.ledgerID, deletedAlias, "default")
 	assert.Nil(t, evicted, "balance cache key must be evicted after delete")
 
-	// (ii) The honored-lock tombstone is armed.
-	tombstone, err := infra.redisRepo.Get(ctx, tombstoneCacheKey(infra.orgID, infra.ledgerID, deletedAlias, "default"))
+	// (ii) The honored-lock delete marker is armed.
+	deleteMarker, err := infra.redisRepo.Get(ctx, deleteMarkerCacheKey(infra.orgID, infra.ledgerID, deletedAlias, "default"))
 	require.NoError(t, err)
-	assert.Equal(t, "1", tombstone, "delete tombstone must be present after delete")
+	assert.Equal(t, "1", deleteMarker, "delete marker must be present after delete")
 
 	// (iii) A crediting transaction to the deleted balance is rejected with 0019.
 	status, respBody = postTransactionJSON(t, infra, counterpartyAlias, deletedAlias, balanceCacheDeleteAsset, "100")

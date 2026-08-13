@@ -749,7 +749,7 @@ func TestBalanceHandler_DeleteBalanceByID(t *testing.T) {
 
 			mockBalanceRepo := balance.NewMockRepository(ctrl)
 			mockRedisRepo := redis.NewMockRedisRepository(ctrl)
-			// The delete path plants and releases/evicts balance tombstones via the
+			// The delete path plants and releases/evicts balance delete markers via the
 			// honored-lock guard. Lenient expectations keep this a handler test.
 			mockRedisRepo.EXPECT().
 				SetNX(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).

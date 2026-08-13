@@ -64,9 +64,9 @@ func TestDeleteBalance(t *testing.T) {
 				mockBalanceRepo.EXPECT().
 					Find(gomock.Any(), organizationID, ledgerID, balanceID).
 					Return(bal, nil)
-				// Tombstone is planted before the funds guard; a rejected delete releases it.
-				expectTombstonePlant(mockRedisRepo, organizationID, ledgerID, bal)
-				expectTombstoneRelease(mockRedisRepo, organizationID, ledgerID, bal)
+				// Delete marker is planted before the funds guard; a rejected delete releases it.
+				expectDeleteMarkerPlant(mockRedisRepo, organizationID, ledgerID, bal)
+				expectDeleteMarkerRelease(mockRedisRepo, organizationID, ledgerID, bal)
 
 				err := uc.DeleteBalance(ctx, organizationID, ledgerID, balanceID)
 
@@ -91,12 +91,12 @@ func TestDeleteBalance(t *testing.T) {
 		mockBalanceRepo.EXPECT().
 			Find(gomock.Any(), organizationID, ledgerID, balanceID).
 			Return(zeroBalance, nil)
-		expectTombstonePlant(mockRedisRepo, organizationID, ledgerID, zeroBalance)
+		expectDeleteMarkerPlant(mockRedisRepo, organizationID, ledgerID, zeroBalance)
 		mockBalanceRepo.EXPECT().
 			Delete(gomock.Any(), organizationID, ledgerID, balanceID).
 			Return(expectedErr)
-		// A failed delete releases the tombstone and never evicts the cache key.
-		expectTombstoneRelease(mockRedisRepo, organizationID, ledgerID, zeroBalance)
+		// A failed delete releases the delete marker and never evicts the cache key.
+		expectDeleteMarkerRelease(mockRedisRepo, organizationID, ledgerID, zeroBalance)
 
 		err := uc.DeleteBalance(ctx, organizationID, ledgerID, balanceID)
 
@@ -132,7 +132,7 @@ func TestDeleteBalance(t *testing.T) {
 		mockBalanceRepo.EXPECT().
 			Find(gomock.Any(), organizationID, ledgerID, balanceID).
 			Return(zeroBalance, nil)
-		expectTombstonePlant(mockRedisRepo, organizationID, ledgerID, zeroBalance)
+		expectDeleteMarkerPlant(mockRedisRepo, organizationID, ledgerID, zeroBalance)
 		mockBalanceRepo.EXPECT().
 			Delete(gomock.Any(), organizationID, ledgerID, balanceID).
 			Return(nil)
@@ -145,8 +145,8 @@ func TestDeleteBalance(t *testing.T) {
 }
 
 // TestDeleteBalanceBlockThenEvict locks the block-then-evict ordering for the single-balance
-// delete: the tombstone is planted BEFORE the funds guard (so it fires even when the guard
-// rejects), the cache is evicted AFTER the soft delete commits, the tombstone is released
+// delete: the delete marker is planted BEFORE the funds guard (so it fires even when the guard
+// rejects), the cache is evicted AFTER the soft delete commits, the delete marker is released
 // ONLY when the delete fails, and a failed eviction never fails an already-committed delete.
 func TestDeleteBalanceBlockThenEvict(t *testing.T) {
 	t.Parallel()
@@ -166,7 +166,7 @@ func TestDeleteBalanceBlockThenEvict(t *testing.T) {
 		}
 	}
 
-	t.Run("plants tombstone before delete and evicts after delete", func(t *testing.T) {
+	t.Run("plants delete marker before delete and evicts after delete", func(t *testing.T) {
 		t.Parallel()
 
 		uc, mockBalanceRepo, mockRedisRepo := setupDeleteBalanceUseCase(t)
@@ -175,7 +175,7 @@ func TestDeleteBalanceBlockThenEvict(t *testing.T) {
 		mockBalanceRepo.EXPECT().
 			Find(gomock.Any(), organizationID, ledgerID, balanceID).
 			Return(bal, nil)
-		plant := expectTombstonePlant(mockRedisRepo, organizationID, ledgerID, bal)
+		plant := expectDeleteMarkerPlant(mockRedisRepo, organizationID, ledgerID, bal)
 		del := mockBalanceRepo.EXPECT().
 			Delete(gomock.Any(), organizationID, ledgerID, balanceID).
 			Return(nil)
@@ -186,11 +186,11 @@ func TestDeleteBalanceBlockThenEvict(t *testing.T) {
 
 		err := uc.DeleteBalance(ctx, organizationID, ledgerID, balanceID)
 		assert.NoError(t, err)
-		// On success the tombstone release must NOT run: no Del of the tombstone key is set up,
+		// On success the delete marker release must NOT run: no Del of the delete marker key is set up,
 		// so the strict controller fails if the release closure fires.
 	})
 
-	t.Run("funds guard rejection releases tombstone and skips evict", func(t *testing.T) {
+	t.Run("funds guard rejection releases delete marker and skips evict", func(t *testing.T) {
 		t.Parallel()
 
 		uc, mockBalanceRepo, mockRedisRepo := setupDeleteBalanceUseCase(t)
@@ -205,12 +205,12 @@ func TestDeleteBalanceBlockThenEvict(t *testing.T) {
 		mockBalanceRepo.EXPECT().
 			Find(gomock.Any(), organizationID, ledgerID, balanceID).
 			Return(bal, nil)
-		// SetNX firing on the reject path proves the tombstone is planted BEFORE the funds guard.
-		expectTombstonePlant(mockRedisRepo, organizationID, ledgerID, bal)
+		// SetNX firing on the reject path proves the delete marker is planted BEFORE the funds guard.
+		expectDeleteMarkerPlant(mockRedisRepo, organizationID, ledgerID, bal)
 		mockBalanceRepo.EXPECT().
 			Delete(gomock.Any(), organizationID, ledgerID, balanceID).
 			Times(0)
-		expectTombstoneRelease(mockRedisRepo, organizationID, ledgerID, bal)
+		expectDeleteMarkerRelease(mockRedisRepo, organizationID, ledgerID, bal)
 
 		err := uc.DeleteBalance(ctx, organizationID, ledgerID, balanceID)
 
@@ -220,7 +220,7 @@ func TestDeleteBalanceBlockThenEvict(t *testing.T) {
 		assert.Equal(t, constant.ErrBalancesCantBeDeleted.Error(), validationErr.Code)
 	})
 
-	t.Run("delete error releases tombstone and skips evict", func(t *testing.T) {
+	t.Run("delete error releases delete marker and skips evict", func(t *testing.T) {
 		t.Parallel()
 
 		uc, mockBalanceRepo, mockRedisRepo := setupDeleteBalanceUseCase(t)
@@ -230,12 +230,12 @@ func TestDeleteBalanceBlockThenEvict(t *testing.T) {
 		mockBalanceRepo.EXPECT().
 			Find(gomock.Any(), organizationID, ledgerID, balanceID).
 			Return(bal, nil)
-		expectTombstonePlant(mockRedisRepo, organizationID, ledgerID, bal)
+		expectDeleteMarkerPlant(mockRedisRepo, organizationID, ledgerID, bal)
 		mockBalanceRepo.EXPECT().
 			Delete(gomock.Any(), organizationID, ledgerID, balanceID).
 			Return(expectedErr)
-		// Release Dels the tombstone key; the cache key is never evicted on the error path.
-		expectTombstoneRelease(mockRedisRepo, organizationID, ledgerID, bal)
+		// Release Dels the delete marker key; the cache key is never evicted on the error path.
+		expectDeleteMarkerRelease(mockRedisRepo, organizationID, ledgerID, bal)
 
 		err := uc.DeleteBalance(ctx, organizationID, ledgerID, balanceID)
 		assert.ErrorIs(t, err, expectedErr)
@@ -250,7 +250,7 @@ func TestDeleteBalanceBlockThenEvict(t *testing.T) {
 		mockBalanceRepo.EXPECT().
 			Find(gomock.Any(), organizationID, ledgerID, balanceID).
 			Return(bal, nil)
-		expectTombstonePlant(mockRedisRepo, organizationID, ledgerID, bal)
+		expectDeleteMarkerPlant(mockRedisRepo, organizationID, ledgerID, bal)
 		mockBalanceRepo.EXPECT().
 			Delete(gomock.Any(), organizationID, ledgerID, balanceID).
 			Return(nil)

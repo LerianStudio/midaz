@@ -48,11 +48,11 @@ func (uc *UseCase) DeleteAllBalancesByAccountID(ctx context.Context, organizatio
 		return nil
 	}
 
-	// Plant tombstones so the honored-lock pre-pass rejects concurrent mutations for the
+	// Plant delete markers so the honored-lock pre-pass rejects concurrent mutations for the
 	// whole delete. Release them only when the delete fails, so a rejected guard, permission
-	// flip, or soft-delete leaves the account usable; a successful delete lets the tombstone
+	// flip, or soft-delete leaves the account usable; a successful delete lets the delete marker
 	// expire by its own TTL.
-	release := uc.plantBalanceTombstones(ctx, organizationID, ledgerID, balances)
+	release := uc.plantBalanceDeleteMarkers(ctx, organizationID, ledgerID, balances)
 
 	defer func() {
 		if err != nil {

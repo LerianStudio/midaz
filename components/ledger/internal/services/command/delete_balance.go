@@ -48,12 +48,12 @@ func (uc *UseCase) DeleteBalance(ctx context.Context, organizationID, ledgerID, 
 		return err
 	}
 
-	// Plant a tombstone so the honored-lock pre-pass rejects concurrent mutations while the
+	// Plant a delete marker so the honored-lock pre-pass rejects concurrent mutations while the
 	// delete is in flight. Release it only when the delete fails, so a rejected guard or a
-	// failed soft-delete leaves the balance usable; a successful delete lets the tombstone
+	// failed soft-delete leaves the balance usable; a successful delete lets the delete marker
 	// expire by its own TTL.
 	if balance != nil {
-		release := uc.plantBalanceTombstones(ctx, organizationID, ledgerID, []*mmodel.Balance{balance})
+		release := uc.plantBalanceDeleteMarkers(ctx, organizationID, ledgerID, []*mmodel.Balance{balance})
 
 		defer func() {
 			if err != nil {

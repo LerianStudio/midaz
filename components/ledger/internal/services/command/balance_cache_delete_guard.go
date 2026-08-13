@@ -17,22 +17,22 @@ import (
 )
 
 const (
-	// balanceDeleteTombstoneTTLSeconds is the lifetime, in whole seconds, of a balance
-	// delete tombstone key. It is deliberately short: it must outlive the worst-case
+	// balanceDeleteMarkerTTLSeconds is the lifetime, in whole seconds, of a balance
+	// delete marker key. It is deliberately short: it must outlive the worst-case
 	// duration of a delete so the honored-lock pre-pass keeps rejecting mutations for the
 	// whole operation, yet expire quickly so a process that crashes mid-delete self-heals
 	// instead of leaving a permanently poisoned balance key. It is intentionally NOT the
 	// 3600s balance cache TTL. SetNX multiplies its ttl argument by time.Second, so it is
-	// passed as a whole-second count via time.Duration(balanceDeleteTombstoneTTLSeconds).
-	balanceDeleteTombstoneTTLSeconds = 30
+	// passed as a whole-second count via time.Duration(balanceDeleteMarkerTTLSeconds).
+	balanceDeleteMarkerTTLSeconds = 30
 
-	// tombstoneKeySuffix is appended to a balance's internal cache key to form its tombstone
+	// deleteMarkerKeySuffix is appended to a balance's internal cache key to form its delete marker
 	// key. It MUST match the suffix the Redis Lua pre-pass derives (ARGV[i] .. ":deleted").
-	tombstoneKeySuffix = ":deleted"
+	deleteMarkerKeySuffix = ":deleted"
 
-	// tombstoneMarkerValue is the placeholder stored under a tombstone key. The value is
+	// deleteMarkerValue is the placeholder stored under a delete marker key. The value is
 	// never read: only the key's existence is meaningful to the honored-lock pre-pass.
-	tombstoneMarkerValue = "1"
+	deleteMarkerValue = "1"
 )
 
 // balanceCacheKeyFor returns the un-prefixed internal cache key for a balance. The
@@ -42,64 +42,64 @@ func balanceCacheKeyFor(organizationID, ledgerID uuid.UUID, balance *mmodel.Bala
 	return utils.BalanceInternalKey(organizationID, ledgerID, balance.Alias+"#"+balance.Key)
 }
 
-// tombstoneKeyFor returns the tombstone key for a balance: its internal cache key plus the
-// ":deleted" suffix. The tombstone is a SEPARATE key from the balance cache key.
-func tombstoneKeyFor(organizationID, ledgerID uuid.UUID, balance *mmodel.Balance) string {
-	return balanceCacheKeyFor(organizationID, ledgerID, balance) + tombstoneKeySuffix
+// deleteMarkerKeyFor returns the delete marker key for a balance: its internal cache key plus the
+// ":deleted" suffix. The delete marker is a SEPARATE key from the balance cache key.
+func deleteMarkerKeyFor(organizationID, ledgerID uuid.UUID, balance *mmodel.Balance) string {
+	return balanceCacheKeyFor(organizationID, ledgerID, balance) + deleteMarkerKeySuffix
 }
 
-// plantBalanceTombstones best-effort writes a short-lived tombstone key for each balance so
+// plantBalanceDeleteMarkers best-effort writes a short-lived delete marker key for each balance so
 // the Redis honored-lock pre-pass rejects concurrent mutations while a delete is in flight.
 // A failed SetNX is logged and skipped (it weakens the guard but must not crash the delete).
-// The returned release closure Dels exactly the tombstone keys that were planted, for
+// The returned release closure Dels exactly the delete marker keys that were planted, for
 // defer-on-error rollback by the caller.
-func (uc *UseCase) plantBalanceTombstones(ctx context.Context, organizationID, ledgerID uuid.UUID, balances []*mmodel.Balance) func() {
+func (uc *UseCase) plantBalanceDeleteMarkers(ctx context.Context, organizationID, ledgerID uuid.UUID, balances []*mmodel.Balance) func() {
 	logger, tracer, _, _ := libObs.NewTrackingFromContext(ctx)
 
-	spanCtx, span := tracer.Start(ctx, "exec.plant_balance_tombstones")
+	spanCtx, span := tracer.Start(ctx, "exec.plant_balance_delete_markers")
 	defer span.End()
 
 	planted := make([]string, 0, len(balances))
 
 	for _, balance := range balances {
-		tombstoneKey := tombstoneKeyFor(organizationID, ledgerID, balance)
+		deleteMarkerKey := deleteMarkerKeyFor(organizationID, ledgerID, balance)
 
-		set, err := uc.TransactionRedisRepo.SetNX(spanCtx, tombstoneKey, tombstoneMarkerValue, time.Duration(balanceDeleteTombstoneTTLSeconds))
+		set, err := uc.TransactionRedisRepo.SetNX(spanCtx, deleteMarkerKey, deleteMarkerValue, time.Duration(balanceDeleteMarkerTTLSeconds))
 		if err != nil {
-			libOpentelemetry.HandleSpanError(span, "Failed to plant balance delete tombstone", err)
+			libOpentelemetry.HandleSpanError(span, "Failed to plant balance delete marker", err)
 
-			logger.Log(spanCtx, libLog.LevelWarn, "Failed to plant balance delete tombstone", libLog.Err(err))
+			logger.Log(spanCtx, libLog.LevelWarn, "Failed to plant balance delete marker", libLog.Err(err))
 
 			continue
 		}
 
-		// Track only a tombstone THIS operation acquired (SetNX true). A (false, nil)
+		// Track only a delete marker THIS operation acquired (SetNX true). A (false, nil)
 		// means a concurrent delete already owns the key: the guard is armed either
 		// way, so the delete proceeds, but releasing here would Del a sibling's
-		// tombstone and reopen the honored-lock hole. Only acquired keys are releasable.
+		// delete marker and reopen the honored-lock hole. Only acquired keys are releasable.
 		if set {
-			planted = append(planted, tombstoneKey)
+			planted = append(planted, deleteMarkerKey)
 		}
 	}
 
 	return func() {
-		uc.releaseBalanceTombstones(ctx, planted)
+		uc.releaseBalanceDeleteMarkers(ctx, planted)
 	}
 }
 
-// releaseBalanceTombstones Dels each previously planted tombstone key, logging a Warn on
+// releaseBalanceDeleteMarkers Dels each previously planted delete marker key, logging a Warn on
 // error and continuing. A no-op Del on a missing key is safe.
-func (uc *UseCase) releaseBalanceTombstones(ctx context.Context, tombstoneKeys []string) {
+func (uc *UseCase) releaseBalanceDeleteMarkers(ctx context.Context, deleteMarkerKeys []string) {
 	logger, tracer, _, _ := libObs.NewTrackingFromContext(ctx)
 
-	ctx, span := tracer.Start(ctx, "exec.release_balance_tombstones")
+	ctx, span := tracer.Start(ctx, "exec.release_balance_delete_markers")
 	defer span.End()
 
-	for _, tombstoneKey := range tombstoneKeys {
-		if err := uc.TransactionRedisRepo.Del(ctx, tombstoneKey); err != nil {
-			libOpentelemetry.HandleSpanError(span, "Failed to release balance delete tombstone", err)
+	for _, deleteMarkerKey := range deleteMarkerKeys {
+		if err := uc.TransactionRedisRepo.Del(ctx, deleteMarkerKey); err != nil {
+			libOpentelemetry.HandleSpanError(span, "Failed to release balance delete marker", err)
 
-			logger.Log(ctx, libLog.LevelWarn, "Failed to release balance delete tombstone", libLog.Err(err))
+			logger.Log(ctx, libLog.LevelWarn, "Failed to release balance delete marker", libLog.Err(err))
 		}
 	}
 }

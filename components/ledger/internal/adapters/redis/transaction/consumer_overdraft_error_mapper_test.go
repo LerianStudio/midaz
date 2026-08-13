@@ -114,7 +114,7 @@ func TestMapError_AccountIneligibility(t *testing.T) {
 		},
 		{
 			name:    "prefixed message",
-			luaErr:  "ERR 0019 account ineligible: balance carries a deletion tombstone",
+			luaErr:  "ERR 0019 account ineligible: balance carries a deletion marker",
 			wantErr: constant.ErrAccountIneligibility,
 		},
 	}

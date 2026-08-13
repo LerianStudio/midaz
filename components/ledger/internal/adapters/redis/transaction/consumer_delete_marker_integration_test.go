@@ -22,11 +22,11 @@ import (
 )
 
 // =============================================================================
-// DELETE TOMBSTONE GUARD INTEGRATION TESTS (honored-lock)
+// DELETE MARKER GUARD INTEGRATION TESTS (honored-lock)
 // =============================================================================
 // These tests cover the Lua pre-pass in balance_atomic_operation.lua that
 // rejects a batch with ErrAccountIneligibility (0019) when any balance in it
-// carries a live "<balanceKey>:deleted" tombstone, before any mutation runs.
+// carries a live "<balanceKey>:deleted" delete marker, before any mutation runs.
 
 // readCachedBalance fetches and decodes the balance cache entry written by the
 // Lua script for the given key. It fails the test if the key is missing.
@@ -42,10 +42,10 @@ func readCachedBalance(t *testing.T, infra *integrationTestInfra, key string) ca
 	return cb
 }
 
-// TestIntegration_DeleteTombstone_RejectsAndDoesNotMutate exercises case (a):
-// a live tombstone on the single balance in the batch makes the atomic op
+// TestIntegration_DeleteMarker_RejectsAndDoesNotMutate exercises case (a):
+// a live delete marker on the single balance in the batch makes the atomic op
 // return 0019 and leaves the balance cache value/version untouched.
-func TestIntegration_DeleteTombstone_RejectsAndDoesNotMutate(t *testing.T) {
+func TestIntegration_DeleteMarker_RejectsAndDoesNotMutate(t *testing.T) {
 	if testing.Short() {
 		t.Skip("skipping integration test in short mode")
 	}
@@ -66,11 +66,11 @@ func TestIntegration_DeleteTombstone_RejectsAndDoesNotMutate(t *testing.T) {
 
 	before := readCachedBalance(t, infra, primeOp.InternalKey)
 
-	// Lay down the tombstone on the SEPARATE key; the balance key is untouched.
-	tombstoneKey := primeOp.InternalKey + ":deleted"
-	require.NoError(t, infra.redisContainer.Client.Set(ctx, tombstoneKey, "1", 0).Err())
+	// Lay down the delete marker on the SEPARATE key; the balance key is untouched.
+	deleteMarkerKey := primeOp.InternalKey + ":deleted"
+	require.NoError(t, infra.redisContainer.Client.Set(ctx, deleteMarkerKey, "1", 0).Err())
 
-	// A subsequent op on the tombstoned balance must be rejected with 0019.
+	// A subsequent op on the balance carrying a delete marker must be rejected with 0019.
 	rejectOp := overdraftOp(orgID, ledgerID, "@ts-single", "deposit", "credit",
 		decimal.NewFromInt(300), decimal.Zero, before.Version, nil,
 		constant.DEBIT, decimal.NewFromInt(100))
@@ -78,11 +78,11 @@ func TestIntegration_DeleteTombstone_RejectsAndDoesNotMutate(t *testing.T) {
 	_, err = infra.repo.ProcessBalanceAtomicOperation(ctx, orgID, ledgerID,
 		uuid.New(), constant.APPROVED, false, []mmodel.BalanceOperation{rejectOp})
 
-	require.Error(t, err, "tombstoned balance must be rejected")
+	require.Error(t, err, "balance carrying a delete marker must be rejected")
 	assert.True(t, strings.Contains(err.Error(), constant.ErrAccountIneligibility.Error()),
 		"error should contain 0019, got: %v", err)
 
-	// No mutation: value and version are exactly the pre-tombstone snapshot.
+	// No mutation: value and version are exactly the pre-delete-marker snapshot.
 	after := readCachedBalance(t, infra, primeOp.InternalKey)
 	assert.Equal(t, before.Available, after.Available,
 		"Available must be unchanged when the batch is rejected")
@@ -90,10 +90,10 @@ func TestIntegration_DeleteTombstone_RejectsAndDoesNotMutate(t *testing.T) {
 		"Version must not increment when the batch is rejected")
 }
 
-// TestIntegration_DeleteTombstone_NoTombstone_ProceedsNormally exercises case
-// (b): with no tombstone present, the atomic op mutates the balance as before.
+// TestIntegration_DeleteMarker_NoMarker_ProceedsNormally exercises case
+// (b): with no delete marker present, the atomic op mutates the balance as before.
 // This guards against the pre-pass rejecting healthy batches.
-func TestIntegration_DeleteTombstone_NoTombstone_ProceedsNormally(t *testing.T) {
+func TestIntegration_DeleteMarker_NoMarker_ProceedsNormally(t *testing.T) {
 	if testing.Short() {
 		t.Skip("skipping integration test in short mode")
 	}
@@ -110,17 +110,17 @@ func TestIntegration_DeleteTombstone_NoTombstone_ProceedsNormally(t *testing.T) 
 	result, err := infra.repo.ProcessBalanceAtomicOperation(ctx, orgID, ledgerID,
 		uuid.New(), constant.APPROVED, false, []mmodel.BalanceOperation{op})
 
-	require.NoError(t, err, "no tombstone -> op must proceed")
+	require.NoError(t, err, "no delete marker -> op must proceed")
 	require.Len(t, result.After, 1)
 	assert.True(t, result.After[0].Available.Equal(decimal.NewFromInt(300)),
 		"Available should decrement normally, got %s", result.After[0].Available)
 }
 
-// TestIntegration_DeleteTombstone_BatchAtomicity exercises case (c): a
-// two-balance batch where only one balance is tombstoned. The whole batch is
-// rejected with 0019 and the NON-tombstoned balance is left unmutated, proving
+// TestIntegration_DeleteMarker_BatchAtomicity exercises case (c): a
+// two-balance batch where only one balance carries a delete marker. The whole batch is
+// rejected with 0019 and the balance without a delete marker is left unmutated, proving
 // the pre-pass runs before any mutation in the batch.
-func TestIntegration_DeleteTombstone_BatchAtomicity(t *testing.T) {
+func TestIntegration_DeleteMarker_BatchAtomicity(t *testing.T) {
 	if testing.Short() {
 		t.Skip("skipping integration test in short mode")
 	}
@@ -144,10 +144,10 @@ func TestIntegration_DeleteTombstone_BatchAtomicity(t *testing.T) {
 
 	beforeA := readCachedBalance(t, infra, opA.InternalKey)
 
-	// Tombstone ONLY balance B.
+	// Delete marker ONLY balance B.
 	require.NoError(t, infra.redisContainer.Client.Set(ctx, opB.InternalKey+":deleted", "1", 0).Err())
 
-	// Re-run the batch (A first, then the tombstoned B). The pre-pass must
+	// Re-run the batch (A first, then B carrying a delete marker). The pre-pass must
 	// reject the whole batch before A is mutated.
 	nextA := overdraftOp(orgID, ledgerID, "@ts-batch-a", "deposit", "credit",
 		beforeA.availableDecimal(t), decimal.Zero, beforeA.Version, nil,
@@ -159,16 +159,16 @@ func TestIntegration_DeleteTombstone_BatchAtomicity(t *testing.T) {
 	_, err = infra.repo.ProcessBalanceAtomicOperation(ctx, orgID, ledgerID,
 		uuid.New(), constant.APPROVED, false, []mmodel.BalanceOperation{nextA, nextB})
 
-	require.Error(t, err, "batch with a tombstoned balance must be rejected")
+	require.Error(t, err, "batch with a balance carrying a delete marker must be rejected")
 	assert.True(t, strings.Contains(err.Error(), constant.ErrAccountIneligibility.Error()),
 		"error should contain 0019, got: %v", err)
 
-	// The non-tombstoned balance A must be untouched (pre-pass atomicity).
+	// The balance without a delete marker A must be untouched (pre-pass atomicity).
 	afterA := readCachedBalance(t, infra, opA.InternalKey)
 	assert.Equal(t, beforeA.Available, afterA.Available,
-		"non-tombstoned balance Available must be unchanged")
+		"balance without a delete marker Available must be unchanged")
 	assert.Equal(t, beforeA.Version, afterA.Version,
-		"non-tombstoned balance Version must not increment")
+		"balance without a delete marker Version must not increment")
 }
 
 // availableDecimal parses the cached Available string into a decimal for reuse
