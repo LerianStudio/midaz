@@ -23,7 +23,7 @@ import (
 )
 
 // DeleteAllBalancesByAccountID delete all balances by account id in the repository.
-func (uc *UseCase) DeleteAllBalancesByAccountID(ctx context.Context, organizationID, ledgerID, accountID uuid.UUID, requestID string) error {
+func (uc *UseCase) DeleteAllBalancesByAccountID(ctx context.Context, organizationID, ledgerID, accountID uuid.UUID, requestID string) (err error) {
 	logger, tracer, _, _ := libObs.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "exec.delete_all_balances_by_account_id")
@@ -48,28 +48,38 @@ func (uc *UseCase) DeleteAllBalancesByAccountID(ctx context.Context, organizatio
 		return nil
 	}
 
-	for _, balance := range balances {
-		cacheBalance, err := uc.TransactionRedisRepo.ListBalanceByKey(ctx, organizationID, ledgerID, fmt.Sprintf("%s#%s", balance.Alias, balance.Key))
+	// Plant delete markers so the honored-lock pre-pass rejects concurrent mutations for the
+	// whole delete. Release them only when the delete fails, so a rejected guard, permission
+	// flip, or soft-delete leaves the account usable; a successful delete lets the delete marker
+	// expire by its own TTL.
+	release := uc.plantBalanceDeleteMarkers(ctx, organizationID, ledgerID, balances)
+
+	defer func() {
 		if err != nil {
-			if errors.Is(err, redis.Nil) {
-				continue
-			} else {
-				libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to get balance by key on redis", err)
+			release()
+		}
+	}()
 
-				logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Error getting balance by key on redis: %v", err))
+	for _, balance := range balances {
+		cacheBalance, cacheErr := uc.TransactionRedisRepo.ListBalanceByKey(ctx, organizationID, ledgerID, fmt.Sprintf("%s#%s", balance.Alias, balance.Key))
+		if cacheErr != nil && !errors.Is(cacheErr, redis.Nil) {
+			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to get balance by key on redis", cacheErr)
 
-				return err
-			}
+			logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Error getting balance by key on redis: %v", cacheErr))
+
+			return cacheErr
 		}
 
 		if cacheBalance != nil {
-			err = pkg.ValidateBusinessError(constant.ErrBalancesCantBeDeleted, "ListBalanceByAccountIDAndKey")
+			if !cacheBalance.Available.IsZero() || !cacheBalance.OnHold.IsZero() {
+				err = pkg.ValidateBusinessError(constant.ErrBalancesCantBeDeleted, "ListBalanceByAccountIDAndKey")
 
-			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Balance cannot be deleted because there is transactions happening.", err)
+				libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Balance cannot be deleted because it still has funds in it.", err)
 
-			logger.Log(ctx, libLog.LevelWarn, fmt.Sprintf("Balance cannot be deleted because there is transactions happening: %v", err))
+				logger.Log(ctx, libLog.LevelWarn, "Balance cannot be deleted because it still has funds in it", libLog.Err(err))
 
-			return err
+				return err
+			}
 		}
 
 		if !balance.Available.IsZero() || !balance.OnHold.IsZero() {
@@ -109,6 +119,10 @@ func (uc *UseCase) DeleteAllBalancesByAccountID(ctx context.Context, organizatio
 
 		return err
 	}
+
+	// Drop the stale cache entries now that the rows are soft-deleted. Non-fatal: a failed
+	// eviction is logged and never fails the already-committed delete.
+	uc.evictBalanceCaches(ctx, organizationID, ledgerID, balances)
 
 	return nil
 }
