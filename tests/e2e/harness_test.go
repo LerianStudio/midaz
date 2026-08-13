@@ -238,7 +238,7 @@ func createHolder(t *testing.T, orgID string) string {
 func createHolderAccount(t *testing.T, f fixture, holderID string) map[string]any {
 	t.Helper()
 
-	env := mustCreate(t, fmt.Sprintf("%s/holders/%s/accounts", f.ledgers(), holderID), map[string]any{
+	env := mustCreate(t, fmt.Sprintf("%s/v2/organizations/%s/ledgers/%s/holders/%s/accounts", ledgerURL(), f.orgID, f.ledgerID, holderID), map[string]any{
 		"assetCode": "USD", "type": "deposit",
 	})
 
