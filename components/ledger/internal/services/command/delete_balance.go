@@ -55,6 +55,20 @@ func (uc *UseCase) DeleteBalance(ctx context.Context, organizationID, ledgerID, 
 		return err
 	}
 
+	// Plant a delete marker so the honored-lock pre-pass rejects concurrent mutations while the
+	// delete is in flight. Release it only when the delete fails, so a rejected guard or a
+	// failed soft-delete leaves the balance usable; a successful delete lets the delete marker
+	// expire by its own TTL.
+	if balance != nil {
+		release := uc.plantBalanceDeleteMarkers(ctx, organizationID, ledgerID, []*mmodel.Balance{balance})
+
+		defer func() {
+			if err != nil {
+				release()
+			}
+		}()
+	}
+
 	if balance != nil && (!balance.Available.IsZero() || !balance.OnHold.IsZero()) {
 		err = pkg.ValidateBusinessError(constant.ErrBalancesCantBeDeleted, constant.EntityBalance)
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Balance cannot be deleted because it still has funds in it.", err)
@@ -69,6 +83,12 @@ func (uc *UseCase) DeleteBalance(ctx context.Context, organizationID, ledgerID, 
 		logger.Log(ctx, libLog.LevelError, "Error delete balance", libLog.Err(err))
 
 		return err
+	}
+
+	// Drop the stale cache entry now that the row is soft-deleted. Non-fatal: a failed eviction
+	// is logged and never fails the already-committed delete.
+	if balance != nil {
+		uc.evictBalanceCaches(ctx, organizationID, ledgerID, []*mmodel.Balance{balance})
 	}
 
 	uc.emitBalanceDeletedEvent(ctx, span, logger, balance, time.Now())
