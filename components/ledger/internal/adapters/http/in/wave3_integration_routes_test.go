@@ -18,11 +18,11 @@ import (
 )
 
 // mountWave3Routes wires the two Wave-3 (additive) Huma-migrated registrars on the
-// version groups they serve, mirroring the production humaMount seam: composition on
-// /v1, and CRM (holders/instruments/holder-accounts/encryption/audit) on /v2, since CRM
-// is v2-only in the unified binary. Fees/billing are v2-only too and are mounted through
+// version group they serve, mirroring the production humaMount seam: composition and CRM
+// (holders/instruments/holder-accounts/encryption/audit) both on /v2, since both are
+// v2-only in the unified binary. Fees/billing are v2-only too and are mounted through
 // RegisterFeesV2RoutesToApp (exercised by fees_v2_register_test.go), not here. One shared
-// Huma document backs both version groups (openapi.New over the root app + one
+// Huma document backs the version group (openapi.New over the root app + one
 // huma.NewGroup per prefix), and each RegisterXxxRoutesToApp attaches the Fiber
 // auth+tenant middleware chain (as middleware only) plus the Huma terminals on its group.
 //
@@ -37,12 +37,9 @@ func mountWave3Routes(app *fiber.App, auth *middleware.AuthClient) huma.API {
 	hAPI := openapi.New(app, app, openapi.Config{Title: "ledger-test", Version: "test", Servers: []string{"/"}})
 	pkgHTTP.InstallLedgerSchemaNamer(hAPI)
 
-	fiberV1 := app.Group("/v1")
-	humaV1 := huma.NewGroup(hAPI, "/v1")
-	RegisterCompositionRoutesToApp(fiberV1, humaV1, auth, &CompositionHandler{}, nil)
-
 	fiberV2 := app.Group("/v2")
 	humaV2 := huma.NewGroup(hAPI, "/v2")
+	RegisterCompositionV2RoutesToApp(fiberV2, humaV2, auth, &CompositionHandler{}, nil)
 	RegisterCRMV2RoutesToApp(fiberV2, humaV2, auth,
 		&HolderHandler{}, &InstrumentHandler{}, &HolderAccountsHandler{},
 		&EncryptionHandler{}, &AuditHandler{}, nil)
@@ -51,16 +48,15 @@ func mountWave3Routes(app *fiber.App, auth *middleware.AuthClient) huma.API {
 }
 
 const (
-	wave3Org       = "/v1/organizations/:organization_id"
-	wave3OrgLedger = wave3Org + "/ledgers/:ledger_id"
-	// CRM is served on /v2 only.
-	wave3OrgV2 = "/v2/organizations/:organization_id"
+	// CRM and composition are both served on /v2 only.
+	wave3OrgV2       = "/v2/organizations/:organization_id"
+	wave3OrgLedgerV2 = wave3OrgV2 + "/ledgers/:ledger_id"
 )
 
 // wave3FullRoutes is the byte-for-byte route surface the two Wave-3 registrars mount
 // when every conditional handler is present. Paths + methods are preserved from the
-// pre-Huma inline Fiber routes; only the transport changed. CRM sits on /v2, composition
-// on /v1.
+// pre-Huma inline Fiber routes; only the transport changed. CRM and composition both sit
+// on /v2.
 var wave3FullRoutes = []string{
 	// CRM holders (5)
 	"POST:" + wave3OrgV2 + "/holders",
@@ -83,11 +79,11 @@ var wave3FullRoutes = []string{
 	// CRM audit (1, conditional on auditHandler)
 	"GET:" + wave3OrgV2 + "/protection/audit",
 	// Composition (1)
-	"POST:" + wave3OrgLedger + "/holders/:id/accounts",
+	"POST:" + wave3OrgLedgerV2 + "/holders/:id/accounts",
 }
 
 // TestWave3RoutesMountedOnGroup asserts every Wave-3 migrated route is served on
-// the /v1 group after the Fiber-inline -> Huma migration. A missing route means the
+// the /v2 group after the Fiber-inline -> Huma migration. A missing route means the
 // auth-middleware attach or the Huma registration regressed.
 func TestWave3RoutesMountedOnGroup(t *testing.T) {
 	// NOT parallel: mountWave3Routes mutates process-global huma state.

@@ -166,7 +166,6 @@ POST	/v1/organizations/:organization_id/ledgers/:ledger_id/account-types	onboard
 POST	/v1/organizations/:organization_id/ledgers/:ledger_id/accounts	onboarding
 POST	/v1/organizations/:organization_id/ledgers/:ledger_id/accounts/:account_id/balances	transaction
 POST	/v1/organizations/:organization_id/ledgers/:ledger_id/assets	onboarding
-POST	/v1/organizations/:organization_id/ledgers/:ledger_id/holders/:id/accounts	composition
 POST	/v1/organizations/:organization_id/ledgers/:ledger_id/operation-routes	transaction
 POST	/v1/organizations/:organization_id/ledgers/:ledger_id/portfolios	onboarding
 POST	/v1/organizations/:organization_id/ledgers/:ledger_id/segments	onboarding

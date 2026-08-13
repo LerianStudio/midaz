@@ -260,7 +260,6 @@ POST	/v1/organizations/:organization_id/ledgers/:ledger_id/account-types	4
 POST	/v1/organizations/:organization_id/ledgers/:ledger_id/accounts	4
 POST	/v1/organizations/:organization_id/ledgers/:ledger_id/accounts/:account_id/balances	4
 POST	/v1/organizations/:organization_id/ledgers/:ledger_id/assets	4
-POST	/v1/organizations/:organization_id/ledgers/:ledger_id/holders/:id/accounts	4
 POST	/v1/organizations/:organization_id/ledgers/:ledger_id/operation-routes	4
 POST	/v1/organizations/:organization_id/ledgers/:ledger_id/portfolios	4
 POST	/v1/organizations/:organization_id/ledgers/:ledger_id/segments	4

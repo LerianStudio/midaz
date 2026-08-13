@@ -101,8 +101,6 @@ func (d HumaMountDeps) MountV1(group fiber.Router, api huma.API) {
 	// They carry TransactionOptions ([authAssertion, WithTenantDB]) and authorize
 	// against the "midaz" appName (protectedMidaz).
 	RegisterTransactionHumaRoutesToApp(group, api, d.Auth, d.Transaction, d.TransactionOptions)
-
-	d.registerWave3(group, api)
 }
 
 // registerWave1 mounts organization, ledger, portfolio, segment, account,
@@ -131,16 +129,6 @@ func (d HumaMountDeps) registerWave2(group fiber.Router, api huma.API) {
 	RegisterCountTransactionRoutesToApp(group, api, d.Auth, d.Transaction, d.TransactionOptions)
 	RegisterOperationRouteRoutesToApp(group, api, d.Auth, d.OperationRoute, d.TransactionOptions)
 	RegisterTransactionRouteRoutesToApp(group, api, d.Auth, d.TransactionRoute, d.TransactionOptions)
-}
-
-// registerWave3 mounts the additive /v1 resource: composition under "midaz", which
-// carries its OWN route-scoped tenant options so the composition tenant Mongo never
-// overwrites the onboarding/transaction tenant DB. CRM (holders/instruments/encryption/
-// protection) and fees/billing are NOT served on /v1: CRM mounts only on the /v2
-// contract via RegisterCRMV2RoutesToApp, and fees/billing only via
-// RegisterFeesV2RoutesToApp (see MountV2).
-func (d HumaMountDeps) registerWave3(group fiber.Router, api huma.API) {
-	RegisterCompositionRoutesToApp(group, api, d.Auth, d.Composition, d.CompositionOptions)
 }
 
 // MountV2 registers the /v2 Huma terminals + Fiber auth/tenant chain on the /v2 version
@@ -186,7 +174,7 @@ func (d HumaMountDeps) registerWave3(group fiber.Router, api huma.API) {
 // tuples at ledger scope: the path names the ledger, so a package another ledger owns
 // is out of reach. Fees/billing are served ONLY on this /v2 contract. composition
 // carries CompositionOptions and authorizes under the "midaz" appName's "accounts"
-// resource, exactly as on v1 (see registerWave3 / RegisterCompositionRoutesToApp).
+// resource; it is served ONLY on this /v2 contract (see RegisterCompositionV2RoutesToApp).
 //
 // operation-routes carry TransactionOptions ([authAssertion, WithTenantDB]) and authorize
 // against the "routing" appName (protectedRouting), NOT "midaz", exactly as on v1 (see

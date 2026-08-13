@@ -49,8 +49,8 @@ import (
 
 // mountCompositionHuma wires the Huma-migrated composition registrar on app,
 // mirroring the production humaMount seam: problem.Install() before any
-// huma.Register, the shared Huma API built with openapi.New over a /v1 group, and
-// RegisterCompositionRoutesToApp attaching the Fiber auth+tenant middleware chain
+// huma.Register, the shared Huma API built with openapi.New over a /v2 group, and
+// RegisterCompositionV2RoutesToApp attaching the Fiber auth+tenant middleware chain
 // plus the Huma terminal on that group. The middleware chain runs BEFORE the Huma
 // terminal, exactly as in the unified server, so these integration tests exercise
 // the real request path end-to-end.
@@ -59,11 +59,11 @@ import (
 // hook and Huma validation uses process-global sync.Pools.
 func mountCompositionHuma(app *fiber.App, auth *middleware.AuthClient, ch *CompositionHandler, routeOptions *nethttp.ProtectedRouteOptions) {
 	libProblem.Install()
-	apiV1 := app.Group("/v1")
-	hAPI := openapi.New(app, apiV1, openapi.Config{Title: "composition-integration", Version: "test", Servers: []string{"/v1"}})
+	apiV2 := app.Group("/v2")
+	hAPI := openapi.New(app, apiV2, openapi.Config{Title: "composition-integration", Version: "test", Servers: []string{"/v2"}})
 	nethttp.InstallLedgerSchemaNamer(hAPI)
 
-	RegisterCompositionRoutesToApp(apiV1, hAPI, auth, ch, routeOptions)
+	RegisterCompositionV2RoutesToApp(apiV2, hAPI, auth, ch, routeOptions)
 }
 
 // compositionTestInfra holds the real cross-store infrastructure the composition
@@ -253,7 +253,7 @@ func (infra *compositionTestInfra) postComposition(t *testing.T, orgID, ledgerID
 
 	// Org and ledger are path-scoped now; the full target path carries both as
 	// validated UUID segments, so no scoping headers are set.
-	target := "/v1/organizations/" + orgID.String() + "/ledgers/" + ledgerID.String() + "/holders/" + holderID.String() + "/accounts"
+	target := "/v2/organizations/" + orgID.String() + "/ledgers/" + ledgerID.String() + "/holders/" + holderID.String() + "/accounts"
 	req := httptest.NewRequest(fiber.MethodPost, target, bytes.NewBuffer(payload))
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set(fiber.HeaderAuthorization, "Bearer test-token")
@@ -433,7 +433,7 @@ func TestIntegration_CompositionRouteMounted(t *testing.T) {
 	infra := setupCompositionTestInfra(t, nil)
 
 	// Route-table assertion: the composition route is registered on the app.
-	const compositionRoutePath = "/v1/organizations/:organization_id/ledgers/:ledger_id/holders/:id/accounts"
+	const compositionRoutePath = "/v2/organizations/:organization_id/ledgers/:ledger_id/holders/:id/accounts"
 
 	found := false
 	for _, route := range infra.app.GetRoutes() {

@@ -58,7 +58,7 @@ func TestCompositionHandler_CreateHolderAccount(t *testing.T) {
 
 	// validPath is the happy-path target: org, ledger, and holder are all valid
 	// UUID path segments. Org and ledger are path-scoped now (no scoping headers).
-	validPath := "/v1/organizations/" + orgID.String() + "/ledgers/" + ledgerID.String() + "/holders/" + holderID.String() + "/accounts"
+	validPath := "/v2/organizations/" + orgID.String() + "/ledgers/" + ledgerID.String() + "/holders/" + holderID.String() + "/accounts"
 
 	tests := []struct {
 		name           string
@@ -135,7 +135,7 @@ func TestCompositionHandler_CreateHolderAccount(t *testing.T) {
 			name:           "non-UUID ledger_id path segment returns 400",
 			payload:        &mmodel.CreateHolderAccountInput{Name: "Composite Account", AssetCode: "USD", Type: "deposit"},
 			accountCreator: stubAccountCreator{account: createdAccount},
-			targetPath:     "/v1/organizations/" + orgID.String() + "/ledgers/not-a-uuid/holders/" + holderID.String() + "/accounts",
+			targetPath:     "/v2/organizations/" + orgID.String() + "/ledgers/not-a-uuid/holders/" + holderID.String() + "/accounts",
 			expectedStatus: 400,
 			validateBody: func(t *testing.T, body []byte) {
 				var errResp map[string]any
@@ -149,7 +149,7 @@ func TestCompositionHandler_CreateHolderAccount(t *testing.T) {
 			name:           "non-UUID organization_id path segment returns 400",
 			payload:        &mmodel.CreateHolderAccountInput{Name: "Composite Account", AssetCode: "USD", Type: "deposit"},
 			accountCreator: stubAccountCreator{account: createdAccount},
-			targetPath:     "/v1/organizations/not-a-uuid/ledgers/" + ledgerID.String() + "/holders/" + holderID.String() + "/accounts",
+			targetPath:     "/v2/organizations/not-a-uuid/ledgers/" + ledgerID.String() + "/holders/" + holderID.String() + "/accounts",
 			expectedStatus: 400,
 			validateBody: func(t *testing.T, body []byte) {
 				var errResp map[string]any
@@ -171,7 +171,7 @@ func TestCompositionHandler_CreateHolderAccount(t *testing.T) {
 			// handler reads org/ledger/holder from those locals; no scoping headers.
 			app := fiber.New()
 			app.Post(
-				"/v1/organizations/:organization_id/ledgers/:ledger_id/holders/:id/accounts",
+				"/v2/organizations/:organization_id/ledgers/:ledger_id/holders/:id/accounts",
 				http.ParseUUIDPathParameters("holder"),
 				func(c fiber.Ctx) error {
 					return handler.CreateHolderAccount(tt.payload, c)
@@ -209,7 +209,7 @@ func TestCompositionHandler_CreateHolderAccount_PayloadAssertion(t *testing.T) {
 
 	app := fiber.New()
 	app.Post(
-		"/v1/organizations/:organization_id/ledgers/:ledger_id/holders/:id/accounts",
+		"/v2/organizations/:organization_id/ledgers/:ledger_id/holders/:id/accounts",
 		http.ParseUUIDPathParameters("holder"),
 		func(c fiber.Ctx) error {
 			// Wrong payload type forces the type-assertion guard.
@@ -218,7 +218,7 @@ func TestCompositionHandler_CreateHolderAccount_PayloadAssertion(t *testing.T) {
 	)
 
 	req := httptest.NewRequest(fiber.MethodPost,
-		"/v1/organizations/"+orgID.String()+"/ledgers/"+ledgerID.String()+"/holders/"+holderID.String()+"/accounts", nil)
+		"/v2/organizations/"+orgID.String()+"/ledgers/"+ledgerID.String()+"/holders/"+holderID.String()+"/accounts", nil)
 	req.Header.Set("Content-Type", "application/json")
 
 	resp, err := app.Test(req)
