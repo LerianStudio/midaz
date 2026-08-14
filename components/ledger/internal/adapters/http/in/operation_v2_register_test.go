@@ -220,6 +220,8 @@ func TestRegisterOperationV2Routes_MintsNoV2SchemaComponents(t *testing.T) {
 	referenced := operationReferencedComponents(doc.Paths)
 	require.Containsf(t, referenced, "Operation",
 		"the operation ops must reference the Operation body component, or this test guards nothing")
+	assert.NotContainsf(t, referenced, "OperationV2",
+		"the operation endpoints must not reference the v2 transaction nested-operation component")
 
 	for name := range referenced {
 		twin := name + operationV2OperationSuffix

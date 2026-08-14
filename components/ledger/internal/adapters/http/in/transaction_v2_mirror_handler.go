@@ -32,6 +32,10 @@ type UpdateTransactionOutputV2Huma struct {
 // updateTransaction core, projecting the domain result onto the /v2 wire shape. It is the v2 twin
 // of UpdateTransactionHuma, reusing the same request type (transaction.UpdateTransactionInput).
 func (handler *TransactionHandler) UpdateTransactionV2Huma(ctx context.Context, in *UpdateTransactionInputHuma) (*UpdateTransactionOutputV2Huma, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, pkgHTTP.HumaProblem(err)
+	}
+
 	orgID, ledgerID, txID, err := parseOrgLedgerTx(&StateTransactionInputHuma{
 		OrganizationID: in.OrganizationID, LedgerID: in.LedgerID, TransactionID: in.TransactionID,
 	})
@@ -65,6 +69,10 @@ type GetTransactionOutputV2Huma struct {
 // core, projecting the domain result onto the /v2 wire shape and the cache-hit flag onto the
 // response header. It is the v2 twin of GetTransactionHuma.
 func (handler *TransactionHandler) GetTransactionV2Huma(ctx context.Context, in *GetTransactionByIDInputHuma) (*GetTransactionOutputV2Huma, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, pkgHTTP.HumaProblem(err)
+	}
+
 	orgID, ledgerID, txID, err := parseOrgLedgerTx(&StateTransactionInputHuma{
 		OrganizationID: in.OrganizationID, LedgerID: in.LedgerID, TransactionID: in.TransactionID,
 	})
@@ -128,6 +136,10 @@ type ListTransactionsOutputV2Huma struct {
 // getAllTransactions core, projecting the returned page onto the /v2 list envelope. It is the v2
 // twin of GetAllTransactionsHuma.
 func (handler *TransactionHandler) GetAllTransactionsV2Huma(ctx context.Context, in *ListTransactionsInputHuma) (*ListTransactionsOutputV2Huma, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, pkgHTTP.HumaProblem(err)
+	}
+
 	orgID, ledgerID, err := parseOrgLedger(in.OrganizationID, in.LedgerID)
 	if err != nil {
 		return nil, pkgHTTP.HumaProblem(err)
