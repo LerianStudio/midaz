@@ -10,9 +10,10 @@ package streaming
 // The grammar is {service}.{resource}.{event}: the service is the first
 // segment, and the underscore-canonical DefinitionKey supplies the remaining
 // "<resource>.<event>" verbatim. Definition keys are already underscore-canonical
-// (see events.Definition), so no normalization happens here — the route
-// Key/ce-type keep their hyphens on the wire identity, while the topic name uses
-// the underscore key as-is.
+// (see events.Definition), so no normalization happens here — the topic name,
+// ce-type, and DefinitionKey are all underscore-canonical wire identity. Only the
+// internal route-table key (RouteDefinition.Key, via Definition.RouteKey) folds to
+// hyphens, and it never appears on the wire.
 func TopicName(service, key string) string {
 	return service + "." + key
 }
