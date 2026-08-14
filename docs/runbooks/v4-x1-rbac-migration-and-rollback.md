@@ -50,25 +50,25 @@
   Each is wired via `protectedMidaz(auth, resource, action, ...)` → `auth.Authorize(ApplicationName, resource, action)` (`crm_routes.go:62-79`).
 - **Net effect:** the authz namespace for these routes moves from `plugin-crm` → `midaz`.
 
-Namespace layout in v4 (for context — only the CRM rows are migrating):
+Namespace layout in v4 (for context — the CRM and routing rows flipped to `midaz` in v4):
 
 | Namespace | Resources | Source |
 |-----------|-----------|--------|
-| `midaz` | organizations, ledgers, assets, asset-rates, portfolios, segments, accounts, balances, transactions, operations, settings | `routes.go:15` (`midazName`), `protectedMidaz` `routes.go:307-309` |
+| `midaz` | organizations, ledgers, assets, asset-rates, portfolios, segments, accounts, balances, transactions, operations, settings | `routes.go` (`midazName`, `protectedMidaz`) |
 | `midaz` (flipped in v4) | **holders, instruments, related-parties** | `crm_routes.go:20`, `crm_routes.go:62-79` |
-| `routing` | account-types, operation-routes, transaction-routes | `routes.go:16` (`routingName`), `protectedRouting` `routes.go:311-313` |
+| `midaz` (flipped in v4) | account-types, operation-routes, transaction-routes | `routes.go` (`midazName`, `protectedMidaz`) |
 | `plugin-fees` (**UNCHANGED**) | packages, estimates, billing-packages, billing-calculate | `fees_routes.go:18` (`feesApplicationName`), `pkg/constant/module.go:24` |
 
 > **Fees do NOT migrate.** `plugin-fees:*` is intentionally preserved with no migration
 > (`RBAC-NAMESPACES.md:7-8, 15, 84-86`). Do not touch fees grants during X1.
 >
-> **Routing does NOT migrate either (this build).** `account-types`, `operation-routes`, and
-> `transaction-routes` stay under the `routing` namespace — `protectedRouting` still calls
-> `auth.Authorize(routingName, ...)` (`routes.go:312`; `routingName = "routing"` at `routes.go:16`).
-> X1 touches CRM holders/instruments only. `RBAC-NAMESPACES.md` Epic 3.3 *proposes* folding
-> `routing:* → midaz:*` into a later release; if a future build flips `protectedRouting` to `midazName`,
-> routing grants must migrate too and the matrix + smoke tests below must add the routing routes.
-> **Re-verify `routes.go:312` before each release** to confirm routing has not been folded into X1.
+> **Routing now authorizes under `midaz`.** `account-types`, `operation-routes`, and
+> `transaction-routes` are wired via `protectedMidaz` → `auth.Authorize(midazName, ...)`; the separate
+> `routing` namespace (the `routingName` const and `protectedRouting` helper) was removed. On the auth
+> side these are already granted under `midaz` on `develop` (plugin-access-manager migrations 30/31 +
+> `init_data` seeds + `midaz-m2m-permission` → `midaz-editor-role`). Re-keying any legacy
+> `routing:*`-only environment — and its forward/rollback/smoke-test sequencing — is owned by the X1
+> migration owner; see `docs/auth/RBAC-NAMESPACES.md`.
 
 ---
 
@@ -360,6 +360,6 @@ re-check the migration matrix. The series falling to zero confirms the window cl
 
 - `docs/auth/RBAC-NAMESPACES.md` — X1 gate definition, migration matrix, fail-closed model (authoritative).
 - `components/ledger/internal/adapters/http/in/crm_routes.go` (`:20`, `:62-79`) — the flip and authz calls.
-- `components/ledger/internal/adapters/http/in/routes.go` (`:15-16` names, `:307-313` `protectedMidaz`/`protectedRouting`) — namespace helpers.
+- `components/ledger/internal/adapters/http/in/routes.go` (`midazName`, `protectedMidaz`) — namespace helper.
 - `components/ledger/internal/adapters/http/in/fees_routes.go` (`:18`), `pkg/constant/module.go` (`:24`) — fees namespace (unchanged).
 - `docs/standards/telemetry.md`, `docs/standards/error-handling.md` — logging/error conventions for triage.
