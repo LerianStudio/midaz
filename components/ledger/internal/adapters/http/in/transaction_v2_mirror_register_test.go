@@ -23,27 +23,41 @@ const (
 	transactionMirrorIDPath   = transactionMirrorListPath + "/{transaction_id}"
 )
 
-// transactionMirrorV2Ops enumerates the seven v1 transaction ops the /v2 group mirrors:
-// the four legacy-create twins (json/inflow/outflow/annotation), the PATCH update, and the two
-// reads (get-by-id + list). It is NOT the whole v1 transaction surface — block/unblock create
-// and commit/cancel/revert lifecycle are DELIBERATELY absent, because those already carry v2
-// operationIds via RegisterTransactionV2Routes and mirroring them would collide as a duplicate
-// operationId in the one document. Each twin is a STRAIGHT MIRROR: same handler method, same
-// input/output types, so its operationId is the v1 id with the version suffix appended. The GET
-// and PATCH twins share transactionMirrorIDPath — one path key, two methods.
+// transactionMirrorV2Ops enumerates the three v1 transaction ops the /v2 group mirrors: the
+// PATCH update and the two reads (get-by-id + list). Each is a STRAIGHT MIRROR: same handler
+// method, same input/output types, so its operationId is the v1 id with the version suffix
+// appended. The GET and PATCH twins share transactionMirrorIDPath — one path key, two methods.
+//
+// The legacy-create paths (json/inflow/outflow/annotation) are NOT mirrored onto /v2: they are
+// served on /v1 only, and the /v2 transaction create surface is the flat-body direct/hold/
+// block/unblock model in transaction_v2_register.go. block/unblock create and commit/cancel/
+// revert lifecycle are likewise absent, because those already carry v2 operationIds via
+// RegisterTransactionV2Routes and mirroring them would collide as a duplicate operationId in the
+// one document. The retired legacy-create twins are pinned as absent by
+// transactionMirrorV2RemovedCreateActions below.
 var transactionMirrorV2Ops = []struct {
 	action        string
 	method        string
 	opPath        string
 	v1OperationID string
 }{
-	{action: "createJSON", method: http.MethodPost, opPath: transactionMirrorListPath + "/json", v1OperationID: "createTransactionJSON"},
-	{action: "createInflow", method: http.MethodPost, opPath: transactionMirrorListPath + "/inflow", v1OperationID: "createTransactionInflow"},
-	{action: "createOutflow", method: http.MethodPost, opPath: transactionMirrorListPath + "/outflow", v1OperationID: "createTransactionOutflow"},
-	{action: "createAnnotation", method: http.MethodPost, opPath: transactionMirrorListPath + "/annotation", v1OperationID: "createTransactionAnnotation"},
 	{action: "update", method: http.MethodPatch, opPath: transactionMirrorIDPath, v1OperationID: "updateTransaction"},
 	{action: "getByID", method: http.MethodGet, opPath: transactionMirrorIDPath, v1OperationID: "getTransaction"},
 	{action: "list", method: http.MethodGet, opPath: transactionMirrorListPath, v1OperationID: "getAllTransactions"},
+}
+
+// transactionMirrorV2RemovedCreateActions enumerates the four legacy-create transaction ops that
+// are served on /v1 ONLY and MUST NOT be mirrored onto /v2. Each entry pairs the /v1-relative
+// path with the v1 operationId whose "+V2" twin must be absent from the unified document.
+var transactionMirrorV2RemovedCreateActions = []struct {
+	action        string
+	opPath        string
+	v1OperationID string
+}{
+	{action: "createJSON", opPath: transactionMirrorListPath + "/json", v1OperationID: "createTransactionJSON"},
+	{action: "createInflow", opPath: transactionMirrorListPath + "/inflow", v1OperationID: "createTransactionInflow"},
+	{action: "createOutflow", opPath: transactionMirrorListPath + "/outflow", v1OperationID: "createTransactionOutflow"},
+	{action: "createAnnotation", opPath: transactionMirrorListPath + "/annotation", v1OperationID: "createTransactionAnnotation"},
 }
 
 // transactionMirrorV2OperationSuffix is the version suffix a v2 twin appends to its v1
@@ -200,5 +214,45 @@ func TestRegisterTransactionMirrorV2Routes_MintsNoV2SchemaComponents(t *testing.
 		assert.Falsef(t, strings.HasSuffix(name, transactionMirrorV2OperationSuffix),
 			"the mirrored transaction ops must reuse the unsuffixed v1 component, not a %s twin; found %q",
 			transactionMirrorV2OperationSuffix, name)
+	}
+}
+
+// TestRegisterTransactionMirrorV2Routes_LegacyCreateOpsRetired asserts the four legacy-create
+// transaction ops (json/inflow/outflow/annotation) are absent from the /v2 surface: neither their
+// "+V2" operationId nor a POST at their /v2 path may exist. It reads the REAL unified document
+// (buildUnifiedHumaAPI), so it proves the retirement against the mount a client hits. The v1
+// originals are unaffected — they keep serving on /v1 — which the test also confirms.
+func TestRegisterTransactionMirrorV2Routes_LegacyCreateOpsRetired(t *testing.T) {
+	t.Parallel()
+
+	_, api := buildUnifiedHumaAPI()
+	paths := api.OpenAPI().Paths
+
+	// Every operationId published anywhere in the unified document.
+	publishedIDs := make(map[string]bool)
+
+	for _, item := range paths {
+		for _, op := range operationsOf(item) {
+			publishedIDs[op.OperationID] = true
+		}
+	}
+
+	for _, op := range transactionMirrorV2RemovedCreateActions {
+		t.Run(op.action, func(t *testing.T) {
+			t.Parallel()
+
+			v2ID := op.v1OperationID + transactionMirrorV2OperationSuffix
+
+			assert.Falsef(t, publishedIDs[v2ID],
+				"the legacy-create v2 twin %q must be retired from the unified contract", v2ID)
+
+			assert.Truef(t, publishedIDs[op.v1OperationID],
+				"the v1 %s transaction op (%q) must still be published on /v1", op.action, op.v1OperationID)
+
+			if v2Item, ok := paths["/v2"+op.opPath]; ok {
+				assert.Nilf(t, operationForMethod(v2Item, http.MethodPost),
+					"the /v2 surface must not publish a POST at %q: the legacy-create v2 twin is retired", "/v2"+op.opPath)
+			}
+		})
 	}
 }

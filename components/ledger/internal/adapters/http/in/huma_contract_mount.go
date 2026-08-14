@@ -153,11 +153,11 @@ func (d HumaMountDeps) registerWave2(group fiber.Router, api huma.API) {
 // The transaction ops carry TransactionOptions ([authAssertion, WithTenantDB]) and
 // authorize against the "midaz" appName (protectedMidaz) — the same auth + tenant
 // chain the v1 transaction CREATE ops use, no new policy. RegisterTransactionMirrorV2RoutesToApp
-// additionally mirrors the seven v1 ops that have no dedicated v2 wire shape — the legacy-create
-// twins (json/inflow/outflow/annotation), the PATCH update, and the two reads (get-by-id + list) —
-// as straight v1 twins carrying the same TransactionOptions and "midaz" appName. block/unblock
-// create and commit/cancel/revert lifecycle are intentionally absent from that mirror: they are
-// already published as v2 ops by RegisterTransactionV2RoutesToApp. asset-rate is MONEY-adjacent
+// additionally mirrors the three v1 ops that have no dedicated v2 wire shape — the PATCH update
+// and the two reads (get-by-id + list) — as straight v1 twins carrying the same TransactionOptions
+// and "midaz" appName. The legacy-create ops (json/inflow/outflow/annotation) are served on /v1
+// only; block/unblock create and commit/cancel/revert lifecycle are also absent from that mirror,
+// because they are already published as v2 ops by RegisterTransactionV2RoutesToApp. asset-rate is MONEY-adjacent
 // (exchange rates): it likewise carries TransactionOptions and authorizes against the
 // "midaz" appName, exactly as on v1 (see registerWave1 / registerAssetRateRoutesToApp).
 // balance (resource "balances") and operation (resource "operations") also carry
