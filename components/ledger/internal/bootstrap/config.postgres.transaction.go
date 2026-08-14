@@ -9,16 +9,18 @@ import (
 	"fmt"
 	"time"
 
-	libPostgres "github.com/LerianStudio/lib-commons/v5/commons/postgres"
-	tmpostgres "github.com/LerianStudio/lib-commons/v5/commons/tenant-manager/postgres"
-	libLog "github.com/LerianStudio/lib-observability/log"
-	"github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/postgres/assetrate"
-	"github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/postgres/balance"
-	"github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/postgres/operation"
-	"github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/postgres/operationroute"
-	"github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/postgres/transaction"
-	"github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/postgres/transactionroute"
-	"github.com/LerianStudio/midaz/v3/pkg/constant"
+	libPostgres "github.com/LerianStudio/lib-commons/v6/commons/postgres"
+	tmpostgres "github.com/LerianStudio/lib-commons/v6/commons/tenant-manager/postgres"
+	libLog "github.com/LerianStudio/lib-observability/v2/log"
+
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/assetrate"
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/balance"
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/operation"
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/operationroute"
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/transaction"
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/transactionquarantine"
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/transactionroute"
+	"github.com/LerianStudio/midaz/v4/pkg/constant"
 )
 
 // transactionPostgresComponents holds PostgreSQL-related components for the transaction domain.
@@ -31,11 +33,18 @@ type transactionPostgresComponents struct {
 	balanceRepo          *balance.BalancePostgreSQLRepository
 	operationRouteRepo   *operationroute.OperationRoutePostgreSQLRepository
 	transactionRouteRepo *transactionroute.TransactionRoutePostgreSQLRepository
+	quarantineRepo       *transactionquarantine.QuarantinePostgreSQLRepository
 }
 
 // initTransactionPostgres initializes PostgreSQL components for the transaction domain.
 // Dispatches to single-tenant or multi-tenant initialization based on Options.
 func initTransactionPostgres(opts *Options, cfg *Config, logger libLog.Logger) (*transactionPostgresComponents, error) {
+	// The transactional-read routing flag is resolved here, at the transaction
+	// repository construction site, and passed into the repositories that route
+	// primary-read intent through a read-only transaction.
+	logger.Log(context.Background(), libLog.LevelDebug, "transaction PG construction",
+		libLog.Bool("route_transactional_reads_to_primary", cfg.RouteTransactionalReadsToPrimary))
+
 	if opts != nil && opts.MultiTenantEnabled {
 		return initTransactionMultiTenantPostgres(opts, cfg, logger)
 	}
@@ -79,9 +88,10 @@ func initTransactionMultiTenantPostgres(opts *Options, cfg *Config, logger libLo
 		transactionRepo:      transaction.NewTransactionPostgreSQLRepository(conn, true),
 		operationRepo:        operation.NewOperationPostgreSQLRepository(conn, true),
 		assetRateRepo:        assetrate.NewAssetRatePostgreSQLRepository(conn, true),
-		balanceRepo:          balance.NewBalancePostgreSQLRepository(conn, true),
+		balanceRepo:          balance.NewBalancePostgreSQLRepository(conn, cfg.RouteTransactionalReadsToPrimary, true),
 		operationRouteRepo:   operationroute.NewOperationRoutePostgreSQLRepository(conn, true),
 		transactionRouteRepo: transactionroute.NewTransactionRoutePostgreSQLRepository(conn, true),
+		quarantineRepo:       transactionquarantine.NewQuarantinePostgreSQLRepository(conn, true),
 	}, nil
 }
 
@@ -92,19 +102,15 @@ func initTransactionSingleTenantPostgres(cfg *Config, logger libLog.Logger) (*tr
 		return nil, fmt.Errorf("failed to connect to PostgreSQL (single-tenant): %w", err)
 	}
 
-	// Run migrations on startup (single-tenant only; multi-tenant handles migrations via tenant-manager).
-	if err := transactionPostgresMigrator(cfg, logger); err != nil {
-		return nil, fmt.Errorf("failed to run PostgreSQL migrations: %w", err)
-	}
-
 	return &transactionPostgresComponents{
 		connection:           conn,
 		transactionRepo:      transaction.NewTransactionPostgreSQLRepository(conn),
 		operationRepo:        operation.NewOperationPostgreSQLRepository(conn),
 		assetRateRepo:        assetrate.NewAssetRatePostgreSQLRepository(conn),
-		balanceRepo:          balance.NewBalancePostgreSQLRepository(conn),
+		balanceRepo:          balance.NewBalancePostgreSQLRepository(conn, cfg.RouteTransactionalReadsToPrimary),
 		operationRouteRepo:   operationroute.NewOperationRoutePostgreSQLRepository(conn),
 		transactionRouteRepo: transactionroute.NewTransactionRoutePostgreSQLRepository(conn),
+		quarantineRepo:       transactionquarantine.NewQuarantinePostgreSQLRepository(conn),
 	}, nil
 }
 
@@ -152,31 +158,4 @@ func buildTransactionPostgresConnection(cfg *Config, logger libLog.Logger) (*lib
 	}
 
 	return conn, nil
-}
-
-// transactionPostgresMigrator runs database migrations for transaction. Package-level variable
-// to allow test injection without requiring a live database.
-var transactionPostgresMigrator = defaultTransactionPostgresMigrator
-
-// defaultTransactionPostgresMigrator executes database migrations for transaction.
-func defaultTransactionPostgresMigrator(cfg *Config, logger libLog.Logger) error {
-	primaryDSN := fmt.Sprintf("host=%s user=%s password=%s dbname=%s port=%s sslmode=%s",
-		cfg.TxnPrefixedPrimaryDBHost, cfg.TxnPrefixedPrimaryDBUser, cfg.TxnPrefixedPrimaryDBPassword,
-		cfg.TxnPrefixedPrimaryDBName, cfg.TxnPrefixedPrimaryDBPort, cfg.TxnPrefixedPrimaryDBSSLMode)
-
-	migrator, err := libPostgres.NewMigrator(libPostgres.MigrationConfig{
-		PrimaryDSN:     primaryDSN,
-		DatabaseName:   cfg.TxnPrefixedPrimaryDBName,
-		Component:      "ledger",
-		MigrationsPath: "components/ledger/migrations/transaction",
-		Logger:         logger,
-	})
-	if err != nil {
-		return fmt.Errorf("failed to create migrator: %w", err)
-	}
-
-	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
-	defer cancel()
-
-	return migrator.Up(ctx)
 }

@@ -13,19 +13,20 @@ import (
 	"testing"
 	"time"
 
-	libHTTP "github.com/LerianStudio/lib-commons/v5/commons/net/http"
-	mongodb "github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/mongodb/transaction"
-	"github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/postgres/assetrate"
-	"github.com/LerianStudio/midaz/v3/components/ledger/internal/services/command"
-	"github.com/LerianStudio/midaz/v3/components/ledger/internal/services/query"
-	"github.com/LerianStudio/midaz/v3/pkg"
-	"github.com/LerianStudio/midaz/v3/pkg/constant"
-	"github.com/LerianStudio/midaz/v3/pkg/net/http"
-	"github.com/gofiber/fiber/v2"
+	libHTTP "github.com/LerianStudio/lib-commons/v6/commons/net/http"
+	"github.com/gofiber/fiber/v3"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
+
+	mongodb "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/mongodb/transaction"
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/assetrate"
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services/command"
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services/query"
+	"github.com/LerianStudio/midaz/v4/pkg"
+	"github.com/LerianStudio/midaz/v4/pkg/constant"
+	"github.com/LerianStudio/midaz/v4/pkg/net/http"
 )
 
 func TestAssetRateHandler_CreateOrUpdateAssetRate(t *testing.T) {
@@ -173,7 +174,7 @@ func TestAssetRateHandler_CreateOrUpdateAssetRate(t *testing.T) {
 				require.NoError(t, err)
 
 				assert.Contains(t, errResp, "code", "error response should contain code")
-				assert.Contains(t, errResp, "message", "error response should contain message")
+				assert.Contains(t, errResp, "detail", "error response should contain message")
 			},
 		},
 	}
@@ -197,8 +198,9 @@ func TestAssetRateHandler_CreateOrUpdateAssetRate(t *testing.T) {
 			handler := &AssetRateHandler{Command: cmdUC}
 
 			app := fiber.New()
-			app.Put("/v1/organizations/:organization_id/ledgers/:ledger_id/asset-rates",
-				func(c *fiber.Ctx) error {
+			app.Put(
+				"/v1/organizations/:organization_id/ledgers/:ledger_id/asset-rates",
+				func(c fiber.Ctx) error {
 					c.Locals("organization_id", orgID)
 					c.Locals("ledger_id", ledgerID)
 					return c.Next()
@@ -309,7 +311,7 @@ func TestAssetRateHandler_GetAssetRateByExternalID(t *testing.T) {
 				require.NoError(t, err)
 
 				assert.Contains(t, errResp, "code", "error response should contain code")
-				assert.Contains(t, errResp, "message", "error response should contain message")
+				assert.Contains(t, errResp, "detail", "error response should contain message")
 			},
 		},
 	}
@@ -334,8 +336,9 @@ func TestAssetRateHandler_GetAssetRateByExternalID(t *testing.T) {
 			handler := &AssetRateHandler{Query: queryUC}
 
 			app := fiber.New()
-			app.Get("/v1/organizations/:organization_id/ledgers/:ledger_id/asset-rates/:external_id",
-				func(c *fiber.Ctx) error {
+			app.Get(
+				"/v1/organizations/:organization_id/ledgers/:ledger_id/asset-rates/:external_id",
+				func(c fiber.Ctx) error {
 					c.Locals("organization_id", orgID)
 					c.Locals("ledger_id", ledgerID)
 					c.Locals("external_id", externalID)
@@ -495,7 +498,7 @@ func TestAssetRateHandler_GetAllAssetRatesByAssetCode(t *testing.T) {
 				require.NoError(t, err)
 
 				assert.Contains(t, errResp, "code", "error response should contain code")
-				assert.Contains(t, errResp, "message", "error response should contain message")
+				assert.Contains(t, errResp, "detail", "error response should contain message")
 			},
 		},
 	}
@@ -520,8 +523,9 @@ func TestAssetRateHandler_GetAllAssetRatesByAssetCode(t *testing.T) {
 			handler := &AssetRateHandler{Query: queryUC}
 
 			app := fiber.New()
-			app.Get("/v1/organizations/:organization_id/ledgers/:ledger_id/asset-rates/from/:asset_code",
-				func(c *fiber.Ctx) error {
+			app.Get(
+				"/v1/organizations/:organization_id/ledgers/:ledger_id/asset-rates/from/:asset_code",
+				func(c fiber.Ctx) error {
 					c.Locals("organization_id", orgID)
 					c.Locals("ledger_id", ledgerID)
 					return c.Next()

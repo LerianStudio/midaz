@@ -10,17 +10,18 @@ import (
 	"os"
 	"testing"
 
-	libStreaming "github.com/LerianStudio/lib-streaming"
-	"github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/postgres/operation"
-	"github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/postgres/transaction"
-	"github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/rabbitmq"
-	"github.com/LerianStudio/midaz/v3/pkg/constant"
-	pkgStreaming "github.com/LerianStudio/midaz/v3/pkg/streaming"
+	libStreaming "github.com/LerianStudio/lib-streaming/v2"
 	"github.com/google/uuid"
 	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
+
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/operation"
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/transaction"
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/rabbitmq"
+	"github.com/LerianStudio/midaz/v4/pkg/constant"
+	pkgStreaming "github.com/LerianStudio/midaz/v4/pkg/streaming"
 )
 
 // overdraftTransactionFixture wraps three companion overdraft operations
@@ -111,9 +112,9 @@ func TestSendOverdraftEvents_EmitsThreeBalanceOverdraftEvents(t *testing.T) {
 	emitted := mockEmitter.Events()
 	require.Len(t, emitted, 3, "expected three lib-streaming events (drawn + repaid + cleared)")
 
-	pkgStreaming.AssertEventEmitted(t, mockEmitter, "balance", "overdraft-drawn")
-	pkgStreaming.AssertEventEmitted(t, mockEmitter, "balance", "overdraft-repaid")
-	pkgStreaming.AssertEventEmitted(t, mockEmitter, "balance", "overdraft-cleared")
+	pkgStreaming.AssertEventEmitted(t, mockEmitter, "balance", "overdraft_drawn")
+	pkgStreaming.AssertEventEmitted(t, mockEmitter, "balance", "overdraft_repaid")
+	pkgStreaming.AssertEventEmitted(t, mockEmitter, "balance", "overdraft_cleared")
 
 	for i, expectedAction := range []string{"drawn", "repaid", "cleared"} {
 		var payload map[string]any

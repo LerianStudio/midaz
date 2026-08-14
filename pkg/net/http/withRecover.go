@@ -6,14 +6,14 @@ package http
 
 import (
 	"fmt"
-	"net/http"
 
-	libObs "github.com/LerianStudio/lib-observability"
-
-	libLog "github.com/LerianStudio/lib-observability/log"
-	"github.com/gofiber/fiber/v2"
+	libObservability "github.com/LerianStudio/lib-observability/v2"
+	libLog "github.com/LerianStudio/lib-observability/v2/log"
+	"github.com/gofiber/fiber/v3"
 	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/trace"
+
+	"github.com/LerianStudio/midaz/v4/pkg"
 )
 
 type recoverMiddleware struct {
@@ -41,14 +41,14 @@ func buildRecoverOpts(opts ...RecoverMiddlewareOption) *recoverMiddleware {
 }
 
 func WithRecover(opts ...RecoverMiddlewareOption) fiber.Handler {
-	return func(c *fiber.Ctx) error {
+	return func(c fiber.Ctx) error {
 		mid := buildRecoverOpts(opts...)
 
 		defer func() {
 			if r := recover(); r != nil {
 				logger := mid.Logger
 
-				ctxLogger, _, _, _ := libObs.NewTrackingFromContext(c.UserContext())
+				ctxLogger, _, _, _ := libObservability.NewTrackingFromContext(c.Context())
 
 				if ctxLogger != nil {
 					logger = ctxLogger
@@ -57,21 +57,20 @@ func WithRecover(opts ...RecoverMiddlewareOption) fiber.Handler {
 				panicErr := fmt.Errorf("panic recovered")
 				panicType := fmt.Sprintf("%T", r)
 
-				logger.Log(c.UserContext(), libLog.LevelError, "panic recovered",
+				logger.Log(
+					c.Context(), libLog.LevelError, "panic recovered",
 					libLog.String("panic_type", panicType),
 				)
 
-				span := trace.SpanFromContext(c.UserContext())
+				span := trace.SpanFromContext(c.Context())
 				if span.IsRecording() {
 					span.RecordError(panicErr)
 					span.SetStatus(codes.Error, "panic recovered")
 				}
 
-				_ = c.Status(http.StatusInternalServerError).JSON(fiber.Map{
-					"code":    "INTERNAL_SERVER_ERROR",
-					"title":   "Internal Server Error",
-					"message": "An unexpected error occurred. Please try again later.",
-				})
+				// Serialize the RFC 9457 problem+json envelope, identical to the
+				// normal error path, so clients parse one error shape everywhere.
+				_ = WithError(c, pkg.ValidateInternalError(panicErr, ""))
 			}
 		}()
 

@@ -8,18 +8,21 @@ import (
 	"encoding/json"
 	"testing"
 
-	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
-	"github.com/LerianStudio/midaz/v3/pkg/streaming/events"
+	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
+	"github.com/LerianStudio/midaz/v4/pkg/streaming/events"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
 func TestBalanceConfigChangedDefinition_Key(t *testing.T) {
-	// Hyphen in the event type satisfies the lib-streaming route-key
-	// regex; the underscored discriminator lives ONLY inside payload.changeType.
-	assert.Equal(t, "balance.config-changed", events.BalanceConfigChangedDefinition.Key())
+	// EventType is the underscored canonical form (config_changed): Key() is
+	// balance.config_changed and only RouteKey() folds it to the hyphenated
+	// balance.config-changed routing handle. The payload changeType discriminator
+	// (settings_updated / overdraft_enabled) is separate payload data.
+	assert.Equal(t, "balance.config_changed", events.BalanceConfigChangedDefinition.Key())
+	assert.Equal(t, "balance.config-changed", events.BalanceConfigChangedDefinition.RouteKey())
 	assert.Equal(t, "balance", events.BalanceConfigChangedDefinition.ResourceType)
-	assert.Equal(t, "config-changed", events.BalanceConfigChangedDefinition.EventType)
+	assert.Equal(t, "config_changed", events.BalanceConfigChangedDefinition.EventType)
 	assert.Equal(t, "1.0.0", events.BalanceConfigChangedDefinition.SchemaVersion)
 }
 
@@ -112,4 +115,6 @@ func TestBalanceConfigChangedPayload_JSONShape_MinimalIncludesRequiredFields(t *
 
 	_, hasSettings := generic["settings"]
 	assert.False(t, hasSettings, "settings is omitempty when nil")
+
+	assert.Lenf(t, generic, 11, "expected 11 top-level fields, got %d (drift?)", len(generic))
 }

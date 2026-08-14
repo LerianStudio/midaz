@@ -12,8 +12,8 @@ import (
 	"testing"
 	"time"
 
-	libCircuitBreaker "github.com/LerianStudio/lib-commons/v5/commons/circuitbreaker"
-	libLog "github.com/LerianStudio/lib-observability/log"
+	libCircuitBreaker "github.com/LerianStudio/lib-commons/v6/commons/circuitbreaker"
+	libLog "github.com/LerianStudio/lib-observability/v2/log"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/goleak"
@@ -22,8 +22,9 @@ import (
 
 // TestMain verifies no goroutine leaks across all tests in this package.
 func TestMain(m *testing.M) {
-	goleak.VerifyTestMain(m,
-		goleak.IgnoreAnyFunction("github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/rabbitmq.(*ConsumerRoutes).RunConsumers.func1"),
+	goleak.VerifyTestMain(
+		m,
+		goleak.IgnoreAnyFunction("github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/rabbitmq.(*ConsumerRoutes).runConsumerLoop"),
 	)
 }
 

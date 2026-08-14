@@ -13,23 +13,24 @@ import (
 	"testing"
 	"time"
 
-	libCommons "github.com/LerianStudio/lib-commons/v5/commons"
-	libHTTP "github.com/LerianStudio/lib-commons/v5/commons/net/http"
-	"github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/postgres/balance"
-	"github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/postgres/operation"
-	redis "github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/redis/transaction"
-	"github.com/LerianStudio/midaz/v3/components/ledger/internal/services/command"
-	"github.com/LerianStudio/midaz/v3/components/ledger/internal/services/query"
-	"github.com/LerianStudio/midaz/v3/pkg"
-	cn "github.com/LerianStudio/midaz/v3/pkg/constant"
-	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
-	testutils "github.com/LerianStudio/midaz/v3/tests/utils"
-	"github.com/gofiber/fiber/v2"
+	libCommons "github.com/LerianStudio/lib-commons/v6/commons"
+	libHTTP "github.com/LerianStudio/lib-commons/v6/commons/net/http"
+	"github.com/gofiber/fiber/v3"
 	"github.com/google/uuid"
 	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
+
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/balance"
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/operation"
+	redis "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/redis/transaction"
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services/command"
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services/query"
+	"github.com/LerianStudio/midaz/v4/pkg"
+	cn "github.com/LerianStudio/midaz/v4/pkg/constant"
+	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
+	testutils "github.com/LerianStudio/midaz/v4/tests/utils"
 )
 
 func TestBalanceHandler_GetAllBalances(t *testing.T) {
@@ -142,7 +143,7 @@ func TestBalanceHandler_GetAllBalances(t *testing.T) {
 				require.NoError(t, err, "error response should be valid JSON")
 
 				assert.Contains(t, errResp, "code", "error response should contain code field")
-				assert.Contains(t, errResp, "message", "error response should contain message field")
+				assert.Contains(t, errResp, "detail", "error response should contain message field")
 			},
 		},
 	}
@@ -167,8 +168,9 @@ func TestBalanceHandler_GetAllBalances(t *testing.T) {
 			handler := &BalanceHandler{Query: uc}
 
 			app := fiber.New()
-			app.Get("/test/:organization_id/:ledger_id/balances",
-				func(c *fiber.Ctx) error {
+			app.Get(
+				"/test/:organization_id/:ledger_id/balances",
+				func(c fiber.Ctx) error {
 					c.Locals("organization_id", orgID)
 					c.Locals("ledger_id", ledgerID)
 					return c.Next()
@@ -301,7 +303,7 @@ func TestBalanceHandler_GetAllBalancesByAccountID(t *testing.T) {
 				require.NoError(t, err, "error response should be valid JSON")
 
 				assert.Contains(t, errResp, "code", "error response should contain code field")
-				assert.Contains(t, errResp, "message", "error response should contain message field")
+				assert.Contains(t, errResp, "detail", "error response should contain message field")
 			},
 		},
 	}
@@ -327,8 +329,9 @@ func TestBalanceHandler_GetAllBalancesByAccountID(t *testing.T) {
 			handler := &BalanceHandler{Query: uc}
 
 			app := fiber.New()
-			app.Get("/test/:organization_id/:ledger_id/accounts/:account_id/balances",
-				func(c *fiber.Ctx) error {
+			app.Get(
+				"/test/:organization_id/:ledger_id/accounts/:account_id/balances",
+				func(c fiber.Ctx) error {
 					c.Locals("organization_id", orgID)
 					c.Locals("ledger_id", ledgerID)
 					c.Locals("account_id", accountID)
@@ -451,7 +454,7 @@ func TestBalanceHandler_GetBalancesByAlias(t *testing.T) {
 				require.NoError(t, err, "error response should be valid JSON")
 
 				assert.Contains(t, errResp, "code", "error response should contain code field")
-				assert.Contains(t, errResp, "message", "error response should contain message field")
+				assert.Contains(t, errResp, "detail", "error response should contain message field")
 			},
 		},
 	}
@@ -476,8 +479,9 @@ func TestBalanceHandler_GetBalancesByAlias(t *testing.T) {
 			handler := &BalanceHandler{Query: uc}
 
 			app := fiber.New()
-			app.Get("/test/:organization_id/:ledger_id/:alias",
-				func(c *fiber.Ctx) error {
+			app.Get(
+				"/test/:organization_id/:ledger_id/:alias",
+				func(c fiber.Ctx) error {
 					c.Locals("organization_id", orgID)
 					c.Locals("ledger_id", ledgerID)
 					return c.Next()
@@ -584,7 +588,7 @@ func TestBalanceHandler_GetBalanceByID(t *testing.T) {
 				require.NoError(t, err, "error response should be valid JSON")
 
 				assert.Contains(t, errResp, "code", "error response should contain code field")
-				assert.Contains(t, errResp, "message", "error response should contain message field")
+				assert.Contains(t, errResp, "detail", "error response should contain message field")
 			},
 		},
 	}
@@ -610,8 +614,9 @@ func TestBalanceHandler_GetBalanceByID(t *testing.T) {
 			handler := &BalanceHandler{Query: uc}
 
 			app := fiber.New()
-			app.Get("/test/:organization_id/:ledger_id/balances/:balance_id",
-				func(c *fiber.Ctx) error {
+			app.Get(
+				"/test/:organization_id/:ledger_id/balances/:balance_id",
+				func(c fiber.Ctx) error {
 					c.Locals("organization_id", orgID)
 					c.Locals("ledger_id", ledgerID)
 					c.Locals("balance_id", balanceID)
@@ -687,7 +692,7 @@ func TestBalanceHandler_DeleteBalanceByID(t *testing.T) {
 			},
 		},
 		{
-			name: "balance with non-zero funds returns 400 bad request",
+			name: "balance with non-zero funds returns 409 conflict",
 			setupMocks: func(balanceRepo *balance.MockRepository, orgID, ledgerID, balanceID uuid.UUID) {
 				// Test both Available and OnHold scenarios in subtests
 				// Balance found with non-zero amounts (cannot be deleted)
@@ -703,7 +708,7 @@ func TestBalanceHandler_DeleteBalanceByID(t *testing.T) {
 					Times(1)
 				// Delete should NOT be called
 			},
-			expectedStatus: 400,
+			expectedStatus: 409,
 			validateBody: func(t *testing.T, body []byte) {
 				var errResp map[string]any
 				err := json.Unmarshal(body, &errResp)
@@ -732,7 +737,7 @@ func TestBalanceHandler_DeleteBalanceByID(t *testing.T) {
 				require.NoError(t, err, "error response should be valid JSON")
 
 				assert.Contains(t, errResp, "code", "error response should contain code field")
-				assert.Contains(t, errResp, "message", "error response should contain message field")
+				assert.Contains(t, errResp, "detail", "error response should contain message field")
 			},
 		},
 	}
@@ -748,16 +753,29 @@ func TestBalanceHandler_DeleteBalanceByID(t *testing.T) {
 			balanceID := uuid.New()
 
 			mockBalanceRepo := balance.NewMockRepository(ctrl)
+			mockRedisRepo := redis.NewMockRedisRepository(ctrl)
+			// The delete path plants and releases/evicts balance delete markers via the
+			// honored-lock guard. Lenient expectations keep this a handler test.
+			mockRedisRepo.EXPECT().
+				SetNX(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+				Return(true, nil).
+				AnyTimes()
+			mockRedisRepo.EXPECT().
+				Del(gomock.Any(), gomock.Any()).
+				Return(nil).
+				AnyTimes()
 			tt.setupMocks(mockBalanceRepo, orgID, ledgerID, balanceID)
 
 			uc := &command.UseCase{
-				BalanceRepo: mockBalanceRepo,
+				BalanceRepo:          mockBalanceRepo,
+				TransactionRedisRepo: mockRedisRepo,
 			}
 			handler := &BalanceHandler{Command: uc}
 
 			app := fiber.New()
-			app.Delete("/test/:organization_id/:ledger_id/balances/:balance_id",
-				func(c *fiber.Ctx) error {
+			app.Delete(
+				"/test/:organization_id/:ledger_id/balances/:balance_id",
+				func(c fiber.Ctx) error {
 					c.Locals("organization_id", orgID)
 					c.Locals("ledger_id", ledgerID)
 					c.Locals("balance_id", balanceID)
@@ -883,7 +901,7 @@ func TestBalanceHandler_GetBalancesExternalByCode(t *testing.T) {
 				require.NoError(t, err, "error response should be valid JSON")
 
 				assert.Contains(t, errResp, "code", "error response should contain code field")
-				assert.Contains(t, errResp, "message", "error response should contain message field")
+				assert.Contains(t, errResp, "detail", "error response should contain message field")
 			},
 		},
 	}
@@ -908,8 +926,9 @@ func TestBalanceHandler_GetBalancesExternalByCode(t *testing.T) {
 			handler := &BalanceHandler{Query: uc}
 
 			app := fiber.New()
-			app.Get("/test/:organization_id/:ledger_id/accounts/external/:code/balances",
-				func(c *fiber.Ctx) error {
+			app.Get(
+				"/test/:organization_id/:ledger_id/accounts/external/:code/balances",
+				func(c fiber.Ctx) error {
 					c.Locals("organization_id", orgID)
 					c.Locals("ledger_id", ledgerID)
 					return c.Next()
@@ -1025,7 +1044,7 @@ func TestBalanceHandler_UpdateBalance(t *testing.T) {
 				require.NoError(t, err)
 
 				assert.Contains(t, errResp, "code", "error response should contain code")
-				assert.Contains(t, errResp, "message", "error response should contain message")
+				assert.Contains(t, errResp, "detail", "error response should contain message")
 			},
 		},
 		{
@@ -1059,7 +1078,7 @@ func TestBalanceHandler_UpdateBalance(t *testing.T) {
 				require.NoError(t, err)
 
 				assert.Contains(t, errResp, "code", "error response should contain code")
-				assert.Contains(t, errResp, "message", "error response should contain message")
+				assert.Contains(t, errResp, "detail", "error response should contain message")
 			},
 		},
 	}
@@ -1092,15 +1111,16 @@ func TestBalanceHandler_UpdateBalance(t *testing.T) {
 			}
 
 			app := fiber.New()
-			app.Patch("/test/:organization_id/:ledger_id/balances/:balance_id",
-				func(c *fiber.Ctx) error {
+			app.Patch(
+				"/test/:organization_id/:ledger_id/balances/:balance_id",
+				func(c fiber.Ctx) error {
 					c.Locals("organization_id", orgID)
 					c.Locals("ledger_id", ledgerID)
 					c.Locals("balance_id", balanceID)
 					return c.Next()
 				},
 				// Simulate WithBody middleware by calling handler directly with parsed payload
-				func(c *fiber.Ctx) error {
+				func(c fiber.Ctx) error {
 					return handler.UpdateBalance(tt.payload, c)
 				},
 			)
@@ -1219,15 +1239,15 @@ func TestBalanceHandler_CreateAdditionalBalance(t *testing.T) {
 				require.NoError(t, err)
 
 				assert.Contains(t, errResp, "code", "error response should contain code")
-				assert.Contains(t, errResp, "message", "error response should contain message")
+				assert.Contains(t, errResp, "detail", "error response should contain message")
 
-				message, ok := errResp["message"].(string)
+				message, ok := errResp["detail"].(string)
 				require.True(t, ok, "message should be a string")
 				assert.Contains(t, message, "already exists", "message should indicate duplicate")
 			},
 		},
 		{
-			name: "external account type returns 400 validation error",
+			name: "external account type returns 422 unprocessable error",
 			payload: &mmodel.CreateAdditionalBalance{
 				Key:            "new-key",
 				AllowSending:   testutils.Ptr(true),
@@ -1257,16 +1277,16 @@ func TestBalanceHandler_CreateAdditionalBalance(t *testing.T) {
 					}, nil).
 					Times(1)
 			},
-			expectedStatus: 400,
+			expectedStatus: 422,
 			validateBody: func(t *testing.T, body []byte) {
 				var errResp map[string]any
 				err := json.Unmarshal(body, &errResp)
 				require.NoError(t, err)
 
 				assert.Contains(t, errResp, "code", "error response should contain code")
-				assert.Contains(t, errResp, "message", "error response should contain message")
+				assert.Contains(t, errResp, "detail", "error response should contain message")
 
-				message, ok := errResp["message"].(string)
+				message, ok := errResp["detail"].(string)
 				require.True(t, ok, "message should be a string")
 				assert.Contains(t, message, "external", "message should indicate external account restriction")
 			},
@@ -1346,7 +1366,7 @@ func TestBalanceHandler_CreateAdditionalBalance(t *testing.T) {
 				require.NoError(t, err)
 
 				assert.Contains(t, errResp, "code", "error response should contain code")
-				assert.Contains(t, errResp, "message", "error response should contain message")
+				assert.Contains(t, errResp, "detail", "error response should contain message")
 			},
 		},
 	}
@@ -1372,15 +1392,16 @@ func TestBalanceHandler_CreateAdditionalBalance(t *testing.T) {
 			}
 
 			app := fiber.New()
-			app.Post("/test/:organization_id/:ledger_id/accounts/:account_id/balances",
-				func(c *fiber.Ctx) error {
+			app.Post(
+				"/test/:organization_id/:ledger_id/accounts/:account_id/balances",
+				func(c fiber.Ctx) error {
 					c.Locals("organization_id", orgID)
 					c.Locals("ledger_id", ledgerID)
 					c.Locals("account_id", accountID)
 					return c.Next()
 				},
 				// Simulate WithBody middleware by calling handler directly with parsed payload
-				func(c *fiber.Ctx) error {
+				func(c fiber.Ctx) error {
 					return handler.CreateAdditionalBalance(tt.payload, c)
 				},
 			)
@@ -1603,7 +1624,7 @@ func TestBalanceHandler_GetBalanceAtTimestamp(t *testing.T) {
 				require.NoError(t, err)
 
 				assert.Contains(t, errResp, "code", "error response should contain code field")
-				assert.Contains(t, errResp, "message", "error response should contain message field")
+				assert.Contains(t, errResp, "detail", "error response should contain message field")
 			},
 		},
 	}
@@ -1639,8 +1660,9 @@ func TestBalanceHandler_GetBalanceAtTimestamp(t *testing.T) {
 			handler := &BalanceHandler{Query: uc}
 
 			app := fiber.New()
-			app.Get("/test/:organization_id/:ledger_id/balances/:balance_id/history",
-				func(c *fiber.Ctx) error {
+			app.Get(
+				"/test/:organization_id/:ledger_id/balances/:balance_id/history",
+				func(c fiber.Ctx) error {
 					c.Locals("organization_id", orgID)
 					c.Locals("ledger_id", ledgerID)
 					c.Locals("balance_id", balanceID)
@@ -1818,7 +1840,7 @@ func TestBalanceHandler_GetAccountBalancesAtTimestamp(t *testing.T) {
 				require.NoError(t, err)
 
 				assert.Contains(t, errResp, "code", "error response should contain code field")
-				assert.Contains(t, errResp, "message", "error response should contain message field")
+				assert.Contains(t, errResp, "detail", "error response should contain message field")
 			},
 		},
 		{
@@ -1915,8 +1937,9 @@ func TestBalanceHandler_GetAccountBalancesAtTimestamp(t *testing.T) {
 			handler := &BalanceHandler{Query: uc}
 
 			app := fiber.New()
-			app.Get("/test/:organization_id/:ledger_id/accounts/:account_id/balances/history",
-				func(c *fiber.Ctx) error {
+			app.Get(
+				"/test/:organization_id/:ledger_id/accounts/:account_id/balances/history",
+				func(c fiber.Ctx) error {
 					c.Locals("organization_id", orgID)
 					c.Locals("ledger_id", ledgerID)
 					c.Locals("account_id", accountID)

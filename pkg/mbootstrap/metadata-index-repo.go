@@ -7,7 +7,7 @@ package mbootstrap
 import (
 	"context"
 
-	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
+	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
 )
 
 //go:generate go run go.uber.org/mock/mockgen@v0.6.0 --destination=metadata-index-repo_mock.go --package=mbootstrap . MetadataIndexRepository

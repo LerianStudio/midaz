@@ -101,12 +101,14 @@ By making a contribution to this project, I certify that:
     this project or the open source license(s) involved.
 ```
 
-Then you just add a line to every git commit message:
+To certify the DCO, add a sign-off line to every git commit message:
 
+```
 Signed-off-by: Joe Smith <joe.smith@example.com>
-Use your real name. Pseudonyms or anonymous contributions are not accepted.
+```
 
-If you set your user.name and user.email git configs, you can sign your commit automatically with git commit -s.
+* Use your real name. Pseudonyms or anonymous contributions are not accepted.
+* If you set your `user.name` and `user.email` git configs, you can sign your commit automatically with `git commit -s`.
 
 Following these guidelines helps keep Midaz welcoming and efficient for everyone.
 
@@ -114,11 +116,11 @@ Before sending a pull request, ensure that:
 
 - Fork the midaz repo on GitHub, clone it on your machine.
 - Create a feature or fix branch with your changes.
-- You are working against the latest source on the `main` branch.
+- You are working against the latest source on the `develop` branch (we follow GitFlow: PRs target `develop`).
 - Modify the source. Focus only on the specific change you are contributing.
 - Ensure local tests pass.
 - Commit to your fork using clear commit messages.
 - Send us a pull request, answering any default questions in the pull request interface.
 - Pay attention to any automated CI failures reported in the pull request, and stay involved in the conversation
-- Once you've pushed your commits to GitHub, make sure that your branch can be auto-merged (there are no merge conflicts). If not, on your computer, merge main into your branch, resolve any merge conflicts, make sure everything still runs correctly and passes all the tests, and then push up those changes.
+- Once you've pushed your commits to GitHub, make sure that your branch can be auto-merged (there are no merge conflicts). If not, on your computer, merge `develop` into your branch, resolve any merge conflicts, make sure everything still runs correctly and passes all the tests, and then push up those changes.
 - Once the change has been approved and merged, we will inform you in a comment.

@@ -5,85 +5,33 @@
 package in
 
 import (
-	"github.com/LerianStudio/lib-auth/v2/auth/middleware"
-	libHTTP "github.com/LerianStudio/lib-commons/v5/commons/net/http"
-	libLog "github.com/LerianStudio/lib-observability/log"
-	libObsMiddleware "github.com/LerianStudio/lib-observability/middleware"
-	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
-	_ "github.com/LerianStudio/midaz/v3/components/ledger/api"
-	"github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/postgres/assetrate"
-	"github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/postgres/operation"
-	"github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/postgres/transaction"
-	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
-	"github.com/LerianStudio/midaz/v3/pkg/mtransaction"
-	"github.com/LerianStudio/midaz/v3/pkg/net/http"
-	"github.com/gofiber/fiber/v2"
-	"github.com/gofiber/fiber/v2/middleware/cors"
-	fiberSwagger "github.com/swaggo/fiber-swagger"
+	"github.com/LerianStudio/lib-auth/v3/auth/middleware"
+	"github.com/danielgtaylor/huma/v2"
+	"github.com/gofiber/fiber/v3"
+
+	"github.com/LerianStudio/midaz/v4/pkg/net/http"
 )
 
-const midazName = "midaz"
+const (
+	midazName   = "midaz"
+	routingName = "routing"
+)
 
 // SettingsMaxPayloadSize defines the maximum payload size for settings endpoints (64KB).
 const SettingsMaxPayloadSize = 64 * 1024
 
-// NewRouter registers routes for the ledger component HTTP server.
-func NewRouter(lg libLog.Logger, tl *libOpentelemetry.Telemetry, auth *middleware.AuthClient, mdi *MetadataIndexHandler) *fiber.App {
-	f := fiber.New(fiber.Config{
-		DisableStartupMessage: true,
-		ErrorHandler: func(ctx *fiber.Ctx, err error) error {
-			return libHTTP.FiberErrorHandler(ctx, err)
-		},
-	})
-
-	tlMid := libObsMiddleware.NewTelemetryMiddleware(tl)
-
-	f.Use(tlMid.WithTelemetry(tl))
-	f.Use(cors.New())
-	f.Use(libObsMiddleware.WithHTTPLogging(libObsMiddleware.WithCustomLogger(lg)))
-	// Register metadata index routes
-	RegisterMetadataRoutesToApp(f, auth, mdi, nil)
-
-	// Health
-	f.Get("/health", libHTTP.Ping)
-
-	// Version
-	f.Get("/version", libHTTP.Version)
-
-	// Doc
-	f.Get("/swagger", func(c *fiber.Ctx) error {
-		return c.Redirect("/swagger/index.html", fiber.StatusMovedPermanently)
-	})
-	f.Get("/swagger/*", WithSwaggerEnvConfig(), fiberSwagger.FiberWrapHandler(
-		fiberSwagger.InstanceName("swagger"),
-	))
-
-	f.Use(tlMid.EndTracingSpans)
-
-	return f
-}
-
 // RegisterMetadataRoutesToApp registers ledger routes (metadata indexes) to an existing Fiber app.
 // This is used by the unified ledger server to consolidate all routes in a single port.
-func RegisterMetadataRoutesToApp(f fiber.Router, auth *middleware.AuthClient, mdi *MetadataIndexHandler, routeOptions *http.ProtectedRouteOptions) {
-	// Metadata Indexes
-	f.Post("/v1/settings/metadata-indexes/entities/:entity_name",
-		protectedMidaz(
-			auth, "settings", "post", routeOptions,
-			http.WithBody(new(mmodel.CreateMetadataIndexInput), mdi.CreateMetadataIndex),
-		)...)
-
-	f.Get("/v1/settings/metadata-indexes",
-		protectedMidaz(
-			auth, "settings", "get", routeOptions,
-			mdi.GetAllMetadataIndexes,
-		)...)
-
-	f.Delete("/v1/settings/metadata-indexes/entities/:entity_name/key/:index_key",
-		protectedMidaz(
-			auth, "settings", "delete", routeOptions,
-			mdi.DeleteMetadataIndex,
-		)...)
+//
+// Wave-1 MIGRATED TO HUMA: the metadata-index routes no longer register inline here.
+// Their terminal handlers live on the shared Huma API and their auth + tenant
+// middleware chain (authz resource "settings", NOT "metadata-indexes") is attached on
+// the /v1 group by RegisterMetadataIndexRoutesToApp, called from the unified server's
+// humaMount. The (resource, verb) authz tuples are preserved byte-for-byte there.
+//
+// The parameters are retained on this signature (blanked for now) because
+// CreateRouteRegistrar and the contract-spec test still construct and pass them.
+func RegisterMetadataRoutesToApp(_ fiber.Router, _ *middleware.AuthClient, _ *MetadataIndexHandler, _ *http.ProtectedRouteOptions) {
 }
 
 // CreateRouteRegistrar returns a function that registers ledger routes to an existing Fiber app.
@@ -97,128 +45,371 @@ func CreateRouteRegistrar(auth *middleware.AuthClient, mdi *MetadataIndexHandler
 // RegisterOnboardingRoutesToApp registers onboarding routes to an existing Fiber app.
 // This is used by the unified ledger server to consolidate all routes in a single port.
 // The app should already have middleware configured (telemetry, cors, logging).
-func RegisterOnboardingRoutesToApp(f fiber.Router, auth *middleware.AuthClient, ah *AccountHandler, ph *PortfolioHandler, lh *LedgerHandler, ih *AssetHandler, oh *OrganizationHandler, sh *SegmentHandler, ath *AccountTypeHandler, routeOptions *http.ProtectedRouteOptions) {
-	// Organizations
-	f.Post("/v1/organizations", protectedMidaz(auth, "organizations", "post", routeOptions, http.WithBody(new(mmodel.CreateOrganizationInput), oh.CreateOrganization))...)
-	f.Patch("/v1/organizations/:id", protectedMidaz(auth, "organizations", "patch", routeOptions, http.ParseUUIDPathParameters("organization"), http.WithBody(new(mmodel.UpdateOrganizationInput), oh.UpdateOrganization))...)
-	f.Get("/v1/organizations", protectedMidaz(auth, "organizations", "get", routeOptions, oh.GetAllOrganizations)...)
-	f.Get("/v1/organizations/:id", protectedMidaz(auth, "organizations", "get", routeOptions, http.ParseUUIDPathParameters("organization"), oh.GetOrganizationByID)...)
-	f.Delete("/v1/organizations/:id", protectedMidaz(auth, "organizations", "delete", routeOptions, http.ParseUUIDPathParameters("organization"), oh.DeleteOrganizationByID)...)
-	f.Head("/v1/organizations/metrics/count", protectedMidaz(auth, "organizations", "head", routeOptions, oh.CountOrganizations)...)
-
-	// Ledgers
-	f.Post("/v1/organizations/:organization_id/ledgers", protectedMidaz(auth, "ledgers", "post", routeOptions, http.ParseUUIDPathParameters("ledger"), http.WithBody(new(mmodel.CreateLedgerInput), lh.CreateLedger))...)
-	f.Patch("/v1/organizations/:organization_id/ledgers/:ledger_id", protectedMidaz(auth, "ledgers", "patch", routeOptions, http.ParseUUIDPathParameters("ledger"), http.WithBody(new(mmodel.UpdateLedgerInput), lh.UpdateLedger))...)
-	f.Get("/v1/organizations/:organization_id/ledgers", protectedMidaz(auth, "ledgers", "get", routeOptions, http.ParseUUIDPathParameters("ledger"), lh.GetAllLedgers)...)
-	f.Get("/v1/organizations/:organization_id/ledgers/:ledger_id", protectedMidaz(auth, "ledgers", "get", routeOptions, http.ParseUUIDPathParameters("ledger"), lh.GetLedgerByID)...)
-	f.Get("/v1/organizations/:organization_id/ledgers/:ledger_id/settings", protectedMidaz(auth, "ledgers", "get", routeOptions, http.ParseUUIDPathParameters("ledger"), lh.GetLedgerSettings)...)
-	f.Patch("/v1/organizations/:organization_id/ledgers/:ledger_id/settings", protectedMidaz(auth, "ledgers", "patch", routeOptions, http.ParseUUIDPathParameters("ledger"), http.WithBodyLimit(SettingsMaxPayloadSize), http.WithBody(new(map[string]any), lh.UpdateLedgerSettings))...)
-	f.Delete("/v1/organizations/:organization_id/ledgers/:ledger_id", protectedMidaz(auth, "ledgers", "delete", routeOptions, http.ParseUUIDPathParameters("ledger"), lh.DeleteLedgerByID)...)
-	f.Head("/v1/organizations/:organization_id/ledgers/metrics/count", protectedMidaz(auth, "ledgers", "head", routeOptions, http.ParseUUIDPathParameters("ledger"), lh.CountLedgers)...)
-
-	// Assets
-	f.Post("/v1/organizations/:organization_id/ledgers/:ledger_id/assets", protectedMidaz(auth, "assets", "post", routeOptions, http.ParseUUIDPathParameters("asset"), http.WithBody(new(mmodel.CreateAssetInput), ih.CreateAsset))...)
-	f.Patch("/v1/organizations/:organization_id/ledgers/:ledger_id/assets/:id", protectedMidaz(auth, "assets", "patch", routeOptions, http.ParseUUIDPathParameters("asset"), http.WithBody(new(mmodel.UpdateAssetInput), ih.UpdateAsset))...)
-	f.Get("/v1/organizations/:organization_id/ledgers/:ledger_id/assets", protectedMidaz(auth, "assets", "get", routeOptions, http.ParseUUIDPathParameters("asset"), ih.GetAllAssets)...)
-	f.Get("/v1/organizations/:organization_id/ledgers/:ledger_id/assets/:id", protectedMidaz(auth, "assets", "get", routeOptions, http.ParseUUIDPathParameters("asset"), ih.GetAssetByID)...)
-	f.Delete("/v1/organizations/:organization_id/ledgers/:ledger_id/assets/:id", protectedMidaz(auth, "assets", "delete", routeOptions, http.ParseUUIDPathParameters("asset"), ih.DeleteAssetByID)...)
-	f.Head("/v1/organizations/:organization_id/ledgers/:ledger_id/assets/metrics/count", protectedMidaz(auth, "assets", "head", routeOptions, http.ParseUUIDPathParameters("asset"), ih.CountAssets)...)
-
-	// Portfolios
-	f.Post("/v1/organizations/:organization_id/ledgers/:ledger_id/portfolios", protectedMidaz(auth, "portfolios", "post", routeOptions, http.ParseUUIDPathParameters("portfolio"), http.WithBody(new(mmodel.CreatePortfolioInput), ph.CreatePortfolio))...)
-	f.Patch("/v1/organizations/:organization_id/ledgers/:ledger_id/portfolios/:id", protectedMidaz(auth, "portfolios", "patch", routeOptions, http.ParseUUIDPathParameters("portfolio"), http.WithBody(new(mmodel.UpdatePortfolioInput), ph.UpdatePortfolio))...)
-	f.Get("/v1/organizations/:organization_id/ledgers/:ledger_id/portfolios", protectedMidaz(auth, "portfolios", "get", routeOptions, http.ParseUUIDPathParameters("portfolio"), ph.GetAllPortfolios)...)
-	f.Get("/v1/organizations/:organization_id/ledgers/:ledger_id/portfolios/:id", protectedMidaz(auth, "portfolios", "get", routeOptions, http.ParseUUIDPathParameters("portfolio"), ph.GetPortfolioByID)...)
-	f.Delete("/v1/organizations/:organization_id/ledgers/:ledger_id/portfolios/:id", protectedMidaz(auth, "portfolios", "delete", routeOptions, http.ParseUUIDPathParameters("portfolio"), ph.DeletePortfolioByID)...)
-	f.Head("/v1/organizations/:organization_id/ledgers/:ledger_id/portfolios/metrics/count", protectedMidaz(auth, "portfolios", "head", routeOptions, http.ParseUUIDPathParameters("portfolio"), ph.CountPortfolios)...)
-
-	// Segment
-	f.Post("/v1/organizations/:organization_id/ledgers/:ledger_id/segments", protectedMidaz(auth, "segments", "post", routeOptions, http.ParseUUIDPathParameters("segment"), http.WithBody(new(mmodel.CreateSegmentInput), sh.CreateSegment))...)
-	f.Patch("/v1/organizations/:organization_id/ledgers/:ledger_id/segments/:id", protectedMidaz(auth, "segments", "patch", routeOptions, http.ParseUUIDPathParameters("segment"), http.WithBody(new(mmodel.UpdateSegmentInput), sh.UpdateSegment))...)
-	f.Get("/v1/organizations/:organization_id/ledgers/:ledger_id/segments", protectedMidaz(auth, "segments", "get", routeOptions, http.ParseUUIDPathParameters("segment"), sh.GetAllSegments)...)
-	f.Get("/v1/organizations/:organization_id/ledgers/:ledger_id/segments/:id", protectedMidaz(auth, "segments", "get", routeOptions, http.ParseUUIDPathParameters("segment"), sh.GetSegmentByID)...)
-	f.Delete("/v1/organizations/:organization_id/ledgers/:ledger_id/segments/:id", protectedMidaz(auth, "segments", "delete", routeOptions, http.ParseUUIDPathParameters("segment"), sh.DeleteSegmentByID)...)
-	f.Head("/v1/organizations/:organization_id/ledgers/:ledger_id/segments/metrics/count", protectedMidaz(auth, "segments", "head", routeOptions, http.ParseUUIDPathParameters("segment"), sh.CountSegments)...)
-
-	// Accounts
-	f.Post("/v1/organizations/:organization_id/ledgers/:ledger_id/accounts", protectedMidaz(auth, "accounts", "post", routeOptions, http.ParseUUIDPathParameters("account"), http.WithBody(new(mmodel.CreateAccountInput), ah.CreateAccount))...)
-	f.Patch("/v1/organizations/:organization_id/ledgers/:ledger_id/accounts/:id", protectedMidaz(auth, "accounts", "patch", routeOptions, http.ParseUUIDPathParameters("account"), http.WithBody(new(mmodel.UpdateAccountInput), ah.UpdateAccount))...)
-	f.Get("/v1/organizations/:organization_id/ledgers/:ledger_id/accounts", protectedMidaz(auth, "accounts", "get", routeOptions, http.ParseUUIDPathParameters("account"), ah.GetAllAccounts)...)
-	f.Get("/v1/organizations/:organization_id/ledgers/:ledger_id/accounts/:id", protectedMidaz(auth, "accounts", "get", routeOptions, http.ParseUUIDPathParameters("account"), ah.GetAccountByID)...)
-	f.Get("/v1/organizations/:organization_id/ledgers/:ledger_id/accounts/alias/:alias", protectedMidaz(auth, "accounts", "get", routeOptions, http.ParseUUIDPathParameters("account"), ah.GetAccountByAlias)...)
-	f.Get("/v1/organizations/:organization_id/ledgers/:ledger_id/accounts/external/:code", protectedMidaz(auth, "accounts", "get", routeOptions, http.ParseUUIDPathParameters("account"), ah.GetAccountExternalByCode)...)
-	f.Delete("/v1/organizations/:organization_id/ledgers/:ledger_id/accounts/:id", protectedMidaz(auth, "accounts", "delete", routeOptions, http.ParseUUIDPathParameters("account"), ah.DeleteAccountByID)...)
-	f.Head("/v1/organizations/:organization_id/ledgers/:ledger_id/accounts/metrics/count", protectedMidaz(auth, "accounts", "head", routeOptions, http.ParseUUIDPathParameters("account"), ah.CountAccounts)...)
-
-	// Account Types
-	f.Post("/v1/organizations/:organization_id/ledgers/:ledger_id/account-types", protectedMidaz(auth, "account-types", "post", routeOptions, http.ParseUUIDPathParameters("account_type"), http.WithBody(new(mmodel.CreateAccountTypeInput), ath.CreateAccountType))...)
-	f.Patch("/v1/organizations/:organization_id/ledgers/:ledger_id/account-types/:id", protectedMidaz(auth, "account-types", "patch", routeOptions, http.ParseUUIDPathParameters("account_type"), http.WithBody(new(mmodel.UpdateAccountTypeInput), ath.UpdateAccountType))...)
-	f.Get("/v1/organizations/:organization_id/ledgers/:ledger_id/account-types/:id", protectedMidaz(auth, "account-types", "get", routeOptions, http.ParseUUIDPathParameters("account_type"), ath.GetAccountTypeByID)...)
-	f.Get("/v1/organizations/:organization_id/ledgers/:ledger_id/account-types", protectedMidaz(auth, "account-types", "get", routeOptions, http.ParseUUIDPathParameters("account_type"), ath.GetAllAccountTypes)...)
-	f.Delete("/v1/organizations/:organization_id/ledgers/:ledger_id/account-types/:id", protectedMidaz(auth, "account-types", "delete", routeOptions, http.ParseUUIDPathParameters("account_type"), ath.DeleteAccountTypeByID)...)
+//
+// Wave-1 MIGRATED TO HUMA: organizations, ledgers, portfolios, segments, accounts,
+// and account-types no longer register inline here. Their terminal handlers live on
+// the shared Huma API and their auth + tenant + ParseUUIDPathParameters middleware
+// chains are attached on the /v1 group by the per-resource RegisterXxxRoutesToApp
+// wrappers (RegisterOrganizationRoutesToApp, RegisterLedgerRoutesToApp,
+// RegisterPortfolioRoutesToApp, RegisterSegmentRoutesToApp, RegisterAccountRoutesToApp,
+// RegisterAccountTypeRoutesToApp), all called from the unified server's humaMount.
+// The (resource, verb) authz tuples are preserved byte-for-byte in those wrappers.
+//
+// The handler parameters are retained on this signature (blanked for now) because the
+// unified server and contract-spec test still construct and pass them, and the
+// non-migrated Wave 3/4 onboarding routes will re-attach here as they land.
+func RegisterOnboardingRoutesToApp(_ fiber.Router, _ *middleware.AuthClient, _ *AccountHandler, _ *PortfolioHandler, _ *LedgerHandler, _ *OrganizationHandler, _ *SegmentHandler, _ *AccountTypeHandler, _ *http.ProtectedRouteOptions) {
 }
 
-// RegisterTransactionRoutesToApp registers transaction routes to an existing Fiber app.
-// This is used by the unified ledger server to consolidate all routes in a single port.
-// The app should already have middleware configured (telemetry, cors, logging).
-func RegisterTransactionRoutesToApp(f fiber.Router, auth *middleware.AuthClient, th *TransactionHandler, oh *OperationHandler, ah *AssetRateHandler, bh *BalanceHandler, orh *OperationRouteHandler, trh *TransactionRouteHandler, routeOptions *http.ProtectedRouteOptions) {
-	// Transactions
-	f.Post("/v1/organizations/:organization_id/ledgers/:ledger_id/transactions/dsl", protectedMidaz(auth, "transactions", "post", routeOptions, http.ParseUUIDPathParameters("transaction"), th.CreateTransactionDSL)...)
-	f.Post("/v1/organizations/:organization_id/ledgers/:ledger_id/transactions/json", protectedMidaz(auth, "transactions", "post", routeOptions, http.ParseUUIDPathParameters("transaction"), http.WithBody(new(mtransaction.CreateTransactionInput), th.CreateTransactionJSON))...)
-	f.Post("/v1/organizations/:organization_id/ledgers/:ledger_id/transactions/inflow", protectedMidaz(auth, "transactions", "post", routeOptions, http.ParseUUIDPathParameters("transaction"), http.WithBody(new(mtransaction.CreateTransactionInflowInput), th.CreateTransactionInflow))...)
-	f.Post("/v1/organizations/:organization_id/ledgers/:ledger_id/transactions/outflow", protectedMidaz(auth, "transactions", "post", routeOptions, http.ParseUUIDPathParameters("transaction"), http.WithBody(new(mtransaction.CreateTransactionOutflowInput), th.CreateTransactionOutflow))...)
-	f.Post("/v1/organizations/:organization_id/ledgers/:ledger_id/transactions/annotation", protectedMidaz(auth, "transactions", "post", routeOptions, http.ParseUUIDPathParameters("transaction"), http.WithBody(new(mtransaction.CreateTransactionInput), th.CreateTransactionAnnotation))...)
-	f.Post("/v1/organizations/:organization_id/ledgers/:ledger_id/transactions/block", protectedMidaz(auth, "transactions", "post", routeOptions, http.ParseUUIDPathParameters("transaction"), http.WithBody(new(mtransaction.CreateTransactionInput), th.CreateTransactionBlock))...)
-	f.Post("/v1/organizations/:organization_id/ledgers/:ledger_id/transactions/unblock", protectedMidaz(auth, "transactions", "post", routeOptions, http.ParseUUIDPathParameters("transaction"), http.WithBody(new(mtransaction.CreateTransactionInput), th.CreateTransactionUnblock))...)
+// RegisterAssetRoutesToApp wires the Huma-migrated asset surface onto the /v1
+// contract. See registerAssetRoutesToApp for what it attaches.
+func RegisterAssetRoutesToApp(group fiber.Router, api huma.API, auth *middleware.AuthClient, ih *AssetHandler, routeOptions *http.ProtectedRouteOptions) {
+	registerAssetRoutesToApp(group, api, auth, ih, routeOptions, routeOpSuffixV1)
+}
 
-	f.Post("/v1/organizations/:organization_id/ledgers/:ledger_id/transactions/:transaction_id/commit", protectedMidaz(auth, "transactions", "post", routeOptions, http.ParseUUIDPathParameters("transaction"), th.CommitTransaction)...)
-	f.Post("/v1/organizations/:organization_id/ledgers/:ledger_id/transactions/:transaction_id/cancel", protectedMidaz(auth, "transactions", "post", routeOptions, http.ParseUUIDPathParameters("transaction"), th.CancelTransaction)...)
-	f.Post("/v1/organizations/:organization_id/ledgers/:ledger_id/transactions/:transaction_id/revert", protectedMidaz(auth, "transactions", "post", routeOptions, http.ParseUUIDPathParameters("transaction"), th.RevertTransaction)...)
+// RegisterAssetV2RoutesToApp wires the same asset surface onto the /v2 contract: same paths,
+// same handlers, same authz tuples and tenant chain, differing only in the operation IDs the
+// contract publishes. It is additive — /v1 keeps serving assets in parallel — and introduces
+// no new policy surface.
+func RegisterAssetV2RoutesToApp(group fiber.Router, api huma.API, auth *middleware.AuthClient, ih *AssetHandler, routeOptions *http.ProtectedRouteOptions) {
+	registerAssetRoutesToApp(group, api, auth, ih, routeOptions, routeOpSuffixV2)
+}
 
-	f.Patch("/v1/organizations/:organization_id/ledgers/:ledger_id/transactions/:transaction_id", protectedMidaz(auth, "transactions", "patch", routeOptions, http.ParseUUIDPathParameters("transaction"), http.WithBody(new(transaction.UpdateTransactionInput), th.UpdateTransaction))...)
+// registerAssetRoutesToApp is the single description of the asset route surface, shared by
+// every versioned contract that serves it. For each of the six ops it attaches the Fiber auth
+// chain — auth.Authorize("midaz","assets",verb) + tenant PostAuthMiddlewares +
+// ParseUUIDPathParameters("asset") — as MIDDLEWARE ONLY (no terminal) on the VERSIONED GROUP
+// with GROUP-RELATIVE paths, then registers the Huma terminals via RegisterAssetRoutes on the
+// SAME group's Huma API. This preserves the pre-Huma ("midaz","assets",verb) authz tuples and
+// tenant resolution BYTE-FOR-BYTE on whichever version group it is mounted on; no asset route
+// becomes public.
+//
+// opSuffix distinguishes the operation IDs one version group publishes from another's — see
+// routeOpSuffixV1. Nothing else varies between contracts, so a change to the surface reaches
+// every version it is mounted on.
+func registerAssetRoutesToApp(group fiber.Router, api huma.API, auth *middleware.AuthClient, ih *AssetHandler, routeOptions *http.ProtectedRouteOptions, opSuffix string) {
+	const (
+		listPath  = "/organizations/:organization_id/ledgers/:ledger_id/assets"
+		idPath    = listPath + "/:id"
+		countPath = listPath + "/metrics/count"
+	)
 
-	f.Head("/v1/organizations/:organization_id/ledgers/:ledger_id/transactions/metrics/count", protectedMidaz(auth, "transactions", "head", routeOptions, http.ParseUUIDPathParameters("transaction"), th.CountTransactionsByFilters)...)
+	parse := http.ParseUUIDPathParameters("asset")
 
-	f.Get("/v1/organizations/:organization_id/ledgers/:ledger_id/transactions/:transaction_id", protectedMidaz(auth, "transactions", "get", routeOptions, http.ParseUUIDPathParameters("transaction"), th.GetTransaction)...)
-	f.Get("/v1/organizations/:organization_id/ledgers/:ledger_id/transactions", protectedMidaz(auth, "transactions", "get", routeOptions, http.ParseUUIDPathParameters("transaction"), th.GetAllTransactions)...)
+	routePost(group, listPath, protectedMidaz(auth, "assets", "post", routeOptions, parse))
+	routePatch(group, idPath, protectedMidaz(auth, "assets", "patch", routeOptions, parse))
+	routeGet(group, listPath, protectedMidaz(auth, "assets", "get", routeOptions, parse))
+	routeGet(group, idPath, protectedMidaz(auth, "assets", "get", routeOptions, parse))
+	routeDelete(group, idPath, protectedMidaz(auth, "assets", "delete", routeOptions, parse))
+	routeHead(group, countPath, protectedMidaz(auth, "assets", "head", routeOptions, parse))
 
-	// Operations
-	f.Get("/v1/organizations/:organization_id/ledgers/:ledger_id/accounts/:account_id/operations", protectedMidaz(auth, "operations", "get", routeOptions, http.ParseUUIDPathParameters("operation"), oh.GetAllOperationsByAccount)...)
-	f.Get("/v1/organizations/:organization_id/ledgers/:ledger_id/accounts/:account_id/operations/:operation_id", protectedMidaz(auth, "operations", "get", routeOptions, http.ParseUUIDPathParameters("operation"), oh.GetOperationByAccount)...)
-	f.Patch("/v1/organizations/:organization_id/ledgers/:ledger_id/transactions/:transaction_id/operations/:operation_id", protectedMidaz(auth, "operations", "patch", routeOptions, http.ParseUUIDPathParameters("operation"), http.WithBody(new(operation.UpdateOperationInput), oh.UpdateOperation))...)
+	RegisterAssetRoutes(api, ih, opSuffix)
+}
 
-	// Asset-rate
-	f.Put("/v1/organizations/:organization_id/ledgers/:ledger_id/asset-rates", protectedMidaz(auth, "asset-rates", "put", routeOptions, http.ParseUUIDPathParameters("asset-rate"), http.WithBody(new(assetrate.CreateAssetRateInput), ah.CreateOrUpdateAssetRate))...)
-	f.Get("/v1/organizations/:organization_id/ledgers/:ledger_id/asset-rates/:external_id", protectedMidaz(auth, "asset-rates", "get", routeOptions, http.ParseUUIDPathParameters("asset-rate"), ah.GetAssetRateByExternalID)...)
-	f.Get("/v1/organizations/:organization_id/ledgers/:ledger_id/asset-rates/from/:asset_code", protectedMidaz(auth, "asset-rates", "get", routeOptions, http.ParseUUIDPathParameters("asset-rate"), ah.GetAllAssetRatesByAssetCode)...)
+// RegisterBalanceRoutesToApp wires the Huma-migrated balance surface onto the /v1
+// contract. See registerBalanceRoutesToApp for what it attaches.
+func RegisterBalanceRoutesToApp(group fiber.Router, api huma.API, auth *middleware.AuthClient, bh *BalanceHandler, routeOptions *http.ProtectedRouteOptions) {
+	registerBalanceRoutesToApp(group, api, auth, bh, routeOptions, routeOpSuffixV1)
+}
 
-	// Balance
-	f.Patch("/v1/organizations/:organization_id/ledgers/:ledger_id/balances/:balance_id", protectedMidaz(auth, "balances", "patch", routeOptions, http.ParseUUIDPathParameters("balance"), http.WithBody(new(mmodel.UpdateBalance), bh.UpdateBalance))...)
-	f.Delete("/v1/organizations/:organization_id/ledgers/:ledger_id/balances/:balance_id", protectedMidaz(auth, "balances", "delete", routeOptions, http.ParseUUIDPathParameters("balance"), bh.DeleteBalanceByID)...)
-	f.Get("/v1/organizations/:organization_id/ledgers/:ledger_id/balances", protectedMidaz(auth, "balances", "get", routeOptions, http.ParseUUIDPathParameters("balance"), bh.GetAllBalances)...)
-	f.Get("/v1/organizations/:organization_id/ledgers/:ledger_id/balances/:balance_id", protectedMidaz(auth, "balances", "get", routeOptions, http.ParseUUIDPathParameters("balance"), bh.GetBalanceByID)...)
-	f.Get("/v1/organizations/:organization_id/ledgers/:ledger_id/balances/:balance_id/history", protectedMidaz(auth, "balances", "get", routeOptions, http.ParseUUIDPathParameters("balance"), bh.GetBalanceAtTimestamp)...)
-	f.Get("/v1/organizations/:organization_id/ledgers/:ledger_id/accounts/:account_id/balances", protectedMidaz(auth, "balances", "get", routeOptions, http.ParseUUIDPathParameters("balance"), bh.GetAllBalancesByAccountID)...)
-	f.Get("/v1/organizations/:organization_id/ledgers/:ledger_id/accounts/:account_id/balances/history", protectedMidaz(auth, "balances", "get", routeOptions, http.ParseUUIDPathParameters("balance"), bh.GetAccountBalancesAtTimestamp)...)
-	f.Get("/v1/organizations/:organization_id/ledgers/:ledger_id/accounts/alias/:alias/balances", protectedMidaz(auth, "balances", "get", routeOptions, http.ParseUUIDPathParameters("balance"), bh.GetBalancesByAlias)...)
-	f.Get("/v1/organizations/:organization_id/ledgers/:ledger_id/accounts/external/:code/balances", protectedMidaz(auth, "balances", "get", routeOptions, http.ParseUUIDPathParameters("balance"), bh.GetBalancesExternalByCode)...)
-	f.Post("/v1/organizations/:organization_id/ledgers/:ledger_id/accounts/:account_id/balances", protectedMidaz(auth, "balances", "post", routeOptions, http.ParseUUIDPathParameters("balance"), http.WithBody(new(mmodel.CreateAdditionalBalance), bh.CreateAdditionalBalance))...)
+// RegisterBalanceV2RoutesToApp wires the same balance surface onto the /v2 contract: same
+// paths, same handlers, same authz tuples and tenant chain, differing only in the operation
+// IDs the contract publishes. It is additive — /v1 keeps serving balances in parallel — and
+// introduces no new policy surface.
+func RegisterBalanceV2RoutesToApp(group fiber.Router, api huma.API, auth *middleware.AuthClient, bh *BalanceHandler, routeOptions *http.ProtectedRouteOptions) {
+	registerBalanceRoutesToApp(group, api, auth, bh, routeOptions, routeOpSuffixV2)
+}
 
-	// Operation-route
-	f.Post("/v1/organizations/:organization_id/ledgers/:ledger_id/operation-routes", protectedMidaz(auth, "operation-routes", "post", routeOptions, http.ParseUUIDPathParameters("operation_route"), http.WithBody(new(mmodel.CreateOperationRouteInput), orh.CreateOperationRoute))...)
-	f.Get("/v1/organizations/:organization_id/ledgers/:ledger_id/operation-routes/:operation_route_id", protectedMidaz(auth, "operation-routes", "get", routeOptions, http.ParseUUIDPathParameters("operation_route"), orh.GetOperationRouteByID)...)
-	f.Patch("/v1/organizations/:organization_id/ledgers/:ledger_id/operation-routes/:operation_route_id", protectedMidaz(auth, "operation-routes", "patch", routeOptions, http.ParseUUIDPathParameters("operation_route"), http.WithBody(new(mmodel.UpdateOperationRouteInput), orh.UpdateOperationRoute))...)
-	f.Delete("/v1/organizations/:organization_id/ledgers/:ledger_id/operation-routes/:operation_route_id", protectedMidaz(auth, "operation-routes", "delete", routeOptions, http.ParseUUIDPathParameters("operation_route"), orh.DeleteOperationRouteByID)...)
-	f.Get("/v1/organizations/:organization_id/ledgers/:ledger_id/operation-routes", protectedMidaz(auth, "operation-routes", "get", routeOptions, http.ParseUUIDPathParameters("operation_route"), orh.GetAllOperationRoutes)...)
+// registerBalanceRoutesToApp is the single description of the balance route surface, shared by
+// every versioned contract that serves it. It attaches the Fiber auth chain —
+// auth.Authorize("midaz","balances",verb) + tenant PostAuthMiddlewares +
+// ParseUUIDPathParameters("balance") — as MIDDLEWARE ONLY (group-relative paths, no terminal)
+// on the VERSIONED GROUP, then registers the Huma terminals via RegisterBalanceRoutes on the
+// SAME group's Huma API. The alias/code path segments are NOT UUIDs;
+// ParseUUIDPathParameters("balance") only validates org/ledger/balance_id/account_id, so those
+// routes pass alias/code through raw (identical to the pre-Huma Fiber path). This preserves the
+// ("midaz","balances",verb) authz tuples and tenant resolution BYTE-FOR-BYTE on whichever
+// version group it is mounted on.
+//
+// opSuffix distinguishes the operation IDs one version group publishes from another's — see
+// routeOpSuffixV1. Nothing else varies between contracts, so a change to the surface reaches
+// every version it is mounted on.
+func registerBalanceRoutesToApp(group fiber.Router, api huma.API, auth *middleware.AuthClient, bh *BalanceHandler, routeOptions *http.ProtectedRouteOptions, opSuffix string) {
+	const (
+		orgLedger      = "/organizations/:organization_id/ledgers/:ledger_id"
+		balancesPath   = orgLedger + "/balances"
+		balanceIDPath  = balancesPath + "/:balance_id"
+		balanceHistory = balanceIDPath + "/history"
+		acctBalances   = orgLedger + "/accounts/:account_id/balances"
+		acctHistory    = acctBalances + "/history"
+		aliasBalances  = orgLedger + "/accounts/alias/:alias/balances"
+		codeBalances   = orgLedger + "/accounts/external/:code/balances"
+	)
 
-	// Transaction-route
-	f.Post("/v1/organizations/:organization_id/ledgers/:ledger_id/transaction-routes", protectedMidaz(auth, "transaction-routes", "post", routeOptions, http.ParseUUIDPathParameters("transaction_route"), http.WithBody(new(mmodel.CreateTransactionRouteInput), trh.CreateTransactionRoute))...)
-	f.Get("/v1/organizations/:organization_id/ledgers/:ledger_id/transaction-routes/:transaction_route_id", protectedMidaz(auth, "transaction-routes", "get", routeOptions, http.ParseUUIDPathParameters("transaction_route"), trh.GetTransactionRouteByID)...)
-	f.Patch("/v1/organizations/:organization_id/ledgers/:ledger_id/transaction-routes/:transaction_route_id", protectedMidaz(auth, "transaction-routes", "patch", routeOptions, http.ParseUUIDPathParameters("transaction_route"), http.WithBody(new(mmodel.UpdateTransactionRouteInput), trh.UpdateTransactionRoute))...)
-	f.Delete("/v1/organizations/:organization_id/ledgers/:ledger_id/transaction-routes/:transaction_route_id", protectedMidaz(auth, "transaction-routes", "delete", routeOptions, http.ParseUUIDPathParameters("transaction_route"), trh.DeleteTransactionRouteByID)...)
-	f.Get("/v1/organizations/:organization_id/ledgers/:ledger_id/transaction-routes", protectedMidaz(auth, "transaction-routes", "get", routeOptions, http.ParseUUIDPathParameters("transaction_route"), trh.GetAllTransactionRoutes)...)
+	parse := http.ParseUUIDPathParameters("balance")
+
+	routeGet(group, balancesPath, protectedMidaz(auth, "balances", "get", routeOptions, parse))
+	routeGet(group, balanceIDPath, protectedMidaz(auth, "balances", "get", routeOptions, parse))
+	routePatch(group, balanceIDPath, protectedMidaz(auth, "balances", "patch", routeOptions, parse))
+	routeDelete(group, balanceIDPath, protectedMidaz(auth, "balances", "delete", routeOptions, parse))
+	routeGet(group, balanceHistory, protectedMidaz(auth, "balances", "get", routeOptions, parse))
+	routeGet(group, acctBalances, protectedMidaz(auth, "balances", "get", routeOptions, parse))
+	routePost(group, acctBalances, protectedMidaz(auth, "balances", "post", routeOptions, parse))
+	routeGet(group, acctHistory, protectedMidaz(auth, "balances", "get", routeOptions, parse))
+	routeGet(group, aliasBalances, protectedMidaz(auth, "balances", "get", routeOptions, parse))
+	routeGet(group, codeBalances, protectedMidaz(auth, "balances", "get", routeOptions, parse))
+
+	RegisterBalanceRoutes(api, bh, opSuffix)
+}
+
+// RegisterOperationRoutesToApp wires the Huma-migrated operation surface onto the /v1
+// contract. See registerOperationRoutesToApp for what it attaches.
+func RegisterOperationRoutesToApp(group fiber.Router, api huma.API, auth *middleware.AuthClient, oh *OperationHandler, routeOptions *http.ProtectedRouteOptions) {
+	registerOperationRoutesToApp(group, api, auth, oh, routeOptions, routeOpSuffixV1)
+}
+
+// RegisterOperationV2RoutesToApp wires the same operation surface onto the /v2 contract: same
+// paths, same handlers, same authz tuples and tenant chain, differing only in the operation IDs
+// the contract publishes. It is additive — /v1 keeps serving operations in parallel — and
+// introduces no new policy surface.
+func RegisterOperationV2RoutesToApp(group fiber.Router, api huma.API, auth *middleware.AuthClient, oh *OperationHandler, routeOptions *http.ProtectedRouteOptions) {
+	registerOperationRoutesToApp(group, api, auth, oh, routeOptions, routeOpSuffixV2)
+}
+
+// registerOperationRoutesToApp is the single description of the operation route surface, shared
+// by every versioned contract that serves it. It attaches the Fiber auth chain for the three
+// ops — two READ (GET, on the account path) plus the PATCH (UpdateOperation, on the transaction
+// path — a money-write LEG of the double-entry) —
+// auth.Authorize("midaz","operations",verb) + tenant PostAuthMiddlewares +
+// ParseUUIDPathParameters("operation") — as MIDDLEWARE ONLY (group-relative paths, no terminal)
+// on the VERSIONED GROUP, then registers the Huma terminals via RegisterOperationRoutes on the
+// SAME group's Huma API. This preserves the pre-Huma ("midaz","operations",verb) authz tuples
+// and tenant resolution BYTE-FOR-BYTE on whichever version group it is mounted on.
+//
+// opSuffix distinguishes the operation IDs one version group publishes from another's — see
+// routeOpSuffixV1. Nothing else varies between contracts, so a change to the surface reaches
+// every version it is mounted on.
+func registerOperationRoutesToApp(group fiber.Router, api huma.API, auth *middleware.AuthClient, oh *OperationHandler, routeOptions *http.ProtectedRouteOptions, opSuffix string) {
+	const (
+		listPath  = "/organizations/:organization_id/ledgers/:ledger_id/accounts/:account_id/operations"
+		idPath    = listPath + "/:operation_id"
+		patchPath = "/organizations/:organization_id/ledgers/:ledger_id/transactions/:transaction_id/operations/:operation_id"
+	)
+
+	parse := http.ParseUUIDPathParameters("operation")
+
+	// Two READ ops — ("operations","get").
+	routeGet(group, listPath, protectedMidaz(auth, "operations", "get", routeOptions, parse))
+	routeGet(group, idPath, protectedMidaz(auth, "operations", "get", routeOptions, parse))
+
+	// PATCH (money-write leg) — ("operations","patch").
+	routePatch(group, patchPath, protectedMidaz(auth, "operations", "patch", routeOptions, parse))
+
+	RegisterOperationRoutes(api, oh, opSuffix)
+}
+
+// RegisterCountTransactionRoutesToApp wires the Huma-migrated transaction-count HEAD
+// op onto the /v1 contract. See registerCountTransactionRoutesToApp for what it attaches.
+func RegisterCountTransactionRoutesToApp(group fiber.Router, api huma.API, auth *middleware.AuthClient, th *TransactionHandler, routeOptions *http.ProtectedRouteOptions) {
+	registerCountTransactionRoutesToApp(group, api, auth, th, routeOptions, routeOpSuffixV1)
+}
+
+// RegisterCountTransactionV2RoutesToApp wires the same transaction-count HEAD op onto the /v2
+// contract: same path, same handler, same authz tuple and tenant chain, differing only in the
+// operation ID the contract publishes. It is additive — /v1 keeps serving the count in parallel
+// — and introduces no new policy surface.
+func RegisterCountTransactionV2RoutesToApp(group fiber.Router, api huma.API, auth *middleware.AuthClient, th *TransactionHandler, routeOptions *http.ProtectedRouteOptions) {
+	registerCountTransactionRoutesToApp(group, api, auth, th, routeOptions, routeOpSuffixV2)
+}
+
+// registerCountTransactionRoutesToApp is the single description of the transaction-count route
+// surface, shared by every versioned contract that serves it. It attaches the Fiber auth chain
+// — auth.Authorize("midaz","transactions","head") + tenant PostAuthMiddlewares +
+// ParseUUIDPathParameters("transaction") — as MIDDLEWARE ONLY (group-relative path, no terminal)
+// on the VERSIONED GROUP, then registers the Huma terminal via RegisterCountTransactionRoutes on
+// the SAME group's Huma API. This preserves the ("midaz","transactions","head") authz tuple and
+// tenant resolution BYTE-FOR-BYTE on whichever version group it is mounted on.
+//
+// opSuffix distinguishes the operation ID one version group publishes from another's — see
+// routeOpSuffixV1. Nothing else varies between contracts, so a change to the surface reaches
+// every version it is mounted on.
+func registerCountTransactionRoutesToApp(group fiber.Router, api huma.API, auth *middleware.AuthClient, th *TransactionHandler, routeOptions *http.ProtectedRouteOptions, opSuffix string) {
+	const countPath = "/organizations/:organization_id/ledgers/:ledger_id/transactions/metrics/count"
+
+	parse := http.ParseUUIDPathParameters("transaction")
+
+	routeHead(group, countPath, protectedMidaz(auth, "transactions", "head", routeOptions, parse))
+
+	RegisterCountTransactionRoutes(api, th, opSuffix)
+}
+
+// RegisterTransactionHumaRoutesToApp wires the twelve Wave-4 Huma-migrated transaction
+// ops (six CREATE — json/inflow/outflow/annotation/block/unblock, three id-only STATE,
+// one PATCH, two READ). Auth is
+// auth.Authorize("midaz","transactions",verb) + tenant + ParseUUIDPathParameters
+// ("transaction"), attached as middleware-only on the /v1 group BEFORE the Huma terminals
+// — the SAME (appName, resource, verb) tuples the inline Fiber routes carried, preserved
+// byte-for-byte. Paths are relative to the /v1 group; the Huma terminals are attached by
+// RegisterTransactionRoutes.
+func RegisterTransactionHumaRoutesToApp(group fiber.Router, api huma.API, auth *middleware.AuthClient, th *TransactionHandler, routeOptions *http.ProtectedRouteOptions) {
+	const (
+		listPath = "/organizations/:organization_id/ledgers/:ledger_id/transactions"
+		idPath   = listPath + "/:transaction_id"
+	)
+
+	parse := http.ParseUUIDPathParameters("transaction")
+
+	// Six CREATE ops — ("transactions","post").
+	routePost(group, listPath+"/json", protectedMidaz(auth, "transactions", "post", routeOptions, parse))
+	routePost(group, listPath+"/inflow", protectedMidaz(auth, "transactions", "post", routeOptions, parse))
+	routePost(group, listPath+"/outflow", protectedMidaz(auth, "transactions", "post", routeOptions, parse))
+	routePost(group, listPath+"/annotation", protectedMidaz(auth, "transactions", "post", routeOptions, parse))
+	routePost(group, listPath+"/block", protectedMidaz(auth, "transactions", "post", routeOptions, parse))
+	routePost(group, listPath+"/unblock", protectedMidaz(auth, "transactions", "post", routeOptions, parse))
+
+	// Three STATE ops (id-only, bodiless) — ("transactions","post").
+	routePost(group, idPath+"/commit", protectedMidaz(auth, "transactions", "post", routeOptions, parse))
+	routePost(group, idPath+"/cancel", protectedMidaz(auth, "transactions", "post", routeOptions, parse))
+	routePost(group, idPath+"/revert", protectedMidaz(auth, "transactions", "post", routeOptions, parse))
+
+	// PATCH — ("transactions","patch").
+	routePatch(group, idPath, protectedMidaz(auth, "transactions", "patch", routeOptions, parse))
+
+	// Two READ ops — ("transactions","get").
+	routeGet(group, idPath, protectedMidaz(auth, "transactions", "get", routeOptions, parse))
+	routeGet(group, listPath, protectedMidaz(auth, "transactions", "get", routeOptions, parse))
+
+	RegisterTransactionRoutes(api, th)
+}
+
+// RegisterOperationRouteRoutesToApp wires the Huma-migrated operation-route surface onto
+// the /v1 contract. See registerOperationRouteRoutesToApp for what it attaches.
+func RegisterOperationRouteRoutesToApp(group fiber.Router, api huma.API, auth *middleware.AuthClient, orh *OperationRouteHandler, routeOptions *http.ProtectedRouteOptions) {
+	registerOperationRouteRoutesToApp(group, api, auth, orh, routeOptions, routeOpSuffixV1)
+}
+
+// RegisterOperationRouteV2RoutesToApp wires the same operation-route surface onto the /v2
+// contract: same paths, same handlers, same authz tuples and tenant chain, differing only in
+// the operation IDs the contract publishes. It is additive — /v1 keeps serving operation
+// routes in parallel — and introduces no new policy surface.
+func RegisterOperationRouteV2RoutesToApp(group fiber.Router, api huma.API, auth *middleware.AuthClient, orh *OperationRouteHandler, routeOptions *http.ProtectedRouteOptions) {
+	registerOperationRouteRoutesToApp(group, api, auth, orh, routeOptions, routeOpSuffixV2)
+}
+
+// registerOperationRouteRoutesToApp is the single description of the operation-route surface,
+// shared by every versioned contract that serves it. Auth is the "routing" appName:
+// auth.Authorize("routing","operation-routes",verb) + tenant +
+// ParseUUIDPathParameters("operation_route"), attached as MIDDLEWARE ONLY (group-relative
+// paths, no terminal) on the versioned group, then it registers the Huma terminals via
+// RegisterOperationRouteRoutes on the SAME group's Huma API. This preserves the pre-Huma
+// ("routing","operation-routes",verb) authz tuples and tenant resolution BYTE-FOR-BYTE on
+// whichever version group it is mounted on.
+//
+// opSuffix distinguishes the operation IDs one version group publishes from another's — see
+// routeOpSuffixV1. Nothing else varies between contracts, so a change to the surface reaches
+// every version it is mounted on.
+func registerOperationRouteRoutesToApp(group fiber.Router, api huma.API, auth *middleware.AuthClient, orh *OperationRouteHandler, routeOptions *http.ProtectedRouteOptions, opSuffix string) {
+	const (
+		listPath = "/organizations/:organization_id/ledgers/:ledger_id/operation-routes"
+		idPath   = listPath + "/:operation_route_id"
+	)
+
+	parse := http.ParseUUIDPathParameters("operation_route")
+
+	routePost(group, listPath, protectedRouting(auth, "operation-routes", "post", routeOptions, parse))
+	routeGet(group, listPath, protectedRouting(auth, "operation-routes", "get", routeOptions, parse))
+	routeGet(group, idPath, protectedRouting(auth, "operation-routes", "get", routeOptions, parse))
+	routePatch(group, idPath, protectedRouting(auth, "operation-routes", "patch", routeOptions, parse))
+	routeDelete(group, idPath, protectedRouting(auth, "operation-routes", "delete", routeOptions, parse))
+
+	RegisterOperationRouteRoutes(api, orh, opSuffix)
+}
+
+// RegisterTransactionRouteRoutesToApp wires the Huma-migrated transaction-route surface onto
+// the /v1 contract. See registerTransactionRouteRoutesToApp for what it attaches.
+func RegisterTransactionRouteRoutesToApp(group fiber.Router, api huma.API, auth *middleware.AuthClient, trh *TransactionRouteHandler, routeOptions *http.ProtectedRouteOptions) {
+	registerTransactionRouteRoutesToApp(group, api, auth, trh, routeOptions, routeOpSuffixV1)
+}
+
+// RegisterTransactionRouteV2RoutesToApp wires the same transaction-route surface onto the /v2
+// contract: same paths, same handlers, same authz tuples and tenant chain, differing only in
+// the operation IDs the contract publishes. It is additive — /v1 keeps serving transaction
+// routes in parallel — and introduces no new policy surface.
+func RegisterTransactionRouteV2RoutesToApp(group fiber.Router, api huma.API, auth *middleware.AuthClient, trh *TransactionRouteHandler, routeOptions *http.ProtectedRouteOptions) {
+	registerTransactionRouteRoutesToApp(group, api, auth, trh, routeOptions, routeOpSuffixV2)
+}
+
+// registerTransactionRouteRoutesToApp is the single description of the transaction-route surface,
+// shared by every versioned contract that serves it. Auth is the "routing" appName:
+// auth.Authorize("routing","transaction-routes",verb) + tenant +
+// ParseUUIDPathParameters("transaction_route"), attached as MIDDLEWARE ONLY (group-relative
+// paths, no terminal) on the versioned group, then it registers the Huma terminals via
+// RegisterTransactionRouteRoutes on the SAME group's Huma API. This preserves the pre-Huma
+// ("routing","transaction-routes",verb) authz tuples and tenant resolution BYTE-FOR-BYTE on
+// whichever version group it is mounted on.
+//
+// opSuffix distinguishes the operation IDs one version group publishes from another's — see
+// routeOpSuffixV1. Nothing else varies between contracts, so a change to the surface reaches
+// every version it is mounted on.
+func registerTransactionRouteRoutesToApp(group fiber.Router, api huma.API, auth *middleware.AuthClient, trh *TransactionRouteHandler, routeOptions *http.ProtectedRouteOptions, opSuffix string) {
+	const (
+		listPath = "/organizations/:organization_id/ledgers/:ledger_id/transaction-routes"
+		idPath   = listPath + "/:transaction_route_id"
+	)
+
+	parse := http.ParseUUIDPathParameters("transaction_route")
+
+	routePost(group, listPath, protectedRouting(auth, "transaction-routes", "post", routeOptions, parse))
+	routeGet(group, listPath, protectedRouting(auth, "transaction-routes", "get", routeOptions, parse))
+	routeGet(group, idPath, protectedRouting(auth, "transaction-routes", "get", routeOptions, parse))
+	routePatch(group, idPath, protectedRouting(auth, "transaction-routes", "patch", routeOptions, parse))
+	routeDelete(group, idPath, protectedRouting(auth, "transaction-routes", "delete", routeOptions, parse))
+
+	RegisterTransactionRouteRoutes(api, trh, opSuffix)
 }
 
 func protectedMidaz(auth *middleware.AuthClient, resource, action string, routeOptions *http.ProtectedRouteOptions, handlers ...fiber.Handler) []fiber.Handler {
 	return http.ProtectedRouteChain(auth.Authorize(midazName, resource, action), routeOptions, handlers...)
+}
+
+func protectedRouting(auth *middleware.AuthClient, resource, action string, routeOptions *http.ProtectedRouteOptions, handlers ...fiber.Handler) []fiber.Handler {
+	return http.ProtectedRouteChain(auth.Authorize(routingName, resource, action), routeOptions, handlers...)
+}
+
+// registerRoute registers a protected handler chain on a Fiber v3 router. Fiber
+// v3's route methods take (handler any, handlers ...any) and a []fiber.Handler
+// cannot be spread into ...any, so the chain is split across the fixed first
+// handler and the variadic tail. The chain always carries at least the auth
+// handler, so index 0 is safe.
+func registerRoute(r fiber.Router, method, path string, chain []fiber.Handler) {
+	tail := make([]any, len(chain)-1)
+	for i, h := range chain[1:] {
+		tail[i] = h
+	}
+
+	r.Add([]string{method}, path, chain[0], tail...)
+}
+
+func routePost(r fiber.Router, path string, chain []fiber.Handler) {
+	registerRoute(r, fiber.MethodPost, path, chain)
+}
+
+func routeGet(r fiber.Router, path string, chain []fiber.Handler) {
+	registerRoute(r, fiber.MethodGet, path, chain)
+}
+
+func routePatch(r fiber.Router, path string, chain []fiber.Handler) {
+	registerRoute(r, fiber.MethodPatch, path, chain)
+}
+
+func routePut(r fiber.Router, path string, chain []fiber.Handler) {
+	registerRoute(r, fiber.MethodPut, path, chain)
+}
+
+func routeDelete(r fiber.Router, path string, chain []fiber.Handler) {
+	registerRoute(r, fiber.MethodDelete, path, chain)
+}
+
+func routeHead(r fiber.Router, path string, chain []fiber.Handler) {
+	registerRoute(r, fiber.MethodHead, path, chain)
 }

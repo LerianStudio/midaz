@@ -9,35 +9,35 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
-	nethttp "net/http"
 	"net/http/httptest"
 	"strconv"
 	"strings"
 	"testing"
 	"time"
 
-	libCommons "github.com/LerianStudio/lib-commons/v5/commons"
-	libConstants "github.com/LerianStudio/lib-commons/v5/commons/constants"
-	libHTTP "github.com/LerianStudio/lib-commons/v5/commons/net/http"
-	mongodb "github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/mongodb/transaction"
-	"github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/postgres/operation"
-	operationroute "github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/postgres/operationroute"
-	"github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/postgres/transaction"
-	redis "github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/redis/transaction"
-	"github.com/LerianStudio/midaz/v3/components/ledger/internal/services/command"
-	"github.com/LerianStudio/midaz/v3/components/ledger/internal/services/query"
-	"github.com/LerianStudio/midaz/v3/pkg"
-	cn "github.com/LerianStudio/midaz/v3/pkg/constant"
-	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
-	"github.com/LerianStudio/midaz/v3/pkg/mtransaction"
-	"github.com/LerianStudio/midaz/v3/pkg/net/http"
-	"github.com/gofiber/fiber/v2"
+	libCommons "github.com/LerianStudio/lib-commons/v6/commons"
+	libConstants "github.com/LerianStudio/lib-commons/v6/commons/constants"
+	libHTTP "github.com/LerianStudio/lib-commons/v6/commons/net/http"
+	"github.com/gofiber/fiber/v3"
 	"github.com/google/uuid"
 	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/vmihailenco/msgpack/v5"
 	"go.uber.org/mock/gomock"
+
+	mongodb "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/mongodb/transaction"
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/operation"
+	operationroute "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/operationroute"
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/transaction"
+	redis "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/redis/transaction"
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services/command"
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services/query"
+	"github.com/LerianStudio/midaz/v4/pkg"
+	cn "github.com/LerianStudio/midaz/v4/pkg/constant"
+	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
+	"github.com/LerianStudio/midaz/v4/pkg/mtransaction"
+	"github.com/LerianStudio/midaz/v4/pkg/net/http"
 )
 
 func TestTransactionHandler_GetTransaction(t *testing.T) {
@@ -152,7 +152,7 @@ func TestTransactionHandler_GetTransaction(t *testing.T) {
 				require.NoError(t, err, "error response should be valid JSON")
 
 				assert.Contains(t, errResp, "code", "error response should contain code field")
-				assert.Contains(t, errResp, "message", "error response should contain message field")
+				assert.Contains(t, errResp, "detail", "error response should contain message field")
 			},
 		},
 		{
@@ -278,8 +278,9 @@ func TestTransactionHandler_GetTransaction(t *testing.T) {
 			handler := &TransactionHandler{Query: uc}
 
 			app := fiber.New()
-			app.Get("/test/:organization_id/:ledger_id/transactions/:transaction_id",
-				func(c *fiber.Ctx) error {
+			app.Get(
+				"/test/:organization_id/:ledger_id/transactions/:transaction_id",
+				func(c fiber.Ctx) error {
 					c.Locals("organization_id", orgID)
 					c.Locals("ledger_id", ledgerID)
 					c.Locals("transaction_id", transactionID)
@@ -367,9 +368,9 @@ func TestCommitTransaction_InvalidStatus_ReturnsError(t *testing.T) {
 				Body: txBody,
 			}
 
-			// Mock: Find transaction
+			// Mock: fetch transaction with its operations (commit/cancel fallback)
 			mockTransactionRepo.EXPECT().
-				Find(gomock.Any(), orgID, ledgerID, transactionID).
+				FindWithOperations(gomock.Any(), orgID, ledgerID, transactionID).
 				Return(tran, nil).
 				Times(1)
 
@@ -409,8 +410,9 @@ func TestCommitTransaction_InvalidStatus_ReturnsError(t *testing.T) {
 			handler := &TransactionHandler{Query: queryUC, Command: commandUC}
 
 			app := fiber.New()
-			app.Post("/test/:organization_id/:ledger_id/transactions/:transaction_id/commit",
-				func(c *fiber.Ctx) error {
+			app.Post(
+				"/test/:organization_id/:ledger_id/transactions/:transaction_id/commit",
+				func(c fiber.Ctx) error {
 					c.Locals("organization_id", orgID)
 					c.Locals("ledger_id", ledgerID)
 					c.Locals("transaction_id", transactionID)
@@ -427,7 +429,7 @@ func TestCommitTransaction_InvalidStatus_ReturnsError(t *testing.T) {
 
 			// Assert
 			require.NoError(t, err)
-			assert.Equal(t, 422, resp.StatusCode, "expected HTTP 422 for non-PENDING status")
+			assert.Equal(t, 409, resp.StatusCode, "expected HTTP 409 for non-PENDING status")
 
 			body, err := io.ReadAll(resp.Body)
 			require.NoError(t, err)
@@ -511,8 +513,9 @@ func TestRevertTransaction_InvalidStatus_ReturnsError(t *testing.T) {
 			handler := &TransactionHandler{Query: queryUC}
 
 			app := fiber.New()
-			app.Post("/test/:organization_id/:ledger_id/transactions/:transaction_id/revert",
-				func(c *fiber.Ctx) error {
+			app.Post(
+				"/test/:organization_id/:ledger_id/transactions/:transaction_id/revert",
+				func(c fiber.Ctx) error {
 					c.Locals("organization_id", orgID)
 					c.Locals("ledger_id", ledgerID)
 					c.Locals("transaction_id", transactionID)
@@ -529,7 +532,7 @@ func TestRevertTransaction_InvalidStatus_ReturnsError(t *testing.T) {
 
 			// Assert
 			require.NoError(t, err)
-			assert.Equal(t, 422, resp.StatusCode, "expected HTTP 422 for non-APPROVED status")
+			assert.Equal(t, 409, resp.StatusCode, "expected HTTP 409 for non-APPROVED status")
 
 			body, err := io.ReadAll(resp.Body)
 			require.NoError(t, err)
@@ -586,8 +589,9 @@ func TestRevertTransaction_AlreadyHasRevert_ReturnsError(t *testing.T) {
 	handler := &TransactionHandler{Query: queryUC}
 
 	app := fiber.New()
-	app.Post("/test/:organization_id/:ledger_id/transactions/:transaction_id/revert",
-		func(c *fiber.Ctx) error {
+	app.Post(
+		"/test/:organization_id/:ledger_id/transactions/:transaction_id/revert",
+		func(c fiber.Ctx) error {
 			c.Locals("organization_id", orgID)
 			c.Locals("ledger_id", ledgerID)
 			c.Locals("transaction_id", transactionID)
@@ -604,7 +608,7 @@ func TestRevertTransaction_AlreadyHasRevert_ReturnsError(t *testing.T) {
 
 	// Assert
 	require.NoError(t, err)
-	assert.Equal(t, 400, resp.StatusCode, "expected HTTP 400 for already reverted transaction")
+	assert.Equal(t, 409, resp.StatusCode, "expected HTTP 409 for already reverted transaction")
 
 	body, err := io.ReadAll(resp.Body)
 	require.NoError(t, err)
@@ -674,8 +678,9 @@ func TestRevertTransaction_IsAlreadyARevert_ReturnsError(t *testing.T) {
 	handler := &TransactionHandler{Query: queryUC}
 
 	app := fiber.New()
-	app.Post("/test/:organization_id/:ledger_id/transactions/:transaction_id/revert",
-		func(c *fiber.Ctx) error {
+	app.Post(
+		"/test/:organization_id/:ledger_id/transactions/:transaction_id/revert",
+		func(c fiber.Ctx) error {
 			c.Locals("organization_id", orgID)
 			c.Locals("ledger_id", ledgerID)
 			c.Locals("transaction_id", transactionID)
@@ -692,7 +697,7 @@ func TestRevertTransaction_IsAlreadyARevert_ReturnsError(t *testing.T) {
 
 	// Assert
 	require.NoError(t, err)
-	assert.Equal(t, 400, resp.StatusCode, "expected HTTP 400 for transaction that is already a revert")
+	assert.Equal(t, 409, resp.StatusCode, "expected HTTP 409 for transaction that is already a revert")
 
 	body, err := io.ReadAll(resp.Body)
 	require.NoError(t, err)
@@ -736,8 +741,9 @@ func TestRevertTransaction_GetParentError_ReturnsError(t *testing.T) {
 	handler := &TransactionHandler{Query: queryUC}
 
 	app := fiber.New()
-	app.Post("/test/:organization_id/:ledger_id/transactions/:transaction_id/revert",
-		func(c *fiber.Ctx) error {
+	app.Post(
+		"/test/:organization_id/:ledger_id/transactions/:transaction_id/revert",
+		func(c fiber.Ctx) error {
 			c.Locals("organization_id", orgID)
 			c.Locals("ledger_id", ledgerID)
 			c.Locals("transaction_id", transactionID)
@@ -812,8 +818,9 @@ func TestRevertTransaction_GetTransactionError_ReturnsError(t *testing.T) {
 	handler := &TransactionHandler{Query: queryUC}
 
 	app := fiber.New()
-	app.Post("/test/:organization_id/:ledger_id/transactions/:transaction_id/revert",
-		func(c *fiber.Ctx) error {
+	app.Post(
+		"/test/:organization_id/:ledger_id/transactions/:transaction_id/revert",
+		func(c fiber.Ctx) error {
 			c.Locals("organization_id", orgID)
 			c.Locals("ledger_id", ledgerID)
 			c.Locals("transaction_id", transactionID)
@@ -844,7 +851,7 @@ func TestRevertTransaction_GetTransactionError_ReturnsError(t *testing.T) {
 }
 
 // TestRevertTransaction_EmptyRevert_ReturnsError validates that when TransactionRevert
-// returns an empty result (transaction can't be reverted), HTTP 400 is returned.
+// returns an empty result (transaction can't be reverted), HTTP 422 is returned.
 // TransactionRevert.IsEmpty() returns true when AssetCode is empty and Amount is zero.
 func TestRevertTransaction_EmptyRevert_ReturnsError(t *testing.T) {
 	t.Parallel()
@@ -902,8 +909,9 @@ func TestRevertTransaction_EmptyRevert_ReturnsError(t *testing.T) {
 	handler := &TransactionHandler{Query: queryUC}
 
 	app := fiber.New()
-	app.Post("/test/:organization_id/:ledger_id/transactions/:transaction_id/revert",
-		func(c *fiber.Ctx) error {
+	app.Post(
+		"/test/:organization_id/:ledger_id/transactions/:transaction_id/revert",
+		func(c fiber.Ctx) error {
 			c.Locals("organization_id", orgID)
 			c.Locals("ledger_id", ledgerID)
 			c.Locals("transaction_id", transactionID)
@@ -920,7 +928,7 @@ func TestRevertTransaction_EmptyRevert_ReturnsError(t *testing.T) {
 
 	// Assert
 	require.NoError(t, err)
-	assert.Equal(t, 400, resp.StatusCode, "expected HTTP 400 for empty revert")
+	assert.Equal(t, 422, resp.StatusCode, "expected HTTP 422 for empty revert")
 
 	body, err := io.ReadAll(resp.Body)
 	require.NoError(t, err)
@@ -1020,11 +1028,11 @@ func TestRevertTransaction_BidirectionalRouteAllows(t *testing.T) {
 	handler := &TransactionHandler{Query: queryUC}
 
 	app := fiber.New(fiber.Config{
-		ErrorHandler: func(c *fiber.Ctx, err error) error {
+		ErrorHandler: func(c fiber.Ctx, err error) error {
 			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "internal"})
 		},
 	})
-	app.Use(func(c *fiber.Ctx) error {
+	app.Use(func(c fiber.Ctx) error {
 		defer func() {
 			if r := recover(); r != nil {
 				_ = c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "recovered"})
@@ -1032,8 +1040,9 @@ func TestRevertTransaction_BidirectionalRouteAllows(t *testing.T) {
 		}()
 		return c.Next()
 	})
-	app.Post("/test/:organization_id/:ledger_id/transactions/:transaction_id/revert",
-		func(c *fiber.Ctx) error {
+	app.Post(
+		"/test/:organization_id/:ledger_id/transactions/:transaction_id/revert",
+		func(c fiber.Ctx) error {
 			c.Locals("organization_id", orgID)
 			c.Locals("ledger_id", ledgerID)
 			c.Locals("transaction_id", transactionID)
@@ -1149,8 +1158,9 @@ func TestRevertTransaction_NonBidirectionalRouteRejects(t *testing.T) {
 	handler := &TransactionHandler{Query: queryUC}
 
 	app := fiber.New()
-	app.Post("/test/:organization_id/:ledger_id/transactions/:transaction_id/revert",
-		func(c *fiber.Ctx) error {
+	app.Post(
+		"/test/:organization_id/:ledger_id/transactions/:transaction_id/revert",
+		func(c fiber.Ctx) error {
 			c.Locals("organization_id", orgID)
 			c.Locals("ledger_id", ledgerID)
 			c.Locals("transaction_id", transactionID)
@@ -1246,11 +1256,11 @@ func TestRevertTransaction_NoRouteRevertsNormally(t *testing.T) {
 	handler := &TransactionHandler{Query: queryUC}
 
 	app := fiber.New(fiber.Config{
-		ErrorHandler: func(c *fiber.Ctx, err error) error {
+		ErrorHandler: func(c fiber.Ctx, err error) error {
 			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "internal"})
 		},
 	})
-	app.Use(func(c *fiber.Ctx) error {
+	app.Use(func(c fiber.Ctx) error {
 		defer func() {
 			if r := recover(); r != nil {
 				_ = c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "recovered"})
@@ -1258,8 +1268,9 @@ func TestRevertTransaction_NoRouteRevertsNormally(t *testing.T) {
 		}()
 		return c.Next()
 	})
-	app.Post("/test/:organization_id/:ledger_id/transactions/:transaction_id/revert",
-		func(c *fiber.Ctx) error {
+	app.Post(
+		"/test/:organization_id/:ledger_id/transactions/:transaction_id/revert",
+		func(c fiber.Ctx) error {
 			c.Locals("organization_id", orgID)
 			c.Locals("ledger_id", ledgerID)
 			c.Locals("transaction_id", transactionID)
@@ -1367,8 +1378,9 @@ func TestRevertTransaction_RouteLookupError_ReturnsError(t *testing.T) {
 	handler := &TransactionHandler{Query: queryUC}
 
 	app := fiber.New()
-	app.Post("/test/:organization_id/:ledger_id/transactions/:transaction_id/revert",
-		func(c *fiber.Ctx) error {
+	app.Post(
+		"/test/:organization_id/:ledger_id/transactions/:transaction_id/revert",
+		func(c fiber.Ctx) error {
 			c.Locals("organization_id", orgID)
 			c.Locals("ledger_id", ledgerID)
 			c.Locals("transaction_id", transactionID)
@@ -1413,7 +1425,7 @@ func TestCommitTransaction_GetTransactionError_ReturnsError(t *testing.T) {
 
 	// Mock: Transaction lookup returns error
 	mockTransactionRepo.EXPECT().
-		Find(gomock.Any(), orgID, ledgerID, transactionID).
+		FindWithOperations(gomock.Any(), orgID, ledgerID, transactionID).
 		Return(nil, pkg.EntityNotFoundError{
 			EntityType: "Transaction",
 			Code:       cn.ErrEntityNotFound.Error(),
@@ -1429,8 +1441,9 @@ func TestCommitTransaction_GetTransactionError_ReturnsError(t *testing.T) {
 	handler := &TransactionHandler{Query: queryUC}
 
 	app := fiber.New()
-	app.Post("/test/:organization_id/:ledger_id/transactions/:transaction_id/commit",
-		func(c *fiber.Ctx) error {
+	app.Post(
+		"/test/:organization_id/:ledger_id/transactions/:transaction_id/commit",
+		func(c fiber.Ctx) error {
 			c.Locals("organization_id", orgID)
 			c.Locals("ledger_id", ledgerID)
 			c.Locals("transaction_id", transactionID)
@@ -1503,9 +1516,9 @@ func TestCommitTransaction_RedisLockError_ReturnsError(t *testing.T) {
 		Body: txBody,
 	}
 
-	// Mock: Transaction found successfully
+	// Mock: commit/cancel fallback fetch (with operations)
 	mockTransactionRepo.EXPECT().
-		Find(gomock.Any(), orgID, ledgerID, transactionID).
+		FindWithOperations(gomock.Any(), orgID, ledgerID, transactionID).
 		Return(tran, nil).
 		Times(1)
 
@@ -1542,8 +1555,9 @@ func TestCommitTransaction_RedisLockError_ReturnsError(t *testing.T) {
 	handler := &TransactionHandler{Query: queryUC, Command: commandUC}
 
 	app := fiber.New()
-	app.Post("/test/:organization_id/:ledger_id/transactions/:transaction_id/commit",
-		func(c *fiber.Ctx) error {
+	app.Post(
+		"/test/:organization_id/:ledger_id/transactions/:transaction_id/commit",
+		func(c fiber.Ctx) error {
 			c.Locals("organization_id", orgID)
 			c.Locals("ledger_id", ledgerID)
 			c.Locals("transaction_id", transactionID)
@@ -1573,7 +1587,8 @@ func TestCommitTransaction_RedisLockError_ReturnsError(t *testing.T) {
 }
 
 // TestCommitTransaction_LockNotAcquired_ReturnsError validates that when the transaction
-// lock cannot be acquired (already being processed), HTTP 422 is returned.
+// lock cannot be acquired (already being processed), HTTP 409 is returned with the
+// concurrency-specific error code (distinct from the status-conflict 0099).
 func TestCommitTransaction_LockNotAcquired_ReturnsError(t *testing.T) {
 	t.Parallel()
 
@@ -1615,9 +1630,9 @@ func TestCommitTransaction_LockNotAcquired_ReturnsError(t *testing.T) {
 		Body: txBody,
 	}
 
-	// Mock: Transaction found successfully
+	// Mock: commit/cancel fallback fetch (with operations)
 	mockTransactionRepo.EXPECT().
-		Find(gomock.Any(), orgID, ledgerID, transactionID).
+		FindWithOperations(gomock.Any(), orgID, ledgerID, transactionID).
 		Return(tran, nil).
 		Times(1)
 
@@ -1650,8 +1665,9 @@ func TestCommitTransaction_LockNotAcquired_ReturnsError(t *testing.T) {
 	handler := &TransactionHandler{Query: queryUC, Command: commandUC}
 
 	app := fiber.New()
-	app.Post("/test/:organization_id/:ledger_id/transactions/:transaction_id/commit",
-		func(c *fiber.Ctx) error {
+	app.Post(
+		"/test/:organization_id/:ledger_id/transactions/:transaction_id/commit",
+		func(c fiber.Ctx) error {
 			c.Locals("organization_id", orgID)
 			c.Locals("ledger_id", ledgerID)
 			c.Locals("transaction_id", transactionID)
@@ -1668,7 +1684,7 @@ func TestCommitTransaction_LockNotAcquired_ReturnsError(t *testing.T) {
 
 	// Assert
 	require.NoError(t, err)
-	assert.Equal(t, 422, resp.StatusCode, "expected HTTP 422 for locked transaction")
+	assert.Equal(t, 409, resp.StatusCode, "expected HTTP 409 for locked transaction")
 
 	body, err := io.ReadAll(resp.Body)
 	require.NoError(t, err)
@@ -1677,8 +1693,8 @@ func TestCommitTransaction_LockNotAcquired_ReturnsError(t *testing.T) {
 	err = json.Unmarshal(body, &errResp)
 	require.NoError(t, err, "error response should be valid JSON")
 
-	assert.Equal(t, cn.ErrCommitTransactionNotPending.Error(), errResp["code"],
-		"expected error code 0099 (ErrCommitTransactionNotPending)")
+	assert.Equal(t, cn.ErrPendingTransactionLocked.Error(), errResp["code"],
+		"expected error code 0486 (ErrPendingTransactionLocked) for lock contention")
 }
 
 // TestCreateTransactionJSON_NonPositiveValue_Returns422 validates that creating a transaction
@@ -1708,8 +1724,9 @@ func TestCreateTransactionJSON_NonPositiveValue_Returns422(t *testing.T) {
 			handler := &TransactionHandler{}
 
 			app := fiber.New()
-			app.Post("/test/:organization_id/:ledger_id/transactions/json",
-				func(c *fiber.Ctx) error {
+			app.Post(
+				"/test/:organization_id/:ledger_id/transactions/json",
+				func(c fiber.Ctx) error {
 					c.Locals("organization_id", orgID)
 					c.Locals("ledger_id", ledgerID)
 					return c.Next()
@@ -1753,7 +1770,7 @@ func TestCreateTransactionJSON_NonPositiveValue_Returns422(t *testing.T) {
 				"expected error code 0125 (ErrInvalidTransactionNonPositiveValue)")
 
 			// Verify error message is present and descriptive
-			msg, ok := errResp["message"].(string)
+			msg, ok := errResp["detail"].(string)
 			assert.True(t, ok, "error response should contain message field")
 			assert.Contains(t, msg, "zero", "error message should mention zero values")
 		})
@@ -1787,8 +1804,9 @@ func TestCreateTransactionInflow_NonPositiveValue_Returns422(t *testing.T) {
 			handler := &TransactionHandler{}
 
 			app := fiber.New()
-			app.Post("/test/:organization_id/:ledger_id/transactions/inflow",
-				func(c *fiber.Ctx) error {
+			app.Post(
+				"/test/:organization_id/:ledger_id/transactions/inflow",
+				func(c fiber.Ctx) error {
 					c.Locals("organization_id", orgID)
 					c.Locals("ledger_id", ledgerID)
 					return c.Next()
@@ -1829,7 +1847,7 @@ func TestCreateTransactionInflow_NonPositiveValue_Returns422(t *testing.T) {
 				"expected error code 0125 (ErrInvalidTransactionNonPositiveValue)")
 
 			// Verify error message is present and descriptive
-			msg, ok := errResp["message"].(string)
+			msg, ok := errResp["detail"].(string)
 			assert.True(t, ok, "error response should contain message field")
 			assert.Contains(t, msg, "zero", "error message should mention zero values")
 		})
@@ -1863,8 +1881,9 @@ func TestCreateTransactionOutflow_NonPositiveValue_Returns422(t *testing.T) {
 			handler := &TransactionHandler{}
 
 			app := fiber.New()
-			app.Post("/test/:organization_id/:ledger_id/transactions/outflow",
-				func(c *fiber.Ctx) error {
+			app.Post(
+				"/test/:organization_id/:ledger_id/transactions/outflow",
+				func(c fiber.Ctx) error {
 					c.Locals("organization_id", orgID)
 					c.Locals("ledger_id", ledgerID)
 					return c.Next()
@@ -1905,7 +1924,7 @@ func TestCreateTransactionOutflow_NonPositiveValue_Returns422(t *testing.T) {
 				"expected error code 0125 (ErrInvalidTransactionNonPositiveValue)")
 
 			// Verify error message is present and descriptive
-			msg, ok := errResp["message"].(string)
+			msg, ok := errResp["detail"].(string)
 			assert.True(t, ok, "error response should contain message field")
 			assert.Contains(t, msg, "zero", "error message should mention zero values")
 		})
@@ -2092,7 +2111,7 @@ func TestTransactionHandler_GetAllTransactions(t *testing.T) {
 				require.NoError(t, err, "error response should be valid JSON")
 
 				assert.Contains(t, errResp, "code", "error response should contain code field")
-				assert.Contains(t, errResp, "message", "error response should contain message field")
+				assert.Contains(t, errResp, "detail", "error response should contain message field")
 			},
 		},
 	}
@@ -2119,8 +2138,9 @@ func TestTransactionHandler_GetAllTransactions(t *testing.T) {
 			handler := &TransactionHandler{Query: uc}
 
 			app := fiber.New()
-			app.Get("/test/:organization_id/:ledger_id/transactions",
-				func(c *fiber.Ctx) error {
+			app.Get(
+				"/test/:organization_id/:ledger_id/transactions",
+				func(c fiber.Ctx) error {
 					c.Locals("organization_id", orgID)
 					c.Locals("ledger_id", ledgerID)
 					return c.Next()
@@ -2353,8 +2373,9 @@ func TestTransactionHandler_UpdateTransaction(t *testing.T) {
 			handler := &TransactionHandler{Query: queryUC, Command: commandUC}
 
 			app := fiber.New()
-			app.Patch("/test/:organization_id/:ledger_id/transactions/:transaction_id",
-				func(c *fiber.Ctx) error {
+			app.Patch(
+				"/test/:organization_id/:ledger_id/transactions/:transaction_id",
+				func(c fiber.Ctx) error {
 					c.Locals("organization_id", orgID)
 					c.Locals("ledger_id", ledgerID)
 					c.Locals("transaction_id", transactionID)
@@ -2410,8 +2431,9 @@ func TestCreateTransactionAnnotation_NonPositiveValue_Returns422(t *testing.T) {
 			handler := &TransactionHandler{}
 
 			app := fiber.New()
-			app.Post("/test/:organization_id/:ledger_id/transactions/annotation",
-				func(c *fiber.Ctx) error {
+			app.Post(
+				"/test/:organization_id/:ledger_id/transactions/annotation",
+				func(c fiber.Ctx) error {
 					c.Locals("organization_id", orgID)
 					c.Locals("ledger_id", ledgerID)
 					return c.Next()
@@ -2455,218 +2477,9 @@ func TestCreateTransactionAnnotation_NonPositiveValue_Returns422(t *testing.T) {
 				"expected error code 0125 (ErrInvalidTransactionNonPositiveValue)")
 
 			// Verify error message is present and descriptive
-			msg, ok := errResp["message"].(string)
+			msg, ok := errResp["detail"].(string)
 			assert.True(t, ok, "error response should contain message field")
 			assert.Contains(t, msg, "zero", "error message should mention zero values")
-		})
-	}
-}
-
-// TestCreateTransactionDSL_DeprecationHeaders validates that the deprecated DSL endpoint
-// returns RFC 8594 compliant deprecation headers.
-// RFC 8594 specifies standard HTTP headers for communicating API deprecation status:
-// - Deprecation: indicates the resource is deprecated
-// - Sunset: specifies when the deprecated resource will become unavailable
-// - Link with rel="successor-version": points to the replacement resource
-func TestCreateTransactionDSL_DeprecationHeaders(t *testing.T) {
-	t.Parallel()
-
-	tests := []struct {
-		name             string
-		setupRequest     func(orgID, ledgerID uuid.UUID) *nethttp.Request
-		expectedStatus   int
-		validateHeaders  func(t *testing.T, resp *nethttp.Response, orgID, ledgerID uuid.UUID)
-		validateResponse func(t *testing.T, body []byte)
-	}{
-		{
-			name: "deprecation headers present on missing file error",
-			setupRequest: func(orgID, ledgerID uuid.UUID) *nethttp.Request {
-				// Request without file - will fail validation but should still have deprecation headers
-				req := httptest.NewRequest(nethttp.MethodPost,
-					"/test/"+orgID.String()+"/"+ledgerID.String()+"/transactions/dsl",
-					nil)
-				req.Header.Set("Content-Type", "multipart/form-data")
-				return req
-			},
-			expectedStatus: 400,
-			validateHeaders: func(t *testing.T, resp *nethttp.Response, orgID, ledgerID uuid.UUID) {
-				// Verify Deprecation header
-				assert.Equal(t, "true", resp.Header.Get("Deprecation"),
-					"Deprecation header should be 'true'")
-
-				// Verify Sunset header with correct date format
-				assert.Equal(t, "Sat, 01 Aug 2026 00:00:00 GMT", resp.Header.Get("Sunset"),
-					"Sunset header should have correct RFC 1123 date format")
-
-				// Verify Link header with successor-version
-				expectedLink := "</v1/organizations/" + orgID.String() +
-					"/ledgers/" + ledgerID.String() +
-					"/transactions/json>; rel=\"successor-version\""
-				assert.Equal(t, expectedLink, resp.Header.Get("Link"),
-					"Link header should point to JSON endpoint with successor-version rel")
-			},
-			validateResponse: func(t *testing.T, body []byte) {
-				var errResp map[string]any
-				err := json.Unmarshal(body, &errResp)
-				require.NoError(t, err, "error response should be valid JSON")
-				assert.Contains(t, errResp, "code", "error response should contain code field")
-			},
-		},
-		{
-			name: "deprecation headers present with invalid query parameters",
-			setupRequest: func(orgID, ledgerID uuid.UUID) *nethttp.Request {
-				req := httptest.NewRequest(nethttp.MethodPost,
-					"/test/"+orgID.String()+"/"+ledgerID.String()+"/transactions/dsl?start_date=invalid-format",
-					nil)
-				req.Header.Set("Content-Type", "multipart/form-data")
-				return req
-			},
-			expectedStatus: 400,
-			validateHeaders: func(t *testing.T, resp *nethttp.Response, orgID, ledgerID uuid.UUID) {
-				// Even on validation errors, deprecation headers should be present
-				assert.Equal(t, "true", resp.Header.Get("Deprecation"),
-					"Deprecation header should be present even on error")
-				assert.Equal(t, "Sat, 01 Aug 2026 00:00:00 GMT", resp.Header.Get("Sunset"),
-					"Sunset header should be present even on error")
-				assert.Contains(t, resp.Header.Get("Link"), "successor-version",
-					"Link header should contain successor-version rel")
-			},
-			validateResponse: func(t *testing.T, body []byte) {
-				var errResp map[string]any
-				err := json.Unmarshal(body, &errResp)
-				require.NoError(t, err, "error response should be valid JSON")
-				assert.Contains(t, errResp, "code", "error response should contain code field")
-			},
-		},
-		{
-			name: "Link header contains dynamic organization_id and ledger_id",
-			setupRequest: func(orgID, ledgerID uuid.UUID) *nethttp.Request {
-				req := httptest.NewRequest(nethttp.MethodPost,
-					"/test/"+orgID.String()+"/"+ledgerID.String()+"/transactions/dsl",
-					nil)
-				req.Header.Set("Content-Type", "multipart/form-data")
-				return req
-			},
-			expectedStatus: 400,
-			validateHeaders: func(t *testing.T, resp *nethttp.Response, orgID, ledgerID uuid.UUID) {
-				linkHeader := resp.Header.Get("Link")
-
-				// Verify Link header contains the specific organization_id
-				assert.Contains(t, linkHeader, orgID.String(),
-					"Link header should contain the organization_id from the request")
-
-				// Verify Link header contains the specific ledger_id
-				assert.Contains(t, linkHeader, ledgerID.String(),
-					"Link header should contain the ledger_id from the request")
-
-				// Verify Link header has correct structure
-				assert.Contains(t, linkHeader, "/v1/organizations/",
-					"Link header should have /v1/organizations/ path prefix")
-				assert.Contains(t, linkHeader, "/ledgers/",
-					"Link header should have /ledgers/ path segment")
-				assert.Contains(t, linkHeader, "/transactions/json",
-					"Link header should point to /transactions/json endpoint")
-				assert.Contains(t, linkHeader, "rel=\"successor-version\"",
-					"Link header should have rel=\"successor-version\"")
-			},
-			validateResponse: nil,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-
-			// Arrange
-			orgID := uuid.New()
-			ledgerID := uuid.New()
-
-			// No mocks needed - these tests focus on response headers
-			// which are set before any business logic executes
-			handler := &TransactionHandler{}
-
-			app := fiber.New()
-			app.Post("/test/:organization_id/:ledger_id/transactions/dsl",
-				func(c *fiber.Ctx) error {
-					c.Locals("organization_id", orgID)
-					c.Locals("ledger_id", ledgerID)
-					return c.Next()
-				},
-				handler.CreateTransactionDSL,
-			)
-
-			// Act
-			req := tt.setupRequest(orgID, ledgerID)
-			resp, err := app.Test(req)
-
-			// Assert
-			require.NoError(t, err)
-			assert.Equal(t, tt.expectedStatus, resp.StatusCode)
-
-			// Validate deprecation headers
-			if tt.validateHeaders != nil {
-				tt.validateHeaders(t, resp, orgID, ledgerID)
-			}
-
-			// Validate response body
-			if tt.validateResponse != nil {
-				body, err := io.ReadAll(resp.Body)
-				require.NoError(t, err)
-				tt.validateResponse(t, body)
-			}
-		})
-	}
-}
-
-// TestCreateTransactionDSL_DeprecationHeaders_DifferentIDs validates that the Link header
-// correctly uses the organization_id and ledger_id from each unique request.
-func TestCreateTransactionDSL_DeprecationHeaders_DifferentIDs(t *testing.T) {
-	t.Parallel()
-
-	// Test with multiple different ID combinations to ensure dynamic header construction
-	testCases := []struct {
-		name string
-	}{
-		{name: "first unique ID pair"},
-		{name: "second unique ID pair"},
-		{name: "third unique ID pair"},
-	}
-
-	for _, tc := range testCases {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-
-			// Generate unique IDs for each test
-			orgID := uuid.New()
-			ledgerID := uuid.New()
-
-			handler := &TransactionHandler{}
-
-			app := fiber.New()
-			app.Post("/test/:organization_id/:ledger_id/transactions/dsl",
-				func(c *fiber.Ctx) error {
-					c.Locals("organization_id", orgID)
-					c.Locals("ledger_id", ledgerID)
-					return c.Next()
-				},
-				handler.CreateTransactionDSL,
-			)
-
-			req := httptest.NewRequest(nethttp.MethodPost,
-				"/test/"+orgID.String()+"/"+ledgerID.String()+"/transactions/dsl",
-				nil)
-			req.Header.Set("Content-Type", "multipart/form-data")
-
-			resp, err := app.Test(req)
-			require.NoError(t, err)
-
-			// Build expected Link header with this test's specific IDs
-			expectedLink := "</v1/organizations/" + orgID.String() +
-				"/ledgers/" + ledgerID.String() +
-				"/transactions/json>; rel=\"successor-version\""
-
-			assert.Equal(t, expectedLink, resp.Header.Get("Link"),
-				"Link header should use the organization_id and ledger_id from this specific request")
 		})
 	}
 }
@@ -2685,7 +2498,7 @@ func TestCancelTransaction(t *testing.T) {
 			name: "transaction not found returns 404",
 			setupMocks: func(transactionRepo *transaction.MockRepository, metadataRepo *mongodb.MockRepository, operationRepo *operation.MockRepository, redisRepo *redis.MockRedisRepository, orgID, ledgerID, transactionID uuid.UUID) {
 				transactionRepo.EXPECT().
-					Find(gomock.Any(), orgID, ledgerID, transactionID).
+					FindWithOperations(gomock.Any(), orgID, ledgerID, transactionID).
 					Return(nil, pkg.EntityNotFoundError{
 						EntityType: "Transaction",
 						Code:       cn.ErrEntityNotFound.Error(),
@@ -2705,7 +2518,7 @@ func TestCancelTransaction(t *testing.T) {
 			},
 		},
 		{
-			name: "transaction not PENDING returns 422",
+			name: "transaction not PENDING returns 409",
 			setupMocks: func(transactionRepo *transaction.MockRepository, metadataRepo *mongodb.MockRepository, operationRepo *operation.MockRepository, redisRepo *redis.MockRedisRepository, orgID, ledgerID, transactionID uuid.UUID) {
 				amount := decimal.NewFromInt(1000)
 				txBody := mtransaction.Transaction{
@@ -2735,9 +2548,9 @@ func TestCancelTransaction(t *testing.T) {
 					Body: txBody,
 				}
 
-				// Query.GetTransactionByID
+				// commit/cancel fallback fetch (with operations)
 				transactionRepo.EXPECT().
-					Find(gomock.Any(), orgID, ledgerID, transactionID).
+					FindWithOperations(gomock.Any(), orgID, ledgerID, transactionID).
 					Return(tran, nil).
 					Times(1)
 
@@ -2758,7 +2571,7 @@ func TestCancelTransaction(t *testing.T) {
 					Return(nil).
 					Times(1)
 			},
-			expectedStatus: 422,
+			expectedStatus: 409,
 			validateBody: func(t *testing.T, body []byte) {
 				var errResp map[string]any
 				err := json.Unmarshal(body, &errResp)
@@ -2799,9 +2612,9 @@ func TestCancelTransaction(t *testing.T) {
 					Body: txBody,
 				}
 
-				// Query.GetTransactionByID
+				// commit/cancel fallback fetch (with operations)
 				transactionRepo.EXPECT().
-					Find(gomock.Any(), orgID, ledgerID, transactionID).
+					FindWithOperations(gomock.Any(), orgID, ledgerID, transactionID).
 					Return(tran, nil).
 					Times(1)
 
@@ -2830,7 +2643,7 @@ func TestCancelTransaction(t *testing.T) {
 			},
 		},
 		{
-			name: "lock already acquired by another process returns 422",
+			name: "lock already acquired by another process returns 409",
 			setupMocks: func(transactionRepo *transaction.MockRepository, metadataRepo *mongodb.MockRepository, operationRepo *operation.MockRepository, redisRepo *redis.MockRedisRepository, orgID, ledgerID, transactionID uuid.UUID) {
 				amount := decimal.NewFromInt(1000)
 				txBody := mtransaction.Transaction{
@@ -2860,9 +2673,9 @@ func TestCancelTransaction(t *testing.T) {
 					Body: txBody,
 				}
 
-				// Query.GetTransactionByID
+				// commit/cancel fallback fetch (with operations)
 				transactionRepo.EXPECT().
-					Find(gomock.Any(), orgID, ledgerID, transactionID).
+					FindWithOperations(gomock.Any(), orgID, ledgerID, transactionID).
 					Return(tran, nil).
 					Times(1)
 
@@ -2877,14 +2690,14 @@ func TestCancelTransaction(t *testing.T) {
 					Return(false, nil).
 					Times(1)
 			},
-			expectedStatus: 422,
+			expectedStatus: 409,
 			validateBody: func(t *testing.T, body []byte) {
 				var errResp map[string]any
 				err := json.Unmarshal(body, &errResp)
 				require.NoError(t, err, "error response should be valid JSON")
 
-				assert.Equal(t, cn.ErrCommitTransactionNotPending.Error(), errResp["code"],
-					"expected error code 0099 when transaction is locked")
+				assert.Equal(t, cn.ErrPendingTransactionLocked.Error(), errResp["code"],
+					"expected error code 0486 (lock contention) when transaction is locked")
 			},
 		},
 		{
@@ -2903,9 +2716,9 @@ func TestCancelTransaction(t *testing.T) {
 					},
 				}
 
-				// Query.GetTransactionByID - Find succeeds
+				// commit/cancel fallback fetch (with operations) succeeds
 				transactionRepo.EXPECT().
-					Find(gomock.Any(), orgID, ledgerID, transactionID).
+					FindWithOperations(gomock.Any(), orgID, ledgerID, transactionID).
 					Return(tran, nil).
 					Times(1)
 
@@ -2966,8 +2779,9 @@ func TestCancelTransaction(t *testing.T) {
 			handler := &TransactionHandler{Query: queryUC, Command: commandUC}
 
 			app := fiber.New()
-			app.Post("/test/:organization_id/:ledger_id/transactions/:transaction_id/cancel",
-				func(c *fiber.Ctx) error {
+			app.Post(
+				"/test/:organization_id/:ledger_id/transactions/:transaction_id/cancel",
+				func(c fiber.Ctx) error {
 					c.Locals("organization_id", orgID)
 					c.Locals("ledger_id", ledgerID)
 					c.Locals("transaction_id", transactionID)
@@ -3037,7 +2851,7 @@ func TestGetTransaction_WriteBehindHit(t *testing.T) {
 	// No TransactionRepo mock -> proves Postgres is never called
 
 	app := fiber.New()
-	app.Get("/test", func(c *fiber.Ctx) error {
+	app.Get("/test", func(c fiber.Ctx) error {
 		c.Locals("organization_id", orgID)
 		c.Locals("ledger_id", ledgerID)
 		c.Locals("transaction_id", tranID)
@@ -3045,7 +2859,7 @@ func TestGetTransaction_WriteBehindHit(t *testing.T) {
 	})
 
 	req := httptest.NewRequest("GET", "/test", nil)
-	resp, err := app.Test(req, -1)
+	resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
 	require.NoError(t, err)
 
 	assert.Equal(t, 200, resp.StatusCode)
@@ -3081,12 +2895,12 @@ func TestCancelTransaction_WriteBehindMiss_PostgresMiss(t *testing.T) {
 
 	// Postgres miss
 	mockTransactionRepo.EXPECT().
-		Find(gomock.Any(), orgID, ledgerID, tranID).
+		FindWithOperations(gomock.Any(), orgID, ledgerID, tranID).
 		Return(nil, errors.New("record not found")).
 		Times(1)
 
 	app := fiber.New()
-	app.Post("/test", func(c *fiber.Ctx) error {
+	app.Post("/test", func(c fiber.Ctx) error {
 		c.Locals("organization_id", orgID)
 		c.Locals("ledger_id", ledgerID)
 		c.Locals("transaction_id", tranID)
@@ -3094,7 +2908,7 @@ func TestCancelTransaction_WriteBehindMiss_PostgresMiss(t *testing.T) {
 	})
 
 	req := httptest.NewRequest("POST", "/test", nil)
-	resp, err := app.Test(req, -1)
+	resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
 	require.NoError(t, err)
 
 	assert.True(t, resp.StatusCode >= 400, "Expected error status code, got %d", resp.StatusCode)
@@ -3132,7 +2946,7 @@ func TestCancelTransaction_WriteBehindMiss_PostgresHit(t *testing.T) {
 
 	// Postgres hit
 	mockTransactionRepo.EXPECT().
-		Find(gomock.Any(), orgID, ledgerID, tranID).
+		FindWithOperations(gomock.Any(), orgID, ledgerID, tranID).
 		Return(tran, nil).
 		Times(1)
 
@@ -3149,7 +2963,7 @@ func TestCancelTransaction_WriteBehindMiss_PostgresHit(t *testing.T) {
 		Times(1)
 
 	app := fiber.New()
-	app.Post("/test", func(c *fiber.Ctx) error {
+	app.Post("/test", func(c fiber.Ctx) error {
 		c.Locals("organization_id", orgID)
 		c.Locals("ledger_id", ledgerID)
 		c.Locals("transaction_id", tranID)
@@ -3157,7 +2971,7 @@ func TestCancelTransaction_WriteBehindMiss_PostgresHit(t *testing.T) {
 	})
 
 	req := httptest.NewRequest("POST", "/test", nil)
-	resp, err := app.Test(req, -1)
+	resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
 	require.NoError(t, err)
 
 	// Response is an error (from SetNX), but the important thing is Find WAS called (fallback worked)
@@ -3200,7 +3014,7 @@ func TestCancelTransaction_WriteBehindHit_PostgresNotCalled(t *testing.T) {
 		Times(1)
 
 	app := fiber.New()
-	app.Post("/test", func(c *fiber.Ctx) error {
+	app.Post("/test", func(c fiber.Ctx) error {
 		c.Locals("organization_id", orgID)
 		c.Locals("ledger_id", ledgerID)
 		c.Locals("transaction_id", tranID)
@@ -3208,7 +3022,7 @@ func TestCancelTransaction_WriteBehindHit_PostgresNotCalled(t *testing.T) {
 	})
 
 	req := httptest.NewRequest("POST", "/test", nil)
-	resp, err := app.Test(req, -1)
+	resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
 	require.NoError(t, err)
 
 	// Error from SetNX short-circuit, but write-behind was used and Postgres was NOT called
@@ -3244,12 +3058,12 @@ func TestCommitTransaction_WriteBehindMiss_PostgresMiss(t *testing.T) {
 
 	// Postgres miss
 	mockTransactionRepo.EXPECT().
-		Find(gomock.Any(), orgID, ledgerID, tranID).
+		FindWithOperations(gomock.Any(), orgID, ledgerID, tranID).
 		Return(nil, errors.New("record not found")).
 		Times(1)
 
 	app := fiber.New()
-	app.Post("/test", func(c *fiber.Ctx) error {
+	app.Post("/test", func(c fiber.Ctx) error {
 		c.Locals("organization_id", orgID)
 		c.Locals("ledger_id", ledgerID)
 		c.Locals("transaction_id", tranID)
@@ -3257,7 +3071,7 @@ func TestCommitTransaction_WriteBehindMiss_PostgresMiss(t *testing.T) {
 	})
 
 	req := httptest.NewRequest("POST", "/test", nil)
-	resp, err := app.Test(req, -1)
+	resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
 	require.NoError(t, err)
 
 	assert.True(t, resp.StatusCode >= 400, "Expected error status code, got %d", resp.StatusCode)
@@ -3295,7 +3109,7 @@ func TestCommitTransaction_WriteBehindMiss_PostgresHit(t *testing.T) {
 
 	// Postgres hit
 	mockTransactionRepo.EXPECT().
-		Find(gomock.Any(), orgID, ledgerID, tranID).
+		FindWithOperations(gomock.Any(), orgID, ledgerID, tranID).
 		Return(tran, nil).
 		Times(1)
 
@@ -3312,7 +3126,7 @@ func TestCommitTransaction_WriteBehindMiss_PostgresHit(t *testing.T) {
 		Times(1)
 
 	app := fiber.New()
-	app.Post("/test", func(c *fiber.Ctx) error {
+	app.Post("/test", func(c fiber.Ctx) error {
 		c.Locals("organization_id", orgID)
 		c.Locals("ledger_id", ledgerID)
 		c.Locals("transaction_id", tranID)
@@ -3320,7 +3134,7 @@ func TestCommitTransaction_WriteBehindMiss_PostgresHit(t *testing.T) {
 	})
 
 	req := httptest.NewRequest("POST", "/test", nil)
-	resp, err := app.Test(req, -1)
+	resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
 	require.NoError(t, err)
 
 	// Error from SetNX short-circuit, but Find WAS called (fallback worked)
@@ -3363,7 +3177,7 @@ func TestCommitTransaction_WriteBehindHit_PostgresNotCalled(t *testing.T) {
 		Times(1)
 
 	app := fiber.New()
-	app.Post("/test", func(c *fiber.Ctx) error {
+	app.Post("/test", func(c fiber.Ctx) error {
 		c.Locals("organization_id", orgID)
 		c.Locals("ledger_id", ledgerID)
 		c.Locals("transaction_id", tranID)
@@ -3371,7 +3185,7 @@ func TestCommitTransaction_WriteBehindHit_PostgresNotCalled(t *testing.T) {
 	})
 
 	req := httptest.NewRequest("POST", "/test", nil)
-	resp, err := app.Test(req, -1)
+	resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
 	require.NoError(t, err)
 
 	// Error from SetNX short-circuit, but write-behind was used and Postgres was NOT called

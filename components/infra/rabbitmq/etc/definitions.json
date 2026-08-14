@@ -23,6 +23,12 @@
       "password_hash":"/xSX/E+2TzPfqRPYnPIdviUpNiXnoQWnAdQR7TS47cJc6GuM",
       "hashing_algorithm":"rabbit_password_hashing_sha256",
       "tags":"administrator"
+    },
+    {
+      "name":"reporter-user",
+      "password_hash":"lSWWeMRVrV/f/JBcgGQoHMv7KDyJcLjjF2eD7SF0ODjjFzc1",
+      "hashing_algorithm":"rabbit_password_hashing_sha256",
+      "tags":"administrator"
     }
   ],
   "vhosts": [
@@ -58,18 +64,71 @@
       "configure": ".*",
       "write": ".*",
       "read": ".*"
+    },
+    {
+      "user": "reporter-user",
+      "vhost": "/",
+      "configure": ".*",
+      "write": ".*",
+      "read": ".*"
     }
   ],
   "queues": [
     {
       "name": "transaction.transaction_balance_operation.queue",
       "vhost": "/",
-      "durable": true
+      "durable": true,
+      "arguments": {
+        "x-dead-letter-exchange": "transaction.dlx",
+        "x-dead-letter-routing-key": "transaction.dlq.key"
+      }
+    },
+    {
+      "name": "transaction.dlq",
+      "vhost": "/",
+      "durable": true,
+      "arguments": {
+        "x-message-ttl": 604800000,
+        "x-max-length": 10000
+      }
+    },
+    {
+      "name": "reporter.generate-report.queue",
+      "vhost": "/",
+      "durable": true,
+      "arguments": {
+        "x-dead-letter-exchange": "reporter.dlx",
+        "x-dead-letter-routing-key": "reporter.dlq.key"
+      }
+    },
+    {
+      "name": "reporter.dlq",
+      "vhost": "/",
+      "durable": true,
+      "arguments": {
+        "x-message-ttl": 604800000,
+        "x-max-length": 10000
+      }
+    },
+    {
+      "name": "reporter.fetcher.job.events",
+      "vhost": "/",
+      "durable": true,
+      "arguments": {
+        "x-dead-letter-exchange": "reporter.dlx",
+        "x-dead-letter-routing-key": "reporter.dlq.key"
+      }
     }
   ],
   "exchanges": [
     {
       "name": "transaction.transaction_balance_operation.exchange",
+      "vhost": "/",
+      "type": "direct",
+      "durable": true
+    },
+    {
+      "name": "transaction.dlx",
       "vhost": "/",
       "type": "direct",
       "durable": true
@@ -88,6 +147,24 @@
       "auto_delete": false,
       "internal": false,
       "arguments": {}
+    },
+    {
+      "name": "reporter.generate-report.exchange",
+      "vhost": "/",
+      "type": "direct",
+      "durable": true
+    },
+    {
+      "name": "reporter.dlx",
+      "vhost": "/",
+      "type": "direct",
+      "durable": true
+    },
+    {
+      "name": "fetcher.job.events",
+      "vhost": "/",
+      "type": "topic",
+      "durable": true
     }
   ],
   "bindings": [
@@ -97,6 +174,41 @@
       "destination": "transaction.transaction_balance_operation.queue",
       "destination_type": "queue",
       "routing_key": "transaction.transaction_balance_operation.key"
+    },
+    {
+      "source": "transaction.dlx",
+      "vhost": "/",
+      "destination": "transaction.dlq",
+      "destination_type": "queue",
+      "routing_key": "transaction.dlq.key"
+    },
+    {
+      "source": "reporter.generate-report.exchange",
+      "vhost": "/",
+      "destination": "reporter.generate-report.queue",
+      "destination_type": "queue",
+      "routing_key": "reporter.generate-report.key"
+    },
+    {
+      "source": "reporter.dlx",
+      "vhost": "/",
+      "destination": "reporter.dlq",
+      "destination_type": "queue",
+      "routing_key": "reporter.dlq.key"
+    },
+    {
+      "source": "fetcher.job.events",
+      "vhost": "/",
+      "destination": "reporter.fetcher.job.events",
+      "destination_type": "queue",
+      "routing_key": "job.completed.reporter"
+    },
+    {
+      "source": "fetcher.job.events",
+      "vhost": "/",
+      "destination": "reporter.fetcher.job.events",
+      "destination_type": "queue",
+      "routing_key": "job.failed.reporter"
     }
   ]
 }

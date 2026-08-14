@@ -36,7 +36,7 @@ import (
 	"testing/quick"
 	"time"
 
-	"github.com/gofiber/fiber/v2"
+	"github.com/gofiber/fiber/v3"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -55,7 +55,7 @@ func boundString(s string, maxLen int) string {
 func callParseCountFilter(route, status, startDate, endDate string) (errResult error) {
 	app := fiber.New()
 
-	app.Get("/prop", func(c *fiber.Ctx) error {
+	app.Get("/prop", func(c fiber.Ctx) error {
 		_, errResult = parseCountFilter(c)
 		return c.SendStatus(200)
 	})

@@ -5,9 +5,10 @@
 package operation
 
 import (
-	libHTTP "github.com/LerianStudio/lib-commons/v5/commons/net/http"
-	"github.com/LerianStudio/midaz/v3/pkg/pagination"
+	libHTTP "github.com/LerianStudio/lib-commons/v6/commons/net/http"
 	"github.com/Masterminds/squirrel"
+
+	"github.com/LerianStudio/midaz/v4/pkg/pagination"
 )
 
 func applyCursorPagination(findAll squirrel.SelectBuilder, decodedCursor libHTTP.Cursor, orderDirection string, limit int) (squirrel.SelectBuilder, error) {

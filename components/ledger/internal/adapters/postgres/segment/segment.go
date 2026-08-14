@@ -8,9 +8,10 @@ import (
 	"database/sql"
 	"time"
 
-	libCommons "github.com/LerianStudio/lib-commons/v5/commons"
-	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
+	libCommons "github.com/LerianStudio/lib-commons/v6/commons"
 	"github.com/google/uuid"
+
+	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
 )
 
 // SegmentPostgreSQLModel represents the entity Segment into SQL context in Database

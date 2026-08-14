@@ -21,11 +21,12 @@ import (
 	"testing"
 	"time"
 
-	tmclient "github.com/LerianStudio/lib-commons/v5/commons/tenant-manager/client"
-	tmcore "github.com/LerianStudio/lib-commons/v5/commons/tenant-manager/core"
-	tmrabbitmq "github.com/LerianStudio/lib-commons/v5/commons/tenant-manager/rabbitmq"
-	libZap "github.com/LerianStudio/lib-observability/zap"
-	rmqtestutil "github.com/LerianStudio/midaz/v3/tests/utils/rabbitmq"
+	tmclient "github.com/LerianStudio/lib-commons/v6/commons/tenant-manager/client"
+	tmcore "github.com/LerianStudio/lib-commons/v6/commons/tenant-manager/core"
+	tmrabbitmq "github.com/LerianStudio/lib-commons/v6/commons/tenant-manager/rabbitmq"
+	libZap "github.com/LerianStudio/lib-observability/v2/zap"
+
+	rmqtestutil "github.com/LerianStudio/midaz/v4/tests/utils/rabbitmq"
 
 	amqp "github.com/rabbitmq/amqp091-go"
 	"github.com/stretchr/testify/assert"
@@ -127,7 +128,8 @@ func setupMultiTenantInfra(t *testing.T, tenantIDs []string) *multiTenantTestInf
 	})
 
 	// Create tmrabbitmq.Manager using the client
-	manager := tmrabbitmq.NewManager(client, "ledger",
+	manager := tmrabbitmq.NewManager(
+		client, "ledger",
 		tmrabbitmq.WithLogger(logger),
 		tmrabbitmq.WithModule("transaction"),
 	)
@@ -152,22 +154,22 @@ func setupMultiTenantInfra(t *testing.T, tenantIDs []string) *multiTenantTestInf
 }
 
 // newMockTenantManagerServer creates an httptest server that serves tenant configs.
-// Responds to GET /tenants/{tenantID}/services/{service}/settings with the
+// Responds to GET /v1/tenants/{tenantID}/associations/{service}/connections with the
 // RabbitMQ connection details for the tenant's vhost.
 func newMockTenantManagerServer(t *testing.T, rmqContainer *rmqtestutil.ContainerResult, tenants map[string]*tenantVHost) *httptest.Server {
 	t.Helper()
 
 	mux := http.NewServeMux()
-	mux.HandleFunc("/tenants/", func(w http.ResponseWriter, r *http.Request) {
-		// Path format: /tenants/{tenantID}/services/{service}/settings
-		// splitPath returns: ["tenants", tenantID, "services", service, "settings"]
+	mux.HandleFunc("/v1/tenants/", func(w http.ResponseWriter, r *http.Request) {
+		// Path format: /v1/tenants/{tenantID}/associations/{service}/connections
+		// splitPath returns: ["v1", "tenants", tenantID, "associations", service, "connections"]
 		parts := splitPath(r.URL.Path)
-		if len(parts) < 5 || parts[0] != "tenants" || parts[2] != "services" {
+		if len(parts) < 6 || parts[0] != "v1" || parts[1] != "tenants" || parts[3] != "associations" || parts[5] != "connections" {
 			http.Error(w, "invalid path format", http.StatusBadRequest)
 			return
 		}
 
-		tenantID := parts[1]
+		tenantID := parts[2]
 
 		tenant, ok := tenants[tenantID]
 		if !ok {
@@ -276,7 +278,8 @@ func createVHost(t *testing.T, rmq *rmqtestutil.ContainerResult, vhost string) {
 func setVHostPermissions(t *testing.T, rmq *rmqtestutil.ContainerResult, vhost, user string) {
 	t.Helper()
 
-	managementAPICall(t, rmq,
+	managementAPICall(
+		t, rmq,
 		fmt.Sprintf("/api/permissions/%s/%s", vhost, user),
 		`{"configure":".*","write":".*","read":".*"}`,
 	)

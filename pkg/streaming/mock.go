@@ -9,7 +9,7 @@ import (
 	"sync"
 	"testing"
 
-	libStreaming "github.com/LerianStudio/lib-streaming"
+	libStreaming "github.com/LerianStudio/lib-streaming/v2"
 )
 
 // MockEmitter is a midaz-local test double for libStreaming.Emitter that

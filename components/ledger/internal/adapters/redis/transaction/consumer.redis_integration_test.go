@@ -14,12 +14,13 @@ import (
 	"testing"
 	"time"
 
-	libRedis "github.com/LerianStudio/lib-commons/v5/commons/redis"
-	tmcore "github.com/LerianStudio/lib-commons/v5/commons/tenant-manager/core"
-	"github.com/LerianStudio/midaz/v3/pkg/constant"
-	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
-	"github.com/LerianStudio/midaz/v3/tests/utils/chaos"
-	redistestutil "github.com/LerianStudio/midaz/v3/tests/utils/redis"
+	libRedis "github.com/LerianStudio/lib-commons/v6/commons/redis"
+	tmcore "github.com/LerianStudio/lib-commons/v6/commons/tenant-manager/core"
+
+	"github.com/LerianStudio/midaz/v4/pkg/constant"
+	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
+	"github.com/LerianStudio/midaz/v4/tests/utils/chaos"
+	redistestutil "github.com/LerianStudio/midaz/v4/tests/utils/redis"
 
 	"github.com/google/uuid"
 	"github.com/shopspring/decimal"
@@ -881,7 +882,8 @@ func TestIntegration_Chaos_Redis_GracefulDegradation(t *testing.T) {
 	cancelledCtx, cancel := context.WithCancel(ctx)
 	cancel()
 
-	chaos.AssertGracefulDegradation(t,
+	chaos.AssertGracefulDegradation(
+		t,
 		func() error {
 			transactionID := uuid.New()
 			_, err := infra.repo.ProcessBalanceAtomicOperation(cancelledCtx, orgID, ledgerID, transactionID, "ACTIVE", false, balanceOps)

@@ -10,16 +10,18 @@ import (
 	"testing"
 	"time"
 
-	libStreaming "github.com/LerianStudio/lib-streaming"
-	"github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/postgres/balance"
-	"github.com/LerianStudio/midaz/v3/pkg/constant"
-	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
-	pkgStreaming "github.com/LerianStudio/midaz/v3/pkg/streaming"
+	libStreaming "github.com/LerianStudio/lib-streaming/v2"
 	"github.com/google/uuid"
 	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
+
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/balance"
+	redis "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/redis/transaction"
+	"github.com/LerianStudio/midaz/v4/pkg/constant"
+	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
+	pkgStreaming "github.com/LerianStudio/midaz/v4/pkg/streaming"
 )
 
 // newDeleteBalanceStreamingTestUseCase wires a happy-path UseCase for
@@ -50,9 +52,20 @@ func newDeleteBalanceStreamingTestUseCase(t *testing.T, ctrl *gomock.Controller,
 		Return(nil).
 		AnyTimes()
 
+	mockRedisRepo := redis.NewMockRedisRepository(ctrl)
+	mockRedisRepo.EXPECT().
+		SetNX(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+		Return(true, nil).
+		AnyTimes()
+	mockRedisRepo.EXPECT().
+		Del(gomock.Any(), gomock.Any()).
+		Return(nil).
+		AnyTimes()
+
 	return &UseCase{
-		BalanceRepo: mockBalanceRepo,
-		Streaming:   emitter,
+		BalanceRepo:          mockBalanceRepo,
+		TransactionRedisRepo: mockRedisRepo,
+		Streaming:            emitter,
 	}
 }
 

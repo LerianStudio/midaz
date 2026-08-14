@@ -29,12 +29,13 @@ import (
 	"testing"
 	"time"
 
-	tmclient "github.com/LerianStudio/lib-commons/v5/commons/tenant-manager/client"
-	libZap "github.com/LerianStudio/lib-observability/zap"
-	"github.com/LerianStudio/midaz/v3/tests/utils/chaos"
-	pgtestutil "github.com/LerianStudio/midaz/v3/tests/utils/postgres"
+	tmclient "github.com/LerianStudio/lib-commons/v6/commons/tenant-manager/client"
+	libZap "github.com/LerianStudio/lib-observability/v2/zap"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/LerianStudio/midaz/v4/tests/utils/chaos"
+	pgtestutil "github.com/LerianStudio/midaz/v4/tests/utils/postgres"
 )
 
 // =============================================================================
@@ -183,7 +184,7 @@ func TestIntegration_Chaos_InitPostgres_SingleTenantConnectionLoss(t *testing.T)
 	var initErr error
 
 	require.NotPanics(t, func() {
-		var failResult *postgresComponents
+		var failResult *transactionPostgresComponents
 		failResult, initErr = initTransactionSingleTenantPostgres(cfg, logger)
 		if failResult != nil {
 			closePGConnection(failResult.connection)
@@ -222,8 +223,9 @@ func TestIntegration_Chaos_InitPostgres_SingleTenantConnectionLoss(t *testing.T)
 
 	t.Cleanup(func() { closePGConnection(recoveredResult.connection) })
 
-	assert.True(t, recoveredResult.connection.Connected,
-		"Phase 5: connection must be connected after recovery")
+	connected, connErr := recoveredResult.connection.IsConnected()
+	require.NoError(t, connErr, "Phase 5: IsConnected must not error")
+	assert.True(t, connected, "Phase 5: connection must be connected after recovery")
 
 	t.Log("PASS: initSingleTenantPostgres returns error (not panic) on connection loss, recovers correctly")
 }
@@ -299,7 +301,7 @@ func TestIntegration_Chaos_InitPostgres_MultiTenantConnectionLoss(t *testing.T) 
 	var initErr error
 
 	require.NotPanics(t, func() {
-		var failResult *postgresComponents
+		var failResult *transactionPostgresComponents
 		failResult, initErr = initTransactionMultiTenantPostgres(opts, cfg, logger)
 		if failResult != nil {
 			closePGConnection(failResult.connection)

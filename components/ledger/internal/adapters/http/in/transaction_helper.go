@@ -9,17 +9,16 @@ import (
 	"sort"
 	"strings"
 
-	libObs "github.com/LerianStudio/lib-observability"
-
-	libLog "github.com/LerianStudio/lib-observability/log"
-	"github.com/gofiber/fiber/v2"
+	libObservability "github.com/LerianStudio/lib-observability/v2"
+	libLog "github.com/LerianStudio/lib-observability/v2/log"
+	"github.com/gofiber/fiber/v3"
 	"github.com/google/uuid"
 
-	"github.com/LerianStudio/midaz/v3/pkg/constant"
-	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
-	"github.com/LerianStudio/midaz/v3/pkg/mtransaction"
-	"github.com/LerianStudio/midaz/v3/pkg/net/http"
-	"github.com/LerianStudio/midaz/v3/pkg/utils"
+	"github.com/LerianStudio/midaz/v4/pkg/constant"
+	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
+	"github.com/LerianStudio/midaz/v4/pkg/mtransaction"
+	"github.com/LerianStudio/midaz/v4/pkg/net/http"
+	"github.com/LerianStudio/midaz/v4/pkg/utils"
 )
 
 // transactionPathParams holds the IDs extracted from URL path parameters.
@@ -32,7 +31,7 @@ type transactionPathParams struct {
 
 // readPathParams extracts organization, ledger, and (optional) transaction
 // IDs from Fiber locals populated by the UUID-parsing middleware.
-func readPathParams(c *fiber.Ctx) (*transactionPathParams, error) {
+func readPathParams(c fiber.Ctx) (*transactionPathParams, error) {
 	organizationID, err := http.GetUUIDFromLocals(c, "organization_id")
 	if err != nil {
 		return nil, err
@@ -123,11 +122,11 @@ type balanceRef struct {
 // validated transaction entries. This is pure logic with no I/O dependencies.
 // Operations are sorted by internal key to prevent deadlocks in the Lua script.
 //
-// Alias format arriving from the DSL parser: "index#alias#balanceKey"
+// Alias format arriving from MutateConcatAliases: "index#alias#balanceKey"
 // (e.g. "0#@sender#default", "1#@sender#default" for same account appearing twice).
 // SplitAliasWithKey strips the index prefix, returning "alias#balanceKey" for balance lookup.
 func buildBalanceOperations(ctx context.Context, organizationID, ledgerID uuid.UUID, validate *mtransaction.Responses, balances []*mmodel.Balance) []mmodel.BalanceOperation {
-	logger := libObs.NewLoggerFromContext(ctx)
+	logger := libObservability.NewLoggerFromContext(ctx)
 
 	// Index balances by aliasKey for O(1) lookup instead of O(balances * entries).
 	balanceByAliasKey := make(map[string]balanceRef, len(balances))
@@ -175,7 +174,8 @@ func buildBalanceOperations(ctx context.Context, organizationID, ledgerID uuid.U
 		if mtransaction.IsDoubleEntrySource(amount) {
 			op1, op2 := mtransaction.SplitDoubleEntryOps(amount)
 
-			ops = append(ops,
+			ops = append(
+				ops,
 				mmodel.BalanceOperation{Balance: ref.balance, Alias: alias, Amount: op1, InternalKey: ref.internalKey},
 				mmodel.BalanceOperation{Balance: ref.balance, Alias: alias, Amount: op2, InternalKey: ref.internalKey},
 			)

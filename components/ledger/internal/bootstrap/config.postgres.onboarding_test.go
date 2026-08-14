@@ -8,8 +8,8 @@ import (
 	"fmt"
 	"testing"
 
-	libPostgres "github.com/LerianStudio/lib-commons/v5/commons/postgres"
-	libLog "github.com/LerianStudio/lib-observability/log"
+	libPostgres "github.com/LerianStudio/lib-commons/v6/commons/postgres"
+	libLog "github.com/LerianStudio/lib-observability/v2/log"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -32,12 +32,8 @@ func withOnboardingTestConnector(t *testing.T) {
 	originalConnector := onboardingPostgresConnector
 	onboardingPostgresConnector = testOnboardingPostgresConnector(t)
 
-	originalMigrator := onboardingPostgresMigrator
-	onboardingPostgresMigrator = func(_ *Config, _ libLog.Logger) error { return nil }
-
 	t.Cleanup(func() {
 		onboardingPostgresConnector = originalConnector
-		onboardingPostgresMigrator = originalMigrator
 	})
 }
 

@@ -8,25 +8,32 @@ import (
 	"context"
 	"time"
 
-	libObs "github.com/LerianStudio/lib-observability"
-
-	libLog "github.com/LerianStudio/lib-observability/log"
-	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
-	libStreaming "github.com/LerianStudio/lib-streaming"
-	"github.com/LerianStudio/midaz/v3/pkg"
-	"github.com/LerianStudio/midaz/v3/pkg/constant"
-	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
-	pkgStreaming "github.com/LerianStudio/midaz/v3/pkg/streaming"
-	"github.com/LerianStudio/midaz/v3/pkg/streaming/events"
+	libObservability "github.com/LerianStudio/lib-observability/v2"
+	libLog "github.com/LerianStudio/lib-observability/v2/log"
+	libOpentelemetry "github.com/LerianStudio/lib-observability/v2/tracing"
+	libStreaming "github.com/LerianStudio/lib-streaming/v2"
 	"github.com/google/uuid"
 	"go.opentelemetry.io/otel/trace"
+
+	"github.com/LerianStudio/midaz/v4/pkg"
+	"github.com/LerianStudio/midaz/v4/pkg/constant"
+	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
+	pkgStreaming "github.com/LerianStudio/midaz/v4/pkg/streaming"
+	"github.com/LerianStudio/midaz/v4/pkg/streaming/events"
+	"github.com/LerianStudio/midaz/v4/pkg/utils"
 )
 
-func (uc *UseCase) DeleteBalance(ctx context.Context, organizationID, ledgerID, balanceID uuid.UUID) error {
-	logger, tracer, _, _ := libObs.NewTrackingFromContext(ctx)
+func (uc *UseCase) DeleteBalance(ctx context.Context, organizationID, ledgerID, balanceID uuid.UUID) (err error) {
+	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "exec.delete_balance")
 	defer span.End()
+
+	start := time.Now()
+
+	defer func() {
+		utils.RecordDomainOperation(ctx, uc.MetricsFactory, logger, "ledger", "delete_balance", start, err)
+	}()
 
 	balance, err := uc.BalanceRepo.Find(ctx, organizationID, ledgerID, balanceID)
 	if err != nil {
@@ -48,6 +55,20 @@ func (uc *UseCase) DeleteBalance(ctx context.Context, organizationID, ledgerID, 
 		return err
 	}
 
+	// Plant a delete marker so the honored-lock pre-pass rejects concurrent mutations while the
+	// delete is in flight. Release it only when the delete fails, so a rejected guard or a
+	// failed soft-delete leaves the balance usable; a successful delete lets the delete marker
+	// expire by its own TTL.
+	if balance != nil {
+		release := uc.plantBalanceDeleteMarkers(ctx, organizationID, ledgerID, []*mmodel.Balance{balance})
+
+		defer func() {
+			if err != nil {
+				release()
+			}
+		}()
+	}
+
 	if balance != nil && (!balance.Available.IsZero() || !balance.OnHold.IsZero()) {
 		err = pkg.ValidateBusinessError(constant.ErrBalancesCantBeDeleted, constant.EntityBalance)
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Balance cannot be deleted because it still has funds in it.", err)
@@ -62,6 +83,12 @@ func (uc *UseCase) DeleteBalance(ctx context.Context, organizationID, ledgerID, 
 		logger.Log(ctx, libLog.LevelError, "Error delete balance", libLog.Err(err))
 
 		return err
+	}
+
+	// Drop the stale cache entry now that the row is soft-deleted. Non-fatal: a failed eviction
+	// is logged and never fails the already-committed delete.
+	if balance != nil {
+		uc.evictBalanceCaches(ctx, organizationID, ledgerID, []*mmodel.Balance{balance})
 	}
 
 	uc.emitBalanceDeletedEvent(ctx, span, logger, balance, time.Now())

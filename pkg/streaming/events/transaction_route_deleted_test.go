@@ -8,14 +8,15 @@ import (
 	"encoding/json"
 	"testing"
 
-	"github.com/LerianStudio/midaz/v3/pkg/streaming/events"
+	"github.com/LerianStudio/midaz/v4/pkg/streaming/events"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
 func TestTransactionRouteDeletedDefinition_Key(t *testing.T) {
-	assert.Equal(t, "transaction-route.deleted", events.TransactionRouteDeletedDefinition.Key())
-	assert.Equal(t, "transaction-route", events.TransactionRouteDeletedDefinition.ResourceType)
+	assert.Equal(t, "transaction_route.deleted", events.TransactionRouteDeletedDefinition.Key())
+	assert.Equal(t, "transaction-route.deleted", events.TransactionRouteDeletedDefinition.RouteKey())
+	assert.Equal(t, "transaction_route", events.TransactionRouteDeletedDefinition.ResourceType)
 	assert.Equal(t, "deleted", events.TransactionRouteDeletedDefinition.EventType)
 	assert.Equal(t, "1.0.0", events.TransactionRouteDeletedDefinition.SchemaVersion)
 }

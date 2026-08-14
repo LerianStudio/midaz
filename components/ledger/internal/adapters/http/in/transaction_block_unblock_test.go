@@ -11,14 +11,15 @@ import (
 	"testing"
 	"time"
 
-	"github.com/LerianStudio/midaz/v3/pkg/constant"
-	"github.com/LerianStudio/midaz/v3/pkg/mtransaction"
-	"github.com/LerianStudio/midaz/v3/pkg/net/http"
-	"github.com/gofiber/fiber/v2"
+	"github.com/gofiber/fiber/v3"
 	"github.com/google/uuid"
 	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/LerianStudio/midaz/v4/pkg/constant"
+	"github.com/LerianStudio/midaz/v4/pkg/mtransaction"
+	"github.com/LerianStudio/midaz/v4/pkg/net/http"
 )
 
 // TestBuildOverriddenTransaction verifies the block/unblock handler builder seam:
@@ -124,19 +125,19 @@ func TestCreateTransactionBlockUnblock_HTTPWiring(t *testing.T) {
 	tests := []struct {
 		name    string
 		route   string
-		handler func(handler *TransactionHandler) func(p any, c *fiber.Ctx) error
+		handler func(handler *TransactionHandler) func(p any, c fiber.Ctx) error
 	}{
 		{
 			name:  "block",
 			route: "block",
-			handler: func(handler *TransactionHandler) func(p any, c *fiber.Ctx) error {
+			handler: func(handler *TransactionHandler) func(p any, c fiber.Ctx) error {
 				return handler.CreateTransactionBlock
 			},
 		},
 		{
 			name:  "unblock",
 			route: "unblock",
-			handler: func(handler *TransactionHandler) func(p any, c *fiber.Ctx) error {
+			handler: func(handler *TransactionHandler) func(p any, c fiber.Ctx) error {
 				return handler.CreateTransactionUnblock
 			},
 		},
@@ -156,7 +157,7 @@ func TestCreateTransactionBlockUnblock_HTTPWiring(t *testing.T) {
 			app := fiber.New()
 			app.Post(
 				"/test/:organization_id/:ledger_id/transactions/"+tt.route,
-				func(c *fiber.Ctx) error {
+				func(c fiber.Ctx) error {
 					c.Locals("organization_id", orgID)
 					c.Locals("ledger_id", ledgerID)
 					return c.Next()

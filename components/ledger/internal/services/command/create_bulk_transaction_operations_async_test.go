@@ -13,22 +13,23 @@ import (
 	"testing"
 	"time"
 
-	libLog "github.com/LerianStudio/lib-observability/log"
-	mongodb "github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/mongodb/transaction"
-	"github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/postgres/balance"
-	"github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/postgres/operation"
-	"github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/postgres/transaction"
-	"github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/rabbitmq"
-	redis "github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/redis/transaction"
-	"github.com/LerianStudio/midaz/v3/pkg/constant"
-	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
-	"github.com/LerianStudio/midaz/v3/pkg/mtransaction"
-	"github.com/LerianStudio/midaz/v3/pkg/repository"
+	libLog "github.com/LerianStudio/lib-observability/v2/log"
 	"github.com/google/uuid"
 	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
+
+	mongodb "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/mongodb/transaction"
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/balance"
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/operation"
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/transaction"
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/rabbitmq"
+	redis "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/redis/transaction"
+	"github.com/LerianStudio/midaz/v4/pkg/constant"
+	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
+	"github.com/LerianStudio/midaz/v4/pkg/mtransaction"
+	"github.com/LerianStudio/midaz/v4/pkg/repository"
 )
 
 // mockDBTransaction is a test double for repository.DBTransaction.
@@ -1228,9 +1229,10 @@ func TestIndividualUpdateTransactionStatus_PartialFailure(t *testing.T) {
 	}
 
 	logger := libLog.NewMockLogger(ctrl)
-	// Expect warning logs for 2 failed updates + info log for summary
-	logger.EXPECT().Log(gomock.Any(), libLog.LevelWarn, gomock.Any()).Times(2)
-	logger.EXPECT().Log(gomock.Any(), libLog.LevelInfo, gomock.Any()).Times(1)
+	// Expect warning logs for 2 failed updates (msg + transaction_id field + err field)
+	// and a debug summary log (msg + 3 count fields).
+	logger.EXPECT().Log(gomock.Any(), libLog.LevelWarn, gomock.Any(), gomock.Any(), gomock.Any()).Times(2)
+	logger.EXPECT().Log(gomock.Any(), libLog.LevelDebug, gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Times(1)
 
 	err := uc.individualUpdateTransactionStatus(context.Background(), logger, transactions, result)
 

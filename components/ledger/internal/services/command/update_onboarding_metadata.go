@@ -6,12 +6,11 @@ package command
 
 import (
 	"context"
-	"fmt"
 
-	libCommons "github.com/LerianStudio/lib-commons/v5/commons"
-	libObservability "github.com/LerianStudio/lib-observability"
-	libLog "github.com/LerianStudio/lib-observability/log"
-	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
+	libCommons "github.com/LerianStudio/lib-commons/v6/commons"
+	libObservability "github.com/LerianStudio/lib-observability/v2"
+	libLog "github.com/LerianStudio/lib-observability/v2/log"
+	libOpentelemetry "github.com/LerianStudio/lib-observability/v2/tracing"
 )
 
 func (uc *UseCase) UpdateOnboardingMetadata(ctx context.Context, entityName, entityID string, metadata map[string]any) (map[string]any, error) {
@@ -19,8 +18,6 @@ func (uc *UseCase) UpdateOnboardingMetadata(ctx context.Context, entityName, ent
 
 	ctx, span := tracer.Start(ctx, "command.update_metadata")
 	defer span.End()
-
-	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Trying to update metadata for %s", entityName))
 
 	metadataToUpdate := metadata
 

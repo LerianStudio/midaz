@@ -11,9 +11,9 @@ import (
 	"testing"
 	"testing/quick"
 
-	libCommons "github.com/LerianStudio/lib-commons/v5/commons"
-	tmclient "github.com/LerianStudio/lib-commons/v5/commons/tenant-manager/client"
-	libZap "github.com/LerianStudio/lib-observability/zap"
+	libCommons "github.com/LerianStudio/lib-commons/v6/commons"
+	tmclient "github.com/LerianStudio/lib-commons/v6/commons/tenant-manager/client"
+	libZap "github.com/LerianStudio/lib-observability/v2/zap"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )

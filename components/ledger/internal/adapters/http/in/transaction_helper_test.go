@@ -10,15 +10,15 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/gofiber/fiber/v2"
+	"github.com/gofiber/fiber/v3"
 	"github.com/google/uuid"
 	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/LerianStudio/midaz/v3/pkg/constant"
-	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
-	"github.com/LerianStudio/midaz/v3/pkg/mtransaction"
+	"github.com/LerianStudio/midaz/v4/pkg/constant"
+	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
+	"github.com/LerianStudio/midaz/v4/pkg/mtransaction"
 )
 
 func TestBuildParentTransactionID(t *testing.T) {
@@ -66,8 +66,8 @@ func TestReadPathParams(t *testing.T) {
 		transactionID := uuid.New()
 
 		app := fiber.New()
-		app.Get("/scope", func(c *fiber.Ctx) error {
-			c.SetUserContext(context.Background())
+		app.Get("/scope", func(c fiber.Ctx) error {
+			c.SetContext(context.Background())
 			c.Locals("organization_id", organizationID)
 			c.Locals("ledger_id", ledgerID)
 			c.Locals("transaction_id", transactionID)
@@ -99,7 +99,7 @@ func TestReadPathParams(t *testing.T) {
 		ledgerID := uuid.New()
 
 		app := fiber.New()
-		app.Get("/scope", func(c *fiber.Ctx) error {
+		app.Get("/scope", func(c fiber.Ctx) error {
 			c.Locals("organization_id", organizationID)
 			c.Locals("ledger_id", ledgerID)
 

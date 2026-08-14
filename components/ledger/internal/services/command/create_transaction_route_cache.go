@@ -6,13 +6,12 @@ package command
 
 import (
 	"context"
-	"fmt"
 
-	libObs "github.com/LerianStudio/lib-observability"
+	libObservability "github.com/LerianStudio/lib-observability/v2"
+	libOpentelemetry "github.com/LerianStudio/lib-observability/v2/tracing"
 
-	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
-	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
-	"github.com/LerianStudio/midaz/v3/pkg/utils"
+	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
+	"github.com/LerianStudio/midaz/v4/pkg/utils"
 
 	// CreateAccountingRouteCache creates a cache for the accounting route.
 	// It converts the transaction route into a cache structure and stores it in Redis.
@@ -20,16 +19,14 @@ import (
 	// The operation route ids are the uuids of the operation routes in the transaction route.
 	// The type is the type of the operation route (debit or credit).
 	// The account rule is the account rule of the operation route.
-	libLog "github.com/LerianStudio/lib-observability/log"
+	libLog "github.com/LerianStudio/lib-observability/v2/log"
 )
 
 func (uc *UseCase) CreateAccountingRouteCache(ctx context.Context, route *mmodel.TransactionRoute) error {
-	logger, tracer, _, _ := libObs.NewTrackingFromContext(ctx)
+	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "command.create_transaction_route_cache")
 	defer span.End()
-
-	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Creating transaction route cache for transaction route with id: %s", route.ID))
 
 	internalKey := utils.AccountingRoutesInternalKey(route.OrganizationID, route.LedgerID, route.ID)
 
@@ -39,7 +36,7 @@ func (uc *UseCase) CreateAccountingRouteCache(ctx context.Context, route *mmodel
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to convert route to cache data", err)
 
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to convert route to cache data: %v", err))
+		logger.Log(ctx, libLog.LevelError, "Failed to convert route to cache data", libLog.Err(err))
 
 		return err
 	}
@@ -48,12 +45,10 @@ func (uc *UseCase) CreateAccountingRouteCache(ctx context.Context, route *mmodel
 	if err != nil {
 		libOpentelemetry.HandleSpanError(span, "Failed to create transaction route cache", err)
 
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to create transaction route cache: %v", err))
+		logger.Log(ctx, libLog.LevelError, "Failed to create transaction route cache", libLog.Err(err))
 
 		return err
 	}
-
-	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Successfully created transaction route cache for transaction route with id: %s", route.ID))
 
 	return nil
 }

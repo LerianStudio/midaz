@@ -9,7 +9,7 @@ import (
 	"errors"
 	"testing"
 
-	mongodb "github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/mongodb/onboarding"
+	mongodb "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/mongodb/onboarding"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/mock/gomock"
 )

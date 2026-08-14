@@ -6,36 +6,33 @@ package query
 
 import (
 	"context"
-	"fmt"
 	"time"
 
-	libObs "github.com/LerianStudio/lib-observability"
-
-	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
-	"github.com/LerianStudio/midaz/v3/pkg"
-	"github.com/LerianStudio/midaz/v3/pkg/constant"
-	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
+	libObservability "github.com/LerianStudio/lib-observability/v2"
+	libOpentelemetry "github.com/LerianStudio/lib-observability/v2/tracing"
 	"github.com/google/uuid"
+
+	"github.com/LerianStudio/midaz/v4/pkg"
+	"github.com/LerianStudio/midaz/v4/pkg/constant"
+	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
 
 	// GetAccountBalancesAtTimestamp retrieves all balance states for an account at a specific point in time.
 	// It uses a single optimized query with LEFT JOIN to fetch balance states, avoiding multiple round-trips.
 	// Balances without operations at the timestamp are returned with zero values (initial state).
-	libLog "github.com/LerianStudio/lib-observability/log"
+	libLog "github.com/LerianStudio/lib-observability/v2/log"
 )
 
 func (uc *UseCase) GetAccountBalancesAtTimestamp(ctx context.Context, organizationID, ledgerID, accountID uuid.UUID, timestamp time.Time) ([]*mmodel.Balance, error) {
-	logger, tracer, _, _ := libObs.NewTrackingFromContext(ctx)
+	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "query.get_account_balances_at_timestamp")
 	defer span.End()
-
-	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Retrieving balances for account %s at timestamp %s", accountID, timestamp.Format(time.RFC3339)))
 
 	// Validate timestamp is not in the future (use UTC for consistent comparison)
 	if timestamp.After(time.Now().UTC()) {
 		err := pkg.ValidateBusinessError(constant.ErrInvalidTimestamp, "Balance", timestamp.Format(time.RFC3339))
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Timestamp is in the future", err)
-		logger.Log(ctx, libLog.LevelWarn, fmt.Sprintf("Timestamp is in the future: %s", timestamp))
+		logger.Log(ctx, libLog.LevelWarn, "Timestamp is in the future", libLog.String("timestamp", timestamp.Format(time.RFC3339)))
 
 		return nil, err
 	}
@@ -45,12 +42,10 @@ func (uc *UseCase) GetAccountBalancesAtTimestamp(ctx context.Context, organizati
 	balances, err := uc.BalanceRepo.ListByAccountIDAtTimestamp(ctx, organizationID, ledgerID, accountID, timestamp)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(span, "Failed to get balances at timestamp", err)
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Error getting balances at timestamp: %v", err))
+		logger.Log(ctx, libLog.LevelError, "Error getting balances at timestamp", libLog.Err(err))
 
 		return nil, err
 	}
-
-	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Successfully retrieved %d balances for account %s at timestamp %s", len(balances), accountID, timestamp.Format(time.RFC3339)))
 
 	return balances, nil
 }

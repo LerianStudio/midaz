@@ -1,0 +1,1 @@
+ALTER TABLE account ADD COLUMN IF NOT EXISTS holder_id UUID;

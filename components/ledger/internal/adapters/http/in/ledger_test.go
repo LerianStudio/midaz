@@ -14,20 +14,21 @@ import (
 	"testing"
 	"time"
 
-	mongodb "github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/mongodb/onboarding"
-	"github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/postgres/ledger"
-	redisAdapter "github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/redis/onboarding"
-	"github.com/LerianStudio/midaz/v3/components/ledger/internal/services/command"
-	"github.com/LerianStudio/midaz/v3/components/ledger/internal/services/query"
-	"github.com/LerianStudio/midaz/v3/pkg"
-	cn "github.com/LerianStudio/midaz/v3/pkg/constant"
-	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
-	"github.com/LerianStudio/midaz/v3/pkg/net/http"
-	"github.com/gofiber/fiber/v2"
+	"github.com/gofiber/fiber/v3"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
+
+	mongodb "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/mongodb/onboarding"
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/ledger"
+	redisAdapter "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/redis/onboarding"
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services/command"
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services/query"
+	"github.com/LerianStudio/midaz/v4/pkg"
+	cn "github.com/LerianStudio/midaz/v4/pkg/constant"
+	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
+	"github.com/LerianStudio/midaz/v4/pkg/net/http"
 )
 
 func TestHandler_CreateLedger(t *testing.T) {
@@ -124,7 +125,7 @@ func TestHandler_CreateLedger(t *testing.T) {
 				require.NoError(t, err, "error response should be valid JSON")
 
 				assert.Contains(t, errResp, "code", "error response should contain code field")
-				assert.Contains(t, errResp, "message", "error response should contain message field")
+				assert.Contains(t, errResp, "detail", "error response should contain message field")
 			},
 		},
 	}
@@ -148,12 +149,13 @@ func TestHandler_CreateLedger(t *testing.T) {
 			handler := &LedgerHandler{Command: cmdUC}
 
 			app := fiber.New()
-			app.Post("/v1/organizations/:organization_id/ledgers",
-				func(c *fiber.Ctx) error {
+			app.Post(
+				"/v1/organizations/:organization_id/ledgers",
+				func(c fiber.Ctx) error {
 					c.Locals("organization_id", orgID)
 					return c.Next()
 				},
-				func(c *fiber.Ctx) error {
+				func(c fiber.Ctx) error {
 					return handler.CreateLedger(tt.payload, c)
 				},
 			)
@@ -261,7 +263,7 @@ func TestHandler_UpdateLedger(t *testing.T) {
 				require.NoError(t, err)
 
 				assert.Contains(t, errResp, "code", "error response should contain code")
-				assert.Contains(t, errResp, "message", "error response should contain message")
+				assert.Contains(t, errResp, "detail", "error response should contain message")
 			},
 		},
 	}
@@ -293,13 +295,14 @@ func TestHandler_UpdateLedger(t *testing.T) {
 			}
 
 			app := fiber.New()
-			app.Patch("/v1/organizations/:organization_id/ledgers/:ledger_id",
-				func(c *fiber.Ctx) error {
+			app.Patch(
+				"/v1/organizations/:organization_id/ledgers/:ledger_id",
+				func(c fiber.Ctx) error {
 					c.Locals("organization_id", orgID)
 					c.Locals("ledger_id", ledgerID)
 					return c.Next()
 				},
-				func(c *fiber.Ctx) error {
+				func(c fiber.Ctx) error {
 					return handler.UpdateLedger(tt.payload, c)
 				},
 			)
@@ -398,7 +401,7 @@ func TestHandler_GetLedgerByID(t *testing.T) {
 				require.NoError(t, err)
 
 				assert.Contains(t, errResp, "code", "error response should contain code")
-				assert.Contains(t, errResp, "message", "error response should contain message")
+				assert.Contains(t, errResp, "detail", "error response should contain message")
 			},
 		},
 	}
@@ -423,8 +426,9 @@ func TestHandler_GetLedgerByID(t *testing.T) {
 			handler := &LedgerHandler{Query: queryUC}
 
 			app := fiber.New()
-			app.Get("/v1/organizations/:organization_id/ledgers/:ledger_id",
-				func(c *fiber.Ctx) error {
+			app.Get(
+				"/v1/organizations/:organization_id/ledgers/:ledger_id",
+				func(c fiber.Ctx) error {
 					c.Locals("organization_id", orgID)
 					c.Locals("ledger_id", ledgerID)
 					return c.Next()
@@ -694,7 +698,7 @@ func TestHandler_GetAllLedgers(t *testing.T) {
 				require.NoError(t, err, "error response should be valid JSON")
 
 				assert.Contains(t, errResp, "code", "error response should contain code field")
-				assert.Contains(t, errResp, "message", "error response should contain message field")
+				assert.Contains(t, errResp, "detail", "error response should contain message field")
 			},
 		},
 	}
@@ -718,8 +722,9 @@ func TestHandler_GetAllLedgers(t *testing.T) {
 			handler := &LedgerHandler{Query: queryUC}
 
 			app := fiber.New()
-			app.Get("/v1/organizations/:organization_id/ledgers",
-				func(c *fiber.Ctx) error {
+			app.Get(
+				"/v1/organizations/:organization_id/ledgers",
+				func(c fiber.Ctx) error {
 					c.Locals("organization_id", orgID)
 					return c.Next()
 				},
@@ -783,12 +788,12 @@ func TestHandler_DeleteLedgerByID(t *testing.T) {
 			},
 		},
 		{
-			name:    "production environment returns 400 validation error",
+			name:    "production environment returns 422 unprocessable error",
 			envName: "production",
 			setupMocks: func(ledgerRepo *ledger.MockRepository, orgID, ledgerID uuid.UUID) {
 				// No repository calls expected in production
 			},
-			expectedStatus: 400,
+			expectedStatus: 422,
 			validateBody: func(t *testing.T, body []byte) {
 				var errResp map[string]any
 				err := json.Unmarshal(body, &errResp)
@@ -818,7 +823,7 @@ func TestHandler_DeleteLedgerByID(t *testing.T) {
 				require.NoError(t, err)
 
 				assert.Contains(t, errResp, "code", "error response should contain code")
-				assert.Contains(t, errResp, "message", "error response should contain message")
+				assert.Contains(t, errResp, "detail", "error response should contain message")
 			},
 		},
 	}
@@ -844,8 +849,9 @@ func TestHandler_DeleteLedgerByID(t *testing.T) {
 			handler := &LedgerHandler{Command: cmdUC}
 
 			app := fiber.New()
-			app.Delete("/v1/organizations/:organization_id/ledgers/:ledger_id",
-				func(c *fiber.Ctx) error {
+			app.Delete(
+				"/v1/organizations/:organization_id/ledgers/:ledger_id",
+				func(c fiber.Ctx) error {
 					c.Locals("organization_id", orgID)
 					c.Locals("ledger_id", ledgerID)
 					return c.Next()
@@ -919,8 +925,9 @@ func TestHandler_CountLedgers(t *testing.T) {
 			handler := &LedgerHandler{Query: queryUC}
 
 			app := fiber.New()
-			app.Head("/v1/organizations/:organization_id/ledgers/metrics/count",
-				func(c *fiber.Ctx) error {
+			app.Head(
+				"/v1/organizations/:organization_id/ledgers/metrics/count",
+				func(c fiber.Ctx) error {
 					c.Locals("organization_id", orgID)
 					return c.Next()
 				},
@@ -992,8 +999,9 @@ func TestHandler_CreateLedger_Validation(t *testing.T) {
 			handler := &LedgerHandler{Command: cmdUC}
 
 			app := fiber.New()
-			app.Post("/v1/organizations/:organization_id/ledgers",
-				func(c *fiber.Ctx) error {
+			app.Post(
+				"/v1/organizations/:organization_id/ledgers",
+				func(c fiber.Ctx) error {
 					c.Locals("organization_id", orgID)
 					return c.Next()
 				},
@@ -1133,8 +1141,9 @@ func TestHandler_GetLedgerSettings(t *testing.T) {
 			handler := &LedgerHandler{Query: queryUC}
 
 			app := fiber.New()
-			app.Get("/v1/organizations/:organization_id/ledgers/:ledger_id/settings",
-				func(c *fiber.Ctx) error {
+			app.Get(
+				"/v1/organizations/:organization_id/ledgers/:ledger_id/settings",
+				func(c fiber.Ctx) error {
 					c.Locals("organization_id", orgID)
 					c.Locals("ledger_id", ledgerID)
 					return c.Next()
@@ -1323,13 +1332,14 @@ func TestHandler_UpdateLedgerSettings(t *testing.T) {
 			handler := &LedgerHandler{Command: cmdUC}
 
 			app := fiber.New()
-			app.Patch("/v1/organizations/:organization_id/ledgers/:ledger_id/settings",
-				func(c *fiber.Ctx) error {
+			app.Patch(
+				"/v1/organizations/:organization_id/ledgers/:ledger_id/settings",
+				func(c fiber.Ctx) error {
 					c.Locals("organization_id", orgID)
 					c.Locals("ledger_id", ledgerID)
 					return c.Next()
 				},
-				func(c *fiber.Ctx) error {
+				func(c fiber.Ctx) error {
 					return handler.UpdateLedgerSettings(&tt.requestBody, c)
 				},
 			)

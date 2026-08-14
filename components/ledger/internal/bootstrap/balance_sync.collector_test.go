@@ -12,10 +12,11 @@ import (
 	"testing"
 	"time"
 
-	libLog "github.com/LerianStudio/lib-observability/log"
-	redisTransaction "github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/redis/transaction"
+	libLog "github.com/LerianStudio/lib-observability/v2/log"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	redisTransaction "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/redis/transaction"
 )
 
 // --------------------------------------------------------------------
@@ -232,7 +233,8 @@ func TestFlushFnSetByRun(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel() // cancel immediately so Run exits right away
 
-	c.Run(ctx,
+	c.Run(
+		ctx,
 		func(_ context.Context, _ []redisTransaction.SyncKey) bool {
 			return true
 		},

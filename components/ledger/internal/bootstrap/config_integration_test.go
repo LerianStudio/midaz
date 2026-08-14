@@ -12,12 +12,15 @@ package bootstrap
 
 import (
 	"context"
+	"database/sql"
 	"fmt"
 	"os"
 	"path/filepath"
 	"testing"
 	"time"
 
+	testutils "github.com/LerianStudio/midaz/v4/tests/utils"
+	_ "github.com/jackc/pgx/v5/stdlib" // register the "pgx" database/sql driver
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/testcontainers/testcontainers-go"
@@ -128,9 +131,12 @@ func setupPostgresContainer(t *testing.T, ctx context.Context) (testcontainers.C
 	port, err := container.MappedPort(ctx, "5432")
 	require.NoError(t, err, "failed to get PostgreSQL container port")
 
-	// Note: We don't run migrations here because lib-commons PostgresConnection
-	// auto-runs migrations based on the Component name. Running them manually
-	// would cause conflicts (duplicate indexes).
+	// Onboarding and transaction ship independent migration sequences that share
+	// a single golang-migrate schema_migrations table per database. Give each
+	// domain its own database so neither clobbers the other's migration version,
+	// mirroring the production split between DB_ONBOARDING_NAME and
+	// DB_TRANSACTION_NAME. Migrations themselves run during InitServers.
+	createDomainDatabases(t, ctx, host, port.Port())
 
 	cleanup := func() {
 		if err := container.Terminate(ctx); err != nil {
@@ -139,6 +145,23 @@ func setupPostgresContainer(t *testing.T, ctx context.Context) (testcontainers.C
 	}
 
 	return container, host, port.Port(), cleanup
+}
+
+// createDomainDatabases creates the per-domain PostgreSQL databases used by the
+// unified ledger so onboarding and transaction migrations stay isolated.
+func createDomainDatabases(t *testing.T, ctx context.Context, host, port string) {
+	t.Helper()
+
+	adminDSN := fmt.Sprintf("host=%s port=%s user=test password=test dbname=midaz_test sslmode=disable", host, port)
+
+	db, err := sql.Open("pgx", adminDSN)
+	require.NoError(t, err, "failed to open admin connection for database creation")
+	defer func() { _ = db.Close() }()
+
+	for _, name := range []string{"midaz_onboarding", "midaz_transaction"} {
+		_, err := db.ExecContext(ctx, fmt.Sprintf("CREATE DATABASE %s", name))
+		require.NoError(t, err, "failed to create database %s", name)
+	}
 }
 
 func setupMongoContainer(t *testing.T, ctx context.Context) (testcontainers.Container, string, string, func()) {
@@ -299,30 +322,52 @@ func changeToProjectRoot(t *testing.T) func() {
 func setEnvFromContainers(t *testing.T, addresses *ContainerAddresses) {
 	t.Helper()
 
-	// PostgreSQL Primary
-	t.Setenv("DB_HOST", addresses.PostgresHost)
-	t.Setenv("DB_PORT", addresses.PostgresPort)
-	t.Setenv("DB_NAME", "midaz_test")
-	t.Setenv("DB_USER", "test")
-	t.Setenv("DB_PASSWORD", "test")
-	t.Setenv("DB_SSLMODE", "disable")
+	// PostgreSQL — onboarding primary + replica (DB_ONBOARDING_* env surface).
+	// Dedicated database so onboarding migrations own their schema_migrations.
+	t.Setenv("DB_ONBOARDING_HOST", addresses.PostgresHost)
+	t.Setenv("DB_ONBOARDING_PORT", addresses.PostgresPort)
+	t.Setenv("DB_ONBOARDING_NAME", "midaz_onboarding")
+	t.Setenv("DB_ONBOARDING_USER", "test")
+	t.Setenv("DB_ONBOARDING_PASSWORD", "test")
+	t.Setenv("DB_ONBOARDING_SSLMODE", "disable")
+	t.Setenv("DB_ONBOARDING_REPLICA_HOST", addresses.PostgresHost)
+	t.Setenv("DB_ONBOARDING_REPLICA_PORT", addresses.PostgresPort)
+	t.Setenv("DB_ONBOARDING_REPLICA_NAME", "midaz_onboarding")
+	t.Setenv("DB_ONBOARDING_REPLICA_USER", "test")
+	t.Setenv("DB_ONBOARDING_REPLICA_PASSWORD", "test")
+	t.Setenv("DB_ONBOARDING_REPLICA_SSLMODE", "disable")
 
-	// PostgreSQL Replica (same as primary for tests)
-	t.Setenv("DB_REPLICA_HOST", addresses.PostgresHost)
-	t.Setenv("DB_REPLICA_PORT", addresses.PostgresPort)
-	t.Setenv("DB_REPLICA_NAME", "midaz_test")
-	t.Setenv("DB_REPLICA_USER", "test")
-	t.Setenv("DB_REPLICA_PASSWORD", "test")
-	t.Setenv("DB_REPLICA_SSLMODE", "disable")
+	// PostgreSQL — transaction primary + replica (DB_TRANSACTION_* env surface).
+	// Dedicated database so transaction migrations own their schema_migrations.
+	t.Setenv("DB_TRANSACTION_HOST", addresses.PostgresHost)
+	t.Setenv("DB_TRANSACTION_PORT", addresses.PostgresPort)
+	t.Setenv("DB_TRANSACTION_NAME", "midaz_transaction")
+	t.Setenv("DB_TRANSACTION_USER", "test")
+	t.Setenv("DB_TRANSACTION_PASSWORD", "test")
+	t.Setenv("DB_TRANSACTION_SSLMODE", "disable")
+	t.Setenv("DB_TRANSACTION_REPLICA_HOST", addresses.PostgresHost)
+	t.Setenv("DB_TRANSACTION_REPLICA_PORT", addresses.PostgresPort)
+	t.Setenv("DB_TRANSACTION_REPLICA_NAME", "midaz_transaction")
+	t.Setenv("DB_TRANSACTION_REPLICA_USER", "test")
+	t.Setenv("DB_TRANSACTION_REPLICA_PASSWORD", "test")
+	t.Setenv("DB_TRANSACTION_REPLICA_SSLMODE", "disable")
 
-	// MongoDB (with auth for tests)
-	t.Setenv("MONGO_HOST", addresses.MongoHost)
-	t.Setenv("MONGO_PORT", addresses.MongoPort)
-	t.Setenv("MONGO_URI", "mongodb")
-	t.Setenv("MONGO_NAME", "midaz_test")
-	t.Setenv("MONGO_USER", "test")
-	t.Setenv("MONGO_PASSWORD", "test")
-	t.Setenv("MONGO_PARAMETERS", "authSource=admin")
+	// MongoDB — onboarding, transaction, CRM, and fees all share the single test
+	// container (distinct logical DBs). Each domain has its own MONGO_<DOMAIN>_*
+	// env surface in the unified ledger config.
+	for _, prefix := range []string{"MONGO_ONBOARDING", "MONGO_TRANSACTION", "MONGO_CRM", "MONGO_FEES"} {
+		t.Setenv(prefix+"_HOST", addresses.MongoHost)
+		t.Setenv(prefix+"_PORT", addresses.MongoPort)
+		t.Setenv(prefix+"_URI", "mongodb")
+		t.Setenv(prefix+"_NAME", "midaz_test")
+		t.Setenv(prefix+"_USER", "test")
+		t.Setenv(prefix+"_PASSWORD", "test")
+		t.Setenv(prefix+"_PARAMETERS", "authSource=admin")
+	}
+
+	// CRM holder/alias PII cipher keys (LCRYPTO_* keep their bare names).
+	t.Setenv("LCRYPTO_HASH_SECRET_KEY", testutils.TestHashKey)
+	t.Setenv("LCRYPTO_ENCRYPT_SECRET_KEY", testutils.TestEncryptKey)
 
 	// Redis
 	t.Setenv("REDIS_HOST", fmt.Sprintf("%s:%s", addresses.RedisHost, addresses.RedisPort))

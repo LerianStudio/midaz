@@ -11,11 +11,11 @@ import (
 	"testing"
 	"time"
 
-	testutils "github.com/LerianStudio/midaz/v3/tests/utils"
+	testutils "github.com/LerianStudio/midaz/v4/tests/utils"
 
 	"github.com/moby/moby/api/types/container"
 
-	libRedis "github.com/LerianStudio/lib-commons/v5/commons/redis"
+	libRedis "github.com/LerianStudio/lib-commons/v6/commons/redis"
 	"github.com/redis/go-redis/v9"
 	"github.com/stretchr/testify/require"
 	"github.com/testcontainers/testcontainers-go"

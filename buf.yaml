@@ -1,0 +1,17 @@
+version: v2
+modules:
+  - path: proto
+lint:
+  use:
+    - STANDARD
+  except:
+    # The proto package follows the lerian.midaz.<resource>.<version> convention,
+    # which buf's default PACKAGE_DIRECTORY_MATCH would otherwise flag because
+    # the proto lives under proto/reservation/v1 (no leading "lerian/midaz").
+    - PACKAGE_DIRECTORY_MATCH
+    # Reserve's response is named ReserveResult (not ReserveResponse) to mirror
+    # the ledger-side Go type ReserveResult field-for-field, per the seam plan.
+    - RPC_RESPONSE_STANDARD_NAME
+breaking:
+  use:
+    - FILE

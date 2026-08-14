@@ -17,25 +17,26 @@ import (
 	"sync"
 	"testing"
 
-	libPostgres "github.com/LerianStudio/lib-commons/v5/commons/postgres"
-	mongodb "github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/mongodb/onboarding"
-	"github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/postgres/account"
-	"github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/postgres/asset"
-	"github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/postgres/ledger"
-	"github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/postgres/organization"
-	"github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/postgres/portfolio"
-	"github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/postgres/segment"
-	"github.com/LerianStudio/midaz/v3/components/ledger/internal/services/command"
-	"github.com/LerianStudio/midaz/v3/components/ledger/internal/services/query"
-	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
-	nethttp "github.com/LerianStudio/midaz/v3/pkg/net/http"
-	mongotestutil "github.com/LerianStudio/midaz/v3/tests/utils/mongodb"
-	postgrestestutil "github.com/LerianStudio/midaz/v3/tests/utils/postgres"
-	"github.com/LerianStudio/midaz/v3/tests/utils/stubs"
-	"github.com/gofiber/fiber/v2"
+	libPostgres "github.com/LerianStudio/lib-commons/v6/commons/postgres"
+	"github.com/gofiber/fiber/v3"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	mongodb "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/mongodb/onboarding"
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/account"
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/asset"
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/ledger"
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/organization"
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/portfolio"
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/segment"
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services/command"
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services/query"
+	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
+	nethttp "github.com/LerianStudio/midaz/v4/pkg/net/http"
+	mongotestutil "github.com/LerianStudio/midaz/v4/tests/utils/mongodb"
+	postgrestestutil "github.com/LerianStudio/midaz/v4/tests/utils/postgres"
+	"github.com/LerianStudio/midaz/v4/tests/utils/stubs"
 )
 
 // testRand is a deterministic random source for reproducible test runs.
@@ -159,7 +160,7 @@ func setupAssetTestInfra(t *testing.T) *assetTestInfra {
 // setupRoutes registers handler routes on the Fiber app.
 func (infra *assetTestInfra) setupRoutes() {
 	// Middleware to inject path params as locals
-	paramMiddleware := func(c *fiber.Ctx) error {
+	paramMiddleware := func(c fiber.Ctx) error {
 		orgIDStr := c.Params("organization_id")
 		ledgerIDStr := c.Params("ledger_id")
 		assetIDStr := c.Params("id")
@@ -186,7 +187,7 @@ func (infra *assetTestInfra) setupRoutes() {
 	}
 
 	// Middleware to inject organization ID for organization routes
-	orgParamMiddleware := func(c *fiber.Ctx) error {
+	orgParamMiddleware := func(c fiber.Ctx) error {
 		idStr := c.Params("id")
 		if idStr != "" {
 			if id, err := uuid.Parse(idStr); err == nil {
@@ -244,7 +245,7 @@ func (infra *assetTestInfra) createOrganization(t *testing.T, name string) uuid.
 	req := httptest.NewRequest("POST", "/v1/organizations", bytes.NewBuffer(body))
 	req.Header.Set("Content-Type", "application/json")
 
-	resp, err := infra.app.Test(req, -1)
+	resp, err := infra.app.Test(req, fiber.TestConfig{Timeout: 0})
 	require.NoError(t, err, "failed to create organization")
 
 	respBody, err := io.ReadAll(resp.Body)
@@ -278,7 +279,7 @@ func (infra *assetTestInfra) createLedger(t *testing.T, orgID uuid.UUID, name st
 		bytes.NewBuffer(body))
 	req.Header.Set("Content-Type", "application/json")
 
-	resp, err := infra.app.Test(req, -1)
+	resp, err := infra.app.Test(req, fiber.TestConfig{Timeout: 0})
 	require.NoError(t, err, "failed to create ledger")
 
 	respBody, err := io.ReadAll(resp.Body)
@@ -314,7 +315,7 @@ func (infra *assetTestInfra) createAsset(t *testing.T, orgID, ledgerID uuid.UUID
 		bytes.NewBuffer(body))
 	req.Header.Set("Content-Type", "application/json")
 
-	resp, err := infra.app.Test(req, -1)
+	resp, err := infra.app.Test(req, fiber.TestConfig{Timeout: 0})
 	require.NoError(t, err, "failed to create asset")
 
 	respBody, err := io.ReadAll(resp.Body)
@@ -341,7 +342,7 @@ func (infra *assetTestInfra) deleteAsset(t *testing.T, orgID, ledgerID, assetID 
 		"/v1/organizations/"+orgID.String()+"/ledgers/"+ledgerID.String()+"/assets/"+assetID.String(),
 		nil)
 
-	resp, err := infra.app.Test(req, -1)
+	resp, err := infra.app.Test(req, fiber.TestConfig{Timeout: 0})
 	require.NoError(t, err, "failed to delete asset")
 
 	require.Equal(t, 204, resp.StatusCode, "expected 204, got %d", resp.StatusCode)
@@ -374,7 +375,7 @@ func TestIntegration_AssetHandler_CreateAssetThenAccount(t *testing.T) {
 		"/v1/organizations/"+orgID.String()+"/ledgers/"+ledgerID.String()+"/assets/"+assetID.String(),
 		nil)
 
-	resp, err := infra.app.Test(req, -1)
+	resp, err := infra.app.Test(req, fiber.TestConfig{Timeout: 0})
 	require.NoError(t, err, "GET asset by ID request should not fail")
 
 	respBody, err := io.ReadAll(resp.Body)
@@ -404,7 +405,7 @@ func TestIntegration_AssetHandler_CreateAssetThenAccount(t *testing.T) {
 		bytes.NewBuffer(accountBody))
 	accountReq.Header.Set("Content-Type", "application/json")
 
-	accountResp, err := infra.app.Test(accountReq, -1)
+	accountResp, err := infra.app.Test(accountReq, fiber.TestConfig{Timeout: 0})
 	require.NoError(t, err, "create account request should not fail")
 
 	accountRespBody, err := io.ReadAll(accountResp.Body)
@@ -449,7 +450,7 @@ func TestIntegration_AssetHandler_AccountWithNonExistentAsset(t *testing.T) {
 		bytes.NewBuffer(accountBody))
 	accountReq.Header.Set("Content-Type", "application/json")
 
-	accountResp, err := infra.app.Test(accountReq, -1)
+	accountResp, err := infra.app.Test(accountReq, fiber.TestConfig{Timeout: 0})
 	require.NoError(t, err, "create account request should not fail")
 
 	accountRespBody, err := io.ReadAll(accountResp.Body)
@@ -479,7 +480,7 @@ func TestIntegration_AssetHandler_AccountWithDeletedAsset(t *testing.T) {
 	getReq := httptest.NewRequest("GET",
 		"/v1/organizations/"+orgID.String()+"/ledgers/"+ledgerID.String()+"/assets/"+assetID.String(),
 		nil)
-	getResp, err := infra.app.Test(getReq, -1)
+	getResp, err := infra.app.Test(getReq, fiber.TestConfig{Timeout: 0})
 	require.NoError(t, err, "GET asset request should not fail")
 	require.Equal(t, 200, getResp.StatusCode, "asset should exist before deletion")
 
@@ -491,7 +492,7 @@ func TestIntegration_AssetHandler_AccountWithDeletedAsset(t *testing.T) {
 	getReqAfterDelete := httptest.NewRequest("GET",
 		"/v1/organizations/"+orgID.String()+"/ledgers/"+ledgerID.String()+"/assets/"+assetID.String(),
 		nil)
-	getRespAfterDelete, err := infra.app.Test(getReqAfterDelete, -1)
+	getRespAfterDelete, err := infra.app.Test(getReqAfterDelete, fiber.TestConfig{Timeout: 0})
 	require.NoError(t, err, "GET asset after delete request should not fail")
 	assert.Equal(t, 404, getRespAfterDelete.StatusCode, "deleted asset should return 404")
 
@@ -510,7 +511,7 @@ func TestIntegration_AssetHandler_AccountWithDeletedAsset(t *testing.T) {
 		bytes.NewBuffer(accountBody))
 	accountReq.Header.Set("Content-Type", "application/json")
 
-	accountResp, err := infra.app.Test(accountReq, -1)
+	accountResp, err := infra.app.Test(accountReq, fiber.TestConfig{Timeout: 0})
 	require.NoError(t, err, "create account request should not fail")
 
 	accountRespBody, err := io.ReadAll(accountResp.Body)
@@ -595,7 +596,7 @@ func TestIntegration_Property_Account_AliasAndType(t *testing.T) {
 					bytes.NewBuffer(accountBody))
 				accountReq.Header.Set("Content-Type", "application/json")
 
-				accountResp, err := infra.app.Test(accountReq, -1)
+				accountResp, err := infra.app.Test(accountReq, fiber.TestConfig{Timeout: 0})
 				require.NoError(t, err, "create account request should not fail")
 
 				// Property: Should never return 5xx
@@ -633,7 +634,7 @@ func TestIntegration_Property_Account_DuplicateAlias(t *testing.T) {
 		bytes.NewBuffer(accountBody))
 	accountReq.Header.Set("Content-Type", "application/json")
 
-	resp, err := infra.app.Test(accountReq, -1)
+	resp, err := infra.app.Test(accountReq, fiber.TestConfig{Timeout: 0})
 	require.NoError(t, err)
 	require.Equal(t, 201, resp.StatusCode, "first account creation should succeed")
 
@@ -647,7 +648,7 @@ func TestIntegration_Property_Account_DuplicateAlias(t *testing.T) {
 		bytes.NewBuffer(accountBody))
 	duplicateReq.Header.Set("Content-Type", "application/json")
 
-	duplicateResp, err := infra.app.Test(duplicateReq, -1)
+	duplicateResp, err := infra.app.Test(duplicateReq, fiber.TestConfig{Timeout: 0})
 	require.NoError(t, err)
 
 	respBody, err := io.ReadAll(duplicateResp.Body)
@@ -689,7 +690,7 @@ func TestIntegration_Property_Structural_InvalidJSON(t *testing.T) {
 				bytes.NewBuffer(tc.body))
 			req.Header.Set("Content-Type", tc.contentType)
 
-			resp, err := infra.app.Test(req, -1)
+			resp, err := infra.app.Test(req, fiber.TestConfig{Timeout: 0})
 			require.NoError(t, err)
 
 			// Property: Should never return 5xx
@@ -733,7 +734,7 @@ func TestIntegration_Property_Structural_LargeMetadata(t *testing.T) {
 		bytes.NewBuffer(body))
 	req.Header.Set("Content-Type", "application/json")
 
-	resp, err := infra.app.Test(req, -1)
+	resp, err := infra.app.Test(req, fiber.TestConfig{Timeout: 0})
 	require.NoError(t, err)
 
 	// Property: Should never return 5xx (may return 413 or accept it)
@@ -765,7 +766,7 @@ func TestIntegration_Property_Structural_UnknownFields(t *testing.T) {
 		bytes.NewBuffer(body))
 	req.Header.Set("Content-Type", "application/json")
 
-	resp, err := infra.app.Test(req, -1)
+	resp, err := infra.app.Test(req, fiber.TestConfig{Timeout: 0})
 	require.NoError(t, err)
 
 	// Property: Should not return 5xx for unknown fields

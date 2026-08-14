@@ -13,11 +13,12 @@ import (
 	context "context"
 	reflect "reflect"
 
-	http "github.com/LerianStudio/lib-commons/v5/commons/net/http"
-	http0 "github.com/LerianStudio/midaz/v3/pkg/net/http"
-	repository "github.com/LerianStudio/midaz/v3/pkg/repository"
+	http "github.com/LerianStudio/lib-commons/v6/commons/net/http"
 	uuid "github.com/google/uuid"
 	gomock "go.uber.org/mock/gomock"
+
+	http0 "github.com/LerianStudio/midaz/v4/pkg/net/http"
+	repository "github.com/LerianStudio/midaz/v4/pkg/repository"
 )
 
 // MockRepository is a mock of Repository interface.

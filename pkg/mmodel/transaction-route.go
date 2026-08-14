@@ -5,6 +5,7 @@
 package mmodel
 
 import (
+	"bytes"
 	"time"
 
 	"github.com/google/uuid"
@@ -12,9 +13,6 @@ import (
 )
 
 // TransactionRoute is a struct designed to store TransactionRoute data.
-//
-// swagger:model TransactionRoute
-// @Description TransactionRoute object
 type TransactionRoute struct {
 	// The unique identifier of the Transaction Route.
 	ID uuid.UUID `json:"id,omitempty" example:"01965ed9-7fa4-75b2-8872-fc9e8509ab0a"`
@@ -36,12 +34,9 @@ type TransactionRoute struct {
 	UpdatedAt time.Time `json:"updatedAt" example:"2025-01-01T00:00:00Z"`
 	// The timestamp when the transaction route was deleted.
 	DeletedAt *time.Time `json:"deletedAt" example:"2025-01-01T00:00:00Z"`
-} // @name TransactionRoute
+}
 
 // CreateTransactionRouteInput is a struct designed to store CreateRouteInput data.
-//
-// swagger:model CreateTransactionRouteInput
-// @Description CreateTransactionRouteInput payload
 type CreateTransactionRouteInput struct {
 	// Short text summarizing the purpose of the transaction. Used as an entry note for identification.
 	Title string `json:"title,omitempty" validate:"required,max=255" example:"Charge Settlement"`
@@ -51,7 +46,7 @@ type CreateTransactionRouteInput struct {
 	Metadata map[string]any `json:"metadata" validate:"dive,keys,keymax=100,endkeys,omitempty,nonested,valuemax=2000"`
 	// A list of Operation Route IDs associated with the Transaction Route.
 	OperationRoutes []uuid.UUID `json:"operationRoutes,omitempty" validate:"required,dive,required" format:"uuid"`
-} // @name CreateTransactionRouteInput
+}
 
 // OperationRouteIDs extracts the operation route UUIDs from the input.
 func (c *CreateTransactionRouteInput) OperationRouteIDs() []uuid.UUID {
@@ -62,9 +57,6 @@ func (c *CreateTransactionRouteInput) OperationRouteIDs() []uuid.UUID {
 }
 
 // UpdateTransactionRouteInput is a struct designed to store transaction route update data.
-//
-// swagger:model UpdateTransactionRouteInput
-// @Description UpdateTransactionRouteInput payload
 type UpdateTransactionRouteInput struct {
 	// Short text summarizing the purpose of the transaction. Used as an entry note for identification.
 	Title string `json:"title,omitempty" validate:"max=255" example:"Charge Settlement"`
@@ -74,7 +66,7 @@ type UpdateTransactionRouteInput struct {
 	Metadata map[string]any `json:"metadata" validate:"dive,keys,keymax=100,endkeys,omitempty,nonested,valuemax=2000"`
 	// A list of Operation Route IDs associated with the Transaction Route. Omit to leave existing associations unchanged. When provided, replaces all current associations with the supplied UUIDs.
 	OperationRoutes *[]uuid.UUID `json:"operationRoutes,omitempty" validate:"omitempty" format:"uuid"`
-} // @name UpdateTransactionRouteInput
+}
 
 // OperationRouteIDs extracts the operation route UUIDs from the input.
 // Returns nil if OperationRoutes is nil.
@@ -195,6 +187,18 @@ func (tr *TransactionRoute) ToCache() TransactionRouteCache {
 // prevent nil pointer dereference when iterating over Source, Destination,
 // or Bidirectional fields that were absent in the serialized data.
 func (trcd *TransactionRouteCache) FromMsgpack(data []byte) error {
+	// Validate the structure before decoding into Go values. The any-typed
+	// AccountCache.ValidIf field is decoded through msgpack's interface-slice
+	// path, which preallocates make([]interface{}, 0, n) from the declared array
+	// length without bounding it — so a crafted header (e.g. array32 claiming
+	// ~2e9 elements in 5 bytes) would allocate gigabytes before reading a single
+	// element. Decoder.Skip walks the whole structure element-by-element without
+	// that preallocation, so an inconsistent length errors here, bounded by the
+	// input size, instead of exhausting process memory.
+	if err := msgpack.NewDecoder(bytes.NewReader(data)).Skip(); err != nil {
+		return err
+	}
+
 	if err := msgpack.Unmarshal(data, trcd); err != nil {
 		return err
 	}

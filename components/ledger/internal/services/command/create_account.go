@@ -7,34 +7,44 @@ package command
 import (
 	"context"
 	"errors"
+	"fmt"
 	"strings"
 	"time"
 
-	libCommons "github.com/LerianStudio/lib-commons/v5/commons"
-	libObservability "github.com/LerianStudio/lib-observability"
-	libLog "github.com/LerianStudio/lib-observability/log"
-	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
-	libStreaming "github.com/LerianStudio/lib-streaming"
-	"github.com/LerianStudio/midaz/v3/components/ledger/internal/services"
-	"github.com/LerianStudio/midaz/v3/pkg"
-	"github.com/LerianStudio/midaz/v3/pkg/constant"
-	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
-	pkgStreaming "github.com/LerianStudio/midaz/v3/pkg/streaming"
-	"github.com/LerianStudio/midaz/v3/pkg/streaming/events"
+	libCommons "github.com/LerianStudio/lib-commons/v6/commons"
+	libObservability "github.com/LerianStudio/lib-observability/v2"
+	libLog "github.com/LerianStudio/lib-observability/v2/log"
+	libOpentelemetry "github.com/LerianStudio/lib-observability/v2/tracing"
+	libStreaming "github.com/LerianStudio/lib-streaming/v2"
 	"github.com/google/uuid"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
+
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services"
+	"github.com/LerianStudio/midaz/v4/pkg"
+	"github.com/LerianStudio/midaz/v4/pkg/constant"
+	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
+	"github.com/LerianStudio/midaz/v4/pkg/skip"
+	pkgStreaming "github.com/LerianStudio/midaz/v4/pkg/streaming"
+	"github.com/LerianStudio/midaz/v4/pkg/streaming/events"
+	"github.com/LerianStudio/midaz/v4/pkg/utils"
 )
 
 // CreateAccount creates an account and metadata, then synchronously creates the default balance.
 // The balance is created via the BalancePort interface.
 //
 //nolint:gocyclo // Validation + creation + metadata + balance orchestration; refactor candidate.
-func (uc *UseCase) CreateAccount(ctx context.Context, organizationID, ledgerID uuid.UUID, cai *mmodel.CreateAccountInput, token string) (*mmodel.Account, error) {
+func (uc *UseCase) CreateAccount(ctx context.Context, organizationID, ledgerID uuid.UUID, cai *mmodel.CreateAccountInput, token string) (_ *mmodel.Account, err error) {
 	logger, tracer, requestID, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "command.create_account")
 	defer span.End()
+
+	start := time.Now()
+
+	defer func() {
+		utils.RecordDomainOperation(ctx, uc.MetricsFactory, logger, "ledger", "create_account", start, err)
+	}()
 
 	span.SetAttributes(
 		attribute.String("app.request.organization_id", organizationID.String()),
@@ -46,6 +56,36 @@ func (uc *UseCase) CreateAccount(ctx context.Context, organizationID, ledgerID u
 	if err := uc.applyAccountingValidations(ctx, organizationID, ledgerID, cai.Type); err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Accounting validations failed", err)
 		logger.Log(ctx, libLog.LevelError, "Accounting validations failed", libLog.Err(err))
+
+		return nil, err
+	}
+
+	requireHolder, allowHolderSkip, err := uc.resolveHolderRequirement(ctx, organizationID, ledgerID)
+	if err != nil {
+		libOpentelemetry.HandleSpanError(span, "Failed to resolve holder requirement", err)
+		logger.Log(ctx, libLog.LevelError, "Failed to resolve holder requirement", libLog.Err(err))
+
+		return nil, err
+	}
+
+	honoredHolderSkip, err := skip.ResolveSkipFor("holder", cai.Skip != nil && cai.Skip.Holder, allowHolderSkip)
+	if err != nil {
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Holder skip not permitted", err)
+		logger.Log(ctx, libLog.LevelWarn, "Holder skip not permitted", libLog.Err(err))
+
+		return nil, err
+	}
+
+	requireHolder = requireHolder && !honoredHolderSkip
+
+	// Record the honored skip as a system observation (not a request input): it
+	// reflects what the two-key holder gate actually honored, and it is persisted
+	// to the account row below for the durable audit trail.
+	span.SetAttributes(attribute.Bool("app.account.holder_check_skipped", honoredHolderSkip))
+
+	if err := uc.applyHolderValidation(ctx, organizationID, requireHolder, cai); err != nil {
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Holder validation failed", err)
+		logger.Log(ctx, libLog.LevelWarn, "Holder validation failed", libLog.Err(err))
 
 		return nil, err
 	}
@@ -63,10 +103,8 @@ func (uc *UseCase) CreateAccount(ctx context.Context, organizationID, ledgerID u
 
 	status := uc.determineStatus(cai)
 
-	isAsset, _ := uc.AssetRepo.FindByNameOrCode(ctx, organizationID, ledgerID, "", cai.AssetCode)
-	if !isAsset {
-		err := pkg.ValidateBusinessError(constant.ErrAssetCodeNotFound, constant.EntityAccount)
-		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to find asset", err)
+	if err := uc.resolveAssetExistence(ctx, span, organizationID, ledgerID, cai.AssetCode); err != nil {
+		logAssetResolutionFailure(ctx, logger, err)
 
 		return nil, err
 	}
@@ -139,24 +177,28 @@ func (uc *UseCase) CreateAccount(ctx context.Context, organizationID, ledgerID u
 
 	blocked := cai.Blocked != nil && *cai.Blocked
 
+	holderID := uc.resolveHolderID(organizationID, cai)
+
 	now := time.Now()
 
 	account := &mmodel.Account{
-		ID:              accountID.String(),
-		AssetCode:       cai.AssetCode,
-		Alias:           alias,
-		Name:            cai.Name,
-		Type:            cai.Type,
-		Blocked:         &blocked,
-		ParentAccountID: cai.ParentAccountID,
-		SegmentID:       cai.SegmentID,
-		OrganizationID:  organizationID.String(),
-		PortfolioID:     cai.PortfolioID,
-		LedgerID:        ledgerID.String(),
-		EntityID:        cai.EntityID,
-		Status:          status,
-		CreatedAt:       now,
-		UpdatedAt:       now,
+		ID:                 accountID.String(),
+		AssetCode:          cai.AssetCode,
+		Alias:              alias,
+		Name:               cai.Name,
+		Type:               cai.Type,
+		Blocked:            &blocked,
+		ParentAccountID:    cai.ParentAccountID,
+		SegmentID:          cai.SegmentID,
+		OrganizationID:     organizationID.String(),
+		PortfolioID:        cai.PortfolioID,
+		LedgerID:           ledgerID.String(),
+		EntityID:           cai.EntityID,
+		HolderID:           holderID,
+		Status:             status,
+		HolderCheckSkipped: honoredHolderSkip,
+		CreatedAt:          now,
+		UpdatedAt:          now,
 	}
 
 	acc, err := uc.AccountRepo.Create(ctx, account)
@@ -168,16 +210,17 @@ func (uc *UseCase) CreateAccount(ctx context.Context, organizationID, ledgerID u
 	}
 
 	balanceInput := mmodel.CreateBalanceInput{
-		RequestID:      requestID,
-		OrganizationID: organizationID,
-		LedgerID:       ledgerID,
-		AccountID:      accountID,
-		Alias:          *alias,
-		Key:            constant.DefaultBalanceKey,
-		AssetCode:      cai.AssetCode,
-		AccountType:    cai.Type,
-		AllowSending:   true,
-		AllowReceiving: true,
+		RequestID:        requestID,
+		OrganizationID:   organizationID,
+		LedgerID:         ledgerID,
+		AccountID:        accountID,
+		Alias:            *alias,
+		Key:              constant.DefaultBalanceKey,
+		AssetCode:        cai.AssetCode,
+		AccountType:      cai.Type,
+		DefaultDirection: uc.resolveDefaultBalanceDirectionForType(ctx, organizationID, ledgerID, cai.Type, isExternal),
+		AllowSending:     true,
+		AllowReceiving:   true,
 	}
 
 	_, err = uc.CreateDefaultBalance(ctx, balanceInput)
@@ -267,6 +310,125 @@ func (uc *UseCase) determineStatus(cai *mmodel.CreateAccountInput) mmodel.Status
 	status.Description = cai.Status.Description
 
 	return status
+}
+
+// logAssetResolutionFailure logs an asset-resolution failure class-aware:
+// the business not-found outcome is a validation result (Warn), anything
+// else is an infrastructure failure (Error).
+func logAssetResolutionFailure(ctx context.Context, logger libLog.Logger, err error) {
+	var notFound pkg.EntityNotFoundError
+	if errors.As(err, &notFound) {
+		logger.Log(ctx, libLog.LevelWarn, "Asset code does not exist", libLog.Err(err))
+
+		return
+	}
+
+	logger.Log(ctx, libLog.LevelError, "Failed to resolve asset", libLog.Err(err))
+}
+
+// resolveAssetExistence returns nil when an asset with the given code exists in
+// the ledger, ErrAssetCodeNotFound (business) when it does not, and the underlying
+// technical error unchanged on persistence failure. FindByNameOrCode signals a
+// match via (true, ErrAssetNameOrCodeDuplicate) — expected on the open-account
+// path — while (false, err) is a genuine technical failure that must surface as
+// a 5xx, never masked as "asset not found". Recording is class-aware (T5):
+// business stays green, technical flips the span red.
+func (uc *UseCase) resolveAssetExistence(ctx context.Context, span trace.Span, organizationID, ledgerID uuid.UUID, assetCode string) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+
+	found, err := uc.AssetRepo.FindByNameOrCode(ctx, organizationID, ledgerID, "", assetCode)
+	if err != nil && !found {
+		libOpentelemetry.HandleSpanError(span, "Failed to check asset existence", err)
+
+		return fmt.Errorf("checking asset existence for account creation: %w", err)
+	}
+
+	if !found {
+		err := pkg.ValidateBusinessError(constant.ErrAssetCodeNotFound, constant.EntityAccount)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to find asset", err)
+
+		return err
+	}
+
+	return nil
+}
+
+// resolveHolderRequirement reads the cached holder gate keys for a ledger in a
+// single settings read: whether holder validation is required and whether the
+// per-call holder skip is opted in. It uses the cached settings reader port (not
+// the uncached LedgerRepo.GetSettings).
+//
+// A nil reader is an unwired adapter (legitimate; production always wires it) and
+// falls back to the permissive default (false, false). A settings-read error fails
+// CLOSED — it is propagated so a transient PostgreSQL failure cannot silently
+// disable the holder-integrity gate, mirroring applyAccountingValidations.
+func (uc *UseCase) resolveHolderRequirement(ctx context.Context, organizationID, ledgerID uuid.UUID) (requireHolder, allowHolderSkip bool, err error) {
+	if uc.SettingsReader == nil {
+		return false, false, nil
+	}
+
+	settings, err := uc.SettingsReader.GetParsedLedgerSettings(ctx, organizationID, ledgerID)
+	if err != nil {
+		return false, false, err
+	}
+
+	return settings.Accounting.RequireHolder, settings.Overrides.AllowHolderSkip, nil
+}
+
+// applyHolderValidation enforces the requireHolder gate. When RequireHolder is
+// true the account must name a real, existing holder: an absent HolderID is
+// rejected with ErrHolderRequired (KYC semantics — the derived self-holder
+// default is not an acceptable substitute), and a supplied HolderID must resolve
+// to an existing holder or it maps to ErrHolderNotFound. When RequireHolder is
+// false the gate is a no-op and the self-holder default applies.
+func (uc *UseCase) applyHolderValidation(ctx context.Context, organizationID uuid.UUID, requireHolder bool, cai *mmodel.CreateAccountInput) error {
+	if !requireHolder {
+		return nil
+	}
+
+	if libCommons.IsNilOrEmpty(cai.HolderID) {
+		return pkg.ValidateBusinessError(constant.ErrHolderRequired, constant.EntityAccount)
+	}
+
+	if ctx.Err() != nil {
+		return ctx.Err()
+	}
+
+	holderID, err := uuid.Parse(*cai.HolderID)
+	if err != nil {
+		return pkg.ValidateBusinessError(constant.ErrInvalidRequestBody, constant.EntityAccount)
+	}
+
+	exists, err := uc.HolderReader.Exists(ctx, organizationID.String(), holderID)
+	if err != nil {
+		return err
+	}
+
+	if !exists {
+		return pkg.ValidateBusinessError(constant.ErrHolderNotFound, constant.EntityHolder)
+	}
+
+	return nil
+}
+
+// resolveHolderID materialises the account's holder_id on the create path.
+// When the input supplies a holder, that value wins. Otherwise non-external
+// accounts default to the org's deterministic self-holder (derived, no I/O), and
+// external accounts stay unowned (nil).
+func (uc *UseCase) resolveHolderID(organizationID uuid.UUID, cai *mmodel.CreateAccountInput) *string {
+	if !libCommons.IsNilOrEmpty(cai.HolderID) {
+		return cai.HolderID
+	}
+
+	if strings.ToLower(cai.Type) == "external" {
+		return nil
+	}
+
+	self := deriveSelfHolderID(organizationID).String()
+
+	return &self
 }
 
 // applyAccountingValidations validates the account type against the registered

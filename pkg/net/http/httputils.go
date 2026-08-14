@@ -5,83 +5,82 @@
 package http
 
 import (
-	"bytes"
 	"encoding/base64"
 	"encoding/json"
 	"errors"
-	"io"
-	"mime/multipart"
 	"strconv"
 	"strings"
 	"time"
 	"unicode/utf8"
 
-	libCommons "github.com/LerianStudio/lib-commons/v5/commons"
-	libConstants "github.com/LerianStudio/lib-commons/v5/commons/constants"
-	libHTTP "github.com/LerianStudio/lib-commons/v5/commons/net/http"
-	"github.com/LerianStudio/midaz/v3/pkg"
-	"github.com/LerianStudio/midaz/v3/pkg/constant"
-	"github.com/gofiber/fiber/v2"
+	libCommons "github.com/LerianStudio/lib-commons/v6/commons"
+	libConstants "github.com/LerianStudio/lib-commons/v6/commons/constants"
+	libHTTP "github.com/LerianStudio/lib-commons/v6/commons/net/http"
+	"github.com/gofiber/fiber/v3"
 	"github.com/google/uuid"
 	"go.mongodb.org/mongo-driver/v2/bson"
+
+	"github.com/LerianStudio/midaz/v4/pkg"
+	"github.com/LerianStudio/midaz/v4/pkg/constant"
 )
 
 // QueryHeader entity from query parameter from get apis
 type QueryHeader struct {
-	Metadata                            *bson.M
-	Limit                               int
-	Page                                int
-	Cursor                              string
-	SortOrder                           string
-	StartDate                           time.Time
-	EndDate                             time.Time
-	UseMetadata                         bool
-	EntityIDs                           []uuid.UUID
-	PortfolioID                         string
-	SegmentID                           string
-	OperationType                       string
-	Direction                           *string
-	RouteID                             *string
-	RouteCode                           *string
-	ToAssetCodes                        []string
-	HolderID                            *string
-	ExternalID                          *string
-	Document                            *string
-	AccountID                           *string
-	LedgerID                            *string
-	BankingDetailsBranch                *string
-	BankingDetailsAccount               *string
-	BankingDetailsIban                  *string
-	EntityName                          *string
-	RegulatoryFieldsParticipantDocument *string
-	RelatedPartyDocument                *string
-	RelatedPartyRole                    *string
-	Name                                *string
-	LegalName                           *string
-	DoingBusinessAs                     *string
-	Status                              *string
-	Type                                *string
-	AssetCode                           *string
-	EntityID                            *string
-	KeyValue                            *string
-	Blocked                             *bool
-	ParentAccountID                     *string
-	LegalDocument                       *string
-	Alias                               *string
+	Metadata                                      *bson.M
+	Limit                                         int
+	Page                                          int
+	Cursor                                        string
+	SortOrder                                     string
+	StartDate                                     time.Time
+	EndDate                                       time.Time
+	UseMetadata                                   bool
+	EntityIDs                                     []uuid.UUID
+	PortfolioID                                   string
+	SegmentID                                     string
+	OperationType                                 string
+	Direction                                     *string
+	RouteID                                       *string
+	RouteCode                                     *string
+	ToAssetCodes                                  []string
+	HolderID                                      *string
+	ExternalID                                    *string
+	Document                                      *string
+	AccountID                                     *string
+	LedgerID                                      *string
+	InstrumentBankingDetailsBranch                *string
+	InstrumentBankingDetailsAccount               *string
+	InstrumentBankingDetailsIban                  *string
+	EntityName                                    *string
+	InstrumentRegulatoryFieldsParticipantDocument *string
+	InstrumentRelatedPartyDocument                *string
+	InstrumentRelatedPartyRole                    *string
+	Name                                          *string
+	LegalName                                     *string
+	DoingBusinessAs                               *string
+	Status                                        *string
+	Type                                          *string
+	AssetCode                                     *string
+	EntityID                                      *string
+	KeyValue                                      *string
+	Blocked                                       *bool
+	ParentAccountID                               *string
+	LegalDocument                                 *string
+	Alias                                         *string
 }
 
-// Pagination entity from query parameter from get apis
+// CursorPagination is the cursor-shaped paginated list envelope returned by
+// list endpoints that page via opaque next/prev cursors rather than page/total.
 type Pagination struct {
 	Items      any       `json:"items"`
-	Limit      int       `json:"limit"`
-	Page       int       `json:"page,omitempty"`
+	Limit      int       `json:"limit" example:"10"`
+	Page       int       `json:"page,omitempty" example:"1"`
 	Cursor     string    `json:"-"`
 	SortOrder  string    `json:"-"`
 	StartDate  time.Time `json:"-"`
 	EndDate    time.Time `json:"-"`
-	NextCursor string    `json:"next_cursor,omitempty"`
-	PrevCursor string    `json:"prev_cursor,omitempty"`
-}
+	NextCursor string    `json:"next_cursor,omitempty" example:"eyJpZCI6IjAxOTI..."`
+	PrevCursor string    `json:"prev_cursor,omitempty" example:"eyJpZCI6IjAxOTE..."`
+} //	@name CursorPagination
 
 // SetItems sets the pagination items payload.
 func (p *Pagination) SetItems(items any) {
@@ -317,45 +316,45 @@ func ValidateParameters(params map[string]string) (*QueryHeader, error) {
 	}
 
 	query := &QueryHeader{
-		Metadata:                            metadata,
-		Limit:                               limit,
-		Page:                                page,
-		Cursor:                              cursor,
-		SortOrder:                           sortOrder,
-		StartDate:                           startDate,
-		EndDate:                             endDate,
-		UseMetadata:                         useMetadata,
-		PortfolioID:                         portfolioID,
-		SegmentID:                           segmentID,
-		OperationType:                       operationType,
-		Direction:                           direction,
-		RouteID:                             routeID,
-		RouteCode:                           routeCode,
-		ToAssetCodes:                        toAssetCodes,
-		HolderID:                            holderID,
-		ExternalID:                          externalID,
-		Document:                            document,
-		AccountID:                           accountID,
-		LedgerID:                            ledgerID,
-		BankingDetailsBranch:                bankingDetailsBranch,
-		BankingDetailsAccount:               bankingDetailsAccount,
-		BankingDetailsIban:                  bankingDetailsIban,
-		EntityName:                          entityName,
-		RegulatoryFieldsParticipantDocument: regulatoryFieldsParticipantDocument,
-		RelatedPartyDocument:                relatedPartyDocument,
-		RelatedPartyRole:                    relatedPartyRole,
-		Name:                                name,
-		LegalName:                           legalName,
-		DoingBusinessAs:                     doingBusinessAs,
-		Status:                              status,
-		Type:                                filterType,
-		AssetCode:                           assetCode,
-		EntityID:                            entityID,
-		KeyValue:                            keyValue,
-		Blocked:                             blocked,
-		ParentAccountID:                     parentAccountID,
-		LegalDocument:                       legalDocument,
-		Alias:                               alias,
+		Metadata:                        metadata,
+		Limit:                           limit,
+		Page:                            page,
+		Cursor:                          cursor,
+		SortOrder:                       sortOrder,
+		StartDate:                       startDate,
+		EndDate:                         endDate,
+		UseMetadata:                     useMetadata,
+		PortfolioID:                     portfolioID,
+		SegmentID:                       segmentID,
+		OperationType:                   operationType,
+		Direction:                       direction,
+		RouteID:                         routeID,
+		RouteCode:                       routeCode,
+		ToAssetCodes:                    toAssetCodes,
+		HolderID:                        holderID,
+		ExternalID:                      externalID,
+		Document:                        document,
+		AccountID:                       accountID,
+		LedgerID:                        ledgerID,
+		InstrumentBankingDetailsBranch:  bankingDetailsBranch,
+		InstrumentBankingDetailsAccount: bankingDetailsAccount,
+		InstrumentBankingDetailsIban:    bankingDetailsIban,
+		EntityName:                      entityName,
+		InstrumentRegulatoryFieldsParticipantDocument: regulatoryFieldsParticipantDocument,
+		InstrumentRelatedPartyDocument:                relatedPartyDocument,
+		InstrumentRelatedPartyRole:                    relatedPartyRole,
+		Name:                                          name,
+		LegalName:                                     legalName,
+		DoingBusinessAs:                               doingBusinessAs,
+		Status:                                        status,
+		Type:                                          filterType,
+		AssetCode:                                     assetCode,
+		EntityID:                                      entityID,
+		KeyValue:                                      keyValue,
+		Blocked:                                       blocked,
+		ParentAccountID:                               parentAccountID,
+		LegalDocument:                                 legalDocument,
+		Alias:                                         alias,
 	}
 
 	return query, nil
@@ -495,53 +494,25 @@ func normalizeLegacyCursor(cursor string) (string, error) {
 }
 
 // GetIdempotencyKeyAndTTL returns idempotency key and ttl if pass through.
-func GetIdempotencyKeyAndTTL(c *fiber.Ctx) (string, time.Duration) {
+func GetIdempotencyKeyAndTTL(c fiber.Ctx) (string, time.Duration) {
 	ikey := strings.Clone(c.Get(libConstants.IdempotencyKey))
-	iTTL := c.Get(libConstants.IdempotencyTTL)
 
-	// Interpret TTL as seconds count. Downstream Redis helpers multiply by time.Second.
-	t, err := strconv.Atoi(iTTL)
+	return ikey, ParseIdempotencyTTL(c.Get(libConstants.IdempotencyTTL))
+}
+
+// ParseIdempotencyTTL parses the X-Idempotency-TTL header value (a seconds count)
+// into the TTL the CRM idempotency helpers expect, defaulting to 300 on an absent,
+// non-numeric or non-positive value. It is the single source of that contract,
+// shared by the Fiber GetIdempotencyKeyAndTTL and the Huma handler shells so the
+// two transports resolve the TTL identically. Downstream Redis helpers multiply
+// the returned count by time.Second.
+func ParseIdempotencyTTL(headerValue string) time.Duration {
+	t, err := strconv.Atoi(headerValue)
 	if err != nil || t <= 0 {
 		t = 300
 	}
 
-	ttl := time.Duration(t)
-
-	return ikey, ttl
-}
-
-// GetFileFromHeader method that get file from header and give a string fom this dsl gold file
-func GetFileFromHeader(ctx *fiber.Ctx) (string, error) {
-	fileHeader, err := ctx.FormFile(libConstants.DSL)
-	if err != nil {
-		return "", pkg.ValidateBusinessError(constant.ErrInvalidDSLFileFormat, "")
-	}
-
-	if !strings.Contains(fileHeader.Filename, libConstants.FileExtension) {
-		return "", pkg.ValidateBusinessError(constant.ErrInvalidDSLFileFormat, "", fileHeader.Filename)
-	}
-
-	if fileHeader.Size == 0 {
-		return "", pkg.ValidateBusinessError(constant.ErrEmptyDSLFile, "", fileHeader.Filename)
-	}
-
-	file, err := fileHeader.Open()
-	if err != nil {
-		return "", err
-	}
-
-	defer func(file multipart.File) {
-		_ = file.Close()
-	}(file)
-
-	buf := new(bytes.Buffer)
-	if _, err := io.Copy(buf, file); err != nil {
-		return "", pkg.ValidateBusinessError(constant.ErrInvalidDSLFileFormat, "", fileHeader.Filename)
-	}
-
-	fileString := buf.String()
-
-	return fileString, nil
+	return time.Duration(t)
 }
 
 func (qh *QueryHeader) ToOffsetPagination() Pagination {
@@ -569,21 +540,21 @@ func (qh *QueryHeader) ToCursorPagination() Pagination {
 	}
 }
 
-func GetBooleanParam(c *fiber.Ctx, queryParamName string) bool {
+func GetBooleanParam(c fiber.Ctx, queryParamName string) bool {
 	return strings.ToLower(c.Query(queryParamName, "false")) == "true"
 }
 
 // GetUUIDFromLocals safely extracts a UUID from fiber context locals.
 // Returns an error if the value is nil or not a valid UUID.
-func GetUUIDFromLocals(c *fiber.Ctx, key string) (uuid.UUID, error) {
+func GetUUIDFromLocals(c fiber.Ctx, key string) (uuid.UUID, error) {
 	val := c.Locals(key)
 	if val == nil {
-		return uuid.Nil, constant.ErrInvalidPathParameter
+		return uuid.Nil, pkg.ValidateBusinessError(constant.ErrInvalidPathParameter, "", key)
 	}
 
 	id, ok := val.(uuid.UUID)
 	if !ok {
-		return uuid.Nil, constant.ErrInvalidPathParameter
+		return uuid.Nil, pkg.ValidateBusinessError(constant.ErrInvalidPathParameter, "", key)
 	}
 
 	return id, nil

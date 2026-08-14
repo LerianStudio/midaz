@@ -10,11 +10,11 @@ import (
 	"net/http"
 	"testing"
 
-	libCommons "github.com/LerianStudio/lib-commons/v5/commons"
-	tmcore "github.com/LerianStudio/lib-commons/v5/commons/tenant-manager/core"
-	tmmiddleware "github.com/LerianStudio/lib-commons/v5/commons/tenant-manager/middleware"
-	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
-	"github.com/gofiber/fiber/v2"
+	libCommons "github.com/LerianStudio/lib-commons/v6/commons"
+	tmcore "github.com/LerianStudio/lib-commons/v6/commons/tenant-manager/core"
+	tmmiddleware "github.com/LerianStudio/lib-commons/v6/commons/tenant-manager/middleware"
+	libOpentelemetry "github.com/LerianStudio/lib-observability/v2/tracing"
+	"github.com/gofiber/fiber/v3"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -180,7 +180,7 @@ func TestMidazErrorMapper(t *testing.T) {
 			t.Parallel()
 
 			app := fiber.New()
-			app.Post("/test", func(c *fiber.Ctx) error {
+			app.Post("/test", func(c fiber.Ctx) error {
 				result := midazErrorMapper(c, tt.err, tt.tenantID)
 				if result != nil {
 					return result
@@ -243,7 +243,7 @@ func TestNewUnifiedServer_CreatesServer(t *testing.T) {
 	t.Run("creates_server_without_route_registrars", func(t *testing.T) {
 		t.Parallel()
 
-		server := NewUnifiedServer(":0", logger, telemetry, nil)
+		server := NewUnifiedServer(":0", "", logger, telemetry, nil, nil, nil)
 
 		require.NotNil(t, server, "NewUnifiedServer should return non-nil server")
 		assert.Equal(t, ":0", server.ServerAddress())
@@ -253,46 +253,16 @@ func TestNewUnifiedServer_CreatesServer(t *testing.T) {
 		t.Parallel()
 
 		registrar := func(router fiber.Router) {
-			router.Get("/test", func(c *fiber.Ctx) error {
+			router.Get("/test", func(c fiber.Ctx) error {
 				return c.SendStatus(fiber.StatusNoContent)
 			})
 		}
 
-		server := NewUnifiedServer(":0", logger, telemetry, nil, registrar)
+		server := NewUnifiedServer(":0", "", logger, telemetry, nil, nil, nil, registrar)
 
 		require.NotNil(t, server, "NewUnifiedServer should return non-nil server when a registrar is provided")
 		assert.Equal(t, ":0", server.ServerAddress())
 	})
-}
-
-func TestNewUnifiedServer_ServesSwaggerUIAssets(t *testing.T) {
-	t.Parallel()
-
-	server := NewUnifiedServer(":0", newTestLogger(), &libOpentelemetry.Telemetry{}, nil)
-
-	for _, path := range []string{
-		"/swagger/index.html",
-		"/swagger/doc.json",
-		"/swagger/swagger-ui.css",
-		"/swagger/swagger-ui-bundle.js",
-		"/swagger/swagger-ui-standalone-preset.js",
-	} {
-		path := path
-
-		t.Run(path, func(t *testing.T) {
-			t.Parallel()
-
-			req, err := http.NewRequest(http.MethodGet, path, nil)
-			require.NoError(t, err)
-			req.Host = "localhost"
-
-			res, err := server.app.Test(req)
-			require.NoError(t, err)
-			defer res.Body.Close()
-
-			assert.Equal(t, http.StatusOK, res.StatusCode)
-		})
-	}
 }
 
 // TestTenantMiddleware_DisabledWhenNoManagers verifies that middleware constructed

@@ -8,15 +8,16 @@ import (
 	"encoding/json"
 	"testing"
 
-	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
-	"github.com/LerianStudio/midaz/v3/pkg/streaming/events"
+	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
+	"github.com/LerianStudio/midaz/v4/pkg/streaming/events"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
 func TestOperationRouteUpdatedDefinition_Key(t *testing.T) {
-	assert.Equal(t, "operation-route.updated", events.OperationRouteUpdatedDefinition.Key())
-	assert.Equal(t, "operation-route", events.OperationRouteUpdatedDefinition.ResourceType)
+	assert.Equal(t, "operation_route.updated", events.OperationRouteUpdatedDefinition.Key())
+	assert.Equal(t, "operation-route.updated", events.OperationRouteUpdatedDefinition.RouteKey())
+	assert.Equal(t, "operation_route", events.OperationRouteUpdatedDefinition.ResourceType)
 	assert.Equal(t, "updated", events.OperationRouteUpdatedDefinition.EventType)
 	assert.Equal(t, "1.0.0", events.OperationRouteUpdatedDefinition.SchemaVersion)
 }
@@ -79,7 +80,7 @@ func TestOperationRouteUpdatedPayload_JSONShape_OmitsCreatedAt(t *testing.T) {
 	}
 
 	_, hasCreatedAt := generic["createdAt"]
-	assert.False(t, hasCreatedAt, "createdAt must NOT appear on operation-route.updated")
+	assert.False(t, hasCreatedAt, "createdAt must NOT appear on operation_route.updated")
 
 	for _, key := range []string{"description", "code", "account", "accountingEntries"} {
 		_, has := generic[key]

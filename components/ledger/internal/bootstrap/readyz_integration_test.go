@@ -13,25 +13,20 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
-	libLog "github.com/LerianStudio/lib-observability/log"
-	"github.com/gofiber/fiber/v2"
+	libLog "github.com/LerianStudio/lib-observability/v2/log"
+	"github.com/gofiber/fiber/v3"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	mongoContainer "github.com/LerianStudio/midaz/v3/tests/utils/mongodb"
-	pgContainer "github.com/LerianStudio/midaz/v3/tests/utils/postgres"
-	redisContainer "github.com/LerianStudio/midaz/v3/tests/utils/redis"
+	mongoContainer "github.com/LerianStudio/midaz/v4/tests/utils/mongodb"
+	pgContainer "github.com/LerianStudio/midaz/v4/tests/utils/postgres"
+	redisContainer "github.com/LerianStudio/midaz/v4/tests/utils/redis"
 )
 
-// newReadyHandler creates a ReadyzHandler and marks it as ready for testing.
-// This is needed because HandleReadyz now checks lifecycle state before running checks.
-func newReadyHandler(cfg ReadyzHandlerConfig) *ReadyzHandler {
-	handler := NewReadyzHandler(cfg)
-	handler.SetServerReady()
-
-	return handler
-}
+// newReadyHandler (the shared ready-handler test helper) is defined once in
+// readyz_test.go and reused here.
 
 func TestReadyz_Integration_AllDependenciesHealthy(t *testing.T) {
 	t.Parallel()
@@ -64,7 +59,7 @@ func TestReadyz_Integration_AllDependenciesHealthy(t *testing.T) {
 	app.Get("/readyz", handler.HandleReadyz)
 
 	req := httptest.NewRequest(http.MethodGet, "/readyz", nil)
-	resp, err := app.Test(req, 10000) // 10s timeout for containers
+	resp, err := app.Test(req, fiber.TestConfig{Timeout: 10000 * time.Millisecond, FailOnTimeout: true}) // 10s timeout for containers
 	require.NoError(t, err)
 
 	assert.Equal(t, http.StatusOK, resp.StatusCode)
@@ -119,7 +114,7 @@ func TestReadyz_Integration_PostgresDown(t *testing.T) {
 	app.Get("/readyz", handler.HandleReadyz)
 
 	req := httptest.NewRequest(http.MethodGet, "/readyz", nil)
-	resp, err := app.Test(req, 10000)
+	resp, err := app.Test(req, fiber.TestConfig{Timeout: 10000 * time.Millisecond, FailOnTimeout: true})
 	require.NoError(t, err)
 
 	// Should return 200 since nil checker returns "skipped" not "down"
@@ -168,7 +163,7 @@ func TestReadyz_Integration_TLSDetection(t *testing.T) {
 	app.Get("/readyz", handler.HandleReadyz)
 
 	req := httptest.NewRequest(http.MethodGet, "/readyz", nil)
-	resp, err := app.Test(req, 10000)
+	resp, err := app.Test(req, fiber.TestConfig{Timeout: 10000 * time.Millisecond, FailOnTimeout: true})
 	require.NoError(t, err)
 
 	body, err := io.ReadAll(resp.Body)
@@ -211,7 +206,7 @@ func TestReadyz_Integration_LatencyMeasurement(t *testing.T) {
 	// Run multiple times to verify latency is measured each time
 	for i := range 3 {
 		req := httptest.NewRequest(http.MethodGet, "/readyz", nil)
-		resp, err := app.Test(req, 10000)
+		resp, err := app.Test(req, fiber.TestConfig{Timeout: 10000 * time.Millisecond, FailOnTimeout: true})
 		require.NoError(t, err, "iteration %d failed", i)
 
 		body, err := io.ReadAll(resp.Body)
@@ -265,7 +260,7 @@ func TestReadyz_Integration_ConcurrentRequests(t *testing.T) {
 	for range numRequests {
 		go func() {
 			req := httptest.NewRequest(http.MethodGet, "/readyz", nil)
-			resp, err := app.Test(req, 5000) // 5s timeout
+			resp, err := app.Test(req, fiber.TestConfig{Timeout: 5000 * time.Millisecond, FailOnTimeout: true}) // 5s timeout
 			if err != nil {
 				results <- -1
 				return
@@ -313,7 +308,7 @@ func TestReadyz_Integration_MixedHealthStatus(t *testing.T) {
 	app.Get("/readyz", handler.HandleReadyz)
 
 	req := httptest.NewRequest(http.MethodGet, "/readyz", nil)
-	resp, err := app.Test(req, 10000)
+	resp, err := app.Test(req, fiber.TestConfig{Timeout: 10000 * time.Millisecond, FailOnTimeout: true})
 	require.NoError(t, err)
 
 	// Should be healthy since skipped does not count as unhealthy
@@ -361,7 +356,7 @@ func TestReadyz_Integration_ClosedConnection(t *testing.T) {
 	app.Get("/readyz", handler.HandleReadyz)
 
 	req := httptest.NewRequest(http.MethodGet, "/readyz", nil)
-	resp, err := app.Test(req, 5000)
+	resp, err := app.Test(req, fiber.TestConfig{Timeout: 5000 * time.Millisecond, FailOnTimeout: true})
 	require.NoError(t, err)
 
 	assert.Equal(t, http.StatusOK, resp.StatusCode) // skipped counts as healthy

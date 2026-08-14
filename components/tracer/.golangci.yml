@@ -1,0 +1,143 @@
+version: "2"
+run:
+  tests: false
+linters:
+  enable:
+    - bodyclose
+    - contextcheck    # Verifies correct context propagation
+    - depguard
+    - dogsled
+    - dupword
+    - errchkjson
+    - errorlint       # Enforces %w usage in error wrapping
+    - gocognit
+    - gocyclo
+    - loggercheck
+    - misspell
+    - nakedret
+    - nilerr
+    - nolintlint
+    - prealloc
+    - predeclared
+    - reassign
+    - revive
+    - staticcheck
+    - thelper
+    - tparallel
+    - unconvert
+    - unparam
+    - usestdlibvars
+    - wastedassign
+    - wsl_v5
+  settings:
+    errorlint:
+      # Enforces %w instead of %v for error wrapping
+      errorf: true
+      asserts: true
+      comparison: true
+    wsl_v5:
+      allow-first-in-block: true
+      allow-whole-block: false
+      branch-max-lines: 2
+    depguard:
+      rules:
+        main:
+          deny:
+            - pkg: io/ioutil
+              desc: The io/ioutil package has been deprecated, see https://go.dev/doc/go1.16#ioutil
+    gocyclo:
+      min-complexity: 20
+    govet:
+      enable:
+        - shadow
+      settings:
+        shadow:
+          strict: true
+    revive:
+      rules:
+        - name: import-shadowing
+          severity: warning
+          disabled: false
+        - name: empty-block
+          severity: warning
+          disabled: false
+        - name: empty-lines
+          severity: warning
+          disabled: false
+        - name: use-any
+          severity: warning
+          disabled: false
+  exclusions:
+    generated: lax
+    rules:
+      - linters:
+          - errcheck
+        text: Error return value of .((os\.)?std(out|err)\..*|.*Close|.*Flush|os\.Remove(All)?|.*print(f|ln)?|os\.(Un)?Setenv). is not checked
+      - linters:
+          - revive
+        text: func name will be used as test\.Test.* by other packages, and that stutters; consider calling this
+      - linters:
+          - gosec
+        text: Use of unsafe calls should be audited
+      - linters:
+          - gosec
+        text: Subprocess launch(ed with variable|ing should be audited)
+      - linters:
+          - gosec
+        text: G307
+      - linters:
+          - gosec
+        text: (Expect directory permissions to be 0750 or less|Expect file permissions to be 0600 or less)
+      - linters:
+          - gosec
+        text: Potential file inclusion via variable
+      - linters:
+          - gosec
+        text: G113
+      - linters:
+          - gosec
+        text: G104
+      - linters:
+          - gosec
+        text: 'G204: Subprocess launched with a potential tainted input or cmd arguments'
+      - linters:
+          - gosec
+        text: 'G306: Expect WriteFile permissions to be 0600 or less'
+      - linters:
+          - revive
+        text: 'package-comments: should have a package comment'
+      - linters:
+          - errcheck
+          - gosec
+        path: _test\.go
+      - linters:
+          - staticcheck
+        text: 'ST1000: at least one file in a package should have a package comment'
+      - linters:
+          - govet
+        text: '^shadow: declaration of "(err|ok)" shadows declaration'
+      - path: (.+)\.go$
+        text: parameter .* always receives
+      # Composition root: contextcheck flags the boot context not being threaded
+      # into long-lived resources (routes, workers, circuit breakers, scrape
+      # closures) and context-less shutdowns. Threading boot ctx there is wrong
+      # by lifecycle — those resources must outlive the boot context. Every such
+      # call site documents the rationale inline; contextcheck has no true
+      # positives to offer in this package.
+      - linters:
+          - contextcheck
+        path: internal/bootstrap/
+    paths:
+      - third_party$
+      - builtin$
+      - examples$
+issues:
+  max-issues-per-linter: 0
+  max-same-issues: 0
+formatters:
+  exclusions:
+    generated: lax
+    paths:
+      - third_party$
+      - builtin$
+      - examples$

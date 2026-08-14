@@ -12,7 +12,7 @@ import (
 	"testing"
 	"time"
 
-	libCommons "github.com/LerianStudio/lib-commons/v5/commons"
+	libCommons "github.com/LerianStudio/lib-commons/v6/commons"
 	"github.com/google/uuid"
 	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/require"
@@ -47,6 +47,23 @@ func CreateTestOrganizationWithParams(t *testing.T, db *sql.DB, params Organizat
 	t.Helper()
 
 	id := uuid.Must(libCommons.GenerateUUIDv7())
+
+	return createTestOrganizationRow(t, db, id, params)
+}
+
+// CreateTestOrganizationWithID inserts a test organization using a caller-supplied
+// ID (with default params), returning that same ID. Use it when two databases must
+// share the same pre-chosen organization identifier.
+func CreateTestOrganizationWithID(t *testing.T, db *sql.DB, id uuid.UUID) uuid.UUID {
+	t.Helper()
+
+	return createTestOrganizationRow(t, db, id, DefaultOrganizationParams())
+}
+
+// createTestOrganizationRow performs the organization INSERT for a fixed ID and params.
+func createTestOrganizationRow(t *testing.T, db *sql.DB, id uuid.UUID, params OrganizationParams) uuid.UUID {
+	t.Helper()
+
 	now := time.Now().Truncate(time.Microsecond)
 
 	_, err := db.Exec(`
@@ -84,6 +101,23 @@ func CreateTestLedgerWithParams(t *testing.T, db *sql.DB, orgID uuid.UUID, param
 	t.Helper()
 
 	id := uuid.Must(libCommons.GenerateUUIDv7())
+
+	return createTestLedgerRow(t, db, id, orgID, params)
+}
+
+// CreateTestLedgerWithID inserts a test ledger using a caller-supplied ID (with
+// default params) under the given organization, returning that same ID. Use it when
+// two databases must share the same pre-chosen ledger identifier.
+func CreateTestLedgerWithID(t *testing.T, db *sql.DB, id, orgID uuid.UUID) uuid.UUID {
+	t.Helper()
+
+	return createTestLedgerRow(t, db, id, orgID, DefaultLedgerParams())
+}
+
+// createTestLedgerRow performs the ledger INSERT for a fixed ID and params.
+func createTestLedgerRow(t *testing.T, db *sql.DB, id, orgID uuid.UUID, params LedgerParams) uuid.UUID {
+	t.Helper()
+
 	now := time.Now().Truncate(time.Microsecond)
 
 	_, err := db.Exec(`
@@ -433,6 +467,22 @@ func CreateTestOperation(t *testing.T, db *sql.DB, orgID, ledgerID uuid.UUID, pa
 	return id
 }
 
+// StampOperationRoute points every operation of a transaction at an operation route, failing
+// the test if the transaction had no operations to stamp. Use it when the subject transaction
+// was produced by the PRODUCTION create path (which stamps route_id only when the request
+// names a route) rather than by CreateTestOperation — the insert fixture cannot retrofit rows
+// it did not write.
+func StampOperationRoute(t *testing.T, db *sql.DB, txID, routeID uuid.UUID) {
+	t.Helper()
+
+	res, err := db.Exec(`UPDATE operation SET route_id = $1 WHERE transaction_id = $2`, routeID, txID)
+	require.NoError(t, err, "failed to stamp route_id onto the transaction's operations")
+
+	affected, err := res.RowsAffected()
+	require.NoError(t, err, "failed to read affected operation rows")
+	require.NotZero(t, affected, "the subject transaction must have operations to stamp")
+}
+
 // UpdateTransactionStatus updates the status of a transaction.
 func UpdateTransactionStatus(t *testing.T, db *sql.DB, txID uuid.UUID, status string) {
 	t.Helper()
@@ -578,10 +628,11 @@ func CreateTestSegmentWithParams(t *testing.T, db *sql.DB, orgID, ledgerID uuid.
 
 // AccountTypeParams holds parameters for creating a test account type.
 type AccountTypeParams struct {
-	Name        string
-	Description string
-	KeyValue    string
-	DeletedAt   *time.Time
+	Name             string
+	Description      string
+	KeyValue         string
+	DefaultDirection *string
+	DeletedAt        *time.Time
 }
 
 // DefaultAccountTypeParams returns default parameters for creating a test account type.
@@ -600,10 +651,19 @@ func CreateTestAccountType(t *testing.T, db *sql.DB, orgID, ledgerID uuid.UUID, 
 	id := uuid.Must(libCommons.GenerateUUIDv7())
 	now := time.Now().Truncate(time.Microsecond)
 
-	_, err := db.Exec(`
-		INSERT INTO account_type (id, organization_id, ledger_id, name, description, key_value, created_at, updated_at, deleted_at)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
-	`, id, orgID, ledgerID, params.Name, params.Description, params.KeyValue, now, now, params.DeletedAt)
+	var err error
+	if params.DefaultDirection != nil {
+		_, err = db.Exec(`
+			INSERT INTO account_type (id, organization_id, ledger_id, name, description, key_value, default_direction, created_at, updated_at, deleted_at)
+			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+		`, id, orgID, ledgerID, params.Name, params.Description, params.KeyValue, *params.DefaultDirection, now, now, params.DeletedAt)
+	} else {
+		_, err = db.Exec(`
+			INSERT INTO account_type (id, organization_id, ledger_id, name, description, key_value, created_at, updated_at, deleted_at)
+			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+		`, id, orgID, ledgerID, params.Name, params.Description, params.KeyValue, now, now, params.DeletedAt)
+	}
+
 	require.NoError(t, err, "failed to create test account type")
 
 	return id

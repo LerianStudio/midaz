@@ -7,24 +7,24 @@ package command
 import (
 	"context"
 	"errors"
-	"fmt"
-	"reflect"
 	"strings"
 	"time"
 
-	libCommons "github.com/LerianStudio/lib-commons/v5/commons"
-	libObservability "github.com/LerianStudio/lib-observability"
-	libLog "github.com/LerianStudio/lib-observability/log"
-	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
-	libStreaming "github.com/LerianStudio/lib-streaming"
-	"github.com/LerianStudio/midaz/v3/pkg"
-	"github.com/LerianStudio/midaz/v3/pkg/constant"
-	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
-	pkgStreaming "github.com/LerianStudio/midaz/v3/pkg/streaming"
-	"github.com/LerianStudio/midaz/v3/pkg/streaming/events"
+	libCommons "github.com/LerianStudio/lib-commons/v6/commons"
+	libObservability "github.com/LerianStudio/lib-observability/v2"
+	libLog "github.com/LerianStudio/lib-observability/v2/log"
+	libOpentelemetry "github.com/LerianStudio/lib-observability/v2/tracing"
+	libStreaming "github.com/LerianStudio/lib-streaming/v2"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgconn"
 	"go.opentelemetry.io/otel/trace"
+
+	"github.com/LerianStudio/midaz/v4/pkg"
+	"github.com/LerianStudio/midaz/v4/pkg/constant"
+	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
+	pkgStreaming "github.com/LerianStudio/midaz/v4/pkg/streaming"
+	"github.com/LerianStudio/midaz/v4/pkg/streaming/events"
+	"github.com/LerianStudio/midaz/v4/pkg/utils"
 )
 
 const (
@@ -33,11 +33,17 @@ const (
 )
 
 //nolint:gocyclo // Validation + parent lookup + uniqueness + creation; refactor candidate.
-func (uc *UseCase) CreateAdditionalBalance(ctx context.Context, organizationID, ledgerID, accountID uuid.UUID, cbi *mmodel.CreateAdditionalBalance) (*mmodel.Balance, error) {
+func (uc *UseCase) CreateAdditionalBalance(ctx context.Context, organizationID, ledgerID, accountID uuid.UUID, cbi *mmodel.CreateAdditionalBalance) (_ *mmodel.Balance, err error) {
 	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "command.create_additional_balance")
 	defer span.End()
+
+	start := time.Now()
+
+	defer func() {
+		utils.RecordDomainOperation(ctx, uc.MetricsFactory, logger, "ledger", "create_balance", start, err)
+	}()
 
 	// Reserved key guard: "overdraft" (any case) is system-managed and MUST
 	// not be created through the public API. This check runs BEFORE any
@@ -99,7 +105,7 @@ func (uc *UseCase) CreateAdditionalBalance(ctx context.Context, organizationID, 
 
 	if existingBalance != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Additional balance already exists", nil)
-		logger.Log(ctx, libLog.LevelInfo, "Additional balance already exists", libLog.String("key", cbi.Key))
+		logger.Log(ctx, libLog.LevelWarn, "Additional balance already exists", libLog.String("key", cbi.Key))
 
 		return nil, pkg.ValidateBusinessError(constant.ErrDuplicatedAliasKeyValue, constant.EntityBalance, cbi.Key)
 	}
@@ -118,13 +124,25 @@ func (uc *UseCase) CreateAdditionalBalance(ctx context.Context, organizationID, 
 		return nil, pkg.ValidateBusinessError(constant.ErrAdditionalBalanceNotAllowed, constant.EntityBalance, defaultBalance.Alias)
 	}
 
-	// Direction defaults to "credit" when the caller omits it. Validation
-	// above guarantees that any provided value is one of the supported
-	// enum members.
-	direction := constant.DirectionCredit
+	// Direction is resolved by precedence: an explicit caller override wins
+	// (validated above), otherwise the account type's default is inherited,
+	// otherwise the account-type-implied default applies (non-external ->
+	// credit). The type-default lookup is best-effort and non-external here
+	// (external returns above); a miss/error degrades to no type default.
+	var explicitDirection string
 	if cbi.Direction != nil {
-		direction = *cbi.Direction
+		explicitDirection = *cbi.Direction
 	}
+
+	// The type-default lookup is only consulted when there is no explicit
+	// override; an explicit direction wins in resolveBalanceDirection anyway,
+	// so the DB read is pure waste when one is present.
+	var typeDefaultDirection string
+	if explicitDirection == "" {
+		typeDefaultDirection = uc.resolveTypeDefaultDirection(ctx, organizationID, ledgerID, defaultBalance.AccountType)
+	}
+
+	direction := resolveBalanceDirection(explicitDirection, typeDefaultDirection, defaultBalance.AccountType)
 
 	additionalBalance := &mmodel.Balance{
 		ID:             uuid.Must(libCommons.GenerateUUIDv7()).String(),
@@ -148,10 +166,10 @@ func (uc *UseCase) CreateAdditionalBalance(ctx context.Context, organizationID, 
 		// Migration 032 adds a unique balance key index. If another pod wins the
 		// race after the precheck, return the same business error as the precheck.
 		if isBalanceKeyUniqueViolation(err) {
-			berr := pkg.ValidateBusinessError(constant.ErrDuplicatedAliasKeyValue, reflect.TypeOf(mmodel.Balance{}).Name(), strings.ToLower(cbi.Key))
+			berr := pkg.ValidateBusinessError(constant.ErrDuplicatedAliasKeyValue, constant.EntityBalance, strings.ToLower(cbi.Key))
 			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Additional balance already exists", berr)
 
-			logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Additional balance already exists: %v", berr))
+			logger.Log(ctx, libLog.LevelWarn, "Additional balance already exists", libLog.String("key", strings.ToLower(cbi.Key)))
 
 			return nil, berr
 		}

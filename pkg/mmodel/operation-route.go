@@ -8,40 +8,25 @@ import (
 	"encoding/json"
 	"time"
 
-	"github.com/LerianStudio/midaz/v3/pkg/constant"
+	"github.com/LerianStudio/midaz/v4/pkg/constant"
 	"github.com/google/uuid"
 )
 
 // AccountingRubric represents an accounting rubric with a code and description.
-//
-// @Description AccountingRubric object containing the code and description for a debit or credit entry.
 type AccountingRubric struct {
 	// The accounting rubric code.
 	Code string `json:"code" validate:"required,max=50" msgpack:"code" example:"1001"`
 	// The accounting rubric description.
 	Description string `json:"description" validate:"required,max=250" msgpack:"description" example:"Cash"`
-} // @name AccountingRubric
+}
 
 // AccountingEntry represents a single accounting entry with debit and credit rubrics.
-//
-// @Description AccountingEntry object containing debit and credit rubrics for a specific action.
-// @Description
-// @Description Field requirements depend on the parent operationType and scenario:
-// @Description   - source + direct or commit: debit is REQUIRED, credit is optional.
-// @Description   - source + hold or cancel: both debit AND credit are REQUIRED.
-// @Description   - destination + direct or commit: credit is REQUIRED, debit is optional.
-// @Description   - destination + hold or cancel: NOT ALLOWED (rejected at creation).
-// @Description   - destination + revert: NOT ALLOWED (rejected at creation).
-// @Description   - source + revert: NOT ALLOWED (rejected at creation).
-// @Description   - bidirectional (all scenarios including revert): both debit AND credit are REQUIRED.
-// @Description
-// @Description An entry with neither debit nor credit is always rejected.
 type AccountingEntry struct {
 	// The debit rubric for this entry. Required based on operationType/scenario matrix (see type description).
 	Debit *AccountingRubric `json:"debit" validate:"omitempty" msgpack:"debit"`
 	// The credit rubric for this entry. Required based on operationType/scenario matrix (see type description).
 	Credit *AccountingRubric `json:"credit" validate:"omitempty" msgpack:"credit"`
-} // @name AccountingEntry
+}
 
 // AccountingEntries groups accounting entries by transaction action type.
 //
@@ -112,9 +97,6 @@ func (ae *AccountingEntries) Actions() []string {
 }
 
 // OperationRoute is a struct designed to store Operation Route object data.
-//
-// swagger:model OperationRoute
-// @Description OperationRoute object
 type OperationRoute struct {
 	// The unique identifier of the Operation Route.
 	ID uuid.UUID `json:"id,omitempty" example:"01965ed9-7fa4-75b2-8872-fc9e8509ab0a"`
@@ -147,11 +129,9 @@ type OperationRoute struct {
 	UpdatedAt time.Time `json:"updatedAt" example:"2021-01-01T00:00:00Z" format:"date-time"`
 	// The timestamp when the operation route was deleted.
 	DeletedAt *time.Time `json:"deletedAt" example:"2021-01-01T00:00:00Z" format:"date-time"`
-} // @name OperationRoute
+}
 
 // CreateOperationRouteInput is a struct designed to store Operation Route input data.
-//
-// @Description CreateOperationRouteInput payload for creating a new Operation Route with title, description, operation type, and optional account rules.
 type CreateOperationRouteInput struct {
 	// Short text summarizing the purpose of the operation. Used as an entry note for identification.
 	Title string `json:"title,omitempty" validate:"required,max=255" example:"Cashin from service charge"`
@@ -170,12 +150,9 @@ type CreateOperationRouteInput struct {
 	Metadata map[string]any `json:"metadata" validate:"dive,keys,keymax=100,endkeys,omitempty,nonested,valuemax=2000"`
 	// The account selection rule configuration.
 	Account *AccountRule `json:"account,omitempty"`
-} // @name CreateOperationRouteInput
+}
 
 // UpdateOperationRouteInput is a struct designed to store Operation Route input data.
-//
-// swagger:model UpdateOperationRouteInput
-// @Description UpdateOperationRouteInput payload
 type UpdateOperationRouteInput struct {
 	// Short text summarizing the purpose of the operation. Used as an entry note for identification.
 	Title string `json:"title,omitempty" validate:"max=255" example:"Cashin from service charge"`
@@ -197,14 +174,12 @@ type UpdateOperationRouteInput struct {
 	Metadata map[string]any `json:"metadata" validate:"dive,keys,keymax=100,endkeys,omitempty,nonested,valuemax=2000"`
 	// The account selection rule configuration.
 	Account *AccountRule `json:"account,omitempty"`
-} // @name UpdateOperationRouteInput
+}
 
 // AccountRule represents the account selection rule configuration.
-//
-// @Description AccountRule object containing the rule type and condition for account selection in operation routes.
 type AccountRule struct {
 	// The rule type for account selection.
 	RuleType string `json:"ruleType,omitempty" example:"alias" enum:"alias,account_type"`
 	// The rule condition for account selection. String for alias type (e.g. "@cash_account"), array for account_type.
 	ValidIf any `json:"validIf,omitempty"`
-} // @name AccountRule
+}

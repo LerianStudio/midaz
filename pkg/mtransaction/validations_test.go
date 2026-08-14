@@ -10,14 +10,15 @@ import (
 	"testing"
 	"testing/quick"
 
-	constant "github.com/LerianStudio/lib-commons/v5/commons/constants"
-	commons "github.com/LerianStudio/lib-observability"
-	"github.com/LerianStudio/lib-observability/log"
-	"github.com/LerianStudio/midaz/v3/pkg"
-	pkgConstant "github.com/LerianStudio/midaz/v3/pkg/constant"
+	constant "github.com/LerianStudio/lib-commons/v6/commons/constants"
+	libObservability "github.com/LerianStudio/lib-observability/v2"
+	"github.com/LerianStudio/lib-observability/v2/log"
 	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/assert"
 	"go.opentelemetry.io/otel"
+
+	"github.com/LerianStudio/midaz/v4/pkg"
+	pkgConstant "github.com/LerianStudio/midaz/v4/pkg/constant"
 )
 
 // codeFromError extracts the business error code from the structured error types
@@ -44,9 +45,9 @@ func TestValidateBalancesRules(t *testing.T) {
 	// Create a context with logger and tracer
 	ctx := context.Background()
 	logger := &log.GoLogger{Level: log.LevelInfo}
-	ctx = commons.ContextWithLogger(ctx, logger)
+	ctx = libObservability.ContextWithLogger(ctx, logger)
 	tracer := otel.Tracer("test")
-	ctx = commons.ContextWithTracer(ctx, tracer)
+	ctx = libObservability.ContextWithTracer(ctx, tracer)
 
 	tests := []struct {
 		name        string

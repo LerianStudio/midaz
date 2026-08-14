@@ -9,15 +9,12 @@ import (
 	"strings"
 	"time"
 
-	"github.com/LerianStudio/midaz/v3/pkg/constant"
+	"github.com/LerianStudio/midaz/v4/pkg/constant"
 
 	"github.com/shopspring/decimal"
 )
 
 // Balance structure for marshaling/unmarshalling JSON.
-//
-// swagger:model Balance
-// @Description Balance is the struct designed to represent the account balance.
 type Balance struct {
 	ID             string          `json:"id" example:"00000000-0000-0000-0000-000000000000"`
 	OrganizationID string          `json:"organizationId" example:"00000000-0000-0000-0000-000000000000"`
@@ -61,7 +58,7 @@ type Balance struct {
 	UpdatedAt    time.Time      `json:"updatedAt" example:"2021-01-01T00:00:00Z"`
 	DeletedAt    *time.Time     `json:"deletedAt" example:"2021-01-01T00:00:00Z"`
 	Metadata     map[string]any `json:"metadata,omitempty"`
-} // @name Balance
+}
 
 type Responses struct {
 	Total               decimal.Decimal
@@ -79,18 +76,12 @@ type Responses struct {
 }
 
 // Metadata structure for marshaling/unmarshalling JSON.
-//
-// swagger:model Metadata
-// @Description Metadata is the struct designed to store metadata.
 type Metadata struct {
 	Key   string `json:"key,omitempty"`
 	Value any    `json:"value,omitempty"`
-} // @name Metadata
+}
 
 // Amount structure for marshaling/unmarshalling JSON.
-//
-// swagger:model Amount
-// @Description Amount is the struct designed to represent the amount of an operation.
 type Amount struct {
 	Asset string          `json:"asset,omitempty" validate:"required" example:"BRL"`
 	Value decimal.Decimal `json:"value,omitempty" validate:"required" example:"1000"`
@@ -103,47 +94,35 @@ type Amount struct {
 	// reversals. It is zero for normal transactions, where Lua derives the
 	// split from live balance state.
 	OverdraftAmount decimal.Decimal `json:"overdraftAmount,omitempty" swaggerignore:"true"`
-} // @name Amount
+}
 
 // Share structure for marshaling/unmarshalling JSON.
-//
-// swagger:model Share
-// @Description Share is the struct designed to represent the sharing fields of an operation.
 type Share struct {
 	Percentage             int64 `json:"percentage,omitempty" validate:"required"`
 	PercentageOfPercentage int64 `json:"percentageOfPercentage,omitempty"`
-} // @name Share
+}
 
 // Send structure for marshaling/unmarshalling JSON.
-//
-// swagger:model Send
-// @Description Send is the struct designed to represent the sending fields of an operation.
 type Send struct {
 	Asset      string          `json:"asset,omitempty" validate:"required" example:"BRL"`
 	Value      decimal.Decimal `json:"value,omitempty" validate:"required" example:"1000"`
 	Source     Source          `json:"source,omitempty" validate:"required"`
 	Distribute Distribute      `json:"distribute,omitempty" validate:"required"`
-} // @name Send
+}
 
 // Source structure for marshaling/unmarshalling JSON.
-//
-// swagger:model Source
-// @Description Source is the struct designed to represent the source fields of an operation.
 type Source struct {
 	Remaining string   `json:"remaining,omitempty" example:"remaining"`
 	From      []FromTo `json:"from,omitempty" validate:"singletransactiontype,required,dive"`
-} // @name Source
+}
 
 // Rate structure for marshaling/unmarshalling JSON.
-//
-// swagger:model Rate
-// @Description Rate is the struct designed to represent the rate fields of an operation.
 type Rate struct {
 	From       string          `json:"from" validate:"required" example:"BRL"`
 	To         string          `json:"to" validate:"required" example:"USDe"`
 	Value      decimal.Decimal `json:"value" validate:"required" example:"1000"`
 	ExternalID string          `json:"externalId" validate:"uuid,required" example:"00000000-0000-0000-0000-000000000000"`
-} // @name Rate
+}
 
 // IsEmpty method that set empty or nil in fields
 func (r Rate) IsEmpty() bool {
@@ -151,9 +130,6 @@ func (r Rate) IsEmpty() bool {
 }
 
 // FromTo structure for marshaling/unmarshalling JSON.
-//
-// swagger:model FromTo
-// @Description FromTo is the struct designed to represent the from/to fields of an operation.
 type FromTo struct {
 	AccountAlias    string         `json:"accountAlias,omitempty" example:"@person1"`
 	BalanceKey      string         `json:"balanceKey,omitempty" example:"asset-freeze"`
@@ -170,21 +146,40 @@ type FromTo struct {
 	// UUID of the operation route. Primary field used for route validation and accounting rules.
 	// format: uuid
 	RouteID *string `json:"routeId,omitempty" validate:"omitempty,uuid" example:"00000000-0000-0000-0000-000000000000" format:"uuid"`
-} // @name FromTo
+}
+
+// AliasSeparator is the character that separates the segments of the composite alias forms this
+// package builds and parses. There are two:
+//
+//   - "alias#balanceKey" — a balance lookup key (AliasKey).
+//   - "index#alias#balanceKey" — an entry key, built either by the FromTo.ConcatAlias method from
+//     an entry's own fields, or by the ConcatAlias function from an alias that already carries its
+//     balance key.
+//
+// Within this package every producer, parser, and guard derives from this one value, so the
+// format and the guard that rejects a client-forged composite alias cannot drift apart. That
+// invariant does NOT hold repository-wide: call sites outside this package spell the character
+// literally while parsing the same forms, so changing this value alone does not change them.
+const AliasSeparator = '#'
+
+// AliasSeparatorString is AliasSeparator as a string, for the strings-package helpers that
+// take one.
+const AliasSeparatorString = string(AliasSeparator)
 
 // SplitAlias function to split alias with index.
 func (ft FromTo) SplitAlias() string {
-	if strings.Contains(ft.AccountAlias, "#") {
-		return strings.Split(ft.AccountAlias, "#")[1]
+	if strings.Contains(ft.AccountAlias, AliasSeparatorString) {
+		return strings.Split(ft.AccountAlias, AliasSeparatorString)[1]
 	}
 
 	return ft.AccountAlias
 }
 
-// SplitAliasWithKey extracts the substring after the '#' character from the provided alias or returns the alias if '#' is not present.
+// SplitAliasWithKey extracts the substring after the first alias separator in the provided
+// alias, or returns the alias unchanged when it carries none.
 func SplitAliasWithKey(alias string) string {
-	if idx := strings.Index(alias, "#"); idx != -1 {
-		return alias[idx+1:]
+	if idx := strings.Index(alias, AliasSeparatorString); idx != -1 {
+		return alias[idx+len(AliasSeparatorString):]
 	}
 
 	return alias
@@ -198,18 +193,18 @@ func (ft FromTo) ConcatAlias(i int) string {
 		balanceKey = constant.DefaultBalanceKey
 	}
 
-	return strconv.Itoa(i) + "#" + ft.AccountAlias + "#" + balanceKey
+	return strconv.Itoa(i) + AliasSeparatorString + ft.AccountAlias + AliasSeparatorString + balanceKey
 }
 
 // isConcatedAlias returns true if the alias is already in the composite
-// "index#alias#balanceKey" format (starts with a digit followed by #).
+// "index#alias#balanceKey" format (starts with a digit followed by the alias separator).
 func isConcatedAlias(alias string) bool {
 	if len(alias) < 2 {
 		return false
 	}
 
 	for i, c := range alias {
-		if c == '#' {
+		if c == AliasSeparator {
 			return i > 0
 		}
 
@@ -272,18 +267,12 @@ func ApplyDefaultBalanceKeys(entries []FromTo) {
 }
 
 // Distribute structure for marshaling/unmarshalling JSON.
-//
-// swagger:model Distribute
-// @Description Distribute is the struct designed to represent the distribution fields of an operation.
 type Distribute struct {
 	Remaining string   `json:"remaining,omitempty"`
 	To        []FromTo `json:"to,omitempty" validate:"singletransactiontype,required,dive"`
-} // @name Distribute
+}
 
 // Transaction structure for marshaling/unmarshalling JSON.
-//
-// swagger:model TransactionInput
-// @Description TransactionInput is the request payload for creating a transaction.
 type Transaction struct {
 	ChartOfAccountsGroupName string         `json:"chartOfAccountsGroupName,omitempty" example:"FUNDING"`
 	Description              string         `json:"description,omitempty" example:"Description"`
@@ -297,11 +286,23 @@ type Transaction struct {
 	RouteID         *string          `json:"routeId,omitempty" validate:"omitempty,uuid" example:"00000000-0000-0000-0000-000000000000" format:"uuid"`
 	TransactionDate *TransactionDate `json:"transactionDate,omitempty" example:"2021-01-01T00:00:00Z"`
 	Send            Send             `json:"send" validate:"required"`
+	// Skip carries the per-call control opt-outs. swaggerignore keeps it out of
+	// the GET-transaction READ schema (this struct doubles as the response model)
+	// while json persists it in the body JSONB so it survives commit/cancel
+	// re-resolution and propagates at runtime.
+	Skip *TransactionSkip `json:"skip,omitempty" swaggerignore:"true"`
 	// OperationTypeOverride overrides the persisted Operation.Type label
 	// (for example BLOCK/UNBLOCK) without changing accounting direction or amount.
 	// Internal field; populated during processing and excluded from the API contract.
 	OperationTypeOverride string `json:"-" swaggerignore:"true"`
 } // @name TransactionInput
+
+// TransactionSkip carries per-call control opt-outs requested on the transaction
+// body. A skip is honored only when the matching per-ledger override is enabled.
+type TransactionSkip struct {
+	Fees   bool `json:"fees,omitempty" example:"false"`
+	Tracer bool `json:"tracer,omitempty" example:"false"`
+}
 
 // InitialStatus returns the transaction status derived from the Pending flag.
 // PENDING when the transaction is held for later commit/cancel, CREATED otherwise.

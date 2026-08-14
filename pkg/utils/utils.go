@@ -8,7 +8,7 @@ import (
 	"slices"
 	"unicode"
 
-	"github.com/LerianStudio/midaz/v3/pkg/constant"
+	"github.com/LerianStudio/midaz/v4/pkg/constant"
 )
 
 // validCountries is the set of ISO 3166-1 alpha-2 country codes, built once at package init.
@@ -60,7 +60,7 @@ func ValidateAccountType(t string) error {
 
 // ValidateType validate type values of currencies
 func ValidateType(t string) error {
-	types := []string{"crypto", "currency", "commodity", "others"}
+	types := []string{"crypto", "currency", "fiat", "commodity", "others"}
 
 	if !slices.Contains(types, t) {
 		return constant.ErrInvalidType

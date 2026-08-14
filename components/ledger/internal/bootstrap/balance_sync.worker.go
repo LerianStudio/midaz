@@ -12,17 +12,19 @@ import (
 	"syscall"
 	"time"
 
-	libCommons "github.com/LerianStudio/lib-commons/v5/commons"
-	tmcore "github.com/LerianStudio/lib-commons/v5/commons/tenant-manager/core"
-	tmpostgres "github.com/LerianStudio/lib-commons/v5/commons/tenant-manager/postgres"
-	"github.com/LerianStudio/lib-commons/v5/commons/tenant-manager/tenantcache"
-	libObservability "github.com/LerianStudio/lib-observability"
-	libLog "github.com/LerianStudio/lib-observability/log"
-	redisTransaction "github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/redis/transaction"
-	"github.com/LerianStudio/midaz/v3/components/ledger/internal/services/command"
-	"github.com/LerianStudio/midaz/v3/pkg/constant"
-	"github.com/LerianStudio/midaz/v3/pkg/utils"
+	libCommons "github.com/LerianStudio/lib-commons/v6/commons"
+	tmcore "github.com/LerianStudio/lib-commons/v6/commons/tenant-manager/core"
+	tmpostgres "github.com/LerianStudio/lib-commons/v6/commons/tenant-manager/postgres"
+	"github.com/LerianStudio/lib-commons/v6/commons/tenant-manager/tenantcache"
+	libObservability "github.com/LerianStudio/lib-observability/v2"
+	libLog "github.com/LerianStudio/lib-observability/v2/log"
+	"github.com/LerianStudio/lib-observability/v2/metrics"
 	"github.com/google/uuid"
+
+	redisTransaction "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/redis/transaction"
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services/command"
+	"github.com/LerianStudio/midaz/v4/pkg/constant"
+	"github.com/LerianStudio/midaz/v4/pkg/utils"
 )
 
 // BalanceSyncConfig holds configuration for the balance sync dual-trigger.
@@ -49,14 +51,15 @@ func (c BalanceSyncConfig) PollInterval() time.Duration {
 // Keys become eligible immediately after balance mutation (Lua ZADD with dueAt=now).
 // The worker accumulates keys and flushes based on batch size OR timeout, whichever comes first.
 type BalanceSyncWorker struct {
-	logger      libLog.Logger
-	idleWait    time.Duration
-	syncConfig  BalanceSyncConfig
-	useCase     *command.UseCase
-	mtEnabled   bool
-	tenantCache *tenantcache.TenantCache
-	pgManager   *tmpostgres.Manager
-	serviceName string
+	logger         libLog.Logger
+	idleWait       time.Duration
+	syncConfig     BalanceSyncConfig
+	useCase        *command.UseCase
+	metricsFactory *metrics.MetricsFactory
+	mtEnabled      bool
+	tenantCache    *tenantcache.TenantCache
+	pgManager      *tmpostgres.Manager
+	serviceName    string
 }
 
 // tenantCollector tracks a running BalanceSyncCollector goroutine for a specific tenant.
@@ -136,6 +139,35 @@ func NewBalanceSyncWorkerMT(
 	return w
 }
 
+// WithMetricsFactory sets the metrics factory used to emit balance-sync worker
+// metrics (e.g. tenant skips). A nil factory disables metric emission. Returns
+// the receiver for fluent wiring at bootstrap.
+func (w *BalanceSyncWorker) WithMetricsFactory(factory *metrics.MetricsFactory) *BalanceSyncWorker {
+	w.metricsFactory = factory
+
+	return w
+}
+
+// emitTenantSkip increments the tenant-skip counter, labelled by tenant. The
+// tenant set is bounded by deployment so the label cardinality is safe (T11).
+// Best-effort: a nil factory or emit error never affects the worker (Debug log).
+func (w *BalanceSyncWorker) emitTenantSkip(ctx context.Context, tenantID string) {
+	if w.metricsFactory == nil {
+		return
+	}
+
+	counter, err := w.metricsFactory.Counter(utils.BalanceSyncTenantSkip)
+	if err != nil {
+		w.logger.Log(ctx, libLog.LevelDebug, "Failed to create tenant skip counter", libLog.Err(err))
+
+		return
+	}
+
+	if addErr := counter.WithLabels(map[string]string{"tenant_id": tenantID}).AddOne(ctx); addErr != nil {
+		w.logger.Log(ctx, libLog.LevelDebug, "Failed to emit tenant skip counter", libLog.Err(addErr))
+	}
+}
+
 // isMTReady returns true when the worker is configured for MT (multi-tenant)
 // dispatching. mtEnabled, pgManager, and tenantCache must all be set;
 // if any is missing the worker falls back to default (single-tenant) behavior.
@@ -162,7 +194,8 @@ func (w *BalanceSyncWorker) runWorker() error {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
-	w.logger.Log(ctx, libLog.LevelInfo, "BalanceSyncWorker started (single-tenant, dual-trigger)",
+	w.logger.Log(
+		ctx, libLog.LevelInfo, "BalanceSyncWorker started (single-tenant, dual-trigger)",
 		libLog.Int("batch_size", w.syncConfig.BatchSize),
 		libLog.Int("flush_timeout_ms", w.syncConfig.FlushTimeoutMs),
 		libLog.Int("poll_interval_ms", w.syncConfig.PollIntervalMs),
@@ -175,7 +208,8 @@ func (w *BalanceSyncWorker) runWorker() error {
 		w.logger,
 	)
 
-	collector.Run(ctx,
+	collector.Run(
+		ctx,
 		// FlushFunc: batch flush grouped by org/ledger, then persisted to PostgreSQL
 		func(flushCtx context.Context, keys []redisTransaction.SyncKey) bool {
 			return w.flushBatch(flushCtx, keys)
@@ -186,7 +220,7 @@ func (w *BalanceSyncWorker) runWorker() error {
 		},
 		// WaitForNextFunc: fixed backoff when idle (ZSET empty)
 		func(waitCtx context.Context) bool {
-			return waitOrDone(waitCtx, w.idleWait, w.logger)
+			return waitOrDone(waitCtx, w.idleWait)
 		},
 	)
 
@@ -206,7 +240,8 @@ func (w *BalanceSyncWorker) runWorkerMT() error {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
-	w.logger.Log(ctx, libLog.LevelInfo, "BalanceSyncWorker started (multi-tenant, dual-trigger)",
+	w.logger.Log(
+		ctx, libLog.LevelInfo, "BalanceSyncWorker started (multi-tenant, dual-trigger)",
 		libLog.Int("batch_size", w.syncConfig.BatchSize),
 		libLog.Int("flush_timeout_ms", w.syncConfig.FlushTimeoutMs),
 		libLog.Int("poll_interval_ms", w.syncConfig.PollIntervalMs),
@@ -314,6 +349,8 @@ func (w *BalanceSyncWorker) startTenantCollector(parentCtx context.Context, tena
 		w.logger.Log(parentCtx, libLog.LevelError, "BalanceSyncWorker: failed to get PG connection for tenant",
 			libLog.String("tenant_id", tenantID), libLog.Err(err))
 
+		w.emitTenantSkip(parentCtx, tenantID)
+
 		return nil
 	}
 
@@ -321,6 +358,8 @@ func (w *BalanceSyncWorker) startTenantCollector(parentCtx context.Context, tena
 	if err != nil {
 		w.logger.Log(parentCtx, libLog.LevelError, "BalanceSyncWorker: failed to get DB for tenant",
 			libLog.String("tenant_id", tenantID), libLog.Err(err))
+
+		w.emitTenantSkip(parentCtx, tenantID)
 
 		return nil
 	}
@@ -354,7 +393,8 @@ func (w *BalanceSyncWorker) startTenantCollector(parentCtx context.Context, tena
 		w.logger.Log(collectorCtx, libLog.LevelInfo, "BalanceSyncWorker: collector started",
 			libLog.String("tenant_id", tenantID))
 
-		collector.Run(collectorCtx,
+		collector.Run(
+			collectorCtx,
 			// FlushFunc: batch flush grouped by org/ledger
 			func(flushCtx context.Context, keys []redisTransaction.SyncKey) bool {
 				return w.flushBatch(flushCtx, keys)
@@ -365,7 +405,7 @@ func (w *BalanceSyncWorker) startTenantCollector(parentCtx context.Context, tena
 			},
 			// WaitForNextFunc: fixed backoff when idle (ZSET empty for this tenant)
 			func(waitCtx context.Context) bool {
-				return waitOrDone(waitCtx, w.idleWait, w.logger)
+				return waitOrDone(waitCtx, w.idleWait)
 			},
 		)
 
@@ -420,20 +460,10 @@ func (w *BalanceSyncWorker) flushBatch(ctx context.Context, keys []redisTransact
 		return false
 	}
 
-	w.logger.Log(ctx, libLog.LevelDebug, "BalanceSyncWorker: flushBatch called",
-		libLog.Int("keys", len(keys)),
-	)
-
 	groups := w.groupKeysByOrgLedger(ctx, keys)
 	processed := false
 
 	for _, group := range groups {
-		w.logger.Log(ctx, libLog.LevelDebug, "BalanceSyncWorker: syncing group",
-			libLog.String("org_id", group.orgID.String()),
-			libLog.String("ledger_id", group.ledgerID.String()),
-			libLog.Int("keys", len(group.keys)),
-		)
-
 		if w.processSyncBatch(ctx, group.orgID, group.ledgerID, group.keys) {
 			processed = true
 		}
@@ -546,7 +576,8 @@ func (w *BalanceSyncWorker) processSyncBatch(ctx context.Context, organizationID
 	}
 
 	if result.KeysProcessed > 0 {
-		w.logger.Log(ctx, libLog.LevelInfo, "BalanceSyncWorker: batch sync completed",
+		w.logger.Log(
+			ctx, libLog.LevelInfo, "BalanceSyncWorker: batch sync completed",
 			libLog.Int("processed", result.KeysProcessed),
 			libLog.Int("aggregated", result.BalancesAggregated),
 			libLog.Int("synced", int(result.BalancesSynced)),
@@ -561,14 +592,10 @@ func (w *BalanceSyncWorker) processSyncBatch(ctx context.Context, organizationID
 // if the context is cancelled during the wait (shutdown requested). Used both as
 // the WaitForNextFunc callback (idle backoff between polls) and as error backoff
 // in the collector's fetch loop. A duration <= 0 returns false without sleeping.
-func waitOrDone(ctx context.Context, d time.Duration, logger libLog.Logger) bool {
+func waitOrDone(ctx context.Context, d time.Duration) bool {
 	if d <= 0 {
 		return false
 	}
-
-	logger.Log(ctx, libLog.LevelDebug, "balance_sync: idle wait",
-		libLog.String("duration", d.String()),
-	)
 
 	t := time.NewTimer(d)
 	defer t.Stop()
@@ -671,7 +698,8 @@ func (d *LegacyBalanceSyncDrainer) Run(_ *libCommons.Launcher) error {
 		d.logger,
 	)
 
-	collector.Run(ctx,
+	collector.Run(
+		ctx,
 		func(flushCtx context.Context, keys []redisTransaction.SyncKey) bool {
 			return worker.flushBatch(flushCtx, keys)
 		},
@@ -679,7 +707,7 @@ func (d *LegacyBalanceSyncDrainer) Run(_ *libCommons.Launcher) error {
 			return d.useCase.TransactionRedisRepo.GetBalanceSyncKeysLegacy(fetchCtx, limit)
 		},
 		func(waitCtx context.Context) bool {
-			return waitOrDone(waitCtx, d.idleWait, d.logger)
+			return waitOrDone(waitCtx, d.idleWait)
 		},
 	)
 

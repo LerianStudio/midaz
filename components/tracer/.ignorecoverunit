@@ -1,0 +1,18 @@
+# Patterns to exclude from unit test coverage
+# One pattern per line (glob style)
+# Lines starting with # are comments
+
+
+# Auto-generated mocks
+*_mock.go
+
+# Bootstrap/initialization code (minimal logic)
+/bootstrap/
+/cmd/app/
+bootstrap.go
+
+# Auto-generated API docs
+/api/
+
+# Testutil
+/internal/testutil

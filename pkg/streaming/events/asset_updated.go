@@ -9,8 +9,9 @@ import (
 	"fmt"
 	"time"
 
-	libStreaming "github.com/LerianStudio/lib-streaming"
-	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
+	libStreaming "github.com/LerianStudio/lib-streaming/v2"
+
+	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
 )
 
 // AssetUpdatedDefinition is the routing contract for asset.updated.

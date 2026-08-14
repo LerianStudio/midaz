@@ -21,10 +21,11 @@ import (
 	"testing"
 	"time"
 
-	libRabbitmq "github.com/LerianStudio/lib-commons/v5/commons/rabbitmq"
-	libZap "github.com/LerianStudio/lib-observability/zap"
-	"github.com/LerianStudio/midaz/v3/tests/utils/chaos"
-	rmqtestutil "github.com/LerianStudio/midaz/v3/tests/utils/rabbitmq"
+	libRabbitmq "github.com/LerianStudio/lib-commons/v6/commons/rabbitmq"
+	libZap "github.com/LerianStudio/lib-observability/v2/zap"
+
+	"github.com/LerianStudio/midaz/v4/tests/utils/chaos"
+	rmqtestutil "github.com/LerianStudio/midaz/v4/tests/utils/rabbitmq"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
@@ -212,7 +213,8 @@ func setupRabbitMQNetworkChaosInfra(t *testing.T) *networkChaosTestInfra {
 	proxyAddr := containerInfo.ProxyListen
 
 	// 7. Create producer that connects through the proxy
-	proxyURI := fmt.Sprintf("amqp://%s:%s@%s/",
+	proxyURI := fmt.Sprintf(
+		"amqp://%s:%s@%s/",
 		rmqtestutil.DefaultUser,
 		rmqtestutil.DefaultPassword,
 		proxyAddr,
@@ -283,7 +285,8 @@ func (infra *chaosTestInfra) recreateChannelForInspection(t *testing.T) {
 	// Update container result with new ports
 	infra.rmqContainer.AMQPPort = newAMQPPort.Port()
 	infra.rmqContainer.MgmtPort = newMgmtPort.Port()
-	infra.rmqContainer.URI = fmt.Sprintf("amqp://%s:%s@%s:%s/",
+	infra.rmqContainer.URI = fmt.Sprintf(
+		"amqp://%s:%s@%s:%s/",
 		rmqtestutil.DefaultUser,
 		rmqtestutil.DefaultPassword,
 		infra.rmqContainer.Host,
@@ -919,7 +922,8 @@ func TestIntegration_Chaos_RabbitMQ_ConnectionKilledByBroker(t *testing.T) {
 
 	// 5. INJECT CHAOS: Kill all connections via Management API
 	t.Log("Step 4: INJECT CHAOS - Killing all RabbitMQ connections via Management API")
-	killed := killAllRabbitMQConnections(t,
+	killed := killAllRabbitMQConnections(
+		t,
 		infra.rmqContainer.Host,
 		infra.rmqContainer.MgmtPort,
 		rmqtestutil.DefaultUser,

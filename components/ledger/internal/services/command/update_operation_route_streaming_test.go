@@ -10,19 +10,20 @@ import (
 	"testing"
 	"time"
 
-	libStreaming "github.com/LerianStudio/lib-streaming"
-	mongodb "github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/mongodb/transaction"
-	"github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/postgres/operationroute"
-	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
-	pkgStreaming "github.com/LerianStudio/midaz/v3/pkg/streaming"
+	libStreaming "github.com/LerianStudio/lib-streaming/v2"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
+
+	mongodb "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/mongodb/transaction"
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/operationroute"
+	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
+	pkgStreaming "github.com/LerianStudio/midaz/v4/pkg/streaming"
 )
 
 // newUpdateOperationRouteStreamingTestUseCase wires a happy-path
-// UseCase suitable for exercising the operation-route.updated
+// UseCase suitable for exercising the operation_route.updated
 // emission.
 //
 // OperationRouteRepo.Update is mocked to return a post-commit record
@@ -78,7 +79,7 @@ func newUpdateOperationRouteStreamingTestUseCase(t *testing.T, ctrl *gomock.Cont
 
 // TestUpdateOperationRoute_EmitsOperationRouteUpdatedEvent verifies
 // that a successful UpdateOperationRoute call publishes exactly one
-// operation-route.updated event with the expected resource/event
+// operation_route.updated event with the expected resource/event
 // types, tenant ID, subject and payload fields. Subject and identity
 // fields must source from the post-commit repo return value (NOT a
 // re-fetch).
@@ -107,10 +108,10 @@ func TestUpdateOperationRoute_EmitsOperationRouteUpdatedEvent(t *testing.T) {
 	emitted := mockEmitter.Events()
 	require.Len(t, emitted, 1, "expected exactly one Emit call")
 
-	pkgStreaming.AssertEventEmitted(t, mockEmitter, "operation-route", "updated")
+	pkgStreaming.AssertEventEmitted(t, mockEmitter, "operation_route", "updated")
 
 	evt := emitted[0]
-	assert.Equal(t, "operation-route.updated", evt.DefinitionKey, "DefinitionKey must match the catalog key")
+	assert.Equal(t, "operation_route.updated", evt.DefinitionKey, "DefinitionKey must match the catalog key")
 	assert.Equal(t, "default", evt.TenantID, "TenantID must come from ResolveTenantID (default fallback when no multi-tenant context)")
 	assert.Equal(t, operationRouteID.String(), evt.Subject, "Subject must be the request-path operation route ID (from repo RETURNING)")
 	assert.Equal(t, fixedUpdatedAt, evt.Timestamp, "Timestamp must pin to persisted UpdatedAt")

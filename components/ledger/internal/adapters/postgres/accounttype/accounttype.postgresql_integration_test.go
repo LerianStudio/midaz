@@ -8,18 +8,27 @@ package accounttype
 
 import (
 	"context"
+	"errors"
 	"testing"
 	"time"
 
-	libCommons "github.com/LerianStudio/lib-commons/v5/commons"
-	"github.com/LerianStudio/midaz/v3/components/ledger/internal/services"
-	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
-	"github.com/LerianStudio/midaz/v3/pkg/net/http"
-	pgtestutil "github.com/LerianStudio/midaz/v3/tests/utils/postgres"
+	libCommons "github.com/LerianStudio/lib-commons/v6/commons"
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services"
+	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
+	"github.com/LerianStudio/midaz/v4/pkg/net/http"
+	pgtestutil "github.com/LerianStudio/midaz/v4/tests/utils/postgres"
 )
+
+// fixedIntegrationTime is a deterministic UTC instant used by the persistence
+// tests. It carries microsecond precision (654321 micros) because Postgres
+// round-trips timestamps at microsecond precision; a fixed value keeps the
+// round-trip assertions reproducible without relying on time.Now().
+var fixedIntegrationTime = time.Date(2026, 1, 2, 3, 4, 5, 654321*1000, time.UTC)
 
 // createRepository creates an AccountTypePostgreSQLRepository connected to the test database.
 func createRepository(t *testing.T, container *pgtestutil.ContainerResult) *AccountTypePostgreSQLRepository {
@@ -100,7 +109,7 @@ func TestIntegration_AccountTypeRepository_FindByID_IgnoresDeletedAccountType(t 
 	ledgerID := pgtestutil.CreateTestLedger(t, container.DB, orgID)
 
 	// Insert deleted account type
-	deletedAt := time.Now().Add(-1 * time.Hour)
+	deletedAt := fixedIntegrationTime.Add(-1 * time.Hour)
 	params := pgtestutil.AccountTypeParams{
 		Name:        "Deleted Type",
 		Description: "This type was deleted",
@@ -207,7 +216,7 @@ func TestIntegration_AccountTypeRepository_Create(t *testing.T) {
 	orgID := pgtestutil.CreateTestOrganization(t, container.DB)
 	ledgerID := pgtestutil.CreateTestLedger(t, container.DB, orgID)
 
-	now := time.Now().Truncate(time.Microsecond)
+	now := fixedIntegrationTime
 
 	accountType := &mmodel.AccountType{
 		ID:             uuid.Must(libCommons.GenerateUUIDv7()),
@@ -252,7 +261,7 @@ func TestIntegration_AccountTypeRepository_Create_DuplicateKeyValueFails(t *test
 	}
 	pgtestutil.CreateTestAccountType(t, container.DB, orgID, ledgerID, params)
 
-	now := time.Now().Truncate(time.Microsecond)
+	now := fixedIntegrationTime
 
 	// Try to create second with same key_value
 	accountType := &mmodel.AccountType{
@@ -274,6 +283,117 @@ func TestIntegration_AccountTypeRepository_Create_DuplicateKeyValueFails(t *test
 	// Assert
 	require.Error(t, err, "Create should fail for duplicate key_value")
 	assert.Nil(t, created)
+}
+
+func TestIntegration_AccountTypeRepository_Create_RoundTripsDefaultDirection(t *testing.T) {
+	container := pgtestutil.SetupContainer(t)
+
+	repo := createRepository(t, container)
+
+	orgID := pgtestutil.CreateTestOrganization(t, container.DB)
+	ledgerID := pgtestutil.CreateTestLedger(t, container.DB, orgID)
+
+	now := fixedIntegrationTime
+
+	accountType := &mmodel.AccountType{
+		ID:               uuid.Must(libCommons.GenerateUUIDv7()),
+		OrganizationID:   orgID,
+		LedgerID:         ledgerID,
+		Name:             "Debit Direction Type",
+		Description:      "Persists default_direction=debit",
+		KeyValue:         "debit-direction-type",
+		DefaultDirection: "debit",
+		CreatedAt:        now,
+		UpdatedAt:        now,
+	}
+
+	ctx := context.Background()
+
+	created, err := repo.Create(ctx, orgID, ledgerID, accountType)
+
+	require.NoError(t, err, "Create should not return error")
+	require.NotNil(t, created)
+	assert.Equal(t, "debit", created.DefaultDirection, "created row should carry default_direction")
+
+	found, err := repo.FindByID(ctx, orgID, ledgerID, accountType.ID)
+	require.NoError(t, err)
+	assert.Equal(t, "debit", found.DefaultDirection, "default_direction should round-trip through the read path")
+}
+
+func TestIntegration_AccountTypeRepository_Create_DefaultsDirectionToCredit(t *testing.T) {
+	container := pgtestutil.SetupContainer(t)
+
+	repo := createRepository(t, container)
+
+	orgID := pgtestutil.CreateTestOrganization(t, container.DB)
+	ledgerID := pgtestutil.CreateTestLedger(t, container.DB, orgID)
+
+	now := fixedIntegrationTime
+
+	// The command service is responsible for defaulting an absent direction to
+	// "credit"; simulate that contract at the adapter boundary.
+	accountType := &mmodel.AccountType{
+		ID:               uuid.Must(libCommons.GenerateUUIDv7()),
+		OrganizationID:   orgID,
+		LedgerID:         ledgerID,
+		Name:             "Credit Default Type",
+		Description:      "Persists default_direction=credit",
+		KeyValue:         "credit-default-type",
+		DefaultDirection: "credit",
+		CreatedAt:        now,
+		UpdatedAt:        now,
+	}
+
+	ctx := context.Background()
+
+	created, err := repo.Create(ctx, orgID, ledgerID, accountType)
+
+	require.NoError(t, err, "Create with credit direction must satisfy the CHECK constraint")
+	require.NotNil(t, created)
+
+	found, err := repo.FindByID(ctx, orgID, ledgerID, accountType.ID)
+	require.NoError(t, err)
+	assert.Equal(t, "credit", found.DefaultDirection)
+}
+
+// TestIntegration_AccountTypeRepository_Create_RejectsOutOfDomainDirection proves that
+// migration 000020's CHECK constraint (default_direction IN ('credit','debit')) actually
+// rejects an out-of-domain value at the database boundary. It bypasses the service and
+// repository guards — which coerce or validate the direction upstream — by inserting an
+// invalid value with a raw SQL exec, then asserts the CHECK-violation SQLSTATE (23514).
+func TestIntegration_AccountTypeRepository_Create_RejectsOutOfDomainDirection(t *testing.T) {
+	container := pgtestutil.SetupContainer(t)
+
+	// createRepository runs the onboarding migrations, so the CHECK is in place.
+	createRepository(t, container)
+
+	orgID := pgtestutil.CreateTestOrganization(t, container.DB)
+	ledgerID := pgtestutil.CreateTestLedger(t, container.DB, orgID)
+
+	now := fixedIntegrationTime
+
+	// Insert directly on the DB handle so no upstream guard coerces the value.
+	_, err := container.DB.Exec(
+		`INSERT INTO account_type
+			(id, organization_id, ledger_id, name, description, key_value, default_direction, created_at, updated_at)
+		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $8)`,
+		uuid.Must(libCommons.GenerateUUIDv7()),
+		orgID,
+		ledgerID,
+		"Sideways Type",
+		"Out-of-domain default_direction",
+		"sideways-type",
+		"sideways",
+		now,
+	)
+
+	require.Error(t, err, "the CHECK constraint must reject an out-of-domain default_direction")
+
+	var pgErr *pgconn.PgError
+
+	require.True(t, errors.As(err, &pgErr), "expected a *pgconn.PgError, got %T", err)
+	assert.Equal(t, "23514", pgErr.Code, "SQLSTATE should be a check_violation")
+	assert.Equal(t, "account_type_default_direction_check", pgErr.ConstraintName, "the default_direction CHECK should be the violated constraint")
 }
 
 // ============================================================================
@@ -322,6 +442,46 @@ func TestIntegration_AccountTypeRepository_Update_ChangesNameAndDescription(t *t
 	assert.Equal(t, "Updated Description", found.Description, "description should be updated")
 	assert.Equal(t, "update-test", found.KeyValue, "key_value should remain unchanged")
 	assert.True(t, found.UpdatedAt.After(originalUpdatedAt), "updated_at should be changed after update")
+}
+
+func TestIntegration_AccountTypeRepository_Update_ChangesDefaultDirectionOnlyWhenSet(t *testing.T) {
+	container := pgtestutil.SetupContainer(t)
+
+	repo := createRepository(t, container)
+
+	orgID := pgtestutil.CreateTestOrganization(t, container.DB)
+	ledgerID := pgtestutil.CreateTestLedger(t, container.DB, orgID)
+
+	params := pgtestutil.AccountTypeParams{
+		Name:        "Direction Update Type",
+		Description: "Seeded with default credit direction",
+		KeyValue:    "direction-update",
+	}
+	accountTypeID := pgtestutil.CreateTestAccountType(t, container.DB, orgID, ledgerID, params)
+
+	ctx := context.Background()
+
+	// Seeded row uses the column default.
+	seeded, err := repo.FindByID(ctx, orgID, ledgerID, accountTypeID)
+	require.NoError(t, err)
+	assert.Equal(t, "credit", seeded.DefaultDirection, "seeded row should default to credit")
+
+	// A set direction is applied.
+	_, err = repo.Update(ctx, orgID, ledgerID, accountTypeID, &mmodel.AccountType{DefaultDirection: "debit"})
+	require.NoError(t, err)
+
+	afterSet, err := repo.FindByID(ctx, orgID, ledgerID, accountTypeID)
+	require.NoError(t, err)
+	assert.Equal(t, "debit", afterSet.DefaultDirection, "direction should be updated to debit")
+
+	// An unset (empty) direction leaves the column unchanged.
+	_, err = repo.Update(ctx, orgID, ledgerID, accountTypeID, &mmodel.AccountType{Name: "Renamed"})
+	require.NoError(t, err)
+
+	afterUnset, err := repo.FindByID(ctx, orgID, ledgerID, accountTypeID)
+	require.NoError(t, err)
+	assert.Equal(t, "debit", afterUnset.DefaultDirection, "direction should remain debit when the update omits it")
+	assert.Equal(t, "Renamed", afterUnset.Name, "name should still update independently")
 }
 
 func TestIntegration_AccountTypeRepository_Update_ReturnsErrNotFound(t *testing.T) {
@@ -576,7 +736,7 @@ func TestIntegration_AccountTypeRepository_ListByIDs_IgnoresDeletedAccountTypes(
 	activeID := pgtestutil.CreateTestAccountType(t, container.DB, orgID, ledgerID, activeParams)
 
 	// Create deleted account type
-	deletedAt := time.Now().Add(-1 * time.Hour)
+	deletedAt := fixedIntegrationTime.Add(-1 * time.Hour)
 	deletedParams := pgtestutil.AccountTypeParams{
 		Name:        "Deleted Type",
 		Description: "Deleted",
@@ -676,7 +836,7 @@ func TestIntegration_AccountTypeRepository_Delete_AllowsReusingSameKeyValue(t *t
 	require.NoError(t, err)
 
 	// Create new account type with same key_value
-	now := time.Now().Truncate(time.Microsecond)
+	now := fixedIntegrationTime
 	newAccountType := &mmodel.AccountType{
 		ID:             uuid.Must(libCommons.GenerateUUIDv7()),
 		OrganizationID: orgID,

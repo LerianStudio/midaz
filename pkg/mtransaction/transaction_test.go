@@ -7,7 +7,7 @@ package mtransaction
 import (
 	"testing"
 
-	"github.com/LerianStudio/midaz/v3/pkg/constant"
+	"github.com/LerianStudio/midaz/v4/pkg/constant"
 
 	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/assert"
@@ -242,6 +242,104 @@ func TestFromTo_ConcatSplitAlias_BalanceKeyContainsHash(t *testing.T) {
 
 	// Alias should still be extracted correctly regardless of balanceKey content
 	assert.Equal(t, ft.AccountAlias, extractedAlias)
+}
+
+// TestIsConcatedAlias pins the "does this alias already look composite?" decision, which is
+// what decides whether MutateConcatAliases rewrites an entry's alias or leaves the spelling the
+// client sent. The rule is "one or more digits, then the alias separator", and every row below
+// is a shape the separator recognition has to answer the same way whichever character the
+// separator is spelled as.
+//
+// The recognition sits directly behind the v2 alias guard: an alias this returns true for keeps
+// its own spelling and can therefore be forged onto another entry's map key, so the two have to
+// agree on the separator or the guard closes nothing.
+func TestIsConcatedAlias(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		alias string
+		want  bool
+	}{
+		{alias: "0#@alice#default", want: true},
+		{alias: "12#@alice#default", want: true},
+		{alias: "5#", want: true},
+		{alias: "@alice", want: false},
+		{alias: "@a#b", want: false},
+		{alias: "", want: false},
+		{alias: "5", want: false},
+		{alias: "#", want: false},
+		// All digits and no separator at all: a digits-only alias is not composite.
+		{alias: "12", want: false},
+		// The separator at index 0 has no digit prefix in front of it.
+		{alias: "#@alice", want: false},
+		// A non-digit anywhere before the separator disqualifies the whole prefix.
+		{alias: "0a#@alice", want: false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.alias, func(t *testing.T) {
+			t.Parallel()
+
+			assert.Equalf(t, tt.want, isConcatedAlias(tt.alias),
+				"composite recognition for alias %q", tt.alias)
+		})
+	}
+}
+
+// TestSplitAliasWithKey pins the balance-lookup projection: everything AFTER the first
+// separator. It is the counterpart to SplitAlias, which returns the segment BETWEEN the first
+// two — the pair is why an alias carrying a separator resolves to two different keys and can be
+// fetched under one while being looked up under the other.
+func TestSplitAliasWithKey(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name  string
+		alias string
+		want  string
+	}{
+		{name: "composite entry key", alias: "0#@alice#default", want: "@alice#default"},
+		{name: "alias and balance key", alias: "@alice#savings", want: "savings"},
+		{name: "no separator returns the alias unchanged", alias: "@alice", want: "@alice"},
+		{name: "separator at the head", alias: "#@alice", want: "@alice"},
+		{name: "empty", alias: "", want: ""},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			assert.Equal(t, tt.want, SplitAliasWithKey(tt.alias))
+		})
+	}
+}
+
+// TestMutateConcatSplitAliases_RoundTrip drives the in-place alias rewrites both ways. It pins
+// that concatenation is idempotent — an entry whose alias already looks composite keeps the
+// spelling it arrived with, which is the property the v2 alias guard exists to make unreachable
+// from a request — and that splitting restores the aliases concatenation produced.
+func TestMutateConcatSplitAliases_RoundTrip(t *testing.T) {
+	t.Parallel()
+
+	entries := []FromTo{
+		{AccountAlias: "@alice"},
+		{AccountAlias: "@bob", BalanceKey: "savings"},
+		{AccountAlias: "7#@carol#default"},
+	}
+
+	concatenated := MutateConcatAliases(entries)
+
+	assert.Equal(t, "0#@alice#"+constant.DefaultBalanceKey, concatenated[0].AccountAlias,
+		"an empty balance key defaults, and the index prefixes the alias")
+	assert.Equal(t, "1#@bob#savings", concatenated[1].AccountAlias)
+	assert.Equal(t, "7#@carol#default", concatenated[2].AccountAlias,
+		"an alias that already looks composite keeps the spelling it arrived with")
+
+	split := MutateSplitAliases(concatenated)
+
+	assert.Equal(t, "@alice", split[0].AccountAlias)
+	assert.Equal(t, "@bob", split[1].AccountAlias)
+	assert.Equal(t, "@carol", split[2].AccountAlias)
 }
 
 func TestTransaction_InitialStatus(t *testing.T) {

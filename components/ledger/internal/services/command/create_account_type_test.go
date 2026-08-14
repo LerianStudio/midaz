@@ -10,15 +10,16 @@ import (
 	"testing"
 	"time"
 
-	libCommons "github.com/LerianStudio/lib-commons/v5/commons"
-	mongodb "github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/mongodb/onboarding"
-	"github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/postgres/accounttype"
-	"github.com/LerianStudio/midaz/v3/pkg"
-	"github.com/LerianStudio/midaz/v3/pkg/constant"
-	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
+	libCommons "github.com/LerianStudio/lib-commons/v6/commons"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/mock/gomock"
+
+	mongodb "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/mongodb/onboarding"
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/accounttype"
+	"github.com/LerianStudio/midaz/v4/pkg"
+	"github.com/LerianStudio/midaz/v4/pkg/constant"
+	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
 )
 
 // TestCreateAccountTypeSuccess tests creating account type successfully
@@ -60,6 +61,56 @@ func TestCreateAccountTypeSuccess(t *testing.T) {
 			assert.NotZero(t, accountType.CreatedAt)
 			assert.NotZero(t, accountType.UpdatedAt)
 			assert.Equal(t, accountType.CreatedAt, accountType.UpdatedAt)
+
+			return expectedAccountType, nil
+		}).
+		Times(1)
+
+	result, err := uc.CreateAccountType(context.Background(), organizationID, ledgerID, payload)
+
+	assert.NoError(t, err)
+	assert.Equal(t, expectedAccountType, result)
+}
+
+// TestCreateAccountTypeNormalizesKeyValueToLowercase verifies an uppercase/mixed-case
+// key is stored lowercase, keeping registration consistent with the FindByKey
+// lookup (which lowercases the query key) so accounts of the type can always be opened.
+func TestCreateAccountTypeNormalizesKeyValueToLowercase(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	organizationID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
+
+	payload := &mmodel.CreateAccountTypeInput{
+		Name:        "Current Assets",
+		Description: "Assets convertible to cash within one year",
+		KeyValue:    "Current_Assets",
+	}
+
+	now := time.Date(2026, time.January, 1, 0, 0, 0, 0, time.UTC)
+
+	expectedAccountType := &mmodel.AccountType{
+		ID:             uuid.Must(libCommons.GenerateUUIDv7()),
+		OrganizationID: organizationID,
+		LedgerID:       ledgerID,
+		Name:           payload.Name,
+		Description:    payload.Description,
+		KeyValue:       "current_assets",
+		CreatedAt:      now,
+		UpdatedAt:      now,
+	}
+
+	mockAccountTypeRepo := accounttype.NewMockRepository(ctrl)
+
+	uc := UseCase{
+		AccountTypeRepo: mockAccountTypeRepo,
+	}
+
+	mockAccountTypeRepo.EXPECT().
+		Create(gomock.Any(), organizationID, ledgerID, gomock.Any()).
+		DoAndReturn(func(ctx context.Context, orgID, ledID any, accountType *mmodel.AccountType) (*mmodel.AccountType, error) {
+			assert.Equal(t, "current_assets", accountType.KeyValue)
 
 			return expectedAccountType, nil
 		}).
@@ -158,6 +209,59 @@ func TestCreateAccountTypeValidatesInput(t *testing.T) {
 				Times(1)
 
 			result, err := uc.CreateAccountType(context.Background(), organizationID, ledgerID, tc.payload)
+
+			assert.NoError(t, err)
+			assert.NotNil(t, result)
+		})
+	}
+}
+
+// TestCreateAccountTypeDefaultsDirectionToCredit tests that an absent DefaultDirection
+// on the input resolves to constant.DirectionCredit on the built AccountType, so the
+// positional INSERT never sends an empty string that would violate the CHECK constraint.
+func TestCreateAccountTypeDefaultsDirectionToCredit(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	organizationID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
+
+	debit := constant.DirectionDebit
+
+	testCases := []struct {
+		name     string
+		input    *string
+		expected string
+	}{
+		{name: "absent defaults to credit", input: nil, expected: constant.DirectionCredit},
+		{name: "explicit debit is preserved", input: &debit, expected: constant.DirectionDebit},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			payload := &mmodel.CreateAccountTypeInput{
+				Name:             "Assets",
+				Description:      "Asset accounts",
+				KeyValue:         "assets",
+				DefaultDirection: tc.input,
+			}
+
+			mockAccountTypeRepo := accounttype.NewMockRepository(ctrl)
+
+			uc := UseCase{
+				AccountTypeRepo: mockAccountTypeRepo,
+			}
+
+			mockAccountTypeRepo.EXPECT().
+				Create(gomock.Any(), organizationID, ledgerID, gomock.Any()).
+				DoAndReturn(func(ctx context.Context, orgID, ledID any, accountType *mmodel.AccountType) (*mmodel.AccountType, error) {
+					assert.Equal(t, tc.expected, accountType.DefaultDirection)
+
+					return accountType, nil
+				}).
+				Times(1)
+
+			result, err := uc.CreateAccountType(context.Background(), organizationID, ledgerID, payload)
 
 			assert.NoError(t, err)
 			assert.NotNil(t, result)

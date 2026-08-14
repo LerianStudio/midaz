@@ -5,9 +5,9 @@
 package http
 
 import (
-	libHTTP "github.com/LerianStudio/lib-commons/v5/commons/net/http"
-	tmcore "github.com/LerianStudio/lib-commons/v5/commons/tenant-manager/core"
-	"github.com/gofiber/fiber/v2"
+	libHTTP "github.com/LerianStudio/lib-commons/v6/commons/net/http"
+	tmcore "github.com/LerianStudio/lib-commons/v6/commons/tenant-manager/core"
+	"github.com/gofiber/fiber/v3"
 	jwt "github.com/golang-jwt/jwt/v5"
 )
 
@@ -38,7 +38,7 @@ func ProtectedRouteChain(authHandler fiber.Handler, options *ProtectedRouteOptio
 // middleware has already succeeded. This enables downstream tenant middleware
 // to safely use the ParseUnverified path only after trusted auth has run.
 func MarkTrustedAuthAssertion() fiber.Handler {
-	return func(c *fiber.Ctx) error {
+	return func(c fiber.Ctx) error {
 		if existingUserID, ok := c.Locals("user_id").(string); ok && existingUserID != "" {
 			return c.Next()
 		}
@@ -66,7 +66,7 @@ func MarkTrustedAuthAssertion() fiber.Handler {
 		c.Locals("user_id", userID)
 
 		if tenantID := firstNonEmptyStringClaim(claims, "tenantId"); tenantID != "" && tmcore.IsValidTenantID(tenantID) {
-			c.SetUserContext(tmcore.ContextWithTenantID(c.UserContext(), tenantID))
+			c.SetContext(tmcore.ContextWithTenantID(c.Context(), tenantID))
 		}
 
 		return c.Next()

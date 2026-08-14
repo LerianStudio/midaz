@@ -28,6 +28,10 @@ linters:
     - wastedassign
     - wsl_v5
   settings:
+    dogsled:
+      # NewTrackingFromContext returns 4 values by design; dropping 3 of them
+      # (`_, tracer, _, _ := ...`) is the repo-idiomatic call shape.
+      max-blank-identifiers: 3
     wsl_v5:
       allow-first-in-block: true
       allow-whole-block: false

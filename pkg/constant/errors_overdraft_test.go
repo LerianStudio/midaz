@@ -42,7 +42,7 @@ func TestOverdraftErrorCodes_Registered(t *testing.T) {
 		{name: "ErrOverdraftLimitBelowUsage is code 0173", sentinel: ErrOverdraftLimitBelowUsage, expected: "0173", description: "new overdraft limit below current usage"},
 		{name: "ErrStaleBalanceVersion is code 0174", sentinel: ErrStaleBalanceVersion, expected: "0174", description: "balance version changed between read and write"},
 		{name: "ErrUpdateOfInternalBalance is code 0175", sentinel: ErrUpdateOfInternalBalance, expected: "0175", description: "attempt to update an internal-scope balance"},
-		{name: "ErrOverdraftRouteNotConfigured is code 0176", sentinel: ErrOverdraftRouteNotConfigured, expected: "0176", description: "overdraft companion route lacks a valid overdraft accounting entry"},
+		{name: "ErrOverdraftRouteNotConfigured is code 0492", sentinel: ErrOverdraftRouteNotConfigured, expected: "0492", description: "overdraft companion route lacks a valid overdraft accounting entry"},
 	}
 
 	for _, tt := range tests {

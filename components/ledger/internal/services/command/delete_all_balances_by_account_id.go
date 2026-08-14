@@ -8,38 +8,43 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"time"
 
-	libObs "github.com/LerianStudio/lib-observability"
-
-	libLog "github.com/LerianStudio/lib-observability/log"
-	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
-	"github.com/LerianStudio/midaz/v3/pkg"
-	"github.com/LerianStudio/midaz/v3/pkg/constant"
-	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
-	"github.com/LerianStudio/midaz/v3/pkg/utils"
+	libObservability "github.com/LerianStudio/lib-observability/v2"
+	libLog "github.com/LerianStudio/lib-observability/v2/log"
+	libOpentelemetry "github.com/LerianStudio/lib-observability/v2/tracing"
 	"github.com/google/uuid"
 	"github.com/redis/go-redis/v9"
 	"go.opentelemetry.io/otel/attribute"
+
+	"github.com/LerianStudio/midaz/v4/pkg"
+	"github.com/LerianStudio/midaz/v4/pkg/constant"
+	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
+	"github.com/LerianStudio/midaz/v4/pkg/utils"
 )
 
 // DeleteAllBalancesByAccountID delete all balances by account id in the repository.
-func (uc *UseCase) DeleteAllBalancesByAccountID(ctx context.Context, organizationID, ledgerID, accountID uuid.UUID, requestID string) error {
-	logger, tracer, _, _ := libObs.NewTrackingFromContext(ctx)
+func (uc *UseCase) DeleteAllBalancesByAccountID(ctx context.Context, organizationID, ledgerID, accountID uuid.UUID, requestID string) (err error) {
+	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "exec.delete_all_balances_by_account_id")
 	defer span.End()
+
+	start := time.Now()
+
+	defer func() {
+		utils.RecordDomainOperation(ctx, uc.MetricsFactory, logger, "ledger", "delete_all_balances", start, err)
+	}()
 
 	span.SetAttributes(
 		attribute.String("app.request.request_id", requestID),
 	)
 
-	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Trying to delete all balances by account id: %s", accountID.String()))
-
 	balances, err := uc.BalanceRepo.ListByAccountID(ctx, organizationID, ledgerID, accountID)
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to get balances by account id on repo", err)
 
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Error getting balances by account id on repo: %v", err))
+		logger.Log(ctx, libLog.LevelError, "Error getting balances by account id on repo", libLog.Err(err))
 
 		return err
 	}
@@ -48,28 +53,38 @@ func (uc *UseCase) DeleteAllBalancesByAccountID(ctx context.Context, organizatio
 		return nil
 	}
 
-	for _, balance := range balances {
-		cacheBalance, err := uc.TransactionRedisRepo.ListBalanceByKey(ctx, organizationID, ledgerID, fmt.Sprintf("%s#%s", balance.Alias, balance.Key))
+	// Plant delete markers so the honored-lock pre-pass rejects concurrent mutations for the
+	// whole delete. Release them only when the delete fails, so a rejected guard, permission
+	// flip, or soft-delete leaves the account usable; a successful delete lets the delete marker
+	// expire by its own TTL.
+	release := uc.plantBalanceDeleteMarkers(ctx, organizationID, ledgerID, balances)
+
+	defer func() {
 		if err != nil {
-			if errors.Is(err, redis.Nil) {
-				continue
-			} else {
-				libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to get balance by key on redis", err)
+			release()
+		}
+	}()
 
-				logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Error getting balance by key on redis: %v", err))
+	for _, balance := range balances {
+		cacheBalance, cacheErr := uc.TransactionRedisRepo.ListBalanceByKey(ctx, organizationID, ledgerID, fmt.Sprintf("%s#%s", balance.Alias, balance.Key))
+		if cacheErr != nil && !errors.Is(cacheErr, redis.Nil) {
+			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to get balance by key on redis", cacheErr)
 
-				return err
-			}
+			logger.Log(ctx, libLog.LevelError, "Error getting balance by key on redis", libLog.Err(cacheErr))
+
+			return cacheErr
 		}
 
 		if cacheBalance != nil {
-			err = pkg.ValidateBusinessError(constant.ErrBalancesCantBeDeleted, "ListBalanceByAccountIDAndKey")
+			if !cacheBalance.Available.IsZero() || !cacheBalance.OnHold.IsZero() {
+				err = pkg.ValidateBusinessError(constant.ErrBalancesCantBeDeleted, "ListBalanceByAccountIDAndKey")
 
-			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Balance cannot be deleted because there is transactions happening.", err)
+				libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Balance cannot be deleted because it still has funds in it.", err)
 
-			logger.Log(ctx, libLog.LevelWarn, fmt.Sprintf("Balance cannot be deleted because there is transactions happening: %v", err))
+				logger.Log(ctx, libLog.LevelWarn, "Balance cannot be deleted because it still has funds in it", libLog.Err(err))
 
-			return err
+				return err
+			}
 		}
 
 		if !balance.Available.IsZero() || !balance.OnHold.IsZero() {
@@ -77,7 +92,7 @@ func (uc *UseCase) DeleteAllBalancesByAccountID(ctx context.Context, organizatio
 
 			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Balance cannot be deleted because it still has funds in it.", err)
 
-			logger.Log(ctx, libLog.LevelWarn, fmt.Sprintf("Error deleting balances: %v", err))
+			logger.Log(ctx, libLog.LevelWarn, "Error deleting balances", libLog.Err(err))
 
 			return err
 		}
@@ -86,7 +101,7 @@ func (uc *UseCase) DeleteAllBalancesByAccountID(ctx context.Context, organizatio
 	if err := uc.toggleBalanceTransfers(ctx, organizationID, ledgerID, accountID, false); err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to toggle balance transfers for account on repo", err)
 
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Error toggling balance transfers for account on repo: %v", err))
+		logger.Log(ctx, libLog.LevelError, "Error toggling balance transfers for account on repo", libLog.Err(err))
 
 		return err
 	}
@@ -100,26 +115,29 @@ func (uc *UseCase) DeleteAllBalancesByAccountID(ctx context.Context, organizatio
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to delete balance on repo", err)
 
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Error delete balance: %v", err))
+		logger.Log(ctx, libLog.LevelError, "Error delete balance", libLog.Err(err))
 
 		toggleErr := uc.toggleBalanceTransfers(ctx, organizationID, ledgerID, accountID, true)
 		if toggleErr != nil {
-			logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Error toggling balance transfers for account %s: %v", accountID.String(), toggleErr))
+			logger.Log(ctx, libLog.LevelError, "Error toggling balance transfers for account",
+				libLog.String("account_id", accountID.String()), libLog.Err(toggleErr))
 		}
 
 		return err
 	}
 
+	// Drop the stale cache entries now that the rows are soft-deleted. Non-fatal: a failed
+	// eviction is logged and never fails the already-committed delete.
+	uc.evictBalanceCaches(ctx, organizationID, ledgerID, balances)
+
 	return nil
 }
 
 func (uc *UseCase) toggleBalanceTransfers(ctx context.Context, organizationID, ledgerID, accountID uuid.UUID, allow bool) (err error) {
-	logger, tracer, _, _ := libObs.NewTrackingFromContext(ctx)
+	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "exec.toggle_balance_transfers")
 	defer span.End()
-
-	logger.Log(ctx, libLog.LevelInfo, "Trying to toggle balance transfers")
 
 	allowTransfer := utils.BoolPtr(allow)
 
@@ -129,7 +147,8 @@ func (uc *UseCase) toggleBalanceTransfers(ctx context.Context, organizationID, l
 		}
 
 		if rollbackErr := uc.updateBalanceTransferPermissions(ctx, organizationID, ledgerID, accountID, utils.BoolPtr(!allow)); rollbackErr != nil {
-			logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to rollback transfer permissions for account %s: %v", accountID.String(), rollbackErr))
+			logger.Log(ctx, libLog.LevelError, "Failed to rollback transfer permissions for account",
+				libLog.String("account_id", accountID.String()), libLog.Err(rollbackErr))
 
 			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to rollback balance transfer permission", rollbackErr)
 		}
@@ -143,12 +162,10 @@ func (uc *UseCase) toggleBalanceTransfers(ctx context.Context, organizationID, l
 }
 
 func (uc *UseCase) updateBalanceTransferPermissions(ctx context.Context, organizationID, ledgerID, accountID uuid.UUID, allowTransfer *bool) error {
-	logger, tracer, _, _ := libObs.NewTrackingFromContext(ctx)
+	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "exec.update_balance_transfer_permissions_for_account")
 	defer span.End()
-
-	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Trying to update balance transfer permissions for account %s", accountID.String()))
 
 	err := uc.BalanceRepo.UpdateAllByAccountID(ctx, organizationID, ledgerID, accountID, mmodel.UpdateBalance{
 		AllowReceiving: allowTransfer,
@@ -157,7 +174,7 @@ func (uc *UseCase) updateBalanceTransferPermissions(ctx context.Context, organiz
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to update balance transfer permissions for account on repo", err)
 
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Error update balance transfer permissions for account: %v", err))
+		logger.Log(ctx, libLog.LevelError, "Error update balance transfer permissions for account", libLog.Err(err))
 
 		return err
 	}

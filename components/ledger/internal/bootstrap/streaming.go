@@ -9,11 +9,13 @@ import (
 	"fmt"
 	"strings"
 
-	libLog "github.com/LerianStudio/lib-observability/log"
-	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
-	libStreaming "github.com/LerianStudio/lib-streaming"
-	pkgStreaming "github.com/LerianStudio/midaz/v3/pkg/streaming"
-	"github.com/LerianStudio/midaz/v3/pkg/streaming/events"
+	libLog "github.com/LerianStudio/lib-observability/v2/log"
+	libOpentelemetry "github.com/LerianStudio/lib-observability/v2/tracing"
+	libStreaming "github.com/LerianStudio/lib-streaming/v2"
+	billing "github.com/LerianStudio/lib-streaming/v2/billing"
+
+	pkgStreaming "github.com/LerianStudio/midaz/v4/pkg/streaming"
+	"github.com/LerianStudio/midaz/v4/pkg/streaming/events"
 )
 
 // streamingPrimaryTargetName is the canonical name for midaz's single
@@ -22,9 +24,24 @@ import (
 // sync.
 const streamingPrimaryTargetName = "primary"
 
-// streamingServiceName is the component service segment embedded in every
-// topic name (e.g. "ledger" -> lerian.streaming.ledger_<resource>.<event>).
-const streamingServiceName = "ledger"
+// Per-product service segments folded into topic names by
+// pkgStreaming.TopicName, yielding "lerian.streaming.<service>_<resource>.<event>".
+// The monorepo binary emits events on behalf of three products, each keeping the
+// service segment it had before consolidation: ledger core, fees, and CRM.
+const (
+	serviceLedger = "ledger"
+	serviceFee    = "fee"
+	serviceCRM    = "crm"
+)
+
+// routedDefinition pairs an event's pure wire Definition with the producing
+// service that owns its topic segment. events.Definition is the wire contract
+// and carries no service; the service lives here in the bootstrap registry so
+// routing stays a composition-root concern.
+type routedDefinition struct {
+	def     events.Definition
+	service string
+}
 
 // noopStreamingCloser is the close hook returned by BuildStreamingEmitter
 // when streaming is disabled. It exists only so callers can append a single
@@ -102,28 +119,30 @@ func BuildStreamingEmitter(
 	}
 
 	// Build the route table. One required route per event keyed to the
-	// canonical "lerian.streaming.<service>_<resource>.<event>" topic name.
+	// canonical "lerian.streaming.<service>_<resource>.<event>" topic name,
+	// where <service> is the event's producing product (ledger/fee/crm).
 	routes := buildRoutes(streamingPrimaryTargetName)
 
 	builder := libStreaming.NewBuilder().
 		Source(streamingCfg.CloudEventsSource).
 		Catalog(catalog).
 		Routes(routes...).
+		// The shared billing_recorded route targets a FIXED literal topic owned
+		// by the billing package (not a per-product topic from pkgStreaming.TopicName),
+		// so it is wired explicitly here rather than through buildRoutes. Merge is
+		// replace-by-DefinitionKey: billing_recorded matches no domain route, so it
+		// is appended and every domain route stays intact.
+		RouteOverrides(billing.Route()).
 		Target(libStreaming.TargetConfig{
 			Name:    streamingPrimaryTargetName,
 			Kind:    libStreaming.TransportKafkaLike,
 			Brokers: streamingCfg.Brokers,
 		})
 
-	// Apply TLS from STREAMING_TLS_* env. No-op when STREAMING_TLS_ENABLED=false,
-	// so plaintext dev brokers are unaffected. When enabled, the private-CA dial
-	// is built from STREAMING_TLS_CA_CERT inside lib-streaming.
+	// SASL/TLS are owned by lib-streaming: TLSFromConfig and SASLFromConfig
+	// read the STREAMING_TLS_* and STREAMING_SASL_* knobs already parsed by
+	// LoadConfig and wire the broker dial. midaz does not parse these itself.
 	builder = builder.TLSFromConfig(streamingCfg)
-
-	// Apply SASL from STREAMING_SASL_* env via lib-streaming (SASLFromConfig).
-	// No-op when STREAMING_SASL_MECHANISM is empty. SASL over plaintext needs
-	// STREAMING_SASL_ALLOW_PLAINTEXT=true (dev brokers only); otherwise
-	// lib-streaming pairs SASL with TLS and fails closed at Build.
 	builder = builder.SASLFromConfig(streamingCfg)
 
 	emitter, err := builder.Build(ctx)
@@ -156,50 +175,141 @@ func BuildStreamingEmitter(
 	return emitter, emitter.Close, nil
 }
 
-// midazEventDefinitions returns the canonical, ordered list of midaz
-// event Definitions registered into both the Catalog and the Routes.
-// Kept as a single source of truth so adding a new event is a one-place
-// change.
-func midazEventDefinitions() []events.Definition {
-	return []events.Definition{
-		events.OrganizationCreatedDefinition,
-		events.OrganizationUpdatedDefinition,
-		events.OrganizationDeletedDefinition,
-		events.LedgerCreatedDefinition,
-		events.LedgerUpdatedDefinition,
-		events.LedgerDeletedDefinition,
-		events.AccountCreatedDefinition,
-		events.AccountUpdatedDefinition,
-		events.AccountDeletedDefinition,
-		events.AssetCreatedDefinition,
-		events.AssetUpdatedDefinition,
-		events.AssetDeletedDefinition,
-		events.PortfolioCreatedDefinition,
-		events.PortfolioUpdatedDefinition,
-		events.PortfolioDeletedDefinition,
-		events.SegmentCreatedDefinition,
-		events.SegmentUpdatedDefinition,
-		events.SegmentDeletedDefinition,
+// buildBillingSerializerFromEnv loads the streaming config from the environment
+// and delegates to buildBillingSerializer. It is the composition-root entry
+// point (config.go) uses; the env read is separated from the network-free
+// decision core so the latter stays unit-testable with a hand-built config.
+//
+// A LoadConfig failure degrades gracefully to a nil serializer (billing
+// disabled) rather than failing boot — mirroring the builder's posture.
+func buildBillingSerializerFromEnv(ctx context.Context, logger libLog.Logger) *billing.Serializer {
+	cfg, _, err := libStreaming.LoadConfig()
+	if err != nil {
+		warnBillingDisabled(ctx, logger, err)
+
+		return nil
+	}
+
+	return buildBillingSerializer(ctx, cfg, logger)
+}
+
+// buildBillingSerializer builds the billing Serializer with graceful
+// degradation: any wiring failure yields a nil serializer (billing disabled)
+// and a single WARN, never a boot failure. This preserves backward-compatible
+// startup for deployments without a Schema Registry.
+//
+// It returns the concrete *billing.Serializer (not the command seam) so the
+// caller can nil-guard the interface assignment at the injection site and avoid
+// the typed-nil-interface trap: a nil *billing.Serializer assigned straight to
+// an interface compares NON-nil, so the caller assigns only when non-nil.
+//
+// Branches:
+//   - streaming disabled (Enabled=false): return nil, no registry contact.
+//   - context canceled/expired: WARN + nil, before any registry contact.
+//   - NewSchemaRegistryClient fails (empty URL or partial credentials, both
+//     fail-closed): WARN + nil.
+//   - billing.NewSerializer fails (registry round-trip): WARN + nil.
+//   - success: the constructed serializer.
+func buildBillingSerializer(ctx context.Context, cfg libStreaming.Config, logger libLog.Logger) *billing.Serializer {
+	if !cfg.Enabled {
+		return nil
+	}
+
+	if err := ctx.Err(); err != nil {
+		warnBillingDisabled(ctx, logger, err)
+
+		return nil
+	}
+
+	client, err := libStreaming.NewSchemaRegistryClient(cfg)
+	if err != nil {
+		warnBillingDisabled(ctx, logger, err)
+
+		return nil
+	}
+
+	serializer, err := billing.NewSerializer(ctx, client)
+	if err != nil {
+		warnBillingDisabled(ctx, logger, err)
+
+		return nil
+	}
+
+	return serializer
+}
+
+// warnBillingDisabled logs the single, uniform graceful-degradation WARN shared
+// by every billing-serializer failure branch. The err is attached; no secret is
+// ever included (NewSchemaRegistryClient's error never carries the password).
+func warnBillingDisabled(ctx context.Context, logger libLog.Logger, err error) {
+	if logger == nil {
+		return
+	}
+
+	logger.Log(ctx, libLog.LevelWarn, "Billing serializer disabled",
+		libLog.Bool("billing_enabled", false), libLog.Err(err))
+}
+
+// midazEventDefinitions returns the canonical, ordered list of midaz event
+// Definitions paired with their producing service, registered into both the
+// Catalog (service-agnostic) and the Routes (per-product topic). Kept as a
+// single source of truth so adding a new event is a one-place change.
+func midazEventDefinitions() []routedDefinition {
+	return []routedDefinition{
+		{events.OrganizationCreatedDefinition, serviceLedger},
+		{events.OrganizationUpdatedDefinition, serviceLedger},
+		{events.OrganizationDeletedDefinition, serviceLedger},
+		{events.LedgerCreatedDefinition, serviceLedger},
+		{events.LedgerUpdatedDefinition, serviceLedger},
+		{events.LedgerDeletedDefinition, serviceLedger},
+		{events.AccountCreatedDefinition, serviceLedger},
+		{events.AccountUpdatedDefinition, serviceLedger},
+		{events.AccountDeletedDefinition, serviceLedger},
+		{events.AssetCreatedDefinition, serviceLedger},
+		{events.AssetUpdatedDefinition, serviceLedger},
+		{events.AssetDeletedDefinition, serviceLedger},
+		{events.PortfolioCreatedDefinition, serviceLedger},
+		{events.PortfolioUpdatedDefinition, serviceLedger},
+		{events.PortfolioDeletedDefinition, serviceLedger},
+		{events.SegmentCreatedDefinition, serviceLedger},
+		{events.SegmentUpdatedDefinition, serviceLedger},
+		{events.SegmentDeletedDefinition, serviceLedger},
 		// account_type.* events are intentionally NOT registered:
 		// internal validation config, the type label flows through
 		// account.* events as a string field.
-		events.OperationRouteCreatedDefinition,
-		events.OperationRouteUpdatedDefinition,
-		events.OperationRouteDeletedDefinition,
-		events.TransactionRouteCreatedDefinition,
-		events.TransactionRouteUpdatedDefinition,
-		events.TransactionRouteDeletedDefinition,
-		events.BalanceCreatedDefinition,
-		events.BalanceChangedDefinition,
-		events.BalanceConfigChangedDefinition,
-		events.BalanceDeletedDefinition,
-		events.BalanceOverdraftDrawnDefinition,
-		events.BalanceOverdraftRepaidDefinition,
-		events.BalanceOverdraftClearedDefinition,
-		events.TransactionPostedDefinition,
-		events.TransactionCommittedDefinition,
-		events.TransactionCanceledDefinition,
-		events.TransactionRevertedDefinition,
+		{events.OperationRouteCreatedDefinition, serviceLedger},
+		{events.OperationRouteUpdatedDefinition, serviceLedger},
+		{events.OperationRouteDeletedDefinition, serviceLedger},
+		{events.TransactionRouteCreatedDefinition, serviceLedger},
+		{events.TransactionRouteUpdatedDefinition, serviceLedger},
+		{events.TransactionRouteDeletedDefinition, serviceLedger},
+		{events.BalanceCreatedDefinition, serviceLedger},
+		{events.BalanceChangedDefinition, serviceLedger},
+		{events.BalanceConfigChangedDefinition, serviceLedger},
+		{events.BalanceDeletedDefinition, serviceLedger},
+		{events.BalanceOverdraftDrawnDefinition, serviceLedger},
+		{events.BalanceOverdraftRepaidDefinition, serviceLedger},
+		{events.BalanceOverdraftClearedDefinition, serviceLedger},
+		{events.TransactionPostedDefinition, serviceLedger},
+		{events.TransactionCommittedDefinition, serviceLedger},
+		{events.TransactionCanceledDefinition, serviceLedger},
+		{events.TransactionRevertedDefinition, serviceLedger},
+		// Fees
+		{events.FeesPackageCreatedDefinition, serviceFee},
+		{events.FeesPackageUpdatedDefinition, serviceFee},
+		{events.FeesPackageDeletedDefinition, serviceFee},
+		{events.FeesBillingPackageCreatedDefinition, serviceFee},
+		{events.FeesBillingPackageUpdatedDefinition, serviceFee},
+		{events.FeesBillingPackageDeletedDefinition, serviceFee},
+		{events.FeesAppliedDefinition, serviceFee},
+		// CRM
+		{events.HolderCreatedDefinition, serviceCRM},
+		{events.HolderUpdatedDefinition, serviceCRM},
+		{events.HolderDeletedDefinition, serviceCRM},
+		{events.InstrumentCreatedDefinition, serviceCRM},
+		{events.InstrumentUpdatedDefinition, serviceCRM},
+		{events.InstrumentDeletedDefinition, serviceCRM},
+		{events.InstrumentRelatedPartyDeletedDefinition, serviceCRM},
 	}
 }
 
@@ -211,41 +321,47 @@ func buildCatalog() (libStreaming.Catalog, error) {
 	defs := midazEventDefinitions()
 	entries := make([]libStreaming.EventDefinition, 0, len(defs))
 
-	for _, d := range defs {
+	for _, rd := range defs {
 		entries = append(entries, libStreaming.EventDefinition{
-			Key:           d.Key(),
-			ResourceType:  d.ResourceType,
-			EventType:     d.EventType,
-			SchemaVersion: d.SchemaVersion,
+			Key:           rd.def.Key(),
+			ResourceType:  rd.def.ResourceType,
+			EventType:     rd.def.EventType,
+			SchemaVersion: rd.def.SchemaVersion,
 		})
 	}
+
+	// The shared billing_recorded event is owned by lib-streaming's billing
+	// package: its Definition is a ready EventDefinition (Confluent-framed
+	// protobuf content type), added as-is rather than via the midaz registry.
+	entries = append(entries, billing.Definition())
 
 	return libStreaming.NewCatalog(entries...)
 }
 
 // buildRoutes constructs one RouteRequired route per midaz event,
 // targeting the single broker named targetName. Topic names are
-// "lerian.streaming.<service>_<resource>.<event>" — hyphens in the route
-// key are converted to underscores in the topic name ONLY; the route Key
-// and DefinitionKey stay hyphenated (the lib-streaming route-key regex
-// rejects underscores).
+// "lerian.streaming.<service>_<resource>.<event>", where the service segment
+// is the event's producing product (ledger core / fee / crm) from the
+// per-product registry — NOT a single shared segment.
 //
-// Route Keys are composed as "<definition-key>.<target-name>" (e.g.
-// "account.created.primary") — Route.Key must match a lower-case
-// dot-delimited pattern, and the target-name suffix guarantees uniqueness
-// when the same event is later routed to multiple targets (e.g. a parallel
-// shadow route).
+// Route Keys are composed as "<route-key>.<target-name>" (e.g.
+// "account.created.primary"), where <route-key> is the hyphenated routing
+// handle (RouteKey()) — Route.Key must match lib-streaming's lower-case
+// hyphenated dot-delimited grammar, and the target-name suffix guarantees
+// uniqueness when the same event is later routed to multiple targets (e.g. a
+// parallel shadow route).
 func buildRoutes(targetName string) []libStreaming.RouteDefinition {
 	defs := midazEventDefinitions()
 	routes := make([]libStreaming.RouteDefinition, 0, len(defs))
 
-	for _, d := range defs {
-		key := d.Key()
+	for _, rd := range defs {
+		key := rd.def.Key()
+		routeKey := rd.def.RouteKey()
 		routes = append(routes, libStreaming.RouteDefinition{
-			Key:           key + "." + targetName,
+			Key:           routeKey + "." + targetName,
 			DefinitionKey: key,
 			Target:        targetName,
-			Destination:   libStreaming.KafkaTopic(pkgStreaming.TopicName(streamingServiceName, key)),
+			Destination:   libStreaming.KafkaTopic(pkgStreaming.TopicName(rd.service, routeKey)),
 			Requirement:   libStreaming.RouteRequired,
 		})
 	}

@@ -20,12 +20,13 @@ import (
 	"testing"
 	"time"
 
-	tmcore "github.com/LerianStudio/lib-commons/v5/commons/tenant-manager/core"
-	redistestutil "github.com/LerianStudio/midaz/v3/tests/utils/redis"
+	tmcore "github.com/LerianStudio/lib-commons/v6/commons/tenant-manager/core"
 	"github.com/google/uuid"
 	redisv9 "github.com/redis/go-redis/v9"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	redistestutil "github.com/LerianStudio/midaz/v4/tests/utils/redis"
 )
 
 // =============================================================================

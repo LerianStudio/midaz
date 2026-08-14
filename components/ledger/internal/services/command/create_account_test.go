@@ -9,17 +9,17 @@ import (
 	"errors"
 	"testing"
 
-	mongodb "github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/mongodb/onboarding"
-	"github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/postgres/account"
-	"github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/postgres/accounttype"
-	"github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/postgres/asset"
-	"github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/postgres/balance"
-	"github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/postgres/ledger"
-	"github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/postgres/portfolio"
-	"github.com/LerianStudio/midaz/v3/components/ledger/internal/services"
-	"github.com/LerianStudio/midaz/v3/pkg"
-	"github.com/LerianStudio/midaz/v3/pkg/constant"
-	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
+	mongodb "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/mongodb/onboarding"
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/account"
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/accounttype"
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/asset"
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/balance"
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/ledger"
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/portfolio"
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services"
+	"github.com/LerianStudio/midaz/v4/pkg"
+	"github.com/LerianStudio/midaz/v4/pkg/constant"
+	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/mock/gomock"
@@ -77,6 +77,11 @@ func TestCreateAccountScenarios(t *testing.T) {
 					GetSettings(gomock.Any(), gomock.Any(), gomock.Any()).
 					Return(nil, nil).AnyTimes()
 
+				// Best-effort default-direction resolution (non-external).
+				mockAccountTypeRepo.EXPECT().
+					FindByKey(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+					Return(nil, services.ErrDatabaseItemNotFound).AnyTimes()
+
 				mockAssetRepo.EXPECT().
 					FindByNameOrCode(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
 					Return(true, nil).AnyTimes()
@@ -121,13 +126,15 @@ func TestCreateAccountScenarios(t *testing.T) {
 					GetSettings(gomock.Any(), gomock.Any(), gomock.Any()).
 					Return(map[string]any{"accounting": map[string]any{"validateAccountType": true}}, nil).AnyTimes()
 
+				// Called by accounting validation AND by the best-effort
+				// default-direction resolution (both non-external).
 				mockAccountTypeRepo.EXPECT().
 					FindByKey(gomock.Any(), organizationID, ledgerID, "deposit").
 					Return(&mmodel.AccountType{
 						KeyValue: "deposit",
 						Name:     "Deposit Account",
 					}, nil).
-					Times(1)
+					MinTimes(1)
 
 				mockAssetRepo.EXPECT().
 					FindByNameOrCode(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
@@ -282,6 +289,77 @@ func TestCreateAccountScenarios(t *testing.T) {
 			expectError:  true,
 		},
 		{
+			name: "asset repo technical error is not masked as not found",
+			input: &mmodel.CreateAccountInput{
+				Name:      "Test Account",
+				Type:      "deposit",
+				AssetCode: "USD",
+			},
+			mockSetup: func(mockAssetRepo *asset.MockRepository, mockPortfolioRepo *portfolio.MockRepository, mockAccountRepo *account.MockRepository, mockMetadataRepo *mongodb.MockRepository, mockAccountTypeRepo *accounttype.MockRepository, mockBalance *balance.MockRepository, mockLedgerRepo *ledger.MockRepository) {
+				mockLedgerRepo.EXPECT().
+					GetSettings(gomock.Any(), gomock.Any(), gomock.Any()).
+					Return(nil, nil).AnyTimes()
+
+				mockAssetRepo.EXPECT().
+					FindByNameOrCode(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+					Return(false, errors.New("asset existence check failed"))
+			},
+			expectedErr:  "asset existence check failed",
+			expectedName: "",
+			expectError:  true,
+		},
+		{
+			name: "asset duplicate-match signal is treated as existing asset",
+			input: &mmodel.CreateAccountInput{
+				Name:      "Test Account",
+				Type:      "deposit",
+				AssetCode: "USD",
+			},
+			mockSetup: func(mockAssetRepo *asset.MockRepository, mockPortfolioRepo *portfolio.MockRepository, mockAccountRepo *account.MockRepository, mockMetadataRepo *mongodb.MockRepository, mockAccountTypeRepo *accounttype.MockRepository, mockBalance *balance.MockRepository, mockLedgerRepo *ledger.MockRepository) {
+				mockLedgerRepo.EXPECT().
+					GetSettings(gomock.Any(), gomock.Any(), gomock.Any()).
+					Return(nil, nil).AnyTimes()
+
+				// Best-effort default-direction resolution (non-external).
+				mockAccountTypeRepo.EXPECT().
+					FindByKey(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+					Return(nil, services.ErrDatabaseItemNotFound).AnyTimes()
+
+				// FindByNameOrCode signals a match via (true, ErrAssetNameOrCodeDuplicate);
+				// account creation must continue.
+				mockAssetRepo.EXPECT().
+					FindByNameOrCode(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+					Return(true, pkg.ValidateBusinessError(constant.ErrAssetNameOrCodeDuplicate, "Asset")).AnyTimes()
+
+				mockAccountRepo.EXPECT().
+					FindByAlias(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+					Return(false, nil).AnyTimes()
+
+				mockAccountRepo.EXPECT().
+					Create(gomock.Any(), gomock.Any()).
+					DoAndReturn(func(_ context.Context, in *mmodel.Account) (*mmodel.Account, error) {
+						out := *in
+						out.ID = uuid.New().String()
+						return &out, nil
+					}).AnyTimes()
+
+				mockMetadataRepo.EXPECT().
+					Create(gomock.Any(), gomock.Any(), gomock.Any()).
+					Return(nil).AnyTimes()
+
+				mockBalance.EXPECT().
+					ExistsByAccountIDAndKey(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+					Return(false, nil).AnyTimes()
+
+				mockBalance.EXPECT().
+					Create(gomock.Any(), gomock.Any()).
+					Return(nil, nil).AnyTimes()
+			},
+			expectedErr:  "",
+			expectedName: "Test Account",
+			expectError:  false,
+		},
+		{
 			name: "invalid account type with validation enabled",
 			input: &mmodel.CreateAccountInput{
 				Name:      "Test Account",
@@ -312,6 +390,11 @@ func TestCreateAccountScenarios(t *testing.T) {
 				mockLedgerRepo.EXPECT().
 					GetSettings(gomock.Any(), gomock.Any(), gomock.Any()).
 					Return(nil, nil).AnyTimes()
+
+				// Best-effort default-direction resolution (non-external).
+				mockAccountTypeRepo.EXPECT().
+					FindByKey(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+					Return(nil, services.ErrDatabaseItemNotFound).AnyTimes()
 
 				mockAssetRepo.EXPECT().
 					FindByNameOrCode(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
@@ -357,6 +440,11 @@ func TestCreateAccountScenarios(t *testing.T) {
 				mockLedgerRepo.EXPECT().
 					GetSettings(gomock.Any(), gomock.Any(), gomock.Any()).
 					Return(nil, nil).AnyTimes()
+
+				// Best-effort default-direction resolution (non-external).
+				mockAccountTypeRepo.EXPECT().
+					FindByKey(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+					Return(nil, services.ErrDatabaseItemNotFound).AnyTimes()
 
 				mockAssetRepo.EXPECT().
 					FindByNameOrCode(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
@@ -853,6 +941,12 @@ func TestCreateAccountEdgeCases(t *testing.T) {
 
 			tt.mockSetup(mockAssetRepo, mockPortfolioRepo, mockAccountRepo, mockMetadataRepo, mockAccountTypeRepo, mockBalance, mockLedgerRepo)
 
+			// Best-effort default-direction resolution looks up the (non-external)
+			// account type; a miss degrades gracefully to the credit fallback.
+			mockAccountTypeRepo.EXPECT().
+				FindByKey(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+				Return(nil, services.ErrDatabaseItemNotFound).AnyTimes()
+
 			account, err := uc.CreateAccount(ctx, organizationID, ledgerID, tt.input, token)
 
 			if tt.expectError {
@@ -917,10 +1011,11 @@ func TestCreateAccountValidationEdgeCases(t *testing.T) {
 					GetSettings(gomock.Any(), gomock.Any(), gomock.Any()).
 					Return(nil, nil).AnyTimes()
 
-				// Should not call AccountTypeRepo since validation is disabled
+				// Validation is disabled, but the best-effort default-direction
+				// resolution still looks up the (non-external) account type.
 				mockAccountTypeRepo.EXPECT().
 					FindByKey(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
-					Times(0)
+					Return(nil, services.ErrDatabaseItemNotFound).AnyTimes()
 
 				mockAssetRepo.EXPECT().
 					FindByNameOrCode(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
@@ -966,14 +1061,16 @@ func TestCreateAccountValidationEdgeCases(t *testing.T) {
 					GetSettings(gomock.Any(), gomock.Any(), gomock.Any()).
 					Return(map[string]any{"accounting": map[string]any{"validateAccountType": true}}, nil).AnyTimes()
 
-				// Mock account type found - repository handles case insensitivity
+				// Mock account type found - repository handles case insensitivity.
+				// Called by accounting validation AND by the best-effort
+				// default-direction resolution (both non-external).
 				mockAccountTypeRepo.EXPECT().
 					FindByKey(gomock.Any(), organizationID, ledgerID, "DePoSiT").
 					Return(&mmodel.AccountType{
 						KeyValue: "deposit", // Lowercase in database
 						Name:     "Deposit Account",
 					}, nil).
-					Times(1)
+					MinTimes(1)
 
 				mockAssetRepo.EXPECT().
 					FindByNameOrCode(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
@@ -1220,11 +1317,17 @@ func TestCreateAccountExternalAlias(t *testing.T) {
 			ctrl := gomock.NewController(t)
 			defer ctrl.Finish()
 
-			uc, mockAssetRepo, _, mockAccountRepo, mockMetadataRepo, _, mockBalance, mockLedgerRepo := setupTest(ctrl)
+			uc, mockAssetRepo, _, mockAccountRepo, mockMetadataRepo, mockAccountTypeRepo, mockBalance, mockLedgerRepo := setupTest(ctrl)
 
 			mockLedgerRepo.EXPECT().
 				GetSettings(gomock.Any(), gomock.Any(), gomock.Any()).
 				Return(nil, nil).AnyTimes()
+
+			// Best-effort default-direction resolution looks up the (non-external)
+			// account type; external accounts bypass it. A miss degrades gracefully.
+			mockAccountTypeRepo.EXPECT().
+				FindByKey(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+				Return(nil, services.ErrDatabaseItemNotFound).AnyTimes()
 
 			mockAssetRepo.EXPECT().
 				FindByNameOrCode(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
@@ -1364,6 +1467,11 @@ func TestCreateAccountBlockedFlag(t *testing.T) {
 	mockLedgerRepo.EXPECT().
 		GetSettings(gomock.Any(), gomock.Any(), gomock.Any()).
 		Return(nil, nil).AnyTimes()
+
+	// Best-effort account-type default-direction lookup (non-external path).
+	mockAccountTypeRepo.EXPECT().
+		FindByKey(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+		Return(nil, services.ErrDatabaseItemNotFound).AnyTimes()
 
 	mockAssetRepo.EXPECT().
 		FindByNameOrCode(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).

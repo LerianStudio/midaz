@@ -7,7 +7,7 @@ package bootstrap
 import (
 	"testing"
 
-	libZap "github.com/LerianStudio/lib-observability/zap"
+	libZap "github.com/LerianStudio/lib-observability/v2/zap"
 	"github.com/stretchr/testify/assert"
 )
 
