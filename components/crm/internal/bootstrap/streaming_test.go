@@ -62,7 +62,7 @@ func TestBuildStreamingEmitter_EmptyBrokersFailsClosed(t *testing.T) {
 	t.Setenv("STREAMING_BROKERS", "  ,  ")
 	// LoadConfig validates ce-source too; set it so the broker check is the
 	// only thing under test.
-	t.Setenv("STREAMING_CLOUDEVENTS_SOURCE", "lerian.midaz.crm.test")
+	t.Setenv("STREAMING_CLOUDEVENTS_SOURCE", "crm.test")
 
 	cfg := &Config{StreamingEnabled: true}
 
@@ -257,7 +257,7 @@ func TestBuildStreamingEmitter_SASLWithoutTLSFailsClosed(t *testing.T) {
 	// t.Setenv prevents t.Parallel — lib-streaming's LoadConfig reads process env.
 	t.Setenv("STREAMING_ENABLED", "true")
 	t.Setenv("STREAMING_BROKERS", "127.0.0.1:9092")
-	t.Setenv("STREAMING_CLOUDEVENTS_SOURCE", "lerian.midaz.crm.test")
+	t.Setenv("STREAMING_CLOUDEVENTS_SOURCE", "crm.test")
 	t.Setenv("STREAMING_SASL_MECHANISM", "PLAIN")
 	t.Setenv("STREAMING_SASL_USERNAME", "u")
 	t.Setenv("STREAMING_SASL_PASSWORD", "p")
@@ -281,7 +281,7 @@ func TestBuildStreamingEmitter_SASLWithoutTLSFailsClosed(t *testing.T) {
 func TestBuildStreamingEmitter_EnabledBuildsAndCloses(t *testing.T) {
 	t.Setenv("STREAMING_ENABLED", "true")
 	t.Setenv("STREAMING_BROKERS", "127.0.0.1:9092")
-	t.Setenv("STREAMING_CLOUDEVENTS_SOURCE", "lerian.midaz.crm.test")
+	t.Setenv("STREAMING_CLOUDEVENTS_SOURCE", "crm.test")
 	t.Setenv("STREAMING_SASL_MECHANISM", "PLAIN")
 	t.Setenv("STREAMING_SASL_USERNAME", "u")
 	t.Setenv("STREAMING_SASL_PASSWORD", "p")

@@ -60,7 +60,7 @@ const (
 	streamingITCESubject = "ce-subject"
 	streamingITCETenant  = "ce-tenantid"
 
-	streamingITSource   = "lerian.midaz.crm"
+	streamingITSource   = "crm"
 	streamingITRedpanda = "redpandadata/redpanda:v24.2.7"
 )
 
