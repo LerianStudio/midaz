@@ -91,12 +91,12 @@ func TestCRMCatalogRoutesAssembly(t *testing.T) {
 	routes := buildRoutes(streamingPrimaryTargetName)
 	assert.Len(t, routes, len(defs))
 
-	// Every assembled route must carry the canonical topic prefix and the
+	// Every assembled route must carry the canonical service segment and the
 	// shared primary target so the wiring stays consistent once events land.
 	for _, r := range routes {
 		assert.Equal(t, streamingPrimaryTargetName, r.Target)
-		assert.True(t, strings.HasPrefix(r.Destination.Name, pkgStreaming.TopicPrefix),
-			"route destination %q must start with %q", r.Destination.Name, pkgStreaming.TopicPrefix)
+		assert.True(t, strings.HasPrefix(r.Destination.Name, "crm."),
+			"route destination %q must start with %q", r.Destination.Name, "crm.")
 	}
 }
 
@@ -185,7 +185,7 @@ func TestCRMCatalog_CoversAllEmittedEvents(t *testing.T) {
 	}
 
 	require.NotNil(t, relatedPartyRoute, "route for %q must exist", relatedPartyKey)
-	assert.Equal(t, "lerian.streaming.crm_alias.related_party_deleted", relatedPartyRoute.Destination.Name)
+	assert.Equal(t, "crm.alias.related_party_deleted", relatedPartyRoute.Destination.Name)
 
 	// The canonical set must match the events.*Definition vars the helpers use,
 	// so a Definition var mis-keyed away from the literal above is also caught.
@@ -194,12 +194,12 @@ func TestCRMCatalog_CoversAllEmittedEvents(t *testing.T) {
 
 // TestBuildRoutes_TopicsMatchConsumerRegex asserts every CRM route destination
 // stays inside the streaming-hub ingest consumer's subscription grammar
-// (^lerian.streaming.<seg>.<seg>(\.vN)?$ over [a-z0-9_]) and carries no hyphen —
+// (^<service>.<resource>.<event>(\.vN)?$ over [a-z0-9_]) and carries no hyphen —
 // a hyphen on the wire topic would silently fall outside the consumer regex.
 func TestBuildRoutes_TopicsMatchConsumerRegex(t *testing.T) {
 	t.Parallel()
 
-	consumerRegex := regexp.MustCompile(`^lerian\.streaming\.[a-z0-9_]+\.[a-z0-9_]+(\.v[0-9]+)?$`)
+	consumerRegex := regexp.MustCompile(`^[a-z0-9_]+\.[a-z0-9_]+\.[a-z0-9_]+(\.v[0-9]+)?$`)
 
 	for _, r := range buildRoutes(streamingPrimaryTargetName) {
 		assert.Regexp(t, consumerRegex, r.Destination.Name,

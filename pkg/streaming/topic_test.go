@@ -11,10 +11,10 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-// TestTopicName locks the service-folding + hyphen-to-underscore transform that
-// keeps wire topic names inside the streaming-hub consumer regex
-// (^lerian.streaming.<seg>.<seg>$ over [a-z0-9_]) while route keys / ce-type
-// stay hyphenated.
+// TestTopicName locks the {service}.{resource}.{event} topic grammar: the
+// service is the first segment and the underscore-canonical DefinitionKey
+// ("<resource>.<event>") supplies the remaining two. No prefix, no fold — the
+// key is emitted verbatim after the service segment.
 func TestTopicName(t *testing.T) {
 	t.Parallel()
 
@@ -25,34 +25,40 @@ func TestTopicName(t *testing.T) {
 		want    string
 	}{
 		{
-			name:    "ledger no-hyphen key",
+			name:    "ledger single-word segments",
 			service: "ledger",
 			key:     "balance.changed",
-			want:    "lerian.streaming.ledger_balance.changed",
+			want:    "ledger.balance.changed",
 		},
 		{
-			name:    "ledger single-hyphen resource",
+			name:    "ledger underscore resource",
 			service: "ledger",
-			key:     "operation-route.created",
-			want:    "lerian.streaming.ledger_operation_route.created",
+			key:     "operation_route.created",
+			want:    "ledger.operation_route.created",
 		},
 		{
-			name:    "ledger hyphen in event segment",
+			name:    "ledger underscore event segment",
 			service: "ledger",
-			key:     "balance.config-changed",
-			want:    "lerian.streaming.ledger_balance.config_changed",
+			key:     "balance.config_changed",
+			want:    "ledger.balance.config_changed",
 		},
 		{
-			name:    "crm multi-hyphen event segment",
+			name:    "ledger overdraft event segment",
+			service: "ledger",
+			key:     "balance.overdraft_drawn",
+			want:    "ledger.balance.overdraft_drawn",
+		},
+		{
+			name:    "crm multi-word event segment",
 			service: "crm",
-			key:     "alias.related-party-deleted",
-			want:    "lerian.streaming.crm_alias.related_party_deleted",
+			key:     "alias.related_party_deleted",
+			want:    "crm.alias.related_party_deleted",
 		},
 		{
-			name:    "crm no-hyphen key",
+			name:    "crm single-word segments",
 			service: "crm",
 			key:     "holder.created",
-			want:    "lerian.streaming.crm_holder.created",
+			want:    "crm.holder.created",
 		},
 	}
 
@@ -63,12 +69,4 @@ func TestTopicName(t *testing.T) {
 			assert.Equal(t, tt.want, pkgStreaming.TopicName(tt.service, tt.key))
 		})
 	}
-}
-
-// TestTopicPrefix pins the exported prefix constant so callers that build or
-// assert topic names against it cannot drift from the wire contract.
-func TestTopicPrefix(t *testing.T) {
-	t.Parallel()
-
-	assert.Equal(t, "lerian.streaming.", pkgStreaming.TopicPrefix)
 }

@@ -4,23 +4,15 @@
 
 package streaming
 
-import "strings"
-
-// TopicPrefix is the canonical prefix every streaming Kafka topic name uses.
-const TopicPrefix = "lerian.streaming."
-
 // TopicName renders the consumer-facing Kafka topic name for a producing
 // service ("ledger"/"crm") and a definition key ("<resource>.<event>").
 //
-// The streaming-hub ingest consumer subscribes via kgo.ConsumeRegex to
-// ^lerian.streaming.<seg>.<seg>$ over the [a-z0-9_] charset — exactly two
-// segments, no hyphen. To satisfy that grammar while still namespacing topics by
-// producing service, the service is folded into the first segment
-// ("<service>_<resource>") and hyphens are normalized to underscores. The route
-// Key/DefinitionKey/ResourceType/EventType and the CloudEvents type keep their
-// hyphens: lib-streaming's route-key grammar requires hyphens and rejects "_",
-// so the underscore form lives ONLY on the wire topic name, not on the event
-// identity.
+// The grammar is {service}.{resource}.{event}: the service is the first
+// segment, and the underscore-canonical DefinitionKey supplies the remaining
+// "<resource>.<event>" verbatim. Definition keys are already underscore-canonical
+// (see events.Definition), so no normalization happens here — the route
+// Key/ce-type keep their hyphens on the wire identity, while the topic name uses
+// the underscore key as-is.
 func TopicName(service, key string) string {
-	return TopicPrefix + service + "_" + strings.ReplaceAll(key, "-", "_")
+	return service + "." + key
 }

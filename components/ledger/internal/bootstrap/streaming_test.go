@@ -64,7 +64,7 @@ func TestMidazEventDefinitions_IncludesBalanceChanged(t *testing.T) {
 }
 
 // TestBuildRoutes_BalanceChangedTopic asserts the balance.changed route
-// resolves to the canonical lerian.streaming.ledger_balance.changed Kafka topic.
+// resolves to the canonical ledger.balance.changed Kafka topic.
 func TestBuildRoutes_BalanceChangedTopic(t *testing.T) {
 	t.Parallel()
 
@@ -78,20 +78,20 @@ func TestBuildRoutes_BalanceChangedTopic(t *testing.T) {
 			dest = r.Destination.Name
 		}
 	}
-	assert.Equal(t, "lerian.streaming.ledger_balance.changed", dest)
+	assert.Equal(t, "ledger.balance.changed", dest)
 }
 
 // TestBuildRoutes_HyphenatedTopics pins the wire topic names for the ledger
-// event keys whose <resource> or <event> segment is hyphenated — exactly the
-// keys where the hyphen-to-underscore fold on the topic name (but NOT on the
-// route Key / ce-type) is easiest to get wrong.
+// event keys whose <resource> or <event> segment carries an underscore — the
+// keys where the underscore-canonical DefinitionKey mapping onto the topic name
+// (while the route Key / ce-type stay hyphenated) is easiest to get wrong.
 func TestBuildRoutes_HyphenatedTopics(t *testing.T) {
 	t.Parallel()
 
 	want := map[string]string{
-		"operation_route.created": "lerian.streaming.ledger_operation_route.created",
-		"balance.config_changed":  "lerian.streaming.ledger_balance.config_changed",
-		"balance.overdraft_drawn": "lerian.streaming.ledger_balance.overdraft_drawn",
+		"operation_route.created": "ledger.operation_route.created",
+		"balance.config_changed":  "ledger.balance.config_changed",
+		"balance.overdraft_drawn": "ledger.balance.overdraft_drawn",
 	}
 
 	got := make(map[string]string, len(want))
@@ -108,13 +108,13 @@ func TestBuildRoutes_HyphenatedTopics(t *testing.T) {
 
 // TestBuildRoutes_TopicsMatchConsumerRegex asserts every ledger route
 // destination stays inside the streaming-hub ingest consumer's subscription
-// grammar (^lerian.streaming.<seg>.<seg>(\.vN)?$ over [a-z0-9_]) and carries no
+// grammar (^<service>.<resource>.<event>(\.vN)?$ over [a-z0-9_]) and carries no
 // hyphen — a hyphen on the wire topic would silently fall outside the consumer
 // regex.
 func TestBuildRoutes_TopicsMatchConsumerRegex(t *testing.T) {
 	t.Parallel()
 
-	consumerRegex := regexp.MustCompile(`^lerian\.streaming\.[a-z0-9_]+\.[a-z0-9_]+(\.v[0-9]+)?$`)
+	consumerRegex := regexp.MustCompile(`^[a-z0-9_]+\.[a-z0-9_]+\.[a-z0-9_]+(\.v[0-9]+)?$`)
 
 	for _, r := range buildRoutes(streamingPrimaryTargetName) {
 		assert.Regexp(t, consumerRegex, r.Destination.Name,
