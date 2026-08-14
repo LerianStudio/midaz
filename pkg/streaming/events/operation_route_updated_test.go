@@ -15,8 +15,8 @@ import (
 )
 
 func TestOperationRouteUpdatedDefinition_Key(t *testing.T) {
-	assert.Equal(t, "operation-route.updated", events.OperationRouteUpdatedDefinition.Key())
-	assert.Equal(t, "operation-route", events.OperationRouteUpdatedDefinition.ResourceType)
+	assert.Equal(t, "operation_route.updated", events.OperationRouteUpdatedDefinition.Key())
+	assert.Equal(t, "operation_route", events.OperationRouteUpdatedDefinition.ResourceType)
 	assert.Equal(t, "updated", events.OperationRouteUpdatedDefinition.EventType)
 	assert.Equal(t, "1.0.0", events.OperationRouteUpdatedDefinition.SchemaVersion)
 }

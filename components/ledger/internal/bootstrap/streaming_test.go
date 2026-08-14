@@ -89,9 +89,9 @@ func TestBuildRoutes_HyphenatedTopics(t *testing.T) {
 	t.Parallel()
 
 	want := map[string]string{
-		"operation-route.created": "lerian.streaming.ledger_operation_route.created",
-		"balance.config-changed":  "lerian.streaming.ledger_balance.config_changed",
-		"balance.overdraft-drawn": "lerian.streaming.ledger_balance.overdraft_drawn",
+		"operation_route.created": "lerian.streaming.ledger_operation_route.created",
+		"balance.config_changed":  "lerian.streaming.ledger_balance.config_changed",
+		"balance.overdraft_drawn": "lerian.streaming.ledger_balance.overdraft_drawn",
 	}
 
 	got := make(map[string]string, len(want))

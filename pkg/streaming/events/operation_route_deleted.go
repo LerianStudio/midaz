@@ -18,7 +18,7 @@ import (
 //
 // IMPORTANT posture: emit failures MUST NOT fail the request.
 var OperationRouteDeletedDefinition = Definition{
-	ResourceType:  "operation-route",
+	ResourceType:  "operation_route",
 	EventType:     "deleted",
 	SchemaVersion: "1.0.0",
 }

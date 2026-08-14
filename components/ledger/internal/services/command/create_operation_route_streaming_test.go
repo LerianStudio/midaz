@@ -76,10 +76,10 @@ func TestCreateOperationRoute_EmitsOperationRouteCreatedEvent(t *testing.T) {
 	emitted := mockEmitter.Events()
 	require.Len(t, emitted, 1, "expected exactly one Emit call")
 
-	pkgStreaming.AssertEventEmitted(t, mockEmitter, "operation-route", "created")
+	pkgStreaming.AssertEventEmitted(t, mockEmitter, "operation_route", "created")
 
 	evt := emitted[0]
-	assert.Equal(t, "operation-route.created", evt.DefinitionKey, "DefinitionKey must match the catalog key")
+	assert.Equal(t, "operation_route.created", evt.DefinitionKey, "DefinitionKey must match the catalog key")
 	assert.Equal(t, "default", evt.TenantID, "TenantID must come from ResolveTenantID (default fallback when no multi-tenant context)")
 	assert.Equal(t, o.ID.String(), evt.Subject, "Subject must be the new operation route ID")
 

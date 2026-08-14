@@ -125,7 +125,7 @@ func TestCRMCatalog_CoversAllEmittedEvents(t *testing.T) {
 		"alias.created":               {},
 		"alias.updated":               {},
 		"alias.deleted":               {},
-		"alias.related-party-deleted": {},
+		"alias.related_party_deleted": {},
 	}
 
 	require.Len(t, expectedKeys, 7, "CRM emits exactly 7 streaming events")
@@ -170,26 +170,26 @@ func TestCRMCatalog_CoversAllEmittedEvents(t *testing.T) {
 	assert.Equal(t, expectedKeys, routeKeys,
 		"routes must map 1:1 to emitted keys (no route without emitter, no emitter without route)")
 
-	// (3) The hyphenated key is the easiest to typo (related-party-deleted vs
-	// related_party_deleted); pin it and its topic explicitly.
-	const hyphenatedKey = "alias.related-party-deleted"
-	assert.Contains(t, catalogKeys, hyphenatedKey, "hyphenated alias key must be registered")
+	// (3) The multi-word key is the easiest to typo (related_party_deleted vs
+	// related-party-deleted); pin its canonical key and its topic explicitly.
+	const relatedPartyKey = "alias.related_party_deleted"
+	assert.Contains(t, catalogKeys, relatedPartyKey, "related-party alias key must be registered")
 
-	var hyphenatedRoute *libStreaming.RouteDefinition
+	var relatedPartyRoute *libStreaming.RouteDefinition
 	for i := range routes {
-		if routes[i].DefinitionKey == hyphenatedKey {
-			hyphenatedRoute = &routes[i]
+		if routes[i].DefinitionKey == relatedPartyKey {
+			relatedPartyRoute = &routes[i]
 
 			break
 		}
 	}
 
-	require.NotNil(t, hyphenatedRoute, "route for %q must exist", hyphenatedKey)
-	assert.Equal(t, "lerian.streaming.crm_alias.related_party_deleted", hyphenatedRoute.Destination.Name)
+	require.NotNil(t, relatedPartyRoute, "route for %q must exist", relatedPartyKey)
+	assert.Equal(t, "lerian.streaming.crm_alias.related_party_deleted", relatedPartyRoute.Destination.Name)
 
 	// The canonical set must match the events.*Definition vars the helpers use,
 	// so a Definition var mis-keyed away from the literal above is also caught.
-	assert.Equal(t, "alias.related-party-deleted", events.AliasRelatedPartyDeletedDefinition.Key())
+	assert.Equal(t, "alias.related_party_deleted", events.AliasRelatedPartyDeletedDefinition.Key())
 }
 
 // TestBuildRoutes_TopicsMatchConsumerRegex asserts every CRM route destination

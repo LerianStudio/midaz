@@ -13,17 +13,19 @@ import (
 )
 
 // AliasRelatedPartyDeletedDefinition is the routing contract for
-// alias.related-party-deleted. The EventType uses a HYPHEN: the lib-streaming
-// route-key validator rejects underscores, so this must stay hyphenated.
+// alias.related_party_deleted. The EventType uses the canonical underscore
+// form — it is the Key() and the ce-type. Definition.RouteKey() folds it to
+// `related-party-deleted` for the RouteDefinition.Key only, because the
+// lib-streaming route-key validator rejects underscores.
 // IMPORTANT posture: emit failures MUST NOT fail the request.
 var AliasRelatedPartyDeletedDefinition = Definition{
 	ResourceType:  "alias",
-	EventType:     "related-party-deleted",
+	EventType:     "related_party_deleted",
 	SchemaVersion: "1.0.0",
 }
 
 // AliasRelatedPartyDeletedPayload is the wire payload for
-// alias.related-party-deleted. It carries the alias + holder + organization
+// alias.related_party_deleted. It carries the alias + holder + organization
 // scope and the removed related-party ID. There is NO deletionType: removing a
 // related party is always a pointwise removal, not a soft/hard distinction. No
 // related-party PII (document, name, role, dates) ever crosses the wire.

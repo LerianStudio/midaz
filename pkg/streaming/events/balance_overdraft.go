@@ -40,15 +40,16 @@ const (
 // removed in a follow-up task once consumers migrate.
 //
 // IMPORTANT posture: emit failures MUST NOT fail the parent transaction.
-// EventType uses the HYPHEN form `overdraft-drawn` because the
-// lib-streaming route-key regex rejects underscores. Wire topic:
-// `lerian.streaming.ledger_balance.overdraft_drawn` (hyphens in the route
-// key become underscores in the topic name only). The Action payload field
-// keeps the unsuffixed value "drawn" (consumers can match on either
-// the topic or the action field).
+// EventType uses the canonical underscore form `overdraft_drawn` — it is the
+// Key() and the ce-type. Definition.RouteKey() folds it to `overdraft-drawn`
+// for the RouteDefinition.Key only, because the lib-streaming route-key regex
+// rejects underscores. Wire topic:
+// `lerian.streaming.ledger_balance.overdraft_drawn`. The Action payload field
+// keeps the unsuffixed value "drawn" (consumers can match on either the topic
+// or the action field).
 var BalanceOverdraftDrawnDefinition = Definition{
 	ResourceType:  "balance",
-	EventType:     "overdraft-drawn",
+	EventType:     "overdraft_drawn",
 	SchemaVersion: "1.0.0",
 }
 
@@ -61,12 +62,13 @@ var BalanceOverdraftDrawnDefinition = Definition{
 // (overdraft usage decreased but not fully cleared).
 //
 // IMPORTANT posture: emit failures MUST NOT fail the parent transaction.
-// EventType uses the HYPHEN form `overdraft-repaid` per the
-// lib-streaming route-key regex (no underscores allowed in routing
-// identifiers).
+// EventType uses the canonical underscore form `overdraft_repaid`;
+// Definition.RouteKey() folds it to `overdraft-repaid` for the
+// RouteDefinition.Key only (the lib-streaming route-key regex rejects
+// underscores).
 var BalanceOverdraftRepaidDefinition = Definition{
 	ResourceType:  "balance",
-	EventType:     "overdraft-repaid",
+	EventType:     "overdraft_repaid",
 	SchemaVersion: "1.0.0",
 }
 
@@ -79,11 +81,13 @@ var BalanceOverdraftRepaidDefinition = Definition{
 // (overdraft fully repaid — terminal signal).
 //
 // IMPORTANT posture: emit failures MUST NOT fail the parent transaction.
-// EventType uses the HYPHEN form `overdraft-cleared` per the
-// lib-streaming route-key regex.
+// EventType uses the canonical underscore form `overdraft_cleared`;
+// Definition.RouteKey() folds it to `overdraft-cleared` for the
+// RouteDefinition.Key only (the lib-streaming route-key regex rejects
+// underscores).
 var BalanceOverdraftClearedDefinition = Definition{
 	ResourceType:  "balance",
-	EventType:     "overdraft-cleared",
+	EventType:     "overdraft_cleared",
 	SchemaVersion: "1.0.0",
 }
 

@@ -111,9 +111,9 @@ func TestSendOverdraftEvents_EmitsThreeBalanceOverdraftEvents(t *testing.T) {
 	emitted := mockEmitter.Events()
 	require.Len(t, emitted, 3, "expected three lib-streaming events (drawn + repaid + cleared)")
 
-	pkgStreaming.AssertEventEmitted(t, mockEmitter, "balance", "overdraft-drawn")
-	pkgStreaming.AssertEventEmitted(t, mockEmitter, "balance", "overdraft-repaid")
-	pkgStreaming.AssertEventEmitted(t, mockEmitter, "balance", "overdraft-cleared")
+	pkgStreaming.AssertEventEmitted(t, mockEmitter, "balance", "overdraft_drawn")
+	pkgStreaming.AssertEventEmitted(t, mockEmitter, "balance", "overdraft_repaid")
+	pkgStreaming.AssertEventEmitted(t, mockEmitter, "balance", "overdraft_cleared")
 
 	for i, expectedAction := range []string{"drawn", "repaid", "cleared"} {
 		var payload map[string]any

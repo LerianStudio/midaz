@@ -203,24 +203,24 @@ func buildCatalog() (libStreaming.Catalog, error) {
 }
 
 // buildRoutes constructs one RouteRequired route per CRM event, targeting the
-// single broker named targetName. Topic names are
-// "lerian.streaming.<service>_<resource>.<event>" — hyphens in the route key
-// are converted to underscores in the topic name ONLY; the route Key and
-// DefinitionKey stay hyphenated (the lib-streaming route-key regex rejects
-// underscores).
+// single broker named targetName. The DefinitionKey and the wire topic both use
+// the underscore-canonical Key() (e.g. "alias.related_party_deleted"); only the
+// route Key uses the hyphenated RouteKey() because the lib-streaming route-key
+// regex rejects underscores.
 //
-// Route Keys are composed as "<definition-key>.<target-name>" (e.g.
-// "holder.created.primary") — Route.Key must match a lower-case dot-delimited
-// pattern, and the target-name suffix guarantees uniqueness when the same event
-// is later routed to multiple targets.
+// Route Keys are composed as "<route-key>.<target-name>" (e.g.
+// "alias.related-party-deleted.primary") — Route.Key must match a lower-case
+// hyphen-and-dot pattern, and the target-name suffix guarantees uniqueness when
+// the same event is later routed to multiple targets.
 func buildRoutes(targetName string) []libStreaming.RouteDefinition {
 	defs := crmEventDefinitions()
 	routes := make([]libStreaming.RouteDefinition, 0, len(defs))
 
 	for _, d := range defs {
 		key := d.Key()
+		routeKey := d.RouteKey()
 		routes = append(routes, libStreaming.RouteDefinition{
-			Key:           key + "." + targetName,
+			Key:           routeKey + "." + targetName,
 			DefinitionKey: key,
 			Target:        targetName,
 			Destination:   libStreaming.KafkaTopic(pkgStreaming.TopicName(streamingServiceName, key)),

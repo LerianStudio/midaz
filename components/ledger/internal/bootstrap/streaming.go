@@ -224,25 +224,24 @@ func buildCatalog() (libStreaming.Catalog, error) {
 }
 
 // buildRoutes constructs one RouteRequired route per midaz event,
-// targeting the single broker named targetName. Topic names are
-// "lerian.streaming.<service>_<resource>.<event>" — hyphens in the route
-// key are converted to underscores in the topic name ONLY; the route Key
-// and DefinitionKey stay hyphenated (the lib-streaming route-key regex
-// rejects underscores).
+// targeting the single broker named targetName. The DefinitionKey and the
+// wire topic both use the underscore-canonical Key() (e.g.
+// "operation_route.created"); only the route Key uses the hyphenated
+// RouteKey() because the lib-streaming route-key regex rejects underscores.
 //
-// Route Keys are composed as "<definition-key>.<target-name>" (e.g.
-// "account.created.primary") — Route.Key must match a lower-case
-// dot-delimited pattern, and the target-name suffix guarantees uniqueness
-// when the same event is later routed to multiple targets (e.g. a parallel
-// shadow route).
+// Route Keys are composed as "<route-key>.<target-name>" (e.g.
+// "operation-route.created.primary") — Route.Key must match a lower-case
+// hyphen-and-dot pattern, and the target-name suffix guarantees uniqueness
+// when the same event is later routed to multiple targets.
 func buildRoutes(targetName string) []libStreaming.RouteDefinition {
 	defs := midazEventDefinitions()
 	routes := make([]libStreaming.RouteDefinition, 0, len(defs))
 
 	for _, d := range defs {
 		key := d.Key()
+		routeKey := d.RouteKey()
 		routes = append(routes, libStreaming.RouteDefinition{
-			Key:           key + "." + targetName,
+			Key:           routeKey + "." + targetName,
 			DefinitionKey: key,
 			Target:        targetName,
 			Destination:   libStreaming.KafkaTopic(pkgStreaming.TopicName(streamingServiceName, key)),

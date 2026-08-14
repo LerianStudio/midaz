@@ -14,13 +14,13 @@ import (
 )
 
 // TestAliasRelatedPartyDeletedDefinition_Key locks the canonical event key. The
-// HYPHEN in "related-party-deleted" is the sensitive point: the route-key
-// validator rejects underscores, so this must never silently become
-// "related_party_deleted".
+// underscore in "related_party_deleted" is the sensitive point: it is the
+// canonical Key()/ce-type, and RouteKey() folds it to hyphens for the route Key
+// only (the route-key validator rejects underscores).
 func TestAliasRelatedPartyDeletedDefinition_Key(t *testing.T) {
-	assert.Equal(t, "alias.related-party-deleted", events.AliasRelatedPartyDeletedDefinition.Key())
+	assert.Equal(t, "alias.related_party_deleted", events.AliasRelatedPartyDeletedDefinition.Key())
 	assert.Equal(t, "alias", events.AliasRelatedPartyDeletedDefinition.ResourceType)
-	assert.Equal(t, "related-party-deleted", events.AliasRelatedPartyDeletedDefinition.EventType)
+	assert.Equal(t, "related_party_deleted", events.AliasRelatedPartyDeletedDefinition.EventType)
 	assert.Equal(t, "1.0.0", events.AliasRelatedPartyDeletedDefinition.SchemaVersion)
 }
 

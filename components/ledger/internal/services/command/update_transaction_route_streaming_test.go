@@ -133,10 +133,10 @@ func TestUpdateTransactionRoute_EmitsTransactionRouteUpdatedEvent(t *testing.T) 
 	emitted := mockEmitter.Events()
 	require.Len(t, emitted, 1, "expected exactly one Emit call")
 
-	pkgStreaming.AssertEventEmitted(t, mockEmitter, "transaction-route", "updated")
+	pkgStreaming.AssertEventEmitted(t, mockEmitter, "transaction_route", "updated")
 
 	evt := emitted[0]
-	assert.Equal(t, "transaction-route.updated", evt.DefinitionKey, "DefinitionKey must match the catalog key")
+	assert.Equal(t, "transaction_route.updated", evt.DefinitionKey, "DefinitionKey must match the catalog key")
 	assert.Equal(t, "default", evt.TenantID, "TenantID must come from ResolveTenantID (default fallback when no multi-tenant context)")
 	assert.Equal(t, transactionRouteID.String(), evt.Subject, "Subject must be the request-path transaction route ID (from repo RETURNING)")
 	assert.Equal(t, fixedUpdatedAt, evt.Timestamp, "Timestamp must pin to persisted UpdatedAt")

@@ -30,6 +30,8 @@
 // file count becomes unwieldy.
 package events
 
+import "strings"
+
 // Definition captures the routing constants for a single event type:
 //
 //   - ResourceType  — the aggregate this event belongs to (e.g. "account")
@@ -49,6 +51,9 @@ type Definition struct {
 func (d Definition) Key() string {
 	return d.ResourceType + "." + d.EventType
 }
+
+// RouteKey returns the hyphenated route-grammar form of Key(): lib-streaming's route-key regex rejects underscores, so the underscore-canonical key folds to hyphen for the RouteDefinition.Key only.
+func (d Definition) RouteKey() string { return strings.ReplaceAll(d.Key(), "_", "-") }
 
 // Deletion-type values carried on every *.deleted event. "soft" sets DeletedAt
 // and retains the record; "hard" purges it. Consumers branch on this to decide

@@ -37,10 +37,10 @@ func minimalOverdraftSource() events.BalanceOverdraftSource {
 }
 
 func TestBalanceOverdraftDefinitions_Keys(t *testing.T) {
-	// Hyphen-spelled event types satisfy the lib-streaming route-key regex.
-	assert.Equal(t, "balance.overdraft-drawn", events.BalanceOverdraftDrawnDefinition.Key())
-	assert.Equal(t, "balance.overdraft-repaid", events.BalanceOverdraftRepaidDefinition.Key())
-	assert.Equal(t, "balance.overdraft-cleared", events.BalanceOverdraftClearedDefinition.Key())
+	// Underscore-canonical event types; RouteKey() folds them to hyphens for the route Key only.
+	assert.Equal(t, "balance.overdraft_drawn", events.BalanceOverdraftDrawnDefinition.Key())
+	assert.Equal(t, "balance.overdraft_repaid", events.BalanceOverdraftRepaidDefinition.Key())
+	assert.Equal(t, "balance.overdraft_cleared", events.BalanceOverdraftClearedDefinition.Key())
 
 	for _, def := range []events.Definition{
 		events.BalanceOverdraftDrawnDefinition,
@@ -110,7 +110,7 @@ func TestBalanceOverdraftPayload_ToEmitRequest_AssemblesStreamingEvents(t *testi
 			emit: func(p events.BalanceOverdraftPayload) (libStreaming.EmitRequest, error) {
 				return p.ToEmitRequestDrawn("tenant-x", fixedTime)
 			},
-			expectKey: "balance.overdraft-drawn",
+			expectKey: "balance.overdraft_drawn",
 		},
 		{
 			name:    "repaid",
@@ -118,7 +118,7 @@ func TestBalanceOverdraftPayload_ToEmitRequest_AssemblesStreamingEvents(t *testi
 			emit: func(p events.BalanceOverdraftPayload) (libStreaming.EmitRequest, error) {
 				return p.ToEmitRequestRepaid("tenant-x", fixedTime)
 			},
-			expectKey: "balance.overdraft-repaid",
+			expectKey: "balance.overdraft_repaid",
 		},
 		{
 			name:    "cleared",
@@ -126,7 +126,7 @@ func TestBalanceOverdraftPayload_ToEmitRequest_AssemblesStreamingEvents(t *testi
 			emit: func(p events.BalanceOverdraftPayload) (libStreaming.EmitRequest, error) {
 				return p.ToEmitRequestCleared("tenant-x", fixedTime)
 			},
-			expectKey: "balance.overdraft-cleared",
+			expectKey: "balance.overdraft_cleared",
 		},
 	}
 

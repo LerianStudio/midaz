@@ -250,9 +250,9 @@ func streamingITExpectations() []streamingITExpectation {
 			},
 		},
 		{
-			// The hyphenated key AND the subject-is-alias-id subtlety live here:
+			// The multi-word key AND the subject-is-alias-id subtlety live here:
 			// ce-subject MUST be the alias id, NOT the related-party id.
-			name:       "alias.related-party-deleted",
+			name:       "alias.related_party_deleted",
 			topic:      pkgStreaming.TopicName(streamingServiceName, events.AliasRelatedPartyDeletedDefinition.Key()),
 			ceType:     "studio.lerian." + events.AliasRelatedPartyDeletedDefinition.Key(),
 			subject:    aliasID.String(),

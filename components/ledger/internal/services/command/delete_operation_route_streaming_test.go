@@ -65,10 +65,10 @@ func TestDeleteOperationRouteByID_EmitsOperationRouteDeletedEvent(t *testing.T) 
 	emitted := mockEmitter.Events()
 	require.Len(t, emitted, 1, "expected exactly one Emit call")
 
-	pkgStreaming.AssertEventEmitted(t, mockEmitter, "operation-route", "deleted")
+	pkgStreaming.AssertEventEmitted(t, mockEmitter, "operation_route", "deleted")
 
 	evt := emitted[0]
-	assert.Equal(t, "operation-route.deleted", evt.DefinitionKey, "DefinitionKey must match the catalog key")
+	assert.Equal(t, "operation_route.deleted", evt.DefinitionKey, "DefinitionKey must match the catalog key")
 	assert.Equal(t, "default", evt.TenantID, "TenantID must come from ResolveTenantID (default fallback when no multi-tenant context)")
 	assert.Equal(t, operationRouteID.String(), evt.Subject, "Subject must be the deleted operation route ID")
 
