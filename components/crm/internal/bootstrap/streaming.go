@@ -22,7 +22,7 @@ import (
 const streamingPrimaryTargetName = "primary"
 
 // streamingServiceName is the component service segment embedded in every topic
-// name (e.g. "crm" -> lerian.streaming.crm_<resource>.<event>).
+// name (e.g. "crm" -> crm.<resource>.<event>).
 const streamingServiceName = "crm"
 
 // noopStreamingCloser is the close hook returned by BuildStreamingEmitter when
@@ -114,7 +114,7 @@ func BuildStreamingEmitter(
 	}
 
 	// Build the route table. One required route per event keyed to the
-	// canonical "lerian.streaming.<service>_<resource>.<event>" topic name.
+	// canonical "{service}.{resource}.{event}" topic name.
 	routes := buildRoutes(streamingPrimaryTargetName)
 
 	builder := libStreaming.NewBuilder().

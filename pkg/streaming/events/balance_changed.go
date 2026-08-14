@@ -45,7 +45,7 @@ const (
 //
 // IMPORTANT posture: emit failures MUST NOT fail the parent transaction.
 // EventType "changed" is a single word — no underscore/hyphen concern with the
-// lib-streaming route-key regex. Wire topic: lerian.streaming.ledger_balance.changed.
+// lib-streaming route-key regex. Wire topic: ledger.balance.changed.
 var BalanceChangedDefinition = Definition{
 	ResourceType:  "balance",
 	EventType:     "changed",

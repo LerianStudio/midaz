@@ -44,7 +44,7 @@ const (
 // Key() and the ce-type. Definition.RouteKey() folds it to `overdraft-drawn`
 // for the RouteDefinition.Key only, because the lib-streaming route-key regex
 // rejects underscores. Wire topic:
-// `lerian.streaming.ledger_balance.overdraft_drawn`. The Action payload field
+// `ledger.balance.overdraft_drawn`. The Action payload field
 // keeps the unsuffixed value "drawn" (consumers can match on either the topic
 // or the action field).
 var BalanceOverdraftDrawnDefinition = Definition{

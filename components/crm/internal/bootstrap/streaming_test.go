@@ -192,6 +192,36 @@ func TestCRMCatalog_CoversAllEmittedEvents(t *testing.T) {
 	assert.Equal(t, "alias.related_party_deleted", events.AliasRelatedPartyDeletedDefinition.Key())
 }
 
+// TestBuildRoutes_FoldedRouteKey pins the behavioral heart of the topic-prefix
+// change for CRM's multi-word key: RouteDefinition.Key is the HYPHENATED
+// RouteKey() (plus the target suffix), while DefinitionKey and the wire topic
+// stay UNDERSCORE-canonical. A revert to using the underscore Key() for
+// RouteDefinition.Key would flip Key to "alias.related_party_deleted.primary"
+// and fail this assertion.
+func TestBuildRoutes_FoldedRouteKey(t *testing.T) {
+	t.Parallel()
+
+	const definitionKey = "alias.related_party_deleted"
+
+	var found *libStreaming.RouteDefinition
+	routes := buildRoutes(streamingPrimaryTargetName)
+	for i := range routes {
+		if routes[i].DefinitionKey == definitionKey {
+			found = &routes[i]
+
+			break
+		}
+	}
+
+	require.NotNil(t, found, "route for DefinitionKey %q must exist", definitionKey)
+	assert.Equal(t, definitionKey, found.DefinitionKey,
+		"DefinitionKey must stay underscore-canonical")
+	assert.Equal(t, "alias.related-party-deleted.primary", found.Key,
+		"RouteDefinition.Key must be the hyphen-folded RouteKey()+target suffix")
+	assert.Equal(t, "crm.alias.related_party_deleted", found.Destination.Name,
+		"wire topic must stay underscore-canonical")
+}
+
 // TestBuildRoutes_TopicsMatchConsumerRegex asserts every CRM route destination
 // stays inside the streaming-hub ingest consumer's subscription grammar
 // (^<service>.<resource>.<event>(\.vN)?$ over [a-z0-9_]) and carries no hyphen —
@@ -207,6 +237,14 @@ func TestBuildRoutes_TopicsMatchConsumerRegex(t *testing.T) {
 		assert.NotContains(t, r.Destination.Name, "-",
 			"topic %q must not contain a hyphen (folded to underscore on the wire)", r.Destination.Name)
 	}
+
+	// Negative cases: the 3-segment underscore grammar must REJECT a hyphenated
+	// topic (a regression that folds a hyphen onto the wire) and a 2-segment
+	// topic (a missing service or resource segment).
+	assert.NotRegexp(t, consumerRegex, "crm.related-party-deleted.alias",
+		"hyphenated topic must fall outside the consumer regex")
+	assert.NotRegexp(t, consumerRegex, "crm.alias",
+		"2-segment topic must fall outside the consumer regex")
 }
 
 // TestBuildStreamingEmitter_SASLWithoutTLSFailsClosed locks the security

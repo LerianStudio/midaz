@@ -106,6 +106,62 @@ func TestBuildRoutes_HyphenatedTopics(t *testing.T) {
 	}
 }
 
+// TestBuildRoutes_FoldedRouteKey pins the behavioral heart of the topic-prefix
+// change: RouteDefinition.Key is the HYPHENATED RouteKey() (plus the target
+// suffix), while DefinitionKey stays UNDERSCORE-canonical. A revert to using the
+// underscore Key() for RouteDefinition.Key would flip Key to the underscore form
+// and fail these assertions. The wire topic (Destination) stays
+// underscore-canonical, asserted alongside so both halves of the split are
+// locked in the default (non-integration) unit run.
+func TestBuildRoutes_FoldedRouteKey(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name          string
+		definitionKey string
+		wantKey       string
+		wantTopic     string
+	}{
+		{
+			name:          "operation route created folds underscore in Key only",
+			definitionKey: "operation_route.created",
+			wantKey:       "operation-route.created.primary",
+			wantTopic:     "ledger.operation_route.created",
+		},
+		{
+			name:          "balance overdraft drawn folds underscore in event segment",
+			definitionKey: "balance.overdraft_drawn",
+			wantKey:       "balance.overdraft-drawn.primary",
+			wantTopic:     "ledger.balance.overdraft_drawn",
+		},
+	}
+
+	routes := buildRoutes(streamingPrimaryTargetName)
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			var found *libStreaming.RouteDefinition
+			for i := range routes {
+				if routes[i].DefinitionKey == tt.definitionKey {
+					found = &routes[i]
+
+					break
+				}
+			}
+
+			require.NotNil(t, found, "route for DefinitionKey %q must exist", tt.definitionKey)
+			assert.Equal(t, tt.wantKey, found.Key,
+				"RouteDefinition.Key must be the hyphen-folded RouteKey()+target suffix")
+			assert.Equal(t, tt.definitionKey, found.DefinitionKey,
+				"DefinitionKey must stay underscore-canonical")
+			assert.Equal(t, tt.wantTopic, found.Destination.Name,
+				"wire topic must stay underscore-canonical")
+		})
+	}
+}
+
 // TestBuildRoutes_TopicsMatchConsumerRegex asserts every ledger route
 // destination stays inside the streaming-hub ingest consumer's subscription
 // grammar (^<service>.<resource>.<event>(\.vN)?$ over [a-z0-9_]) and carries no
@@ -122,6 +178,14 @@ func TestBuildRoutes_TopicsMatchConsumerRegex(t *testing.T) {
 		assert.NotContains(t, r.Destination.Name, "-",
 			"topic %q must not contain a hyphen (folded to underscore on the wire)", r.Destination.Name)
 	}
+
+	// Negative cases: the 3-segment underscore grammar must REJECT a hyphenated
+	// topic (a regression that folds a hyphen onto the wire) and a 2-segment
+	// topic (a missing service or resource segment).
+	assert.NotRegexp(t, consumerRegex, "ledger.operation-route.created",
+		"hyphenated topic must fall outside the consumer regex")
+	assert.NotRegexp(t, consumerRegex, "ledger.balance",
+		"2-segment topic must fall outside the consumer regex")
 }
 
 // TestBuildStreamingEmitter_SASLWithoutTLSFailsClosed locks the security

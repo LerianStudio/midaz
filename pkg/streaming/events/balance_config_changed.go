@@ -64,7 +64,7 @@ const (
 // Key() and the ce-type. Definition.RouteKey() folds it to `config-changed`
 // for the RouteDefinition.Key only, because the lib-streaming route-key regex
 // rejects underscores. The wire topic is
-// `lerian.streaming.ledger_balance.config_changed`. Payload field VALUES
+// `ledger.balance.config_changed`. Payload field VALUES
 // (e.g. changeType="settings_updated") are payload data, not routing
 // identifiers.
 var BalanceConfigChangedDefinition = Definition{
