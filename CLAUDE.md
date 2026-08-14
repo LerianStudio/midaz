@@ -166,7 +166,7 @@ spanExec.SetAttributes(attribute.Int64("db.rows_affected", rowsAffected))
 
 ## Streaming (lib-streaming events)
 
-Producer is `github.com/LerianStudio/lib-streaming`. Wire format: CloudEvents 1.0 binary mode on Kafka. Topic: `lerian.streaming.<service>_<resource>.<event>` (service = component: `ledger` or `crm`; hyphens in the resource/event become underscores in the topic name only). ce-type is auto-prefixed by lib-streaming as `studio.lerian.<resource>.<event>`. The route key / DefinitionKey and ce-type stay hyphenated (e.g. `operation-route`, `related-party-deleted`); only the Kafka topic uses underscores. The canonical wire contract lives in code under `pkg/streaming/events/`; the JSONShape unit test in that package locks it against drift.
+Producer is `github.com/LerianStudio/lib-streaming`. Wire format: CloudEvents 1.0 binary mode on Kafka. Topic: `{service}.{resource}.{event}` (service = component: `ledger` or `crm`; single-topic publishing, no prefix and no dual-publish), e.g. `ledger.operation_route.created`, `crm.alias.related_party_deleted`. ce-type is auto-prefixed by lib-streaming as `studio.lerian.<resource>.<event>` (e.g. `studio.lerian.operation_route.created`). DefinitionKey (`Definition.Key()`) and ce-type are underscore-canonical; ONLY the route key (`RouteDefinition.Key`) stays hyphenated, via the `Definition.RouteKey()` fold (e.g. `operation-route.created`, `alias.related-party-deleted`). ce-source is the bare service name (`ledger` / `crm`). The canonical wire contract lives in code under `pkg/streaming/events/`; the JSONShape unit test in that package locks it against drift.
 
 ### Producer conventions
 
@@ -218,7 +218,7 @@ Drift discipline: wire-contract change updates (a) Payload struct, (b) construct
 
 - Run any Kafka-compatible broker (Redpanda recommended). Bind host port `19092`; join `infra-network` so it's reachable from both host (`localhost:19092`) and containers (`<container>:9092`).
 - Pre-provision topics explicitly. Don't rely on auto-create — typos become silent ghost topics.
-- Local debug: `STREAMING_ENABLED=true`, `STREAMING_BROKERS=localhost:19092`, `STREAMING_CLOUDEVENTS_SOURCE=lerian.midaz.<component>`. If local broker startup is slow, tune `STREAMING_IMPORTANT_EMIT_TIMEOUT_MS`; keep it below the HTTP client timeout.
+- Local debug: `STREAMING_ENABLED=true`, `STREAMING_BROKERS=localhost:19092`, `STREAMING_CLOUDEVENTS_SOURCE=<component>` (bare service name: `ledger` or `crm`). If local broker startup is slow, tune `STREAMING_IMPORTANT_EMIT_TIMEOUT_MS`; keep it below the HTTP client timeout.
 
 ## Multi-Tenancy
 
