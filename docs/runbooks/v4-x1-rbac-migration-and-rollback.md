@@ -50,13 +50,13 @@
   Each is wired via `protectedMidaz(auth, resource, action, ...)` → `auth.Authorize(ApplicationName, resource, action)` (`crm_routes.go:62-79`).
 - **Net effect:** the authz namespace for these routes moves from `plugin-crm` → `midaz`.
 
-Namespace layout in v4 (for context — only the CRM rows are migrating):
+Namespace layout in v4 (for context — the CRM and routing rows flipped to `midaz` in v4):
 
 | Namespace | Resources | Source |
 |-----------|-----------|--------|
-| `midaz` | organizations, ledgers, assets, asset-rates, portfolios, segments, accounts, balances, transactions, operations, settings | `routes.go:15` (`midazName`), `protectedMidaz` `routes.go:307-309` |
+| `midaz` | organizations, ledgers, assets, asset-rates, portfolios, segments, accounts, balances, transactions, operations, settings | `routes.go` (`midazName`, `protectedMidaz`) |
 | `midaz` (flipped in v4) | **holders, instruments, related-parties** | `crm_routes.go:20`, `crm_routes.go:62-79` |
-| `midaz` (flipped in v4) | account-types, operation-routes, transaction-routes | `routes.go:15` (`midazName`), `protectedMidaz` `routes.go:307-309` |
+| `midaz` (flipped in v4) | account-types, operation-routes, transaction-routes | `routes.go` (`midazName`, `protectedMidaz`) |
 | `plugin-fees` (**UNCHANGED**) | packages, estimates, billing-packages, billing-calculate | `fees_routes.go:18` (`feesApplicationName`), `pkg/constant/module.go:24` |
 
 > **Fees do NOT migrate.** `plugin-fees:*` is intentionally preserved with no migration
@@ -360,6 +360,6 @@ re-check the migration matrix. The series falling to zero confirms the window cl
 
 - `docs/auth/RBAC-NAMESPACES.md` — X1 gate definition, migration matrix, fail-closed model (authoritative).
 - `components/ledger/internal/adapters/http/in/crm_routes.go` (`:20`, `:62-79`) — the flip and authz calls.
-- `components/ledger/internal/adapters/http/in/routes.go` (`:15` `midazName`, `:307-309` `protectedMidaz`) — namespace helper.
+- `components/ledger/internal/adapters/http/in/routes.go` (`midazName`, `protectedMidaz`) — namespace helper.
 - `components/ledger/internal/adapters/http/in/fees_routes.go` (`:18`), `pkg/constant/module.go` (`:24`) — fees namespace (unchanged).
 - `docs/standards/telemetry.md`, `docs/standards/error-handling.md` — logging/error conventions for triage.
