@@ -23,10 +23,11 @@ const (
 	transactionMirrorIDPath   = transactionMirrorListPath + "/{transaction_id}"
 )
 
-// transactionMirrorV2Ops enumerates the three v1 transaction ops the /v2 group mirrors: the
-// PATCH update and the two reads (get-by-id + list). Each is a STRAIGHT MIRROR: same handler
-// method, same input/output types, so its operationId is the v1 id with the version suffix
-// appended. The GET and PATCH twins share transactionMirrorIDPath — one path key, two methods.
+// transactionMirrorV2Ops enumerates the three transaction ops the /v2 group publishes as reads/
+// update: the PATCH update and the two reads (get-by-id + list). Each points at a dedicated /v2
+// handler method that calls the SAME core its v1 twin does but answers with the /v2 wire shape
+// (TransactionV2); its operationId is the v1 id with the version suffix appended. The GET and PATCH
+// twins share transactionMirrorIDPath — one path key, two methods.
 //
 // The legacy-create paths (json/inflow/outflow/annotation) are NOT mirrored onto /v2: they are
 // served on /v1 only, and the /v2 transaction create surface is the flat-body direct/hold/
@@ -124,22 +125,54 @@ func transactionMirrorOpBodyRefs(op *huma.Operation) (reqRef string, respRefs []
 	return reqRef, respRefs
 }
 
-// TestRegisterTransactionMirrorV2Routes_ReusesV1SchemaComponents proves the core correctness
-// claim of the straight-mirror approach: the /v2 twin REUSES the v1 request/response Go types,
-// so Huma's registry dedups them to ONE schema component and the v2 op's body $ref is byte-
-// identical to the v1 op's. It reads the REAL unified document.
-//
-// Were a v2 twin to mint its own type for any body, its op would $ref a different (V2-named)
-// component and the equality below would turn red.
-func TestRegisterTransactionMirrorV2Routes_ReusesV1SchemaComponents(t *testing.T) {
+// TestRegisterTransactionMirrorV2Routes_UpdateReusesV1RequestSchema proves the request side of the
+// PATCH update stays a straight mirror: the v2 update op reuses the v1
+// transaction.UpdateTransactionInput request type, so Huma dedups it to ONE component and the v2
+// op's request-body $ref is byte-identical to the v1 op's. Only the RESPONSE diverges to the /v2
+// wire shape. The two GET reads carry no request body, so this claim is scoped to the update op.
+func TestRegisterTransactionMirrorV2Routes_UpdateReusesV1RequestSchema(t *testing.T) {
 	t.Parallel()
 
 	_, api := buildUnifiedHumaAPI()
 	paths := api.OpenAPI().Paths
 
-	// Guards the assertions below against vacuously passing on a document where every ref came
-	// back "": at least one mirrored op must actually name a response-body component.
-	sawSharedResponseRef := false
+	v1Item, ok := paths["/v1"+transactionMirrorIDPath]
+	require.True(t, ok, "the /v1 surface must publish the update transaction op")
+
+	v2Item, ok := paths["/v2"+transactionMirrorIDPath]
+	require.True(t, ok, "the /v2 surface must publish the update transaction op")
+
+	v1Op := operationForMethod(v1Item, http.MethodPatch)
+	require.NotNil(t, v1Op, "the v1 update op must carry a PATCH operation")
+
+	v2Op := operationForMethod(v2Item, http.MethodPatch)
+	require.NotNil(t, v2Op, "the v2 update op must carry a PATCH operation")
+
+	v1Req, _ := transactionMirrorOpBodyRefs(v1Op)
+	v2Req, _ := transactionMirrorOpBodyRefs(v2Op)
+
+	require.NotEmpty(t, v1Req, "the v1 update op must $ref a request-body component, or the reuse claim is vacuous")
+	assert.Equal(t, v1Req, v2Req,
+		"the v2 update op must reuse the v1 request-body component (only the response diverges to the /v2 shape)")
+}
+
+// TestRegisterTransactionMirrorV2Routes_ResponsesDoNotReferenceV1Components proves the response
+// side diverges to the /v2 wire shape: none of the three reads/update v2 ops reference the v1
+// "Transaction" or "Pagination" response components, while their v1 twins still do. This is the
+// negative complement to TestV2ReadUpdateOps_ReferenceTransactionV2, which positively locks the
+// TransactionV2 references. ("Pagination" is Huma's component name for the v1 list body type
+// pkgHTTP.Pagination — Huma names by Go type, ignoring the swaggo @name annotation.)
+func TestRegisterTransactionMirrorV2Routes_ResponsesDoNotReferenceV1Components(t *testing.T) {
+	t.Parallel()
+
+	_, api := buildUnifiedHumaAPI()
+	paths := api.OpenAPI().Paths
+
+	const refPrefix = "#/components/schemas/"
+
+	v1ResponseComponents := map[string]bool{"Transaction": true, "Pagination": true}
+
+	sawV2ResponseRef := false
 
 	for _, op := range transactionMirrorV2Ops {
 		v1Item, ok := paths["/v1"+op.opPath]
@@ -154,67 +187,35 @@ func TestRegisterTransactionMirrorV2Routes_ReusesV1SchemaComponents(t *testing.T
 		v2Op := operationForMethod(v2Item, op.method)
 		require.NotNilf(t, v2Op, "the v2 %s transaction op must carry a %s operation", op.action, op.method)
 
-		v1Req, v1Resp := transactionMirrorOpBodyRefs(v1Op)
-		v2Req, v2Resp := transactionMirrorOpBodyRefs(v2Op)
+		_, v1Resp := transactionMirrorOpBodyRefs(v1Op)
+		_, v2Resp := transactionMirrorOpBodyRefs(v2Op)
 
-		assert.Equalf(t, v1Req, v2Req,
-			"the v2 %s transaction op must name the SAME request-body schema as v1 (a straight mirror mints no new request type)", op.action)
-		assert.ElementsMatchf(t, v1Resp, v2Resp,
-			"the v2 %s transaction op must name the SAME response-body component(s) as v1 (Huma dedups the reused Go type to one schema)", op.action)
+		v1RefsV1Component := false
+
+		for _, ref := range v1Resp {
+			if name, ok := strings.CutPrefix(ref, refPrefix); ok && v1ResponseComponents[name] {
+				v1RefsV1Component = true
+			}
+		}
+
+		assert.Truef(t, v1RefsV1Component,
+			"the v1 %s transaction op must still reference a v1 response component", op.action)
 
 		for _, ref := range v2Resp {
-			if ref != "" {
-				sawSharedResponseRef = true
+			name, ok := strings.CutPrefix(ref, refPrefix)
+			if !ok {
+				continue
 			}
+
+			sawV2ResponseRef = true
+
+			assert.Falsef(t, v1ResponseComponents[name],
+				"the v2 %s transaction op must not reference the v1 response component %q", op.action, name)
 		}
 	}
 
-	require.True(t, sawSharedResponseRef,
-		"at least one mirrored transaction op must reference a response-body component, or the reuse claim is vacuous")
-}
-
-// TestRegisterTransactionMirrorV2Routes_MintsNoV2SchemaComponents guards against accidental new-
-// type creation for the straight mirror: every component the mirrored ops NAME must be an
-// unsuffixed v1 component, so none of their refs may carry the version suffix.
-//
-// The check is scoped to the components the mirror ops actually reference, NOT to every
-// Transaction-named schema in the document: the non-mirror v2 create/lifecycle ops legitimately
-// mint TransactionV2 / CreateTransactionV2Input / V2LegInput, so a document-wide "no Transaction*
-// carries V2" assertion would be wrong. The mirror twins must reuse the v1 (unsuffixed) types and
-// so must not point at any of those V2 components.
-func TestRegisterTransactionMirrorV2Routes_MintsNoV2SchemaComponents(t *testing.T) {
-	t.Parallel()
-
-	_, api := buildUnifiedHumaAPI()
-	paths := api.OpenAPI().Paths
-
-	const refPrefix = "#/components/schemas/"
-
-	referenced := make(map[string]bool)
-
-	for _, op := range transactionMirrorV2Ops {
-		item, ok := paths["/v2"+op.opPath]
-		require.Truef(t, ok, "the /v2 surface must publish the %s transaction op", op.action)
-
-		operation := operationForMethod(item, op.method)
-		require.NotNilf(t, operation, "the v2 %s transaction op must carry a %s operation", op.action, op.method)
-
-		reqRef, respRefs := transactionMirrorOpBodyRefs(operation)
-		for _, ref := range append(respRefs, reqRef) {
-			if name, ok := strings.CutPrefix(ref, refPrefix); ok {
-				referenced[name] = true
-			}
-		}
-	}
-
-	require.NotEmpty(t, referenced,
-		"the mirrored transaction ops must reference at least one body component, or this test guards nothing")
-
-	for name := range referenced {
-		assert.Falsef(t, strings.HasSuffix(name, transactionMirrorV2OperationSuffix),
-			"the mirrored transaction ops must reuse the unsuffixed v1 component, not a %s twin; found %q",
-			transactionMirrorV2OperationSuffix, name)
-	}
+	require.True(t, sawV2ResponseRef,
+		"at least one reads/update v2 op must reference a response-body component, or this test guards nothing")
 }
 
 // TestRegisterTransactionMirrorV2Routes_LegacyCreateOpsRetired asserts the four legacy-create

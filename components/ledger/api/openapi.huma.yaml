@@ -2978,6 +2978,140 @@ components:
         - description
         - metadata
       type: object
+    OperationV2:
+      additionalProperties: false
+      properties:
+        accountAlias:
+          examples:
+            - "@person1"
+          maxLength: 256
+          type: string
+        accountId:
+          examples:
+            - 00000000-0000-0000-0000-000000000000
+          format: uuid
+          type: string
+        amount:
+          $ref: "#/components/schemas/OperationAmount"
+        assetCode:
+          examples:
+            - BRL
+          maxLength: 10
+          minLength: 2
+          type: string
+        balance:
+          $ref: "#/components/schemas/OperationBalance"
+        balanceAffected:
+          examples:
+            - true
+          format: boolean
+          type: boolean
+        balanceAfter:
+          $ref: "#/components/schemas/OperationBalance"
+        balanceId:
+          examples:
+            - 00000000-0000-0000-0000-000000000000
+          format: uuid
+          type: string
+        balanceKey:
+          examples:
+            - asset-freeze
+          maxLength: 100
+          type: string
+        createdAt:
+          examples:
+            - "2021-01-01T00:00:00Z"
+          format: date-time
+          type: string
+        deletedAt:
+          examples:
+            - "2021-01-01T00:00:00Z"
+          format: date-time
+          type:
+            - string
+            - "null"
+        description:
+          examples:
+            - Credit card operation
+          maxLength: 256
+          type: string
+        direction:
+          examples:
+            - debit
+          maxLength: 50
+          type: string
+        id:
+          examples:
+            - 00000000-0000-0000-0000-000000000000
+          format: uuid
+          type: string
+        ledgerId:
+          examples:
+            - 00000000-0000-0000-0000-000000000000
+          format: uuid
+          type: string
+        metadata:
+          additionalProperties: {}
+          type: object
+        organizationId:
+          examples:
+            - 00000000-0000-0000-0000-000000000000
+          format: uuid
+          type: string
+        routeCode:
+          examples:
+            - ROUTE-001
+          maxLength: 100
+          type: string
+        routeDescription:
+          examples:
+            - Settlement route for service charges
+          maxLength: 250
+          type: string
+        routeId:
+          examples:
+            - 00000000-0000-0000-0000-000000000000
+          format: uuid
+          type: string
+        status:
+          $ref: "#/components/schemas/OperationStatus"
+        transactionId:
+          examples:
+            - 00000000-0000-0000-0000-000000000000
+          format: uuid
+          type: string
+        type:
+          examples:
+            - DEBIT
+          maxLength: 50
+          type: string
+        updatedAt:
+          examples:
+            - "2021-01-01T00:00:00Z"
+          format: date-time
+          type: string
+      required:
+        - id
+        - transactionId
+        - description
+        - type
+        - assetCode
+        - amount
+        - balance
+        - balanceAfter
+        - status
+        - accountId
+        - accountAlias
+        - balanceKey
+        - balanceId
+        - organizationId
+        - ledgerId
+        - balanceAffected
+        - createdAt
+        - updatedAt
+        - deletedAt
+        - metadata
+      type: object
     Organization:
       additionalProperties: false
       properties:
@@ -3768,11 +3902,6 @@ components:
           maxLength: 10
           minLength: 2
           type: string
-        chartOfAccountsGroupName:
-          examples:
-            - Chart of accounts group name
-          maxLength: 256
-          type: string
         createdAt:
           examples:
             - "2021-01-01T00:00:00Z"
@@ -3825,7 +3954,7 @@ components:
           type: object
         operations:
           items:
-            $ref: "#/components/schemas/Operation"
+            $ref: "#/components/schemas/OperationV2"
           type:
             - array
             - "null"
@@ -3838,11 +3967,6 @@ components:
           examples:
             - 00000000-0000-0000-0000-000000000000
           format: uuid
-          type: string
-        route:
-          examples:
-            - 00000000-0000-0000-0000-000000000000
-          maxLength: 250
           type: string
         routeId:
           examples:
@@ -3866,18 +3990,47 @@ components:
         - status
         - amount
         - assetCode
-        - chartOfAccountsGroupName
         - debit
         - credit
         - ledgerId
         - organizationId
-        - route
         - feesSkipped
         - tracerSkipped
         - createdAt
         - updatedAt
         - deletedAt
         - operations
+      type: object
+    TransactionV2ListBody:
+      additionalProperties: false
+      properties:
+        items:
+          items:
+            $ref: "#/components/schemas/TransactionV2"
+          type:
+            - array
+            - "null"
+        limit:
+          examples:
+            - 10
+          format: int64
+          type: integer
+        next_cursor:
+          examples:
+            - eyJpZCI6IjAxOTI...
+          type: string
+        page:
+          examples:
+            - 1
+          format: int64
+          type: integer
+        prev_cursor:
+          examples:
+            - eyJpZCI6IjAxOTE...
+          type: string
+      required:
+        - items
+        - limit
       type: object
     UpdateAccountInput:
       additionalProperties: false
@@ -13575,7 +13728,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/Pagination"
+                $ref: "#/components/schemas/TransactionV2ListBody"
           description: OK
         default:
           content:
@@ -13686,7 +13839,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/Transaction"
+                $ref: "#/components/schemas/TransactionV2"
           description: OK
           headers:
             X-Cache-Hit:
@@ -13738,7 +13891,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/Transaction"
+                $ref: "#/components/schemas/TransactionV2"
           description: OK
         default:
           content:
