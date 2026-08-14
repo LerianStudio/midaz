@@ -21,7 +21,7 @@ complements — does not duplicate — the producer conventions in `CLAUDE.md`
   span, but **never fails the HTTP request**. Durability of the mutation itself
   is owned by the database write, not by the emit.
 - **No outbox.** Emission is direct-emit only. The `transaction.*`,
-  `balance.changed`, and `balance.overdraft-*` docstrings mark their catalog
+  `balance.changed`, and `balance.overdraft_*` docstrings mark their catalog
   posture as CRITICAL (outbox: always, direct: skip), but the outbox is not
   wired today (`WithOutboxRepository` is not passed at build). When an outbox
   lands, only the emit call sites change; the Definitions and payload contracts
@@ -78,25 +78,25 @@ as a string field.
 | `segment.created` | segment / created | `studio.lerian.segment.created` | `ledger.segment.created` | segment ID | `CreateSegment` |
 | `segment.updated` | segment / updated | `studio.lerian.segment.updated` | `ledger.segment.updated` | segment ID | `UpdateSegmentByID` |
 | `segment.deleted` | segment / deleted | `studio.lerian.segment.deleted` | `ledger.segment.deleted` | segment ID | `DeleteSegmentByID` |
-| `operation_route.created` | operation-route / created | `studio.lerian.operation_route.created` | `ledger.operation_route.created` | op-route ID | `CreateOperationRoute` |
-| `operation_route.updated` | operation-route / updated | `studio.lerian.operation_route.updated` | `ledger.operation_route.updated` | op-route ID | `UpdateOperationRoute` |
-| `operation_route.deleted` | operation-route / deleted | `studio.lerian.operation_route.deleted` | `ledger.operation_route.deleted` | op-route ID | `DeleteOperationRouteByID` |
-| `transaction_route.created` | transaction-route / created | `studio.lerian.transaction_route.created` | `ledger.transaction_route.created` | txn-route ID | `CreateTransactionRoute` |
-| `transaction_route.updated` | transaction-route / updated | `studio.lerian.transaction_route.updated` | `ledger.transaction_route.updated` | txn-route ID | `UpdateTransactionRoute` |
-| `transaction_route.deleted` | transaction-route / deleted | `studio.lerian.transaction_route.deleted` | `ledger.transaction_route.deleted` | txn-route ID | `DeleteTransactionRouteByID` |
+| `operation_route.created` | operation_route / created | `studio.lerian.operation_route.created` | `ledger.operation_route.created` | op-route ID | `CreateOperationRoute` |
+| `operation_route.updated` | operation_route / updated | `studio.lerian.operation_route.updated` | `ledger.operation_route.updated` | op-route ID | `UpdateOperationRoute` |
+| `operation_route.deleted` | operation_route / deleted | `studio.lerian.operation_route.deleted` | `ledger.operation_route.deleted` | op-route ID | `DeleteOperationRouteByID` |
+| `transaction_route.created` | transaction_route / created | `studio.lerian.transaction_route.created` | `ledger.transaction_route.created` | txn-route ID | `CreateTransactionRoute` |
+| `transaction_route.updated` | transaction_route / updated | `studio.lerian.transaction_route.updated` | `ledger.transaction_route.updated` | txn-route ID | `UpdateTransactionRoute` |
+| `transaction_route.deleted` | transaction_route / deleted | `studio.lerian.transaction_route.deleted` | `ledger.transaction_route.deleted` | txn-route ID | `DeleteTransactionRouteByID` |
 | `balance.created` | balance / created | `studio.lerian.balance.created` | `ledger.balance.created` | balance ID | `CreateAdditionalBalance` |
 | `balance.changed` | balance / changed | `studio.lerian.balance.changed` | `ledger.balance.changed` | **`transactionId:operationId`** | `SendBalanceChangedEvents` (per op, post-commit) |
-| `balance.config_changed` | balance / config-changed | `studio.lerian.balance.config_changed` | `ledger.balance.config_changed` | balance ID† | `UseCase.Update` (`settings_updated`) + `ensureOverdraftBalance` (`overdraft_enabled`) |
+| `balance.config_changed` | balance / config_changed | `studio.lerian.balance.config_changed` | `ledger.balance.config_changed` | balance ID† | `UseCase.Update` (`settings_updated`) + `ensureOverdraftBalance` (`overdraft_enabled`) |
 | `balance.deleted` | balance / deleted | `studio.lerian.balance.deleted` | `ledger.balance.deleted` | balance ID | `DeleteBalance` |
-| `balance.overdraft_drawn` | balance / overdraft-drawn | `studio.lerian.balance.overdraft_drawn` | `ledger.balance.overdraft_drawn` | **`transactionId:operationId`** | `SendOverdraftEvents` (per companion op) |
-| `balance.overdraft_repaid` | balance / overdraft-repaid | `studio.lerian.balance.overdraft_repaid` | `ledger.balance.overdraft_repaid` | **`transactionId:operationId`** | `SendOverdraftEvents` |
-| `balance.overdraft_cleared` | balance / overdraft-cleared | `studio.lerian.balance.overdraft_cleared` | `ledger.balance.overdraft_cleared` | **`transactionId:operationId`** | `SendOverdraftEvents` |
+| `balance.overdraft_drawn` | balance / overdraft_drawn | `studio.lerian.balance.overdraft_drawn` | `ledger.balance.overdraft_drawn` | **`transactionId:operationId`** | `SendOverdraftEvents` (per companion op) |
+| `balance.overdraft_repaid` | balance / overdraft_repaid | `studio.lerian.balance.overdraft_repaid` | `ledger.balance.overdraft_repaid` | **`transactionId:operationId`** | `SendOverdraftEvents` |
+| `balance.overdraft_cleared` | balance / overdraft_cleared | `studio.lerian.balance.overdraft_cleared` | `ledger.balance.overdraft_cleared` | **`transactionId:operationId`** | `SendOverdraftEvents` |
 | `transaction.posted` | transaction / posted | `studio.lerian.transaction.posted` | `ledger.transaction.posted` | transaction ID | `SendTransactionEvents` (created, APPROVED, no parent) |
 | `transaction.committed` | transaction / committed | `studio.lerian.transaction.committed` | `ledger.transaction.committed` | transaction ID | `SendTransactionEvents` (updated, APPROVED) |
 | `transaction.canceled` | transaction / canceled | `studio.lerian.transaction.canceled` | `ledger.transaction.canceled` | transaction ID | `SendTransactionEvents` (updated, CANCELED) |
 | `transaction.reverted` | transaction / reverted | `studio.lerian.transaction.reverted` | `ledger.transaction.reverted` | **child** transaction ID | `SendTransactionEvents` (created, APPROVED, parent non-nil) |
 
-† On `balance.config-changed` the `ce-subject` is the companion overdraft
+† On `balance.config_changed` the `ce-subject` is the companion overdraft
 balance's ID in the `overdraft_enabled` branch, not the parent's.
 
 > **Underscore-canonical, hyphen only on the route key.** For the multi-word
@@ -113,7 +113,7 @@ balance's ID in the `overdraft_enabled` branch, not the parent's.
 
 Most events carry their own record ID as `ce-subject`. Five exceptions:
 
-- **`balance.changed`** and the three **`balance.overdraft-*`** events carry the
+- **`balance.changed`** and the three **`balance.overdraft_*`** events carry the
   composite idempotency key `transactionId:operationId` — NOT the balance ID.
   This keys the event to the operation that caused the mutation, so consumers
   can deduplicate replayed emits.
@@ -335,7 +335,7 @@ Source: `pkg/streaming/events/segment_deleted.go`.
 
 ### Operation route
 
-#### `operation-route.created` / `operation-route.updated` — 7 (or 11) / 6 fields
+#### `operation_route.created` / `operation_route.updated` — 7 (or 11) / 6 fields
 
 Source: `pkg/streaming/events/operation_route_created.go`,
 `operation_route_updated.go`.
@@ -351,13 +351,13 @@ Source: `pkg/streaming/events/operation_route_created.go`,
 | `operationType` | string | ✓ | ✓ | e.g. `source` / `destination`. |
 | `account` | object \| null | ✓ | ✓ | `omitempty` when nil. Nested: `ruleType` (string, `omitempty`) + `validIf` (any, `omitempty`). |
 | `accountingEntries` | object \| null | ✓ | ✓ | `omitempty` when nil. Nested `direct`/`hold`/`commit`/`cancel`/`revert`/`overdraft`/`block`/`unblock` — each `*AccountingEntry` (`omitempty`); each entry has `debit`/`credit` (`*AccountingRubric`, `null` when nil); `AccountingRubric` = `code` + `description`. |
-| `createdAt` | string | ✓ | — | RFC3339. Test asserts `createdAt` ABSENT on `operation-route.updated`. |
+| `createdAt` | string | ✓ | — | RFC3339. Test asserts `createdAt` ABSENT on `operation_route.updated`. |
 | `updatedAt` | string | ✓ | ✓ | RFC3339. |
 
-> `operation-route.created` field count is 7 when all optionals are empty/nil,
+> `operation_route.created` field count is 7 when all optionals are empty/nil,
 > 11 when `description`, `code`, `account`, and `accountingEntries` are all set.
 
-#### `operation-route.deleted` — 4 fields
+#### `operation_route.deleted` — 4 fields
 
 Source: `pkg/streaming/events/operation_route_deleted.go`.
 
@@ -370,7 +370,7 @@ Source: `pkg/streaming/events/operation_route_deleted.go`.
 
 ### Transaction route
 
-#### `transaction-route.created` / `transaction-route.updated` — 7 (or 8) / 6 fields
+#### `transaction_route.created` / `transaction_route.updated` — 7 (or 8) / 6 fields
 
 Source: `pkg/streaming/events/transaction_route_created.go`,
 `transaction_route_updated.go`.
@@ -383,14 +383,14 @@ Source: `pkg/streaming/events/transaction_route_created.go`,
 | `title` | string | ✓ | ✓ | |
 | `description` | string | ✓ | ✓ | `omitempty` — omitted when empty. |
 | `operationRouteIds` | []string | ✓ | ✓ | `omitempty`. POST-UPDATE list (not a diff) on `updated` — consumers replace their cached join set. Derived from `OperationRoutes[].ID`. |
-| `createdAt` | string | ✓ | — | RFC3339. Test asserts `createdAt` ABSENT on `transaction-route.updated`. |
+| `createdAt` | string | ✓ | — | RFC3339. Test asserts `createdAt` ABSENT on `transaction_route.updated`. |
 | `updatedAt` | string | ✓ | ✓ | RFC3339. |
 
-> `transaction-route.created` field count is 7 when `description` is empty, 8
+> `transaction_route.created` field count is 7 when `description` is empty, 8
 > when set. `operationRouteIds` is always non-nil in practice (create requires
 > ≥1 op route) but `omitempty` guards against a future validation loosening.
 
-#### `transaction-route.deleted` — 4 fields
+#### `transaction_route.deleted` — 4 fields
 
 Source: `pkg/streaming/events/transaction_route_deleted.go`.
 
@@ -437,7 +437,7 @@ Source: `pkg/streaming/events/balance_created.go`. Trigger: `CreateAdditionalBal
 > auto-create from `CreateAccount`/`CreateAsset`) and `ensureOverdraftBalance`
 > (system-managed overdraft companion) do NOT emit `balance.created`. The former
 > emits `account.created`/`asset.created`; the latter emits
-> `balance.config-changed` with `changeType=overdraft_enabled`.
+> `balance.config_changed` with `changeType=overdraft_enabled`.
 
 #### `balance.changed` — 17 fields
 
@@ -475,7 +475,7 @@ committed transaction (3-goroutine post-commit cascade), gated by
 > **`scale` is intentionally omitted** — test asserts `scale` ABSENT. Test build
 > tag: `//go:build unit`; white-box package `events`.
 
-#### `balance.config-changed` — no pinned count (11 in fixture)
+#### `balance.config_changed` — no pinned count (11 in fixture)
 
 Source: `pkg/streaming/events/balance_config_changed.go`. Trigger: `UseCase.Update`
 (`update_balance.go`), with **two emission branches**:
@@ -491,7 +491,7 @@ Source: `pkg/streaming/events/balance_config_changed.go`. Trigger: `UseCase.Upda
    system-managed).
 
 > A single PATCH flipping `AllowOverdraft` false→true produces **TWO**
-> `config-changed` events: `overdraft_enabled` (companion) then
+> `config_changed` events: `overdraft_enabled` (companion) then
 > `settings_updated` (parent). Ordering enforced by the use case
 > (`ensureOverdraftBalance` runs before `BalanceRepo.Update`). Internal-scope
 > balances cannot be updated via the public API (rejected by the scope guard).
@@ -532,7 +532,7 @@ Source: `pkg/streaming/events/balance_deleted.go`. Trigger: `DeleteBalance`
 > deletion is impossible by API contract; balances with non-zero
 > `Available`/`OnHold` cannot be deleted.
 
-#### `balance.overdraft-drawn` / `balance.overdraft-repaid` / `balance.overdraft-cleared` — no pinned count (11 in fixture)
+#### `balance.overdraft_drawn` / `balance.overdraft_repaid` / `balance.overdraft_cleared` — no pinned count (11 in fixture)
 
 Source: `pkg/streaming/events/balance_overdraft.go`. Shared payload across the
 three events. Trigger: `SendOverdraftEvents`, called in the same post-commit
@@ -624,7 +624,7 @@ structural choices, not a privacy guarantee.
 
 - **`scale`** — omitted from every `balance.*` and `transaction.*` payload
   (asset-level property; consumers join against `asset.created`).
-- **Money fields on `balance.config-changed`** — `available`/`onHold` are
+- **Money fields on `balance.config_changed`** — `available`/`onHold` are
   absent; config mutation is a separate signal family from money movement.
 - **`createdAt`** — omitted on every `*.updated` event (the `updatedAt` stamp
   is the mutation marker).
@@ -632,7 +632,7 @@ structural choices, not a privacy guarantee.
   `organization.updated`.
 - **`deletionType`** — ledger `*.deleted` payloads carry no soft/hard
   discriminator (unlike CRM).
-- **`overdraftLimit`** — `omitempty` on `balance.overdraft-*`; currently always
+- **`overdraftLimit`** — `omitempty` on `balance.overdraft_*`; currently always
   nil until the operation-snapshot extension lands.
 
 **Enforcement.** The `JSONShape` unit test in each event's `*_test.go` locks the

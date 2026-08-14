@@ -60,7 +60,7 @@ All 7 events carry `SchemaVersion = 1.0.0`.
 | `alias.created` | alias / created | `studio.lerian.alias.created` | `crm.alias.created` | alias ID | `CreateAlias` |
 | `alias.updated` | alias / updated | `studio.lerian.alias.updated` | `crm.alias.updated` | alias ID | `UpdateAliasByID` |
 | `alias.deleted` | alias / deleted | `studio.lerian.alias.deleted` | `crm.alias.deleted` | alias ID | `DeleteAliasByID` |
-| `alias.related_party_deleted` | alias / related-party-deleted | `studio.lerian.alias.related_party_deleted` | `crm.alias.related_party_deleted` | **alias ID** (not the related-party ID) | `DeleteRelatedPartyByID` |
+| `alias.related_party_deleted` | alias / related_party_deleted | `studio.lerian.alias.related_party_deleted` | `crm.alias.related_party_deleted` | **alias ID** (not the related-party ID) | `DeleteRelatedPartyByID` |
 
 > **Underscore-canonical, hyphen only on the route key.** The multi-word
 > `alias.related_party_deleted` event key (`Definition.Key()`), its `ce-type`,
@@ -70,7 +70,7 @@ All 7 events carry `SchemaVersion = 1.0.0`.
 > table only (`alias.related-party-deleted`); nothing on the wire carries that
 > hyphen.
 
-> **`ce-subject` on `alias.related-party-deleted`.** The aggregate is the alias,
+> **`ce-subject` on `alias.related_party_deleted`.** The aggregate is the alias,
 > so `ce-subject` is the **alias ID**, and the removed party's ID travels in the
 > body as `relatedPartyId`. Every other event uses its own record ID as subject.
 
@@ -141,7 +141,7 @@ Source: `pkg/streaming/events/alias_deleted.go`.
 | `deletionType` | string | `"soft"` or `"hard"`, derived from the `hardDelete` flag. |
 | `deletedAt` | string | RFC3339 deletion timestamp. |
 
-### `alias.related-party-deleted` — 5 fields
+### `alias.related_party_deleted` — 5 fields
 
 Source: `pkg/streaming/events/alias_related_party_deleted.go`.
 
