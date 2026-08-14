@@ -277,8 +277,8 @@ func TestContractSpecMatchesRoutes(t *testing.T) {
 // TestUnifiedHumaContractIsSingleDocument locks the shape this harness must mirror
 // from the unified server (unified-server.go mountHumaContracts): ONE Huma document,
 // advertised at the root, whose operation paths carry the version segment. v1 and v2
-// share one component registry, so the union is a single spec — 125 path keys (55
-// under /v1, 70 under /v2), 200 operations — served on the single root server "/".
+// share one component registry, so the union is a single spec — 122 path keys (55
+// under /v1, 67 under /v2), 197 operations — served on the single root server "/".
 // CRM, fees/billing and composition are /v2-only, so their keys and operations count toward /v2 alone.
 func TestUnifiedHumaContractIsSingleDocument(t *testing.T) {
 	t.Parallel()
@@ -303,10 +303,10 @@ func TestUnifiedHumaContractIsSingleDocument(t *testing.T) {
 		}
 	}
 
-	require.Len(t, doc.Paths, 125, "single document must enumerate every versioned path key")
+	require.Len(t, doc.Paths, 122, "single document must enumerate every versioned path key")
 	require.Equal(t, 55, v1, "path keys under /v1")
-	require.Equal(t, 70, v2, "path keys under /v2")
-	require.Equal(t, 200, ops, "operations across both versions")
+	require.Equal(t, 67, v2, "path keys under /v2")
+	require.Equal(t, 197, ops, "operations across both versions")
 
 	require.Len(t, doc.Servers, 1, "single document advertises exactly one server")
 	require.Equal(t, "/", doc.Servers[0].URL, "the version rides the operation path, so the server is the root")

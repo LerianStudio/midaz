@@ -157,9 +157,8 @@ func (d HumaMountDeps) registerWave2(group fiber.Router, api huma.API) {
 // and the two reads (get-by-id + list) — as straight v1 twins carrying the same TransactionOptions
 // and "midaz" appName. The legacy-create ops (json/inflow/outflow/annotation) are served on /v1
 // only; block/unblock create and commit/cancel/revert lifecycle are also absent from that mirror,
-// because they are already published as v2 ops by RegisterTransactionV2RoutesToApp. asset-rate is MONEY-adjacent
-// (exchange rates): it likewise carries TransactionOptions and authorizes against the
-// "midaz" appName, exactly as on v1 (see registerWave1 / registerAssetRateRoutesToApp).
+// because they are already published as v2 ops by RegisterTransactionV2RoutesToApp. asset-rate is
+// served on /v1 only and has no v2 twin.
 // balance (resource "balances") and operation (resource "operations") also carry
 // TransactionOptions and authorize against the "midaz" appName, matching their v1 twins.
 // The transaction-count HEAD op (RegisterCountTransactionV2RoutesToApp) is a straight mirror:
@@ -190,7 +189,6 @@ func (d HumaMountDeps) MountV2(group fiber.Router, api huma.API) {
 	RegisterAccountTypeV2RoutesToApp(group, api, d.Auth, d.AccountType, d.OnboardingOptions)
 	RegisterMetadataIndexV2RoutesToApp(group, api, d.Auth, d.MetadataIndex, d.LedgerOptions)
 	RegisterAssetV2RoutesToApp(group, api, d.Auth, d.Asset, d.OnboardingOptions)
-	RegisterAssetRateV2RoutesToApp(group, api, d.Auth, d.AssetRate, d.TransactionOptions)
 	RegisterTransactionV2RoutesToApp(group, api, d.Auth, d.Transaction, d.TransactionOptions)
 	RegisterTransactionMirrorV2RoutesToApp(group, api, d.Auth, d.Transaction, d.TransactionOptions)
 	RegisterCountTransactionV2RoutesToApp(group, api, d.Auth, d.Transaction, d.TransactionOptions)

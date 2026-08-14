@@ -252,14 +252,6 @@ func RegisterAssetRateRoutesToApp(group fiber.Router, api huma.API, auth *middle
 	registerAssetRateRoutesToApp(group, api, auth, h, routeOptions, routeOpSuffixV1)
 }
 
-// RegisterAssetRateV2RoutesToApp wires the same asset-rate surface onto the /v2 contract:
-// same paths, same handlers, same authz tuples and tenant chain, differing only in the
-// operation IDs the contract publishes. It is additive — /v1 keeps serving asset-rates in
-// parallel — and introduces no new policy surface.
-func RegisterAssetRateV2RoutesToApp(group fiber.Router, api huma.API, auth *middleware.AuthClient, h *AssetRateHandler, routeOptions *pkgHTTP.ProtectedRouteOptions) {
-	registerAssetRateRoutesToApp(group, api, auth, h, routeOptions, routeOpSuffixV2)
-}
-
 // registerAssetRateRoutesToApp is the single description of the asset-rate route surface,
 // shared by every versioned contract that serves it. For each of the three ops it attaches
 // the Fiber auth chain — protectedMidaz(auth,"asset-rates",verb) (=
