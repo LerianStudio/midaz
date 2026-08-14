@@ -20,11 +20,10 @@ import (
 // (operation_route_handler_huma.go); see the asset exemplar's header for the full
 // conventions. Transaction-route-specific notes:
 //
-//  1. AUTH is the "routing" appName, resource "transaction-routes" (protectedRouting
-//     in routes.go), NOT "midaz". The Fiber guard chain is Bearer-only, so the
-//     per-op Security metadata here is Bearer-only too —
+//  1. AUTH is the "midaz" appName, resource "transaction-routes". The Fiber guard
+//     chain is Bearer-only, so the per-op Security metadata here is Bearer-only too —
 //     SPEC metadata only; runtime auth stays the Fiber guard chain
-//     (auth.Authorize("routing","transaction-routes",verb) + tenant +
+//     (auth.Authorize("midaz","transaction-routes",verb) + tenant +
 //     ParseUUIDPathParameters("transaction_route")) attached in the unified server
 //     BEFORE the Huma terminal.
 //  2. NO merge-patch landmine. Unlike operation-route, transaction-route uses a
@@ -253,7 +252,7 @@ func (handler *TransactionRouteHandler) DeleteTransactionRouteByIDHuma(ctx conte
 
 // RegisterTransactionRouteRoutes registers the five migrated transaction-route
 // operations on the shared Huma API. It is the per-file seam the unified server
-// calls; the auth ("routing","transaction-routes",verb) + tenant +
+// calls; the auth ("midaz","transaction-routes",verb) + tenant +
 // ParseUUIDPathParameters("transaction_route") middleware chain is attached on the
 // /v1 group (Fiber-level) BEFORE the Huma terminal, not here. Paths are
 // GROUP-RELATIVE (see asset_handler_huma.go's RegisterAssetRoutes header for the

@@ -25,10 +25,10 @@ import (
 // helpers (parseOrgLedger, parsePathUUID) and the shared error projection
 // (pkgHTTP.HumaProblem) are reused verbatim.
 //
-// AUTH NOTE: account-types runs under appName "routing" (protectedRouting), NOT
-// "midaz" — the per-op (routing, account-types, verb) authz tuples are preserved
-// BYTE-FOR-BYTE by the Fiber guard chain attached in RegisterAccountTypeRoutesToApp.
-// The Security metadata below is SPEC-ONLY (bearer OR api-key for the generated OAS).
+// AUTH NOTE: account-types authorizes under the "midaz" appName — the per-op
+// (midaz, account-types, verb) authz tuples are attached by the Fiber guard chain in
+// RegisterAccountTypeRoutesToApp. The Security metadata below is SPEC-ONLY (bearer OR
+// api-key for the generated OAS).
 
 // secAccountTypeBearerOrAPIKey advertises that each account-type op accepts EITHER a
 // JWT bearer token OR an X-API-Key (two entries = OR). SPEC metadata only; runtime
@@ -341,15 +341,13 @@ func RegisterAccountTypeV2RoutesToApp(group fiber.Router, api huma.API, auth *mi
 // registerAccountTypeRoutesToApp is the single description of the account-type route
 // surface, shared by every versioned contract that serves it, mirroring
 // RegisterAssetRoutesToApp. For each of the five ops it attaches the Fiber auth chain —
-// protectedRouting(auth,"account-types",verb) (= auth.Authorize("routing","account-types",
+// protectedMidaz(auth,"account-types",verb) (= auth.Authorize("midaz","account-types",
 // verb) + tenant PostAuthMiddlewares) + ParseUUIDPathParameters("account_type") — as
 // MIDDLEWARE ONLY (no terminal) on the VERSIONED GROUP with GROUP-RELATIVE paths, then
 // registers the Huma terminals via RegisterAccountTypeRoutes on the SAME group's Huma API.
-// Unlike the other Wave-1 resources, account-type authorizes against the "routing" appName
-// (protectedRouting, NOT protectedMidaz), exactly as the pre-migration routes.go did — this
-// preserves the ("routing","account-types",verb) authz tuples and tenant resolution
-// BYTE-FOR-BYTE on whichever version group it is mounted on; no account-type route becomes
-// public. The op order (post, patch, get-by-id, list, delete) matches routes.go.
+// The ("midaz","account-types",verb) authz tuples and tenant resolution hold on whichever
+// version group it is mounted on; no account-type route becomes public. The op order
+// (post, patch, get-by-id, list, delete) matches routes.go.
 //
 // opSuffix distinguishes the operation IDs one version group publishes from another's —
 // see routeOpSuffixV1. Nothing else varies between contracts, so a change to the surface
@@ -362,11 +360,11 @@ func registerAccountTypeRoutesToApp(group fiber.Router, api huma.API, auth *midd
 
 	parse := pkgHTTP.ParseUUIDPathParameters("account_type")
 
-	routePost(group, listPath, protectedRouting(auth, "account-types", "post", routeOptions, parse))
-	routePatch(group, idPath, protectedRouting(auth, "account-types", "patch", routeOptions, parse))
-	routeGet(group, idPath, protectedRouting(auth, "account-types", "get", routeOptions, parse))
-	routeGet(group, listPath, protectedRouting(auth, "account-types", "get", routeOptions, parse))
-	routeDelete(group, idPath, protectedRouting(auth, "account-types", "delete", routeOptions, parse))
+	routePost(group, listPath, protectedMidaz(auth, "account-types", "post", routeOptions, parse))
+	routePatch(group, idPath, protectedMidaz(auth, "account-types", "patch", routeOptions, parse))
+	routeGet(group, idPath, protectedMidaz(auth, "account-types", "get", routeOptions, parse))
+	routeGet(group, listPath, protectedMidaz(auth, "account-types", "get", routeOptions, parse))
+	routeDelete(group, idPath, protectedMidaz(auth, "account-types", "delete", routeOptions, parse))
 
 	RegisterAccountTypeRoutes(api, h, opSuffix)
 }

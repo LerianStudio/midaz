@@ -45,7 +45,7 @@ import (
 // sub-second; keep them sequential.
 //
 // authOK=false makes the shim reject with the ledger's canonical 401 envelope
-// (mirroring the routing-appName auth.Authorize failure) so the auth-preserved
+// (mirroring the midaz-appName auth.Authorize failure) so the auth-preserved
 // contract is testable without a live lib-auth server.
 func buildHumaAccountTypeApp(t *testing.T, handler *AccountTypeHandler, authOK bool) *fiber.App {
 	t.Helper()
@@ -59,7 +59,7 @@ func buildHumaAccountTypeApp(t *testing.T, handler *AccountTypeHandler, authOK b
 
 	apiV1 := f.Group("/v1")
 
-	// Auth shim: stands in for protectedRouting -> auth.Authorize("routing",
+	// Auth shim: stands in for protectedMidaz -> auth.Authorize("midaz",
 	// "account-types", verb). A rejected request (authOK=false) must never reach
 	// Huma — it returns the ledger 401.
 	apiV1.Use(func(c fiber.Ctx) error {
