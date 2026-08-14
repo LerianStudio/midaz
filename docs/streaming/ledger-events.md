@@ -14,7 +14,7 @@ complements — does not duplicate — the producer conventions in `CLAUDE.md`
 - **Producer:** [`github.com/LerianStudio/lib-streaming`](https://github.com/LerianStudio/lib-streaming) v1.9.0.
 - **Wire format:** CloudEvents 1.0, binary mode, over Kafka.
 - **Component:** Ledger (`components/ledger`).
-- **CloudEvents source (`ce-source`):** `lerian.midaz.ledger`.
+- **CloudEvents source (`ce-source`):** `ledger`.
 - **Posture:** all 35 events are **IMPORTANT** — direct-emit, synchronous, via
   `pkgStreaming.EmitImportant`. Emit is best-effort at the post-commit slot in
   the command use case: a build/emit failure logs a Warn and is recorded on the
@@ -37,12 +37,16 @@ SchemaVersion}` (`pkg/streaming/events/events.go`) and registered exactly once
 in `midazEventDefinitions()` (`components/ledger/internal/bootstrap/streaming.go`),
 which feeds both the Catalog and the route table:
 
-- **Event key** = `<resourceType>.<eventType>` (e.g. `balance.changed`).
-- **`ce-type`** = lib-streaming auto-prefixes the key: `studio.lerian.<key>`.
-- **Kafka topic** = `lerian.streaming.ledger_<key>`, with hyphens in `<key>`
-  converted to underscores in the topic name only (e.g.
-  `lerian.streaming.ledger_operation_route.created`). The event key and
-  `ce-type` keep the hyphen.
+- **Event key** = `<resourceType>.<eventType>` (e.g. `balance.changed`), from
+  `Definition.Key()` — underscore-canonical.
+- **`ce-type`** = lib-streaming auto-prefixes the key: `studio.lerian.<key>`
+  (e.g. `studio.lerian.operation_route.created`).
+- **Kafka topic** = `{service}.{resource}.{event}` where service is the
+  component (`ledger`), e.g. `ledger.operation_route.created`. Single-topic
+  publishing — no prefix, no dual-publish.
+- **Route key** = `Definition.RouteKey()`, which folds the key to hyphens for
+  the lib-streaming route table only (e.g. `operation-route.created`). The wire
+  topic, `ce-type`, and event key stay underscore-canonical.
 - **`ce-subject`** = the aggregate ID (`EmitRequest.Subject`). Five exceptions
   exist — see [ce-subject](#ce-subject).
 - **`ce-tenantid`** = `EmitRequest.TenantID`, resolved by
@@ -56,51 +60,54 @@ as a string field.
 
 | Event key | Resource / Event | `ce-type` | Kafka topic | `ce-subject` | Trigger (use case) |
 |-----------|------------------|-----------|-------------|--------------|--------------------|
-| `organization.created` | organization / created | `studio.lerian.organization.created` | `lerian.streaming.ledger_organization.created` | org ID | `CreateOrganization` |
-| `organization.updated` | organization / updated | `studio.lerian.organization.updated` | `lerian.streaming.ledger_organization.updated` | org ID | `UpdateOrganizationByID` |
-| `organization.deleted` | organization / deleted | `studio.lerian.organization.deleted` | `lerian.streaming.ledger_organization.deleted` | org ID | `DeleteOrganizationByID` |
-| `ledger.created` | ledger / created | `studio.lerian.ledger.created` | `lerian.streaming.ledger_ledger.created` | ledger ID | `CreateLedger` |
-| `ledger.updated` | ledger / updated | `studio.lerian.ledger.updated` | `lerian.streaming.ledger_ledger.updated` | ledger ID | `UpdateLedgerByID` |
-| `ledger.deleted` | ledger / deleted | `studio.lerian.ledger.deleted` | `lerian.streaming.ledger_ledger.deleted` | ledger ID | `DeleteLedgerByID` |
-| `account.created` | account / created | `studio.lerian.account.created` | `lerian.streaming.ledger_account.created` | account ID | `CreateAccount` |
-| `account.updated` | account / updated | `studio.lerian.account.updated` | `lerian.streaming.ledger_account.updated` | account ID | `UpdateAccount` |
-| `account.deleted` | account / deleted | `studio.lerian.account.deleted` | `lerian.streaming.ledger_account.deleted` | account ID | `DeleteAccountByID` |
-| `asset.created` | asset / created | `studio.lerian.asset.created` | `lerian.streaming.ledger_asset.created` | asset ID | `CreateAsset` |
-| `asset.updated` | asset / updated | `studio.lerian.asset.updated` | `lerian.streaming.ledger_asset.updated` | asset ID | `UpdateAssetByID` |
-| `asset.deleted` | asset / deleted | `studio.lerian.asset.deleted` | `lerian.streaming.ledger_asset.deleted` | asset ID | `DeleteAssetByID` |
-| `portfolio.created` | portfolio / created | `studio.lerian.portfolio.created` | `lerian.streaming.ledger_portfolio.created` | portfolio ID | `CreatePortfolio` |
-| `portfolio.updated` | portfolio / updated | `studio.lerian.portfolio.updated` | `lerian.streaming.ledger_portfolio.updated` | portfolio ID | `UpdatePortfolioByID` |
-| `portfolio.deleted` | portfolio / deleted | `studio.lerian.portfolio.deleted` | `lerian.streaming.ledger_portfolio.deleted` | portfolio ID | `DeletePortfolioByID` |
-| `segment.created` | segment / created | `studio.lerian.segment.created` | `lerian.streaming.ledger_segment.created` | segment ID | `CreateSegment` |
-| `segment.updated` | segment / updated | `studio.lerian.segment.updated` | `lerian.streaming.ledger_segment.updated` | segment ID | `UpdateSegmentByID` |
-| `segment.deleted` | segment / deleted | `studio.lerian.segment.deleted` | `lerian.streaming.ledger_segment.deleted` | segment ID | `DeleteSegmentByID` |
-| `operation-route.created` | operation-route / created | `studio.lerian.operation-route.created` | `lerian.streaming.ledger_operation_route.created` | op-route ID | `CreateOperationRoute` |
-| `operation-route.updated` | operation-route / updated | `studio.lerian.operation-route.updated` | `lerian.streaming.ledger_operation_route.updated` | op-route ID | `UpdateOperationRoute` |
-| `operation-route.deleted` | operation-route / deleted | `studio.lerian.operation-route.deleted` | `lerian.streaming.ledger_operation_route.deleted` | op-route ID | `DeleteOperationRouteByID` |
-| `transaction-route.created` | transaction-route / created | `studio.lerian.transaction-route.created` | `lerian.streaming.ledger_transaction_route.created` | txn-route ID | `CreateTransactionRoute` |
-| `transaction-route.updated` | transaction-route / updated | `studio.lerian.transaction-route.updated` | `lerian.streaming.ledger_transaction_route.updated` | txn-route ID | `UpdateTransactionRoute` |
-| `transaction-route.deleted` | transaction-route / deleted | `studio.lerian.transaction-route.deleted` | `lerian.streaming.ledger_transaction_route.deleted` | txn-route ID | `DeleteTransactionRouteByID` |
-| `balance.created` | balance / created | `studio.lerian.balance.created` | `lerian.streaming.ledger_balance.created` | balance ID | `CreateAdditionalBalance` |
-| `balance.changed` | balance / changed | `studio.lerian.balance.changed` | `lerian.streaming.ledger_balance.changed` | **`transactionId:operationId`** | `SendBalanceChangedEvents` (per op, post-commit) |
-| `balance.config-changed` | balance / config-changed | `studio.lerian.balance.config-changed` | `lerian.streaming.ledger_balance.config_changed` | balance ID† | `UseCase.Update` (`settings_updated`) + `ensureOverdraftBalance` (`overdraft_enabled`) |
-| `balance.deleted` | balance / deleted | `studio.lerian.balance.deleted` | `lerian.streaming.ledger_balance.deleted` | balance ID | `DeleteBalance` |
-| `balance.overdraft-drawn` | balance / overdraft-drawn | `studio.lerian.balance.overdraft-drawn` | `lerian.streaming.ledger_balance.overdraft_drawn` | **`transactionId:operationId`** | `SendOverdraftEvents` (per companion op) |
-| `balance.overdraft-repaid` | balance / overdraft-repaid | `studio.lerian.balance.overdraft-repaid` | `lerian.streaming.ledger_balance.overdraft_repaid` | **`transactionId:operationId`** | `SendOverdraftEvents` |
-| `balance.overdraft-cleared` | balance / overdraft-cleared | `studio.lerian.balance.overdraft-cleared` | `lerian.streaming.ledger_balance.overdraft_cleared` | **`transactionId:operationId`** | `SendOverdraftEvents` |
-| `transaction.posted` | transaction / posted | `studio.lerian.transaction.posted` | `lerian.streaming.ledger_transaction.posted` | transaction ID | `SendTransactionEvents` (created, APPROVED, no parent) |
-| `transaction.committed` | transaction / committed | `studio.lerian.transaction.committed` | `lerian.streaming.ledger_transaction.committed` | transaction ID | `SendTransactionEvents` (updated, APPROVED) |
-| `transaction.canceled` | transaction / canceled | `studio.lerian.transaction.canceled` | `lerian.streaming.ledger_transaction.canceled` | transaction ID | `SendTransactionEvents` (updated, CANCELED) |
-| `transaction.reverted` | transaction / reverted | `studio.lerian.transaction.reverted` | `lerian.streaming.ledger_transaction.reverted` | **child** transaction ID | `SendTransactionEvents` (created, APPROVED, parent non-nil) |
+| `organization.created` | organization / created | `studio.lerian.organization.created` | `ledger.organization.created` | org ID | `CreateOrganization` |
+| `organization.updated` | organization / updated | `studio.lerian.organization.updated` | `ledger.organization.updated` | org ID | `UpdateOrganizationByID` |
+| `organization.deleted` | organization / deleted | `studio.lerian.organization.deleted` | `ledger.organization.deleted` | org ID | `DeleteOrganizationByID` |
+| `ledger.created` | ledger / created | `studio.lerian.ledger.created` | `ledger.ledger.created` | ledger ID | `CreateLedger` |
+| `ledger.updated` | ledger / updated | `studio.lerian.ledger.updated` | `ledger.ledger.updated` | ledger ID | `UpdateLedgerByID` |
+| `ledger.deleted` | ledger / deleted | `studio.lerian.ledger.deleted` | `ledger.ledger.deleted` | ledger ID | `DeleteLedgerByID` |
+| `account.created` | account / created | `studio.lerian.account.created` | `ledger.account.created` | account ID | `CreateAccount` |
+| `account.updated` | account / updated | `studio.lerian.account.updated` | `ledger.account.updated` | account ID | `UpdateAccount` |
+| `account.deleted` | account / deleted | `studio.lerian.account.deleted` | `ledger.account.deleted` | account ID | `DeleteAccountByID` |
+| `asset.created` | asset / created | `studio.lerian.asset.created` | `ledger.asset.created` | asset ID | `CreateAsset` |
+| `asset.updated` | asset / updated | `studio.lerian.asset.updated` | `ledger.asset.updated` | asset ID | `UpdateAssetByID` |
+| `asset.deleted` | asset / deleted | `studio.lerian.asset.deleted` | `ledger.asset.deleted` | asset ID | `DeleteAssetByID` |
+| `portfolio.created` | portfolio / created | `studio.lerian.portfolio.created` | `ledger.portfolio.created` | portfolio ID | `CreatePortfolio` |
+| `portfolio.updated` | portfolio / updated | `studio.lerian.portfolio.updated` | `ledger.portfolio.updated` | portfolio ID | `UpdatePortfolioByID` |
+| `portfolio.deleted` | portfolio / deleted | `studio.lerian.portfolio.deleted` | `ledger.portfolio.deleted` | portfolio ID | `DeletePortfolioByID` |
+| `segment.created` | segment / created | `studio.lerian.segment.created` | `ledger.segment.created` | segment ID | `CreateSegment` |
+| `segment.updated` | segment / updated | `studio.lerian.segment.updated` | `ledger.segment.updated` | segment ID | `UpdateSegmentByID` |
+| `segment.deleted` | segment / deleted | `studio.lerian.segment.deleted` | `ledger.segment.deleted` | segment ID | `DeleteSegmentByID` |
+| `operation_route.created` | operation-route / created | `studio.lerian.operation_route.created` | `ledger.operation_route.created` | op-route ID | `CreateOperationRoute` |
+| `operation_route.updated` | operation-route / updated | `studio.lerian.operation_route.updated` | `ledger.operation_route.updated` | op-route ID | `UpdateOperationRoute` |
+| `operation_route.deleted` | operation-route / deleted | `studio.lerian.operation_route.deleted` | `ledger.operation_route.deleted` | op-route ID | `DeleteOperationRouteByID` |
+| `transaction_route.created` | transaction-route / created | `studio.lerian.transaction_route.created` | `ledger.transaction_route.created` | txn-route ID | `CreateTransactionRoute` |
+| `transaction_route.updated` | transaction-route / updated | `studio.lerian.transaction_route.updated` | `ledger.transaction_route.updated` | txn-route ID | `UpdateTransactionRoute` |
+| `transaction_route.deleted` | transaction-route / deleted | `studio.lerian.transaction_route.deleted` | `ledger.transaction_route.deleted` | txn-route ID | `DeleteTransactionRouteByID` |
+| `balance.created` | balance / created | `studio.lerian.balance.created` | `ledger.balance.created` | balance ID | `CreateAdditionalBalance` |
+| `balance.changed` | balance / changed | `studio.lerian.balance.changed` | `ledger.balance.changed` | **`transactionId:operationId`** | `SendBalanceChangedEvents` (per op, post-commit) |
+| `balance.config_changed` | balance / config-changed | `studio.lerian.balance.config_changed` | `ledger.balance.config_changed` | balance ID† | `UseCase.Update` (`settings_updated`) + `ensureOverdraftBalance` (`overdraft_enabled`) |
+| `balance.deleted` | balance / deleted | `studio.lerian.balance.deleted` | `ledger.balance.deleted` | balance ID | `DeleteBalance` |
+| `balance.overdraft_drawn` | balance / overdraft-drawn | `studio.lerian.balance.overdraft_drawn` | `ledger.balance.overdraft_drawn` | **`transactionId:operationId`** | `SendOverdraftEvents` (per companion op) |
+| `balance.overdraft_repaid` | balance / overdraft-repaid | `studio.lerian.balance.overdraft_repaid` | `ledger.balance.overdraft_repaid` | **`transactionId:operationId`** | `SendOverdraftEvents` |
+| `balance.overdraft_cleared` | balance / overdraft-cleared | `studio.lerian.balance.overdraft_cleared` | `ledger.balance.overdraft_cleared` | **`transactionId:operationId`** | `SendOverdraftEvents` |
+| `transaction.posted` | transaction / posted | `studio.lerian.transaction.posted` | `ledger.transaction.posted` | transaction ID | `SendTransactionEvents` (created, APPROVED, no parent) |
+| `transaction.committed` | transaction / committed | `studio.lerian.transaction.committed` | `ledger.transaction.committed` | transaction ID | `SendTransactionEvents` (updated, APPROVED) |
+| `transaction.canceled` | transaction / canceled | `studio.lerian.transaction.canceled` | `ledger.transaction.canceled` | transaction ID | `SendTransactionEvents` (updated, CANCELED) |
+| `transaction.reverted` | transaction / reverted | `studio.lerian.transaction.reverted` | `ledger.transaction.reverted` | **child** transaction ID | `SendTransactionEvents` (created, APPROVED, parent non-nil) |
 
 † On `balance.config-changed` the `ce-subject` is the companion overdraft
 balance's ID in the `overdraft_enabled` branch, not the parent's.
 
-> **Hyphen, not underscore.** The `operation-route.*`, `transaction-route.*`,
-> `balance.config-changed`, and `balance.overdraft-{drawn,repaid,cleared}` event
-> types are hyphenated. The lib-streaming route-key validator rejects
-> underscores, so the key, topic, and `ce-type` all keep the hyphen. Payload
-> field *values* (e.g. `changeType="settings_updated"`) may keep snake_case
-> because they are payload data, not routing identifiers.
+> **Underscore-canonical, hyphen only on the route key.** For the multi-word
+> resources — `operation_route.*`, `transaction_route.*`,
+> `balance.config_changed`, and `balance.overdraft_{drawn,repaid,cleared}` — the
+> event key (`Definition.Key()`), `ce-type`, and Kafka topic are all
+> underscore-canonical. The lib-streaming route-key validator rejects
+> underscores, so `Definition.RouteKey()` folds the key to hyphens for the route
+> table only (e.g. `operation-route.created`); nothing on the wire carries that
+> hyphen. Payload field *values* (e.g. `changeType="settings_updated"`) are
+> payload data, not routing identifiers.
 
 ## ce-subject
 
@@ -662,7 +669,7 @@ offline.
 For a longer-lived local broker (e.g. to point a running ledger service at it),
 use the Redpanda compose in the `end-to-end` repo
 (`docker-compose.redpanda.yaml`) and set `STREAMING_ENABLED=true` +
-`STREAMING_BROKERS` + `STREAMING_CLOUDEVENTS_SOURCE=lerian.midaz.ledger` on the
+`STREAMING_BROKERS` + `STREAMING_CLOUDEVENTS_SOURCE=ledger` on the
 ledger accordingly.
 
 See the `CLAUDE.md` Streaming → Local testing section for the
