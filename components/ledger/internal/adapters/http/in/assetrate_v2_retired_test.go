@@ -80,10 +80,20 @@ func TestRegisterAssetRateV2Routes_NoV2OperationIDs(t *testing.T) {
 		retired[op.v1OperationID+retiredAssetRateV2Suffix] = true
 	}
 
+	// Every operationId published anywhere in the unified document.
+	publishedIDs := map[string]bool{}
 	for _, item := range api.OpenAPI().Paths {
 		for _, operation := range operationsOf(item) {
-			assert.NotContainsf(t, retired, operation.OperationID,
-				"a retired v2 asset-rate op is still registered: %q", operation.OperationID)
+			publishedIDs[operation.OperationID] = true
 		}
+	}
+
+	// Guard against a vacuous pass: an empty document would satisfy the NotContains loop
+	// below while publishing nothing at all.
+	require.NotEmpty(t, publishedIDs, "the assembled document must publish operations")
+
+	for id := range publishedIDs {
+		assert.NotContainsf(t, retired, id,
+			"a retired v2 asset-rate op is still registered: %q", id)
 	}
 }
