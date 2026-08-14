@@ -776,6 +776,7 @@ func (rr *RedisConsumerRepository) buildBalanceAtomicOperationPlan(ctx context.C
 //
 // Lua error codes emitted by balance_atomic_operation.lua:
 //   - "0018" → ErrInsufficientFunds (negative available on non-external credit-direction balance without overdraft fall-through)
+//   - "0019" → ErrAccountIneligibility (balance carries a live deletion marker; rejected before any mutation)
 //   - "0098" → ErrOnHoldExternalAccount (external account used in pending source)
 //   - "0139" → ErrTransactionBackupCacheRetrievalFailed (balance key vanished mid-script)
 //   - "0167" → ErrOverdraftLimitExceeded (transaction would push usage past the configured limit)
@@ -802,6 +803,13 @@ func mapBalanceAtomicScriptError(span trace.Span, err error) error {
 	if strings.Contains(err.Error(), constant.ErrInsufficientFunds.Error()) {
 		mappedErr := pkg.ValidateBusinessError(constant.ErrInsufficientFunds, "validateBalance")
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed run lua script on redis", mappedErr)
+
+		return mappedErr
+	}
+
+	if strings.Contains(err.Error(), constant.ErrAccountIneligibility.Error()) {
+		mappedErr := pkg.ValidateBusinessError(constant.ErrAccountIneligibility, "validateBalance")
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Account ineligible: balance carries a deletion marker", mappedErr)
 
 		return mappedErr
 	}

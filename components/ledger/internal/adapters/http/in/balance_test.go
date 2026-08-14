@@ -753,10 +753,22 @@ func TestBalanceHandler_DeleteBalanceByID(t *testing.T) {
 			balanceID := uuid.New()
 
 			mockBalanceRepo := balance.NewMockRepository(ctrl)
+			mockRedisRepo := redis.NewMockRedisRepository(ctrl)
+			// The delete path plants and releases/evicts balance delete markers via the
+			// honored-lock guard. Lenient expectations keep this a handler test.
+			mockRedisRepo.EXPECT().
+				SetNX(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+				Return(true, nil).
+				AnyTimes()
+			mockRedisRepo.EXPECT().
+				Del(gomock.Any(), gomock.Any()).
+				Return(nil).
+				AnyTimes()
 			tt.setupMocks(mockBalanceRepo, orgID, ledgerID, balanceID)
 
 			uc := &command.UseCase{
-				BalanceRepo: mockBalanceRepo,
+				BalanceRepo:          mockBalanceRepo,
+				TransactionRedisRepo: mockRedisRepo,
 			}
 			handler := &BalanceHandler{Command: uc}
 

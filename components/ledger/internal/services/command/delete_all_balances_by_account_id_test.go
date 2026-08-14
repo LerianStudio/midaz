@@ -9,9 +9,11 @@ import (
 	"errors"
 	"fmt"
 	"testing"
+	"time"
 
 	libCommons "github.com/LerianStudio/lib-commons/v6/commons"
 	"github.com/google/uuid"
+	goredis "github.com/redis/go-redis/v9"
 	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/mock/gomock"
@@ -22,6 +24,27 @@ import (
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
 	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
 )
+
+// expectDeleteMarkerPlant expects the delete marker SetNX write that precedes the funds guard.
+func expectDeleteMarkerPlant(m *redis.MockRedisRepository, org, ledger uuid.UUID, b *mmodel.Balance) *gomock.Call {
+	return m.EXPECT().
+		SetNX(gomock.Any(), deleteMarkerKeyFor(org, ledger, b), deleteMarkerValue, time.Duration(balanceDeleteMarkerTTLSeconds)).
+		Return(true, nil)
+}
+
+// expectCacheEvict expects the cache-key Del that follows a committed soft-delete.
+func expectCacheEvict(m *redis.MockRedisRepository, org, ledger uuid.UUID, b *mmodel.Balance) *gomock.Call {
+	return m.EXPECT().
+		Del(gomock.Any(), balanceCacheKeyFor(org, ledger, b)).
+		Return(nil)
+}
+
+// expectDeleteMarkerRelease expects the delete marker-key Del that runs only when the delete fails.
+func expectDeleteMarkerRelease(m *redis.MockRedisRepository, org, ledger uuid.UUID, b *mmodel.Balance) *gomock.Call {
+	return m.EXPECT().
+		Del(gomock.Any(), deleteMarkerKeyFor(org, ledger, b)).
+		Return(nil)
+}
 
 func TestDeleteAllBalancesByAccountID(t *testing.T) {
 	ctx := context.Background()
@@ -61,31 +84,37 @@ func TestDeleteAllBalancesByAccountID(t *testing.T) {
 		mockBalanceRepo.EXPECT().
 			ListByAccountID(gomock.Any(), organizationID, ledgerID, accountID).
 			Return([]*mmodel.Balance{balanceItem}, nil)
+		expectDeleteMarkerPlant(mockRedisRepo, organizationID, ledgerID, balanceItem)
 		mockRedisRepo.EXPECT().
 			ListBalanceByKey(gomock.Any(), organizationID, ledgerID, balanceRedisKey(balanceItem)).
 			Return(nil, expectedErr)
+		expectDeleteMarkerRelease(mockRedisRepo, organizationID, ledgerID, balanceItem)
 
 		err := uc.DeleteAllBalancesByAccountID(ctx, organizationID, ledgerID, accountID, requestID.String())
 		assert.ErrorIs(t, err, expectedErr)
 	})
 
-	t.Run("redis balance present prevents deletion", func(t *testing.T) {
+	t.Run("redis zero-funds balance present proceeds to deletion", func(t *testing.T) {
 		uc, mockBalanceRepo, mockRedisRepo := setupDeleteAllBalancesUseCase(t)
-		balanceItem := newTestBalance(decimal.NewFromInt(1), decimal.Zero)
+		balanceItem := newTestBalance(decimal.Zero, decimal.Zero)
 
 		mockBalanceRepo.EXPECT().
 			ListByAccountID(gomock.Any(), organizationID, ledgerID, accountID).
 			Return([]*mmodel.Balance{balanceItem}, nil)
+		expectDeleteMarkerPlant(mockRedisRepo, organizationID, ledgerID, balanceItem)
 		mockRedisRepo.EXPECT().
 			ListBalanceByKey(gomock.Any(), organizationID, ledgerID, balanceRedisKey(balanceItem)).
 			Return(&mmodel.Balance{}, nil)
+		mockBalanceRepo.EXPECT().
+			UpdateAllByAccountID(gomock.Any(), organizationID, ledgerID, accountID, gomock.Any()).
+			Return(nil)
+		mockBalanceRepo.EXPECT().
+			DeleteAllByIDs(gomock.Any(), organizationID, ledgerID, gomock.Any()).
+			Return(nil)
+		expectCacheEvict(mockRedisRepo, organizationID, ledgerID, balanceItem)
 
 		err := uc.DeleteAllBalancesByAccountID(ctx, organizationID, ledgerID, accountID, requestID.String())
-
-		var conflictErr midazpkg.EntityConflictError
-		assert.Error(t, err)
-		assert.True(t, errors.As(err, &conflictErr))
-		assert.Equal(t, constant.ErrBalancesCantBeDeleted.Error(), conflictErr.Code)
+		assert.NoError(t, err)
 	})
 
 	t.Run("balances with funds remaining prevent deletion", func(t *testing.T) {
@@ -95,9 +124,11 @@ func TestDeleteAllBalancesByAccountID(t *testing.T) {
 		mockBalanceRepo.EXPECT().
 			ListByAccountID(gomock.Any(), organizationID, ledgerID, accountID).
 			Return([]*mmodel.Balance{balanceItem}, nil)
+		expectDeleteMarkerPlant(mockRedisRepo, organizationID, ledgerID, balanceItem)
 		mockRedisRepo.EXPECT().
 			ListBalanceByKey(gomock.Any(), organizationID, ledgerID, balanceRedisKey(balanceItem)).
 			Return(nil, nil)
+		expectDeleteMarkerRelease(mockRedisRepo, organizationID, ledgerID, balanceItem)
 
 		err := uc.DeleteAllBalancesByAccountID(ctx, organizationID, ledgerID, accountID, requestID.String())
 
@@ -115,6 +146,7 @@ func TestDeleteAllBalancesByAccountID(t *testing.T) {
 		mockBalanceRepo.EXPECT().
 			ListByAccountID(gomock.Any(), organizationID, ledgerID, accountID).
 			Return([]*mmodel.Balance{balanceItem}, nil)
+		expectDeleteMarkerPlant(mockRedisRepo, organizationID, ledgerID, balanceItem)
 		mockRedisRepo.EXPECT().
 			ListBalanceByKey(gomock.Any(), organizationID, ledgerID, balanceRedisKey(balanceItem)).
 			Return(nil, nil)
@@ -138,6 +170,7 @@ func TestDeleteAllBalancesByAccountID(t *testing.T) {
 				return nil
 			})
 		gomock.InOrder(firstCall, secondCall)
+		expectDeleteMarkerRelease(mockRedisRepo, organizationID, ledgerID, balanceItem)
 
 		err := uc.DeleteAllBalancesByAccountID(ctx, organizationID, ledgerID, accountID, requestID.String())
 		assert.ErrorIs(t, err, expectedErr)
@@ -151,6 +184,7 @@ func TestDeleteAllBalancesByAccountID(t *testing.T) {
 		mockBalanceRepo.EXPECT().
 			ListByAccountID(gomock.Any(), organizationID, ledgerID, accountID).
 			Return([]*mmodel.Balance{balanceItem}, nil)
+		expectDeleteMarkerPlant(mockRedisRepo, organizationID, ledgerID, balanceItem)
 		mockRedisRepo.EXPECT().
 			ListBalanceByKey(gomock.Any(), organizationID, ledgerID, balanceRedisKey(balanceItem)).
 			Return(nil, nil)
@@ -172,6 +206,7 @@ func TestDeleteAllBalancesByAccountID(t *testing.T) {
 				assert.True(t, *update.AllowSending)
 				return nil
 			})
+		expectDeleteMarkerRelease(mockRedisRepo, organizationID, ledgerID, balanceItem)
 
 		err := uc.DeleteAllBalancesByAccountID(ctx, organizationID, ledgerID, accountID, requestID.String())
 		assert.ErrorIs(t, err, expectedErr)
@@ -185,6 +220,7 @@ func TestDeleteAllBalancesByAccountID(t *testing.T) {
 		mockBalanceRepo.EXPECT().
 			ListByAccountID(gomock.Any(), organizationID, ledgerID, accountID).
 			Return([]*mmodel.Balance{balanceItem}, nil)
+		expectDeleteMarkerPlant(mockRedisRepo, organizationID, ledgerID, balanceItem)
 		mockRedisRepo.EXPECT().
 			ListBalanceByKey(gomock.Any(), organizationID, ledgerID, balanceRedisKey(balanceItem)).
 			Return(nil, nil)
@@ -202,9 +238,274 @@ func TestDeleteAllBalancesByAccountID(t *testing.T) {
 				assert.Equal(t, expectedID, ids[0])
 				return nil
 			})
+		expectCacheEvict(mockRedisRepo, organizationID, ledgerID, balanceItem)
 
 		err := uc.DeleteAllBalancesByAccountID(ctx, organizationID, ledgerID, accountID, requestID.String())
 		assert.NoError(t, err)
+	})
+}
+
+// TestDeleteAllBalancesByAccountIDBlockThenEvict locks the block-then-evict ordering: the
+// delete marker is planted BEFORE the funds guard reads, the cache is evicted AFTER the soft
+// delete commits, the delete marker is released ONLY when the delete fails, and a failed eviction
+// never fails an already-committed delete.
+func TestDeleteAllBalancesByAccountIDBlockThenEvict(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	organizationID := uuid.New()
+	ledgerID := uuid.New()
+	accountID := uuid.New()
+	requestID := uuid.Must(libCommons.GenerateUUIDv7())
+
+	t.Run("plants delete marker before guard and evicts after delete", func(t *testing.T) {
+		t.Parallel()
+
+		uc, mockBalanceRepo, mockRedisRepo := setupDeleteAllBalancesUseCase(t)
+		balanceItem := newTestBalance(decimal.Zero, decimal.Zero)
+
+		mockBalanceRepo.EXPECT().
+			ListByAccountID(gomock.Any(), organizationID, ledgerID, accountID).
+			Return([]*mmodel.Balance{balanceItem}, nil)
+
+		plant := mockRedisRepo.EXPECT().
+			SetNX(gomock.Any(), deleteMarkerKeyFor(organizationID, ledgerID, balanceItem), deleteMarkerValue, time.Duration(balanceDeleteMarkerTTLSeconds)).
+			Return(true, nil)
+		guard := mockRedisRepo.EXPECT().
+			ListBalanceByKey(gomock.Any(), organizationID, ledgerID, balanceRedisKey(balanceItem)).
+			Return(&mmodel.Balance{}, nil)
+		mockBalanceRepo.EXPECT().
+			UpdateAllByAccountID(gomock.Any(), organizationID, ledgerID, accountID, gomock.Any()).
+			Return(nil)
+		del := mockBalanceRepo.EXPECT().
+			DeleteAllByIDs(gomock.Any(), organizationID, ledgerID, gomock.Any()).
+			Return(nil)
+		evict := mockRedisRepo.EXPECT().
+			Del(gomock.Any(), balanceCacheKeyFor(organizationID, ledgerID, balanceItem)).
+			Return(nil)
+
+		// delete marker-before-guard and evict-after-soft-delete.
+		gomock.InOrder(plant, guard)
+		gomock.InOrder(del, evict)
+
+		err := uc.DeleteAllBalancesByAccountID(ctx, organizationID, ledgerID, accountID, requestID.String())
+		assert.NoError(t, err)
+		// On success the delete marker release must NOT run: no Del of the delete marker key is set up,
+		// so the strict controller would fail if the release closure fired.
+	})
+
+	t.Run("delete error releases delete marker and skips evict", func(t *testing.T) {
+		t.Parallel()
+
+		uc, mockBalanceRepo, mockRedisRepo := setupDeleteAllBalancesUseCase(t)
+		balanceItem := newTestBalance(decimal.Zero, decimal.Zero)
+		expectedErr := errors.New("delete balances error")
+
+		mockBalanceRepo.EXPECT().
+			ListByAccountID(gomock.Any(), organizationID, ledgerID, accountID).
+			Return([]*mmodel.Balance{balanceItem}, nil)
+		expectDeleteMarkerPlant(mockRedisRepo, organizationID, ledgerID, balanceItem)
+		mockRedisRepo.EXPECT().
+			ListBalanceByKey(gomock.Any(), organizationID, ledgerID, balanceRedisKey(balanceItem)).
+			Return(&mmodel.Balance{}, nil)
+		// Flip to false before delete, then rollback to true after delete fails.
+		mockBalanceRepo.EXPECT().
+			UpdateAllByAccountID(gomock.Any(), organizationID, ledgerID, accountID, gomock.Any()).
+			Return(nil).
+			Times(2)
+		mockBalanceRepo.EXPECT().
+			DeleteAllByIDs(gomock.Any(), organizationID, ledgerID, gomock.Any()).
+			Return(expectedErr)
+		// Release Dels the delete marker key; the cache key is never evicted on the error path.
+		expectDeleteMarkerRelease(mockRedisRepo, organizationID, ledgerID, balanceItem)
+
+		err := uc.DeleteAllBalancesByAccountID(ctx, organizationID, ledgerID, accountID, requestID.String())
+		assert.ErrorIs(t, err, expectedErr)
+	})
+
+	t.Run("evict del failure on success is non-fatal", func(t *testing.T) {
+		t.Parallel()
+
+		uc, mockBalanceRepo, mockRedisRepo := setupDeleteAllBalancesUseCase(t)
+		balanceItem := newTestBalance(decimal.Zero, decimal.Zero)
+
+		mockBalanceRepo.EXPECT().
+			ListByAccountID(gomock.Any(), organizationID, ledgerID, accountID).
+			Return([]*mmodel.Balance{balanceItem}, nil)
+		expectDeleteMarkerPlant(mockRedisRepo, organizationID, ledgerID, balanceItem)
+		mockRedisRepo.EXPECT().
+			ListBalanceByKey(gomock.Any(), organizationID, ledgerID, balanceRedisKey(balanceItem)).
+			Return(&mmodel.Balance{}, nil)
+		mockBalanceRepo.EXPECT().
+			UpdateAllByAccountID(gomock.Any(), organizationID, ledgerID, accountID, gomock.Any()).
+			Return(nil)
+		mockBalanceRepo.EXPECT().
+			DeleteAllByIDs(gomock.Any(), organizationID, ledgerID, gomock.Any()).
+			Return(nil)
+		mockRedisRepo.EXPECT().
+			Del(gomock.Any(), balanceCacheKeyFor(organizationID, ledgerID, balanceItem)).
+			Return(errors.New("evict failed"))
+
+		err := uc.DeleteAllBalancesByAccountID(ctx, organizationID, ledgerID, accountID, requestID.String())
+		assert.NoError(t, err)
+	})
+}
+
+// TestDeleteAllBalancesByAccountIDCacheMissFundsGuard covers the funds guard for both a
+// Redis cache hit and a cache miss: a cached balance blocks deletion only when it still
+// holds funds, and a balance absent from Redis (TTL expired) must still be checked against
+// the authoritative Postgres row so accounts holding funds are never soft-deleted.
+func TestDeleteAllBalancesByAccountIDCacheMissFundsGuard(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	organizationID := uuid.New()
+	ledgerID := uuid.New()
+	accountID := uuid.New()
+	requestID := uuid.Must(libCommons.GenerateUUIDv7())
+
+	tests := []struct {
+		name          string
+		balance       *mmodel.Balance
+		cacheBalance  *mmodel.Balance
+		cacheErr      error
+		expectProceed bool
+	}{
+		{
+			name:          "on_hold funds with cache miss prevents deletion",
+			balance:       newTestBalance(decimal.Zero, decimal.NewFromInt(5)),
+			cacheBalance:  nil,
+			cacheErr:      goredis.Nil,
+			expectProceed: false,
+		},
+		{
+			name:          "available funds with cache miss prevents deletion",
+			balance:       newTestBalance(decimal.NewFromInt(7), decimal.Zero),
+			cacheBalance:  nil,
+			cacheErr:      goredis.Nil,
+			expectProceed: false,
+		},
+		{
+			name:          "cached zero-funds balance proceeds to deletion",
+			balance:       newTestBalance(decimal.Zero, decimal.Zero),
+			cacheBalance:  &mmodel.Balance{},
+			cacheErr:      nil,
+			expectProceed: true,
+		},
+		{
+			name:          "zero funds with cache miss proceeds to deletion",
+			balance:       newTestBalance(decimal.Zero, decimal.Zero),
+			cacheBalance:  nil,
+			cacheErr:      goredis.Nil,
+			expectProceed: true,
+		},
+		{
+			name:          "cached available funds prevents deletion",
+			balance:       newTestBalance(decimal.Zero, decimal.Zero),
+			cacheBalance:  newTestBalance(decimal.NewFromInt(7), decimal.Zero),
+			cacheErr:      nil,
+			expectProceed: false,
+		},
+		{
+			name:          "cached on_hold funds prevents deletion",
+			balance:       newTestBalance(decimal.Zero, decimal.Zero),
+			cacheBalance:  newTestBalance(decimal.Zero, decimal.NewFromInt(9)),
+			cacheErr:      nil,
+			expectProceed: false,
+		},
+		{
+			name:          "cached zero-funds but postgres funds prevents deletion",
+			balance:       newTestBalance(decimal.NewFromInt(3), decimal.Zero),
+			cacheBalance:  &mmodel.Balance{},
+			cacheErr:      nil,
+			expectProceed: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			uc, mockBalanceRepo, mockRedisRepo := setupDeleteAllBalancesUseCase(t)
+
+			mockBalanceRepo.EXPECT().
+				ListByAccountID(gomock.Any(), organizationID, ledgerID, accountID).
+				Return([]*mmodel.Balance{tt.balance}, nil)
+			expectDeleteMarkerPlant(mockRedisRepo, organizationID, ledgerID, tt.balance)
+			mockRedisRepo.EXPECT().
+				ListBalanceByKey(gomock.Any(), organizationID, ledgerID, balanceRedisKey(tt.balance)).
+				Return(tt.cacheBalance, tt.cacheErr)
+
+			if tt.expectProceed {
+				mockBalanceRepo.EXPECT().
+					UpdateAllByAccountID(gomock.Any(), organizationID, ledgerID, accountID, gomock.Any()).
+					Return(nil)
+				mockBalanceRepo.EXPECT().
+					DeleteAllByIDs(gomock.Any(), organizationID, ledgerID, gomock.Any()).
+					Return(nil)
+				expectCacheEvict(mockRedisRepo, organizationID, ledgerID, tt.balance)
+			} else {
+				mockBalanceRepo.EXPECT().
+					DeleteAllByIDs(gomock.Any(), organizationID, ledgerID, gomock.Any()).
+					Times(0)
+				expectDeleteMarkerRelease(mockRedisRepo, organizationID, ledgerID, tt.balance)
+			}
+
+			err := uc.DeleteAllBalancesByAccountID(ctx, organizationID, ledgerID, accountID, requestID.String())
+
+			if tt.expectProceed {
+				assert.NoError(t, err)
+				return
+			}
+
+			var conflictErr midazpkg.EntityConflictError
+			assert.Error(t, err)
+			assert.True(t, errors.As(err, &conflictErr))
+			assert.Equal(t, constant.ErrBalancesCantBeDeleted.Error(), conflictErr.Code)
+		})
+	}
+
+	// Guards the loop across MULTIPLE balances: the first balance has zero funds on a cache
+	// miss (loop proceeds), the second holds on_hold funds on a cache miss (loop rejects).
+	// Deletion must be refused and DeleteAllByIDs must never run.
+	t.Run("multiple balances reject when a later balance still holds funds", func(t *testing.T) {
+		t.Parallel()
+
+		uc, mockBalanceRepo, mockRedisRepo := setupDeleteAllBalancesUseCase(t)
+
+		zeroFundsBalance := newTestBalance(decimal.Zero, decimal.Zero)
+		onHoldFundsBalance := newTestBalance(decimal.Zero, decimal.NewFromInt(5))
+
+		mockBalanceRepo.EXPECT().
+			ListByAccountID(gomock.Any(), organizationID, ledgerID, accountID).
+			Return([]*mmodel.Balance{zeroFundsBalance, onHoldFundsBalance}, nil)
+
+		// Both delete markers are planted up front, before the guard loop runs.
+		expectDeleteMarkerPlant(mockRedisRepo, organizationID, ledgerID, zeroFundsBalance)
+		expectDeleteMarkerPlant(mockRedisRepo, organizationID, ledgerID, onHoldFundsBalance)
+
+		firstLookup := mockRedisRepo.EXPECT().
+			ListBalanceByKey(gomock.Any(), organizationID, ledgerID, balanceRedisKey(zeroFundsBalance)).
+			Return(nil, goredis.Nil)
+		secondLookup := mockRedisRepo.EXPECT().
+			ListBalanceByKey(gomock.Any(), organizationID, ledgerID, balanceRedisKey(onHoldFundsBalance)).
+			Return(nil, goredis.Nil)
+		gomock.InOrder(firstLookup, secondLookup)
+
+		mockBalanceRepo.EXPECT().
+			DeleteAllByIDs(gomock.Any(), organizationID, ledgerID, gomock.Any()).
+			Times(0)
+
+		// On rejection both planted delete markers are released.
+		expectDeleteMarkerRelease(mockRedisRepo, organizationID, ledgerID, zeroFundsBalance)
+		expectDeleteMarkerRelease(mockRedisRepo, organizationID, ledgerID, onHoldFundsBalance)
+
+		err := uc.DeleteAllBalancesByAccountID(ctx, organizationID, ledgerID, accountID, requestID.String())
+
+		var conflictErr midazpkg.EntityConflictError
+		assert.Error(t, err)
+		assert.True(t, errors.As(err, &conflictErr))
+		assert.Equal(t, constant.ErrBalancesCantBeDeleted.Error(), conflictErr.Code)
 	})
 }
 

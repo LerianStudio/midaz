@@ -20,6 +20,7 @@ import (
 	"go.uber.org/mock/gomock"
 
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/balance"
+	redis "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/redis/transaction"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services/command"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services/query"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
@@ -141,7 +142,13 @@ func TestHuma_DeleteBalance_204Empty(t *testing.T) {
 		Return(&mmodel.Balance{ID: balanceID.String()}, nil).Times(1)
 	balanceRepo.EXPECT().Delete(gomock.Any(), orgID, ledgerID, balanceID).Return(nil).Times(1)
 
-	handler := &BalanceHandler{Command: &command.UseCase{BalanceRepo: balanceRepo}}
+	// The delete path plants and evicts balance delete markers via the honored-lock
+	// guard. Lenient expectations keep this a transport-level test.
+	redisRepo := redis.NewMockRedisRepository(ctrl)
+	redisRepo.EXPECT().SetNX(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return(true, nil).AnyTimes()
+	redisRepo.EXPECT().Del(gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
+
+	handler := &BalanceHandler{Command: &command.UseCase{BalanceRepo: balanceRepo, TransactionRedisRepo: redisRepo}}
 
 	app := buildHumaBalanceApp(t, handler, true)
 
