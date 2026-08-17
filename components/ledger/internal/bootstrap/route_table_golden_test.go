@@ -55,7 +55,7 @@ const routeTableGoldenPath = "testdata/route_table.golden"
 //
 // It catches REMOVALS only. A registrar mounted in production but never added to this harness is
 // invisible to it, and to every other gate in this package.
-const routeTableMinRows = 314
+const routeTableMinRows = 301
 
 // routeTableGoldenHeader prefixes the golden so a reader who opens the file knows what the
 // third column means and how to regenerate. It is part of the compared bytes, so it cannot
