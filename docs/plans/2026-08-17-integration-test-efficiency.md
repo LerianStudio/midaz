@@ -4,7 +4,7 @@
 
 **Architecture:** Integration build tags define what belongs to each lane. Required gates fail closed when discovery or prerequisites are missing. Datastore processes are eventually reused at package or shard scope, while every test keeps an isolated database, schema, namespace, or vhost. Parallelism is introduced only after isolation is explicit and measured.
 
-**Status:** P0's test infrastructure is implemented and measured. Full support for the released V1 `remaining` expression is now in progress; P1-P3 remain blocked until the money-path defects exposed by the honest lane are closed.
+**Status:** P0's test infrastructure is implemented and measured. V1 `remaining` is complete through the ordinary direct, pending, cancel, revert, and fee paths; the final accounting-route integration is in progress under the explicit fee-route UUID contract chosen on 2026-08-17. P1-P3 remain blocked until the money-path defects exposed by the honest lane are closed.
 
 ## Phase overview
 
@@ -84,7 +84,7 @@ Root skip classification: 76 chaos-only scenarios, 2 streaming smokes covered by
 
 **Product/architecture blockers:**
 
-1. V1 accepts `remaining`, resolves its amount during validation, then drops that leg during persistence and commits an unbalanced APPROVED transaction. Product decision: support the expression end to end; implementation is in progress.
+1. V1 `remaining` now preserves every resolved leg and balance identity through persistence, state transitions, fees, and zero-fee no-ops. Final contract decision: fee packages gain additive, explicit UUID fields for debit and credit operation routes; the existing free-form route labels remain passive. Implementation and the accounting-route integration proof are in progress.
 2. Two economically identical origins can share one revert idempotency slot, so the second origin is never reverted. Changing the live Redis key shape without a rollout contract can instead double-revert retries.
 3. Ledger commits balances before the Tracer confirmation is durable. If that confirmation is lost, the reaper releases the hold and undercounts usage even though money moved.
 
