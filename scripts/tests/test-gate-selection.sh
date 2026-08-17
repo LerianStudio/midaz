@@ -86,6 +86,16 @@ if ! printf '%s\n' "$tracer_coverage_recipe" | /bin/sh -n; then
   fail "tracer coverage integration recipe is not valid POSIX shell"
 fi
 
+streaming_alternatives='TestStreamingSmoke/missing|TestStreamingSmoke'
+streaming_test_recipe=$(make -s -C "$repo_root/components/tracer" -n test-integration RUN="$streaming_alternatives")
+assert_contains "$streaming_test_recipe" 'verify-selected-go-test-events.sh' "test alternative event verification"
+streaming_coverage_recipe=$(make -s -C "$repo_root/components/tracer" -n coverage-integration RUN="$streaming_alternatives")
+assert_contains "$streaming_coverage_recipe" 'verify-selected-go-test-events.sh' "coverage alternative event verification"
+streaming_fallback_recipe=$(make -s -C "$repo_root/components/tracer" -n test-integration \
+  RUN="$streaming_alternatives" GOTESTSUM=)
+assert_contains "$streaming_fallback_recipe" 'go test -json' "fallback alternative JSON capture"
+assert_contains "$streaming_fallback_recipe" 'verify-selected-go-test-events.sh' "fallback alternative event verification"
+
 property_recipe=$(make -s -C "$repo_root" -n test-property)
 assert_contains "$property_recipe" "./components/... ./pkg/... ./tests/..." "property scope"
 assert_not_contains "$property_recipe" "command -v docker" "property recipe must stay Docker-free"
@@ -372,6 +382,20 @@ assert_go_run_parity 'A/B|C/D' "$alternative_pattern" "path-alternative parity"
 assert_go_run_parity 'A\/B|C/D' "$escaped_slash_pattern" "escaped-slash parity"
 assert_go_run_parity '(A/B)|C/D' "$grouped_slash_pattern" "grouped-slash parity"
 assert_go_run_parity 'A/B/leaf|C/D/missing' "$multi_segment_pattern" "multi-segment parity"
+
+streaming_inventory='example.com/gates/streaming TestStreamingSmoke'
+for streaming_pattern in \
+  'TestStreamingSmoke/missing|TestStreamingSmoke' \
+  'TestStreamingSmoke|TestStreamingSmoke/missing'; do
+  streaming_patterns_file="$fixture/streaming-$parity_index-patterns.tsv"
+  printf '%s\n' "$streaming_inventory" \
+    | "$list_tests" "$streaming_pattern" "$streaming_patterns_file" >/dev/null
+  streaming_runtime_pattern=$(awk -F '\t' \
+    '$1 == "example.com/gates/streaming" { sub(/^[^\t]*\t/, ""); print }' \
+    "$streaming_patterns_file")
+  printf '%s\n' '{"Action":"run","Test":"TestStreamingSmoke"}' \
+    | "$verify_events" "$streaming_runtime_pattern"
+done
 
 if (cd "$fixture" && "$list_tagged_functions" integration integration ./empty >empty.out 2>empty.err); then
   fail "a tagged package containing zero runnable tests passed"

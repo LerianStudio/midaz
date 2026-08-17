@@ -211,8 +211,7 @@ func verifyEvents(runPattern string) error {
 			return fmt.Errorf("decode go test JSON event: %w", err)
 		}
 		if event.Action == "run" {
-			matched, partial := filter.matches(strings.Split(event.Test, "/"))
-			if matched && !partial {
+			if filter.matchesAnyCompleteAlternative(strings.Split(event.Test, "/")) {
 				return nil
 			}
 		}
@@ -397,6 +396,16 @@ func (filter runFilter) matches(name []string) (bool, bool) {
 		}
 	}
 	return false, false
+}
+
+func (filter runFilter) matchesAnyCompleteAlternative(name []string) bool {
+	for _, alternative := range filter {
+		matched, partial := alternative.matches(name)
+		if matched && !partial {
+			return true
+		}
+	}
+	return false
 }
 
 func (alternative runAlternative) matches(name []string) (bool, bool) {
