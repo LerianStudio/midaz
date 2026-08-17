@@ -107,3 +107,123 @@ jobs:
 
       - name: Verify protobuf stubs are up to date
         run: make proto-check
+
+  # The reusable v1.46.5 integration hook runs once inside every
+  # filter_paths working directory and its umbrella workflow does not expose
+  # integration_test_command. Midaz's integration/property targets live only at
+  # the monorepo root, so dedicated root jobs are the only non-duplicating path.
+  integration:
+    name: Integration Tests
+    runs-on: blacksmith-4vcpu-ubuntu-2404
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up Go
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version: '1.26.4'
+          cache: true
+
+      - name: Run root integration lane
+        run: scripts/run-ci-lane.sh integration 25m make test-integration LOW_RESOURCE=1
+
+      - name: Upload integration timing and log
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.0
+        with:
+          name: integration-reports
+          path: reports/ci/integration*
+          if-no-files-found: warn
+          retention-days: 7
+
+  property:
+    name: Property Tests
+    runs-on: blacksmith-4vcpu-ubuntu-2404
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up Go
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version: '1.26.4'
+          cache: true
+
+      - name: Run root property lane
+        run: scripts/run-ci-lane.sh property 15m make test-property LOW_RESOURCE=1
+
+      - name: Upload property timing and log
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.0
+        with:
+          name: property-reports
+          path: reports/ci/property*
+          if-no-files-found: warn
+          retention-days: 7
+
+  required-e2e:
+    name: Required Ledger E2E
+    runs-on: blacksmith-4vcpu-ubuntu-2404
+    timeout-minutes: 35
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up Go
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version: '1.26.4'
+          cache: true
+
+      - name: Install test reporter
+        run: go install gotest.tools/gotestsum@v1.13.0
+
+      - name: Configure required stack
+        run: |
+          make set-env
+          sed -i 's|^TRACER_BASE_URL=.*|TRACER_BASE_URL=http://midaz-tracer:4020|' components/ledger/.env
+          sed -i 's|^TRACER_TRANSPORT=.*|TRACER_TRANSPORT=rest|' components/ledger/.env
+          sed -i 's|^STREAMING_ENABLED=.*|STREAMING_ENABLED=true|' components/ledger/.env
+          sed -i 's|^# STREAMING_BROKERS=.*|STREAMING_BROKERS=midaz-redpanda:9092|' components/ledger/.env
+          sed -i 's|^# STREAMING_CLOUDEVENTS_SOURCE=.*|STREAMING_CLOUDEVENTS_SOURCE=lerian.midaz.ledger|' components/ledger/.env
+
+      - name: Start stack
+        run: scripts/run-ci-lane.sh stack-startup 10m make up
+
+      - name: Wait for required deploy surfaces
+        run: |
+          scripts/run-ci-lane.sh stack-readiness 4m bash -c '
+            until curl --fail --silent http://localhost:3002/readyz >/dev/null; do sleep 2; done
+            until curl --fail --silent http://localhost:4020/readyz >/dev/null; do sleep 2; done
+          '
+
+      - name: Run mandatory Ledger E2E lane
+        run: scripts/run-required-e2e.sh
+
+      - name: Capture stack logs
+        if: always()
+        run: |
+          mkdir -p reports/ci
+          make logs > reports/ci/stack.log 2>&1 || true
+
+      - name: Stop stack
+        if: always()
+        run: make down
+
+      - name: Upload E2E reports and timings
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.0
+        with:
+          name: required-ledger-e2e-reports
+          path: reports/ci/
+          if-no-files-found: warn
+          retention-days: 7

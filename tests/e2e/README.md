@@ -13,6 +13,23 @@ make up                 # bring the stack up first (one time)
 make test-ledger-e2e    # run the suite
 ```
 
+The local command stays opt-in: an unavailable stack skips the live tests. To
+run the same mandatory lane used by pull requests, wire the ledger to the
+tracer and use the bounded runner:
+
+```bash
+scripts/run-required-e2e.sh
+```
+
+The mandatory runner sets `E2E_REQUIRED=1`, requires both `/readyz` probes,
+requires a real tracer denial (`HTTP 422`, code `0177`) as its non-vacuity
+sentinel, and requires both selected streaming proofs to pass rather than skip.
+Missing broker connectivity or topic-admin access fails immediately. The runner
+applies a 20-minute wall-clock timeout; override the wall and Go timeouts with
+`E2E_REQUIRED_WALL_TIMEOUT` and `E2E_REQUIRED_GO_TIMEOUT`. Reports are
+provider-neutral files under `reports/ci/` (timing JSON, test-event JSON, JUnit
+XML when `gotestsum` is installed, and the lane log).
+
 Override targets for a remote stack:
 
 ```bash
@@ -25,8 +42,9 @@ Or directly:
 go test -tags e2e -v -count=1 ./tests/e2e/...
 ```
 
-The suite **self-gates**: if `LEDGER_URL/readyz` is not reachable the tests
-**skip** (not fail), because e2e is opt-in and needs a running stack.
+The suite **self-gates** by default: if `LEDGER_URL/readyz` is not reachable the
+tests **skip** (not fail), because local e2e is opt-in. `E2E_REQUIRED=1` changes
+missing Ledger, Tracer, readiness dependencies, or tracer wiring into failures.
 
 ## What it covers
 

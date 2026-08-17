@@ -9,6 +9,7 @@ package e2e
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"net"
 	"net/http"
 	"os"
@@ -31,9 +32,9 @@ import (
 // request.
 //
 // The suite self-gates: requireStack skips when the ledger is down,
-// strmRequireBroker skips when no broker is reachable at STREAMING_BROKERS.
-// On the default stack (STREAMING_ENABLED=false, no broker) every test skips
-// cleanly with zero failures.
+// E2E_STREAMING=1 records that the target ledger has streaming enabled, and
+// strmRequireBroker verifies that STREAMING_BROKERS is reachable. The mandatory
+// PR runner opts in explicitly; the default local stack skips these tests.
 
 // strmBrokersEnv is read once; default mirrors the documented local Redpanda
 // host port (CLAUDE.md "Streaming / Local testing": bind 19092).
@@ -133,16 +134,19 @@ func strmBrokers() []string {
 	return out
 }
 
-// strmBrokerOnce gates the streaming tests on the broker being TCP-reachable.
-// A down broker skips (e2e is opt-in and needs Redpanda + STREAMING_ENABLED).
+// strmBrokerOnce gates the streaming tests on broker reachability and topic
+// admin readiness. Local opt-in runs skip an unavailable broker; mandatory runs
+// fail immediately.
 var (
-	strmBrokerOnce sync.Once
-	strmBrokerUp   bool
+	strmBrokerOnce      sync.Once
+	strmBrokerUp        bool
+	strmBrokerErr       error
+	strmProvisionTopics = strmEnsureTopics
 )
 
-// strmRequireBroker skips the calling test when the first STREAMING_BROKERS
-// address cannot be TCP-dialed. Mirrors the requireStack/requireTracer probe
-// shape: a sync.Once dial + t.Skipf with actionable setup instructions.
+// strmRequireBroker checks the first STREAMING_BROKERS address and provisions
+// the event catalog once. An unavailable broker/admin path is a hard failure in
+// required mode and an actionable skip in local opt-in mode.
 func strmRequireBroker(t *testing.T) {
 	t.Helper()
 
@@ -151,40 +155,61 @@ func strmRequireBroker(t *testing.T) {
 	strmBrokerOnce.Do(func() {
 		conn, err := net.DialTimeout("tcp", brokers[0], 3*time.Second)
 		if err != nil {
+			strmBrokerErr = fmt.Errorf("dial streaming broker %s: %w", brokers[0], err)
 			return
 		}
 
 		_ = conn.Close()
-		strmBrokerUp = true
 
 		// Pre-provision the event catalog before any test triggers a create.
 		// lib-streaming's producer does NOT request auto-topic-creation (no
 		// kgo.AllowAutoTopicCreation in producer_kgo.go), so a missing topic both
 		// fails the emit AND trips lib-streaming's circuit breaker, poisoning
 		// every later emit. Creating the topics here keeps the breaker closed.
-		strmEnsureTopics(t, brokers)
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+
+		if err := strmProvisionTopics(ctx, brokers); err != nil {
+			strmBrokerErr = err
+			return
+		}
+
+		strmBrokerUp = true
 	})
 
 	if !strmBrokerUp {
-		t.Skipf("streaming broker not reachable at %s — start Redpanda bound to host 19092 on infra-network "+
-			"and set STREAMING_ENABLED=true + STREAMING_BROKERS (topics are auto-provisioned by this test)",
-			brokers[0])
+		message := fmt.Sprintf("streaming broker unavailable at %s: %v — start Redpanda and verify topic-admin permissions", brokers[0], strmBrokerErr)
+		if e2eRequired() {
+			t.Fatalf("required %s", message)
+		}
+		t.Skip(message)
 	}
+}
+
+func strmRequireStreaming(t *testing.T) {
+	t.Helper()
+
+	if os.Getenv("E2E_STREAMING") == "1" {
+		return
+	}
+
+	message := "streaming e2e requires a ledger started with STREAMING_ENABLED=true and E2E_STREAMING=1 on the test process"
+	if e2eRequired() {
+		t.Fatal(message)
+	}
+	t.Skip(message)
 }
 
 // strmEnsureTopics idempotently creates every event-catalog topic on the broker
 // via a CreateTopics admin request, so the ledger's producer — which does not
 // auto-create topics — always has a destination. Single partition / single
-// replica (dev broker); TOPIC_ALREADY_EXISTS (36) is ignored. Best-effort: a
-// transport error is logged and a genuinely absent topic surfaces later as a
-// consume miss in the test itself.
-func strmEnsureTopics(t *testing.T, brokers []string) {
-	t.Helper()
-
+// replica (dev broker); TOPIC_ALREADY_EXISTS (36) is ignored. Transport and
+// broker-side admin errors return immediately so a selected streaming lane
+// cannot degrade into a later consume timeout.
+func strmEnsureTopics(ctx context.Context, brokers []string) error {
 	cl, err := kgo.NewClient(kgo.SeedBrokers(brokers...), kgo.ClientID("e2e-strm-admin"))
 	if err != nil {
-		t.Logf("streaming: admin client for topic provisioning failed: %v", err)
-		return
+		return fmt.Errorf("create streaming admin client: %w", err)
 	}
 	defer cl.Close()
 
@@ -198,13 +223,9 @@ func strmEnsureTopics(t *testing.T, brokers []string) {
 		req.Topics = append(req.Topics, rt)
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
-
 	resp, err := req.RequestWith(ctx, cl)
 	if err != nil {
-		t.Logf("streaming: CreateTopics request failed: %v", err)
-		return
+		return fmt.Errorf("create streaming topics: %w", err)
 	}
 
 	for _, ct := range resp.Topics {
@@ -214,9 +235,11 @@ func strmEnsureTopics(t *testing.T, brokers []string) {
 				msg = *ct.ErrorMessage
 			}
 
-			t.Logf("streaming: create topic %s: code=%d %s", ct.Topic, ct.ErrorCode, msg)
+			return fmt.Errorf("create streaming topic %s: broker code=%d %s", ct.Topic, ct.ErrorCode, msg)
 		}
 	}
+
+	return nil
 }
 
 // strmCatalogTopics builds the lerian.streaming.* names for the full event
@@ -347,6 +370,7 @@ func strmAssertKeySet(t *testing.T, label string, actual map[string]any, allowed
 // top-level key set EXACTLY matches the 17-key account.created contract.
 func TestStreamingAccountCreatedEmitted(t *testing.T) {
 	requireStack(t)
+	strmRequireStreaming(t)
 	strmRequireBroker(t)
 
 	f := newFixture(t, false)
@@ -410,6 +434,7 @@ func TestStreamingAccountCreatedEmitted(t *testing.T) {
 // transaction-events stack" signal. Not a defect — a deliberate cutover gate.
 func TestStreamingTransactionPostedEmitted(t *testing.T) {
 	requireStack(t)
+	strmRequireStreaming(t)
 	strmRequireBroker(t)
 
 	if os.Getenv("E2E_ASYNC") != "1" {
@@ -462,6 +487,7 @@ func TestStreamingTransactionPostedEmitted(t *testing.T) {
 // name, document, or any other PII key.
 func TestStreamingHolderCreateEmitsRedacted(t *testing.T) {
 	requireStack(t)
+	strmRequireStreaming(t)
 	strmRequireBroker(t)
 
 	orgID := createOrg(t)

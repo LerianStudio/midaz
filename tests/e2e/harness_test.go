@@ -46,6 +46,63 @@ func envOr(key, def string) string {
 // stack (first transaction after boot) can be slow.
 var httpClient = &http.Client{Timeout: 30 * time.Second}
 
+// TestMain turns the live-stack preflight into a hard gate only when the
+// mandatory runner explicitly opts in. The default remains developer-friendly:
+// individual tests retain their existing skip behavior against a down stack.
+func TestMain(m *testing.M) {
+	if e2eRequired() {
+		client := &http.Client{Timeout: 5 * time.Second}
+		if err := checkRequiredStack(client, ledgerURL(), tracerURL()); err != nil {
+			fmt.Fprintf(os.Stderr, "required e2e preflight failed: %v\n", err)
+			os.Exit(1)
+		}
+
+		fmt.Fprintf(os.Stderr, "required e2e preflight passed: ledger=%s tracer=%s\n", ledgerURL(), tracerURL())
+	}
+
+	os.Exit(m.Run())
+}
+
+func e2eRequired() bool {
+	return os.Getenv("E2E_REQUIRED") == "1"
+}
+
+// checkRequiredStack proves that both deploy surfaces and the dependencies
+// covered by their readiness checks are available before a mandatory run.
+func checkRequiredStack(client *http.Client, ledgerBaseURL, tracerBaseURL string) error {
+	if err := checkRequiredService(client, "ledger", ledgerBaseURL+"/readyz"); err != nil {
+		return err
+	}
+
+	if err := checkRequiredService(client, "tracer", tracerBaseURL+"/readyz"); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func checkRequiredService(client *http.Client, name, readyURL string) error {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, readyURL, nil)
+	if err != nil {
+		return fmt.Errorf("%s readiness request: %w", name, err)
+	}
+
+	resp, err := client.Do(req)
+	if err != nil {
+		return fmt.Errorf("%s readiness at %s: %w", name, readyURL, err)
+	}
+	defer func() { _ = resp.Body.Close() }()
+
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("%s readiness at %s returned HTTP %d", name, readyURL, resp.StatusCode)
+	}
+
+	return nil
+}
+
 // stackOnce gates the whole suite on the ledger being reachable. A down stack
 // skips rather than fails: e2e is opt-in and needs `make up` first.
 var (
@@ -76,7 +133,11 @@ func requireStack(t *testing.T) {
 	})
 
 	if !stackUp {
-		t.Skipf("ledger not reachable at %s/readyz — start the stack with `make up` (set LEDGER_URL to override)", ledgerURL())
+		message := fmt.Sprintf("ledger not reachable at %s/readyz — start the stack with `make up` (set LEDGER_URL to override)", ledgerURL())
+		if e2eRequired() {
+			t.Fatal(message)
+		}
+		t.Skip(message)
 	}
 }
 
@@ -333,7 +394,11 @@ func requireTracer(t *testing.T) {
 	})
 
 	if !tracerUp {
-		t.Skipf("tracer not reachable at %s/readyz — start it with the tracer compose (set TRACER_URL to override)", tracerURL())
+		message := fmt.Sprintf("tracer not reachable at %s/readyz — start it with the tracer compose (set TRACER_URL to override)", tracerURL())
+		if e2eRequired() {
+			t.Fatal(message)
+		}
+		t.Skip(message)
 	}
 }
 

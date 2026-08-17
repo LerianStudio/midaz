@@ -121,7 +121,34 @@ var (
 	trxWiredOnce   sync.Once
 	trxWired       bool
 	trxWiredReason string
+	trxWiredClass  tracerWiringProbeClass
 )
+
+type tracerWiringProbeClass uint8
+
+const (
+	tracerWiringAbsent tracerWiringProbeClass = iota
+	tracerWiringFunctionalDenial
+	tracerWiringTechnicalFailure
+)
+
+// classifyTracerWiringProbe accepts only the tracer denial contract as proof of
+// wiring. A generic non-2xx response is not enough: 5xx and unrelated business
+// errors mean the stack is broken, not that the tracer correctly enforced a
+// limit.
+func classifyTracerWiringProbe(r response) tracerWiringProbeClass {
+	if r.status == http.StatusUnprocessableEntity {
+		if code, _ := r.json["code"].(string); code == "0177" {
+			return tracerWiringFunctionalDenial
+		}
+	}
+
+	if r.status >= 200 && r.status < 300 {
+		return tracerWiringAbsent
+	}
+
+	return tracerWiringTechnicalFailure
+}
 
 // requireTracerWired skips the calling test unless the ledger is BOTH reachable
 // AND actually forwarding reserves to the tracer (global TRACER_BASE_URL set).
@@ -159,23 +186,30 @@ func requireTracerWired(t *testing.T) {
 		fund(t, f, src, "1000")
 
 		r := call(t, http.MethodPost, f.ledgers()+"/transactions/json", transferBody(src, dst, "100", nil))
-		switch {
-		case r.status == http.StatusCreated:
+		trxWiredClass = classifyTracerWiringProbe(r)
+		switch trxWiredClass {
+		case tracerWiringAbsent:
 			trxWired = false
-			trxWiredReason = fmt.Sprintf("over-limit transfer (cap 1, amount 100) returned 201 — no reserve happened (got body: %s)", r.body)
-		case r.status >= 200 && r.status < 300:
-			trxWired = false
-			trxWiredReason = fmt.Sprintf("over-limit transfer returned 2xx %d — reserve did not gate", r.status)
-		default:
-			// Denied (expected 422) — the reserve was consulted and blocked the
-			// over-limit transfer: the ledger is wired and enforcing.
+			trxWiredReason = fmt.Sprintf("over-limit transfer returned 2xx %d — no functional tracer denial (body: %s)", r.status, r.body)
+		case tracerWiringFunctionalDenial:
 			trxWired = true
-			trxWiredReason = fmt.Sprintf("over-limit transfer denied with %d (wired)", r.status)
+			trxWiredReason = "over-limit transfer denied with HTTP 422 / code 0177 (wired)"
+		case tracerWiringTechnicalFailure:
+			trxWired = false
+			trxWiredReason = fmt.Sprintf("over-limit wiring probe failed technically or with an unrelated contract: HTTP %d (body: %s)", r.status, r.body)
 		}
 	})
 
 	if !trxWired {
-		t.Skipf("ledger is reachable but NOT forwarding reserves to the tracer: %s — wire it by appending TRACER_BASE_URL=http://midaz-tracer:4020 and TRACER_TRANSPORT=rest to components/ledger/.env, then force-recreate the ledger container", trxWiredReason)
+		if trxWiredClass == tracerWiringTechnicalFailure {
+			t.Fatalf("tracer wiring probe did not produce the expected functional denial: %s", trxWiredReason)
+		}
+
+		message := fmt.Sprintf("ledger is reachable but NOT forwarding reserves to the tracer: %s — wire it by setting TRACER_BASE_URL=http://midaz-tracer:4020 and TRACER_TRANSPORT=rest in components/ledger/.env, then force-recreate the ledger container", trxWiredReason)
+		if e2eRequired() {
+			t.Fatal(message)
+		}
+		t.Skip(message)
 	}
 }
 
