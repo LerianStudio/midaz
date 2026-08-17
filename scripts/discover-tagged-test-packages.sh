@@ -27,51 +27,28 @@ if [[ ! "$required_tag" =~ ^[[:alnum:]_]+$ ]]; then
 fi
 
 # go list decides which files the requested build-tag set actually selects.
-# Grep then identifies which of those selected test files explicitly owns the
-# required lane tag. This excludes ordinary co-located tests and constraints
-# such as `!integration` without reimplementing Go's constraint evaluator.
+# The semantic filter then evaluates each selected file's parsed build
+# constraint with the lane tag enabled and disabled. A file belongs to the lane
+# only when that tag changes the constraint from false to true.
 selected_files=$(GOFLAGS="-buildvcs=false ${GOFLAGS:-}" go list \
   -tags="$go_build_tags" \
   -f '{{range .TestGoFiles}}{{$.Dir}}{{"\t"}}{{$.ImportPath}}{{"\t"}}{{.}}{{"\n"}}{{end}}{{range .XTestGoFiles}}{{$.Dir}}{{"\t"}}{{$.ImportPath}}{{"\t"}}{{.}}{{"\n"}}{{end}}' \
   "$@")
 
-packages_file=$(mktemp)
-trap 'rm -f "$packages_file"' EXIT
-selected_file_count=0
+script_dir=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
+candidate_files=$(printf '%s\n' "$selected_files" \
+  | awk -F '\t' 'NF == 3 { print $2 "\t" $1 "/" $3 }')
+lane_files=$(printf '%s\n' "$candidate_files" \
+  | GOFLAGS="-buildvcs=false ${GOFLAGS:-}" go run "$script_dir/test_selection/main.go" \
+      filter-files "$required_tag" "$go_build_tags")
 
-while IFS=$'\t' read -r package_dir import_path test_file; do
-  [[ -n "$test_file" ]] || continue
-
-  build_constraint=$(grep -E '^//go:build[[:space:]]+' "$package_dir/$test_file") \
-    && constraint_status=0 || constraint_status=$?
-
-  if (( constraint_status > 1 )); then
-    exit "$constraint_status"
-  fi
-
-  if (( constraint_status == 0 )) \
-    && printf '%s\n' "$build_constraint" \
-      | grep -Eq "(^|[^[:alnum:]_])${required_tag}([^[:alnum:]_]|$)"; then
-    selected_file_count=$((selected_file_count + 1))
-
-    if [[ "$output_mode" == "files" ]]; then
-      printf '%s\t%s\n' "$import_path" "$package_dir/$test_file"
-    else
-      printf '%s\n' "$import_path" >>"$packages_file"
-    fi
-  else
-    tag_status=$?
-    if (( constraint_status == 0 && tag_status > 1 )); then
-      exit "$tag_status"
-    fi
-  fi
-done <<<"$selected_files"
-
-if (( selected_file_count == 0 )); then
+if [[ -z "$lane_files" ]]; then
   echo "[error] no Go packages contain tests selected by build tag \"$required_tag\"" >&2
   exit 1
 fi
 
-if [[ "$output_mode" == "packages" ]]; then
-  awk '!seen[$0]++' "$packages_file"
+if [[ "$output_mode" == "files" ]]; then
+  printf '%s\n' "$lane_files"
+else
+  printf '%s\n' "$lane_files" | awk -F '\t' '!seen[$1]++ { print $1 }'
 fi

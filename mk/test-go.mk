@@ -40,7 +40,7 @@
 # Banner macro: includers that define $(print_title) (root) get it; otherwise
 # fall back to $(title1) from mk/utils.mk. Both are no-op-safe @echo wrappers.
 ifndef print_title
-print_title = $(call title1,$(1))
+print_title = $(call border,📝 $(1))
 endif
 
 # A single, space-preserving literal — used to keep an optional flag token from
@@ -105,6 +105,7 @@ INTEG_TEST_ENV ?=
 INTEG_PACKAGE_PATTERNS ?= ./components/... ./pkg/... ./tests/...
 SELECTED_TEST_LISTER ?= $(MIDAZ_ROOT)/scripts/list-selected-go-tests.sh
 TAGGED_TEST_FUNCTION_LISTER ?= $(MIDAZ_ROOT)/scripts/list-tagged-test-functions.sh
+GO_TEST_EVENT_VERIFIER ?= $(MIDAZ_ROOT)/scripts/verify-selected-go-test-events.sh
 GO_COVERPROFILE_MERGER ?= $(MIDAZ_ROOT)/scripts/merge-go-coverprofiles.sh
 
 #-------------------------------------------------------
@@ -214,18 +215,10 @@ define integ_list
 	    run_suffix="/$${requested_pattern#*/}"; \
 	  fi; \
 	  if [ -z "$$top_level_pattern" ]; then top_level_pattern="."; fi; \
-	  run_matches=$$("$(SELECTED_TEST_LISTER)" "$(_INTEG_TAGS)" "$$top_level_pattern" $$pkgs); \
-	  selection_dir=$$(mktemp -d); \
-	  printf '%s\n' "$$tagged_tests" > "$$selection_dir/tagged"; \
-	  printf '%s\n' "$$run_matches" > "$$selection_dir/run-matches"; \
-	  selected_tests=$$(grep -Fxf "$$selection_dir/tagged" "$$selection_dir/run-matches") \
-	    && selection_status=0 || selection_status=$$?; \
-	  rm -rf "$$selection_dir"; \
-	  if [ $$selection_status -gt 1 ]; then exit $$selection_status; fi; \
-	  if [ $$selection_status -eq 1 ]; then \
-	    echo "[error] RUN=$(RUN) matched zero build-tag-selected integration tests" >&2; exit 1; \
-	  fi; \
+	  selected_tests=$$(printf '%s\n' "$$tagged_tests" \
+	    | "$(SELECTED_TEST_LISTER)" "$$top_level_pattern"); \
 	fi; \
+	pkgs=$$(printf '%s\n' "$$selected_tests" | awk '!seen[$$1]++ { print $$1 }'); \
 	selected_test_count=$$(printf '%s\n' "$$selected_tests" | awk 'NF { count++ } END { print count + 0 }')
 endef
 
@@ -257,7 +250,13 @@ test-integration:
 	  fi; \
 	  $(integ_chaos_notice); \
 	  if [ -n "$(GOTESTSUM)" ]; then echo "Running testcontainers integration tests with gotestsum"; fi; \
+	  events_dir=""; package_index=0; \
+	  if [ -n "$$run_suffix" ]; then \
+	    events_dir=$$(mktemp -d "$(TEST_REPORTS_DIR)/integration-events.XXXXXX"); \
+	    trap 'rm -rf "$$events_dir"' EXIT; \
+	  fi; \
 	  for pkg in $$pkgs; do \
+	    package_index=$$((package_index + 1)); \
 	    package_test_names=$$(printf '%s\n' "$$selected_tests" \
 	      | awk -v package="$$pkg" '$$1 == package { print $$2 }'); \
 	    if [ -z "$$package_test_names" ]; then \
@@ -266,25 +265,40 @@ test-integration:
 	    test_alternation=$$(printf '%s\n' "$$package_test_names" | paste -sd'|' -); \
 	    test_anchor='$$'; \
 	    exact_pattern="^($$test_alternation)$${test_anchor}$${run_suffix}"; \
+	    events_file=""; gotestsum_event_flag=""; \
+	    if [ -n "$$run_suffix" ]; then \
+	      events_file="$$events_dir/$$package_index.json"; \
+	      gotestsum_event_flag="--jsonfile=$$events_file"; \
+	    fi; \
 	    echo "Running $$pkg ($$(printf '%s\n' "$$package_test_names" | awk 'NF { count++ } END { print count + 0 }') tests)"; \
 	    if [ -n "$(GOTESTSUM)" ]; then \
-	      $(INTEG_TEST_ENV)gotestsum --format testname -- \
+	      $(INTEG_TEST_ENV)gotestsum $$gotestsum_event_flag --format testname -- \
 	        -tags=$(_INTEG_TAGS) -v $(LOW_RES_RACE_FLAG) -count=1 -timeout 600s $(GO_TEST_LDFLAGS) \
 	        -p 1 $(LOW_RES_PARALLEL_FLAG) -run "$$exact_pattern" "$$pkg" || { \
 	        if [ "$(RETRY_ON_FAIL)" = "1" ]; then \
 	          echo "Retrying $$pkg once..."; \
-	          $(INTEG_TEST_ENV)gotestsum --format testname -- \
+	          $(INTEG_TEST_ENV)gotestsum $$gotestsum_event_flag --format testname -- \
 	            -tags=$(_INTEG_TAGS) -v $(LOW_RES_RACE_FLAG) -count=1 -timeout 600s $(GO_TEST_LDFLAGS) \
 	            -p 1 $(LOW_RES_PARALLEL_FLAG) -run "$$exact_pattern" "$$pkg"; \
 	        else \
 	          exit 1; \
 	        fi; \
 	      }; \
+	    elif [ -n "$$events_file" ]; then \
+	      if ! $(INTEG_TEST_ENV)go test -json -tags=$(_INTEG_TAGS) -v $(LOW_RES_RACE_FLAG) -count=1 -timeout 600s $(GO_TEST_LDFLAGS) \
+	        -p 1 $(LOW_RES_PARALLEL_FLAG) -run "$$exact_pattern" "$$pkg" > "$$events_file"; then \
+	        cat "$$events_file"; exit 1; \
+	      fi; \
+	      cat "$$events_file"; \
 	    else \
 	      $(INTEG_TEST_ENV)go test -tags=$(_INTEG_TAGS) -v $(LOW_RES_RACE_FLAG) -count=1 -timeout 600s $(GO_TEST_LDFLAGS) \
 	        -p 1 $(LOW_RES_PARALLEL_FLAG) -run "$$exact_pattern" "$$pkg"; \
 	    fi; \
+	    if [ -n "$$events_file" ]; then \
+	      "$(GO_TEST_EVENT_VERIFIER)" "$$exact_pattern" < "$$events_file"; \
+	    fi; \
 	  done; \
+	  if [ -n "$$events_dir" ]; then rm -rf "$$events_dir"; trap - EXIT; fi; \
 	fi
 
 .PHONY: list-integration-tests
@@ -337,15 +351,20 @@ coverage-integration:
 	    test_alternation=$$(printf '%s\n' "$$package_test_names" | paste -sd'|' -); \
 	    test_anchor='$$'; \
 	    exact_pattern="^($$test_alternation)$${test_anchor}$${run_suffix}"; \
+	    events_file=""; gotestsum_event_flag=""; \
+	    if [ -n "$$run_suffix" ]; then \
+	      events_file="$$coverage_dir/$$package_index.json"; \
+	      gotestsum_event_flag="--jsonfile=$$events_file"; \
+	    fi; \
 	    echo "Running $$pkg ($$(printf '%s\n' "$$package_test_names" | awk 'NF { count++ } END { print count + 0 }') tests)"; \
 	    if [ -n "$(GOTESTSUM)" ]; then \
-	      $(INTEG_TEST_ENV)gotestsum --format testname -- \
+	      $(INTEG_TEST_ENV)gotestsum $$gotestsum_event_flag --format testname -- \
 	        -tags=$(_INTEG_TAGS) -v $(LOW_RES_RACE_FLAG) -count=1 -timeout 600s $(GO_TEST_LDFLAGS) \
 	        -p 1 $(LOW_RES_PARALLEL_FLAG) -run "$$exact_pattern" \
 	        -covermode=atomic -coverprofile="$$package_profile" "$$pkg" || { \
 	        if [ "$(RETRY_ON_FAIL)" = "1" ]; then \
 	          echo "Retrying $$pkg once..."; \
-	          $(INTEG_TEST_ENV)gotestsum --format testname -- \
+	          $(INTEG_TEST_ENV)gotestsum $$gotestsum_event_flag --format testname -- \
 	            -tags=$(_INTEG_TAGS) -v $(LOW_RES_RACE_FLAG) -count=1 -timeout 600s $(GO_TEST_LDFLAGS) \
 	            -p 1 $(LOW_RES_PARALLEL_FLAG) -run "$$exact_pattern" \
 	            -covermode=atomic -coverprofile="$$package_profile" "$$pkg"; \
@@ -353,10 +372,20 @@ coverage-integration:
 	          exit 1; \
 	        fi; \
 	      }; \
+	    elif [ -n "$$events_file" ]; then \
+	      if ! $(INTEG_TEST_ENV)go test -json -tags=$(_INTEG_TAGS) -v $(LOW_RES_RACE_FLAG) -count=1 -timeout 600s $(GO_TEST_LDFLAGS) \
+	        -p 1 $(LOW_RES_PARALLEL_FLAG) -run "$$exact_pattern" \
+	        -covermode=atomic -coverprofile="$$package_profile" "$$pkg" > "$$events_file"; then \
+	        cat "$$events_file"; exit 1; \
+	      fi; \
+	      cat "$$events_file"; \
 	    else \
 	      $(INTEG_TEST_ENV)go test -tags=$(_INTEG_TAGS) -v $(LOW_RES_RACE_FLAG) -count=1 -timeout 600s $(GO_TEST_LDFLAGS) \
 	        -p 1 $(LOW_RES_PARALLEL_FLAG) -run "$$exact_pattern" \
 	        -covermode=atomic -coverprofile="$$package_profile" "$$pkg"; \
+	    fi; \
+	    if [ -n "$$events_file" ]; then \
+	      "$(GO_TEST_EVENT_VERIFIER)" "$$exact_pattern" < "$$events_file"; \
 	    fi; \
 	  done; \
 	  "$(GO_COVERPROFILE_MERGER)" "$(TEST_REPORTS_DIR)/integration_coverage.out" $$coverage_profiles; \

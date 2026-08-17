@@ -10,6 +10,7 @@ repo_root=$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)
 discover="$repo_root/scripts/discover-tagged-test-packages.sh"
 list_tests="$repo_root/scripts/list-selected-go-tests.sh"
 list_tagged_functions="$repo_root/scripts/list-tagged-test-functions.sh"
+verify_events="$repo_root/scripts/verify-selected-go-test-events.sh"
 merge_coverprofiles="$repo_root/scripts/merge-go-coverprofiles.sh"
 
 fail() {
@@ -36,9 +37,10 @@ assert_not_contains() {
 [[ -x "$discover" ]] || fail "tagged-package discovery helper is missing or not executable"
 [[ -x "$list_tests" ]] || fail "selected-test listing helper is missing or not executable"
 [[ -x "$list_tagged_functions" ]] || fail "tagged test-function listing helper is missing or not executable"
+[[ -x "$verify_events" ]] || fail "selected-test event verifier is missing or not executable"
 [[ -x "$merge_coverprofiles" ]] || fail "Go coverprofile merge helper is missing or not executable"
 
-for portable_script in "$discover" "$list_tests" "$list_tagged_functions" "$merge_coverprofiles"; do
+for portable_script in "$discover" "$list_tests" "$list_tagged_functions" "$verify_events" "$merge_coverprofiles"; do
   if grep -Fq 'declare -A' "$portable_script"; then
     fail "helper requires associative arrays unavailable in macOS Bash 3.2: ${portable_script#"$repo_root/"}"
   fi
@@ -53,12 +55,18 @@ assert_contains "$default_root_recipe" "./components/... ./pkg/... ./tests/..." 
 
 filtered_root_recipe=$(make -s -C "$repo_root" -n test-integration RUN=TestDifferentName)
 assert_contains "$filtered_root_recipe" 'requested_pattern="TestDifferentName"' "root explicit RUN intersection"
-assert_contains "$filtered_root_recipe" '"integration" "$top_level_pattern"' "root explicit RUN intersection"
+assert_contains "$filtered_root_recipe" 'printf '\''%s\n'\'' "$tagged_tests" | "' "root static RUN intersection"
+assert_contains "$filtered_root_recipe" 'pkgs=$(printf '\''%s\n'\'' "$selected_tests"' "root RUN package recalculation"
 assert_contains "$filtered_root_recipe" '-run "$exact_pattern"' "root exact tagged-test filter"
 
 subtest_root_recipe=$(make -s -C "$repo_root" -n test-integration RUN=TestDifferentName/subcase)
 assert_contains "$subtest_root_recipe" 'run_suffix="/${requested_pattern#*/}"' "root explicit subtest RUN suffix"
 assert_contains "$subtest_root_recipe" 'exact_pattern="^($test_alternation)${test_anchor}${run_suffix}"' "root exact subtest filter"
+assert_contains "$subtest_root_recipe" 'verify-selected-go-test-events.sh' "root subtest execution verification"
+
+subtest_coverage_recipe=$(make -s -C "$repo_root" -n coverage-integration RUN=TestDifferentName/subcase)
+assert_contains "$subtest_coverage_recipe" 'pkgs=$(printf '\''%s\n'\'' "$selected_tests"' "coverage RUN package recalculation"
+assert_contains "$subtest_coverage_recipe" 'verify-selected-go-test-events.sh' "coverage subtest execution verification"
 
 default_tracer_recipe=$(make -s -C "$repo_root/components/tracer" -n test-integration)
 assert_not_contains "$default_tracer_recipe" "-run '^TestIntegration'" "tracer default integration recipe"
@@ -67,8 +75,14 @@ assert_not_contains "$default_tracer_recipe" "./components/..." "tracer integrat
 
 filtered_tracer_recipe=$(make -s -C "$repo_root/components/tracer" -n test-integration RUN=TestDifferentName)
 assert_contains "$filtered_tracer_recipe" 'requested_pattern="TestDifferentName"' "tracer explicit RUN intersection"
-assert_contains "$filtered_tracer_recipe" '"integration,testhooks" "$top_level_pattern"' "tracer explicit RUN intersection"
+assert_contains "$filtered_tracer_recipe" 'printf '\''%s\n'\'' "$tagged_tests" | "' "tracer static RUN intersection"
+assert_contains "$filtered_tracer_recipe" 'pkgs=$(printf '\''%s\n'\'' "$selected_tests"' "tracer RUN package recalculation"
 assert_contains "$filtered_tracer_recipe" '-run "$exact_pattern"' "tracer exact tagged-test filter"
+
+tracer_coverage_recipe=$(make -s -C "$repo_root/components/tracer" -n coverage-integration RUN=TestDifferentName/subcase)
+if ! printf '%s\n' "$tracer_coverage_recipe" | /bin/sh -n; then
+  fail "tracer coverage integration recipe is not valid POSIX shell"
+fi
 
 property_recipe=$(make -s -C "$repo_root" -n test-property)
 assert_contains "$property_recipe" "./components/... ./pkg/... ./tests/..." "property scope"
@@ -90,7 +104,16 @@ done < <(find "$repo_root/components" "$repo_root/pkg" "$repo_root/tests" \
 fixture=$(mktemp -d)
 trap 'rm -rf "$fixture"' EXIT
 
-mkdir -p "$fixture/selected" "$fixture/negated" "$fixture/empty" "$fixture/ordinary"
+mkdir -p \
+  "$fixture/selected" \
+  "$fixture/other" \
+  "$fixture/compound" \
+  "$fixture/negated" \
+  "$fixture/tautology" \
+  "$fixture/testhooks_only" \
+  "$fixture/empty" \
+  "$fixture/ordinary" \
+  "$fixture/bin"
 
 cat >"$fixture/go.mod" <<'EOF'
 module example.com/gates
@@ -98,7 +121,7 @@ module example.com/gates
 go 1.26
 EOF
 
-for package_name in selected negated empty ordinary; do
+for package_name in selected other compound negated tautology testhooks_only empty ordinary; do
   cat >"$fixture/$package_name/package.go" <<EOF
 package $package_name
 EOF
@@ -109,9 +132,23 @@ cat >"$fixture/selected/tagged_test.go" <<'EOF'
 
 package selected
 
-import "testing"
+import (
+  "os"
+  "os/exec"
+  "testing"
+)
 
-func TestDifferentName(t *testing.T) {}
+func TestMain(m *testing.M) {
+  if sentinel := os.Getenv("TESTMAIN_SENTINEL"); sentinel != "" {
+    _ = os.WriteFile(sentinel, []byte("executed"), 0o600)
+  }
+  _ = exec.Command("docker", "version").Run()
+  os.Exit(m.Run())
+}
+
+func TestDifferentName(t *testing.T) {
+  t.Run("present", func(t *testing.T) {})
+}
 EOF
 
 cat >"$fixture/selected/ordinary_test.go" <<'EOF'
@@ -122,6 +159,26 @@ import "testing"
 func TestOrdinary(t *testing.T) {}
 EOF
 
+cat >"$fixture/other/tagged_test.go" <<'EOF'
+//go:build integration
+
+package other
+
+import "testing"
+
+func TestOther(t *testing.T) {}
+EOF
+
+cat >"$fixture/compound/tagged_test.go" <<'EOF'
+//go:build integration && linux
+
+package compound
+
+import "testing"
+
+func TestCompound(t *testing.T) {}
+EOF
+
 cat >"$fixture/negated/negated_test.go" <<'EOF'
 //go:build !integration
 
@@ -130,6 +187,26 @@ package negated
 import "testing"
 
 func TestExcluded(t *testing.T) {}
+EOF
+
+cat >"$fixture/tautology/tagged_test.go" <<'EOF'
+//go:build integration || !integration
+
+package tautology
+
+import "testing"
+
+func TestNotOwnedByIntegration(t *testing.T) {}
+EOF
+
+cat >"$fixture/testhooks_only/tagged_test.go" <<'EOF'
+//go:build integration || testhooks
+
+package testhooks_only
+
+import "testing"
+
+func TestOwnedByTesthooks(t *testing.T) {}
 EOF
 
 cat >"$fixture/empty/tagged_test.go" <<'EOF'
@@ -148,13 +225,33 @@ import "testing"
 func TestOrdinary(t *testing.T) {}
 EOF
 
+cat >"$fixture/bin/docker" <<'EOF'
+#!/usr/bin/env bash
+set -euo pipefail
+: >"$DOCKER_SENTINEL"
+EOF
+chmod +x "$fixture/bin/docker"
+
 selected_packages=$(cd "$fixture" && "$discover" integration integration ./selected)
 assert_contains "$selected_packages" "example.com/gates/selected" "compound integration build tag"
+
+compound_packages=$(cd "$fixture" && "$discover" integration integration ./compound)
+assert_contains "$compound_packages" "example.com/gates/compound" "conjunctive integration build tag"
 
 if (cd "$fixture" && "$discover" integration integration ./negated >negated.out 2>negated.err); then
   fail "a negated integration tag was discovered as selected"
 fi
 assert_contains "$(cat "$fixture/negated.err")" "no Go packages contain tests selected by build tag \"integration\"" "negated tag diagnostic"
+
+if (cd "$fixture" && "$discover" integration integration ./tautology >tautology.out 2>tautology.err); then
+  fail "a constraint true with and without integration was assigned to integration"
+fi
+assert_contains "$(cat "$fixture/tautology.err")" "no Go packages contain tests selected by build tag \"integration\"" "tautological constraint diagnostic"
+
+if (cd "$fixture" && "$discover" integration integration,testhooks ./testhooks_only >testhooks.out 2>testhooks.err); then
+  fail "a testhooks-selected file was assigned to integration"
+fi
+assert_contains "$(cat "$fixture/testhooks.err")" "no Go packages contain tests selected by build tag \"integration\"" "compound alternate-tag diagnostic"
 
 if (cd "$fixture" && "$discover" integration integration ./ordinary >ordinary.out 2>ordinary.err); then
   fail "an untagged package was discovered as integration"
@@ -166,28 +263,47 @@ if (cd "$fixture" && "$discover" integration integration ./missing >missing.out 
 fi
 [[ -s "$fixture/missing.err" ]] || fail "go list failure produced no stderr diagnostic"
 
-all_selected_tests=$(cd "$fixture" && "$list_tests" integration . example.com/gates/selected)
-assert_contains "$all_selected_tests" "example.com/gates/selected TestDifferentName" "tagged integration test listing"
-assert_contains "$all_selected_tests" "example.com/gates/selected TestOrdinary" "co-located ordinary test listing"
-
-tagged_functions=$(cd "$fixture" && "$list_tagged_functions" integration integration ./selected)
+tagged_functions=$(cd "$fixture" && "$list_tagged_functions" integration integration ./selected ./other)
 assert_contains "$tagged_functions" "example.com/gates/selected TestDifferentName" "tag-selected test function listing"
+assert_contains "$tagged_functions" "example.com/gates/other TestOther" "second tag-selected package listing"
 assert_not_contains "$tagged_functions" "TestOrdinary" "tag-selected test function listing"
 
-filtered_tests=$(cd "$fixture" && "$list_tests" integration TestDifferentName example.com/gates/selected)
+testmain_sentinel="$fixture/testmain.executed"
+docker_sentinel="$fixture/docker.executed"
+filtered_tests=$(cd "$fixture" && \
+  printf '%s\n' "$tagged_functions" \
+    | PATH="$fixture/bin:$PATH" TESTMAIN_SENTINEL="$testmain_sentinel" DOCKER_SENTINEL="$docker_sentinel" \
+      "$list_tests" TestDifferentName)
 assert_contains "$filtered_tests" "example.com/gates/selected TestDifferentName" "explicit RUN listing"
-assert_not_contains "$filtered_tests" "TestOrdinary" "explicit RUN listing"
+assert_not_contains "$filtered_tests" "example.com/gates/other" "explicit RUN package narrowing"
+[[ ! -e "$testmain_sentinel" ]] || fail "static RUN selection executed TestMain"
+[[ ! -e "$docker_sentinel" ]] || fail "static RUN selection executed Docker"
 
-if (cd "$fixture" && "$list_tests" integration DoesNotExist example.com/gates/selected >run.out 2>run.err); then
+if (cd "$fixture" && printf '%s\n' "$tagged_functions" | "$list_tests" DoesNotExist >run.out 2>run.err); then
   fail "an explicit RUN matching zero tests passed"
 fi
 assert_contains "$(cat "$fixture/run.err")" "selected zero runnable tests" "zero-test RUN diagnostic"
 
-empty_packages=$(cd "$fixture" && "$discover" integration integration ./empty)
-if (cd "$fixture" && "$list_tests" integration . $empty_packages >empty.out 2>empty.err); then
+if (cd "$fixture" && "$list_tagged_functions" integration integration ./empty >empty.out 2>empty.err); then
   fail "a tagged package containing zero runnable tests passed"
 fi
-assert_contains "$(cat "$fixture/empty.err")" "selected zero runnable tests" "zero-test package diagnostic"
+assert_contains "$(cat "$fixture/empty.err")" "selected zero top-level Test functions" "zero-test package diagnostic"
+
+(cd "$fixture" && \
+  PATH="$fixture/bin:$PATH" TESTMAIN_SENTINEL="$testmain_sentinel" DOCKER_SENTINEL="$docker_sentinel" \
+    go test -tags=integration -json -run '^TestDifferentName$/missing' ./selected) \
+    >"$fixture/missing-subtest.json"
+if "$verify_events" '^TestDifferentName$/missing' <"$fixture/missing-subtest.json" \
+  >"$fixture/missing-subtest.out" 2>"$fixture/missing-subtest.err"; then
+  fail "a RUN matching no started subtest passed"
+fi
+assert_contains "$(cat "$fixture/missing-subtest.err")" "started zero tests matching" "zero-subtest RUN diagnostic"
+
+(cd "$fixture" && \
+  PATH="$fixture/bin:$PATH" TESTMAIN_SENTINEL="$testmain_sentinel" DOCKER_SENTINEL="$docker_sentinel" \
+    go test -tags=integration -json -run '^TestDifferentName$/present' ./selected) \
+    >"$fixture/present-subtest.json"
+"$verify_events" '^TestDifferentName$/present' <"$fixture/present-subtest.json"
 
 cat >"$fixture/first.cover" <<'EOF'
 mode: atomic

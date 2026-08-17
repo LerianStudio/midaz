@@ -7,10 +7,10 @@
 set -euo pipefail
 
 if (( $# != 1 )); then
-  echo "usage: $0 <run-pattern> < tagged-test-inventory" >&2
+  echo "usage: $0 <run-pattern> < go-test-json-events" >&2
   exit 2
 fi
 
 script_dir=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 GOFLAGS="-buildvcs=false ${GOFLAGS:-}" \
-  go run "$script_dir/test_selection/main.go" filter-tests "$1"
+  go run "$script_dir/test_selection/main.go" verify-events "$1"
