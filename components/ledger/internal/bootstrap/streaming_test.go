@@ -81,11 +81,11 @@ func TestBuildRoutes_BalanceChangedTopic(t *testing.T) {
 	assert.Equal(t, "ledger.balance.changed", dest)
 }
 
-// TestBuildRoutes_HyphenatedTopics pins the wire topic names for the ledger
+// TestBuildRoutes_UnderscoreTopics pins the wire topic names for the ledger
 // event keys whose <resource> or <event> segment carries an underscore — the
 // keys where the underscore-canonical DefinitionKey mapping onto the topic name
-// (while the route Key / ce-type stay hyphenated) is easiest to get wrong.
-func TestBuildRoutes_HyphenatedTopics(t *testing.T) {
+// (while only the route Key folds to hyphens) is easiest to get wrong.
+func TestBuildRoutes_UnderscoreTopics(t *testing.T) {
 	t.Parallel()
 
 	want := map[string]string{
