@@ -323,13 +323,15 @@ func (uc *UseCase) convertFeeToMongoFormat(fee model.Fee) (pack.Fee, error) {
 	}
 
 	return pack.Fee{
-		FeeLabel:         fee.FeeLabel,
-		CalculationModel: calcModel,
-		ReferenceAmount:  fee.ReferenceAmount,
-		Priority:         fee.Priority,
-		IsDeductibleFrom: fee.IsDeductibleFrom,
-		CreditAccount:    fee.CreditAccount,
-		RouteFrom:        fee.RouteFrom,
-		RouteTo:          fee.RouteTo,
+		FeeLabel:             fee.FeeLabel,
+		CalculationModel:     calcModel,
+		ReferenceAmount:      fee.ReferenceAmount,
+		Priority:             fee.Priority,
+		IsDeductibleFrom:     fee.IsDeductibleFrom,
+		CreditAccount:        fee.CreditAccount,
+		RouteFrom:            fee.RouteFrom,
+		RouteTo:              fee.RouteTo,
+		OperationRouteFromID: fee.OperationRouteFromID,
+		OperationRouteToID:   fee.OperationRouteToID,
 	}, nil
 }

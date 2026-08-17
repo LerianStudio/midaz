@@ -1814,7 +1814,7 @@ func TestUpdatedAmountsFromFee(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result := updatedAmountsFromFee(tt.amounts)
+			result := updatedAmountsFromFee(tt.amounts, nil)
 			assert.Len(t, result, tt.expected)
 
 			if tt.expected > 0 {

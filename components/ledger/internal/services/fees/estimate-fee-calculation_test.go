@@ -19,6 +19,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"go.mongodb.org/mongo-driver/v2/mongo"
 	"go.uber.org/mock/gomock"
 )
@@ -334,6 +335,10 @@ func TestEstimateFeeCalculation_PreservesDuplicateRemainingLegs(t *testing.T) {
 	ledgerID := uuid.New()
 	packID := uuid.New()
 	deductible := false
+	operationRouteFromID := uuid.NewString()
+	operationRouteToID := uuid.NewString()
+	legacyRouteFrom := "estimate-debit"
+	legacyRouteTo := "estimate-credit"
 
 	feePackage := &pack.Package{
 		ID:            packID,
@@ -345,10 +350,14 @@ func TestEstimateFeeCalculation_PreservesDuplicateRemainingLegs(t *testing.T) {
 					ApplicationRule: "flatFee",
 					Calculations:    []model.Calculation{{Type: "flat", Value: "10"}},
 				},
-				ReferenceAmount:  "originalAmount",
-				Priority:         1,
-				IsDeductibleFrom: &deductible,
-				CreditAccount:    "@fee_account",
+				ReferenceAmount:      "originalAmount",
+				Priority:             1,
+				IsDeductibleFrom:     &deductible,
+				CreditAccount:        "@fee_account",
+				RouteFrom:            &legacyRouteFrom,
+				RouteTo:              &legacyRouteTo,
+				OperationRouteFromID: &operationRouteFromID,
+				OperationRouteToID:   &operationRouteToID,
 			},
 		},
 		WaivedAccounts: &[]string{},
@@ -394,6 +403,16 @@ func TestEstimateFeeCalculation_PreservesDuplicateRemainingLegs(t *testing.T) {
 	assert.Empty(t, result.Transaction.Send.Source.From[1].Remaining)
 	if assert.NotNil(t, result.Transaction.Send.Source.From[1].Amount) {
 		assert.True(t, decimal.NewFromInt(40).Equal(result.Transaction.Send.Source.From[1].Amount.Value))
+	}
+	for _, feeLeg := range result.Transaction.Send.Source.From[2:] {
+		assert.Equal(t, legacyRouteFrom, feeLeg.Route)
+		require.NotNil(t, feeLeg.RouteID)
+		assert.Equal(t, operationRouteFromID, *feeLeg.RouteID)
+	}
+	for _, feeLeg := range result.Transaction.Send.Distribute.To[1:] {
+		assert.Equal(t, legacyRouteTo, feeLeg.Route)
+		require.NotNil(t, feeLeg.RouteID)
+		assert.Equal(t, operationRouteToID, *feeLeg.RouteID)
 	}
 }
 

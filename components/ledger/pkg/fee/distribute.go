@@ -21,6 +21,34 @@ import (
 	transaction "github.com/LerianStudio/midaz/v4/pkg/mtransaction"
 )
 
+type feeLegRoutes struct {
+	from map[string]string
+	to   map[string]string
+}
+
+func newFeeLegRoutes(resp *transaction.Responses) *feeLegRoutes {
+	if resp.OperationRoutesFrom == nil {
+		resp.OperationRoutesFrom = make(map[string]string)
+	}
+
+	if resp.OperationRoutesTo == nil {
+		resp.OperationRoutesTo = make(map[string]string)
+	}
+
+	return &feeLegRoutes{
+		from: resp.OperationRoutesFrom,
+		to:   resp.OperationRoutesTo,
+	}
+}
+
+func registerFeeLegRoute(routes map[string]string, key string, routeID *string) {
+	if routeID == nil || *routeID == "" {
+		return
+	}
+
+	routes[key] = *routeID
+}
+
 // applyDeductibleAndReferenceAmountRules applies the deductible and reference amount rules for a fee.
 // When segmentIDs is non-empty and segCtx is non-nil, segment-based exemption is used instead of exact alias matching.
 //
@@ -29,7 +57,7 @@ import (
 // the deductible fee is skipped entirely — the transaction initiator's exemption status determines
 // whether the fee is triggered.
 func applyDeductibleAndReferenceAmountRules(_ libLog.Logger, feeIndex int, waivedAccounts *[]string, segmentIDs []uuid.UUID, segCtx *SegmentContext, feeModel model.Fee,
-	resp *transaction.Responses, result transaction.Amount, f *model.FeeCalculate,
+	resp *transaction.Responses, result transaction.Amount, f *model.FeeCalculate, routes *feeLegRoutes,
 ) error {
 	originalRespToSize := len(resp.To)
 
@@ -60,7 +88,7 @@ func applyDeductibleAndReferenceAmountRules(_ libLog.Logger, feeIndex int, waive
 
 		var errFee error
 
-		resp.From, resp.To, errFee = applyProportionalFee(feeModel, feeIndex, &resp.From, resp.To, result, waivedAccounts, segmentIDs, segCtx, false)
+		resp.From, resp.To, errFee = applyProportionalFee(feeModel, feeIndex, &resp.From, resp.To, result, waivedAccounts, segmentIDs, segCtx, false, routes)
 		if errFee != nil {
 			return errFee
 		}
@@ -95,7 +123,7 @@ func applyDeductibleAndReferenceAmountRules(_ libLog.Logger, feeIndex int, waive
 
 		var errFee error
 
-		resp.To, _, errFee = applyProportionalFee(feeModel, feeIndex, &resp.To, nil, result, waivedAccounts, segmentIDs, segCtx, true)
+		resp.To, _, errFee = applyProportionalFee(feeModel, feeIndex, &resp.To, nil, result, waivedAccounts, segmentIDs, segCtx, true, routes)
 		if errFee != nil {
 			return errFee
 		}
@@ -156,7 +184,7 @@ func setFeeExemptionMetadata(f *model.FeeCalculate, reason string) {
 }
 
 // updatedAmountsFromFee updates the amounts from the fee
-func updatedAmountsFromFee(amounts map[string]transaction.Amount) []transaction.FromTo {
+func updatedAmountsFromFee(amounts map[string]transaction.Amount, operationRoutes map[string]string) []transaction.FromTo {
 	newFromTo := make([]transaction.FromTo, 0, len(amounts))
 
 	for account, amount := range amounts {
@@ -184,11 +212,10 @@ func updatedAmountsFromFee(amounts map[string]transaction.Amount) []transaction.
 
 		if route != "" {
 			fromTo.Route = route //nolint:staticcheck // legacy field kept for backward compatibility; RouteID is canonical
+		}
 
-			if _, err := uuid.Parse(route); err == nil {
-				routeID := route
-				fromTo.RouteID = &routeID
-			}
+		if routeID, ok := operationRoutes[account]; ok && routeID != "" {
+			fromTo.RouteID = &routeID
 		}
 
 		newFromTo = append(newFromTo, fromTo)
@@ -202,7 +229,7 @@ func updatedAmountsFromFee(amounts map[string]transaction.Amount) []transaction.
 // position-qualified key to distinguish duplicate aliases; that key never escapes into the
 // transaction payload. Fee-created legs are appended afterwards using the existing conversion
 // rules, with any embedded synthetic payer identity restored to its authored alias.
-func materializeAmountsAfterFee(original []transaction.FromTo, amounts map[string]transaction.Amount) ([]transaction.FromTo, error) {
+func materializeAmountsAfterFee(original []transaction.FromTo, amounts map[string]transaction.Amount, operationRoutes map[string]string) ([]transaction.FromTo, error) {
 	materialized := make([]transaction.FromTo, 0, len(amounts))
 	consumed := make(map[string]struct{}, len(original))
 
@@ -245,7 +272,7 @@ func materializeAmountsAfterFee(original []transaction.FromTo, amounts map[strin
 	})
 
 	for _, key := range feeKeys {
-		feeLegs := updatedAmountsFromFee(map[string]transaction.Amount{key: amounts[key]})
+		feeLegs := updatedAmountsFromFee(map[string]transaction.Amount{key: amounts[key]}, operationRoutes)
 		if len(feeLegs) != 1 {
 			continue
 		}
@@ -405,6 +432,7 @@ func calculateProportionalFees(
 	isToStruct bool,
 	maxAccount string,
 	target *feeCorrectionTarget,
+	routes *feeLegRoutes,
 ) (map[string]transaction.Amount, map[string]transaction.Amount, decimal.Decimal, error) {
 	updateAmount := make(map[string]transaction.Amount)
 	updateAmountToStruct := amountsToStruct
@@ -472,9 +500,9 @@ func calculateProportionalFees(
 						pkg.ValidateBusinessError(constant.ErrDeductibleFeeExceedsAmount, "")
 				}
 
-				amount = emitDeductibleLeg(feeModel, feeIndex, key, amount, resultAmount, exemptAccounts, updateAmount, maxAccount, target)
+				amount = emitDeductibleLeg(feeModel, feeIndex, key, amount, resultAmount, exemptAccounts, updateAmount, maxAccount, target, routes)
 			} else {
-				updateAmountToStruct = emitNonDeductibleLeg(feeModel, feeIndex, key, resultAmount, exemptAccounts, updateAmount, updateAmountToStruct, maxAccount, target)
+				updateAmountToStruct = emitNonDeductibleLeg(feeModel, feeIndex, key, resultAmount, exemptAccounts, updateAmount, updateAmountToStruct, maxAccount, target, routes)
 			}
 
 			newFeeTotalPaying = newFeeTotalPaying.Add(feeApplied)
@@ -499,9 +527,11 @@ func emitDeductibleLeg(
 	updateAmount map[string]transaction.Amount,
 	maxAccount string,
 	target *feeCorrectionTarget,
+	routes *feeLegRoutes,
 ) transaction.Amount {
 	legKey := feeModel.CreditAccount + "->fee_source" + strconv.Itoa(feeIndex) + "->" + key + "->" + feeModel.GetRouteTo()
 	updateAmount[legKey] = resultAmount
+	registerFeeLegRoute(routes.to, legKey, feeModel.OperationRouteToID)
 	amount.Value = amount.Value.Sub(resultAmount.Value)
 
 	*exemptAccounts = append(*exemptAccounts, legKey)
@@ -528,18 +558,21 @@ func emitNonDeductibleLeg(
 	updateAmount, updateAmountToStruct map[string]transaction.Amount,
 	maxAccount string,
 	target *feeCorrectionTarget,
+	routes *feeLegRoutes,
 ) map[string]transaction.Amount {
 	feeKey := key + "->fee" + strconv.Itoa(feeIndex)
 	debitLegKey := feeKey + "->" + feeModel.GetRouteFrom()
 	feeSourceKey := feeModel.CreditAccount + "->fee_source" + strconv.Itoa(feeIndex) + "->" + key + "->" + feeModel.GetRouteTo()
 
 	updateAmount[debitLegKey] = resultAmount
+	registerFeeLegRoute(routes.from, debitLegKey, feeModel.OperationRouteFromID)
 
 	if updateAmountToStruct == nil {
 		updateAmountToStruct = make(map[string]transaction.Amount)
 	}
 
 	updateAmountToStruct[feeSourceKey] = resultAmount
+	registerFeeLegRoute(routes.to, feeSourceKey, feeModel.OperationRouteToID)
 
 	*exemptAccounts = append(*exemptAccounts, feeSourceKey)
 	*exemptAccounts = append(*exemptAccounts, debitLegKey)
@@ -638,7 +671,7 @@ func applyFeeCorrection(
 // applyProportionalFee applies the proportional fee
 func applyProportionalFee(feeModel model.Fee, feeIndex int, amounts *map[string]transaction.Amount,
 	amountsToStruct map[string]transaction.Amount, feeValue transaction.Amount, exemptAccounts *[]string,
-	segmentIDs []uuid.UUID, segCtx *SegmentContext, isToStruct bool,
+	segmentIDs []uuid.UUID, segCtx *SegmentContext, isToStruct bool, routes *feeLegRoutes,
 ) (map[string]transaction.Amount, map[string]transaction.Amount, error) {
 	maxAccount, err := findMaxAccount(*amounts, exemptAccounts, segmentIDs, segCtx)
 	if err != nil {
@@ -648,7 +681,7 @@ func applyProportionalFee(feeModel model.Fee, feeIndex int, amounts *map[string]
 	var target feeCorrectionTarget
 
 	updateAmount, updateAmountToStruct, newFeeTotalPaying, err := calculateProportionalFees(
-		feeModel, feeIndex, amounts, amountsToStruct, feeValue, exemptAccounts, segmentIDs, segCtx, isToStruct, maxAccount, &target,
+		feeModel, feeIndex, amounts, amountsToStruct, feeValue, exemptAccounts, segmentIDs, segCtx, isToStruct, maxAccount, &target, routes,
 	)
 	if err != nil {
 		return *amounts, amountsToStruct, err

@@ -51,6 +51,10 @@ func (up *UpdatePackageInput) GetMaximumAmount() string {
 func (up *UpdatePackageInput) ValidateFees() error {
 	for key, fee := range up.Fee {
 		if !fee.ValidateIfFeeIsNil() {
+			if err := fee.validateOperationRouteIDs(key); err != nil {
+				return err
+			}
+
 			if fee.Priority != 0 && fee.ReferenceAmount != "" {
 				if fee.Priority == 1 && fee.ReferenceAmount != OriginalAmount {
 					return pkg.ValidateBusinessError(constant.ErrPriorityOne, "", key)
@@ -204,6 +208,14 @@ func (f *Fee) SetAndValidateHasFieldsToUpdate(ctx context.Context, updateDeducti
 	}
 
 	if updated := f.updateRouteTo(feeKey, upFields); updated {
+		hasValueToUpdate = true
+	}
+
+	if updated := f.updateOperationRouteFromID(feeKey, upFields); updated {
+		hasValueToUpdate = true
+	}
+
+	if updated := f.updateOperationRouteToID(feeKey, upFields); updated {
 		hasValueToUpdate = true
 	}
 
@@ -366,6 +378,26 @@ func (f *Fee) updateRouteFrom(feeKey string, upFields bson.M) bool {
 func (f *Fee) updateRouteTo(feeKey string, upFields bson.M) bool {
 	if !commons.IsNilOrEmpty(f.RouteTo) {
 		upFields["fees."+feeKey+".route_to"] = f.RouteTo
+		return true
+	}
+
+	return false
+}
+
+func (f *Fee) updateOperationRouteFromID(feeKey string, upFields bson.M) bool {
+	if !commons.IsNilOrEmpty(f.OperationRouteFromID) {
+		upFields["fees."+feeKey+".operation_route_from_id"] = f.OperationRouteFromID
+
+		return true
+	}
+
+	return false
+}
+
+func (f *Fee) updateOperationRouteToID(feeKey string, upFields bson.M) bool {
+	if !commons.IsNilOrEmpty(f.OperationRouteToID) {
+		upFields["fees."+feeKey+".operation_route_to_id"] = f.OperationRouteToID
+
 		return true
 	}
 

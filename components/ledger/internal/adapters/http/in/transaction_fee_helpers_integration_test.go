@@ -174,13 +174,17 @@ func (h *feeHarness) seedBalanceWithSegment(t *testing.T, alias, asset string, a
 
 // feeSpec describes one fee inside a seeded package.
 type feeSpec struct {
-	label         string
-	rule          string // "flatFee" | "percentual" | "maxBetweenTypes"
-	calcs         []feemodel.Calculation
-	deductible    bool
-	creditAccount string
-	priority      int
-	referenceAmt  string // defaults to originalAmount
+	label                string
+	rule                 string // "flatFee" | "percentual" | "maxBetweenTypes"
+	calcs                []feemodel.Calculation
+	deductible           bool
+	creditAccount        string
+	priority             int
+	referenceAmt         string // defaults to originalAmount
+	routeFrom            *string
+	routeTo              *string
+	operationRouteFromID *string
+	operationRouteToID   *string
 }
 
 // packageSpec describes a fee package to seed.
@@ -223,10 +227,14 @@ func (h *feeHarness) seedPackage(t *testing.T, spec packageSpec) uuid.UUID {
 				ApplicationRule: f.rule,
 				Calculations:    f.calcs,
 			},
-			ReferenceAmount:  ref,
-			Priority:         priority,
-			IsDeductibleFrom: &ded,
-			CreditAccount:    f.creditAccount,
+			ReferenceAmount:      ref,
+			Priority:             priority,
+			IsDeductibleFrom:     &ded,
+			CreditAccount:        f.creditAccount,
+			RouteFrom:            f.routeFrom,
+			RouteTo:              f.routeTo,
+			OperationRouteFromID: f.operationRouteFromID,
+			OperationRouteToID:   f.operationRouteToID,
 		}
 	}
 
@@ -290,25 +298,26 @@ func maxBetweenFee(label, creditAccount, flatVal, percentVal string, deductible 
 
 // persistedLeg is one row of the Postgres operation table for a transaction.
 type persistedLeg struct {
-	Type   string
-	Alias  string
-	Amount decimal.Decimal
-	Key    string
-	Route  *string
+	Type    string
+	Alias   string
+	Amount  decimal.Decimal
+	Key     string
+	Route   *string
+	RouteID *uuid.UUID
 }
 
 // loadLegs reads all operations persisted for a transaction.
 func loadLegs(t *testing.T, db *sql.DB, txID uuid.UUID) []persistedLeg {
 	t.Helper()
 
-	rows, err := db.Query(`SELECT type, account_alias, amount, balance_key, route FROM operation WHERE transaction_id = $1`, txID)
+	rows, err := db.Query(`SELECT type, account_alias, amount, balance_key, route, route_id FROM operation WHERE transaction_id = $1`, txID)
 	require.NoError(t, err, "query operations")
 	defer func() { _ = rows.Close() }()
 
 	var legs []persistedLeg
 	for rows.Next() {
 		var l persistedLeg
-		require.NoError(t, rows.Scan(&l.Type, &l.Alias, &l.Amount, &l.Key, &l.Route), "scan operation")
+		require.NoError(t, rows.Scan(&l.Type, &l.Alias, &l.Amount, &l.Key, &l.Route, &l.RouteID), "scan operation")
 		legs = append(legs, l)
 	}
 	require.NoError(t, rows.Err(), "operation rows iteration")

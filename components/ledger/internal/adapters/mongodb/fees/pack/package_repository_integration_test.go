@@ -142,6 +142,44 @@ func TestIntegration_PackRepo_Create_PersistsAllFields(t *testing.T) {
 	assert.Equal(t, int64(1), count, "Create must persist exactly one org-tagged document")
 }
 
+func TestIntegration_PackRepo_CreateAndFind_RoundTripsFeeOperationRouteIDs(t *testing.T) {
+	container := mongotestutil.SetupContainer(t)
+	repo := newPackRepository(t, container)
+	ctx := context.Background()
+
+	orgID := uuid.New()
+	pkgEntity := newTestPackage(uuid.New())
+	legacyFrom := uuid.NewString()
+	legacyTo := uuid.NewString()
+	operationFrom := uuid.NewString()
+	operationTo := uuid.NewString()
+	fee := pkgEntity.Fees["adminFee"]
+	fee.RouteFrom = &legacyFrom
+	fee.RouteTo = &legacyTo
+	fee.OperationRouteFromID = &operationFrom
+	fee.OperationRouteToID = &operationTo
+	pkgEntity.Fees["adminFee"] = fee
+
+	created, err := repo.Create(ctx, pkgEntity, orgID)
+	require.NoError(t, err)
+	require.NotNil(t, created)
+
+	found, err := repo.FindByID(ctx, pkgEntity.ID, orgID, uuid.Nil)
+	require.NoError(t, err)
+	roundTrip := found.Fees["adminFee"]
+	assert.Equal(t, legacyFrom, *roundTrip.RouteFrom)
+	assert.Equal(t, legacyTo, *roundTrip.RouteTo)
+	assert.Equal(t, operationFrom, *roundTrip.OperationRouteFromID)
+	assert.Equal(t, operationTo, *roundTrip.OperationRouteToID)
+
+	var stored struct {
+		Fees map[string]Fee `bson:"fees"`
+	}
+	require.NoError(t, packCollection(container).FindOne(ctx, bson.M{"_id": pkgEntity.ID}).Decode(&stored))
+	assert.Equal(t, operationFrom, *stored.Fees["adminFee"].OperationRouteFromID)
+	assert.Equal(t, operationTo, *stored.Fees["adminFee"].OperationRouteToID)
+}
+
 // ============================================================================
 // FindByID Tests
 // ============================================================================

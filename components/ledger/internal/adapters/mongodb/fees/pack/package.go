@@ -43,14 +43,16 @@ type CalculationModel struct {
 
 // Fee represents an individual fee in the fees array
 type Fee struct {
-	FeeLabel         string           `bson:"fee_label"`
-	CalculationModel CalculationModel `bson:"calculation_model"`
-	ReferenceAmount  string           `bson:"reference_amount"`
-	Priority         int              `bson:"priority"`
-	IsDeductibleFrom *bool            `bson:"is_deductible_from"`
-	CreditAccount    string           `bson:"credit_account"`
-	RouteFrom        *string          `bson:"route_from"`
-	RouteTo          *string          `bson:"route_to"`
+	FeeLabel             string           `bson:"fee_label"`
+	CalculationModel     CalculationModel `bson:"calculation_model"`
+	ReferenceAmount      string           `bson:"reference_amount"`
+	Priority             int              `bson:"priority"`
+	IsDeductibleFrom     *bool            `bson:"is_deductible_from"`
+	CreditAccount        string           `bson:"credit_account"`
+	RouteFrom            *string          `bson:"route_from"`
+	RouteTo              *string          `bson:"route_to"`
+	OperationRouteFromID *string          `bson:"operation_route_from_id,omitempty"`
+	OperationRouteToID   *string          `bson:"operation_route_to_id,omitempty"`
 }
 
 // PackageMongoDBModel represents the MongoDB model for a pack
@@ -243,14 +245,16 @@ func ToEntityFeeMap(fees map[string]Fee) map[string]model.Fee {
 		}
 
 		feesModel[key] = model.Fee{
-			FeeLabel:         fee.FeeLabel,
-			CalculationModel: calcModelDB,
-			ReferenceAmount:  fee.ReferenceAmount,
-			Priority:         fee.Priority,
-			IsDeductibleFrom: fee.IsDeductibleFrom,
-			CreditAccount:    fee.CreditAccount,
-			RouteTo:          fee.RouteTo,
-			RouteFrom:        fee.RouteFrom,
+			FeeLabel:             fee.FeeLabel,
+			CalculationModel:     calcModelDB,
+			ReferenceAmount:      fee.ReferenceAmount,
+			Priority:             fee.Priority,
+			IsDeductibleFrom:     fee.IsDeductibleFrom,
+			CreditAccount:        fee.CreditAccount,
+			RouteTo:              fee.RouteTo,
+			RouteFrom:            fee.RouteFrom,
+			OperationRouteFromID: fee.OperationRouteFromID,
+			OperationRouteToID:   fee.OperationRouteToID,
 		}
 	}
 
@@ -298,14 +302,16 @@ func FromEntityFeeMap(fees map[string]model.Fee) (map[string]Fee, error) {
 		}
 
 		feesDBModel[strcase.ToLowerCamel(key)] = Fee{
-			FeeLabel:         fee.FeeLabel,
-			CalculationModel: calcModelDB,
-			ReferenceAmount:  fee.ReferenceAmount,
-			Priority:         fee.Priority,
-			IsDeductibleFrom: fee.IsDeductibleFrom,
-			CreditAccount:    fee.CreditAccount,
-			RouteTo:          fee.RouteTo,
-			RouteFrom:        fee.RouteFrom,
+			FeeLabel:             fee.FeeLabel,
+			CalculationModel:     calcModelDB,
+			ReferenceAmount:      fee.ReferenceAmount,
+			Priority:             fee.Priority,
+			IsDeductibleFrom:     fee.IsDeductibleFrom,
+			CreditAccount:        fee.CreditAccount,
+			RouteTo:              fee.RouteTo,
+			RouteFrom:            fee.RouteFrom,
+			OperationRouteFromID: fee.OperationRouteFromID,
+			OperationRouteToID:   fee.OperationRouteToID,
 		}
 	}
 

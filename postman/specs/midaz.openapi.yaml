@@ -13580,6 +13580,16 @@ components:
           type:
             - boolean
             - 'null'
+        operationRouteFromId:
+          examples:
+            - 00000000-0000-0000-0000-000000000000
+          format: uuid
+          type: string
+        operationRouteToId:
+          examples:
+            - 00000000-0000-0000-0000-000000000000
+          format: uuid
+          type: string
         priority:
           examples:
             - 1

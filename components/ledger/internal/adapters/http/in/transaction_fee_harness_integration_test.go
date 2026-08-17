@@ -30,10 +30,12 @@ import (
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/balance"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/ledger"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/operation"
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/operationroute"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/organization"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/portfolio"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/segment"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/transaction"
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/transactionroute"
 	redis "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/redis/transaction"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services/command"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services/query"
@@ -60,11 +62,13 @@ type feeHarness struct {
 	mongoContainer *mongotestutil.ContainerResult
 	redisContainer *redistestutil.ContainerResult
 
-	pgConn      *libPostgres.Client
-	db          *sql.DB
-	redisRepo   redis.RedisRepository
-	metaRepo    mongotxn.Repository
-	packageRepo pack.Repository
+	pgConn               *libPostgres.Client
+	db                   *sql.DB
+	redisRepo            redis.RedisRepository
+	metaRepo             mongotxn.Repository
+	packageRepo          pack.Repository
+	operationRouteRepo   *operationroute.OperationRoutePostgreSQLRepository
+	transactionRouteRepo *transactionroute.TransactionRoutePostgreSQLRepository
 
 	commandUC *command.UseCase
 	queryUC   *query.UseCase
@@ -113,8 +117,12 @@ func setupFeeHarness(t *testing.T) *feeHarness {
 	// Transaction-domain repos.
 	transactionRepo := transaction.NewTransactionPostgreSQLRepository(h.pgConn)
 	operationRepo := operation.NewOperationPostgreSQLRepository(h.pgConn)
+	operationRouteRepo := operationroute.NewOperationRoutePostgreSQLRepository(h.pgConn)
+	transactionRouteRepo := transactionroute.NewTransactionRoutePostgreSQLRepository(h.pgConn)
 	balanceRepo := balance.NewBalancePostgreSQLRepository(h.pgConn, false)
 	h.metaRepo = mongotxn.NewMetadataMongoDBRepository(mongoTxnConn)
+	h.operationRouteRepo = operationRouteRepo
+	h.transactionRouteRepo = transactionRouteRepo
 
 	redisRepo, err := redis.NewConsumerRedis(redisConn)
 	require.NoError(t, err, "redis repo")
@@ -140,6 +148,8 @@ func setupFeeHarness(t *testing.T) *feeHarness {
 		OnboardingMetadataRepo:  onbMetaRepo,
 		TransactionRepo:         transactionRepo,
 		OperationRepo:           operationRepo,
+		OperationRouteRepo:      operationRouteRepo,
+		TransactionRouteRepo:    transactionRouteRepo,
 		BalanceRepo:             balanceRepo,
 		TransactionMetadataRepo: h.metaRepo,
 		TransactionRedisRepo:    redisRepo,

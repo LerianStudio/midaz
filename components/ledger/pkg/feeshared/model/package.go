@@ -11,6 +11,7 @@ import (
 	"github.com/LerianStudio/midaz/v4/pkg"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
 
+	"github.com/google/uuid"
 	"github.com/shopspring/decimal"
 )
 
@@ -52,14 +53,16 @@ const (
 
 // Fee is a struct designed to encapsulate request create payload data.
 type Fee struct {
-	FeeLabel         string            `json:"feeLabel" validate:"required" example:"Taxa Administrativa"`
-	CalculationModel *CalculationModel `json:"calculationModel" validate:"required"`
-	ReferenceAmount  string            `json:"referenceAmount" validate:"oneof=originalAmount afterFeesAmount" example:"originalAmount"`
-	Priority         int               `json:"priority,omitempty" validate:"gte=0" example:"1"`
-	IsDeductibleFrom *bool             `json:"isDeductibleFrom" validate:"required" example:"true"`
-	CreditAccount    string            `json:"creditAccount" validate:"required" example:"conta_receita_taxas_adm"`
-	RouteFrom        *string           `json:"routeFrom,omitempty" example:"taxa_débito"`
-	RouteTo          *string           `json:"routeTo,omitempty" example:"taxa_crédito"`
+	FeeLabel             string            `json:"feeLabel" validate:"required" example:"Taxa Administrativa"`
+	CalculationModel     *CalculationModel `json:"calculationModel" validate:"required"`
+	ReferenceAmount      string            `json:"referenceAmount" validate:"oneof=originalAmount afterFeesAmount" example:"originalAmount"`
+	Priority             int               `json:"priority,omitempty" validate:"gte=0" example:"1"`
+	IsDeductibleFrom     *bool             `json:"isDeductibleFrom" validate:"required" example:"true"`
+	CreditAccount        string            `json:"creditAccount" validate:"required" example:"conta_receita_taxas_adm"`
+	RouteFrom            *string           `json:"routeFrom,omitempty" example:"taxa_débito"`
+	RouteTo              *string           `json:"routeTo,omitempty" example:"taxa_crédito"`
+	OperationRouteFromID *string           `json:"operationRouteFromId,omitempty" validate:"omitempty,uuid" example:"00000000-0000-0000-0000-000000000000" format:"uuid"`
+	OperationRouteToID   *string           `json:"operationRouteToId,omitempty" validate:"omitempty,uuid" example:"00000000-0000-0000-0000-000000000000" format:"uuid"`
 }
 
 func (f *Fee) GetIsDeductibleFrom() bool {
@@ -186,10 +189,40 @@ func (f *Fee) ValidateIfFeeIsNil() bool {
 		f.ReferenceAmount == "" &&
 		f.Priority == 0 &&
 		f.IsDeductibleFrom == nil &&
-		f.CreditAccount == ""
+		f.CreditAccount == "" &&
+		f.OperationRouteFromID == nil &&
+		f.OperationRouteToID == nil
+}
+
+func (f *Fee) validateOperationRouteIDs(feeKey string) error {
+	ids := []struct {
+		field string
+		value *string
+	}{
+		{field: "operationRouteFromId", value: f.OperationRouteFromID},
+		{field: "operationRouteToId", value: f.OperationRouteToID},
+	}
+
+	for _, id := range ids {
+		if id.value == nil || *id.value == "" {
+			continue
+		}
+
+		if _, err := uuid.Parse(*id.value); err != nil {
+			return pkg.ValidateBadRequestFieldsError(nil, pkg.FieldValidations{
+				feeKey + "." + id.field: "must be a valid UUID",
+			}, "Fee", nil)
+		}
+	}
+
+	return nil
 }
 
 func (f *Fee) ValidateNewFee(feeKey string, minAmount decimal.Decimal) error {
+	if err := f.validateOperationRouteIDs(feeKey); err != nil {
+		return err
+	}
+
 	if err := f.validateRequiredFields(); err != nil {
 		return err
 	}
