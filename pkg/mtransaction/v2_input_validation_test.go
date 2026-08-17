@@ -60,10 +60,9 @@ func shareLegsAt(index int, share string) string {
 }
 
 // TestV2LegInput_NoRemainingExpression locks the v2 leg down to the two value expressions
-// the surface publishes. A `remaining` leg resolves during validation but contributes no
-// operation row and no balance movement, committing an unbalanced transaction, so the v2
-// surface must not offer the expression at all: with no field to decode into, a client that
-// sends one gets the decoder's unknown-field rejection.
+// the surface publishes. The detailed v1 body owns the `remaining` expression; v2 deliberately
+// has no field to decode into, so a client that sends one gets the decoder's unknown-field
+// rejection.
 //
 // Rejecting the submitted expression is the whole guarantee, so it is asserted directly. A
 // reflective "the struct has no Remaining field" assertion would restate the same rule one

@@ -25,6 +25,7 @@ import (
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/transaction"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/rabbitmq"
 	redis "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/redis/transaction"
+	"github.com/LerianStudio/midaz/v4/pkg/constant"
 	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v4/pkg/mtransaction"
 )
@@ -32,6 +33,55 @@ import (
 // Int64Ptr returns a pointer to the given int64 value
 func Int64Ptr(v int64) *int64 {
 	return &v
+}
+
+func TestTransactionRedisQueue_RemainingReplayUsesPersistedValidation(t *testing.T) {
+	t.Parallel()
+
+	input := mtransaction.Transaction{
+		Send: mtransaction.Send{
+			Asset: "USD",
+			Value: decimal.NewFromInt(100),
+			Source: mtransaction.Source{From: []mtransaction.FromTo{
+				{AccountAlias: "@explicit", Amount: &mtransaction.Amount{Asset: "USD", Value: decimal.NewFromInt(60)}, IsFrom: true},
+				{AccountAlias: "@remaining", Remaining: "remaining", IsFrom: true},
+			}},
+			Distribute: mtransaction.Distribute{To: []mtransaction.FromTo{{
+				AccountAlias: "@destination",
+				Amount:       &mtransaction.Amount{Asset: "USD", Value: decimal.NewFromInt(100)},
+			}}},
+		},
+	}
+
+	mtransaction.ApplyDefaultBalanceKeys(input.Send.Source.From)
+	mtransaction.ApplyDefaultBalanceKeys(input.Send.Distribute.To)
+	mtransaction.MutateConcatAliases(input.Send.Source.From)
+	mtransaction.MutateConcatAliases(input.Send.Distribute.To)
+
+	validate, err := mtransaction.ValidateSendSourceAndDistribute(context.Background(), input, constant.CREATED)
+	require.NoError(t, err)
+
+	raw, err := json.Marshal(mmodel.TransactionRedisQueue{
+		TransactionInput:  input,
+		Validate:          validate,
+		TransactionStatus: constant.CREATED,
+	})
+	require.NoError(t, err)
+
+	var replay mmodel.TransactionRedisQueue
+	require.NoError(t, json.Unmarshal(raw, &replay))
+	require.NotNil(t, replay.Validate)
+
+	remaining := replay.TransactionInput.Send.Source.From[1]
+	assert.Nil(t, remaining.Amount, "the replay payload must keep the request expression, not a materialized amount")
+
+	resolved, _, err := mtransaction.ValidateFromToOperation(remaining, *replay.Validate, &mtransaction.Balance{
+		Available: decimal.NewFromInt(1000),
+		OnHold:    decimal.Zero,
+	})
+	require.NoError(t, err)
+	assert.True(t, decimal.NewFromInt(40).Equal(resolved.Value),
+		"replay must consume the persisted validation map for the remaining amount")
 }
 
 // MockLogger is a mock implementation of logger for testing

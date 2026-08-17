@@ -955,7 +955,7 @@ func TestRegisterTransactionV2Routes_LegComponentDescribesValueExpressions(t *te
 	}
 
 	assert.NotContainsf(t, schema.Properties, "remaining",
-		"%s must not publish a remaining expression: a remaining leg commits an unbalanced transaction", v2LegSchemaName)
+		"%s must not publish a remaining expression: that expression belongs to the detailed v1 surface", v2LegSchemaName)
 }
 
 // TestRegisterTransactionV2Routes_ComponentRequiredFields locks the `required` list of every

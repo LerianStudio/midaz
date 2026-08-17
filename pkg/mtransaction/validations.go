@@ -428,18 +428,25 @@ func StatusToAction(statusCode string) string {
 	}
 }
 
-// CalculateTotal Calculate total for sources/destinations based on shares, amounts and remains
+// CalculateTotal calculates totals for sources/destinations based on shares, amounts and
+// remaining legs. Resolution is deliberately two-pass: explicit/share legs establish the
+// consumed amount first, then every remaining leg receives the residual. Keeping the resolved
+// amount only in the response map (instead of materializing it back into FromTo.Amount) makes
+// validation safe to repeat for fee calculation and pending state transitions.
 func CalculateTotal(fromTos []FromTo, transaction Transaction, transactionType string, t chan decimal.Decimal, ft chan map[string]Amount, sd chan []string, or chan map[string]string) {
 	fmto := make(map[string]Amount)
 	scdt := make([]string, 0, len(fromTos))
 
 	total := decimal.NewFromInt(0)
+	remainingValue := transaction.Send.Value
 
-	remaining := Amount{
-		Asset:           transaction.Send.Asset,
-		Value:           transaction.Send.Value,
-		TransactionType: transactionType,
+	type remainingEntry struct {
+		alias     string
+		operation string
+		direction string
 	}
+
+	remainingEntries := make([]remainingEntry, 0, 1)
 
 	operationRoute := make(map[string]string)
 
@@ -449,6 +456,22 @@ func CalculateTotal(fromTos []FromTo, transaction Transaction, transactionType s
 		}
 
 		operation, direction := DetermineOperation(transaction.Pending, fromTos[i].IsFrom, transactionType)
+
+		// A remaining expression is resolved in the second pass. If an internal
+		// caller supplies a previously materialized Amount alongside Remaining,
+		// Remaining still wins; this keeps the resolver idempotent across old
+		// in-memory payloads while the public validator rejects that combination.
+		if !commons.IsNilOrEmpty(&fromTos[i].Remaining) {
+			remainingEntries = append(remainingEntries, remainingEntry{
+				alias:     fromTos[i].AccountAlias,
+				operation: operation,
+				direction: direction,
+			})
+
+			scdt = append(scdt, AliasKey(fromTos[i].SplitAlias(), fromTos[i].BalanceKey))
+
+			continue
+		}
 
 		if fromTos[i].Share != nil && fromTos[i].Share.Percentage != 0 {
 			oneHundred := decimal.NewFromInt(100)
@@ -473,7 +496,7 @@ func CalculateTotal(fromTos []FromTo, transaction Transaction, transactionType s
 			}
 
 			total = total.Add(shareValue)
-			remaining.Value = remaining.Value.Sub(shareValue)
+			remainingValue = remainingValue.Sub(shareValue)
 		}
 
 		if fromTos[i].Amount != nil && fromTos[i].Amount.Value.IsPositive() {
@@ -488,20 +511,27 @@ func CalculateTotal(fromTos []FromTo, transaction Transaction, transactionType s
 			fmto[fromTos[i].AccountAlias] = amount
 			total = total.Add(amount.Value)
 
-			remaining.Value = remaining.Value.Sub(amount.Value)
-		}
-
-		if !commons.IsNilOrEmpty(&fromTos[i].Remaining) {
-			total = total.Add(remaining.Value)
-
-			remaining.Operation = operation
-			remaining.Direction = direction
-
-			fmto[fromTos[i].AccountAlias] = remaining
-			fromTos[i].Amount = &remaining
+			remainingValue = remainingValue.Sub(amount.Value)
 		}
 
 		scdt = append(scdt, AliasKey(fromTos[i].SplitAlias(), fromTos[i].BalanceKey))
+	}
+
+	// Resolve all remaining legs after explicit/share legs, so their value does
+	// not depend on array order. Multiple remaining entries are left to the
+	// existing total validation: each represents the same residual and the
+	// resulting side total will be rejected as unbalanced.
+	for _, entry := range remainingEntries {
+		amount := Amount{
+			Asset:           transaction.Send.Asset,
+			Value:           remainingValue,
+			Operation:       entry.operation,
+			TransactionType: transactionType,
+			Direction:       entry.direction,
+		}
+
+		fmto[entry.alias] = amount
+		total = total.Add(amount.Value)
 	}
 
 	t <- total
@@ -511,6 +541,24 @@ func CalculateTotal(fromTos []FromTo, transaction Transaction, transactionType s
 	sd <- scdt
 
 	or <- operationRoute
+}
+
+// validateRemainingAmounts rejects a residual that would create a zero or negative balance
+// operation. A zero residual can otherwise make the side totals appear balanced while leaving
+// a declared leg with no economic effect; a negative residual can invert the requested movement.
+func validateRemainingAmounts(entries []FromTo, resolved map[string]Amount) error {
+	for _, entry := range entries {
+		if commons.IsNilOrEmpty(&entry.Remaining) {
+			continue
+		}
+
+		amount, ok := resolved[entry.AccountAlias]
+		if ok && !amount.Value.IsPositive() {
+			return pkg.ValidateBusinessError(pkgConstant.ErrInvalidTransactionNonPositiveValue, pkgConstant.EntityTransaction)
+		}
+	}
+
+	return nil
 }
 
 // AppendIfNotExist Append if not exist
@@ -589,6 +637,12 @@ func ValidateSendSourceAndDistribute(ctx context.Context, transaction Transactio
 	response.OperationRoutesFrom = <-orFrom
 	response.Aliases = AppendIfNotExist(response.Aliases, response.Sources)
 
+	if err := validateRemainingAmounts(transaction.Send.Source.From, response.From); err != nil {
+		logger.Log(ctx, libLog.LevelWarn, "Remaining source amount must be positive", libLog.Err(err))
+
+		return nil, err
+	}
+
 	// Resolve destination amounts concurrently.
 	tTo := make(chan decimal.Decimal, 1)
 	ftTo := make(chan map[string]Amount, 1)
@@ -602,6 +656,12 @@ func ValidateSendSourceAndDistribute(ctx context.Context, transaction Transactio
 	response.Destinations = <-sdTo
 	response.OperationRoutesTo = <-orTo
 	response.Aliases = AppendIfNotExist(response.Aliases, response.Destinations)
+
+	if err := validateRemainingAmounts(transaction.Send.Distribute.To, response.To); err != nil {
+		logger.Log(ctx, libLog.LevelWarn, "Remaining destination amount must be positive", libLog.Err(err))
+
+		return nil, err
+	}
 
 	// Ambiguity check: reject if the same alias appears as both source and destination.
 	for i, source := range response.Sources {

@@ -7,6 +7,7 @@ package mtransaction
 import (
 	"context"
 	"math/rand"
+	"strconv"
 	"testing"
 	"testing/quick"
 
@@ -1200,6 +1201,161 @@ func TestValidateTransactionWithPercentageAndRemaining(t *testing.T) {
 			assert.True(t, responses.Total.Equal(total),
 				"Total amount (%s) should equal sum of destination amounts (%s)",
 				responses.Total.String(), total.String())
+		})
+	}
+}
+
+func TestValidateSendSourceAndDistribute_RemainingIsStableAndOrderIndependent(t *testing.T) {
+	t.Parallel()
+
+	transactionFor := func(from, to []FromTo) Transaction {
+		return Transaction{
+			Send: Send{
+				Asset:      "USD",
+				Value:      decimal.NewFromInt(100),
+				Source:     Source{From: from},
+				Distribute: Distribute{To: to},
+			},
+		}
+	}
+	cloneFromTos := func(entries []FromTo) []FromTo {
+		cloned := make([]FromTo, len(entries))
+		copy(cloned, entries)
+
+		for i := range cloned {
+			if entries[i].Amount != nil {
+				amount := *entries[i].Amount
+				cloned[i].Amount = &amount
+			}
+
+			if entries[i].Share != nil {
+				share := *entries[i].Share
+				cloned[i].Share = &share
+			}
+		}
+
+		return cloned
+	}
+
+	cases := []struct {
+		name string
+		from []FromTo
+		to   []FromTo
+	}{
+		{
+			name: "remaining follows explicit legs",
+			from: []FromTo{
+				{AccountAlias: "@explicit", Amount: &Amount{Asset: "USD", Value: decimal.NewFromInt(60)}, IsFrom: true},
+				{AccountAlias: "@remaining", Remaining: "remaining", IsFrom: true},
+			},
+			to: []FromTo{
+				{AccountAlias: "@destination-explicit", Amount: &Amount{Asset: "USD", Value: decimal.NewFromInt(60)}},
+				{AccountAlias: "@destination-remaining", Remaining: "remaining"},
+			},
+		},
+		{
+			name: "remaining precedes explicit legs",
+			from: []FromTo{
+				{AccountAlias: "@remaining", Remaining: "remaining", IsFrom: true},
+				{AccountAlias: "@explicit", Amount: &Amount{Asset: "USD", Value: decimal.NewFromInt(60)}, IsFrom: true},
+			},
+			to: []FromTo{
+				{AccountAlias: "@destination-remaining", Remaining: "remaining"},
+				{AccountAlias: "@destination-explicit", Amount: &Amount{Asset: "USD", Value: decimal.NewFromInt(60)}},
+			},
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			before := transactionFor(cloneFromTos(tc.from), cloneFromTos(tc.to))
+			input := transactionFor(cloneFromTos(tc.from), cloneFromTos(tc.to))
+			first, err := ValidateSendSourceAndDistribute(context.Background(), input, pkgConstant.CREATED)
+			assert.NoError(t, err)
+			if err != nil {
+				return
+			}
+
+			second, err := ValidateSendSourceAndDistribute(context.Background(), input, pkgConstant.CREATED)
+			assert.NoError(t, err)
+			if err != nil {
+				return
+			}
+
+			assert.Equal(t, first.From, second.From, "repeated validation must resolve the same source map")
+			assert.Equal(t, first.To, second.To, "repeated validation must resolve the same destination map")
+			assert.Equal(t, decimal.NewFromInt(60), first.From["@explicit"].Value)
+			assert.Equal(t, decimal.NewFromInt(40), first.From["@remaining"].Value)
+			assert.Equal(t, decimal.NewFromInt(60), first.To["@destination-explicit"].Value)
+			assert.Equal(t, decimal.NewFromInt(40), first.To["@destination-remaining"].Value)
+			assert.Equal(t, before, input, "validation must not mutate the transaction input")
+
+			for _, entry := range input.Send.Source.From {
+				if entry.Remaining != "" {
+					assert.Nil(t, entry.Amount, "validation must not materialize a remaining leg into the request")
+				}
+			}
+		})
+	}
+}
+
+func TestValidateSendSourceAndDistribute_RemainingMustBePositive(t *testing.T) {
+	t.Parallel()
+
+	for _, explicit := range []int64{100, 120} {
+		t.Run(strconv.FormatInt(explicit, 10), func(t *testing.T) {
+			t.Parallel()
+
+			transaction := Transaction{
+				Send: Send{
+					Asset: "USD",
+					Value: decimal.NewFromInt(100),
+					Source: Source{From: []FromTo{
+						{AccountAlias: "@explicit", Amount: &Amount{Asset: "USD", Value: decimal.NewFromInt(explicit)}, IsFrom: true},
+						{AccountAlias: "@remaining", Remaining: "remaining", IsFrom: true},
+					}},
+					Distribute: Distribute{To: []FromTo{{
+						AccountAlias: "@destination",
+						Amount:       &Amount{Asset: "USD", Value: decimal.NewFromInt(100)},
+					}}},
+				},
+			}
+
+			_, err := ValidateSendSourceAndDistribute(context.Background(), transaction, pkgConstant.CREATED)
+			assert.Error(t, err)
+			assert.Equal(t, pkgConstant.ErrInvalidTransactionNonPositiveValue.Error(), codeFromError(err))
+		})
+	}
+}
+
+func TestValidateSendSourceAndDistribute_DestinationRemainingMustBePositive(t *testing.T) {
+	t.Parallel()
+
+	for _, explicit := range []int64{100, 120} {
+		t.Run(strconv.FormatInt(explicit, 10), func(t *testing.T) {
+			t.Parallel()
+
+			transaction := Transaction{
+				Send: Send{
+					Asset: "USD",
+					Value: decimal.NewFromInt(100),
+					Source: Source{From: []FromTo{{
+						AccountAlias: "@source",
+						Amount:       &Amount{Asset: "USD", Value: decimal.NewFromInt(100)},
+						IsFrom:       true,
+					}}},
+					Distribute: Distribute{To: []FromTo{
+						{AccountAlias: "@explicit", Amount: &Amount{Asset: "USD", Value: decimal.NewFromInt(explicit)}},
+						{AccountAlias: "@remaining", Remaining: "remaining"},
+					}},
+				},
+			}
+
+			_, err := ValidateSendSourceAndDistribute(context.Background(), transaction, pkgConstant.CREATED)
+			assert.Error(t, err)
+			assert.Equal(t, pkgConstant.ErrInvalidTransactionNonPositiveValue.Error(), codeFromError(err))
 		})
 	}
 }

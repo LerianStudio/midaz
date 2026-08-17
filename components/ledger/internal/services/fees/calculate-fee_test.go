@@ -405,6 +405,85 @@ func TestCalculateFee_SinglePackage_Success(t *testing.T) {
 	assert.Greater(t, feeInput.Transaction.Send.Value.IntPart(), int64(1000))
 }
 
+func TestCalculateFee_RemainingSourceIsResolvedBeforeFeeDistribution(t *testing.T) {
+	t.Parallel()
+
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockPackRepo := pack.NewMockRepository(ctrl)
+	orgID := uuid.New()
+	ledgerID := uuid.New()
+	packID := uuid.New()
+	deductible := false
+
+	feeSvc := &UseCase{packageRepo: mockPackRepo}
+	feeInput := &model.FeeCalculate{
+		LedgerID: ledgerID,
+		Transaction: transaction.Transaction{
+			Send: transaction.Send{
+				Asset: "USD",
+				Value: decimal.NewFromInt(100),
+				Source: transaction.Source{From: []transaction.FromTo{
+					{AccountAlias: "@explicit", Amount: &transaction.Amount{Asset: "USD", Value: decimal.NewFromInt(60)}, IsFrom: true},
+					{AccountAlias: "@remaining", Remaining: "remaining", IsFrom: true},
+				}},
+				Distribute: transaction.Distribute{To: []transaction.FromTo{{
+					AccountAlias: "@destination",
+					Amount:       &transaction.Amount{Asset: "USD", Value: decimal.NewFromInt(100)},
+				}}},
+			},
+		},
+	}
+
+	feePackage := &pack.Package{
+		ID:            packID,
+		MinimumAmount: decimal.NewFromInt(1),
+		MaximumAmount: decimal.NewFromInt(1000),
+		Fees: map[string]model.Fee{
+			"flat": {
+				CalculationModel: &model.CalculationModel{
+					ApplicationRule: "flatFee",
+					Calculations:    []model.Calculation{{Type: "flat", Value: "10"}},
+				},
+				ReferenceAmount:  "originalAmount",
+				Priority:         1,
+				IsDeductibleFrom: &deductible,
+				CreditAccount:    "@fee_account",
+			},
+		},
+		WaivedAccounts: &[]string{},
+	}
+
+	mockPackRepo.EXPECT().
+		FindByOrganizationIDAndLedgerID(gomock.Any(), orgID, ledgerID).
+		Return([]*pack.Package{feePackage}, nil)
+
+	err := feeSvc.CalculateFee(context.Background(), feeInput, orgID)
+	assert.NoError(t, err)
+	assert.Equal(t, decimal.NewFromInt(110), feeInput.Transaction.Send.Value)
+
+	var sourceTotal, destinationTotal decimal.Decimal
+	for _, leg := range feeInput.Transaction.Send.Source.From {
+		assert.NotNil(t, leg.Amount, "fee normalization must preserve every resolved source leg")
+		if leg.Amount != nil {
+			assert.True(t, leg.Amount.Value.IsPositive(), "fee normalization must not emit a zero source leg")
+			sourceTotal = sourceTotal.Add(leg.Amount.Value)
+		}
+	}
+
+	for _, leg := range feeInput.Transaction.Send.Distribute.To {
+		assert.NotNil(t, leg.Amount, "fee normalization must preserve every resolved destination leg")
+		if leg.Amount != nil {
+			assert.True(t, leg.Amount.Value.IsPositive(), "fee normalization must not emit a zero destination leg")
+			destinationTotal = destinationTotal.Add(leg.Amount.Value)
+		}
+	}
+
+	assert.True(t, decimal.NewFromInt(110).Equal(sourceTotal), "source legs must sum to the fee-inclusive amount: %s", sourceTotal)
+	assert.True(t, decimal.NewFromInt(110).Equal(destinationTotal), "destination legs must sum to the fee-inclusive amount: %s", destinationTotal)
+}
+
 // TestCalculateFee_SinglePackage_CalculateFeeError tests error when calculating fee in single package
 func TestCalculateFee_SinglePackage_CalculateFeeError(t *testing.T) {
 	ctrl := gomock.NewController(t)
