@@ -75,16 +75,9 @@ func TestNewManifestHTTPHandler(t *testing.T) {
 		assert.Equal(t, "ledger", doc.Publisher.SourceBase)
 		require.NotEmpty(t, doc.Events)
 
-		var matched bool
-
 		for _, e := range doc.Events {
-			if topicPattern.MatchString(e.Topic) {
-				matched = true
-				break
-			}
+			assert.Regexp(t, topicPattern, e.Topic, "expected every event topic to be underscore-canonical")
 		}
-
-		assert.True(t, matched, "expected at least one underscore-canonical topic matching %s, got %+v", topicPattern, doc.Events)
 	})
 
 	t.Run("error path", func(t *testing.T) {
@@ -96,9 +89,12 @@ func TestNewManifestHTTPHandler(t *testing.T) {
 			sourceBase  string
 		}{
 			{name: "empty service name", serviceName: "", sourceBase: "ledger"},
+			{name: "empty source base", serviceName: "ledger", sourceBase: ""},
 		}
 
 		for _, tt := range tests {
+			tt := tt
+
 			t.Run(tt.name, func(t *testing.T) {
 				t.Parallel()
 
