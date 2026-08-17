@@ -264,29 +264,35 @@ func materializeAmountsAfterFee(original []transaction.FromTo, amounts map[strin
 }
 
 func syntheticFeeIndex(key string) (int, bool) {
-	for _, marker := range []string{feeconstant.SuffixFeeSource, "->fee"} {
-		markerIndex := strings.Index(key, marker)
-		if markerIndex == -1 {
-			continue
-		}
+	parts := strings.Split(key, "->")
+	if len(parts) < 3 {
+		return 0, false
+	}
 
-		start := markerIndex + len(marker)
-		end := start
-		for end < len(key) && key[end] >= '0' && key[end] <= '9' {
-			end++
-		}
+	segment := parts[1]
+	var numericSuffix string
 
-		if end == start {
-			continue
-		}
+	switch {
+	case strings.HasPrefix(segment, "fee_source"):
+		numericSuffix = strings.TrimPrefix(segment, "fee_source")
+	case strings.HasPrefix(segment, "fee"):
+		numericSuffix = strings.TrimPrefix(segment, "fee")
+	default:
+		return 0, false
+	}
 
-		index, err := strconv.Atoi(key[start:end])
-		if err == nil {
-			return index, true
+	if numericSuffix == "" {
+		return 0, false
+	}
+
+	for i := range numericSuffix {
+		if numericSuffix[i] < '0' || numericSuffix[i] > '9' {
+			return 0, false
 		}
 	}
 
-	return 0, false
+	index, err := strconv.Atoi(numericSuffix)
+	return index, err == nil
 }
 
 func originalAmountKey(index int, leg transaction.FromTo, amounts map[string]transaction.Amount, consumed map[string]struct{}) string {

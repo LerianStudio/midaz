@@ -156,3 +156,25 @@ func TestMaterializeAmountsAfterFee_OrdersSyntheticLegsByNumericFeeIndex(t *test
 	assert.Equal(t, "route-fee-ten", legs[2].Route)
 	assert.Equal(t, decimal.NewFromInt(10), legs[2].Amount.Value)
 }
+
+func TestMaterializeAmountsAfterFee_RouteLabelCannotOverrideStructuralFeeIndex(t *testing.T) {
+	t.Parallel()
+
+	original := []transaction.FromTo{{
+		AccountAlias: "@payer",
+		Amount:       &transaction.Amount{Asset: "USD", Value: decimal.NewFromInt(100)},
+	}}
+	amounts := map[string]transaction.Amount{
+		"@payer":                        {Asset: "USD", Value: decimal.NewFromInt(100)},
+		"@payer->fee2->fee_source10":    {Asset: "USD", Value: decimal.NewFromInt(2)},
+		"@payer->fee3->route-fee-three": {Asset: "USD", Value: decimal.NewFromInt(3)},
+	}
+
+	legs, err := materializeAmountsAfterFee(original, amounts)
+	require.NoError(t, err)
+	require.Len(t, legs, 3)
+	assert.Equal(t, "fee_source10", legs[1].Route)
+	assert.Equal(t, decimal.NewFromInt(2), legs[1].Amount.Value)
+	assert.Equal(t, "route-fee-three", legs[2].Route)
+	assert.Equal(t, decimal.NewFromInt(3), legs[2].Amount.Value)
+}
