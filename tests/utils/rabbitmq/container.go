@@ -50,7 +50,7 @@ func DefaultContainerConfig() ContainerConfig {
 		User:     DefaultUser,
 		Password: DefaultPassword,
 		Image:    "rabbitmq:4.1-management-alpine",
-		MemoryMB: 256, // 256MB - moderate for messaging
+		MemoryMB: 512,
 		CPULimit: 0.5, // 0.5 CPU core
 	}
 }
