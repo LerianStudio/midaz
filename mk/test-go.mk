@@ -76,6 +76,12 @@ TEST_HEALTH_WAIT ?= 60
 RUN ?=
 PKG ?=
 
+# Freeze the raw command-line value without expanding it as Make syntax, then
+# export it for recipes to consume only as environment data. This prevents
+# quotes, backticks, and $() in a regular expression from becoming shell code.
+override MIDAZ_TEST_RUN := $(value RUN)
+export MIDAZ_TEST_RUN
+
 # Build tags select the integration lane. RUN is an explicit, opt-in narrowing
 # of the exact Test functions derived from the selected tagged files; no test
 # naming convention participates in default selection.
@@ -207,16 +213,13 @@ endef
 
 define integ_list
 	selected_tests="$$tagged_tests"; \
-	run_suffix=""; \
-	if [ -n "$(RUN)" ]; then \
-	  requested_pattern="$(RUN)"; \
-	  top_level_pattern=$${requested_pattern%%/*}; \
-	  if [ "$$top_level_pattern" != "$$requested_pattern" ]; then \
-	    run_suffix="/$${requested_pattern#*/}"; \
-	  fi; \
-	  if [ -z "$$top_level_pattern" ]; then top_level_pattern="."; fi; \
+	selection_dir=""; run_patterns_file=""; \
+	if [ -n "$${MIDAZ_TEST_RUN:-}" ]; then \
+	  selection_dir=$$(mktemp -d "$${TMPDIR:-/tmp}/midaz-test-selection.XXXXXX"); \
+	  trap 'rm -rf "$$selection_dir"' EXIT; \
+	  run_patterns_file="$$selection_dir/run-patterns.tsv"; \
 	  selected_tests=$$(printf '%s\n' "$$tagged_tests" \
-	    | "$(SELECTED_TEST_LISTER)" "$$top_level_pattern"); \
+	    | "$(SELECTED_TEST_LISTER)" "$$MIDAZ_TEST_RUN" "$$run_patterns_file"); \
 	fi; \
 	pkgs=$$(printf '%s\n' "$$selected_tests" | awk '!seen[$$1]++ { print $$1 }'); \
 	selected_test_count=$$(printf '%s\n' "$$selected_tests" | awk 'NF { count++ } END { print count + 0 }')
@@ -250,11 +253,7 @@ test-integration:
 	  fi; \
 	  $(integ_chaos_notice); \
 	  if [ -n "$(GOTESTSUM)" ]; then echo "Running testcontainers integration tests with gotestsum"; fi; \
-	  events_dir=""; package_index=0; \
-	  if [ -n "$$run_suffix" ]; then \
-	    events_dir=$$(mktemp -d "$(TEST_REPORTS_DIR)/integration-events.XXXXXX"); \
-	    trap 'rm -rf "$$events_dir"' EXIT; \
-	  fi; \
+	  package_index=0; \
 	  for pkg in $$pkgs; do \
 	    package_index=$$((package_index + 1)); \
 	    package_test_names=$$(printf '%s\n' "$$selected_tests" \
@@ -262,12 +261,18 @@ test-integration:
 	    if [ -z "$$package_test_names" ]; then \
 	      echo "[error] package $$pkg has zero selected integration tests" >&2; exit 1; \
 	    fi; \
-	    test_alternation=$$(printf '%s\n' "$$package_test_names" | paste -sd'|' -); \
-	    test_anchor='$$'; \
-	    exact_pattern="^($$test_alternation)$${test_anchor}$${run_suffix}"; \
+	    if [ -n "$$run_patterns_file" ]; then \
+	      exact_pattern=$$(awk -F '\t' -v package="$$pkg" \
+	        '$$1 == package { sub(/^[^\t]*\t/, ""); print; found=1; exit } END { if (!found) exit 1 }' \
+	        "$$run_patterns_file"); \
+	    else \
+	      test_alternation=$$(printf '%s\n' "$$package_test_names" | paste -sd'|' -); \
+	      test_anchor='$$'; \
+	      exact_pattern="^($$test_alternation)$${test_anchor}"; \
+	    fi; \
 	    events_file=""; gotestsum_event_flag=""; \
-	    if [ -n "$$run_suffix" ]; then \
-	      events_file="$$events_dir/$$package_index.json"; \
+	    if [ -n "$$run_patterns_file" ]; then \
+	      events_file="$$selection_dir/$$package_index.json"; \
 	      gotestsum_event_flag="--jsonfile=$$events_file"; \
 	    fi; \
 	    echo "Running $$pkg ($$(printf '%s\n' "$$package_test_names" | awk 'NF { count++ } END { print count + 0 }') tests)"; \
@@ -298,7 +303,7 @@ test-integration:
 	      "$(GO_TEST_EVENT_VERIFIER)" "$$exact_pattern" < "$$events_file"; \
 	    fi; \
 	  done; \
-	  if [ -n "$$events_dir" ]; then rm -rf "$$events_dir"; trap - EXIT; fi; \
+	  if [ -n "$$selection_dir" ]; then rm -rf "$$selection_dir"; trap - EXIT; fi; \
 	fi
 
 .PHONY: list-integration-tests
@@ -311,7 +316,8 @@ list-integration-tests:
 	echo "Build tags: $(_INTEG_TAGS)"; \
 	echo "Packages: $$pkgs"; \
 	echo "Selected runnable tests: $$selected_test_count"; \
-	printf '%s\n' "$$selected_tests"
+	printf '%s\n' "$$selected_tests"; \
+	if [ -n "$$selection_dir" ]; then rm -rf "$$selection_dir"; trap - EXIT; fi
 
 #-------------------------------------------------------
 # Integration tests with coverage (covermode=atomic)
@@ -337,7 +343,7 @@ coverage-integration:
 	  $(integ_chaos_notice); \
 	  if [ -n "$(GOTESTSUM)" ]; then echo "Running testcontainers integration tests with gotestsum (coverage enabled)"; fi; \
 	  coverage_dir=$$(mktemp -d "$(TEST_REPORTS_DIR)/integration-coverage.XXXXXX"); \
-	  trap 'rm -rf "$$coverage_dir"' EXIT; \
+	  trap 'rm -rf "$$coverage_dir"; if [ -n "$$selection_dir" ]; then rm -rf "$$selection_dir"; fi' EXIT; \
 	  coverage_profiles=""; package_index=0; \
 	  for pkg in $$pkgs; do \
 	    package_index=$$((package_index + 1)); \
@@ -348,11 +354,17 @@ coverage-integration:
 	    if [ -z "$$package_test_names" ]; then \
 	      echo "[error] package $$pkg has zero selected integration tests" >&2; exit 1; \
 	    fi; \
-	    test_alternation=$$(printf '%s\n' "$$package_test_names" | paste -sd'|' -); \
-	    test_anchor='$$'; \
-	    exact_pattern="^($$test_alternation)$${test_anchor}$${run_suffix}"; \
+	    if [ -n "$$run_patterns_file" ]; then \
+	      exact_pattern=$$(awk -F '\t' -v package="$$pkg" \
+	        '$$1 == package { sub(/^[^\t]*\t/, ""); print; found=1; exit } END { if (!found) exit 1 }' \
+	        "$$run_patterns_file"); \
+	    else \
+	      test_alternation=$$(printf '%s\n' "$$package_test_names" | paste -sd'|' -); \
+	      test_anchor='$$'; \
+	      exact_pattern="^($$test_alternation)$${test_anchor}"; \
+	    fi; \
 	    events_file=""; gotestsum_event_flag=""; \
-	    if [ -n "$$run_suffix" ]; then \
+	    if [ -n "$$run_patterns_file" ]; then \
 	      events_file="$$coverage_dir/$$package_index.json"; \
 	      gotestsum_event_flag="--jsonfile=$$events_file"; \
 	    fi; \
@@ -389,7 +401,9 @@ coverage-integration:
 	    fi; \
 	  done; \
 	  "$(GO_COVERPROFILE_MERGER)" "$(TEST_REPORTS_DIR)/integration_coverage.out" $$coverage_profiles; \
-	  rm -rf "$$coverage_dir"; trap - EXIT; \
+	  rm -rf "$$coverage_dir"; \
+	  if [ -n "$$selection_dir" ]; then rm -rf "$$selection_dir"; fi; \
+	  trap - EXIT; \
 	  echo "----------------------------------------"; \
 	  go tool cover -func=$(TEST_REPORTS_DIR)/integration_coverage.out | grep total | awk '{print "Total coverage: " $$3}'; \
 	  echo "----------------------------------------"; \
