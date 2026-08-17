@@ -5,6 +5,7 @@
 package fee
 
 import (
+	"sort"
 	"strconv"
 	"strings"
 
@@ -189,6 +190,85 @@ func updatedAmountsFromFee(amounts map[string]transaction.Amount) []transaction.
 	}
 
 	return newFromTo
+}
+
+// materializeAmountsAfterFee keeps authored legs stable while replacing their value expression
+// with the resolved amount used by the fee engine. Map-only fee calculations need a synthetic,
+// position-qualified key to distinguish duplicate aliases; that key never escapes into the
+// transaction payload. Fee-created legs are appended afterwards using the existing conversion
+// rules, with any embedded synthetic payer identity restored to its authored alias.
+func materializeAmountsAfterFee(original []transaction.FromTo, amounts map[string]transaction.Amount) ([]transaction.FromTo, error) {
+	materialized := make([]transaction.FromTo, 0, len(amounts))
+	consumed := make(map[string]struct{}, len(original))
+
+	for i, leg := range original {
+		key := originalAmountKey(i, leg, amounts, consumed)
+		amount, ok := amounts[key]
+		if !ok {
+			return nil, pkg.ValidateBusinessError(constant.ErrCalculateFee, "")
+		}
+
+		resolved := leg
+		resolved.Amount = &transaction.Amount{Asset: amount.Asset, Value: amount.Value}
+		resolved.Share = nil
+		resolved.Remaining = ""
+
+		materialized = append(materialized, resolved)
+		consumed[key] = struct{}{}
+	}
+
+	feeKeys := make([]string, 0, len(amounts)-len(consumed))
+	for key := range amounts {
+		if _, isOriginal := consumed[key]; !isOriginal {
+			feeKeys = append(feeKeys, key)
+		}
+	}
+
+	sort.Strings(feeKeys)
+
+	for _, key := range feeKeys {
+		feeLegs := updatedAmountsFromFee(map[string]transaction.Amount{key: amounts[key]})
+		if len(feeLegs) != 1 {
+			continue
+		}
+
+		feeLeg := feeLegs[0]
+		feeLeg.AccountAlias = transaction.FromTo{AccountAlias: feeLeg.AccountAlias}.SplitAlias()
+
+		if source, ok := feeLeg.Metadata["source"].(string); ok {
+			feeLeg.Metadata["source"] = transaction.FromTo{AccountAlias: source}.SplitAlias()
+		}
+
+		materialized = append(materialized, feeLeg)
+	}
+
+	return materialized, nil
+}
+
+func originalAmountKey(index int, leg transaction.FromTo, amounts map[string]transaction.Amount, consumed map[string]struct{}) string {
+	if _, ok := amounts[leg.AccountAlias]; ok {
+		if _, alreadyConsumed := consumed[leg.AccountAlias]; !alreadyConsumed {
+			return leg.AccountAlias
+		}
+	}
+
+	internal := leg
+	if internal.BalanceKey == "" {
+		internal.BalanceKey = constant.DefaultBalanceKey
+	}
+
+	key := internal.ConcatAlias(index)
+	if _, ok := amounts[key]; ok {
+		if _, alreadyConsumed := consumed[key]; !alreadyConsumed {
+			return key
+		}
+	}
+
+	if leg.AccountAlias == "" {
+		return leg.AccountAlias
+	}
+
+	return key
 }
 
 // trimFeeSuffix trims the fee suffix
@@ -573,7 +653,7 @@ func isAccountExempt(account string, exemptAccounts *[]string) bool {
 // silently charging accounts that should be exempt via segment waivers.
 // When segmentIDs is empty, it falls back to exact alias matching only.
 func isAccountExemptOrSegment(account string, exemptAccounts *[]string, segmentIDs []uuid.UUID, segCtx *SegmentContext) (bool, error) {
-	account = trimFeeSuffix(account)
+	account = transaction.FromTo{AccountAlias: trimFeeSuffix(account)}.SplitAlias()
 
 	if len(segmentIDs) > 0 {
 		if segCtx == nil || segCtx.Resolver == nil {

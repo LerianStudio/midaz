@@ -169,6 +169,33 @@ func CalculateFee(logger libLog.Logger, f *model.FeeCalculate, p *pack.Package, 
 	return nil
 }
 
+// CalculateFeePreservingLegs applies the fee engine while retaining every authored transaction
+// leg. It is the strict ledger/estimate seam: unlike the lower-level CalculateFee helper, it
+// requires the resolved maps to contain every original leg and fails closed if identities drift.
+func CalculateFeePreservingLegs(logger libLog.Logger, f *model.FeeCalculate, p *pack.Package, resp *transaction.Responses, defaultCurrency string, segCtx *SegmentContext) error {
+	originalFrom := append([]transaction.FromTo(nil), f.Transaction.Send.Source.From...)
+	originalTo := append([]transaction.FromTo(nil), f.Transaction.Send.Distribute.To...)
+
+	if err := CalculateFee(logger, f, p, resp, defaultCurrency, segCtx); err != nil {
+		return err
+	}
+
+	materializedFrom, err := materializeAmountsAfterFee(originalFrom, resp.From)
+	if err != nil {
+		return err
+	}
+
+	materializedTo, err := materializeAmountsAfterFee(originalTo, resp.To)
+	if err != nil {
+		return err
+	}
+
+	f.Transaction.Send.Source.From = materializedFrom
+	f.Transaction.Send.Distribute.To = materializedTo
+
+	return nil
+}
+
 // selectReferenceAmount chooses the correct transaction value for fee calculation based on the fee's reference amount rule.
 func selectReferenceAmount(fee model.Fee, currentValue, originalValue decimal.Decimal) decimal.Decimal {
 	if fee.ReferenceAmount == feeconstant.ReferenceAmountAfterFeesAmount {

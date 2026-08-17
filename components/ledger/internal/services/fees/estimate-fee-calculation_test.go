@@ -322,6 +322,81 @@ func TestCreateFeeEstimate(t *testing.T) {
 	}
 }
 
+func TestEstimateFeeCalculation_PreservesDuplicateRemainingLegs(t *testing.T) {
+	t.Parallel()
+
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockPackRepo := pack.NewMockRepository(ctrl)
+	feeSvc := &UseCase{packageRepo: mockPackRepo, defaultCurrency: "USD"}
+	orgID := uuid.New()
+	ledgerID := uuid.New()
+	packID := uuid.New()
+	deductible := false
+
+	feePackage := &pack.Package{
+		ID:            packID,
+		MinimumAmount: decimal.NewFromInt(1),
+		MaximumAmount: decimal.NewFromInt(1000),
+		Fees: map[string]model.Fee{
+			"flat": {
+				CalculationModel: &model.CalculationModel{
+					ApplicationRule: "flatFee",
+					Calculations:    []model.Calculation{{Type: "flat", Value: "10"}},
+				},
+				ReferenceAmount:  "originalAmount",
+				Priority:         1,
+				IsDeductibleFrom: &deductible,
+				CreditAccount:    "@fee_account",
+			},
+		},
+		WaivedAccounts: &[]string{},
+	}
+
+	mockPackRepo.EXPECT().
+		FindByID(gomock.Any(), packID, orgID, uuid.Nil).
+		Return(feePackage, nil)
+
+	input := &model.FeeEstimate{
+		PackageID: packID,
+		LedgerID:  ledgerID,
+		Transaction: transaction.Transaction{Send: transaction.Send{
+			Asset: "USD",
+			Value: decimal.NewFromInt(100),
+			Source: transaction.Source{From: []transaction.FromTo{
+				{AccountAlias: "@payer", BalanceKey: "reserved", Amount: &transaction.Amount{Asset: "USD", Value: decimal.NewFromInt(60)}, IsFrom: true},
+				{AccountAlias: "@payer", BalanceKey: "available", Remaining: "remaining", IsFrom: true},
+			}},
+			Distribute: transaction.Distribute{To: []transaction.FromTo{{
+				AccountAlias: "@destination",
+				Amount:       &transaction.Amount{Asset: "USD", Value: decimal.NewFromInt(100)},
+			}}},
+		}},
+	}
+
+	result, err := feeSvc.EstimateFeeCalculation(context.Background(), input, orgID)
+	assert.NoError(t, err)
+	if !assert.NotNil(t, result) {
+		return
+	}
+
+	assert.True(t, decimal.NewFromInt(110).Equal(result.Transaction.Send.Value))
+	assert.Len(t, result.Transaction.Send.Source.From, 4)
+	assert.Equal(t, "@payer", result.Transaction.Send.Source.From[0].AccountAlias)
+	assert.Equal(t, "reserved", result.Transaction.Send.Source.From[0].BalanceKey)
+	assert.Empty(t, result.Transaction.Send.Source.From[0].Remaining)
+	if assert.NotNil(t, result.Transaction.Send.Source.From[0].Amount) {
+		assert.True(t, decimal.NewFromInt(60).Equal(result.Transaction.Send.Source.From[0].Amount.Value))
+	}
+	assert.Equal(t, "@payer", result.Transaction.Send.Source.From[1].AccountAlias)
+	assert.Equal(t, "available", result.Transaction.Send.Source.From[1].BalanceKey)
+	assert.Empty(t, result.Transaction.Send.Source.From[1].Remaining)
+	if assert.NotNil(t, result.Transaction.Send.Source.From[1].Amount) {
+		assert.True(t, decimal.NewFromInt(40).Equal(result.Transaction.Send.Source.From[1].Amount.Value))
+	}
+}
+
 // TestEstimateFeeCalculation_PackageNotFound_MongoErrNoDocuments tests when package is not found (mongo.ErrNoDocuments)
 func TestEstimateFeeCalculation_PackageNotFound_MongoErrNoDocuments(t *testing.T) {
 	t.Parallel()

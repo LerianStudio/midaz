@@ -591,6 +591,38 @@ func TestIsAccountExemptWithSegments_AccountHasNilSegmentID(t *testing.T) {
 	}
 }
 
+func TestIsAccountExemptOrSegment_CompositeKeyUsesAuthoredAlias(t *testing.T) {
+	t.Parallel()
+
+	waivedSegment := segmentUUID("550e8400-e29b-41d4-a716-446655440001")
+	resolver := &mockSegmentResolver{
+		getAccountFn: func(_ context.Context, _, _ uuid.UUID, alias string) (*feeshared.Account, error) {
+			assert.Equal(t, "@payer", alias)
+
+			return &feeshared.Account{Alias: alias, SegmentID: &waivedSegment}, nil
+		},
+	}
+	aliases := []string{}
+	segCtx := &SegmentContext{
+		Ctx:            context.Background(),
+		Resolver:       resolver,
+		OrganizationID: testOrgID,
+		LedgerID:       testLedgerID,
+		ResolverCache:  make(map[string]*feeshared.Account),
+	}
+
+	exempt, err := isAccountExemptOrSegment(
+		"0#@payer#reserved->fee0->routeX",
+		&aliases,
+		[]uuid.UUID{waivedSegment},
+		segCtx,
+	)
+
+	assert.NoError(t, err)
+	assert.True(t, exempt)
+	assert.Equal(t, 1, resolver.callCount)
+}
+
 func TestIsAccountExemptWithSegments_ExternalAccount(t *testing.T) {
 	t.Parallel()
 

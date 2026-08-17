@@ -1360,6 +1360,57 @@ func TestValidateSendSourceAndDistribute_DestinationRemainingMustBePositive(t *t
 	}
 }
 
+func TestValidateSendSourceAndDistribute_RejectsInvalidLegValues(t *testing.T) {
+	t.Parallel()
+
+	validAmount := func(value int64) *Amount {
+		return &Amount{Asset: "USD", Value: decimal.NewFromInt(value)}
+	}
+
+	tests := []struct {
+		name string
+		leg  FromTo
+	}{
+		{name: "zero explicit amount", leg: FromTo{AccountAlias: "@source", Amount: validAmount(0), IsFrom: true}},
+		{name: "negative explicit amount", leg: FromTo{AccountAlias: "@source", Amount: validAmount(-1), IsFrom: true}},
+		{name: "zero percentage", leg: FromTo{AccountAlias: "@source", Share: &Share{Percentage: 0}, IsFrom: true}},
+		{name: "negative percentage", leg: FromTo{AccountAlias: "@source", Share: &Share{Percentage: -1}, IsFrom: true}},
+		{name: "percentage over one hundred", leg: FromTo{AccountAlias: "@source", Share: &Share{Percentage: 101}, IsFrom: true}},
+		{name: "negative percentage of percentage", leg: FromTo{AccountAlias: "@source", Share: &Share{Percentage: 100, PercentageOfPercentage: -1}, IsFrom: true}},
+		{name: "percentage of percentage over one hundred", leg: FromTo{AccountAlias: "@source", Share: &Share{Percentage: 100, PercentageOfPercentage: 101}, IsFrom: true}},
+	}
+
+	for _, tc := range tests {
+		for _, side := range []string{"source", "destination"} {
+			t.Run(tc.name+" on "+side, func(t *testing.T) {
+				t.Parallel()
+
+				source := FromTo{AccountAlias: "@source", Amount: validAmount(100), IsFrom: true}
+				destination := FromTo{AccountAlias: "@destination", Amount: validAmount(100)}
+				if side == "source" {
+					source = tc.leg
+					source.IsFrom = true
+				} else {
+					destination = tc.leg
+					destination.AccountAlias = "@destination"
+					destination.IsFrom = false
+				}
+
+				input := Transaction{Send: Send{
+					Asset:      "USD",
+					Value:      decimal.NewFromInt(100),
+					Source:     Source{From: []FromTo{source}},
+					Distribute: Distribute{To: []FromTo{destination}},
+				}}
+
+				_, err := ValidateSendSourceAndDistribute(context.Background(), input, pkgConstant.CREATED)
+				assert.Error(t, err)
+				assert.Equal(t, pkgConstant.ErrInvalidTransactionNonPositiveValue.Error(), codeFromError(err))
+			})
+		}
+	}
+}
+
 func TestDetermineOperation(t *testing.T) {
 	t.Parallel()
 

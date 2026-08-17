@@ -561,6 +561,25 @@ func validateRemainingAmounts(entries []FromTo, resolved map[string]Amount) erro
 	return nil
 }
 
+func validateLegValues(entries []FromTo) error {
+	for _, entry := range entries {
+		if entry.Amount != nil && !entry.Amount.Value.IsPositive() {
+			return pkg.ValidateBusinessError(pkgConstant.ErrInvalidTransactionNonPositiveValue, pkgConstant.EntityTransaction)
+		}
+
+		if entry.Share == nil {
+			continue
+		}
+
+		if entry.Share.Percentage < 1 || entry.Share.Percentage > 100 ||
+			entry.Share.PercentageOfPercentage < 0 || entry.Share.PercentageOfPercentage > 100 {
+			return pkg.ValidateBusinessError(pkgConstant.ErrInvalidTransactionNonPositiveValue, pkgConstant.EntityTransaction)
+		}
+	}
+
+	return nil
+}
+
 // AppendIfNotExist Append if not exist
 func AppendIfNotExist(slice []string, s []string) []string {
 	for _, v := range s {
@@ -603,6 +622,18 @@ func ValidateSendSourceAndDistribute(ctx context.Context, transaction Transactio
 
 	_, span := tracer.Start(ctx, "transaction.validate_send_source_and_distribute")
 	defer span.End()
+
+	if err := validateLegValues(transaction.Send.Source.From); err != nil {
+		logger.Log(ctx, libLog.LevelWarn, "Source leg value is outside the accepted range", libLog.Err(err))
+
+		return nil, err
+	}
+
+	if err := validateLegValues(transaction.Send.Distribute.To); err != nil {
+		logger.Log(ctx, libLog.LevelWarn, "Destination leg value is outside the accepted range", libLog.Err(err))
+
+		return nil, err
+	}
 
 	sizeFrom := len(transaction.Send.Source.From)
 	sizeTo := len(transaction.Send.Distribute.To)

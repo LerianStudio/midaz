@@ -80,7 +80,9 @@ func (uc *UseCase) EstimateFeeCalculation(ctx context.Context, cf *model.FeeEsti
 		Transaction: cf.Transaction,
 	}
 
-	validationResult, errValidationSend := transaction.ValidateSendSourceAndDistribute(ctx, feeModel.Transaction, "")
+	validationTransaction := transactionForFeeCalculation(feeModel.Transaction)
+
+	validationResult, errValidationSend := transaction.ValidateSendSourceAndDistribute(ctx, validationTransaction, "")
 	if errValidationSend != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to validate send struct", errValidationSend)
 
@@ -107,7 +109,7 @@ func (uc *UseCase) EstimateFeeCalculation(ctx context.Context, cf *model.FeeEsti
 		LedgerID:       cf.LedgerID,
 	}
 
-	errCalculateFee := feeUtils.CalculateFee(logger, feeModel, packModel, validationResult, uc.defaultCurrency, segCtx)
+	errCalculateFee := feeUtils.CalculateFeePreservingLegs(logger, feeModel, packModel, validationResult, uc.defaultCurrency, segCtx)
 	if errCalculateFee != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to calculate fee", errCalculateFee)
 
