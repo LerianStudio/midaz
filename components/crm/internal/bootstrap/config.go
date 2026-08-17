@@ -250,7 +250,12 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 		return nil, fmt.Errorf("failed to initialize readyz handler: %w", err)
 	}
 
-	httpApp := in.NewRouter(logger, telemetry, auth, tenantMiddleware, readyzHandler, holderHandler, aliasHandler, encryptionHandler, auditHandler)
+	// Streaming manifest handler (control-plane, static): serves
+	// GET /v1/streaming/manifest from the CRM event catalog, independent of the
+	// emitter. Nil on build failure, which leaves the route unmounted.
+	manifestHandler := buildStreamingManifestHandler(logger)
+
+	httpApp := in.NewRouter(logger, telemetry, auth, tenantMiddleware, readyzHandler, holderHandler, aliasHandler, encryptionHandler, auditHandler, manifestHandler)
 	serverAPI := NewServer(cfg, httpApp, logger, telemetry, readyzHandler)
 
 	streamingCleanup = noopStreamingCloser

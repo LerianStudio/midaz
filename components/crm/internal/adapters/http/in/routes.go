@@ -5,8 +5,11 @@
 package in
 
 import (
+	stdhttp "net/http"
+
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v3/pkg/net/http"
+	pkgStreaming "github.com/LerianStudio/midaz/v3/pkg/streaming"
 
 	"github.com/LerianStudio/lib-auth/v2/auth/middleware"
 	libHTTP "github.com/LerianStudio/lib-commons/v5/commons/net/http"
@@ -14,6 +17,7 @@ import (
 	libObsMiddleware "github.com/LerianStudio/lib-observability/middleware"
 	libOpenTelemetry "github.com/LerianStudio/lib-observability/tracing"
 	"github.com/gofiber/fiber/v2"
+	"github.com/gofiber/fiber/v2/middleware/adaptor"
 	"github.com/gofiber/fiber/v2/middleware/cors"
 	fiberSwagger "github.com/swaggo/fiber-swagger"
 )
@@ -26,7 +30,14 @@ type ReadyzHandler interface {
 	HandleReadyz(c *fiber.Ctx) error
 }
 
-func NewRouter(lg libLog.Logger, tl *libOpenTelemetry.Telemetry, auth *middleware.AuthClient, tenantMw fiber.Handler, readyzHandler ReadyzHandler, hh *HolderHandler, ah *AliasHandler, eh *EncryptionHandler, auditHandler *AuditHandler) *fiber.App {
+// manifestHandler is the stdlib net/http streaming manifest handler produced by
+// pkgStreaming.NewManifestHTTPHandler at bootstrap. It is mounted BEFORE the
+// tenant middleware (control-plane, no tenant context) yet still guarded by
+// auth.Authorize. A nil handler means the bootstrap build failed or streaming is
+// not wired; the route is left unmounted so a degraded build never breaks
+// startup or serves a nil handler. The manifest is static component metadata, so
+// it is NOT gated on STREAMING_ENABLED.
+func NewRouter(lg libLog.Logger, tl *libOpenTelemetry.Telemetry, auth *middleware.AuthClient, tenantMw fiber.Handler, readyzHandler ReadyzHandler, hh *HolderHandler, ah *AliasHandler, eh *EncryptionHandler, auditHandler *AuditHandler, manifestHandler stdhttp.Handler) *fiber.App {
 	f := fiber.New(fiber.Config{
 		DisableStartupMessage: true,
 		ErrorHandler: func(ctx *fiber.Ctx, err error) error {
@@ -56,6 +67,15 @@ func NewRouter(lg libLog.Logger, tl *libOpenTelemetry.Telemetry, auth *middlewar
 	// K8s probes do not authenticate, so this endpoint MUST NOT require auth.
 	if readyzHandler != nil {
 		f.Get("/readyz", readyzHandler.HandleReadyz)
+	}
+
+	// Streaming manifest: control-plane, static component metadata. Registered
+	// BEFORE the tenant middleware so it needs no tenant context, but still
+	// guarded by auth.Authorize. A nil handler leaves the route unmounted (404).
+	if manifestHandler != nil {
+		f.Get(pkgStreaming.ManifestRoutePath,
+			auth.Authorize(ApplicationName, "streaming-manifest", "get"),
+			adaptor.HTTPHandler(manifestHandler))
 	}
 
 	// Tenant middleware: registered only when multi-tenant mode is enabled.

@@ -195,6 +195,7 @@ func TestNewRouter_ServesSwaggerUIAssets(t *testing.T) {
 		&AliasHandler{},
 		nil, // EncryptionHandler - nil is acceptable for this test
 		nil, // AuditHandler - nil is acceptable for this test
+		nil, // manifest handler - not exercised by this test
 	)
 
 	for _, path := range []string{
@@ -260,6 +261,7 @@ func TestNewRouter_AuditRouteRegistration(t *testing.T) {
 				&AliasHandler{},
 				nil, // EncryptionHandler not needed for this test
 				tt.auditHandler,
+				nil, // manifest handler - not exercised by this test
 			)
 
 			req := httptest.NewRequest(http.MethodGet,

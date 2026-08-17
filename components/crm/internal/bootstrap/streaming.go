@@ -7,6 +7,7 @@ package bootstrap
 import (
 	"context"
 	"fmt"
+	"net/http"
 	"strings"
 
 	libLog "github.com/LerianStudio/lib-observability/log"
@@ -181,6 +182,42 @@ func crmEventDefinitions() []events.Definition {
 		events.AliasDeletedDefinition,
 		events.AliasRelatedPartyDeletedDefinition,
 	}
+}
+
+// buildStreamingManifestHandler builds the control-plane streaming manifest
+// handler (GET /v1/streaming/manifest) from CRM's event catalog. The manifest is
+// static component metadata built from buildCatalog independently of the emitter,
+// so it works even when streaming is disabled and is NOT gated on
+// StreamingEnabled. A build failure MUST NOT break startup: it logs a Warn and
+// returns nil, leaving the route unmounted at registration.
+func buildStreamingManifestHandler(logger libLog.Logger) http.Handler {
+	catalog, err := buildCatalog()
+	if err != nil {
+		logStreamingManifestBuildFailure(logger,
+			"Failed to build streaming catalog for manifest; manifest route disabled", err)
+
+		return nil
+	}
+
+	handler, err := pkgStreaming.NewManifestHTTPHandler(streamingServiceName, streamingServiceName, catalog)
+	if err != nil {
+		logStreamingManifestBuildFailure(logger,
+			"Failed to build streaming manifest handler; manifest route disabled", err)
+
+		return nil
+	}
+
+	return handler
+}
+
+// logStreamingManifestBuildFailure emits a single Warn for a manifest build
+// failure, guarding a nil logger so bootstrap cleanup paths stay panic-free.
+func logStreamingManifestBuildFailure(logger libLog.Logger, msg string, err error) {
+	if logger == nil {
+		return
+	}
+
+	logger.Log(context.Background(), libLog.LevelWarn, msg, libLog.Err(err))
 }
 
 // buildCatalog constructs the immutable lib-streaming Catalog from CRM's event
