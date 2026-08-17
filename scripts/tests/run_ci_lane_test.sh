@@ -33,10 +33,17 @@ grep -q '"status":"timed_out"' "$test_dir/bounded-timing.json"
 mkdir -p "$test_dir/bin"
 cat > "$test_dir/bin/docker" <<'EOF'
 #!/usr/bin/env bash
+if [[ ${FAKE_DOCKER_MODE:-} == fail-start ]]; then
+  exit 9
+fi
 printf '%s\n' \
   '{"Type":"container","Action":"start"}' \
   '{"Type":"container","Action":"start"}' \
   '{"Type":"container","Action":"restart"}'
+if [[ ${FAKE_DOCKER_MODE:-} == fail-mid-lane ]]; then
+  sleep 2
+  exit 9
+fi
 exec sleep 30
 EOF
 chmod +x "$test_dir/bin/docker"
@@ -47,5 +54,31 @@ CI_CAPTURE_DOCKER_EVENTS=testcontainers CI_REPORT_DIR="$test_dir" \
 grep -q '"scope":"testcontainers"' "$test_dir/docker-events-docker-summary.json"
 grep -q '"container_start_events":2' "$test_dir/docker-events-docker-summary.json"
 grep -q '"container_restart_events":1' "$test_dir/docker-events-docker-summary.json"
+
+status=0
+FAKE_DOCKER_MODE=fail-start CI_CAPTURE_DOCKER_EVENTS=testcontainers CI_REPORT_DIR="$test_dir" \
+  PATH="$test_dir/bin:$PATH" \
+  "$repo_root/scripts/run-ci-lane.sh" docker-events-fail-start 5s bash -c 'exit 99' || status=$?
+if [[ $status -ne 2 ]]; then
+  echo "lane with dead Docker observer returned $status, want 2" >&2
+  exit 1
+fi
+if [[ -e $test_dir/docker-events-fail-start-docker-summary.json ]]; then
+  echo "dead Docker observer published a valid summary" >&2
+  exit 1
+fi
+
+status=0
+FAKE_DOCKER_MODE=fail-mid-lane CI_CAPTURE_DOCKER_EVENTS=testcontainers CI_REPORT_DIR="$test_dir" \
+  PATH="$test_dir/bin:$PATH" \
+  "$repo_root/scripts/run-ci-lane.sh" docker-events-fail-mid-lane 5s bash -c 'sleep 3' || status=$?
+if [[ $status -ne 2 ]]; then
+  echo "lane whose Docker observer died returned $status, want 2" >&2
+  exit 1
+fi
+if [[ -e $test_dir/docker-events-fail-mid-lane-docker-summary.json ]]; then
+  echo "failed Docker observer published a valid summary" >&2
+  exit 1
+fi
 
 echo "run-ci-lane tests passed"

@@ -40,10 +40,16 @@ started_at=$(date -u +%Y-%m-%dT%H:%M:%SZ)
 started_epoch=$(date +%s)
 
 docker_events_pid=
+docker_events_failed=0
 stop_docker_events() {
   if [[ -n $docker_events_pid ]]; then
-    kill "$docker_events_pid" 2>/dev/null || true
-    wait "$docker_events_pid" 2>/dev/null || true
+    if kill -0 "$docker_events_pid" 2>/dev/null; then
+      kill "$docker_events_pid" 2>/dev/null || true
+      wait "$docker_events_pid" 2>/dev/null || true
+    else
+      wait "$docker_events_pid" 2>/dev/null || true
+      docker_events_failed=1
+    fi
     docker_events_pid=
   fi
 }
@@ -71,6 +77,17 @@ if [[ -n $docker_event_scope ]]; then
     > "$docker_events_file" 2> "$report_dir/$lane-docker-events.log" &
   docker_events_pid=$!
   trap stop_docker_events EXIT
+
+  # Docker can accept the process launch and fail before the lane starts. Do
+  # not publish a zero-container measurement when the observer never lived.
+  sleep 1
+  if ! kill -0 "$docker_events_pid" 2>/dev/null; then
+    wait "$docker_events_pid" 2>/dev/null || true
+    docker_events_pid=
+    trap - EXIT
+    echo "required CI lane '$lane' Docker event observer exited before the lane started" >&2
+    exit 2
+  fi
 fi
 
 echo "[$lane] starting (wall timeout: $wall_timeout)"
@@ -81,6 +98,13 @@ set -e
 
 stop_docker_events
 trap - EXIT
+
+if [[ $docker_events_failed -eq 1 ]]; then
+  echo "required CI lane '$lane' Docker event observer exited before the lane finished" >&2
+  if [[ $exit_code -eq 0 ]]; then
+    exit_code=2
+  fi
+fi
 
 finished_at=$(date -u +%Y-%m-%dT%H:%M:%SZ)
 finished_epoch=$(date +%s)
@@ -96,7 +120,7 @@ fi
 printf '{"lane":"%s","status":"%s","exit_code":%d,"started_at":"%s","finished_at":"%s","duration_seconds":%d,"wall_timeout":"%s"}\n' \
   "$lane" "$status" "$exit_code" "$started_at" "$finished_at" "$duration_seconds" "$wall_timeout" > "$timing_file"
 
-if [[ -n $docker_event_scope ]]; then
+if [[ -n $docker_event_scope && $docker_events_failed -eq 0 ]]; then
   container_starts=$(grep -c '"Action":"start"' "$docker_events_file" || true)
   container_restarts=$(grep -c '"Action":"restart"' "$docker_events_file" || true)
   printf '{"lane":"%s","scope":"%s","container_start_events":%d,"container_restart_events":%d}\n' \
