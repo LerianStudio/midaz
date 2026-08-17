@@ -1,0 +1,155 @@
+# Access-Manager RI (Inversão de Responsabilidade) declaration manifest.
+#
+# Identity (service slug): "midaz" — the core ledger + embedded CRM. This is the
+# FIRST argument of every auth.Authorize("midaz", resource, verb) guard in
+# components/ledger/internal/adapters/http/in/ (const midazName, routes.go:15;
+# the CRM routes reuse it via const ApplicationName = "midaz", crm_routes.go:20).
+# Keys mirror the yaml tags on lib-auth/v3 auth/declaration.DeclarationManifest
+# (auth/declaration/manifest.go).
+#
+# The (resource, action) tuples below are the EXACT authorization surface the
+# ledger routes enforce at runtime. Every entry traces to a real
+# protectedMidaz(auth, resource, verb) route registration (= auth.Authorize(
+# "midaz", resource, verb)); the file:line on each group header points at the
+# registration. `resource` is written BARE — the central reconciler composes the
+# "midaz/" prefix. The `action` is the HTTP verb the guard authorizes under
+# (get/post/put/patch/delete/head), preserved VERBATIM: lib-auth's HTTP-verb
+# deny-list was removed (lib-auth #145 / identity #310), and the manifest action
+# MUST match what the middleware checks, so a granted role's permission lines up
+# with the runtime enforce — NOT a semantic create/read/update rename.
+#
+# ### TEAM: please confirm ### — ROLE MODEL IS INFERRED. The code carries no role
+# data (Authorize takes only subject/resource/action), so the editor/viewer split
+# below is an INFERRED convention, mirroring the plugin-fees manifest: read verbs
+# (get, head) are granted to editor + viewer; every mutating verb (post/put/patch/
+# delete) to editor only. The granted_to group bindings under `roles:` are likewise
+# inferred and each carries a confirm marker.
+service: midaz
+version: 1
+permissions:
+  # account-types (accounttype_handler_huma.go:363)
+  - { resource: account-types, action: post,   effect: allow, roles: [editor] }
+  - { resource: account-types, action: patch,  effect: allow, roles: [editor] }
+  - { resource: account-types, action: get,    effect: allow, roles: [editor, viewer] }
+  - { resource: account-types, action: delete, effect: allow, roles: [editor] }
+
+  # accounts (account_handler_huma.go:500)
+  - { resource: accounts, action: post,   effect: allow, roles: [editor] }
+  - { resource: accounts, action: patch,  effect: allow, roles: [editor] }
+  - { resource: accounts, action: get,    effect: allow, roles: [editor, viewer] }
+  - { resource: accounts, action: delete, effect: allow, roles: [editor] }
+  - { resource: accounts, action: head,   effect: allow, roles: [editor, viewer] }
+
+  # asset-rates (assetrate_handler_huma.go:287)
+  - { resource: asset-rates, action: put, effect: allow, roles: [editor] }
+  - { resource: asset-rates, action: get, effect: allow, roles: [editor, viewer] }
+
+  # assets (routes.go:96)
+  - { resource: assets, action: post,   effect: allow, roles: [editor] }
+  - { resource: assets, action: patch,  effect: allow, roles: [editor] }
+  - { resource: assets, action: get,    effect: allow, roles: [editor, viewer] }
+  - { resource: assets, action: delete, effect: allow, roles: [editor] }
+  - { resource: assets, action: head,   effect: allow, roles: [editor, viewer] }
+
+  # balances (routes.go:148)
+  - { resource: balances, action: get,    effect: allow, roles: [editor, viewer] }
+  - { resource: balances, action: patch,  effect: allow, roles: [editor] }
+  - { resource: balances, action: delete, effect: allow, roles: [editor] }
+  - { resource: balances, action: post,   effect: allow, roles: [editor] }
+
+  # encryption (crm_routes.go:107)
+  - { resource: encryption, action: post, effect: allow, roles: [editor] }
+  - { resource: encryption, action: get,  effect: allow, roles: [editor, viewer] }
+
+  # holders (crm_routes.go:81)
+  - { resource: holders, action: post,   effect: allow, roles: [editor] }
+  - { resource: holders, action: get,    effect: allow, roles: [editor, viewer] }
+  - { resource: holders, action: patch,  effect: allow, roles: [editor] }
+  - { resource: holders, action: delete, effect: allow, roles: [editor] }
+
+  # instruments (crm_routes.go:95)
+  - { resource: instruments, action: get,    effect: allow, roles: [editor, viewer] }
+  - { resource: instruments, action: post,   effect: allow, roles: [editor] }
+  - { resource: instruments, action: patch,  effect: allow, roles: [editor] }
+  - { resource: instruments, action: delete, effect: allow, roles: [editor] }
+
+  # ledgers (ledger_handler_huma.go:534)
+  - { resource: ledgers, action: post,   effect: allow, roles: [editor] }
+  - { resource: ledgers, action: patch,  effect: allow, roles: [editor] }
+  - { resource: ledgers, action: get,    effect: allow, roles: [editor, viewer] }
+  - { resource: ledgers, action: delete, effect: allow, roles: [editor] }
+  - { resource: ledgers, action: head,   effect: allow, roles: [editor, viewer] }
+
+  # operation-routes (routes.go:315)
+  - { resource: operation-routes, action: post,   effect: allow, roles: [editor] }
+  - { resource: operation-routes, action: patch,  effect: allow, roles: [editor] }
+  - { resource: operation-routes, action: get,    effect: allow, roles: [editor, viewer] }
+  - { resource: operation-routes, action: delete, effect: allow, roles: [editor] }
+
+  # operations (routes.go:199)
+  - { resource: operations, action: get,   effect: allow, roles: [editor, viewer] }
+  - { resource: operations, action: patch, effect: allow, roles: [editor] }
+
+  # organizations (organization_handler_huma.go:384)
+  - { resource: organizations, action: post,   effect: allow, roles: [editor] }
+  - { resource: organizations, action: patch,  effect: allow, roles: [editor] }
+  - { resource: organizations, action: get,    effect: allow, roles: [editor, viewer] }
+  - { resource: organizations, action: delete, effect: allow, roles: [editor] }
+  - { resource: organizations, action: head,   effect: allow, roles: [editor, viewer] }
+
+  # portfolios (portfolio_handler_huma.go:386)
+  - { resource: portfolios, action: post,   effect: allow, roles: [editor] }
+  - { resource: portfolios, action: patch,  effect: allow, roles: [editor] }
+  - { resource: portfolios, action: get,    effect: allow, roles: [editor, viewer] }
+  - { resource: portfolios, action: delete, effect: allow, roles: [editor] }
+  - { resource: portfolios, action: head,   effect: allow, roles: [editor, viewer] }
+
+  # protection — CRM audit-trail read (crm_routes.go:113)
+  - { resource: protection, action: get, effect: allow, roles: [editor, viewer] }
+
+  # segments (segment_handler_huma.go:393)
+  - { resource: segments, action: post,   effect: allow, roles: [editor] }
+  - { resource: segments, action: patch,  effect: allow, roles: [editor] }
+  - { resource: segments, action: get,    effect: allow, roles: [editor, viewer] }
+  - { resource: segments, action: delete, effect: allow, roles: [editor] }
+  - { resource: segments, action: head,   effect: allow, roles: [editor, viewer] }
+
+  # settings — entity metadata (metadata_handler_huma.go:258)
+  - { resource: settings, action: post,   effect: allow, roles: [editor] }
+  - { resource: settings, action: get,    effect: allow, roles: [editor, viewer] }
+  - { resource: settings, action: delete, effect: allow, roles: [editor] }
+
+  # transaction-routes (routes.go:357)
+  - { resource: transaction-routes, action: post,   effect: allow, roles: [editor] }
+  - { resource: transaction-routes, action: patch,  effect: allow, roles: [editor] }
+  - { resource: transaction-routes, action: get,    effect: allow, roles: [editor, viewer] }
+  - { resource: transaction-routes, action: delete, effect: allow, roles: [editor] }
+
+  # transactions (transaction_v2_mirror_register.go:150; head at count_handler_huma.go)
+  - { resource: transactions, action: post,  effect: allow, roles: [editor] }
+  - { resource: transactions, action: patch, effect: allow, roles: [editor] }
+  - { resource: transactions, action: get,   effect: allow, roles: [editor, viewer] }
+  - { resource: transactions, action: head,  effect: allow, roles: [editor, viewer] }
+
+roles:
+  # ### TEAM: please confirm ### — role -> group bindings are INFERRED (no group
+  # data in code). The manifest only references pre-existing groups; it never
+  # creates them. Confirm the real group names, or drop granted_to to leave the
+  # roles unbound (still valid).
+  - name: editor
+    granted_to:
+      - group: midaz-admins   ### TEAM: please confirm ###
+  - name: viewer
+    granted_to:
+      - group: midaz-viewers  ### TEAM: please confirm ###
+
+m2m:
+  # EXPORT: midaz is the target of plugin-fees' `needs: [midaz]` (fees calls the
+  # ledger in-process/over the seam), so it must expose its M2M editor surface.
+  exposed: true
+  # IMPORT: the ledger calls tracer's reservation API (TRACER_BASE_URL, gRPC/REST;
+  # .env.example:487) which is guarded by auth.Authorize("tracer","reservations",
+  # "post"). ### TEAM: please confirm ### — confirm this call rides an M2M token
+  # (not the API key) before relying on this edge.
+  needs:
+    - tracer
