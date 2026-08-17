@@ -4,13 +4,13 @@
 
 **Architecture:** Integration build tags define what belongs to each lane. Required gates fail closed when discovery or prerequisites are missing. Datastore processes are eventually reused at package or shard scope, while every test keeps an isolated database, schema, namespace, or vhost. Parallelism is introduced only after isolation is explicit and measured.
 
-**Status:** P0's test infrastructure is implemented and measured. P1-P3 remain blocked by money-path defects that the newly honest lane exposed; the highest-blast-radius decision is the released V1 `remaining` expression, which can currently commit an unbalanced transaction.
+**Status:** P0's test infrastructure is implemented and measured. Full support for the released V1 `remaining` expression is now in progress; P1-P3 remain blocked until the money-path defects exposed by the honest lane are closed.
 
 ## Phase overview
 
 | Phase | Outcome | Status |
 |---|---|---|
-| P0 | Every required gate executes the coverage it claims and emits usable timing evidence | Blocked on money-path product decisions |
+| P0 | Every required gate executes the coverage it claims and emits usable timing evidence | In progress — closing money-path defects |
 | P1 | Ledger datastore startup and migrations are reused without sharing mutable test state | Pending |
 | P2 | Independent families run concurrently within an explicit resource budget | Pending |
 | P3 | Tracer restarts, fixed waits, polling, cleanup, and streaming history scans are reduced | Pending |
@@ -76,7 +76,7 @@ Root skip classification: 76 chaos-only scenarios, 2 streaming smokes covered by
 - [x] Reject a reused reservation tuple when the amount differs or the persisted hold is already terminal.
 - [x] Keep reservation TTL separate from the financial counter's period-retention expiry.
 - [x] Prove `reserve -> confirm -> cleanup` cannot erase valid daily, weekly, monthly, or custom usage.
-- [ ] Stop V1 `remaining` legs from committing an APPROVED transaction whose persisted debits and credits differ (define whether V1 supports the expression correctly or rejects it).
+- [ ] Support V1 `remaining` end to end: every resolved leg must move balances, persist an operation, and preserve double-entry across direct, pending, commit, cancel, revert, and fee paths.
 - [ ] Scope revert idempotency by the origin transaction without opening a rolling-deploy window that can double-revert.
 - [ ] Replace the incorrect "reaper is a durability backstop" assumption for a lost post-commit confirmation with a durable transaction-outcome mechanism.
 - [x] Make tests, logs, and architecture docs expose lost-confirm undercounting as a known defect instead of describing it as successful reconciliation.
@@ -84,7 +84,7 @@ Root skip classification: 76 chaos-only scenarios, 2 streaming smokes covered by
 
 **Product/architecture blockers:**
 
-1. V1 accepts `remaining`, resolves its amount during validation, then drops that leg during persistence and commits an unbalanced APPROVED transaction. The released API must either support the expression end to end or reject it before any ledger effect.
+1. V1 accepts `remaining`, resolves its amount during validation, then drops that leg during persistence and commits an unbalanced APPROVED transaction. Product decision: support the expression end to end; implementation is in progress.
 2. Two economically identical origins can share one revert idempotency slot, so the second origin is never reverted. Changing the live Redis key shape without a rollout contract can instead double-revert retries.
 3. Ledger commits balances before the Tracer confirmation is durable. If that confirmation is lost, the reaper releases the hold and undercounts usage even though money moved.
 
