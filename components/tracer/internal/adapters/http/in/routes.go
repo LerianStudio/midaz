@@ -210,10 +210,6 @@ func NewRoutes(deps RoutesDeps) (*fiber.App, error) {
 
 		return nil
 	})
-	// Check if telemetry should be skipped to avoid data race in lib-commons ContextWithLogger.
-	// The race occurs when multiple goroutines call WithTelemetry concurrently in tests.
-	skipTelemetry := os.Getenv("SKIP_LIB_COMMONS_TELEMETRY") == "true"
-
 	tlMid := libObsMiddleware.NewTelemetryMiddleware(tl)
 
 	// Middleware order is CRITICAL per Ring Standards:
@@ -221,10 +217,7 @@ func NewRoutes(deps RoutesDeps) (*fiber.App, error) {
 	//    readiness/metrics probe paths are passed as excluded routes so they skip
 	//    detailed telemetry (the responsibility the removed OTel-Fiber WithNext
 	//    predicate used to carry).
-	// Skipped when SKIP_LIB_COMMONS_TELEMETRY=true to avoid data race in lib-commons ContextWithLogger.
-	if !skipTelemetry {
-		f.Use(tlMid.WithTelemetry(tl, skipTelemetryPaths...))
-	}
+	f.Use(tlMid.WithTelemetry(tl, skipTelemetryPaths...))
 
 	// 2. Recover - Second: captures panics before they propagate
 	// Stack trace disabled in production to prevent information leakage (OWASP).
@@ -249,10 +242,7 @@ func NewRoutes(deps RoutesDeps) (*fiber.App, error) {
 	f.Use(middleware.ClientIPMiddlewareWithTrustedProxies(cfg.TrustedProxyCIDRs))
 
 	// 5. HTTP Logging - Fifth: structured request/response logging
-	// Skipped when SKIP_LIB_COMMONS_TELEMETRY=true to avoid data race in lib-commons ContextWithLogger.
-	if !skipTelemetry {
-		f.Use(libObsMiddleware.WithHTTPLogging(libObsMiddleware.WithCustomLogger(lg)))
-	}
+	f.Use(libObsMiddleware.WithHTTPLogging(libObsMiddleware.WithCustomLogger(lg)))
 
 	// 6. Fault Injection - Sixth: ONLY for integration tests
 	// Enabled via FAULT_INJECTION_ENABLED=true environment variable.
@@ -443,10 +433,8 @@ func NewRoutes(deps RoutesDeps) (*fiber.App, error) {
 		openapi.ServeSpec(f, humaAPI, lg, "/v1", "Midaz Tracer API")
 	}
 
-	// End tracing spans middleware - skipped when telemetry is disabled
-	if !skipTelemetry {
-		f.Use(tlMid.EndTracingSpans)
-	}
+	// End tracing spans middleware.
+	f.Use(tlMid.EndTracingSpans)
 
 	return f, nil
 }

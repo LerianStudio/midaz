@@ -9,7 +9,6 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
-	"os"
 	"testing"
 
 	authMiddleware "github.com/LerianStudio/lib-auth/v3/auth/middleware"
@@ -27,13 +26,6 @@ import (
 	"github.com/LerianStudio/midaz/v4/components/tracer/pkg/clock"
 	"github.com/LerianStudio/midaz/v4/components/tracer/pkg/model"
 )
-
-func TestMain(m *testing.M) {
-	// Skip telemetry middleware that causes data races in lib-commons ContextWithLogger.
-	// The race occurs when multiple goroutines call it concurrently (as happens in Fiber's app.Test).
-	os.Setenv("SKIP_LIB_COMMONS_TELEMETRY", "true")
-	os.Exit(m.Run())
-}
 
 // errorResponse represents the standard error response format from libHTTP.
 type errorResponse struct {
@@ -130,7 +122,6 @@ func createTestRouter(t *testing.T, guardCfg middleware.AuthGuardConfig) *fiber.
 }
 
 func TestRoutes_PublicEndpoints_NoAuthRequired(t *testing.T) {
-	// Note: SKIP_LIB_COMMONS_TELEMETRY=true is set in TestMain to skip telemetry middleware that causes data races.
 	guardCfg := middleware.AuthGuardConfig{
 		APIKey:        "test-secret-key-32-characters-long",
 		APIKeyEnabled: true,

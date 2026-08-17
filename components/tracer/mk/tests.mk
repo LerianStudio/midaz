@@ -4,7 +4,7 @@
 # The shared, parameterized test scaffolding (test-unit, test-integration,
 # coverage-integration, test-bench, test-all, wait-for-services) lives in the
 # monorepo-root mk/test-go.mk. This file sets tracer's knobs (testhooks tag,
-# race-disabled integration, tracer health URL, tracer integration scope)
+# tracer health URL, tracer integration scope)
 # and keeps tracer's genuinely-unique targets: test-e2e (godog Docker-reset),
 # tools/tools-gotestsum, the .env SERVER_PORT autodetect, the testhooks-tagged
 # coverage-unit, and coverage-summary.
@@ -42,10 +42,6 @@ ENV_FILE_FLAG := $(if $(wildcard .env),--env-file .env,)
 # ------------------------------------------------------
 # testhooks build tag threaded into every tracer `go test`.
 GO_TEST_BUILD_TAGS := testhooks
-# Race detector disabled for integration/E2E tests due to a known race in
-# lib-commons. TODO: re-enable once lib-commons fixes it. (Unit tests keep -race;
-# only the integration base race flag is emptied here.)
-INTEG_RACE_FLAG :=
 # wait-for-services polls the tracer health endpoint.
 TEST_HEALTH_URL := $(TEST_TRACER_URL)
 # Tracer uses the shared tag-based discovery contract while retaining its local

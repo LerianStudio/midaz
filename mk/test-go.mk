@@ -19,8 +19,7 @@
 #                        Unit emits `-tags=<tags>` only when non-empty; integration
 #                        emits `-tags=integration[,<tags>]`.
 #   INTEG_RACE_FLAG      base race flag for integration/coverage-integration
-#                        (default -race; tracer sets it EMPTY for a documented
-#                        lib-commons race). LOW_RESOURCE=1 still forces it empty.
+#                        (default -race). LOW_RESOURCE=1 forces it empty.
 #   TEST_HEALTH_URL      health endpoint polled by wait-for-services
 #                        (root: ledger URL; tracer: tracer URL).
 #   INTEG_PACKAGE_PATTERNS
