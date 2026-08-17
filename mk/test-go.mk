@@ -253,6 +253,7 @@ test-integration:
 	  fi; \
 	  $(integ_chaos_notice); \
 	  if [ -n "$(GOTESTSUM)" ]; then echo "Running testcontainers integration tests with gotestsum"; fi; \
+	  if [ -n "$(GOTESTSUM)" ]; then mkdir -p "$(TEST_REPORTS_DIR)/integration-events"; fi; \
 	  package_index=0; \
 	  for pkg in $$pkgs; do \
 	    package_index=$$((package_index + 1)); \
@@ -271,9 +272,11 @@ test-integration:
 	      exact_pattern="^($$test_alternation)$${test_anchor}"; \
 	    fi; \
 	    events_file=""; gotestsum_event_flag=""; \
-	    if [ -n "$$run_patterns_file" ]; then \
-	      events_file="$$selection_dir/$$package_index.json"; \
+	    if [ -n "$(GOTESTSUM)" ]; then \
+	      events_file="$(TEST_REPORTS_DIR)/integration-events/$$package_index.json"; \
 	      gotestsum_event_flag="--jsonfile=$$events_file"; \
+	    elif [ -n "$$run_patterns_file" ]; then \
+	      events_file="$$selection_dir/$$package_index.json"; \
 	    fi; \
 	    echo "Running $$pkg ($$(printf '%s\n' "$$package_test_names" | awk 'NF { count++ } END { print count + 0 }') tests)"; \
 	    if [ -n "$(GOTESTSUM)" ]; then \
@@ -299,7 +302,7 @@ test-integration:
 	      $(INTEG_TEST_ENV)go test -tags=$(_INTEG_TAGS) -v $(LOW_RES_RACE_FLAG) -count=1 -timeout 600s $(GO_TEST_LDFLAGS) \
 	        -p 1 $(LOW_RES_PARALLEL_FLAG) -run "$$exact_pattern" "$$pkg"; \
 	    fi; \
-	    if [ -n "$$events_file" ]; then \
+	    if [ -n "$$run_patterns_file" ]; then \
 	      "$(GO_TEST_EVENT_VERIFIER)" "$$exact_pattern" < "$$events_file"; \
 	    fi; \
 	  done; \

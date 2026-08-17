@@ -53,6 +53,13 @@ default_root_recipe=$(make -s -C "$repo_root" -n test-integration)
 assert_not_contains "$default_root_recipe" "-run '^TestIntegration'" "root default integration recipe"
 assert_contains "$default_root_recipe" "./components/... ./pkg/... ./tests/..." "root integration scope"
 
+reported_root_recipe=$(make -s -C "$repo_root" -n test-integration \
+  GOTESTSUM=gotestsum TEST_REPORTS_DIR=reports/ci)
+assert_contains "$reported_root_recipe" 'reports/ci/integration-events/$package_index.json' \
+  "root per-package integration event report"
+assert_contains "$reported_root_recipe" 'gotestsum $gotestsum_event_flag --format testname' \
+  "root machine-readable integration event report"
+
 filtered_root_recipe=$(make -s -C "$repo_root" -n test-integration RUN=TestDifferentName)
 assert_not_contains "$filtered_root_recipe" 'requested_pattern="TestDifferentName"' "root RUN must not be interpolated into shell"
 assert_contains "$filtered_root_recipe" 'MIDAZ_TEST_RUN' "root RUN environment transport"

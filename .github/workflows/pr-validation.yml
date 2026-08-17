@@ -134,8 +134,11 @@ jobs:
           go-version: '1.26.4'
           cache: true
 
+      - name: Install test reporter
+        run: go install gotest.tools/gotestsum@v1.13.0
+
       - name: Run root integration lane
-        run: scripts/run-ci-lane.sh integration 25m make test-integration LOW_RESOURCE=1
+        run: scripts/run-ci-lane.sh integration 25m make test-integration LOW_RESOURCE=1 TEST_REPORTS_DIR=reports/ci
 
       - name: Upload integration timing and log
         if: always()
