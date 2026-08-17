@@ -33,9 +33,9 @@ import (
 
 // buildHumaTransactionRouteApp mounts the five transaction-route Huma operations on
 // a /v1 group, faithfully mirroring the production wiring (see buildHumaAssetApp for
-// the full rationale). auth resource is "transaction-routes" under the "routing"
-// appName (protectedRouting in routes.go); the auth shim stands in for
-// auth.Authorize("routing","transaction-routes",verb) + tenant PostAuthMiddlewares.
+// the full rationale). auth resource is "transaction-routes" under the "midaz"
+// appName (protectedMidaz in routes.go); the auth shim stands in for
+// auth.Authorize("midaz","transaction-routes",verb) + tenant PostAuthMiddlewares.
 //
 // MUST-NOT-PARALLELIZE: libProblem.Install() swaps the process-global huma.NewError
 // hook and Huma validation uses process-global sync.Pools; concurrent builds/requests

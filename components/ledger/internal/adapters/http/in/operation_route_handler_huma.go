@@ -19,11 +19,10 @@ import (
 // money-read + routing). It mirrors the asset exemplar (asset_handler_huma.go); see
 // that file's header for the full conventions. Operation-route-specific notes:
 //
-//  1. AUTH is the "routing" appName, resource "operation-routes" (protectedRouting
-//     in routes.go), NOT "midaz". The Fiber guard chain is Bearer-only (no
-//     X-API-Key), so the per-op Security metadata here is
+//  1. AUTH is the "midaz" appName, resource "operation-routes". The Fiber guard
+//     chain is Bearer-only (no X-API-Key), so the per-op Security metadata here is
 //     Bearer-only too — this is SPEC metadata only; runtime auth stays the Fiber
-//     guard chain (auth.Authorize("routing","operation-routes",verb) + tenant +
+//     guard chain (auth.Authorize("midaz","operation-routes",verb) + tenant +
 //     ParseUUIDPathParameters("operation_route")) attached in the unified server
 //     BEFORE the Huma terminal.
 //  2. MERGE-PATCH landmine: the PATCH core (updateOperationRoute in
@@ -257,7 +256,7 @@ func (handler *OperationRouteHandler) DeleteOperationRouteByIDHuma(ctx context.C
 
 // RegisterOperationRouteRoutes registers the five migrated operation-route
 // operations on the shared Huma API. It is the per-file seam the unified server
-// calls; the auth ("routing","operation-routes",verb) + tenant +
+// calls; the auth ("midaz","operation-routes",verb) + tenant +
 // ParseUUIDPathParameters("operation_route") middleware chain is attached on the
 // version group (Fiber-level) BEFORE the Huma terminal, not here. Paths are
 // GROUP-RELATIVE (see asset_handler_huma.go's RegisterAssetRoutes header for the
