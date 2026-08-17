@@ -4,7 +4,7 @@
 
 **Architecture:** Integration build tags define what belongs to each lane. Required gates fail closed when discovery or prerequisites are missing. Datastore processes are eventually reused at package or shard scope, while every test keeps an isolated database, schema, namespace, or vhost. Parallelism is introduced only after isolation is explicit and measured.
 
-**Status:** P0's test infrastructure is implemented and measured. V1 `remaining` is complete through the ordinary direct, pending, cancel, revert, and fee paths; the final accounting-route integration is in progress under the explicit fee-route UUID contract chosen on 2026-08-17. P1-P3 remain blocked until the money-path defects exposed by the honest lane are closed.
+**Status:** P0's test infrastructure is implemented and measured. V1 `remaining` is complete end to end, including fees and accounting-route validation under the explicit fee-route UUID contract chosen on 2026-08-17. P1-P3 remain blocked until the revert-idempotency and lost-confirm money-path defects exposed by the honest lane are closed.
 
 ## Phase overview
 
@@ -55,10 +55,10 @@
 
 | Lane | Selected / executed | Wall clock | Infrastructure baseline |
 |---|---:|---:|---|
-| Unit | 15,391 cases, 6 existing skips | 26.6s | No containers |
+| Unit | 15,454 cases, 6 existing skips | 21.0s | No containers |
 | Property | 90 top-level tests in 11 packages | 16s | No containers |
 | Tracer integration + race | 650 top-level tests, 1,165 cases/subcases | 230s | 16 container starts, no restart |
-| Root integration, low resource | 1,613 top-level tests in 42 packages; 1,533 passed and 80 skipped | 2,874s | 1,283 container starts, no restart; RabbitMQ alone costs 598s |
+| Root integration, low resource | 1,620 top-level tests in 42 packages; 1,540 passed and 80 skipped | 2,972s | 1,320 container starts, no restart; RabbitMQ remains the dominant startup cost |
 | Required Ledger E2E | 110 tests, 13 skips for capabilities not selected by this lane | 6s after readiness | 16 Compose services/jobs; cached-image startup 15s; no restart |
 
 Root skip classification: 76 chaos-only scenarios, 2 streaming smokes covered by the required E2E lane, and 2 real gaps. The obsolete transaction-idempotency skip now executes and proves first-outcome replay when the retry changes the amount; the remaining gaps are the origin-collision defect on revert and a migration-harness gap for transaction routes without operations.
@@ -76,7 +76,7 @@ Root skip classification: 76 chaos-only scenarios, 2 streaming smokes covered by
 - [x] Reject a reused reservation tuple when the amount differs or the persisted hold is already terminal.
 - [x] Keep reservation TTL separate from the financial counter's period-retention expiry.
 - [x] Prove `reserve -> confirm -> cleanup` cannot erase valid daily, weekly, monthly, or custom usage.
-- [ ] Support V1 `remaining` end to end: every resolved leg must move balances, persist an operation, and preserve double-entry across direct, pending, commit, cancel, revert, and fee paths.
+- [x] Support V1 `remaining` end to end: every resolved leg moves balances, persists an operation, and preserves double-entry across direct, pending, commit, cancel, revert, and fee paths.
 - [ ] Scope revert idempotency by the origin transaction without opening a rolling-deploy window that can double-revert.
 - [ ] Replace the incorrect "reaper is a durability backstop" assumption for a lost post-commit confirmation with a durable transaction-outcome mechanism.
 - [x] Make tests, logs, and architecture docs expose lost-confirm undercounting as a known defect instead of describing it as successful reconciliation.
@@ -84,9 +84,12 @@ Root skip classification: 76 chaos-only scenarios, 2 streaming smokes covered by
 
 **Product/architecture blockers:**
 
-1. V1 `remaining` now preserves every resolved leg and balance identity through persistence, state transitions, fees, and zero-fee no-ops. Final contract decision: fee packages gain additive, explicit UUID fields for debit and credit operation routes; the existing free-form route labels remain passive. Implementation and the accounting-route integration proof are in progress.
-2. Two economically identical origins can share one revert idempotency slot, so the second origin is never reverted. Changing the live Redis key shape without a rollout contract can instead double-revert retries.
-3. Ledger commits balances before the Tracer confirmation is durable. If that confirmation is lost, the reaper releases the hold and undercounts usage even though money moved.
+1. Two economically identical origins can share one revert idempotency slot, so the second origin is never reverted. Changing the live Redis key shape without a rollout contract can instead double-revert retries.
+2. Ledger commits balances before the Tracer confirmation is durable. If that confirmation is lost, the reaper releases the hold and undercounts usage even though money moved.
+
+V1 `remaining` closure: every resolved leg and balance identity survives direct execution, pending commit, pending cancel, revert, Redis replay, fees, zero-fee no-ops, persistence, and balance synchronization. Fee packages expose additive `operationRouteFromId` and `operationRouteToId` UUIDs while the existing free-form route labels remain passive; omission preserves an existing UUID, `null` clears only that UUID, and multi-fee partial updates preserve stored priorities atomically. The full low-resource lane passed with 1,620 selected tests, 1,540 passes, 80 classified skips, 1,320 container starts, zero restarts, and 2,972 seconds of wall time.
+
+**Next P0:** scope revert idempotency by the origin transaction with a rollout-safe keyspace migration.
 
 ### P0 exit gate
 
