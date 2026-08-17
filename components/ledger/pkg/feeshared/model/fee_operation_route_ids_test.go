@@ -24,14 +24,70 @@ func TestFeeOperationRouteIDsUpdateAndJSONContract(t *testing.T) {
 		OperationRouteToID:   &toID,
 	}
 	fields := bson.M{}
+	unsetFields := bson.M{}
 
-	assert.True(t, fee.updateOperationRouteFromID("service", fields))
-	assert.True(t, fee.updateOperationRouteToID("service", fields))
+	assert.True(t, fee.updateOperationRouteFromID("service", fields, unsetFields))
+	assert.True(t, fee.updateOperationRouteToID("service", fields, unsetFields))
 	assert.Equal(t, &fromID, fields["fees.service.operation_route_from_id"])
 	assert.Equal(t, &toID, fields["fees.service.operation_route_to_id"])
+	assert.Empty(t, unsetFields)
 	assert.False(t, fee.ValidateIfFeeIsNil(), "an operation-route-only patch must not be mistaken for fee removal")
 
 	raw, err := json.Marshal(fee)
 	require.NoError(t, err)
 	assert.JSONEq(t, `{"feeLabel":"","calculationModel":null,"referenceAmount":"","isDeductibleFrom":null,"creditAccount":"","operationRouteFromId":"`+fromID+`","operationRouteToId":"`+toID+`"}`, string(raw))
+}
+
+func TestFeeOperationRouteIDPatchDistinguishesOmittedNullAndValue(t *testing.T) {
+	t.Parallel()
+
+	validID := uuid.NewString()
+	tests := []struct {
+		name        string
+		raw         string
+		wantRemoval bool
+		wantRouteID *string
+		wantNull    bool
+	}{
+		{
+			name:        "omitted preserves the existing field and empty fee means removal",
+			raw:         `{}`,
+			wantRemoval: true,
+		},
+		{
+			name:        "null clears only the field",
+			raw:         `{"operationRouteFromId":null}`,
+			wantRemoval: false,
+			wantNull:    true,
+		},
+		{
+			name:        "string updates the field",
+			raw:         `{"operationRouteFromId":"` + validID + `"}`,
+			wantRemoval: false,
+			wantRouteID: &validID,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			var fee Fee
+			require.NoError(t, json.Unmarshal([]byte(tt.raw), &fee))
+			assert.Equal(t, tt.wantRemoval, fee.ValidateIfFeeIsNil())
+			assert.Equal(t, tt.wantRouteID, fee.OperationRouteFromID)
+
+			marshaled, err := json.Marshal(fee)
+			require.NoError(t, err)
+			var fields map[string]any
+			require.NoError(t, json.Unmarshal(marshaled, &fields))
+			if tt.wantNull {
+				value, exists := fields["operationRouteFromId"]
+				assert.True(t, exists)
+				assert.Nil(t, value)
+			} else if tt.wantRouteID == nil {
+				assert.NotContains(t, fields, "operationRouteFromId")
+			}
+		})
+	}
 }

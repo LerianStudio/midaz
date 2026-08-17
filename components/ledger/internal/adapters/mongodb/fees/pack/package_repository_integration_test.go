@@ -142,7 +142,7 @@ func TestIntegration_PackRepo_Create_PersistsAllFields(t *testing.T) {
 	assert.Equal(t, int64(1), count, "Create must persist exactly one org-tagged document")
 }
 
-func TestIntegration_PackRepo_CreateAndFind_RoundTripsFeeOperationRouteIDs(t *testing.T) {
+func TestIntegration_PackRepo_FeeOperationRouteIDsRoundTripAndClearIndependently(t *testing.T) {
 	container := mongotestutil.SetupContainer(t)
 	repo := newPackRepository(t, container)
 	ctx := context.Background()
@@ -178,6 +178,18 @@ func TestIntegration_PackRepo_CreateAndFind_RoundTripsFeeOperationRouteIDs(t *te
 	require.NoError(t, packCollection(container).FindOne(ctx, bson.M{"_id": pkgEntity.ID}).Decode(&stored))
 	assert.Equal(t, operationFrom, *stored.Fees["adminFee"].OperationRouteFromID)
 	assert.Equal(t, operationTo, *stored.Fees["adminFee"].OperationRouteToID)
+
+	updated, err := repo.Update(ctx, pkgEntity.ID, orgID, uuid.Nil, &bson.M{
+		"$unset": bson.M{"fees.adminFee.operation_route_from_id": ""},
+	})
+	require.NoError(t, err)
+	require.NotNil(t, updated)
+	require.Contains(t, updated.Fees, "adminFee", "clearing one route ID must not remove the fee")
+	assert.Nil(t, updated.Fees["adminFee"].OperationRouteFromID)
+	require.NotNil(t, updated.Fees["adminFee"].OperationRouteToID)
+	assert.Equal(t, operationTo, *updated.Fees["adminFee"].OperationRouteToID)
+	require.NotNil(t, updated.Fees["adminFee"].RouteFrom)
+	assert.Equal(t, legacyFrom, *updated.Fees["adminFee"].RouteFrom, "legacy label must remain untouched")
 }
 
 // ============================================================================

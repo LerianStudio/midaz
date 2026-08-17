@@ -23,6 +23,7 @@ func TestFeeOperationRouteIDsArePublishedAsOptionalUUIDs(t *testing.T) {
 		require.Truef(t, ok, "Fee must publish %s", field)
 		require.NotNil(t, property)
 		assert.Equal(t, "uuid", property.Format)
+		assert.True(t, property.Nullable, "%s must accept null as the explicit PATCH clear operation", field)
 		assert.NotContains(t, feeSchema.Required, field, "%s must stay optional", field)
 	}
 }

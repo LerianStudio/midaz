@@ -177,14 +177,12 @@ func (uc *UseCase) buildUpdateFields(ctx context.Context, logger libLog.Logger, 
 
 // validationFeesSetUnset Validate the fee struct to update correctly
 func (uc *UseCase) validationFeesSetUnset(ctx context.Context, minAmount decimal.Decimal, organizationID, ledgerID uuid.UUID, existingFees map[string]model.Fee, updateFeesEntity map[string]model.Fee, setFields, unsetFields bson.M) error {
-	// First pass: process all fees and build final state
-	finalFees := make(map[string]model.Fee)
-	prioritySet := make(map[int]struct{})
-
-	// Start with existing fees
+	// A PATCH fee contains only changed fields. Track the effective priority
+	// independently so an omitted priority preserves the stored value instead of
+	// becoming zero during cross-fee validation.
+	effectivePriorities := make(map[string]int, len(existingFees))
 	for key, fee := range existingFees {
-		finalFees[key] = fee
-		prioritySet[fee.Priority] = struct{}{}
+		effectivePriorities[key] = fee.Priority
 	}
 
 	// Process update fees
@@ -212,11 +210,10 @@ func (uc *UseCase) validationFeesSetUnset(ctx context.Context, minAmount decimal
 
 			setFields["fees."+keyFormatted] = mongoFee
 
-			// Add to final state for priority validation
-			finalFees[keyFormatted] = fee
+			effectivePriorities[keyFormatted] = fee.Priority
 		} else {
 			// Existing fee - check if it's being updated or removed
-			hasFieldsToUpdate, errSetFieldsToUpdate := fee.SetAndValidateHasFieldsToUpdate(ctx, fee.IsDeductibleFrom, minAmount, existingFees, keyFormatted, organizationID, ledgerID, setFields, uc.resolver)
+			hasFieldsToUpdate, errSetFieldsToUpdate := fee.SetAndValidateHasFieldsToUpdate(ctx, fee.IsDeductibleFrom, minAmount, existingFees, keyFormatted, organizationID, ledgerID, setFields, unsetFields, uc.resolver)
 			if errSetFieldsToUpdate != nil {
 				return errSetFieldsToUpdate
 			}
@@ -225,22 +222,21 @@ func (uc *UseCase) validationFeesSetUnset(ctx context.Context, minAmount decimal
 				// Fee is being removed
 				unsetFields["fees."+keyFormatted] = ""
 
-				delete(finalFees, keyFormatted)
-			} else {
-				// Fee is being updated - update in final state
-				finalFees[keyFormatted] = fee
+				delete(effectivePriorities, keyFormatted)
+			} else if fee.Priority != 0 {
+				effectivePriorities[keyFormatted] = fee.Priority
 			}
 		}
 	}
 
 	// Second pass: validate priorities in final state
 	finalPrioritySet := make(map[int]struct{})
-	for _, fee := range finalFees {
-		if _, exists := finalPrioritySet[fee.Priority]; exists {
+	for _, priority := range effectivePriorities {
+		if _, exists := finalPrioritySet[priority]; exists {
 			return pkg.ValidateBusinessError(constant.ErrPriorityInvalid, "")
 		}
 
-		finalPrioritySet[fee.Priority] = struct{}{}
+		finalPrioritySet[priority] = struct{}{}
 	}
 
 	return nil

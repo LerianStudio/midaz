@@ -168,7 +168,7 @@ func (a *AmountData) GetTransactionRoute() string {
 	return *a.TransactionRoute
 }
 
-func (f *Fee) SetAndValidateHasFieldsToUpdate(ctx context.Context, updateDeductibleFrom *bool, minAmount decimal.Decimal, existingFees map[string]Fee, feeKey string, organizationID, ledgerID uuid.UUID, upFields bson.M, resolver feeshared.MidazResolver) (bool, error) {
+func (f *Fee) SetAndValidateHasFieldsToUpdate(ctx context.Context, updateDeductibleFrom *bool, minAmount decimal.Decimal, existingFees map[string]Fee, feeKey string, organizationID, ledgerID uuid.UUID, upFields, unsetFields bson.M, resolver feeshared.MidazResolver) (bool, error) {
 	hasValueToUpdate := false
 
 	if updated, err := f.updateCalculationModel(existingFees, updateDeductibleFrom, feeKey, minAmount, upFields); err != nil {
@@ -211,11 +211,11 @@ func (f *Fee) SetAndValidateHasFieldsToUpdate(ctx context.Context, updateDeducti
 		hasValueToUpdate = true
 	}
 
-	if updated := f.updateOperationRouteFromID(feeKey, upFields); updated {
+	if updated := f.updateOperationRouteFromID(feeKey, upFields, unsetFields); updated {
 		hasValueToUpdate = true
 	}
 
-	if updated := f.updateOperationRouteToID(feeKey, upFields); updated {
+	if updated := f.updateOperationRouteToID(feeKey, upFields, unsetFields); updated {
 		hasValueToUpdate = true
 	}
 
@@ -384,9 +384,15 @@ func (f *Fee) updateRouteTo(feeKey string, upFields bson.M) bool {
 	return false
 }
 
-func (f *Fee) updateOperationRouteFromID(feeKey string, upFields bson.M) bool {
+func (f *Fee) updateOperationRouteFromID(feeKey string, upFields, unsetFields bson.M) bool {
 	if !commons.IsNilOrEmpty(f.OperationRouteFromID) {
 		upFields["fees."+feeKey+".operation_route_from_id"] = f.OperationRouteFromID
+
+		return true
+	}
+
+	if f.operationRouteFromIDSet {
+		unsetFields["fees."+feeKey+".operation_route_from_id"] = ""
 
 		return true
 	}
@@ -394,9 +400,15 @@ func (f *Fee) updateOperationRouteFromID(feeKey string, upFields bson.M) bool {
 	return false
 }
 
-func (f *Fee) updateOperationRouteToID(feeKey string, upFields bson.M) bool {
+func (f *Fee) updateOperationRouteToID(feeKey string, upFields, unsetFields bson.M) bool {
 	if !commons.IsNilOrEmpty(f.OperationRouteToID) {
 		upFields["fees."+feeKey+".operation_route_to_id"] = f.OperationRouteToID
+
+		return true
+	}
+
+	if f.operationRouteToIDSet {
+		unsetFields["fees."+feeKey+".operation_route_to_id"] = ""
 
 		return true
 	}
