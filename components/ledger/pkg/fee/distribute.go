@@ -184,6 +184,11 @@ func updatedAmountsFromFee(amounts map[string]transaction.Amount) []transaction.
 
 		if route != "" {
 			fromTo.Route = route //nolint:staticcheck // legacy field kept for backward compatibility; RouteID is canonical
+
+			if _, err := uuid.Parse(route); err == nil {
+				routeID := route
+				fromTo.RouteID = &routeID
+			}
 		}
 
 		newFromTo = append(newFromTo, fromTo)
@@ -224,7 +229,20 @@ func materializeAmountsAfterFee(original []transaction.FromTo, amounts map[strin
 		}
 	}
 
-	sort.Strings(feeKeys)
+	sort.Slice(feeKeys, func(i, j int) bool {
+		leftIndex, leftOK := syntheticFeeIndex(feeKeys[i])
+		rightIndex, rightOK := syntheticFeeIndex(feeKeys[j])
+
+		if leftOK && rightOK && leftIndex != rightIndex {
+			return leftIndex < rightIndex
+		}
+
+		if leftOK != rightOK {
+			return leftOK
+		}
+
+		return feeKeys[i] < feeKeys[j]
+	})
 
 	for _, key := range feeKeys {
 		feeLegs := updatedAmountsFromFee(map[string]transaction.Amount{key: amounts[key]})
@@ -243,6 +261,32 @@ func materializeAmountsAfterFee(original []transaction.FromTo, amounts map[strin
 	}
 
 	return materialized, nil
+}
+
+func syntheticFeeIndex(key string) (int, bool) {
+	for _, marker := range []string{feeconstant.SuffixFeeSource, "->fee"} {
+		markerIndex := strings.Index(key, marker)
+		if markerIndex == -1 {
+			continue
+		}
+
+		start := markerIndex + len(marker)
+		end := start
+		for end < len(key) && key[end] >= '0' && key[end] <= '9' {
+			end++
+		}
+
+		if end == start {
+			continue
+		}
+
+		index, err := strconv.Atoi(key[start:end])
+		if err == nil {
+			return index, true
+		}
+	}
+
+	return 0, false
 }
 
 func originalAmountKey(index int, leg transaction.FromTo, amounts map[string]transaction.Amount, consumed map[string]struct{}) string {

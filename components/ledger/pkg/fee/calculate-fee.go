@@ -153,6 +153,10 @@ func CalculateFee(logger libLog.Logger, f *model.FeeCalculate, p *pack.Package, 
 			return err
 		}
 
+		if result.Value.IsZero() {
+			continue
+		}
+
 		// Fee total is emitted unrounded: the ledger is arbitrary-precision and
 		// every serialization seam round-trips full precision (P4-T23). The
 		// residual-to-max reconciliation in applyFeeCorrection holds sum(legs) ==

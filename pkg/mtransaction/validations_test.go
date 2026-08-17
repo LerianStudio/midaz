@@ -16,6 +16,7 @@ import (
 	"github.com/LerianStudio/lib-observability/v2/log"
 	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/otel"
 
 	"github.com/LerianStudio/midaz/v4/pkg"
@@ -1299,6 +1300,28 @@ func TestValidateSendSourceAndDistribute_RemainingIsStableAndOrderIndependent(t 
 			}
 		})
 	}
+}
+
+func TestValidateSendSourceAndDistribute_RemainingAcceptsAnyNonEmptyMarker(t *testing.T) {
+	t.Parallel()
+
+	input := Transaction{Send: Send{
+		Asset: "USD",
+		Value: decimal.NewFromInt(100),
+		Source: Source{From: []FromTo{
+			{AccountAlias: "@explicit", Amount: &Amount{Asset: "USD", Value: decimal.NewFromInt(60)}, IsFrom: true},
+			{AccountAlias: "@remaining", Remaining: "all-unallocated-value", IsFrom: true},
+		}},
+		Distribute: Distribute{To: []FromTo{{
+			AccountAlias: "@destination",
+			Amount:       &Amount{Asset: "USD", Value: decimal.NewFromInt(100)},
+		}}},
+	}}
+
+	result, err := ValidateSendSourceAndDistribute(context.Background(), input, pkgConstant.CREATED)
+	require.NoError(t, err)
+	assert.Equal(t, decimal.NewFromInt(40), result.From["@remaining"].Value)
+	assert.Equal(t, "all-unallocated-value", input.Send.Source.From[1].Remaining)
 }
 
 func TestValidateSendSourceAndDistribute_RemainingMustBePositive(t *testing.T) {

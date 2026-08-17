@@ -131,10 +131,11 @@ func (r Rate) IsEmpty() bool {
 
 // FromTo structure for marshaling/unmarshalling JSON.
 type FromTo struct {
-	AccountAlias    string         `json:"accountAlias,omitempty" example:"@person1"`
-	BalanceKey      string         `json:"balanceKey,omitempty" example:"asset-freeze"`
-	Amount          *Amount        `json:"amount,omitempty"`
-	Share           *Share         `json:"share,omitempty"`
+	AccountAlias string  `json:"accountAlias,omitempty" example:"@person1"`
+	BalanceKey   string  `json:"balanceKey,omitempty" example:"asset-freeze"`
+	Amount       *Amount `json:"amount,omitempty"`
+	Share        *Share  `json:"share,omitempty"`
+	// Remaining is a marker, not an enum: every non-empty value assigns the unresolved residual to this leg.
 	Remaining       string         `json:"remaining,omitempty" example:"remaining"`
 	Rate            *Rate          `json:"rate,omitempty"`
 	Description     string         `json:"description,omitempty" example:"description"`

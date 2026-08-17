@@ -124,3 +124,46 @@ func TestFeeProof_V1RemainingDuplicateAliasPreservesBalanceIdentity(t *testing.T
 	requireDecimalEqual(t, decimal.NewFromInt(110), credits, "persisted credit total")
 	assert.True(t, debits.Equal(credits), "persisted operations must remain exact double entry")
 }
+
+func TestFeeProof_ZeroFeeIsNoOp(t *testing.T) {
+	tests := []struct {
+		name string
+		fee  feeSpec
+	}{
+		{name: "flat zero", fee: flatFee("flat_zero", "@fee_rev", "0", false)},
+		{name: "percentage zero", fee: percentualFee("percentage_zero", "@fee_rev", "0", false)},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			h := setupFeeHarness(t)
+			app := h.newApp()
+			payerBalanceID := h.seedBalance(t, "@payer", "USD", decimal.NewFromInt(1000), "deposit")
+			receiverBalanceID := h.seedBalance(t, "@receiver", "USD", decimal.Zero, "deposit")
+			feeBalanceID := h.seedBalance(t, "@fee_rev", "USD", decimal.Zero, "deposit")
+			h.seedPackage(t, packageSpec{label: "zero_fee", fees: []feeSpec{tt.fee}})
+
+			body := `{
+				"description":"zero fee no-op",
+				"pending":false,
+				"send":{
+					"asset":"USD","value":"100",
+					"source":{"from":[{"accountAlias":"@payer","amount":{"asset":"USD","value":"100"}}]},
+					"distribute":{"to":[{"accountAlias":"@receiver","amount":{"asset":"USD","value":"100"}}]}
+				}
+			}`
+
+			resp := h.createJSON(t, app, body, nil)
+			require.Equalf(t, 201, resp.status, "zero fee create must succeed: %s", string(resp.rawBody))
+
+			txID := mustTxID(t, resp)
+			drainBalanceSync(t, h.ctx(), h.commandUC, h.redisRepo, h.orgID, h.ledgerID)
+			legs := loadLegs(t, h.db, txID)
+			require.Len(t, legs, 2, "a zero result must persist only the authored transfer legs")
+			requireBalanced(t, legs, "zero fee transaction")
+			requireDecimalEqual(t, decimal.NewFromInt(900), postgrestestutil.GetBalanceAvailable(t, h.db, payerBalanceID), "payer balance")
+			requireDecimalEqual(t, decimal.NewFromInt(100), postgrestestutil.GetBalanceAvailable(t, h.db, receiverBalanceID), "receiver balance")
+			requireDecimalEqual(t, decimal.Zero, postgrestestutil.GetBalanceAvailable(t, h.db, feeBalanceID), "fee revenue balance")
+		})
+	}
+}
