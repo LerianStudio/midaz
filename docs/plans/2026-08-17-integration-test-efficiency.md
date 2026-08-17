@@ -4,7 +4,7 @@
 
 **Architecture:** Integration build tags define what belongs to each lane. Required gates fail closed when discovery or prerequisites are missing. Datastore processes are eventually reused at package or shard scope, while every test keeps an isolated database, schema, namespace, or vhost. Parallelism is introduced only after isolation is explicit and measured.
 
-**Status:** P0's test infrastructure is implemented and measured. V1 `remaining` is complete end to end, including fees and accounting-route validation under the explicit fee-route UUID contract chosen on 2026-08-17. P1-P3 remain blocked until the revert-idempotency and lost-confirm money-path defects exposed by the honest lane are closed.
+**Status:** P0's test infrastructure is implemented and measured. V1 `remaining` is complete end to end. Execution is now closing revert idempotency first and durable Ledger-to-Tracer outcomes second; P1, P2, and P3 follow in that order. Repository ruleset enforcement is deliberately last.
 
 ## Phase overview
 
@@ -14,6 +14,14 @@
 | P1 | Ledger datastore startup and migrations are reused without sharing mutable test state | Pending |
 | P2 | Independent families run concurrently within an explicit resource budget | Pending |
 | P3 | Tracer restarts, fixed waits, polling, cleanup, and streaming history scans are reduced | Pending |
+
+### Execution order — 2026-08-17
+
+1. Close revert idempotency with a durable origin claim and a rolling-deploy-safe bridge from the legacy Redis slot.
+2. Persist the Ledger transaction outcome in the same atomic balance mutation and deliver it idempotently to Tracer; unknown outcomes retain capacity rather than undercounting usage.
+3. Complete P1 infrastructure reuse and prove at least a 90% reduction in datastore container starts without shared mutable test state.
+4. Complete P2 bounded sharding and package/test parallelism under measured CPU, memory, container, and flake budgets.
+5. Complete P3 restart, wait, polling, cleanup, streaming-history, and E2E-worker reductions. Apply GitHub ruleset enforcement only after the code-side gates and all four phases are complete.
 
 ## P0 — Trustworthy signal
 
@@ -100,7 +108,7 @@ V1 `remaining` closure: every resolved leg and balance identity survives direct 
 - [x] Tracer integration runs with the race detector enabled.
 - [x] Baseline timings and selected-test counts are persisted as CI artifacts.
 
-**External enforcement gap:** the new jobs run on every pull request event covered by the workflow, but the repository rulesets do not yet require their new check contexts. Ruleset mutation is outside this code change and needs repository-admin authority.
+**External enforcement gap, scheduled last:** the new jobs run on every pull request event covered by the workflow, but the repository rulesets do not yet require their new check contexts. Apply the repository-admin mutation only after P0-P3 and the final completion audit.
 
 ## P1 — Reuse infrastructure, isolate state
 
