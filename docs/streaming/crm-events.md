@@ -23,8 +23,9 @@ complements — does not duplicate — the producer conventions in `CLAUDE.md`
 - **No outbox.** Emission is direct-emit only, identical to the current ledger
   state. When an outbox lands, only the emit call sites change; the Definitions
   and payload contracts below stay put.
-- **No HTTP event-manifest endpoint.** Out of scope for this pilot (same as the
-  ledger).
+- **HTTP manifest endpoint.** `GET /v1/streaming/manifest` advertises this
+  catalog to streaming-hub — see [Manifest endpoint](#manifest-endpoint). It is
+  control-plane only and served regardless of `STREAMING_ENABLED`.
 - **Master flag:** `STREAMING_ENABLED` (default `false`). When disabled — or
   when `STREAMING_BROKERS` is empty, or no events are registered — bootstrap
   injects a `NoopEmitter` and no broker connection is attempted.
@@ -47,6 +48,32 @@ which feeds both the Catalog and the route table:
 - **`ce-subject`** = the aggregate ID (`EmitRequest.Subject`).
 - **`ce-tenantid`** = `EmitRequest.TenantID`, resolved by
   `pkgStreaming.ResolveTenantID(ctx)` (see [ce-tenantid](#ce-tenantid)).
+
+## Manifest endpoint
+
+- **Endpoint:** `GET /v1/streaming/manifest` — control-plane, served on the CRM
+  HTTP server (`pkgStreaming.ManifestRoutePath`).
+- **Purpose:** streaming-hub fetches it to build its event catalog and stop
+  classifying CRM topics as "ghost topics." Observability-only — it does not
+  affect ingest or delivery.
+- **What it advertises:** the publisher identity (`serviceName` / `sourceBase` =
+  `crm`) and, per event, `topic` / `resourceType` / `eventType` /
+  `schemaVersion`. Built from the same event catalog the emitter uses — a single
+  source — so advertised topics == emitted topics (e.g. `crm.holder.created`).
+  No payloads, no credentials.
+- **Auth:** protected — resource `streaming-manifest`, action `get`, under
+  application `plugin-crm`. Mounted **before** the tenant middleware
+  (control-plane, tenant-independent) but still auth-guarded.
+- **Static:** built from the catalog independently of the emitter and served
+  regardless of `STREAMING_ENABLED` — it describes the event contract, not
+  runtime emission. A handler build failure logs a Warn and leaves the route
+  unmounted (404); it never breaks startup.
+
+> **External follow-ups (not in this repo).** Granting the hub's M2M identity
+> access to this route — plugin-access-manager permissions, tenant-manager
+> `baseUrls`, and the verification matrix — is documented once in
+> [`ledger-events.md` → External follow-ups](ledger-events.md#external-follow-ups-not-in-this-repo);
+> the same steps cover `plugin-crm`.
 
 ## Event summary
 

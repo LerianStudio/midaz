@@ -26,8 +26,9 @@ complements — does not duplicate — the producer conventions in `CLAUDE.md`
   wired today (`WithOutboxRepository` is not passed at build). When an outbox
   lands, only the emit call sites change; the Definitions and payload contracts
   below stay put.
-- **No HTTP event-manifest endpoint.** Out of scope for this pilot (same as the
-  CRM).
+- **HTTP manifest endpoint.** `GET /v1/streaming/manifest` advertises this
+  catalog to streaming-hub — see [Manifest endpoint](#manifest-endpoint). It is
+  control-plane only and served regardless of `STREAMING_ENABLED`.
 - **Master flag:** `STREAMING_ENABLED` (default `false`). When disabled — or
   when `STREAMING_BROKERS` is empty, or no events are registered — bootstrap
   injects a `NoopEmitter` and no broker connection is attempted.
@@ -51,6 +52,51 @@ which feeds both the Catalog and the route table:
   exist — see [ce-subject](#ce-subject).
 - **`ce-tenantid`** = `EmitRequest.TenantID`, resolved by
   `pkgStreaming.ResolveTenantID(ctx)` (see [ce-tenantid](#ce-tenantid)).
+
+## Manifest endpoint
+
+- **Endpoint:** `GET /v1/streaming/manifest` — control-plane, served on the
+  ledger HTTP server (`pkgStreaming.ManifestRoutePath`).
+- **Purpose:** streaming-hub fetches it to build its event catalog and stop
+  classifying ledger topics as "ghost topics." Observability-only — it does not
+  affect ingest or delivery.
+- **What it advertises:** the publisher identity (`serviceName` / `sourceBase` =
+  `ledger`) and, per event, `topic` / `resourceType` / `eventType` /
+  `schemaVersion`. Built from the same event catalog (`buildCatalog`) the emitter
+  uses — a single source — so advertised topics == emitted topics (e.g.
+  `ledger.account.created`). No payloads, no credentials.
+- **Auth:** protected — resource `streaming-manifest`, action `get`, under
+  application `midaz` (the ledger's `ProtectedRouteChain`).
+- **Static:** built from the catalog independently of the emitter and served
+  regardless of `STREAMING_ENABLED` — it describes the event contract, not
+  runtime emission. A catalog/handler build failure logs a Warn and leaves the
+  route unmounted (404); it never breaks startup.
+
+### External follow-ups (not in this repo)
+
+Serving the route is only half the wiring — the hub's identity must be granted
+access. These steps live in other repos (verified 2026-08-14 against
+`LerianStudio/plugin-access-manager@main`) and cover **both** the ledger and CRM
+manifests:
+
+1. **plugin-access-manager** (`components/auth/init/casdoor/init_data.json`): add
+   `"streaming-manifest"` to the `resources` array of `midaz-editor-permission`
+   and `plugin-crm-editor-permission` (plus the matching `-contributor-` /
+   `-viewer-` permissions for read parity), following the existing
+   `plugin-br-pix-switch-*` precedent. `get` is already a valid action in those
+   permissions, so **no new action** is needed; the hub's
+   `admin/{product}-editor-role` M2M inherits it.
+2. **tenant-manager:** register this service's per-environment `baseUrls`
+   (`PUT /v1/services/{name}`) and re-run the tenant association so the updated
+   model reaches Casdoor.
+3. **Hub M2M identity** (`admin/midaz-editor-role`,
+   `admin/plugin-crm-editor-role`) — authorized by step 1.
+4. **Verification matrix:** `curl -H "Authorization: Bearer <m2m>"
+   https://<host>/v1/streaming/manifest` →
+   - `404` — not served (handler nil or wrong host).
+   - `401` — token issuer/audience mismatch.
+   - `403` — the handler's resource/action pair differs from the grant.
+   - `200` — done; the hub picks it up within ~5 min.
 
 ## Event summary
 
