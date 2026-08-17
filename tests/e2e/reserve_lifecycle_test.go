@@ -78,8 +78,9 @@ func trlcSeedPendingTransfer(t *testing.T, maxLimit, value string) (fixture, str
 	src := createAccount(t, f, "trlc-src-"+uuid.NewString()[:8])
 	dst := createAccount(t, f, "trlc-dst-"+uuid.NewString()[:8])
 
-	// Cap the source account; an in-limit PENDING transfer reserves under it.
-	seedLimitRule(t, f, maxLimit, map[string]any{"accountId": accountIDByAlias(t, f, src)})
+	// Cap the source account with a counter-backed limit; an in-limit PENDING
+	// transfer must create a reservation under it.
+	seedCapacityLimitRule(t, f, maxLimit, map[string]any{"accountId": accountIDByAlias(t, f, src)})
 	fund(t, f, src, "1000")
 
 	body := transferBody(src, dst, value, nil)
@@ -187,7 +188,7 @@ func TestReserveLifecycleRevertConfirmsParent(t *testing.T) {
 	src := createAccount(t, f, "trlc-rev-src-"+uuid.NewString()[:8])
 	dst := createAccount(t, f, "trlc-rev-dst-"+uuid.NewString()[:8])
 
-	seedLimitRule(t, f, "1000", map[string]any{"accountId": accountIDByAlias(t, f, src)})
+	seedCapacityLimitRule(t, f, "1000", map[string]any{"accountId": accountIDByAlias(t, f, src)})
 	fund(t, f, src, "1000")
 
 	// Direct (non-pending) transfer: reserve is CONFIRMED inline at create.
@@ -294,7 +295,7 @@ func TestReserveLifecycleReserveRequestIdNoDoubleHold(t *testing.T) {
 	f := newEnforceFixture(t, "open")
 	src := createAccount(t, f, "trlc-rid-src-"+uuid.NewString()[:8])
 	accID := accountIDByAlias(t, f, src)
-	seedLimitRule(t, f, "1000", map[string]any{"accountId": accID})
+	seedCapacityLimitRule(t, f, "1000", map[string]any{"accountId": accID})
 
 	payload := reservePayload("")
 	payload["account"] = map[string]any{"accountId": accID}
@@ -309,10 +310,7 @@ func TestReserveLifecycleReserveRequestIdNoDoubleHold(t *testing.T) {
 		t.Fatalf("first reserve denied unexpectedly (cap 1000, amount 100)\nbody: %s", first.body)
 	}
 
-	firstIDs := trlcReservationIDs(t, first)
-	if len(firstIDs) == 0 {
-		t.Skipf("first reserve produced no reservationIds (no capacity-backed limit matched) — cannot exercise dedup; body: %s", first.body)
-	}
+	firstIDs := trlcRequireReservationIDs(t, first)
 
 	// Retry with the identical request: same transactionId + requestId.
 	second := call(t, http.MethodPost, trlcReserveURL(), payload)
@@ -324,6 +322,23 @@ func TestReserveLifecycleReserveRequestIdNoDoubleHold(t *testing.T) {
 	if !trlcSameIDSet(firstIDs, secondIDs) {
 		t.Fatalf("reserve retry with the same requestId minted DIFFERENT reservationIds (double-hold)\nfirst:  %v\nsecond: %v", firstIDs, secondIDs)
 	}
+}
+
+func trlcRequireReservationIDs(t *testing.T, r response) []string {
+	t.Helper()
+
+	ids := trlcReservationIDs(t, r)
+	if len(ids) > 0 {
+		return ids
+	}
+
+	message := fmt.Sprintf("first reserve produced no reservationIds (no capacity-backed limit matched) — cannot exercise dedup; body: %s", r.body)
+	if e2eRequired() {
+		t.Fatalf("required reservation dedup capability produced no reservationIds: %s", message)
+	}
+	t.Skip(message)
+
+	return nil
 }
 
 // trlcReservationIDs extracts the reservationIds array (each a string uuid) from a

@@ -28,6 +28,15 @@ fi
 grep -q '"status":"failed"' "$test_dir/streaming-skip/ledger-e2e-timing.json"
 
 status=0
+PATH="$test_dir/bin:$PATH" CI_REPORT_DIR="$test_dir/reservation-skip" FAKE_SENTINEL=1 FAKE_RESERVATION_SKIP=1 \
+  E2E_REQUIRED_WALL_TIMEOUT=5s "$repo_root/scripts/run-required-e2e.sh" || status=$?
+if [[ $status -eq 0 ]]; then
+  echo "required E2E accepted a skipped reservation dedup capability" >&2
+  exit 1
+fi
+grep -q '"status":"failed"' "$test_dir/reservation-skip/ledger-e2e-timing.json"
+
+status=0
 PATH="$test_dir/bin:$PATH" CI_REPORT_DIR="$test_dir/empty" FAKE_SENTINEL=0 \
   E2E_REQUIRED_WALL_TIMEOUT=5s "$repo_root/scripts/run-required-e2e.sh" || status=$?
 if [[ $status -eq 0 ]]; then

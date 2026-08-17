@@ -45,13 +45,28 @@ const trxLimitID = "limitId"
 func seedLimitRule(t *testing.T, f fixture, maxAmount string, scope map[string]any) string {
 	t.Helper()
 
+	return seedTypedLimitRule(t, f, "PER_TRANSACTION", maxAmount, scope)
+}
+
+// seedCapacityLimitRule creates a counter-backed DAILY limit. Unlike a
+// PER_TRANSACTION limit, it produces a reservation handle that phase-two and
+// request-id dedup tests can observe.
+func seedCapacityLimitRule(t *testing.T, f fixture, maxAmount string, scope map[string]any) string {
+	t.Helper()
+
+	return seedTypedLimitRule(t, f, "DAILY", maxAmount, scope)
+}
+
+func seedTypedLimitRule(t *testing.T, f fixture, limitType, maxAmount string, scope map[string]any) string {
+	t.Helper()
+
 	if scope == nil {
 		scope = map[string]any{"transactionType": "CARD"}
 	}
 
 	created := mustCreate(t, tracerURL()+"/v1/limits", map[string]any{
 		"name":      "E2E Limit " + uuid.NewString()[:8],
-		"limitType": "PER_TRANSACTION",
+		"limitType": limitType,
 		"maxAmount": maxAmount,
 		"currency":  "USD",
 		"scopes":    []any{scope},

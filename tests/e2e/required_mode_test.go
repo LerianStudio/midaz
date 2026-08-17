@@ -9,6 +9,8 @@ package e2e
 import (
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"os/exec"
 	"strings"
 	"testing"
 )
@@ -96,6 +98,28 @@ func TestClassifyTracerWiringProbe(t *testing.T) {
 				t.Fatalf("classifyTracerWiringProbe() = %v, want %v", got, tt.want)
 			}
 		})
+	}
+}
+
+func TestMissingReservationIDsFailsRequiredMode(t *testing.T) {
+	const child = "E2E_REQUIRED_MISSING_RESERVATION_CHILD"
+	if os.Getenv(child) == "1" {
+		t.Setenv("E2E_REQUIRED", "1")
+		trlcRequireReservationIDs(t, response{
+			body: []byte(`{"denied":false,"reservationIds":[]}`),
+			json: map[string]any{"denied": false, "reservationIds": []any{}},
+		})
+		return
+	}
+
+	cmd := exec.Command(os.Args[0], "-test.run=^TestMissingReservationIDsFailsRequiredMode$", "-test.v")
+	cmd.Env = append(os.Environ(), child+"=1")
+	output, err := cmd.CombinedOutput()
+	if err == nil {
+		t.Fatalf("required reservation capability accepted an empty reservation set\noutput: %s", output)
+	}
+	if !strings.Contains(string(output), "required reservation dedup capability produced no reservationIds") {
+		t.Fatalf("required reservation failure was not actionable\noutput: %s", output)
 	}
 }
 

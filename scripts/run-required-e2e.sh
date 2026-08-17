@@ -43,6 +43,7 @@ run_tests() {
     TestRequiredStackLane
     TestStreamingAccountCreatedEmitted
     TestStreamingHolderCreateEmitsRedacted
+    TestReserveLifecycleReserveRequestIdNoDoubleHold
   )
   for required_test in "${required_passes[@]}"; do
     if ! grep -Eq "\"Action\":\"pass\".*\"Test\":\"$required_test\"|\"Test\":\"$required_test\".*\"Action\":\"pass\"" "$json_file"; then

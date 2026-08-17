@@ -5,6 +5,10 @@ on:
     branches: [develop, release-candidate, main]
     types: [opened, edited, synchronize, reopened, ready_for_review]
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
 permissions:
   actions: read
   contents: read
@@ -59,6 +63,7 @@ jobs:
   # artifacts under components/<c>/api and postman/specs are stale. The openapi.yaml
   # step runs openapitools/openapi-generator-cli, which requires Docker on the runner.
   check-docs:
+    if: github.event.action != 'edited'
     name: Check Docs
     runs-on: blacksmith-4vcpu-ubuntu-2404
     steps:
@@ -91,6 +96,7 @@ jobs:
   # stubs under pkg/proto are stale. buf and the protoc plugins run via pinned
   # remote plugins (BUF_VERSION + buf.gen.yaml), so no global install is needed.
   check-proto:
+    if: github.event.action != 'edited'
     name: Check Proto
     runs-on: blacksmith-4vcpu-ubuntu-2404
     steps:
@@ -113,9 +119,12 @@ jobs:
   # integration_test_command. Midaz's integration/property targets live only at
   # the monorepo root, so dedicated root jobs are the only non-duplicating path.
   integration:
+    if: github.event.action != 'edited'
     name: Integration Tests
     runs-on: blacksmith-4vcpu-ubuntu-2404
     timeout-minutes: 30
+    permissions:
+      contents: read
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -133,7 +142,7 @@ jobs:
 
       - name: Upload integration timing and log
         if: always()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.0
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: integration-reports
           path: reports/ci/integration*
@@ -141,9 +150,12 @@ jobs:
           retention-days: 7
 
   property:
+    if: github.event.action != 'edited'
     name: Property Tests
     runs-on: blacksmith-4vcpu-ubuntu-2404
     timeout-minutes: 20
+    permissions:
+      contents: read
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -161,7 +173,7 @@ jobs:
 
       - name: Upload property timing and log
         if: always()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.0
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: property-reports
           path: reports/ci/property*
@@ -169,9 +181,12 @@ jobs:
           retention-days: 7
 
   required-e2e:
+    if: github.event.action != 'edited'
     name: Required Ledger E2E
     runs-on: blacksmith-4vcpu-ubuntu-2404
-    timeout-minutes: 35
+    timeout-minutes: 45
+    permissions:
+      contents: read
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -221,7 +236,7 @@ jobs:
 
       - name: Upload E2E reports and timings
         if: always()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.0
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: required-ledger-e2e-reports
           path: reports/ci/
