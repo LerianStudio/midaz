@@ -1,4 +1,4 @@
-# Access-Manager RI (Inversão de Responsabilidade) declaration manifest.
+# Access-Manager RI (Responsibility Inversion) declaration manifest.
 #
 # Identity (service slug): "tracer" — the real-time transaction validation /
 # fraud-prevention service (its own deployable, components/tracer). The slug is

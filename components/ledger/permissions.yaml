@@ -1,4 +1,4 @@
-# Access-Manager RI (Inversão de Responsabilidade) declaration manifest.
+# Access-Manager RI (Responsibility Inversion) declaration manifest.
 #
 # Identity (service slug): "midaz" — the core ledger + embedded CRM. This is the
 # FIRST argument of every auth.Authorize("midaz", resource, verb) guard in

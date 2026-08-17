@@ -1,4 +1,4 @@
-# Access-Manager RI (Inversão de Responsabilidade) declaration manifest.
+# Access-Manager RI (Responsibility Inversion) declaration manifest.
 #
 # Identity (service slug): "plugin-fees" — the embedded fees/billing component.
 # It ships inside the single `ledger` deployable but declares its OWN manifest
