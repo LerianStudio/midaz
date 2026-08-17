@@ -273,19 +273,16 @@ func TestReserveLifecycleReleaseIdempotent(t *testing.T) {
 	}
 }
 
-// TestReserveLifecycleReserveRequestIdNoDoubleHold (Epic 2.3 C) proves a reserve
-// retry carrying the SAME requestId does not double-hold. The ledger derives a
-// deterministic requestId per transaction (UUIDv5 of the transactionId,
-// transaction_reservation_anchor.go:206), so a retried reserve presents the same
-// requestId and the tracer dedups against the prior reservation rather than
-// minting a second hold.
+// TestReserveLifecycleTransactionTupleNoDoubleHold (Epic 2.3 C) proves an exact
+// reserve retry for the same transaction does not double-hold. Tracer identifies
+// the active hold by transactionId + limit + scope + period; requestId is not the
+// reservation idempotency key.
 //
 // We exercise the tracer reserve API directly (the ledger has no retry surface
-// over HTTP): two reserves with identical transactionId+requestId+account+amount.
-// The dedup contract is that the second reserve returns the SAME reservationIds as
-// the first — one logical hold, not two. Distinct ids on the second call would be
-// a double-hold (the same logical request reserving capacity twice).
-func TestReserveLifecycleReserveRequestIdNoDoubleHold(t *testing.T) {
+// over HTTP): two reserves with identical transactionId, account, amount, and
+// resolved limit tuple. The retry contract is that the second reserve returns the
+// SAME reservationIds as the first — one logical hold, not two.
+func TestReserveLifecycleTransactionTupleNoDoubleHold(t *testing.T) {
 	requireTracer(t)
 
 	// A source-scoped ACTIVE limit so the reserve actually creates a hold;
@@ -300,7 +297,7 @@ func TestReserveLifecycleReserveRequestIdNoDoubleHold(t *testing.T) {
 	payload := reservePayload("")
 	payload["account"] = map[string]any{"accountId": accID}
 	payload["amount"] = "100"
-	// transactionId + requestId are FIXED so the retry presents the same request.
+	// transactionId and the resolved limit tuple remain fixed across the retry.
 
 	first := call(t, http.MethodPost, trlcReserveURL(), payload)
 	if first.status != http.StatusCreated {
@@ -312,7 +309,7 @@ func TestReserveLifecycleReserveRequestIdNoDoubleHold(t *testing.T) {
 
 	firstIDs := trlcRequireReservationIDs(t, first)
 
-	// Retry with the identical request: same transactionId + requestId.
+	// Retry with the identical transactionId + limit/scope/period tuple.
 	second := call(t, http.MethodPost, trlcReserveURL(), payload)
 	if second.status != http.StatusCreated {
 		t.Fatalf("retry reserve: want 201, got %d\nbody: %s", second.status, second.body)
@@ -320,7 +317,7 @@ func TestReserveLifecycleReserveRequestIdNoDoubleHold(t *testing.T) {
 
 	secondIDs := trlcReservationIDs(t, second)
 	if !trlcSameIDSet(firstIDs, secondIDs) {
-		t.Fatalf("reserve retry with the same requestId minted DIFFERENT reservationIds (double-hold)\nfirst:  %v\nsecond: %v", firstIDs, secondIDs)
+		t.Fatalf("reserve retry with the same transaction tuple minted DIFFERENT reservationIds (double-hold)\nfirst:  %v\nsecond: %v", firstIDs, secondIDs)
 	}
 }
 
@@ -332,9 +329,9 @@ func trlcRequireReservationIDs(t *testing.T, r response) []string {
 		return ids
 	}
 
-	message := fmt.Sprintf("first reserve produced no reservationIds (no capacity-backed limit matched) — cannot exercise dedup; body: %s", r.body)
+	message := fmt.Sprintf("first reserve produced no reservationIds (no capacity-backed limit matched) — cannot exercise transaction tuple idempotency; body: %s", r.body)
 	if e2eRequired() {
-		t.Fatalf("required reservation dedup capability produced no reservationIds: %s", message)
+		t.Fatalf("required reservation tuple idempotency capability produced no reservationIds: %s", message)
 	}
 	t.Skip(message)
 
@@ -365,8 +362,8 @@ func trlcReservationIDs(t *testing.T, r response) []string {
 }
 
 // trlcSameIDSet reports whether two reservation-id slices contain the same set of
-// ids (order-insensitive). Used to assert dedup: a same-requestId retry returns
-// the same logical hold, not a fresh one.
+// ids (order-insensitive). Used to assert tuple idempotency: an exact retry for
+// the same transaction/limit/scope/period returns the same hold, not a fresh one.
 func trlcSameIDSet(a, b []string) bool {
 	if len(a) != len(b) {
 		return false

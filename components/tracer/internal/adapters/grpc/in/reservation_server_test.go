@@ -165,6 +165,36 @@ func TestReservationServer_Reserve(t *testing.T) {
 		_, err = server.Reserve(context.Background(), req)
 		require.Equal(t, codes.InvalidArgument, status.Code(err))
 	})
+
+	t.Run("idempotency conflict maps to AlreadyExists", func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		svc := mocks.NewMockReservationService(ctrl)
+		clk := testutil.NewMockClock(now)
+
+		svc.EXPECT().Reserve(gomock.Any(), transactionID, gomock.Any(), false).Return(nil, constant.ErrIdempotencyKey)
+
+		server, err := NewReservationServer(svc, clk)
+		require.NoError(t, err)
+
+		_, err = server.Reserve(context.Background(), newReserveRequest(now, transactionID, requestID, accountID))
+		require.Equal(t, codes.AlreadyExists, status.Code(err))
+		require.Contains(t, status.Convert(err).Message(), constant.ErrIdempotencyKey.Error())
+	})
+
+	t.Run("terminal reservation retry maps to FailedPrecondition", func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		svc := mocks.NewMockReservationService(ctrl)
+		clk := testutil.NewMockClock(now)
+
+		svc.EXPECT().Reserve(gomock.Any(), transactionID, gomock.Any(), false).Return(nil, constant.ErrReservationAlreadyTerminal)
+
+		server, err := NewReservationServer(svc, clk)
+		require.NoError(t, err)
+
+		_, err = server.Reserve(context.Background(), newReserveRequest(now, transactionID, requestID, accountID))
+		require.Equal(t, codes.FailedPrecondition, status.Code(err))
+		require.Contains(t, status.Convert(err).Message(), constant.ErrReservationAlreadyTerminal.Error())
+	})
 }
 
 func TestReservationServer_ConfirmReleaseById(t *testing.T) {

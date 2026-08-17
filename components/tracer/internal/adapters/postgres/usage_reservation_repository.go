@@ -66,15 +66,17 @@ func NewUsageReservationRepositoryWithConnection(counterRepo *UsageCounterReposi
 // reserved_usage only when this call inserted the reservation row. A retry returns
 // the persisted row id and created=false without moving capacity again.
 //
-// maxAmount is the limit ceiling the reserve CTE guards against; it is supplied by
-// the caller (the limit it resolved) and is NOT stored on the reservation row.
+// maxAmount is the limit ceiling the reserve CTE guards against. counterExpiresAt
+// is derived from the limit period plus financial retention; it is deliberately
+// independent from the reservation row's short abandonment TTL. Neither value is
+// stored on the reservation row.
 //
 // Returns constant.ErrUsageCounterExceedsLimit when the combined committed +
 // outstanding usage would exceed the limit (the guard denied the reservation). The
 // caller is responsible for rolling the transaction back on any error so a denied
 // reserve leaves no RESERVED row whose capacity was never held. Concurrent and
 // sequential retries collapse onto the existing row through the unique 4-tuple.
-func (r *UsageReservationRepository) ReserveWithTx(ctx context.Context, db pgdb.DB, reservation *model.Reservation, maxAmount int64) (uuid.UUID, bool, error) {
+func (r *UsageReservationRepository) ReserveWithTx(ctx context.Context, db pgdb.DB, reservation *model.Reservation, maxAmount int64, counterExpiresAt *time.Time) (uuid.UUID, bool, error) {
 	if db == nil {
 		return uuid.Nil, false, pgdb.ErrNilConnection
 	}
@@ -121,13 +123,16 @@ func (r *UsageReservationRepository) ReserveWithTx(ctx context.Context, db pgdb.
 	).Scan(&persistedID)
 	if errors.Is(err, sql.ErrNoRows) {
 		findSQL := `
-			SELECT id
+			SELECT id, amount, status
 			FROM usage_reservations
 			WHERE transaction_id = $1
 			  AND limit_id = $2
 			  AND scope_key = $3
 			  AND period_key = $4
+			FOR UPDATE
 		`
+		var persistedAmount int64
+		var persistedStatus model.ReservationStatus
 		if findErr := db.QueryRowContext(
 			ctx,
 			findSQL,
@@ -135,9 +140,24 @@ func (r *UsageReservationRepository) ReserveWithTx(ctx context.Context, db pgdb.
 			reservation.LimitID,
 			reservation.ScopeKey,
 			reservation.PeriodKey,
-		).Scan(&persistedID); findErr != nil {
+		).Scan(&persistedID, &persistedAmount, &persistedStatus); findErr != nil {
 			libOtel.HandleSpanError(span, "Failed to find existing reservation row", findErr)
 			return uuid.Nil, false, fmt.Errorf("failed to find existing reservation row: %w", findErr)
+		}
+
+		if persistedStatus != model.StatusReserved {
+			libOtel.HandleSpanBusinessErrorEvent(span, "Reservation is already terminal", constant.ErrReservationAlreadyTerminal)
+			return uuid.Nil, false, constant.ErrReservationAlreadyTerminal
+		}
+
+		if persistedAmount != reservation.Amount {
+			libOtel.HandleSpanBusinessErrorEvent(span, "Reservation idempotency amount conflict", constant.ErrIdempotencyKey)
+			return uuid.Nil, false, fmt.Errorf(
+				"%w: reservation tuple already holds amount %d, got %d",
+				constant.ErrIdempotencyKey,
+				persistedAmount,
+				reservation.Amount,
+			)
 		}
 
 		return persistedID, false, nil
@@ -157,7 +177,7 @@ func (r *UsageReservationRepository) ReserveWithTx(ctx context.Context, db pgdb.
 		reservation.PeriodKey,
 		decimal.NewFromInt(reservation.Amount),
 		decimal.NewFromInt(maxAmount),
-		&reservation.ReservationExpiresAt,
+		counterExpiresAt,
 	); err != nil {
 		return uuid.Nil, false, err
 	}

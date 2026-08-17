@@ -328,6 +328,12 @@ func (s *ReservationServer) mapServiceError(span trace.Span, msg string, err err
 	case errors.Is(err, constant.ErrReservationNotFound):
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Reservation not found", err)
 		return status.Error(codes.NotFound, constant.ErrReservationNotFound.Error())
+	case errors.Is(err, constant.ErrIdempotencyKey):
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Reservation idempotency conflict", err)
+		return status.Error(codes.AlreadyExists, constant.ErrIdempotencyKey.Error())
+	case errors.Is(err, constant.ErrReservationAlreadyTerminal):
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Reservation already terminal", err)
+		return status.Error(codes.FailedPrecondition, constant.ErrReservationAlreadyTerminal.Error())
 	default:
 		libOpentelemetry.HandleSpanError(span, msg, err)
 		return status.Error(codes.Internal, constant.ErrInternalServer.Error())

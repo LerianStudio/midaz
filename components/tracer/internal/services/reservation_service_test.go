@@ -143,11 +143,11 @@ func TestReservationService_Reserve(t *testing.T) {
 
 		// One reserve + one audit per applicable limit.
 		deps.repo.EXPECT().
-			ReserveWithTx(gomock.Any(), deps.tx, gomock.AssignableToTypeOf(&model.Reservation{}), int64(10000)).
+			ReserveWithTx(gomock.Any(), deps.tx, gomock.AssignableToTypeOf(&model.Reservation{}), int64(10000), gomock.Any()).
 			Return(testutil.MustDeterministicUUID(7061), true, nil).
 			Times(1)
 		deps.repo.EXPECT().
-			ReserveWithTx(gomock.Any(), deps.tx, gomock.AssignableToTypeOf(&model.Reservation{}), int64(5000)).
+			ReserveWithTx(gomock.Any(), deps.tx, gomock.AssignableToTypeOf(&model.Reservation{}), int64(5000), gomock.Any()).
 			Return(testutil.MustDeterministicUUID(7062), true, nil).
 			Times(1)
 		deps.auditWriter.EXPECT().
@@ -172,7 +172,7 @@ func TestReservationService_Reserve(t *testing.T) {
 			Times(1)
 		deps.expectTxCommit()
 		deps.repo.EXPECT().
-			ReserveWithTx(gomock.Any(), deps.tx, gomock.Any(), int64(10000)).
+			ReserveWithTx(gomock.Any(), deps.tx, gomock.Any(), int64(10000), gomock.Any()).
 			Return(persistedID, false, nil).
 			Times(1)
 
@@ -213,7 +213,7 @@ func TestReservationService_Reserve(t *testing.T) {
 		// First reserve trips the over-limit guard; the whole tx rolls back and no
 		// further reserve/audit runs.
 		deps.repo.EXPECT().
-			ReserveWithTx(gomock.Any(), deps.tx, gomock.Any(), int64(10000)).
+			ReserveWithTx(gomock.Any(), deps.tx, gomock.Any(), int64(10000), gomock.Any()).
 			Return(uuid.Nil, false, constant.ErrUsageCounterExceedsLimit).
 			Times(1)
 
@@ -222,6 +222,30 @@ func TestReservationService_Reserve(t *testing.T) {
 		assert.True(t, result.Denied, "guard-denied reserve must surface the limit-exceeded decision")
 		assert.Empty(t, result.ReservationIDs)
 	})
+
+	for _, tc := range []struct {
+		name    string
+		repoErr error
+	}{
+		{name: "idempotency conflict fails closed", repoErr: constant.ErrIdempotencyKey},
+		{name: "terminal retry is not an active handle", repoErr: constant.ErrReservationAlreadyTerminal},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			svc, deps := newReservationServiceDeps(t)
+			input := testCheckLimitsInput(t)
+
+			deps.resolver.EXPECT().ResolveReservations(gomock.Any(), input).Return(oneSpec(), false, nil).Times(1)
+			deps.expectTxRollback()
+			deps.repo.EXPECT().
+				ReserveWithTx(gomock.Any(), deps.tx, gomock.Any(), int64(10000), gomock.Any()).
+				Return(uuid.Nil, false, tc.repoErr).
+				Times(1)
+
+			result, err := svc.Reserve(context.Background(), txID, input, false)
+			require.ErrorIs(t, err, tc.repoErr)
+			assert.Nil(t, result)
+		})
+	}
 
 	t.Run("No applicable limits -> allow with empty handle", func(t *testing.T) {
 		svc, deps := newReservationServiceDeps(t)
@@ -259,11 +283,13 @@ func TestReservationService_Reserve(t *testing.T) {
 
 		deps.expectTxCommit()
 
-		var captured time.Time
+		var capturedReservationExpiry time.Time
+		var capturedCounterExpiry *time.Time
 		deps.repo.EXPECT().
-			ReserveWithTx(gomock.Any(), deps.tx, gomock.Any(), int64(10000)).
-			DoAndReturn(func(_ context.Context, _ any, r *model.Reservation, _ int64) (uuid.UUID, bool, error) {
-				captured = r.ReservationExpiresAt
+			ReserveWithTx(gomock.Any(), deps.tx, gomock.Any(), int64(10000), gomock.Any()).
+			DoAndReturn(func(_ context.Context, _ any, r *model.Reservation, _ int64, counterExpiry *time.Time) (uuid.UUID, bool, error) {
+				capturedReservationExpiry = r.ReservationExpiresAt
+				capturedCounterExpiry = counterExpiry
 
 				return r.ID, true, nil
 			}).
@@ -277,7 +303,11 @@ func TestReservationService_Reserve(t *testing.T) {
 		require.NoError(t, err)
 
 		// Direct transactions use the fixed short TTL, NOT the long-lived knob.
-		assert.Equal(t, now.UTC().Add(reservationTTL), captured)
+		assert.Equal(t, now.UTC().Add(reservationTTL), capturedReservationExpiry)
+		require.NotNil(t, capturedCounterExpiry)
+		assert.Equal(t, *testCounterExpiry(), *capturedCounterExpiry)
+		assert.NotEqual(t, capturedReservationExpiry, *capturedCounterExpiry,
+			"counter retention must be independent from the reservation abandonment TTL")
 	})
 
 	t.Run("longLived=true sets the configured long-lived TTL on the reservation", func(t *testing.T) {
@@ -309,8 +339,8 @@ func TestReservationService_Reserve(t *testing.T) {
 
 		var captured time.Time
 		repo.EXPECT().
-			ReserveWithTx(gomock.Any(), tx, gomock.Any(), int64(10000)).
-			DoAndReturn(func(_ context.Context, _ any, r *model.Reservation, _ int64) (uuid.UUID, bool, error) {
+			ReserveWithTx(gomock.Any(), tx, gomock.Any(), int64(10000), gomock.Any()).
+			DoAndReturn(func(_ context.Context, _ any, r *model.Reservation, _ int64, _ *time.Time) (uuid.UUID, bool, error) {
 				captured = r.ReservationExpiresAt
 
 				return r.ID, true, nil
@@ -345,8 +375,8 @@ func TestReservationService_Reserve(t *testing.T) {
 
 		var captured time.Time
 		deps.repo.EXPECT().
-			ReserveWithTx(gomock.Any(), deps.tx, gomock.Any(), int64(10000)).
-			DoAndReturn(func(_ context.Context, _ any, r *model.Reservation, _ int64) (uuid.UUID, bool, error) {
+			ReserveWithTx(gomock.Any(), deps.tx, gomock.Any(), int64(10000), gomock.Any()).
+			DoAndReturn(func(_ context.Context, _ any, r *model.Reservation, _ int64, _ *time.Time) (uuid.UUID, bool, error) {
 				captured = r.ReservationExpiresAt
 
 				return r.ID, true, nil
@@ -371,13 +401,20 @@ func TestReservationService_Reserve(t *testing.T) {
 func oneSpec() []query.ReservationSpec {
 	return []query.ReservationSpec{
 		{
-			LimitID:   testutil.MustDeterministicUUID(7101),
-			ScopeKey:  "acct:7001",
-			PeriodKey: "2026-06",
-			Amount:    400,
-			MaxAmount: 10000,
+			LimitID:          testutil.MustDeterministicUUID(7101),
+			ScopeKey:         "acct:7001",
+			PeriodKey:        "2026-06",
+			Amount:           400,
+			MaxAmount:        10000,
+			CounterExpiresAt: testCounterExpiry(),
 		},
 	}
+}
+
+func testCounterExpiry() *time.Time {
+	expiresAt := testutil.FixedTime().AddDate(0, 0, 90)
+
+	return &expiresAt
 }
 
 func TestReservationService_Confirm(t *testing.T) {

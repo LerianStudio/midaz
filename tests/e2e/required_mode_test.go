@@ -118,7 +118,7 @@ func TestMissingReservationIDsFailsRequiredMode(t *testing.T) {
 	if err == nil {
 		t.Fatalf("required reservation capability accepted an empty reservation set\noutput: %s", output)
 	}
-	if !strings.Contains(string(output), "required reservation dedup capability produced no reservationIds") {
+	if !strings.Contains(string(output), "required reservation tuple idempotency capability produced no reservationIds") {
 		t.Fatalf("required reservation failure was not actionable\noutput: %s", output)
 	}
 }

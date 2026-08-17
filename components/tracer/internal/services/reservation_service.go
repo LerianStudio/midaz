@@ -67,7 +67,7 @@ type LimitResolver interface {
 // counter bucket move, and the audit write commit together. Implemented by
 // postgres.UsageReservationRepository.
 type ReservationRepository interface {
-	ReserveWithTx(ctx context.Context, db pgdb.DB, reservation *model.Reservation, maxAmount int64) (reservationID uuid.UUID, created bool, err error)
+	ReserveWithTx(ctx context.Context, db pgdb.DB, reservation *model.Reservation, maxAmount int64, counterExpiresAt *time.Time) (reservationID uuid.UUID, created bool, err error)
 	ConfirmWithTx(ctx context.Context, db pgdb.DB, reservationID uuid.UUID) error
 	ReleaseWithTx(ctx context.Context, db pgdb.DB, reservationID uuid.UUID, status model.ReservationStatus) error
 	ConfirmByTransactionWithTx(ctx context.Context, db pgdb.DB, transactionID uuid.UUID) ([]*model.Reservation, error)
@@ -182,8 +182,8 @@ func NewReservationServiceWithLongLivedTTL(
 //
 // The resolved limit set (LimitID/ScopeKey/PeriodKey/Amount) is carried on each
 // reservation row, so confirm/release never re-resolve limits (R38). The ledger
-// transactionID is the 4-tuple idempotency key: a retried reserve collapses onto
-// the existing rows rather than double-reserving (R11/R35).
+// transactionID plus limit/scope/period is the idempotency tuple: a retried reserve
+// collapses onto the existing rows rather than double-reserving (R11/R35).
 //
 // longLived selects the reservation lifetime: false (direct transaction) uses the
 // short reservationTTL so the reaper converges quickly; true (PENDING transaction,
@@ -251,7 +251,7 @@ func (s *ReservationService) Reserve(ctx context.Context, transactionID uuid.UUI
 				return err
 			}
 
-			reservationID, created, err := s.repo.ReserveWithTx(ctx, db, reservation, spec.MaxAmount)
+			reservationID, created, err := s.repo.ReserveWithTx(ctx, db, reservation, spec.MaxAmount, spec.CounterExpiresAt)
 			if err != nil {
 				// The reserve guard denied this limit: roll back the whole tx so no
 				// partial capacity is held, and surface the limit-exceeded decision.
@@ -295,6 +295,10 @@ func (s *ReservationService) Reserve(ctx context.Context, transactionID uuid.UUI
 			// Limit-exceeded is a business decision, not a service failure: the
 			// rollback already released any partial holds.
 			return &ReserveResult{Denied: true}, nil
+		}
+		if errors.Is(txErr, constant.ErrIdempotencyKey) || errors.Is(txErr, constant.ErrReservationAlreadyTerminal) {
+			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Reservation retry rejected", txErr)
+			return nil, txErr
 		}
 
 		libOpentelemetry.HandleSpanError(span, "Failed to reserve capacity", txErr)

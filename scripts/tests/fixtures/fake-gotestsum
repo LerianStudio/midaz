@@ -45,9 +45,9 @@ if [[ ${FAKE_SENTINEL:-0} == 1 ]]; then
     printf '{"Action":"pass","Test":"TestStreamingHolderCreateEmitsRedacted"}\n' >> "$json_file"
   fi
   if [[ ${FAKE_RESERVATION_SKIP:-0} == 1 ]]; then
-    printf '{"Action":"skip","Test":"TestReserveLifecycleReserveRequestIdNoDoubleHold"}\n' >> "$json_file"
+    printf '{"Action":"skip","Test":"TestReserveLifecycleTransactionTupleNoDoubleHold"}\n' >> "$json_file"
   else
-    printf '{"Action":"pass","Test":"TestReserveLifecycleReserveRequestIdNoDoubleHold"}\n' >> "$json_file"
+    printf '{"Action":"pass","Test":"TestReserveLifecycleTransactionTupleNoDoubleHold"}\n' >> "$json_file"
   fi
 else
   printf '{"Action":"skip","Test":"TestRequiredStackLane"}\n' > "$json_file"

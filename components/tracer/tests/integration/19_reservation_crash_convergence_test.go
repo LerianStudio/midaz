@@ -216,6 +216,13 @@ func resSpec(limitID uuid.UUID, scopeKey, periodKey string, amount, maxAmount in
 	}
 }
 
+func resSpecWithCounterExpiry(limitID uuid.UUID, scopeKey, periodKey string, amount, maxAmount int64, expiresAt time.Time) query.ReservationSpec {
+	spec := resSpec(limitID, scopeKey, periodKey, amount, maxAmount)
+	spec.CounterExpiresAt = &expiresAt
+
+	return spec
+}
+
 // resCheckInput is a minimal valid CheckLimitsInput. The stub resolver ignores
 // its contents, but ReservationService.Reserve forwards it and a nil input is
 // rejected, so the proofs pass a well-formed one.
@@ -264,6 +271,25 @@ func TestIntegration_ReservationReserveIdempotency(t *testing.T) {
 		assert.Equal(t, int64(0), current)
 		assert.Equal(t, int64(600), reserved, "a retry must not hold capacity twice")
 		assert.Equal(t, int64(1), audit.perRow.Load(), "a retry must not duplicate the reserve audit event")
+
+		conflictingSvc := resWireService(t, db, resStubResolver{
+			specs: []query.ReservationSpec{resSpec(limitID, scopeKey, periodKey, 500, 1000)},
+		}, audit)
+		_, err = conflictingSvc.Reserve(context.Background(), txID, input, false)
+		require.ErrorIs(t, err, constant.ErrIdempotencyKey)
+
+		current, reserved = resReadCounter(t, db, limitID, scopeKey, periodKey)
+		assert.Equal(t, int64(0), current)
+		assert.Equal(t, int64(600), reserved, "a conflicting retry must not change held capacity")
+
+		require.NoError(t, svc.Confirm(context.Background(), first.ReservationIDs[0]))
+		_, err = svc.Reserve(context.Background(), txID, input, false)
+		require.ErrorIs(t, err, constant.ErrReservationAlreadyTerminal)
+
+		current, reserved = resReadCounter(t, db, limitID, scopeKey, periodKey)
+		assert.Equal(t, int64(600), current)
+		assert.Equal(t, int64(0), reserved)
+		assert.Equal(t, int64(2), audit.perRow.Load(), "terminal retry must not emit another reserve audit event")
 	})
 
 	t.Run("concurrent retries converge on one persisted reservation", func(t *testing.T) {
@@ -313,6 +339,42 @@ func TestIntegration_ReservationReserveIdempotency(t *testing.T) {
 		assert.Equal(t, int64(600), reserved, "concurrent retries must hold capacity once")
 		assert.Equal(t, int64(1), audit.perRow.Load(), "concurrent retries must emit one reserve audit event")
 	})
+}
+
+func TestIntegration_ConfirmedReservationCounterSurvivesReservationTTL(t *testing.T) {
+	testutil.SetupTestTracing(t)
+
+	db := testutil.SetupIntegrationDB(t)
+	limitID := resSeedLimit(t, db, 8734, "counter-retention", 1000)
+	t.Cleanup(func() { resCleanupLimit(t, db, limitID) })
+
+	now := time.Now().UTC()
+	counterExpiresAt := now.AddDate(0, 0, 90)
+	scopeKey := "acct:counter-retention"
+	periodKey := now.Format("2006-01-02")
+	txID := testutil.MustDeterministicUUID(8735)
+	audit := &resCountingAudit{}
+	svc := resWireService(t, db, resStubResolver{
+		specs: []query.ReservationSpec{
+			resSpecWithCounterExpiry(limitID, scopeKey, periodKey, 400, 1000, counterExpiresAt),
+		},
+	}, audit)
+
+	reserved, err := svc.Reserve(context.Background(), txID, resCheckInput(t), false)
+	require.NoError(t, err)
+	require.Len(t, reserved.ReservationIDs, 1)
+	require.NoError(t, svc.Confirm(context.Background(), reserved.ReservationIDs[0]))
+
+	adapter := &testutil.IntegrationDBAdapter{DB: db}
+	counterRepo := postgres.NewUsageCounterRepositoryWithConnection(adapter)
+	deleted, err := counterRepo.DeleteExpiredCounters(context.Background(), now.Add(6*time.Minute))
+	require.NoError(t, err)
+	assert.Equal(t, int64(0), deleted,
+		"counter cleanup after the reservation TTL must preserve confirmed financial usage")
+
+	current, held := resReadCounter(t, db, limitID, scopeKey, periodKey)
+	assert.Equal(t, int64(400), current)
+	assert.Equal(t, int64(0), held)
 }
 
 // ---------------------------------------------------------------------------

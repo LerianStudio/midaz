@@ -285,8 +285,8 @@ func (h *ReservationHandler) terminate(
 // classification the Fiber wrappers (which render via pkgHTTP.WithError) and the
 // Huma funcs (humaProblem -> *pkgHTTP.Detail) both consume, so both transports emit
 // field/status/code/type-identical envelopes. ErrReservationNotFound (a
-// confirm/release against a missing id) maps to 404; everything else is a technical
-// failure mapped to 500.
+// confirm/release against a missing id) maps to 404; semantic retry conflicts map
+// to their canonical 409/422 contracts; everything else is a technical 500.
 func classifyReservationServiceError(span trace.Span, err error) error {
 	switch {
 	case errors.Is(err, context.Canceled):
@@ -297,6 +297,14 @@ func classifyReservationServiceError(span trace.Span, err error) error {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Reservation not found", err)
 
 		return pkg.ValidateBusinessError(constant.ErrReservationNotFound, constant.EntityReservation)
+	case errors.Is(err, constant.ErrIdempotencyKey):
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Reservation idempotency conflict", err)
+
+		return pkg.ValidateBusinessError(constant.ErrIdempotencyKey, constant.EntityReservation, "reservation tuple")
+	case errors.Is(err, constant.ErrReservationAlreadyTerminal):
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Reservation already terminal", err)
+
+		return pkg.ValidateBusinessError(constant.ErrReservationAlreadyTerminal, constant.EntityReservation)
 	default:
 		libOpentelemetry.HandleSpanError(span, "Reservation processing failed", err)
 

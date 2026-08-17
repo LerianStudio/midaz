@@ -231,6 +231,32 @@ func TestReservationHandler_Reserve(t *testing.T) {
 			},
 		},
 		{
+			name:        "idempotency conflict returns 409 code 0084",
+			requestBody: newValidReserveRequest(),
+			mockSetup: func(ctrl *gomock.Controller) *mocks.MockReservationService {
+				m := mocks.NewMockReservationService(ctrl)
+				m.EXPECT().Reserve(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return(nil, constant.ErrIdempotencyKey)
+				return m
+			},
+			expectedStatus: http.StatusConflict,
+			expectedBody: func(t *testing.T, body []byte) {
+				assert.Contains(t, string(body), `"code":"0084"`)
+			},
+		},
+		{
+			name:        "terminal reservation retry returns 422 code 0483",
+			requestBody: newValidReserveRequest(),
+			mockSetup: func(ctrl *gomock.Controller) *mocks.MockReservationService {
+				m := mocks.NewMockReservationService(ctrl)
+				m.EXPECT().Reserve(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return(nil, constant.ErrReservationAlreadyTerminal)
+				return m
+			},
+			expectedStatus: http.StatusUnprocessableEntity,
+			expectedBody: func(t *testing.T, body []byte) {
+				assert.Contains(t, string(body), `"code":"0483"`)
+			},
+		},
+		{
 			name:        "service failure returns 500",
 			requestBody: newValidReserveRequest(),
 			mockSetup: func(ctrl *gomock.Controller) *mocks.MockReservationService {
