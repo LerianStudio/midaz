@@ -708,7 +708,7 @@ func TestAliasRepository_Create_ConcurrentBurst_SingleIndexBuild(t *testing.T) {
 
 	// Act - launch the burst. Each goroutine gets its OWN context.Background() so one failure
 	// cannot cancel siblings, and DISTINCT _id (fresh per fixture), holder_id, account_id, and
-	// ledger_id (fresh per DefaultAliasParams) so the three unique partial indexes —
+	// ledger_id (fresh per DefaultInstrumentParams) so the three unique partial indexes —
 	// (_id, holder_id), account_id, and (ledger_id, account_id) — are never the source of an error.
 	start := time.Now().UTC()
 
@@ -722,7 +722,7 @@ func TestAliasRepository_Create_ConcurrentBurst_SingleIndexBuild(t *testing.T) {
 
 			holderID := uuid.New()
 
-			alias := mongotestutil.CreateTestAliasSimple(
+			alias := mongotestutil.CreateTestInstrumentSimple(
 				t,
 				holderID,
 				fmt.Sprintf("account-burst-%02d", i),

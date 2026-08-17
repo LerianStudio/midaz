@@ -82,6 +82,7 @@ help:
 	@echo "$(BOLD)Test Suite Aliases:$(NC)"
 	@echo "  make test-unit                   - Run Go unit tests"
 	@echo "  make test-integration            - Run integration tests with testcontainers (RUN=<test>)"
+	@echo "  make list-integration-tests      - List build-tag-selected integration tests (no Docker)"
 	@echo "  make test-e2e                    - Run E2E BDD tests (resets DB, runs Godog scenarios)"
 	@echo "  make test-all                    - Run all tests (unit + integration)"
 	@echo "  make test-bench                  - Run benchmark tests (BENCH=pattern, BENCH_PKG=./path)"

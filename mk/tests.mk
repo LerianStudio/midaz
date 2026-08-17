@@ -44,10 +44,19 @@ INTEG_TEST_ENV := CHAOS=$(CHAOS)$(space)
 
 # Pull in the shared scaffolding (test-unit, test-integration,
 # coverage-integration, test-bench, test-all, wait-for-services). Knobs above
-# (TEST_HEALTH_URL, INTEG_TEST_ENV) and the default discovery/chaos macros there
+# (TEST_HEALTH_URL, INTEG_TEST_ENV) and the shared tag-based discovery there
 # reproduce the monorepo-wide behavior. Root keeps -race for integration (the
-# fragment's INTEG_RACE_FLAG default) and the default //go:build-grep discovery.
+# fragment's INTEG_RACE_FLAG default) and the monorepo-wide package scope.
 include $(MK_DIR)/test-go.mk
+
+#-------------------------------------------------------
+# Make test-gate contract (offline)
+#-------------------------------------------------------
+
+.PHONY: test-gate-selection
+test-gate-selection:
+	$(call print_title,Verifying Make test gate selection)
+	@bash ./scripts/tests/test-gate-selection.sh
 
 #-------------------------------------------------------
 # Core Commands
@@ -213,34 +222,69 @@ test-fuzz:
 	fi
 
 # Property-based tests (`property` build tag).
-# These suites compile only under -tags=property and use testcontainers, so no
-# external Docker stack is required. Discovery defaults to the ./tests tree;
-# override with PKG to scope elsewhere. With no property-tagged suite present the
-# target is a clean no-op ("No property test packages found").
 #
-# NOTE: run with -p=1 to avoid testcontainers overwhelming Docker when packages
-# create containers in parallel (same rationale as test-integration).
+# The property files are distributed through components/ and pkg/. Discovery is
+# based on files that Go actually selects for the property build tag, not on a
+# directory convention or test-function name. Each package runs an exact,
+# anchored alternation generated from the top-level Test functions in those
+# tagged files, so ordinary co-located tests are compiled but not duplicated.
+PROPERTY_PACKAGE_PATTERNS ?= ./components/... ./pkg/... ./tests/...
+
+define property_discover
+	if [ -n "$(PKG)" ]; then \
+	  echo "Using specified package: $(PKG)"; \
+	  package_patterns="$(PKG)"; \
+	else \
+	  echo "Finding packages selected by the property build tag..."; \
+	  package_patterns="$(PROPERTY_PACKAGE_PATTERNS)"; \
+	fi; \
+	selected_tests=$$("$(TAGGED_TEST_FUNCTION_LISTER)" property property $$package_patterns); \
+	pkgs=$$(printf '%s\n' "$$selected_tests" | awk '!seen[$$1]++ { print $$1 }')
+endef
+
+define property_list
+	selected_test_count=$$(printf '%s\n' "$$selected_tests" | awk 'NF { count++ } END { print count + 0 }')
+endef
+
+.PHONY: list-property-tests
+list-property-tests:
+	$(call print_title,Listing property tests selected by build tags)
+	$(call check_command,go,"Install Go from https://golang.org/doc/install")
+	@set -e; export ALLOW_INSECURE_TLS=true; \
+	$(property_discover); \
+	$(property_list); \
+	echo "Build tags: property"; \
+	echo "Packages: $$pkgs"; \
+	echo "Selected runnable tests: $$selected_test_count"; \
+	printf '%s\n' "$$selected_tests"
+
 .PHONY: test-property
 test-property:
 	$(call print_title,Running property-based tests (-tags=property))
 	$(call check_command,go,"Install Go from https://golang.org/doc/install")
-	$(call check_command,docker,"Install Docker from https://docs.docker.com/get-docker/")
 	@set -e; export ALLOW_INSECURE_TLS=true; mkdir -p $(TEST_REPORTS_DIR); \
-	pkg=$${PKG:-./tests/...}; \
-	pkgs=$$(go list -tags=property $$pkg 2>/dev/null | tr '\n' ' '); \
-	if [ -z "$$pkgs" ]; then \
-	  echo "No property test packages found"; \
-	else \
-	  echo "Packages: $$pkgs"; \
+	$(property_discover); \
+	$(property_list); \
+	echo "Packages: $$pkgs"; \
+	echo "Selected runnable tests: $$selected_test_count"; \
+	for pkg in $$pkgs; do \
+	  package_test_names=$$(printf '%s\n' "$$selected_tests" \
+	    | awk -v package="$$pkg" '$$1 == package { print $$2 }'); \
+	  if [ -z "$$package_test_names" ]; then \
+	    echo "[error] package $$pkg has zero selected property tests" >&2; exit 1; \
+	  fi; \
+	  test_alternation=$$(printf '%s\n' "$$package_test_names" | paste -sd'|' -); \
+	  exact_pattern="^($$test_alternation)$$"; \
+	  echo "Running $$pkg ($$(printf '%s\n' "$$package_test_names" | awk 'NF { count++ } END { print count + 0 }') tests)"; \
 	  if [ -n "$(GOTESTSUM)" ]; then \
 	    gotestsum --format testname -- \
 	      -tags=property -v $(LOW_RES_RACE_FLAG) -count=1 -timeout 600s $(GO_TEST_LDFLAGS) \
-	      -p 1 $(LOW_RES_PARALLEL_FLAG) $$pkgs; \
+	      -p 1 $(LOW_RES_PARALLEL_FLAG) -run "$$exact_pattern" "$$pkg"; \
 	  else \
 	    go test -tags=property -v $(LOW_RES_RACE_FLAG) -count=1 -timeout 600s $(GO_TEST_LDFLAGS) \
-	      -p 1 $(LOW_RES_PARALLEL_FLAG) $$pkgs; \
+	      -p 1 $(LOW_RES_PARALLEL_FLAG) -run "$$exact_pattern" "$$pkg"; \
 	  fi; \
-	fi
+	done
 
 # BDD end-to-end tests (godog/cucumber) for the tracer component.
 #
@@ -304,9 +348,10 @@ test-ledger-e2e:
 #
 # Sequences the deterministic, self-contained legs (testcontainers only, no live
 # docker-compose stack required), with the test-integration glob spanning ./tests:
-#   1. test-unit            (-race, UNTAGGED — bare `go test` discovers unit pkgs)
-#   2. test-integration     (-tags=integration -p 1; glob spans ./components ./pkg ./tests)
-#   3. test-property        (-tags=property -p 1; ./tests tree)
+#   1. test-gate-selection  (offline regression contract for package/test discovery)
+#   2. test-unit            (-race, UNTAGGED — bare `go test` discovers unit pkgs)
+#   3. test-integration     (-tags=integration -p 1; tag discovery spans the monorepo)
+#   4. test-property        (-tags=property -p 1; tagged packages under components/pkg/tests)
 # Each leg is a separate $(MAKE) invocation under `set -e`, so the first failing
 # leg aborts the run and `make ci-tests` returns its non-zero exit code.
 #
@@ -323,6 +368,7 @@ test-ledger-e2e:
 ci-tests:
 	$(call print_title,Running CI test matrix)
 	@set -e; \
+	$(MAKE) test-gate-selection; \
 	$(MAKE) test-unit; \
 	$(MAKE) test-integration; \
 	$(MAKE) test-property

@@ -23,8 +23,9 @@
 #                        lib-commons race). LOW_RESOURCE=1 still forces it empty.
 #   TEST_HEALTH_URL      health endpoint polled by wait-for-services
 #                        (root: ledger URL; tracer: tracer URL).
-#   INTEG_RUN_FLAG       -run flag for integration discovery (root defaults to
-#                        `-run '$(RUN_PATTERN)'`; tracer overrides to `$(RUN_FLAG)`).
+#   INTEG_PACKAGE_PATTERNS
+#                        package patterns searched for integration-tagged tests
+#                        (root spans the monorepo; tracer narrows its own tree).
 #   INTEG_TEST_ENV       env prefix on the integration `go test` line
 #                        (root: `CHAOS=$(CHAOS) `; tracer: empty).
 #   TEST_REPORTS_DIR     output dir (default ./reports).
@@ -33,7 +34,6 @@
 #   BENCH / BENCH_PKG    benchmark pattern / package filter.
 #
 # Overridable macros (redefine AFTER include — recipe expansion is late-bound):
-#   integ_discover       shell that populates `pkgs` for the integration targets.
 #   integ_chaos_notice   shell echo block printed before the integration run
 #                        (root prints the CHAOS notice; tracer leaves it empty).
 # ------------------------------------------------------
@@ -77,12 +77,9 @@ TEST_HEALTH_WAIT ?= 60
 RUN ?=
 PKG ?=
 
-# Computed run pattern (default '^TestIntegration' when RUN unset).
-ifeq ($(RUN),)
-  RUN_PATTERN := ^TestIntegration
-else
-  RUN_PATTERN := $(RUN)
-endif
+# Build tags select the integration lane. RUN is an explicit, opt-in narrowing
+# of the exact Test functions derived from the selected tagged files; no test
+# naming convention participates in default selection.
 
 # Low-resource mode for limited machines (sets -p=1 -parallel=1, disables -race).
 LOW_RESOURCE ?= 0
@@ -100,11 +97,16 @@ else
   LOW_RES_RACE_FLAG := $(INTEG_RACE_FLAG)
 endif
 
-# Default integration run flag (root behavior). Tracer overrides to $(RUN_FLAG).
-INTEG_RUN_FLAG ?= -run '$(RUN_PATTERN)'
-
 # Default integration env prefix (empty). Root sets CHAOS=$(CHAOS).
 INTEG_TEST_ENV ?=
+
+# Integration discovery is shared; includers change only the package scope and
+# any additional build tags. The helpers fail closed on go list/grep errors and
+# on empty package/test selection.
+INTEG_PACKAGE_PATTERNS ?= ./components/... ./pkg/... ./tests/...
+SELECTED_TEST_LISTER ?= $(MIDAZ_ROOT)/scripts/list-selected-go-tests.sh
+TAGGED_TEST_FUNCTION_LISTER ?= $(MIDAZ_ROOT)/scripts/list-tagged-test-functions.sh
+GO_COVERPROFILE_MERGER ?= $(MIDAZ_ROOT)/scripts/merge-go-coverprofiles.sh
 
 #-------------------------------------------------------
 # wait-for-services
@@ -189,18 +191,43 @@ test-bench:
 #-------------------------------------------------------
 # Integration tests (testcontainers, no coverage)
 #-------------------------------------------------------
-# Default discovery (root): grep //go:build integration across the monorepo.
-# Tracer redefines integ_discover after include with its find-based discovery.
+# Build-tag discovery shared by root and component scopes.
 
 define integ_discover
 	if [ -n "$(PKG)" ]; then \
 	  echo "Using specified package: $(PKG)"; \
-	  pkgs=$$(go list -tags=$(_INTEG_TAGS) $(PKG) 2>/dev/null | tr '\n' ' '); \
+	  package_patterns="$(PKG)"; \
 	else \
-	  echo "Finding packages with //go:build integration files..."; \
-	  dirs=$$(grep -rl '^//go:build integration' --include='*_test.go' ./components ./pkg ./tests 2>/dev/null | xargs -n1 dirname 2>/dev/null | sort -u | tr '\n' ' '); \
-	  pkgs=$$(if [ -n "$$dirs" ]; then go list -tags=$(_INTEG_TAGS) $$dirs 2>/dev/null | tr '\n' ' '; fi); \
-	fi
+	  echo "Finding packages selected by the integration build tag..."; \
+	  package_patterns="$(INTEG_PACKAGE_PATTERNS)"; \
+	fi; \
+	tagged_tests=$$("$(TAGGED_TEST_FUNCTION_LISTER)" integration "$(_INTEG_TAGS)" $$package_patterns); \
+	pkgs=$$(printf '%s\n' "$$tagged_tests" | awk '!seen[$$1]++ { print $$1 }')
+endef
+
+define integ_list
+	selected_tests="$$tagged_tests"; \
+	run_suffix=""; \
+	if [ -n "$(RUN)" ]; then \
+	  requested_pattern="$(RUN)"; \
+	  top_level_pattern=$${requested_pattern%%/*}; \
+	  if [ "$$top_level_pattern" != "$$requested_pattern" ]; then \
+	    run_suffix="/$${requested_pattern#*/}"; \
+	  fi; \
+	  if [ -z "$$top_level_pattern" ]; then top_level_pattern="."; fi; \
+	  run_matches=$$("$(SELECTED_TEST_LISTER)" "$(_INTEG_TAGS)" "$$top_level_pattern" $$pkgs); \
+	  selection_dir=$$(mktemp -d); \
+	  printf '%s\n' "$$tagged_tests" > "$$selection_dir/tagged"; \
+	  printf '%s\n' "$$run_matches" > "$$selection_dir/run-matches"; \
+	  selected_tests=$$(grep -Fxf "$$selection_dir/tagged" "$$selection_dir/run-matches") \
+	    && selection_status=0 || selection_status=$$?; \
+	  rm -rf "$$selection_dir"; \
+	  if [ $$selection_status -gt 1 ]; then exit $$selection_status; fi; \
+	  if [ $$selection_status -eq 1 ]; then \
+	    echo "[error] RUN=$(RUN) matched zero build-tag-selected integration tests" >&2; exit 1; \
+	  fi; \
+	fi; \
+	selected_test_count=$$(printf '%s\n' "$$selected_tests" | awk 'NF { count++ } END { print count + 0 }')
 endef
 
 # Default chaos notice (root): print the CHAOS branch echoes. Tracer overrides empty.
@@ -219,37 +246,59 @@ test-integration:
 	$(call check_command,docker,"Install Docker from https://docs.docker.com/get-docker/")
 	@set -e; export ALLOW_INSECURE_TLS=true; mkdir -p $(TEST_REPORTS_DIR); \
 	$(integ_discover); \
+	$(integ_list); \
 	if [ -z "$$(echo $$pkgs | tr -d ' ')" ]; then \
-	  echo "No integration test packages found"; \
+	  echo "[error] integration discovery returned zero packages" >&2; exit 1; \
 	else \
 	  echo "Packages: $$pkgs"; \
+	  echo "Selected runnable tests: $$selected_test_count"; \
 	  echo "Running packages sequentially (-p=1) to avoid Docker container conflicts"; \
 	  if [ "$(LOW_RESOURCE)" = "1" ]; then \
 	    echo "LOW_RESOURCE mode: -parallel=1, race detector disabled"; \
 	  fi; \
 	  $(integ_chaos_notice); \
-	  if [ -n "$(GOTESTSUM)" ]; then \
-	    echo "Running testcontainers integration tests with gotestsum"; \
-	    $(INTEG_TEST_ENV)gotestsum --format testname -- \
-	      -tags=$(_INTEG_TAGS) -v $(LOW_RES_RACE_FLAG) -count=1 -timeout 600s $(GO_TEST_LDFLAGS) \
-	      -p 1 $(LOW_RES_PARALLEL_FLAG) \
-	      $(INTEG_RUN_FLAG) $$pkgs || { \
-	      if [ "$(RETRY_ON_FAIL)" = "1" ]; then \
-	        echo "Retrying integ tests once..."; \
-	        $(INTEG_TEST_ENV)gotestsum --format testname -- \
-	          -tags=$(_INTEG_TAGS) -v $(LOW_RES_RACE_FLAG) -count=1 -timeout 600s $(GO_TEST_LDFLAGS) \
-	          -p 1 $(LOW_RES_PARALLEL_FLAG) \
-	          $(INTEG_RUN_FLAG) $$pkgs; \
-	      else \
-	        exit 1; \
-	      fi; \
-	    }; \
-	  else \
-	    $(INTEG_TEST_ENV)go test -tags=$(_INTEG_TAGS) -v $(LOW_RES_RACE_FLAG) -count=1 -timeout 600s $(GO_TEST_LDFLAGS) \
-	      -p 1 $(LOW_RES_PARALLEL_FLAG) \
-	      $(INTEG_RUN_FLAG) $$pkgs; \
-	  fi; \
+	  if [ -n "$(GOTESTSUM)" ]; then echo "Running testcontainers integration tests with gotestsum"; fi; \
+	  for pkg in $$pkgs; do \
+	    package_test_names=$$(printf '%s\n' "$$selected_tests" \
+	      | awk -v package="$$pkg" '$$1 == package { print $$2 }'); \
+	    if [ -z "$$package_test_names" ]; then \
+	      echo "[error] package $$pkg has zero selected integration tests" >&2; exit 1; \
+	    fi; \
+	    test_alternation=$$(printf '%s\n' "$$package_test_names" | paste -sd'|' -); \
+	    test_anchor='$$'; \
+	    exact_pattern="^($$test_alternation)$${test_anchor}$${run_suffix}"; \
+	    echo "Running $$pkg ($$(printf '%s\n' "$$package_test_names" | awk 'NF { count++ } END { print count + 0 }') tests)"; \
+	    if [ -n "$(GOTESTSUM)" ]; then \
+	      $(INTEG_TEST_ENV)gotestsum --format testname -- \
+	        -tags=$(_INTEG_TAGS) -v $(LOW_RES_RACE_FLAG) -count=1 -timeout 600s $(GO_TEST_LDFLAGS) \
+	        -p 1 $(LOW_RES_PARALLEL_FLAG) -run "$$exact_pattern" "$$pkg" || { \
+	        if [ "$(RETRY_ON_FAIL)" = "1" ]; then \
+	          echo "Retrying $$pkg once..."; \
+	          $(INTEG_TEST_ENV)gotestsum --format testname -- \
+	            -tags=$(_INTEG_TAGS) -v $(LOW_RES_RACE_FLAG) -count=1 -timeout 600s $(GO_TEST_LDFLAGS) \
+	            -p 1 $(LOW_RES_PARALLEL_FLAG) -run "$$exact_pattern" "$$pkg"; \
+	        else \
+	          exit 1; \
+	        fi; \
+	      }; \
+	    else \
+	      $(INTEG_TEST_ENV)go test -tags=$(_INTEG_TAGS) -v $(LOW_RES_RACE_FLAG) -count=1 -timeout 600s $(GO_TEST_LDFLAGS) \
+	        -p 1 $(LOW_RES_PARALLEL_FLAG) -run "$$exact_pattern" "$$pkg"; \
+	    fi; \
+	  done; \
 	fi
+
+.PHONY: list-integration-tests
+list-integration-tests:
+	$(call print_title,Listing integration tests selected by build tags)
+	$(call check_command,go,"Install Go from https://golang.org/doc/install")
+	@set -e; export ALLOW_INSECURE_TLS=true; \
+	$(integ_discover); \
+	$(integ_list); \
+	echo "Build tags: $(_INTEG_TAGS)"; \
+	echo "Packages: $$pkgs"; \
+	echo "Selected runnable tests: $$selected_test_count"; \
+	printf '%s\n' "$$selected_tests"
 
 #-------------------------------------------------------
 # Integration tests with coverage (covermode=atomic)
@@ -262,39 +311,57 @@ coverage-integration:
 	$(call check_command,docker,"Install Docker from https://docs.docker.com/get-docker/")
 	@set -e; export ALLOW_INSECURE_TLS=true; mkdir -p $(TEST_REPORTS_DIR); \
 	$(integ_discover); \
+	$(integ_list); \
 	if [ -z "$$(echo $$pkgs | tr -d ' ')" ]; then \
-	  echo "No integration test packages found"; \
+	  echo "[error] integration discovery returned zero packages" >&2; exit 1; \
 	else \
 	  echo "Packages: $$pkgs"; \
+	  echo "Selected runnable tests: $$selected_test_count"; \
 	  echo "Running packages sequentially (-p=1) to avoid Docker container conflicts"; \
 	  if [ "$(LOW_RESOURCE)" = "1" ]; then \
 	    echo "LOW_RESOURCE mode: -parallel=1, race detector disabled"; \
 	  fi; \
 	  $(integ_chaos_notice); \
-	  if [ -n "$(GOTESTSUM)" ]; then \
-	    echo "Running testcontainers integration tests with gotestsum (coverage enabled)"; \
-	    $(INTEG_TEST_ENV)gotestsum --format testname -- \
-	      -tags=$(_INTEG_TAGS) -v $(LOW_RES_RACE_FLAG) -count=1 -timeout 600s $(GO_TEST_LDFLAGS) \
-	      -p 1 $(LOW_RES_PARALLEL_FLAG) \
-	      $(INTEG_RUN_FLAG) -covermode=atomic -coverprofile=$(TEST_REPORTS_DIR)/integration_coverage.out \
-	      $$pkgs || { \
-	      if [ "$(RETRY_ON_FAIL)" = "1" ]; then \
-	        echo "Retrying integ tests once..."; \
-	        $(INTEG_TEST_ENV)gotestsum --format testname -- \
-	          -tags=$(_INTEG_TAGS) -v $(LOW_RES_RACE_FLAG) -count=1 -timeout 600s $(GO_TEST_LDFLAGS) \
-	          -p 1 $(LOW_RES_PARALLEL_FLAG) \
-	          $(INTEG_RUN_FLAG) -covermode=atomic -coverprofile=$(TEST_REPORTS_DIR)/integration_coverage.out \
-	          $$pkgs; \
-	      else \
-	        exit 1; \
-	      fi; \
-	    }; \
-	  else \
-	    $(INTEG_TEST_ENV)go test -tags=$(_INTEG_TAGS) -v $(LOW_RES_RACE_FLAG) -count=1 -timeout 600s $(GO_TEST_LDFLAGS) \
-	      -p 1 $(LOW_RES_PARALLEL_FLAG) \
-	      $(INTEG_RUN_FLAG) -covermode=atomic -coverprofile=$(TEST_REPORTS_DIR)/integration_coverage.out \
-	      $$pkgs; \
-	  fi; \
+	  if [ -n "$(GOTESTSUM)" ]; then echo "Running testcontainers integration tests with gotestsum (coverage enabled)"; fi; \
+	  coverage_dir=$$(mktemp -d "$(TEST_REPORTS_DIR)/integration-coverage.XXXXXX"); \
+	  trap 'rm -rf "$$coverage_dir"' EXIT; \
+	  coverage_profiles=""; package_index=0; \
+	  for pkg in $$pkgs; do \
+	    package_index=$$((package_index + 1)); \
+	    package_profile="$$coverage_dir/$$package_index.out"; \
+	    coverage_profiles="$$coverage_profiles $$package_profile"; \
+	    package_test_names=$$(printf '%s\n' "$$selected_tests" \
+	      | awk -v package="$$pkg" '$$1 == package { print $$2 }'); \
+	    if [ -z "$$package_test_names" ]; then \
+	      echo "[error] package $$pkg has zero selected integration tests" >&2; exit 1; \
+	    fi; \
+	    test_alternation=$$(printf '%s\n' "$$package_test_names" | paste -sd'|' -); \
+	    test_anchor='$$'; \
+	    exact_pattern="^($$test_alternation)$${test_anchor}$${run_suffix}"; \
+	    echo "Running $$pkg ($$(printf '%s\n' "$$package_test_names" | awk 'NF { count++ } END { print count + 0 }') tests)"; \
+	    if [ -n "$(GOTESTSUM)" ]; then \
+	      $(INTEG_TEST_ENV)gotestsum --format testname -- \
+	        -tags=$(_INTEG_TAGS) -v $(LOW_RES_RACE_FLAG) -count=1 -timeout 600s $(GO_TEST_LDFLAGS) \
+	        -p 1 $(LOW_RES_PARALLEL_FLAG) -run "$$exact_pattern" \
+	        -covermode=atomic -coverprofile="$$package_profile" "$$pkg" || { \
+	        if [ "$(RETRY_ON_FAIL)" = "1" ]; then \
+	          echo "Retrying $$pkg once..."; \
+	          $(INTEG_TEST_ENV)gotestsum --format testname -- \
+	            -tags=$(_INTEG_TAGS) -v $(LOW_RES_RACE_FLAG) -count=1 -timeout 600s $(GO_TEST_LDFLAGS) \
+	            -p 1 $(LOW_RES_PARALLEL_FLAG) -run "$$exact_pattern" \
+	            -covermode=atomic -coverprofile="$$package_profile" "$$pkg"; \
+	        else \
+	          exit 1; \
+	        fi; \
+	      }; \
+	    else \
+	      $(INTEG_TEST_ENV)go test -tags=$(_INTEG_TAGS) -v $(LOW_RES_RACE_FLAG) -count=1 -timeout 600s $(GO_TEST_LDFLAGS) \
+	        -p 1 $(LOW_RES_PARALLEL_FLAG) -run "$$exact_pattern" \
+	        -covermode=atomic -coverprofile="$$package_profile" "$$pkg"; \
+	    fi; \
+	  done; \
+	  "$(GO_COVERPROFILE_MERGER)" "$(TEST_REPORTS_DIR)/integration_coverage.out" $$coverage_profiles; \
+	  rm -rf "$$coverage_dir"; trap - EXIT; \
 	  echo "----------------------------------------"; \
 	  go tool cover -func=$(TEST_REPORTS_DIR)/integration_coverage.out | grep total | awk '{print "Total coverage: " $$3}'; \
 	  echo "----------------------------------------"; \

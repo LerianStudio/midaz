@@ -4,7 +4,7 @@
 # The shared, parameterized test scaffolding (test-unit, test-integration,
 # coverage-integration, test-bench, test-all, wait-for-services) lives in the
 # monorepo-root mk/test-go.mk. This file sets tracer's knobs (testhooks tag,
-# race-disabled integration, tracer health URL, tracer integration discovery)
+# race-disabled integration, tracer health URL, tracer integration scope)
 # and keeps tracer's genuinely-unique targets: test-e2e (godog Docker-reset),
 # tools/tools-gotestsum, the .env SERVER_PORT autodetect, the testhooks-tagged
 # coverage-unit, and coverage-summary.
@@ -48,47 +48,17 @@ GO_TEST_BUILD_TAGS := testhooks
 INTEG_RACE_FLAG :=
 # wait-for-services polls the tracer health endpoint.
 TEST_HEALTH_URL := $(TEST_TRACER_URL)
+# Tracer uses the shared tag-based discovery contract while retaining its local
+# package scope. The root gate spans the monorepo; this component gate does not.
+INTEG_PACKAGE_PATTERNS := ./internal/... ./pkg/... ./tests/integration/...
 
-# Integration test filter
-# RUN: specific test name pattern (e.g., TestIntegration_PostgresRepo_Create)
-# PKG: specific package to test (e.g., ./internal/...)
-RUN ?=
-PKG ?=
-
-# Computed run flag: only adds -run when RUN is explicitly set. Package discovery
-# + the integration build tag already isolate the right tests.
-ifeq ($(RUN),)
-  RUN_FLAG :=
-else
-  RUN_FLAG := -run '$(RUN)'
-endif
-# Tracer's integration recipe uses RUN_FLAG (no default ^TestIntegration pattern).
-INTEG_RUN_FLAG := $(RUN_FLAG)
-
-# Pull in the shared scaffolding. Knobs above + the discovery/chaos macro
-# overrides below reproduce tracer's pre-extraction behavior.
+# Pull in the shared scaffolding. Knobs above preserve tracer's testhooks tag,
+# race setting, health endpoint, and component-specific integration scope.
 include $(MIDAZ_ROOT)/mk/test-go.mk
 
 # ------------------------------------------------------
-# Tracer-specific overrides of the shared discovery / chaos macros
+# Tracer-specific chaos notice override
 # ------------------------------------------------------
-# Tracer discovers integration tests from two sources:
-#   1. ./internal and ./pkg: files named *_integration_test.go (component tests)
-#   2. ./tests/integration: E2E API tests with //go:build integration tag
-# (recipe expansion is late-bound, so redefining after include takes effect).
-define integ_discover
-	if [ -n "$(PKG)" ]; then \
-	  echo "Using specified package: $(PKG)"; \
-	  pkgs=$$(go list $(PKG) 2>/dev/null | tr '\n' ' '); \
-	else \
-	  echo "Finding packages with integration test files..."; \
-	  dirs=$$(find ./internal ./pkg -name '*_integration_test.go' 2>/dev/null | xargs -n1 dirname 2>/dev/null | sort -u | tr '\n' ' '); \
-	  pkgs=$$(if [ -n "$$dirs" ]; then go list $$dirs 2>/dev/null | tr '\n' ' '; fi); \
-	  e2e_pkgs=$$(go list -tags=$(_INTEG_TAGS) ./tests/integration/... 2>/dev/null | tr '\n' ' '); \
-	  pkgs="$$pkgs $$e2e_pkgs"; \
-	fi
-endef
-
 # Tracer's integration suite has no CHAOS notion — suppress the root chaos notice.
 # Must expand to a shell no-op (`:`), not empty: the root recipe uses it as
 # `$(integ_chaos_notice); \`, so an empty value leaves a bare `;` that aborts
