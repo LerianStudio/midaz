@@ -442,11 +442,10 @@ func TestIntegration_ReservationCrashConvergence(t *testing.T) {
 
 	// (b) The balance committed on the ledger, but the confirm transport was
 	// LOST (network drop, ledger crash after commit but before the confirm
-	// reaches the tracer). The tracer never hears the confirm, so to the tracer
-	// the reservation is indistinguishable from (a): the SAME TTL + reaper path
-	// converges it. THIS is why the TTL is mandatory — a best-effort confirm can
-	// always be lost, and without the reaper the capacity would leak forever.
-	t.Run("commit_then_confirm_lost_same_ttl_converges", func(t *testing.T) {
+	// reaches the tracer). The tracer cannot distinguish this from an abandoned
+	// hold: expiry releases capacity for money that already moved. This test pins
+	// that known correctness defect until confirmation becomes durable.
+	t.Run("commit_then_confirm_lost_exposes_known_usage_undercount", func(t *testing.T) {
 		testutil.SetupTestTracing(t)
 
 		db := testutil.SetupIntegrationDB(t)
@@ -474,7 +473,7 @@ func TestIntegration_ReservationCrashConvergence(t *testing.T) {
 
 		// --- The ledger COMMITTED its balance, then the Confirm RPC was lost. ---
 		// From the tracer's perspective nothing arrived; the reservation is still
-		// RESERVED. The TTL reaper is the durability backstop.
+		// RESERVED. The TTL reaper will expose the known undercount.
 
 		sweepAt := time.Now().UTC().Add(6 * time.Minute)
 		reaper := resWireReaper(t, db, audit, sweepAt)
@@ -483,15 +482,11 @@ func TestIntegration_ReservationCrashConvergence(t *testing.T) {
 		require.NoError(t, err)
 		assert.Equal(t, 1, released)
 
-		// The reservation drains to baseline via EXPIRED, exactly as in (a). The
-		// counter does NOT credit the lost-confirm amount — the tracer cannot
-		// invent a confirm it never received; reconciliation of a genuinely
-		// committed-but-unconfirmed transaction is the ledger's retry concern, not
-		// the counter's. The invariant the tracer guarantees is convergence to a
-		// drained reserved_usage, never a leaked hold.
+		// The reservation drains via EXPIRED, exactly as in (a). Because the ledger
+		// did commit, current_usage=0 is incorrect and reopens limit capacity.
 		current, reserved := resReadCounter(t, db, limitID, scopeKey, periodKey)
 		assert.Equal(t, int64(0), current)
-		assert.Equal(t, int64(0), reserved, "lost confirm + TTL reaper converges reserved_usage to baseline")
+		assert.Equal(t, int64(0), reserved, "expiry drains the hold while exposing the known current_usage undercount")
 		assert.Equal(t, string(model.StatusExpired), resReadStatus(t, db, res.ReservationIDs[0]))
 	})
 

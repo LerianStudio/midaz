@@ -255,8 +255,9 @@ func (c *TracerClient) ReleaseByTransaction(ctx context.Context, transactionID u
 
 // transitionByTransaction is the shared by-transaction confirm/release body: POST
 // the action under the /reservations/transaction/{id}/{action} path and require a
-// 200. Availability failures return ErrTracerUnavailable so the caller's
-// best-effort post-commit transport can swallow them (the TTL reaper backstops).
+// 200. Availability failures return ErrTracerUnavailable. The caller currently
+// swallows post-commit failures, which leaves a known usage-undercount window
+// when the reservation later expires after money has already moved.
 func (c *TracerClient) transitionByTransaction(ctx context.Context, action string, transactionID uuid.UUID) error {
 	_, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 

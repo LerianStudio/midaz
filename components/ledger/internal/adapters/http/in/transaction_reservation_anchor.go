@@ -193,16 +193,15 @@ func (handler *TransactionHandler) handleReserveError(
 }
 
 // reservationRequestIDNamespace is the UUIDv5 namespace used to derive a
-// reserve requestId from a transactionID. A fixed namespace makes the requestId
-// deterministic per transaction, so a retried reserve carries the same requestId
-// and dedups against the prior attempt rather than minting a fresh request.
+// reserve requestId from a transactionID. The requestId correlates attempts;
+// idempotency is enforced by the persisted transaction, limit, scope, and period
+// tuple, not by requestId.
 var reservationRequestIDNamespace = uuid.MustParse("6f3c2d1e-4b5a-4c6d-8e7f-0a1b2c3d4e5f")
 
 // reservationRequestID derives the deterministic reserve requestId for a
 // transaction. The tracer reserve contract requires a non-nil requestId; the
 // ledger has no separate request handle at the anchor, so it derives one from
-// the transactionID. Determinism is the contract: identical transactionID →
-// identical requestId, so retries do not present as distinct requests.
+// the transactionID to keep correlation stable across retries.
 func reservationRequestID(transactionID uuid.UUID) uuid.UUID {
 	return uuid.NewSHA1(reservationRequestIDNamespace, transactionID[:])
 }
@@ -248,10 +247,10 @@ func firstSourceAccountID(sources []string, balances []*mmodel.Balance) string {
 }
 
 // confirmReservations commits held reservations after a successful balance
-// commit (F3-T14, the success phase). Transport is best-effort: a failure is
-// logged at Warn, span-recorded, and never propagated — the TTL reaper is the
-// durability backstop (design call G). A nil reserver or empty handle is a
-// no-op.
+// commit (F3-T14, the success phase). Transport is currently best-effort: a
+// failure is logged at Warn, span-recorded, and never propagated. This leaves a
+// known correctness gap: expiry later removes usage for money already moved.
+// A nil reserver or empty handle is a no-op.
 func (handler *TransactionHandler) confirmReservations(ctx context.Context, span trace.Span, logger libLog.Logger, handle reservationHandle) {
 	if handler.TracerReserver == nil {
 		return

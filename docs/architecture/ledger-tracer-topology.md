@@ -99,9 +99,10 @@ collapsing the two into one failure/scale unit.
   commit, `confirmReservations` runs for non-PENDING transactions; on a commit failure
   `releaseReservations` runs; PENDING defers confirm to `/commit` and release to `/cancel`
   (`transaction_create.go:1241-1273`). Transport failures on confirm/release are logged at Warn,
-  span-recorded, and **never propagated** — the TTL reaper is the durability backstop
-  (`transaction_reservation_anchor.go:246-261, 282-289`). A tracer outage during the confirm/release
-  window degrades to reaper reconciliation, not request failure.
+  span-recorded, and **never propagated**. This is a known correctness gap, not a durability
+  backstop: if confirm is lost after money moves, expiry later removes that amount from Tracer usage
+  and reopens limit capacity (`transaction_reservation_anchor.go:246-261, 282-289`). Closing the gap
+  requires a durable Ledger-owned outcome handoff or equivalent reconciliation contract.
 
 Net: the tracer can stay a small replica set and tolerate occasional saturation on the post-commit path,
 while the pre-commit reserve path is the only latency-sensitive RPC — which is what co-scheduling (§2)
