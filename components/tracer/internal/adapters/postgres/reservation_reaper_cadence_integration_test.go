@@ -235,12 +235,15 @@ func TestIntegration_ReservationReaperCadence_ReleasesExpiredWithinInterval(t *t
 
 	go func() { done <- worker.RunWithContext(runCtx) }()
 
-	// The expired row must flip to EXPIRED within a small multiple of the interval
-	// (the immediate start-up sweep alone should do it). Poll the row status with a
-	// deadline well under a minute to assert "released within the interval".
+	// The expired row and its batch-summary audit must both commit within a small
+	// multiple of the interval (the immediate start-up sweep alone should do it).
+	// Waiting for the complete sweep prevents cancellation after the row update but
+	// before the audit write, which would test the caller's timing rather than the
+	// reaper's cadence contract.
 	require.Eventually(t, func() bool {
-		return readReservationStatus(t, db, expired.ID) == string(model.StatusExpired)
-	}, 5*time.Second, 20*time.Millisecond, "expired reservation must be released within the sub-minute cadence")
+		return readReservationStatus(t, db, expired.ID) == string(model.StatusExpired) &&
+			countExpiryAuditRows(t, db, now) == 1
+	}, 5*time.Second, 20*time.Millisecond, "expired reservation and audit must commit within the sub-minute cadence")
 
 	cancel()
 	require.NoError(t, <-done, "reaper loop must stop cleanly on context cancel")
