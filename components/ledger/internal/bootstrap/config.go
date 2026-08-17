@@ -8,6 +8,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net/http"
 	"net/url"
 	"os"
 	"strings"
@@ -38,6 +39,7 @@ import (
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	midazhttp "github.com/LerianStudio/midaz/v3/pkg/net/http"
 	pkgsd "github.com/LerianStudio/midaz/v3/pkg/servicediscovery"
+	pkgStreaming "github.com/LerianStudio/midaz/v3/pkg/streaming"
 	"github.com/gofiber/fiber/v2"
 	"github.com/google/uuid"
 )
@@ -615,6 +617,26 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 		addCleanup(func() { _ = streamingClose() })
 	}
 
+	// === Streaming manifest handler (control-plane, static) ===
+	// Serves GET /v1/streaming/manifest from the ledger event catalog. Built
+	// from buildCatalog independently of the emitter, so it works even when
+	// streaming is disabled. A build failure MUST NOT break startup: log Warn
+	// and leave the handler nil so the route is skipped at registration.
+	var streamingManifestHandler http.Handler
+
+	manifestCatalog, manifestErr := buildCatalog()
+	if manifestErr != nil {
+		logger.Log(context.Background(), libLog.LevelWarn,
+			"Failed to build streaming catalog for manifest; manifest route disabled",
+			libLog.Err(manifestErr))
+	} else if mh, mhErr := pkgStreaming.NewManifestHTTPHandler(streamingServiceName, streamingServiceName, manifestCatalog); mhErr != nil {
+		logger.Log(context.Background(), libLog.LevelWarn,
+			"Failed to build streaming manifest handler; manifest route disabled",
+			libLog.Err(mhErr))
+	} else {
+		streamingManifestHandler = mh
+	}
+
 	// === Use cases ===
 
 	commandUseCase := &command.UseCase{
@@ -747,6 +769,10 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 
 	ledgerRouteRegistrar := httpin.CreateRouteRegistrar(auth, metadataIndexHandler, routeSetup.ledgerRouteOptions)
 
+	streamingManifestRouteRegistrar := func(router fiber.Router) {
+		httpin.RegisterStreamingManifestRoute(router, auth, streamingManifestHandler, routeSetup.ledgerRouteOptions)
+	}
+
 	logger.Log(context.Background(), libLog.LevelInfo, "Creating unified HTTP server on "+cfg.ServerAddress)
 
 	// === Readyz handler ===
@@ -769,6 +795,7 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 		onboardingRouteRegistrar,
 		transactionRouteRegistrar,
 		ledgerRouteRegistrar,
+		streamingManifestRouteRegistrar,
 	)
 
 	// === Workers ===
