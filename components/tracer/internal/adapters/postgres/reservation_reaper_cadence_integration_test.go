@@ -202,10 +202,12 @@ func TestIntegration_ReservationReaperCadence_ReleasesExpiredWithinInterval(t *t
 	resRepo := newReservationRepoIntegration(db)
 
 	require.NoError(t, inRealTx(t, db, func(tx *sql.Tx) error {
-		return resRepo.ReserveWithTx(ctx, tx, expired, 10000)
+		_, _, reserveErr := resRepo.ReserveWithTx(ctx, tx, expired, 10000)
+		return reserveErr
 	}))
 	require.NoError(t, inRealTx(t, db, func(tx *sql.Tx) error {
-		return resRepo.ReserveWithTx(ctx, tx, fresh, 10000)
+		_, _, reserveErr := resRepo.ReserveWithTx(ctx, tx, fresh, 10000)
+		return reserveErr
 	}))
 
 	// Sanity: both rows are RESERVED and holding their amounts before the sweep.
@@ -296,7 +298,8 @@ func TestIntegration_ReservationReaperCadence_SkipsCycleOnPoolFailure(t *testing
 
 	resRepo := newReservationRepoIntegration(db)
 	require.NoError(t, inRealTx(t, db, func(tx *sql.Tx) error {
-		return resRepo.ReserveWithTx(ctx, tx, expired, 10000)
+		_, _, reserveErr := resRepo.ReserveWithTx(ctx, tx, expired, 10000)
+		return reserveErr
 	}))
 
 	// Spy connection + tx-beginner wrap the root DB and record any access. The

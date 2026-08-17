@@ -37,9 +37,9 @@ const usageReservationsTable = "usage_reservations"
 // move, AND the caller's audit write all commit in ONE transaction owned by the
 // service (mirroring the RuleRepository/LimitRepository *WithTx pattern).
 //
-//   - ReserveWithTx: seeds usage_counters.reserved_usage via the reserve CTE
-//     (guarded on current_usage + reserved_usage + amount <= maxAmount) AND inserts
-//     the reservation row (idempotent on the 4-tuple).
+//   - ReserveWithTx: claims the idempotent 4-tuple, then seeds
+//     usage_counters.reserved_usage via the guarded reserve CTE only for the new
+//     row; retries return the persisted row without moving capacity.
 //   - ConfirmWithTx: moves the amount reserved_usage -> current_usage AND flips the
 //     row to CONFIRMED, guarded WHERE status='RESERVED'.
 //   - ReleaseWithTx: returns the amount from reserved_usage AND flips the row to
@@ -62,9 +62,9 @@ func NewUsageReservationRepositoryWithConnection(counterRepo *UsageCounterReposi
 	return &UsageReservationRepository{counterRepo: counterRepo}
 }
 
-// ReserveWithTx seeds the counter's reserved_usage via the reserve CTE and inserts
-// the reservation row idempotently on the (transaction_id, limit_id, scope_key,
-// period_key) tuple, both on the supplied transaction handle.
+// ReserveWithTx first claims the idempotency tuple, then seeds the counter's
+// reserved_usage only when this call inserted the reservation row. A retry returns
+// the persisted row id and created=false without moving capacity again.
 //
 // maxAmount is the limit ceiling the reserve CTE guards against; it is supplied by
 // the caller (the limit it resolved) and is NOT stored on the reservation row.
@@ -72,15 +72,15 @@ func NewUsageReservationRepositoryWithConnection(counterRepo *UsageCounterReposi
 // Returns constant.ErrUsageCounterExceedsLimit when the combined committed +
 // outstanding usage would exceed the limit (the guard denied the reservation). The
 // caller is responsible for rolling the transaction back on any error so a denied
-// reserve leaves no RESERVED row whose capacity was never held. A retried reserve
-// for the same 4-tuple collapses onto the existing row (ON CONFLICT DO NOTHING).
-func (r *UsageReservationRepository) ReserveWithTx(ctx context.Context, db pgdb.DB, reservation *model.Reservation, maxAmount int64) error {
+// reserve leaves no RESERVED row whose capacity was never held. Concurrent and
+// sequential retries collapse onto the existing row through the unique 4-tuple.
+func (r *UsageReservationRepository) ReserveWithTx(ctx context.Context, db pgdb.DB, reservation *model.Reservation, maxAmount int64) (uuid.UUID, bool, error) {
 	if db == nil {
-		return pgdb.ErrNilConnection
+		return uuid.Nil, false, pgdb.ErrNilConnection
 	}
 
 	if reservation == nil {
-		return errors.New("reservation cannot be nil")
+		return uuid.Nil, false, errors.New("reservation cannot be nil")
 	}
 
 	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
@@ -92,23 +92,7 @@ func (r *UsageReservationRepository) ReserveWithTx(ctx context.Context, db pgdb.
 
 	if err := reservation.Validate(); err != nil {
 		libOtel.HandleSpanBusinessErrorEvent(span, "Invalid reservation", err)
-		return err
-	}
-
-	// Reserve capacity on the counter (the over-limit guard lives in the CTE). On
-	// guard failure this returns ErrUsageCounterExceedsLimit; the caller rolls back
-	// so the row insert below never persists.
-	if _, err := r.counterRepo.UpsertAndReserveAtomic(
-		ctx,
-		db,
-		reservation.LimitID,
-		reservation.ScopeKey,
-		reservation.PeriodKey,
-		decimal.NewFromInt(reservation.Amount),
-		decimal.NewFromInt(maxAmount),
-		&reservation.ReservationExpiresAt,
-	); err != nil {
-		return err
+		return uuid.Nil, false, err
 	}
 
 	insertSQL := `
@@ -118,9 +102,11 @@ func (r *UsageReservationRepository) ReserveWithTx(ctx context.Context, db pgdb.
 		)
 		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
 		ON CONFLICT (transaction_id, limit_id, scope_key, period_key) DO NOTHING
+		RETURNING id
 	`
 
-	if _, err := db.ExecContext(
+	var persistedID uuid.UUID
+	err := db.QueryRowContext(
 		ctx,
 		insertSQL,
 		reservation.ID,
@@ -132,18 +118,57 @@ func (r *UsageReservationRepository) ReserveWithTx(ctx context.Context, db pgdb.
 		reservation.TransactionID,
 		reservation.ReservationExpiresAt,
 		reservation.CreatedAt,
-	); err != nil {
+	).Scan(&persistedID)
+	if errors.Is(err, sql.ErrNoRows) {
+		findSQL := `
+			SELECT id
+			FROM usage_reservations
+			WHERE transaction_id = $1
+			  AND limit_id = $2
+			  AND scope_key = $3
+			  AND period_key = $4
+		`
+		if findErr := db.QueryRowContext(
+			ctx,
+			findSQL,
+			reservation.TransactionID,
+			reservation.LimitID,
+			reservation.ScopeKey,
+			reservation.PeriodKey,
+		).Scan(&persistedID); findErr != nil {
+			libOtel.HandleSpanError(span, "Failed to find existing reservation row", findErr)
+			return uuid.Nil, false, fmt.Errorf("failed to find existing reservation row: %w", findErr)
+		}
+
+		return persistedID, false, nil
+	}
+	if err != nil {
 		libOtel.HandleSpanError(span, "Failed to insert reservation row", err)
-		return fmt.Errorf("failed to insert reservation row: %w", err)
+		return uuid.Nil, false, fmt.Errorf("failed to insert reservation row: %w", err)
+	}
+
+	// Only the transaction that claimed the idempotency tuple may hold capacity.
+	// On guard failure the caller rolls back both this row and the counter attempt.
+	if _, err := r.counterRepo.UpsertAndReserveAtomic(
+		ctx,
+		db,
+		reservation.LimitID,
+		reservation.ScopeKey,
+		reservation.PeriodKey,
+		decimal.NewFromInt(reservation.Amount),
+		decimal.NewFromInt(maxAmount),
+		&reservation.ReservationExpiresAt,
+	); err != nil {
+		return uuid.Nil, false, err
 	}
 
 	logger.With(
 		libLog.String("operation", "repository.usage_reservation.reserve"),
-		libLog.String("reservation_id", reservation.ID.String()),
+		libLog.String("reservation_id", persistedID.String()),
 		libLog.String("limit_id", reservation.LimitID.String()),
 	).Log(ctx, libLog.LevelDebug, "Reserved usage")
 
-	return nil
+	return persistedID, true, nil
 }
 
 // ConfirmWithTx moves a RESERVED reservation's amount from reserved_usage into

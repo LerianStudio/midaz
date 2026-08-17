@@ -68,8 +68,8 @@ func newTestReservation(t *testing.T) *model.Reservation {
 	return res
 }
 
-// reserveInsertSQL is the expected reservation-row INSERT, asserting the 4-tuple
-// ON CONFLICT DO NOTHING idempotency grain.
+// reserveInsertSQL is the expected reservation-row claim, asserting the 4-tuple
+// idempotency grain and the persisted id returned to the service.
 const reserveInsertSQL = `
 		INSERT INTO usage_reservations (
 			id, limit_id, scope_key, period_key, amount, status,
@@ -77,7 +77,17 @@ const reserveInsertSQL = `
 		)
 		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
 		ON CONFLICT (transaction_id, limit_id, scope_key, period_key) DO NOTHING
+		RETURNING id
 	`
+
+const findExistingReservationSQL = `
+			SELECT id
+			FROM usage_reservations
+			WHERE transaction_id = $1
+			  AND limit_id = $2
+			  AND scope_key = $3
+			  AND period_key = $4
+		`
 
 func TestUsageReservationRepository_Reserve(t *testing.T) {
 	testutil.SetupTestTracing(t)
@@ -88,37 +98,56 @@ func TestUsageReservationRepository_Reserve(t *testing.T) {
 
 		res := newTestReservation(t)
 
-		// Reserve CTE (counter seed) returns succeeded=true.
+		mock.ExpectQuery(regexp.QuoteMeta(reserveInsertSQL)).
+			WillReturnRows(sqlmock.NewRows([]string{"id"}).AddRow(res.ID))
 		mock.ExpectQuery(regexp.QuoteMeta(upsertReserveSQL)).
 			WillReturnRows(sqlmock.NewRows([]string{"reserved_usage", "succeeded"}).AddRow("400", true))
-		// Reservation row insert with the 4-tuple ON CONFLICT grain.
-		mock.ExpectExec(regexp.QuoteMeta(reserveInsertSQL)).
-			WillReturnResult(sqlmock.NewResult(0, 1))
 
-		err := repo.ReserveWithTx(context.Background(), db, res, maxAmountTest)
+		persistedID, created, err := repo.ReserveWithTx(context.Background(), db, res, maxAmountTest)
 		require.NoError(t, err)
+		assert.Equal(t, res.ID, persistedID)
+		assert.True(t, created)
 	})
 
-	t.Run("Guard denies - exceeds-limit error, no row inserted", func(t *testing.T) {
+	t.Run("Guard denies - exceeds-limit error rolls back claimed row", func(t *testing.T) {
 		repo, db, mock, cleanup := setupUsageReservationRepository(t)
 		defer cleanup()
 
 		res := newTestReservation(t)
 
-		// Reserve CTE WHERE guard fails: succeeded=false -> ErrUsageCounterExceedsLimit.
-		// No INSERT expected — the guard error returns before the row insert.
+		mock.ExpectQuery(regexp.QuoteMeta(reserveInsertSQL)).
+			WillReturnRows(sqlmock.NewRows([]string{"id"}).AddRow(res.ID))
 		mock.ExpectQuery(regexp.QuoteMeta(upsertReserveSQL)).
 			WillReturnRows(sqlmock.NewRows([]string{"reserved_usage", "succeeded"}).AddRow("1000", false))
 
-		err := repo.ReserveWithTx(context.Background(), db, res, maxAmountTest)
+		_, created, err := repo.ReserveWithTx(context.Background(), db, res, maxAmountTest)
 		require.ErrorIs(t, err, constant.ErrUsageCounterExceedsLimit)
+		assert.False(t, created)
+	})
+
+	t.Run("Retry returns the persisted row without reserving capacity again", func(t *testing.T) {
+		repo, db, mock, cleanup := setupUsageReservationRepository(t)
+		defer cleanup()
+
+		res := newTestReservation(t)
+		persistedID := testutil.MustDeterministicUUID(8003)
+
+		mock.ExpectQuery(regexp.QuoteMeta(reserveInsertSQL)).
+			WillReturnError(sql.ErrNoRows)
+		mock.ExpectQuery(regexp.QuoteMeta(findExistingReservationSQL)).
+			WillReturnRows(sqlmock.NewRows([]string{"id"}).AddRow(persistedID))
+
+		gotID, created, err := repo.ReserveWithTx(context.Background(), db, res, maxAmountTest)
+		require.NoError(t, err)
+		assert.Equal(t, persistedID, gotID)
+		assert.False(t, created)
 	})
 
 	t.Run("Nil db is rejected", func(t *testing.T) {
 		repo, _, _, cleanup := setupUsageReservationRepository(t)
 		defer cleanup()
 
-		err := repo.ReserveWithTx(context.Background(), nil, newTestReservation(t), maxAmountTest)
+		_, _, err := repo.ReserveWithTx(context.Background(), nil, newTestReservation(t), maxAmountTest)
 		require.ErrorIs(t, err, pgdb.ErrNilConnection)
 	})
 
@@ -126,7 +155,7 @@ func TestUsageReservationRepository_Reserve(t *testing.T) {
 		repo, db, _, cleanup := setupUsageReservationRepository(t)
 		defer cleanup()
 
-		err := repo.ReserveWithTx(context.Background(), db, nil, maxAmountTest)
+		_, _, err := repo.ReserveWithTx(context.Background(), db, nil, maxAmountTest)
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "reservation cannot be nil")
 	})

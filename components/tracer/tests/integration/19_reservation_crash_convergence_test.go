@@ -234,6 +234,87 @@ func resCheckInput(t *testing.T) *model.CheckLimitsInput {
 	return input
 }
 
+func TestIntegration_ReservationReserveIdempotency(t *testing.T) {
+	t.Run("sequential retries return one persisted reservation", func(t *testing.T) {
+		testutil.SetupTestTracing(t)
+
+		db := testutil.SetupIntegrationDB(t)
+		limitID := resSeedLimit(t, db, 8730, "idempotency-sequential", 1000)
+		t.Cleanup(func() { resCleanupLimit(t, db, limitID) })
+
+		scopeKey := "acct:idempotency-sequential"
+		periodKey := "2026-08-17"
+		txID := testutil.MustDeterministicUUID(8731)
+		audit := &resCountingAudit{}
+		svc := resWireService(t, db, resStubResolver{
+			specs: []query.ReservationSpec{resSpec(limitID, scopeKey, periodKey, 600, 1000)},
+		}, audit)
+		input := resCheckInput(t)
+
+		first, err := svc.Reserve(context.Background(), txID, input, false)
+		require.NoError(t, err)
+		require.Len(t, first.ReservationIDs, 1)
+
+		second, err := svc.Reserve(context.Background(), txID, input, false)
+		require.NoError(t, err)
+		require.Len(t, second.ReservationIDs, 1)
+		assert.Equal(t, first.ReservationIDs, second.ReservationIDs, "a retry must return the persisted reservation")
+
+		current, reserved := resReadCounter(t, db, limitID, scopeKey, periodKey)
+		assert.Equal(t, int64(0), current)
+		assert.Equal(t, int64(600), reserved, "a retry must not hold capacity twice")
+		assert.Equal(t, int64(1), audit.perRow.Load(), "a retry must not duplicate the reserve audit event")
+	})
+
+	t.Run("concurrent retries converge on one persisted reservation", func(t *testing.T) {
+		testutil.SetupTestTracing(t)
+
+		db := testutil.SetupIntegrationDB(t)
+		limitID := resSeedLimit(t, db, 8732, "idempotency-concurrent", 1000)
+		t.Cleanup(func() { resCleanupLimit(t, db, limitID) })
+
+		scopeKey := "acct:idempotency-concurrent"
+		periodKey := "2026-08-17"
+		txID := testutil.MustDeterministicUUID(8733)
+		audit := &resCountingAudit{}
+		svc := resWireService(t, db, resStubResolver{
+			specs: []query.ReservationSpec{resSpec(limitID, scopeKey, periodKey, 600, 1000)},
+		}, audit)
+		input := resCheckInput(t)
+
+		type outcome struct {
+			result *services.ReserveResult
+			err    error
+		}
+
+		start := make(chan struct{})
+		outcomes := make(chan outcome, 2)
+		for range 2 {
+			go func() {
+				<-start
+				result, err := svc.Reserve(context.Background(), txID, input, false)
+				outcomes <- outcome{result: result, err: err}
+			}()
+		}
+		close(start)
+
+		first := <-outcomes
+		second := <-outcomes
+		require.NoError(t, first.err)
+		require.NoError(t, second.err)
+		require.NotNil(t, first.result)
+		require.NotNil(t, second.result)
+		require.Len(t, first.result.ReservationIDs, 1)
+		require.Len(t, second.result.ReservationIDs, 1)
+		assert.Equal(t, first.result.ReservationIDs, second.result.ReservationIDs, "concurrent retries must return the persisted reservation")
+
+		current, reserved := resReadCounter(t, db, limitID, scopeKey, periodKey)
+		assert.Equal(t, int64(0), current)
+		assert.Equal(t, int64(600), reserved, "concurrent retries must hold capacity once")
+		assert.Equal(t, int64(1), audit.perRow.Load(), "concurrent retries must emit one reserve audit event")
+	})
+}
+
 // ---------------------------------------------------------------------------
 // PROOF 1 — Crash convergence (Gate 1)
 //

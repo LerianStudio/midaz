@@ -67,7 +67,7 @@ type LimitResolver interface {
 // counter bucket move, and the audit write commit together. Implemented by
 // postgres.UsageReservationRepository.
 type ReservationRepository interface {
-	ReserveWithTx(ctx context.Context, db pgdb.DB, reservation *model.Reservation, maxAmount int64) error
+	ReserveWithTx(ctx context.Context, db pgdb.DB, reservation *model.Reservation, maxAmount int64) (reservationID uuid.UUID, created bool, err error)
 	ConfirmWithTx(ctx context.Context, db pgdb.DB, reservationID uuid.UUID) error
 	ReleaseWithTx(ctx context.Context, db pgdb.DB, reservationID uuid.UUID, status model.ReservationStatus) error
 	ConfirmByTransactionWithTx(ctx context.Context, db pgdb.DB, transactionID uuid.UUID) ([]*model.Reservation, error)
@@ -251,7 +251,8 @@ func (s *ReservationService) Reserve(ctx context.Context, transactionID uuid.UUI
 				return err
 			}
 
-			if err := s.repo.ReserveWithTx(ctx, db, reservation, spec.MaxAmount); err != nil {
+			reservationID, created, err := s.repo.ReserveWithTx(ctx, db, reservation, spec.MaxAmount)
+			if err != nil {
 				// The reserve guard denied this limit: roll back the whole tx so no
 				// partial capacity is held, and surface the limit-exceeded decision.
 				if errors.Is(err, constant.ErrUsageCounterExceedsLimit) {
@@ -262,12 +263,17 @@ func (s *ReservationService) Reserve(ctx context.Context, transactionID uuid.UUI
 				return err
 			}
 
+			reservationIDs = append(reservationIDs, reservationID)
+			if !created {
+				continue
+			}
+
 			if err := s.auditWriter.RecordReservationEventWithTx(
 				ctx,
 				db,
 				model.AuditEventReservationReserved,
 				model.AuditActionReserve,
-				reservation.ID,
+				reservationID,
 				command.ReservationAuditContext{
 					TransactionID: transactionID,
 					LimitID:       spec.LimitID,
@@ -280,7 +286,6 @@ func (s *ReservationService) Reserve(ctx context.Context, transactionID uuid.UUI
 				return fmt.Errorf("failed to record reserve audit event: %w", err)
 			}
 
-			reservationIDs = append(reservationIDs, reservation.ID)
 		}
 
 		return nil

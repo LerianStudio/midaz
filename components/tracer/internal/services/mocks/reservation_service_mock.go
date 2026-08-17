@@ -144,11 +144,13 @@ func (mr *MockReservationRepositoryMockRecorder) ReleaseWithTx(ctx, arg1, reserv
 }
 
 // ReserveWithTx mocks base method.
-func (m *MockReservationRepository) ReserveWithTx(ctx context.Context, arg1 db.DB, reservation *model.Reservation, maxAmount int64) error {
+func (m *MockReservationRepository) ReserveWithTx(ctx context.Context, arg1 db.DB, reservation *model.Reservation, maxAmount int64) (uuid.UUID, bool, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "ReserveWithTx", ctx, arg1, reservation, maxAmount)
-	ret0, _ := ret[0].(error)
-	return ret0
+	ret0, _ := ret[0].(uuid.UUID)
+	ret1, _ := ret[1].(bool)
+	ret2, _ := ret[2].(error)
+	return ret0, ret1, ret2
 }
 
 // ReserveWithTx indicates an expected call of ReserveWithTx.

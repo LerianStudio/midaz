@@ -121,7 +121,8 @@ func TestIntegration_UsageReservationRepository_DoubleConfirm_Idempotent(t *test
 
 	// Reserve: seeds reserved_usage = 400, current_usage = 0.
 	require.NoError(t, inRealTx(t, db, func(tx *sql.Tx) error {
-		return repo.ReserveWithTx(ctx, tx, res, 10000)
+		_, _, reserveErr := repo.ReserveWithTx(ctx, tx, res, 10000)
+		return reserveErr
 	}))
 
 	current, reserved := readCounter(t, db, limitID, scopeKey, periodKey)
@@ -179,7 +180,8 @@ func TestIntegration_UsageReservationRepository_ReleaseThenConfirm_Idempotent(t 
 	require.NoError(t, err)
 
 	require.NoError(t, inRealTx(t, db, func(tx *sql.Tx) error {
-		return repo.ReserveWithTx(ctx, tx, res, 10000)
+		_, _, reserveErr := repo.ReserveWithTx(ctx, tx, res, 10000)
+		return reserveErr
 	}))
 	require.NoError(t, inRealTx(t, db, func(tx *sql.Tx) error {
 		return repo.ReleaseWithTx(ctx, tx, res.ID, model.StatusReleased)
@@ -241,11 +243,12 @@ func TestIntegration_UsageReservationRepository_ConfirmByTransaction_FlipsAll(t 
 	require.NoError(t, err)
 
 	require.NoError(t, inRealTx(t, db, func(tx *sql.Tx) error {
-		if rErr := repo.ReserveWithTx(ctx, tx, resA, 10000); rErr != nil {
+		if _, _, rErr := repo.ReserveWithTx(ctx, tx, resA, 10000); rErr != nil {
 			return rErr
 		}
 
-		return repo.ReserveWithTx(ctx, tx, resB, 10000)
+		_, _, rErr := repo.ReserveWithTx(ctx, tx, resB, 10000)
+		return rErr
 	}))
 
 	// Both counters hold their amounts in reserved_usage.
@@ -295,8 +298,8 @@ func TestIntegration_UsageReservationRepository_ConfirmByTransaction_FlipsAll(t 
 }
 
 // TestIntegration_UsageReservationRepository_Reserve_RowIdempotent proves a retried
-// reserve for the same 4-tuple collapses onto the existing row (ON CONFLICT DO
-// NOTHING) and does not duplicate the reservation row.
+// reserve for the same 4-tuple returns the persisted id and does not duplicate
+// either the reservation row or the held capacity.
 func TestIntegration_UsageReservationRepository_Reserve_RowIdempotent(t *testing.T) {
 	testutil.SetupTestTracing(t)
 
@@ -322,15 +325,36 @@ func TestIntegration_UsageReservationRepository_Reserve_RowIdempotent(t *testing
 	)
 	require.NoError(t, err)
 
+	var firstID uuid.UUID
 	require.NoError(t, inRealTx(t, db, func(tx *sql.Tx) error {
-		return repo.ReserveWithTx(ctx, tx, res, 10000)
+		var created bool
+		var reserveErr error
+		firstID, created, reserveErr = repo.ReserveWithTx(ctx, tx, res, 10000)
+		require.True(t, created)
+		return reserveErr
 	}))
 
-	// Re-reserve the SAME row id and 4-tuple: ON CONFLICT DO NOTHING keeps a single
-	// row.
+	retry, err := model.NewReservation(
+		limitID,
+		res.TransactionID,
+		scopeKey,
+		periodKey,
+		100,
+		time.Now().UTC().Add(5*time.Minute),
+		time.Now().UTC(),
+	)
+	require.NoError(t, err)
+	require.NotEqual(t, res.ID, retry.ID)
+
+	var retryID uuid.UUID
 	require.NoError(t, inRealTx(t, db, func(tx *sql.Tx) error {
-		return repo.ReserveWithTx(ctx, tx, res, 10000)
+		var created bool
+		var reserveErr error
+		retryID, created, reserveErr = repo.ReserveWithTx(ctx, tx, retry, 10000)
+		require.False(t, created)
+		return reserveErr
 	}))
+	assert.Equal(t, firstID, retryID, "retry must return the persisted reservation id")
 
 	var rowCount int
 
@@ -340,4 +364,8 @@ func TestIntegration_UsageReservationRepository_Reserve_RowIdempotent(t *testing
 	).Scan(&rowCount)
 	require.NoError(t, err)
 	assert.Equal(t, 1, rowCount, "retried reserve must not duplicate the reservation row")
+
+	current, reserved := readCounter(t, db, limitID, scopeKey, periodKey)
+	assert.Equal(t, int64(0), current)
+	assert.Equal(t, int64(100), reserved, "retried reserve must not hold capacity twice")
 }

@@ -144,11 +144,11 @@ func TestReservationService_Reserve(t *testing.T) {
 		// One reserve + one audit per applicable limit.
 		deps.repo.EXPECT().
 			ReserveWithTx(gomock.Any(), deps.tx, gomock.AssignableToTypeOf(&model.Reservation{}), int64(10000)).
-			Return(nil).
+			Return(testutil.MustDeterministicUUID(7061), true, nil).
 			Times(1)
 		deps.repo.EXPECT().
 			ReserveWithTx(gomock.Any(), deps.tx, gomock.AssignableToTypeOf(&model.Reservation{}), int64(5000)).
-			Return(nil).
+			Return(testutil.MustDeterministicUUID(7062), true, nil).
 			Times(1)
 		deps.auditWriter.EXPECT().
 			RecordReservationEventWithTx(gomock.Any(), deps.tx, model.AuditEventReservationReserved, model.AuditActionReserve, gomock.Any(), gomock.Any()).
@@ -159,6 +159,26 @@ func TestReservationService_Reserve(t *testing.T) {
 		require.NoError(t, err)
 		require.False(t, result.Denied)
 		assert.Len(t, result.ReservationIDs, 2)
+	})
+
+	t.Run("Idempotent retry returns persisted id without a second audit", func(t *testing.T) {
+		svc, deps := newReservationServiceDeps(t)
+		input := testCheckLimitsInput(t)
+		persistedID := testutil.MustDeterministicUUID(7063)
+
+		deps.resolver.EXPECT().
+			ResolveReservations(gomock.Any(), input).
+			Return(oneSpec(), false, nil).
+			Times(1)
+		deps.expectTxCommit()
+		deps.repo.EXPECT().
+			ReserveWithTx(gomock.Any(), deps.tx, gomock.Any(), int64(10000)).
+			Return(persistedID, false, nil).
+			Times(1)
+
+		result, err := svc.Reserve(context.Background(), txID, input, false)
+		require.NoError(t, err)
+		assert.Equal(t, []uuid.UUID{persistedID}, result.ReservationIDs)
 	})
 
 	t.Run("Denied by resolver (per-transaction cap) returns Denied without a tx", func(t *testing.T) {
@@ -194,7 +214,7 @@ func TestReservationService_Reserve(t *testing.T) {
 		// further reserve/audit runs.
 		deps.repo.EXPECT().
 			ReserveWithTx(gomock.Any(), deps.tx, gomock.Any(), int64(10000)).
-			Return(constant.ErrUsageCounterExceedsLimit).
+			Return(uuid.Nil, false, constant.ErrUsageCounterExceedsLimit).
 			Times(1)
 
 		result, err := svc.Reserve(context.Background(), txID, input, false)
@@ -242,10 +262,10 @@ func TestReservationService_Reserve(t *testing.T) {
 		var captured time.Time
 		deps.repo.EXPECT().
 			ReserveWithTx(gomock.Any(), deps.tx, gomock.Any(), int64(10000)).
-			DoAndReturn(func(_ context.Context, _ any, r *model.Reservation, _ int64) error {
+			DoAndReturn(func(_ context.Context, _ any, r *model.Reservation, _ int64) (uuid.UUID, bool, error) {
 				captured = r.ReservationExpiresAt
 
-				return nil
+				return r.ID, true, nil
 			}).
 			Times(1)
 		deps.auditWriter.EXPECT().
@@ -290,10 +310,10 @@ func TestReservationService_Reserve(t *testing.T) {
 		var captured time.Time
 		repo.EXPECT().
 			ReserveWithTx(gomock.Any(), tx, gomock.Any(), int64(10000)).
-			DoAndReturn(func(_ context.Context, _ any, r *model.Reservation, _ int64) error {
+			DoAndReturn(func(_ context.Context, _ any, r *model.Reservation, _ int64) (uuid.UUID, bool, error) {
 				captured = r.ReservationExpiresAt
 
-				return nil
+				return r.ID, true, nil
 			}).
 			Times(1)
 		auditWriter.EXPECT().
@@ -326,10 +346,10 @@ func TestReservationService_Reserve(t *testing.T) {
 		var captured time.Time
 		deps.repo.EXPECT().
 			ReserveWithTx(gomock.Any(), deps.tx, gomock.Any(), int64(10000)).
-			DoAndReturn(func(_ context.Context, _ any, r *model.Reservation, _ int64) error {
+			DoAndReturn(func(_ context.Context, _ any, r *model.Reservation, _ int64) (uuid.UUID, bool, error) {
 				captured = r.ReservationExpiresAt
 
-				return nil
+				return r.ID, true, nil
 			}).
 			Times(1)
 		deps.auditWriter.EXPECT().
