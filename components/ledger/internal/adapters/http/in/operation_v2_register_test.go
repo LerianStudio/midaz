@@ -193,10 +193,19 @@ func TestRegisterOperationV2Routes_ReusesV1SchemaComponents(t *testing.T) {
 		"at least one operation op must reference a response-body component, or the reuse claim is vacuous")
 }
 
+// legitimateOperationV2Components are the Operation*-prefixed, V2-suffixed schema components that
+// are NOT straight-mirror twins of the operation endpoints and so are exempt from the
+// no-V2-twin guard below. OperationV2 is the transaction /v2 response's nested operation wire
+// shape (it drops the deprecated chartOfAccounts/route); the transaction v2 surface is not a
+// straight mirror and legitimately introduces it. The operation ENDPOINTS still reuse the v1
+// Operation type, which is what this test guards.
+var legitimateOperationV2Components = map[string]bool{"OperationV2": true}
+
 // TestRegisterOperationV2Routes_MintsNoV2SchemaComponents guards against accidental new-type
-// creation for the straight mirror: no operation schema component may carry the version suffix.
-// TransactionV2 is a legitimate component (transaction v2 is NOT a straight mirror and DOES
-// introduce its own types); the operation mirror must add no such twin.
+// creation for the straight mirror: the operation ENDPOINT v2 ops must reuse the v1 Operation type,
+// so no V2-suffixed twin of the components they reference may be minted, and no operation-named
+// schema may carry the version suffix — except the legitimate V2 components owned by other v2
+// surfaces (legitimateOperationV2Components).
 func TestRegisterOperationV2Routes_MintsNoV2SchemaComponents(t *testing.T) {
 	t.Parallel()
 
@@ -206,21 +215,30 @@ func TestRegisterOperationV2Routes_MintsNoV2SchemaComponents(t *testing.T) {
 
 	// The components the operation ops actually name, gathered from the assembled document
 	// rather than hardcoded, so a renamed operation type is followed here. The reused v1 type
-	// is registered ONCE, so the suffixed twin of each must be absent.
+	// is registered ONCE, so the suffixed twin of each must be absent (unless it is a legitimate
+	// V2 component owned by a different v2 surface).
 	referenced := operationReferencedComponents(doc.Paths)
 	require.Containsf(t, referenced, "Operation",
 		"the operation ops must reference the Operation body component, or this test guards nothing")
+	assert.NotContainsf(t, referenced, "OperationV2",
+		"the operation endpoints must not reference the v2 transaction nested-operation component")
 
 	for name := range referenced {
-		assert.NotContainsf(t, schemas, name+operationV2OperationSuffix,
+		twin := name + operationV2OperationSuffix
+		if legitimateOperationV2Components[twin] {
+			continue
+		}
+
+		assert.NotContainsf(t, schemas, twin,
 			"no %s twin of the reused operation body component %q may be minted", operationV2OperationSuffix, name)
 	}
 
 	// The document-wide guard: no operation-named schema carries the V2 suffix. The prefix also
 	// spans the sibling Operation* families (OperationAmount, OperationBalance, OperationRoute,
-	// OperationStatus); none is a straight-mirror V2 twin, so all must clear the suffix check.
+	// OperationStatus); none is a straight-mirror V2 twin, so all must clear the suffix check —
+	// except the legitimate V2 components owned by other v2 surfaces.
 	for name := range schemas {
-		if !strings.HasPrefix(name, "Operation") {
+		if !strings.HasPrefix(name, "Operation") || legitimateOperationV2Components[name] {
 			continue
 		}
 

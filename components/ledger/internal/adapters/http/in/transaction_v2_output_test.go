@@ -84,10 +84,8 @@ func TestNewTransactionV2_RenamesSourceDestinationKeepsEverythingElse(t *testing
 	assert.Equal(t, canonical.Status.Description, got.Status.Description)
 	assert.True(t, canonical.Amount.Equal(*got.Amount))
 	assert.Equal(t, canonical.AssetCode, got.AssetCode)
-	assert.Equal(t, canonical.ChartOfAccountsGroupName, got.ChartOfAccountsGroupName)
 	assert.Equal(t, canonical.LedgerID, got.LedgerID)
 	assert.Equal(t, canonical.OrganizationID, got.OrganizationID)
-	assert.Equal(t, canonical.Route, got.Route)
 	assert.Equal(t, canonical.RouteID, got.RouteID)
 	assert.Equal(t, canonical.FeesSkipped, got.FeesSkipped)
 	assert.Equal(t, canonical.TracerSkipped, got.TracerSkipped)
@@ -95,7 +93,11 @@ func TestNewTransactionV2_RenamesSourceDestinationKeepsEverythingElse(t *testing
 	assert.Equal(t, canonical.UpdatedAt, got.UpdatedAt)
 	assert.Equal(t, canonical.DeletedAt, got.DeletedAt)
 	assert.Equal(t, canonical.Metadata, got.Metadata)
-	assert.Equal(t, canonical.Operations, got.Operations)
+
+	require.Len(t, got.Operations, len(canonical.Operations),
+		"every canonical operation must map to an OperationV2")
+	assert.Equal(t, canonical.Operations[0].ID, got.Operations[0].ID,
+		"the operation ID must survive the OperationV2 mapping")
 }
 
 // TestNewTransactionV2_NilInput proves the converter answers nil for a nil canonical
@@ -157,13 +159,17 @@ func TestRegisterTransactionV2Routes_ResponseSchemaNotNamedTransaction(t *testin
 // /v2 responses, and no other test notices: the shape tests assert the keys they know about,
 // and a field nobody wrote an assertion for is invisible to them.
 //
-// The two renames are the ONLY difference this asserts, so a third divergence — a rename, a
-// dropped field, a stray `omitempty` that changes when a key appears — fails here and names
-// the field. `json:"-"` fields are excluded on both sides: they never reach the wire.
+// The intended differences this asserts are exactly the two renames (source→debit,
+// destination→credit) and the two dropped deprecated fields (chartOfAccountsGroupName, route), so a
+// further divergence — an unlisted rename, an unlisted dropped field, a stray `omitempty` that
+// changes when a key appears — fails here and names the field. `json:"-"` fields are excluded on
+// both sides: they never reach the wire.
 func TestTransactionV2_MirrorsTheCanonicalFieldSet(t *testing.T) {
 	t.Parallel()
 
 	renames := map[string]string{"source": "debit", "destination": "credit"}
+	// Deprecated fields the /v2 wire shape intentionally drops from the canonical transaction.
+	dropped := map[string]struct{}{"chartOfAccountsGroupName": {}, "route": {}}
 
 	canonical := wireFieldNames(t, transaction.Transaction{})
 	v2 := wireFieldNames(t, TransactionV2{})
@@ -171,6 +177,10 @@ func TestTransactionV2_MirrorsTheCanonicalFieldSet(t *testing.T) {
 	want := make(map[string]struct{}, len(canonical))
 
 	for name := range canonical {
+		if _, isDropped := dropped[name]; isDropped {
+			continue
+		}
+
 		if renamed, ok := renames[name]; ok {
 			want[renamed] = struct{}{}
 
@@ -189,7 +199,45 @@ func TestTransactionV2_MirrorsTheCanonicalFieldSet(t *testing.T) {
 	for name := range v2 {
 		assert.Containsf(t, want, name,
 			"the v2 shape carries %q and the canonical transaction does not expose it under that name: "+
-				"the only intended differences are source→debit and destination→credit", name)
+				"the only intended differences are source→debit, destination→credit, and the dropped "+
+				"chartOfAccountsGroupName/route", name)
+	}
+}
+
+// TestOperationV2_MirrorsTheCanonicalFieldSetMinusDropped is the drift lock between the canonical
+// operation.Operation and its /v2 wire shape. OperationV2 is a hand-written mirror, so a field
+// added to the canonical operation must be mirrored here or it silently vanishes from every v2
+// response. The only intended differences are the two dropped deprecated fields: operation-level
+// chartOfAccounts and route. The canonical operation's Snapshot is `json:"-"` so it is off the wire
+// on that side and absent from OperationV2 entirely; either way it is outside this comparison.
+func TestOperationV2_MirrorsTheCanonicalFieldSetMinusDropped(t *testing.T) {
+	t.Parallel()
+
+	dropped := map[string]struct{}{"chartOfAccounts": {}, "route": {}}
+
+	canonical := wireFieldNames(t, operation.Operation{})
+	v2 := wireFieldNames(t, OperationV2{})
+
+	want := make(map[string]struct{}, len(canonical))
+
+	for name := range canonical {
+		if _, isDropped := dropped[name]; isDropped {
+			continue
+		}
+
+		want[name] = struct{}{}
+	}
+
+	for name := range want {
+		assert.Containsf(t, v2, name,
+			"the canonical operation carries %q on the wire and the v2 shape does not: mirror it here "+
+				"or it vanishes from every v2 response", name)
+	}
+
+	for name := range v2 {
+		assert.Containsf(t, want, name,
+			"the v2 operation shape carries %q and the canonical operation does not expose it under that "+
+				"name: the only intended differences are the dropped chartOfAccounts/route", name)
 	}
 }
 
