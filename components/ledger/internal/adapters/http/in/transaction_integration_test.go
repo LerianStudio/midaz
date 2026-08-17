@@ -2268,20 +2268,15 @@ func TestIntegration_TransactionHandler_IdempotencyReplay(t *testing.T) {
 	t.Logf("Idempotency replay test passed: transaction %s, balance %s", txID.String(), sourceBalance.String())
 }
 
-// TestIntegration_TransactionHandler_IdempotencyConflict tests that using the same
-// idempotency key with a different payload returns HTTP 409 Conflict.
+// TestIntegration_TransactionHandler_IdempotencyReplay_IgnoresChangedAmount proves
+// that an idempotency key always replays its first outcome, even when a later body
+// asks for a different amount.
 //
 // Flow:
 // 1. First request with X-Idempotency header creates transaction
-// 2. Second request with same key but different payload returns 409
-//
-// SKIPPED: This test documents EXPECTED behavior, but conflict detection is NOT implemented.
-// Current behavior: same key + different payload returns 201 with cached response (replay).
-// The hash parameter in CreateOrCheckTransactionIdempotency is only used as fallback key when
-// X-Idempotency header is not provided - it is never stored or compared.
-func TestIntegration_TransactionHandler_IdempotencyConflict(t *testing.T) {
-	t.Skip("PENDING: Conflict detection not implemented - same key returns cached response regardless of payload")
-
+// 2. Second request with the same key but a different amount replays the first
+// 3. Only the first amount affects balances
+func TestIntegration_TransactionHandler_IdempotencyReplay_IgnoresChangedAmount(t *testing.T) {
 	if testing.Short() {
 		t.Skip("skipping integration test in short mode")
 	}
@@ -2378,15 +2373,15 @@ func TestIntegration_TransactionHandler_IdempotencyConflict(t *testing.T) {
 	body2, err := io.ReadAll(resp2.Body)
 	require.NoError(t, err, "should read second response body")
 
-	// Second request with different payload should return 409 Conflict
-	// Note: The implementation may return 409 immediately (key exists without value during processing)
-	// or may return 409 after detecting hash mismatch
-	assert.Equal(t, 409, resp2.StatusCode,
-		"second request with different payload should return 409, got %d: %s", resp2.StatusCode, string(body2))
+	require.Equal(t, 201, resp2.StatusCode,
+		"the changed body must replay the first outcome, got %d: %s", resp2.StatusCode, string(body2))
+	assert.Equal(t, "true", resp2.Header.Get("X-Idempotency-Replayed"))
 
-	// Verify only the first transaction exists
-	var result1 map[string]any
+	// Verify the replay returned the first transaction.
+	var result1, result2 map[string]any
 	require.NoError(t, json.Unmarshal(body1, &result1), "first response should be valid JSON")
+	require.NoError(t, json.Unmarshal(body2, &result2), "replayed response should be valid JSON")
+	assert.Equal(t, result1["id"], result2["id"], "replay must return the first transaction")
 
 	txID, err := uuid.Parse(result1["id"].(string))
 	require.NoError(t, err, "transaction ID should be valid UUID")
@@ -2394,13 +2389,16 @@ func TestIntegration_TransactionHandler_IdempotencyConflict(t *testing.T) {
 	dbStatus := postgrestestutil.GetTransactionStatus(t, infra.pgContainer.DB, txID)
 	assert.NotEmpty(t, dbStatus, "first transaction should exist in database")
 
+	// Flush the first request's hot balance before checking PostgreSQL.
+	drainBalanceSync(t, context.Background(), infra.handler.Command, infra.redisRepo, infra.orgID, infra.ledgerID)
+
 	// Verify balance was only affected by the first transaction (100, not 200)
 	sourceBalance := postgrestestutil.GetBalanceByAlias(t, infra.pgContainer.DB, infra.orgID, infra.ledgerID, sourceAlias)
 	expectedBalance := initialBalance.Sub(decimal.NewFromInt(100))
 	assert.True(t, sourceBalance.Equal(expectedBalance),
 		"source balance should be %s (only first transaction), got %s", expectedBalance.String(), sourceBalance.String())
 
-	t.Logf("Idempotency conflict test passed: only transaction %s created, balance %s", txID.String(), sourceBalance.String())
+	t.Logf("Idempotency replay preserved transaction %s and balance %s", txID.String(), sourceBalance.String())
 }
 
 // TestIntegration_TransactionHandler_IdempotencyReplay_IgnoresReplayerSkip is the
