@@ -12,8 +12,6 @@ import (
 	"fmt"
 	"net"
 	"os"
-	"path/filepath"
-	"runtime"
 	"strings"
 	"testing"
 	"time"
@@ -25,6 +23,7 @@ import (
 
 	"github.com/LerianStudio/midaz/v4/components/tracer/internal/bootstrap"
 	"github.com/LerianStudio/midaz/v4/components/tracer/internal/testutil"
+	tracermigrations "github.com/LerianStudio/midaz/v4/components/tracer/migrations"
 	"github.com/LerianStudio/midaz/v4/components/tracer/pkg"
 )
 
@@ -115,10 +114,30 @@ func SetupTestSuite(m *testing.M) int {
 	// by default, allowing immediate reuse by the same process starting the server.
 	listener.Close()
 
-	// Get project root for migrations path
-	_, filename, _, _ := runtime.Caller(0)
-	projectRoot := filepath.Join(filepath.Dir(filename), "..", "..")
-	migrationsPath := filepath.Join(projectRoot, "migrations")
+	// Materialize the compile-time migration set for the file:// runner. This
+	// keeps the integration binary independent of source-tree paths, including
+	// builds produced with -trimpath.
+	migrationsPath, err := os.MkdirTemp("", "tracer-integration-migrations-")
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Failed to create migrations directory: %v\n", err)
+		pgContainer.Terminate(ctx)
+		restoreEnvironment()
+
+		return 1
+	}
+	defer func() {
+		if removeErr := os.RemoveAll(migrationsPath); removeErr != nil {
+			fmt.Fprintf(os.Stderr, "Failed to remove migrations directory: %v\n", removeErr)
+		}
+	}()
+
+	if err := tracermigrations.WriteTo(migrationsPath); err != nil {
+		fmt.Fprintf(os.Stderr, "Failed to materialize migrations: %v\n", err)
+		pgContainer.Terminate(ctx)
+		restoreEnvironment()
+
+		return 1
+	}
 
 	// Set environment variables for the application
 	os.Setenv("DB_HOST", pgContainer.Host)

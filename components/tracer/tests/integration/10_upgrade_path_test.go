@@ -11,12 +11,13 @@ import (
 	"context"
 	"crypto/sha256"
 	"database/sql"
+	"embed"
 	"encoding/hex"
 	"fmt"
 	"io/fs"
 	"os"
+	"path"
 	"path/filepath"
-	"runtime"
 	"sort"
 	"strconv"
 	"strings"
@@ -35,12 +36,18 @@ import (
 
 	"github.com/LerianStudio/midaz/v4/components/tracer/internal/testutil"
 	"github.com/LerianStudio/midaz/v4/components/tracer/internal/testutil_integration"
+	tracermigrations "github.com/LerianStudio/midaz/v4/components/tracer/migrations"
 )
+
+//go:embed testdata/legacy_dual_runner
+var legacyMigrations embed.FS
 
 // legacyHeadVersion is the highest schema_migrations.version present in the
 // pre-refactor dual-runner fixture: 12 schema migrations + 3 function
 // migrations tracked in a separate table.
 const legacyHeadVersion = 12
+
+const legacyFixtureRoot = "testdata/legacy_dual_runner"
 
 // headVersion is the expected final schema_migrations.version after applying
 // the HEAD migrations (unified single-runner, 000001..000020).
@@ -195,35 +202,66 @@ func runUpgradePathScenario(t *testing.T, legacyVersion int) {
 func resolveLegacyMigrationsDir(t *testing.T) string {
 	t.Helper()
 
-	fixtureDir := filepath.Join(testSourceDir(t), "testdata", "legacy_dual_runner")
-	verifyLegacyMigrationFixture(t, fixtureDir)
+	verifyLegacyMigrationFixture(t, legacyMigrations)
 
-	return fixtureDir
+	return materializeMigrationFS(t, legacyMigrations, legacyFixtureRoot)
 }
 
-// resolveHeadMigrationsDir returns the absolute path of the tracer migrations/
-// tree (components/tracer/migrations) in the current working copy; this mirrors
-// the production boot path resolved by the shared integration suite
-// (internal/testutil_integration/testcontainer_suite.go).
+// resolveHeadMigrationsDir materializes the production migration set embedded
+// at compile time. The temporary filesystem tree preserves the file:// input
+// contract of lib-commons' golang-migrate wrapper without requiring the source
+// checkout to exist when the test binary runs.
 func resolveHeadMigrationsDir(_ context.Context, t *testing.T) string {
 	t.Helper()
 
-	return filepath.Clean(filepath.Join(testSourceDir(t), "..", "..", "migrations"))
+	destinationRoot := t.TempDir()
+	require.NoError(t, tracermigrations.WriteTo(destinationRoot), "materialize embedded HEAD migrations")
+
+	return destinationRoot
 }
 
-func testSourceDir(t *testing.T) string {
+func materializeMigrationFS(t *testing.T, source fs.FS, sourceRoot string) string {
 	t.Helper()
 
-	_, sourceFile, _, ok := runtime.Caller(0)
-	require.True(t, ok, "resolve upgrade-path test source file")
+	destinationRoot := t.TempDir()
 
-	return filepath.Dir(sourceFile)
+	err := fs.WalkDir(source, sourceRoot, func(sourcePath string, entry fs.DirEntry, walkErr error) error {
+		if walkErr != nil {
+			return walkErr
+		}
+
+		relativePath, relErr := embeddedRelativePath(sourceRoot, sourcePath)
+		if relErr != nil {
+			return relErr
+		}
+		if relativePath == "." {
+			return nil
+		}
+
+		destinationPath := filepath.Join(destinationRoot, filepath.FromSlash(relativePath))
+		if entry.IsDir() {
+			return os.MkdirAll(destinationPath, 0o755)
+		}
+		if !strings.HasSuffix(entry.Name(), ".sql") {
+			return nil
+		}
+
+		body, readErr := fs.ReadFile(source, sourcePath)
+		if readErr != nil {
+			return readErr
+		}
+
+		return os.WriteFile(destinationPath, body, 0o600)
+	})
+	require.NoError(t, err, "materialize embedded migrations")
+
+	return destinationRoot
 }
 
-func verifyLegacyMigrationFixture(t *testing.T, fixtureDir string) {
+func verifyLegacyMigrationFixture(t *testing.T, fixture fs.FS) {
 	t.Helper()
 
-	manifest, err := os.ReadFile(filepath.Join(fixtureDir, "SHA256SUMS"))
+	manifest, err := fs.ReadFile(fixture, path.Join(legacyFixtureRoot, "SHA256SUMS"))
 	require.NoError(t, err, "read immutable legacy migration manifest")
 
 	manifestDigest := sha256.Sum256(manifest)
@@ -242,7 +280,7 @@ func verifyLegacyMigrationFixture(t *testing.T, fixtureDir string) {
 		require.NoError(t, decodeErr, "decode digest for %s", parts[1])
 		require.Len(t, expectedDigest, sha256.Size, "digest for %s must be SHA-256", parts[1])
 
-		body, readErr := os.ReadFile(filepath.Join(fixtureDir, filepath.FromSlash(parts[1])))
+		body, readErr := fs.ReadFile(fixture, path.Join(legacyFixtureRoot, parts[1]))
 		require.NoError(t, readErr, "read legacy migration %s", parts[1])
 
 		actualDigest := sha256.Sum256(body)
@@ -256,7 +294,7 @@ func verifyLegacyMigrationFixture(t *testing.T, fixtureDir string) {
 	require.Len(t, manifestFiles, 30, "legacy fixture must contain 12 schema and 3 function migration pairs")
 
 	actualFiles := make([]string, 0, len(manifestFiles))
-	err = filepath.WalkDir(fixtureDir, func(path string, entry fs.DirEntry, walkErr error) error {
+	err = fs.WalkDir(fixture, legacyFixtureRoot, func(fixturePath string, entry fs.DirEntry, walkErr error) error {
 		if walkErr != nil {
 			return walkErr
 		}
@@ -264,12 +302,12 @@ func verifyLegacyMigrationFixture(t *testing.T, fixtureDir string) {
 			return nil
 		}
 
-		relativePath, relErr := filepath.Rel(fixtureDir, path)
+		relativePath, relErr := embeddedRelativePath(legacyFixtureRoot, fixturePath)
 		if relErr != nil {
 			return relErr
 		}
 
-		actualFiles = append(actualFiles, filepath.ToSlash(relativePath))
+		actualFiles = append(actualFiles, relativePath)
 
 		return nil
 	})
@@ -278,6 +316,22 @@ func verifyLegacyMigrationFixture(t *testing.T, fixtureDir string) {
 	sort.Strings(manifestFiles)
 	sort.Strings(actualFiles)
 	require.Equal(t, manifestFiles, actualFiles, "legacy migration manifest must cover every SQL file exactly once")
+}
+
+func embeddedRelativePath(root, name string) (string, error) {
+	if name == root {
+		return ".", nil
+	}
+	if root == "." {
+		return name, nil
+	}
+
+	relativePath, ok := strings.CutPrefix(name, root+"/")
+	if !ok {
+		return "", fmt.Errorf("embedded path %q is outside root %q", name, root)
+	}
+
+	return relativePath, nil
 }
 
 // withTestDB opens a *sql.DB against dsn, invokes fn, and guarantees Close()
