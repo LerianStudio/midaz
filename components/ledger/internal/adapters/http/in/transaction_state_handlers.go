@@ -580,8 +580,10 @@ func (handler *TransactionHandler) commitOrCancelTransaction(ctx context.Context
 	// this state transition; /commit and /cancel carry only the transaction id, so
 	// the tracer is addressed by transaction id and flips every RESERVED
 	// reservation the transaction holds. Non-blocking: a transport failure never
-	// fails the request — the TTL reaper reconciles. The long-lived TTL hint set
-	// at create-pending keeps these reservations alive until this transition.
+	// fails the request. Expiry safely drains a lost release after cancel, while a
+	// lost confirm after commit remains a known usage-undercount gap. The
+	// long-lived TTL hint set at create-pending keeps these reservations alive
+	// until this transition.
 	switch transactionStatus {
 	case constant.APPROVED:
 		handler.confirmReservationsByTransaction(ctx, span, logger, ledgerSettings.Tracer, tran.IDtoUUID(), honoredTracerSkip)

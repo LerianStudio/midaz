@@ -278,14 +278,18 @@ func (handler *TransactionHandler) releaseReservations(ctx context.Context, span
 }
 
 // recordReservationTransportFailure logs and span-records a confirm/release
-// transport failure without propagating it. Both an availability failure
-// (tracer.ErrTracerUnavailable) and any other transport error are the
-// lost-transport case the reaper backstops at TTL, so both are Warn-logged and
-// swallowed.
+// transport failure without propagating it. Expiry safely drains a release that
+// was lost after an abort. A lost confirm after a balance commit instead leaves
+// a known usage-undercount window when the hold expires.
 func (handler *TransactionHandler) recordReservationTransportFailure(ctx context.Context, span trace.Span, logger libLog.Logger, action string, id uuid.UUID, err error) {
 	libOpentelemetry.HandleSpanError(span, "Tracer reservation "+action+" transport failed", err)
 
-	logger.Log(ctx, libLog.LevelWarn, "Tracer reservation transport failed; reaper will reconcile at TTL",
+	message := "Tracer reservation release transport failed; expiry will drain the abandoned hold"
+	if action == "confirm" {
+		message = "Tracer reservation confirm transport failed; usage may be undercounted after expiry"
+	}
+
+	logger.Log(ctx, libLog.LevelWarn, message,
 		libLog.String("reservation_action", action),
 		libLog.String("reservation_id", id.String()),
 		libLog.Err(err))
@@ -298,9 +302,8 @@ func (handler *TransactionHandler) recordReservationTransportFailure(ctx context
 // transaction holds, addressed by transaction id. Gated on the per-ledger tracer
 // settings (off / nil reserver → no call) and on an honored per-call tracer skip
 // (so a skip honored at create removes the gRPC cost here rather than relocating
-// it to commit); same best-effort, non-blocking posture as the by-id transport: a
-// failure is logged at Warn, span-recorded, and never propagated, with the TTL
-// reaper as the durability backstop.
+// it to commit); same best-effort, non-blocking posture as the by-id transport.
+// A lost confirm remains a known usage-undercount gap after expiry.
 func (handler *TransactionHandler) confirmReservationsByTransaction(ctx context.Context, span trace.Span, logger libLog.Logger, settings mmodel.TracerSettings, transactionID uuid.UUID, honoredTracerSkip bool) {
 	if honoredTracerSkip || !handler.tracerReservationEnabled(settings) {
 		return
@@ -334,12 +337,18 @@ func (handler *TransactionHandler) tracerReservationEnabled(settings mmodel.Trac
 }
 
 // recordReservationByTransactionFailure logs and span-records a by-transaction
-// confirm/release transport failure without propagating it — the reaper reconciles
-// any lost transition at TTL.
+// confirm/release transport failure without propagating it. Expiry safely drains
+// a lost release; a lost confirm creates the same known post-commit undercount as
+// the by-ID path.
 func (handler *TransactionHandler) recordReservationByTransactionFailure(ctx context.Context, span trace.Span, logger libLog.Logger, action string, transactionID uuid.UUID, err error) {
 	libOpentelemetry.HandleSpanError(span, "Tracer reservation "+action+" by transaction transport failed", err)
 
-	logger.Log(ctx, libLog.LevelWarn, "Tracer reservation by-transaction transport failed; reaper will reconcile at TTL",
+	message := "Tracer reservation release by transaction failed; expiry will drain the abandoned hold"
+	if action == "confirm" {
+		message = "Tracer reservation confirm by transaction failed; usage may be undercounted after expiry"
+	}
+
+	logger.Log(ctx, libLog.LevelWarn, message,
 		libLog.String("reservation_action", action),
 		libLog.String("transaction_id", transactionID.String()),
 		libLog.Err(err))

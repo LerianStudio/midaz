@@ -380,11 +380,10 @@ func TestIntegration_ConfirmedReservationCounterSurvivesReservationTTL(t *testin
 // ---------------------------------------------------------------------------
 // PROOF 1 — Crash convergence (Gate 1)
 //
-// The two-phase reservation must converge to the correct counter state under a
-// ledger crash at EVERY interleaving of reserve <-> confirm. The three sub-tests
-// are the three crash windows the plan enumerates; each asserts EXACT counter
-// values, which is the whole point — the TTL reaper is what makes (a) and (b)
-// converge, and (c) proves a delivered confirm survives a pre-reaper crash.
+// The three sub-tests pin every crash window around reserve and confirm. They
+// prove correct convergence before the balance commit and after a delivered
+// confirm, and expose the known usage undercount when the balance commits but
+// confirmation is lost.
 // ---------------------------------------------------------------------------
 
 func TestIntegration_ReservationCrashConvergence(t *testing.T) {
