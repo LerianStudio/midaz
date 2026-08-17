@@ -17,9 +17,9 @@ import (
 
 // TestMidazCatalogRoutesAssembly locks the catalog/routes assembly path: it
 // must produce exactly one catalog entry and one required route per event
-// definition, each route pointing at its PER-PRODUCT topic (ledger core under
-// service "ledger", fees under "fee", CRM under "crm"), with no duplicate or
-// orphan keys in either direction (the ghost-topic guard).
+// definition, each route pointing at its topic under the single "ledger"
+// service segment (ledger core, fees, and CRM all collapsed into "ledger"),
+// with no duplicate or orphan keys in either direction (the ghost-topic guard).
 func TestMidazCatalogRoutesAssembly(t *testing.T) {
 	t.Parallel()
 
@@ -49,13 +49,13 @@ func TestMidazCatalogRoutesAssembly(t *testing.T) {
 	// strip cannot fire and the fee topics would regress to "fee_fee_*".
 	routeKeyByKey := make(map[string]string, len(defs))
 
-	for _, rd := range defs {
-		key := rd.def.Key()
+	for _, def := range defs {
+		key := def.Key()
 		_, dup := defKeys[key]
 		require.False(t, dup, "duplicate definition key %q in midazEventDefinitions", key)
 		defKeys[key] = struct{}{}
-		serviceByKey[key] = rd.service
-		routeKeyByKey[key] = rd.def.RouteKey()
+		serviceByKey[key] = streamingServiceName
+		routeKeyByKey[key] = def.RouteKey()
 	}
 
 	seenRouteKeys := make(map[string]struct{}, len(routes))
@@ -81,18 +81,21 @@ func TestMidazCatalogRoutesAssembly(t *testing.T) {
 		assert.True(t, ok, "definition %q has no route (unroutable event)", key)
 	}
 
-	// Per-product routing regression lock (#3388): an INDEPENDENT expected-service
-	// map keyed by Definition.Key() with LITERAL service segments, deliberately
-	// NOT derived from midazEventDefinitions (the code under test). serviceByKey
-	// above is computed from the registry and would tautologically agree with a
-	// wrong-service bug; this map enumerates every event's expected service so a
-	// regression on ANY event — not just a handful of spot-checks — is caught at
-	// unit speed. The literals "ledger"/"fee"/"crm" are intentional (not the
-	// serviceLedger/serviceFee/serviceCRM constants the production code uses).
+	// Single-service routing regression lock (#3388): an INDEPENDENT
+	// expected-service map keyed by Definition.Key() with LITERAL service
+	// segments, deliberately NOT derived from midazEventDefinitions (the code
+	// under test). serviceByKey above is computed from the registry and would
+	// tautologically agree with a wrong-service bug; this map enumerates every
+	// event's expected service so a regression on ANY event — not just a handful
+	// of spot-checks — is caught at unit speed. After the collapse every event
+	// (ledger core, fees, CRM) routes under the single "ledger" segment; the
+	// wantFee/wantCRM aliases are kept only to document which events used to carry
+	// a distinct segment. The literal "ledger" is intentional (not the
+	// streamingServiceName constant the production code uses).
 	const (
 		wantLedger = "ledger"
-		wantFee    = "fee"
-		wantCRM    = "crm"
+		wantFee    = "ledger"
+		wantCRM    = "ledger"
 	)
 
 	expectedService := map[string]string{
@@ -176,24 +179,24 @@ func TestMidazCatalogRoutesAssembly(t *testing.T) {
 			"route %q must target %q (independent service lock)", r.DefinitionKey, wantTopic)
 	}
 
-	// Fee-family destination lock (underscore canonicalization): the route key
-	// folds the underscored DefinitionKey back to the hyphenated routing handle
-	// before TopicName strips the "fee-" prefix, so fee topics keep a single
-	// "fee_" segment and never regress to "fee_fee_*". Literal broker topics so
-	// feeding the DefinitionKey (instead of the route key) into TopicName fails.
+	// Fee-family destination lock: after the collapse every fee event routes
+	// under the "ledger" segment, so its "fee-" resource prefix is folded into
+	// the topic as "ledger_fee_<resource>" (the segment strip targets "ledger-",
+	// not "fee-"). Literal broker topics so a regression on the fee namespace is
+	// caught directly.
 	destByKey := make(map[string]string, len(routes))
 	for _, r := range routes {
 		destByKey[r.DefinitionKey] = r.Destination.Name
 	}
 
 	feeTopics := map[string]string{
-		"fee_packages.created":         "lerian.streaming.fee_packages.created",
-		"fee_packages.updated":         "lerian.streaming.fee_packages.updated",
-		"fee_packages.deleted":         "lerian.streaming.fee_packages.deleted",
-		"fee_billing_packages.created": "lerian.streaming.fee_billing_packages.created",
-		"fee_billing_packages.updated": "lerian.streaming.fee_billing_packages.updated",
-		"fee_billing_packages.deleted": "lerian.streaming.fee_billing_packages.deleted",
-		"fee_charge.applied":           "lerian.streaming.fee_charge.applied",
+		"fee_packages.created":         "lerian.streaming.ledger_fee_packages.created",
+		"fee_packages.updated":         "lerian.streaming.ledger_fee_packages.updated",
+		"fee_packages.deleted":         "lerian.streaming.ledger_fee_packages.deleted",
+		"fee_billing_packages.created": "lerian.streaming.ledger_fee_billing_packages.created",
+		"fee_billing_packages.updated": "lerian.streaming.ledger_fee_billing_packages.updated",
+		"fee_billing_packages.deleted": "lerian.streaming.ledger_fee_billing_packages.deleted",
+		"fee_charge.applied":           "lerian.streaming.ledger_fee_charge.applied",
 	}
 	for key, topic := range feeTopics {
 		assert.Equalf(t, topic, destByKey[key],

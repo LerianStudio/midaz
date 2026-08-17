@@ -210,7 +210,7 @@ func streamingITExpectations() []streamingITExpectation {
 	return []streamingITExpectation{
 		{
 			name:       "fee_packages.created",
-			topic:      pkgStreaming.TopicName("fee", events.FeesPackageCreatedDefinition.RouteKey()),
+			topic:      pkgStreaming.TopicName("ledger", events.FeesPackageCreatedDefinition.RouteKey()),
 			ceType:     "studio.lerian." + events.FeesPackageCreatedDefinition.Key(),
 			subject:    packageID,
 			requireKey: []string{"id", "organizationId", "ledgerId", "enable", "createdAt", "updatedAt"},
@@ -221,7 +221,7 @@ func streamingITExpectations() []streamingITExpectation {
 		},
 		{
 			name:       "fee_packages.updated",
-			topic:      pkgStreaming.TopicName("fee", events.FeesPackageUpdatedDefinition.RouteKey()),
+			topic:      pkgStreaming.TopicName("ledger", events.FeesPackageUpdatedDefinition.RouteKey()),
 			ceType:     "studio.lerian." + events.FeesPackageUpdatedDefinition.Key(),
 			subject:    packageID,
 			requireKey: []string{"id", "organizationId", "ledgerId", "enable", "createdAt", "updatedAt"},
@@ -232,7 +232,7 @@ func streamingITExpectations() []streamingITExpectation {
 		},
 		{
 			name:       "fee_packages.deleted",
-			topic:      pkgStreaming.TopicName("fee", events.FeesPackageDeletedDefinition.RouteKey()),
+			topic:      pkgStreaming.TopicName("ledger", events.FeesPackageDeletedDefinition.RouteKey()),
 			ceType:     "studio.lerian." + events.FeesPackageDeletedDefinition.Key(),
 			subject:    packageID,
 			requireKey: []string{"id", "organizationId", "ledgerId", "deletedAt"},
@@ -243,7 +243,7 @@ func streamingITExpectations() []streamingITExpectation {
 		},
 		{
 			name:       "fee_billing_packages.created",
-			topic:      pkgStreaming.TopicName("fee", events.FeesBillingPackageCreatedDefinition.RouteKey()),
+			topic:      pkgStreaming.TopicName("ledger", events.FeesBillingPackageCreatedDefinition.RouteKey()),
 			ceType:     "studio.lerian." + events.FeesBillingPackageCreatedDefinition.Key(),
 			subject:    billingID,
 			requireKey: []string{"id", "organizationId", "ledgerId", "type", "enable", "createdAt", "updatedAt"},
@@ -257,7 +257,7 @@ func streamingITExpectations() []streamingITExpectation {
 		},
 		{
 			name:       "fee_billing_packages.updated",
-			topic:      pkgStreaming.TopicName("fee", events.FeesBillingPackageUpdatedDefinition.RouteKey()),
+			topic:      pkgStreaming.TopicName("ledger", events.FeesBillingPackageUpdatedDefinition.RouteKey()),
 			ceType:     "studio.lerian." + events.FeesBillingPackageUpdatedDefinition.Key(),
 			subject:    billingID,
 			requireKey: []string{"id", "organizationId", "ledgerId", "type", "enable", "createdAt", "updatedAt"},
@@ -271,7 +271,7 @@ func streamingITExpectations() []streamingITExpectation {
 		},
 		{
 			name:       "fee_billing_packages.deleted",
-			topic:      pkgStreaming.TopicName("fee", events.FeesBillingPackageDeletedDefinition.RouteKey()),
+			topic:      pkgStreaming.TopicName("ledger", events.FeesBillingPackageDeletedDefinition.RouteKey()),
 			ceType:     "studio.lerian." + events.FeesBillingPackageDeletedDefinition.Key(),
 			subject:    billingID,
 			requireKey: []string{"id", "organizationId", "ledgerId", "deletedAt"},
@@ -283,7 +283,7 @@ func streamingITExpectations() []streamingITExpectation {
 		{
 			// ce-subject for fee_charge.applied is the TRANSACTION id, not a package id.
 			name:       "fee_charge.applied",
-			topic:      pkgStreaming.TopicName("fee", events.FeesAppliedDefinition.RouteKey()),
+			topic:      pkgStreaming.TopicName("ledger", events.FeesAppliedDefinition.RouteKey()),
 			ceType:     "studio.lerian." + events.FeesAppliedDefinition.Key(),
 			subject:    transactionID,
 			requireKey: []string{"transactionId", "organizationId", "ledgerId", "feePackageId", "appliedAt"},
