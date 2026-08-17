@@ -1,0 +1,3 @@
+# Preserve the published historical SQL byte-for-byte, including whitespace.
+*.sql -whitespace
+functions/*.sql -whitespace

@@ -7,13 +7,16 @@
 package integration
 
 import (
-	"bytes"
+	"bufio"
 	"context"
+	"crypto/sha256"
 	"database/sql"
+	"encoding/hex"
 	"fmt"
+	"io/fs"
 	"os"
-	"os/exec"
 	"path/filepath"
+	"runtime"
 	"sort"
 	"strconv"
 	"strings"
@@ -34,33 +37,30 @@ import (
 	"github.com/LerianStudio/midaz/v4/components/tracer/internal/testutil_integration"
 )
 
-// legacyHeadVersion is the highest schema_migrations.version present on the
-// pinned pre-refactor develop tip (legacyDevelopRef below): 12 schema
-// migrations + 3 function migrations tracked in a separate table.
+// legacyHeadVersion is the highest schema_migrations.version present in the
+// pre-refactor dual-runner fixture: 12 schema migrations + 3 function
+// migrations tracked in a separate table.
 const legacyHeadVersion = 12
 
 // headVersion is the expected final schema_migrations.version after applying
 // the HEAD migrations (unified single-runner, 000001..000020).
 const headVersion = 20
 
-// legacyDevelopRef is the immutable commit representing the last state of
-// origin/develop before the unify-sql-migrations feature branched. Pinned
-// so this test keeps validating the upgrade path from the true dual-runner
-// layout, even after this PR merges and develop advances.
-//
-// To update (only if a new renumbering feature lands): re-pin to the
-// merge-base of the new branch and the pre-refactor develop tip.
-const legacyDevelopRef = "0a77ac3e4945db1846626aab91f9899079877365"
+// legacyFixtureManifestSHA256 pins the manifest for the immutable historical
+// migration fixture under testdata/legacy_dual_runner. The SQL files were
+// recovered byte-for-byte from the last published dual-runner image; see the
+// fixture SOURCE.md for its immutable OCI digest and source revision.
+const legacyFixtureManifestSHA256 = "a5882440d2fa835e86c2d1dd1a5dcf3afcd0eb58d435d27b1f00add9cd0dd379"
 
 // TestUpgradePath_FromDevelopToHead verifies that a production database at
-// the migration sequence in the pinned legacyDevelopRef (schema_migrations.
+// the migration sequence in the embedded legacy fixture (schema_migrations.
 // version = 12) can be upgraded in place to the HEAD sequence (unified
 // single-runner) without corruption.
 //
 // This is the behavioral proof of the invariant codified in docs/tracer/INVARIANTS.md
 // ("Migration Renumbering Invariant"). It simulates:
 //
-//  1. A fresh container boot with migrations from the pinned legacy commit
+//  1. A fresh container boot with migrations from the immutable legacy fixture
 //     (dual-runner layout: `migrations/functions/` + numbered schema
 //     migrations 001..012, tracked in `schema_migrations_functions` +
 //     `schema_migrations`).
@@ -74,22 +74,16 @@ const legacyDevelopRef = "0a77ac3e4945db1846626aab91f9899079877365"
 // that exercises the same upgrade from earlier legacy versions.
 //
 // The test spins up its own Postgres testcontainer (independent of the shared
-// SetupTestSuite container) and shells out to `git archive <legacyDevelopRef>`
-// to materialize the legacy migration set. It runs unconditionally in the
-// integration suite so that any future regression to the Migration
-// Renumbering Invariant (docs/tracer/INVARIANTS.md) is caught in CI.
-//
-// The test calls t.Skipf with an actionable message when legacyDevelopRef is
-// not fetched locally (e.g. a shallow clone), rather than failing with a
-// cryptic git archive error. CI that runs this test must configure
-// actions/checkout with fetch-depth: 0 (or fetch the specific SHA).
+// SetupTestSuite container) and reads the historical migration set from
+// testdata. It has no network or git-history dependency, so a shallow checkout
+// executes the same upgrade proof as a full local clone.
 func TestUpgradePath_FromDevelopToHead(t *testing.T) {
 	runUpgradePathScenario(t, legacyHeadVersion)
 }
 
 // TestUpgradePath_FromMultipleLegacyVersions parametrizes the develop→HEAD
 // upgrade across several schema_migrations.version starting points on the
-// pinned pre-refactor legacy layout (legacyDevelopRef).
+// pinned pre-refactor legacy layout.
 //
 // Rationale: the Migration Renumbering Invariant must hold not only from the
 // latest develop version (12) but also from any strictly earlier version, so
@@ -134,7 +128,7 @@ func TestUpgradePath_FromMultipleLegacyVersions(t *testing.T) {
 // runUpgradePathScenario executes the full develop→HEAD upgrade flow for a
 // given legacy target version:
 //
-//  1. Extract the pinned legacy migrations (legacyDevelopRef), or skip if the ref is missing.
+//  1. Verify and load the immutable legacy migration fixture.
 //  2. Boot a dedicated Postgres container.
 //  3. Apply legacy function migrations (always all 3) and legacy schema
 //     migrations up to the target version.
@@ -145,7 +139,7 @@ func TestUpgradePath_FromMultipleLegacyVersions(t *testing.T) {
 func runUpgradePathScenario(t *testing.T, legacyVersion int) {
 	t.Helper()
 
-	// 10-minute scenario budget absorbs git archive + container startup +
+	// 10-minute scenario budget absorbs fixture validation + container startup +
 	// legacy replay BEFORE the HEAD migrator.Up gets to run. Production
 	// grants migrations a full 5-minute deadline (see
 	// internal/bootstrap/config.go); if the scenario ctx were 5 minutes,
@@ -155,8 +149,8 @@ func runUpgradePathScenario(t *testing.T, legacyVersion int) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
 	defer cancel()
 
-	// --- 1. Extract legacyDevelopRef migrations via `git archive` ----------
-	oldMigrationsDir := extractDevelopMigrations(ctx, t)
+	// --- 1. Load the immutable legacy dual-runner fixture -------------------
+	oldMigrationsDir := resolveLegacyMigrationsDir(t)
 
 	// --- 2. Boot a throwaway Postgres container -----------------------------
 	dsn := startUpgradePathContainer(ctx, t)
@@ -195,115 +189,95 @@ func runUpgradePathScenario(t *testing.T, legacyVersion int) {
 	assertUpgradedStateForLegacyVersion(ctx, t, dsn, legacyVersion)
 }
 
-// extractDevelopMigrations materializes the migrations/ tree from the pinned
-// legacyDevelopRef commit into a unique temp directory using `git archive |
-// tar -x`. The ref is an immutable SHA (not a branch name), so the legacy
-// fixture never drifts even when origin/develop advances past this PR.
-//
-// Availability check is two-step:
-//  1. Best-effort `git fetch origin <SHA>` pulls the commit + tree into the
-//     local object store on shallow clones where GitHub allows fetch-by-SHA
-//     (uploadpack.allowReachableSHA1InWant=true, enabled by default for
-//     org repos). Errors are swallowed — the next step decides.
-//  2. `git cat-file -e <SHA>^{tree}` confirms the TREE is actually present.
-//     This is stricter than `git rev-parse --verify`, which returns success
-//     even on shallow clones when the commit is known as an ancestor but
-//     its tree has not been downloaded — the exact failure mode that
-//     produces "fatal: not a tree object" from the later `git archive`.
-//
-// If the tree is still missing after the best-effort fetch, the test skips
-// with an actionable message rather than failing with a cryptic git archive
-// error.
-//
-// ctx is threaded into every subprocess via exec.CommandContext so a cancelled
-// or timed-out test context also kills the underlying git/tar processes,
-// preventing orphaned children in edge cases (LFS hang, broken pipe, etc.).
-func extractDevelopMigrations(ctx context.Context, t *testing.T) string {
+// resolveLegacyMigrationsDir returns the repository-owned historical fixture
+// after verifying both the pinned manifest and every SQL file in it. A fixture
+// change therefore fails closed before a database container is provisioned.
+func resolveLegacyMigrationsDir(t *testing.T) string {
 	t.Helper()
 
-	dir := t.TempDir()
+	fixtureDir := filepath.Join(testSourceDir(t), "testdata", "legacy_dual_runner")
+	verifyLegacyMigrationFixture(t, fixtureDir)
 
-	rootBytes, err := exec.CommandContext(ctx, "git", "rev-parse", "--show-toplevel").Output()
-	require.NoError(t, err, "resolve git toplevel")
-
-	repoRoot := strings.TrimSpace(string(rootBytes))
-
-	// Best-effort fetch: pulls the SHA (and its tree) into the local object
-	// store on shallow clones. Ignored on failure — the cat-file check below
-	// is the authoritative gate. This covers the common CI case where
-	// actions/checkout uses fetch-depth: 1 by default but the GitHub host
-	// allows fetch-by-SHA for reachable commits.
-	fetch := exec.CommandContext(ctx, "git", "fetch", "--no-tags", "--quiet",
-		"origin", legacyDevelopRef)
-	fetch.Dir = repoRoot
-	_ = fetch.Run() // silent: cat-file below is the real gate
-
-	// Real availability check: the TREE of the SHA must be present locally.
-	// `git rev-parse --verify` would pass on a shallow clone whenever the
-	// commit is a known ancestor, even if the underlying tree was never
-	// downloaded — exactly the case that later produces
-	// "fatal: not a tree object" from `git archive`. `cat-file -e ^{tree}`
-	// resolves the tree and fails loudly if it is missing.
-	verifyTree := exec.CommandContext(ctx, "git", "cat-file", "-e",
-		legacyDevelopRef+"^{tree}")
-	verifyTree.Dir = repoRoot
-
-	if verifyErr := verifyTree.Run(); verifyErr != nil {
-		t.Skipf("legacy develop tree for %s not available locally (got %v); "+
-			"the test runner appears to have used a shallow clone and the "+
-			"best-effort fetch of the SHA also failed. Fix by setting "+
-			"actions/checkout fetch-depth: 0 in CI, or ensure the host "+
-			"supports fetch-by-SHA (uploadpack.allowReachableSHA1InWant)",
-			legacyDevelopRef, verifyErr)
-	}
-
-	archive := exec.CommandContext(ctx, "git", "archive", legacyDevelopRef, "migrations/")
-	archive.Dir = repoRoot
-
-	tarCmd := exec.CommandContext(ctx, "tar", "-x", "-C", dir)
-
-	pipe, pipeErr := archive.StdoutPipe()
-	require.NoError(t, pipeErr, "git archive stdout pipe")
-
-	tarCmd.Stdin = pipe
-
-	var archiveErr, tarErr bytes.Buffer
-	archive.Stderr = &archiveErr
-	tarCmd.Stderr = &tarErr
-
-	// Start git archive BEFORE tar so a Start() failure on archive fails fast
-	// without leaving tar blocked on a pipe that will never produce bytes.
-	require.NoError(t, archive.Start(), "start git archive")
-	require.NoError(t, tarCmd.Start(), "start tar")
-	require.NoError(t, archive.Wait(), "git archive: %s", archiveErr.String())
-	require.NoError(t, tarCmd.Wait(), "tar extract: %s", tarErr.String())
-
-	extracted := filepath.Join(dir, "migrations")
-
-	info, statErr := os.Stat(extracted)
-	require.NoError(t, statErr, "expected %s to exist after extract", extracted)
-	require.True(t, info.IsDir(), "%s must be a directory", extracted)
-
-	return extracted
+	return fixtureDir
 }
 
 // resolveHeadMigrationsDir returns the absolute path of the tracer migrations/
 // tree (components/tracer/migrations) in the current working copy; this mirrors
 // the production boot path resolved by the shared integration suite
 // (internal/testutil_integration/testcontainer_suite.go).
-//
-// ctx is threaded into the git subprocess via exec.CommandContext so a
-// cancelled or timed-out test context kills the child process, matching the
-// rest of the upgrade-path flow and avoiding orphaned children on edge cases.
-func resolveHeadMigrationsDir(ctx context.Context, t *testing.T) string {
+func resolveHeadMigrationsDir(_ context.Context, t *testing.T) string {
 	t.Helper()
 
-	out, err := exec.CommandContext(ctx, "git", "rev-parse", "--show-toplevel").Output()
-	require.NoError(t, err, "git rev-parse --show-toplevel")
+	return filepath.Clean(filepath.Join(testSourceDir(t), "..", "..", "migrations"))
+}
 
-	root := strings.TrimSpace(string(out))
+func testSourceDir(t *testing.T) string {
+	t.Helper()
 
-	return filepath.Join(root, "components", "tracer", "migrations")
+	_, sourceFile, _, ok := runtime.Caller(0)
+	require.True(t, ok, "resolve upgrade-path test source file")
+
+	return filepath.Dir(sourceFile)
+}
+
+func verifyLegacyMigrationFixture(t *testing.T, fixtureDir string) {
+	t.Helper()
+
+	manifest, err := os.ReadFile(filepath.Join(fixtureDir, "SHA256SUMS"))
+	require.NoError(t, err, "read immutable legacy migration manifest")
+
+	manifestDigest := sha256.Sum256(manifest)
+	require.Equal(t, legacyFixtureManifestSHA256, fmt.Sprintf("%x", manifestDigest),
+		"legacy migration manifest changed; restore the historical fixture from SOURCE.md")
+
+	manifestFiles := make([]string, 0, 30)
+	scanner := bufio.NewScanner(strings.NewReader(string(manifest)))
+
+	for scanner.Scan() {
+		line := scanner.Text()
+		parts := strings.SplitN(line, "  ", 2)
+		require.Len(t, parts, 2, "invalid legacy migration manifest line %q", line)
+
+		expectedDigest, decodeErr := hex.DecodeString(parts[0])
+		require.NoError(t, decodeErr, "decode digest for %s", parts[1])
+		require.Len(t, expectedDigest, sha256.Size, "digest for %s must be SHA-256", parts[1])
+
+		body, readErr := os.ReadFile(filepath.Join(fixtureDir, filepath.FromSlash(parts[1])))
+		require.NoError(t, readErr, "read legacy migration %s", parts[1])
+
+		actualDigest := sha256.Sum256(body)
+		require.Equal(t, expectedDigest, actualDigest[:],
+			"legacy migration %s changed; restore it from SOURCE.md", parts[1])
+
+		manifestFiles = append(manifestFiles, filepath.ToSlash(parts[1]))
+	}
+
+	require.NoError(t, scanner.Err(), "scan immutable legacy migration manifest")
+	require.Len(t, manifestFiles, 30, "legacy fixture must contain 12 schema and 3 function migration pairs")
+
+	actualFiles := make([]string, 0, len(manifestFiles))
+	err = filepath.WalkDir(fixtureDir, func(path string, entry fs.DirEntry, walkErr error) error {
+		if walkErr != nil {
+			return walkErr
+		}
+		if entry.IsDir() || !strings.HasSuffix(entry.Name(), ".sql") {
+			return nil
+		}
+
+		relativePath, relErr := filepath.Rel(fixtureDir, path)
+		if relErr != nil {
+			return relErr
+		}
+
+		actualFiles = append(actualFiles, filepath.ToSlash(relativePath))
+
+		return nil
+	})
+	require.NoError(t, err, "enumerate legacy migration fixture")
+
+	sort.Strings(manifestFiles)
+	sort.Strings(actualFiles)
+	require.Equal(t, manifestFiles, actualFiles, "legacy migration manifest must cover every SQL file exactly once")
 }
 
 // withTestDB opens a *sql.DB against dsn, invokes fn, and guarantees Close()
@@ -384,7 +358,7 @@ func startUpgradePathContainer(ctx context.Context, t *testing.T) string {
 }
 
 // applyLegacyFunctionMigrations reproduces the dual-runner function-migrator
-// behaviour that existed on legacyDevelopRef, in a minimal way sufficient to
+// behaviour captured by the legacy fixture, in a minimal way sufficient to
 // seed the legacy state: it creates `schema_migrations_functions`, applies
 // the three function SQL files in order, and records them as applied.
 //
@@ -437,9 +411,9 @@ func applyLegacyFunctionMigrations(ctx context.Context, t *testing.T, dsn, funct
 
 		sort.Strings(upFiles)
 		require.Len(t, upFiles, 3,
-			"legacyDevelopRef must expose exactly 3 function migrations "+
+			"legacy fixture must expose exactly 3 function migrations "+
 				"(hash chain + truncate protection); drift here would signal "+
-				"the pinned SHA no longer represents the true dual-runner layout")
+				"the fixture no longer represents the true dual-runner layout")
 
 		for _, fname := range upFiles {
 			// Parse "000001_name.up.sql" → version=1, name="name"
@@ -486,10 +460,10 @@ func applyLegacySchemaMigrationsUpTo(ctx context.Context, t *testing.T, dsn, mig
 
 	require.GreaterOrEqual(t, maxVersion, 1, "legacy maxVersion must be ≥ 1")
 	require.LessOrEqual(t, maxVersion, legacyHeadVersion,
-		"legacy maxVersion must be ≤ %d (the head of legacyDevelopRef)", legacyHeadVersion)
+		"legacy maxVersion must be ≤ %d (the head of the legacy fixture)", legacyHeadVersion)
 
 	// Discover the list of up-files on disk so we can range-check maxVersion
-	// against reality (and give a useful error if legacyDevelopRef ever diverges).
+	// against reality (and give a useful error if the legacy fixture ever diverges).
 	entries, err := os.ReadDir(migrationsDir)
 	require.NoError(t, err, "read %s", migrationsDir)
 
