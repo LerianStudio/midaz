@@ -30,4 +30,22 @@ if [[ $status -ne 124 ]]; then
 fi
 grep -q '"status":"timed_out"' "$test_dir/bounded-timing.json"
 
+mkdir -p "$test_dir/bin"
+cat > "$test_dir/bin/docker" <<'EOF'
+#!/usr/bin/env bash
+printf '%s\n' \
+  '{"Type":"container","Action":"start"}' \
+  '{"Type":"container","Action":"start"}' \
+  '{"Type":"container","Action":"restart"}'
+exec sleep 30
+EOF
+chmod +x "$test_dir/bin/docker"
+
+CI_CAPTURE_DOCKER_EVENTS=testcontainers CI_REPORT_DIR="$test_dir" \
+  PATH="$test_dir/bin:$PATH" \
+  "$repo_root/scripts/run-ci-lane.sh" docker-events 5s bash -c 'sleep 1'
+grep -q '"scope":"testcontainers"' "$test_dir/docker-events-docker-summary.json"
+grep -q '"container_start_events":2' "$test_dir/docker-events-docker-summary.json"
+grep -q '"container_restart_events":1' "$test_dir/docker-events-docker-summary.json"
+
 echo "run-ci-lane tests passed"

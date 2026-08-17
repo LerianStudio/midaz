@@ -138,6 +138,8 @@ jobs:
         run: go install gotest.tools/gotestsum@v1.13.0
 
       - name: Run root integration lane
+        env:
+          CI_CAPTURE_DOCKER_EVENTS: testcontainers
         run: scripts/run-ci-lane.sh integration 75m make test-integration LOW_RESOURCE=1 TEST_REPORTS_DIR=reports/ci
 
       - name: Upload integration timing and log
