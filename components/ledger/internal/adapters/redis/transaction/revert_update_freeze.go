@@ -21,26 +21,60 @@ const (
 	// Cluster slot, allowing phase transitions to prove drain atomically.
 	revertRolloutHashTag           = "{transaction-revert-rollout:v1}"
 	RevertUpdateFreezeKey          = "rollout:" + revertRolloutHashTag + ":state"
+	RevertRolloutGenerationKey     = "rollout:" + revertRolloutHashTag + ":dataset-generation"
 	revertApprovedUpdateLeaseKey   = "rollout:" + revertRolloutHashTag + ":approved-updates"
 	revertPhaseZeroRequestLeaseKey = "rollout:" + revertRolloutHashTag + ":phase-zero-revert-origins"
 	revertBridgeRequestLeaseKey    = "rollout:" + revertRolloutHashTag + ":bridge-revert-origins"
 	revertPhaseZeroCompletedKey    = "rollout:" + revertRolloutHashTag + ":phase-zero-completed-origins"
 	revertBridgeCompletedKey       = "rollout:" + revertRolloutHashTag + ":bridge-completed-origins"
+	RevertUpdateFreezeInitialize   = "initialize"
+	RevertUpdateFreezePrepared     = "prepared"
 	RevertUpdateFreezeActive       = "active"
 	RevertUpdateFreezeDrained      = "phase-zero-drained"
 	RevertUpdateFreezeFinalized    = "finalized"
+	// FinancialDatasetGenerationKey is a non-expiring identity for the Redis
+	// financial dataset. Its {transactions} tag lets money-path Lua compare it
+	// atomically with balances, backups, execution owners, and outcomes.
+	FinancialDatasetGenerationKey = "financial:{transactions}:dataset-generation"
 )
+
+const inspectRevertRolloutInitializationScript = `
+local current = redis.call('GET', KEYS[1])
+local witness = redis.call('GET', KEYS[2])
+if not current and not witness then
+  return 1
+end
+if current == 'prepared' and witness == ARGV[1] then
+  return 2
+end
+return 0
+`
+
+const completeRevertRolloutInitializationScript = `
+local current = redis.call('GET', KEYS[1])
+local witness = redis.call('GET', KEYS[2])
+if not current and not witness then
+  redis.call('SET', KEYS[2], ARGV[1])
+  redis.call('SET', KEYS[1], 'prepared')
+  return 1
+end
+if current == 'prepared' and witness == ARGV[1] then
+  return 1
+end
+return 0
+`
 
 const activateRevertUpdateFreezeScript = `
 local current = redis.call('GET', KEYS[1])
-if not current then
+local witness = redis.call('GET', KEYS[4])
+if current == 'prepared' and witness == ARGV[2] then
   if redis.call('SCARD', KEYS[2]) ~= 0 or redis.call('SCARD', KEYS[3]) ~= 0 then
     return 0
   end
   redis.call('SET', KEYS[1], ARGV[1])
   return 1
 end
-if current == ARGV[1] then
+if current == ARGV[1] and witness == ARGV[2] then
   return 1
 end
 return 0
@@ -48,15 +82,15 @@ return 0
 
 const advanceRevertUpdateFreezeScript = `
 local current = redis.call('GET', KEYS[1])
-if current == ARGV[1] then
+local witness = redis.call('GET', KEYS[4])
+if current == ARGV[1] and witness == ARGV[3] then
   if redis.call('SCARD', KEYS[2]) ~= 0 then
     return 0
   end
   redis.call('SET', KEYS[1], ARGV[2])
-  redis.call('DEL', KEYS[3])
   return 1
 end
-if current == ARGV[2] then
+if current == ARGV[2] and witness == ARGV[3] then
   return 1
 end
 return 0
@@ -69,21 +103,27 @@ local kind = ARGV[2]
 local origin = ARGV[3]
 local attempt = ARGV[4]
 local target = ARGV[5]
+local expected_generation = ARGV[6]
+local rollout_generation = redis.call('GET', KEYS[9]) or ''
 
 local ready = false
 if mode == 'legacy' then
-  ready = phase == '' or phase == 'active'
+  ready = phase == '' or phase == 'prepared' or phase == 'active'
 elseif mode == 'bridge' then
   ready = phase == 'active' or phase == 'phase-zero-drained'
 elseif mode == 'final' then
   ready = phase == 'phase-zero-drained' or phase == 'finalized'
 end
 
-local target_ready = target == ''
+local target_ready = (target == '' and phase == '')
+  or (target == 'prepared' and (phase == 'prepared' or phase == 'active'))
   or (target == 'active' and (phase == 'active' or phase == 'phase-zero-drained' or phase == 'finalized'))
   or (target == 'phase-zero-drained' and (phase == 'phase-zero-drained' or phase == 'finalized'))
   or (target == 'finalized' and phase == 'finalized')
 ready = ready and target_ready
+if target ~= '' then
+  ready = ready and expected_generation ~= '' and rollout_generation == expected_generation
+end
 
 if kind == 'approved-update' then
   local frozen = phase == 'active' or phase == 'phase-zero-drained'
@@ -96,6 +136,9 @@ if kind == 'approved-update' then
   if mode == 'final' and phase == 'finalized' then
     return 3
   end
+  if mode == 'legacy' and phase == '' then
+    return 3
+  end
   redis.call('SADD', KEYS[2], origin)
   return 1
 end
@@ -104,12 +147,18 @@ if kind ~= 'revert' or not ready then
   return 0
 end
 if mode == 'legacy' then
+  if phase == '' then
+    return 6
+  end
   if redis.call('SISMEMBER', KEYS[5], origin) == 1 then
+    if phase == 'prepared' then
+      return 7
+    end
     return 5
   end
   redis.call('HSET', KEYS[7], attempt, 1)
   redis.call('SADD', KEYS[3], origin)
-  if phase == '' then
+  if phase == 'prepared' then
     return 4
   end
   return 1
@@ -163,15 +212,19 @@ return -1
 // tenant prefix. Phase-zero, bridge, readiness, and every tenant must observe
 // one shared barrier while old and bridge revert algorithms coexist.
 type RevertUpdateFreezeGuard struct {
-	connection *libRedis.Client
-	target     string
+	connection         *libRedis.Client
+	target             string
+	expectedGeneration string
 }
 
 // NewRevertUpdateFreezeGuard creates a deployment-wide revert rollout guard.
-func NewRevertUpdateFreezeGuard(connection *libRedis.Client, target ...string) *RevertUpdateFreezeGuard {
+func NewRevertUpdateFreezeGuard(connection *libRedis.Client, settings ...string) *RevertUpdateFreezeGuard {
 	guard := &RevertUpdateFreezeGuard{connection: connection}
-	if len(target) > 0 {
-		guard.target = strings.ToLower(strings.TrimSpace(target[0]))
+	if len(settings) > 0 {
+		guard.target = strings.ToLower(strings.TrimSpace(settings[0]))
+	}
+	if len(settings) > 1 {
+		guard.expectedGeneration = strings.TrimSpace(settings[1])
 	}
 
 	return guard
@@ -202,6 +255,162 @@ func (g *RevertUpdateFreezeGuard) FinancialDurability(ctx context.Context) error
 	}
 
 	return validateFinancialRedisNode(ctx, client)
+}
+
+// InitializeFinancialDatasetGeneration is the one-shot transition from an
+// uninitialized Redis dataset to prepared phase zero. The deployment supplies
+// the immutable generation; every serving target validates it and can never
+// recreate missing shared state.
+func (g *RevertUpdateFreezeGuard) InitializeFinancialDatasetGeneration(ctx context.Context) error {
+	if g == nil || g.connection == nil {
+		return fmt.Errorf("revert rollout Redis connection not configured")
+	}
+	if strings.TrimSpace(g.expectedGeneration) == "" {
+		return fmt.Errorf("financial Redis dataset generation is required")
+	}
+	if err := g.FinancialDurability(ctx); err != nil {
+		return fmt.Errorf("initialize revert rollout without durable financial Redis: %w", err)
+	}
+	client, err := g.connection.GetClient(ctx)
+	if err != nil {
+		return fmt.Errorf("get revert rollout Redis client: %w", err)
+	}
+
+	initializationState, err := client.Eval(ctx, inspectRevertRolloutInitializationScript,
+		[]string{RevertUpdateFreezeKey, RevertRolloutGenerationKey}, g.expectedGeneration).Int64()
+	if err != nil {
+		return fmt.Errorf("inspect revert rollout initialization: %w", err)
+	}
+	if initializationState == 0 {
+		return fmt.Errorf("initialize revert rollout: existing marker or generation witness differs")
+	}
+	if initializationState == 2 {
+		if err := g.ValidateFinancialDatasetGeneration(ctx); err != nil {
+			return fmt.Errorf("validate completed revert rollout initialization: %w", err)
+		}
+
+		return nil
+	}
+
+	created, err := client.SetNX(ctx, FinancialDatasetGenerationKey, g.expectedGeneration, 0).Result()
+	if err != nil {
+		return fmt.Errorf("prepare financial Redis dataset generation: %w", err)
+	}
+	if !created {
+		generation, generationErr := g.FinancialDatasetGeneration(ctx)
+		if generationErr != nil {
+			return generationErr
+		}
+		if generation != g.expectedGeneration {
+			return fmt.Errorf("financial Redis dataset generation differs from configured witness")
+		}
+	}
+
+	initialized, err := client.Eval(ctx, completeRevertRolloutInitializationScript,
+		[]string{RevertUpdateFreezeKey, RevertRolloutGenerationKey}, g.expectedGeneration).Bool()
+	if err != nil {
+		return fmt.Errorf("complete revert rollout initialization: %w", err)
+	}
+	if !initialized {
+		return fmt.Errorf("complete revert rollout initialization: state changed concurrently")
+	}
+
+	return nil
+}
+
+// ValidatePrepared verifies the immutable financial generation and its
+// rollout-slot witness. It never writes either key.
+func (g *RevertUpdateFreezeGuard) ValidatePrepared(ctx context.Context) error {
+	if err := g.validateGeneration(ctx); err != nil {
+		return err
+	}
+	phase, witness, err := g.rolloutStateAndGeneration(ctx)
+	if err != nil {
+		return err
+	}
+	if phase != RevertUpdateFreezePrepared || witness != g.expectedGeneration {
+		return fmt.Errorf("prepared revert rollout marker or generation witness differs")
+	}
+
+	return nil
+}
+
+// FinancialDatasetGeneration returns the current non-expiring financial Redis
+// identity. Absence is a trust-boundary failure once durable revert claims can
+// exist; callers must never create it as part of recovery.
+func (g *RevertUpdateFreezeGuard) FinancialDatasetGeneration(ctx context.Context) (string, error) {
+	if g == nil || g.connection == nil {
+		return "", fmt.Errorf("revert rollout Redis connection not configured")
+	}
+	client, err := g.connection.GetClient(ctx)
+	if err != nil {
+		return "", fmt.Errorf("get revert rollout Redis client: %w", err)
+	}
+	generation, err := client.Get(ctx, FinancialDatasetGenerationKey).Result()
+	if err != nil {
+		if errors.Is(err, redislib.Nil) {
+			return "", fmt.Errorf("financial Redis dataset generation is missing")
+		}
+
+		return "", fmt.Errorf("read financial Redis dataset generation: %w", err)
+	}
+	if strings.TrimSpace(generation) == "" {
+		return "", fmt.Errorf("financial Redis dataset generation is missing")
+	}
+
+	return generation, nil
+}
+
+func (g *RevertUpdateFreezeGuard) validateGeneration(ctx context.Context) error {
+	if strings.TrimSpace(g.expectedGeneration) == "" {
+		return fmt.Errorf("financial Redis dataset generation is required")
+	}
+	if err := g.FinancialDurability(ctx); err != nil {
+		return fmt.Errorf("financial Redis durability: %w", err)
+	}
+
+	return g.ValidateFinancialDatasetGeneration(ctx)
+}
+
+// ValidateFinancialDatasetGeneration compares the financial-slot identity to
+// the immutable deployment witness without creating either value.
+func (g *RevertUpdateFreezeGuard) ValidateFinancialDatasetGeneration(ctx context.Context) error {
+	if strings.TrimSpace(g.expectedGeneration) == "" {
+		return fmt.Errorf("financial Redis dataset generation is required")
+	}
+	generation, err := g.FinancialDatasetGeneration(ctx)
+	if err != nil {
+		return err
+	}
+	if generation != g.expectedGeneration {
+		return fmt.Errorf("financial Redis dataset generation differs from configured witness")
+	}
+
+	return nil
+}
+
+func (g *RevertUpdateFreezeGuard) rolloutStateAndGeneration(ctx context.Context) (string, string, error) {
+	if g == nil || g.connection == nil {
+		return "", "", fmt.Errorf("revert rollout Redis connection not configured")
+	}
+	client, err := g.connection.GetClient(ctx)
+	if err != nil {
+		return "", "", fmt.Errorf("get revert rollout Redis client: %w", err)
+	}
+	values, err := client.MGet(ctx, RevertUpdateFreezeKey, RevertRolloutGenerationKey).Result()
+	if err != nil {
+		return "", "", fmt.Errorf("read revert rollout marker and generation witness: %w", err)
+	}
+	phase := ""
+	witness := ""
+	if values[0] != nil {
+		phase = fmt.Sprint(values[0])
+	}
+	if values[1] != nil {
+		witness = fmt.Sprint(values[1])
+	}
+
+	return phase, witness, nil
 }
 
 func validateFinancialRedisNode(ctx context.Context, client redislib.Cmdable) error {
@@ -269,14 +478,15 @@ func (g *RevertUpdateFreezeGuard) Phase(ctx context.Context) (string, error) {
 // Reading freeze and readiness separately would allow an absent-to-active
 // transition between reads to admit one APPROVED update after activation.
 func (g *RevertUpdateFreezeGuard) ApprovedUpdatePolicy(ctx context.Context, mode string) (bool, bool, error) {
-	value, err := g.state(ctx)
+	value, witness, err := g.rolloutStateAndGeneration(ctx)
 	if err != nil {
 		return false, false, err
 	}
 
 	frozen := value == RevertUpdateFreezeActive || value == RevertUpdateFreezeDrained
+	witnessReady := g.target == "" || (g.expectedGeneration != "" && witness == g.expectedGeneration)
 
-	return frozen, revertModeReadyForPhase(value, mode) && revertTargetReached(value, g.target), nil
+	return frozen, witnessReady && revertModeReadyForPhase(value, mode) && revertTargetReached(value, g.target), nil
 }
 
 // AcquireApprovedUpdate atomically admits an APPROVED update and records its
@@ -319,9 +529,17 @@ func (g *RevertUpdateFreezeGuard) AcquireRevert(ctx context.Context, mode, origi
 	case 3:
 		return true, false, RevertUpdateFreezeFinalized, nil
 	case 4:
-		return true, true, "", nil
+		return true, true, RevertUpdateFreezePrepared, nil
 	case 5:
+		if mode == "legacy" {
+			return true, false, RevertUpdateFreezeActive, nil
+		}
+
 		return true, false, "", nil
+	case 6:
+		return true, false, "", nil
+	case 7:
+		return true, false, RevertUpdateFreezePrepared, nil
 	default:
 		return false, false, "", nil
 	}
@@ -342,6 +560,15 @@ func (g *RevertUpdateFreezeGuard) acquireRequest(ctx context.Context, mode, kind
 	if err != nil {
 		return 0, fmt.Errorf("get revert update freeze Redis client: %w", err)
 	}
+	if g.target != "" {
+		generation, generationErr := client.Get(ctx, FinancialDatasetGenerationKey).Result()
+		if errors.Is(generationErr, redislib.Nil) || (generationErr == nil && generation != g.expectedGeneration) {
+			return 0, nil
+		}
+		if generationErr != nil {
+			return 0, fmt.Errorf("read financial Redis dataset generation before rollout admission: %w", generationErr)
+		}
+	}
 
 	result, err := client.Eval(ctx, acquireRevertRolloutRequestScript, []string{
 		RevertUpdateFreezeKey,
@@ -352,7 +579,8 @@ func (g *RevertUpdateFreezeGuard) acquireRequest(ctx context.Context, mode, kind
 		revertBridgeCompletedKey,
 		revertRolloutOriginAttemptKey("legacy", token),
 		revertRolloutOriginAttemptKey("bridge", token),
-	}, mode, kind, token, attemptID, g.target).Int64()
+		RevertRolloutGenerationKey,
+	}, mode, kind, token, attemptID, g.target, g.expectedGeneration).Int64()
 	if err != nil {
 		return 0, fmt.Errorf("acquire revert rollout request lease: %w", err)
 	}
@@ -522,18 +750,23 @@ func (g *RevertUpdateFreezeGuard) releaseRequest(ctx context.Context, key, token
 // ReadyForMode reports whether the shared rollout marker admits the requested
 // revert algorithm phase.
 func (g *RevertUpdateFreezeGuard) ReadyForMode(ctx context.Context, mode string) (bool, error) {
-	value, err := g.state(ctx)
+	value, witness, err := g.rolloutStateAndGeneration(ctx)
 	if err != nil {
 		return false, err
 	}
+	witnessReady := g.target == "" || (g.expectedGeneration != "" && witness == g.expectedGeneration)
 
-	return revertModeReadyForPhase(value, mode) && revertTargetReached(value, g.target), nil
+	return witnessReady && revertModeReadyForPhase(value, mode) && revertTargetReached(value, g.target), nil
 }
 
 func revertTargetReached(value, target string) bool {
 	switch target {
 	case "":
-		return true
+		return value == ""
+	case RevertUpdateFreezeInitialize:
+		return false
+	case RevertUpdateFreezePrepared:
+		return value == RevertUpdateFreezePrepared || value == RevertUpdateFreezeActive
 	case RevertUpdateFreezeActive:
 		return value == RevertUpdateFreezeActive || value == RevertUpdateFreezeDrained ||
 			value == RevertUpdateFreezeFinalized
@@ -549,7 +782,7 @@ func revertTargetReached(value, target string) bool {
 func revertModeReadyForPhase(value, mode string) bool {
 	switch mode {
 	case "legacy":
-		return value == "" || value == RevertUpdateFreezeActive
+		return value == "" || value == RevertUpdateFreezePrepared || value == RevertUpdateFreezeActive
 	case "bridge":
 		return value == RevertUpdateFreezeActive || value == RevertUpdateFreezeDrained
 	case "final":
@@ -586,8 +819,8 @@ func (g *RevertUpdateFreezeGuard) Activate(ctx context.Context) error {
 	if g == nil || g.connection == nil {
 		return fmt.Errorf("revert update freeze Redis connection not configured")
 	}
-	if err := g.FinancialDurability(ctx); err != nil {
-		return fmt.Errorf("activate revert update freeze without durable financial Redis: %w", err)
+	if err := g.validateGeneration(ctx); err != nil {
+		return fmt.Errorf("activate revert update freeze without prepared financial dataset: %w", err)
 	}
 
 	client, err := g.connection.GetClient(ctx)
@@ -595,13 +828,14 @@ func (g *RevertUpdateFreezeGuard) Activate(ctx context.Context) error {
 		return fmt.Errorf("get revert update freeze Redis client: %w", err)
 	}
 	activated, err := client.Eval(ctx, activateRevertUpdateFreezeScript,
-		[]string{RevertUpdateFreezeKey, revertApprovedUpdateLeaseKey, revertPhaseZeroRequestLeaseKey},
-		RevertUpdateFreezeActive).Bool()
+		[]string{RevertUpdateFreezeKey, revertApprovedUpdateLeaseKey, revertPhaseZeroRequestLeaseKey,
+			RevertRolloutGenerationKey},
+		RevertUpdateFreezeActive, g.expectedGeneration).Bool()
 	if err != nil {
 		return fmt.Errorf("activate revert update freeze: %w", err)
 	}
 	if !activated {
-		return fmt.Errorf("activate revert update freeze: rollout already advanced")
+		return fmt.Errorf("activate revert update freeze: expected prepared phase, exact generation, and complete drain")
 	}
 
 	return nil
@@ -627,6 +861,9 @@ func (g *RevertUpdateFreezeGuard) advance(ctx context.Context, from, to, leaseKe
 	if g == nil || g.connection == nil {
 		return fmt.Errorf("revert update freeze Redis connection not configured")
 	}
+	if err := g.validateGeneration(ctx); err != nil {
+		return fmt.Errorf("%s without exact financial dataset generation: %w", operation, err)
+	}
 
 	client, err := g.connection.GetClient(ctx)
 	if err != nil {
@@ -634,7 +871,8 @@ func (g *RevertUpdateFreezeGuard) advance(ctx context.Context, from, to, leaseKe
 	}
 
 	advanced, err := client.Eval(ctx, advanceRevertUpdateFreezeScript,
-		[]string{RevertUpdateFreezeKey, leaseKey, completedKey}, from, to).Bool()
+		[]string{RevertUpdateFreezeKey, leaseKey, completedKey, RevertRolloutGenerationKey},
+		from, to, g.expectedGeneration).Bool()
 	if err != nil {
 		return fmt.Errorf("%s: %w", operation, err)
 	}

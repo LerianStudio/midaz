@@ -39,6 +39,7 @@ import (
 	"github.com/LerianStudio/midaz/v4/pkg/repository"
 	"github.com/LerianStudio/midaz/v4/pkg/utils"
 	postgrestestutil "github.com/LerianStudio/midaz/v4/tests/utils/postgres"
+	redistestutil "github.com/LerianStudio/midaz/v4/tests/utils/redis"
 )
 
 // This file is the v2 transaction LIFECYCLE integration + parity proof: it exercises the v2
@@ -97,11 +98,35 @@ func patchV1Transaction(t *testing.T, app *fiber.App, orgID, ledgerID, txID uuid
 	return resp
 }
 
-func activateRevertUpdateFreeze(t *testing.T, infra *testInfra) {
+func prepareRevertUpdateFreeze(t *testing.T, infra *testInfra) {
 	t.Helper()
 	client := infra.redisContainer.Client
-	require.NoError(t, client.Del(context.Background(), transactionredis.RevertUpdateFreezeKey).Err())
-	require.NoError(t, infra.revertFreeze.Activate(context.Background()))
+	ctx := context.Background()
+	require.NoError(t, client.Del(ctx, transactionredis.RevertUpdateFreezeKey,
+		transactionredis.RevertRolloutGenerationKey, transactionredis.FinancialDatasetGenerationKey).Err())
+	connection := redistestutil.CreateConnection(t, infra.redisContainer.Addr)
+	initializer := transactionredis.NewRevertUpdateFreezeGuard(connection,
+		transactionredis.RevertUpdateFreezeInitialize, integrationRedisDatasetGeneration)
+	require.NoError(t, initializer.InitializeFinancialDatasetGeneration(ctx))
+	prepared := transactionredis.NewRevertUpdateFreezeGuard(connection,
+		transactionredis.RevertUpdateFreezePrepared, integrationRedisDatasetGeneration)
+	require.NoError(t, prepared.ValidatePrepared(ctx))
+	infra.revertFreeze = prepared
+	infra.handler.RevertUpdateFreeze = prepared
+	infra.handler.Command.RevertRolloutLease = prepared
+}
+
+func activateRevertUpdateFreeze(t *testing.T, infra *testInfra) {
+	t.Helper()
+	prepareRevertUpdateFreeze(t, infra)
+	ctx := context.Background()
+	connection := redistestutil.CreateConnection(t, infra.redisContainer.Addr)
+	active := transactionredis.NewRevertUpdateFreezeGuard(connection,
+		transactionredis.RevertUpdateFreezeActive, integrationRedisDatasetGeneration)
+	require.NoError(t, active.Activate(ctx))
+	infra.revertFreeze = active
+	infra.handler.RevertUpdateFreeze = active
+	infra.handler.Command.RevertRolloutLease = active
 }
 
 // =============================================================================
@@ -1010,7 +1035,8 @@ func TestIntegration_TransactionV2Revert_RolloutOldInFlightAndBridgeShareLegacyB
 	// also have released its fresh PostgreSQL claim, so the retry can perform
 	// exactly one reversal.
 	require.NoError(t, infra.redisRepo.Del(ctx, legacyKey))
-	reverse := decodeTxResponse(t, postTransaction(t, v2App, v2RevertURL(infra.orgID, infra.ledgerID, originID), "", ""), nethttp.StatusCreated)
+	reverse := decodeTxResponse(t, postTransaction(t, v2App,
+		v2RevertURL(infra.orgID, infra.ledgerID, originID), "", ""), nethttp.StatusCreated)
 	assert.Equal(t, originID.String(), reverse["parentTransactionId"])
 	drainBalanceSync(t, ctx, infra.handler.Command, infra.redisRepo, infra.orgID, infra.ledgerID)
 	assert.Equal(t, 2, countTransactionsInLedger(t, infra.pgContainer.DB, infra.ledgerID))
@@ -1589,10 +1615,12 @@ func TestIntegration_TransactionV2Revert_FailedRolloutCompletionRetriesExactPers
 	require.NotNil(t, claim.RolloutMode)
 	require.NotNil(t, claim.RolloutToken)
 	assert.Equal(t, revertIdempotencyModeBridge, *claim.RolloutMode)
-	evidence, err := infra.redisRepo.TransactionEconomicEvidenceExists(ctx, infra.orgID, infra.ledgerID,
-		claim.ReverseTransactionID)
+	require.NotNil(t, claim.RedisGeneration)
+	evidence, generationMatches, err := infra.redisRepo.TransactionEconomicEvidenceExists(ctx, infra.orgID, infra.ledgerID,
+		claim.ReverseTransactionID, *claim.RedisGeneration)
 	require.NoError(t, err)
 	assert.False(t, evidence, "transaction and operations are durable before rollout completion is retried")
+	assert.True(t, generationMatches)
 	require.NoError(t, infra.revertFreeze.MarkPhaseZeroDrained(ctx))
 	require.Error(t, infra.revertFreeze.Finalize(ctx),
 		"the surviving exact bridge generation must prevent a false rollout drain")
@@ -1624,7 +1652,7 @@ func TestIntegration_TransactionApprovedUpdateLeaseBlocksFreezeActivationUntilWr
 	originID := uuid.MustParse(origin["id"].(string))
 	drainBalanceSync(t, ctx, infra.handler.Command, infra.redisRepo, infra.orgID, infra.ledgerID)
 
-	require.NoError(t, infra.redisContainer.Client.Del(ctx, transactionredis.RevertUpdateFreezeKey).Err())
+	prepareRevertUpdateFreeze(t, infra)
 	infra.handler.RevertIdempotencyMode = revertIdempotencyModeLegacy
 	pausedRepo := &pausedTransactionWriteRepository{
 		Repository: infra.handler.Command.TransactionRepo,
@@ -1673,7 +1701,7 @@ func TestIntegration_TransactionPendingUpdateSerializesCommitAcrossFreezeActivat
 	pendingID := uuid.MustParse(pending["id"].(string))
 	drainBalanceSync(t, ctx, infra.handler.Command, infra.redisRepo, infra.orgID, infra.ledgerID)
 
-	require.NoError(t, infra.redisContainer.Client.Del(ctx, transactionredis.RevertUpdateFreezeKey).Err())
+	prepareRevertUpdateFreeze(t, infra)
 	infra.handler.RevertIdempotencyMode = revertIdempotencyModeLegacy
 	pausedRepo := &pausedTransactionUpdateRepository{
 		Repository: infra.handler.Command.TransactionRepo,
@@ -1749,6 +1777,12 @@ func TestIntegration_TransactionPendingUpdateSerializesCommitAcrossFreezeActivat
 	require.NoError(t, infra.revertFreeze.MarkPhaseZeroDrained(ctx))
 	infra.handler.RevertIdempotencyMode = revertIdempotencyModeFinal
 	require.NoError(t, infra.revertFreeze.Finalize(ctx))
+	finalConnection := redistestutil.CreateConnection(t, infra.redisContainer.Addr)
+	finalGuard := transactionredis.NewRevertUpdateFreezeGuard(finalConnection,
+		transactionredis.RevertUpdateFreezeFinalized, integrationRedisDatasetGeneration)
+	infra.revertFreeze = finalGuard
+	infra.handler.RevertUpdateFreeze = finalGuard
+	infra.handler.Command.RevertRolloutLease = finalGuard
 	finalizedUpdate, err := infra.handler.updateTransaction(ctx, infra.orgID, infra.ledgerID, pendingID,
 		&transaction.UpdateTransactionInput{Description: "approved updates restored immediately"})
 	require.NoError(t, err)
@@ -1998,7 +2032,7 @@ func TestIntegration_TransactionPendingUpdateSerializesBackupConsumerPromotion(t
 	pendingID := uuid.MustParse(pending["id"].(string))
 	drainBalanceSync(t, ctx, infra.handler.Command, infra.redisRepo, infra.orgID, infra.ledgerID)
 
-	require.NoError(t, infra.redisContainer.Client.Del(ctx, transactionredis.RevertUpdateFreezeKey).Err())
+	prepareRevertUpdateFreeze(t, infra)
 	infra.handler.RevertIdempotencyMode = revertIdempotencyModeLegacy
 	pausedRepo := &pausedTransactionUpdateRepository{
 		Repository: infra.handler.Command.TransactionRepo,
@@ -2111,8 +2145,7 @@ func TestIntegration_TransactionPhaseZeroRevertLeaseBlocksDrainUntilRequestCompl
 	originID := uuid.MustParse(origin["id"].(string))
 	drainBalanceSync(t, ctx, infra.handler.Command, infra.redisRepo, infra.orgID, infra.ledgerID)
 
-	require.NoError(t, infra.redisContainer.Client.Del(ctx, transactionredis.RevertUpdateFreezeKey).Err())
-	require.NoError(t, infra.revertFreeze.Activate(ctx))
+	activateRevertUpdateFreeze(t, infra)
 	infra.handler.RevertIdempotencyMode = revertIdempotencyModeLegacy
 	pausedRepo := &pausedLegacyRevertBalanceRepository{
 		RedisRepository: infra.redisRepo,
@@ -2158,8 +2191,7 @@ func TestIntegration_TransactionPhaseZeroDrainWaitsForLegacyReplayPublication(t 
 	originID := uuid.MustParse(origin["id"].(string))
 	drainBalanceSync(t, ctx, infra.handler.Command, infra.redisRepo, infra.orgID, infra.ledgerID)
 
-	require.NoError(t, infra.redisContainer.Client.Del(ctx, transactionredis.RevertUpdateFreezeKey).Err())
-	require.NoError(t, infra.revertFreeze.Activate(ctx))
+	activateRevertUpdateFreeze(t, infra)
 	infra.handler.RevertIdempotencyMode = revertIdempotencyModeLegacy
 	pausedRepo := &pausedLegacyReplayRepository{
 		RedisRepository: infra.redisRepo,
@@ -2222,8 +2254,7 @@ func TestIntegration_TransactionBridgeRevertLeaseBlocksFinalizationUntilRequestC
 	originID := uuid.MustParse(origin["id"].(string))
 	drainBalanceSync(t, ctx, infra.handler.Command, infra.redisRepo, infra.orgID, infra.ledgerID)
 
-	require.NoError(t, infra.redisContainer.Client.Del(ctx, transactionredis.RevertUpdateFreezeKey).Err())
-	require.NoError(t, infra.revertFreeze.Activate(ctx))
+	activateRevertUpdateFreeze(t, infra)
 	infra.handler.RevertIdempotencyMode = revertIdempotencyModeBridge
 	pausedRepo := &pausedFencedBalanceRepository{
 		RedisRepository: infra.redisRepo,
@@ -2423,8 +2454,10 @@ func TestIntegration_TransactionV2Revert_FinalRecoversBridgeCrashBeforeLuaThenMo
 	legacyOwner := staleReverseID.String()
 	rolloutMode := "bridge"
 	rolloutToken := "bridge-crash-token"
+	redisGeneration, err := infra.revertFreeze.FinancialDatasetGeneration(ctx)
+	require.NoError(t, err)
 	claim, acquired, err := infra.handler.Command.ClaimRevert(ctx, infra.orgID, infra.ledgerID, originID,
-		staleReverseID, &legacyKey, &legacyOwner, &rolloutMode, &rolloutToken)
+		staleReverseID, &legacyKey, &legacyOwner, &rolloutMode, &rolloutToken, &redisGeneration)
 	require.NoError(t, err)
 	require.True(t, acquired)
 	originKey := originRevertIdempotencyKey(claim)
@@ -2440,9 +2473,11 @@ func TestIntegration_TransactionV2Revert_FinalRecoversBridgeCrashBeforeLuaThenMo
 		ParentTransactionID: &originID,
 		OrganizationID:      infra.orgID,
 		LedgerID:            infra.ledgerID,
+		TransactionStatus:   cn.CREATED,
 		Action:              cn.ActionRevert,
 		AttemptOwner:        staleReverseID.String(),
 		ExpectedOutcome:     mmodel.TransactionOutcomeCommitted,
+		RedisGeneration:     redisGeneration,
 	})
 	require.NoError(t, err)
 	staleBackupKey := utils.TransactionInternalKey(infra.orgID, infra.ledgerID, staleReverseID.String())
@@ -2463,7 +2498,8 @@ func TestIntegration_TransactionV2Revert_FinalRecoversBridgeCrashBeforeLuaThenMo
 		"the test must prove final recovery cannot recalculate the bridge fence from mutable payload")
 
 	infra.handler.RevertIdempotencyMode = revertIdempotencyModeFinal
-	reverse := decodeTxResponse(t, postTransaction(t, v2App, v2RevertURL(infra.orgID, infra.ledgerID, originID), "", ""), nethttp.StatusCreated)
+	reverse := decodeTxResponse(t, postTransaction(t, v2App,
+		v2RevertURL(infra.orgID, infra.ledgerID, originID), "", ""), nethttp.StatusCreated)
 	reverseID := uuid.MustParse(reverse["id"].(string))
 	assert.NotEqual(t, staleReverseID, reverseID, "recovery releases the abandoned reservation before retrying")
 	drainBalanceSync(t, ctx, infra.handler.Command, infra.redisRepo, infra.orgID, infra.ledgerID)
@@ -2499,8 +2535,10 @@ func TestIntegration_TransactionV2Revert_CrashBeforeSeedRecoversThenMovesOnce(t 
 	drainBalanceSync(t, ctx, infra.handler.Command, infra.redisRepo, infra.orgID, infra.ledgerID)
 
 	staleReverseID := uuid.New()
+	redisGeneration, err := infra.revertFreeze.FinancialDatasetGeneration(ctx)
+	require.NoError(t, err)
 	claim, acquired, err := infra.handler.Command.ClaimRevert(ctx, infra.orgID, infra.ledgerID, originID,
-		staleReverseID, nil, nil, nil, nil)
+		staleReverseID, nil, nil, nil, nil, &redisGeneration)
 	require.NoError(t, err)
 	require.True(t, acquired)
 	originKey := originRevertIdempotencyKey(claim)
@@ -2513,7 +2551,8 @@ func TestIntegration_TransactionV2Revert_CrashBeforeSeedRecoversThenMovesOnce(t 
 
 	// No execution lease and no backup remain after the simulated crash. On
 	// Redis primary, that absence proves balance Lua was never dispatched.
-	reverse := decodeTxResponse(t, postTransaction(t, v2App, v2RevertURL(infra.orgID, infra.ledgerID, originID), "", ""), nethttp.StatusCreated)
+	reverse := decodeTxResponse(t, postTransaction(t, v2App,
+		v2RevertURL(infra.orgID, infra.ledgerID, originID), "", ""), nethttp.StatusCreated)
 	reverseID := uuid.MustParse(reverse["id"].(string))
 	assert.NotEqual(t, staleReverseID, reverseID)
 	drainBalanceSync(t, ctx, infra.handler.Command, infra.redisRepo, infra.orgID, infra.ledgerID)
@@ -2558,7 +2597,7 @@ func TestIntegration_TransactionPhaseZeroCrashBeforeSeedHasDurableRecoverableH1O
 	originID := uuid.MustParse(origin["id"].(string))
 	drainBalanceSync(t, ctx, infra.handler.Command, infra.redisRepo, infra.orgID, infra.ledgerID)
 
-	require.NoError(t, infra.redisContainer.Client.Del(ctx, transactionredis.RevertUpdateFreezeKey).Err())
+	prepareRevertUpdateFreeze(t, infra)
 	infra.handler.RevertIdempotencyMode = revertIdempotencyModeLegacy
 	originalLedgerRepo := infra.handler.Query.LedgerRepo
 	crashingLedgerRepo := &panicOnceLedgerSettingsRepository{Repository: originalLedgerRepo}
@@ -2686,10 +2725,10 @@ type pausedRevertClaimRepository struct {
 func (r *pausedRevertClaimRepository) Claim(
 	ctx context.Context,
 	organizationID, ledgerID, originID, reverseID uuid.UUID,
-	legacyFenceKey, legacyFenceOwner, rolloutMode, rolloutToken *string,
+	legacyFenceKey, legacyFenceOwner, rolloutMode, rolloutToken, redisGeneration *string,
 ) (*revertclaim.Claim, bool, error) {
 	claim, acquired, err := r.Repository.Claim(ctx, organizationID, ledgerID, originID, reverseID,
-		legacyFenceKey, legacyFenceOwner, rolloutMode, rolloutToken)
+		legacyFenceKey, legacyFenceOwner, rolloutMode, rolloutToken, redisGeneration)
 	if err == nil && acquired {
 		r.claimed <- claim
 		<-r.release

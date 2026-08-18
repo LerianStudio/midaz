@@ -1351,6 +1351,7 @@ func (handler *TransactionHandler) executeCreateTransaction(ctx context.Context,
 			ExecutionAttempt:   params.ExecutionAttempt,
 			RevertRolloutMode:  params.RevertRolloutMode,
 			RevertRolloutToken: params.RevertRolloutToken,
+			RedisGeneration:    params.RedisGeneration,
 		})
 	if err != nil {
 		if params.RevertExecution != nil && errors.Is(err, constant.ErrTransactionBackupCacheFailed) {
@@ -1595,6 +1596,7 @@ func (handler *TransactionHandler) executeCreateTransaction(ctx context.Context,
 	writeTran := *tran
 	writeTran.RevertRolloutMode = params.RevertRolloutMode
 	writeTran.RevertRolloutToken = params.RevertRolloutToken
+	writeTran.RedisGeneration = params.RedisGeneration
 
 	if transactionStatus == constant.CREATED {
 		approved := constant.APPROVED

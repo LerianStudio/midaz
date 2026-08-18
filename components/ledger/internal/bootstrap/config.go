@@ -154,6 +154,7 @@ type Config struct {
 	RouteTransactionalReadsToPrimary bool   `env:"DB_TRANSACTION_ROUTE_TX_READS_TO_PRIMARY"`
 	RevertIdempotencyMode            string `env:"REVERT_IDEMPOTENCY_MODE" default:"legacy"`
 	RevertRolloutTarget              string `env:"REVERT_ROLLOUT_TARGET"`
+	RevertRedisDatasetGeneration     string `env:"REVERT_REDIS_DATASET_GENERATION"`
 
 	// --- Onboarding MongoDB fields (MONGO_ONBOARDING_* env tags) ---
 	OnbPrefixedMongoURI          string `env:"MONGO_ONBOARDING_URI"`
@@ -379,7 +380,8 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 	}
 
 	applyConfigDefaults(cfg)
-	if err := validateRevertRolloutConfiguration(cfg.RevertIdempotencyMode, cfg.RevertRolloutTarget); err != nil {
+	if err := validateRevertRolloutConfiguration(cfg.RevertIdempotencyMode, cfg.RevertRolloutTarget,
+		cfg.RevertRedisDatasetGeneration); err != nil {
 		return nil, err
 	}
 
@@ -613,7 +615,8 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 
 	addCleanup(func() { _ = redisConnection.Close() })
 
-	revertRolloutGuard := txRedis.NewRevertUpdateFreezeGuard(redisConnection, cfg.RevertRolloutTarget)
+	revertRolloutGuard := txRedis.NewRevertUpdateFreezeGuard(redisConnection, cfg.RevertRolloutTarget,
+		cfg.RevertRedisDatasetGeneration)
 	transitionCtx, cancelTransition := context.WithTimeout(context.Background(), 5*time.Second)
 	err = applyRevertRolloutTarget(transitionCtx, revertRolloutGuard, cfg.RevertRolloutTarget)
 	cancelTransition()
@@ -621,6 +624,11 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 		doCleanup()
 
 		return nil, fmt.Errorf("apply revert rollout target: %w", err)
+	}
+	if strings.EqualFold(strings.TrimSpace(cfg.RevertRolloutTarget), txRedis.RevertUpdateFreezeInitialize) {
+		doCleanup()
+
+		return &Service{Logger: logger, RolloutInitializationOnly: true}, nil
 	}
 
 	onbRedisRepo, err := onbRedis.NewConsumerRedis(redisConnection)
@@ -857,6 +865,7 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 		TransactionRepo:         txnPG.transactionRepo,
 		RevertClaimRepo:         txnPG.revertClaimRepo,
 		RevertRolloutLease:      revertRolloutGuard,
+		RevertIdempotencyMode:   cfg.RevertIdempotencyMode,
 		OperationRepo:           txnPG.operationRepo,
 		AssetRateRepo:           txnPG.assetRateRepo,
 		BalanceRepo:             txnPG.balanceRepo,

@@ -51,6 +51,14 @@ func TestService_Run_LaunchesAllWorkers(t *testing.T) {
 	assert.NotNil(t, service.Telemetry, "Telemetry should not be nil")
 }
 
+func TestService_RolloutInitializerStartsNoServingProcess(t *testing.T) {
+	t.Parallel()
+
+	service := &Service{RolloutInitializationOnly: true, Logger: newTestLogger()}
+	assert.Empty(t, service.launcherApps())
+	require.NotPanics(t, service.Run)
+}
+
 // TestService_CompositionContract verifies the composition contract
 // of the unified service struct.
 func TestService_CompositionContract(t *testing.T) {

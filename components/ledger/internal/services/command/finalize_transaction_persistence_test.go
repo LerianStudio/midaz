@@ -105,7 +105,7 @@ func TestFinalizeDurableTransactionPersistence_RetryAfterLostCleanupUsesOneTermi
 				return &persisted, nil
 			})
 		claimRepo.EXPECT().Claim(gomock.Any(), organizationID, ledgerID, originID, reverseID,
-			nil, nil, nil, nil).
+			nil, nil, nil, nil, nil).
 			Return(claim, false, nil)
 	}
 
@@ -162,6 +162,52 @@ func TestCompleteOwnedReplay_LostResponseCannotAcceptReplayWhileOwnerSurvives(t 
 	require.ErrorContains(t, err, "owner remains")
 }
 
+func TestCompleteDurableRevertReplay_FinalPreservesForeignLegacyFence(t *testing.T) {
+	t.Parallel()
+
+	ctrl := gomock.NewController(t)
+	redisRepo := transactionredis.NewMockRedisRepository(ctrl)
+	organizationID := uuid.New()
+	ledgerID := uuid.New()
+	originID := uuid.New()
+	reverseID := uuid.New()
+	foreignOriginID := uuid.NewString()
+	foreignReverseID := uuid.NewString()
+	originString := originID.String()
+	legacyKey := utils.IdempotencyInternalKey(organizationID, ledgerID, "payload-hash-collision")
+	legacyOwner := reverseID.String()
+	claim := &revertclaim.Claim{
+		OrganizationID: organizationID, LedgerID: ledgerID, OriginTransactionID: originID,
+		ReverseTransactionID: reverseID, LegacyFenceKey: &legacyKey, LegacyFenceOwner: &legacyOwner,
+	}
+	replay := &transaction.Transaction{
+		ID: reverseID.String(), ParentTransactionID: &originString,
+		Operations: []*operation.Operation{{ID: uuid.NewString()}},
+	}
+	foreignReplay := &transaction.Transaction{
+		ID: foreignReverseID, ParentTransactionID: &foreignOriginID,
+		Operations: []*operation.Operation{{ID: uuid.NewString()}},
+	}
+	foreignRaw, err := json.Marshal(foreignReplay)
+	require.NoError(t, err)
+	originKey := utils.IdempotencyInternalKey(organizationID, ledgerID,
+		libCommons.HashSHA256(utils.RevertIdempotencyHashSource(originID)))
+
+	redisRepo.EXPECT().CompleteOwnedKey(gomock.Any(), originKey, reverseID.String(), gomock.Any(), gomock.Any()).
+		Return(true, nil)
+	redisRepo.EXPECT().CompleteOwnedKey(gomock.Any(), legacyKey, reverseID.String(), gomock.Any(), gomock.Any()).
+		Return(false, nil)
+	redisRepo.EXPECT().MGet(gomock.Any(), []string{legacyKey, legacyKey + ":owner"}).
+		Return(map[string]string{legacyKey: string(foreignRaw), legacyKey + ":owner": foreignReverseID}, nil).
+		Times(2)
+
+	uc := &UseCase{
+		TransactionRedisRepo:  redisRepo,
+		RevertIdempotencyMode: "final",
+	}
+	require.NoError(t, uc.completeDurableRevertReplay(context.Background(), originID, claim, replay))
+}
+
 func TestFinalizeDurableTransactionPersistence_RolloutStatusComesFromPrimary(t *testing.T) {
 	t.Parallel()
 
@@ -195,6 +241,7 @@ func TestFinalizeDurableTransactionPersistence_RolloutStatusComesFromPrimary(t *
 	legacyOwner := reverseID.String()
 	rolloutMode := "bridge"
 	rolloutToken := "phase-zero-request"
+	redisGeneration := "financial-dataset-generation"
 	claim := &revertclaim.Claim{
 		OrganizationID:       organizationID,
 		LedgerID:             ledgerID,
@@ -204,6 +251,7 @@ func TestFinalizeDurableTransactionPersistence_RolloutStatusComesFromPrimary(t *
 		LegacyFenceOwner:     &legacyOwner,
 		RolloutMode:          &rolloutMode,
 		RolloutToken:         &rolloutToken,
+		RedisGeneration:      &redisGeneration,
 	}
 	payload := transaction.TransactionProcessingPayload{
 		Transaction:        replay,
@@ -213,13 +261,14 @@ func TestFinalizeDurableTransactionPersistence_RolloutStatusComesFromPrimary(t *
 		ExpectedOutcome:    mmodel.TransactionOutcomeCommitted,
 		RevertRolloutMode:  rolloutMode,
 		RevertRolloutToken: rolloutToken,
+		RedisGeneration:    redisGeneration,
 	}
 	originKey := utils.IdempotencyInternalKey(organizationID, ledgerID,
 		libCommons.HashSHA256(utils.RevertIdempotencyHashSource(originID)))
 
 	transactionRepo.EXPECT().FindWithOperations(gomock.Any(), organizationID, ledgerID, reverseID).Return(&persisted, nil)
 	claimRepo.EXPECT().Claim(gomock.Any(), organizationID, ledgerID, originID, reverseID,
-		&legacyKey, &legacyOwner, &rolloutMode, &rolloutToken).Return(claim, true, nil)
+		&legacyKey, &legacyOwner, &rolloutMode, &rolloutToken, &redisGeneration).Return(claim, true, nil)
 	claimRepo.EXPECT().Transition(gomock.Any(), organizationID, ledgerID, originID, reverseID, revertclaim.StateCompleted, nil).Return(nil)
 	redisRepo.EXPECT().CompleteOwnedKey(gomock.Any(), originKey, reverseID.String(), gomock.Any(), gomock.Any()).Return(true, nil)
 	redisRepo.EXPECT().CompleteOwnedKey(gomock.Any(), legacyKey, reverseID.String(), gomock.Any(), gomock.Any()).Return(true, nil)
@@ -277,7 +326,7 @@ func TestFinalizeDurableTransactionPersistence_RetryAfterClaimBeforeReplay(t *te
 	for range 2 {
 		transactionRepo.EXPECT().FindWithOperations(gomock.Any(), organizationID, ledgerID, reverseID).Return(&persisted, nil)
 		claimRepo.EXPECT().Claim(gomock.Any(), organizationID, ledgerID, originID, reverseID,
-			nil, nil, nil, nil).
+			nil, nil, nil, nil, nil).
 			Return(claim, false, nil)
 		claimRepo.EXPECT().Transition(gomock.Any(), organizationID, ledgerID, originID, reverseID,
 			revertclaim.StateCompleted, nil).Return(nil)
@@ -332,21 +381,23 @@ func TestFinalizeDurableTransactionPersistence_RejectsDifferentPersistedRolloutG
 	legacyOwner := reverseID.String()
 	persistedMode := "legacy"
 	persistedToken := "different-generation"
+	redisGeneration := "financial-dataset-generation"
 	claim := &revertclaim.Claim{
 		OrganizationID: organizationID, LedgerID: ledgerID, OriginTransactionID: originID,
 		ReverseTransactionID: reverseID, LegacyFenceKey: &legacyKey, LegacyFenceOwner: &legacyOwner,
-		RolloutMode: &persistedMode, RolloutToken: &persistedToken,
+		RolloutMode: &persistedMode, RolloutToken: &persistedToken, RedisGeneration: &redisGeneration,
 	}
 	payload := transaction.TransactionProcessingPayload{
 		Transaction: expected, Validate: &mtransaction.Responses{}, Input: &input,
 		AttemptOwner: reverseID.String(), ExpectedOutcome: mmodel.TransactionOutcomeCommitted,
 		RevertRolloutMode: "bridge", RevertRolloutToken: "incoming-generation",
+		RedisGeneration: redisGeneration,
 	}
 
 	transactionRepo.EXPECT().FindWithOperations(gomock.Any(), organizationID, ledgerID, reverseID).
 		Return(&persisted, nil)
 	claimRepo.EXPECT().Claim(gomock.Any(), organizationID, ledgerID, originID, reverseID,
-		&legacyKey, &legacyOwner, ptrString("bridge"), ptrString("incoming-generation")).
+		&legacyKey, &legacyOwner, ptrString("bridge"), ptrString("incoming-generation"), &redisGeneration).
 		Return(claim, false, nil)
 
 	uc := &UseCase{TransactionRepo: transactionRepo, RevertClaimRepo: claimRepo, TransactionRedisRepo: redisRepo}

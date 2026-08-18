@@ -59,6 +59,8 @@ import (
 	redistestutil "github.com/LerianStudio/midaz/v4/tests/utils/redis"
 )
 
+const integrationRedisDatasetGeneration = "645439df-1837-421e-9607-f60b091542c9"
+
 // testInfra holds all test infrastructure components.
 type testInfra struct {
 	pgContainer    *postgrestestutil.ContainerResult
@@ -120,10 +122,15 @@ func setupTestInfra(t *testing.T) *testInfra {
 	metadataRepo := mongodb.NewMetadataMongoDBRepository(mongoConn)
 	redisRepo, err := redis.NewConsumerRedis(redisConn)
 	require.NoError(t, err, "failed to create Redis repository")
-	revertFreeze := redis.NewRevertUpdateFreezeGuard(redisConn)
+	initializer := redis.NewRevertUpdateFreezeGuard(redisConn, redis.RevertUpdateFreezeInitialize,
+		integrationRedisDatasetGeneration)
 	require.Eventually(t, func() bool {
-		return revertFreeze.FinancialDurability(context.Background()) == nil
+		return initializer.FinancialDurability(context.Background()) == nil
 	}, 10*time.Second, 50*time.Millisecond, "financial Redis test fixture never became durable")
+	require.NoError(t, initializer.InitializeFinancialDatasetGeneration(context.Background()),
+		"failed to initialize financial Redis dataset generation")
+	revertFreeze := redis.NewRevertUpdateFreezeGuard(redisConn, redis.RevertUpdateFreezeFinalized,
+		integrationRedisDatasetGeneration)
 	require.NoError(t, revertFreeze.Activate(context.Background()), "failed to initialize active revert rollout barrier")
 	require.NoError(t, revertFreeze.MarkPhaseZeroDrained(context.Background()), "failed to initialize drained revert rollout barrier")
 	require.NoError(t, revertFreeze.Finalize(context.Background()), "failed to initialize finalized revert rollout barrier")
@@ -151,6 +158,7 @@ func setupTestInfra(t *testing.T) *testInfra {
 		BalanceRepo:             balanceRepo,
 		TransactionMetadataRepo: metadataRepo,
 		TransactionRedisRepo:    redisRepo,
+		RevertIdempotencyMode:   revertIdempotencyModeFinal,
 	}
 
 	// Create handler
@@ -733,6 +741,7 @@ func setupAsyncTestInfra(t *testing.T) *testAsyncInfra {
 		TransactionMetadataRepo: metadataRepo,
 		TransactionRedisRepo:    redisRepo,
 		RabbitMQRepo:            producerRepo,
+		RevertIdempotencyMode:   revertIdempotencyModeFinal,
 	}
 
 	// Create handler

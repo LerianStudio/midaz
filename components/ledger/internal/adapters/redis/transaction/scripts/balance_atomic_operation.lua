@@ -258,11 +258,18 @@ local function main()
     -- immutable outcome key in the same {transactions} slot. A replay of the
     -- same outcome returns the exact original snapshots without moving funds;
     -- an opposite terminal outcome conflicts before the first balance write.
-    if #KEYS == 6 then
+    if #KEYS == 6 or #KEYS == 7 then
         attemptOwner = ARGV[1]
         desiredOutcome = ARGV[2]
         transactionIdentity = ARGV[3]
         argStart = 4
+
+        if #KEYS == 7 then
+            if redis.call("GET", KEYS[7]) ~= ARGV[4] then
+                return redis.error_reply("FINANCIAL_DATASET_GENERATION_MISMATCH")
+            end
+            argStart = 5
+        end
 
         local existingRaw = redis.call("GET", KEYS[6])
         if existingRaw then
@@ -650,7 +657,7 @@ local function main()
     if #returnBalances == 0 then
         local emptyArray = cjson.decode("[]")
         updateTransactionHash(transactionBackupQueue, transactionKey, emptyArray, emptyArray)
-        if #KEYS == 6 then
+        if #KEYS == 6 or #KEYS == 7 then
             redis.call("SET", KEYS[6], cjson.encode({
                 identity = transactionIdentity,
                 outcome = desiredOutcome,
@@ -665,7 +672,7 @@ local function main()
 
     updateTransactionHash(transactionBackupQueue, transactionKey, returnBalances, returnBalancesAfter)
 
-    if #KEYS == 6 then
+    if #KEYS == 6 or #KEYS == 7 then
         redis.call("SET", KEYS[6], cjson.encode({
             identity = transactionIdentity,
             outcome = desiredOutcome,

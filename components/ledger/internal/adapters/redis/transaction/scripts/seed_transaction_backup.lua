@@ -4,6 +4,9 @@ end
 if redis.call("EXISTS", KEYS[5]) == 1 then
     return redis.error_reply("TRANSACTION_OUTCOME_ALREADY_EXISTS")
 end
+if #KEYS == 6 and redis.call("GET", KEYS[6]) ~= ARGV[5] then
+    return redis.error_reply("FINANCIAL_DATASET_GENERATION_MISMATCH")
+end
 
 local existing = redis.call("HGET", KEYS[1], KEYS[2])
 if existing then

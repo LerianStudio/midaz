@@ -95,6 +95,7 @@ type UseCase struct {
 	RevertRolloutLease interface {
 		CompleteRevert(context.Context, string, string) error
 	}
+	RevertIdempotencyMode string
 
 	// OperationRepo provides an abstraction on top of the operation data source.
 	OperationRepo operation.Repository

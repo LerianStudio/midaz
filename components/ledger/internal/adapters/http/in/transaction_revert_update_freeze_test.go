@@ -33,6 +33,8 @@ type revertUpdateFreezeStub struct {
 	completedTokens  []string
 	terminalComplete bool
 	terminalErr      error
+	redisGeneration  string
+	durabilityErr    error
 }
 
 func TestActiveRevertIdempotencyMode_ZeroValuePreservesReleasedAlgorithm(t *testing.T) {
@@ -52,6 +54,21 @@ func (s *revertUpdateFreezeStub) ReadyForMode(context.Context, string) (bool, er
 	s.readyRead++
 
 	return s.ready, s.err
+}
+
+func (s *revertUpdateFreezeStub) FinancialDurability(context.Context) error {
+	return s.durabilityErr
+}
+
+func (s *revertUpdateFreezeStub) FinancialDatasetGeneration(context.Context) (string, error) {
+	if s.err != nil {
+		return "", s.err
+	}
+	if s.redisGeneration == "" {
+		return "test-generation", nil
+	}
+
+	return s.redisGeneration, nil
 }
 
 func (s *revertUpdateFreezeStub) AcquireApprovedUpdate(context.Context, string, string) (bool, bool, bool, error) {
@@ -94,11 +111,11 @@ func TestAcquireRevertRolloutRequest_ReusesOriginTokenAfterCrash(t *testing.T) {
 	ledgerID := uuid.New()
 	originID := uuid.New()
 
-	_, firstToken, _, err := handler.acquireRevertRolloutRequest(context.Background(), organizationID, ledgerID, originID)
+	_, firstToken, _, _, err := handler.acquireRevertRolloutRequest(context.Background(), organizationID, ledgerID, originID)
 	require.NoError(t, err)
-	_, retryToken, _, err := handler.acquireRevertRolloutRequest(context.Background(), organizationID, ledgerID, originID)
+	_, retryToken, _, _, err := handler.acquireRevertRolloutRequest(context.Background(), organizationID, ledgerID, originID)
 	require.NoError(t, err)
-	_, otherToken, _, err := handler.acquireRevertRolloutRequest(context.Background(), organizationID, ledgerID, uuid.New())
+	_, otherToken, _, _, err := handler.acquireRevertRolloutRequest(context.Background(), organizationID, ledgerID, uuid.New())
 	require.NoError(t, err)
 
 	assert.Equal(t, firstToken, retryToken,
@@ -151,7 +168,7 @@ func TestAcquireRolloutRequest_AmbiguousAdmissionPreservesSharedRevertOrigin(t *
 		{
 			name: "revert",
 			invoke: func(handler *TransactionHandler) error {
-				_, _, _, err := handler.acquireRevertRolloutRequest(context.Background(), uuid.New(), uuid.New(), uuid.New())
+				_, _, _, _, err := handler.acquireRevertRolloutRequest(context.Background(), uuid.New(), uuid.New(), uuid.New())
 
 				return err
 			},
@@ -160,7 +177,7 @@ func TestAcquireRolloutRequest_AmbiguousAdmissionPreservesSharedRevertOrigin(t *
 		{
 			name: "revert admission remains durable when its response is ambiguous",
 			invoke: func(handler *TransactionHandler) error {
-				_, _, _, err := handler.acquireRevertRolloutRequest(context.Background(), uuid.New(), uuid.New(), uuid.New())
+				_, _, _, _, err := handler.acquireRevertRolloutRequest(context.Background(), uuid.New(), uuid.New(), uuid.New())
 
 				return err
 			},

@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	libCommons "github.com/LerianStudio/lib-commons/v6/commons"
@@ -47,7 +48,8 @@ func (uc *UseCase) FinalizeDurableTransactionPersistence(
 	validRolloutMode := payload.RevertRolloutMode == "legacy" || payload.RevertRolloutMode == "bridge"
 	if (payload.RevertRolloutToken == "") != (payload.RevertRolloutMode == "") ||
 		(payload.RevertRolloutToken != "" && (!validRolloutMode || !reverse || payload.Input == nil ||
-			payload.Input.IsEmpty() || !outcomeBacked)) {
+			payload.Input.IsEmpty() || !outcomeBacked || payload.RedisGeneration == "")) ||
+		(payload.RedisGeneration != "" && (!reverse || !outcomeBacked)) {
 		return true, fmt.Errorf("revert rollout handoff is incomplete")
 	}
 	if !outcomeBacked && !reverse {
@@ -77,11 +79,12 @@ func (uc *UseCase) FinalizeDurableTransactionPersistence(
 
 	if outcomeBacked {
 		attempt := mmodel.BalanceExecutionAttempt{
-			ExecutionKey: utils.TransactionBalanceExecutionKey(organizationID, ledgerID, transactionID),
-			OutcomeKey:   utils.TransactionBalanceOutcomeKey(organizationID, ledgerID, transactionID),
-			Owner:        payload.AttemptOwner,
-			Outcome:      payload.ExpectedOutcome,
-			Identity:     transactionID,
+			ExecutionKey:    utils.TransactionBalanceExecutionKey(organizationID, ledgerID, transactionID),
+			OutcomeKey:      utils.TransactionBalanceOutcomeKey(organizationID, ledgerID, transactionID),
+			Owner:           payload.AttemptOwner,
+			Outcome:         payload.ExpectedOutcome,
+			Identity:        transactionID,
+			RedisGeneration: payload.RedisGeneration,
 		}
 		if err := uc.TransactionRedisRepo.FinalizeTransactionPersistence(ctx,
 			organizationID, ledgerID, transactionID, attempt, transactionOperationIDs(payload.Transaction)); err != nil {
@@ -224,7 +227,8 @@ func (uc *UseCase) finalizeDurableRevertClaim(
 	}
 
 	claim, _, err := uc.ClaimRevert(ctx, organizationID, ledgerID, originID, reverseID,
-		legacyFenceKey, legacyFenceOwner, optionalString(payload.RevertRolloutMode), optionalString(payload.RevertRolloutToken))
+		legacyFenceKey, legacyFenceOwner, optionalString(payload.RevertRolloutMode), optionalString(payload.RevertRolloutToken),
+		optionalString(payload.RedisGeneration))
 	if err != nil {
 		return nil, fmt.Errorf("adopt durable revert claim: %w", err)
 	}
@@ -234,6 +238,10 @@ func (uc *UseCase) finalizeDurableRevertClaim(
 	if payload.RevertRolloutToken != "" && (claim.RolloutMode == nil || claim.RolloutToken == nil ||
 		*claim.RolloutMode != payload.RevertRolloutMode || *claim.RolloutToken != payload.RevertRolloutToken) {
 		return nil, fmt.Errorf("durable revert rollout generation mismatch")
+	}
+	if payload.RedisGeneration != "" && (claim.RedisGeneration == nil ||
+		*claim.RedisGeneration != payload.RedisGeneration) {
+		return nil, fmt.Errorf("durable revert Redis generation mismatch")
 	}
 
 	if err := uc.MarkRevertClaim(ctx, organizationID, ledgerID, originID, reverseID,
@@ -283,12 +291,33 @@ func (uc *UseCase) completeDurableRevertReplay(
 			}
 			err = uc.completeOwnedReplay(ctx, *claim.LegacyFenceKey, *claim.LegacyFenceOwner, encoded, replay)
 		}
+		if err != nil && strings.EqualFold(strings.TrimSpace(uc.RevertIdempotencyMode), "final") {
+			values, readErr := uc.TransactionRedisRepo.MGet(ctx,
+				[]string{*claim.LegacyFenceKey, *claim.LegacyFenceKey + ":owner"})
+			if readErr == nil {
+				owner := values[*claim.LegacyFenceKey+":owner"]
+				value := values[*claim.LegacyFenceKey]
+				foreignOwner := owner != "" && owner != claim.ReverseTransactionID.String()
+				foreignReplay := value != "" && !replayJSONIdentityMatches(value, replay)
+				if foreignOwner || foreignReplay {
+					// H1 is a read-only compatibility fence in final mode. Preserve
+					// another origin's value and complete only this claim's origin replay.
+					err = nil
+				}
+			}
+		}
 		if err != nil {
 			return fmt.Errorf("complete durable legacy replay: %w", err)
 		}
 	}
 
 	return nil
+}
+
+func replayJSONIdentityMatches(raw string, expected *transaction.Transaction) bool {
+	existing := &transaction.Transaction{}
+
+	return json.Unmarshal([]byte(raw), existing) == nil && replayIdentityMatches(existing, expected)
 }
 
 func (uc *UseCase) completeUnownedReplay(

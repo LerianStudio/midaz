@@ -53,6 +53,7 @@ func TestTransactionBackupDeletionRequiresAtomicProof(t *testing.T) {
 		"finalize_transaction_persistence.lua":        {"attempt_owner", "expected_outcome", "HDEL"},
 		"remove_transaction_backup_if_status.lua":     {"attempt_owner", "expected_outcome", "balancesAfter", "HDEL"},
 		"remove_transaction_backup_if_value.lua":      {"raw ~= ARGV[1]", "HDEL"},
+		"release_pre_movement_revert.lua":             {"KEYS[6]", "ARGV[1]", "attempt_owner", "HDEL"},
 	}
 	entries, err := os.ReadDir(scriptDirectory)
 	require.NoError(t, err)
@@ -182,8 +183,8 @@ func TestRevertRecoveryNeverBlindDeletesOriginFence(t *testing.T) {
 	recoveryCalls := callsInFunction(t, claimSource, "recoverProvenPreMovementRevert")
 	assert.Empty(t, recoveryCalls["Del"], "a stale RECOVERING owner must never blind-delete a successor's origin barrier")
 	require.Len(t, recoveryCalls["releaseOwnedRevertOriginFence"], 1)
-	require.Len(t, recoveryCalls["RemoveMessageFromQueueIfStatus"], 1)
-	assert.Less(t, recoveryCalls["RemoveMessageFromQueueIfStatus"][0], recoveryCalls["releaseOwnedRevertOriginFence"][0],
+	require.Len(t, recoveryCalls["ReleaseProvenPreMovementRevert"], 1)
+	assert.Less(t, recoveryCalls["ReleaseProvenPreMovementRevert"][0], recoveryCalls["releaseOwnedRevertOriginFence"][0],
 		"recovery must confirm the reverse seed is removed before releasing the shared origin barrier")
 	releaseCalls := callsInFunction(t, claimSource, "releaseOwnedRevertOriginFence")
 	require.Len(t, releaseCalls["ReleaseOwnedKey"], 1)

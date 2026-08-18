@@ -1265,7 +1265,9 @@ func (r *TransactionPostgreSQLRepository) updateWithExecutor(ctx context.Context
 		args = append(args, constant.PENDING)
 	}
 
-	record.UpdatedAt = time.Now()
+	if transaction.UpdatedAt.IsZero() {
+		record.UpdatedAt = time.Now()
+	}
 
 	updates = append(updates, "updated_at = $"+strconv.Itoa(len(args)+1))
 

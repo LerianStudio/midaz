@@ -37,7 +37,7 @@ func TestCompleteRevertClaim_AdoptsOldBackupAndNeverOverwritesAnotherReverse(t *
 		}
 
 		repo.EXPECT().Claim(gomock.Any(), organizationID, ledgerID, originID, reverseID,
-			&legacyFenceKey, nil, nil, nil).Return(claim, true, nil)
+			&legacyFenceKey, nil, nil, nil, nil).Return(claim, true, nil)
 		repo.EXPECT().Transition(gomock.Any(), organizationID, ledgerID, originID, reverseID,
 			revertclaim.StateCompleted, nil).Return(nil)
 
@@ -65,7 +65,7 @@ func TestCompleteRevertClaim_AdoptsOldBackupAndNeverOverwritesAnotherReverse(t *
 		}
 
 		repo.EXPECT().Claim(gomock.Any(), organizationID, ledgerID, originID, backupReverseID,
-			nil, nil, nil, nil).Return(claim, false, nil)
+			nil, nil, nil, nil, nil).Return(claim, false, nil)
 
 		uc := &UseCase{RevertClaimRepo: repo}
 		err := uc.CompleteRevertClaim(context.Background(), organizationID, ledgerID, originID, backupReverseID, nil, nil)

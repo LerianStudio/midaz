@@ -383,6 +383,22 @@ func (mr *MockRedisRepositoryMockRecorder) ReleaseOwnedKey(ctx, key, owner any) 
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ReleaseOwnedKey", reflect.TypeOf((*MockRedisRepository)(nil).ReleaseOwnedKey), ctx, key, owner)
 }
 
+// ReleaseProvenPreMovementRevert mocks base method.
+func (m *MockRedisRepository) ReleaseProvenPreMovementRevert(ctx context.Context, organizationID, ledgerID, originID, transactionID uuid.UUID, expectedStatus string, attempt mmodel.BalanceExecutionAttempt) (bool, bool, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ReleaseProvenPreMovementRevert", ctx, organizationID, ledgerID, originID, transactionID, expectedStatus, attempt)
+	ret0, _ := ret[0].(bool)
+	ret1, _ := ret[1].(bool)
+	ret2, _ := ret[2].(error)
+	return ret0, ret1, ret2
+}
+
+// ReleaseProvenPreMovementRevert indicates an expected call of ReleaseProvenPreMovementRevert.
+func (mr *MockRedisRepositoryMockRecorder) ReleaseProvenPreMovementRevert(ctx, organizationID, ledgerID, originID, transactionID, expectedStatus, attempt any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ReleaseProvenPreMovementRevert", reflect.TypeOf((*MockRedisRepository)(nil).ReleaseProvenPreMovementRevert), ctx, organizationID, ledgerID, originID, transactionID, expectedStatus, attempt)
+}
+
 // ReleaseUnownedEmptyKey mocks base method.
 func (m *MockRedisRepository) ReleaseUnownedEmptyKey(ctx context.Context, key string) (bool, error) {
 	m.ctrl.T.Helper()
@@ -515,18 +531,19 @@ func (mr *MockRedisRepositoryMockRecorder) SetNX(ctx, key, value, ttl any) *gomo
 }
 
 // TransactionEconomicEvidenceExists mocks base method.
-func (m *MockRedisRepository) TransactionEconomicEvidenceExists(ctx context.Context, organizationID, ledgerID, transactionID uuid.UUID) (bool, error) {
+func (m *MockRedisRepository) TransactionEconomicEvidenceExists(ctx context.Context, organizationID, ledgerID, transactionID uuid.UUID, expectedRedisGeneration string) (bool, bool, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "TransactionEconomicEvidenceExists", ctx, organizationID, ledgerID, transactionID)
+	ret := m.ctrl.Call(m, "TransactionEconomicEvidenceExists", ctx, organizationID, ledgerID, transactionID, expectedRedisGeneration)
 	ret0, _ := ret[0].(bool)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
+	ret1, _ := ret[1].(bool)
+	ret2, _ := ret[2].(error)
+	return ret0, ret1, ret2
 }
 
 // TransactionEconomicEvidenceExists indicates an expected call of TransactionEconomicEvidenceExists.
-func (mr *MockRedisRepositoryMockRecorder) TransactionEconomicEvidenceExists(ctx, organizationID, ledgerID, transactionID any) *gomock.Call {
+func (mr *MockRedisRepositoryMockRecorder) TransactionEconomicEvidenceExists(ctx, organizationID, ledgerID, transactionID, expectedRedisGeneration any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "TransactionEconomicEvidenceExists", reflect.TypeOf((*MockRedisRepository)(nil).TransactionEconomicEvidenceExists), ctx, organizationID, ledgerID, transactionID)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "TransactionEconomicEvidenceExists", reflect.TypeOf((*MockRedisRepository)(nil).TransactionEconomicEvidenceExists), ctx, organizationID, ledgerID, transactionID, expectedRedisGeneration)
 }
 
 // UpdateBalanceCacheSettings mocks base method.

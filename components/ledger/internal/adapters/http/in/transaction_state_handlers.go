@@ -23,6 +23,7 @@ import (
 
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/revertclaim"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/transaction"
+	transactionRedis "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/redis/transaction"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services/command"
 	"github.com/LerianStudio/midaz/v4/components/ledger/pkg/readrouting"
 	"github.com/LerianStudio/midaz/v4/pkg"
@@ -311,7 +312,7 @@ func (handler *TransactionHandler) revertTransaction(ctx context.Context, organi
 	_, span := tracer.Start(ctx, "handler.revert_transaction")
 	defer span.End()
 
-	_, rolloutToken, releaseRolloutLease, err := handler.acquireRevertRolloutRequest(ctx,
+	rolloutPhase, rolloutToken, redisGeneration, releaseRolloutLease, err := handler.acquireRevertRolloutRequest(ctx,
 		organizationID, ledgerID, transactionID)
 	if err != nil {
 		return nil, false, err
@@ -331,7 +332,9 @@ func (handler *TransactionHandler) revertTransaction(ctx context.Context, organi
 			}
 		}()
 	}
-	durablePhaseZero := handler.activeRevertIdempotencyMode() == revertIdempotencyModeLegacy && rolloutToken != ""
+	durablePhaseZero := handler.activeRevertIdempotencyMode() == revertIdempotencyModeLegacy &&
+		rolloutToken != "" && (rolloutPhase == transactionRedis.RevertUpdateFreezePrepared ||
+		rolloutPhase == transactionRedis.RevertUpdateFreezeActive)
 	rolloutMode := ""
 	if rolloutToken != "" {
 		rolloutMode = handler.activeRevertIdempotencyMode()
@@ -340,6 +343,10 @@ func (handler *TransactionHandler) revertTransaction(ctx context.Context, organi
 	if rolloutToken != "" {
 		claimRolloutMode = &rolloutMode
 		claimRolloutToken = &rolloutToken
+	}
+	var claimRedisGeneration *string
+	if redisGeneration != "" {
+		claimRedisGeneration = &redisGeneration
 	}
 
 	finish := func(tran *transaction.Transaction, replayed bool, err error) (*transaction.Transaction, bool, error) {
@@ -394,7 +401,7 @@ func (handler *TransactionHandler) revertTransaction(ctx context.Context, organi
 			adoptionLegacyKey = &legacyKey
 		}
 		persisted, replayed, adoptErr := handler.adoptPersistedReverse(ctx, organizationID, ledgerID, transactionID,
-			parent, claimRolloutMode, claimRolloutToken, adoptionLegacyKey)
+			parent, claimRolloutMode, claimRolloutToken, claimRedisGeneration, adoptionLegacyKey)
 		if rolloutToken != "" {
 			releaseRolloutLeaseOnReturn = !handler.revertRolloutHandoffPending(ctx, organizationID, ledgerID,
 				transactionID, adoptedReverseID)
@@ -476,6 +483,7 @@ func (handler *TransactionHandler) revertTransaction(ctx context.Context, organi
 			TransactionID:      transactionID,
 			RevertRolloutMode:  rolloutMode,
 			RevertRolloutToken: rolloutToken,
+			RedisGeneration:    redisGeneration,
 		}
 
 		result, replayed, createErr := handler.createRevertTransaction(ctx, params, transactionReverted,
@@ -509,7 +517,7 @@ func (handler *TransactionHandler) revertTransaction(ctx context.Context, organi
 				cachedLegacyKey = &legacyKey
 			}
 			claim, acquired, claimErr := handler.Command.ClaimRevert(ctx, organizationID, ledgerID, transactionID,
-				cachedID, cachedLegacyKey, nil, claimRolloutMode, claimRolloutToken)
+				cachedID, cachedLegacyKey, nil, claimRolloutMode, claimRolloutToken, claimRedisGeneration)
 			if claimErr != nil {
 				return nil, false, claimErr
 			}
@@ -544,11 +552,12 @@ func (handler *TransactionHandler) revertTransaction(ctx context.Context, organi
 	}
 
 	executionAttempt := &mmodel.BalanceExecutionAttempt{
-		ExecutionKey: utils.TransactionBalanceExecutionKey(organizationID, ledgerID, reverseID),
-		OutcomeKey:   utils.TransactionBalanceOutcomeKey(organizationID, ledgerID, reverseID),
-		Owner:        reverseID.String(),
-		Outcome:      mmodel.TransactionOutcomeCommitted,
-		Identity:     reverseID,
+		ExecutionKey:    utils.TransactionBalanceExecutionKey(organizationID, ledgerID, reverseID),
+		OutcomeKey:      utils.TransactionBalanceOutcomeKey(organizationID, ledgerID, reverseID),
+		Owner:           reverseID.String(),
+		Outcome:         mmodel.TransactionOutcomeCommitted,
+		Identity:        reverseID,
+		RedisGeneration: redisGeneration,
 	}
 	executionLeaseAcquired, executionLeaseErr := handler.Command.TransactionRedisRepo.AcquireOwnedKey(ctx,
 		executionAttempt.ExecutionKey, executionAttempt.Owner, revertExecutionLeaseTTL)
@@ -586,7 +595,7 @@ func (handler *TransactionHandler) revertTransaction(ctx context.Context, organi
 		claimedLegacyOwner = &owner
 	}
 	claim, acquired, err := handler.Command.ClaimRevert(ctx, organizationID, ledgerID, transactionID, reverseID,
-		claimedLegacyKey, claimedLegacyOwner, claimRolloutMode, claimRolloutToken)
+		claimedLegacyKey, claimedLegacyOwner, claimRolloutMode, claimRolloutToken, claimRedisGeneration)
 	if err != nil {
 		return nil, false, errors.Join(err, releaseUnclaimedAttempt())
 	}
@@ -686,6 +695,7 @@ func (handler *TransactionHandler) revertTransaction(ctx context.Context, organi
 		ExecutionAttempt:      executionAttempt,
 		RevertRolloutMode:     rolloutMode,
 		RevertRolloutToken:    rolloutToken,
+		RedisGeneration:       redisGeneration,
 	}
 
 	tranReverted, replayed, err := handler.createRevertTransaction(ctx, params, transactionReverted, constant.CREATED, "", http.ParseIdempotencyTTL(""), utils.RevertIdempotencyHashSource(transactionID))

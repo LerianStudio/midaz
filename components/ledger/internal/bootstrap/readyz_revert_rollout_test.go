@@ -21,6 +21,8 @@ type revertRolloutBarrierStub struct {
 	ready         bool
 	err           error
 	durabilityErr error
+	generation    string
+	generationErr error
 	phase         string
 }
 
@@ -30,6 +32,18 @@ func (s revertRolloutBarrierStub) ReadyForMode(context.Context, string) (bool, e
 
 func (s revertRolloutBarrierStub) FinancialDurability(context.Context) error {
 	return s.durabilityErr
+}
+
+func (s revertRolloutBarrierStub) FinancialDatasetGeneration(context.Context) (string, error) {
+	if s.generation == "" && s.generationErr == nil {
+		return "test-generation", nil
+	}
+
+	return s.generation, s.generationErr
+}
+
+func (s revertRolloutBarrierStub) ValidateFinancialDatasetGeneration(context.Context) error {
+	return s.generationErr
 }
 
 func (s revertRolloutBarrierStub) Phase(context.Context) (string, error) {
@@ -72,6 +86,17 @@ func TestRevertRolloutBarrierChecker_RejectsUnsafeFinancialRedis(t *testing.T) {
 	check := checker.Check(context.Background())
 	assert.Equal(t, StatusDown, check.Status)
 	assert.ErrorContains(t, errors.New(check.Error), "appendonly must be enabled")
+}
+
+func TestRevertRolloutBarrierChecker_RejectsDifferentFinancialGeneration(t *testing.T) {
+	t.Parallel()
+
+	checker := NewRevertRolloutBarrierChecker(revertRolloutBarrierStub{
+		ready: true, phase: "prepared", generationErr: errors.New("financial Redis dataset generation differs"),
+	}, "legacy", "prepared", true)
+	check := checker.Check(context.Background())
+	assert.Equal(t, StatusDown, check.Status)
+	assert.ErrorContains(t, errors.New(check.Error), "generation differs")
 }
 
 func TestRevertRolloutBarrierChecker_ReleasedLegacyDoesNotRequireDurableRolloutStorage(t *testing.T) {

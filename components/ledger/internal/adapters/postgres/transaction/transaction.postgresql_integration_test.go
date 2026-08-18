@@ -423,6 +423,29 @@ func TestIntegration_Transaction_Update(t *testing.T) {
 	t.Log("Integration test passed: transaction update verified")
 }
 
+func TestIntegration_Transaction_UpdateTxPersistsCallerVersionExactly(t *testing.T) {
+	t.Setenv("ALLOW_INSECURE_TLS", "true")
+	infra := setupIntegrationInfra(t)
+	ctx := context.Background()
+	created := infra.createTestTransaction(t, "versioned PATCH transaction")
+	expectedVersion := time.Date(2026, time.August, 18, 15, 4, 5, 123456000, time.UTC)
+
+	tx, err := infra.repo.BeginTx(ctx)
+	require.NoError(t, err)
+	_, err = infra.repo.UpdateTx(ctx, tx, infra.orgID, infra.ledgerID, parseID(t, created.ID), &Transaction{
+		Description: "versioned description",
+		UpdatedAt:   expectedVersion,
+	})
+	require.NoError(t, err)
+	require.NoError(t, tx.Commit())
+
+	persisted, err := infra.repo.Find(ctx, infra.orgID, infra.ledgerID, parseID(t, created.ID))
+	require.NoError(t, err)
+	assert.Equal(t, "versioned description", persisted.Description)
+	assert.True(t, persisted.UpdatedAt.Equal(expectedVersion),
+		"ambiguous commit proof depends on the exact caller-assigned version")
+}
+
 func TestIntegration_Transaction_TerminalStatusIsCASFromPending(t *testing.T) {
 	infra := setupIntegrationInfra(t)
 	ctx := context.Background()

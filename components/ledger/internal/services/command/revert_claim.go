@@ -16,14 +16,14 @@ import (
 func (uc *UseCase) ClaimRevert(
 	ctx context.Context,
 	organizationID, ledgerID, originID, reverseID uuid.UUID,
-	legacyFenceKey, legacyFenceOwner, rolloutMode, rolloutToken *string,
+	legacyFenceKey, legacyFenceOwner, rolloutMode, rolloutToken, redisGeneration *string,
 ) (*revertclaim.Claim, bool, error) {
 	if uc.RevertClaimRepo == nil {
 		return nil, false, fmt.Errorf("revert claim repository not configured")
 	}
 
 	return uc.RevertClaimRepo.Claim(ctx, organizationID, ledgerID, originID, reverseID,
-		legacyFenceKey, legacyFenceOwner, rolloutMode, rolloutToken)
+		legacyFenceKey, legacyFenceOwner, rolloutMode, rolloutToken, redisGeneration)
 }
 
 func (uc *UseCase) GetRevertClaim(ctx context.Context, organizationID, ledgerID, originID uuid.UUID) (*revertclaim.Claim, error) {
@@ -75,7 +75,7 @@ func (uc *UseCase) CompleteRevertClaim(
 	legacyFenceKey, legacyFenceOwner *string,
 ) error {
 	claim, _, err := uc.ClaimRevert(ctx, organizationID, ledgerID, originID, reverseID,
-		legacyFenceKey, legacyFenceOwner, nil, nil)
+		legacyFenceKey, legacyFenceOwner, nil, nil, nil)
 	if err != nil {
 		return fmt.Errorf("adopt durable revert claim: %w", err)
 	}

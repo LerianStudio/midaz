@@ -202,6 +202,7 @@ type Transaction struct {
 	// never persisted or exposed.
 	RevertRolloutMode  string `json:"-" msgpack:"-"`
 	RevertRolloutToken string `json:"-" msgpack:"-"`
+	RedisGeneration    string `json:"-" msgpack:"-"`
 }
 
 // IDtoUUID is a func that convert UUID string to uuid.UUID
@@ -464,6 +465,7 @@ type TransactionProcessingPayload struct {
 	// Redis.
 	RevertRolloutMode  string `json:"revertRolloutMode,omitempty" msgpack:"RevertRolloutMode,omitempty"`
 	RevertRolloutToken string `json:"revertRolloutToken,omitempty" msgpack:"RevertRolloutToken,omitempty"`
+	RedisGeneration    string `json:"redisGeneration,omitempty" msgpack:"RedisGeneration,omitempty"`
 }
 
 // TransactionResponse represents a success response containing a single transaction.

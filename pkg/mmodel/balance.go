@@ -691,11 +691,12 @@ const (
 // Lua for an immutable economic outcome. The execution and outcome keys share
 // the transaction hash slot with balances and the backup queue.
 type BalanceExecutionAttempt struct {
-	ExecutionKey string
-	OutcomeKey   string
-	Owner        string
-	Outcome      string
-	Identity     uuid.UUID
+	ExecutionKey    string
+	OutcomeKey      string
+	Owner           string
+	Outcome         string
+	Identity        uuid.UUID
+	RedisGeneration string
 }
 
 // BalanceExecutionOutcome is the immutable fact written by the balance Lua in
@@ -727,6 +728,7 @@ type TransactionRedisQueue struct {
 	ExpectedOutcome     string                   `json:"expected_outcome,omitempty"`
 	RevertRolloutMode   string                   `json:"revert_rollout_mode,omitempty"`
 	RevertRolloutToken  string                   `json:"revert_rollout_token,omitempty"`
+	RedisGeneration     string                   `json:"redis_generation,omitempty"`
 	TransactionDate     time.Time                `json:"transaction_date"`
 	Operations          []OperationRedis         `json:"operations,omitempty"`
 }

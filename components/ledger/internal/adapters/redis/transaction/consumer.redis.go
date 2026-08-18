@@ -73,6 +73,9 @@ var seedTransactionBackupLua string
 //go:embed scripts/transaction_economic_evidence_exists.lua
 var transactionEconomicEvidenceExistsLua string
 
+//go:embed scripts/release_pre_movement_revert.lua
+var releasePreMovementRevertLua string
+
 // balanceAtomicScript and claimBalanceSyncScript are built once at package init.
 // redis.NewScript computes the source SHA1 eagerly, so hoisting these out of the
 // per-call hot paths (runBalanceAtomicScript, GetBalanceSyncKeys,
@@ -93,6 +96,7 @@ var (
 	removeTransactionBackupIfValueScript       = redis.NewScript(removeTransactionBackupIfValueLua)
 	seedTransactionBackupScript                = redis.NewScript(seedTransactionBackupLua)
 	transactionEconomicEvidenceExistsScript    = redis.NewScript(transactionEconomicEvidenceExistsLua)
+	releasePreMovementRevertScript             = redis.NewScript(releasePreMovementRevertLua)
 )
 
 //go:embed scripts/remove_balance_sync_keys_batch.lua
@@ -173,7 +177,10 @@ type RedisRepository interface {
 	// backup, immutable outcome, execution attempt, or attempt owner survives.
 	// A rollout drain may proceed only after this same-slot proof is false and
 	// the PostgreSQL claim is absent or terminal.
-	TransactionEconomicEvidenceExists(ctx context.Context, organizationID, ledgerID, transactionID uuid.UUID) (bool, error)
+	TransactionEconomicEvidenceExists(ctx context.Context, organizationID, ledgerID, transactionID uuid.UUID,
+		expectedRedisGeneration string) (exists bool, generationMatches bool, err error)
+	ReleaseProvenPreMovementRevert(ctx context.Context, organizationID, ledgerID, originID, transactionID uuid.UUID,
+		expectedStatus string, attempt mmodel.BalanceExecutionAttempt) (released bool, generationMatches bool, err error)
 	// SetBytes stores binary data with a TTL.
 	SetBytes(ctx context.Context, key string, value []byte, ttl time.Duration) error
 	// GetBytes retrieves binary data by key.
@@ -1214,7 +1221,12 @@ func (rr *RedisConsumerRepository) processBalanceAtomicOperation(ctx context.Con
 
 	finalArgs := plan.args
 	if attempt != nil {
-		finalArgs = append([]any{attempt.Owner, attempt.Outcome, attempt.Identity.String()}, finalArgs...)
+		attemptArgs := []any{attempt.Owner, attempt.Outcome, attempt.Identity.String()}
+		if attempt.RedisGeneration != "" {
+			prefixedKeys = append(prefixedKeys, FinancialDatasetGenerationKey)
+			attemptArgs = append(attemptArgs, attempt.RedisGeneration)
+		}
+		finalArgs = append(attemptArgs, finalArgs...)
 	}
 
 	result, err := rr.runBalanceAtomicScript(ctx, rds, prefixedKeys, finalArgs)
@@ -1360,12 +1372,16 @@ func (rr *RedisConsumerRepository) SeedTransactionBackup(
 	if err != nil {
 		return err
 	}
+	seedArgs := []any{attempt.Owner, transactionID.String(), attempt.Outcome, msg}
+	if attempt.RedisGeneration != "" {
+		prefixedKeys = append(prefixedKeys, FinancialDatasetGenerationKey)
+		seedArgs = append(seedArgs, attempt.RedisGeneration)
+	}
 	rds, err := rr.conn.GetClient(ctx)
 	if err != nil {
 		return err
 	}
-	if _, err := seedTransactionBackupScript.Run(ctx, rds, prefixedKeys,
-		attempt.Owner, transactionID.String(), attempt.Outcome, msg).Result(); err != nil {
+	if _, err := seedTransactionBackupScript.Run(ctx, rds, prefixedKeys, seedArgs...).Result(); err != nil {
 		libOpentelemetry.HandleSpanError(span, "Failed to seed owned transaction backup", err)
 		logger.Log(ctx, libLog.LevelWarn, "Failed to seed owned transaction backup", libLog.Err(err))
 
@@ -1461,12 +1477,16 @@ func (rr *RedisConsumerRepository) FinalizeTransactionPersistence(
 	if err != nil {
 		return err
 	}
+	finalizeArgs := []any{transactionID.String(), attempt.Owner, attempt.Outcome, string(encodedOperationIDs)}
+	if attempt.RedisGeneration != "" {
+		prefixedKeys = append(prefixedKeys, FinancialDatasetGenerationKey)
+		finalizeArgs = append(finalizeArgs, attempt.RedisGeneration)
+	}
 	rds, err := rr.conn.GetClient(ctx)
 	if err != nil {
 		return err
 	}
-	if _, err := finalizeTransactionPersistenceScript.Run(ctx, rds, prefixedKeys,
-		transactionID.String(), attempt.Owner, attempt.Outcome, string(encodedOperationIDs)).Result(); err != nil {
+	if _, err := finalizeTransactionPersistenceScript.Run(ctx, rds, prefixedKeys, finalizeArgs...).Result(); err != nil {
 		libOpentelemetry.HandleSpanError(span, "Failed to atomically finalize transaction persistence", err)
 		logger.Log(ctx, libLog.LevelWarn, "Failed to atomically finalize transaction persistence", libLog.Err(err))
 
@@ -1556,9 +1576,10 @@ func (rr *RedisConsumerRepository) ReadMessageFromQueue(ctx context.Context, key
 func (rr *RedisConsumerRepository) TransactionEconomicEvidenceExists(
 	ctx context.Context,
 	organizationID, ledgerID, transactionID uuid.UUID,
-) (bool, error) {
+	expectedRedisGeneration string,
+) (bool, bool, error) {
 	if transactionID == uuid.Nil {
-		return false, fmt.Errorf("transaction id is required for economic evidence")
+		return false, false, fmt.Errorf("transaction id is required for economic evidence")
 	}
 
 	backupField := utils.TransactionInternalKey(organizationID, ledgerID, transactionID.String())
@@ -1568,24 +1589,66 @@ func (rr *RedisConsumerRepository) TransactionEconomicEvidenceExists(
 		TransactionBackupQueue, outcomeKey, executionKey, executionKey + ":owner",
 	})
 	if err != nil {
-		return false, err
+		return false, false, err
 	}
 	prefixedBackupField, err := tenantKeyFromContextOrError(ctx, backupField)
 	if err != nil {
-		return false, err
+		return false, false, err
 	}
+	prefixedKeys = append(prefixedKeys, FinancialDatasetGenerationKey)
 	rds, err := rr.conn.GetClient(ctx)
 	if err != nil {
-		return false, err
+		return false, false, err
 	}
 
-	exists, err := transactionEconomicEvidenceExistsScript.Run(ctx, rds, prefixedKeys,
-		prefixedBackupField).Bool()
+	result, err := transactionEconomicEvidenceExistsScript.Run(ctx, rds, prefixedKeys,
+		prefixedBackupField, expectedRedisGeneration).Int64()
 	if err != nil {
-		return false, fmt.Errorf("inspect transaction economic evidence: %w", err)
+		return false, false, fmt.Errorf("inspect transaction economic evidence: %w", err)
 	}
 
-	return exists, nil
+	return result == 1, result >= 0, nil
+}
+
+// ReleaseProvenPreMovementRevert atomically proves the financial dataset
+// generation, absence of outcome/execution ownership, and either absence or an
+// exact seed-only backup before deleting that backup. No timeout or separate
+// read can turn a post-movement state into a retryable request.
+func (rr *RedisConsumerRepository) ReleaseProvenPreMovementRevert(
+	ctx context.Context,
+	organizationID, ledgerID, originID, transactionID uuid.UUID,
+	expectedStatus string,
+	attempt mmodel.BalanceExecutionAttempt,
+) (bool, bool, error) {
+	if originID == uuid.Nil || transactionID == uuid.Nil || expectedStatus == "" ||
+		attempt.Identity != transactionID || attempt.Owner == "" || attempt.Outcome == "" ||
+		attempt.RedisGeneration == "" {
+		return false, false, fmt.Errorf("complete pre-movement revert proof is required")
+	}
+	backupField := utils.TransactionInternalKey(organizationID, ledgerID, transactionID.String())
+	prefixedKeys, err := tenantKeysFromContext(ctx, []string{
+		TransactionBackupQueue,
+		backupField,
+		attempt.OutcomeKey,
+		attempt.ExecutionKey,
+		attempt.ExecutionKey + ":owner",
+	})
+	if err != nil {
+		return false, false, err
+	}
+	prefixedKeys = append(prefixedKeys, FinancialDatasetGenerationKey)
+	rds, err := rr.conn.GetClient(ctx)
+	if err != nil {
+		return false, false, err
+	}
+	result, err := releasePreMovementRevertScript.Run(ctx, rds, prefixedKeys,
+		expectedStatus, attempt.Owner, attempt.Outcome, transactionID.String(),
+		attempt.RedisGeneration, originID.String()).Int64()
+	if err != nil {
+		return false, false, fmt.Errorf("release proven pre-movement revert: %w", err)
+	}
+
+	return result == 1, result >= 0, nil
 }
 
 // ReadAllMessagesFromQueue read all messages from redis queue

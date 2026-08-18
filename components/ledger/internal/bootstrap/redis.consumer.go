@@ -573,6 +573,7 @@ func (r *RedisQueueConsumer) processMessage(ctx context.Context, key, rawPayload
 		},
 		RevertRolloutMode:  m.RevertRolloutMode,
 		RevertRolloutToken: m.RevertRolloutToken,
+		RedisGeneration:    m.RedisGeneration,
 	}
 
 	// Prefer the action captured before movement, then fall back to the terminal

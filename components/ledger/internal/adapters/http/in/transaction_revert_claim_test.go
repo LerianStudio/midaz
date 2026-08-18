@@ -34,6 +34,8 @@ import (
 	"github.com/LerianStudio/midaz/v4/pkg/utils"
 )
 
+var testRedisGeneration = "test-financial-dataset-generation"
+
 func TestRevertRolloutHandoffPending_RequiresAtomicRedisAbsenceAndCompatibleClaim(t *testing.T) {
 	t.Parallel()
 
@@ -75,16 +77,19 @@ func TestRevertRolloutHandoffPending_RequiresAtomicRedisAbsenceAndCompatibleClai
 			ctrl := gomock.NewController(t)
 			redisRepo := redis.NewMockRedisRepository(ctrl)
 			claimRepo := revertclaim.NewMockRepository(ctrl)
-			redisRepo.EXPECT().TransactionEconomicEvidenceExists(gomock.Any(), organizationID, ledgerID,
-				reverseID).Return(tc.evidence, tc.redisErr)
-			if tc.redisErr == nil && !tc.evidence {
-				claimRepo.EXPECT().Get(gomock.Any(), organizationID, ledgerID, originID).Return(tc.claim, tc.claimErr)
+			claimRepo.EXPECT().Get(gomock.Any(), organizationID, ledgerID, originID).Return(tc.claim, tc.claimErr)
+			if tc.claimErr == nil {
+				redisRepo.EXPECT().TransactionEconomicEvidenceExists(gomock.Any(), organizationID, ledgerID,
+					reverseID, "").Return(tc.evidence, true, tc.redisErr)
 			}
 
-			handler := &TransactionHandler{Command: &command.UseCase{
-				TransactionRedisRepo: redisRepo,
-				RevertClaimRepo:      claimRepo,
-			}}
+			handler := &TransactionHandler{
+				RevertUpdateFreeze: &revertUpdateFreezeStub{},
+				Command: &command.UseCase{
+					TransactionRedisRepo: redisRepo,
+					RevertClaimRepo:      claimRepo,
+				},
+			}
 			assert.Equal(t, tc.wantPending, handler.revertRolloutHandoffPending(context.Background(),
 				organizationID, ledgerID, originID, reverseID))
 		})
@@ -100,6 +105,7 @@ func TestRevertRolloutHandoffPending_RequiresExactGenerationTerminalSeal(t *test
 	reverseID := uuid.New()
 	rolloutMode := "bridge"
 	rolloutToken := "origin-generation"
+	redisGeneration := "financial-dataset-generation"
 
 	for _, tc := range []struct {
 		name             string
@@ -117,12 +123,12 @@ func TestRevertRolloutHandoffPending_RequiresExactGenerationTerminalSeal(t *test
 			ctrl := gomock.NewController(t)
 			redisRepo := redis.NewMockRedisRepository(ctrl)
 			claimRepo := revertclaim.NewMockRepository(ctrl)
-			redisRepo.EXPECT().TransactionEconomicEvidenceExists(gomock.Any(), organizationID, ledgerID,
-				reverseID).Return(false, nil)
 			claimRepo.EXPECT().Get(gomock.Any(), organizationID, ledgerID, originID).Return(&revertclaim.Claim{
 				ReverseTransactionID: reverseID, State: revertclaim.StateCompleted,
-				RolloutMode: &rolloutMode, RolloutToken: &rolloutToken,
+				RolloutMode: &rolloutMode, RolloutToken: &rolloutToken, RedisGeneration: &redisGeneration,
 			}, nil)
+			redisRepo.EXPECT().TransactionEconomicEvidenceExists(gomock.Any(), organizationID, ledgerID,
+				reverseID, redisGeneration).Return(false, true, nil)
 			freeze := &revertUpdateFreezeStub{terminalComplete: tc.terminalComplete, terminalErr: tc.terminalErr}
 			handler := &TransactionHandler{
 				RevertUpdateFreeze: freeze,
@@ -409,6 +415,7 @@ func TestFailRevertClaim_LegacyCleanupFailureKeepsDurableClaim(t *testing.T) {
 		OriginTransactionID:  uuid.New(),
 		ReverseTransactionID: uuid.New(),
 		LegacyFenceKey:       &legacyKey,
+		RedisGeneration:      &testRedisGeneration,
 		State:                revertclaim.StateClaimed,
 	}
 	legacyOwner := claim.ReverseTransactionID.String()
@@ -586,6 +593,7 @@ func TestRecoverProvenPreMovementRevert_CleansRedisBeforeReleasingClaim(t *testi
 		OriginTransactionID:  uuid.New(),
 		ReverseTransactionID: uuid.New(),
 		LegacyFenceKey:       &legacyKey,
+		RedisGeneration:      &testRedisGeneration,
 		State:                revertclaim.StateClaimed,
 	}
 	legacyOwner := claim.ReverseTransactionID.String()
@@ -600,6 +608,8 @@ func TestRecoverProvenPreMovementRevert_CleansRedisBeforeReleasingClaim(t *testi
 	})
 	require.NoError(t, err)
 
+	redisRepo.EXPECT().TransactionEconomicEvidenceExists(gomock.Any(), claim.OrganizationID, claim.LedgerID,
+		claim.ReverseTransactionID, testRedisGeneration).Return(true, true, nil)
 	redisRepo.EXPECT().ReadMessageFromQueue(gomock.Any(), backupKey).Return(backup, nil)
 	redisRepo.EXPECT().Get(gomock.Any(), utils.TransactionBalanceOutcomeKey(claim.OrganizationID,
 		claim.LedgerID, claim.ReverseTransactionID)).Return("", nil)
@@ -609,8 +619,8 @@ func TestRecoverProvenPreMovementRevert_CleansRedisBeforeReleasingClaim(t *testi
 		claim.OriginTransactionID, claim.ReverseTransactionID).Return(true, nil)
 	redisRepo.EXPECT().ReleaseOwnedKey(gomock.Any(), originRevertIdempotencyKey(claim),
 		claim.ReverseTransactionID.String()).Return(true, nil)
-	redisRepo.EXPECT().RemoveMessageFromQueueIfStatus(gomock.Any(), backupKey, constant.CREATED,
-		claim.ReverseTransactionID.String(), mmodel.TransactionOutcomeCommitted, true).Return(true, nil)
+	redisRepo.EXPECT().ReleaseProvenPreMovementRevert(gomock.Any(), claim.OrganizationID, claim.LedgerID,
+		claim.OriginTransactionID, claim.ReverseTransactionID, constant.CREATED, gomock.Any()).Return(true, true, nil)
 	redisRepo.EXPECT().ReleaseOwnedKey(gomock.Any(), legacyKey, claim.ReverseTransactionID.String()).Return(true, nil)
 	claimRepo.EXPECT().Release(gomock.Any(), claim.OrganizationID, claim.LedgerID,
 		claim.OriginTransactionID, claim.ReverseTransactionID).Return(true, nil)
@@ -618,11 +628,43 @@ func TestRecoverProvenPreMovementRevert_CleansRedisBeforeReleasingClaim(t *testi
 	handler := &TransactionHandler{Command: &command.UseCase{
 		RevertClaimRepo:      claimRepo,
 		TransactionRedisRepo: redisRepo,
-	}}
+	}, RevertUpdateFreeze: &revertUpdateFreezeStub{}}
 	recovered, err := handler.recoverProvenPreMovementRevert(context.Background(), claim)
 
 	require.NoError(t, err)
 	assert.True(t, recovered)
+}
+
+func TestRecoverProvenPreMovementRevert_GenerationMismatchNeverReleasesClaim(t *testing.T) {
+	t.Parallel()
+
+	ctrl := gomock.NewController(t)
+	claimRepo := revertclaim.NewMockRepository(ctrl)
+	redisRepo := redis.NewMockRedisRepository(ctrl)
+	claim := &revertclaim.Claim{
+		OrganizationID:       uuid.New(),
+		LedgerID:             uuid.New(),
+		OriginTransactionID:  uuid.New(),
+		ReverseTransactionID: uuid.New(),
+		RedisGeneration:      &testRedisGeneration,
+		State:                revertclaim.StateClaimed,
+	}
+	redisRepo.EXPECT().TransactionEconomicEvidenceExists(gomock.Any(), claim.OrganizationID, claim.LedgerID,
+		claim.ReverseTransactionID, testRedisGeneration).Return(false, false, nil)
+	claimRepo.EXPECT().Transition(gomock.Any(), claim.OrganizationID, claim.LedgerID,
+		claim.OriginTransactionID, claim.ReverseTransactionID, revertclaim.StateReconciliationRequired, gomock.Any()).
+		Return(nil)
+
+	handler := &TransactionHandler{Command: &command.UseCase{
+		RevertClaimRepo:      claimRepo,
+		TransactionRedisRepo: redisRepo,
+	}, RevertUpdateFreeze: &revertUpdateFreezeStub{}}
+	recovered, err := handler.recoverProvenPreMovementRevert(context.Background(), claim)
+
+	assert.False(t, recovered)
+	var unavailable pkg.ServiceUnavailableError
+	require.ErrorAs(t, err, &unavailable)
+	assert.Equal(t, constant.ErrRevertReconciliationRequired.Error(), unavailable.Code)
 }
 
 func TestRecoverProvenPreMovementRevert_TerminalBackupWinningCleanupRaceIsNeverReleased(t *testing.T) {
@@ -636,6 +678,7 @@ func TestRecoverProvenPreMovementRevert_TerminalBackupWinningCleanupRaceIsNeverR
 		LedgerID:             uuid.New(),
 		OriginTransactionID:  uuid.New(),
 		ReverseTransactionID: uuid.New(),
+		RedisGeneration:      &testRedisGeneration,
 		State:                revertclaim.StateClaimed,
 	}
 	backupKey := utils.TransactionInternalKey(claim.OrganizationID, claim.LedgerID,
@@ -649,6 +692,8 @@ func TestRecoverProvenPreMovementRevert_TerminalBackupWinningCleanupRaceIsNeverR
 	})
 	require.NoError(t, err)
 
+	redisRepo.EXPECT().TransactionEconomicEvidenceExists(gomock.Any(), claim.OrganizationID, claim.LedgerID,
+		claim.ReverseTransactionID, testRedisGeneration).Return(true, true, nil)
 	redisRepo.EXPECT().Get(gomock.Any(), utils.TransactionBalanceOutcomeKey(claim.OrganizationID,
 		claim.LedgerID, claim.ReverseTransactionID)).Return("", nil)
 	redisRepo.EXPECT().MGet(gomock.Any(), []string{revertExecutionFenceKey(claim),
@@ -656,8 +701,8 @@ func TestRecoverProvenPreMovementRevert_TerminalBackupWinningCleanupRaceIsNeverR
 	redisRepo.EXPECT().ReadMessageFromQueue(gomock.Any(), backupKey).Return(backup, nil)
 	claimRepo.EXPECT().BeginPreMutationRecovery(gomock.Any(), claim.OrganizationID, claim.LedgerID,
 		claim.OriginTransactionID, claim.ReverseTransactionID).Return(true, nil)
-	redisRepo.EXPECT().RemoveMessageFromQueueIfStatus(gomock.Any(), backupKey, constant.CREATED,
-		claim.ReverseTransactionID.String(), mmodel.TransactionOutcomeCommitted, true).Return(false, nil)
+	redisRepo.EXPECT().ReleaseProvenPreMovementRevert(gomock.Any(), claim.OrganizationID, claim.LedgerID,
+		claim.OriginTransactionID, claim.ReverseTransactionID, constant.CREATED, gomock.Any()).Return(false, true, nil)
 	reason := "pre_movement_backup_cleanup_failed"
 	claimRepo.EXPECT().Transition(gomock.Any(), claim.OrganizationID, claim.LedgerID,
 		claim.OriginTransactionID, claim.ReverseTransactionID,
@@ -666,7 +711,7 @@ func TestRecoverProvenPreMovementRevert_TerminalBackupWinningCleanupRaceIsNeverR
 	handler := &TransactionHandler{Command: &command.UseCase{
 		RevertClaimRepo:      claimRepo,
 		TransactionRedisRepo: redisRepo,
-	}}
+	}, RevertUpdateFreeze: &revertUpdateFreezeStub{}}
 	recovered, err := handler.recoverProvenPreMovementRevert(context.Background(), claim)
 
 	assert.False(t, recovered)
@@ -688,10 +733,13 @@ func TestRecoverProvenPreMovementRevert_MissingSeedAfterExpiredLeaseProvesCrashB
 		LedgerID:             uuid.New(),
 		OriginTransactionID:  uuid.New(),
 		ReverseTransactionID: uuid.New(),
+		RedisGeneration:      &testRedisGeneration,
 		State:                revertclaim.StateClaimed,
 	}
 	backupKey := utils.TransactionInternalKey(claim.OrganizationID, claim.LedgerID, claim.ReverseTransactionID.String())
 
+	redisRepo.EXPECT().TransactionEconomicEvidenceExists(gomock.Any(), claim.OrganizationID, claim.LedgerID,
+		claim.ReverseTransactionID, testRedisGeneration).Return(false, true, nil)
 	redisRepo.EXPECT().Get(gomock.Any(), utils.TransactionBalanceOutcomeKey(claim.OrganizationID,
 		claim.LedgerID, claim.ReverseTransactionID)).Return("", nil)
 	redisRepo.EXPECT().MGet(gomock.Any(), []string{revertExecutionFenceKey(claim),
@@ -699,6 +747,8 @@ func TestRecoverProvenPreMovementRevert_MissingSeedAfterExpiredLeaseProvesCrashB
 	redisRepo.EXPECT().ReadMessageFromQueue(gomock.Any(), backupKey).Return(nil, redislib.Nil)
 	claimRepo.EXPECT().BeginPreMutationRecovery(gomock.Any(), claim.OrganizationID, claim.LedgerID,
 		claim.OriginTransactionID, claim.ReverseTransactionID).Return(true, nil)
+	redisRepo.EXPECT().ReleaseProvenPreMovementRevert(gomock.Any(), claim.OrganizationID, claim.LedgerID,
+		claim.OriginTransactionID, claim.ReverseTransactionID, constant.CREATED, gomock.Any()).Return(true, true, nil)
 	redisRepo.EXPECT().ReleaseOwnedKey(gomock.Any(), originRevertIdempotencyKey(claim),
 		claim.ReverseTransactionID.String()).Return(true, nil)
 	claimRepo.EXPECT().Release(gomock.Any(), claim.OrganizationID, claim.LedgerID,
@@ -707,7 +757,7 @@ func TestRecoverProvenPreMovementRevert_MissingSeedAfterExpiredLeaseProvesCrashB
 	handler := &TransactionHandler{Command: &command.UseCase{
 		RevertClaimRepo:      claimRepo,
 		TransactionRedisRepo: redisRepo,
-	}}
+	}, RevertUpdateFreeze: &revertUpdateFreezeStub{}}
 	recovered, err := handler.recoverProvenPreMovementRevert(context.Background(), claim)
 
 	require.NoError(t, err)
@@ -724,10 +774,13 @@ func TestRecoverProvenPreMovementRevert_RequiresExactOriginInSeed(t *testing.T) 
 		LedgerID:             uuid.New(),
 		OriginTransactionID:  uuid.New(),
 		ReverseTransactionID: uuid.New(),
+		RedisGeneration:      &testRedisGeneration,
 		State:                revertclaim.StateClaimed,
 	}
 	backup, err := json.Marshal(mmodel.TransactionRedisQueue{TransactionID: claim.ReverseTransactionID})
 	require.NoError(t, err)
+	redisRepo.EXPECT().TransactionEconomicEvidenceExists(gomock.Any(), claim.OrganizationID, claim.LedgerID,
+		claim.ReverseTransactionID, testRedisGeneration).Return(true, true, nil)
 	redisRepo.EXPECT().ReadMessageFromQueue(gomock.Any(),
 		utils.TransactionInternalKey(claim.OrganizationID, claim.LedgerID, claim.ReverseTransactionID.String())).Return(backup, nil)
 	redisRepo.EXPECT().Get(gomock.Any(), utils.TransactionBalanceOutcomeKey(claim.OrganizationID,
@@ -735,7 +788,8 @@ func TestRecoverProvenPreMovementRevert_RequiresExactOriginInSeed(t *testing.T) 
 	redisRepo.EXPECT().MGet(gomock.Any(), []string{revertExecutionFenceKey(claim),
 		revertExecutionFenceKey(claim) + ":owner"}).Return(map[string]string{}, nil)
 
-	handler := &TransactionHandler{Command: &command.UseCase{TransactionRedisRepo: redisRepo}}
+	handler := &TransactionHandler{Command: &command.UseCase{TransactionRedisRepo: redisRepo},
+		RevertUpdateFreeze: &revertUpdateFreezeStub{}}
 	recovered, err := handler.recoverProvenPreMovementRevert(context.Background(), claim)
 
 	require.NoError(t, err)
@@ -752,8 +806,11 @@ func TestRecoverProvenPreMovementRevert_ActiveExecutionLeaseCannotBeRecovered(t 
 		LedgerID:             uuid.New(),
 		OriginTransactionID:  uuid.New(),
 		ReverseTransactionID: uuid.New(),
+		RedisGeneration:      &testRedisGeneration,
 		State:                revertclaim.StateClaimed,
 	}
+	redisRepo.EXPECT().TransactionEconomicEvidenceExists(gomock.Any(), claim.OrganizationID, claim.LedgerID,
+		claim.ReverseTransactionID, testRedisGeneration).Return(true, true, nil)
 	redisRepo.EXPECT().Get(gomock.Any(), utils.TransactionBalanceOutcomeKey(claim.OrganizationID,
 		claim.LedgerID, claim.ReverseTransactionID)).Return("", nil)
 	redisRepo.EXPECT().MGet(gomock.Any(), []string{revertExecutionFenceKey(claim),
@@ -762,7 +819,8 @@ func TestRecoverProvenPreMovementRevert_ActiveExecutionLeaseCannotBeRecovered(t 
 		revertExecutionFenceKey(claim) + ":owner": claim.ReverseTransactionID.String(),
 	}, nil)
 
-	handler := &TransactionHandler{Command: &command.UseCase{TransactionRedisRepo: redisRepo}}
+	handler := &TransactionHandler{Command: &command.UseCase{TransactionRedisRepo: redisRepo},
+		RevertUpdateFreeze: &revertUpdateFreezeStub{}}
 	recovered, err := handler.recoverProvenPreMovementRevert(context.Background(), claim)
 
 	require.NoError(t, err)
@@ -782,11 +840,14 @@ func TestRecoverProvenPreMovementRevert_ResumesIdempotentRecoveringCleanup(t *te
 		OriginTransactionID:  uuid.New(),
 		ReverseTransactionID: uuid.New(),
 		LegacyFenceKey:       &legacyKey,
+		RedisGeneration:      &testRedisGeneration,
 		State:                revertclaim.StateRecovering,
 	}
 	legacyOwner := claim.ReverseTransactionID.String()
 	claim.LegacyFenceOwner = &legacyOwner
 	backupKey := utils.TransactionInternalKey(claim.OrganizationID, claim.LedgerID, claim.ReverseTransactionID.String())
+	redisRepo.EXPECT().TransactionEconomicEvidenceExists(gomock.Any(), claim.OrganizationID, claim.LedgerID,
+		claim.ReverseTransactionID, testRedisGeneration).Return(false, true, nil)
 	redisRepo.EXPECT().Get(gomock.Any(), utils.TransactionBalanceOutcomeKey(claim.OrganizationID,
 		claim.LedgerID, claim.ReverseTransactionID)).Return("", nil)
 	redisRepo.EXPECT().MGet(gomock.Any(), []string{revertExecutionFenceKey(claim),
@@ -795,6 +856,8 @@ func TestRecoverProvenPreMovementRevert_ResumesIdempotentRecoveringCleanup(t *te
 
 	claimRepo.EXPECT().BeginPreMutationRecovery(gomock.Any(), claim.OrganizationID, claim.LedgerID,
 		claim.OriginTransactionID, claim.ReverseTransactionID).Return(true, nil)
+	redisRepo.EXPECT().ReleaseProvenPreMovementRevert(gomock.Any(), claim.OrganizationID, claim.LedgerID,
+		claim.OriginTransactionID, claim.ReverseTransactionID, constant.CREATED, gomock.Any()).Return(true, true, nil)
 	redisRepo.EXPECT().ReleaseOwnedKey(gomock.Any(), originRevertIdempotencyKey(claim),
 		claim.ReverseTransactionID.String()).Return(true, nil)
 	redisRepo.EXPECT().ReleaseOwnedKey(gomock.Any(), legacyKey, claim.ReverseTransactionID.String()).Return(false, nil)
@@ -805,7 +868,7 @@ func TestRecoverProvenPreMovementRevert_ResumesIdempotentRecoveringCleanup(t *te
 	handler := &TransactionHandler{Command: &command.UseCase{
 		RevertClaimRepo:      claimRepo,
 		TransactionRedisRepo: redisRepo,
-	}}
+	}, RevertUpdateFreeze: &revertUpdateFreezeStub{}}
 	recovered, err := handler.recoverProvenPreMovementRevert(context.Background(), claim)
 
 	require.NoError(t, err)
@@ -825,12 +888,15 @@ func TestRecoverProvenPreMovementRevert_FinalLeavesForeignLegacyFenceUntouched(t
 		OriginTransactionID:  uuid.New(),
 		ReverseTransactionID: uuid.New(),
 		LegacyFenceKey:       &legacyKey,
+		RedisGeneration:      &testRedisGeneration,
 		State:                revertclaim.StateRecovering,
 	}
 	legacyOwner := claim.ReverseTransactionID.String()
 	claim.LegacyFenceOwner = &legacyOwner
 	foreignOwner := uuid.NewString()
 	backupKey := utils.TransactionInternalKey(claim.OrganizationID, claim.LedgerID, claim.ReverseTransactionID.String())
+	redisRepo.EXPECT().TransactionEconomicEvidenceExists(gomock.Any(), claim.OrganizationID, claim.LedgerID,
+		claim.ReverseTransactionID, testRedisGeneration).Return(false, true, nil)
 	redisRepo.EXPECT().Get(gomock.Any(), utils.TransactionBalanceOutcomeKey(claim.OrganizationID,
 		claim.LedgerID, claim.ReverseTransactionID)).Return("", nil)
 	redisRepo.EXPECT().MGet(gomock.Any(), []string{revertExecutionFenceKey(claim),
@@ -839,6 +905,8 @@ func TestRecoverProvenPreMovementRevert_FinalLeavesForeignLegacyFenceUntouched(t
 
 	claimRepo.EXPECT().BeginPreMutationRecovery(gomock.Any(), claim.OrganizationID, claim.LedgerID,
 		claim.OriginTransactionID, claim.ReverseTransactionID).Return(true, nil)
+	redisRepo.EXPECT().ReleaseProvenPreMovementRevert(gomock.Any(), claim.OrganizationID, claim.LedgerID,
+		claim.OriginTransactionID, claim.ReverseTransactionID, constant.CREATED, gomock.Any()).Return(true, true, nil)
 	redisRepo.EXPECT().ReleaseOwnedKey(gomock.Any(), originRevertIdempotencyKey(claim),
 		claim.ReverseTransactionID.String()).Return(true, nil)
 	redisRepo.EXPECT().ReleaseOwnedKey(gomock.Any(), legacyKey, claim.ReverseTransactionID.String()).Return(false, nil)
@@ -855,6 +923,7 @@ func TestRecoverProvenPreMovementRevert_FinalLeavesForeignLegacyFenceUntouched(t
 			RevertClaimRepo:      claimRepo,
 			TransactionRedisRepo: redisRepo,
 		},
+		RevertUpdateFreeze: &revertUpdateFreezeStub{},
 	}
 	recovered, err := handler.recoverProvenPreMovementRevert(context.Background(), claim)
 
@@ -873,11 +942,14 @@ func TestRecoverProvenPreMovementRevert_StaleOwnerCannotDeleteSuccessorOriginFen
 		LedgerID:             uuid.New(),
 		OriginTransactionID:  uuid.New(),
 		ReverseTransactionID: uuid.New(),
+		RedisGeneration:      &testRedisGeneration,
 		State:                revertclaim.StateRecovering,
 	}
 	originKey := originRevertIdempotencyKey(claim)
 	backupKey := utils.TransactionInternalKey(claim.OrganizationID, claim.LedgerID,
 		claim.ReverseTransactionID.String())
+	redisRepo.EXPECT().TransactionEconomicEvidenceExists(gomock.Any(), claim.OrganizationID, claim.LedgerID,
+		claim.ReverseTransactionID, testRedisGeneration).Return(false, true, nil)
 	redisRepo.EXPECT().Get(gomock.Any(), utils.TransactionBalanceOutcomeKey(claim.OrganizationID,
 		claim.LedgerID, claim.ReverseTransactionID)).Return("", nil)
 	redisRepo.EXPECT().MGet(gomock.Any(), []string{revertExecutionFenceKey(claim),
@@ -885,6 +957,8 @@ func TestRecoverProvenPreMovementRevert_StaleOwnerCannotDeleteSuccessorOriginFen
 	redisRepo.EXPECT().ReadMessageFromQueue(gomock.Any(), backupKey).Return(nil, redislib.Nil)
 	claimRepo.EXPECT().BeginPreMutationRecovery(gomock.Any(), claim.OrganizationID, claim.LedgerID,
 		claim.OriginTransactionID, claim.ReverseTransactionID).Return(true, nil)
+	redisRepo.EXPECT().ReleaseProvenPreMovementRevert(gomock.Any(), claim.OrganizationID, claim.LedgerID,
+		claim.OriginTransactionID, claim.ReverseTransactionID, constant.CREATED, gomock.Any()).Return(true, true, nil)
 	redisRepo.EXPECT().ReleaseOwnedKey(gomock.Any(), originKey, claim.ReverseTransactionID.String()).Return(false, nil)
 	redisRepo.EXPECT().MGet(gomock.Any(), []string{originKey, originKey + ":owner"}).Return(map[string]string{
 		originKey:            "",
@@ -898,7 +972,7 @@ func TestRecoverProvenPreMovementRevert_StaleOwnerCannotDeleteSuccessorOriginFen
 	handler := &TransactionHandler{Command: &command.UseCase{
 		RevertClaimRepo:      claimRepo,
 		TransactionRedisRepo: redisRepo,
-	}}
+	}, RevertUpdateFreeze: &revertUpdateFreezeStub{}}
 	recovered, err := handler.recoverProvenPreMovementRevert(context.Background(), claim)
 
 	assert.False(t, recovered)
@@ -1191,7 +1265,7 @@ func TestAdoptPersistedReverse_MissingOperationsRequiresReconciliation(t *testin
 	}
 
 	claimRepo.EXPECT().Claim(gomock.Any(), organizationID, ledgerID, originID, reverseID,
-		nil, nil, nil, nil).Return(claim, true, nil)
+		nil, nil, nil, nil, nil).Return(claim, true, nil)
 	transactionRepo.EXPECT().FindWithOperations(gomock.Any(), organizationID, ledgerID, reverseID).Return(nil, nil)
 	reason := "reverse_transaction_missing_operations"
 	claimRepo.EXPECT().Transition(gomock.Any(), organizationID, ledgerID, originID, reverseID,
@@ -1202,7 +1276,7 @@ func TestAdoptPersistedReverse_MissingOperationsRequiresReconciliation(t *testin
 		Command: &command.UseCase{RevertClaimRepo: claimRepo},
 	}
 	result, replayed, err := handler.adoptPersistedReverse(context.Background(), organizationID, ledgerID,
-		originID, persisted, nil, nil)
+		originID, persisted, nil, nil, nil)
 	assert.Nil(t, result)
 	assert.False(t, replayed)
 	var unavailable pkg.ServiceUnavailableError
@@ -1256,7 +1330,7 @@ func TestAdoptPersistedReverse_FinalCompletesPersistedBridgeFenceAndExactOutcome
 	require.NoError(t, err)
 
 	claimRepo.EXPECT().Claim(gomock.Any(), organizationID, ledgerID, originID, reverseID,
-		nil, nil, nil, nil).
+		nil, nil, nil, nil, nil).
 		Return(claim, false, nil)
 	transactionRepo.EXPECT().FindWithOperations(gomock.Any(), organizationID, ledgerID, reverseID).
 		Return(persisted, nil)
@@ -1297,7 +1371,7 @@ func TestAdoptPersistedReverse_FinalCompletesPersistedBridgeFenceAndExactOutcome
 		},
 	}
 	result, replayed, err := handler.adoptPersistedReverse(context.Background(), organizationID, ledgerID,
-		originID, persisted, nil, nil)
+		originID, persisted, nil, nil, nil)
 	require.NoError(t, err)
 	assert.True(t, replayed)
 	assert.Same(t, persisted, result)
@@ -1350,7 +1424,7 @@ func TestAdoptPersistedReverse_FinalPreservesForeignLegacyCollision(t *testing.T
 	require.NoError(t, err)
 
 	claimRepo.EXPECT().Claim(gomock.Any(), organizationID, ledgerID, originID, reverseID,
-		nil, nil, nil, nil).
+		nil, nil, nil, nil, nil).
 		Return(claim, false, nil)
 	transactionRepo.EXPECT().FindWithOperations(gomock.Any(), organizationID, ledgerID, reverseID).
 		Return(persisted, nil)
@@ -1381,7 +1455,7 @@ func TestAdoptPersistedReverse_FinalPreservesForeignLegacyCollision(t *testing.T
 		},
 	}
 	result, replayed, err := handler.adoptPersistedReverse(context.Background(), organizationID, ledgerID,
-		originID, persisted, nil, nil)
+		originID, persisted, nil, nil, nil)
 	require.NoError(t, err)
 	assert.True(t, replayed)
 	assert.Same(t, persisted, result)
@@ -1425,7 +1499,7 @@ func TestAdoptPersistedReverse_FinalCleansExactPhaseZeroBackupAfterPrimaryProof(
 	require.NoError(t, err)
 
 	claimRepo.EXPECT().Claim(gomock.Any(), organizationID, ledgerID, originID, reverseID,
-		nil, nil, nil, nil).
+		nil, nil, nil, nil, nil).
 		Return(claim, false, nil)
 	transactionRepo.EXPECT().FindWithOperations(gomock.Any(), organizationID, ledgerID, reverseID).
 		Return(persisted, nil)
@@ -1452,7 +1526,7 @@ func TestAdoptPersistedReverse_FinalCleansExactPhaseZeroBackupAfterPrimaryProof(
 		},
 	}
 	result, replayed, err := handler.adoptPersistedReverse(context.Background(), organizationID, ledgerID,
-		originID, persisted, nil, nil)
+		originID, persisted, nil, nil, nil)
 	require.NoError(t, err)
 	assert.True(t, replayed)
 	assert.Same(t, persisted, result)

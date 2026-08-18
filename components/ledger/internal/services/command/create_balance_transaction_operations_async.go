@@ -363,6 +363,7 @@ type TransactionBackupSeedOptions struct {
 	ExecutionAttempt   *mmodel.BalanceExecutionAttempt
 	RevertRolloutMode  string
 	RevertRolloutToken string
+	RedisGeneration    string
 }
 
 // SendTransactionToRedisQueue func that send transaction to redis queue.
@@ -442,13 +443,17 @@ func (uc *UseCase) SendTransactionToRedisQueue(ctx context.Context, organization
 		executionAttempt = options[0].ExecutionAttempt
 		queue.RevertRolloutMode = options[0].RevertRolloutMode
 		queue.RevertRolloutToken = options[0].RevertRolloutToken
+		queue.RedisGeneration = options[0].RedisGeneration
 	}
 	validRolloutMode := queue.RevertRolloutMode == "legacy" || queue.RevertRolloutMode == "bridge"
 	if (queue.RevertRolloutToken == "") != (queue.RevertRolloutMode == "") ||
 		(queue.RevertRolloutToken != "" && (!validRolloutMode || queue.ParentTransactionID == nil ||
 			transactionInput.IsEmpty() || executionAttempt == nil || executionAttempt.Owner != transactionID.String() ||
-			executionAttempt.Outcome != mmodel.TransactionOutcomeCommitted)) {
+			executionAttempt.Outcome != mmodel.TransactionOutcomeCommitted || queue.RedisGeneration == "")) {
 		return fmt.Errorf("rollout revert backup requires exact generation, origin, input, and committed outcome owner")
+	}
+	if executionAttempt != nil && executionAttempt.RedisGeneration != queue.RedisGeneration {
+		return fmt.Errorf("transaction backup Redis generation mismatch")
 	}
 	if executionAttempt != nil {
 		queue.AttemptOwner = executionAttempt.Owner

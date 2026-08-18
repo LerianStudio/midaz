@@ -41,6 +41,7 @@ type Claim struct {
 	LegacyFenceOwner     *string
 	RolloutMode          *string
 	RolloutToken         *string
+	RedisGeneration      *string
 	State                State
 	FailureReason        *string
 	CreatedAt            time.Time
@@ -54,7 +55,7 @@ type Claim struct {
 //go:generate go run go.uber.org/mock/mockgen@v0.6.0 --destination=revert_claim.postgresql_mock.go --package=revertclaim . Repository
 type Repository interface {
 	Claim(ctx context.Context, organizationID, ledgerID, originID, reverseID uuid.UUID,
-		legacyFenceKey, legacyFenceOwner, rolloutMode, rolloutToken *string) (*Claim, bool, error)
+		legacyFenceKey, legacyFenceOwner, rolloutMode, rolloutToken, redisGeneration *string) (*Claim, bool, error)
 	Get(ctx context.Context, organizationID, ledgerID, originID uuid.UUID) (*Claim, error)
 	GetByReverseID(ctx context.Context, organizationID, ledgerID, reverseID uuid.UUID) (*Claim, error)
 	Transition(ctx context.Context, organizationID, ledgerID, originID, reverseID uuid.UUID, state State, failureReason *string) error
@@ -104,6 +105,7 @@ func scanClaim(row interface{ Scan(...any) error }) (*Claim, error) {
 		&claim.LegacyFenceOwner,
 		&claim.RolloutMode,
 		&claim.RolloutToken,
+		&claim.RedisGeneration,
 		&claim.State,
 		&claim.FailureReason,
 		&claim.CreatedAt,
@@ -118,7 +120,7 @@ func scanClaim(row interface{ Scan(...any) error }) (*Claim, error) {
 func (r *PostgreSQLRepository) Claim(
 	ctx context.Context,
 	organizationID, ledgerID, originID, reverseID uuid.UUID,
-	legacyFenceKey, legacyFenceOwner, rolloutMode, rolloutToken *string,
+	legacyFenceKey, legacyFenceOwner, rolloutMode, rolloutToken, redisGeneration *string,
 ) (*Claim, bool, error) {
 	if legacyFenceKey != nil && strings.TrimSpace(*legacyFenceKey) == "" {
 		return nil, false, fmt.Errorf("legacy fence key cannot be empty")
@@ -136,6 +138,12 @@ func (r *PostgreSQLRepository) Claim(
 		if strings.TrimSpace(*rolloutToken) == "" {
 			return nil, false, fmt.Errorf("revert rollout token cannot be empty")
 		}
+		if redisGeneration == nil {
+			return nil, false, fmt.Errorf("revert rollout requires a financial Redis generation")
+		}
+	}
+	if redisGeneration != nil && strings.TrimSpace(*redisGeneration) == "" {
+		return nil, false, fmt.Errorf("financial Redis generation cannot be empty")
 	}
 	db, err := r.getDB(ctx)
 	if err != nil {
@@ -151,10 +159,11 @@ func (r *PostgreSQLRepository) Claim(
 	result, err := tx.ExecContext(ctx, `
 		INSERT INTO transaction_revert_claim (
 			organization_id, ledger_id, origin_transaction_id, reverse_transaction_id,
-			legacy_fence_key, legacy_fence_owner, rollout_mode, rollout_token
-		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+			legacy_fence_key, legacy_fence_owner, rollout_mode, rollout_token, redis_generation
+		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
 		ON CONFLICT (organization_id, ledger_id, origin_transaction_id) DO NOTHING`,
 		organizationID, ledgerID, originID, reverseID, legacyFenceKey, legacyFenceOwner, rolloutMode, rolloutToken,
+		redisGeneration,
 	)
 	if err != nil {
 		return nil, false, fmt.Errorf("insert revert claim: %w", err)
@@ -167,7 +176,7 @@ func (r *PostgreSQLRepository) Claim(
 
 	claim, err := scanClaim(tx.QueryRowContext(ctx, `
 		SELECT organization_id, ledger_id, origin_transaction_id,
-		       reverse_transaction_id, legacy_fence_key, legacy_fence_owner, rollout_mode, rollout_token,
+		       reverse_transaction_id, legacy_fence_key, legacy_fence_owner, rollout_mode, rollout_token, redis_generation,
 		       state, failure_reason, created_at, updated_at
 		FROM transaction_revert_claim
 		WHERE organization_id = $1 AND ledger_id = $2 AND origin_transaction_id = $3`,
@@ -200,7 +209,7 @@ func (r *PostgreSQLRepository) Get(ctx context.Context, organizationID, ledgerID
 
 	claim, err := scanClaim(tx.QueryRowContext(ctx, `
 		SELECT organization_id, ledger_id, origin_transaction_id,
-		       reverse_transaction_id, legacy_fence_key, legacy_fence_owner, rollout_mode, rollout_token,
+		       reverse_transaction_id, legacy_fence_key, legacy_fence_owner, rollout_mode, rollout_token, redis_generation,
 		       state, failure_reason, created_at, updated_at
 		FROM transaction_revert_claim
 		WHERE organization_id = $1 AND ledger_id = $2 AND origin_transaction_id = $3`,
@@ -234,7 +243,7 @@ func (r *PostgreSQLRepository) GetByReverseID(ctx context.Context, organizationI
 
 	claim, err := scanClaim(tx.QueryRowContext(ctx, `
 		SELECT organization_id, ledger_id, origin_transaction_id,
-		       reverse_transaction_id, legacy_fence_key, legacy_fence_owner, rollout_mode, rollout_token,
+		       reverse_transaction_id, legacy_fence_key, legacy_fence_owner, rollout_mode, rollout_token, redis_generation,
 		       state, failure_reason, created_at, updated_at
 		FROM transaction_revert_claim
 		WHERE organization_id = $1 AND ledger_id = $2 AND reverse_transaction_id = $3`,

@@ -59,6 +59,8 @@ type TransactionHandler struct {
 		ReleaseRevert(context.Context, string, string, string) error
 		CompleteRevert(context.Context, string, string) error
 		RevertTerminalHandoffComplete(context.Context, string, string) (bool, error)
+		FinancialDurability(context.Context) error
+		FinancialDatasetGeneration(context.Context) (string, error)
 	}
 }
 

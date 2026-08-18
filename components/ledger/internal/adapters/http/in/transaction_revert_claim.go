@@ -78,12 +78,12 @@ func (handler *TransactionHandler) requireRevertRolloutBarrier(ctx context.Conte
 func (handler *TransactionHandler) acquireRevertRolloutRequest(
 	ctx context.Context,
 	organizationID, ledgerID, originID uuid.UUID,
-) (string, string, func() error, error) {
+) (string, string, string, func() error, error) {
 	if strings.TrimSpace(handler.RevertIdempotencyMode) == "" && handler.RevertUpdateFreeze == nil {
-		return "", "", nil, nil
+		return "", "", "", nil, nil
 	}
 	if handler.RevertUpdateFreeze == nil {
-		return "", "", nil, pkg.ValidateBusinessError(constant.ErrRevertRolloutFreezeRequired, constant.EntityTransaction)
+		return "", "", "", nil, pkg.ValidateBusinessError(constant.ErrRevertRolloutFreezeRequired, constant.EntityTransaction)
 	}
 
 	mode := handler.activeRevertIdempotencyMode()
@@ -100,23 +100,12 @@ func (handler *TransactionHandler) acquireRevertRolloutRequest(
 		// The Lua admission is idempotent for this attempt ID. A lost response
 		// leaves a fail-closed barrier; retrying the exact admission or release
 		// cannot inflate or erase another attempt.
-		return "", "", nil, fmt.Errorf("acquire revert rollout request lease: %w", err)
+		return "", "", "", nil, fmt.Errorf("acquire revert rollout request lease: %w", err)
 	}
 	if !admitted {
-		return "", "", nil, pkg.ValidateBusinessError(constant.ErrRevertRolloutFreezeRequired, constant.EntityTransaction)
+		return "", "", "", nil, pkg.ValidateBusinessError(constant.ErrRevertRolloutFreezeRequired, constant.EntityTransaction)
 	}
-	if !leaseHeld {
-		// Legacy/bridge can be admitted without a live attempt only when the
-		// origin is already terminally sealed. Preserve its deterministic origin
-		// token so the request follows the durable-claim replay path. Final mode
-		// never owns a generation drain token.
-		if mode != revertIdempotencyModeFinal {
-			return phase, token, nil, nil
-		}
-		return phase, "", nil, nil
-	}
-
-	return phase, token, func() error {
+	release := func() error {
 		releaseCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
 		defer cancel()
 
@@ -125,7 +114,27 @@ func (handler *TransactionHandler) acquireRevertRolloutRequest(
 		}
 
 		return nil
-	}, nil
+	}
+	generation, err := handler.RevertUpdateFreeze.FinancialDatasetGeneration(ctx)
+	if err != nil {
+		if leaseHeld {
+			return "", "", "", nil, errors.Join(err, release())
+		}
+
+		return "", "", "", nil, err
+	}
+	if !leaseHeld {
+		// Legacy/bridge can be admitted without a live attempt only when the
+		// origin is already terminally sealed. Preserve its deterministic origin
+		// token so the request follows the durable-claim replay path. Final mode
+		// never owns a generation drain token.
+		if mode != revertIdempotencyModeFinal {
+			return phase, token, generation, nil, nil
+		}
+		return phase, "", generation, nil, nil
+	}
+
+	return phase, token, generation, release, nil
 }
 
 func (handler *TransactionHandler) revertRolloutHandoffPending(
@@ -139,13 +148,20 @@ func (handler *TransactionHandler) revertRolloutHandoffPending(
 		return true
 	}
 
-	evidence, err := handler.Command.TransactionRedisRepo.TransactionEconomicEvidenceExists(ctx,
-		organizationID, ledgerID, reverseID)
-	if err != nil || evidence {
+	if handler.RevertUpdateFreeze == nil || handler.RevertUpdateFreeze.FinancialDurability(ctx) != nil {
 		return true
 	}
 	claim, err := handler.Command.GetRevertClaim(ctx, organizationID, ledgerID, originID)
 	if err != nil {
+		return true
+	}
+	expectedGeneration := ""
+	if claim != nil && claim.RedisGeneration != nil {
+		expectedGeneration = *claim.RedisGeneration
+	}
+	evidence, generationMatches, err := handler.Command.TransactionRedisRepo.TransactionEconomicEvidenceExists(ctx,
+		organizationID, ledgerID, reverseID, expectedGeneration)
+	if err != nil || evidence || (claim != nil && !generationMatches) {
 		return true
 	}
 	if claim == nil {
@@ -321,7 +337,7 @@ func (handler *TransactionHandler) adoptPersistedReverse(
 	ctx context.Context,
 	organizationID, ledgerID, originID uuid.UUID,
 	persisted *transaction.Transaction,
-	rolloutMode, rolloutToken *string,
+	rolloutMode, rolloutToken, redisGeneration *string,
 	legacyFenceKey ...*string,
 ) (*transaction.Transaction, bool, error) {
 	reverseID, err := uuid.Parse(persisted.ID)
@@ -334,7 +350,7 @@ func (handler *TransactionHandler) adoptPersistedReverse(
 		exactLegacyKey = legacyFenceKey[0]
 	}
 	claim, _, err := handler.Command.ClaimRevert(ctx, organizationID, ledgerID, originID, reverseID,
-		exactLegacyKey, nil, rolloutMode, rolloutToken)
+		exactLegacyKey, nil, rolloutMode, rolloutToken, redisGeneration)
 	if err != nil {
 		return nil, false, err
 	}
@@ -536,6 +552,9 @@ func (handler *TransactionHandler) finalizeOutcomeBackedRevertPersistence(
 		Owner:        claim.ReverseTransactionID.String(),
 		Outcome:      mmodel.TransactionOutcomeCommitted,
 		Identity:     claim.ReverseTransactionID,
+	}
+	if claim.RedisGeneration != nil {
+		attempt.RedisGeneration = *claim.RedisGeneration
 	}
 
 	operationIDs := make([]string, 0, len(persisted.Operations))
@@ -1065,10 +1084,28 @@ func (handler *TransactionHandler) recoverProvenPreMovementRevert(ctx context.Co
 	if claim.State != revertclaim.StateClaimed && claim.State != revertclaim.StateRecovering {
 		return false, nil
 	}
+	if claim.RedisGeneration == nil || strings.TrimSpace(*claim.RedisGeneration) == "" {
+		return false, handler.requireRevertReconciliation(ctx, claim, "pre_movement_redis_generation_missing")
+	}
+	if handler.RevertUpdateFreeze == nil {
+		return false, handler.requireRevertReconciliation(ctx, claim, "pre_movement_redis_durability_unavailable")
+	}
+	if err := handler.RevertUpdateFreeze.FinancialDurability(ctx); err != nil {
+		return false, handler.requireRevertReconciliation(ctx, claim, "pre_movement_redis_durability_unhealthy")
+	}
 
 	// Revalidate the complete Redis proof on every recovery election, including
 	// a re-election after a RECOVERING owner crashed. A stale database state can
 	// never authorize cleanup if an outcome or live attempt appeared meanwhile.
+	evidence, generationMatches, err := handler.Command.TransactionRedisRepo.TransactionEconomicEvidenceExists(ctx,
+		claim.OrganizationID, claim.LedgerID, claim.ReverseTransactionID, *claim.RedisGeneration)
+	if err != nil {
+		return false, fmt.Errorf("read revert economic evidence: %w", err)
+	}
+	if !generationMatches {
+		return false, handler.requireRevertReconciliation(ctx, claim, "pre_movement_redis_generation_mismatch")
+	}
+
 	outcomeValue, err := handler.Command.TransactionRedisRepo.Get(ctx,
 		utils.TransactionBalanceOutcomeKey(claim.OrganizationID, claim.LedgerID, claim.ReverseTransactionID))
 	if err != nil {
@@ -1093,6 +1130,12 @@ func (handler *TransactionHandler) recoverProvenPreMovementRevert(ctx context.Co
 		return false, fmt.Errorf("read pre-movement revert seed: %w", err)
 	}
 	backupPresent := err == nil
+	if evidence && !backupPresent {
+		// The atomic snapshot observed some evidence, but the follow-up reads did
+		// not find an exact seed. A concurrent or partial cleanup is not proof of
+		// pre-movement absence.
+		return false, nil
+	}
 	queued := mmodel.TransactionRedisQueue{}
 	if backupPresent {
 		if err := json.Unmarshal(backup, &queued); err != nil || queued.TransactionID != claim.ReverseTransactionID ||
@@ -1112,13 +1155,30 @@ func (handler *TransactionHandler) recoverProvenPreMovementRevert(ctx context.Co
 		return false, nil
 	}
 
-	backupKey := utils.TransactionInternalKey(claim.OrganizationID, claim.LedgerID, claim.ReverseTransactionID.String())
+	expectedStatus := constant.CREATED
 	if backupPresent {
-		removed, removeErr := handler.Command.TransactionRedisRepo.RemoveMessageFromQueueIfStatus(ctx, backupKey,
-			queued.TransactionStatus, queued.AttemptOwner, queued.ExpectedOutcome, true)
-		if removeErr != nil || !removed {
-			return false, handler.requireRevertReconciliation(ctx, claim, "pre_movement_backup_cleanup_failed")
+		expectedStatus = queued.TransactionStatus
+	}
+	attempt := mmodel.BalanceExecutionAttempt{
+		ExecutionKey:    utils.TransactionBalanceExecutionKey(claim.OrganizationID, claim.LedgerID, claim.ReverseTransactionID),
+		OutcomeKey:      utils.TransactionBalanceOutcomeKey(claim.OrganizationID, claim.LedgerID, claim.ReverseTransactionID),
+		Owner:           claim.ReverseTransactionID.String(),
+		Outcome:         mmodel.TransactionOutcomeCommitted,
+		Identity:        claim.ReverseTransactionID,
+		RedisGeneration: *claim.RedisGeneration,
+	}
+	releasedEvidence, generationMatches, releaseErr := handler.Command.TransactionRedisRepo.ReleaseProvenPreMovementRevert(ctx,
+		claim.OrganizationID, claim.LedgerID, claim.OriginTransactionID, claim.ReverseTransactionID,
+		expectedStatus, attempt)
+	if releaseErr != nil {
+		return false, handler.requireRevertReconciliation(ctx, claim, "pre_movement_backup_cleanup_failed")
+	}
+	if !releasedEvidence {
+		if !generationMatches {
+			return false, handler.requireRevertReconciliation(ctx, claim, "pre_movement_redis_generation_changed_during_cleanup")
 		}
+
+		return false, handler.requireRevertReconciliation(ctx, claim, "pre_movement_backup_cleanup_failed")
 	}
 	if err := handler.releaseOwnedRevertOriginFence(ctx, claim); err != nil {
 		return false, handler.requireRevertReconciliation(ctx, claim, "pre_movement_origin_fence_cleanup_failed")

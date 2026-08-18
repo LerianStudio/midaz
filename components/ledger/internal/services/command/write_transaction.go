@@ -60,6 +60,7 @@ func (uc *UseCase) WriteTransactionAsync(ctx context.Context, organizationID, le
 		Version:            "v2",
 		RevertRolloutMode:  tran.RevertRolloutMode,
 		RevertRolloutToken: tran.RevertRolloutToken,
+		RedisGeneration:    tran.RedisGeneration,
 	}
 	applyExecutionAttemptToPayload(&value, attempts)
 
@@ -138,6 +139,7 @@ func (uc *UseCase) WriteTransactionSync(ctx context.Context, organizationID, led
 		Version:            "v2",
 		RevertRolloutMode:  tran.RevertRolloutMode,
 		RevertRolloutToken: tran.RevertRolloutToken,
+		RedisGeneration:    tran.RedisGeneration,
 	}
 	applyExecutionAttemptToPayload(&value, attempts)
 

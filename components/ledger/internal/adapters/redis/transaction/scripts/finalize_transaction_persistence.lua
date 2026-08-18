@@ -1,3 +1,7 @@
+if #KEYS == 4 and redis.call("GET", KEYS[4]) ~= ARGV[5] then
+    return redis.error_reply("FINANCIAL_DATASET_GENERATION_MISMATCH")
+end
+
 local backup = redis.call("HGET", KEYS[1], KEYS[2])
 local outcomeRaw = redis.call("GET", KEYS[3])
 

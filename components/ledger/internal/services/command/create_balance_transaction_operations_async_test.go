@@ -42,11 +42,13 @@ func TestSendTransactionToRedisQueue_PersistsPhaseZeroRolloutOwner(t *testing.T)
 	transactionID := uuid.New()
 	originID := uuid.New()
 	rolloutToken := uuid.NewString()
+	redisGeneration := uuid.NewString()
 	input := mtransaction.Transaction{Description: "phase-zero reverse", Send: mtransaction.Send{
 		Asset: "USD", Value: decimal.NewFromInt(10),
 	}}
 	attempt := &mmodel.BalanceExecutionAttempt{
 		Owner: transactionID.String(), Outcome: mmodel.TransactionOutcomeCommitted, Identity: transactionID,
+		RedisGeneration: redisGeneration,
 	}
 
 	redisRepo.EXPECT().SeedTransactionBackup(gomock.Any(), organizationID, ledgerID, transactionID,
@@ -56,6 +58,7 @@ func TestSendTransactionToRedisQueue_PersistsPhaseZeroRolloutOwner(t *testing.T)
 			require.NoError(t, json.Unmarshal(raw, &queued))
 			assert.Equal(t, rolloutToken, queued.RevertRolloutToken)
 			assert.Equal(t, "legacy", queued.RevertRolloutMode)
+			assert.Equal(t, redisGeneration, queued.RedisGeneration)
 			assert.Equal(t, transactionID, queued.TransactionID)
 			assert.Equal(t, *attempt, seededAttempt)
 			require.NotNil(t, queued.ParentTransactionID)
@@ -70,6 +73,7 @@ func TestSendTransactionToRedisQueue_PersistsPhaseZeroRolloutOwner(t *testing.T)
 		time.Date(2026, time.August, 18, 0, 0, 0, 0, time.UTC), nil, &originID,
 		TransactionBackupSeedOptions{
 			ExecutionAttempt: attempt, RevertRolloutMode: "legacy", RevertRolloutToken: rolloutToken,
+			RedisGeneration: redisGeneration,
 		})
 	require.NoError(t, err)
 }

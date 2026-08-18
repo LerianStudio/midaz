@@ -24,6 +24,18 @@ func (s *revertRolloutTransitionStub) Activate(context.Context) error {
 	return s.err
 }
 
+func (s *revertRolloutTransitionStub) InitializeFinancialDatasetGeneration(context.Context) error {
+	s.called = "initialize"
+
+	return s.err
+}
+
+func (s *revertRolloutTransitionStub) ValidatePrepared(context.Context) error {
+	s.called = "prepared"
+
+	return s.err
+}
+
 func (s *revertRolloutTransitionStub) MarkPhaseZeroDrained(context.Context) error {
 	s.called = "phase-zero-drained"
 
@@ -45,7 +57,9 @@ func TestApplyRevertRolloutTarget(t *testing.T) {
 		wantCalled string
 		wantErr    string
 	}{
-		{name: "no target leaves marker unchanged"},
+		{name: "no target preserves released legacy state"},
+		{name: "initialize financial dataset", target: "initialize", wantCalled: "initialize"},
+		{name: "validate prepared state", target: "prepared", wantCalled: "prepared"},
 		{name: "activate", target: "active", wantCalled: "active"},
 		{name: "drain phase zero", target: "phase-zero-drained", wantCalled: "phase-zero-drained"},
 		{name: "finalize", target: "finalized", wantCalled: "finalized"},
@@ -93,24 +107,31 @@ func TestApplyConfigDefaults_RevertRolloutStartsInPhaseZero(t *testing.T) {
 
 func TestValidateRevertRolloutConfiguration(t *testing.T) {
 	t.Parallel()
+	const generation = "645439df-1837-421e-9607-f60b091542c9"
 
 	tests := []struct {
-		name    string
-		mode    string
-		target  string
-		wantErr bool
+		name       string
+		mode       string
+		target     string
+		generation string
+		wantErr    bool
 	}{
 		{name: "phase zero without transition", mode: "legacy"},
-		{name: "phase zero activates freeze", mode: "legacy", target: "active"},
-		{name: "bridge keeps active", mode: "bridge", target: "active"},
-		{name: "bridge drains phase zero", mode: "bridge", target: "phase-zero-drained"},
-		{name: "final observes drained", mode: "final", target: "phase-zero-drained"},
-		{name: "final finalizes", mode: "final", target: "finalized"},
+		{name: "initialize phase zero", mode: "legacy", target: "initialize", generation: generation},
+		{name: "serve prepared phase zero", mode: "legacy", target: "prepared", generation: generation},
+		{name: "phase zero activates freeze", mode: "legacy", target: "active", generation: generation},
+		{name: "bridge keeps active", mode: "bridge", target: "active", generation: generation},
+		{name: "bridge drains phase zero", mode: "bridge", target: "phase-zero-drained", generation: generation},
+		{name: "final observes drained", mode: "final", target: "phase-zero-drained", generation: generation},
+		{name: "final finalizes", mode: "final", target: "finalized", generation: generation},
 		{name: "invalid mode", mode: "bridg", wantErr: true},
 		{name: "invalid target", mode: "legacy", target: "reopened", wantErr: true},
-		{name: "phase zero cannot drain itself", mode: "legacy", target: "phase-zero-drained", wantErr: true},
-		{name: "bridge cannot finalize", mode: "bridge", target: "finalized", wantErr: true},
-		{name: "final cannot reopen active", mode: "final", target: "active", wantErr: true},
+		{name: "phase zero cannot drain itself", mode: "legacy", target: "phase-zero-drained", generation: generation, wantErr: true},
+		{name: "bridge cannot finalize", mode: "bridge", target: "finalized", generation: generation, wantErr: true},
+		{name: "final cannot reopen active", mode: "final", target: "active", generation: generation, wantErr: true},
+		{name: "serving target requires generation", mode: "legacy", target: "prepared", wantErr: true},
+		{name: "generation must be UUID", mode: "legacy", target: "prepared", generation: "dataset-a", wantErr: true},
+		{name: "released legacy rejects rollout generation", mode: "legacy", generation: generation, wantErr: true},
 	}
 
 	for _, tc := range tests {
@@ -118,7 +139,7 @@ func TestValidateRevertRolloutConfiguration(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			err := validateRevertRolloutConfiguration(tc.mode, tc.target)
+			err := validateRevertRolloutConfiguration(tc.mode, tc.target, tc.generation)
 			if tc.wantErr {
 				require.Error(t, err)
 

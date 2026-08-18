@@ -48,6 +48,7 @@ func TestIntegration_RevertClaim_ConcurrentOriginHasSingleReservedReverse(t *tes
 	legacyKeys := make([]string, racers)
 	rolloutMode := "bridge"
 	rolloutToken := "origin-generation-token"
+	redisGeneration := "financial-dataset-generation"
 	start := make(chan struct{})
 
 	var wg sync.WaitGroup
@@ -60,7 +61,7 @@ func TestIntegration_RevertClaim_ConcurrentOriginHasSingleReservedReverse(t *tes
 			reverseID := uuid.New()
 			legacyOwner := reverseID.String()
 			claims[slot], acquired[slot], errs[slot] = repo.Claim(ctx, organizationID, ledgerID, originID,
-				reverseID, &legacyKeys[slot], &legacyOwner, &rolloutMode, &rolloutToken)
+				reverseID, &legacyKeys[slot], &legacyOwner, &rolloutMode, &rolloutToken, &redisGeneration)
 		}(i)
 	}
 	close(start)
@@ -92,6 +93,8 @@ func TestIntegration_RevertClaim_ConcurrentOriginHasSingleReservedReverse(t *tes
 		require.NotNil(t, claim.RolloutToken)
 		assert.Equal(t, rolloutToken, *claim.RolloutToken,
 			"every loser must recover the exact rollout generation chosen by the winning claim")
+		require.NotNil(t, claim.RedisGeneration)
+		assert.Equal(t, redisGeneration, *claim.RedisGeneration)
 	}
 }
 
@@ -103,7 +106,7 @@ func TestIntegration_RevertClaim_ReverseIDIsUniqueAndReleaseIsPreMutationOnly(t 
 	reverseID := uuid.New()
 
 	first, acquired, err := repo.Claim(ctx, organizationID, ledgerID, uuid.New(), reverseID,
-		nil, nil, nil, nil)
+		nil, nil, nil, nil, nil)
 	require.NoError(t, err)
 	require.True(t, acquired)
 	byReverseID, err := repo.GetByReverseID(ctx, organizationID, ledgerID, reverseID)
@@ -115,7 +118,7 @@ func TestIntegration_RevertClaim_ReverseIDIsUniqueAndReleaseIsPreMutationOnly(t 
 	assert.Nil(t, missing)
 
 	_, _, err = repo.Claim(ctx, organizationID, ledgerID, uuid.New(), reverseID,
-		nil, nil, nil, nil)
+		nil, nil, nil, nil, nil)
 	require.Error(t, err, "one reverse ID cannot be reserved for two origins")
 
 	require.NoError(t, repo.Transition(ctx, first.OrganizationID, first.LedgerID, first.OriginTransactionID,
@@ -146,7 +149,7 @@ func TestIntegration_RevertClaim_RolloutGenerationIsAllOrNothing(t *testing.T) {
 
 	mode := "bridge"
 	_, _, err := repo.Claim(ctx, uuid.New(), uuid.New(), uuid.New(), uuid.New(),
-		nil, nil, &mode, nil)
+		nil, nil, &mode, nil, nil)
 	require.ErrorContains(t, err, "must be provided together")
 
 	_, err = container.DB.ExecContext(ctx, `
@@ -154,6 +157,79 @@ func TestIntegration_RevertClaim_RolloutGenerationIsAllOrNothing(t *testing.T) {
 			organization_id, ledger_id, origin_transaction_id, reverse_transaction_id, rollout_mode
 		) VALUES ($1, $2, $3, $4, 'bridge')`, uuid.New(), uuid.New(), uuid.New(), uuid.New())
 	require.Error(t, err, "the database must reject a rollout generation without its exact token")
+
+	redisGeneration := "financial-dataset-generation"
+	claim, acquired, err := repo.Claim(ctx, uuid.New(), uuid.New(), uuid.New(), uuid.New(),
+		nil, nil, nil, nil, &redisGeneration)
+	require.NoError(t, err)
+	require.True(t, acquired)
+	require.NotNil(t, claim.RedisGeneration)
+	assert.Equal(t, redisGeneration, *claim.RedisGeneration,
+		"final mode must durably bind a claim to the financial dataset without a legacy rollout token")
+}
+
+func TestIntegration_RevertClaim_UpgradePublished000036To000037(t *testing.T) {
+	t.Setenv("ALLOW_INSECURE_TLS", "true")
+	container := postgrestestutil.SetupContainer(t)
+	ctx := context.Background()
+	migrationsPath := postgrestestutil.FindMigrationsPath(t, "transaction")
+	oldUp, err := os.ReadFile(filepath.Join(migrationsPath, "000036_create_revert_claim.up.sql"))
+	require.NoError(t, err)
+	rolloutUp, err := os.ReadFile(filepath.Join(migrationsPath, "000037_add_revert_rollout_generation.up.sql"))
+	require.NoError(t, err)
+	rolloutDown, err := os.ReadFile(filepath.Join(migrationsPath, "000037_add_revert_rollout_generation.down.sql"))
+	require.NoError(t, err)
+
+	_, err = container.DB.ExecContext(ctx, string(oldUp))
+	require.NoError(t, err)
+	var rolloutColumns int
+	require.NoError(t, container.DB.QueryRowContext(ctx, `
+		SELECT COUNT(*) FROM information_schema.columns
+		WHERE table_schema = 'public' AND table_name = 'transaction_revert_claim'
+		  AND column_name IN ('rollout_mode', 'rollout_token', 'redis_generation')`).Scan(&rolloutColumns))
+	assert.Zero(t, rolloutColumns, "the published 000036 contract must remain unchanged")
+
+	organizationID := uuid.New()
+	ledgerID := uuid.New()
+	originID := uuid.New()
+	reverseID := uuid.New()
+	_, err = container.DB.ExecContext(ctx, `
+		INSERT INTO transaction_revert_claim (
+			organization_id, ledger_id, origin_transaction_id, reverse_transaction_id
+		) VALUES ($1, $2, $3, $4)`, organizationID, ledgerID, originID, reverseID)
+	require.NoError(t, err)
+
+	_, err = container.DB.ExecContext(ctx, string(rolloutUp))
+	require.NoError(t, err)
+	_, err = container.DB.ExecContext(ctx, string(rolloutUp))
+	require.NoError(t, err, "000037 up must be idempotent after a partially or fully applied deployment")
+	require.NoError(t, container.DB.QueryRowContext(ctx, `
+		SELECT COUNT(*) FROM information_schema.columns
+		WHERE table_schema = 'public' AND table_name = 'transaction_revert_claim'
+		  AND column_name IN ('rollout_mode', 'rollout_token', 'redis_generation')`).Scan(&rolloutColumns))
+	assert.Equal(t, 3, rolloutColumns)
+
+	var mode, token, generation *string
+	require.NoError(t, container.DB.QueryRowContext(ctx, `
+		SELECT rollout_mode, rollout_token, redis_generation
+		FROM transaction_revert_claim
+		WHERE organization_id = $1 AND ledger_id = $2 AND origin_transaction_id = $3`,
+		organizationID, ledgerID, originID).Scan(&mode, &token, &generation))
+	assert.Nil(t, mode)
+	assert.Nil(t, token)
+	assert.Nil(t, generation, "a legacy 000036 claim must survive the upgrade without fabricated Redis proof")
+
+	_, err = container.DB.ExecContext(ctx, string(rolloutDown))
+	require.ErrorContains(t, err, "rollback requires an empty claim table")
+	_, err = container.DB.ExecContext(ctx, `DELETE FROM transaction_revert_claim`)
+	require.NoError(t, err)
+	_, err = container.DB.ExecContext(ctx, string(rolloutDown))
+	require.NoError(t, err)
+	require.NoError(t, container.DB.QueryRowContext(ctx, `
+		SELECT COUNT(*) FROM information_schema.columns
+		WHERE table_schema = 'public' AND table_name = 'transaction_revert_claim'
+		  AND column_name IN ('rollout_mode', 'rollout_token', 'redis_generation')`).Scan(&rolloutColumns))
+	assert.Zero(t, rolloutColumns)
 }
 
 func TestIntegration_RevertClaim_PreMutationRecoveryElectsOneOwner(t *testing.T) {
@@ -165,7 +241,7 @@ func TestIntegration_RevertClaim_PreMutationRecoveryElectsOneOwner(t *testing.T)
 	reverseID := uuid.New()
 
 	_, acquired, err := repo.Claim(ctx, organizationID, ledgerID, originID, reverseID,
-		nil, nil, nil, nil)
+		nil, nil, nil, nil, nil)
 	require.NoError(t, err)
 	require.True(t, acquired)
 
@@ -218,7 +294,7 @@ func TestIntegration_RevertClaim_ReadsIgnoreReplicaLag(t *testing.T) {
 	originID := uuid.New()
 	reverseID := uuid.New()
 	_, acquired, err := repo.Claim(ctx, organizationID, ledgerID, originID, reverseID,
-		nil, nil, nil, nil)
+		nil, nil, nil, nil, nil)
 	require.NoError(t, err)
 	require.True(t, acquired)
 
@@ -254,14 +330,18 @@ func TestIntegration_RevertClaim_MigrationDownAndUp(t *testing.T) {
 	reverseID := uuid.New()
 
 	_, acquired, err := repo.Claim(ctx, organizationID, ledgerID, originID, reverseID,
-		nil, nil, nil, nil)
+		nil, nil, nil, nil, nil)
 	require.NoError(t, err)
 	require.True(t, acquired)
 
 	migrationsPath := postgrestestutil.FindMigrationsPath(t, "transaction")
-	down, err := os.ReadFile(filepath.Join(migrationsPath, "000036_create_revert_claim.down.sql"))
+	rolloutDown, err := os.ReadFile(filepath.Join(migrationsPath, "000037_add_revert_rollout_generation.down.sql"))
 	require.NoError(t, err)
-	_, err = container.DB.ExecContext(ctx, string(down))
+	tableDown, err := os.ReadFile(filepath.Join(migrationsPath, "000036_create_revert_claim.down.sql"))
+	require.NoError(t, err)
+	_, err = container.DB.ExecContext(ctx, string(rolloutDown))
+	require.ErrorContains(t, err, "rollback requires an empty claim table")
+	_, err = container.DB.ExecContext(ctx, string(tableDown))
 	require.ErrorContains(t, err, "cannot remove transaction_revert_claim while reversal claims exist")
 
 	var exists bool
@@ -273,7 +353,9 @@ func TestIntegration_RevertClaim_MigrationDownAndUp(t *testing.T) {
 	require.NoError(t, err)
 	require.True(t, released)
 
-	_, err = container.DB.ExecContext(ctx, string(down))
+	_, err = container.DB.ExecContext(ctx, string(rolloutDown))
+	require.NoError(t, err)
+	_, err = container.DB.ExecContext(ctx, string(tableDown))
 	require.NoError(t, err)
 	require.NoError(t, container.DB.QueryRowContext(ctx,
 		`SELECT to_regclass('public.transaction_revert_claim') IS NOT NULL`).Scan(&exists))
@@ -283,9 +365,13 @@ func TestIntegration_RevertClaim_MigrationDownAndUp(t *testing.T) {
 	require.NoError(t, err)
 	_, err = container.DB.ExecContext(ctx, string(up))
 	require.NoError(t, err)
+	rolloutUp, err := os.ReadFile(filepath.Join(migrationsPath, "000037_add_revert_rollout_generation.up.sql"))
+	require.NoError(t, err)
+	_, err = container.DB.ExecContext(ctx, string(rolloutUp))
+	require.NoError(t, err)
 
 	_, acquired, err = repo.Claim(ctx, uuid.New(), uuid.New(), uuid.New(), uuid.New(),
-		nil, nil, nil, nil)
+		nil, nil, nil, nil, nil)
 	require.NoError(t, err)
 	assert.True(t, acquired)
 }
@@ -294,7 +380,7 @@ func TestIntegration_RevertClaim_MigrationDownCannotRaceConcurrentClaim(t *testi
 	_, container := setupRevertClaimRepository(t)
 	ctx := context.Background()
 	migrationsPath := postgrestestutil.FindMigrationsPath(t, "transaction")
-	down, err := os.ReadFile(filepath.Join(migrationsPath, "000036_create_revert_claim.down.sql"))
+	down, err := os.ReadFile(filepath.Join(migrationsPath, "000037_add_revert_rollout_generation.down.sql"))
 	require.NoError(t, err)
 
 	tx, err := container.DB.BeginTx(ctx, nil)
@@ -319,10 +405,18 @@ func TestIntegration_RevertClaim_MigrationDownCannotRaceConcurrentClaim(t *testi
 
 	require.NoError(t, tx.Commit())
 	downErr := <-downResult
-	require.ErrorContains(t, downErr, "cannot remove transaction_revert_claim while reversal claims exist")
+	require.ErrorContains(t, downErr, "rollback requires an empty claim table")
 
 	var exists bool
 	require.NoError(t, container.DB.QueryRowContext(ctx,
 		`SELECT to_regclass('public.transaction_revert_claim') IS NOT NULL`).Scan(&exists))
 	assert.True(t, exists, "the linearized down guard must preserve a concurrently-created claim")
+	var generationColumn bool
+	require.NoError(t, container.DB.QueryRowContext(ctx, `
+		SELECT EXISTS (
+			SELECT 1 FROM information_schema.columns
+			WHERE table_schema = 'public' AND table_name = 'transaction_revert_claim'
+			  AND column_name = 'redis_generation'
+		)`).Scan(&generationColumn))
+	assert.True(t, generationColumn, "failed 000037 rollback must preserve the witness contract")
 }

@@ -33,6 +33,9 @@ type Service struct {
 	Logger                   libLog.Logger
 	Telemetry                *libOpentelemetry.Telemetry
 	metricsFactory           *metrics.MetricsFactory
+	// RolloutInitializationOnly is returned by the explicit one-shot dataset
+	// initializer. Run exits without starting HTTP or background consumers.
+	RolloutInitializationOnly bool
 
 	// StreamingClose is the close hook for the lib-streaming producer. It
 	// is non-nil for both the real producer and the NoopEmitter — callers
@@ -74,6 +77,14 @@ type Service struct {
 // Run starts the unified ledger service with all APIs on a single port.
 // Workers (RabbitMQ, Redis consumers, balance sync) are started directly.
 func (s *Service) Run() {
+	if s.RolloutInitializationOnly {
+		if s.Logger != nil {
+			s.Logger.Log(context.Background(), libLog.LevelInfo,
+				"Revert rollout dataset initialization completed; no ledger service was started")
+		}
+
+		return
+	}
 	s.Logger.Log(context.Background(), libLog.LevelInfo, "Running unified ledger service with single-port mode")
 
 	apps := s.launcherApps()
@@ -100,6 +111,9 @@ type launcherApp struct {
 // same enable/disable guards Run() relies on. Apps run CONCURRENTLY under the
 // Launcher, so this order does not sequence execution — it only fixes assembly.
 func (s *Service) launcherApps() []launcherApp {
+	if s.RolloutInitializationOnly {
+		return nil
+	}
 	apps := make([]launcherApp, 0)
 
 	// Service discovery: registered only when discovery is enabled to preserve

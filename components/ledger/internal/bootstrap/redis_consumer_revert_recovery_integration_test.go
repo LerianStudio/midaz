@@ -54,15 +54,22 @@ func TestIntegration_RevertBackupRecoveryPersistsExactParentAndCompletesClaim(t 
 	redisConnection := redistestutil.CreateConnection(t, redisContainer.Addr)
 	redisRepo, err := transactionredis.NewConsumerRedis(redisConnection)
 	require.NoError(t, err)
-	rolloutGuard := transactionredis.NewRevertUpdateFreezeGuard(redisConnection)
-	require.Eventually(t, func() bool { return rolloutGuard.FinancialDurability(ctx) == nil },
+	const expectedRedisGeneration = "645439df-1837-421e-9607-f60b091542c9"
+	initializer := transactionredis.NewRevertUpdateFreezeGuard(redisConnection,
+		transactionredis.RevertUpdateFreezeInitialize, expectedRedisGeneration)
+	require.Eventually(t, func() bool { return initializer.FinancialDurability(ctx) == nil },
 		10*time.Second, 50*time.Millisecond)
+	require.NoError(t, initializer.InitializeFinancialDatasetGeneration(ctx))
+	rolloutGuard := transactionredis.NewRevertUpdateFreezeGuard(redisConnection,
+		transactionredis.RevertUpdateFreezePrepared, expectedRedisGeneration)
+	redisGeneration, err := rolloutGuard.FinancialDatasetGeneration(ctx)
+	require.NoError(t, err)
 	rolloutToken := uuid.NewString()
 	admitted, leaseHeld, phase, err := rolloutGuard.AcquireRevert(ctx, "legacy", rolloutToken, "consumer-recovery-attempt")
 	require.NoError(t, err)
 	require.True(t, admitted)
 	require.True(t, leaseHeld)
-	require.Empty(t, phase)
+	require.Equal(t, transactionredis.RevertUpdateFreezePrepared, phase)
 	require.Error(t, rolloutGuard.Activate(ctx),
 		"a pre-activation reverse remains a rollout blocker until terminal persistence")
 
@@ -130,6 +137,7 @@ func TestIntegration_RevertBackupRecoveryPersistsExactParentAndCompletesClaim(t 
 		ExpectedOutcome:    mmodel.TransactionOutcomeCommitted,
 		RevertRolloutMode:  "legacy",
 		RevertRolloutToken: rolloutToken,
+		RedisGeneration:    redisGeneration,
 		TransactionDate:    fixedTime,
 		TTL:                fixedTime,
 		BalancesAfter: []mmodel.BalanceRedis{
@@ -382,7 +390,7 @@ func TestIntegration_RevertBackupRecoveryAdoptsPartialDeterministicOperationSet(
 	})
 	require.NoError(t, err)
 	_, acquired, err := claimRepo.Claim(ctx, organizationID, ledgerID, originID, reverseID,
-		nil, nil, nil, nil)
+		nil, nil, nil, nil, nil)
 	require.NoError(t, err)
 	require.True(t, acquired)
 	reason := "post_balance_persistence_incomplete"

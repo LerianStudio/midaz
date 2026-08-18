@@ -61,6 +61,14 @@ func (s backupRevertRolloutPhaseStub) RevertTerminalHandoffComplete(context.Cont
 	return true, nil
 }
 
+func (s backupRevertRolloutPhaseStub) FinancialDurability(context.Context) error {
+	return nil
+}
+
+func (s backupRevertRolloutPhaseStub) FinancialDatasetGeneration(context.Context) (string, error) {
+	return "test-generation", nil
+}
+
 func (s backupRevertRolloutPhaseStub) Phase(context.Context) (string, error) {
 	return s.phase, nil
 }

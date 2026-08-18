@@ -32,6 +32,7 @@ type transactionPathParams struct {
 	ExecutionAttempt      *mmodel.BalanceExecutionAttempt
 	RevertRolloutMode     string
 	RevertRolloutToken    string
+	RedisGeneration       string
 }
 
 type revertExecutionState struct {

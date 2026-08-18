@@ -8,6 +8,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"maps"
+	"reflect"
 	"time"
 
 	libObservability "github.com/LerianStudio/lib-observability/v2"
@@ -16,6 +18,7 @@ import (
 
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/transaction"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services"
+	"github.com/LerianStudio/midaz/v4/components/ledger/pkg/readrouting"
 	"github.com/LerianStudio/midaz/v4/pkg"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
 	"github.com/LerianStudio/midaz/v4/pkg/repository"
@@ -29,6 +32,19 @@ import (
 // row is locked. It may acquire a rollout lease for an APPROVED transaction and
 // returns its owner-safe release function.
 type TransactionUpdateStatusGate func(context.Context, string) (func() error, error)
+
+type transactionUpdateCommitState uint8
+
+const (
+	transactionUpdateCommitUnknown transactionUpdateCommitState = iota
+	transactionUpdateCommitApplied
+	transactionUpdateCommitRolledBack
+)
+
+const (
+	transactionUpdateCommitReadAttempts = 3
+	transactionUpdateCommitReadDelay    = 10 * time.Millisecond
+)
 
 func (uc *UseCase) UpdateTransaction(ctx context.Context, organizationID, ledgerID, transactionID uuid.UUID, uti *transaction.UpdateTransactionInput) (_ *transaction.Transaction, err error) {
 	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
@@ -92,6 +108,7 @@ func (uc *UseCase) UpdateTransactionSerialized(
 		return nil, fmt.Errorf("begin serialized transaction update: %w", err)
 	}
 	committed := false
+	releaseGateOnReturn := true
 	defer func() {
 		if !committed {
 			_ = dbTx.Rollback()
@@ -112,6 +129,9 @@ func (uc *UseCase) UpdateTransactionSerialized(
 	}
 	if releaseGate != nil {
 		defer func() {
+			if !releaseGateOnReturn {
+				return
+			}
 			if err := releaseGate(); err != nil {
 				retErr = errors.Join(retErr, err)
 				result = nil
@@ -119,24 +139,143 @@ func (uc *UseCase) UpdateTransactionSerialized(
 		}()
 	}
 
+	updateVersion := nextTransactionUpdateVersion(current.UpdatedAt)
 	result, err = uc.TransactionRepo.UpdateTx(ctx, dbTx, organizationID, ledgerID, transactionID, &transaction.Transaction{
 		Description: uti.Description,
+		UpdatedAt:   updateVersion,
 	})
 	if err != nil {
 		return nil, err
 	}
 
-	metadataUpdated, err := uc.UpdateTransactionMetadata(ctx, constant.EntityTransaction, transactionID.String(), uti.Metadata)
+	metadataBefore := map[string]any{}
+	existingMetadata, err := uc.TransactionMetadataRepo.FindByEntity(ctx, constant.EntityTransaction, transactionID.String())
 	if err != nil {
 		return nil, err
 	}
-	if err := dbTx.Commit(); err != nil {
-		return nil, fmt.Errorf("commit serialized transaction update: %w", err)
+	if existingMetadata != nil {
+		metadataBefore = maps.Clone(existingMetadata.Data)
+	}
+	metadataUpdated, err := uc.updateTransactionMetadataFromSnapshot(ctx, constant.EntityTransaction,
+		transactionID.String(), uti.Metadata, existingMetadata)
+	if err != nil {
+		releaseGateOnReturn = false
+		reconciliationErr := pkg.ValidateBusinessError(constant.ErrRevertReconciliationRequired, constant.EntityTransaction)
+
+		return nil, fmt.Errorf("transaction metadata update is ambiguous: %v: %w", err, reconciliationErr)
+	}
+	if commitErr := dbTx.Commit(); commitErr != nil {
+		state, persisted, reconcileErr := uc.reconcileTransactionUpdateCommit(ctx, organizationID, ledgerID,
+			transactionID, current, updateVersion, uti.Description)
+		switch state {
+		case transactionUpdateCommitApplied:
+			committed = true
+			persisted.Metadata = metadataUpdated
+
+			return persisted, nil
+		case transactionUpdateCommitRolledBack:
+			if !reflect.DeepEqual(metadataBefore, metadataUpdated) {
+				releaseGateOnReturn = false
+				reconciliationErr := pkg.ValidateBusinessError(constant.ErrRevertReconciliationRequired, constant.EntityTransaction)
+
+				return nil, fmt.Errorf("serialized transaction update rolled back after metadata changed: %v: %w",
+					commitErr, reconciliationErr)
+			}
+
+			return nil, fmt.Errorf("commit serialized transaction update: %w", commitErr)
+		default:
+			releaseGateOnReturn = false
+			reconciliationErr := pkg.ValidateBusinessError(constant.ErrRevertReconciliationRequired, constant.EntityTransaction)
+			if reconcileErr != nil {
+				return nil, fmt.Errorf("reconcile ambiguous serialized transaction update: %v: %w", reconcileErr, reconciliationErr)
+			}
+
+			return nil, fmt.Errorf("reconcile ambiguous serialized transaction update after commit error: %v: %w",
+				commitErr, reconciliationErr)
+		}
 	}
 	committed = true
 	result.Metadata = metadataUpdated
 
 	return result, nil
+}
+
+func nextTransactionUpdateVersion(previous time.Time) time.Time {
+	next := time.Now().UTC().Truncate(time.Microsecond)
+	previous = previous.UTC().Truncate(time.Microsecond)
+	if !next.After(previous) {
+		return previous.Add(time.Microsecond)
+	}
+
+	return next
+}
+
+func (uc *UseCase) reconcileTransactionUpdateCommit(
+	ctx context.Context,
+	organizationID, ledgerID, transactionID uuid.UUID,
+	before *transaction.Transaction,
+	updateVersion time.Time,
+	description string,
+) (transactionUpdateCommitState, *transaction.Transaction, error) {
+	reconcileCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 2*time.Second)
+	defer cancel()
+
+	var lastErr error
+	for attempt := 0; attempt < transactionUpdateCommitReadAttempts; attempt++ {
+		persisted, err := uc.TransactionRepo.Find(readrouting.WithPrimaryRead(reconcileCtx), organizationID, ledgerID, transactionID)
+		if err == nil {
+			expectedDescription := description
+			if expectedDescription == "" {
+				expectedDescription = before.Description
+			}
+			if exactTransactionUpdateVersion(persisted, before, updateVersion, expectedDescription) {
+				return transactionUpdateCommitApplied, persisted, nil
+			}
+			if exactTransactionUpdateVersion(persisted, before, before.UpdatedAt, before.Description) {
+				return transactionUpdateCommitRolledBack, persisted, nil
+			}
+
+			return transactionUpdateCommitUnknown, persisted, nil
+		}
+		lastErr = err
+		if attempt+1 == transactionUpdateCommitReadAttempts {
+			break
+		}
+
+		timer := time.NewTimer(transactionUpdateCommitReadDelay)
+		select {
+		case <-reconcileCtx.Done():
+			timer.Stop()
+
+			return transactionUpdateCommitUnknown, nil, errors.Join(lastErr, reconcileCtx.Err())
+		case <-timer.C:
+		}
+	}
+
+	return transactionUpdateCommitUnknown, nil, lastErr
+}
+
+func exactTransactionUpdateVersion(
+	persisted, before *transaction.Transaction,
+	version time.Time,
+	description string,
+) bool {
+	if persisted == nil || before == nil {
+		return false
+	}
+
+	return persisted.ID == before.ID && persisted.OrganizationID == before.OrganizationID &&
+		persisted.LedgerID == before.LedgerID && persisted.Description == description &&
+		persisted.Status.Code == before.Status.Code && equalOptionalString(persisted.Status.Description, before.Status.Description) &&
+		persisted.UpdatedAt.Equal(version)
+}
+
+func equalOptionalString(left, right *string) bool {
+	if left == nil || right == nil {
+		return left == nil && right == nil
+	}
+
+	return *left == *right
 }
 
 // UpdateTransactionStatus update a status transaction from the repository by given id.
