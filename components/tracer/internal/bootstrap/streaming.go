@@ -8,6 +8,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	nethttp "net/http"
 	"strings"
 
 	libLog "github.com/LerianStudio/lib-observability/v2/log"
@@ -328,12 +329,13 @@ func tracerEventDefinitions() []events.Definition {
 	}
 }
 
-// buildCatalog constructs the immutable lib-streaming Catalog from
-// tracer's event Definitions. Every entry maps the canonical
-// "<resource>.<event>" key to its ResourceType / EventType /
-// SchemaVersion triple.
-func buildCatalog() (libStreaming.Catalog, error) {
-	defs := tracerEventDefinitions()
+// catalogEntriesFromDefinitions maps tracer event Definitions onto lib-streaming
+// EventDefinition catalog entries, carrying the canonical "<resource>.<event>"
+// key and the ResourceType / EventType / SchemaVersion triple. It is shared by
+// buildCatalog (the emitter's catalog) and buildManifestCatalog (the manifest's
+// catalog-only view) so the two stay in sync on how a Definition becomes a
+// catalog entry.
+func catalogEntriesFromDefinitions(defs []events.Definition) []libStreaming.EventDefinition {
 	entries := make([]libStreaming.EventDefinition, 0, len(defs))
 
 	for _, d := range defs {
@@ -345,7 +347,66 @@ func buildCatalog() (libStreaming.Catalog, error) {
 		})
 	}
 
-	return libStreaming.NewCatalog(entries...)
+	return entries
+}
+
+// buildCatalog constructs the immutable lib-streaming Catalog from
+// tracer's event Definitions. Every entry maps the canonical
+// "<resource>.<event>" key to its ResourceType / EventType /
+// SchemaVersion triple.
+func buildCatalog() (libStreaming.Catalog, error) {
+	return libStreaming.NewCatalog(catalogEntriesFromDefinitions(tracerEventDefinitions())...)
+}
+
+// buildManifestCatalog builds the catalog the tracer manifest advertises: every
+// tracer event Definition, INDEPENDENT of STREAMING_ENABLED so the manifest is
+// served even when publication is off. It shares catalogEntriesFromDefinitions
+// with buildCatalog so the manifest's per-event topic-convergence invariant
+// (manifest topic == pkgStreaming.TopicName(streamingServiceName, def.Key()))
+// tracks the emitter's catalog.
+func buildManifestCatalog() (libStreaming.Catalog, error) {
+	return libStreaming.NewCatalog(catalogEntriesFromDefinitions(tracerEventDefinitions())...)
+}
+
+// buildPublisherDescriptor builds the lib-streaming PublisherDescriptor for the
+// tracer manifest. ServiceName is the bare, ACL-scoped service segment
+// (streamingServiceName, "tracer"); SourceBase is the CloudEvents source
+// lib-streaming stamps on emitted events (resolveStreamingSource(cfg), also the
+// bare "tracer"). SourceBase feeds EventDefinition.Topic(source), so aligning it
+// with the service name makes the manifest's advertised per-event topic converge
+// with pkgStreaming.TopicName. RoutePath advertises where the manifest is served.
+func buildPublisherDescriptor(cfg *Config) libStreaming.PublisherDescriptor {
+	return libStreaming.PublisherDescriptor{
+		ServiceName: streamingServiceName,
+		SourceBase:  resolveStreamingSource(cfg),
+		RoutePath:   pkgStreaming.ManifestRoutePath,
+	}
+}
+
+// BuildStreamingManifestHandler builds the catalog-only lib-streaming manifest
+// HTTP handler the tracer serves at pkgStreaming.ManifestRoutePath. It is
+// INDEPENDENT of STREAMING_ENABLED: the manifest advertises the event taxonomy
+// even when publication is disabled. No WithManifestRoutes option is passed, so
+// the document is catalog-only and discloses no broker topology. The lib handler
+// pre-marshals once and enforces a GET/HEAD method allowlist plus the hardening
+// headers (Cache-Control: no-store, X-Content-Type-Options, X-Frame-Options).
+//
+// The lib handler performs NO authentication; the caller wraps it in the tracer
+// authz chain. Degraded-safe wiring is the composition root's responsibility: a
+// non-nil error here must leave the route unmounted (logged at Warn), never fail
+// boot.
+func BuildStreamingManifestHandler(cfg *Config) (nethttp.Handler, error) {
+	catalog, err := buildManifestCatalog()
+	if err != nil {
+		return nil, fmt.Errorf("failed to build streaming manifest catalog: %w", err)
+	}
+
+	handler, err := libStreaming.NewStreamingHandler(buildPublisherDescriptor(cfg), catalog)
+	if err != nil {
+		return nil, fmt.Errorf("failed to build streaming manifest handler: %w", err)
+	}
+
+	return handler, nil
 }
 
 // buildRoutes constructs one RouteRequired route per tracer event,

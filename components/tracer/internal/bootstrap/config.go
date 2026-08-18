@@ -1192,6 +1192,17 @@ func initHTTPServer(
 		workerSupervisor = mtComponents.supervisor
 	}
 
+	// Streaming manifest route (catalog-only lib-streaming manifest). Built
+	// DEGRADED-SAFE and INDEPENDENT of STREAMING_ENABLED: the manifest advertises
+	// the event taxonomy even with publication off. A build error logs at Warn and
+	// leaves the route unmounted (the hub sees 404), never failing tracer startup.
+	streamingManifestHandler, streamingManifestErr := BuildStreamingManifestHandler(cfg)
+	if streamingManifestErr != nil {
+		logger.Log(ctx, libLog.LevelWarn,
+			"Streaming manifest route disabled: failed to build manifest handler",
+			libLog.Err(streamingManifestErr))
+	}
+
 	// Note: NewRoutes wires ReadyzHandler which is a Fiber
 	// handler closure that receives ctx per-request via c.Context();
 	// passing boot-time ctx here is conceptually wrong (boot ctx outlives
@@ -1212,6 +1223,7 @@ func initHTTPServer(
 		MultiTenantEnabled:           cfg.MultiTenantEnabled,
 		PgManager:                    pgManager,
 		Supervisor:                   workerSupervisor,
+		StreamingManifestHandler:     streamingManifestHandler,
 	})
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to create routes: %w", err)
