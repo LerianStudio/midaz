@@ -1,0 +1,61 @@
+# Access-Manager RI (Responsibility Inversion) declaration manifest.
+#
+# Identity (service slug): "tracer" — the real-time transaction validation /
+# fraud-prevention service (its own deployable, components/tracer). The slug is
+# the first argument of auth.Authorize(g.cfg.AppName, resource, method) in the
+# route guard (middleware/auth_guard.go:87); cfg.AppName resolves to the constant
+# ApplicationName = "tracer" (pkg/constant/app.go:7, config.go). Keys mirror the
+# yaml tags on lib-auth/v3 auth/declaration.DeclarationManifest.
+#
+# The (resource, action) tuples are the EXACT surface the tracer routes enforce
+# via guard.With(resource, method, forceAPIKey) — each traces to a registration
+# in components/tracer/internal/adapters/http/in/routes.go (file:line per group).
+# The action is the HTTP verb (get/post/patch/delete), preserved verbatim, so a
+# granted role's permission matches what the middleware checks. `resource` is
+# bare; the reconciler composes the "tracer/" prefix.
+#
+# Note: several routes may ALSO be reachable under API-key auth (forceAPIKeyAuth /
+# APIKeyOnlyValidation, e.g. POST /validations) — that is an orthogonal transport
+# and does not change the (resource, verb) the plugin-auth guard authorizes.
+#
+# ### TEAM: please confirm ### — ROLE MODEL IS INFERRED (no role data in code):
+# read (get) -> editor + viewer; every mutating verb (post/patch/delete) -> editor
+# only. reservations (M2M-only, called by the ledger) is granted to editor.
+service: tracer
+version: 1
+permissions:
+  # rules — CEL fraud rules (routes.go:506)
+  - { resource: rules, action: post,   effect: allow, roles: [editor] }
+  - { resource: rules, action: get,    effect: allow, roles: [editor, viewer] }
+  - { resource: rules, action: patch,  effect: allow, roles: [editor] }
+  - { resource: rules, action: delete, effect: allow, roles: [editor] }
+
+  # limits — spending limits (routes.go:521)
+  - { resource: limits, action: post,   effect: allow, roles: [editor] }
+  - { resource: limits, action: get,    effect: allow, roles: [editor, viewer] }
+  - { resource: limits, action: patch,  effect: allow, roles: [editor] }
+  - { resource: limits, action: delete, effect: allow, roles: [editor] }
+
+  # validations — transaction validation (routes.go:533)
+  - { resource: validations, action: get,  effect: allow, roles: [editor, viewer] }
+  - { resource: validations, action: post, effect: allow, roles: [editor] }
+
+  # reservations — limit reservation (M2M; called by the ledger) (routes.go:565)
+  - { resource: reservations, action: post, effect: allow, roles: [editor] }
+
+  # audit-events — hash-chained audit read (routes.go:574)
+  - { resource: audit-events, action: get, effect: allow, roles: [editor, viewer] }
+
+roles:
+  # ### TEAM: please confirm ### — role -> group bindings are INFERRED.
+  - name: editor
+    granted_to:
+      - group: tracer-admins   ### TEAM: please confirm ###
+  - name: viewer
+    granted_to:
+      - group: tracer-viewers  ### TEAM: please confirm ###
+
+m2m:
+  # EXPORT: the ledger (midaz) calls tracer's reservation API via an M2M token, so
+  # tracer exposes its M2M editor surface. tracer imports nothing over M2M.
+  exposed: true
