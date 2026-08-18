@@ -17,8 +17,8 @@ The durable authority is PostgreSQL primary, keyed by:
 `(organization_id, ledger_id, origin_transaction_id)`
 
 The claim reserves the reverse transaction ID before any balance mutation.
-Every phase-zero-capable pod, including while the rollout marker is absent,
-and every bridge pod persists the exact legacy payload-hash fence key and its
+Every phase-zero-capable pod in `prepared` or `active`, and every bridge pod,
+persists the exact legacy payload-hash fence key and its
 reserved-reverse owner before that fence is acquired. Recovery uses these
 immutable values and never
 recalculates the key or owner from mutable transaction fields.
@@ -30,15 +30,18 @@ money can move.
 
 Phase-zero-capable and bridge requests acquire barriers in this order:
 
-1. Short-lived Redis economic execution attempt plus its reserved-reverse owner
+1. Validate the configured financial-dataset generation against both the
+   `{transactions}` witness and the rollout-slot witness. Neither is created by
+   a serving pod.
+2. Short-lived Redis economic execution attempt plus its reserved-reverse owner
    in the shared transaction slot.
-2. PostgreSQL primary claim for organization + ledger + origin, including the
+3. PostgreSQL primary claim for organization + ledger + origin, including the
    exact legacy key and reserved-reverse owner.
-3. Legacy Redis payload-hash barrier, shared with genuinely old pods during
+4. Legacy Redis payload-hash barrier, shared with genuinely old pods during
    the Release 0 replacement and with every phase-zero-capable request.
-4. Redis origin barrier plus its reserved-reverse owner companion, shared with
+5. Redis origin barrier plus its reserved-reverse owner companion, shared with
    bridge and final pods.
-5. Atomic Redis balance Lua, which checks the exact attempt owner before its
+6. Atomic Redis balance Lua, which checks the exact attempt owner before its
    first write and writes an immutable economic outcome in the same command.
 
 The attempt is reserved before the claim is published, so recovery can never
@@ -77,6 +80,11 @@ protocol adds no multi-slot assumption.
 | `MUTATED` | Balance Lua returned success | Reconcile or finish persistence with the reserved ID |
 | `COMPLETED` | Reverse transaction and operations are durable | Return the exact persisted reverse; a losing retry cannot downgrade this terminal state |
 | `RECONCILIATION_REQUIRED` | Lua result was ambiguous or persistence failed after movement | Return error `0501`; never release the claim or Redis fences |
+
+Every durable claim also stores the exact financial-dataset generation read
+before claim creation. Seed, balance mutation, evidence reads, and pre-movement
+cleanup compare that generation in the `{transactions}` slot. A missing or
+different witness is a trust-boundary failure, never a pre-movement fact.
 
 The balance Lua changes balances, updates the transaction backup, and writes a
 separate immutable economic outcome in one atomic command. The shared outcome
@@ -242,12 +250,13 @@ compatibility cleanup never touches an outcome-backed envelope.
 | Lost response after rollout-generation completion | Durable claim retains the exact `legacy` or `bridge` generation and deterministic origin token; transaction, operations, claim, replays, and Redis economic cleanup are already proven terminal | HTTP or consumer redelivery repeats the same generation seal idempotently; it never releases a generation inferred from the current pod mode |
 | Final adoption sees a foreign H1 collision | The durable claim and child prove this origin; the legacy key explicitly belongs to another owner or replay | Preserve the foreign H1 unchanged, finish the origin-scoped replay, and clean only this reverse's exact outcome/backup |
 | Crash after an old-compatible child is durable but before backup cleanup | Child, all operations, and completed adopted claim exist on PostgreSQL primary; legacy backup has no owner/outcome envelope | Compare reverse, parent, status, and every operation ID in one Lua command, then remove only that exact compatibility backup |
-| Crash before queue seed | Durable claim names the exact origin, reverse, H1 key, and owner; the reserved backup, execution attempt, and immutable outcome are absent on Redis primary | Elect one `RECOVERING` owner, owner-release the exact barriers, release PostgreSQL last, and retry; safety comes from Lua requiring the now-absent exact attempt, not from elapsed time |
-| Crash before Lua dispatch | Valid exact-origin queue seed exists without `balancesAfter` or immutable outcome, and the exact execution attempt is absent | Elect one `RECOVERING` owner, clear Redis barriers/seed, release PostgreSQL last, and retry; the old winner is rejected inside Lua if it resumes |
+| Crash before queue seed | Durable claim names the exact origin, reverse, H1 key, owner, and current dataset generation; one atomic generation-bound read proves backup, execution attempt, and immutable outcome absent | Elect one `RECOVERING` owner, generation-check and owner-release the exact barriers, release PostgreSQL last, and retry; safety comes from Lua requiring the now-absent exact attempt, not from elapsed time |
+| Crash before Lua dispatch | Valid exact-origin queue seed exists without `balancesAfter` or immutable outcome, the exact execution attempt is absent, and the configured/claim/Redis generation still agrees | Elect one `RECOVERING` owner, generation-check and clear Redis barriers/seed, release PostgreSQL last, and retry; the old winner is rejected inside Lua if it resumes |
 | Pre-movement cleanup races a terminal Lua envelope | Status/owner/outcome no longer match the exact seed selected for cleanup | Atomic cleanup removes nothing; preserve all barriers and require reconciliation |
 | Crash while cleaning `RECOVERING` | PostgreSQL retains the cleanup state and timestamp | Re-elect after 30 seconds and resume idempotent cleanup; PostgreSQL remains the last record released |
 
-Only proof that dispatch cannot happen (one same-slot Redis read proves the
+Only proof that dispatch cannot happen (the configured and claimed generation
+matches both Redis witnesses, financial durability remains healthy, and one same-slot Redis read proves the
 exact backup, outcome, execution attempt, and attempt owner are all absent,
 together with an absent compatible PostgreSQL claim or the valid exact-origin
 seed-only crash case) or a Lua-declared rollback
@@ -300,17 +309,33 @@ PATCH participates in the same transaction serialization. Its final response
 is loaded from PostgreSQL primary, so a lagging replica cannot return stale
 status or mutable fields after the write.
 
+If the PostgreSQL commit response is lost, PATCH performs a bounded primary
+reread using transaction identity, organization, ledger, pre-update status,
+the exact desired description, and a strictly monotonic update version. The
+metadata snapshot is also part of the payload proof because it lives in MongoDB.
+An exact applied PostgreSQL row after a confirmed metadata write returns success
+and releases the APPROVED-update token. An exact pre-update PostgreSQL row proves
+rollback only when metadata is also unchanged; then the token is released and
+the commit error allows retry. A missing, unreadable, half-applied, or divergent
+payload retains the token and returns reconciliation; it is never treated as
+rollback.
+
 ## Rollout: old to phase zero to bridge to final
 
 The legacy payload hash includes mutable transaction fields. Allowing an
 APPROVED origin to change while old and bridge algorithms coexist would let the
 same origin acquire two different legacy barriers. The rollout therefore uses
 one deployment-wide Redis state at
-`rollout:{transaction-revert-rollout:v1}:state`:
+`rollout:{transaction-revert-rollout:v1}:state` and binds it to the immutable
+UUID configured as `REVERT_REDIS_DATASET_GENERATION`. Initialization writes the
+same UUID to a rollout-slot witness and to
+`financial:{transactions}:dataset-generation`. Serving targets only compare
+these witnesses; they never create them:
 
 | Value | Phase-zero readiness/revert | APPROVED updates | Bridge readiness/revert | Final readiness/revert |
 |---|---|---|---|---|
-| absent | Allowed | Allowed on phase zero | Rejected with `0502` | Rejected with `0502` |
+| absent | Released old algorithm only; rollout targets rejected | Allowed only with empty target | Rejected with `0502` | Rejected with `0502` |
+| `prepared` | Allowed with target `prepared` | Allowed and durably counted | Rejected with `0502` | Rejected with `0502` |
 | `active` | Allowed | Rejected with `0008` on phase zero, bridge, and final | Allowed | Rejected with `0502` |
 | `phase-zero-drained` | Rejected with `0502` | Rejected with `0008` on bridge and final | Allowed | Allowed |
 | `finalized` | Rejected with `0502` | Allowed on final | Rejected with `0502` | Allowed |
@@ -332,6 +357,11 @@ release becomes an idempotent no-op and cannot recreate the origin. Marker
 transitions run in the same slot and refuse to advance while the generation
 they retire has any active origin.
 
+Completed-origin sets are append-only tombstones scoped by rollout generation.
+Marker transitions never delete them. No retention period is currently defined;
+deleting these tombstones would weaken lost-response and delayed-redelivery
+proof and therefore requires a separate product contract and archival design.
+
 An HTTP return may remove its exact attempt only after one same-slot transaction
 read proves backup, outcome, execution attempt, and attempt owner absent; the
 PostgreSQL primary claim names the same reverse and is `COMPLETED`; and one
@@ -343,11 +373,23 @@ last rollout attempt when generation sealing returned an ambiguous error.
 
 Marker transitions are executed by ledger startup through
 `REVERT_ROLLOUT_TARGET`, not by an operator writing Redis directly. Accepted
-targets are `active`, `phase-zero-drained`, and `finalized`; an invalid target,
+targets are `initialize`, `prepared`, `active`, `phase-zero-drained`, and
+`finalized`; an invalid target,
 an out-of-order transition, or a transition with an in-flight retiring request
 fails startup. The deployment controller still proves every individual pod's
 readiness capability before changing the target, because Redis cannot infer
 which application generation a cluster scheduler is still running.
+
+`initialize` is a one-shot deployment action and never starts HTTP or background
+consumers; the process exits successfully after initialization. It is the only target authorized to create an uninitialized
+generation. An exact retry, including after a lost response or a concurrent
+initializer with the same UUID, is idempotent. A different UUID, a partial
+existing marker/witness, or any later phase fails closed. After initialization,
+the initializer is removed and phase zero is deployed with target `prepared`.
+Restarts in `prepared`, `active`, `phase-zero-drained`, and `finalized` validate
+the exact marker and both generation witnesses without writing them. Loss after
+`prepared` therefore makes readiness and money-path admission fail; it cannot
+be reclassified as first install.
 
 The tokens and attempt hashes have no TTL. A crashed request may block rollout
 availability, but state can never expire underneath a still-running money-path
@@ -356,7 +398,7 @@ same deterministic origin token while owning a distinct attempt ID; recovery
 releases all attempts only after proving the origin terminal or pre-movement.
 An operator never guesses that a timeout means the request stopped. An APPROVED update
 cannot therefore be admitted before activation and persist afterward:
-`absent -> active` is serialized after every admitted update token. Phase-zero
+`prepared -> active` is serialized after every admitted update token. Phase-zero
 and bridge reverts are similarly serialized against the transition that retires
 their generation. All marker and lease operations are same-slot; none couples
 a tenant's legacy and origin barriers or assumes multi-slot Lua.
@@ -391,15 +433,16 @@ after a Redis data-loss event. TTL applies only to transient execution leases
 where expiration is not used as economic proof; no economic outcome, persistent
 fence, rollout attempt set, or drain fact depends on TTL expiry.
 
-The deployed `REVERT_ROLLOUT_TARGET` is the external durable witness that the
-rollout already started. With target `active`, `phase-zero-drained`, or
-`finalized`, a missing or regressed Redis marker fails readiness, revert
-admission, and APPROVED-update preflight; `legacy` cannot reinterpret total
-Redis loss as the pre-rollout absent state. The target comparison is part of
-the same Lua admission snapshot as the marker. Every pod must carry the active
-or later target before bridge coexistence begins; leaving old target-empty pods
-running would deliberately forfeit this loss detector and is not a valid
-rollout.
+The immutable configured UUID is the external deployment identity for one
+financial dataset. The Redis rollout-slot witness binds that identity to the
+state machine, and each PostgreSQL claim binds it to one economic attempt.
+With any serving target from `prepared` onward, a missing or regressed marker,
+a missing witness, or a different generation fails readiness, revert admission,
+and APPROVED-update preflight. `legacy` cannot reinterpret total Redis loss as
+the pre-rollout absent state. The rollout witness comparison is part of the
+same Lua admission snapshot as the marker; the financial witness is read before
+admission and checked again atomically by seed, balance, and cleanup Lua in the
+`{transactions}` slot. No Lua spans those two Cluster slots.
 
 A PENDING update locks its transaction row on the PostgreSQL primary before it
 checks status and holds that row lock through the PostgreSQL description and
@@ -417,39 +460,45 @@ transaction.
 
 ### Release 0: freeze-capable legacy algorithm
 
-1. Apply migration `000036_create_revert_claim`, then deploy every pod with
-   `REVERT_IDEMPOTENCY_MODE=legacy`. The schema must precede the binary because
-   every revert reserves its PostgreSQL claim before H1 or balance movement and
-   its backup consumer recovers those claims. While the marker is absent this
-   release remains wire-compatible with the old payload-scoped H1, but its own
-   H1 is persistent, owner-bound, and linked to the durable origin claim from
-   creation. It also adds the shared APPROVED update gate and the
-   `revert_rollout_barrier` readiness check.
+1. Apply the published `000036_create_revert_claim` unchanged, then apply
+   `000037_add_revert_rollout_generation`. `000037` is additive and idempotent:
+   it adds rollout mode/token and financial generation to an already-migrated
+   `000036` database without rewriting existing claims. Deploy every pod with
+   `REVERT_IDEMPOTENCY_MODE=legacy` and an empty target. This is the released
+   old algorithm plus rollout capability; it neither creates a witness nor
+   claims durable phase-zero ownership yet.
 2. The deployment controller must verify every individual pod's `/readyz`
    response contains `checks.revert_rollout_barrier.status=up`, not merely an
    aggregate service health result. A pre-phase-zero pod does not expose that
    check and therefore cannot satisfy the gate.
-   Before the marker exists, released legacy readiness does not impose the new
-   durability contract. Activating phase zero validates the Redis financial
-   trust boundary before writing the marker; once the marker exists, every
-   phase-zero pod and every bridge/final pod enforces it continuously through
-   readiness.
-3. After the deployment controller proves zero pre-phase-zero pods, deploy
-   `REVERT_ROLLOUT_TARGET=active`. Ledger startup atomically changes the absent
-   marker to `active`. Activation refuses while any APPROVED update or
+   Before initialization, released legacy readiness does not impose the new
+   durability contract.
+3. After the deployment controller proves zero pre-phase-zero binaries, choose
+   one UUID and run exactly one unready instance with
+   `REVERT_ROLLOUT_TARGET=initialize` and
+   `REVERT_REDIS_DATASET_GENERATION=<uuid>`. Successful startup proves
+   noeviction, healthy AOF, and the exact `uninitialized -> prepared` witness.
+   Stop the initializer. Deploy all phase-zero pods with target `prepared` and
+   the same UUID. Target-empty pods become unready as soon as `prepared` exists;
+   the deployment must use a controlled drain or blue-green cutover rather than
+   route traffic through that boundary. Every prepared revert now reserves its
+   PostgreSQL claim before persistent H1 creation.
+4. After every phase-zero pod is ready on `prepared`, deploy
+   `REVERT_ROLLOUT_TARGET=active` with the same UUID. Ledger startup atomically
+   changes `prepared` to `active`. Activation refuses while any APPROVED update or
    phase-zero revert admitted before activation is still executing, so success
    proves both mutable origin writes and pre-activation money paths are drained.
    Phase zero continues the same durable claim + owned-H1 protocol while the
    active marker additionally freezes APPROVED updates for bridge coexistence.
    Activation is idempotent only while
-   the state is absent or already active; a `finalized` rollout cannot be
+   the state is prepared or already active with the exact UUID; a `finalized` rollout cannot be
    reopened.
-4. Prove an APPROVED update is rejected on every pod before any bridge pod is
+5. Prove an APPROVED update is rejected on every pod before any bridge pod is
    admitted. The bridge's readiness and per-revert preflight independently
    enforce the same state, so a missing, corrupt, unreadable, or inactive marker
    cannot become a money-path request.
 
-Before and after activation, phase zero reserves one reverse per origin in
+In prepared and active states, phase zero reserves one reverse per origin in
 PostgreSQL before creating its persistent H1 and verifies the cached reverse
 parent before returning it. Economically identical origins may still share the
 old payload-hash slot during coexistence; that collision is a conflict, never a
@@ -464,7 +513,8 @@ verifiable; it is not a human assertion hidden in a runbook.
 ### Release A: bridge
 
 1. Deploy with `REVERT_IDEMPOTENCY_MODE=bridge` and
-   `REVERT_ROLLOUT_TARGET=active`. A pod remains unready and every
+   `REVERT_ROLLOUT_TARGET=active`, preserving the exact
+   `REVERT_REDIS_DATASET_GENERATION`. A pod remains unready and every
    revert returns `0502` unless the shared marker is `active` or
    `phase-zero-drained`; coexistence starts in `active`.
 2. Keep the marker active while phase-zero and bridge pods coexist. Both
@@ -501,7 +551,8 @@ while an older generation still serves traffic is not a rollout.
 
 After all Release A exit criteria are satisfied, deploy
 `REVERT_IDEMPOTENCY_MODE=final` and
-`REVERT_ROLLOUT_TARGET=phase-zero-drained` while the marker remains
+`REVERT_ROLLOUT_TARGET=phase-zero-drained`, preserving the exact
+`REVERT_REDIS_DATASET_GENERATION`, while the marker remains
 `phase-zero-drained`. Final mode
 uses the PostgreSQL claim and origin Redis barrier as authorities. It still
 reads the legacy barrier as a rollout fence and can adopt an exact same-origin
@@ -547,13 +598,15 @@ the durable claims, so it requires a traffic stop, zero in-flight bridge/final
 requests, completed backup reconciliation, and verified PostgreSQL primary and
 replica convergence before old code can serve reverts.
 
-The down migration intentionally refuses to drop the table while **any row**
-exists, including completed rows. Dropping it would silently remove the only
-barrier understood by bridge/final pods. The operator must first stop all
-bridge/final pods, archive the claims, independently prove that every reverse is
-durable and visible where the rollback binary reads it, explicitly clear the
-table, and only then run the down migration. It is not a routine rolling
-rollback step.
+The `000037` down migration takes an exclusive lock and intentionally refuses
+to remove its rollout/generation columns while **any claim row** exists,
+including completed rows. Only after that guarded rollback may the unchanged
+`000036` down remove the table. Removing either would silently erase the only
+barrier understood by bridge/final pods. The operator must first stop every
+rollout-capable pod, archive the claims, independently prove that every reverse
+is durable and visible where the rollback binary reads it, explicitly clear the
+table, and only then run `000037` down followed by `000036` down. This is not a
+rolling rollback step.
 
 ## Client and operator surface
 
