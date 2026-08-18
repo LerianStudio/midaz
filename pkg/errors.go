@@ -960,6 +960,12 @@ func ValidateBusinessError(err error, entityType string, args ...any) error {
 			Title:      "Duplicate Idempotency Key",
 			Message:    fmt.Sprintf("The idempotency key %v is already in use. Please provide a unique key and try again.", args...),
 		},
+		constant.ErrRevertReconciliationRequired: ServiceUnavailableError{
+			EntityType: entityType,
+			Code:       constant.ErrRevertReconciliationRequired.Error(),
+			Title:      "Transaction Revert Requires Reconciliation",
+			Message:    "The reversal may already have moved funds and is being reconciled. Retrying cannot create another reversal.",
+		},
 		constant.ErrAccountAliasNotFound: EntityNotFoundError{
 			EntityType: entityType,
 			Code:       constant.ErrAccountAliasNotFound.Error(),

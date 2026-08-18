@@ -107,6 +107,14 @@ func IdempotencyInternalKey(organizationID, ledgerID uuid.UUID, key string) stri
 	return builder.String()
 }
 
+// RevertIdempotencyHashSource is the stable preimage for the final,
+// origin-scoped Redis idempotency barrier. The PostgreSQL claim is the durable
+// authority; this value keeps concurrent final/bridge pods on the same
+// per-origin Redis slot without coupling identity to economic payload content.
+func RevertIdempotencyHashSource(originTransactionID uuid.UUID) string {
+	return "revert\x00" + originTransactionID.String()
+}
+
 // AccountingRoutesInternalKey returns a key with the following format to be used on redis cluster:
 // "accounting_routes:{organizationID:ledgerID:key}"
 func AccountingRoutesInternalKey(organizationID, ledgerID, key uuid.UUID) string {

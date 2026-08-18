@@ -14,7 +14,6 @@ import (
 	"sync"
 	"testing"
 
-	libCommons "github.com/LerianStudio/lib-commons/v6/commons"
 	libConstants "github.com/LerianStudio/lib-commons/v6/commons/constants"
 	libObservability "github.com/LerianStudio/lib-observability/v2"
 	libLog "github.com/LerianStudio/lib-observability/v2/log"
@@ -26,23 +25,15 @@ import (
 	"go.uber.org/mock/gomock"
 
 	mongodb "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/mongodb/transaction"
-	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/operation"
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/revertclaim"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/transaction"
-	redis "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/redis/transaction"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services/command"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services/query"
 	cn "github.com/LerianStudio/midaz/v4/pkg/constant"
-	"github.com/LerianStudio/midaz/v4/pkg/mtransaction"
-	pkgHTTP "github.com/LerianStudio/midaz/v4/pkg/net/http"
-	"github.com/LerianStudio/midaz/v4/pkg/utils"
 )
 
-// Revert replay visibility. A revert carries no caller idempotency key, so its slot is derived
-// inside the create core from the serialized reversal payload. When that slot already holds a
-// serialized reverse the core returns the FIRST reverse instead of creating a second one — a
-// 201 that is economically different from a fresh revert, and (because the payload carries no
-// origin reference — KNOWN DEFECT) possibly not even a reverse of the
-// origin the caller named.
+// Revert replay visibility. A completed durable claim resolves the exact reverse
+// from PostgreSQL primary and returns it without another balance mutation.
 //
 // There is ONE live revert terminal, RevertTransactionHuma: both the v1 and v2 routes mount it
 // (the Fiber wrapper RevertTransaction has no production registration). It must project the
@@ -116,12 +107,9 @@ type revertReplaySubjects struct {
 	reverseID uuid.UUID
 }
 
-// arrangeReplayedRevert builds a handler whose revert eligibility gate passes and whose
-// idempotency slot is ALREADY populated with a serialized reverse transaction, so the create
-// core short-circuits into its replay branch and returns (cachedReverse, replayed=true) without
-// touching balances. The Redis expectations name the exact slot, so they also pin the derivation
-// the revert path uses today: no caller key, no override, hence HashSHA256 over the canonical
-// serialized reversal payload, at the pre-migration Fiber TTL.
+// arrangeReplayedRevert builds a handler whose PostgreSQL primary already has
+// the persisted child and durable exact-ID claim. The core returns that reverse
+// as replayed without entering the Redis or balance paths.
 func arrangeReplayedRevert(t *testing.T, ctrl *gomock.Controller) (*TransactionHandler, revertReplaySubjects) {
 	t.Helper()
 
@@ -133,25 +121,6 @@ func arrangeReplayedRevert(t *testing.T, ctrl *gomock.Controller) (*TransactionH
 	}
 
 	amount := decimal.NewFromInt(1000)
-
-	origin := &transaction.Transaction{
-		ID:                  subjects.originID.String(),
-		OrganizationID:      subjects.orgID.String(),
-		LedgerID:            subjects.ledgerID.String(),
-		ParentTransactionID: nil,
-		Description:         "replayed revert subject",
-		AssetCode:           "USD",
-		Amount:              &amount,
-		Status:              transaction.Status{Code: cn.APPROVED},
-		Operations: []*operation.Operation{
-			{
-				Type:         cn.CREDIT,
-				AccountAlias: "@receiver",
-				AssetCode:    "USD",
-				Amount:       operation.Amount{Value: &amount},
-			},
-		},
-	}
 
 	originIDStr := subjects.originID.String()
 	cachedReverse := &transaction.Transaction{
@@ -165,52 +134,35 @@ func arrangeReplayedRevert(t *testing.T, ctrl *gomock.Controller) (*TransactionH
 		Status:              transaction.Status{Code: cn.APPROVED},
 	}
 
-	cachedValue, err := json.Marshal(cachedReverse)
-	require.NoError(t, err, "serialize the cached reverse transaction")
-
 	transactionRepo := transaction.NewMockRepository(ctrl)
 	metadataRepo := mongodb.NewMockRepository(ctrl)
-	redisRepo := redis.NewMockRedisRepository(ctrl)
+	claimRepo := revertclaim.NewMockRepository(ctrl)
 
 	transactionRepo.EXPECT().
 		FindByParentID(gomock.Any(), subjects.orgID, subjects.ledgerID, subjects.originID).
-		Return(nil, nil).
-		Times(1)
-
-	transactionRepo.EXPECT().
-		FindWithOperations(gomock.Any(), subjects.orgID, subjects.ledgerID, subjects.originID).
-		Return(origin, nil).
+		Return(cachedReverse, nil).
 		Times(1)
 
 	metadataRepo.EXPECT().
-		FindByEntity(gomock.Any(), cn.EntityTransaction, subjects.originID.String()).
+		FindByEntity(gomock.Any(), cn.EntityTransaction, subjects.reverseID.String()).
 		Return(nil, nil).
 		Times(1)
 
-	// The claimed slot, derived the way the revert path derives it: the reversal payload the
-	// eligibility gate hands to createRevertTransaction, canonically serialized after the same
-	// ApplyDefaultBalanceKeys normalization executeCreateTransaction applies before hashing.
-	// Spelled out here rather than reusing a production helper because there is no revert-side
-	// helper to reuse — the origin plays no part in this key, which is the known origin-scoping
-	// defect documented on revertTransaction.
-	reversal := origin.TransactionRevert()
-	mtransaction.ApplyDefaultBalanceKeys(reversal.Send.Source.From)
-	mtransaction.ApplyDefaultBalanceKeys(reversal.Send.Distribute.To)
-
-	hashSource, err := libCommons.StructToJSONString(reversal)
-	require.NoError(t, err, "serialize the reversal payload the idempotency hash is computed over")
-
-	internalKey := utils.IdempotencyInternalKey(subjects.orgID, subjects.ledgerID,
-		libCommons.HashSHA256(hashSource))
-
-	redisRepo.EXPECT().
-		SetNX(gomock.Any(), internalKey, "", pkgHTTP.ParseIdempotencyTTL("")).
-		Return(false, nil).
+	claim := &revertclaim.Claim{
+		OrganizationID:       subjects.orgID,
+		LedgerID:             subjects.ledgerID,
+		OriginTransactionID:  subjects.originID,
+		ReverseTransactionID: subjects.reverseID,
+		State:                revertclaim.StateCompleted,
+	}
+	claimRepo.EXPECT().
+		Claim(gomock.Any(), subjects.orgID, subjects.ledgerID, subjects.originID, subjects.reverseID).
+		Return(claim, false, nil).
 		Times(1)
-
-	redisRepo.EXPECT().
-		Get(gomock.Any(), internalKey).
-		Return(string(cachedValue), nil).
+	claimRepo.EXPECT().
+		Transition(gomock.Any(), subjects.orgID, subjects.ledgerID, subjects.originID, subjects.reverseID,
+			revertclaim.StateCompleted, nil).
+		Return(nil).
 		Times(1)
 
 	handler := &TransactionHandler{
@@ -219,8 +171,8 @@ func arrangeReplayedRevert(t *testing.T, ctrl *gomock.Controller) (*TransactionH
 			TransactionMetadataRepo: metadataRepo,
 		},
 		Command: &command.UseCase{
-			TransactionRepo:      transactionRepo,
-			TransactionRedisRepo: redisRepo,
+			TransactionRepo: transactionRepo,
+			RevertClaimRepo: claimRepo,
 		},
 	}
 

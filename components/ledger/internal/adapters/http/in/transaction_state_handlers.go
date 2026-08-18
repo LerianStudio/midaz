@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	libCommons "github.com/LerianStudio/lib-commons/v6/commons"
 	tmcore "github.com/LerianStudio/lib-commons/v6/commons/tenant-manager/core"
 	libObservability "github.com/LerianStudio/lib-observability/v2"
 	libLog "github.com/LerianStudio/lib-observability/v2/log"
@@ -18,6 +19,7 @@ import (
 	"github.com/google/uuid"
 	"go.opentelemetry.io/otel/attribute"
 
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/revertclaim"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/transaction"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services/command"
 	"github.com/LerianStudio/midaz/v4/components/ledger/pkg/readrouting"
@@ -170,44 +172,26 @@ func (handler *TransactionHandler) RevertTransaction(c fiber.Ctx) error {
 	return http.Created(c, tran)
 }
 
-// KNOWN DEFECT — REVERT IDEMPOTENCY IS NOT SCOPED BY ORIGIN.
-//
-// Revert sends no X-Idempotency header, so CreateOrCheckTransactionIdempotency falls back to
-// key = HashSHA256(preimage), and with no override resolveIdempotencyHashSource serialises the
-// reversal payload. TransactionRevert() copies only the origin's economic content
-// (description, asset, amount, legs, route, metadata) and NEVER the origin id, so two
-// economically-identical origins in the same ledger derive the SAME key and share ONE slot:
-// the second revert loses the SetNX, is handed the FIRST origin's cached reverse, and answers
-// 201 while its own origin is never reverted. Silently — no error, no distinguishable status.
-//
-// The fix is an origin-scoped preimage. It is deliberately NOT applied here: v1 revert is
-// released, and changing the preimage changes the Redis key shape, so a revert retried across
-// a rolling-deploy boundary would land on a different slot and could double-revert. It re-lands
-// together with the idempotency keyspace separation, which re-shapes the key anyway, behind a
-// dual-write/dual-read migration — one coordinated deploy window instead of two.
-//
-// Until then the ONLY control is detection: the replayed flag below, its Warn, and the
-// X-Idempotency-Replayed header the transports project. Do not treat that as a fix.
-// The reproduction is preserved, skipped, in
-// TestIntegration_TransactionV2Revert_IdempotencyNotScopedByOrigin_KnownDefect.
-//
-// revertTransaction is the transport-neutral revert core: it runs the full revert
-// eligibility gate (no-parent, not-already-a-revert, APPROVED status, non-empty reversal,
-// all bidirectional routes) then delegates to the untouched createRevertTransaction core.
-// The parent transaction id passed to createRevertTransaction is the reverted
-// transaction's id (from the route), so the reversal links back to its origin. Revert
-// sends no idempotency headers, so the key is empty (the core keys on the reversal hash)
-// and the TTL defaults to ParseIdempotencyTTL("") == 300s — byte-identical to the
-// pre-migration Fiber path, which reached executeCreateTransaction and read
-// GetIdempotencyKeyAndTTL(c) (an absent X-TTL defaults to 300, never 0). A hardcoded 0
-// would make the Redis idempotency slot permanent. It returns the idempotency `replayed`
-// flag alongside the reverse transaction so the transport sets X-Idempotency-Replayed
-// itself.
+// revertTransaction fences every reversal by (organization, ledger, origin)
+// in PostgreSQL primary before balance mutation. The reserved reverse ID is
+// reused by Redis backup recovery, so a lost response cannot mint a second
+// economic mutation. Bridge mode also participates in the released payload-
+// hash Redis barrier; final mode only reads that legacy fence during rollout.
 func (handler *TransactionHandler) revertTransaction(ctx context.Context, organizationID, ledgerID, transactionID uuid.UUID) (*transaction.Transaction, bool, error) {
+	ctx = readrouting.WithPrimaryRead(ctx)
 	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	_, span := tracer.Start(ctx, "handler.revert_transaction")
 	defer span.End()
+
+	finish := func(tran *transaction.Transaction, replayed bool, err error) (*transaction.Transaction, bool, error) {
+		if replayed && err == nil {
+			span.SetAttributes(attribute.Bool("app.response.idempotency_replayed", true))
+			logger.Log(ctx, libLog.LevelWarn, revertIdempotencyReplayedLogMessage, libLog.String("transaction_id", transactionID.String()))
+		}
+
+		return tran, replayed, err
+	}
 
 	parent, err := handler.Query.GetParentByTransactionID(ctx, organizationID, ledgerID, transactionID)
 	if err != nil {
@@ -217,11 +201,11 @@ func (handler *TransactionHandler) revertTransaction(ctx context.Context, organi
 	}
 
 	if parent != nil {
-		err = pkg.ValidateBusinessError(constant.ErrTransactionIDHasAlreadyParentTransaction, "RevertTransaction")
+		if handler.Command == nil || handler.Command.RevertClaimRepo == nil {
+			return nil, false, pkg.ValidateBusinessError(constant.ErrTransactionIDHasAlreadyParentTransaction, "RevertTransaction")
+		}
 
-		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Transaction Has Already Parent Transaction", err)
-
-		return nil, false, err
+		return finish(handler.adoptPersistedReverse(ctx, organizationID, ledgerID, transactionID, parent))
 	}
 
 	tran, err := handler.Query.GetTransactionWithOperationsByID(ctx, organizationID, ledgerID, transactionID)
@@ -288,29 +272,95 @@ func (handler *TransactionHandler) revertTransaction(ctx context.Context, organi
 		}
 	}
 
-	params := &transactionPathParams{OrganizationID: organizationID, LedgerID: ledgerID, TransactionID: transactionID}
-
-	tranReverted, replayed, err := handler.createRevertTransaction(ctx, params, transactionReverted, constant.CREATED, "", http.ParseIdempotencyTTL(""))
+	legacyHash, err := legacyRevertIdempotencyHash(transactionReverted)
 	if err != nil {
 		return nil, false, err
 	}
 
-	if replayed {
-		// A replay is an outcome this span observed, not an input, so it belongs outside the
-		// app.request.* namespace (T4). It is also not an error: the span stays green.
-		span.SetAttributes(attribute.Bool("app.response.idempotency_replayed", true))
+	legacyCached, _, err := handler.readLegacyRevert(ctx, organizationID, ledgerID, legacyHash)
+	if err != nil {
+		return nil, false, err
+	}
+	if legacyCached != nil {
+		if reverseBelongsToOrigin(legacyCached, transactionID) {
+			cachedID, parseErr := uuid.Parse(legacyCached.ID)
+			if parseErr != nil {
+				return nil, false, pkg.ValidateBusinessError(constant.ErrRevertReconciliationRequired, constant.EntityTransaction)
+			}
 
-		// Warn — deliberately louder than the create paths, which treat a replay as routine.
-		// A create replay is what the caller asked for: they sent X-Idempotency, so a cached
-		// answer is the contract. Revert carries no caller key, so nobody asked for this one;
-		// it means the caller's revert did NOT happen and the 201 alone cannot tell them so.
-		// While the origin-agnostic key above stands, the cached reverse may not
-		// even belong to this origin, so this is the only operator-visible trace of the
-		// defect — Debug, typically not collected in production, could not carry it.
-		logger.Log(ctx, libLog.LevelWarn, revertIdempotencyReplayedLogMessage, libLog.String("transaction_id", transactionID.String()))
+			claim, acquired, claimErr := handler.Command.ClaimRevert(ctx, organizationID, ledgerID, transactionID, cachedID)
+			if claimErr != nil {
+				return nil, false, claimErr
+			}
+			if claim.ReverseTransactionID != cachedID {
+				return nil, false, pkg.ValidateBusinessError(constant.ErrRevertReconciliationRequired, constant.EntityTransaction)
+			}
+			if acquired {
+				reason := "legacy_revert_cached_before_primary_persistence"
+				_ = handler.Command.MarkRevertClaim(ctx, organizationID, ledgerID, transactionID, cachedID, revertclaim.StateReconciliationRequired, &reason)
+			}
+
+			return finish(handler.resolveDurableRevertClaim(ctx, claim))
+		}
+
+		if handler.activeRevertIdempotencyMode() == revertIdempotencyModeBridge {
+			return nil, false, pkg.ValidateBusinessError(constant.ErrIdempotencyKey, "RevertTransaction", transactionID.String())
+		}
 	}
 
-	return tranReverted, replayed, nil
+	reverseID, err := libCommons.GenerateUUIDv7()
+	if err != nil {
+		return nil, false, err
+	}
+
+	claim, acquired, err := handler.Command.ClaimRevert(ctx, organizationID, ledgerID, transactionID, reverseID)
+	if err != nil {
+		return nil, false, err
+	}
+	if !acquired {
+		return finish(handler.resolveDurableRevertClaim(ctx, claim))
+	}
+
+	legacyKey := ""
+	if handler.activeRevertIdempotencyMode() == revertIdempotencyModeBridge {
+		var legacyReplay *transaction.Transaction
+		legacyKey, legacyReplay, err = handler.acquireLegacyRevertBarrier(ctx, organizationID, ledgerID, transactionID, legacyHash, claim)
+		if err != nil {
+			handler.releaseFreshRevertClaim(ctx, claim, "")
+
+			return nil, false, err
+		}
+		if legacyReplay != nil {
+			return finish(handler.resolveDurableRevertClaim(ctx, claim))
+		}
+	}
+
+	execution := &revertExecutionState{}
+	params := &transactionPathParams{
+		OrganizationID:        organizationID,
+		LedgerID:              ledgerID,
+		TransactionID:         transactionID,
+		ReservedTransactionID: claim.ReverseTransactionID,
+		RevertExecution:       execution,
+	}
+
+	tranReverted, replayed, err := handler.createRevertTransaction(ctx, params, transactionReverted, constant.CREATED, "", http.ParseIdempotencyTTL(""), utils.RevertIdempotencyHashSource(transactionID))
+	if err != nil {
+		return nil, false, handler.failRevertClaim(ctx, claim, execution, legacyKey, err)
+	}
+	if replayed || !reverseMatchesClaim(tranReverted, claim) {
+		// The durable claim is the authority. A fresh claimant can only find an
+		// origin Redis replay when Redis and PostgreSQL disagree; returning that
+		// cache value could expose another reverse or hide an unpersisted
+		// movement. Preserve every barrier and reconcile from the atomic backup.
+		return nil, false, handler.requireRevertReconciliation(ctx, claim, "origin_redis_replay_without_primary_child")
+	}
+
+	if handler.activeRevertIdempotencyMode() == revertIdempotencyModeBridge {
+		handler.Command.SetTransactionIdempotencyValue(ctx, organizationID, ledgerID, "", legacyHash, *tranReverted, http.ParseIdempotencyTTL(""))
+	}
+
+	return finish(tranReverted, replayed, nil)
 }
 
 // UpdateTransaction method that patch transaction created before

@@ -24,9 +24,16 @@ import (
 // transactionPathParams holds the IDs extracted from URL path parameters.
 // TransactionID is uuid.Nil when the route has no :transaction_id segment.
 type transactionPathParams struct {
-	OrganizationID uuid.UUID
-	LedgerID       uuid.UUID
-	TransactionID  uuid.UUID
+	OrganizationID        uuid.UUID
+	LedgerID              uuid.UUID
+	TransactionID         uuid.UUID
+	ReservedTransactionID uuid.UUID
+	RevertExecution       *revertExecutionState
+}
+
+type revertExecutionState struct {
+	BalanceAttempted bool
+	BalanceCommitted bool
 }
 
 // readPathParams extracts organization, ledger, and (optional) transaction

@@ -19,9 +19,11 @@ import (
 	libLog "github.com/LerianStudio/lib-observability/v2/log"
 	libOpentelemetry "github.com/LerianStudio/lib-observability/v2/tracing"
 	"github.com/gofiber/fiber/v3"
+	"github.com/google/uuid"
 	"go.opentelemetry.io/otel/attribute"
 
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/operation"
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/revertclaim"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/transaction"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services/command"
 	"github.com/LerianStudio/midaz/v4/components/ledger/pkg/readrouting"
@@ -1015,8 +1017,8 @@ func resolveIdempotencyHashSource(transactionInput mtransaction.Transaction, ove
 // createRevertTransaction creates a reversal transaction. The action is forced
 // to "revert" so that accounting route lookups use the revert rubrics instead
 // of the status-derived action. Transport-neutral, mirroring createTransaction.
-func (handler *TransactionHandler) createRevertTransaction(ctx context.Context, params *transactionPathParams, transactionInput mtransaction.Transaction, transactionStatus, idempotencyKey string, idempotencyTTL time.Duration) (*transaction.Transaction, bool, error) {
-	return handler.executeCreateTransaction(ctx, params, transactionInput, transactionStatus, true, idempotencyKey, idempotencyTTL)
+func (handler *TransactionHandler) createRevertTransaction(ctx context.Context, params *transactionPathParams, transactionInput mtransaction.Transaction, transactionStatus, idempotencyKey string, idempotencyTTL time.Duration, idempotencyHashSource ...string) (*transaction.Transaction, bool, error) {
+	return handler.executeCreateTransaction(ctx, params, transactionInput, transactionStatus, true, idempotencyKey, idempotencyTTL, idempotencyHashSource...)
 }
 
 // createTransactionFiber is the Fiber transport adapter: it reads the path params and
@@ -1075,12 +1077,17 @@ func (handler *TransactionHandler) executeCreateTransaction(ctx context.Context,
 	_, span := tracer.Start(ctx, "handler.create_transaction.orchestrate")
 	defer span.End()
 
-	transactionID, err := libCommons.GenerateUUIDv7()
-	if err != nil {
-		libOpentelemetry.HandleSpanError(span, "Failed to generate transaction id", err)
-		logger.Log(ctx, libLog.LevelError, "Failed to generate transaction id", libLog.Err(err))
+	transactionID := params.ReservedTransactionID
+	var err error
 
-		return nil, false, err
+	if transactionID == uuid.Nil {
+		transactionID, err = libCommons.GenerateUUIDv7()
+		if err != nil {
+			libOpentelemetry.HandleSpanError(span, "Failed to generate transaction id", err)
+			logger.Log(ctx, libLog.LevelError, "Failed to generate transaction id", libLog.Err(err))
+
+			return nil, false, err
+		}
 	}
 
 	transactionDate, err := mtransaction.CheckTransactionDate(ctx, transactionInput, transactionStatus)
@@ -1376,6 +1383,10 @@ func (handler *TransactionHandler) executeCreateTransaction(ctx context.Context,
 		return nil, false, reservation.Err
 	}
 
+	if params.RevertExecution != nil {
+		params.RevertExecution.BalanceAttempted = true
+	}
+
 	result, err := handler.Command.ProcessBalanceOperations(ctx, command.ProcessBalanceOperationsInput{
 		OrganizationID:    params.OrganizationID,
 		LedgerID:          params.LedgerID,
@@ -1389,15 +1400,31 @@ func (handler *TransactionHandler) executeCreateTransaction(ctx context.Context,
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to process balance operations", err)
 		logger.Log(ctx, libLog.LevelWarn, "Failed to process balance operations", libLog.Err(err))
 
-		handler.deleteIdempotencyKey(ctx, idempotencyResult.InternalKey)
-		handler.Command.RemoveTransactionFromRedisQueue(ctx, logger, params.OrganizationID, params.LedgerID, transactionID.String())
+		if mayReleaseRevertFences(params.RevertExecution, err) {
+			handler.deleteIdempotencyKey(ctx, idempotencyResult.InternalKey)
+			handler.Command.RemoveTransactionFromRedisQueue(ctx, logger, params.OrganizationID, params.LedgerID, transactionID.String())
+		}
 
-		// The balance commit failed (no funds moved), so return the held
-		// reservation capacity. Best-effort: a transport failure here is
-		// reconciled by the TTL reaper.
-		handler.releaseReservations(ctx, span, logger, reservation.Handle)
+		// Only a script-declared rejection proves that Redis rolled back the
+		// whole batch. A transport error is ambiguous: the Lua command may have
+		// committed after the client lost its response, so its reservation must
+		// remain consumed until reconciliation sees the atomic backup marker.
+		if mayReleaseRevertFences(params.RevertExecution, err) {
+			handler.releaseReservations(ctx, span, logger, reservation.Handle)
+		}
 
 		return nil, false, err
+	}
+
+	if params.RevertExecution != nil {
+		params.RevertExecution.BalanceCommitted = true
+		if err := handler.Command.MarkRevertClaim(ctx, params.OrganizationID, params.LedgerID, params.TransactionID,
+			transactionID, revertclaim.StateMutated, nil); err != nil {
+			libOpentelemetry.HandleSpanError(span, "Failed to mark revert balance mutation", err)
+			logger.Log(ctx, libLog.LevelError, "Failed to mark revert balance mutation", libLog.String("transaction_id", transactionID.String()), libLog.Err(err))
+
+			return nil, false, err
+		}
 	}
 
 	// Confirm anchor (F3-T14, success phase): the balance commit succeeded, so
@@ -1515,6 +1542,26 @@ func (handler *TransactionHandler) executeCreateTransaction(ctx context.Context,
 	go handler.Command.SendLogTransactionAuditQueue(bgCtx, operations, params.OrganizationID, params.LedgerID, tran.IDtoUUID())
 
 	return tran, false, nil
+}
+
+func isDefinitiveBalanceRejection(err error) bool {
+	if err == nil {
+		return false
+	}
+
+	message := err.Error()
+	for _, definitiveCode := range []string{
+		constant.ErrInsufficientFunds.Error(),
+		constant.ErrAccountIneligibility.Error(),
+		constant.ErrOverdraftLimitExceeded.Error(),
+		constant.ErrStaleBalanceVersion.Error(),
+	} {
+		if strings.Contains(message, definitiveCode) {
+			return true
+		}
+	}
+
+	return false
 }
 
 func (handler *TransactionHandler) deleteIdempotencyKey(ctx context.Context, internalKey *string) {

@@ -23,7 +23,9 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/transaction"
 	cn "github.com/LerianStudio/midaz/v4/pkg/constant"
+	"github.com/LerianStudio/midaz/v4/pkg/utils"
 	postgrestestutil "github.com/LerianStudio/midaz/v4/tests/utils/postgres"
 )
 
@@ -779,40 +781,14 @@ func TestIntegration_TransactionV2Revert_IneligibilityAndIDErrors(t *testing.T) 
 }
 
 // =============================================================================
-// 18. KNOWN DEFECT — REVERT IDEMPOTENCY IS NOT SCOPED BY ORIGIN.
-//     SKIPPED: this is the reproduction of an OPEN defect, kept executable-but-skipped rather
-//     than deleted so the knowledge and the arrangement survive until the fix lands.
+// 18. REVERT IDEMPOTENCY IS SCOPED BY ORIGIN.
 //
-//     A revert sends no X-Idempotency header, so its slot is derived entirely inside the create
-//     core. The reversal payload is a pure function of the origin's economic content and carries
-//     NO reference to the origin, so keying the slot on that payload alone makes two
-//     economically-identical origins in the same ledger share ONE slot: the second revert loses
-//     the SetNX, replays the FIRST reverse (201 with parentTransactionId pointing at origin A),
-//     and origin B is silently never reverted.
-//
-//     The fix — an origin-scoped preimage — was pulled back out of this branch: v1 revert is
-//     released, and re-shaping a live Redis key on its own would open a rolling-deploy window
-//     where a retried revert lands on a different slot and can double-revert. It re-lands
-//     together with the idempotency keyspace separation, which re-shapes the key anyway, behind
-//     a dual-write/dual-read migration. UN-SKIP this test then.
-//
-//     The body below is the full reproduction and asserts BOTH halves of the intended contract:
-//       (a) two identical origins each get their OWN reverse, linked to their OWN origin —
-//           this is the half that FAILS today;
-//       (b) a repeat revert of the SAME origin still lands on ONE slot and persists nothing —
-//           that shared claim is what serializes the read-then-act race in the
-//           GetParentByTransactionID gate, so scoping the key by origin must not make every
-//           revert unique. This half holds today and stays covered by
-//           TestIntegration_TransactionV2Revert_ConcurrentSingleWinner, which is NOT skipped.
+//     Two economically identical origins receive distinct, correctly-parented
+//     reverses, while a retry of one origin returns its one durable reverse and
+//     never persists or moves funds again.
 // =============================================================================
 
-func TestIntegration_TransactionV2Revert_IdempotencyNotScopedByOrigin_KnownDefect(t *testing.T) {
-	t.Skip("known defect: revert idempotency is keyed on the origin-agnostic reversal payload, " +
-		"so two economically-identical origins in one ledger share a slot and the second revert " +
-		"replays the first without reverting its own origin. The fix was pulled from this branch " +
-		"to avoid a Redis key-shape change on a released path; it re-lands together with the " +
-		"idempotency keyspace separation, behind a dual-write/dual-read migration. Un-skip when " +
-		"that lands.")
+func TestIntegration_TransactionV2Revert_IdempotencyScopedByOrigin(t *testing.T) {
 
 	// NOT parallel: process-global huma state (see file header).
 	t.Setenv("ALLOW_INSECURE_TLS", "true")
@@ -881,31 +857,158 @@ func TestIntegration_TransactionV2Revert_IdempotencyNotScopedByOrigin_KnownDefec
 	requireDecimalEqual(t, decimal.NewFromInt(1000), postgrestestutil.GetBalanceAvailable(t, infra.pgContainer.DB, srcID), "source available restored after both reverts")
 	requireDecimalEqual(t, decimal.Zero, postgrestestutil.GetBalanceAvailable(t, infra.pgContainer.DB, dstID), "destination drained back after both reverts")
 
-	// (b) The preserved invariant: a REPEAT revert of the SAME origin is rejected and persists
-	// nothing. Sequentially the already-has-a-child gate fires first (409/0087); the shared
-	// idempotency claim is what covers the concurrent case the gate cannot.
+	// (b) A repeat revert of the SAME origin replays the durable reverse and persists nothing.
+	// The replay is resolved from PostgreSQL primary and must echo the reserved reverse ID.
 	repeat := postTransaction(t, v2App, v2RevertURL(infra.orgID, infra.ledgerID, originAID), "", "")
-	assertProblemCode(t, repeat, nethttp.StatusConflict, cn.ErrTransactionIDHasAlreadyParentTransaction.Error())
+	assert.Equal(t, "true", repeat.Header.Get("X-Idempotency-Replayed"))
+	repeatBody := decodeTxResponse(t, repeat, nethttp.StatusCreated)
+	assert.Equal(t, revertAID.String(), repeatBody["id"])
 
 	assert.Equal(t, 4, countTransactionsInLedger(t, infra.pgContainer.DB, infra.ledgerID),
 		"a repeat revert of the SAME origin must not persist a third transaction")
 }
 
+func TestIntegration_TransactionV2Revert_RolloutOldBridgeFinalNeverReplaysAnotherOrigin(t *testing.T) {
+	t.Setenv("ALLOW_INSECURE_TLS", "true")
+	t.Setenv("RABBITMQ_TRANSACTION_ASYNC", "false")
+
+	infra := setupTestInfra(t)
+	ctx := context.Background()
+	srcID, dstID := seedTransfer(t, infra.pgContainer.DB, infra.orgID, infra.ledgerID, "@src", "@dst", 1000)
+	v2App := buildHumaV2DirectApp(t, infra.handler)
+
+	const identicalOriginBody = `{"description":"rollout collision","asset":"USD","amount":"100","debits":[{"alias":"@src",` + v2ScopeJSON + `,"amount":"100"}],"credits":[{"alias":"@dst",` + v2ScopeJSON + `,"amount":"100"}]}`
+	originA := decodeTxResponse(t, postV2Create(t, v2App, "direct", infra.orgID, infra.ledgerID, identicalOriginBody, "rollout-a"), nethttp.StatusCreated)
+	originAID := uuid.MustParse(originA["id"].(string))
+	drainBalanceSync(t, ctx, infra.handler.Command, infra.redisRepo, infra.orgID, infra.ledgerID)
+	originB := decodeTxResponse(t, postV2Create(t, v2App, "direct", infra.orgID, infra.ledgerID, identicalOriginBody, "rollout-b"), nethttp.StatusCreated)
+	originBID := uuid.MustParse(originB["id"].(string))
+	drainBalanceSync(t, ctx, infra.handler.Command, infra.redisRepo, infra.orgID, infra.ledgerID)
+
+	reverseA := decodeTxResponse(t, postTransaction(t, v2App, v2RevertURL(infra.orgID, infra.ledgerID, originAID), "", ""), nethttp.StatusCreated)
+	reverseAID := uuid.MustParse(reverseA["id"].(string))
+	drainBalanceSync(t, ctx, infra.handler.Command, infra.redisRepo, infra.orgID, infra.ledgerID)
+
+	originATransaction, err := infra.handler.Query.GetTransactionWithOperationsByID(ctx, infra.orgID, infra.ledgerID, originAID)
+	require.NoError(t, err)
+	legacyHash, err := legacyRevertIdempotencyHash(originATransaction.TransactionRevert())
+	require.NoError(t, err)
+	persistedReverseA, err := infra.handler.Query.GetTransactionByID(ctx, infra.orgID, infra.ledgerID, reverseAID)
+	require.NoError(t, err)
+	legacyValue, err := json.Marshal(persistedReverseA)
+	require.NoError(t, err)
+	require.NoError(t, infra.redisRepo.Set(ctx, utils.IdempotencyInternalKey(infra.orgID, infra.ledgerID, legacyHash), string(legacyValue), 300))
+
+	infra.handler.RevertIdempotencyMode = revertIdempotencyModeBridge
+	bridgeResponse := postTransaction(t, v2App, v2RevertURL(infra.orgID, infra.ledgerID, originBID), "", "")
+	assertProblemCode(t, bridgeResponse, nethttp.StatusConflict, cn.ErrIdempotencyKey.Error())
+	assert.Equal(t, 3, countTransactionsInLedger(t, infra.pgContainer.DB, infra.ledgerID),
+		"bridge must fence the colliding legacy slot rather than return origin A's reverse for origin B")
+
+	infra.handler.RevertIdempotencyMode = revertIdempotencyModeFinal
+	reverseB := decodeTxResponse(t, postTransaction(t, v2App, v2RevertURL(infra.orgID, infra.ledgerID, originBID), "", ""), nethttp.StatusCreated)
+	assert.NotEqual(t, reverseAID.String(), reverseB["id"])
+	assert.Equal(t, originBID.String(), reverseB["parentTransactionId"])
+	drainBalanceSync(t, ctx, infra.handler.Command, infra.redisRepo, infra.orgID, infra.ledgerID)
+
+	requireDecimalEqual(t, decimal.NewFromInt(1000), postgrestestutil.GetBalanceAvailable(t, infra.pgContainer.DB, srcID), "source restored by final after bridge fence")
+	requireDecimalEqual(t, decimal.Zero, postgrestestutil.GetBalanceAvailable(t, infra.pgContainer.DB, dstID), "destination restored by final after bridge fence")
+}
+
+func TestIntegration_TransactionV2Revert_RolloutOldInFlightAndBridgeShareLegacyBarrier(t *testing.T) {
+	t.Setenv("ALLOW_INSECURE_TLS", "true")
+	t.Setenv("RABBITMQ_TRANSACTION_ASYNC", "false")
+
+	infra := setupTestInfra(t)
+	ctx := context.Background()
+	srcID, dstID := seedFundedTransfer(t, infra.pgContainer.DB, infra.orgID, infra.ledgerID, "@src", "@dst", 1000, 1000)
+	v2App := buildHumaV2DirectApp(t, infra.handler)
+	origin := decodeTxResponse(t, postV2Create(t, v2App, "direct", infra.orgID, infra.ledgerID, equivalentV2Body, ""), nethttp.StatusCreated)
+	originID := uuid.MustParse(origin["id"].(string))
+	drainBalanceSync(t, ctx, infra.handler.Command, infra.redisRepo, infra.orgID, infra.ledgerID)
+
+	originTransaction, err := infra.handler.Query.GetTransactionWithOperationsByID(ctx, infra.orgID, infra.ledgerID, originID)
+	require.NoError(t, err)
+	legacyHash, err := legacyRevertIdempotencyHash(originTransaction.TransactionRevert())
+	require.NoError(t, err)
+	legacyKey := utils.IdempotencyInternalKey(infra.orgID, infra.ledgerID, legacyHash)
+
+	// An old pod starts first and owns the released payload-hash barrier. Its
+	// empty value means in-flight, before it has a reverse response to cache.
+	acquired, err := infra.redisRepo.SetNX(ctx, legacyKey, "", 300)
+	require.NoError(t, err)
+	require.True(t, acquired)
+
+	infra.handler.RevertIdempotencyMode = revertIdempotencyModeBridge
+	blocked := postTransaction(t, v2App, v2RevertURL(infra.orgID, infra.ledgerID, originID), "", "")
+	assertProblemCode(t, blocked, nethttp.StatusConflict, cn.ErrIdempotencyKey.Error())
+	assert.Equal(t, 1, countTransactionsInLedger(t, infra.pgContainer.DB, infra.ledgerID),
+		"bridge must not move funds while an old request owns the shared barrier")
+	requireDecimalEqual(t, decimal.NewFromInt(900), postgrestestutil.GetBalanceAvailable(t, infra.pgContainer.DB, srcID), "blocked bridge leaves source unchanged")
+	requireDecimalEqual(t, decimal.NewFromInt(1100), postgrestestutil.GetBalanceAvailable(t, infra.pgContainer.DB, dstID), "blocked bridge leaves destination unchanged")
+
+	// A proven pre-movement old abort releases its own fence. The bridge must
+	// also have released its fresh PostgreSQL claim, so the retry can perform
+	// exactly one reversal.
+	require.NoError(t, infra.redisRepo.Del(ctx, legacyKey))
+	reverse := decodeTxResponse(t, postTransaction(t, v2App, v2RevertURL(infra.orgID, infra.ledgerID, originID), "", ""), nethttp.StatusCreated)
+	assert.Equal(t, originID.String(), reverse["parentTransactionId"])
+	drainBalanceSync(t, ctx, infra.handler.Command, infra.redisRepo, infra.orgID, infra.ledgerID)
+	assert.Equal(t, 2, countTransactionsInLedger(t, infra.pgContainer.DB, infra.ledgerID))
+	requireDecimalEqual(t, decimal.NewFromInt(1000), postgrestestutil.GetBalanceAvailable(t, infra.pgContainer.DB, srcID), "source restored exactly once")
+	requireDecimalEqual(t, decimal.NewFromInt(1000), postgrestestutil.GetBalanceAvailable(t, infra.pgContainer.DB, dstID), "destination restored exactly once")
+}
+
+func TestIntegration_TransactionV2Revert_RolloutBridgeAndFinalSharePostgresClaim(t *testing.T) {
+	t.Setenv("ALLOW_INSECURE_TLS", "true")
+	t.Setenv("RABBITMQ_TRANSACTION_ASYNC", "false")
+
+	infra := setupTestInfra(t)
+	ctx := context.Background()
+	srcID, dstID := seedFundedTransfer(t, infra.pgContainer.DB, infra.orgID, infra.ledgerID, "@src", "@dst", 1000, 1000)
+	v2App := buildHumaV2DirectApp(t, infra.handler)
+	origin := decodeTxResponse(t, postV2Create(t, v2App, "direct", infra.orgID, infra.ledgerID, equivalentV2Body, ""), nethttp.StatusCreated)
+	originID := uuid.MustParse(origin["id"].(string))
+	drainBalanceSync(t, ctx, infra.handler.Command, infra.redisRepo, infra.orgID, infra.ledgerID)
+
+	bridge := &TransactionHandler{Query: infra.handler.Query, Command: infra.handler.Command, RevertIdempotencyMode: revertIdempotencyModeBridge}
+	final := &TransactionHandler{Query: infra.handler.Query, Command: infra.handler.Command, RevertIdempotencyMode: revertIdempotencyModeFinal}
+	type result struct {
+		tran *transaction.Transaction
+		err  error
+	}
+	results := make(chan result, 2)
+	start := make(chan struct{})
+
+	for _, handler := range []*TransactionHandler{bridge, final} {
+		go func(h *TransactionHandler) {
+			<-start
+			tran, _, err := h.revertTransaction(ctx, infra.orgID, infra.ledgerID, originID)
+			results <- result{tran: tran, err: err}
+		}(handler)
+	}
+	close(start)
+	first, second := <-results, <-results
+
+	reverseIDs := make(map[string]struct{})
+	for _, got := range []result{first, second} {
+		if got.err == nil && got.tran != nil {
+			reverseIDs[got.tran.ID] = struct{}{}
+		}
+	}
+	require.Len(t, reverseIDs, 1,
+		"bridge and final may both return the durable replay, but must expose exactly one reserved reverse")
+	drainBalanceSync(t, ctx, infra.handler.Command, infra.redisRepo, infra.orgID, infra.ledgerID)
+	assert.Equal(t, 2, countTransactionsInLedger(t, infra.pgContainer.DB, infra.ledgerID))
+	requireDecimalEqual(t, decimal.NewFromInt(1000), postgrestestutil.GetBalanceAvailable(t, infra.pgContainer.DB, srcID), "source restored exactly once")
+	requireDecimalEqual(t, decimal.NewFromInt(1000), postgrestestutil.GetBalanceAvailable(t, infra.pgContainer.DB, dstID), "destination restored exactly once")
+}
+
 // =============================================================================
-// 19. CONCURRENT REVERT OF ONE ORIGIN — EXACTLY ONE WINNER (money path): concurrent reverts of
-//     ONE origin all derive the SAME preimage — reverting one origin twice yields byte-identical
-//     reversal payloads — so exactly one of them wins the Redis SetNX and the rest are rejected
-//     BEFORE any balance work. This half of the claim's job is unaffected by the origin-scoping
-//     defect in section 18: widening the key by origin would preserve it, and the current
-//     origin-agnostic key already provides it. Section 18(b) only covers the SEQUENTIAL repeat,
-//     where the already-has-a-child gate fires first — it never exercises the window the claim
-//     exists for, and it is skipped besides.
-//
-//     That window is real: the eligibility gate reads GetParentByTransactionID, which cannot
-//     see a concurrent revert's not-yet-committed child (and, in production, reads a Postgres
-//     REPLICA while the child is written to the PRIMARY, which is tracked externally).
-//     The gate therefore cannot be the serialization point; the shared claim has to be. If it
-//     is not, the failure mode is a DOUBLE money movement: one origin reversed twice.
+// 19. CONCURRENT REVERT OF ONE ORIGIN — EXACTLY ONE MUTATION (money path):
+//     concurrent requests share the PostgreSQL claim and origin Redis barrier.
+//     Callers racing after persistence may receive the same successful replay;
+//     only one reverse transaction and one balance mutation may exist.
 //
 //     N racers revert one APPROVED origin from a common start barrier. The invariant asserted
 //     is "exactly one 201, every other answer a 4xx" rather than one specific sentinel: the
@@ -1036,9 +1139,10 @@ func TestIntegration_TransactionV2Revert_ConcurrentSingleWinner(t *testing.T) {
 	//
 	//   winner  — 201 + X-Idempotency-Replayed: false. Created the one reverse, moved money.
 	//   replay  — 201 + X-Idempotency-Replayed: true. Lost the claim, then read the winner's
-	//             cached reverse back out of the slot and echoed it. Creates nothing, moves
+	//             persisted reverse from PostgreSQL primary and echoed it. Creates nothing, moves
 	//             nothing, and MUST NOT be counted against the exactly-one-create invariant.
-	//   loser   — 4xx. Lost the claim before the winner had written its value.
+	//   loser   — 4xx while the claim is active, or 503/0501 after Redis has
+	//             committed but before PostgreSQL persistence is visible.
 	//
 	// Which of the two losing shapes a racer gets is a pure timing coin-flip against the
 	// winner's async cache write, so folding replays into winners would make the
@@ -1057,6 +1161,7 @@ func TestIntegration_TransactionV2Revert_ConcurrentSingleWinner(t *testing.T) {
 	allowedLoserCodes := []string{
 		cn.ErrIdempotencyKey.Error(),
 		cn.ErrTransactionIDHasAlreadyParentTransaction.Error(),
+		cn.ErrRevertReconciliationRequired.Error(),
 	}
 
 	for i, res := range results {
@@ -1073,8 +1178,14 @@ func TestIntegration_TransactionV2Revert_ConcurrentSingleWinner(t *testing.T) {
 			continue
 		}
 
-		assert.GreaterOrEqualf(t, res.status, 400, "racer %d: a losing revert must be a client rejection, not a server error; body: %s", i, res.body)
-		assert.Lessf(t, res.status, 500, "racer %d: a losing revert must be a client rejection, not a server error; body: %s", i, res.body)
+		assert.GreaterOrEqualf(t, res.status, 400, "racer %d: a losing revert must be fenced; body: %s", i, res.body)
+		if res.problemCode == cn.ErrRevertReconciliationRequired.Error() {
+			assert.Equalf(t, nethttp.StatusServiceUnavailable, res.status,
+				"racer %d: post-movement reconciliation must surface as 503; body: %s", i, res.body)
+		} else {
+			assert.Lessf(t, res.status, 500,
+				"racer %d: an active pre-movement claim is a client conflict; body: %s", i, res.body)
+		}
 		assert.Containsf(t, allowedLoserCodes, res.problemCode,
 			"racer %d: a losing revert may only be rejected for losing the idempotency claim (%v); body: %s",
 			i, allowedLoserCodes, res.body)

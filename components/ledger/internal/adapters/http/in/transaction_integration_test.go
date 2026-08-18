@@ -42,6 +42,7 @@ import (
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/ledger"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/operation"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/operationroute"
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/revertclaim"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/transaction"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/rabbitmq"
 	redis "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/redis/transaction"
@@ -108,6 +109,7 @@ func setupTestInfra(t *testing.T) *testInfra {
 	// bidirectional-route gate (which resolves an operation's route_id) can run against a real
 	// repository instead of nil-panicking into a generic 500.
 	operationRouteRepo := operationroute.NewOperationRoutePostgreSQLRepository(infra.pgConn)
+	revertClaimRepo := revertclaim.NewPostgreSQLRepository(infra.pgConn)
 	metadataRepo := mongodb.NewMetadataMongoDBRepository(mongoConn)
 	redisRepo, err := redis.NewConsumerRedis(redisConn)
 	require.NoError(t, err, "failed to create Redis repository")
@@ -128,6 +130,7 @@ func setupTestInfra(t *testing.T) *testInfra {
 	}
 	commandUC := &command.UseCase{
 		TransactionRepo:         transactionRepo,
+		RevertClaimRepo:         revertClaimRepo,
 		OperationRepo:           operationRepo,
 		BalanceRepo:             balanceRepo,
 		TransactionMetadataRepo: metadataRepo,
@@ -136,8 +139,9 @@ func setupTestInfra(t *testing.T) *testInfra {
 
 	// Create handler
 	infra.handler = &TransactionHandler{
-		Query:   queryUC,
-		Command: commandUC,
+		Query:                 queryUC,
+		Command:               commandUC,
+		RevertIdempotencyMode: revertIdempotencyModeFinal,
 	}
 
 	// Use fake UUIDs for org and ledger (they're in the onboarding component, not transaction)
@@ -675,6 +679,7 @@ func setupAsyncTestInfra(t *testing.T) *testAsyncInfra {
 	balanceRepo := balance.NewBalancePostgreSQLRepository(infra.pgConn, false)
 	ledgerRepo := ledger.NewLedgerPostgreSQLRepository(infra.pgConn)
 	metadataRepo := mongodb.NewMetadataMongoDBRepository(mongoConn)
+	revertClaimRepo := revertclaim.NewPostgreSQLRepository(infra.pgConn)
 	redisRepo, err := redis.NewConsumerRedis(redisConn)
 	require.NoError(t, err, "failed to create Redis repository")
 
@@ -705,6 +710,7 @@ func setupAsyncTestInfra(t *testing.T) *testAsyncInfra {
 	}
 	infra.commandUC = &command.UseCase{
 		TransactionRepo:         transactionRepo,
+		RevertClaimRepo:         revertClaimRepo,
 		OperationRepo:           operationRepo,
 		BalanceRepo:             balanceRepo,
 		TransactionMetadataRepo: metadataRepo,
@@ -714,8 +720,9 @@ func setupAsyncTestInfra(t *testing.T) *testAsyncInfra {
 
 	// Create handler
 	infra.handler = &TransactionHandler{
-		Query:   queryUC,
-		Command: infra.commandUC,
+		Query:                 queryUC,
+		Command:               infra.commandUC,
+		RevertIdempotencyMode: revertIdempotencyModeFinal,
 	}
 
 	// Use fake UUIDs for org and ledger (they're in the onboarding component, not transaction)

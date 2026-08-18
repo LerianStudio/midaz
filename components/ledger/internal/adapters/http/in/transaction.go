@@ -44,6 +44,9 @@ type TransactionHandler struct {
 	// MultiTenantEnabled gates the fee-seam tenant resolution. When false the
 	// static fee connection is correct and resolveFeesTenantContext is a no-op.
 	MultiTenantEnabled bool
+	// RevertIdempotencyMode is "bridge" during old/new coexistence and "final"
+	// after old pods and their in-flight requests are drained.
+	RevertIdempotencyMode string
 }
 
 // CreateTransactionJSON method that create transaction using JSON

@@ -151,7 +151,8 @@ type Config struct {
 	TxnPrefixedMaxOpenConnections int `env:"DB_TRANSACTION_MAX_OPEN_CONNS"`
 	TxnPrefixedMaxIdleConnections int `env:"DB_TRANSACTION_MAX_IDLE_CONNS"`
 
-	RouteTransactionalReadsToPrimary bool `env:"DB_TRANSACTION_ROUTE_TX_READS_TO_PRIMARY"`
+	RouteTransactionalReadsToPrimary bool   `env:"DB_TRANSACTION_ROUTE_TX_READS_TO_PRIMARY"`
+	RevertIdempotencyMode            string `env:"REVERT_IDEMPOTENCY_MODE" default:"bridge"`
 
 	// --- Onboarding MongoDB fields (MONGO_ONBOARDING_* env tags) ---
 	OnbPrefixedMongoURI          string `env:"MONGO_ONBOARDING_URI"`
@@ -840,6 +841,7 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 		OnboardingRedisRepo:    onbRedisRepo,
 		// Transaction domain
 		TransactionRepo:         txnPG.transactionRepo,
+		RevertClaimRepo:         txnPG.revertClaimRepo,
 		OperationRepo:           txnPG.operationRepo,
 		AssetRateRepo:           txnPG.assetRateRepo,
 		BalanceRepo:             txnPG.balanceRepo,
@@ -990,12 +992,13 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 
 	// Transaction handlers
 	transactionHandler := &httpin.TransactionHandler{
-		Command:            commandUseCase,
-		Query:              queryUseCase,
-		FeeApplier:         fees.useCase,
-		TracerReserver:     tracerReserver,
-		FeesMongoManager:   feeMgo.mongoManager,
-		MultiTenantEnabled: cfg.MultiTenantEnabled,
+		Command:               commandUseCase,
+		Query:                 queryUseCase,
+		FeeApplier:            fees.useCase,
+		TracerReserver:        tracerReserver,
+		FeesMongoManager:      feeMgo.mongoManager,
+		MultiTenantEnabled:    cfg.MultiTenantEnabled,
+		RevertIdempotencyMode: cfg.RevertIdempotencyMode,
 	}
 	operationHandler := &httpin.OperationHandler{Command: commandUseCase, Query: queryUseCase}
 	assetRateHandler := &httpin.AssetRateHandler{Command: commandUseCase, Query: queryUseCase}
