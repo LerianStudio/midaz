@@ -30,7 +30,7 @@ import (
 // Redis -> hydrated from Postgres).
 //
 // Real streaming replication is non-deterministic, so instead we provision TWO
-// INDEPENDENT Postgres containers wired as "primary" (A) and "replica" (B) behind a
+// INDEPENDENT Postgres databases wired as "primary" (A) and "replica" (B) behind a
 // single dbresolver-backed *libPostgres.Client. They do NOT replicate: their contents
 // are controlled independently. Writing a balance row ONLY to A and leaving B without
 // that row simulates INFINITE replication lag deterministically.
@@ -48,19 +48,12 @@ import (
 // A real Redis container is still provisioned and the balance key is verified ABSENT
 // so the NX-seed (cache miss -> Postgres) precondition is documented and enforced.
 func TestTransactionalRead_UnderDivergence(t *testing.T) {
-	// --- Two independent Postgres containers: A = primary, B = replica ---
-	primary := pgtestutil.SetupContainer(t) // A
-	replica := pgtestutil.SetupContainer(t) // B
-
-	migrationsPath := pgtestutil.FindMigrationsPath(t, "transaction")
+	// --- Two independent Postgres databases: A = primary, B = replica ---
+	primary := pgtestutil.SetupMigratedContainer(t, "transaction") // A
+	replica := pgtestutil.SetupMigratedContainer(t, "transaction") // B
 
 	primaryDSN := pgtestutil.BuildConnectionString(primary.Host, primary.Port, primary.Config)
 	replicaDSN := pgtestutil.BuildConnectionString(replica.Host, replica.Port, replica.Config)
-
-	// Migrate BOTH databases so the schema (balance table) exists in each. The
-	// divergence under test is ROW CONTENT, not schema: A has the row, B does not.
-	migrateSchema(t, primaryDSN, primary.Config.DBName, migrationsPath)
-	migrateSchema(t, replicaDSN, replica.Config.DBName, migrationsPath)
 
 	// Single lib-commons client wiring PrimaryDSN -> A and ReplicaDSN -> B, mirroring
 	// how bootstrap/config.postgres.transaction*.go builds the transactional client.
@@ -148,21 +141,6 @@ func TestTransactionalRead_UnderDivergence(t *testing.T) {
 		assert.Empty(t, balances,
 			"unmarked ctx with flag ON must read replica (B) -> empty result, proving pure queries are unaffected")
 	})
-}
-
-// migrateSchema applies the transaction-component migrations to the target DSN.
-// Used to bring BOTH the primary (A) and replica (B) databases to the same schema so
-// the divergence under test is purely row content.
-func migrateSchema(t *testing.T, dsn, dbName, migrationsPath string) {
-	t.Helper()
-
-	migrator, err := libPostgres.NewMigrator(libPostgres.MigrationConfig{
-		PrimaryDSN:     dsn,
-		DatabaseName:   dbName,
-		MigrationsPath: migrationsPath,
-	})
-	require.NoError(t, err, "failed to create migrator for %s", dbName)
-	require.NoError(t, migrator.Up(context.Background()), "failed to run migrations for %s", dbName)
 }
 
 // requireRowCount asserts the number of non-deleted balance rows for an alias in a raw

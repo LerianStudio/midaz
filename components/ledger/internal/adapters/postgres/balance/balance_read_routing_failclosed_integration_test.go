@@ -60,8 +60,8 @@ func TestTransactionalRead_PrimaryUnavailable_FailsClosed(t *testing.T) {
 
 	// Migrate BOTH databases so the schema exists in each; the divergence under test is
 	// row content (A has the row, B does not), not schema.
-	migrateSchema(t, primaryDSN, primary.Config.DBName, migrationsPath)
-	migrateSchema(t, replicaDSN, replica.Config.DBName, migrationsPath)
+	migrateExclusiveSchema(t, primaryDSN, primary.Config.DBName, migrationsPath)
+	migrateExclusiveSchema(t, replicaDSN, replica.Config.DBName, migrationsPath)
 
 	// Single lib-commons client wiring PrimaryDSN -> A and ReplicaDSN -> B, mirroring the
 	// transactional client bootstrap builds.
@@ -152,6 +152,18 @@ func TestTransactionalRead_PrimaryUnavailable_FailsClosed(t *testing.T) {
 		assert.Empty(t, balances,
 			"replica (B) lacks the diverged row -> empty result, proving the replica path is untouched by primary loss")
 	})
+}
+
+func migrateExclusiveSchema(t *testing.T, dsn, dbName, migrationsPath string) {
+	t.Helper()
+
+	migrator, err := libPostgres.NewMigrator(libPostgres.MigrationConfig{
+		PrimaryDSN:     dsn,
+		DatabaseName:   dbName,
+		MigrationsPath: migrationsPath,
+	})
+	require.NoError(t, err, "failed to create migrator for %s", dbName)
+	require.NoError(t, migrator.Up(context.Background()), "failed to run migrations for %s", dbName)
 }
 
 // requirePrimaryUnavailable blocks until the primary container is effectively

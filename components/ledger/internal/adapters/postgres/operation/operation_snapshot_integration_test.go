@@ -91,7 +91,7 @@ func snapshotFixtureOperation(ids testIDs, now time.Time, snapshot mmodel.Operat
 // populated to non-zero values survives a PG round-trip with byte-level
 // JSONB fidelity and typed decimal rehydration.
 func TestIntegration_OperationSnapshot_CreateAndRead_NonZero(t *testing.T) {
-	container := pgtestutil.SetupContainer(t)
+	container := pgtestutil.SetupMigratedContainer(t, "transaction")
 	repo := createRepository(t, container)
 	ids := createTestDependencies(t, container)
 
@@ -143,7 +143,7 @@ func TestIntegration_OperationSnapshot_CreateAndRead_NonZero(t *testing.T) {
 // typed Balance.OverdraftUsed / BalanceAfter.OverdraftUsed set to
 // decimal.Zero.
 func TestIntegration_OperationSnapshot_CreateAndRead_ZeroShape(t *testing.T) {
-	container := pgtestutil.SetupContainer(t)
+	container := pgtestutil.SetupMigratedContainer(t, "transaction")
 	repo := createRepository(t, container)
 	ids := createTestDependencies(t, container)
 
@@ -188,7 +188,7 @@ func TestIntegration_OperationSnapshot_CreateAndRead_ZeroShape(t *testing.T) {
 // snapshot independently. Catches scan-site drift that would be hidden when
 // every row happens to have the same snapshot.
 func TestIntegration_OperationSnapshot_FindAll_MixedSnapshots(t *testing.T) {
-	container := pgtestutil.SetupContainer(t)
+	container := pgtestutil.SetupMigratedContainer(t, "transaction")
 	repo := createRepository(t, container)
 	ids := createTestDependencies(t, container)
 
@@ -261,7 +261,7 @@ func TestIntegration_OperationSnapshot_FindAll_MixedSnapshots(t *testing.T) {
 // production rows from before the snapshot migration landed must produce
 // exactly the same wire shape as freshly written non-overdraft ops.
 func TestIntegration_OperationSnapshot_LegacyRow(t *testing.T) {
-	container := pgtestutil.SetupContainer(t)
+	container := pgtestutil.SetupMigratedContainer(t, "transaction")
 	repo := createRepository(t, container)
 	ids := createTestDependencies(t, container)
 
@@ -324,7 +324,7 @@ func TestIntegration_OperationSnapshot_LegacyRow(t *testing.T) {
 // reconstruction would surface typed OverdraftUsed as decimal.Zero, defeating
 // the audit-trail purpose of the snapshot column.
 func TestIntegration_OperationSnapshot_PointInTime(t *testing.T) {
-	container := pgtestutil.SetupContainer(t)
+	container := pgtestutil.SetupMigratedContainer(t, "transaction")
 	repo := createRepository(t, container)
 	ids := createTestDependencies(t, container)
 
@@ -373,7 +373,7 @@ func TestIntegration_OperationSnapshot_PointInTime(t *testing.T) {
 // operationPointInTimeColumns list. Legacy rows decode to the always-
 // populated zero shape on the PIT path too.
 func TestIntegration_OperationSnapshot_PointInTime_LegacyRow(t *testing.T) {
-	container := pgtestutil.SetupContainer(t)
+	container := pgtestutil.SetupMigratedContainer(t, "transaction")
 	repo := createRepository(t, container)
 	ids := createTestDependencies(t, container)
 

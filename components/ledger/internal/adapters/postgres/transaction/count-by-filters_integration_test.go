@@ -57,12 +57,11 @@ type countByFiltersInfra struct {
 func setupCountByFiltersInfra(t *testing.T) *countByFiltersInfra {
 	t.Helper()
 
-	pgContainer := pgtestutil.SetupContainer(t)
+	pgContainer := pgtestutil.SetupMigratedContainer(t, "transaction")
 
-	migrationsPath := pgtestutil.FindMigrationsPath(t, "transaction")
 	connStr := pgtestutil.BuildConnectionString(pgContainer.Host, pgContainer.Port, pgContainer.Config)
 
-	conn := pgtestutil.CreatePostgresClient(t, connStr, connStr, pgContainer.Config.DBName, migrationsPath)
+	conn := pgtestutil.ConnectPostgresClient(t, connStr, connStr)
 
 	repo := NewTransactionPostgreSQLRepository(conn)
 

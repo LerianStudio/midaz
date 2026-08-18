@@ -39,23 +39,18 @@ import (
 // makes the seam operate on the tenant's handle without ever touching r.connection.
 //
 // The deterministic divergence is identical to the single-tenant divergence test: two INDEPENDENT Postgres
-// containers wired PrimaryDSN=A / ReplicaDSN=B behind one *libPostgres.Client. They do
+// databases wired PrimaryDSN=A / ReplicaDSN=B behind one *libPostgres.Client. They do
 // NOT replicate; A holds the seeded balance row, B does not (infinite lag). Redis is
 // provisioned and the balance key is verified ABSENT to document the NX-seed (cache
 // miss -> Postgres) precondition. Helpers migrateSchema / requireRowCount /
 // requireRedisKeyAbsent are reused from the sibling divergence file in this package.
 func TestTransactionalRead_MultiTenant(t *testing.T) {
-	// --- Two independent Postgres containers: A = tenant primary, B = tenant replica ---
-	primary := pgtestutil.SetupContainer(t) // A
-	replica := pgtestutil.SetupContainer(t) // B
-
-	migrationsPath := pgtestutil.FindMigrationsPath(t, "transaction")
+	// --- Two independent Postgres databases: A = tenant primary, B = tenant replica ---
+	primary := pgtestutil.SetupMigratedContainer(t, "transaction") // A
+	replica := pgtestutil.SetupMigratedContainer(t, "transaction") // B
 
 	primaryDSN := pgtestutil.BuildConnectionString(primary.Host, primary.Port, primary.Config)
 	replicaDSN := pgtestutil.BuildConnectionString(replica.Host, replica.Port, replica.Config)
-
-	migrateSchema(t, primaryDSN, primary.Config.DBName, migrationsPath)
-	migrateSchema(t, replicaDSN, replica.Config.DBName, migrationsPath)
 
 	// Single lib-commons client wiring PrimaryDSN -> A and ReplicaDSN -> B, mirroring the
 	// transactional client bootstrap builds. This is the TENANT handle: it is injected

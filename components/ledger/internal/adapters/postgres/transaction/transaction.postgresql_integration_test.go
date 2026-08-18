@@ -103,14 +103,12 @@ type networkChaosTestInfra struct {
 func setupIntegrationInfra(t *testing.T) *integrationTestInfra {
 	t.Helper()
 
-	// Setup PostgreSQL container
-	pgContainer := pgtestutil.SetupContainer(t)
+	pgContainer := pgtestutil.SetupMigratedContainer(t, "transaction")
 
 	// Create lib-commons PostgreSQL connection
-	migrationsPath := pgtestutil.FindMigrationsPath(t, "transaction")
 	connStr := pgtestutil.BuildConnectionString(pgContainer.Host, pgContainer.Port, pgContainer.Config)
 
-	conn := pgtestutil.CreatePostgresClient(t, connStr, connStr, pgContainer.Config.DBName, migrationsPath)
+	conn := pgtestutil.ConnectPostgresClient(t, connStr, connStr)
 
 	// Create repository
 	repo := NewTransactionPostgreSQLRepository(conn)
@@ -1870,25 +1868,19 @@ func TestIntegration_GetDB_CreateAndFindRoundTrip(t *testing.T) {
 //   - If getDB correctly returns the tenant DB, the data is found.
 //   - If getDB incorrectly falls back to static, the data is NOT found (test fails).
 
-// setupTenantContainer starts a second PostgreSQL container with migrations applied
+// setupTenantContainer allocates a second PostgreSQL database from the migrated template
 // and returns both the ContainerResult and a dbresolver.DB wrapper suitable for
 // injection into tenant context.
 func setupTenantContainer(t *testing.T) (*pgtestutil.ContainerResult, dbresolver.DB) {
 	t.Helper()
 
-	tenantContainer := pgtestutil.SetupContainer(t)
-
-	// Run migrations on the tenant container by creating a temporary
-	// PostgresConnection and letting the constructor trigger migration.
-	migrationsPath := pgtestutil.FindMigrationsPath(t, "transaction")
+	tenantContainer := pgtestutil.SetupMigratedContainer(t, "transaction")
 	connStr := pgtestutil.BuildConnectionString(tenantContainer.Host, tenantContainer.Port, tenantContainer.Config)
 
-	// Create a temporary connection to apply migrations (the constructor runs them).
-	tempConn := pgtestutil.CreatePostgresClient(t, connStr, connStr, tenantContainer.Config.DBName, migrationsPath)
+	tempConn := pgtestutil.ConnectPostgresClient(t, connStr, connStr)
 
-	// Trigger migration by calling GetDB (same as constructor does).
 	db, err := tempConn.Resolver(context.Background())
-	require.NoError(t, err, "failed to initialize tenant container database with migrations")
+	require.NoError(t, err, "failed to initialize tenant database")
 
 	// Close the temporary connection pool so it does not leak.
 	t.Cleanup(func() {

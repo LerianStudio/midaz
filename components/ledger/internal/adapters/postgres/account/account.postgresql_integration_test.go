@@ -31,11 +31,9 @@ import (
 func createRepository(t *testing.T, container *pgtestutil.ContainerResult) *AccountPostgreSQLRepository {
 	t.Helper()
 
-	migrationsPath := pgtestutil.FindMigrationsPath(t, "onboarding")
-
 	connStr := pgtestutil.BuildConnectionString(container.Host, container.Port, container.Config)
 
-	conn := pgtestutil.CreatePostgresClient(t, connStr, connStr, container.Config.DBName, migrationsPath)
+	conn := pgtestutil.ConnectPostgresClient(t, connStr, connStr)
 
 	return NewAccountPostgreSQLRepository(conn)
 }
@@ -46,7 +44,7 @@ func createRepository(t *testing.T, container *pgtestutil.ContainerResult) *Acco
 
 func TestIntegration_AccountRepository_Find_ReturnsAccount(t *testing.T) {
 	// Arrange
-	container := pgtestutil.SetupContainer(t)
+	container := pgtestutil.SetupMigratedContainer(t, "onboarding")
 
 	// Create repository - lib-commons auto-runs migrations via MigrationsPath
 	repo := createRepository(t, container)
@@ -87,7 +85,7 @@ func TestIntegration_AccountRepository_Find_ReturnsAccount(t *testing.T) {
 }
 
 func TestIntegration_AccountRepository_Find_ReturnsEntityNotFoundError(t *testing.T) {
-	container := pgtestutil.SetupContainer(t)
+	container := pgtestutil.SetupMigratedContainer(t, "onboarding")
 
 	repo := createRepository(t, container)
 
@@ -143,7 +141,7 @@ func TestIntegration_AccountRepository_Find_ReturnsEntityNotFoundError(t *testin
 
 func TestIntegration_AccountRepository_Find_FiltersCorrectlyByOrgAndLedger(t *testing.T) {
 	// Arrange
-	container := pgtestutil.SetupContainer(t)
+	container := pgtestutil.SetupMigratedContainer(t, "onboarding")
 
 	repo := createRepository(t, container)
 
@@ -189,7 +187,7 @@ func TestIntegration_AccountRepository_Find_FiltersCorrectlyByOrgAndLedger(t *te
 
 func TestIntegration_AccountRepository_Create_InsertsAccount(t *testing.T) {
 	// Arrange
-	container := pgtestutil.SetupContainer(t)
+	container := pgtestutil.SetupMigratedContainer(t, "onboarding")
 
 	repo := createRepository(t, container)
 
@@ -249,7 +247,7 @@ func TestIntegration_AccountRepository_Create_InsertsAccount(t *testing.T) {
 // The repository must handle unknown columns gracefully (SELECT specific columns, not SELECT *).
 func TestIntegration_AccountRepository_Find_BackwardCompatible_ExtraColumns(t *testing.T) {
 	// Arrange
-	container := pgtestutil.SetupContainer(t)
+	container := pgtestutil.SetupMigratedContainer(t, "onboarding")
 
 	repo := createRepository(t, container)
 
@@ -299,7 +297,7 @@ func TestIntegration_AccountRepository_Find_BackwardCompatible_ExtraColumns(t *t
 // values for columns the application doesn't know about.
 func TestIntegration_AccountRepository_Create_BackwardCompatible_ExtraColumns(t *testing.T) {
 	// Arrange
-	container := pgtestutil.SetupContainer(t)
+	container := pgtestutil.SetupMigratedContainer(t, "onboarding")
 
 	repo := createRepository(t, container)
 
@@ -361,7 +359,7 @@ func TestIntegration_AccountRepository_Create_BackwardCompatible_ExtraColumns(t 
 
 func TestIntegration_AccountRepository_FindAll_ReturnsPaginatedAccounts(t *testing.T) {
 	// Arrange
-	container := pgtestutil.SetupContainer(t)
+	container := pgtestutil.SetupMigratedContainer(t, "onboarding")
 
 	repo := createRepository(t, container)
 
@@ -399,7 +397,7 @@ func TestIntegration_AccountRepository_FindAll_ReturnsPaginatedAccounts(t *testi
 
 func TestIntegration_AccountRepository_FindAll_PaginatesWithoutDuplicates(t *testing.T) {
 	// Arrange
-	container := pgtestutil.SetupContainer(t)
+	container := pgtestutil.SetupMigratedContainer(t, "onboarding")
 
 	repo := createRepository(t, container)
 
@@ -453,7 +451,7 @@ func TestIntegration_AccountRepository_FindAll_PaginatesWithoutDuplicates(t *tes
 
 func TestIntegration_AccountRepository_FindAll_ExcludesSoftDeleted(t *testing.T) {
 	// Arrange
-	container := pgtestutil.SetupContainer(t)
+	container := pgtestutil.SetupMigratedContainer(t, "onboarding")
 
 	repo := createRepository(t, container)
 
@@ -489,7 +487,7 @@ func TestIntegration_AccountRepository_FindAll_ExcludesSoftDeleted(t *testing.T)
 
 func TestIntegration_AccountRepository_FindAll_FiltersByPortfolio(t *testing.T) {
 	// Arrange
-	container := pgtestutil.SetupContainer(t)
+	container := pgtestutil.SetupMigratedContainer(t, "onboarding")
 
 	repo := createRepository(t, container)
 
@@ -526,7 +524,7 @@ func TestIntegration_AccountRepository_FindAll_FiltersByPortfolio(t *testing.T) 
 
 func TestIntegration_AccountRepository_FindAll_FiltersBySegment(t *testing.T) {
 	// Arrange
-	container := pgtestutil.SetupContainer(t)
+	container := pgtestutil.SetupMigratedContainer(t, "onboarding")
 
 	repo := createRepository(t, container)
 
@@ -571,7 +569,7 @@ func TestIntegration_AccountRepository_FindAll_FiltersBySegment(t *testing.T) {
 
 func TestIntegration_AccountRepository_FindWithDeleted_ReturnsDeletedAccount(t *testing.T) {
 	// Arrange
-	container := pgtestutil.SetupContainer(t)
+	container := pgtestutil.SetupMigratedContainer(t, "onboarding")
 
 	repo := createRepository(t, container)
 
@@ -601,7 +599,7 @@ func TestIntegration_AccountRepository_FindWithDeleted_ReturnsDeletedAccount(t *
 
 func TestIntegration_AccountRepository_FindWithDeleted_ReturnsActiveAccount(t *testing.T) {
 	// Arrange
-	container := pgtestutil.SetupContainer(t)
+	container := pgtestutil.SetupMigratedContainer(t, "onboarding")
 
 	repo := createRepository(t, container)
 
@@ -628,7 +626,7 @@ func TestIntegration_AccountRepository_FindWithDeleted_ReturnsActiveAccount(t *t
 
 func TestIntegration_AccountRepository_FindAlias_ReturnsAccountByAlias(t *testing.T) {
 	// Arrange
-	container := pgtestutil.SetupContainer(t)
+	container := pgtestutil.SetupMigratedContainer(t, "onboarding")
 
 	repo := createRepository(t, container)
 
@@ -653,7 +651,7 @@ func TestIntegration_AccountRepository_FindAlias_ReturnsAccountByAlias(t *testin
 
 func TestIntegration_AccountRepository_FindAlias_ReturnsErrorForNonExistent(t *testing.T) {
 	// Arrange
-	container := pgtestutil.SetupContainer(t)
+	container := pgtestutil.SetupMigratedContainer(t, "onboarding")
 
 	repo := createRepository(t, container)
 
@@ -672,7 +670,7 @@ func TestIntegration_AccountRepository_FindAlias_ReturnsErrorForNonExistent(t *t
 
 func TestIntegration_AccountRepository_FindAlias_ExcludesSoftDeleted(t *testing.T) {
 	// Arrange
-	container := pgtestutil.SetupContainer(t)
+	container := pgtestutil.SetupMigratedContainer(t, "onboarding")
 
 	repo := createRepository(t, container)
 
@@ -708,7 +706,7 @@ func TestIntegration_AccountRepository_FindAlias_ExcludesSoftDeleted(t *testing.
 // account.
 func TestIntegration_AccountRepository_CustomExternal_FetchableAndListable(t *testing.T) {
 	// Arrange
-	container := pgtestutil.SetupContainer(t)
+	container := pgtestutil.SetupMigratedContainer(t, "onboarding")
 
 	repo := createRepository(t, container)
 
@@ -769,7 +767,7 @@ func TestIntegration_AccountRepository_CustomExternal_FetchableAndListable(t *te
 // the @external/<asset> alias (the same lookup GetAccountExternalByCode drives).
 func TestIntegration_AccountRepository_CanonicalExternalByCode_BackwardCompatible(t *testing.T) {
 	// Arrange
-	container := pgtestutil.SetupContainer(t)
+	container := pgtestutil.SetupMigratedContainer(t, "onboarding")
 
 	repo := createRepository(t, container)
 
@@ -809,7 +807,7 @@ func TestIntegration_AccountRepository_CanonicalExternalByCode_BackwardCompatibl
 
 func TestIntegration_AccountRepository_FindByAlias_ReturnsTrueIfExists(t *testing.T) {
 	// Arrange
-	container := pgtestutil.SetupContainer(t)
+	container := pgtestutil.SetupMigratedContainer(t, "onboarding")
 
 	repo := createRepository(t, container)
 
@@ -831,7 +829,7 @@ func TestIntegration_AccountRepository_FindByAlias_ReturnsTrueIfExists(t *testin
 
 func TestIntegration_AccountRepository_FindByAlias_ReturnsFalseIfNotExists(t *testing.T) {
 	// Arrange
-	container := pgtestutil.SetupContainer(t)
+	container := pgtestutil.SetupMigratedContainer(t, "onboarding")
 
 	repo := createRepository(t, container)
 
@@ -850,7 +848,7 @@ func TestIntegration_AccountRepository_FindByAlias_ReturnsFalseIfNotExists(t *te
 
 func TestIntegration_AccountRepository_FindByAlias_IgnoresSoftDeleted(t *testing.T) {
 	// Arrange
-	container := pgtestutil.SetupContainer(t)
+	container := pgtestutil.SetupMigratedContainer(t, "onboarding")
 
 	repo := createRepository(t, container)
 
@@ -877,7 +875,7 @@ func TestIntegration_AccountRepository_FindByAlias_IgnoresSoftDeleted(t *testing
 
 func TestIntegration_AccountRepository_Update_UpdatesName(t *testing.T) {
 	// Arrange
-	container := pgtestutil.SetupContainer(t)
+	container := pgtestutil.SetupMigratedContainer(t, "onboarding")
 
 	repo := createRepository(t, container)
 
@@ -906,7 +904,7 @@ func TestIntegration_AccountRepository_Update_UpdatesName(t *testing.T) {
 
 func TestIntegration_AccountRepository_Update_UpdatesStatus(t *testing.T) {
 	// Arrange
-	container := pgtestutil.SetupContainer(t)
+	container := pgtestutil.SetupMigratedContainer(t, "onboarding")
 
 	repo := createRepository(t, container)
 
@@ -938,7 +936,7 @@ func TestIntegration_AccountRepository_Update_UpdatesStatus(t *testing.T) {
 
 func TestIntegration_AccountRepository_Update_UpdatesBlocked(t *testing.T) {
 	// Arrange
-	container := pgtestutil.SetupContainer(t)
+	container := pgtestutil.SetupMigratedContainer(t, "onboarding")
 
 	repo := createRepository(t, container)
 
@@ -967,7 +965,7 @@ func TestIntegration_AccountRepository_Update_UpdatesBlocked(t *testing.T) {
 
 func TestIntegration_AccountRepository_Update_ReturnsErrorForNonExistent(t *testing.T) {
 	// Arrange
-	container := pgtestutil.SetupContainer(t)
+	container := pgtestutil.SetupMigratedContainer(t, "onboarding")
 
 	repo := createRepository(t, container)
 
@@ -988,7 +986,7 @@ func TestIntegration_AccountRepository_Update_ReturnsErrorForNonExistent(t *test
 
 func TestIntegration_AccountRepository_Update_CannotUpdateSoftDeleted(t *testing.T) {
 	// Arrange
-	container := pgtestutil.SetupContainer(t)
+	container := pgtestutil.SetupMigratedContainer(t, "onboarding")
 
 	repo := createRepository(t, container)
 
@@ -1015,7 +1013,7 @@ func TestIntegration_AccountRepository_Update_CannotUpdateSoftDeleted(t *testing
 
 func TestIntegration_AccountRepository_Delete_SoftDeletesAccount(t *testing.T) {
 	// Arrange
-	container := pgtestutil.SetupContainer(t)
+	container := pgtestutil.SetupMigratedContainer(t, "onboarding")
 
 	repo := createRepository(t, container)
 
@@ -1063,7 +1061,7 @@ func TestIntegration_AccountRepository_Delete_SoftDeletesAccount(t *testing.T) {
 
 func TestIntegration_AccountRepository_Delete_IsIdempotent(t *testing.T) {
 	// Arrange
-	container := pgtestutil.SetupContainer(t)
+	container := pgtestutil.SetupMigratedContainer(t, "onboarding")
 
 	repo := createRepository(t, container)
 
@@ -1092,7 +1090,7 @@ func TestIntegration_AccountRepository_Delete_IsIdempotent(t *testing.T) {
 
 func TestIntegration_AccountRepository_Delete_RespectsOrgLedgerIsolation(t *testing.T) {
 	// Arrange
-	container := pgtestutil.SetupContainer(t)
+	container := pgtestutil.SetupMigratedContainer(t, "onboarding")
 
 	repo := createRepository(t, container)
 
@@ -1127,7 +1125,7 @@ func TestIntegration_AccountRepository_Delete_RespectsOrgLedgerIsolation(t *test
 
 func TestIntegration_AccountRepository_ListByIDs_ReturnsMatchingAccounts(t *testing.T) {
 	// Arrange
-	container := pgtestutil.SetupContainer(t)
+	container := pgtestutil.SetupMigratedContainer(t, "onboarding")
 
 	repo := createRepository(t, container)
 
@@ -1157,7 +1155,7 @@ func TestIntegration_AccountRepository_ListByIDs_ReturnsMatchingAccounts(t *test
 
 func TestIntegration_AccountRepository_ListByIDs_FiltersBySegment(t *testing.T) {
 	// Arrange
-	container := pgtestutil.SetupContainer(t)
+	container := pgtestutil.SetupMigratedContainer(t, "onboarding")
 
 	repo := createRepository(t, container)
 
@@ -1190,7 +1188,7 @@ func TestIntegration_AccountRepository_ListByIDs_FiltersBySegment(t *testing.T) 
 
 func TestIntegration_AccountRepository_ListByIDs_ExcludesSoftDeleted(t *testing.T) {
 	// Arrange
-	container := pgtestutil.SetupContainer(t)
+	container := pgtestutil.SetupMigratedContainer(t, "onboarding")
 
 	repo := createRepository(t, container)
 
@@ -1214,7 +1212,7 @@ func TestIntegration_AccountRepository_ListByIDs_ExcludesSoftDeleted(t *testing.
 
 func TestIntegration_AccountRepository_ListByIDs_ReturnsEmptyForNoMatch(t *testing.T) {
 	// Arrange
-	container := pgtestutil.SetupContainer(t)
+	container := pgtestutil.SetupMigratedContainer(t, "onboarding")
 
 	repo := createRepository(t, container)
 
@@ -1237,7 +1235,7 @@ func TestIntegration_AccountRepository_ListByIDs_ReturnsEmptyForNoMatch(t *testi
 
 func TestIntegration_AccountRepository_ListAccountsByAlias_ReturnsMatchingAccounts(t *testing.T) {
 	// Arrange
-	container := pgtestutil.SetupContainer(t)
+	container := pgtestutil.SetupMigratedContainer(t, "onboarding")
 
 	repo := createRepository(t, container)
 
@@ -1270,7 +1268,7 @@ func TestIntegration_AccountRepository_ListAccountsByAlias_ReturnsMatchingAccoun
 
 func TestIntegration_AccountRepository_ListAccountsByAlias_ExcludesSoftDeleted(t *testing.T) {
 	// Arrange
-	container := pgtestutil.SetupContainer(t)
+	container := pgtestutil.SetupMigratedContainer(t, "onboarding")
 
 	repo := createRepository(t, container)
 
@@ -1299,7 +1297,7 @@ func TestIntegration_AccountRepository_ListAccountsByAlias_ExcludesSoftDeleted(t
 
 func TestIntegration_AccountRepository_ListExternalAccountsByAssetCode_ReturnsOnlyLiveExternals(t *testing.T) {
 	// Arrange
-	container := pgtestutil.SetupContainer(t)
+	container := pgtestutil.SetupMigratedContainer(t, "onboarding")
 
 	repo := createRepository(t, container)
 
@@ -1362,7 +1360,7 @@ func TestIntegration_AccountRepository_ListExternalAccountsByAssetCode_ReturnsOn
 
 func TestIntegration_AccountRepository_ListExternalAccountsByAssetCode_ReturnsEmptyWhenNone(t *testing.T) {
 	// Arrange
-	container := pgtestutil.SetupContainer(t)
+	container := pgtestutil.SetupMigratedContainer(t, "onboarding")
 
 	repo := createRepository(t, container)
 
@@ -1421,7 +1419,7 @@ func TestIntegration_AccountRepository_Count_Scenarios(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			// Arrange
-			container := pgtestutil.SetupContainer(t)
+			container := pgtestutil.SetupMigratedContainer(t, "onboarding")
 
 			repo := createRepository(t, container)
 
@@ -1455,7 +1453,7 @@ func TestIntegration_AccountRepository_Count_Scenarios(t *testing.T) {
 
 func TestIntegration_AccountRepository_Count_IsolatesByOrgLedger(t *testing.T) {
 	// Arrange
-	container := pgtestutil.SetupContainer(t)
+	container := pgtestutil.SetupMigratedContainer(t, "onboarding")
 
 	repo := createRepository(t, container)
 
@@ -1521,7 +1519,7 @@ func createHolderAccount(t *testing.T, repo *AccountPostgreSQLRepository, orgID,
 
 func TestIntegration_AccountRepository_CountByHolderID_CountsActiveOwned(t *testing.T) {
 	// Arrange
-	container := pgtestutil.SetupContainer(t)
+	container := pgtestutil.SetupMigratedContainer(t, "onboarding")
 
 	repo := createRepository(t, container)
 
@@ -1552,7 +1550,7 @@ func TestIntegration_AccountRepository_CountByHolderID_CountsActiveOwned(t *test
 
 func TestIntegration_AccountRepository_CountByHolderID_IsolatesByOrg(t *testing.T) {
 	// Arrange
-	container := pgtestutil.SetupContainer(t)
+	container := pgtestutil.SetupMigratedContainer(t, "onboarding")
 
 	repo := createRepository(t, container)
 
@@ -1592,7 +1590,7 @@ func TestIntegration_AccountRepository_CountByHolderID_IsolatesByOrg(t *testing.
 
 func TestIntegration_AccountRepository_FindAll_FiltersByStatus(t *testing.T) {
 	// Arrange
-	container := pgtestutil.SetupContainer(t)
+	container := pgtestutil.SetupMigratedContainer(t, "onboarding")
 
 	repo := createRepository(t, container)
 
@@ -1649,7 +1647,7 @@ func TestIntegration_AccountRepository_FindAll_FiltersByStatus(t *testing.T) {
 
 func TestIntegration_AccountRepository_FindAll_FiltersByType(t *testing.T) {
 	// Arrange
-	container := pgtestutil.SetupContainer(t)
+	container := pgtestutil.SetupMigratedContainer(t, "onboarding")
 
 	repo := createRepository(t, container)
 
@@ -1706,7 +1704,7 @@ func TestIntegration_AccountRepository_FindAll_FiltersByType(t *testing.T) {
 
 func TestIntegration_AccountRepository_FindAll_FiltersByAssetCode(t *testing.T) {
 	// Arrange
-	container := pgtestutil.SetupContainer(t)
+	container := pgtestutil.SetupMigratedContainer(t, "onboarding")
 
 	repo := createRepository(t, container)
 
@@ -1763,7 +1761,7 @@ func TestIntegration_AccountRepository_FindAll_FiltersByAssetCode(t *testing.T) 
 
 func TestIntegration_AccountRepository_FindAll_CombinesMultipleFiltersWithAND(t *testing.T) {
 	// Arrange
-	container := pgtestutil.SetupContainer(t)
+	container := pgtestutil.SetupMigratedContainer(t, "onboarding")
 
 	repo := createRepository(t, container)
 
@@ -1837,7 +1835,7 @@ func TestIntegration_AccountRepository_FindAll_CombinesMultipleFiltersWithAND(t 
 
 func TestIntegration_AccountRepository_FindAll_EmptyFilterReturnsAll(t *testing.T) {
 	// Arrange
-	container := pgtestutil.SetupContainer(t)
+	container := pgtestutil.SetupMigratedContainer(t, "onboarding")
 
 	repo := createRepository(t, container)
 
@@ -1886,7 +1884,7 @@ func TestIntegration_AccountRepository_FindAll_EmptyFilterReturnsAll(t *testing.
 
 func TestIntegration_AccountRepository_FindAll_FiltersByNamePrefix(t *testing.T) {
 	// Arrange
-	container := pgtestutil.SetupContainer(t)
+	container := pgtestutil.SetupMigratedContainer(t, "onboarding")
 
 	repo := createRepository(t, container)
 
@@ -1934,7 +1932,7 @@ func TestIntegration_AccountRepository_FindAll_FiltersByNamePrefix(t *testing.T)
 
 func TestIntegration_AccountRepository_FindAll_FiltersByNamePrefix_CaseInsensitive(t *testing.T) {
 	// Arrange
-	container := pgtestutil.SetupContainer(t)
+	container := pgtestutil.SetupMigratedContainer(t, "onboarding")
 
 	repo := createRepository(t, container)
 
@@ -1970,7 +1968,7 @@ func TestIntegration_AccountRepository_FindAll_FiltersByNamePrefix_CaseInsensiti
 
 func TestIntegration_AccountRepository_FindAll_FiltersByAliasPrefix(t *testing.T) {
 	// Arrange
-	container := pgtestutil.SetupContainer(t)
+	container := pgtestutil.SetupMigratedContainer(t, "onboarding")
 
 	repo := createRepository(t, container)
 
@@ -2019,7 +2017,7 @@ func TestIntegration_AccountRepository_FindAll_FiltersByAliasPrefix(t *testing.T
 
 func TestIntegration_AccountRepository_FindAll_FiltersByAliasPrefix_CaseInsensitive(t *testing.T) {
 	// Arrange
-	container := pgtestutil.SetupContainer(t)
+	container := pgtestutil.SetupMigratedContainer(t, "onboarding")
 
 	repo := createRepository(t, container)
 
@@ -2069,7 +2067,7 @@ func TestIntegration_AccountRepository_FindAll_FiltersByAliasPrefix_CaseInsensit
 
 func TestIntegration_AccountRepository_FindAll_FiltersByNamePrefix_NoMiddleWordMatch(t *testing.T) {
 	// Arrange
-	container := pgtestutil.SetupContainer(t)
+	container := pgtestutil.SetupMigratedContainer(t, "onboarding")
 
 	repo := createRepository(t, container)
 
@@ -2104,7 +2102,7 @@ func TestIntegration_AccountRepository_FindAll_FiltersByNamePrefix_NoMiddleWordM
 
 func TestIntegration_AccountRepository_FindAll_FiltersByName_WildcardInjection(t *testing.T) {
 	// Arrange
-	container := pgtestutil.SetupContainer(t)
+	container := pgtestutil.SetupMigratedContainer(t, "onboarding")
 
 	repo := createRepository(t, container)
 
@@ -2153,7 +2151,7 @@ func TestIntegration_AccountRepository_FindAll_FiltersByName_WildcardInjection(t
 
 func TestIntegration_AccountRepository_FindAll_FiltersByName_LiteralSpecialChars(t *testing.T) {
 	// Arrange
-	container := pgtestutil.SetupContainer(t)
+	container := pgtestutil.SetupMigratedContainer(t, "onboarding")
 
 	repo := createRepository(t, container)
 
@@ -2189,7 +2187,7 @@ func TestIntegration_AccountRepository_FindAll_FiltersByName_LiteralSpecialChars
 
 func TestIntegration_AccountRepository_FindAll_CombinesNameAndAliasFilters(t *testing.T) {
 	// Arrange
-	container := pgtestutil.SetupContainer(t)
+	container := pgtestutil.SetupMigratedContainer(t, "onboarding")
 
 	repo := createRepository(t, container)
 
@@ -2241,7 +2239,7 @@ func TestIntegration_AccountRepository_FindAll_CombinesNameAndAliasFilters(t *te
 
 func TestIntegration_AccountRepository_FindAll_FiltersByEntityID(t *testing.T) {
 	// Arrange
-	container := pgtestutil.SetupContainer(t)
+	container := pgtestutil.SetupMigratedContainer(t, "onboarding")
 
 	repo := createRepository(t, container)
 
@@ -2300,7 +2298,7 @@ func TestIntegration_AccountRepository_FindAll_FiltersByEntityID(t *testing.T) {
 
 func TestIntegration_AccountRepository_FindAll_FiltersByBlocked(t *testing.T) {
 	// Arrange
-	container := pgtestutil.SetupContainer(t)
+	container := pgtestutil.SetupMigratedContainer(t, "onboarding")
 
 	repo := createRepository(t, container)
 
@@ -2384,7 +2382,7 @@ func TestIntegration_AccountRepository_FindAll_FiltersByBlocked(t *testing.T) {
 
 func TestIntegration_AccountRepository_FindAll_FiltersByParentAccountID(t *testing.T) {
 	// Arrange
-	container := pgtestutil.SetupContainer(t)
+	container := pgtestutil.SetupMigratedContainer(t, "onboarding")
 
 	repo := createRepository(t, container)
 
@@ -2472,7 +2470,7 @@ func TestIntegration_AccountRepository_FindAll_FiltersByParentAccountID(t *testi
 // with a false control account confirming the flag is not spuriously set.
 func TestIntegration_AccountRepository_SkipAudit_RoundTrip(t *testing.T) {
 	// Arrange
-	container := pgtestutil.SetupContainer(t)
+	container := pgtestutil.SetupMigratedContainer(t, "onboarding")
 
 	repo := createRepository(t, container)
 
@@ -2562,7 +2560,7 @@ func TestIntegration_AccountRepository_SkipAudit_RoundTrip(t *testing.T) {
 // (F1-T03: persistence round-trip through INSERT, the column list, and ToEntity/FromEntity).
 func TestIntegration_AccountRepository_Create_RoundTripsHolderID(t *testing.T) {
 	// Arrange
-	container := pgtestutil.SetupContainer(t)
+	container := pgtestutil.SetupMigratedContainer(t, "onboarding")
 
 	repo := createRepository(t, container)
 
@@ -2629,7 +2627,7 @@ func TestIntegration_AccountRepository_Create_RoundTripsHolderID(t *testing.T) {
 // (F1-T12: guarded holder_id = ? clause).
 func TestIntegration_AccountRepository_FindAll_FiltersByHolderID(t *testing.T) {
 	// Arrange
-	container := pgtestutil.SetupContainer(t)
+	container := pgtestutil.SetupMigratedContainer(t, "onboarding")
 
 	repo := createRepository(t, container)
 

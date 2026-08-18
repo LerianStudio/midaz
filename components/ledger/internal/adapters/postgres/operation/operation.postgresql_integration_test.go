@@ -28,11 +28,9 @@ import (
 func createRepository(t *testing.T, container *pgtestutil.ContainerResult) *OperationPostgreSQLRepository {
 	t.Helper()
 
-	migrationsPath := pgtestutil.FindMigrationsPath(t, "transaction")
-
 	connStr := pgtestutil.BuildConnectionString(container.Host, container.Port, container.Config)
 
-	conn := pgtestutil.CreatePostgresClient(t, connStr, connStr, container.Config.DBName, migrationsPath)
+	conn := pgtestutil.ConnectPostgresClient(t, connStr, connStr)
 
 	return NewOperationPostgreSQLRepository(conn)
 }
@@ -81,7 +79,7 @@ func createTestDependencies(t *testing.T, container *pgtestutil.ContainerResult)
 // ============================================================================
 
 func TestIntegration_OperationRepository_Create_Success(t *testing.T) {
-	container := pgtestutil.SetupContainer(t)
+	container := pgtestutil.SetupMigratedContainer(t, "transaction")
 	repo := createRepository(t, container)
 	ids := createTestDependencies(t, container)
 
@@ -148,7 +146,7 @@ func TestIntegration_OperationRepository_Create_Success(t *testing.T) {
 }
 
 func TestIntegration_OperationRepository_Create_GeneratesIDWhenEmpty(t *testing.T) {
-	container := pgtestutil.SetupContainer(t)
+	container := pgtestutil.SetupMigratedContainer(t, "transaction")
 	repo := createRepository(t, container)
 	ids := createTestDependencies(t, container)
 
@@ -205,7 +203,7 @@ func TestIntegration_OperationRepository_Create_GeneratesIDWhenEmpty(t *testing.
 // ============================================================================
 
 func TestIntegration_OperationRepository_Find_ReturnsOperation(t *testing.T) {
-	container := pgtestutil.SetupContainer(t)
+	container := pgtestutil.SetupMigratedContainer(t, "transaction")
 	repo := createRepository(t, container)
 	ids := createTestDependencies(t, container)
 
@@ -252,7 +250,7 @@ func TestIntegration_OperationRepository_Find_ReturnsOperation(t *testing.T) {
 }
 
 func TestIntegration_OperationRepository_Find_ReturnsEntityNotFoundError(t *testing.T) {
-	container := pgtestutil.SetupContainer(t)
+	container := pgtestutil.SetupMigratedContainer(t, "transaction")
 	repo := createRepository(t, container)
 	ids := createTestDependencies(t, container)
 
@@ -274,7 +272,7 @@ func TestIntegration_OperationRepository_Find_ReturnsEntityNotFoundError(t *test
 }
 
 func TestIntegration_OperationRepository_Find_IgnoresDeletedOperation(t *testing.T) {
-	container := pgtestutil.SetupContainer(t)
+	container := pgtestutil.SetupMigratedContainer(t, "transaction")
 	repo := createRepository(t, container)
 	ids := createTestDependencies(t, container)
 
@@ -309,7 +307,7 @@ func TestIntegration_OperationRepository_Find_IgnoresDeletedOperation(t *testing
 // ============================================================================
 
 func TestIntegration_OperationRepository_FindByAccount_ReturnsOperation(t *testing.T) {
-	container := pgtestutil.SetupContainer(t)
+	container := pgtestutil.SetupMigratedContainer(t, "transaction")
 	repo := createRepository(t, container)
 	ids := createTestDependencies(t, container)
 
@@ -342,7 +340,7 @@ func TestIntegration_OperationRepository_FindByAccount_ReturnsOperation(t *testi
 }
 
 func TestIntegration_OperationRepository_FindByAccount_ReturnsEntityNotFoundError(t *testing.T) {
-	container := pgtestutil.SetupContainer(t)
+	container := pgtestutil.SetupMigratedContainer(t, "transaction")
 	repo := createRepository(t, container)
 	ids := createTestDependencies(t, container)
 
@@ -362,7 +360,7 @@ func TestIntegration_OperationRepository_FindByAccount_ReturnsEntityNotFoundErro
 }
 
 func TestIntegration_OperationRepository_FindByAccount_WrongAccountReturnsError(t *testing.T) {
-	container := pgtestutil.SetupContainer(t)
+	container := pgtestutil.SetupMigratedContainer(t, "transaction")
 	repo := createRepository(t, container)
 	ids := createTestDependencies(t, container)
 
@@ -398,7 +396,7 @@ func TestIntegration_OperationRepository_FindByAccount_WrongAccountReturnsError(
 // ============================================================================
 
 func TestIntegration_OperationRepository_FindAll_ReturnsOperations(t *testing.T) {
-	container := pgtestutil.SetupContainer(t)
+	container := pgtestutil.SetupMigratedContainer(t, "transaction")
 	repo := createRepository(t, container)
 	ids := createTestDependencies(t, container)
 
@@ -431,7 +429,7 @@ func TestIntegration_OperationRepository_FindAll_ReturnsOperations(t *testing.T)
 }
 
 func TestIntegration_OperationRepository_FindAll_EmptyForNonExistentTransaction(t *testing.T) {
-	container := pgtestutil.SetupContainer(t)
+	container := pgtestutil.SetupMigratedContainer(t, "transaction")
 	repo := createRepository(t, container)
 	ids := createTestDependencies(t, container)
 
@@ -448,7 +446,7 @@ func TestIntegration_OperationRepository_FindAll_EmptyForNonExistentTransaction(
 }
 
 func TestIntegration_OperationRepository_FindAll_Pagination(t *testing.T) {
-	container := pgtestutil.SetupContainer(t)
+	container := pgtestutil.SetupMigratedContainer(t, "transaction")
 	repo := createRepository(t, container)
 	ids := createTestDependencies(t, container)
 
@@ -515,7 +513,7 @@ func TestIntegration_OperationRepository_FindAll_Pagination(t *testing.T) {
 }
 
 func TestIntegration_OperationRepository_FindAll_FiltersByDateRange(t *testing.T) {
-	container := pgtestutil.SetupContainer(t)
+	container := pgtestutil.SetupMigratedContainer(t, "transaction")
 	repo := createRepository(t, container)
 	ids := createTestDependencies(t, container)
 
@@ -563,7 +561,7 @@ func TestIntegration_OperationRepository_FindAll_FiltersByDateRange(t *testing.T
 // ============================================================================
 
 func TestIntegration_OperationRepository_FindAllByAccount_ReturnsOperations(t *testing.T) {
-	container := pgtestutil.SetupContainer(t)
+	container := pgtestutil.SetupMigratedContainer(t, "transaction")
 	repo := createRepository(t, container)
 	ids := createTestDependencies(t, container)
 
@@ -598,7 +596,7 @@ func TestIntegration_OperationRepository_FindAllByAccount_ReturnsOperations(t *t
 }
 
 func TestIntegration_OperationRepository_FindAllByAccount_FiltersByOperationType(t *testing.T) {
-	container := pgtestutil.SetupContainer(t)
+	container := pgtestutil.SetupMigratedContainer(t, "transaction")
 	repo := createRepository(t, container)
 	ids := createTestDependencies(t, container)
 
@@ -660,7 +658,7 @@ func TestIntegration_OperationRepository_FindAllByAccount_FiltersByOperationType
 }
 
 func TestIntegration_OperationRepository_FindAllByAccount_EmptyForNonExistentAccount(t *testing.T) {
-	container := pgtestutil.SetupContainer(t)
+	container := pgtestutil.SetupMigratedContainer(t, "transaction")
 	repo := createRepository(t, container)
 	ids := createTestDependencies(t, container)
 
@@ -677,7 +675,7 @@ func TestIntegration_OperationRepository_FindAllByAccount_EmptyForNonExistentAcc
 }
 
 func TestIntegration_OperationRepository_FindAllByAccount_Pagination(t *testing.T) {
-	container := pgtestutil.SetupContainer(t)
+	container := pgtestutil.SetupMigratedContainer(t, "transaction")
 	repo := createRepository(t, container)
 	ids := createTestDependencies(t, container)
 
@@ -748,7 +746,7 @@ func TestIntegration_OperationRepository_FindAllByAccount_Pagination(t *testing.
 // ============================================================================
 
 func TestIntegration_OperationRepository_ListByIDs_ReturnsMatchingOperations(t *testing.T) {
-	container := pgtestutil.SetupContainer(t)
+	container := pgtestutil.SetupMigratedContainer(t, "transaction")
 	repo := createRepository(t, container)
 	ids := createTestDependencies(t, container)
 
@@ -793,7 +791,7 @@ func TestIntegration_OperationRepository_ListByIDs_ReturnsMatchingOperations(t *
 }
 
 func TestIntegration_OperationRepository_ListByIDs_EmptyForNonExistentIDs(t *testing.T) {
-	container := pgtestutil.SetupContainer(t)
+	container := pgtestutil.SetupMigratedContainer(t, "transaction")
 	repo := createRepository(t, container)
 	ids := createTestDependencies(t, container)
 
@@ -810,7 +808,7 @@ func TestIntegration_OperationRepository_ListByIDs_EmptyForNonExistentIDs(t *tes
 }
 
 func TestIntegration_OperationRepository_ListByIDs_IgnoresDeletedOperations(t *testing.T) {
-	container := pgtestutil.SetupContainer(t)
+	container := pgtestutil.SetupMigratedContainer(t, "transaction")
 	repo := createRepository(t, container)
 	ids := createTestDependencies(t, container)
 
@@ -865,7 +863,7 @@ func TestIntegration_OperationRepository_ListByIDs_IgnoresDeletedOperations(t *t
 // ============================================================================
 
 func TestIntegration_OperationRepository_Update_Success(t *testing.T) {
-	container := pgtestutil.SetupContainer(t)
+	container := pgtestutil.SetupMigratedContainer(t, "transaction")
 	repo := createRepository(t, container)
 	ids := createTestDependencies(t, container)
 
@@ -910,7 +908,7 @@ func TestIntegration_OperationRepository_Update_Success(t *testing.T) {
 }
 
 func TestIntegration_OperationRepository_Update_ReturnsEntityNotFoundError(t *testing.T) {
-	container := pgtestutil.SetupContainer(t)
+	container := pgtestutil.SetupMigratedContainer(t, "transaction")
 	repo := createRepository(t, container)
 	ids := createTestDependencies(t, container)
 
@@ -935,7 +933,7 @@ func TestIntegration_OperationRepository_Update_ReturnsEntityNotFoundError(t *te
 }
 
 func TestIntegration_OperationRepository_Update_IgnoresDeletedOperation(t *testing.T) {
-	container := pgtestutil.SetupContainer(t)
+	container := pgtestutil.SetupMigratedContainer(t, "transaction")
 	repo := createRepository(t, container)
 	ids := createTestDependencies(t, container)
 
@@ -973,7 +971,7 @@ func TestIntegration_OperationRepository_Update_IgnoresDeletedOperation(t *testi
 // ============================================================================
 
 func TestIntegration_OperationRepository_Delete_SoftDeletesOperation(t *testing.T) {
-	container := pgtestutil.SetupContainer(t)
+	container := pgtestutil.SetupMigratedContainer(t, "transaction")
 	repo := createRepository(t, container)
 	ids := createTestDependencies(t, container)
 
@@ -1012,7 +1010,7 @@ func TestIntegration_OperationRepository_Delete_SoftDeletesOperation(t *testing.
 }
 
 func TestIntegration_OperationRepository_Delete_ReturnsEntityNotFoundError(t *testing.T) {
-	container := pgtestutil.SetupContainer(t)
+	container := pgtestutil.SetupMigratedContainer(t, "transaction")
 	repo := createRepository(t, container)
 	ids := createTestDependencies(t, container)
 
@@ -1031,7 +1029,7 @@ func TestIntegration_OperationRepository_Delete_ReturnsEntityNotFoundError(t *te
 }
 
 func TestIntegration_OperationRepository_Delete_AlreadyDeletedReturnsError(t *testing.T) {
-	container := pgtestutil.SetupContainer(t)
+	container := pgtestutil.SetupMigratedContainer(t, "transaction")
 	repo := createRepository(t, container)
 	ids := createTestDependencies(t, container)
 
@@ -1064,7 +1062,7 @@ func TestIntegration_OperationRepository_Delete_AlreadyDeletedReturnsError(t *te
 // ============================================================================
 
 func TestIntegration_OperationRepository_SchemaDefaults(t *testing.T) {
-	container := pgtestutil.SetupContainer(t)
+	container := pgtestutil.SetupMigratedContainer(t, "transaction")
 	repo := createRepository(t, container)
 	ids := createTestDependencies(t, container)
 
@@ -1181,7 +1179,7 @@ func TestIntegration_OperationRepository_SchemaDefaults(t *testing.T) {
 // TestIntegration_OperationRepository_NewColumnMigration_BackwardsCompatible tests that
 // existing rows without new columns still work correctly after a migration adds new columns.
 func TestIntegration_OperationRepository_NewColumnMigration_BackwardsCompatible(t *testing.T) {
-	container := pgtestutil.SetupContainer(t)
+	container := pgtestutil.SetupMigratedContainer(t, "transaction")
 	repo := createRepository(t, container)
 	ids := createTestDependencies(t, container)
 
@@ -1236,7 +1234,7 @@ func TestIntegration_OperationRepository_NewColumnMigration_BackwardsCompatible(
 // TestIntegration_OperationRepository_DecimalPrecision_Preserved tests that
 // large decimal values are preserved through the repository layer.
 func TestIntegration_OperationRepository_DecimalPrecision_Preserved(t *testing.T) {
-	container := pgtestutil.SetupContainer(t)
+	container := pgtestutil.SetupMigratedContainer(t, "transaction")
 	repo := createRepository(t, container)
 	ids := createTestDependencies(t, container)
 

@@ -26,11 +26,9 @@ import (
 func createRepository(t *testing.T, container *pgtestutil.ContainerResult) *AssetRatePostgreSQLRepository {
 	t.Helper()
 
-	migrationsPath := pgtestutil.FindMigrationsPath(t, "transaction")
-
 	connStr := pgtestutil.BuildConnectionString(container.Host, container.Port, container.Config)
 
-	conn := pgtestutil.CreatePostgresClient(t, connStr, connStr, container.Config.DBName, migrationsPath)
+	conn := pgtestutil.ConnectPostgresClient(t, connStr, connStr)
 
 	return NewAssetRatePostgreSQLRepository(conn)
 }
@@ -40,7 +38,7 @@ func createRepository(t *testing.T, container *pgtestutil.ContainerResult) *Asse
 // ============================================================================
 
 func TestIntegration_AssetRateRepository_Create(t *testing.T) {
-	container := pgtestutil.SetupContainer(t)
+	container := pgtestutil.SetupMigratedContainer(t, "transaction")
 	repo := createRepository(t, container)
 
 	orgID := uuid.Must(libCommons.GenerateUUIDv7())
@@ -86,7 +84,7 @@ func TestIntegration_AssetRateRepository_Create(t *testing.T) {
 }
 
 func TestIntegration_AssetRateRepository_Create_WithoutOptionalFields(t *testing.T) {
-	container := pgtestutil.SetupContainer(t)
+	container := pgtestutil.SetupMigratedContainer(t, "transaction")
 	repo := createRepository(t, container)
 
 	orgID := uuid.Must(libCommons.GenerateUUIDv7())
@@ -129,7 +127,7 @@ func TestIntegration_AssetRateRepository_Create_WithoutOptionalFields(t *testing
 // ============================================================================
 
 func TestIntegration_AssetRateRepository_FindByExternalID(t *testing.T) {
-	container := pgtestutil.SetupContainer(t)
+	container := pgtestutil.SetupMigratedContainer(t, "transaction")
 	repo := createRepository(t, container)
 
 	orgID := uuid.Must(libCommons.GenerateUUIDv7())
@@ -163,7 +161,7 @@ func TestIntegration_AssetRateRepository_FindByExternalID(t *testing.T) {
 }
 
 func TestIntegration_AssetRateRepository_FindByExternalID_NotFound(t *testing.T) {
-	container := pgtestutil.SetupContainer(t)
+	container := pgtestutil.SetupMigratedContainer(t, "transaction")
 	repo := createRepository(t, container)
 
 	orgID := uuid.Must(libCommons.GenerateUUIDv7())
@@ -186,7 +184,7 @@ func TestIntegration_AssetRateRepository_FindByExternalID_NotFound(t *testing.T)
 }
 
 func TestIntegration_AssetRateRepository_FindByExternalID_WrongOrganization(t *testing.T) {
-	container := pgtestutil.SetupContainer(t)
+	container := pgtestutil.SetupMigratedContainer(t, "transaction")
 	repo := createRepository(t, container)
 
 	orgID := uuid.Must(libCommons.GenerateUUIDv7())
@@ -214,7 +212,7 @@ func TestIntegration_AssetRateRepository_FindByExternalID_WrongOrganization(t *t
 // ============================================================================
 
 func TestIntegration_AssetRateRepository_FindByCurrencyPair(t *testing.T) {
-	container := pgtestutil.SetupContainer(t)
+	container := pgtestutil.SetupMigratedContainer(t, "transaction")
 	repo := createRepository(t, container)
 
 	orgID := uuid.Must(libCommons.GenerateUUIDv7())
@@ -245,7 +243,7 @@ func TestIntegration_AssetRateRepository_FindByCurrencyPair(t *testing.T) {
 }
 
 func TestIntegration_AssetRateRepository_FindByCurrencyPair_NotFound(t *testing.T) {
-	container := pgtestutil.SetupContainer(t)
+	container := pgtestutil.SetupMigratedContainer(t, "transaction")
 	repo := createRepository(t, container)
 
 	orgID := uuid.Must(libCommons.GenerateUUIDv7())
@@ -262,7 +260,7 @@ func TestIntegration_AssetRateRepository_FindByCurrencyPair_NotFound(t *testing.
 }
 
 func TestIntegration_AssetRateRepository_FindByCurrencyPair_ReturnsLatest(t *testing.T) {
-	container := pgtestutil.SetupContainer(t)
+	container := pgtestutil.SetupMigratedContainer(t, "transaction")
 	repo := createRepository(t, container)
 
 	orgID := uuid.Must(libCommons.GenerateUUIDv7())
@@ -301,7 +299,7 @@ func TestIntegration_AssetRateRepository_FindByCurrencyPair_ReturnsLatest(t *tes
 // ============================================================================
 
 func TestIntegration_AssetRateRepository_FindAllByAssetCodes(t *testing.T) {
-	container := pgtestutil.SetupContainer(t)
+	container := pgtestutil.SetupMigratedContainer(t, "transaction")
 	repo := createRepository(t, container)
 
 	orgID := uuid.Must(libCommons.GenerateUUIDv7())
@@ -342,7 +340,7 @@ func TestIntegration_AssetRateRepository_FindAllByAssetCodes(t *testing.T) {
 }
 
 func TestIntegration_AssetRateRepository_FindAllByAssetCodes_WithToFilter(t *testing.T) {
-	container := pgtestutil.SetupContainer(t)
+	container := pgtestutil.SetupMigratedContainer(t, "transaction")
 	repo := createRepository(t, container)
 
 	orgID := uuid.Must(libCommons.GenerateUUIDv7())
@@ -378,7 +376,7 @@ func TestIntegration_AssetRateRepository_FindAllByAssetCodes_WithToFilter(t *tes
 }
 
 func TestIntegration_AssetRateRepository_FindAllByAssetCodes_Empty(t *testing.T) {
-	container := pgtestutil.SetupContainer(t)
+	container := pgtestutil.SetupMigratedContainer(t, "transaction")
 	repo := createRepository(t, container)
 
 	orgID := uuid.Must(libCommons.GenerateUUIDv7())
@@ -405,7 +403,7 @@ func TestIntegration_AssetRateRepository_FindAllByAssetCodes_Empty(t *testing.T)
 }
 
 func TestIntegration_AssetRateRepository_FindAllByAssetCodes_Pagination(t *testing.T) {
-	container := pgtestutil.SetupContainer(t)
+	container := pgtestutil.SetupMigratedContainer(t, "transaction")
 	repo := createRepository(t, container)
 
 	orgID := uuid.Must(libCommons.GenerateUUIDv7())
@@ -445,7 +443,7 @@ func TestIntegration_AssetRateRepository_FindAllByAssetCodes_Pagination(t *testi
 // ============================================================================
 
 func TestIntegration_AssetRateRepository_Update(t *testing.T) {
-	container := pgtestutil.SetupContainer(t)
+	container := pgtestutil.SetupMigratedContainer(t, "transaction")
 	repo := createRepository(t, container)
 
 	orgID := uuid.Must(libCommons.GenerateUUIDv7())
@@ -489,7 +487,7 @@ func TestIntegration_AssetRateRepository_Update(t *testing.T) {
 }
 
 func TestIntegration_AssetRateRepository_Update_NotFound(t *testing.T) {
-	container := pgtestutil.SetupContainer(t)
+	container := pgtestutil.SetupMigratedContainer(t, "transaction")
 	repo := createRepository(t, container)
 
 	orgID := uuid.Must(libCommons.GenerateUUIDv7())
@@ -519,7 +517,7 @@ func TestIntegration_AssetRateRepository_Update_NotFound(t *testing.T) {
 }
 
 func TestIntegration_AssetRateRepository_Update_WrongOrganization(t *testing.T) {
-	container := pgtestutil.SetupContainer(t)
+	container := pgtestutil.SetupMigratedContainer(t, "transaction")
 	repo := createRepository(t, container)
 
 	orgID := uuid.Must(libCommons.GenerateUUIDv7())
