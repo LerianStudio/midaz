@@ -7,15 +7,24 @@ package streaming
 import "strings"
 
 // sanitizeServiceSegment reduces a producing-service name to the leading,
-// ACL-scoped segment of a streaming topic name: it lowercases the input and
-// keeps ONLY [a-z0-9], dropping every other rune.
+// ACL-scoped segment of a streaming topic name. The rule is: lowercase the
+// input and keep ONLY [a-z0-9], dropping every other rune.
 //
-// This mirrors the tenant-manager's SanitizeKafkaSegment byte-for-byte so a
-// Kafka ACL granted on the prefix "{sanitize(service)}." matches every topic
-// the service emits. It also converges with lib-streaming's
-// EventDefinition.Topic derivation for the plain service names midaz uses
-// ("ledger", "tracer"), which contain no runes outside [a-z0-9] and therefore
-// pass through both sanitizers unchanged.
+// This MUST stay byte-compatible with the tenant-manager's Kafka-segment
+// sanitizer — the canonical ACL-prefix boundary, the same rule lib-commons
+// exposes as secretsmanager.SanitizeKafkaSegment. A Kafka ACL granted on the
+// prefix "{sanitize(service)}." only matches every topic the service emits if
+// this function produces the identical segment the tenant-manager granted.
+//
+// It is a deliberate local copy rather than a call into
+// secretsmanager.SanitizeKafkaSegment: that lib-commons package pulls in the
+// AWS Secrets Manager SDK, an unacceptable transitive dependency to force onto
+// this leaf streaming helper. The rule is six lines and stable, so it is
+// duplicated here and kept byte-for-byte identical instead.
+//
+// The rule also converges with lib-streaming's EventDefinition.Topic derivation
+// for the plain service names midaz uses ("ledger", "tracer"), which contain no
+// runes outside [a-z0-9] and therefore pass through both sanitizers unchanged.
 func sanitizeServiceSegment(s string) string {
 	lowered := strings.ToLower(s)
 

@@ -41,17 +41,27 @@ const streamingPrimaryTargetName = "primary"
 // covers every topic tracer emits.
 const streamingServiceName = "tracer"
 
-// streamingSource is the default CloudEvents source stamped on every event
-// tracer emits. Distinct from the ledger component's source so downstream
-// consumers can attribute events to the emitting service. Overridable via
-// STREAMING_CLOUDEVENTS_SOURCE (see resolveStreamingSource).
-const streamingSource = "lerian.midaz.tracer"
+// streamingSource is the CloudEvents source used as the nil/whitespace-only
+// fallback in resolveStreamingSource. It is intentionally the bare service name
+// "tracer" (not the historical "lerian.midaz.tracer") so ce-source matches the
+// leading ACL-scoped topic segment "tracer.": the route Destination topics are
+// "tracer.<resource>.<event>" and the ce-source-derived topic / Phase-2 manifest
+// agree on the same "tracer." ACL prefix. STREAMING_CLOUDEVENTS_SOURCE is
+// REQUIRED when streaming is enabled — a genuinely-unset value fail-closes at
+// libStreaming.LoadConfig (ErrMissingSource) before this fallback is ever
+// reached.
+const streamingSource = "tracer"
 
-// resolveStreamingSource returns the CloudEvents source to stamp on emitted
-// events. The configured STREAMING_CLOUDEVENTS_SOURCE value wins when set
-// (after trimming surrounding whitespace); otherwise the in-code default
-// streamingSource is used so an unset var never breaks the historical
-// behaviour.
+// resolveStreamingSource normalizes the configured CloudEvents source to stamp
+// on emitted events. STREAMING_CLOUDEVENTS_SOURCE is REQUIRED when streaming is
+// enabled: libStreaming.LoadConfig fail-closes with ErrMissingSource on a
+// genuinely-unset value, so BuildStreamingEmitter aborts and the binary never
+// starts without it (.env.example recommends the bare service name "tracer" so
+// ce-source matches the leading ACL-scoped topic segment "tracer."). This
+// helper only trims the configured value and returns it verbatim; the in-code
+// streamingSource default ("tracer") is a defense-in-depth fallback for a nil or
+// whitespace-only config value that slips past LoadConfig's empty-string check,
+// NOT the unset-env default.
 func resolveStreamingSource(cfg *Config) string {
 	if cfg != nil {
 		if source := strings.TrimSpace(cfg.StreamingCloudEventsSource); source != "" {

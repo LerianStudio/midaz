@@ -118,4 +118,10 @@ func TestTopicName(t *testing.T) {
 				"topic must match the streaming-hub ingest grammar")
 		})
 	}
+
+	// Negative lock: the two LAST segments (resource, event) are [a-z0-9_] with
+	// no hyphen, so a hyphen in the tail must be rejected even though the first
+	// (service) segment tolerates hyphens.
+	assert.NotRegexp(t, hubTopicGrammar, "ledger.fee-packages.created",
+		"hub grammar must reject a hyphen in the resource/event tail")
 }

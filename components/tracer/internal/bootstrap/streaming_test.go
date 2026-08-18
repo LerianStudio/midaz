@@ -302,11 +302,16 @@ func TestTracerCatalog_CoversAllEmittedEvents(t *testing.T) {
 	assert.Equal(t, "limit.created", events.LimitCreatedDefinition.Key())
 }
 
-// TestResolveStreamingSource locks the CloudEvents source resolution
-// contract: a trimmed, non-empty STREAMING_CLOUDEVENTS_SOURCE value wins;
-// an empty, whitespace-only, or nil config falls back to the in-code
-// streamingSource default so an unset var never changes historical
-// behaviour.
+// TestResolveStreamingSource locks the HELPER-level CloudEvents source
+// resolution contract: a trimmed, non-empty STREAMING_CLOUDEVENTS_SOURCE value
+// wins verbatim; a nil, empty, or whitespace-only config value normalizes to the
+// in-code streamingSource default ("tracer").
+//
+// This is a helper-level fallback only, NOT an end-to-end unset-env default: a
+// genuinely-unset STREAMING_CLOUDEVENTS_SOURCE fail-closes at
+// libStreaming.LoadConfig (ErrMissingSource) before resolveStreamingSource ever
+// runs, so a live enabled deployment never converges here — it MUST set the var
+// (.env.example recommends the bare service name).
 func TestResolveStreamingSource(t *testing.T) {
 	t.Parallel()
 
@@ -316,17 +321,23 @@ func TestResolveStreamingSource(t *testing.T) {
 		expected string
 	}{
 		{
-			name:     "nil config falls back to default",
+			// Helper-level fallback; a genuinely-unset env fail-closes at
+			// LoadConfig (ErrMissingSource) before this helper runs.
+			name:     "nil config normalizes to default",
 			cfg:      nil,
 			expected: streamingSource,
 		},
 		{
-			name:     "empty value falls back to default",
+			// Helper-level fallback; a genuinely-unset env fail-closes at
+			// LoadConfig (ErrMissingSource) before this helper runs.
+			name:     "empty config value normalizes to default",
 			cfg:      &Config{StreamingCloudEventsSource: ""},
 			expected: streamingSource,
 		},
 		{
-			name:     "whitespace-only value falls back to default",
+			// Whitespace-only slips past LoadConfig's == "" check, so the
+			// helper's trim-based fallback to the default applies.
+			name:     "whitespace-only config value normalizes to default",
 			cfg:      &Config{StreamingCloudEventsSource: "  \t  "},
 			expected: streamingSource,
 		},
@@ -504,6 +515,13 @@ func TestResolveSASLMechanism_Unsupported(t *testing.T) {
 // CloudEvents source. This convergence is what lets a Kafka ACL scoped to the
 // "tracer." prefix cover every topic tracer emits: the two derivations must
 // never diverge. Card #3783 Task 5.2.
+//
+// The convergence asserted here holds ONLY because the service name is pure
+// [a-z0-9] (as "tracer" is): midaz's sanitizeServiceSegment keeps [a-z0-9] while
+// lib-streaming's sanitizeSourceSegment keeps [a-z0-9._-], so the two legitimately
+// diverge for non-alphanumeric input. That is why this test uses the bare service
+// name and deliberately does NOT assert a non-identity source case — a source with
+// a "." or "-" would produce different segments from each sanitizer by design.
 func TestTopicConvergesWithEventDefinition(t *testing.T) {
 	t.Parallel()
 
