@@ -95,6 +95,8 @@ Root skip classification: 76 chaos-only scenarios, 2 streaming smokes covered by
 1. Two economically identical origins can share one revert idempotency slot, so the second origin is never reverted. Changing the live Redis key shape without a rollout contract can instead double-revert retries.
 2. Ledger commits balances before the Tracer confirmation is durable. If that confirmation is lost, the reaper releases the hold and undercounts usage even though money moved.
 
+Chosen revert rollout contract: first deploy a freeze-capable legacy phase without changing revert identity; after every pod honors one shared rollout marker, activate the marker so updates to APPROVED transactions fail closed. Only then roll bridge and final idempotency phases. Final removes the freeze after old pods and in-flight requests are drained. Bridge readiness must reject activation without the shared freeze, so the safety condition is executable rather than a runbook promise.
+
 V1 `remaining` closure: every resolved leg and balance identity survives direct execution, pending commit, pending cancel, revert, Redis replay, fees, zero-fee no-ops, persistence, and balance synchronization. Fee packages expose additive `operationRouteFromId` and `operationRouteToId` UUIDs while the existing free-form route labels remain passive; omission preserves an existing UUID, `null` clears only that UUID, and multi-fee partial updates preserve stored priorities atomically. The full low-resource lane passed with 1,620 selected tests, 1,540 passes, 80 classified skips, 1,320 container starts, zero restarts, and 2,972 seconds of wall time.
 
 **Next P0:** scope revert idempotency by the origin transaction with a rollout-safe keyspace migration.
