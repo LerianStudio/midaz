@@ -55,7 +55,7 @@ const routeTableGoldenPath = "testdata/route_table.golden"
 //
 // It catches REMOVALS only. A registrar mounted in production but never added to this harness is
 // invisible to it, and to every other gate in this package.
-const routeTableMinRows = 301
+const routeTableMinRows = 302
 
 // routeTableGoldenHeader prefixes the golden so a reader who opens the file knows what the
 // third column means and how to regenerate. It is part of the compared bytes, so it cannot
@@ -217,10 +217,23 @@ func buildFullSurfaceServer(t *testing.T) *UnifiedServer {
 	}
 	ledgerRouteRegistrar := httpin.CreateRouteRegistrar(auth, metadataIndexHandler, routeOptions)
 
+	// The streaming manifest route is mounted on the full-surface harness through
+	// the SAME registrar production uses, so the golden pins its guarded row. The
+	// handler is the real catalog-only lib-streaming handler (net/http, adapted via
+	// adaptor.HTTPHandler): it is not a Huma terminal and carries no OAS contract,
+	// which is why the contract-spec gate carves its path out while this golden does
+	// not. A minimal Config is enough — the manifest catalog is independent of it.
+	manifestHandler, manifestErr := BuildStreamingManifestHandler(&Config{})
+	require.NoError(t, manifestErr, "streaming manifest handler must build for the full-surface golden")
+
+	streamingManifestRegistrar := func(router fiber.Router) {
+		httpin.RegisterStreamingManifestRouteToApp(router, auth, routeOptions, manifestHandler)
+	}
+
 	readyzHandler := NewReadyzHandler(ReadyzHandlerConfig{Logger: logger, Version: "test-version"})
 
 	server := NewUnifiedServer(":0", "test-version", logger, telemetry, readyzHandler,
-		humaDeps.MountV1, humaDeps.MountV2, onboardingRouteRegistrar, ledgerRouteRegistrar)
+		humaDeps.MountV1, humaDeps.MountV2, onboardingRouteRegistrar, ledgerRouteRegistrar, streamingManifestRegistrar)
 	require.NotNil(t, server, "NewUnifiedServer should return a non-nil server")
 	require.NotNil(t, server.app, "server should hold a Fiber app")
 
