@@ -32,13 +32,13 @@ func TestReadyz_Integration_AllDependenciesHealthy(t *testing.T) {
 	t.Parallel()
 
 	// Start containers
-	pg := pgContainer.SetupContainer(t)
-	mongo := mongoContainer.SetupContainer(t)
-	redis := redisContainer.SetupContainer(t)
+	pg := pgContainer.SetupMigratedContainer(t, "onboarding")
+	mongo := mongoContainer.SetupReusableContainer(t)
+	redis := redisContainer.SetupReusableContainer(t)
 
 	// Create lib-commons wrappers
 	mongoClient := mongoContainer.CreateConnection(t, mongo.URI, mongo.DBName)
-	redisClient := redisContainer.CreateConnection(t, redis.Addr)
+	redisClient := redisContainer.CreateConnectionWithDB(t, redis.Addr, redis.DB)
 
 	// Create checkers using raw *sql.DB for PostgreSQL
 	// and lib-commons clients for MongoDB and Redis
@@ -90,11 +90,11 @@ func TestReadyz_Integration_PostgresDown(t *testing.T) {
 	t.Parallel()
 
 	// Start only Redis and MongoDB
-	mongo := mongoContainer.SetupContainer(t)
-	redis := redisContainer.SetupContainer(t)
+	mongo := mongoContainer.SetupReusableContainer(t)
+	redis := redisContainer.SetupReusableContainer(t)
 
 	mongoClient := mongoContainer.CreateConnection(t, mongo.URI, mongo.DBName)
-	redisClient := redisContainer.CreateConnection(t, redis.Addr)
+	redisClient := redisContainer.CreateConnectionWithDB(t, redis.Addr, redis.DB)
 
 	// Create a Postgres checker with nil db (simulating down)
 	checkers := []DependencyChecker{
@@ -139,12 +139,12 @@ func TestReadyz_Integration_TLSDetection(t *testing.T) {
 	t.Parallel()
 
 	// Test that TLS detection works correctly with real containers (all non-TLS)
-	pg := pgContainer.SetupContainer(t)
-	mongo := mongoContainer.SetupContainer(t)
-	redis := redisContainer.SetupContainer(t)
+	pg := pgContainer.SetupMigratedContainer(t, "onboarding")
+	mongo := mongoContainer.SetupReusableContainer(t)
+	redis := redisContainer.SetupReusableContainer(t)
 
 	mongoClient := mongoContainer.CreateConnection(t, mongo.URI, mongo.DBName)
-	redisClient := redisContainer.CreateConnection(t, redis.Addr)
+	redisClient := redisContainer.CreateConnectionWithDB(t, redis.Addr, redis.DB)
 
 	checkers := []DependencyChecker{
 		NewSQLDBChecker("postgres_onboarding", pg.DB, false),
@@ -183,10 +183,10 @@ func TestReadyz_Integration_TLSDetection(t *testing.T) {
 func TestReadyz_Integration_LatencyMeasurement(t *testing.T) {
 	t.Parallel()
 
-	pg := pgContainer.SetupContainer(t)
-	redis := redisContainer.SetupContainer(t)
+	pg := pgContainer.SetupMigratedContainer(t, "onboarding")
+	redis := redisContainer.SetupReusableContainer(t)
 
-	redisClient := redisContainer.CreateConnection(t, redis.Addr)
+	redisClient := redisContainer.CreateConnectionWithDB(t, redis.Addr, redis.DB)
 
 	checkers := []DependencyChecker{
 		NewSQLDBChecker("postgres", pg.DB, false),
@@ -235,8 +235,8 @@ func TestReadyz_Integration_ConcurrentRequests(t *testing.T) {
 	t.Parallel()
 
 	// Test with only Redis to verify concurrent request handling
-	redis := redisContainer.SetupContainer(t)
-	redisClient := redisContainer.CreateConnection(t, redis.Addr)
+	redis := redisContainer.SetupReusableContainer(t)
+	redisClient := redisContainer.CreateConnectionWithDB(t, redis.Addr, redis.DB)
 
 	// Create a checker that will respond quickly
 	checkers := []DependencyChecker{
@@ -284,11 +284,11 @@ func TestReadyz_Integration_MixedHealthStatus(t *testing.T) {
 	t.Parallel()
 
 	// Start only working containers
-	mongo := mongoContainer.SetupContainer(t)
-	redis := redisContainer.SetupContainer(t)
+	mongo := mongoContainer.SetupReusableContainer(t)
+	redis := redisContainer.SetupReusableContainer(t)
 
 	mongoClient := mongoContainer.CreateConnection(t, mongo.URI, mongo.DBName)
-	redisClient := redisContainer.CreateConnection(t, redis.Addr)
+	redisClient := redisContainer.CreateConnectionWithDB(t, redis.Addr, redis.DB)
 
 	// Mix of healthy and skipped checkers
 	checkers := []DependencyChecker{
@@ -331,7 +331,7 @@ func TestReadyz_Integration_ClosedConnection(t *testing.T) {
 	t.Parallel()
 
 	// Start container
-	redis := redisContainer.SetupContainer(t)
+	redis := redisContainer.SetupReusableContainer(t)
 
 	// Create connection and then close it before using
 	conn, err := redis.Client.Ping(context.Background()).Result()

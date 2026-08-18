@@ -43,6 +43,7 @@ type ContainerResult struct {
 	Container testcontainers.Container
 	Client    *redis.Client
 	Addr      string
+	DB        int
 }
 
 // SetupContainer starts a Redis container for integration testing.
@@ -176,11 +177,19 @@ func SetupContainerOnNetworkWithConfig(t *testing.T, cfg ContainerConfig, networ
 // using the provided Redis address.
 func CreateConnection(t *testing.T, addr string) *libRedis.Client {
 	t.Helper()
+	return CreateConnectionWithDB(t, addr, 0)
+}
+
+// CreateConnectionWithDB creates a libRedis.Client wrapper pinned to one
+// logical database. Use it with SetupReusableContainer.
+func CreateConnectionWithDB(t *testing.T, addr string, db int) *libRedis.Client {
+	t.Helper()
 
 	conn, err := libRedis.New(context.Background(), libRedis.Config{
 		Topology: libRedis.Topology{
 			Standalone: &libRedis.StandaloneTopology{Address: addr},
 		},
+		Options: libRedis.ConnectionOptions{DB: db},
 	})
 	require.NoError(t, err, "failed to initialize redis connection")
 

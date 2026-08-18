@@ -10,6 +10,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"database/sql"
+	"errors"
 	"fmt"
 	"sync"
 	"sync/atomic"
@@ -42,6 +43,27 @@ var reusablePostgresServers = struct {
 	servers map[string]*reusablePostgresServer
 }{servers: make(map[string]*reusablePostgresServer)}
 
+// CleanupReusableContainers closes package-scoped fixture resources before a
+// package-level leak audit. Ordinary test binaries can rely on process exit.
+func CleanupReusableContainers() error {
+	reusablePostgresServers.Lock()
+	servers := reusablePostgresServers.servers
+	reusablePostgresServers.servers = make(map[string]*reusablePostgresServer)
+	reusablePostgresServers.Unlock()
+
+	var cleanupErrors []error
+	for _, server := range servers {
+		if server.admin != nil {
+			cleanupErrors = append(cleanupErrors, server.admin.Close())
+		}
+		if server.container != nil {
+			cleanupErrors = append(cleanupErrors, server.container.Terminate(context.Background()))
+		}
+	}
+
+	return errors.Join(cleanupErrors...)
+}
+
 // SetupMigratedContainer reuses one PostgreSQL process within the test binary,
 // migrates a template once, and clones a database owned by the calling test.
 // SetupContainer remains the exclusive-process contract for migration, chaos,
@@ -50,6 +72,14 @@ func SetupMigratedContainer(t *testing.T, component string) *ContainerResult {
 	t.Helper()
 
 	return SetupMigratedContainerWithConfig(t, component, DefaultContainerConfig())
+}
+
+// SetupLedgerContainer clones a template containing both transaction and
+// onboarding schemas used by the unified Ledger journeys.
+func SetupLedgerContainer(t *testing.T) *ContainerResult {
+	t.Helper()
+
+	return SetupMigratedContainer(t, "ledger")
 }
 
 // SetupMigratedContainerWithConfig is SetupMigratedContainer with explicit
@@ -192,7 +222,11 @@ func (s *reusablePostgresServer) ensureTemplate(t *testing.T, component string) 
 	templateConfig := s.config
 	templateConfig.DBName = templateName
 	templateDSN := BuildConnectionString(s.host, s.port, templateConfig)
-	migrationsPath := FindMigrationsPath(t, component)
+	migrationComponent := component
+	if component == "ledger" {
+		migrationComponent = "transaction"
+	}
+	migrationsPath := FindMigrationsPath(t, migrationComponent)
 	migrator, err := libPostgres.NewMigrator(libPostgres.MigrationConfig{
 		PrimaryDSN:     templateDSN,
 		DatabaseName:   templateName,
@@ -208,6 +242,13 @@ func (s *reusablePostgresServer) ensureTemplate(t *testing.T, component string) 
 		)
 		require.NoError(t, dropErr, "failed to remove unsuccessful PostgreSQL migration template")
 		require.NoError(t, err, "failed to migrate PostgreSQL template")
+	}
+
+	if component == "ledger" {
+		templateDB, openErr := sql.Open("pgx", templateDSN)
+		require.NoError(t, openErr, "failed to open PostgreSQL ledger template")
+		ApplyOnboardingSchema(t, templateDB)
+		require.NoError(t, templateDB.Close(), "failed to close PostgreSQL ledger template")
 	}
 
 	s.templates[component] = templateName

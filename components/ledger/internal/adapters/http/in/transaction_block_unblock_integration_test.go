@@ -71,16 +71,15 @@ func setupBlockUnblockInfra(t *testing.T) *blockUnblockInfra {
 
 	infra := &blockUnblockInfra{}
 
-	infra.pgContainer = postgrestestutil.SetupContainer(t)
-	infra.mongoContainer = mongotestutil.SetupContainer(t)
-	infra.redisContainer = redistestutil.SetupContainer(t)
+	infra.pgContainer = postgrestestutil.SetupMigratedContainer(t, "transaction")
+	infra.mongoContainer = mongotestutil.SetupReusableContainer(t)
+	infra.redisContainer = redistestutil.SetupReusableContainer(t)
 
-	migrationsPath := postgrestestutil.FindMigrationsPath(t, "transaction")
 	connStr := postgrestestutil.BuildConnectionString(infra.pgContainer.Host, infra.pgContainer.Port, infra.pgContainer.Config)
-	pgConn := postgrestestutil.CreatePostgresClient(t, connStr, connStr, infra.pgContainer.Config.DBName, migrationsPath)
+	pgConn := postgrestestutil.ConnectPostgresClient(t, connStr, connStr)
 
-	mongoConn := mongotestutil.CreateConnection(t, infra.mongoContainer.URI, "test_db")
-	redisConn := redistestutil.CreateConnection(t, infra.redisContainer.Addr)
+	mongoConn := mongotestutil.CreateConnection(t, infra.mongoContainer.URI, infra.mongoContainer.DBName)
+	redisConn := redistestutil.CreateConnectionWithDB(t, infra.redisContainer.Addr, infra.redisContainer.DB)
 
 	transactionRepo := transaction.NewTransactionPostgreSQLRepository(pgConn)
 	operationRepo := operation.NewOperationPostgreSQLRepository(pgConn)

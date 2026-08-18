@@ -9,6 +9,7 @@ package mongodb
 import (
 	"context"
 	"crypto/sha256"
+	"errors"
 	"fmt"
 	"sync"
 	"sync/atomic"
@@ -37,6 +38,27 @@ var reusableMongoServers = struct {
 	sync.Mutex
 	servers map[string]*reusableMongoServer
 }{servers: make(map[string]*reusableMongoServer)}
+
+// CleanupReusableContainers closes package-scoped fixture resources before a
+// package-level leak audit. Ordinary test binaries can rely on process exit.
+func CleanupReusableContainers() error {
+	reusableMongoServers.Lock()
+	servers := reusableMongoServers.servers
+	reusableMongoServers.servers = make(map[string]*reusableMongoServer)
+	reusableMongoServers.Unlock()
+
+	var cleanupErrors []error
+	for _, server := range servers {
+		if server.client != nil {
+			cleanupErrors = append(cleanupErrors, server.client.Disconnect(context.Background()))
+		}
+		if server.container != nil {
+			cleanupErrors = append(cleanupErrors, server.container.Terminate(context.Background()))
+		}
+	}
+
+	return errors.Join(cleanupErrors...)
+}
 
 // SetupReusableContainer reuses one MongoDB process within the test binary and
 // allocates a database owned exclusively by the calling test. SetupContainer

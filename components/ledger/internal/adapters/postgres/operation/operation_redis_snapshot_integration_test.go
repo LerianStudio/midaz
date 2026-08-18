@@ -44,7 +44,7 @@ import (
 // typed decimal rehydration intact on both Balance.OverdraftUsed and
 // BalanceAfter.OverdraftUsed.
 func TestIntegration_OperationRedis_RoundTrip_NonZeroSnapshot(t *testing.T) {
-	redisContainer := redistestutil.SetupContainer(t)
+	redisContainer := redistestutil.SetupReusableContainer(t)
 
 	ctx := context.Background()
 
@@ -119,7 +119,7 @@ func TestIntegration_OperationRedis_RoundTrip_NonZeroSnapshot(t *testing.T) {
 // preserved. Both `snapshot` and the typed Balance.OverdraftUsed fields
 // surface uniformly regardless of overdraft participation.
 func TestIntegration_OperationRedis_RoundTrip_ZeroShape(t *testing.T) {
-	redisContainer := redistestutil.SetupContainer(t)
+	redisContainer := redistestutil.SetupReusableContainer(t)
 
 	ctx := context.Background()
 
@@ -203,7 +203,7 @@ func TestIntegration_OperationRedis_RoundTrip_ZeroShape(t *testing.T) {
 // We write the payload directly as raw JSON (not via op.ToRedis) to simulate
 // the bytes that actually sit in Redis from an older build.
 func TestIntegration_OperationRedis_LegacyEnvelope(t *testing.T) {
-	redisContainer := redistestutil.SetupContainer(t)
+	redisContainer := redistestutil.SetupReusableContainer(t)
 
 	ctx := context.Background()
 

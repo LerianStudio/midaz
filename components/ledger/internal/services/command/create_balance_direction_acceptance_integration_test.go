@@ -63,8 +63,8 @@ type acceptanceDirectionHarness struct {
 func setupAcceptanceDirectionHarness(t *testing.T) *acceptanceDirectionHarness {
 	t.Helper()
 
-	onboardingContainer := pgtestutil.SetupContainer(t)
-	transactionContainer := pgtestutil.SetupContainer(t)
+	onboardingContainer := pgtestutil.SetupMigratedContainer(t, "onboarding")
+	transactionContainer := pgtestutil.SetupMigratedContainer(t, "transaction")
 
 	accountTypeRepo := newAccountTypeRepoForHarness(t, onboardingContainer)
 	balanceRepo := newBalanceRepoForHarness(t, transactionContainer)
@@ -96,9 +96,8 @@ func setupAcceptanceDirectionHarness(t *testing.T) *acceptanceDirectionHarness {
 func newAccountTypeRepoForHarness(t *testing.T, container *pgtestutil.ContainerResult) *accounttype.AccountTypePostgreSQLRepository {
 	t.Helper()
 
-	migrationsPath := pgtestutil.FindMigrationsPath(t, "onboarding")
 	connStr := pgtestutil.BuildConnectionString(container.Host, container.Port, container.Config)
-	conn := pgtestutil.CreatePostgresClient(t, connStr, connStr, container.Config.DBName, migrationsPath)
+	conn := pgtestutil.ConnectPostgresClient(t, connStr, connStr)
 
 	return accounttype.NewAccountTypePostgreSQLRepository(conn)
 }
@@ -108,9 +107,8 @@ func newAccountTypeRepoForHarness(t *testing.T, container *pgtestutil.ContainerR
 func newBalanceRepoForHarness(t *testing.T, container *pgtestutil.ContainerResult) *balance.BalancePostgreSQLRepository {
 	t.Helper()
 
-	migrationsPath := pgtestutil.FindMigrationsPath(t, "transaction")
 	connStr := pgtestutil.BuildConnectionString(container.Host, container.Port, container.Config)
-	conn := pgtestutil.CreatePostgresClient(t, connStr, connStr, container.Config.DBName, migrationsPath)
+	conn := pgtestutil.ConnectPostgresClient(t, connStr, connStr)
 
 	return balance.NewBalancePostgreSQLRepository(conn, false)
 }

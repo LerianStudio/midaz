@@ -75,7 +75,7 @@ func setupConsumerInfra(t *testing.T, numWorkers, prefetch int) *consumerTestInf
 	t.Helper()
 
 	// Setup RabbitMQ container
-	rmqContainer := rmqtestutil.SetupContainer(t)
+	rmqContainer := rmqtestutil.SetupReusableContainer(t)
 
 	// Setup exchange and queue
 	exchange := "test-consumer-exchange"

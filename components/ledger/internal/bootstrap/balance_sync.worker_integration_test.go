@@ -39,8 +39,8 @@ func TestIntegration_BalanceSyncSchedule_FullFlow(t *testing.T) {
 	}
 
 	// Setup Redis container
-	container := redistestutil.SetupContainer(t)
-	conn := redistestutil.CreateConnection(t, container.Addr)
+	container := redistestutil.SetupReusableContainer(t)
+	conn := redistestutil.CreateConnectionWithDB(t, container.Addr, container.DB)
 
 	repo, err := redis.NewConsumerRedis(conn)
 	require.NoError(t, err, "should create Redis repository")
@@ -127,7 +127,7 @@ func TestIntegration_BalanceSyncWorker_TTLBehavior(t *testing.T) {
 	}
 
 	// Setup Redis container
-	container := redistestutil.SetupContainer(t)
+	container := redistestutil.SetupReusableContainer(t)
 
 	ctx := context.Background()
 	testKey := "test:ttl:behavior:" + uuid.Must(libCommons.GenerateUUIDv7()).String()
@@ -174,8 +174,8 @@ func TestIntegration_BalanceSyncSchedule_FutureKeys(t *testing.T) {
 	}
 
 	// Setup Redis container
-	container := redistestutil.SetupContainer(t)
-	conn := redistestutil.CreateConnection(t, container.Addr)
+	container := redistestutil.SetupReusableContainer(t)
+	conn := redistestutil.CreateConnectionWithDB(t, container.Addr, container.DB)
 
 	repo, err := redis.NewConsumerRedis(conn)
 	require.NoError(t, err, "should create Redis repository")

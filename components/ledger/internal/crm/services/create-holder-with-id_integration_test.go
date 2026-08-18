@@ -40,7 +40,7 @@ func createServiceWithRealRepo(t *testing.T, container *mongotestutil.ContainerR
 
 func TestIntegration_CreateHolderWithID_Idempotent(t *testing.T) {
 	// Arrange
-	container := mongotestutil.SetupContainer(t)
+	container := mongotestutil.SetupReusableContainer(t)
 	uc := createServiceWithRealRepo(t, container)
 	ctx := context.Background()
 

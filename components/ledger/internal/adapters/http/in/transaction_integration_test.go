@@ -87,10 +87,10 @@ func setupTestInfra(t *testing.T) *testInfra {
 
 	infra := &testInfra{}
 
-	// Start containers
-	infra.pgContainer = postgrestestutil.SetupContainer(t)
-	infra.mongoContainer = mongotestutil.SetupContainer(t)
-	infra.redisContainer = redistestutil.SetupContainer(t)
+	// Start reusable datastore processes with test-isolated databases.
+	infra.pgContainer = postgrestestutil.SetupMigratedContainer(t, "transaction")
+	infra.mongoContainer = mongotestutil.SetupReusableContainer(t)
+	infra.redisContainer = redistestutil.SetupReusableContainer(t)
 	require.NoError(t, infra.redisContainer.Client.ConfigSet(context.Background(),
 		"maxmemory-policy", "noeviction").Err())
 	require.NoError(t, infra.redisContainer.Client.ConfigSet(context.Background(),
@@ -99,16 +99,15 @@ func setupTestInfra(t *testing.T) *testInfra {
 		"appendonly", "yes").Err())
 
 	// Create PostgreSQL connection following lib-commons pattern
-	migrationsPath := postgrestestutil.FindMigrationsPath(t, "transaction")
 	connStr := postgrestestutil.BuildConnectionString(infra.pgContainer.Host, infra.pgContainer.Port, infra.pgContainer.Config)
 
-	infra.pgConn = postgrestestutil.CreatePostgresClient(t, connStr, connStr, infra.pgContainer.Config.DBName, migrationsPath)
+	infra.pgConn = postgrestestutil.ConnectPostgresClient(t, connStr, connStr)
 
 	// Create MongoDB connection
-	mongoConn := mongotestutil.CreateConnection(t, infra.mongoContainer.URI, "test_db")
+	mongoConn := mongotestutil.CreateConnection(t, infra.mongoContainer.URI, infra.mongoContainer.DBName)
 
 	// Create Redis connection
-	redisConn := redistestutil.CreateConnection(t, infra.redisContainer.Addr)
+	redisConn := redistestutil.CreateConnectionWithDB(t, infra.redisContainer.Addr, infra.redisContainer.DB)
 
 	// Create repositories
 	transactionRepo := transaction.NewTransactionPostgreSQLRepository(infra.pgConn)
@@ -644,10 +643,10 @@ func setupAsyncTestInfra(t *testing.T) *testAsyncInfra {
 	infra := &testAsyncInfra{}
 
 	// Start containers
-	infra.pgContainer = postgrestestutil.SetupContainer(t)
-	infra.mongoContainer = mongotestutil.SetupContainer(t)
-	infra.redisContainer = redistestutil.SetupContainer(t)
-	infra.rabbitmqContainer = rabbitmqtestutil.SetupContainer(t)
+	infra.pgContainer = postgrestestutil.SetupMigratedContainer(t, "transaction")
+	infra.mongoContainer = mongotestutil.SetupReusableContainer(t)
+	infra.redisContainer = redistestutil.SetupReusableContainer(t)
+	infra.rabbitmqContainer = rabbitmqtestutil.SetupReusableContainer(t)
 
 	// Register cleanup for consumer connection
 	// NOTE: Consumer connection must be closed BEFORE containers to avoid reconnection errors.
@@ -688,16 +687,15 @@ func setupAsyncTestInfra(t *testing.T) *testAsyncInfra {
 	rabbitmqtestutil.SetupQueue(t, infra.rabbitmqContainer.Channel, "test.transaction.queue", "test.transaction.exchange", "test.transaction.key")
 
 	// Create PostgreSQL connection following lib-commons pattern
-	migrationsPath := postgrestestutil.FindMigrationsPath(t, "transaction")
 	connStr := postgrestestutil.BuildConnectionString(infra.pgContainer.Host, infra.pgContainer.Port, infra.pgContainer.Config)
 
-	infra.pgConn = postgrestestutil.CreatePostgresClient(t, connStr, connStr, infra.pgContainer.Config.DBName, migrationsPath)
+	infra.pgConn = postgrestestutil.ConnectPostgresClient(t, connStr, connStr)
 
 	// Create MongoDB connection
-	mongoConn := mongotestutil.CreateConnection(t, infra.mongoContainer.URI, "test_db")
+	mongoConn := mongotestutil.CreateConnection(t, infra.mongoContainer.URI, infra.mongoContainer.DBName)
 
 	// Create Redis connection
-	redisConn := redistestutil.CreateConnection(t, infra.redisContainer.Addr)
+	redisConn := redistestutil.CreateConnectionWithDB(t, infra.redisContainer.Addr, infra.redisContainer.DB)
 	logger := &libLog.GoLogger{Level: libLog.LevelInfo}
 
 	// Create repositories

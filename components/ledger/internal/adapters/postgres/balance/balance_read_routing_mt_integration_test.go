@@ -73,7 +73,7 @@ func TestTransactionalRead_MultiTenant(t *testing.T) {
 	require.NoError(t, err, "failed to resolve tenant dbresolver handle")
 
 	// --- Redis container for the cache overlay (NX-seed precondition) ---
-	redisResult := redistestutil.SetupContainer(t)
+	redisResult := redistestutil.SetupReusableContainer(t)
 
 	// --- Divergence: seed the balance ONLY in A (tenant primary) with a KNOWN fresh value ---
 	orgID := uuid.Must(libCommons.GenerateUUIDv7())

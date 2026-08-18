@@ -64,6 +64,7 @@ type ContainerResult struct {
 	AMQPPort  string
 	MgmtPort  string
 	URI       string
+	VHost     string
 }
 
 // SetupContainer starts a RabbitMQ container for integration testing.

@@ -413,7 +413,7 @@ func TestIntegration_HandlerBTOQueue_LegacyWireFormatCompatibility(t *testing.T)
 		}
 
 		// Setup RabbitMQ testcontainer
-		rmqContainer := rmqtestutil.SetupContainer(t)
+		rmqContainer := rmqtestutil.SetupReusableContainer(t)
 
 		// Setup exchange and queue
 		queueName := "test-bto-legacy-compat-queue"

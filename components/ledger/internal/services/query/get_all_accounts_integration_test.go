@@ -25,13 +25,12 @@ import (
 // paginated pages equals the full set of items, with no duplicates.
 func TestIntegration_GetAllAccount_PaginationUnion(t *testing.T) {
 	// Setup container
-	container := pgtestutil.SetupContainer(t)
+	container := pgtestutil.SetupMigratedContainer(t, "onboarding")
 
 	// Setup repository and use case
-	migrationsPath := pgtestutil.FindMigrationsPath(t, "onboarding")
 	connStr := pgtestutil.BuildConnectionString(container.Host, container.Port, container.Config)
 
-	conn := pgtestutil.CreatePostgresClient(t, connStr, connStr, container.Config.DBName, migrationsPath)
+	conn := pgtestutil.ConnectPostgresClient(t, connStr, connStr)
 
 	accountRepo := account.NewAccountPostgreSQLRepository(conn)
 
@@ -101,13 +100,12 @@ func TestIntegration_GetAllAccount_PaginationUnion(t *testing.T) {
 // same page return items in the same order.
 func TestIntegration_GetAllAccount_PaginationStableOrder(t *testing.T) {
 	// Setup container
-	container := pgtestutil.SetupContainer(t)
+	container := pgtestutil.SetupMigratedContainer(t, "onboarding")
 
 	// Setup repository and use case
-	migrationsPath := pgtestutil.FindMigrationsPath(t, "onboarding")
 	connStr := pgtestutil.BuildConnectionString(container.Host, container.Port, container.Config)
 
-	conn := pgtestutil.CreatePostgresClient(t, connStr, connStr, container.Config.DBName, migrationsPath)
+	conn := pgtestutil.ConnectPostgresClient(t, connStr, connStr)
 
 	accountRepo := account.NewAccountPostgreSQLRepository(conn)
 

@@ -44,3 +44,17 @@ func TestReusableMigratedContainerDropsTheOwningTestsDatabase(t *testing.T) {
 	).Scan(&exists))
 	require.False(t, exists)
 }
+
+func TestReusableLedgerContainerClonesBothSchemas(t *testing.T) {
+	container := SetupLedgerContainer(t)
+
+	for _, table := range []string{"organization", "transaction"} {
+		var exists bool
+		require.NoError(t, container.DB.QueryRowContext(
+			context.Background(),
+			`SELECT EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = $1)`,
+			table,
+		).Scan(&exists))
+		require.True(t, exists, "expected %s table", table)
+	}
+}

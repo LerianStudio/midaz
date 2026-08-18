@@ -73,10 +73,10 @@ func setupRedisIntegrationInfra(t *testing.T) *integrationTestInfra {
 	t.Helper()
 
 	// Setup Redis container
-	redisContainer := redistestutil.SetupContainer(t)
+	redisContainer := redistestutil.SetupReusableContainer(t)
 
 	// Create lib-commons Redis connection
-	conn := redistestutil.CreateConnection(t, redisContainer.Addr)
+	conn := redistestutil.CreateConnectionWithDB(t, redisContainer.Addr, redisContainer.DB)
 
 	// Create repository
 	repo := &RedisConsumerRepository{
