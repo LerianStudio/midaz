@@ -6,7 +6,6 @@ package query
 
 import (
 	"context"
-	"fmt"
 	"testing"
 
 	"github.com/shopspring/decimal"
@@ -42,38 +41,64 @@ func newResolverForTest(t *testing.T, limits []model.Limit) *LimitCheckerService
 // TestResolveReservations_PreservesFractionalAmount is the money-path regression
 // guard for the reservation seam: a fractional transaction amount must reach the
 // reservation spec intact. Under the pre-fix int64 IntPart() hop, 10.50 collapsed to
-// 10 — silently under-holding capacity. The assertion compares the canonical decimal
-// string form so it is exact (no float equality).
+// 10 and any sub-unitary amount (0 < x < 1) collapsed to 0 — silently under-holding,
+// or wholly dropping, held capacity. Amounts are compared with decimal.Equal so the
+// check is exact and insensitive to scale / trailing zeros.
+//
+// Tests here stay sequential (no t.Parallel): newResolverForTest wires
+// SetupTestTracing, which installs a process-global tracer provider under a mutex —
+// a parallel-gate exception, not an omission.
 func TestResolveReservations_PreservesFractionalAmount(t *testing.T) {
 	accountID := testutil.MustDeterministicUUID(9100)
 	limitID := testutil.MustDeterministicUUID(9101)
 
-	checker := newResolverForTest(t, []model.Limit{
-		{
-			ID:        limitID,
-			Name:      "Daily fractional cap",
-			LimitType: model.LimitTypeDaily,
-			MaxAmount: decimal.RequireFromString("20"),
-			Currency:  "USD",
-			Scopes:    []model.Scope{{AccountID: &accountID}},
-			Status:    model.LimitStatusActive,
-		},
-	})
+	tests := []struct {
+		name   string
+		amount string
+	}{
+		{name: "fractional above one preserves the cents", amount: "10.5"},
+		{name: "sub-unitary preserves the whole fraction", amount: "0.99"},
+	}
 
-	input, err := model.NewCheckLimitsInput(
-		decimal.RequireFromString("10.5"),
-		"USD",
-		accountID,
-		nil, nil, nil, nil, nil,
-		testutil.DefaultTestTime,
-	)
-	require.NoError(t, err)
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			checker := newResolverForTest(t, []model.Limit{
+				{
+					ID:        limitID,
+					Name:      "Daily fractional cap",
+					LimitType: model.LimitTypeDaily,
+					MaxAmount: decimal.RequireFromString("20.75"),
+					Currency:  "USD",
+					Scopes:    []model.Scope{{AccountID: &accountID}},
+					Status:    model.LimitStatusActive,
+				},
+			})
 
-	specs, denied, err := checker.ResolveReservations(context.Background(), input)
-	require.NoError(t, err)
-	require.False(t, denied, "10.50 against a 20.00 cap must not be denied")
-	require.Len(t, specs, 1)
+			want := decimal.RequireFromString(tt.amount)
+			wantMax := decimal.RequireFromString("20.75")
 
-	require.Equal(t, "10.5", fmt.Sprintf("%v", specs[0].Amount),
-		"reservation amount must preserve the fractional part, not truncate 10.50 -> 10")
+			input, err := model.NewCheckLimitsInput(
+				want,
+				"USD",
+				accountID,
+				nil, nil, nil, nil, nil,
+				testutil.DefaultTestTime,
+			)
+			require.NoError(t, err)
+
+			specs, denied, err := checker.ResolveReservations(context.Background(), input)
+			require.NoError(t, err)
+			require.False(t, denied, "%s against a 20.75 cap must not be denied", tt.amount)
+			require.Len(t, specs, 1)
+
+			require.True(t, want.Equal(specs[0].Amount),
+				"reservation amount must preserve the fraction, not truncate %s -> integer; got %s",
+				tt.amount, specs[0].Amount)
+
+			require.True(t, wantMax.Equal(specs[0].MaxAmount),
+				"reservation cap must preserve the fraction, not truncate 20.75 -> integer; got %s",
+				specs[0].MaxAmount)
+		})
+	}
 }

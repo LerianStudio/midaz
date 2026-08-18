@@ -119,12 +119,43 @@ func TestUsageReservationRepository_Reserve(t *testing.T) {
 		// held 10.
 		require.Equal(t, "10.5", res.Amount.String())
 
+		maxAmount := decimal.NewFromInt(20)
+
+		// WithArgs guards the changed line: the exact fractional amount (not a
+		// truncated integer) MUST reach the reserve CTE. The CTE binds the amount three
+		// times ($5 INSERT seed, $7 UPDATE increment, $9 WHERE-guard check) and the cap
+		// once ($10); the counter id, timestamps and expiry are non-deterministic. A
+		// hardcoded return row alone would pass even if the repo truncated the amount.
 		mock.ExpectQuery(regexp.QuoteMeta(upsertReserveSQL)).
+			WithArgs(
+				sqlmock.AnyArg(),                   // $1 counter id (uuid.New)
+				res.LimitID.String(),               // $2 limit id
+				res.ScopeKey,                       // $3 scope key
+				res.PeriodKey,                      // $4 period key
+				decimal.RequireFromString("10.50"), // $5 INSERT reserved_usage seed
+				sqlmock.AnyArg(),                   // $6 last_updated_at
+				decimal.RequireFromString("10.50"), // $7 UPDATE reserved_usage increment
+				sqlmock.AnyArg(),                   // $8 last_updated_at
+				decimal.RequireFromString("10.50"), // $9 WHERE-guard amount
+				maxAmount,                          // $10 WHERE-guard cap
+				sqlmock.AnyArg(),                   // $11 reservation_expires_at
+			).
 			WillReturnRows(sqlmock.NewRows([]string{"reserved_usage", "succeeded"}).AddRow("10.5", true))
 		mock.ExpectExec(regexp.QuoteMeta(reserveInsertSQL)).
+			WithArgs(
+				res.ID,                             // $1 reservation id
+				res.LimitID,                        // $2 limit id
+				res.ScopeKey,                       // $3 scope key
+				res.PeriodKey,                      // $4 period key
+				decimal.RequireFromString("10.50"), // $5 amount — exact fraction on the row
+				string(res.Status),                 // $6 status
+				res.TransactionID,                  // $7 transaction id
+				sqlmock.AnyArg(),                   // $8 reservation_expires_at
+				sqlmock.AnyArg(),                   // $9 created_at
+			).
 			WillReturnResult(sqlmock.NewResult(0, 1))
 
-		require.NoError(t, repo.ReserveWithTx(context.Background(), db, res, decimal.NewFromInt(20)))
+		require.NoError(t, repo.ReserveWithTx(context.Background(), db, res, maxAmount))
 	})
 
 	t.Run("Guard denies - exceeds-limit error, no row inserted", func(t *testing.T) {

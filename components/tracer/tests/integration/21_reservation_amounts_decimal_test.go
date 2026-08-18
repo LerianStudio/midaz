@@ -88,9 +88,12 @@ func TestReservationAmountsDecimalMigration(t *testing.T) {
 			VALUES ($1, 'scope-frac', 'period-frac', 0, 10.5)`, limitID)
 		require.NoError(t, err, "insert fractional reserved_usage (requires numeric column)")
 
-		require.Error(t, mig.Steps(-1),
-			"000021 down MUST abort when fractional reservation values are present "+
-				"(RAISE EXCEPTION, never a silent ROUND)")
+		// Assert the abort reason, not merely that some error occurred: the guard must
+		// fail through its RAISE EXCEPTION, not through an unrelated fault that also
+		// happens to error. The message is the down migration's own exception text.
+		require.ErrorContains(t, mig.Steps(-1),
+			"cannot downgrade: fractional reservation values present",
+			"000021 down MUST abort via its fractional-guard RAISE EXCEPTION, never a silent ROUND")
 	})
 
 	t.Run("down_reverts_to_bigint_when_all_integer", func(t *testing.T) {

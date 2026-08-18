@@ -399,3 +399,129 @@ func TestIntegration_UsageReservationRepository_Reserve_RowIdempotent(t *testing
 	require.NoError(t, err)
 	assert.Equal(t, 1, rowCount, "retried reserve must not duplicate the reservation row")
 }
+
+// TestIntegration_UsageReservationRepository_SubUnitaryAmount_Preserved proves a
+// sub-unitary reserve (0 < amount < 1) survives the real DECIMAL columns intact. This
+// is the case the pre-fix int64 IntPart() seam destroyed WHOLLY: 0.99 collapsed to 0,
+// so the reserve held nothing while the transaction believed capacity was reserved.
+// Every fractional test before this used amounts > 1, where truncation only shaved
+// the cents; only a sub-unitary amount exercises total loss.
+func TestIntegration_UsageReservationRepository_SubUnitaryAmount_Preserved(t *testing.T) {
+	testutil.SetupTestTracing(t)
+
+	db := testutil.SetupIntegrationDB(t)
+	repo := newReservationRepoIntegration(db)
+
+	limitID := createTestLimit(t, db, 8505)
+	t.Cleanup(func() { cleanupTestLimit(t, db, limitID) })
+
+	scopeKey := "acct:8505-" + testutil.MustDeterministicUUID(8515).String()[:8]
+	periodKey := "2026-06"
+
+	ctx := context.Background()
+
+	want := decimal.RequireFromString("0.99")
+
+	res, err := model.NewReservation(
+		limitID,
+		testutil.MustDeterministicUUID(8525),
+		scopeKey,
+		periodKey,
+		want,
+		time.Now().UTC().Add(5*time.Minute),
+		time.Now().UTC(),
+	)
+	require.NoError(t, err)
+
+	require.NoError(t, inRealTx(t, db, func(tx *sql.Tx) error {
+		return repo.ReserveWithTx(ctx, tx, res, decimal.NewFromInt(20))
+	}))
+
+	current, reserved := readCounterDecimal(t, db, limitID, scopeKey, periodKey)
+	assert.True(t, current.IsZero(), "reserve must not touch current_usage")
+	assert.True(t, want.Equal(reserved),
+		"sub-unitary reserve must hold the exact 0.99, not truncate to 0; got %s", reserved)
+
+	// Confirm moves the exact sub-unitary fraction into current_usage.
+	require.NoError(t, inRealTx(t, db, func(tx *sql.Tx) error {
+		return repo.ConfirmWithTx(ctx, tx, res.ID)
+	}))
+
+	current, reserved = readCounterDecimal(t, db, limitID, scopeKey, periodKey)
+	assert.True(t, want.Equal(current),
+		"confirm must move the exact 0.99 into current_usage; got %s", current)
+	assert.True(t, reserved.IsZero(), "confirm must drain reserved_usage")
+}
+
+// TestIntegration_UsageReservationRepository_FractionalCap_Denies proves the reserve
+// CTE's over-limit guard (current_usage + reserved_usage + amount <= maxAmount) holds
+// at sub-unitary precision. Against a 0.75 cap: a first 0.50 reserve succeeds, and a
+// second 0.50 reserve (0.50 + 0.50 = 1.00 > 0.75) is denied with
+// ErrUsageCounterExceedsLimit, leaving reserved_usage at exactly 0.50. Under the
+// pre-fix integer seam both amounts truncated to 0 and the cap could never bind.
+func TestIntegration_UsageReservationRepository_FractionalCap_Denies(t *testing.T) {
+	testutil.SetupTestTracing(t)
+
+	db := testutil.SetupIntegrationDB(t)
+	repo := newReservationRepoIntegration(db)
+
+	limitID := createTestLimit(t, db, 8506)
+	t.Cleanup(func() { cleanupTestLimit(t, db, limitID) })
+
+	scopeKey := "acct:8506-" + testutil.MustDeterministicUUID(8516).String()[:8]
+	periodKey := "2026-06"
+
+	ctx := context.Background()
+
+	// The reserve guard checks against the maxAmount the caller passes, not the limit
+	// column, so the cap is set here to a sub-unitary 0.75.
+	cap075 := decimal.RequireFromString("0.75")
+	half := decimal.RequireFromString("0.50")
+
+	// Two reservations under DISTINCT transactions but the SAME counter (limit +
+	// scope + period), so the second accumulates onto the first's reserved_usage.
+	res1, err := model.NewReservation(
+		limitID,
+		testutil.MustDeterministicUUID(8526),
+		scopeKey,
+		periodKey,
+		half,
+		time.Now().UTC().Add(5*time.Minute),
+		time.Now().UTC(),
+	)
+	require.NoError(t, err)
+
+	res2, err := model.NewReservation(
+		limitID,
+		testutil.MustDeterministicUUID(8527),
+		scopeKey,
+		periodKey,
+		half,
+		time.Now().UTC().Add(5*time.Minute),
+		time.Now().UTC(),
+	)
+	require.NoError(t, err)
+
+	// First 0.50 fits under the 0.75 cap.
+	require.NoError(t, inRealTx(t, db, func(tx *sql.Tx) error {
+		return repo.ReserveWithTx(ctx, tx, res1, cap075)
+	}))
+
+	current, reserved := readCounterDecimal(t, db, limitID, scopeKey, periodKey)
+	assert.True(t, current.IsZero(), "reserve must not touch current_usage")
+	assert.True(t, half.Equal(reserved), "first 0.50 must be held exactly; got %s", reserved)
+
+	// Second 0.50 would push held usage to 1.00 > 0.75 — the guard denies it, and
+	// inRealTx rolls the transaction back so no RESERVED row survives.
+	err = inRealTx(t, db, func(tx *sql.Tx) error {
+		return repo.ReserveWithTx(ctx, tx, res2, cap075)
+	})
+	require.ErrorIs(t, err, constant.ErrUsageCounterExceedsLimit,
+		"0.50 + 0.50 = 1.00 over a 0.75 cap must be denied")
+
+	// The denied reserve left the counter untouched at the first 0.50.
+	current, reserved = readCounterDecimal(t, db, limitID, scopeKey, periodKey)
+	assert.True(t, current.IsZero(), "denied reserve must not credit current_usage")
+	assert.True(t, half.Equal(reserved),
+		"denied reserve must leave reserved_usage at the first 0.50; got %s", reserved)
+}
