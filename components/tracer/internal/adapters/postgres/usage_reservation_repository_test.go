@@ -13,6 +13,7 @@ import (
 
 	"github.com/DATA-DOG/go-sqlmock"
 	"github.com/google/uuid"
+	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -22,9 +23,9 @@ import (
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
 )
 
-const (
-	reserveAmount = int64(400)
-	maxAmountTest = int64(1000)
+var (
+	reserveAmount = decimal.NewFromInt(400)
+	maxAmountTest = decimal.NewFromInt(1000)
 )
 
 // setupUsageReservationRepository wires the reservation repository plus the shared
@@ -97,6 +98,33 @@ func TestUsageReservationRepository_Reserve(t *testing.T) {
 
 		err := repo.ReserveWithTx(context.Background(), db, res, maxAmountTest)
 		require.NoError(t, err)
+	})
+
+	t.Run("Fractional amount is inserted without truncation", func(t *testing.T) {
+		repo, db, mock, cleanup := setupUsageReservationRepository(t)
+		defer cleanup()
+
+		res, err := model.NewReservation(
+			testutil.MustDeterministicUUID(8001),
+			testutil.MustDeterministicUUID(8002),
+			"acct:8001",
+			"2026-06",
+			decimal.RequireFromString("10.50"),
+			testutil.FixedTime().Add(5*time.Minute),
+			testutil.FixedTime(),
+		)
+		require.NoError(t, err)
+
+		// The reservation carries the exact decimal; the pre-fix int64 row would have
+		// held 10.
+		require.Equal(t, "10.5", res.Amount.String())
+
+		mock.ExpectQuery(regexp.QuoteMeta(upsertReserveSQL)).
+			WillReturnRows(sqlmock.NewRows([]string{"reserved_usage", "succeeded"}).AddRow("10.5", true))
+		mock.ExpectExec(regexp.QuoteMeta(reserveInsertSQL)).
+			WillReturnResult(sqlmock.NewResult(0, 1))
+
+		require.NoError(t, repo.ReserveWithTx(context.Background(), db, res, decimal.NewFromInt(20)))
 	})
 
 	t.Run("Guard denies - exceeds-limit error, no row inserted", func(t *testing.T) {
@@ -231,7 +259,8 @@ func TestUsageReservationRepository_ConfirmByTransaction(t *testing.T) {
 
 		// Two reservations for one transaction (two limits): the select returns both
 		// and each gets a counter move + row flip in the SAME (caller-owned) tx.
-		expectReservedByTransactionSelect(mock, txID,
+		expectReservedByTransactionSelect(
+			mock, txID,
 			[4]any{res1, limit1, "acct:8601", "2026-06"},
 			[4]any{res2, limit2, "global", "2026-06-05"},
 		)
@@ -283,7 +312,8 @@ func TestUsageReservationRepository_ReleaseByTransaction(t *testing.T) {
 		repo, db, mock, cleanup := setupUsageReservationRepository(t)
 		defer cleanup()
 
-		expectReservedByTransactionSelect(mock, txID,
+		expectReservedByTransactionSelect(
+			mock, txID,
 			[4]any{res1, limit1, "acct:8701", "2026-06"},
 			[4]any{res2, limit2, "global", "2026-06-05"},
 		)

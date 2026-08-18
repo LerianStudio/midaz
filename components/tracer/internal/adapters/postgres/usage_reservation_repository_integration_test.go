@@ -69,6 +69,16 @@ func createTestLimitNamed(t *testing.T, db *sql.DB, seed int64, name string) uui
 func readCounter(t *testing.T, db *sql.DB, limitID uuid.UUID, scopeKey, periodKey string) (current, reserved int64) {
 	t.Helper()
 
+	cur, rsv := readCounterDecimal(t, db, limitID, scopeKey, periodKey)
+
+	return cur.IntPart(), rsv.IntPart()
+}
+
+// readCounterDecimal reads the counter buckets as exact decimals, so fractional
+// amounts survive the round-trip (the DECIMAL columns landed in migration 000021).
+func readCounterDecimal(t *testing.T, db *sql.DB, limitID uuid.UUID, scopeKey, periodKey string) (current, reserved decimal.Decimal) {
+	t.Helper()
+
 	err := db.QueryRow(
 		"SELECT current_usage, reserved_usage FROM usage_counters WHERE limit_id = $1 AND scope_key = $2 AND period_key = $3",
 		limitID, scopeKey, periodKey,
@@ -113,7 +123,7 @@ func TestIntegration_UsageReservationRepository_DoubleConfirm_Idempotent(t *test
 		testutil.MustDeterministicUUID(8521), // transactionID
 		scopeKey,
 		periodKey,
-		400,
+		decimal.NewFromInt(400),
 		time.Now().UTC().Add(5*time.Minute),
 		time.Now().UTC(),
 	)
@@ -121,7 +131,7 @@ func TestIntegration_UsageReservationRepository_DoubleConfirm_Idempotent(t *test
 
 	// Reserve: seeds reserved_usage = 400, current_usage = 0.
 	require.NoError(t, inRealTx(t, db, func(tx *sql.Tx) error {
-		return repo.ReserveWithTx(ctx, tx, res, 10000)
+		return repo.ReserveWithTx(ctx, tx, res, decimal.NewFromInt(10000))
 	}))
 
 	current, reserved := readCounter(t, db, limitID, scopeKey, periodKey)
@@ -150,6 +160,54 @@ func TestIntegration_UsageReservationRepository_DoubleConfirm_Idempotent(t *test
 	assert.Equal(t, int64(0), reserved, "double-confirm must NOT drive reserved_usage negative")
 }
 
+// TestIntegration_UsageReservationRepository_FractionalAmount_Preserved proves the
+// money-path fix end-to-end against real DECIMAL columns: a 10.50 reserve seeds
+// reserved_usage=10.50 (not 10), and confirm moves the exact fraction into
+// current_usage. Under the pre-fix int64 seam this truncated to 10.
+func TestIntegration_UsageReservationRepository_FractionalAmount_Preserved(t *testing.T) {
+	testutil.SetupTestTracing(t)
+
+	db := testutil.SetupIntegrationDB(t)
+	repo := newReservationRepoIntegration(db)
+
+	limitID := createTestLimit(t, db, 8504)
+	t.Cleanup(func() { cleanupTestLimit(t, db, limitID) })
+
+	scopeKey := "acct:8504-" + testutil.MustDeterministicUUID(8514).String()[:8]
+	periodKey := "2026-06"
+
+	ctx := context.Background()
+
+	want := decimal.RequireFromString("10.50")
+
+	res, err := model.NewReservation(
+		limitID,
+		testutil.MustDeterministicUUID(8524),
+		scopeKey,
+		periodKey,
+		want,
+		time.Now().UTC().Add(5*time.Minute),
+		time.Now().UTC(),
+	)
+	require.NoError(t, err)
+
+	require.NoError(t, inRealTx(t, db, func(tx *sql.Tx) error {
+		return repo.ReserveWithTx(ctx, tx, res, decimal.NewFromInt(20))
+	}))
+
+	current, reserved := readCounterDecimal(t, db, limitID, scopeKey, periodKey)
+	assert.True(t, current.IsZero(), "reserve must not touch current_usage")
+	assert.True(t, want.Equal(reserved), "reserve must hold the exact fraction, got %s", reserved)
+
+	require.NoError(t, inRealTx(t, db, func(tx *sql.Tx) error {
+		return repo.ConfirmWithTx(ctx, tx, res.ID)
+	}))
+
+	current, reserved = readCounterDecimal(t, db, limitID, scopeKey, periodKey)
+	assert.True(t, want.Equal(current), "confirm must move the exact fraction into current_usage, got %s", current)
+	assert.True(t, reserved.IsZero(), "confirm must drain reserved_usage")
+}
+
 // TestIntegration_UsageReservationRepository_ReleaseThenConfirm_Idempotent proves
 // release drains reserved_usage without crediting current_usage, and a confirm
 // after release is a terminal no-op.
@@ -172,14 +230,14 @@ func TestIntegration_UsageReservationRepository_ReleaseThenConfirm_Idempotent(t 
 		testutil.MustDeterministicUUID(8522),
 		scopeKey,
 		periodKey,
-		250,
+		decimal.NewFromInt(250),
 		time.Now().UTC().Add(5*time.Minute),
 		time.Now().UTC(),
 	)
 	require.NoError(t, err)
 
 	require.NoError(t, inRealTx(t, db, func(tx *sql.Tx) error {
-		return repo.ReserveWithTx(ctx, tx, res, 10000)
+		return repo.ReserveWithTx(ctx, tx, res, decimal.NewFromInt(10000))
 	}))
 	require.NoError(t, inRealTx(t, db, func(tx *sql.Tx) error {
 		return repo.ReleaseWithTx(ctx, tx, res.ID, model.StatusReleased)
@@ -232,20 +290,20 @@ func TestIntegration_UsageReservationRepository_ConfirmByTransaction_FlipsAll(t 
 	ctx := context.Background()
 
 	// Two reservations under ONE transaction, on two different limits.
-	resA, err := model.NewReservation(limitA, txID, scopeA, periodKey, 400,
+	resA, err := model.NewReservation(limitA, txID, scopeA, periodKey, decimal.NewFromInt(400),
 		time.Now().UTC().Add(5*time.Minute), time.Now().UTC())
 	require.NoError(t, err)
 
-	resB, err := model.NewReservation(limitB, txID, scopeB, periodKey, 250,
+	resB, err := model.NewReservation(limitB, txID, scopeB, periodKey, decimal.NewFromInt(250),
 		time.Now().UTC().Add(5*time.Minute), time.Now().UTC())
 	require.NoError(t, err)
 
 	require.NoError(t, inRealTx(t, db, func(tx *sql.Tx) error {
-		if rErr := repo.ReserveWithTx(ctx, tx, resA, 10000); rErr != nil {
+		if rErr := repo.ReserveWithTx(ctx, tx, resA, decimal.NewFromInt(10000)); rErr != nil {
 			return rErr
 		}
 
-		return repo.ReserveWithTx(ctx, tx, resB, 10000)
+		return repo.ReserveWithTx(ctx, tx, resB, decimal.NewFromInt(10000))
 	}))
 
 	// Both counters hold their amounts in reserved_usage.
@@ -316,20 +374,20 @@ func TestIntegration_UsageReservationRepository_Reserve_RowIdempotent(t *testing
 		testutil.MustDeterministicUUID(8523),
 		scopeKey,
 		periodKey,
-		100,
+		decimal.NewFromInt(100),
 		time.Now().UTC().Add(5*time.Minute),
 		time.Now().UTC(),
 	)
 	require.NoError(t, err)
 
 	require.NoError(t, inRealTx(t, db, func(tx *sql.Tx) error {
-		return repo.ReserveWithTx(ctx, tx, res, 10000)
+		return repo.ReserveWithTx(ctx, tx, res, decimal.NewFromInt(10000))
 	}))
 
 	// Re-reserve the SAME row id and 4-tuple: ON CONFLICT DO NOTHING keeps a single
 	// row.
 	require.NoError(t, inRealTx(t, db, func(tx *sql.Tx) error {
-		return repo.ReserveWithTx(ctx, tx, res, 10000)
+		return repo.ReserveWithTx(ctx, tx, res, decimal.NewFromInt(10000))
 	}))
 
 	var rowCount int

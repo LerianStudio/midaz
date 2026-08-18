@@ -74,7 +74,7 @@ func NewUsageReservationRepositoryWithConnection(counterRepo *UsageCounterReposi
 // caller is responsible for rolling the transaction back on any error so a denied
 // reserve leaves no RESERVED row whose capacity was never held. A retried reserve
 // for the same 4-tuple collapses onto the existing row (ON CONFLICT DO NOTHING).
-func (r *UsageReservationRepository) ReserveWithTx(ctx context.Context, db pgdb.DB, reservation *model.Reservation, maxAmount int64) error {
+func (r *UsageReservationRepository) ReserveWithTx(ctx context.Context, db pgdb.DB, reservation *model.Reservation, maxAmount decimal.Decimal) error {
 	if db == nil {
 		return pgdb.ErrNilConnection
 	}
@@ -104,8 +104,8 @@ func (r *UsageReservationRepository) ReserveWithTx(ctx context.Context, db pgdb.
 		reservation.LimitID,
 		reservation.ScopeKey,
 		reservation.PeriodKey,
-		decimal.NewFromInt(reservation.Amount),
-		decimal.NewFromInt(maxAmount),
+		reservation.Amount,
+		maxAmount,
 		&reservation.ReservationExpiresAt,
 	); err != nil {
 		return err
