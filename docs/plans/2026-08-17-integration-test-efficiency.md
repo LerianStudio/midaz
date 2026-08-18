@@ -4,7 +4,7 @@
 
 **Architecture:** Integration build tags define what belongs to each lane. Required gates fail closed when discovery or prerequisites are missing. Datastore processes are eventually reused at package or shard scope, while every test keeps an isolated database, schema, namespace, or vhost. Parallelism is introduced only after isolation is explicit and measured.
 
-**Status:** P0's test infrastructure is implemented and measured. V1 `remaining` is complete end to end. Execution is now closing revert idempotency first and durable Ledger-to-Tracer outcomes second; P1, P2, and P3 follow in that order. Repository ruleset enforcement is deliberately last.
+**Status:** P0's test infrastructure is implemented and measured. V1 `remaining` is complete end to end. Revert idempotency is in final hardening. Tracer now accepts and atomically applies durable Ledger outcomes without autonomously expiring V2 reservations; the Ledger-side atomic outcome, dispatcher, and recovery remain. P1, P2, and P3 follow in that order. Repository ruleset enforcement is deliberately last.
 
 ## Phase overview
 
@@ -86,6 +86,8 @@ Root skip classification: 76 chaos-only scenarios, 2 streaming smokes covered by
 - [x] Prove `reserve -> confirm -> cleanup` cannot erase valid daily, weekly, monthly, or custom usage.
 - [x] Support V1 `remaining` end to end: every resolved leg moves balances, persists an operation, and preserves double-entry across direct, pending, commit, cancel, revert, and fee paths.
 - [ ] Scope revert idempotency by the origin transaction without opening a rolling-deploy window that can double-revert.
+- [x] Add Tracer's durable outcome receiver: serialize Reserve versus outcome, persist an idempotent terminal receipt, apply every reservation/counter/audit atomically, and keep V2 reservations out of autonomous expiry and cleanup.
+- [ ] Record the Ledger outcome in the same Redis/Lua commit that moves balances, then deliver and retry it until Tracer's durable acknowledgement.
 - [ ] Replace the incorrect "reaper is a durability backstop" assumption for a lost post-commit confirmation with a durable transaction-outcome mechanism.
 - [x] Make tests, logs, and architecture docs expose lost-confirm undercounting as a known defect instead of describing it as successful reconciliation.
 - [ ] Replace the pinned lost-confirm undercount with the chosen durable money-path invariant.
