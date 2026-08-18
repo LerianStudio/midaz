@@ -13,12 +13,17 @@ import (
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/revertclaim"
 )
 
-func (uc *UseCase) ClaimRevert(ctx context.Context, organizationID, ledgerID, originID, reverseID uuid.UUID, legacyFenceKey, legacyFenceOwner *string) (*revertclaim.Claim, bool, error) {
+func (uc *UseCase) ClaimRevert(
+	ctx context.Context,
+	organizationID, ledgerID, originID, reverseID uuid.UUID,
+	legacyFenceKey, legacyFenceOwner, rolloutMode, rolloutToken *string,
+) (*revertclaim.Claim, bool, error) {
 	if uc.RevertClaimRepo == nil {
 		return nil, false, fmt.Errorf("revert claim repository not configured")
 	}
 
-	return uc.RevertClaimRepo.Claim(ctx, organizationID, ledgerID, originID, reverseID, legacyFenceKey, legacyFenceOwner)
+	return uc.RevertClaimRepo.Claim(ctx, organizationID, ledgerID, originID, reverseID,
+		legacyFenceKey, legacyFenceOwner, rolloutMode, rolloutToken)
 }
 
 func (uc *UseCase) GetRevertClaim(ctx context.Context, organizationID, ledgerID, originID uuid.UUID) (*revertclaim.Claim, error) {
@@ -69,7 +74,8 @@ func (uc *UseCase) CompleteRevertClaim(
 	organizationID, ledgerID, originID, reverseID uuid.UUID,
 	legacyFenceKey, legacyFenceOwner *string,
 ) error {
-	claim, _, err := uc.ClaimRevert(ctx, organizationID, ledgerID, originID, reverseID, legacyFenceKey, legacyFenceOwner)
+	claim, _, err := uc.ClaimRevert(ctx, organizationID, ledgerID, originID, reverseID,
+		legacyFenceKey, legacyFenceOwner, nil, nil)
 	if err != nil {
 		return fmt.Errorf("adopt durable revert claim: %w", err)
 	}

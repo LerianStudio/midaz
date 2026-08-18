@@ -214,13 +214,16 @@ overdraft values.
 Merely finding the child row or one operation cannot prove that
 persistence finished. Rebuilds use Lua's `balancesAfter` snapshot, including
 direction, overdraft-used before/after, balance settings, and versions, instead
-of recomputing the audit trail. A completed old-pod
-reverse has no claim-time backup to compare; it is adopted only after its
-persisted child and operations are present on primary and the backup is absent.
-If a drained old-compatible backup remains after those PostgreSQL facts and the
-claim are terminal, final mode removes it only through an exact Lua proof of the
-reserved reverse ID, parent origin, compatibility status, and full operation-ID
-set. That compatibility cleanup never touches an outcome-backed envelope.
+of recomputing the audit trail. A reverse created by a genuinely old pod is
+adoptable only while its authoritative backup retains enough immutable input to
+derive the exact original H1 and parent. A missing or insufficient old backup is
+quarantined even when the child and operations already exist on primary: their
+existence does not identify the released payload-hash fence, and the current
+mutable origin can never be used to recalculate it. If a drained old-compatible
+backup remains after those PostgreSQL facts and the claim are terminal, final
+mode removes it only through an exact Lua proof of the reserved reverse ID,
+parent origin, compatibility status, and full operation-ID set. That
+compatibility cleanup never touches an outcome-backed envelope.
 
 ## Failure policy
 
@@ -236,6 +239,7 @@ set. That compatibility cleanup never touches an outcome-backed envelope.
 | Crash after PostgreSQL persistence and before origin replay completion | Exact child and operations exist on PostgreSQL primary; owned origin fence remains | Retry completes or safely rematerializes the exact reserved replay, removes the owner, and returns it |
 | Crash after old-pod PostgreSQL persistence and before H1 replay publication | Exact child, complete operation set, and terminal adopted claim exist; H1 is still the unowned empty compatibility fence | Retry replaces only that empty/no-owner H1 with the exact reserved replay; a foreign value or owner is preserved and fails closed |
 | Crash after bridge child persistence and before H1 completion | Durable claim retains the original H1 key; child and every operation exist on primary | Final adoption completes only the persisted H1 key, marks the claim terminal, and owner-checks outcome cleanup; it never recalculates H1 from the origin |
+| Lost response after rollout-generation completion | Durable claim retains the exact `legacy` or `bridge` generation and deterministic origin token; transaction, operations, claim, replays, and Redis economic cleanup are already proven terminal | HTTP or consumer redelivery repeats the same generation seal idempotently; it never releases a generation inferred from the current pod mode |
 | Final adoption sees a foreign H1 collision | The durable claim and child prove this origin; the legacy key explicitly belongs to another owner or replay | Preserve the foreign H1 unchanged, finish the origin-scoped replay, and clean only this reverse's exact outcome/backup |
 | Crash after an old-compatible child is durable but before backup cleanup | Child, all operations, and completed adopted claim exist on PostgreSQL primary; legacy backup has no owner/outcome envelope | Compare reverse, parent, status, and every operation ID in one Lua command, then remove only that exact compatibility backup |
 | Crash before queue seed | Durable claim names the exact origin, reverse, H1 key, and owner; the reserved backup, execution attempt, and immutable outcome are absent on Redis primary | Elect one `RECOVERING` owner, owner-release the exact barriers, release PostgreSQL last, and retry; safety comes from Lua requiring the now-absent exact attempt, not from elapsed time |
@@ -243,9 +247,10 @@ set. That compatibility cleanup never touches an outcome-backed envelope.
 | Pre-movement cleanup races a terminal Lua envelope | Status/owner/outcome no longer match the exact seed selected for cleanup | Atomic cleanup removes nothing; preserve all barriers and require reconciliation |
 | Crash while cleaning `RECOVERING` | PostgreSQL retains the cleanup state and timestamp | Re-elect after 30 seconds and resume idempotent cleanup; PostgreSQL remains the last record released |
 
-Only proof that dispatch cannot happen (the exact execution attempt and outcome
-are absent, together with either an absent reserved backup or the valid
-exact-origin seed-only crash case) or a Lua-declared rollback
+Only proof that dispatch cannot happen (one same-slot Redis read proves the
+exact backup, outcome, execution attempt, and attempt owner are all absent,
+together with an absent compatible PostgreSQL claim or the valid exact-origin
+seed-only crash case) or a Lua-declared rollback
 authorizes release. Redis timeouts, connection resets,
 context cancellation after dispatch, and PostgreSQL failures after movement do
 not authorize a second mutation. Legacy and origin cleanup use compare-and-delete
@@ -327,6 +332,15 @@ release becomes an idempotent no-op and cannot recreate the origin. Marker
 transitions run in the same slot and refuse to advance while the generation
 they retire has any active origin.
 
+An HTTP return may remove its exact attempt only after one same-slot transaction
+read proves backup, outcome, execution attempt, and attempt owner absent; the
+PostgreSQL primary claim names the same reverse and is `COMPLETED`; and one
+same-slot rollout read proves the persisted generation tombstone exists while
+its attempt hash and active-origin membership are absent. A missing, unreadable,
+or internally inconsistent proof keeps the token and requires reconciliation.
+In particular, successful economic cleanup is not permission to release the
+last rollout attempt when generation sealing returned an ambiguous error.
+
 Marker transitions are executed by ledger startup through
 `REVERT_ROLLOUT_TARGET`, not by an operator writing Redis directly. Accepted
 targets are `active`, `phase-zero-drained`, and `finalized`; an invalid target,
@@ -356,6 +370,37 @@ surviving attempt remains until same-origin recovery proves it safe to release.
 A distinct same-origin caller has a different attempt ID and cannot be removed
 by the loser. Availability may block; a false drain cannot be manufactured.
 
+### Redis financial trust boundary
+
+Between the atomic balance Lua and the PostgreSQL terminal handoff, Redis is the
+authoritative economic record. Phase-zero activation and bridge/final readiness
+therefore fail closed unless every reachable Redis primary or shard reports
+`maxmemory-policy=noeviction`, AOF enabled, `appendfsync=always` or `everysec`,
+and a healthy last AOF write. `CONFIG` and persistence `INFO` must be readable by
+the ledger identity; a managed provider that hides them needs an equivalent
+machine-verifiable attestation before it can run this rollout.
+
+This gate proves that eviction is disabled and that the configured persistence
+mechanism is healthy; it does not promise zero loss. `appendfsync=everysec` and
+the provider's replication and backup policy define a non-zero RPO. Loss of the
+complete Redis financial store beyond that RPO is a trust-boundary failure, not
+evidence that a request crashed before seeding or movement. Automatic recovery
+must stop and reconcile from external durability evidence; it may never release
+a claim or admit a second mutation merely because backup and outcome disappeared
+after a Redis data-loss event. TTL applies only to transient execution leases
+where expiration is not used as economic proof; no economic outcome, persistent
+fence, rollout attempt set, or drain fact depends on TTL expiry.
+
+The deployed `REVERT_ROLLOUT_TARGET` is the external durable witness that the
+rollout already started. With target `active`, `phase-zero-drained`, or
+`finalized`, a missing or regressed Redis marker fails readiness, revert
+admission, and APPROVED-update preflight; `legacy` cannot reinterpret total
+Redis loss as the pre-rollout absent state. The target comparison is part of
+the same Lua admission snapshot as the marker. Every pod must carry the active
+or later target before bridge coexistence begins; leaving old target-empty pods
+running would deliberately forfeit this loss detector and is not a valid
+rollout.
+
 A PENDING update locks its transaction row on the PostgreSQL primary before it
 checks status and holds that row lock through the PostgreSQL description and
 MongoDB metadata writes. Every commit, cancel, backup consumer, and recovery
@@ -384,6 +429,11 @@ transaction.
    response contains `checks.revert_rollout_barrier.status=up`, not merely an
    aggregate service health result. A pre-phase-zero pod does not expose that
    check and therefore cannot satisfy the gate.
+   Before the marker exists, released legacy readiness does not impose the new
+   durability contract. Activating phase zero validates the Redis financial
+   trust boundary before writing the marker; once the marker exists, every
+   phase-zero pod and every bridge/final pod enforces it continuously through
+   readiness.
 3. After the deployment controller proves zero pre-phase-zero pods, deploy
    `REVERT_ROLLOUT_TARGET=active`. Ledger startup atomically changes the absent
    marker to `active`. Activation refuses while any APPROVED update or
@@ -479,6 +529,10 @@ skip the machine-verifiable phase-zero drain proof.
 Final-to-final and bridge-to-final races share the PostgreSQL claim and origin
 barrier. Multiple callers may receive the same completed replay; only one
 reverse ID, persisted transaction, and balance movement can exist.
+The claim also retains the exact retiring rollout generation and origin token.
+Terminal sync, async, bulk, HTTP adoption, and redelivery all use that persisted
+identity to seal the generation only after transaction, full operation set,
+claim, both replays, and Redis economic cleanup are durably complete.
 
 ## Rollback and migration down
 

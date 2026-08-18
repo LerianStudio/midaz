@@ -181,6 +181,8 @@ type RedisChecker struct {
 
 type revertRolloutBarrier interface {
 	ReadyForMode(context.Context, string) (bool, error)
+	Phase(context.Context) (string, error)
+	FinancialDurability(context.Context) error
 }
 
 // RevertRolloutBarrierChecker prevents bridge/final pods from receiving
@@ -189,13 +191,14 @@ type revertRolloutBarrier interface {
 type RevertRolloutBarrierChecker struct {
 	guard      revertRolloutBarrier
 	mode       string
+	target     string
 	tlsEnabled bool
 }
 
 // NewRevertRolloutBarrierChecker creates the rollout readiness check for one
 // revert algorithm phase.
-func NewRevertRolloutBarrierChecker(guard revertRolloutBarrier, mode string, tlsEnabled bool) *RevertRolloutBarrierChecker {
-	return &RevertRolloutBarrierChecker{guard: guard, mode: mode, tlsEnabled: tlsEnabled}
+func NewRevertRolloutBarrierChecker(guard revertRolloutBarrier, mode, target string, tlsEnabled bool) *RevertRolloutBarrierChecker {
+	return &RevertRolloutBarrierChecker{guard: guard, mode: mode, target: strings.ToLower(strings.TrimSpace(target)), tlsEnabled: tlsEnabled}
 }
 
 // Name returns the checker identifier.
@@ -215,6 +218,22 @@ func (c *RevertRolloutBarrierChecker) Check(ctx context.Context) DependencyCheck
 	}
 
 	start := time.Now()
+	phase, err := c.guard.Phase(ctx)
+	if err != nil {
+		latencyMs := time.Since(start).Milliseconds()
+
+		return DependencyCheck{Status: StatusDown, LatencyMs: &latencyMs, Error: fmt.Sprintf("read rollout phase: %v", err)}
+	}
+	// The released legacy algorithm remains deployable before phase zero. Once
+	// the durable rollout marker exists, and for every bridge/final pod, Redis is
+	// an explicitly verified financial trust boundary.
+	if phase != "" || c.target != "" || c.mode != "legacy" {
+		if err := c.guard.FinancialDurability(ctx); err != nil {
+			latencyMs := time.Since(start).Milliseconds()
+
+			return DependencyCheck{Status: StatusDown, LatencyMs: &latencyMs, Error: fmt.Sprintf("financial Redis durability: %v", err)}
+		}
+	}
 	ready, err := c.guard.ReadyForMode(ctx, c.mode)
 	latencyMs := time.Since(start).Milliseconds()
 	if err != nil {

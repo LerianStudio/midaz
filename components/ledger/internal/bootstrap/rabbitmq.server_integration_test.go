@@ -173,7 +173,8 @@ func TestIntegration_HandlerBTOBulk_DefaultAsyncRedeliveryCompletesOneDurableHan
 	legacyKey := utils.IdempotencyInternalKey(organizationID, ledgerID, legacyHash)
 	originHash := libCommons.HashSHA256(utils.RevertIdempotencyHashSource(originID))
 	originKey := utils.IdempotencyInternalKey(organizationID, ledgerID, originHash)
-	claim, acquired, err := claimRepo.Claim(ctx, organizationID, ledgerID, originID, reverseID, &legacyKey, &owner)
+	claim, acquired, err := claimRepo.Claim(ctx, organizationID, ledgerID, originID, reverseID,
+		&legacyKey, &owner, nil, nil)
 	require.NoError(t, err)
 	require.True(t, acquired)
 	require.Equal(t, reverseID, claim.ReverseTransactionID)

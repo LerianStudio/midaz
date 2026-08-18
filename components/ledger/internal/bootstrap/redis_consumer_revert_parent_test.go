@@ -53,6 +53,14 @@ func (s backupRevertRolloutPhaseStub) ReleaseRevert(context.Context, string, str
 	return nil
 }
 
+func (s backupRevertRolloutPhaseStub) CompleteRevert(context.Context, string, string) error {
+	return nil
+}
+
+func (s backupRevertRolloutPhaseStub) RevertTerminalHandoffComplete(context.Context, string, string) (bool, error) {
+	return true, nil
+}
+
 func (s backupRevertRolloutPhaseStub) Phase(context.Context) (string, error) {
 	return s.phase, nil
 }

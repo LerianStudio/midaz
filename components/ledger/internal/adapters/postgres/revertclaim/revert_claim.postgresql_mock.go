@@ -57,9 +57,9 @@ func (mr *MockRepositoryMockRecorder) BeginPreMutationRecovery(ctx, organization
 }
 
 // Claim mocks base method.
-func (m *MockRepository) Claim(ctx context.Context, organizationID, ledgerID, originID, reverseID uuid.UUID, legacyFenceKey, legacyFenceOwner *string) (*Claim, bool, error) {
+func (m *MockRepository) Claim(ctx context.Context, organizationID, ledgerID, originID, reverseID uuid.UUID, legacyFenceKey, legacyFenceOwner, rolloutMode, rolloutToken *string) (*Claim, bool, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Claim", ctx, organizationID, ledgerID, originID, reverseID, legacyFenceKey, legacyFenceOwner)
+	ret := m.ctrl.Call(m, "Claim", ctx, organizationID, ledgerID, originID, reverseID, legacyFenceKey, legacyFenceOwner, rolloutMode, rolloutToken)
 	ret0, _ := ret[0].(*Claim)
 	ret1, _ := ret[1].(bool)
 	ret2, _ := ret[2].(error)
@@ -67,9 +67,9 @@ func (m *MockRepository) Claim(ctx context.Context, organizationID, ledgerID, or
 }
 
 // Claim indicates an expected call of Claim.
-func (mr *MockRepositoryMockRecorder) Claim(ctx, organizationID, ledgerID, originID, reverseID, legacyFenceKey, legacyFenceOwner any) *gomock.Call {
+func (mr *MockRepositoryMockRecorder) Claim(ctx, organizationID, ledgerID, originID, reverseID, legacyFenceKey, legacyFenceOwner, rolloutMode, rolloutToken any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Claim", reflect.TypeOf((*MockRepository)(nil).Claim), ctx, organizationID, ledgerID, originID, reverseID, legacyFenceKey, legacyFenceOwner)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Claim", reflect.TypeOf((*MockRepository)(nil).Claim), ctx, organizationID, ledgerID, originID, reverseID, legacyFenceKey, legacyFenceOwner, rolloutMode, rolloutToken)
 }
 
 // Get mocks base method.

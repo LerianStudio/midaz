@@ -70,6 +70,9 @@ var removeTransactionBackupIfValueLua string
 //go:embed scripts/seed_transaction_backup.lua
 var seedTransactionBackupLua string
 
+//go:embed scripts/transaction_economic_evidence_exists.lua
+var transactionEconomicEvidenceExistsLua string
+
 // balanceAtomicScript and claimBalanceSyncScript are built once at package init.
 // redis.NewScript computes the source SHA1 eagerly, so hoisting these out of the
 // per-call hot paths (runBalanceAtomicScript, GetBalanceSyncKeys,
@@ -89,6 +92,7 @@ var (
 	removeTransactionBackupIfStatusScript      = redis.NewScript(removeTransactionBackupIfStatusLua)
 	removeTransactionBackupIfValueScript       = redis.NewScript(removeTransactionBackupIfValueLua)
 	seedTransactionBackupScript                = redis.NewScript(seedTransactionBackupLua)
+	transactionEconomicEvidenceExistsScript    = redis.NewScript(transactionEconomicEvidenceExistsLua)
 )
 
 //go:embed scripts/remove_balance_sync_keys_batch.lua
@@ -165,6 +169,11 @@ type RedisRepository interface {
 	// writes an immutable, replayable outcome in the same Lua command as the
 	// balance mutation. An opposite outcome is rejected before any movement.
 	ProcessOutcomeBalanceAtomicOperation(ctx context.Context, organizationID, ledgerID, transactionID uuid.UUID, transactionStatus string, pending bool, balances []mmodel.BalanceOperation, attempt mmodel.BalanceExecutionAttempt) (*mmodel.BalanceAtomicResult, error)
+	// TransactionEconomicEvidenceExists atomically reports whether the exact
+	// backup, immutable outcome, execution attempt, or attempt owner survives.
+	// A rollout drain may proceed only after this same-slot proof is false and
+	// the PostgreSQL claim is absent or terminal.
+	TransactionEconomicEvidenceExists(ctx context.Context, organizationID, ledgerID, transactionID uuid.UUID) (bool, error)
 	// SetBytes stores binary data with a TTL.
 	SetBytes(ctx context.Context, key string, value []byte, ttl time.Duration) error
 	// GetBytes retrieves binary data by key.
@@ -1539,6 +1548,44 @@ func (rr *RedisConsumerRepository) ReadMessageFromQueue(ctx context.Context, key
 	logger.Log(ctx, libLog.LevelDebug, "Message read from Redis queue", libLog.String("key", key))
 
 	return data, nil
+}
+
+// TransactionEconomicEvidenceExists atomically inspects every Redis record
+// that can prove a transaction money-path attempt is still live or requires
+// recovery. The backup hash and all three string keys share {transactions}.
+func (rr *RedisConsumerRepository) TransactionEconomicEvidenceExists(
+	ctx context.Context,
+	organizationID, ledgerID, transactionID uuid.UUID,
+) (bool, error) {
+	if transactionID == uuid.Nil {
+		return false, fmt.Errorf("transaction id is required for economic evidence")
+	}
+
+	backupField := utils.TransactionInternalKey(organizationID, ledgerID, transactionID.String())
+	outcomeKey := utils.TransactionBalanceOutcomeKey(organizationID, ledgerID, transactionID)
+	executionKey := utils.TransactionBalanceExecutionKey(organizationID, ledgerID, transactionID)
+	prefixedKeys, err := tenantKeysFromContext(ctx, []string{
+		TransactionBackupQueue, outcomeKey, executionKey, executionKey + ":owner",
+	})
+	if err != nil {
+		return false, err
+	}
+	prefixedBackupField, err := tenantKeyFromContextOrError(ctx, backupField)
+	if err != nil {
+		return false, err
+	}
+	rds, err := rr.conn.GetClient(ctx)
+	if err != nil {
+		return false, err
+	}
+
+	exists, err := transactionEconomicEvidenceExistsScript.Run(ctx, rds, prefixedKeys,
+		prefixedBackupField).Bool()
+	if err != nil {
+		return false, fmt.Errorf("inspect transaction economic evidence: %w", err)
+	}
+
+	return exists, nil
 }
 
 // ReadAllMessagesFromQueue read all messages from redis queue

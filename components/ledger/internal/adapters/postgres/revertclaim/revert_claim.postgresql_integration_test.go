@@ -46,6 +46,8 @@ func TestIntegration_RevertClaim_ConcurrentOriginHasSingleReservedReverse(t *tes
 	acquired := make([]bool, racers)
 	errs := make([]error, racers)
 	legacyKeys := make([]string, racers)
+	rolloutMode := "bridge"
+	rolloutToken := "origin-generation-token"
 	start := make(chan struct{})
 
 	var wg sync.WaitGroup
@@ -58,7 +60,7 @@ func TestIntegration_RevertClaim_ConcurrentOriginHasSingleReservedReverse(t *tes
 			reverseID := uuid.New()
 			legacyOwner := reverseID.String()
 			claims[slot], acquired[slot], errs[slot] = repo.Claim(ctx, organizationID, ledgerID, originID,
-				reverseID, &legacyKeys[slot], &legacyOwner)
+				reverseID, &legacyKeys[slot], &legacyOwner, &rolloutMode, &rolloutToken)
 		}(i)
 	}
 	close(start)
@@ -85,6 +87,11 @@ func TestIntegration_RevertClaim_ConcurrentOriginHasSingleReservedReverse(t *tes
 		require.NotNil(t, claim.LegacyFenceOwner)
 		assert.Equal(t, reservedID.String(), *claim.LegacyFenceOwner,
 			"every loser must recover the immutable owner chosen by the winning claim")
+		require.NotNil(t, claim.RolloutMode)
+		assert.Equal(t, rolloutMode, *claim.RolloutMode)
+		require.NotNil(t, claim.RolloutToken)
+		assert.Equal(t, rolloutToken, *claim.RolloutToken,
+			"every loser must recover the exact rollout generation chosen by the winning claim")
 	}
 }
 
@@ -95,7 +102,8 @@ func TestIntegration_RevertClaim_ReverseIDIsUniqueAndReleaseIsPreMutationOnly(t 
 	ledgerID := uuid.New()
 	reverseID := uuid.New()
 
-	first, acquired, err := repo.Claim(ctx, organizationID, ledgerID, uuid.New(), reverseID, nil, nil)
+	first, acquired, err := repo.Claim(ctx, organizationID, ledgerID, uuid.New(), reverseID,
+		nil, nil, nil, nil)
 	require.NoError(t, err)
 	require.True(t, acquired)
 	byReverseID, err := repo.GetByReverseID(ctx, organizationID, ledgerID, reverseID)
@@ -106,7 +114,8 @@ func TestIntegration_RevertClaim_ReverseIDIsUniqueAndReleaseIsPreMutationOnly(t 
 	require.NoError(t, err)
 	assert.Nil(t, missing)
 
-	_, _, err = repo.Claim(ctx, organizationID, ledgerID, uuid.New(), reverseID, nil, nil)
+	_, _, err = repo.Claim(ctx, organizationID, ledgerID, uuid.New(), reverseID,
+		nil, nil, nil, nil)
 	require.Error(t, err, "one reverse ID cannot be reserved for two origins")
 
 	require.NoError(t, repo.Transition(ctx, first.OrganizationID, first.LedgerID, first.OriginTransactionID,
@@ -131,6 +140,22 @@ func TestIntegration_RevertClaim_ReverseIDIsUniqueAndReleaseIsPreMutationOnly(t 
 	assert.False(t, released, "reconciliation may never reopen the money path")
 }
 
+func TestIntegration_RevertClaim_RolloutGenerationIsAllOrNothing(t *testing.T) {
+	repo, container := setupRevertClaimRepository(t)
+	ctx := context.Background()
+
+	mode := "bridge"
+	_, _, err := repo.Claim(ctx, uuid.New(), uuid.New(), uuid.New(), uuid.New(),
+		nil, nil, &mode, nil)
+	require.ErrorContains(t, err, "must be provided together")
+
+	_, err = container.DB.ExecContext(ctx, `
+		INSERT INTO transaction_revert_claim (
+			organization_id, ledger_id, origin_transaction_id, reverse_transaction_id, rollout_mode
+		) VALUES ($1, $2, $3, $4, 'bridge')`, uuid.New(), uuid.New(), uuid.New(), uuid.New())
+	require.Error(t, err, "the database must reject a rollout generation without its exact token")
+}
+
 func TestIntegration_RevertClaim_PreMutationRecoveryElectsOneOwner(t *testing.T) {
 	repo, container := setupRevertClaimRepository(t)
 	ctx := context.Background()
@@ -139,7 +164,8 @@ func TestIntegration_RevertClaim_PreMutationRecoveryElectsOneOwner(t *testing.T)
 	originID := uuid.New()
 	reverseID := uuid.New()
 
-	_, acquired, err := repo.Claim(ctx, organizationID, ledgerID, originID, reverseID, nil, nil)
+	_, acquired, err := repo.Claim(ctx, organizationID, ledgerID, originID, reverseID,
+		nil, nil, nil, nil)
 	require.NoError(t, err)
 	require.True(t, acquired)
 
@@ -191,7 +217,8 @@ func TestIntegration_RevertClaim_ReadsIgnoreReplicaLag(t *testing.T) {
 	ledgerID := uuid.New()
 	originID := uuid.New()
 	reverseID := uuid.New()
-	_, acquired, err := repo.Claim(ctx, organizationID, ledgerID, originID, reverseID, nil, nil)
+	_, acquired, err := repo.Claim(ctx, organizationID, ledgerID, originID, reverseID,
+		nil, nil, nil, nil)
 	require.NoError(t, err)
 	require.True(t, acquired)
 
@@ -226,7 +253,8 @@ func TestIntegration_RevertClaim_MigrationDownAndUp(t *testing.T) {
 	originID := uuid.New()
 	reverseID := uuid.New()
 
-	_, acquired, err := repo.Claim(ctx, organizationID, ledgerID, originID, reverseID, nil, nil)
+	_, acquired, err := repo.Claim(ctx, organizationID, ledgerID, originID, reverseID,
+		nil, nil, nil, nil)
 	require.NoError(t, err)
 	require.True(t, acquired)
 
@@ -256,7 +284,8 @@ func TestIntegration_RevertClaim_MigrationDownAndUp(t *testing.T) {
 	_, err = container.DB.ExecContext(ctx, string(up))
 	require.NoError(t, err)
 
-	_, acquired, err = repo.Claim(ctx, uuid.New(), uuid.New(), uuid.New(), uuid.New(), nil, nil)
+	_, acquired, err = repo.Claim(ctx, uuid.New(), uuid.New(), uuid.New(), uuid.New(),
+		nil, nil, nil, nil)
 	require.NoError(t, err)
 	assert.True(t, acquired)
 }

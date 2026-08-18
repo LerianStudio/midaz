@@ -8,6 +8,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 
 	libRedis "github.com/LerianStudio/lib-commons/v6/commons/redis"
 	redislib "github.com/redis/go-redis/v9"
@@ -67,6 +68,7 @@ local mode = ARGV[1]
 local kind = ARGV[2]
 local origin = ARGV[3]
 local attempt = ARGV[4]
+local target = ARGV[5]
 
 local ready = false
 if mode == 'legacy' then
@@ -76,6 +78,12 @@ elseif mode == 'bridge' then
 elseif mode == 'final' then
   ready = phase == 'phase-zero-drained' or phase == 'finalized'
 end
+
+local target_ready = target == ''
+  or (target == 'active' and (phase == 'active' or phase == 'phase-zero-drained' or phase == 'finalized'))
+  or (target == 'phase-zero-drained' and (phase == 'phase-zero-drained' or phase == 'finalized'))
+  or (target == 'finalized' and phase == 'finalized')
+ready = ready and target_ready
 
 if kind == 'approved-update' then
   local frozen = phase == 'active' or phase == 'phase-zero-drained'
@@ -138,16 +146,108 @@ redis.call('SREM', KEYS[2], ARGV[1])
 return 1
 `
 
+const proveRevertRolloutCompletionScript = `
+local terminal = redis.call('SISMEMBER', KEYS[3], ARGV[1])
+local attempts = redis.call('HLEN', KEYS[1])
+local active = redis.call('SISMEMBER', KEYS[2], ARGV[1])
+if terminal == 1 and attempts == 0 and active == 0 then
+  return 1
+end
+if terminal == 0 then
+  return 0
+end
+return -1
+`
+
 // RevertUpdateFreezeGuard reads the deployment-wide rollout marker without a
 // tenant prefix. Phase-zero, bridge, readiness, and every tenant must observe
 // one shared barrier while old and bridge revert algorithms coexist.
 type RevertUpdateFreezeGuard struct {
 	connection *libRedis.Client
+	target     string
 }
 
 // NewRevertUpdateFreezeGuard creates a deployment-wide revert rollout guard.
-func NewRevertUpdateFreezeGuard(connection *libRedis.Client) *RevertUpdateFreezeGuard {
-	return &RevertUpdateFreezeGuard{connection: connection}
+func NewRevertUpdateFreezeGuard(connection *libRedis.Client, target ...string) *RevertUpdateFreezeGuard {
+	guard := &RevertUpdateFreezeGuard{connection: connection}
+	if len(target) > 0 {
+		guard.target = strings.ToLower(strings.TrimSpace(target[0]))
+	}
+
+	return guard
+}
+
+// FinancialDurability verifies the Redis trust boundary required while Redis
+// is the authoritative pre-PostgreSQL money-path store. Every cluster shard
+// must reject eviction and have healthy AOF persistence. This cannot promise a
+// smaller RPO than the configured appendfsync policy; it only fails closed when
+// the required durability mechanism is absent or unhealthy.
+func (g *RevertUpdateFreezeGuard) FinancialDurability(ctx context.Context) error {
+	if g == nil || g.connection == nil {
+		return fmt.Errorf("revert rollout Redis connection not configured")
+	}
+	client, err := g.connection.GetClient(ctx)
+	if err != nil {
+		return fmt.Errorf("get revert rollout Redis client: %w", err)
+	}
+
+	if cluster, ok := client.(*redislib.ClusterClient); ok {
+		if err := cluster.ForEachShard(ctx, func(ctx context.Context, shard *redislib.Client) error {
+			return validateFinancialRedisNode(ctx, shard)
+		}); err != nil {
+			return fmt.Errorf("validate financial Redis cluster durability: %w", err)
+		}
+
+		return nil
+	}
+
+	return validateFinancialRedisNode(ctx, client)
+}
+
+func validateFinancialRedisNode(ctx context.Context, client redislib.Cmdable) error {
+	policy, err := client.ConfigGet(ctx, "maxmemory-policy").Result()
+	if err != nil {
+		return fmt.Errorf("read maxmemory policy: %w", err)
+	}
+	if policy["maxmemory-policy"] != "noeviction" {
+		return fmt.Errorf("maxmemory-policy must be noeviction")
+	}
+
+	aof, err := client.ConfigGet(ctx, "appendonly").Result()
+	if err != nil {
+		return fmt.Errorf("read appendonly policy: %w", err)
+	}
+	if aof["appendonly"] != "yes" {
+		return fmt.Errorf("appendonly must be enabled")
+	}
+	fsync, err := client.ConfigGet(ctx, "appendfsync").Result()
+	if err != nil {
+		return fmt.Errorf("read appendfsync policy: %w", err)
+	}
+	if fsync["appendfsync"] != "always" && fsync["appendfsync"] != "everysec" {
+		return fmt.Errorf("appendfsync must be always or everysec")
+	}
+
+	info, err := client.Info(ctx, "persistence").Result()
+	if err != nil {
+		return fmt.Errorf("read persistence health: %w", err)
+	}
+	if redisInfoField(info, "aof_enabled") != "1" || redisInfoField(info, "aof_last_write_status") != "ok" {
+		return fmt.Errorf("AOF persistence is not healthy")
+	}
+
+	return nil
+}
+
+func redisInfoField(info, name string) string {
+	for _, line := range strings.Split(info, "\n") {
+		key, value, found := strings.Cut(strings.TrimSpace(line), ":")
+		if found && key == name {
+			return strings.TrimSpace(value)
+		}
+	}
+
+	return ""
 }
 
 // Active reports whether approved transaction updates are currently frozen.
@@ -176,7 +276,7 @@ func (g *RevertUpdateFreezeGuard) ApprovedUpdatePolicy(ctx context.Context, mode
 
 	frozen := value == RevertUpdateFreezeActive || value == RevertUpdateFreezeDrained
 
-	return frozen, revertModeReadyForPhase(value, mode), nil
+	return frozen, revertModeReadyForPhase(value, mode) && revertTargetReached(value, g.target), nil
 }
 
 // AcquireApprovedUpdate atomically admits an APPROVED update and records its
@@ -252,7 +352,7 @@ func (g *RevertUpdateFreezeGuard) acquireRequest(ctx context.Context, mode, kind
 		revertBridgeCompletedKey,
 		revertRolloutOriginAttemptKey("legacy", token),
 		revertRolloutOriginAttemptKey("bridge", token),
-	}, mode, kind, token, attemptID).Int64()
+	}, mode, kind, token, attemptID, g.target).Int64()
 	if err != nil {
 		return 0, fmt.Errorf("acquire revert rollout request lease: %w", err)
 	}
@@ -309,6 +409,47 @@ func (g *RevertUpdateFreezeGuard) CompleteRevert(ctx context.Context, mode, toke
 	}
 
 	return nil
+}
+
+// RevertTerminalHandoffComplete proves in one rollout-slot Lua read that the
+// exact generation is terminal and cannot retain or recreate an active attempt.
+func (g *RevertUpdateFreezeGuard) RevertTerminalHandoffComplete(
+	ctx context.Context,
+	mode, token string,
+) (bool, error) {
+	key, err := revertRolloutLeaseKey(mode)
+	if err != nil {
+		return false, err
+	}
+	if key == "" {
+		return true, nil
+	}
+	if g == nil || g.connection == nil {
+		return false, fmt.Errorf("revert update freeze Redis connection not configured")
+	}
+	if token == "" {
+		return false, fmt.Errorf("revert rollout request token is required")
+	}
+
+	client, err := g.connection.GetClient(ctx)
+	if err != nil {
+		return false, fmt.Errorf("get revert update freeze Redis client: %w", err)
+	}
+	completedKey := revertPhaseZeroCompletedKey
+	if mode == "bridge" {
+		completedKey = revertBridgeCompletedKey
+	}
+	result, err := client.Eval(ctx, proveRevertRolloutCompletionScript, []string{
+		revertRolloutOriginAttemptKey(mode, token), key, completedKey,
+	}, token).Int64()
+	if err != nil {
+		return false, fmt.Errorf("prove revert rollout terminal handoff: %w", err)
+	}
+	if result < 0 {
+		return false, fmt.Errorf("revert rollout terminal handoff is inconsistent")
+	}
+
+	return result == 1, nil
 }
 
 func revertRolloutOriginAttemptKey(mode, originToken string) string {
@@ -386,7 +527,23 @@ func (g *RevertUpdateFreezeGuard) ReadyForMode(ctx context.Context, mode string)
 		return false, err
 	}
 
-	return revertModeReadyForPhase(value, mode), nil
+	return revertModeReadyForPhase(value, mode) && revertTargetReached(value, g.target), nil
+}
+
+func revertTargetReached(value, target string) bool {
+	switch target {
+	case "":
+		return true
+	case RevertUpdateFreezeActive:
+		return value == RevertUpdateFreezeActive || value == RevertUpdateFreezeDrained ||
+			value == RevertUpdateFreezeFinalized
+	case RevertUpdateFreezeDrained:
+		return value == RevertUpdateFreezeDrained || value == RevertUpdateFreezeFinalized
+	case RevertUpdateFreezeFinalized:
+		return value == RevertUpdateFreezeFinalized
+	default:
+		return false
+	}
 }
 
 func revertModeReadyForPhase(value, mode string) bool {
@@ -428,6 +585,9 @@ func (g *RevertUpdateFreezeGuard) state(ctx context.Context) (string, error) {
 func (g *RevertUpdateFreezeGuard) Activate(ctx context.Context) error {
 	if g == nil || g.connection == nil {
 		return fmt.Errorf("revert update freeze Redis connection not configured")
+	}
+	if err := g.FinancialDurability(ctx); err != nil {
+		return fmt.Errorf("activate revert update freeze without durable financial Redis: %w", err)
 	}
 
 	client, err := g.connection.GetClient(ctx)

@@ -167,7 +167,8 @@ func arrangeReplayedRevert(t *testing.T, ctrl *gomock.Controller) (*TransactionH
 		State:                revertclaim.StateCompleted,
 	}
 	claimRepo.EXPECT().
-		Claim(gomock.Any(), subjects.orgID, subjects.ledgerID, subjects.originID, subjects.reverseID, nil, nil).
+		Claim(gomock.Any(), subjects.orgID, subjects.ledgerID, subjects.originID, subjects.reverseID,
+			nil, nil, nil, nil).
 		Return(claim, false, nil).
 		Times(1)
 	claimRepo.EXPECT().

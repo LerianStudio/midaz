@@ -67,8 +67,10 @@ func (uc *UseCase) FinalizeDurableTransactionPersistence(
 		return true, err
 	}
 
+	var durableRevertClaim *revertclaim.Claim
 	if reverse {
-		if err := uc.finalizeDurableRevertClaim(ctx, organizationID, ledgerID, persisted, payload); err != nil {
+		durableRevertClaim, err = uc.finalizeDurableRevertClaim(ctx, organizationID, ledgerID, persisted, payload)
+		if err != nil {
 			return true, err
 		}
 	}
@@ -98,13 +100,19 @@ func (uc *UseCase) FinalizeDurableTransactionPersistence(
 		}
 	}
 
-	if payload.RevertRolloutToken != "" {
+	if durableRevertClaim != nil && (durableRevertClaim.RolloutMode != nil || durableRevertClaim.RolloutToken != nil) {
 		if !reverse || uc.RevertRolloutLease == nil {
 			return true, fmt.Errorf("revert rollout lease cannot be finalized")
 		}
-		if err := uc.RevertRolloutLease.CompleteRevert(ctx, payload.RevertRolloutMode, payload.RevertRolloutToken); err != nil {
+		if durableRevertClaim.RolloutMode == nil || durableRevertClaim.RolloutToken == nil {
+			return true, fmt.Errorf("durable revert rollout generation is incomplete")
+		}
+		if err := uc.RevertRolloutLease.CompleteRevert(ctx,
+			*durableRevertClaim.RolloutMode, *durableRevertClaim.RolloutToken); err != nil {
 			return true, fmt.Errorf("release durable revert rollout lease: %w", err)
 		}
+	} else if payload.RevertRolloutToken != "" {
+		return true, fmt.Errorf("durable revert claim lost its rollout generation")
 	}
 
 	return true, nil
@@ -194,10 +202,10 @@ func (uc *UseCase) finalizeDurableRevertClaim(
 	organizationID, ledgerID uuid.UUID,
 	persisted *transaction.Transaction,
 	payload transaction.TransactionProcessingPayload,
-) error {
+) (*revertclaim.Claim, error) {
 	originID, err := uuid.Parse(*persisted.ParentTransactionID)
 	if err != nil {
-		return fmt.Errorf("parse reverse origin transaction id: %w", err)
+		return nil, fmt.Errorf("parse reverse origin transaction id: %w", err)
 	}
 	reverseID := persisted.IDtoUUID()
 	var legacyFenceKey *string
@@ -205,7 +213,7 @@ func (uc *UseCase) finalizeDurableRevertClaim(
 	if payload.Input != nil {
 		legacyHash, hashErr := utils.LegacyTransactionIdempotencyHash(*payload.Input)
 		if hashErr != nil {
-			return fmt.Errorf("compute reverse legacy fence key: %w", hashErr)
+			return nil, fmt.Errorf("compute reverse legacy fence key: %w", hashErr)
 		}
 		key := utils.IdempotencyInternalKey(organizationID, ledgerID, legacyHash)
 		legacyFenceKey = &key
@@ -216,25 +224,37 @@ func (uc *UseCase) finalizeDurableRevertClaim(
 	}
 
 	claim, _, err := uc.ClaimRevert(ctx, organizationID, ledgerID, originID, reverseID,
-		legacyFenceKey, legacyFenceOwner)
+		legacyFenceKey, legacyFenceOwner, optionalString(payload.RevertRolloutMode), optionalString(payload.RevertRolloutToken))
 	if err != nil {
-		return fmt.Errorf("adopt durable revert claim: %w", err)
+		return nil, fmt.Errorf("adopt durable revert claim: %w", err)
 	}
 	if claim == nil || claim.ReverseTransactionID != reverseID {
-		return fmt.Errorf("durable revert claim identity mismatch")
+		return nil, fmt.Errorf("durable revert claim identity mismatch")
+	}
+	if payload.RevertRolloutToken != "" && (claim.RolloutMode == nil || claim.RolloutToken == nil ||
+		*claim.RolloutMode != payload.RevertRolloutMode || *claim.RolloutToken != payload.RevertRolloutToken) {
+		return nil, fmt.Errorf("durable revert rollout generation mismatch")
 	}
 
 	if err := uc.MarkRevertClaim(ctx, organizationID, ledgerID, originID, reverseID,
 		revertclaim.StateCompleted, nil); err != nil {
-		return fmt.Errorf("complete durable revert claim: %w", err)
+		return nil, fmt.Errorf("complete durable revert claim: %w", err)
 	}
 
 	replay := payload.Transaction
 	if err := uc.completeDurableRevertReplay(ctx, originID, claim, replay); err != nil {
-		return err
+		return nil, err
 	}
 
-	return nil
+	return claim, nil
+}
+
+func optionalString(value string) *string {
+	if value == "" {
+		return nil
+	}
+
+	return &value
 }
 
 func (uc *UseCase) completeDurableRevertReplay(

@@ -1137,6 +1137,21 @@ type failFirstOriginCompletionRepository struct {
 	completionCalls atomic.Int32
 }
 
+type failBeforeFirstCompleteRevertLease struct {
+	delegate interface {
+		CompleteRevert(context.Context, string, string) error
+	}
+	calls atomic.Int32
+}
+
+func (l *failBeforeFirstCompleteRevertLease) CompleteRevert(ctx context.Context, mode, token string) error {
+	if l.calls.Add(1) == 1 {
+		return errors.New("simulated rollout generation completion failure")
+	}
+
+	return l.delegate.CompleteRevert(ctx, mode, token)
+}
+
 type pausedTransactionUpdateRepository struct {
 	transaction.Repository
 	started chan struct{}
@@ -1544,6 +1559,57 @@ func TestIntegration_TransactionV2Revert_BridgeRetryUsesClaimedLegacyFenceAfterP
 	mutatedFence, err := infra.redisRepo.MGet(ctx, []string{mutatedLegacyKey, mutatedLegacyKey + ":owner"})
 	require.NoError(t, err)
 	assert.Empty(t, mutatedFence, "retry must never create or complete a key recalculated from mutable payload")
+}
+
+func TestIntegration_TransactionV2Revert_FailedRolloutCompletionRetriesExactPersistedGeneration(t *testing.T) {
+	t.Setenv("ALLOW_INSECURE_TLS", "true")
+	t.Setenv("RABBITMQ_TRANSACTION_ASYNC", "false")
+
+	infra := setupTestInfra(t)
+	ctx := context.Background()
+	srcID, dstID := seedFundedTransfer(t, infra.pgContainer.DB, infra.orgID, infra.ledgerID,
+		"@src", "@dst", 1000, 1000)
+	v2App := buildHumaV2DirectApp(t, infra.handler)
+	origin := decodeTxResponse(t, postV2Create(t, v2App, "direct", infra.orgID, infra.ledgerID,
+		equivalentV2Body, ""), nethttp.StatusCreated)
+	originID := uuid.MustParse(origin["id"].(string))
+	drainBalanceSync(t, ctx, infra.handler.Command, infra.redisRepo, infra.orgID, infra.ledgerID)
+
+	activateRevertUpdateFreeze(t, infra)
+	infra.handler.RevertIdempotencyMode = revertIdempotencyModeBridge
+	failedCompletion := &failBeforeFirstCompleteRevertLease{delegate: infra.revertFreeze}
+	infra.handler.Command.RevertRolloutLease = failedCompletion
+
+	first := postTransaction(t, v2App, v2RevertURL(infra.orgID, infra.ledgerID, originID), "", "")
+	assertProblemCode(t, first, nethttp.StatusServiceUnavailable, cn.ErrRevertReconciliationRequired.Error())
+	claim, err := infra.handler.Command.GetRevertClaim(ctx, infra.orgID, infra.ledgerID, originID)
+	require.NoError(t, err)
+	require.NotNil(t, claim)
+	require.Equal(t, revertclaim.StateCompleted, claim.State)
+	require.NotNil(t, claim.RolloutMode)
+	require.NotNil(t, claim.RolloutToken)
+	assert.Equal(t, revertIdempotencyModeBridge, *claim.RolloutMode)
+	evidence, err := infra.redisRepo.TransactionEconomicEvidenceExists(ctx, infra.orgID, infra.ledgerID,
+		claim.ReverseTransactionID)
+	require.NoError(t, err)
+	assert.False(t, evidence, "transaction and operations are durable before rollout completion is retried")
+	require.NoError(t, infra.revertFreeze.MarkPhaseZeroDrained(ctx))
+	require.Error(t, infra.revertFreeze.Finalize(ctx),
+		"the surviving exact bridge generation must prevent a false rollout drain")
+
+	retry := decodeTxResponse(t, postTransaction(t, v2App,
+		v2RevertURL(infra.orgID, infra.ledgerID, originID), "", ""), nethttp.StatusCreated)
+	assert.Equal(t, claim.ReverseTransactionID.String(), retry["id"])
+	require.NoError(t, infra.revertFreeze.Finalize(ctx),
+		"HTTP adoption must seal the exact generation persisted before movement")
+	drainBalanceSync(t, ctx, infra.handler.Command, infra.redisRepo, infra.orgID, infra.ledgerID)
+	assert.Equal(t, int32(1), failedCompletion.calls.Load(),
+		"retry uses the durable claim through the HTTP handoff, not a second consumer mutation")
+	assert.Equal(t, 2, countTransactionsInLedger(t, infra.pgContainer.DB, infra.ledgerID))
+	requireDecimalEqual(t, decimal.NewFromInt(1000), postgrestestutil.GetBalanceAvailable(t,
+		infra.pgContainer.DB, srcID), "failed rollout completion cannot restore source twice")
+	requireDecimalEqual(t, decimal.NewFromInt(1000), postgrestestutil.GetBalanceAvailable(t,
+		infra.pgContainer.DB, dstID), "failed rollout completion cannot debit destination twice")
 }
 
 func TestIntegration_TransactionApprovedUpdateLeaseBlocksFreezeActivationUntilWriteCompletes(t *testing.T) {
@@ -2355,8 +2421,10 @@ func TestIntegration_TransactionV2Revert_FinalRecoversBridgeCrashBeforeLuaThenMo
 
 	staleReverseID := uuid.New()
 	legacyOwner := staleReverseID.String()
+	rolloutMode := "bridge"
+	rolloutToken := "bridge-crash-token"
 	claim, acquired, err := infra.handler.Command.ClaimRevert(ctx, infra.orgID, infra.ledgerID, originID,
-		staleReverseID, &legacyKey, &legacyOwner)
+		staleReverseID, &legacyKey, &legacyOwner, &rolloutMode, &rolloutToken)
 	require.NoError(t, err)
 	require.True(t, acquired)
 	originKey := originRevertIdempotencyKey(claim)
@@ -2432,7 +2500,7 @@ func TestIntegration_TransactionV2Revert_CrashBeforeSeedRecoversThenMovesOnce(t 
 
 	staleReverseID := uuid.New()
 	claim, acquired, err := infra.handler.Command.ClaimRevert(ctx, infra.orgID, infra.ledgerID, originID,
-		staleReverseID, nil, nil)
+		staleReverseID, nil, nil, nil, nil)
 	require.NoError(t, err)
 	require.True(t, acquired)
 	originKey := originRevertIdempotencyKey(claim)
@@ -2618,10 +2686,10 @@ type pausedRevertClaimRepository struct {
 func (r *pausedRevertClaimRepository) Claim(
 	ctx context.Context,
 	organizationID, ledgerID, originID, reverseID uuid.UUID,
-	legacyFenceKey, legacyFenceOwner *string,
+	legacyFenceKey, legacyFenceOwner, rolloutMode, rolloutToken *string,
 ) (*revertclaim.Claim, bool, error) {
 	claim, acquired, err := r.Repository.Claim(ctx, organizationID, ledgerID, originID, reverseID,
-		legacyFenceKey, legacyFenceOwner)
+		legacyFenceKey, legacyFenceOwner, rolloutMode, rolloutToken)
 	if err == nil && acquired {
 		r.claimed <- claim
 		<-r.release

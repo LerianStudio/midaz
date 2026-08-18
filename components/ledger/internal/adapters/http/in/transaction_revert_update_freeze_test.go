@@ -28,6 +28,11 @@ type revertUpdateFreezeStub struct {
 	revertReleases   int
 	revertTokens     []string
 	revertAttempts   []string
+	completeErr      error
+	completedModes   []string
+	completedTokens  []string
+	terminalComplete bool
+	terminalErr      error
 }
 
 func TestActiveRevertIdempotencyMode_ZeroValuePreservesReleasedAlgorithm(t *testing.T) {
@@ -66,9 +71,12 @@ func (s *revertUpdateFreezeStub) ReleaseApprovedUpdate(context.Context, string) 
 	return s.releaseErr
 }
 
-func (s *revertUpdateFreezeStub) AcquireRevert(_ context.Context, _ string, token, attemptID string) (bool, bool, string, error) {
+func (s *revertUpdateFreezeStub) AcquireRevert(_ context.Context, mode, token, attemptID string) (bool, bool, string, error) {
 	s.revertTokens = append(s.revertTokens, token)
 	s.revertAttempts = append(s.revertAttempts, attemptID)
+	if mode == revertIdempotencyModeFinal && s.ready {
+		return true, false, "finalized", s.err
+	}
 	phase := ""
 	if s.active {
 		phase = "active"
@@ -105,6 +113,17 @@ func (s *revertUpdateFreezeStub) ReleaseRevert(context.Context, string, string, 
 	s.revertReleases++
 
 	return s.releaseErr
+}
+
+func (s *revertUpdateFreezeStub) CompleteRevert(_ context.Context, mode, token string) error {
+	s.completedModes = append(s.completedModes, mode)
+	s.completedTokens = append(s.completedTokens, token)
+
+	return s.completeErr
+}
+
+func (s *revertUpdateFreezeStub) RevertTerminalHandoffComplete(context.Context, string, string) (bool, error) {
+	return s.terminalComplete, s.terminalErr
 }
 
 func TestAcquireRolloutRequest_AmbiguousAdmissionPreservesSharedRevertOrigin(t *testing.T) {

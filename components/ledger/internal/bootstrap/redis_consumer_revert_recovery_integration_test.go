@@ -48,10 +48,15 @@ func TestIntegration_RevertBackupRecoveryPersistsExactParentAndCompletesClaim(t 
 	postgresClient := postgrestestutil.CreatePostgresClient(t, postgresDSN, postgresDSN, postgresContainer.Config.DBName,
 		postgrestestutil.FindMigrationsPath(t, "transaction"))
 	redisContainer := redistestutil.SetupContainer(t)
+	require.NoError(t, redisContainer.Client.ConfigSet(ctx, "maxmemory-policy", "noeviction").Err())
+	require.NoError(t, redisContainer.Client.ConfigSet(ctx, "appendfsync", "always").Err())
+	require.NoError(t, redisContainer.Client.ConfigSet(ctx, "appendonly", "yes").Err())
 	redisConnection := redistestutil.CreateConnection(t, redisContainer.Addr)
 	redisRepo, err := transactionredis.NewConsumerRedis(redisConnection)
 	require.NoError(t, err)
 	rolloutGuard := transactionredis.NewRevertUpdateFreezeGuard(redisConnection)
+	require.Eventually(t, func() bool { return rolloutGuard.FinancialDurability(ctx) == nil },
+		10*time.Second, 50*time.Millisecond)
 	rolloutToken := uuid.NewString()
 	admitted, leaseHeld, phase, err := rolloutGuard.AcquireRevert(ctx, "legacy", rolloutToken, "consumer-recovery-attempt")
 	require.NoError(t, err)
@@ -376,7 +381,8 @@ func TestIntegration_RevertBackupRecoveryAdoptsPartialDeterministicOperationSet(
 		CreatedAt: fixedTime, UpdatedAt: fixedTime,
 	})
 	require.NoError(t, err)
-	_, acquired, err := claimRepo.Claim(ctx, organizationID, ledgerID, originID, reverseID, nil, nil)
+	_, acquired, err := claimRepo.Claim(ctx, organizationID, ledgerID, originID, reverseID,
+		nil, nil, nil, nil)
 	require.NoError(t, err)
 	require.True(t, acquired)
 	reason := "post_balance_persistence_incomplete"

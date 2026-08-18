@@ -7,6 +7,7 @@ package bootstrap
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -17,18 +18,28 @@ import (
 )
 
 type revertRolloutBarrierStub struct {
-	ready bool
-	err   error
+	ready         bool
+	err           error
+	durabilityErr error
+	phase         string
 }
 
 func (s revertRolloutBarrierStub) ReadyForMode(context.Context, string) (bool, error) {
 	return s.ready, s.err
 }
 
+func (s revertRolloutBarrierStub) FinancialDurability(context.Context) error {
+	return s.durabilityErr
+}
+
+func (s revertRolloutBarrierStub) Phase(context.Context) (string, error) {
+	return s.phase, s.err
+}
+
 func TestRevertRolloutBarrierChecker_MarkerOffBlocksReadiness(t *testing.T) {
 	t.Parallel()
 
-	checker := NewRevertRolloutBarrierChecker(revertRolloutBarrierStub{}, "bridge", true)
+	checker := NewRevertRolloutBarrierChecker(revertRolloutBarrierStub{}, "bridge", "active", true)
 	handler := newReadyHandler(ReadyzHandlerConfig{Logger: newTestLogger(), Checkers: []DependencyChecker{checker}, DeploymentMode: "local"})
 	app := fiber.New()
 	app.Get("/readyz", handler.HandleReadyz)
@@ -46,10 +57,40 @@ func TestRevertRolloutBarrierChecker_MarkerOffBlocksReadiness(t *testing.T) {
 func TestRevertRolloutBarrierChecker_FinalAcceptsFinalizedBarrier(t *testing.T) {
 	t.Parallel()
 
-	checker := NewRevertRolloutBarrierChecker(revertRolloutBarrierStub{ready: true}, "final", true)
+	checker := NewRevertRolloutBarrierChecker(revertRolloutBarrierStub{ready: true}, "final", "finalized", true)
 	check := checker.Check(context.Background())
 	assert.Equal(t, StatusUp, check.Status)
 	assert.True(t, checker.TLSEnabled())
+}
+
+func TestRevertRolloutBarrierChecker_RejectsUnsafeFinancialRedis(t *testing.T) {
+	t.Parallel()
+
+	checker := NewRevertRolloutBarrierChecker(revertRolloutBarrierStub{
+		ready: true, phase: "active", durabilityErr: errors.New("appendonly must be enabled"),
+	}, "legacy", "active", true)
+	check := checker.Check(context.Background())
+	assert.Equal(t, StatusDown, check.Status)
+	assert.ErrorContains(t, errors.New(check.Error), "appendonly must be enabled")
+}
+
+func TestRevertRolloutBarrierChecker_ReleasedLegacyDoesNotRequireDurableRolloutStorage(t *testing.T) {
+	t.Parallel()
+
+	checker := NewRevertRolloutBarrierChecker(revertRolloutBarrierStub{
+		ready: true, durabilityErr: errors.New("appendonly must be enabled"),
+	}, "legacy", "", true)
+	assert.Equal(t, StatusUp, checker.Check(context.Background()).Status)
+}
+
+func TestRevertRolloutBarrierChecker_LegacyActiveTargetRejectsLostMarker(t *testing.T) {
+	t.Parallel()
+
+	checker := NewRevertRolloutBarrierChecker(revertRolloutBarrierStub{ready: false},
+		"legacy", "active", true)
+	check := checker.Check(context.Background())
+	assert.Equal(t, StatusDown, check.Status)
+	assert.Contains(t, check.Reason, "does not admit")
 }
 
 func TestRevertRolloutBarrierMode(t *testing.T) {

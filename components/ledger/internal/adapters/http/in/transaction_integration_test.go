@@ -88,6 +88,12 @@ func setupTestInfra(t *testing.T) *testInfra {
 	infra.pgContainer = postgrestestutil.SetupContainer(t)
 	infra.mongoContainer = mongotestutil.SetupContainer(t)
 	infra.redisContainer = redistestutil.SetupContainer(t)
+	require.NoError(t, infra.redisContainer.Client.ConfigSet(context.Background(),
+		"maxmemory-policy", "noeviction").Err())
+	require.NoError(t, infra.redisContainer.Client.ConfigSet(context.Background(),
+		"appendfsync", "always").Err())
+	require.NoError(t, infra.redisContainer.Client.ConfigSet(context.Background(),
+		"appendonly", "yes").Err())
 
 	// Create PostgreSQL connection following lib-commons pattern
 	migrationsPath := postgrestestutil.FindMigrationsPath(t, "transaction")
@@ -115,6 +121,9 @@ func setupTestInfra(t *testing.T) *testInfra {
 	redisRepo, err := redis.NewConsumerRedis(redisConn)
 	require.NoError(t, err, "failed to create Redis repository")
 	revertFreeze := redis.NewRevertUpdateFreezeGuard(redisConn)
+	require.Eventually(t, func() bool {
+		return revertFreeze.FinancialDurability(context.Background()) == nil
+	}, 10*time.Second, 50*time.Millisecond, "financial Redis test fixture never became durable")
 	require.NoError(t, revertFreeze.Activate(context.Background()), "failed to initialize active revert rollout barrier")
 	require.NoError(t, revertFreeze.MarkPhaseZeroDrained(context.Background()), "failed to initialize drained revert rollout barrier")
 	require.NoError(t, revertFreeze.Finalize(context.Background()), "failed to initialize finalized revert rollout barrier")

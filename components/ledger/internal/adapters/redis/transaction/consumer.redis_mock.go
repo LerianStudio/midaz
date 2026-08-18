@@ -514,6 +514,21 @@ func (mr *MockRedisRepositoryMockRecorder) SetNX(ctx, key, value, ttl any) *gomo
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetNX", reflect.TypeOf((*MockRedisRepository)(nil).SetNX), ctx, key, value, ttl)
 }
 
+// TransactionEconomicEvidenceExists mocks base method.
+func (m *MockRedisRepository) TransactionEconomicEvidenceExists(ctx context.Context, organizationID, ledgerID, transactionID uuid.UUID) (bool, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "TransactionEconomicEvidenceExists", ctx, organizationID, ledgerID, transactionID)
+	ret0, _ := ret[0].(bool)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// TransactionEconomicEvidenceExists indicates an expected call of TransactionEconomicEvidenceExists.
+func (mr *MockRedisRepositoryMockRecorder) TransactionEconomicEvidenceExists(ctx, organizationID, ledgerID, transactionID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "TransactionEconomicEvidenceExists", reflect.TypeOf((*MockRedisRepository)(nil).TransactionEconomicEvidenceExists), ctx, organizationID, ledgerID, transactionID)
+}
+
 // UpdateBalanceCacheSettings mocks base method.
 func (m *MockRedisRepository) UpdateBalanceCacheSettings(ctx context.Context, organizationID, ledgerID uuid.UUID, cacheKey string, settings *mmodel.BalanceSettings) error {
 	m.ctrl.T.Helper()

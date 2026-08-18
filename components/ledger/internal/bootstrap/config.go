@@ -613,7 +613,7 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 
 	addCleanup(func() { _ = redisConnection.Close() })
 
-	revertRolloutGuard := txRedis.NewRevertUpdateFreezeGuard(redisConnection)
+	revertRolloutGuard := txRedis.NewRevertUpdateFreezeGuard(redisConnection, cfg.RevertRolloutTarget)
 	transitionCtx, cancelTransition := context.WithTimeout(context.Background(), 5*time.Second)
 	err = applyRevertRolloutTarget(transitionCtx, revertRolloutGuard, cfg.RevertRolloutTarget)
 	cancelTransition()

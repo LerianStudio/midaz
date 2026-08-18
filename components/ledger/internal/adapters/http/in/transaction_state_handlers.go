@@ -336,6 +336,11 @@ func (handler *TransactionHandler) revertTransaction(ctx context.Context, organi
 	if rolloutToken != "" {
 		rolloutMode = handler.activeRevertIdempotencyMode()
 	}
+	var claimRolloutMode, claimRolloutToken *string
+	if rolloutToken != "" {
+		claimRolloutMode = &rolloutMode
+		claimRolloutToken = &rolloutToken
+	}
 
 	finish := func(tran *transaction.Transaction, replayed bool, err error) (*transaction.Transaction, bool, error) {
 		if replayed && err == nil {
@@ -362,11 +367,13 @@ func (handler *TransactionHandler) revertTransaction(ctx context.Context, organi
 		}
 
 		var adoptionLegacyKey *string
+		var adoptedReverseID uuid.UUID
 		if handler.activeRevertIdempotencyMode() == revertIdempotencyModeBridge || durablePhaseZero {
 			reverseID, parseErr := uuid.Parse(parent.ID)
 			if parseErr != nil {
 				return finish(nil, false, pkg.ValidateBusinessError(constant.ErrRevertReconciliationRequired, constant.EntityTransaction))
 			}
+			adoptedReverseID = reverseID
 			existingClaim, claimErr := handler.Command.GetRevertClaim(ctx, organizationID, ledgerID, transactionID)
 			if claimErr != nil {
 				return finish(nil, false, claimErr)
@@ -387,7 +394,11 @@ func (handler *TransactionHandler) revertTransaction(ctx context.Context, organi
 			adoptionLegacyKey = &legacyKey
 		}
 		persisted, replayed, adoptErr := handler.adoptPersistedReverse(ctx, organizationID, ledgerID, transactionID,
-			parent, adoptionLegacyKey)
+			parent, claimRolloutMode, claimRolloutToken, adoptionLegacyKey)
+		if rolloutToken != "" {
+			releaseRolloutLeaseOnReturn = !handler.revertRolloutHandoffPending(ctx, organizationID, ledgerID,
+				transactionID, adoptedReverseID)
+		}
 		if adoptErr != nil {
 			return finish(nil, false, adoptErr)
 		}
@@ -470,8 +481,8 @@ func (handler *TransactionHandler) revertTransaction(ctx context.Context, organi
 		result, replayed, createErr := handler.createRevertTransaction(ctx, params, transactionReverted,
 			constant.CREATED, "", http.ParseIdempotencyTTL(""))
 		if rolloutToken != "" {
-			releaseRolloutLeaseOnReturn = !handler.revertRolloutBackupPending(ctx, organizationID, ledgerID,
-				params.ReservedTransactionID)
+			releaseRolloutLeaseOnReturn = !handler.revertRolloutHandoffPending(ctx, organizationID, ledgerID,
+				transactionID, params.ReservedTransactionID)
 		}
 
 		return result, replayed, createErr
@@ -498,7 +509,7 @@ func (handler *TransactionHandler) revertTransaction(ctx context.Context, organi
 				cachedLegacyKey = &legacyKey
 			}
 			claim, acquired, claimErr := handler.Command.ClaimRevert(ctx, organizationID, ledgerID, transactionID,
-				cachedID, cachedLegacyKey, nil)
+				cachedID, cachedLegacyKey, nil, claimRolloutMode, claimRolloutToken)
 			if claimErr != nil {
 				return nil, false, claimErr
 			}
@@ -510,7 +521,16 @@ func (handler *TransactionHandler) revertTransaction(ctx context.Context, organi
 				_ = handler.Command.MarkRevertClaim(ctx, organizationID, ledgerID, transactionID, cachedID, revertclaim.StateReconciliationRequired, &reason)
 			}
 
-			return finish(handler.resolveDurableRevertClaim(ctx, claim))
+			persisted, replayed, resolveErr := handler.resolveDurableRevertClaim(ctx, claim)
+			if resolveErr == nil && persisted != nil {
+				resolveErr = handler.completeCurrentRevertRollout(ctx, claim, claimRolloutMode, claimRolloutToken)
+			}
+			if rolloutToken != "" {
+				releaseRolloutLeaseOnReturn = !handler.revertRolloutHandoffPending(ctx, organizationID, ledgerID,
+					transactionID, claim.ReverseTransactionID)
+			}
+
+			return finish(persisted, replayed, resolveErr)
 		}
 
 		if handler.activeRevertIdempotencyMode() == revertIdempotencyModeBridge || durablePhaseZero {
@@ -566,7 +586,7 @@ func (handler *TransactionHandler) revertTransaction(ctx context.Context, organi
 		claimedLegacyOwner = &owner
 	}
 	claim, acquired, err := handler.Command.ClaimRevert(ctx, organizationID, ledgerID, transactionID, reverseID,
-		claimedLegacyKey, claimedLegacyOwner)
+		claimedLegacyKey, claimedLegacyOwner, claimRolloutMode, claimRolloutToken)
 	if err != nil {
 		return nil, false, errors.Join(err, releaseUnclaimedAttempt())
 	}
@@ -596,13 +616,17 @@ func (handler *TransactionHandler) revertTransaction(ctx context.Context, organi
 		}
 
 		persisted, replayed, resolveErr := handler.resolveDurableRevertClaim(ctx, claim)
+		if resolveErr == nil && persisted != nil {
+			resolveErr = handler.completeCurrentRevertRollout(ctx, claim, claimRolloutMode, claimRolloutToken)
+		}
 		if resolveErr != nil {
 			return finish(nil, false, resolveErr)
 		}
 		if persisted != nil && rolloutToken != "" {
 			// Successful resolution proves the reverse and every operation durable,
 			// completes both exact replays, and performs owner-checked cleanup.
-			releaseRolloutLeaseOnReturn = true
+			releaseRolloutLeaseOnReturn = !handler.revertRolloutHandoffPending(ctx, organizationID, ledgerID,
+				transactionID, claim.ReverseTransactionID)
 		}
 
 		return finish(persisted, replayed, nil)
@@ -628,7 +652,8 @@ func (handler *TransactionHandler) revertTransaction(ctx context.Context, organi
 			if releaseErr := handler.releaseFreshRevertClaim(ctx, claim, legacyKey, true); releaseErr != nil {
 				return nil, false, handler.requireRevertReconciliation(ctx, claim, "legacy_fence_acquire_cleanup_failed")
 			}
-			releaseRolloutLeaseOnReturn = true
+			releaseRolloutLeaseOnReturn = !handler.revertRolloutHandoffPending(ctx, organizationID, ledgerID,
+				transactionID, claim.ReverseTransactionID)
 
 			return nil, false, err
 		}
@@ -643,7 +668,8 @@ func (handler *TransactionHandler) revertTransaction(ctx context.Context, organi
 				return nil, false, handler.requireRevertReconciliation(ctx, claim,
 					"legacy_replay_claim_cleanup_failed")
 			}
-			releaseRolloutLeaseOnReturn = true
+			releaseRolloutLeaseOnReturn = !handler.revertRolloutHandoffPending(ctx, organizationID, ledgerID,
+				transactionID, claim.ReverseTransactionID)
 
 			return nil, false, pkg.ValidateBusinessError(constant.ErrIdempotencyKey,
 				"RevertTransaction", transactionID.String())
@@ -666,15 +692,15 @@ func (handler *TransactionHandler) revertTransaction(ctx context.Context, organi
 	if err != nil {
 		failureErr := handler.failRevertClaim(ctx, claim, execution, legacyKey, err)
 		if rolloutToken != "" {
-			releaseRolloutLeaseOnReturn = !handler.revertRolloutBackupPending(ctx, organizationID, ledgerID,
-				params.ReservedTransactionID)
+			releaseRolloutLeaseOnReturn = !handler.revertRolloutHandoffPending(ctx, organizationID, ledgerID,
+				transactionID, params.ReservedTransactionID)
 		}
 
 		return nil, false, failureErr
 	}
 	if rolloutToken != "" {
-		releaseRolloutLeaseOnReturn = !handler.revertRolloutBackupPending(ctx, organizationID, ledgerID,
-			params.ReservedTransactionID)
+		releaseRolloutLeaseOnReturn = !handler.revertRolloutHandoffPending(ctx, organizationID, ledgerID,
+			transactionID, params.ReservedTransactionID)
 	}
 	if replayed || !reverseMatchesClaim(tranReverted, claim) {
 		// The durable claim is the authority. A fresh claimant can only find an

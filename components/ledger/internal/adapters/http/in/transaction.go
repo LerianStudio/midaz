@@ -57,6 +57,8 @@ type TransactionHandler struct {
 		ReleaseApprovedUpdate(context.Context, string) error
 		AcquireRevert(context.Context, string, string, string) (admitted bool, leaseHeld bool, phase string, err error)
 		ReleaseRevert(context.Context, string, string, string) error
+		CompleteRevert(context.Context, string, string) error
+		RevertTerminalHandoffComplete(context.Context, string, string) (bool, error)
 	}
 }
 

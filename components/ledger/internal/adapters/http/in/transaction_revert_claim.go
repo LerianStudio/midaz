@@ -128,18 +128,43 @@ func (handler *TransactionHandler) acquireRevertRolloutRequest(
 	}, nil
 }
 
-func (handler *TransactionHandler) revertRolloutBackupPending(
+func (handler *TransactionHandler) revertRolloutHandoffPending(
 	ctx context.Context,
-	organizationID, ledgerID, reverseID uuid.UUID,
+	organizationID, ledgerID, originID, reverseID uuid.UUID,
 ) bool {
-	if reverseID == uuid.Nil || handler.Command == nil || handler.Command.TransactionRedisRepo == nil {
+	if reverseID == uuid.Nil {
+		return false
+	}
+	if handler.Command == nil || handler.Command.TransactionRedisRepo == nil || handler.Command.RevertClaimRepo == nil {
+		return true
+	}
+
+	evidence, err := handler.Command.TransactionRedisRepo.TransactionEconomicEvidenceExists(ctx,
+		organizationID, ledgerID, reverseID)
+	if err != nil || evidence {
+		return true
+	}
+	claim, err := handler.Command.GetRevertClaim(ctx, organizationID, ledgerID, originID)
+	if err != nil {
+		return true
+	}
+	if claim == nil {
 		return false
 	}
 
-	_, err := handler.Command.TransactionRedisRepo.ReadMessageFromQueue(ctx,
-		utils.TransactionInternalKey(organizationID, ledgerID, reverseID.String()))
+	if claim.ReverseTransactionID != reverseID || claim.State != revertclaim.StateCompleted {
+		return true
+	}
+	if claim.RolloutMode == nil && claim.RolloutToken == nil {
+		return false
+	}
+	if claim.RolloutMode == nil || claim.RolloutToken == nil || handler.RevertUpdateFreeze == nil {
+		return true
+	}
+	complete, err := handler.RevertUpdateFreeze.RevertTerminalHandoffComplete(ctx,
+		*claim.RolloutMode, *claim.RolloutToken)
 
-	return !errors.Is(err, redislib.Nil)
+	return err != nil || !complete
 }
 
 // releaseAmbiguousRolloutAdmission reconciles a lost admission response before
@@ -296,6 +321,7 @@ func (handler *TransactionHandler) adoptPersistedReverse(
 	ctx context.Context,
 	organizationID, ledgerID, originID uuid.UUID,
 	persisted *transaction.Transaction,
+	rolloutMode, rolloutToken *string,
 	legacyFenceKey ...*string,
 ) (*transaction.Transaction, bool, error) {
 	reverseID, err := uuid.Parse(persisted.ID)
@@ -307,7 +333,8 @@ func (handler *TransactionHandler) adoptPersistedReverse(
 	if len(legacyFenceKey) > 0 {
 		exactLegacyKey = legacyFenceKey[0]
 	}
-	claim, _, err := handler.Command.ClaimRevert(ctx, organizationID, ledgerID, originID, reverseID, exactLegacyKey, nil)
+	claim, _, err := handler.Command.ClaimRevert(ctx, organizationID, ledgerID, originID, reverseID,
+		exactLegacyKey, nil, rolloutMode, rolloutToken)
 	if err != nil {
 		return nil, false, err
 	}
@@ -325,8 +352,33 @@ func (handler *TransactionHandler) adoptPersistedReverse(
 	if err := handler.finalizeDurableRevert(ctx, claim, persisted); err != nil {
 		return nil, false, err
 	}
+	if err := handler.completeCurrentRevertRollout(ctx, claim, rolloutMode, rolloutToken); err != nil {
+		return nil, false, err
+	}
 
 	return persisted, true, nil
+}
+
+func (handler *TransactionHandler) completeCurrentRevertRollout(
+	ctx context.Context,
+	claim *revertclaim.Claim,
+	rolloutMode, rolloutToken *string,
+) error {
+	if rolloutMode == nil && rolloutToken == nil {
+		return nil
+	}
+	if rolloutMode == nil || rolloutToken == nil || handler.RevertUpdateFreeze == nil {
+		return handler.requireRevertReconciliation(ctx, claim, "current_revert_rollout_generation_incomplete")
+	}
+	if claim.RolloutMode != nil && claim.RolloutToken != nil &&
+		*claim.RolloutMode == *rolloutMode && *claim.RolloutToken == *rolloutToken {
+		return nil
+	}
+	if err := handler.RevertUpdateFreeze.CompleteRevert(ctx, *rolloutMode, *rolloutToken); err != nil {
+		return handler.requireRevertReconciliation(ctx, claim, "current_revert_rollout_generation_completion_failed")
+	}
+
+	return nil
 }
 
 func (handler *TransactionHandler) finalizeDurableRevert(
@@ -374,6 +426,14 @@ func (handler *TransactionHandler) finalizeDurableRevert(
 	// parent and operation-set proof and never touch a Redis outcome.
 	if err := handler.finalizeDurableRevertPersistence(ctx, claim, persisted); err != nil {
 		return pkg.ValidateBusinessError(constant.ErrRevertReconciliationRequired, constant.EntityTransaction)
+	}
+	if claim.RolloutMode != nil || claim.RolloutToken != nil {
+		if claim.RolloutMode == nil || claim.RolloutToken == nil || handler.RevertUpdateFreeze == nil {
+			return handler.requireRevertReconciliation(ctx, claim, "revert_rollout_generation_incomplete")
+		}
+		if err := handler.RevertUpdateFreeze.CompleteRevert(ctx, *claim.RolloutMode, *claim.RolloutToken); err != nil {
+			return handler.requireRevertReconciliation(ctx, claim, "revert_rollout_generation_completion_failed")
+		}
 	}
 
 	return nil

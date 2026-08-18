@@ -34,6 +34,106 @@ import (
 	"github.com/LerianStudio/midaz/v4/pkg/utils"
 )
 
+func TestRevertRolloutHandoffPending_RequiresAtomicRedisAbsenceAndCompatibleClaim(t *testing.T) {
+	t.Parallel()
+
+	organizationID := uuid.New()
+	ledgerID := uuid.New()
+	originID := uuid.New()
+	reverseID := uuid.New()
+	otherReverseID := uuid.New()
+	readErr := errors.New("redis unavailable")
+
+	tests := []struct {
+		name        string
+		evidence    bool
+		redisErr    error
+		claim       *revertclaim.Claim
+		claimErr    error
+		wantPending bool
+	}{
+		{name: "surviving Redis evidence", evidence: true, wantPending: true},
+		{name: "unreadable Redis evidence", redisErr: readErr, wantPending: true},
+		{name: "released claim and no Redis evidence", claim: nil},
+		{name: "matching terminal claim and no Redis evidence", claim: &revertclaim.Claim{
+			ReverseTransactionID: reverseID, State: revertclaim.StateCompleted,
+		}},
+		{name: "nonterminal claim remains pending", claim: &revertclaim.Claim{
+			ReverseTransactionID: reverseID, State: revertclaim.StateClaimed,
+		}, wantPending: true},
+		{name: "different reserved reverse remains pending", claim: &revertclaim.Claim{
+			ReverseTransactionID: otherReverseID, State: revertclaim.StateCompleted,
+		}, wantPending: true},
+		{name: "unreadable claim remains pending", claimErr: errors.New("postgres unavailable"), wantPending: true},
+	}
+
+	for _, tc := range tests {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			ctrl := gomock.NewController(t)
+			redisRepo := redis.NewMockRedisRepository(ctrl)
+			claimRepo := revertclaim.NewMockRepository(ctrl)
+			redisRepo.EXPECT().TransactionEconomicEvidenceExists(gomock.Any(), organizationID, ledgerID,
+				reverseID).Return(tc.evidence, tc.redisErr)
+			if tc.redisErr == nil && !tc.evidence {
+				claimRepo.EXPECT().Get(gomock.Any(), organizationID, ledgerID, originID).Return(tc.claim, tc.claimErr)
+			}
+
+			handler := &TransactionHandler{Command: &command.UseCase{
+				TransactionRedisRepo: redisRepo,
+				RevertClaimRepo:      claimRepo,
+			}}
+			assert.Equal(t, tc.wantPending, handler.revertRolloutHandoffPending(context.Background(),
+				organizationID, ledgerID, originID, reverseID))
+		})
+	}
+}
+
+func TestRevertRolloutHandoffPending_RequiresExactGenerationTerminalSeal(t *testing.T) {
+	t.Parallel()
+
+	organizationID := uuid.New()
+	ledgerID := uuid.New()
+	originID := uuid.New()
+	reverseID := uuid.New()
+	rolloutMode := "bridge"
+	rolloutToken := "origin-generation"
+
+	for _, tc := range []struct {
+		name             string
+		terminalComplete bool
+		terminalErr      error
+		wantPending      bool
+	}{
+		{name: "generation is not sealed", wantPending: true},
+		{name: "generation proof is unreadable", terminalErr: errors.New("redis unavailable"), wantPending: true},
+		{name: "generation is atomically sealed", terminalComplete: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			ctrl := gomock.NewController(t)
+			redisRepo := redis.NewMockRedisRepository(ctrl)
+			claimRepo := revertclaim.NewMockRepository(ctrl)
+			redisRepo.EXPECT().TransactionEconomicEvidenceExists(gomock.Any(), organizationID, ledgerID,
+				reverseID).Return(false, nil)
+			claimRepo.EXPECT().Get(gomock.Any(), organizationID, ledgerID, originID).Return(&revertclaim.Claim{
+				ReverseTransactionID: reverseID, State: revertclaim.StateCompleted,
+				RolloutMode: &rolloutMode, RolloutToken: &rolloutToken,
+			}, nil)
+			freeze := &revertUpdateFreezeStub{terminalComplete: tc.terminalComplete, terminalErr: tc.terminalErr}
+			handler := &TransactionHandler{
+				RevertUpdateFreeze: freeze,
+				Command:            &command.UseCase{TransactionRedisRepo: redisRepo, RevertClaimRepo: claimRepo},
+			}
+			assert.Equal(t, tc.wantPending, handler.revertRolloutHandoffPending(context.Background(),
+				organizationID, ledgerID, originID, reverseID))
+		})
+	}
+}
+
 func TestFailRevertClaim_OnlyProvenPreMutationFailureReleases(t *testing.T) {
 	t.Parallel()
 
@@ -1090,7 +1190,8 @@ func TestAdoptPersistedReverse_MissingOperationsRequiresReconciliation(t *testin
 		State:                revertclaim.StateClaimed,
 	}
 
-	claimRepo.EXPECT().Claim(gomock.Any(), organizationID, ledgerID, originID, reverseID, nil, nil).Return(claim, true, nil)
+	claimRepo.EXPECT().Claim(gomock.Any(), organizationID, ledgerID, originID, reverseID,
+		nil, nil, nil, nil).Return(claim, true, nil)
 	transactionRepo.EXPECT().FindWithOperations(gomock.Any(), organizationID, ledgerID, reverseID).Return(nil, nil)
 	reason := "reverse_transaction_missing_operations"
 	claimRepo.EXPECT().Transition(gomock.Any(), organizationID, ledgerID, originID, reverseID,
@@ -1100,7 +1201,8 @@ func TestAdoptPersistedReverse_MissingOperationsRequiresReconciliation(t *testin
 		Query:   &query.UseCase{TransactionRepo: transactionRepo},
 		Command: &command.UseCase{RevertClaimRepo: claimRepo},
 	}
-	result, replayed, err := handler.adoptPersistedReverse(context.Background(), organizationID, ledgerID, originID, persisted)
+	result, replayed, err := handler.adoptPersistedReverse(context.Background(), organizationID, ledgerID,
+		originID, persisted, nil, nil)
 	assert.Nil(t, result)
 	assert.False(t, replayed)
 	var unavailable pkg.ServiceUnavailableError
@@ -1122,6 +1224,8 @@ func TestAdoptPersistedReverse_FinalCompletesPersistedBridgeFenceAndExactOutcome
 	reverseID := uuid.New()
 	legacyKey := "idempotency:{persisted-bridge-h1}:original-payload"
 	legacyOwner := reverseID.String()
+	rolloutMode := "bridge"
+	rolloutToken := "persisted-bridge-generation"
 	originIDString := originID.String()
 	operationID := uuid.NewString()
 	persisted := &transaction.Transaction{
@@ -1137,6 +1241,8 @@ func TestAdoptPersistedReverse_FinalCompletesPersistedBridgeFenceAndExactOutcome
 		ReverseTransactionID: reverseID,
 		LegacyFenceKey:       &legacyKey,
 		LegacyFenceOwner:     &legacyOwner,
+		RolloutMode:          &rolloutMode,
+		RolloutToken:         &rolloutToken,
 		State:                revertclaim.StateMutated,
 	}
 	backup, err := json.Marshal(mmodel.TransactionRedisQueue{
@@ -1149,7 +1255,8 @@ func TestAdoptPersistedReverse_FinalCompletesPersistedBridgeFenceAndExactOutcome
 	})
 	require.NoError(t, err)
 
-	claimRepo.EXPECT().Claim(gomock.Any(), organizationID, ledgerID, originID, reverseID, nil, nil).
+	claimRepo.EXPECT().Claim(gomock.Any(), organizationID, ledgerID, originID, reverseID,
+		nil, nil, nil, nil).
 		Return(claim, false, nil)
 	transactionRepo.EXPECT().FindWithOperations(gomock.Any(), organizationID, ledgerID, reverseID).
 		Return(persisted, nil)
@@ -1176,8 +1283,10 @@ func TestAdoptPersistedReverse_FinalCompletesPersistedBridgeFenceAndExactOutcome
 			Identity:     reverseID,
 		}, gomock.Any()).Return(nil)
 
+	freeze := &revertUpdateFreezeStub{ready: true}
 	handler := &TransactionHandler{
 		RevertIdempotencyMode: revertIdempotencyModeFinal,
+		RevertUpdateFreeze:    freeze,
 		Query: &query.UseCase{
 			TransactionRepo:         transactionRepo,
 			TransactionMetadataRepo: metadataRepo,
@@ -1188,10 +1297,13 @@ func TestAdoptPersistedReverse_FinalCompletesPersistedBridgeFenceAndExactOutcome
 		},
 	}
 	result, replayed, err := handler.adoptPersistedReverse(context.Background(), organizationID, ledgerID,
-		originID, persisted)
+		originID, persisted, nil, nil)
 	require.NoError(t, err)
 	assert.True(t, replayed)
 	assert.Same(t, persisted, result)
+	assert.Equal(t, []string{rolloutMode}, freeze.completedModes)
+	assert.Equal(t, []string{rolloutToken}, freeze.completedTokens,
+		"HTTP adoption after lost async completion must seal the exact persisted generation")
 	// No expectation exists for a recalculated or foreign key: final adoption is permitted
 	// to complete only the immutable H1 key stored in the durable bridge claim.
 }
@@ -1237,7 +1349,8 @@ func TestAdoptPersistedReverse_FinalPreservesForeignLegacyCollision(t *testing.T
 	})
 	require.NoError(t, err)
 
-	claimRepo.EXPECT().Claim(gomock.Any(), organizationID, ledgerID, originID, reverseID, nil, nil).
+	claimRepo.EXPECT().Claim(gomock.Any(), organizationID, ledgerID, originID, reverseID,
+		nil, nil, nil, nil).
 		Return(claim, false, nil)
 	transactionRepo.EXPECT().FindWithOperations(gomock.Any(), organizationID, ledgerID, reverseID).
 		Return(persisted, nil)
@@ -1268,7 +1381,7 @@ func TestAdoptPersistedReverse_FinalPreservesForeignLegacyCollision(t *testing.T
 		},
 	}
 	result, replayed, err := handler.adoptPersistedReverse(context.Background(), organizationID, ledgerID,
-		originID, persisted)
+		originID, persisted, nil, nil)
 	require.NoError(t, err)
 	assert.True(t, replayed)
 	assert.Same(t, persisted, result)
@@ -1311,7 +1424,8 @@ func TestAdoptPersistedReverse_FinalCleansExactPhaseZeroBackupAfterPrimaryProof(
 	})
 	require.NoError(t, err)
 
-	claimRepo.EXPECT().Claim(gomock.Any(), organizationID, ledgerID, originID, reverseID, nil, nil).
+	claimRepo.EXPECT().Claim(gomock.Any(), organizationID, ledgerID, originID, reverseID,
+		nil, nil, nil, nil).
 		Return(claim, false, nil)
 	transactionRepo.EXPECT().FindWithOperations(gomock.Any(), organizationID, ledgerID, reverseID).
 		Return(persisted, nil)
@@ -1338,7 +1452,7 @@ func TestAdoptPersistedReverse_FinalCleansExactPhaseZeroBackupAfterPrimaryProof(
 		},
 	}
 	result, replayed, err := handler.adoptPersistedReverse(context.Background(), organizationID, ledgerID,
-		originID, persisted)
+		originID, persisted, nil, nil)
 	require.NoError(t, err)
 	assert.True(t, replayed)
 	assert.Same(t, persisted, result)

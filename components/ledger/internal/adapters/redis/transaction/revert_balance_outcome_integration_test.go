@@ -759,6 +759,9 @@ func TestIntegration_OwnedLegacyFence_RedisClusterRejectsCrossSlotButAcceptsComp
 	require.NoError(t, err)
 	require.NoError(t, repo.SeedTransactionBackup(ctx, organizationID, ledgerID, transactionID, seed, attempt),
 		"owner-fenced backup seeding must remain in the transactions slot")
+	evidence, err := repo.TransactionEconomicEvidenceExists(ctx, organizationID, ledgerID, transactionID)
+	require.NoError(t, err, "atomic rollout evidence inspection must remain in the transactions slot")
+	require.True(t, evidence)
 	operations := []mmodel.BalanceOperation{redistestutil.CreateBalanceOperationWithAvailable(
 		organizationID, ledgerID, "@cluster-fenced-revert", "USD", constant.DEBIT,
 		decimal.NewFromInt(100), decimal.NewFromInt(1000), "deposit",
@@ -775,6 +778,9 @@ func TestIntegration_OwnedLegacyFence_RedisClusterRejectsCrossSlotButAcceptsComp
 	require.NoError(t, repo.FinalizeTransactionPersistence(ctx, organizationID, ledgerID, transactionID, attempt,
 		[]string{clusterOperationID}),
 		"exact outcome cleanup must remain in the transactions slot")
+	evidence, err = repo.TransactionEconomicEvidenceExists(ctx, organizationID, ledgerID, transactionID)
+	require.NoError(t, err)
+	require.False(t, evidence, "terminal cleanup must remove backup, outcome, attempt, and owner as one drain proof")
 
 	phaseZeroID := uuid.New()
 	phaseZeroParentID := uuid.New()
@@ -794,6 +800,8 @@ func TestIntegration_OwnedLegacyFence_RedisClusterRejectsCrossSlotButAcceptsComp
 		"phase-zero compatibility cleanup must remain in the transactions slot")
 
 	guard := NewRevertUpdateFreezeGuard(connection)
+	require.NoError(t, guard.FinancialDurability(ctx),
+		"every Redis Cluster shard must prove noeviction and healthy AOF before phase zero")
 	admitted, frozen, leaseHeld, err := guard.AcquireApprovedUpdate(ctx, "legacy", "cluster-update")
 	require.NoError(t, err, "rollout admission must not issue a multi-slot Lua command")
 	assert.True(t, admitted)
@@ -807,8 +815,15 @@ func TestIntegration_OwnedLegacyFence_RedisClusterRejectsCrossSlotButAcceptsComp
 	assert.True(t, admitted)
 	assert.True(t, leaseHeld)
 	assert.Equal(t, RevertUpdateFreezeActive, phase)
+	terminal, err := guard.RevertTerminalHandoffComplete(ctx, "legacy", "cluster-phase-zero-revert")
+	require.NoError(t, err, "generation proof must remain inside the rollout Cluster slot")
+	assert.False(t, terminal)
 	require.Error(t, guard.MarkPhaseZeroDrained(ctx))
-	require.NoError(t, guard.ReleaseRevert(ctx, "legacy", "cluster-phase-zero-revert", "cluster-attempt"))
+	require.NoError(t, guard.CompleteRevert(ctx, "legacy", "cluster-phase-zero-revert"))
+	terminal, err = guard.RevertTerminalHandoffComplete(ctx, "legacy", "cluster-phase-zero-revert")
+	require.NoError(t, err)
+	assert.True(t, terminal,
+		"terminal proof must atomically observe tombstone plus absence of attempts and active origin")
 	require.NoError(t, guard.MarkPhaseZeroDrained(ctx))
 }
 
@@ -816,7 +831,32 @@ func TestIntegration_RevertUpdateFreezeMarkerIsSharedPersistentAndFinalizable(t 
 	t.Setenv("ALLOW_INSECURE_TLS", "true")
 	infra := setupRedisIntegrationInfra(t)
 	ctx := context.Background()
-	guard := NewRevertUpdateFreezeGuard(redistestutil.CreateConnection(t, infra.redisContainer.Addr))
+	connection := redistestutil.CreateConnection(t, infra.redisContainer.Addr)
+	guard := NewRevertUpdateFreezeGuard(connection)
+	activeTargetGuard := NewRevertUpdateFreezeGuard(connection, RevertUpdateFreezeActive)
+	require.Error(t, guard.FinancialDurability(ctx),
+		"the default ephemeral test Redis must not be mistaken for a durable financial trust boundary")
+	require.Error(t, guard.Activate(ctx),
+		"phase zero activation must fail closed before the Redis durability contract is satisfied")
+	phaseBeforeDurability, err := guard.Phase(ctx)
+	require.NoError(t, err)
+	assert.Empty(t, phaseBeforeDurability, "failed durability preflight must not create the rollout marker")
+	configureFinancialRedisDurability(t, ctx, infra.redisContainer.Client)
+	require.Eventually(t, func() bool { return guard.FinancialDurability(ctx) == nil },
+		10*time.Second, 50*time.Millisecond)
+	targetReady, err := activeTargetGuard.ReadyForMode(ctx, "legacy")
+	require.NoError(t, err)
+	assert.False(t, targetReady,
+		"a configured active target must not reinterpret a lost marker as a never-started rollout")
+	targetFrozen, targetUpdateReady, err := activeTargetGuard.ApprovedUpdatePolicy(ctx, "legacy")
+	require.NoError(t, err)
+	assert.False(t, targetFrozen)
+	assert.False(t, targetUpdateReady,
+		"APPROVED update preflight must fail closed instead of treating the missing marker as unfrozen")
+	targetAdmitted, _, _, err := activeTargetGuard.AcquireRevert(ctx, "legacy",
+		"lost-marker-origin", "lost-marker-attempt")
+	require.NoError(t, err)
+	assert.False(t, targetAdmitted, "atomic admission must fail closed with target active and marker absent")
 
 	active, err := guard.Active(ctx)
 	require.NoError(t, err)
@@ -852,6 +892,9 @@ func TestIntegration_RevertUpdateFreezeMarkerIsSharedPersistentAndFinalizable(t 
 	require.Error(t, guard.Finalize(ctx), "finalization cannot skip the drain proof")
 	require.NoError(t, guard.Activate(ctx),
 		"retrying one lost-response attempt must not inflate its durable admission")
+	targetReady, err = activeTargetGuard.ReadyForMode(ctx, "legacy")
+	require.NoError(t, err)
+	assert.True(t, targetReady)
 	active, err = guard.Active(ctx)
 	require.NoError(t, err)
 	assert.True(t, active)
@@ -975,7 +1018,9 @@ func startSingleNodeRedisCluster(t *testing.T, ctx context.Context) *redistestut
 				"valkey-server",
 				"--cluster-enabled", "yes",
 				"--cluster-config-file", "nodes.conf",
-				"--appendonly", "no",
+				"--maxmemory-policy", "noeviction",
+				"--appendonly", "yes",
+				"--appendfsync", "always",
 			},
 			WaitingFor: wait.ForAll(
 				wait.ForLog("Ready to accept connections"),
@@ -1014,4 +1059,12 @@ func startSingleNodeRedisCluster(t *testing.T, ctx context.Context) *redistestut
 	}, 5*time.Second, 50*time.Millisecond, fmt.Sprintf("single-node cluster at %s must own all slots", addr))
 
 	return &redistestutil.ContainerResult{Container: container, Client: client, Addr: addr}
+}
+
+func configureFinancialRedisDurability(t *testing.T, ctx context.Context, client redis.Cmdable) {
+	t.Helper()
+
+	require.NoError(t, client.ConfigSet(ctx, "maxmemory-policy", "noeviction").Err())
+	require.NoError(t, client.ConfigSet(ctx, "appendfsync", "always").Err())
+	require.NoError(t, client.ConfigSet(ctx, "appendonly", "yes").Err())
 }
