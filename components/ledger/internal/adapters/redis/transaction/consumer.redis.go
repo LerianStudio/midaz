@@ -37,14 +37,58 @@ var balanceAtomicOperationLua string
 //go:embed scripts/claim_balance_sync_keys.lua
 var claimBalanceSyncKeysLua string
 
+//go:embed scripts/acquire_owned_key.lua
+var acquireOwnedKeyLua string
+
+//go:embed scripts/release_owned_key.lua
+var releaseOwnedKeyLua string
+
+//go:embed scripts/release_unowned_empty_key.lua
+var releaseUnownedEmptyKeyLua string
+
+//go:embed scripts/complete_owned_key.lua
+var completeOwnedKeyLua string
+
+//go:embed scripts/complete_unowned_key.lua
+var completeUnownedKeyLua string
+
+//go:embed scripts/enrich_transaction_backup.lua
+var enrichTransactionBackupLua string
+
+//go:embed scripts/finalize_transaction_persistence.lua
+var finalizeTransactionPersistenceLua string
+
+//go:embed scripts/finalize_legacy_transaction_persistence.lua
+var finalizeLegacyTransactionPersistenceLua string
+
+//go:embed scripts/remove_transaction_backup_if_status.lua
+var removeTransactionBackupIfStatusLua string
+
+//go:embed scripts/remove_transaction_backup_if_value.lua
+var removeTransactionBackupIfValueLua string
+
+//go:embed scripts/seed_transaction_backup.lua
+var seedTransactionBackupLua string
+
 // balanceAtomicScript and claimBalanceSyncScript are built once at package init.
 // redis.NewScript computes the source SHA1 eagerly, so hoisting these out of the
 // per-call hot paths (runBalanceAtomicScript, GetBalanceSyncKeys,
 // GetBalanceSyncKeysLegacy) avoids re-hashing on every invocation. *redis.Script
 // is safe for concurrent use.
 var (
-	balanceAtomicScript    = redis.NewScript(balanceAtomicOperationLua)
-	claimBalanceSyncScript = redis.NewScript(claimBalanceSyncKeysLua)
+	balanceAtomicScript                        = redis.NewScript(balanceAtomicOperationLua)
+	claimBalanceSyncScript                     = redis.NewScript(claimBalanceSyncKeysLua)
+	acquireOwnedKeyScript                      = redis.NewScript(acquireOwnedKeyLua)
+	releaseOwnedKeyScript                      = redis.NewScript(releaseOwnedKeyLua)
+	releaseUnownedEmptyKeyScript               = redis.NewScript(releaseUnownedEmptyKeyLua)
+	completeOwnedKeyScript                     = redis.NewScript(completeOwnedKeyLua)
+	completeUnownedKeyScript                   = redis.NewScript(completeUnownedKeyLua)
+	enrichTransactionBackupScript              = redis.NewScript(enrichTransactionBackupLua)
+	finalizeTransactionPersistenceScript       = redis.NewScript(finalizeTransactionPersistenceLua)
+	finalizeLegacyTransactionPersistenceScript = redis.NewScript(finalizeLegacyTransactionPersistenceLua)
+	removeTransactionBackupIfStatusScript      = redis.NewScript(removeTransactionBackupIfStatusLua)
+	removeTransactionBackupIfValueScript       = redis.NewScript(removeTransactionBackupIfValueLua)
+	seedTransactionBackupScript                = redis.NewScript(seedTransactionBackupLua)
 )
 
 //go:embed scripts/remove_balance_sync_keys_batch.lua
@@ -66,8 +110,9 @@ const maxRedisBatchSize = 1000
 // It defines methods for setting, getting keys, and incrementing values.
 //
 // Cache-miss convention: Get returns ("", nil) when the key does not exist.
-// Callers MUST check for empty string to detect cache miss. Do not store
-// empty strings as values; use JSON or another format that is never empty.
+// Callers MUST check for empty string to detect cache miss. Do not store empty
+// strings as values except through AcquireOwnedKey, whose empty legacy fence is
+// distinguished by its same-slot owner companion.
 //
 // SyncKey holds a balance schedule member together with the ZADD score it had
 // when the worker claimed it.  The score is passed back to
@@ -85,6 +130,22 @@ type RedisRepository interface {
 	// SetNX stores a key-value pair only if the key does not already exist (atomic).
 	// Returns true if the key was set, false if it already existed.
 	SetNX(ctx context.Context, key, value string, ttl time.Duration) (bool, error)
+	// AcquireOwnedKey stores a legacy-compatible empty fence plus an owner token
+	// in the same Redis Cluster slot. A non-positive TTL keeps both keys until
+	// explicit release or completion. ReleaseOwnedKey deletes the fence only
+	// while that token still owns it; CompleteOwnedKey atomically replaces the
+	// fence with its replay value and removes the owner token.
+	AcquireOwnedKey(ctx context.Context, key, owner string, ttl time.Duration) (bool, error)
+	ReleaseOwnedKey(ctx context.Context, key, owner string) (bool, error)
+	// ReleaseUnownedEmptyKey removes only an old-compatible empty fence with no
+	// owner companion. It is used after rollout drain proves an old phase-zero
+	// pre-movement seed abandoned; absence is an idempotent success.
+	ReleaseUnownedEmptyKey(ctx context.Context, key string) (bool, error)
+	CompleteOwnedKey(ctx context.Context, key, owner, value string, ttl time.Duration) (bool, error)
+	// CompleteUnownedKey replaces a phase-zero empty fence only when no owner
+	// companion exists. It is reserved for terminal adoption after PostgreSQL
+	// primary proved the reverse and its complete operation set durable.
+	CompleteUnownedKey(ctx context.Context, key, value string, ttl time.Duration) (bool, error)
 	// Get retrieves a value by key. Returns ("", nil) on cache miss (key not found).
 	// Returns ("", error) on connection or other errors.
 	Get(ctx context.Context, key string) (string, error)
@@ -100,18 +161,47 @@ type RedisRepository interface {
 	// Atomically updates balances, records backup, and schedules sync in a single round-trip.
 	// Returns before/after balance snapshots for event emission.
 	ProcessBalanceAtomicOperation(ctx context.Context, organizationID, ledgerID, transactionID uuid.UUID, transactionStatus string, pending bool, balances []mmodel.BalanceOperation) (*mmodel.BalanceAtomicResult, error)
+	// ProcessOutcomeBalanceAtomicOperation validates the exact attempt owner and
+	// writes an immutable, replayable outcome in the same Lua command as the
+	// balance mutation. An opposite outcome is rejected before any movement.
+	ProcessOutcomeBalanceAtomicOperation(ctx context.Context, organizationID, ledgerID, transactionID uuid.UUID, transactionStatus string, pending bool, balances []mmodel.BalanceOperation, attempt mmodel.BalanceExecutionAttempt) (*mmodel.BalanceAtomicResult, error)
 	// SetBytes stores binary data with a TTL.
 	SetBytes(ctx context.Context, key string, value []byte, ttl time.Duration) error
 	// GetBytes retrieves binary data by key.
 	GetBytes(ctx context.Context, key string) ([]byte, error)
 	// AddMessageToQueue appends a message to the transaction backup hash queue.
 	AddMessageToQueue(ctx context.Context, key string, msg []byte) error
+	// SeedTransactionBackup writes an outcome-backed seed only while the exact
+	// execution owner is still live. A delayed writer cannot replace a successor
+	// or a Lua-authored terminal envelope.
+	SeedTransactionBackup(ctx context.Context, organizationID, ledgerID, transactionID uuid.UUID, msg []byte, attempt mmodel.BalanceExecutionAttempt) error
+	// EnrichTransactionBackup atomically adds the materialized operation IDs to
+	// an existing backup envelope without replacing the Lua-authored balance
+	// outcome. When attempt is non-nil, the immutable outcome and owner must
+	// match before the envelope is changed.
+	EnrichTransactionBackup(ctx context.Context, organizationID, ledgerID, transactionID uuid.UUID, operations []mmodel.OperationRedis, action string, attempt *mmodel.BalanceExecutionAttempt) ([]mmodel.OperationRedis, error)
+	// FinalizeTransactionPersistence atomically removes the exact backup and
+	// immutable outcome after PostgreSQL has durably stored the transaction and
+	// every operation. A lost response is idempotent; mismatched ownership never
+	// removes either record.
+	FinalizeTransactionPersistence(ctx context.Context, organizationID, ledgerID, transactionID uuid.UUID, attempt mmodel.BalanceExecutionAttempt, operationIDs []string) error
+	// FinalizeLegacyTransactionPersistence removes a drained phase-zero backup
+	// only after PostgreSQL proved the exact reverse and operation set durable.
+	// It rejects outcome-backed or foreign envelopes and never touches an outcome.
+	FinalizeLegacyTransactionPersistence(ctx context.Context, organizationID, ledgerID, transactionID, parentTransactionID uuid.UUID, transactionStatus string, operationIDs []string) error
 	// ReadMessageFromQueue reads a specific message from the backup queue by key.
 	ReadMessageFromQueue(ctx context.Context, key string) ([]byte, error)
 	// ReadAllMessagesFromQueue reads all messages from the backup queue.
 	ReadAllMessagesFromQueue(ctx context.Context) (map[string]string, error)
-	// RemoveMessageFromQueue removes a specific message from the backup queue by key.
-	RemoveMessageFromQueue(ctx context.Context, key string) error
+	// RemoveMessageFromQueueIfStatus removes a backup only if the envelope still
+	// belongs to the expected lifecycle stage. The comparison and HDEL are one
+	// Redis command so an earlier PENDING cleanup cannot delete a newer terminal
+	// envelope for the same transaction ID.
+	RemoveMessageFromQueueIfStatus(ctx context.Context, key, expectedStatus, expectedOwner, expectedOutcome string, preMovementOnly bool) (bool, error)
+	// RemoveMessageFromQueueIfValue removes a quarantined payload only if the
+	// exact bytes that were durably copied still occupy the transaction field.
+	// A successor written under the same transaction key is never deleted.
+	RemoveMessageFromQueueIfValue(ctx context.Context, key string, expected []byte) (bool, error)
 	// IncrementBackupAttempt atomically increments the failure counter for a backup
 	// record in the parallel attempts hash and returns the new count. Returns the
 	// new value and nil on success. Used by the backup consumer to track how many
@@ -242,6 +332,126 @@ func (rr *RedisConsumerRepository) SetNX(ctx context.Context, key, value string,
 	}
 
 	return isLocked, nil
+}
+
+func (rr *RedisConsumerRepository) AcquireOwnedKey(ctx context.Context, key, owner string, ttl time.Duration) (bool, error) {
+	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
+	ctx, span := tracer.Start(ctx, "redis.acquire_owned_key")
+	defer span.End()
+
+	keys, err := tenantKeysFromContext(ctx, []string{key, key + ":owner"})
+	if err != nil {
+		return false, err
+	}
+	rds, err := rr.conn.GetClient(ctx)
+	if err != nil {
+		return false, err
+	}
+
+	result, err := acquireOwnedKeyScript.Run(ctx, rds, keys, owner, int64(ttl)).Int64()
+	if err != nil {
+		libOpentelemetry.HandleSpanError(span, "Failed to acquire owned Redis key", err)
+		logger.Log(ctx, libLog.LevelError, "Failed to acquire owned Redis key", libLog.Err(err))
+		return false, err
+	}
+
+	return result == 1, nil
+}
+
+func (rr *RedisConsumerRepository) ReleaseOwnedKey(ctx context.Context, key, owner string) (bool, error) {
+	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
+	ctx, span := tracer.Start(ctx, "redis.release_owned_key")
+	defer span.End()
+
+	keys, err := tenantKeysFromContext(ctx, []string{key, key + ":owner"})
+	if err != nil {
+		return false, err
+	}
+	rds, err := rr.conn.GetClient(ctx)
+	if err != nil {
+		return false, err
+	}
+
+	result, err := releaseOwnedKeyScript.Run(ctx, rds, keys, owner).Int64()
+	if err != nil {
+		libOpentelemetry.HandleSpanError(span, "Failed to release owned Redis key", err)
+		logger.Log(ctx, libLog.LevelError, "Failed to release owned Redis key", libLog.Err(err))
+		return false, err
+	}
+
+	return result == 1, nil
+}
+
+func (rr *RedisConsumerRepository) ReleaseUnownedEmptyKey(ctx context.Context, key string) (bool, error) {
+	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
+	ctx, span := tracer.Start(ctx, "redis.release_unowned_empty_key")
+	defer span.End()
+
+	keys, err := tenantKeysFromContext(ctx, []string{key, key + ":owner"})
+	if err != nil {
+		return false, err
+	}
+	rds, err := rr.conn.GetClient(ctx)
+	if err != nil {
+		return false, err
+	}
+
+	result, err := releaseUnownedEmptyKeyScript.Run(ctx, rds, keys).Int64()
+	if err != nil {
+		libOpentelemetry.HandleSpanError(span, "Failed to release unowned empty Redis key", err)
+		logger.Log(ctx, libLog.LevelError, "Failed to release unowned empty Redis key", libLog.Err(err))
+		return false, err
+	}
+
+	return result == 1, nil
+}
+
+func (rr *RedisConsumerRepository) CompleteOwnedKey(ctx context.Context, key, owner, value string, ttl time.Duration) (bool, error) {
+	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
+	ctx, span := tracer.Start(ctx, "redis.complete_owned_key")
+	defer span.End()
+
+	keys, err := tenantKeysFromContext(ctx, []string{key, key + ":owner"})
+	if err != nil {
+		return false, err
+	}
+	rds, err := rr.conn.GetClient(ctx)
+	if err != nil {
+		return false, err
+	}
+
+	result, err := completeOwnedKeyScript.Run(ctx, rds, keys, owner, value, int64(ttl)).Int64()
+	if err != nil {
+		libOpentelemetry.HandleSpanError(span, "Failed to complete owned Redis key", err)
+		logger.Log(ctx, libLog.LevelError, "Failed to complete owned Redis key", libLog.Err(err))
+		return false, err
+	}
+
+	return result == 1, nil
+}
+
+func (rr *RedisConsumerRepository) CompleteUnownedKey(ctx context.Context, key, value string, ttl time.Duration) (bool, error) {
+	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
+	ctx, span := tracer.Start(ctx, "redis.complete_unowned_key")
+	defer span.End()
+
+	keys, err := tenantKeysFromContext(ctx, []string{key, key + ":owner"})
+	if err != nil {
+		return false, err
+	}
+	rds, err := rr.conn.GetClient(ctx)
+	if err != nil {
+		return false, err
+	}
+
+	result, err := completeUnownedKeyScript.Run(ctx, rds, keys, value, int64(ttl)).Int64()
+	if err != nil {
+		libOpentelemetry.HandleSpanError(span, "Failed to complete unowned Redis key", err)
+		logger.Log(ctx, libLog.LevelError, "Failed to complete unowned Redis key", libLog.Err(err))
+		return false, err
+	}
+
+	return result == 1, nil
 }
 
 func (rr *RedisConsumerRepository) Get(ctx context.Context, key string) (string, error) {
@@ -775,6 +985,8 @@ func (rr *RedisConsumerRepository) buildBalanceAtomicOperationPlan(ctx context.C
 // this mapping must be updated accordingly.
 //
 // Lua error codes emitted by balance_atomic_operation.lua:
+//   - "0084" → ErrIdempotencyKey (an economic execution attempt expired before mutation)
+//   - "0099" → ErrCommitTransactionNotPending (an immutable opposite outcome already exists)
 //   - "0018" → ErrInsufficientFunds (negative available on non-external credit-direction balance without overdraft fall-through)
 //   - "0019" → ErrAccountIneligibility (balance carries a live deletion marker; rejected before any mutation)
 //   - "0098" → ErrOnHoldExternalAccount (external account used in pending source)
@@ -786,6 +998,20 @@ func (rr *RedisConsumerRepository) buildBalanceAtomicOperationPlan(ctx context.C
 // generic "0018" insufficient-funds branch so that a single error string like
 // "0167" is not misclassified by loose substring matching.
 func mapBalanceAtomicScriptError(span trace.Span, err error) error {
+	if strings.Contains(err.Error(), constant.ErrCommitTransactionNotPending.Error()) {
+		mappedErr := pkg.ValidateBusinessError(constant.ErrCommitTransactionNotPending, constant.EntityTransaction)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Opposite balance outcome already committed", mappedErr)
+
+		return mappedErr
+	}
+
+	if strings.Contains(err.Error(), constant.ErrIdempotencyKey.Error()) {
+		mappedErr := pkg.ValidateBusinessError(constant.ErrIdempotencyKey, "BalanceExecutionAttempt", "expired")
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Balance execution attempt expired", mappedErr)
+
+		return mappedErr
+	}
+
 	if strings.Contains(err.Error(), constant.ErrOverdraftLimitExceeded.Error()) {
 		mappedErr := pkg.ValidateBusinessError(constant.ErrOverdraftLimitExceeded, "validateBalance")
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Overdraft limit exceeded", mappedErr)
@@ -911,6 +1137,30 @@ func decodeBalanceAtomicResult(ctx context.Context, result any, mapBalances map[
 }
 
 func (rr *RedisConsumerRepository) ProcessBalanceAtomicOperation(ctx context.Context, organizationID, ledgerID, transactionID uuid.UUID, transactionStatus string, pending bool, balancesOperation []mmodel.BalanceOperation) (*mmodel.BalanceAtomicResult, error) {
+	return rr.processBalanceAtomicOperation(ctx, organizationID, ledgerID, transactionID, transactionStatus, pending, balancesOperation, nil)
+}
+
+func (rr *RedisConsumerRepository) ProcessOutcomeBalanceAtomicOperation(
+	ctx context.Context,
+	organizationID, ledgerID, transactionID uuid.UUID,
+	transactionStatus string,
+	pending bool,
+	balancesOperation []mmodel.BalanceOperation,
+	attempt mmodel.BalanceExecutionAttempt,
+) (*mmodel.BalanceAtomicResult, error) {
+	if attempt.ExecutionKey == "" || attempt.OutcomeKey == "" || attempt.Owner == "" ||
+		(attempt.Outcome != mmodel.TransactionOutcomeCommitted && attempt.Outcome != mmodel.TransactionOutcomeAborted) ||
+		attempt.Identity != transactionID ||
+		attempt.ExecutionKey != utils.TransactionBalanceExecutionKey(organizationID, ledgerID, transactionID) ||
+		attempt.OutcomeKey != utils.TransactionBalanceOutcomeKey(organizationID, ledgerID, transactionID) {
+		return nil, fmt.Errorf("complete balance execution attempt is required")
+	}
+
+	return rr.processBalanceAtomicOperation(ctx, organizationID, ledgerID, transactionID,
+		transactionStatus, pending, balancesOperation, &attempt)
+}
+
+func (rr *RedisConsumerRepository) processBalanceAtomicOperation(ctx context.Context, organizationID, ledgerID, transactionID uuid.UUID, transactionStatus string, pending bool, balancesOperation []mmodel.BalanceOperation, attempt *mmodel.BalanceExecutionAttempt) (*mmodel.BalanceAtomicResult, error) {
 	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "redis.process_balance_atomic_operation")
@@ -944,12 +1194,19 @@ func (rr *RedisConsumerRepository) ProcessBalanceAtomicOperation(ctx context.Con
 
 	transactionKey := utils.TransactionInternalKey(organizationID, ledgerID, transactionID.String())
 
-	prefixedKeys, err := tenantKeysFromContext(ctx, []string{TransactionBackupQueue, transactionKey, utils.BalanceSyncScheduleKey})
+	keys := []string{TransactionBackupQueue, transactionKey, utils.BalanceSyncScheduleKey}
+	if attempt != nil {
+		keys = append(keys, attempt.ExecutionKey, attempt.ExecutionKey+":owner", attempt.OutcomeKey)
+	}
+	prefixedKeys, err := tenantKeysFromContext(ctx, keys)
 	if err != nil {
 		return nil, err
 	}
 
 	finalArgs := plan.args
+	if attempt != nil {
+		finalArgs = append([]any{attempt.Owner, attempt.Outcome, attempt.Identity.String()}, finalArgs...)
+	}
 
 	result, err := rr.runBalanceAtomicScript(ctx, rds, prefixedKeys, finalArgs)
 	if err != nil {
@@ -1066,6 +1323,188 @@ func (rr *RedisConsumerRepository) AddMessageToQueue(ctx context.Context, key st
 	return nil
 }
 
+func (rr *RedisConsumerRepository) SeedTransactionBackup(
+	ctx context.Context,
+	organizationID, ledgerID, transactionID uuid.UUID,
+	msg []byte,
+	attempt mmodel.BalanceExecutionAttempt,
+) error {
+	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
+
+	ctx, span := tracer.Start(ctx, "redis.seed_transaction_backup")
+	defer span.End()
+
+	if attempt.Identity != transactionID || attempt.Owner == "" ||
+		(attempt.Outcome != mmodel.TransactionOutcomeCommitted && attempt.Outcome != mmodel.TransactionOutcomeAborted) ||
+		attempt.ExecutionKey != utils.TransactionBalanceExecutionKey(organizationID, ledgerID, transactionID) ||
+		attempt.OutcomeKey != utils.TransactionBalanceOutcomeKey(organizationID, ledgerID, transactionID) {
+		return fmt.Errorf("complete balance execution attempt is required")
+	}
+	transactionKey := utils.TransactionInternalKey(organizationID, ledgerID, transactionID.String())
+	prefixedKeys, err := tenantKeysFromContext(ctx, []string{
+		TransactionBackupQueue,
+		transactionKey,
+		attempt.ExecutionKey,
+		attempt.ExecutionKey + ":owner",
+		attempt.OutcomeKey,
+	})
+	if err != nil {
+		return err
+	}
+	rds, err := rr.conn.GetClient(ctx)
+	if err != nil {
+		return err
+	}
+	if _, err := seedTransactionBackupScript.Run(ctx, rds, prefixedKeys,
+		attempt.Owner, transactionID.String(), attempt.Outcome, msg).Result(); err != nil {
+		libOpentelemetry.HandleSpanError(span, "Failed to seed owned transaction backup", err)
+		logger.Log(ctx, libLog.LevelWarn, "Failed to seed owned transaction backup", libLog.Err(err))
+
+		return fmt.Errorf("seed owned transaction backup: %w", err)
+	}
+
+	return nil
+}
+
+func (rr *RedisConsumerRepository) EnrichTransactionBackup(
+	ctx context.Context,
+	organizationID, ledgerID, transactionID uuid.UUID,
+	operations []mmodel.OperationRedis,
+	action string,
+	attempt *mmodel.BalanceExecutionAttempt,
+) ([]mmodel.OperationRedis, error) {
+	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
+
+	ctx, span := tracer.Start(ctx, "redis.enrich_transaction_backup")
+	defer span.End()
+
+	transactionKey := utils.TransactionInternalKey(organizationID, ledgerID, transactionID.String())
+	keys := []string{TransactionBackupQueue, transactionKey}
+	requireOutcome := "0"
+	owner := ""
+	outcome := ""
+	if attempt != nil {
+		if attempt.Identity != transactionID || attempt.Owner == "" ||
+			(attempt.Outcome != mmodel.TransactionOutcomeCommitted && attempt.Outcome != mmodel.TransactionOutcomeAborted) ||
+			attempt.ExecutionKey != utils.TransactionBalanceExecutionKey(organizationID, ledgerID, transactionID) ||
+			attempt.OutcomeKey != utils.TransactionBalanceOutcomeKey(organizationID, ledgerID, transactionID) {
+			return nil, fmt.Errorf("complete balance execution attempt is required")
+		}
+		requireOutcome = "1"
+		owner = attempt.Owner
+		outcome = attempt.Outcome
+		keys = append(keys, attempt.OutcomeKey)
+	}
+
+	prefixedKeys, err := tenantKeysFromContext(ctx, keys)
+	if err != nil {
+		return nil, err
+	}
+	encodedOperations, err := json.Marshal(operations)
+	if err != nil {
+		return nil, fmt.Errorf("encode transaction backup operations: %w", err)
+	}
+	rds, err := rr.conn.GetClient(ctx)
+	if err != nil {
+		return nil, err
+	}
+	canonicalRaw, err := enrichTransactionBackupScript.Run(ctx, rds, prefixedKeys,
+		transactionID.String(), requireOutcome, owner, outcome, string(encodedOperations), action).Text()
+	if err != nil {
+		libOpentelemetry.HandleSpanError(span, "Failed to atomically enrich transaction backup", err)
+		logger.Log(ctx, libLog.LevelWarn, "Failed to atomically enrich transaction backup", libLog.Err(err))
+
+		return nil, fmt.Errorf("enrich transaction backup: %w", err)
+	}
+	canonical := make([]mmodel.OperationRedis, 0, len(operations))
+	if err := json.Unmarshal([]byte(canonicalRaw), &canonical); err != nil {
+		return nil, fmt.Errorf("decode canonical transaction backup operations: %w", err)
+	}
+
+	return canonical, nil
+}
+
+func (rr *RedisConsumerRepository) FinalizeTransactionPersistence(
+	ctx context.Context,
+	organizationID, ledgerID, transactionID uuid.UUID,
+	attempt mmodel.BalanceExecutionAttempt,
+	operationIDs []string,
+) error {
+	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
+
+	ctx, span := tracer.Start(ctx, "redis.finalize_transaction_persistence")
+	defer span.End()
+
+	if attempt.Identity != transactionID || attempt.Owner == "" ||
+		(attempt.Outcome != mmodel.TransactionOutcomeCommitted && attempt.Outcome != mmodel.TransactionOutcomeAborted) ||
+		attempt.ExecutionKey != utils.TransactionBalanceExecutionKey(organizationID, ledgerID, transactionID) ||
+		attempt.OutcomeKey != utils.TransactionBalanceOutcomeKey(organizationID, ledgerID, transactionID) ||
+		len(operationIDs) == 0 {
+		return fmt.Errorf("complete balance execution attempt is required")
+	}
+	encodedOperationIDs, err := json.Marshal(operationIDs)
+	if err != nil {
+		return fmt.Errorf("encode durable transaction operation ids: %w", err)
+	}
+
+	transactionKey := utils.TransactionInternalKey(organizationID, ledgerID, transactionID.String())
+	prefixedKeys, err := tenantKeysFromContext(ctx, []string{TransactionBackupQueue, transactionKey, attempt.OutcomeKey})
+	if err != nil {
+		return err
+	}
+	rds, err := rr.conn.GetClient(ctx)
+	if err != nil {
+		return err
+	}
+	if _, err := finalizeTransactionPersistenceScript.Run(ctx, rds, prefixedKeys,
+		transactionID.String(), attempt.Owner, attempt.Outcome, string(encodedOperationIDs)).Result(); err != nil {
+		libOpentelemetry.HandleSpanError(span, "Failed to atomically finalize transaction persistence", err)
+		logger.Log(ctx, libLog.LevelWarn, "Failed to atomically finalize transaction persistence", libLog.Err(err))
+
+		return fmt.Errorf("finalize transaction persistence: %w", err)
+	}
+
+	return nil
+}
+
+func (rr *RedisConsumerRepository) FinalizeLegacyTransactionPersistence(
+	ctx context.Context,
+	organizationID, ledgerID, transactionID, parentTransactionID uuid.UUID,
+	transactionStatus string,
+	operationIDs []string,
+) error {
+	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
+
+	ctx, span := tracer.Start(ctx, "redis.finalize_legacy_transaction_persistence")
+	defer span.End()
+
+	if transactionID == uuid.Nil || parentTransactionID == uuid.Nil || transactionStatus == "" || len(operationIDs) == 0 {
+		return fmt.Errorf("complete legacy transaction persistence proof is required")
+	}
+	encodedOperationIDs, err := json.Marshal(operationIDs)
+	if err != nil {
+		return fmt.Errorf("encode legacy transaction operation ids: %w", err)
+	}
+	transactionKey := utils.TransactionInternalKey(organizationID, ledgerID, transactionID.String())
+	prefixedKeys, err := tenantKeysFromContext(ctx, []string{TransactionBackupQueue, transactionKey})
+	if err != nil {
+		return err
+	}
+	rds, err := rr.conn.GetClient(ctx)
+	if err != nil {
+		return err
+	}
+	if _, err := finalizeLegacyTransactionPersistenceScript.Run(ctx, rds, prefixedKeys,
+		transactionID.String(), parentTransactionID.String(), transactionStatus, string(encodedOperationIDs)).Result(); err != nil {
+		libOpentelemetry.HandleSpanError(span, "Failed to atomically finalize legacy transaction persistence", err)
+		logger.Log(ctx, libLog.LevelWarn, "Failed to atomically finalize legacy transaction persistence", libLog.Err(err))
+
+		return fmt.Errorf("finalize legacy transaction persistence: %w", err)
+	}
+
+	return nil
+}
+
 // ReadMessageFromQueue read an especific message from redis queue
 func (rr *RedisConsumerRepository) ReadMessageFromQueue(ctx context.Context, key string) ([]byte, error) {
 	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
@@ -1131,39 +1570,67 @@ func (rr *RedisConsumerRepository) ReadAllMessagesFromQueue(ctx context.Context)
 	return data, nil
 }
 
-// RemoveMessageFromQueue remove message from redis queue
-func (rr *RedisConsumerRepository) RemoveMessageFromQueue(ctx context.Context, key string) error {
+func (rr *RedisConsumerRepository) RemoveMessageFromQueueIfStatus(
+	ctx context.Context,
+	key, expectedStatus, expectedOwner, expectedOutcome string,
+	preMovementOnly bool,
+) (bool, error) {
 	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
-	ctx, span := tracer.Start(ctx, "redis.remove_message_from_queue")
+	ctx, span := tracer.Start(ctx, "redis.remove_message_from_queue_if_status")
 	defer span.End()
 
-	prefixedQueue, err := tenantKeyFromContextOrError(ctx, TransactionBackupQueue)
+	prefixedKeys, err := tenantKeysFromContext(ctx, []string{TransactionBackupQueue, key})
 	if err != nil {
-		return err
+		return false, err
 	}
-
-	key, err = tenantKeyFromContextOrError(ctx, key)
-	if err != nil {
-		return err
-	}
-
 	rds, err := rr.conn.GetClient(ctx)
 	if err != nil {
-		logger.Log(ctx, libLog.LevelWarn, "Failed to get Redis client", libLog.Err(err))
+		return false, err
+	}
+	preMovement := "0"
+	if preMovementOnly {
+		preMovement = "1"
+	}
+	removed, err := removeTransactionBackupIfStatusScript.Run(ctx, rds, prefixedKeys,
+		expectedStatus, expectedOwner, expectedOutcome, preMovement).Int64()
+	if err != nil {
+		libOpentelemetry.HandleSpanError(span, "Failed to conditionally remove transaction backup", err)
+		logger.Log(ctx, libLog.LevelWarn, "Failed to conditionally remove transaction backup", libLog.Err(err))
 
-		return err
+		return false, fmt.Errorf("conditionally remove transaction backup: %w", err)
 	}
 
-	if err := rds.HDel(ctx, prefixedQueue, key).Err(); err != nil {
-		logger.Log(ctx, libLog.LevelWarn, "Failed to remove message from queue", libLog.Err(err))
+	return removed == 1, nil
+}
 
-		return err
+func (rr *RedisConsumerRepository) RemoveMessageFromQueueIfValue(
+	ctx context.Context,
+	key string,
+	expected []byte,
+) (bool, error) {
+	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
+
+	ctx, span := tracer.Start(ctx, "redis.remove_message_from_queue_if_value")
+	defer span.End()
+
+	prefixedKeys, err := tenantKeysFromContext(ctx, []string{TransactionBackupQueue, key})
+	if err != nil {
+		return false, err
+	}
+	rds, err := rr.conn.GetClient(ctx)
+	if err != nil {
+		return false, err
+	}
+	removed, err := removeTransactionBackupIfValueScript.Run(ctx, rds, prefixedKeys, expected).Int64()
+	if err != nil {
+		libOpentelemetry.HandleSpanError(span, "Failed to remove exact transaction backup", err)
+		logger.Log(ctx, libLog.LevelWarn, "Failed to remove exact transaction backup", libLog.Err(err))
+
+		return false, fmt.Errorf("remove exact transaction backup: %w", err)
 	}
 
-	logger.Log(ctx, libLog.LevelDebug, "Message removed from Redis queue", libLog.String("key", key))
-
-	return nil
+	return removed == 1, nil
 }
 
 // IncrementBackupAttempt atomically increments the per-record failure counter in

@@ -21,6 +21,8 @@ import (
 	"github.com/google/uuid"
 	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"github.com/vmihailenco/msgpack/v5"
 	"go.uber.org/mock/gomock"
 )
 
@@ -139,10 +141,9 @@ func setupMocksForFallback(
 		Return(nil, nil).
 		AnyTimes()
 
-	// Mock RedisRepo.RemoveMessageFromQueue for removing transaction from queue
 	mockRedisRepo.EXPECT().
-		RemoveMessageFromQueue(gomock.Any(), gomock.Any()).
-		Return(nil).
+		RemoveMessageFromQueueIfStatus(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), false).
+		Return(true, nil).
 		AnyTimes()
 
 	// Mock RedisRepo.Del for removing transaction from write-behind cache
@@ -349,14 +350,32 @@ func TestWriteTransactionAsync(t *testing.T) {
 		organizationID := uuid.New()
 		ledgerID := uuid.New()
 		td := createTestData(organizationID, ledgerID)
+		attempt := &mmodel.BalanceExecutionAttempt{
+			Owner:   "attempt-owner",
+			Outcome: mmodel.TransactionOutcomeCommitted,
+		}
 
-		// Expect RabbitMQ producer to be called with correct exchange and key
+		// The immutable economic outcome identity crosses the asynchronous
+		// transport boundary; publishing must not clear it before the consumer
+		// makes the transaction and operations durable.
 		mockRabbitMQRepo.EXPECT().
 			ProducerDefaultWithContext(gomock.Any(), "test-exchange", "test-key", gomock.Any()).
-			Return(nil, nil).
+			DoAndReturn(func(_ context.Context, _, _ string, message []byte) (*string, error) {
+				var queue mmodel.Queue
+				require.NoError(t, msgpack.Unmarshal(message, &queue))
+				require.Len(t, queue.QueueData, 1)
+
+				var payload transaction.TransactionProcessingPayload
+				require.NoError(t, msgpack.Unmarshal(queue.QueueData[0].Value, &payload))
+				assert.Equal(t, attempt.Owner, payload.AttemptOwner)
+				assert.Equal(t, attempt.Outcome, payload.ExpectedOutcome)
+
+				return nil, nil
+			}).
 			Times(1)
 
-		err := uc.WriteTransactionAsync(ctx, organizationID, ledgerID, td.transactionInput, td.validate, td.balances, nil, td.tran)
+		err := uc.WriteTransactionAsync(ctx, organizationID, ledgerID, td.transactionInput, td.validate,
+			td.balances, nil, td.tran, attempt)
 
 		assert.NoError(t, err)
 	})
@@ -633,10 +652,9 @@ func TestWriteTransactionSync(t *testing.T) {
 			Return(nil, nil).
 			AnyTimes()
 
-		// Mock RedisRepo.RemoveMessageFromQueue
 		mockRedisRepo.EXPECT().
-			RemoveMessageFromQueue(gomock.Any(), gomock.Any()).
-			Return(nil).
+			RemoveMessageFromQueueIfStatus(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), false).
+			Return(true, nil).
 			AnyTimes()
 
 		// Mock RedisRepo.Del for removing transaction from write-behind cache

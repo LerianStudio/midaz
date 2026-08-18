@@ -6,16 +6,22 @@ package in
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"strings"
 	"testing"
+	"time"
 
 	libCommons "github.com/LerianStudio/lib-commons/v6/commons"
 	"github.com/google/uuid"
+	redislib "github.com/redis/go-redis/v9"
+	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 
+	mongodb "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/mongodb/transaction"
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/operation"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/revertclaim"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/transaction"
 	redis "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/redis/transaction"
@@ -23,6 +29,8 @@ import (
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services/query"
 	"github.com/LerianStudio/midaz/v4/pkg"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
+	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
+	"github.com/LerianStudio/midaz/v4/pkg/mtransaction"
 	"github.com/LerianStudio/midaz/v4/pkg/utils"
 )
 
@@ -42,8 +50,13 @@ func TestFailRevertClaim_OnlyProvenPreMutationFailureReleases(t *testing.T) {
 			expectRelease: true,
 		},
 		{
+			name:      "lost seed response remains fenced for reconciliation",
+			execution: revertExecutionState{SeedWriteAmbiguous: true},
+			cause:     errors.New("i/o timeout after seed write"),
+		},
+		{
 			name:          "Lua business rejection proves rollback and releases",
-			execution:     revertExecutionState{BalanceAttempted: true},
+			execution:     revertExecutionState{SeedWritten: true, BalanceAttempted: true},
 			cause:         pkg.ValidateBusinessError(constant.ErrInsufficientFunds, constant.EntityBalance),
 			expectRelease: true,
 		},
@@ -74,9 +87,22 @@ func TestFailRevertClaim_OnlyProvenPreMutationFailureReleases(t *testing.T) {
 				ReverseTransactionID: uuid.New(),
 				State:                revertclaim.StateClaimed,
 			}
+			legacyKey := "legacy-fence"
+			legacyOwner := claim.ReverseTransactionID.String()
+			claim.LegacyFenceKey = &legacyKey
+			claim.LegacyFenceOwner = &legacyOwner
 
 			if tc.expectRelease {
-				redisRepo.EXPECT().Del(gomock.Any(), "legacy-fence").Return(nil)
+				if tc.execution.SeedWritten {
+					redisRepo.EXPECT().RemoveMessageFromQueueIfStatus(gomock.Any(), utils.TransactionInternalKey(
+						claim.OrganizationID, claim.LedgerID, claim.ReverseTransactionID.String()), constant.CREATED,
+						claim.ReverseTransactionID.String(), mmodel.TransactionOutcomeCommitted, true).Return(true, nil)
+				}
+				redisRepo.EXPECT().ReleaseOwnedKey(gomock.Any(), originRevertIdempotencyKey(claim),
+					claim.ReverseTransactionID.String()).Return(true, nil)
+				redisRepo.EXPECT().ReleaseOwnedKey(gomock.Any(), revertExecutionFenceKey(claim),
+					claim.ReverseTransactionID.String()).Return(true, nil)
+				redisRepo.EXPECT().ReleaseOwnedKey(gomock.Any(), "legacy-fence", claim.ReverseTransactionID.String()).Return(true, nil)
 				claimRepo.EXPECT().Release(gomock.Any(), claim.OrganizationID, claim.LedgerID,
 					claim.OriginTransactionID, claim.ReverseTransactionID).Return(true, nil)
 			} else {
@@ -101,6 +127,713 @@ func TestFailRevertClaim_OnlyProvenPreMutationFailureReleases(t *testing.T) {
 	}
 }
 
+func TestAcquireLegacyRevertBarrier_AmbiguousAcquireReturnsOwnedKeyForCleanup(t *testing.T) {
+	t.Parallel()
+
+	ctrl := gomock.NewController(t)
+	redisRepo := redis.NewMockRedisRepository(ctrl)
+	claim := &revertclaim.Claim{ReverseTransactionID: uuid.New()}
+	organizationID := uuid.New()
+	ledgerID := uuid.New()
+	legacyHash := "legacy-hash"
+	wantKey := utils.IdempotencyInternalKey(organizationID, ledgerID, legacyHash)
+	claim.LegacyFenceKey = &wantKey
+	legacyOwner := claim.ReverseTransactionID.String()
+	claim.LegacyFenceOwner = &legacyOwner
+	redisRepo.EXPECT().AcquireOwnedKey(gomock.Any(), wantKey, claim.ReverseTransactionID.String(), time.Duration(0)).
+		Return(false, errors.New("lost script response"))
+
+	handler := &TransactionHandler{Command: &command.UseCase{TransactionRedisRepo: redisRepo}}
+	key, replay, err := handler.acquireLegacyRevertBarrier(context.Background(), claim)
+
+	require.Error(t, err)
+	assert.Equal(t, wantKey, key)
+	assert.Nil(t, replay)
+}
+
+func TestAcquireOriginRevertBarrier_AtomicallyClaimsMainAndOwner(t *testing.T) {
+	t.Parallel()
+
+	ctrl := gomock.NewController(t)
+	redisRepo := redis.NewMockRedisRepository(ctrl)
+	organizationID := uuid.New()
+	ledgerID := uuid.New()
+	reverseID := uuid.New()
+	hash := "origin-hash"
+	wantKey := utils.IdempotencyInternalKey(organizationID, ledgerID, hash)
+	redisRepo.EXPECT().AcquireOwnedKey(gomock.Any(), wantKey, reverseID.String(), time.Duration(0)).Return(true, nil)
+
+	handler := &TransactionHandler{Command: &command.UseCase{TransactionRedisRepo: redisRepo}}
+	key, replay, err := handler.acquireOriginRevertBarrier(context.Background(), organizationID, ledgerID,
+		reverseID, "", hash)
+
+	require.NoError(t, err)
+	require.NotNil(t, key)
+	assert.Equal(t, wantKey, *key)
+	assert.Nil(t, replay)
+}
+
+func TestAcquireOriginRevertBarrier_AmbiguousAcquireReturnsOwnedKeyForCleanup(t *testing.T) {
+	t.Parallel()
+
+	ctrl := gomock.NewController(t)
+	redisRepo := redis.NewMockRedisRepository(ctrl)
+	organizationID := uuid.New()
+	ledgerID := uuid.New()
+	reverseID := uuid.New()
+	wantKey := utils.IdempotencyInternalKey(organizationID, ledgerID, "origin-hash")
+	redisRepo.EXPECT().AcquireOwnedKey(gomock.Any(), wantKey, reverseID.String(), time.Duration(0)).
+		Return(false, errors.New("lost script response"))
+
+	handler := &TransactionHandler{Command: &command.UseCase{TransactionRedisRepo: redisRepo}}
+	key, replay, err := handler.acquireOriginRevertBarrier(context.Background(), organizationID, ledgerID,
+		reverseID, "origin-hash", "ignored")
+
+	require.Error(t, err)
+	require.NotNil(t, key)
+	assert.Equal(t, wantKey, *key)
+	assert.Nil(t, replay)
+}
+
+func TestCompleteOriginRevertBarrier_RematerializesPersistedReplayWhenFenceIsAbsent(t *testing.T) {
+	t.Parallel()
+
+	ctrl := gomock.NewController(t)
+	redisRepo := redis.NewMockRedisRepository(ctrl)
+	reverseID := uuid.New()
+	originID := uuid.NewString()
+	reverse := &transaction.Transaction{ID: reverseID.String(), ParentTransactionID: &originID}
+	originKey := "idempotency:{origin}"
+	ttl := time.Minute
+
+	redisRepo.EXPECT().CompleteOwnedKey(gomock.Any(), originKey, reverseID.String(), gomock.Any(), ttl).Return(false, nil)
+	redisRepo.EXPECT().Get(gomock.Any(), originKey).Return("", redislib.Nil)
+	redisRepo.EXPECT().AcquireOwnedKey(gomock.Any(), originKey, reverseID.String(), time.Duration(0)).Return(true, nil)
+	redisRepo.EXPECT().CompleteOwnedKey(gomock.Any(), originKey, reverseID.String(), gomock.Any(), ttl).Return(true, nil)
+
+	handler := &TransactionHandler{Command: &command.UseCase{TransactionRedisRepo: redisRepo}}
+	require.NoError(t, handler.completeOriginRevertBarrier(context.Background(), &originKey, reverseID, reverse, ttl))
+}
+
+func TestCompleteOriginRevertBarrier_LostCompletionResponseVerifiesExactReplay(t *testing.T) {
+	t.Parallel()
+
+	ctrl := gomock.NewController(t)
+	redisRepo := redis.NewMockRedisRepository(ctrl)
+	reverseID := uuid.New()
+	originID := uuid.NewString()
+	reverse := &transaction.Transaction{ID: reverseID.String(), ParentTransactionID: &originID}
+	originKey := "idempotency:{origin}"
+	encoded, err := json.Marshal(reverse)
+	require.NoError(t, err)
+
+	redisRepo.EXPECT().CompleteOwnedKey(gomock.Any(), originKey, reverseID.String(), gomock.Any(), time.Minute).
+		Return(false, errors.New("lost completion response"))
+	redisRepo.EXPECT().Get(gomock.Any(), originKey).Return(string(encoded), nil)
+
+	handler := &TransactionHandler{Command: &command.UseCase{TransactionRedisRepo: redisRepo}}
+	require.NoError(t, handler.completeOriginRevertBarrier(context.Background(), &originKey, reverseID, reverse, time.Minute))
+}
+
+func TestCompleteOriginRevertBarrier_RejectsSameIDsWithDifferentBalanceSnapshots(t *testing.T) {
+	t.Parallel()
+
+	ctrl := gomock.NewController(t)
+	redisRepo := redis.NewMockRedisRepository(ctrl)
+	reverseID := uuid.New()
+	originID := uuid.NewString()
+	operationID := uuid.NewString()
+	before := decimal.NewFromInt(100)
+	after := decimal.Zero
+	versionBefore := int64(1)
+	versionAfter := int64(2)
+	reverse := &transaction.Transaction{
+		ID: reverseID.String(), ParentTransactionID: &originID,
+		Operations: []*operation.Operation{{
+			ID:           operationID,
+			Balance:      operation.Balance{Available: &before, Version: &versionBefore},
+			BalanceAfter: operation.Balance{Available: &after, Version: &versionAfter},
+		}},
+	}
+	cached := *reverse
+	wrongAfter := decimal.NewFromInt(1)
+	cached.Operations = []*operation.Operation{{
+		ID:           operationID,
+		Balance:      operation.Balance{Available: &before, Version: &versionBefore},
+		BalanceAfter: operation.Balance{Available: &wrongAfter, Version: &versionAfter},
+	}}
+	originKey := "idempotency:{origin}"
+	encoded, err := json.Marshal(&cached)
+	require.NoError(t, err)
+
+	redisRepo.EXPECT().CompleteOwnedKey(gomock.Any(), originKey, reverseID.String(), gomock.Any(), time.Minute).
+		Return(false, errors.New("lost completion response"))
+	redisRepo.EXPECT().Get(gomock.Any(), originKey).Return(string(encoded), nil)
+
+	handler := &TransactionHandler{Command: &command.UseCase{TransactionRedisRepo: redisRepo}}
+	require.Error(t, handler.completeOriginRevertBarrier(context.Background(), &originKey, reverseID, reverse, time.Minute))
+}
+
+func TestCompleteOriginRevertBarrier_ConcurrentRetryAcceptsExactWinner(t *testing.T) {
+	t.Parallel()
+
+	ctrl := gomock.NewController(t)
+	redisRepo := redis.NewMockRedisRepository(ctrl)
+	reverseID := uuid.New()
+	originID := uuid.NewString()
+	reverse := &transaction.Transaction{ID: reverseID.String(), ParentTransactionID: &originID}
+	originKey := "idempotency:{origin}"
+	encoded, err := json.Marshal(reverse)
+	require.NoError(t, err)
+
+	redisRepo.EXPECT().CompleteOwnedKey(gomock.Any(), originKey, reverseID.String(), gomock.Any(), time.Minute).Return(false, nil)
+	redisRepo.EXPECT().Get(gomock.Any(), originKey).Return("", redislib.Nil)
+	redisRepo.EXPECT().AcquireOwnedKey(gomock.Any(), originKey, reverseID.String(), time.Duration(0)).Return(false, nil)
+	redisRepo.EXPECT().CompleteOwnedKey(gomock.Any(), originKey, reverseID.String(), gomock.Any(), time.Minute).Return(false, nil)
+	redisRepo.EXPECT().Get(gomock.Any(), originKey).Return(string(encoded), nil)
+
+	handler := &TransactionHandler{Command: &command.UseCase{TransactionRedisRepo: redisRepo}}
+	require.NoError(t, handler.completeOriginRevertBarrier(context.Background(), &originKey, reverseID, reverse, time.Minute))
+}
+
+func TestFailRevertClaim_LegacyCleanupFailureKeepsDurableClaim(t *testing.T) {
+	t.Parallel()
+
+	ctrl := gomock.NewController(t)
+	claimRepo := revertclaim.NewMockRepository(ctrl)
+	redisRepo := redis.NewMockRedisRepository(ctrl)
+	legacyKey := "legacy-fence"
+	claim := &revertclaim.Claim{
+		OrganizationID:       uuid.New(),
+		LedgerID:             uuid.New(),
+		OriginTransactionID:  uuid.New(),
+		ReverseTransactionID: uuid.New(),
+		LegacyFenceKey:       &legacyKey,
+		State:                revertclaim.StateClaimed,
+	}
+	legacyOwner := claim.ReverseTransactionID.String()
+	claim.LegacyFenceOwner = &legacyOwner
+	redisRepo.EXPECT().ReleaseOwnedKey(gomock.Any(), originRevertIdempotencyKey(claim),
+		claim.ReverseTransactionID.String()).Return(true, nil)
+	redisRepo.EXPECT().ReleaseOwnedKey(gomock.Any(), revertExecutionFenceKey(claim),
+		claim.ReverseTransactionID.String()).Return(true, nil)
+	redisRepo.EXPECT().ReleaseOwnedKey(gomock.Any(), "legacy-fence", claim.ReverseTransactionID.String()).
+		Return(false, errors.New("lost cleanup response"))
+	reason := "pre_movement_fence_cleanup_failed"
+	claimRepo.EXPECT().Transition(gomock.Any(), claim.OrganizationID, claim.LedgerID,
+		claim.OriginTransactionID, claim.ReverseTransactionID,
+		revertclaim.StateReconciliationRequired, &reason).Return(nil)
+
+	handler := &TransactionHandler{Command: &command.UseCase{
+		RevertClaimRepo:      claimRepo,
+		TransactionRedisRepo: redisRepo,
+	}}
+	err := handler.failRevertClaim(context.Background(), claim, &revertExecutionState{}, "legacy-fence", errors.New("validation failed"))
+
+	var unavailable pkg.ServiceUnavailableError
+	require.ErrorAs(t, err, &unavailable)
+	assert.Equal(t, constant.ErrRevertReconciliationRequired.Error(), unavailable.Code)
+	// No PostgreSQL Release expectation exists: a failed Redis cleanup must
+	// retain the durable claim rather than orphan a persistent legacy fence.
+}
+
+func TestFailRevertClaim_BackupCleanupFailureKeepsEveryFence(t *testing.T) {
+	t.Parallel()
+
+	ctrl := gomock.NewController(t)
+	claimRepo := revertclaim.NewMockRepository(ctrl)
+	redisRepo := redis.NewMockRedisRepository(ctrl)
+	claim := &revertclaim.Claim{
+		OrganizationID:       uuid.New(),
+		LedgerID:             uuid.New(),
+		OriginTransactionID:  uuid.New(),
+		ReverseTransactionID: uuid.New(),
+		State:                revertclaim.StateClaimed,
+	}
+	redisRepo.EXPECT().RemoveMessageFromQueueIfStatus(gomock.Any(), utils.TransactionInternalKey(
+		claim.OrganizationID, claim.LedgerID, claim.ReverseTransactionID.String()), constant.CREATED,
+		claim.ReverseTransactionID.String(), mmodel.TransactionOutcomeCommitted, true).
+		Return(false, errors.New("lost queue cleanup response"))
+	reason := "pre_movement_backup_cleanup_failed"
+	claimRepo.EXPECT().Transition(gomock.Any(), claim.OrganizationID, claim.LedgerID,
+		claim.OriginTransactionID, claim.ReverseTransactionID,
+		revertclaim.StateReconciliationRequired, &reason).Return(nil)
+
+	handler := &TransactionHandler{Command: &command.UseCase{
+		RevertClaimRepo:      claimRepo,
+		TransactionRedisRepo: redisRepo,
+	}}
+	err := handler.failRevertClaim(context.Background(), claim, &revertExecutionState{SeedWritten: true}, "legacy-fence", errors.New("validation failed"))
+
+	var unavailable pkg.ServiceUnavailableError
+	require.ErrorAs(t, err, &unavailable)
+	assert.Equal(t, constant.ErrRevertReconciliationRequired.Error(), unavailable.Code)
+	// No origin, execution-lease, legacy, or PostgreSQL release expectation:
+	// an uncertain queue cleanup preserves the complete recovery set.
+}
+
+func TestFailRevertClaim_ExpiredExecutionLeaseNeverDeletesSuccessorBarriers(t *testing.T) {
+	t.Parallel()
+
+	claim := &revertclaim.Claim{
+		OrganizationID:       uuid.New(),
+		LedgerID:             uuid.New(),
+		OriginTransactionID:  uuid.New(),
+		ReverseTransactionID: uuid.New(),
+		State:                revertclaim.StateClaimed,
+	}
+	cause := pkg.ValidateBusinessError(constant.ErrIdempotencyKey, "RevertExecutionLease", "expired")
+	handler := &TransactionHandler{}
+
+	err := handler.failRevertClaim(context.Background(), claim,
+		&revertExecutionState{BalanceAttempted: true}, "legacy-fence", cause)
+
+	assert.ErrorIs(t, err, cause)
+}
+
+func TestReleaseFreshRevertClaim_AmbiguousAcquireMayReleaseOnlyWhenBothLegacyKeysAreAbsent(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name        string
+		values      map[string]string
+		wantRelease bool
+	}{
+		{name: "script provably never wrote either key", values: map[string]string{}, wantRelease: true},
+		{name: "persistent fence survived lost response", values: map[string]string{"legacy-fence": ""}},
+		{name: "owner token survived lost response", values: map[string]string{"legacy-fence:owner": uuid.NewString()}},
+	}
+
+	for _, tc := range tests {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			ctrl := gomock.NewController(t)
+			claimRepo := revertclaim.NewMockRepository(ctrl)
+			redisRepo := redis.NewMockRedisRepository(ctrl)
+			claim := &revertclaim.Claim{
+				OrganizationID:       uuid.New(),
+				LedgerID:             uuid.New(),
+				OriginTransactionID:  uuid.New(),
+				ReverseTransactionID: uuid.New(),
+			}
+			legacyKey := "legacy-fence"
+			legacyOwner := claim.ReverseTransactionID.String()
+			claim.LegacyFenceKey = &legacyKey
+			claim.LegacyFenceOwner = &legacyOwner
+			redisRepo.EXPECT().ReleaseOwnedKey(gomock.Any(), "legacy-fence", claim.ReverseTransactionID.String()).Return(false, nil)
+			redisRepo.EXPECT().MGet(gomock.Any(), []string{"legacy-fence", "legacy-fence:owner"}).Return(tc.values, nil)
+			if tc.wantRelease {
+				claimRepo.EXPECT().Release(gomock.Any(), claim.OrganizationID, claim.LedgerID,
+					claim.OriginTransactionID, claim.ReverseTransactionID).Return(true, nil)
+			}
+
+			handler := &TransactionHandler{Command: &command.UseCase{
+				RevertClaimRepo:      claimRepo,
+				TransactionRedisRepo: redisRepo,
+			}}
+			err := handler.releaseFreshRevertClaim(context.Background(), claim, "legacy-fence", true)
+			if tc.wantRelease {
+				require.NoError(t, err)
+
+				return
+			}
+			require.ErrorContains(t, err, "ownership unresolved")
+		})
+	}
+}
+
+func TestReleaseFreshRevertClaim_RequiresPostgresClaimRelease(t *testing.T) {
+	t.Parallel()
+
+	ctrl := gomock.NewController(t)
+	claimRepo := revertclaim.NewMockRepository(ctrl)
+	redisRepo := redis.NewMockRedisRepository(ctrl)
+	claim := &revertclaim.Claim{
+		OrganizationID:       uuid.New(),
+		LedgerID:             uuid.New(),
+		OriginTransactionID:  uuid.New(),
+		ReverseTransactionID: uuid.New(),
+	}
+	legacyKey := "legacy-fence"
+	legacyOwner := claim.ReverseTransactionID.String()
+	claim.LegacyFenceKey = &legacyKey
+	claim.LegacyFenceOwner = &legacyOwner
+
+	redisRepo.EXPECT().ReleaseOwnedKey(gomock.Any(), "legacy-fence", claim.ReverseTransactionID.String()).Return(true, nil)
+	claimRepo.EXPECT().Release(gomock.Any(), claim.OrganizationID, claim.LedgerID,
+		claim.OriginTransactionID, claim.ReverseTransactionID).Return(false, nil)
+
+	handler := &TransactionHandler{Command: &command.UseCase{
+		RevertClaimRepo:      claimRepo,
+		TransactionRedisRepo: redisRepo,
+	}}
+	err := handler.releaseFreshRevertClaim(context.Background(), claim, "legacy-fence", false)
+	require.ErrorContains(t, err, "claim was not released")
+}
+
+func TestRecoverProvenPreMovementRevert_CleansRedisBeforeReleasingClaim(t *testing.T) {
+	t.Parallel()
+
+	ctrl := gomock.NewController(t)
+	claimRepo := revertclaim.NewMockRepository(ctrl)
+	redisRepo := redis.NewMockRedisRepository(ctrl)
+	legacyKey := "legacy-fence"
+	claim := &revertclaim.Claim{
+		OrganizationID:       uuid.New(),
+		LedgerID:             uuid.New(),
+		OriginTransactionID:  uuid.New(),
+		ReverseTransactionID: uuid.New(),
+		LegacyFenceKey:       &legacyKey,
+		State:                revertclaim.StateClaimed,
+	}
+	legacyOwner := claim.ReverseTransactionID.String()
+	claim.LegacyFenceOwner = &legacyOwner
+	backupKey := utils.TransactionInternalKey(claim.OrganizationID, claim.LedgerID, claim.ReverseTransactionID.String())
+	backup, err := json.Marshal(mmodel.TransactionRedisQueue{
+		TransactionID:       claim.ReverseTransactionID,
+		ParentTransactionID: &claim.OriginTransactionID,
+		TransactionStatus:   constant.CREATED,
+		AttemptOwner:        claim.ReverseTransactionID.String(),
+		ExpectedOutcome:     mmodel.TransactionOutcomeCommitted,
+	})
+	require.NoError(t, err)
+
+	redisRepo.EXPECT().ReadMessageFromQueue(gomock.Any(), backupKey).Return(backup, nil)
+	redisRepo.EXPECT().Get(gomock.Any(), utils.TransactionBalanceOutcomeKey(claim.OrganizationID,
+		claim.LedgerID, claim.ReverseTransactionID)).Return("", nil)
+	redisRepo.EXPECT().MGet(gomock.Any(), []string{revertExecutionFenceKey(claim),
+		revertExecutionFenceKey(claim) + ":owner"}).Return(map[string]string{}, nil)
+	claimRepo.EXPECT().BeginPreMutationRecovery(gomock.Any(), claim.OrganizationID, claim.LedgerID,
+		claim.OriginTransactionID, claim.ReverseTransactionID).Return(true, nil)
+	redisRepo.EXPECT().ReleaseOwnedKey(gomock.Any(), originRevertIdempotencyKey(claim),
+		claim.ReverseTransactionID.String()).Return(true, nil)
+	redisRepo.EXPECT().RemoveMessageFromQueueIfStatus(gomock.Any(), backupKey, constant.CREATED,
+		claim.ReverseTransactionID.String(), mmodel.TransactionOutcomeCommitted, true).Return(true, nil)
+	redisRepo.EXPECT().ReleaseOwnedKey(gomock.Any(), legacyKey, claim.ReverseTransactionID.String()).Return(true, nil)
+	claimRepo.EXPECT().Release(gomock.Any(), claim.OrganizationID, claim.LedgerID,
+		claim.OriginTransactionID, claim.ReverseTransactionID).Return(true, nil)
+
+	handler := &TransactionHandler{Command: &command.UseCase{
+		RevertClaimRepo:      claimRepo,
+		TransactionRedisRepo: redisRepo,
+	}}
+	recovered, err := handler.recoverProvenPreMovementRevert(context.Background(), claim)
+
+	require.NoError(t, err)
+	assert.True(t, recovered)
+}
+
+func TestRecoverProvenPreMovementRevert_TerminalBackupWinningCleanupRaceIsNeverReleased(t *testing.T) {
+	t.Parallel()
+
+	ctrl := gomock.NewController(t)
+	claimRepo := revertclaim.NewMockRepository(ctrl)
+	redisRepo := redis.NewMockRedisRepository(ctrl)
+	claim := &revertclaim.Claim{
+		OrganizationID:       uuid.New(),
+		LedgerID:             uuid.New(),
+		OriginTransactionID:  uuid.New(),
+		ReverseTransactionID: uuid.New(),
+		State:                revertclaim.StateClaimed,
+	}
+	backupKey := utils.TransactionInternalKey(claim.OrganizationID, claim.LedgerID,
+		claim.ReverseTransactionID.String())
+	backup, err := json.Marshal(mmodel.TransactionRedisQueue{
+		TransactionID:       claim.ReverseTransactionID,
+		ParentTransactionID: &claim.OriginTransactionID,
+		TransactionStatus:   constant.CREATED,
+		AttemptOwner:        claim.ReverseTransactionID.String(),
+		ExpectedOutcome:     mmodel.TransactionOutcomeCommitted,
+	})
+	require.NoError(t, err)
+
+	redisRepo.EXPECT().Get(gomock.Any(), utils.TransactionBalanceOutcomeKey(claim.OrganizationID,
+		claim.LedgerID, claim.ReverseTransactionID)).Return("", nil)
+	redisRepo.EXPECT().MGet(gomock.Any(), []string{revertExecutionFenceKey(claim),
+		revertExecutionFenceKey(claim) + ":owner"}).Return(map[string]string{}, nil)
+	redisRepo.EXPECT().ReadMessageFromQueue(gomock.Any(), backupKey).Return(backup, nil)
+	claimRepo.EXPECT().BeginPreMutationRecovery(gomock.Any(), claim.OrganizationID, claim.LedgerID,
+		claim.OriginTransactionID, claim.ReverseTransactionID).Return(true, nil)
+	redisRepo.EXPECT().RemoveMessageFromQueueIfStatus(gomock.Any(), backupKey, constant.CREATED,
+		claim.ReverseTransactionID.String(), mmodel.TransactionOutcomeCommitted, true).Return(false, nil)
+	reason := "pre_movement_backup_cleanup_failed"
+	claimRepo.EXPECT().Transition(gomock.Any(), claim.OrganizationID, claim.LedgerID,
+		claim.OriginTransactionID, claim.ReverseTransactionID,
+		revertclaim.StateReconciliationRequired, &reason).Return(nil)
+
+	handler := &TransactionHandler{Command: &command.UseCase{
+		RevertClaimRepo:      claimRepo,
+		TransactionRedisRepo: redisRepo,
+	}}
+	recovered, err := handler.recoverProvenPreMovementRevert(context.Background(), claim)
+
+	assert.False(t, recovered)
+	var unavailable pkg.ServiceUnavailableError
+	require.ErrorAs(t, err, &unavailable)
+	assert.Equal(t, constant.ErrRevertReconciliationRequired.Error(), unavailable.Code)
+	// No Redis barrier or PostgreSQL claim release is expected after the exact
+	// pre-movement envelope was replaced by a terminal state.
+}
+
+func TestRecoverProvenPreMovementRevert_MissingSeedAfterExpiredLeaseProvesCrashBeforeSeed(t *testing.T) {
+	t.Parallel()
+
+	ctrl := gomock.NewController(t)
+	claimRepo := revertclaim.NewMockRepository(ctrl)
+	redisRepo := redis.NewMockRedisRepository(ctrl)
+	claim := &revertclaim.Claim{
+		OrganizationID:       uuid.New(),
+		LedgerID:             uuid.New(),
+		OriginTransactionID:  uuid.New(),
+		ReverseTransactionID: uuid.New(),
+		State:                revertclaim.StateClaimed,
+	}
+	backupKey := utils.TransactionInternalKey(claim.OrganizationID, claim.LedgerID, claim.ReverseTransactionID.String())
+
+	redisRepo.EXPECT().Get(gomock.Any(), utils.TransactionBalanceOutcomeKey(claim.OrganizationID,
+		claim.LedgerID, claim.ReverseTransactionID)).Return("", nil)
+	redisRepo.EXPECT().MGet(gomock.Any(), []string{revertExecutionFenceKey(claim),
+		revertExecutionFenceKey(claim) + ":owner"}).Return(map[string]string{}, nil)
+	redisRepo.EXPECT().ReadMessageFromQueue(gomock.Any(), backupKey).Return(nil, redislib.Nil)
+	claimRepo.EXPECT().BeginPreMutationRecovery(gomock.Any(), claim.OrganizationID, claim.LedgerID,
+		claim.OriginTransactionID, claim.ReverseTransactionID).Return(true, nil)
+	redisRepo.EXPECT().ReleaseOwnedKey(gomock.Any(), originRevertIdempotencyKey(claim),
+		claim.ReverseTransactionID.String()).Return(true, nil)
+	claimRepo.EXPECT().Release(gomock.Any(), claim.OrganizationID, claim.LedgerID,
+		claim.OriginTransactionID, claim.ReverseTransactionID).Return(true, nil)
+
+	handler := &TransactionHandler{Command: &command.UseCase{
+		RevertClaimRepo:      claimRepo,
+		TransactionRedisRepo: redisRepo,
+	}}
+	recovered, err := handler.recoverProvenPreMovementRevert(context.Background(), claim)
+
+	require.NoError(t, err)
+	assert.True(t, recovered)
+}
+
+func TestRecoverProvenPreMovementRevert_RequiresExactOriginInSeed(t *testing.T) {
+	t.Parallel()
+
+	ctrl := gomock.NewController(t)
+	redisRepo := redis.NewMockRedisRepository(ctrl)
+	claim := &revertclaim.Claim{
+		OrganizationID:       uuid.New(),
+		LedgerID:             uuid.New(),
+		OriginTransactionID:  uuid.New(),
+		ReverseTransactionID: uuid.New(),
+		State:                revertclaim.StateClaimed,
+	}
+	backup, err := json.Marshal(mmodel.TransactionRedisQueue{TransactionID: claim.ReverseTransactionID})
+	require.NoError(t, err)
+	redisRepo.EXPECT().ReadMessageFromQueue(gomock.Any(),
+		utils.TransactionInternalKey(claim.OrganizationID, claim.LedgerID, claim.ReverseTransactionID.String())).Return(backup, nil)
+	redisRepo.EXPECT().Get(gomock.Any(), utils.TransactionBalanceOutcomeKey(claim.OrganizationID,
+		claim.LedgerID, claim.ReverseTransactionID)).Return("", nil)
+	redisRepo.EXPECT().MGet(gomock.Any(), []string{revertExecutionFenceKey(claim),
+		revertExecutionFenceKey(claim) + ":owner"}).Return(map[string]string{}, nil)
+
+	handler := &TransactionHandler{Command: &command.UseCase{TransactionRedisRepo: redisRepo}}
+	recovered, err := handler.recoverProvenPreMovementRevert(context.Background(), claim)
+
+	require.NoError(t, err)
+	assert.False(t, recovered)
+}
+
+func TestRecoverProvenPreMovementRevert_ActiveExecutionLeaseCannotBeRecovered(t *testing.T) {
+	t.Parallel()
+
+	ctrl := gomock.NewController(t)
+	redisRepo := redis.NewMockRedisRepository(ctrl)
+	claim := &revertclaim.Claim{
+		OrganizationID:       uuid.New(),
+		LedgerID:             uuid.New(),
+		OriginTransactionID:  uuid.New(),
+		ReverseTransactionID: uuid.New(),
+		State:                revertclaim.StateClaimed,
+	}
+	redisRepo.EXPECT().Get(gomock.Any(), utils.TransactionBalanceOutcomeKey(claim.OrganizationID,
+		claim.LedgerID, claim.ReverseTransactionID)).Return("", nil)
+	redisRepo.EXPECT().MGet(gomock.Any(), []string{revertExecutionFenceKey(claim),
+		revertExecutionFenceKey(claim) + ":owner"}).Return(map[string]string{
+		revertExecutionFenceKey(claim):            "",
+		revertExecutionFenceKey(claim) + ":owner": claim.ReverseTransactionID.String(),
+	}, nil)
+
+	handler := &TransactionHandler{Command: &command.UseCase{TransactionRedisRepo: redisRepo}}
+	recovered, err := handler.recoverProvenPreMovementRevert(context.Background(), claim)
+
+	require.NoError(t, err)
+	assert.False(t, recovered)
+}
+
+func TestRecoverProvenPreMovementRevert_ResumesIdempotentRecoveringCleanup(t *testing.T) {
+	t.Parallel()
+
+	ctrl := gomock.NewController(t)
+	claimRepo := revertclaim.NewMockRepository(ctrl)
+	redisRepo := redis.NewMockRedisRepository(ctrl)
+	legacyKey := "legacy-fence"
+	claim := &revertclaim.Claim{
+		OrganizationID:       uuid.New(),
+		LedgerID:             uuid.New(),
+		OriginTransactionID:  uuid.New(),
+		ReverseTransactionID: uuid.New(),
+		LegacyFenceKey:       &legacyKey,
+		State:                revertclaim.StateRecovering,
+	}
+	legacyOwner := claim.ReverseTransactionID.String()
+	claim.LegacyFenceOwner = &legacyOwner
+	backupKey := utils.TransactionInternalKey(claim.OrganizationID, claim.LedgerID, claim.ReverseTransactionID.String())
+	redisRepo.EXPECT().Get(gomock.Any(), utils.TransactionBalanceOutcomeKey(claim.OrganizationID,
+		claim.LedgerID, claim.ReverseTransactionID)).Return("", nil)
+	redisRepo.EXPECT().MGet(gomock.Any(), []string{revertExecutionFenceKey(claim),
+		revertExecutionFenceKey(claim) + ":owner"}).Return(map[string]string{}, nil)
+	redisRepo.EXPECT().ReadMessageFromQueue(gomock.Any(), backupKey).Return(nil, redislib.Nil)
+
+	claimRepo.EXPECT().BeginPreMutationRecovery(gomock.Any(), claim.OrganizationID, claim.LedgerID,
+		claim.OriginTransactionID, claim.ReverseTransactionID).Return(true, nil)
+	redisRepo.EXPECT().ReleaseOwnedKey(gomock.Any(), originRevertIdempotencyKey(claim),
+		claim.ReverseTransactionID.String()).Return(true, nil)
+	redisRepo.EXPECT().ReleaseOwnedKey(gomock.Any(), legacyKey, claim.ReverseTransactionID.String()).Return(false, nil)
+	redisRepo.EXPECT().MGet(gomock.Any(), []string{legacyKey, legacyKey + ":owner"}).Return(map[string]string{}, nil)
+	claimRepo.EXPECT().Release(gomock.Any(), claim.OrganizationID, claim.LedgerID,
+		claim.OriginTransactionID, claim.ReverseTransactionID).Return(true, nil)
+
+	handler := &TransactionHandler{Command: &command.UseCase{
+		RevertClaimRepo:      claimRepo,
+		TransactionRedisRepo: redisRepo,
+	}}
+	recovered, err := handler.recoverProvenPreMovementRevert(context.Background(), claim)
+
+	require.NoError(t, err)
+	assert.True(t, recovered)
+}
+
+func TestRecoverProvenPreMovementRevert_FinalLeavesForeignLegacyFenceUntouched(t *testing.T) {
+	t.Parallel()
+
+	ctrl := gomock.NewController(t)
+	claimRepo := revertclaim.NewMockRepository(ctrl)
+	redisRepo := redis.NewMockRedisRepository(ctrl)
+	legacyKey := "legacy-fence"
+	claim := &revertclaim.Claim{
+		OrganizationID:       uuid.New(),
+		LedgerID:             uuid.New(),
+		OriginTransactionID:  uuid.New(),
+		ReverseTransactionID: uuid.New(),
+		LegacyFenceKey:       &legacyKey,
+		State:                revertclaim.StateRecovering,
+	}
+	legacyOwner := claim.ReverseTransactionID.String()
+	claim.LegacyFenceOwner = &legacyOwner
+	foreignOwner := uuid.NewString()
+	backupKey := utils.TransactionInternalKey(claim.OrganizationID, claim.LedgerID, claim.ReverseTransactionID.String())
+	redisRepo.EXPECT().Get(gomock.Any(), utils.TransactionBalanceOutcomeKey(claim.OrganizationID,
+		claim.LedgerID, claim.ReverseTransactionID)).Return("", nil)
+	redisRepo.EXPECT().MGet(gomock.Any(), []string{revertExecutionFenceKey(claim),
+		revertExecutionFenceKey(claim) + ":owner"}).Return(map[string]string{}, nil)
+	redisRepo.EXPECT().ReadMessageFromQueue(gomock.Any(), backupKey).Return(nil, redislib.Nil)
+
+	claimRepo.EXPECT().BeginPreMutationRecovery(gomock.Any(), claim.OrganizationID, claim.LedgerID,
+		claim.OriginTransactionID, claim.ReverseTransactionID).Return(true, nil)
+	redisRepo.EXPECT().ReleaseOwnedKey(gomock.Any(), originRevertIdempotencyKey(claim),
+		claim.ReverseTransactionID.String()).Return(true, nil)
+	redisRepo.EXPECT().ReleaseOwnedKey(gomock.Any(), legacyKey, claim.ReverseTransactionID.String()).Return(false, nil)
+	redisRepo.EXPECT().MGet(gomock.Any(), []string{legacyKey, legacyKey + ":owner"}).Return(map[string]string{
+		legacyKey:            "",
+		legacyKey + ":owner": foreignOwner,
+	}, nil)
+	claimRepo.EXPECT().Release(gomock.Any(), claim.OrganizationID, claim.LedgerID,
+		claim.OriginTransactionID, claim.ReverseTransactionID).Return(true, nil)
+
+	handler := &TransactionHandler{
+		RevertIdempotencyMode: revertIdempotencyModeFinal,
+		Command: &command.UseCase{
+			RevertClaimRepo:      claimRepo,
+			TransactionRedisRepo: redisRepo,
+		},
+	}
+	recovered, err := handler.recoverProvenPreMovementRevert(context.Background(), claim)
+
+	require.NoError(t, err)
+	assert.True(t, recovered)
+}
+
+func TestRecoverProvenPreMovementRevert_StaleOwnerCannotDeleteSuccessorOriginFence(t *testing.T) {
+	t.Parallel()
+
+	ctrl := gomock.NewController(t)
+	claimRepo := revertclaim.NewMockRepository(ctrl)
+	redisRepo := redis.NewMockRedisRepository(ctrl)
+	claim := &revertclaim.Claim{
+		OrganizationID:       uuid.New(),
+		LedgerID:             uuid.New(),
+		OriginTransactionID:  uuid.New(),
+		ReverseTransactionID: uuid.New(),
+		State:                revertclaim.StateRecovering,
+	}
+	originKey := originRevertIdempotencyKey(claim)
+	backupKey := utils.TransactionInternalKey(claim.OrganizationID, claim.LedgerID,
+		claim.ReverseTransactionID.String())
+	redisRepo.EXPECT().Get(gomock.Any(), utils.TransactionBalanceOutcomeKey(claim.OrganizationID,
+		claim.LedgerID, claim.ReverseTransactionID)).Return("", nil)
+	redisRepo.EXPECT().MGet(gomock.Any(), []string{revertExecutionFenceKey(claim),
+		revertExecutionFenceKey(claim) + ":owner"}).Return(map[string]string{}, nil)
+	redisRepo.EXPECT().ReadMessageFromQueue(gomock.Any(), backupKey).Return(nil, redislib.Nil)
+	claimRepo.EXPECT().BeginPreMutationRecovery(gomock.Any(), claim.OrganizationID, claim.LedgerID,
+		claim.OriginTransactionID, claim.ReverseTransactionID).Return(true, nil)
+	redisRepo.EXPECT().ReleaseOwnedKey(gomock.Any(), originKey, claim.ReverseTransactionID.String()).Return(false, nil)
+	redisRepo.EXPECT().MGet(gomock.Any(), []string{originKey, originKey + ":owner"}).Return(map[string]string{
+		originKey:            "",
+		originKey + ":owner": uuid.NewString(),
+	}, nil)
+	reason := "pre_movement_origin_fence_cleanup_failed"
+	claimRepo.EXPECT().Transition(gomock.Any(), claim.OrganizationID, claim.LedgerID,
+		claim.OriginTransactionID, claim.ReverseTransactionID,
+		revertclaim.StateReconciliationRequired, &reason).Return(nil)
+
+	handler := &TransactionHandler{Command: &command.UseCase{
+		RevertClaimRepo:      claimRepo,
+		TransactionRedisRepo: redisRepo,
+	}}
+	recovered, err := handler.recoverProvenPreMovementRevert(context.Background(), claim)
+
+	assert.False(t, recovered)
+	var unavailable pkg.ServiceUnavailableError
+	require.ErrorAs(t, err, &unavailable)
+	assert.Equal(t, constant.ErrRevertReconciliationRequired.Error(), unavailable.Code)
+	// No queue, legacy, or PostgreSQL release expectation exists: ownership
+	// mismatch stops stale cleanup at the successor's origin fence.
+}
+
+func TestAssignDeterministicRevertOperationIDs_ReplayReusesExactSet(t *testing.T) {
+	t.Parallel()
+
+	reverseID := uuid.New()
+	first := []*operation.Operation{{}, {}, {}}
+	second := []*operation.Operation{{}, {}, {}}
+	require.NoError(t, assignDeterministicRevertOperationIDs(reverseID.String(), first))
+	require.NoError(t, assignDeterministicRevertOperationIDs(reverseID.String(), second))
+
+	seen := make(map[string]struct{}, len(first))
+	for index := range first {
+		assert.Equal(t, first[index].ID, second[index].ID)
+		_, duplicate := seen[first[index].ID]
+		assert.False(t, duplicate)
+		seen[first[index].ID] = struct{}{}
+		_, err := uuid.Parse(first[index].ID)
+		require.NoError(t, err)
+		assert.Equal(t, uuid.Version(7), uuid.MustParse(first[index].ID).Version())
+	}
+
+	other := []*operation.Operation{{}}
+	require.NoError(t, assignDeterministicRevertOperationIDs(uuid.NewString(), other))
+	assert.NotEqual(t, first[0].ID, other[0].ID)
+}
+
 func TestMayReleaseRevertFences_AmbiguousAndPostMutationFailuresStayFenced(t *testing.T) {
 	t.Parallel()
 
@@ -119,6 +852,11 @@ func TestMayReleaseRevertFences_AmbiguousAndPostMutationFailuresStayFenced(t *te
 			execution: &revertExecutionState{},
 			cause:     errors.New("route validation unavailable"),
 			want:      true,
+		},
+		{
+			name:      "lost seed response preserves postgres legacy and origin fences",
+			execution: &revertExecutionState{SeedWriteAmbiguous: true},
+			cause:     errors.New("i/o timeout after seed write"),
 		},
 		{
 			name:      "Lua rejection proves rollback and releases all fences",
@@ -147,6 +885,49 @@ func TestMayReleaseRevertFences_AmbiguousAndPostMutationFailuresStayFenced(t *te
 	}
 }
 
+func TestCompleteLegacyRevertBarrier_FailureAfterMovementNeverReleasesFence(t *testing.T) {
+	t.Parallel()
+
+	ctrl := gomock.NewController(t)
+	claimRepo := revertclaim.NewMockRepository(ctrl)
+	redisRepo := redis.NewMockRedisRepository(ctrl)
+	claim := &revertclaim.Claim{
+		OrganizationID:       uuid.New(),
+		LedgerID:             uuid.New(),
+		OriginTransactionID:  uuid.New(),
+		ReverseTransactionID: uuid.New(),
+		State:                revertclaim.StateCompleted,
+	}
+	legacyFenceKey := "legacy-fence"
+	claim.LegacyFenceKey = &legacyFenceKey
+	legacyFenceOwner := claim.ReverseTransactionID.String()
+	claim.LegacyFenceOwner = &legacyFenceOwner
+	originID := claim.OriginTransactionID.String()
+	reverse := &transaction.Transaction{
+		ID:                  claim.ReverseTransactionID.String(),
+		ParentTransactionID: &originID,
+	}
+
+	redisRepo.EXPECT().CompleteOwnedKey(gomock.Any(), "legacy-fence", claim.ReverseTransactionID.String(),
+		gomock.Any(), gomock.Any()).Return(false, errors.New("connection lost during completion"))
+	reason := "legacy_revert_fence_completion_failed"
+	claimRepo.EXPECT().Transition(gomock.Any(), claim.OrganizationID, claim.LedgerID,
+		claim.OriginTransactionID, claim.ReverseTransactionID,
+		revertclaim.StateReconciliationRequired, &reason).Return(nil)
+
+	handler := &TransactionHandler{Command: &command.UseCase{
+		RevertClaimRepo:      claimRepo,
+		TransactionRedisRepo: redisRepo,
+	}}
+	err := handler.completeLegacyRevertBarrier(context.Background(), claim, "legacy-fence", reverse)
+
+	var unavailable pkg.ServiceUnavailableError
+	require.ErrorAs(t, err, &unavailable)
+	assert.Equal(t, constant.ErrRevertReconciliationRequired.Error(), unavailable.Code)
+	// No ReleaseOwnedKey, Del, or claim Release expectation exists: any cleanup
+	// in this post-movement failure path makes the test fail through gomock.
+}
+
 func TestResolveDurableRevertClaim_CrashAfterBalanceNeverStartsAnotherMutation(t *testing.T) {
 	t.Parallel()
 
@@ -173,6 +954,52 @@ func TestResolveDurableRevertClaim_CrashAfterBalanceNeverStartsAnotherMutation(t
 	assert.Equal(t, constant.ErrRevertReconciliationRequired.Error(), unavailable.Code)
 }
 
+func TestResolveDurableRevertClaim_HardCrashAfterLuaUsesAtomicOutcome(t *testing.T) {
+	t.Parallel()
+
+	ctrl := gomock.NewController(t)
+	transactionRepo := transaction.NewMockRepository(ctrl)
+	claimRepo := revertclaim.NewMockRepository(ctrl)
+	redisRepo := redis.NewMockRedisRepository(ctrl)
+	claim := &revertclaim.Claim{
+		OrganizationID:       uuid.New(),
+		LedgerID:             uuid.New(),
+		OriginTransactionID:  uuid.New(),
+		ReverseTransactionID: uuid.New(),
+		State:                revertclaim.StateClaimed,
+	}
+	backup, err := json.Marshal(mmodel.TransactionRedisQueue{
+		TransactionID:       claim.ReverseTransactionID,
+		ParentTransactionID: &claim.OriginTransactionID,
+		BalancesAfter:       []mmodel.BalanceRedis{{ID: uuid.NewString()}},
+	})
+	require.NoError(t, err)
+
+	transactionRepo.EXPECT().FindByParentID(gomock.Any(), claim.OrganizationID, claim.LedgerID,
+		claim.OriginTransactionID).Return(nil, nil)
+	redisRepo.EXPECT().ReadMessageFromQueue(gomock.Any(),
+		utils.TransactionInternalKey(claim.OrganizationID, claim.LedgerID, claim.ReverseTransactionID.String())).Return(backup, nil)
+	reason := "reverse_balance_committed_before_persistence"
+	claimRepo.EXPECT().Transition(gomock.Any(), claim.OrganizationID, claim.LedgerID,
+		claim.OriginTransactionID, claim.ReverseTransactionID,
+		revertclaim.StateReconciliationRequired, &reason).Return(nil)
+
+	handler := &TransactionHandler{
+		Query: &query.UseCase{TransactionRepo: transactionRepo},
+		Command: &command.UseCase{
+			RevertClaimRepo:      claimRepo,
+			TransactionRedisRepo: redisRepo,
+		},
+	}
+	replay, replayed, err := handler.resolveDurableRevertClaim(context.Background(), claim)
+
+	assert.Nil(t, replay)
+	assert.False(t, replayed)
+	var unavailable pkg.ServiceUnavailableError
+	require.ErrorAs(t, err, &unavailable)
+	assert.Equal(t, constant.ErrRevertReconciliationRequired.Error(), unavailable.Code)
+}
+
 func TestReverseMatchesClaim_RequiresReservedIDAndExactOrigin(t *testing.T) {
 	t.Parallel()
 
@@ -193,6 +1020,409 @@ func TestReverseMatchesClaim_RequiresReservedIDAndExactOrigin(t *testing.T) {
 	}, claim))
 }
 
+func TestAdoptPersistedReverse_MissingOperationsRequiresReconciliation(t *testing.T) {
+	t.Parallel()
+
+	ctrl := gomock.NewController(t)
+	transactionRepo := transaction.NewMockRepository(ctrl)
+	claimRepo := revertclaim.NewMockRepository(ctrl)
+	organizationID := uuid.New()
+	ledgerID := uuid.New()
+	originID := uuid.New()
+	reverseID := uuid.New()
+	originIDString := originID.String()
+	persisted := &transaction.Transaction{ID: reverseID.String(), ParentTransactionID: &originIDString}
+	claim := &revertclaim.Claim{
+		OrganizationID:       organizationID,
+		LedgerID:             ledgerID,
+		OriginTransactionID:  originID,
+		ReverseTransactionID: reverseID,
+		State:                revertclaim.StateClaimed,
+	}
+
+	claimRepo.EXPECT().Claim(gomock.Any(), organizationID, ledgerID, originID, reverseID, nil, nil).Return(claim, true, nil)
+	transactionRepo.EXPECT().FindWithOperations(gomock.Any(), organizationID, ledgerID, reverseID).Return(nil, nil)
+	reason := "reverse_transaction_missing_operations"
+	claimRepo.EXPECT().Transition(gomock.Any(), organizationID, ledgerID, originID, reverseID,
+		revertclaim.StateReconciliationRequired, &reason).Return(nil)
+
+	handler := &TransactionHandler{
+		Query:   &query.UseCase{TransactionRepo: transactionRepo},
+		Command: &command.UseCase{RevertClaimRepo: claimRepo},
+	}
+	result, replayed, err := handler.adoptPersistedReverse(context.Background(), organizationID, ledgerID, originID, persisted)
+	assert.Nil(t, result)
+	assert.False(t, replayed)
+	var unavailable pkg.ServiceUnavailableError
+	require.ErrorAs(t, err, &unavailable)
+	assert.Equal(t, constant.ErrRevertReconciliationRequired.Error(), unavailable.Code)
+}
+
+func TestAdoptPersistedReverse_FinalCompletesPersistedBridgeFenceAndExactOutcomeCleanup(t *testing.T) {
+	t.Parallel()
+
+	ctrl := gomock.NewController(t)
+	transactionRepo := transaction.NewMockRepository(ctrl)
+	metadataRepo := mongodb.NewMockRepository(ctrl)
+	claimRepo := revertclaim.NewMockRepository(ctrl)
+	redisRepo := redis.NewMockRedisRepository(ctrl)
+	organizationID := uuid.New()
+	ledgerID := uuid.New()
+	originID := uuid.New()
+	reverseID := uuid.New()
+	legacyKey := "idempotency:{persisted-bridge-h1}:original-payload"
+	legacyOwner := reverseID.String()
+	originIDString := originID.String()
+	operationID := uuid.NewString()
+	persisted := &transaction.Transaction{
+		ID:                  reverseID.String(),
+		ParentTransactionID: &originIDString,
+		Status:              transaction.Status{Code: constant.APPROVED},
+		Operations:          []*operation.Operation{{ID: operationID}},
+	}
+	claim := &revertclaim.Claim{
+		OrganizationID:       organizationID,
+		LedgerID:             ledgerID,
+		OriginTransactionID:  originID,
+		ReverseTransactionID: reverseID,
+		LegacyFenceKey:       &legacyKey,
+		LegacyFenceOwner:     &legacyOwner,
+		State:                revertclaim.StateMutated,
+	}
+	backup, err := json.Marshal(mmodel.TransactionRedisQueue{
+		TransactionID:       reverseID,
+		ParentTransactionID: &originID,
+		AttemptOwner:        reverseID.String(),
+		ExpectedOutcome:     mmodel.TransactionOutcomeCommitted,
+		BalancesAfter:       []mmodel.BalanceRedis{{ID: uuid.NewString()}},
+		Operations:          []mmodel.OperationRedis{{ID: operationID}},
+	})
+	require.NoError(t, err)
+
+	claimRepo.EXPECT().Claim(gomock.Any(), organizationID, ledgerID, originID, reverseID, nil, nil).
+		Return(claim, false, nil)
+	transactionRepo.EXPECT().FindWithOperations(gomock.Any(), organizationID, ledgerID, reverseID).
+		Return(persisted, nil)
+	metadataRepo.EXPECT().FindByEntity(gomock.Any(), constant.EntityTransaction, reverseID.String()).
+		Return(nil, nil)
+	redisRepo.EXPECT().ReadMessageFromQueue(gomock.Any(),
+		utils.TransactionInternalKey(organizationID, ledgerID, reverseID.String())).Return(backup, nil).Times(2)
+	redisRepo.EXPECT().CompleteOwnedKey(gomock.Any(), originRevertIdempotencyKey(claim), reverseID.String(),
+		gomock.Any(), gomock.Any()).Return(true, nil)
+	redisRepo.EXPECT().MGet(gomock.Any(), []string{legacyKey, legacyKey + ":owner"}).Return(map[string]string{
+		legacyKey:            "",
+		legacyKey + ":owner": reverseID.String(),
+	}, nil)
+	redisRepo.EXPECT().CompleteOwnedKey(gomock.Any(), legacyKey, reverseID.String(),
+		gomock.Any(), gomock.Any()).Return(true, nil)
+	claimRepo.EXPECT().Transition(gomock.Any(), organizationID, ledgerID, originID, reverseID,
+		revertclaim.StateCompleted, nil).Return(nil)
+	redisRepo.EXPECT().FinalizeTransactionPersistence(gomock.Any(), organizationID, ledgerID, reverseID,
+		mmodel.BalanceExecutionAttempt{
+			ExecutionKey: utils.TransactionBalanceExecutionKey(organizationID, ledgerID, reverseID),
+			OutcomeKey:   utils.TransactionBalanceOutcomeKey(organizationID, ledgerID, reverseID),
+			Owner:        reverseID.String(),
+			Outcome:      mmodel.TransactionOutcomeCommitted,
+			Identity:     reverseID,
+		}, gomock.Any()).Return(nil)
+
+	handler := &TransactionHandler{
+		RevertIdempotencyMode: revertIdempotencyModeFinal,
+		Query: &query.UseCase{
+			TransactionRepo:         transactionRepo,
+			TransactionMetadataRepo: metadataRepo,
+		},
+		Command: &command.UseCase{
+			RevertClaimRepo:      claimRepo,
+			TransactionRedisRepo: redisRepo,
+		},
+	}
+	result, replayed, err := handler.adoptPersistedReverse(context.Background(), organizationID, ledgerID,
+		originID, persisted)
+	require.NoError(t, err)
+	assert.True(t, replayed)
+	assert.Same(t, persisted, result)
+	// No expectation exists for a recalculated or foreign key: final adoption is permitted
+	// to complete only the immutable H1 key stored in the durable bridge claim.
+}
+
+func TestAdoptPersistedReverse_FinalPreservesForeignLegacyCollision(t *testing.T) {
+	t.Parallel()
+
+	ctrl := gomock.NewController(t)
+	transactionRepo := transaction.NewMockRepository(ctrl)
+	metadataRepo := mongodb.NewMockRepository(ctrl)
+	claimRepo := revertclaim.NewMockRepository(ctrl)
+	redisRepo := redis.NewMockRedisRepository(ctrl)
+	organizationID := uuid.New()
+	ledgerID := uuid.New()
+	originID := uuid.New()
+	reverseID := uuid.New()
+	legacyKey := "idempotency:{foreign-final-h1}:payload"
+	legacyOwner := reverseID.String()
+	originIDString := originID.String()
+	operationID := uuid.NewString()
+	persisted := &transaction.Transaction{
+		ID:                  reverseID.String(),
+		ParentTransactionID: &originIDString,
+		Status:              transaction.Status{Code: constant.APPROVED},
+		Operations:          []*operation.Operation{{ID: operationID}},
+	}
+	claim := &revertclaim.Claim{
+		OrganizationID:       organizationID,
+		LedgerID:             ledgerID,
+		OriginTransactionID:  originID,
+		ReverseTransactionID: reverseID,
+		LegacyFenceKey:       &legacyKey,
+		LegacyFenceOwner:     &legacyOwner,
+		State:                revertclaim.StateMutated,
+	}
+	backup, err := json.Marshal(mmodel.TransactionRedisQueue{
+		TransactionID:       reverseID,
+		ParentTransactionID: &originID,
+		AttemptOwner:        reverseID.String(),
+		ExpectedOutcome:     mmodel.TransactionOutcomeCommitted,
+		BalancesAfter:       []mmodel.BalanceRedis{{ID: uuid.NewString()}},
+		Operations:          []mmodel.OperationRedis{{ID: operationID}},
+	})
+	require.NoError(t, err)
+
+	claimRepo.EXPECT().Claim(gomock.Any(), organizationID, ledgerID, originID, reverseID, nil, nil).
+		Return(claim, false, nil)
+	transactionRepo.EXPECT().FindWithOperations(gomock.Any(), organizationID, ledgerID, reverseID).
+		Return(persisted, nil)
+	metadataRepo.EXPECT().FindByEntity(gomock.Any(), constant.EntityTransaction, reverseID.String()).
+		Return(nil, nil)
+	redisRepo.EXPECT().ReadMessageFromQueue(gomock.Any(),
+		utils.TransactionInternalKey(organizationID, ledgerID, reverseID.String())).Return(backup, nil).Times(2)
+	redisRepo.EXPECT().CompleteOwnedKey(gomock.Any(), originRevertIdempotencyKey(claim), reverseID.String(),
+		gomock.Any(), gomock.Any()).Return(true, nil)
+	redisRepo.EXPECT().MGet(gomock.Any(), []string{legacyKey, legacyKey + ":owner"}).Return(map[string]string{
+		legacyKey:            `{"id":"foreign-reverse"}`,
+		legacyKey + ":owner": reverseID.String(),
+	}, nil)
+	claimRepo.EXPECT().Transition(gomock.Any(), organizationID, ledgerID, originID, reverseID,
+		revertclaim.StateCompleted, nil).Return(nil)
+	redisRepo.EXPECT().FinalizeTransactionPersistence(gomock.Any(), organizationID, ledgerID, reverseID,
+		gomock.Any(), gomock.Any()).Return(nil)
+
+	handler := &TransactionHandler{
+		RevertIdempotencyMode: revertIdempotencyModeFinal,
+		Query: &query.UseCase{
+			TransactionRepo:         transactionRepo,
+			TransactionMetadataRepo: metadataRepo,
+		},
+		Command: &command.UseCase{
+			RevertClaimRepo:      claimRepo,
+			TransactionRedisRepo: redisRepo,
+		},
+	}
+	result, replayed, err := handler.adoptPersistedReverse(context.Background(), organizationID, ledgerID,
+		originID, persisted)
+	require.NoError(t, err)
+	assert.True(t, replayed)
+	assert.Same(t, persisted, result)
+}
+
+func TestAdoptPersistedReverse_FinalCleansExactPhaseZeroBackupAfterPrimaryProof(t *testing.T) {
+	t.Parallel()
+
+	ctrl := gomock.NewController(t)
+	transactionRepo := transaction.NewMockRepository(ctrl)
+	metadataRepo := mongodb.NewMockRepository(ctrl)
+	claimRepo := revertclaim.NewMockRepository(ctrl)
+	redisRepo := redis.NewMockRedisRepository(ctrl)
+	organizationID := uuid.New()
+	ledgerID := uuid.New()
+	originID := uuid.New()
+	reverseID := uuid.New()
+	originIDString := originID.String()
+	operationID := uuid.NewString()
+	persisted := &transaction.Transaction{
+		ID:                  reverseID.String(),
+		ParentTransactionID: &originIDString,
+		Status:              transaction.Status{Code: constant.APPROVED},
+		Operations:          []*operation.Operation{{ID: operationID}},
+	}
+	claim := &revertclaim.Claim{
+		OrganizationID:       organizationID,
+		LedgerID:             ledgerID,
+		OriginTransactionID:  originID,
+		ReverseTransactionID: reverseID,
+		State:                revertclaim.StateMutated,
+	}
+	backup, err := json.Marshal(mmodel.TransactionRedisQueue{
+		TransactionID:       reverseID,
+		ParentTransactionID: &originID,
+		TransactionStatus:   constant.CREATED,
+		Validate:            &mtransaction.Responses{Pending: false},
+		BalancesAfter:       []mmodel.BalanceRedis{{ID: uuid.NewString()}},
+		Operations:          []mmodel.OperationRedis{{ID: operationID}},
+	})
+	require.NoError(t, err)
+
+	claimRepo.EXPECT().Claim(gomock.Any(), organizationID, ledgerID, originID, reverseID, nil, nil).
+		Return(claim, false, nil)
+	transactionRepo.EXPECT().FindWithOperations(gomock.Any(), organizationID, ledgerID, reverseID).
+		Return(persisted, nil)
+	metadataRepo.EXPECT().FindByEntity(gomock.Any(), constant.EntityTransaction, reverseID.String()).
+		Return(nil, nil)
+	redisRepo.EXPECT().ReadMessageFromQueue(gomock.Any(),
+		utils.TransactionInternalKey(organizationID, ledgerID, reverseID.String())).Return(backup, nil).Times(2)
+	redisRepo.EXPECT().CompleteOwnedKey(gomock.Any(), originRevertIdempotencyKey(claim), reverseID.String(),
+		gomock.Any(), gomock.Any()).Return(true, nil)
+	claimRepo.EXPECT().Transition(gomock.Any(), organizationID, ledgerID, originID, reverseID,
+		revertclaim.StateCompleted, nil).Return(nil)
+	redisRepo.EXPECT().FinalizeLegacyTransactionPersistence(gomock.Any(), organizationID, ledgerID,
+		reverseID, originID, constant.CREATED, []string{operationID}).Return(nil)
+
+	handler := &TransactionHandler{
+		RevertIdempotencyMode: revertIdempotencyModeFinal,
+		Query: &query.UseCase{
+			TransactionRepo:         transactionRepo,
+			TransactionMetadataRepo: metadataRepo,
+		},
+		Command: &command.UseCase{
+			RevertClaimRepo:      claimRepo,
+			TransactionRedisRepo: redisRepo,
+		},
+	}
+	result, replayed, err := handler.adoptPersistedReverse(context.Background(), organizationID, ledgerID,
+		originID, persisted)
+	require.NoError(t, err)
+	assert.True(t, replayed)
+	assert.Same(t, persisted, result)
+}
+
+func TestLoadCompleteReverse_PartialOperationSetIsNotReplayable(t *testing.T) {
+	t.Parallel()
+
+	ctrl := gomock.NewController(t)
+	transactionRepo := transaction.NewMockRepository(ctrl)
+	metadataRepo := mongodb.NewMockRepository(ctrl)
+	redisRepo := redis.NewMockRedisRepository(ctrl)
+	claim := &revertclaim.Claim{
+		OrganizationID:       uuid.New(),
+		LedgerID:             uuid.New(),
+		OriginTransactionID:  uuid.New(),
+		ReverseTransactionID: uuid.New(),
+		State:                revertclaim.StateMutated,
+	}
+	originID := claim.OriginTransactionID.String()
+	operationA := uuid.NewString()
+	operationB := uuid.NewString()
+	operationUnexpected := uuid.NewString()
+	persisted := &transaction.Transaction{
+		ID:                  claim.ReverseTransactionID.String(),
+		ParentTransactionID: &originID,
+		Operations: []*operation.Operation{
+			{ID: operationA},
+			{ID: operationUnexpected},
+		},
+	}
+	backup, err := json.Marshal(mmodel.TransactionRedisQueue{
+		TransactionID:       claim.ReverseTransactionID,
+		ParentTransactionID: &claim.OriginTransactionID,
+		Operations: []mmodel.OperationRedis{
+			{ID: operationA},
+			{ID: operationB},
+		},
+	})
+	require.NoError(t, err)
+
+	transactionRepo.EXPECT().FindWithOperations(gomock.Any(), claim.OrganizationID, claim.LedgerID,
+		claim.ReverseTransactionID).Return(persisted, nil)
+	metadataRepo.EXPECT().FindByEntity(gomock.Any(), constant.EntityTransaction,
+		claim.ReverseTransactionID.String()).Return(nil, nil)
+	redisRepo.EXPECT().ReadMessageFromQueue(gomock.Any(),
+		utils.TransactionInternalKey(claim.OrganizationID, claim.LedgerID, claim.ReverseTransactionID.String())).Return(backup, nil)
+
+	handler := &TransactionHandler{
+		Query: &query.UseCase{
+			TransactionRepo:         transactionRepo,
+			TransactionMetadataRepo: metadataRepo,
+		},
+		Command: &command.UseCase{TransactionRedisRepo: redisRepo},
+	}
+	result, complete, err := handler.loadCompleteReverse(context.Background(), claim)
+	require.NoError(t, err)
+	assert.Same(t, persisted, result)
+	assert.False(t, complete, "equal operation counts with a missing expected ID must still require reconciliation")
+}
+
+func TestLoadCompleteReverse_SameOperationIDsWithDifferentBalanceSnapshotsRequireReconciliation(t *testing.T) {
+	t.Parallel()
+
+	ctrl := gomock.NewController(t)
+	transactionRepo := transaction.NewMockRepository(ctrl)
+	metadataRepo := mongodb.NewMockRepository(ctrl)
+	redisRepo := redis.NewMockRedisRepository(ctrl)
+	claim := &revertclaim.Claim{
+		OrganizationID:       uuid.New(),
+		LedgerID:             uuid.New(),
+		OriginTransactionID:  uuid.New(),
+		ReverseTransactionID: uuid.New(),
+		State:                revertclaim.StateMutated,
+	}
+	originID := claim.OriginTransactionID.String()
+	availableBefore := decimal.NewFromInt(100)
+	availableAfter := decimal.NewFromInt(90)
+	onHold := decimal.Zero
+	versionBefore := int64(1)
+	versionAfter := int64(2)
+	persistedOperation := &operation.Operation{
+		ID:        uuid.NewString(),
+		BalanceID: uuid.NewString(),
+		Balance: operation.Balance{
+			Available: &availableBefore,
+			OnHold:    &onHold,
+			Version:   &versionBefore,
+		},
+		BalanceAfter: operation.Balance{
+			Available: &availableAfter,
+			OnHold:    &onHold,
+			Version:   &versionAfter,
+		},
+		Snapshot: mmodel.OperationSnapshot{
+			OverdraftUsedBefore: "0",
+			OverdraftUsedAfter:  "0",
+		},
+	}
+	persisted := &transaction.Transaction{
+		ID:                  claim.ReverseTransactionID.String(),
+		ParentTransactionID: &originID,
+		Operations:          []*operation.Operation{persistedOperation},
+	}
+	queuedOperation := persistedOperation.ToRedis()
+	queuedOperation.BalanceAfterAvailable = decimal.NewFromInt(89)
+	backup, err := json.Marshal(mmodel.TransactionRedisQueue{
+		TransactionID:       claim.ReverseTransactionID,
+		ParentTransactionID: &claim.OriginTransactionID,
+		Operations:          []mmodel.OperationRedis{queuedOperation},
+	})
+	require.NoError(t, err)
+
+	transactionRepo.EXPECT().FindWithOperations(gomock.Any(), claim.OrganizationID, claim.LedgerID,
+		claim.ReverseTransactionID).Return(persisted, nil)
+	metadataRepo.EXPECT().FindByEntity(gomock.Any(), constant.EntityTransaction,
+		claim.ReverseTransactionID.String()).Return(nil, nil)
+	redisRepo.EXPECT().ReadMessageFromQueue(gomock.Any(),
+		utils.TransactionInternalKey(claim.OrganizationID, claim.LedgerID,
+			claim.ReverseTransactionID.String())).Return(backup, nil)
+
+	handler := &TransactionHandler{
+		Query: &query.UseCase{
+			TransactionRepo:         transactionRepo,
+			TransactionMetadataRepo: metadataRepo,
+		},
+		Command: &command.UseCase{TransactionRedisRepo: redisRepo},
+	}
+	result, complete, err := handler.loadCompleteReverse(context.Background(), claim)
+	require.NoError(t, err)
+	assert.Same(t, persisted, result)
+	assert.False(t, complete, "operation IDs alone cannot authorize terminal cleanup")
+}
+
 func TestRevertIdempotencyModesAndKeys_DoNotAssumeOneRedisClusterSlot(t *testing.T) {
 	t.Parallel()
 
@@ -209,9 +1439,14 @@ func TestRevertIdempotencyModesAndKeys_DoNotAssumeOneRedisClusterSlot(t *testing
 	assert.NotEqual(t, legacyKey, originKey)
 	assert.NotEqual(t, redisClusterSlot(legacyKey), redisClusterSlot(originKey),
 		"combining bridge barriers in one Lua script would fail with CROSSSLOT")
+	assert.Equal(t, redisClusterSlot(legacyKey), redisClusterSlot(legacyKey+":owner"),
+		"owner-checked cleanup is safe because companion metadata shares the legacy fence slot")
+	assert.Equal(t, redisClusterSlot(originKey), redisClusterSlot(originKey+":owner"),
+		"origin cleanup uses the same owner-checked same-slot contract")
 	assert.Contains(t, balanceOutcomeKey, "{transactions}")
 	assert.NotContains(t, originKey, "{transactions}")
-	assert.Equal(t, revertIdempotencyModeBridge, (&TransactionHandler{}).activeRevertIdempotencyMode())
+	assert.Equal(t, revertIdempotencyModeLegacy, (&TransactionHandler{}).activeRevertIdempotencyMode())
+	assert.Equal(t, revertIdempotencyModeBridge, (&TransactionHandler{RevertIdempotencyMode: "BRIDGE"}).activeRevertIdempotencyMode())
 	assert.Equal(t, revertIdempotencyModeFinal, (&TransactionHandler{RevertIdempotencyMode: "FINAL"}).activeRevertIdempotencyMode())
 }
 

@@ -25,7 +25,7 @@ import (
 	libLog "github.com/LerianStudio/lib-observability/v2/log"
 )
 
-func (uc *UseCase) WriteTransaction(ctx context.Context, organizationID, ledgerID uuid.UUID, transactionInput *mtransaction.Transaction, validate *mtransaction.Responses, blc []*mmodel.Balance, blcAfter []*mmodel.Balance, tran *transaction.Transaction) (err error) {
+func (uc *UseCase) WriteTransaction(ctx context.Context, organizationID, ledgerID uuid.UUID, transactionInput *mtransaction.Transaction, validate *mtransaction.Responses, blc []*mmodel.Balance, blcAfter []*mmodel.Balance, tran *transaction.Transaction, attempts ...*mmodel.BalanceExecutionAttempt) (err error) {
 	logger, _, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	start := time.Now()
@@ -35,15 +35,15 @@ func (uc *UseCase) WriteTransaction(ctx context.Context, organizationID, ledgerI
 	}()
 
 	if strings.ToLower(os.Getenv("RABBITMQ_TRANSACTION_ASYNC")) == "true" {
-		return uc.WriteTransactionAsync(ctx, organizationID, ledgerID, transactionInput, validate, blc, blcAfter, tran)
+		return uc.WriteTransactionAsync(ctx, organizationID, ledgerID, transactionInput, validate, blc, blcAfter, tran, attempts...)
 	}
 
-	return uc.WriteTransactionSync(ctx, organizationID, ledgerID, transactionInput, validate, blc, blcAfter, tran)
+	return uc.WriteTransactionSync(ctx, organizationID, ledgerID, transactionInput, validate, blc, blcAfter, tran, attempts...)
 }
 
 // WriteTransactionAsync publishes the transaction payload to RabbitMQ
 // for asynchronous processing. Falls back to direct DB write if queue fails.
-func (uc *UseCase) WriteTransactionAsync(ctx context.Context, organizationID, ledgerID uuid.UUID, transactionInput *mtransaction.Transaction, validate *mtransaction.Responses, blc []*mmodel.Balance, blcAfter []*mmodel.Balance, tran *transaction.Transaction) error {
+func (uc *UseCase) WriteTransactionAsync(ctx context.Context, organizationID, ledgerID uuid.UUID, transactionInput *mtransaction.Transaction, validate *mtransaction.Responses, blc []*mmodel.Balance, blcAfter []*mmodel.Balance, tran *transaction.Transaction, attempts ...*mmodel.BalanceExecutionAttempt) error {
 	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "command.write_transaction_async")
@@ -59,6 +59,7 @@ func (uc *UseCase) WriteTransactionAsync(ctx context.Context, organizationID, le
 		Input:         transactionInput,
 		Version:       "v2",
 	}
+	applyExecutionAttemptToPayload(&value, attempts)
 
 	marshal, err := msgpack.Marshal(value)
 	if err != nil {
@@ -118,7 +119,7 @@ func (uc *UseCase) WriteTransactionAsync(ctx context.Context, organizationID, le
 
 // WriteTransactionSync performs direct database writes for balance updates,
 // transaction record creation, and operation records.
-func (uc *UseCase) WriteTransactionSync(ctx context.Context, organizationID, ledgerID uuid.UUID, transactionInput *mtransaction.Transaction, validate *mtransaction.Responses, blc []*mmodel.Balance, blcAfter []*mmodel.Balance, tran *transaction.Transaction) error {
+func (uc *UseCase) WriteTransactionSync(ctx context.Context, organizationID, ledgerID uuid.UUID, transactionInput *mtransaction.Transaction, validate *mtransaction.Responses, blc []*mmodel.Balance, blcAfter []*mmodel.Balance, tran *transaction.Transaction, attempts ...*mmodel.BalanceExecutionAttempt) error {
 	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "command.write_transaction_sync")
@@ -134,6 +135,7 @@ func (uc *UseCase) WriteTransactionSync(ctx context.Context, organizationID, led
 		Input:         transactionInput,
 		Version:       "v2",
 	}
+	applyExecutionAttemptToPayload(&value, attempts)
 
 	marshal, err := msgpack.Marshal(value)
 	if err != nil {
@@ -165,4 +167,13 @@ func (uc *UseCase) WriteTransactionSync(ctx context.Context, organizationID, led
 	}
 
 	return nil
+}
+
+func applyExecutionAttemptToPayload(payload *transaction.TransactionProcessingPayload, attempts []*mmodel.BalanceExecutionAttempt) {
+	if payload == nil || len(attempts) == 0 || attempts[0] == nil {
+		return
+	}
+
+	payload.AttemptOwner = attempts[0].Owner
+	payload.ExpectedOutcome = attempts[0].Outcome
 }

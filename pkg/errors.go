@@ -966,6 +966,18 @@ func ValidateBusinessError(err error, entityType string, args ...any) error {
 			Title:      "Transaction Revert Requires Reconciliation",
 			Message:    "The reversal may already have moved funds and is being reconciled. Retrying cannot create another reversal.",
 		},
+		constant.ErrRevertRolloutFreezeRequired: ServiceUnavailableError{
+			EntityType: entityType,
+			Code:       constant.ErrRevertRolloutFreezeRequired.Error(),
+			Title:      "Transaction Revert Rollout Freeze Required",
+			Message:    "The transaction update freeze required for the reversal rollout is not in the state required by this instance.",
+		},
+		constant.ErrTransactionOutcomeReconciliationRequired: ServiceUnavailableError{
+			EntityType: entityType,
+			Code:       constant.ErrTransactionOutcomeReconciliationRequired.Error(),
+			Title:      "Transaction Outcome Requires Reconciliation",
+			Message:    "The transaction may already have moved funds and its terminal outcome is being reconciled. Retrying cannot apply an opposite outcome.",
+		},
 		constant.ErrAccountAliasNotFound: EntityNotFoundError{
 			EntityType: entityType,
 			Code:       constant.ErrAccountAliasNotFound.Error(),

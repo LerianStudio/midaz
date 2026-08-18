@@ -120,12 +120,12 @@ func TestCancelTransaction_WriteBehindMiss_FallbackLoadsOperations(t *testing.T)
 
 	// Lock acquired, then released on the not-pending guard error path.
 	mockRedisRepo.EXPECT().
-		SetNX(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+		AcquireOwnedKey(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
 		Return(true, nil).
 		Times(1)
 	mockRedisRepo.EXPECT().
-		Del(gomock.Any(), gomock.Any()).
-		Return(nil).
+		ReleaseOwnedKey(gomock.Any(), gomock.Any(), gomock.Any()).
+		Return(true, nil).
 		Times(1)
 
 	queryUC := &query.UseCase{
@@ -312,12 +312,12 @@ func TestCancelTransaction_WriteBehindMiss_RowOnlyFallbackReturnsRealTransaction
 
 	// Lock acquired, then released on the not-pending guard error path.
 	mockRedisRepo.EXPECT().
-		SetNX(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+		AcquireOwnedKey(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
 		Return(true, nil).
 		Times(1)
 	mockRedisRepo.EXPECT().
-		Del(gomock.Any(), gomock.Any()).
-		Return(nil).
+		ReleaseOwnedKey(gomock.Any(), gomock.Any(), gomock.Any()).
+		Return(true, nil).
 		Times(1)
 
 	queryUC := &query.UseCase{

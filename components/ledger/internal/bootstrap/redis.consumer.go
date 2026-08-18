@@ -7,6 +7,7 @@ package bootstrap
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"os"
 	"os/signal"
 	"strings"
@@ -25,6 +26,7 @@ import (
 	libRuntime "github.com/LerianStudio/lib-observability/v2/runtime"
 	libOpentelemetry "github.com/LerianStudio/lib-observability/v2/tracing"
 	"github.com/google/uuid"
+	"github.com/shopspring/decimal"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
 
@@ -32,6 +34,7 @@ import (
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/operation"
 	postgreTransaction "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/transaction"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/transactionquarantine"
+	transactionredis "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/redis/transaction"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
 	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v4/pkg/mtransaction"
@@ -424,28 +427,43 @@ func (r *RedisQueueConsumer) processMessage(ctx context.Context, key, rawPayload
 		return
 	}
 
-	balances := make([]*mmodel.Balance, 0, len(m.Balances))
-	for _, balance := range m.Balances {
-		balanceKey := balance.Key
-		if balanceKey == "" {
-			balanceKey = constant.DefaultBalanceKey
+	if m.Action == constant.ActionCommit || m.Action == constant.ActionCancel ||
+		(m.Action == constant.ActionRevert && (m.AttemptOwner != "" || m.ExpectedOutcome != "")) {
+		if len(m.BalancesAfter) == 0 {
+			// A terminal lifecycle seed is written before Lua. Only Lua adds the
+			// after-state atomically with movement, so a seed alone is never a
+			// terminal fact and must not promote PostgreSQL.
+			logger.Log(msgCtxWithSpan, libLog.LevelWarn, "Transaction lifecycle backup is waiting for balance outcome",
+				libLog.String("transaction_id", m.TransactionID.String()))
+
+			return
 		}
 
-		balances = append(balances, &mmodel.Balance{
-			Alias:          balance.Alias,
-			ID:             balance.ID,
-			AccountID:      balance.AccountID,
-			Key:            balanceKey,
-			Available:      balance.Available,
-			OnHold:         balance.OnHold,
-			Version:        balance.Version,
-			AccountType:    balance.AccountType,
-			AllowSending:   balance.AllowSending == 1,
-			AllowReceiving: balance.AllowReceiving == 1,
-			AssetCode:      balance.AssetCode,
-			OrganizationID: m.OrganizationID.String(),
-			LedgerID:       m.LedgerID.String(),
-		})
+		if m.AttemptOwner != "" || m.ExpectedOutcome != "" {
+			rawOutcome, outcomeErr := r.TransactionHandler.Command.TransactionRedisRepo.Get(msgCtxWithSpan,
+				utils.TransactionBalanceOutcomeKey(m.OrganizationID, m.LedgerID, m.TransactionID))
+			if outcomeErr != nil || rawOutcome == "" {
+				logger.Log(msgCtxWithSpan, libLog.LevelError, "Transaction balance outcome is unavailable; backup retained",
+					libLog.String("transaction_id", m.TransactionID.String()), libLog.Err(outcomeErr))
+
+				return
+			}
+
+			outcome := mmodel.BalanceExecutionOutcome{}
+			if decodeErr := json.Unmarshal([]byte(rawOutcome), &outcome); decodeErr != nil ||
+				outcome.Identity != m.TransactionID || outcome.Owner != m.AttemptOwner ||
+				outcome.Outcome != m.ExpectedOutcome {
+				logger.Log(msgCtxWithSpan, libLog.LevelError, "Transaction balance outcome does not match backup; backup retained",
+					libLog.String("transaction_id", m.TransactionID.String()), libLog.Err(decodeErr))
+
+				return
+			}
+		}
+	}
+
+	balances := make([]*mmodel.Balance, 0, len(m.Balances))
+	for _, balance := range m.Balances {
+		balances = append(balances, balanceFromBackup(balance, m.OrganizationID, m.LedgerID))
 	}
 
 	// Parse AFTER balances from backup queue (nil for legacy entries written by old pods)
@@ -453,32 +471,86 @@ func (r *RedisQueueConsumer) processMessage(ctx context.Context, key, rawPayload
 	if len(m.BalancesAfter) > 0 {
 		balancesAfter = make([]*mmodel.Balance, 0, len(m.BalancesAfter))
 		for _, balance := range m.BalancesAfter {
-			balanceKey := balance.Key
-			if balanceKey == "" {
-				balanceKey = constant.DefaultBalanceKey
-			}
-
-			balancesAfter = append(balancesAfter, &mmodel.Balance{
-				Alias:          balance.Alias,
-				ID:             balance.ID,
-				AccountID:      balance.AccountID,
-				Key:            balanceKey,
-				Available:      balance.Available,
-				OnHold:         balance.OnHold,
-				Version:        balance.Version,
-				AccountType:    balance.AccountType,
-				AllowSending:   balance.AllowSending == 1,
-				AllowReceiving: balance.AllowReceiving == 1,
-				AssetCode:      balance.AssetCode,
-				OrganizationID: m.OrganizationID.String(),
-				LedgerID:       m.LedgerID.String(),
-			})
+			balancesAfter = append(balancesAfter, balanceFromBackup(balance, m.OrganizationID, m.LedgerID))
 		}
 
 		logger.Log(ctx, libLog.LevelDebug, "Using AFTER balances from backup for direct persistence", libLog.Int("balance_count", len(balancesAfter)))
 	}
 
-	var parentTransactionID *string
+	parentTransactionID, poisonReason, err := r.resolveBackupParentTransactionID(msgCtxWithSpan, m)
+	if err != nil {
+		logger.Log(msgCtxWithSpan, libLog.LevelError, "Failed to resolve revert origin from durable claim",
+			libLog.String("transaction_id", m.TransactionID.String()), libLog.Err(err))
+
+		return
+	}
+	if poisonReason != "" {
+		if poisonReason == "revert_balance_outcome_missing" {
+			// This is a valid pre-Lua seed, not corrupt financial data. Keep it
+			// in Redis so an HTTP retry can elect the PostgreSQL RECOVERING
+			// owner and prove/clean the pre-movement attempt. Quarantining and
+			// deleting it would destroy that automatic recovery proof.
+			logger.Log(msgCtxWithSpan, libLog.LevelWarn, "Revert backup is waiting for pre-movement recovery",
+				libLog.String("transaction_id", m.TransactionID.String()))
+
+			return
+		}
+		if poisonReason == "phase_zero_pre_movement_seed_drained" {
+			// The shared rollout marker admits this cleanup only after every
+			// phase-zero pod is unready and its in-flight requests are drained.
+			// With no claim and no Lua-authored after-state, this exact seed is a
+			// proven abandoned pre-movement attempt. Release the exact H1 first:
+			// if this process crashes before deleting the seed, redelivery can
+			// repeat the idempotent release; the reverse order would orphan H1.
+			if m.ParentTransactionID == nil {
+				return
+			}
+			claim, claimErr := r.TransactionHandler.Command.GetRevertClaim(msgCtxWithSpan,
+				m.OrganizationID, m.LedgerID, *m.ParentTransactionID)
+			if claimErr != nil || claim != nil {
+				logger.Log(msgCtxWithSpan, libLog.LevelWarn, "Drained phase-zero seed gained a durable claim; preserving recovery evidence",
+					libLog.String("transaction_id", m.TransactionID.String()), libLog.Err(claimErr))
+
+				return
+			}
+			legacyHash, hashErr := utils.LegacyTransactionIdempotencyHash(m.TransactionInput)
+			if hashErr != nil {
+				logger.Log(msgCtxWithSpan, libLog.LevelError, "Failed to derive drained phase-zero H1",
+					libLog.String("transaction_id", m.TransactionID.String()), libLog.Err(hashErr))
+
+				return
+			}
+			legacyKey := utils.IdempotencyInternalKey(m.OrganizationID, m.LedgerID, legacyHash)
+			released, releaseErr := r.TransactionHandler.Command.TransactionRedisRepo.ReleaseUnownedEmptyKey(
+				msgCtxWithSpan, legacyKey)
+			if releaseErr != nil || !released {
+				logger.Log(msgCtxWithSpan, libLog.LevelError, "Failed to release drained phase-zero H1",
+					libLog.String("transaction_id", m.TransactionID.String()), libLog.Err(releaseErr))
+
+				return
+			}
+			removed, removeErr := r.TransactionHandler.Command.TransactionRedisRepo.RemoveMessageFromQueueIfStatus(
+				msgCtxWithSpan, key, m.TransactionStatus, "", "", true)
+			if removeErr != nil || !removed {
+				logger.Log(msgCtxWithSpan, libLog.LevelError, "Failed to remove drained phase-zero revert seed",
+					libLog.String("transaction_id", m.TransactionID.String()), libLog.Err(removeErr))
+
+				return
+			}
+			r.clearBackupAttempt(msgCtxWithSpan, logger, key)
+			logger.Log(msgCtxWithSpan, libLog.LevelInfo, "Removed drained phase-zero pre-movement revert seed",
+				libLog.String("transaction_id", m.TransactionID.String()))
+
+			return
+		}
+
+		logger.Log(msgCtxWithSpan, libLog.LevelError, "Revert backup has no trustworthy origin; routing to quarantine flow",
+			libLog.String("transaction_id", m.TransactionID.String()), libLog.String("reason", poisonReason))
+		r.quarantinePoisonRecord(msgCtxWithSpan, msgSpan, logger, key, m.OrganizationID, m.LedgerID,
+			m.TransactionID, []byte(rawPayload), poisonReason)
+
+		return
+	}
 
 	amount := m.TransactionInput.Send.Value
 
@@ -502,9 +574,27 @@ func (r *RedisQueueConsumer) processMessage(ctx context.Context, key, rawPayload
 		},
 	}
 
-	var operations []*operation.Operation
+	// Prefer the action captured before movement, then fall back to the terminal
+	// status only where the mapping is unambiguous. The same action is used when
+	// rebuilding and single-assigning missing operation IDs.
+	action := m.Action
+	if action == "" {
+		switch m.TransactionStatus {
+		case constant.PENDING:
+			action = constant.ActionHold
+		case constant.APPROVED:
+			action = constant.ActionCommit
+		case constant.CANCELED:
+			action = constant.ActionCancel
+		case constant.NOTED:
+			action = constant.ActionDirect
+		}
+	}
 
-	if len(m.Operations) > 0 {
+	var operations []*operation.Operation
+	operationsWereMissing := len(m.Operations) == 0
+
+	if !operationsWereMissing {
 		operations = make([]*operation.Operation, 0, len(m.Operations))
 		for _, r := range m.Operations {
 			operations = append(operations, operation.OperationFromRedis(r))
@@ -560,37 +650,10 @@ func (r *RedisQueueConsumer) processMessage(ctx context.Context, key, rawPayload
 			}
 		}
 
-		// Prefer persisted action from backup payload (e.g. revert), then
-		// fall back to status-derived action only for statuses with an
-		// unambiguous mapping. CREATED is intentionally left empty because
-		// legacy payloads may be either "direct" or "revert".
-		action := m.Action
-		if action == "" {
-			switch m.TransactionStatus {
-			case constant.PENDING:
-				action = constant.ActionHold
-			case constant.APPROVED:
-				action = constant.ActionCommit
-			case constant.CANCELED:
-				action = constant.ActionCancel
-			case constant.NOTED:
-				action = constant.ActionDirect
-			}
-		}
-
 		var buildErr error
 
-		// Replay path: Lua's authoritative `balancesAfter` is not captured
-		// in the backup envelope, so BuildOperations falls back to the
-		// OperateBalances-recomputation branch. For non-overdraft
-		// transactions this is correct; for overdraft transactions the
-		// operation records will carry the naive `before - amount`
-		// arithmetic — the balance table remains consistent (Lua already
-		// flushed it) but the audit trail may diverge. Capturing Lua's
-		// after-state in the backup envelope is tracked under T-006.1 /
-		// T-009 hardening items.
 		operations, _, buildErr = r.TransactionHandler.BuildOperations(
-			msgCtxWithSpan, balances, nil /* balancesAfter */, fromTo, m.TransactionInput, *tran, m.Validate, m.TransactionDate, m.TransactionStatus == constant.NOTED, ledgerSettings.Accounting.ValidateRoutes, routeCache, action,
+			msgCtxWithSpan, balances, balancesAfter, fromTo, m.TransactionInput, *tran, m.Validate, m.TransactionDate, m.TransactionStatus == constant.NOTED, ledgerSettings.Accounting.ValidateRoutes, routeCache, action,
 		)
 		if buildErr != nil {
 			libOpentelemetry.HandleSpanError(msgSpan, "Failed to validate balances", buildErr)
@@ -600,12 +663,37 @@ func (r *RedisQueueConsumer) processMessage(ctx context.Context, key, rawPayload
 			return
 		}
 
-		// Operations were rebuilt without Lua's authoritative after-balances, so
-		// overdraft transactions may carry naive before-amount audit arithmetic
-		// (divergence tracked under T-006.1 / T-009). Mark this path so the
-		// divergence is observable/queryable rather than silent.
-		msgSpan.SetAttributes(attribute.Bool("app.replay.recomputed_balances_after", true))
-		r.emitReplayRecomputedBalancesAfterMetric(msgCtxWithSpan, logger)
+		if len(balancesAfter) == 0 {
+			// Legacy non-revert backups may predate the atomic after-state.
+			// Keep that degraded path observable; new reverts are quarantined
+			// before this point unless the Lua-authored snapshot is present.
+			msgSpan.SetAttributes(attribute.Bool("app.replay.recomputed_balances_after", true))
+			r.emitReplayRecomputedBalancesAfterMetric(msgCtxWithSpan, logger)
+		}
+	}
+
+	var executionAttempt *mmodel.BalanceExecutionAttempt
+	if m.AttemptOwner != "" && m.ExpectedOutcome != "" {
+		executionAttempt = &mmodel.BalanceExecutionAttempt{
+			ExecutionKey: utils.TransactionBalanceExecutionKey(m.OrganizationID, m.LedgerID, m.TransactionID),
+			OutcomeKey:   utils.TransactionBalanceOutcomeKey(m.OrganizationID, m.LedgerID, m.TransactionID),
+			Owner:        m.AttemptOwner,
+			Outcome:      m.ExpectedOutcome,
+			Identity:     m.TransactionID,
+		}
+	}
+	if operationsWereMissing {
+		var enrichErr error
+		operations, enrichErr = r.TransactionHandler.Command.UpdateTransactionBackupOperations(
+			msgCtxWithSpan, m.OrganizationID, m.LedgerID, m.TransactionID, operations, action, executionAttempt,
+		)
+		if enrichErr != nil {
+			libOpentelemetry.HandleSpanError(msgSpan, "Failed to bind rebuilt operations to backup", enrichErr)
+			logger.Log(ctx, libLog.LevelError, "Failed to bind rebuilt operations to backup",
+				libLog.String("transaction_id", m.TransactionID.String()), libLog.Err(enrichErr))
+
+			return
+		}
 	}
 
 	tran.Source = m.Validate.Sources
@@ -616,6 +704,7 @@ func (r *RedisQueueConsumer) processMessage(ctx context.Context, key, rawPayload
 
 	if err := r.TransactionHandler.Command.WriteTransactionAsync(
 		msgCtxWithSpan, m.OrganizationID, m.LedgerID, &m.TransactionInput, m.Validate, balances, balancesAfter, tran,
+		executionAttempt,
 	); err != nil {
 		libOpentelemetry.HandleSpanError(msgSpan, "Failed sending message to queue", err)
 
@@ -631,6 +720,125 @@ func (r *RedisQueueConsumer) processMessage(ctx context.Context, key, rawPayload
 	// record itself is removed downstream by the async write path after the
 	// confirmed Postgres persist (RemoveTransactionFromRedisQueueIfStatus).
 	r.clearBackupAttempt(msgCtxWithSpan, logger, key)
+}
+
+func balanceFromBackup(balance mmodel.BalanceRedis, organizationID, ledgerID uuid.UUID) *mmodel.Balance {
+	balanceKey := balance.Key
+	if balanceKey == "" {
+		balanceKey = constant.DefaultBalanceKey
+	}
+
+	overdraftUsed, err := decimal.NewFromString(balance.OverdraftUsed)
+	if err != nil {
+		overdraftUsed = decimal.Zero
+	}
+
+	var settings *mmodel.BalanceSettings
+	if balance.AllowOverdraft != 0 || balance.OverdraftLimitEnabled != 0 ||
+		(balance.BalanceScope != "" && balance.BalanceScope != mmodel.BalanceScopeTransactional) ||
+		(balance.OverdraftLimit != "" && balance.OverdraftLimit != "0") {
+		scope := balance.BalanceScope
+		if scope == "" {
+			scope = mmodel.BalanceScopeTransactional
+		}
+		settings = &mmodel.BalanceSettings{
+			BalanceScope:          scope,
+			AllowOverdraft:        balance.AllowOverdraft == 1,
+			OverdraftLimitEnabled: balance.OverdraftLimitEnabled == 1,
+		}
+		if balance.OverdraftLimitEnabled == 1 && balance.OverdraftLimit != "" {
+			limit := balance.OverdraftLimit
+			settings.OverdraftLimit = &limit
+		}
+	}
+
+	return &mmodel.Balance{
+		Alias:          balance.Alias,
+		ID:             balance.ID,
+		AccountID:      balance.AccountID,
+		Key:            balanceKey,
+		Available:      balance.Available,
+		OnHold:         balance.OnHold,
+		Version:        balance.Version,
+		AccountType:    balance.AccountType,
+		AllowSending:   balance.AllowSending == 1,
+		AllowReceiving: balance.AllowReceiving == 1,
+		AssetCode:      balance.AssetCode,
+		OrganizationID: organizationID.String(),
+		LedgerID:       ledgerID.String(),
+		Direction:      balance.Direction,
+		OverdraftUsed:  overdraftUsed,
+		Settings:       settings,
+	}
+}
+
+func (r *RedisQueueConsumer) resolveBackupParentTransactionID(ctx context.Context, m mmodel.TransactionRedisQueue) (*string, string, error) {
+	isRevert := m.Action == constant.ActionRevert || m.ParentTransactionID != nil
+	if !isRevert {
+		return nil, "", nil
+	}
+
+	claim, err := r.TransactionHandler.Command.GetRevertClaimByReverseID(ctx, m.OrganizationID, m.LedgerID, m.TransactionID)
+	if err != nil {
+		return nil, "", err
+	}
+	if claim == nil {
+		// Before marker activation, phase zero keeps the released HTTP algorithm
+		// and therefore has no pre-movement claim. Its backup still carries the
+		// exact origin, and balance Lua writes BalancesAfter atomically with the
+		// movement. That pair is sufficient to persist the exact reverse;
+		// WriteTransactionAsync creates and completes the durable claim only after
+		// the child and every operation are durable. Marker-active phase zero has a
+		// claim before H1, while parent-less old-pod records remain untrusted.
+		if m.ParentTransactionID != nil && *m.ParentTransactionID != uuid.Nil {
+			if len(m.BalancesAfter) == 0 {
+				drained, phaseErr := r.phaseZeroRequestsDrained(ctx)
+				if phaseErr != nil {
+					return nil, "", phaseErr
+				}
+				if drained {
+					return nil, "phase_zero_pre_movement_seed_drained", nil
+				}
+
+				return nil, "revert_balance_outcome_missing", nil
+			}
+
+			parentTransactionID := m.ParentTransactionID.String()
+
+			return &parentTransactionID, "", nil
+		}
+
+		return nil, "revert_claim_missing", nil
+	}
+	if m.ParentTransactionID != nil && *m.ParentTransactionID != claim.OriginTransactionID {
+		return nil, "revert_origin_claim_mismatch", nil
+	}
+	if len(m.BalancesAfter) == 0 {
+		// A revert backup is seeded before balance Lua dispatch. Only the Lua
+		// command writes BalancesAfter atomically with the movement, so a seed
+		// without that outcome must never be persisted as a completed reverse.
+		return nil, "revert_balance_outcome_missing", nil
+	}
+
+	parentTransactionID := claim.OriginTransactionID.String()
+
+	return &parentTransactionID, "", nil
+}
+
+func (r *RedisQueueConsumer) phaseZeroRequestsDrained(ctx context.Context) (bool, error) {
+	phaseReader, ok := r.TransactionHandler.RevertUpdateFreeze.(interface {
+		Phase(context.Context) (string, error)
+	})
+	if !ok {
+		return false, nil
+	}
+
+	phase, err := phaseReader.Phase(ctx)
+	if err != nil {
+		return false, fmt.Errorf("read revert rollout phase for backup recovery: %w", err)
+	}
+
+	return phase == transactionredis.RevertUpdateFreezeDrained || phase == transactionredis.RevertUpdateFreezeFinalized, nil
 }
 
 // quarantinePoisonRecord enforces THE INVARIANT for poison backup records: a
@@ -711,7 +919,8 @@ func (r *RedisQueueConsumer) quarantinePoisonRecord(
 
 	// Persistence confirmed. Now (and only now) remove the Redis copy, then the
 	// attempts counter.
-	if err := r.TransactionHandler.Command.TransactionRedisRepo.RemoveMessageFromQueue(ctx, key); err != nil {
+	removed, err := r.TransactionHandler.Command.TransactionRedisRepo.RemoveMessageFromQueueIfValue(ctx, key, payload)
+	if err != nil || !removed {
 		libOpentelemetry.HandleSpanError(span, "Failed to remove quarantined record from backup queue", err)
 		logger.Log(ctx, libLog.LevelError, "Quarantined record persisted but failed to remove from backup queue",
 			libLog.String("redis_key", key), libLog.Err(err))

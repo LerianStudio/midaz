@@ -8,6 +8,7 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"strings"
 	"sync/atomic"
 	"time"
 
@@ -19,6 +20,7 @@ import (
 	"go.opentelemetry.io/otel/attribute"
 
 	feesmongo "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/mongodb/fees"
+	transactionredis "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/redis/transaction"
 	"github.com/LerianStudio/midaz/v4/pkg/utils"
 )
 
@@ -450,6 +452,12 @@ func buildReadyzHandler(
 	if redisConnection != nil {
 		checkers = append(checkers,
 			NewRedisChecker("redis", redisConnection, cfg.RedisHost, cfg.RedisTLS))
+
+		checkers = append(checkers, NewRevertRolloutBarrierChecker(
+			transactionredis.NewRevertUpdateFreezeGuard(redisConnection),
+			revertRolloutBarrierMode(cfg.RevertIdempotencyMode),
+			detectRedisTLS(cfg.RedisHost, cfg.RedisTLS),
+		))
 	}
 
 	// RabbitMQ checker
@@ -495,6 +503,17 @@ func buildReadyzHandler(
 		DeploymentMode: cfg.DeploymentMode,
 		MetricsFactory: metricsFactory,
 	}), nil
+}
+
+func revertRolloutBarrierMode(configured string) string {
+	if strings.EqualFold(configured, "legacy") {
+		return "legacy"
+	}
+	if strings.EqualFold(configured, "final") {
+		return "final"
+	}
+
+	return "bridge"
 }
 
 // appendFeesMongoChecker appends a fees Mongo readiness checker when a static fees

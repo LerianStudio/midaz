@@ -629,19 +629,49 @@ type BalanceAtomicResult struct {
 	After  []*Balance
 }
 
+const (
+	TransactionOutcomeCommitted = "COMMITTED"
+	TransactionOutcomeAborted   = "ABORTED"
+)
+
+// BalanceExecutionAttempt identifies one owner authorized to ask the balance
+// Lua for an immutable economic outcome. The execution and outcome keys share
+// the transaction hash slot with balances and the backup queue.
+type BalanceExecutionAttempt struct {
+	ExecutionKey string
+	OutcomeKey   string
+	Owner        string
+	Outcome      string
+	Identity     uuid.UUID
+}
+
+// BalanceExecutionOutcome is the immutable fact written by the balance Lua in
+// the same atomic command as the economic mutation. Before and After are the
+// exact response replayed after a lost Redis response.
+type BalanceExecutionOutcome struct {
+	Identity uuid.UUID      `json:"identity"`
+	Outcome  string         `json:"outcome"`
+	Owner    string         `json:"owner"`
+	Before   []BalanceRedis `json:"before"`
+	After    []BalanceRedis `json:"after"`
+}
+
 // TransactionRedisQueue represents a transaction queue for cache-aside
 type TransactionRedisQueue struct {
-	HeaderID          string                   `json:"header_id"`
-	TransactionID     uuid.UUID                `json:"transaction_id"`
-	OrganizationID    uuid.UUID                `json:"organization_id"`
-	LedgerID          uuid.UUID                `json:"ledger_id"`
-	Balances          []BalanceRedis           `json:"balances"`
-	BalancesAfter     []BalanceRedis           `json:"balancesAfter,omitempty"`
-	TransactionInput  mtransaction.Transaction `json:"parserDSL"`
-	TTL               time.Time                `json:"ttl"`
-	Validate          *mtransaction.Responses  `json:"validate"`
-	TransactionStatus string                   `json:"transaction_status"`
-	Action            string                   `json:"action,omitempty"`
-	TransactionDate   time.Time                `json:"transaction_date"`
-	Operations        []OperationRedis         `json:"operations,omitempty"`
+	HeaderID            string                   `json:"header_id"`
+	TransactionID       uuid.UUID                `json:"transaction_id"`
+	ParentTransactionID *uuid.UUID               `json:"parent_transaction_id,omitempty"`
+	OrganizationID      uuid.UUID                `json:"organization_id"`
+	LedgerID            uuid.UUID                `json:"ledger_id"`
+	Balances            []BalanceRedis           `json:"balances"`
+	BalancesAfter       []BalanceRedis           `json:"balancesAfter,omitempty"`
+	TransactionInput    mtransaction.Transaction `json:"parserDSL"`
+	TTL                 time.Time                `json:"ttl"`
+	Validate            *mtransaction.Responses  `json:"validate"`
+	TransactionStatus   string                   `json:"transaction_status"`
+	Action              string                   `json:"action,omitempty"`
+	AttemptOwner        string                   `json:"attempt_owner,omitempty"`
+	ExpectedOutcome     string                   `json:"expected_outcome,omitempty"`
+	TransactionDate     time.Time                `json:"transaction_date"`
+	Operations          []OperationRedis         `json:"operations,omitempty"`
 }

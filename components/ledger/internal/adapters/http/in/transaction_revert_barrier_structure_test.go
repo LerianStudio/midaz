@@ -9,17 +9,122 @@ import (
 	"go/parser"
 	"go/token"
 	"os"
+	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
+func TestTransactionBackupDeletionRequiresAtomicProof(t *testing.T) {
+	t.Parallel()
+
+	repositoryRoot := filepath.Clean(filepath.Join("..", "..", "..", "..", "..", ".."))
+	ledgerRoot := filepath.Join(repositoryRoot, "components", "ledger")
+	err := filepath.WalkDir(ledgerRoot, func(path string, entry os.DirEntry, walkErr error) error {
+		require.NoError(t, walkErr)
+		if entry.IsDir() || filepath.Ext(path) != ".go" || strings.HasSuffix(path, "_test.go") ||
+			strings.HasSuffix(path, "_mock.go") {
+			return nil
+		}
+
+		source, readErr := os.ReadFile(path)
+		require.NoError(t, readErr)
+		assert.NotContains(t, string(source), "RemoveMessageFromQueue(",
+			"transaction backups must never have a key-only delete path: %s", path)
+
+		return nil
+	})
+	require.NoError(t, err)
+
+	consumerPath := filepath.Join(ledgerRoot, "internal", "adapters", "redis", "transaction", "consumer.redis.go")
+	consumerSource, err := os.ReadFile(consumerPath)
+	require.NoError(t, err)
+	clearAttemptCalls := callsInFunction(t, consumerSource, "ClearBackupAttempt")
+	require.Len(t, clearAttemptCalls["HDel"], 1,
+		"the only direct Go HDEL is the non-economic retry counter cleanup")
+	assert.Equal(t, 1, strings.Count(string(consumerSource), ".HDel("),
+		"backup envelopes must be deleted only by compared Lua scripts")
+
+	scriptDirectory := filepath.Join(ledgerRoot, "internal", "adapters", "redis", "transaction", "scripts")
+	allowed := map[string][]string{
+		"finalize_legacy_transaction_persistence.lua": {"parent_transaction_id", "operations", "HDEL"},
+		"finalize_transaction_persistence.lua":        {"attempt_owner", "expected_outcome", "HDEL"},
+		"remove_transaction_backup_if_status.lua":     {"attempt_owner", "expected_outcome", "balancesAfter", "HDEL"},
+		"remove_transaction_backup_if_value.lua":      {"raw ~= ARGV[1]", "HDEL"},
+	}
+	entries, err := os.ReadDir(scriptDirectory)
+	require.NoError(t, err)
+	seen := make(map[string]bool, len(allowed))
+	for _, entry := range entries {
+		if entry.IsDir() || filepath.Ext(entry.Name()) != ".lua" {
+			continue
+		}
+		source, readErr := os.ReadFile(filepath.Join(scriptDirectory, entry.Name()))
+		require.NoError(t, readErr)
+		if !strings.Contains(string(source), "HDEL") {
+			continue
+		}
+
+		proofs, ok := allowed[entry.Name()]
+		require.True(t, ok, "new transaction-backup HDEL requires an explicit atomic proof classification: %s", entry.Name())
+		seen[entry.Name()] = true
+		for _, proof := range proofs {
+			assert.Contains(t, string(source), proof, "%s must retain proof %q", entry.Name(), proof)
+		}
+	}
+	for script := range allowed {
+		assert.True(t, seen[script], "classified backup cleanup script %s must remain present", script)
+	}
+}
+
+func TestEveryPersistenceConsumerUsesOneTerminalHandoff(t *testing.T) {
+	t.Parallel()
+
+	commandDirectory := filepath.Clean(filepath.Join("..", "..", "..", "services", "command"))
+	individual, err := os.ReadFile(filepath.Join(commandDirectory, "create_balance_transaction_operations_async.go"))
+	require.NoError(t, err)
+	bulk, err := os.ReadFile(filepath.Join(commandDirectory, "create_bulk_transaction_operations_async.go"))
+	require.NoError(t, err)
+
+	individualCalls := callsInFunction(t, individual, "CreateBalanceTransactionOperationsAsync")
+	require.Len(t, individualCalls["FinalizeDurableTransactionPersistence"], 1)
+	assert.Empty(t, individualCalls["FinalizeTransactionPersistence"],
+		"the individual consumer cannot implement a partial terminal handoff")
+	assert.Empty(t, individualCalls["CompleteRevertClaim"],
+		"the individual consumer cannot complete a claim outside the shared handoff")
+
+	bulkCalls := callsInFunction(t, bulk, "processMetadataAndEvents")
+	require.Len(t, bulkCalls["FinalizeDurableTransactionPersistence"], 1)
+	assert.Empty(t, bulkCalls["FinalizeTransactionPersistence"],
+		"the bulk consumer cannot implement a partial terminal handoff")
+	assert.Empty(t, bulkCalls["CompleteRevertClaim"],
+		"the bulk consumer cannot complete a claim outside the shared handoff")
+}
+
+func TestHTTPAdoptionUsesTheSameTerminalHandoffOrder(t *testing.T) {
+	t.Parallel()
+
+	claimSource, err := os.ReadFile("transaction_revert_claim.go")
+	require.NoError(t, err)
+
+	calls := callsInFunction(t, claimSource, "finalizeDurableRevert")
+	require.Len(t, calls["MarkRevertClaim"], 1)
+	require.Len(t, calls["completeOriginRevertBarrier"], 1)
+	require.Len(t, calls["finalizeDurableRevertPersistence"], 1)
+	assert.Less(t, calls["MarkRevertClaim"][0], calls["completeOriginRevertBarrier"][0],
+		"the durable claim must become terminal before any Redis replay is published")
+	assert.Less(t, calls["completeOriginRevertBarrier"][0], calls["finalizeDurableRevertPersistence"][0],
+		"outcome and backup cleanup require terminal claim plus published replay")
+}
+
 // TestRevertBarrierAcquisitionOrder is a permanent money-path guard. The
-// bridge deliberately uses three independent operations because its Redis
-// barriers have different Cluster hash tags. The PostgreSQL claim must exist
-// first, then the legacy Redis barrier is acquired, then executeCreateTransaction
-// acquires the origin Redis barrier, and only then may the balance Lua run.
+// bridge deliberately uses independent operations because its legacy and
+// transaction Redis barriers have different Cluster hash tags. The Redis
+// economic attempt must exist before the durable claim becomes visible. The
+// claim then precedes the legacy barrier; executeCreateTransaction acquires the
+// origin barrier, and only then may balance Lua record the immutable outcome.
 func TestRevertBarrierAcquisitionOrder(t *testing.T) {
 	t.Parallel()
 
@@ -27,30 +132,62 @@ func TestRevertBarrierAcquisitionOrder(t *testing.T) {
 	require.NoError(t, err)
 	createSource, err := os.ReadFile("transaction_create.go")
 	require.NoError(t, err)
+	claimSource, err := os.ReadFile("transaction_revert_claim.go")
+	require.NoError(t, err)
 
 	stateCalls := callsInFunction(t, stateSource, "revertTransaction")
 	require.Len(t, stateCalls["WithPrimaryRead"], 1)
 	require.NotEmpty(t, stateCalls["GetParentByTransactionID"])
 	require.NotEmpty(t, stateCalls["GetTransactionWithOperationsByID"])
+	require.NotEmpty(t, stateCalls["GetOperationRouteByID"])
 	assert.Less(t, stateCalls["WithPrimaryRead"][0], stateCalls["GetParentByTransactionID"][0],
 		"replay eligibility must be marked primary before its first query")
 	assert.Less(t, stateCalls["WithPrimaryRead"][0], stateCalls["GetTransactionWithOperationsByID"][0],
 		"revert eligibility must be marked primary before loading the origin")
+	assert.Less(t, stateCalls["WithPrimaryRead"][0], stateCalls["GetOperationRouteByID"][0],
+		"route eligibility must be marked primary before validating bidirectionality")
 
 	claimPositions := stateCalls["ClaimRevert"]
 	require.Len(t, claimPositions, 2, "legacy adoption and fresh claim must remain explicit")
 	require.Len(t, stateCalls["acquireLegacyRevertBarrier"], 1)
-	require.Len(t, stateCalls["createRevertTransaction"], 1)
+	require.Len(t, stateCalls["AcquireOwnedKey"], 1,
+		"a fresh claim must atomically acquire its balance execution attempt and owner")
+	require.Len(t, stateCalls["createRevertTransaction"], 2, "phase zero legacy and bridge/final paths must remain explicit")
+	assert.Less(t, stateCalls["AcquireOwnedKey"][0], claimPositions[1],
+		"a visible PostgreSQL claim must already have the attempt that fences a stale winner")
 	assert.Less(t, claimPositions[1], stateCalls["acquireLegacyRevertBarrier"][0],
 		"fresh PostgreSQL claim must precede the legacy Redis barrier")
-	assert.Less(t, stateCalls["acquireLegacyRevertBarrier"][0], stateCalls["createRevertTransaction"][0],
+	assert.Less(t, stateCalls["acquireLegacyRevertBarrier"][0], stateCalls["createRevertTransaction"][1],
 		"bridge must own the legacy barrier before entering the origin-scoped create path")
 
 	createCalls := callsInFunction(t, createSource, "executeCreateTransaction")
-	require.Len(t, createCalls["CreateOrCheckTransactionIdempotency"], 1)
+	require.Len(t, createCalls["acquireOriginRevertBarrier"], 1)
+	require.Len(t, createCalls["SendTransactionToRedisQueue"], 1)
 	require.Len(t, createCalls["ProcessBalanceOperations"], 1)
-	assert.Less(t, createCalls["CreateOrCheckTransactionIdempotency"][0], createCalls["ProcessBalanceOperations"][0],
+	assert.Less(t, createCalls["acquireOriginRevertBarrier"][0], createCalls["ProcessBalanceOperations"][0],
 		"origin Redis barrier must be acquired before balance mutation")
+	assert.Less(t, createCalls["acquireOriginRevertBarrier"][0], createCalls["SendTransactionToRedisQueue"][0],
+		"the origin owner companion must exist before the recoverable seed is written")
+	originCalls := callsInFunction(t, claimSource, "acquireOriginRevertBarrier")
+	require.Len(t, originCalls["AcquireOwnedKey"], 1,
+		"the origin barrier and reserved-reverse owner must be one atomic same-slot acquisition")
+}
+
+func TestRevertRecoveryNeverBlindDeletesOriginFence(t *testing.T) {
+	t.Parallel()
+
+	claimSource, err := os.ReadFile("transaction_revert_claim.go")
+	require.NoError(t, err)
+
+	recoveryCalls := callsInFunction(t, claimSource, "recoverProvenPreMovementRevert")
+	assert.Empty(t, recoveryCalls["Del"], "a stale RECOVERING owner must never blind-delete a successor's origin barrier")
+	require.Len(t, recoveryCalls["releaseOwnedRevertOriginFence"], 1)
+	require.Len(t, recoveryCalls["RemoveMessageFromQueueIfStatus"], 1)
+	assert.Less(t, recoveryCalls["RemoveMessageFromQueueIfStatus"][0], recoveryCalls["releaseOwnedRevertOriginFence"][0],
+		"recovery must confirm the reverse seed is removed before releasing the shared origin barrier")
+	releaseCalls := callsInFunction(t, claimSource, "releaseOwnedRevertOriginFence")
+	require.Len(t, releaseCalls["ReleaseOwnedKey"], 1)
+	assert.Empty(t, releaseCalls["Del"], "origin cleanup must remain owner-checked")
 }
 
 func TestRevertAmbiguousOutcomeCannotReachAnyFenceRelease(t *testing.T) {
@@ -65,7 +202,7 @@ func TestRevertAmbiguousOutcomeCannotReachAnyFenceRelease(t *testing.T) {
 	require.Len(t, createGuards, 2)
 	assert.Contains(t, createGuards[0], "deleteIdempotencyKey",
 		"the origin Redis fence may only be deleted through the common proof gate")
-	assert.Contains(t, createGuards[0], "RemoveTransactionFromRedisQueue",
+	assert.Contains(t, createGuards[0], "removePreMovementTransactionBackup",
 		"the atomic balance outcome may only be removed through the common proof gate")
 	assert.Contains(t, createGuards[1], "releaseReservations")
 
@@ -73,6 +210,18 @@ func TestRevertAmbiguousOutcomeCannotReachAnyFenceRelease(t *testing.T) {
 	require.Len(t, claimGuards, 1)
 	assert.Contains(t, claimGuards[0], "releaseFreshRevertClaim",
 		"the PostgreSQL claim and legacy Redis fence may only be released through the same proof gate")
+
+	failureCalls := callsInFunction(t, claimSource, "failRevertClaim")
+	require.Len(t, failureCalls["RemoveMessageFromQueueIfStatus"], 1)
+	require.Len(t, failureCalls["releaseOwnedRevertOriginFence"], 1)
+	require.Len(t, failureCalls["ReleaseOwnedKey"], 1)
+	require.Len(t, failureCalls["releaseFreshRevertClaim"], 1)
+	assert.Less(t, failureCalls["RemoveMessageFromQueueIfStatus"][0], failureCalls["releaseOwnedRevertOriginFence"][0],
+		"the reverse-scoped seed must be removed before shared fences")
+	assert.Less(t, failureCalls["releaseOwnedRevertOriginFence"][0], failureCalls["ReleaseOwnedKey"][0],
+		"origin ownership must be resolved before the execution lease is removed")
+	assert.Less(t, failureCalls["ReleaseOwnedKey"][0], failureCalls["releaseFreshRevertClaim"][0],
+		"PostgreSQL and the legacy fence must be released last")
 }
 
 func callsInFunction(t *testing.T, source []byte, function string) map[string][]token.Pos {

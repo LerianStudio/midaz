@@ -482,6 +482,8 @@ var (
 	ErrReservationOutcomeIDRequired             = errors.New("0503")
 	ErrReservationOutcomeConflict               = errors.New("0504")
 	ErrRevertReconciliationRequired             = errors.New("0505")
+	ErrRevertRolloutFreezeRequired              = errors.New("0506")
+	ErrTransactionOutcomeReconciliationRequired = errors.New("0507")
 )
 
 // List of CRM domain errors.

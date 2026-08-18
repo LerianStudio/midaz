@@ -19,17 +19,22 @@ import (
 	libLog "github.com/LerianStudio/lib-observability/v2/log"
 	"github.com/gofiber/fiber/v3"
 	"github.com/google/uuid"
+	redislib "github.com/redis/go-redis/v9"
 	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 
 	mongodb "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/mongodb/transaction"
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/operation"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/revertclaim"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/transaction"
+	redis "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/redis/transaction"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services/command"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services/query"
 	cn "github.com/LerianStudio/midaz/v4/pkg/constant"
+	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
+	"github.com/LerianStudio/midaz/v4/pkg/utils"
 )
 
 // Revert replay visibility. A completed durable claim resolves the exact reverse
@@ -132,21 +137,27 @@ func arrangeReplayedRevert(t *testing.T, ctrl *gomock.Controller) (*TransactionH
 		AssetCode:           "USD",
 		Amount:              &amount,
 		Status:              transaction.Status{Code: cn.APPROVED},
+		Operations:          []*operation.Operation{{ID: uuid.NewString()}},
 	}
 
 	transactionRepo := transaction.NewMockRepository(ctrl)
 	metadataRepo := mongodb.NewMockRepository(ctrl)
 	claimRepo := revertclaim.NewMockRepository(ctrl)
+	redisRepo := redis.NewMockRedisRepository(ctrl)
 
 	transactionRepo.EXPECT().
 		FindByParentID(gomock.Any(), subjects.orgID, subjects.ledgerID, subjects.originID).
+		Return(cachedReverse, nil).
+		Times(1)
+	transactionRepo.EXPECT().
+		FindWithOperations(gomock.Any(), subjects.orgID, subjects.ledgerID, subjects.reverseID).
 		Return(cachedReverse, nil).
 		Times(1)
 
 	metadataRepo.EXPECT().
 		FindByEntity(gomock.Any(), cn.EntityTransaction, subjects.reverseID.String()).
 		Return(nil, nil).
-		Times(1)
+		Times(2)
 
 	claim := &revertclaim.Claim{
 		OrganizationID:       subjects.orgID,
@@ -156,7 +167,7 @@ func arrangeReplayedRevert(t *testing.T, ctrl *gomock.Controller) (*TransactionH
 		State:                revertclaim.StateCompleted,
 	}
 	claimRepo.EXPECT().
-		Claim(gomock.Any(), subjects.orgID, subjects.ledgerID, subjects.originID, subjects.reverseID).
+		Claim(gomock.Any(), subjects.orgID, subjects.ledgerID, subjects.originID, subjects.reverseID, nil, nil).
 		Return(claim, false, nil).
 		Times(1)
 	claimRepo.EXPECT().
@@ -164,15 +175,39 @@ func arrangeReplayedRevert(t *testing.T, ctrl *gomock.Controller) (*TransactionH
 			revertclaim.StateCompleted, nil).
 		Return(nil).
 		Times(1)
+	redisRepo.EXPECT().
+		CompleteOwnedKey(gomock.Any(), originRevertIdempotencyKey(claim), subjects.reverseID.String(),
+			gomock.Any(), gomock.Any()).
+		Return(true, nil).
+		Times(1)
+	redisRepo.EXPECT().
+		ReadMessageFromQueue(gomock.Any(),
+			utils.TransactionInternalKey(subjects.orgID, subjects.ledgerID, subjects.reverseID.String())).
+		Return(nil, redislib.Nil).
+		Times(1)
+	redisRepo.EXPECT().
+		FinalizeTransactionPersistence(gomock.Any(), subjects.orgID, subjects.ledgerID, subjects.reverseID,
+			mmodel.BalanceExecutionAttempt{
+				ExecutionKey: utils.TransactionBalanceExecutionKey(subjects.orgID, subjects.ledgerID, subjects.reverseID),
+				OutcomeKey:   utils.TransactionBalanceOutcomeKey(subjects.orgID, subjects.ledgerID, subjects.reverseID),
+				Owner:        subjects.reverseID.String(),
+				Outcome:      mmodel.TransactionOutcomeCommitted,
+				Identity:     subjects.reverseID,
+			}, gomock.Any()).
+		Return(nil).
+		Times(1)
 
 	handler := &TransactionHandler{
+		RevertIdempotencyMode: revertIdempotencyModeFinal,
+		RevertUpdateFreeze:    &revertUpdateFreezeStub{ready: true},
 		Query: &query.UseCase{
 			TransactionRepo:         transactionRepo,
 			TransactionMetadataRepo: metadataRepo,
 		},
 		Command: &command.UseCase{
-			TransactionRepo: transactionRepo,
-			RevertClaimRepo: claimRepo,
+			TransactionRepo:      transactionRepo,
+			RevertClaimRepo:      claimRepo,
+			TransactionRedisRepo: redisRepo,
 		},
 	}
 

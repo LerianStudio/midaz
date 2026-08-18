@@ -11,6 +11,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	libPostgres "github.com/LerianStudio/lib-commons/v6/commons/postgres"
@@ -25,6 +26,7 @@ type State string
 
 const (
 	StateClaimed                State = "CLAIMED"
+	StateRecovering             State = "RECOVERING"
 	StateMutated                State = "MUTATED"
 	StateCompleted              State = "COMPLETED"
 	StateReconciliationRequired State = "RECONCILIATION_REQUIRED"
@@ -35,6 +37,8 @@ type Claim struct {
 	LedgerID             uuid.UUID
 	OriginTransactionID  uuid.UUID
 	ReverseTransactionID uuid.UUID
+	LegacyFenceKey       *string
+	LegacyFenceOwner     *string
 	State                State
 	FailureReason        *string
 	CreatedAt            time.Time
@@ -47,9 +51,11 @@ type Claim struct {
 //
 //go:generate go run go.uber.org/mock/mockgen@v0.6.0 --destination=revert_claim.postgresql_mock.go --package=revertclaim . Repository
 type Repository interface {
-	Claim(ctx context.Context, organizationID, ledgerID, originID, reverseID uuid.UUID) (*Claim, bool, error)
+	Claim(ctx context.Context, organizationID, ledgerID, originID, reverseID uuid.UUID, legacyFenceKey, legacyFenceOwner *string) (*Claim, bool, error)
 	Get(ctx context.Context, organizationID, ledgerID, originID uuid.UUID) (*Claim, error)
+	GetByReverseID(ctx context.Context, organizationID, ledgerID, reverseID uuid.UUID) (*Claim, error)
 	Transition(ctx context.Context, organizationID, ledgerID, originID, reverseID uuid.UUID, state State, failureReason *string) error
+	BeginPreMutationRecovery(ctx context.Context, organizationID, ledgerID, originID, reverseID uuid.UUID) (bool, error)
 	Release(ctx context.Context, organizationID, ledgerID, originID, reverseID uuid.UUID) (bool, error)
 }
 
@@ -91,6 +97,8 @@ func scanClaim(row interface{ Scan(...any) error }) (*Claim, error) {
 		&claim.LedgerID,
 		&claim.OriginTransactionID,
 		&claim.ReverseTransactionID,
+		&claim.LegacyFenceKey,
+		&claim.LegacyFenceOwner,
 		&claim.State,
 		&claim.FailureReason,
 		&claim.CreatedAt,
@@ -102,7 +110,13 @@ func scanClaim(row interface{ Scan(...any) error }) (*Claim, error) {
 	return claim, nil
 }
 
-func (r *PostgreSQLRepository) Claim(ctx context.Context, organizationID, ledgerID, originID, reverseID uuid.UUID) (*Claim, bool, error) {
+func (r *PostgreSQLRepository) Claim(ctx context.Context, organizationID, ledgerID, originID, reverseID uuid.UUID, legacyFenceKey, legacyFenceOwner *string) (*Claim, bool, error) {
+	if legacyFenceKey != nil && strings.TrimSpace(*legacyFenceKey) == "" {
+		return nil, false, fmt.Errorf("legacy fence key cannot be empty")
+	}
+	if legacyFenceOwner != nil && (legacyFenceKey == nil || *legacyFenceOwner != reverseID.String()) {
+		return nil, false, fmt.Errorf("legacy fence owner requires an exact fence key")
+	}
 	db, err := r.getDB(ctx)
 	if err != nil {
 		return nil, false, err
@@ -116,10 +130,10 @@ func (r *PostgreSQLRepository) Claim(ctx context.Context, organizationID, ledger
 
 	result, err := tx.ExecContext(ctx, `
 		INSERT INTO transaction_revert_claim (
-			organization_id, ledger_id, origin_transaction_id, reverse_transaction_id
-		) VALUES ($1, $2, $3, $4)
+			organization_id, ledger_id, origin_transaction_id, reverse_transaction_id, legacy_fence_key, legacy_fence_owner
+		) VALUES ($1, $2, $3, $4, $5, $6)
 		ON CONFLICT (organization_id, ledger_id, origin_transaction_id) DO NOTHING`,
-		organizationID, ledgerID, originID, reverseID,
+		organizationID, ledgerID, originID, reverseID, legacyFenceKey, legacyFenceOwner,
 	)
 	if err != nil {
 		return nil, false, fmt.Errorf("insert revert claim: %w", err)
@@ -132,7 +146,7 @@ func (r *PostgreSQLRepository) Claim(ctx context.Context, organizationID, ledger
 
 	claim, err := scanClaim(tx.QueryRowContext(ctx, `
 		SELECT organization_id, ledger_id, origin_transaction_id,
-		       reverse_transaction_id, state, failure_reason, created_at, updated_at
+		       reverse_transaction_id, legacy_fence_key, legacy_fence_owner, state, failure_reason, created_at, updated_at
 		FROM transaction_revert_claim
 		WHERE organization_id = $1 AND ledger_id = $2 AND origin_transaction_id = $3`,
 		organizationID, ledgerID, originID,
@@ -164,7 +178,7 @@ func (r *PostgreSQLRepository) Get(ctx context.Context, organizationID, ledgerID
 
 	claim, err := scanClaim(tx.QueryRowContext(ctx, `
 		SELECT organization_id, ledger_id, origin_transaction_id,
-		       reverse_transaction_id, state, failure_reason, created_at, updated_at
+		       reverse_transaction_id, legacy_fence_key, legacy_fence_owner, state, failure_reason, created_at, updated_at
 		FROM transaction_revert_claim
 		WHERE organization_id = $1 AND ledger_id = $2 AND origin_transaction_id = $3`,
 		organizationID, ledgerID, originID,
@@ -183,6 +197,39 @@ func (r *PostgreSQLRepository) Get(ctx context.Context, organizationID, ledgerID
 	return claim, nil
 }
 
+func (r *PostgreSQLRepository) GetByReverseID(ctx context.Context, organizationID, ledgerID, reverseID uuid.UUID) (*Claim, error) {
+	db, err := r.getDB(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	tx, err := db.BeginTx(ctx, &sql.TxOptions{ReadOnly: true})
+	if err != nil {
+		return nil, fmt.Errorf("begin primary revert claim reverse-id read: %w", err)
+	}
+	defer func() { _ = tx.Rollback() }()
+
+	claim, err := scanClaim(tx.QueryRowContext(ctx, `
+		SELECT organization_id, ledger_id, origin_transaction_id,
+		       reverse_transaction_id, legacy_fence_key, legacy_fence_owner, state, failure_reason, created_at, updated_at
+		FROM transaction_revert_claim
+		WHERE organization_id = $1 AND ledger_id = $2 AND reverse_transaction_id = $3`,
+		organizationID, ledgerID, reverseID,
+	))
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, fmt.Errorf("read revert claim by reverse id: %w", err)
+	}
+
+	if err := tx.Commit(); err != nil {
+		return nil, fmt.Errorf("commit primary revert claim reverse-id read: %w", err)
+	}
+
+	return claim, nil
+}
+
 func (r *PostgreSQLRepository) Transition(ctx context.Context, organizationID, ledgerID, originID, reverseID uuid.UUID, state State, failureReason *string) error {
 	db, err := r.getDB(ctx)
 	if err != nil {
@@ -191,10 +238,17 @@ func (r *PostgreSQLRepository) Transition(ctx context.Context, organizationID, l
 
 	result, err := db.ExecContext(ctx, `
 		UPDATE transaction_revert_claim
-		SET state = $5, failure_reason = $6, updated_at = NOW()
+		SET state = CASE
+		      WHEN state = 'COMPLETED' AND $5 <> 'COMPLETED' THEN state
+		      ELSE $5
+		    END,
+		    failure_reason = CASE
+		      WHEN state = 'COMPLETED' AND $5 <> 'COMPLETED' THEN failure_reason
+		      ELSE $6
+		    END,
+		    updated_at = NOW()
 		WHERE organization_id = $1 AND ledger_id = $2
-		  AND origin_transaction_id = $3 AND reverse_transaction_id = $4
-		  AND (state <> 'COMPLETED' OR $5 = 'COMPLETED')`,
+		  AND origin_transaction_id = $3 AND reverse_transaction_id = $4`,
 		organizationID, ledgerID, originID, reverseID, state, failureReason,
 	)
 	if err != nil {
@@ -212,6 +266,38 @@ func (r *PostgreSQLRepository) Transition(ctx context.Context, organizationID, l
 	return nil
 }
 
+// BeginPreMutationRecovery elects exactly one recovery owner while the durable
+// claim still fences every competing bridge/final request. Redis cleanup is
+// performed only by that owner, and the PostgreSQL claim is released last.
+func (r *PostgreSQLRepository) BeginPreMutationRecovery(ctx context.Context, organizationID, ledgerID, originID, reverseID uuid.UUID) (bool, error) {
+	db, err := r.getDB(ctx)
+	if err != nil {
+		return false, err
+	}
+
+	result, err := db.ExecContext(ctx, `
+		UPDATE transaction_revert_claim
+		SET state = 'RECOVERING', failure_reason = 'pre_movement_recovery', updated_at = NOW()
+		WHERE organization_id = $1 AND ledger_id = $2
+		  AND origin_transaction_id = $3 AND reverse_transaction_id = $4
+		  AND (
+		    state = 'CLAIMED'
+		    OR (state = 'RECOVERING' AND updated_at <= NOW() - INTERVAL '30 seconds')
+		  )`,
+		organizationID, ledgerID, originID, reverseID,
+	)
+	if err != nil {
+		return false, fmt.Errorf("begin pre-mutation revert recovery: %w", err)
+	}
+
+	rows, err := result.RowsAffected()
+	if err != nil {
+		return false, fmt.Errorf("read pre-mutation revert recovery result: %w", err)
+	}
+
+	return rows == 1, nil
+}
+
 func (r *PostgreSQLRepository) Release(ctx context.Context, organizationID, ledgerID, originID, reverseID uuid.UUID) (bool, error) {
 	db, err := r.getDB(ctx)
 	if err != nil {
@@ -222,7 +308,7 @@ func (r *PostgreSQLRepository) Release(ctx context.Context, organizationID, ledg
 		DELETE FROM transaction_revert_claim
 		WHERE organization_id = $1 AND ledger_id = $2
 		  AND origin_transaction_id = $3 AND reverse_transaction_id = $4
-		  AND state = 'CLAIMED'`,
+		  AND state IN ('CLAIMED', 'RECOVERING')`,
 		organizationID, ledgerID, originID, reverseID,
 	)
 	if err != nil {

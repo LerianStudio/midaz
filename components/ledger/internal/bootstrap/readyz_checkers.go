@@ -179,6 +179,54 @@ type RedisChecker struct {
 	tlsEnabled bool
 }
 
+type revertRolloutBarrier interface {
+	ReadyForMode(context.Context, string) (bool, error)
+}
+
+// RevertRolloutBarrierChecker prevents bridge/final pods from receiving
+// traffic unless the shared rollout state proves the approved-update fence
+// was activated before the new revert algorithm.
+type RevertRolloutBarrierChecker struct {
+	guard      revertRolloutBarrier
+	mode       string
+	tlsEnabled bool
+}
+
+// NewRevertRolloutBarrierChecker creates the rollout readiness check for one
+// revert algorithm phase.
+func NewRevertRolloutBarrierChecker(guard revertRolloutBarrier, mode string, tlsEnabled bool) *RevertRolloutBarrierChecker {
+	return &RevertRolloutBarrierChecker{guard: guard, mode: mode, tlsEnabled: tlsEnabled}
+}
+
+// Name returns the checker identifier.
+func (c *RevertRolloutBarrierChecker) Name() string {
+	return "revert_rollout_barrier"
+}
+
+// TLSEnabled reports whether the shared Redis connection uses TLS.
+func (c *RevertRolloutBarrierChecker) TLSEnabled() bool {
+	return c.tlsEnabled
+}
+
+// Check verifies that the shared marker admits this pod's revert algorithm.
+func (c *RevertRolloutBarrierChecker) Check(ctx context.Context) DependencyCheck {
+	if c.guard == nil {
+		return DependencyCheck{Status: StatusDown, Reason: "revert rollout barrier is not configured"}
+	}
+
+	start := time.Now()
+	ready, err := c.guard.ReadyForMode(ctx, c.mode)
+	latencyMs := time.Since(start).Milliseconds()
+	if err != nil {
+		return DependencyCheck{Status: StatusDown, LatencyMs: &latencyMs, Error: fmt.Sprintf("read rollout barrier: %v", err)}
+	}
+	if !ready {
+		return DependencyCheck{Status: StatusDown, LatencyMs: &latencyMs, Reason: "rollout phase does not admit the configured revert mode"}
+	}
+
+	return DependencyCheck{Status: StatusUp, LatencyMs: &latencyMs}
+}
+
 // NewRedisChecker creates a new Redis health checker.
 func NewRedisChecker(name string, client *libRedis.Client, host string, tlsConfigEnabled bool) *RedisChecker {
 	return &RedisChecker{

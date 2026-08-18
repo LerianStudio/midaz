@@ -274,6 +274,8 @@ func allSentinels() map[string]error {
 		"ErrInvalidAccountTypeKeyValue":               constant.ErrInvalidAccountTypeKeyValue,
 		"ErrInvalidAccountTypeDirection":              constant.ErrInvalidAccountTypeDirection,
 		"ErrRevertReconciliationRequired":             constant.ErrRevertReconciliationRequired,
+		"ErrRevertRolloutFreezeRequired":              constant.ErrRevertRolloutFreezeRequired,
+		"ErrTransactionOutcomeReconciliationRequired": constant.ErrTransactionOutcomeReconciliationRequired,
 		"ErrInvalidFutureTransactionDate":             constant.ErrInvalidFutureTransactionDate,
 		"ErrInvalidPendingFutureTransactionDate":      constant.ErrInvalidPendingFutureTransactionDate,
 		"ErrDuplicatedAliasKeyValue":                  constant.ErrDuplicatedAliasKeyValue,

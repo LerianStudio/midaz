@@ -66,6 +66,7 @@ type testInfra struct {
 	redisContainer *redistestutil.ContainerResult
 	pgConn         *libPostgres.Client
 	redisRepo      redis.RedisRepository
+	revertFreeze   *redis.RevertUpdateFreezeGuard
 	metadataRepo   mongodb.Repository
 	handler        *TransactionHandler
 	app            *fiber.App
@@ -113,9 +114,14 @@ func setupTestInfra(t *testing.T) *testInfra {
 	metadataRepo := mongodb.NewMetadataMongoDBRepository(mongoConn)
 	redisRepo, err := redis.NewConsumerRedis(redisConn)
 	require.NoError(t, err, "failed to create Redis repository")
+	revertFreeze := redis.NewRevertUpdateFreezeGuard(redisConn)
+	require.NoError(t, revertFreeze.Activate(context.Background()), "failed to initialize active revert rollout barrier")
+	require.NoError(t, revertFreeze.MarkPhaseZeroDrained(context.Background()), "failed to initialize drained revert rollout barrier")
+	require.NoError(t, revertFreeze.Finalize(context.Background()), "failed to initialize finalized revert rollout barrier")
 
 	// Store repositories for test assertions
 	infra.redisRepo = redisRepo
+	infra.revertFreeze = revertFreeze
 	infra.metadataRepo = metadataRepo
 
 	// Create use cases
@@ -142,6 +148,7 @@ func setupTestInfra(t *testing.T) *testInfra {
 		Query:                 queryUC,
 		Command:               commandUC,
 		RevertIdempotencyMode: revertIdempotencyModeFinal,
+		RevertUpdateFreeze:    revertFreeze,
 	}
 
 	// Use fake UUIDs for org and ledger (they're in the onboarding component, not transaction)

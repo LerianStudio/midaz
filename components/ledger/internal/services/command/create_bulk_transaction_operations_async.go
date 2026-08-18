@@ -8,9 +8,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"os"
 	"sort"
-	"strings"
 	"sync"
 	"time"
 
@@ -136,7 +134,9 @@ func (uc *UseCase) CreateBulkTransactionOperationsAsync(
 
 	// Process metadata and send events only for actually-inserted transactions
 	// This ensures idempotency by skipping duplicates that were ignored during bulk insert
-	uc.processMetadataAndEvents(ctx, logger, payloads, result.InsertedTransactionIDs)
+	if err := uc.processMetadataAndEvents(ctx, logger, payloads, result.InsertedTransactionIDs); err != nil {
+		return result, err
+	}
 
 	return result, nil
 }
@@ -500,7 +500,7 @@ func (uc *UseCase) processMetadataAndEvents(
 	logger libLog.Logger,
 	payloads []transaction.TransactionProcessingPayload,
 	insertedTxIDs map[string]struct{},
-) {
+) error {
 	// Create all metadata in bulk (reduces N round-trips to 1 per collection)
 	uc.processMetadataAndEventsBulk(ctx, logger, payloads, insertedTxIDs)
 
@@ -511,32 +511,35 @@ func (uc *UseCase) processMetadataAndEvents(
 		}
 
 		tx := payload.Transaction
+		orgID, ledgerID, err := uc.extractOrgLedgerIDs(payload)
+		if err != nil {
+			return err
+		}
+		managedPersistence, err := uc.FinalizeDurableTransactionPersistence(ctx, orgID, ledgerID, payload)
+		if err != nil {
+			return fmt.Errorf("finalize transaction %s: %w", tx.ID, err)
+		}
 
 		// Clean up backup/write-behind entries for every payload that reached this stage,
 		// including duplicates ignored by INSERT ... ON CONFLICT DO NOTHING.
-		orgID, ledgerID, err := uc.extractOrgLedgerIDs(payload)
-		if err == nil {
-			useConditionalCleanup := strings.ToLower(os.Getenv("RABBITMQ_TRANSACTION_ASYNC")) == "true"
+		if !managedPersistence {
 			expectedStatus := utils.ExpectedBackupStatusForCleanup(tx.Status.Code, payload.Validate)
 
 			go func(orgID, ledgerID uuid.UUID, txID, status string) {
 				opCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), asyncOperationTimeout)
 				defer cancel()
 
-				if useConditionalCleanup {
-					uc.RemoveTransactionFromRedisQueueIfStatus(opCtx, logger, orgID, ledgerID, txID, status)
-				} else {
-					uc.RemoveTransactionFromRedisQueue(opCtx, logger, orgID, ledgerID, txID)
-				}
+				uc.RemoveTransactionFromRedisQueueIfStatus(opCtx, logger, orgID, ledgerID, txID, status, "", "")
 			}(orgID, ledgerID, tx.ID, expectedStatus)
 
-			go func(orgID, ledgerID uuid.UUID, txID string) {
-				opCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), asyncOperationTimeout)
-				defer cancel()
-
-				uc.DeleteWriteBehindTransaction(opCtx, orgID, ledgerID, txID)
-			}(orgID, ledgerID, tx.ID)
 		}
+
+		go func(orgID, ledgerID uuid.UUID, txID string) {
+			opCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), asyncOperationTimeout)
+			defer cancel()
+
+			uc.DeleteWriteBehindTransaction(opCtx, orgID, ledgerID, txID)
+		}(orgID, ledgerID, tx.ID)
 
 		// Skip if this transaction was not actually inserted (duplicate)
 		// If insertedTxIDs is empty, process all (fallback or status-update scenarios)
@@ -616,6 +619,8 @@ func (uc *UseCase) processMetadataAndEvents(
 			wg.Wait()
 		}(phase)
 	}
+
+	return nil
 }
 
 // fallbackToIndividualProcessing processes payloads individually when bulk fails.

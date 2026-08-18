@@ -29,11 +29,14 @@ type transactionPathParams struct {
 	TransactionID         uuid.UUID
 	ReservedTransactionID uuid.UUID
 	RevertExecution       *revertExecutionState
+	ExecutionAttempt      *mmodel.BalanceExecutionAttempt
 }
 
 type revertExecutionState struct {
-	BalanceAttempted bool
-	BalanceCommitted bool
+	SeedWriteAmbiguous bool
+	SeedWritten        bool
+	BalanceAttempted   bool
+	BalanceCommitted   bool
 }
 
 // readPathParams extracts organization, ledger, and (optional) transaction

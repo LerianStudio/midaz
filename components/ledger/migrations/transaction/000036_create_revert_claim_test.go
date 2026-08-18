@@ -28,6 +28,11 @@ func TestMigration000036_RevertClaimContract(t *testing.T) {
 		"create table if not exists transaction_revert_claim",
 		"primary key (organization_id, ledger_id, origin_transaction_id)",
 		"unique (organization_id, ledger_id, reverse_transaction_id)",
+		"legacy_fence_key",
+		"legacy_fence_owner",
+		"legacy_fence_owner = reverse_transaction_id::text",
+		"btrim(legacy_fence_key) <> ''",
+		"recovering",
 		"reconciliation_required",
 		"check",
 	} {
@@ -36,9 +41,10 @@ func TestMigration000036_RevertClaimContract(t *testing.T) {
 
 	downSQL := strings.ToLower(string(down))
 	for _, required := range []string{
+		"lock table transaction_revert_claim in access exclusive mode",
 		"select exists (select 1 from transaction_revert_claim limit 1)",
 		"cannot remove transaction_revert_claim while reversal claims exist",
-		"drop table if exists transaction_revert_claim",
+		"drop table transaction_revert_claim",
 	} {
 		assert.Contains(t, downSQL, required)
 	}

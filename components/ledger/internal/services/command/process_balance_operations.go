@@ -30,6 +30,7 @@ type ProcessBalanceOperationsInput struct {
 	Validate          *mtransaction.Responses
 	BalanceOperations []mmodel.BalanceOperation
 	TransactionStatus string
+	ExecutionAttempt  *mmodel.BalanceExecutionAttempt
 }
 
 // ProcessBalanceOperations validates balance rules and executes the atomic Lua
@@ -91,15 +92,30 @@ func (uc *UseCase) ProcessBalanceOperations(ctx context.Context, input ProcessBa
 	}
 
 	// Execute the atomic Lua script that mutates balances in Redis.
-	result, err := uc.TransactionRedisRepo.ProcessBalanceAtomicOperation(
-		ctx,
-		input.OrganizationID,
-		input.LedgerID,
-		input.TransactionID,
-		input.TransactionStatus,
-		input.Validate.Pending,
-		input.BalanceOperations,
-	)
+	var result *mmodel.BalanceAtomicResult
+	var err error
+	if input.ExecutionAttempt != nil {
+		result, err = uc.TransactionRedisRepo.ProcessOutcomeBalanceAtomicOperation(
+			ctx,
+			input.OrganizationID,
+			input.LedgerID,
+			input.TransactionID,
+			input.TransactionStatus,
+			input.Validate.Pending,
+			input.BalanceOperations,
+			*input.ExecutionAttempt,
+		)
+	} else {
+		result, err = uc.TransactionRedisRepo.ProcessBalanceAtomicOperation(
+			ctx,
+			input.OrganizationID,
+			input.LedgerID,
+			input.TransactionID,
+			input.TransactionStatus,
+			input.Validate.Pending,
+			input.BalanceOperations,
+		)
+	}
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to execute atomic balance operation", err)
 		logger.Log(ctx, libLog.LevelError, "Failed to execute atomic balance operation", libLog.Err(err))

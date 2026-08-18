@@ -185,8 +185,8 @@ func TestCreateBulkTransactionOperationsAsync_SingleTransaction_Success(t *testi
 
 	// Mock Redis cleanup (async)
 	mockRedisRepo.EXPECT().
-		RemoveMessageFromQueue(gomock.Any(), gomock.Any()).
-		Return(nil).
+		RemoveMessageFromQueueIfStatus(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), false).
+		Return(true, nil).
 		AnyTimes()
 
 	mockRedisRepo.EXPECT().
@@ -291,7 +291,7 @@ func TestCreateBulkTransactionOperationsAsync_MultipleTransactions_Success(t *te
 	// Mock metadata and events
 	mockMetadataRepo.EXPECT().Create(gomock.Any(), gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
 	mockRabbitMQRepo.EXPECT().ProducerDefault(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return(nil, nil).AnyTimes()
-	mockRedisRepo.EXPECT().RemoveMessageFromQueue(gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
+	mockRedisRepo.EXPECT().RemoveMessageFromQueueIfStatus(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), false).Return(true, nil).AnyTimes()
 	mockRedisRepo.EXPECT().Del(gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
 
 	result, err := uc.CreateBulkTransactionOperationsAsync(context.Background(), payloads)
@@ -375,7 +375,7 @@ func TestCreateBulkTransactionOperationsAsync_WithDuplicates(t *testing.T) {
 
 	mockMetadataRepo.EXPECT().Create(gomock.Any(), gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
 	mockRabbitMQRepo.EXPECT().ProducerDefault(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return(nil, nil).AnyTimes()
-	mockRedisRepo.EXPECT().RemoveMessageFromQueue(gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
+	mockRedisRepo.EXPECT().RemoveMessageFromQueueIfStatus(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), false).Return(true, nil).AnyTimes()
 	mockRedisRepo.EXPECT().Del(gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
 
 	result, err := uc.CreateBulkTransactionOperationsAsync(context.Background(), []transaction.TransactionProcessingPayload{payload})
@@ -433,15 +433,15 @@ func TestCreateBulkTransactionOperationsAsync_StatusTransition_BelowThreshold(t 
 	// Note: Balance updates are handled by BalanceSyncWorker, not in this flow
 
 	// Below threshold (< 10), uses individual update via UpdateTransactionStatus
-	// which internally calls TransactionRepo.Update
+	// which internally calls the PENDING-only terminal CAS.
 	mockTransactionRepo.EXPECT().
-		Update(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+		UpdateStatusFromPending(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
 		Return(&transaction.Transaction{ID: transactionID}, nil).
 		Times(1)
 
 	mockMetadataRepo.EXPECT().Create(gomock.Any(), gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
 	mockRabbitMQRepo.EXPECT().ProducerDefault(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return(nil, nil).AnyTimes()
-	mockRedisRepo.EXPECT().RemoveMessageFromQueue(gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
+	mockRedisRepo.EXPECT().RemoveMessageFromQueueIfStatus(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), false).Return(true, nil).AnyTimes()
 	mockRedisRepo.EXPECT().Del(gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
 
 	result, err := uc.CreateBulkTransactionOperationsAsync(context.Background(), []transaction.TransactionProcessingPayload{payload})
@@ -554,10 +554,10 @@ func TestCreateBulkTransactionOperationsAsync_MixedInsertedAndDuplicate_CleansDu
 		AnyTimes()
 
 	mockRedisRepo.EXPECT().
-		RemoveMessageFromQueue(gomock.Any(), gomock.Any()).
-		DoAndReturn(func(_ context.Context, _ string) error {
+		RemoveMessageFromQueueIfStatus(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), false).
+		DoAndReturn(func(_ context.Context, _, _, _, _ string, _ bool) (bool, error) {
 			removeWG.Done()
-			return nil
+			return true, nil
 		}).
 		Times(2)
 
@@ -686,7 +686,10 @@ func TestCreateBulkTransactionOperationsAsync_BulkInsertFails_UsesFallback(t *te
 	// Metadata creation and events
 	mockMetadataRepo.EXPECT().Create(gomock.Any(), gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
 	mockRabbitMQRepo.EXPECT().ProducerDefault(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return(nil, nil).AnyTimes()
-	mockRedisRepo.EXPECT().RemoveMessageFromQueue(gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
+	mockRedisRepo.EXPECT().
+		RemoveMessageFromQueueIfStatus(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), false).
+		Return(true, nil).
+		AnyTimes()
 	mockRedisRepo.EXPECT().Del(gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
 
 	result, err := uc.CreateBulkTransactionOperationsAsync(context.Background(), []transaction.TransactionProcessingPayload{payload})
@@ -1041,7 +1044,10 @@ func TestCreateBulkTransactionOperationsAsync_BalanceUpdateFails_UsesFallback(t 
 	// Metadata creation and events proceed
 	mockMetadataRepo.EXPECT().Create(gomock.Any(), gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
 	mockRabbitMQRepo.EXPECT().ProducerDefault(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return(nil, nil).AnyTimes()
-	mockRedisRepo.EXPECT().RemoveMessageFromQueue(gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
+	mockRedisRepo.EXPECT().
+		RemoveMessageFromQueueIfStatus(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), false).
+		Return(true, nil).
+		AnyTimes()
 	mockRedisRepo.EXPECT().Del(gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
 
 	result, err := uc.CreateBulkTransactionOperationsAsync(context.Background(), []transaction.TransactionProcessingPayload{payload})
@@ -1116,7 +1122,7 @@ func TestCreateBulkTransactionOperationsAsync_StatusTransition_AboveThreshold_Us
 	// Mock metadata and events
 	mockMetadataRepo.EXPECT().Create(gomock.Any(), gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
 	mockRabbitMQRepo.EXPECT().ProducerDefault(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return(nil, nil).AnyTimes()
-	mockRedisRepo.EXPECT().RemoveMessageFromQueue(gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
+	mockRedisRepo.EXPECT().RemoveMessageFromQueueIfStatus(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), false).Return(true, nil).AnyTimes()
 	mockRedisRepo.EXPECT().Del(gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
 
 	result, err := uc.CreateBulkTransactionOperationsAsync(context.Background(), payloads)
@@ -1205,22 +1211,22 @@ func TestIndividualUpdateTransactionStatus_PartialFailure(t *testing.T) {
 	}
 
 	// Mock: first 3 succeed, last 2 fail
-	// Update is called for each transaction
+	// The PENDING-only terminal CAS is called for each transaction.
 	gomock.InOrder(
 		mockTransactionRepo.EXPECT().
-			Update(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+			UpdateStatusFromPending(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
 			Return(&transaction.Transaction{}, nil),
 		mockTransactionRepo.EXPECT().
-			Update(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+			UpdateStatusFromPending(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
 			Return(&transaction.Transaction{}, nil),
 		mockTransactionRepo.EXPECT().
-			Update(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+			UpdateStatusFromPending(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
 			Return(&transaction.Transaction{}, nil),
 		mockTransactionRepo.EXPECT().
-			Update(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+			UpdateStatusFromPending(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
 			Return(nil, errors.New("database connection lost")),
 		mockTransactionRepo.EXPECT().
-			Update(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+			UpdateStatusFromPending(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
 			Return(nil, errors.New("database timeout")),
 	)
 

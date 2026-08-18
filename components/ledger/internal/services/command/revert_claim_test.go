@@ -27,6 +27,7 @@ func TestCompleteRevertClaim_AdoptsOldBackupAndNeverOverwritesAnotherReverse(t *
 		ledgerID := uuid.New()
 		originID := uuid.New()
 		reverseID := uuid.New()
+		legacyFenceKey := "legacy-fence-key"
 		claim := &revertclaim.Claim{
 			OrganizationID:       organizationID,
 			LedgerID:             ledgerID,
@@ -35,12 +36,14 @@ func TestCompleteRevertClaim_AdoptsOldBackupAndNeverOverwritesAnotherReverse(t *
 			State:                revertclaim.StateClaimed,
 		}
 
-		repo.EXPECT().Claim(gomock.Any(), organizationID, ledgerID, originID, reverseID).Return(claim, true, nil)
+		repo.EXPECT().Claim(gomock.Any(), organizationID, ledgerID, originID, reverseID,
+			&legacyFenceKey, nil).Return(claim, true, nil)
 		repo.EXPECT().Transition(gomock.Any(), organizationID, ledgerID, originID, reverseID,
 			revertclaim.StateCompleted, nil).Return(nil)
 
 		uc := &UseCase{RevertClaimRepo: repo}
-		require.NoError(t, uc.CompleteRevertClaim(context.Background(), organizationID, ledgerID, originID, reverseID))
+		require.NoError(t, uc.CompleteRevertClaim(context.Background(), organizationID, ledgerID, originID,
+			reverseID, &legacyFenceKey, nil))
 	})
 
 	t.Run("mismatched durable reservation is reconciliation not overwrite", func(t *testing.T) {
@@ -61,10 +64,10 @@ func TestCompleteRevertClaim_AdoptsOldBackupAndNeverOverwritesAnotherReverse(t *
 			State:                revertclaim.StateReconciliationRequired,
 		}
 
-		repo.EXPECT().Claim(gomock.Any(), organizationID, ledgerID, originID, backupReverseID).Return(claim, false, nil)
+		repo.EXPECT().Claim(gomock.Any(), organizationID, ledgerID, originID, backupReverseID, nil, nil).Return(claim, false, nil)
 
 		uc := &UseCase{RevertClaimRepo: repo}
-		err := uc.CompleteRevertClaim(context.Background(), organizationID, ledgerID, originID, backupReverseID)
+		err := uc.CompleteRevertClaim(context.Background(), organizationID, ledgerID, originID, backupReverseID, nil, nil)
 		require.ErrorContains(t, err, reservedReverseID.String())
 		require.ErrorContains(t, err, backupReverseID.String())
 	})

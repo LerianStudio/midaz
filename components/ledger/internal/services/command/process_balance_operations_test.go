@@ -108,6 +108,41 @@ func TestProcessBalanceOperations(t *testing.T) {
 	})
 }
 
+func TestProcessBalanceOperations_UsesImmutableExecutionOutcomeWhenProvided(t *testing.T) {
+	t.Parallel()
+
+	ctrl := gomock.NewController(t)
+	redisRepo := redis.NewMockRedisRepository(ctrl)
+	organizationID := uuid.New()
+	ledgerID := uuid.New()
+	transactionID := uuid.New()
+	attempt := &mmodel.BalanceExecutionAttempt{
+		ExecutionKey: utils.TransactionBalanceExecutionKey(organizationID, ledgerID, transactionID),
+		OutcomeKey:   utils.TransactionBalanceOutcomeKey(organizationID, ledgerID, transactionID),
+		Owner:        uuid.NewString(),
+		Outcome:      mmodel.TransactionOutcomeCommitted,
+		Identity:     transactionID,
+	}
+	want := &mmodel.BalanceAtomicResult{}
+
+	redisRepo.EXPECT().ProcessOutcomeBalanceAtomicOperation(gomock.Any(), organizationID, ledgerID,
+		transactionID, constant.CREATED, false, []mmodel.BalanceOperation{}, *attempt).Return(want, nil)
+
+	uc := UseCase{TransactionRedisRepo: redisRepo}
+	got, err := uc.ProcessBalanceOperations(context.Background(), ProcessBalanceOperationsInput{
+		OrganizationID:    organizationID,
+		LedgerID:          ledgerID,
+		TransactionID:     transactionID,
+		Validate:          &mtransaction.Responses{},
+		BalanceOperations: []mmodel.BalanceOperation{},
+		TransactionStatus: constant.CREATED,
+		ExecutionAttempt:  attempt,
+	})
+
+	require.NoError(t, err)
+	assert.Same(t, want, got)
+}
+
 func TestProcessBalanceOperations_DoubleEntrySplitting(t *testing.T) {
 	t.Parallel()
 

@@ -9,7 +9,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"os"
 	"strings"
 	"sync"
 	"time"
@@ -145,18 +144,12 @@ func (uc *UseCase) CreateBalanceTransactionOperationsAsync(ctx context.Context, 
 		}
 	}
 
-	if tran.ParentTransactionID != nil && uc.RevertClaimRepo != nil {
-		originID, parseErr := uuid.Parse(*tran.ParentTransactionID)
-		if parseErr != nil {
-			return fmt.Errorf("parse reverse origin transaction id: %w", parseErr)
-		}
-		reverseID := tran.IDtoUUID()
+	managedPersistence, err := uc.FinalizeDurableTransactionPersistence(ctx, data.OrganizationID, data.LedgerID, t)
+	if err != nil {
+		logger.Log(ctx, libLog.LevelError, "Failed terminal transaction persistence handoff",
+			libLog.String("transaction_id", tran.ID), libLog.Err(err))
 
-		if err := uc.CompleteRevertClaim(ctx, data.OrganizationID, data.LedgerID, originID, reverseID); err != nil {
-			logger.Log(ctx, libLog.LevelError, "Failed to complete durable revert claim", libLog.String("transaction_id", tran.ID), libLog.Err(err))
-
-			return err
-		}
+		return err
 	}
 
 	// Send events asynchronously with context that preserves trace but survives parent cancellation.
@@ -199,14 +192,19 @@ func (uc *UseCase) CreateBalanceTransactionOperationsAsync(ctx context.Context, 
 		wg.Wait()
 	}()
 
-	if strings.ToLower(os.Getenv("RABBITMQ_TRANSACTION_ASYNC")) == "true" {
+	if managedPersistence {
+		// The exact backup and outcome were already removed atomically above.
+	} else {
 		if backupStatusForCleanup == "" {
 			backupStatusForCleanup = utils.ExpectedBackupStatusForCleanup(tran.Status.Code, t.Validate)
 		}
 
-		go uc.RemoveTransactionFromRedisQueueIfStatus(ctx, logger, data.OrganizationID, data.LedgerID, tran.ID, backupStatusForCleanup)
-	} else {
-		go uc.RemoveTransactionFromRedisQueue(ctx, logger, data.OrganizationID, data.LedgerID, tran.ID)
+		go func() {
+			cleanupCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), asyncOperationTimeout)
+			defer cancel()
+			uc.RemoveTransactionFromRedisQueueIfStatus(cleanupCtx, logger, data.OrganizationID, data.LedgerID,
+				tran.ID, backupStatusForCleanup, t.AttemptOwner, t.ExpectedOutcome)
+		}()
 	}
 
 	uc.DeleteWriteBehindTransaction(ctx, data.OrganizationID, data.LedgerID, tran.ID)
@@ -332,58 +330,40 @@ func (uc *UseCase) CreateBTOSync(ctx context.Context, data mmodel.Queue) error {
 	return nil
 }
 
-// RemoveTransactionFromRedisQueue func that remove transaction from redis queue
-func (uc *UseCase) RemoveTransactionFromRedisQueue(ctx context.Context, logger libLog.Logger, organizationID, ledgerID uuid.UUID, transactionID string) {
-	transactionKey := utils.TransactionInternalKey(organizationID, ledgerID, transactionID)
-
-	if err := uc.TransactionRedisRepo.RemoveMessageFromQueue(ctx, transactionKey); err != nil {
-		logger.Log(ctx, libLog.LevelWarn, "Backup queue: failed to remove transaction",
-			libLog.String("transaction_key", transactionKey), libLog.Err(err))
-	}
-}
-
 // RemoveTransactionFromRedisQueueIfStatus removes a backup entry only when the
 // current queue payload still matches the expected transaction status.
 //
 // This prevents stale consumers from deleting a newer backup stage for the
 // same transaction ID (e.g. late PENDING-create worker removing a newer
 // APPROVED/CANCELED backup written by commit/cancel flow).
-func (uc *UseCase) RemoveTransactionFromRedisQueueIfStatus(ctx context.Context, logger libLog.Logger, organizationID, ledgerID uuid.UUID, transactionID, expectedStatus string) {
+func (uc *UseCase) RemoveTransactionFromRedisQueueIfStatus(
+	ctx context.Context,
+	logger libLog.Logger,
+	organizationID, ledgerID uuid.UUID,
+	transactionID, expectedStatus, expectedOwner, expectedOutcome string,
+) {
 	transactionKey := utils.TransactionInternalKey(organizationID, ledgerID, transactionID)
 
-	raw, err := uc.TransactionRedisRepo.ReadMessageFromQueue(ctx, transactionKey)
+	removed, err := uc.TransactionRedisRepo.RemoveMessageFromQueueIfStatus(ctx, transactionKey,
+		expectedStatus, expectedOwner, expectedOutcome, false)
 	if err != nil {
-		logger.Log(ctx, libLog.LevelWarn, "Backup queue: failed to read transaction before conditional cleanup",
+		logger.Log(ctx, libLog.LevelWarn, "Backup queue: failed conditional transaction cleanup",
 			libLog.String("transaction_key", transactionKey), libLog.Err(err))
 
 		return
 	}
-
-	var queue mmodel.TransactionRedisQueue
-	if err := json.Unmarshal(raw, &queue); err != nil {
-		logger.Log(ctx, libLog.LevelWarn, "Backup queue: failed to decode transaction before conditional cleanup",
-			libLog.String("transaction_key", transactionKey), libLog.Err(err))
-
-		return
-	}
-
-	if !strings.EqualFold(queue.TransactionStatus, expectedStatus) {
+	if !removed {
 		logger.Log(ctx, libLog.LevelDebug, "Backup queue: skip cleanup because transaction status changed",
 			libLog.String("transaction_key", transactionKey),
-			libLog.String("expected_status", expectedStatus),
-			libLog.String("current_status", queue.TransactionStatus))
-
-		return
+			libLog.String("expected_status", expectedStatus))
 	}
-
-	uc.RemoveTransactionFromRedisQueue(ctx, logger, organizationID, ledgerID, transactionID)
 }
 
 // SendTransactionToRedisQueue func that send transaction to redis queue.
 // When balances is non-nil (e.g. commit/cancel flows), the snapshot is included
 // directly in the backup message so the Redis consumer can retry without relying
 // on the Lua script to populate them.
-func (uc *UseCase) SendTransactionToRedisQueue(ctx context.Context, organizationID, ledgerID, transactionID uuid.UUID, transactionInput mtransaction.Transaction, validate *mtransaction.Responses, transactionStatus, action string, transactionDate time.Time, balances []*mmodel.Balance) error {
+func (uc *UseCase) SendTransactionToRedisQueue(ctx context.Context, organizationID, ledgerID, transactionID uuid.UUID, transactionInput mtransaction.Transaction, validate *mtransaction.Responses, transactionStatus, action string, transactionDate time.Time, balances []*mmodel.Balance, parentTransactionID *uuid.UUID, attempts ...*mmodel.BalanceExecutionAttempt) error {
 	logger, _, reqId, _ := libObservability.NewTrackingFromContext(ctx)
 	transactionKey := utils.TransactionInternalKey(organizationID, ledgerID, transactionID.String())
 
@@ -448,6 +428,15 @@ func (uc *UseCase) SendTransactionToRedisQueue(ctx context.Context, organization
 		Action:            action,
 		TransactionDate:   transactionDate,
 	}
+	if parentTransactionID != nil && *parentTransactionID != uuid.Nil {
+		queue.ParentTransactionID = parentTransactionID
+	}
+	var executionAttempt *mmodel.BalanceExecutionAttempt
+	if len(attempts) > 0 && attempts[0] != nil {
+		executionAttempt = attempts[0]
+		queue.AttemptOwner = executionAttempt.Owner
+		queue.ExpectedOutcome = executionAttempt.Outcome
+	}
 
 	raw, err := json.Marshal(queue)
 	if err != nil {
@@ -456,7 +445,11 @@ func (uc *UseCase) SendTransactionToRedisQueue(ctx context.Context, organization
 		return constant.ErrTransactionBackupCacheMarshalFailed
 	}
 
-	err = uc.TransactionRedisRepo.AddMessageToQueue(ctx, transactionKey, raw)
+	if executionAttempt != nil {
+		err = uc.TransactionRedisRepo.SeedTransactionBackup(ctx, organizationID, ledgerID, transactionID, raw, *executionAttempt)
+	} else {
+		err = uc.TransactionRedisRepo.AddMessageToQueue(ctx, transactionKey, raw)
+	}
 	if err != nil {
 		logger.Log(ctx, libLog.LevelError, "Failed to send transaction to redis queue", libLog.Err(err))
 
@@ -466,60 +459,42 @@ func (uc *UseCase) SendTransactionToRedisQueue(ctx context.Context, organization
 	return nil
 }
 
-// UpdateTransactionBackupOperations updates the Redis backup queue entry
-// for a transaction to include the materialized operations. This ensures
-// that if the cron consumer reprocesses this backup, it uses the exact same
-// operation IDs that were returned to the user.
-//
-// This is a best-effort operation: failures are logged but do not block
-// the main transaction flow.
-func (uc *UseCase) UpdateTransactionBackupOperations(ctx context.Context, organizationID, ledgerID uuid.UUID, transactionID string, operations []*operation.Operation, actionOverride ...string) {
+// UpdateTransactionBackupOperations atomically enriches the existing Redis
+// backup with the materialized operation IDs. For an economic execution
+// attempt, Redis verifies the immutable Lua outcome before changing the
+// envelope, so a post-movement backup is never replaced by stale HTTP state.
+func (uc *UseCase) UpdateTransactionBackupOperations(
+	ctx context.Context,
+	organizationID, ledgerID, transactionID uuid.UUID,
+	operations []*operation.Operation,
+	action string,
+	attempt *mmodel.BalanceExecutionAttempt,
+) ([]*operation.Operation, error) {
 	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "command.update_transaction_backup_operations")
 	defer span.End()
-
-	transactionKey := utils.TransactionInternalKey(organizationID, ledgerID, transactionID)
-
-	raw, err := uc.TransactionRedisRepo.ReadMessageFromQueue(ctx, transactionKey)
-	if err != nil {
-		libOpentelemetry.HandleSpanError(span, "Failed to read transaction backup for operations update", err)
-		logger.Log(ctx, libLog.LevelWarn, "Failed to read transaction backup for operations update", libLog.Err(err))
-
-		return
-	}
-
-	var queue mmodel.TransactionRedisQueue
-	if err := json.Unmarshal(raw, &queue); err != nil {
-		libOpentelemetry.HandleSpanError(span, "Failed to unmarshal transaction backup for operations update", err)
-		logger.Log(ctx, libLog.LevelWarn, "Failed to unmarshal transaction backup for operations update", libLog.Err(err))
-
-		return
-	}
 
 	redisOps := make([]mmodel.OperationRedis, 0, len(operations))
 	for _, op := range operations {
 		redisOps = append(redisOps, op.ToRedis())
 	}
 
-	queue.Operations = redisOps
-
-	if len(actionOverride) > 0 && actionOverride[0] != "" {
-		queue.Action = actionOverride[0]
-	}
-
-	updated, err := json.Marshal(queue)
+	canonicalRedisOps, err := uc.TransactionRedisRepo.EnrichTransactionBackup(ctx, organizationID, ledgerID, transactionID,
+		redisOps, action, attempt)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(span, "Failed to marshal updated transaction backup", err)
-		logger.Log(ctx, libLog.LevelWarn, "Failed to marshal updated transaction backup", libLog.Err(err))
+		libOpentelemetry.HandleSpanError(span, "Failed to enrich transaction backup with operations", err)
+		logger.Log(ctx, libLog.LevelWarn, "Failed to enrich transaction backup with operations", libLog.Err(err))
 
-		return
+		return nil, err
 	}
 
-	if err := uc.TransactionRedisRepo.AddMessageToQueue(ctx, transactionKey, updated); err != nil {
-		libOpentelemetry.HandleSpanError(span, "Failed to write updated transaction backup with operations", err)
-		logger.Log(ctx, libLog.LevelWarn, "Failed to write updated transaction backup with operations", libLog.Err(err))
+	canonicalOperations := make([]*operation.Operation, 0, len(canonicalRedisOps))
+	for _, redisOperation := range canonicalRedisOps {
+		canonicalOperations = append(canonicalOperations, operation.OperationFromRedis(redisOperation))
 	}
+
+	return canonicalOperations, nil
 }
 
 // validateOperationDirection checks the direction field of an operation.

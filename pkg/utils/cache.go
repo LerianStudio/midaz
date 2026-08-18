@@ -44,6 +44,18 @@ func TransactionInternalKey(organizationID, ledgerID uuid.UUID, key string) stri
 	return builder.String()
 }
 
+// TransactionBalanceExecutionKey is the same-slot attempt lease consumed
+// atomically by the balance Lua when it records an economic outcome.
+func TransactionBalanceExecutionKey(organizationID, ledgerID, transactionID uuid.UUID) string {
+	return TransactionInternalKey(organizationID, ledgerID, transactionID.String()+":balance-execution")
+}
+
+// TransactionBalanceOutcomeKey stores the immutable economic outcome written
+// by the same Lua command that mutates the transaction's balances.
+func TransactionBalanceOutcomeKey(organizationID, ledgerID, transactionID uuid.UUID) string {
+	return TransactionInternalKey(organizationID, ledgerID, transactionID.String()+":balance-outcome")
+}
+
 // BalanceInternalKey returns a key with the following format to be used on redis cluster:
 // "balance:{transactions}:organizationID:ledgerID:key"
 func BalanceInternalKey(organizationID, ledgerID uuid.UUID, key string) string {

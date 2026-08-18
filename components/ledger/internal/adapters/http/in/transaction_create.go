@@ -6,6 +6,9 @@ package in
 
 import (
 	"context"
+	"crypto/sha256"
+	"errors"
+	"fmt"
 	"strconv"
 	"strings"
 	"time"
@@ -32,6 +35,7 @@ import (
 	"github.com/LerianStudio/midaz/v4/pkg/mtransaction"
 	"github.com/LerianStudio/midaz/v4/pkg/net/http"
 	"github.com/LerianStudio/midaz/v4/pkg/skip"
+	"github.com/LerianStudio/midaz/v4/pkg/utils"
 
 	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
 )
@@ -265,9 +269,41 @@ func (handler *TransactionHandler) BuildOperations(
 		operations[idx].BalanceAfter.OverdraftUsed = a.balanceAfterOverdraftUsed
 	}
 
+	if action == constant.ActionRevert {
+		if err := assignDeterministicRevertOperationIDs(tran.ID, operations); err != nil {
+			return nil, nil, err
+		}
+	}
+
 	resolveRouteCodesFromCache(operations, transactionRouteCache, action, transactionInput.OperationTypeOverride)
 
 	return operations, preBalances, nil
+}
+
+func assignDeterministicRevertOperationIDs(reverseTransactionID string, operations []*operation.Operation) error {
+	namespace, err := uuid.Parse(reverseTransactionID)
+	if err != nil {
+		return fmt.Errorf("parse reverse transaction id for deterministic operation ids: %w", err)
+	}
+
+	for index, op := range operations {
+		// A reverse can be rebuilt after PostgreSQL persisted only part of
+		// its operation set. Deriving every operation ID from the durable,
+		// reserved reverse ID makes the replay idempotent even when the
+		// best-effort Redis materialization was lost before the crash.
+		digest := sha256.Sum256([]byte(namespace.String() + "/operation/" + strconv.Itoa(index)))
+		var operationID uuid.UUID
+		// Preserve the reserved reverse's UUIDv7 timestamp prefix while the
+		// remaining bits come from the deterministic digest. Operation IDs
+		// stay time-sortable UUIDv7s, matching the repository-wide contract.
+		copy(operationID[:6], namespace[:6])
+		copy(operationID[6:], digest[:10])
+		operationID[6] = operationID[6]&0x0f | 0x70
+		operationID[8] = operationID[8]&0x3f | 0x80
+		op.ID = operationID.String()
+	}
+
+	return nil
 }
 
 // statusToAction maps a transaction status code to the corresponding accounting
@@ -1141,12 +1177,29 @@ func (handler *TransactionHandler) executeCreateTransaction(ctx context.Context,
 
 	idempotencyHash := libCommons.HashSHA256(hashSource)
 
-	idempotencyResult, err := handler.Command.CreateOrCheckTransactionIdempotency(ctx, params.OrganizationID, params.LedgerID, idempotencyKey, idempotencyHash, idempotencyTTL)
-	if err != nil {
-		return nil, false, err
+	var idempotencyResult *command.TransactionIdempotencyResult
+	if params.RevertExecution != nil {
+		internalKey, replay, acquireErr := handler.acquireOriginRevertBarrier(ctx, params.OrganizationID,
+			params.LedgerID, transactionID, idempotencyKey, idempotencyHash)
+		idempotencyResult = &command.TransactionIdempotencyResult{Replay: replay, InternalKey: internalKey}
+		if acquireErr != nil {
+			return nil, false, acquireErr
+		}
+	} else {
+		claimTTL := idempotencyTTL
+		idempotencyResult, err = handler.Command.CreateOrCheckTransactionIdempotency(ctx, params.OrganizationID,
+			params.LedgerID, idempotencyKey, idempotencyHash, claimTTL)
+		if err != nil {
+			return nil, false, err
+		}
 	}
 
 	if idempotencyResult.Replay != nil {
+		if isRevert && !reverseBelongsToOrigin(idempotencyResult.Replay, params.TransactionID) {
+			return nil, false, pkg.ValidateBusinessError(constant.ErrIdempotencyKey,
+				"RevertTransaction", params.TransactionID.String())
+		}
+
 		return idempotencyResult.Replay, true, nil
 	}
 
@@ -1164,7 +1217,7 @@ func (handler *TransactionHandler) executeCreateTransaction(ctx context.Context,
 
 		err = pkg.HandleKnownBusinessValidationErrors(err)
 
-		handler.deleteIdempotencyKey(ctx, idempotencyResult.InternalKey)
+		handler.deleteIdempotencyKey(ctx, idempotencyResult.InternalKey, params.RevertExecution)
 
 		return nil, false, err
 	}
@@ -1178,7 +1231,7 @@ func (handler *TransactionHandler) executeCreateTransaction(ctx context.Context,
 		libOpentelemetry.HandleSpanError(span, "Failed to get ledger settings", err)
 		logger.Log(ctx, libLog.LevelError, "Failed to get ledger settings", libLog.Err(err))
 
-		handler.deleteIdempotencyKey(ctx, idempotencyResult.InternalKey)
+		handler.deleteIdempotencyKey(ctx, idempotencyResult.InternalKey, params.RevertExecution)
 
 		return nil, false, err
 	}
@@ -1193,7 +1246,7 @@ func (handler *TransactionHandler) executeCreateTransaction(ctx context.Context,
 		handleSpanByErrorClass(span, skipRejectLabel, err)
 		logger.Log(ctx, libLog.LevelWarn, skipRejectLabel, libLog.Err(err))
 
-		handler.deleteIdempotencyKey(ctx, idempotencyResult.InternalKey)
+		handler.deleteIdempotencyKey(ctx, idempotencyResult.InternalKey, params.RevertExecution)
 
 		return nil, false, err
 	}
@@ -1222,7 +1275,7 @@ func (handler *TransactionHandler) executeCreateTransaction(ctx context.Context,
 		handleSpanByErrorClass(span, "Failed to apply fees", err)
 		logger.Log(ctx, libLog.LevelWarn, "Failed to apply fees", libLog.Err(err))
 
-		handler.deleteIdempotencyKey(ctx, idempotencyResult.InternalKey)
+		handler.deleteIdempotencyKey(ctx, idempotencyResult.InternalKey, params.RevertExecution)
 
 		return nil, false, err
 	}
@@ -1256,7 +1309,7 @@ func (handler *TransactionHandler) executeCreateTransaction(ctx context.Context,
 
 		err = pkg.HandleKnownBusinessValidationErrors(err)
 
-		handler.deleteIdempotencyKey(ctx, idempotencyResult.InternalKey)
+		handler.deleteIdempotencyKey(ctx, idempotencyResult.InternalKey, params.RevertExecution)
 
 		return nil, false, err
 	}
@@ -1286,14 +1339,30 @@ func (handler *TransactionHandler) executeCreateTransaction(ctx context.Context,
 		action = constant.ActionRevert
 	}
 
-	err = handler.Command.SendTransactionToRedisQueue(ctx, params.OrganizationID, params.LedgerID, transactionID, transactionInput, validate, transactionStatus, action, transactionDate, nil)
+	var parentTransactionID *uuid.UUID
+	if isRevert {
+		parentTransactionID = &params.TransactionID
+	}
+
+	err = handler.Command.SendTransactionToRedisQueue(ctx, params.OrganizationID, params.LedgerID, transactionID,
+		transactionInput, validate, transactionStatus, action, transactionDate, nil, parentTransactionID,
+		params.ExecutionAttempt)
 	if err != nil {
+		if params.RevertExecution != nil && errors.Is(err, constant.ErrTransactionBackupCacheFailed) {
+			// HSET can commit and lose its response. The surviving seed is the
+			// evidence recovery needs, so no fence may be released until its
+			// presence is resolved after the execution lease expires.
+			params.RevertExecution.SeedWriteAmbiguous = true
+		}
 		libOpentelemetry.HandleSpanError(span, "Failed to send transaction to backup cache", err)
 		logger.Log(ctx, libLog.LevelError, "Failed to send transaction to backup cache", libLog.Err(err))
 
-		handler.deleteIdempotencyKey(ctx, idempotencyResult.InternalKey)
+		handler.deleteIdempotencyKey(ctx, idempotencyResult.InternalKey, params.RevertExecution)
 
 		return nil, false, pkg.ValidateBusinessError(err, constant.EntityTransaction)
+	}
+	if params.RevertExecution != nil {
+		params.RevertExecution.SeedWritten = true
 	}
 
 	// Mark the transactional-flow balance reads below so they can be served from
@@ -1305,8 +1374,8 @@ func (handler *TransactionHandler) executeCreateTransaction(ctx context.Context,
 		libOpentelemetry.HandleSpanError(span, "Failed to get balances", err)
 		logger.Log(ctx, libLog.LevelError, "Failed to get balances", libLog.Err(err))
 
-		handler.deleteIdempotencyKey(ctx, idempotencyResult.InternalKey)
-		handler.Command.RemoveTransactionFromRedisQueue(ctx, logger, params.OrganizationID, params.LedgerID, transactionID.String())
+		handler.deleteIdempotencyKey(ctx, idempotencyResult.InternalKey, params.RevertExecution)
+		handler.removePreMovementTransactionBackup(ctx, logger, params, transactionID, transactionStatus)
 
 		return nil, false, err
 	}
@@ -1321,8 +1390,8 @@ func (handler *TransactionHandler) executeCreateTransaction(ctx context.Context,
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Rejected transaction targeting internal-scope balance", err)
 		logger.Log(ctx, libLog.LevelWarn, "Rejected transaction targeting internal-scope balance", libLog.Err(err))
 
-		handler.deleteIdempotencyKey(ctx, idempotencyResult.InternalKey)
-		handler.Command.RemoveTransactionFromRedisQueue(ctx, logger, params.OrganizationID, params.LedgerID, transactionID.String())
+		handler.deleteIdempotencyKey(ctx, idempotencyResult.InternalKey, params.RevertExecution)
+		handler.removePreMovementTransactionBackup(ctx, logger, params, transactionID, transactionStatus)
 
 		return nil, false, err
 	}
@@ -1348,8 +1417,8 @@ func (handler *TransactionHandler) executeCreateTransaction(ctx context.Context,
 		libOpentelemetry.HandleSpanError(span, "Failed to enrich overdraft operations", err)
 		logger.Log(ctx, libLog.LevelError, "Failed to enrich overdraft operations", libLog.Err(err))
 
-		handler.deleteIdempotencyKey(ctx, idempotencyResult.InternalKey)
-		handler.Command.RemoveTransactionFromRedisQueue(ctx, logger, params.OrganizationID, params.LedgerID, transactionID.String())
+		handler.deleteIdempotencyKey(ctx, idempotencyResult.InternalKey, params.RevertExecution)
+		handler.removePreMovementTransactionBackup(ctx, logger, params, transactionID, transactionStatus)
 
 		return nil, false, err
 	}
@@ -1359,8 +1428,8 @@ func (handler *TransactionHandler) executeCreateTransaction(ctx context.Context,
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to validate accounting rules", err)
 		logger.Log(ctx, libLog.LevelWarn, "Failed to validate accounting rules", libLog.Err(err))
 
-		handler.deleteIdempotencyKey(ctx, idempotencyResult.InternalKey)
-		handler.Command.RemoveTransactionFromRedisQueue(ctx, logger, params.OrganizationID, params.LedgerID, transactionID.String())
+		handler.deleteIdempotencyKey(ctx, idempotencyResult.InternalKey, params.RevertExecution)
+		handler.removePreMovementTransactionBackup(ctx, logger, params, transactionID, transactionStatus)
 
 		return nil, false, err
 	}
@@ -1377,8 +1446,8 @@ func (handler *TransactionHandler) executeCreateTransaction(ctx context.Context,
 		transactionInput.Send.Value, transactionInput.Send.Asset, firstSourceAccountID(validate.Sources, balances),
 		transactionDate, reservationTTLForStatus(transactionStatus), honoredTracerSkip)
 	if reservation.Kind == reservationReject {
-		handler.deleteIdempotencyKey(ctx, idempotencyResult.InternalKey)
-		handler.Command.RemoveTransactionFromRedisQueue(ctx, logger, params.OrganizationID, params.LedgerID, transactionID.String())
+		handler.deleteIdempotencyKey(ctx, idempotencyResult.InternalKey, params.RevertExecution)
+		handler.removePreMovementTransactionBackup(ctx, logger, params, transactionID, transactionStatus)
 
 		return nil, false, reservation.Err
 	}
@@ -1395,21 +1464,22 @@ func (handler *TransactionHandler) executeCreateTransaction(ctx context.Context,
 		Validate:          validate,
 		BalanceOperations: balanceOps,
 		TransactionStatus: transactionStatus,
+		ExecutionAttempt:  params.ExecutionAttempt,
 	})
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to process balance operations", err)
 		logger.Log(ctx, libLog.LevelWarn, "Failed to process balance operations", libLog.Err(err))
 
 		if mayReleaseRevertFences(params.RevertExecution, err) {
-			handler.deleteIdempotencyKey(ctx, idempotencyResult.InternalKey)
-			handler.Command.RemoveTransactionFromRedisQueue(ctx, logger, params.OrganizationID, params.LedgerID, transactionID.String())
+			handler.deleteIdempotencyKey(ctx, idempotencyResult.InternalKey, params.RevertExecution)
+			handler.removePreMovementTransactionBackup(ctx, logger, params, transactionID, transactionStatus)
 		}
 
 		// Only a script-declared rejection proves that Redis rolled back the
 		// whole batch. A transport error is ambiguous: the Lua command may have
 		// committed after the client lost its response, so its reservation must
 		// remain consumed until reconciliation sees the atomic backup marker.
-		if mayReleaseRevertFences(params.RevertExecution, err) {
+		if mayReleaseRevertFences(params.RevertExecution, err) || isRevertExecutionFenceRejected(params.RevertExecution, err) {
 			handler.releaseReservations(ctx, span, logger, reservation.Handle)
 		}
 
@@ -1501,9 +1571,17 @@ func (handler *TransactionHandler) executeCreateTransaction(ctx context.Context,
 	// the same value after the strip).
 	tran.Source = getAliasWithoutKey(filterCompanionAliases(validate.Sources))
 	tran.Destination = getAliasWithoutKey(filterCompanionAliases(validate.Destinations))
-	tran.Operations = operations
 
-	handler.Command.UpdateTransactionBackupOperations(ctx, params.OrganizationID, params.LedgerID, transactionID.String(), operations, action)
+	operations, err = handler.Command.UpdateTransactionBackupOperations(ctx, params.OrganizationID, params.LedgerID,
+		transactionID, operations, action, params.ExecutionAttempt)
+	if err != nil {
+		libOpentelemetry.HandleSpanError(span, "Failed to durably bind operations to balance outcome", err)
+		logger.Log(ctx, libLog.LevelError, "Failed to durably bind operations to balance outcome",
+			libLog.String("transaction_id", transactionID.String()), libLog.Err(err))
+
+		return nil, false, err
+	}
+	tran.Operations = operations
 
 	// Build a shallow copy with the promoted status for persistence and cache.
 	// CREATED is a transient status that the DB layer promotes to APPROVED;
@@ -1518,7 +1596,8 @@ func (handler *TransactionHandler) executeCreateTransaction(ctx context.Context,
 
 	handler.Command.CreateWriteBehindTransaction(ctx, params.OrganizationID, params.LedgerID, &writeTran, transactionInput)
 
-	err = handler.Command.WriteTransaction(ctx, params.OrganizationID, params.LedgerID, &transactionInput, validate, balancesBefore, balancesAfter, &writeTran)
+	err = handler.Command.WriteTransaction(ctx, params.OrganizationID, params.LedgerID, &transactionInput, validate,
+		balancesBefore, balancesAfter, &writeTran, params.ExecutionAttempt)
 	if err != nil {
 		// Log the original error for debugging. WriteTransaction may fail due to:
 		// - msgpack serialization error
@@ -1537,7 +1616,19 @@ func (handler *TransactionHandler) executeCreateTransaction(ctx context.Context,
 
 	bgCtx := tmcore.ContextWithTenantID(context.Background(), tmcore.GetTenantIDContext(ctx))
 
-	go handler.Command.SetTransactionIdempotencyValue(bgCtx, params.OrganizationID, params.LedgerID, idempotencyKey, idempotencyHash, *tran, idempotencyTTL)
+	if params.RevertExecution != nil {
+		// The terminal persistence handoff publishes the origin replay only
+		// after PostgreSQL primary proves the transaction and every operation.
+		// Until then the owned empty fence remains the admission barrier.
+	} else if isRevert {
+		// Phase-zero replay publication is part of the rollout-admitted request.
+		// The drain token is released only after this synchronous write returns,
+		// so no legacy writer can survive the phase-zero drain boundary.
+		handler.Command.SetTransactionIdempotencyValue(ctx, params.OrganizationID, params.LedgerID,
+			idempotencyKey, idempotencyHash, *tran, idempotencyTTL)
+	} else {
+		go handler.Command.SetTransactionIdempotencyValue(bgCtx, params.OrganizationID, params.LedgerID, idempotencyKey, idempotencyHash, *tran, idempotencyTTL)
+	}
 
 	go handler.Command.SendLogTransactionAuditQueue(bgCtx, operations, params.OrganizationID, params.LedgerID, tran.IDtoUUID())
 
@@ -1564,7 +1655,58 @@ func isDefinitiveBalanceRejection(err error) bool {
 	return false
 }
 
-func (handler *TransactionHandler) deleteIdempotencyKey(ctx context.Context, internalKey *string) {
+func isRevertExecutionFenceRejected(execution *revertExecutionState, err error) bool {
+	if execution == nil || !execution.BalanceAttempted || err == nil {
+		return false
+	}
+
+	var conflict pkg.EntityConflictError
+	return errors.As(err, &conflict) && conflict.Code == constant.ErrIdempotencyKey.Error()
+}
+
+func (handler *TransactionHandler) removePreMovementTransactionBackup(
+	ctx context.Context,
+	logger libLog.Logger,
+	params *transactionPathParams,
+	transactionID uuid.UUID,
+	transactionStatus string,
+) {
+	// Revert cleanup is completed by failRevertClaim, which must remove the
+	// exact seed before it releases any shared origin, execution, legacy, or
+	// PostgreSQL fence. Keeping that ordering in one place prevents an early
+	// branch from destroying the recovery proof.
+	if params.RevertExecution != nil {
+		return
+	}
+
+	owner := ""
+	outcome := ""
+	if params.ExecutionAttempt != nil {
+		owner = params.ExecutionAttempt.Owner
+		outcome = params.ExecutionAttempt.Outcome
+	}
+	transactionKey := utils.TransactionInternalKey(params.OrganizationID, params.LedgerID, transactionID.String())
+	removed, err := handler.Command.TransactionRedisRepo.RemoveMessageFromQueueIfStatus(ctx, transactionKey,
+		transactionStatus, owner, outcome, true)
+	if err != nil {
+		logger.Log(ctx, libLog.LevelWarn, "Backup queue: failed pre-movement transaction cleanup",
+			libLog.String("transaction_key", transactionKey), libLog.Err(err))
+
+		return
+	}
+	if !removed {
+		logger.Log(ctx, libLog.LevelDebug, "Backup queue: retained transaction with movement evidence",
+			libLog.String("transaction_key", transactionKey))
+	}
+}
+
+func (handler *TransactionHandler) deleteIdempotencyKey(ctx context.Context, internalKey *string, revertExecution *revertExecutionState) {
+	// Bridge/final origin barriers have an owner companion. Their cleanup is
+	// centralized in failRevertClaim so every early failure uses the same
+	// compare-and-delete proof and releases PostgreSQL last.
+	if revertExecution != nil {
+		return
+	}
 	if internalKey != nil {
 		_ = handler.Command.TransactionRedisRepo.Del(ctx, *internalKey)
 	}

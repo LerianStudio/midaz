@@ -446,6 +446,11 @@ type TransactionProcessingPayload struct {
 	// ""  : produced by v3.5.x  — consumer must call UpdateBalances() directly,
 	//       because the sync worker may not have ZSET entries for these transactions.
 	Version string `json:"version,omitempty" msgpack:"Version,omitempty"`
+
+	// AttemptOwner and ExpectedOutcome carry the immutable Redis economic
+	// outcome handoff through RabbitMQ until PostgreSQL persistence is complete.
+	AttemptOwner    string `json:"attemptOwner,omitempty" msgpack:"AttemptOwner,omitempty"`
+	ExpectedOutcome string `json:"expectedOutcome,omitempty" msgpack:"ExpectedOutcome,omitempty"`
 }
 
 // TransactionResponse represents a success response containing a single transaction.

@@ -103,6 +103,7 @@ func TestTransactionCreate_RejectsInternalBalance(t *testing.T) {
 		"CREATED",
 		time.Now(),
 		[]*mmodel.Balance{internalBalance},
+		nil,
 	)
 
 	require.Error(t, err, "transactions against an internal balance MUST be rejected")

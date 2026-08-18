@@ -44,6 +44,21 @@ func (m *MockRedisRepository) EXPECT() *MockRedisRepositoryMockRecorder {
 	return m.recorder
 }
 
+// AcquireOwnedKey mocks base method.
+func (m *MockRedisRepository) AcquireOwnedKey(ctx context.Context, key, owner string, ttl time.Duration) (bool, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "AcquireOwnedKey", ctx, key, owner, ttl)
+	ret0, _ := ret[0].(bool)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// AcquireOwnedKey indicates an expected call of AcquireOwnedKey.
+func (mr *MockRedisRepositoryMockRecorder) AcquireOwnedKey(ctx, key, owner, ttl any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AcquireOwnedKey", reflect.TypeOf((*MockRedisRepository)(nil).AcquireOwnedKey), ctx, key, owner, ttl)
+}
+
 // AddMessageToQueue mocks base method.
 func (m *MockRedisRepository) AddMessageToQueue(ctx context.Context, key string, msg []byte) error {
 	m.ctrl.T.Helper()
@@ -72,6 +87,36 @@ func (mr *MockRedisRepositoryMockRecorder) ClearBackupAttempt(ctx, key any) *gom
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ClearBackupAttempt", reflect.TypeOf((*MockRedisRepository)(nil).ClearBackupAttempt), ctx, key)
 }
 
+// CompleteOwnedKey mocks base method.
+func (m *MockRedisRepository) CompleteOwnedKey(ctx context.Context, key, owner, value string, ttl time.Duration) (bool, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "CompleteOwnedKey", ctx, key, owner, value, ttl)
+	ret0, _ := ret[0].(bool)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// CompleteOwnedKey indicates an expected call of CompleteOwnedKey.
+func (mr *MockRedisRepositoryMockRecorder) CompleteOwnedKey(ctx, key, owner, value, ttl any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CompleteOwnedKey", reflect.TypeOf((*MockRedisRepository)(nil).CompleteOwnedKey), ctx, key, owner, value, ttl)
+}
+
+// CompleteUnownedKey mocks base method.
+func (m *MockRedisRepository) CompleteUnownedKey(ctx context.Context, key, value string, ttl time.Duration) (bool, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "CompleteUnownedKey", ctx, key, value, ttl)
+	ret0, _ := ret[0].(bool)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// CompleteUnownedKey indicates an expected call of CompleteUnownedKey.
+func (mr *MockRedisRepositoryMockRecorder) CompleteUnownedKey(ctx, key, value, ttl any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CompleteUnownedKey", reflect.TypeOf((*MockRedisRepository)(nil).CompleteUnownedKey), ctx, key, value, ttl)
+}
+
 // Del mocks base method.
 func (m *MockRedisRepository) Del(ctx context.Context, key string) error {
 	m.ctrl.T.Helper()
@@ -84,6 +129,49 @@ func (m *MockRedisRepository) Del(ctx context.Context, key string) error {
 func (mr *MockRedisRepositoryMockRecorder) Del(ctx, key any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Del", reflect.TypeOf((*MockRedisRepository)(nil).Del), ctx, key)
+}
+
+// EnrichTransactionBackup mocks base method.
+func (m *MockRedisRepository) EnrichTransactionBackup(ctx context.Context, organizationID, ledgerID, transactionID uuid.UUID, operations []mmodel.OperationRedis, action string, attempt *mmodel.BalanceExecutionAttempt) ([]mmodel.OperationRedis, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "EnrichTransactionBackup", ctx, organizationID, ledgerID, transactionID, operations, action, attempt)
+	ret0, _ := ret[0].([]mmodel.OperationRedis)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// EnrichTransactionBackup indicates an expected call of EnrichTransactionBackup.
+func (mr *MockRedisRepositoryMockRecorder) EnrichTransactionBackup(ctx, organizationID, ledgerID, transactionID, operations, action, attempt any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "EnrichTransactionBackup", reflect.TypeOf((*MockRedisRepository)(nil).EnrichTransactionBackup), ctx, organizationID, ledgerID, transactionID, operations, action, attempt)
+}
+
+// FinalizeLegacyTransactionPersistence mocks base method.
+func (m *MockRedisRepository) FinalizeLegacyTransactionPersistence(ctx context.Context, organizationID, ledgerID, transactionID, parentTransactionID uuid.UUID, transactionStatus string, operationIDs []string) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "FinalizeLegacyTransactionPersistence", ctx, organizationID, ledgerID, transactionID, parentTransactionID, transactionStatus, operationIDs)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// FinalizeLegacyTransactionPersistence indicates an expected call of FinalizeLegacyTransactionPersistence.
+func (mr *MockRedisRepositoryMockRecorder) FinalizeLegacyTransactionPersistence(ctx, organizationID, ledgerID, transactionID, parentTransactionID, transactionStatus, operationIDs any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FinalizeLegacyTransactionPersistence", reflect.TypeOf((*MockRedisRepository)(nil).FinalizeLegacyTransactionPersistence), ctx, organizationID, ledgerID, transactionID, parentTransactionID, transactionStatus, operationIDs)
+}
+
+// FinalizeTransactionPersistence mocks base method.
+func (m *MockRedisRepository) FinalizeTransactionPersistence(ctx context.Context, organizationID, ledgerID, transactionID uuid.UUID, attempt mmodel.BalanceExecutionAttempt, operationIDs []string) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "FinalizeTransactionPersistence", ctx, organizationID, ledgerID, transactionID, attempt, operationIDs)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// FinalizeTransactionPersistence indicates an expected call of FinalizeTransactionPersistence.
+func (mr *MockRedisRepositoryMockRecorder) FinalizeTransactionPersistence(ctx, organizationID, ledgerID, transactionID, attempt, operationIDs any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FinalizeTransactionPersistence", reflect.TypeOf((*MockRedisRepository)(nil).FinalizeTransactionPersistence), ctx, organizationID, ledgerID, transactionID, attempt, operationIDs)
 }
 
 // Get mocks base method.
@@ -235,6 +323,21 @@ func (mr *MockRedisRepositoryMockRecorder) ProcessBalanceAtomicOperation(ctx, or
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ProcessBalanceAtomicOperation", reflect.TypeOf((*MockRedisRepository)(nil).ProcessBalanceAtomicOperation), ctx, organizationID, ledgerID, transactionID, transactionStatus, pending, balances)
 }
 
+// ProcessOutcomeBalanceAtomicOperation mocks base method.
+func (m *MockRedisRepository) ProcessOutcomeBalanceAtomicOperation(ctx context.Context, organizationID, ledgerID, transactionID uuid.UUID, transactionStatus string, pending bool, balances []mmodel.BalanceOperation, attempt mmodel.BalanceExecutionAttempt) (*mmodel.BalanceAtomicResult, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ProcessOutcomeBalanceAtomicOperation", ctx, organizationID, ledgerID, transactionID, transactionStatus, pending, balances, attempt)
+	ret0, _ := ret[0].(*mmodel.BalanceAtomicResult)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// ProcessOutcomeBalanceAtomicOperation indicates an expected call of ProcessOutcomeBalanceAtomicOperation.
+func (mr *MockRedisRepositoryMockRecorder) ProcessOutcomeBalanceAtomicOperation(ctx, organizationID, ledgerID, transactionID, transactionStatus, pending, balances, attempt any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ProcessOutcomeBalanceAtomicOperation", reflect.TypeOf((*MockRedisRepository)(nil).ProcessOutcomeBalanceAtomicOperation), ctx, organizationID, ledgerID, transactionID, transactionStatus, pending, balances, attempt)
+}
+
 // ReadAllMessagesFromQueue mocks base method.
 func (m *MockRedisRepository) ReadAllMessagesFromQueue(ctx context.Context) (map[string]string, error) {
 	m.ctrl.T.Helper()
@@ -265,6 +368,36 @@ func (mr *MockRedisRepositoryMockRecorder) ReadMessageFromQueue(ctx, key any) *g
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ReadMessageFromQueue", reflect.TypeOf((*MockRedisRepository)(nil).ReadMessageFromQueue), ctx, key)
 }
 
+// ReleaseOwnedKey mocks base method.
+func (m *MockRedisRepository) ReleaseOwnedKey(ctx context.Context, key, owner string) (bool, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ReleaseOwnedKey", ctx, key, owner)
+	ret0, _ := ret[0].(bool)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// ReleaseOwnedKey indicates an expected call of ReleaseOwnedKey.
+func (mr *MockRedisRepositoryMockRecorder) ReleaseOwnedKey(ctx, key, owner any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ReleaseOwnedKey", reflect.TypeOf((*MockRedisRepository)(nil).ReleaseOwnedKey), ctx, key, owner)
+}
+
+// ReleaseUnownedEmptyKey mocks base method.
+func (m *MockRedisRepository) ReleaseUnownedEmptyKey(ctx context.Context, key string) (bool, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ReleaseUnownedEmptyKey", ctx, key)
+	ret0, _ := ret[0].(bool)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// ReleaseUnownedEmptyKey indicates an expected call of ReleaseUnownedEmptyKey.
+func (mr *MockRedisRepositoryMockRecorder) ReleaseUnownedEmptyKey(ctx, key any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ReleaseUnownedEmptyKey", reflect.TypeOf((*MockRedisRepository)(nil).ReleaseUnownedEmptyKey), ctx, key)
+}
+
 // RemoveBalanceSyncKeysBatch mocks base method.
 func (m *MockRedisRepository) RemoveBalanceSyncKeysBatch(ctx context.Context, keys []SyncKey) (int64, error) {
 	m.ctrl.T.Helper()
@@ -280,18 +413,34 @@ func (mr *MockRedisRepositoryMockRecorder) RemoveBalanceSyncKeysBatch(ctx, keys 
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RemoveBalanceSyncKeysBatch", reflect.TypeOf((*MockRedisRepository)(nil).RemoveBalanceSyncKeysBatch), ctx, keys)
 }
 
-// RemoveMessageFromQueue mocks base method.
-func (m *MockRedisRepository) RemoveMessageFromQueue(ctx context.Context, key string) error {
+// RemoveMessageFromQueueIfStatus mocks base method.
+func (m *MockRedisRepository) RemoveMessageFromQueueIfStatus(ctx context.Context, key, expectedStatus, expectedOwner, expectedOutcome string, preMovementOnly bool) (bool, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "RemoveMessageFromQueue", ctx, key)
-	ret0, _ := ret[0].(error)
-	return ret0
+	ret := m.ctrl.Call(m, "RemoveMessageFromQueueIfStatus", ctx, key, expectedStatus, expectedOwner, expectedOutcome, preMovementOnly)
+	ret0, _ := ret[0].(bool)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
 }
 
-// RemoveMessageFromQueue indicates an expected call of RemoveMessageFromQueue.
-func (mr *MockRedisRepositoryMockRecorder) RemoveMessageFromQueue(ctx, key any) *gomock.Call {
+// RemoveMessageFromQueueIfStatus indicates an expected call of RemoveMessageFromQueueIfStatus.
+func (mr *MockRedisRepositoryMockRecorder) RemoveMessageFromQueueIfStatus(ctx, key, expectedStatus, expectedOwner, expectedOutcome, preMovementOnly any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RemoveMessageFromQueue", reflect.TypeOf((*MockRedisRepository)(nil).RemoveMessageFromQueue), ctx, key)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RemoveMessageFromQueueIfStatus", reflect.TypeOf((*MockRedisRepository)(nil).RemoveMessageFromQueueIfStatus), ctx, key, expectedStatus, expectedOwner, expectedOutcome, preMovementOnly)
+}
+
+// RemoveMessageFromQueueIfValue mocks base method.
+func (m *MockRedisRepository) RemoveMessageFromQueueIfValue(ctx context.Context, key string, expected []byte) (bool, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "RemoveMessageFromQueueIfValue", ctx, key, expected)
+	ret0, _ := ret[0].(bool)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// RemoveMessageFromQueueIfValue indicates an expected call of RemoveMessageFromQueueIfValue.
+func (mr *MockRedisRepositoryMockRecorder) RemoveMessageFromQueueIfValue(ctx, key, expected any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RemoveMessageFromQueueIfValue", reflect.TypeOf((*MockRedisRepository)(nil).RemoveMessageFromQueueIfValue), ctx, key, expected)
 }
 
 // ScheduleBalanceSyncBatch mocks base method.
@@ -306,6 +455,20 @@ func (m *MockRedisRepository) ScheduleBalanceSyncBatch(ctx context.Context, memb
 func (mr *MockRedisRepositoryMockRecorder) ScheduleBalanceSyncBatch(ctx, members any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ScheduleBalanceSyncBatch", reflect.TypeOf((*MockRedisRepository)(nil).ScheduleBalanceSyncBatch), ctx, members)
+}
+
+// SeedTransactionBackup mocks base method.
+func (m *MockRedisRepository) SeedTransactionBackup(ctx context.Context, organizationID, ledgerID, transactionID uuid.UUID, msg []byte, attempt mmodel.BalanceExecutionAttempt) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SeedTransactionBackup", ctx, organizationID, ledgerID, transactionID, msg, attempt)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// SeedTransactionBackup indicates an expected call of SeedTransactionBackup.
+func (mr *MockRedisRepositoryMockRecorder) SeedTransactionBackup(ctx, organizationID, ledgerID, transactionID, msg, attempt any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SeedTransactionBackup", reflect.TypeOf((*MockRedisRepository)(nil).SeedTransactionBackup), ctx, organizationID, ledgerID, transactionID, msg, attempt)
 }
 
 // Set mocks base method.

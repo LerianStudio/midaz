@@ -249,6 +249,35 @@ local function main()
     local transactionBackupQueue = KEYS[1]
     local transactionKey = KEYS[2]
     local scheduleKey = KEYS[3]
+    local argStart = 1
+    local attemptOwner = nil
+    local desiredOutcome = nil
+    local transactionIdentity = nil
+
+    -- The reusable outcome protocol passes an owned attempt pair plus an
+    -- immutable outcome key in the same {transactions} slot. A replay of the
+    -- same outcome returns the exact original snapshots without moving funds;
+    -- an opposite terminal outcome conflicts before the first balance write.
+    if #KEYS == 6 then
+        attemptOwner = ARGV[1]
+        desiredOutcome = ARGV[2]
+        transactionIdentity = ARGV[3]
+        argStart = 4
+
+        local existingRaw = redis.call("GET", KEYS[6])
+        if existingRaw then
+            local existing = cjson.decode(existingRaw)
+            if existing.identity ~= transactionIdentity or existing.outcome ~= desiredOutcome then
+                return redis.error_reply("0099")
+            end
+
+            return cjson.encode({ before = existing.before, after = existing.after })
+        end
+
+        if redis.call("EXISTS", KEYS[4]) ~= 1 or redis.call("GET", KEYS[5]) ~= attemptOwner then
+            return redis.error_reply("0084")
+        end
+    end
 
     -- Schedule balance sync immediately (eligible for worker pickup right away).
     -- The worker uses a dual-trigger (size OR timeout) to batch multiple keys
@@ -271,13 +300,13 @@ local function main()
     -- the main loop below (groupSize=24; ARGV[i] is the balance key). A bounded
     -- per-key EXISTS check early-returns on the first delete marker found, so the
     -- whole batch is rejected without unpacking a client-influenced number of keys.
-    for i = 1, #ARGV, groupSize do
+    for i = argStart, #ARGV, groupSize do
         if redis.call("EXISTS", ARGV[i] .. ":deleted") == 1 then
             return redis.error_reply("0019")
         end
     end
 
-    for i = 1, #ARGV, groupSize do
+    for i = argStart, #ARGV, groupSize do
         local redisBalanceKey = ARGV[i]
         local isPending = tonumber(ARGV[i + 1])
         local transactionStatus = ARGV[i + 2]
@@ -621,10 +650,31 @@ local function main()
     if #returnBalances == 0 then
         local emptyArray = cjson.decode("[]")
         updateTransactionHash(transactionBackupQueue, transactionKey, emptyArray, emptyArray)
+        if #KEYS == 6 then
+            redis.call("SET", KEYS[6], cjson.encode({
+                identity = transactionIdentity,
+                outcome = desiredOutcome,
+                owner = attemptOwner,
+                before = emptyArray,
+                after = emptyArray
+            }))
+            redis.call("DEL", KEYS[4], KEYS[5])
+        end
         return cjson.encode({ before = cjson.decode("[]"), after = cjson.decode("[]") })
     end
 
     updateTransactionHash(transactionBackupQueue, transactionKey, returnBalances, returnBalancesAfter)
+
+    if #KEYS == 6 then
+        redis.call("SET", KEYS[6], cjson.encode({
+            identity = transactionIdentity,
+            outcome = desiredOutcome,
+            owner = attemptOwner,
+            before = returnBalances,
+            after = returnBalancesAfter
+        }))
+        redis.call("DEL", KEYS[4], KEYS[5])
+    end
 
     return cjson.encode({ before = returnBalances, after = returnBalancesAfter })
 end

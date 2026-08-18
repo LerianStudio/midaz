@@ -3,13 +3,24 @@ CREATE TABLE IF NOT EXISTS transaction_revert_claim (
     ledger_id UUID NOT NULL,
     origin_transaction_id UUID NOT NULL,
     reverse_transaction_id UUID NOT NULL,
+    legacy_fence_key TEXT,
+    legacy_fence_owner TEXT,
     state VARCHAR(32) NOT NULL DEFAULT 'CLAIMED',
     failure_reason VARCHAR(255),
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     PRIMARY KEY (organization_id, ledger_id, origin_transaction_id),
     UNIQUE (organization_id, ledger_id, reverse_transaction_id),
+    CONSTRAINT transaction_revert_claim_legacy_fence_key_check CHECK (
+        legacy_fence_key IS NULL OR BTRIM(legacy_fence_key) <> ''
+    ),
+    CONSTRAINT transaction_revert_claim_legacy_fence_owner_check CHECK (
+        legacy_fence_owner IS NULL OR (
+            legacy_fence_key IS NOT NULL
+            AND legacy_fence_owner = reverse_transaction_id::TEXT
+        )
+    ),
     CONSTRAINT transaction_revert_claim_state_check CHECK (
-        state IN ('CLAIMED', 'MUTATED', 'COMPLETED', 'RECONCILIATION_REQUIRED')
+        state IN ('CLAIMED', 'RECOVERING', 'MUTATED', 'COMPLETED', 'RECONCILIATION_REQUIRED')
     )
 );

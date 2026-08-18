@@ -41,10 +41,25 @@ func (m *MockRepository) EXPECT() *MockRepositoryMockRecorder {
 	return m.recorder
 }
 
-// Claim mocks base method.
-func (m *MockRepository) Claim(ctx context.Context, organizationID, ledgerID, originID, reverseID uuid.UUID) (*Claim, bool, error) {
+// BeginPreMutationRecovery mocks base method.
+func (m *MockRepository) BeginPreMutationRecovery(ctx context.Context, organizationID, ledgerID, originID, reverseID uuid.UUID) (bool, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Claim", ctx, organizationID, ledgerID, originID, reverseID)
+	ret := m.ctrl.Call(m, "BeginPreMutationRecovery", ctx, organizationID, ledgerID, originID, reverseID)
+	ret0, _ := ret[0].(bool)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// BeginPreMutationRecovery indicates an expected call of BeginPreMutationRecovery.
+func (mr *MockRepositoryMockRecorder) BeginPreMutationRecovery(ctx, organizationID, ledgerID, originID, reverseID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "BeginPreMutationRecovery", reflect.TypeOf((*MockRepository)(nil).BeginPreMutationRecovery), ctx, organizationID, ledgerID, originID, reverseID)
+}
+
+// Claim mocks base method.
+func (m *MockRepository) Claim(ctx context.Context, organizationID, ledgerID, originID, reverseID uuid.UUID, legacyFenceKey, legacyFenceOwner *string) (*Claim, bool, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Claim", ctx, organizationID, ledgerID, originID, reverseID, legacyFenceKey, legacyFenceOwner)
 	ret0, _ := ret[0].(*Claim)
 	ret1, _ := ret[1].(bool)
 	ret2, _ := ret[2].(error)
@@ -52,9 +67,9 @@ func (m *MockRepository) Claim(ctx context.Context, organizationID, ledgerID, or
 }
 
 // Claim indicates an expected call of Claim.
-func (mr *MockRepositoryMockRecorder) Claim(ctx, organizationID, ledgerID, originID, reverseID any) *gomock.Call {
+func (mr *MockRepositoryMockRecorder) Claim(ctx, organizationID, ledgerID, originID, reverseID, legacyFenceKey, legacyFenceOwner any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Claim", reflect.TypeOf((*MockRepository)(nil).Claim), ctx, organizationID, ledgerID, originID, reverseID)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Claim", reflect.TypeOf((*MockRepository)(nil).Claim), ctx, organizationID, ledgerID, originID, reverseID, legacyFenceKey, legacyFenceOwner)
 }
 
 // Get mocks base method.
@@ -70,6 +85,21 @@ func (m *MockRepository) Get(ctx context.Context, organizationID, ledgerID, orig
 func (mr *MockRepositoryMockRecorder) Get(ctx, organizationID, ledgerID, originID any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Get", reflect.TypeOf((*MockRepository)(nil).Get), ctx, organizationID, ledgerID, originID)
+}
+
+// GetByReverseID mocks base method.
+func (m *MockRepository) GetByReverseID(ctx context.Context, organizationID, ledgerID, reverseID uuid.UUID) (*Claim, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetByReverseID", ctx, organizationID, ledgerID, reverseID)
+	ret0, _ := ret[0].(*Claim)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetByReverseID indicates an expected call of GetByReverseID.
+func (mr *MockRepositoryMockRecorder) GetByReverseID(ctx, organizationID, ledgerID, reverseID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetByReverseID", reflect.TypeOf((*MockRepository)(nil).GetByReverseID), ctx, organizationID, ledgerID, reverseID)
 }
 
 // Release mocks base method.

@@ -152,7 +152,8 @@ type Config struct {
 	TxnPrefixedMaxIdleConnections int `env:"DB_TRANSACTION_MAX_IDLE_CONNS"`
 
 	RouteTransactionalReadsToPrimary bool   `env:"DB_TRANSACTION_ROUTE_TX_READS_TO_PRIMARY"`
-	RevertIdempotencyMode            string `env:"REVERT_IDEMPOTENCY_MODE" default:"bridge"`
+	RevertIdempotencyMode            string `env:"REVERT_IDEMPOTENCY_MODE" default:"legacy"`
+	RevertRolloutTarget              string `env:"REVERT_ROLLOUT_TARGET"`
 
 	// --- Onboarding MongoDB fields (MONGO_ONBOARDING_* env tags) ---
 	OnbPrefixedMongoURI          string `env:"MONGO_ONBOARDING_URI"`
@@ -378,6 +379,9 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 	}
 
 	applyConfigDefaults(cfg)
+	if err := validateRevertRolloutConfiguration(cfg.RevertIdempotencyMode, cfg.RevertRolloutTarget); err != nil {
+		return nil, err
+	}
 
 	if err := validateBootAuthGates(cfg); err != nil {
 		return nil, err
@@ -608,6 +612,16 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 	}
 
 	addCleanup(func() { _ = redisConnection.Close() })
+
+	revertRolloutGuard := txRedis.NewRevertUpdateFreezeGuard(redisConnection)
+	transitionCtx, cancelTransition := context.WithTimeout(context.Background(), 5*time.Second)
+	err = applyRevertRolloutTarget(transitionCtx, revertRolloutGuard, cfg.RevertRolloutTarget)
+	cancelTransition()
+	if err != nil {
+		doCleanup()
+
+		return nil, fmt.Errorf("apply revert rollout target: %w", err)
+	}
 
 	onbRedisRepo, err := onbRedis.NewConsumerRedis(redisConnection)
 	if err != nil {
@@ -999,6 +1013,7 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 		FeesMongoManager:      feeMgo.mongoManager,
 		MultiTenantEnabled:    cfg.MultiTenantEnabled,
 		RevertIdempotencyMode: cfg.RevertIdempotencyMode,
+		RevertUpdateFreeze:    revertRolloutGuard,
 	}
 	operationHandler := &httpin.OperationHandler{Command: commandUseCase, Query: queryUseCase}
 	assetRateHandler := &httpin.AssetRateHandler{Command: commandUseCase, Query: queryUseCase}
@@ -1777,6 +1792,9 @@ func applyConfigDefaults(cfg *Config) {
 	intDefault(&cfg.RedisMaxRetries, 3)
 	intDefault(&cfg.RedisMinRetryBackoff, 8)
 	intDefault(&cfg.RedisMaxRetryBackoff, 1)
+	if strings.TrimSpace(cfg.RevertIdempotencyMode) == "" {
+		cfg.RevertIdempotencyMode = "legacy"
+	}
 
 	// Bulk Recorder defaults
 	// BulkRecorderEnabled defaults to true when the env var is not set or empty.
