@@ -61,6 +61,23 @@ func (uc *UseCase) CreateBalanceTransactionOperationsAsync(ctx context.Context, 
 
 		return fmt.Errorf("transaction payload has nil Transaction field")
 	}
+	if t.RedisGeneration != "" {
+		transactionID := t.Transaction.IDtoUUID()
+		attempt := &mmodel.BalanceExecutionAttempt{
+			ExecutionKey:    utils.TransactionBalanceExecutionKey(data.OrganizationID, data.LedgerID, transactionID),
+			OutcomeKey:      utils.TransactionBalanceOutcomeKey(data.OrganizationID, data.LedgerID, transactionID),
+			Owner:           t.AttemptOwner,
+			Outcome:         t.ExpectedOutcome,
+			Identity:        transactionID,
+			RedisGeneration: t.RedisGeneration,
+		}
+		canonicalOperations, preflightErr := uc.UpdateTransactionBackupOperations(ctx, data.OrganizationID,
+			data.LedgerID, transactionID, t.Transaction.Operations, actionForTransactionPayload(t), attempt)
+		if preflightErr != nil {
+			return fmt.Errorf("validate current Redis economic outcome before PostgreSQL persistence: %w", preflightErr)
+		}
+		t.Transaction.Operations = canonicalOperations
+	}
 
 	backupStatusForCleanup := utils.ExpectedBackupStatusForCleanup(t.Transaction.Status.Code, t.Validate)
 
@@ -210,6 +227,23 @@ func (uc *UseCase) CreateBalanceTransactionOperationsAsync(ctx context.Context, 
 	uc.DeleteWriteBehindTransaction(ctx, data.OrganizationID, data.LedgerID, tran.ID)
 
 	return nil
+}
+
+func actionForTransactionPayload(payload transaction.TransactionProcessingPayload) string {
+	if payload.Transaction == nil {
+		return ""
+	}
+	if payload.Transaction.ParentTransactionID != nil {
+		return constant.ActionRevert
+	}
+	if payload.Transaction.Status.Code == constant.CANCELED {
+		return constant.ActionCancel
+	}
+	if payload.Transaction.Status.Code == constant.APPROVED {
+		return constant.ActionCommit
+	}
+
+	return ""
 }
 
 // CreateOrUpdateTransaction func that is responsible to create or update a transaction.

@@ -54,14 +54,18 @@ func TestIntegration_RevertBackupRecoveryPersistsExactParentAndCompletesClaim(t 
 	redisConnection := redistestutil.CreateConnection(t, redisContainer.Addr)
 	redisRepo, err := transactionredis.NewConsumerRedis(redisConnection)
 	require.NoError(t, err)
+	claimRepo := revertclaim.NewPostgreSQLRepository(postgresClient)
 	const expectedRedisGeneration = "645439df-1837-421e-9607-f60b091542c9"
+	const initializationRequestID = "52c85247-b684-4ff7-a45e-41d8f437e4f1"
 	initializer := transactionredis.NewRevertUpdateFreezeGuard(redisConnection,
-		transactionredis.RevertUpdateFreezeInitialize, expectedRedisGeneration)
+		transactionredis.RevertUpdateFreezeInitialize, expectedRedisGeneration).
+		WithRolloutInitializationWitness(claimRepo, initializationRequestID)
 	require.Eventually(t, func() bool { return initializer.FinancialDurability(ctx) == nil },
 		10*time.Second, 50*time.Millisecond)
 	require.NoError(t, initializer.InitializeFinancialDatasetGeneration(ctx))
 	rolloutGuard := transactionredis.NewRevertUpdateFreezeGuard(redisConnection,
-		transactionredis.RevertUpdateFreezePrepared, expectedRedisGeneration)
+		transactionredis.RevertUpdateFreezePrepared, expectedRedisGeneration).
+		WithRolloutInitializationWitness(claimRepo, "")
 	redisGeneration, err := rolloutGuard.FinancialDatasetGeneration(ctx)
 	require.NoError(t, err)
 	rolloutToken := uuid.NewString()
@@ -75,7 +79,6 @@ func TestIntegration_RevertBackupRecoveryPersistsExactParentAndCompletesClaim(t 
 
 	transactionRepo := postgreTransaction.NewTransactionPostgreSQLRepository(postgresClient)
 	operationRepo := operation.NewOperationPostgreSQLRepository(postgresClient)
-	claimRepo := revertclaim.NewPostgreSQLRepository(postgresClient)
 	ctrl := gomock.NewController(t)
 	rabbitRepo := rabbitmq.NewMockProducerRepository(ctrl)
 	rabbitRepo.EXPECT().ProducerDefaultWithContext(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
@@ -171,6 +174,22 @@ func TestIntegration_RevertBackupRecoveryPersistsExactParentAndCompletesClaim(t 
 
 	decodedQueue := mmodel.TransactionRedisQueue{}
 	require.NoError(t, json.Unmarshal(raw, &decodedQueue))
+	require.NoError(t, redisContainer.Client.Set(ctx, transactionredis.FinancialDatasetGenerationKey,
+		uuid.NewString(), 0).Err())
+	consumer.processMessage(ctx, backupKey, string(raw), decodedQueue)
+	persistedBeforeGenerationRecovery, err := transactionRepo.FindWithOperations(ctx,
+		organizationID, ledgerID, reverseID)
+	require.NoError(t, err)
+	require.NotNil(t, persistedBeforeGenerationRecovery)
+	assert.Empty(t, persistedBeforeGenerationRecovery.ID,
+		"a delayed consumer from another Redis generation must stop before any PostgreSQL write")
+	claimBeforeGenerationRecovery, err := claimRepo.Get(ctx, organizationID, ledgerID, originID)
+	require.NoError(t, err)
+	assert.Nil(t, claimBeforeGenerationRecovery)
+	require.Error(t, rolloutGuard.Activate(ctx),
+		"generation rejection must preserve the admitted rollout lease for reconciliation")
+	require.NoError(t, redisContainer.Client.Set(ctx, transactionredis.FinancialDatasetGenerationKey,
+		redisGeneration, 0).Err())
 	consumer.processMessage(ctx, backupKey, string(raw), decodedQueue)
 	require.NoError(t, rolloutGuard.Activate(ctx),
 		"terminal handoff must release the exact pre-activation origin only after PostgreSQL and Redis agree")
@@ -217,6 +236,12 @@ func TestIntegration_RevertBackupRecoveryPersistsExactParentAndCompletesClaim(t 
 		_, readErr := redisRepo.ReadMessageFromQueue(ctx, backupKey)
 		return errors.Is(readErr, redislib.Nil)
 	}, 2*time.Second, 20*time.Millisecond, "completed recovery must remove the Redis backup")
+	require.NoError(t, redisContainer.Client.Del(ctx, transactionredis.FinancialDatasetGenerationKey,
+		transactionredis.RevertUpdateFreezeKey, transactionredis.RevertRolloutGenerationKey).Err())
+	require.Error(t, initializer.InitializeFinancialDatasetGeneration(ctx),
+		"the real PostgreSQL PREPARED birth certificate must prevent total Redis loss from becoming first install")
+	assert.Zero(t, redisContainer.Client.Exists(ctx, transactionredis.FinancialDatasetGenerationKey,
+		transactionredis.RevertUpdateFreezeKey, transactionredis.RevertRolloutGenerationKey).Val())
 }
 
 func TestIntegration_LifecycleBackupRecoveryAfterLeaseExpiryPersistsExactOperationsAndCleansOutcome(t *testing.T) {

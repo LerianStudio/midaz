@@ -60,6 +60,7 @@ import (
 )
 
 const integrationRedisDatasetGeneration = "645439df-1837-421e-9607-f60b091542c9"
+const integrationRolloutInitializationID = "52c85247-b684-4ff7-a45e-41d8f437e4f1"
 
 // testInfra holds all test infrastructure components.
 type testInfra struct {
@@ -123,14 +124,15 @@ func setupTestInfra(t *testing.T) *testInfra {
 	redisRepo, err := redis.NewConsumerRedis(redisConn)
 	require.NoError(t, err, "failed to create Redis repository")
 	initializer := redis.NewRevertUpdateFreezeGuard(redisConn, redis.RevertUpdateFreezeInitialize,
-		integrationRedisDatasetGeneration)
+		integrationRedisDatasetGeneration).WithRolloutInitializationWitness(revertClaimRepo,
+		integrationRolloutInitializationID)
 	require.Eventually(t, func() bool {
 		return initializer.FinancialDurability(context.Background()) == nil
 	}, 10*time.Second, 50*time.Millisecond, "financial Redis test fixture never became durable")
 	require.NoError(t, initializer.InitializeFinancialDatasetGeneration(context.Background()),
 		"failed to initialize financial Redis dataset generation")
 	revertFreeze := redis.NewRevertUpdateFreezeGuard(redisConn, redis.RevertUpdateFreezeFinalized,
-		integrationRedisDatasetGeneration)
+		integrationRedisDatasetGeneration).WithRolloutInitializationWitness(revertClaimRepo, "")
 	require.NoError(t, revertFreeze.Activate(context.Background()), "failed to initialize active revert rollout barrier")
 	require.NoError(t, revertFreeze.MarkPhaseZeroDrained(context.Background()), "failed to initialize drained revert rollout barrier")
 	require.NoError(t, revertFreeze.Finalize(context.Background()), "failed to initialize finalized revert rollout barrier")

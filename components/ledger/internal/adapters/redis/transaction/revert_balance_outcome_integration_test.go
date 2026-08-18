@@ -33,6 +33,69 @@ import (
 )
 
 const redisIntegrationDatasetGeneration = "645439df-1837-421e-9607-f60b091542c9"
+const redisIntegrationInitializationRequestID = "52c85247-b684-4ff7-a45e-41d8f437e4f1"
+
+type rolloutInitializationWitnessStub struct {
+	mu               sync.Mutex
+	generation       string
+	requestID        string
+	prepared         bool
+	completeFailures int
+}
+
+func (s *rolloutInitializationWitnessStub) BeginRolloutInitialization(
+	_ context.Context,
+	generation, requestID uuid.UUID,
+) (bool, bool, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.generation == "" {
+		s.generation = generation.String()
+		s.requestID = requestID.String()
+
+		return false, true, nil
+	}
+	if s.generation != generation.String() {
+		return false, false, fmt.Errorf("dataset generation differs")
+	}
+	if s.requestID != requestID.String() {
+		return false, false, fmt.Errorf("initialization request differs")
+	}
+
+	return s.prepared, false, nil
+}
+
+func (s *rolloutInitializationWitnessStub) CompleteRolloutInitialization(
+	_ context.Context,
+	generation, requestID uuid.UUID,
+) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.generation != generation.String() || s.requestID != requestID.String() {
+		return fmt.Errorf("rollout initialization identity differs")
+	}
+	if s.completeFailures > 0 {
+		s.completeFailures--
+
+		return fmt.Errorf("lost PostgreSQL completion response")
+	}
+	s.prepared = true
+
+	return nil
+}
+
+func (s *rolloutInitializationWitnessStub) ValidatePreparedRollout(
+	_ context.Context,
+	generation uuid.UUID,
+) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if !s.prepared || s.generation != generation.String() {
+		return fmt.Errorf("prepared rollout birth certificate differs")
+	}
+
+	return nil
+}
 
 func TestIntegration_BalanceExecutionOutcomeIsImmutableAndExactlyReplayable(t *testing.T) {
 	t.Setenv("ALLOW_INSECURE_TLS", "true")
@@ -159,6 +222,111 @@ func TestIntegration_GenerationBoundBalanceOutcomeRemainsImmutableAndExactlyRepl
 		constant.CREATED, false, operations, replay)
 	require.NoError(t, err)
 	assert.Equal(t, first, second)
+	materialized := []mmodel.OperationRedis{{ID: uuid.NewString(), TransactionID: transactionID.String()}}
+	_, err = infra.repo.EnrichTransactionBackup(ctx, organizationID, ledgerID, transactionID,
+		materialized, constant.ActionRevert, &attempt)
+	require.NoError(t, err)
+	require.NoError(t, infra.redisContainer.Client.Set(ctx, FinancialDatasetGenerationKey, uuid.NewString(), 0).Err())
+	_, err = infra.repo.EnrichTransactionBackup(ctx, organizationID, ledgerID, transactionID,
+		materialized, constant.ActionRevert, &attempt)
+	require.Error(t, err,
+		"a delayed consumer must reject the old generation before adopting operations or writing PostgreSQL")
+}
+
+func TestIntegration_GlobalFinancialGenerationServesTwoTenantsAndSurvivesTenantRemoval(t *testing.T) {
+	t.Setenv("ALLOW_INSECURE_TLS", "true")
+	infra := setupRedisIntegrationInfra(t)
+	ctx := context.Background()
+	redisGeneration := uuid.NewString()
+	require.NoError(t, infra.redisContainer.Client.Set(ctx,
+		FinancialDatasetGenerationKey, redisGeneration, 0).Err())
+
+	type tenantExecution struct {
+		ctx          context.Context
+		tenantID     string
+		organization uuid.UUID
+		ledger       uuid.UUID
+		transaction  uuid.UUID
+		attempt      mmodel.BalanceExecutionAttempt
+		operation    mmodel.OperationRedis
+	}
+	execute := func(tenantID string) tenantExecution {
+		tenantCtx := tmcore.ContextWithTenantID(ctx, tenantID)
+		organizationID := uuid.New()
+		ledgerID := uuid.New()
+		transactionID := uuid.New()
+		attempt := mmodel.BalanceExecutionAttempt{
+			ExecutionKey:    utils.TransactionBalanceExecutionKey(organizationID, ledgerID, transactionID),
+			OutcomeKey:      utils.TransactionBalanceOutcomeKey(organizationID, ledgerID, transactionID),
+			Owner:           uuid.NewString(),
+			Outcome:         mmodel.TransactionOutcomeCommitted,
+			Identity:        transactionID,
+			RedisGeneration: redisGeneration,
+		}
+		acquired, err := infra.repo.AcquireOwnedKey(tenantCtx, attempt.ExecutionKey, attempt.Owner, 300)
+		require.NoError(t, err)
+		require.True(t, acquired)
+		seed, err := json.Marshal(mmodel.TransactionRedisQueue{
+			TransactionID: transactionID, OrganizationID: organizationID, LedgerID: ledgerID,
+			TransactionStatus: constant.CREATED, AttemptOwner: attempt.Owner, ExpectedOutcome: attempt.Outcome,
+			RedisGeneration: redisGeneration,
+		})
+		require.NoError(t, err)
+		require.NoError(t, infra.repo.SeedTransactionBackup(tenantCtx,
+			organizationID, ledgerID, transactionID, seed, attempt))
+		balanceOperations := []mmodel.BalanceOperation{redistestutil.CreateBalanceOperationWithAvailable(
+			organizationID, ledgerID, "@global-generation-"+tenantID, "USD", constant.DEBIT,
+			decimal.NewFromInt(100), decimal.NewFromInt(1000), "deposit",
+		)}
+		_, err = infra.repo.ProcessOutcomeBalanceAtomicOperation(tenantCtx,
+			organizationID, ledgerID, transactionID, constant.CREATED, false, balanceOperations, attempt)
+		require.NoError(t, err)
+		operation := mmodel.OperationRedis{ID: uuid.NewString(), TransactionID: transactionID.String()}
+		canonical, err := infra.repo.EnrichTransactionBackup(tenantCtx,
+			organizationID, ledgerID, transactionID, []mmodel.OperationRedis{operation}, constant.ActionCommit, &attempt)
+		require.NoError(t, err)
+		require.Len(t, canonical, 1)
+		assert.Equal(t, operation.ID, canonical[0].ID)
+		assert.Equal(t, operation.TransactionID, canonical[0].TransactionID)
+		assert.Zero(t, infra.redisContainer.Client.Exists(ctx,
+			"tenant:"+tenantID+":"+FinancialDatasetGenerationKey).Val(),
+			"a tenant money path must use the deployment-wide generation, never manufacture a tenant witness")
+
+		return tenantExecution{
+			ctx: tenantCtx, tenantID: tenantID, organization: organizationID, ledger: ledgerID,
+			transaction: transactionID, attempt: attempt, operation: operation,
+		}
+	}
+
+	// Tenant B deliberately starts before tenant A. Rollout identity must not
+	// depend on which tenant reaches the money path first.
+	tenantB := execute("generation-tenant-b-" + uuid.NewString())
+	tenantA := execute("generation-tenant-a-" + uuid.NewString())
+
+	var tenantAKeys []string
+	iterator := infra.redisContainer.Client.Scan(ctx, 0, "tenant:"+tenantA.tenantID+":*", 0).Iterator()
+	for iterator.Next(ctx) {
+		tenantAKeys = append(tenantAKeys, iterator.Val())
+	}
+	require.NoError(t, iterator.Err())
+	require.NotEmpty(t, tenantAKeys)
+	require.NoError(t, infra.redisContainer.Client.Del(ctx, tenantAKeys...).Err())
+	assert.Equal(t, redisGeneration,
+		infra.redisContainer.Client.Get(ctx, FinancialDatasetGenerationKey).Val(),
+		"removing a tenant must not remove the deployment rollout identity")
+
+	canonical, err := infra.repo.EnrichTransactionBackup(tenantB.ctx,
+		tenantB.organization, tenantB.ledger, tenantB.transaction,
+		[]mmodel.OperationRedis{tenantB.operation}, constant.ActionCommit, &tenantB.attempt)
+	require.NoError(t, err)
+	require.Len(t, canonical, 1)
+	assert.Equal(t, tenantB.operation.ID, canonical[0].ID,
+		"another tenant must keep exact replay after an unrelated tenant is removed")
+	evidence, generationMatches, err := infra.repo.TransactionEconomicEvidenceExists(tenantB.ctx,
+		tenantB.organization, tenantB.ledger, tenantB.transaction, redisGeneration)
+	require.NoError(t, err)
+	assert.True(t, evidence)
+	assert.True(t, generationMatches)
 }
 
 func TestIntegration_TransactionBackupEnrichmentPreservesOutcomeUntilExactDurableCleanup(t *testing.T) {
@@ -855,13 +1023,54 @@ func TestIntegration_OwnedLegacyFence_RedisClusterRejectsCrossSlotButAcceptsComp
 		phaseZeroID, phaseZeroParentID, constant.CREATED, []string{phaseZeroOperationID}),
 		"phase-zero compatibility cleanup must remain in the transactions slot")
 
+	witness := &rolloutInitializationWitnessStub{}
 	initializer := NewRevertUpdateFreezeGuard(connection, RevertUpdateFreezeInitialize,
-		redisIntegrationDatasetGeneration)
+		redisIntegrationDatasetGeneration).WithRolloutInitializationWitness(witness,
+		redisIntegrationInitializationRequestID)
 	require.NoError(t, initializer.FinancialDurability(ctx),
 		"every Redis Cluster shard must prove noeviction and healthy AOF before phase zero")
 	require.NoError(t, initializer.InitializeFinancialDatasetGeneration(ctx))
 	guard := NewRevertUpdateFreezeGuard(connection, RevertUpdateFreezePrepared,
-		redisIntegrationDatasetGeneration)
+		redisIntegrationDatasetGeneration).WithRolloutInitializationWitness(witness, "")
+	tenantCtx := tmcore.ContextWithTenantID(ctx, "cluster-generation-tenant")
+	tenantTransactionID := uuid.New()
+	tenantAttempt := mmodel.BalanceExecutionAttempt{
+		ExecutionKey:    utils.TransactionBalanceExecutionKey(organizationID, ledgerID, tenantTransactionID),
+		OutcomeKey:      utils.TransactionBalanceOutcomeKey(organizationID, ledgerID, tenantTransactionID),
+		Owner:           uuid.NewString(),
+		Outcome:         mmodel.TransactionOutcomeCommitted,
+		Identity:        tenantTransactionID,
+		RedisGeneration: redisIntegrationDatasetGeneration,
+	}
+	tenantLease, err := repo.AcquireOwnedKey(tenantCtx, tenantAttempt.ExecutionKey, tenantAttempt.Owner, 300)
+	require.NoError(t, err)
+	require.True(t, tenantLease)
+	tenantSeed, err := json.Marshal(mmodel.TransactionRedisQueue{
+		TransactionID: tenantTransactionID, OrganizationID: organizationID, LedgerID: ledgerID,
+		TransactionStatus: constant.CREATED, AttemptOwner: tenantAttempt.Owner,
+		ExpectedOutcome: tenantAttempt.Outcome, RedisGeneration: redisIntegrationDatasetGeneration,
+	})
+	require.NoError(t, err)
+	require.NoError(t, repo.SeedTransactionBackup(tenantCtx, organizationID, ledgerID,
+		tenantTransactionID, tenantSeed, tenantAttempt),
+		"tenant-scoped backup and deployment generation must share the transactions slot")
+	tenantBalanceOperations := []mmodel.BalanceOperation{redistestutil.CreateBalanceOperationWithAvailable(
+		organizationID, ledgerID, "@cluster-global-generation", "USD", constant.DEBIT,
+		decimal.NewFromInt(100), decimal.NewFromInt(1000), "deposit",
+	)}
+	_, err = repo.ProcessOutcomeBalanceAtomicOperation(tenantCtx, organizationID, ledgerID,
+		tenantTransactionID, constant.CREATED, false, tenantBalanceOperations, tenantAttempt)
+	require.NoError(t, err,
+		"tenant balances and the deployment generation must execute without CROSSSLOT")
+	tenantOperationID := uuid.NewString()
+	_, err = repo.EnrichTransactionBackup(tenantCtx, organizationID, ledgerID, tenantTransactionID,
+		[]mmodel.OperationRedis{{ID: tenantOperationID, TransactionID: tenantTransactionID.String()}},
+		constant.ActionCommit, &tenantAttempt)
+	require.NoError(t, err,
+		"tenant outcome enrichment and the deployment generation must execute without CROSSSLOT")
+	require.NoError(t, repo.FinalizeTransactionPersistence(tenantCtx, organizationID, ledgerID,
+		tenantTransactionID, tenantAttempt, []string{tenantOperationID}),
+		"tenant terminal cleanup and the deployment generation must execute without CROSSSLOT")
 	admitted, frozen, leaseHeld, err := guard.AcquireApprovedUpdate(ctx, "legacy", "cluster-update")
 	require.NoError(t, err, "rollout admission must not issue a multi-slot Lua command")
 	assert.True(t, admitted)
@@ -892,12 +1101,14 @@ func TestIntegration_RevertUpdateFreezeMarkerIsSharedPersistentAndFinalizable(t 
 	infra := setupRedisIntegrationInfra(t)
 	ctx := context.Background()
 	connection := redistestutil.CreateConnection(t, infra.redisContainer.Addr)
+	witness := &rolloutInitializationWitnessStub{}
 	initializer := NewRevertUpdateFreezeGuard(connection, RevertUpdateFreezeInitialize,
-		redisIntegrationDatasetGeneration)
+		redisIntegrationDatasetGeneration).WithRolloutInitializationWitness(witness,
+		redisIntegrationInitializationRequestID)
 	guard := NewRevertUpdateFreezeGuard(connection, RevertUpdateFreezePrepared,
-		redisIntegrationDatasetGeneration)
+		redisIntegrationDatasetGeneration).WithRolloutInitializationWitness(witness, "")
 	activeTargetGuard := NewRevertUpdateFreezeGuard(connection, RevertUpdateFreezeActive,
-		redisIntegrationDatasetGeneration)
+		redisIntegrationDatasetGeneration).WithRolloutInitializationWitness(witness, "")
 	require.Error(t, initializer.FinancialDurability(ctx),
 		"the default ephemeral test Redis must not be mistaken for a durable financial trust boundary")
 	require.Error(t, initializer.InitializeFinancialDatasetGeneration(ctx),
@@ -916,12 +1127,19 @@ func TestIntegration_RevertUpdateFreezeMarkerIsSharedPersistentAndFinalizable(t 
 	assert.False(t, releasedLease)
 	assert.Equal(t, RevertUpdateFreezeUninitialized, releasedPhase,
 		"target-empty legacy must remain the released old algorithm without a dataset witness")
-	require.NoError(t, initializer.InitializeFinancialDatasetGeneration(ctx))
+	witness.mu.Lock()
+	witness.completeFailures = 1
+	witness.mu.Unlock()
+	require.Error(t, initializer.InitializeFinancialDatasetGeneration(ctx),
+		"crash after exact Redis preparation must leave the PostgreSQL birth certificate PREPARING")
+	preparedBeforePostgres, err := guard.Phase(ctx)
+	require.NoError(t, err)
+	assert.Equal(t, RevertUpdateFreezePrepared, preparedBeforePostgres)
 	require.NoError(t, initializer.InitializeFinancialDatasetGeneration(ctx),
-		"retry after a lost initialization response must preserve the exact generation")
+		"exact retry must adopt Redis and promote the same PostgreSQL birth certificate")
 	require.NoError(t, guard.ValidatePrepared(ctx))
 	preparedRestart := NewRevertUpdateFreezeGuard(connection, RevertUpdateFreezePrepared,
-		redisIntegrationDatasetGeneration)
+		redisIntegrationDatasetGeneration).WithRolloutInitializationWitness(witness, "")
 	require.NoError(t, preparedRestart.ValidatePrepared(ctx),
 		"prepared startup must validate without rewriting shared state")
 	preparedGeneration, err := guard.FinancialDatasetGeneration(ctx)
@@ -1049,7 +1267,7 @@ func TestIntegration_RevertUpdateFreezeMarkerIsSharedPersistentAndFinalizable(t 
 	require.Error(t, guard.Finalize(ctx), "finalization cannot skip the machine-verifiable drain phase")
 	require.NoError(t, guard.MarkPhaseZeroDrained(ctx))
 	drainedRestart := NewRevertUpdateFreezeGuard(connection, RevertUpdateFreezeDrained,
-		redisIntegrationDatasetGeneration)
+		redisIntegrationDatasetGeneration).WithRolloutInitializationWitness(witness, "")
 	require.NoError(t, drainedRestart.MarkPhaseZeroDrained(ctx),
 		"drained startup must be an exact idempotent replay")
 	completed, err := infra.redisContainer.Client.SIsMember(ctx, revertPhaseZeroCompletedKey, "phase-zero-revert").Result()
@@ -1081,7 +1299,7 @@ func TestIntegration_RevertUpdateFreezeMarkerIsSharedPersistentAndFinalizable(t 
 
 	require.NoError(t, drainedRestart.Finalize(ctx))
 	finalRestart := NewRevertUpdateFreezeGuard(connection, RevertUpdateFreezeFinalized,
-		redisIntegrationDatasetGeneration)
+		redisIntegrationDatasetGeneration).WithRolloutInitializationWitness(witness, "")
 	require.NoError(t, finalRestart.Finalize(ctx),
 		"finalized startup must be an exact idempotent replay")
 	active, err = finalRestart.Active(ctx)
@@ -1110,7 +1328,7 @@ func TestIntegration_RevertUpdateFreezeMarkerIsSharedPersistentAndFinalizable(t 
 
 	require.NoError(t, infra.redisContainer.Client.Del(ctx, FinancialDatasetGenerationKey).Err())
 	finalTargetGuard := NewRevertUpdateFreezeGuard(connection, RevertUpdateFreezeFinalized,
-		redisIntegrationDatasetGeneration)
+		redisIntegrationDatasetGeneration).WithRolloutInitializationWitness(witness, "")
 	require.Error(t, finalTargetGuard.Finalize(ctx),
 		"final startup must fail closed when the financial dataset witness is lost")
 	require.Error(t, initializer.InitializeFinancialDatasetGeneration(ctx),
@@ -1127,10 +1345,24 @@ func TestIntegration_RevertRolloutInitializationIsConcurrentSingleAssignment(t *
 	ctx := context.Background()
 	configureFinancialRedisDurability(t, ctx, infra.redisContainer.Client)
 	connection := redistestutil.CreateConnection(t, infra.redisContainer.Addr)
+	witness := &rolloutInitializationWitnessStub{}
+	preparedBeforeRedis, created, err := witness.BeginRolloutInitialization(ctx,
+		uuid.MustParse(redisIntegrationDatasetGeneration), uuid.MustParse(redisIntegrationInitializationRequestID))
+	require.NoError(t, err)
+	require.True(t, created)
+	assert.False(t, preparedBeforeRedis,
+		"a crash after PostgreSQL PREPARING and before Redis must be exactly resumable")
+	require.NoError(t, infra.redisContainer.Client.Set(ctx,
+		FinancialDatasetGenerationKey, redisIntegrationDatasetGeneration, 0).Err(),
+		"simulate a crash after creating the financial generation and before the rollout marker")
+	assert.Zero(t, infra.redisContainer.Client.Exists(ctx,
+		RevertUpdateFreezeKey, RevertRolloutGenerationKey).Val())
 	first := NewRevertUpdateFreezeGuard(connection, RevertUpdateFreezeInitialize,
-		redisIntegrationDatasetGeneration)
+		redisIntegrationDatasetGeneration).WithRolloutInitializationWitness(witness,
+		redisIntegrationInitializationRequestID)
 	second := NewRevertUpdateFreezeGuard(connection, RevertUpdateFreezeInitialize,
-		redisIntegrationDatasetGeneration)
+		redisIntegrationDatasetGeneration).WithRolloutInitializationWitness(witness,
+		redisIntegrationInitializationRequestID)
 
 	errs := make(chan error, 2)
 	go func() { errs <- first.InitializeFinancialDatasetGeneration(ctx) }()
@@ -1142,19 +1374,41 @@ func TestIntegration_RevertRolloutInitializationIsConcurrentSingleAssignment(t *
 	require.NoError(t, err)
 	assert.Equal(t, redisIntegrationDatasetGeneration, configured)
 	prepared := NewRevertUpdateFreezeGuard(connection, RevertUpdateFreezePrepared,
-		redisIntegrationDatasetGeneration)
+		redisIntegrationDatasetGeneration).WithRolloutInitializationWitness(witness, "")
 	require.NoError(t, prepared.ValidatePrepared(ctx))
 
 	divergent := NewRevertUpdateFreezeGuard(connection, RevertUpdateFreezeInitialize,
-		"f40c098f-e043-44b4-9e19-d638f374cdd1")
+		"f40c098f-e043-44b4-9e19-d638f374cdd1").WithRolloutInitializationWitness(witness,
+		redisIntegrationInitializationRequestID)
 	require.Error(t, divergent.InitializeFinancialDatasetGeneration(ctx),
 		"a concurrent or restarted initializer cannot replace the first dataset identity")
+	differentRequest := NewRevertUpdateFreezeGuard(connection, RevertUpdateFreezeInitialize,
+		redisIntegrationDatasetGeneration).WithRolloutInitializationWitness(witness,
+		"6412727c-fbe2-461a-a486-bb9db3add330")
+	require.Error(t, differentRequest.InitializeFinancialDatasetGeneration(ctx),
+		"same generation with a different initialization request must conflict")
 
-	require.NoError(t, infra.redisContainer.Client.Del(ctx, FinancialDatasetGenerationKey).Err())
+	require.NoError(t, infra.redisContainer.Client.Del(ctx,
+		RevertUpdateFreezeKey, RevertRolloutGenerationKey).Err())
+	require.Error(t, first.InitializeFinancialDatasetGeneration(ctx),
+		"prepared birth certificate must prevent recreation after rollout marker loss")
+	assert.Zero(t, infra.redisContainer.Client.Exists(ctx,
+		RevertUpdateFreezeKey, RevertRolloutGenerationKey).Val())
+	assert.Equal(t, redisIntegrationDatasetGeneration,
+		infra.redisContainer.Client.Get(ctx, FinancialDatasetGenerationKey).Val())
+	require.NoError(t, infra.redisContainer.Client.Set(ctx,
+		RevertRolloutGenerationKey, redisIntegrationDatasetGeneration, 0).Err())
+	require.NoError(t, infra.redisContainer.Client.Set(ctx,
+		RevertUpdateFreezeKey, RevertUpdateFreezePrepared, 0).Err())
+	require.NoError(t, infra.redisContainer.Client.Del(ctx,
+		FinancialDatasetGenerationKey, RevertUpdateFreezeKey, RevertRolloutGenerationKey).Err())
 	require.Error(t, prepared.ValidatePrepared(ctx),
 		"loss after prepared must fail serving startup closed")
 	require.Error(t, first.InitializeFinancialDatasetGeneration(ctx),
-		"even the original initializer cannot recreate a witness after prepared")
+		"even total Redis loss cannot be reclassified as first installation")
+	assert.Zero(t, infra.redisContainer.Client.Exists(ctx,
+		FinancialDatasetGenerationKey, RevertUpdateFreezeKey, RevertRolloutGenerationKey).Val(),
+		"failed reinitialization must not manufacture any shared state")
 	admitted, _, _, err := prepared.AcquireRevert(ctx, "legacy", "lost-dataset", "attempt")
 	require.NoError(t, err)
 	assert.False(t, admitted, "lost financial generation must prevent money-path admission")

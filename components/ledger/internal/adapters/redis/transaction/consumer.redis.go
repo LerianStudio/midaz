@@ -1425,6 +1425,12 @@ func (rr *RedisConsumerRepository) EnrichTransactionBackup(
 	if err != nil {
 		return nil, err
 	}
+	if attempt != nil && attempt.RedisGeneration != "" {
+		// The generation is deployment-scoped even when the transaction keys
+		// are tenant-scoped. It shares the {transactions} cluster slot without
+		// acquiring a tenant prefix.
+		prefixedKeys = append(prefixedKeys, FinancialDatasetGenerationKey)
+	}
 	encodedOperations, err := json.Marshal(operations)
 	if err != nil {
 		return nil, fmt.Errorf("encode transaction backup operations: %w", err)
@@ -1433,8 +1439,13 @@ func (rr *RedisConsumerRepository) EnrichTransactionBackup(
 	if err != nil {
 		return nil, err
 	}
+	expectedGeneration := ""
+	if attempt != nil {
+		expectedGeneration = attempt.RedisGeneration
+	}
 	canonicalRaw, err := enrichTransactionBackupScript.Run(ctx, rds, prefixedKeys,
-		transactionID.String(), requireOutcome, owner, outcome, string(encodedOperations), action).Text()
+		transactionID.String(), requireOutcome, owner, outcome, string(encodedOperations), action,
+		expectedGeneration).Text()
 	if err != nil {
 		libOpentelemetry.HandleSpanError(span, "Failed to atomically enrich transaction backup", err)
 		logger.Log(ctx, libLog.LevelWarn, "Failed to atomically enrich transaction backup", libLog.Err(err))

@@ -155,6 +155,7 @@ type Config struct {
 	RevertIdempotencyMode            string `env:"REVERT_IDEMPOTENCY_MODE" default:"legacy"`
 	RevertRolloutTarget              string `env:"REVERT_ROLLOUT_TARGET"`
 	RevertRedisDatasetGeneration     string `env:"REVERT_REDIS_DATASET_GENERATION"`
+	RevertRolloutInitializationID    string `env:"REVERT_ROLLOUT_INITIALIZATION_ID"`
 
 	// --- Onboarding MongoDB fields (MONGO_ONBOARDING_* env tags) ---
 	OnbPrefixedMongoURI          string `env:"MONGO_ONBOARDING_URI"`
@@ -381,7 +382,7 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 
 	applyConfigDefaults(cfg)
 	if err := validateRevertRolloutConfiguration(cfg.RevertIdempotencyMode, cfg.RevertRolloutTarget,
-		cfg.RevertRedisDatasetGeneration); err != nil {
+		cfg.RevertRedisDatasetGeneration, cfg.RevertRolloutInitializationID); err != nil {
 		return nil, err
 	}
 
@@ -616,7 +617,8 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 	addCleanup(func() { _ = redisConnection.Close() })
 
 	revertRolloutGuard := txRedis.NewRevertUpdateFreezeGuard(redisConnection, cfg.RevertRolloutTarget,
-		cfg.RevertRedisDatasetGeneration)
+		cfg.RevertRedisDatasetGeneration).WithRolloutInitializationWitness(txnPG.revertClaimRepo,
+		cfg.RevertRolloutInitializationID)
 	transitionCtx, cancelTransition := context.WithTimeout(context.Background(), 5*time.Second)
 	err = applyRevertRolloutTarget(transitionCtx, revertRolloutGuard, cfg.RevertRolloutTarget)
 	cancelTransition()

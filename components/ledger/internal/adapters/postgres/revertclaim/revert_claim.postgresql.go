@@ -64,8 +64,9 @@ type Repository interface {
 }
 
 type PostgreSQLRepository struct {
-	connection    *libPostgres.Client
-	requireTenant bool
+	connection                  *libPostgres.Client
+	requireTenant               bool
+	commitRolloutInitialization func(dbresolver.Tx) error
 }
 
 func NewPostgreSQLRepository(connection *libPostgres.Client, requireTenant ...bool) *PostgreSQLRepository {
@@ -75,6 +76,236 @@ func NewPostgreSQLRepository(connection *libPostgres.Client, requireTenant ...bo
 	}
 
 	return r
+}
+
+// BeginRolloutInitialization atomically creates or reads the deployment-wide
+// birth certificate for the financial Redis dataset. These methods
+// deliberately use the configured transaction primary rather than a tenant
+// connection: one rollout generation fences every tenant served by this
+// deployment.
+func (r *PostgreSQLRepository) BeginRolloutInitialization(
+	ctx context.Context,
+	redisGeneration, initializationRequestID uuid.UUID,
+) (prepared, created bool, err error) {
+	db, err := r.getRolloutDB(ctx)
+	if err != nil {
+		return false, false, err
+	}
+	tx, err := db.BeginTx(ctx, nil)
+	if err != nil {
+		return false, false, fmt.Errorf("begin revert rollout initialization: %w", err)
+	}
+	defer func() { _ = tx.Rollback() }()
+
+	result, err := tx.ExecContext(ctx, `
+		INSERT INTO transaction_revert_rollout_initialization (
+			singleton, redis_generation, initialization_request_id, state
+		) VALUES (TRUE, $1, $2, 'PREPARING')
+		ON CONFLICT (singleton) DO NOTHING`, redisGeneration, initializationRequestID)
+	if err != nil {
+		return false, false, fmt.Errorf("insert revert rollout initialization: %w", err)
+	}
+	rows, err := result.RowsAffected()
+	if err != nil {
+		return false, false, fmt.Errorf("read revert rollout initialization insert result: %w", err)
+	}
+
+	storedGeneration, storedRequestID, state, err := readRolloutInitializationRow(tx.QueryRowContext(ctx, `
+		SELECT redis_generation, initialization_request_id, state
+		FROM transaction_revert_rollout_initialization
+		WHERE singleton = TRUE`))
+	if err != nil {
+		return false, false, fmt.Errorf("read revert rollout initialization: %w", err)
+	}
+	if storedGeneration != redisGeneration {
+		return false, false, fmt.Errorf("revert rollout dataset generation differs from its birth certificate")
+	}
+	if storedRequestID != initializationRequestID {
+		return false, false, fmt.Errorf("revert rollout initialization request differs from its birth certificate")
+	}
+	if state != "PREPARING" && state != "PREPARED" {
+		return false, false, fmt.Errorf("invalid revert rollout initialization state %q", state)
+	}
+
+	if err := r.commitRolloutTx(tx); err != nil {
+		committedPrepared, reconcileErr := r.readExactRolloutInitialization(ctx, redisGeneration,
+			initializationRequestID)
+		if reconcileErr == nil {
+			return committedPrepared, rows == 1, nil
+		}
+
+		return false, false, errors.Join(fmt.Errorf("commit revert rollout initialization: %w", err), reconcileErr)
+	}
+
+	return state == "PREPARED", rows == 1, nil
+}
+
+// CompleteRolloutInitialization promotes the exact PREPARING birth
+// certificate only after Redis contains the exact generation and prepared
+// marker. Retrying the same identity is idempotent; any other identity fails.
+func (r *PostgreSQLRepository) CompleteRolloutInitialization(
+	ctx context.Context,
+	redisGeneration, initializationRequestID uuid.UUID,
+) error {
+	db, err := r.getRolloutDB(ctx)
+	if err != nil {
+		return err
+	}
+	tx, err := db.BeginTx(ctx, nil)
+	if err != nil {
+		return fmt.Errorf("begin revert rollout completion: %w", err)
+	}
+	defer func() { _ = tx.Rollback() }()
+
+	result, err := tx.ExecContext(ctx, `
+		UPDATE transaction_revert_rollout_initialization
+		SET state = 'PREPARED', updated_at = NOW()
+		WHERE singleton = TRUE
+		  AND redis_generation = $1
+		  AND initialization_request_id = $2
+		  AND state = 'PREPARING'`, redisGeneration, initializationRequestID)
+	if err != nil {
+		return fmt.Errorf("complete revert rollout initialization: %w", err)
+	}
+	rows, err := result.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("read revert rollout completion result: %w", err)
+	}
+	if rows == 0 {
+		storedGeneration, storedRequestID, state, readErr := readRolloutInitializationRow(tx.QueryRowContext(ctx, `
+			SELECT redis_generation, initialization_request_id, state
+			FROM transaction_revert_rollout_initialization
+			WHERE singleton = TRUE`))
+		if readErr != nil {
+			return fmt.Errorf("read revert rollout completion identity: %w", readErr)
+		}
+		if storedGeneration != redisGeneration {
+			return fmt.Errorf("revert rollout dataset generation differs from its birth certificate")
+		}
+		if storedRequestID != initializationRequestID {
+			return fmt.Errorf("revert rollout initialization request differs from its birth certificate")
+		}
+		if state != "PREPARED" {
+			return fmt.Errorf("revert rollout initialization is not prepared")
+		}
+	}
+
+	if err := r.commitRolloutTx(tx); err != nil {
+		prepared, reconcileErr := r.readExactRolloutInitialization(ctx, redisGeneration, initializationRequestID)
+		if reconcileErr == nil && prepared {
+			return nil
+		}
+		if reconcileErr == nil {
+			reconcileErr = fmt.Errorf("revert rollout initialization remains preparing")
+		}
+
+		return errors.Join(fmt.Errorf("commit revert rollout completion: %w", err), reconcileErr)
+	}
+
+	return nil
+}
+
+// ValidatePreparedRollout reads the deployment control row from PostgreSQL
+// primary. A replica must never decide startup/readiness for the money path.
+func (r *PostgreSQLRepository) ValidatePreparedRollout(ctx context.Context, redisGeneration uuid.UUID) error {
+	db, err := r.getRolloutDB(ctx)
+	if err != nil {
+		return err
+	}
+	tx, err := db.BeginTx(ctx, &sql.TxOptions{ReadOnly: true})
+	if err != nil {
+		return fmt.Errorf("begin primary revert rollout validation: %w", err)
+	}
+	defer func() { _ = tx.Rollback() }()
+
+	storedGeneration, _, state, err := readRolloutInitializationRow(tx.QueryRowContext(ctx, `
+		SELECT redis_generation, initialization_request_id, state
+		FROM transaction_revert_rollout_initialization
+		WHERE singleton = TRUE`))
+	if errors.Is(err, sql.ErrNoRows) {
+		return fmt.Errorf("revert rollout birth certificate is missing")
+	}
+	if err != nil {
+		return fmt.Errorf("read revert rollout birth certificate: %w", err)
+	}
+	if storedGeneration != redisGeneration {
+		return fmt.Errorf("revert rollout dataset generation differs from its birth certificate")
+	}
+	if state != "PREPARED" {
+		return fmt.Errorf("revert rollout birth certificate is not prepared")
+	}
+	if err := tx.Commit(); err != nil {
+		return fmt.Errorf("commit primary revert rollout validation: %w", err)
+	}
+
+	return nil
+}
+
+func (r *PostgreSQLRepository) getRolloutDB(ctx context.Context) (dbresolver.DB, error) {
+	if r == nil || r.connection == nil {
+		return nil, fmt.Errorf("deployment transaction postgres connection not available")
+	}
+
+	return r.connection.Resolver(ctx)
+}
+
+func (r *PostgreSQLRepository) commitRolloutTx(tx dbresolver.Tx) error {
+	if r.commitRolloutInitialization != nil {
+		return r.commitRolloutInitialization(tx)
+	}
+
+	return tx.Commit()
+}
+
+func (r *PostgreSQLRepository) readExactRolloutInitialization(
+	ctx context.Context,
+	redisGeneration, initializationRequestID uuid.UUID,
+) (bool, error) {
+	db, err := r.getRolloutDB(ctx)
+	if err != nil {
+		return false, err
+	}
+	tx, err := db.BeginTx(ctx, &sql.TxOptions{ReadOnly: true})
+	if err != nil {
+		return false, fmt.Errorf("begin primary revert rollout reconciliation: %w", err)
+	}
+	defer func() { _ = tx.Rollback() }()
+
+	storedGeneration, storedRequestID, state, err := readRolloutInitializationRow(tx.QueryRowContext(ctx, `
+		SELECT redis_generation, initialization_request_id, state
+		FROM transaction_revert_rollout_initialization
+		WHERE singleton = TRUE`))
+	if errors.Is(err, sql.ErrNoRows) {
+		return false, fmt.Errorf("revert rollout birth certificate is missing")
+	}
+	if err != nil {
+		return false, fmt.Errorf("read revert rollout birth certificate: %w", err)
+	}
+	if storedGeneration != redisGeneration {
+		return false, fmt.Errorf("revert rollout dataset generation differs from its birth certificate")
+	}
+	if storedRequestID != initializationRequestID {
+		return false, fmt.Errorf("revert rollout initialization request differs from its birth certificate")
+	}
+	if state != "PREPARING" && state != "PREPARED" {
+		return false, fmt.Errorf("invalid revert rollout initialization state %q", state)
+	}
+	if err := tx.Commit(); err != nil {
+		return false, fmt.Errorf("commit primary revert rollout reconciliation: %w", err)
+	}
+
+	return state == "PREPARED", nil
+}
+
+func readRolloutInitializationRow(row interface{ Scan(...any) error }) (uuid.UUID, uuid.UUID, string, error) {
+	var redisGeneration uuid.UUID
+	var initializationRequestID uuid.UUID
+	var state string
+	if err := row.Scan(&redisGeneration, &initializationRequestID, &state); err != nil {
+		return uuid.Nil, uuid.Nil, "", err
+	}
+
+	return redisGeneration, initializationRequestID, state, nil
 }
 
 func (r *PostgreSQLRepository) getDB(ctx context.Context) (dbresolver.DB, error) {

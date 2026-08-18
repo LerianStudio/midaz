@@ -677,14 +677,15 @@ func (r *RedisQueueConsumer) processMessage(ctx context.Context, key, rawPayload
 	var executionAttempt *mmodel.BalanceExecutionAttempt
 	if m.AttemptOwner != "" && m.ExpectedOutcome != "" {
 		executionAttempt = &mmodel.BalanceExecutionAttempt{
-			ExecutionKey: utils.TransactionBalanceExecutionKey(m.OrganizationID, m.LedgerID, m.TransactionID),
-			OutcomeKey:   utils.TransactionBalanceOutcomeKey(m.OrganizationID, m.LedgerID, m.TransactionID),
-			Owner:        m.AttemptOwner,
-			Outcome:      m.ExpectedOutcome,
-			Identity:     m.TransactionID,
+			ExecutionKey:    utils.TransactionBalanceExecutionKey(m.OrganizationID, m.LedgerID, m.TransactionID),
+			OutcomeKey:      utils.TransactionBalanceOutcomeKey(m.OrganizationID, m.LedgerID, m.TransactionID),
+			Owner:           m.AttemptOwner,
+			Outcome:         m.ExpectedOutcome,
+			Identity:        m.TransactionID,
+			RedisGeneration: m.RedisGeneration,
 		}
 	}
-	if operationsWereMissing {
+	if operationsWereMissing || executionAttempt != nil {
 		var enrichErr error
 		operations, enrichErr = r.TransactionHandler.Command.UpdateTransactionBackupOperations(
 			msgCtxWithSpan, m.OrganizationID, m.LedgerID, m.TransactionID, operations, action, executionAttempt,

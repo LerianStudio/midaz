@@ -11,6 +11,7 @@ import (
 	"strings"
 
 	libRedis "github.com/LerianStudio/lib-commons/v6/commons/redis"
+	"github.com/google/uuid"
 	redislib "github.com/redis/go-redis/v9"
 )
 
@@ -213,9 +214,21 @@ return -1
 // tenant prefix. Phase-zero, bridge, readiness, and every tenant must observe
 // one shared barrier while old and bridge revert algorithms coexist.
 type RevertUpdateFreezeGuard struct {
-	connection         *libRedis.Client
-	target             string
-	expectedGeneration string
+	connection              *libRedis.Client
+	target                  string
+	expectedGeneration      string
+	initializationRequestID string
+	initializationWitness   RevertRolloutInitializationWitness
+}
+
+// RevertRolloutInitializationWitness is the deployment-scoped PostgreSQL
+// birth certificate for a Redis financial dataset. Redis can prove the exact
+// contents it still has, but it cannot distinguish first installation from
+// loss of all of its own markers without this independent primary record.
+type RevertRolloutInitializationWitness interface {
+	BeginRolloutInitialization(context.Context, uuid.UUID, uuid.UUID) (prepared, created bool, err error)
+	CompleteRolloutInitialization(context.Context, uuid.UUID, uuid.UUID) error
+	ValidatePreparedRollout(context.Context, uuid.UUID) error
 }
 
 // NewRevertUpdateFreezeGuard creates a deployment-wide revert rollout guard.
@@ -229,6 +242,18 @@ func NewRevertUpdateFreezeGuard(connection *libRedis.Client, settings ...string)
 	}
 
 	return guard
+}
+
+// WithRolloutInitializationWitness binds the deployment PostgreSQL birth
+// certificate. Initialization refuses to run without this binding.
+func (g *RevertUpdateFreezeGuard) WithRolloutInitializationWitness(
+	witness RevertRolloutInitializationWitness,
+	initializationRequestID string,
+) *RevertUpdateFreezeGuard {
+	g.initializationWitness = witness
+	g.initializationRequestID = strings.TrimSpace(initializationRequestID)
+
+	return g
 }
 
 // FinancialDurability verifies the Redis trust boundary required while Redis
@@ -266,9 +291,37 @@ func (g *RevertUpdateFreezeGuard) InitializeFinancialDatasetGeneration(ctx conte
 	if g == nil || g.connection == nil {
 		return fmt.Errorf("revert rollout Redis connection not configured")
 	}
-	if strings.TrimSpace(g.expectedGeneration) == "" {
-		return fmt.Errorf("financial Redis dataset generation is required")
+	if g.initializationWitness == nil {
+		return fmt.Errorf("revert rollout PostgreSQL birth certificate is required")
 	}
+	redisGeneration, err := uuid.Parse(g.expectedGeneration)
+	if err != nil {
+		return fmt.Errorf("financial Redis dataset generation must be a UUID: %w", err)
+	}
+	initializationRequestID, err := uuid.Parse(g.initializationRequestID)
+	if err != nil {
+		return fmt.Errorf("revert rollout initialization request id must be a UUID: %w", err)
+	}
+	prepared, _, err := g.initializationWitness.BeginRolloutInitialization(ctx, redisGeneration,
+		initializationRequestID)
+	if err != nil {
+		return fmt.Errorf("begin revert rollout initialization: %w", err)
+	}
+	if prepared {
+		return g.ValidatePrepared(ctx)
+	}
+	if err := g.prepareFinancialDatasetGeneration(ctx); err != nil {
+		return err
+	}
+	if err := g.initializationWitness.CompleteRolloutInitialization(ctx, redisGeneration,
+		initializationRequestID); err != nil {
+		return fmt.Errorf("complete revert rollout PostgreSQL birth certificate: %w", err)
+	}
+
+	return g.ValidatePrepared(ctx)
+}
+
+func (g *RevertUpdateFreezeGuard) prepareFinancialDatasetGeneration(ctx context.Context) error {
 	if err := g.FinancialDurability(ctx); err != nil {
 		return fmt.Errorf("initialize revert rollout without durable financial Redis: %w", err)
 	}
@@ -286,7 +339,7 @@ func (g *RevertUpdateFreezeGuard) InitializeFinancialDatasetGeneration(ctx conte
 		return fmt.Errorf("initialize revert rollout: existing marker or generation witness differs")
 	}
 	if initializationState == 2 {
-		if err := g.ValidateFinancialDatasetGeneration(ctx); err != nil {
+		if err := g.validateRedisFinancialDatasetGeneration(ctx); err != nil {
 			return fmt.Errorf("validate completed revert rollout initialization: %w", err)
 		}
 
@@ -298,7 +351,7 @@ func (g *RevertUpdateFreezeGuard) InitializeFinancialDatasetGeneration(ctx conte
 		return fmt.Errorf("prepare financial Redis dataset generation: %w", err)
 	}
 	if !created {
-		generation, generationErr := g.FinancialDatasetGeneration(ctx)
+		generation, generationErr := g.financialDatasetGeneration(ctx)
 		if generationErr != nil {
 			return generationErr
 		}
@@ -340,6 +393,14 @@ func (g *RevertUpdateFreezeGuard) ValidatePrepared(ctx context.Context) error {
 // identity. Absence is a trust-boundary failure once durable revert claims can
 // exist; callers must never create it as part of recovery.
 func (g *RevertUpdateFreezeGuard) FinancialDatasetGeneration(ctx context.Context) (string, error) {
+	if err := g.validateRolloutBirthCertificate(ctx); err != nil {
+		return "", err
+	}
+
+	return g.financialDatasetGeneration(ctx)
+}
+
+func (g *RevertUpdateFreezeGuard) financialDatasetGeneration(ctx context.Context) (string, error) {
 	if g == nil || g.connection == nil {
 		return "", fmt.Errorf("revert rollout Redis connection not configured")
 	}
@@ -376,15 +437,38 @@ func (g *RevertUpdateFreezeGuard) validateGeneration(ctx context.Context) error 
 // ValidateFinancialDatasetGeneration compares the financial-slot identity to
 // the immutable deployment witness without creating either value.
 func (g *RevertUpdateFreezeGuard) ValidateFinancialDatasetGeneration(ctx context.Context) error {
+	if err := g.validateRolloutBirthCertificate(ctx); err != nil {
+		return err
+	}
+
+	return g.validateRedisFinancialDatasetGeneration(ctx)
+}
+
+func (g *RevertUpdateFreezeGuard) validateRedisFinancialDatasetGeneration(ctx context.Context) error {
 	if strings.TrimSpace(g.expectedGeneration) == "" {
 		return fmt.Errorf("financial Redis dataset generation is required")
 	}
-	generation, err := g.FinancialDatasetGeneration(ctx)
+	generation, err := g.financialDatasetGeneration(ctx)
 	if err != nil {
 		return err
 	}
 	if generation != g.expectedGeneration {
 		return fmt.Errorf("financial Redis dataset generation differs from configured witness")
+	}
+
+	return nil
+}
+
+func (g *RevertUpdateFreezeGuard) validateRolloutBirthCertificate(ctx context.Context) error {
+	if g == nil || g.target == "" || g.initializationWitness == nil {
+		return nil
+	}
+	generation, err := uuid.Parse(g.expectedGeneration)
+	if err != nil {
+		return fmt.Errorf("financial Redis dataset generation must be a UUID: %w", err)
+	}
+	if err := g.initializationWitness.ValidatePreparedRollout(ctx, generation); err != nil {
+		return fmt.Errorf("validate revert rollout PostgreSQL birth certificate: %w", err)
 	}
 
 	return nil
@@ -479,6 +563,9 @@ func (g *RevertUpdateFreezeGuard) Phase(ctx context.Context) (string, error) {
 // Reading freeze and readiness separately would allow an absent-to-active
 // transition between reads to admit one APPROVED update after activation.
 func (g *RevertUpdateFreezeGuard) ApprovedUpdatePolicy(ctx context.Context, mode string) (bool, bool, error) {
+	if err := g.validateRolloutBirthCertificate(ctx); err != nil {
+		return false, false, err
+	}
 	value, witness, err := g.rolloutStateAndGeneration(ctx)
 	if err != nil {
 		return false, false, err
@@ -555,6 +642,9 @@ func (g *RevertUpdateFreezeGuard) acquireRequest(ctx context.Context, mode, kind
 	}
 	if attemptID == "" {
 		return 0, fmt.Errorf("revert rollout attempt id is required")
+	}
+	if err := g.validateRolloutBirthCertificate(ctx); err != nil {
+		return 0, err
 	}
 
 	client, err := g.connection.GetClient(ctx)
@@ -751,6 +841,9 @@ func (g *RevertUpdateFreezeGuard) releaseRequest(ctx context.Context, key, token
 // ReadyForMode reports whether the shared rollout marker admits the requested
 // revert algorithm phase.
 func (g *RevertUpdateFreezeGuard) ReadyForMode(ctx context.Context, mode string) (bool, error) {
+	if err := g.validateRolloutBirthCertificate(ctx); err != nil {
+		return false, err
+	}
 	value, witness, err := g.rolloutStateAndGeneration(ctx)
 	if err != nil {
 		return false, err

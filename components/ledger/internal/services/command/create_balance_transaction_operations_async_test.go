@@ -78,6 +78,47 @@ func TestSendTransactionToRedisQueue_PersistsPhaseZeroRolloutOwner(t *testing.T)
 	require.NoError(t, err)
 }
 
+func TestCreateBalanceTransactionOperationsAsync_GenerationPreflightRunsBeforePostgres(t *testing.T) {
+	t.Parallel()
+
+	ctrl := gomock.NewController(t)
+	redisRepo := redis.NewMockRedisRepository(ctrl)
+	organizationID := uuid.New()
+	ledgerID := uuid.New()
+	transactionID := uuid.New()
+	generation := uuid.NewString()
+	owner := transactionID.String()
+	redisRepo.EXPECT().EnrichTransactionBackup(gomock.Any(), organizationID, ledgerID, transactionID,
+		gomock.Any(), constant.ActionRevert, gomock.Any()).
+		DoAndReturn(func(_ context.Context, _, _, _ uuid.UUID, _ []mmodel.OperationRedis, _ string,
+			attempt *mmodel.BalanceExecutionAttempt) ([]mmodel.OperationRedis, error) {
+			require.NotNil(t, attempt)
+			assert.Equal(t, generation, attempt.RedisGeneration)
+			assert.Equal(t, owner, attempt.Owner)
+
+			return nil, errors.New("financial dataset generation changed")
+		})
+
+	parentID := uuid.NewString()
+	payload := transaction.TransactionProcessingPayload{
+		Transaction: &transaction.Transaction{
+			ID: transactionID.String(), OrganizationID: organizationID.String(), LedgerID: ledgerID.String(),
+			ParentTransactionID: &parentID,
+			Operations:          []*operation.Operation{{ID: uuid.NewString(), TransactionID: transactionID.String()}},
+		},
+		AttemptOwner: owner, ExpectedOutcome: mmodel.TransactionOutcomeCommitted, RedisGeneration: generation,
+	}
+	raw, err := msgpack.Marshal(payload)
+	require.NoError(t, err)
+	uc := &UseCase{TransactionRedisRepo: redisRepo}
+	err = uc.CreateBalanceTransactionOperationsAsync(context.Background(), mmodel.Queue{
+		OrganizationID: organizationID,
+		LedgerID:       ledgerID,
+		QueueData:      []mmodel.QueueData{{ID: uuid.New(), Value: raw}},
+	})
+	require.ErrorContains(t, err, "validate current Redis economic outcome before PostgreSQL persistence")
+}
+
 // Int64Ptr returns a pointer to the given int64 value
 func Int64Ptr(v int64) *int64 {
 	return &v

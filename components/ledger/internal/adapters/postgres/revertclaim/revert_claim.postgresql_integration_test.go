@@ -8,6 +8,7 @@ package revertclaim
 
 import (
 	"context"
+	"errors"
 	"os"
 	"path/filepath"
 	"sync"
@@ -15,6 +16,8 @@ import (
 	"time"
 
 	libPostgres "github.com/LerianStudio/lib-commons/v6/commons/postgres"
+	tmcore "github.com/LerianStudio/lib-commons/v6/commons/tenant-manager/core"
+	"github.com/bxcodec/dbresolver/v2"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -168,6 +171,111 @@ func TestIntegration_RevertClaim_RolloutGenerationIsAllOrNothing(t *testing.T) {
 		"final mode must durably bind a claim to the financial dataset without a legacy rollout token")
 }
 
+func TestIntegration_RevertRolloutInitializationBirthCertificateIsOneShot(t *testing.T) {
+	repo, container := setupRevertClaimRepository(t)
+	ctx := context.Background()
+	generation := uuid.New()
+	requestID := uuid.New()
+
+	prepared, created, err := repo.BeginRolloutInitialization(ctx, generation, requestID)
+	require.NoError(t, err)
+	require.True(t, created)
+	assert.False(t, prepared)
+	var state string
+	require.NoError(t, container.DB.QueryRowContext(ctx,
+		`SELECT state FROM transaction_revert_rollout_initialization WHERE singleton = TRUE`).Scan(&state))
+	assert.Equal(t, "PREPARING", state)
+
+	prepared, created, err = repo.BeginRolloutInitialization(ctx, generation, requestID)
+	require.NoError(t, err)
+	assert.False(t, created, "retry of the exact initialization request must reuse its birth certificate")
+	assert.False(t, prepared)
+
+	_, _, err = repo.BeginRolloutInitialization(ctx, generation, uuid.New())
+	require.ErrorContains(t, err, "initialization request differs")
+	_, _, err = repo.BeginRolloutInitialization(ctx, uuid.New(), requestID)
+	require.ErrorContains(t, err, "dataset generation differs")
+
+	require.NoError(t, repo.CompleteRolloutInitialization(ctx, generation, requestID))
+	require.NoError(t, repo.CompleteRolloutInitialization(ctx, generation, requestID),
+		"lost completion response retry must be idempotent")
+	require.NoError(t, repo.ValidatePreparedRollout(ctx, generation))
+
+	prepared, created, err = repo.BeginRolloutInitialization(ctx, generation, requestID)
+	require.NoError(t, err)
+	assert.False(t, created)
+	assert.True(t, prepared)
+}
+
+func TestIntegration_RevertRolloutInitializationConcurrentRequestsChooseOneIdentity(t *testing.T) {
+	repo, _ := setupRevertClaimRepository(t)
+	ctx := context.Background()
+	generation := uuid.New()
+	requestIDs := []uuid.UUID{uuid.New(), uuid.New()}
+
+	type result struct {
+		prepared bool
+		err      error
+	}
+	start := make(chan struct{})
+	results := make(chan result, len(requestIDs))
+	for _, requestID := range requestIDs {
+		requestID := requestID
+		go func() {
+			<-start
+			prepared, _, err := repo.BeginRolloutInitialization(ctx, generation, requestID)
+			results <- result{prepared: prepared, err: err}
+		}()
+	}
+	close(start)
+
+	var successes int
+	var conflicts int
+	for range requestIDs {
+		result := <-results
+		if result.err != nil {
+			require.ErrorContains(t, result.err, "initialization request differs")
+			conflicts++
+			continue
+		}
+		assert.False(t, result.prepared)
+		successes++
+	}
+	assert.Equal(t, 1, successes)
+	assert.Equal(t, 1, conflicts)
+}
+
+func TestIntegration_RevertRolloutInitializationReconcilesLostPostgresCommitResponse(t *testing.T) {
+	repo, _ := setupRevertClaimRepository(t)
+	ctx := context.Background()
+	generation := uuid.New()
+	requestID := uuid.New()
+	lostResponse := true
+	repo.commitRolloutInitialization = func(tx dbresolver.Tx) error {
+		err := tx.Commit()
+		if err != nil {
+			return err
+		}
+		if lostResponse {
+			lostResponse = false
+
+			return errors.New("lost PostgreSQL commit response")
+		}
+
+		return nil
+	}
+
+	prepared, created, err := repo.BeginRolloutInitialization(ctx, generation, requestID)
+	require.NoError(t, err, "exact primary reread must prove an ambiguously committed birth certificate")
+	require.True(t, created)
+	assert.False(t, prepared)
+
+	lostResponse = true
+	require.NoError(t, repo.CompleteRolloutInitialization(ctx, generation, requestID),
+		"exact primary reread must prove an ambiguously committed PREPARED promotion")
+	require.NoError(t, repo.ValidatePreparedRollout(ctx, generation))
+}
+
 func TestIntegration_RevertClaim_UpgradePublished000036To000037(t *testing.T) {
 	t.Setenv("ALLOW_INSECURE_TLS", "true")
 	container := postgrestestutil.SetupContainer(t)
@@ -208,6 +316,10 @@ func TestIntegration_RevertClaim_UpgradePublished000036To000037(t *testing.T) {
 		WHERE table_schema = 'public' AND table_name = 'transaction_revert_claim'
 		  AND column_name IN ('rollout_mode', 'rollout_token', 'redis_generation')`).Scan(&rolloutColumns))
 	assert.Equal(t, 3, rolloutColumns)
+	var rolloutInitializationTable bool
+	require.NoError(t, container.DB.QueryRowContext(ctx,
+		`SELECT to_regclass('public.transaction_revert_rollout_initialization') IS NOT NULL`).Scan(&rolloutInitializationTable))
+	assert.True(t, rolloutInitializationTable, "000037 must add the durable deployment-scoped dataset birth certificate")
 
 	var mode, token, generation *string
 	require.NoError(t, container.DB.QueryRowContext(ctx, `
@@ -223,6 +335,15 @@ func TestIntegration_RevertClaim_UpgradePublished000036To000037(t *testing.T) {
 	require.ErrorContains(t, err, "rollback requires an empty claim table")
 	_, err = container.DB.ExecContext(ctx, `DELETE FROM transaction_revert_claim`)
 	require.NoError(t, err)
+	_, err = container.DB.ExecContext(ctx, `
+		INSERT INTO transaction_revert_rollout_initialization (
+			singleton, redis_generation, initialization_request_id, state
+		) VALUES (TRUE, $1, $2, 'PREPARED')`, uuid.New(), uuid.New())
+	require.NoError(t, err)
+	_, err = container.DB.ExecContext(ctx, string(rolloutDown))
+	require.ErrorContains(t, err, "rollback requires an uninitialized rollout")
+	_, err = container.DB.ExecContext(ctx, `DELETE FROM transaction_revert_rollout_initialization`)
+	require.NoError(t, err)
 	_, err = container.DB.ExecContext(ctx, string(rolloutDown))
 	require.NoError(t, err)
 	require.NoError(t, container.DB.QueryRowContext(ctx, `
@@ -230,6 +351,9 @@ func TestIntegration_RevertClaim_UpgradePublished000036To000037(t *testing.T) {
 		WHERE table_schema = 'public' AND table_name = 'transaction_revert_claim'
 		  AND column_name IN ('rollout_mode', 'rollout_token', 'redis_generation')`).Scan(&rolloutColumns))
 	assert.Zero(t, rolloutColumns)
+	require.NoError(t, container.DB.QueryRowContext(ctx,
+		`SELECT to_regclass('public.transaction_revert_rollout_initialization') IS NOT NULL`).Scan(&rolloutInitializationTable))
+	assert.False(t, rolloutInitializationTable)
 }
 
 func TestIntegration_RevertClaim_PreMutationRecoveryElectsOneOwner(t *testing.T) {
@@ -289,6 +413,15 @@ func TestIntegration_RevertClaim_ReadsIgnoreReplicaLag(t *testing.T) {
 	t.Cleanup(func() { require.NoError(t, client.Close()) })
 
 	repo := NewPostgreSQLRepository(client)
+	tenantClient, err := libPostgres.New(libPostgres.Config{PrimaryDSN: replicaDSN, ReplicaDSN: replicaDSN})
+	require.NoError(t, err)
+	require.NoError(t, tenantClient.Connect(ctx))
+	t.Cleanup(func() { require.NoError(t, tenantClient.Close()) })
+	tenantDB, err := tenantClient.Resolver(ctx)
+	require.NoError(t, err)
+	tenantConnectionCtx := tmcore.ContextWithPG(ctx, tenantDB)
+	tenantBContext := tmcore.ContextWithTenantID(tenantConnectionCtx, "rollout-tenant-b")
+	tenantAContext := tmcore.ContextWithTenantID(tenantConnectionCtx, "rollout-tenant-a")
 	organizationID := uuid.New()
 	ledgerID := uuid.New()
 	originID := uuid.New()
@@ -306,10 +439,25 @@ func TestIntegration_RevertClaim_ReadsIgnoreReplicaLag(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, byReverse, "backup recovery must see primary-only state")
 	assert.Equal(t, originID, byReverse.OriginTransactionID)
+	rolloutGeneration := uuid.New()
+	initializationRequestID := uuid.New()
+	_, created, err := repo.BeginRolloutInitialization(tenantBContext, rolloutGeneration, initializationRequestID)
+	require.NoError(t, err)
+	require.True(t, created)
+	require.NoError(t, repo.CompleteRolloutInitialization(tenantAContext, rolloutGeneration, initializationRequestID))
+	require.NoError(t, repo.ValidatePreparedRollout(tenantBContext, rolloutGeneration),
+		"rollout admission must see the primary birth certificate while the replica remains empty")
+	require.NoError(t, tenantClient.Close(), "simulated tenant removal must close only the tenant-local database")
+	require.NoError(t, repo.ValidatePreparedRollout(tenantAContext, rolloutGeneration),
+		"removing a tenant must not remove or disconnect the deployment-scoped birth certificate")
 
 	var replicaClaims int
 	require.NoError(t, replica.DB.QueryRowContext(ctx, `SELECT COUNT(*) FROM transaction_revert_claim`).Scan(&replicaClaims))
 	assert.Zero(t, replicaClaims, "the deterministic replica remains delayed throughout the proof")
+	var replicaRolloutInitializations int
+	require.NoError(t, replica.DB.QueryRowContext(ctx,
+		`SELECT COUNT(*) FROM transaction_revert_rollout_initialization`).Scan(&replicaRolloutInitializations))
+	assert.Zero(t, replicaRolloutInitializations)
 }
 
 func migrateRevertClaimSchema(t *testing.T, dsn, databaseName, migrationsPath string) {

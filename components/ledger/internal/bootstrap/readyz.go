@@ -455,7 +455,8 @@ func buildReadyzHandler(
 
 		checkers = append(checkers, NewRevertRolloutBarrierChecker(
 			transactionredis.NewRevertUpdateFreezeGuard(redisConnection, cfg.RevertRolloutTarget,
-				cfg.RevertRedisDatasetGeneration),
+				cfg.RevertRedisDatasetGeneration).WithRolloutInitializationWitness(txnPG.revertClaimRepo,
+				cfg.RevertRolloutInitializationID),
 			revertRolloutBarrierMode(cfg.RevertIdempotencyMode),
 			cfg.RevertRolloutTarget,
 			detectRedisTLS(cfg.RedisHost, cfg.RedisTLS),

@@ -26,6 +26,12 @@ if ARGV[2] == "1" then
        outcome.owner ~= ARGV[3] or outcome.outcome ~= ARGV[4] then
         return redis.error_reply("TRANSACTION_OUTCOME_MISMATCH")
     end
+
+	if ARGV[7] ~= "" then
+		if #KEYS ~= 4 or redis.call("GET", KEYS[4]) ~= ARGV[7] or envelope.redis_generation ~= ARGV[7] then
+			return redis.error_reply("FINANCIAL_DATASET_GENERATION_MISMATCH")
+		end
+	end
 end
 
 local operationsOK, operations = pcall(cjson.decode, ARGV[5])
