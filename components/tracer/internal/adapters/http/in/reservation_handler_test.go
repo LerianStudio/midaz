@@ -406,6 +406,18 @@ func TestReservationHandler_ApplyOutcome(t *testing.T) {
 			wantStatus: http.StatusBadRequest,
 			wantCode:   constant.ErrReservationOutcomeInvalid,
 		},
+		{
+			name: "unknown field is rejected like the published schema",
+			txID: transactionID.String(),
+			body: map[string]any{
+				"outcomeId":  outcomeID.String(),
+				"outcome":    model.OutcomeCommitted,
+				"unexpected": true,
+			},
+			setup:      func(_ *mocks.MockReservationService) {},
+			wantStatus: http.StatusBadRequest,
+			wantCode:   constant.ErrInvalidRequestBody,
+		},
 	}
 
 	for _, tt := range tests {

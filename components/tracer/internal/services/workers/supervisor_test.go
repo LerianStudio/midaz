@@ -13,10 +13,12 @@ import (
 
 	tmclient "github.com/LerianStudio/lib-commons/v6/commons/tenant-manager/client"
 	tmcore "github.com/LerianStudio/lib-commons/v6/commons/tenant-manager/core"
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 
+	"github.com/LerianStudio/midaz/v4/components/tracer/internal/observability"
 	"github.com/LerianStudio/midaz/v4/components/tracer/internal/services/cache"
 	"github.com/LerianStudio/midaz/v4/components/tracer/internal/services/workers/mocks"
 	"github.com/LerianStudio/midaz/v4/components/tracer/internal/testutil"
@@ -220,6 +222,46 @@ func TestWorkerSupervisor_StopWorkers_EvictsCache(t *testing.T) {
 	assert.Equal(t, 1, sup.tenantCount(), "tenant-a must be removed from supervisor")
 	assert.Empty(t, ruleCache.GetActiveRules(ctxA, nil), "tenant-a cache must be evicted")
 	assert.Len(t, ruleCache.GetActiveRules(ctxB, nil), 1, "tenant-b cache must NOT be touched")
+}
+
+func TestWorkerSupervisor_StopWorkers_ClearsV2BacklogGauges(t *testing.T) {
+	_, cleanup := setupTestTracer(t)
+	defer cleanup()
+
+	registry := prometheus.NewRegistry()
+	factory, shutdown, err := observability.NewPrometheusBackedFactory(registry, nil)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = shutdown() })
+
+	deps, _ := newSupervisorTestDeps(t, &fakeTenantLister{}, 10)
+	deps.MetricsFactory = factory
+
+	sup, err := NewWorkerSupervisor(deps)
+	require.NoError(t, err)
+	t.Cleanup(sup.Shutdown)
+	require.NoError(t, sup.EnsureWorkers(context.Background(), "tenant-a"))
+
+	setReservationV2Gauge(context.Background(), factory, deps.Logger, "tenant-a", MetricReservationV2Outstanding, 7)
+	setReservationV2Gauge(context.Background(), factory, deps.Logger, "tenant-a", MetricReservationV2OldestAgeSeconds, 3600)
+	sup.StopWorkers("tenant-a")
+
+	families, err := registry.Gather()
+	require.NoError(t, err)
+
+	cleared := 0
+	for _, family := range families {
+		if family.GetName() != MetricReservationV2Outstanding.Name && family.GetName() != MetricReservationV2OldestAgeSeconds.Name {
+			continue
+		}
+
+		for _, metric := range family.Metric {
+			if len(metric.Label) == 1 && metric.Label[0].GetName() == "tenant_id" && metric.Label[0].GetValue() == "tenant-a" {
+				require.Zero(t, metric.Gauge.GetValue(), "%s must not freeze after tenant shutdown", family.GetName())
+				cleared++
+			}
+		}
+	}
+	require.Equal(t, 2, cleared)
 }
 
 func TestWorkerSupervisor_StopWorkers_Unknown(t *testing.T) {

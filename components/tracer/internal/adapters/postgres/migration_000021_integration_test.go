@@ -93,6 +93,52 @@ func TestIntegration_Migration000021_DownRefusesLiveReceipt(t *testing.T) {
 	require.Contains(t, err.Error(), "outcome receipts exist")
 }
 
+func TestIntegration_Migration000021_DownWaitsForConcurrentReceipt(t *testing.T) {
+	db := testutil.SetupIntegrationDB(t)
+	observerDB := testutil.SetupIntegrationDB(t)
+	transactionID := testutil.MustDeterministicUUID(9961)
+
+	writerTx, err := db.BeginTx(t.Context(), nil)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = writerTx.Rollback() })
+
+	_, err = writerTx.Exec(`
+		INSERT INTO reservation_outcome_receipts
+			(transaction_id, outcome_id, outcome, reservation_count, applied_at)
+		VALUES ($1, $2, 'ABORTED', 0, $3)
+	`, transactionID, testutil.MustDeterministicUUID(9962), time.Date(2026, 8, 18, 16, 0, 0, 0, time.UTC))
+	require.NoError(t, err)
+
+	downResult := make(chan error, 1)
+	go func() {
+		_, downErr := db.Exec(migration000021SQL(t, "down"))
+		downResult <- downErr
+	}()
+
+	require.Eventually(t, func() bool {
+		var waiting bool
+		queryErr := observerDB.QueryRow(`
+			SELECT EXISTS (
+				SELECT 1
+				FROM pg_stat_activity
+				WHERE pid <> pg_backend_pid()
+				  AND query LIKE '%LOCK TABLE reservation_outcome_receipts%'
+				  AND wait_event_type = 'Lock'
+			)
+		`).Scan(&waiting)
+
+		return queryErr == nil && waiting
+	}, 5*time.Second, 10*time.Millisecond, "down migration must wait for the outcome writer")
+
+	require.NoError(t, writerTx.Commit())
+	err = <-downResult
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "outcome receipts exist")
+
+	_, err = db.Exec("DELETE FROM reservation_outcome_receipts WHERE transaction_id = $1", transactionID)
+	require.NoError(t, err)
+}
+
 func TestIntegration_Migration000021_DownRefusesLiveV2Reservation(t *testing.T) {
 	db := testutil.SetupIntegrationDB(t)
 	limitID := createTestLimitNamed(t, db, 9953, "migration-down-v2")

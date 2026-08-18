@@ -296,8 +296,12 @@ prefers held capacity over silently reopening a limit after money may have moved
 the V2 outstanding count and oldest age as gauges; observing a stale backlog never releases it. The
 observer runs even when `RESERVATION_REAPER_ENABLED=false`; that switch controls only autonomous V1
 expiry. In multi-tenant deployments, both gauges carry `tenant_id` so tenants cannot overwrite each
-other's series. Counter retention also skips every counter referenced by a live reservation, so a V2
-outcome remains applicable after the normal counter-retention horizon.
+other's series, and stopping a tenant worker resets its series instead of freezing stale values. The
+existing worker safety cap still applies: `MULTI_TENANT_MAX_TENANT_POOLS` must cover every active
+tenant assigned to the instance; an over-cap tenant is rejected by the instance and has no local
+observer. Counter retention also skips every counter referenced by a live reservation and skips
+counter rows locked by concurrent reserve/outcome work, so a V2 outcome remains applicable after the
+normal counter-retention horizon.
 
 ### Tenant boundary
 
@@ -317,8 +321,9 @@ or audit the original tenant's reservation.
    until the V2 outstanding gauge reaches zero. Disabling new V2 reserves does not make the existing
    backlog safe to forget.
 4. The migration down path refuses to remove V2 support while any V2 reservation or outcome receipt
-   exists. Drain/archive that state explicitly before schema rollback; a forced rollback would erase
-   the proof that money-path outcomes were applied exactly once.
+   exists and locks outcome writers across its guard and schema removal. Drain/archive that state
+   explicitly before schema rollback; a forced rollback would erase the proof that money-path
+   outcomes were applied exactly once.
 
 > **NOTE — `:4021` is illustrative, not canonical.** `TRACER_GRPC_PORT`'s doc comment says *"e.g.
 > :4021"* (`tracer/config.go:51`). There is no default value and no `EXPOSE 4021` anywhere. `:4021` is an

@@ -518,12 +518,12 @@ func (r *UsageReservationRepository) ConfirmWithTx(ctx context.Context, db pgdb.
 		return err
 	}
 
-	if res.Status != model.StatusReserved {
-		return constant.ErrReservationAlreadyTerminal
-	}
-
 	if res.DeliveryMode == model.DeliveryModeLedgerOutcomeV2 {
 		return constant.ErrReservationOutcomeConflict
+	}
+
+	if res.Status != model.StatusReserved {
+		return constant.ErrReservationAlreadyTerminal
 	}
 
 	now := time.Now().UTC()
@@ -594,12 +594,12 @@ func (r *UsageReservationRepository) ReleaseWithTx(ctx context.Context, db pgdb.
 		return err
 	}
 
-	if res.Status != model.StatusReserved {
-		return constant.ErrReservationAlreadyTerminal
-	}
-
 	if res.DeliveryMode == model.DeliveryModeLedgerOutcomeV2 {
 		return constant.ErrReservationOutcomeConflict
+	}
+
+	if res.Status != model.StatusReserved {
+		return constant.ErrReservationAlreadyTerminal
 	}
 
 	now := time.Now().UTC()

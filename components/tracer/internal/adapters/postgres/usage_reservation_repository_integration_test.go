@@ -431,6 +431,72 @@ func TestIntegration_UsageCounterCleanup_PreservesStaleV2UntilOutcome(t *testing
 	require.Zero(t, reserved)
 }
 
+func TestIntegration_UsageCounterCleanup_CannotDeleteConcurrentReservation(t *testing.T) {
+	testutil.SetupTestTracing(t)
+	db := testutil.SetupIntegrationDB(t)
+	adapter := &testutil.IntegrationDBAdapter{DB: db}
+	counterRepo := NewUsageCounterRepositoryWithConnection(adapter)
+	repo := NewUsageReservationRepositoryWithConnection(counterRepo)
+
+	limitID := createTestLimitNamed(t, db, 9944, "concurrent-cleanup-v2-hold")
+	transactionID := testutil.MustDeterministicUUID(9945)
+	outcomeID := testutil.MustDeterministicUUID(9946)
+	counterID := testutil.MustDeterministicUUID(9947)
+	now := time.Date(2026, 8, 18, 18, 0, 0, 0, time.UTC)
+	scope, period := "v2:9944", "2026-05"
+	expiredCounterAt := now.Add(-time.Hour)
+	t.Cleanup(func() {
+		cleanupOutcomeTransaction(t, db, transactionID)
+		cleanupTestLimit(t, db, limitID)
+	})
+
+	_, err := db.Exec(`
+		INSERT INTO usage_counters
+			(id, limit_id, scope_key, period_key, current_usage, reserved_usage, last_updated_at, expires_at)
+		VALUES ($1, $2, $3, $4, 0, 0, $5, $6)
+	`, counterID, limitID, scope, period, now.Add(-2*time.Hour), expiredCounterAt)
+	require.NoError(t, err)
+
+	reserveTx, err := db.BeginTx(t.Context(), nil)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = reserveTx.Rollback() })
+
+	reservation := newV2Reservation(t, limitID, transactionID, scope, period, 75, now)
+	_, _, err = repo.ReserveWithTx(t.Context(), reserveTx, reservation, 10000, &expiredCounterAt)
+	require.NoError(t, err)
+
+	cleanupResult := make(chan error, 1)
+	go func() {
+		_, cleanupErr := counterRepo.DeleteExpiredCounters(context.Background(), now)
+		cleanupResult <- cleanupErr
+	}()
+
+	var cleanupErr error
+
+	require.Eventually(t, func() bool {
+		select {
+		case cleanupErr = <-cleanupResult:
+			return true
+		default:
+			return false
+		}
+	}, 5*time.Second, 10*time.Millisecond, "cleanup must skip the counter row held by Reserve")
+
+	require.NoError(t, cleanupErr)
+	require.NoError(t, reserveTx.Commit())
+
+	_, reserved := readCounter(t, db, limitID, scope, period)
+	require.Equal(t, int64(75), reserved, "cleanup must revalidate the counter after Reserve commits")
+
+	require.NoError(t, runRealTx(t.Context(), db, func(tx *sql.Tx) error {
+		_, _, _, applyErr := repo.ApplyOutcomeWithTx(t.Context(), tx, transactionID, outcomeID, model.OutcomeCommitted, now)
+		return applyErr
+	}))
+	current, reserved := readCounter(t, db, limitID, scope, period)
+	require.Equal(t, int64(75), current)
+	require.Zero(t, reserved)
+}
+
 // TestIntegration_UsageReservationRepository_DoubleConfirm_Idempotent proves the
 // core idempotency invariant: a second confirm against an already-CONFIRMED
 // reservation performs NO second counter move. After reserve (reserved=400) and

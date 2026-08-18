@@ -369,13 +369,24 @@ func (w *ReservationReaperWorker) RunOnce(ctx context.Context) (int, error) {
 }
 
 func (w *ReservationReaperWorker) setV2Gauge(ctx context.Context, factory *libMetrics.MetricsFactory, metric Metric, value int64) {
+	setReservationV2Gauge(ctx, factory, w.logger, w.tenantID, metric, value)
+}
+
+func setReservationV2Gauge(
+	ctx context.Context,
+	factory *libMetrics.MetricsFactory,
+	logger libLog.Logger,
+	tenantID string,
+	metric Metric,
+	value int64,
+) {
 	if factory == nil {
 		return
 	}
 
 	gauge, err := factory.Gauge(metric)
 	if err != nil {
-		w.logger.With(
+		logger.With(
 			libLog.String("operation", "worker.reservation_reaper.metrics"),
 			libLog.String("metric", metric.Name),
 			libLog.String("error.message", err.Error()),
@@ -388,12 +399,12 @@ func (w *ReservationReaperWorker) setV2Gauge(ctx context.Context, factory *libMe
 		return
 	}
 
-	if w.tenantID != "" {
-		gauge = gauge.WithLabels(map[string]string{"tenant_id": w.tenantID})
+	if tenantID != "" {
+		gauge = gauge.WithLabels(map[string]string{"tenant_id": tenantID})
 	}
 
 	if err := gauge.Set(ctx, value); err != nil {
-		w.logger.With(
+		logger.With(
 			libLog.String("operation", "worker.reservation_reaper.metrics"),
 			libLog.String("metric", metric.Name),
 			libLog.String("error.message", err.Error()),

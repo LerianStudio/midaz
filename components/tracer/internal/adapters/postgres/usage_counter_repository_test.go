@@ -130,10 +130,10 @@ func TestUsageCounterRepository_DeleteExpiredCountersPreservesV2Holds(t *testing
 	defer cleanup()
 
 	now := testutil.FixedTime()
-	mock.ExpectExec(`DELETE FROM usage_counters AS counters`).
+	mock.ExpectExec(`WITH candidates AS \([\s\S]+FOR UPDATE OF candidate SKIP LOCKED[\s\S]+DELETE FROM usage_counters AS counters[\s\S]+WHERE counters\.reserved_usage = 0`).
 		WithArgs(now, 1000).
 		WillReturnResult(sqlmock.NewResult(0, 1))
-	mock.ExpectExec(`DELETE FROM usage_counters AS counters`).
+	mock.ExpectExec(`WITH candidates AS \([\s\S]+FOR UPDATE OF candidate SKIP LOCKED[\s\S]+DELETE FROM usage_counters AS counters[\s\S]+WHERE counters\.reserved_usage = 0`).
 		WithArgs(now, 1000).
 		WillReturnResult(sqlmock.NewResult(0, 0))
 

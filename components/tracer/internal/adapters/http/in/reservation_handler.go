@@ -7,9 +7,11 @@ package in
 //go:generate mockgen -source=reservation_handler.go -destination=mocks/reservation_handler_service_mock.go -package=mocks
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
+	"io"
 
 	libObservability "github.com/LerianStudio/lib-observability/v2"
 	libLog "github.com/LerianStudio/lib-observability/v2/log"
@@ -61,6 +63,25 @@ func NewReservationHandler(service ReservationService, clk clock.Clock) (*Reserv
 		service: service,
 		clock:   clk,
 	}, nil
+}
+
+func decodeStrictJSON(rawBody []byte, dst any) error {
+	decoder := json.NewDecoder(bytes.NewReader(rawBody))
+	decoder.DisallowUnknownFields()
+
+	if err := decoder.Decode(dst); err != nil {
+		return err
+	}
+
+	if err := decoder.Decode(&struct{}{}); !errors.Is(err, io.EOF) {
+		if err == nil {
+			return errors.New("request body contains multiple JSON values")
+		}
+
+		return err
+	}
+
+	return nil
 }
 
 func (h *ReservationHandler) Reserve(c fiber.Ctx) error {
@@ -197,7 +218,7 @@ func (h *ReservationHandler) applyOutcome(ctx context.Context, txIDParam string,
 	}
 
 	var request ApplyOutcomeRequest
-	if err := json.Unmarshal(rawBody, &request); err != nil {
+	if err := decodeStrictJSON(rawBody, &request); err != nil {
 		libOpentelemetry.HandleSpanError(span, "Failed to parse request body", err)
 		return nil, pkg.ValidationError{Code: constant.ErrInvalidRequestBody.Error(), Title: "Bad Request", Message: "The request body is malformed or contains invalid JSON. Please verify the syntax and try again."}
 	}

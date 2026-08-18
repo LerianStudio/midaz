@@ -540,6 +540,8 @@ func (s *WorkerSupervisor) StopWorkers(tenantID string) {
 	<-set.done
 
 	s.ruleCache.EvictTenant(tenantID)
+	setReservationV2Gauge(context.Background(), s.metricsFactory, s.logger, tenantID, MetricReservationV2Outstanding, 0)
+	setReservationV2Gauge(context.Background(), s.metricsFactory, s.logger, tenantID, MetricReservationV2OldestAgeSeconds, 0)
 
 	// Decrement the gauge only after the worker goroutines have actually
 	// exited — dashboards that drive "active consumers" alerts rely on the

@@ -299,6 +299,21 @@ func TestUsageReservationRepository_Confirm(t *testing.T) {
 		require.ErrorIs(t, err, constant.ErrReservationAlreadyTerminal)
 	})
 
+	t.Run("Terminal V2 row still rejects the legacy endpoint", func(t *testing.T) {
+		repo, db, mock, cleanup := setupUsageReservationRepository(t)
+		defer cleanup()
+
+		mock.ExpectQuery(`SELECT id, limit_id`).
+			WithArgs(resID).
+			WillReturnRows(sqlmock.NewRows(reservationLockColumns()).AddRow(
+				resID, limitID, "acct:8101", "2026-06", int64(400), "CONFIRMED",
+				model.DeliveryModeLedgerOutcomeV2, txID, testutil.FixedTime(), testutil.FixedTime(), testutil.FixedTime(), nil,
+			))
+
+		err := repo.ConfirmWithTx(context.Background(), db, resID)
+		require.ErrorIs(t, err, constant.ErrReservationOutcomeConflict)
+	})
+
 	t.Run("Not found - missing row maps to ErrReservationNotFound", func(t *testing.T) {
 		repo, db, mock, cleanup := setupUsageReservationRepository(t)
 		defer cleanup()
@@ -519,6 +534,21 @@ func TestUsageReservationRepository_Release(t *testing.T) {
 
 		err := repo.ReleaseWithTx(context.Background(), db, resID, model.StatusExpired)
 		require.NoError(t, err)
+	})
+
+	t.Run("Terminal V2 row still rejects the legacy endpoint", func(t *testing.T) {
+		repo, db, mock, cleanup := setupUsageReservationRepository(t)
+		defer cleanup()
+
+		mock.ExpectQuery(`SELECT id, limit_id`).
+			WithArgs(resID).
+			WillReturnRows(sqlmock.NewRows(reservationLockColumns()).AddRow(
+				resID, limitID, "acct:8201", "2026-06", int64(400), "RELEASED",
+				model.DeliveryModeLedgerOutcomeV2, txID, testutil.FixedTime(), testutil.FixedTime(), nil, testutil.FixedTime(),
+			))
+
+		err := repo.ReleaseWithTx(context.Background(), db, resID, model.StatusReleased)
+		require.ErrorIs(t, err, constant.ErrReservationOutcomeConflict)
 	})
 }
 
