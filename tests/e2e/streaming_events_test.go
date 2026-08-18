@@ -459,7 +459,7 @@ func TestStreamingTransactionPostedEmitted(t *testing.T) {
 }
 
 // TestStreamingHolderCreateEmitsRedacted asserts that creating a holder emits a
-// CloudEvents record on crm_holder.created whose ce-subject is the holder id and
+// CloudEvents record on ledger.holder.created whose ce-subject is the holder id and
 // ce-type is studio.lerian.holder.created, with PII redacted: the payload MUST
 // carry only id/organizationId/type/externalId/timestamps and MUST NOT carry
 // name, document, or any other PII key.
