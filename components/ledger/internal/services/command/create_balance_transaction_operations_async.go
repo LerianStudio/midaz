@@ -61,28 +61,14 @@ func (uc *UseCase) CreateBalanceTransactionOperationsAsync(ctx context.Context, 
 
 		return fmt.Errorf("transaction payload has nil Transaction field")
 	}
-	if t.RedisGeneration != "" {
-		transactionID := t.Transaction.IDtoUUID()
-		attempt := &mmodel.BalanceExecutionAttempt{
-			ExecutionKey:    utils.TransactionBalanceExecutionKey(data.OrganizationID, data.LedgerID, transactionID),
-			OutcomeKey:      utils.TransactionBalanceOutcomeKey(data.OrganizationID, data.LedgerID, transactionID),
-			Owner:           t.AttemptOwner,
-			Outcome:         t.ExpectedOutcome,
-			Identity:        transactionID,
-			RedisGeneration: t.RedisGeneration,
-		}
-		canonicalOperations, terminal, preflightErr := uc.UpdateTransactionBackupOperations(ctx, data.OrganizationID,
-			data.LedgerID, transactionID, t.Transaction.Operations, mmodel.BalancesToRedis(t.BalancesAfter),
-			actionForTransactionPayload(t), attempt)
-		if preflightErr != nil {
-			return fmt.Errorf("validate current Redis economic outcome before PostgreSQL persistence: %w", preflightErr)
-		}
-		t.Transaction.Operations = canonicalOperations
-		if terminal {
-			_, replayErr := uc.ProveCompletedDurableReplay(ctx, data.OrganizationID, data.LedgerID, t)
+	_, terminal, preflightErr := uc.preflightOutcomeBackedTransaction(ctx, data.OrganizationID, data.LedgerID, &t)
+	if preflightErr != nil {
+		return fmt.Errorf("validate current Redis economic outcome before PostgreSQL persistence: %w", preflightErr)
+	}
+	if terminal {
+		_, replayErr := uc.FinalizeDurableTransactionPersistence(ctx, data.OrganizationID, data.LedgerID, t)
 
-			return replayErr
-		}
+		return replayErr
 	}
 
 	backupStatusForCleanup := utils.ExpectedBackupStatusForCleanup(t.Transaction.Status.Code, t.Validate)
@@ -552,7 +538,9 @@ func (uc *UseCase) UpdateTransactionBackupOperations(
 
 		return nil, false, err
 	}
-	if attempt != nil && (!sameRedisEconomicOperationMultiset(transactionID, redisOps, canonicalRedisOps) ||
+	if attempt != nil && (!sameRedisEconomicOperationMultiset(
+		organizationID, ledgerID, transactionID, redisOps, canonicalRedisOps,
+	) ||
 		!mmodel.RedisBalanceSetEconomicComplete(balancesAfter) ||
 		!mmodel.RedisBalanceSetEconomicComplete(canonicalBalancesAfter) ||
 		!mmodel.RedisBalanceSetEconomicEqual(balancesAfter, canonicalBalancesAfter)) {
@@ -568,7 +556,7 @@ func (uc *UseCase) UpdateTransactionBackupOperations(
 }
 
 func sameRedisEconomicOperationMultiset(
-	transactionID uuid.UUID,
+	organizationID, ledgerID, transactionID uuid.UUID,
 	left, right []mmodel.OperationRedis,
 ) bool {
 	if len(left) == 0 || len(left) != len(right) {
@@ -576,12 +564,16 @@ func sameRedisEconomicOperationMultiset(
 	}
 	used := make([]bool, len(right))
 	for _, candidate := range left {
-		if candidate.ID == "" || candidate.TransactionID != transactionID.String() {
+		if candidate.TransactionID != transactionID.String() ||
+			candidate.OrganizationID != organizationID.String() || candidate.LedgerID != ledgerID.String() ||
+			!mmodel.RedisOperationEconomicComplete(candidate) {
 			return false
 		}
 		matched := false
 		for index, canonical := range right {
-			if used[index] || canonical.ID == "" || canonical.TransactionID != transactionID.String() ||
+			if used[index] || canonical.TransactionID != transactionID.String() ||
+				canonical.OrganizationID != organizationID.String() || canonical.LedgerID != ledgerID.String() ||
+				!mmodel.RedisOperationEconomicComplete(canonical) ||
 				!operation.RedisEconomicEffectEqual(candidate, canonical) {
 				continue
 			}

@@ -67,7 +67,8 @@ func (r *failOnceTransactionFinalizer) FinalizeTransactionPersistence(
 	ctx context.Context,
 	organizationID, ledgerID, transactionID uuid.UUID,
 	attempt mmodel.BalanceExecutionAttempt,
-	operationIDs []string,
+	operations []mmodel.OperationRedis,
+	balancesAfter []mmodel.BalanceRedis,
 ) error {
 	if r.failure != nil {
 		err := r.failure
@@ -76,7 +77,8 @@ func (r *failOnceTransactionFinalizer) FinalizeTransactionPersistence(
 		return err
 	}
 
-	return r.RedisRepository.FinalizeTransactionPersistence(ctx, organizationID, ledgerID, transactionID, attempt, operationIDs)
+	return r.RedisRepository.FinalizeTransactionPersistence(ctx, organizationID, ledgerID, transactionID,
+		attempt, operations, balancesAfter)
 }
 
 func TestIntegration_HandlerBTOBulk_DefaultAsyncRedeliveryCompletesOneDurableHandoff(t *testing.T) {
@@ -136,11 +138,47 @@ func TestIntegration_HandlerBTOBulk_DefaultAsyncRedeliveryCompletesOneDurableHan
 	zero := decimal.Zero
 	versionBefore := int64(1)
 	versionAfter := int64(2)
+	debitAccountID := uuid.New()
+	debitBalanceID := uuid.New()
+	creditAccountID := uuid.New()
+	creditBalanceID := uuid.New()
 	operations := []*operation.Operation{
-		recoveryOperation(reverseID, organizationID, ledgerID, uuid.New(), uuid.New(), "@destination", constant.DEBIT,
+		recoveryOperation(reverseID, organizationID, ledgerID, debitAccountID, debitBalanceID, "@destination", constant.DEBIT,
 			constant.DirectionDebit, &amount, &amount, &zero, &versionBefore, &versionAfter, &created, fixedTime),
-		recoveryOperation(reverseID, organizationID, ledgerID, uuid.New(), uuid.New(), "@source", constant.CREDIT,
+		recoveryOperation(reverseID, organizationID, ledgerID, creditAccountID, creditBalanceID, "@source", constant.CREDIT,
 			constant.DirectionCredit, &amount, &zero, &amount, &versionBefore, &versionAfter, &created, fixedTime),
+	}
+	beforeBalances := []*mmodel.Balance{
+		{
+			OrganizationID: organizationID.String(), LedgerID: ledgerID.String(), AccountID: debitAccountID.String(),
+			ID: debitBalanceID.String(), Alias: "@destination", Key: constant.DefaultBalanceKey,
+			AssetCode: "USD", Available: amount, OnHold: zero, Version: versionBefore,
+			AccountType: "deposit", AllowSending: true, AllowReceiving: true,
+			Direction: constant.DirectionDebit, OverdraftUsed: zero,
+		},
+		{
+			OrganizationID: organizationID.String(), LedgerID: ledgerID.String(), AccountID: creditAccountID.String(),
+			ID: creditBalanceID.String(), Alias: "@source", Key: constant.DefaultBalanceKey,
+			AssetCode: "USD", Available: zero, OnHold: zero, Version: versionBefore,
+			AccountType: "deposit", AllowSending: true, AllowReceiving: true,
+			Direction: constant.DirectionCredit, OverdraftUsed: zero,
+		},
+	}
+	afterBalances := []*mmodel.Balance{
+		{
+			OrganizationID: organizationID.String(), LedgerID: ledgerID.String(), AccountID: debitAccountID.String(),
+			ID: debitBalanceID.String(), Alias: "@destination", Key: constant.DefaultBalanceKey,
+			AssetCode: "USD", Available: zero, OnHold: zero, Version: versionAfter,
+			AccountType: "deposit", AllowSending: true, AllowReceiving: true,
+			Direction: constant.DirectionDebit, OverdraftUsed: zero,
+		},
+		{
+			OrganizationID: organizationID.String(), LedgerID: ledgerID.String(), AccountID: creditAccountID.String(),
+			ID: creditBalanceID.String(), Alias: "@source", Key: constant.DefaultBalanceKey,
+			AssetCode: "USD", Available: amount, OnHold: zero, Version: versionAfter,
+			AccountType: "deposit", AllowSending: true, AllowReceiving: true,
+			Direction: constant.DirectionCredit, OverdraftUsed: zero,
+		},
 	}
 	parent := originID.String()
 	input := mtransaction.Transaction{
@@ -164,6 +202,7 @@ func TestIntegration_HandlerBTOBulk_DefaultAsyncRedeliveryCompletesOneDurableHan
 		},
 		Input:           &input,
 		Version:         "v2",
+		BalancesAfter:   afterBalances,
 		AttemptOwner:    owner,
 		ExpectedOutcome: mmodel.TransactionOutcomeCommitted,
 	}
@@ -184,8 +223,8 @@ func TestIntegration_HandlerBTOBulk_DefaultAsyncRedeliveryCompletesOneDurableHan
 		require.True(t, owned)
 	}
 
-	before := []mmodel.BalanceRedis{{ID: operations[0].BalanceID, Available: amount}}
-	after := []mmodel.BalanceRedis{{ID: operations[0].BalanceID, Available: zero}}
+	before := mmodel.BalancesToRedis(beforeBalances)
+	after := mmodel.BalancesToRedis(afterBalances)
 	backup := mmodel.TransactionRedisQueue{
 		TransactionID:       reverseID,
 		ParentTransactionID: &originID,

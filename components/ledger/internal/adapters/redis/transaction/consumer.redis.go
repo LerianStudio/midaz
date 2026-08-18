@@ -55,6 +55,12 @@ var completeUnownedKeyLua string
 //go:embed scripts/enrich_transaction_backup.lua
 var enrichTransactionBackupLua string
 
+//go:embed scripts/bind_transaction_economic_digest.lua
+var bindTransactionEconomicDigestLua string
+
+//go:embed scripts/bind_legacy_transaction_economic_digest.lua
+var bindLegacyTransactionEconomicDigestLua string
+
 //go:embed scripts/finalize_transaction_persistence.lua
 var finalizeTransactionPersistenceLua string
 
@@ -90,6 +96,8 @@ var (
 	completeOwnedKeyScript                     = redis.NewScript(completeOwnedKeyLua)
 	completeUnownedKeyScript                   = redis.NewScript(completeUnownedKeyLua)
 	enrichTransactionBackupScript              = redis.NewScript(enrichTransactionBackupLua)
+	bindTransactionEconomicDigestScript        = redis.NewScript(bindTransactionEconomicDigestLua)
+	bindLegacyTransactionEconomicDigestScript  = redis.NewScript(bindLegacyTransactionEconomicDigestLua)
 	finalizeTransactionPersistenceScript       = redis.NewScript(finalizeTransactionPersistenceLua)
 	finalizeLegacyTransactionPersistenceScript = redis.NewScript(finalizeLegacyTransactionPersistenceLua)
 	removeTransactionBackupIfStatusScript      = redis.NewScript(removeTransactionBackupIfStatusLua)
@@ -201,7 +209,8 @@ type RedisRepository interface {
 	// receipt before removing the exact backup and immutable outcome, after
 	// PostgreSQL has durably stored the transaction and every operation. A lost
 	// response is idempotent; mismatched ownership never removes either record.
-	FinalizeTransactionPersistence(ctx context.Context, organizationID, ledgerID, transactionID uuid.UUID, attempt mmodel.BalanceExecutionAttempt, operationIDs []string) error
+	FinalizeTransactionPersistence(ctx context.Context, organizationID, ledgerID, transactionID uuid.UUID,
+		attempt mmodel.BalanceExecutionAttempt, operations []mmodel.OperationRedis, balancesAfter []mmodel.BalanceRedis) error
 	// FinalizeLegacyTransactionPersistence publishes an append-only terminal
 	// receipt before removing a drained phase-zero backup, only after PostgreSQL
 	// proved the exact reverse and operation set durable. It rejects outcome-backed
@@ -1461,9 +1470,11 @@ func (rr *RedisConsumerRepository) EnrichTransactionBackup(
 		return nil, nil, false, fmt.Errorf("enrich transaction backup: %w", err)
 	}
 	preflight := struct {
-		Terminal      bool                    `json:"terminal"`
-		Operations    []mmodel.OperationRedis `json:"operations"`
-		BalancesAfter json.RawMessage         `json:"balancesAfter"`
+		Terminal             bool                    `json:"terminal"`
+		Operations           []mmodel.OperationRedis `json:"operations"`
+		BalancesAfter        json.RawMessage         `json:"balancesAfter"`
+		EconomicEffectDigest string                  `json:"economicEffectDigest"`
+		Raw                  string                  `json:"raw"`
 	}{}
 	if err := json.Unmarshal([]byte(preflightRaw), &preflight); err != nil {
 		return nil, nil, false, fmt.Errorf("decode canonical transaction backup operations: %w", err)
@@ -1475,6 +1486,39 @@ func (rr *RedisConsumerRepository) EnrichTransactionBackup(
 			return nil, nil, false, fmt.Errorf("decode canonical transaction backup balances: %w", err)
 		}
 	}
+	if attempt != nil {
+		if preflight.Raw == "" {
+			return nil, nil, false, fmt.Errorf("canonical transaction economic snapshot is missing")
+		}
+		if err := validateRawTransactionEconomicEvidence([]byte(preflight.Raw)); err != nil {
+			return nil, nil, false, fmt.Errorf("validate canonical transaction economic snapshot: %w", err)
+		}
+		if !redisEconomicOperationsComplete(organizationID, ledgerID, transactionID, preflight.Operations) {
+			return nil, nil, false, fmt.Errorf("canonical transaction economic operations are incomplete")
+		}
+		digest, err := mmodel.RedisEconomicEffectDigest(preflight.Operations, canonicalBalancesAfter)
+		if err != nil {
+			return nil, nil, false, fmt.Errorf("digest canonical transaction economic effect: %w", err)
+		}
+		if preflight.EconomicEffectDigest != "" {
+			if preflight.EconomicEffectDigest != digest {
+				return nil, nil, false, fmt.Errorf("canonical transaction economic digest differs")
+			}
+		} else {
+			if preflight.Terminal {
+				return nil, nil, false, fmt.Errorf("terminal transaction economic digest is missing")
+			}
+			bindKeys := append([]string(nil), prefixedKeys[:3]...)
+			if attempt.RedisGeneration != "" {
+				bindKeys = append(bindKeys, prefixedKeys[len(prefixedKeys)-1])
+			}
+			if _, err := bindTransactionEconomicDigestScript.Run(ctx, rds, bindKeys,
+				preflight.Raw, digest, transactionID.String(), "1", attempt.Owner, attempt.Outcome,
+				action, attempt.RedisGeneration).Result(); err != nil {
+				return nil, nil, false, fmt.Errorf("bind canonical transaction economic digest: %w", err)
+			}
+		}
+	}
 
 	return preflight.Operations, canonicalBalancesAfter, preflight.Terminal, nil
 }
@@ -1483,7 +1527,8 @@ func (rr *RedisConsumerRepository) FinalizeTransactionPersistence(
 	ctx context.Context,
 	organizationID, ledgerID, transactionID uuid.UUID,
 	attempt mmodel.BalanceExecutionAttempt,
-	operationIDs []string,
+	operations []mmodel.OperationRedis,
+	balancesAfter []mmodel.BalanceRedis,
 ) error {
 	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
@@ -1494,12 +1539,13 @@ func (rr *RedisConsumerRepository) FinalizeTransactionPersistence(
 		(attempt.Outcome != mmodel.TransactionOutcomeCommitted && attempt.Outcome != mmodel.TransactionOutcomeAborted) ||
 		attempt.ExecutionKey != utils.TransactionBalanceExecutionKey(organizationID, ledgerID, transactionID) ||
 		attempt.OutcomeKey != utils.TransactionBalanceOutcomeKey(organizationID, ledgerID, transactionID) ||
-		len(operationIDs) == 0 {
+		!redisEconomicOperationsComplete(organizationID, ledgerID, transactionID, operations) ||
+		!mmodel.RedisBalanceSetEconomicComplete(balancesAfter) {
 		return fmt.Errorf("complete balance execution attempt is required")
 	}
-	encodedOperationIDs, err := json.Marshal(operationIDs)
+	economicEffectDigest, err := mmodel.RedisEconomicEffectDigest(operations, balancesAfter)
 	if err != nil {
-		return fmt.Errorf("encode durable transaction operation ids: %w", err)
+		return fmt.Errorf("digest durable transaction economic effect: %w", err)
 	}
 
 	transactionKey := utils.TransactionInternalKey(organizationID, ledgerID, transactionID.String())
@@ -1509,7 +1555,10 @@ func (rr *RedisConsumerRepository) FinalizeTransactionPersistence(
 	if err != nil {
 		return err
 	}
-	finalizeArgs := []any{transactionID.String(), attempt.Owner, attempt.Outcome, string(encodedOperationIDs)}
+	finalizeArgs := []any{
+		transactionID.String(), attempt.Owner, attempt.Outcome,
+		economicEffectDigest,
+	}
 	if attempt.RedisGeneration != "" {
 		prefixedKeys = append(prefixedKeys, FinancialDatasetGenerationKey)
 		finalizeArgs = append(finalizeArgs, attempt.RedisGeneration)
@@ -1526,6 +1575,89 @@ func (rr *RedisConsumerRepository) FinalizeTransactionPersistence(
 	}
 
 	return nil
+}
+
+func redisEconomicOperationsComplete(
+	organizationID, ledgerID, transactionID uuid.UUID,
+	operations []mmodel.OperationRedis,
+) bool {
+	if len(operations) == 0 {
+		return false
+	}
+	for _, operation := range operations {
+		if operation.TransactionID != transactionID.String() ||
+			operation.OrganizationID != organizationID.String() || operation.LedgerID != ledgerID.String() ||
+			!mmodel.RedisOperationEconomicComplete(operation) {
+			return false
+		}
+	}
+
+	return true
+}
+
+func validateRawTransactionEconomicEvidence(raw []byte) error {
+	evidence := map[string]json.RawMessage{}
+	if err := json.Unmarshal(raw, &evidence); err != nil {
+		return fmt.Errorf("decode economic evidence object: %w", err)
+	}
+	var operations []map[string]json.RawMessage
+	if err := json.Unmarshal(evidence["operations"], &operations); err != nil || len(operations) == 0 {
+		return fmt.Errorf("complete economic operations are required")
+	}
+	operationFields := []string{
+		"id", "transactionId", "balanceId", "balanceKey", "accountId", "organizationId", "ledgerId",
+		"type", "direction", "assetCode", "balanceAffected", "amountValue", "balanceAvailable",
+		"balanceOnHold", "balanceVersion", "balanceAfterAvailable", "balanceAfterOnHold", "balanceAfterVersion",
+		"snapshot",
+	}
+	for _, operation := range operations {
+		if missing := missingJSONField(operation, operationFields...); missing != "" {
+			return fmt.Errorf("economic operation field %q is missing", missing)
+		}
+		snapshot := map[string]json.RawMessage{}
+		if err := json.Unmarshal(operation["snapshot"], &snapshot); err != nil {
+			return fmt.Errorf("decode economic operation snapshot: %w", err)
+		}
+		if missing := missingJSONField(snapshot, "overdraftUsedBefore", "overdraftUsedAfter"); missing != "" {
+			return fmt.Errorf("economic operation snapshot field %q is missing", missing)
+		}
+	}
+
+	var balances []map[string]json.RawMessage
+	if err := json.Unmarshal(evidence["balancesAfter"], &balances); err != nil || len(balances) == 0 {
+		return fmt.Errorf("complete economic balance snapshots are required")
+	}
+	balanceFields := [][2]string{
+		{"id", "ID"}, {"alias", "Alias"}, {"key", "Key"}, {"accountId", "AccountID"},
+		{"assetCode", "AssetCode"}, {"available", "Available"}, {"onHold", "OnHold"},
+		{"version", "Version"}, {"accountType", "AccountType"}, {"allowSending", "AllowSending"},
+		{"allowReceiving", "AllowReceiving"}, {"direction", "Direction"},
+		{"overdraftUsed", "OverdraftUsed"}, {"allowOverdraft", "AllowOverdraft"},
+		{"overdraftLimitEnabled", "OverdraftLimitEnabled"}, {"overdraftLimit", "OverdraftLimit"},
+		{"balanceScope", "BalanceScope"},
+	}
+	for _, balance := range balances {
+		for _, names := range balanceFields {
+			if _, lower := balance[names[0]]; lower {
+				continue
+			}
+			if _, upper := balance[names[1]]; !upper {
+				return fmt.Errorf("economic balance field %q is missing", names[0])
+			}
+		}
+	}
+
+	return nil
+}
+
+func missingJSONField(value map[string]json.RawMessage, fields ...string) string {
+	for _, field := range fields {
+		if raw, ok := value[field]; !ok || len(raw) == 0 || bytes.Equal(raw, []byte("null")) {
+			return field
+		}
+	}
+
+	return ""
 }
 
 func (rr *RedisConsumerRepository) FinalizeLegacyTransactionPersistence(
@@ -1556,8 +1688,61 @@ func (rr *RedisConsumerRepository) FinalizeLegacyTransactionPersistence(
 	if err != nil {
 		return err
 	}
+
+	var economicEffectDigest string
+	backupRaw, backupErr := rds.HGet(ctx, prefixedKeys[0], prefixedKeys[1]).Bytes()
+	switch {
+	case backupErr == nil:
+		if err := validateRawTransactionEconomicEvidence(backupRaw); err != nil {
+			return fmt.Errorf("validate legacy transaction economic evidence: %w", err)
+		}
+		envelope := mmodel.TransactionRedisQueue{}
+		if err := json.Unmarshal(backupRaw, &envelope); err != nil {
+			return fmt.Errorf("decode legacy transaction economic evidence: %w", err)
+		}
+		if !redisEconomicOperationsComplete(organizationID, ledgerID, transactionID, envelope.Operations) {
+			return fmt.Errorf("legacy transaction economic operations are incomplete")
+		}
+		economicEffectDigest, err = mmodel.RedisEconomicEffectDigest(envelope.Operations, envelope.BalancesAfter)
+		if err != nil {
+			return fmt.Errorf("digest legacy transaction economic evidence: %w", err)
+		}
+		if envelope.EconomicEffectDigest != "" && envelope.EconomicEffectDigest != economicEffectDigest {
+			return fmt.Errorf("legacy transaction economic digest differs")
+		}
+		if _, err := bindLegacyTransactionEconomicDigestScript.Run(ctx, rds, prefixedKeys,
+			string(backupRaw), economicEffectDigest, transactionID.String(), parentTransactionID.String(),
+			transactionStatus, string(encodedOperationIDs)).Result(); err != nil {
+			return fmt.Errorf("bind legacy transaction economic digest: %w", err)
+		}
+	case errors.Is(backupErr, redis.Nil):
+		tombstoneRaw, tombstoneErr := rds.Get(ctx, prefixedKeys[2]).Bytes()
+		if tombstoneErr != nil {
+			return fmt.Errorf("read legacy transaction terminal receipt: %w", tombstoneErr)
+		}
+		if err := validateRawTransactionEconomicEvidence(tombstoneRaw); err != nil {
+			return fmt.Errorf("validate legacy transaction terminal receipt: %w", err)
+		}
+		tombstone := mmodel.TransactionPersistenceTombstone{}
+		if err := json.Unmarshal(tombstoneRaw, &tombstone); err != nil {
+			return fmt.Errorf("decode legacy transaction terminal receipt: %w", err)
+		}
+		if !redisEconomicOperationsComplete(organizationID, ledgerID, transactionID, tombstone.Operations) {
+			return fmt.Errorf("legacy transaction terminal operations are incomplete")
+		}
+		economicEffectDigest, err = mmodel.RedisEconomicEffectDigest(tombstone.Operations, tombstone.BalancesAfter)
+		if err != nil {
+			return fmt.Errorf("digest legacy transaction terminal receipt: %w", err)
+		}
+		if tombstone.EconomicEffectDigest == "" || tombstone.EconomicEffectDigest != economicEffectDigest {
+			return fmt.Errorf("legacy transaction terminal economic digest differs")
+		}
+	default:
+		return fmt.Errorf("read legacy transaction economic evidence: %w", backupErr)
+	}
 	if _, err := finalizeLegacyTransactionPersistenceScript.Run(ctx, rds, prefixedKeys,
-		transactionID.String(), parentTransactionID.String(), transactionStatus, string(encodedOperationIDs)).Result(); err != nil {
+		transactionID.String(), parentTransactionID.String(), transactionStatus,
+		string(encodedOperationIDs), economicEffectDigest).Result(); err != nil {
 		libOpentelemetry.HandleSpanError(span, "Failed to atomically finalize legacy transaction persistence", err)
 		logger.Log(ctx, libLog.LevelWarn, "Failed to atomically finalize legacy transaction persistence", libLog.Err(err))
 

@@ -39,11 +39,11 @@ func (uc *UseCase) FinalizeDurableTransactionPersistence(
 	if payload.Transaction == nil {
 		return false, fmt.Errorf("transaction persistence payload is required")
 	}
-	if (payload.AttemptOwner == "") != (payload.ExpectedOutcome == "") {
-		return true, fmt.Errorf("incomplete transaction balance execution identity")
+	outcomeBacked, _, err := uc.preflightOutcomeBackedTransaction(ctx, organizationID, ledgerID, &payload)
+	if err != nil {
+		return outcomeBacked, fmt.Errorf("preflight terminal transaction economic evidence: %w", err)
 	}
 
-	outcomeBacked := payload.AttemptOwner != ""
 	reverse := payload.Transaction.ParentTransactionID != nil
 	validRolloutMode := payload.RevertRolloutMode == "legacy" || payload.RevertRolloutMode == "bridge"
 	if (payload.RevertRolloutToken == "") != (payload.RevertRolloutMode == "") ||
@@ -86,8 +86,16 @@ func (uc *UseCase) FinalizeDurableTransactionPersistence(
 			Identity:        transactionID,
 			RedisGeneration: payload.RedisGeneration,
 		}
+		redisOperations := make([]mmodel.OperationRedis, 0, len(payload.Transaction.Operations))
+		for _, transactionOperation := range payload.Transaction.Operations {
+			if transactionOperation == nil {
+				return true, fmt.Errorf("finalize durable transaction operation is required")
+			}
+			redisOperations = append(redisOperations, transactionOperation.ToRedis())
+		}
 		if err := uc.TransactionRedisRepo.FinalizeTransactionPersistence(ctx,
-			organizationID, ledgerID, transactionID, attempt, transactionOperationIDs(payload.Transaction)); err != nil {
+			organizationID, ledgerID, transactionID, attempt, redisOperations,
+			mmodel.BalancesToRedis(payload.BalancesAfter)); err != nil {
 			return true, fmt.Errorf("finalize durable transaction balance outcome: %w", err)
 		}
 	} else {

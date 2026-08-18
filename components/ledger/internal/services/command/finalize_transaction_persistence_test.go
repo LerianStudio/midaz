@@ -55,7 +55,7 @@ func TestFinalizeDurableTransactionPersistence_RetryAfterLostCleanupUsesOneTermi
 	ledgerID := uuid.New()
 	originID := uuid.New()
 	reverseID := uuid.New()
-	operationID := uuid.NewString()
+	economicOperation, balanceAfter := completeOutcomeEvidence(organizationID, ledgerID, reverseID)
 	originString := originID.String()
 	created := constant.CREATED
 	approved := constant.APPROVED
@@ -65,7 +65,7 @@ func TestFinalizeDurableTransactionPersistence_RetryAfterLostCleanupUsesOneTermi
 		LedgerID:            ledgerID.String(),
 		ParentTransactionID: &originString,
 		Status:              transaction.Status{Code: created},
-		Operations:          []*operation.Operation{{ID: operationID}},
+		Operations:          []*operation.Operation{economicOperation},
 	}
 	persisted := *replay
 	persisted.Status = transaction.Status{Code: approved}
@@ -85,6 +85,7 @@ func TestFinalizeDurableTransactionPersistence_RetryAfterLostCleanupUsesOneTermi
 		Validate:        &mtransaction.Responses{Pending: false},
 		AttemptOwner:    reverseID.String(),
 		ExpectedOutcome: mmodel.TransactionOutcomeCommitted,
+		BalancesAfter:   []*mmodel.Balance{balanceAfter},
 	}
 	originKey := utils.IdempotencyInternalKey(organizationID, ledgerID,
 		libCommons.HashSHA256(utils.RevertIdempotencyHashSource(originID)))
@@ -97,6 +98,10 @@ func TestFinalizeDurableTransactionPersistence_RetryAfterLostCleanupUsesOneTermi
 	}
 	encoded, err := json.Marshal(replay)
 	require.NoError(t, err)
+	redisRepo.EXPECT().EnrichTransactionBackup(gomock.Any(), organizationID, ledgerID, reverseID,
+		gomock.Any(), constant.ActionRevert, gomock.Any()).
+		Return([]mmodel.OperationRedis{economicOperation.ToRedis()}, []mmodel.BalanceRedis{balanceAfter.ToRedis()}, false, nil).
+		Times(2)
 
 	for range 2 {
 		transactionRepo.EXPECT().FindWithOperations(gomock.Any(), organizationID, ledgerID, reverseID).
@@ -115,14 +120,14 @@ func TestFinalizeDurableTransactionPersistence_RetryAfterLostCleanupUsesOneTermi
 		redisRepo.EXPECT().CompleteOwnedKey(gomock.Any(), originKey, reverseID.String(), gomock.Any(), gomock.Any()).Return(true, nil),
 		redisRepo.EXPECT().CompleteOwnedKey(gomock.Any(), legacyKey, reverseID.String(), gomock.Any(), gomock.Any()).Return(true, nil),
 		redisRepo.EXPECT().FinalizeTransactionPersistence(gomock.Any(), organizationID, ledgerID, reverseID, attempt,
-			[]string{operationID}).Return(firstCleanupErr),
+			gomock.Any(), gomock.Any()).Return(firstCleanupErr),
 		claimRepo.EXPECT().Transition(gomock.Any(), organizationID, ledgerID, originID, reverseID, revertclaim.StateCompleted, nil).Return(nil),
 		redisRepo.EXPECT().CompleteOwnedKey(gomock.Any(), originKey, reverseID.String(), gomock.Any(), gomock.Any()).Return(false, nil),
 		redisRepo.EXPECT().MGet(gomock.Any(), []string{originKey, originKey + ":owner"}).Return(map[string]string{originKey: string(encoded)}, nil),
 		redisRepo.EXPECT().CompleteOwnedKey(gomock.Any(), legacyKey, reverseID.String(), gomock.Any(), gomock.Any()).Return(false, nil),
 		redisRepo.EXPECT().MGet(gomock.Any(), []string{legacyKey, legacyKey + ":owner"}).Return(map[string]string{legacyKey: string(encoded)}, nil),
 		redisRepo.EXPECT().FinalizeTransactionPersistence(gomock.Any(), organizationID, ledgerID, reverseID, attempt,
-			[]string{operationID}).Return(nil),
+			gomock.Any(), gomock.Any()).Return(nil),
 	)
 
 	uc := &UseCase{TransactionRepo: transactionRepo, RevertClaimRepo: claimRepo, TransactionRedisRepo: redisRepo}
@@ -220,14 +225,14 @@ func TestFinalizeDurableTransactionPersistence_RolloutStatusComesFromPrimary(t *
 	originID := uuid.New()
 	reverseID := uuid.New()
 	originString := originID.String()
-	operationID := uuid.NewString()
+	economicOperation, balanceAfter := completeOutcomeEvidence(organizationID, ledgerID, reverseID)
 	replay := &transaction.Transaction{
 		ID:                  reverseID.String(),
 		OrganizationID:      organizationID.String(),
 		LedgerID:            ledgerID.String(),
 		ParentTransactionID: &originString,
 		Status:              transaction.Status{Code: constant.CREATED},
-		Operations:          []*operation.Operation{{ID: operationID}},
+		Operations:          []*operation.Operation{economicOperation},
 	}
 	persisted := *replay
 	persisted.Status = transaction.Status{Code: constant.APPROVED}
@@ -262,10 +267,14 @@ func TestFinalizeDurableTransactionPersistence_RolloutStatusComesFromPrimary(t *
 		RevertRolloutMode:  rolloutMode,
 		RevertRolloutToken: rolloutToken,
 		RedisGeneration:    redisGeneration,
+		BalancesAfter:      []*mmodel.Balance{balanceAfter},
 	}
 	originKey := utils.IdempotencyInternalKey(organizationID, ledgerID,
 		libCommons.HashSHA256(utils.RevertIdempotencyHashSource(originID)))
 
+	redisRepo.EXPECT().EnrichTransactionBackup(gomock.Any(), organizationID, ledgerID, reverseID,
+		gomock.Any(), constant.ActionRevert, gomock.Any()).
+		Return([]mmodel.OperationRedis{economicOperation.ToRedis()}, []mmodel.BalanceRedis{balanceAfter.ToRedis()}, false, nil)
 	transactionRepo.EXPECT().FindWithOperations(gomock.Any(), organizationID, ledgerID, reverseID).Return(&persisted, nil)
 	claimRepo.EXPECT().Claim(gomock.Any(), organizationID, ledgerID, originID, reverseID,
 		&legacyKey, &legacyOwner, &rolloutMode, &rolloutToken, &redisGeneration).Return(claim, true, nil)
@@ -273,7 +282,7 @@ func TestFinalizeDurableTransactionPersistence_RolloutStatusComesFromPrimary(t *
 	redisRepo.EXPECT().CompleteOwnedKey(gomock.Any(), originKey, reverseID.String(), gomock.Any(), gomock.Any()).Return(true, nil)
 	redisRepo.EXPECT().CompleteOwnedKey(gomock.Any(), legacyKey, reverseID.String(), gomock.Any(), gomock.Any()).Return(true, nil)
 	redisRepo.EXPECT().FinalizeTransactionPersistence(gomock.Any(), organizationID, ledgerID, reverseID,
-		gomock.Any(), []string{operationID}).Return(nil)
+		gomock.Any(), gomock.Any(), gomock.Any()).Return(nil)
 
 	rollout := &revertRolloutLeaseRecorder{}
 	uc := &UseCase{
@@ -363,12 +372,12 @@ func TestFinalizeDurableTransactionPersistence_RejectsDifferentPersistedRolloutG
 	ledgerID := uuid.New()
 	originID := uuid.New()
 	reverseID := uuid.New()
-	operationID := uuid.NewString()
+	economicOperation, balanceAfter := completeOutcomeEvidence(organizationID, ledgerID, reverseID)
 	originString := originID.String()
 	expected := &transaction.Transaction{
 		ID: reverseID.String(), OrganizationID: organizationID.String(), LedgerID: ledgerID.String(),
 		ParentTransactionID: &originString, Status: transaction.Status{Code: constant.CREATED},
-		Operations: []*operation.Operation{{ID: operationID}},
+		Operations: []*operation.Operation{economicOperation},
 	}
 	persisted := *expected
 	persisted.Status = transaction.Status{Code: constant.APPROVED}
@@ -392,8 +401,12 @@ func TestFinalizeDurableTransactionPersistence_RejectsDifferentPersistedRolloutG
 		AttemptOwner: reverseID.String(), ExpectedOutcome: mmodel.TransactionOutcomeCommitted,
 		RevertRolloutMode: "bridge", RevertRolloutToken: "incoming-generation",
 		RedisGeneration: redisGeneration,
+		BalancesAfter:   []*mmodel.Balance{balanceAfter},
 	}
 
+	redisRepo.EXPECT().EnrichTransactionBackup(gomock.Any(), organizationID, ledgerID, reverseID,
+		gomock.Any(), constant.ActionRevert, gomock.Any()).
+		Return([]mmodel.OperationRedis{economicOperation.ToRedis()}, []mmodel.BalanceRedis{balanceAfter.ToRedis()}, false, nil)
 	transactionRepo.EXPECT().FindWithOperations(gomock.Any(), organizationID, ledgerID, reverseID).
 		Return(&persisted, nil)
 	claimRepo.EXPECT().Claim(gomock.Any(), organizationID, ledgerID, originID, reverseID,
@@ -420,7 +433,8 @@ func TestFinalizeDurableTransactionPersistence_LifecycleProvesNewOperationsAndPr
 	ledgerID := uuid.New()
 	transactionID := uuid.New()
 	holdOperationID := uuid.NewString()
-	terminalOperationIDs := []string{uuid.NewString(), uuid.NewString()}
+	firstOperation, firstBalance := completeOutcomeEvidence(organizationID, ledgerID, transactionID)
+	secondOperation, secondBalance := completeOutcomeEvidence(organizationID, ledgerID, transactionID)
 	approved := constant.APPROVED
 	expected := &transaction.Transaction{
 		ID:             transactionID.String(),
@@ -428,15 +442,15 @@ func TestFinalizeDurableTransactionPersistence_LifecycleProvesNewOperationsAndPr
 		LedgerID:       ledgerID.String(),
 		Status:         transaction.Status{Code: approved},
 		Operations: []*operation.Operation{
-			{ID: terminalOperationIDs[0]},
-			{ID: terminalOperationIDs[1]},
+			firstOperation,
+			secondOperation,
 		},
 	}
 	persisted := *expected
 	persisted.Operations = []*operation.Operation{
 		{ID: holdOperationID},
-		{ID: terminalOperationIDs[0]},
-		{ID: terminalOperationIDs[1]},
+		firstOperation,
+		secondOperation,
 	}
 	attempt := mmodel.BalanceExecutionAttempt{
 		ExecutionKey: utils.TransactionBalanceExecutionKey(organizationID, ledgerID, transactionID),
@@ -449,12 +463,17 @@ func TestFinalizeDurableTransactionPersistence_LifecycleProvesNewOperationsAndPr
 		Transaction:     expected,
 		AttemptOwner:    attempt.Owner,
 		ExpectedOutcome: attempt.Outcome,
+		BalancesAfter:   []*mmodel.Balance{firstBalance, secondBalance},
 	}
 
+	redisRepo.EXPECT().EnrichTransactionBackup(gomock.Any(), organizationID, ledgerID, transactionID,
+		gomock.Any(), constant.ActionCommit, gomock.Any()).
+		Return([]mmodel.OperationRedis{firstOperation.ToRedis(), secondOperation.ToRedis()},
+			[]mmodel.BalanceRedis{firstBalance.ToRedis(), secondBalance.ToRedis()}, false, nil)
 	transactionRepo.EXPECT().FindWithOperations(gomock.Any(), organizationID, ledgerID, transactionID).
 		Return(&persisted, nil)
 	redisRepo.EXPECT().FinalizeTransactionPersistence(gomock.Any(), organizationID, ledgerID, transactionID,
-		attempt, terminalOperationIDs).Return(nil)
+		attempt, gomock.Any(), gomock.Any()).Return(nil)
 
 	uc := &UseCase{TransactionRepo: transactionRepo, TransactionRedisRepo: redisRepo}
 	managed, err := uc.FinalizeDurableTransactionPersistence(context.Background(), organizationID, ledgerID, payload)

@@ -34,6 +34,38 @@ import (
 	"github.com/LerianStudio/midaz/v4/pkg/utils"
 )
 
+func completeRevertEconomicOperation(
+	organizationID, ledgerID, transactionID uuid.UUID,
+	operationID string,
+) (*operation.Operation, *mmodel.Balance) {
+	amount := decimal.NewFromInt(100)
+	before := decimal.NewFromInt(900)
+	after := decimal.NewFromInt(1000)
+	onHold := decimal.Zero
+	beforeVersion := int64(1)
+	afterVersion := int64(2)
+	balanceID := uuid.NewString()
+	accountID := uuid.NewString()
+	economicOperation := &operation.Operation{
+		ID: operationID, TransactionID: transactionID.String(), Type: constant.CREDIT,
+		AssetCode: "USD", Amount: operation.Amount{Value: &amount}, BalanceID: balanceID,
+		BalanceKey: constant.DefaultBalanceKey, AccountID: accountID,
+		OrganizationID: organizationID.String(), LedgerID: ledgerID.String(),
+		BalanceAffected: true, Direction: constant.DirectionCredit,
+		Balance:      operation.Balance{Available: &before, OnHold: &onHold, Version: &beforeVersion},
+		BalanceAfter: operation.Balance{Available: &after, OnHold: &onHold, Version: &afterVersion},
+		Snapshot:     mmodel.OperationSnapshot{OverdraftUsedBefore: "0", OverdraftUsedAfter: "0"},
+	}
+	balanceAfter := &mmodel.Balance{
+		ID: balanceID, Alias: "@revert", Key: constant.DefaultBalanceKey, AccountID: accountID,
+		AssetCode: "USD", Available: after, OnHold: onHold, Version: afterVersion,
+		AccountType: "asset", AllowSending: true, AllowReceiving: true,
+		Direction: constant.DirectionCredit, OverdraftUsed: decimal.Zero,
+	}
+
+	return economicOperation, balanceAfter
+}
+
 var testRedisGeneration = "test-financial-dataset-generation"
 
 func TestRevertRolloutHandoffPending_RequiresAtomicRedisAbsenceAndCompatibleClaim(t *testing.T) {
@@ -1302,11 +1334,14 @@ func TestAdoptPersistedReverse_FinalCompletesPersistedBridgeFenceAndExactOutcome
 	rolloutToken := "persisted-bridge-generation"
 	originIDString := originID.String()
 	operationID := uuid.NewString()
+	economicOperation, balanceAfter := completeRevertEconomicOperation(organizationID, ledgerID, reverseID, operationID)
 	persisted := &transaction.Transaction{
 		ID:                  reverseID.String(),
+		OrganizationID:      organizationID.String(),
+		LedgerID:            ledgerID.String(),
 		ParentTransactionID: &originIDString,
 		Status:              transaction.Status{Code: constant.APPROVED},
-		Operations:          []*operation.Operation{{ID: operationID}},
+		Operations:          []*operation.Operation{economicOperation},
 	}
 	claim := &revertclaim.Claim{
 		OrganizationID:       organizationID,
@@ -1324,8 +1359,8 @@ func TestAdoptPersistedReverse_FinalCompletesPersistedBridgeFenceAndExactOutcome
 		ParentTransactionID: &originID,
 		AttemptOwner:        reverseID.String(),
 		ExpectedOutcome:     mmodel.TransactionOutcomeCommitted,
-		BalancesAfter:       []mmodel.BalanceRedis{{ID: uuid.NewString()}},
-		Operations:          []mmodel.OperationRedis{{ID: operationID}},
+		BalancesAfter:       []mmodel.BalanceRedis{balanceAfter.ToRedis()},
+		Operations:          []mmodel.OperationRedis{economicOperation.ToRedis()},
 	})
 	require.NoError(t, err)
 
@@ -1348,6 +1383,9 @@ func TestAdoptPersistedReverse_FinalCompletesPersistedBridgeFenceAndExactOutcome
 		gomock.Any(), gomock.Any()).Return(true, nil)
 	claimRepo.EXPECT().Transition(gomock.Any(), organizationID, ledgerID, originID, reverseID,
 		revertclaim.StateCompleted, nil).Return(nil)
+	redisRepo.EXPECT().EnrichTransactionBackup(gomock.Any(), organizationID, ledgerID, reverseID,
+		gomock.Any(), constant.ActionRevert, gomock.Any()).
+		Return([]mmodel.OperationRedis{economicOperation.ToRedis()}, []mmodel.BalanceRedis{balanceAfter.ToRedis()}, false, nil)
 	redisRepo.EXPECT().FinalizeTransactionPersistence(gomock.Any(), organizationID, ledgerID, reverseID,
 		mmodel.BalanceExecutionAttempt{
 			ExecutionKey: utils.TransactionBalanceExecutionKey(organizationID, ledgerID, reverseID),
@@ -1355,7 +1393,7 @@ func TestAdoptPersistedReverse_FinalCompletesPersistedBridgeFenceAndExactOutcome
 			Owner:        reverseID.String(),
 			Outcome:      mmodel.TransactionOutcomeCommitted,
 			Identity:     reverseID,
-		}, gomock.Any()).Return(nil)
+		}, gomock.Any(), gomock.Any()).Return(nil)
 
 	freeze := &revertUpdateFreezeStub{ready: true}
 	handler := &TransactionHandler{
@@ -1398,11 +1436,14 @@ func TestAdoptPersistedReverse_FinalPreservesForeignLegacyCollision(t *testing.T
 	legacyOwner := reverseID.String()
 	originIDString := originID.String()
 	operationID := uuid.NewString()
+	economicOperation, balanceAfter := completeRevertEconomicOperation(organizationID, ledgerID, reverseID, operationID)
 	persisted := &transaction.Transaction{
 		ID:                  reverseID.String(),
+		OrganizationID:      organizationID.String(),
+		LedgerID:            ledgerID.String(),
 		ParentTransactionID: &originIDString,
 		Status:              transaction.Status{Code: constant.APPROVED},
-		Operations:          []*operation.Operation{{ID: operationID}},
+		Operations:          []*operation.Operation{economicOperation},
 	}
 	claim := &revertclaim.Claim{
 		OrganizationID:       organizationID,
@@ -1418,8 +1459,8 @@ func TestAdoptPersistedReverse_FinalPreservesForeignLegacyCollision(t *testing.T
 		ParentTransactionID: &originID,
 		AttemptOwner:        reverseID.String(),
 		ExpectedOutcome:     mmodel.TransactionOutcomeCommitted,
-		BalancesAfter:       []mmodel.BalanceRedis{{ID: uuid.NewString()}},
-		Operations:          []mmodel.OperationRedis{{ID: operationID}},
+		BalancesAfter:       []mmodel.BalanceRedis{balanceAfter.ToRedis()},
+		Operations:          []mmodel.OperationRedis{economicOperation.ToRedis()},
 	})
 	require.NoError(t, err)
 
@@ -1440,8 +1481,11 @@ func TestAdoptPersistedReverse_FinalPreservesForeignLegacyCollision(t *testing.T
 	}, nil)
 	claimRepo.EXPECT().Transition(gomock.Any(), organizationID, ledgerID, originID, reverseID,
 		revertclaim.StateCompleted, nil).Return(nil)
+	redisRepo.EXPECT().EnrichTransactionBackup(gomock.Any(), organizationID, ledgerID, reverseID,
+		gomock.Any(), constant.ActionRevert, gomock.Any()).
+		Return([]mmodel.OperationRedis{economicOperation.ToRedis()}, []mmodel.BalanceRedis{balanceAfter.ToRedis()}, false, nil)
 	redisRepo.EXPECT().FinalizeTransactionPersistence(gomock.Any(), organizationID, ledgerID, reverseID,
-		gomock.Any(), gomock.Any()).Return(nil)
+		gomock.Any(), gomock.Any(), gomock.Any()).Return(nil)
 
 	handler := &TransactionHandler{
 		RevertIdempotencyMode: revertIdempotencyModeFinal,
@@ -1747,11 +1791,9 @@ func TestLoadCompleteReverse_TerminalReceiptMustMatchPrimaryEconomicOperation(t 
 				claim.RedisGeneration = &testRedisGeneration
 			}
 			originID := claim.OriginTransactionID.String()
-			persistedOperation := &operation.Operation{
-				ID: claim.ReverseTransactionID.String() + "-operation", TransactionID: claim.ReverseTransactionID.String(),
-				BalanceID: uuid.NewString(), BalanceKey: "default", AccountID: uuid.NewString(),
-				AssetCode: "USD", Direction: "credit", Type: "CREDIT", BalanceAffected: true,
-			}
+			persistedOperation, balanceAfter := completeRevertEconomicOperation(
+				claim.OrganizationID, claim.LedgerID, claim.ReverseTransactionID,
+				claim.ReverseTransactionID.String()+"-operation")
 			persisted := &transaction.Transaction{
 				ID: claim.ReverseTransactionID.String(), ParentTransactionID: &originID,
 				Status: transaction.Status{Code: constant.APPROVED}, Operations: []*operation.Operation{persistedOperation},
@@ -1768,12 +1810,7 @@ func TestLoadCompleteReverse_TerminalReceiptMustMatchPrimaryEconomicOperation(t 
 			}
 			redisRepo.EXPECT().EnrichTransactionBackup(gomock.Any(), claim.OrganizationID, claim.LedgerID,
 				claim.ReverseTransactionID, gomock.Any(), constant.ActionRevert, gomock.Any()).Return(
-				[]mmodel.OperationRedis{canonical}, []mmodel.BalanceRedis{{
-					ID: persistedOperation.BalanceID, Key: persistedOperation.BalanceKey,
-					AccountID: persistedOperation.AccountID, AssetCode: persistedOperation.AssetCode,
-					AccountType: "asset", Direction: persistedOperation.Direction, OverdraftUsed: "0",
-					OverdraftLimit: "0", BalanceScope: mmodel.BalanceScopeTransactional,
-				}}, true, nil)
+				[]mmodel.OperationRedis{canonical}, []mmodel.BalanceRedis{balanceAfter.ToRedis()}, true, nil)
 			receipt := mmodel.TransactionPersistenceTombstone{
 				Identity: claim.ReverseTransactionID, ParentTransactionID: claim.OriginTransactionID.String(),
 				TransactionStatus: constant.CREATED, Action: constant.ActionRevert,

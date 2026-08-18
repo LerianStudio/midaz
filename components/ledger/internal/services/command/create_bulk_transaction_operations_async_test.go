@@ -13,6 +13,7 @@ import (
 	"testing"
 	"time"
 
+	libCommons "github.com/LerianStudio/lib-commons/v6/commons"
 	libLog "github.com/LerianStudio/lib-observability/v2/log"
 	"github.com/google/uuid"
 	"github.com/shopspring/decimal"
@@ -31,6 +32,7 @@ import (
 	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v4/pkg/mtransaction"
 	"github.com/LerianStudio/midaz/v4/pkg/repository"
+	"github.com/LerianStudio/midaz/v4/pkg/utils"
 )
 
 // mockDBTransaction is a test double for repository.DBTransaction.
@@ -137,16 +139,16 @@ func TestPreflightDurableBulkPayloads_AdoptsCanonicalOperationSet(t *testing.T) 
 	proposedID := uuid.NewString()
 	canonicalID := uuid.NewString()
 	generation := uuid.NewString()
-	balanceAfter := &mmodel.Balance{
-		ID: uuid.NewString(), Key: "default", AccountID: uuid.NewString(), AssetCode: "USD",
-		Version: 1, AccountType: "deposit", Direction: constant.DirectionCredit,
-	}
+	proposedOperation, balanceAfter := completeOutcomeEvidence(organizationID, ledgerID, transactionID)
+	proposedOperation.ID = proposedID
+	canonicalOperation := proposedOperation.ToRedis()
+	canonicalOperation.ID = canonicalID
 	canonicalBalancesAfter := []mmodel.BalanceRedis{balanceAfter.ToRedis()}
 	payloads := []transaction.TransactionProcessingPayload{{
 		Transaction: &transaction.Transaction{
 			ID: transactionID.String(), OrganizationID: organizationID.String(), LedgerID: ledgerID.String(),
 			ParentTransactionID: &parentID, Status: transaction.Status{Code: constant.CREATED},
-			Operations: []*operation.Operation{{ID: proposedID, TransactionID: transactionID.String()}},
+			Operations: []*operation.Operation{proposedOperation},
 		},
 		AttemptOwner: transactionID.String(), ExpectedOutcome: mmodel.TransactionOutcomeCommitted,
 		RedisGeneration: generation, BalancesAfter: []*mmodel.Balance{balanceAfter},
@@ -160,7 +162,7 @@ func TestPreflightDurableBulkPayloads_AdoptsCanonicalOperationSet(t *testing.T) 
 			require.NotNil(t, attempt)
 			assert.Equal(t, generation, attempt.RedisGeneration)
 
-			return []mmodel.OperationRedis{{ID: canonicalID, TransactionID: transactionID.String()}}, canonicalBalancesAfter, false, nil
+			return []mmodel.OperationRedis{canonicalOperation}, canonicalBalancesAfter, false, nil
 		})
 
 	uc := &UseCase{TransactionRedisRepo: redisRepo}
@@ -201,6 +203,10 @@ func TestCreateBulkTransactionOperationsAsync_LostAckAfterTerminalCleanupIsReadO
 		ID: balanceID, Key: "default", AccountID: accountID, AssetCode: "USD",
 		Available: after, Version: afterVersion, AccountType: "deposit", Direction: constant.DirectionCredit,
 	}
+	input := mtransaction.Transaction{
+		Description: "lost ack reverse",
+		Send:        mtransaction.Send{Asset: "USD", Value: decimal.NewFromInt(100)},
+	}
 	canonicalBalancesAfter := []mmodel.BalanceRedis{balanceAfter.ToRedis()}
 	economicOperation := &operation.Operation{
 		ID: operationID, TransactionID: reverseID.String(), Type: constant.CREDIT,
@@ -218,29 +224,49 @@ func TestCreateBulkTransactionOperationsAsync_LostAckAfterTerminalCleanupIsReadO
 			ParentTransactionID: &parentID, Status: transaction.Status{Code: constant.CREATED},
 			Operations: []*operation.Operation{economicOperation},
 		},
-		Validate: &mtransaction.Responses{}, AttemptOwner: reverseID.String(),
+		Validate: &mtransaction.Responses{}, Input: &input, AttemptOwner: reverseID.String(),
 		ExpectedOutcome: mmodel.TransactionOutcomeCommitted, RedisGeneration: generation,
 		RevertRolloutMode: rolloutMode, RevertRolloutToken: rolloutToken, Version: "v2",
 		BalancesAfter: []*mmodel.Balance{balanceAfter},
 	}
 	canonical := economicOperation.ToRedis()
 	redisRepo.EXPECT().EnrichTransactionBackup(gomock.Any(), organizationID, ledgerID, reverseID,
-		gomock.Any(), constant.ActionRevert, gomock.Any()).Return([]mmodel.OperationRedis{canonical}, canonicalBalancesAfter, true, nil)
+		gomock.Any(), constant.ActionRevert, gomock.Any()).
+		Return([]mmodel.OperationRedis{canonical}, canonicalBalancesAfter, true, nil).
+		Times(2)
 	transactionRepo.EXPECT().FindWithOperations(gomock.Any(), organizationID, ledgerID, reverseID).
 		Return(&transaction.Transaction{
 			ID: reverseID.String(), OrganizationID: organizationID.String(), LedgerID: ledgerID.String(),
 			ParentTransactionID: &parentID, Status: transaction.Status{Code: approved},
 			Operations: []*operation.Operation{economicOperation},
 		}, nil)
-	claimRepo.EXPECT().Get(gomock.Any(), organizationID, ledgerID, originID).Return(&revertclaim.Claim{
+	legacyHash, err := utils.LegacyTransactionIdempotencyHash(input)
+	require.NoError(t, err)
+	legacyKey := utils.IdempotencyInternalKey(organizationID, ledgerID, legacyHash)
+	legacyOwner := reverseID.String()
+	claim := &revertclaim.Claim{
 		OrganizationID: organizationID, LedgerID: ledgerID, OriginTransactionID: originID,
 		ReverseTransactionID: reverseID, State: revertclaim.StateCompleted,
 		RolloutMode: &rolloutMode, RolloutToken: &rolloutToken, RedisGeneration: &generation,
-	}, nil)
+		LegacyFenceKey: &legacyKey, LegacyFenceOwner: &legacyOwner,
+	}
+	claimRepo.EXPECT().Claim(gomock.Any(), organizationID, ledgerID, originID, reverseID,
+		&legacyKey, &legacyOwner, &rolloutMode, &rolloutToken, &generation).Return(claim, false, nil)
+	claimRepo.EXPECT().Transition(gomock.Any(), organizationID, ledgerID, originID, reverseID,
+		revertclaim.StateCompleted, nil).Return(nil)
+	originKey := utils.IdempotencyInternalKey(organizationID, ledgerID,
+		libCommons.HashSHA256(utils.RevertIdempotencyHashSource(originID)))
+	redisRepo.EXPECT().CompleteOwnedKey(gomock.Any(), originKey, reverseID.String(), gomock.Any(), gomock.Any()).
+		Return(true, nil)
+	redisRepo.EXPECT().CompleteOwnedKey(gomock.Any(), legacyKey, reverseID.String(), gomock.Any(), gomock.Any()).
+		Return(true, nil)
+	redisRepo.EXPECT().FinalizeTransactionPersistence(gomock.Any(), organizationID, ledgerID, reverseID,
+		gomock.Any(), gomock.Any(), gomock.Any()).Return(nil)
+	rollout := &revertRolloutLeaseRecorder{}
 
 	uc := &UseCase{
 		TransactionRepo: transactionRepo, OperationRepo: operationRepo,
-		RevertClaimRepo: claimRepo, TransactionRedisRepo: redisRepo,
+		RevertClaimRepo: claimRepo, TransactionRedisRepo: redisRepo, RevertRolloutLease: rollout,
 	}
 	result, err := uc.CreateBulkTransactionOperationsAsync(context.Background(),
 		[]transaction.TransactionProcessingPayload{payload})

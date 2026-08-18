@@ -272,13 +272,11 @@ func TestCreateBalanceTransactionOperationsAsync(t *testing.T) {
 
 		// Create a transaction queue with the necessary fields
 		transactionQueue := transaction.TransactionProcessingPayload{
-			Transaction:     tran,
-			Validate:        validate,
-			Balances:        balances,
-			Input:           transactionInput,
-			Version:         "v2",
-			AttemptOwner:    "attempt-owner",
-			ExpectedOutcome: mmodel.TransactionOutcomeCommitted,
+			Transaction: tran,
+			Validate:    validate,
+			Balances:    balances,
+			Input:       transactionInput,
+			Version:     "v2",
 		}
 
 		transactionBytes, marshalErr := msgpack.Marshal(transactionQueue)
@@ -320,24 +318,6 @@ func TestCreateBalanceTransactionOperationsAsync(t *testing.T) {
 			RemoveMessageFromQueueIfStatus(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), false).
 			Return(true, nil).
 			AnyTimes()
-
-		// The economic outcome and backup survive transport and are cleared
-		// atomically only after the transaction and all operations are durable.
-		mockTransactionRepo.EXPECT().
-			FindWithOperations(gomock.Any(), organizationID, ledgerID, uuid.MustParse(transactionID)).
-			Return(tran, nil).
-			Times(1)
-		mockRedisRepo.EXPECT().
-			FinalizeTransactionPersistence(gomock.Any(), organizationID, ledgerID, uuid.MustParse(transactionID),
-				mmodel.BalanceExecutionAttempt{
-					ExecutionKey: utils.TransactionBalanceExecutionKey(organizationID, ledgerID, uuid.MustParse(transactionID)),
-					OutcomeKey:   utils.TransactionBalanceOutcomeKey(organizationID, ledgerID, uuid.MustParse(transactionID)),
-					Owner:        "attempt-owner",
-					Outcome:      mmodel.TransactionOutcomeCommitted,
-					Identity:     uuid.MustParse(transactionID),
-				}, gomock.Any()).
-			Return(nil).
-			Times(1)
 
 		// Mock RedisRepo.Del for removing transaction from write-behind cache.
 		mockRedisRepo.EXPECT().
@@ -416,13 +396,11 @@ func TestCreateBalanceTransactionOperationsAsync(t *testing.T) {
 		transactionInput := &mtransaction.Transaction{}
 
 		transactionQueue := transaction.TransactionProcessingPayload{
-			Transaction:     tran,
-			Validate:        validate,
-			Balances:        balances,
-			Input:           transactionInput,
-			Version:         "v2",
-			AttemptOwner:    "attempt-owner",
-			ExpectedOutcome: mmodel.TransactionOutcomeCommitted,
+			Transaction: tran,
+			Validate:    validate,
+			Balances:    balances,
+			Input:       transactionInput,
+			Version:     "v2",
 		}
 
 		transactionBytes, marshalErr := msgpack.Marshal(transactionQueue)
@@ -471,15 +449,6 @@ func TestCreateBalanceTransactionOperationsAsync(t *testing.T) {
 			Del(gomock.Any(), gomock.Any()).
 			Return(nil).
 			AnyTimes()
-		mockTransactionRepo.EXPECT().
-			FindWithOperations(gomock.Any(), organizationID, ledgerID, uuid.MustParse(transactionID)).
-			Return(tran, nil).
-			Times(1)
-		mockRedisRepo.EXPECT().
-			FinalizeTransactionPersistence(gomock.Any(), organizationID, ledgerID, uuid.MustParse(transactionID), gomock.Any(), gomock.Any()).
-			Return(nil).
-			Times(1)
-
 		err := uc.CreateBalanceTransactionOperationsAsync(ctx, queue)
 
 		assert.NoError(t, err) // Duplicate key errors are handled gracefully
@@ -630,13 +599,11 @@ func TestCreateBalanceTransactionOperationsAsync(t *testing.T) {
 
 		// Create a transaction queue with the necessary fields
 		transactionQueue := transaction.TransactionProcessingPayload{
-			Transaction:     tran,
-			Validate:        validate,
-			Balances:        balances,
-			Input:           transactionInput,
-			Version:         "v2",
-			AttemptOwner:    "attempt-owner",
-			ExpectedOutcome: mmodel.TransactionOutcomeCommitted,
+			Transaction: tran,
+			Validate:    validate,
+			Balances:    balances,
+			Input:       transactionInput,
+			Version:     "v2",
 		}
 
 		transactionBytes, marshalErr := msgpack.Marshal(transactionQueue)
@@ -735,15 +702,6 @@ func TestCreateBalanceTransactionOperationsAsync(t *testing.T) {
 			Del(gomock.Any(), gomock.Any()).
 			Return(nil).
 			AnyTimes()
-		mockTransactionRepo.EXPECT().
-			FindWithOperations(gomock.Any(), organizationID, ledgerID, uuid.MustParse(transactionID)).
-			Return(tran, nil).
-			Times(1)
-		mockRedisRepo.EXPECT().
-			FinalizeTransactionPersistence(gomock.Any(), organizationID, ledgerID, uuid.MustParse(transactionID), gomock.Any(), gomock.Any()).
-			Return(nil).
-			Times(1)
-
 		// Call the method
 		err := uc.CreateBalanceTransactionOperationsAsync(ctx, queue)
 

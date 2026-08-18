@@ -95,13 +95,26 @@ before any movement. Commit, cancel, and revert use this same primitive. It is
 also the boundary the later Ledger-to-Tracer dispatcher will consume; this P0
 does not wire that dispatcher.
 
-The backup consumer accepts that outcome only when both balance sets match the
-authoritative queue envelope canonically and without duplicate identities.
+The backup consumer accepts every owner-and-terminal-outcome envelope through
+the same economic preflight, even when the envelope predates financial-dataset
+generation tagging. A generation, when present, adds a witness check; its
+absence never bypasses owner, outcome, identity, operation, or balance proof.
+Both balance sets must match the authoritative queue envelope canonically and
+without duplicate identities.
 Comparison is order-independent and includes balance ID and key, account,
 alias, asset, available, on-hold, version, account type, send/receive flags,
 direction, overdraft used and policy, limit, and balance scope. Decimal spelling
 differences are normalized; an omitted economic field is not silently filled
 from current balance state.
+
+The complete operation-and-balance multiset is sealed in Go as a
+`midaz:transaction-economic-effect:v1` SHA-256 digest. Decimal normalization
+uses the ledger decimal library, never Lua numbers or `float64`; operation and
+balance entries are sorted while duplicates remain in the digest input. Lua
+treats the digest as an opaque exact string. Transaction identity is included
+in every operation entry, while attempt owner, terminal outcome, and dataset
+generation remain explicit envelope fields and are compared alongside the
+digest in the same bind and finalization commands.
 
 The immutable outcome survives the five-minute request lease and asynchronous
 Rabbit/backup delays, crosses the durable-write payload, and is deleted only
@@ -136,7 +149,7 @@ handoff. A lost replay-publication response is accepted only when one same-slot
 read observes both the exact reserved replay and the absence of its owner
 companion; an exact replay with a surviving owner remains reconciliation work.
 Cleanup is another same-slot owner/outcome-checked Lua command that compares the
-complete operation-ID multiset, writes the non-expiring terminal receipt, and
+complete economic operation and balance multisets, writes the non-expiring terminal receipt, and
 only then removes the backup and outcome atomically. The receipt binds the
 dataset generation, transaction identity, owner, terminal outcome, action,
 canonical operation IDs and full economic operation bodies, and Lua-authored
@@ -181,8 +194,8 @@ removal belongs to one of four explicit proof classes:
 | Cleanup class | Atomic deletion proof |
 |---|---|
 | Proven pre-movement failure | Status, attempt owner, expected outcome, and absence of `balancesAfter` all match in one Lua command |
-| Outcome-backed durable persistence | Transaction identity, immutable owner/outcome, terminal backup, and complete operation-ID multiset match; backup and outcome are removed together |
-| Drained old-compatible persistence | Reverse ID, origin ID, terminal status, and the complete persisted operation-ID multiset match; an outcome-backed envelope is rejected; the compatibility receipt is written before the backup is removed |
+| Outcome-backed durable persistence | Transaction identity, immutable owner/outcome, terminal backup, operation identities and complete economic operation and balance bodies match; backup and outcome are removed together |
+| Drained old-compatible persistence | Reverse ID, origin ID, terminal status, complete persisted operation identities, and complete economic operation and balance bodies are present; an outcome-backed or incomplete envelope is rejected; the compatibility receipt is written before the backup is removed |
 | Durable quarantine | The raw bytes copied into PostgreSQL still exactly equal the Redis field; a successor value under the same key is preserved |
 
 The retry-attempt counter is non-economic bookkeeping and is the only direct Go
@@ -238,7 +251,10 @@ existence does not identify the released payload-hash fence, and the current
 mutable origin can never be used to recalculate it. If a drained old-compatible
 backup remains after those PostgreSQL facts and the claim are terminal, final
 mode removes it only through an exact Lua proof of the reserved reverse ID,
-parent origin, compatibility status, and full operation-ID set. That
+parent origin, compatibility status, full operation-ID set, and field-complete
+economic operation and balance snapshots. An incomplete legacy envelope is
+preserved for reconciliation; it is never converted into a terminal receipt or
+treated as proof of successful cleanup. That
 compatibility cleanup never touches an outcome-backed envelope.
 
 ## Failure policy
@@ -257,7 +273,7 @@ compatibility cleanup never touches an outcome-backed envelope.
 | Crash after bridge child persistence and before H1 completion | Durable claim retains the original H1 key; child and every operation exist on primary | Final adoption completes only the persisted H1 key, marks the claim terminal, and owner-checks outcome cleanup; it never recalculates H1 from the origin |
 | Lost response after rollout-generation completion | Durable claim retains the exact `legacy` or `bridge` generation and deterministic origin token; transaction, operations, claim, replays, and Redis economic cleanup are already proven terminal | HTTP or consumer redelivery repeats the same generation seal idempotently; it never releases a generation inferred from the current pod mode |
 | Final adoption sees a foreign H1 collision | The durable claim and child prove this origin; the legacy key explicitly belongs to another owner or replay | Preserve the foreign H1 unchanged, finish the origin-scoped replay, and clean only this reverse's exact outcome/backup |
-| Crash after an old-compatible child is durable but before backup cleanup | Child, all operations, and completed adopted claim exist on PostgreSQL primary; legacy backup has no owner/outcome envelope | Compare reverse, parent, status, and every operation ID in one Lua command, publish an append-only compatibility receipt with the full operations and balance snapshot, then remove only that exact backup |
+| Crash after an old-compatible child is durable but before backup cleanup | Child, all operations, and completed adopted claim exist on PostgreSQL primary; legacy backup has no owner/outcome envelope | Compare reverse, parent, status, every operation ID, and require field-complete economic operation and balance bodies in one Lua command; incomplete evidence stays quarantined; only exact evidence publishes a compatibility receipt and removes the backup |
 | Crash before queue seed | Durable claim names the exact origin, reverse, H1 key, owner, and current dataset generation; one atomic generation-bound read proves backup, execution attempt, and immutable outcome absent | Elect one `RECOVERING` owner, generation-check and owner-release the exact barriers, release PostgreSQL last, and retry; safety comes from Lua requiring the now-absent exact attempt, not from elapsed time |
 | Crash before Lua dispatch | Valid exact-origin queue seed exists without `balancesAfter` or immutable outcome, the exact execution attempt is absent, and the configured/claim/Redis generation still agrees | Elect one `RECOVERING` owner, generation-check and clear Redis barriers/seed, release PostgreSQL last, and retry; the old winner is rejected inside Lua if it resumes |
 | Pre-movement cleanup races a terminal Lua envelope | Status/owner/outcome no longer match the exact seed selected for cleanup | Atomic cleanup removes nothing; preserve all barriers and require reconciliation |
@@ -492,11 +508,13 @@ same Lua admission snapshot as the marker; the financial witness is read before
 admission and checked again atomically by seed, balance, and cleanup Lua in the
 `{transactions}` slot. No Lua spans those two Cluster slots.
 
-Async, sync, bulk, and redelivered consumers copy the generation into the exact
-execution attempt and revalidate the current financial generation, immutable
-outcome, owner, backup identity, action, and canonical operation set in one
-same-slot Redis command before the first PostgreSQL transaction, metadata, or
-operation write. A consumer delayed beyond the request lease, or across a
+Async, sync, bulk, and redelivered consumers classify economic evidence by its
+attempt owner and terminal outcome, not by generation presence. They revalidate
+the immutable outcome, owner, backup identity, action, canonical operation set,
+and full balance snapshot in one same-slot Redis command before the first
+PostgreSQL transaction, metadata, operation, or balance write. When a generation
+is present they additionally validate the current financial generation. A
+consumer delayed beyond the request lease, or across a
 dataset generation change, therefore preserves the backup and rollout token for
 reconciliation instead of materializing an old generation in PostgreSQL.
 

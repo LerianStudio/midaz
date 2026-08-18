@@ -163,17 +163,17 @@ func (mr *MockRedisRepositoryMockRecorder) FinalizeLegacyTransactionPersistence(
 }
 
 // FinalizeTransactionPersistence mocks base method.
-func (m *MockRedisRepository) FinalizeTransactionPersistence(ctx context.Context, organizationID, ledgerID, transactionID uuid.UUID, attempt mmodel.BalanceExecutionAttempt, operationIDs []string) error {
+func (m *MockRedisRepository) FinalizeTransactionPersistence(ctx context.Context, organizationID, ledgerID, transactionID uuid.UUID, attempt mmodel.BalanceExecutionAttempt, operations []mmodel.OperationRedis, balancesAfter []mmodel.BalanceRedis) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "FinalizeTransactionPersistence", ctx, organizationID, ledgerID, transactionID, attempt, operationIDs)
+	ret := m.ctrl.Call(m, "FinalizeTransactionPersistence", ctx, organizationID, ledgerID, transactionID, attempt, operations, balancesAfter)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // FinalizeTransactionPersistence indicates an expected call of FinalizeTransactionPersistence.
-func (mr *MockRedisRepositoryMockRecorder) FinalizeTransactionPersistence(ctx, organizationID, ledgerID, transactionID, attempt, operationIDs any) *gomock.Call {
+func (mr *MockRedisRepositoryMockRecorder) FinalizeTransactionPersistence(ctx, organizationID, ledgerID, transactionID, attempt, operations, balancesAfter any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FinalizeTransactionPersistence", reflect.TypeOf((*MockRedisRepository)(nil).FinalizeTransactionPersistence), ctx, organizationID, ledgerID, transactionID, attempt, operationIDs)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FinalizeTransactionPersistence", reflect.TypeOf((*MockRedisRepository)(nil).FinalizeTransactionPersistence), ctx, organizationID, ledgerID, transactionID, attempt, operations, balancesAfter)
 }
 
 // Get mocks base method.

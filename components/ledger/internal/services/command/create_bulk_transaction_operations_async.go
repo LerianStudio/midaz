@@ -149,9 +149,10 @@ func (uc *UseCase) CreateBulkTransactionOperationsAsync(
 	return result, nil
 }
 
-// preflightDurableBulkPayloads proves every outcome-backed payload against the
-// authoritative Redis generation and terminal envelope before the bulk path is
-// allowed to call any PostgreSQL or balance repository. The canonical operation
+// preflightDurableBulkPayloads proves every outcome-backed payload against its
+// authoritative terminal envelope before the bulk path is allowed to call any
+// PostgreSQL or balance repository. A deployment generation is an additional
+// witness when present, never the switch for this proof. The canonical operation
 // set is adopted here so inserts, updates, duplicates, and fallback all use the
 // same immutable economic snapshot.
 func (uc *UseCase) preflightDurableBulkPayloads(
@@ -161,40 +162,29 @@ func (uc *UseCase) preflightDurableBulkPayloads(
 	pending := make([]transaction.TransactionProcessingPayload, 0, len(payloads))
 	for i := range payloads {
 		payload := &payloads[i]
-		if payload.RedisGeneration == "" {
+		if payload.Transaction == nil {
+			if payload.AttemptOwner != "" || payload.ExpectedOutcome != "" || payload.RedisGeneration != "" {
+				return nil, fmt.Errorf("validate bulk Redis economic outcome: payload %d has nil transaction", i)
+			}
 			pending = append(pending, *payload)
 			continue
-		}
-		if payload.Transaction == nil {
-			return nil, fmt.Errorf("validate bulk Redis economic outcome: payload %d has nil transaction", i)
 		}
 		organizationID, ledgerID, err := uc.extractOrgLedgerIDs(*payload)
 		if err != nil {
 			return nil, fmt.Errorf("validate bulk Redis economic outcome for payload %d: %w", i, err)
 		}
-		transactionID, err := uuid.Parse(payload.Transaction.ID)
-		if err != nil {
-			return nil, fmt.Errorf("validate bulk Redis economic outcome for payload %d: invalid transaction id: %w", i, err)
-		}
-		attempt := &mmodel.BalanceExecutionAttempt{
-			ExecutionKey:    utils.TransactionBalanceExecutionKey(organizationID, ledgerID, transactionID),
-			OutcomeKey:      utils.TransactionBalanceOutcomeKey(organizationID, ledgerID, transactionID),
-			Owner:           payload.AttemptOwner,
-			Outcome:         payload.ExpectedOutcome,
-			Identity:        transactionID,
-			RedisGeneration: payload.RedisGeneration,
-		}
-		canonicalOperations, terminal, err := uc.UpdateTransactionBackupOperations(ctx, organizationID, ledgerID,
-			transactionID, payload.Transaction.Operations, mmodel.BalancesToRedis(payload.BalancesAfter),
-			actionForTransactionPayload(*payload), attempt)
+		outcomeBacked, terminal, err := uc.preflightOutcomeBackedTransaction(ctx, organizationID, ledgerID, payload)
 		if err != nil {
 			return nil, fmt.Errorf("validate bulk Redis economic outcome for transaction %s: %w",
 				payload.Transaction.ID, err)
 		}
-		payload.Transaction.Operations = canonicalOperations
+		if !outcomeBacked {
+			pending = append(pending, *payload)
+			continue
+		}
 		if terminal {
-			if _, err := uc.ProveCompletedDurableReplay(ctx, organizationID, ledgerID, *payload); err != nil {
-				return nil, fmt.Errorf("prove completed bulk transaction replay %s: %w",
+			if _, err := uc.FinalizeDurableTransactionPersistence(ctx, organizationID, ledgerID, *payload); err != nil {
+				return nil, fmt.Errorf("finalize completed bulk transaction replay %s: %w",
 					payload.Transaction.ID, err)
 			}
 			continue

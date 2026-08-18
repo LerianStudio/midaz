@@ -51,11 +51,13 @@ func TestTransactionBackupDeletionRequiresAtomicProof(t *testing.T) {
 	allowed := map[string][]string{
 		"finalize_legacy_transaction_persistence.lua": {
 			"parent_transaction_id", "operations", "balancesAfter",
-			"TRANSACTION_PERSISTENCE_TOMBSTONE_MISSING", `redis.call("SET", KEYS[3]`, "HDEL",
+			"economic_effect_digest", "TRANSACTION_PERSISTENCE_TOMBSTONE_MISSING",
+			`redis.call("SET", KEYS[3]`, "HDEL",
 		},
 		"finalize_transaction_persistence.lua": {
 			"attempt_owner", "expected_outcome", "balancesAfter",
-			"TRANSACTION_PERSISTENCE_TOMBSTONE_MISSING", `redis.call("SET", KEYS[4]`, "HDEL",
+			"economic_effect_digest", "TRANSACTION_PERSISTENCE_TOMBSTONE_MISSING",
+			`redis.call("SET", KEYS[4]`, "HDEL",
 		},
 		"remove_transaction_backup_if_status.lua": {"attempt_owner", "expected_outcome", "balancesAfter", "HDEL"},
 		"remove_transaction_backup_if_value.lua":  {"raw ~= ARGV[1]", "HDEL"},
@@ -86,6 +88,24 @@ func TestTransactionBackupDeletionRequiresAtomicProof(t *testing.T) {
 	}
 }
 
+func TestTerminalEconomicProofUsesOpaqueDigestInsteadOfLuaNumbers(t *testing.T) {
+	t.Parallel()
+
+	scriptDirectory := filepath.Clean(filepath.Join("..", "..", "redis", "transaction", "scripts"))
+	for _, name := range []string{
+		"bind_transaction_economic_digest.lua",
+		"bind_legacy_transaction_economic_digest.lua",
+		"finalize_transaction_persistence.lua",
+		"finalize_legacy_transaction_persistence.lua",
+	} {
+		source, err := os.ReadFile(filepath.Join(scriptDirectory, name))
+		require.NoError(t, err)
+		assert.Contains(t, string(source), "economic_effect_digest")
+		assert.NotContains(t, string(source), "tonumber",
+			"terminal money proof must never compare decimals through Lua doubles: %s", name)
+	}
+}
+
 func TestEveryPersistenceConsumerUsesOneTerminalHandoff(t *testing.T) {
 	t.Parallel()
 
@@ -96,7 +116,8 @@ func TestEveryPersistenceConsumerUsesOneTerminalHandoff(t *testing.T) {
 	require.NoError(t, err)
 
 	individualCalls := callsInFunction(t, individual, "CreateBalanceTransactionOperationsAsync")
-	require.Len(t, individualCalls["FinalizeDurableTransactionPersistence"], 1)
+	require.Len(t, individualCalls["FinalizeDurableTransactionPersistence"], 2,
+		"normal persistence and terminal lost-ack replay must both use the same complete handoff")
 	assert.Empty(t, individualCalls["FinalizeTransactionPersistence"],
 		"the individual consumer cannot implement a partial terminal handoff")
 	assert.Empty(t, individualCalls["CompleteRevertClaim"],
@@ -108,6 +129,26 @@ func TestEveryPersistenceConsumerUsesOneTerminalHandoff(t *testing.T) {
 		"the bulk consumer cannot implement a partial terminal handoff")
 	assert.Empty(t, bulkCalls["CompleteRevertClaim"],
 		"the bulk consumer cannot complete a claim outside the shared handoff")
+}
+
+func TestOutcomeBackedPreflightCannotBeGatedByRedisGeneration(t *testing.T) {
+	t.Parallel()
+
+	commandDirectory := filepath.Clean(filepath.Join("..", "..", "..", "services", "command"))
+	individual, err := os.ReadFile(filepath.Join(commandDirectory, "create_balance_transaction_operations_async.go"))
+	require.NoError(t, err)
+	bulk, err := os.ReadFile(filepath.Join(commandDirectory, "create_bulk_transaction_operations_async.go"))
+	require.NoError(t, err)
+	finalizer, err := os.ReadFile(filepath.Join(commandDirectory, "finalize_transaction_persistence.go"))
+	require.NoError(t, err)
+
+	require.Len(t, callsInFunction(t, individual, "CreateBalanceTransactionOperationsAsync")["preflightOutcomeBackedTransaction"], 1)
+	require.Len(t, callsInFunction(t, bulk, "preflightDurableBulkPayloads")["preflightOutcomeBackedTransaction"], 1)
+	require.Len(t, callsInFunction(t, finalizer, "FinalizeDurableTransactionPersistence")["preflightOutcomeBackedTransaction"], 1)
+	assert.NotContains(t, string(individual), `if t.RedisGeneration != ""`,
+		"outcome-backed individual persistence cannot skip economic proof when generation is absent")
+	assert.NotContains(t, string(bulk), `if payload.RedisGeneration == ""`,
+		"outcome-backed bulk persistence cannot classify economic proof from generation alone")
 }
 
 func TestHTTPAdoptionUsesTheSameTerminalHandoffOrder(t *testing.T) {

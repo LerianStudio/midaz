@@ -794,36 +794,38 @@ type BalanceExecutionOutcome struct {
 // outcome, canonical operations, and after-balances without treating missing
 // hot-store evidence as a successful replay.
 type TransactionPersistenceTombstone struct {
-	Identity            uuid.UUID        `json:"identity"`
-	ParentTransactionID string           `json:"parent_transaction_id"`
-	Outcome             string           `json:"outcome"`
-	Owner               string           `json:"owner"`
-	RedisGeneration     string           `json:"redis_generation"`
-	TransactionStatus   string           `json:"transaction_status"`
-	Action              string           `json:"action"`
-	Operations          []OperationRedis `json:"operations"`
-	BalancesAfter       []BalanceRedis   `json:"balancesAfter"`
+	Identity             uuid.UUID        `json:"identity"`
+	ParentTransactionID  string           `json:"parent_transaction_id"`
+	Outcome              string           `json:"outcome"`
+	Owner                string           `json:"owner"`
+	RedisGeneration      string           `json:"redis_generation"`
+	TransactionStatus    string           `json:"transaction_status"`
+	Action               string           `json:"action"`
+	Operations           []OperationRedis `json:"operations"`
+	BalancesAfter        []BalanceRedis   `json:"balancesAfter"`
+	EconomicEffectDigest string           `json:"economic_effect_digest"`
 }
 
 // TransactionRedisQueue represents a transaction queue for cache-aside
 type TransactionRedisQueue struct {
-	HeaderID            string                   `json:"header_id"`
-	TransactionID       uuid.UUID                `json:"transaction_id"`
-	ParentTransactionID *uuid.UUID               `json:"parent_transaction_id,omitempty"`
-	OrganizationID      uuid.UUID                `json:"organization_id"`
-	LedgerID            uuid.UUID                `json:"ledger_id"`
-	Balances            []BalanceRedis           `json:"balances"`
-	BalancesAfter       []BalanceRedis           `json:"balancesAfter,omitempty"`
-	TransactionInput    mtransaction.Transaction `json:"parserDSL"`
-	TTL                 time.Time                `json:"ttl"`
-	Validate            *mtransaction.Responses  `json:"validate"`
-	TransactionStatus   string                   `json:"transaction_status"`
-	Action              string                   `json:"action,omitempty"`
-	AttemptOwner        string                   `json:"attempt_owner,omitempty"`
-	ExpectedOutcome     string                   `json:"expected_outcome,omitempty"`
-	RevertRolloutMode   string                   `json:"revert_rollout_mode,omitempty"`
-	RevertRolloutToken  string                   `json:"revert_rollout_token,omitempty"`
-	RedisGeneration     string                   `json:"redis_generation,omitempty"`
-	TransactionDate     time.Time                `json:"transaction_date"`
-	Operations          []OperationRedis         `json:"operations,omitempty"`
+	HeaderID             string                   `json:"header_id"`
+	TransactionID        uuid.UUID                `json:"transaction_id"`
+	ParentTransactionID  *uuid.UUID               `json:"parent_transaction_id,omitempty"`
+	OrganizationID       uuid.UUID                `json:"organization_id"`
+	LedgerID             uuid.UUID                `json:"ledger_id"`
+	Balances             []BalanceRedis           `json:"balances"`
+	BalancesAfter        []BalanceRedis           `json:"balancesAfter,omitempty"`
+	TransactionInput     mtransaction.Transaction `json:"parserDSL"`
+	TTL                  time.Time                `json:"ttl"`
+	Validate             *mtransaction.Responses  `json:"validate"`
+	TransactionStatus    string                   `json:"transaction_status"`
+	Action               string                   `json:"action,omitempty"`
+	AttemptOwner         string                   `json:"attempt_owner,omitempty"`
+	ExpectedOutcome      string                   `json:"expected_outcome,omitempty"`
+	RevertRolloutMode    string                   `json:"revert_rollout_mode,omitempty"`
+	RevertRolloutToken   string                   `json:"revert_rollout_token,omitempty"`
+	RedisGeneration      string                   `json:"redis_generation,omitempty"`
+	TransactionDate      time.Time                `json:"transaction_date"`
+	Operations           []OperationRedis         `json:"operations,omitempty"`
+	EconomicEffectDigest string                   `json:"economic_effect_digest,omitempty"`
 }

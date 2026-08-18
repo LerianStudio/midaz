@@ -22,7 +22,13 @@ if tombstoneRaw then
     if ARGV[6] ~= "" and tombstone.action ~= ARGV[6] then
         return redis.error_reply("TRANSACTION_PERSISTENCE_TOMBSTONE_ACTION_MISMATCH")
     end
-    return cjson.encode({terminal = true, operations = tombstone.operations, balancesAfter = tombstone.balancesAfter})
+    return cjson.encode({
+        terminal = true,
+        operations = tombstone.operations,
+        balancesAfter = tombstone.balancesAfter,
+        economicEffectDigest = tombstone.economic_effect_digest or "",
+        raw = tombstoneRaw
+    })
 end
 
 if not backup then
@@ -71,7 +77,14 @@ if envelope.operations == nil then
     if ARGV[6] ~= "" and envelope.action == nil then
         envelope.action = ARGV[6]
     end
-    redis.call("HSET", KEYS[1], KEYS[2], cjson.encode(envelope))
+    backup = cjson.encode(envelope)
+    redis.call("HSET", KEYS[1], KEYS[2], backup)
 end
 
-return cjson.encode({terminal = false, operations = envelope.operations, balancesAfter = envelope.balancesAfter or {}})
+return cjson.encode({
+    terminal = false,
+    operations = envelope.operations,
+    balancesAfter = envelope.balancesAfter or {},
+    economicEffectDigest = envelope.economic_effect_digest or "",
+    raw = backup
+})

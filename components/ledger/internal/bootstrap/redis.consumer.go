@@ -707,14 +707,15 @@ func (r *RedisQueueConsumer) processMessage(ctx context.Context, key, rawPayload
 	if terminalReplay {
 		payload := postgreTransaction.TransactionProcessingPayload{
 			Transaction: tran, Input: &m.TransactionInput, Validate: m.Validate,
-			AttemptOwner: m.AttemptOwner, ExpectedOutcome: m.ExpectedOutcome,
+			BalancesAfter: balancesAfter,
+			AttemptOwner:  m.AttemptOwner, ExpectedOutcome: m.ExpectedOutcome,
 			RevertRolloutMode: m.RevertRolloutMode, RevertRolloutToken: m.RevertRolloutToken,
 			RedisGeneration: m.RedisGeneration,
 		}
-		if _, replayErr := r.TransactionHandler.Command.ProveCompletedDurableReplay(
+		if _, replayErr := r.TransactionHandler.Command.FinalizeDurableTransactionPersistence(
 			msgCtxWithSpan, m.OrganizationID, m.LedgerID, payload); replayErr != nil {
-			libOpentelemetry.HandleSpanError(msgSpan, "Failed to prove terminal backup replay", replayErr)
-			logger.Log(ctx, libLog.LevelError, "Failed to prove terminal backup replay",
+			libOpentelemetry.HandleSpanError(msgSpan, "Failed to finalize terminal backup replay", replayErr)
+			logger.Log(ctx, libLog.LevelError, "Failed to finalize terminal backup replay",
 				libLog.String("transaction_id", m.TransactionID.String()), libLog.Err(replayErr))
 
 			return

@@ -129,7 +129,8 @@ func arrangeReplayedRevert(t *testing.T, ctrl *gomock.Controller) (*TransactionH
 
 	originIDStr := subjects.originID.String()
 	operationID := uuid.NewString()
-	balanceID := uuid.NewString()
+	economicOperation, balanceAfter := completeRevertEconomicOperation(
+		subjects.orgID, subjects.ledgerID, subjects.reverseID, operationID)
 	cachedReverse := &transaction.Transaction{
 		ID:                  subjects.reverseID.String(),
 		OrganizationID:      subjects.orgID.String(),
@@ -139,11 +140,7 @@ func arrangeReplayedRevert(t *testing.T, ctrl *gomock.Controller) (*TransactionH
 		AssetCode:           "USD",
 		Amount:              &amount,
 		Status:              transaction.Status{Code: cn.APPROVED},
-		Operations: []*operation.Operation{{
-			ID: operationID, TransactionID: subjects.reverseID.String(), BalanceID: balanceID,
-			BalanceKey: "default", AccountID: uuid.NewString(), AssetCode: "USD",
-			Direction: "credit", Type: "CREDIT", BalanceAffected: true,
-		}},
+		Operations:          []*operation.Operation{economicOperation},
 	}
 
 	transactionRepo := transaction.NewMockRepository(ctrl)
@@ -197,12 +194,9 @@ func arrangeReplayedRevert(t *testing.T, ctrl *gomock.Controller) (*TransactionH
 	redisRepo.EXPECT().
 		EnrichTransactionBackup(gomock.Any(), subjects.orgID, subjects.ledgerID, subjects.reverseID,
 			gomock.Any(), cn.ActionRevert, gomock.Any()).
-		Return([]mmodel.OperationRedis{cachedReverse.Operations[0].ToRedis()}, []mmodel.BalanceRedis{{
-			ID: balanceID, Key: "default", AccountID: cachedReverse.Operations[0].AccountID,
-			AssetCode: "USD", AccountType: "asset", Direction: "credit", OverdraftUsed: "0",
-			OverdraftLimit: "0", BalanceScope: mmodel.BalanceScopeTransactional,
-		}}, true, nil).
-		Times(1)
+		Return([]mmodel.OperationRedis{cachedReverse.Operations[0].ToRedis()},
+			[]mmodel.BalanceRedis{balanceAfter.ToRedis()}, true, nil).
+		Times(2)
 	receiptRaw, err := json.Marshal(mmodel.TransactionPersistenceTombstone{
 		Identity: subjects.reverseID, ParentTransactionID: subjects.originID.String(),
 		Owner: subjects.reverseID.String(), Outcome: mmodel.TransactionOutcomeCommitted,
@@ -222,7 +216,7 @@ func arrangeReplayedRevert(t *testing.T, ctrl *gomock.Controller) (*TransactionH
 				Outcome:         mmodel.TransactionOutcomeCommitted,
 				Identity:        subjects.reverseID,
 				RedisGeneration: redisGeneration,
-			}, gomock.Any()).
+			}, gomock.Any(), gomock.Any()).
 		Return(nil).
 		Times(1)
 

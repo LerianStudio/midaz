@@ -583,13 +583,30 @@ func (handler *TransactionHandler) finalizeOutcomeBackedRevertPersistence(
 		attempt.RedisGeneration = *claim.RedisGeneration
 	}
 
-	operationIDs, err := persistedTransactionOperationIDs(persisted)
+	if persisted == nil || len(persisted.Operations) == 0 {
+		return fmt.Errorf("persisted reverse operations are required")
+	}
+	redisOperations := make([]mmodel.OperationRedis, 0, len(persisted.Operations))
+	for _, persistedOperation := range persisted.Operations {
+		if persistedOperation == nil {
+			return fmt.Errorf("persisted reverse operation is required")
+		}
+		redisOperations = append(redisOperations, persistedOperation.ToRedis())
+	}
+	canonicalOperations, balancesAfter, _, err := handler.Command.TransactionRedisRepo.EnrichTransactionBackup(
+		ctx, claim.OrganizationID, claim.LedgerID, claim.ReverseTransactionID,
+		redisOperations, constant.ActionRevert, &attempt)
 	if err != nil {
-		return err
+		return fmt.Errorf("preflight reverse economic evidence for cleanup: %w", err)
+	}
+	if !canonicalRedisOperationsMatchPersisted(claim.ReverseTransactionID, canonicalOperations, persisted.Operations) ||
+		!mmodel.RedisBalanceSetEconomicComplete(balancesAfter) {
+		return fmt.Errorf("reverse cleanup economic evidence is incomplete or divergent")
 	}
 
 	return handler.Command.TransactionRedisRepo.FinalizeTransactionPersistence(ctx,
-		claim.OrganizationID, claim.LedgerID, claim.ReverseTransactionID, attempt, operationIDs)
+		claim.OrganizationID, claim.LedgerID, claim.ReverseTransactionID, attempt,
+		canonicalOperations, balancesAfter)
 }
 
 func persistedTransactionOperationIDs(persisted *transaction.Transaction) ([]string, error) {
@@ -668,6 +685,37 @@ func queuedOperationBalanceMatchesPersisted(queued mmodel.OperationRedis, persis
 	return persisted != nil && operation.RedisEconomicEffectEqual(queued, persisted.ToRedis())
 }
 
+func canonicalRedisOperationsMatchPersisted(
+	transactionID uuid.UUID,
+	canonical []mmodel.OperationRedis,
+	persisted []*operation.Operation,
+) bool {
+	if len(canonical) == 0 || len(canonical) != len(persisted) {
+		return false
+	}
+	persistedByID := make(map[string]*operation.Operation, len(persisted))
+	for _, persistedOperation := range persisted {
+		if persistedOperation == nil || persistedOperation.ID == "" {
+			return false
+		}
+		if _, duplicate := persistedByID[persistedOperation.ID]; duplicate {
+			return false
+		}
+		persistedByID[persistedOperation.ID] = persistedOperation
+	}
+	for _, canonicalOperation := range canonical {
+		persistedOperation, ok := persistedByID[canonicalOperation.ID]
+		if !ok || canonicalOperation.TransactionID != transactionID.String() ||
+			!mmodel.RedisOperationEconomicComplete(canonicalOperation) ||
+			!queuedOperationBalanceMatchesPersisted(canonicalOperation, persistedOperation) {
+			return false
+		}
+		delete(persistedByID, canonicalOperation.ID)
+	}
+
+	return len(persistedByID) == 0
+}
+
 func (handler *TransactionHandler) terminalReverseReceiptMatches(
 	ctx context.Context,
 	claim *revertclaim.Claim,
@@ -722,23 +770,8 @@ func (handler *TransactionHandler) terminalReverseReceiptMatches(
 		return false
 	}
 
-	persistedByID := make(map[string]*operation.Operation, len(persisted.Operations))
-	for _, persistedOperation := range persisted.Operations {
-		if _, duplicate := persistedByID[persistedOperation.ID]; duplicate {
-			return false
-		}
-		persistedByID[persistedOperation.ID] = persistedOperation
-	}
-	for _, canonicalOperation := range canonicalOperations {
-		persistedOperation, ok := persistedByID[canonicalOperation.ID]
-		if !ok || canonicalOperation.TransactionID != claim.ReverseTransactionID.String() ||
-			!queuedOperationBalanceMatchesPersisted(canonicalOperation, persistedOperation) {
-			return false
-		}
-		delete(persistedByID, canonicalOperation.ID)
-	}
-
-	return len(persistedByID) == 0
+	return canonicalRedisOperationsMatchPersisted(claim.ReverseTransactionID, canonicalOperations,
+		persisted.Operations)
 }
 
 func (handler *TransactionHandler) readTransactionPersistenceTombstone(
