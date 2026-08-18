@@ -23,6 +23,7 @@ import (
 	"os"
 	"strconv"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -46,6 +47,52 @@ func envOr(key, def string) string {
 // stack (first transaction after boot) can be slow.
 var httpClient = &http.Client{Timeout: 30 * time.Second}
 
+var e2eRunID = envOr("E2E_RUN_ID", uuid.NewString())
+
+var (
+	ledgerE2EWorkerLimit = ledgerE2EWorkerLimitFrom(os.Getenv("E2E_LEDGER_WORKERS"))
+	ledgerE2EWorkers     = make(chan struct{}, ledgerE2EWorkerLimit)
+	ledgerE2EActive      atomic.Int64
+	ledgerE2EMaxActive   atomic.Int64
+)
+
+func ledgerE2EWorkerLimitFrom(raw string) int {
+	if raw == "" {
+		return 4
+	}
+
+	workers, err := strconv.Atoi(raw)
+	if err != nil || workers < 1 {
+		return 4
+	}
+
+	return workers
+}
+
+func parallelLedgerE2E(t *testing.T) {
+	t.Helper()
+	t.Parallel()
+
+	ledgerE2EWorkers <- struct{}{}
+	active := ledgerE2EActive.Add(1)
+
+	for {
+		maximum := ledgerE2EMaxActive.Load()
+		if active <= maximum || ledgerE2EMaxActive.CompareAndSwap(maximum, active) {
+			break
+		}
+	}
+
+	t.Cleanup(func() {
+		ledgerE2EActive.Add(-1)
+		<-ledgerE2EWorkers
+	})
+}
+
+func e2eIdentity(prefix string) string {
+	return prefix + "-" + e2eRunID + "-" + uuid.NewString()
+}
+
 // TestMain turns the live-stack preflight into a hard gate only when the
 // mandatory runner explicitly opts in. The default remains developer-friendly:
 // individual tests retain their existing skip behavior against a down stack.
@@ -60,7 +107,10 @@ func TestMain(m *testing.M) {
 		fmt.Fprintf(os.Stderr, "required e2e preflight passed: ledger=%s tracer=%s\n", ledgerURL(), tracerURL())
 	}
 
-	os.Exit(m.Run())
+	code := m.Run()
+	fmt.Fprintf(os.Stderr, "ledger e2e metrics: run_id=%s worker_limit=%d max_workers=%d\n",
+		e2eRunID, ledgerE2EWorkerLimit, ledgerE2EMaxActive.Load())
+	os.Exit(code)
 }
 
 func e2eRequired() bool {
@@ -224,9 +274,9 @@ func createOrg(t *testing.T) string {
 	t.Helper()
 
 	org := mustCreate(t, ledgerURL()+"/v1/organizations", map[string]any{
-		"legalName":       "E2E Org " + uuid.NewString()[:8],
-		"legalDocument":   "123456789012345",
-		"doingBusinessAs": "E2E",
+		"legalName":       e2eIdentity("E2E Org"),
+		"legalDocument":   e2eIdentity("E2E-document"),
+		"doingBusinessAs": e2eIdentity("E2E"),
 	})
 
 	return str(t, org, "id")
@@ -238,7 +288,7 @@ func createOrg(t *testing.T) string {
 func createLedger(t *testing.T, orgID string, allowSkips bool) string {
 	t.Helper()
 
-	body := map[string]any{"name": "E2E Ledger " + uuid.NewString()[:8]}
+	body := map[string]any{"name": e2eIdentity("E2E Ledger")}
 	if allowSkips {
 		body["settings"] = map[string]any{
 			"accounting": map[string]any{"requireHolder": false},
@@ -285,8 +335,8 @@ func createHolder(t *testing.T, orgID string) string {
 	t.Helper()
 
 	h := mustCreate(t, fmt.Sprintf("%s/v2/organizations/%s/holders", ledgerURL(), orgID), map[string]any{
-		"type": "NATURAL_PERSON", "name": "Jane Doe", "document": "91315026015",
-		"externalId": "E2E-" + uuid.NewString()[:8],
+		"type": "NATURAL_PERSON", "name": "Jane Doe", "document": e2eIdentity("E2E-document"),
+		"externalId": e2eIdentity("E2E-holder"),
 	})
 
 	return str(t, h, "id")
@@ -421,7 +471,7 @@ func fund(t *testing.T, f fixture, alias, value string) {
 // when non-nil, is attached verbatim (e.g. {"fees": false}).
 func transferBody(from, to, value string, skip map[string]any) map[string]any {
 	body := map[string]any{
-		"description": "xfer " + uuid.NewString()[:8],
+		"description": "xfer " + uuid.NewString(),
 		"send": map[string]any{
 			"asset": "USD", "value": value,
 			"source":     map[string]any{"from": []any{map[string]any{"accountAlias": from, "amount": map[string]any{"asset": "USD", "value": value}}}},

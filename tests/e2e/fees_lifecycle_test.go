@@ -168,7 +168,7 @@ func feelifecycleTransfer(t *testing.T, f fixture, from, to, value, route string
 	}
 
 	body := map[string]any{
-		"description": "xfer " + uuid.NewString()[:8],
+		"description": "xfer " + uuid.NewString(),
 		"send":        send,
 	}
 	if route != "" {

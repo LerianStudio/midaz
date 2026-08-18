@@ -210,8 +210,8 @@ func TestAuthAuthorizedUnderMidazNamespace(t *testing.T) {
 
 	url := ledgerURL() + "/v2/organizations/" + org + "/holders"
 	r := authCall(t, http.MethodPost, url, token, map[string]any{
-		"type": "NATURAL_PERSON", "name": "Auth Probe", "document": "91315026015",
-		"externalId": "E2E-AUTH-PROBE",
+		"type": "NATURAL_PERSON", "name": "Auth Probe", "document": e2eIdentity("E2E-auth-document"),
+		"externalId": e2eIdentity("E2E-auth-probe"),
 	})
 
 	// Hard assertion: auth must not reject an approved token. The exact 2xx body

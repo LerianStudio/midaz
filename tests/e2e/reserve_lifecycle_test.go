@@ -75,8 +75,8 @@ func trlcSeedPendingTransfer(t *testing.T, maxLimit, value string) (fixture, str
 
 	f := newEnforceFixture(t, "open")
 
-	src := createAccount(t, f, "trlc-src-"+uuid.NewString()[:8])
-	dst := createAccount(t, f, "trlc-dst-"+uuid.NewString()[:8])
+	src := createAccount(t, f, "trlc-src-"+uuid.NewString())
+	dst := createAccount(t, f, "trlc-dst-"+uuid.NewString())
 
 	// Cap the source account with a counter-backed limit; an in-limit PENDING
 	// transfer must create a reservation under it.
@@ -185,8 +185,8 @@ func TestReserveLifecycleRevertConfirmsParent(t *testing.T) {
 
 	f := newEnforceFixture(t, "open")
 
-	src := createAccount(t, f, "trlc-rev-src-"+uuid.NewString()[:8])
-	dst := createAccount(t, f, "trlc-rev-dst-"+uuid.NewString()[:8])
+	src := createAccount(t, f, "trlc-rev-src-"+uuid.NewString())
+	dst := createAccount(t, f, "trlc-rev-dst-"+uuid.NewString())
 
 	seedCapacityLimitRule(t, f, "1000", map[string]any{"accountId": accountIDByAlias(t, f, src)})
 	fund(t, f, src, "1000")
@@ -290,7 +290,7 @@ func TestReserveLifecycleTransactionTupleNoDoubleHold(t *testing.T) {
 	// nothing to dedup. The fixture is enforce(fail-open) only to reuse the
 	// limit-seeding helpers; this test drives the tracer directly.
 	f := newEnforceFixture(t, "open")
-	src := createAccount(t, f, "trlc-rid-src-"+uuid.NewString()[:8])
+	src := createAccount(t, f, "trlc-rid-src-"+uuid.NewString())
 	accID := accountIDByAlias(t, f, src)
 	seedCapacityLimitRule(t, f, "1000", map[string]any{"accountId": accID})
 

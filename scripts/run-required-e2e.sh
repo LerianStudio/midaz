@@ -18,10 +18,11 @@ run_tests() {
 
   export E2E_REQUIRED=1
   export E2E_STREAMING=${E2E_STREAMING:-1}
+  export E2E_LEDGER_WORKERS=${E2E_LEDGER_WORKERS:-4}
   export LEDGER_URL=${LEDGER_URL:-http://localhost:3002}
   export TRACER_URL=${TRACER_URL:-http://localhost:4020}
 
-  go_args=(-tags=e2e -v -count=1 "-timeout=$go_timeout")
+  go_args=(-tags=e2e -v -count=1 "-parallel=$E2E_LEDGER_WORKERS" "-timeout=$go_timeout")
   if [[ -n ${GO_TEST_LDFLAGS:-} ]]; then
     read -r -a extra_go_args <<< "$GO_TEST_LDFLAGS"
     go_args+=("${extra_go_args[@]}")

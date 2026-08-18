@@ -63,8 +63,8 @@ func TestTracerEnforceDenial(t *testing.T) {
 
 	f := newEnforceFixture(t, "open")
 
-	src := createAccount(t, f, "tden-src-"+uuid.NewString()[:8])
-	dst := createAccount(t, f, "tden-dst-"+uuid.NewString()[:8])
+	src := createAccount(t, f, "tden-src-"+uuid.NewString())
+	dst := createAccount(t, f, "tden-dst-"+uuid.NewString())
 
 	// Cap the SOURCE account at 50. A source-scoped limit matches a plain JSON
 	// transfer because the reserve carries account.accountId = first source
@@ -176,8 +176,8 @@ func TestTracerFailPostureOpen(t *testing.T) {
 
 	f := newEnforceFixture(t, "open")
 
-	src := createAccount(t, f, "tden-fpo-src-"+uuid.NewString()[:8])
-	dst := createAccount(t, f, "tden-fpo-dst-"+uuid.NewString()[:8])
+	src := createAccount(t, f, "tden-fpo-src-"+uuid.NewString())
+	dst := createAccount(t, f, "tden-fpo-dst-"+uuid.NewString())
 
 	fund(t, f, src, "500")
 	balanceBefore := availableBalance(t, f, src)
@@ -219,7 +219,7 @@ func TestTracerFailPostureClosed(t *testing.T) {
 
 	f := newEnforceFixture(t, "closed")
 
-	dst := createAccount(t, f, "tden-fpc-dst-"+uuid.NewString()[:8])
+	dst := createAccount(t, f, "tden-fpc-dst-"+uuid.NewString())
 
 	// The inflow is the simplest reservation-gated transaction and needs no prior
 	// funded balance: on a fail-closed ledger with the gate unreachable, the

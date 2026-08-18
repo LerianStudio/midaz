@@ -65,7 +65,7 @@ func seedTypedLimitRule(t *testing.T, f fixture, limitType, maxAmount string, sc
 	}
 
 	created := mustCreate(t, tracerURL()+"/v1/limits", map[string]any{
-		"name":      "E2E Limit " + uuid.NewString()[:8],
+		"name":      "E2E Limit " + uuid.NewString(),
 		"limitType": limitType,
 		"maxAmount": maxAmount,
 		"currency":  "USD",
@@ -102,7 +102,7 @@ func trxCreateEnforceLedger(t *testing.T, orgID, failPosture string) string {
 	t.Helper()
 
 	body := map[string]any{
-		"name": "E2E Enforce Ledger " + uuid.NewString()[:8],
+		"name": "E2E Enforce Ledger " + uuid.NewString(),
 		"settings": map[string]any{
 			"accounting": map[string]any{"requireHolder": false},
 			"tracer":     map[string]any{"mode": "enforce", "failPosture": failPosture, "timeoutMs": 250},
@@ -192,8 +192,8 @@ func requireTracerWired(t *testing.T) {
 	trxWiredOnce.Do(func() {
 		f := newEnforceFixture(t, "open")
 
-		src := createAccount(t, f, "trx-probe-src-"+uuid.NewString()[:8])
-		dst := createAccount(t, f, "trx-probe-dst-"+uuid.NewString()[:8])
+		src := createAccount(t, f, "trx-probe-src-"+uuid.NewString())
+		dst := createAccount(t, f, "trx-probe-dst-"+uuid.NewString())
 
 		// Cap the source account at 1; fund it well above the over-limit amount so
 		// the ONLY gate that can reject the "100" transfer is the tracer reserve.
@@ -238,9 +238,9 @@ func TestTracerWiredSmoke(t *testing.T) {
 
 	f := newEnforceFixture(t, "open")
 
-	alias := "trx-smoke-" + uuid.NewString()[:8]
+	alias := "trx-smoke-" + uuid.NewString()
 	src := createAccount(t, f, alias)
-	dst := createAccount(t, f, "trx-smoke-dst-"+uuid.NewString()[:8])
+	dst := createAccount(t, f, "trx-smoke-dst-"+uuid.NewString())
 
 	// Cap of 1000 on the source account; an in-limit transfer of 100 must pass.
 	seedLimitRule(t, f, "1000", map[string]any{"accountId": accountIDByAlias(t, f, src)})

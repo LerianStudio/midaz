@@ -30,6 +30,16 @@ func TestE2ERequired(t *testing.T) {
 	if !e2eRequired() {
 		t.Fatal("E2E_REQUIRED=1 must enable the mandatory gate")
 	}
+
+	if got := ledgerE2EWorkerLimitFrom(""); got != 4 {
+		t.Fatalf("default Ledger E2E worker limit = %d, want 4", got)
+	}
+	if got := ledgerE2EWorkerLimitFrom("2"); got != 2 {
+		t.Fatalf("configured Ledger E2E worker limit = %d, want 2", got)
+	}
+	if got := ledgerE2EWorkerLimitFrom("invalid"); got != 4 {
+		t.Fatalf("invalid Ledger E2E worker limit = %d, want safe default 4", got)
+	}
 }
 
 func TestCheckRequiredStack(t *testing.T) {

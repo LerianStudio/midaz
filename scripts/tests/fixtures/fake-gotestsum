@@ -9,6 +9,7 @@ set -euo pipefail
 
 json_file=
 junit_file=
+saw_parallel=0
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --jsonfile)
@@ -18,6 +19,10 @@ while [[ $# -gt 0 ]]; do
     --junitfile)
       junit_file=$2
       shift 2
+      ;;
+    -parallel=4)
+      saw_parallel=1
+      shift
       ;;
     *)
       shift
@@ -32,6 +37,10 @@ fi
 if [[ ${E2E_STREAMING:-} != 1 ]]; then
   echo "E2E_STREAMING was not passed to gotestsum" >&2
   exit 10
+fi
+if [[ ${E2E_LEDGER_WORKERS:-} != 4 || $saw_parallel -ne 1 ]]; then
+  echo "required E2E did not enforce the initial four-worker bound" >&2
+  exit 11
 fi
 
 printf '<testsuite name="fake"/>\n' > "$junit_file"

@@ -61,9 +61,9 @@ func TestFeeTracer_AdditiveFeeCrossesLimit(t *testing.T) {
 
 	f := newEnforceFixture(t, "open")
 
-	src := createAccount(t, f, "ftrx-add-src-"+uuid.NewString()[:8])
-	dst := createAccount(t, f, "ftrx-add-dst-"+uuid.NewString()[:8])
-	feeAcct := createAccount(t, f, "ftrx-add-fee-"+uuid.NewString()[:8])
+	src := createAccount(t, f, "ftrx-add-src-"+uuid.NewString())
+	dst := createAccount(t, f, "ftrx-add-dst-"+uuid.NewString())
+	feeAcct := createAccount(t, f, "ftrx-add-fee-"+uuid.NewString())
 
 	ftrxFundAbove(t, f, src)
 
@@ -115,9 +115,9 @@ func TestFeeTracer_DeductibleFeeDoesNotInflateReserve(t *testing.T) {
 
 	f := newEnforceFixture(t, "open")
 
-	src := createAccount(t, f, "ftrx-ded-src-"+uuid.NewString()[:8])
-	dst := createAccount(t, f, "ftrx-ded-dst-"+uuid.NewString()[:8])
-	feeAcct := createAccount(t, f, "ftrx-ded-fee-"+uuid.NewString()[:8])
+	src := createAccount(t, f, "ftrx-ded-src-"+uuid.NewString())
+	dst := createAccount(t, f, "ftrx-ded-dst-"+uuid.NewString())
+	feeAcct := createAccount(t, f, "ftrx-ded-fee-"+uuid.NewString())
 
 	ftrxFundAbove(t, f, src)
 

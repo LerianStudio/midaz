@@ -70,7 +70,7 @@ func crmCreateHolder(t *testing.T, orgID, name string) string {
 
 	h := mustCreate(t, fmt.Sprintf("%s/v2/organizations/%s/holders", ledgerURL(), orgID), map[string]any{
 		"type": "NATURAL_PERSON", "name": name, "document": crmValidCPF(),
-		"externalId": "E2E-CRM-" + uuid.NewString()[:8],
+		"externalId": "E2E-CRM-" + uuid.NewString(),
 	})
 
 	return str(t, h, "id")
@@ -101,7 +101,7 @@ func crmFixtureRequiringHolder(t *testing.T, allowHolderSkip bool) fixture {
 	f := fixture{orgID: createOrg(t)}
 
 	led := mustCreate(t, fmt.Sprintf("%s/v1/organizations/%s/ledgers", ledgerURL(), f.orgID), map[string]any{
-		"name":     "E2E RequireHolder " + uuid.NewString()[:8],
+		"name":     "E2E RequireHolder " + uuid.NewString(),
 		"settings": crmCompleteSettings(true, allowHolderSkip),
 	})
 	f.ledgerID = str(t, led, "id")
@@ -292,7 +292,7 @@ func TestRequireHolderTwoKey(t *testing.T) {
 	t.Run("require false + no holder id derives self-holder", func(t *testing.T) {
 		f := fixture{orgID: createOrg(t)}
 		led := mustCreate(t, fmt.Sprintf("%s/v1/organizations/%s/ledgers", ledgerURL(), f.orgID), map[string]any{
-			"name":     "E2E NoRequireHolder " + uuid.NewString()[:8],
+			"name":     "E2E NoRequireHolder " + uuid.NewString(),
 			"settings": crmCompleteSettings(false, false),
 		})
 		f.ledgerID = str(t, led, "id")
@@ -323,8 +323,8 @@ func TestInstrumentReferential(t *testing.T) {
 	// Two ledgers in one org so a cross-ledger reference can be exercised.
 	orgID := createOrg(t)
 
-	ledgerA := mustCreate(t, fmt.Sprintf("%s/v1/organizations/%s/ledgers", ledgerURL(), orgID), map[string]any{"name": "LedgerA " + uuid.NewString()[:8]})
-	ledgerB := mustCreate(t, fmt.Sprintf("%s/v1/organizations/%s/ledgers", ledgerURL(), orgID), map[string]any{"name": "LedgerB " + uuid.NewString()[:8]})
+	ledgerA := mustCreate(t, fmt.Sprintf("%s/v1/organizations/%s/ledgers", ledgerURL(), orgID), map[string]any{"name": "LedgerA " + uuid.NewString()})
+	ledgerB := mustCreate(t, fmt.Sprintf("%s/v1/organizations/%s/ledgers", ledgerURL(), orgID), map[string]any{"name": "LedgerB " + uuid.NewString()})
 	fa := fixture{orgID: orgID, ledgerID: str(t, ledgerA, "id")}
 	fb := fixture{orgID: orgID, ledgerID: str(t, ledgerB, "id")}
 	createAsset(t, fa, "USD")
@@ -394,7 +394,7 @@ func TestCompositionAtomicity(t *testing.T) {
 	f := newFixture(t, false)
 	holderID := crmCreateHolder(t, f.orgID, "Composition Holder")
 
-	alias := "@composition_orphan_" + uuid.NewString()[:8]
+	alias := "@composition_orphan_" + uuid.NewString()
 
 	// An invalid relatedParty role makes the instrument leg fail (ValidateRelatedParties)
 	// AFTER the account leg has already committed inside the composition service.
@@ -462,7 +462,7 @@ func TestHolderDeleteIntegrity(t *testing.T) {
 	t.Run("delete holder owning an account is blocked", func(t *testing.T) {
 		holderID := crmCreateHolder(t, f.orgID, "Account-Only Holder")
 
-		alias := "@del_acct_" + uuid.NewString()[:8]
+		alias := "@del_acct_" + uuid.NewString()
 		// Holder-owned account with NO instrument fields (account-only composition).
 		env := mustCreate(t, fmt.Sprintf("%s/v2/organizations/%s/ledgers/%s/holders/%s/accounts", ledgerURL(), f.orgID, f.ledgerID, holderID), map[string]any{
 			"assetCode": "USD", "type": "deposit", "alias": alias,
@@ -503,7 +503,7 @@ func TestHolderDeleteIntegrity(t *testing.T) {
 
 	t.Run("delete holder owning an instrument is blocked", func(t *testing.T) {
 		holderID := crmCreateHolder(t, f.orgID, "Instrument Holder")
-		accID := accountID(t, f, "@inst_owner_"+uuid.NewString()[:8])
+		accID := accountID(t, f, "@inst_owner_"+uuid.NewString())
 
 		inst := createInstrument(t, f.orgID, f.ledgerID, holderID, accID)
 		instID := str(t, inst, "id")

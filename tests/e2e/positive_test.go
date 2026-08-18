@@ -14,6 +14,7 @@ import (
 // TestPendingCommit holds a pending transaction (funds reserved, not settled),
 // then commits it and proves the balance settles only on commit.
 func TestPendingCommit(t *testing.T) {
+	parallelLedgerE2E(t)
 	requireStack(t)
 
 	f := newFixture(t, false)
@@ -50,6 +51,7 @@ func TestPendingCommit(t *testing.T) {
 
 // TestPendingCancel holds then cancels a pending transaction; the funds never move.
 func TestPendingCancel(t *testing.T) {
+	parallelLedgerE2E(t)
 	requireStack(t)
 
 	f := newFixture(t, false)
@@ -76,6 +78,7 @@ func TestPendingCancel(t *testing.T) {
 // TestRevert reverses a settled transaction and proves balances return to their
 // pre-transfer state, with the reverse transaction linked to its parent.
 func TestRevert(t *testing.T) {
+	parallelLedgerE2E(t)
 	requireStack(t)
 
 	f := newFixture(t, false)
@@ -109,6 +112,7 @@ func TestRevert(t *testing.T) {
 // idempotency on a hash of the body, so the second call must replay the first
 // (same transaction id) and must NOT double-debit.
 func TestIdempotencyReplay(t *testing.T) {
+	parallelLedgerE2E(t)
 	requireStack(t)
 
 	f := newFixture(t, false)
@@ -142,6 +146,7 @@ func TestIdempotencyReplay(t *testing.T) {
 // TestPercentageFee proves the percentage fee model: a 10% fee on a 100 transfer
 // charges 10, so the source pays 110 and the fee account receives 10.
 func TestPercentageFee(t *testing.T) {
+	parallelLedgerE2E(t)
 	requireStack(t)
 
 	f := newFixture(t, false)
@@ -164,6 +169,7 @@ func TestPercentageFee(t *testing.T) {
 // TestInstrumentLinking creates a holder, a ledger account, then a CRM instrument
 // binding the account to the holder.
 func TestInstrumentLinking(t *testing.T) {
+	parallelLedgerE2E(t)
 	requireStack(t)
 
 	f := newFixture(t, false)
