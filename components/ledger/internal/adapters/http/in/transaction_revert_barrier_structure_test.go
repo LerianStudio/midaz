@@ -151,6 +151,88 @@ func TestOutcomeBackedPreflightCannotBeGatedByRedisGeneration(t *testing.T) {
 		"outcome-backed bulk persistence cannot classify economic proof from generation alone")
 }
 
+func TestTransactionEffectModeCrossesBackupAndEveryPersistenceEvent(t *testing.T) {
+	t.Parallel()
+
+	commandDirectory := filepath.Clean(filepath.Join("..", "..", "..", "services", "command"))
+	backupProducer, err := os.ReadFile(filepath.Join(commandDirectory, "create_balance_transaction_operations_async.go"))
+	require.NoError(t, err)
+	backupBody := functionBody(t, backupProducer, "SendTransactionToRedisQueue")
+	for _, field := range []string{"EffectModeVersion", "EffectMode", "OperationTypeOverride"} {
+		assert.Contains(t, backupBody, field, "every new backup must persist %s before enqueue", field)
+	}
+
+	eventProducer, err := os.ReadFile(filepath.Join(commandDirectory, "write_transaction.go"))
+	require.NoError(t, err)
+	for _, function := range []string{"WriteTransactionAsync", "WriteTransactionSync"} {
+		body := functionBody(t, eventProducer, function)
+		for _, field := range []string{"EffectModeVersion", "EffectMode", "OperationTypeOverride"} {
+			assert.Contains(t, body, field, "%s must carry %s across persistence transport", function, field)
+		}
+	}
+
+	preflight, err := os.ReadFile(filepath.Join(commandDirectory, "transaction_outcome_preflight.go"))
+	require.NoError(t, err)
+	preflightBody := functionBody(t, preflight, "preflightOutcomeBackedTransaction")
+	assert.Contains(t, preflightBody, "validateProcessingPayloadEffectMode",
+		"all individual, fallback, and bulk persistence paths must validate the effect discriminator before writes")
+	assert.Contains(t, preflightBody, "effectMode == mmodel.TransactionEffectAnnotationOnly",
+		"annotation events must be classified independently of a balance outcome")
+	assert.Contains(t, preflightBody, "!annotationBacked",
+		"annotation redelivery cannot return before adopting the backup's single-assignment operation identities")
+}
+
+func TestEveryTransactionPersistencePayloadDeclaresEffectMode(t *testing.T) {
+	t.Parallel()
+
+	repositoryRoot := filepath.Clean(filepath.Join("..", "..", "..", "..", "..", ".."))
+	ledgerRoot := filepath.Join(repositoryRoot, "components", "ledger")
+	err := filepath.WalkDir(ledgerRoot, func(path string, entry os.DirEntry, walkErr error) error {
+		require.NoError(t, walkErr)
+		if entry.IsDir() || filepath.Ext(path) != ".go" || strings.HasSuffix(path, "_test.go") ||
+			strings.HasSuffix(path, "_mock.go") {
+			return nil
+		}
+
+		source, readErr := os.ReadFile(path)
+		require.NoError(t, readErr)
+		fset := token.NewFileSet()
+		file, parseErr := parser.ParseFile(fset, path, source, 0)
+		require.NoError(t, parseErr)
+		ast.Inspect(file, func(node ast.Node) bool {
+			literal, ok := node.(*ast.CompositeLit)
+			if !ok {
+				return true
+			}
+			selector, ok := literal.Type.(*ast.SelectorExpr)
+			if !ok || selector.Sel.Name != "TransactionProcessingPayload" {
+				return true
+			}
+
+			fields := make(map[string]struct{}, len(literal.Elts))
+			for _, element := range literal.Elts {
+				keyed, ok := element.(*ast.KeyValueExpr)
+				if !ok {
+					continue
+				}
+				field, ok := keyed.Key.(*ast.Ident)
+				if ok {
+					fields[field.Name] = struct{}{}
+				}
+			}
+			for _, required := range []string{"EffectModeVersion", "EffectMode", "OperationTypeOverride"} {
+				assert.Contains(t, fields, required,
+					"new persistence payload at %s must declare %s explicitly", fset.Position(literal.Pos()), required)
+			}
+
+			return true
+		})
+
+		return nil
+	})
+	require.NoError(t, err)
+}
+
 func TestHTTPAdoptionUsesTheSameTerminalHandoffOrder(t *testing.T) {
 	t.Parallel()
 
@@ -314,6 +396,26 @@ func callsInFunction(t *testing.T, source []byte, function string) map[string][]
 	})
 
 	return calls
+}
+
+func functionBody(t *testing.T, source []byte, function string) string {
+	t.Helper()
+
+	fset := token.NewFileSet()
+	file, err := parser.ParseFile(fset, "source.go", source, 0)
+	require.NoError(t, err)
+
+	for _, declaration := range file.Decls {
+		fn, ok := declaration.(*ast.FuncDecl)
+		if !ok || fn.Name.Name != function {
+			continue
+		}
+
+		return string(source[fset.Position(fn.Body.Pos()).Offset:fset.Position(fn.Body.End()).Offset])
+	}
+
+	require.FailNow(t, "function not found", "function %s not found", function)
+	return ""
 }
 
 func callsGuardedBy(t *testing.T, source []byte, function, guard string) []map[string]struct{} {

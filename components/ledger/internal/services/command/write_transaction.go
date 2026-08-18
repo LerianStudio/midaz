@@ -16,6 +16,7 @@ import (
 	"github.com/vmihailenco/msgpack/v5"
 
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/transaction"
+	"github.com/LerianStudio/midaz/v4/pkg/constant"
 	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v4/pkg/mtransaction"
 	"github.com/LerianStudio/midaz/v4/pkg/utils"
@@ -51,16 +52,20 @@ func (uc *UseCase) WriteTransactionAsync(ctx context.Context, organizationID, le
 
 	queueData := make([]mmodel.QueueData, 0, 1)
 
+	effectMode, eventBalances, eventBalancesAfter := transactionEventEffect(tran, blc, blcAfter)
 	value := transaction.TransactionProcessingPayload{
-		Validate:           validate,
-		Balances:           blc,
-		BalancesAfter:      blcAfter,
-		Transaction:        tran,
-		Input:              transactionInput,
-		Version:            "v2",
-		RevertRolloutMode:  tran.RevertRolloutMode,
-		RevertRolloutToken: tran.RevertRolloutToken,
-		RedisGeneration:    tran.RedisGeneration,
+		Validate:              validate,
+		Balances:              eventBalances,
+		BalancesAfter:         eventBalancesAfter,
+		Transaction:           tran,
+		Input:                 transactionInput,
+		Version:               "v2",
+		EffectModeVersion:     mmodel.TransactionEffectModeVersion,
+		EffectMode:            effectMode,
+		OperationTypeOverride: transactionOperationTypeOverride(transactionInput),
+		RevertRolloutMode:     tran.RevertRolloutMode,
+		RevertRolloutToken:    tran.RevertRolloutToken,
+		RedisGeneration:       tran.RedisGeneration,
 	}
 	applyExecutionAttemptToPayload(&value, attempts)
 
@@ -130,16 +135,20 @@ func (uc *UseCase) WriteTransactionSync(ctx context.Context, organizationID, led
 
 	queueData := make([]mmodel.QueueData, 0, 1)
 
+	effectMode, eventBalances, eventBalancesAfter := transactionEventEffect(tran, blc, blcAfter)
 	value := transaction.TransactionProcessingPayload{
-		Validate:           validate,
-		Balances:           blc,
-		BalancesAfter:      blcAfter,
-		Transaction:        tran,
-		Input:              transactionInput,
-		Version:            "v2",
-		RevertRolloutMode:  tran.RevertRolloutMode,
-		RevertRolloutToken: tran.RevertRolloutToken,
-		RedisGeneration:    tran.RedisGeneration,
+		Validate:              validate,
+		Balances:              eventBalances,
+		BalancesAfter:         eventBalancesAfter,
+		Transaction:           tran,
+		Input:                 transactionInput,
+		Version:               "v2",
+		EffectModeVersion:     mmodel.TransactionEffectModeVersion,
+		EffectMode:            effectMode,
+		OperationTypeOverride: transactionOperationTypeOverride(transactionInput),
+		RevertRolloutMode:     tran.RevertRolloutMode,
+		RevertRolloutToken:    tran.RevertRolloutToken,
+		RedisGeneration:       tran.RedisGeneration,
 	}
 	applyExecutionAttemptToPayload(&value, attempts)
 
@@ -173,6 +182,25 @@ func (uc *UseCase) WriteTransactionSync(ctx context.Context, organizationID, led
 	}
 
 	return nil
+}
+
+func transactionEventEffect(
+	tran *transaction.Transaction,
+	balances, balancesAfter []*mmodel.Balance,
+) (mmodel.TransactionEffectMode, []*mmodel.Balance, []*mmodel.Balance) {
+	if tran != nil && tran.Status.Code == constant.NOTED {
+		return mmodel.TransactionEffectAnnotationOnly, nil, nil
+	}
+
+	return mmodel.TransactionEffectBalanceMutation, balances, balancesAfter
+}
+
+func transactionOperationTypeOverride(transactionInput *mtransaction.Transaction) string {
+	if transactionInput == nil {
+		return ""
+	}
+
+	return transactionInput.OperationTypeOverride
 }
 
 func applyExecutionAttemptToPayload(payload *transaction.TransactionProcessingPayload, attempts []*mmodel.BalanceExecutionAttempt) {

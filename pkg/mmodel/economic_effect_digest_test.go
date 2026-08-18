@@ -96,6 +96,36 @@ func TestRedisEconomicEffectDigest_RejectsMalformedDecimals(t *testing.T) {
 	require.Error(t, err)
 }
 
+func TestRedisAnnotationEffectDigest_SeparateDomainAndDuplicatePreserving(t *testing.T) {
+	t.Parallel()
+
+	first := completeDigestOperation("annotation-1", "1000.0", "-0")
+	first.BalanceAffected = false
+	first.BalanceAvailable = decimal.Zero
+	first.BalanceOnHold = decimal.Zero
+	first.BalanceVersion = 0
+	first.BalanceAfterAvailable = decimal.Zero
+	first.BalanceAfterOnHold = decimal.Zero
+	first.BalanceAfterVersion = 0
+	second := first
+	second.ID = "annotation-2"
+
+	ordered, err := RedisAnnotationEffectDigest([]OperationRedis{first, second, first})
+	require.NoError(t, err)
+	reordered, err := RedisAnnotationEffectDigest([]OperationRedis{first, first, second})
+	require.NoError(t, err)
+	assert.Equal(t, ordered, reordered)
+	withoutDuplicate, err := RedisAnnotationEffectDigest([]OperationRedis{first, second})
+	require.NoError(t, err)
+	assert.NotEqual(t, ordered, withoutDuplicate)
+
+	economic, err := RedisEconomicEffectDigest([]OperationRedis{first}, []BalanceRedis{completeDigestBalance("balance", "0", "0")})
+	require.NoError(t, err)
+	annotation, err := RedisAnnotationEffectDigest([]OperationRedis{first})
+	require.NoError(t, err)
+	assert.NotEqual(t, economic, annotation)
+}
+
 func completeDigestOperation(id, amount, overdraft string) OperationRedis {
 	return OperationRedis{
 		ID: id, TransactionID: "transaction", BalanceID: "balance", BalanceKey: "default",

@@ -244,6 +244,244 @@ func TestFinalizeDurableTransactionPersistence_OutcomeWithoutGenerationRejectsNo
 	require.ErrorContains(t, err, "outcome is not terminal")
 }
 
+func TestCreateBalanceTransactionOperationsAsync_AnnotationRejectsFinancialEvidenceBeforeWrites(t *testing.T) {
+	t.Parallel()
+
+	for _, test := range []struct {
+		name   string
+		mutate func(*transaction.TransactionProcessingPayload)
+	}{
+		{name: "balance mutation", mutate: func(payload *transaction.TransactionProcessingPayload) {
+			payload.Transaction.Operations[0].BalanceAffected = true
+		}},
+		{name: "nonzero operation amount", mutate: func(payload *transaction.TransactionProcessingPayload) {
+			value := decimal.NewFromInt(1000)
+			payload.Transaction.Operations[0].Amount.Value = &value
+		}},
+		{name: "balance evidence", mutate: func(payload *transaction.TransactionProcessingPayload) {
+			payload.Balances = []*mmodel.Balance{{ID: uuid.NewString()}}
+		}},
+		{name: "outcome owner", mutate: func(payload *transaction.TransactionProcessingPayload) {
+			payload.AttemptOwner = uuid.NewString()
+			payload.ExpectedOutcome = mmodel.TransactionOutcomeCommitted
+		}},
+		{name: "partial discriminator", mutate: func(payload *transaction.TransactionProcessingPayload) {
+			payload.EffectModeVersion = 0
+		}},
+		{name: "unknown discriminator", mutate: func(payload *transaction.TransactionProcessingPayload) {
+			payload.EffectMode = "UNKNOWN"
+		}},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+			organizationID := uuid.New()
+			ledgerID := uuid.New()
+			transactionID := uuid.New()
+			zero := decimal.Zero
+			informationalAmount := decimal.NewFromInt(1000)
+			zeroVersion := int64(0)
+			operationValue := &operation.Operation{
+				ID: uuid.NewString(), TransactionID: transactionID.String(), Type: constant.DEBIT,
+				AssetCode: "USD", Amount: operation.Amount{Value: &zero}, BalanceID: uuid.NewString(),
+				BalanceKey: constant.DefaultBalanceKey, AccountID: uuid.NewString(), AccountAlias: "@annotation",
+				OrganizationID: organizationID.String(), LedgerID: ledgerID.String(), BalanceAffected: false,
+				Direction:    constant.DirectionDebit,
+				Balance:      operation.Balance{Available: &zero, OnHold: &zero, Version: &zeroVersion},
+				BalanceAfter: operation.Balance{Available: &zero, OnHold: &zero, Version: &zeroVersion},
+				Snapshot:     mmodel.OperationSnapshot{OverdraftUsedBefore: "0", OverdraftUsedAfter: "0"},
+			}
+			payload := transaction.TransactionProcessingPayload{
+				Transaction: &transaction.Transaction{
+					ID: transactionID.String(), OrganizationID: organizationID.String(), LedgerID: ledgerID.String(),
+					Amount: &informationalAmount, Status: transaction.Status{Code: constant.NOTED},
+					Operations: []*operation.Operation{operationValue},
+				},
+				Input: &mtransaction.Transaction{Send: mtransaction.Send{Asset: "USD", Value: informationalAmount}},
+				Validate: &mtransaction.Responses{Asset: "USD", From: map[string]mtransaction.Amount{
+					"0#@annotation#default": {
+						Asset: "USD", Value: decimal.NewFromInt(1000), Operation: constant.DEBIT,
+						Direction: constant.DirectionDebit, TransactionType: constant.NOTED,
+					},
+				}},
+				Version:           "v2",
+				EffectModeVersion: mmodel.TransactionEffectModeVersion,
+				EffectMode:        mmodel.TransactionEffectAnnotationOnly,
+			}
+			test.mutate(&payload)
+			raw, err := msgpack.Marshal(payload)
+			require.NoError(t, err)
+
+			err = (&UseCase{}).CreateBalanceTransactionOperationsAsync(context.Background(), mmodel.Queue{
+				OrganizationID: organizationID,
+				LedgerID:       ledgerID,
+				QueueData:      []mmodel.QueueData{{ID: transactionID, Value: raw}},
+			})
+			require.Error(t, err, "annotation evidence must fail before any repository can be called")
+		})
+	}
+}
+
+func TestValidateProcessingPayloadEffectMode_AnnotationPreservesInformationalAmountWithZeroBalanceEffect(t *testing.T) {
+	t.Parallel()
+
+	organizationID := uuid.New()
+	ledgerID := uuid.New()
+	transactionID := uuid.New()
+	informationalAmount := decimal.NewFromInt(1000)
+	zero := decimal.Zero
+	zeroVersion := int64(0)
+	payload := transaction.TransactionProcessingPayload{
+		Transaction: &transaction.Transaction{
+			ID: transactionID.String(), OrganizationID: organizationID.String(), LedgerID: ledgerID.String(),
+			Amount: &informationalAmount, Status: transaction.Status{Code: constant.NOTED},
+			Operations: []*operation.Operation{{
+				ID: uuid.NewString(), TransactionID: transactionID.String(), Type: constant.DEBIT,
+				AssetCode: "USD", Amount: operation.Amount{Value: &zero}, BalanceID: uuid.NewString(),
+				BalanceKey: constant.DefaultBalanceKey, AccountID: uuid.NewString(), AccountAlias: "@annotation",
+				OrganizationID: organizationID.String(), LedgerID: ledgerID.String(), Direction: constant.DirectionDebit,
+				Balance:      operation.Balance{Available: &zero, OnHold: &zero, Version: &zeroVersion},
+				BalanceAfter: operation.Balance{Available: &zero, OnHold: &zero, Version: &zeroVersion},
+				Snapshot:     mmodel.OperationSnapshot{OverdraftUsedBefore: "0", OverdraftUsedAfter: "0"},
+			}},
+		},
+		Input: &mtransaction.Transaction{Send: mtransaction.Send{Asset: "USD", Value: informationalAmount}},
+		Validate: &mtransaction.Responses{Asset: "USD", From: map[string]mtransaction.Amount{
+			"0#@annotation#default": {
+				Asset: "USD", Value: informationalAmount, Operation: constant.DEBIT,
+				Direction: constant.DirectionDebit, TransactionType: constant.NOTED,
+			},
+		}},
+		EffectModeVersion: mmodel.TransactionEffectModeVersion,
+		EffectMode:        mmodel.TransactionEffectAnnotationOnly,
+	}
+
+	mode, err := validateProcessingPayloadEffectMode(organizationID, ledgerID, &payload)
+	require.NoError(t, err)
+	require.Equal(t, mmodel.TransactionEffectAnnotationOnly, mode)
+	require.True(t, payload.Transaction.Amount.Equal(informationalAmount))
+	require.True(t, payload.Transaction.Operations[0].Amount.Value.IsZero())
+
+	divergentAmount := decimal.NewFromInt(999)
+	payload.Transaction.Amount = &divergentAmount
+	_, err = validateProcessingPayloadEffectMode(organizationID, ledgerID, &payload)
+	require.ErrorContains(t, err,
+		"informational amount differs")
+}
+
+func TestPreflightOutcomeBackedTransaction_AnnotationAdoptsOnlyCanonicalOperationIdentity(t *testing.T) {
+	t.Parallel()
+
+	for _, test := range []struct {
+		name      string
+		mutate    func(*mmodel.OperationRedis)
+		wantErr   string
+		wantAdopt bool
+	}{
+		{
+			name: "lost acknowledgement redelivery adopts the single-assignment id",
+			mutate: func(operation *mmodel.OperationRedis) {
+				operation.ID = uuid.NewString()
+			},
+			wantAdopt: true,
+		},
+		{
+			name: "canonical row with a different direction is rejected",
+			mutate: func(operation *mmodel.OperationRedis) {
+				operation.ID = uuid.NewString()
+				operation.Direction = constant.DirectionCredit
+			},
+			wantErr: "operation effect differs",
+		},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
+			ctrl := gomock.NewController(t)
+			redisRepo := transactionredis.NewMockRedisRepository(ctrl)
+			organizationID := uuid.New()
+			ledgerID := uuid.New()
+			transactionID := uuid.New()
+			payload := completeAnnotationPersistencePayload(organizationID, ledgerID, transactionID)
+			candidateID := payload.Transaction.Operations[0].ID
+			canonical := payload.Transaction.Operations[0].ToRedis()
+			test.mutate(&canonical)
+
+			enrichment := redisRepo.EXPECT().EnrichTransactionBackup(gomock.Any(), organizationID, ledgerID, transactionID,
+				gomock.Any(), constant.ActionDirect, nil).
+				Return([]mmodel.OperationRedis{canonical}, nil, false, nil)
+			if test.wantAdopt {
+				enrichment.Times(2)
+			}
+			uc := &UseCase{TransactionRedisRepo: redisRepo}
+
+			outcomeBacked, terminal, err := uc.preflightOutcomeBackedTransaction(
+				context.Background(), organizationID, ledgerID, &payload,
+			)
+			require.False(t, outcomeBacked)
+			require.False(t, terminal)
+			if test.wantErr != "" {
+				require.ErrorContains(t, err, test.wantErr)
+				require.Equal(t, candidateID, payload.Transaction.Operations[0].ID)
+
+				return
+			}
+			require.NoError(t, err)
+			if test.wantAdopt {
+				require.NotEqual(t, candidateID, canonical.ID)
+				require.Equal(t, canonical.ID, payload.Transaction.Operations[0].ID)
+
+				redeliveredOperation := *payload.Transaction.Operations[0]
+				redeliveredOperation.ID = uuid.NewString()
+				redeliveredTransaction := *payload.Transaction
+				redeliveredTransaction.Operations = []*operation.Operation{&redeliveredOperation}
+				redelivered := payload
+				redelivered.Transaction = &redeliveredTransaction
+				outcomeBacked, terminal, err = uc.preflightOutcomeBackedTransaction(
+					context.Background(), organizationID, ledgerID, &redelivered,
+				)
+				require.NoError(t, err)
+				require.False(t, outcomeBacked)
+				require.False(t, terminal)
+				require.Equal(t, canonical.ID, redelivered.Transaction.Operations[0].ID)
+			}
+		})
+	}
+}
+
+func completeAnnotationPersistencePayload(
+	organizationID, ledgerID, transactionID uuid.UUID,
+) transaction.TransactionProcessingPayload {
+	informationalAmount := decimal.NewFromInt(1000)
+	zero := decimal.Zero
+	zeroVersion := int64(0)
+
+	return transaction.TransactionProcessingPayload{
+		Transaction: &transaction.Transaction{
+			ID: transactionID.String(), OrganizationID: organizationID.String(), LedgerID: ledgerID.String(),
+			Amount: &informationalAmount, Status: transaction.Status{Code: constant.NOTED},
+			Operations: []*operation.Operation{{
+				ID: uuid.NewString(), TransactionID: transactionID.String(), Type: constant.DEBIT,
+				AssetCode: "USD", Amount: operation.Amount{Value: &zero}, BalanceID: uuid.NewString(),
+				BalanceKey: constant.DefaultBalanceKey, AccountID: uuid.NewString(), AccountAlias: "@annotation",
+				OrganizationID: organizationID.String(), LedgerID: ledgerID.String(), Direction: constant.DirectionDebit,
+				Balance:      operation.Balance{Available: &zero, OnHold: &zero, Version: &zeroVersion},
+				BalanceAfter: operation.Balance{Available: &zero, OnHold: &zero, Version: &zeroVersion},
+				Snapshot:     mmodel.OperationSnapshot{OverdraftUsedBefore: "0", OverdraftUsedAfter: "0"},
+			}},
+		},
+		Input: &mtransaction.Transaction{Send: mtransaction.Send{Asset: "USD", Value: informationalAmount}},
+		Validate: &mtransaction.Responses{Asset: "USD", From: map[string]mtransaction.Amount{
+			"0#@annotation#default": {
+				Asset: "USD", Value: informationalAmount, Operation: constant.DEBIT,
+				Direction: constant.DirectionDebit, TransactionType: constant.NOTED,
+			},
+		}},
+		Version:           "v2",
+		EffectModeVersion: mmodel.TransactionEffectModeVersion,
+		EffectMode:        mmodel.TransactionEffectAnnotationOnly,
+	}
+}
+
 func completeOutcomeEvidence(
 	organizationID, ledgerID, transactionID uuid.UUID,
 ) (*operation.Operation, *mmodel.Balance) {

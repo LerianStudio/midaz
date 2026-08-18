@@ -105,6 +105,105 @@ func TestValidateRedisTransactionEconomicEffect_BindsSemanticsToImmutableBalance
 		"globally valid debit/credit labels cannot be swapped across immutable source and destination balances")
 }
 
+func TestValidateRedisTransactionEconomicEffect_UsesDurableOperationTypeOverride(t *testing.T) {
+	t.Parallel()
+
+	envelope, operation := exactEconomicProofFixture(t)
+	envelope.EffectModeVersion = TransactionEffectModeVersion
+	envelope.EffectMode = TransactionEffectBalanceMutation
+	envelope.OperationTypeOverride = constant.BLOCK
+	operation.Type = constant.BLOCK
+	require.NoError(t, ValidateRedisTransactionEconomicEffect(envelope, []OperationRedis{operation}))
+
+	envelope.OperationTypeOverride = ""
+	assert.Error(t, ValidateRedisTransactionEconomicEffect(envelope, []OperationRedis{operation}),
+		"the typed operation must be backed by the queue-only durable discriminator")
+}
+
+func TestValidateRedisTransactionAnnotationEffect_ProvesNoBalanceMutationFromImmutableInput(t *testing.T) {
+	t.Parallel()
+
+	envelope, operation := exactEconomicProofFixture(t)
+	envelope.Balances = nil
+	envelope.BalancesAfter = nil
+	envelope.TransactionStatus = constant.NOTED
+	envelope.EffectModeVersion = TransactionEffectModeVersion
+	envelope.EffectMode = TransactionEffectAnnotationOnly
+	operation.BalanceAffected = false
+	operation.AmountValue = decimal.Zero
+	operation.BalanceAvailable = decimal.Zero
+	operation.BalanceOnHold = decimal.Zero
+	operation.BalanceVersion = 0
+	operation.BalanceAfterAvailable = decimal.Zero
+	operation.BalanceAfterOnHold = decimal.Zero
+	operation.BalanceAfterVersion = 0
+
+	require.NoError(t, ValidateRedisTransactionAnnotationEffect(envelope, []OperationRedis{operation}))
+
+	tests := []struct {
+		name   string
+		mutate func(*TransactionRedisQueue, *OperationRedis)
+	}{
+		{name: "amount", mutate: func(_ *TransactionRedisQueue, op *OperationRedis) {
+			op.AmountValue = decimal.NewFromInt(1)
+		}},
+		{name: "direction", mutate: func(_ *TransactionRedisQueue, op *OperationRedis) { op.Direction = constant.DirectionCredit }},
+		{name: "type", mutate: func(_ *TransactionRedisQueue, op *OperationRedis) { op.Type = constant.CREDIT }},
+		{name: "balance affected", mutate: func(_ *TransactionRedisQueue, op *OperationRedis) { op.BalanceAffected = true }},
+		{name: "balance delta", mutate: func(_ *TransactionRedisQueue, op *OperationRedis) { op.BalanceAfterAvailable = decimal.NewFromInt(1) }},
+		{name: "balance version", mutate: func(_ *TransactionRedisQueue, op *OperationRedis) { op.BalanceAfterVersion = 1 }},
+		{name: "outcome owner", mutate: func(queue *TransactionRedisQueue, _ *OperationRedis) { queue.AttemptOwner = "malicious-owner" }},
+		{name: "outcome", mutate: func(queue *TransactionRedisQueue, _ *OperationRedis) {
+			queue.ExpectedOutcome = TransactionOutcomeCommitted
+		}},
+		{name: "balance evidence", mutate: func(queue *TransactionRedisQueue, _ *OperationRedis) {
+			queue.Balances = []BalanceRedis{{ID: uuid.NewString()}}
+		}},
+		{name: "wrong mode", mutate: func(queue *TransactionRedisQueue, _ *OperationRedis) {
+			queue.EffectMode = TransactionEffectBalanceMutation
+		}},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			candidateQueue := *envelope
+			candidate := operation
+			test.mutate(&candidateQueue, &candidate)
+			assert.Error(t, ValidateRedisTransactionAnnotationEffect(&candidateQueue, []OperationRedis{candidate}))
+		})
+	}
+}
+
+func TestResolveTransactionEffectMode_ExplicitVersionedCompatibility(t *testing.T) {
+	t.Parallel()
+
+	for _, test := range []struct {
+		name    string
+		queue   TransactionRedisQueue
+		want    TransactionEffectMode
+		wantErr bool
+	}{
+		{name: "new balance mutation", queue: TransactionRedisQueue{EffectModeVersion: 1, EffectMode: TransactionEffectBalanceMutation}, want: TransactionEffectBalanceMutation},
+		{name: "new annotation", queue: TransactionRedisQueue{EffectModeVersion: 1, EffectMode: TransactionEffectAnnotationOnly, TransactionStatus: constant.NOTED}, want: TransactionEffectAnnotationOnly},
+		{name: "legacy noted", queue: TransactionRedisQueue{TransactionStatus: constant.NOTED}, want: TransactionEffectAnnotationOnly},
+		{name: "legacy movement", queue: TransactionRedisQueue{TransactionStatus: constant.CREATED}, want: TransactionEffectBalanceMutation},
+		{name: "partial mode", queue: TransactionRedisQueue{EffectMode: TransactionEffectAnnotationOnly, TransactionStatus: constant.NOTED}, wantErr: true},
+		{name: "partial version", queue: TransactionRedisQueue{EffectModeVersion: 1, TransactionStatus: constant.NOTED}, wantErr: true},
+		{name: "unknown version", queue: TransactionRedisQueue{EffectModeVersion: 2, EffectMode: TransactionEffectAnnotationOnly, TransactionStatus: constant.NOTED}, wantErr: true},
+		{name: "unknown mode", queue: TransactionRedisQueue{EffectModeVersion: 1, EffectMode: "UNKNOWN", TransactionStatus: constant.NOTED}, wantErr: true},
+		{name: "annotation mode on created", queue: TransactionRedisQueue{EffectModeVersion: 1, EffectMode: TransactionEffectAnnotationOnly, TransactionStatus: constant.CREATED}, wantErr: true},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			got, err := ResolveTransactionEffectMode(&test.queue)
+			if test.wantErr {
+				require.Error(t, err)
+				return
+			}
+			require.NoError(t, err)
+			assert.Equal(t, test.want, got)
+		})
+	}
+}
+
 func exactEconomicProofFixture(t *testing.T) (*TransactionRedisQueue, OperationRedis) {
 	t.Helper()
 

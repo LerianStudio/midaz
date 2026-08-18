@@ -460,6 +460,14 @@ type TransactionProcessingPayload struct {
 	AttemptOwner    string `json:"attemptOwner,omitempty" msgpack:"AttemptOwner,omitempty"`
 	ExpectedOutcome string `json:"expectedOutcome,omitempty" msgpack:"ExpectedOutcome,omitempty"`
 
+	// EffectModeVersion and EffectMode distinguish balance mutations from
+	// annotation-only audit rows across backup and RabbitMQ redelivery. The
+	// operation override is carried separately because TransactionInput keeps
+	// the internal field out of public JSON/msgpack contracts.
+	EffectModeVersion     int                          `json:"effectModeVersion,omitempty" msgpack:"EffectModeVersion,omitempty"`
+	EffectMode            mmodel.TransactionEffectMode `json:"effectMode,omitempty" msgpack:"EffectMode,omitempty"`
+	OperationTypeOverride string                       `json:"operationTypeOverride,omitempty" msgpack:"OperationTypeOverride,omitempty"`
+
 	// RevertRolloutMode and RevertRolloutToken keep the exact generation's
 	// admission fenced until the terminal handoff proves PostgreSQL and cleans
 	// Redis.

@@ -17,6 +17,7 @@ import (
 
 const economicEffectDigestVersion = 1
 const economicEffectDigestDomain = "midaz:transaction-economic-effect:v1\x00"
+const annotationEffectDigestDomain = "midaz:transaction-annotation-effect:v1\x00"
 
 type canonicalRedisOperationEffect struct {
 	ID                    string `json:"id"`
@@ -72,34 +73,9 @@ func RedisEconomicEffectDigest(operations []OperationRedis, balances []BalanceRe
 		return "", fmt.Errorf("complete economic operations and balances are required")
 	}
 
-	canonicalOperations := make([]json.RawMessage, 0, len(operations))
-	for _, operation := range operations {
-		if !RedisOperationEconomicComplete(operation) {
-			return "", fmt.Errorf("economic operation %q is incomplete", operation.ID)
-		}
-		beforeOverdraft, err := canonicalEconomicDecimal(operation.Snapshot.OverdraftUsedBefore)
-		if err != nil {
-			return "", fmt.Errorf("canonicalize operation %q before overdraft: %w", operation.ID, err)
-		}
-		afterOverdraft, err := canonicalEconomicDecimal(operation.Snapshot.OverdraftUsedAfter)
-		if err != nil {
-			return "", fmt.Errorf("canonicalize operation %q after overdraft: %w", operation.ID, err)
-		}
-		encoded, err := json.Marshal(canonicalRedisOperationEffect{
-			ID: operation.ID, TransactionID: operation.TransactionID, BalanceID: operation.BalanceID,
-			BalanceKey: operation.BalanceKey, AccountID: operation.AccountID,
-			OrganizationID: operation.OrganizationID, LedgerID: operation.LedgerID,
-			Type: operation.Type, Direction: operation.Direction, AssetCode: operation.AssetCode,
-			BalanceAffected: operation.BalanceAffected, AmountValue: operation.AmountValue.String(),
-			BalanceAvailable: operation.BalanceAvailable.String(), BalanceOnHold: operation.BalanceOnHold.String(),
-			BalanceVersion: operation.BalanceVersion, BalanceAfterAvailable: operation.BalanceAfterAvailable.String(),
-			BalanceAfterOnHold: operation.BalanceAfterOnHold.String(), BalanceAfterVersion: operation.BalanceAfterVersion,
-			OverdraftUsedBefore: beforeOverdraft, OverdraftUsedAfter: afterOverdraft,
-		})
-		if err != nil {
-			return "", fmt.Errorf("encode canonical economic operation: %w", err)
-		}
-		canonicalOperations = append(canonicalOperations, encoded)
+	canonicalOperations, err := canonicalRedisOperationEffects(operations)
+	if err != nil {
+		return "", err
 	}
 
 	if !RedisBalanceSetEconomicComplete(balances) {
@@ -143,12 +119,75 @@ func RedisEconomicEffectDigest(operations []OperationRedis, balances []BalanceRe
 	if err != nil {
 		return "", fmt.Errorf("encode canonical economic effect: %w", err)
 	}
-	digestInput := make([]byte, 0, len(economicEffectDigestDomain)+len(canonical))
-	digestInput = append(digestInput, economicEffectDigestDomain...)
+	return digestCanonicalEffect(economicEffectDigestDomain, canonical), nil
+}
+
+// RedisAnnotationEffectDigest binds the exact, duplicate-preserving annotation
+// rows chosen by CAS. It has a separate domain from a money effect and carries
+// no balance set; callers must first prove ANNOTATION_ONLY semantics.
+func RedisAnnotationEffectDigest(operations []OperationRedis) (string, error) {
+	canonicalOperations, err := canonicalRedisOperationEffects(operations)
+	if err != nil {
+		return "", err
+	}
+	canonical, err := json.Marshal(struct {
+		Version    int               `json:"version"`
+		Operations []json.RawMessage `json:"operations"`
+	}{Version: economicEffectDigestVersion, Operations: canonicalOperations})
+	if err != nil {
+		return "", fmt.Errorf("encode canonical annotation effect: %w", err)
+	}
+
+	return digestCanonicalEffect(annotationEffectDigestDomain, canonical), nil
+}
+
+func canonicalRedisOperationEffects(operations []OperationRedis) ([]json.RawMessage, error) {
+	if len(operations) == 0 {
+		return nil, fmt.Errorf("complete transaction operations are required")
+	}
+	canonicalOperations := make([]json.RawMessage, 0, len(operations))
+	for _, operation := range operations {
+		if !RedisOperationEconomicComplete(operation) {
+			return nil, fmt.Errorf("economic operation %q is incomplete", operation.ID)
+		}
+		beforeOverdraft, err := canonicalEconomicDecimal(operation.Snapshot.OverdraftUsedBefore)
+		if err != nil {
+			return nil, fmt.Errorf("canonicalize operation %q before overdraft: %w", operation.ID, err)
+		}
+		afterOverdraft, err := canonicalEconomicDecimal(operation.Snapshot.OverdraftUsedAfter)
+		if err != nil {
+			return nil, fmt.Errorf("canonicalize operation %q after overdraft: %w", operation.ID, err)
+		}
+		encoded, err := json.Marshal(canonicalRedisOperationEffect{
+			ID: operation.ID, TransactionID: operation.TransactionID, BalanceID: operation.BalanceID,
+			BalanceKey: operation.BalanceKey, AccountID: operation.AccountID,
+			OrganizationID: operation.OrganizationID, LedgerID: operation.LedgerID,
+			Type: operation.Type, Direction: operation.Direction, AssetCode: operation.AssetCode,
+			BalanceAffected: operation.BalanceAffected, AmountValue: operation.AmountValue.String(),
+			BalanceAvailable: operation.BalanceAvailable.String(), BalanceOnHold: operation.BalanceOnHold.String(),
+			BalanceVersion: operation.BalanceVersion, BalanceAfterAvailable: operation.BalanceAfterAvailable.String(),
+			BalanceAfterOnHold: operation.BalanceAfterOnHold.String(), BalanceAfterVersion: operation.BalanceAfterVersion,
+			OverdraftUsedBefore: beforeOverdraft, OverdraftUsedAfter: afterOverdraft,
+		})
+		if err != nil {
+			return nil, fmt.Errorf("encode canonical economic operation: %w", err)
+		}
+		canonicalOperations = append(canonicalOperations, encoded)
+	}
+	sort.Slice(canonicalOperations, func(i, j int) bool {
+		return bytes.Compare(canonicalOperations[i], canonicalOperations[j]) < 0
+	})
+
+	return canonicalOperations, nil
+}
+
+func digestCanonicalEffect(domain string, canonical []byte) string {
+	digestInput := make([]byte, 0, len(domain)+len(canonical))
+	digestInput = append(digestInput, domain...)
 	digestInput = append(digestInput, canonical...)
 	sum := sha256.Sum256(digestInput)
 
-	return hex.EncodeToString(sum[:]), nil
+	return hex.EncodeToString(sum[:])
 }
 
 func canonicalEconomicDecimal(value string) (string, error) {

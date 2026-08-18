@@ -228,14 +228,8 @@ func actionForTransactionPayload(payload transaction.TransactionProcessingPayloa
 	if payload.Transaction.ParentTransactionID != nil {
 		return constant.ActionRevert
 	}
-	if payload.Transaction.Status.Code == constant.CANCELED {
-		return constant.ActionCancel
-	}
-	if payload.Transaction.Status.Code == constant.APPROVED {
-		return constant.ActionCommit
-	}
 
-	return ""
+	return mtransaction.StatusToAction(payload.Transaction.Status.Code)
 }
 
 // CreateOrUpdateTransaction func that is responsible to create or update a transaction.
@@ -448,18 +442,25 @@ func (uc *UseCase) SendTransactionToRedisQueue(ctx context.Context, organization
 		}
 	}
 
+	effectMode := mmodel.TransactionEffectBalanceMutation
+	if transactionStatus == constant.NOTED {
+		effectMode = mmodel.TransactionEffectAnnotationOnly
+	}
 	queue := mmodel.TransactionRedisQueue{
-		HeaderID:          reqId,
-		OrganizationID:    organizationID,
-		LedgerID:          ledgerID,
-		TransactionID:     transactionID,
-		TransactionInput:  transactionInput,
-		Balances:          balanceRedis,
-		TTL:               time.Now(),
-		Validate:          validate,
-		TransactionStatus: transactionStatus,
-		Action:            action,
-		TransactionDate:   transactionDate,
+		HeaderID:              reqId,
+		OrganizationID:        organizationID,
+		LedgerID:              ledgerID,
+		TransactionID:         transactionID,
+		TransactionInput:      transactionInput,
+		Balances:              balanceRedis,
+		TTL:                   time.Now(),
+		Validate:              validate,
+		TransactionStatus:     transactionStatus,
+		Action:                action,
+		EffectModeVersion:     mmodel.TransactionEffectModeVersion,
+		EffectMode:            effectMode,
+		OperationTypeOverride: transactionInput.OperationTypeOverride,
+		TransactionDate:       transactionDate,
 	}
 	if parentTransactionID != nil && *parentTransactionID != uuid.Nil {
 		queue.ParentTransactionID = parentTransactionID
@@ -548,10 +549,13 @@ func (uc *UseCase) UpdateTransactionBackupOperations(
 
 		return nil, false, err
 	}
-	if attempt != nil && (!sameRedisEconomicOperationMultiset(
+	operationEffectMatches := sameRedisEconomicOperationMultiset(
 		organizationID, ledgerID, transactionID, redisOps, canonicalRedisOps,
-	) ||
-		!mmodel.RedisBalanceSetEconomicComplete(balancesAfter) ||
+	)
+	if attempt == nil && proof.TransactionStatus == constant.NOTED && !operationEffectMatches {
+		return nil, false, fmt.Errorf("transaction annotation operation effect differs from its authoritative Redis envelope")
+	}
+	if attempt != nil && (!operationEffectMatches || !mmodel.RedisBalanceSetEconomicComplete(balancesAfter) ||
 		!mmodel.RedisBalanceSetEconomicComplete(canonicalBalancesAfter) ||
 		!mmodel.RedisBalanceSetEconomicEqual(balancesAfter, canonicalBalancesAfter)) {
 		return nil, false, fmt.Errorf("transaction economic effect differs from its authoritative Redis envelope")

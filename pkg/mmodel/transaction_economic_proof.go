@@ -24,6 +24,13 @@ func ValidateRedisTransactionEconomicEffect(envelope *TransactionRedisQueue, ope
 	if envelope == nil || envelope.TransactionID == uuid.Nil || envelope.OrganizationID == uuid.Nil || envelope.LedgerID == uuid.Nil {
 		return fmt.Errorf("complete transaction economic envelope is required")
 	}
+	mode, err := ResolveTransactionEffectMode(envelope)
+	if err != nil {
+		return fmt.Errorf("resolve transaction balance mutation mode: %w", err)
+	}
+	if mode != TransactionEffectBalanceMutation {
+		return fmt.Errorf("transaction balance mutation mode is required")
+	}
 	if len(operations) == 0 || len(envelope.Balances) == 0 || len(envelope.Balances) != len(envelope.BalancesAfter) {
 		return fmt.Errorf("complete operation and balance movement sets are required")
 	}
@@ -48,6 +55,85 @@ func ValidateRedisTransactionEconomicEffect(envelope *TransactionRedisQueue, ope
 	used := make([]bool, len(operations))
 	if !matchRedisEconomicBalanceMovements(envelope.Balances, envelope.BalancesAfter, operations, 0, used) {
 		return fmt.Errorf("transaction operations do not reconstruct the immutable balance movement")
+	}
+
+	return nil
+}
+
+// ValidateRedisTransactionAnnotationEffect proves that an ANNOTATION_ONLY
+// envelope can persist audit rows but cannot carry a financial outcome. The
+// annotation amount is informational and must match the immutable input; every
+// balance field and overdraft snapshot remains exactly zero.
+func ValidateRedisTransactionAnnotationEffect(envelope *TransactionRedisQueue, operations []OperationRedis) error {
+	if envelope == nil || envelope.TransactionID == uuid.Nil || envelope.OrganizationID == uuid.Nil || envelope.LedgerID == uuid.Nil {
+		return fmt.Errorf("complete transaction annotation envelope is required")
+	}
+	mode, err := ResolveTransactionEffectMode(envelope)
+	if err != nil {
+		return fmt.Errorf("resolve transaction annotation-only mode: %w", err)
+	}
+	if mode != TransactionEffectAnnotationOnly {
+		return fmt.Errorf("transaction annotation-only mode is required")
+	}
+	if envelope.AttemptOwner != "" || envelope.ExpectedOutcome != "" || len(envelope.Balances) != 0 || len(envelope.BalancesAfter) != 0 {
+		return fmt.Errorf("annotation-only transaction cannot carry balance or outcome evidence")
+	}
+	if envelope.Validate == nil || len(operations) == 0 || envelope.OperationTypeOverride != "" {
+		return fmt.Errorf("complete immutable annotation input is required")
+	}
+
+	type expectedAnnotationOperation struct {
+		key       string
+		asset     string
+		typeCode  string
+		direction string
+	}
+	expected := make([]expectedAnnotationOperation, 0, len(envelope.Validate.From)+len(envelope.Validate.To))
+	appendExpected := func(values map[string]mtransaction.Amount) {
+		for key, amount := range values {
+			expected = append(expected, expectedAnnotationOperation{
+				key: key, asset: amount.Asset,
+				typeCode: amount.Operation, direction: amount.Direction,
+			})
+		}
+	}
+	appendExpected(envelope.Validate.From)
+	appendExpected(envelope.Validate.To)
+	if len(expected) != len(operations) {
+		return fmt.Errorf("annotation operation set differs from immutable input")
+	}
+
+	used := make([]bool, len(expected))
+	for _, operation := range operations {
+		if !RedisOperationEconomicComplete(operation) || operation.TransactionID != envelope.TransactionID.String() ||
+			operation.OrganizationID != envelope.OrganizationID.String() || operation.LedgerID != envelope.LedgerID.String() ||
+			operation.BalanceAffected || !operation.AmountValue.IsZero() ||
+			!operation.BalanceAvailable.IsZero() || !operation.BalanceOnHold.IsZero() ||
+			operation.BalanceVersion != 0 || !operation.BalanceAfterAvailable.IsZero() ||
+			!operation.BalanceAfterOnHold.IsZero() || operation.BalanceAfterVersion != 0 ||
+			!redisEconomicDecimalEqual(operation.Snapshot.OverdraftUsedBefore, "0") ||
+			!redisEconomicDecimalEqual(operation.Snapshot.OverdraftUsedAfter, "0") {
+			return fmt.Errorf("transaction annotation operation %q is incomplete or affects a balance", operation.ID)
+		}
+		operationKey := mtransaction.AliasKey(operation.AccountAlias, operation.BalanceKey)
+		matched := false
+		for index, immutable := range expected {
+			asset := immutable.asset
+			if asset == "" {
+				asset = envelope.TransactionInput.Send.Asset
+			}
+			keyMatches := immutable.key == operationKey || mtransaction.SplitAliasWithKey(immutable.key) == operationKey
+			if used[index] || !keyMatches ||
+				asset != operation.AssetCode || immutable.typeCode != operation.Type || immutable.direction != operation.Direction {
+				continue
+			}
+			used[index] = true
+			matched = true
+			break
+		}
+		if !matched {
+			return fmt.Errorf("transaction annotation operation %q differs from immutable input", operation.ID)
+		}
 	}
 
 	return nil
@@ -128,8 +214,8 @@ func redisAllowedOperationSemantics(
 	add := func(amount mtransaction.Amount) {
 		inputMatched = true
 		operationType := amount.Operation
-		if envelope.TransactionInput.OperationTypeOverride != "" {
-			operationType = envelope.TransactionInput.OperationTypeOverride
+		if envelope.OperationTypeOverride != "" {
+			operationType = envelope.OperationTypeOverride
 		}
 		allowed.add(operationType, amount.Direction)
 		allowed.add(constant.OVERDRAFT, amount.Direction)

@@ -1508,16 +1508,72 @@ func (rr *RedisConsumerRepository) EnrichTransactionBackup(
 			return tombstone.Operations, tombstone.BalancesAfter, true, nil
 		}
 
-		if err := validateRawTransactionMovementEvidence([]byte(preflight.Raw)); err != nil {
-			return nil, nil, false, fmt.Errorf("validate immutable transaction movement: %w", err)
-		}
 		envelope := mmodel.TransactionRedisQueue{}
 		if err := decodeExactJSON([]byte(preflight.Raw), &envelope); err != nil {
-			return nil, nil, false, fmt.Errorf("decode immutable transaction movement: %w", err)
+			return nil, nil, false, fmt.Errorf("decode immutable transaction effect: %w", err)
 		}
 		if err := validateBackupEconomicContext(organizationID, ledgerID, transactionID,
 			action, expected, &envelope); err != nil {
 			return nil, nil, false, err
+		}
+		effectMode, err := mmodel.ResolveTransactionEffectMode(&envelope)
+		if err != nil {
+			return nil, nil, false, fmt.Errorf("resolve transaction effect mode: %w", err)
+		}
+		if effectMode == mmodel.TransactionEffectAnnotationOnly {
+			if attempt != nil || preflight.OutcomeRaw != "" {
+				return nil, nil, false, fmt.Errorf("annotation-only transaction carries a financial outcome")
+			}
+			if err := mmodel.ValidateRedisTransactionAnnotationEffect(&envelope, operations); err != nil {
+				return nil, nil, false, fmt.Errorf("prove candidate transaction annotation effect: %w", err)
+			}
+			if len(envelope.Operations) > 0 {
+				if err := validateRawTransactionAnnotationEvidence([]byte(preflight.Raw)); err != nil {
+					return nil, nil, false, fmt.Errorf("validate canonical transaction annotation snapshot: %w", err)
+				}
+				if err := mmodel.ValidateRedisTransactionAnnotationEffect(&envelope, envelope.Operations); err != nil {
+					return nil, nil, false, fmt.Errorf("prove canonical transaction annotation effect: %w", err)
+				}
+				if !mmodel.RedisOperationSetEconomicEqualIgnoringIDs(operations, envelope.Operations) {
+					return nil, nil, false, fmt.Errorf("canonical transaction annotation operations differ")
+				}
+				digest, err := mmodel.RedisAnnotationEffectDigest(envelope.Operations)
+				if err != nil {
+					return nil, nil, false, fmt.Errorf("digest canonical transaction annotation effect: %w", err)
+				}
+				if envelope.EconomicEffectDigest != "" {
+					if envelope.EconomicEffectDigest != digest {
+						return nil, nil, false, fmt.Errorf("canonical transaction annotation digest differs")
+					}
+
+					return envelope.Operations, nil, false, nil
+				}
+				operations = envelope.Operations
+			}
+
+			digest, err := mmodel.RedisAnnotationEffectDigest(operations)
+			if err != nil {
+				return nil, nil, false, fmt.Errorf("digest proved transaction annotation effect: %w", err)
+			}
+			encodedOperations, err := json.Marshal(operations)
+			if err != nil {
+				return nil, nil, false, fmt.Errorf("encode proved transaction annotation operations: %w", err)
+			}
+			bindKeys := append([]string(nil), prefixedKeys[:3]...)
+			_, lastBindErr = bindTransactionEconomicDigestScript.Run(ctx, rds, bindKeys,
+				preflight.Raw, string(encodedOperations), digest, transactionID.String(), "0",
+				"", "", action, "").Result()
+			if lastBindErr == nil {
+				continue
+			}
+			continue
+		}
+		legacyEffectMode := envelope.EffectModeVersion == 0 && envelope.EffectMode == ""
+		if legacyEffectMode && len(envelope.Operations) == 0 {
+			return nil, nil, false, fmt.Errorf("legacy balance mutation lacks a durable operation-type discriminator")
+		}
+		if err := validateRawTransactionMovementEvidence([]byte(preflight.Raw)); err != nil {
+			return nil, nil, false, fmt.Errorf("validate immutable transaction movement: %w", err)
 		}
 		if attempt != nil {
 			if err := validateImmutableOutcome(preflight.OutcomeRaw, attempt, &envelope); err != nil {
@@ -1800,9 +1856,26 @@ func validateRawTransactionEconomicEvidence(raw []byte) error {
 	if err := decodeExactJSON(raw, &evidence); err != nil {
 		return fmt.Errorf("decode economic evidence object: %w", err)
 	}
+	if err := validateRawTransactionOperations(evidence); err != nil {
+		return err
+	}
+
+	return validateRawEconomicBalances(evidence["balancesAfter"])
+}
+
+func validateRawTransactionAnnotationEvidence(raw []byte) error {
+	evidence := map[string]json.RawMessage{}
+	if err := decodeExactJSON(raw, &evidence); err != nil {
+		return fmt.Errorf("decode annotation evidence object: %w", err)
+	}
+
+	return validateRawTransactionOperations(evidence)
+}
+
+func validateRawTransactionOperations(evidence map[string]json.RawMessage) error {
 	var operations []map[string]json.RawMessage
 	if err := json.Unmarshal(evidence["operations"], &operations); err != nil || len(operations) == 0 {
-		return fmt.Errorf("complete economic operations are required")
+		return fmt.Errorf("complete transaction operations are required")
 	}
 	operationFields := []string{
 		"id", "transactionId", "balanceId", "balanceKey", "accountId", "organizationId", "ledgerId",
@@ -1823,7 +1896,7 @@ func validateRawTransactionEconomicEvidence(raw []byte) error {
 		}
 	}
 
-	return validateRawEconomicBalances(evidence["balancesAfter"])
+	return nil
 }
 
 func validateRawEconomicBalances(raw json.RawMessage) error {

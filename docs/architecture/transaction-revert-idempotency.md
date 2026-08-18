@@ -108,6 +108,32 @@ direction, overdraft used and policy, limit, and balance scope. Decimal spelling
 differences are normalized; an omitted economic field is not silently filled
 from current balance state.
 
+Every new backup and Rabbit persistence event carries
+`effect_mode_version=1` plus exactly one mode: `BALANCE_MUTATION` or
+`ANNOTATION_ONLY`. The producer writes this discriminator before enqueue; a
+partially present, unknown, or status-incompatible mode fails closed.
+`operation_type_override` is a separate queue/event field because the public
+transaction input deliberately excludes the internal BLOCK/UNBLOCK marker.
+Recovery restores typed operations only from that durable field, never from a
+candidate operation or a mutable transaction row. Payloads predating the
+discriminator follow one explicit compatibility rule: `NOTED` identifies an
+annotation, while every other status remains a balance mutation and must pass
+the full snapshot proof. Missing balances alone never identifies an
+annotation.
+
+`ANNOTATION_ONLY` is not an economic-outcome shortcut. It may contain only
+NOTED audit rows whose transaction, tenant, alias/key, asset, type and
+direction match the immutable input. The transaction-level informational
+amount remains nonzero and must equal the immutable input exactly.
+`balanceAffected` is false; each operation's economic amount, before/after
+available and on-hold, versions, and overdraft snapshots are all zero. The
+envelope and event carry no balance snapshots, attempt owner,
+or terminal outcome. Go proves those facts before an exact-raw CAS chooses the
+annotation row IDs under the separate
+`midaz:transaction-annotation-effect:v1` digest domain. A lost CAS response or
+redelivery adopts the same rows. Annotation handling never updates balances,
+creates a financial tombstone, or invokes an economic cleanup path.
+
 The complete operation-and-balance multiset is sealed in Go as a
 `midaz:transaction-economic-effect:v1` SHA-256 digest. Decimal normalization
 uses the ledger decimal library, never Lua numbers or `float64`; operation and

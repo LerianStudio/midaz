@@ -12,8 +12,25 @@ end
 local operationsOK, operations = pcall(cjson.decode, ARGV[2])
 local envelopeOK, envelope = pcall(cjson.decode, current)
 if not operationsOK or type(operations) ~= "table" or #operations == 0 or
-   not envelopeOK or type(envelope) ~= "table" or envelope.transaction_id ~= ARGV[4] or
-   type(envelope.balances) ~= "table" or type(envelope.balancesAfter) ~= "table" then
+   not envelopeOK or type(envelope) ~= "table" or envelope.transaction_id ~= ARGV[4] then
+    return redis.error_reply("TRANSACTION_BACKUP_INVALID")
+end
+
+local legacyAnnotation = envelope.effect_mode_version == nil and envelope.effect_mode == nil and
+    envelope.transaction_status == "NOTED"
+local versionedAnnotation = envelope.effect_mode_version == 1 and
+    envelope.effect_mode == "ANNOTATION_ONLY" and envelope.transaction_status == "NOTED"
+local annotationOnly = legacyAnnotation or versionedAnnotation
+if annotationOnly then
+    local beforePresent = envelope.balances ~= nil and envelope.balances ~= cjson.null and
+        (type(envelope.balances) ~= "table" or #envelope.balances ~= 0)
+    local afterPresent = envelope.balancesAfter ~= nil and envelope.balancesAfter ~= cjson.null and
+        (type(envelope.balancesAfter) ~= "table" or #envelope.balancesAfter ~= 0)
+    if ARGV[5] ~= "0" or envelope.attempt_owner ~= nil or envelope.expected_outcome ~= nil or
+       beforePresent or afterPresent then
+        return redis.error_reply("TRANSACTION_ANNOTATION_EFFECT_MISMATCH")
+    end
+elseif type(envelope.balances) ~= "table" or type(envelope.balancesAfter) ~= "table" then
     return redis.error_reply("TRANSACTION_BACKUP_INVALID")
 end
 if ARGV[8] ~= "" and envelope.action ~= nil and envelope.action ~= ARGV[8] then

@@ -16,6 +16,7 @@ import (
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/transaction"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/rabbitmq"
 	redis "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/redis/transaction"
+	"github.com/LerianStudio/midaz/v4/pkg/constant"
 	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v4/pkg/mtransaction"
 	"github.com/google/uuid"
@@ -350,6 +351,7 @@ func TestWriteTransactionAsync(t *testing.T) {
 		organizationID := uuid.New()
 		ledgerID := uuid.New()
 		td := createTestData(organizationID, ledgerID)
+		td.transactionInput.OperationTypeOverride = constant.BLOCK
 		td.tran.RevertRolloutMode = "bridge"
 		td.tran.RevertRolloutToken = "origin-rollout-token"
 		attempt := &mmodel.BalanceExecutionAttempt{
@@ -373,6 +375,9 @@ func TestWriteTransactionAsync(t *testing.T) {
 				assert.Equal(t, attempt.Outcome, payload.ExpectedOutcome)
 				assert.Equal(t, "bridge", payload.RevertRolloutMode)
 				assert.Equal(t, "origin-rollout-token", payload.RevertRolloutToken)
+				assert.Equal(t, mmodel.TransactionEffectModeVersion, payload.EffectModeVersion)
+				assert.Equal(t, mmodel.TransactionEffectBalanceMutation, payload.EffectMode)
+				assert.Equal(t, constant.BLOCK, payload.OperationTypeOverride)
 
 				return nil, nil
 			}).
@@ -382,6 +387,36 @@ func TestWriteTransactionAsync(t *testing.T) {
 			td.balances, nil, td.tran, attempt)
 
 		assert.NoError(t, err)
+	})
+
+	t.Run("annotation_event_carries_explicit_nonfinancial_mode_without_balances", func(t *testing.T) {
+		t.Setenv("RABBITMQ_TRANSACTION_BALANCE_OPERATION_EXCHANGE", "test-exchange")
+		t.Setenv("RABBITMQ_TRANSACTION_BALANCE_OPERATION_KEY", "test-key")
+		ctrl := gomock.NewController(t)
+		mockRabbitMQRepo := rabbitmq.NewMockProducerRepository(ctrl)
+		uc := &UseCase{RabbitMQRepo: mockRabbitMQRepo}
+		organizationID := uuid.New()
+		ledgerID := uuid.New()
+		td := createTestData(organizationID, ledgerID)
+		td.tran.Status.Code = constant.NOTED
+
+		mockRabbitMQRepo.EXPECT().
+			ProducerDefaultWithContext(gomock.Any(), "test-exchange", "test-key", gomock.Any()).
+			DoAndReturn(func(_ context.Context, _, _ string, message []byte) (*string, error) {
+				var queue mmodel.Queue
+				require.NoError(t, msgpack.Unmarshal(message, &queue))
+				var payload transaction.TransactionProcessingPayload
+				require.NoError(t, msgpack.Unmarshal(queue.QueueData[0].Value, &payload))
+				assert.Equal(t, mmodel.TransactionEffectModeVersion, payload.EffectModeVersion)
+				assert.Equal(t, mmodel.TransactionEffectAnnotationOnly, payload.EffectMode)
+				assert.Empty(t, payload.Balances)
+				assert.Empty(t, payload.BalancesAfter)
+
+				return nil, nil
+			})
+
+		require.NoError(t, uc.WriteTransactionAsync(context.Background(), organizationID, ledgerID,
+			td.transactionInput, td.validate, td.balances, td.balances, td.tran))
 	})
 
 	t.Run("rabbitmq_fails_fallback_to_db_succeeds", func(t *testing.T) {

@@ -174,6 +174,24 @@ func TestTransactionRedisQueue_RemainingReplayUsesPersistedValidation(t *testing
 		"replay must consume the persisted validation map for the remaining amount")
 }
 
+func TestTransactionRedisQueue_PersistsEffectModeAndOperationTypeOverride(t *testing.T) {
+	t.Parallel()
+
+	raw, err := json.Marshal(mmodel.TransactionRedisQueue{
+		TransactionStatus:     constant.CREATED,
+		EffectModeVersion:     mmodel.TransactionEffectModeVersion,
+		EffectMode:            mmodel.TransactionEffectBalanceMutation,
+		OperationTypeOverride: constant.BLOCK,
+	})
+	require.NoError(t, err)
+
+	var replay mmodel.TransactionRedisQueue
+	require.NoError(t, json.Unmarshal(raw, &replay))
+	assert.Equal(t, mmodel.TransactionEffectModeVersion, replay.EffectModeVersion)
+	assert.Equal(t, mmodel.TransactionEffectBalanceMutation, replay.EffectMode)
+	assert.Equal(t, constant.BLOCK, replay.OperationTypeOverride)
+}
+
 // MockLogger is a mock implementation of logger for testing
 type MockLogger struct{}
 

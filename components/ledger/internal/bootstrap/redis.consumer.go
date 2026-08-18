@@ -426,6 +426,24 @@ func (r *RedisQueueConsumer) processMessage(ctx context.Context, key, rawPayload
 
 		return
 	}
+	effectMode, effectModeErr := mmodel.ResolveTransactionEffectMode(&m)
+	if effectModeErr != nil {
+		logger.Log(msgCtxWithSpan, libLog.LevelError, "Transaction backup effect mode is invalid; backup retained",
+			libLog.String("transaction_id", m.TransactionID.String()), libLog.Err(effectModeErr))
+
+		return
+	}
+	if effectMode == mmodel.TransactionEffectAnnotationOnly &&
+		(m.AttemptOwner != "" || m.ExpectedOutcome != "" || len(m.Balances) != 0 || len(m.BalancesAfter) != 0) {
+		logger.Log(msgCtxWithSpan, libLog.LevelError, "Annotation backup carries financial evidence; backup retained",
+			libLog.String("transaction_id", m.TransactionID.String()))
+
+		return
+	}
+	// The public Transaction input deliberately omits this internal field from
+	// JSON. Restore it only from the queue's explicit durable discriminator so a
+	// BLOCK/UNBLOCK backup rebuild cannot silently relabel operations.
+	m.TransactionInput.OperationTypeOverride = m.OperationTypeOverride
 
 	if requiresAtomicOutcomeBackup(m) {
 		if len(m.BalancesAfter) == 0 {
@@ -708,8 +726,11 @@ func (r *RedisQueueConsumer) processMessage(ctx context.Context, key, rawPayload
 	if terminalReplay {
 		payload := postgreTransaction.TransactionProcessingPayload{
 			Transaction: tran, Input: &m.TransactionInput, Validate: m.Validate,
-			BalancesAfter: balancesAfter,
-			AttemptOwner:  m.AttemptOwner, ExpectedOutcome: m.ExpectedOutcome,
+			BalancesAfter:         balancesAfter,
+			EffectModeVersion:     mmodel.TransactionEffectModeVersion,
+			EffectMode:            mmodel.TransactionEffectBalanceMutation,
+			OperationTypeOverride: m.OperationTypeOverride,
+			AttemptOwner:          m.AttemptOwner, ExpectedOutcome: m.ExpectedOutcome,
 			RevertRolloutMode: m.RevertRolloutMode, RevertRolloutToken: m.RevertRolloutToken,
 			RedisGeneration: m.RedisGeneration,
 		}

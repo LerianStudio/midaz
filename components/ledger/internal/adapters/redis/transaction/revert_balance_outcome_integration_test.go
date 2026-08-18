@@ -276,6 +276,7 @@ func TestIntegration_GenerationBoundBalanceOutcomeRemainsImmutableAndExactlyRepl
 	seed, err := json.Marshal(mmodel.TransactionRedisQueue{
 		TransactionID: transactionID, OrganizationID: organizationID, LedgerID: ledgerID,
 		TransactionStatus: constant.CREATED, AttemptOwner: attempt.Owner, ExpectedOutcome: attempt.Outcome,
+		EffectModeVersion: mmodel.TransactionEffectModeVersion, EffectMode: mmodel.TransactionEffectBalanceMutation,
 		RedisGeneration: redisGeneration, Action: constant.ActionCommit,
 		TransactionInput: mtransaction.Transaction{Send: mtransaction.Send{Asset: "USD", Value: decimal.NewFromInt(100)}},
 		Validate: &mtransaction.Responses{Asset: "USD", From: map[string]mtransaction.Amount{
@@ -373,6 +374,7 @@ func TestIntegration_GlobalFinancialGenerationServesTwoTenantsAndSurvivesTenantR
 		seed, err := json.Marshal(mmodel.TransactionRedisQueue{
 			TransactionID: transactionID, OrganizationID: organizationID, LedgerID: ledgerID,
 			TransactionStatus: constant.CREATED, AttemptOwner: attempt.Owner, ExpectedOutcome: attempt.Outcome,
+			EffectModeVersion: mmodel.TransactionEffectModeVersion, EffectMode: mmodel.TransactionEffectBalanceMutation,
 			RedisGeneration: redisGeneration, Action: constant.ActionCommit,
 			TransactionInput: mtransaction.Transaction{Send: mtransaction.Send{
 				Asset: "USD", Value: decimal.NewFromInt(100),
@@ -469,6 +471,8 @@ func TestIntegration_TransactionBackupEnrichmentPreservesOutcomeUntilExactDurabl
 		LedgerID:            ledgerID,
 		TransactionStatus:   constant.APPROVED,
 		Action:              constant.ActionCommit,
+		EffectModeVersion:   mmodel.TransactionEffectModeVersion,
+		EffectMode:          mmodel.TransactionEffectBalanceMutation,
 		AttemptOwner:        attempt.Owner,
 		ExpectedOutcome:     attempt.Outcome,
 		ParentTransactionID: nil,
@@ -688,13 +692,16 @@ func TestIntegration_TransactionBackupOperationIDsAreSingleAssignmentAcrossConsu
 	require.NoError(t, err)
 	require.True(t, acquired)
 	seed, err := json.Marshal(mmodel.TransactionRedisQueue{
-		TransactionID:     transactionID,
-		OrganizationID:    organizationID,
-		LedgerID:          ledgerID,
-		TransactionStatus: constant.APPROVED,
-		Action:            constant.ActionCommit,
-		AttemptOwner:      attempt.Owner,
-		ExpectedOutcome:   attempt.Outcome,
+		TransactionID:         transactionID,
+		OrganizationID:        organizationID,
+		LedgerID:              ledgerID,
+		TransactionStatus:     constant.APPROVED,
+		Action:                constant.ActionCommit,
+		EffectModeVersion:     mmodel.TransactionEffectModeVersion,
+		EffectMode:            mmodel.TransactionEffectBalanceMutation,
+		OperationTypeOverride: constant.BLOCK,
+		AttemptOwner:          attempt.Owner,
+		ExpectedOutcome:       attempt.Outcome,
 		TransactionInput: mtransaction.Transaction{Send: mtransaction.Send{
 			Asset: "USD", Value: decimal.NewFromInt(100),
 		}},
@@ -717,7 +724,7 @@ func TestIntegration_TransactionBackupOperationIDsAreSingleAssignmentAcrossConsu
 	require.Len(t, result.After, 1)
 
 	first := redisEconomicOperationFromMovement(organizationID, ledgerID, transactionID, uuid.NewString(),
-		result.Before[0], result.After[0], constant.DEBIT, constant.DirectionDebit)
+		result.Before[0], result.After[0], constant.BLOCK, constant.DirectionDebit)
 	second := first
 	second.ID = uuid.NewString()
 	candidates := [][]mmodel.OperationRedis{
@@ -761,6 +768,140 @@ func TestIntegration_TransactionBackupOperationIDsAreSingleAssignmentAcrossConsu
 	envelope := mmodel.TransactionRedisQueue{}
 	require.NoError(t, json.Unmarshal(raw, &envelope))
 	require.Equal(t, results[0], envelope.Operations)
+}
+
+func TestIntegration_AnnotationBackupBindsOnlyProvenNonFinancialRows(t *testing.T) {
+	t.Setenv("ALLOW_INSECURE_TLS", "true")
+	infra := setupRedisIntegrationInfra(t)
+	baseCtx := context.Background()
+	organizationID := uuid.New()
+	ledgerID := uuid.New()
+
+	newFixture := func(transactionID uuid.UUID) (context.Context, mmodel.TransactionRedisQueue, mmodel.OperationRedis) {
+		ctx := mmodel.WithTransactionEconomicContext(baseCtx, mmodel.TransactionEconomicContext{
+			TransactionStatus: constant.NOTED,
+			Action:            constant.ActionDirect,
+		})
+		queue := mmodel.TransactionRedisQueue{
+			TransactionID:     transactionID,
+			OrganizationID:    organizationID,
+			LedgerID:          ledgerID,
+			TransactionStatus: constant.NOTED,
+			Action:            constant.ActionDirect,
+			EffectModeVersion: mmodel.TransactionEffectModeVersion,
+			EffectMode:        mmodel.TransactionEffectAnnotationOnly,
+			TransactionInput: mtransaction.Transaction{Send: mtransaction.Send{
+				Asset: "USD", Value: decimal.NewFromInt(1000),
+			}},
+			Validate: &mtransaction.Responses{Asset: "USD", From: map[string]mtransaction.Amount{
+				"0#@annotation#default": {
+					Asset: "USD", Value: decimal.NewFromInt(1000), Operation: constant.DEBIT,
+					Direction: constant.DirectionDebit, TransactionType: constant.NOTED,
+				},
+			}},
+		}
+		operation := mmodel.OperationRedis{
+			ID: uuid.NewString(), TransactionID: transactionID.String(), Type: constant.DEBIT,
+			AssetCode: "USD", AmountValue: decimal.Zero,
+			BalanceAvailable: decimal.Zero, BalanceOnHold: decimal.Zero, BalanceVersion: 0,
+			BalanceAfterAvailable: decimal.Zero, BalanceAfterOnHold: decimal.Zero, BalanceAfterVersion: 0,
+			BalanceID: uuid.NewString(), AccountID: uuid.NewString(), AccountAlias: "@annotation",
+			BalanceKey: constant.DefaultBalanceKey, OrganizationID: organizationID.String(), LedgerID: ledgerID.String(),
+			BalanceAffected: false, Direction: constant.DirectionDebit,
+			Snapshot: mmodel.OperationSnapshot{OverdraftUsedBefore: "0", OverdraftUsedAfter: "0"},
+		}
+
+		return ctx, queue, operation
+	}
+	seed := func(ctx context.Context, queue mmodel.TransactionRedisQueue) {
+		raw, err := json.Marshal(queue)
+		require.NoError(t, err)
+		require.NoError(t, infra.repo.AddMessageToQueue(ctx,
+			utils.TransactionInternalKey(queue.OrganizationID, queue.LedgerID, queue.TransactionID.String()), raw))
+	}
+
+	t.Run("lost response replays typed canonical row", func(t *testing.T) {
+		transactionID := uuid.New()
+		ctx, queue, operation := newFixture(transactionID)
+		seed(ctx, queue)
+		canonical, balances, terminal, err := infra.repo.EnrichTransactionBackup(ctx, organizationID, ledgerID,
+			transactionID, []mmodel.OperationRedis{operation}, constant.ActionDirect, nil)
+		require.NoError(t, err)
+		assert.False(t, terminal)
+		assert.Empty(t, balances)
+		require.Len(t, canonical, 1)
+		assert.Equal(t, operation.ID, canonical[0].ID)
+
+		restarted := operation
+		restarted.ID = uuid.NewString()
+		replayed, balances, terminal, err := infra.repo.EnrichTransactionBackup(ctx, organizationID, ledgerID,
+			transactionID, []mmodel.OperationRedis{restarted}, constant.ActionDirect, nil)
+		require.NoError(t, err)
+		assert.False(t, terminal)
+		assert.Empty(t, balances)
+		require.Equal(t, canonical, replayed, "a lost CAS response must retain the first annotation row identity")
+	})
+
+	t.Run("legacy NOTED envelope uses the explicit compatibility classifier", func(t *testing.T) {
+		transactionID := uuid.New()
+		ctx, queue, operation := newFixture(transactionID)
+		queue.EffectModeVersion = 0
+		queue.EffectMode = ""
+		seed(ctx, queue)
+		canonical, balances, terminal, err := infra.repo.EnrichTransactionBackup(ctx, organizationID, ledgerID,
+			transactionID, []mmodel.OperationRedis{operation}, constant.ActionDirect, nil)
+		require.NoError(t, err)
+		assert.False(t, terminal)
+		assert.Empty(t, balances)
+		require.True(t, mmodel.RedisOperationSetEconomicEqualIgnoringIDs(
+			[]mmodel.OperationRedis{operation}, canonical,
+		))
+		require.Equal(t, operation.ID, canonical[0].ID)
+	})
+
+	for name, mutate := range map[string]func(*mmodel.TransactionRedisQueue, *mmodel.OperationRedis){
+		"balance evidence": func(queue *mmodel.TransactionRedisQueue, _ *mmodel.OperationRedis) {
+			queue.Balances = []mmodel.BalanceRedis{completeRedisEconomicBalance()}
+		},
+		"attempt owner": func(queue *mmodel.TransactionRedisQueue, _ *mmodel.OperationRedis) {
+			queue.AttemptOwner = uuid.NewString()
+		},
+		"terminal outcome": func(queue *mmodel.TransactionRedisQueue, _ *mmodel.OperationRedis) {
+			queue.ExpectedOutcome = mmodel.TransactionOutcomeCommitted
+		},
+		"balance mutation": func(_ *mmodel.TransactionRedisQueue, operation *mmodel.OperationRedis) {
+			operation.BalanceAffected = true
+			operation.BalanceAfterAvailable = decimal.NewFromInt(1)
+		},
+		"nonzero operation amount": func(_ *mmodel.TransactionRedisQueue, operation *mmodel.OperationRedis) {
+			operation.AmountValue = decimal.NewFromInt(1000)
+		},
+	} {
+		t.Run("rejects "+name, func(t *testing.T) {
+			transactionID := uuid.New()
+			ctx, queue, operation := newFixture(transactionID)
+			mutate(&queue, &operation)
+			seed(ctx, queue)
+			_, _, _, err := infra.repo.EnrichTransactionBackup(ctx, organizationID, ledgerID,
+				transactionID, []mmodel.OperationRedis{operation}, constant.ActionDirect, nil)
+			require.Error(t, err)
+			raw, readErr := infra.repo.ReadMessageFromQueue(ctx,
+				utils.TransactionInternalKey(organizationID, ledgerID, transactionID.String()))
+			require.NoError(t, readErr, "reconciliation must retain a malicious annotation envelope")
+			require.NotEmpty(t, raw)
+		})
+	}
+
+	t.Run("rejects a surviving outcome key", func(t *testing.T) {
+		transactionID := uuid.New()
+		ctx, queue, operation := newFixture(transactionID)
+		seed(ctx, queue)
+		require.NoError(t, infra.repo.Set(ctx, utils.TransactionBalanceOutcomeKey(organizationID, ledgerID, transactionID),
+			`{"identity":"foreign"}`, 0))
+		_, _, _, err := infra.repo.EnrichTransactionBackup(ctx, organizationID, ledgerID,
+			transactionID, []mmodel.OperationRedis{operation}, constant.ActionDirect, nil)
+		require.Error(t, err)
+	})
 }
 
 func TestIntegration_TransactionBackupSeedAndCleanupAreOwnerFenced(t *testing.T) {
@@ -1386,6 +1527,8 @@ func TestIntegration_OwnedLegacyFence_RedisClusterRejectsCrossSlotButAcceptsComp
 		OrganizationID:    organizationID,
 		LedgerID:          ledgerID,
 		TransactionStatus: constant.CREATED,
+		EffectModeVersion: mmodel.TransactionEffectModeVersion,
+		EffectMode:        mmodel.TransactionEffectBalanceMutation,
 		Action:            constant.ActionCommit,
 		AttemptOwner:      attempt.Owner,
 		ExpectedOutcome:   attempt.Outcome,
@@ -1515,6 +1658,7 @@ func TestIntegration_OwnedLegacyFence_RedisClusterRejectsCrossSlotButAcceptsComp
 	tenantSeed, err := json.Marshal(mmodel.TransactionRedisQueue{
 		TransactionID: tenantTransactionID, OrganizationID: organizationID, LedgerID: ledgerID,
 		TransactionStatus: constant.CREATED, AttemptOwner: tenantAttempt.Owner,
+		EffectModeVersion: mmodel.TransactionEffectModeVersion, EffectMode: mmodel.TransactionEffectBalanceMutation,
 		ExpectedOutcome: tenantAttempt.Outcome, RedisGeneration: redisIntegrationDatasetGeneration,
 		Action: constant.ActionCommit,
 		TransactionInput: mtransaction.Transaction{Send: mtransaction.Send{

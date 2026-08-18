@@ -1242,7 +1242,10 @@ func (handler *TransactionHandler) commitOrCancelTransaction(
 	if terminalReplay {
 		payload := transaction.TransactionProcessingPayload{
 			Transaction: tran, Input: &transactionInput, Validate: validate,
-			AttemptOwner: executionAttempt.Owner, ExpectedOutcome: executionAttempt.Outcome,
+			EffectModeVersion:     mmodel.TransactionEffectModeVersion,
+			EffectMode:            mmodel.TransactionEffectBalanceMutation,
+			OperationTypeOverride: transactionInput.OperationTypeOverride,
+			AttemptOwner:          executionAttempt.Owner, ExpectedOutcome: executionAttempt.Outcome,
 			RedisGeneration: executionAttempt.RedisGeneration,
 		}
 		persisted, replayErr := handler.Command.ProveCompletedDurableReplay(ctx, organizationID, ledgerID, payload)

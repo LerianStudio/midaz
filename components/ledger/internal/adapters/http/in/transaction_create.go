@@ -1607,7 +1607,10 @@ func (handler *TransactionHandler) executeCreateTransaction(ctx context.Context,
 	if terminalReplay {
 		payload := transaction.TransactionProcessingPayload{
 			Transaction: &writeTran, Input: &transactionInput, Validate: validate,
-			RevertRolloutMode: params.RevertRolloutMode, RevertRolloutToken: params.RevertRolloutToken,
+			EffectModeVersion:     mmodel.TransactionEffectModeVersion,
+			EffectMode:            mmodel.TransactionEffectBalanceMutation,
+			OperationTypeOverride: transactionInput.OperationTypeOverride,
+			RevertRolloutMode:     params.RevertRolloutMode, RevertRolloutToken: params.RevertRolloutToken,
 			RedisGeneration: params.RedisGeneration,
 		}
 		if params.ExecutionAttempt != nil {

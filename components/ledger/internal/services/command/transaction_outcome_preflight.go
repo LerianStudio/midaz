@@ -24,12 +24,17 @@ func (uc *UseCase) preflightOutcomeBackedTransaction(
 	organizationID, ledgerID uuid.UUID,
 	payload *transaction.TransactionProcessingPayload,
 ) (outcomeBacked, terminal bool, err error) {
+	effectMode, err := validateProcessingPayloadEffectMode(organizationID, ledgerID, payload)
+	if err != nil {
+		return false, false, err
+	}
 	attempt, outcomeBacked, err := outcomeBackedAttempt(organizationID, ledgerID, payload)
 	if err != nil {
 		return outcomeBacked, false, err
 	}
 	reverseBacked := payload != nil && payload.Transaction != nil && payload.Transaction.ParentTransactionID != nil
-	if !outcomeBacked && !reverseBacked {
+	annotationBacked := effectMode == mmodel.TransactionEffectAnnotationOnly
+	if !outcomeBacked && !reverseBacked && !annotationBacked {
 		return false, false, nil
 	}
 	if uc.TransactionRedisRepo == nil {
@@ -65,6 +70,59 @@ func (uc *UseCase) preflightOutcomeBackedTransaction(
 	payload.Transaction.Operations = canonicalOperations
 
 	return outcomeBacked, terminal, nil
+}
+
+func validateProcessingPayloadEffectMode(
+	organizationID, ledgerID uuid.UUID,
+	payload *transaction.TransactionProcessingPayload,
+) (mmodel.TransactionEffectMode, error) {
+	if payload == nil || payload.Transaction == nil {
+		return "", fmt.Errorf("transaction persistence payload is required")
+	}
+	transactionID, err := uuid.Parse(payload.Transaction.ID)
+	if err != nil || transactionID == uuid.Nil {
+		return "", fmt.Errorf("transaction persistence identity is invalid")
+	}
+	queue := mmodel.TransactionRedisQueue{
+		TransactionID:         transactionID,
+		OrganizationID:        organizationID,
+		LedgerID:              ledgerID,
+		TransactionStatus:     payload.Transaction.Status.Code,
+		EffectModeVersion:     payload.EffectModeVersion,
+		EffectMode:            payload.EffectMode,
+		OperationTypeOverride: payload.OperationTypeOverride,
+		Validate:              payload.Validate,
+		AttemptOwner:          payload.AttemptOwner,
+		ExpectedOutcome:       payload.ExpectedOutcome,
+		Balances:              mmodel.BalancesToRedis(payload.Balances),
+		BalancesAfter:         mmodel.BalancesToRedis(payload.BalancesAfter),
+	}
+	if payload.Input != nil {
+		queue.TransactionInput = *payload.Input
+	}
+	mode, err := mmodel.ResolveTransactionEffectMode(&queue)
+	if err != nil {
+		return "", fmt.Errorf("resolve transaction persistence effect mode: %w", err)
+	}
+	if mode != mmodel.TransactionEffectAnnotationOnly {
+		return mode, nil
+	}
+	if payload.Input == nil || payload.Transaction.Amount == nil ||
+		!payload.Transaction.Amount.Equal(payload.Input.Send.Value) {
+		return "", fmt.Errorf("transaction annotation informational amount differs from immutable input")
+	}
+	operations := make([]mmodel.OperationRedis, 0, len(payload.Transaction.Operations))
+	for _, candidate := range payload.Transaction.Operations {
+		if candidate == nil {
+			return "", fmt.Errorf("transaction annotation operation is required")
+		}
+		operations = append(operations, candidate.ToRedis())
+	}
+	if err := mmodel.ValidateRedisTransactionAnnotationEffect(&queue, operations); err != nil {
+		return "", fmt.Errorf("prove transaction annotation event: %w", err)
+	}
+
+	return mode, nil
 }
 
 func outcomeBackedAttempt(
