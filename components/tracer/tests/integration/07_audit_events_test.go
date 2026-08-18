@@ -83,9 +83,6 @@ func TestAuditEvents_11_1_1_RetrievesAuditEventByID(t *testing.T) {
 	require.NotEmpty(t, rule.ID)
 	defer testutil.CleanupRule(t, rule.ID)
 
-	// Wait briefly for audit event to be created
-	time.Sleep(100 * time.Millisecond)
-
 	// Query audit events to find the RULE_CREATED event
 	listReq, err := http.NewRequest(http.MethodGet, baseURL+"/v1/audit-events?resource_type=rule&action=CREATE&resource_id="+rule.ID, nil)
 	require.NoError(t, err)
@@ -281,8 +278,6 @@ func TestAuditEvents_11_2_2_FiltersByEventType(t *testing.T) {
 	createResp.Body.Close()
 	defer testutil.CleanupRule(t, rule.ID)
 
-	time.Sleep(100 * time.Millisecond)
-
 	// Filter by RULE_CREATED
 	req, err := http.NewRequest(http.MethodGet, baseURL+"/v1/audit-events?event_type=RULE_CREATED", nil)
 	require.NoError(t, err)
@@ -443,8 +438,6 @@ func TestAuditEvents_11_2_7_FiltersByAccountId(t *testing.T) {
 	}
 	require.Equal(t, http.StatusCreated, resp.StatusCode)
 
-	time.Sleep(100 * time.Millisecond)
-
 	// Filter by accountId
 	url := fmt.Sprintf("%s/v1/audit-events?account_id=%s&event_type=TRANSACTION_VALIDATED", baseURL, accountID)
 	req, err := http.NewRequest(http.MethodGet, url, nil)
@@ -511,8 +504,6 @@ func TestAuditEvents_11_2_8_FiltersByTransactionType(t *testing.T) {
 	respCard, _ := testutil.CreateValidation(t, cardReq)
 	require.Equal(t, http.StatusCreated, respCard.StatusCode)
 
-	time.Sleep(100 * time.Millisecond)
-
 	// Filter by transactionType=PIX
 	url := fmt.Sprintf("%s/v1/audit-events?transaction_type=PIX&event_type=TRANSACTION_VALIDATED", baseURL)
 	req, err := http.NewRequest(http.MethodGet, url, nil)
@@ -553,8 +544,6 @@ func TestAuditEvents_11_2_9_FiltersByMatchedRuleId(t *testing.T) {
 
 	testutil.ActivateRule(t, ruleID)
 
-	time.Sleep(100 * time.Millisecond)
-
 	// Validate a transaction that matches the rule
 	validationReq := &testutil.ValidationRequest{
 		RequestID:            testutil.MustDeterministicUUID(7011).String(),
@@ -577,8 +566,6 @@ func TestAuditEvents_11_2_9_FiltersByMatchedRuleId(t *testing.T) {
 
 	// Verify rule was matched
 	require.Contains(t, validation.MatchedRuleIDs, ruleID, "Rule must be in matched rules for this test to be valid")
-
-	time.Sleep(100 * time.Millisecond)
 
 	// Filter by matchedRuleId
 	url := fmt.Sprintf("%s/v1/audit-events?matched_rule_id=%s&event_type=TRANSACTION_VALIDATED", baseURL, ruleID)
@@ -648,8 +635,6 @@ func TestAuditEvents_11_2_10_A_ReturnsAllResultsWithoutPagination(t *testing.T) 
 		ruleIDs = append(ruleIDs, rule.ID)
 		defer testutil.CleanupRule(t, rule.ID)
 	}
-
-	time.Sleep(100 * time.Millisecond)
 
 	// Request with limit=100 (much larger than the 2 events we created)
 	req, err := http.NewRequest(http.MethodGet, baseURL+"/v1/audit-events?limit=100&resource_type=rule&action=CREATE", nil)
@@ -724,8 +709,6 @@ func TestAuditEvents_11_2_10_B_IteratesThroughMultiplePages(t *testing.T) {
 		ruleIDs = append(ruleIDs, rule.ID)
 		defer testutil.CleanupRule(t, rule.ID)
 	}
-
-	time.Sleep(100 * time.Millisecond)
 
 	// Track all event IDs to verify no duplicates
 	allEventIDs := make(map[string]bool)
@@ -981,8 +964,6 @@ func TestAuditEvents_11_3_1_VerifiesValidHashChain(t *testing.T) {
 	require.NoError(t, err)
 	defer testutil.CleanupRule(t, rule.ID)
 
-	time.Sleep(100 * time.Millisecond)
-
 	// Get the event ID for verification (filter by rule ID to avoid interference from other tests)
 	var eventID string
 	err = db.QueryRowContext(
@@ -1141,8 +1122,6 @@ func TestAuditEvents_11_4_1_GeneratesAuditForRuleCreation(t *testing.T) {
 	require.NotEmpty(t, rule.ID)
 	defer testutil.CleanupRule(t, rule.ID)
 
-	time.Sleep(100 * time.Millisecond)
-
 	// Query audit events
 	auditReq, err := http.NewRequest(http.MethodGet, baseURL+"/v1/audit-events?resource_type=rule&action=CREATE&resource_id="+rule.ID, nil)
 	require.NoError(t, err)
@@ -1217,8 +1196,6 @@ func TestAuditEvents_11_4_2_GeneratesAuditForRuleActivation(t *testing.T) {
 	require.NoError(t, err)
 	activateResp.Body.Close()
 
-	time.Sleep(100 * time.Millisecond)
-
 	// Query audit for RULE_ACTIVATED
 	// Note: action is UPDATE (activation is a status update operation)
 	auditReq, err := http.NewRequest(http.MethodGet, baseURL+"/v1/audit-events?resource_id="+rule.ID+"&event_type=RULE_ACTIVATED", nil)
@@ -1281,8 +1258,6 @@ func TestAuditEvents_11_4_3_GeneratesAuditForRuleUpdate(t *testing.T) {
 	require.NotEmpty(t, rule.ID)
 	defer testutil.CleanupRule(t, rule.ID)
 
-	time.Sleep(100 * time.Millisecond)
-
 	// Update rule (note: names are normalized to lowercase)
 	newName := "Updated Name"
 	updateReq := map[string]any{
@@ -1301,8 +1276,6 @@ func TestAuditEvents_11_4_3_GeneratesAuditForRuleUpdate(t *testing.T) {
 	defer patchResp.Body.Close()
 
 	require.Equal(t, http.StatusOK, patchResp.StatusCode)
-
-	time.Sleep(100 * time.Millisecond)
 
 	// Query audit events
 	auditReq, err := http.NewRequest(http.MethodGet, baseURL+"/v1/audit-events?resource_id="+rule.ID+"&event_type=RULE_UPDATED", nil)
@@ -1375,8 +1348,6 @@ func TestAuditEvents_11_4_4_GeneratesAuditForRuleDelete(t *testing.T) {
 	require.NoError(t, err)
 	deactivateResp.Body.Close()
 
-	time.Sleep(100 * time.Millisecond)
-
 	// Delete rule
 	deleteReq, err := http.NewRequest(http.MethodDelete, baseURL+"/v1/rules/"+rule.ID, nil)
 	require.NoError(t, err)
@@ -1387,8 +1358,6 @@ func TestAuditEvents_11_4_4_GeneratesAuditForRuleDelete(t *testing.T) {
 	defer deleteResp.Body.Close()
 
 	require.Equal(t, http.StatusNoContent, deleteResp.StatusCode)
-
-	time.Sleep(100 * time.Millisecond)
 
 	// Query audit events
 	auditReq, err := http.NewRequest(http.MethodGet, baseURL+"/v1/audit-events?resource_id="+rule.ID+"&event_type=RULE_DELETED", nil)
@@ -1450,8 +1419,6 @@ func TestAuditEvents_11_4_5_GeneratesAuditForTransactionValidation(t *testing.T)
 
 	var validation testutil.ValidationResponse
 	json.Unmarshal(body, &validation)
-
-	time.Sleep(100 * time.Millisecond)
 
 	// Query audit events for this validation
 	url := fmt.Sprintf("%s/v1/audit-events?event_type=TRANSACTION_VALIDATED&account_id=%s", baseURL, accountID)
@@ -1524,8 +1491,6 @@ func TestAuditEvents_11_4_6_CapturesClientIPInAuditEvents(t *testing.T) {
 	require.NotEmpty(t, rule.ID)
 	defer testutil.CleanupRule(t, rule.ID)
 
-	time.Sleep(100 * time.Millisecond)
-
 	// Query audit event
 	auditReq, err := http.NewRequest(http.MethodGet, baseURL+"/v1/audit-events?resource_id="+rule.ID+"&action=CREATE", nil)
 	require.NoError(t, err)
@@ -1570,9 +1535,6 @@ func TestAuditEvents_11_4_7_GeneratesAuditForLimitCreation(t *testing.T) {
 	accountID := testutil.MustDeterministicUUID(7021).String()
 	limitID := testutil.CreateLimitWithAccountScope(t, accountID, "1000")
 	defer testutil.CleanupLimit(t, limitID)
-
-	// Wait briefly for audit event to be created
-	time.Sleep(100 * time.Millisecond)
 
 	// Query audit events to find the LIMIT_CREATED event
 	listReq, err := http.NewRequest(http.MethodGet, baseURL+"/v1/audit-events?resource_type=limit&action=CREATE&resource_id="+limitID, nil)
@@ -1627,8 +1589,6 @@ func TestAuditEvents_11_4_8_GeneratesAuditForLimitActivation(t *testing.T) {
 	// Activate limit
 	testutil.ActivateLimit(t, limitID)
 
-	time.Sleep(100 * time.Millisecond)
-
 	// Query audit for LIMIT_ACTIVATED
 	auditReq, err := http.NewRequest(http.MethodGet, baseURL+"/v1/audit-events?resource_id="+limitID+"&event_type=LIMIT_ACTIVATED", nil)
 	require.NoError(t, err)
@@ -1671,8 +1631,6 @@ func TestAuditEvents_11_4_9_GeneratesAuditForLimitUpdate(t *testing.T) {
 	limitID := testutil.CreateLimitWithAccountScope(t, accountID, "1000")
 	defer testutil.CleanupLimit(t, limitID)
 
-	time.Sleep(100 * time.Millisecond)
-
 	// Update limit name
 	newName := "Updated Limit Name " + testutil.RandomSuffix()
 	updateReq := map[string]any{
@@ -1691,8 +1649,6 @@ func TestAuditEvents_11_4_9_GeneratesAuditForLimitUpdate(t *testing.T) {
 	defer patchResp.Body.Close()
 
 	require.Equal(t, http.StatusOK, patchResp.StatusCode)
-
-	time.Sleep(100 * time.Millisecond)
 
 	// Query audit events
 	auditReq, err := http.NewRequest(http.MethodGet, baseURL+"/v1/audit-events?resource_id="+limitID+"&event_type=LIMIT_UPDATED", nil)
@@ -1738,8 +1694,6 @@ func TestAuditEvents_11_4_10_GeneratesAuditForLimitDeactivation(t *testing.T) {
 
 	testutil.ActivateLimit(t, limitID)
 
-	time.Sleep(100 * time.Millisecond)
-
 	// Deactivate limit
 	deactivateReq, err := http.NewRequest(http.MethodPost, baseURL+"/v1/limits/"+limitID+"/deactivate", nil)
 	require.NoError(t, err)
@@ -1750,8 +1704,6 @@ func TestAuditEvents_11_4_10_GeneratesAuditForLimitDeactivation(t *testing.T) {
 	defer deactivateResp.Body.Close()
 
 	require.Equal(t, http.StatusOK, deactivateResp.StatusCode)
-
-	time.Sleep(100 * time.Millisecond)
 
 	// Query audit events
 	auditReq, err := http.NewRequest(http.MethodGet, baseURL+"/v1/audit-events?resource_id="+limitID+"&event_type=LIMIT_DEACTIVATED", nil)
@@ -1805,8 +1757,6 @@ func TestAuditEvents_11_4_11_GeneratesAuditForLimitDelete(t *testing.T) {
 	defer deleteResp.Body.Close()
 
 	require.Equal(t, http.StatusNoContent, deleteResp.StatusCode)
-
-	time.Sleep(100 * time.Millisecond)
 
 	// Query audit events
 	auditReq, err := http.NewRequest(http.MethodGet, baseURL+"/v1/audit-events?resource_id="+limitID+"&event_type=LIMIT_DELETED", nil)
@@ -2130,8 +2080,6 @@ func TestAuditEvents_11_10_1_CompleteRuleLifecycleIsAudited(t *testing.T) {
 	deleteResp, _ := testutil.HTTPClient.Do(deleteReq)
 	deleteResp.Body.Close()
 
-	time.Sleep(200 * time.Millisecond)
-
 	// Query all audit events for this rule
 	auditReq, _ := http.NewRequest(http.MethodGet, baseURL+"/v1/audit-events?resource_id="+rule.ID+"&resource_type=rule", nil)
 	auditReq.Header.Set("X-API-Key", apiKey)
@@ -2296,8 +2244,6 @@ func TestAuditEvents_11_10_3_CompleteLimitLifecycleIsAudited(t *testing.T) {
 	deleteResp, _ := testutil.HTTPClient.Do(deleteReq)
 	deleteResp.Body.Close()
 
-	time.Sleep(200 * time.Millisecond)
-
 	// Query all audit events for this limit
 	auditReq, _ := http.NewRequest(http.MethodGet, baseURL+"/v1/audit-events?resource_id="+limitID+"&resource_type=limit", nil)
 	auditReq.Header.Set("X-API-Key", apiKey)
@@ -2432,8 +2378,6 @@ func TestAuditEvents_11_11_2_ActorInformationCaptured(t *testing.T) {
 	json.NewDecoder(resp.Body).Decode(&rule)
 	defer testutil.CleanupRule(t, rule.ID)
 
-	time.Sleep(100 * time.Millisecond)
-
 	// Query audit event
 	auditReq, _ := http.NewRequest(http.MethodGet, baseURL+"/v1/audit-events?resource_id="+rule.ID, nil)
 	auditReq.Header.Set("X-API-Key", apiKey)
@@ -2506,8 +2450,6 @@ func TestAuditEvents_11_5_1_HashChainIntactAfterMultipleOperations(t *testing.T)
 
 		defer testutil.CleanupRule(t, rule.ID)
 	}
-
-	time.Sleep(200 * time.Millisecond)
 
 	// Get last event
 	var lastEventID string
@@ -2653,8 +2595,6 @@ func TestAuditEvents_11_6_1_FiltersBySegmentId(t *testing.T) {
 	resp, _ := testutil.CreateValidation(t, validationReq)
 	require.Equal(t, http.StatusCreated, resp.StatusCode)
 
-	time.Sleep(100 * time.Millisecond)
-
 	// Filter by segmentId
 	url := fmt.Sprintf("%s/v1/audit-events?segment_id=%s&event_type=TRANSACTION_VALIDATED", baseURL, segmentID)
 	req, _ := http.NewRequest(http.MethodGet, url, nil)
@@ -2721,8 +2661,6 @@ func TestAuditEvents_11_6_2_FiltersByPortfolioId(t *testing.T) {
 
 	resp, _ := testutil.CreateValidation(t, validationReq)
 	require.Equal(t, http.StatusCreated, resp.StatusCode)
-
-	time.Sleep(100 * time.Millisecond)
 
 	// Filter by portfolioId
 	url := fmt.Sprintf("%s/v1/audit-events?portfolio_id=%s&event_type=TRANSACTION_VALIDATED", baseURL, portfolioID)
@@ -2797,8 +2735,6 @@ func TestAuditEvents_11_6_3_CombinesMultipleJSONBFilters(t *testing.T) {
 
 	resp, _ := testutil.CreateValidation(t, validationReq)
 	require.Equal(t, http.StatusCreated, resp.StatusCode)
-
-	time.Sleep(100 * time.Millisecond)
 
 	// Filter by multiple JSONB fields (AND logic)
 	url := fmt.Sprintf("%s/v1/audit-events?account_id=%s&transaction_type=PIX&segment_id=%s&event_type=TRANSACTION_VALIDATED",
@@ -2900,8 +2836,6 @@ func TestAuditEvents_11_2_14_FiltersByEventTypeRuleDrafted(t *testing.T) {
 	draftResp.Body.Close()
 	require.Equal(t, http.StatusOK, draftResp.StatusCode)
 
-	time.Sleep(100 * time.Millisecond)
-
 	// Filter by eventType=RULE_DRAFTED scoped to this resource
 	req, err := http.NewRequest(http.MethodGet, baseURL+"/v1/audit-events?event_type=RULE_DRAFTED&resource_id="+rule.ID, nil)
 	require.NoError(t, err)
@@ -3000,8 +2934,6 @@ func TestAuditEvents_11_2_15_FiltersByActionDraft(t *testing.T) {
 	draftResp.Body.Close()
 	require.Equal(t, http.StatusOK, draftResp.StatusCode)
 
-	time.Sleep(100 * time.Millisecond)
-
 	// Filter by action=DRAFT scoped to this resource
 	req, err := http.NewRequest(http.MethodGet, baseURL+"/v1/audit-events?action=DRAFT&resource_id="+rule.ID, nil)
 	require.NoError(t, err)
@@ -3049,8 +2981,6 @@ func TestAuditEvents_11_2_16_FiltersByEventTypeLimitDrafted(t *testing.T) {
 
 	// Draft limit (INACTIVE → DRAFT) — generates LIMIT_DRAFTED event
 	testutil.DraftLimit(t, limitID)
-
-	time.Sleep(100 * time.Millisecond)
 
 	// Filter by eventType=LIMIT_DRAFTED scoped to this resource
 	req, err := http.NewRequest(http.MethodGet, baseURL+"/v1/audit-events?event_type=LIMIT_DRAFTED&resource_id="+limitID, nil)
@@ -3108,8 +3038,6 @@ func TestAuditEvents_11_2_17_FiltersByActionDraftForLimit(t *testing.T) {
 
 	// Draft limit (INACTIVE → DRAFT) — generates event with action=DRAFT
 	testutil.DraftLimit(t, limitID)
-
-	time.Sleep(100 * time.Millisecond)
 
 	// Filter by action=DRAFT scoped to this resource
 	req, err := http.NewRequest(http.MethodGet, baseURL+"/v1/audit-events?action=DRAFT&resource_id="+limitID, nil)

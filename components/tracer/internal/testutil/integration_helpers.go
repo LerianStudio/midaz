@@ -11,6 +11,7 @@ import (
 	"net/http"
 	"os"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -32,6 +33,49 @@ func RandomSuffix() string {
 // Use this for all HTTP requests in integration tests.
 var HTTPClient = &http.Client{
 	Timeout: 10 * time.Second,
+}
+
+type lifecycleStatus uint8
+
+const (
+	lifecycleDraft lifecycleStatus = iota
+	lifecycleActive
+	lifecycleInactive
+)
+
+var resourceLifecycle sync.Map
+
+var cleanupRoundTrips atomic.Int64
+
+var cleanupInvocations atomic.Int64
+
+// ResetCleanupMetrics clears test-only cleanup accounting before a suite run.
+func ResetCleanupMetrics() {
+	cleanupRoundTrips.Store(0)
+	cleanupInvocations.Store(0)
+}
+
+// CleanupRoundTrips reports lifecycle requests issued by cleanup helpers.
+func CleanupRoundTrips() int64 {
+	return cleanupRoundTrips.Load()
+}
+
+// CleanupInvocations reports cleanup helper executions for baseline comparison.
+func CleanupInvocations() int64 {
+	return cleanupInvocations.Load()
+}
+
+func trackResourceLifecycle(resourceID string, status lifecycleStatus) {
+	resourceLifecycle.Store(resourceID, status)
+}
+
+func cleanupNeedsDeactivate(resourceID string) bool {
+	status, ok := resourceLifecycle.Load(resourceID)
+	if !ok {
+		return false
+	}
+
+	return status == lifecycleActive
 }
 
 // GetAPIKey returns the API key from environment or default.
@@ -166,6 +210,7 @@ func CreateTestRuleWithAction(t *testing.T, name string, action string) string {
 
 	err = json.Unmarshal(respBody, &createdRule)
 	require.NoError(t, err)
+	trackResourceLifecycle(createdRule.ID, lifecycleDraft)
 
 	return createdRule.ID
 }
@@ -174,49 +219,90 @@ func CreateTestRuleWithAction(t *testing.T, name string, action string) string {
 // Uses t.Helper() and logs errors but does not fail the test.
 func CleanupRule(t *testing.T, ruleID string) {
 	t.Helper()
+	cleanupInvocations.Add(1)
 
-	apiKey := GetAPIKey()
-	baseURL := GetBaseURL()
+	cleanupLifecycleResource(t, "rule", ruleID)
+	resourceLifecycle.Delete(ruleID)
+}
 
-	// First deactivate the rule (required before delete per state machine)
-	req, err := http.NewRequest(http.MethodPost, baseURL+"/v1/rules/"+ruleID+"/deactivate", nil)
-	if err != nil {
-		t.Logf("Cleanup: failed to create deactivate request for rule %s: %v", ruleID, err)
+func cleanupLifecycleResource(t *testing.T, resourceType, resourceID string) {
+	t.Helper()
 
-		return
+	basePath := GetBaseURL() + "/v1/" + resourceType + "s/" + resourceID
+	deactivated := false
+
+	if cleanupNeedsDeactivate(resourceID) {
+		deactivated = cleanupTransition(t, basePath+"/deactivate", resourceType, resourceID)
+		if !deactivated {
+			return
+		}
 	}
 
-	req.Header.Set("X-API-Key", apiKey)
+	status := cleanupDelete(t, basePath, resourceType, resourceID)
+	if status == http.StatusUnprocessableEntity && !deactivated {
+		// A test may exercise the lifecycle through raw HTTP instead of the
+		// tracked helper. Preserve safety: the failed delete changes no state,
+		// then perform the required audited transition and retry once.
+		if !cleanupTransition(t, basePath+"/deactivate", resourceType, resourceID) {
+			return
+		}
+
+		status = cleanupDelete(t, basePath, resourceType, resourceID)
+	}
+
+	if status != http.StatusOK && status != http.StatusNoContent && status != http.StatusNotFound {
+		t.Logf("Cleanup: DELETE %s %s returned status %d", resourceType, resourceID, status)
+	}
+}
+
+func cleanupTransition(t *testing.T, url, resourceType, resourceID string) bool {
+	t.Helper()
+
+	req, err := http.NewRequest(http.MethodPost, url, nil)
+	if err != nil {
+		t.Logf("Cleanup: failed to create deactivate request for %s %s: %v", resourceType, resourceID, err)
+
+		return false
+	}
+
+	req.Header.Set("X-API-Key", GetAPIKey())
+	cleanupRoundTrips.Add(1)
 
 	resp, err := HTTPClient.Do(req)
 	if err != nil {
-		t.Logf("Cleanup: failed to deactivate rule %s: %v", ruleID, err)
+		t.Logf("Cleanup: failed to deactivate %s %s: %v", resourceType, resourceID, err)
 
-		return
+		return false
 	}
 
-	_ = resp.Body.Close() // Intentionally ignored in test helper
-	// Ignore status - rule might already be inactive or deleted
+	_ = resp.Body.Close()
 
-	// Now delete the rule
-	req, err = http.NewRequest(http.MethodDelete, baseURL+"/v1/rules/"+ruleID, nil)
+	return resp.StatusCode == http.StatusOK || resp.StatusCode == http.StatusNoContent
+}
+
+func cleanupDelete(t *testing.T, url, resourceType, resourceID string) int {
+	t.Helper()
+
+	req, err := http.NewRequest(http.MethodDelete, url, nil)
 	if err != nil {
-		t.Logf("Cleanup: failed to create delete request for rule %s: %v", ruleID, err)
+		t.Logf("Cleanup: failed to create delete request for %s %s: %v", resourceType, resourceID, err)
 
-		return
+		return 0
 	}
 
-	req.Header.Set("X-API-Key", apiKey)
+	req.Header.Set("X-API-Key", GetAPIKey())
+	cleanupRoundTrips.Add(1)
 
-	resp, err = HTTPClient.Do(req)
+	resp, err := HTTPClient.Do(req)
 	if err != nil {
-		t.Logf("Cleanup: failed to delete rule %s: %v", ruleID, err)
+		t.Logf("Cleanup: failed to delete %s %s: %v", resourceType, resourceID, err)
 
-		return
+		return 0
 	}
 
-	_ = resp.Body.Close() // Intentionally ignored in test helper
-	// Ignore status - rule might already be deleted
+	_ = resp.Body.Close()
+
+	return resp.StatusCode
 }
 
 // DeleteRuleViaAPI deletes a rule using the DELETE /v1/rules/:id endpoint.
@@ -522,6 +608,7 @@ func CreateTestRuleWithExpression(t *testing.T, name, expression, action string)
 
 	err = json.Unmarshal(respBody, &createdRule)
 	require.NoError(t, err)
+	trackResourceLifecycle(createdRule.ID, lifecycleDraft)
 
 	return createdRule.ID
 }
@@ -545,6 +632,7 @@ func ActivateRule(t *testing.T, ruleID string) {
 	respBody, err := io.ReadAll(resp.Body)
 	require.NoError(t, err)
 	require.Equal(t, http.StatusOK, resp.StatusCode, "Failed to activate rule: %s", string(respBody))
+	trackResourceLifecycle(ruleID, lifecycleActive)
 }
 
 // DeactivateRule deactivates a rule by ID.
@@ -597,6 +685,7 @@ func DeactivateRule(t *testing.T, ruleID string) {
 	respBody, err := io.ReadAll(resp.Body)
 	require.NoError(t, err)
 	require.Equal(t, http.StatusOK, resp.StatusCode, "Failed to deactivate rule: %s", string(respBody))
+	trackResourceLifecycle(ruleID, lifecycleInactive)
 }
 
 // DraftRule transitions a rule back to DRAFT status by ID.
@@ -619,6 +708,7 @@ func DraftRule(t *testing.T, ruleID string) {
 	respBody, err := io.ReadAll(resp.Body)
 	require.NoError(t, err)
 	require.Equal(t, http.StatusOK, resp.StatusCode, "Failed to draft rule: %s", string(respBody))
+	trackResourceLifecycle(ruleID, lifecycleDraft)
 }
 
 // ValidationDetailResponse represents the response from GET /v1/validations/{id}.
@@ -875,6 +965,7 @@ func CreateLimitWithAccountScopeAndType(t *testing.T, accountID string, maxAmoun
 
 	err = json.Unmarshal(respBody, &limit)
 	require.NoError(t, err)
+	trackResourceLifecycle(limit.ID, lifecycleDraft)
 
 	return limit.ID
 }
@@ -919,6 +1010,7 @@ func CreateLimitWithTransactionTypeScope(t *testing.T, transactionType string, m
 
 	err = json.Unmarshal(respBody, &limit)
 	require.NoError(t, err)
+	trackResourceLifecycle(limit.ID, lifecycleDraft)
 
 	return limit.ID
 }
@@ -943,6 +1035,7 @@ func ActivateLimit(t *testing.T, limitID string) {
 	respBody, err := io.ReadAll(resp.Body)
 	require.NoError(t, err)
 	require.Equal(t, http.StatusOK, resp.StatusCode, "Failed to activate limit: %s", string(respBody))
+	trackResourceLifecycle(limitID, lifecycleActive)
 }
 
 // DraftLimit transitions a limit back to DRAFT status by ID.
@@ -965,59 +1058,16 @@ func DraftLimit(t *testing.T, limitID string) {
 	respBody, err := io.ReadAll(resp.Body)
 	require.NoError(t, err)
 	require.Equal(t, http.StatusOK, resp.StatusCode, "Failed to draft limit: %s", string(respBody))
+	trackResourceLifecycle(limitID, lifecycleDraft)
 }
 
 // CleanupLimit deletes a limit. Called in t.Cleanup() to clean up test data.
 func CleanupLimit(t *testing.T, limitID string) {
 	t.Helper()
+	cleanupInvocations.Add(1)
 
-	apiKey := GetAPIKey()
-	baseURL := GetBaseURL()
-
-	// Step 1: Deactivate limit first (ACTIVE → INACTIVE)
-	// Required because ACTIVE limits cannot be deleted directly
-	deactivateReq, err := http.NewRequest(http.MethodPost, baseURL+"/v1/limits/"+limitID+"/deactivate", nil)
-	if err != nil {
-		t.Logf("Cleanup: failed to create deactivate request for limit %s: %v", limitID, err)
-
-		return
-	}
-
-	deactivateReq.Header.Set("X-API-Key", apiKey)
-
-	deactivateResp, err := HTTPClient.Do(deactivateReq)
-	if err != nil {
-		t.Logf("Cleanup: failed to deactivate limit %s: %v", limitID, err)
-
-		return
-	}
-
-	_ = deactivateResp.Body.Close() // Intentionally ignored in test helper
-
-	// Step 2: Delete limit (INACTIVE → DELETED)
-	deleteReq, err := http.NewRequest(http.MethodDelete, baseURL+"/v1/limits/"+limitID, nil)
-	if err != nil {
-		t.Logf("Cleanup: failed to create delete request for limit %s: %v", limitID, err)
-
-		return
-	}
-
-	deleteReq.Header.Set("X-API-Key", apiKey)
-
-	deleteResp, err := HTTPClient.Do(deleteReq)
-	if err != nil {
-		t.Logf("Cleanup: failed to delete limit %s: %v", limitID, err)
-
-		return
-	}
-
-	defer deleteResp.Body.Close()
-
-	// Log status for debugging
-	if deleteResp.StatusCode != http.StatusOK && deleteResp.StatusCode != http.StatusNoContent {
-		bodyBytes, _ := io.ReadAll(deleteResp.Body)
-		t.Logf("Cleanup: DELETE limit %s returned status %d: %s", limitID, deleteResp.StatusCode, string(bodyBytes))
-	}
+	cleanupLifecycleResource(t, "limit", limitID)
+	resourceLifecycle.Delete(limitID)
 }
 
 // CreateLimitWithScope creates a DAILY limit with arbitrary scopes for integration testing.
@@ -1072,6 +1122,7 @@ func CreateLimitWithScope(t *testing.T, name string, maxAmount string, scopes []
 
 	err = json.Unmarshal(respBody, &limit)
 	require.NoError(t, err)
+	trackResourceLifecycle(limit.ID, lifecycleDraft)
 
 	return limit.ID
 }
@@ -1111,6 +1162,7 @@ func CreateRuleWithScope(t *testing.T, name, expression, action string, scopes [
 
 	err = json.Unmarshal(respBody, &createdRule)
 	require.NoError(t, err)
+	trackResourceLifecycle(createdRule.ID, lifecycleDraft)
 
 	return createdRule.ID
 }

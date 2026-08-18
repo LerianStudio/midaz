@@ -198,6 +198,7 @@ func TestIntegration_Polling_OverlapBuffer_NoDuplication(t *testing.T) {
 	ruleCache.MarkReady(context.Background())
 
 	// Large overlap buffer (1 hour) guarantees all rules are re-fetched every cycle
+	lastSync := ruleCache.LastSyncTime(context.Background())
 	syncCfg := workers.RuleSyncWorkerConfig{
 		PollInterval:       100 * time.Millisecond,
 		StalenessThreshold: 5 * time.Second,
@@ -218,8 +219,16 @@ func TestIntegration_Polling_OverlapBuffer_NoDuplication(t *testing.T) {
 		_ = worker.RunWithContext(workerCtx)
 	}()
 
-	// Wait for at least 5 poll cycles (500ms at 100ms interval)
-	time.Sleep(600 * time.Millisecond)
+	cycles := 0
+	require.Eventually(t, func() bool {
+		current := ruleCache.LastSyncTime(context.Background())
+		if current.After(lastSync) {
+			lastSync = current
+			cycles++
+		}
+
+		return cycles >= 5
+	}, 5*time.Second, 20*time.Millisecond, "wait for five successful overlap polls")
 
 	// 4. Assert: cache still has exactly 5 rules — no duplicates
 	assert.Equal(t, 5, ruleCache.Size(context.Background()),
@@ -397,6 +406,7 @@ func TestIntegration_Polling_MetricsEmission(t *testing.T) {
 	}
 
 	compiler := &noopCompiler{}
+	lastSync := ruleCache.LastSyncTime(context.Background())
 	worker, err := workers.NewRuleSyncWorker(ruleCache, syncRepo, compiler, syncCfg, mockLogger, newIntegrationCircuitBreaker(), clk, "")
 	require.NoError(t, err)
 
@@ -408,8 +418,16 @@ func TestIntegration_Polling_MetricsEmission(t *testing.T) {
 		_ = worker.RunWithContext(workerCtx)
 	}()
 
-	// Wait for at least 3 poll cycles
-	time.Sleep(400 * time.Millisecond)
+	cycles := 0
+	require.Eventually(t, func() bool {
+		current := ruleCache.LastSyncTime(context.Background())
+		if current.After(lastSync) {
+			lastSync = current
+			cycles++
+		}
+
+		return cycles >= 3
+	}, 5*time.Second, 20*time.Millisecond, "wait for three successful metric polls")
 	cancelWorker()
 
 	// 4. Collect and assert metrics

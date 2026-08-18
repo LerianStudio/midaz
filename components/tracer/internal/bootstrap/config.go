@@ -1514,6 +1514,7 @@ func initWorkers(
 		StreamingClose:       streamingClose,
 		StreamingEnabled:     cfg.StreamingEnabled,
 		operatorMetricsClose: operatorMetricsClose,
+		clock:                clk,
 	}
 
 	if mtComponents != nil {
@@ -1761,7 +1762,7 @@ func initCoreInfra(ctx context.Context, cfg *Config) (libLog.Logger, *libOtel.Te
 func initClock() clock.Clock {
 	mockTime := os.Getenv("MOCK_TIME")
 	if mockTime == "" {
-		return clock.New()
+		return integrationControllableClock(clock.New())
 	}
 
 	t, err := time.Parse(time.RFC3339, mockTime)
@@ -1769,12 +1770,12 @@ func initClock() clock.Clock {
 		// Invalid format: fall back to real clock and log warning
 		// Don't fail server startup due to misconfigured test env var
 		fmt.Fprintf(os.Stderr, "WARNING: Invalid MOCK_TIME format '%s' (expected RFC3339), using real clock\n", mockTime)
-		return clock.New()
+		return integrationControllableClock(clock.New())
 	}
 
 	fmt.Fprintf(os.Stderr, "INFO: Using MOCK_TIME=%s (test mode)\n", mockTime)
 
-	return clock.NewFixedClock(t)
+	return integrationControllableClock(clock.NewFixedClock(t))
 }
 
 // InitServers initiate http and grpc servers. The ctx flows through

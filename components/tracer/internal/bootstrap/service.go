@@ -23,6 +23,7 @@ import (
 
 	"github.com/LerianStudio/midaz/v4/components/tracer/internal/adapters/http/in"
 	"github.com/LerianStudio/midaz/v4/components/tracer/internal/services/workers"
+	"github.com/LerianStudio/midaz/v4/components/tracer/pkg/clock"
 	pkgsd "github.com/LerianStudio/midaz/v4/pkg/servicediscovery"
 )
 
@@ -48,6 +49,9 @@ type Service struct {
 	// operatorMetricsClose unregisters the OTel→Prometheus bridge shared by
 	// readyz and reservation-backlog metrics. It is non-nil in full bootstrap.
 	operatorMetricsClose func() error
+	// clock is retained so integration builds can change mock time without
+	// restarting the full service. Production receives the ordinary clock.
+	clock clock.Clock
 
 	// Multi-tenant components (nil in single-tenant mode).
 	pgManager     *tmpostgres.Manager

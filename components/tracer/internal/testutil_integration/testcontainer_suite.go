@@ -13,6 +13,7 @@ import (
 	"net"
 	"os"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -82,10 +83,15 @@ type TestSuite struct {
 
 var globalSuite *TestSuite
 
+var serverRestartCount atomic.Int64
+
 // SetupTestSuite initializes the test environment with a fresh postgres container.
 // Call this in TestMain to set up the environment once for all tests.
 func SetupTestSuite(m *testing.M) int {
 	ctx := context.Background()
+
+	serverRestartCount.Store(0)
+	testutil.ResetCleanupMetrics()
 
 	// Save current environment to restore after tests
 	saveEnvironment()
@@ -235,6 +241,9 @@ func SetupTestSuite(m *testing.M) int {
 	// Run tests
 	code := m.Run()
 
+	fmt.Fprintf(os.Stderr, "tracer integration metrics: server_restarts=%d cleanup_invocations=%d cleanup_round_trips=%d\n",
+		serverRestartCount.Load(), testutil.CleanupInvocations(), testutil.CleanupRoundTrips())
+
 	// Cleanup: shutdown service before terminating container
 	shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
@@ -361,6 +370,12 @@ func RestartServerWithConfig(envOverrides map[string]string) (cleanup func() err
 		return nil, fmt.Errorf("test suite not initialized")
 	}
 
+	if os.Getenv("TRACER_INTEGRATION_DISABLE_CLOCK_REUSE") != "1" {
+		if mockTime, ok := mockTimeOnly(envOverrides); ok {
+			return useMockTimeWithoutRestart(mockTime)
+		}
+	}
+
 	ctx := context.Background()
 
 	// Save current values for restoration (only the ones being overridden)
@@ -463,6 +478,8 @@ func RestartServerWithConfig(envOverrides map[string]string) (cleanup func() err
 
 	globalSuite.service = service
 
+	serverRestartCount.Add(1)
+
 	// Return cleanup function that restores original config
 	cleanup = func() error {
 		shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
@@ -505,8 +522,49 @@ func RestartServerWithConfig(envOverrides map[string]string) (cleanup func() err
 		}
 
 		globalSuite.service = service
+
+		serverRestartCount.Add(1)
 		return nil
 	}
 
 	return cleanup, nil
+}
+
+func mockTimeOnly(envOverrides map[string]string) (string, bool) {
+	if len(envOverrides) != 1 {
+		return "", false
+	}
+
+	mockTime, ok := envOverrides["MOCK_TIME"]
+
+	return mockTime, ok
+}
+
+func useMockTimeWithoutRestart(mockTime string) (func() error, error) {
+	at, err := time.Parse(time.RFC3339, mockTime)
+	if err != nil {
+		return nil, fmt.Errorf("invalid MOCK_TIME %q: %w", mockTime, err)
+	}
+
+	restoreClock, err := globalSuite.service.UseIntegrationTime(at)
+	if err != nil {
+		return nil, err
+	}
+
+	previous, existed := os.LookupEnv("MOCK_TIME")
+
+	if err := os.Setenv("MOCK_TIME", mockTime); err != nil {
+		restoreClock()
+		return nil, fmt.Errorf("set MOCK_TIME: %w", err)
+	}
+
+	return func() error {
+		restoreClock()
+
+		if existed {
+			return os.Setenv("MOCK_TIME", previous)
+		}
+
+		return os.Unsetenv("MOCK_TIME")
+	}, nil
 }

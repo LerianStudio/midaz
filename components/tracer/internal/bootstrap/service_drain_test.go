@@ -95,15 +95,16 @@ func TestService_Shutdown_RespectsParentContext(t *testing.T) {
 	svc, _ := newDrainTestService(t, cfg)
 
 	ctx, cancel := context.WithCancel(context.Background())
+	done := make(chan error, 1)
+	start := time.Now()
 
-	// Cancel after a brief delay so MarkDraining + sleep entry happen first.
 	go func() {
-		time.Sleep(50 * time.Millisecond)
-		cancel()
+		done <- svc.Shutdown(ctx)
 	}()
 
-	start := time.Now()
-	require.NoError(t, svc.Shutdown(ctx))
+	require.Eventually(t, svc.healthChecker.IsDraining, time.Second, 5*time.Millisecond)
+	cancel()
+	require.NoError(t, <-done)
 
 	elapsed := time.Since(start)
 	assert.Less(t, elapsed, 5*time.Second,

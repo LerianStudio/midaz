@@ -5,7 +5,10 @@
 package testutil
 
 import (
+	"net/http"
+	"net/http/httptest"
 	"regexp"
+	"sync"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -127,5 +130,97 @@ func TestRandomSuffix(t *testing.T) {
 		require.Len(t, suffix, 8)
 		require.Regexp(t, pattern, suffix,
 			"RandomSuffix must return 8 lowercase hex chars, got %q", suffix)
+	}
+}
+
+func TestCleanupNeedsDeactivate(t *testing.T) {
+	const resourceID = "resource-under-test"
+
+	resourceLifecycle.Delete(resourceID)
+	require.False(t, cleanupNeedsDeactivate(resourceID), "unknown state probes delete and falls back to the audited transition")
+
+	trackResourceLifecycle(resourceID, lifecycleDraft)
+	require.False(t, cleanupNeedsDeactivate(resourceID), "draft resources can be deleted directly")
+
+	trackResourceLifecycle(resourceID, lifecycleActive)
+	require.True(t, cleanupNeedsDeactivate(resourceID), "active resources must be deactivated before delete")
+
+	trackResourceLifecycle(resourceID, lifecycleInactive)
+	require.False(t, cleanupNeedsDeactivate(resourceID), "inactive resources can be deleted directly")
+
+	resourceLifecycle.Delete(resourceID)
+}
+
+func TestCleanupLifecycleResource_PreservesTransitionsWithFewerRequests(t *testing.T) {
+	tests := []struct {
+		name         string
+		tracked      bool
+		initial      lifecycleStatus
+		serverActive bool
+		wantMethods  []string
+	}{
+		{
+			name:        "tracked draft deletes directly",
+			tracked:     true,
+			initial:     lifecycleDraft,
+			wantMethods: []string{http.MethodDelete},
+		},
+		{
+			name:         "tracked active follows deactivate then delete",
+			tracked:      true,
+			initial:      lifecycleActive,
+			serverActive: true,
+			wantMethods:  []string{http.MethodPost, http.MethodDelete},
+		},
+		{
+			name:         "raw activation falls back after rejected delete",
+			tracked:      true,
+			initial:      lifecycleDraft,
+			serverActive: true,
+			wantMethods:  []string{http.MethodDelete, http.MethodPost, http.MethodDelete},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			const resourceID = "resource-under-test"
+
+			var (
+				mu      sync.Mutex
+				active  = tt.serverActive
+				methods []string
+			)
+
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				mu.Lock()
+				defer mu.Unlock()
+				methods = append(methods, r.Method)
+
+				switch {
+				case r.Method == http.MethodPost && active:
+					active = false
+					w.WriteHeader(http.StatusOK)
+				case r.Method == http.MethodDelete && active:
+					w.WriteHeader(http.StatusUnprocessableEntity)
+				case r.Method == http.MethodDelete:
+					w.WriteHeader(http.StatusNoContent)
+				default:
+					w.WriteHeader(http.StatusConflict)
+				}
+			}))
+			t.Cleanup(server.Close)
+			t.Setenv("SERVER_ADDRESS", server.URL)
+			resourceLifecycle.Delete(resourceID)
+			if tt.tracked {
+				trackResourceLifecycle(resourceID, tt.initial)
+			}
+			t.Cleanup(func() { resourceLifecycle.Delete(resourceID) })
+
+			ResetCleanupMetrics()
+			cleanupLifecycleResource(t, "rule", resourceID)
+
+			require.Equal(t, tt.wantMethods, methods)
+			require.Equal(t, int64(len(tt.wantMethods)), CleanupRoundTrips())
+		})
 	}
 }

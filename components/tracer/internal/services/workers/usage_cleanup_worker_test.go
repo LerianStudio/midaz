@@ -212,6 +212,7 @@ func TestUsageCleanupWorker_ExecutesCleanup(t *testing.T) {
 	logger := testutil.NewMockLogger()
 
 	deletedCount := int64(42)
+	cleanupCalled := make(chan struct{}, 1)
 
 	// Use a fixed time for deterministic testing
 	fixedTime := time.Date(2024, 6, 15, 10, 0, 0, 0, time.UTC)
@@ -220,7 +221,14 @@ func TestUsageCleanupWorker_ExecutesCleanup(t *testing.T) {
 	//  Cleanup now uses expires_at column directly, passing current time
 	mockRepo.EXPECT().
 		DeleteExpiredCounters(gomock.Any(), gomock.Eq(fixedTime.UTC())).
-		Return(deletedCount, nil).
+		DoAndReturn(func(_ context.Context, _ time.Time) (int64, error) {
+			select {
+			case cleanupCalled <- struct{}{}:
+			default:
+			}
+
+			return deletedCount, nil
+		}).
 		MinTimes(1)
 
 	config := UsageCleanupWorkerConfig{
@@ -242,8 +250,11 @@ func TestUsageCleanupWorker_ExecutesCleanup(t *testing.T) {
 		workerErr = worker.RunWithContext(ctx)
 	}()
 
-	// Let it run long enough for at least one cleanup
-	time.Sleep(150 * time.Millisecond)
+	select {
+	case <-cleanupCalled:
+	case <-time.After(5 * time.Second):
+		t.Fatal("timed out waiting for cleanup cycle")
+	}
 
 	cancel()
 	wg.Wait()
@@ -261,11 +272,19 @@ func TestUsageCleanupWorker_HandlesRepositoryError(t *testing.T) {
 	logger := testutil.NewMockLogger()
 
 	dbError := errors.New("database connection failed")
+	cleanupCalled := make(chan struct{}, 1)
 
 	// Expect cleanup calls to fail but worker should continue ( uses expires_at)
 	mockRepo.EXPECT().
 		DeleteExpiredCounters(gomock.Any(), gomock.Any()).
-		Return(int64(0), dbError).
+		DoAndReturn(func(_ context.Context, _ time.Time) (int64, error) {
+			select {
+			case cleanupCalled <- struct{}{}:
+			default:
+			}
+
+			return int64(0), dbError
+		}).
 		MinTimes(1)
 
 	config := UsageCleanupWorkerConfig{
@@ -287,8 +306,11 @@ func TestUsageCleanupWorker_HandlesRepositoryError(t *testing.T) {
 		workerErr = worker.RunWithContext(ctx)
 	}()
 
-	// Let it run and encounter errors - worker should NOT crash
-	time.Sleep(150 * time.Millisecond)
+	select {
+	case <-cleanupCalled:
+	case <-time.After(5 * time.Second):
+		t.Fatal("timed out waiting for failed cleanup cycle")
+	}
 
 	cancel()
 	wg.Wait()
