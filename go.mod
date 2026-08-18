@@ -107,6 +107,7 @@ require (
 	github.com/tink-crypto/tink-go/v2 v2.7.0
 	github.com/twmb/franz-go v1.21.5
 	github.com/twmb/franz-go/pkg/kadm v1.18.0
+	github.com/twmb/franz-go/pkg/kfake v0.0.0-20260606182254-a0f8f332c495
 	github.com/twmb/franz-go/pkg/kmsg v1.13.1
 	go.mongodb.org/mongo-driver/v2 v2.8.0
 	go.opentelemetry.io/otel/exporters/prometheus v0.66.0

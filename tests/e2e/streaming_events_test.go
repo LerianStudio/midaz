@@ -20,6 +20,7 @@ import (
 
 	pkgStreaming "github.com/LerianStudio/midaz/v4/pkg/streaming"
 	"github.com/google/uuid"
+	"github.com/twmb/franz-go/pkg/kadm"
 	"github.com/twmb/franz-go/pkg/kgo"
 	"github.com/twmb/franz-go/pkg/kmsg"
 )
@@ -279,36 +280,56 @@ func strmCatalogTopics() []string {
 	return topics
 }
 
-// strmConsumeMatch consumes topic from the beginning with a short poll loop
-// and returns the first record whose ce-subject header equals wantSubject. It
-// returns the record's ce-type, ce-subject, decoded JSON payload, and whether
-// a match was found within timeout. A unique consumer group is used per call
-// (group offset reset to earliest) so repeated runs replay from the start
-// rather than resuming a committed offset.
-func strmConsumeMatch(t *testing.T, topic, wantSubject string, timeout time.Duration) (ceType, subject string, payload map[string]any, found bool) {
+type strmCapture struct {
+	client  *kgo.Client
+	scanned int
+}
+
+// strmCaptureFromEnd captures every partition's current high watermark before
+// the action under test. Consumption therefore starts at a bounded offset and
+// never scans broker history from prior E2E runs.
+func strmCaptureFromEnd(t *testing.T, topic string) *strmCapture {
 	t.Helper()
 
 	cl, err := kgo.NewClient(
 		kgo.SeedBrokers(strmBrokers()...),
-		kgo.ConsumeTopics(topic),
-		// Replay the whole topic every run: the contract assertion needs the
-		// record produced by THIS test's create call, which may already be in
-		// the log before the consumer starts.
-		kgo.ConsumeResetOffset(kgo.NewOffset().AtStart()),
-		// Unique client/group so a prior run's committed offset never hides
-		// the record we are looking for.
-		kgo.ClientID("e2e-strm-"+uuid.NewString()[:8]),
+		kgo.ClientID("e2e-strm-"+uuid.NewString()),
 	)
 	if err != nil {
 		t.Fatalf("kgo client for %s: %v", topic, err)
 	}
-	defer cl.Close()
+	t.Cleanup(cl.Close)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	endOffsets, err := kadm.NewClient(cl).ListEndOffsets(ctx, topic)
+	if err != nil {
+		t.Fatalf("capture end offsets for %s: %v", topic, err)
+	}
+	if err := endOffsets.Error(); err != nil {
+		t.Fatalf("capture end offsets for %s: %v", topic, err)
+	}
+	if len(endOffsets[topic]) == 0 {
+		t.Fatalf("capture end offsets for %s returned no partitions", topic)
+	}
+
+	cl.AddConsumePartitions(endOffsets.KOffsets())
+
+	return &strmCapture{client: cl}
+}
+
+// ConsumeMatch returns the first captured record whose ce-subject equals
+// wantSubject. Only readiness and asynchronous broker convergence are retried;
+// the payload assertions remain single-shot.
+func (c *strmCapture) ConsumeMatch(t *testing.T, wantSubject string, timeout time.Duration) (ceType, subject string, payload map[string]any, found bool) {
+	t.Helper()
 
 	deadline := time.Now().Add(timeout)
 
 	for time.Now().Before(deadline) {
 		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
-		fetches := cl.PollFetches(ctx)
+		fetches := c.client.PollFetches(ctx)
 		cancel()
 
 		if errs := fetches.Errors(); len(errs) > 0 {
@@ -320,6 +341,7 @@ func strmConsumeMatch(t *testing.T, topic, wantSubject string, timeout time.Dura
 		iter := fetches.RecordIter()
 		for !iter.Done() {
 			rec := iter.Next()
+			c.scanned++
 
 			if subj, ok := strmHeader(rec, strmHeaderCESubject); ok && subj == wantSubject {
 				ct, _ := strmHeader(rec, strmHeaderCEType)
@@ -374,17 +396,17 @@ func TestStreamingAccountCreatedEmitted(t *testing.T) {
 	strmRequireBroker(t)
 
 	f := newFixture(t, false)
+	topic := pkgStreaming.TopicName(strmServiceName, "account.created")
+	capture := strmCaptureFromEnd(t, topic)
 
-	alias := "@strm-acc-" + uuid.NewString()[:8]
+	alias := "@strm-acc-" + uuid.NewString()
 	acc := mustCreate(t, f.ledgers()+"/accounts", map[string]any{
 		"name": "Strm Acct", "assetCode": "USD", "type": "deposit", "alias": alias,
 	})
 
 	accID := str(t, acc, "id")
 
-	topic := pkgStreaming.TopicName(strmServiceName, "account.created")
-
-	ceType, subject, payload, ok := strmConsumeMatch(t, topic, accID, 15*time.Second)
+	ceType, subject, payload, ok := capture.ConsumeMatch(t, accID, 15*time.Second)
 	if !ok {
 		t.Fatalf("no account.created record with ce-subject=%s on %s within timeout", accID, topic)
 	}
@@ -445,14 +467,14 @@ func TestStreamingTransactionPostedEmitted(t *testing.T) {
 	createAccount(t, f, "@strm-src")
 	createAccount(t, f, "@strm-dst")
 	fund(t, f, "@strm-src", "1000")
+	topic := pkgStreaming.TopicName(strmServiceName, "transaction.posted")
+	capture := strmCaptureFromEnd(t, topic)
 
 	// The transfer's response id is the posted transaction's subject.
 	txn := mustCreate(t, f.ledgers()+"/transactions/json", transferBody("@strm-src", "@strm-dst", "100", nil))
 	txnID := str(t, txn, "id")
 
-	topic := pkgStreaming.TopicName(strmServiceName, "transaction.posted")
-
-	ceType, subject, payload, ok := strmConsumeMatch(t, topic, txnID, 20*time.Second)
+	ceType, subject, payload, ok := capture.ConsumeMatch(t, txnID, 20*time.Second)
 	if !ok {
 		t.Fatalf("no transaction.posted record with ce-subject=%s on %s within timeout", txnID, topic)
 	}
@@ -491,11 +513,11 @@ func TestStreamingHolderCreateEmitsRedacted(t *testing.T) {
 	strmRequireBroker(t)
 
 	orgID := createOrg(t)
+	topic := pkgStreaming.TopicName("crm", "holder.created")
+	capture := strmCaptureFromEnd(t, topic)
 	holderID := createHolder(t, orgID)
 
-	topic := pkgStreaming.TopicName("crm", "holder.created")
-
-	ceType, subject, payload, ok := strmConsumeMatch(t, topic, holderID, 15*time.Second)
+	ceType, subject, payload, ok := capture.ConsumeMatch(t, holderID, 15*time.Second)
 	if !ok {
 		t.Fatalf("no holder.created record on %s within timeout", topic)
 	}
@@ -551,7 +573,7 @@ func TestStreamingEmitFailureDoesNotFailRequest(t *testing.T) {
 
 	f := newFixture(t, false)
 
-	alias := "@strm-deadbroker-" + uuid.NewString()[:8]
+	alias := "@strm-deadbroker-" + uuid.NewString()
 
 	// LIVE-VERIFY: with a dead non-empty broker the create still returns 201;
 	// the emit failure is swallowed by EmitImportant (Warn-logged, bounded by
