@@ -242,6 +242,13 @@ func TestFeesEventsRegistered(t *testing.T) {
 // "ledger." prefix — granted from the tenant-manager's SanitizeKafkaSegment —
 // cover every topic the producer emits: the two derivations must never diverge.
 // Card #3783 Task 5.2.
+//
+// The convergence asserted here holds ONLY because the service name is pure
+// [a-z0-9] (as "ledger" is): midaz's sanitizeServiceSegment keeps [a-z0-9] while
+// lib-streaming's sanitizeSourceSegment keeps [a-z0-9._-], so the two legitimately
+// diverge for non-alphanumeric input. That is why this test uses the bare service
+// name and deliberately does NOT assert a non-identity source case — a source with
+// a "." or "-" would produce different segments from each sanitizer by design.
 func TestTopicConvergesWithEventDefinition(t *testing.T) {
 	t.Parallel()
 

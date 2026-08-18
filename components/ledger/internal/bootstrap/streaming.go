@@ -32,6 +32,27 @@ const streamingPrimaryTargetName = "primary"
 // single Kafka ACL prefix "ledger." covers every topic.
 const streamingServiceName = "ledger"
 
+// resolveStreamingSource normalizes the configured CloudEvents source to stamp
+// on emitted events. STREAMING_CLOUDEVENTS_SOURCE is REQUIRED when streaming is
+// enabled: libStreaming.LoadConfig fail-closes with ErrMissingSource on a
+// genuinely-unset value, so BuildStreamingEmitter aborts and the binary never
+// starts without it (.env.example recommends the bare service name "ledger" so
+// ce-source matches the leading ACL-scoped topic segment "ledger." — the route
+// Destination topics are "ledger.<resource>.<event>"). This helper only trims
+// the configured value and returns it verbatim; the bare service name
+// streamingServiceName ("ledger") is a defense-in-depth fallback for a nil or
+// whitespace-only config value that slips past LoadConfig's empty-string check,
+// NOT the unset-env default.
+func resolveStreamingSource(cfg *Config) string {
+	if cfg != nil {
+		if source := strings.TrimSpace(cfg.StreamingCloudEventsSource); source != "" {
+			return source
+		}
+	}
+
+	return streamingServiceName
+}
+
 // noopStreamingCloser is the close hook returned by BuildStreamingEmitter
 // when streaming is disabled. It exists only so callers can append a single
 // uniform cleanup callback to their existing chain.
@@ -112,8 +133,10 @@ func BuildStreamingEmitter(
 	// under the single "ledger" service segment.
 	routes := buildRoutes(streamingPrimaryTargetName)
 
+	source := resolveStreamingSource(cfg)
+
 	builder := libStreaming.NewBuilder().
-		Source(streamingCfg.CloudEventsSource).
+		Source(source).
 		Catalog(catalog).
 		Routes(routes...).
 		// The shared billing_recorded route targets a FIXED literal topic owned
@@ -154,7 +177,7 @@ func BuildStreamingEmitter(
 			ctx, libLog.LevelInfo, "Streaming emitter constructed",
 			libLog.String("brokers", strings.Join(streamingCfg.Brokers, ",")),
 			libLog.String("client_id", streamingCfg.ClientID),
-			libLog.String("ce_source", streamingCfg.CloudEventsSource),
+			libLog.String("ce_source", source),
 			libLog.String("auth", authMode),
 			libLog.Int("catalog_size", catalog.Len()),
 			libLog.Int("routes", len(routes)),

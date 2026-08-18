@@ -46,6 +46,66 @@ func TestBuildStreamingEmitter_DisabledReturnsNoop(t *testing.T) {
 	t.Cleanup(func() { _ = closer() })
 }
 
+// TestResolveStreamingSource locks the HELPER-level CloudEvents source
+// resolution contract: a trimmed, non-empty STREAMING_CLOUDEVENTS_SOURCE value
+// wins verbatim; a nil, empty, or whitespace-only config value normalizes to the
+// bare service name streamingServiceName ("ledger").
+//
+// This is a helper-level fallback only, NOT an end-to-end unset-env default: a
+// genuinely-unset STREAMING_CLOUDEVENTS_SOURCE fail-closes at
+// libStreaming.LoadConfig (ErrMissingSource) before resolveStreamingSource ever
+// runs, so a live enabled deployment never converges here — it MUST set the var
+// (.env.example recommends the bare service name).
+func TestResolveStreamingSource(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		name     string
+		cfg      *Config
+		expected string
+	}{
+		{
+			// Helper-level fallback; a genuinely-unset env fail-closes at
+			// LoadConfig (ErrMissingSource) before this helper runs.
+			name:     "nil config normalizes to bare service name",
+			cfg:      nil,
+			expected: streamingServiceName,
+		},
+		{
+			// Helper-level fallback; a genuinely-unset env fail-closes at
+			// LoadConfig (ErrMissingSource) before this helper runs.
+			name:     "empty config value normalizes to bare service name",
+			cfg:      &Config{StreamingCloudEventsSource: ""},
+			expected: streamingServiceName,
+		},
+		{
+			// Whitespace-only slips past LoadConfig's == "" check, so the
+			// helper's trim-based fallback to the bare service name applies.
+			name:     "whitespace-only config value normalizes to bare service name",
+			cfg:      &Config{StreamingCloudEventsSource: "  \t  "},
+			expected: streamingServiceName,
+		},
+		{
+			name:     "configured value wins",
+			cfg:      &Config{StreamingCloudEventsSource: "lerian.midaz.ledger.staging"},
+			expected: "lerian.midaz.ledger.staging",
+		},
+		{
+			name:     "configured value is trimmed",
+			cfg:      &Config{StreamingCloudEventsSource: "  lerian.midaz.ledger.shadow  "},
+			expected: "lerian.midaz.ledger.shadow",
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			assert.Equal(t, tc.expected, resolveStreamingSource(tc.cfg))
+		})
+	}
+}
+
 // TestMidazEventDefinitions_IncludesBalanceChanged asserts the generic
 // balance.changed event is registered in the single-source-of-truth
 // definition list, so it flows into both the Catalog and the Routes.
