@@ -79,6 +79,90 @@ func TestCreateBulkTransactionOperationsAsync_EmptySlice(t *testing.T) {
 	assert.Equal(t, int64(0), result.TransactionsAttempted)
 }
 
+func TestCreateBulkTransactionOperationsAsync_GenerationMismatchStopsBeforeEveryPostgresWrite(t *testing.T) {
+	t.Parallel()
+
+	ctrl := gomock.NewController(t)
+	transactionRepo := transaction.NewMockRepository(ctrl)
+	operationRepo := operation.NewMockRepository(ctrl)
+	balanceRepo := balance.NewMockRepository(ctrl)
+	redisRepo := redis.NewMockRedisRepository(ctrl)
+	organizationID := uuid.New()
+	ledgerID := uuid.New()
+	transactionID := uuid.New()
+	parentID := uuid.NewString()
+	operationID := uuid.NewString()
+	payload := transaction.TransactionProcessingPayload{
+		Transaction: &transaction.Transaction{
+			ID: transactionID.String(), OrganizationID: organizationID.String(), LedgerID: ledgerID.String(),
+			ParentTransactionID: &parentID, Status: transaction.Status{Code: constant.CREATED},
+			Operations: []*operation.Operation{{ID: operationID, TransactionID: transactionID.String()}},
+		},
+		Validate:        &mtransaction.Responses{},
+		AttemptOwner:    transactionID.String(),
+		ExpectedOutcome: mmodel.TransactionOutcomeCommitted,
+		RedisGeneration: uuid.NewString(),
+		// A legacy payload would call UpdateBalances before BeginTx without the
+		// preflight. Zero expectations on every PG/balance mock make them a
+		// sentinel for any write that occurs before Redis rejects the generation.
+		Version: "",
+	}
+	redisRepo.EXPECT().EnrichTransactionBackup(gomock.Any(), organizationID, ledgerID, transactionID,
+		gomock.Any(), constant.ActionRevert, gomock.Any()).
+		Return(nil, errors.New("financial dataset generation changed"))
+
+	uc := &UseCase{
+		TransactionRepo: transactionRepo, OperationRepo: operationRepo,
+		BalanceRepo: balanceRepo, TransactionRedisRepo: redisRepo,
+	}
+	result, err := uc.CreateBulkTransactionOperationsAsync(context.Background(),
+		[]transaction.TransactionProcessingPayload{payload})
+	require.ErrorContains(t, err, "validate bulk Redis economic outcome")
+	require.NotNil(t, result)
+	assert.Zero(t, result.TransactionsAttempted)
+	assert.Zero(t, result.TransactionsUpdateAttempted)
+	assert.Zero(t, result.OperationsAttempted)
+}
+
+func TestPreflightDurableBulkPayloads_AdoptsCanonicalOperationSet(t *testing.T) {
+	t.Parallel()
+
+	ctrl := gomock.NewController(t)
+	redisRepo := redis.NewMockRedisRepository(ctrl)
+	organizationID := uuid.New()
+	ledgerID := uuid.New()
+	transactionID := uuid.New()
+	parentID := uuid.NewString()
+	proposedID := uuid.NewString()
+	canonicalID := uuid.NewString()
+	generation := uuid.NewString()
+	payloads := []transaction.TransactionProcessingPayload{{
+		Transaction: &transaction.Transaction{
+			ID: transactionID.String(), OrganizationID: organizationID.String(), LedgerID: ledgerID.String(),
+			ParentTransactionID: &parentID, Status: transaction.Status{Code: constant.CREATED},
+			Operations: []*operation.Operation{{ID: proposedID, TransactionID: transactionID.String()}},
+		},
+		AttemptOwner: transactionID.String(), ExpectedOutcome: mmodel.TransactionOutcomeCommitted,
+		RedisGeneration: generation,
+	}}
+	redisRepo.EXPECT().EnrichTransactionBackup(gomock.Any(), organizationID, ledgerID, transactionID,
+		gomock.Any(), constant.ActionRevert, gomock.Any()).
+		DoAndReturn(func(_ context.Context, _, _, _ uuid.UUID, proposed []mmodel.OperationRedis, _ string,
+			attempt *mmodel.BalanceExecutionAttempt) ([]mmodel.OperationRedis, error) {
+			require.Len(t, proposed, 1)
+			assert.Equal(t, proposedID, proposed[0].ID)
+			require.NotNil(t, attempt)
+			assert.Equal(t, generation, attempt.RedisGeneration)
+
+			return []mmodel.OperationRedis{{ID: canonicalID, TransactionID: transactionID.String()}}, nil
+		})
+
+	uc := &UseCase{TransactionRedisRepo: redisRepo}
+	require.NoError(t, uc.preflightDurableBulkPayloads(context.Background(), payloads))
+	require.Len(t, payloads[0].Transaction.Operations, 1)
+	assert.Equal(t, canonicalID, payloads[0].Transaction.Operations[0].ID)
+}
+
 func TestCreateBulkTransactionOperationsAsync_SingleTransaction_Success(t *testing.T) {
 	t.Parallel()
 

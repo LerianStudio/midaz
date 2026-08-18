@@ -176,6 +176,33 @@ func TestIntegration_RevertBackupRecoveryPersistsExactParentAndCompletesClaim(t 
 	require.NoError(t, json.Unmarshal(raw, &decodedQueue))
 	require.NoError(t, redisContainer.Client.Set(ctx, transactionredis.FinancialDatasetGenerationKey,
 		uuid.NewString(), 0).Err())
+	parentID := originID.String()
+	bulkPayload := postgreTransaction.TransactionProcessingPayload{
+		Transaction: &postgreTransaction.Transaction{
+			ID: reverseID.String(), ParentTransactionID: &parentID,
+			OrganizationID: organizationID.String(), LedgerID: ledgerID.String(),
+			Description: queue.TransactionInput.Description, Amount: &amount, AssetCode: "USD",
+			Status:     postgreTransaction.Status{Code: constant.CREATED, Description: &statusDescription},
+			Operations: operations, CreatedAt: fixedTime, UpdatedAt: fixedTime,
+		},
+		Input: &queue.TransactionInput, Validate: queue.Validate, Version: "v2",
+		AttemptOwner: queue.AttemptOwner, ExpectedOutcome: queue.ExpectedOutcome,
+		RevertRolloutMode: queue.RevertRolloutMode, RevertRolloutToken: queue.RevertRolloutToken,
+		RedisGeneration: queue.RedisGeneration,
+	}
+	_, err = commandUC.CreateBulkTransactionOperationsAsync(ctx,
+		[]postgreTransaction.TransactionProcessingPayload{bulkPayload})
+	require.ErrorContains(t, err, "validate bulk Redis economic outcome")
+	var bulkTransactionRows, bulkOperationRows int
+	require.NoError(t, postgresContainer.DB.QueryRowContext(ctx,
+		`SELECT COUNT(*) FROM transaction WHERE id = $1`, reverseID).Scan(&bulkTransactionRows))
+	require.NoError(t, postgresContainer.DB.QueryRowContext(ctx,
+		`SELECT COUNT(*) FROM operation WHERE transaction_id = $1`, reverseID).Scan(&bulkOperationRows))
+	assert.Zero(t, bulkTransactionRows,
+		"a stale bulk consumer must stop before inserting the reverse transaction")
+	assert.Zero(t, bulkOperationRows,
+		"a stale bulk consumer must stop before inserting any reverse operation")
+
 	consumer.processMessage(ctx, backupKey, string(raw), decodedQueue)
 	persistedBeforeGenerationRecovery, err := transactionRepo.FindWithOperations(ctx,
 		organizationID, ledgerID, reverseID)
