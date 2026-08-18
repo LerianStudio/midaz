@@ -1578,8 +1578,9 @@ func (handler *TransactionHandler) executeCreateTransaction(ctx context.Context,
 	tran.Source = getAliasWithoutKey(filterCompanionAliases(validate.Sources))
 	tran.Destination = getAliasWithoutKey(filterCompanionAliases(validate.Destinations))
 
-	operations, err = handler.Command.UpdateTransactionBackupOperations(ctx, params.OrganizationID, params.LedgerID,
-		transactionID, operations, action, params.ExecutionAttempt)
+	operations, terminalReplay, err := handler.Command.UpdateTransactionBackupOperations(ctx,
+		params.OrganizationID, params.LedgerID,
+		transactionID, operations, mmodel.BalancesToRedis(balancesAfter), action, params.ExecutionAttempt)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(span, "Failed to durably bind operations to balance outcome", err)
 		logger.Log(ctx, libLog.LevelError, "Failed to durably bind operations to balance outcome",
@@ -1601,6 +1602,24 @@ func (handler *TransactionHandler) executeCreateTransaction(ctx context.Context,
 	if transactionStatus == constant.CREATED {
 		approved := constant.APPROVED
 		writeTran.Status = transaction.Status{Code: approved, Description: &approved}
+	}
+	if terminalReplay {
+		payload := transaction.TransactionProcessingPayload{
+			Transaction: &writeTran, Input: &transactionInput, Validate: validate,
+			RevertRolloutMode: params.RevertRolloutMode, RevertRolloutToken: params.RevertRolloutToken,
+			RedisGeneration: params.RedisGeneration,
+		}
+		if params.ExecutionAttempt != nil {
+			payload.AttemptOwner = params.ExecutionAttempt.Owner
+			payload.ExpectedOutcome = params.ExecutionAttempt.Outcome
+		}
+		persisted, replayErr := handler.Command.ProveCompletedDurableReplay(ctx,
+			params.OrganizationID, params.LedgerID, payload)
+		if replayErr != nil {
+			return nil, false, replayErr
+		}
+
+		return persisted, true, nil
 	}
 
 	handler.Command.CreateWriteBehindTransaction(ctx, params.OrganizationID, params.LedgerID, &writeTran, transactionInput)

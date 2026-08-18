@@ -485,6 +485,15 @@ func (handler *TransactionHandler) revertTransaction(ctx context.Context, organi
 			RevertRolloutToken: rolloutToken,
 			RedisGeneration:    redisGeneration,
 		}
+		// A target-empty phase-zero-capable pod admitted this request while the
+		// global birth certificate was absent. Recheck the primary immediately
+		// before entering the money path: a concurrent initializer may have
+		// published PREPARING while this request was loading its origin. If the
+		// certificate is still absent, this request's Redis attempt prevents the
+		// initializer from publishing the prepared marker until the request exits.
+		if barrierErr := handler.requireRevertRolloutBarrier(ctx); barrierErr != nil {
+			return nil, false, barrierErr
+		}
 
 		result, replayed, createErr := handler.createRevertTransaction(ctx, params, transactionReverted,
 			constant.CREATED, "", http.ParseIdempotencyTTL(""))
@@ -696,6 +705,14 @@ func (handler *TransactionHandler) revertTransaction(ctx context.Context, organi
 		RevertRolloutMode:     rolloutMode,
 		RevertRolloutToken:    rolloutToken,
 		RedisGeneration:       redisGeneration,
+	}
+	if barrierErr := handler.requireRevertRolloutBarrier(ctx); barrierErr != nil {
+		failureErr := handler.failRevertClaim(ctx, claim, execution, legacyKey, barrierErr)
+		if releaseRolloutLease != nil {
+			releaseRolloutLeaseOnReturn = true
+		}
+
+		return nil, false, failureErr
 	}
 
 	tranReverted, replayed, err := handler.createRevertTransaction(ctx, params, transactionReverted, constant.CREATED, "", http.ParseIdempotencyTTL(""), utils.RevertIdempotencyHashSource(transactionID))
@@ -1211,8 +1228,8 @@ func (handler *TransactionHandler) commitOrCancelTransaction(
 	// The balance Lua already enriched the pre-seeded envelope with the exact
 	// before/after snapshots. Add operation IDs through an owner/outcome CAS;
 	// replacing this record would destroy the authoritative post-Lua proof.
-	operations, err = handler.Command.UpdateTransactionBackupOperations(ctx, organizationID, ledgerID,
-		tran.IDtoUUID(), operations, action, executionAttempt)
+	operations, terminalReplay, err := handler.Command.UpdateTransactionBackupOperations(ctx, organizationID, ledgerID,
+		tran.IDtoUUID(), operations, mmodel.BalancesToRedis(balancesAfter), action, executionAttempt)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(span, "Failed to durably bind lifecycle operations to balance outcome", err)
 		logger.Log(ctx, libLog.LevelError, "Failed to durably bind lifecycle operations to balance outcome",
@@ -1221,6 +1238,19 @@ func (handler *TransactionHandler) commitOrCancelTransaction(
 		return nil, err
 	}
 	tran.Operations = operations
+	if terminalReplay {
+		payload := transaction.TransactionProcessingPayload{
+			Transaction: tran, Input: &transactionInput, Validate: validate,
+			AttemptOwner: executionAttempt.Owner, ExpectedOutcome: executionAttempt.Outcome,
+			RedisGeneration: executionAttempt.RedisGeneration,
+		}
+		persisted, replayErr := handler.Command.ProveCompletedDurableReplay(ctx, organizationID, ledgerID, payload)
+		if replayErr != nil {
+			return nil, replayErr
+		}
+
+		return persisted, nil
+	}
 
 	err = handler.Command.WriteTransaction(ctx, organizationID, ledgerID, &transactionInput, validate, preBalances,
 		balancesAfter, tran, executionAttempt)

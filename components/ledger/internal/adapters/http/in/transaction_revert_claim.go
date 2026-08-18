@@ -121,6 +121,13 @@ func (handler *TransactionHandler) acquireRevertRolloutRequest(
 
 		return nil
 	}
+	if phase == transactionRedis.RevertUpdateFreezeUninitialized {
+		// Phase-zero-capable legacy pods register an in-flight request even
+		// before initialization. The PostgreSQL birth certificate blocks new
+		// admissions and initialization cannot publish Redis witnesses until
+		// every such request releases. No financial generation exists yet.
+		return phase, "", "", release, nil
+	}
 	generation, err := handler.RevertUpdateFreeze.FinancialDatasetGeneration(ctx)
 	if err != nil {
 		if leaseHeld {
@@ -509,8 +516,24 @@ func (handler *TransactionHandler) finalizeDurableRevertPersistence(
 		claim.ReverseTransactionID.String())
 	backup, err := handler.Command.TransactionRedisRepo.ReadMessageFromQueue(ctx, transactionKey)
 	if errors.Is(err, redislib.Nil) {
-		// The outcome may survive a lost cleanup response after its backup was
-		// removed. The exact finalizer is idempotent when both are already absent.
+		// A successful cleanup removes the live backup and outcome but leaves an
+		// append-only terminal receipt. The exact finalizer accepts only that
+		// receipt; absence of every Redis artifact is reconciliation, not success.
+		if claim.RedisGeneration == nil {
+			operationIDs, operationErr := persistedTransactionOperationIDs(persisted)
+			if operationErr != nil {
+				return operationErr
+			}
+			receipt, receiptErr := handler.readTransactionPersistenceTombstone(ctx, claim)
+			if receiptErr != nil {
+				return receiptErr
+			}
+
+			return handler.Command.TransactionRedisRepo.FinalizeLegacyTransactionPersistence(ctx,
+				claim.OrganizationID, claim.LedgerID, claim.ReverseTransactionID, claim.OriginTransactionID,
+				receipt.TransactionStatus, operationIDs)
+		}
+
 		return handler.finalizeOutcomeBackedRevertPersistence(ctx, claim, persisted)
 	}
 	if err != nil {
@@ -534,12 +557,9 @@ func (handler *TransactionHandler) finalizeDurableRevertPersistence(
 		return handler.finalizeOutcomeBackedRevertPersistence(ctx, claim, persisted)
 	}
 
-	operationIDs := make([]string, 0, len(persisted.Operations))
-	for _, operation := range persisted.Operations {
-		if operation == nil || operation.ID == "" {
-			return fmt.Errorf("persisted reverse operation identity is required")
-		}
-		operationIDs = append(operationIDs, operation.ID)
+	operationIDs, err := persistedTransactionOperationIDs(persisted)
+	if err != nil {
+		return err
 	}
 
 	return handler.Command.TransactionRedisRepo.FinalizeLegacyTransactionPersistence(ctx,
@@ -563,16 +583,29 @@ func (handler *TransactionHandler) finalizeOutcomeBackedRevertPersistence(
 		attempt.RedisGeneration = *claim.RedisGeneration
 	}
 
-	operationIDs := make([]string, 0, len(persisted.Operations))
-	for _, operation := range persisted.Operations {
-		if operation == nil || operation.ID == "" {
-			return fmt.Errorf("persisted reverse operation identity is required")
-		}
-		operationIDs = append(operationIDs, operation.ID)
+	operationIDs, err := persistedTransactionOperationIDs(persisted)
+	if err != nil {
+		return err
 	}
 
 	return handler.Command.TransactionRedisRepo.FinalizeTransactionPersistence(ctx,
 		claim.OrganizationID, claim.LedgerID, claim.ReverseTransactionID, attempt, operationIDs)
+}
+
+func persistedTransactionOperationIDs(persisted *transaction.Transaction) ([]string, error) {
+	if persisted == nil || len(persisted.Operations) == 0 {
+		return nil, fmt.Errorf("persisted reverse operations are required")
+	}
+
+	operationIDs := make([]string, 0, len(persisted.Operations))
+	for _, operation := range persisted.Operations {
+		if operation == nil || operation.ID == "" {
+			return nil, fmt.Errorf("persisted reverse operation identity is required")
+		}
+		operationIDs = append(operationIDs, operation.ID)
+	}
+
+	return operationIDs, nil
 }
 
 func (handler *TransactionHandler) loadCompleteReverse(ctx context.Context, claim *revertclaim.Claim) (*transaction.Transaction, bool, error) {
@@ -587,10 +620,15 @@ func (handler *TransactionHandler) loadCompleteReverse(ctx context.Context, clai
 	backup, err := handler.Command.TransactionRedisRepo.ReadMessageFromQueue(ctx,
 		utils.TransactionInternalKey(claim.OrganizationID, claim.LedgerID, claim.ReverseTransactionID.String()))
 	if errors.Is(err, redislib.Nil) {
-		// A terminal claim proves that the complete reverse was durable before its
-		// backup was removed. A non-terminal claim without its authoritative
-		// backup cannot prove whether Redis moved balances and must reconcile.
-		return persisted, claim.State == revertclaim.StateCompleted, nil
+		// A terminal claim proves PostgreSQL durability only. Its append-only Redis
+		// receipt must independently prove the canonical operation and balance
+		// evidence before cleanup/replay can succeed. A non-terminal claim without
+		// its authoritative backup cannot prove whether Redis moved balances.
+		if claim.State != revertclaim.StateCompleted || !handler.terminalReverseReceiptMatches(ctx, claim, persisted) {
+			return persisted, false, nil
+		}
+
+		return persisted, true, nil
 	}
 	if err != nil {
 		return nil, false, fmt.Errorf("read reverse transaction backup: %w", err)
@@ -628,6 +666,105 @@ func (handler *TransactionHandler) loadCompleteReverse(ctx context.Context, clai
 
 func queuedOperationBalanceMatchesPersisted(queued mmodel.OperationRedis, persisted *operation.Operation) bool {
 	return persisted != nil && operation.RedisEconomicEffectEqual(queued, persisted.ToRedis())
+}
+
+func (handler *TransactionHandler) terminalReverseReceiptMatches(
+	ctx context.Context,
+	claim *revertclaim.Claim,
+	persisted *transaction.Transaction,
+) bool {
+	if handler == nil || handler.Command == nil || handler.Command.TransactionRedisRepo == nil ||
+		claim == nil || persisted == nil || len(persisted.Operations) == 0 {
+		return false
+	}
+
+	redisOperations := make([]mmodel.OperationRedis, 0, len(persisted.Operations))
+	for _, persistedOperation := range persisted.Operations {
+		if persistedOperation == nil || persistedOperation.ID == "" {
+			return false
+		}
+		redisOperations = append(redisOperations, persistedOperation.ToRedis())
+	}
+
+	var attempt *mmodel.BalanceExecutionAttempt
+	if claim.RedisGeneration != nil {
+		attempt = &mmodel.BalanceExecutionAttempt{
+			ExecutionKey: utils.TransactionBalanceExecutionKey(claim.OrganizationID, claim.LedgerID,
+				claim.ReverseTransactionID),
+			OutcomeKey: utils.TransactionBalanceOutcomeKey(claim.OrganizationID, claim.LedgerID,
+				claim.ReverseTransactionID),
+			Owner:           claim.ReverseTransactionID.String(),
+			Outcome:         mmodel.TransactionOutcomeCommitted,
+			Identity:        claim.ReverseTransactionID,
+			RedisGeneration: *claim.RedisGeneration,
+		}
+	}
+
+	canonicalOperations, balancesAfter, terminal, err := handler.Command.TransactionRedisRepo.EnrichTransactionBackup(
+		ctx, claim.OrganizationID, claim.LedgerID, claim.ReverseTransactionID,
+		redisOperations, constant.ActionRevert, attempt)
+	if err != nil || !terminal || len(canonicalOperations) != len(persisted.Operations) ||
+		!mmodel.RedisBalanceSetEconomicComplete(balancesAfter) {
+		return false
+	}
+	receipt, err := handler.readTransactionPersistenceTombstone(ctx, claim)
+	if err != nil || receipt.Identity != claim.ReverseTransactionID ||
+		receipt.ParentTransactionID != claim.OriginTransactionID.String() || receipt.Action != constant.ActionRevert ||
+		!terminalReceiptStatusMatchesPersisted(receipt.TransactionStatus, persisted.Status.Code) {
+		return false
+	}
+	if claim.RedisGeneration == nil {
+		if receipt.Owner != "" || receipt.Outcome != "" || receipt.RedisGeneration != "" {
+			return false
+		}
+	} else if receipt.Owner != claim.ReverseTransactionID.String() ||
+		receipt.Outcome != mmodel.TransactionOutcomeCommitted || receipt.RedisGeneration != *claim.RedisGeneration {
+		return false
+	}
+
+	persistedByID := make(map[string]*operation.Operation, len(persisted.Operations))
+	for _, persistedOperation := range persisted.Operations {
+		if _, duplicate := persistedByID[persistedOperation.ID]; duplicate {
+			return false
+		}
+		persistedByID[persistedOperation.ID] = persistedOperation
+	}
+	for _, canonicalOperation := range canonicalOperations {
+		persistedOperation, ok := persistedByID[canonicalOperation.ID]
+		if !ok || canonicalOperation.TransactionID != claim.ReverseTransactionID.String() ||
+			!queuedOperationBalanceMatchesPersisted(canonicalOperation, persistedOperation) {
+			return false
+		}
+		delete(persistedByID, canonicalOperation.ID)
+	}
+
+	return len(persistedByID) == 0
+}
+
+func (handler *TransactionHandler) readTransactionPersistenceTombstone(
+	ctx context.Context,
+	claim *revertclaim.Claim,
+) (*mmodel.TransactionPersistenceTombstone, error) {
+	raw, err := handler.Command.TransactionRedisRepo.Get(ctx, utils.TransactionPersistenceTombstoneKey(
+		claim.OrganizationID, claim.LedgerID, claim.ReverseTransactionID))
+	if err != nil {
+		return nil, fmt.Errorf("read reverse terminal persistence receipt: %w", err)
+	}
+	if raw == "" {
+		return nil, fmt.Errorf("reverse terminal persistence receipt is required")
+	}
+
+	receipt := mmodel.TransactionPersistenceTombstone{}
+	if err := json.Unmarshal([]byte(raw), &receipt); err != nil {
+		return nil, fmt.Errorf("decode reverse terminal persistence receipt: %w", err)
+	}
+
+	return &receipt, nil
+}
+
+func terminalReceiptStatusMatchesPersisted(receiptStatus, persistedStatus string) bool {
+	return strings.EqualFold(receiptStatus, persistedStatus) ||
+		(strings.EqualFold(receiptStatus, constant.CREATED) && strings.EqualFold(persistedStatus, constant.APPROVED))
 }
 
 func legacyRevertBarrierKeyFromClaim(claim *revertclaim.Claim) (string, error) {

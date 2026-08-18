@@ -144,8 +144,14 @@ func TestIntegration_RevertBackupRecoveryPersistsExactParentAndCompletesClaim(t 
 		TransactionDate:    fixedTime,
 		TTL:                fixedTime,
 		BalancesAfter: []mmodel.BalanceRedis{
-			{ID: operations[0].BalanceID, Alias: operations[0].AccountAlias, Available: amount},
-			{ID: operations[1].BalanceID, Alias: operations[1].AccountAlias, Available: zero},
+			{ID: operations[0].BalanceID, Alias: operations[0].AccountAlias, Key: operations[0].BalanceKey,
+				AccountID: operations[0].AccountID, AssetCode: operations[0].AssetCode, Available: amount,
+				OnHold: zero, Version: versionAfter, AccountType: "deposit", Direction: operations[0].Direction, OverdraftUsed: "0",
+				OverdraftLimit: "0", BalanceScope: mmodel.BalanceScopeTransactional},
+			{ID: operations[1].BalanceID, Alias: operations[1].AccountAlias, Key: operations[1].BalanceKey,
+				AccountID: operations[1].AccountID, AssetCode: operations[1].AssetCode, Available: zero,
+				OnHold: zero, Version: versionAfter, AccountType: "deposit", Direction: operations[1].Direction, OverdraftUsed: "0",
+				OverdraftLimit: "0", BalanceScope: mmodel.BalanceScopeTransactional},
 		},
 		Operations: []mmodel.OperationRedis{
 			operations[0].ToRedis(),
@@ -186,6 +192,10 @@ func TestIntegration_RevertBackupRecoveryPersistsExactParentAndCompletesClaim(t 
 			Operations: operations, CreatedAt: fixedTime, UpdatedAt: fixedTime,
 		},
 		Input: &queue.TransactionInput, Validate: queue.Validate, Version: "v2",
+		BalancesAfter: []*mmodel.Balance{
+			balanceFromBackup(queue.BalancesAfter[0], organizationID, ledgerID),
+			balanceFromBackup(queue.BalancesAfter[1], organizationID, ledgerID),
+		},
 		AttemptOwner: queue.AttemptOwner, ExpectedOutcome: queue.ExpectedOutcome,
 		RevertRolloutMode: queue.RevertRolloutMode, RevertRolloutToken: queue.RevertRolloutToken,
 		RedisGeneration: queue.RedisGeneration,
@@ -263,6 +273,17 @@ func TestIntegration_RevertBackupRecoveryPersistsExactParentAndCompletesClaim(t 
 		_, readErr := redisRepo.ReadMessageFromQueue(ctx, backupKey)
 		return errors.Is(readErr, redislib.Nil)
 	}, 2*time.Second, 20*time.Millisecond, "completed recovery must remove the Redis backup")
+	lostAckReplay, err := commandUC.CreateBulkTransactionOperationsAsync(ctx,
+		[]postgreTransaction.TransactionProcessingPayload{bulkPayload})
+	require.NoError(t, err,
+		"redelivery after PostgreSQL commit and Redis cleanup must prove the terminal receipt and acknowledge")
+	assert.Zero(t, lostAckReplay.TransactionsAttempted,
+		"terminal redelivery must not enter any PostgreSQL write branch")
+	require.NoError(t, postgresContainer.DB.QueryRowContext(ctx, `
+		SELECT COUNT(*) FROM transaction
+		WHERE organization_id = $1 AND ledger_id = $2 AND parent_transaction_id = $3`,
+		organizationID, ledgerID, originID).Scan(&reverseCount))
+	assert.Equal(t, 1, reverseCount)
 	require.NoError(t, redisContainer.Client.Del(ctx, transactionredis.FinancialDatasetGenerationKey,
 		transactionredis.RevertUpdateFreezeKey, transactionredis.RevertRolloutGenerationKey).Err())
 	require.Error(t, initializer.InitializeFinancialDatasetGeneration(ctx),
@@ -336,8 +357,22 @@ func TestIntegration_LifecycleBackupRecoveryAfterLeaseExpiryPersistsExactOperati
 		recoveryOperation(transactionID, organizationID, ledgerID, uuid.New(), uuid.New(), "@destination", constant.CREDIT,
 			constant.DirectionCredit, &amount, &zero, &amount, &versionBefore, &versionAfter, &approved, fixedTime),
 	}
-	before := []mmodel.BalanceRedis{{ID: operations[0].BalanceID, Available: amount}, {ID: operations[1].BalanceID, Available: zero}}
-	after := []mmodel.BalanceRedis{{ID: operations[0].BalanceID, Available: zero}, {ID: operations[1].BalanceID, Available: amount}}
+	completeSnapshot := func(operation *operation.Operation, available decimal.Decimal, version int64) mmodel.BalanceRedis {
+		return mmodel.BalanceRedis{
+			ID: operation.BalanceID, Alias: operation.AccountAlias, Key: operation.BalanceKey,
+			AccountID: operation.AccountID, AssetCode: operation.AssetCode, Available: available,
+			OnHold: zero, Version: version, AccountType: "deposit", Direction: operation.Direction,
+			OverdraftUsed: "0", OverdraftLimit: "0", BalanceScope: mmodel.BalanceScopeTransactional,
+		}
+	}
+	before := []mmodel.BalanceRedis{
+		completeSnapshot(operations[0], amount, versionBefore),
+		completeSnapshot(operations[1], zero, versionBefore),
+	}
+	after := []mmodel.BalanceRedis{
+		completeSnapshot(operations[0], zero, versionAfter),
+		completeSnapshot(operations[1], amount, versionAfter),
+	}
 	queue := mmodel.TransactionRedisQueue{
 		TransactionID:     transactionID,
 		OrganizationID:    organizationID,
@@ -455,21 +490,23 @@ func TestIntegration_RevertBackupRecoveryAdoptsPartialDeterministicOperationSet(
 	toAccountID, toBalanceID := uuid.New(), uuid.New()
 	before := []*mmodel.Balance{
 		{ID: fromBalanceID.String(), AccountID: fromAccountID.String(), Alias: fromAlias, Key: constant.DefaultBalanceKey,
-			AssetCode: "USD", Available: amount, Version: 1, OrganizationID: organizationID.String(), LedgerID: ledgerID.String(),
+			AssetCode: "USD", Available: amount, Version: 1, AccountType: "deposit", OrganizationID: organizationID.String(), LedgerID: ledgerID.String(),
 			Direction: constant.DirectionDebit, OverdraftUsed: decimal.NewFromInt(125),
 			Settings: &mmodel.BalanceSettings{BalanceScope: mmodel.BalanceScopeInternal, AllowOverdraft: true,
 				OverdraftLimitEnabled: true, OverdraftLimit: func() *string { value := "500"; return &value }()}},
 		{ID: toBalanceID.String(), AccountID: toAccountID.String(), Alias: toAlias, Key: constant.DefaultBalanceKey,
-			AssetCode: "USD", Available: zero, Version: 1, OrganizationID: organizationID.String(), LedgerID: ledgerID.String()},
+			AssetCode: "USD", Available: zero, Version: 1, AccountType: "deposit", OrganizationID: organizationID.String(), LedgerID: ledgerID.String(),
+			Direction: constant.DirectionCredit},
 	}
 	after := []*mmodel.Balance{
 		{ID: fromBalanceID.String(), AccountID: fromAccountID.String(), Alias: fromAlias, Key: constant.DefaultBalanceKey,
-			AssetCode: "USD", Available: zero, Version: 7, OrganizationID: organizationID.String(), LedgerID: ledgerID.String(),
+			AssetCode: "USD", Available: zero, Version: 7, AccountType: "deposit", OrganizationID: organizationID.String(), LedgerID: ledgerID.String(),
 			Direction: constant.DirectionDebit, OverdraftUsed: decimal.NewFromInt(25),
 			Settings: &mmodel.BalanceSettings{BalanceScope: mmodel.BalanceScopeInternal, AllowOverdraft: true,
 				OverdraftLimitEnabled: true, OverdraftLimit: func() *string { value := "500"; return &value }()}},
 		{ID: toBalanceID.String(), AccountID: toAccountID.String(), Alias: toAlias, Key: constant.DefaultBalanceKey,
-			AssetCode: "USD", Available: amount, Version: 9, OrganizationID: organizationID.String(), LedgerID: ledgerID.String()},
+			AssetCode: "USD", Available: amount, Version: 9, AccountType: "deposit", OrganizationID: organizationID.String(), LedgerID: ledgerID.String(),
+			Direction: constant.DirectionCredit},
 	}
 	debit := mtransaction.Amount{Asset: "USD", Value: amount, Operation: constant.DEBIT, Direction: constant.DirectionDebit}
 	credit := mtransaction.Amount{Asset: "USD", Value: amount, Operation: constant.CREDIT, Direction: constant.DirectionCredit}
@@ -501,15 +538,17 @@ func TestIntegration_RevertBackupRecoveryAdoptsPartialDeterministicOperationSet(
 		TransactionDate: fixedTime, TTL: fixedTime,
 		Balances: []mmodel.BalanceRedis{
 			{ID: fromBalanceID.String(), AccountID: fromAccountID.String(), Alias: fromAlias, Key: constant.DefaultBalanceKey, AssetCode: "USD", Available: amount, Version: 1,
-				Direction: constant.DirectionDebit, OverdraftUsed: "125", AllowOverdraft: 1, OverdraftLimitEnabled: 1,
+				AccountType: "deposit", Direction: constant.DirectionDebit, OverdraftUsed: "125", AllowOverdraft: 1, OverdraftLimitEnabled: 1,
 				OverdraftLimit: "500", BalanceScope: mmodel.BalanceScopeInternal},
-			{ID: toBalanceID.String(), AccountID: toAccountID.String(), Alias: toAlias, Key: constant.DefaultBalanceKey, AssetCode: "USD", Available: zero, Version: 1},
+			{ID: toBalanceID.String(), AccountID: toAccountID.String(), Alias: toAlias, Key: constant.DefaultBalanceKey, AssetCode: "USD", Available: zero, Version: 1,
+				AccountType: "deposit", Direction: constant.DirectionCredit, OverdraftUsed: "0", OverdraftLimit: "0", BalanceScope: mmodel.BalanceScopeTransactional},
 		},
 		BalancesAfter: []mmodel.BalanceRedis{
 			{ID: fromBalanceID.String(), AccountID: fromAccountID.String(), Alias: fromAlias, Key: constant.DefaultBalanceKey, AssetCode: "USD", Available: zero, Version: 7,
-				Direction: constant.DirectionDebit, OverdraftUsed: "25", AllowOverdraft: 1, OverdraftLimitEnabled: 1,
+				AccountType: "deposit", Direction: constant.DirectionDebit, OverdraftUsed: "25", AllowOverdraft: 1, OverdraftLimitEnabled: 1,
 				OverdraftLimit: "500", BalanceScope: mmodel.BalanceScopeInternal},
-			{ID: toBalanceID.String(), AccountID: toAccountID.String(), Alias: toAlias, Key: constant.DefaultBalanceKey, AssetCode: "USD", Available: amount, Version: 9},
+			{ID: toBalanceID.String(), AccountID: toAccountID.String(), Alias: toAlias, Key: constant.DefaultBalanceKey, AssetCode: "USD", Available: amount, Version: 9,
+				AccountType: "deposit", Direction: constant.DirectionCredit, OverdraftUsed: "0", OverdraftLimit: "0", BalanceScope: mmodel.BalanceScopeTransactional},
 		},
 		// Operations intentionally absent: this is the lost best-effort
 		// materialization window that used to mint new IDs on every replay.

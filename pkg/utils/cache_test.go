@@ -112,6 +112,9 @@ func TestTransactionBalanceExecutionKeysShareAtomicSlot(t *testing.T) {
 	assert.Equal(t,
 		"transaction:{transactions}:550e8400-e29b-41d4-a716-446655440000:6ba7b810-9dad-11d1-80b4-00c04fd430c8:018f5f4c-6a2e-7b10-8f4c-6a2e7b108f4c:balance-outcome",
 		TransactionBalanceOutcomeKey(organizationID, ledgerID, transactionID))
+	assert.Equal(t,
+		"transaction:{transactions}:550e8400-e29b-41d4-a716-446655440000:6ba7b810-9dad-11d1-80b4-00c04fd430c8:018f5f4c-6a2e-7b10-8f4c-6a2e7b108f4c:persistence-tombstone",
+		TransactionPersistenceTombstoneKey(organizationID, ledgerID, transactionID))
 }
 
 func TestBalanceInternalKey(t *testing.T) {

@@ -49,11 +49,17 @@ func TestTransactionBackupDeletionRequiresAtomicProof(t *testing.T) {
 
 	scriptDirectory := filepath.Join(ledgerRoot, "internal", "adapters", "redis", "transaction", "scripts")
 	allowed := map[string][]string{
-		"finalize_legacy_transaction_persistence.lua": {"parent_transaction_id", "operations", "HDEL"},
-		"finalize_transaction_persistence.lua":        {"attempt_owner", "expected_outcome", "HDEL"},
-		"remove_transaction_backup_if_status.lua":     {"attempt_owner", "expected_outcome", "balancesAfter", "HDEL"},
-		"remove_transaction_backup_if_value.lua":      {"raw ~= ARGV[1]", "HDEL"},
-		"release_pre_movement_revert.lua":             {"KEYS[6]", "ARGV[1]", "attempt_owner", "HDEL"},
+		"finalize_legacy_transaction_persistence.lua": {
+			"parent_transaction_id", "operations", "balancesAfter",
+			"TRANSACTION_PERSISTENCE_TOMBSTONE_MISSING", `redis.call("SET", KEYS[3]`, "HDEL",
+		},
+		"finalize_transaction_persistence.lua": {
+			"attempt_owner", "expected_outcome", "balancesAfter",
+			"TRANSACTION_PERSISTENCE_TOMBSTONE_MISSING", `redis.call("SET", KEYS[4]`, "HDEL",
+		},
+		"remove_transaction_backup_if_status.lua": {"attempt_owner", "expected_outcome", "balancesAfter", "HDEL"},
+		"remove_transaction_backup_if_value.lua":  {"raw ~= ARGV[1]", "HDEL"},
+		"release_pre_movement_revert.lua":         {"KEYS[6]", "ARGV[1]", "attempt_owner", "HDEL"},
 	}
 	entries, err := os.ReadDir(scriptDirectory)
 	require.NoError(t, err)
@@ -150,16 +156,23 @@ func TestRevertBarrierAcquisitionOrder(t *testing.T) {
 
 	claimPositions := stateCalls["ClaimRevert"]
 	require.Len(t, claimPositions, 2, "legacy adoption and fresh claim must remain explicit")
+	barrierPositions := stateCalls["requireRevertRolloutBarrier"]
+	require.Len(t, barrierPositions, 2,
+		"target-empty and durable paths must recheck the primary rollout certificate immediately before money movement")
 	require.Len(t, stateCalls["acquireLegacyRevertBarrier"], 1)
 	require.Len(t, stateCalls["AcquireOwnedKey"], 1,
 		"a fresh claim must atomically acquire its balance execution attempt and owner")
 	require.Len(t, stateCalls["createRevertTransaction"], 2, "phase zero legacy and bridge/final paths must remain explicit")
+	assert.Less(t, barrierPositions[0], stateCalls["createRevertTransaction"][0],
+		"a target-empty request paused across initialization must abort before entering the legacy money path")
 	assert.Less(t, stateCalls["AcquireOwnedKey"][0], claimPositions[1],
 		"a visible PostgreSQL claim must already have the attempt that fences a stale winner")
 	assert.Less(t, claimPositions[1], stateCalls["acquireLegacyRevertBarrier"][0],
 		"fresh PostgreSQL claim must precede the legacy Redis barrier")
 	assert.Less(t, stateCalls["acquireLegacyRevertBarrier"][0], stateCalls["createRevertTransaction"][1],
 		"bridge must own the legacy barrier before entering the origin-scoped create path")
+	assert.Less(t, barrierPositions[1], stateCalls["createRevertTransaction"][1],
+		"the durable path must revalidate the rollout certificate after every barrier acquisition")
 
 	createCalls := callsInFunction(t, createSource, "executeCreateTransaction")
 	require.Len(t, createCalls["acquireOriginRevertBarrier"], 1)

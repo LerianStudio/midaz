@@ -91,12 +91,12 @@ func TestCreateBalanceTransactionOperationsAsync_GenerationPreflightRunsBeforePo
 	redisRepo.EXPECT().EnrichTransactionBackup(gomock.Any(), organizationID, ledgerID, transactionID,
 		gomock.Any(), constant.ActionRevert, gomock.Any()).
 		DoAndReturn(func(_ context.Context, _, _, _ uuid.UUID, _ []mmodel.OperationRedis, _ string,
-			attempt *mmodel.BalanceExecutionAttempt) ([]mmodel.OperationRedis, error) {
+			attempt *mmodel.BalanceExecutionAttempt) ([]mmodel.OperationRedis, []mmodel.BalanceRedis, bool, error) {
 			require.NotNil(t, attempt)
 			assert.Equal(t, generation, attempt.RedisGeneration)
 			assert.Equal(t, owner, attempt.Owner)
 
-			return nil, errors.New("financial dataset generation changed")
+			return nil, nil, false, errors.New("financial dataset generation changed")
 		})
 
 	parentID := uuid.NewString()
@@ -1437,17 +1437,18 @@ func TestUpdateTransactionBackupOperations(t *testing.T) {
 
 		mockRedisRepo.EXPECT().
 			EnrichTransactionBackup(gomock.Any(), organizationID, ledgerID, transactionID, gomock.Any(), constant.ActionCommit, nil).
-			DoAndReturn(func(_ context.Context, _, _, _ uuid.UUID, redisOperations []mmodel.OperationRedis, _ string, _ *mmodel.BalanceExecutionAttempt) ([]mmodel.OperationRedis, error) {
+			DoAndReturn(func(_ context.Context, _, _, _ uuid.UUID, redisOperations []mmodel.OperationRedis, _ string, _ *mmodel.BalanceExecutionAttempt) ([]mmodel.OperationRedis, []mmodel.BalanceRedis, bool, error) {
 				assert.Len(t, redisOperations, 1)
 				assert.Equal(t, "op-1", redisOperations[0].ID)
 				assert.Equal(t, "DEBIT", redisOperations[0].Type)
-				return redisOperations, nil
+				return redisOperations, nil, false, nil
 			}).
 			Times(1)
 
-		canonical, err := uc.UpdateTransactionBackupOperations(ctx, organizationID, ledgerID, transactionID,
-			operations, constant.ActionCommit, nil)
+		canonical, terminal, err := uc.UpdateTransactionBackupOperations(ctx, organizationID, ledgerID, transactionID,
+			operations, nil, constant.ActionCommit, nil)
 		require.NoError(t, err)
+		assert.False(t, terminal)
 		require.Len(t, canonical, 1)
 		require.Equal(t, "op-1", canonical[0].ID)
 	})
@@ -1469,11 +1470,37 @@ func TestUpdateTransactionBackupOperations(t *testing.T) {
 		mockRedisRepo.EXPECT().
 			EnrichTransactionBackup(gomock.Any(), organizationID, ledgerID, transactionID,
 				gomock.Any(), constant.ActionCancel, attempt).
-			Return(nil, errors.New("redis write failed"))
+			Return(nil, nil, false, errors.New("redis write failed"))
 
-		_, err := uc.UpdateTransactionBackupOperations(context.Background(), organizationID, ledgerID,
-			transactionID, nil, constant.ActionCancel, attempt)
+		_, _, err := uc.UpdateTransactionBackupOperations(context.Background(), organizationID, ledgerID,
+			transactionID, nil, nil, constant.ActionCancel, attempt)
 		require.ErrorContains(t, err, "redis write failed")
+	})
+
+	t.Run("terminal_receipt_with_different_balance_snapshot_is_rejected", func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		mockRedisRepo := redis.NewMockRedisRepository(ctrl)
+		organizationID := uuid.New()
+		ledgerID := uuid.New()
+		transactionID := uuid.New()
+		economicOperation := &operation.Operation{ID: uuid.NewString(), TransactionID: transactionID.String()}
+		expectedBalance := (&mmodel.Balance{ID: uuid.NewString(), Key: "default"}).ToRedis()
+		foreignBalance := expectedBalance
+		foreignBalance.Direction = constant.DirectionDebit
+		attempt := &mmodel.BalanceExecutionAttempt{
+			ExecutionKey: utils.TransactionBalanceExecutionKey(organizationID, ledgerID, transactionID),
+			OutcomeKey:   utils.TransactionBalanceOutcomeKey(organizationID, ledgerID, transactionID),
+			Owner:        uuid.NewString(), Outcome: mmodel.TransactionOutcomeCommitted, Identity: transactionID,
+		}
+		mockRedisRepo.EXPECT().EnrichTransactionBackup(gomock.Any(), organizationID, ledgerID, transactionID,
+			gomock.Any(), constant.ActionCommit, attempt).
+			Return([]mmodel.OperationRedis{economicOperation.ToRedis()}, []mmodel.BalanceRedis{foreignBalance}, true, nil)
+
+		uc := &UseCase{TransactionRedisRepo: mockRedisRepo}
+		_, _, err := uc.UpdateTransactionBackupOperations(context.Background(), organizationID, ledgerID,
+			transactionID, []*operation.Operation{economicOperation}, []mmodel.BalanceRedis{expectedBalance},
+			constant.ActionCommit, attempt)
+		require.ErrorContains(t, err, "transaction economic effect differs from its authoritative Redis envelope")
 	})
 }
 

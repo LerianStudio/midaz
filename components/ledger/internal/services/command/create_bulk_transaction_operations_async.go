@@ -91,8 +91,13 @@ func (uc *UseCase) CreateBulkTransactionOperationsAsync(
 	if len(payloads) == 0 {
 		return result, nil
 	}
-	if err := uc.preflightDurableBulkPayloads(ctx, payloads); err != nil {
+	var err error
+	payloads, err = uc.preflightDurableBulkPayloads(ctx, payloads)
+	if err != nil {
 		return result, err
+	}
+	if len(payloads) == 0 {
+		return result, nil
 	}
 
 	// Legacy payload compatibility: messages from v3.5.x lack the Version field.
@@ -152,22 +157,24 @@ func (uc *UseCase) CreateBulkTransactionOperationsAsync(
 func (uc *UseCase) preflightDurableBulkPayloads(
 	ctx context.Context,
 	payloads []transaction.TransactionProcessingPayload,
-) error {
+) ([]transaction.TransactionProcessingPayload, error) {
+	pending := make([]transaction.TransactionProcessingPayload, 0, len(payloads))
 	for i := range payloads {
 		payload := &payloads[i]
 		if payload.RedisGeneration == "" {
+			pending = append(pending, *payload)
 			continue
 		}
 		if payload.Transaction == nil {
-			return fmt.Errorf("validate bulk Redis economic outcome: payload %d has nil transaction", i)
+			return nil, fmt.Errorf("validate bulk Redis economic outcome: payload %d has nil transaction", i)
 		}
 		organizationID, ledgerID, err := uc.extractOrgLedgerIDs(*payload)
 		if err != nil {
-			return fmt.Errorf("validate bulk Redis economic outcome for payload %d: %w", i, err)
+			return nil, fmt.Errorf("validate bulk Redis economic outcome for payload %d: %w", i, err)
 		}
 		transactionID, err := uuid.Parse(payload.Transaction.ID)
 		if err != nil {
-			return fmt.Errorf("validate bulk Redis economic outcome for payload %d: invalid transaction id: %w", i, err)
+			return nil, fmt.Errorf("validate bulk Redis economic outcome for payload %d: invalid transaction id: %w", i, err)
 		}
 		attempt := &mmodel.BalanceExecutionAttempt{
 			ExecutionKey:    utils.TransactionBalanceExecutionKey(organizationID, ledgerID, transactionID),
@@ -177,16 +184,25 @@ func (uc *UseCase) preflightDurableBulkPayloads(
 			Identity:        transactionID,
 			RedisGeneration: payload.RedisGeneration,
 		}
-		canonicalOperations, err := uc.UpdateTransactionBackupOperations(ctx, organizationID, ledgerID,
-			transactionID, payload.Transaction.Operations, actionForTransactionPayload(*payload), attempt)
+		canonicalOperations, terminal, err := uc.UpdateTransactionBackupOperations(ctx, organizationID, ledgerID,
+			transactionID, payload.Transaction.Operations, mmodel.BalancesToRedis(payload.BalancesAfter),
+			actionForTransactionPayload(*payload), attempt)
 		if err != nil {
-			return fmt.Errorf("validate bulk Redis economic outcome for transaction %s: %w",
+			return nil, fmt.Errorf("validate bulk Redis economic outcome for transaction %s: %w",
 				payload.Transaction.ID, err)
 		}
 		payload.Transaction.Operations = canonicalOperations
+		if terminal {
+			if _, err := uc.ProveCompletedDurableReplay(ctx, organizationID, ledgerID, *payload); err != nil {
+				return nil, fmt.Errorf("prove completed bulk transaction replay %s: %w",
+					payload.Transaction.ID, err)
+			}
+			continue
+		}
+		pending = append(pending, *payload)
 	}
 
-	return nil
+	return pending, nil
 }
 
 // extractOrgLedgerIDs extracts organization and ledger IDs from a payload.

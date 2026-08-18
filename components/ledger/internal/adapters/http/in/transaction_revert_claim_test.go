@@ -1714,6 +1714,95 @@ func TestLoadCompleteReverse_NonTerminalClaimWithoutBackupRequiresReconciliation
 	assert.False(t, complete)
 }
 
+func TestLoadCompleteReverse_TerminalReceiptMustMatchPrimaryEconomicOperation(t *testing.T) {
+	t.Parallel()
+
+	for _, tc := range []struct {
+		name       string
+		legacy     bool
+		mutate     func(*mmodel.OperationRedis)
+		wantReplay bool
+	}{
+		{name: "exact terminal receipt", wantReplay: true},
+		{name: "exact pre-generation compatibility receipt", legacy: true, wantReplay: true},
+		{name: "divergent terminal receipt", mutate: func(op *mmodel.OperationRedis) {
+			op.BalanceAfterVersion++
+		}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			ctrl := gomock.NewController(t)
+			transactionRepo := transaction.NewMockRepository(ctrl)
+			metadataRepo := mongodb.NewMockRepository(ctrl)
+			redisRepo := redis.NewMockRedisRepository(ctrl)
+			claim := &revertclaim.Claim{
+				OrganizationID:       uuid.New(),
+				LedgerID:             uuid.New(),
+				OriginTransactionID:  uuid.New(),
+				ReverseTransactionID: uuid.New(),
+				State:                revertclaim.StateCompleted,
+			}
+			if !tc.legacy {
+				claim.RedisGeneration = &testRedisGeneration
+			}
+			originID := claim.OriginTransactionID.String()
+			persistedOperation := &operation.Operation{
+				ID: claim.ReverseTransactionID.String() + "-operation", TransactionID: claim.ReverseTransactionID.String(),
+				BalanceID: uuid.NewString(), BalanceKey: "default", AccountID: uuid.NewString(),
+				AssetCode: "USD", Direction: "credit", Type: "CREDIT", BalanceAffected: true,
+			}
+			persisted := &transaction.Transaction{
+				ID: claim.ReverseTransactionID.String(), ParentTransactionID: &originID,
+				Status: transaction.Status{Code: constant.APPROVED}, Operations: []*operation.Operation{persistedOperation},
+			}
+			transactionRepo.EXPECT().FindWithOperations(gomock.Any(), claim.OrganizationID, claim.LedgerID,
+				claim.ReverseTransactionID).Return(persisted, nil)
+			metadataRepo.EXPECT().FindByEntity(gomock.Any(), constant.EntityTransaction,
+				claim.ReverseTransactionID.String()).Return(nil, nil)
+			redisRepo.EXPECT().ReadMessageFromQueue(gomock.Any(), utils.TransactionInternalKey(
+				claim.OrganizationID, claim.LedgerID, claim.ReverseTransactionID.String())).Return(nil, redislib.Nil)
+			canonical := persistedOperation.ToRedis()
+			if tc.mutate != nil {
+				tc.mutate(&canonical)
+			}
+			redisRepo.EXPECT().EnrichTransactionBackup(gomock.Any(), claim.OrganizationID, claim.LedgerID,
+				claim.ReverseTransactionID, gomock.Any(), constant.ActionRevert, gomock.Any()).Return(
+				[]mmodel.OperationRedis{canonical}, []mmodel.BalanceRedis{{
+					ID: persistedOperation.BalanceID, Key: persistedOperation.BalanceKey,
+					AccountID: persistedOperation.AccountID, AssetCode: persistedOperation.AssetCode,
+					AccountType: "asset", Direction: persistedOperation.Direction, OverdraftUsed: "0",
+					OverdraftLimit: "0", BalanceScope: mmodel.BalanceScopeTransactional,
+				}}, true, nil)
+			receipt := mmodel.TransactionPersistenceTombstone{
+				Identity: claim.ReverseTransactionID, ParentTransactionID: claim.OriginTransactionID.String(),
+				TransactionStatus: constant.CREATED, Action: constant.ActionRevert,
+			}
+			if !tc.legacy {
+				receipt.Owner = claim.ReverseTransactionID.String()
+				receipt.Outcome = mmodel.TransactionOutcomeCommitted
+				receipt.RedisGeneration = testRedisGeneration
+			}
+			receiptRaw, marshalErr := json.Marshal(receipt)
+			require.NoError(t, marshalErr)
+			redisRepo.EXPECT().Get(gomock.Any(), utils.TransactionPersistenceTombstoneKey(
+				claim.OrganizationID, claim.LedgerID, claim.ReverseTransactionID)).Return(string(receiptRaw), nil)
+
+			handler := &TransactionHandler{
+				Query: &query.UseCase{
+					TransactionRepo:         transactionRepo,
+					TransactionMetadataRepo: metadataRepo,
+				},
+				Command: &command.UseCase{TransactionRedisRepo: redisRepo},
+			}
+			result, complete, err := handler.loadCompleteReverse(context.Background(), claim)
+			require.NoError(t, err)
+			assert.Same(t, persisted, result)
+			assert.Equal(t, tc.wantReplay, complete)
+		})
+	}
+}
+
 func TestLegacyRevertBarrierKeyFromBackup_UsesImmutableOriginSnapshot(t *testing.T) {
 	t.Parallel()
 

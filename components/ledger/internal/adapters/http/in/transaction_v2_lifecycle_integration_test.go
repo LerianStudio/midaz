@@ -102,6 +102,12 @@ func prepareRevertUpdateFreeze(t *testing.T, infra *testInfra) {
 	t.Helper()
 	client := infra.redisContainer.Client
 	ctx := context.Background()
+	// setupTestInfra starts at the normal finalized serving target. Rollout
+	// compatibility cases need a separate first-install fixture, so reset the
+	// isolated test certificate together with its Redis witnesses. Production
+	// has no such transition: PREPARED and later are deliberately forward-only.
+	_, err := infra.pgContainer.DB.ExecContext(ctx, `DELETE FROM transaction_revert_rollout_initialization`)
+	require.NoError(t, err)
 	require.NoError(t, client.Del(ctx, transactionredis.RevertUpdateFreezeKey,
 		transactionredis.RevertRolloutGenerationKey, transactionredis.FinancialDatasetGenerationKey).Err())
 	connection := redistestutil.CreateConnection(t, infra.redisContainer.Addr)
@@ -1295,17 +1301,17 @@ func (r *lostBackupEnrichmentResponseRepository) EnrichTransactionBackup(
 	operations []mmodel.OperationRedis,
 	action string,
 	attempt *mmodel.BalanceExecutionAttempt,
-) ([]mmodel.OperationRedis, error) {
-	canonical, err := r.RedisRepository.EnrichTransactionBackup(ctx, organizationID, ledgerID, transactionID,
+) ([]mmodel.OperationRedis, []mmodel.BalanceRedis, bool, error) {
+	canonical, balancesAfter, terminal, err := r.RedisRepository.EnrichTransactionBackup(ctx, organizationID, ledgerID, transactionID,
 		operations, action, attempt)
 	if err != nil {
-		return nil, err
+		return nil, nil, false, err
 	}
 	if r.lost.CompareAndSwap(false, true) {
-		return nil, errors.New("simulated lost response after authoritative backup enrichment")
+		return nil, nil, false, errors.New("simulated lost response after authoritative backup enrichment")
 	}
 
-	return canonical, nil
+	return canonical, balancesAfter, terminal, nil
 }
 
 func (r *pausedLegacyRevertBalanceRepository) ProcessBalanceAtomicOperation(

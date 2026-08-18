@@ -176,14 +176,24 @@ func TestIntegration_RevertRolloutInitializationBirthCertificateIsOneShot(t *tes
 	ctx := context.Background()
 	generation := uuid.New()
 	requestID := uuid.New()
+	exists, storedGeneration, state, err := repo.InspectRolloutInitialization(ctx)
+	require.NoError(t, err)
+	assert.False(t, exists)
+	assert.Equal(t, uuid.Nil, storedGeneration)
+	assert.Empty(t, state)
 
 	prepared, created, err := repo.BeginRolloutInitialization(ctx, generation, requestID)
 	require.NoError(t, err)
 	require.True(t, created)
 	assert.False(t, prepared)
-	var state string
+	state = ""
 	require.NoError(t, container.DB.QueryRowContext(ctx,
 		`SELECT state FROM transaction_revert_rollout_initialization WHERE singleton = TRUE`).Scan(&state))
+	assert.Equal(t, "PREPARING", state)
+	exists, storedGeneration, state, err = repo.InspectRolloutInitialization(ctx)
+	require.NoError(t, err)
+	assert.True(t, exists)
+	assert.Equal(t, generation, storedGeneration)
 	assert.Equal(t, "PREPARING", state)
 
 	prepared, created, err = repo.BeginRolloutInitialization(ctx, generation, requestID)
@@ -200,6 +210,11 @@ func TestIntegration_RevertRolloutInitializationBirthCertificateIsOneShot(t *tes
 	require.NoError(t, repo.CompleteRolloutInitialization(ctx, generation, requestID),
 		"lost completion response retry must be idempotent")
 	require.NoError(t, repo.ValidatePreparedRollout(ctx, generation))
+	exists, storedGeneration, state, err = repo.InspectRolloutInitialization(ctx)
+	require.NoError(t, err)
+	assert.True(t, exists)
+	assert.Equal(t, generation, storedGeneration)
+	assert.Equal(t, "PREPARED", state)
 
 	prepared, created, err = repo.BeginRolloutInitialization(ctx, generation, requestID)
 	require.NoError(t, err)
@@ -481,6 +496,12 @@ func TestIntegration_RevertClaim_ReadsIgnoreReplicaLag(t *testing.T) {
 	require.NoError(t, repo.CompleteRolloutInitialization(tenantAContext, rolloutGeneration, initializationRequestID))
 	require.NoError(t, repo.ValidatePreparedRollout(tenantBContext, rolloutGeneration),
 		"rollout admission must see the primary birth certificate while the replica remains empty")
+	exists, inspectedGeneration, inspectedState, err := repo.InspectRolloutInitialization(tenantBContext)
+	require.NoError(t, err)
+	assert.True(t, exists)
+	assert.Equal(t, rolloutGeneration, inspectedGeneration)
+	assert.Equal(t, "PREPARED", inspectedState,
+		"target-empty admission must inspect the deployment primary, never the empty tenant replica")
 	require.NoError(t, tenantClient.Close(), "simulated tenant removal must close only the tenant-local database")
 	require.NoError(t, repo.ValidatePreparedRollout(tenantAContext, rolloutGeneration),
 		"removing a tenant must not remove or disconnect the deployment-scoped birth certificate")

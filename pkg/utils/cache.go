@@ -56,6 +56,14 @@ func TransactionBalanceOutcomeKey(organizationID, ledgerID, transactionID uuid.U
 	return TransactionInternalKey(organizationID, ledgerID, transactionID.String()+":balance-outcome")
 }
 
+// TransactionPersistenceTombstoneKey stores the append-only proof that the
+// exact Redis economic outcome was durably handed off to PostgreSQL. It shares
+// the transaction slot so terminal cleanup and tombstone publication are one
+// atomic operation.
+func TransactionPersistenceTombstoneKey(organizationID, ledgerID, transactionID uuid.UUID) string {
+	return TransactionInternalKey(organizationID, ledgerID, transactionID.String()+":persistence-tombstone")
+}
+
 // BalanceInternalKey returns a key with the following format to be used on redis cluster:
 // "balance:{transactions}:organizationID:ledgerID:key"
 func BalanceInternalKey(organizationID, ledgerID uuid.UUID, key string) string {

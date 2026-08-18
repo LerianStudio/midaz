@@ -132,12 +132,14 @@ func (mr *MockRedisRepositoryMockRecorder) Del(ctx, key any) *gomock.Call {
 }
 
 // EnrichTransactionBackup mocks base method.
-func (m *MockRedisRepository) EnrichTransactionBackup(ctx context.Context, organizationID, ledgerID, transactionID uuid.UUID, operations []mmodel.OperationRedis, action string, attempt *mmodel.BalanceExecutionAttempt) ([]mmodel.OperationRedis, error) {
+func (m *MockRedisRepository) EnrichTransactionBackup(ctx context.Context, organizationID, ledgerID, transactionID uuid.UUID, operations []mmodel.OperationRedis, action string, attempt *mmodel.BalanceExecutionAttempt) ([]mmodel.OperationRedis, []mmodel.BalanceRedis, bool, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "EnrichTransactionBackup", ctx, organizationID, ledgerID, transactionID, operations, action, attempt)
 	ret0, _ := ret[0].([]mmodel.OperationRedis)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
+	ret1, _ := ret[1].([]mmodel.BalanceRedis)
+	ret2, _ := ret[2].(bool)
+	ret3, _ := ret[3].(error)
+	return ret0, ret1, ret2, ret3
 }
 
 // EnrichTransactionBackup indicates an expected call of EnrichTransactionBackup.

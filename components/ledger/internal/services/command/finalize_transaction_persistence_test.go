@@ -511,3 +511,53 @@ func TestProveDurableTransactionPayload_RejectsSameOperationIDsWithDifferentBala
 	require.False(t, replayIdentityMatches(durable, expected),
 		"terminal replay cannot accept matching IDs with a different balance fact")
 }
+
+func TestProveCompletedDurableReplay_RejectsReverseWithoutCompletedPrimaryClaim(t *testing.T) {
+	t.Parallel()
+
+	ctrl := gomock.NewController(t)
+	transactionRepo := transaction.NewMockRepository(ctrl)
+	claimRepo := revertclaim.NewMockRepository(ctrl)
+	organizationID := uuid.New()
+	ledgerID := uuid.New()
+	originID := uuid.New()
+	reverseID := uuid.New()
+	operationID := uuid.NewString()
+	originString := originID.String()
+	generation := uuid.NewString()
+	rolloutMode := "bridge"
+	rolloutToken := uuid.NewString()
+	economicOperation := &operation.Operation{ID: operationID, TransactionID: reverseID.String()}
+	expected := &transaction.Transaction{
+		ID: reverseID.String(), OrganizationID: organizationID.String(), LedgerID: ledgerID.String(),
+		ParentTransactionID: &originString, Status: transaction.Status{Code: constant.CREATED},
+		Operations: []*operation.Operation{economicOperation},
+	}
+	persisted := *expected
+	persisted.Status = transaction.Status{Code: constant.APPROVED}
+	payload := transaction.TransactionProcessingPayload{
+		Transaction: expected, RedisGeneration: generation,
+		RevertRolloutMode: rolloutMode, RevertRolloutToken: rolloutToken,
+	}
+
+	transactionRepo.EXPECT().FindWithOperations(gomock.Any(), organizationID, ledgerID, reverseID).
+		DoAndReturn(func(ctx context.Context, _, _ uuid.UUID, _ uuid.UUID) (*transaction.Transaction, error) {
+			require.True(t, readrouting.IsPrimaryRead(ctx))
+
+			return &persisted, nil
+		})
+	claimRepo.EXPECT().Get(gomock.Any(), organizationID, ledgerID, originID).
+		DoAndReturn(func(ctx context.Context, _, _, _ uuid.UUID) (*revertclaim.Claim, error) {
+			require.True(t, readrouting.IsPrimaryRead(ctx))
+
+			return &revertclaim.Claim{
+				OrganizationID: organizationID, LedgerID: ledgerID, OriginTransactionID: originID,
+				ReverseTransactionID: reverseID, State: revertclaim.StateMutated,
+				RedisGeneration: &generation, RolloutMode: &rolloutMode, RolloutToken: &rolloutToken,
+			}, nil
+		})
+
+	uc := &UseCase{TransactionRepo: transactionRepo, RevertClaimRepo: claimRepo}
+	_, err := uc.ProveCompletedDurableReplay(context.Background(), organizationID, ledgerID, payload)
+	require.ErrorContains(t, err, "completed reverse replay claim differs from terminal tombstone")
+}

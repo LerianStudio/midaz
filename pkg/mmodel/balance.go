@@ -502,6 +502,64 @@ type BalanceRedis struct {
 	BalanceScope string `json:"balanceScope"`
 }
 
+// ToRedis returns the complete economic snapshot consumed and emitted by the
+// atomic balance Lua script. Defaults deliberately match the script's ARGV
+// plan so a Rabbit redelivery can compare its decoded model with the
+// authoritative Redis envelope without treating omitted legacy settings as a
+// different economic fact.
+func (b *Balance) ToRedis() BalanceRedis {
+	allowSending := 0
+	if b.AllowSending {
+		allowSending = 1
+	}
+	allowReceiving := 0
+	if b.AllowReceiving {
+		allowReceiving = 1
+	}
+	allowOverdraft := 0
+	overdraftLimitEnabled := 0
+	overdraftLimit := "0"
+	balanceScope := BalanceScopeTransactional
+	if b.Settings != nil {
+		if b.Settings.AllowOverdraft {
+			allowOverdraft = 1
+		}
+		if b.Settings.OverdraftLimitEnabled {
+			overdraftLimitEnabled = 1
+		}
+		if b.Settings.OverdraftLimit != nil {
+			overdraftLimit = *b.Settings.OverdraftLimit
+		}
+		if b.Settings.BalanceScope != "" {
+			balanceScope = b.Settings.BalanceScope
+		}
+	}
+
+	return BalanceRedis{
+		ID: b.ID, Alias: b.Alias, Key: b.Key, AccountID: b.AccountID, AssetCode: b.AssetCode,
+		Available: b.Available, OnHold: b.OnHold, Version: b.Version, AccountType: b.AccountType,
+		AllowSending: allowSending, AllowReceiving: allowReceiving, Direction: b.Direction,
+		OverdraftUsed: b.OverdraftUsed.String(), AllowOverdraft: allowOverdraft,
+		OverdraftLimitEnabled: overdraftLimitEnabled, OverdraftLimit: overdraftLimit,
+		BalanceScope: balanceScope,
+	}
+}
+
+// BalancesToRedis converts a complete model snapshot to the Lua/cache wire
+// shape. A nil member is invalid economic evidence and therefore returns nil;
+// callers' non-empty proof checks fail closed.
+func BalancesToRedis(balances []*Balance) []BalanceRedis {
+	result := make([]BalanceRedis, 0, len(balances))
+	for _, balance := range balances {
+		if balance == nil {
+			return nil
+		}
+		result = append(result, balance.ToRedis())
+	}
+
+	return result
+}
+
 // RedisBalanceSetEconomicEqual compares the complete, order-independent
 // balance fact copied into the transaction backup and immutable outcome by the
 // same Lua command. Duplicate balance identities are invalid evidence.
@@ -527,6 +585,29 @@ func RedisBalanceSetEconomicEqual(left, right []BalanceRedis) bool {
 		seen[identity] = struct{}{}
 		other, ok := rightByIdentity[identity]
 		if !ok || !redisBalanceEconomicEqual(balance, other) {
+			return false
+		}
+	}
+
+	return true
+}
+
+// RedisBalanceSetEconomicComplete rejects a terminal snapshot that cannot
+// carry every money-path discriminator needed for replay/reconciliation. Zero
+// amounts and versions are valid; missing identities, policy fields, or
+// non-boolean wire flags are not.
+func RedisBalanceSetEconomicComplete(balances []BalanceRedis) bool {
+	if len(balances) == 0 || !RedisBalanceSetEconomicEqual(balances, balances) {
+		return false
+	}
+	for _, balance := range balances {
+		if balance.ID == "" || balance.Key == "" || balance.AccountID == "" || balance.AssetCode == "" ||
+			balance.AccountType == "" || balance.Direction == "" || balance.OverdraftUsed == "" ||
+			balance.OverdraftLimit == "" || balance.BalanceScope == "" ||
+			(balance.AllowSending != 0 && balance.AllowSending != 1) ||
+			(balance.AllowReceiving != 0 && balance.AllowReceiving != 1) ||
+			(balance.AllowOverdraft != 0 && balance.AllowOverdraft != 1) ||
+			(balance.OverdraftLimitEnabled != 0 && balance.OverdraftLimitEnabled != 1) {
 			return false
 		}
 	}
@@ -708,6 +789,23 @@ type BalanceExecutionOutcome struct {
 	Owner    string         `json:"owner"`
 	Before   []BalanceRedis `json:"before"`
 	After    []BalanceRedis `json:"after"`
+}
+
+// TransactionPersistenceTombstone is the append-only terminal receipt written
+// in the same Redis command that removes a persisted transaction's backup and
+// economic outcome. It lets lost-ack redelivery prove the exact generation,
+// outcome, canonical operations, and after-balances without treating missing
+// hot-store evidence as a successful replay.
+type TransactionPersistenceTombstone struct {
+	Identity            uuid.UUID        `json:"identity"`
+	ParentTransactionID string           `json:"parent_transaction_id"`
+	Outcome             string           `json:"outcome"`
+	Owner               string           `json:"owner"`
+	RedisGeneration     string           `json:"redis_generation"`
+	TransactionStatus   string           `json:"transaction_status"`
+	Action              string           `json:"action"`
+	Operations          []OperationRedis `json:"operations"`
+	BalancesAfter       []BalanceRedis   `json:"balancesAfter"`
 }
 
 // TransactionRedisQueue represents a transaction queue for cache-aside

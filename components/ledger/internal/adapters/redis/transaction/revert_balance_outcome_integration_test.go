@@ -41,6 +41,7 @@ type rolloutInitializationWitnessStub struct {
 	requestID        string
 	prepared         bool
 	completeFailures int
+	inspectFailures  int
 }
 
 func (s *rolloutInitializationWitnessStub) BeginRolloutInitialization(
@@ -95,6 +96,31 @@ func (s *rolloutInitializationWitnessStub) ValidatePreparedRollout(
 	}
 
 	return nil
+}
+
+func (s *rolloutInitializationWitnessStub) InspectRolloutInitialization(
+	_ context.Context,
+) (bool, uuid.UUID, string, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.inspectFailures > 0 {
+		s.inspectFailures--
+
+		return false, uuid.Nil, "", fmt.Errorf("deployment primary unavailable")
+	}
+	if s.generation == "" {
+		return false, uuid.Nil, "", nil
+	}
+	generation, err := uuid.Parse(s.generation)
+	if err != nil {
+		return false, uuid.Nil, "", err
+	}
+	state := "PREPARING"
+	if s.prepared {
+		state = "PREPARED"
+	}
+
+	return true, generation, state, nil
 }
 
 func TestIntegration_BalanceExecutionOutcomeIsImmutableAndExactlyReplayable(t *testing.T) {
@@ -223,14 +249,26 @@ func TestIntegration_GenerationBoundBalanceOutcomeRemainsImmutableAndExactlyRepl
 	require.NoError(t, err)
 	assert.Equal(t, first, second)
 	materialized := []mmodel.OperationRedis{{ID: uuid.NewString(), TransactionID: transactionID.String()}}
-	_, err = infra.repo.EnrichTransactionBackup(ctx, organizationID, ledgerID, transactionID,
+	_, _, _, err = infra.repo.EnrichTransactionBackup(ctx, organizationID, ledgerID, transactionID,
 		materialized, constant.ActionRevert, &attempt)
 	require.NoError(t, err)
 	require.NoError(t, infra.redisContainer.Client.Set(ctx, FinancialDatasetGenerationKey, uuid.NewString(), 0).Err())
-	_, err = infra.repo.EnrichTransactionBackup(ctx, organizationID, ledgerID, transactionID,
+	_, _, _, err = infra.repo.EnrichTransactionBackup(ctx, organizationID, ledgerID, transactionID,
 		materialized, constant.ActionRevert, &attempt)
 	require.Error(t, err,
 		"a delayed consumer must reject the old generation before adopting operations or writing PostgreSQL")
+	require.NoError(t, infra.redisContainer.Client.Set(ctx, FinancialDatasetGenerationKey, redisGeneration, 0).Err())
+	require.NoError(t, infra.repo.FinalizeTransactionPersistence(ctx, organizationID, ledgerID, transactionID,
+		attempt, []string{materialized[0].ID}))
+	_, tombstoneBalances, terminal, err := infra.repo.EnrichTransactionBackup(ctx, organizationID, ledgerID, transactionID,
+		materialized, constant.ActionRevert, &attempt)
+	require.NoError(t, err)
+	assert.True(t, terminal)
+	assert.True(t, mmodel.RedisBalanceSetEconomicEqual(mmodel.BalancesToRedis(first.After), tombstoneBalances))
+	require.NoError(t, infra.redisContainer.Client.Set(ctx, FinancialDatasetGenerationKey, uuid.NewString(), 0).Err())
+	_, _, _, err = infra.repo.EnrichTransactionBackup(ctx, organizationID, ledgerID, transactionID,
+		materialized, constant.ActionRevert, &attempt)
+	require.Error(t, err, "generation rollover must invalidate even an otherwise exact terminal receipt")
 }
 
 func TestIntegration_GlobalFinancialGenerationServesTwoTenantsAndSurvivesTenantRemoval(t *testing.T) {
@@ -282,9 +320,10 @@ func TestIntegration_GlobalFinancialGenerationServesTwoTenantsAndSurvivesTenantR
 			organizationID, ledgerID, transactionID, constant.CREATED, false, balanceOperations, attempt)
 		require.NoError(t, err)
 		operation := mmodel.OperationRedis{ID: uuid.NewString(), TransactionID: transactionID.String()}
-		canonical, err := infra.repo.EnrichTransactionBackup(tenantCtx,
+		canonical, _, terminal, err := infra.repo.EnrichTransactionBackup(tenantCtx,
 			organizationID, ledgerID, transactionID, []mmodel.OperationRedis{operation}, constant.ActionCommit, &attempt)
 		require.NoError(t, err)
+		assert.False(t, terminal)
 		require.Len(t, canonical, 1)
 		assert.Equal(t, operation.ID, canonical[0].ID)
 		assert.Equal(t, operation.TransactionID, canonical[0].TransactionID)
@@ -315,10 +354,11 @@ func TestIntegration_GlobalFinancialGenerationServesTwoTenantsAndSurvivesTenantR
 		infra.redisContainer.Client.Get(ctx, FinancialDatasetGenerationKey).Val(),
 		"removing a tenant must not remove the deployment rollout identity")
 
-	canonical, err := infra.repo.EnrichTransactionBackup(tenantB.ctx,
+	canonical, _, terminal, err := infra.repo.EnrichTransactionBackup(tenantB.ctx,
 		tenantB.organization, tenantB.ledger, tenantB.transaction,
 		[]mmodel.OperationRedis{tenantB.operation}, constant.ActionCommit, &tenantB.attempt)
 	require.NoError(t, err)
+	assert.False(t, terminal)
 	require.Len(t, canonical, 1)
 	assert.Equal(t, tenantB.operation.ID, canonical[0].ID,
 		"another tenant must keep exact replay after an unrelated tenant is removed")
@@ -369,11 +409,13 @@ func TestIntegration_TransactionBackupEnrichmentPreservesOutcomeUntilExactDurabl
 	require.NoError(t, err)
 
 	materialized := []mmodel.OperationRedis{{ID: uuid.NewString(), TransactionID: transactionID.String()}}
-	canonical, err := infra.repo.EnrichTransactionBackup(ctx, organizationID, ledgerID, transactionID,
+	canonical, canonicalBalances, terminal, err := infra.repo.EnrichTransactionBackup(ctx, organizationID, ledgerID, transactionID,
 		materialized, constant.ActionCommit, &attempt)
 	require.NoError(t, err)
+	assert.False(t, terminal)
 	require.Len(t, canonical, 1)
 	require.Equal(t, materialized[0].ID, canonical[0].ID)
+	require.NotEmpty(t, canonicalBalances)
 	backup, err := infra.repo.ReadMessageFromQueue(ctx, transactionKey)
 	require.NoError(t, err)
 	envelope := mmodel.TransactionRedisQueue{}
@@ -386,7 +428,7 @@ func TestIntegration_TransactionBackupEnrichmentPreservesOutcomeUntilExactDurabl
 
 	foreign := attempt
 	foreign.Owner = uuid.NewString()
-	_, err = infra.repo.EnrichTransactionBackup(ctx, organizationID, ledgerID, transactionID,
+	_, _, _, err = infra.repo.EnrichTransactionBackup(ctx, organizationID, ledgerID, transactionID,
 		[]mmodel.OperationRedis{{ID: uuid.NewString()}}, constant.ActionCancel, &foreign)
 	require.Error(t, err)
 	require.Error(t, infra.repo.FinalizeTransactionPersistence(ctx, organizationID, ledgerID, transactionID, foreign,
@@ -406,9 +448,45 @@ func TestIntegration_TransactionBackupEnrichmentPreservesOutcomeUntilExactDurabl
 	outcome, err = infra.repo.Get(ctx, attempt.OutcomeKey)
 	require.NoError(t, err)
 	assert.Empty(t, outcome)
+	tombstoneKey := utils.TransactionPersistenceTombstoneKey(organizationID, ledgerID, transactionID)
+	tombstoneRaw, err := infra.repo.Get(ctx, tombstoneKey)
+	require.NoError(t, err)
+	require.NotEmpty(t, tombstoneRaw,
+		"terminal cleanup must atomically replace live evidence with an append-only receipt")
+	tombstone := mmodel.TransactionPersistenceTombstone{}
+	require.NoError(t, json.Unmarshal([]byte(tombstoneRaw), &tombstone))
+	assert.Equal(t, transactionID, tombstone.Identity)
+	assert.Equal(t, attempt.Owner, tombstone.Owner)
+	assert.Equal(t, attempt.Outcome, tombstone.Outcome)
+	assert.Equal(t, constant.ActionCommit, tombstone.Action)
+	require.Len(t, tombstone.Operations, 1)
+	assert.Equal(t, materialized[0].ID, tombstone.Operations[0].ID)
+	assert.Equal(t, materialized[0].TransactionID, tombstone.Operations[0].TransactionID)
+	require.NotEmpty(t, tombstone.BalancesAfter)
 	require.NoError(t, infra.repo.FinalizeTransactionPersistence(ctx, organizationID, ledgerID, transactionID, attempt,
 		[]string{materialized[0].ID}),
 		"a lost successful cleanup response must be exactly replayable")
+	canonicalReplay, tombstoneBalances, terminal, err := infra.repo.EnrichTransactionBackup(ctx, organizationID, ledgerID, transactionID,
+		materialized, constant.ActionCommit, &attempt)
+	require.NoError(t, err)
+	assert.True(t, terminal)
+	require.Len(t, canonicalReplay, 1)
+	assert.Equal(t, materialized[0].ID, canonicalReplay[0].ID)
+	assert.Equal(t, materialized[0].TransactionID, canonicalReplay[0].TransactionID)
+	assert.True(t, mmodel.RedisBalanceSetEconomicEqual(tombstone.BalancesAfter, tombstoneBalances))
+	opposite := attempt
+	opposite.Outcome = mmodel.TransactionOutcomeAborted
+	_, _, _, err = infra.repo.EnrichTransactionBackup(ctx, organizationID, ledgerID, transactionID,
+		materialized, constant.ActionCommit, &opposite)
+	require.Error(t, err, "an opposite terminal outcome must conflict with the append-only receipt")
+	require.NoError(t, infra.redisContainer.Client.Set(ctx, attempt.OutcomeKey, `{"identity":"foreign"}`, 0).Err())
+	_, _, _, err = infra.repo.EnrichTransactionBackup(ctx, organizationID, ledgerID, transactionID,
+		materialized, constant.ActionCommit, &attempt)
+	require.Error(t, err, "partial Redis restoration must not coexist with a terminal receipt")
+	require.NoError(t, infra.redisContainer.Client.Del(ctx, attempt.OutcomeKey, tombstoneKey).Err())
+	_, _, _, err = infra.repo.EnrichTransactionBackup(ctx, organizationID, ledgerID, transactionID,
+		materialized, constant.ActionCommit, &attempt)
+	require.Error(t, err, "missing terminal receipt must never be inferred from absent backup and outcome")
 }
 
 func TestIntegration_TransactionBackupOperationIDsAreSingleAssignmentAcrossConsumers(t *testing.T) {
@@ -460,7 +538,7 @@ func TestIntegration_TransactionBackupOperationIDsAreSingleAssignmentAcrossConsu
 		go func(index int) {
 			defer wg.Done()
 			<-start
-			results[index], errs[index] = infra.repo.EnrichTransactionBackup(ctx, organizationID, ledgerID,
+			results[index], _, _, errs[index] = infra.repo.EnrichTransactionBackup(ctx, organizationID, ledgerID,
 				transactionID, candidates[index], constant.ActionCommit, &attempt)
 		}(i)
 	}
@@ -473,10 +551,11 @@ func TestIntegration_TransactionBackupOperationIDsAreSingleAssignmentAcrossConsu
 
 	// Simulate a restart after the winning CAS response was lost. A new set of
 	// generated IDs must replay the authoritative selection, never replace it.
-	restarted, err := infra.repo.EnrichTransactionBackup(ctx, organizationID, ledgerID, transactionID,
+	restarted, _, terminal, err := infra.repo.EnrichTransactionBackup(ctx, organizationID, ledgerID, transactionID,
 		[]mmodel.OperationRedis{{ID: uuid.NewString(), TransactionID: transactionID.String()}},
 		constant.ActionCommit, &attempt)
 	require.NoError(t, err)
+	assert.False(t, terminal)
 	require.Equal(t, results[0], restarted)
 
 	raw, err := infra.repo.ReadMessageFromQueue(ctx,
@@ -634,8 +713,33 @@ func TestIntegration_LegacyBackupCleanupRequiresExactDurableIdentity(t *testing.
 		transactionID, parentID, constant.CREATED, operationIDs))
 	_, err = infra.repo.ReadMessageFromQueue(ctx, transactionKey)
 	require.ErrorIs(t, err, redis.Nil)
+	tombstoneKey := utils.TransactionPersistenceTombstoneKey(organizationID, ledgerID, transactionID)
+	tombstoneRaw, err := infra.repo.Get(ctx, tombstoneKey)
+	require.NoError(t, err)
+	tombstone := mmodel.TransactionPersistenceTombstone{}
+	require.NoError(t, json.Unmarshal([]byte(tombstoneRaw), &tombstone))
+	assert.Equal(t, transactionID, tombstone.Identity)
+	assert.Equal(t, parentID.String(), tombstone.ParentTransactionID)
+	assert.Equal(t, constant.CREATED, tombstone.TransactionStatus)
+	assert.Empty(t, tombstone.Owner)
+	assert.Empty(t, tombstone.Outcome)
+	assert.Empty(t, tombstone.RedisGeneration)
+	assert.Equal(t, constant.ActionRevert, tombstone.Action)
+	assert.Len(t, tombstone.Operations, len(operationIDs))
+	assert.NotEmpty(t, tombstone.BalancesAfter)
 	require.NoError(t, infra.repo.FinalizeLegacyTransactionPersistence(ctx, organizationID, ledgerID,
 		transactionID, parentID, constant.CREATED, operationIDs), "lost cleanup response must be replayable")
+	tombstone.Action = constant.ActionCommit
+	foreignAction, err := json.Marshal(tombstone)
+	require.NoError(t, err)
+	require.NoError(t, infra.repo.Set(ctx, tombstoneKey, string(foreignAction), 0))
+	require.Error(t, infra.repo.FinalizeLegacyTransactionPersistence(ctx, organizationID, ledgerID,
+		transactionID, parentID, constant.CREATED, operationIDs),
+		"a terminal receipt for another money-path action must never satisfy revert replay")
+	require.NoError(t, infra.redisContainer.Client.Del(ctx, tombstoneKey).Err())
+	require.Error(t, infra.repo.FinalizeLegacyTransactionPersistence(ctx, organizationID, ledgerID,
+		transactionID, parentID, constant.CREATED, operationIDs),
+		"absence without the append-only terminal receipt is data loss, not a successful cleanup replay")
 }
 
 // TestIntegration_RevertBalanceOutcomeIsAtomic proves the recovery signal used
@@ -994,7 +1098,7 @@ func TestIntegration_OwnedLegacyFence_RedisClusterRejectsCrossSlotButAcceptsComp
 	require.NoError(t, err, "the execution lease and balance outcome must share the existing transactions slot")
 	require.Len(t, result.After, 1)
 	clusterOperationID := uuid.NewString()
-	_, err = repo.EnrichTransactionBackup(ctx, organizationID, ledgerID, transactionID,
+	_, _, _, err = repo.EnrichTransactionBackup(ctx, organizationID, ledgerID, transactionID,
 		[]mmodel.OperationRedis{{ID: clusterOperationID, TransactionID: transactionID.String()}},
 		constant.ActionCommit, &attempt)
 	require.NoError(t, err, "backup enrichment must remain in the transactions slot")
@@ -1063,7 +1167,7 @@ func TestIntegration_OwnedLegacyFence_RedisClusterRejectsCrossSlotButAcceptsComp
 	require.NoError(t, err,
 		"tenant balances and the deployment generation must execute without CROSSSLOT")
 	tenantOperationID := uuid.NewString()
-	_, err = repo.EnrichTransactionBackup(tenantCtx, organizationID, ledgerID, tenantTransactionID,
+	_, _, _, err = repo.EnrichTransactionBackup(tenantCtx, organizationID, ledgerID, tenantTransactionID,
 		[]mmodel.OperationRedis{{ID: tenantOperationID, TransactionID: tenantTransactionID.String()}},
 		constant.ActionCommit, &tenantAttempt)
 	require.NoError(t, err,
@@ -1109,24 +1213,41 @@ func TestIntegration_RevertUpdateFreezeMarkerIsSharedPersistentAndFinalizable(t 
 		redisIntegrationDatasetGeneration).WithRolloutInitializationWitness(witness, "")
 	activeTargetGuard := NewRevertUpdateFreezeGuard(connection, RevertUpdateFreezeActive,
 		redisIntegrationDatasetGeneration).WithRolloutInitializationWitness(witness, "")
+	releasedLegacy := NewRevertUpdateFreezeGuard(connection).WithRolloutInitializationWitness(witness, "")
+	witness.mu.Lock()
+	witness.inspectFailures = 1
+	witness.mu.Unlock()
+	_, err := releasedLegacy.ReadyForMode(ctx, "legacy")
+	require.Error(t, err, "target-empty readiness must fail when the deployment primary is unavailable")
+	witness.mu.Lock()
+	witness.inspectFailures = 1
+	witness.mu.Unlock()
+	_, _, _, err = releasedLegacy.AcquireRevert(ctx, "legacy", "unverified-old-origin", "unverified-old-attempt")
+	require.Error(t, err, "target-empty admission must fail when the deployment primary is unavailable")
+	releasedAdmitted, releasedLease, releasedPhase, err := releasedLegacy.AcquireRevert(ctx, "legacy",
+		"released-old-origin", "released-old-attempt")
+	require.NoError(t, err)
+	assert.True(t, releasedAdmitted)
+	assert.True(t, releasedLease,
+		"phase-zero capable old pods must publish an in-flight attempt before initialization")
+	assert.Equal(t, RevertUpdateFreezeUninitialized, releasedPhase,
+		"target-empty legacy must remain the released old algorithm without a dataset witness")
 	require.Error(t, initializer.FinancialDurability(ctx),
 		"the default ephemeral test Redis must not be mistaken for a durable financial trust boundary")
 	require.Error(t, initializer.InitializeFinancialDatasetGeneration(ctx),
-		"initialization must fail closed before the Redis durability contract is satisfied")
+		"initialization must insert PREPARING before it fails on durability or an in-flight old request")
+	_, err = releasedLegacy.ReadyForMode(ctx, "legacy")
+	require.Error(t, err,
+		"an old request paused before balance must abort once initialization commits PREPARING")
+	_, _, _, err = releasedLegacy.AcquireRevert(ctx, "legacy", "late-old-origin", "late-old-attempt")
+	require.Error(t, err, "PREPARING must block every new old request")
+	require.NoError(t, releasedLegacy.ReleaseRevert(ctx, "legacy", "released-old-origin", "released-old-attempt"))
 	phaseBeforeDurability, err := guard.Phase(ctx)
 	require.NoError(t, err)
 	assert.Empty(t, phaseBeforeDurability, "failed durability preflight must not create the rollout marker")
 	configureFinancialRedisDurability(t, ctx, infra.redisContainer.Client)
 	require.Eventually(t, func() bool { return guard.FinancialDurability(ctx) == nil },
 		10*time.Second, 50*time.Millisecond)
-	releasedLegacy := NewRevertUpdateFreezeGuard(connection)
-	releasedAdmitted, releasedLease, releasedPhase, err := releasedLegacy.AcquireRevert(ctx, "legacy",
-		"released-old-origin", "released-old-attempt")
-	require.NoError(t, err)
-	assert.True(t, releasedAdmitted)
-	assert.False(t, releasedLease)
-	assert.Equal(t, RevertUpdateFreezeUninitialized, releasedPhase,
-		"target-empty legacy must remain the released old algorithm without a dataset witness")
 	witness.mu.Lock()
 	witness.completeFailures = 1
 	witness.mu.Unlock()

@@ -10,11 +10,19 @@ import (
 	"testing"
 
 	"github.com/google/uuid"
+	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/mock/gomock"
 
+	mongodb "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/mongodb/transaction"
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/operation"
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/transaction"
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services/query"
+	"github.com/LerianStudio/midaz/v4/components/ledger/pkg/readrouting"
 	"github.com/LerianStudio/midaz/v4/pkg"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
+	"github.com/LerianStudio/midaz/v4/pkg/mtransaction"
 )
 
 type revertUpdateFreezeStub struct {
@@ -37,6 +45,7 @@ type revertUpdateFreezeStub struct {
 	generationReads  int
 	durabilityErr    error
 	releasedLegacy   bool
+	readySequence    []bool
 }
 
 func TestActiveRevertIdempotencyMode_ZeroValuePreservesReleasedAlgorithm(t *testing.T) {
@@ -54,6 +63,12 @@ func (s *revertUpdateFreezeStub) ApprovedUpdatePolicy(context.Context, string) (
 
 func (s *revertUpdateFreezeStub) ReadyForMode(context.Context, string) (bool, error) {
 	s.readyRead++
+	if len(s.readySequence) > 0 {
+		ready := s.readySequence[0]
+		s.readySequence = s.readySequence[1:]
+
+		return ready, s.err
+	}
 
 	return s.ready, s.err
 }
@@ -98,7 +113,7 @@ func (s *revertUpdateFreezeStub) AcquireRevert(_ context.Context, mode, token, a
 		return true, false, "finalized", s.err
 	}
 	if s.releasedLegacy {
-		return true, false, "uninitialized", s.err
+		return true, true, "uninitialized", s.err
 	}
 	phase := ""
 	if s.active {
@@ -108,7 +123,7 @@ func (s *revertUpdateFreezeStub) AcquireRevert(_ context.Context, mode, token, a
 	return s.ready, s.ready, phase, s.err
 }
 
-func TestAcquireRevertRolloutRequest_ReleasedLegacyNeedsNoDatasetWitness(t *testing.T) {
+func TestAcquireRevertRolloutRequest_ReleasedLegacyTracksInitializationDrainWithoutDatasetWitness(t *testing.T) {
 	t.Parallel()
 
 	freeze := &revertUpdateFreezeStub{ready: true, releasedLegacy: true}
@@ -120,8 +135,63 @@ func TestAcquireRevertRolloutRequest_ReleasedLegacyNeedsNoDatasetWitness(t *test
 	assert.Equal(t, "uninitialized", phase)
 	assert.Empty(t, token)
 	assert.Empty(t, generation)
-	assert.Nil(t, release)
+	require.NotNil(t, release)
 	assert.Zero(t, freeze.generationReads)
+	require.NoError(t, release())
+	assert.Equal(t, 1, freeze.revertReleases)
+}
+
+func TestRevertTransaction_TargetEmptyRequestAbortsWhenInitializationCommitsBeforeBalance(t *testing.T) {
+	t.Parallel()
+
+	ctrl := gomock.NewController(t)
+	transactionRepo := transaction.NewMockRepository(ctrl)
+	metadataRepo := mongodb.NewMockRepository(ctrl)
+	organizationID := uuid.New()
+	ledgerID := uuid.New()
+	originID := uuid.New()
+	amount := decimal.NewFromInt(10)
+	makeOperation := func(operationType, direction, alias string) *operation.Operation {
+		return &operation.Operation{
+			ID: uuid.NewString(), TransactionID: originID.String(), Type: operationType, Direction: direction,
+			AccountAlias: alias, BalanceKey: constant.DefaultBalanceKey, AssetCode: "USD",
+			Amount: operation.Amount{Value: &amount},
+		}
+	}
+	origin := &transaction.Transaction{
+		ID: originID.String(), OrganizationID: organizationID.String(), LedgerID: ledgerID.String(),
+		AssetCode: "USD", Amount: &amount, Status: transaction.Status{Code: constant.APPROVED},
+		Body: mtransaction.Transaction{},
+		Operations: []*operation.Operation{
+			makeOperation(constant.CREDIT, constant.DirectionCredit, "@source"),
+			makeOperation(constant.DEBIT, constant.DirectionDebit, "@destination"),
+		},
+	}
+	transactionRepo.EXPECT().FindByParentID(gomock.Any(), organizationID, ledgerID, originID).
+		DoAndReturn(func(ctx context.Context, _, _, _ uuid.UUID) (*transaction.Transaction, error) {
+			require.True(t, readrouting.IsPrimaryRead(ctx))
+
+			return nil, nil
+		})
+	transactionRepo.EXPECT().FindWithOperations(gomock.Any(), organizationID, ledgerID, originID).
+		DoAndReturn(func(ctx context.Context, _, _, _ uuid.UUID) (*transaction.Transaction, error) {
+			require.True(t, readrouting.IsPrimaryRead(ctx))
+
+			return origin, nil
+		})
+	metadataRepo.EXPECT().FindByEntity(gomock.Any(), constant.EntityTransaction, originID.String()).Return(nil, nil)
+	freeze := &revertUpdateFreezeStub{ready: true, releasedLegacy: true, readySequence: []bool{false}}
+	handler := &TransactionHandler{
+		Query:                 &query.UseCase{TransactionRepo: transactionRepo, TransactionMetadataRepo: metadataRepo},
+		RevertIdempotencyMode: revertIdempotencyModeLegacy, RevertUpdateFreeze: freeze,
+	}
+
+	reverse, replayed, err := handler.revertTransaction(context.Background(), organizationID, ledgerID, originID)
+	require.Error(t, err)
+	assert.Nil(t, reverse)
+	assert.False(t, replayed)
+	assert.Equal(t, 1, freeze.readyRead, "the primary certificate must be rechecked immediately before the legacy money path")
+	assert.Equal(t, 1, freeze.revertReleases, "the exact pre-initialization drain attempt must be released on abort")
 }
 
 func TestAcquireRevertRolloutRequest_ReusesOriginTokenAfterCrash(t *testing.T) {

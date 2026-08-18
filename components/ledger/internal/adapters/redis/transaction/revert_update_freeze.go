@@ -43,7 +43,7 @@ const (
 const inspectRevertRolloutInitializationScript = `
 local current = redis.call('GET', KEYS[1])
 local witness = redis.call('GET', KEYS[2])
-if not current and not witness then
+if not current and not witness and redis.call('SCARD', KEYS[3]) == 0 then
   return 1
 end
 if current == 'prepared' and witness == ARGV[1] then
@@ -55,7 +55,7 @@ return 0
 const completeRevertRolloutInitializationScript = `
 local current = redis.call('GET', KEYS[1])
 local witness = redis.call('GET', KEYS[2])
-if not current and not witness then
+if not current and not witness and redis.call('SCARD', KEYS[3]) == 0 then
   redis.call('SET', KEYS[2], ARGV[1])
   redis.call('SET', KEYS[1], 'prepared')
   return 1
@@ -150,6 +150,8 @@ if kind ~= 'revert' or not ready then
 end
 if mode == 'legacy' then
   if phase == '' then
+    redis.call('HSET', KEYS[7], attempt, 1)
+    redis.call('SADD', KEYS[3], origin)
     return 6
   end
   if redis.call('SISMEMBER', KEYS[5], origin) == 1 then
@@ -229,6 +231,7 @@ type RevertRolloutInitializationWitness interface {
 	BeginRolloutInitialization(context.Context, uuid.UUID, uuid.UUID) (prepared, created bool, err error)
 	CompleteRolloutInitialization(context.Context, uuid.UUID, uuid.UUID) error
 	ValidatePreparedRollout(context.Context, uuid.UUID) error
+	InspectRolloutInitialization(context.Context) (exists bool, generation uuid.UUID, state string, err error)
 }
 
 // NewRevertUpdateFreezeGuard creates a deployment-wide revert rollout guard.
@@ -331,7 +334,8 @@ func (g *RevertUpdateFreezeGuard) prepareFinancialDatasetGeneration(ctx context.
 	}
 
 	initializationState, err := client.Eval(ctx, inspectRevertRolloutInitializationScript,
-		[]string{RevertUpdateFreezeKey, RevertRolloutGenerationKey}, g.expectedGeneration).Int64()
+		[]string{RevertUpdateFreezeKey, RevertRolloutGenerationKey, revertPhaseZeroRequestLeaseKey},
+		g.expectedGeneration).Int64()
 	if err != nil {
 		return fmt.Errorf("inspect revert rollout initialization: %w", err)
 	}
@@ -361,7 +365,8 @@ func (g *RevertUpdateFreezeGuard) prepareFinancialDatasetGeneration(ctx context.
 	}
 
 	initialized, err := client.Eval(ctx, completeRevertRolloutInitializationScript,
-		[]string{RevertUpdateFreezeKey, RevertRolloutGenerationKey}, g.expectedGeneration).Bool()
+		[]string{RevertUpdateFreezeKey, RevertRolloutGenerationKey, revertPhaseZeroRequestLeaseKey},
+		g.expectedGeneration).Bool()
 	if err != nil {
 		return fmt.Errorf("complete revert rollout initialization: %w", err)
 	}
@@ -460,7 +465,18 @@ func (g *RevertUpdateFreezeGuard) validateRedisFinancialDatasetGeneration(ctx co
 }
 
 func (g *RevertUpdateFreezeGuard) validateRolloutBirthCertificate(ctx context.Context) error {
-	if g == nil || g.target == "" || g.initializationWitness == nil {
+	if g == nil || g.initializationWitness == nil {
+		return fmt.Errorf("revert rollout PostgreSQL birth certificate is required")
+	}
+	if g.target == "" {
+		exists, _, state, err := g.initializationWitness.InspectRolloutInitialization(ctx)
+		if err != nil {
+			return fmt.Errorf("inspect revert rollout PostgreSQL birth certificate: %w", err)
+		}
+		if exists {
+			return fmt.Errorf("released legacy rollout is fenced by %s PostgreSQL birth certificate", state)
+		}
+
 		return nil
 	}
 	generation, err := uuid.Parse(g.expectedGeneration)
@@ -625,7 +641,7 @@ func (g *RevertUpdateFreezeGuard) AcquireRevert(ctx context.Context, mode, origi
 
 		return true, false, "", nil
 	case 6:
-		return true, false, RevertUpdateFreezeUninitialized, nil
+		return true, true, RevertUpdateFreezeUninitialized, nil
 	case 7:
 		return true, false, RevertUpdateFreezePrepared, nil
 	default:

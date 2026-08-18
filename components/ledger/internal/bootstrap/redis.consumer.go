@@ -685,10 +685,12 @@ func (r *RedisQueueConsumer) processMessage(ctx context.Context, key, rawPayload
 			RedisGeneration: m.RedisGeneration,
 		}
 	}
+	terminalReplay := false
 	if operationsWereMissing || executionAttempt != nil {
 		var enrichErr error
-		operations, enrichErr = r.TransactionHandler.Command.UpdateTransactionBackupOperations(
-			msgCtxWithSpan, m.OrganizationID, m.LedgerID, m.TransactionID, operations, action, executionAttempt,
+		operations, terminalReplay, enrichErr = r.TransactionHandler.Command.UpdateTransactionBackupOperations(
+			msgCtxWithSpan, m.OrganizationID, m.LedgerID, m.TransactionID, operations,
+			mmodel.BalancesToRedis(balancesAfter), action, executionAttempt,
 		)
 		if enrichErr != nil {
 			libOpentelemetry.HandleSpanError(msgSpan, "Failed to bind rebuilt operations to backup", enrichErr)
@@ -702,6 +704,25 @@ func (r *RedisQueueConsumer) processMessage(ctx context.Context, key, rawPayload
 	tran.Source = m.Validate.Sources
 	tran.Destination = m.Validate.Destinations
 	tran.Operations = operations
+	if terminalReplay {
+		payload := postgreTransaction.TransactionProcessingPayload{
+			Transaction: tran, Input: &m.TransactionInput, Validate: m.Validate,
+			AttemptOwner: m.AttemptOwner, ExpectedOutcome: m.ExpectedOutcome,
+			RevertRolloutMode: m.RevertRolloutMode, RevertRolloutToken: m.RevertRolloutToken,
+			RedisGeneration: m.RedisGeneration,
+		}
+		if _, replayErr := r.TransactionHandler.Command.ProveCompletedDurableReplay(
+			msgCtxWithSpan, m.OrganizationID, m.LedgerID, payload); replayErr != nil {
+			libOpentelemetry.HandleSpanError(msgSpan, "Failed to prove terminal backup replay", replayErr)
+			logger.Log(ctx, libLog.LevelError, "Failed to prove terminal backup replay",
+				libLog.String("transaction_id", m.TransactionID.String()), libLog.Err(replayErr))
+
+			return
+		}
+		r.clearBackupAttempt(msgCtxWithSpan, logger, key)
+
+		return
+	}
 
 	utils.SanitizeAccountAliases(&m.TransactionInput)
 

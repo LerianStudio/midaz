@@ -194,16 +194,18 @@ type RedisRepository interface {
 	// EnrichTransactionBackup atomically adds the materialized operation IDs to
 	// an existing backup envelope without replacing the Lua-authored balance
 	// outcome. When attempt is non-nil, the immutable outcome and owner must
-	// match before the envelope is changed.
-	EnrichTransactionBackup(ctx context.Context, organizationID, ledgerID, transactionID uuid.UUID, operations []mmodel.OperationRedis, action string, attempt *mmodel.BalanceExecutionAttempt) ([]mmodel.OperationRedis, error)
-	// FinalizeTransactionPersistence atomically removes the exact backup and
-	// immutable outcome after PostgreSQL has durably stored the transaction and
-	// every operation. A lost response is idempotent; mismatched ownership never
-	// removes either record.
+	// match before the envelope is changed. The boolean reports that live Redis
+	// evidence was already replaced by an exact append-only terminal receipt.
+	EnrichTransactionBackup(ctx context.Context, organizationID, ledgerID, transactionID uuid.UUID, operations []mmodel.OperationRedis, action string, attempt *mmodel.BalanceExecutionAttempt) ([]mmodel.OperationRedis, []mmodel.BalanceRedis, bool, error)
+	// FinalizeTransactionPersistence atomically publishes an append-only terminal
+	// receipt before removing the exact backup and immutable outcome, after
+	// PostgreSQL has durably stored the transaction and every operation. A lost
+	// response is idempotent; mismatched ownership never removes either record.
 	FinalizeTransactionPersistence(ctx context.Context, organizationID, ledgerID, transactionID uuid.UUID, attempt mmodel.BalanceExecutionAttempt, operationIDs []string) error
-	// FinalizeLegacyTransactionPersistence removes a drained phase-zero backup
-	// only after PostgreSQL proved the exact reverse and operation set durable.
-	// It rejects outcome-backed or foreign envelopes and never touches an outcome.
+	// FinalizeLegacyTransactionPersistence publishes an append-only terminal
+	// receipt before removing a drained phase-zero backup, only after PostgreSQL
+	// proved the exact reverse and operation set durable. It rejects outcome-backed
+	// or foreign envelopes and never touches an outcome.
 	FinalizeLegacyTransactionPersistence(ctx context.Context, organizationID, ledgerID, transactionID, parentTransactionID uuid.UUID, transactionStatus string, operationIDs []string) error
 	// ReadMessageFromQueue reads a specific message from the backup queue by key.
 	ReadMessageFromQueue(ctx context.Context, key string) ([]byte, error)
@@ -1397,14 +1399,15 @@ func (rr *RedisConsumerRepository) EnrichTransactionBackup(
 	operations []mmodel.OperationRedis,
 	action string,
 	attempt *mmodel.BalanceExecutionAttempt,
-) ([]mmodel.OperationRedis, error) {
+) ([]mmodel.OperationRedis, []mmodel.BalanceRedis, bool, error) {
 	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "redis.enrich_transaction_backup")
 	defer span.End()
 
 	transactionKey := utils.TransactionInternalKey(organizationID, ledgerID, transactionID.String())
-	keys := []string{TransactionBackupQueue, transactionKey}
+	keys := []string{TransactionBackupQueue, transactionKey,
+		utils.TransactionBalanceOutcomeKey(organizationID, ledgerID, transactionID)}
 	requireOutcome := "0"
 	owner := ""
 	outcome := ""
@@ -1413,18 +1416,23 @@ func (rr *RedisConsumerRepository) EnrichTransactionBackup(
 			(attempt.Outcome != mmodel.TransactionOutcomeCommitted && attempt.Outcome != mmodel.TransactionOutcomeAborted) ||
 			attempt.ExecutionKey != utils.TransactionBalanceExecutionKey(organizationID, ledgerID, transactionID) ||
 			attempt.OutcomeKey != utils.TransactionBalanceOutcomeKey(organizationID, ledgerID, transactionID) {
-			return nil, fmt.Errorf("complete balance execution attempt is required")
+			return nil, nil, false, fmt.Errorf("complete balance execution attempt is required")
 		}
 		requireOutcome = "1"
 		owner = attempt.Owner
 		outcome = attempt.Outcome
-		keys = append(keys, attempt.OutcomeKey)
 	}
 
 	prefixedKeys, err := tenantKeysFromContext(ctx, keys)
 	if err != nil {
-		return nil, err
+		return nil, nil, false, err
 	}
+	tombstoneKey := utils.TransactionPersistenceTombstoneKey(organizationID, ledgerID, transactionID)
+	prefixedTombstoneKey, err := tenantKeyFromContextOrError(ctx, tombstoneKey)
+	if err != nil {
+		return nil, nil, false, err
+	}
+	prefixedKeys = append(prefixedKeys, prefixedTombstoneKey)
 	if attempt != nil && attempt.RedisGeneration != "" {
 		// The generation is deployment-scoped even when the transaction keys
 		// are tenant-scoped. It shares the {transactions} cluster slot without
@@ -1433,31 +1441,35 @@ func (rr *RedisConsumerRepository) EnrichTransactionBackup(
 	}
 	encodedOperations, err := json.Marshal(operations)
 	if err != nil {
-		return nil, fmt.Errorf("encode transaction backup operations: %w", err)
+		return nil, nil, false, fmt.Errorf("encode transaction backup operations: %w", err)
 	}
 	rds, err := rr.conn.GetClient(ctx)
 	if err != nil {
-		return nil, err
+		return nil, nil, false, err
 	}
 	expectedGeneration := ""
 	if attempt != nil {
 		expectedGeneration = attempt.RedisGeneration
 	}
-	canonicalRaw, err := enrichTransactionBackupScript.Run(ctx, rds, prefixedKeys,
+	preflightRaw, err := enrichTransactionBackupScript.Run(ctx, rds, prefixedKeys,
 		transactionID.String(), requireOutcome, owner, outcome, string(encodedOperations), action,
 		expectedGeneration).Text()
 	if err != nil {
 		libOpentelemetry.HandleSpanError(span, "Failed to atomically enrich transaction backup", err)
 		logger.Log(ctx, libLog.LevelWarn, "Failed to atomically enrich transaction backup", libLog.Err(err))
 
-		return nil, fmt.Errorf("enrich transaction backup: %w", err)
+		return nil, nil, false, fmt.Errorf("enrich transaction backup: %w", err)
 	}
-	canonical := make([]mmodel.OperationRedis, 0, len(operations))
-	if err := json.Unmarshal([]byte(canonicalRaw), &canonical); err != nil {
-		return nil, fmt.Errorf("decode canonical transaction backup operations: %w", err)
+	preflight := struct {
+		Terminal      bool                    `json:"terminal"`
+		Operations    []mmodel.OperationRedis `json:"operations"`
+		BalancesAfter []mmodel.BalanceRedis   `json:"balancesAfter"`
+	}{}
+	if err := json.Unmarshal([]byte(preflightRaw), &preflight); err != nil {
+		return nil, nil, false, fmt.Errorf("decode canonical transaction backup operations: %w", err)
 	}
 
-	return canonical, nil
+	return preflight.Operations, preflight.BalancesAfter, preflight.Terminal, nil
 }
 
 func (rr *RedisConsumerRepository) FinalizeTransactionPersistence(
@@ -1484,7 +1496,9 @@ func (rr *RedisConsumerRepository) FinalizeTransactionPersistence(
 	}
 
 	transactionKey := utils.TransactionInternalKey(organizationID, ledgerID, transactionID.String())
-	prefixedKeys, err := tenantKeysFromContext(ctx, []string{TransactionBackupQueue, transactionKey, attempt.OutcomeKey})
+	tombstoneKey := utils.TransactionPersistenceTombstoneKey(organizationID, ledgerID, transactionID)
+	prefixedKeys, err := tenantKeysFromContext(ctx,
+		[]string{TransactionBackupQueue, transactionKey, attempt.OutcomeKey, tombstoneKey})
 	if err != nil {
 		return err
 	}
@@ -1526,7 +1540,8 @@ func (rr *RedisConsumerRepository) FinalizeLegacyTransactionPersistence(
 		return fmt.Errorf("encode legacy transaction operation ids: %w", err)
 	}
 	transactionKey := utils.TransactionInternalKey(organizationID, ledgerID, transactionID.String())
-	prefixedKeys, err := tenantKeysFromContext(ctx, []string{TransactionBackupQueue, transactionKey})
+	tombstoneKey := utils.TransactionPersistenceTombstoneKey(organizationID, ledgerID, transactionID)
+	prefixedKeys, err := tenantKeysFromContext(ctx, []string{TransactionBackupQueue, transactionKey, tombstoneKey})
 	if err != nil {
 		return err
 	}

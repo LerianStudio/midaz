@@ -128,6 +128,8 @@ func arrangeReplayedRevert(t *testing.T, ctrl *gomock.Controller) (*TransactionH
 	amount := decimal.NewFromInt(1000)
 
 	originIDStr := subjects.originID.String()
+	operationID := uuid.NewString()
+	balanceID := uuid.NewString()
 	cachedReverse := &transaction.Transaction{
 		ID:                  subjects.reverseID.String(),
 		OrganizationID:      subjects.orgID.String(),
@@ -137,7 +139,11 @@ func arrangeReplayedRevert(t *testing.T, ctrl *gomock.Controller) (*TransactionH
 		AssetCode:           "USD",
 		Amount:              &amount,
 		Status:              transaction.Status{Code: cn.APPROVED},
-		Operations:          []*operation.Operation{{ID: uuid.NewString()}},
+		Operations: []*operation.Operation{{
+			ID: operationID, TransactionID: subjects.reverseID.String(), BalanceID: balanceID,
+			BalanceKey: "default", AccountID: uuid.NewString(), AssetCode: "USD",
+			Direction: "credit", Type: "CREDIT", BalanceAffected: true,
+		}},
 	}
 
 	transactionRepo := transaction.NewMockRepository(ctrl)
@@ -159,11 +165,13 @@ func arrangeReplayedRevert(t *testing.T, ctrl *gomock.Controller) (*TransactionH
 		Return(nil, nil).
 		Times(2)
 
+	redisGeneration := "test-generation"
 	claim := &revertclaim.Claim{
 		OrganizationID:       subjects.orgID,
 		LedgerID:             subjects.ledgerID,
 		OriginTransactionID:  subjects.originID,
 		ReverseTransactionID: subjects.reverseID,
+		RedisGeneration:      &redisGeneration,
 		State:                revertclaim.StateCompleted,
 	}
 	claimRepo.EXPECT().
@@ -187,13 +195,33 @@ func arrangeReplayedRevert(t *testing.T, ctrl *gomock.Controller) (*TransactionH
 		Return(nil, redislib.Nil).
 		Times(2)
 	redisRepo.EXPECT().
+		EnrichTransactionBackup(gomock.Any(), subjects.orgID, subjects.ledgerID, subjects.reverseID,
+			gomock.Any(), cn.ActionRevert, gomock.Any()).
+		Return([]mmodel.OperationRedis{cachedReverse.Operations[0].ToRedis()}, []mmodel.BalanceRedis{{
+			ID: balanceID, Key: "default", AccountID: cachedReverse.Operations[0].AccountID,
+			AssetCode: "USD", AccountType: "asset", Direction: "credit", OverdraftUsed: "0",
+			OverdraftLimit: "0", BalanceScope: mmodel.BalanceScopeTransactional,
+		}}, true, nil).
+		Times(1)
+	receiptRaw, err := json.Marshal(mmodel.TransactionPersistenceTombstone{
+		Identity: subjects.reverseID, ParentTransactionID: subjects.originID.String(),
+		Owner: subjects.reverseID.String(), Outcome: mmodel.TransactionOutcomeCommitted,
+		RedisGeneration: redisGeneration, TransactionStatus: cn.CREATED, Action: cn.ActionRevert,
+	})
+	require.NoError(t, err)
+	redisRepo.EXPECT().
+		Get(gomock.Any(), utils.TransactionPersistenceTombstoneKey(subjects.orgID, subjects.ledgerID, subjects.reverseID)).
+		Return(string(receiptRaw), nil).
+		Times(1)
+	redisRepo.EXPECT().
 		FinalizeTransactionPersistence(gomock.Any(), subjects.orgID, subjects.ledgerID, subjects.reverseID,
 			mmodel.BalanceExecutionAttempt{
-				ExecutionKey: utils.TransactionBalanceExecutionKey(subjects.orgID, subjects.ledgerID, subjects.reverseID),
-				OutcomeKey:   utils.TransactionBalanceOutcomeKey(subjects.orgID, subjects.ledgerID, subjects.reverseID),
-				Owner:        subjects.reverseID.String(),
-				Outcome:      mmodel.TransactionOutcomeCommitted,
-				Identity:     subjects.reverseID,
+				ExecutionKey:    utils.TransactionBalanceExecutionKey(subjects.orgID, subjects.ledgerID, subjects.reverseID),
+				OutcomeKey:      utils.TransactionBalanceOutcomeKey(subjects.orgID, subjects.ledgerID, subjects.reverseID),
+				Owner:           subjects.reverseID.String(),
+				Outcome:         mmodel.TransactionOutcomeCommitted,
+				Identity:        subjects.reverseID,
+				RedisGeneration: redisGeneration,
 			}, gomock.Any()).
 		Return(nil).
 		Times(1)

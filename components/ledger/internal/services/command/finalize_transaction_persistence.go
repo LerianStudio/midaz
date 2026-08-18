@@ -155,6 +155,61 @@ func proveDurableTransactionPayload(
 	return nil
 }
 
+// proveCompletedDurableReplay is the read-only lost-ack path. Redis has
+// already proved the append-only terminal tombstone and supplied its canonical
+// operations; PostgreSQL primary must independently prove the exact
+// transaction and, for a reverse, its completed origin claim before a consumer
+// can acknowledge the redelivery without issuing any write.
+func (uc *UseCase) ProveCompletedDurableReplay(
+	ctx context.Context,
+	organizationID, ledgerID uuid.UUID,
+	payload transaction.TransactionProcessingPayload,
+) (*transaction.Transaction, error) {
+	if payload.Transaction == nil || uc.TransactionRepo == nil {
+		return nil, fmt.Errorf("durable transaction replay repositories are required")
+	}
+	transactionID := payload.Transaction.IDtoUUID()
+	persisted, err := uc.TransactionRepo.FindWithOperations(readrouting.WithPrimaryRead(ctx),
+		organizationID, ledgerID, transactionID)
+	if err != nil {
+		return nil, fmt.Errorf("prove completed transaction replay on primary: %w", err)
+	}
+	if err := proveDurableTransactionPayload(persisted, payload.Transaction); err != nil {
+		return nil, fmt.Errorf("prove completed transaction replay: %w", err)
+	}
+	if payload.Transaction.ParentTransactionID == nil {
+		return persisted, nil
+	}
+	if uc.RevertClaimRepo == nil {
+		return nil, fmt.Errorf("durable reverse replay claim repository is required")
+	}
+	originID, err := uuid.Parse(*payload.Transaction.ParentTransactionID)
+	if err != nil {
+		return nil, fmt.Errorf("parse completed reverse replay origin: %w", err)
+	}
+	claim, err := uc.RevertClaimRepo.Get(readrouting.WithPrimaryRead(ctx), organizationID, ledgerID, originID)
+	if err != nil {
+		return nil, fmt.Errorf("prove completed reverse replay claim on primary: %w", err)
+	}
+	if claim == nil || claim.State != revertclaim.StateCompleted ||
+		claim.ReverseTransactionID != transactionID ||
+		!optionalStringMatches(claim.RedisGeneration, payload.RedisGeneration) ||
+		!optionalStringMatches(claim.RolloutMode, payload.RevertRolloutMode) ||
+		!optionalStringMatches(claim.RolloutToken, payload.RevertRolloutToken) {
+		return nil, fmt.Errorf("completed reverse replay claim differs from terminal tombstone")
+	}
+
+	return persisted, nil
+}
+
+func optionalStringMatches(stored *string, expected string) bool {
+	if expected == "" {
+		return stored == nil
+	}
+
+	return stored != nil && *stored == expected
+}
+
 func containsExactTransactionOperations(all, expected *transaction.Transaction) bool {
 	if len(all.Operations) < len(expected.Operations) {
 		return false

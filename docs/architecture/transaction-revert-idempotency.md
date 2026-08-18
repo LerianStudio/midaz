@@ -125,7 +125,9 @@ persistence handoff. That handoff performs the same ordered proof every time:
    before/after available, on-hold, version, and overdraft values.
 3. Complete the durable revert claim.
 4. Publish or verify the exact origin and persisted H1 replays.
-5. Atomically clean the owner/outcome-matched Redis backup and outcome.
+5. Atomically publish an append-only terminal persistence receipt and then
+   clean the owner/outcome-matched Redis backup and outcome in the same Lua
+   command.
 
 No consumer owns a partial version of this sequence. Bulk duplicates,
 individual redelivery, fallback after publish failure, a crash after the
@@ -133,13 +135,17 @@ PostgreSQL commit, and a lost Rabbit acknowledgement all re-enter the same
 handoff. A lost replay-publication response is accepted only when one same-slot
 read observes both the exact reserved replay and the absence of its owner
 companion; an exact replay with a surviving owner remains reconciliation work.
-Cleanup is another
-same-slot owner/outcome-checked Lua command that compares the complete
-operation-ID multiset and removes the backup and outcome atomically. Commit and
+Cleanup is another same-slot owner/outcome-checked Lua command that compares the
+complete operation-ID multiset, writes the non-expiring terminal receipt, and
+only then removes the backup and outcome atomically. The receipt binds the
+dataset generation, transaction identity, owner, terminal outcome, action,
+canonical operation IDs and full economic operation bodies, and Lua-authored
+balance snapshots. It is append-only: retrying the exact cleanup is idempotent,
+while an opposite outcome or different economic body is a conflict. Commit and
 cancel prove every operation in their terminal attempt while preserving the
 older PENDING hold operations as durable history; a reverse has no older
-history and therefore requires exact equality. A lost cleanup response is an
-exact idempotent replay; a mismatched owner or operation set removes nothing. A transport timeout is
+history and therefore requires exact equality. A mismatched owner or operation
+set removes nothing. A transport timeout is
 therefore never interpreted as proof that funds did not move. TTL expiration
 can retire only a transient execution or recovery lease. It never erases an
 immutable outcome, durable claim, or persistent legacy/origin fence, and it is
@@ -174,7 +180,7 @@ removal belongs to one of four explicit proof classes:
 |---|---|
 | Proven pre-movement failure | Status, attempt owner, expected outcome, and absence of `balancesAfter` all match in one Lua command |
 | Outcome-backed durable persistence | Transaction identity, immutable owner/outcome, terminal backup, and complete operation-ID multiset match; backup and outcome are removed together |
-| Drained old-compatible persistence | Reverse ID, origin ID, terminal status, and the complete persisted operation-ID multiset match; an outcome-backed envelope is rejected |
+| Drained old-compatible persistence | Reverse ID, origin ID, terminal status, and the complete persisted operation-ID multiset match; an outcome-backed envelope is rejected; the compatibility receipt is written before the backup is removed |
 | Durable quarantine | The raw bytes copied into PostgreSQL still exactly equal the Redis field; a successor value under the same key is preserved |
 
 The retry-attempt counter is non-economic bookkeeping and is the only direct Go
@@ -249,7 +255,7 @@ compatibility cleanup never touches an outcome-backed envelope.
 | Crash after bridge child persistence and before H1 completion | Durable claim retains the original H1 key; child and every operation exist on primary | Final adoption completes only the persisted H1 key, marks the claim terminal, and owner-checks outcome cleanup; it never recalculates H1 from the origin |
 | Lost response after rollout-generation completion | Durable claim retains the exact `legacy` or `bridge` generation and deterministic origin token; transaction, operations, claim, replays, and Redis economic cleanup are already proven terminal | HTTP or consumer redelivery repeats the same generation seal idempotently; it never releases a generation inferred from the current pod mode |
 | Final adoption sees a foreign H1 collision | The durable claim and child prove this origin; the legacy key explicitly belongs to another owner or replay | Preserve the foreign H1 unchanged, finish the origin-scoped replay, and clean only this reverse's exact outcome/backup |
-| Crash after an old-compatible child is durable but before backup cleanup | Child, all operations, and completed adopted claim exist on PostgreSQL primary; legacy backup has no owner/outcome envelope | Compare reverse, parent, status, and every operation ID in one Lua command, then remove only that exact compatibility backup |
+| Crash after an old-compatible child is durable but before backup cleanup | Child, all operations, and completed adopted claim exist on PostgreSQL primary; legacy backup has no owner/outcome envelope | Compare reverse, parent, status, and every operation ID in one Lua command, publish an append-only compatibility receipt with the full operations and balance snapshot, then remove only that exact backup |
 | Crash before queue seed | Durable claim names the exact origin, reverse, H1 key, owner, and current dataset generation; one atomic generation-bound read proves backup, execution attempt, and immutable outcome absent | Elect one `RECOVERING` owner, generation-check and owner-release the exact barriers, release PostgreSQL last, and retry; safety comes from Lua requiring the now-absent exact attempt, not from elapsed time |
 | Crash before Lua dispatch | Valid exact-origin queue seed exists without `balancesAfter` or immutable outcome, the exact execution attempt is absent, and the configured/claim/Redis generation still agrees | Elect one `RECOVERING` owner, generation-check and clear Redis barriers/seed, release PostgreSQL last, and retry; the old winner is rejected inside Lua if it resumes |
 | Pre-movement cleanup races a terminal Lua envelope | Status/owner/outcome no longer match the exact seed selected for cleanup | Atomic cleanup removes nothing; preserve all barriers and require reconciliation |
@@ -339,7 +345,7 @@ birth certificate; they never create any of them:
 
 | Value | Phase-zero readiness/revert | APPROVED updates | Bridge readiness/revert | Final readiness/revert |
 |---|---|---|---|---|
-| absent | Released old algorithm only; rollout targets rejected | Allowed only with empty target | Rejected with `0502` | Rejected with `0502` |
+| absent | Released old algorithm plus initialization drain lease; rollout targets rejected | Allowed only with empty target | Rejected with `0502` | Rejected with `0502` |
 | `prepared` | Allowed with target `prepared` | Allowed and durably counted | Rejected with `0502` | Rejected with `0502` |
 | `active` | Allowed | Rejected with `0008` on phase zero, bridge, and final | Allowed | Rejected with `0502` |
 | `phase-zero-drained` | Rejected with `0502` | Rejected with `0008` on bridge and final | Allowed | Allowed |
@@ -407,6 +413,18 @@ multi-tenant mode it always uses the static `DB_TRANSACTION_*` primary as the
 deployment control database and deliberately ignores a tenant database carried
 in request context. One Redis rollout marker therefore has exactly one external
 birth certificate across all tenants.
+
+Target-empty phase-zero-capable pods do not cache the certificate's absence.
+Every readiness and money-path admission reads the deployment PostgreSQL
+primary; an absent replica is irrelevant and a primary read failure is
+fail-closed. An admitted old-algorithm revert still registers its unique
+attempt in the deployment-wide Redis drain set. It rereads the primary
+certificate immediately before entering the balance path. If initialization
+has inserted `PREPARING`, the request aborts before movement; if initialization
+starts after that final read, the initializer cannot publish either Redis
+witness until the exact old request leaves the drain set. This closes both
+orders of the paused-request race without changing the released legacy
+idempotency algorithm.
 
 The tokens and attempt hashes have no TTL. A crashed request may block rollout
 availability, but state can never expire underneath a still-running money-path
@@ -479,6 +497,26 @@ same-slot Redis command before the first PostgreSQL transaction, metadata, or
 operation write. A consumer delayed beyond the request lease, or across a
 dataset generation change, therefore preserves the backup and rollout token for
 reconciliation instead of materializing an old generation in PostgreSQL.
+
+After terminal cleanup, a redelivery can become a read-only acknowledgement
+only when the same-slot Redis preflight finds the exact terminal persistence
+receipt and no live backup or outcome, the current witness still names the
+receipt generation, PostgreSQL primary contains the economically identical
+transaction and complete canonical operation set, and a reverse claim is
+`COMPLETED` for that exact origin and reverse. A missing receipt, partial Redis
+restoration, opposite outcome, changed generation, claim mismatch, or economic
+divergence is reconciliation; none can recreate operations or acknowledge a
+foreign replay. Terminal receipts have no TTL and rollout transitions never
+delete them. Their future retention requires a separate archival contract.
+
+The sole compatibility exception is a reverse admitted before the one-shot
+initialization certificate existed. Its terminal receipt and adopted claim both
+carry the explicit pre-generation shape: empty generation, empty owner/outcome,
+and exact reverse, parent, terminal status, operation bodies, and balance
+snapshot. That pair cannot be confused with an outcome-backed receipt, and no
+new target-empty request is admitted once `PREPARING` exists. A future dataset
+generation rollover is unsupported and must reconcile or migrate these receipts
+explicitly; an empty generation is never silently rebound to a new witness.
 
 A PENDING update locks its transaction row on the PostgreSQL primary before it
 checks status and holds that row lock through the PostgreSQL description and

@@ -241,6 +241,47 @@ func (r *PostgreSQLRepository) ValidatePreparedRollout(ctx context.Context, redi
 	return nil
 }
 
+// InspectRolloutInitialization reads the global birth certificate from the
+// deployment primary without requiring a configured generation. Phase-zero
+// pods with an empty target use it on every readiness/admission decision: only
+// true row absence means the released legacy algorithm is still admissible.
+func (r *PostgreSQLRepository) InspectRolloutInitialization(
+	ctx context.Context,
+) (exists bool, redisGeneration uuid.UUID, state string, err error) {
+	db, err := r.getRolloutDB(ctx)
+	if err != nil {
+		return false, uuid.Nil, "", err
+	}
+	tx, err := db.BeginTx(ctx, &sql.TxOptions{ReadOnly: true})
+	if err != nil {
+		return false, uuid.Nil, "", fmt.Errorf("begin primary revert rollout inspection: %w", err)
+	}
+	defer func() { _ = tx.Rollback() }()
+
+	storedGeneration, _, storedState, err := readRolloutInitializationRow(tx.QueryRowContext(ctx, `
+		SELECT redis_generation, initialization_request_id, state
+		FROM transaction_revert_rollout_initialization
+		WHERE singleton = TRUE`))
+	if errors.Is(err, sql.ErrNoRows) {
+		if err := tx.Commit(); err != nil {
+			return false, uuid.Nil, "", fmt.Errorf("commit empty primary revert rollout inspection: %w", err)
+		}
+
+		return false, uuid.Nil, "", nil
+	}
+	if err != nil {
+		return false, uuid.Nil, "", fmt.Errorf("inspect revert rollout birth certificate: %w", err)
+	}
+	if storedState != "PREPARING" && storedState != "PREPARED" {
+		return false, uuid.Nil, "", fmt.Errorf("invalid revert rollout initialization state %q", storedState)
+	}
+	if err := tx.Commit(); err != nil {
+		return false, uuid.Nil, "", fmt.Errorf("commit primary revert rollout inspection: %w", err)
+	}
+
+	return true, storedGeneration, storedState, nil
+}
+
 func (r *PostgreSQLRepository) getRolloutDB(ctx context.Context) (dbresolver.DB, error) {
 	if r == nil || r.connection == nil {
 		return nil, fmt.Errorf("deployment transaction postgres connection not available")

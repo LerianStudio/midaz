@@ -71,12 +71,18 @@ func (uc *UseCase) CreateBalanceTransactionOperationsAsync(ctx context.Context, 
 			Identity:        transactionID,
 			RedisGeneration: t.RedisGeneration,
 		}
-		canonicalOperations, preflightErr := uc.UpdateTransactionBackupOperations(ctx, data.OrganizationID,
-			data.LedgerID, transactionID, t.Transaction.Operations, actionForTransactionPayload(t), attempt)
+		canonicalOperations, terminal, preflightErr := uc.UpdateTransactionBackupOperations(ctx, data.OrganizationID,
+			data.LedgerID, transactionID, t.Transaction.Operations, mmodel.BalancesToRedis(t.BalancesAfter),
+			actionForTransactionPayload(t), attempt)
 		if preflightErr != nil {
 			return fmt.Errorf("validate current Redis economic outcome before PostgreSQL persistence: %w", preflightErr)
 		}
 		t.Transaction.Operations = canonicalOperations
+		if terminal {
+			_, replayErr := uc.ProveCompletedDurableReplay(ctx, data.OrganizationID, data.LedgerID, t)
+
+			return replayErr
+		}
 	}
 
 	backupStatusForCleanup := utils.ExpectedBackupStatusForCleanup(t.Transaction.Status.Code, t.Validate)
@@ -517,15 +523,17 @@ func (uc *UseCase) SendTransactionToRedisQueue(ctx context.Context, organization
 
 // UpdateTransactionBackupOperations atomically enriches the existing Redis
 // backup with the materialized operation IDs. For an economic execution
-// attempt, Redis verifies the immutable Lua outcome before changing the
-// envelope, so a post-movement backup is never replaced by stale HTTP state.
+// attempt, Redis verifies the immutable Lua outcome and returns its complete
+// balance snapshot; both the operation multiset and balances must match before
+// persistence. A post-movement envelope is never replaced by stale HTTP state.
 func (uc *UseCase) UpdateTransactionBackupOperations(
 	ctx context.Context,
 	organizationID, ledgerID, transactionID uuid.UUID,
 	operations []*operation.Operation,
+	balancesAfter []mmodel.BalanceRedis,
 	action string,
 	attempt *mmodel.BalanceExecutionAttempt,
-) ([]*operation.Operation, error) {
+) ([]*operation.Operation, bool, error) {
 	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "command.update_transaction_backup_operations")
@@ -536,13 +544,19 @@ func (uc *UseCase) UpdateTransactionBackupOperations(
 		redisOps = append(redisOps, op.ToRedis())
 	}
 
-	canonicalRedisOps, err := uc.TransactionRedisRepo.EnrichTransactionBackup(ctx, organizationID, ledgerID, transactionID,
+	canonicalRedisOps, canonicalBalancesAfter, terminal, err := uc.TransactionRedisRepo.EnrichTransactionBackup(ctx, organizationID, ledgerID, transactionID,
 		redisOps, action, attempt)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(span, "Failed to enrich transaction backup with operations", err)
 		logger.Log(ctx, libLog.LevelWarn, "Failed to enrich transaction backup with operations", libLog.Err(err))
 
-		return nil, err
+		return nil, false, err
+	}
+	if attempt != nil && (!sameRedisEconomicOperationMultiset(transactionID, redisOps, canonicalRedisOps) ||
+		!mmodel.RedisBalanceSetEconomicComplete(balancesAfter) ||
+		!mmodel.RedisBalanceSetEconomicComplete(canonicalBalancesAfter) ||
+		!mmodel.RedisBalanceSetEconomicEqual(balancesAfter, canonicalBalancesAfter)) {
+		return nil, false, fmt.Errorf("transaction economic effect differs from its authoritative Redis envelope")
 	}
 
 	canonicalOperations := make([]*operation.Operation, 0, len(canonicalRedisOps))
@@ -550,7 +564,37 @@ func (uc *UseCase) UpdateTransactionBackupOperations(
 		canonicalOperations = append(canonicalOperations, operation.OperationFromRedis(redisOperation))
 	}
 
-	return canonicalOperations, nil
+	return canonicalOperations, terminal, nil
+}
+
+func sameRedisEconomicOperationMultiset(
+	transactionID uuid.UUID,
+	left, right []mmodel.OperationRedis,
+) bool {
+	if len(left) == 0 || len(left) != len(right) {
+		return false
+	}
+	used := make([]bool, len(right))
+	for _, candidate := range left {
+		if candidate.ID == "" || candidate.TransactionID != transactionID.String() {
+			return false
+		}
+		matched := false
+		for index, canonical := range right {
+			if used[index] || canonical.ID == "" || canonical.TransactionID != transactionID.String() ||
+				!operation.RedisEconomicEffectEqual(candidate, canonical) {
+				continue
+			}
+			used[index] = true
+			matched = true
+			break
+		}
+		if !matched {
+			return false
+		}
+	}
+
+	return true
 }
 
 // validateOperationDirection checks the direction field of an operation.
