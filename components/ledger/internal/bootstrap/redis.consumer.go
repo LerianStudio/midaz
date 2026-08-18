@@ -691,6 +691,7 @@ func (r *RedisQueueConsumer) processMessage(ctx context.Context, key, rawPayload
 		operations, terminalReplay, enrichErr = r.TransactionHandler.Command.UpdateTransactionBackupOperations(
 			msgCtxWithSpan, m.OrganizationID, m.LedgerID, m.TransactionID, operations,
 			mmodel.BalancesToRedis(balancesAfter), action, executionAttempt,
+			mmodel.TransactionEconomicContext{ParentTransactionID: m.ParentTransactionID, TransactionStatus: m.TransactionStatus},
 		)
 		if enrichErr != nil {
 			libOpentelemetry.HandleSpanError(msgSpan, "Failed to bind rebuilt operations to backup", enrichErr)

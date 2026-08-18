@@ -529,12 +529,32 @@ func (handler *TransactionHandler) finalizeDurableRevertPersistence(
 				return receiptErr
 			}
 
-			return handler.Command.TransactionRedisRepo.FinalizeLegacyTransactionPersistence(ctx,
+			redisOperations, operationsErr := persistedTransactionRedisOperations(persisted)
+			if operationsErr != nil {
+				return operationsErr
+			}
+			finalizeCtx := mmodel.WithTransactionEconomicContext(ctx, mmodel.TransactionEconomicContext{
+				ParentTransactionID: &claim.OriginTransactionID,
+				TransactionStatus:   receipt.TransactionStatus,
+				Action:              constant.ActionRevert,
+				Operations:          redisOperations,
+				BalancesAfter:       receipt.BalancesAfter,
+			})
+
+			return handler.Command.TransactionRedisRepo.FinalizeLegacyTransactionPersistence(finalizeCtx,
 				claim.OrganizationID, claim.LedgerID, claim.ReverseTransactionID, claim.OriginTransactionID,
 				receipt.TransactionStatus, operationIDs)
 		}
 
-		return handler.finalizeOutcomeBackedRevertPersistence(ctx, claim, persisted)
+		receipt, receiptErr := handler.readTransactionPersistenceTombstone(ctx, claim)
+		if receiptErr != nil {
+			return fmt.Errorf("read reverse transaction terminal status for cleanup: %w", receiptErr)
+		}
+		if !terminalReceiptStatusMatchesPersisted(receipt.TransactionStatus, persisted.Status.Code) {
+			return fmt.Errorf("reverse transaction terminal status differs from persisted status")
+		}
+
+		return handler.finalizeOutcomeBackedRevertPersistence(ctx, claim, persisted, receipt.TransactionStatus)
 	}
 	if err != nil {
 		return fmt.Errorf("read reverse transaction backup for cleanup: %w", err)
@@ -554,7 +574,8 @@ func (handler *TransactionHandler) finalizeDurableRevertPersistence(
 			return fmt.Errorf("reverse transaction backup outcome mismatch")
 		}
 
-		return handler.finalizeOutcomeBackedRevertPersistence(ctx, claim, persisted)
+		return handler.finalizeOutcomeBackedRevertPersistence(ctx, claim, persisted,
+			utils.ExpectedBackupStatusForCleanup(persisted.Status.Code, queued.Validate))
 	}
 
 	operationIDs, err := persistedTransactionOperationIDs(persisted)
@@ -562,15 +583,29 @@ func (handler *TransactionHandler) finalizeDurableRevertPersistence(
 		return err
 	}
 
-	return handler.Command.TransactionRedisRepo.FinalizeLegacyTransactionPersistence(ctx,
+	redisOperations, err := persistedTransactionRedisOperations(persisted)
+	if err != nil {
+		return err
+	}
+	backupStatus := utils.ExpectedBackupStatusForCleanup(persisted.Status.Code, queued.Validate)
+	finalizeCtx := mmodel.WithTransactionEconomicContext(ctx, mmodel.TransactionEconomicContext{
+		ParentTransactionID: &claim.OriginTransactionID,
+		TransactionStatus:   backupStatus,
+		Action:              constant.ActionRevert,
+		Operations:          redisOperations,
+		BalancesAfter:       queued.BalancesAfter,
+	})
+
+	return handler.Command.TransactionRedisRepo.FinalizeLegacyTransactionPersistence(finalizeCtx,
 		claim.OrganizationID, claim.LedgerID, claim.ReverseTransactionID, claim.OriginTransactionID,
-		utils.ExpectedBackupStatusForCleanup(persisted.Status.Code, queued.Validate), operationIDs)
+		backupStatus, operationIDs)
 }
 
 func (handler *TransactionHandler) finalizeOutcomeBackedRevertPersistence(
 	ctx context.Context,
 	claim *revertclaim.Claim,
 	persisted *transaction.Transaction,
+	transactionStatus string,
 ) error {
 	attempt := mmodel.BalanceExecutionAttempt{
 		ExecutionKey: utils.TransactionBalanceExecutionKey(claim.OrganizationID, claim.LedgerID, claim.ReverseTransactionID),
@@ -593,8 +628,13 @@ func (handler *TransactionHandler) finalizeOutcomeBackedRevertPersistence(
 		}
 		redisOperations = append(redisOperations, persistedOperation.ToRedis())
 	}
+	economicCtx := mmodel.WithTransactionEconomicContext(ctx, mmodel.TransactionEconomicContext{
+		ParentTransactionID: &claim.OriginTransactionID,
+		TransactionStatus:   transactionStatus,
+		Action:              constant.ActionRevert,
+	})
 	canonicalOperations, balancesAfter, _, err := handler.Command.TransactionRedisRepo.EnrichTransactionBackup(
-		ctx, claim.OrganizationID, claim.LedgerID, claim.ReverseTransactionID,
+		economicCtx, claim.OrganizationID, claim.LedgerID, claim.ReverseTransactionID,
 		redisOperations, constant.ActionRevert, &attempt)
 	if err != nil {
 		return fmt.Errorf("preflight reverse economic evidence for cleanup: %w", err)
@@ -604,7 +644,7 @@ func (handler *TransactionHandler) finalizeOutcomeBackedRevertPersistence(
 		return fmt.Errorf("reverse cleanup economic evidence is incomplete or divergent")
 	}
 
-	return handler.Command.TransactionRedisRepo.FinalizeTransactionPersistence(ctx,
+	return handler.Command.TransactionRedisRepo.FinalizeTransactionPersistence(economicCtx,
 		claim.OrganizationID, claim.LedgerID, claim.ReverseTransactionID, attempt,
 		canonicalOperations, balancesAfter)
 }
@@ -623,6 +663,21 @@ func persistedTransactionOperationIDs(persisted *transaction.Transaction) ([]str
 	}
 
 	return operationIDs, nil
+}
+
+func persistedTransactionRedisOperations(persisted *transaction.Transaction) ([]mmodel.OperationRedis, error) {
+	if persisted == nil || len(persisted.Operations) == 0 {
+		return nil, fmt.Errorf("persisted reverse operations are required")
+	}
+	operations := make([]mmodel.OperationRedis, 0, len(persisted.Operations))
+	for _, operation := range persisted.Operations {
+		if operation == nil {
+			return nil, fmt.Errorf("persisted reverse operation is required")
+		}
+		operations = append(operations, operation.ToRedis())
+	}
+
+	return operations, nil
 }
 
 func (handler *TransactionHandler) loadCompleteReverse(ctx context.Context, claim *revertclaim.Claim) (*transaction.Transaction, bool, error) {
@@ -747,14 +802,6 @@ func (handler *TransactionHandler) terminalReverseReceiptMatches(
 			RedisGeneration: *claim.RedisGeneration,
 		}
 	}
-
-	canonicalOperations, balancesAfter, terminal, err := handler.Command.TransactionRedisRepo.EnrichTransactionBackup(
-		ctx, claim.OrganizationID, claim.LedgerID, claim.ReverseTransactionID,
-		redisOperations, constant.ActionRevert, attempt)
-	if err != nil || !terminal || len(canonicalOperations) != len(persisted.Operations) ||
-		!mmodel.RedisBalanceSetEconomicComplete(balancesAfter) {
-		return false
-	}
 	receipt, err := handler.readTransactionPersistenceTombstone(ctx, claim)
 	if err != nil || receipt.Identity != claim.ReverseTransactionID ||
 		receipt.ParentTransactionID != claim.OriginTransactionID.String() || receipt.Action != constant.ActionRevert ||
@@ -770,6 +817,18 @@ func (handler *TransactionHandler) terminalReverseReceiptMatches(
 		return false
 	}
 
+	economicCtx := mmodel.WithTransactionEconomicContext(ctx, mmodel.TransactionEconomicContext{
+		ParentTransactionID: &claim.OriginTransactionID,
+		TransactionStatus:   receipt.TransactionStatus,
+		Action:              constant.ActionRevert,
+	})
+	canonicalOperations, balancesAfter, terminal, err := handler.Command.TransactionRedisRepo.EnrichTransactionBackup(
+		economicCtx, claim.OrganizationID, claim.LedgerID, claim.ReverseTransactionID,
+		redisOperations, constant.ActionRevert, attempt)
+	if err != nil || !terminal || len(canonicalOperations) != len(persisted.Operations) ||
+		!mmodel.RedisBalanceSetEconomicComplete(balancesAfter) {
+		return false
+	}
 	return canonicalRedisOperationsMatchPersisted(claim.ReverseTransactionID, canonicalOperations,
 		persisted.Operations)
 }

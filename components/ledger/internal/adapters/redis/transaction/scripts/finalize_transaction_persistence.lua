@@ -1,4 +1,4 @@
-if #KEYS == 5 and redis.call("GET", KEYS[5]) ~= ARGV[5] then
+if #KEYS == 5 and redis.call("GET", KEYS[5]) ~= ARGV[8] then
     return redis.error_reply("FINANCIAL_DATASET_GENERATION_MISMATCH")
 end
 
@@ -17,8 +17,12 @@ if tombstoneRaw then
     local tombstoneOK, tombstone = pcall(cjson.decode, tombstoneRaw)
     if not tombstoneOK or type(tombstone) ~= "table" or
        tombstone.identity ~= ARGV[1] or tombstone.owner ~= ARGV[2] or
-       tombstone.outcome ~= ARGV[3] or tombstone.redis_generation ~= (ARGV[5] or "") or
+       tombstone.outcome ~= ARGV[3] or tombstone.redis_generation ~= (ARGV[8] or "") or
        tombstone.economic_effect_digest ~= ARGV[4] or
+       tombstone.parent_transaction_id ~= ARGV[5] or
+       type(tombstone.transaction_status) ~= "string" or
+       string.upper(tombstone.transaction_status) ~= string.upper(ARGV[6]) or
+       tombstone.action ~= ARGV[7] or
        type(tombstone.operations) ~= "table" or type(tombstone.balancesAfter) ~= "table" then
         return redis.error_reply("TRANSACTION_PERSISTENCE_TOMBSTONE_MISMATCH")
     end
@@ -44,7 +48,11 @@ if backup then
     if not backupOK or type(envelope) ~= "table" or envelope.transaction_id ~= ARGV[1] or
        envelope.attempt_owner ~= ARGV[2] or envelope.expected_outcome ~= ARGV[3] or
        envelope.economic_effect_digest ~= ARGV[4] or type(envelope.operations) ~= "table" or
-       type(envelope.balancesAfter) ~= "table" then
+       type(envelope.balancesAfter) ~= "table" or
+       (envelope.parent_transaction_id or "") ~= ARGV[5] or
+       type(envelope.transaction_status) ~= "string" or
+       string.upper(envelope.transaction_status) ~= string.upper(ARGV[6]) or
+       envelope.action ~= ARGV[7] then
         return redis.error_reply("TRANSACTION_BACKUP_MISMATCH")
     end
 end
@@ -61,9 +69,9 @@ local tombstone = {
     parent_transaction_id = envelope.parent_transaction_id or "",
     owner = ARGV[2],
     outcome = ARGV[3],
-    redis_generation = ARGV[5] or "",
-    transaction_status = envelope.transaction_status or "",
-    action = envelope.action or "",
+    redis_generation = ARGV[8] or "",
+    transaction_status = ARGV[6],
+    action = ARGV[7],
     operations = envelope.operations,
     balancesAfter = envelope.balancesAfter,
     economic_effect_digest = envelope.economic_effect_digest

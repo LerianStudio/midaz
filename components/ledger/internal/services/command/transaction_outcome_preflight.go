@@ -25,14 +25,26 @@ func (uc *UseCase) preflightOutcomeBackedTransaction(
 	payload *transaction.TransactionProcessingPayload,
 ) (outcomeBacked, terminal bool, err error) {
 	attempt, outcomeBacked, err := outcomeBackedAttempt(organizationID, ledgerID, payload)
-	if err != nil || !outcomeBacked {
+	if err != nil {
 		return outcomeBacked, false, err
 	}
+	reverseBacked := payload != nil && payload.Transaction != nil && payload.Transaction.ParentTransactionID != nil
+	if !outcomeBacked && !reverseBacked {
+		return false, false, nil
+	}
 	if uc.TransactionRedisRepo == nil {
-		return true, false, fmt.Errorf("transaction economic evidence repository is required")
+		return outcomeBacked, false, fmt.Errorf("transaction economic evidence repository is required")
 	}
 
 	transactionID := payload.Transaction.IDtoUUID()
+	var parentTransactionID *uuid.UUID
+	if payload.Transaction.ParentTransactionID != nil {
+		parsedParent, parseErr := uuid.Parse(*payload.Transaction.ParentTransactionID)
+		if parseErr != nil || parsedParent == uuid.Nil {
+			return outcomeBacked, false, fmt.Errorf("transaction economic parent identity is invalid")
+		}
+		parentTransactionID = &parsedParent
+	}
 	canonicalOperations, terminal, err := uc.UpdateTransactionBackupOperations(
 		ctx,
 		organizationID,
@@ -42,13 +54,17 @@ func (uc *UseCase) preflightOutcomeBackedTransaction(
 		mmodel.BalancesToRedis(payload.BalancesAfter),
 		actionForTransactionPayload(*payload),
 		attempt,
+		mmodel.TransactionEconomicContext{
+			ParentTransactionID: parentTransactionID,
+			TransactionStatus:   utils.ExpectedBackupStatusForCleanup(payload.Transaction.Status.Code, payload.Validate),
+		},
 	)
 	if err != nil {
-		return true, false, err
+		return outcomeBacked, false, err
 	}
 	payload.Transaction.Operations = canonicalOperations
 
-	return true, terminal, nil
+	return outcomeBacked, terminal, nil
 }
 
 func outcomeBackedAttempt(

@@ -310,14 +310,15 @@ func TestFinalizeDurableTransactionPersistence_RetryAfterClaimBeforeReplay(t *te
 	originID := uuid.New()
 	reverseID := uuid.New()
 	originString := originID.String()
-	operationID := uuid.NewString()
+	economicOperation, balanceAfter := completeOutcomeEvidence(organizationID, ledgerID, reverseID)
+	operationID := economicOperation.ID
 	replay := &transaction.Transaction{
 		ID:                  reverseID.String(),
 		OrganizationID:      organizationID.String(),
 		LedgerID:            ledgerID.String(),
 		ParentTransactionID: &originString,
 		Status:              transaction.Status{Code: constant.CREATED},
-		Operations:          []*operation.Operation{{ID: operationID}},
+		Operations:          []*operation.Operation{economicOperation},
 	}
 	persisted := *replay
 	persisted.Status = transaction.Status{Code: constant.APPROVED}
@@ -328,11 +329,16 @@ func TestFinalizeDurableTransactionPersistence_RetryAfterClaimBeforeReplay(t *te
 		ReverseTransactionID: reverseID,
 		LegacyFenceKey:       ptrString(utils.IdempotencyInternalKey(organizationID, ledgerID, "phase-zero-h1")),
 	}
-	payload := transaction.TransactionProcessingPayload{Transaction: replay, Validate: &mtransaction.Responses{}}
+	payload := transaction.TransactionProcessingPayload{
+		Transaction: replay, Validate: &mtransaction.Responses{}, BalancesAfter: []*mmodel.Balance{balanceAfter},
+	}
 	originKey := utils.IdempotencyInternalKey(organizationID, ledgerID,
 		libCommons.HashSHA256(utils.RevertIdempotencyHashSource(originID)))
 
 	for range 2 {
+		redisRepo.EXPECT().EnrichTransactionBackup(gomock.Any(), organizationID, ledgerID, reverseID,
+			gomock.Any(), constant.ActionRevert, nil).
+			Return([]mmodel.OperationRedis{economicOperation.ToRedis()}, []mmodel.BalanceRedis{balanceAfter.ToRedis()}, false, nil)
 		transactionRepo.EXPECT().FindWithOperations(gomock.Any(), organizationID, ledgerID, reverseID).Return(&persisted, nil)
 		claimRepo.EXPECT().Claim(gomock.Any(), organizationID, ledgerID, originID, reverseID,
 			nil, nil, nil, nil, nil).

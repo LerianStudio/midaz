@@ -7,11 +7,11 @@ package mmodel
 import (
 	"encoding/json"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
 	"github.com/LerianStudio/midaz/v4/pkg/mtransaction"
-	"github.com/LerianStudio/midaz/v4/pkg/utils"
 	"github.com/google/uuid"
 	"github.com/shopspring/decimal"
 )
@@ -638,9 +638,9 @@ func (b *BalanceRedis) UnmarshalJSON(data []byte) error {
 	type Alias BalanceRedis
 
 	aux := struct {
-		Available     any `json:"available"`
-		OnHold        any `json:"onHold"`
-		OverdraftUsed any `json:"overdraftUsed"`
+		Available     json.RawMessage `json:"available"`
+		OnHold        json.RawMessage `json:"onHold"`
+		OverdraftUsed json.RawMessage `json:"overdraftUsed"`
 		*Alias
 	}{
 		Alias: (*Alias)(b),
@@ -650,69 +650,23 @@ func (b *BalanceRedis) UnmarshalJSON(data []byte) error {
 		return err
 	}
 
-	switch v := aux.Available.(type) {
-	case float64:
-		b.Available = decimal.NewFromFloat(v)
-	case string:
-		decimalValue, err := decimal.NewFromString(v)
-		if err != nil {
-			return fmt.Errorf("err to converter available field from string to decimal: %v", err)
-		}
-
-		b.Available = decimalValue
-	case json.Number:
-		i, err := v.Int64()
-		if err != nil {
-			f, err := v.Float64()
-			if err != nil {
-				return fmt.Errorf("err to converter available field from json.Number: %v", err)
-			}
-
-			b.Available = decimal.NewFromFloat(f)
-		} else {
-			b.Available = decimal.NewFromInt(i)
-		}
-	default:
-		f, ok := v.(float64)
-		if !ok {
-			return fmt.Errorf("type unsuported to available: %T", v)
-		}
-
-		b.Available = decimal.NewFromFloat(f)
+	available, err := parseExactJSONDecimal(aux.Available, "available", false)
+	if err != nil {
+		return err
 	}
+	b.Available = available
 
-	switch v := aux.OnHold.(type) {
-	case float64:
-		b.OnHold = decimal.NewFromFloat(v)
-	case string:
-		decimalValue, err := decimal.NewFromString(v)
-		if err != nil {
-			return fmt.Errorf("err to converter onHold field from string to decimal: %v", err)
-		}
-
-		b.OnHold = decimalValue
-	case json.Number:
-		i, err := v.Int64()
-		if err != nil {
-			f, err := v.Float64()
-			if err != nil {
-				return fmt.Errorf("err to converter onHold field from json.Number: %v", err)
-			}
-
-			b.OnHold = decimal.NewFromFloat(f)
-		} else {
-			b.OnHold = decimal.NewFromInt(i)
-		}
-	default:
-		f, ok := v.(float64)
-		if !ok {
-			return fmt.Errorf("type unsuported to  onHold: %T", v)
-		}
-
-		b.OnHold = decimal.NewFromFloat(f)
+	onHold, err := parseExactJSONDecimal(aux.OnHold, "onHold", false)
+	if err != nil {
+		return err
 	}
+	b.OnHold = onHold
 
-	b.OverdraftUsed = utils.ParseDecimalString(aux.OverdraftUsed, "0")
+	overdraftUsed, err := exactJSONDecimalText(aux.OverdraftUsed, "overdraftUsed", true)
+	if err != nil {
+		return err
+	}
+	b.OverdraftUsed = overdraftUsed
 
 	if b.OverdraftLimit == "" {
 		b.OverdraftLimit = "0"
@@ -724,6 +678,43 @@ func (b *BalanceRedis) UnmarshalJSON(data []byte) error {
 	}
 
 	return nil
+}
+
+func exactJSONDecimalText(raw json.RawMessage, field string, defaultZero bool) (string, error) {
+	value := strings.TrimSpace(string(raw))
+	if value == "" || value == "null" {
+		if defaultZero {
+			return "0", nil
+		}
+
+		return "", fmt.Errorf("%s field is required", field)
+	}
+	if value[0] == '"' {
+		if err := json.Unmarshal(raw, &value); err != nil {
+			return "", fmt.Errorf("decode %s decimal string: %w", field, err)
+		}
+	}
+	if value == "" && defaultZero {
+		return "0", nil
+	}
+	if _, err := decimal.NewFromString(value); err != nil {
+		return "", fmt.Errorf("convert %s field to decimal: %w", field, err)
+	}
+
+	return value, nil
+}
+
+func parseExactJSONDecimal(raw json.RawMessage, field string, defaultZero bool) (decimal.Decimal, error) {
+	value, err := exactJSONDecimalText(raw, field, defaultZero)
+	if err != nil {
+		return decimal.Zero, err
+	}
+	parsed, err := decimal.NewFromString(value)
+	if err != nil {
+		return decimal.Zero, fmt.Errorf("convert %s field to decimal: %w", field, err)
+	}
+
+	return parsed, nil
 }
 
 // BalanceErrorResponse represents an error response for balance operations.
@@ -786,6 +777,18 @@ type BalanceExecutionOutcome struct {
 	Owner    string         `json:"owner"`
 	Before   []BalanceRedis `json:"before"`
 	After    []BalanceRedis `json:"after"`
+}
+
+// TransactionEconomicContext is the caller's immutable view of the terminal
+// transaction identity. Redis compares it with the Lua-authored envelope so a
+// candidate cannot relabel the parent, lifecycle status, or action while
+// binding operation IDs.
+type TransactionEconomicContext struct {
+	ParentTransactionID *uuid.UUID
+	TransactionStatus   string
+	Action              string
+	Operations          []OperationRedis
+	BalancesAfter       []BalanceRedis
 }
 
 // TransactionPersistenceTombstone is the append-only terminal receipt written

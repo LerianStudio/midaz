@@ -28,6 +28,7 @@ import (
 	"github.com/LerianStudio/midaz/v4/pkg"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
 	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
+	"github.com/LerianStudio/midaz/v4/pkg/mtransaction"
 	"github.com/LerianStudio/midaz/v4/pkg/utils"
 	redistestutil "github.com/LerianStudio/midaz/v4/tests/utils/redis"
 )
@@ -58,6 +59,33 @@ func completeRedisEconomicOperation(
 		BalanceKey: constant.DefaultBalanceKey, OrganizationID: organizationID.String(),
 		LedgerID: ledgerID.String(), BalanceAffected: true, Direction: constant.DirectionDebit,
 		Snapshot: mmodel.OperationSnapshot{OverdraftUsedBefore: "0", OverdraftUsedAfter: "0"},
+	}
+}
+
+func redisEconomicOperationFromMovement(
+	organizationID, ledgerID, transactionID uuid.UUID,
+	operationID string,
+	before, after *mmodel.Balance,
+	operationType, direction string,
+) mmodel.OperationRedis {
+	beforeRedis := before.ToRedis()
+	afterRedis := after.ToRedis()
+	amount := before.Available.Sub(after.Available).Abs()
+	if onHold := before.OnHold.Sub(after.OnHold).Abs(); onHold.GreaterThan(amount) {
+		amount = onHold
+	}
+
+	return mmodel.OperationRedis{
+		ID: operationID, TransactionID: transactionID.String(), Type: operationType, Direction: direction,
+		AssetCode: before.AssetCode, AmountValue: amount,
+		BalanceAvailable: before.Available, BalanceOnHold: before.OnHold, BalanceVersion: before.Version,
+		BalanceAfterAvailable: after.Available, BalanceAfterOnHold: after.OnHold, BalanceAfterVersion: after.Version,
+		BalanceID: before.ID, BalanceKey: before.Key, AccountID: before.AccountID, AccountAlias: before.Alias,
+		OrganizationID: organizationID.String(), LedgerID: ledgerID.String(), BalanceAffected: true,
+		Snapshot: mmodel.OperationSnapshot{
+			OverdraftUsedBefore: beforeRedis.OverdraftUsed,
+			OverdraftUsedAfter:  afterRedis.OverdraftUsed,
+		},
 	}
 }
 
@@ -248,7 +276,12 @@ func TestIntegration_GenerationBoundBalanceOutcomeRemainsImmutableAndExactlyRepl
 	seed, err := json.Marshal(mmodel.TransactionRedisQueue{
 		TransactionID: transactionID, OrganizationID: organizationID, LedgerID: ledgerID,
 		TransactionStatus: constant.CREATED, AttemptOwner: attempt.Owner, ExpectedOutcome: attempt.Outcome,
-		RedisGeneration: redisGeneration,
+		RedisGeneration: redisGeneration, Action: constant.ActionCommit,
+		TransactionInput: mtransaction.Transaction{Send: mtransaction.Send{Asset: "USD", Value: decimal.NewFromInt(100)}},
+		Validate: &mtransaction.Responses{Asset: "USD", From: map[string]mtransaction.Amount{
+			"@generation-bound#default": {Asset: "USD", Value: decimal.NewFromInt(100),
+				Operation: constant.DEBIT, Direction: constant.DirectionDebit},
+		}},
 	})
 	require.NoError(t, err)
 	require.NoError(t, infra.repo.SeedTransactionBackup(ctx, organizationID, ledgerID, transactionID, seed, attempt))
@@ -275,27 +308,31 @@ func TestIntegration_GenerationBoundBalanceOutcomeRemainsImmutableAndExactlyRepl
 		constant.CREATED, false, operations, replay)
 	require.NoError(t, err)
 	assert.Equal(t, first, second)
-	materialized := []mmodel.OperationRedis{completeRedisEconomicOperation(
-		organizationID, ledgerID, transactionID, uuid.NewString())}
-	_, _, _, err = infra.repo.EnrichTransactionBackup(ctx, organizationID, ledgerID, transactionID,
-		materialized, constant.ActionRevert, &attempt)
+	materialized := []mmodel.OperationRedis{redisEconomicOperationFromMovement(
+		organizationID, ledgerID, transactionID, uuid.NewString(), first.Before[0], first.After[0],
+		constant.DEBIT, constant.DirectionDebit)}
+	economicCtx := mmodel.WithTransactionEconomicContext(ctx, mmodel.TransactionEconomicContext{
+		TransactionStatus: constant.CREATED, Action: constant.ActionCommit,
+	})
+	_, _, _, err = infra.repo.EnrichTransactionBackup(economicCtx, organizationID, ledgerID, transactionID,
+		materialized, constant.ActionCommit, &attempt)
 	require.NoError(t, err)
 	require.NoError(t, infra.redisContainer.Client.Set(ctx, FinancialDatasetGenerationKey, uuid.NewString(), 0).Err())
-	_, _, _, err = infra.repo.EnrichTransactionBackup(ctx, organizationID, ledgerID, transactionID,
-		materialized, constant.ActionRevert, &attempt)
+	_, _, _, err = infra.repo.EnrichTransactionBackup(economicCtx, organizationID, ledgerID, transactionID,
+		materialized, constant.ActionCommit, &attempt)
 	require.Error(t, err,
 		"a delayed consumer must reject the old generation before adopting operations or writing PostgreSQL")
 	require.NoError(t, infra.redisContainer.Client.Set(ctx, FinancialDatasetGenerationKey, redisGeneration, 0).Err())
-	require.NoError(t, infra.repo.FinalizeTransactionPersistence(ctx, organizationID, ledgerID, transactionID,
+	require.NoError(t, infra.repo.FinalizeTransactionPersistence(economicCtx, organizationID, ledgerID, transactionID,
 		attempt, materialized, mmodel.BalancesToRedis(first.After)))
-	_, tombstoneBalances, terminal, err := infra.repo.EnrichTransactionBackup(ctx, organizationID, ledgerID, transactionID,
-		materialized, constant.ActionRevert, &attempt)
+	_, tombstoneBalances, terminal, err := infra.repo.EnrichTransactionBackup(economicCtx, organizationID, ledgerID, transactionID,
+		materialized, constant.ActionCommit, &attempt)
 	require.NoError(t, err)
 	assert.True(t, terminal)
 	assert.True(t, mmodel.RedisBalanceSetEconomicEqual(mmodel.BalancesToRedis(first.After), tombstoneBalances))
 	require.NoError(t, infra.redisContainer.Client.Set(ctx, FinancialDatasetGenerationKey, uuid.NewString(), 0).Err())
-	_, _, _, err = infra.repo.EnrichTransactionBackup(ctx, organizationID, ledgerID, transactionID,
-		materialized, constant.ActionRevert, &attempt)
+	_, _, _, err = infra.repo.EnrichTransactionBackup(economicCtx, organizationID, ledgerID, transactionID,
+		materialized, constant.ActionCommit, &attempt)
 	require.Error(t, err, "generation rollover must invalidate even an otherwise exact terminal receipt")
 }
 
@@ -317,7 +354,8 @@ func TestIntegration_GlobalFinancialGenerationServesTwoTenantsAndSurvivesTenantR
 		operation    mmodel.OperationRedis
 	}
 	execute := func(tenantID string) tenantExecution {
-		tenantCtx := tmcore.ContextWithTenantID(ctx, tenantID)
+		tenantCtx := mmodel.WithTransactionEconomicContext(tmcore.ContextWithTenantID(ctx, tenantID),
+			mmodel.TransactionEconomicContext{TransactionStatus: constant.CREATED, Action: constant.ActionCommit})
 		organizationID := uuid.New()
 		ledgerID := uuid.New()
 		transactionID := uuid.New()
@@ -335,7 +373,16 @@ func TestIntegration_GlobalFinancialGenerationServesTwoTenantsAndSurvivesTenantR
 		seed, err := json.Marshal(mmodel.TransactionRedisQueue{
 			TransactionID: transactionID, OrganizationID: organizationID, LedgerID: ledgerID,
 			TransactionStatus: constant.CREATED, AttemptOwner: attempt.Owner, ExpectedOutcome: attempt.Outcome,
-			RedisGeneration: redisGeneration,
+			RedisGeneration: redisGeneration, Action: constant.ActionCommit,
+			TransactionInput: mtransaction.Transaction{Send: mtransaction.Send{
+				Asset: "USD", Value: decimal.NewFromInt(100),
+			}},
+			Validate: &mtransaction.Responses{Asset: "USD", From: map[string]mtransaction.Amount{
+				"@global-generation-" + tenantID + "#default": {
+					Asset: "USD", Value: decimal.NewFromInt(100),
+					Operation: constant.DEBIT, Direction: constant.DirectionDebit,
+				},
+			}},
 		})
 		require.NoError(t, err)
 		require.NoError(t, infra.repo.SeedTransactionBackup(tenantCtx,
@@ -345,10 +392,11 @@ func TestIntegration_GlobalFinancialGenerationServesTwoTenantsAndSurvivesTenantR
 			decimal.NewFromInt(100), decimal.NewFromInt(1000), "deposit",
 		)}
 		balanceOperations[0].Balance.Direction = constant.DirectionDebit
-		_, err = infra.repo.ProcessOutcomeBalanceAtomicOperation(tenantCtx,
+		result, err := infra.repo.ProcessOutcomeBalanceAtomicOperation(tenantCtx,
 			organizationID, ledgerID, transactionID, constant.CREATED, false, balanceOperations, attempt)
 		require.NoError(t, err)
-		operation := completeRedisEconomicOperation(organizationID, ledgerID, transactionID, uuid.NewString())
+		operation := redisEconomicOperationFromMovement(organizationID, ledgerID, transactionID, uuid.NewString(),
+			result.Before[0], result.After[0], constant.DEBIT, constant.DirectionDebit)
 		canonical, _, terminal, err := infra.repo.EnrichTransactionBackup(tenantCtx,
 			organizationID, ledgerID, transactionID, []mmodel.OperationRedis{operation}, constant.ActionCommit, &attempt)
 		require.NoError(t, err)
@@ -424,6 +472,13 @@ func TestIntegration_TransactionBackupEnrichmentPreservesOutcomeUntilExactDurabl
 		AttemptOwner:        attempt.Owner,
 		ExpectedOutcome:     attempt.Outcome,
 		ParentTransactionID: nil,
+		TransactionInput: mtransaction.Transaction{Send: mtransaction.Send{
+			Asset: "USD", Value: decimal.NewFromInt(100),
+		}},
+		Validate: &mtransaction.Responses{Asset: "USD", From: map[string]mtransaction.Amount{
+			"@backup-envelope#default": {Asset: "USD", Value: decimal.NewFromInt(100),
+				Operation: constant.DEBIT, Direction: constant.DirectionDebit},
+		}},
 	})
 	require.NoError(t, err)
 	transactionKey := utils.TransactionInternalKey(organizationID, ledgerID, transactionID.String())
@@ -434,14 +489,71 @@ func TestIntegration_TransactionBackupEnrichmentPreservesOutcomeUntilExactDurabl
 		decimal.NewFromInt(100), decimal.NewFromInt(1000), "deposit",
 	)}
 	balanceOperations[0].Balance.Direction = constant.DirectionDebit
-	_, err = infra.repo.ProcessOutcomeBalanceAtomicOperation(ctx, organizationID, ledgerID, transactionID,
+	result, err := infra.repo.ProcessOutcomeBalanceAtomicOperation(ctx, organizationID, ledgerID, transactionID,
 		constant.APPROVED, false, balanceOperations, attempt)
 	require.NoError(t, err)
+	require.Len(t, result.Before, 1)
+	require.Len(t, result.After, 1)
 
-	materialized := []mmodel.OperationRedis{completeRedisEconomicOperation(
-		organizationID, ledgerID, transactionID, uuid.NewString())}
-	materialized[0].AmountValue = decimal.RequireFromString("9007199254740992")
-	canonical, canonicalBalances, terminal, err := infra.repo.EnrichTransactionBackup(ctx, organizationID, ledgerID, transactionID,
+	materialized := []mmodel.OperationRedis{redisEconomicOperationFromMovement(
+		organizationID, ledgerID, transactionID, uuid.NewString(), result.Before[0], result.After[0],
+		constant.DEBIT, constant.DirectionDebit)}
+	validContext := mmodel.WithTransactionEconomicContext(ctx, mmodel.TransactionEconomicContext{
+		TransactionStatus: constant.APPROVED, Action: constant.ActionCommit,
+	})
+	for name, mutate := range map[string]func(*mmodel.OperationRedis){
+		"amount":    func(op *mmodel.OperationRedis) { op.AmountValue = decimal.RequireFromString("9007199254740993") },
+		"direction": func(op *mmodel.OperationRedis) { op.Direction = constant.DirectionCredit },
+		"balance":   func(op *mmodel.OperationRedis) { op.BalanceID = uuid.NewString() },
+		"type":      func(op *mmodel.OperationRedis) { op.Type = constant.CREDIT },
+	} {
+		t.Run("rejects malicious first enrichment "+name, func(t *testing.T) {
+			candidate := materialized[0]
+			mutate(&candidate)
+			_, _, _, enrichErr := infra.repo.EnrichTransactionBackup(validContext, organizationID, ledgerID, transactionID,
+				[]mmodel.OperationRedis{candidate}, constant.ActionCommit, &attempt)
+			require.Error(t, enrichErr)
+		})
+	}
+	t.Run("raw change between read and CAS cannot bind stale candidate", func(t *testing.T) {
+		oldRaw, readErr := infra.redisContainer.Client.HGet(ctx, TransactionBackupQueue, transactionKey).Bytes()
+		require.NoError(t, readErr)
+		envelope := map[string]json.RawMessage{}
+		require.NoError(t, json.Unmarshal(oldRaw, &envelope))
+		envelope["header_id"] = json.RawMessage(`"concurrent-writer"`)
+		changedRaw, marshalErr := json.Marshal(envelope)
+		require.NoError(t, marshalErr)
+		require.NoError(t, infra.redisContainer.Client.HSet(ctx, TransactionBackupQueue, transactionKey, changedRaw).Err())
+		encodedOperations, marshalErr := json.Marshal(materialized)
+		require.NoError(t, marshalErr)
+		digest, digestErr := mmodel.RedisEconomicEffectDigest(materialized, mmodel.BalancesToRedis(result.After))
+		require.NoError(t, digestErr)
+		_, bindErr := bindTransactionEconomicDigestScript.Run(ctx, infra.redisContainer.Client,
+			[]string{TransactionBackupQueue, transactionKey, attempt.OutcomeKey},
+			string(oldRaw), string(encodedOperations), digest, transactionID.String(), "1",
+			attempt.Owner, attempt.Outcome, constant.ActionCommit, "").Result()
+		require.ErrorContains(t, bindErr, "TRANSACTION_BACKUP_CHANGED")
+		retainedRaw, readErr := infra.redisContainer.Client.HGet(ctx, TransactionBackupQueue, transactionKey).Bytes()
+		require.NoError(t, readErr)
+		retained := mmodel.TransactionRedisQueue{}
+		require.NoError(t, json.Unmarshal(retainedRaw, &retained))
+		assert.Empty(t, retained.Operations)
+		assert.Empty(t, retained.EconomicEffectDigest)
+	})
+	wrongParent := uuid.New()
+	for name, proof := range map[string]mmodel.TransactionEconomicContext{
+		"parent": {ParentTransactionID: &wrongParent, TransactionStatus: constant.APPROVED},
+		"status": {TransactionStatus: constant.CANCELED},
+	} {
+		t.Run("rejects malicious transaction "+name, func(t *testing.T) {
+			proof.Action = constant.ActionCommit
+			wrongContext := mmodel.WithTransactionEconomicContext(ctx, proof)
+			_, _, _, enrichErr := infra.repo.EnrichTransactionBackup(wrongContext, organizationID, ledgerID, transactionID,
+				materialized, constant.ActionCommit, &attempt)
+			require.Error(t, enrichErr, "candidate context cannot relabel the immutable envelope")
+		})
+	}
+	canonical, canonicalBalances, terminal, err := infra.repo.EnrichTransactionBackup(validContext, organizationID, ledgerID, transactionID,
 		materialized, constant.ActionCommit, &attempt)
 	require.NoError(t, err)
 	assert.False(t, terminal)
@@ -449,7 +561,7 @@ func TestIntegration_TransactionBackupEnrichmentPreservesOutcomeUntilExactDurabl
 	require.Equal(t, materialized[0].ID, canonical[0].ID)
 	require.NotEmpty(t, canonicalBalances)
 	canonicalAfterLostBindResponse, balancesAfterLostBindResponse, terminal, err := infra.repo.EnrichTransactionBackup(
-		ctx, organizationID, ledgerID, transactionID, materialized, constant.ActionCommit, &attempt,
+		validContext, organizationID, ledgerID, transactionID, materialized, constant.ActionCommit, &attempt,
 	)
 	require.NoError(t, err, "retrying the same digest bind after a lost response must be idempotent")
 	assert.False(t, terminal)
@@ -468,10 +580,13 @@ func TestIntegration_TransactionBackupEnrichmentPreservesOutcomeUntilExactDurabl
 
 	foreign := attempt
 	foreign.Owner = uuid.NewString()
-	_, _, _, err = infra.repo.EnrichTransactionBackup(ctx, organizationID, ledgerID, transactionID,
+	cancelContext := mmodel.WithTransactionEconomicContext(ctx, mmodel.TransactionEconomicContext{
+		TransactionStatus: constant.APPROVED, Action: constant.ActionCancel,
+	})
+	_, _, _, err = infra.repo.EnrichTransactionBackup(cancelContext, organizationID, ledgerID, transactionID,
 		[]mmodel.OperationRedis{{ID: uuid.NewString()}}, constant.ActionCancel, &foreign)
 	require.Error(t, err)
-	require.Error(t, infra.repo.FinalizeTransactionPersistence(ctx, organizationID, ledgerID, transactionID, foreign,
+	require.Error(t, infra.repo.FinalizeTransactionPersistence(validContext, organizationID, ledgerID, transactionID, foreign,
 		materialized, canonicalBalances))
 	_, err = infra.repo.ReadMessageFromQueue(ctx, transactionKey)
 	require.NoError(t, err, "a foreign cleanup must preserve the authoritative backup")
@@ -481,12 +596,12 @@ func TestIntegration_TransactionBackupEnrichmentPreservesOutcomeUntilExactDurabl
 
 	divergentOperation := materialized[0]
 	divergentOperation.AmountValue = divergentOperation.AmountValue.Add(decimal.NewFromInt(1))
-	require.Error(t, infra.repo.FinalizeTransactionPersistence(ctx, organizationID, ledgerID, transactionID, attempt,
+	require.Error(t, infra.repo.FinalizeTransactionPersistence(validContext, organizationID, ledgerID, transactionID, attempt,
 		[]mmodel.OperationRedis{divergentOperation}, canonicalBalances),
 		"cleanup must preserve an envelope whose economic operation body does not match PostgreSQL proof")
 	divergentBalances := append([]mmodel.BalanceRedis(nil), canonicalBalances...)
 	divergentBalances[0].Version++
-	require.Error(t, infra.repo.FinalizeTransactionPersistence(ctx, organizationID, ledgerID, transactionID, attempt,
+	require.Error(t, infra.repo.FinalizeTransactionPersistence(validContext, organizationID, ledgerID, transactionID, attempt,
 		materialized, divergentBalances),
 		"cleanup must preserve an envelope whose complete balance body does not match PostgreSQL proof")
 	_, err = infra.repo.ReadMessageFromQueue(ctx, transactionKey)
@@ -494,7 +609,17 @@ func TestIntegration_TransactionBackupEnrichmentPreservesOutcomeUntilExactDurabl
 	outcome, err = infra.repo.Get(ctx, attempt.OutcomeKey)
 	require.NoError(t, err)
 	require.NotEmpty(t, outcome, "an economic body mismatch must preserve the immutable outcome")
-	require.NoError(t, infra.repo.FinalizeTransactionPersistence(ctx, organizationID, ledgerID, transactionID, attempt,
+	for name, proof := range map[string]mmodel.TransactionEconomicContext{
+		"parent": {ParentTransactionID: &wrongParent, TransactionStatus: constant.APPROVED, Action: constant.ActionCommit},
+		"status": {TransactionStatus: constant.CANCELED, Action: constant.ActionCommit},
+	} {
+		t.Run("terminal cleanup rejects malicious transaction "+name, func(t *testing.T) {
+			wrongContext := mmodel.WithTransactionEconomicContext(ctx, proof)
+			require.Error(t, infra.repo.FinalizeTransactionPersistence(wrongContext, organizationID, ledgerID,
+				transactionID, attempt, materialized, canonicalBalances))
+		})
+	}
+	require.NoError(t, infra.repo.FinalizeTransactionPersistence(validContext, organizationID, ledgerID, transactionID, attempt,
 		materialized, canonicalBalances))
 	_, err = infra.repo.ReadMessageFromQueue(ctx, transactionKey)
 	require.ErrorIs(t, err, redis.Nil)
@@ -517,10 +642,10 @@ func TestIntegration_TransactionBackupEnrichmentPreservesOutcomeUntilExactDurabl
 	assert.Equal(t, materialized[0].ID, tombstone.Operations[0].ID)
 	assert.Equal(t, materialized[0].TransactionID, tombstone.Operations[0].TransactionID)
 	require.NotEmpty(t, tombstone.BalancesAfter)
-	require.NoError(t, infra.repo.FinalizeTransactionPersistence(ctx, organizationID, ledgerID, transactionID, attempt,
+	require.NoError(t, infra.repo.FinalizeTransactionPersistence(validContext, organizationID, ledgerID, transactionID, attempt,
 		materialized, canonicalBalances),
 		"a lost successful cleanup response must be exactly replayable")
-	canonicalReplay, tombstoneBalances, terminal, err := infra.repo.EnrichTransactionBackup(ctx, organizationID, ledgerID, transactionID,
+	canonicalReplay, tombstoneBalances, terminal, err := infra.repo.EnrichTransactionBackup(validContext, organizationID, ledgerID, transactionID,
 		materialized, constant.ActionCommit, &attempt)
 	require.NoError(t, err)
 	assert.True(t, terminal)
@@ -530,15 +655,15 @@ func TestIntegration_TransactionBackupEnrichmentPreservesOutcomeUntilExactDurabl
 	assert.True(t, mmodel.RedisBalanceSetEconomicEqual(tombstone.BalancesAfter, tombstoneBalances))
 	opposite := attempt
 	opposite.Outcome = mmodel.TransactionOutcomeAborted
-	_, _, _, err = infra.repo.EnrichTransactionBackup(ctx, organizationID, ledgerID, transactionID,
+	_, _, _, err = infra.repo.EnrichTransactionBackup(validContext, organizationID, ledgerID, transactionID,
 		materialized, constant.ActionCommit, &opposite)
 	require.Error(t, err, "an opposite terminal outcome must conflict with the append-only receipt")
 	require.NoError(t, infra.redisContainer.Client.Set(ctx, attempt.OutcomeKey, `{"identity":"foreign"}`, 0).Err())
-	_, _, _, err = infra.repo.EnrichTransactionBackup(ctx, organizationID, ledgerID, transactionID,
+	_, _, _, err = infra.repo.EnrichTransactionBackup(validContext, organizationID, ledgerID, transactionID,
 		materialized, constant.ActionCommit, &attempt)
 	require.Error(t, err, "partial Redis restoration must not coexist with a terminal receipt")
 	require.NoError(t, infra.redisContainer.Client.Del(ctx, attempt.OutcomeKey, tombstoneKey).Err())
-	_, _, _, err = infra.repo.EnrichTransactionBackup(ctx, organizationID, ledgerID, transactionID,
+	_, _, _, err = infra.repo.EnrichTransactionBackup(validContext, organizationID, ledgerID, transactionID,
 		materialized, constant.ActionCommit, &attempt)
 	require.Error(t, err, "missing terminal receipt must never be inferred from absent backup and outcome")
 }
@@ -546,7 +671,9 @@ func TestIntegration_TransactionBackupEnrichmentPreservesOutcomeUntilExactDurabl
 func TestIntegration_TransactionBackupOperationIDsAreSingleAssignmentAcrossConsumers(t *testing.T) {
 	t.Setenv("ALLOW_INSECURE_TLS", "true")
 	infra := setupRedisIntegrationInfra(t)
-	ctx := context.Background()
+	ctx := mmodel.WithTransactionEconomicContext(context.Background(), mmodel.TransactionEconomicContext{
+		TransactionStatus: constant.APPROVED, Action: constant.ActionCommit,
+	})
 	organizationID := uuid.New()
 	ledgerID := uuid.New()
 	transactionID := uuid.New()
@@ -568,6 +695,13 @@ func TestIntegration_TransactionBackupOperationIDsAreSingleAssignmentAcrossConsu
 		Action:            constant.ActionCommit,
 		AttemptOwner:      attempt.Owner,
 		ExpectedOutcome:   attempt.Outcome,
+		TransactionInput: mtransaction.Transaction{Send: mtransaction.Send{
+			Asset: "USD", Value: decimal.NewFromInt(100),
+		}},
+		Validate: &mtransaction.Responses{Asset: "USD", From: map[string]mtransaction.Amount{
+			"@single-assignment#default": {Asset: "USD", Value: decimal.NewFromInt(100),
+				Operation: constant.DEBIT, Direction: constant.DirectionDebit},
+		}},
 	})
 	require.NoError(t, err)
 	require.NoError(t, infra.repo.SeedTransactionBackup(ctx, organizationID, ledgerID, transactionID, seed, attempt))
@@ -576,19 +710,20 @@ func TestIntegration_TransactionBackupOperationIDsAreSingleAssignmentAcrossConsu
 		decimal.NewFromInt(100), decimal.NewFromInt(1000), "deposit",
 	)}
 	balanceOperations[0].Balance.Direction = constant.DirectionDebit
-	_, err = infra.repo.ProcessOutcomeBalanceAtomicOperation(ctx, organizationID, ledgerID, transactionID,
+	result, err := infra.repo.ProcessOutcomeBalanceAtomicOperation(ctx, organizationID, ledgerID, transactionID,
 		constant.APPROVED, false, balanceOperations, attempt)
 	require.NoError(t, err)
+	require.Len(t, result.Before, 1)
+	require.Len(t, result.After, 1)
 
+	first := redisEconomicOperationFromMovement(organizationID, ledgerID, transactionID, uuid.NewString(),
+		result.Before[0], result.After[0], constant.DEBIT, constant.DirectionDebit)
+	second := first
+	second.ID = uuid.NewString()
 	candidates := [][]mmodel.OperationRedis{
-		{completeRedisEconomicOperation(organizationID, ledgerID, transactionID, uuid.NewString())},
-		{completeRedisEconomicOperation(organizationID, ledgerID, transactionID, uuid.NewString())},
+		{first},
+		{second},
 	}
-	// The operation identity is single-assigned by Redis; every other economic
-	// field is deterministic and must match across consumers.
-	candidates[1][0].BalanceID = candidates[0][0].BalanceID
-	candidates[1][0].BalanceKey = candidates[0][0].BalanceKey
-	candidates[1][0].AccountID = candidates[0][0].AccountID
 	results := make([][]mmodel.OperationRedis, len(candidates))
 	errs := make([]error, len(candidates))
 	start := make(chan struct{})
@@ -753,18 +888,48 @@ func TestIntegration_LegacyBackupCleanupRequiresExactDurableIdentity(t *testing.
 	ledgerID := uuid.New()
 	transactionID := uuid.New()
 	parentID := uuid.New()
-	operationIDs := []string{uuid.NewString(), uuid.NewString()}
+	operationIDs := []string{uuid.NewString()}
 	completeOperations := []mmodel.OperationRedis{
 		completeRedisEconomicOperation(organizationID, ledgerID, transactionID, operationIDs[0]),
-		completeRedisEconomicOperation(organizationID, ledgerID, transactionID, operationIDs[1]),
 	}
+	completeAfter := completeRedisEconomicBalance()
+	completeAfter.ID = completeOperations[0].BalanceID
+	completeAfter.Key = completeOperations[0].BalanceKey
+	completeAfter.AccountID = completeOperations[0].AccountID
+	completeAfter.AssetCode = completeOperations[0].AssetCode
+	completeAfter.Available = completeOperations[0].BalanceAfterAvailable
+	completeAfter.OnHold = completeOperations[0].BalanceAfterOnHold
+	completeAfter.Version = completeOperations[0].BalanceAfterVersion
+	completeBefore := completeAfter
+	completeBefore.Available = completeOperations[0].BalanceAvailable
+	completeBefore.OnHold = completeOperations[0].BalanceOnHold
+	completeBefore.Version = completeOperations[0].BalanceVersion
 	completeQueue := mmodel.TransactionRedisQueue{
 		TransactionID:       transactionID,
 		ParentTransactionID: &parentID,
+		OrganizationID:      organizationID,
+		LedgerID:            ledgerID,
 		TransactionStatus:   constant.CREATED,
-		BalancesAfter:       []mmodel.BalanceRedis{completeRedisEconomicBalance()},
+		Action:              constant.ActionRevert,
+		Balances:            []mmodel.BalanceRedis{completeBefore},
+		BalancesAfter:       []mmodel.BalanceRedis{completeAfter},
 		Operations:          completeOperations,
+		TransactionInput: mtransaction.Transaction{Send: mtransaction.Send{
+			Asset: "USD", Value: decimal.NewFromInt(100),
+		}},
+		Validate: &mtransaction.Responses{Asset: "USD", From: map[string]mtransaction.Amount{
+			"@economic-proof#default": {Asset: "USD", Value: decimal.NewFromInt(100),
+				Operation: constant.DEBIT, Direction: constant.DirectionDebit},
+		}},
 	}
+	legacyProof := mmodel.TransactionEconomicContext{
+		ParentTransactionID: &parentID,
+		TransactionStatus:   constant.CREATED,
+		Action:              constant.ActionRevert,
+		Operations:          completeOperations,
+		BalancesAfter:       []mmodel.BalanceRedis{completeAfter},
+	}
+	legacyCtx := mmodel.WithTransactionEconomicContext(ctx, legacyProof)
 	transactionKey := utils.TransactionInternalKey(organizationID, ledgerID, transactionID.String())
 	missingFields := []struct {
 		section string
@@ -826,7 +991,7 @@ func TestIntegration_LegacyBackupCleanupRequiresExactDurableIdentity(t *testing.
 		seed, err := json.Marshal(incomplete)
 		require.NoError(t, err)
 		require.NoError(t, infra.repo.AddMessageToQueue(ctx, transactionKey, seed))
-		require.Error(t, infra.repo.FinalizeLegacyTransactionPersistence(ctx, organizationID, ledgerID,
+		require.Error(t, infra.repo.FinalizeLegacyTransactionPersistence(legacyCtx, organizationID, ledgerID,
 			transactionID, parentID, constant.CREATED, operationIDs),
 			"missing %s.%s.%s must never be tombstoned or removed", missing.section, missing.field, missing.nested)
 		retained, err := infra.repo.ReadMessageFromQueue(ctx, transactionKey)
@@ -836,11 +1001,20 @@ func TestIntegration_LegacyBackupCleanupRequiresExactDurableIdentity(t *testing.
 	completeSeed, err := json.Marshal(completeQueue)
 	require.NoError(t, err)
 	require.NoError(t, infra.repo.AddMessageToQueue(ctx, transactionKey, completeSeed))
-	require.Error(t, infra.repo.FinalizeLegacyTransactionPersistence(ctx, organizationID, ledgerID,
+	require.Error(t, infra.repo.FinalizeLegacyTransactionPersistence(legacyCtx, organizationID, ledgerID,
 		transactionID, uuid.New(), constant.CREATED, operationIDs))
 	_, err = infra.repo.ReadMessageFromQueue(ctx, transactionKey)
 	require.NoError(t, err, "a foreign cleanup proof must preserve the phase-zero backup")
-	require.NoError(t, infra.repo.FinalizeLegacyTransactionPersistence(ctx, organizationID, ledgerID,
+	divergentProof := legacyProof
+	divergentProof.Operations = append([]mmodel.OperationRedis(nil), completeOperations...)
+	divergentProof.Operations[0].AmountValue = decimal.NewFromInt(101)
+	divergentCtx := mmodel.WithTransactionEconomicContext(ctx, divergentProof)
+	require.Error(t, infra.repo.FinalizeLegacyTransactionPersistence(divergentCtx, organizationID, ledgerID,
+		transactionID, parentID, constant.CREATED, operationIDs),
+		"matching operation IDs cannot hide a different durable amount")
+	_, err = infra.repo.ReadMessageFromQueue(ctx, transactionKey)
+	require.NoError(t, err, "divergent PostgreSQL proof must preserve the phase-zero backup")
+	require.NoError(t, infra.repo.FinalizeLegacyTransactionPersistence(legacyCtx, organizationID, ledgerID,
 		transactionID, parentID, constant.CREATED, operationIDs))
 	_, err = infra.repo.ReadMessageFromQueue(ctx, transactionKey)
 	require.ErrorIs(t, err, redis.Nil)
@@ -859,17 +1033,17 @@ func TestIntegration_LegacyBackupCleanupRequiresExactDurableIdentity(t *testing.
 	require.NotEmpty(t, tombstone.EconomicEffectDigest)
 	assert.Len(t, tombstone.Operations, len(operationIDs))
 	assert.NotEmpty(t, tombstone.BalancesAfter)
-	require.NoError(t, infra.repo.FinalizeLegacyTransactionPersistence(ctx, organizationID, ledgerID,
+	require.NoError(t, infra.repo.FinalizeLegacyTransactionPersistence(legacyCtx, organizationID, ledgerID,
 		transactionID, parentID, constant.CREATED, operationIDs), "lost cleanup response must be replayable")
 	tombstone.Action = constant.ActionCommit
 	foreignAction, err := json.Marshal(tombstone)
 	require.NoError(t, err)
 	require.NoError(t, infra.repo.Set(ctx, tombstoneKey, string(foreignAction), 0))
-	require.Error(t, infra.repo.FinalizeLegacyTransactionPersistence(ctx, organizationID, ledgerID,
+	require.Error(t, infra.repo.FinalizeLegacyTransactionPersistence(legacyCtx, organizationID, ledgerID,
 		transactionID, parentID, constant.CREATED, operationIDs),
 		"a terminal receipt for another money-path action must never satisfy revert replay")
 	require.NoError(t, infra.redisContainer.Client.Del(ctx, tombstoneKey).Err())
-	require.Error(t, infra.repo.FinalizeLegacyTransactionPersistence(ctx, organizationID, ledgerID,
+	require.Error(t, infra.repo.FinalizeLegacyTransactionPersistence(legacyCtx, organizationID, ledgerID,
 		transactionID, parentID, constant.CREATED, operationIDs),
 		"absence without the append-only terminal receipt is data loss, not a successful cleanup replay")
 }
@@ -1208,11 +1382,22 @@ func TestIntegration_OwnedLegacyFence_RedisClusterRejectsCrossSlotButAcceptsComp
 	require.NoError(t, err)
 	require.True(t, leaseAcquired)
 	seed, err := json.Marshal(mmodel.TransactionRedisQueue{
-		TransactionID:   transactionID,
-		OrganizationID:  organizationID,
-		LedgerID:        ledgerID,
-		AttemptOwner:    attempt.Owner,
-		ExpectedOutcome: attempt.Outcome,
+		TransactionID:     transactionID,
+		OrganizationID:    organizationID,
+		LedgerID:          ledgerID,
+		TransactionStatus: constant.CREATED,
+		Action:            constant.ActionCommit,
+		AttemptOwner:      attempt.Owner,
+		ExpectedOutcome:   attempt.Outcome,
+		TransactionInput: mtransaction.Transaction{Send: mtransaction.Send{
+			Asset: "USD", Value: decimal.NewFromInt(100),
+		}},
+		Validate: &mtransaction.Responses{Asset: "USD", From: map[string]mtransaction.Amount{
+			"@cluster-fenced-revert#default": {
+				Asset: "USD", Value: decimal.NewFromInt(100),
+				Operation: constant.DEBIT, Direction: constant.DirectionDebit,
+			},
+		}},
 	})
 	require.NoError(t, err)
 	require.NoError(t, repo.SeedTransactionBackup(ctx, organizationID, ledgerID, transactionID, seed, attempt),
@@ -1231,12 +1416,19 @@ func TestIntegration_OwnedLegacyFence_RedisClusterRejectsCrossSlotButAcceptsComp
 	require.NoError(t, err, "the execution lease and balance outcome must share the existing transactions slot")
 	require.Len(t, result.After, 1)
 	clusterOperationID := uuid.NewString()
-	clusterOperation := completeRedisEconomicOperation(organizationID, ledgerID, transactionID, clusterOperationID)
-	_, _, _, err = repo.EnrichTransactionBackup(ctx, organizationID, ledgerID, transactionID,
+	clusterOperation := redisEconomicOperationFromMovement(organizationID, ledgerID, transactionID, clusterOperationID,
+		result.Before[0], result.After[0], constant.DEBIT, constant.DirectionDebit)
+	clusterEconomicCtx := mmodel.WithTransactionEconomicContext(ctx, mmodel.TransactionEconomicContext{
+		TransactionStatus: constant.CREATED, Action: constant.ActionCommit,
+	})
+	_, _, _, err = repo.EnrichTransactionBackup(clusterEconomicCtx, organizationID, ledgerID, transactionID,
 		[]mmodel.OperationRedis{clusterOperation},
 		constant.ActionCommit, &attempt)
 	require.NoError(t, err, "backup enrichment must remain in the transactions slot")
-	require.NoError(t, repo.FinalizeTransactionPersistence(ctx, organizationID, ledgerID, transactionID, attempt,
+	clusterFinalizeCtx := mmodel.WithTransactionEconomicContext(ctx, mmodel.TransactionEconomicContext{
+		TransactionStatus: constant.CREATED, Action: constant.ActionCommit,
+	})
+	require.NoError(t, repo.FinalizeTransactionPersistence(clusterFinalizeCtx, organizationID, ledgerID, transactionID, attempt,
 		[]mmodel.OperationRedis{clusterOperation}, mmodel.BalancesToRedis(result.After)),
 		"exact outcome cleanup must remain in the transactions slot")
 	evidence, generationMatches, err = repo.TransactionEconomicEvidenceExists(ctx, organizationID, ledgerID, transactionID, "")
@@ -1249,17 +1441,49 @@ func TestIntegration_OwnedLegacyFence_RedisClusterRejectsCrossSlotButAcceptsComp
 	phaseZeroOperationID := uuid.NewString()
 	phaseZeroOperation := completeRedisEconomicOperation(
 		organizationID, ledgerID, phaseZeroID, phaseZeroOperationID)
+	phaseZeroAfter := completeRedisEconomicBalance()
+	phaseZeroAfter.ID = phaseZeroOperation.BalanceID
+	phaseZeroAfter.Key = phaseZeroOperation.BalanceKey
+	phaseZeroAfter.AccountID = phaseZeroOperation.AccountID
+	phaseZeroAfter.AssetCode = phaseZeroOperation.AssetCode
+	phaseZeroAfter.Available = phaseZeroOperation.BalanceAfterAvailable
+	phaseZeroAfter.OnHold = phaseZeroOperation.BalanceAfterOnHold
+	phaseZeroAfter.Version = phaseZeroOperation.BalanceAfterVersion
+	phaseZeroBefore := phaseZeroAfter
+	phaseZeroBefore.Available = phaseZeroOperation.BalanceAvailable
+	phaseZeroBefore.OnHold = phaseZeroOperation.BalanceOnHold
+	phaseZeroBefore.Version = phaseZeroOperation.BalanceVersion
 	phaseZeroBackup, err := json.Marshal(mmodel.TransactionRedisQueue{
 		TransactionID:       phaseZeroID,
 		ParentTransactionID: &phaseZeroParentID,
+		OrganizationID:      organizationID,
+		LedgerID:            ledgerID,
 		TransactionStatus:   constant.CREATED,
-		BalancesAfter:       []mmodel.BalanceRedis{completeRedisEconomicBalance()},
+		Action:              constant.ActionRevert,
+		Balances:            []mmodel.BalanceRedis{phaseZeroBefore},
+		BalancesAfter:       []mmodel.BalanceRedis{phaseZeroAfter},
 		Operations:          []mmodel.OperationRedis{phaseZeroOperation},
+		TransactionInput: mtransaction.Transaction{Send: mtransaction.Send{
+			Asset: "USD", Value: decimal.NewFromInt(100),
+		}},
+		Validate: &mtransaction.Responses{Asset: "USD", From: map[string]mtransaction.Amount{
+			"@economic-proof#default": {
+				Asset: "USD", Value: decimal.NewFromInt(100),
+				Operation: constant.DEBIT, Direction: constant.DirectionDebit,
+			},
+		}},
 	})
 	require.NoError(t, err)
 	require.NoError(t, repo.AddMessageToQueue(ctx,
 		utils.TransactionInternalKey(organizationID, ledgerID, phaseZeroID.String()), phaseZeroBackup))
-	require.NoError(t, repo.FinalizeLegacyTransactionPersistence(ctx, organizationID, ledgerID,
+	phaseZeroCtx := mmodel.WithTransactionEconomicContext(ctx, mmodel.TransactionEconomicContext{
+		ParentTransactionID: &phaseZeroParentID,
+		TransactionStatus:   constant.CREATED,
+		Action:              constant.ActionRevert,
+		Operations:          []mmodel.OperationRedis{phaseZeroOperation},
+		BalancesAfter:       []mmodel.BalanceRedis{phaseZeroAfter},
+	})
+	require.NoError(t, repo.FinalizeLegacyTransactionPersistence(phaseZeroCtx, organizationID, ledgerID,
 		phaseZeroID, phaseZeroParentID, constant.CREATED, []string{phaseZeroOperationID}),
 		"phase-zero compatibility cleanup must remain in the transactions slot")
 
@@ -1272,7 +1496,10 @@ func TestIntegration_OwnedLegacyFence_RedisClusterRejectsCrossSlotButAcceptsComp
 	require.NoError(t, initializer.InitializeFinancialDatasetGeneration(ctx))
 	guard := NewRevertUpdateFreezeGuard(connection, RevertUpdateFreezePrepared,
 		redisIntegrationDatasetGeneration).WithRolloutInitializationWitness(witness, "")
-	tenantCtx := tmcore.ContextWithTenantID(ctx, "cluster-generation-tenant")
+	tenantCtx := mmodel.WithTransactionEconomicContext(
+		tmcore.ContextWithTenantID(ctx, "cluster-generation-tenant"),
+		mmodel.TransactionEconomicContext{TransactionStatus: constant.CREATED, Action: constant.ActionCommit},
+	)
 	tenantTransactionID := uuid.New()
 	tenantAttempt := mmodel.BalanceExecutionAttempt{
 		ExecutionKey:    utils.TransactionBalanceExecutionKey(organizationID, ledgerID, tenantTransactionID),
@@ -1289,6 +1516,16 @@ func TestIntegration_OwnedLegacyFence_RedisClusterRejectsCrossSlotButAcceptsComp
 		TransactionID: tenantTransactionID, OrganizationID: organizationID, LedgerID: ledgerID,
 		TransactionStatus: constant.CREATED, AttemptOwner: tenantAttempt.Owner,
 		ExpectedOutcome: tenantAttempt.Outcome, RedisGeneration: redisIntegrationDatasetGeneration,
+		Action: constant.ActionCommit,
+		TransactionInput: mtransaction.Transaction{Send: mtransaction.Send{
+			Asset: "USD", Value: decimal.NewFromInt(100),
+		}},
+		Validate: &mtransaction.Responses{Asset: "USD", From: map[string]mtransaction.Amount{
+			"@cluster-global-generation#default": {
+				Asset: "USD", Value: decimal.NewFromInt(100),
+				Operation: constant.DEBIT, Direction: constant.DirectionDebit,
+			},
+		}},
 	})
 	require.NoError(t, err)
 	require.NoError(t, repo.SeedTransactionBackup(tenantCtx, organizationID, ledgerID,
@@ -1304,13 +1541,19 @@ func TestIntegration_OwnedLegacyFence_RedisClusterRejectsCrossSlotButAcceptsComp
 	require.NoError(t, err,
 		"tenant balances and the deployment generation must execute without CROSSSLOT")
 	tenantOperationID := uuid.NewString()
-	tenantOperation := completeRedisEconomicOperation(organizationID, ledgerID, tenantTransactionID, tenantOperationID)
+	require.Len(t, tenantResult.Before, 1)
+	require.Len(t, tenantResult.After, 1)
+	tenantOperation := redisEconomicOperationFromMovement(organizationID, ledgerID, tenantTransactionID,
+		tenantOperationID, tenantResult.Before[0], tenantResult.After[0], constant.DEBIT, constant.DirectionDebit)
 	_, _, _, err = repo.EnrichTransactionBackup(tenantCtx, organizationID, ledgerID, tenantTransactionID,
 		[]mmodel.OperationRedis{tenantOperation},
 		constant.ActionCommit, &tenantAttempt)
 	require.NoError(t, err,
 		"tenant outcome enrichment and the deployment generation must execute without CROSSSLOT")
-	require.NoError(t, repo.FinalizeTransactionPersistence(tenantCtx, organizationID, ledgerID,
+	tenantFinalizeCtx := mmodel.WithTransactionEconomicContext(tenantCtx, mmodel.TransactionEconomicContext{
+		TransactionStatus: constant.CREATED, Action: constant.ActionCommit,
+	})
+	require.NoError(t, repo.FinalizeTransactionPersistence(tenantFinalizeCtx, organizationID, ledgerID,
 		tenantTransactionID, tenantAttempt, []mmodel.OperationRedis{tenantOperation},
 		mmodel.BalancesToRedis(tenantResult.After)),
 		"tenant terminal cleanup and the deployment generation must execute without CROSSSLOT")

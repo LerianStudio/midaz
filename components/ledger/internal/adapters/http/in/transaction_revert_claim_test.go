@@ -1505,7 +1505,7 @@ func TestAdoptPersistedReverse_FinalPreservesForeignLegacyCollision(t *testing.T
 	assert.Same(t, persisted, result)
 }
 
-func TestAdoptPersistedReverse_FinalCleansExactPhaseZeroBackupAfterPrimaryProof(t *testing.T) {
+func TestAdoptPersistedReverse_FinalPreservesIncompletePhaseZeroBackupForReconciliation(t *testing.T) {
 	t.Parallel()
 
 	ctrl := gomock.NewController(t)
@@ -1556,7 +1556,8 @@ func TestAdoptPersistedReverse_FinalCleansExactPhaseZeroBackupAfterPrimaryProof(
 	claimRepo.EXPECT().Transition(gomock.Any(), organizationID, ledgerID, originID, reverseID,
 		revertclaim.StateCompleted, nil).Return(nil)
 	redisRepo.EXPECT().FinalizeLegacyTransactionPersistence(gomock.Any(), organizationID, ledgerID,
-		reverseID, originID, constant.CREATED, []string{operationID}).Return(nil)
+		reverseID, originID, constant.CREATED, []string{operationID}).
+		Return(errors.New("phase-zero economic evidence is incomplete"))
 
 	handler := &TransactionHandler{
 		RevertIdempotencyMode: revertIdempotencyModeFinal,
@@ -1571,9 +1572,11 @@ func TestAdoptPersistedReverse_FinalCleansExactPhaseZeroBackupAfterPrimaryProof(
 	}
 	result, replayed, err := handler.adoptPersistedReverse(context.Background(), organizationID, ledgerID,
 		originID, persisted, nil, nil, nil)
-	require.NoError(t, err)
-	assert.True(t, replayed)
-	assert.Same(t, persisted, result)
+	var unavailable pkg.ServiceUnavailableError
+	require.ErrorAs(t, err, &unavailable)
+	assert.Equal(t, constant.ErrRevertReconciliationRequired.Error(), unavailable.Code)
+	assert.False(t, replayed)
+	assert.Nil(t, result)
 }
 
 func TestLoadCompleteReverse_PartialOperationSetIsNotReplayable(t *testing.T) {

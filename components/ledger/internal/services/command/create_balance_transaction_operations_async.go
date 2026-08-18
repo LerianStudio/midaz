@@ -519,6 +519,7 @@ func (uc *UseCase) UpdateTransactionBackupOperations(
 	balancesAfter []mmodel.BalanceRedis,
 	action string,
 	attempt *mmodel.BalanceExecutionAttempt,
+	expected ...mmodel.TransactionEconomicContext,
 ) ([]*operation.Operation, bool, error) {
 	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
@@ -527,8 +528,17 @@ func (uc *UseCase) UpdateTransactionBackupOperations(
 
 	redisOps := make([]mmodel.OperationRedis, 0, len(operations))
 	for _, op := range operations {
+		if op == nil {
+			return nil, false, fmt.Errorf("transaction economic operation is required")
+		}
 		redisOps = append(redisOps, op.ToRedis())
 	}
+	if len(expected) != 1 || expected[0].TransactionStatus == "" {
+		return nil, false, fmt.Errorf("one transaction economic context is required")
+	}
+	proof := expected[0]
+	proof.Action = action
+	ctx = mmodel.WithTransactionEconomicContext(ctx, proof)
 
 	canonicalRedisOps, canonicalBalancesAfter, terminal, err := uc.TransactionRedisRepo.EnrichTransactionBackup(ctx, organizationID, ledgerID, transactionID,
 		redisOps, action, attempt)

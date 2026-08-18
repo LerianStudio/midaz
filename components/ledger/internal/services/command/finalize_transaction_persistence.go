@@ -93,7 +93,20 @@ func (uc *UseCase) FinalizeDurableTransactionPersistence(
 			}
 			redisOperations = append(redisOperations, transactionOperation.ToRedis())
 		}
-		if err := uc.TransactionRedisRepo.FinalizeTransactionPersistence(ctx,
+		var parentTransactionID *uuid.UUID
+		if payload.Transaction.ParentTransactionID != nil {
+			parsedParent, parseErr := uuid.Parse(*payload.Transaction.ParentTransactionID)
+			if parseErr != nil || parsedParent == uuid.Nil {
+				return true, fmt.Errorf("finalize durable transaction parent is invalid")
+			}
+			parentTransactionID = &parsedParent
+		}
+		finalizeCtx := mmodel.WithTransactionEconomicContext(ctx, mmodel.TransactionEconomicContext{
+			ParentTransactionID: parentTransactionID,
+			TransactionStatus:   utils.ExpectedBackupStatusForCleanup(payload.Transaction.Status.Code, payload.Validate),
+			Action:              actionForTransactionPayload(payload),
+		})
+		if err := uc.TransactionRedisRepo.FinalizeTransactionPersistence(finalizeCtx,
 			organizationID, ledgerID, transactionID, attempt, redisOperations,
 			mmodel.BalancesToRedis(payload.BalancesAfter)); err != nil {
 			return true, fmt.Errorf("finalize durable transaction balance outcome: %w", err)
@@ -104,8 +117,22 @@ func (uc *UseCase) FinalizeDurableTransactionPersistence(
 			return true, fmt.Errorf("parse durable reverse origin: %w", err)
 		}
 		operationIDs := transactionOperationIDs(persisted)
+		redisOperations := make([]mmodel.OperationRedis, 0, len(persisted.Operations))
+		for _, durableOperation := range persisted.Operations {
+			if durableOperation == nil {
+				return true, fmt.Errorf("durable legacy reverse operation is required")
+			}
+			redisOperations = append(redisOperations, durableOperation.ToRedis())
+		}
 		backupStatus := utils.ExpectedBackupStatusForCleanup(persisted.Status.Code, payload.Validate)
-		if err := uc.TransactionRedisRepo.FinalizeLegacyTransactionPersistence(ctx,
+		finalizeCtx := mmodel.WithTransactionEconomicContext(ctx, mmodel.TransactionEconomicContext{
+			ParentTransactionID: &originID,
+			TransactionStatus:   backupStatus,
+			Action:              constant.ActionRevert,
+			Operations:          redisOperations,
+			BalancesAfter:       mmodel.BalancesToRedis(payload.BalancesAfter),
+		})
+		if err := uc.TransactionRedisRepo.FinalizeLegacyTransactionPersistence(finalizeCtx,
 			organizationID, ledgerID, transactionID, originID, backupStatus, operationIDs); err != nil {
 			return true, fmt.Errorf("finalize durable legacy reverse: %w", err)
 		}

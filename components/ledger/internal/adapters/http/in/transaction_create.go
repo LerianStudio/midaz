@@ -1580,7 +1580,8 @@ func (handler *TransactionHandler) executeCreateTransaction(ctx context.Context,
 
 	operations, terminalReplay, err := handler.Command.UpdateTransactionBackupOperations(ctx,
 		params.OrganizationID, params.LedgerID,
-		transactionID, operations, mmodel.BalancesToRedis(balancesAfter), action, params.ExecutionAttempt)
+		transactionID, operations, mmodel.BalancesToRedis(balancesAfter), action, params.ExecutionAttempt,
+		mmodel.TransactionEconomicContext{ParentTransactionID: parentTransactionID, TransactionStatus: transactionStatus})
 	if err != nil {
 		libOpentelemetry.HandleSpanError(span, "Failed to durably bind operations to balance outcome", err)
 		logger.Log(ctx, libLog.LevelError, "Failed to durably bind operations to balance outcome",

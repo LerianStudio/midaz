@@ -99,8 +99,9 @@ The backup consumer accepts every owner-and-terminal-outcome envelope through
 the same economic preflight, even when the envelope predates financial-dataset
 generation tagging. A generation, when present, adds a witness check; its
 absence never bypasses owner, outcome, identity, operation, or balance proof.
-Both balance sets must match the authoritative queue envelope canonically and
-without duplicate identities.
+Both balance sets must match the authoritative queue envelope as exact,
+order-independent multisets. Repeated touches of one balance remain repeated;
+deduplicating by balance identity would erase part of the economic effect.
 Comparison is order-independent and includes balance ID and key, account,
 alias, asset, available, on-hold, version, account type, send/receive flags,
 direction, overdraft used and policy, limit, and balance scope. Decimal spelling
@@ -119,13 +120,18 @@ digest in the same bind and finalization commands.
 The immutable outcome survives the five-minute request lease and asynchronous
 Rabbit/backup delays, crosses the durable-write payload, and is deleted only
 after the transaction, every operation, and any revert claim terminal state are
-durable. After Lua, the queue envelope is never replaced: operation IDs and the
-action are single-assigned by a same-slot CAS that verifies the exact transaction,
-owner, immutable outcome, and Lua-authored `balancesAfter`. The CAS returns the
-stored operation set whether this consumer won or lost, and every PostgreSQL
-writer uses that returned set rather than its locally generated candidate IDs.
-Two consumers and a restart after a lost CAS response therefore converge on
-one durable operation identity set.
+durable. After Lua, the queue envelope is never replaced. A same-slot read-only
+command returns the exact raw envelope, immutable outcome, and Lua-authored
+snapshots. Go decodes those bytes without `float64`, reconstructs the expected
+economic effect from the immutable transaction input plus before/after
+snapshots, and rejects any candidate amount, direction, type, asset, balance,
+parent, status, action, or tenant that is not independently implied by that
+evidence. Only then may an exact-raw CAS single-assign operation IDs and the
+digest. A CAS loser rereads the authoritative bytes and adopts the winner only
+after repeating the full proof; it never overwrites or trusts its own candidate.
+Every PostgreSQL writer uses the returned operation set rather than its locally
+generated candidate IDs. Two consumers and a restart after a lost CAS response
+therefore converge on one durable operation identity set.
 
 Synchronous writes, the individual Rabbit consumer (including async publish
 fallback), and the default bulk Rabbit consumer all enter one terminal
@@ -509,11 +515,11 @@ admission and checked again atomically by seed, balance, and cleanup Lua in the
 `{transactions}` slot. No Lua spans those two Cluster slots.
 
 Async, sync, bulk, and redelivered consumers classify economic evidence by its
-attempt owner and terminal outcome, not by generation presence. They revalidate
-the immutable outcome, owner, backup identity, action, canonical operation set,
-and full balance snapshot in one same-slot Redis command before the first
-PostgreSQL transaction, metadata, operation, or balance write. When a generation
-is present they additionally validate the current financial generation. A
+attempt owner and terminal outcome, not by generation presence. Before the
+first PostgreSQL transaction, metadata, operation, or balance write, they use
+the same read-only Redis preflight, independent Go economic reconstruction, and
+exact-raw CAS described above. When a generation is present, the read and CAS
+additionally validate the current financial generation. A
 consumer delayed beyond the request lease, or across a
 dataset generation change, therefore preserves the backup and rollout token for
 reconciliation instead of materializing an old generation in PostgreSQL.

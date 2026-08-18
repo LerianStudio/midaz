@@ -1,5 +1,5 @@
-if ARGV[8] ~= "" then
-    if #KEYS ~= 4 or redis.call("GET", KEYS[4]) ~= ARGV[8] then
+if ARGV[9] ~= "" then
+    if #KEYS ~= 4 or redis.call("GET", KEYS[4]) ~= ARGV[9] then
         return redis.error_reply("FINANCIAL_DATASET_GENERATION_MISMATCH")
     end
 end
@@ -9,17 +9,19 @@ if not current or current ~= ARGV[1] then
     return redis.error_reply("TRANSACTION_BACKUP_CHANGED")
 end
 
-local ok, envelope = pcall(cjson.decode, current)
-if not ok or type(envelope) ~= "table" or envelope.transaction_id ~= ARGV[3] or
-   type(envelope.operations) ~= "table" or type(envelope.balancesAfter) ~= "table" then
+local operationsOK, operations = pcall(cjson.decode, ARGV[2])
+local envelopeOK, envelope = pcall(cjson.decode, current)
+if not operationsOK or type(operations) ~= "table" or #operations == 0 or
+   not envelopeOK or type(envelope) ~= "table" or envelope.transaction_id ~= ARGV[4] or
+   type(envelope.balances) ~= "table" or type(envelope.balancesAfter) ~= "table" then
     return redis.error_reply("TRANSACTION_BACKUP_INVALID")
 end
-if ARGV[7] ~= "" and envelope.action ~= nil and envelope.action ~= ARGV[7] then
+if ARGV[8] ~= "" and envelope.action ~= nil and envelope.action ~= ARGV[8] then
     return redis.error_reply("TRANSACTION_BACKUP_ACTION_MISMATCH")
 end
 
-if ARGV[4] == "1" then
-    if envelope.attempt_owner ~= ARGV[5] or envelope.expected_outcome ~= ARGV[6] then
+if ARGV[5] == "1" then
+    if envelope.attempt_owner ~= ARGV[6] or envelope.expected_outcome ~= ARGV[7] then
         return redis.error_reply("TRANSACTION_BACKUP_ATTEMPT_MISMATCH")
     end
     local outcomeRaw = redis.call("GET", KEYS[3])
@@ -27,17 +29,24 @@ if ARGV[4] == "1" then
         return redis.error_reply("TRANSACTION_OUTCOME_MISSING")
     end
     local outcomeOK, outcome = pcall(cjson.decode, outcomeRaw)
-    if not outcomeOK or type(outcome) ~= "table" or outcome.identity ~= ARGV[3] or
-       outcome.owner ~= ARGV[5] or outcome.outcome ~= ARGV[6] then
+    if not outcomeOK or type(outcome) ~= "table" or outcome.identity ~= ARGV[4] or
+       outcome.owner ~= ARGV[6] or outcome.outcome ~= ARGV[7] then
         return redis.error_reply("TRANSACTION_OUTCOME_MISMATCH")
     end
 end
 
-if envelope.economic_effect_digest ~= nil and envelope.economic_effect_digest ~= "" and
-   envelope.economic_effect_digest ~= ARGV[2] then
-    return redis.error_reply("TRANSACTION_ECONOMIC_DIGEST_MISMATCH")
+if envelope.economic_effect_digest ~= nil and envelope.economic_effect_digest ~= "" then
+    return redis.error_reply("TRANSACTION_BACKUP_CHANGED")
 end
-envelope.economic_effect_digest = ARGV[2]
-redis.call("HSET", KEYS[1], KEYS[2], cjson.encode(envelope))
 
-return 1
+if envelope.operations == nil then
+    envelope.operations = operations
+end
+if envelope.action == nil and ARGV[8] ~= "" then
+    envelope.action = ARGV[8]
+end
+envelope.economic_effect_digest = ARGV[3]
+local updated = cjson.encode(envelope)
+redis.call("HSET", KEYS[1], KEYS[2], updated)
+
+return updated

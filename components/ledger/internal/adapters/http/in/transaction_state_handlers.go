@@ -1229,7 +1229,8 @@ func (handler *TransactionHandler) commitOrCancelTransaction(
 	// before/after snapshots. Add operation IDs through an owner/outcome CAS;
 	// replacing this record would destroy the authoritative post-Lua proof.
 	operations, terminalReplay, err := handler.Command.UpdateTransactionBackupOperations(ctx, organizationID, ledgerID,
-		tran.IDtoUUID(), operations, mmodel.BalancesToRedis(balancesAfter), action, executionAttempt)
+		tran.IDtoUUID(), operations, mmodel.BalancesToRedis(balancesAfter), action, executionAttempt,
+		mmodel.TransactionEconomicContext{TransactionStatus: transactionStatus})
 	if err != nil {
 		libOpentelemetry.HandleSpanError(span, "Failed to durably bind lifecycle operations to balance outcome", err)
 		logger.Log(ctx, libLog.LevelError, "Failed to durably bind lifecycle operations to balance outcome",

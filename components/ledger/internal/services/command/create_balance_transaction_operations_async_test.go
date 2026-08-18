@@ -104,6 +104,7 @@ func TestCreateBalanceTransactionOperationsAsync_GenerationPreflightRunsBeforePo
 		Transaction: &transaction.Transaction{
 			ID: transactionID.String(), OrganizationID: organizationID.String(), LedgerID: ledgerID.String(),
 			ParentTransactionID: &parentID,
+			Status:              transaction.Status{Code: constant.CREATED},
 			Operations:          []*operation.Operation{{ID: uuid.NewString(), TransactionID: transactionID.String()}},
 		},
 		AttemptOwner: owner, ExpectedOutcome: mmodel.TransactionOutcomeCommitted, RedisGeneration: generation,
@@ -1404,7 +1405,8 @@ func TestUpdateTransactionBackupOperations(t *testing.T) {
 			Times(1)
 
 		canonical, terminal, err := uc.UpdateTransactionBackupOperations(ctx, organizationID, ledgerID, transactionID,
-			operations, nil, constant.ActionCommit, nil)
+			operations, nil, constant.ActionCommit, nil,
+			mmodel.TransactionEconomicContext{TransactionStatus: constant.CREATED})
 		require.NoError(t, err)
 		assert.False(t, terminal)
 		require.Len(t, canonical, 1)
@@ -1431,7 +1433,8 @@ func TestUpdateTransactionBackupOperations(t *testing.T) {
 			Return(nil, nil, false, errors.New("redis write failed"))
 
 		_, _, err := uc.UpdateTransactionBackupOperations(context.Background(), organizationID, ledgerID,
-			transactionID, nil, nil, constant.ActionCancel, attempt)
+			transactionID, nil, nil, constant.ActionCancel, attempt,
+			mmodel.TransactionEconomicContext{TransactionStatus: constant.PENDING})
 		require.ErrorContains(t, err, "redis write failed")
 	})
 
@@ -1457,7 +1460,8 @@ func TestUpdateTransactionBackupOperations(t *testing.T) {
 		uc := &UseCase{TransactionRedisRepo: mockRedisRepo}
 		_, _, err := uc.UpdateTransactionBackupOperations(context.Background(), organizationID, ledgerID,
 			transactionID, []*operation.Operation{economicOperation}, []mmodel.BalanceRedis{expectedBalance},
-			constant.ActionCommit, attempt)
+			constant.ActionCommit, attempt,
+			mmodel.TransactionEconomicContext{TransactionStatus: constant.CREATED})
 		require.ErrorContains(t, err, "transaction economic effect differs from its authoritative Redis envelope")
 	})
 }
