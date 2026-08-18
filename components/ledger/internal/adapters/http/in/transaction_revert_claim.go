@@ -21,6 +21,7 @@ import (
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/operation"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/revertclaim"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/transaction"
+	transactionRedis "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/redis/transaction"
 	"github.com/LerianStudio/midaz/v4/pkg"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
 	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
@@ -104,6 +105,11 @@ func (handler *TransactionHandler) acquireRevertRolloutRequest(
 	}
 	if !admitted {
 		return "", "", "", nil, pkg.ValidateBusinessError(constant.ErrRevertRolloutFreezeRequired, constant.EntityTransaction)
+	}
+	if !leaseHeld && phase == transactionRedis.RevertUpdateFreezeUninitialized {
+		// Empty target is the genuinely released payload-hash algorithm. It has
+		// no financial dataset witness or durable phase-zero claim yet.
+		return phase, "", "", nil, nil
 	}
 	release := func() error {
 		releaseCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)

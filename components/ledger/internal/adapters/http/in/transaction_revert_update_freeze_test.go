@@ -34,7 +34,9 @@ type revertUpdateFreezeStub struct {
 	terminalComplete bool
 	terminalErr      error
 	redisGeneration  string
+	generationReads  int
 	durabilityErr    error
+	releasedLegacy   bool
 }
 
 func TestActiveRevertIdempotencyMode_ZeroValuePreservesReleasedAlgorithm(t *testing.T) {
@@ -61,6 +63,7 @@ func (s *revertUpdateFreezeStub) FinancialDurability(context.Context) error {
 }
 
 func (s *revertUpdateFreezeStub) FinancialDatasetGeneration(context.Context) (string, error) {
+	s.generationReads++
 	if s.err != nil {
 		return "", s.err
 	}
@@ -94,12 +97,31 @@ func (s *revertUpdateFreezeStub) AcquireRevert(_ context.Context, mode, token, a
 	if mode == revertIdempotencyModeFinal && s.ready {
 		return true, false, "finalized", s.err
 	}
+	if s.releasedLegacy {
+		return true, false, "uninitialized", s.err
+	}
 	phase := ""
 	if s.active {
 		phase = "active"
 	}
 
 	return s.ready, s.ready, phase, s.err
+}
+
+func TestAcquireRevertRolloutRequest_ReleasedLegacyNeedsNoDatasetWitness(t *testing.T) {
+	t.Parallel()
+
+	freeze := &revertUpdateFreezeStub{ready: true, releasedLegacy: true}
+	handler := &TransactionHandler{RevertIdempotencyMode: revertIdempotencyModeLegacy, RevertUpdateFreeze: freeze}
+	phase, token, generation, release, err := handler.acquireRevertRolloutRequest(context.Background(),
+		uuid.New(), uuid.New(), uuid.New())
+
+	require.NoError(t, err)
+	assert.Equal(t, "uninitialized", phase)
+	assert.Empty(t, token)
+	assert.Empty(t, generation)
+	assert.Nil(t, release)
+	assert.Zero(t, freeze.generationReads)
 }
 
 func TestAcquireRevertRolloutRequest_ReusesOriginTokenAfterCrash(t *testing.T) {

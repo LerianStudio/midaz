@@ -19,19 +19,20 @@ const (
 	// deliberately not tenant-prefixed so every pod observes the same fence.
 	// The hash tag keeps the marker and every in-flight lease in one Redis
 	// Cluster slot, allowing phase transitions to prove drain atomically.
-	revertRolloutHashTag           = "{transaction-revert-rollout:v1}"
-	RevertUpdateFreezeKey          = "rollout:" + revertRolloutHashTag + ":state"
-	RevertRolloutGenerationKey     = "rollout:" + revertRolloutHashTag + ":dataset-generation"
-	revertApprovedUpdateLeaseKey   = "rollout:" + revertRolloutHashTag + ":approved-updates"
-	revertPhaseZeroRequestLeaseKey = "rollout:" + revertRolloutHashTag + ":phase-zero-revert-origins"
-	revertBridgeRequestLeaseKey    = "rollout:" + revertRolloutHashTag + ":bridge-revert-origins"
-	revertPhaseZeroCompletedKey    = "rollout:" + revertRolloutHashTag + ":phase-zero-completed-origins"
-	revertBridgeCompletedKey       = "rollout:" + revertRolloutHashTag + ":bridge-completed-origins"
-	RevertUpdateFreezeInitialize   = "initialize"
-	RevertUpdateFreezePrepared     = "prepared"
-	RevertUpdateFreezeActive       = "active"
-	RevertUpdateFreezeDrained      = "phase-zero-drained"
-	RevertUpdateFreezeFinalized    = "finalized"
+	revertRolloutHashTag            = "{transaction-revert-rollout:v1}"
+	RevertUpdateFreezeKey           = "rollout:" + revertRolloutHashTag + ":state"
+	RevertRolloutGenerationKey      = "rollout:" + revertRolloutHashTag + ":dataset-generation"
+	revertApprovedUpdateLeaseKey    = "rollout:" + revertRolloutHashTag + ":approved-updates"
+	revertPhaseZeroRequestLeaseKey  = "rollout:" + revertRolloutHashTag + ":phase-zero-revert-origins"
+	revertBridgeRequestLeaseKey     = "rollout:" + revertRolloutHashTag + ":bridge-revert-origins"
+	revertPhaseZeroCompletedKey     = "rollout:" + revertRolloutHashTag + ":phase-zero-completed-origins"
+	revertBridgeCompletedKey        = "rollout:" + revertRolloutHashTag + ":bridge-completed-origins"
+	RevertUpdateFreezeInitialize    = "initialize"
+	RevertUpdateFreezeUninitialized = "uninitialized"
+	RevertUpdateFreezePrepared      = "prepared"
+	RevertUpdateFreezeActive        = "active"
+	RevertUpdateFreezeDrained       = "phase-zero-drained"
+	RevertUpdateFreezeFinalized     = "finalized"
 	// FinancialDatasetGenerationKey is a non-expiring identity for the Redis
 	// financial dataset. Its {transactions} tag lets money-path Lua compare it
 	// atomically with balances, backups, execution owners, and outcomes.
@@ -537,7 +538,7 @@ func (g *RevertUpdateFreezeGuard) AcquireRevert(ctx context.Context, mode, origi
 
 		return true, false, "", nil
 	case 6:
-		return true, false, "", nil
+		return true, false, RevertUpdateFreezeUninitialized, nil
 	case 7:
 		return true, false, RevertUpdateFreezePrepared, nil
 	default:

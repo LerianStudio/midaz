@@ -908,6 +908,14 @@ func TestIntegration_RevertUpdateFreezeMarkerIsSharedPersistentAndFinalizable(t 
 	configureFinancialRedisDurability(t, ctx, infra.redisContainer.Client)
 	require.Eventually(t, func() bool { return guard.FinancialDurability(ctx) == nil },
 		10*time.Second, 50*time.Millisecond)
+	releasedLegacy := NewRevertUpdateFreezeGuard(connection)
+	releasedAdmitted, releasedLease, releasedPhase, err := releasedLegacy.AcquireRevert(ctx, "legacy",
+		"released-old-origin", "released-old-attempt")
+	require.NoError(t, err)
+	assert.True(t, releasedAdmitted)
+	assert.False(t, releasedLease)
+	assert.Equal(t, RevertUpdateFreezeUninitialized, releasedPhase,
+		"target-empty legacy must remain the released old algorithm without a dataset witness")
 	require.NoError(t, initializer.InitializeFinancialDatasetGeneration(ctx))
 	require.NoError(t, initializer.InitializeFinancialDatasetGeneration(ctx),
 		"retry after a lost initialization response must preserve the exact generation")
