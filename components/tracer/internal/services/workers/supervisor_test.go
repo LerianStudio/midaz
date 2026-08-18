@@ -273,7 +273,7 @@ func TestWorkerSupervisor_StopWorkers_DoesNotClearReplacementGauges(t *testing.T
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = shutdown() })
 
-	deps, _ := newSupervisorTestDeps(t, &fakeTenantLister{}, 10)
+	deps, ruleCache := newSupervisorTestDeps(t, &fakeTenantLister{}, 10)
 	deps.MetricsFactory = factory
 
 	sup, err := NewWorkerSupervisor(deps)
@@ -298,9 +298,16 @@ func TestWorkerSupervisor_StopWorkers_DoesNotClearReplacementGauges(t *testing.T
 	require.NoError(t, sup.EnsureWorkers(context.Background(), "tenant-a"))
 	setReservationV2Gauge(context.Background(), factory, deps.Logger, "tenant-a", MetricReservationV2Outstanding, 7)
 	setReservationV2Gauge(context.Background(), factory, deps.Logger, "tenant-a", MetricReservationV2OldestAgeSeconds, 3600)
+	tenantCtx := tmcore.ContextWithTenantID(context.Background(), "tenant-a")
+	ruleCache.UpsertRule(tenantCtx, newSyncTestActiveRule(1), "replacement-program")
+	ruleCache.MarkReady(tenantCtx)
+	require.True(t, ruleCache.IsReady(tenantCtx))
+	require.Len(t, ruleCache.GetActiveRules(tenantCtx, nil), 1)
 
 	close(oldDone)
 	<-stopFinished
+	require.True(t, ruleCache.IsReady(tenantCtx), "old stop must preserve replacement readiness")
+	require.Len(t, ruleCache.GetActiveRules(tenantCtx, nil), 1, "old stop must preserve replacement rules")
 
 	families, err := registry.Gather()
 	require.NoError(t, err)

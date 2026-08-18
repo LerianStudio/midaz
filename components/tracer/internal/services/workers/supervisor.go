@@ -539,15 +539,18 @@ func (s *WorkerSupervisor) StopWorkers(tenantID string) {
 	set.cancel()
 	<-set.done
 
-	s.ruleCache.EvictTenant(tenantID)
+	// Serialize the absence check + cleanup with EnsureWorkers' Store. A replacement
+	// worker may have spawned while this old generation was shutting down; its cache
+	// and freshly-observed backlog belong to the new generation and must survive.
+	cacheEvicted := false
 
-	// Serialize the absence check + reset with EnsureWorkers' Store. A replacement
-	// worker may have spawned while this old generation was shutting down; its
-	// freshly-observed backlog must not be overwritten with zero by the old stop.
 	s.spawnMu.Lock()
 	if _, replacementRunning := s.workers.Load(tenantID); !replacementRunning {
+		s.ruleCache.EvictTenant(tenantID)
 		setReservationV2Gauge(context.Background(), s.metricsFactory, s.logger, tenantID, MetricReservationV2Outstanding, 0)
 		setReservationV2Gauge(context.Background(), s.metricsFactory, s.logger, tenantID, MetricReservationV2OldestAgeSeconds, 0)
+
+		cacheEvicted = true
 	}
 	s.spawnMu.Unlock()
 
@@ -560,7 +563,8 @@ func (s *WorkerSupervisor) StopWorkers(tenantID string) {
 	s.logger.With(
 		libLog.String("operation", "supervisor.stop_workers"),
 		libLog.String("tenant_id", tenantID),
-	).Log(context.Background(), libLog.LevelInfo, "Stopped per-tenant workers and evicted cache")
+		libLog.Bool("cache_evicted", cacheEvicted),
+	).Log(context.Background(), libLog.LevelInfo, "Stopped tenant worker generation")
 }
 
 // InitialTenantSync lists all active tenants from the Tenant Manager and
