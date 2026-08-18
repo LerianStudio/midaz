@@ -504,8 +504,10 @@ func TestRedisBalanceSetEconomicEqual_RequiresCompleteCanonicalEffect(t *testing
 			assert.False(t, RedisBalanceSetEconomicEqual([]BalanceRedis{base}, []BalanceRedis{changed}))
 		})
 	}
-	assert.False(t, RedisBalanceSetEconomicEqual([]BalanceRedis{base, base}, []BalanceRedis{base, base}),
-		"duplicate economic identities are not authoritative evidence")
+	assert.True(t, RedisBalanceSetEconomicEqual([]BalanceRedis{base, base}, []BalanceRedis{base, base}),
+		"repeated touches of one balance are compared as an exact multiset")
+	assert.False(t, RedisBalanceSetEconomicEqual([]BalanceRedis{base, base}, []BalanceRedis{base, second}),
+		"the multiset must preserve the exact count of every economic snapshot")
 }
 
 func TestRedisBalanceSetEconomicComplete_RejectsMissingReplayDiscriminator(t *testing.T) {

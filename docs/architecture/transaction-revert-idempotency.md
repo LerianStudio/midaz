@@ -140,7 +140,9 @@ complete operation-ID multiset, writes the non-expiring terminal receipt, and
 only then removes the backup and outcome atomically. The receipt binds the
 dataset generation, transaction identity, owner, terminal outcome, action,
 canonical operation IDs and full economic operation bodies, and Lua-authored
-balance snapshots. It is append-only: retrying the exact cleanup is idempotent,
+balance snapshot multiset. The multiset keeps repeated touches of one balance
+(for example principal plus fee settlement) and compares their exact count and
+economic bodies order-independently. It is append-only: retrying the exact cleanup is idempotent,
 while an opposite outcome or different economic body is a conflict. Commit and
 cancel prove every operation in their terminal attempt while preserving the
 older PENDING hold operations as durable history; a reverse has no older

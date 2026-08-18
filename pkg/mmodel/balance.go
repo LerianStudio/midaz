@@ -562,29 +562,26 @@ func BalancesToRedis(balances []*Balance) []BalanceRedis {
 
 // RedisBalanceSetEconomicEqual compares the complete, order-independent
 // balance fact copied into the transaction backup and immutable outcome by the
-// same Lua command. Duplicate balance identities are invalid evidence.
+// same Lua command. One transaction may touch the same balance more than once
+// (for example principal and fee settlement), so this is an exact multiset of
+// snapshots rather than a map keyed by balance identity.
 func RedisBalanceSetEconomicEqual(left, right []BalanceRedis) bool {
 	if len(left) != len(right) {
 		return false
 	}
 
-	rightByIdentity := make(map[string]BalanceRedis, len(right))
-	for _, balance := range right {
-		identity := balance.ID + "\x00" + balance.Key
-		if _, duplicate := rightByIdentity[identity]; duplicate {
-			return false
+	used := make([]bool, len(right))
+	for _, candidate := range left {
+		matched := false
+		for index, canonical := range right {
+			if used[index] || !redisBalanceEconomicEqual(candidate, canonical) {
+				continue
+			}
+			used[index] = true
+			matched = true
+			break
 		}
-		rightByIdentity[identity] = balance
-	}
-	seen := make(map[string]struct{}, len(left))
-	for _, balance := range left {
-		identity := balance.ID + "\x00" + balance.Key
-		if _, duplicate := seen[identity]; duplicate {
-			return false
-		}
-		seen[identity] = struct{}{}
-		other, ok := rightByIdentity[identity]
-		if !ok || !redisBalanceEconomicEqual(balance, other) {
+		if !matched {
 			return false
 		}
 	}
@@ -597,7 +594,7 @@ func RedisBalanceSetEconomicEqual(left, right []BalanceRedis) bool {
 // amounts and versions are valid; missing identities, policy fields, or
 // non-boolean wire flags are not.
 func RedisBalanceSetEconomicComplete(balances []BalanceRedis) bool {
-	if len(balances) == 0 || !RedisBalanceSetEconomicEqual(balances, balances) {
+	if len(balances) == 0 {
 		return false
 	}
 	for _, balance := range balances {

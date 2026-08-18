@@ -1463,13 +1463,20 @@ func (rr *RedisConsumerRepository) EnrichTransactionBackup(
 	preflight := struct {
 		Terminal      bool                    `json:"terminal"`
 		Operations    []mmodel.OperationRedis `json:"operations"`
-		BalancesAfter []mmodel.BalanceRedis   `json:"balancesAfter"`
+		BalancesAfter json.RawMessage         `json:"balancesAfter"`
 	}{}
 	if err := json.Unmarshal([]byte(preflightRaw), &preflight); err != nil {
 		return nil, nil, false, fmt.Errorf("decode canonical transaction backup operations: %w", err)
 	}
+	canonicalBalancesAfter := []mmodel.BalanceRedis(nil)
+	balancesAfterRaw := strings.TrimSpace(string(preflight.BalancesAfter))
+	if balancesAfterRaw != "" && balancesAfterRaw != "null" && balancesAfterRaw != "{}" {
+		if err := json.Unmarshal(preflight.BalancesAfter, &canonicalBalancesAfter); err != nil {
+			return nil, nil, false, fmt.Errorf("decode canonical transaction backup balances: %w", err)
+		}
+	}
 
-	return preflight.Operations, preflight.BalancesAfter, preflight.Terminal, nil
+	return preflight.Operations, canonicalBalancesAfter, preflight.Terminal, nil
 }
 
 func (rr *RedisConsumerRepository) FinalizeTransactionPersistence(
