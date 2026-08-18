@@ -55,8 +55,8 @@ type TransactionHandler struct {
 		ReadyForMode(context.Context, string) (bool, error)
 		AcquireApprovedUpdate(context.Context, string, string) (admitted bool, frozen bool, leaseHeld bool, err error)
 		ReleaseApprovedUpdate(context.Context, string) error
-		AcquireRevert(context.Context, string, string) (admitted bool, leaseHeld bool, phase string, err error)
-		ReleaseRevert(context.Context, string, string) error
+		AcquireRevert(context.Context, string, string, string) (admitted bool, leaseHeld bool, phase string, err error)
+		ReleaseRevert(context.Context, string, string, string) error
 	}
 }
 

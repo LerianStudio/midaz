@@ -51,6 +51,15 @@ func TestIntegration_RevertBackupRecoveryPersistsExactParentAndCompletesClaim(t 
 	redisConnection := redistestutil.CreateConnection(t, redisContainer.Addr)
 	redisRepo, err := transactionredis.NewConsumerRedis(redisConnection)
 	require.NoError(t, err)
+	rolloutGuard := transactionredis.NewRevertUpdateFreezeGuard(redisConnection)
+	rolloutToken := uuid.NewString()
+	admitted, leaseHeld, phase, err := rolloutGuard.AcquireRevert(ctx, "legacy", rolloutToken, "consumer-recovery-attempt")
+	require.NoError(t, err)
+	require.True(t, admitted)
+	require.True(t, leaseHeld)
+	require.Empty(t, phase)
+	require.Error(t, rolloutGuard.Activate(ctx),
+		"a pre-activation reverse remains a rollout blocker until terminal persistence")
 
 	transactionRepo := postgreTransaction.NewTransactionPostgreSQLRepository(postgresClient)
 	operationRepo := operation.NewOperationPostgreSQLRepository(postgresClient)
@@ -64,6 +73,7 @@ func TestIntegration_RevertBackupRecoveryPersistsExactParentAndCompletesClaim(t 
 		TransactionRepo:      transactionRepo,
 		OperationRepo:        operationRepo,
 		RevertClaimRepo:      claimRepo,
+		RevertRolloutLease:   rolloutGuard,
 		TransactionRedisRepo: redisRepo,
 		RabbitMQRepo:         rabbitRepo,
 	}
@@ -108,11 +118,15 @@ func TestIntegration_RevertBackupRecoveryPersistsExactParentAndCompletesClaim(t 
 			Description: "recovered reverse",
 			Send:        mtransaction.Send{Value: amount, Asset: "USD"},
 		},
-		Validate:          &mtransaction.Responses{},
-		TransactionStatus: constant.CREATED,
-		Action:            constant.ActionRevert,
-		TransactionDate:   fixedTime,
-		TTL:               fixedTime,
+		Validate:           &mtransaction.Responses{},
+		TransactionStatus:  constant.CREATED,
+		Action:             constant.ActionRevert,
+		AttemptOwner:       reverseID.String(),
+		ExpectedOutcome:    mmodel.TransactionOutcomeCommitted,
+		RevertRolloutMode:  "legacy",
+		RevertRolloutToken: rolloutToken,
+		TransactionDate:    fixedTime,
+		TTL:                fixedTime,
 		BalancesAfter: []mmodel.BalanceRedis{
 			{ID: operations[0].BalanceID, Alias: operations[0].AccountAlias, Available: amount},
 			{ID: operations[1].BalanceID, Alias: operations[1].AccountAlias, Available: zero},
@@ -129,11 +143,24 @@ func TestIntegration_RevertBackupRecoveryPersistsExactParentAndCompletesClaim(t 
 	legacyHash, err := utils.LegacyTransactionIdempotencyHash(queue.TransactionInput)
 	require.NoError(t, err)
 	expectedLegacyKey := utils.IdempotencyInternalKey(organizationID, ledgerID, legacyHash)
-	legacyAcquired, err := redisRepo.SetNX(ctx, expectedLegacyKey, "", 0)
+	legacyAcquired, err := redisRepo.AcquireOwnedKey(ctx, expectedLegacyKey, reverseID.String(), 0)
 	require.NoError(t, err)
 	require.True(t, legacyAcquired, "the phase-zero request must leave its old-compatible empty H1 fence")
+	outcomeRaw, err := json.Marshal(mmodel.BalanceExecutionOutcome{
+		Identity: reverseID,
+		Owner:    reverseID.String(),
+		Outcome:  mmodel.TransactionOutcomeCommitted,
+		After:    queue.BalancesAfter,
+	})
+	require.NoError(t, err)
+	require.NoError(t, redisRepo.Set(ctx,
+		utils.TransactionBalanceOutcomeKey(organizationID, ledgerID, reverseID), string(outcomeRaw), 0))
 
-	consumer.processMessage(ctx, backupKey, string(raw), queue)
+	decodedQueue := mmodel.TransactionRedisQueue{}
+	require.NoError(t, json.Unmarshal(raw, &decodedQueue))
+	consumer.processMessage(ctx, backupKey, string(raw), decodedQueue)
+	require.NoError(t, rolloutGuard.Activate(ctx),
+		"terminal handoff must release the exact pre-activation origin only after PostgreSQL and Redis agree")
 
 	persisted, err := transactionRepo.FindWithOperations(ctx, organizationID, ledgerID, reverseID)
 	require.NoError(t, err)
@@ -277,7 +304,9 @@ func TestIntegration_LifecycleBackupRecoveryAfterLeaseExpiryPersistsExactOperati
 	require.NoError(t, err)
 	require.NoError(t, redisRepo.Set(ctx, outcomeKey, string(outcomeRaw), 0))
 
-	consumer.processMessage(ctx, backupKey, string(raw), queue)
+	decodedQueue := mmodel.TransactionRedisQueue{}
+	require.NoError(t, json.Unmarshal(raw, &decodedQueue))
+	consumer.processMessage(ctx, backupKey, string(raw), decodedQueue)
 
 	assert.Equal(t, constant.APPROVED, postgrestestutil.GetTransactionStatus(t, postgresContainer.DB, transactionID))
 	persisted, err := transactionRepo.FindWithOperations(ctx, organizationID, ledgerID, transactionID)

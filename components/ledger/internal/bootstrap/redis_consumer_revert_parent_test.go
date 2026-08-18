@@ -45,11 +45,11 @@ func (s backupRevertRolloutPhaseStub) ReleaseApprovedUpdate(context.Context, str
 	return nil
 }
 
-func (s backupRevertRolloutPhaseStub) AcquireRevert(context.Context, string, string) (bool, bool, string, error) {
+func (s backupRevertRolloutPhaseStub) AcquireRevert(context.Context, string, string, string) (bool, bool, string, error) {
 	return true, true, s.phase, nil
 }
 
-func (s backupRevertRolloutPhaseStub) ReleaseRevert(context.Context, string, string) error {
+func (s backupRevertRolloutPhaseStub) ReleaseRevert(context.Context, string, string, string) error {
 	return nil
 }
 
@@ -251,4 +251,29 @@ func TestProcessMessage_DrainedPhaseZeroSeedIsRemovedWithoutPersistence(t *testi
 		},
 	}
 	consumer.processMessage(context.Background(), key, string(raw), message)
+}
+
+func TestRequiresAtomicOutcomeBackup_LegacyLifecycleCanReachRecoveryFallback(t *testing.T) {
+	t.Parallel()
+
+	assert.False(t, requiresAtomicOutcomeBackup(mmodel.TransactionRedisQueue{
+		Action: constant.ActionCommit,
+	}), "an old commit backup has no Lua outcome envelope and must reach the legacy rebuild path")
+	assert.False(t, requiresAtomicOutcomeBackup(mmodel.TransactionRedisQueue{
+		Action: constant.ActionCancel,
+	}), "an old cancel backup has no Lua outcome envelope and must reach the legacy rebuild path")
+	assert.True(t, requiresAtomicOutcomeBackup(mmodel.TransactionRedisQueue{
+		Action:          constant.ActionCommit,
+		AttemptOwner:    uuid.NewString(),
+		ExpectedOutcome: mmodel.TransactionOutcomeCommitted,
+	}), "a modern lifecycle backup must never bypass its atomic Redis outcome")
+	assert.True(t, requiresAtomicOutcomeBackup(mmodel.TransactionRedisQueue{
+		Action:          constant.ActionRevert,
+		AttemptOwner:    uuid.NewString(),
+		ExpectedOutcome: mmodel.TransactionOutcomeCommitted,
+	}), "an outcome-backed reverse must never bypass its atomic Redis outcome")
+	assert.True(t, requiresAtomicOutcomeBackup(mmodel.TransactionRedisQueue{
+		AttemptOwner:    uuid.NewString(),
+		ExpectedOutcome: mmodel.TransactionOutcomeCommitted,
+	}), "a corrupted or rolling payload cannot erase its action to bypass an existing economic outcome identity")
 }

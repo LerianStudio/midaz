@@ -350,6 +350,8 @@ func TestWriteTransactionAsync(t *testing.T) {
 		organizationID := uuid.New()
 		ledgerID := uuid.New()
 		td := createTestData(organizationID, ledgerID)
+		td.tran.RevertRolloutMode = "bridge"
+		td.tran.RevertRolloutToken = "origin-rollout-token"
 		attempt := &mmodel.BalanceExecutionAttempt{
 			Owner:   "attempt-owner",
 			Outcome: mmodel.TransactionOutcomeCommitted,
@@ -369,6 +371,8 @@ func TestWriteTransactionAsync(t *testing.T) {
 				require.NoError(t, msgpack.Unmarshal(queue.QueueData[0].Value, &payload))
 				assert.Equal(t, attempt.Owner, payload.AttemptOwner)
 				assert.Equal(t, attempt.Outcome, payload.ExpectedOutcome)
+				assert.Equal(t, "bridge", payload.RevertRolloutMode)
+				assert.Equal(t, "origin-rollout-token", payload.RevertRolloutToken)
 
 				return nil, nil
 			}).

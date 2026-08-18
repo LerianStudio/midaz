@@ -137,6 +137,7 @@ func setupTestInfra(t *testing.T) *testInfra {
 	commandUC := &command.UseCase{
 		TransactionRepo:         transactionRepo,
 		RevertClaimRepo:         revertClaimRepo,
+		RevertRolloutLease:      revertFreeze,
 		OperationRepo:           operationRepo,
 		BalanceRepo:             balanceRepo,
 		TransactionMetadataRepo: metadataRepo,

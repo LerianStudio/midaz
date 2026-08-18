@@ -502,6 +502,59 @@ type BalanceRedis struct {
 	BalanceScope string `json:"balanceScope"`
 }
 
+// RedisBalanceSetEconomicEqual compares the complete, order-independent
+// balance fact copied into the transaction backup and immutable outcome by the
+// same Lua command. Duplicate balance identities are invalid evidence.
+func RedisBalanceSetEconomicEqual(left, right []BalanceRedis) bool {
+	if len(left) != len(right) {
+		return false
+	}
+
+	rightByIdentity := make(map[string]BalanceRedis, len(right))
+	for _, balance := range right {
+		identity := balance.ID + "\x00" + balance.Key
+		if _, duplicate := rightByIdentity[identity]; duplicate {
+			return false
+		}
+		rightByIdentity[identity] = balance
+	}
+	seen := make(map[string]struct{}, len(left))
+	for _, balance := range left {
+		identity := balance.ID + "\x00" + balance.Key
+		if _, duplicate := seen[identity]; duplicate {
+			return false
+		}
+		seen[identity] = struct{}{}
+		other, ok := rightByIdentity[identity]
+		if !ok || !redisBalanceEconomicEqual(balance, other) {
+			return false
+		}
+	}
+
+	return true
+}
+
+func redisBalanceEconomicEqual(left, right BalanceRedis) bool {
+	return left.ID == right.ID && left.Alias == right.Alias && left.Key == right.Key &&
+		left.AccountID == right.AccountID && left.AssetCode == right.AssetCode &&
+		left.Available.Equal(right.Available) && left.OnHold.Equal(right.OnHold) &&
+		left.Version == right.Version && left.AccountType == right.AccountType &&
+		left.AllowSending == right.AllowSending && left.AllowReceiving == right.AllowReceiving &&
+		left.Direction == right.Direction && redisEconomicDecimalEqual(left.OverdraftUsed, right.OverdraftUsed) &&
+		left.AllowOverdraft == right.AllowOverdraft && left.OverdraftLimitEnabled == right.OverdraftLimitEnabled &&
+		redisEconomicDecimalEqual(left.OverdraftLimit, right.OverdraftLimit) && left.BalanceScope == right.BalanceScope
+}
+
+func redisEconomicDecimalEqual(left, right string) bool {
+	if left == "" || right == "" {
+		return left == right
+	}
+	leftDecimal, leftErr := decimal.NewFromString(left)
+	rightDecimal, rightErr := decimal.NewFromString(right)
+
+	return leftErr == nil && rightErr == nil && leftDecimal.Equal(rightDecimal)
+}
+
 // UnmarshalJSON is a custom unmarshal function for BalanceRedis
 func (b *BalanceRedis) UnmarshalJSON(data []byte) error {
 	type Alias BalanceRedis
@@ -672,6 +725,8 @@ type TransactionRedisQueue struct {
 	Action              string                   `json:"action,omitempty"`
 	AttemptOwner        string                   `json:"attempt_owner,omitempty"`
 	ExpectedOutcome     string                   `json:"expected_outcome,omitempty"`
+	RevertRolloutMode   string                   `json:"revert_rollout_mode,omitempty"`
+	RevertRolloutToken  string                   `json:"revert_rollout_token,omitempty"`
 	TransactionDate     time.Time                `json:"transaction_date"`
 	Operations          []OperationRedis         `json:"operations,omitempty"`
 }

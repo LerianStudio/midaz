@@ -38,3 +38,32 @@ func TestLegacyTransactionIdempotencyHash_NormalizesDefaultBalanceKeys(t *testin
 	require.NoError(t, err)
 	assert.Equal(t, first, second)
 }
+
+func TestLegacyTransactionIdempotencyHash_QueueSanitizationPreservesPhaseZeroH1(t *testing.T) {
+	t.Parallel()
+
+	debit := mtransaction.Amount{Asset: "USD", Value: decimal.NewFromInt(10), Operation: constant.DEBIT}
+	credit := mtransaction.Amount{Asset: "USD", Value: decimal.NewFromInt(10), Operation: constant.CREDIT}
+	original := mtransaction.Transaction{Send: mtransaction.Send{
+		Asset:      "USD",
+		Value:      decimal.NewFromInt(10),
+		Source:     mtransaction.Source{From: []mtransaction.FromTo{{AccountAlias: "@source", Amount: &debit}}},
+		Distribute: mtransaction.Distribute{To: []mtransaction.FromTo{{AccountAlias: "@destination", Amount: &credit}}},
+	}}
+	want, err := LegacyTransactionIdempotencyHash(original)
+	require.NoError(t, err)
+
+	queued := original
+	queued.Send.Source.From = append([]mtransaction.FromTo(nil), original.Send.Source.From...)
+	queued.Send.Distribute.To = append([]mtransaction.FromTo(nil), original.Send.Distribute.To...)
+	mtransaction.ApplyDefaultBalanceKeys(queued.Send.Source.From)
+	mtransaction.ApplyDefaultBalanceKeys(queued.Send.Distribute.To)
+	mtransaction.MutateConcatAliases(queued.Send.Source.From)
+	mtransaction.MutateConcatAliases(queued.Send.Distribute.To)
+	SanitizeAccountAliases(&queued)
+
+	got, err := LegacyTransactionIdempotencyHash(queued)
+	require.NoError(t, err)
+	assert.Equal(t, want, got,
+		"the backup snapshot must reproduce the exact old H1 after internal alias concatenation")
+}

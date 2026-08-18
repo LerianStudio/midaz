@@ -856,6 +856,7 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 		// Transaction domain
 		TransactionRepo:         txnPG.transactionRepo,
 		RevertClaimRepo:         txnPG.revertClaimRepo,
+		RevertRolloutLease:      revertRolloutGuard,
 		OperationRepo:           txnPG.operationRepo,
 		AssetRateRepo:           txnPG.assetRateRepo,
 		BalanceRepo:             txnPG.balanceRepo,

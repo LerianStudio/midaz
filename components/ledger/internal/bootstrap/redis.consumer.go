@@ -427,8 +427,7 @@ func (r *RedisQueueConsumer) processMessage(ctx context.Context, key, rawPayload
 		return
 	}
 
-	if m.Action == constant.ActionCommit || m.Action == constant.ActionCancel ||
-		(m.Action == constant.ActionRevert && (m.AttemptOwner != "" || m.ExpectedOutcome != "")) {
+	if requiresAtomicOutcomeBackup(m) {
 		if len(m.BalancesAfter) == 0 {
 			// A terminal lifecycle seed is written before Lua. Only Lua adds the
 			// after-state atomically with movement, so a seed alone is never a
@@ -439,25 +438,25 @@ func (r *RedisQueueConsumer) processMessage(ctx context.Context, key, rawPayload
 			return
 		}
 
-		if m.AttemptOwner != "" || m.ExpectedOutcome != "" {
-			rawOutcome, outcomeErr := r.TransactionHandler.Command.TransactionRedisRepo.Get(msgCtxWithSpan,
-				utils.TransactionBalanceOutcomeKey(m.OrganizationID, m.LedgerID, m.TransactionID))
-			if outcomeErr != nil || rawOutcome == "" {
-				logger.Log(msgCtxWithSpan, libLog.LevelError, "Transaction balance outcome is unavailable; backup retained",
-					libLog.String("transaction_id", m.TransactionID.String()), libLog.Err(outcomeErr))
+		rawOutcome, outcomeErr := r.TransactionHandler.Command.TransactionRedisRepo.Get(msgCtxWithSpan,
+			utils.TransactionBalanceOutcomeKey(m.OrganizationID, m.LedgerID, m.TransactionID))
+		if outcomeErr != nil || rawOutcome == "" {
+			logger.Log(msgCtxWithSpan, libLog.LevelError, "Transaction balance outcome is unavailable; backup retained",
+				libLog.String("transaction_id", m.TransactionID.String()), libLog.Err(outcomeErr))
 
-				return
-			}
+			return
+		}
 
-			outcome := mmodel.BalanceExecutionOutcome{}
-			if decodeErr := json.Unmarshal([]byte(rawOutcome), &outcome); decodeErr != nil ||
-				outcome.Identity != m.TransactionID || outcome.Owner != m.AttemptOwner ||
-				outcome.Outcome != m.ExpectedOutcome {
-				logger.Log(msgCtxWithSpan, libLog.LevelError, "Transaction balance outcome does not match backup; backup retained",
-					libLog.String("transaction_id", m.TransactionID.String()), libLog.Err(decodeErr))
+		outcome := mmodel.BalanceExecutionOutcome{}
+		if decodeErr := json.Unmarshal([]byte(rawOutcome), &outcome); decodeErr != nil ||
+			outcome.Identity != m.TransactionID || outcome.Owner != m.AttemptOwner ||
+			outcome.Outcome != m.ExpectedOutcome ||
+			!mmodel.RedisBalanceSetEconomicEqual(outcome.Before, m.Balances) ||
+			!mmodel.RedisBalanceSetEconomicEqual(outcome.After, m.BalancesAfter) {
+			logger.Log(msgCtxWithSpan, libLog.LevelError, "Transaction balance outcome does not match backup; backup retained",
+				libLog.String("transaction_id", m.TransactionID.String()), libLog.Err(decodeErr))
 
-				return
-			}
+			return
 		}
 	}
 
@@ -572,6 +571,8 @@ func (r *RedisQueueConsumer) processMessage(ctx context.Context, key, rawPayload
 			Code:        m.TransactionStatus,
 			Description: &m.TransactionStatus,
 		},
+		RevertRolloutMode:  m.RevertRolloutMode,
+		RevertRolloutToken: m.RevertRolloutToken,
 	}
 
 	// Prefer the action captured before movement, then fall back to the terminal
@@ -722,6 +723,10 @@ func (r *RedisQueueConsumer) processMessage(ctx context.Context, key, rawPayload
 	r.clearBackupAttempt(msgCtxWithSpan, logger, key)
 }
 
+func requiresAtomicOutcomeBackup(m mmodel.TransactionRedisQueue) bool {
+	return m.AttemptOwner != "" || m.ExpectedOutcome != ""
+}
+
 func balanceFromBackup(balance mmodel.BalanceRedis, organizationID, ledgerID uuid.UUID) *mmodel.Balance {
 	balanceKey := balance.Key
 	if balanceKey == "" {
@@ -783,13 +788,12 @@ func (r *RedisQueueConsumer) resolveBackupParentTransactionID(ctx context.Contex
 		return nil, "", err
 	}
 	if claim == nil {
-		// Before marker activation, phase zero keeps the released HTTP algorithm
-		// and therefore has no pre-movement claim. Its backup still carries the
-		// exact origin, and balance Lua writes BalancesAfter atomically with the
-		// movement. That pair is sufficient to persist the exact reverse;
-		// WriteTransactionAsync creates and completes the durable claim only after
-		// the child and every operation are durable. Marker-active phase zero has a
-		// claim before H1, while parent-less old-pod records remain untrusted.
+		// Every phase-zero-capable request has a claim before H1. A claim-less
+		// explicit-parent record therefore belongs to a genuinely old compatible
+		// pod. Its backup and Lua-authored BalancesAfter are sufficient to persist
+		// the exact reverse; WriteTransactionAsync adopts and completes a durable
+		// claim only after the child and every operation are durable. Parent-less
+		// old-pod records remain untrusted.
 		if m.ParentTransactionID != nil && *m.ParentTransactionID != uuid.Nil {
 			if len(m.BalancesAfter) == 0 {
 				drained, phaseErr := r.phaseZeroRequestsDrained(ctx)

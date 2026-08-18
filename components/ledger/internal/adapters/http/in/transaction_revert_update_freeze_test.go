@@ -9,6 +9,7 @@ import (
 	"errors"
 	"testing"
 
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -25,6 +26,8 @@ type revertUpdateFreezeStub struct {
 	readyRead        int
 	approvedReleases int
 	revertReleases   int
+	revertTokens     []string
+	revertAttempts   []string
 }
 
 func TestActiveRevertIdempotencyMode_ZeroValuePreservesReleasedAlgorithm(t *testing.T) {
@@ -63,7 +66,9 @@ func (s *revertUpdateFreezeStub) ReleaseApprovedUpdate(context.Context, string) 
 	return s.releaseErr
 }
 
-func (s *revertUpdateFreezeStub) AcquireRevert(context.Context, string, string) (bool, bool, string, error) {
+func (s *revertUpdateFreezeStub) AcquireRevert(_ context.Context, _ string, token, attemptID string) (bool, bool, string, error) {
+	s.revertTokens = append(s.revertTokens, token)
+	s.revertAttempts = append(s.revertAttempts, attemptID)
 	phase := ""
 	if s.active {
 		phase = "active"
@@ -72,13 +77,37 @@ func (s *revertUpdateFreezeStub) AcquireRevert(context.Context, string, string) 
 	return s.ready, s.ready, phase, s.err
 }
 
-func (s *revertUpdateFreezeStub) ReleaseRevert(context.Context, string, string) error {
+func TestAcquireRevertRolloutRequest_ReusesOriginTokenAfterCrash(t *testing.T) {
+	t.Parallel()
+
+	freeze := &revertUpdateFreezeStub{ready: true}
+	handler := &TransactionHandler{RevertIdempotencyMode: revertIdempotencyModeLegacy, RevertUpdateFreeze: freeze}
+	organizationID := uuid.New()
+	ledgerID := uuid.New()
+	originID := uuid.New()
+
+	_, firstToken, _, err := handler.acquireRevertRolloutRequest(context.Background(), organizationID, ledgerID, originID)
+	require.NoError(t, err)
+	_, retryToken, _, err := handler.acquireRevertRolloutRequest(context.Background(), organizationID, ledgerID, originID)
+	require.NoError(t, err)
+	_, otherToken, _, err := handler.acquireRevertRolloutRequest(context.Background(), organizationID, ledgerID, uuid.New())
+	require.NoError(t, err)
+
+	assert.Equal(t, firstToken, retryToken,
+		"a same-origin retry must own and release the exact admission stranded by a crashed request")
+	assert.NotEqual(t, firstToken, otherToken, "distinct economic origins must remain independent rollout blockers")
+	assert.Equal(t, []string{firstToken, retryToken, otherToken}, freeze.revertTokens)
+	assert.NotEqual(t, freeze.revertAttempts[0], freeze.revertAttempts[1],
+		"distinct HTTP attempts for one origin must not share release ownership")
+}
+
+func (s *revertUpdateFreezeStub) ReleaseRevert(context.Context, string, string, string) error {
 	s.revertReleases++
 
 	return s.releaseErr
 }
 
-func TestAcquireRolloutRequest_AmbiguousAdmissionOwnerReleasesBeforeMutation(t *testing.T) {
+func TestAcquireRolloutRequest_AmbiguousAdmissionPreservesSharedRevertOrigin(t *testing.T) {
 	t.Parallel()
 
 	acquireErr := errors.New("redis response lost")
@@ -103,21 +132,20 @@ func TestAcquireRolloutRequest_AmbiguousAdmissionOwnerReleasesBeforeMutation(t *
 		{
 			name: "revert",
 			invoke: func(handler *TransactionHandler) error {
-				_, _, err := handler.acquireRevertRolloutRequest(context.Background())
+				_, _, _, err := handler.acquireRevertRolloutRequest(context.Background(), uuid.New(), uuid.New(), uuid.New())
 
 				return err
 			},
-			wantRevert: 1,
+			wantRevert: 0,
 		},
 		{
-			name: "cleanup failure remains visible for reconciliation",
+			name: "revert admission remains durable when its response is ambiguous",
 			invoke: func(handler *TransactionHandler) error {
-				_, _, err := handler.acquireRevertRolloutRequest(context.Background())
+				_, _, _, err := handler.acquireRevertRolloutRequest(context.Background(), uuid.New(), uuid.New(), uuid.New())
 
 				return err
 			},
-			wantRevert:     1,
-			wantReleaseErr: true,
+			wantRevert: 0,
 		},
 	}
 

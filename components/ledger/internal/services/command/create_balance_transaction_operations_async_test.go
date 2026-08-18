@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"errors"
 	"testing"
+	"time"
 
 	libLog "github.com/LerianStudio/lib-observability/v2/log"
 	"github.com/google/uuid"
@@ -30,6 +31,48 @@ import (
 	"github.com/LerianStudio/midaz/v4/pkg/mtransaction"
 	"github.com/LerianStudio/midaz/v4/pkg/utils"
 )
+
+func TestSendTransactionToRedisQueue_PersistsPhaseZeroRolloutOwner(t *testing.T) {
+	t.Parallel()
+
+	ctrl := gomock.NewController(t)
+	redisRepo := redis.NewMockRedisRepository(ctrl)
+	organizationID := uuid.New()
+	ledgerID := uuid.New()
+	transactionID := uuid.New()
+	originID := uuid.New()
+	rolloutToken := uuid.NewString()
+	input := mtransaction.Transaction{Description: "phase-zero reverse", Send: mtransaction.Send{
+		Asset: "USD", Value: decimal.NewFromInt(10),
+	}}
+	attempt := &mmodel.BalanceExecutionAttempt{
+		Owner: transactionID.String(), Outcome: mmodel.TransactionOutcomeCommitted, Identity: transactionID,
+	}
+
+	redisRepo.EXPECT().SeedTransactionBackup(gomock.Any(), organizationID, ledgerID, transactionID,
+		gomock.Any(), *attempt).
+		DoAndReturn(func(_ context.Context, _, _, _ uuid.UUID, raw []byte, seededAttempt mmodel.BalanceExecutionAttempt) error {
+			queued := mmodel.TransactionRedisQueue{}
+			require.NoError(t, json.Unmarshal(raw, &queued))
+			assert.Equal(t, rolloutToken, queued.RevertRolloutToken)
+			assert.Equal(t, "legacy", queued.RevertRolloutMode)
+			assert.Equal(t, transactionID, queued.TransactionID)
+			assert.Equal(t, *attempt, seededAttempt)
+			require.NotNil(t, queued.ParentTransactionID)
+			assert.Equal(t, originID, *queued.ParentTransactionID)
+
+			return nil
+		})
+
+	uc := &UseCase{TransactionRedisRepo: redisRepo}
+	err := uc.SendTransactionToRedisQueue(context.Background(), organizationID, ledgerID, transactionID,
+		input, &mtransaction.Responses{}, constant.CREATED, constant.ActionRevert,
+		time.Date(2026, time.August, 18, 0, 0, 0, 0, time.UTC), nil, &originID,
+		TransactionBackupSeedOptions{
+			ExecutionAttempt: attempt, RevertRolloutMode: "legacy", RevertRolloutToken: rolloutToken,
+		})
+	require.NoError(t, err)
+}
 
 // Int64Ptr returns a pointer to the given int64 value
 func Int64Ptr(v int64) *int64 {

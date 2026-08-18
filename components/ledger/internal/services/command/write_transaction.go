@@ -52,12 +52,14 @@ func (uc *UseCase) WriteTransactionAsync(ctx context.Context, organizationID, le
 	queueData := make([]mmodel.QueueData, 0, 1)
 
 	value := transaction.TransactionProcessingPayload{
-		Validate:      validate,
-		Balances:      blc,
-		BalancesAfter: blcAfter,
-		Transaction:   tran,
-		Input:         transactionInput,
-		Version:       "v2",
+		Validate:           validate,
+		Balances:           blc,
+		BalancesAfter:      blcAfter,
+		Transaction:        tran,
+		Input:              transactionInput,
+		Version:            "v2",
+		RevertRolloutMode:  tran.RevertRolloutMode,
+		RevertRolloutToken: tran.RevertRolloutToken,
 	}
 	applyExecutionAttemptToPayload(&value, attempts)
 
@@ -128,12 +130,14 @@ func (uc *UseCase) WriteTransactionSync(ctx context.Context, organizationID, led
 	queueData := make([]mmodel.QueueData, 0, 1)
 
 	value := transaction.TransactionProcessingPayload{
-		Validate:      validate,
-		Balances:      blc,
-		BalancesAfter: blcAfter,
-		Transaction:   tran,
-		Input:         transactionInput,
-		Version:       "v2",
+		Validate:           validate,
+		Balances:           blc,
+		BalancesAfter:      blcAfter,
+		Transaction:        tran,
+		Input:              transactionInput,
+		Version:            "v2",
+		RevertRolloutMode:  tran.RevertRolloutMode,
+		RevertRolloutToken: tran.RevertRolloutToken,
 	}
 	applyExecutionAttemptToPayload(&value, attempts)
 

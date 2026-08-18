@@ -75,44 +75,71 @@ func (handler *TransactionHandler) requireRevertRolloutBarrier(ctx context.Conte
 	return nil
 }
 
-func (handler *TransactionHandler) acquireRevertRolloutRequest(ctx context.Context) (string, func() error, error) {
+func (handler *TransactionHandler) acquireRevertRolloutRequest(
+	ctx context.Context,
+	organizationID, ledgerID, originID uuid.UUID,
+) (string, string, func() error, error) {
 	if strings.TrimSpace(handler.RevertIdempotencyMode) == "" && handler.RevertUpdateFreeze == nil {
-		return "", nil, nil
+		return "", "", nil, nil
 	}
 	if handler.RevertUpdateFreeze == nil {
-		return "", nil, pkg.ValidateBusinessError(constant.ErrRevertRolloutFreezeRequired, constant.EntityTransaction)
+		return "", "", nil, pkg.ValidateBusinessError(constant.ErrRevertRolloutFreezeRequired, constant.EntityTransaction)
 	}
 
 	mode := handler.activeRevertIdempotencyMode()
-	token, err := newPodRequestToken()
+	// The origin token lets terminal recovery clear every attempt for one
+	// economic origin. The separate attempt ID makes admission and release
+	// idempotent under a lost Redis response without allowing one concurrent
+	// HTTP request to remove another request's rollout barrier.
+	token := libCommons.HashSHA256(strings.Join([]string{
+		organizationID.String(), ledgerID.String(), originID.String(),
+	}, ":"))
+	attemptID := uuid.NewString()
+	admitted, leaseHeld, phase, err := handler.RevertUpdateFreeze.AcquireRevert(ctx, mode, token, attemptID)
 	if err != nil {
-		return "", nil, err
-	}
-	admitted, leaseHeld, phase, err := handler.RevertUpdateFreeze.AcquireRevert(ctx, mode, token)
-	if err != nil {
-		acquireErr := fmt.Errorf("acquire revert rollout request lease: %w", err)
-
-		return "", nil, releaseAmbiguousRolloutAdmission(ctx, acquireErr, func(releaseCtx context.Context) error {
-			return handler.RevertUpdateFreeze.ReleaseRevert(releaseCtx, mode, token)
-		})
+		// The Lua admission is idempotent for this attempt ID. A lost response
+		// leaves a fail-closed barrier; retrying the exact admission or release
+		// cannot inflate or erase another attempt.
+		return "", "", nil, fmt.Errorf("acquire revert rollout request lease: %w", err)
 	}
 	if !admitted {
-		return "", nil, pkg.ValidateBusinessError(constant.ErrRevertRolloutFreezeRequired, constant.EntityTransaction)
+		return "", "", nil, pkg.ValidateBusinessError(constant.ErrRevertRolloutFreezeRequired, constant.EntityTransaction)
 	}
 	if !leaseHeld {
-		return phase, nil, nil
+		// Legacy/bridge can be admitted without a live attempt only when the
+		// origin is already terminally sealed. Preserve its deterministic origin
+		// token so the request follows the durable-claim replay path. Final mode
+		// never owns a generation drain token.
+		if mode != revertIdempotencyModeFinal {
+			return phase, token, nil, nil
+		}
+		return phase, "", nil, nil
 	}
 
-	return phase, func() error {
+	return phase, token, func() error {
 		releaseCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
 		defer cancel()
 
-		if err := handler.RevertUpdateFreeze.ReleaseRevert(releaseCtx, mode, token); err != nil {
+		if err := handler.RevertUpdateFreeze.ReleaseRevert(releaseCtx, mode, token, attemptID); err != nil {
 			return fmt.Errorf("release revert rollout request lease: %w", err)
 		}
 
 		return nil
 	}, nil
+}
+
+func (handler *TransactionHandler) revertRolloutBackupPending(
+	ctx context.Context,
+	organizationID, ledgerID, reverseID uuid.UUID,
+) bool {
+	if reverseID == uuid.Nil || handler.Command == nil || handler.Command.TransactionRedisRepo == nil {
+		return false
+	}
+
+	_, err := handler.Command.TransactionRedisRepo.ReadMessageFromQueue(ctx,
+		utils.TransactionInternalKey(organizationID, ledgerID, reverseID.String()))
+
+	return !errors.Is(err, redislib.Nil)
 }
 
 // releaseAmbiguousRolloutAdmission reconciles a lost admission response before
@@ -471,16 +498,14 @@ func (handler *TransactionHandler) loadCompleteReverse(ctx context.Context, clai
 	if !reverseMatchesClaim(persisted, claim) || len(persisted.Operations) == 0 {
 		return persisted, false, nil
 	}
-	if claim.State == revertclaim.StateCompleted {
-		return persisted, true, nil
-	}
 
 	backup, err := handler.Command.TransactionRedisRepo.ReadMessageFromQueue(ctx,
 		utils.TransactionInternalKey(claim.OrganizationID, claim.LedgerID, claim.ReverseTransactionID.String()))
 	if errors.Is(err, redislib.Nil) {
-		// Bridge adoption of a completed old-pod reverse has no claim state, and
-		// successful persistence removes its backup only after every operation.
-		return persisted, true, nil
+		// A terminal claim proves that the complete reverse was durable before its
+		// backup was removed. A non-terminal claim without its authoritative
+		// backup cannot prove whether Redis moved balances and must reconcile.
+		return persisted, claim.State == revertclaim.StateCompleted, nil
 	}
 	if err != nil {
 		return nil, false, fmt.Errorf("read reverse transaction backup: %w", err)
@@ -701,39 +726,49 @@ func (handler *TransactionHandler) settleFinalLegacyRevertBarrier(
 		return nil
 	}
 
-	// A completion response can be lost after Redis removed the owner. Accept
-	// only the exact durable replay; a resulting foreign/absent state remains
-	// outside final-mode admission and is deliberately left untouched.
-	current, readErr := handler.Command.TransactionRedisRepo.Get(ctx, legacyKey)
-	if readErr != nil && !errors.Is(readErr, redislib.Nil) {
+	// A completion response can be lost after Redis atomically materialized the
+	// replay and removed the owner. Both records must prove that exact terminal
+	// state; a surviving owner means the completion did not finish, while an
+	// absent or foreign value cannot prove which side of the response loss won.
+	verified, readErr := handler.Command.TransactionRedisRepo.MGet(ctx, []string{legacyKey, legacyKey + ":owner"})
+	if readErr != nil {
 		return handler.requireRevertReconciliation(ctx, claim, "legacy_revert_fence_verification_failed")
 	}
-	if current == "" {
-		return nil
-	}
+	current := verified[legacyKey]
 	existing := &transaction.Transaction{}
-	if json.Unmarshal([]byte(current), existing) == nil && reverseReplayMatchesDurable(existing, reverse, claim) {
+	if verified[legacyKey+":owner"] == "" && current != "" &&
+		json.Unmarshal([]byte(current), existing) == nil && reverseReplayMatchesDurable(existing, reverse, claim) {
 		return nil
 	}
 
-	return nil
+	return handler.requireRevertReconciliation(ctx, claim, "legacy_revert_fence_verification_failed")
 }
 
-func (handler *TransactionHandler) legacyRevertBarrierKeyForOrigin(ctx context.Context, organizationID, ledgerID, originID uuid.UUID) (string, error) {
-	origin, err := handler.Query.GetTransactionWithOperationsByID(ctx, organizationID, ledgerID, originID)
+func (handler *TransactionHandler) legacyRevertBarrierKeyFromBackup(
+	ctx context.Context,
+	organizationID, ledgerID, originID, reverseID uuid.UUID,
+) (string, error) {
+	backup, err := handler.Command.TransactionRedisRepo.ReadMessageFromQueue(ctx,
+		utils.TransactionInternalKey(organizationID, ledgerID, reverseID.String()))
 	if err != nil {
-		return "", err
+		if errors.Is(err, redislib.Nil) {
+			return "", pkg.ValidateBusinessError(constant.ErrRevertReconciliationRequired, constant.EntityTransaction)
+		}
+
+		return "", fmt.Errorf("read immutable legacy revert backup: %w", err)
 	}
-	if origin == nil {
+
+	queued := mmodel.TransactionRedisQueue{}
+	if err := json.Unmarshal(backup, &queued); err != nil {
+		return "", pkg.ValidateBusinessError(constant.ErrRevertReconciliationRequired, constant.EntityTransaction)
+	}
+	if queued.TransactionID != reverseID || queued.ParentTransactionID == nil ||
+		*queued.ParentTransactionID != originID || queued.OrganizationID != organizationID ||
+		queued.LedgerID != ledgerID || queued.TransactionInput.IsEmpty() {
 		return "", pkg.ValidateBusinessError(constant.ErrRevertReconciliationRequired, constant.EntityTransaction)
 	}
 
-	revertInput := origin.TransactionRevert()
-	if revertInput.IsEmpty() {
-		return "", pkg.ValidateBusinessError(constant.ErrRevertReconciliationRequired, constant.EntityTransaction)
-	}
-
-	legacyHash, err := legacyRevertIdempotencyHash(revertInput)
+	legacyHash, err := legacyRevertIdempotencyHash(queued.TransactionInput)
 	if err != nil {
 		return "", err
 	}

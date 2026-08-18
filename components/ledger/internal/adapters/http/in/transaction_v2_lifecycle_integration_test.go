@@ -1191,6 +1191,19 @@ func (r *pausedLegacyReplayRepository) CompleteUnownedKey(
 	return r.RedisRepository.CompleteUnownedKey(ctx, key, value, ttl)
 }
 
+func (r *pausedLegacyReplayRepository) CompleteOwnedKey(
+	ctx context.Context,
+	key, owner, value string,
+	ttl time.Duration,
+) (bool, error) {
+	if strings.HasPrefix(key, "idempotency:") && value != "" {
+		r.started <- struct{}{}
+		<-r.release
+	}
+
+	return r.RedisRepository.CompleteOwnedKey(ctx, key, owner, value, ttl)
+}
+
 func (r *lostLifecycleOutcomeResponseRepository) ProcessOutcomeBalanceAtomicOperation(
 	ctx context.Context,
 	organizationID, ledgerID, transactionID uuid.UUID,
@@ -1264,6 +1277,24 @@ func (r *pausedLegacyRevertBalanceRepository) ProcessBalanceAtomicOperation(
 
 	return r.RedisRepository.ProcessBalanceAtomicOperation(ctx, organizationID, ledgerID, transactionID,
 		transactionStatus, pending, balances)
+}
+
+func (r *pausedLegacyRevertBalanceRepository) ProcessOutcomeBalanceAtomicOperation(
+	ctx context.Context,
+	organizationID, ledgerID, transactionID uuid.UUID,
+	transactionStatus string,
+	pending bool,
+	balances []mmodel.BalanceOperation,
+	attempt mmodel.BalanceExecutionAttempt,
+) (*mmodel.BalanceAtomicResult, error) {
+	select {
+	case r.started <- struct{}{}:
+	default:
+	}
+	<-r.release
+
+	return r.RedisRepository.ProcessOutcomeBalanceAtomicOperation(ctx, organizationID, ledgerID, transactionID,
+		transactionStatus, pending, balances, attempt)
 }
 
 func (r *observedBalanceRepository) ProcessBalanceAtomicOperation(
@@ -1341,9 +1372,14 @@ func (r *failFirstOriginCompletionRepository) CompleteOwnedKey(
 	return r.RedisRepository.CompleteOwnedKey(ctx, key, owner, value, ttl)
 }
 
-func (r *lostSeedResponseRepository) AddMessageToQueue(ctx context.Context, key string, message []byte) error {
+func (r *lostSeedResponseRepository) SeedTransactionBackup(
+	ctx context.Context,
+	organizationID, ledgerID, transactionID uuid.UUID,
+	message []byte,
+	attempt mmodel.BalanceExecutionAttempt,
+) error {
 	call := r.seedCalls.Add(1)
-	if err := r.RedisRepository.AddMessageToQueue(ctx, key, message); err != nil {
+	if err := r.RedisRepository.SeedTransactionBackup(ctx, organizationID, ledgerID, transactionID, message, attempt); err != nil {
 		return err
 	}
 	if call == 1 {
@@ -2032,6 +2068,11 @@ func TestIntegration_TransactionPhaseZeroRevertLeaseBlocksDrainUntilRequestCompl
 	<-pausedRepo.started
 	require.Error(t, infra.revertFreeze.MarkPhaseZeroDrained(ctx),
 		"phase-zero drain must be serialized after every admitted legacy revert")
+	loser, _, loserErr := infra.handler.revertTransaction(ctx, infra.orgID, infra.ledgerID, originID)
+	require.Error(t, loserErr)
+	require.Nil(t, loser)
+	require.Error(t, infra.revertFreeze.MarkPhaseZeroDrained(ctx),
+		"a same-origin loser shares the durable origin admission and cannot release it underneath the paused winner")
 	close(pausedRepo.release)
 	reverse := <-result
 	require.NoError(t, reverse.err)
@@ -2072,8 +2113,11 @@ func TestIntegration_TransactionPhaseZeroDrainWaitsForLegacyReplayPublication(t 
 	}()
 
 	<-pausedRepo.started
-	legacyKey, err := infra.handler.legacyRevertBarrierKeyForOrigin(ctx, infra.orgID, infra.ledgerID, originID)
+	originTransaction, err := infra.handler.Query.GetTransactionWithOperationsByID(ctx, infra.orgID, infra.ledgerID, originID)
 	require.NoError(t, err)
+	legacyHash, err := legacyRevertIdempotencyHash(originTransaction.TransactionRevert())
+	require.NoError(t, err)
+	legacyKey := utils.IdempotencyInternalKey(infra.orgID, infra.ledgerID, legacyHash)
 	fenceTTL, err := infra.redisContainer.Client.TTL(ctx, legacyKey).Result()
 	require.NoError(t, err)
 	require.Equal(t, time.Duration(-1), fenceTTL, "phase-zero request fence must not expire before replay publication")
@@ -2446,7 +2490,7 @@ func TestIntegration_TransactionPhaseZeroCrashBeforeSeedHasDurableRecoverableH1O
 	originID := uuid.MustParse(origin["id"].(string))
 	drainBalanceSync(t, ctx, infra.handler.Command, infra.redisRepo, infra.orgID, infra.ledgerID)
 
-	activateRevertUpdateFreeze(t, infra)
+	require.NoError(t, infra.redisContainer.Client.Del(ctx, transactionredis.RevertUpdateFreezeKey).Err())
 	infra.handler.RevertIdempotencyMode = revertIdempotencyModeLegacy
 	originalLedgerRepo := infra.handler.Query.LedgerRepo
 	crashingLedgerRepo := &panicOnceLedgerSettingsRepository{Repository: originalLedgerRepo}
@@ -2473,6 +2517,8 @@ func TestIntegration_TransactionPhaseZeroCrashBeforeSeedHasDurableRecoverableH1O
 	backupKey := utils.TransactionInternalKey(infra.orgID, infra.ledgerID, claim.ReverseTransactionID.String())
 	_, err = infra.redisRepo.ReadMessageFromQueue(ctx, backupKey)
 	require.ErrorIs(t, err, redislib.Nil, "the crash point is proven before queue seed")
+	require.Error(t, infra.revertFreeze.Activate(ctx),
+		"a crash after claim and H1 must keep marker activation blocked until the same origin is recovered")
 
 	executionKey := utils.TransactionBalanceExecutionKey(infra.orgID, infra.ledgerID, claim.ReverseTransactionID)
 	require.NoError(t, infra.redisContainer.Client.Del(ctx, executionKey, executionKey+":owner").Err(),
@@ -2485,6 +2531,75 @@ func TestIntegration_TransactionPhaseZeroCrashBeforeSeedHasDurableRecoverableH1O
 	require.Equal(t, originID.String(), *reverse.ParentTransactionID)
 	require.NotEqual(t, claim.ReverseTransactionID.String(), reverse.ID,
 		"pre-movement recovery releases the abandoned reserved ID before retry")
+	originRolloutToken := libCommons.HashSHA256(strings.Join([]string{
+		infra.orgID.String(), infra.ledgerID.String(), originID.String(),
+	}, ":"))
+	terminalAdmitted, terminalLease, _, terminalErr := infra.revertFreeze.AcquireRevert(ctx,
+		revertIdempotencyModeLegacy, originRolloutToken, "post-terminal-probe")
+	require.NoError(t, terminalErr)
+	require.True(t, terminalAdmitted)
+	require.False(t, terminalLease,
+		"terminal handoff must seal the origin before removing its rollout attempts")
+	require.NoError(t, infra.revertFreeze.Activate(ctx),
+		"the retry releases the deterministic origin admission only after its terminal handoff")
+	replayedReverse, replayed, err := infra.handler.revertTransaction(ctx, infra.orgID, infra.ledgerID, originID)
+	require.NoError(t, err)
+	require.True(t, replayed)
+	require.Equal(t, reverse.ID, replayedReverse.ID,
+		"a completed phase-zero claim must replay after its terminal backup has been cleaned")
+
+	drainBalanceSync(t, ctx, infra.handler.Command, infra.redisRepo, infra.orgID, infra.ledgerID)
+	require.Equal(t, 2, countTransactionsInLedger(t, infra.pgContainer.DB, infra.ledgerID))
+	requireDecimalEqual(t, decimal.NewFromInt(1000),
+		postgrestestutil.GetBalanceAvailable(t, infra.pgContainer.DB, srcID), "source restored once")
+	requireDecimalEqual(t, decimal.NewFromInt(1000),
+		postgrestestutil.GetBalanceAvailable(t, infra.pgContainer.DB, dstID), "destination restored once")
+}
+
+func TestIntegration_TransactionBridgeCrashPreservesExactGenerationDrainUntilRecovery(t *testing.T) {
+	t.Setenv("ALLOW_INSECURE_TLS", "true")
+	t.Setenv("RABBITMQ_TRANSACTION_ASYNC", "false")
+
+	infra := setupTestInfra(t)
+	ctx := context.Background()
+	srcID, dstID := seedFundedTransfer(t, infra.pgContainer.DB, infra.orgID, infra.ledgerID,
+		"@src", "@dst", 1000, 1000)
+	v2App := buildHumaV2DirectApp(t, infra.handler)
+	origin := decodeTxResponse(t, postV2Create(t, v2App, "direct", infra.orgID, infra.ledgerID,
+		equivalentV2Body, "bridge-crash-before-seed"), nethttp.StatusCreated)
+	originID := uuid.MustParse(origin["id"].(string))
+	drainBalanceSync(t, ctx, infra.handler.Command, infra.redisRepo, infra.orgID, infra.ledgerID)
+
+	activateRevertUpdateFreeze(t, infra)
+	infra.handler.RevertIdempotencyMode = revertIdempotencyModeBridge
+	originalLedgerRepo := infra.handler.Query.LedgerRepo
+	crashingLedgerRepo := &panicOnceLedgerSettingsRepository{Repository: originalLedgerRepo}
+	crashingLedgerRepo.panicNext.Store(true)
+	infra.handler.Query.LedgerRepo = crashingLedgerRepo
+	infra.handler.Query.OnboardingRedisRepo = nil
+
+	require.Panics(t, func() {
+		_, _, _ = infra.handler.revertTransaction(ctx, infra.orgID, infra.ledgerID, originID)
+	})
+	infra.handler.Query.LedgerRepo = originalLedgerRepo
+
+	claim, err := infra.handler.Command.GetRevertClaim(ctx, infra.orgID, infra.ledgerID, originID)
+	require.NoError(t, err)
+	require.NotNil(t, claim)
+	require.NoError(t, infra.revertFreeze.MarkPhaseZeroDrained(ctx),
+		"phase-zero drain is independent from an admitted bridge origin")
+	require.Error(t, infra.revertFreeze.Finalize(ctx),
+		"a bridge crash after its durable claim must keep the bridge generation fenced")
+
+	executionKey := utils.TransactionBalanceExecutionKey(infra.orgID, infra.ledgerID, claim.ReverseTransactionID)
+	require.NoError(t, infra.redisContainer.Client.Del(ctx, executionKey, executionKey+":owner").Err())
+	reverse, replayed, err := infra.handler.revertTransaction(ctx, infra.orgID, infra.ledgerID, originID)
+	require.NoError(t, err)
+	require.NotNil(t, reverse)
+	require.False(t, replayed)
+	require.Equal(t, originID.String(), *reverse.ParentTransactionID)
+	require.NoError(t, infra.revertFreeze.Finalize(ctx),
+		"terminal recovery must release the bridge set, not the phase-zero set")
 
 	drainBalanceSync(t, ctx, infra.handler.Command, infra.redisRepo, infra.orgID, infra.ledgerID)
 	require.Equal(t, 2, countTransactionsInLedger(t, infra.pgContainer.DB, infra.ledgerID))
@@ -2593,9 +2708,14 @@ type pausedSeedResponseRepository struct {
 	seedCalls    atomic.Int32
 }
 
-func (r *pausedSeedResponseRepository) AddMessageToQueue(ctx context.Context, key string, message []byte) error {
+func (r *pausedSeedResponseRepository) SeedTransactionBackup(
+	ctx context.Context,
+	organizationID, ledgerID, transactionID uuid.UUID,
+	message []byte,
+	attempt mmodel.BalanceExecutionAttempt,
+) error {
 	call := r.seedCalls.Add(1)
-	if err := r.RedisRepository.AddMessageToQueue(ctx, key, message); err != nil {
+	if err := r.RedisRepository.SeedTransactionBackup(ctx, organizationID, ledgerID, transactionID, message, attempt); err != nil {
 		return err
 	}
 	if call != 1 {
@@ -2606,7 +2726,7 @@ func (r *pausedSeedResponseRepository) AddMessageToQueue(ctx context.Context, ke
 	if err := json.Unmarshal(message, &queued); err != nil {
 		return err
 	}
-	r.firstStarted <- queued.TransactionID
+	r.firstStarted <- transactionID
 	<-r.releaseFirst
 
 	return errors.New("simulated stale seed response after successor takeover")
@@ -2663,7 +2783,15 @@ func TestIntegration_TransactionV2Revert_ExpiredExecutionLeaseFencesPausedWinner
 		firstResult <- revertResult{transaction: tran, err: err}
 	}()
 
-	pausedReverseID := <-pausedRepo.firstStarted
+	var pausedReverseID uuid.UUID
+	select {
+	case pausedReverseID = <-pausedRepo.firstStarted:
+	case early := <-firstResult:
+		require.NoError(t, early.err, "first revert returned before reaching the paused seed")
+		require.FailNow(t, "first revert returned before reaching the paused seed")
+	case <-time.After(10 * time.Second):
+		require.FailNow(t, "first revert did not reach the paused seed")
+	}
 	claim, err := infra.handler.Command.GetRevertClaim(ctx, infra.orgID, infra.ledgerID, originID)
 	require.NoError(t, err)
 	require.NotNil(t, claim)
@@ -2736,7 +2864,15 @@ func TestIntegration_TransactionV2Revert_PausedSeedWriterCannotDeleteSuccessorRe
 		firstResult <- revertResult{transaction: tran, err: err}
 	}()
 
-	pausedReverseID := <-pausedRepo.firstStarted
+	var pausedReverseID uuid.UUID
+	select {
+	case pausedReverseID = <-pausedRepo.firstStarted:
+	case early := <-firstResult:
+		require.NoError(t, early.err, "first revert returned before reaching the paused seed")
+		require.FailNow(t, "first revert returned before reaching the paused seed")
+	case <-time.After(10 * time.Second):
+		require.FailNow(t, "first revert did not reach the paused seed")
+	}
 	oldClaim, err := infra.handler.Command.GetRevertClaim(ctx, infra.orgID, infra.ledgerID, originID)
 	require.NoError(t, err)
 	require.NotNil(t, oldClaim)

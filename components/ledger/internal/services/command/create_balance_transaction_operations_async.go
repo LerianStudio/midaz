@@ -359,11 +359,17 @@ func (uc *UseCase) RemoveTransactionFromRedisQueueIfStatus(
 	}
 }
 
+type TransactionBackupSeedOptions struct {
+	ExecutionAttempt   *mmodel.BalanceExecutionAttempt
+	RevertRolloutMode  string
+	RevertRolloutToken string
+}
+
 // SendTransactionToRedisQueue func that send transaction to redis queue.
 // When balances is non-nil (e.g. commit/cancel flows), the snapshot is included
 // directly in the backup message so the Redis consumer can retry without relying
 // on the Lua script to populate them.
-func (uc *UseCase) SendTransactionToRedisQueue(ctx context.Context, organizationID, ledgerID, transactionID uuid.UUID, transactionInput mtransaction.Transaction, validate *mtransaction.Responses, transactionStatus, action string, transactionDate time.Time, balances []*mmodel.Balance, parentTransactionID *uuid.UUID, attempts ...*mmodel.BalanceExecutionAttempt) error {
+func (uc *UseCase) SendTransactionToRedisQueue(ctx context.Context, organizationID, ledgerID, transactionID uuid.UUID, transactionInput mtransaction.Transaction, validate *mtransaction.Responses, transactionStatus, action string, transactionDate time.Time, balances []*mmodel.Balance, parentTransactionID *uuid.UUID, options ...TransactionBackupSeedOptions) error {
 	logger, _, reqId, _ := libObservability.NewTrackingFromContext(ctx)
 	transactionKey := utils.TransactionInternalKey(organizationID, ledgerID, transactionID.String())
 
@@ -432,8 +438,19 @@ func (uc *UseCase) SendTransactionToRedisQueue(ctx context.Context, organization
 		queue.ParentTransactionID = parentTransactionID
 	}
 	var executionAttempt *mmodel.BalanceExecutionAttempt
-	if len(attempts) > 0 && attempts[0] != nil {
-		executionAttempt = attempts[0]
+	if len(options) > 0 {
+		executionAttempt = options[0].ExecutionAttempt
+		queue.RevertRolloutMode = options[0].RevertRolloutMode
+		queue.RevertRolloutToken = options[0].RevertRolloutToken
+	}
+	validRolloutMode := queue.RevertRolloutMode == "legacy" || queue.RevertRolloutMode == "bridge"
+	if (queue.RevertRolloutToken == "") != (queue.RevertRolloutMode == "") ||
+		(queue.RevertRolloutToken != "" && (!validRolloutMode || queue.ParentTransactionID == nil ||
+			transactionInput.IsEmpty() || executionAttempt == nil || executionAttempt.Owner != transactionID.String() ||
+			executionAttempt.Outcome != mmodel.TransactionOutcomeCommitted)) {
+		return fmt.Errorf("rollout revert backup requires exact generation, origin, input, and committed outcome owner")
+	}
+	if executionAttempt != nil {
 		queue.AttemptOwner = executionAttempt.Owner
 		queue.ExpectedOutcome = executionAttempt.Outcome
 	}

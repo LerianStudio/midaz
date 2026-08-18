@@ -30,6 +30,8 @@ type transactionPathParams struct {
 	ReservedTransactionID uuid.UUID
 	RevertExecution       *revertExecutionState
 	ExecutionAttempt      *mmodel.BalanceExecutionAttempt
+	RevertRolloutMode     string
+	RevertRolloutToken    string
 }
 
 type revertExecutionState struct {

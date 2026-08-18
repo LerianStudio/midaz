@@ -184,7 +184,7 @@ func arrangeReplayedRevert(t *testing.T, ctrl *gomock.Controller) (*TransactionH
 		ReadMessageFromQueue(gomock.Any(),
 			utils.TransactionInternalKey(subjects.orgID, subjects.ledgerID, subjects.reverseID.String())).
 		Return(nil, redislib.Nil).
-		Times(1)
+		Times(2)
 	redisRepo.EXPECT().
 		FinalizeTransactionPersistence(gomock.Any(), subjects.orgID, subjects.ledgerID, subjects.reverseID,
 			mmodel.BalanceExecutionAttempt{

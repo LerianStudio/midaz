@@ -460,3 +460,50 @@ func TestBalanceRedis_UnmarshalJSON_OtherFields(t *testing.T) {
 	assert.Equal(t, 0, br.AllowReceiving)
 	assert.Equal(t, "merchant-reserve", br.Key)
 }
+
+func TestRedisBalanceSetEconomicEqual_RequiresCompleteCanonicalEffect(t *testing.T) {
+	t.Parallel()
+
+	base := BalanceRedis{
+		ID: "balance-a", Alias: "@source", Key: "default", AccountID: "account-a", AssetCode: "USD",
+		Available: decimal.NewFromInt(100), OnHold: decimal.NewFromInt(10), Version: 7,
+		AccountType: "asset", AllowSending: 1, AllowReceiving: 1, Direction: "debit",
+		OverdraftUsed: "10.00", AllowOverdraft: 1, OverdraftLimitEnabled: 1,
+		OverdraftLimit: "50.0", BalanceScope: BalanceScopeTransactional,
+	}
+	second := base
+	second.ID = "balance-b"
+	second.AccountID = "account-b"
+	reorderedA := []BalanceRedis{base, second}
+	canonicalBase := base
+	canonicalBase.OverdraftUsed = "10"
+	canonicalBase.OverdraftLimit = "50.000"
+	reorderedB := []BalanceRedis{second, canonicalBase}
+	require.True(t, RedisBalanceSetEconomicEqual(reorderedA, reorderedB))
+
+	mutations := []struct {
+		name   string
+		mutate func(*BalanceRedis)
+	}{
+		{name: "identity", mutate: func(balance *BalanceRedis) { balance.ID = "other" }},
+		{name: "balance key", mutate: func(balance *BalanceRedis) { balance.Key = "settlement" }},
+		{name: "account", mutate: func(balance *BalanceRedis) { balance.AccountID = "other" }},
+		{name: "asset", mutate: func(balance *BalanceRedis) { balance.AssetCode = "BRL" }},
+		{name: "available", mutate: func(balance *BalanceRedis) { balance.Available = decimal.NewFromInt(99) }},
+		{name: "on hold", mutate: func(balance *BalanceRedis) { balance.OnHold = decimal.NewFromInt(9) }},
+		{name: "version", mutate: func(balance *BalanceRedis) { balance.Version++ }},
+		{name: "direction", mutate: func(balance *BalanceRedis) { balance.Direction = "credit" }},
+		{name: "overdraft", mutate: func(balance *BalanceRedis) { balance.OverdraftUsed = "11" }},
+		{name: "overdraft limit", mutate: func(balance *BalanceRedis) { balance.OverdraftLimit = "51" }},
+		{name: "scope", mutate: func(balance *BalanceRedis) { balance.BalanceScope = BalanceScopeInternal }},
+	}
+	for _, tc := range mutations {
+		t.Run(tc.name, func(t *testing.T) {
+			changed := base
+			tc.mutate(&changed)
+			assert.False(t, RedisBalanceSetEconomicEqual([]BalanceRedis{base}, []BalanceRedis{changed}))
+		})
+	}
+	assert.False(t, RedisBalanceSetEconomicEqual([]BalanceRedis{base, base}, []BalanceRedis{base, base}),
+		"duplicate economic identities are not authoritative evidence")
+}

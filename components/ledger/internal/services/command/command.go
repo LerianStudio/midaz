@@ -5,6 +5,8 @@
 package command
 
 import (
+	"context"
+
 	"github.com/LerianStudio/lib-observability/v2/metrics"
 	libStreaming "github.com/LerianStudio/lib-streaming/v2"
 	billing "github.com/LerianStudio/lib-streaming/v2/billing"
@@ -86,6 +88,13 @@ type UseCase struct {
 	// RevertClaimRepo owns the durable origin-scoped fence for transaction
 	// reversals. It is mandatory for the live revert path.
 	RevertClaimRepo revertclaim.Repository
+
+	// RevertRolloutLease releases the exact phase-zero or bridge generation
+	// admission only after the unified terminal handoff proves durable
+	// persistence.
+	RevertRolloutLease interface {
+		CompleteRevert(context.Context, string, string) error
+	}
 
 	// OperationRepo provides an abstraction on top of the operation data source.
 	OperationRepo operation.Repository

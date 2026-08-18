@@ -195,6 +195,13 @@ type Transaction struct {
 
 	// List of operations associated with this transaction
 	Operations []*operation.Operation `json:"operations"`
+
+	// RevertRolloutMode and RevertRolloutToken are transient handoff state for a
+	// generation-scoped reverse admission. They are carried through Redis and
+	// RabbitMQ until the complete transaction and operations are durable, but are
+	// never persisted or exposed.
+	RevertRolloutMode  string `json:"-" msgpack:"-"`
+	RevertRolloutToken string `json:"-" msgpack:"-"`
 }
 
 // IDtoUUID is a func that convert UUID string to uuid.UUID
@@ -451,6 +458,12 @@ type TransactionProcessingPayload struct {
 	// outcome handoff through RabbitMQ until PostgreSQL persistence is complete.
 	AttemptOwner    string `json:"attemptOwner,omitempty" msgpack:"AttemptOwner,omitempty"`
 	ExpectedOutcome string `json:"expectedOutcome,omitempty" msgpack:"ExpectedOutcome,omitempty"`
+
+	// RevertRolloutMode and RevertRolloutToken keep the exact generation's
+	// admission fenced until the terminal handoff proves PostgreSQL and cleans
+	// Redis.
+	RevertRolloutMode  string `json:"revertRolloutMode,omitempty" msgpack:"RevertRolloutMode,omitempty"`
+	RevertRolloutToken string `json:"revertRolloutToken,omitempty" msgpack:"RevertRolloutToken,omitempty"`
 }
 
 // TransactionResponse represents a success response containing a single transaction.

@@ -928,6 +928,56 @@ func TestCompleteLegacyRevertBarrier_FailureAfterMovementNeverReleasesFence(t *t
 	// in this post-movement failure path makes the test fail through gomock.
 }
 
+func TestSettleFinalLegacyRevertBarrier_LostCompletionWithOwnerStillPresentRequiresReconciliation(t *testing.T) {
+	t.Parallel()
+
+	ctrl := gomock.NewController(t)
+	claimRepo := revertclaim.NewMockRepository(ctrl)
+	redisRepo := redis.NewMockRedisRepository(ctrl)
+	legacyKey := "legacy-fence"
+	claim := &revertclaim.Claim{
+		OrganizationID:       uuid.New(),
+		LedgerID:             uuid.New(),
+		OriginTransactionID:  uuid.New(),
+		ReverseTransactionID: uuid.New(),
+		LegacyFenceKey:       &legacyKey,
+	}
+	legacyOwner := claim.ReverseTransactionID.String()
+	claim.LegacyFenceOwner = &legacyOwner
+	originID := claim.OriginTransactionID.String()
+	reverse := &transaction.Transaction{
+		ID:                  claim.ReverseTransactionID.String(),
+		ParentTransactionID: &originID,
+	}
+	replay, err := json.Marshal(reverse)
+	require.NoError(t, err)
+
+	redisRepo.EXPECT().MGet(gomock.Any(), []string{legacyKey, legacyKey + ":owner"}).Return(map[string]string{
+		legacyKey:            "",
+		legacyKey + ":owner": legacyOwner,
+	}, nil)
+	redisRepo.EXPECT().CompleteOwnedKey(gomock.Any(), legacyKey, legacyOwner, gomock.Any(), gomock.Any()).
+		Return(false, errors.New("lost completion response"))
+	redisRepo.EXPECT().MGet(gomock.Any(), []string{legacyKey, legacyKey + ":owner"}).Return(map[string]string{
+		legacyKey:            string(replay),
+		legacyKey + ":owner": legacyOwner,
+	}, nil)
+	reason := "legacy_revert_fence_verification_failed"
+	claimRepo.EXPECT().Transition(gomock.Any(), claim.OrganizationID, claim.LedgerID,
+		claim.OriginTransactionID, claim.ReverseTransactionID,
+		revertclaim.StateReconciliationRequired, &reason).Return(nil)
+
+	handler := &TransactionHandler{Command: &command.UseCase{
+		RevertClaimRepo:      claimRepo,
+		TransactionRedisRepo: redisRepo,
+	}}
+	err = handler.settleFinalLegacyRevertBarrier(context.Background(), claim, legacyKey, reverse)
+
+	var unavailable pkg.ServiceUnavailableError
+	require.ErrorAs(t, err, &unavailable)
+	assert.Equal(t, constant.ErrRevertReconciliationRequired.Error(), unavailable.Code)
+}
+
 func TestResolveDurableRevertClaim_CrashAfterBalanceNeverStartsAnotherMutation(t *testing.T) {
 	t.Parallel()
 
@@ -1353,6 +1403,91 @@ func TestLoadCompleteReverse_PartialOperationSetIsNotReplayable(t *testing.T) {
 func TestLoadCompleteReverse_SameOperationIDsWithDifferentBalanceSnapshotsRequireReconciliation(t *testing.T) {
 	t.Parallel()
 
+	for _, outcomeBacked := range []bool{false, true} {
+		t.Run(map[bool]string{false: "legacy phase zero", true: "outcome backed"}[outcomeBacked], func(t *testing.T) {
+			t.Parallel()
+
+			ctrl := gomock.NewController(t)
+			transactionRepo := transaction.NewMockRepository(ctrl)
+			metadataRepo := mongodb.NewMockRepository(ctrl)
+			redisRepo := redis.NewMockRedisRepository(ctrl)
+			claim := &revertclaim.Claim{
+				OrganizationID:       uuid.New(),
+				LedgerID:             uuid.New(),
+				OriginTransactionID:  uuid.New(),
+				ReverseTransactionID: uuid.New(),
+				State:                revertclaim.StateCompleted,
+			}
+			originID := claim.OriginTransactionID.String()
+			availableBefore := decimal.NewFromInt(100)
+			availableAfter := decimal.NewFromInt(90)
+			onHold := decimal.Zero
+			versionBefore := int64(1)
+			versionAfter := int64(2)
+			persistedOperation := &operation.Operation{
+				ID:        uuid.NewString(),
+				BalanceID: uuid.NewString(),
+				Balance: operation.Balance{
+					Available: &availableBefore,
+					OnHold:    &onHold,
+					Version:   &versionBefore,
+				},
+				BalanceAfter: operation.Balance{
+					Available: &availableAfter,
+					OnHold:    &onHold,
+					Version:   &versionAfter,
+				},
+				Snapshot: mmodel.OperationSnapshot{
+					OverdraftUsedBefore: "0",
+					OverdraftUsedAfter:  "0",
+				},
+			}
+			persisted := &transaction.Transaction{
+				ID:                  claim.ReverseTransactionID.String(),
+				ParentTransactionID: &originID,
+				Operations:          []*operation.Operation{persistedOperation},
+			}
+			queuedOperation := persistedOperation.ToRedis()
+			queuedOperation.BalanceAfterAvailable = decimal.NewFromInt(89)
+			queued := mmodel.TransactionRedisQueue{
+				TransactionID:       claim.ReverseTransactionID,
+				ParentTransactionID: &claim.OriginTransactionID,
+				Operations:          []mmodel.OperationRedis{queuedOperation},
+			}
+			if outcomeBacked {
+				queued.AttemptOwner = claim.ReverseTransactionID.String()
+				queued.ExpectedOutcome = mmodel.TransactionOutcomeCommitted
+				queued.BalancesAfter = []mmodel.BalanceRedis{{ID: persistedOperation.BalanceID}}
+			}
+			backup, err := json.Marshal(queued)
+			require.NoError(t, err)
+
+			transactionRepo.EXPECT().FindWithOperations(gomock.Any(), claim.OrganizationID, claim.LedgerID,
+				claim.ReverseTransactionID).Return(persisted, nil)
+			metadataRepo.EXPECT().FindByEntity(gomock.Any(), constant.EntityTransaction,
+				claim.ReverseTransactionID.String()).Return(nil, nil)
+			redisRepo.EXPECT().ReadMessageFromQueue(gomock.Any(),
+				utils.TransactionInternalKey(claim.OrganizationID, claim.LedgerID,
+					claim.ReverseTransactionID.String())).Return(backup, nil)
+
+			handler := &TransactionHandler{
+				Query: &query.UseCase{
+					TransactionRepo:         transactionRepo,
+					TransactionMetadataRepo: metadataRepo,
+				},
+				Command: &command.UseCase{TransactionRedisRepo: redisRepo},
+			}
+			result, complete, err := handler.loadCompleteReverse(context.Background(), claim)
+			require.NoError(t, err)
+			assert.Same(t, persisted, result)
+			assert.False(t, complete, "a completed claim cannot authorize cleanup of divergent economic evidence")
+		})
+	}
+}
+
+func TestLoadCompleteReverse_NonTerminalClaimWithoutBackupRequiresReconciliation(t *testing.T) {
+	t.Parallel()
+
 	ctrl := gomock.NewController(t)
 	transactionRepo := transaction.NewMockRepository(ctrl)
 	metadataRepo := mongodb.NewMockRepository(ctrl)
@@ -1365,50 +1500,18 @@ func TestLoadCompleteReverse_SameOperationIDsWithDifferentBalanceSnapshotsRequir
 		State:                revertclaim.StateMutated,
 	}
 	originID := claim.OriginTransactionID.String()
-	availableBefore := decimal.NewFromInt(100)
-	availableAfter := decimal.NewFromInt(90)
-	onHold := decimal.Zero
-	versionBefore := int64(1)
-	versionAfter := int64(2)
-	persistedOperation := &operation.Operation{
-		ID:        uuid.NewString(),
-		BalanceID: uuid.NewString(),
-		Balance: operation.Balance{
-			Available: &availableBefore,
-			OnHold:    &onHold,
-			Version:   &versionBefore,
-		},
-		BalanceAfter: operation.Balance{
-			Available: &availableAfter,
-			OnHold:    &onHold,
-			Version:   &versionAfter,
-		},
-		Snapshot: mmodel.OperationSnapshot{
-			OverdraftUsedBefore: "0",
-			OverdraftUsedAfter:  "0",
-		},
-	}
 	persisted := &transaction.Transaction{
 		ID:                  claim.ReverseTransactionID.String(),
 		ParentTransactionID: &originID,
-		Operations:          []*operation.Operation{persistedOperation},
+		Operations:          []*operation.Operation{{ID: uuid.NewString()}},
 	}
-	queuedOperation := persistedOperation.ToRedis()
-	queuedOperation.BalanceAfterAvailable = decimal.NewFromInt(89)
-	backup, err := json.Marshal(mmodel.TransactionRedisQueue{
-		TransactionID:       claim.ReverseTransactionID,
-		ParentTransactionID: &claim.OriginTransactionID,
-		Operations:          []mmodel.OperationRedis{queuedOperation},
-	})
-	require.NoError(t, err)
-
 	transactionRepo.EXPECT().FindWithOperations(gomock.Any(), claim.OrganizationID, claim.LedgerID,
 		claim.ReverseTransactionID).Return(persisted, nil)
 	metadataRepo.EXPECT().FindByEntity(gomock.Any(), constant.EntityTransaction,
 		claim.ReverseTransactionID.String()).Return(nil, nil)
 	redisRepo.EXPECT().ReadMessageFromQueue(gomock.Any(),
 		utils.TransactionInternalKey(claim.OrganizationID, claim.LedgerID,
-			claim.ReverseTransactionID.String())).Return(backup, nil)
+			claim.ReverseTransactionID.String())).Return(nil, redislib.Nil)
 
 	handler := &TransactionHandler{
 		Query: &query.UseCase{
@@ -1420,7 +1523,72 @@ func TestLoadCompleteReverse_SameOperationIDsWithDifferentBalanceSnapshotsRequir
 	result, complete, err := handler.loadCompleteReverse(context.Background(), claim)
 	require.NoError(t, err)
 	assert.Same(t, persisted, result)
-	assert.False(t, complete, "operation IDs alone cannot authorize terminal cleanup")
+	assert.False(t, complete)
+}
+
+func TestLegacyRevertBarrierKeyFromBackup_UsesImmutableOriginSnapshot(t *testing.T) {
+	t.Parallel()
+
+	ctrl := gomock.NewController(t)
+	redisRepo := redis.NewMockRedisRepository(ctrl)
+	organizationID := uuid.New()
+	ledgerID := uuid.New()
+	originID := uuid.New()
+	reverseID := uuid.New()
+	debit := mtransaction.Amount{Asset: "USD", Value: decimal.NewFromInt(10), Operation: constant.DEBIT}
+	credit := mtransaction.Amount{Asset: "USD", Value: decimal.NewFromInt(10), Operation: constant.CREDIT}
+	immutableInput := mtransaction.Transaction{
+		Description: "description at old reverse admission",
+		Send: mtransaction.Send{
+			Asset:      "USD",
+			Value:      decimal.NewFromInt(10),
+			Source:     mtransaction.Source{From: []mtransaction.FromTo{{AccountAlias: "@source", Amount: &debit}}},
+			Distribute: mtransaction.Distribute{To: []mtransaction.FromTo{{AccountAlias: "@destination", Amount: &credit}}},
+		},
+	}
+	backup, err := json.Marshal(mmodel.TransactionRedisQueue{
+		TransactionID:       reverseID,
+		ParentTransactionID: &originID,
+		OrganizationID:      organizationID,
+		LedgerID:            ledgerID,
+		TransactionInput:    immutableInput,
+	})
+	require.NoError(t, err)
+	redisRepo.EXPECT().ReadMessageFromQueue(gomock.Any(),
+		utils.TransactionInternalKey(organizationID, ledgerID, reverseID.String())).Return(backup, nil)
+
+	wantHash, err := legacyRevertIdempotencyHash(immutableInput)
+	require.NoError(t, err)
+	handler := &TransactionHandler{Command: &command.UseCase{TransactionRedisRepo: redisRepo}}
+	got, err := handler.legacyRevertBarrierKeyFromBackup(context.Background(), organizationID, ledgerID, originID, reverseID)
+	require.NoError(t, err)
+	assert.Equal(t, utils.IdempotencyInternalKey(organizationID, ledgerID, wantHash), got)
+}
+
+func TestLegacyRevertBarrierKeyFromBackup_MissingImmutableInputFailsClosed(t *testing.T) {
+	t.Parallel()
+
+	ctrl := gomock.NewController(t)
+	redisRepo := redis.NewMockRedisRepository(ctrl)
+	organizationID := uuid.New()
+	ledgerID := uuid.New()
+	originID := uuid.New()
+	reverseID := uuid.New()
+	backup, err := json.Marshal(mmodel.TransactionRedisQueue{
+		TransactionID:       reverseID,
+		ParentTransactionID: &originID,
+		OrganizationID:      organizationID,
+		LedgerID:            ledgerID,
+	})
+	require.NoError(t, err)
+	redisRepo.EXPECT().ReadMessageFromQueue(gomock.Any(),
+		utils.TransactionInternalKey(organizationID, ledgerID, reverseID.String())).Return(backup, nil)
+
+	handler := &TransactionHandler{Command: &command.UseCase{TransactionRedisRepo: redisRepo}}
+	_, err = handler.legacyRevertBarrierKeyFromBackup(context.Background(), organizationID, ledgerID, originID, reverseID)
+	var unavailable pkg.ServiceUnavailableError
+	require.ErrorAs(t, err, &unavailable)
+	assert.Equal(t, constant.ErrRevertReconciliationRequired.Error(), unavailable.Code)
 }
 
 func TestRevertIdempotencyModesAndKeys_DoNotAssumeOneRedisClusterSlot(t *testing.T) {

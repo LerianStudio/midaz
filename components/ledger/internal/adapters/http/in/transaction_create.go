@@ -1125,6 +1125,7 @@ func (handler *TransactionHandler) executeCreateTransaction(ctx context.Context,
 			return nil, false, err
 		}
 	}
+	params.ReservedTransactionID = transactionID
 
 	transactionDate, err := mtransaction.CheckTransactionDate(ctx, transactionInput, transactionStatus)
 	if err != nil {
@@ -1346,7 +1347,11 @@ func (handler *TransactionHandler) executeCreateTransaction(ctx context.Context,
 
 	err = handler.Command.SendTransactionToRedisQueue(ctx, params.OrganizationID, params.LedgerID, transactionID,
 		transactionInput, validate, transactionStatus, action, transactionDate, nil, parentTransactionID,
-		params.ExecutionAttempt)
+		command.TransactionBackupSeedOptions{
+			ExecutionAttempt:   params.ExecutionAttempt,
+			RevertRolloutMode:  params.RevertRolloutMode,
+			RevertRolloutToken: params.RevertRolloutToken,
+		})
 	if err != nil {
 		if params.RevertExecution != nil && errors.Is(err, constant.ErrTransactionBackupCacheFailed) {
 			// HSET can commit and lose its response. The surviving seed is the
@@ -1588,6 +1593,8 @@ func (handler *TransactionHandler) executeCreateTransaction(ctx context.Context,
 	// the cache must reflect the final status for consistent GET reads.
 	// The original tran keeps CREATED for the HTTP response and idempotency key.
 	writeTran := *tran
+	writeTran.RevertRolloutMode = params.RevertRolloutMode
+	writeTran.RevertRolloutToken = params.RevertRolloutToken
 
 	if transactionStatus == constant.CREATED {
 		approved := constant.APPROVED

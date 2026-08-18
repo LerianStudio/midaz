@@ -44,6 +44,12 @@ func (uc *UseCase) FinalizeDurableTransactionPersistence(
 
 	outcomeBacked := payload.AttemptOwner != ""
 	reverse := payload.Transaction.ParentTransactionID != nil
+	validRolloutMode := payload.RevertRolloutMode == "legacy" || payload.RevertRolloutMode == "bridge"
+	if (payload.RevertRolloutToken == "") != (payload.RevertRolloutMode == "") ||
+		(payload.RevertRolloutToken != "" && (!validRolloutMode || !reverse || payload.Input == nil ||
+			payload.Input.IsEmpty() || !outcomeBacked)) {
+		return true, fmt.Errorf("revert rollout handoff is incomplete")
+	}
 	if !outcomeBacked && !reverse {
 		return false, nil
 	}
@@ -89,6 +95,15 @@ func (uc *UseCase) FinalizeDurableTransactionPersistence(
 		if err := uc.TransactionRedisRepo.FinalizeLegacyTransactionPersistence(ctx,
 			organizationID, ledgerID, transactionID, originID, backupStatus, operationIDs); err != nil {
 			return true, fmt.Errorf("finalize durable legacy reverse: %w", err)
+		}
+	}
+
+	if payload.RevertRolloutToken != "" {
+		if !reverse || uc.RevertRolloutLease == nil {
+			return true, fmt.Errorf("revert rollout lease cannot be finalized")
+		}
+		if err := uc.RevertRolloutLease.CompleteRevert(ctx, payload.RevertRolloutMode, payload.RevertRolloutToken); err != nil {
+			return true, fmt.Errorf("release durable revert rollout lease: %w", err)
 		}
 	}
 
@@ -186,6 +201,7 @@ func (uc *UseCase) finalizeDurableRevertClaim(
 	}
 	reverseID := persisted.IDtoUUID()
 	var legacyFenceKey *string
+	var legacyFenceOwner *string
 	if payload.Input != nil {
 		legacyHash, hashErr := utils.LegacyTransactionIdempotencyHash(*payload.Input)
 		if hashErr != nil {
@@ -193,9 +209,14 @@ func (uc *UseCase) finalizeDurableRevertClaim(
 		}
 		key := utils.IdempotencyInternalKey(organizationID, ledgerID, legacyHash)
 		legacyFenceKey = &key
+		if payload.RevertRolloutToken != "" {
+			owner := reverseID.String()
+			legacyFenceOwner = &owner
+		}
 	}
 
-	claim, _, err := uc.ClaimRevert(ctx, organizationID, ledgerID, originID, reverseID, legacyFenceKey, nil)
+	claim, _, err := uc.ClaimRevert(ctx, organizationID, ledgerID, originID, reverseID,
+		legacyFenceKey, legacyFenceOwner)
 	if err != nil {
 		return fmt.Errorf("adopt durable revert claim: %w", err)
 	}
@@ -288,13 +309,17 @@ func (uc *UseCase) completeOwnedReplay(
 	if err == nil && completed {
 		return nil
 	}
-	current, readErr := uc.TransactionRedisRepo.Get(ctx, key)
-	if readErr != nil && !errors.Is(readErr, redis.Nil) {
+	values, readErr := uc.TransactionRedisRepo.MGet(ctx, []string{key, key + ":owner"})
+	if readErr != nil {
 		return readErr
 	}
+	current := values[key]
 	if current != "" {
 		existing := &transaction.Transaction{}
 		if json.Unmarshal([]byte(current), existing) == nil && replayIdentityMatches(existing, replay) {
+			if values[key+":owner"] != "" {
+				return fmt.Errorf("durable replay owner remains after terminal publication")
+			}
 			return nil
 		}
 		return fmt.Errorf("durable replay conflict")

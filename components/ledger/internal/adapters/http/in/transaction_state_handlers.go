@@ -23,7 +23,6 @@ import (
 
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/revertclaim"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/transaction"
-	transactionredis "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/redis/transaction"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services/command"
 	"github.com/LerianStudio/midaz/v4/components/ledger/pkg/readrouting"
 	"github.com/LerianStudio/midaz/v4/pkg"
@@ -312,12 +311,17 @@ func (handler *TransactionHandler) revertTransaction(ctx context.Context, organi
 	_, span := tracer.Start(ctx, "handler.revert_transaction")
 	defer span.End()
 
-	rolloutPhase, releaseRolloutLease, err := handler.acquireRevertRolloutRequest(ctx)
+	_, rolloutToken, releaseRolloutLease, err := handler.acquireRevertRolloutRequest(ctx,
+		organizationID, ledgerID, transactionID)
 	if err != nil {
 		return nil, false, err
 	}
+	releaseRolloutLeaseOnReturn := true
 	if releaseRolloutLease != nil {
 		defer func() {
+			if !releaseRolloutLeaseOnReturn {
+				return
+			}
 			if err := releaseRolloutLease(); err != nil {
 				retErr = errors.Join(retErr, err)
 				if result != nil {
@@ -327,8 +331,11 @@ func (handler *TransactionHandler) revertTransaction(ctx context.Context, organi
 			}
 		}()
 	}
-	durablePhaseZero := handler.activeRevertIdempotencyMode() == revertIdempotencyModeLegacy &&
-		rolloutPhase == transactionredis.RevertUpdateFreezeActive
+	durablePhaseZero := handler.activeRevertIdempotencyMode() == revertIdempotencyModeLegacy && rolloutToken != ""
+	rolloutMode := ""
+	if rolloutToken != "" {
+		rolloutMode = handler.activeRevertIdempotencyMode()
+	}
 
 	finish := func(tran *transaction.Transaction, replayed bool, err error) (*transaction.Transaction, bool, error) {
 		if replayed && err == nil {
@@ -356,9 +363,26 @@ func (handler *TransactionHandler) revertTransaction(ctx context.Context, organi
 
 		var adoptionLegacyKey *string
 		if handler.activeRevertIdempotencyMode() == revertIdempotencyModeBridge || durablePhaseZero {
-			legacyKey, keyErr := handler.legacyRevertBarrierKeyForOrigin(ctx, organizationID, ledgerID, transactionID)
-			if keyErr != nil {
-				return finish(nil, false, keyErr)
+			reverseID, parseErr := uuid.Parse(parent.ID)
+			if parseErr != nil {
+				return finish(nil, false, pkg.ValidateBusinessError(constant.ErrRevertReconciliationRequired, constant.EntityTransaction))
+			}
+			existingClaim, claimErr := handler.Command.GetRevertClaim(ctx, organizationID, ledgerID, transactionID)
+			if claimErr != nil {
+				return finish(nil, false, claimErr)
+			}
+			var legacyKey string
+			if existingClaim != nil {
+				if existingClaim.ReverseTransactionID != reverseID {
+					return finish(nil, false, pkg.ValidateBusinessError(constant.ErrRevertReconciliationRequired, constant.EntityTransaction))
+				}
+				legacyKey, claimErr = legacyRevertBarrierKeyFromClaim(existingClaim)
+			} else {
+				legacyKey, claimErr = handler.legacyRevertBarrierKeyFromBackup(ctx, organizationID, ledgerID,
+					transactionID, reverseID)
+			}
+			if claimErr != nil {
+				return finish(nil, false, claimErr)
 			}
 			adoptionLegacyKey = &legacyKey
 		}
@@ -370,7 +394,6 @@ func (handler *TransactionHandler) revertTransaction(ctx context.Context, organi
 
 		return finish(persisted, replayed, nil)
 	}
-
 	tran, err := handler.Query.GetTransactionWithOperationsByID(ctx, organizationID, ledgerID, transactionID)
 	if err != nil {
 		handleSpanByErrorClass(span, "Failed to retrieve transaction on query", err)
@@ -437,12 +460,21 @@ func (handler *TransactionHandler) revertTransaction(ctx context.Context, organi
 
 	if handler.activeRevertIdempotencyMode() == revertIdempotencyModeLegacy && !durablePhaseZero {
 		params := &transactionPathParams{
-			OrganizationID: organizationID,
-			LedgerID:       ledgerID,
-			TransactionID:  transactionID,
+			OrganizationID:     organizationID,
+			LedgerID:           ledgerID,
+			TransactionID:      transactionID,
+			RevertRolloutMode:  rolloutMode,
+			RevertRolloutToken: rolloutToken,
 		}
 
-		return handler.createRevertTransaction(ctx, params, transactionReverted, constant.CREATED, "", http.ParseIdempotencyTTL(""))
+		result, replayed, createErr := handler.createRevertTransaction(ctx, params, transactionReverted,
+			constant.CREATED, "", http.ParseIdempotencyTTL(""))
+		if rolloutToken != "" {
+			releaseRolloutLeaseOnReturn = !handler.revertRolloutBackupPending(ctx, organizationID, ledgerID,
+				params.ReservedTransactionID)
+		}
+
+		return result, replayed, createErr
 	}
 
 	legacyHash, err := legacyRevertIdempotencyHash(transactionReverted)
@@ -567,8 +599,19 @@ func (handler *TransactionHandler) revertTransaction(ctx context.Context, organi
 		if resolveErr != nil {
 			return finish(nil, false, resolveErr)
 		}
+		if persisted != nil && rolloutToken != "" {
+			// Successful resolution proves the reverse and every operation durable,
+			// completes both exact replays, and performs owner-checked cleanup.
+			releaseRolloutLeaseOnReturn = true
+		}
 
 		return finish(persisted, replayed, nil)
+	}
+	if rolloutToken != "" {
+		// From the durable claim onward a process crash must leave the rollout
+		// admission in place. A same-origin retry reuses this deterministic token
+		// and releases it only after recovery or the terminal handoff completes.
+		releaseRolloutLeaseOnReturn = false
 	}
 
 	// From this point the local string tracks only a legacy fence owned by this
@@ -585,6 +628,7 @@ func (handler *TransactionHandler) revertTransaction(ctx context.Context, organi
 			if releaseErr := handler.releaseFreshRevertClaim(ctx, claim, legacyKey, true); releaseErr != nil {
 				return nil, false, handler.requireRevertReconciliation(ctx, claim, "legacy_fence_acquire_cleanup_failed")
 			}
+			releaseRolloutLeaseOnReturn = true
 
 			return nil, false, err
 		}
@@ -599,6 +643,7 @@ func (handler *TransactionHandler) revertTransaction(ctx context.Context, organi
 				return nil, false, handler.requireRevertReconciliation(ctx, claim,
 					"legacy_replay_claim_cleanup_failed")
 			}
+			releaseRolloutLeaseOnReturn = true
 
 			return nil, false, pkg.ValidateBusinessError(constant.ErrIdempotencyKey,
 				"RevertTransaction", transactionID.String())
@@ -613,11 +658,23 @@ func (handler *TransactionHandler) revertTransaction(ctx context.Context, organi
 		ReservedTransactionID: claim.ReverseTransactionID,
 		RevertExecution:       execution,
 		ExecutionAttempt:      executionAttempt,
+		RevertRolloutMode:     rolloutMode,
+		RevertRolloutToken:    rolloutToken,
 	}
 
 	tranReverted, replayed, err := handler.createRevertTransaction(ctx, params, transactionReverted, constant.CREATED, "", http.ParseIdempotencyTTL(""), utils.RevertIdempotencyHashSource(transactionID))
 	if err != nil {
-		return nil, false, handler.failRevertClaim(ctx, claim, execution, legacyKey, err)
+		failureErr := handler.failRevertClaim(ctx, claim, execution, legacyKey, err)
+		if rolloutToken != "" {
+			releaseRolloutLeaseOnReturn = !handler.revertRolloutBackupPending(ctx, organizationID, ledgerID,
+				params.ReservedTransactionID)
+		}
+
+		return nil, false, failureErr
+	}
+	if rolloutToken != "" {
+		releaseRolloutLeaseOnReturn = !handler.revertRolloutBackupPending(ctx, organizationID, ledgerID,
+			params.ReservedTransactionID)
 	}
 	if replayed || !reverseMatchesClaim(tranReverted, claim) {
 		// The durable claim is the authority. A fresh claimant can only find an
@@ -1009,7 +1066,8 @@ func (handler *TransactionHandler) commitOrCancelTransaction(
 
 		ctxBackupSeed, spanBackupSeed := tracer.Start(ctx, "handler.commit_or_cancel_transaction.pre_seed_backup")
 		if backupErr := handler.Command.SendTransactionToRedisQueue(ctxBackupSeed, organizationID, ledgerID,
-			tran.IDtoUUID(), transactionInput, validate, transactionStatus, action, time.Now(), nil, nil, attempt); backupErr != nil {
+			tran.IDtoUUID(), transactionInput, validate, transactionStatus, action, time.Now(), nil, nil,
+			command.TransactionBackupSeedOptions{ExecutionAttempt: attempt}); backupErr != nil {
 			libOpentelemetry.HandleSpanError(spanBackupSeed, "Failed to pre-seed transaction backup cache", backupErr)
 			logger.Log(ctx, libLog.LevelError, "Failed to pre-seed commit/cancel transaction backup cache", libLog.Err(backupErr))
 			spanBackupSeed.End()
