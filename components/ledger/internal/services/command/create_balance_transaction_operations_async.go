@@ -145,6 +145,20 @@ func (uc *UseCase) CreateBalanceTransactionOperationsAsync(ctx context.Context, 
 		}
 	}
 
+	if tran.ParentTransactionID != nil && uc.RevertClaimRepo != nil {
+		originID, parseErr := uuid.Parse(*tran.ParentTransactionID)
+		if parseErr != nil {
+			return fmt.Errorf("parse reverse origin transaction id: %w", parseErr)
+		}
+		reverseID := tran.IDtoUUID()
+
+		if err := uc.CompleteRevertClaim(ctx, data.OrganizationID, data.LedgerID, originID, reverseID); err != nil {
+			logger.Log(ctx, libLog.LevelError, "Failed to complete durable revert claim", libLog.String("transaction_id", tran.ID), libLog.Err(err))
+
+			return err
+		}
+	}
+
 	// Send events asynchronously with context that preserves trace but survives parent cancellation.
 	// Each emitter gets its own timeout budget so a slow earlier emitter cannot starve later ones.
 	go func() {

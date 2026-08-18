@@ -21,6 +21,7 @@ import (
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/operationroute"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/organization"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/portfolio"
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/revertclaim"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/segment"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/transaction"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/transactionroute"
@@ -81,6 +82,10 @@ type UseCase struct {
 
 	// TransactionRepo provides an abstraction on top of the transaction data source.
 	TransactionRepo transaction.Repository
+
+	// RevertClaimRepo owns the durable origin-scoped fence for transaction
+	// reversals. It is mandatory for the live revert path.
+	RevertClaimRepo revertclaim.Repository
 
 	// OperationRepo provides an abstraction on top of the operation data source.
 	OperationRepo operation.Repository

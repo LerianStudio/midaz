@@ -31,6 +31,8 @@ import (
 	"github.com/shopspring/decimal"
 
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/operation"
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/readseam"
+	"github.com/LerianStudio/midaz/v4/components/ledger/pkg/readrouting"
 	"github.com/LerianStudio/midaz/v4/pkg"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
 	"github.com/LerianStudio/midaz/v4/pkg/net/http"
@@ -127,6 +129,17 @@ type TransactionPostgreSQLRepository struct {
 	requireTenant bool
 }
 
+func (r *TransactionPostgreSQLRepository) acquireRead(ctx context.Context) (repository.DBReader, func() error, error) {
+	db, err := r.getDB(ctx)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	reader, release, _, err := readseam.AcquireReadFrom(ctx, db, readrouting.IsPrimaryRead(ctx))
+
+	return reader, release, err
+}
+
 // NewTransactionPostgreSQLRepository returns a new instance of TransactionPostgreSQLRepository using the given Postgres connection.
 func NewTransactionPostgreSQLRepository(pc *libPostgres.Client, requireTenant ...bool) *TransactionPostgreSQLRepository {
 	c := &TransactionPostgreSQLRepository{
@@ -195,7 +208,6 @@ func (r *TransactionPostgreSQLRepository) Create(ctx context.Context, transactio
 
 		return nil, err
 	}
-
 	record := &TransactionPostgreSQLModel{}
 	record.FromEntity(transaction)
 
@@ -910,12 +922,13 @@ func (r *TransactionPostgreSQLRepository) Find(ctx context.Context, organization
 	ctx, span := tracer.Start(ctx, "postgres.find_transaction")
 	defer span.End()
 
-	db, err := r.getDB(ctx)
+	db, release, err := r.acquireRead(ctx)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(span, "Failed to get database connection", err)
 
 		return nil, err
 	}
+	defer func() { _ = release() }()
 
 	findOne := squirrel.Select(transactionColumns).
 		From(r.tableName).
@@ -993,12 +1006,13 @@ func (r *TransactionPostgreSQLRepository) FindByParentID(ctx context.Context, or
 	ctx, span := tracer.Start(ctx, "postgres.find_transaction")
 	defer span.End()
 
-	db, err := r.getDB(ctx)
+	db, release, err := r.acquireRead(ctx)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(span, "Failed to get database connection", err)
 
 		return nil, err
 	}
+	defer func() { _ = release() }()
 
 	findOne := squirrel.Select(transactionColumns).
 		From(r.tableName).
@@ -1080,7 +1094,6 @@ func (r *TransactionPostgreSQLRepository) Update(ctx context.Context, organizati
 
 		return nil, err
 	}
-
 	record := &TransactionPostgreSQLModel{}
 	record.FromEntity(transaction)
 
@@ -1196,12 +1209,13 @@ func (r *TransactionPostgreSQLRepository) FindWithOperations(ctx context.Context
 	ctx, span := tracer.Start(ctx, "postgres.find_transaction_with_operations")
 	defer span.End()
 
-	db, err := r.getDB(ctx)
+	db, release, err := r.acquireRead(ctx)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(span, "Failed to get database connection", err)
 
 		return nil, err
 	}
+	defer func() { _ = release() }()
 
 	_, spanQuery := tracer.Start(ctx, "postgres.find_transaction_with_operations.query")
 	defer spanQuery.End()
