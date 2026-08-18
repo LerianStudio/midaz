@@ -32,12 +32,15 @@ type transactionPathParams struct {
 	ExecutionAttempt      *mmodel.BalanceExecutionAttempt
 	RevertRolloutMode     string
 	RevertRolloutToken    string
+	RevertLegacyFenceKey  string
 	RedisGeneration       string
 }
 
 type revertExecutionState struct {
 	SeedWriteAmbiguous bool
 	SeedWritten        bool
+	ArmAttempted       bool
+	Armed              bool
 	BalanceAttempted   bool
 	BalanceCommitted   bool
 }

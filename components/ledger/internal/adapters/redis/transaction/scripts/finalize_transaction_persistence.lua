@@ -2,7 +2,9 @@ if #KEYS == 5 and redis.call("GET", KEYS[5]) ~= ARGV[8] then
     return redis.error_reply("FINANCIAL_DATASET_GENERATION_MISMATCH")
 end
 
-if type(ARGV[4]) ~= "string" or ARGV[4] == "" then
+if type(ARGV[4]) ~= "string" or ARGV[4] == "" or
+   type(ARGV[9]) ~= "string" or ARGV[9] == "" or
+   type(ARGV[10]) ~= "string" or ARGV[10] == "" then
     return redis.error_reply("TRANSACTION_ECONOMIC_DIGEST_INVALID")
 end
 
@@ -19,6 +21,8 @@ if tombstoneRaw then
        tombstone.identity ~= ARGV[1] or tombstone.owner ~= ARGV[2] or
        tombstone.outcome ~= ARGV[3] or tombstone.redis_generation ~= (ARGV[8] or "") or
        tombstone.economic_effect_digest ~= ARGV[4] or
+       tombstone.transaction_amount ~= ARGV[9] or
+       tombstone.transaction_asset_code ~= ARGV[10] or
        tombstone.parent_transaction_id ~= ARGV[5] or
        type(tombstone.transaction_status) ~= "string" or
        string.upper(tombstone.transaction_status) ~= string.upper(ARGV[6]) or
@@ -72,6 +76,8 @@ local tombstone = {
     redis_generation = ARGV[8] or "",
     transaction_status = ARGV[6],
     action = ARGV[7],
+    transaction_amount = ARGV[9],
+    transaction_asset_code = ARGV[10],
     operations = envelope.operations,
     balancesAfter = envelope.balancesAfter,
     economic_effect_digest = envelope.economic_effect_digest

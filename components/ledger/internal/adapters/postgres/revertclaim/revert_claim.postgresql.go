@@ -26,6 +26,7 @@ type State string
 
 const (
 	StateClaimed                State = "CLAIMED"
+	StateArmed                  State = "ARMED"
 	StateRecovering             State = "RECOVERING"
 	StateMutated                State = "MUTATED"
 	StateCompleted              State = "COMPLETED"
@@ -58,15 +59,18 @@ type Repository interface {
 		legacyFenceKey, legacyFenceOwner, rolloutMode, rolloutToken, redisGeneration *string) (*Claim, bool, error)
 	Get(ctx context.Context, organizationID, ledgerID, originID uuid.UUID) (*Claim, error)
 	GetByReverseID(ctx context.Context, organizationID, ledgerID, reverseID uuid.UUID) (*Claim, error)
+	Arm(ctx context.Context, organizationID, ledgerID, originID, reverseID uuid.UUID, attemptOwner string) error
 	Transition(ctx context.Context, organizationID, ledgerID, originID, reverseID uuid.UUID, state State, failureReason *string) error
 	BeginPreMutationRecovery(ctx context.Context, organizationID, ledgerID, originID, reverseID uuid.UUID) (bool, error)
 	Release(ctx context.Context, organizationID, ledgerID, originID, reverseID uuid.UUID) (bool, error)
+	ReleaseRejectedArm(ctx context.Context, organizationID, ledgerID, originID, reverseID uuid.UUID) (bool, error)
 }
 
 type PostgreSQLRepository struct {
 	connection                  *libPostgres.Client
 	requireTenant               bool
 	commitRolloutInitialization func(dbresolver.Tx) error
+	commitClaimArm              func(dbresolver.Tx) error
 }
 
 func NewPostgreSQLRepository(connection *libPostgres.Client, requireTenant ...bool) *PostgreSQLRepository {
@@ -535,6 +539,82 @@ func (r *PostgreSQLRepository) GetByReverseID(ctx context.Context, organizationI
 	return claim, nil
 }
 
+// Arm is the durable handoff between recoverable preparation and the first
+// balance command. Only the reserved reverse can promote CLAIMED to ARMED, and
+// a lost commit response is accepted only when a primary reread proves that
+// exact identity in ARMED. No later state authorizes another balance attempt.
+func (r *PostgreSQLRepository) Arm(
+	ctx context.Context,
+	organizationID, ledgerID, originID, reverseID uuid.UUID,
+	attemptOwner string,
+) error {
+	if attemptOwner != reverseID.String() {
+		return fmt.Errorf("revert claim arm requires the reserved reverse as attempt owner")
+	}
+	db, err := r.getDB(ctx)
+	if err != nil {
+		return err
+	}
+	tx, err := db.BeginTx(ctx, nil)
+	if err != nil {
+		return fmt.Errorf("begin revert claim arm: %w", err)
+	}
+	defer func() { _ = tx.Rollback() }()
+
+	result, err := tx.ExecContext(ctx, `
+		UPDATE transaction_revert_claim
+		SET state = 'ARMED', failure_reason = NULL, updated_at = NOW()
+		WHERE organization_id = $1 AND ledger_id = $2
+		  AND origin_transaction_id = $3 AND reverse_transaction_id = $4
+		  AND state = 'CLAIMED'`,
+		organizationID, ledgerID, originID, reverseID,
+	)
+	if err != nil {
+		return fmt.Errorf("arm revert claim: %w", err)
+	}
+	rows, err := result.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("read revert claim arm result: %w", err)
+	}
+	if rows == 0 {
+		var state State
+		if err := tx.QueryRowContext(ctx, `
+			SELECT state
+			FROM transaction_revert_claim
+			WHERE organization_id = $1 AND ledger_id = $2
+			  AND origin_transaction_id = $3 AND reverse_transaction_id = $4`,
+			organizationID, ledgerID, originID, reverseID,
+		).Scan(&state); err != nil {
+			return fmt.Errorf("read revert claim arm identity: %w", err)
+		}
+		if state != StateArmed {
+			return fmt.Errorf("revert claim is %s, not armed", state)
+		}
+	}
+
+	if err := r.commitArmTx(tx); err != nil {
+		claim, readErr := r.Get(ctx, organizationID, ledgerID, originID)
+		if readErr == nil && claim != nil && claim.ReverseTransactionID == reverseID && claim.State == StateArmed {
+			return nil
+		}
+		if readErr == nil {
+			readErr = fmt.Errorf("primary does not prove the exact armed revert claim")
+		}
+
+		return errors.Join(fmt.Errorf("commit revert claim arm: %w", err), readErr)
+	}
+
+	return nil
+}
+
+func (r *PostgreSQLRepository) commitArmTx(tx dbresolver.Tx) error {
+	if r.commitClaimArm != nil {
+		return r.commitClaimArm(tx)
+	}
+
+	return tx.Commit()
+}
+
 func (r *PostgreSQLRepository) Transition(ctx context.Context, organizationID, ledgerID, originID, reverseID uuid.UUID, state State, failureReason *string) error {
 	db, err := r.getDB(ctx)
 	if err != nil {
@@ -544,16 +624,21 @@ func (r *PostgreSQLRepository) Transition(ctx context.Context, organizationID, l
 	result, err := db.ExecContext(ctx, `
 		UPDATE transaction_revert_claim
 		SET state = CASE
-		      WHEN state = 'COMPLETED' AND $5 <> 'COMPLETED' THEN state
+		      WHEN state = 'COMPLETED' AND $5 = 'RECONCILIATION_REQUIRED' THEN state
 		      ELSE $5
 		    END,
 		    failure_reason = CASE
-		      WHEN state = 'COMPLETED' AND $5 <> 'COMPLETED' THEN failure_reason
+		      WHEN state = 'COMPLETED' AND $5 = 'RECONCILIATION_REQUIRED' THEN failure_reason
 		      ELSE $6
 		    END,
 		    updated_at = NOW()
 		WHERE organization_id = $1 AND ledger_id = $2
-		  AND origin_transaction_id = $3 AND reverse_transaction_id = $4`,
+		  AND origin_transaction_id = $3 AND reverse_transaction_id = $4
+		  AND (
+		    ($5 = 'MUTATED' AND state IN ('ARMED', 'MUTATED'))
+		    OR ($5 = 'COMPLETED' AND state IN ('CLAIMED', 'ARMED', 'MUTATED', 'RECONCILIATION_REQUIRED', 'COMPLETED'))
+		    OR $5 = 'RECONCILIATION_REQUIRED'
+		  )`,
 		organizationID, ledgerID, originID, reverseID, state, failureReason,
 	)
 	if err != nil {
@@ -623,6 +708,37 @@ func (r *PostgreSQLRepository) Release(ctx context.Context, organizationID, ledg
 	rows, err := result.RowsAffected()
 	if err != nil {
 		return false, fmt.Errorf("read revert claim release result: %w", err)
+	}
+
+	return rows == 1, nil
+}
+
+// ReleaseRejectedArm is separate from pre-arm release so an ARMED claim can
+// disappear only on the live path that received a definitive atomic rejection
+// and already removed the exact seed and owned Redis fences. Crash recovery
+// never calls this method: missing post-arm evidence is reconciliation.
+func (r *PostgreSQLRepository) ReleaseRejectedArm(
+	ctx context.Context,
+	organizationID, ledgerID, originID, reverseID uuid.UUID,
+) (bool, error) {
+	db, err := r.getDB(ctx)
+	if err != nil {
+		return false, err
+	}
+
+	result, err := db.ExecContext(ctx, `
+		DELETE FROM transaction_revert_claim
+		WHERE organization_id = $1 AND ledger_id = $2
+		  AND origin_transaction_id = $3 AND reverse_transaction_id = $4
+		  AND state = 'ARMED'`,
+		organizationID, ledgerID, originID, reverseID,
+	)
+	if err != nil {
+		return false, fmt.Errorf("release definitively rejected armed revert claim: %w", err)
+	}
+	rows, err := result.RowsAffected()
+	if err != nil {
+		return false, fmt.Errorf("read definitively rejected armed revert claim release result: %w", err)
 	}
 
 	return rows == 1, nil

@@ -217,6 +217,43 @@ func TestResolveBackupParentTransactionID_RequiresClaimOrExplicitPhaseZeroOutcom
 	}
 }
 
+func TestPersistedDrainedLegacyFenceKey_RequiresExactImmutableBackupWitness(t *testing.T) {
+	t.Parallel()
+
+	organizationID := uuid.New()
+	ledgerID := uuid.New()
+	originID := uuid.New()
+	input := mtransaction.Transaction{Description: "drained old reverse", Send: mtransaction.Send{
+		Asset: "USD", Value: decimal.NewFromInt(100),
+	}}
+	legacyHash, err := utils.LegacyTransactionIdempotencyHash(input)
+	require.NoError(t, err)
+	exactKey := utils.IdempotencyInternalKey(organizationID, ledgerID, legacyHash)
+	queue := mmodel.TransactionRedisQueue{
+		OrganizationID: organizationID, LedgerID: ledgerID, ParentTransactionID: &originID,
+		TransactionInput: input, RevertLegacyFenceKey: exactKey,
+	}
+
+	got, err := persistedDrainedLegacyFenceKey(queue)
+	require.NoError(t, err)
+	assert.Equal(t, exactKey, got)
+
+	missing := queue
+	missing.RevertLegacyFenceKey = ""
+	_, err = persistedDrainedLegacyFenceKey(missing)
+	require.Error(t, err)
+
+	foreign := queue
+	foreign.RevertLegacyFenceKey = utils.IdempotencyInternalKey(organizationID, ledgerID, uuid.NewString())
+	_, err = persistedDrainedLegacyFenceKey(foreign)
+	require.Error(t, err)
+
+	changedInput := queue
+	changedInput.TransactionInput.Description = "candidate changed the H1 hash"
+	_, err = persistedDrainedLegacyFenceKey(changedInput)
+	require.Error(t, err, "a persisted key cannot be retargeted by changing the backup input")
+}
+
 func TestProcessMessage_DrainedPhaseZeroSeedIsRemovedWithoutPersistence(t *testing.T) {
 	t.Parallel()
 
@@ -243,14 +280,15 @@ func TestProcessMessage_DrainedPhaseZeroSeedIsRemovedWithoutPersistence(t *testi
 			},
 		},
 	}
+	legacyHash, err := utils.LegacyTransactionIdempotencyHash(message.TransactionInput)
+	require.NoError(t, err)
+	legacyKey := utils.IdempotencyInternalKey(organizationID, ledgerID, legacyHash)
+	message.RevertLegacyFenceKey = legacyKey
 	raw, err := json.Marshal(message)
 	require.NoError(t, err)
 
 	claimRepo.EXPECT().GetByReverseID(gomock.Any(), organizationID, ledgerID, reverseID).Return(nil, nil)
 	claimRepo.EXPECT().Get(gomock.Any(), organizationID, ledgerID, originID).Return(nil, nil)
-	legacyHash, err := utils.LegacyTransactionIdempotencyHash(message.TransactionInput)
-	require.NoError(t, err)
-	legacyKey := utils.IdempotencyInternalKey(organizationID, ledgerID, legacyHash)
 	gomock.InOrder(
 		redisRepo.EXPECT().ReleaseUnownedEmptyKey(gomock.Any(), legacyKey).Return(true, nil),
 		redisRepo.EXPECT().RemoveMessageFromQueueIfStatus(gomock.Any(), key, "", "", "", true).Return(true, nil),

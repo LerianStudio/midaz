@@ -42,6 +42,18 @@ func (uc *UseCase) GetRevertClaimByReverseID(ctx context.Context, organizationID
 	return uc.RevertClaimRepo.GetByReverseID(ctx, organizationID, ledgerID, reverseID)
 }
 
+func (uc *UseCase) ArmRevertClaim(
+	ctx context.Context,
+	organizationID, ledgerID, originID, reverseID uuid.UUID,
+	attemptOwner string,
+) error {
+	if uc.RevertClaimRepo == nil {
+		return fmt.Errorf("revert claim repository not configured")
+	}
+
+	return uc.RevertClaimRepo.Arm(ctx, organizationID, ledgerID, originID, reverseID, attemptOwner)
+}
+
 func (uc *UseCase) MarkRevertClaim(ctx context.Context, organizationID, ledgerID, originID, reverseID uuid.UUID, state revertclaim.State, reason *string) error {
 	if uc.RevertClaimRepo == nil {
 		return fmt.Errorf("revert claim repository not configured")
@@ -64,6 +76,14 @@ func (uc *UseCase) ReleaseRevertClaim(ctx context.Context, organizationID, ledge
 	}
 
 	return uc.RevertClaimRepo.Release(ctx, organizationID, ledgerID, originID, reverseID)
+}
+
+func (uc *UseCase) ReleaseRejectedArm(ctx context.Context, organizationID, ledgerID, originID, reverseID uuid.UUID) (bool, error) {
+	if uc.RevertClaimRepo == nil {
+		return false, fmt.Errorf("revert claim repository not configured")
+	}
+
+	return uc.RevertClaimRepo.ReleaseRejectedArm(ctx, organizationID, ledgerID, originID, reverseID)
 }
 
 // CompleteRevertClaim adopts backups produced by old pods and completes claims

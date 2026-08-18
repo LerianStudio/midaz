@@ -41,8 +41,11 @@ type testData struct {
 // createTestData creates common test data for transaction write tests
 func createTestData(organizationID, ledgerID uuid.UUID) *testData {
 	transactionID := uuid.New().String()
+	transactionAmount := decimal.NewFromInt(100)
 
-	transactionInput := &mtransaction.Transaction{}
+	transactionInput := &mtransaction.Transaction{Send: mtransaction.Send{
+		Asset: "USD", Value: transactionAmount,
+	}}
 
 	validate := &mtransaction.Responses{
 		Aliases: []string{"alias1", "alias2"},
@@ -95,6 +98,8 @@ func createTestData(organizationID, ledgerID uuid.UUID) *testData {
 		ID:             transactionID,
 		OrganizationID: organizationID.String(),
 		LedgerID:       ledgerID.String(),
+		Amount:         &transactionAmount,
+		AssetCode:      "USD",
 		Operations:     []*operation.Operation{},
 		Metadata:       map[string]any{},
 	}
@@ -655,10 +660,14 @@ func TestWriteTransactionSync(t *testing.T) {
 				AssetCode:      "USD",
 			},
 		}
+		transactionAmount := decimal.NewFromInt(100)
+		transactionInput.Send = mtransaction.Send{Asset: "USD", Value: transactionAmount}
 		tran := &transaction.Transaction{
 			ID:             transactionID,
 			OrganizationID: organizationID.String(),
 			LedgerID:       ledgerID.String(),
+			Amount:         &transactionAmount,
+			AssetCode:      "USD",
 			Operations:     []*operation.Operation{},
 			Metadata:       map[string]any{},
 		}

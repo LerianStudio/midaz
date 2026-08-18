@@ -41,7 +41,11 @@ Phase-zero-capable and bridge requests acquire barriers in this order:
    the Release 0 replacement and with every phase-zero-capable request.
 5. Redis origin barrier plus its reserved-reverse owner companion, shared with
    bridge and final pods.
-6. Atomic Redis balance Lua, which checks the exact attempt owner before its
+6. Recoverable queue seed carrying the exact origin, attempt owner, expected
+   outcome, and immutable transaction input.
+7. PostgreSQL primary compare-and-set from `CLAIMED` to `ARMED`, after the
+   exact Redis attempt owner and seed exist.
+8. Atomic Redis balance Lua, which checks the exact attempt owner before its
    first write and writes an immutable economic outcome in the same command.
 
 The attempt is reserved before the claim is published, so recovery can never
@@ -75,11 +79,20 @@ protocol adds no multi-slot assumption.
 
 | State | Meaning | Retry behavior |
 |---|---|---|
-| `CLAIMED` | Reverse ID reserved; no durable proof of completion yet | Same origin cannot create another reverse |
-| `RECOVERING` | One process holds a 30-second cleanup lease for a proven pre-Lua seed | Every other caller remains fenced; a crashed cleanup owner is re-electable after its lease expires |
+| `CLAIMED` | Reverse ID reserved; balance execution has not been armed | Same origin cannot create another reverse; exact pre-arm evidence can be cleaned and retried |
+| `ARMED` | PostgreSQL primary authorized the exact owned attempt before balance Lua | Never return to automatic retry; missing or divergent per-transaction Redis evidence requires manual reconciliation |
+| `RECOVERING` | One process holds a 30-second cleanup lease for a proven pre-arm claim | Every other caller remains fenced; a crashed cleanup owner is re-electable after its lease expires |
 | `MUTATED` | Balance Lua returned success | Reconcile or finish persistence with the reserved ID |
 | `COMPLETED` | Reverse transaction and operations are durable | Return the exact persisted reverse; a losing retry cannot downgrade this terminal state |
 | `RECONCILIATION_REQUIRED` | Lua result was ambiguous or persistence failed after movement | Return error `0501`; never release the claim or Redis fences |
+
+A competing same-origin request that observes the winner's committed outcome
+before PostgreSQL persistence returns `0501` without changing the shared claim.
+Only the process carrying the authoritative Lua result may promote
+`ARMED -> MUTATED`; otherwise a loser could poison a live winner and turn a
+correctly serialized race into zero successful reversals. If the winner really
+crashed, `ARMED` itself remains the durable no-retry reconciliation fence and
+the backup consumer may still complete the reserved reverse.
 
 Every durable claim also stores the exact financial-dataset generation read
 before claim creation. Seed, balance mutation, evidence reads, and pre-movement
@@ -102,6 +115,11 @@ absence never bypasses owner, outcome, identity, operation, or balance proof.
 Both balance sets must match the authoritative queue envelope as exact,
 order-independent multisets. Repeated touches of one balance remain repeated;
 deduplicating by balance identity would erase part of the economic effect.
+The operation coverage is phase-aware: a PENDING hold and its CANCELED release
+move only the source side, while direct, commit, and revert outcomes cover both
+source and destination. A declared-but-not-yet-moved destination is never
+invented as an operation, and an economically active leg cannot be omitted by
+truncating both its operation and balance snapshot.
 Comparison is order-independent and includes balance ID and key, account,
 alias, asset, available, on-hold, version, account type, send/receive flags,
 direction, overdraft used and policy, limit, and balance scope. Decimal spelling
@@ -115,7 +133,10 @@ partially present, unknown, or status-incompatible mode fails closed.
 `operation_type_override` is a separate queue/event field because the public
 transaction input deliberately excludes the internal BLOCK/UNBLOCK marker.
 Recovery restores typed operations only from that durable field, never from a
-candidate operation or a mutable transaction row. Payloads predating the
+candidate operation or a mutable transaction row. A balance mutation accepts
+only an empty override, `BLOCK`, or `UNBLOCK`; annotations require an empty
+override because `NOTED` is derived from the immutable transaction status.
+Every other value fails before Redis or PostgreSQL can be changed. Payloads predating the
 discriminator follow one explicit compatibility rule: `NOTED` identifies an
 annotation, while every other status remains a balance mutation and must pass
 the full snapshot proof. Missing balances alone never identifies an
@@ -139,7 +160,10 @@ The complete operation-and-balance multiset is sealed in Go as a
 uses the ledger decimal library, never Lua numbers or `float64`; operation and
 balance entries are sorted while duplicates remain in the digest input. Lua
 treats the digest as an opaque exact string. Transaction identity is included
-in every operation entry, while attempt owner, terminal outcome, and dataset
+in every operation entry. The transaction-level amount and asset are also
+sealed from the immutable input in both the economic and annotation digest
+domains; a persistence candidate cannot supply both sides of that comparison.
+Attempt owner, terminal outcome, and dataset
 generation remain explicit envelope fields and are compared alongside the
 digest in the same bind and finalization commands.
 
@@ -164,7 +188,8 @@ fallback), and the default bulk Rabbit consumer all enter one terminal
 persistence handoff. That handoff performs the same ordered proof every time:
 
 1. Read the transaction and its complete operation set from PostgreSQL primary.
-2. Verify transaction ID, origin, terminal status, exact operation-ID multiset,
+2. Verify transaction ID, origin, terminal status, transaction amount and asset,
+   exact operation-ID multiset,
    and every operation's complete economic effect against the immutable payload:
    balance ID/key, direction, type, asset, amount, balance-affected flag, and
    before/after available, on-hold, version, and overdraft values.
@@ -183,7 +208,8 @@ companion; an exact replay with a surviving owner remains reconciliation work.
 Cleanup is another same-slot owner/outcome-checked Lua command that compares the
 complete economic operation and balance multisets, writes the non-expiring terminal receipt, and
 only then removes the backup and outcome atomically. The receipt binds the
-dataset generation, transaction identity, owner, terminal outcome, action,
+dataset generation, transaction identity, exact transaction amount and asset,
+owner, terminal outcome, action,
 canonical operation IDs and full economic operation bodies, and Lua-authored
 balance snapshot multiset. The multiset keeps repeated touches of one balance
 (for example principal plus fee settlement) and compares their exact count and
@@ -198,14 +224,15 @@ can retire only a transient execution or recovery lease. It never erases an
 immutable outcome, durable claim, or persistent legacy/origin fence, and it is
 never evidence that movement did not happen. The queue seed
 exists before Lua dispatch, but it has no `balancesAfter`; the consumer never
-persists that seed as a completed reverse. While the winner is live, its
-owned execution attempt prevents a retry from declaring that seed abandoned.
-If the exact attempt is absent, the balance Lua itself prevents the old winner
-from moving if it resumes because it checks the exact attempt key and owner
-inside the script. Absence is considered only together with the immutable
-outcome and exact reserved seed facts; elapsed time contributes no safety
-proof. A retry then verifies either that the reserved backup is absent
-(crash before seed) or that the seed carries the exact claim origin,
+persists that seed as a completed reverse. While a `CLAIMED` winner is live,
+its owned execution attempt prevents a retry from declaring that seed
+abandoned. If the exact attempt expires before the claim is armed, PostgreSQL
+recovery wins the compare-and-set to `RECOVERING`; the stale writer can no
+longer arm and therefore cannot reach balance Lua. Absence is considered only
+together with a `CLAIMED` phase, the immutable outcome, and exact reserved seed
+facts; elapsed time contributes no safety proof. A retry then verifies either
+that the reserved backup is absent (crash before seed) or that the seed carries
+the exact claim origin,
 atomically elects one PostgreSQL recovery owner, removes the seed first, then
 owner-releases the origin and legacy fences, releases PostgreSQL last, and re-enters the
 normal claim path. Cleanup is idempotent, and a `RECOVERING` owner that crashes
@@ -219,6 +246,14 @@ owner, and expected outcome in one Lua command; if a terminal envelope wins the
 race, cleanup removes nothing and PostgreSQL remains fenced. A stale request or expired
 `RECOVERING` owner therefore cannot delete a successor's fence even if it
 resumes after that successor completes.
+
+`ARMED` is intentionally asymmetric. Once primary commits `ARMED`, an expired
+attempt plus a missing backup/outcome may be either a crash before Lua or
+selective loss of Redis evidence after Lua moved funds. The system never
+guesses between them: it preserves the PostgreSQL claim and all surviving
+fences, returns `0501`, and requires manual reconciliation. A global dataset
+generation proves which Redis dataset is being read; it cannot prove that one
+transaction's keys were never lost.
 
 Transaction-backup deletion has no key-only API. Every economic envelope
 removal belongs to one of four explicit proof classes:
@@ -293,7 +328,7 @@ compatibility cleanup never touches an outcome-backed envelope.
 
 | Failure point | Proof available | Action |
 |---|---|---|
-| Before queue seed or balance Lua dispatch, with a confirmed failure response | No movement was attempted and no seed write is ambiguous | Prove removal of the reserved backup seed, owner-release the origin and legacy barriers, then release the still-`CLAIMED` PostgreSQL claim last; retry is allowed |
+| Before the primary claim is `ARMED`, with a confirmed failure response | No movement was attempted and no seed write is ambiguous | Prove removal of the reserved backup seed, owner-release the origin and legacy barriers, then release the still-`CLAIMED` PostgreSQL claim last; retry is allowed |
 | Queue seed response is lost | The seed may exist, but movement was not dispatched | Preserve claim, execution attempt, origin, legacy, and possible seed; mark reconciliation required |
 | Lua-declared validation rejection | Lua rolled back the complete batch | Release all barriers and the claim; retry is allowed after the business condition changes |
 | Transport error after Lua dispatch | Commit outcome is ambiguous to the caller | Read the immutable Redis outcome; exact outcome recovers, unreadable outcome preserves every barrier and requires reconciliation |
@@ -306,8 +341,9 @@ compatibility cleanup never touches an outcome-backed envelope.
 | Lost response after rollout-generation completion | Durable claim retains the exact `legacy` or `bridge` generation and deterministic origin token; transaction, operations, claim, replays, and Redis economic cleanup are already proven terminal | HTTP or consumer redelivery repeats the same generation seal idempotently; it never releases a generation inferred from the current pod mode |
 | Final adoption sees a foreign H1 collision | The durable claim and child prove this origin; the legacy key explicitly belongs to another owner or replay | Preserve the foreign H1 unchanged, finish the origin-scoped replay, and clean only this reverse's exact outcome/backup |
 | Crash after an old-compatible child is durable but before backup cleanup | Child, all operations, and completed adopted claim exist on PostgreSQL primary; legacy backup has no owner/outcome envelope | Compare reverse, parent, status, every operation ID, and require field-complete economic operation and balance bodies in one Lua command; incomplete evidence stays quarantined; only exact evidence publishes a compatibility receipt and removes the backup |
-| Crash before queue seed | Durable claim names the exact origin, reverse, H1 key, owner, and current dataset generation; one atomic generation-bound read proves backup, execution attempt, and immutable outcome absent | Elect one `RECOVERING` owner, generation-check and owner-release the exact barriers, release PostgreSQL last, and retry; safety comes from Lua requiring the now-absent exact attempt, not from elapsed time |
-| Crash before Lua dispatch | Valid exact-origin queue seed exists without `balancesAfter` or immutable outcome, the exact execution attempt is absent, and the configured/claim/Redis generation still agrees | Elect one `RECOVERING` owner, generation-check and clear Redis barriers/seed, release PostgreSQL last, and retry; the old winner is rejected inside Lua if it resumes |
+| Crash before queue seed | `CLAIMED` names the exact origin, reverse, H1 key, owner, and current dataset generation; one atomic generation-bound read proves backup, execution attempt, and immutable outcome absent | Elect one `RECOVERING` owner, generation-check and owner-release the exact barriers, release PostgreSQL last, and retry; the stale writer cannot arm after recovery wins the primary CAS |
+| Crash after seed but before arm | A valid exact-origin queue seed exists without `balancesAfter` or immutable outcome, the claim remains `CLAIMED`, the exact execution attempt is absent, and the configured/claim/Redis generation still agrees | Elect one `RECOVERING` owner, generation-check and clear Redis barriers/seed, release PostgreSQL last, and retry; the stale writer cannot arm after recovery wins the primary CAS |
+| Crash after `ARMED` but before Lua, or loss of all per-transaction Redis keys | Primary proves the attempt crossed the durable point of no automatic return, but Redis cannot prove whether movement occurred | Preserve claim and every surviving barrier, return `0501`, and require manual reconciliation; the global dataset witness alone cannot authorize retry |
 | Pre-movement cleanup races a terminal Lua envelope | Status/owner/outcome no longer match the exact seed selected for cleanup | Atomic cleanup removes nothing; preserve all barriers and require reconciliation |
 | Crash while cleaning `RECOVERING` | PostgreSQL retains the cleanup state and timestamp | Re-elect after 30 seconds and resume idempotent cleanup; PostgreSQL remains the last record released |
 
@@ -554,7 +590,7 @@ After terminal cleanup, a redelivery can become a read-only acknowledgement
 only when the same-slot Redis preflight finds the exact terminal persistence
 receipt and no live backup or outcome, the current witness still names the
 receipt generation, PostgreSQL primary contains the economically identical
-transaction and complete canonical operation set, and a reverse claim is
+transaction amount, asset, and complete canonical operation set, and a reverse claim is
 `COMPLETED` for that exact origin and reverse. A missing receipt, partial Redis
 restoration, opposite outcome, changed generation, claim mismatch, or economic
 divergence is reconciliation; none can recreate operations or acknowledge a
@@ -588,11 +624,16 @@ transaction.
 
 1. Apply the published `000036_create_revert_claim` and
    `000037_add_revert_rollout_generation` unchanged, then apply
-   `000038_create_revert_rollout_initialization`. `000037` is additive and idempotent:
+   `000038_create_revert_rollout_initialization` and
+   `000039_arm_revert_claim`. `000037` is additive and idempotent:
    it adds rollout mode/token and financial generation to an already-migrated
    `000036` database without rewriting existing claims. `000038` adds the
    deployment-scoped birth certificate without reusing an already-recorded
-   migration version. Deploy every pod with
+   migration version. `000039` adds the monotonic `ARMED` boundary. Because an
+   already-existing nonterminal claim cannot prove that balance Lua was never
+   invoked, the first `000039` application conservatively promotes every old
+   `CLAIMED` or `RECOVERING` row to `ARMED`; an idempotent rerun does not alter
+   claims created afterward. Deploy every pod with
    `REVERT_IDEMPOTENCY_MODE=legacy` and an empty target. This is the released
    old algorithm plus rollout capability; it neither creates a witness nor
    claims durable phase-zero ownership yet.
@@ -663,13 +704,18 @@ verifiable; it is not a human assertion hidden in a runbook.
    while bridge/final pods keep APPROVED updates frozen.
 4. Drain or reconcile every backup created by old or phase-zero pods. A
    phase-zero-capable backup always carries its explicit parent, pre-movement
-   claim, exact H1 owner, and atomic balance outcome after movement. A
+   claim, the exact persisted H1 key and owner, and the atomic balance outcome
+   after movement. A
    parent-less backup is accepted only when its reverse ID already has a durable
    claim. A genuinely old backup with no trustworthy origin is quarantined. An
    old explicit-parent seed without an atomic outcome remains untouched before
    the drained marker; after the marker proves no old request can resume, the
-   consumer first verifies no claim exists for the origin, then deletes only an
-   empty H1 with no owner, and only afterward deletes the exact seed. A crash
+   consumer first verifies no claim exists for the origin, then requires the
+   backup's persisted H1 key to equal the key derived from that backup's own
+   immutable input snapshot. Only then may it delete an empty H1 with no owner,
+   and only afterward delete the exact seed. A missing or divergent persisted
+   H1 witness is quarantined for reconciliation; the consumer never chooses a
+   deletion target by hashing a mutable PostgreSQL transaction. A crash
    between those steps leaves the seed for idempotent redelivery rather than
    orphaning H1. Do not advance while any backup can
    represent an unclaimed balance movement.
@@ -729,15 +775,17 @@ the durable claims, so it requires a traffic stop, zero in-flight bridge/final
 requests, completed backup reconciliation, and verified PostgreSQL primary and
 replica convergence before old code can serve reverts.
 
-The `000038` down migration takes an exclusive lock and refuses to remove the
-PostgreSQL rollout birth certificate while its singleton row exists. Because
-that row is created before the first Redis witness, migration down is available
-only before initialization; after initialization the rollout is forward-only
-unless a future product migration explicitly supersedes and archives the birth
-certificate. If `000038` is still empty and removable, the published `000037`
-down then takes an exclusive lock and refuses to remove its rollout/generation
-columns while **any claim row** exists, including completed rows. Only after
-both guarded rollbacks may the unchanged `000036` down remove the claim table.
+Migration down starts at `000039`: it takes an exclusive lock and proves the
+claim table is empty. It never maps `ARMED` backward; rollback with any live or
+historical claim is refused because erasing that phase would erase the fact
+that automatic retry is forbidden. `000038` then takes its own exclusive lock
+and refuses to remove the PostgreSQL rollout birth certificate while its
+singleton row exists. Because that row is created before the first Redis
+witness, migration down is available only before initialization; after
+initialization the rollout is forward-only unless a future product migration
+explicitly supersedes and archives the birth certificate. Only after both
+guards pass may the published `000037` down remove its rollout/generation
+columns and the unchanged `000036` down remove the claim table.
 Removing any fence would silently erase the only barrier understood by
 bridge/final pods. This is not a rolling rollback step.
 

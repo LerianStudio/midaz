@@ -111,7 +111,7 @@ func (uc *UseCase) CreateBulkTransactionOperationsAsync(
 			if err != nil {
 				logger.Log(ctx, libLog.LevelWarn, "Legacy payload: failed to extract IDs", libLog.Err(err))
 
-				continue
+				return result, fmt.Errorf("extract legacy transaction identity: %w", err)
 			}
 
 			logger.Log(ctx, libLog.LevelWarn, "Legacy payload detected (no Version field), calling UpdateBalances",
@@ -120,6 +120,8 @@ func (uc *UseCase) CreateBulkTransactionOperationsAsync(
 			if err := uc.UpdateBalances(ctx, orgID, ledgerID, *p.Validate, p.Balances, p.BalancesAfter); err != nil {
 				logger.Log(ctx, libLog.LevelError, "Failed to update balances for legacy payload",
 					libLog.String("transaction_id", p.Transaction.ID), libLog.Err(err))
+
+				return result, fmt.Errorf("persist legacy transaction balances: %w", err)
 			}
 		}
 	}

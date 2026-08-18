@@ -99,10 +99,72 @@ func TestValidateRedisTransactionEconomicEffect_BindsSemanticsToImmutableBalance
 	}
 
 	require.NoError(t, ValidateRedisTransactionEconomicEffect(envelope, []OperationRedis{debit, credit}))
+	truncated := *envelope
+	truncated.Balances = append([]BalanceRedis(nil), envelope.Balances[:1]...)
+	truncated.BalancesAfter = append([]BalanceRedis(nil), envelope.BalancesAfter[:1]...)
+	assert.Error(t, ValidateRedisTransactionEconomicEffect(&truncated, []OperationRedis{debit}),
+		"a candidate cannot hide one immutable leg by truncating both its operation and balance snapshots")
 	debit.Type, credit.Type = credit.Type, debit.Type
 	debit.Direction, credit.Direction = credit.Direction, debit.Direction
 	assert.Error(t, ValidateRedisTransactionEconomicEffect(envelope, []OperationRedis{debit, credit}),
 		"globally valid debit/credit labels cannot be swapped across immutable source and destination balances")
+}
+
+func TestValidateRedisTransactionEconomicEffect_PendingOutcomeCoversOnlyHeldSource(t *testing.T) {
+	t.Parallel()
+
+	envelope, hold := exactEconomicProofFixture(t)
+	envelope.TransactionStatus = constant.PENDING
+	envelope.BalancesAfter[0].OnHold = decimal.NewFromInt(100)
+	hold.Type = constant.ONHOLD
+	hold.BalanceAfterOnHold = decimal.NewFromInt(100)
+	envelope.Validate.From = map[string]mtransaction.Amount{
+		"@source#default": {
+			Asset: "USD", Value: decimal.NewFromInt(100), Operation: constant.ONHOLD,
+			TransactionType: constant.PENDING, Direction: constant.DirectionDebit,
+		},
+	}
+	envelope.Validate.To = map[string]mtransaction.Amount{
+		"@destination#default": {
+			Asset: "USD", Value: decimal.NewFromInt(100), Operation: constant.CREDIT,
+			TransactionType: constant.PENDING, Direction: constant.DirectionCredit,
+		},
+	}
+
+	require.NoError(t, ValidateRedisTransactionEconomicEffect(envelope, []OperationRedis{hold}),
+		"a hold outcome must prove its source movement without inventing the destination operation reserved for commit")
+}
+
+func TestValidateRedisTransactionEconomicEffect_CancelOutcomeCoversOnlyReleasedSource(t *testing.T) {
+	t.Parallel()
+
+	envelope, release := exactEconomicProofFixture(t)
+	envelope.TransactionStatus = constant.CANCELED
+	envelope.Balances[0].Available = decimal.NewFromInt(900)
+	envelope.Balances[0].OnHold = decimal.NewFromInt(100)
+	envelope.BalancesAfter[0].Available = decimal.NewFromInt(1000)
+	envelope.BalancesAfter[0].OnHold = decimal.Zero
+	release.Type = constant.RELEASE
+	release.Direction = constant.DirectionCredit
+	release.BalanceAvailable = decimal.NewFromInt(900)
+	release.BalanceOnHold = decimal.NewFromInt(100)
+	release.BalanceAfterAvailable = decimal.NewFromInt(1000)
+	release.BalanceAfterOnHold = decimal.Zero
+	envelope.Validate.From = map[string]mtransaction.Amount{
+		"@source#default": {
+			Asset: "USD", Value: decimal.NewFromInt(100), Operation: constant.RELEASE,
+			TransactionType: constant.CANCELED, Direction: constant.DirectionCredit,
+		},
+	}
+	envelope.Validate.To = map[string]mtransaction.Amount{
+		"@destination#default": {
+			Asset: "USD", Value: decimal.NewFromInt(100), Operation: constant.CREDIT,
+			TransactionType: constant.CANCELED, Direction: constant.DirectionCredit,
+		},
+	}
+
+	require.NoError(t, ValidateRedisTransactionEconomicEffect(envelope, []OperationRedis{release}),
+		"cancel must prove the held source release without inventing a destination movement that never occurred")
 }
 
 func TestValidateRedisTransactionEconomicEffect_UsesDurableOperationTypeOverride(t *testing.T) {
@@ -191,6 +253,8 @@ func TestResolveTransactionEffectMode_ExplicitVersionedCompatibility(t *testing.
 		{name: "unknown version", queue: TransactionRedisQueue{EffectModeVersion: 2, EffectMode: TransactionEffectAnnotationOnly, TransactionStatus: constant.NOTED}, wantErr: true},
 		{name: "unknown mode", queue: TransactionRedisQueue{EffectModeVersion: 1, EffectMode: "UNKNOWN", TransactionStatus: constant.NOTED}, wantErr: true},
 		{name: "annotation mode on created", queue: TransactionRedisQueue{EffectModeVersion: 1, EffectMode: TransactionEffectAnnotationOnly, TransactionStatus: constant.CREATED}, wantErr: true},
+		{name: "unknown balance mutation override", queue: TransactionRedisQueue{EffectModeVersion: 1, EffectMode: TransactionEffectBalanceMutation, TransactionStatus: constant.CREATED, OperationTypeOverride: "FOO"}, wantErr: true},
+		{name: "annotation override", queue: TransactionRedisQueue{EffectModeVersion: 1, EffectMode: TransactionEffectAnnotationOnly, TransactionStatus: constant.NOTED, OperationTypeOverride: constant.BLOCK}, wantErr: true},
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			got, err := ResolveTransactionEffectMode(&test.queue)

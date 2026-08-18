@@ -56,8 +56,11 @@ if envelope.economic_effect_digest ~= nil and envelope.economic_effect_digest ~=
     return redis.error_reply("TRANSACTION_BACKUP_CHANGED")
 end
 
-if envelope.operations == nil then
+if envelope.operations == nil or envelope.operations == cjson.null or
+   (type(envelope.operations) == "table" and #envelope.operations == 0) then
     envelope.operations = operations
+elseif type(envelope.operations) ~= "table" then
+    return redis.error_reply("TRANSACTION_BACKUP_INVALID")
 end
 if envelope.action == nil and ARGV[8] ~= "" then
     envelope.action = ARGV[8]

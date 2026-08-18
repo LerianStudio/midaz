@@ -83,6 +83,7 @@ func TestCreateBalanceTransactionOperationsAsync_OutcomeWithoutGenerationPreflig
 				Validate: &mtransaction.Responses{}, Version: "v2", BalancesAfter: []*mmodel.Balance{balanceAfter},
 				AttemptOwner: uuid.NewString(), ExpectedOutcome: mmodel.TransactionOutcomeCommitted,
 			}
+			bindCompleteTransactionIdentity(&payload)
 			raw, err := msgpack.Marshal(payload)
 			require.NoError(t, err)
 			uc := &UseCase{
@@ -125,6 +126,7 @@ func TestPreflightDurableBulkPayloads_OutcomeWithoutGenerationRejectsDivergenceB
 		Validate: &mtransaction.Responses{}, Version: "v2", BalancesAfter: []*mmodel.Balance{balanceAfter},
 		AttemptOwner: uuid.NewString(), ExpectedOutcome: mmodel.TransactionOutcomeCommitted,
 	}
+	bindCompleteTransactionIdentity(&payload)
 	uc := &UseCase{
 		TransactionRepo: transactionRepo, OperationRepo: operationRepo,
 		BalanceRepo: balanceRepo, TransactionRedisRepo: redisRepo,
@@ -178,6 +180,7 @@ func TestCreateBalanceTransactionOperationsAsync_OutcomeWithoutGenerationLostAck
 		BalancesAfter: []*mmodel.Balance{balanceAfter}, AttemptOwner: uuid.NewString(),
 		ExpectedOutcome: mmodel.TransactionOutcomeCommitted,
 	}
+	bindCompleteTransactionIdentity(&payload)
 	raw, err := msgpack.Marshal(payload)
 	require.NoError(t, err)
 	uc := &UseCase{
@@ -215,6 +218,7 @@ func TestFinalizeDurableTransactionPersistence_OutcomeWithoutGenerationRejectsDi
 		BalancesAfter: []*mmodel.Balance{balanceAfter}, AttemptOwner: uuid.NewString(),
 		ExpectedOutcome: mmodel.TransactionOutcomeAborted,
 	}
+	bindCompleteTransactionIdentity(&payload)
 	uc := &UseCase{TransactionRepo: transactionRepo, TransactionRedisRepo: redisRepo}
 
 	managed, err := uc.FinalizeDurableTransactionPersistence(context.Background(), organizationID, ledgerID, payload)
@@ -237,6 +241,7 @@ func TestFinalizeDurableTransactionPersistence_OutcomeWithoutGenerationRejectsNo
 		BalancesAfter: []*mmodel.Balance{balanceAfter}, AttemptOwner: uuid.NewString(),
 		ExpectedOutcome: constant.PENDING,
 	}
+	bindCompleteTransactionIdentity(&payload)
 	uc := &UseCase{}
 
 	managed, err := uc.FinalizeDurableTransactionPersistence(context.Background(), organizationID, ledgerID, payload)
@@ -333,7 +338,7 @@ func TestValidateProcessingPayloadEffectMode_AnnotationPreservesInformationalAmo
 	payload := transaction.TransactionProcessingPayload{
 		Transaction: &transaction.Transaction{
 			ID: transactionID.String(), OrganizationID: organizationID.String(), LedgerID: ledgerID.String(),
-			Amount: &informationalAmount, Status: transaction.Status{Code: constant.NOTED},
+			Amount: &informationalAmount, AssetCode: "USD", Status: transaction.Status{Code: constant.NOTED},
 			Operations: []*operation.Operation{{
 				ID: uuid.NewString(), TransactionID: transactionID.String(), Type: constant.DEBIT,
 				AssetCode: "USD", Amount: operation.Amount{Value: &zero}, BalanceID: uuid.NewString(),
@@ -365,7 +370,98 @@ func TestValidateProcessingPayloadEffectMode_AnnotationPreservesInformationalAmo
 	payload.Transaction.Amount = &divergentAmount
 	_, err = validateProcessingPayloadEffectMode(organizationID, ledgerID, &payload)
 	require.ErrorContains(t, err,
-		"informational amount differs")
+		"amount differs")
+}
+
+func TestValidateProcessingPayloadEffectMode_AnnotationRequiresExactPositiveInformationalIdentity(t *testing.T) {
+	t.Parallel()
+
+	organizationID := uuid.New()
+	ledgerID := uuid.New()
+	transactionID := uuid.New()
+
+	for _, test := range []struct {
+		name    string
+		mutate  func(*transaction.TransactionProcessingPayload)
+		wantErr string
+	}{
+		{
+			name: "zero amount",
+			mutate: func(payload *transaction.TransactionProcessingPayload) {
+				zero := decimal.Zero
+				payload.Transaction.Amount = &zero
+				payload.Input.Send.Value = zero
+			},
+			wantErr: "must be positive",
+		},
+		{
+			name: "negative amount",
+			mutate: func(payload *transaction.TransactionProcessingPayload) {
+				negative := decimal.NewFromInt(-1)
+				payload.Transaction.Amount = &negative
+				payload.Input.Send.Value = negative
+			},
+			wantErr: "must be positive",
+		},
+		{
+			name: "different asset",
+			mutate: func(payload *transaction.TransactionProcessingPayload) {
+				payload.Transaction.AssetCode = "EUR"
+			},
+			wantErr: "asset differs",
+		},
+		{
+			name: "exact amount beyond float64 integer precision",
+			mutate: func(payload *transaction.TransactionProcessingPayload) {
+				precise := decimal.RequireFromString("9007199254740993")
+				payload.Transaction.Amount = &precise
+				payload.Input.Send.Value = precise
+			},
+		},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			payload := completeAnnotationPersistencePayload(organizationID, ledgerID, transactionID)
+			test.mutate(&payload)
+			_, err := validateProcessingPayloadEffectMode(organizationID, ledgerID, &payload)
+			if test.wantErr != "" {
+				require.ErrorContains(t, err, test.wantErr)
+
+				return
+			}
+			require.NoError(t, err)
+		})
+	}
+}
+
+func TestValidateProcessingPayloadEffectMode_BalanceMutationRequiresExactPositiveTransactionIdentity(t *testing.T) {
+	t.Parallel()
+
+	organizationID := uuid.New()
+	ledgerID := uuid.New()
+	transactionID := uuid.New()
+	amount := decimal.NewFromInt(100)
+	payload := transaction.TransactionProcessingPayload{
+		Transaction: &transaction.Transaction{
+			ID: transactionID.String(), OrganizationID: organizationID.String(), LedgerID: ledgerID.String(),
+			Amount: &amount, AssetCode: "USD", Status: transaction.Status{Code: constant.APPROVED},
+		},
+		Input:             &mtransaction.Transaction{Send: mtransaction.Send{Asset: "USD", Value: amount}},
+		EffectModeVersion: mmodel.TransactionEffectModeVersion,
+		EffectMode:        mmodel.TransactionEffectBalanceMutation,
+	}
+
+	mode, err := validateProcessingPayloadEffectMode(organizationID, ledgerID, &payload)
+	require.NoError(t, err)
+	require.Equal(t, mmodel.TransactionEffectBalanceMutation, mode)
+
+	divergentAmount := decimal.NewFromInt(101)
+	payload.Transaction.Amount = &divergentAmount
+	_, err = validateProcessingPayloadEffectMode(organizationID, ledgerID, &payload)
+	require.ErrorContains(t, err, "amount differs")
+	payload.Transaction.Amount = &amount
+	payload.Transaction.AssetCode = "EUR"
+	_, err = validateProcessingPayloadEffectMode(organizationID, ledgerID, &payload)
+	require.ErrorContains(t, err, "asset differs")
 }
 
 func TestPreflightOutcomeBackedTransaction_AnnotationAdoptsOnlyCanonicalOperationIdentity(t *testing.T) {
@@ -458,7 +554,7 @@ func completeAnnotationPersistencePayload(
 	return transaction.TransactionProcessingPayload{
 		Transaction: &transaction.Transaction{
 			ID: transactionID.String(), OrganizationID: organizationID.String(), LedgerID: ledgerID.String(),
-			Amount: &informationalAmount, Status: transaction.Status{Code: constant.NOTED},
+			Amount: &informationalAmount, AssetCode: "USD", Status: transaction.Status{Code: constant.NOTED},
 			Operations: []*operation.Operation{{
 				ID: uuid.NewString(), TransactionID: transactionID.String(), Type: constant.DEBIT,
 				AssetCode: "USD", Amount: operation.Amount{Value: &zero}, BalanceID: uuid.NewString(),
@@ -515,4 +611,18 @@ func completeOutcomeEvidence(
 	}
 
 	return operationValue, balanceAfter
+}
+
+func bindCompleteTransactionIdentity(payload *transaction.TransactionProcessingPayload) {
+	if payload == nil || payload.Transaction == nil {
+		return
+	}
+	if payload.Input == nil {
+		payload.Input = &mtransaction.Transaction{Send: mtransaction.Send{
+			Asset: "USD", Value: decimal.NewFromInt(10),
+		}}
+	}
+	amount := payload.Input.Send.Value
+	payload.Transaction.Amount = &amount
+	payload.Transaction.AssetCode = payload.Input.Send.Asset
 }

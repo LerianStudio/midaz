@@ -2416,11 +2416,12 @@ func TestIntegration_TransactionV2Revert_LostBalanceResponseStaysFenced(t *testi
 
 	// Recreate the durable state a hard process crash leaves when Redis commits
 	// but the process dies before it can mark the claim MUTATED/reconciliation.
-	// The retry must infer the commit only from Lua's atomic BalancesAfter
-	// outcome, never from process memory.
+	// ARMED was committed on PostgreSQL primary before Lua could run. The retry
+	// must infer the commit only from Lua's atomic BalancesAfter outcome, never
+	// from process memory.
 	_, err = infra.pgContainer.DB.ExecContext(ctx, `
 		UPDATE transaction_revert_claim
-		SET state = 'CLAIMED', failure_reason = NULL
+		SET state = 'ARMED', failure_reason = NULL
 		WHERE organization_id = $1 AND ledger_id = $2 AND origin_transaction_id = $3`,
 		infra.orgID, infra.ledgerID, originID)
 	require.NoError(t, err)
@@ -2431,9 +2432,10 @@ func TestIntegration_TransactionV2Revert_LostBalanceResponseStaysFenced(t *testi
 	hardCrashClaim, err := infra.handler.Command.GetRevertClaim(ctx, infra.orgID, infra.ledgerID, originID)
 	require.NoError(t, err)
 	require.NotNil(t, hardCrashClaim)
-	assert.Equal(t, revertclaim.StateReconciliationRequired, hardCrashClaim.State)
-	require.NotNil(t, hardCrashClaim.FailureReason)
-	assert.Equal(t, "reverse_balance_committed_before_persistence", *hardCrashClaim.FailureReason)
+	assert.Equal(t, revertclaim.StateArmed, hardCrashClaim.State,
+		"a retry must not overwrite the shared phase while the original owner may still be completing persistence")
+	assert.Nil(t, hardCrashClaim.FailureReason,
+		"the HTTP 0501 response exposes reconciliation while ARMED remains the durable no-retry fence")
 	assert.Equal(t, 1, countTransactionsInLedger(t, infra.pgContainer.DB, infra.ledgerID),
 		"ambiguous movement stays unpersisted and fenced until backup reconciliation")
 
@@ -2441,6 +2443,36 @@ func TestIntegration_TransactionV2Revert_LostBalanceResponseStaysFenced(t *testi
 	destinationAfterRetry := getBalanceFromRedis(t, ctx, infra.redisRepo, infra.orgID, infra.ledgerID, "@dst", cn.DefaultBalanceKey)
 	requireDecimalEqual(t, sourceAfterFirst.Available, sourceAfterRetry.Available, "retry cannot restore the source twice")
 	requireDecimalEqual(t, destinationAfterFirst.Available, destinationAfterRetry.Available, "retry cannot debit the destination twice")
+
+	// Selective loss of every per-transaction Redis record while the global
+	// financial generation survives is not proof that Lua never moved money.
+	// ARMED on PostgreSQL is the durable witness that makes this fail closed.
+	_, err = infra.pgContainer.DB.ExecContext(ctx, `
+		UPDATE transaction_revert_claim
+		SET state = 'ARMED', failure_reason = NULL
+		WHERE organization_id = $1 AND ledger_id = $2 AND origin_transaction_id = $3`,
+		infra.orgID, infra.ledgerID, originID)
+	require.NoError(t, err)
+	backupKey := utils.TransactionInternalKey(infra.orgID, infra.ledgerID, claim.ReverseTransactionID.String())
+	executionKey := utils.TransactionBalanceExecutionKey(infra.orgID, infra.ledgerID, claim.ReverseTransactionID)
+	outcomeKey := utils.TransactionBalanceOutcomeKey(infra.orgID, infra.ledgerID, claim.ReverseTransactionID)
+	require.NoError(t, infra.redisContainer.Client.HDel(ctx, transactionredis.TransactionBackupQueue, backupKey).Err())
+	require.NoError(t, infra.redisContainer.Client.Del(ctx, outcomeKey, executionKey, executionKey+":owner").Err())
+
+	lostEvidenceRetry := postTransaction(t, v2App, v2RevertURL(infra.orgID, infra.ledgerID, originID), "", "")
+	assertProblemCode(t, lostEvidenceRetry, nethttp.StatusServiceUnavailable, cn.ErrRevertReconciliationRequired.Error())
+	assert.Equal(t, int32(1), faultRepo.balanceCalls.Load(), "selective Redis loss cannot authorize a second balance command")
+	lostEvidenceClaim, err := infra.handler.Command.GetRevertClaim(ctx, infra.orgID, infra.ledgerID, originID)
+	require.NoError(t, err)
+	require.NotNil(t, lostEvidenceClaim)
+	assert.Equal(t, revertclaim.StateReconciliationRequired, lostEvidenceClaim.State)
+	require.NotNil(t, lostEvidenceClaim.FailureReason)
+	assert.Equal(t, "armed_revert_economic_evidence_missing", *lostEvidenceClaim.FailureReason)
+
+	sourceAfterLoss := getBalanceFromRedis(t, ctx, infra.redisRepo, infra.orgID, infra.ledgerID, "@src", cn.DefaultBalanceKey)
+	destinationAfterLoss := getBalanceFromRedis(t, ctx, infra.redisRepo, infra.orgID, infra.ledgerID, "@dst", cn.DefaultBalanceKey)
+	requireDecimalEqual(t, sourceAfterFirst.Available, sourceAfterLoss.Available, "selective loss cannot restore the source twice")
+	requireDecimalEqual(t, destinationAfterFirst.Available, destinationAfterLoss.Available, "selective loss cannot debit the destination twice")
 }
 
 func TestIntegration_TransactionV2Revert_FinalRecoversBridgeCrashBeforeLuaThenMovesOnce(t *testing.T) {
@@ -2926,16 +2958,24 @@ func TestIntegration_TransactionV2Revert_ExpiredExecutionLeaseFencesPausedWinner
 	assert.Equal(t, int32(1), pausedRepo.calls.Load(), "an active execution lease must not be mistaken for a crashed winner")
 
 	// Expiration is simulated by releasing both same-slot lease records with
-	// the old reverse's owner token. Recovery may now release the old claim,
-	// but the paused winner is still unable to mutate because the Lua script
-	// checks this exact key and owner.
+	// the old reverse's owner token. Because PostgreSQL was already ARMED before
+	// ProcessBalanceOperations could be invoked, the missing lease is ambiguous:
+	// it may be a pre-Lua crash or selective Redis loss after movement. Recovery
+	// must preserve the claim and refuse a successor forever.
 	released, err := infra.redisRepo.ReleaseOwnedKey(ctx, fenceKey, pausedReverseID.String())
 	require.NoError(t, err)
 	require.True(t, released)
 	takeover, _, takeoverErr := infra.handler.revertTransaction(ctx, infra.orgID, infra.ledgerID, originID)
-	require.NoError(t, takeoverErr)
-	require.NotNil(t, takeover)
-	assert.NotEqual(t, pausedReverseID.String(), takeover.ID)
+	assert.Nil(t, takeover)
+	require.Error(t, takeoverErr)
+	var reconciliation pkg.ServiceUnavailableError
+	require.ErrorAs(t, takeoverErr, &reconciliation)
+	assert.Equal(t, cn.ErrRevertReconciliationRequired.Error(), reconciliation.Code)
+	claim, err = infra.handler.Command.GetRevertClaim(ctx, infra.orgID, infra.ledgerID, originID)
+	require.NoError(t, err)
+	require.NotNil(t, claim)
+	assert.Equal(t, revertclaim.StateReconciliationRequired, claim.State)
+	assert.Equal(t, pausedReverseID, claim.ReverseTransactionID)
 
 	close(pausedRepo.releaseFirst)
 	stale := <-firstResult
@@ -2944,12 +2984,12 @@ func TestIntegration_TransactionV2Revert_ExpiredExecutionLeaseFencesPausedWinner
 	var staleConflict pkg.EntityConflictError
 	require.ErrorAs(t, stale.err, &staleConflict)
 	assert.Equal(t, cn.ErrIdempotencyKey.Error(), staleConflict.Code)
-	assert.Equal(t, int32(1), pausedRepo.movements.Load(), "only the lease-owning successor may move balances")
+	assert.Equal(t, int32(0), pausedRepo.movements.Load(), "neither the stale executor nor a successor may move balances")
 
 	drainBalanceSync(t, ctx, infra.handler.Command, infra.redisRepo, infra.orgID, infra.ledgerID)
-	assert.Equal(t, 2, countTransactionsInLedger(t, infra.pgContainer.DB, infra.ledgerID))
-	requireDecimalEqual(t, decimal.NewFromInt(1000), postgrestestutil.GetBalanceAvailable(t, infra.pgContainer.DB, srcID), "source restored exactly once")
-	requireDecimalEqual(t, decimal.NewFromInt(1000), postgrestestutil.GetBalanceAvailable(t, infra.pgContainer.DB, dstID), "destination restored exactly once")
+	assert.Equal(t, 1, countTransactionsInLedger(t, infra.pgContainer.DB, infra.ledgerID))
+	requireDecimalEqual(t, decimal.NewFromInt(900), postgrestestutil.GetBalanceAvailable(t, infra.pgContainer.DB, srcID), "source remains at the origin result")
+	requireDecimalEqual(t, decimal.NewFromInt(1100), postgrestestutil.GetBalanceAvailable(t, infra.pgContainer.DB, dstID), "destination remains at the origin result")
 }
 
 func TestIntegration_TransactionV2Revert_PausedSeedWriterCannotDeleteSuccessorReplay(t *testing.T) {

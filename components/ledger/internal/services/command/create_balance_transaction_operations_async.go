@@ -380,10 +380,11 @@ func (uc *UseCase) RemoveTransactionFromRedisQueueIfStatus(
 }
 
 type TransactionBackupSeedOptions struct {
-	ExecutionAttempt   *mmodel.BalanceExecutionAttempt
-	RevertRolloutMode  string
-	RevertRolloutToken string
-	RedisGeneration    string
+	ExecutionAttempt     *mmodel.BalanceExecutionAttempt
+	RevertRolloutMode    string
+	RevertRolloutToken   string
+	RevertLegacyFenceKey string
+	RedisGeneration      string
 }
 
 // SendTransactionToRedisQueue func that send transaction to redis queue.
@@ -470,11 +471,12 @@ func (uc *UseCase) SendTransactionToRedisQueue(ctx context.Context, organization
 		executionAttempt = options[0].ExecutionAttempt
 		queue.RevertRolloutMode = options[0].RevertRolloutMode
 		queue.RevertRolloutToken = options[0].RevertRolloutToken
+		queue.RevertLegacyFenceKey = options[0].RevertLegacyFenceKey
 		queue.RedisGeneration = options[0].RedisGeneration
 	}
 	validRolloutMode := queue.RevertRolloutMode == "legacy" || queue.RevertRolloutMode == "bridge"
 	if (queue.RevertRolloutToken == "") != (queue.RevertRolloutMode == "") ||
-		(queue.RevertRolloutToken != "" && (!validRolloutMode || queue.ParentTransactionID == nil ||
+		(queue.RevertRolloutToken != "" && (!validRolloutMode || queue.RevertLegacyFenceKey == "" || queue.ParentTransactionID == nil ||
 			transactionInput.IsEmpty() || executionAttempt == nil || executionAttempt.Owner != transactionID.String() ||
 			executionAttempt.Outcome != mmodel.TransactionOutcomeCommitted || queue.RedisGeneration == "")) {
 		return fmt.Errorf("rollout revert backup requires exact generation, origin, input, and committed outcome owner")
@@ -534,7 +536,8 @@ func (uc *UseCase) UpdateTransactionBackupOperations(
 		}
 		redisOps = append(redisOps, op.ToRedis())
 	}
-	if len(expected) != 1 || expected[0].TransactionStatus == "" {
+	if len(expected) != 1 || expected[0].TransactionStatus == "" ||
+		expected[0].TransactionAmount == "" || expected[0].TransactionAssetCode == "" {
 		return nil, false, fmt.Errorf("one transaction economic context is required")
 	}
 	proof := expected[0]

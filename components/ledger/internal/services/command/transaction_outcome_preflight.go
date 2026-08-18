@@ -60,8 +60,10 @@ func (uc *UseCase) preflightOutcomeBackedTransaction(
 		actionForTransactionPayload(*payload),
 		attempt,
 		mmodel.TransactionEconomicContext{
-			ParentTransactionID: parentTransactionID,
-			TransactionStatus:   utils.ExpectedBackupStatusForCleanup(payload.Transaction.Status.Code, payload.Validate),
+			ParentTransactionID:  parentTransactionID,
+			TransactionStatus:    utils.ExpectedBackupStatusForCleanup(payload.Transaction.Status.Code, payload.Validate),
+			TransactionAmount:    payload.Input.Send.Value.String(),
+			TransactionAssetCode: payload.Input.Send.Asset,
 		},
 	)
 	if err != nil {
@@ -104,12 +106,27 @@ func validateProcessingPayloadEffectMode(
 	if err != nil {
 		return "", fmt.Errorf("resolve transaction persistence effect mode: %w", err)
 	}
-	if mode != mmodel.TransactionEffectAnnotationOnly {
+	requiresEconomicIdentity := mode == mmodel.TransactionEffectAnnotationOnly ||
+		payload.EffectModeVersion != 0 || payload.EffectMode != "" ||
+		payload.AttemptOwner != "" || payload.ExpectedOutcome != "" ||
+		payload.RedisGeneration != "" || payload.Transaction.ParentTransactionID != nil
+	if !requiresEconomicIdentity {
 		return mode, nil
 	}
-	if payload.Input == nil || payload.Transaction.Amount == nil ||
-		!payload.Transaction.Amount.Equal(payload.Input.Send.Value) {
-		return "", fmt.Errorf("transaction annotation informational amount differs from immutable input")
+	if payload.Input == nil || payload.Transaction.Amount == nil {
+		return "", fmt.Errorf("transaction persistence amount and immutable input are required")
+	}
+	if !payload.Input.Send.Value.IsPositive() || !payload.Transaction.Amount.IsPositive() {
+		return "", fmt.Errorf("transaction persistence amount must be positive")
+	}
+	if !payload.Transaction.Amount.Equal(payload.Input.Send.Value) {
+		return "", fmt.Errorf("transaction persistence amount differs from immutable input")
+	}
+	if payload.Input.Send.Asset == "" || payload.Transaction.AssetCode != payload.Input.Send.Asset {
+		return "", fmt.Errorf("transaction persistence asset differs from immutable input")
+	}
+	if mode != mmodel.TransactionEffectAnnotationOnly {
+		return mode, nil
 	}
 	operations := make([]mmodel.OperationRedis, 0, len(payload.Transaction.Operations))
 	for _, candidate := range payload.Transaction.Operations {

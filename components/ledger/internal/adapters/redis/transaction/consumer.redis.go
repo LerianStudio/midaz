@@ -1486,7 +1486,7 @@ func (rr *RedisConsumerRepository) EnrichTransactionBackup(
 
 		if preflight.Terminal {
 			tombstone := mmodel.TransactionPersistenceTombstone{}
-			if err := validateRawTransactionEconomicEvidence([]byte(preflight.Raw)); err != nil {
+			if err := validateRawTransactionTerminalEvidence([]byte(preflight.Raw)); err != nil {
 				return nil, nil, false, fmt.Errorf("validate terminal transaction economic snapshot: %w", err)
 			}
 			if err := decodeExactJSON([]byte(preflight.Raw), &tombstone); err != nil {
@@ -1500,7 +1500,8 @@ func (rr *RedisConsumerRepository) EnrichTransactionBackup(
 				!mmodel.RedisOperationSetEconomicEqualIgnoringIDs(operations, tombstone.Operations) {
 				return nil, nil, false, fmt.Errorf("terminal transaction economic operations differ")
 			}
-			digest, err := mmodel.RedisEconomicEffectDigest(tombstone.Operations, tombstone.BalancesAfter)
+			digest, err := mmodel.RedisEconomicEffectDigest(tombstone.TransactionAmount,
+				tombstone.TransactionAssetCode, tombstone.Operations, tombstone.BalancesAfter)
 			if err != nil || tombstone.EconomicEffectDigest == "" || tombstone.EconomicEffectDigest != digest {
 				return nil, nil, false, fmt.Errorf("terminal transaction economic digest differs")
 			}
@@ -1537,7 +1538,8 @@ func (rr *RedisConsumerRepository) EnrichTransactionBackup(
 				if !mmodel.RedisOperationSetEconomicEqualIgnoringIDs(operations, envelope.Operations) {
 					return nil, nil, false, fmt.Errorf("canonical transaction annotation operations differ")
 				}
-				digest, err := mmodel.RedisAnnotationEffectDigest(envelope.Operations)
+				digest, err := mmodel.RedisAnnotationEffectDigest(envelope.TransactionInput.Send.Value.String(),
+					envelope.TransactionInput.Send.Asset, envelope.Operations)
 				if err != nil {
 					return nil, nil, false, fmt.Errorf("digest canonical transaction annotation effect: %w", err)
 				}
@@ -1551,7 +1553,8 @@ func (rr *RedisConsumerRepository) EnrichTransactionBackup(
 				operations = envelope.Operations
 			}
 
-			digest, err := mmodel.RedisAnnotationEffectDigest(operations)
+			digest, err := mmodel.RedisAnnotationEffectDigest(envelope.TransactionInput.Send.Value.String(),
+				envelope.TransactionInput.Send.Asset, operations)
 			if err != nil {
 				return nil, nil, false, fmt.Errorf("digest proved transaction annotation effect: %w", err)
 			}
@@ -1594,7 +1597,8 @@ func (rr *RedisConsumerRepository) EnrichTransactionBackup(
 			if !mmodel.RedisOperationSetEconomicEqualIgnoringIDs(operations, envelope.Operations) {
 				return nil, nil, false, fmt.Errorf("canonical transaction economic operations differ")
 			}
-			digest, err := mmodel.RedisEconomicEffectDigest(envelope.Operations, envelope.BalancesAfter)
+			digest, err := mmodel.RedisEconomicEffectDigest(envelope.TransactionInput.Send.Value.String(),
+				envelope.TransactionInput.Send.Asset, envelope.Operations, envelope.BalancesAfter)
 			if err != nil {
 				return nil, nil, false, fmt.Errorf("digest canonical transaction economic effect: %w", err)
 			}
@@ -1608,7 +1612,8 @@ func (rr *RedisConsumerRepository) EnrichTransactionBackup(
 			operations = envelope.Operations
 		}
 
-		digest, err := mmodel.RedisEconomicEffectDigest(operations, envelope.BalancesAfter)
+		digest, err := mmodel.RedisEconomicEffectDigest(envelope.TransactionInput.Send.Value.String(),
+			envelope.TransactionInput.Send.Asset, operations, envelope.BalancesAfter)
 		if err != nil {
 			return nil, nil, false, fmt.Errorf("digest proved transaction economic effect: %w", err)
 		}
@@ -1661,7 +1666,8 @@ func (rr *RedisConsumerRepository) FinalizeTransactionPersistence(
 		!mmodel.RedisBalanceSetEconomicComplete(balancesAfter) {
 		return fmt.Errorf("complete balance execution attempt is required")
 	}
-	economicEffectDigest, err := mmodel.RedisEconomicEffectDigest(operations, balancesAfter)
+	economicEffectDigest, err := mmodel.RedisEconomicEffectDigest(proof.TransactionAmount,
+		proof.TransactionAssetCode, operations, balancesAfter)
 	if err != nil {
 		return fmt.Errorf("digest durable transaction economic effect: %w", err)
 	}
@@ -1676,10 +1682,10 @@ func (rr *RedisConsumerRepository) FinalizeTransactionPersistence(
 	finalizeArgs := []any{
 		transactionID.String(), attempt.Owner, attempt.Outcome,
 		economicEffectDigest, expectedParent, proof.TransactionStatus, proof.Action,
+		attempt.RedisGeneration, proof.TransactionAmount, proof.TransactionAssetCode,
 	}
 	if attempt.RedisGeneration != "" {
 		prefixedKeys = append(prefixedKeys, FinancialDatasetGenerationKey)
-		finalizeArgs = append(finalizeArgs, attempt.RedisGeneration)
 	}
 	rds, err := rr.conn.GetClient(ctx)
 	if err != nil {
@@ -1753,6 +1759,10 @@ func validateBackupEconomicContext(
 		(envelope.ParentTransactionID != nil && *envelope.ParentTransactionID != *proof.ParentTransactionID) {
 		return fmt.Errorf("transaction economic parent or status differs")
 	}
+	if !transactionEconomicIdentityMatches(proof.TransactionAmount, proof.TransactionAssetCode,
+		envelope.TransactionInput.Send.Value.String(), envelope.TransactionInput.Send.Asset) {
+		return fmt.Errorf("transaction economic amount or asset differs")
+	}
 
 	return nil
 }
@@ -1783,6 +1793,10 @@ func validateTerminalEconomicContext(
 		if tombstone.ParentTransactionID != parent || !strings.EqualFold(tombstone.TransactionStatus, proof.TransactionStatus) {
 			return fmt.Errorf("terminal transaction economic parent or status differs")
 		}
+		if !transactionEconomicIdentityMatches(proof.TransactionAmount, proof.TransactionAssetCode,
+			tombstone.TransactionAmount, tombstone.TransactionAssetCode) {
+			return fmt.Errorf("terminal transaction economic amount or asset differs")
+		}
 	}
 	for _, operation := range tombstone.Operations {
 		if operation.OrganizationID != organizationID.String() || operation.LedgerID != ledgerID.String() ||
@@ -1792,6 +1806,21 @@ func validateTerminalEconomicContext(
 	}
 
 	return nil
+}
+
+func transactionEconomicIdentityMatches(
+	expectedAmount, expectedAssetCode, actualAmount, actualAssetCode string,
+) bool {
+	if expectedAssetCode == "" || expectedAssetCode != actualAssetCode {
+		return false
+	}
+	expected, err := decimal.NewFromString(expectedAmount)
+	if err != nil || !expected.IsPositive() {
+		return false
+	}
+	actual, err := decimal.NewFromString(actualAmount)
+
+	return err == nil && actual.IsPositive() && expected.Equal(actual)
 }
 
 func validateImmutableOutcome(
@@ -1861,6 +1890,21 @@ func validateRawTransactionEconomicEvidence(raw []byte) error {
 	}
 
 	return validateRawEconomicBalances(evidence["balancesAfter"])
+}
+
+func validateRawTransactionTerminalEvidence(raw []byte) error {
+	if err := validateRawTransactionEconomicEvidence(raw); err != nil {
+		return err
+	}
+	evidence := map[string]json.RawMessage{}
+	if err := decodeExactJSON(raw, &evidence); err != nil {
+		return fmt.Errorf("decode terminal economic evidence object: %w", err)
+	}
+	if missing := missingJSONField(evidence, "transaction_amount", "transaction_asset_code"); missing != "" {
+		return fmt.Errorf("terminal economic field %q is missing", missing)
+	}
+
+	return nil
 }
 
 func validateRawTransactionAnnotationEvidence(raw []byte) error {
@@ -1956,7 +2000,8 @@ func (rr *RedisConsumerRepository) FinalizeLegacyTransactionPersistence(
 		!mmodel.RedisBalanceSetEconomicComplete(proof.BalancesAfter) {
 		return fmt.Errorf("complete legacy transaction persistence proof is required")
 	}
-	expectedEconomicEffectDigest, err := mmodel.RedisEconomicEffectDigest(proof.Operations, proof.BalancesAfter)
+	expectedEconomicEffectDigest, err := mmodel.RedisEconomicEffectDigest(proof.TransactionAmount,
+		proof.TransactionAssetCode, proof.Operations, proof.BalancesAfter)
 	if err != nil {
 		return fmt.Errorf("digest durable legacy transaction economic proof: %w", err)
 	}
@@ -1996,7 +2041,8 @@ func (rr *RedisConsumerRepository) FinalizeLegacyTransactionPersistence(
 		if err := mmodel.ValidateRedisTransactionEconomicEffect(&envelope, envelope.Operations); err != nil {
 			return fmt.Errorf("prove legacy transaction economic operations: %w", err)
 		}
-		economicEffectDigest, err = mmodel.RedisEconomicEffectDigest(envelope.Operations, envelope.BalancesAfter)
+		economicEffectDigest, err = mmodel.RedisEconomicEffectDigest(envelope.TransactionInput.Send.Value.String(),
+			envelope.TransactionInput.Send.Asset, envelope.Operations, envelope.BalancesAfter)
 		if err != nil {
 			return fmt.Errorf("digest legacy transaction economic evidence: %w", err)
 		}
@@ -2015,7 +2061,7 @@ func (rr *RedisConsumerRepository) FinalizeLegacyTransactionPersistence(
 		if tombstoneErr != nil {
 			return fmt.Errorf("read legacy transaction terminal receipt: %w", tombstoneErr)
 		}
-		if err := validateRawTransactionEconomicEvidence(tombstoneRaw); err != nil {
+		if err := validateRawTransactionTerminalEvidence(tombstoneRaw); err != nil {
 			return fmt.Errorf("validate legacy transaction terminal receipt: %w", err)
 		}
 		tombstone := mmodel.TransactionPersistenceTombstone{}
@@ -2026,7 +2072,8 @@ func (rr *RedisConsumerRepository) FinalizeLegacyTransactionPersistence(
 			constant.ActionRevert, nil, []mmodel.TransactionEconomicContext{proof}, tombstone); err != nil {
 			return fmt.Errorf("validate legacy transaction terminal identity: %w", err)
 		}
-		economicEffectDigest, err = mmodel.RedisEconomicEffectDigest(tombstone.Operations, tombstone.BalancesAfter)
+		economicEffectDigest, err = mmodel.RedisEconomicEffectDigest(tombstone.TransactionAmount,
+			tombstone.TransactionAssetCode, tombstone.Operations, tombstone.BalancesAfter)
 		if err != nil {
 			return fmt.Errorf("digest legacy transaction terminal receipt: %w", err)
 		}
@@ -2040,7 +2087,8 @@ func (rr *RedisConsumerRepository) FinalizeLegacyTransactionPersistence(
 	}
 	if _, err := finalizeLegacyTransactionPersistenceScript.Run(ctx, rds, prefixedKeys,
 		transactionID.String(), parentTransactionID.String(), transactionStatus,
-		string(encodedOperationIDs), economicEffectDigest).Result(); err != nil {
+		string(encodedOperationIDs), economicEffectDigest, proof.TransactionAmount,
+		proof.TransactionAssetCode).Result(); err != nil {
 		libOpentelemetry.HandleSpanError(span, "Failed to atomically finalize legacy transaction persistence", err)
 		logger.Log(ctx, libLog.LevelWarn, "Failed to atomically finalize legacy transaction persistence", libLog.Err(err))
 

@@ -63,12 +63,22 @@ type canonicalRedisBalanceEffect struct {
 }
 
 // RedisEconomicEffectDigest returns an order-independent, duplicate-preserving
-// digest of the complete terminal money effect. Decimal values are normalized
-// with shopspring/decimal before hashing, so equivalent spellings share one
-// digest without ever passing through float64 or Lua numbers. Attempt owner,
-// terminal outcome, and dataset generation remain separate envelope fields and
-// are compared alongside this digest by the same Redis finalization command.
-func RedisEconomicEffectDigest(operations []OperationRedis, balances []BalanceRedis) (string, error) {
+// digest of the complete terminal money effect. The transaction amount and
+// asset come from the immutable input, never from a persistence candidate.
+// Decimal values are normalized with shopspring/decimal before hashing, so
+// equivalent spellings share one digest without ever passing through float64
+// or Lua numbers. Attempt owner, terminal outcome, and dataset generation
+// remain separate envelope fields and are compared alongside this digest by
+// the same Redis finalization command.
+func RedisEconomicEffectDigest(
+	transactionAmount, transactionAssetCode string,
+	operations []OperationRedis,
+	balances []BalanceRedis,
+) (string, error) {
+	canonicalAmount, err := canonicalTransactionIdentity(transactionAmount, transactionAssetCode)
+	if err != nil {
+		return "", err
+	}
 	if len(operations) == 0 || len(balances) == 0 {
 		return "", fmt.Errorf("complete economic operations and balances are required")
 	}
@@ -112,10 +122,15 @@ func RedisEconomicEffectDigest(operations []OperationRedis, balances []BalanceRe
 		return bytes.Compare(canonicalBalances[i], canonicalBalances[j]) < 0
 	})
 	canonical, err := json.Marshal(struct {
-		Version    int               `json:"version"`
-		Operations []json.RawMessage `json:"operations"`
-		Balances   []json.RawMessage `json:"balances"`
-	}{Version: economicEffectDigestVersion, Operations: canonicalOperations, Balances: canonicalBalances})
+		Version              int               `json:"version"`
+		TransactionAmount    string            `json:"transactionAmount"`
+		TransactionAssetCode string            `json:"transactionAssetCode"`
+		Operations           []json.RawMessage `json:"operations"`
+		Balances             []json.RawMessage `json:"balances"`
+	}{
+		Version: economicEffectDigestVersion, TransactionAmount: canonicalAmount,
+		TransactionAssetCode: transactionAssetCode, Operations: canonicalOperations, Balances: canonicalBalances,
+	})
 	if err != nil {
 		return "", fmt.Errorf("encode canonical economic effect: %w", err)
 	}
@@ -125,20 +140,48 @@ func RedisEconomicEffectDigest(operations []OperationRedis, balances []BalanceRe
 // RedisAnnotationEffectDigest binds the exact, duplicate-preserving annotation
 // rows chosen by CAS. It has a separate domain from a money effect and carries
 // no balance set; callers must first prove ANNOTATION_ONLY semantics.
-func RedisAnnotationEffectDigest(operations []OperationRedis) (string, error) {
+func RedisAnnotationEffectDigest(
+	transactionAmount, transactionAssetCode string,
+	operations []OperationRedis,
+) (string, error) {
+	canonicalAmount, err := canonicalTransactionIdentity(transactionAmount, transactionAssetCode)
+	if err != nil {
+		return "", err
+	}
 	canonicalOperations, err := canonicalRedisOperationEffects(operations)
 	if err != nil {
 		return "", err
 	}
 	canonical, err := json.Marshal(struct {
-		Version    int               `json:"version"`
-		Operations []json.RawMessage `json:"operations"`
-	}{Version: economicEffectDigestVersion, Operations: canonicalOperations})
+		Version              int               `json:"version"`
+		TransactionAmount    string            `json:"transactionAmount"`
+		TransactionAssetCode string            `json:"transactionAssetCode"`
+		Operations           []json.RawMessage `json:"operations"`
+	}{
+		Version: economicEffectDigestVersion, TransactionAmount: canonicalAmount,
+		TransactionAssetCode: transactionAssetCode, Operations: canonicalOperations,
+	})
 	if err != nil {
 		return "", fmt.Errorf("encode canonical annotation effect: %w", err)
 	}
 
 	return digestCanonicalEffect(annotationEffectDigestDomain, canonical), nil
+}
+
+func canonicalTransactionIdentity(transactionAmount, transactionAssetCode string) (string, error) {
+	if transactionAssetCode == "" {
+		return "", fmt.Errorf("transaction asset code is required")
+	}
+	canonicalAmount, err := canonicalEconomicDecimal(transactionAmount)
+	if err != nil {
+		return "", fmt.Errorf("canonicalize transaction amount: %w", err)
+	}
+	parsed, err := decimal.NewFromString(canonicalAmount)
+	if err != nil || !parsed.IsPositive() {
+		return "", fmt.Errorf("transaction amount must be positive")
+	}
+
+	return canonicalAmount, nil
 }
 
 func canonicalRedisOperationEffects(operations []OperationRedis) ([]json.RawMessage, error) {

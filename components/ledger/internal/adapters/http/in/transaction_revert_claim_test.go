@@ -66,6 +66,14 @@ func completeRevertEconomicOperation(
 	return economicOperation, balanceAfter
 }
 
+func bindCompleteRevertTransactionIdentity(candidate *transaction.Transaction) mtransaction.Transaction {
+	amount := decimal.NewFromInt(100)
+	candidate.Amount = &amount
+	candidate.AssetCode = "USD"
+
+	return mtransaction.Transaction{Send: mtransaction.Send{Asset: "USD", Value: amount}}
+}
+
 var testRedisGeneration = "test-financial-dataset-generation"
 
 func TestRevertRolloutHandoffPending_RequiresAtomicRedisAbsenceAndCompatibleClaim(t *testing.T) {
@@ -194,7 +202,7 @@ func TestFailRevertClaim_OnlyProvenPreMutationFailureReleases(t *testing.T) {
 		},
 		{
 			name:          "Lua business rejection proves rollback and releases",
-			execution:     revertExecutionState{SeedWritten: true, BalanceAttempted: true},
+			execution:     revertExecutionState{SeedWritten: true, ArmAttempted: true, Armed: true, BalanceAttempted: true},
 			cause:         pkg.ValidateBusinessError(constant.ErrInsufficientFunds, constant.EntityBalance),
 			expectRelease: true,
 		},
@@ -225,6 +233,9 @@ func TestFailRevertClaim_OnlyProvenPreMutationFailureReleases(t *testing.T) {
 				ReverseTransactionID: uuid.New(),
 				State:                revertclaim.StateClaimed,
 			}
+			if tc.execution.Armed {
+				claim.State = revertclaim.StateArmed
+			}
 			legacyKey := "legacy-fence"
 			legacyOwner := claim.ReverseTransactionID.String()
 			claim.LegacyFenceKey = &legacyKey
@@ -241,8 +252,13 @@ func TestFailRevertClaim_OnlyProvenPreMutationFailureReleases(t *testing.T) {
 				redisRepo.EXPECT().ReleaseOwnedKey(gomock.Any(), revertExecutionFenceKey(claim),
 					claim.ReverseTransactionID.String()).Return(true, nil)
 				redisRepo.EXPECT().ReleaseOwnedKey(gomock.Any(), "legacy-fence", claim.ReverseTransactionID.String()).Return(true, nil)
-				claimRepo.EXPECT().Release(gomock.Any(), claim.OrganizationID, claim.LedgerID,
-					claim.OriginTransactionID, claim.ReverseTransactionID).Return(true, nil)
+				if tc.execution.Armed {
+					claimRepo.EXPECT().ReleaseRejectedArm(gomock.Any(), claim.OrganizationID, claim.LedgerID,
+						claim.OriginTransactionID, claim.ReverseTransactionID).Return(true, nil)
+				} else {
+					claimRepo.EXPECT().Release(gomock.Any(), claim.OrganizationID, claim.LedgerID,
+						claim.OriginTransactionID, claim.ReverseTransactionID).Return(true, nil)
+				}
 			} else {
 				claimRepo.EXPECT().Transition(gomock.Any(), claim.OrganizationID, claim.LedgerID,
 					claim.OriginTransactionID, claim.ReverseTransactionID,
@@ -572,7 +588,7 @@ func TestReleaseFreshRevertClaim_AmbiguousAcquireMayReleaseOnlyWhenBothLegacyKey
 				RevertClaimRepo:      claimRepo,
 				TransactionRedisRepo: redisRepo,
 			}}
-			err := handler.releaseFreshRevertClaim(context.Background(), claim, "legacy-fence", true)
+			err := handler.releaseFreshRevertClaim(context.Background(), claim, "legacy-fence", true, false)
 			if tc.wantRelease {
 				require.NoError(t, err)
 
@@ -608,7 +624,7 @@ func TestReleaseFreshRevertClaim_RequiresPostgresClaimRelease(t *testing.T) {
 		RevertClaimRepo:      claimRepo,
 		TransactionRedisRepo: redisRepo,
 	}}
-	err := handler.releaseFreshRevertClaim(context.Background(), claim, "legacy-fence", false)
+	err := handler.releaseFreshRevertClaim(context.Background(), claim, "legacy-fence", false, false)
 	require.ErrorContains(t, err, "claim was not released")
 }
 
@@ -794,6 +810,43 @@ func TestRecoverProvenPreMovementRevert_MissingSeedAfterExpiredLeaseProvesCrashB
 
 	require.NoError(t, err)
 	assert.True(t, recovered)
+}
+
+func TestRecoverProvenPreMovementRevert_ArmedClaimWithAllTransactionEvidenceMissingRequiresReconciliation(t *testing.T) {
+	t.Parallel()
+
+	ctrl := gomock.NewController(t)
+	claimRepo := revertclaim.NewMockRepository(ctrl)
+	redisRepo := redis.NewMockRedisRepository(ctrl)
+	claim := &revertclaim.Claim{
+		OrganizationID:       uuid.New(),
+		LedgerID:             uuid.New(),
+		OriginTransactionID:  uuid.New(),
+		ReverseTransactionID: uuid.New(),
+		RedisGeneration:      &testRedisGeneration,
+		State:                revertclaim.State("ARMED"),
+	}
+	redisRepo.EXPECT().TransactionEconomicEvidenceExists(gomock.Any(), claim.OrganizationID, claim.LedgerID,
+		claim.ReverseTransactionID, testRedisGeneration).Return(false, true, nil)
+	redisRepo.EXPECT().Get(gomock.Any(), utils.TransactionBalanceOutcomeKey(claim.OrganizationID,
+		claim.LedgerID, claim.ReverseTransactionID)).Return("", nil)
+	redisRepo.EXPECT().MGet(gomock.Any(), []string{revertExecutionFenceKey(claim),
+		revertExecutionFenceKey(claim) + ":owner"}).Return(map[string]string{}, nil)
+	reason := "armed_revert_economic_evidence_missing"
+	claimRepo.EXPECT().Transition(gomock.Any(), claim.OrganizationID, claim.LedgerID,
+		claim.OriginTransactionID, claim.ReverseTransactionID,
+		revertclaim.StateReconciliationRequired, &reason).Return(nil)
+
+	handler := &TransactionHandler{Command: &command.UseCase{
+		RevertClaimRepo:      claimRepo,
+		TransactionRedisRepo: redisRepo,
+	}, RevertUpdateFreeze: &revertUpdateFreezeStub{}}
+	recovered, err := handler.recoverProvenPreMovementRevert(context.Background(), claim)
+
+	assert.False(t, recovered)
+	var unavailable pkg.ServiceUnavailableError
+	require.ErrorAs(t, err, &unavailable)
+	assert.Equal(t, constant.ErrRevertReconciliationRequired.Error(), unavailable.Code)
 }
 
 func TestRecoverProvenPreMovementRevert_RequiresExactOriginInSeed(t *testing.T) {
@@ -1215,14 +1268,13 @@ func TestResolveDurableRevertClaim_HardCrashAfterLuaUsesAtomicOutcome(t *testing
 
 	ctrl := gomock.NewController(t)
 	transactionRepo := transaction.NewMockRepository(ctrl)
-	claimRepo := revertclaim.NewMockRepository(ctrl)
 	redisRepo := redis.NewMockRedisRepository(ctrl)
 	claim := &revertclaim.Claim{
 		OrganizationID:       uuid.New(),
 		LedgerID:             uuid.New(),
 		OriginTransactionID:  uuid.New(),
 		ReverseTransactionID: uuid.New(),
-		State:                revertclaim.StateClaimed,
+		State:                revertclaim.StateArmed,
 	}
 	backup, err := json.Marshal(mmodel.TransactionRedisQueue{
 		TransactionID:       claim.ReverseTransactionID,
@@ -1235,15 +1287,9 @@ func TestResolveDurableRevertClaim_HardCrashAfterLuaUsesAtomicOutcome(t *testing
 		claim.OriginTransactionID).Return(nil, nil)
 	redisRepo.EXPECT().ReadMessageFromQueue(gomock.Any(),
 		utils.TransactionInternalKey(claim.OrganizationID, claim.LedgerID, claim.ReverseTransactionID.String())).Return(backup, nil)
-	reason := "reverse_balance_committed_before_persistence"
-	claimRepo.EXPECT().Transition(gomock.Any(), claim.OrganizationID, claim.LedgerID,
-		claim.OriginTransactionID, claim.ReverseTransactionID,
-		revertclaim.StateReconciliationRequired, &reason).Return(nil)
-
 	handler := &TransactionHandler{
 		Query: &query.UseCase{TransactionRepo: transactionRepo},
 		Command: &command.UseCase{
-			RevertClaimRepo:      claimRepo,
 			TransactionRedisRepo: redisRepo,
 		},
 	}
@@ -1343,6 +1389,7 @@ func TestAdoptPersistedReverse_FinalCompletesPersistedBridgeFenceAndExactOutcome
 		Status:              transaction.Status{Code: constant.APPROVED},
 		Operations:          []*operation.Operation{economicOperation},
 	}
+	immutableInput := bindCompleteRevertTransactionIdentity(persisted)
 	claim := &revertclaim.Claim{
 		OrganizationID:       organizationID,
 		LedgerID:             ledgerID,
@@ -1357,6 +1404,9 @@ func TestAdoptPersistedReverse_FinalCompletesPersistedBridgeFenceAndExactOutcome
 	backup, err := json.Marshal(mmodel.TransactionRedisQueue{
 		TransactionID:       reverseID,
 		ParentTransactionID: &originID,
+		OrganizationID:      organizationID,
+		LedgerID:            ledgerID,
+		TransactionInput:    immutableInput,
 		AttemptOwner:        reverseID.String(),
 		ExpectedOutcome:     mmodel.TransactionOutcomeCommitted,
 		BalancesAfter:       []mmodel.BalanceRedis{balanceAfter.ToRedis()},
@@ -1445,6 +1495,7 @@ func TestAdoptPersistedReverse_FinalPreservesForeignLegacyCollision(t *testing.T
 		Status:              transaction.Status{Code: constant.APPROVED},
 		Operations:          []*operation.Operation{economicOperation},
 	}
+	immutableInput := bindCompleteRevertTransactionIdentity(persisted)
 	claim := &revertclaim.Claim{
 		OrganizationID:       organizationID,
 		LedgerID:             ledgerID,
@@ -1457,6 +1508,9 @@ func TestAdoptPersistedReverse_FinalPreservesForeignLegacyCollision(t *testing.T
 	backup, err := json.Marshal(mmodel.TransactionRedisQueue{
 		TransactionID:       reverseID,
 		ParentTransactionID: &originID,
+		OrganizationID:      organizationID,
+		LedgerID:            ledgerID,
+		TransactionInput:    immutableInput,
 		AttemptOwner:        reverseID.String(),
 		ExpectedOutcome:     mmodel.TransactionOutcomeCommitted,
 		BalancesAfter:       []mmodel.BalanceRedis{balanceAfter.ToRedis()},
@@ -1525,6 +1579,7 @@ func TestAdoptPersistedReverse_FinalPreservesIncompletePhaseZeroBackupForReconci
 		Status:              transaction.Status{Code: constant.APPROVED},
 		Operations:          []*operation.Operation{{ID: operationID}},
 	}
+	immutableInput := bindCompleteRevertTransactionIdentity(persisted)
 	claim := &revertclaim.Claim{
 		OrganizationID:       organizationID,
 		LedgerID:             ledgerID,
@@ -1535,6 +1590,9 @@ func TestAdoptPersistedReverse_FinalPreservesIncompletePhaseZeroBackupForReconci
 	backup, err := json.Marshal(mmodel.TransactionRedisQueue{
 		TransactionID:       reverseID,
 		ParentTransactionID: &originID,
+		OrganizationID:      organizationID,
+		LedgerID:            ledgerID,
+		TransactionInput:    immutableInput,
 		TransactionStatus:   constant.CREATED,
 		Validate:            &mtransaction.Responses{Pending: false},
 		BalancesAfter:       []mmodel.BalanceRedis{{ID: uuid.NewString()}},
@@ -1765,15 +1823,22 @@ func TestLoadCompleteReverse_TerminalReceiptMustMatchPrimaryEconomicOperation(t 
 	t.Parallel()
 
 	for _, tc := range []struct {
-		name       string
-		legacy     bool
-		mutate     func(*mmodel.OperationRedis)
-		wantReplay bool
+		name          string
+		legacy        bool
+		mutate        func(*mmodel.OperationRedis)
+		mutateReceipt func(*mmodel.TransactionPersistenceTombstone)
+		wantReplay    bool
 	}{
 		{name: "exact terminal receipt", wantReplay: true},
 		{name: "exact pre-generation compatibility receipt", legacy: true, wantReplay: true},
 		{name: "divergent terminal receipt", mutate: func(op *mmodel.OperationRedis) {
 			op.BalanceAfterVersion++
+		}},
+		{name: "divergent transaction amount receipt", mutateReceipt: func(receipt *mmodel.TransactionPersistenceTombstone) {
+			receipt.TransactionAmount = "101"
+		}},
+		{name: "divergent transaction asset receipt", mutateReceipt: func(receipt *mmodel.TransactionPersistenceTombstone) {
+			receipt.TransactionAssetCode = "EUR"
 		}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -1801,6 +1866,7 @@ func TestLoadCompleteReverse_TerminalReceiptMustMatchPrimaryEconomicOperation(t 
 				ID: claim.ReverseTransactionID.String(), ParentTransactionID: &originID,
 				Status: transaction.Status{Code: constant.APPROVED}, Operations: []*operation.Operation{persistedOperation},
 			}
+			bindCompleteRevertTransactionIdentity(persisted)
 			transactionRepo.EXPECT().FindWithOperations(gomock.Any(), claim.OrganizationID, claim.LedgerID,
 				claim.ReverseTransactionID).Return(persisted, nil)
 			metadataRepo.EXPECT().FindByEntity(gomock.Any(), constant.EntityTransaction,
@@ -1811,12 +1877,18 @@ func TestLoadCompleteReverse_TerminalReceiptMustMatchPrimaryEconomicOperation(t 
 			if tc.mutate != nil {
 				tc.mutate(&canonical)
 			}
-			redisRepo.EXPECT().EnrichTransactionBackup(gomock.Any(), claim.OrganizationID, claim.LedgerID,
-				claim.ReverseTransactionID, gomock.Any(), constant.ActionRevert, gomock.Any()).Return(
-				[]mmodel.OperationRedis{canonical}, []mmodel.BalanceRedis{balanceAfter.ToRedis()}, true, nil)
+			if tc.mutateReceipt == nil {
+				redisRepo.EXPECT().EnrichTransactionBackup(gomock.Any(), claim.OrganizationID, claim.LedgerID,
+					claim.ReverseTransactionID, gomock.Any(), constant.ActionRevert, gomock.Any()).Return(
+					[]mmodel.OperationRedis{canonical}, []mmodel.BalanceRedis{balanceAfter.ToRedis()}, true, nil)
+			}
 			receipt := mmodel.TransactionPersistenceTombstone{
 				Identity: claim.ReverseTransactionID, ParentTransactionID: claim.OriginTransactionID.String(),
 				TransactionStatus: constant.CREATED, Action: constant.ActionRevert,
+				TransactionAmount: "100", TransactionAssetCode: "USD",
+			}
+			if tc.mutateReceipt != nil {
+				tc.mutateReceipt(&receipt)
 			}
 			if !tc.legacy {
 				receipt.Owner = claim.ReverseTransactionID.String()

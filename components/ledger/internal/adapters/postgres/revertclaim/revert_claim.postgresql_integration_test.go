@@ -124,6 +124,8 @@ func TestIntegration_RevertClaim_ReverseIDIsUniqueAndReleaseIsPreMutationOnly(t 
 		nil, nil, nil, nil, nil)
 	require.Error(t, err, "one reverse ID cannot be reserved for two origins")
 
+	require.NoError(t, repo.Arm(ctx, first.OrganizationID, first.LedgerID, first.OriginTransactionID,
+		first.ReverseTransactionID, first.ReverseTransactionID.String()))
 	require.NoError(t, repo.Transition(ctx, first.OrganizationID, first.LedgerID, first.OriginTransactionID,
 		first.ReverseTransactionID, StateMutated, nil))
 	released, err := repo.Release(ctx, first.OrganizationID, first.LedgerID, first.OriginTransactionID, first.ReverseTransactionID)
@@ -225,13 +227,16 @@ func TestIntegration_RevertRolloutInitializationBirthCertificateIsOneShot(t *tes
 func TestIntegration_RevertRolloutInitializationMigration38MissingTableFailsLoudly(t *testing.T) {
 	repo, container := setupRevertClaimRepository(t)
 	ctx := context.Background()
+	_, err := container.DB.ExecContext(ctx, `UPDATE schema_migrations SET version = 38, dirty = FALSE`)
+	require.NoError(t, err,
+		"simulate migration metadata published at 38 even though the test harness also knows later migrations")
 	var migrationVersion int
 	var dirty bool
 	require.NoError(t, container.DB.QueryRowContext(ctx,
 		`SELECT version, dirty FROM schema_migrations`).Scan(&migrationVersion, &dirty))
 	assert.Equal(t, 38, migrationVersion)
 	assert.False(t, dirty)
-	_, err := container.DB.ExecContext(ctx, `DROP TABLE transaction_revert_rollout_initialization`)
+	_, err = container.DB.ExecContext(ctx, `DROP TABLE transaction_revert_rollout_initialization`)
 	require.NoError(t, err)
 
 	_, _, err = repo.BeginRolloutInitialization(ctx, uuid.New(), uuid.New())
@@ -308,7 +313,7 @@ func TestIntegration_RevertRolloutInitializationReconcilesLostPostgresCommitResp
 	require.NoError(t, repo.ValidatePreparedRollout(ctx, generation))
 }
 
-func TestIntegration_RevertClaim_UpgradePublished000036Through000038(t *testing.T) {
+func TestIntegration_RevertClaim_UpgradePublished000036Through000039(t *testing.T) {
 	t.Setenv("ALLOW_INSECURE_TLS", "true")
 	container := postgrestestutil.SetupContainer(t)
 	ctx := context.Background()
@@ -322,6 +327,10 @@ func TestIntegration_RevertClaim_UpgradePublished000036Through000038(t *testing.
 	initializationUp, err := os.ReadFile(filepath.Join(migrationsPath, "000038_create_revert_rollout_initialization.up.sql"))
 	require.NoError(t, err)
 	initializationDown, err := os.ReadFile(filepath.Join(migrationsPath, "000038_create_revert_rollout_initialization.down.sql"))
+	require.NoError(t, err)
+	armUp, err := os.ReadFile(filepath.Join(migrationsPath, "000039_arm_revert_claim.up.sql"))
+	require.NoError(t, err)
+	armDown, err := os.ReadFile(filepath.Join(migrationsPath, "000039_arm_revert_claim.down.sql"))
 	require.NoError(t, err)
 
 	_, err = container.DB.ExecContext(ctx, string(oldUp))
@@ -365,6 +374,13 @@ func TestIntegration_RevertClaim_UpgradePublished000036Through000038(t *testing.
 	require.NoError(t, container.DB.QueryRowContext(ctx,
 		`SELECT to_regclass('public.transaction_revert_rollout_initialization') IS NOT NULL`).Scan(&rolloutInitializationTable))
 	assert.True(t, rolloutInitializationTable, "000038 must add the durable deployment-scoped dataset birth certificate")
+	_, err = container.DB.ExecContext(ctx,
+		`ALTER TABLE transaction_revert_claim DROP CONSTRAINT transaction_revert_claim_state_check`)
+	require.NoError(t, err, "simulate a partially applied deployment with the state constraint missing")
+	_, err = container.DB.ExecContext(ctx, string(armUp))
+	require.NoError(t, err, "000039 must restore a missing state constraint rather than silently doing nothing")
+	_, err = container.DB.ExecContext(ctx, string(armUp))
+	require.NoError(t, err, "000039 up must not arm claims created after its first application")
 
 	var mode, token, generation *string
 	require.NoError(t, container.DB.QueryRowContext(ctx, `
@@ -375,7 +391,32 @@ func TestIntegration_RevertClaim_UpgradePublished000036Through000038(t *testing.
 	assert.Nil(t, mode)
 	assert.Nil(t, token)
 	assert.Nil(t, generation, "a legacy 000036 claim must survive the upgrade without fabricated Redis proof")
+	var upgradedState State
+	require.NoError(t, container.DB.QueryRowContext(ctx, `
+		SELECT state
+		FROM transaction_revert_claim
+		WHERE organization_id = $1 AND ledger_id = $2 AND origin_transaction_id = $3`,
+		organizationID, ledgerID, originID).Scan(&upgradedState))
+	assert.Equal(t, StateArmed, upgradedState,
+		"a pre-phase claim cannot be proven pre-movement and must upgrade conservatively")
 
+	newOriginID := uuid.New()
+	_, err = container.DB.ExecContext(ctx, `
+		INSERT INTO transaction_revert_claim (
+			organization_id, ledger_id, origin_transaction_id, reverse_transaction_id
+		) VALUES ($1, $2, $3, $4)`, organizationID, ledgerID, newOriginID, uuid.New())
+	require.NoError(t, err)
+	_, err = container.DB.ExecContext(ctx, string(armUp))
+	require.NoError(t, err)
+	var newState State
+	require.NoError(t, container.DB.QueryRowContext(ctx, `
+		SELECT state FROM transaction_revert_claim
+		WHERE organization_id = $1 AND ledger_id = $2 AND origin_transaction_id = $3`,
+		organizationID, ledgerID, newOriginID).Scan(&newState))
+	assert.Equal(t, StateClaimed, newState, "an idempotent migration retry must not arm a new request")
+
+	_, err = container.DB.ExecContext(ctx, string(armDown))
+	require.ErrorContains(t, err, "rollback requires an empty claim table")
 	_, err = container.DB.ExecContext(ctx, string(rolloutDown))
 	require.ErrorContains(t, err, "rollback requires an empty claim table")
 	_, err = container.DB.ExecContext(ctx, `
@@ -393,6 +434,8 @@ func TestIntegration_RevertClaim_UpgradePublished000036Through000038(t *testing.
 	require.ErrorContains(t, err, "rollback requires an empty claim table")
 	_, err = container.DB.ExecContext(ctx, `DELETE FROM transaction_revert_claim`)
 	require.NoError(t, err)
+	_, err = container.DB.ExecContext(ctx, string(armDown))
+	require.NoError(t, err)
 	_, err = container.DB.ExecContext(ctx, string(rolloutDown))
 	require.NoError(t, err)
 	require.NoError(t, container.DB.QueryRowContext(ctx, `
@@ -403,6 +446,93 @@ func TestIntegration_RevertClaim_UpgradePublished000036Through000038(t *testing.
 	require.NoError(t, container.DB.QueryRowContext(ctx,
 		`SELECT to_regclass('public.transaction_revert_rollout_initialization') IS NOT NULL`).Scan(&rolloutInitializationTable))
 	assert.False(t, rolloutInitializationTable)
+}
+
+func TestIntegration_RevertClaim_ArmIsMonotonicAndLostCommitResponseUsesPrimaryProof(t *testing.T) {
+	repo, _ := setupRevertClaimRepository(t)
+	ctx := context.Background()
+	organizationID := uuid.New()
+	ledgerID := uuid.New()
+	originID := uuid.New()
+	reverseID := uuid.New()
+
+	_, acquired, err := repo.Claim(ctx, organizationID, ledgerID, originID, reverseID,
+		nil, nil, nil, nil, nil)
+	require.NoError(t, err)
+	require.True(t, acquired)
+	require.Error(t, repo.Arm(ctx, organizationID, ledgerID, originID, reverseID, uuid.NewString()),
+		"only the exact reserved reverse may own the balance attempt")
+
+	repo.commitClaimArm = func(tx dbresolver.Tx) error {
+		require.NoError(t, tx.Commit())
+
+		return errors.New("lost arm commit response")
+	}
+	require.NoError(t, repo.Arm(ctx, organizationID, ledgerID, originID, reverseID, reverseID.String()),
+		"the primary exact reread must reconcile a lost commit response")
+	repo.commitClaimArm = nil
+
+	claim, err := repo.Get(ctx, organizationID, ledgerID, originID)
+	require.NoError(t, err)
+	require.NotNil(t, claim)
+	assert.Equal(t, StateArmed, claim.State)
+
+	recoveryOwner, err := repo.BeginPreMutationRecovery(ctx, organizationID, ledgerID, originID, reverseID)
+	require.NoError(t, err)
+	assert.False(t, recoveryOwner, "an armed claim can never return to automatic pre-movement recovery")
+	released, err := repo.Release(ctx, organizationID, ledgerID, originID, reverseID)
+	require.NoError(t, err)
+	assert.False(t, released, "an armed claim can never be deleted by the pre-movement release path")
+	released, err = repo.ReleaseRejectedArm(ctx, organizationID, ledgerID, originID, reverseID)
+	require.NoError(t, err)
+	assert.True(t, released, "only the explicit definitively-rejected path may remove an armed claim")
+}
+
+func TestIntegration_RevertClaim_ConcurrentArmAndRecoveryChooseOnePhase(t *testing.T) {
+	repo, _ := setupRevertClaimRepository(t)
+	ctx := context.Background()
+	organizationID := uuid.New()
+	ledgerID := uuid.New()
+	originID := uuid.New()
+	reverseID := uuid.New()
+	_, acquired, err := repo.Claim(ctx, organizationID, ledgerID, originID, reverseID,
+		nil, nil, nil, nil, nil)
+	require.NoError(t, err)
+	require.True(t, acquired)
+
+	start := make(chan struct{})
+	armResult := make(chan error, 1)
+	recoveryResult := make(chan struct {
+		owner bool
+		err   error
+	}, 1)
+	go func() {
+		<-start
+		armResult <- repo.Arm(ctx, organizationID, ledgerID, originID, reverseID, reverseID.String())
+	}()
+	go func() {
+		<-start
+		owner, recoverErr := repo.BeginPreMutationRecovery(ctx, organizationID, ledgerID, originID, reverseID)
+		recoveryResult <- struct {
+			owner bool
+			err   error
+		}{owner: owner, err: recoverErr}
+	}()
+	close(start)
+	armErr := <-armResult
+	recovered := <-recoveryResult
+	require.NoError(t, recovered.err)
+
+	claim, err := repo.Get(ctx, organizationID, ledgerID, originID)
+	require.NoError(t, err)
+	require.NotNil(t, claim)
+	if armErr == nil {
+		assert.False(t, recovered.owner)
+		assert.Equal(t, StateArmed, claim.State)
+	} else {
+		assert.True(t, recovered.owner)
+		assert.Equal(t, StateRecovering, claim.State)
+	}
 }
 
 func TestIntegration_RevertClaim_PreMutationRecoveryElectsOneOwner(t *testing.T) {
@@ -479,11 +609,14 @@ func TestIntegration_RevertClaim_ReadsIgnoreReplicaLag(t *testing.T) {
 		nil, nil, nil, nil, nil)
 	require.NoError(t, err)
 	require.True(t, acquired)
+	require.NoError(t, repo.Arm(ctx, organizationID, ledgerID, originID, reverseID, reverseID.String()),
+		"the balance arm must use the primary even while the replica is empty")
 
 	byOrigin, err := repo.Get(ctx, organizationID, ledgerID, originID)
 	require.NoError(t, err)
 	require.NotNil(t, byOrigin, "claim replay must see primary-only state")
 	assert.Equal(t, reverseID, byOrigin.ReverseTransactionID)
+	assert.Equal(t, StateArmed, byOrigin.State)
 	byReverse, err := repo.GetByReverseID(ctx, organizationID, ledgerID, reverseID)
 	require.NoError(t, err)
 	require.NotNil(t, byReverse, "backup recovery must see primary-only state")
@@ -538,12 +671,16 @@ func TestIntegration_RevertClaim_MigrationDownAndUp(t *testing.T) {
 	require.True(t, acquired)
 
 	migrationsPath := postgrestestutil.FindMigrationsPath(t, "transaction")
+	armDown, err := os.ReadFile(filepath.Join(migrationsPath, "000039_arm_revert_claim.down.sql"))
+	require.NoError(t, err)
 	initializationDown, err := os.ReadFile(filepath.Join(migrationsPath, "000038_create_revert_rollout_initialization.down.sql"))
 	require.NoError(t, err)
 	rolloutDown, err := os.ReadFile(filepath.Join(migrationsPath, "000037_add_revert_rollout_generation.down.sql"))
 	require.NoError(t, err)
 	tableDown, err := os.ReadFile(filepath.Join(migrationsPath, "000036_create_revert_claim.down.sql"))
 	require.NoError(t, err)
+	_, err = container.DB.ExecContext(ctx, string(armDown))
+	require.ErrorContains(t, err, "rollback requires an empty claim table")
 	_, err = container.DB.ExecContext(ctx, string(initializationDown))
 	require.NoError(t, err, "empty pre-initialization 000038 must be safely removable before 000037")
 	_, err = container.DB.ExecContext(ctx, string(rolloutDown))
@@ -560,6 +697,8 @@ func TestIntegration_RevertClaim_MigrationDownAndUp(t *testing.T) {
 	require.NoError(t, err)
 	require.True(t, released)
 
+	_, err = container.DB.ExecContext(ctx, string(armDown))
+	require.NoError(t, err)
 	_, err = container.DB.ExecContext(ctx, string(rolloutDown))
 	require.NoError(t, err)
 	_, err = container.DB.ExecContext(ctx, string(tableDown))
@@ -579,6 +718,10 @@ func TestIntegration_RevertClaim_MigrationDownAndUp(t *testing.T) {
 	initializationUp, err := os.ReadFile(filepath.Join(migrationsPath, "000038_create_revert_rollout_initialization.up.sql"))
 	require.NoError(t, err)
 	_, err = container.DB.ExecContext(ctx, string(initializationUp))
+	require.NoError(t, err)
+	armUp, err := os.ReadFile(filepath.Join(migrationsPath, "000039_arm_revert_claim.up.sql"))
+	require.NoError(t, err)
+	_, err = container.DB.ExecContext(ctx, string(armUp))
 	require.NoError(t, err)
 
 	_, acquired, err = repo.Claim(ctx, uuid.New(), uuid.New(), uuid.New(), uuid.New(),

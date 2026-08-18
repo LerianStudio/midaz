@@ -784,11 +784,13 @@ type BalanceExecutionOutcome struct {
 // candidate cannot relabel the parent, lifecycle status, or action while
 // binding operation IDs.
 type TransactionEconomicContext struct {
-	ParentTransactionID *uuid.UUID
-	TransactionStatus   string
-	Action              string
-	Operations          []OperationRedis
-	BalancesAfter       []BalanceRedis
+	ParentTransactionID  *uuid.UUID
+	TransactionStatus    string
+	Action               string
+	TransactionAmount    string
+	TransactionAssetCode string
+	Operations           []OperationRedis
+	BalancesAfter        []BalanceRedis
 }
 
 // TransactionPersistenceTombstone is the append-only terminal receipt written
@@ -804,6 +806,8 @@ type TransactionPersistenceTombstone struct {
 	RedisGeneration      string           `json:"redis_generation"`
 	TransactionStatus    string           `json:"transaction_status"`
 	Action               string           `json:"action"`
+	TransactionAmount    string           `json:"transaction_amount"`
+	TransactionAssetCode string           `json:"transaction_asset_code"`
 	Operations           []OperationRedis `json:"operations"`
 	BalancesAfter        []BalanceRedis   `json:"balancesAfter"`
 	EconomicEffectDigest string           `json:"economic_effect_digest"`
@@ -830,6 +834,7 @@ type TransactionRedisQueue struct {
 	ExpectedOutcome       string                   `json:"expected_outcome,omitempty"`
 	RevertRolloutMode     string                   `json:"revert_rollout_mode,omitempty"`
 	RevertRolloutToken    string                   `json:"revert_rollout_token,omitempty"`
+	RevertLegacyFenceKey  string                   `json:"revert_legacy_fence_key,omitempty"`
 	RedisGeneration       string                   `json:"redis_generation,omitempty"`
 	TransactionDate       time.Time                `json:"transaction_date"`
 	Operations            []OperationRedis         `json:"operations,omitempty"`

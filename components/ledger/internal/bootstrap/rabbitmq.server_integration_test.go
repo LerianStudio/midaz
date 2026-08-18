@@ -181,12 +181,34 @@ func TestIntegration_HandlerBTOBulk_DefaultAsyncRedeliveryCompletesOneDurableHan
 		},
 	}
 	parent := originID.String()
+	debit := mtransaction.Amount{
+		Asset: "USD", Value: amount, Operation: constant.DEBIT, Direction: constant.DirectionDebit,
+	}
+	credit := mtransaction.Amount{
+		Asset: "USD", Value: amount, Operation: constant.CREDIT, Direction: constant.DirectionCredit,
+	}
 	input := mtransaction.Transaction{
 		Description: "reverse persisted by the default async bulk consumer",
-		Send:        mtransaction.Send{Asset: "USD", Value: amount},
+		Send: mtransaction.Send{
+			Asset: "USD", Value: amount,
+			Source: mtransaction.Source{From: []mtransaction.FromTo{{
+				AccountAlias: "@destination", BalanceKey: constant.DefaultBalanceKey, Amount: &debit, IsFrom: true,
+			}}},
+			Distribute: mtransaction.Distribute{To: []mtransaction.FromTo{{
+				AccountAlias: "@source", BalanceKey: constant.DefaultBalanceKey, Amount: &credit,
+			}}},
+		},
+	}
+	validate := &mtransaction.Responses{
+		From: map[string]mtransaction.Amount{
+			mtransaction.ConcatAlias(0, mtransaction.AliasKey("@destination", constant.DefaultBalanceKey)): debit,
+		},
+		To: map[string]mtransaction.Amount{
+			mtransaction.ConcatAlias(0, mtransaction.AliasKey("@source", constant.DefaultBalanceKey)): credit,
+		},
 	}
 	payload := transaction.TransactionProcessingPayload{
-		Validate: &mtransaction.Responses{},
+		Validate: validate,
 		Transaction: &transaction.Transaction{
 			ID:                  reverseID.String(),
 			ParentTransactionID: &parent,
@@ -226,20 +248,21 @@ func TestIntegration_HandlerBTOBulk_DefaultAsyncRedeliveryCompletesOneDurableHan
 	before := mmodel.BalancesToRedis(beforeBalances)
 	after := mmodel.BalancesToRedis(afterBalances)
 	backup := mmodel.TransactionRedisQueue{
-		TransactionID:       reverseID,
-		ParentTransactionID: &originID,
-		OrganizationID:      organizationID,
-		LedgerID:            ledgerID,
-		Balances:            before,
-		BalancesAfter:       after,
-		TransactionInput:    input,
-		Validate:            payload.Validate,
-		TransactionStatus:   created,
-		Action:              constant.ActionRevert,
-		AttemptOwner:        owner,
-		ExpectedOutcome:     mmodel.TransactionOutcomeCommitted,
-		TransactionDate:     fixedTime,
-		Operations:          []mmodel.OperationRedis{operations[0].ToRedis(), operations[1].ToRedis()},
+		TransactionID:        reverseID,
+		ParentTransactionID:  &originID,
+		OrganizationID:       organizationID,
+		LedgerID:             ledgerID,
+		Balances:             before,
+		BalancesAfter:        after,
+		TransactionInput:     input,
+		Validate:             payload.Validate,
+		TransactionStatus:    created,
+		Action:               constant.ActionRevert,
+		AttemptOwner:         owner,
+		ExpectedOutcome:      mmodel.TransactionOutcomeCommitted,
+		RevertLegacyFenceKey: legacyKey,
+		TransactionDate:      fixedTime,
+		Operations:           []mmodel.OperationRedis{operations[0].ToRedis(), operations[1].ToRedis()},
 	}
 	backupRaw, err := json.Marshal(backup)
 	require.NoError(t, err)

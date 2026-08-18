@@ -51,12 +51,14 @@ func TestTransactionBackupDeletionRequiresAtomicProof(t *testing.T) {
 	allowed := map[string][]string{
 		"finalize_legacy_transaction_persistence.lua": {
 			"parent_transaction_id", "operations", "balancesAfter",
-			"economic_effect_digest", "TRANSACTION_PERSISTENCE_TOMBSTONE_MISSING",
+			"economic_effect_digest", "transaction_amount", "transaction_asset_code",
+			"TRANSACTION_PERSISTENCE_TOMBSTONE_MISSING",
 			`redis.call("SET", KEYS[3]`, "HDEL",
 		},
 		"finalize_transaction_persistence.lua": {
 			"attempt_owner", "expected_outcome", "balancesAfter",
-			"economic_effect_digest", "TRANSACTION_PERSISTENCE_TOMBSTONE_MISSING",
+			"economic_effect_digest", "transaction_amount", "transaction_asset_code",
+			"TRANSACTION_PERSISTENCE_TOMBSTONE_MISSING",
 			`redis.call("SET", KEYS[4]`, "HDEL",
 		},
 		"remove_transaction_backup_if_status.lua": {"attempt_owner", "expected_outcome", "balancesAfter", "HDEL"},
@@ -145,6 +147,15 @@ func TestOutcomeBackedPreflightCannotBeGatedByRedisGeneration(t *testing.T) {
 	require.Len(t, callsInFunction(t, individual, "CreateBalanceTransactionOperationsAsync")["preflightOutcomeBackedTransaction"], 1)
 	require.Len(t, callsInFunction(t, bulk, "preflightDurableBulkPayloads")["preflightOutcomeBackedTransaction"], 1)
 	require.Len(t, callsInFunction(t, finalizer, "FinalizeDurableTransactionPersistence")["preflightOutcomeBackedTransaction"], 1)
+	preflight, err := os.ReadFile(filepath.Join(commandDirectory, "transaction_outcome_preflight.go"))
+	require.NoError(t, err)
+	preflightBody := functionBody(t, preflight, "preflightOutcomeBackedTransaction")
+	assert.NotContains(t, preflightBody, "if payload.RedisGeneration",
+		"generation presence cannot decide whether economic preflight runs")
+	assert.NotContains(t, preflightBody, "explicitEffectBacked",
+		"effect-mode transport metadata cannot redefine OutcomeBacked")
+	assert.Contains(t, preflightBody, "TransactionAmount")
+	assert.Contains(t, preflightBody, "TransactionAssetCode")
 	assert.NotContains(t, string(individual), `if t.RedisGeneration != ""`,
 		"outcome-backed individual persistence cannot skip economic proof when generation is absent")
 	assert.NotContains(t, string(bulk), `if payload.RedisGeneration == ""`,
@@ -300,11 +311,16 @@ func TestRevertBarrierAcquisitionOrder(t *testing.T) {
 	createCalls := callsInFunction(t, createSource, "executeCreateTransaction")
 	require.Len(t, createCalls["acquireOriginRevertBarrier"], 1)
 	require.Len(t, createCalls["SendTransactionToRedisQueue"], 1)
+	require.Len(t, createCalls["ArmRevertClaim"], 1)
 	require.Len(t, createCalls["ProcessBalanceOperations"], 1)
 	assert.Less(t, createCalls["acquireOriginRevertBarrier"][0], createCalls["ProcessBalanceOperations"][0],
 		"origin Redis barrier must be acquired before balance mutation")
 	assert.Less(t, createCalls["acquireOriginRevertBarrier"][0], createCalls["SendTransactionToRedisQueue"][0],
 		"the origin owner companion must exist before the recoverable seed is written")
+	assert.Less(t, createCalls["SendTransactionToRedisQueue"][0], createCalls["ArmRevertClaim"][0],
+		"the exact recoverable seed must exist before the PostgreSQL claim is armed")
+	assert.Less(t, createCalls["ArmRevertClaim"][0], createCalls["ProcessBalanceOperations"][0],
+		"the PostgreSQL primary must durably arm the claim before balance Lua can run")
 	originCalls := callsInFunction(t, claimSource, "acquireOriginRevertBarrier")
 	require.Len(t, originCalls["AcquireOwnedKey"], 1,
 		"the origin barrier and reserved-reverse owner must be one atomic same-slot acquisition")

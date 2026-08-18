@@ -41,6 +41,20 @@ func (m *MockRepository) EXPECT() *MockRepositoryMockRecorder {
 	return m.recorder
 }
 
+// Arm mocks base method.
+func (m *MockRepository) Arm(ctx context.Context, organizationID, ledgerID, originID, reverseID uuid.UUID, attemptOwner string) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Arm", ctx, organizationID, ledgerID, originID, reverseID, attemptOwner)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// Arm indicates an expected call of Arm.
+func (mr *MockRepositoryMockRecorder) Arm(ctx, organizationID, ledgerID, originID, reverseID, attemptOwner any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Arm", reflect.TypeOf((*MockRepository)(nil).Arm), ctx, organizationID, ledgerID, originID, reverseID, attemptOwner)
+}
+
 // BeginPreMutationRecovery mocks base method.
 func (m *MockRepository) BeginPreMutationRecovery(ctx context.Context, organizationID, ledgerID, originID, reverseID uuid.UUID) (bool, error) {
 	m.ctrl.T.Helper()
@@ -115,6 +129,21 @@ func (m *MockRepository) Release(ctx context.Context, organizationID, ledgerID, 
 func (mr *MockRepositoryMockRecorder) Release(ctx, organizationID, ledgerID, originID, reverseID any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Release", reflect.TypeOf((*MockRepository)(nil).Release), ctx, organizationID, ledgerID, originID, reverseID)
+}
+
+// ReleaseRejectedArm mocks base method.
+func (m *MockRepository) ReleaseRejectedArm(ctx context.Context, organizationID, ledgerID, originID, reverseID uuid.UUID) (bool, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ReleaseRejectedArm", ctx, organizationID, ledgerID, originID, reverseID)
+	ret0, _ := ret[0].(bool)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// ReleaseRejectedArm indicates an expected call of ReleaseRejectedArm.
+func (mr *MockRepositoryMockRecorder) ReleaseRejectedArm(ctx, organizationID, ledgerID, originID, reverseID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ReleaseRejectedArm", reflect.TypeOf((*MockRepository)(nil).ReleaseRejectedArm), ctx, organizationID, ledgerID, originID, reverseID)
 }
 
 // Transition mocks base method.

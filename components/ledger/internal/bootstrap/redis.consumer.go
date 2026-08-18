@@ -530,35 +530,34 @@ func (r *RedisQueueConsumer) processMessage(ctx context.Context, key, rawPayload
 
 				return
 			}
-			legacyHash, hashErr := utils.LegacyTransactionIdempotencyHash(m.TransactionInput)
-			if hashErr != nil {
-				logger.Log(msgCtxWithSpan, libLog.LevelError, "Failed to derive drained phase-zero H1",
-					libLog.String("transaction_id", m.TransactionID.String()), libLog.Err(hashErr))
+			legacyKey, keyErr := persistedDrainedLegacyFenceKey(m)
+			if keyErr != nil {
+				poisonReason = "phase_zero_pre_movement_seed_legacy_fence_unproven"
+				logger.Log(msgCtxWithSpan, libLog.LevelError, "Drained phase-zero seed lacks an exact H1 witness",
+					libLog.String("transaction_id", m.TransactionID.String()), libLog.Err(keyErr))
+			} else {
+				released, releaseErr := r.TransactionHandler.Command.TransactionRedisRepo.ReleaseUnownedEmptyKey(
+					msgCtxWithSpan, legacyKey)
+				if releaseErr != nil || !released {
+					logger.Log(msgCtxWithSpan, libLog.LevelError, "Failed to release drained phase-zero H1",
+						libLog.String("transaction_id", m.TransactionID.String()), libLog.Err(releaseErr))
+
+					return
+				}
+				removed, removeErr := r.TransactionHandler.Command.TransactionRedisRepo.RemoveMessageFromQueueIfStatus(
+					msgCtxWithSpan, key, m.TransactionStatus, "", "", true)
+				if removeErr != nil || !removed {
+					logger.Log(msgCtxWithSpan, libLog.LevelError, "Failed to remove drained phase-zero revert seed",
+						libLog.String("transaction_id", m.TransactionID.String()), libLog.Err(removeErr))
+
+					return
+				}
+				r.clearBackupAttempt(msgCtxWithSpan, logger, key)
+				logger.Log(msgCtxWithSpan, libLog.LevelInfo, "Removed drained phase-zero pre-movement revert seed",
+					libLog.String("transaction_id", m.TransactionID.String()))
 
 				return
 			}
-			legacyKey := utils.IdempotencyInternalKey(m.OrganizationID, m.LedgerID, legacyHash)
-			released, releaseErr := r.TransactionHandler.Command.TransactionRedisRepo.ReleaseUnownedEmptyKey(
-				msgCtxWithSpan, legacyKey)
-			if releaseErr != nil || !released {
-				logger.Log(msgCtxWithSpan, libLog.LevelError, "Failed to release drained phase-zero H1",
-					libLog.String("transaction_id", m.TransactionID.String()), libLog.Err(releaseErr))
-
-				return
-			}
-			removed, removeErr := r.TransactionHandler.Command.TransactionRedisRepo.RemoveMessageFromQueueIfStatus(
-				msgCtxWithSpan, key, m.TransactionStatus, "", "", true)
-			if removeErr != nil || !removed {
-				logger.Log(msgCtxWithSpan, libLog.LevelError, "Failed to remove drained phase-zero revert seed",
-					libLog.String("transaction_id", m.TransactionID.String()), libLog.Err(removeErr))
-
-				return
-			}
-			r.clearBackupAttempt(msgCtxWithSpan, logger, key)
-			logger.Log(msgCtxWithSpan, libLog.LevelInfo, "Removed drained phase-zero pre-movement revert seed",
-				libLog.String("transaction_id", m.TransactionID.String()))
-
-			return
 		}
 
 		logger.Log(msgCtxWithSpan, libLog.LevelError, "Revert backup has no trustworthy origin; routing to quarantine flow",
@@ -709,7 +708,10 @@ func (r *RedisQueueConsumer) processMessage(ctx context.Context, key, rawPayload
 		operations, terminalReplay, enrichErr = r.TransactionHandler.Command.UpdateTransactionBackupOperations(
 			msgCtxWithSpan, m.OrganizationID, m.LedgerID, m.TransactionID, operations,
 			mmodel.BalancesToRedis(balancesAfter), action, executionAttempt,
-			mmodel.TransactionEconomicContext{ParentTransactionID: m.ParentTransactionID, TransactionStatus: m.TransactionStatus},
+			mmodel.TransactionEconomicContext{
+				ParentTransactionID: m.ParentTransactionID, TransactionStatus: m.TransactionStatus,
+				TransactionAmount: m.TransactionInput.Send.Value.String(), TransactionAssetCode: m.TransactionInput.Send.Asset,
+			},
 		)
 		if enrichErr != nil {
 			libOpentelemetry.HandleSpanError(msgSpan, "Failed to bind rebuilt operations to backup", enrichErr)
@@ -767,6 +769,22 @@ func (r *RedisQueueConsumer) processMessage(ctx context.Context, key, rawPayload
 	// record itself is removed downstream by the async write path after the
 	// confirmed Postgres persist (RemoveTransactionFromRedisQueueIfStatus).
 	r.clearBackupAttempt(msgCtxWithSpan, logger, key)
+}
+
+func persistedDrainedLegacyFenceKey(m mmodel.TransactionRedisQueue) (string, error) {
+	if m.RevertLegacyFenceKey == "" || m.ParentTransactionID == nil || m.TransactionInput.IsEmpty() {
+		return "", fmt.Errorf("persisted legacy fence identity is incomplete")
+	}
+	legacyHash, err := utils.LegacyTransactionIdempotencyHash(m.TransactionInput)
+	if err != nil {
+		return "", fmt.Errorf("derive immutable backup legacy fence identity: %w", err)
+	}
+	expected := utils.IdempotencyInternalKey(m.OrganizationID, m.LedgerID, legacyHash)
+	if m.RevertLegacyFenceKey != expected {
+		return "", fmt.Errorf("persisted legacy fence differs from immutable backup input")
+	}
+
+	return m.RevertLegacyFenceKey, nil
 }
 
 func requiresAtomicOutcomeBackup(m mmodel.TransactionRedisQueue) bool {

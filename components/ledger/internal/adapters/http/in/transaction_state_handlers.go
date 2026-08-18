@@ -616,7 +616,8 @@ func (handler *TransactionHandler) revertTransaction(ctx context.Context, organi
 		if releaseErr := releaseUnclaimedAttempt(); releaseErr != nil {
 			return nil, false, releaseErr
 		}
-		if claim.State == revertclaim.StateClaimed || claim.State == revertclaim.StateRecovering {
+		if claim.State == revertclaim.StateClaimed || claim.State == revertclaim.StateArmed ||
+			claim.State == revertclaim.StateRecovering {
 			// Final pods can recover claims left by bridge pods. Recovery uses only
 			// the exact legacy key persisted in the claim at acquisition time; it
 			// never recalculates a key from an origin whose payload may have changed.
@@ -667,7 +668,7 @@ func (handler *TransactionHandler) revertTransaction(ctx context.Context, organi
 				return nil, false, handler.requireRevertReconciliation(ctx, claim,
 					"legacy_fence_acquire_attempt_cleanup_failed")
 			}
-			if releaseErr := handler.releaseFreshRevertClaim(ctx, claim, legacyKey, true); releaseErr != nil {
+			if releaseErr := handler.releaseFreshRevertClaim(ctx, claim, legacyKey, true, false); releaseErr != nil {
 				return nil, false, handler.requireRevertReconciliation(ctx, claim, "legacy_fence_acquire_cleanup_failed")
 			}
 			releaseRolloutLeaseOnReturn = !handler.revertRolloutHandoffPending(ctx, organizationID, ledgerID,
@@ -705,6 +706,9 @@ func (handler *TransactionHandler) revertTransaction(ctx context.Context, organi
 		RevertRolloutMode:     rolloutMode,
 		RevertRolloutToken:    rolloutToken,
 		RedisGeneration:       redisGeneration,
+	}
+	if claim.LegacyFenceKey != nil {
+		params.RevertLegacyFenceKey = *claim.LegacyFenceKey
 	}
 	if barrierErr := handler.requireRevertRolloutBarrier(ctx); barrierErr != nil {
 		failureErr := handler.failRevertClaim(ctx, claim, execution, legacyKey, barrierErr)
@@ -1230,7 +1234,10 @@ func (handler *TransactionHandler) commitOrCancelTransaction(
 	// replacing this record would destroy the authoritative post-Lua proof.
 	operations, terminalReplay, err := handler.Command.UpdateTransactionBackupOperations(ctx, organizationID, ledgerID,
 		tran.IDtoUUID(), operations, mmodel.BalancesToRedis(balancesAfter), action, executionAttempt,
-		mmodel.TransactionEconomicContext{TransactionStatus: transactionStatus})
+		mmodel.TransactionEconomicContext{
+			TransactionStatus: transactionStatus, TransactionAmount: transactionInput.Send.Value.String(),
+			TransactionAssetCode: transactionInput.Send.Asset,
+		})
 	if err != nil {
 		libOpentelemetry.HandleSpanError(span, "Failed to durably bind lifecycle operations to balance outcome", err)
 		logger.Log(ctx, libLog.LevelError, "Failed to durably bind lifecycle operations to balance outcome",

@@ -102,9 +102,11 @@ func (uc *UseCase) FinalizeDurableTransactionPersistence(
 			parentTransactionID = &parsedParent
 		}
 		finalizeCtx := mmodel.WithTransactionEconomicContext(ctx, mmodel.TransactionEconomicContext{
-			ParentTransactionID: parentTransactionID,
-			TransactionStatus:   utils.ExpectedBackupStatusForCleanup(payload.Transaction.Status.Code, payload.Validate),
-			Action:              actionForTransactionPayload(payload),
+			ParentTransactionID:  parentTransactionID,
+			TransactionStatus:    utils.ExpectedBackupStatusForCleanup(payload.Transaction.Status.Code, payload.Validate),
+			Action:               actionForTransactionPayload(payload),
+			TransactionAmount:    payload.Input.Send.Value.String(),
+			TransactionAssetCode: payload.Input.Send.Asset,
 		})
 		if err := uc.TransactionRedisRepo.FinalizeTransactionPersistence(finalizeCtx,
 			organizationID, ledgerID, transactionID, attempt, redisOperations,
@@ -126,11 +128,13 @@ func (uc *UseCase) FinalizeDurableTransactionPersistence(
 		}
 		backupStatus := utils.ExpectedBackupStatusForCleanup(persisted.Status.Code, payload.Validate)
 		finalizeCtx := mmodel.WithTransactionEconomicContext(ctx, mmodel.TransactionEconomicContext{
-			ParentTransactionID: &originID,
-			TransactionStatus:   backupStatus,
-			Action:              constant.ActionRevert,
-			Operations:          redisOperations,
-			BalancesAfter:       mmodel.BalancesToRedis(payload.BalancesAfter),
+			ParentTransactionID:  &originID,
+			TransactionStatus:    backupStatus,
+			Action:               constant.ActionRevert,
+			TransactionAmount:    payload.Input.Send.Value.String(),
+			TransactionAssetCode: payload.Input.Send.Asset,
+			Operations:           redisOperations,
+			BalancesAfter:        mmodel.BalancesToRedis(payload.BalancesAfter),
 		})
 		if err := uc.TransactionRedisRepo.FinalizeLegacyTransactionPersistence(finalizeCtx,
 			organizationID, ledgerID, transactionID, originID, backupStatus, operationIDs); err != nil {
@@ -167,6 +171,12 @@ func proveDurableTransactionPayload(
 	if (persisted.ParentTransactionID == nil) != (expected.ParentTransactionID == nil) ||
 		(persisted.ParentTransactionID != nil && *persisted.ParentTransactionID != *expected.ParentTransactionID) {
 		return fmt.Errorf("durable transaction parent mismatch")
+	}
+	if persisted.Amount == nil || expected.Amount == nil || !persisted.Amount.Equal(*expected.Amount) {
+		return fmt.Errorf("durable transaction amount mismatch")
+	}
+	if persisted.AssetCode == "" || persisted.AssetCode != expected.AssetCode {
+		return fmt.Errorf("durable transaction asset mismatch")
 	}
 
 	expectedStatus := expected.Status.Code

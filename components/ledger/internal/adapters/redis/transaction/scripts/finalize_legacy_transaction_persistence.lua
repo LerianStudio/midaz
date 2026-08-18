@@ -1,7 +1,9 @@
 local backup = redis.call("HGET", KEYS[1], KEYS[2])
 local tombstoneRaw = redis.call("GET", KEYS[3])
 
-if type(ARGV[5]) ~= "string" or ARGV[5] == "" then
+if type(ARGV[5]) ~= "string" or ARGV[5] == "" or
+   type(ARGV[6]) ~= "string" or ARGV[6] == "" or
+   type(ARGV[7]) ~= "string" or ARGV[7] == "" then
     return redis.error_reply("TRANSACTION_ECONOMIC_DIGEST_INVALID")
 end
 local expectedOK, expected = pcall(cjson.decode, ARGV[4])
@@ -52,6 +54,8 @@ if tombstoneRaw then
        type(tombstone.transaction_status) ~= "string" or
        string.upper(tombstone.transaction_status) ~= string.upper(ARGV[3]) or
        tombstone.economic_effect_digest ~= ARGV[5] or
+       tombstone.transaction_amount ~= ARGV[6] or
+       tombstone.transaction_asset_code ~= ARGV[7] or
        type(tombstone.balancesAfter) ~= "table" or not operations_match(tombstone.operations) then
         return redis.error_reply("TRANSACTION_PERSISTENCE_TOMBSTONE_MISMATCH")
     end
@@ -85,6 +89,8 @@ local tombstone = {
     redis_generation = "",
     transaction_status = envelope.transaction_status,
     action = "revert",
+    transaction_amount = ARGV[6],
+    transaction_asset_code = ARGV[7],
     operations = envelope.operations,
     balancesAfter = envelope.balancesAfter,
     economic_effect_digest = envelope.economic_effect_digest

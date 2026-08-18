@@ -1348,10 +1348,11 @@ func (handler *TransactionHandler) executeCreateTransaction(ctx context.Context,
 	err = handler.Command.SendTransactionToRedisQueue(ctx, params.OrganizationID, params.LedgerID, transactionID,
 		transactionInput, validate, transactionStatus, action, transactionDate, nil, parentTransactionID,
 		command.TransactionBackupSeedOptions{
-			ExecutionAttempt:   params.ExecutionAttempt,
-			RevertRolloutMode:  params.RevertRolloutMode,
-			RevertRolloutToken: params.RevertRolloutToken,
-			RedisGeneration:    params.RedisGeneration,
+			ExecutionAttempt:     params.ExecutionAttempt,
+			RevertRolloutMode:    params.RevertRolloutMode,
+			RevertRolloutToken:   params.RevertRolloutToken,
+			RevertLegacyFenceKey: params.RevertLegacyFenceKey,
+			RedisGeneration:      params.RedisGeneration,
 		})
 	if err != nil {
 		if params.RevertExecution != nil && errors.Is(err, constant.ErrTransactionBackupCacheFailed) {
@@ -1459,6 +1460,29 @@ func (handler *TransactionHandler) executeCreateTransaction(ctx context.Context,
 	}
 
 	if params.RevertExecution != nil {
+		params.RevertExecution.ArmAttempted = true
+		attempt := params.ExecutionAttempt
+		expectedExecutionKey := utils.TransactionBalanceExecutionKey(params.OrganizationID, params.LedgerID, transactionID)
+		expectedOutcomeKey := utils.TransactionBalanceOutcomeKey(params.OrganizationID, params.LedgerID, transactionID)
+		if attempt == nil || attempt.Identity != transactionID || attempt.Owner != transactionID.String() ||
+			attempt.ExecutionKey != expectedExecutionKey || attempt.OutcomeKey != expectedOutcomeKey ||
+			attempt.Outcome != mmodel.TransactionOutcomeCommitted {
+			return nil, false, fmt.Errorf("revert balance attempt does not match the reserved reverse")
+		}
+		attemptValues, readErr := handler.Command.TransactionRedisRepo.MGet(ctx,
+			[]string{attempt.ExecutionKey, attempt.ExecutionKey + ":owner"})
+		if readErr != nil {
+			return nil, false, fmt.Errorf("verify revert balance attempt owner: %w", readErr)
+		}
+		_, attemptPresent := attemptValues[attempt.ExecutionKey]
+		if !attemptPresent || attemptValues[attempt.ExecutionKey+":owner"] != attempt.Owner {
+			return nil, false, fmt.Errorf("revert balance attempt owner is not durable")
+		}
+		if err := handler.Command.ArmRevertClaim(ctx, params.OrganizationID, params.LedgerID,
+			params.TransactionID, transactionID, attempt.Owner); err != nil {
+			return nil, false, fmt.Errorf("arm revert before balance execution: %w", err)
+		}
+		params.RevertExecution.Armed = true
 		params.RevertExecution.BalanceAttempted = true
 	}
 
@@ -1581,7 +1605,10 @@ func (handler *TransactionHandler) executeCreateTransaction(ctx context.Context,
 	operations, terminalReplay, err := handler.Command.UpdateTransactionBackupOperations(ctx,
 		params.OrganizationID, params.LedgerID,
 		transactionID, operations, mmodel.BalancesToRedis(balancesAfter), action, params.ExecutionAttempt,
-		mmodel.TransactionEconomicContext{ParentTransactionID: parentTransactionID, TransactionStatus: transactionStatus})
+		mmodel.TransactionEconomicContext{
+			ParentTransactionID: parentTransactionID, TransactionStatus: transactionStatus,
+			TransactionAmount: transactionInput.Send.Value.String(), TransactionAssetCode: transactionInput.Send.Asset,
+		})
 	if err != nil {
 		libOpentelemetry.HandleSpanError(span, "Failed to durably bind operations to balance outcome", err)
 		logger.Log(ctx, libLog.LevelError, "Failed to durably bind operations to balance outcome",

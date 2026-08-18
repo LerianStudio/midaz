@@ -43,6 +43,7 @@ func TestSendTransactionToRedisQueue_PersistsPhaseZeroRolloutOwner(t *testing.T)
 	originID := uuid.New()
 	rolloutToken := uuid.NewString()
 	redisGeneration := uuid.NewString()
+	legacyFenceKey := utils.IdempotencyInternalKey(organizationID, ledgerID, uuid.NewString())
 	input := mtransaction.Transaction{Description: "phase-zero reverse", Send: mtransaction.Send{
 		Asset: "USD", Value: decimal.NewFromInt(10),
 	}}
@@ -58,6 +59,7 @@ func TestSendTransactionToRedisQueue_PersistsPhaseZeroRolloutOwner(t *testing.T)
 			require.NoError(t, json.Unmarshal(raw, &queued))
 			assert.Equal(t, rolloutToken, queued.RevertRolloutToken)
 			assert.Equal(t, "legacy", queued.RevertRolloutMode)
+			assert.Equal(t, legacyFenceKey, queued.RevertLegacyFenceKey)
 			assert.Equal(t, redisGeneration, queued.RedisGeneration)
 			assert.Equal(t, transactionID, queued.TransactionID)
 			assert.Equal(t, *attempt, seededAttempt)
@@ -73,7 +75,7 @@ func TestSendTransactionToRedisQueue_PersistsPhaseZeroRolloutOwner(t *testing.T)
 		time.Date(2026, time.August, 18, 0, 0, 0, 0, time.UTC), nil, &originID,
 		TransactionBackupSeedOptions{
 			ExecutionAttempt: attempt, RevertRolloutMode: "legacy", RevertRolloutToken: rolloutToken,
-			RedisGeneration: redisGeneration,
+			RevertLegacyFenceKey: legacyFenceKey, RedisGeneration: redisGeneration,
 		})
 	require.NoError(t, err)
 }
@@ -88,6 +90,7 @@ func TestCreateBalanceTransactionOperationsAsync_GenerationPreflightRunsBeforePo
 	transactionID := uuid.New()
 	generation := uuid.NewString()
 	owner := transactionID.String()
+	transactionAmount := decimal.NewFromInt(10)
 	redisRepo.EXPECT().EnrichTransactionBackup(gomock.Any(), organizationID, ledgerID, transactionID,
 		gomock.Any(), constant.ActionRevert, gomock.Any()).
 		DoAndReturn(func(_ context.Context, _, _, _ uuid.UUID, _ []mmodel.OperationRedis, _ string,
@@ -103,10 +106,12 @@ func TestCreateBalanceTransactionOperationsAsync_GenerationPreflightRunsBeforePo
 	payload := transaction.TransactionProcessingPayload{
 		Transaction: &transaction.Transaction{
 			ID: transactionID.String(), OrganizationID: organizationID.String(), LedgerID: ledgerID.String(),
+			Amount: &transactionAmount, AssetCode: "USD",
 			ParentTransactionID: &parentID,
 			Status:              transaction.Status{Code: constant.CREATED},
 			Operations:          []*operation.Operation{{ID: uuid.NewString(), TransactionID: transactionID.String()}},
 		},
+		Input:        &mtransaction.Transaction{Send: mtransaction.Send{Asset: "USD", Value: transactionAmount}},
 		AttemptOwner: owner, ExpectedOutcome: mmodel.TransactionOutcomeCommitted, RedisGeneration: generation,
 	}
 	raw, err := msgpack.Marshal(payload)
@@ -1424,7 +1429,8 @@ func TestUpdateTransactionBackupOperations(t *testing.T) {
 
 		canonical, terminal, err := uc.UpdateTransactionBackupOperations(ctx, organizationID, ledgerID, transactionID,
 			operations, nil, constant.ActionCommit, nil,
-			mmodel.TransactionEconomicContext{TransactionStatus: constant.CREATED})
+			mmodel.TransactionEconomicContext{TransactionStatus: constant.CREATED,
+				TransactionAmount: "100", TransactionAssetCode: "BRL"})
 		require.NoError(t, err)
 		assert.False(t, terminal)
 		require.Len(t, canonical, 1)
@@ -1452,7 +1458,8 @@ func TestUpdateTransactionBackupOperations(t *testing.T) {
 
 		_, _, err := uc.UpdateTransactionBackupOperations(context.Background(), organizationID, ledgerID,
 			transactionID, nil, nil, constant.ActionCancel, attempt,
-			mmodel.TransactionEconomicContext{TransactionStatus: constant.PENDING})
+			mmodel.TransactionEconomicContext{TransactionStatus: constant.PENDING,
+				TransactionAmount: "100", TransactionAssetCode: "BRL"})
 		require.ErrorContains(t, err, "redis write failed")
 	})
 
@@ -1479,7 +1486,8 @@ func TestUpdateTransactionBackupOperations(t *testing.T) {
 		_, _, err := uc.UpdateTransactionBackupOperations(context.Background(), organizationID, ledgerID,
 			transactionID, []*operation.Operation{economicOperation}, []mmodel.BalanceRedis{expectedBalance},
 			constant.ActionCommit, attempt,
-			mmodel.TransactionEconomicContext{TransactionStatus: constant.CREATED})
+			mmodel.TransactionEconomicContext{TransactionStatus: constant.CREATED,
+				TransactionAmount: "100", TransactionAssetCode: "BRL"})
 		require.ErrorContains(t, err, "transaction economic effect differs from its authoritative Redis envelope")
 	})
 }

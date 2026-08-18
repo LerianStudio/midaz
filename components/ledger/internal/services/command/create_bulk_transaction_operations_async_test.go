@@ -110,6 +110,7 @@ func TestCreateBulkTransactionOperationsAsync_GenerationMismatchStopsBeforeEvery
 		// sentinel for any write that occurs before Redis rejects the generation.
 		Version: "",
 	}
+	bindCompleteTransactionIdentity(&payload)
 	redisRepo.EXPECT().EnrichTransactionBackup(gomock.Any(), organizationID, ledgerID, transactionID,
 		gomock.Any(), constant.ActionRevert, gomock.Any()).
 		Return(nil, nil, false, errors.New("financial dataset generation changed"))
@@ -124,6 +125,38 @@ func TestCreateBulkTransactionOperationsAsync_GenerationMismatchStopsBeforeEvery
 	require.NotNil(t, result)
 	assert.Zero(t, result.TransactionsAttempted)
 	assert.Zero(t, result.TransactionsUpdateAttempted)
+	assert.Zero(t, result.OperationsAttempted)
+}
+
+func TestCreateBulkTransactionOperationsAsync_LegacyBalanceWriteFailureStopsBeforeTransactionPersistence(t *testing.T) {
+	t.Parallel()
+
+	ctrl := gomock.NewController(t)
+	transactionRepo := transaction.NewMockRepository(ctrl)
+	balanceRepo := balance.NewMockRepository(ctrl)
+	organizationID := uuid.New()
+	ledgerID := uuid.New()
+	transactionID := uuid.New()
+	payload := transaction.TransactionProcessingPayload{
+		Transaction: &transaction.Transaction{
+			ID: transactionID.String(), OrganizationID: organizationID.String(), LedgerID: ledgerID.String(),
+			Status: transaction.Status{Code: constant.CREATED},
+		},
+		Validate:      &mtransaction.Responses{},
+		Balances:      []*mmodel.Balance{{ID: uuid.NewString(), Alias: "@source"}},
+		BalancesAfter: []*mmodel.Balance{{Alias: "@source", Available: decimal.NewFromInt(900), Version: 2}},
+		Version:       "",
+	}
+	balanceRepo.EXPECT().BalancesUpdate(gomock.Any(), organizationID, ledgerID, gomock.Any()).
+		Return(errors.New("legacy balance primary unavailable"))
+
+	uc := &UseCase{TransactionRepo: transactionRepo, BalanceRepo: balanceRepo}
+	result, err := uc.CreateBulkTransactionOperationsAsync(context.Background(),
+		[]transaction.TransactionProcessingPayload{payload})
+
+	require.ErrorContains(t, err, "legacy balance primary unavailable")
+	require.NotNil(t, result)
+	assert.Zero(t, result.TransactionsAttempted)
 	assert.Zero(t, result.OperationsAttempted)
 }
 
@@ -153,6 +186,7 @@ func TestPreflightDurableBulkPayloads_AdoptsCanonicalOperationSet(t *testing.T) 
 		AttemptOwner: transactionID.String(), ExpectedOutcome: mmodel.TransactionOutcomeCommitted,
 		RedisGeneration: generation, BalancesAfter: []*mmodel.Balance{balanceAfter},
 	}}
+	bindCompleteTransactionIdentity(&payloads[0])
 	redisRepo.EXPECT().EnrichTransactionBackup(gomock.Any(), organizationID, ledgerID, transactionID,
 		gomock.Any(), constant.ActionRevert, gomock.Any()).
 		DoAndReturn(func(_ context.Context, _, _, _ uuid.UUID, proposed []mmodel.OperationRedis, _ string,
@@ -229,17 +263,20 @@ func TestCreateBulkTransactionOperationsAsync_LostAckAfterTerminalCleanupIsReadO
 		RevertRolloutMode: rolloutMode, RevertRolloutToken: rolloutToken, Version: "v2",
 		BalancesAfter: []*mmodel.Balance{balanceAfter},
 	}
+	bindCompleteTransactionIdentity(&payload)
 	canonical := economicOperation.ToRedis()
 	redisRepo.EXPECT().EnrichTransactionBackup(gomock.Any(), organizationID, ledgerID, reverseID,
 		gomock.Any(), constant.ActionRevert, gomock.Any()).
 		Return([]mmodel.OperationRedis{canonical}, canonicalBalancesAfter, true, nil).
 		Times(2)
+	persisted := &transaction.Transaction{
+		ID: reverseID.String(), OrganizationID: organizationID.String(), LedgerID: ledgerID.String(),
+		ParentTransactionID: &parentID, Status: transaction.Status{Code: approved},
+		Operations: []*operation.Operation{economicOperation},
+	}
+	bindCompleteTransactionIdentity(&transaction.TransactionProcessingPayload{Transaction: persisted, Input: &input})
 	transactionRepo.EXPECT().FindWithOperations(gomock.Any(), organizationID, ledgerID, reverseID).
-		Return(&transaction.Transaction{
-			ID: reverseID.String(), OrganizationID: organizationID.String(), LedgerID: ledgerID.String(),
-			ParentTransactionID: &parentID, Status: transaction.Status{Code: approved},
-			Operations: []*operation.Operation{economicOperation},
-		}, nil)
+		Return(persisted, nil)
 	legacyHash, err := utils.LegacyTransactionIdempotencyHash(input)
 	require.NoError(t, err)
 	legacyKey := utils.IdempotencyInternalKey(organizationID, ledgerID, legacyHash)

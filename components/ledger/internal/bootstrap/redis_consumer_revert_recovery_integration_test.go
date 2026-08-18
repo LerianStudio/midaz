@@ -124,25 +124,62 @@ func TestIntegration_RevertBackupRecoveryPersistsExactParentAndCompletesClaim(t 
 		recoveryOperation(reverseID, organizationID, ledgerID, uuid.New(), uuid.New(), "@destination", constant.DEBIT,
 			constant.DirectionDebit, &amount, &amount, &zero, &versionBefore, &versionAfter, &statusDescription, fixedTime),
 	}
-	queue := mmodel.TransactionRedisQueue{
-		TransactionID:       reverseID,
-		ParentTransactionID: &originID,
-		OrganizationID:      organizationID,
-		LedgerID:            ledgerID,
-		TransactionInput: mtransaction.Transaction{
-			Description: "recovered reverse",
-			Send:        mtransaction.Send{Value: amount, Asset: "USD"},
+	debit := mtransaction.Amount{
+		Asset: "USD", Value: amount, Operation: constant.DEBIT, Direction: constant.DirectionDebit,
+	}
+	credit := mtransaction.Amount{
+		Asset: "USD", Value: amount, Operation: constant.CREDIT, Direction: constant.DirectionCredit,
+	}
+	input := mtransaction.Transaction{
+		Description: "recovered reverse",
+		Send: mtransaction.Send{
+			Value: amount, Asset: "USD",
+			Source: mtransaction.Source{From: []mtransaction.FromTo{{
+				AccountAlias: "@destination", BalanceKey: constant.DefaultBalanceKey, Amount: &debit, IsFrom: true,
+			}}},
+			Distribute: mtransaction.Distribute{To: []mtransaction.FromTo{{
+				AccountAlias: "@source", BalanceKey: constant.DefaultBalanceKey, Amount: &credit,
+			}}},
 		},
-		Validate:           &mtransaction.Responses{},
-		TransactionStatus:  constant.CREATED,
-		Action:             constant.ActionRevert,
-		AttemptOwner:       reverseID.String(),
-		ExpectedOutcome:    mmodel.TransactionOutcomeCommitted,
-		RevertRolloutMode:  "legacy",
-		RevertRolloutToken: rolloutToken,
-		RedisGeneration:    redisGeneration,
-		TransactionDate:    fixedTime,
-		TTL:                fixedTime,
+	}
+	validate := &mtransaction.Responses{
+		From: map[string]mtransaction.Amount{
+			mtransaction.ConcatAlias(0, mtransaction.AliasKey("@destination", constant.DefaultBalanceKey)): debit,
+		},
+		To: map[string]mtransaction.Amount{
+			mtransaction.ConcatAlias(0, mtransaction.AliasKey("@source", constant.DefaultBalanceKey)): credit,
+		},
+	}
+	legacyHash, err := utils.LegacyTransactionIdempotencyHash(input)
+	require.NoError(t, err)
+	expectedLegacyKey := utils.IdempotencyInternalKey(organizationID, ledgerID, legacyHash)
+	queue := mmodel.TransactionRedisQueue{
+		TransactionID:        reverseID,
+		ParentTransactionID:  &originID,
+		OrganizationID:       organizationID,
+		LedgerID:             ledgerID,
+		TransactionInput:     input,
+		Validate:             validate,
+		TransactionStatus:    constant.CREATED,
+		Action:               constant.ActionRevert,
+		AttemptOwner:         reverseID.String(),
+		ExpectedOutcome:      mmodel.TransactionOutcomeCommitted,
+		RevertRolloutMode:    "legacy",
+		RevertRolloutToken:   rolloutToken,
+		RevertLegacyFenceKey: expectedLegacyKey,
+		RedisGeneration:      redisGeneration,
+		TransactionDate:      fixedTime,
+		TTL:                  fixedTime,
+		Balances: []mmodel.BalanceRedis{
+			{ID: operations[0].BalanceID, Alias: operations[0].AccountAlias, Key: operations[0].BalanceKey,
+				AccountID: operations[0].AccountID, AssetCode: operations[0].AssetCode, Available: zero,
+				OnHold: zero, Version: versionBefore, AccountType: "deposit", Direction: operations[0].Direction, OverdraftUsed: "0",
+				OverdraftLimit: "0", BalanceScope: mmodel.BalanceScopeTransactional},
+			{ID: operations[1].BalanceID, Alias: operations[1].AccountAlias, Key: operations[1].BalanceKey,
+				AccountID: operations[1].AccountID, AssetCode: operations[1].AssetCode, Available: amount,
+				OnHold: zero, Version: versionBefore, AccountType: "deposit", Direction: operations[1].Direction, OverdraftUsed: "0",
+				OverdraftLimit: "0", BalanceScope: mmodel.BalanceScopeTransactional},
+		},
 		BalancesAfter: []mmodel.BalanceRedis{
 			{ID: operations[0].BalanceID, Alias: operations[0].AccountAlias, Key: operations[0].BalanceKey,
 				AccountID: operations[0].AccountID, AssetCode: operations[0].AssetCode, Available: amount,
@@ -162,9 +199,6 @@ func TestIntegration_RevertBackupRecoveryPersistsExactParentAndCompletesClaim(t 
 	require.NoError(t, err)
 	backupKey := utils.TransactionInternalKey(organizationID, ledgerID, reverseID.String())
 	require.NoError(t, redisRepo.AddMessageToQueue(ctx, backupKey, raw))
-	legacyHash, err := utils.LegacyTransactionIdempotencyHash(queue.TransactionInput)
-	require.NoError(t, err)
-	expectedLegacyKey := utils.IdempotencyInternalKey(organizationID, ledgerID, legacyHash)
 	legacyAcquired, err := redisRepo.AcquireOwnedKey(ctx, expectedLegacyKey, reverseID.String(), 0)
 	require.NoError(t, err)
 	require.True(t, legacyAcquired, "the phase-zero request must leave its old-compatible empty H1 fence")
@@ -172,6 +206,7 @@ func TestIntegration_RevertBackupRecoveryPersistsExactParentAndCompletesClaim(t 
 		Identity: reverseID,
 		Owner:    reverseID.String(),
 		Outcome:  mmodel.TransactionOutcomeCommitted,
+		Before:   queue.Balances,
 		After:    queue.BalancesAfter,
 	})
 	require.NoError(t, err)
@@ -192,6 +227,10 @@ func TestIntegration_RevertBackupRecoveryPersistsExactParentAndCompletesClaim(t 
 			Operations: operations, CreatedAt: fixedTime, UpdatedAt: fixedTime,
 		},
 		Input: &queue.TransactionInput, Validate: queue.Validate, Version: "v2",
+		Balances: []*mmodel.Balance{
+			balanceFromBackup(queue.Balances[0], organizationID, ledgerID),
+			balanceFromBackup(queue.Balances[1], organizationID, ledgerID),
+		},
 		BalancesAfter: []*mmodel.Balance{
 			balanceFromBackup(queue.BalancesAfter[0], organizationID, ledgerID),
 			balanceFromBackup(queue.BalancesAfter[1], organizationID, ledgerID),
@@ -329,9 +368,23 @@ func TestIntegration_LifecycleBackupRecoveryAfterLeaseExpiryPersistsExactOperati
 	fixedTime := time.Date(2026, time.August, 18, 0, 0, 0, 0, time.UTC)
 	amount := decimal.NewFromInt(100)
 	pending := constant.PENDING
+	debit := mtransaction.Amount{
+		Asset: "USD", Value: amount, Operation: constant.DEBIT, Direction: constant.DirectionDebit,
+	}
+	credit := mtransaction.Amount{
+		Asset: "USD", Value: amount, Operation: constant.CREDIT, Direction: constant.DirectionCredit,
+	}
 	input := mtransaction.Transaction{
 		Description: "pending transfer",
-		Send:        mtransaction.Send{Value: amount, Asset: "USD"},
+		Send: mtransaction.Send{
+			Value: amount, Asset: "USD",
+			Source: mtransaction.Source{From: []mtransaction.FromTo{{
+				AccountAlias: "@source", BalanceKey: constant.DefaultBalanceKey, Amount: &debit, IsFrom: true,
+			}}},
+			Distribute: mtransaction.Distribute{To: []mtransaction.FromTo{{
+				AccountAlias: "@destination", BalanceKey: constant.DefaultBalanceKey, Amount: &credit,
+			}}},
+		},
 	}
 	_, err = transactionRepo.Create(ctx, &postgreTransaction.Transaction{
 		ID:             transactionID.String(),
@@ -374,11 +427,19 @@ func TestIntegration_LifecycleBackupRecoveryAfterLeaseExpiryPersistsExactOperati
 		completeSnapshot(operations[1], amount, versionAfter),
 	}
 	queue := mmodel.TransactionRedisQueue{
-		TransactionID:     transactionID,
-		OrganizationID:    organizationID,
-		LedgerID:          ledgerID,
-		TransactionInput:  input,
-		Validate:          &mtransaction.Responses{Pending: true},
+		TransactionID:    transactionID,
+		OrganizationID:   organizationID,
+		LedgerID:         ledgerID,
+		TransactionInput: input,
+		Validate: &mtransaction.Responses{
+			Pending: true,
+			From: map[string]mtransaction.Amount{
+				mtransaction.ConcatAlias(0, mtransaction.AliasKey("@source", constant.DefaultBalanceKey)): debit,
+			},
+			To: map[string]mtransaction.Amount{
+				mtransaction.ConcatAlias(0, mtransaction.AliasKey("@destination", constant.DefaultBalanceKey)): credit,
+			},
+		},
 		TransactionStatus: constant.APPROVED,
 		Action:            constant.ActionCommit,
 		TransactionDate:   fixedTime,
@@ -536,6 +597,10 @@ func TestIntegration_RevertBackupRecoveryAdoptsPartialDeterministicOperationSet(
 		TransactionID: reverseID, ParentTransactionID: &originID, OrganizationID: organizationID, LedgerID: ledgerID,
 		TransactionInput: input, Validate: validate, TransactionStatus: constant.CREATED, Action: constant.ActionRevert,
 		TransactionDate: fixedTime, TTL: fixedTime,
+		EffectModeVersion: mmodel.TransactionEffectModeVersion,
+		EffectMode:        mmodel.TransactionEffectBalanceMutation,
+		AttemptOwner:      reverseID.String(),
+		ExpectedOutcome:   mmodel.TransactionOutcomeCommitted,
 		Balances: []mmodel.BalanceRedis{
 			{ID: fromBalanceID.String(), AccountID: fromAccountID.String(), Alias: fromAlias, Key: constant.DefaultBalanceKey, AssetCode: "USD", Available: amount, Version: 1,
 				AccountType: "deposit", Direction: constant.DirectionDebit, OverdraftUsed: "125", AllowOverdraft: 1, OverdraftLimitEnabled: 1,
@@ -553,10 +618,26 @@ func TestIntegration_RevertBackupRecoveryAdoptsPartialDeterministicOperationSet(
 		// Operations intentionally absent: this is the lost best-effort
 		// materialization window that used to mint new IDs on every replay.
 	}
+	rebuiltEconomicOperations := make([]mmodel.OperationRedis, 0, len(expected))
+	for _, candidate := range expected {
+		rebuiltEconomicOperations = append(rebuiltEconomicOperations, candidate.ToRedis())
+	}
+	require.NoError(t, mmodel.ValidateRedisTransactionEconomicEffect(&queue, rebuiltEconomicOperations),
+		"the deterministic recovery candidate must prove every immutable input leg before Redis enrichment")
 	raw, err := json.Marshal(queue)
 	require.NoError(t, err)
 	backupKey := utils.TransactionInternalKey(organizationID, ledgerID, reverseID.String())
 	require.NoError(t, redisRepo.AddMessageToQueue(ctx, backupKey, raw))
+	outcomeRaw, err := json.Marshal(mmodel.BalanceExecutionOutcome{
+		Identity: reverseID,
+		Owner:    reverseID.String(),
+		Outcome:  mmodel.TransactionOutcomeCommitted,
+		Before:   queue.Balances,
+		After:    queue.BalancesAfter,
+	})
+	require.NoError(t, err)
+	require.NoError(t, redisRepo.Set(ctx,
+		utils.TransactionBalanceOutcomeKey(organizationID, ledgerID, reverseID), string(outcomeRaw), 0))
 
 	consumer.processMessage(ctx, backupKey, string(raw), queue)
 

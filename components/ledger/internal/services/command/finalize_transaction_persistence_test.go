@@ -87,6 +87,13 @@ func TestFinalizeDurableTransactionPersistence_RetryAfterLostCleanupUsesOneTermi
 		ExpectedOutcome: mmodel.TransactionOutcomeCommitted,
 		BalancesAfter:   []*mmodel.Balance{balanceAfter},
 	}
+	bindCompleteTransactionIdentity(&payload)
+	persisted.Amount = payload.Transaction.Amount
+	persisted.AssetCode = payload.Transaction.AssetCode
+	legacyHash, err := utils.LegacyTransactionIdempotencyHash(*payload.Input)
+	require.NoError(t, err)
+	legacyKey = utils.IdempotencyInternalKey(organizationID, ledgerID, legacyHash)
+	claim.LegacyFenceKey = &legacyKey
 	originKey := utils.IdempotencyInternalKey(organizationID, ledgerID,
 		libCommons.HashSHA256(utils.RevertIdempotencyHashSource(originID)))
 	attempt := mmodel.BalanceExecutionAttempt{
@@ -110,7 +117,7 @@ func TestFinalizeDurableTransactionPersistence_RetryAfterLostCleanupUsesOneTermi
 				return &persisted, nil
 			})
 		claimRepo.EXPECT().Claim(gomock.Any(), organizationID, ledgerID, originID, reverseID,
-			nil, nil, nil, nil, nil).
+			&legacyKey, nil, nil, nil, nil).
 			Return(claim, false, nil)
 	}
 
@@ -269,6 +276,9 @@ func TestFinalizeDurableTransactionPersistence_RolloutStatusComesFromPrimary(t *
 		RedisGeneration:    redisGeneration,
 		BalancesAfter:      []*mmodel.Balance{balanceAfter},
 	}
+	bindCompleteTransactionIdentity(&payload)
+	persisted.Amount = payload.Transaction.Amount
+	persisted.AssetCode = payload.Transaction.AssetCode
 	originKey := utils.IdempotencyInternalKey(organizationID, ledgerID,
 		libCommons.HashSHA256(utils.RevertIdempotencyHashSource(originID)))
 
@@ -332,6 +342,13 @@ func TestFinalizeDurableTransactionPersistence_RetryAfterClaimBeforeReplay(t *te
 	payload := transaction.TransactionProcessingPayload{
 		Transaction: replay, Validate: &mtransaction.Responses{}, BalancesAfter: []*mmodel.Balance{balanceAfter},
 	}
+	bindCompleteTransactionIdentity(&payload)
+	persisted.Amount = payload.Transaction.Amount
+	persisted.AssetCode = payload.Transaction.AssetCode
+	legacyHash, err := utils.LegacyTransactionIdempotencyHash(*payload.Input)
+	require.NoError(t, err)
+	legacyKey := utils.IdempotencyInternalKey(organizationID, ledgerID, legacyHash)
+	claim.LegacyFenceKey = &legacyKey
 	originKey := utils.IdempotencyInternalKey(organizationID, ledgerID,
 		libCommons.HashSHA256(utils.RevertIdempotencyHashSource(originID)))
 
@@ -341,7 +358,7 @@ func TestFinalizeDurableTransactionPersistence_RetryAfterClaimBeforeReplay(t *te
 			Return([]mmodel.OperationRedis{economicOperation.ToRedis()}, []mmodel.BalanceRedis{balanceAfter.ToRedis()}, false, nil)
 		transactionRepo.EXPECT().FindWithOperations(gomock.Any(), organizationID, ledgerID, reverseID).Return(&persisted, nil)
 		claimRepo.EXPECT().Claim(gomock.Any(), organizationID, ledgerID, originID, reverseID,
-			nil, nil, nil, nil, nil).
+			&legacyKey, nil, nil, nil, nil).
 			Return(claim, false, nil)
 		claimRepo.EXPECT().Transition(gomock.Any(), organizationID, ledgerID, originID, reverseID,
 			revertclaim.StateCompleted, nil).Return(nil)
@@ -409,6 +426,9 @@ func TestFinalizeDurableTransactionPersistence_RejectsDifferentPersistedRolloutG
 		RedisGeneration: redisGeneration,
 		BalancesAfter:   []*mmodel.Balance{balanceAfter},
 	}
+	bindCompleteTransactionIdentity(&payload)
+	persisted.Amount = payload.Transaction.Amount
+	persisted.AssetCode = payload.Transaction.AssetCode
 
 	redisRepo.EXPECT().EnrichTransactionBackup(gomock.Any(), organizationID, ledgerID, reverseID,
 		gomock.Any(), constant.ActionRevert, gomock.Any()).
@@ -471,6 +491,9 @@ func TestFinalizeDurableTransactionPersistence_LifecycleProvesNewOperationsAndPr
 		ExpectedOutcome: attempt.Outcome,
 		BalancesAfter:   []*mmodel.Balance{firstBalance, secondBalance},
 	}
+	bindCompleteTransactionIdentity(&payload)
+	persisted.Amount = payload.Transaction.Amount
+	persisted.AssetCode = payload.Transaction.AssetCode
 
 	redisRepo.EXPECT().EnrichTransactionBackup(gomock.Any(), organizationID, ledgerID, transactionID,
 		gomock.Any(), constant.ActionCommit, gomock.Any()).
@@ -516,11 +539,14 @@ func TestProveDurableTransactionPayload_RejectsSameOperationIDsWithDifferentBala
 	expectedOperation := newOperation(&expectedAfter)
 	durableOperation := newOperation(&durableAfter)
 	durableOperation.BalanceID = expectedOperation.BalanceID
+	transactionAmount := decimal.NewFromInt(10)
 	expected := &transaction.Transaction{
 		ID:             transactionID,
 		OrganizationID: organizationID,
 		LedgerID:       ledgerID,
 		Status:         transaction.Status{Code: constant.APPROVED},
+		Amount:         &transactionAmount,
+		AssetCode:      "USD",
 		Operations:     []*operation.Operation{expectedOperation},
 	}
 	durable := &transaction.Transaction{
@@ -528,6 +554,8 @@ func TestProveDurableTransactionPayload_RejectsSameOperationIDsWithDifferentBala
 		OrganizationID: organizationID,
 		LedgerID:       ledgerID,
 		Status:         transaction.Status{Code: constant.APPROVED},
+		Amount:         &transactionAmount,
+		AssetCode:      "USD",
 		Operations:     []*operation.Operation{durableOperation},
 	}
 
@@ -535,6 +563,47 @@ func TestProveDurableTransactionPayload_RejectsSameOperationIDsWithDifferentBala
 		"durable transaction operation set mismatch")
 	require.False(t, replayIdentityMatches(durable, expected),
 		"terminal replay cannot accept matching IDs with a different balance fact")
+}
+
+func TestProveDurableTransactionPayload_RejectsTransactionAmountOrAssetDivergence(t *testing.T) {
+	t.Parallel()
+
+	organizationID := uuid.New()
+	ledgerID := uuid.New()
+	transactionID := uuid.New()
+	economicOperation, _ := completeOutcomeEvidence(organizationID, ledgerID, transactionID)
+	amount := decimal.NewFromInt(100)
+	expected := &transaction.Transaction{
+		ID: transactionID.String(), OrganizationID: organizationID.String(), LedgerID: ledgerID.String(),
+		Amount: &amount, AssetCode: "USD", Status: transaction.Status{Code: constant.APPROVED},
+		Operations: []*operation.Operation{economicOperation},
+	}
+
+	for _, test := range []struct {
+		name    string
+		mutate  func(*transaction.Transaction)
+		wantErr string
+	}{
+		{
+			name: "amount",
+			mutate: func(persisted *transaction.Transaction) {
+				divergent := decimal.NewFromInt(999)
+				persisted.Amount = &divergent
+			},
+			wantErr: "amount mismatch",
+		},
+		{
+			name:    "asset",
+			mutate:  func(persisted *transaction.Transaction) { persisted.AssetCode = "EUR" },
+			wantErr: "asset mismatch",
+		},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			persisted := *expected
+			test.mutate(&persisted)
+			require.ErrorContains(t, proveDurableTransactionPayload(&persisted, expected), test.wantErr)
+		})
+	}
 }
 
 func TestProveCompletedDurableReplay_RejectsReverseWithoutCompletedPrimaryClaim(t *testing.T) {
@@ -564,6 +633,9 @@ func TestProveCompletedDurableReplay_RejectsReverseWithoutCompletedPrimaryClaim(
 		Transaction: expected, RedisGeneration: generation,
 		RevertRolloutMode: rolloutMode, RevertRolloutToken: rolloutToken,
 	}
+	bindCompleteTransactionIdentity(&payload)
+	persisted.Amount = payload.Transaction.Amount
+	persisted.AssetCode = payload.Transaction.AssetCode
 
 	transactionRepo.EXPECT().FindWithOperations(gomock.Any(), organizationID, ledgerID, reverseID).
 		DoAndReturn(func(ctx context.Context, _, _ uuid.UUID, _ uuid.UUID) (*transaction.Transaction, error) {

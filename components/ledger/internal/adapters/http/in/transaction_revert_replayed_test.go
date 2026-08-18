@@ -201,6 +201,7 @@ func arrangeReplayedRevert(t *testing.T, ctrl *gomock.Controller) (*TransactionH
 		Identity: subjects.reverseID, ParentTransactionID: subjects.originID.String(),
 		Owner: subjects.reverseID.String(), Outcome: mmodel.TransactionOutcomeCommitted,
 		RedisGeneration: redisGeneration, TransactionStatus: cn.CREATED, Action: cn.ActionRevert,
+		TransactionAmount: amount.String(), TransactionAssetCode: "USD",
 	})
 	require.NoError(t, err)
 	redisRepo.EXPECT().

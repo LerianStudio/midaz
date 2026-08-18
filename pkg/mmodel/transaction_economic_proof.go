@@ -31,6 +31,9 @@ func ValidateRedisTransactionEconomicEffect(envelope *TransactionRedisQueue, ope
 	if mode != TransactionEffectBalanceMutation {
 		return fmt.Errorf("transaction balance mutation mode is required")
 	}
+	if !envelope.TransactionInput.Send.Value.IsPositive() || envelope.TransactionInput.Send.Asset == "" {
+		return fmt.Errorf("positive immutable transaction amount and asset are required")
+	}
 	if len(operations) == 0 || len(envelope.Balances) == 0 || len(envelope.Balances) != len(envelope.BalancesAfter) {
 		return fmt.Errorf("complete operation and balance movement sets are required")
 	}
@@ -50,6 +53,9 @@ func ValidateRedisTransactionEconomicEffect(envelope *TransactionRedisQueue, ope
 		if !inputMatched || !allowed.matches(operation) {
 			return fmt.Errorf("transaction economic operation %q semantics differ from immutable input", operation.ID)
 		}
+	}
+	if !redisImmutableInputOperationsCovered(envelope, operations) {
+		return fmt.Errorf("transaction economic effect omits an immutable input leg")
 	}
 
 	used := make([]bool, len(operations))
@@ -74,6 +80,9 @@ func ValidateRedisTransactionAnnotationEffect(envelope *TransactionRedisQueue, o
 	}
 	if mode != TransactionEffectAnnotationOnly {
 		return fmt.Errorf("transaction annotation-only mode is required")
+	}
+	if !envelope.TransactionInput.Send.Value.IsPositive() || envelope.TransactionInput.Send.Asset == "" {
+		return fmt.Errorf("positive immutable annotation amount and asset are required")
 	}
 	if envelope.AttemptOwner != "" || envelope.ExpectedOutcome != "" || len(envelope.Balances) != 0 || len(envelope.BalancesAfter) != 0 {
 		return fmt.Errorf("annotation-only transaction cannot carry balance or outcome evidence")
@@ -213,19 +222,10 @@ func redisAllowedOperationSemantics(
 	inputMatched := false
 	add := func(amount mtransaction.Amount) {
 		inputMatched = true
-		operationType := amount.Operation
-		if envelope.OperationTypeOverride != "" {
-			operationType = envelope.OperationTypeOverride
-		}
-		allowed.add(operationType, amount.Direction)
-		allowed.add(constant.OVERDRAFT, amount.Direction)
-		if amount.RouteValidationEnabled && amount.TransactionType == constant.PENDING {
-			allowed.add(constant.DEBIT, constant.DirectionDebit)
-			allowed.add(constant.ONHOLD, constant.DirectionCredit)
-		}
-		if amount.RouteValidationEnabled && amount.TransactionType == constant.CANCELED {
-			allowed.add(constant.RELEASE, constant.DirectionDebit)
-			allowed.add(constant.CREDIT, constant.DirectionCredit)
+		for operationType, directions := range redisOperationSemanticsForAmount(envelope, amount) {
+			for direction := range directions {
+				allowed.add(operationType, direction)
+			}
 		}
 	}
 	for key, amount := range envelope.Validate.From {
@@ -240,6 +240,86 @@ func redisAllowedOperationSemantics(
 	}
 
 	return allowed, inputMatched
+}
+
+func redisOperationSemanticsForAmount(envelope *TransactionRedisQueue, amount mtransaction.Amount) redisOperationSemantics {
+	allowed := make(redisOperationSemantics)
+	operationType := amount.Operation
+	if envelope.OperationTypeOverride != "" {
+		operationType = envelope.OperationTypeOverride
+	}
+	allowed.add(operationType, amount.Direction)
+	allowed.add(constant.OVERDRAFT, amount.Direction)
+	if amount.RouteValidationEnabled && amount.TransactionType == constant.PENDING {
+		allowed.add(constant.DEBIT, constant.DirectionDebit)
+		allowed.add(constant.ONHOLD, constant.DirectionCredit)
+	}
+	if amount.RouteValidationEnabled && amount.TransactionType == constant.CANCELED {
+		allowed.add(constant.RELEASE, constant.DirectionDebit)
+		allowed.add(constant.CREDIT, constant.DirectionCredit)
+	}
+
+	return allowed
+}
+
+func redisImmutableInputOperationsCovered(envelope *TransactionRedisQueue, operations []OperationRedis) bool {
+	if envelope.Validate == nil {
+		return false
+	}
+	type expectedInput struct {
+		key    string
+		amount mtransaction.Amount
+	}
+	sourceOnly := envelope.TransactionStatus == constant.PENDING || envelope.TransactionStatus == constant.CANCELED
+	expectedCapacity := len(envelope.Validate.From)
+	if !sourceOnly {
+		expectedCapacity += len(envelope.Validate.To)
+	}
+	expected := make([]expectedInput, 0, expectedCapacity)
+	for key, amount := range envelope.Validate.From {
+		expected = append(expected, expectedInput{key: key, amount: amount})
+	}
+	// A PENDING create moves only its source into the hold state, and cancel
+	// releases only that source because the destination was never credited.
+	// The declared destination remains immutable input for a later commit, but
+	// is not part of either source-only Lua outcome. Commit and direct/revert
+	// outcomes cover both sides.
+	if !sourceOnly {
+		for key, amount := range envelope.Validate.To {
+			expected = append(expected, expectedInput{key: key, amount: amount})
+		}
+	}
+	if len(expected) == 0 {
+		return false
+	}
+
+	used := make([]bool, len(operations))
+	for _, immutable := range expected {
+		matched := false
+		allowed := redisOperationSemanticsForAmount(envelope, immutable.amount)
+		asset := immutable.amount.Asset
+		if asset == "" {
+			asset = envelope.TransactionInput.Send.Asset
+		}
+		for index, operation := range operations {
+			if used[index] || operation.AssetCode != asset || !operation.AmountValue.Equal(immutable.amount.Value) ||
+				!allowed.matches(operation) {
+				continue
+			}
+			balance, found := redisEconomicBalanceForOperation(envelope.Balances, operation)
+			if !found || !redisEconomicInputTargetsBalance(immutable.key, balance) {
+				continue
+			}
+			used[index] = true
+			matched = true
+			break
+		}
+		if !matched {
+			return false
+		}
+	}
+
+	return true
 }
 
 func redisEconomicBalanceForOperation(balances []BalanceRedis, operation OperationRedis) (BalanceRedis, bool) {

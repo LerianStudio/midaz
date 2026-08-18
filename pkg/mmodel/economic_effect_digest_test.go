@@ -18,7 +18,7 @@ func TestRedisEconomicEffectDigest_NormalizesExactDecimalsAndPreservesMultisets(
 
 	operation := completeDigestOperation("operation-1", "9007199254740992", "1.0")
 	balance := completeDigestBalance("balance-1", "0001.000", "-0.000")
-	want, err := RedisEconomicEffectDigest([]OperationRedis{operation}, []BalanceRedis{balance})
+	want, err := RedisEconomicEffectDigest("100", "USD", []OperationRedis{operation}, []BalanceRedis{balance})
 	require.NoError(t, err)
 
 	equivalentOperation := operation
@@ -26,29 +26,39 @@ func TestRedisEconomicEffectDigest_NormalizesExactDecimalsAndPreservesMultisets(
 	equivalentBalance := balance
 	equivalentBalance.OverdraftUsed = "1e0"
 	equivalentBalance.OverdraftLimit = "0"
-	got, err := RedisEconomicEffectDigest([]OperationRedis{equivalentOperation}, []BalanceRedis{equivalentBalance})
+	got, err := RedisEconomicEffectDigest("100.0", "USD", []OperationRedis{equivalentOperation}, []BalanceRedis{equivalentBalance})
 	require.NoError(t, err)
 	assert.Equal(t, want, got)
+	precise, err := RedisEconomicEffectDigest("9007199254740993", "USD", []OperationRedis{operation}, []BalanceRedis{balance})
+	require.NoError(t, err)
+	assert.NotEqual(t, want, precise)
+	foreignAsset, err := RedisEconomicEffectDigest("100", "EUR", []OperationRedis{operation}, []BalanceRedis{balance})
+	require.NoError(t, err)
+	assert.NotEqual(t, want, foreignAsset)
+	for _, invalidAmount := range []string{"0", "-1", "not-a-decimal"} {
+		_, digestErr := RedisEconomicEffectDigest(invalidAmount, "USD", []OperationRedis{operation}, []BalanceRedis{balance})
+		require.Error(t, digestErr)
+	}
 
 	for _, distinct := range []string{"9007199254740991", "9007199254740993", "9007199254740992000000000000000000000000"} {
 		candidate := operation
 		candidate.AmountValue = decimal.RequireFromString(distinct)
-		digest, digestErr := RedisEconomicEffectDigest([]OperationRedis{candidate}, []BalanceRedis{balance})
+		digest, digestErr := RedisEconomicEffectDigest("100", "USD", []OperationRedis{candidate}, []BalanceRedis{balance})
 		require.NoError(t, digestErr)
 		assert.NotEqual(t, want, digest)
 	}
 
 	duplicateOperations := []OperationRedis{operation, operation, completeDigestOperation("operation-2", "3", "0")}
 	duplicateBalances := []BalanceRedis{balance, balance, completeDigestBalance("balance-2", "4", "0")}
-	ordered, err := RedisEconomicEffectDigest(duplicateOperations, duplicateBalances)
+	ordered, err := RedisEconomicEffectDigest("100", "USD", duplicateOperations, duplicateBalances)
 	require.NoError(t, err)
-	reordered, err := RedisEconomicEffectDigest(
+	reordered, err := RedisEconomicEffectDigest("100", "USD",
 		[]OperationRedis{duplicateOperations[2], duplicateOperations[0], duplicateOperations[1]},
 		[]BalanceRedis{duplicateBalances[2], duplicateBalances[1], duplicateBalances[0]},
 	)
 	require.NoError(t, err)
 	assert.Equal(t, ordered, reordered)
-	withoutDuplicate, err := RedisEconomicEffectDigest(duplicateOperations[1:], duplicateBalances[1:])
+	withoutDuplicate, err := RedisEconomicEffectDigest("100", "USD", duplicateOperations[1:], duplicateBalances[1:])
 	require.NoError(t, err)
 	assert.NotEqual(t, ordered, withoutDuplicate)
 }
@@ -87,12 +97,12 @@ func TestRedisEconomicEffectDigest_RejectsMalformedDecimals(t *testing.T) {
 	balance := completeDigestBalance("balance", "1", "0")
 
 	operation.Snapshot.OverdraftUsedAfter = "not-a-decimal"
-	_, err := RedisEconomicEffectDigest([]OperationRedis{operation}, []BalanceRedis{balance})
+	_, err := RedisEconomicEffectDigest("100", "USD", []OperationRedis{operation}, []BalanceRedis{balance})
 	require.Error(t, err)
 
 	operation = completeDigestOperation("operation", "1", "0")
 	balance.OverdraftLimit = "1e999999999999999999999999999999999999"
-	_, err = RedisEconomicEffectDigest([]OperationRedis{operation}, []BalanceRedis{balance})
+	_, err = RedisEconomicEffectDigest("100", "USD", []OperationRedis{operation}, []BalanceRedis{balance})
 	require.Error(t, err)
 }
 
@@ -110,18 +120,18 @@ func TestRedisAnnotationEffectDigest_SeparateDomainAndDuplicatePreserving(t *tes
 	second := first
 	second.ID = "annotation-2"
 
-	ordered, err := RedisAnnotationEffectDigest([]OperationRedis{first, second, first})
+	ordered, err := RedisAnnotationEffectDigest("100", "USD", []OperationRedis{first, second, first})
 	require.NoError(t, err)
-	reordered, err := RedisAnnotationEffectDigest([]OperationRedis{first, first, second})
+	reordered, err := RedisAnnotationEffectDigest("100.0", "USD", []OperationRedis{first, first, second})
 	require.NoError(t, err)
 	assert.Equal(t, ordered, reordered)
-	withoutDuplicate, err := RedisAnnotationEffectDigest([]OperationRedis{first, second})
+	withoutDuplicate, err := RedisAnnotationEffectDigest("100", "USD", []OperationRedis{first, second})
 	require.NoError(t, err)
 	assert.NotEqual(t, ordered, withoutDuplicate)
 
-	economic, err := RedisEconomicEffectDigest([]OperationRedis{first}, []BalanceRedis{completeDigestBalance("balance", "0", "0")})
+	economic, err := RedisEconomicEffectDigest("100", "USD", []OperationRedis{first}, []BalanceRedis{completeDigestBalance("balance", "0", "0")})
 	require.NoError(t, err)
-	annotation, err := RedisAnnotationEffectDigest([]OperationRedis{first})
+	annotation, err := RedisAnnotationEffectDigest("100", "USD", []OperationRedis{first})
 	require.NoError(t, err)
 	assert.NotEqual(t, economic, annotation)
 }
