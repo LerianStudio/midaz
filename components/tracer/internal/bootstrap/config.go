@@ -981,9 +981,12 @@ func initTxBeginner(ctx context.Context, postgresConn *libPostgres.Client, enabl
 
 // limitServiceDeps holds the dependencies created during limit service initialization.
 type limitServiceDeps struct {
-	service          *services.LimitService
-	usageCounterRepo *postgres.UsageCounterRepository
-	limitRepo        *postgres.LimitRepository
+	service                *services.LimitService
+	usageCounterRepo       *postgres.UsageCounterRepository
+	limitRepo              *postgres.LimitRepository
+	usageReservationRepo   *postgres.UsageReservationRepository
+	reservationReaperRepo  *postgres.ReservationReaperRepository
+	reservationReaperAudit workers.ReservationExpiryAuditor
 }
 
 // initLimitService creates the limit service with all its dependencies.
@@ -1124,7 +1127,7 @@ func initHTTPServer(
 	// checker as the limit resolver and the shared audit writer / txBeginner so
 	// the reserve/confirm/release counter moves commit atomically with their
 	// audit rows — the same atomicity discipline as the validate path.
-	reservationRepo := postgres.NewUsageReservationRepositoryWithConnection(limitDeps.usageCounterRepo)
+	reservationRepo := limitDeps.usageReservationRepo
 
 	longLivedTTL, err := parseReservationLongLivedTTLHours(cfg.ReservationLongLivedTTLHours)
 	if err != nil {
@@ -1391,6 +1394,17 @@ func initMultiTenant(
 		resolvedCleanup = *cleanupCfg
 	}
 
+	reaperCfg, err := LoadReservationReaperConfig(ctx, cfg, logger)
+	if err != nil {
+		return nil, err
+	}
+
+	var resolvedReaper workers.ReservationReaperWorkerConfig
+	reaperEnabled := reaperCfg != nil
+	if reaperEnabled {
+		resolvedReaper = *reaperCfg
+	}
+
 	syncCBConfig := workers.DefaultSyncCircuitBreakerConfig()
 
 	// M4: compiler creation lives inside buildComponentsMT now. Pass
@@ -1420,12 +1434,16 @@ func initMultiTenant(
 			},
 		},
 		workers.WorkerSupervisorDeps{
-			RuleCache:  ruleCache,
-			Clock:      clk,
-			Logger:     logger,
-			MaxTenants: cfg.MultiTenantMaxTenantPools,
-			Service:    cfg.ApplicationName,
-			Metrics:    mtMetrics,
+			RuleCache:           ruleCache,
+			Clock:               clk,
+			Logger:              logger,
+			MaxTenants:          cfg.MultiTenantMaxTenantPools,
+			Service:             cfg.ApplicationName,
+			Metrics:             mtMetrics,
+			ReaperRepo:          limitDeps.reservationReaperRepo,
+			ReaperAuditor:       limitDeps.reservationReaperAudit,
+			ReaperConfig:        resolvedReaper,
+			ReaperWorkerEnabled: reaperEnabled,
 		},
 	)
 	if err != nil {
@@ -1514,6 +1532,24 @@ func initWorkers(
 
 	svc.cleanupWorker = cleanupWorker
 	svc.syncWorker = syncWorker
+
+	reaperConfig, err := LoadReservationReaperConfig(ctx, cfg, logger)
+	if err != nil {
+		return nil, err
+	}
+	if reaperConfig != nil {
+		svc.reservationReaper, err = workers.NewReservationReaperWorker(
+			limitDeps.reservationReaperRepo,
+			limitDeps.reservationReaperAudit,
+			*reaperConfig,
+			logger,
+			clk,
+			"",
+		)
+		if err != nil {
+			return nil, fmt.Errorf("failed to initialize reservation reaper: %w", err)
+		}
+	}
 
 	return svc, nil
 }
@@ -1881,6 +1917,13 @@ func InitServers(ctx context.Context) (*Service, error) {
 	if err != nil {
 		return nil, err
 	}
+
+	// The reservation API and both reaper modes share one repository graph.
+	// The connection/transaction adapters resolve the tenant pool from context,
+	// so the same instances are safe for singleton and per-tenant workers.
+	limitDeps.usageReservationRepo = postgres.NewUsageReservationRepositoryWithConnection(limitDeps.usageCounterRepo)
+	limitDeps.reservationReaperRepo = postgres.NewReservationReaperRepository(pgConn, txBeginner, limitDeps.usageReservationRepo)
+	limitDeps.reservationReaperAudit = auditWriter
 
 	mtComponents, mtMetrics, err := buildMultiTenantStack(ctx, cfg, logger, telemetry, ruleCache, ruleSyncRepo, limitDeps, celAdapter, clk)
 	if err != nil {

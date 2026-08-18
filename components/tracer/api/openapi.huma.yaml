@@ -53,6 +53,33 @@ components:
         - name
         - ipAddress
       type: object
+    ApplyOutcomeResponse:
+      additionalProperties: false
+      properties:
+        outcome:
+          type: string
+        outcomeId:
+          format: uuid
+          type: string
+        replayed:
+          examples:
+            - false
+          type: boolean
+        reservationCount:
+          examples:
+            - 2
+          format: int64
+          type: integer
+        transactionId:
+          format: uuid
+          type: string
+      required:
+        - transactionId
+        - outcomeId
+        - outcome
+        - reservationCount
+        - replayed
+      type: object
     AuditEvent:
       additionalProperties: false
       properties:
@@ -1579,6 +1606,44 @@ paths:
         - BearerAuth: []
         - ApiKeyAuth: []
       summary: Confirm a transaction's reservations (phase two — commit by transaction)
+      tags:
+        - Reservations
+  /reservations/transaction/{transaction_id}/outcome:
+    post:
+      operationId: applyReservationOutcome
+      parameters:
+        - description: Transaction ID (UUID)
+          in: path
+          name: transaction_id
+          required: true
+          schema:
+            description: Transaction ID (UUID)
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              contentMediaType: application/octet-stream
+              format: binary
+              type: string
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApplyOutcomeResponse"
+          description: OK
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Error
+      security:
+        - BearerAuth: []
+        - ApiKeyAuth: []
+      summary: Apply the ledger's durable terminal reservation outcome
       tags:
         - Reservations
   /reservations/transaction/{transaction_id}/release:

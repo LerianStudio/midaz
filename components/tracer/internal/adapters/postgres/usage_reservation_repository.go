@@ -100,9 +100,9 @@ func (r *UsageReservationRepository) ReserveWithTx(ctx context.Context, db pgdb.
 	insertSQL := `
 		INSERT INTO usage_reservations (
 			id, limit_id, scope_key, period_key, amount, status,
-			transaction_id, reservation_expires_at, created_at
+			delivery_mode, transaction_id, reservation_expires_at, created_at
 		)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
 		ON CONFLICT (transaction_id, limit_id, scope_key, period_key) DO NOTHING
 		RETURNING id
 	`
@@ -117,13 +117,14 @@ func (r *UsageReservationRepository) ReserveWithTx(ctx context.Context, db pgdb.
 		reservation.PeriodKey,
 		reservation.Amount,
 		string(reservation.Status),
+		string(reservation.DeliveryMode),
 		reservation.TransactionID,
 		reservation.ReservationExpiresAt,
 		reservation.CreatedAt,
 	).Scan(&persistedID)
 	if errors.Is(err, sql.ErrNoRows) {
 		findSQL := `
-			SELECT id, amount, status
+			SELECT id, amount, status, delivery_mode
 			FROM usage_reservations
 			WHERE transaction_id = $1
 			  AND limit_id = $2
@@ -133,6 +134,7 @@ func (r *UsageReservationRepository) ReserveWithTx(ctx context.Context, db pgdb.
 		`
 		var persistedAmount int64
 		var persistedStatus model.ReservationStatus
+		var persistedDeliveryMode model.ReservationDeliveryMode
 		if findErr := db.QueryRowContext(
 			ctx,
 			findSQL,
@@ -140,7 +142,7 @@ func (r *UsageReservationRepository) ReserveWithTx(ctx context.Context, db pgdb.
 			reservation.LimitID,
 			reservation.ScopeKey,
 			reservation.PeriodKey,
-		).Scan(&persistedID, &persistedAmount, &persistedStatus); findErr != nil {
+		).Scan(&persistedID, &persistedAmount, &persistedStatus, &persistedDeliveryMode); findErr != nil {
 			libOtel.HandleSpanError(span, "Failed to find existing reservation row", findErr)
 			return uuid.Nil, false, fmt.Errorf("failed to find existing reservation row: %w", findErr)
 		}
@@ -157,6 +159,16 @@ func (r *UsageReservationRepository) ReserveWithTx(ctx context.Context, db pgdb.
 				constant.ErrIdempotencyKey,
 				persistedAmount,
 				reservation.Amount,
+			)
+		}
+
+		if persistedDeliveryMode != reservation.DeliveryMode {
+			libOtel.HandleSpanBusinessErrorEvent(span, "Reservation idempotency delivery-mode conflict", constant.ErrIdempotencyKey)
+			return uuid.Nil, false, fmt.Errorf(
+				"%w: reservation tuple already uses delivery mode %s, got %s",
+				constant.ErrIdempotencyKey,
+				persistedDeliveryMode,
+				reservation.DeliveryMode,
 			)
 		}
 
@@ -191,6 +203,209 @@ func (r *UsageReservationRepository) ReserveWithTx(ctx context.Context, db pgdb.
 	return persistedID, true, nil
 }
 
+// ApplyOutcomeWithTx claims the transaction outcome receipt before moving any
+// capacity. The receipt claim serializes concurrent deliveries by transaction;
+// an exact tuple returns the persisted receipt, while any different outcome ID
+// or terminal decision conflicts. New receipts, every V2 reservation transition
+// and the stored reservation count run on the caller-owned transaction.
+func (r *UsageReservationRepository) ApplyOutcomeWithTx(
+	ctx context.Context,
+	db pgdb.DB,
+	transactionID uuid.UUID,
+	outcomeID uuid.UUID,
+	outcome model.ReservationOutcome,
+	appliedAt time.Time,
+) (*model.ReservationOutcomeReceipt, []*model.Reservation, bool, error) {
+	if db == nil {
+		return nil, nil, false, pgdb.ErrNilConnection
+	}
+
+	if transactionID == uuid.Nil {
+		return nil, nil, false, constant.ErrReservationTransactionIDReq
+	}
+
+	if outcomeID == uuid.Nil {
+		return nil, nil, false, constant.ErrReservationOutcomeIDRequired
+	}
+
+	terminalStatus, err := outcome.TerminalStatus()
+	if err != nil {
+		return nil, nil, false, err
+	}
+
+	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
+
+	ctx, span := tracer.Start(ctx, "repository.usage_reservation.apply_outcome")
+	defer span.End()
+
+	logger = logging.WithTrace(ctx, logger)
+
+	receipt, created, err := r.claimOutcomeReceipt(ctx, db, transactionID, outcomeID, outcome, appliedAt.UTC())
+	if err != nil {
+		if errors.Is(err, constant.ErrReservationOutcomeConflict) {
+			libOtel.HandleSpanBusinessErrorEvent(span, "Reservation outcome conflicts with receipt", err)
+		} else {
+			libOtel.HandleSpanError(span, "Failed to claim reservation outcome receipt", err)
+		}
+
+		return nil, nil, false, err
+	}
+
+	if !created {
+		return receipt, nil, true, nil
+	}
+
+	reservations, err := r.lockOutcomeReservations(ctx, db, transactionID)
+	if err != nil {
+		libOtel.HandleSpanError(span, "Failed to load outcome reservations", err)
+		return nil, nil, false, err
+	}
+
+	for _, reservation := range reservations {
+		deliveryMode, normalizeErr := reservation.DeliveryMode.Normalize()
+		if normalizeErr != nil || deliveryMode != model.DeliveryModeLedgerOutcomeV2 || reservation.Status != model.StatusReserved {
+			libOtel.HandleSpanBusinessErrorEvent(span, "Outcome attempted against non-V2 reservation", constant.ErrReservationOutcomeConflict)
+			return nil, nil, false, constant.ErrReservationOutcomeConflict
+		}
+
+		if terminalStatus == model.StatusConfirmed {
+			if err := r.applyConfirmAt(ctx, span, db, reservation, appliedAt.UTC()); err != nil {
+				return nil, nil, false, err
+			}
+		} else if err := r.applyReleaseAt(ctx, span, db, reservation, terminalStatus, appliedAt.UTC()); err != nil {
+			return nil, nil, false, err
+		}
+	}
+
+	updateReceipt := sq.Update("reservation_outcome_receipts").
+		Set("reservation_count", len(reservations)).
+		Where(sq.Eq{"transaction_id": transactionID}).
+		PlaceholderFormat(sq.Dollar)
+
+	query, args, err := updateReceipt.ToSql()
+	if err != nil {
+		return nil, nil, false, fmt.Errorf("failed to build outcome receipt update: %w", err)
+	}
+
+	result, err := db.ExecContext(ctx, query, args...)
+	if err != nil {
+		return nil, nil, false, fmt.Errorf("failed to update outcome receipt: %w", err)
+	}
+
+	affected, err := result.RowsAffected()
+	if err != nil {
+		return nil, nil, false, fmt.Errorf("failed to read outcome receipt rows affected: %w", err)
+	}
+
+	if affected != 1 {
+		return nil, nil, false, errors.New("outcome receipt disappeared during apply")
+	}
+
+	receipt.ReservationCount = len(reservations)
+
+	span.SetAttributes(attribute.Int("db.rows_flipped", len(reservations)))
+	logger.With(
+		libLog.String("operation", "repository.usage_reservation.apply_outcome"),
+		libLog.String("transaction_id", transactionID.String()),
+		libLog.String("outcome_id", outcomeID.String()),
+		libLog.String("outcome", string(outcome)),
+		libLog.Int("reservations", len(reservations)),
+	).Log(ctx, libLog.LevelDebug, "Applied reservation outcome")
+
+	return receipt, reservations, false, nil
+}
+
+func (r *UsageReservationRepository) claimOutcomeReceipt(
+	ctx context.Context,
+	db pgdb.DB,
+	transactionID uuid.UUID,
+	outcomeID uuid.UUID,
+	outcome model.ReservationOutcome,
+	appliedAt time.Time,
+) (*model.ReservationOutcomeReceipt, bool, error) {
+	const insertSQL = `
+		INSERT INTO reservation_outcome_receipts (
+			transaction_id, outcome_id, outcome, reservation_count, applied_at
+		)
+		VALUES ($1, $2, $3, 0, $4)
+		ON CONFLICT (transaction_id) DO NOTHING
+		RETURNING transaction_id, outcome_id, outcome, reservation_count, applied_at
+	`
+
+	receipt := &model.ReservationOutcomeReceipt{}
+	err := db.QueryRowContext(ctx, insertSQL, transactionID, outcomeID, string(outcome), appliedAt).Scan(
+		&receipt.TransactionID,
+		&receipt.OutcomeID,
+		&receipt.Outcome,
+		&receipt.ReservationCount,
+		&receipt.AppliedAt,
+	)
+	if err == nil {
+		return receipt, true, nil
+	}
+
+	if !errors.Is(err, sql.ErrNoRows) {
+		return nil, false, fmt.Errorf("failed to insert outcome receipt: %w", err)
+	}
+
+	const selectSQL = `
+		SELECT transaction_id, outcome_id, outcome, reservation_count, applied_at
+		FROM reservation_outcome_receipts
+		WHERE transaction_id = $1
+		FOR UPDATE
+	`
+
+	receipt = &model.ReservationOutcomeReceipt{}
+	if err := db.QueryRowContext(ctx, selectSQL, transactionID).Scan(
+		&receipt.TransactionID,
+		&receipt.OutcomeID,
+		&receipt.Outcome,
+		&receipt.ReservationCount,
+		&receipt.AppliedAt,
+	); err != nil {
+		return nil, false, fmt.Errorf("failed to load outcome receipt: %w", err)
+	}
+
+	if receipt.OutcomeID != outcomeID || receipt.Outcome != outcome {
+		return nil, false, constant.ErrReservationOutcomeConflict
+	}
+
+	return receipt, false, nil
+}
+
+func (r *UsageReservationRepository) lockOutcomeReservations(ctx context.Context, db pgdb.DB, transactionID uuid.UUID) ([]*model.Reservation, error) {
+	const selectSQL = `
+		SELECT id, limit_id, scope_key, period_key, amount, status,
+		       delivery_mode, transaction_id, reservation_expires_at, created_at,
+		       confirmed_at, released_at
+		FROM usage_reservations
+		WHERE transaction_id = $1
+		FOR UPDATE
+	`
+
+	rows, err := db.QueryContext(ctx, selectSQL, transactionID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to load reservations for outcome: %w", err)
+	}
+	defer func() { _ = rows.Close() }()
+
+	var reservations []*model.Reservation
+	for rows.Next() {
+		reservation, err := scanReservation(rows.Scan)
+		if err != nil {
+			return nil, fmt.Errorf("failed to scan outcome reservation: %w", err)
+		}
+
+		reservations = append(reservations, reservation)
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("failed to iterate outcome reservations: %w", err)
+	}
+
+	return reservations, nil
+}
+
 // ConfirmWithTx moves a RESERVED reservation's amount from reserved_usage into
 // current_usage on the counter and flips the row to CONFIRMED, on the supplied
 // handle, guarded WHERE status='RESERVED'. A retried confirm against an
@@ -217,6 +432,10 @@ func (r *UsageReservationRepository) ConfirmWithTx(ctx context.Context, db pgdb.
 
 	if res.Status != model.StatusReserved {
 		return constant.ErrReservationAlreadyTerminal
+	}
+
+	if res.DeliveryMode == model.DeliveryModeLedgerOutcomeV2 {
+		return constant.ErrReservationOutcomeConflict
 	}
 
 	now := time.Now().UTC()
@@ -289,6 +508,10 @@ func (r *UsageReservationRepository) ReleaseWithTx(ctx context.Context, db pgdb.
 
 	if res.Status != model.StatusReserved {
 		return constant.ErrReservationAlreadyTerminal
+	}
+
+	if res.DeliveryMode == model.DeliveryModeLedgerOutcomeV2 {
+		return constant.ErrReservationOutcomeConflict
 	}
 
 	now := time.Now().UTC()
@@ -437,7 +660,10 @@ func (r *UsageReservationRepository) ReleaseByTransactionWithTx(ctx context.Cont
 // known RESERVED by the by-transaction selector, so the WHERE status='RESERVED'
 // guard on the flip stays as a belt-and-braces against a concurrent transition.
 func (r *UsageReservationRepository) applyConfirm(ctx context.Context, span trace.Span, db pgdb.DB, res *model.Reservation) error {
-	now := time.Now().UTC()
+	return r.applyConfirmAt(ctx, span, db, res, time.Now().UTC())
+}
+
+func (r *UsageReservationRepository) applyConfirmAt(ctx context.Context, span trace.Span, db pgdb.DB, res *model.Reservation, now time.Time) error {
 
 	counterUpdate := sq.Update(usageCountersTable).
 		Set("current_usage", sq.Expr("current_usage + ?", res.Amount)).
@@ -471,7 +697,10 @@ func (r *UsageReservationRepository) applyConfirm(ctx context.Context, span trac
 // (current_usage untouched) and flips the row to the given terminal status, on the
 // supplied handle. It is the shared per-row body of ReleaseByTransactionWithTx.
 func (r *UsageReservationRepository) applyRelease(ctx context.Context, span trace.Span, db pgdb.DB, res *model.Reservation, status model.ReservationStatus) error {
-	now := time.Now().UTC()
+	return r.applyReleaseAt(ctx, span, db, res, status, time.Now().UTC())
+}
+
+func (r *UsageReservationRepository) applyReleaseAt(ctx context.Context, span trace.Span, db pgdb.DB, res *model.Reservation, status model.ReservationStatus, now time.Time) error {
 
 	counterUpdate := sq.Update(usageCountersTable).
 		Set("reserved_usage", sq.Expr("reserved_usage - ?", res.Amount)).
@@ -509,9 +738,9 @@ func (r *UsageReservationRepository) applyRelease(ctx context.Context, span trac
 func (r *UsageReservationRepository) lockReservedByTransaction(ctx context.Context, db pgdb.DB, transactionID uuid.UUID) ([]*model.Reservation, error) {
 	const selectSQL = `
 		SELECT id, limit_id, scope_key, period_key, amount, status,
-		       transaction_id, reservation_expires_at, created_at, confirmed_at, released_at
+		       delivery_mode, transaction_id, reservation_expires_at, created_at, confirmed_at, released_at
 		FROM usage_reservations
-		WHERE transaction_id = $1 AND status = 'RESERVED'
+		WHERE transaction_id = $1 AND status = 'RESERVED' AND delivery_mode = 'LEGACY'
 		FOR UPDATE
 	`
 
@@ -539,6 +768,7 @@ func (r *UsageReservationRepository) lockReservedByTransaction(ctx context.Conte
 			&res.PeriodKey,
 			&res.Amount,
 			&status,
+			&res.DeliveryMode,
 			&res.TransactionID,
 			&res.ReservationExpiresAt,
 			&res.CreatedAt,
@@ -576,7 +806,7 @@ func (r *UsageReservationRepository) lockReservedByTransaction(ctx context.Conte
 func (r *UsageReservationRepository) lockReservation(ctx context.Context, db pgdb.DB, reservationID uuid.UUID) (*model.Reservation, error) {
 	selectSQL := `
 		SELECT id, limit_id, scope_key, period_key, amount, status,
-		       transaction_id, reservation_expires_at, created_at, confirmed_at, released_at
+		       delivery_mode, transaction_id, reservation_expires_at, created_at, confirmed_at, released_at
 		FROM usage_reservations
 		WHERE id = $1
 		FOR UPDATE
@@ -596,6 +826,7 @@ func (r *UsageReservationRepository) lockReservation(ctx context.Context, db pgd
 		&res.PeriodKey,
 		&res.Amount,
 		&status,
+		&res.DeliveryMode,
 		&res.TransactionID,
 		&res.ReservationExpiresAt,
 		&res.CreatedAt,
@@ -623,6 +854,45 @@ func (r *UsageReservationRepository) lockReservation(ctx context.Context, db pgd
 	}
 
 	return &res, nil
+}
+
+func scanReservation(scan func(dest ...any) error) (*model.Reservation, error) {
+	var (
+		reservation model.Reservation
+		status      string
+		confirmedAt sql.NullTime
+		releasedAt  sql.NullTime
+	)
+
+	if err := scan(
+		&reservation.ID,
+		&reservation.LimitID,
+		&reservation.ScopeKey,
+		&reservation.PeriodKey,
+		&reservation.Amount,
+		&status,
+		&reservation.DeliveryMode,
+		&reservation.TransactionID,
+		&reservation.ReservationExpiresAt,
+		&reservation.CreatedAt,
+		&confirmedAt,
+		&releasedAt,
+	); err != nil {
+		return nil, err
+	}
+
+	reservation.Status = model.ReservationStatus(status)
+	if confirmedAt.Valid {
+		t := confirmedAt.Time
+		reservation.ConfirmedAt = &t
+	}
+
+	if releasedAt.Valid {
+		t := releasedAt.Time
+		reservation.ReleasedAt = &t
+	}
+
+	return &reservation, nil
 }
 
 // execCounterMove runs the counter UPDATE and maps zero rows affected to the

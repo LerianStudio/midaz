@@ -49,12 +49,21 @@ type reservationSpyService struct {
 	releaseErr    error
 	byTxFlipped   int
 	byTxErr       error
+	outcomeResult *services.ApplyOutcomeResult
+	outcomeErr    error
 }
 
-func (s *reservationSpyService) Reserve(ctx context.Context, transactionID uuid.UUID, _ *model.CheckLimitsInput, _ bool) (*services.ReserveResult, error) {
+func (s *reservationSpyService) Reserve(ctx context.Context, transactionID uuid.UUID, _ *model.CheckLimitsInput, _ bool, _ ...model.ReservationDeliveryMode) (*services.ReserveResult, error) {
 	s.capturedTenant = tmctx.GetTenantIDContext(ctx)
 	s.capturedTxID = transactionID
 	return s.reserveResult, s.reserveErr
+}
+
+func (s *reservationSpyService) ApplyOutcome(ctx context.Context, transactionID, _ uuid.UUID, _ model.ReservationOutcome) (*services.ApplyOutcomeResult, error) {
+	s.capturedTenant = tmctx.GetTenantIDContext(ctx)
+	s.capturedAction = "ApplyOutcome"
+	s.capturedTxID = transactionID
+	return s.outcomeResult, s.outcomeErr
 }
 
 func (s *reservationSpyService) Confirm(ctx context.Context, reservationID uuid.UUID) error {
@@ -162,6 +171,36 @@ func TestHuma_Reserve_Success(t *testing.T) {
 
 	assert.Equal(t, "tenant-alpha", svc.capturedTenant,
 		"tenant from c.Context() must reach the service via the Huma handler ctx")
+}
+
+func TestHuma_ApplyOutcome_PreservesTenantAndReceipt(t *testing.T) {
+	transactionID := testutil.MustDeterministicUUID(60)
+	outcomeID := testutil.MustDeterministicUUID(61)
+	svc := &reservationSpyService{outcomeResult: &services.ApplyOutcomeResult{
+		TransactionID: transactionID, OutcomeID: outcomeID,
+		Outcome: model.OutcomeCommitted, ReservationCount: 2,
+	}}
+	app := buildHumaReservationApp(t, svc, "tenant-outcome")
+	body, err := json.Marshal(ApplyOutcomeRequest{OutcomeID: outcomeID.String(), Outcome: model.OutcomeCommitted})
+	require.NoError(t, err)
+
+	req := httptest.NewRequest(http.MethodPost, "/v1/reservations/transaction/"+transactionID.String()+"/outcome", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
+	require.NoError(t, err)
+	defer func() { _ = resp.Body.Close() }()
+
+	respBody, err := io.ReadAll(resp.Body)
+	require.NoError(t, err)
+	require.Equal(t, http.StatusOK, resp.StatusCode, string(respBody))
+
+	var got ApplyOutcomeResponse
+	require.NoError(t, json.Unmarshal(respBody, &got))
+	require.Equal(t, transactionID, got.TransactionID)
+	require.Equal(t, outcomeID, got.OutcomeID)
+	require.Equal(t, 2, got.ReservationCount)
+	require.Equal(t, "tenant-outcome", svc.capturedTenant)
+	require.Equal(t, "ApplyOutcome", svc.capturedAction)
 }
 
 // TestHuma_Reserve_PayloadTooLarge pins the payload-size contract: a body over

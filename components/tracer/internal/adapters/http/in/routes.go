@@ -551,6 +551,7 @@ func registerTracerHumaRoutes(api fiber.Router, humaAPI huma.API, h tracerHumaHa
 		resTenantMW := h.ResTenantMW
 
 		api.Post("/reservations", resTenantMW, guard.With("reservations", "post", false))
+		api.Post("/reservations/transaction/:transaction_id/outcome", resTenantMW, guard.With("reservations", "post", false))
 		api.Post("/reservations/transaction/:transaction_id/confirm", resTenantMW, guard.With("reservations", "post", false))
 		api.Post("/reservations/transaction/:transaction_id/release", resTenantMW, guard.With("reservations", "post", false))
 		api.Post("/reservations/:id/confirm", resTenantMW, guard.With("reservations", "post", false))

@@ -493,4 +493,4 @@ All CI uses shared workflows from `LerianStudio/github-actions-shared-workflows`
 
 **Last Updated**: June 2026
 **Go Version**: root `go.mod` `go 1.26.4`, Docker builder image `golang:1.26.3-alpine`
-**Migrations**: 20 (000001 through 000020)
+**Migrations**: 21 (000001 through 000021)

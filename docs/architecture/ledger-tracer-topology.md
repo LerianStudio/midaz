@@ -95,14 +95,16 @@ collapsing the two into one failure/scale unit.
   the balance commit; a reject returns *before* any balance moves (`transaction_create.go:1231-1239`).
   The tracer must therefore be **low-latency**, but each reservation's work is bounded per transaction.
 
-- **Confirm / Release are post-commit and best-effort (non-blocking).** After a successful balance
+- **V1 Confirm / Release are post-commit and best-effort (non-blocking).** After a successful balance
   commit, `confirmReservations` runs for non-PENDING transactions; on a commit failure
   `releaseReservations` runs; PENDING defers confirm to `/commit` and release to `/cancel`
   (`transaction_create.go:1241-1273`). Transport failures on confirm/release are logged at Warn,
   span-recorded, and **never propagated**. This is a known correctness gap, not a durability
   backstop: if confirm is lost after money moves, expiry later removes that amount from Tracer usage
   and reopens limit capacity (`transaction_reservation_anchor.go:246-261, 282-289`). Closing the gap
-  requires a durable Ledger-owned outcome handoff or equivalent reconciliation contract.
+  requires the V2 durable Ledger-owned outcome handoff described in §7. The Tracer receiver exists
+  additively; V1 remains unchanged until the Ledger explicitly reserves with
+  `LEDGER_OUTCOME_V2` and runs its durable dispatcher.
 
 Net: the tracer can stay a small replica set and tolerate occasional saturation on the post-commit path,
 while the pre-commit reserve path is the only latency-sensitive RPC — which is what co-scheduling (§2)
@@ -258,6 +260,58 @@ as the REST client).
 serves REST/health on `:4020` (`SERVER_ADDRESS`); the reservation **gRPC seam listens on a separate
 port** via `TRACER_GRPC_PORT`, which is **empty by default**, so the gRPC server is off unless an
 operator configures it.
+
+---
+
+## 7. Durable reservation outcomes (V2)
+
+V2 closes the lost post-commit confirmation gap without making the Tracer infer Ledger state. The
+ownership boundary is strict: **the Ledger owns the terminal accounting decision and delivery; the
+Tracer owns reservation capacity and the durable receipt. There is no Tracer-to-Ledger pull RPC.**
+
+### Protocol
+
+1. `Reserve` carries `delivery_mode`. Omitted / `UNSPECIFIED` / `LEGACY` selects V1 exactly: existing
+   confirm/release operations and autonomous TTL expiry remain available. `LEDGER_OUTCOME_V2`
+   selects Ledger-owned termination.
+2. After its own durable decision, the Ledger delivers
+   `ApplyOutcome(transactionId, outcomeId, COMMITTED|ABORTED)` over REST or gRPC. `COMMITTED` moves
+   every reservation from held capacity to consumed usage; `ABORTED` returns every hold. The Tracer
+   uses the coordinates already stored at reserve time and never re-resolves the current limit set.
+3. Receipt claim, every counter move, every reservation transition, and every reservation audit row
+   commit in one Tracer PostgreSQL transaction. A transaction with zero counter-backed limits still
+   gets a receipt, making delivery retryable even when there was no capacity row to transition.
+4. The exact `(transactionId, outcomeId, outcome)` replay returns the stored receipt without another
+   counter move or audit. Any different terminal decision for that transaction is a conflict. A
+   different outcome ID cannot replace the transaction's receipt.
+
+### Expiry and observability
+
+The reaper selects `LEGACY` reservations only. A V2 reservation stays `RESERVED` until the Ledger
+delivers `COMMITTED` or `ABORTED`, including PENDING reservations older than 30 days. This deliberately
+prefers held capacity over silently reopening a limit after money may have moved. The reaper reports
+the V2 outstanding count and oldest age as gauges; observing a stale backlog never releases it.
+
+### Tenant boundary
+
+REST and gRPC use the existing verified seam identity and trusted tenant metadata from §5. The receipt
+and reservation tables live inside the resolved tenant database. A transaction ID presented under a
+different tenant can at most create that tenant's zero-limit receipt; it cannot discover, transition,
+or audit the original tenant's reservation.
+
+### Rollout and rollback
+
+1. Deploy migration `000021` and the Tracer first, with no V2 traffic. This is additive: all existing
+   callers remain V1.
+2. Deploy the Ledger-side durable outcome dispatcher second, then enable
+   `LEDGER_OUTCOME_V2` reservation traffic. The Ledger must durably retain an outcome until the Tracer
+   acknowledges its receipt; process-local retries are not a correctness mechanism.
+3. During rollback, keep a Tracer version that understands V2 and keep the Ledger dispatcher running
+   until the V2 outstanding gauge reaches zero. Disabling new V2 reserves does not make the existing
+   backlog safe to forget.
+4. The migration down path refuses to remove V2 support while any V2 reservation or outcome receipt
+   exists. Drain/archive that state explicitly before schema rollback; a forced rollback would erase
+   the proof that money-path outcomes were applied exactly once.
 
 > **NOTE — `:4021` is illustrative, not canonical.** `TRACER_GRPC_PORT`'s doc comment says *"e.g.
 > :4021"* (`tracer/config.go:51`). There is no default value and no `EXPOSE 4021` anywhere. `:4021` is an

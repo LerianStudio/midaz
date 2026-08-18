@@ -50,8 +50,8 @@ const legacyHeadVersion = 12
 const legacyFixtureRoot = "testdata/legacy_dual_runner"
 
 // headVersion is the expected final schema_migrations.version after applying
-// the HEAD migrations (unified single-runner, 000001..000020).
-const headVersion = 20
+// the HEAD migrations (unified single-runner, 000001..000021).
+const headVersion = 21
 
 // legacyFixtureManifestSHA256 pins the manifest for the immutable historical
 // migration fixture under testdata/legacy_dual_runner. The SQL files were
@@ -71,7 +71,7 @@ const legacyFixtureManifestSHA256 = "a5882440d2fa835e86c2d1dd1a5dcf3afcd0eb58d43
 //     (dual-runner layout: `migrations/functions/` + numbered schema
 //     migrations 001..012, tracked in `schema_migrations_functions` +
 //     `schema_migrations`).
-//  2. In-place upgrade to HEAD migrations (unified single-runner, 000001..000020)
+//  2. In-place upgrade to HEAD migrations (unified single-runner, 000001..000021)
 //     using the exact same boot runner production will use (libPostgres.Migrator).
 //  3. Assertions that the final state matches a fresh install: version=headVersion,
 //     legacy tracking table dropped, hash-chain functions installed, audit

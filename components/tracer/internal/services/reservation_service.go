@@ -68,6 +68,7 @@ type LimitResolver interface {
 // postgres.UsageReservationRepository.
 type ReservationRepository interface {
 	ReserveWithTx(ctx context.Context, db pgdb.DB, reservation *model.Reservation, maxAmount int64, counterExpiresAt *time.Time) (reservationID uuid.UUID, created bool, err error)
+	ApplyOutcomeWithTx(ctx context.Context, db pgdb.DB, transactionID, outcomeID uuid.UUID, outcome model.ReservationOutcome, appliedAt time.Time) (receipt *model.ReservationOutcomeReceipt, reservations []*model.Reservation, replayed bool, err error)
 	ConfirmWithTx(ctx context.Context, db pgdb.DB, reservationID uuid.UUID) error
 	ReleaseWithTx(ctx context.Context, db pgdb.DB, reservationID uuid.UUID, status model.ReservationStatus) error
 	ConfirmByTransactionWithTx(ctx context.Context, db pgdb.DB, transactionID uuid.UUID) ([]*model.Reservation, error)
@@ -96,6 +97,16 @@ type ReservationAuditWriter interface {
 type ReserveResult struct {
 	Denied         bool
 	ReservationIDs []uuid.UUID
+}
+
+// ApplyOutcomeResult is the durable receipt returned for a newly applied or
+// idempotently replayed ledger outcome.
+type ApplyOutcomeResult struct {
+	TransactionID    uuid.UUID
+	OutcomeID        uuid.UUID
+	Outcome          model.ReservationOutcome
+	ReservationCount int
+	Replayed         bool
 }
 
 // ReservationService owns the two-phase reservation lifecycle: it resolves limits
@@ -189,7 +200,13 @@ func NewReservationServiceWithLongLivedTTL(
 // short reservationTTL so the reaper converges quickly; true (PENDING transaction,
 // R18) uses the configured long-lived TTL so a reservation backing a still-valid
 // pending does not expire before the pending commits or cancels.
-func (s *ReservationService) Reserve(ctx context.Context, transactionID uuid.UUID, input *model.CheckLimitsInput, longLived bool) (*ReserveResult, error) {
+func (s *ReservationService) Reserve(
+	ctx context.Context,
+	transactionID uuid.UUID,
+	input *model.CheckLimitsInput,
+	longLived bool,
+	requestedModes ...model.ReservationDeliveryMode,
+) (*ReserveResult, error) {
 	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "service.reservation.reserve")
@@ -205,6 +222,22 @@ func (s *ReservationService) Reserve(ctx context.Context, transactionID uuid.UUI
 	if input == nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Nil reserve input", ErrNilReservationRequest)
 		return nil, ErrNilReservationRequest
+	}
+
+	deliveryMode := model.DeliveryModeUnspecified
+	if len(requestedModes) > 1 {
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Multiple delivery modes", constant.ErrReservationDeliveryModeInvalid)
+		return nil, constant.ErrReservationDeliveryModeInvalid
+	}
+
+	if len(requestedModes) == 1 {
+		deliveryMode = requestedModes[0]
+	}
+
+	deliveryMode, err := deliveryMode.Normalize()
+	if err != nil {
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Invalid delivery mode", err)
+		return nil, err
 	}
 
 	specs, denied, err := s.resolver.ResolveReservations(ctx, input)
@@ -238,7 +271,7 @@ func (s *ReservationService) Reserve(ctx context.Context, transactionID uuid.UUI
 		for i := range specs {
 			spec := specs[i]
 
-			reservation, err := model.NewReservation(
+			reservation, err := model.NewReservationWithDeliveryMode(
 				spec.LimitID,
 				transactionID,
 				spec.ScopeKey,
@@ -246,6 +279,7 @@ func (s *ReservationService) Reserve(ctx context.Context, transactionID uuid.UUI
 				spec.Amount,
 				expiresAt,
 				s.clock.Now().UTC(),
+				deliveryMode,
 			)
 			if err != nil {
 				return err
@@ -313,6 +347,125 @@ func (s *ReservationService) Reserve(ctx context.Context, transactionID uuid.UUI
 	).Log(ctx, libLog.LevelDebug, "Reserved capacity")
 
 	return &ReserveResult{ReservationIDs: reservationIDs}, nil
+}
+
+// ApplyOutcome durably applies one ledger terminal outcome to every V2
+// reservation for the transaction. Receipt claim, counter moves, reservation
+// transitions and audit rows share one PostgreSQL transaction. An exact tuple
+// replay returns the stored receipt without moving money-path state again.
+func (s *ReservationService) ApplyOutcome(
+	ctx context.Context,
+	transactionID uuid.UUID,
+	outcomeID uuid.UUID,
+	outcome model.ReservationOutcome,
+) (*ApplyOutcomeResult, error) {
+	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
+
+	ctx, span := tracer.Start(ctx, "service.reservation.apply_outcome")
+	defer span.End()
+
+	logger = logging.WithTrace(ctx, logger)
+
+	if transactionID == uuid.Nil {
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Missing transaction id", ErrNilReservationTransationID)
+		return nil, ErrNilReservationTransationID
+	}
+
+	if outcomeID == uuid.Nil {
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Missing outcome id", constant.ErrReservationOutcomeIDRequired)
+		return nil, constant.ErrReservationOutcomeIDRequired
+	}
+
+	terminalStatus, err := outcome.TerminalStatus()
+	if err != nil {
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Invalid reservation outcome", err)
+		return nil, err
+	}
+
+	var (
+		receipt  *model.ReservationOutcomeReceipt
+		replayed bool
+	)
+
+	appliedAt := s.clock.Now().UTC()
+	txErr := s.inTx(ctx, span, func(db pgdb.DB) error {
+		var reservations []*model.Reservation
+
+		receipt, reservations, replayed, err = s.repo.ApplyOutcomeWithTx(
+			ctx,
+			db,
+			transactionID,
+			outcomeID,
+			outcome,
+			appliedAt,
+		)
+		if err != nil {
+			return err
+		}
+
+		if receipt == nil {
+			return errors.New("reservation outcome repository returned nil receipt")
+		}
+
+		if replayed {
+			return nil
+		}
+
+		eventType := model.AuditEventReservationConfirmed
+		action := model.AuditActionConfirm
+		if terminalStatus == model.StatusReleased {
+			eventType = model.AuditEventReservationReleased
+			action = model.AuditActionRelease
+		}
+
+		for _, reservation := range reservations {
+			if err := s.auditWriter.RecordReservationEventWithTx(
+				ctx,
+				db,
+				eventType,
+				action,
+				reservation.ID,
+				command.ReservationAuditContext{
+					TransactionID: transactionID,
+					LimitID:       reservation.LimitID,
+					ScopeKey:      reservation.ScopeKey,
+					PeriodKey:     reservation.PeriodKey,
+					Amount:        reservation.Amount,
+					Status:        string(terminalStatus),
+				},
+			); err != nil {
+				return fmt.Errorf("failed to record %s outcome audit event: %w", outcome, err)
+			}
+		}
+
+		return nil
+	})
+	if txErr != nil {
+		if errors.Is(txErr, constant.ErrReservationOutcomeConflict) {
+			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Reservation outcome conflict", txErr)
+			return nil, txErr
+		}
+
+		libOpentelemetry.HandleSpanError(span, "Failed to apply reservation outcome", txErr)
+		return nil, txErr
+	}
+
+	logger.With(
+		libLog.String("operation", "service.reservation.apply_outcome"),
+		libLog.String("transaction_id", transactionID.String()),
+		libLog.String("outcome_id", outcomeID.String()),
+		libLog.String("outcome", string(outcome)),
+		libLog.Int("reservations", receipt.ReservationCount),
+		libLog.Bool("replayed", replayed),
+	).Log(ctx, libLog.LevelDebug, "Reservation outcome applied")
+
+	return &ApplyOutcomeResult{
+		TransactionID:    receipt.TransactionID,
+		OutcomeID:        receipt.OutcomeID,
+		Outcome:          receipt.Outcome,
+		ReservationCount: receipt.ReservationCount,
+		Replayed:         replayed,
+	}, nil
 }
 
 // Confirm commits a reservation: the held amount moves reserved_usage ->

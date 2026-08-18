@@ -10,7 +10,7 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func TestMetricDeclarations_AllSixDefined(t *testing.T) {
+func TestMetricDeclarations_AllEightDefined(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
@@ -61,6 +61,20 @@ func TestMetricDeclarations_AllSixDefined(t *testing.T) {
 			wantName:         "tracer_cache_sync_staleness_seconds",
 			wantUnit:         "s",
 			wantDescContains: "staleness",
+		},
+		{
+			name:             "V2 outstanding reservations",
+			metric:           MetricReservationV2Outstanding,
+			wantName:         "tracer_reservation_v2_outstanding",
+			wantUnit:         "1",
+			wantDescContains: "outcome",
+		},
+		{
+			name:             "V2 oldest reservation age",
+			metric:           MetricReservationV2OldestAgeSeconds,
+			wantName:         "tracer_reservation_v2_oldest_age_seconds",
+			wantUnit:         "s",
+			wantDescContains: "oldest",
 		},
 	}
 

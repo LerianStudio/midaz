@@ -266,6 +266,59 @@ func TestIntegration_ReservationReaperCadence_ReleasesExpiredWithinInterval(t *t
 		"a non-empty sweep writes exactly one batch-summary audit row (Q11)")
 }
 
+func TestIntegration_ReservationReaperCadence_V2StaleRemainsReservedWhileLegacyExpires(t *testing.T) {
+	testutil.SetupTestTracing(t)
+	db := testutil.SetupIntegrationDB(t)
+	limitID := createTestLimitNamed(t, db, 9731, "reaper-v2-stale")
+	transactionID := testutil.MustDeterministicUUID(9732)
+	now := fixedReaperNow()
+	period := "2026-06"
+	legacyScope, v2Scope := "legacy:9731", "v2:9731"
+	t.Cleanup(func() {
+		cleanupOutcomeTransaction(t, db, transactionID)
+		cleanupTestLimit(t, db, limitID)
+	})
+
+	legacy, err := model.NewReservation(
+		limitID, testutil.MustDeterministicUUID(9733), legacyScope, period, 100,
+		now.Add(-time.Hour), now.Add(-2*time.Hour),
+	)
+	require.NoError(t, err)
+	v2 := newV2Reservation(t, limitID, transactionID, v2Scope, period, 200, now)
+
+	repo := newReservationRepoIntegration(db)
+	for _, reservation := range []*model.Reservation{legacy, v2} {
+		require.NoError(t, inRealTx(t, db, func(tx *sql.Tx) error {
+			_, _, reserveErr := repo.ReserveWithTx(t.Context(), tx, reservation, 10000, nil)
+			return reserveErr
+		}))
+	}
+
+	adapter := &testutil.IntegrationDBAdapter{DB: db}
+	clk := &tickerClock{now: now, interval: 20 * time.Millisecond}
+	worker := newRealReaper(t, db, adapter, sqlTxBeginner{db: db}, clk, "", nil)
+	ctx, cancel := context.WithCancel(t.Context())
+	done := make(chan error, 1)
+	go func() { done <- worker.RunWithContext(ctx) }()
+
+	require.Eventually(t, func() bool {
+		return readReservationStatus(t, db, legacy.ID) == string(model.StatusExpired)
+	}, time.Second, 10*time.Millisecond)
+	cancel()
+	require.NoError(t, <-done)
+
+	require.Equal(t, string(model.StatusReserved), readReservationStatus(t, db, v2.ID))
+	current, reserved := readCounter(t, db, limitID, v2Scope, period)
+	require.Zero(t, current)
+	require.Equal(t, int64(200), reserved, "stale V2 capacity stays held until Ledger applies an outcome")
+
+	reaperRepo := NewReservationReaperRepository(adapter, sqlTxBeginner{db: db}, repo)
+	count, oldestAge, err := reaperRepo.ObserveV2Outstanding(t.Context(), now)
+	require.NoError(t, err)
+	require.GreaterOrEqual(t, count, int64(1))
+	require.GreaterOrEqual(t, oldestAge, 45*24*time.Hour)
+}
+
 // TestIntegration_ReservationReaperCadence_SkipsCycleOnPoolFailure proves the
 // MT isolation invariant (R22 / Gate 7): when the tenant pool cannot be resolved,
 // the reaper SKIPS the cycle and NEVER touches the root pool. We seed an expired

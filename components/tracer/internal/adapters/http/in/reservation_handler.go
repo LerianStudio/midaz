@@ -32,7 +32,8 @@ import (
 // depends on. Interface defined locally per Ring pattern; satisfied by
 // *services.ReservationService.
 type ReservationService interface {
-	Reserve(ctx context.Context, transactionID uuid.UUID, input *model.CheckLimitsInput, longLived bool) (*services.ReserveResult, error)
+	Reserve(ctx context.Context, transactionID uuid.UUID, input *model.CheckLimitsInput, longLived bool, deliveryMode ...model.ReservationDeliveryMode) (*services.ReserveResult, error)
+	ApplyOutcome(ctx context.Context, transactionID, outcomeID uuid.UUID, outcome model.ReservationOutcome) (*services.ApplyOutcomeResult, error)
 	Confirm(ctx context.Context, reservationID uuid.UUID) error
 	Release(ctx context.Context, reservationID uuid.UUID) error
 	ConfirmByTransaction(ctx context.Context, transactionID uuid.UUID) (int, error)
@@ -137,7 +138,17 @@ func (h *ReservationHandler) reserve(ctx context.Context, rawBody []byte) (*Rese
 		attribute.String("app.request.currency", request.Currency),
 	)
 
-	result, err := h.service.Reserve(ctx, request.TransactionID, request.ToReserveInput(), request.LongLived)
+	var (
+		result *services.ReserveResult
+		err    error
+	)
+	if request.DeliveryMode == model.DeliveryModeLedgerOutcomeV2 {
+		result, err = h.service.Reserve(ctx, request.TransactionID, request.ToReserveInput(), request.LongLived, request.DeliveryMode)
+	} else {
+		// Omitted/UNSPECIFIED/explicit LEGACY all preserve the exact V1 service
+		// invocation and autonomous-expiry semantics.
+		result, err = h.service.Reserve(ctx, request.TransactionID, request.ToReserveInput(), request.LongLived)
+	}
 	if err != nil {
 		return nil, classifyReservationServiceError(span, err)
 	}
@@ -153,6 +164,66 @@ func (h *ReservationHandler) reserve(ctx context.Context, rawBody []byte) (*Rese
 		TransactionID:  request.TransactionID,
 		Denied:         result.Denied,
 		ReservationIDs: reservationIDsOrEmpty(result.ReservationIDs),
+	}, nil
+}
+
+func (h *ReservationHandler) ApplyOutcome(c fiber.Ctx) error {
+	response, err := h.applyOutcome(c.Context(), c.Params("transaction_id"), c.Body())
+	if err != nil {
+		return pkgHTTP.WithError(c, err)
+	}
+
+	return pkgHTTP.OK(c, response)
+}
+
+func (h *ReservationHandler) applyOutcome(ctx context.Context, txIDParam string, rawBody []byte) (*ApplyOutcomeResponse, error) {
+	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
+	ctx, span := tracer.Start(ctx, "handler.reservations.apply_outcome")
+	defer span.End()
+
+	logger = logging.WithTrace(ctx, logger)
+
+	transactionID, err := uuid.Parse(txIDParam)
+	if err != nil || transactionID == uuid.Nil {
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Invalid transaction ID", constant.ErrReservationTransactionIDReq)
+		return nil, pkg.ValidateBusinessError(constant.ErrReservationTransactionIDReq, constant.EntityReservation)
+	}
+
+	if len(rawBody) > maxPayloadSize {
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Payload exceeds size limit", constant.ErrPayloadTooLarge)
+		return nil, pkg.PayloadTooLargeError{EntityType: constant.EntityReservation, Code: constant.ErrPayloadTooLarge.Error(), Title: "Payload Too Large", Message: payloadTooLargeMessage}
+	}
+
+	var request ApplyOutcomeRequest
+	if err := json.Unmarshal(rawBody, &request); err != nil {
+		libOpentelemetry.HandleSpanError(span, "Failed to parse request body", err)
+		return nil, pkg.ValidationError{Code: constant.ErrInvalidRequestBody.Error(), Title: "Bad Request", Message: "The request body is malformed or contains invalid JSON. Please verify the syntax and try again."}
+	}
+
+	outcomeID, err := request.Validate()
+	if err != nil {
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Outcome request validation failed", err)
+		return nil, pkg.ValidateBusinessError(err, constant.EntityReservation)
+	}
+
+	result, err := h.service.ApplyOutcome(ctx, transactionID, outcomeID, request.Outcome)
+	if err != nil {
+		return nil, classifyReservationServiceError(span, err)
+	}
+
+	logger.With(
+		libLog.String("operation", "handler.reservations.apply_outcome"),
+		libLog.String("transaction_id", transactionID.String()),
+		libLog.String("outcome_id", outcomeID.String()),
+		libLog.Bool("replayed", result.Replayed),
+	).Log(ctx, libLog.LevelDebug, "Reservation outcome applied")
+
+	return &ApplyOutcomeResponse{
+		TransactionID:    result.TransactionID,
+		OutcomeID:        result.OutcomeID,
+		Outcome:          result.Outcome,
+		ReservationCount: result.ReservationCount,
+		Replayed:         result.Replayed,
 	}, nil
 }
 
@@ -305,6 +376,16 @@ func classifyReservationServiceError(span trace.Span, err error) error {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Reservation already terminal", err)
 
 		return pkg.ValidateBusinessError(constant.ErrReservationAlreadyTerminal, constant.EntityReservation)
+	case errors.Is(err, constant.ErrReservationOutcomeConflict):
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Reservation outcome conflict", err)
+
+		return pkg.ValidateBusinessError(constant.ErrReservationOutcomeConflict, constant.EntityReservation)
+	case errors.Is(err, constant.ErrReservationDeliveryModeInvalid),
+		errors.Is(err, constant.ErrReservationOutcomeInvalid),
+		errors.Is(err, constant.ErrReservationOutcomeIDRequired):
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Reservation request invalid", err)
+
+		return pkg.ValidateBusinessError(err, constant.EntityReservation)
 	default:
 		libOpentelemetry.HandleSpanError(span, "Reservation processing failed", err)
 

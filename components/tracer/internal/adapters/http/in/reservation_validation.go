@@ -32,7 +32,8 @@ type ReserveRequest struct {
 	// still-valid pending that has no existing sweep (R18). It is a sibling wire
 	// field, NOT part of the embedded ValidationRequest, so the relaxed reserve
 	// validation never sees it.
-	LongLived               bool `json:"longLived,omitempty" example:"false"`
+	LongLived               bool                          `json:"longLived,omitempty" example:"false"`
+	DeliveryMode            model.ReservationDeliveryMode `json:"deliveryMode,omitempty" enums:"UNSPECIFIED,LEGACY,LEDGER_OUTCOME_V2" example:"LEGACY"`
 	model.ValidationRequest `swaggerignore:"true"`
 }
 
@@ -48,6 +49,12 @@ func (r *ReserveRequest) NormalizeAndReserveValidate(now time.Time) error {
 	if r.TransactionID == uuid.Nil {
 		return constant.ErrReservationTransactionIDReq
 	}
+
+	deliveryMode, err := r.DeliveryMode.Normalize()
+	if err != nil {
+		return err
+	}
+	r.DeliveryMode = deliveryMode
 
 	return r.NormalizeAndValidateForReserve(now)
 }
@@ -89,4 +96,32 @@ type TransactionActionResponse struct {
 	TransactionID uuid.UUID `json:"transactionId" swaggertype:"string" format:"uuid"`
 	Status        string    `json:"status" enums:"CONFIRMED,RELEASED" example:"CONFIRMED"`
 	Flipped       int       `json:"flipped" example:"2"`
+}
+
+// ApplyOutcomeRequest is the durable Ledger-owned terminal decision for a V2
+// reservation transaction. OutcomeID identifies the delivery attempt across
+// retries; Outcome is the immutable accounting decision.
+type ApplyOutcomeRequest struct {
+	OutcomeID string                   `json:"outcomeId" format:"uuid"`
+	Outcome   model.ReservationOutcome `json:"outcome" enums:"COMMITTED,ABORTED" example:"COMMITTED"`
+}
+
+func (r *ApplyOutcomeRequest) Validate() (uuid.UUID, error) {
+	outcomeID, err := uuid.Parse(r.OutcomeID)
+	if err != nil || outcomeID == uuid.Nil {
+		return uuid.Nil, constant.ErrReservationOutcomeIDRequired
+	}
+
+	_, err = r.Outcome.TerminalStatus()
+	return outcomeID, err
+}
+
+// ApplyOutcomeResponse returns the stored receipt. Replayed distinguishes the
+// first application from an exact delivery retry without changing semantics.
+type ApplyOutcomeResponse struct {
+	TransactionID    uuid.UUID                `json:"transactionId" swaggertype:"string" format:"uuid"`
+	OutcomeID        uuid.UUID                `json:"outcomeId" swaggertype:"string" format:"uuid"`
+	Outcome          model.ReservationOutcome `json:"outcome" enums:"COMMITTED,ABORTED"`
+	ReservationCount int                      `json:"reservationCount" example:"2"`
+	Replayed         bool                     `json:"replayed" example:"false"`
 }

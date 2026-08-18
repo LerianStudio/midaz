@@ -40,10 +40,11 @@ type Service struct {
 	// grpcServer is the opt-in reservation gRPC seam. Nil when TRACER_GRPC_PORT
 	// is unset; when wired it runs as its own Launcher app so it drains on
 	// SIGTERM alongside the HTTP server.
-	grpcServer    *GRPCServer
-	postgresConn  *libPostgres.Client
-	cleanupWorker *workers.UsageCleanupWorker
-	syncWorker    *workers.RuleSyncWorker
+	grpcServer        *GRPCServer
+	postgresConn      *libPostgres.Client
+	cleanupWorker     *workers.UsageCleanupWorker
+	syncWorker        *workers.RuleSyncWorker
+	reservationReaper *workers.ReservationReaperWorker
 
 	// Multi-tenant components (nil in single-tenant mode).
 	pgManager     *tmpostgres.Manager
@@ -163,6 +164,10 @@ func (app *Service) Run() {
 
 	if app.syncWorker != nil {
 		opts = append(opts, libCommons.RunApp("Rule Sync Worker", app.syncWorker))
+	}
+
+	if app.reservationReaper != nil {
+		opts = append(opts, libCommons.RunApp("Reservation Reaper Worker", app.reservationReaper))
 	}
 
 	// Streaming producer drain: register only when streaming is enabled AND a

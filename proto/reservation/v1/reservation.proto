@@ -32,6 +32,31 @@ service ReservationService {
 
   // ReleaseById returns a single held reservation's capacity.
   rpc ReleaseById(ReleaseByIdRequest) returns (ReleaseByIdResponse);
+
+  // ApplyOutcome durably applies the ledger's terminal transaction outcome to
+  // every V2 reservation and returns the persisted idempotency receipt.
+  rpc ApplyOutcome(ApplyOutcomeRequest) returns (ApplyOutcomeResponse);
+}
+
+// ReservationDeliveryMode selects who owns reservation termination.
+enum ReservationDeliveryMode {
+  // RESERVATION_DELIVERY_MODE_UNSPECIFIED preserves the legacy protocol.
+  RESERVATION_DELIVERY_MODE_UNSPECIFIED = 0;
+  // RESERVATION_DELIVERY_MODE_LEGACY allows confirm/release and TTL expiry.
+  RESERVATION_DELIVERY_MODE_LEGACY = 1;
+  // RESERVATION_DELIVERY_MODE_LEDGER_OUTCOME_V2 waits for ApplyOutcome and
+  // never expires autonomously.
+  RESERVATION_DELIVERY_MODE_LEDGER_OUTCOME_V2 = 2;
+}
+
+// ReservationOutcome is the ledger's durable terminal decision.
+enum ReservationOutcome {
+  // RESERVATION_OUTCOME_UNSPECIFIED is invalid on ApplyOutcome.
+  RESERVATION_OUTCOME_UNSPECIFIED = 0;
+  // RESERVATION_OUTCOME_COMMITTED commits held usage.
+  RESERVATION_OUTCOME_COMMITTED = 1;
+  // RESERVATION_OUTCOME_ABORTED returns held capacity.
+  RESERVATION_OUTCOME_ABORTED = 2;
 }
 
 // ReserveAccount is the account scope the tracer matches limits against. It
@@ -63,6 +88,9 @@ message ReserveRequest {
   // long_lived hints the tracer to assign a long-lived reservation lifetime to
   // a PENDING-transaction reservation.
   bool long_lived = 11;
+  // delivery_mode is additive: unspecified and legacy preserve V1 behavior;
+  // only LEDGER_OUTCOME_V2 disables autonomous expiry and enables ApplyOutcome.
+  ReservationDeliveryMode delivery_mode = 12;
 }
 
 // ReserveResult is the handle returned by a successful reserve. denied is the
@@ -93,6 +121,23 @@ message ConfirmByIdRequest {
 // ReleaseByIdRequest releases a single reservation by its id.
 message ReleaseByIdRequest {
   string reservation_id = 1;
+}
+
+// ApplyOutcomeRequest delivers one terminal ledger outcome for a transaction.
+message ApplyOutcomeRequest {
+  string transaction_id = 1;
+  string outcome_id = 2;
+  ReservationOutcome outcome = 3;
+}
+
+// ApplyOutcomeResponse is the durable receipt. An exact retry returns the same
+// transaction, outcome and reservation count with replayed=true.
+message ApplyOutcomeResponse {
+  string transaction_id = 1;
+  string outcome_id = 2;
+  ReservationOutcome outcome = 3;
+  int32 reservation_count = 4;
+  bool replayed = 5;
 }
 
 // The confirm/release transitions are idempotent and the REST seam returns a

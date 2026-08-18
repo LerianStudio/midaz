@@ -81,6 +81,16 @@ type TransactionActionOutputHuma struct {
 	Body   *TransactionActionResponse
 }
 
+type ApplyOutcomeInputHuma struct {
+	TransactionID string `path:"transaction_id" doc:"Transaction ID (UUID)"`
+	RawBody       []byte `contentType:"application/json"`
+}
+
+type ApplyOutcomeOutputHuma struct {
+	Status int
+	Body   *ApplyOutcomeResponse
+}
+
 // ReserveHuma is the Huma handler for POST /v1/reservations. It delegates to the
 // shared core and, on success, returns 201 with the reservation handle.
 func (h *ReservationHandler) ReserveHuma(ctx context.Context, in *ReserveInputHuma) (*ReserveOutputHuma, error) {
@@ -90,6 +100,15 @@ func (h *ReservationHandler) ReserveHuma(ctx context.Context, in *ReserveInputHu
 	}
 
 	return &ReserveOutputHuma{Status: http.StatusCreated, Body: result}, nil
+}
+
+func (h *ReservationHandler) ApplyOutcomeHuma(ctx context.Context, in *ApplyOutcomeInputHuma) (*ApplyOutcomeOutputHuma, error) {
+	result, err := h.applyOutcome(ctx, in.TransactionID, in.RawBody)
+	if err != nil {
+		return nil, humaProblem(err)
+	}
+
+	return &ApplyOutcomeOutputHuma{Status: http.StatusOK, Body: result}, nil
 }
 
 // ConfirmHuma is the Huma handler for POST /v1/reservations/{id}/confirm. It
@@ -162,6 +181,16 @@ func RegisterReservationRoutes(api huma.API, h *ReservationHandler) {
 		// handler runs.
 		SkipValidateBody: true,
 	}, h.ReserveHuma)
+
+	huma.Register(api, huma.Operation{
+		OperationID:      "applyReservationOutcome",
+		Method:           http.MethodPost,
+		Path:             "/reservations/transaction/{transaction_id}/outcome",
+		Summary:          "Apply the ledger's durable terminal reservation outcome",
+		Tags:             []string{"Reservations"},
+		Security:         secBearerOrAPIKey,
+		SkipValidateBody: true,
+	}, h.ApplyOutcomeHuma)
 
 	huma.Register(api, huma.Operation{
 		OperationID: "confirmReservation",

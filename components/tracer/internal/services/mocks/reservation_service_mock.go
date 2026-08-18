@@ -86,6 +86,23 @@ func (m *MockReservationRepository) EXPECT() *MockReservationRepositoryMockRecor
 	return m.recorder
 }
 
+// ApplyOutcomeWithTx mocks base method.
+func (m *MockReservationRepository) ApplyOutcomeWithTx(ctx context.Context, arg1 db.DB, transactionID, outcomeID uuid.UUID, outcome model.ReservationOutcome, appliedAt time.Time) (*model.ReservationOutcomeReceipt, []*model.Reservation, bool, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ApplyOutcomeWithTx", ctx, arg1, transactionID, outcomeID, outcome, appliedAt)
+	ret0, _ := ret[0].(*model.ReservationOutcomeReceipt)
+	ret1, _ := ret[1].([]*model.Reservation)
+	ret2, _ := ret[2].(bool)
+	ret3, _ := ret[3].(error)
+	return ret0, ret1, ret2, ret3
+}
+
+// ApplyOutcomeWithTx indicates an expected call of ApplyOutcomeWithTx.
+func (mr *MockReservationRepositoryMockRecorder) ApplyOutcomeWithTx(ctx, arg1, transactionID, outcomeID, outcome, appliedAt any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ApplyOutcomeWithTx", reflect.TypeOf((*MockReservationRepository)(nil).ApplyOutcomeWithTx), ctx, arg1, transactionID, outcomeID, outcome, appliedAt)
+}
+
 // ConfirmByTransactionWithTx mocks base method.
 func (m *MockReservationRepository) ConfirmByTransactionWithTx(ctx context.Context, arg1 db.DB, transactionID uuid.UUID) ([]*model.Reservation, error) {
 	m.ctrl.T.Helper()

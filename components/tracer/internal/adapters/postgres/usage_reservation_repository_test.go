@@ -73,15 +73,15 @@ func newTestReservation(t *testing.T) *model.Reservation {
 const reserveInsertSQL = `
 		INSERT INTO usage_reservations (
 			id, limit_id, scope_key, period_key, amount, status,
-			transaction_id, reservation_expires_at, created_at
+			delivery_mode, transaction_id, reservation_expires_at, created_at
 		)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
 		ON CONFLICT (transaction_id, limit_id, scope_key, period_key) DO NOTHING
 		RETURNING id
 	`
 
 const findExistingReservationSQL = `
-			SELECT id, amount, status
+			SELECT id, amount, status, delivery_mode
 			FROM usage_reservations
 			WHERE transaction_id = $1
 			  AND limit_id = $2
@@ -136,7 +136,7 @@ func TestUsageReservationRepository_Reserve(t *testing.T) {
 		mock.ExpectQuery(regexp.QuoteMeta(reserveInsertSQL)).
 			WillReturnError(sql.ErrNoRows)
 		mock.ExpectQuery(regexp.QuoteMeta(findExistingReservationSQL)).
-			WillReturnRows(sqlmock.NewRows([]string{"id", "amount", "status"}).AddRow(persistedID, res.Amount, model.StatusReserved))
+			WillReturnRows(sqlmock.NewRows([]string{"id", "amount", "status", "delivery_mode"}).AddRow(persistedID, res.Amount, model.StatusReserved, model.DeliveryModeLegacy))
 
 		gotID, created, err := repo.ReserveWithTx(context.Background(), db, res, maxAmountTest, nil)
 		require.NoError(t, err)
@@ -153,7 +153,7 @@ func TestUsageReservationRepository_Reserve(t *testing.T) {
 
 		mock.ExpectQuery(regexp.QuoteMeta(reserveInsertSQL)).WillReturnError(sql.ErrNoRows)
 		mock.ExpectQuery(regexp.QuoteMeta(findExistingReservationSQL)).
-			WillReturnRows(sqlmock.NewRows([]string{"id", "amount", "status"}).AddRow(persistedID, res.Amount+1, model.StatusReserved))
+			WillReturnRows(sqlmock.NewRows([]string{"id", "amount", "status", "delivery_mode"}).AddRow(persistedID, res.Amount+1, model.StatusReserved, model.DeliveryModeLegacy))
 
 		_, created, err := repo.ReserveWithTx(context.Background(), db, res, maxAmountTest, nil)
 		require.ErrorIs(t, err, constant.ErrIdempotencyKey)
@@ -169,7 +169,7 @@ func TestUsageReservationRepository_Reserve(t *testing.T) {
 
 		mock.ExpectQuery(regexp.QuoteMeta(reserveInsertSQL)).WillReturnError(sql.ErrNoRows)
 		mock.ExpectQuery(regexp.QuoteMeta(findExistingReservationSQL)).
-			WillReturnRows(sqlmock.NewRows([]string{"id", "amount", "status"}).AddRow(persistedID, res.Amount, model.StatusConfirmed))
+			WillReturnRows(sqlmock.NewRows([]string{"id", "amount", "status", "delivery_mode"}).AddRow(persistedID, res.Amount, model.StatusConfirmed, model.DeliveryModeLegacy))
 
 		_, created, err := repo.ReserveWithTx(context.Background(), db, res, maxAmountTest, nil)
 		require.ErrorIs(t, err, constant.ErrReservationAlreadyTerminal)
@@ -198,7 +198,7 @@ func TestUsageReservationRepository_Reserve(t *testing.T) {
 func reservationLockColumns() []string {
 	return []string{
 		"id", "limit_id", "scope_key", "period_key", "amount", "status",
-		"transaction_id", "reservation_expires_at", "created_at", "confirmed_at", "released_at",
+		"delivery_mode", "transaction_id", "reservation_expires_at", "created_at", "confirmed_at", "released_at",
 	}
 }
 
@@ -217,7 +217,7 @@ func TestUsageReservationRepository_Confirm(t *testing.T) {
 			WithArgs(resID).
 			WillReturnRows(sqlmock.NewRows(reservationLockColumns()).AddRow(
 				resID, limitID, "acct:8101", "2026-06", int64(400), "RESERVED",
-				txID, testutil.FixedTime(), testutil.FixedTime(), nil, nil,
+				model.DeliveryModeLegacy, txID, testutil.FixedTime(), testutil.FixedTime(), nil, nil,
 			))
 		// Counter move: current_usage += amount, reserved_usage -= amount.
 		mock.ExpectExec(`UPDATE usage_counters SET current_usage`).
@@ -240,7 +240,7 @@ func TestUsageReservationRepository_Confirm(t *testing.T) {
 			WithArgs(resID).
 			WillReturnRows(sqlmock.NewRows(reservationLockColumns()).AddRow(
 				resID, limitID, "acct:8101", "2026-06", int64(400), "CONFIRMED",
-				txID, testutil.FixedTime(), testutil.FixedTime(), testutil.FixedTime(), nil,
+				model.DeliveryModeLegacy, txID, testutil.FixedTime(), testutil.FixedTime(), testutil.FixedTime(), nil,
 			))
 
 		err := repo.ConfirmWithTx(context.Background(), db, resID)
@@ -269,7 +269,7 @@ func expectReservedByTransactionSelect(mock sqlmock.Sqlmock, txID uuid.UUID, row
 	for _, row := range rows {
 		r = r.AddRow(
 			row[0], row[1], row[2], row[3], int64(400), "RESERVED",
-			txID, testutil.FixedTime(), testutil.FixedTime(), nil, nil,
+			model.DeliveryModeLegacy, txID, testutil.FixedTime(), testutil.FixedTime(), nil, nil,
 		)
 	}
 
@@ -398,7 +398,7 @@ func TestUsageReservationRepository_Release(t *testing.T) {
 			WithArgs(resID).
 			WillReturnRows(sqlmock.NewRows(reservationLockColumns()).AddRow(
 				resID, limitID, "acct:8201", "2026-06", int64(400), "RESERVED",
-				txID, testutil.FixedTime(), testutil.FixedTime(), nil, nil,
+				model.DeliveryModeLegacy, txID, testutil.FixedTime(), testutil.FixedTime(), nil, nil,
 			))
 		// Release counter move: only reserved_usage decremented (no current_usage).
 		mock.ExpectExec(`UPDATE usage_counters SET reserved_usage`).
@@ -427,7 +427,7 @@ func TestUsageReservationRepository_Release(t *testing.T) {
 			WithArgs(resID).
 			WillReturnRows(sqlmock.NewRows(reservationLockColumns()).AddRow(
 				resID, limitID, "acct:8201", "2026-06", int64(400), "RESERVED",
-				txID, testutil.FixedTime(), testutil.FixedTime(), nil, nil,
+				model.DeliveryModeLegacy, txID, testutil.FixedTime(), testutil.FixedTime(), nil, nil,
 			))
 		mock.ExpectExec(`UPDATE usage_counters SET reserved_usage`).
 			WillReturnResult(sqlmock.NewResult(0, 1))
@@ -438,4 +438,125 @@ func TestUsageReservationRepository_Release(t *testing.T) {
 		err := repo.ReleaseWithTx(context.Background(), db, resID, model.StatusExpired)
 		require.NoError(t, err)
 	})
+}
+
+func TestUsageReservationRepository_ApplyOutcome(t *testing.T) {
+	testutil.SetupTestTracing(t)
+
+	txID := testutil.MustDeterministicUUID(8801)
+	outcomeID := testutil.MustDeterministicUUID(8802)
+	res1 := testutil.MustDeterministicUUID(8803)
+	res2 := testutil.MustDeterministicUUID(8804)
+	limit1 := testutil.MustDeterministicUUID(8805)
+	limit2 := testutil.MustDeterministicUUID(8806)
+	appliedAt := testutil.FixedTime()
+
+	t.Run("committed claims receipt and moves every V2 reservation", func(t *testing.T) {
+		repo, db, mock, cleanup := setupUsageReservationRepository(t)
+		defer cleanup()
+
+		mock.ExpectQuery(`INSERT INTO reservation_outcome_receipts`).
+			WithArgs(txID, outcomeID, string(model.OutcomeCommitted), appliedAt).
+			WillReturnRows(sqlmock.NewRows(outcomeReceiptColumns()).AddRow(
+				txID, outcomeID, string(model.OutcomeCommitted), 0, appliedAt,
+			))
+		mock.ExpectQuery(`SELECT id, limit_id, scope_key, period_key, amount, status,`).
+			WithArgs(txID).
+			WillReturnRows(sqlmock.NewRows(outcomeReservationColumns()).
+				AddRow(res1, limit1, "acct:8801", "2026-08", int64(400), "RESERVED", string(model.DeliveryModeLedgerOutcomeV2), txID, appliedAt.Add(time.Hour), appliedAt, nil, nil).
+				AddRow(res2, limit2, "global", "2026-08-18", int64(400), "RESERVED", string(model.DeliveryModeLedgerOutcomeV2), txID, appliedAt.Add(time.Hour), appliedAt, nil, nil))
+
+		for range 2 {
+			mock.ExpectExec(`UPDATE usage_counters SET current_usage`).WillReturnResult(sqlmock.NewResult(0, 1))
+			mock.ExpectExec(`UPDATE usage_reservations SET status`).WillReturnResult(sqlmock.NewResult(0, 1))
+		}
+
+		mock.ExpectExec(`UPDATE reservation_outcome_receipts SET reservation_count`).
+			WithArgs(2, txID).
+			WillReturnResult(sqlmock.NewResult(0, 1))
+
+		receipt, reservations, replayed, err := repo.ApplyOutcomeWithTx(
+			context.Background(), db, txID, outcomeID, model.OutcomeCommitted, appliedAt,
+		)
+		require.NoError(t, err)
+		require.NotNil(t, receipt)
+		assert.Equal(t, 2, receipt.ReservationCount)
+		assert.Len(t, reservations, 2)
+		assert.False(t, replayed)
+	})
+
+	t.Run("exact tuple replays the stored zero-limit receipt without transitions", func(t *testing.T) {
+		repo, db, mock, cleanup := setupUsageReservationRepository(t)
+		defer cleanup()
+
+		mock.ExpectQuery(`INSERT INTO reservation_outcome_receipts`).
+			WillReturnRows(sqlmock.NewRows(outcomeReceiptColumns()))
+		mock.ExpectQuery(`SELECT transaction_id, outcome_id, outcome, reservation_count, applied_at`).
+			WithArgs(txID).
+			WillReturnRows(sqlmock.NewRows(outcomeReceiptColumns()).AddRow(
+				txID, outcomeID, string(model.OutcomeCommitted), 0, appliedAt,
+			))
+
+		receipt, reservations, replayed, err := repo.ApplyOutcomeWithTx(
+			context.Background(), db, txID, outcomeID, model.OutcomeCommitted, appliedAt.Add(time.Minute),
+		)
+		require.NoError(t, err)
+		require.NotNil(t, receipt)
+		assert.Zero(t, receipt.ReservationCount)
+		assert.Empty(t, reservations)
+		assert.True(t, replayed)
+	})
+
+	t.Run("opposite outcome conflicts before reservations move", func(t *testing.T) {
+		repo, db, mock, cleanup := setupUsageReservationRepository(t)
+		defer cleanup()
+
+		mock.ExpectQuery(`INSERT INTO reservation_outcome_receipts`).
+			WillReturnRows(sqlmock.NewRows(outcomeReceiptColumns()))
+		mock.ExpectQuery(`SELECT transaction_id, outcome_id, outcome, reservation_count, applied_at`).
+			WithArgs(txID).
+			WillReturnRows(sqlmock.NewRows(outcomeReceiptColumns()).AddRow(
+				txID, outcomeID, string(model.OutcomeCommitted), 2, appliedAt,
+			))
+
+		receipt, reservations, replayed, err := repo.ApplyOutcomeWithTx(
+			context.Background(), db, txID, outcomeID, model.OutcomeAborted, appliedAt.Add(time.Minute),
+		)
+		require.ErrorIs(t, err, constant.ErrReservationOutcomeConflict)
+		assert.Nil(t, receipt)
+		assert.Nil(t, reservations)
+		assert.False(t, replayed)
+	})
+
+	t.Run("legacy reservation rejects V2 outcome without moving capacity", func(t *testing.T) {
+		repo, db, mock, cleanup := setupUsageReservationRepository(t)
+		defer cleanup()
+
+		mock.ExpectQuery(`INSERT INTO reservation_outcome_receipts`).
+			WillReturnRows(sqlmock.NewRows(outcomeReceiptColumns()).AddRow(
+				txID, outcomeID, string(model.OutcomeCommitted), 0, appliedAt,
+			))
+		mock.ExpectQuery(`SELECT id, limit_id, scope_key, period_key, amount, status,`).
+			WithArgs(txID).
+			WillReturnRows(sqlmock.NewRows(outcomeReservationColumns()).AddRow(
+				res1, limit1, "acct:8801", "2026-08", int64(400), "RESERVED", string(model.DeliveryModeLegacy), txID, appliedAt.Add(time.Hour), appliedAt, nil, nil,
+			))
+
+		_, _, _, err := repo.ApplyOutcomeWithTx(
+			context.Background(), db, txID, outcomeID, model.OutcomeCommitted, appliedAt,
+		)
+		require.ErrorIs(t, err, constant.ErrReservationOutcomeConflict)
+	})
+}
+
+func outcomeReceiptColumns() []string {
+	return []string{"transaction_id", "outcome_id", "outcome", "reservation_count", "applied_at"}
+}
+
+func outcomeReservationColumns() []string {
+	return []string{
+		"id", "limit_id", "scope_key", "period_key", "amount", "status",
+		"delivery_mode", "transaction_id", "reservation_expires_at", "created_at",
+		"confirmed_at", "released_at",
+	}
 }

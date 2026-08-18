@@ -40,7 +40,8 @@ import (
 // (reservation_handler.go), satisfied by *services.ReservationService, so the
 // two transports cannot drift apart in behavior.
 type ReservationService interface {
-	Reserve(ctx context.Context, transactionID uuid.UUID, input *model.CheckLimitsInput, longLived bool) (*services.ReserveResult, error)
+	Reserve(ctx context.Context, transactionID uuid.UUID, input *model.CheckLimitsInput, longLived bool, deliveryMode ...model.ReservationDeliveryMode) (*services.ReserveResult, error)
+	ApplyOutcome(ctx context.Context, transactionID, outcomeID uuid.UUID, outcome model.ReservationOutcome) (*services.ApplyOutcomeResult, error)
 	Confirm(ctx context.Context, reservationID uuid.UUID) error
 	Release(ctx context.Context, reservationID uuid.UUID) error
 	ConfirmByTransaction(ctx context.Context, transactionID uuid.UUID) (int, error)
@@ -114,7 +115,18 @@ func (s *ReservationServer) Reserve(ctx context.Context, req *reservationv1.Rese
 		attribute.String("app.request.currency", validationReq.Currency),
 	)
 
-	result, err := s.service.Reserve(ctx, transactionID, validationReq.ToCheckLimitsInput(), req.GetLongLived())
+	deliveryMode, err := deliveryModeFromProto(req.GetDeliveryMode())
+	if err != nil {
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Invalid reservation delivery mode", err)
+		return nil, status.Error(codes.InvalidArgument, err.Error())
+	}
+
+	var result *services.ReserveResult
+	if deliveryMode == model.DeliveryModeLedgerOutcomeV2 {
+		result, err = s.service.Reserve(ctx, transactionID, validationReq.ToCheckLimitsInput(), req.GetLongLived(), deliveryMode)
+	} else {
+		result, err = s.service.Reserve(ctx, transactionID, validationReq.ToCheckLimitsInput(), req.GetLongLived())
+	}
 	if err != nil {
 		return nil, s.mapServiceError(span, "Reservation processing failed", err)
 	}
@@ -130,6 +142,54 @@ func (s *ReservationServer) Reserve(ctx context.Context, req *reservationv1.Rese
 		TransactionId:  transactionID.String(),
 		Denied:         result.Denied,
 		ReservationIds: reservationIDStrings(result.ReservationIDs),
+	}, nil
+}
+
+// ApplyOutcome applies the ledger's immutable terminal decision and returns the
+// durable receipt. Exact retries return the same receipt with replayed=true.
+func (s *ReservationServer) ApplyOutcome(ctx context.Context, req *reservationv1.ApplyOutcomeRequest) (*reservationv1.ApplyOutcomeResponse, error) {
+	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
+	ctx, span := tracer.Start(ctx, "grpc.reservations.apply_outcome")
+	defer span.End()
+
+	logger = logging.WithTrace(ctx, logger)
+
+	transactionID, err := uuid.Parse(req.GetTransactionId())
+	if err != nil || transactionID == uuid.Nil {
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Invalid transaction id", constant.ErrReservationTransactionIDReq)
+		return nil, status.Error(codes.InvalidArgument, constant.ErrReservationTransactionIDReq.Error())
+	}
+
+	outcomeID, err := uuid.Parse(req.GetOutcomeId())
+	if err != nil || outcomeID == uuid.Nil {
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Invalid outcome id", constant.ErrReservationOutcomeIDRequired)
+		return nil, status.Error(codes.InvalidArgument, constant.ErrReservationOutcomeIDRequired.Error())
+	}
+
+	outcome, err := outcomeFromProto(req.GetOutcome())
+	if err != nil {
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Invalid reservation outcome", err)
+		return nil, status.Error(codes.InvalidArgument, err.Error())
+	}
+
+	result, err := s.service.ApplyOutcome(ctx, transactionID, outcomeID, outcome)
+	if err != nil {
+		return nil, s.mapServiceError(span, "Reservation outcome processing failed", err)
+	}
+
+	logger.With(
+		libLog.String("operation", "grpc.reservations.apply_outcome"),
+		libLog.String("transaction_id", transactionID.String()),
+		libLog.String("outcome_id", outcomeID.String()),
+		libLog.Bool("replayed", result.Replayed),
+	).Log(ctx, libLog.LevelDebug, "Reservation outcome applied")
+
+	return &reservationv1.ApplyOutcomeResponse{
+		TransactionId:    result.TransactionID.String(),
+		OutcomeId:        result.OutcomeID.String(),
+		Outcome:          outcomeToProto(result.Outcome),
+		ReservationCount: int32(result.ReservationCount), //nolint:gosec // bounded by transaction reservation row count
+		Replayed:         result.Replayed,
 	}, nil
 }
 
@@ -334,10 +394,50 @@ func (s *ReservationServer) mapServiceError(span trace.Span, msg string, err err
 	case errors.Is(err, constant.ErrReservationAlreadyTerminal):
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Reservation already terminal", err)
 		return status.Error(codes.FailedPrecondition, constant.ErrReservationAlreadyTerminal.Error())
+	case errors.Is(err, constant.ErrReservationOutcomeConflict):
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Reservation outcome conflict", err)
+		return status.Error(codes.AlreadyExists, constant.ErrReservationOutcomeConflict.Error())
+	case errors.Is(err, constant.ErrReservationDeliveryModeInvalid),
+		errors.Is(err, constant.ErrReservationOutcomeInvalid),
+		errors.Is(err, constant.ErrReservationOutcomeIDRequired):
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Reservation request invalid", err)
+		return status.Error(codes.InvalidArgument, err.Error())
 	default:
 		libOpentelemetry.HandleSpanError(span, msg, err)
 		return status.Error(codes.Internal, constant.ErrInternalServer.Error())
 	}
+}
+
+func deliveryModeFromProto(mode reservationv1.ReservationDeliveryMode) (model.ReservationDeliveryMode, error) {
+	switch mode {
+	case reservationv1.ReservationDeliveryMode_RESERVATION_DELIVERY_MODE_UNSPECIFIED:
+		return model.DeliveryModeUnspecified.Normalize()
+	case reservationv1.ReservationDeliveryMode_RESERVATION_DELIVERY_MODE_LEGACY:
+		return model.DeliveryModeLegacy.Normalize()
+	case reservationv1.ReservationDeliveryMode_RESERVATION_DELIVERY_MODE_LEDGER_OUTCOME_V2:
+		return model.DeliveryModeLedgerOutcomeV2.Normalize()
+	default:
+		return "", constant.ErrReservationDeliveryModeInvalid
+	}
+}
+
+func outcomeFromProto(outcome reservationv1.ReservationOutcome) (model.ReservationOutcome, error) {
+	switch outcome {
+	case reservationv1.ReservationOutcome_RESERVATION_OUTCOME_COMMITTED:
+		return model.OutcomeCommitted, nil
+	case reservationv1.ReservationOutcome_RESERVATION_OUTCOME_ABORTED:
+		return model.OutcomeAborted, nil
+	default:
+		return "", constant.ErrReservationOutcomeInvalid
+	}
+}
+
+func outcomeToProto(outcome model.ReservationOutcome) reservationv1.ReservationOutcome {
+	if outcome == model.OutcomeAborted {
+		return reservationv1.ReservationOutcome_RESERVATION_OUTCOME_ABORTED
+	}
+
+	return reservationv1.ReservationOutcome_RESERVATION_OUTCOME_COMMITTED
 }
 
 // optionalContextID parses an optional uuid-bearing context id (segment /

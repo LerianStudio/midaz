@@ -9,6 +9,8 @@ package postgres
 import (
 	"context"
 	"database/sql"
+	"errors"
+	"sync"
 	"testing"
 	"time"
 
@@ -21,6 +23,8 @@ import (
 	"github.com/LerianStudio/midaz/v4/components/tracer/pkg/model"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
 )
+
+var errForceOutcomeRollback = errors.New("force outcome rollback")
 
 // newReservationRepoIntegration wires the reservation repository plus the shared
 // usage-counter repository over a real PostgreSQL connection.
@@ -87,6 +91,207 @@ func readReservationStatus(t *testing.T, db *sql.DB, reservationID uuid.UUID) st
 	require.NoError(t, err, "failed to read reservation status")
 
 	return status
+}
+
+func newV2Reservation(t *testing.T, limitID, transactionID uuid.UUID, scopeKey, periodKey string, amount int64, now time.Time) *model.Reservation {
+	t.Helper()
+
+	reservation, err := model.NewReservationWithDeliveryMode(
+		limitID, transactionID, scopeKey, periodKey, amount,
+		now.Add(-time.Hour), now.Add(-45*24*time.Hour), model.DeliveryModeLedgerOutcomeV2,
+	)
+	require.NoError(t, err)
+
+	return reservation
+}
+
+func cleanupOutcomeTransaction(t *testing.T, db *sql.DB, transactionID uuid.UUID) {
+	t.Helper()
+	_, _ = db.Exec("DELETE FROM reservation_outcome_receipts WHERE transaction_id = $1", transactionID)
+	_, _ = db.Exec("DELETE FROM usage_reservations WHERE transaction_id = $1", transactionID)
+}
+
+func TestIntegration_UsageReservationRepository_ApplyOutcomeV2_MovesAllAndReplays(t *testing.T) {
+	testutil.SetupTestTracing(t)
+	db := testutil.SetupIntegrationDB(t)
+	repo := newReservationRepoIntegration(db)
+
+	limitA := createTestLimitNamed(t, db, 9901, "outcome-v2-A")
+	limitB := createTestLimitNamed(t, db, 9902, "outcome-v2-B")
+	transactionID := testutil.MustDeterministicUUID(9903)
+	outcomeID := testutil.MustDeterministicUUID(9904)
+	now := time.Date(2026, 8, 18, 12, 0, 0, 0, time.UTC)
+	scopeA, scopeB, period := "v2:9901", "v2:9902", "2026-08"
+	t.Cleanup(func() {
+		cleanupOutcomeTransaction(t, db, transactionID)
+		cleanupTestLimit(t, db, limitA)
+		cleanupTestLimit(t, db, limitB)
+	})
+
+	for _, reservation := range []*model.Reservation{
+		newV2Reservation(t, limitA, transactionID, scopeA, period, 120, now),
+		newV2Reservation(t, limitB, transactionID, scopeB, period, 230, now),
+	} {
+		require.NoError(t, inRealTx(t, db, func(tx *sql.Tx) error {
+			_, _, err := repo.ReserveWithTx(t.Context(), tx, reservation, 10000, nil)
+			return err
+		}))
+	}
+
+	var receipt *model.ReservationOutcomeReceipt
+	require.NoError(t, inRealTx(t, db, func(tx *sql.Tx) error {
+		var err error
+		receipt, _, _, err = repo.ApplyOutcomeWithTx(t.Context(), tx, transactionID, outcomeID, model.OutcomeCommitted, now)
+		return err
+	}))
+	require.Equal(t, 2, receipt.ReservationCount)
+
+	currentA, reservedA := readCounter(t, db, limitA, scopeA, period)
+	currentB, reservedB := readCounter(t, db, limitB, scopeB, period)
+	require.Equal(t, int64(120), currentA)
+	require.Equal(t, int64(0), reservedA)
+	require.Equal(t, int64(230), currentB)
+	require.Equal(t, int64(0), reservedB)
+
+	var replayed bool
+	require.NoError(t, inRealTx(t, db, func(tx *sql.Tx) error {
+		var err error
+		receipt, _, replayed, err = repo.ApplyOutcomeWithTx(t.Context(), tx, transactionID, outcomeID, model.OutcomeCommitted, now.Add(time.Minute))
+		return err
+	}))
+	require.True(t, replayed)
+	require.Equal(t, 2, receipt.ReservationCount)
+
+	err := inRealTx(t, db, func(tx *sql.Tx) error {
+		_, _, _, applyErr := repo.ApplyOutcomeWithTx(t.Context(), tx, transactionID, outcomeID, model.OutcomeAborted, now)
+		return applyErr
+	})
+	require.ErrorIs(t, err, constant.ErrReservationOutcomeConflict)
+
+	currentA, reservedA = readCounter(t, db, limitA, scopeA, period)
+	require.Equal(t, int64(120), currentA)
+	require.Equal(t, int64(0), reservedA)
+}
+
+func TestIntegration_UsageReservationRepository_ApplyOutcomeV2_RollbackAndZeroLimits(t *testing.T) {
+	testutil.SetupTestTracing(t)
+	db := testutil.SetupIntegrationDB(t)
+	repo := newReservationRepoIntegration(db)
+
+	limitID := createTestLimitNamed(t, db, 9911, "outcome-rollback")
+	transactionID := testutil.MustDeterministicUUID(9912)
+	zeroTransactionID := testutil.MustDeterministicUUID(9913)
+	outcomeID := testutil.MustDeterministicUUID(9914)
+	zeroOutcomeID := testutil.MustDeterministicUUID(9915)
+	now := time.Date(2026, 8, 18, 13, 0, 0, 0, time.UTC)
+	scope, period := "v2:9911", "2026-08"
+	t.Cleanup(func() {
+		cleanupOutcomeTransaction(t, db, transactionID)
+		cleanupOutcomeTransaction(t, db, zeroTransactionID)
+		cleanupTestLimit(t, db, limitID)
+	})
+
+	reservation := newV2Reservation(t, limitID, transactionID, scope, period, 500, now)
+	require.NoError(t, inRealTx(t, db, func(tx *sql.Tx) error {
+		_, _, err := repo.ReserveWithTx(t.Context(), tx, reservation, 10000, nil)
+		return err
+	}))
+
+	err := inRealTx(t, db, func(tx *sql.Tx) error {
+		_, _, _, applyErr := repo.ApplyOutcomeWithTx(t.Context(), tx, transactionID, outcomeID, model.OutcomeCommitted, now)
+		if applyErr != nil {
+			return applyErr
+		}
+		return errForceOutcomeRollback
+	})
+	require.ErrorIs(t, err, errForceOutcomeRollback)
+	require.Equal(t, string(model.StatusReserved), readReservationStatus(t, db, reservation.ID))
+	current, reserved := readCounter(t, db, limitID, scope, period)
+	require.Equal(t, int64(0), current)
+	require.Equal(t, int64(500), reserved)
+
+	var receiptCount int
+	require.NoError(t, db.QueryRow("SELECT COUNT(*) FROM reservation_outcome_receipts WHERE transaction_id = $1", transactionID).Scan(&receiptCount))
+	require.Zero(t, receiptCount)
+
+	var zeroReceipt *model.ReservationOutcomeReceipt
+	require.NoError(t, inRealTx(t, db, func(tx *sql.Tx) error {
+		var applyErr error
+		zeroReceipt, _, _, applyErr = repo.ApplyOutcomeWithTx(t.Context(), tx, zeroTransactionID, zeroOutcomeID, model.OutcomeAborted, now)
+		return applyErr
+	}))
+	require.Zero(t, zeroReceipt.ReservationCount)
+}
+
+func TestIntegration_UsageReservationRepository_ApplyOutcomeV2_ConcurrentOppositesSerialize(t *testing.T) {
+	testutil.SetupTestTracing(t)
+	db := testutil.SetupIntegrationDB(t)
+	repo := newReservationRepoIntegration(db)
+
+	limitID := createTestLimitNamed(t, db, 9921, "outcome-race")
+	transactionID := testutil.MustDeterministicUUID(9922)
+	committedID := testutil.MustDeterministicUUID(9923)
+	abortedID := testutil.MustDeterministicUUID(9924)
+	now := time.Date(2026, 8, 18, 14, 0, 0, 0, time.UTC)
+	scope, period := "v2:9921", "2026-08"
+	t.Cleanup(func() {
+		cleanupOutcomeTransaction(t, db, transactionID)
+		cleanupTestLimit(t, db, limitID)
+	})
+
+	reservation := newV2Reservation(t, limitID, transactionID, scope, period, 75, now)
+	require.NoError(t, inRealTx(t, db, func(tx *sql.Tx) error {
+		_, _, err := repo.ReserveWithTx(t.Context(), tx, reservation, 10000, nil)
+		return err
+	}))
+
+	type result struct {
+		outcome model.ReservationOutcome
+		err     error
+	}
+	results := make(chan result, 2)
+	start := make(chan struct{})
+	var wg sync.WaitGroup
+	for _, tc := range []struct {
+		id      uuid.UUID
+		outcome model.ReservationOutcome
+	}{{committedID, model.OutcomeCommitted}, {abortedID, model.OutcomeAborted}} {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			<-start
+			err := inRealTx(t, db, func(tx *sql.Tx) error {
+				_, _, _, applyErr := repo.ApplyOutcomeWithTx(t.Context(), tx, transactionID, tc.id, tc.outcome, now)
+				return applyErr
+			})
+			results <- result{outcome: tc.outcome, err: err}
+		}()
+	}
+	close(start)
+	wg.Wait()
+	close(results)
+
+	var success, conflicts int
+	for got := range results {
+		if got.err == nil {
+			success++
+		} else if errors.Is(got.err, constant.ErrReservationOutcomeConflict) {
+			conflicts++
+		} else {
+			t.Fatalf("unexpected concurrent outcome error for %s: %v", got.outcome, got.err)
+		}
+	}
+	require.Equal(t, 1, success)
+	require.Equal(t, 1, conflicts)
+
+	var outcome string
+	require.NoError(t, db.QueryRow("SELECT outcome FROM reservation_outcome_receipts WHERE transaction_id = $1", transactionID).Scan(&outcome))
+	status := readReservationStatus(t, db, reservation.ID)
+	if outcome == string(model.OutcomeCommitted) {
+		require.Equal(t, string(model.StatusConfirmed), status)
+	} else {
+		require.Equal(t, string(model.StatusReleased), status)
+	}
 }
 
 // TestIntegration_UsageReservationRepository_DoubleConfirm_Idempotent proves the

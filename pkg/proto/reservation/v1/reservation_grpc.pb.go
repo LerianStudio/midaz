@@ -28,6 +28,7 @@ const (
 	ReservationService_ReleaseByTransaction_FullMethodName = "/lerian.midaz.reservation.v1.ReservationService/ReleaseByTransaction"
 	ReservationService_ConfirmById_FullMethodName          = "/lerian.midaz.reservation.v1.ReservationService/ConfirmById"
 	ReservationService_ReleaseById_FullMethodName          = "/lerian.midaz.reservation.v1.ReservationService/ReleaseById"
+	ReservationService_ApplyOutcome_FullMethodName         = "/lerian.midaz.reservation.v1.ReservationService/ApplyOutcome"
 )
 
 // ReservationServiceClient is the client API for ReservationService service.
@@ -54,6 +55,9 @@ type ReservationServiceClient interface {
 	ConfirmById(ctx context.Context, in *ConfirmByIdRequest, opts ...grpc.CallOption) (*ConfirmByIdResponse, error)
 	// ReleaseById returns a single held reservation's capacity.
 	ReleaseById(ctx context.Context, in *ReleaseByIdRequest, opts ...grpc.CallOption) (*ReleaseByIdResponse, error)
+	// ApplyOutcome durably applies the ledger's terminal transaction outcome to
+	// every V2 reservation and returns the persisted idempotency receipt.
+	ApplyOutcome(ctx context.Context, in *ApplyOutcomeRequest, opts ...grpc.CallOption) (*ApplyOutcomeResponse, error)
 }
 
 type reservationServiceClient struct {
@@ -114,6 +118,16 @@ func (c *reservationServiceClient) ReleaseById(ctx context.Context, in *ReleaseB
 	return out, nil
 }
 
+func (c *reservationServiceClient) ApplyOutcome(ctx context.Context, in *ApplyOutcomeRequest, opts ...grpc.CallOption) (*ApplyOutcomeResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ApplyOutcomeResponse)
+	err := c.cc.Invoke(ctx, ReservationService_ApplyOutcome_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // ReservationServiceServer is the server API for ReservationService service.
 // All implementations must embed UnimplementedReservationServiceServer
 // for forward compatibility.
@@ -138,6 +152,9 @@ type ReservationServiceServer interface {
 	ConfirmById(context.Context, *ConfirmByIdRequest) (*ConfirmByIdResponse, error)
 	// ReleaseById returns a single held reservation's capacity.
 	ReleaseById(context.Context, *ReleaseByIdRequest) (*ReleaseByIdResponse, error)
+	// ApplyOutcome durably applies the ledger's terminal transaction outcome to
+	// every V2 reservation and returns the persisted idempotency receipt.
+	ApplyOutcome(context.Context, *ApplyOutcomeRequest) (*ApplyOutcomeResponse, error)
 	mustEmbedUnimplementedReservationServiceServer()
 }
 
@@ -162,6 +179,9 @@ func (UnimplementedReservationServiceServer) ConfirmById(context.Context, *Confi
 }
 func (UnimplementedReservationServiceServer) ReleaseById(context.Context, *ReleaseByIdRequest) (*ReleaseByIdResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method ReleaseById not implemented")
+}
+func (UnimplementedReservationServiceServer) ApplyOutcome(context.Context, *ApplyOutcomeRequest) (*ApplyOutcomeResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ApplyOutcome not implemented")
 }
 func (UnimplementedReservationServiceServer) mustEmbedUnimplementedReservationServiceServer() {}
 func (UnimplementedReservationServiceServer) testEmbeddedByValue()                            {}
@@ -274,6 +294,24 @@ func _ReservationService_ReleaseById_Handler(srv interface{}, ctx context.Contex
 	return interceptor(ctx, in, info, handler)
 }
 
+func _ReservationService_ApplyOutcome_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ApplyOutcomeRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ReservationServiceServer).ApplyOutcome(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ReservationService_ApplyOutcome_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ReservationServiceServer).ApplyOutcome(ctx, req.(*ApplyOutcomeRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // ReservationService_ServiceDesc is the grpc.ServiceDesc for ReservationService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -300,6 +338,10 @@ var ReservationService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "ReleaseById",
 			Handler:    _ReservationService_ReleaseById_Handler,
+		},
+		{
+			MethodName: "ApplyOutcome",
+			Handler:    _ReservationService_ApplyOutcome_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

@@ -1183,6 +1183,45 @@ func TestLoadCleanupWorkerConfig(t *testing.T) {
 	}
 }
 
+func TestLoadReservationReaperConfig(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name         string
+		enabled      bool
+		interval     string
+		wantNil      bool
+		wantInterval time.Duration
+		wantErr      bool
+	}{
+		{name: "disabled preserves no worker", wantNil: true},
+		{name: "enabled defaults to sub-minute cadence", enabled: true, wantInterval: 30 * time.Second},
+		{name: "enabled accepts custom cadence", enabled: true, interval: "17", wantInterval: 17 * time.Second},
+		{name: "enabled rejects invalid cadence", enabled: true, interval: "invalid", wantErr: true},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			got, err := LoadReservationReaperConfig(t.Context(), &Config{
+				ReservationReaperEnabled:         tc.enabled,
+				ReservationReaperIntervalSeconds: tc.interval,
+			}, testutil.NewMockLogger())
+			if tc.wantErr {
+				require.Error(t, err)
+				return
+			}
+			require.NoError(t, err)
+			if tc.wantNil {
+				require.Nil(t, got)
+				return
+			}
+			require.NotNil(t, got)
+			require.Equal(t, tc.wantInterval, got.ReapInterval)
+		})
+	}
+}
+
 func TestLoadCleanupWorkerConfig_NilConfig(t *testing.T) {
 	t.Parallel()
 

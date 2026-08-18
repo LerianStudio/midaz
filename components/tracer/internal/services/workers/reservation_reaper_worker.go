@@ -18,6 +18,7 @@ import (
 	tmcore "github.com/LerianStudio/lib-commons/v6/commons/tenant-manager/core"
 	libObservability "github.com/LerianStudio/lib-observability/v2"
 	libLog "github.com/LerianStudio/lib-observability/v2/log"
+	libMetrics "github.com/LerianStudio/lib-observability/v2/metrics"
 	libOtel "github.com/LerianStudio/lib-observability/v2/tracing"
 
 	"github.com/LerianStudio/midaz/v4/components/tracer/internal/services/command"
@@ -269,7 +270,7 @@ func (w *ReservationReaperWorker) runReapCycle(ctx context.Context) {
 // The batch audit is only written when at least one reservation expired — an
 // empty sweep produces no audit row.
 func (w *ReservationReaperWorker) RunOnce(ctx context.Context) (int, error) {
-	_, tracer, _, _ := libObservability.NewTrackingFromContext(ctx) //nolint:dogsled
+	_, tracer, _, metricsFactory := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "worker.reservation_reaper.run_once")
 	defer span.End()
@@ -277,6 +278,17 @@ func (w *ReservationReaperWorker) RunOnce(ctx context.Context) (int, error) {
 	logger := logging.WithTrace(ctx, w.logger)
 
 	now := w.clock.Now().UTC()
+
+	if observer, ok := w.repo.(ReservationV2Observer); ok {
+		count, oldestAge, err := observer.ObserveV2Outstanding(ctx, now)
+		if err != nil {
+			libOtel.HandleSpanError(span, "Failed to observe V2 reservation backlog", err)
+			return 0, fmt.Errorf("failed to observe V2 reservation backlog: %w", err)
+		}
+
+		w.setV2Gauge(ctx, metricsFactory, MetricReservationV2Outstanding, count)
+		w.setV2Gauge(ctx, metricsFactory, MetricReservationV2OldestAgeSeconds, int64(oldestAge.Seconds()))
+	}
 
 	expired, err := w.repo.FindExpiredReservations(ctx, now)
 	if err != nil {
@@ -323,4 +335,31 @@ func (w *ReservationReaperWorker) RunOnce(ctx context.Context) (int, error) {
 	).Log(ctx, libLog.LevelDebug, "Released expired reservations")
 
 	return released, nil
+}
+
+func (w *ReservationReaperWorker) setV2Gauge(ctx context.Context, factory *libMetrics.MetricsFactory, metric Metric, value int64) {
+	if factory == nil {
+		return
+	}
+
+	gauge, err := factory.Gauge(metric)
+	if err != nil {
+		w.logger.With(
+			libLog.String("operation", "worker.reservation_reaper.metrics"),
+			libLog.String("metric", metric.Name),
+			libLog.String("error.message", err.Error()),
+		).Log(ctx, libLog.LevelDebug, "Failed to create reservation backlog gauge")
+		return
+	}
+	if gauge == nil {
+		return
+	}
+
+	if err := gauge.Set(ctx, value); err != nil {
+		w.logger.With(
+			libLog.String("operation", "worker.reservation_reaper.metrics"),
+			libLog.String("metric", metric.Name),
+			libLog.String("error.message", err.Error()),
+		).Log(ctx, libLog.LevelDebug, "Failed to record reservation backlog gauge")
+	}
 }

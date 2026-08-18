@@ -77,7 +77,7 @@ func TestReservationServer_Reserve(t *testing.T) {
 
 		svc.EXPECT().
 			Reserve(gomock.Any(), transactionID, gomock.Any(), false).
-			DoAndReturn(func(_ context.Context, _ uuid.UUID, gotInput *model.CheckLimitsInput, _ bool) (*services.ReserveResult, error) {
+			DoAndReturn(func(_ context.Context, _ uuid.UUID, gotInput *model.CheckLimitsInput, _ bool, _ ...model.ReservationDeliveryMode) (*services.ReserveResult, error) {
 				// The gRPC server must hand the use case the SAME CheckLimitsInput
 				// the REST path produces (no fork).
 				require.True(t, gotInput.Amount.Equal(expected.Amount))
@@ -134,6 +134,35 @@ func TestReservationServer_Reserve(t *testing.T) {
 
 		_, err = server.Reserve(context.Background(), req)
 		require.NoError(t, err)
+	})
+
+	t.Run("ledger outcome v2 mode is forwarded", func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		svc := mocks.NewMockReservationService(ctrl)
+		clk := testutil.NewMockClock(now)
+
+		svc.EXPECT().Reserve(gomock.Any(), transactionID, gomock.Any(), false, model.DeliveryModeLedgerOutcomeV2).
+			Return(&services.ReserveResult{}, nil)
+
+		server, err := NewReservationServer(svc, clk)
+		require.NoError(t, err)
+
+		req := newReserveRequest(now, transactionID, requestID, accountID)
+		req.DeliveryMode = reservationv1.ReservationDeliveryMode_RESERVATION_DELIVERY_MODE_LEDGER_OUTCOME_V2
+		_, err = server.Reserve(context.Background(), req)
+		require.NoError(t, err)
+	})
+
+	t.Run("unknown delivery mode is InvalidArgument", func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		svc := mocks.NewMockReservationService(ctrl)
+		server, err := NewReservationServer(svc, testutil.NewMockClock(now))
+		require.NoError(t, err)
+
+		req := newReserveRequest(now, transactionID, requestID, accountID)
+		req.DeliveryMode = reservationv1.ReservationDeliveryMode(99)
+		_, err = server.Reserve(context.Background(), req)
+		require.Equal(t, codes.InvalidArgument, status.Code(err))
 	})
 
 	t.Run("invalid transaction id is InvalidArgument", func(t *testing.T) {
@@ -195,6 +224,81 @@ func TestReservationServer_Reserve(t *testing.T) {
 		require.Equal(t, codes.FailedPrecondition, status.Code(err))
 		require.Contains(t, status.Convert(err).Message(), constant.ErrReservationAlreadyTerminal.Error())
 	})
+}
+
+func TestReservationServer_ApplyOutcome(t *testing.T) {
+	transactionID := testutil.MustDeterministicUUID(50)
+	outcomeID := testutil.MustDeterministicUUID(51)
+	now := testutil.FixedTime()
+
+	t.Run("committed receipt", func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		svc := mocks.NewMockReservationService(ctrl)
+		svc.EXPECT().ApplyOutcome(gomock.Any(), transactionID, outcomeID, model.OutcomeCommitted).
+			Return(&services.ApplyOutcomeResult{TransactionID: transactionID, OutcomeID: outcomeID, Outcome: model.OutcomeCommitted, ReservationCount: 3}, nil)
+
+		server, err := NewReservationServer(svc, testutil.NewMockClock(now))
+		require.NoError(t, err)
+		got, err := server.ApplyOutcome(context.Background(), &reservationv1.ApplyOutcomeRequest{
+			TransactionId: transactionID.String(), OutcomeId: outcomeID.String(),
+			Outcome: reservationv1.ReservationOutcome_RESERVATION_OUTCOME_COMMITTED,
+		})
+		require.NoError(t, err)
+		require.Equal(t, transactionID.String(), got.GetTransactionId())
+		require.Equal(t, outcomeID.String(), got.GetOutcomeId())
+		require.EqualValues(t, 3, got.GetReservationCount())
+		require.False(t, got.GetReplayed())
+	})
+
+	t.Run("aborted exact replay", func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		svc := mocks.NewMockReservationService(ctrl)
+		svc.EXPECT().ApplyOutcome(gomock.Any(), transactionID, outcomeID, model.OutcomeAborted).
+			Return(&services.ApplyOutcomeResult{TransactionID: transactionID, OutcomeID: outcomeID, Outcome: model.OutcomeAborted, Replayed: true}, nil)
+
+		server, err := NewReservationServer(svc, testutil.NewMockClock(now))
+		require.NoError(t, err)
+		got, err := server.ApplyOutcome(context.Background(), &reservationv1.ApplyOutcomeRequest{
+			TransactionId: transactionID.String(), OutcomeId: outcomeID.String(),
+			Outcome: reservationv1.ReservationOutcome_RESERVATION_OUTCOME_ABORTED,
+		})
+		require.NoError(t, err)
+		require.True(t, got.GetReplayed())
+		require.Equal(t, reservationv1.ReservationOutcome_RESERVATION_OUTCOME_ABORTED, got.GetOutcome())
+	})
+
+	t.Run("opposite outcome conflict", func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		svc := mocks.NewMockReservationService(ctrl)
+		svc.EXPECT().ApplyOutcome(gomock.Any(), transactionID, outcomeID, model.OutcomeAborted).
+			Return(nil, constant.ErrReservationOutcomeConflict)
+
+		server, err := NewReservationServer(svc, testutil.NewMockClock(now))
+		require.NoError(t, err)
+		_, err = server.ApplyOutcome(context.Background(), &reservationv1.ApplyOutcomeRequest{
+			TransactionId: transactionID.String(), OutcomeId: outcomeID.String(),
+			Outcome: reservationv1.ReservationOutcome_RESERVATION_OUTCOME_ABORTED,
+		})
+		require.Equal(t, codes.AlreadyExists, status.Code(err))
+		require.Contains(t, status.Convert(err).Message(), constant.ErrReservationOutcomeConflict.Error())
+	})
+
+	for _, tc := range []struct {
+		name string
+		req  *reservationv1.ApplyOutcomeRequest
+	}{
+		{"bad transaction id", &reservationv1.ApplyOutcomeRequest{TransactionId: "bad", OutcomeId: outcomeID.String(), Outcome: reservationv1.ReservationOutcome_RESERVATION_OUTCOME_COMMITTED}},
+		{"bad outcome id", &reservationv1.ApplyOutcomeRequest{TransactionId: transactionID.String(), OutcomeId: "bad", Outcome: reservationv1.ReservationOutcome_RESERVATION_OUTCOME_COMMITTED}},
+		{"unspecified outcome", &reservationv1.ApplyOutcomeRequest{TransactionId: transactionID.String(), OutcomeId: outcomeID.String()}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			ctrl := gomock.NewController(t)
+			server, err := NewReservationServer(mocks.NewMockReservationService(ctrl), testutil.NewMockClock(now))
+			require.NoError(t, err)
+			_, err = server.ApplyOutcome(context.Background(), tc.req)
+			require.Equal(t, codes.InvalidArgument, status.Code(err))
+		})
+	}
 }
 
 func TestReservationServer_ConfirmReleaseById(t *testing.T) {

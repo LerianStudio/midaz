@@ -105,6 +105,40 @@ func TestReservationHandler_Reserve(t *testing.T) {
 			},
 		},
 		{
+			name: "ledger outcome v2 delivery mode is forwarded",
+			requestBody: func() any {
+				r := newValidReserveRequest()
+				r.DeliveryMode = model.DeliveryModeLedgerOutcomeV2
+				return r
+			}(),
+			mockSetup: func(ctrl *gomock.Controller) *mocks.MockReservationService {
+				m := mocks.NewMockReservationService(ctrl)
+				m.EXPECT().
+					Reserve(gomock.Any(), testutil.MustDeterministicUUID(1), gomock.Any(), false, model.DeliveryModeLedgerOutcomeV2).
+					Return(&services.ReserveResult{ReservationIDs: []uuid.UUID{reservationID}}, nil)
+				return m
+			},
+			expectedStatus: http.StatusCreated,
+			expectedBody: func(t *testing.T, body []byte) {
+				assert.Contains(t, string(body), reservationID.String())
+			},
+		},
+		{
+			name: "invalid delivery mode returns canonical 400",
+			requestBody: func() any {
+				r := newValidReserveRequest()
+				r.DeliveryMode = model.ReservationDeliveryMode("UNKNOWN")
+				return r
+			}(),
+			mockSetup: func(ctrl *gomock.Controller) *mocks.MockReservationService {
+				return mocks.NewMockReservationService(ctrl)
+			},
+			expectedStatus: http.StatusBadRequest,
+			expectedBody: func(t *testing.T, body []byte) {
+				assert.Contains(t, string(body), constant.ErrReservationDeliveryModeInvalid.Error())
+			},
+		},
+		{
 			name:        "denied - limit exceeded returns 201 with denied=true and empty ids",
 			requestBody: newValidReserveRequest(),
 			mockSetup: func(ctrl *gomock.Controller) *mocks.MockReservationService {
@@ -301,6 +335,110 @@ func TestReservationHandler_Reserve(t *testing.T) {
 			if tt.expectedBody != nil {
 				tt.expectedBody(t, respBody)
 			}
+		})
+	}
+}
+
+func TestReservationHandler_ApplyOutcome(t *testing.T) {
+	transactionID := testutil.MustDeterministicUUID(40)
+	outcomeID := testutil.MustDeterministicUUID(41)
+
+	tests := []struct {
+		name       string
+		txID       string
+		body       any
+		setup      func(*mocks.MockReservationService)
+		wantStatus int
+		wantCode   error
+	}{
+		{
+			name: "committed returns durable receipt",
+			txID: transactionID.String(),
+			body: ApplyOutcomeRequest{OutcomeID: outcomeID.String(), Outcome: model.OutcomeCommitted},
+			setup: func(s *mocks.MockReservationService) {
+				s.EXPECT().ApplyOutcome(gomock.Any(), transactionID, outcomeID, model.OutcomeCommitted).
+					Return(&services.ApplyOutcomeResult{TransactionID: transactionID, OutcomeID: outcomeID, Outcome: model.OutcomeCommitted, ReservationCount: 2}, nil)
+			},
+			wantStatus: http.StatusOK,
+		},
+		{
+			name: "exact replay is visible",
+			txID: transactionID.String(),
+			body: ApplyOutcomeRequest{OutcomeID: outcomeID.String(), Outcome: model.OutcomeAborted},
+			setup: func(s *mocks.MockReservationService) {
+				s.EXPECT().ApplyOutcome(gomock.Any(), transactionID, outcomeID, model.OutcomeAborted).
+					Return(&services.ApplyOutcomeResult{TransactionID: transactionID, OutcomeID: outcomeID, Outcome: model.OutcomeAborted, Replayed: true}, nil)
+			},
+			wantStatus: http.StatusOK,
+		},
+		{
+			name: "opposite outcome is conflict",
+			txID: transactionID.String(),
+			body: ApplyOutcomeRequest{OutcomeID: outcomeID.String(), Outcome: model.OutcomeAborted},
+			setup: func(s *mocks.MockReservationService) {
+				s.EXPECT().ApplyOutcome(gomock.Any(), transactionID, outcomeID, model.OutcomeAborted).
+					Return(nil, constant.ErrReservationOutcomeConflict)
+			},
+			wantStatus: http.StatusConflict,
+			wantCode:   constant.ErrReservationOutcomeConflict,
+		},
+		{
+			name:       "invalid transaction id",
+			txID:       "nope",
+			body:       ApplyOutcomeRequest{OutcomeID: outcomeID.String(), Outcome: model.OutcomeCommitted},
+			setup:      func(_ *mocks.MockReservationService) {},
+			wantStatus: http.StatusBadRequest,
+			wantCode:   constant.ErrReservationTransactionIDReq,
+		},
+		{
+			name:       "missing outcome id",
+			txID:       transactionID.String(),
+			body:       ApplyOutcomeRequest{Outcome: model.OutcomeCommitted},
+			setup:      func(_ *mocks.MockReservationService) {},
+			wantStatus: http.StatusBadRequest,
+			wantCode:   constant.ErrReservationOutcomeIDRequired,
+		},
+		{
+			name:       "invalid outcome",
+			txID:       transactionID.String(),
+			body:       ApplyOutcomeRequest{OutcomeID: outcomeID.String(), Outcome: model.OutcomeUnspecified},
+			setup:      func(_ *mocks.MockReservationService) {},
+			wantStatus: http.StatusBadRequest,
+			wantCode:   constant.ErrReservationOutcomeInvalid,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ctrl := gomock.NewController(t)
+			svc := mocks.NewMockReservationService(ctrl)
+			tt.setup(svc)
+
+			handler, err := NewReservationHandler(svc, testutil.NewDefaultMockClock())
+			require.NoError(t, err)
+
+			app := fiber.New()
+			app.Post("/v1/reservations/transaction/:transaction_id/outcome", handler.ApplyOutcome)
+			req := httptest.NewRequest(http.MethodPost, "/v1/reservations/transaction/"+tt.txID+"/outcome", bytes.NewReader(marshalRequestBody(t, tt.body)))
+			req.Header.Set("Content-Type", "application/json")
+
+			resp, err := app.Test(req)
+			require.NoError(t, err)
+			defer resp.Body.Close()
+			body, err := io.ReadAll(resp.Body)
+			require.NoError(t, err)
+			require.Equal(t, tt.wantStatus, resp.StatusCode, string(body))
+
+			if tt.wantCode != nil {
+				require.Contains(t, string(body), tt.wantCode.Error())
+				return
+			}
+
+			var got ApplyOutcomeResponse
+			require.NoError(t, json.Unmarshal(body, &got))
+			require.Equal(t, transactionID, got.TransactionID)
+			require.Equal(t, outcomeID, got.OutcomeID)
+			require.Equal(t, tt.name == "exact replay is visible", got.Replayed)
 		})
 	}
 }

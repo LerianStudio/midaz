@@ -2892,6 +2892,30 @@ func ValidateBusinessError(err error, entityType string, args ...any) error {
 			Title:      "Reservation Already Terminal",
 			Message:    "Reservation: reservation is already in a terminal state.",
 		},
+		constant.ErrReservationDeliveryModeInvalid: ValidationError{
+			EntityType: entityType,
+			Code:       constant.ErrReservationDeliveryModeInvalid.Error(),
+			Title:      "Reservation Delivery Mode Invalid",
+			Message:    "Reservation: deliveryMode must be UNSPECIFIED, LEGACY, or LEDGER_OUTCOME_V2.",
+		},
+		constant.ErrReservationOutcomeInvalid: ValidationError{
+			EntityType: entityType,
+			Code:       constant.ErrReservationOutcomeInvalid.Error(),
+			Title:      "Reservation Outcome Invalid",
+			Message:    "Reservation: outcome must be COMMITTED or ABORTED.",
+		},
+		constant.ErrReservationOutcomeIDRequired: ValidationError{
+			EntityType: entityType,
+			Code:       constant.ErrReservationOutcomeIDRequired.Error(),
+			Title:      "Reservation Outcome ID Required",
+			Message:    "Reservation: outcomeId is required.",
+		},
+		constant.ErrReservationOutcomeConflict: EntityConflictError{
+			EntityType: entityType,
+			Code:       constant.ErrReservationOutcomeConflict.Error(),
+			Title:      "Reservation Outcome Conflict",
+			Message:    "Reservation: the transaction already has a different terminal outcome.",
+		},
 	}
 
 	if mappedError, found := errorMap[err]; found {

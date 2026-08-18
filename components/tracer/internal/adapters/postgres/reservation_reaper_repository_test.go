@@ -68,7 +68,7 @@ func TestReservationReaperRepository_FindExpiredReservations(t *testing.T) {
 		idA := testutil.MustDeterministicUUID(7001)
 		idB := testutil.MustDeterministicUUID(7002)
 
-		mock.ExpectQuery(`SELECT id\s+FROM usage_reservations`).
+		mock.ExpectQuery(`SELECT id\s+FROM usage_reservations\s+WHERE status = 'RESERVED' AND delivery_mode = 'LEGACY' AND reservation_expires_at < \$1`).
 			WithArgs(now.UTC()).
 			WillReturnRows(sqlmock.NewRows([]string{"id"}).AddRow(idA).AddRow(idB))
 
@@ -145,6 +145,39 @@ func TestReservationReaperRepository_FindExpiredReservations(t *testing.T) {
 	})
 }
 
+func TestReservationReaperRepository_ObserveV2Outstanding(t *testing.T) {
+	testutil.SetupTestTracing(t)
+
+	now := time.Date(2026, 8, 18, 12, 0, 0, 0, time.UTC)
+
+	t.Run("reports outstanding count and oldest age without changing rows", func(t *testing.T) {
+		reaper, _, mock, _, cleanup := setupReaperRepo(t)
+		defer cleanup()
+
+		oldest := now.Add(-45 * 24 * time.Hour)
+		mock.ExpectQuery(`SELECT COUNT\(\*\), MIN\(created_at\)\s+FROM usage_reservations\s+WHERE status = 'RESERVED' AND delivery_mode = 'LEDGER_OUTCOME_V2'`).
+			WillReturnRows(sqlmock.NewRows([]string{"count", "oldest"}).AddRow(3, oldest))
+
+		count, age, err := reaper.ObserveV2Outstanding(context.Background(), now)
+		require.NoError(t, err)
+		assert.Equal(t, int64(3), count)
+		assert.Equal(t, 45*24*time.Hour, age)
+	})
+
+	t.Run("empty backlog reports zero age", func(t *testing.T) {
+		reaper, _, mock, _, cleanup := setupReaperRepo(t)
+		defer cleanup()
+
+		mock.ExpectQuery(`SELECT COUNT\(\*\), MIN\(created_at\)`).
+			WillReturnRows(sqlmock.NewRows([]string{"count", "oldest"}).AddRow(0, nil))
+
+		count, age, err := reaper.ObserveV2Outstanding(context.Background(), now)
+		require.NoError(t, err)
+		assert.Zero(t, count)
+		assert.Zero(t, age)
+	})
+}
+
 // reaperLockRow scripts the FOR UPDATE lock select that ReleaseWithTx issues,
 // returning a row in the supplied status.
 func reaperLockRow(mock sqlmock.Sqlmock, resID, limitID, txID uuid.UUID, status string) {
@@ -152,7 +185,7 @@ func reaperLockRow(mock sqlmock.Sqlmock, resID, limitID, txID uuid.UUID, status 
 		WithArgs(resID).
 		WillReturnRows(sqlmock.NewRows(reservationLockColumns()).AddRow(
 			resID, limitID, "acct:7100", "2026-06", int64(400), status,
-			txID, testutil.FixedTime(), testutil.FixedTime(), nil, nil,
+			model.DeliveryModeLegacy, txID, testutil.FixedTime(), testutil.FixedTime(), nil, nil,
 		))
 }
 
