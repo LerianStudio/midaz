@@ -7,6 +7,7 @@ package bootstrap
 import (
 	"context"
 	"fmt"
+	nethttp "net/http"
 	"strings"
 
 	libLog "github.com/LerianStudio/lib-observability/v2/log"
@@ -326,12 +327,13 @@ func midazEventDefinitions() []events.Definition {
 	}
 }
 
-// buildCatalog constructs the immutable lib-streaming Catalog from
-// midaz's event Definitions. Every entry maps the canonical
-// "<resource>.<event>" key to its ResourceType / EventType /
-// SchemaVersion triple.
-func buildCatalog() (libStreaming.Catalog, error) {
-	defs := midazEventDefinitions()
+// catalogEntriesFromDefinitions maps midaz event Definitions onto lib-streaming
+// EventDefinition catalog entries, carrying the canonical "<resource>.<event>"
+// key and the ResourceType / EventType / SchemaVersion triple. It is shared by
+// buildCatalog (the emitter's catalog, which also appends the billing entry) and
+// buildManifestCatalog (the manifest's catalog-only view) so the two stay in
+// sync on how a Definition becomes a catalog entry.
+func catalogEntriesFromDefinitions(defs []events.Definition) []libStreaming.EventDefinition {
 	entries := make([]libStreaming.EventDefinition, 0, len(defs))
 
 	for _, def := range defs {
@@ -343,12 +345,74 @@ func buildCatalog() (libStreaming.Catalog, error) {
 		})
 	}
 
+	return entries
+}
+
+// buildCatalog constructs the immutable lib-streaming Catalog from
+// midaz's event Definitions. Every entry maps the canonical
+// "<resource>.<event>" key to its ResourceType / EventType /
+// SchemaVersion triple.
+func buildCatalog() (libStreaming.Catalog, error) {
+	entries := catalogEntriesFromDefinitions(midazEventDefinitions())
+
 	// The shared billing_recorded event is owned by lib-streaming's billing
 	// package: its Definition is a ready EventDefinition (Confluent-framed
 	// protobuf content type), added as-is rather than via the midaz registry.
 	entries = append(entries, billing.Definition())
 
 	return libStreaming.NewCatalog(entries...)
+}
+
+// buildManifestCatalog builds the catalog the ledger manifest advertises: every
+// midaz event Definition, independent of STREAMING_ENABLED so the manifest is
+// served even when publication is off. Unlike buildCatalog it does NOT append
+// the shared billing entry — billing.recorded rides a FIXED literal topic owned
+// by lib-streaming's billing package, not a pkgStreaming.TopicName-derived one,
+// so advertising it here would break the manifest's per-event topic-convergence
+// invariant (manifest topic == pkgStreaming.TopicName(service, def.Key())).
+func buildManifestCatalog() (libStreaming.Catalog, error) {
+	return libStreaming.NewCatalog(catalogEntriesFromDefinitions(midazEventDefinitions())...)
+}
+
+// buildPublisherDescriptor builds the lib-streaming PublisherDescriptor for the
+// ledger manifest. ServiceName is the bare, ACL-scoped service segment
+// (streamingServiceName, "ledger"); SourceBase is the CloudEvents source
+// lib-streaming stamps on emitted events (resolveStreamingSource(cfg), also the
+// bare "ledger"). SourceBase feeds EventDefinition.Topic(source), so aligning it
+// with the service name makes the manifest's advertised per-event topic converge
+// with pkgStreaming.TopicName. RoutePath advertises where the manifest is served.
+func buildPublisherDescriptor(cfg *Config) libStreaming.PublisherDescriptor {
+	return libStreaming.PublisherDescriptor{
+		ServiceName: streamingServiceName,
+		SourceBase:  resolveStreamingSource(cfg),
+		RoutePath:   pkgStreaming.ManifestRoutePath,
+	}
+}
+
+// BuildStreamingManifestHandler builds the catalog-only lib-streaming manifest
+// HTTP handler the ledger serves at pkgStreaming.ManifestRoutePath. It is
+// INDEPENDENT of STREAMING_ENABLED: the manifest advertises the event taxonomy
+// even when publication is disabled. No WithManifestRoutes option is passed, so
+// the document is catalog-only and discloses no broker topology. The lib handler
+// pre-marshals once and enforces a GET/HEAD method allowlist plus the hardening
+// headers (Cache-Control: no-store, X-Content-Type-Options, X-Frame-Options).
+//
+// The lib handler performs NO authentication; the caller wraps it in the midaz
+// authz chain. Degraded-safe wiring is the composition root's responsibility: a
+// non-nil error here must leave the route unmounted (logged at Warn), never fail
+// boot.
+func BuildStreamingManifestHandler(cfg *Config) (nethttp.Handler, error) {
+	catalog, err := buildManifestCatalog()
+	if err != nil {
+		return nil, fmt.Errorf("failed to build streaming manifest catalog: %w", err)
+	}
+
+	handler, err := libStreaming.NewStreamingHandler(buildPublisherDescriptor(cfg), catalog)
+	if err != nil {
+		return nil, fmt.Errorf("failed to build streaming manifest handler: %w", err)
+	}
+
+	return handler, nil
 }
 
 // buildRoutes constructs one RouteRequired route per midaz event,
