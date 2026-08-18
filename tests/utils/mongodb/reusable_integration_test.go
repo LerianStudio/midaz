@@ -43,3 +43,18 @@ func TestReusableContainerDropsTheOwningTestsDatabase(t *testing.T) {
 	require.NoError(t, err)
 	require.Empty(t, databaseNames)
 }
+
+func TestCreateOwnedDatabaseDropsAdditionalTenantDatabase(t *testing.T) {
+	observer := SetupReusableContainer(t)
+
+	var ownedDatabase string
+	require.True(t, t.Run("tenant-owner", func(t *testing.T) {
+		database := CreateOwnedDatabase(t, observer)
+		ownedDatabase = database.Name()
+		require.NoError(t, database.CreateCollection(context.Background(), "owned"))
+	}))
+
+	databaseNames, err := observer.Client.ListDatabaseNames(context.Background(), bson.M{"name": ownedDatabase})
+	require.NoError(t, err)
+	require.Empty(t, databaseNames)
+}

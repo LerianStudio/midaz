@@ -112,7 +112,7 @@ func newTestPackage(ledgerID uuid.UUID) *Package {
 // ============================================================================
 
 func TestIntegration_PackRepo_Create_PersistsAllFields(t *testing.T) {
-	container := mongotestutil.SetupContainer(t)
+	container := mongotestutil.SetupReusableContainer(t)
 	repo := newPackRepository(t, container)
 	ctx := context.Background()
 
@@ -143,7 +143,7 @@ func TestIntegration_PackRepo_Create_PersistsAllFields(t *testing.T) {
 }
 
 func TestIntegration_PackRepo_FeeOperationRouteIDsRoundTripAndClearIndependently(t *testing.T) {
-	container := mongotestutil.SetupContainer(t)
+	container := mongotestutil.SetupReusableContainer(t)
 	repo := newPackRepository(t, container)
 	ctx := context.Background()
 
@@ -197,7 +197,7 @@ func TestIntegration_PackRepo_FeeOperationRouteIDsRoundTripAndClearIndependently
 // ============================================================================
 
 func TestIntegration_PackRepo_FindByID(t *testing.T) {
-	container := mongotestutil.SetupContainer(t)
+	container := mongotestutil.SetupReusableContainer(t)
 	repo := newPackRepository(t, container)
 	ctx := context.Background()
 
@@ -215,7 +215,7 @@ func TestIntegration_PackRepo_FindByID(t *testing.T) {
 }
 
 func TestIntegration_PackRepo_FindByID_NotFound(t *testing.T) {
-	container := mongotestutil.SetupContainer(t)
+	container := mongotestutil.SetupReusableContainer(t)
 	repo := newPackRepository(t, container)
 
 	result, err := repo.FindByID(context.Background(), uuid.New(), uuid.New(), uuid.Nil)
@@ -225,7 +225,7 @@ func TestIntegration_PackRepo_FindByID_NotFound(t *testing.T) {
 }
 
 func TestIntegration_PackRepo_FindByID_WrongOrgIsolation(t *testing.T) {
-	container := mongotestutil.SetupContainer(t)
+	container := mongotestutil.SetupReusableContainer(t)
 	repo := newPackRepository(t, container)
 	ctx := context.Background()
 
@@ -240,7 +240,7 @@ func TestIntegration_PackRepo_FindByID_WrongOrgIsolation(t *testing.T) {
 }
 
 func TestIntegration_PackRepo_FindByID_ExcludesSoftDeleted(t *testing.T) {
-	container := mongotestutil.SetupContainer(t)
+	container := mongotestutil.SetupReusableContainer(t)
 	repo := newPackRepository(t, container)
 	ctx := context.Background()
 
@@ -258,7 +258,7 @@ func TestIntegration_PackRepo_FindByID_ExcludesSoftDeleted(t *testing.T) {
 }
 
 func TestIntegration_PackRepo_FindByID_WrongLedgerIsolation(t *testing.T) {
-	container := mongotestutil.SetupContainer(t)
+	container := mongotestutil.SetupReusableContainer(t)
 	repo := newPackRepository(t, container)
 	ctx := context.Background()
 
@@ -290,7 +290,7 @@ func TestIntegration_PackRepo_FindByID_WrongLedgerIsolation(t *testing.T) {
 }
 
 func TestIntegration_PackRepo_Update_WrongLedgerIsolation(t *testing.T) {
-	container := mongotestutil.SetupContainer(t)
+	container := mongotestutil.SetupReusableContainer(t)
 	repo := newPackRepository(t, container)
 	ctx := context.Background()
 
@@ -325,7 +325,7 @@ func TestIntegration_PackRepo_Update_WrongLedgerIsolation(t *testing.T) {
 }
 
 func TestIntegration_PackRepo_SoftDelete_WrongLedgerIsolation(t *testing.T) {
-	container := mongotestutil.SetupContainer(t)
+	container := mongotestutil.SetupReusableContainer(t)
 	repo := newPackRepository(t, container)
 	ctx := context.Background()
 
@@ -361,7 +361,7 @@ func TestIntegration_PackRepo_SoftDelete_WrongLedgerIsolation(t *testing.T) {
 // ledger reaches a package regardless of which ledger owns it, on all three
 // by-ID operations, and still excludes soft-deleted documents.
 func TestIntegration_PackRepo_ByID_OrganizationScopeUnchanged(t *testing.T) {
-	container := mongotestutil.SetupContainer(t)
+	container := mongotestutil.SetupReusableContainer(t)
 	repo := newPackRepository(t, container)
 	ctx := context.Background()
 
@@ -395,7 +395,7 @@ func TestIntegration_PackRepo_ByID_OrganizationScopeUnchanged(t *testing.T) {
 // ============================================================================
 
 func TestIntegration_PackRepo_FindList_FiltersAndPaginates(t *testing.T) {
-	container := mongotestutil.SetupContainer(t)
+	container := mongotestutil.SetupReusableContainer(t)
 	repo := newPackRepository(t, container)
 	ctx := context.Background()
 
@@ -455,7 +455,7 @@ func TestIntegration_PackRepo_FindList_FiltersAndPaginates(t *testing.T) {
 // ledger-scoped path it hands back packages the named ledger does not own. The
 // identifier is fixed rather than generated so the case is exercised every run.
 func TestIntegration_PackRepo_FindList_LedgerFilterHoldsForLeadingZeroIdentifier(t *testing.T) {
-	container := mongotestutil.SetupContainer(t)
+	container := mongotestutil.SetupReusableContainer(t)
 	repo := newPackRepository(t, container)
 	ctx := context.Background()
 
@@ -490,7 +490,7 @@ func TestIntegration_PackRepo_FindList_LedgerFilterHoldsForLeadingZeroIdentifier
 // widens the listing to every segment of the ledger, and the package it then returns
 // is the one that prices a transaction.
 func TestIntegration_PackRepo_FindList_SegmentFilterHoldsForLeadingZeroIdentifier(t *testing.T) {
-	container := mongotestutil.SetupContainer(t)
+	container := mongotestutil.SetupReusableContainer(t)
 	repo := newPackRepository(t, container)
 	ctx := context.Background()
 
@@ -528,7 +528,7 @@ func TestIntegration_PackRepo_FindList_SegmentFilterHoldsForLeadingZeroIdentifie
 }
 
 func TestIntegration_PackRepo_FindList_FilterByEnable(t *testing.T) {
-	container := mongotestutil.SetupContainer(t)
+	container := mongotestutil.SetupReusableContainer(t)
 	repo := newPackRepository(t, container)
 	ctx := context.Background()
 
@@ -557,7 +557,7 @@ func TestIntegration_PackRepo_FindList_FilterByEnable(t *testing.T) {
 }
 
 func TestIntegration_PackRepo_FindList_ExcludesSoftDeleted(t *testing.T) {
-	container := mongotestutil.SetupContainer(t)
+	container := mongotestutil.SetupReusableContainer(t)
 	repo := newPackRepository(t, container)
 	ctx := context.Background()
 
@@ -586,7 +586,7 @@ func TestIntegration_PackRepo_FindList_ExcludesSoftDeleted(t *testing.T) {
 // ============================================================================
 
 func TestIntegration_PackRepo_FindByOrganizationIDAndLedgerID(t *testing.T) {
-	container := mongotestutil.SetupContainer(t)
+	container := mongotestutil.SetupReusableContainer(t)
 	repo := newPackRepository(t, container)
 	ctx := context.Background()
 
@@ -620,7 +620,7 @@ func TestIntegration_PackRepo_FindByOrganizationIDAndLedgerID(t *testing.T) {
 }
 
 func TestIntegration_PackRepo_FindFeesAndAmountDataByPackageID(t *testing.T) {
-	container := mongotestutil.SetupContainer(t)
+	container := mongotestutil.SetupReusableContainer(t)
 	repo := newPackRepository(t, container)
 	ctx := context.Background()
 
@@ -641,7 +641,7 @@ func TestIntegration_PackRepo_FindFeesAndAmountDataByPackageID(t *testing.T) {
 }
 
 func TestIntegration_PackRepo_FindFeesAndAmountDataByPackageID_NotFound(t *testing.T) {
-	container := mongotestutil.SetupContainer(t)
+	container := mongotestutil.SetupReusableContainer(t)
 	repo := newPackRepository(t, container)
 
 	data, err := repo.FindFeesAndAmountDataByPackageID(context.Background(), uuid.New(), uuid.New())
@@ -657,7 +657,7 @@ func TestIntegration_PackRepo_FindFeesAndAmountDataByPackageID_NotFound(t *testi
 // ============================================================================
 
 func TestIntegration_PackRepo_Update_PersistsChange(t *testing.T) {
-	container := mongotestutil.SetupContainer(t)
+	container := mongotestutil.SetupReusableContainer(t)
 	repo := newPackRepository(t, container)
 	ctx := context.Background()
 
@@ -678,7 +678,7 @@ func TestIntegration_PackRepo_Update_PersistsChange(t *testing.T) {
 }
 
 func TestIntegration_PackRepo_Update_DisablesWhenFeesEmptied(t *testing.T) {
-	container := mongotestutil.SetupContainer(t)
+	container := mongotestutil.SetupReusableContainer(t)
 	repo := newPackRepository(t, container)
 	ctx := context.Background()
 
@@ -702,7 +702,7 @@ func TestIntegration_PackRepo_Update_DisablesWhenFeesEmptied(t *testing.T) {
 }
 
 func TestIntegration_PackRepo_Update_NotFound(t *testing.T) {
-	container := mongotestutil.SetupContainer(t)
+	container := mongotestutil.SetupReusableContainer(t)
 	repo := newPackRepository(t, container)
 
 	update := &bson.M{"$set": bson.M{"fee_group_label": "x"}}
@@ -719,7 +719,7 @@ func TestIntegration_PackRepo_Update_NotFound(t *testing.T) {
 // ============================================================================
 
 func TestIntegration_PackRepo_SoftDelete_SetsDeletedAt(t *testing.T) {
-	container := mongotestutil.SetupContainer(t)
+	container := mongotestutil.SetupReusableContainer(t)
 	repo := newPackRepository(t, container)
 	ctx := context.Background()
 
@@ -737,7 +737,7 @@ func TestIntegration_PackRepo_SoftDelete_SetsDeletedAt(t *testing.T) {
 }
 
 func TestIntegration_PackRepo_SoftDelete_NotFound(t *testing.T) {
-	container := mongotestutil.SetupContainer(t)
+	container := mongotestutil.SetupReusableContainer(t)
 	repo := newPackRepository(t, container)
 
 	err := repo.SoftDelete(context.Background(), uuid.New(), uuid.New(), uuid.Nil)
@@ -748,7 +748,7 @@ func TestIntegration_PackRepo_SoftDelete_NotFound(t *testing.T) {
 }
 
 func TestIntegration_PackRepo_SoftDelete_Idempotency(t *testing.T) {
-	container := mongotestutil.SetupContainer(t)
+	container := mongotestutil.SetupReusableContainer(t)
 	repo := newPackRepository(t, container)
 	ctx := context.Background()
 

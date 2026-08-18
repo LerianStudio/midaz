@@ -55,7 +55,7 @@ func createValidRegistry(t *testing.T, tenantID, organizationID string) *mmodel.
 
 func TestIntegration_RegistryRepo_Save(t *testing.T) {
 	// Arrange
-	container := mongotestutil.SetupContainer(t)
+	container := mongotestutil.SetupReusableContainer(t)
 	repo := createRegistryRepository(t, container)
 	ctx := context.Background()
 
@@ -76,7 +76,7 @@ func TestIntegration_RegistryRepo_Save(t *testing.T) {
 
 func TestIntegration_RegistryRepo_Save_AlreadyExists(t *testing.T) {
 	// Arrange
-	container := mongotestutil.SetupContainer(t)
+	container := mongotestutil.SetupReusableContainer(t)
 	repo := createRegistryRepository(t, container)
 	ctx := context.Background()
 
@@ -100,7 +100,7 @@ func TestIntegration_RegistryRepo_Save_AlreadyExists(t *testing.T) {
 
 func TestIntegration_RegistryRepo_Save_DifferentOrganizations(t *testing.T) {
 	// Arrange
-	container := mongotestutil.SetupContainer(t)
+	container := mongotestutil.SetupReusableContainer(t)
 	repo := createRegistryRepository(t, container)
 	ctx := context.Background()
 
@@ -125,7 +125,7 @@ func TestIntegration_RegistryRepo_Save_DifferentOrganizations(t *testing.T) {
 
 func TestIntegration_RegistryRepo_Save_InitialStatus(t *testing.T) {
 	// Arrange
-	container := mongotestutil.SetupContainer(t)
+	container := mongotestutil.SetupReusableContainer(t)
 	repo := createRegistryRepository(t, container)
 	ctx := context.Background()
 
@@ -146,7 +146,7 @@ func TestIntegration_RegistryRepo_Save_InitialStatus(t *testing.T) {
 
 func TestIntegration_RegistryRepo_Save_WithReadableVersions(t *testing.T) {
 	// Arrange
-	container := mongotestutil.SetupContainer(t)
+	container := mongotestutil.SetupReusableContainer(t)
 	repo := createRegistryRepository(t, container)
 	ctx := context.Background()
 
@@ -173,7 +173,7 @@ func TestIntegration_RegistryRepo_Save_WithReadableVersions(t *testing.T) {
 
 func TestIntegration_RegistryRepo_Get(t *testing.T) {
 	// Arrange
-	container := mongotestutil.SetupContainer(t)
+	container := mongotestutil.SetupReusableContainer(t)
 	repo := createRegistryRepository(t, container)
 	ctx := context.Background()
 
@@ -197,7 +197,7 @@ func TestIntegration_RegistryRepo_Get(t *testing.T) {
 
 func TestIntegration_RegistryRepo_Get_NotFound(t *testing.T) {
 	// Arrange
-	container := mongotestutil.SetupContainer(t)
+	container := mongotestutil.SetupReusableContainer(t)
 	repo := createRegistryRepository(t, container)
 	ctx := context.Background()
 
@@ -214,7 +214,7 @@ func TestIntegration_RegistryRepo_Get_NotFound(t *testing.T) {
 
 func TestIntegration_RegistryRepo_Get_ReturnsAllFields(t *testing.T) {
 	// Arrange
-	container := mongotestutil.SetupContainer(t)
+	container := mongotestutil.SetupReusableContainer(t)
 	repo := createRegistryRepository(t, container)
 	ctx := context.Background()
 
@@ -255,7 +255,7 @@ func TestIntegration_RegistryRepo_Get_ReturnsAllFields(t *testing.T) {
 
 func TestIntegration_RegistryRepo_Update(t *testing.T) {
 	// Arrange
-	container := mongotestutil.SetupContainer(t)
+	container := mongotestutil.SetupReusableContainer(t)
 	repo := createRegistryRepository(t, container)
 	ctx := context.Background()
 
@@ -297,7 +297,7 @@ func TestIntegration_RegistryRepo_Update(t *testing.T) {
 
 func TestIntegration_RegistryRepo_Update_IncrementRevision(t *testing.T) {
 	// Arrange
-	container := mongotestutil.SetupContainer(t)
+	container := mongotestutil.SetupReusableContainer(t)
 	repo := createRegistryRepository(t, container)
 	ctx := context.Background()
 
@@ -325,7 +325,7 @@ func TestIntegration_RegistryRepo_Update_IncrementRevision(t *testing.T) {
 
 func TestIntegration_RegistryRepo_Update_RevisionConflict(t *testing.T) {
 	// Arrange
-	container := mongotestutil.SetupContainer(t)
+	container := mongotestutil.SetupReusableContainer(t)
 	repo := createRegistryRepository(t, container)
 	ctx := context.Background()
 
@@ -358,7 +358,7 @@ func TestIntegration_RegistryRepo_Update_RevisionConflict(t *testing.T) {
 
 func TestIntegration_RegistryRepo_Update_DoesNotMutateInputOnFailure(t *testing.T) {
 	// Arrange
-	container := mongotestutil.SetupContainer(t)
+	container := mongotestutil.SetupReusableContainer(t)
 	repo := createRegistryRepository(t, container)
 	ctx := context.Background()
 
@@ -385,7 +385,7 @@ func TestIntegration_RegistryRepo_Update_DoesNotMutateInputOnFailure(t *testing.
 
 func TestIntegration_RegistryRepo_Update_NotFound(t *testing.T) {
 	// Arrange
-	container := mongotestutil.SetupContainer(t)
+	container := mongotestutil.SetupReusableContainer(t)
 	repo := createRegistryRepository(t, container)
 	ctx := context.Background()
 
@@ -403,7 +403,7 @@ func TestIntegration_RegistryRepo_Update_NotFound(t *testing.T) {
 
 func TestIntegration_RegistryRepo_Update_MultipleUpdates(t *testing.T) {
 	// Arrange
-	container := mongotestutil.SetupContainer(t)
+	container := mongotestutil.SetupReusableContainer(t)
 	repo := createRegistryRepository(t, container)
 	ctx := context.Background()
 
@@ -439,7 +439,7 @@ func TestIntegration_RegistryRepo_Update_MultipleUpdates(t *testing.T) {
 
 func TestIntegration_RegistryRepo_Update_Status(t *testing.T) {
 	// Arrange
-	container := mongotestutil.SetupContainer(t)
+	container := mongotestutil.SetupReusableContainer(t)
 	repo := createRegistryRepository(t, container)
 	ctx := context.Background()
 
@@ -472,7 +472,7 @@ func TestIntegration_RegistryRepo_Update_Status(t *testing.T) {
 
 func TestIntegration_RegistryRepo_Update_ProtectionModel(t *testing.T) {
 	// Arrange
-	container := mongotestutil.SetupContainer(t)
+	container := mongotestutil.SetupReusableContainer(t)
 	repo := createRegistryRepository(t, container)
 	ctx := context.Background()
 
@@ -505,7 +505,7 @@ func TestIntegration_RegistryRepo_Update_ProtectionModel(t *testing.T) {
 
 func TestIntegration_RegistryRepo_UniqueIndex_OrganizationID(t *testing.T) {
 	// Arrange
-	container := mongotestutil.SetupContainer(t)
+	container := mongotestutil.SetupReusableContainer(t)
 	repo := createRegistryRepository(t, container)
 	ctx := context.Background()
 
@@ -532,7 +532,7 @@ func TestIntegration_RegistryRepo_UniqueIndex_OrganizationID(t *testing.T) {
 
 func TestIntegration_RegistryRepo_RoundTrip(t *testing.T) {
 	// Arrange
-	container := mongotestutil.SetupContainer(t)
+	container := mongotestutil.SetupReusableContainer(t)
 	repo := createRegistryRepository(t, container)
 	ctx := context.Background()
 
@@ -567,7 +567,7 @@ func TestIntegration_RegistryRepo_RoundTrip(t *testing.T) {
 
 func TestIntegration_RegistryRepo_RoundTrip_EmptyReadableVersions(t *testing.T) {
 	// Arrange
-	container := mongotestutil.SetupContainer(t)
+	container := mongotestutil.SetupReusableContainer(t)
 	repo := createRegistryRepository(t, container)
 	ctx := context.Background()
 
@@ -593,7 +593,7 @@ func TestIntegration_RegistryRepo_RoundTrip_EmptyReadableVersions(t *testing.T) 
 
 func TestIntegration_RegistryRepo_ConcurrentUpdate_OptimisticLocking(t *testing.T) {
 	// Arrange
-	container := mongotestutil.SetupContainer(t)
+	container := mongotestutil.SetupReusableContainer(t)
 	repo := createRegistryRepository(t, container)
 	ctx := context.Background()
 

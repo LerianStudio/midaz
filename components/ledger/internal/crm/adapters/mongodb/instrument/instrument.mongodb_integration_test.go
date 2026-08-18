@@ -63,7 +63,7 @@ func createRepository(t *testing.T, container *mongotestutil.ContainerResult, or
 
 func TestIntegration_AliasRepo_Create(t *testing.T) {
 	// Arrange
-	container := mongotestutil.SetupContainer(t)
+	container := mongotestutil.SetupReusableContainer(t)
 	organizationID := "org-" + uuid.New().String()[:8]
 	repo := createRepository(t, container, organizationID)
 	ctx := context.Background()
@@ -89,7 +89,7 @@ func TestIntegration_AliasRepo_Create(t *testing.T) {
 
 func TestIntegration_AliasRepo_Create_EncryptsData(t *testing.T) {
 	// Arrange
-	container := mongotestutil.SetupContainer(t)
+	container := mongotestutil.SetupReusableContainer(t)
 	organizationID := "org-encrypt-" + uuid.New().String()[:8]
 	repo := createRepository(t, container, organizationID)
 	ctx := context.Background()
@@ -130,7 +130,7 @@ func TestIntegration_AliasRepo_Create_EncryptsData(t *testing.T) {
 
 func TestIntegration_AliasRepo_Create_DuplicateAccount(t *testing.T) {
 	// Arrange
-	container := mongotestutil.SetupContainer(t)
+	container := mongotestutil.SetupReusableContainer(t)
 	organizationID := "org-dup-" + uuid.New().String()[:8]
 	repo := createRepository(t, container, organizationID)
 	ctx := context.Background()
@@ -159,7 +159,7 @@ func TestIntegration_AliasRepo_Create_DuplicateAccount(t *testing.T) {
 
 func TestIntegration_AliasRepo_Find(t *testing.T) {
 	// Arrange
-	container := mongotestutil.SetupContainer(t)
+	container := mongotestutil.SetupReusableContainer(t)
 	organizationID := "org-find-" + uuid.New().String()[:8]
 	repo := createRepository(t, container, organizationID)
 	ctx := context.Background()
@@ -184,7 +184,7 @@ func TestIntegration_AliasRepo_Find(t *testing.T) {
 
 func TestIntegration_AliasRepo_Find_NotFound(t *testing.T) {
 	// Arrange
-	container := mongotestutil.SetupContainer(t)
+	container := mongotestutil.SetupReusableContainer(t)
 	organizationID := "org-notfound-" + uuid.New().String()[:8]
 	repo := createRepository(t, container, organizationID)
 	ctx := context.Background()
@@ -202,7 +202,7 @@ func TestIntegration_AliasRepo_Find_NotFound(t *testing.T) {
 
 func TestIntegration_AliasRepo_Find_ExcludesDeleted(t *testing.T) {
 	// Arrange
-	container := mongotestutil.SetupContainer(t)
+	container := mongotestutil.SetupReusableContainer(t)
 	organizationID := "org-deleted-" + uuid.New().String()[:8]
 	repo := createRepository(t, container, organizationID)
 	ctx := context.Background()
@@ -227,7 +227,7 @@ func TestIntegration_AliasRepo_Find_ExcludesDeleted(t *testing.T) {
 
 func TestIntegration_AliasRepo_Find_IncludesDeleted(t *testing.T) {
 	// Arrange
-	container := mongotestutil.SetupContainer(t)
+	container := mongotestutil.SetupReusableContainer(t)
 	organizationID := "org-incldel-" + uuid.New().String()[:8]
 	repo := createRepository(t, container, organizationID)
 	ctx := context.Background()
@@ -256,7 +256,7 @@ func TestIntegration_AliasRepo_Find_IncludesDeleted(t *testing.T) {
 
 func TestIntegration_AliasRepo_FindAll(t *testing.T) {
 	// Arrange
-	container := mongotestutil.SetupContainer(t)
+	container := mongotestutil.SetupReusableContainer(t)
 	organizationID := "org-findall-" + uuid.New().String()[:8]
 	repo := createRepository(t, container, organizationID)
 	ctx := context.Background()
@@ -282,7 +282,7 @@ func TestIntegration_AliasRepo_FindAll(t *testing.T) {
 
 func TestIntegration_AliasRepo_FindAll_Pagination(t *testing.T) {
 	// Arrange
-	container := mongotestutil.SetupContainer(t)
+	container := mongotestutil.SetupReusableContainer(t)
 	organizationID := "org-page-" + uuid.New().String()[:8]
 	repo := createRepository(t, container, organizationID)
 	ctx := context.Background()
@@ -325,7 +325,7 @@ func TestIntegration_AliasRepo_FindAll_Pagination(t *testing.T) {
 
 func TestIntegration_AliasRepo_FindAll_FilterByDocument(t *testing.T) {
 	// Arrange
-	container := mongotestutil.SetupContainer(t)
+	container := mongotestutil.SetupReusableContainer(t)
 	organizationID := "org-filterdoc-" + uuid.New().String()[:8]
 	repo := createRepository(t, container, organizationID)
 	ctx := context.Background()
@@ -357,7 +357,7 @@ func TestIntegration_AliasRepo_FindAll_FilterByDocument(t *testing.T) {
 
 func TestIntegration_AliasRepo_FindAll_FilterByAccountID(t *testing.T) {
 	// Arrange
-	container := mongotestutil.SetupContainer(t)
+	container := mongotestutil.SetupReusableContainer(t)
 	organizationID := "org-filteracc-" + uuid.New().String()[:8]
 	repo := createRepository(t, container, organizationID)
 	ctx := context.Background()
@@ -389,7 +389,7 @@ func TestIntegration_AliasRepo_FindAll_FilterByAccountID(t *testing.T) {
 
 func TestIntegration_AliasRepo_FindAll_ReturnsEmpty(t *testing.T) {
 	// Arrange
-	container := mongotestutil.SetupContainer(t)
+	container := mongotestutil.SetupReusableContainer(t)
 	organizationID := "org-empty-" + uuid.New().String()[:8]
 	repo := createRepository(t, container, organizationID)
 	ctx := context.Background()
@@ -410,7 +410,7 @@ func TestIntegration_AliasRepo_FindAll_ReturnsEmpty(t *testing.T) {
 
 func TestIntegration_AliasRepo_Update(t *testing.T) {
 	// Arrange
-	container := mongotestutil.SetupContainer(t)
+	container := mongotestutil.SetupReusableContainer(t)
 	organizationID := "org-update-" + uuid.New().String()[:8]
 	repo := createRepository(t, container, organizationID)
 	ctx := context.Background()
@@ -436,7 +436,7 @@ func TestIntegration_AliasRepo_Update(t *testing.T) {
 
 func TestIntegration_AliasRepo_Update_NotFound(t *testing.T) {
 	// Arrange
-	container := mongotestutil.SetupContainer(t)
+	container := mongotestutil.SetupReusableContainer(t)
 	organizationID := "org-upnotfound-" + uuid.New().String()[:8]
 	repo := createRepository(t, container, organizationID)
 	ctx := context.Background()
@@ -455,7 +455,7 @@ func TestIntegration_AliasRepo_Update_NotFound(t *testing.T) {
 
 func TestIntegration_AliasRepo_Update_FieldsToRemove(t *testing.T) {
 	// Arrange
-	container := mongotestutil.SetupContainer(t)
+	container := mongotestutil.SetupReusableContainer(t)
 	organizationID := "org-remove-" + uuid.New().String()[:8]
 	repo := createRepository(t, container, organizationID)
 	ctx := context.Background()
@@ -482,7 +482,7 @@ func TestIntegration_AliasRepo_Update_FieldsToRemove(t *testing.T) {
 
 func TestIntegration_AliasRepo_Delete_Soft(t *testing.T) {
 	// Arrange
-	container := mongotestutil.SetupContainer(t)
+	container := mongotestutil.SetupReusableContainer(t)
 	organizationID := "org-softdel-" + uuid.New().String()[:8]
 	repo := createRepository(t, container, organizationID)
 	ctx := context.Background()
@@ -507,7 +507,7 @@ func TestIntegration_AliasRepo_Delete_Soft(t *testing.T) {
 
 func TestIntegration_AliasRepo_Delete_Hard(t *testing.T) {
 	// Arrange
-	container := mongotestutil.SetupContainer(t)
+	container := mongotestutil.SetupReusableContainer(t)
 	organizationID := "org-harddel-" + uuid.New().String()[:8]
 	repo := createRepository(t, container, organizationID)
 	ctx := context.Background()
@@ -531,7 +531,7 @@ func TestIntegration_AliasRepo_Delete_Hard(t *testing.T) {
 
 func TestIntegration_AliasRepo_Delete_NotFound(t *testing.T) {
 	// Arrange
-	container := mongotestutil.SetupContainer(t)
+	container := mongotestutil.SetupReusableContainer(t)
 	organizationID := "org-delnotfound-" + uuid.New().String()[:8]
 	repo := createRepository(t, container, organizationID)
 	ctx := context.Background()
@@ -552,7 +552,7 @@ func TestIntegration_AliasRepo_Delete_NotFound(t *testing.T) {
 
 func TestIntegration_AliasRepo_Count(t *testing.T) {
 	// Arrange
-	container := mongotestutil.SetupContainer(t)
+	container := mongotestutil.SetupReusableContainer(t)
 	organizationID := "org-count-" + uuid.New().String()[:8]
 	repo := createRepository(t, container, organizationID)
 	ctx := context.Background()
@@ -577,7 +577,7 @@ func TestIntegration_AliasRepo_Count(t *testing.T) {
 
 func TestIntegration_AliasRepo_Count_ExcludesDeleted(t *testing.T) {
 	// Arrange
-	container := mongotestutil.SetupContainer(t)
+	container := mongotestutil.SetupReusableContainer(t)
 	organizationID := "org-countdel-" + uuid.New().String()[:8]
 	repo := createRepository(t, container, organizationID)
 	ctx := context.Background()
@@ -608,7 +608,7 @@ func TestIntegration_AliasRepo_Count_ExcludesDeleted(t *testing.T) {
 
 func TestIntegration_AliasRepo_Count_ReturnsZero(t *testing.T) {
 	// Arrange
-	container := mongotestutil.SetupContainer(t)
+	container := mongotestutil.SetupReusableContainer(t)
 	organizationID := "org-countzero-" + uuid.New().String()[:8]
 	repo := createRepository(t, container, organizationID)
 	ctx := context.Background()
@@ -628,7 +628,7 @@ func TestIntegration_AliasRepo_Count_ReturnsZero(t *testing.T) {
 
 func TestIntegration_AliasRepo_EncryptionRoundTrip(t *testing.T) {
 	// Arrange
-	container := mongotestutil.SetupContainer(t)
+	container := mongotestutil.SetupReusableContainer(t)
 	organizationID := "org-roundtrip-" + uuid.New().String()[:8]
 	repo := createRepository(t, container, organizationID)
 	ctx := context.Background()
@@ -694,7 +694,7 @@ func TestIntegration_AliasRepo_EncryptionRoundTrip(t *testing.T) {
 // ends up correctly indexed.
 func TestAliasRepository_Create_ConcurrentBurst_SingleIndexBuild(t *testing.T) {
 	// Arrange - fresh container, one new org, tracker reset for that exact collection key.
-	container := mongotestutil.SetupContainer(t)
+	container := mongotestutil.SetupReusableContainer(t)
 
 	organizationID := "org-burst-" + uuid.New().String()[:8]
 	repo := createRepository(t, container, organizationID)

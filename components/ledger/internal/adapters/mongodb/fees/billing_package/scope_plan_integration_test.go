@@ -74,7 +74,7 @@ func explainScopeFilter(t *testing.T, ctx context.Context, coll *mongo.Collectio
 // scan for it to remove. If a future filter stops pinning _id, these counts
 // climb with the collection and this test fails.
 func TestIntegration_BillingPackageScopeFilter_ResolvesBySingleDocumentFetch(t *testing.T) {
-	container := mongotestutil.SetupContainer(t)
+	container := mongotestutil.SetupReusableContainer(t)
 	ctx := context.Background()
 
 	conn := &feesmongo.MongoConnection{

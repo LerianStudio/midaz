@@ -29,8 +29,9 @@ type reusableMongoServer struct {
 	container testcontainers.Container
 	client    *mongo.Client
 	uri       string
-	sequence  atomic.Uint64
 }
+
+var ownedMongoDatabaseSequence atomic.Uint64
 
 var reusableMongoServers = struct {
 	sync.Mutex
@@ -52,10 +53,33 @@ func SetupReusableContainerWithConfig(tb testing.TB, cfg ContainerConfig) *Conta
 	tb.Helper()
 
 	server := getReusableMongoServer(tb, cfg)
-	sequence := server.sequence.Add(1)
+	database := createOwnedDatabase(tb, server.client)
+
+	return &ContainerResult{
+		Container: server.container,
+		Client:    server.client,
+		Database:  database,
+		URI:       server.uri,
+		DBName:    database.Name(),
+	}
+}
+
+// CreateOwnedDatabase allocates an additional isolated database on a reusable
+// MongoDB server. Multi-tenant tests use it when one test owns more than one
+// logical database; cleanup drops and audits the additional database as well.
+func CreateOwnedDatabase(tb testing.TB, container *ContainerResult) *mongo.Database {
+	tb.Helper()
+	require.NotNil(tb, container, "MongoDB container result is required")
+	require.NotNil(tb, container.Client, "MongoDB client is required")
+
+	return createOwnedDatabase(tb, container.Client)
+}
+
+func createOwnedDatabase(tb testing.TB, client *mongo.Client) *mongo.Database {
+	sequence := ownedMongoDatabaseSequence.Add(1)
 	sum := sha256.Sum256([]byte(fmt.Sprintf("%s-%d", tb.Name(), sequence)))
 	databaseName := fmt.Sprintf("midaz_test_%x", sum[:8])
-	database := server.client.Database(databaseName)
+	database := client.Database(databaseName)
 
 	tb.Cleanup(func() {
 		ctx := context.Background()
@@ -64,7 +88,7 @@ func SetupReusableContainerWithConfig(tb testing.TB, cfg ContainerConfig) *Conta
 			return
 		}
 
-		names, err := server.client.ListDatabaseNames(ctx, bson.M{"name": databaseName})
+		names, err := client.ListDatabaseNames(ctx, bson.M{"name": databaseName})
 		if err != nil {
 			tb.Errorf("failed to audit MongoDB test database cleanup %q: %v", databaseName, err)
 		} else if len(names) != 0 {
@@ -72,13 +96,7 @@ func SetupReusableContainerWithConfig(tb testing.TB, cfg ContainerConfig) *Conta
 		}
 	})
 
-	return &ContainerResult{
-		Container: server.container,
-		Client:    server.client,
-		Database:  database,
-		URI:       server.uri,
-		DBName:    databaseName,
-	}
+	return database
 }
 
 func getReusableMongoServer(tb testing.TB, cfg ContainerConfig) *reusableMongoServer {

@@ -89,7 +89,7 @@ func listIndexNames(t *testing.T, ctx context.Context, container *mongotestutil.
 // code-created mongo.IndexModel, not migration files, so this is the only place
 // their existence is verified end-to-end.
 func TestIntegration_FeesEnsureIndexes_PackAndBillingPackage(t *testing.T) {
-	container := mongotestutil.SetupContainer(t)
+	container := mongotestutil.SetupReusableContainer(t)
 	ctx := context.Background()
 
 	conn := newFeesConnection(t, container)
@@ -132,7 +132,7 @@ func TestIntegration_FeesEnsureIndexes_PackAndBillingPackage(t *testing.T) {
 // counterpart here. Catching it needs the keys pinned against a committed
 // expectation, not a self-comparison.
 func TestIntegration_FeesEnsureIndexes_Idempotent(t *testing.T) {
-	container := mongotestutil.SetupContainer(t)
+	container := mongotestutil.SetupReusableContainer(t)
 	ctx := context.Background()
 
 	conn := newFeesConnection(t, container)
