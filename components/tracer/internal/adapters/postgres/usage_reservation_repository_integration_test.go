@@ -52,6 +52,20 @@ func inRealTx(t *testing.T, db *sql.DB, fn func(tx *sql.Tx) error) error {
 	return tx.Commit()
 }
 
+func runRealTx(ctx context.Context, db *sql.DB, fn func(tx *sql.Tx) error) error {
+	tx, err := db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+
+	if err := fn(tx); err != nil {
+		_ = tx.Rollback()
+		return err
+	}
+
+	return tx.Commit()
+}
+
 // createTestLimitNamed seeds an ACTIVE limit with an explicit, unique name so
 // multiple limits can coexist in one test without colliding on the global
 // idx_limits_name_active partial unique index (the shared createTestLimit derives
@@ -292,6 +306,129 @@ func TestIntegration_UsageReservationRepository_ApplyOutcomeV2_ConcurrentOpposit
 	} else {
 		require.Equal(t, string(model.StatusReleased), status)
 	}
+}
+
+func TestIntegration_UsageReservationRepository_ReserveAndOutcomeSerialize(t *testing.T) {
+	testutil.SetupTestTracing(t)
+	db := testutil.SetupIntegrationDB(t)
+	repo := newReservationRepoIntegration(db)
+
+	limitID := createTestLimitNamed(t, db, 9931, "reserve-outcome-serialization")
+	transactionID := testutil.MustDeterministicUUID(9932)
+	outcomeID := testutil.MustDeterministicUUID(9933)
+	now := time.Date(2026, 8, 18, 16, 0, 0, 0, time.UTC)
+	scope, period := "v2:9931", "2026-08"
+	t.Cleanup(func() {
+		cleanupOutcomeTransaction(t, db, transactionID)
+		cleanupTestLimit(t, db, limitID)
+	})
+
+	// Outcome-first is terminal even with zero limits: a later reserve must fail
+	// rather than create a hold that every receipt replay would skip.
+	require.NoError(t, runRealTx(t.Context(), db, func(tx *sql.Tx) error {
+		_, _, _, err := repo.ApplyOutcomeWithTx(t.Context(), tx, transactionID, outcomeID, model.OutcomeAborted, now)
+		return err
+	}))
+
+	lateReservation := newV2Reservation(t, limitID, transactionID, scope, period, 10, now)
+	err := runRealTx(t.Context(), db, func(tx *sql.Tx) error {
+		_, _, reserveErr := repo.ReserveWithTx(t.Context(), tx, lateReservation, 10000, nil)
+		return reserveErr
+	})
+	require.ErrorIs(t, err, constant.ErrReservationOutcomeConflict)
+
+	cleanupOutcomeTransaction(t, db, transactionID)
+
+	// A real concurrent race has only two valid serial orders: reserve wins and
+	// the outcome consumes it, or outcome wins and reserve is rejected. Neither
+	// order may leave a RESERVED row behind a terminal receipt.
+	reservation := newV2Reservation(t, limitID, transactionID, scope, period, 25, now)
+	start := make(chan struct{})
+	results := make(chan error, 2)
+	var wg sync.WaitGroup
+
+	wg.Add(2)
+	go func() {
+		defer wg.Done()
+		<-start
+		results <- runRealTx(t.Context(), db, func(tx *sql.Tx) error {
+			_, _, reserveErr := repo.ReserveWithTx(t.Context(), tx, reservation, 10000, nil)
+			return reserveErr
+		})
+	}()
+	go func() {
+		defer wg.Done()
+		<-start
+		results <- runRealTx(t.Context(), db, func(tx *sql.Tx) error {
+			_, _, _, applyErr := repo.ApplyOutcomeWithTx(t.Context(), tx, transactionID, outcomeID, model.OutcomeCommitted, now)
+			return applyErr
+		})
+	}()
+	close(start)
+	wg.Wait()
+	close(results)
+
+	var successes, conflicts int
+	for resultErr := range results {
+		switch {
+		case resultErr == nil:
+			successes++
+		case errors.Is(resultErr, constant.ErrReservationOutcomeConflict):
+			conflicts++
+		default:
+			t.Fatalf("unexpected reserve/outcome race error: %v", resultErr)
+		}
+	}
+	require.GreaterOrEqual(t, successes, 1)
+	require.Equal(t, 2, successes+conflicts)
+
+	var stuck int
+	require.NoError(t, db.QueryRow(`
+		SELECT COUNT(*)
+		FROM usage_reservations AS reservation
+		JOIN reservation_outcome_receipts AS receipt USING (transaction_id)
+		WHERE reservation.transaction_id = $1
+		  AND reservation.status = 'RESERVED'
+	`, transactionID).Scan(&stuck))
+	require.Zero(t, stuck)
+}
+
+func TestIntegration_UsageCounterCleanup_PreservesStaleV2UntilOutcome(t *testing.T) {
+	testutil.SetupTestTracing(t)
+	db := testutil.SetupIntegrationDB(t)
+	adapter := &testutil.IntegrationDBAdapter{DB: db}
+	counterRepo := NewUsageCounterRepositoryWithConnection(adapter)
+	repo := NewUsageReservationRepositoryWithConnection(counterRepo)
+
+	limitID := createTestLimitNamed(t, db, 9941, "stale-v2-counter-hold")
+	transactionID := testutil.MustDeterministicUUID(9942)
+	outcomeID := testutil.MustDeterministicUUID(9943)
+	now := time.Date(2026, 8, 18, 17, 0, 0, 0, time.UTC)
+	scope, period := "v2:9941", "2026-05"
+	expiredCounterAt := now.Add(-time.Hour)
+	t.Cleanup(func() {
+		cleanupOutcomeTransaction(t, db, transactionID)
+		cleanupTestLimit(t, db, limitID)
+	})
+
+	reservation := newV2Reservation(t, limitID, transactionID, scope, period, 90, now.Add(-91*24*time.Hour))
+	require.NoError(t, runRealTx(t.Context(), db, func(tx *sql.Tx) error {
+		_, _, err := repo.ReserveWithTx(t.Context(), tx, reservation, 10000, &expiredCounterAt)
+		return err
+	}))
+
+	_, err := counterRepo.DeleteExpiredCounters(t.Context(), now)
+	require.NoError(t, err)
+	_, reserved := readCounter(t, db, limitID, scope, period)
+	require.Equal(t, int64(90), reserved)
+
+	require.NoError(t, runRealTx(t.Context(), db, func(tx *sql.Tx) error {
+		_, _, _, applyErr := repo.ApplyOutcomeWithTx(t.Context(), tx, transactionID, outcomeID, model.OutcomeCommitted, now)
+		return applyErr
+	}))
+	current, reserved := readCounter(t, db, limitID, scope, period)
+	require.Equal(t, int64(90), current)
+	require.Zero(t, reserved)
 }
 
 // TestIntegration_UsageReservationRepository_DoubleConfirm_Idempotent proves the

@@ -49120,7 +49120,7 @@
             "description": "",
             "body": {
               "mode": "raw",
-              "raw": "\"Example string\"",
+              "raw": "{\n  \"account\": {\n    \"accountId\": \"00000000-0000-0000-0000-000000000000\",\n    \"metadata\": {\n      \"key\": \"value\"\n    },\n    \"status\": \"active\",\n    \"type\": \"checking\"\n  },\n  \"amount\": \"100.00\",\n  \"currency\": \"USD\",\n  \"deliveryMode\": \"LEGACY\",\n  \"longLived\": false,\n  \"merchant\": {\n    \"category\": \"5411\",\n    \"country\": \"US\",\n    \"merchantId\": \"00000000-0000-0000-0000-000000000000\",\n    \"metadata\": {\n      \"key\": \"value\"\n    },\n    \"name\": \"Acme Store\"\n  },\n  \"metadata\": {\n    \"key\": \"value\"\n  },\n  \"portfolio\": {\n    \"metadata\": {\n      \"key\": \"value\"\n    },\n    \"name\": \"growth\",\n    \"portfolioId\": \"00000000-0000-0000-0000-000000000000\"\n  },\n  \"requestId\": \"00000000-0000-0000-0000-000000000000\",\n  \"segment\": {\n    \"metadata\": {\n      \"key\": \"value\"\n    },\n    \"name\": \"retail\",\n    \"segmentId\": \"00000000-0000-0000-0000-000000000000\"\n  },\n  \"subType\": \"purchase\",\n  \"transactionId\": \"00000000-0000-0000-0000-000000000000\",\n  \"transactionTimestamp\": \"2021-01-01T00:00:00Z\",\n  \"transactionType\": \"CARD\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -49159,7 +49159,7 @@
                 },
                 "body": {
                   "mode": "raw",
-                  "raw": "\"Example string\"",
+                  "raw": "{\n  \"account\": {\n    \"accountId\": \"00000000-0000-0000-0000-000000000000\",\n    \"metadata\": {\n      \"key\": \"value\"\n    },\n    \"status\": \"active\",\n    \"type\": \"checking\"\n  },\n  \"amount\": \"100.00\",\n  \"currency\": \"USD\",\n  \"deliveryMode\": \"LEGACY\",\n  \"longLived\": false,\n  \"merchant\": {\n    \"category\": \"5411\",\n    \"country\": \"US\",\n    \"merchantId\": \"00000000-0000-0000-0000-000000000000\",\n    \"metadata\": {\n      \"key\": \"value\"\n    },\n    \"name\": \"Acme Store\"\n  },\n  \"metadata\": {\n    \"key\": \"value\"\n  },\n  \"portfolio\": {\n    \"metadata\": {\n      \"key\": \"value\"\n    },\n    \"name\": \"growth\",\n    \"portfolioId\": \"00000000-0000-0000-0000-000000000000\"\n  },\n  \"requestId\": \"00000000-0000-0000-0000-000000000000\",\n  \"segment\": {\n    \"metadata\": {\n      \"key\": \"value\"\n    },\n    \"name\": \"retail\",\n    \"segmentId\": \"00000000-0000-0000-0000-000000000000\"\n  },\n  \"subType\": \"purchase\",\n  \"transactionId\": \"00000000-0000-0000-0000-000000000000\",\n  \"transactionTimestamp\": \"2021-01-01T00:00:00Z\",\n  \"transactionType\": \"CARD\"\n}",
                   "options": {
                     "raw": {
                       "language": "json"
@@ -49452,7 +49452,7 @@
             "description": "",
             "body": {
               "mode": "raw",
-              "raw": "\"Example string\"",
+              "raw": "{\n  \"outcome\": \"COMMITTED\",\n  \"outcomeId\": \"00000000-0000-0000-0000-000000000000\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -49501,7 +49501,7 @@
                 },
                 "body": {
                   "mode": "raw",
-                  "raw": "\"Example string\"",
+                  "raw": "{\n  \"outcome\": \"COMMITTED\",\n  \"outcomeId\": \"00000000-0000-0000-0000-000000000000\"\n}",
                   "options": {
                     "raw": {
                       "language": "json"

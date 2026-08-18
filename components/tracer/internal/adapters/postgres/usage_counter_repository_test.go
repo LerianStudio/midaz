@@ -123,6 +123,26 @@ func testUsageCounter(limitID uuid.UUID) *model.UsageCounter {
 	}
 }
 
+func TestUsageCounterRepository_DeleteExpiredCountersPreservesV2Holds(t *testing.T) {
+	testutil.SetupTestTracing(t)
+
+	repo, _, mock, cleanup := setupUsageCounterRepositoryMockDB(t)
+	defer cleanup()
+
+	now := testutil.FixedTime()
+	mock.ExpectExec(`DELETE FROM usage_counters AS counters`).
+		WithArgs(now, 1000).
+		WillReturnResult(sqlmock.NewResult(0, 1))
+	mock.ExpectExec(`DELETE FROM usage_counters AS counters`).
+		WithArgs(now, 1000).
+		WillReturnResult(sqlmock.NewResult(0, 0))
+
+	deleted, err := repo.DeleteExpiredCounters(context.Background(), now)
+	require.NoError(t, err)
+	assert.Equal(t, int64(1), deleted)
+	require.NoError(t, mock.ExpectationsWereMet())
+}
+
 func TestUsageCounterRepository_GetOrCreateForUpdate_ConnectionError(t *testing.T) {
 	testutil.SetupTestTracing(t)
 

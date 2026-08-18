@@ -33,7 +33,7 @@ type ReserveRequest struct {
 	// field, NOT part of the embedded ValidationRequest, so the relaxed reserve
 	// validation never sees it.
 	LongLived               bool                          `json:"longLived,omitempty" example:"false"`
-	DeliveryMode            model.ReservationDeliveryMode `json:"deliveryMode,omitempty" enums:"UNSPECIFIED,LEGACY,LEDGER_OUTCOME_V2" example:"LEGACY"`
+	DeliveryMode            model.ReservationDeliveryMode `json:"deliveryMode,omitempty" enum:"UNSPECIFIED,LEGACY,LEDGER_OUTCOME_V2" example:"LEGACY"`
 	model.ValidationRequest `swaggerignore:"true"`
 }
 
@@ -54,6 +54,7 @@ func (r *ReserveRequest) NormalizeAndReserveValidate(now time.Time) error {
 	if err != nil {
 		return err
 	}
+
 	r.DeliveryMode = deliveryMode
 
 	return r.NormalizeAndValidateForReserve(now)
@@ -82,7 +83,7 @@ type ReserveResponse struct {
 // returns the same terminal status with HTTP 200.
 type ReservationActionResponse struct {
 	ReservationID uuid.UUID `json:"reservationId" swaggertype:"string" format:"uuid"`
-	Status        string    `json:"status" enums:"CONFIRMED,RELEASED" example:"CONFIRMED"`
+	Status        string    `json:"status" enum:"CONFIRMED,RELEASED" example:"CONFIRMED"`
 }
 
 // TransactionActionResponse is the body returned by the by-transaction confirm and
@@ -94,7 +95,7 @@ type ReservationActionResponse struct {
 // already terminal.
 type TransactionActionResponse struct {
 	TransactionID uuid.UUID `json:"transactionId" swaggertype:"string" format:"uuid"`
-	Status        string    `json:"status" enums:"CONFIRMED,RELEASED" example:"CONFIRMED"`
+	Status        string    `json:"status" enum:"CONFIRMED,RELEASED" example:"CONFIRMED"`
 	Flipped       int       `json:"flipped" example:"2"`
 }
 
@@ -103,7 +104,7 @@ type TransactionActionResponse struct {
 // retries; Outcome is the immutable accounting decision.
 type ApplyOutcomeRequest struct {
 	OutcomeID string                   `json:"outcomeId" format:"uuid"`
-	Outcome   model.ReservationOutcome `json:"outcome" enums:"COMMITTED,ABORTED" example:"COMMITTED"`
+	Outcome   model.ReservationOutcome `json:"outcome" enum:"COMMITTED,ABORTED" example:"COMMITTED"`
 }
 
 func (r *ApplyOutcomeRequest) Validate() (uuid.UUID, error) {
@@ -113,6 +114,7 @@ func (r *ApplyOutcomeRequest) Validate() (uuid.UUID, error) {
 	}
 
 	_, err = r.Outcome.TerminalStatus()
+
 	return outcomeID, err
 }
 
@@ -121,7 +123,7 @@ func (r *ApplyOutcomeRequest) Validate() (uuid.UUID, error) {
 type ApplyOutcomeResponse struct {
 	TransactionID    uuid.UUID                `json:"transactionId" swaggertype:"string" format:"uuid"`
 	OutcomeID        uuid.UUID                `json:"outcomeId" swaggertype:"string" format:"uuid"`
-	Outcome          model.ReservationOutcome `json:"outcome" enums:"COMMITTED,ABORTED"`
+	Outcome          model.ReservationOutcome `json:"outcome" enum:"COMMITTED,ABORTED"`
 	ReservationCount int                      `json:"reservationCount" example:"2"`
 	Replayed         bool                     `json:"replayed" example:"false"`
 }

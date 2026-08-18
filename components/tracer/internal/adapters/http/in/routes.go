@@ -210,6 +210,7 @@ func NewRoutes(deps RoutesDeps) (*fiber.App, error) {
 
 		return nil
 	})
+
 	tlMid := libObsMiddleware.NewTelemetryMiddleware(tl)
 
 	// Middleware order is CRITICAL per Ring Standards:

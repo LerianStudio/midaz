@@ -600,9 +600,8 @@ func LoadCleanupWorkerConfig(ctx context.Context, cfg *Config, logger libLog.Log
 }
 
 // LoadReservationReaperConfig creates a ReservationReaperWorkerConfig from
-// environment configuration. Returns a nil config (no error) when the reaper is
-// disabled (RESERVATION_REAPER_ENABLED=false, the default) so the caller can
-// propagate the "disabled" signal end-to-end exactly like LoadCleanupWorkerConfig.
+// environment configuration. The worker always runs to publish the V2 backlog;
+// RESERVATION_REAPER_ENABLED only authorizes autonomous expiry of legacy rows.
 // Returns an error if config or logger is nil, or if the interval is invalid.
 func LoadReservationReaperConfig(ctx context.Context, cfg *Config, logger libLog.Logger) (*workers.ReservationReaperWorkerConfig, error) {
 	if cfg == nil {
@@ -613,14 +612,6 @@ func LoadReservationReaperConfig(ctx context.Context, cfg *Config, logger libLog
 		return nil, fmt.Errorf("logger cannot be nil")
 	}
 
-	if !cfg.ReservationReaperEnabled {
-		logger.With(
-			libLog.String("config", "RESERVATION_REAPER_ENABLED"),
-		).Log(ctx, libLog.LevelInfo, "Reservation reaper worker is DISABLED")
-
-		return nil, nil
-	}
-
 	reapInterval, err := parseReservationReaperIntervalSeconds(cfg.ReservationReaperIntervalSeconds)
 	if err != nil {
 		return nil, fmt.Errorf("invalid RESERVATION_REAPER_INTERVAL_SECONDS: %w", err)
@@ -628,10 +619,12 @@ func LoadReservationReaperConfig(ctx context.Context, cfg *Config, logger libLog
 
 	logger.With(
 		libLog.String("reap_interval", reapInterval.String()),
-	).Log(ctx, libLog.LevelInfo, "Reservation reaper worker configuration loaded")
+		libLog.Bool("legacy_release_enabled", cfg.ReservationReaperEnabled),
+	).Log(ctx, libLog.LevelInfo, "Reservation lifecycle observer configuration loaded")
 
 	return &workers.ReservationReaperWorkerConfig{
-		ReapInterval: reapInterval,
+		ReapInterval:  reapInterval,
+		ReleaseLegacy: cfg.ReservationReaperEnabled,
 	}, nil
 }
 
@@ -1325,6 +1318,7 @@ func buildMultiTenantStack(
 	limitDeps *limitServiceDeps,
 	celAdapter *cel.Adapter,
 	clk clock.Clock,
+	operatorMetricsFactory *libMetrics.MetricsFactory,
 ) (*componentsMT, metrics.MultiTenantMetrics, error) {
 	var mtFactory *libMetrics.MetricsFactory
 	if telemetry != nil {
@@ -1339,7 +1333,7 @@ func buildMultiTenantStack(
 	// (rare fallback path that should never fire in production).
 	mtMetrics := metrics.NewMultiTenantMetrics(cfg.MultiTenantEnabled, mtFactory, logger)
 
-	mtComponents, err := initMultiTenant(ctx, cfg, logger, ruleCache, ruleSyncRepo, limitDeps, celAdapter, clk, mtMetrics)
+	mtComponents, err := initMultiTenant(ctx, cfg, logger, ruleCache, ruleSyncRepo, limitDeps, celAdapter, clk, mtMetrics, operatorMetricsFactory)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -1366,6 +1360,7 @@ func initMultiTenant(
 	celAdapter *cel.Adapter,
 	clk clock.Clock,
 	mtMetrics metrics.MultiTenantMetrics,
+	metricsFactory *libMetrics.MetricsFactory,
 ) (*componentsMT, error) {
 	if !cfg.MultiTenantEnabled {
 		return nil, nil
@@ -1400,6 +1395,7 @@ func initMultiTenant(
 	}
 
 	var resolvedReaper workers.ReservationReaperWorkerConfig
+
 	reaperEnabled := reaperCfg != nil
 	if reaperEnabled {
 		resolvedReaper = *reaperCfg
@@ -1444,6 +1440,7 @@ func initMultiTenant(
 			ReaperAuditor:       limitDeps.reservationReaperAudit,
 			ReaperConfig:        resolvedReaper,
 			ReaperWorkerEnabled: reaperEnabled,
+			MetricsFactory:      metricsFactory,
 		},
 	)
 	if err != nil {
@@ -1503,17 +1500,20 @@ func initWorkers(
 	mtComponents *componentsMT,
 	streamingEmitter libStreaming.Emitter,
 	streamingClose func() error,
+	metricsFactory *libMetrics.MetricsFactory,
+	operatorMetricsClose func() error,
 ) (*Service, error) {
 	svc := &Service{
-		HTTPServer:       serverAPI,
-		grpcServer:       grpcServer,
-		Logger:           logger,
-		postgresConn:     postgresConn,
-		healthChecker:    healthChecker,
-		config:           cfg,
-		StreamingEmitter: streamingEmitter,
-		StreamingClose:   streamingClose,
-		StreamingEnabled: cfg.StreamingEnabled,
+		HTTPServer:           serverAPI,
+		grpcServer:           grpcServer,
+		Logger:               logger,
+		postgresConn:         postgresConn,
+		healthChecker:        healthChecker,
+		config:               cfg,
+		StreamingEmitter:     streamingEmitter,
+		StreamingClose:       streamingClose,
+		StreamingEnabled:     cfg.StreamingEnabled,
+		operatorMetricsClose: operatorMetricsClose,
 	}
 
 	if mtComponents != nil {
@@ -1537,14 +1537,17 @@ func initWorkers(
 	if err != nil {
 		return nil, err
 	}
+
 	if reaperConfig != nil {
-		svc.reservationReaper, err = workers.NewReservationReaperWorker(
+		svc.reservationReaper, err = workers.NewReservationReaperWorkerWithTelemetry(
 			limitDeps.reservationReaperRepo,
 			limitDeps.reservationReaperAudit,
 			*reaperConfig,
 			logger,
 			clk,
 			"",
+			nil,
+			metricsFactory,
 		)
 		if err != nil {
 			return nil, fmt.Errorf("failed to initialize reservation reaper: %w", err)
@@ -1845,7 +1848,11 @@ func InitServers(ctx context.Context) (*Service, error) {
 	// across the migration. A failure here is non-fatal: the bootstrap
 	// continues with a no-op recorder so probe semantics still gate /health,
 	// only metric emission is silenced.
-	readyzRecorder := buildReadyzRecorder(ctx, logger)
+	readyzRecorder, operatorMetricsFactory, operatorMetricsClose := buildReadyzRecorder(ctx, logger)
+
+	operatorMetricsTransferred := false
+	defer closeOperatorMetricsOnBootFailure(&operatorMetricsTransferred, operatorMetricsClose)
+
 	healthChecker.SetReadyzRecorder(readyzRecorder)
 
 	// Wire the streaming /readyz probe. The emitter is always non-nil (a
@@ -1925,7 +1932,7 @@ func InitServers(ctx context.Context) (*Service, error) {
 	limitDeps.reservationReaperRepo = postgres.NewReservationReaperRepository(pgConn, txBeginner, limitDeps.usageReservationRepo)
 	limitDeps.reservationReaperAudit = auditWriter
 
-	mtComponents, mtMetrics, err := buildMultiTenantStack(ctx, cfg, logger, telemetry, ruleCache, ruleSyncRepo, limitDeps, celAdapter, clk)
+	mtComponents, mtMetrics, err := buildMultiTenantStack(ctx, cfg, logger, telemetry, ruleCache, ruleSyncRepo, limitDeps, celAdapter, clk, operatorMetricsFactory)
 	if err != nil {
 		return nil, err
 	}
@@ -1972,10 +1979,12 @@ func InitServers(ctx context.Context) (*Service, error) {
 	// finalizeStartup also builds the opt-in reservation gRPC server and runs the
 	// startup self-probe BEFORE the HTTP server begins accepting traffic; folded
 	// into one helper to keep InitServers under the gocyclo budget.
-	svc, err := finalizeStartup(ctx, cfg, limitDeps, syncWorker, serverAPI, reservationService, postgresConn, healthChecker, logger, telemetry, clk, mtComponents, streamingEmitter, streamingClose)
+	svc, err := finalizeStartup(ctx, cfg, limitDeps, syncWorker, serverAPI, reservationService, postgresConn, healthChecker, logger, telemetry, clk, mtComponents, streamingEmitter, streamingClose, operatorMetricsFactory, operatorMetricsClose)
 	if err != nil {
 		return nil, err
 	}
+
+	operatorMetricsTransferred = true
 
 	// Hand the service-discovery outputs to the Service so Run() can register the
 	// discovery Launcher app (only when enabled) and drive graceful deregister.
@@ -1992,6 +2001,12 @@ func InitServers(ctx context.Context) (*Service, error) {
 	initSuccess = true
 
 	return svc, nil
+}
+
+func closeOperatorMetricsOnBootFailure(transferred *bool, closeMetrics func() error) {
+	if !*transferred && closeMetrics != nil {
+		_ = closeMetrics()
+	}
 }
 
 // metricsFactoryFromTelemetry reads the MetricsFactory off the telemetry handle
@@ -2147,6 +2162,8 @@ func finalizeStartup(
 	mtComponents *componentsMT,
 	streamingEmitter libStreaming.Emitter,
 	streamingClose func() error,
+	operatorMetricsFactory *libMetrics.MetricsFactory,
+	operatorMetricsClose func() error,
 ) (*Service, error) {
 	var pgManager *tmpostgres.Manager
 	if mtComponents != nil {
@@ -2158,7 +2175,7 @@ func finalizeStartup(
 		return nil, err
 	}
 
-	svc, err := initWorkers(ctx, cfg, limitDeps, syncWorker, serverAPI, grpcServer, postgresConn, healthChecker, logger, clk, mtComponents, streamingEmitter, streamingClose)
+	svc, err := initWorkers(ctx, cfg, limitDeps, syncWorker, serverAPI, grpcServer, postgresConn, healthChecker, logger, clk, mtComponents, streamingEmitter, streamingClose, operatorMetricsFactory, operatorMetricsClose)
 	if err != nil {
 		return nil, err
 	}
@@ -2180,11 +2197,11 @@ func finalizeStartup(
 // recorder so /readyz and the self-probe keep functioning end-to-end. The
 // error is logged at Warn level so operators notice the missing metric
 // stream without crashlooping the pod.
-func buildReadyzRecorder(ctx context.Context, logger libLog.Logger) *observability.Recorder {
+func buildReadyzRecorder(ctx context.Context, logger libLog.Logger) (*observability.Recorder, *libMetrics.MetricsFactory, func() error) {
 	// Note: NewPrometheusBackedFactory builds Prometheus
 	// HTTP-handler closures that serve scrape requests on their own ctx;
 	// boot ctx is the wrong lifecycle.
-	factory, _, err := observability.NewPrometheusBackedFactory(nil, logger)
+	factory, shutdown, err := observability.NewPrometheusBackedFactory(nil, logger)
 	if err != nil {
 		if logger != nil {
 			logger.With(
@@ -2194,10 +2211,10 @@ func buildReadyzRecorder(ctx context.Context, logger libLog.Logger) *observabili
 				"Falling back to no-op /readyz recorder")
 		}
 
-		return observability.NewNopRecorder()
+		return observability.NewNopRecorder(), nil, nil
 	}
 
-	return observability.NewRecorder(factory, logger)
+	return observability.NewRecorder(factory, logger), factory, shutdown
 }
 
 // executeStartupSelfProbe wires the /health gate and runs the one-shot

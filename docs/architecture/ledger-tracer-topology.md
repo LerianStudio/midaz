@@ -284,13 +284,20 @@ Tracer owns reservation capacity and the durable receipt. There is no Tracer-to-
 4. The exact `(transactionId, outcomeId, outcome)` replay returns the stored receipt without another
    counter move or audit. Any different terminal decision for that transaction is a conflict. A
    different outcome ID cannot replace the transaction's receipt.
+5. Reserve and ApplyOutcome serialize on the transaction ID. Once a receipt exists, no later reserve
+   can enter for that transaction; mixing V1 and V2 reservations under one transaction is also a
+   conflict. This prevents a zero-limit outcome racing a late reserve into a permanent hold.
 
 ### Expiry and observability
 
 The reaper selects `LEGACY` reservations only. A V2 reservation stays `RESERVED` until the Ledger
 delivers `COMMITTED` or `ABORTED`, including PENDING reservations older than 30 days. This deliberately
 prefers held capacity over silently reopening a limit after money may have moved. The reaper reports
-the V2 outstanding count and oldest age as gauges; observing a stale backlog never releases it.
+the V2 outstanding count and oldest age as gauges; observing a stale backlog never releases it. The
+observer runs even when `RESERVATION_REAPER_ENABLED=false`; that switch controls only autonomous V1
+expiry. In multi-tenant deployments, both gauges carry `tenant_id` so tenants cannot overwrite each
+other's series. Counter retention also skips every counter referenced by a live reservation, so a V2
+outcome remains applicable after the normal counter-retention horizon.
 
 ### Tenant boundary
 

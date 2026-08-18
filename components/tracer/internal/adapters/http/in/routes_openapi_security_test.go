@@ -9,6 +9,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"github.com/gofiber/fiber/v3"
@@ -34,8 +35,13 @@ type openAPISpec struct {
 
 type openAPIOperation struct {
 	// Security is a list of requirement objects; multiple entries mean OR.
-	Security  []map[string][]string      `json:"security"`
-	Responses map[string]openAPIResponse `json:"responses"`
+	Security    []map[string][]string      `json:"security"`
+	Responses   map[string]openAPIResponse `json:"responses"`
+	RequestBody struct {
+		Content map[string]struct {
+			Schema openAPISchema `json:"schema"`
+		} `json:"content"`
+	} `json:"requestBody"`
 }
 
 type openAPIResponse struct {
@@ -54,7 +60,43 @@ type openAPISecurityScheme struct {
 }
 
 type openAPISchema struct {
-	Properties map[string]json.RawMessage `json:"properties"`
+	Ref        string                   `json:"$ref"`
+	Type       any                      `json:"type"`
+	Enum       []any                    `json:"enum"`
+	Properties map[string]openAPISchema `json:"properties"`
+	Required   []string                 `json:"required"`
+}
+
+func requestSchema(t *testing.T, spec openAPISpec, path string) openAPISchema {
+	t.Helper()
+	operation, ok := op(spec, path, http.MethodPost)
+	require.True(t, ok)
+	schema := operation.RequestBody.Content["application/json"].Schema
+	if schema.Ref == "" {
+		return schema
+	}
+	const prefix = "#/components/schemas/"
+	require.Contains(t, schema.Ref, prefix)
+	resolved, ok := spec.Components.Schemas[strings.TrimPrefix(schema.Ref, prefix)]
+	require.True(t, ok, "request schema ref %s must resolve", schema.Ref)
+	return resolved
+}
+
+func TestSpecLock_ReservationV2RequestBodies(t *testing.T) {
+	spec := fetchTracerSpec(t)
+
+	reserve := requestSchema(t, spec, "/reservations")
+	delivery, ok := reserve.Properties["deliveryMode"]
+	require.True(t, ok, "Reserve must publish deliveryMode")
+	assert.ElementsMatch(t, []any{"UNSPECIFIED", "LEGACY", "LEDGER_OUTCOME_V2"}, delivery.Enum)
+	assert.NotContains(t, reserve.Required, "account", "reserve accepts transactions without an internal account")
+	assert.NotContains(t, reserve.Required, "transactionType", "reserve accepts external-source transactions without a rail type")
+
+	outcome := requestSchema(t, spec, "/reservations/transaction/{transaction_id}/outcome")
+	require.Contains(t, outcome.Properties, "outcomeId")
+	outcomeValue, ok := outcome.Properties["outcome"]
+	require.True(t, ok)
+	assert.ElementsMatch(t, []any{"COMMITTED", "ABORTED"}, outcomeValue.Enum)
 }
 
 // fetchTracerSpec builds the tracer routes with the spec surface enabled and

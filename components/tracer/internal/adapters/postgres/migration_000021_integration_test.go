@@ -29,12 +29,14 @@ func migration000021SQL(t *testing.T, direction string) string {
 
 func TestIntegration_Migration000021_UpSchemaAndLegacyDefault(t *testing.T) {
 	db := testutil.SetupIntegrationDB(t)
+	_, err := db.Exec(migration000021SQL(t, "up"))
+	require.NoError(t, err, "up migration must be idempotent")
 
 	var (
 		columnDefault string
 		nullable      string
 	)
-	err := db.QueryRow(`
+	err = db.QueryRow(`
 		SELECT column_default, is_nullable
 		FROM information_schema.columns
 		WHERE table_schema = 'public'
@@ -57,6 +59,19 @@ func TestIntegration_Migration000021_UpSchemaAndLegacyDefault(t *testing.T) {
 	`).Scan(&receiptPK)
 	require.NoError(t, err)
 	require.True(t, receiptPK)
+
+	var supportingIndexes int
+	err = db.QueryRow(`
+		SELECT COUNT(*)
+		FROM pg_indexes
+		WHERE schemaname = 'public'
+		  AND indexname IN (
+			'idx_usage_reservations_reserved_counter',
+			'idx_usage_reservations_v2_outstanding'
+		  )
+	`).Scan(&supportingIndexes)
+	require.NoError(t, err)
+	require.Equal(t, 2, supportingIndexes)
 }
 
 func TestIntegration_Migration000021_DownRefusesLiveReceipt(t *testing.T) {
@@ -114,6 +129,8 @@ func TestIntegration_Migration000021_DownSucceedsWhenBacklogEmpty(t *testing.T) 
 
 	_, err = tx.Exec(migration000021SQL(t, "down"))
 	require.NoError(t, err)
+	_, err = tx.Exec(migration000021SQL(t, "down"))
+	require.NoError(t, err, "down migration must be idempotent once V2 state is absent")
 
 	var deliveryModeColumnExists bool
 	err = tx.QueryRow(`

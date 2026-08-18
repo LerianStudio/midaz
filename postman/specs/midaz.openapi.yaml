@@ -11237,9 +11237,68 @@ paths:
         content:
           application/json:
             schema:
-              contentMediaType: application/octet-stream
-              format: binary
-              type: string
+              additionalProperties: false
+              properties:
+                account:
+                  $ref: '#/components/schemas/AccountContext'
+                amount:
+                  examples:
+                    - '100.00'
+                  type: string
+                currency:
+                  examples:
+                    - USD
+                  type: string
+                deliveryMode:
+                  enum:
+                    - UNSPECIFIED
+                    - LEGACY
+                    - LEDGER_OUTCOME_V2
+                  examples:
+                    - LEGACY
+                  type: string
+                longLived:
+                  examples:
+                    - false
+                  type: boolean
+                merchant:
+                  $ref: '#/components/schemas/MerchantContext'
+                metadata:
+                  additionalProperties: {}
+                  type: object
+                portfolio:
+                  $ref: '#/components/schemas/PortfolioContext'
+                requestId:
+                  examples:
+                    - 00000000-0000-0000-0000-000000000000
+                  format: uuid
+                  type: string
+                segment:
+                  $ref: '#/components/schemas/SegmentContext'
+                subType:
+                  examples:
+                    - purchase
+                  maxLength: 50
+                  type: string
+                transactionId:
+                  format: uuid
+                  type: string
+                transactionTimestamp:
+                  examples:
+                    - '2021-01-01T00:00:00Z'
+                  format: date-time
+                  type: string
+                transactionType:
+                  examples:
+                    - CARD
+                  type: string
+              required:
+                - transactionId
+                - requestId
+                - amount
+                - currency
+                - transactionTimestamp
+              type: object
         required: true
       responses:
         '201':
@@ -11305,9 +11364,22 @@ paths:
         content:
           application/json:
             schema:
-              contentMediaType: application/octet-stream
-              format: binary
-              type: string
+              additionalProperties: false
+              properties:
+                outcome:
+                  enum:
+                    - COMMITTED
+                    - ABORTED
+                  examples:
+                    - COMMITTED
+                  type: string
+                outcomeId:
+                  format: uuid
+                  type: string
+              required:
+                - outcomeId
+                - outcome
+              type: object
         required: true
       responses:
         '200':
@@ -16264,6 +16336,9 @@ components:
       additionalProperties: false
       properties:
         outcome:
+          enum:
+            - COMMITTED
+            - ABORTED
           type: string
         outcomeId:
           format: uuid
@@ -16644,6 +16719,9 @@ components:
           format: uuid
           type: string
         status:
+          enum:
+            - CONFIRMED
+            - RELEASED
           examples:
             - CONFIRMED
           type: string
@@ -16803,6 +16881,9 @@ components:
           format: int64
           type: integer
         status:
+          enum:
+            - CONFIRMED
+            - RELEASED
           examples:
             - CONFIRMED
           type: string

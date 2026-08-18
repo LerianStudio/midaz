@@ -7,6 +7,7 @@ package in
 import (
 	"context"
 	"net/http"
+	"reflect"
 
 	"github.com/danielgtaylor/huma/v2"
 
@@ -181,6 +182,7 @@ func RegisterReservationRoutes(api huma.API, h *ReservationHandler) {
 		// handler runs.
 		SkipValidateBody: true,
 	}, h.ReserveHuma)
+	documentJSONRequestBody(api, "/reservations", reflect.TypeOf(ReserveRequest{}), "account", "transactionType")
 
 	huma.Register(api, huma.Operation{
 		OperationID:      "applyReservationOutcome",
@@ -191,6 +193,7 @@ func RegisterReservationRoutes(api huma.API, h *ReservationHandler) {
 		Security:         secBearerOrAPIKey,
 		SkipValidateBody: true,
 	}, h.ApplyOutcomeHuma)
+	documentJSONRequestBody(api, "/reservations/transaction/{transaction_id}/outcome", reflect.TypeOf(ApplyOutcomeRequest{}))
 
 	huma.Register(api, huma.Operation{
 		OperationID: "confirmReservation",
@@ -227,4 +230,37 @@ func RegisterReservationRoutes(api huma.API, h *ReservationHandler) {
 		Tags:        []string{"Reservations"},
 		Security:    secBearerOrAPIKey,
 	}, h.ReleaseByTransactionHuma)
+}
+
+// documentJSONRequestBody replaces the binary schema Huma infers from RawBody
+// with the JSON contract that callers actually send. Runtime validation remains
+// imperative so malformed requests continue to use Midaz's canonical errors.
+func documentJSONRequestBody(api huma.API, path string, bodyType reflect.Type, optionalFields ...string) {
+	schema := huma.SchemaFromType(api.OpenAPI().Components.Schemas, bodyType)
+
+	if len(optionalFields) > 0 {
+		optional := make(map[string]struct{}, len(optionalFields))
+		for _, field := range optionalFields {
+			optional[field] = struct{}{}
+		}
+
+		required := schema.Required[:0]
+		for _, field := range schema.Required {
+			if _, ok := optional[field]; !ok {
+				required = append(required, field)
+			}
+		}
+
+		schema.Required = required
+	}
+
+	operation := api.OpenAPI().Paths[path].Post
+	operation.RequestBody = &huma.RequestBody{
+		Required: true,
+		Content: map[string]*huma.MediaType{
+			"application/json": {
+				Schema: schema,
+			},
+		},
+	}
 }

@@ -127,6 +127,7 @@ func (s *ReservationServer) Reserve(ctx context.Context, req *reservationv1.Rese
 	} else {
 		result, err = s.service.Reserve(ctx, transactionID, validationReq.ToCheckLimitsInput(), req.GetLongLived())
 	}
+
 	if err != nil {
 		return nil, s.mapServiceError(span, "Reservation processing failed", err)
 	}
@@ -149,6 +150,7 @@ func (s *ReservationServer) Reserve(ctx context.Context, req *reservationv1.Rese
 // durable receipt. Exact retries return the same receipt with replayed=true.
 func (s *ReservationServer) ApplyOutcome(ctx context.Context, req *reservationv1.ApplyOutcomeRequest) (*reservationv1.ApplyOutcomeResponse, error) {
 	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
+
 	ctx, span := tracer.Start(ctx, "grpc.reservations.apply_outcome")
 	defer span.End()
 

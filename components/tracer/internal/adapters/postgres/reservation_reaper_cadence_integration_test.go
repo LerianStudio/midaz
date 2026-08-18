@@ -129,7 +129,7 @@ func newRealReaper(
 	auditRepo := NewAuditEventRepositoryWithConnection(&testutil.IntegrationDBAdapter{DB: db})
 	auditor := command.NewRecordAuditEventCommand(auditRepo)
 
-	config := workers.ReservationReaperWorkerConfig{ReapInterval: clk.interval}
+	config := workers.ReservationReaperWorkerConfig{ReapInterval: clk.interval, ReleaseLegacy: true}
 
 	worker, err := workers.NewReservationReaperWorkerWithPoolResolver(
 		reaperRepo, auditor, config, testutil.NewMockLogger(), clk, tenantID, resolver,

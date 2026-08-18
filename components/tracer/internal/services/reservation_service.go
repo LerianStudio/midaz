@@ -224,17 +224,7 @@ func (s *ReservationService) Reserve(
 		return nil, ErrNilReservationRequest
 	}
 
-	deliveryMode := model.DeliveryModeUnspecified
-	if len(requestedModes) > 1 {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Multiple delivery modes", constant.ErrReservationDeliveryModeInvalid)
-		return nil, constant.ErrReservationDeliveryModeInvalid
-	}
-
-	if len(requestedModes) == 1 {
-		deliveryMode = requestedModes[0]
-	}
-
-	deliveryMode, err := deliveryMode.Normalize()
+	deliveryMode, err := normalizeReservationDeliveryMode(requestedModes)
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Invalid delivery mode", err)
 		return nil, err
@@ -257,12 +247,7 @@ func (s *ReservationService) Reserve(
 		return &ReserveResult{}, nil
 	}
 
-	ttl := reservationTTL
-	if longLived {
-		ttl = s.longLivedTTL
-	}
-
-	expiresAt := s.clock.Now().UTC().Add(ttl)
+	expiresAt := s.reservationExpiresAt(longLived)
 	reservationIDs := make([]uuid.UUID, 0, len(specs))
 
 	guardDenied := false
@@ -298,6 +283,7 @@ func (s *ReservationService) Reserve(
 			}
 
 			reservationIDs = append(reservationIDs, reservationID)
+
 			if !created {
 				continue
 			}
@@ -319,7 +305,6 @@ func (s *ReservationService) Reserve(
 			); err != nil {
 				return fmt.Errorf("failed to record reserve audit event: %w", err)
 			}
-
 		}
 
 		return nil
@@ -330,6 +315,7 @@ func (s *ReservationService) Reserve(
 			// rollback already released any partial holds.
 			return &ReserveResult{Denied: true}, nil
 		}
+
 		if errors.Is(txErr, constant.ErrIdempotencyKey) || errors.Is(txErr, constant.ErrReservationAlreadyTerminal) {
 			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Reservation retry rejected", txErr)
 			return nil, txErr
@@ -347,6 +333,27 @@ func (s *ReservationService) Reserve(
 	).Log(ctx, libLog.LevelDebug, "Reserved capacity")
 
 	return &ReserveResult{ReservationIDs: reservationIDs}, nil
+}
+
+func normalizeReservationDeliveryMode(requestedModes []model.ReservationDeliveryMode) (model.ReservationDeliveryMode, error) {
+	if len(requestedModes) > 1 {
+		return "", constant.ErrReservationDeliveryModeInvalid
+	}
+
+	if len(requestedModes) == 0 {
+		return model.DeliveryModeUnspecified.Normalize()
+	}
+
+	return requestedModes[0].Normalize()
+}
+
+func (s *ReservationService) reservationExpiresAt(longLived bool) time.Time {
+	ttl := reservationTTL
+	if longLived {
+		ttl = s.longLivedTTL
+	}
+
+	return s.clock.Now().UTC().Add(ttl)
 }
 
 // ApplyOutcome durably applies one ledger terminal outcome to every V2
@@ -388,6 +395,7 @@ func (s *ReservationService) ApplyOutcome(
 	)
 
 	appliedAt := s.clock.Now().UTC()
+
 	txErr := s.inTx(ctx, span, func(db pgdb.DB) error {
 		var reservations []*model.Reservation
 
@@ -413,6 +421,7 @@ func (s *ReservationService) ApplyOutcome(
 
 		eventType := model.AuditEventReservationConfirmed
 		action := model.AuditActionConfirm
+
 		if terminalStatus == model.StatusReleased {
 			eventType = model.AuditEventReservationReleased
 			action = model.AuditActionRelease
@@ -447,6 +456,7 @@ func (s *ReservationService) ApplyOutcome(
 		}
 
 		libOpentelemetry.HandleSpanError(span, "Failed to apply reservation outcome", txErr)
+
 		return nil, txErr
 	}
 

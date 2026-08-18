@@ -392,6 +392,22 @@ func TestReservationServer_ConfirmReleaseByTransaction(t *testing.T) {
 		require.NoError(t, err)
 	})
 
+	t.Run("V2 transaction rejects the V1 endpoint", func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		svc := mocks.NewMockReservationService(ctrl)
+		clk := testutil.NewMockClock(now)
+
+		svc.EXPECT().ConfirmByTransaction(gomock.Any(), transactionID).
+			Return(0, constant.ErrReservationOutcomeConflict)
+
+		server, err := NewReservationServer(svc, clk)
+		require.NoError(t, err)
+
+		_, err = server.ConfirmByTransaction(context.Background(), &reservationv1.ConfirmByTransactionRequest{TransactionId: transactionID.String()})
+		require.Equal(t, codes.AlreadyExists, status.Code(err))
+		require.Contains(t, status.Convert(err).Message(), constant.ErrReservationOutcomeConflict.Error())
+	})
+
 	t.Run("empty transaction id is InvalidArgument", func(t *testing.T) {
 		ctrl := gomock.NewController(t)
 		svc := mocks.NewMockReservationService(ctrl)

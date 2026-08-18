@@ -90,6 +90,15 @@ const findExistingReservationSQL = `
 			FOR UPDATE
 		`
 
+func expectReservationProtocolGuard(mock sqlmock.Sqlmock, transactionID uuid.UUID, deliveryMode model.ReservationDeliveryMode) {
+	mock.ExpectExec(`SELECT pg_advisory_xact_lock`).
+		WithArgs(transactionID).
+		WillReturnResult(sqlmock.NewResult(0, 1))
+	mock.ExpectQuery(`SELECT[[:space:]]+EXISTS`).
+		WithArgs(transactionID, deliveryMode).
+		WillReturnRows(sqlmock.NewRows([]string{"receipt_exists", "mode_conflict"}).AddRow(false, false))
+}
+
 func TestUsageReservationRepository_Reserve(t *testing.T) {
 	testutil.SetupTestTracing(t)
 
@@ -98,6 +107,7 @@ func TestUsageReservationRepository_Reserve(t *testing.T) {
 		defer cleanup()
 
 		res := newTestReservation(t)
+		expectReservationProtocolGuard(mock, res.TransactionID, res.DeliveryMode)
 
 		mock.ExpectQuery(regexp.QuoteMeta(reserveInsertSQL)).
 			WillReturnRows(sqlmock.NewRows([]string{"id"}).AddRow(res.ID))
@@ -115,6 +125,7 @@ func TestUsageReservationRepository_Reserve(t *testing.T) {
 		defer cleanup()
 
 		res := newTestReservation(t)
+		expectReservationProtocolGuard(mock, res.TransactionID, res.DeliveryMode)
 
 		mock.ExpectQuery(regexp.QuoteMeta(reserveInsertSQL)).
 			WillReturnRows(sqlmock.NewRows([]string{"id"}).AddRow(res.ID))
@@ -132,6 +143,7 @@ func TestUsageReservationRepository_Reserve(t *testing.T) {
 
 		res := newTestReservation(t)
 		persistedID := testutil.MustDeterministicUUID(8003)
+		expectReservationProtocolGuard(mock, res.TransactionID, res.DeliveryMode)
 
 		mock.ExpectQuery(regexp.QuoteMeta(reserveInsertSQL)).
 			WillReturnError(sql.ErrNoRows)
@@ -150,6 +162,7 @@ func TestUsageReservationRepository_Reserve(t *testing.T) {
 
 		res := newTestReservation(t)
 		persistedID := testutil.MustDeterministicUUID(8004)
+		expectReservationProtocolGuard(mock, res.TransactionID, res.DeliveryMode)
 
 		mock.ExpectQuery(regexp.QuoteMeta(reserveInsertSQL)).WillReturnError(sql.ErrNoRows)
 		mock.ExpectQuery(regexp.QuoteMeta(findExistingReservationSQL)).
@@ -166,6 +179,7 @@ func TestUsageReservationRepository_Reserve(t *testing.T) {
 
 		res := newTestReservation(t)
 		persistedID := testutil.MustDeterministicUUID(8005)
+		expectReservationProtocolGuard(mock, res.TransactionID, res.DeliveryMode)
 
 		mock.ExpectQuery(regexp.QuoteMeta(reserveInsertSQL)).WillReturnError(sql.ErrNoRows)
 		mock.ExpectQuery(regexp.QuoteMeta(findExistingReservationSQL)).
@@ -173,6 +187,44 @@ func TestUsageReservationRepository_Reserve(t *testing.T) {
 
 		_, created, err := repo.ReserveWithTx(context.Background(), db, res, maxAmountTest, nil)
 		require.ErrorIs(t, err, constant.ErrReservationAlreadyTerminal)
+		assert.False(t, created)
+	})
+
+	t.Run("Outcome receipt rejects a later reserve", func(t *testing.T) {
+		repo, db, mock, cleanup := setupUsageReservationRepository(t)
+		defer cleanup()
+
+		res := newTestReservation(t)
+		res.DeliveryMode = model.DeliveryModeLedgerOutcomeV2
+
+		mock.ExpectExec(`SELECT pg_advisory_xact_lock`).
+			WithArgs(res.TransactionID).
+			WillReturnResult(sqlmock.NewResult(0, 1))
+		mock.ExpectQuery(`SELECT[[:space:]]+EXISTS`).
+			WithArgs(res.TransactionID, res.DeliveryMode).
+			WillReturnRows(sqlmock.NewRows([]string{"receipt_exists", "mode_conflict"}).AddRow(true, false))
+
+		_, created, err := repo.ReserveWithTx(context.Background(), db, res, maxAmountTest, nil)
+		require.ErrorIs(t, err, constant.ErrReservationOutcomeConflict)
+		assert.False(t, created)
+	})
+
+	t.Run("A transaction cannot mix reservation delivery modes", func(t *testing.T) {
+		repo, db, mock, cleanup := setupUsageReservationRepository(t)
+		defer cleanup()
+
+		res := newTestReservation(t)
+		res.DeliveryMode = model.DeliveryModeLedgerOutcomeV2
+
+		mock.ExpectExec(`SELECT pg_advisory_xact_lock`).
+			WithArgs(res.TransactionID).
+			WillReturnResult(sqlmock.NewResult(0, 1))
+		mock.ExpectQuery(`SELECT[[:space:]]+EXISTS`).
+			WithArgs(res.TransactionID, res.DeliveryMode).
+			WillReturnRows(sqlmock.NewRows([]string{"receipt_exists", "mode_conflict"}).AddRow(false, true))
+
+		_, created, err := repo.ReserveWithTx(context.Background(), db, res, maxAmountTest, nil)
+		require.ErrorIs(t, err, constant.ErrReservationOutcomeConflict)
 		assert.False(t, created)
 	})
 
@@ -323,6 +375,21 @@ func TestUsageReservationRepository_ConfirmByTransaction(t *testing.T) {
 		assert.Empty(t, flipped, "re-run over an already-confirmed transaction does NOT double-move")
 	})
 
+	t.Run("V2 reservations reject the legacy transaction endpoint", func(t *testing.T) {
+		repo, db, mock, cleanup := setupUsageReservationRepository(t)
+		defer cleanup()
+
+		mock.ExpectQuery(`SELECT id, limit_id`).WithArgs(txID).
+			WillReturnRows(sqlmock.NewRows(reservationLockColumns()).AddRow(
+				res1, limit1, "acct:8601", "2026-06", int64(400), model.StatusReserved,
+				model.DeliveryModeLedgerOutcomeV2, txID, testutil.FixedTime(), testutil.FixedTime(), nil, nil,
+			))
+
+		flipped, err := repo.ConfirmByTransactionWithTx(context.Background(), db, txID)
+		require.ErrorIs(t, err, constant.ErrReservationOutcomeConflict)
+		assert.Nil(t, flipped)
+	})
+
 	t.Run("Nil db is rejected", func(t *testing.T) {
 		repo, _, _, cleanup := setupUsageReservationRepository(t)
 		defer cleanup()
@@ -380,6 +447,21 @@ func TestUsageReservationRepository_ReleaseByTransaction(t *testing.T) {
 		flipped, err := repo.ReleaseByTransactionWithTx(context.Background(), db, txID, model.StatusReleased)
 		require.NoError(t, err)
 		assert.Empty(t, flipped)
+	})
+
+	t.Run("V2 reservations reject the legacy transaction endpoint", func(t *testing.T) {
+		repo, db, mock, cleanup := setupUsageReservationRepository(t)
+		defer cleanup()
+
+		mock.ExpectQuery(`SELECT id, limit_id`).WithArgs(txID).
+			WillReturnRows(sqlmock.NewRows(reservationLockColumns()).AddRow(
+				res1, limit1, "acct:8701", "2026-06", int64(400), model.StatusReserved,
+				model.DeliveryModeLedgerOutcomeV2, txID, testutil.FixedTime(), testutil.FixedTime(), nil, nil,
+			))
+
+		flipped, err := repo.ReleaseByTransactionWithTx(context.Background(), db, txID, model.StatusReleased)
+		require.ErrorIs(t, err, constant.ErrReservationOutcomeConflict)
+		assert.Nil(t, flipped)
 	})
 }
 
@@ -455,6 +537,7 @@ func TestUsageReservationRepository_ApplyOutcome(t *testing.T) {
 		repo, db, mock, cleanup := setupUsageReservationRepository(t)
 		defer cleanup()
 
+		mock.ExpectExec(`SELECT pg_advisory_xact_lock`).WithArgs(txID).WillReturnResult(sqlmock.NewResult(0, 1))
 		mock.ExpectQuery(`INSERT INTO reservation_outcome_receipts`).
 			WithArgs(txID, outcomeID, string(model.OutcomeCommitted), appliedAt).
 			WillReturnRows(sqlmock.NewRows(outcomeReceiptColumns()).AddRow(
@@ -489,6 +572,7 @@ func TestUsageReservationRepository_ApplyOutcome(t *testing.T) {
 		repo, db, mock, cleanup := setupUsageReservationRepository(t)
 		defer cleanup()
 
+		mock.ExpectExec(`SELECT pg_advisory_xact_lock`).WithArgs(txID).WillReturnResult(sqlmock.NewResult(0, 1))
 		mock.ExpectQuery(`INSERT INTO reservation_outcome_receipts`).
 			WillReturnRows(sqlmock.NewRows(outcomeReceiptColumns()))
 		mock.ExpectQuery(`SELECT transaction_id, outcome_id, outcome, reservation_count, applied_at`).
@@ -511,6 +595,7 @@ func TestUsageReservationRepository_ApplyOutcome(t *testing.T) {
 		repo, db, mock, cleanup := setupUsageReservationRepository(t)
 		defer cleanup()
 
+		mock.ExpectExec(`SELECT pg_advisory_xact_lock`).WithArgs(txID).WillReturnResult(sqlmock.NewResult(0, 1))
 		mock.ExpectQuery(`INSERT INTO reservation_outcome_receipts`).
 			WillReturnRows(sqlmock.NewRows(outcomeReceiptColumns()))
 		mock.ExpectQuery(`SELECT transaction_id, outcome_id, outcome, reservation_count, applied_at`).
@@ -532,6 +617,7 @@ func TestUsageReservationRepository_ApplyOutcome(t *testing.T) {
 		repo, db, mock, cleanup := setupUsageReservationRepository(t)
 		defer cleanup()
 
+		mock.ExpectExec(`SELECT pg_advisory_xact_lock`).WithArgs(txID).WillReturnResult(sqlmock.NewResult(0, 1))
 		mock.ExpectQuery(`INSERT INTO reservation_outcome_receipts`).
 			WillReturnRows(sqlmock.NewRows(outcomeReceiptColumns()).AddRow(
 				txID, outcomeID, string(model.OutcomeCommitted), 0, appliedAt,

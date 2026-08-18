@@ -52,12 +52,16 @@ type ReservationReaperWorkerConfig struct {
 	// ReapInterval is how often the reaper sweeps expired reservations
 	// (default: DefaultReservationReaperInterval, 30s).
 	ReapInterval time.Duration
+	// ReleaseLegacy authorizes autonomous expiry for V1 reservations. V2 backlog
+	// observation runs regardless of this flag; V2 rows are never candidates.
+	ReleaseLegacy bool
 }
 
 // DefaultReservationReaperWorkerConfig returns default configuration values.
 func DefaultReservationReaperWorkerConfig() ReservationReaperWorkerConfig {
 	return ReservationReaperWorkerConfig{
-		ReapInterval: DefaultReservationReaperInterval,
+		ReapInterval:  DefaultReservationReaperInterval,
+		ReleaseLegacy: true,
 	}
 }
 
@@ -86,7 +90,8 @@ type ReservationReaperWorker struct {
 	// to the root pool, which would reap another database's reservations. In
 	// single-tenant mode this is nil and the cycle falls through to the
 	// repository's static connection.
-	poolResolver WorkerPoolResolver
+	poolResolver   WorkerPoolResolver
+	metricsFactory *libMetrics.MetricsFactory
 }
 
 // NewReservationReaperWorker creates a new reservation reaper worker.
@@ -103,7 +108,7 @@ func NewReservationReaperWorker(
 	clk clock.Clock,
 	tenantID string,
 ) (*ReservationReaperWorker, error) {
-	return NewReservationReaperWorkerWithPoolResolver(repo, auditor, config, logger, clk, tenantID, nil)
+	return NewReservationReaperWorkerWithTelemetry(repo, auditor, config, logger, clk, tenantID, nil, nil)
 }
 
 // NewReservationReaperWorkerWithPoolResolver is the full constructor. MT callers
@@ -118,6 +123,22 @@ func NewReservationReaperWorkerWithPoolResolver(
 	clk clock.Clock,
 	tenantID string,
 	poolResolver WorkerPoolResolver,
+) (*ReservationReaperWorker, error) {
+	return NewReservationReaperWorkerWithTelemetry(repo, auditor, config, logger, clk, tenantID, poolResolver, nil)
+}
+
+// NewReservationReaperWorkerWithTelemetry is the production constructor. The
+// metrics factory is injected because worker contexts intentionally outlive boot
+// and do not inherit boot-scoped observability values.
+func NewReservationReaperWorkerWithTelemetry(
+	repo ReservationReaperRepository,
+	auditor ReservationExpiryAuditor,
+	config ReservationReaperWorkerConfig,
+	logger libLog.Logger,
+	clk clock.Clock,
+	tenantID string,
+	poolResolver WorkerPoolResolver,
+	metricsFactory *libMetrics.MetricsFactory,
 ) (*ReservationReaperWorker, error) {
 	if repo == nil {
 		return nil, ErrNilRepository
@@ -140,13 +161,14 @@ func NewReservationReaperWorkerWithPoolResolver(
 	}
 
 	return &ReservationReaperWorker{
-		tenantID:     tenantID,
-		repo:         repo,
-		auditor:      auditor,
-		config:       config,
-		logger:       logger,
-		clock:        clk,
-		poolResolver: poolResolver,
+		tenantID:       tenantID,
+		repo:           repo,
+		auditor:        auditor,
+		config:         config,
+		logger:         logger,
+		clock:          clk,
+		poolResolver:   poolResolver,
+		metricsFactory: metricsFactory,
 	}, nil
 }
 
@@ -270,7 +292,12 @@ func (w *ReservationReaperWorker) runReapCycle(ctx context.Context) {
 // The batch audit is only written when at least one reservation expired — an
 // empty sweep produces no audit row.
 func (w *ReservationReaperWorker) RunOnce(ctx context.Context) (int, error) {
-	_, tracer, _, metricsFactory := libObservability.NewTrackingFromContext(ctx)
+	_, tracer, _, contextMetricsFactory := libObservability.NewTrackingFromContext(ctx)
+
+	metricsFactory := w.metricsFactory
+	if metricsFactory == nil {
+		metricsFactory = contextMetricsFactory
+	}
 
 	ctx, span := tracer.Start(ctx, "worker.reservation_reaper.run_once")
 	defer span.End()
@@ -288,6 +315,10 @@ func (w *ReservationReaperWorker) RunOnce(ctx context.Context) (int, error) {
 
 		w.setV2Gauge(ctx, metricsFactory, MetricReservationV2Outstanding, count)
 		w.setV2Gauge(ctx, metricsFactory, MetricReservationV2OldestAgeSeconds, int64(oldestAge.Seconds()))
+	}
+
+	if !w.config.ReleaseLegacy {
+		return 0, nil
 	}
 
 	expired, err := w.repo.FindExpiredReservations(ctx, now)
@@ -349,10 +380,16 @@ func (w *ReservationReaperWorker) setV2Gauge(ctx context.Context, factory *libMe
 			libLog.String("metric", metric.Name),
 			libLog.String("error.message", err.Error()),
 		).Log(ctx, libLog.LevelDebug, "Failed to create reservation backlog gauge")
+
 		return
 	}
+
 	if gauge == nil {
 		return
+	}
+
+	if w.tenantID != "" {
+		gauge = gauge.WithLabels(map[string]string{"tenant_id": w.tenantID})
 	}
 
 	if err := gauge.Set(ctx, value); err != nil {

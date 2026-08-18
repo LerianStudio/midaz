@@ -45,6 +45,9 @@ type Service struct {
 	cleanupWorker     *workers.UsageCleanupWorker
 	syncWorker        *workers.RuleSyncWorker
 	reservationReaper *workers.ReservationReaperWorker
+	// operatorMetricsClose unregisters the OTel→Prometheus bridge shared by
+	// readyz and reservation-backlog metrics. It is non-nil in full bootstrap.
+	operatorMetricsClose func() error
 
 	// Multi-tenant components (nil in single-tenant mode).
 	pgManager     *tmpostgres.Manager
@@ -438,6 +441,16 @@ func (app *Service) Shutdown(ctx context.Context) error {
 				libLog.String("error.message", err.Error()),
 			).Log(ctx, libLog.LevelWarn, "Failed to close PostgreSQL connection pool")
 		}
+	}
+
+	if app.operatorMetricsClose != nil {
+		if err := app.operatorMetricsClose(); err != nil {
+			logger.With(
+				libLog.String("error.message", err.Error()),
+			).Log(ctx, libLog.LevelWarn, "Failed to close operator metrics bridge")
+		}
+
+		app.operatorMetricsClose = nil
 	}
 
 	return nil

@@ -149,6 +149,7 @@ func (h *ReservationHandler) reserve(ctx context.Context, rawBody []byte) (*Rese
 		// invocation and autonomous-expiry semantics.
 		result, err = h.service.Reserve(ctx, request.TransactionID, request.ToReserveInput(), request.LongLived)
 	}
+
 	if err != nil {
 		return nil, classifyReservationServiceError(span, err)
 	}
@@ -178,6 +179,7 @@ func (h *ReservationHandler) ApplyOutcome(c fiber.Ctx) error {
 
 func (h *ReservationHandler) applyOutcome(ctx context.Context, txIDParam string, rawBody []byte) (*ApplyOutcomeResponse, error) {
 	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
+
 	ctx, span := tracer.Start(ctx, "handler.reservations.apply_outcome")
 	defer span.End()
 

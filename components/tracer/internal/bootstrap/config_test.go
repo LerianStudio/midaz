@@ -1190,13 +1190,13 @@ func TestLoadReservationReaperConfig(t *testing.T) {
 		name         string
 		enabled      bool
 		interval     string
-		wantNil      bool
 		wantInterval time.Duration
+		wantRelease  bool
 		wantErr      bool
 	}{
-		{name: "disabled preserves no worker", wantNil: true},
-		{name: "enabled defaults to sub-minute cadence", enabled: true, wantInterval: 30 * time.Second},
-		{name: "enabled accepts custom cadence", enabled: true, interval: "17", wantInterval: 17 * time.Second},
+		{name: "disabled keeps observer and forbids legacy release", wantInterval: 30 * time.Second},
+		{name: "enabled defaults to sub-minute cadence", enabled: true, wantInterval: 30 * time.Second, wantRelease: true},
+		{name: "enabled accepts custom cadence", enabled: true, interval: "17", wantInterval: 17 * time.Second, wantRelease: true},
 		{name: "enabled rejects invalid cadence", enabled: true, interval: "invalid", wantErr: true},
 	}
 
@@ -1212,12 +1212,9 @@ func TestLoadReservationReaperConfig(t *testing.T) {
 				return
 			}
 			require.NoError(t, err)
-			if tc.wantNil {
-				require.Nil(t, got)
-				return
-			}
 			require.NotNil(t, got)
 			require.Equal(t, tc.wantInterval, got.ReapInterval)
+			require.Equal(t, tc.wantRelease, got.ReleaseLegacy)
 		})
 	}
 }

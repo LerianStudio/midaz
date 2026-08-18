@@ -108,10 +108,12 @@ func (r *ReservationReaperRepository) FindExpiredReservations(ctx context.Contex
 // ObserveV2Outstanding reports the number and oldest age of V2 reservations
 // still waiting for a ledger outcome. It never mutates or releases capacity.
 func (r *ReservationReaperRepository) ObserveV2Outstanding(ctx context.Context, now time.Time) (int64, time.Duration, error) {
-	_, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
+	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "repository.reservation_reaper.observe_v2")
 	defer span.End()
+
+	logger = logging.WithTrace(ctx, logger)
 
 	db, err := r.conn.GetDB(ctx)
 	if err != nil {
@@ -143,6 +145,11 @@ func (r *ReservationReaperRepository) ObserveV2Outstanding(ctx context.Context, 
 	if age < 0 {
 		age = 0
 	}
+
+	logger.With(
+		libLog.Any("outstanding", count),
+		libLog.String("oldest_age", age.String()),
+	).Log(ctx, libLog.LevelDebug, "Observed V2 reservation backlog")
 
 	return count, age, nil
 }

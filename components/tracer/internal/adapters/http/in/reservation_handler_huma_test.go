@@ -342,6 +342,27 @@ func TestHuma_ConfirmByTransaction_Success(t *testing.T) {
 	assert.Equal(t, "tenant-alpha", svc.capturedTenant)
 }
 
+func TestHuma_ConfirmByTransaction_RejectsV2Protocol(t *testing.T) {
+	txID := testutil.MustDeterministicUUID(32)
+	svc := &reservationSpyService{byTxErr: constant.ErrReservationOutcomeConflict}
+	app := buildHumaReservationApp(t, svc, "tenant-alpha")
+
+	req := httptest.NewRequest(http.MethodPost, "/v1/reservations/transaction/"+txID.String()+"/confirm", nil)
+	resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
+	require.NoError(t, err)
+	defer func() { _ = resp.Body.Close() }()
+
+	respBody, err := io.ReadAll(resp.Body)
+	require.NoError(t, err)
+	assert.Equal(t, http.StatusConflict, resp.StatusCode)
+
+	var got map[string]any
+	require.NoError(t, json.Unmarshal(respBody, &got), "body must be JSON: %s", string(respBody))
+	assert.Equal(t, constant.ErrReservationOutcomeConflict.Error(), got["code"])
+	assert.Equal(t, "ConfirmByTransaction", svc.capturedAction)
+	assert.Equal(t, txID, svc.capturedTxID)
+}
+
 // TestHuma_ReleaseByTransaction_Success asserts ReleaseByTransactionHuma reads the
 // transaction_id path param, delegates to service.ReleaseByTransaction, and returns
 // 200 with RELEASED + the flipped count.

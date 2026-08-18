@@ -26,6 +26,14 @@ CREATE INDEX IF NOT EXISTS idx_usage_reservations_reaper
     ON usage_reservations(reservation_expires_at)
     WHERE status = 'RESERVED' AND delivery_mode = 'LEGACY';
 
+CREATE INDEX IF NOT EXISTS idx_usage_reservations_reserved_counter
+    ON usage_reservations(limit_id, scope_key, period_key)
+    WHERE status = 'RESERVED';
+
+CREATE INDEX IF NOT EXISTS idx_usage_reservations_v2_outstanding
+    ON usage_reservations(created_at)
+    WHERE status = 'RESERVED' AND delivery_mode = 'LEDGER_OUTCOME_V2';
+
 CREATE TABLE IF NOT EXISTS reservation_outcome_receipts (
     transaction_id UUID PRIMARY KEY,
     outcome_id UUID NOT NULL,
