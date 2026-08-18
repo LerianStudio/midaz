@@ -114,7 +114,7 @@ func setupCircuitBreakerTestInfraWithPorts(t *testing.T, cbConfig CircuitBreaker
 
 	// Setup RabbitMQ container. Fixed host ports keep the connection URI valid across a
 	// container stop/start; ephemeral ports are fine for tests that never restart it.
-	setupContainer := rmqtestutil.SetupContainer
+	setupContainer := rmqtestutil.SetupReusableContainer
 	if fixedPorts {
 		setupContainer = rmqtestutil.SetupContainerWithFixedPorts
 	}
