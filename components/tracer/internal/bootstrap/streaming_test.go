@@ -211,7 +211,7 @@ func TestBuildCatalog_CoversAllLifecycles(t *testing.T) {
 // TestBuildRoutes_CoversAllLifecycles exercises buildRoutes against the
 // populated Rule + Limit definition set: one required route per event, each
 // keyed "<event>.<target>" and pointing at the canonical
-// "lerian.streaming.<event>" Kafka topic.
+// "tracer.<resource>.<event>" Kafka topic.
 func TestBuildRoutes_CoversAllLifecycles(t *testing.T) {
 	t.Parallel()
 
@@ -291,7 +291,7 @@ func TestTracerCatalog_CoversAllEmittedEvents(t *testing.T) {
 
 		// (d) destination topic derives from the definition key.
 		assert.Equal(t, libStreaming.KafkaTopic(pkgStreaming.TopicName("tracer", r.DefinitionKey)), r.Destination,
-			"route Destination must be lerian.streaming.tracer_<resource>.<event>")
+			"route Destination must be tracer.<resource>.<event>")
 	}
 
 	assert.Equal(t, defKeys, routeKeys,
@@ -495,5 +495,34 @@ func TestResolveSASLMechanism_Unsupported(t *testing.T) {
 			assert.Contains(t, err.Error(), saslMechanismScram256)
 			assert.Contains(t, err.Error(), saslMechanismScram512)
 		})
+	}
+}
+
+// TestTopicConvergesWithEventDefinition proves midaz's pkgStreaming.TopicName
+// and lib-streaming's own EventDefinition.Topic derive the SAME Kafka topic for
+// every registered tracer event, with the bare service name ("tracer") as the
+// CloudEvents source. This convergence is what lets a Kafka ACL scoped to the
+// "tracer." prefix cover every topic tracer emits: the two derivations must
+// never diverge. Card #3783 Task 5.2.
+func TestTopicConvergesWithEventDefinition(t *testing.T) {
+	t.Parallel()
+
+	const ceSource = streamingServiceName // the bare service name is the ce-source
+
+	for _, def := range tracerEventDefinitions() {
+		ed := libStreaming.EventDefinition{
+			Key:           def.Key(),
+			ResourceType:  def.ResourceType,
+			EventType:     def.EventType,
+			SchemaVersion: def.SchemaVersion,
+		}
+
+		want := ed.Topic(ceSource)
+		got := pkgStreaming.TopicName(streamingServiceName, def.Key())
+
+		assert.Equalf(t, want, got,
+			"TopicName and EventDefinition.Topic must converge for %q", def.Key())
+		assert.Equalf(t, streamingServiceName+"."+def.Key(), got,
+			"topic for %q must be service + \".\" + Key()", def.Key())
 	}
 }

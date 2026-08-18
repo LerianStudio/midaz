@@ -6,30 +6,43 @@ package streaming
 
 import "strings"
 
-// TopicPrefix is the canonical prefix every streaming Kafka topic name uses.
-const TopicPrefix = "lerian.streaming."
+// sanitizeServiceSegment reduces a producing-service name to the leading,
+// ACL-scoped segment of a streaming topic name: it lowercases the input and
+// keeps ONLY [a-z0-9], dropping every other rune.
+//
+// This mirrors the tenant-manager's SanitizeKafkaSegment byte-for-byte so a
+// Kafka ACL granted on the prefix "{sanitize(service)}." matches every topic
+// the service emits. It also converges with lib-streaming's
+// EventDefinition.Topic derivation for the plain service names midaz uses
+// ("ledger", "tracer"), which contain no runes outside [a-z0-9] and therefore
+// pass through both sanitizers unchanged.
+func sanitizeServiceSegment(s string) string {
+	lowered := strings.ToLower(s)
+
+	var b strings.Builder
+	b.Grow(len(lowered))
+
+	for _, r := range lowered {
+		if (r >= 'a' && r <= 'z') || (r >= '0' && r <= '9') {
+			b.WriteRune(r)
+		}
+	}
+
+	return b.String()
+}
 
 // TopicName renders the consumer-facing Kafka topic name for a producing
-// service ("ledger"/"crm"/"fee"/"tracer") and a route key
-// ("<resource>.<event>", the hyphenated routing handle).
+// service ("ledger"/"tracer") and the underscore-canonical event key
+// ("<resource>.<event>", i.e. Definition.Key()).
 //
-// The streaming-hub ingest consumer subscribes via kgo.ConsumeRegex to
-// ^lerian.streaming.<seg>.<seg>$ over the [a-z0-9_] charset — exactly two
-// segments, no hyphen. To satisfy that grammar while still namespacing topics by
-// producing service, the service is folded into the first segment
-// ("<service>_<resource>") and hyphens are normalized to underscores. Only
-// RouteDefinition.Key stays hyphenated (lib-streaming's route-key grammar
-// accepts only [a-z0-9-]); the DefinitionKey/ResourceType/EventType and the
-// CloudEvents type are the underscored canonical form. TopicName receives the
-// hyphenated route key and folds it to the underscore wire form.
+// The grammar is "{sanitize(service)}.{resource}.{event}": the sanitized
+// service name is its own leading segment, followed verbatim by the canonical
+// key. The service segment being a standalone prefix lets a Kafka ACL scoped to
+// "{service}." cover every topic that service emits, and the result converges
+// with lib-streaming's EventDefinition.Topic(source) for the same service name.
 //
-// A leading "<service>-" on the key is stripped before the fold. Fee resources
-// carry a "fee-" prefix on their keys ("fee-packages.created"); without the strip
-// the "fee_" service segment would double it into "lerian.streaming.fee_fee_*".
-// Stripping keeps the topic at the required two segments and drops the redundant
-// prefix. The strip is a no-op for services whose keys never begin with
-// "<service>-" (ledger/crm/tracer), so it does not affect existing producers.
+// The key is already underscore-canonical (Definition.Key()), so no
+// hyphen-to-underscore folding is performed here.
 func TopicName(service, key string) string {
-	key = strings.TrimPrefix(key, service+"-")
-	return TopicPrefix + service + "_" + strings.ReplaceAll(key, "-", "_")
+	return sanitizeServiceSegment(service) + "." + key
 }

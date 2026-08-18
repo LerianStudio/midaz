@@ -24,11 +24,12 @@ import (
 // sync.
 const streamingPrimaryTargetName = "primary"
 
-// streamingServiceName is the single service segment folded into every topic
-// name by pkgStreaming.TopicName, yielding
-// "lerian.streaming.ledger_<resource>.<event>". The monorepo binary emits every
-// event it owns (ledger core, fees, CRM) under this one segment: the per-product
-// segments were collapsed into "ledger" so the whole binary shares one namespace.
+// streamingServiceName is the leading, ACL-scoped service segment of every
+// topic name produced by pkgStreaming.TopicName, yielding
+// "ledger.<resource>.<event>". The monorepo binary emits every event it owns
+// (ledger core, fees, CRM) under this one segment: the per-product segments
+// were collapsed into "ledger" so the whole binary shares one namespace and a
+// single Kafka ACL prefix "ledger." covers every topic.
 const streamingServiceName = "ledger"
 
 // noopStreamingCloser is the close hook returned by BuildStreamingEmitter
@@ -107,8 +108,8 @@ func BuildStreamingEmitter(
 	}
 
 	// Build the route table. One required route per event keyed to the
-	// canonical "lerian.streaming.ledger_<resource>.<event>" topic name: every
-	// event routes under the single "ledger" service segment.
+	// canonical "ledger.<resource>.<event>" topic name: every event routes
+	// under the single "ledger" service segment.
 	routes := buildRoutes(streamingPrimaryTargetName)
 
 	builder := libStreaming.NewBuilder().
@@ -329,15 +330,17 @@ func buildCatalog() (libStreaming.Catalog, error) {
 
 // buildRoutes constructs one RouteRequired route per midaz event,
 // targeting the single broker named targetName. Topic names are
-// "lerian.streaming.ledger_<resource>.<event>": every event routes under the
-// single "ledger" service segment.
+// "ledger.<resource>.<event>": every event routes under the single "ledger"
+// service segment, with the underscore-canonical Definition.Key() as the
+// two trailing segments.
 //
 // Route Keys are composed as "<route-key>.<target-name>" (e.g.
 // "account.created.primary"), where <route-key> is the hyphenated routing
 // handle (RouteKey()) — Route.Key must match lib-streaming's lower-case
 // hyphenated dot-delimited grammar, and the target-name suffix guarantees
 // uniqueness when the same event is later routed to multiple targets (e.g. a
-// parallel shadow route).
+// parallel shadow route). The wire topic, by contrast, derives from the
+// underscore-canonical Key() so it converges with EventDefinition.Topic.
 func buildRoutes(targetName string) []libStreaming.RouteDefinition {
 	defs := midazEventDefinitions()
 	routes := make([]libStreaming.RouteDefinition, 0, len(defs))
@@ -349,7 +352,7 @@ func buildRoutes(targetName string) []libStreaming.RouteDefinition {
 			Key:           routeKey + "." + targetName,
 			DefinitionKey: key,
 			Target:        targetName,
-			Destination:   libStreaming.KafkaTopic(pkgStreaming.TopicName(streamingServiceName, routeKey)),
+			Destination:   libStreaming.KafkaTopic(pkgStreaming.TopicName(streamingServiceName, key)),
 			Requirement:   libStreaming.RouteRequired,
 		})
 	}

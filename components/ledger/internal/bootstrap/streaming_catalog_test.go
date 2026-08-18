@@ -40,14 +40,11 @@ func TestMidazCatalogRoutesAssembly(t *testing.T) {
 	// The set of definition keys is the source of truth for the bijection, and
 	// each key carries its producing service so route topics are verified
 	// per-product. Key the checks off DefinitionKey (NOT route.Key, which
-	// carries the ".primary" target suffix).
+	// carries the ".primary" target suffix). Under the ACL-prefix grammar the
+	// wire topic derives from the underscore-canonical Key() directly, so the
+	// expected topic is simply TopicName(service, DefinitionKey).
 	defKeys := make(map[string]struct{}, len(defs))
 	serviceByKey := make(map[string]string, len(defs))
-	// routeKeyByKey folds the underscored canonical Key() back to the hyphenated
-	// RouteKey(). Expected topics must derive from the route key (what production
-	// feeds into TopicName), not the DefinitionKey — otherwise the "fee-" prefix
-	// strip cannot fire and the fee topics would regress to "fee_fee_*".
-	routeKeyByKey := make(map[string]string, len(defs))
 
 	for _, def := range defs {
 		key := def.Key()
@@ -55,7 +52,6 @@ func TestMidazCatalogRoutesAssembly(t *testing.T) {
 		require.False(t, dup, "duplicate definition key %q in midazEventDefinitions", key)
 		defKeys[key] = struct{}{}
 		serviceByKey[key] = streamingServiceName
-		routeKeyByKey[key] = def.RouteKey()
 	}
 
 	seenRouteKeys := make(map[string]struct{}, len(routes))
@@ -66,7 +62,7 @@ func TestMidazCatalogRoutesAssembly(t *testing.T) {
 		service, ok := serviceByKey[r.DefinitionKey]
 		require.Truef(t, ok, "route DefinitionKey %q has no matching event definition (dead/ghost route)", r.DefinitionKey)
 
-		wantTopic := libStreaming.KafkaTopic(pkgStreaming.TopicName(service, routeKeyByKey[r.DefinitionKey]))
+		wantTopic := libStreaming.KafkaTopic(pkgStreaming.TopicName(service, r.DefinitionKey))
 		assert.Equal(t, wantTopic, r.Destination,
 			"route for %q must target topic %q", r.DefinitionKey, wantTopic)
 
@@ -174,33 +170,32 @@ func TestMidazCatalogRoutesAssembly(t *testing.T) {
 			continue
 		}
 
-		wantTopic := libStreaming.KafkaTopic(pkgStreaming.TopicName(want, routeKeyByKey[r.DefinitionKey]))
+		wantTopic := libStreaming.KafkaTopic(pkgStreaming.TopicName(want, r.DefinitionKey))
 		assert.Equalf(t, wantTopic, r.Destination,
 			"route %q must target %q (independent service lock)", r.DefinitionKey, wantTopic)
 	}
 
 	// Fee-family destination lock: after the collapse every fee event routes
-	// under the "ledger" segment, so its "fee-" resource prefix is folded into
-	// the topic as "ledger_fee_<resource>" (the segment strip targets "ledger-",
-	// not "fee-"). Literal broker topics so a regression on the fee namespace is
-	// caught directly.
+	// under the "ledger" segment, so the fee resource ("fee_packages",
+	// "fee_charge", ...) becomes the resource segment of "ledger.<resource>.<event>".
+	// Literal broker topics so a regression on the fee namespace is caught directly.
 	destByKey := make(map[string]string, len(routes))
 	for _, r := range routes {
 		destByKey[r.DefinitionKey] = r.Destination.Name
 	}
 
 	feeTopics := map[string]string{
-		"fee_packages.created":         "lerian.streaming.ledger_fee_packages.created",
-		"fee_packages.updated":         "lerian.streaming.ledger_fee_packages.updated",
-		"fee_packages.deleted":         "lerian.streaming.ledger_fee_packages.deleted",
-		"fee_billing_packages.created": "lerian.streaming.ledger_fee_billing_packages.created",
-		"fee_billing_packages.updated": "lerian.streaming.ledger_fee_billing_packages.updated",
-		"fee_billing_packages.deleted": "lerian.streaming.ledger_fee_billing_packages.deleted",
-		"fee_charge.applied":           "lerian.streaming.ledger_fee_charge.applied",
+		"fee_packages.created":         "ledger.fee_packages.created",
+		"fee_packages.updated":         "ledger.fee_packages.updated",
+		"fee_packages.deleted":         "ledger.fee_packages.deleted",
+		"fee_billing_packages.created": "ledger.fee_billing_packages.created",
+		"fee_billing_packages.updated": "ledger.fee_billing_packages.updated",
+		"fee_billing_packages.deleted": "ledger.fee_billing_packages.deleted",
+		"fee_charge.applied":           "ledger.fee_charge.applied",
 	}
 	for key, topic := range feeTopics {
 		assert.Equalf(t, topic, destByKey[key],
-			"fee route %q must target %q (no fee_fee_* regression)", key, topic)
+			"fee route %q must target %q", key, topic)
 	}
 }
 
@@ -238,4 +233,37 @@ func TestFeesEventsRegistered(t *testing.T) {
 	assert.Equal(t, "fee_packages.created", events.FeesPackageCreatedDefinition.Key())
 	assert.Equal(t, "fee_billing_packages.deleted", events.FeesBillingPackageDeletedDefinition.Key())
 	assert.Equal(t, "fee_charge.applied", events.FeesAppliedDefinition.Key())
+}
+
+// TestTopicConvergesWithEventDefinition proves midaz's pkgStreaming.TopicName
+// and lib-streaming's own EventDefinition.Topic derive the SAME Kafka topic for
+// every registered event, with the bare service name ("ledger") as the
+// CloudEvents source. This convergence is what lets a Kafka ACL scoped to the
+// "ledger." prefix — granted from the tenant-manager's SanitizeKafkaSegment —
+// cover every topic the producer emits: the two derivations must never diverge.
+// Card #3783 Task 5.2.
+func TestTopicConvergesWithEventDefinition(t *testing.T) {
+	t.Parallel()
+
+	const ceSource = streamingServiceName // the bare service name is the ce-source
+
+	for _, def := range midazEventDefinitions() {
+		ed := libStreaming.EventDefinition{
+			Key:           def.Key(),
+			ResourceType:  def.ResourceType,
+			EventType:     def.EventType,
+			SchemaVersion: def.SchemaVersion,
+		}
+
+		want := ed.Topic(ceSource)
+		got := pkgStreaming.TopicName(streamingServiceName, def.Key())
+
+		assert.Equalf(t, want, got,
+			"TopicName and EventDefinition.Topic must converge for %q", def.Key())
+		// Lock the literal invariant the convergence rests on: for a service name
+		// that is already [a-z0-9]-only, both sanitizers are the identity, so the
+		// topic is exactly service + "." + Key().
+		assert.Equalf(t, streamingServiceName+"."+def.Key(), got,
+			"topic for %q must be service + \".\" + Key()", def.Key())
+	}
 }

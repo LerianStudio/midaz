@@ -286,8 +286,8 @@ func fencedScope() model.Scope {
 }
 
 // smokeTopics maps each event's ce-type back to its canonical topic name
-// "lerian.streaming.tracer_<resource>.<event>" (service segment folded into
-// the first topic segment, hyphens normalized to underscores).
+// "tracer.<resource>.<event>" (the "tracer" service is the leading, ACL-scoped
+// segment; the underscore-canonical resource.event key follows verbatim).
 func smokeTopics(evs []smokeEvent) []string {
 	out := make([]string, 0, len(evs))
 

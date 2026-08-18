@@ -35,9 +35,10 @@ const (
 // sync.
 const streamingPrimaryTargetName = "primary"
 
-// streamingServiceName is the producing-service segment folded into every
-// tracer topic name via pkgStreaming.TopicName. Topic names take the shape
-// "lerian.streaming.<service>_<resource>.<event>" (service = tracer).
+// streamingServiceName is the leading, ACL-scoped service segment of every
+// tracer topic name produced by pkgStreaming.TopicName. Topic names take the
+// shape "tracer.<resource>.<event>", so a single Kafka ACL prefix "tracer."
+// covers every topic tracer emits.
 const streamingServiceName = "tracer"
 
 // streamingSource is the default CloudEvents source stamped on every event
@@ -176,8 +177,7 @@ func buildLiveStreamingEmitter(
 	}
 
 	// Build the route table. One required route per event keyed to the
-	// canonical "lerian.streaming.<service>_<resource>.<event>" topic name
-	// (service = tracer).
+	// canonical "tracer.<resource>.<event>" topic name (service = tracer).
 	routes := buildRoutes(streamingPrimaryTargetName)
 
 	source := resolveStreamingSource(cfg)
@@ -340,15 +340,16 @@ func buildCatalog() (libStreaming.Catalog, error) {
 
 // buildRoutes constructs one RouteRequired route per tracer event,
 // targeting the single broker named targetName. Topic names are
-// "lerian.streaming.<service>_<resource>.<event>" (service = tracer),
-// rendered via pkgStreaming.TopicName.
+// "tracer.<resource>.<event>", rendered via pkgStreaming.TopicName from the
+// underscore-canonical Definition.Key().
 //
 // Route Keys are composed as "<route-key>.<target-name>" (e.g.
 // "rule.created.primary"), where <route-key> is the hyphenated routing handle
 // (RouteKey()) — Route.Key must match lib-streaming's lower-case hyphenated
 // dot-delimited grammar, and the target-name suffix guarantees uniqueness when
 // the same event is later routed to multiple targets (e.g. a parallel shadow
-// route).
+// route). The wire topic, by contrast, derives from the underscore-canonical
+// Key() so it converges with EventDefinition.Topic.
 func buildRoutes(targetName string) []libStreaming.RouteDefinition {
 	defs := tracerEventDefinitions()
 	routes := make([]libStreaming.RouteDefinition, 0, len(defs))
@@ -360,7 +361,7 @@ func buildRoutes(targetName string) []libStreaming.RouteDefinition {
 			Key:           routeKey + "." + targetName,
 			DefinitionKey: key,
 			Target:        targetName,
-			Destination:   libStreaming.KafkaTopic(pkgStreaming.TopicName(streamingServiceName, routeKey)),
+			Destination:   libStreaming.KafkaTopic(pkgStreaming.TopicName(streamingServiceName, key)),
 			Requirement:   libStreaming.RouteRequired,
 		})
 	}
