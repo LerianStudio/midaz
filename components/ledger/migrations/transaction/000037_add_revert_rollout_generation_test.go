@@ -5,6 +5,8 @@
 package migrations
 
 import (
+	"crypto/sha256"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -22,6 +24,10 @@ func TestMigration000037_RevertRolloutGenerationContract(t *testing.T) {
 	require.NoError(t, err)
 	down, err := os.ReadFile(filepath.Join(dir, "000037_add_revert_rollout_generation.down.sql"))
 	require.NoError(t, err)
+	assert.Equal(t, "245098bedd90716323597ac79260331ebfef12421ae515b6cc90de69244d3884",
+		fmt.Sprintf("%x", sha256.Sum256(up)), "published migration up bytes must never be rewritten")
+	assert.Equal(t, "fb0abd315a29465e0276666a6358ae65e5c9edfda084c477265bc8eb468d41a4",
+		fmt.Sprintf("%x", sha256.Sum256(down)), "published migration down bytes must never be rewritten")
 
 	upSQL := strings.ToLower(string(up))
 	for _, required := range []string{

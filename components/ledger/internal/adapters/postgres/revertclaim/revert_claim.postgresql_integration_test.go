@@ -207,6 +207,23 @@ func TestIntegration_RevertRolloutInitializationBirthCertificateIsOneShot(t *tes
 	assert.True(t, prepared)
 }
 
+func TestIntegration_RevertRolloutInitializationMigration38MissingTableFailsLoudly(t *testing.T) {
+	repo, container := setupRevertClaimRepository(t)
+	ctx := context.Background()
+	var migrationVersion int
+	var dirty bool
+	require.NoError(t, container.DB.QueryRowContext(ctx,
+		`SELECT version, dirty FROM schema_migrations`).Scan(&migrationVersion, &dirty))
+	assert.Equal(t, 38, migrationVersion)
+	assert.False(t, dirty)
+	_, err := container.DB.ExecContext(ctx, `DROP TABLE transaction_revert_rollout_initialization`)
+	require.NoError(t, err)
+
+	_, _, err = repo.BeginRolloutInitialization(ctx, uuid.New(), uuid.New())
+	require.ErrorContains(t, err, "transaction_revert_rollout_initialization",
+		"migration metadata at 38 must never make a missing control table look initialized")
+}
+
 func TestIntegration_RevertRolloutInitializationConcurrentRequestsChooseOneIdentity(t *testing.T) {
 	repo, _ := setupRevertClaimRepository(t)
 	ctx := context.Background()
@@ -276,7 +293,7 @@ func TestIntegration_RevertRolloutInitializationReconcilesLostPostgresCommitResp
 	require.NoError(t, repo.ValidatePreparedRollout(ctx, generation))
 }
 
-func TestIntegration_RevertClaim_UpgradePublished000036To000037(t *testing.T) {
+func TestIntegration_RevertClaim_UpgradePublished000036Through000038(t *testing.T) {
 	t.Setenv("ALLOW_INSECURE_TLS", "true")
 	container := postgrestestutil.SetupContainer(t)
 	ctx := context.Background()
@@ -286,6 +303,10 @@ func TestIntegration_RevertClaim_UpgradePublished000036To000037(t *testing.T) {
 	rolloutUp, err := os.ReadFile(filepath.Join(migrationsPath, "000037_add_revert_rollout_generation.up.sql"))
 	require.NoError(t, err)
 	rolloutDown, err := os.ReadFile(filepath.Join(migrationsPath, "000037_add_revert_rollout_generation.down.sql"))
+	require.NoError(t, err)
+	initializationUp, err := os.ReadFile(filepath.Join(migrationsPath, "000038_create_revert_rollout_initialization.up.sql"))
+	require.NoError(t, err)
+	initializationDown, err := os.ReadFile(filepath.Join(migrationsPath, "000038_create_revert_rollout_initialization.down.sql"))
 	require.NoError(t, err)
 
 	_, err = container.DB.ExecContext(ctx, string(oldUp))
@@ -319,7 +340,16 @@ func TestIntegration_RevertClaim_UpgradePublished000036To000037(t *testing.T) {
 	var rolloutInitializationTable bool
 	require.NoError(t, container.DB.QueryRowContext(ctx,
 		`SELECT to_regclass('public.transaction_revert_rollout_initialization') IS NOT NULL`).Scan(&rolloutInitializationTable))
-	assert.True(t, rolloutInitializationTable, "000037 must add the durable deployment-scoped dataset birth certificate")
+	assert.False(t, rolloutInitializationTable,
+		"the published 000037 migration must remain byte-for-byte unchanged")
+
+	_, err = container.DB.ExecContext(ctx, string(initializationUp))
+	require.NoError(t, err)
+	_, err = container.DB.ExecContext(ctx, string(initializationUp))
+	require.NoError(t, err, "000038 up must validate an existing complete table idempotently")
+	require.NoError(t, container.DB.QueryRowContext(ctx,
+		`SELECT to_regclass('public.transaction_revert_rollout_initialization') IS NOT NULL`).Scan(&rolloutInitializationTable))
+	assert.True(t, rolloutInitializationTable, "000038 must add the durable deployment-scoped dataset birth certificate")
 
 	var mode, token, generation *string
 	require.NoError(t, container.DB.QueryRowContext(ctx, `
@@ -333,16 +363,20 @@ func TestIntegration_RevertClaim_UpgradePublished000036To000037(t *testing.T) {
 
 	_, err = container.DB.ExecContext(ctx, string(rolloutDown))
 	require.ErrorContains(t, err, "rollback requires an empty claim table")
-	_, err = container.DB.ExecContext(ctx, `DELETE FROM transaction_revert_claim`)
-	require.NoError(t, err)
 	_, err = container.DB.ExecContext(ctx, `
 		INSERT INTO transaction_revert_rollout_initialization (
 			singleton, redis_generation, initialization_request_id, state
 		) VALUES (TRUE, $1, $2, 'PREPARED')`, uuid.New(), uuid.New())
 	require.NoError(t, err)
-	_, err = container.DB.ExecContext(ctx, string(rolloutDown))
+	_, err = container.DB.ExecContext(ctx, string(initializationDown))
 	require.ErrorContains(t, err, "rollback requires an uninitialized rollout")
 	_, err = container.DB.ExecContext(ctx, `DELETE FROM transaction_revert_rollout_initialization`)
+	require.NoError(t, err)
+	_, err = container.DB.ExecContext(ctx, string(initializationDown))
+	require.NoError(t, err)
+	_, err = container.DB.ExecContext(ctx, string(rolloutDown))
+	require.ErrorContains(t, err, "rollback requires an empty claim table")
+	_, err = container.DB.ExecContext(ctx, `DELETE FROM transaction_revert_claim`)
 	require.NoError(t, err)
 	_, err = container.DB.ExecContext(ctx, string(rolloutDown))
 	require.NoError(t, err)
@@ -483,10 +517,14 @@ func TestIntegration_RevertClaim_MigrationDownAndUp(t *testing.T) {
 	require.True(t, acquired)
 
 	migrationsPath := postgrestestutil.FindMigrationsPath(t, "transaction")
+	initializationDown, err := os.ReadFile(filepath.Join(migrationsPath, "000038_create_revert_rollout_initialization.down.sql"))
+	require.NoError(t, err)
 	rolloutDown, err := os.ReadFile(filepath.Join(migrationsPath, "000037_add_revert_rollout_generation.down.sql"))
 	require.NoError(t, err)
 	tableDown, err := os.ReadFile(filepath.Join(migrationsPath, "000036_create_revert_claim.down.sql"))
 	require.NoError(t, err)
+	_, err = container.DB.ExecContext(ctx, string(initializationDown))
+	require.NoError(t, err, "empty pre-initialization 000038 must be safely removable before 000037")
 	_, err = container.DB.ExecContext(ctx, string(rolloutDown))
 	require.ErrorContains(t, err, "rollback requires an empty claim table")
 	_, err = container.DB.ExecContext(ctx, string(tableDown))
@@ -516,6 +554,10 @@ func TestIntegration_RevertClaim_MigrationDownAndUp(t *testing.T) {
 	rolloutUp, err := os.ReadFile(filepath.Join(migrationsPath, "000037_add_revert_rollout_generation.up.sql"))
 	require.NoError(t, err)
 	_, err = container.DB.ExecContext(ctx, string(rolloutUp))
+	require.NoError(t, err)
+	initializationUp, err := os.ReadFile(filepath.Join(migrationsPath, "000038_create_revert_rollout_initialization.up.sql"))
+	require.NoError(t, err)
+	_, err = container.DB.ExecContext(ctx, string(initializationUp))
 	require.NoError(t, err)
 
 	_, acquired, err = repo.Claim(ctx, uuid.New(), uuid.New(), uuid.New(), uuid.New(),

@@ -496,10 +496,13 @@ transaction.
 
 ### Release 0: freeze-capable legacy algorithm
 
-1. Apply the published `000036_create_revert_claim` unchanged, then apply
-   `000037_add_revert_rollout_generation`. `000037` is additive and idempotent:
+1. Apply the published `000036_create_revert_claim` and
+   `000037_add_revert_rollout_generation` unchanged, then apply
+   `000038_create_revert_rollout_initialization`. `000037` is additive and idempotent:
    it adds rollout mode/token and financial generation to an already-migrated
-   `000036` database without rewriting existing claims. Deploy every pod with
+   `000036` database without rewriting existing claims. `000038` adds the
+   deployment-scoped birth certificate without reusing an already-recorded
+   migration version. Deploy every pod with
    `REVERT_IDEMPOTENCY_MODE=legacy` and an empty target. This is the released
    old algorithm plus rollout capability; it neither creates a witness nor
    claims durable phase-zero ownership yet.
@@ -636,16 +639,17 @@ the durable claims, so it requires a traffic stop, zero in-flight bridge/final
 requests, completed backup reconciliation, and verified PostgreSQL primary and
 replica convergence before old code can serve reverts.
 
-The `000037` down migration takes exclusive locks and intentionally refuses to
-remove its rollout/generation columns while **any claim row** exists, including
-completed rows. It also refuses while the PostgreSQL rollout birth certificate
-exists. Because that row is created before the first Redis witness, migration
-down is available only before initialization; after initialization the rollout
-is forward-only unless a future product migration explicitly supersedes and
-archives the birth certificate. Only after that guarded rollback may the
-unchanged `000036` down remove the claim table. Removing either fence would
-silently erase the only barrier understood by bridge/final pods. This is not a
-rolling rollback step.
+The `000038` down migration takes an exclusive lock and refuses to remove the
+PostgreSQL rollout birth certificate while its singleton row exists. Because
+that row is created before the first Redis witness, migration down is available
+only before initialization; after initialization the rollout is forward-only
+unless a future product migration explicitly supersedes and archives the birth
+certificate. If `000038` is still empty and removable, the published `000037`
+down then takes an exclusive lock and refuses to remove its rollout/generation
+columns while **any claim row** exists, including completed rows. Only after
+both guarded rollbacks may the unchanged `000036` down remove the claim table.
+Removing any fence would silently erase the only barrier understood by
+bridge/final pods. This is not a rolling rollback step.
 
 ## Client and operator surface
 
