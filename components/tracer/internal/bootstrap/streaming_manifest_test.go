@@ -77,6 +77,37 @@ func TestBuildStreamingManifestHandler_TopicsConvergeWithTopicName(t *testing.T)
 	}
 }
 
+// TestBuildStreamingManifestHandler_TopicsIndependentOfCeSource locks the HIGH
+// invariant: a NON-BARE STREAMING_CLOUDEVENTS_SOURCE must NOT leak into the
+// manifest's advertised topics. The manifest SourceBase is pinned to the bare
+// "tracer" service segment, so the served topics stay equal to the EMITTED
+// topics (pkgStreaming.TopicName(streamingServiceName, def.Key())) regardless of
+// the operator-configured ce-source.
+func TestBuildStreamingManifestHandler_TopicsIndependentOfCeSource(t *testing.T) {
+	t.Parallel()
+
+	cfg := &Config{StreamingCloudEventsSource: "lerian.midaz.tracer"}
+	doc := fetchTracerManifest(t, cfg)
+
+	byKey := make(map[string]string, len(doc.Events))
+	for _, ev := range doc.Events {
+		byKey[ev.Key] = ev.Topic
+	}
+
+	defs := tracerEventDefinitions()
+
+	require.Len(t, doc.Events, len(defs),
+		"manifest must advertise exactly the tracer definitions")
+
+	for _, def := range defs {
+		key := def.Key()
+		topic, ok := byKey[key]
+		require.Truef(t, ok, "manifest must advertise event %q", key)
+		require.Equalf(t, pkgStreaming.TopicName(streamingServiceName, key), topic,
+			"manifest topic for %q must equal the emitted topic even when ce-source is non-bare", key)
+	}
+}
+
 // TestBuildStreamingManifestHandler_IndependentOfStreamingEnabled asserts the
 // manifest is built regardless of STREAMING_ENABLED and regardless of a nil
 // config (the descriptor's SourceBase then falls back to the bare service name).
@@ -92,25 +123,15 @@ func TestBuildStreamingManifestHandler_IndependentOfStreamingEnabled(t *testing.
 		{name: "nil config", cfg: nil},
 	}
 
+	defs := tracerEventDefinitions()
+
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			handler, err := BuildStreamingManifestHandler(tc.cfg)
-			require.NoError(t, err)
-			require.NotNil(t, handler)
+			doc := fetchTracerManifest(t, tc.cfg)
+			require.Len(t, doc.Events, len(defs),
+				"manifest must advertise exactly the tracer definitions regardless of STREAMING_ENABLED / nil config")
 		})
 	}
-}
-
-// TestBuildPublisherDescriptor_SourceBaseIsBareService pins that the descriptor
-// advertises the bare, ACL-scoped service name for both ServiceName and
-// SourceBase, which is what makes EventDefinition.Topic converge with TopicName.
-func TestBuildPublisherDescriptor_SourceBaseIsBareService(t *testing.T) {
-	t.Parallel()
-
-	desc := buildPublisherDescriptor(&Config{})
-	require.Equal(t, streamingServiceName, desc.ServiceName)
-	require.Equal(t, streamingServiceName, desc.SourceBase)
-	require.Equal(t, pkgStreaming.ManifestRoutePath, desc.RoutePath)
 }
