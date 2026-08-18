@@ -540,8 +540,16 @@ func (s *WorkerSupervisor) StopWorkers(tenantID string) {
 	<-set.done
 
 	s.ruleCache.EvictTenant(tenantID)
-	setReservationV2Gauge(context.Background(), s.metricsFactory, s.logger, tenantID, MetricReservationV2Outstanding, 0)
-	setReservationV2Gauge(context.Background(), s.metricsFactory, s.logger, tenantID, MetricReservationV2OldestAgeSeconds, 0)
+
+	// Serialize the absence check + reset with EnsureWorkers' Store. A replacement
+	// worker may have spawned while this old generation was shutting down; its
+	// freshly-observed backlog must not be overwritten with zero by the old stop.
+	s.spawnMu.Lock()
+	if _, replacementRunning := s.workers.Load(tenantID); !replacementRunning {
+		setReservationV2Gauge(context.Background(), s.metricsFactory, s.logger, tenantID, MetricReservationV2Outstanding, 0)
+		setReservationV2Gauge(context.Background(), s.metricsFactory, s.logger, tenantID, MetricReservationV2OldestAgeSeconds, 0)
+	}
+	s.spawnMu.Unlock()
 
 	// Decrement the gauge only after the worker goroutines have actually
 	// exited — dashboards that drive "active consumers" alerts rely on the

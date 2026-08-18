@@ -264,6 +264,66 @@ func TestWorkerSupervisor_StopWorkers_ClearsV2BacklogGauges(t *testing.T) {
 	require.Equal(t, 2, cleared)
 }
 
+func TestWorkerSupervisor_StopWorkers_DoesNotClearReplacementGauges(t *testing.T) {
+	_, cleanup := setupTestTracer(t)
+	defer cleanup()
+
+	registry := prometheus.NewRegistry()
+	factory, shutdown, err := observability.NewPrometheusBackedFactory(registry, nil)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = shutdown() })
+
+	deps, _ := newSupervisorTestDeps(t, &fakeTenantLister{}, 10)
+	deps.MetricsFactory = factory
+
+	sup, err := NewWorkerSupervisor(deps)
+	require.NoError(t, err)
+	t.Cleanup(sup.Shutdown)
+
+	oldDone := make(chan struct{})
+	oldCancelled := make(chan struct{})
+	sup.workers.Store("tenant-a", &tenantWorkerSet{
+		cancel: func() { close(oldCancelled) },
+		done:   oldDone,
+	})
+	sup.activeCount.Store(1)
+
+	stopFinished := make(chan struct{})
+	go func() {
+		sup.StopWorkers("tenant-a")
+		close(stopFinished)
+	}()
+	<-oldCancelled
+
+	require.NoError(t, sup.EnsureWorkers(context.Background(), "tenant-a"))
+	setReservationV2Gauge(context.Background(), factory, deps.Logger, "tenant-a", MetricReservationV2Outstanding, 7)
+	setReservationV2Gauge(context.Background(), factory, deps.Logger, "tenant-a", MetricReservationV2OldestAgeSeconds, 3600)
+
+	close(oldDone)
+	<-stopFinished
+
+	families, err := registry.Gather()
+	require.NoError(t, err)
+
+	preserved := 0
+	for _, family := range families {
+		want := float64(7)
+		if family.GetName() == MetricReservationV2OldestAgeSeconds.Name {
+			want = 3600
+		} else if family.GetName() != MetricReservationV2Outstanding.Name {
+			continue
+		}
+
+		for _, metric := range family.Metric {
+			if len(metric.Label) == 1 && metric.Label[0].GetName() == "tenant_id" && metric.Label[0].GetValue() == "tenant-a" {
+				require.Equal(t, want, metric.Gauge.GetValue(), "%s belongs to the replacement worker", family.GetName())
+				preserved++
+			}
+		}
+	}
+	require.Equal(t, 2, preserved)
+}
+
 func TestWorkerSupervisor_StopWorkers_Unknown(t *testing.T) {
 	t.Parallel()
 	_, cleanup := setupTestTracer(t)
