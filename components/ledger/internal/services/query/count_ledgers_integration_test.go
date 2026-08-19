@@ -34,7 +34,7 @@ func TestIntegration_CountLedgers_Monotonic(t *testing.T) {
 	// Setup repository and use case
 	connStr := pgtestutil.BuildConnectionString(container.Host, container.Port, container.Config)
 
-	conn := pgtestutil.ConnectPostgresClient(t, connStr, connStr)
+	conn := pgtestutil.ConnectPostgresClient(t.Context(), t, connStr, connStr)
 
 	ledgerRepo := ledger.NewLedgerPostgreSQLRepository(conn)
 
@@ -85,7 +85,7 @@ func TestIntegration_CountLedgers_IsolatedByOrganization(t *testing.T) {
 	// Setup repository and use case
 	connStr := pgtestutil.BuildConnectionString(container.Host, container.Port, container.Config)
 
-	conn := pgtestutil.ConnectPostgresClient(t, connStr, connStr)
+	conn := pgtestutil.ConnectPostgresClient(t.Context(), t, connStr, connStr)
 
 	ledgerRepo := ledger.NewLedgerPostgreSQLRepository(conn)
 

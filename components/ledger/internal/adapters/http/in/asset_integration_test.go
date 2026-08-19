@@ -79,7 +79,7 @@ func setupAssetTestInfra(t *testing.T) *assetTestInfra {
 
 	connStr := postgrestestutil.BuildConnectionString(infra.pgContainer.Host, infra.pgContainer.Port, infra.pgContainer.Config)
 
-	infra.pgConn = postgrestestutil.ConnectPostgresClient(t, connStr, connStr)
+	infra.pgConn = postgrestestutil.ConnectPostgresClient(t.Context(), t, connStr, connStr)
 
 	// Create MongoDB connection
 	mongoConn := mongotestutil.CreateConnection(t, infra.mongoContainer.URI, infra.mongoContainer.DBName)

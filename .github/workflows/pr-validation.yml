@@ -151,7 +151,9 @@ jobs:
         run: go install gotest.tools/gotestsum@v1.13.0
 
       - name: Run bounded integration shard
-        run: scripts/run-integration-ci-shard.sh ${{ matrix.shard }}
+        env:
+          INTEGRATION_SHARD: ${{ matrix.shard }}
+        run: scripts/run-integration-ci-shard.sh "$INTEGRATION_SHARD"
 
       - name: Upload integration timing and log
         if: always()
@@ -251,6 +253,14 @@ jobs:
           sed -i 's|^# STREAMING_BROKERS=.*|STREAMING_BROKERS=midaz-redpanda:9092|' components/ledger/.env
           sed -i 's|^# STREAMING_CLOUDEVENTS_SOURCE=.*|STREAMING_CLOUDEVENTS_SOURCE=ledger|' components/ledger/.env
           sed -i 's|^REDPANDA_EXTERNAL_PORT=.*|REDPANDA_EXTERNAL_PORT=29092|' components/infra/.env
+          # Fail closed if any sed above silently missed its target line
+          # (e.g. after an .env.example format change).
+          grep -q '^TRACER_BASE_URL=http://midaz-tracer:4020$' components/ledger/.env
+          grep -q '^TRACER_TRANSPORT=rest$' components/ledger/.env
+          grep -q '^STREAMING_ENABLED=true$' components/ledger/.env
+          grep -q '^STREAMING_BROKERS=midaz-redpanda:9092$' components/ledger/.env
+          grep -q '^STREAMING_CLOUDEVENTS_SOURCE=ledger$' components/ledger/.env
+          grep -q '^REDPANDA_EXTERNAL_PORT=29092$' components/infra/.env
           # configure-required-tracer-e2e-auth.sh activates in the Ledger-Tracer
           # outcome layer, once the ledger gains TRACER_API_KEY support. This
           # layer's ledger cannot present a key, so tracer API-key auth stays

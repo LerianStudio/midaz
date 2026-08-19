@@ -52,6 +52,10 @@ done
 default_root_recipe=$(make -s -C "$repo_root" -n test-integration)
 assert_not_contains "$default_root_recipe" "-run '^TestIntegration'" "root default integration recipe"
 assert_contains "$default_root_recipe" "./components/... ./pkg/... ./tests/..." "root integration scope"
+assert_contains "$default_root_recipe" 'integration discovery returned zero packages' \
+  "root empty-discovery fail-closed guard"
+assert_contains "$default_root_recipe" 'has zero selected integration tests' \
+  "root empty-selection fail-closed guard"
 
 reported_root_recipe=$(make -s -C "$repo_root" -n test-integration \
   GOTESTSUM=gotestsum TEST_REPORTS_DIR=reports/ci)

@@ -22,7 +22,7 @@ for input_profile in "$@"; do
     exit 1
   }
 
-  IFS= read -r input_mode <"$input_profile"
+  IFS= read -r input_mode <"$input_profile" || true
   [[ "$input_mode" == mode:* ]] || {
     echo "[error] invalid coverprofile header in $input_profile" >&2
     exit 1

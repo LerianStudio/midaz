@@ -83,6 +83,7 @@ func SetupReusableContainerWithConfig(t *testing.T, cfg ContainerConfig) *Contai
 	vhost := fmt.Sprintf("midaz_test_%x", sum[:8])
 
 	status, err := rabbitManagementRequest(
+		t.Context(),
 		cfg,
 		server.host,
 		server.mgmtPort,
@@ -95,6 +96,7 @@ func SetupReusableContainerWithConfig(t *testing.T, cfg ContainerConfig) *Contai
 
 	permissions := []byte(`{"configure":".*","write":".*","read":".*"}`)
 	status, err = rabbitManagementRequest(
+		t.Context(),
 		cfg,
 		server.host,
 		server.mgmtPort,
@@ -106,9 +108,8 @@ func SetupReusableContainerWithConfig(t *testing.T, cfg ContainerConfig) *Contai
 	require.Equal(t, http.StatusNoContent, status, "unexpected grant-permissions status")
 
 	uri := fmt.Sprintf(
-		"amqp://%s:%s@%s:%s/%s",
-		url.QueryEscape(cfg.User),
-		url.QueryEscape(cfg.Password),
+		"amqp://%s@%s:%s/%s",
+		url.UserPassword(cfg.User, cfg.Password).String(),
 		server.host,
 		server.amqpPort,
 		url.PathEscape(vhost),
@@ -128,6 +129,7 @@ func SetupReusableContainerWithConfig(t *testing.T, cfg ContainerConfig) *Contai
 		}
 
 		cleanupStatus, cleanupErr := rabbitManagementRequest(
+			context.Background(),
 			cfg,
 			server.host,
 			server.mgmtPort,
@@ -146,6 +148,7 @@ func SetupReusableContainerWithConfig(t *testing.T, cfg ContainerConfig) *Contai
 		}
 
 		auditStatus, auditErr := rabbitManagementRequest(
+			context.Background(),
 			cfg,
 			server.host,
 			server.mgmtPort,
@@ -224,14 +227,14 @@ func getReusableRabbitMQServer(t *testing.T, cfg ContainerConfig) *reusableRabbi
 	return server
 }
 
-func rabbitManagementRequest(cfg ContainerConfig, host, port, method, path string, body []byte) (int, error) {
+func rabbitManagementRequest(ctx context.Context, cfg ContainerConfig, host, port, method, path string, body []byte) (int, error) {
 	var reader io.Reader
 	if body != nil {
 		reader = bytes.NewReader(body)
 	}
 
 	req, err := http.NewRequestWithContext(
-		context.Background(),
+		ctx,
 		method,
 		fmt.Sprintf("http://%s:%s%s", host, port, path),
 		reader,

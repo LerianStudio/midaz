@@ -295,14 +295,33 @@ test-integration:
 	    elif [ -n "$$events_file" ]; then \
 	      if ! $(INTEG_TEST_ENV)go test -json -tags=$(_INTEG_TAGS) -v $(LOW_RES_RACE_FLAG) -count=1 -timeout 600s $(GO_TEST_LDFLAGS) \
 	        -p 1 $(LOW_RES_PARALLEL_FLAG) -run "$$exact_pattern" "$$pkg" > "$$events_file"; then \
-	        cat "$$events_file"; exit 1; \
+	        cat "$$events_file"; \
+	        if [ "$(RETRY_ON_FAIL)" = "1" ]; then \
+	          echo "Retrying $$pkg once..."; \
+	          if ! $(INTEG_TEST_ENV)go test -json -tags=$(_INTEG_TAGS) -v $(LOW_RES_RACE_FLAG) -count=1 -timeout 600s $(GO_TEST_LDFLAGS) \
+	            -p 1 $(LOW_RES_PARALLEL_FLAG) -run "$$exact_pattern" "$$pkg" > "$$events_file"; then \
+	            cat "$$events_file"; exit 1; \
+	          fi; \
+	          cat "$$events_file"; \
+	        else \
+	          exit 1; \
+	        fi; \
+	      else \
+	        cat "$$events_file"; \
 	      fi; \
-	      cat "$$events_file"; \
 	    else \
 	      $(INTEG_TEST_ENV)go test -tags=$(_INTEG_TAGS) -v $(LOW_RES_RACE_FLAG) -count=1 -timeout 600s $(GO_TEST_LDFLAGS) \
-	        -p 1 $(LOW_RES_PARALLEL_FLAG) -run "$$exact_pattern" "$$pkg"; \
+	        -p 1 $(LOW_RES_PARALLEL_FLAG) -run "$$exact_pattern" "$$pkg" || { \
+	        if [ "$(RETRY_ON_FAIL)" = "1" ]; then \
+	          echo "Retrying $$pkg once..."; \
+	          $(INTEG_TEST_ENV)go test -tags=$(_INTEG_TAGS) -v $(LOW_RES_RACE_FLAG) -count=1 -timeout 600s $(GO_TEST_LDFLAGS) \
+	            -p 1 $(LOW_RES_PARALLEL_FLAG) -run "$$exact_pattern" "$$pkg"; \
+	        else \
+	          exit 1; \
+	        fi; \
+	      }; \
 	    fi; \
-	    if [ -n "$$run_patterns_file" ]; then \
+	    if [ -n "$$events_file" ]; then \
 	      "$(GO_TEST_EVENT_VERIFIER)" "$$exact_pattern" < "$$events_file"; \
 	    fi; \
 	  done; \

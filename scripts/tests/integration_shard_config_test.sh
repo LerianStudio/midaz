@@ -43,8 +43,8 @@ fi
 awk -F '\t' '
   /^#/ || !NF { next }
   NF != 10 { printf "line %d has %d fields, want 10\n", NR, NF > "/dev/stderr"; exit 1 }
-  $2 !~ /^[1-4]$/ || $3 !~ /^[1-4]$/ || $4 !~ /^[1-4]$/ { exit 1 }
-  $5 !~ /^[1-9][0-9]*$/ || $6 !~ /^[1-9][0-9]*$/ || $7 !~ /^[1-9][0-9]*$/ { exit 1 }
+  $2 !~ /^[1-4]$/ || $3 !~ /^[1-4]$/ || $4 !~ /^[1-4]$/ { printf "line %d has an out-of-range parallelism field (want 1-4)\n", NR > "/dev/stderr"; exit 1 }
+  $5 !~ /^[1-9][0-9]*$/ || $6 !~ /^[1-9][0-9]*$/ || $7 !~ /^[1-9][0-9]*$/ { printf "line %d has a non-positive-integer budget field\n", NR > "/dev/stderr"; exit 1 }
   $8 != 0 { print "flake budget must remain zero" > "/dev/stderr"; exit 1 }
   $9 !~ /^[0-9]+(m|h)$/ { print "invalid wall timeout" > "/dev/stderr"; exit 1 }
   $10 !~ /^[01]$/ { print "race flag must be 0 or 1" > "/dev/stderr"; exit 1 }

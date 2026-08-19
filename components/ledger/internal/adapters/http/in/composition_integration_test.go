@@ -114,7 +114,7 @@ func setupCompositionTestInfra(t *testing.T, instrumentCreator composition.Instr
 
 	// Onboarding-PG connection + repos for the account leg.
 	connStr := postgrestestutil.BuildConnectionString(pgContainer.Host, pgContainer.Port, pgContainer.Config)
-	infra.pgConn = postgrestestutil.ConnectPostgresClient(t, connStr, connStr)
+	infra.pgConn = postgrestestutil.ConnectPostgresClient(t.Context(), t, connStr, connStr)
 
 	infra.mongoConn = mongotestutil.CreateConnection(t, mongoContainer.URI, mongoContainer.DBName)
 

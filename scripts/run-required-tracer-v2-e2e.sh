@@ -14,7 +14,7 @@ junit_file="$report_dir/ledger-tracer-v2-e2e.xml"
 
 require_ledger_v2_mode() {
   local readiness
-  if ! readiness=$(curl --fail --silent --show-error "$LEDGER_URL/readyz"); then
+  if ! readiness=$(curl --fail --silent --show-error --connect-timeout 5 --max-time 30 "$LEDGER_URL/readyz"); then
     echo "Tracer V2 E2E preflight could not read Ledger readiness at $LEDGER_URL/readyz" >&2
     return 1
   fi

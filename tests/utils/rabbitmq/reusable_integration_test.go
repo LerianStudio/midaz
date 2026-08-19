@@ -48,6 +48,7 @@ func TestReusableContainerDropsTheOwningTestsVirtualHost(t *testing.T) {
 	}))
 
 	status, err := rabbitManagementRequest(
+		t.Context(),
 		DefaultContainerConfig(),
 		observer.Host,
 		observer.MgmtPort,

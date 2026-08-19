@@ -198,7 +198,10 @@ func TestVerifyAssignmentsRejectsOverlapOmissionAndUnknownShard(t *testing.T) {
 }
 
 func TestVerifyEventCoverageRequiresEveryAndOnlySelectedTopLevelTest(t *testing.T) {
-	t.Parallel()
+	// The allowlisted TestTwo skip is only valid while the chaos alternate
+	// capability is inactive; pin CHAOS so an ambient CHAOS=1 cannot flip the
+	// expected outcome (t.Setenv also forbids t.Parallel).
+	t.Setenv("CHAOS", "0")
 
 	expected := []string{"TestOne", "TestTwo"}
 	allowances := map[testRecord]skipAllowance{

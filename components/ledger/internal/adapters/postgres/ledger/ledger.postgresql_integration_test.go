@@ -27,7 +27,7 @@ func createRepository(t *testing.T, container *pgtestutil.ContainerResult) *Ledg
 
 	connStr := pgtestutil.BuildConnectionString(container.Host, container.Port, container.Config)
 
-	conn := pgtestutil.ConnectPostgresClient(t, connStr, connStr)
+	conn := pgtestutil.ConnectPostgresClient(t.Context(), t, connStr, connStr)
 
 	return NewLedgerPostgreSQLRepository(conn)
 }

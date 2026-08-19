@@ -31,7 +31,7 @@ func createRepository(t *testing.T, container *pgtestutil.ContainerResult) *Orga
 
 	connStr := pgtestutil.BuildConnectionString(container.Host, container.Port, container.Config)
 
-	conn := pgtestutil.ConnectPostgresClient(t, connStr, connStr)
+	conn := pgtestutil.ConnectPostgresClient(t.Context(), t, connStr, connStr)
 
 	return NewOrganizationPostgreSQLRepository(conn)
 }
@@ -967,7 +967,7 @@ func setupTenantContainer(t *testing.T) (*pgtestutil.ContainerResult, dbresolver
 
 	connStr := pgtestutil.BuildConnectionString(tenantContainer.Host, tenantContainer.Port, tenantContainer.Config)
 
-	tempConn := pgtestutil.ConnectPostgresClient(t, connStr, connStr)
+	tempConn := pgtestutil.ConnectPostgresClient(t.Context(), t, connStr, connStr)
 
 	db, err := tempConn.Resolver(context.Background())
 	require.NoError(t, err, "failed to initialize tenant database")

@@ -115,8 +115,9 @@ func TestIntegration_CRMCollapse(t *testing.T) {
 
 		uc := &crmservices.UseCase{HolderRepo: holderRepo, InstrumentRepo: instrumentRepo}
 
-		// Two separate tenant databases inside the same Mongo container.
-		tenantADatabase := container.Database
+		// Two separate per-invocation tenant databases inside the same Mongo
+		// container; neither reuses the container's shared default database.
+		tenantADatabase := mongotestutil.CreateOwnedDatabase(t, container)
 		tenantBDatabase := mongotestutil.CreateOwnedDatabase(t, container)
 		dbA := mongotestutil.CreateConnection(t, container.URI, tenantADatabase.Name())
 		dbB := mongotestutil.CreateConnection(t, container.URI, tenantBDatabase.Name())
@@ -295,6 +296,7 @@ func runHTTPCrossTenantIsolation(t *testing.T, breakIsolation bool) {
 
 	container := mongotestutil.SetupReusableContainer(t)
 	logger := &libLog.GoLogger{}
+	tenantADatabase := mongotestutil.CreateOwnedDatabase(t, container)
 	tenantBDatabase := mongotestutil.CreateOwnedDatabase(t, container)
 
 	const (
@@ -306,9 +308,9 @@ func runHTTPCrossTenantIsolation(t *testing.T, breakIsolation bool) {
 	)
 
 	// When isolation is broken, both tenants are pointed at the same database.
-	tenantDBs := map[string]string{tenantA: container.DBName, tenantB: tenantBDatabase.Name()}
+	tenantDBs := map[string]string{tenantA: tenantADatabase.Name(), tenantB: tenantBDatabase.Name()}
 	if breakIsolation {
-		tenantDBs[tenantB] = container.DBName
+		tenantDBs[tenantB] = tenantADatabase.Name()
 	}
 
 	// Fake tenant-manager control plane: returns a per-tenant crm-api MongoDB

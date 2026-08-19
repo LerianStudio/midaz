@@ -166,7 +166,10 @@ func getReusableMongoServer(tb testing.TB, cfg ContainerConfig) *reusableMongoSe
 	uri := fmt.Sprintf("mongodb://%s:%s", host, port.Port())
 	client, err := mongo.Connect(options.Client().ApplyURI(uri))
 	require.NoError(tb, err, "failed to connect to reusable MongoDB container")
-	require.NoError(tb, client.Ping(ctx, nil), "failed to ping reusable MongoDB container")
+
+	pingCtx, cancel := context.WithTimeout(ctx, mongoStartupDeadline)
+	defer cancel()
+	require.NoError(tb, client.Ping(pingCtx, nil), "failed to ping reusable MongoDB container")
 
 	server := &reusableMongoServer{
 		container: ctr,

@@ -33,7 +33,7 @@ func TestIntegration_CountAccounts_Monotonic(t *testing.T) {
 	// Setup repository and use case
 	connStr := pgtestutil.BuildConnectionString(container.Host, container.Port, container.Config)
 
-	conn := pgtestutil.ConnectPostgresClient(t, connStr, connStr)
+	conn := pgtestutil.ConnectPostgresClient(t.Context(), t, connStr, connStr)
 
 	accountRepo := account.NewAccountPostgreSQLRepository(conn)
 
@@ -89,7 +89,7 @@ func TestIntegration_CountAccounts_IsolatedByLedger(t *testing.T) {
 	// Setup repository and use case
 	connStr := pgtestutil.BuildConnectionString(container.Host, container.Port, container.Config)
 
-	conn := pgtestutil.ConnectPostgresClient(t, connStr, connStr)
+	conn := pgtestutil.ConnectPostgresClient(t.Context(), t, connStr, connStr)
 
 	accountRepo := account.NewAccountPostgreSQLRepository(conn)
 

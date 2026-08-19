@@ -49,7 +49,7 @@ func TestIntegration_HolderBackfillRunner_SingleTenant_Run(t *testing.T) {
 	pgContainer := pgtestutil.SetupMigratedContainer(t, "onboarding")
 
 	connStr := pgtestutil.BuildConnectionString(pgContainer.Host, pgContainer.Port, pgContainer.Config)
-	pgClient := pgtestutil.ConnectPostgresClient(t, connStr, connStr)
+	pgClient := pgtestutil.ConnectPostgresClient(t.Context(), t, connStr, connStr)
 
 	orgRepo := organization.NewOrganizationPostgreSQLRepository(pgClient)
 

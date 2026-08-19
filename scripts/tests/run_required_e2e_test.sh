@@ -15,7 +15,13 @@ ln -s "$repo_root/scripts/tests/fixtures/fake-gotestsum" "$test_dir/bin/gotestsu
 PATH="$test_dir/bin:$PATH" CI_REPORT_DIR="$test_dir/pass" FAKE_SENTINEL=1 \
   E2E_REQUIRED_WALL_TIMEOUT=5s "$repo_root/scripts/run-required-e2e.sh"
 grep -q '"status":"passed"' "$test_dir/pass/ledger-e2e-timing.json"
-grep -q 'TestFullLedgerFlow' "$test_dir/pass/ledger-e2e.json"
+for sentinel_test in TestFullLedgerFlow TestStreamingAccountCreatedEmitted \
+  TestStreamingHolderCreateEmitsRedacted TestReserveLifecycleConfirmIdempotent; do
+  if ! grep -q "{\"Action\":\"pass\",\"Test\":\"$sentinel_test\"}" "$test_dir/pass/ledger-e2e.json"; then
+    echo "required E2E pass lane is missing a pass event for $sentinel_test" >&2
+    exit 1
+  fi
+done
 test -s "$test_dir/pass/ledger-e2e.xml"
 
 status=0

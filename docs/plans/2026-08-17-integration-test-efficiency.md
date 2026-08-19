@@ -4,7 +4,7 @@
 
 **Architecture:** Integration build tags define what belongs to each lane. Required gates fail closed when discovery or prerequisites are missing. Datastore processes are eventually reused at package or shard scope, while every test keeps an isolated database, schema, namespace, or vhost. Parallelism is introduced only after isolation is explicit and measured.
 
-**Status:** P0-P3 and every finding from the final independent review are implemented together. The current signal contains 1,735 exact integration tests; P1 reduces datastore starts by 92.9%, P2 reduces the like-for-like base critical path by 70.4%, and P3 removes redundant restarts, waits, cleanup, and history scans. A required capability lane additionally executes all 76 chaos scenarios that the base matrix classifies as skips, making the complete required critical path 478 seconds. Repository ruleset enforcement remains deliberately last.
+**Status:** P0-P3 and every finding from the final independent review are implemented together on the source branch; delivery is split into four sequential review layers, of which only the first (reusable integration gate platform) has landed so far. The measurements below describe the complete cumulative result. The current signal contains 1,735 exact integration tests; P1 reduces datastore starts by 92.9%, P2 reduces the like-for-like base critical path by 70.4%, and P3 removes redundant restarts, waits, cleanup, and history scans. A required capability lane additionally executes all 76 chaos scenarios that the base matrix classifies as skips, making the complete required critical path 478 seconds. Repository ruleset enforcement remains deliberately last.
 
 ## Phase overview
 

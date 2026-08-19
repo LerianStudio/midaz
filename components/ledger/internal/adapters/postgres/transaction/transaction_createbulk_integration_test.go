@@ -43,7 +43,7 @@ func setupBulkTestInfra(t *testing.T) *bulkTestInfra {
 	// Create lib-commons PostgreSQL connection
 	connStr := pgtestutil.BuildConnectionString(pgContainer.Host, pgContainer.Port, pgContainer.Config)
 
-	conn := pgtestutil.ConnectPostgresClient(t, connStr, connStr)
+	conn := pgtestutil.ConnectPostgresClient(t.Context(), t, connStr, connStr)
 
 	// Create repository
 	repo := NewTransactionPostgreSQLRepository(conn)

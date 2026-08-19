@@ -51,7 +51,7 @@ func setupCacheQueryTestInfra(t *testing.T) *cacheQueryTestInfra {
 
 	connStr := pgtestutil.BuildConnectionString(pgContainer.Host, pgContainer.Port, pgContainer.Config)
 
-	conn := pgtestutil.ConnectPostgresClient(t, connStr, connStr)
+	conn := pgtestutil.ConnectPostgresClient(t.Context(), t, connStr, connStr)
 
 	txRouteRepo := transactionroute.NewTransactionRoutePostgreSQLRepository(conn)
 

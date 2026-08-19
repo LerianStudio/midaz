@@ -16,6 +16,18 @@ if [[ ! -x $auth_configurator ]]; then
   exit 1
 fi
 
+# sed_inplace edits a file in place portably: BSD sed (macOS) requires an
+# explicit suffix argument after -i, GNU sed treats a separate suffix as a
+# filename. Rewrite via a temp file instead of feature-detecting sed.
+sed_inplace() {
+  local expression=$1
+  local file=$2
+  local tmp
+  tmp=$(mktemp)
+  sed "$expression" "$file" > "$tmp"
+  mv "$tmp" "$file"
+}
+
 read_env_value() {
   local env_file=$1
   local key=$2
@@ -36,7 +48,7 @@ mkdir -p "$test_dir/clean" "$test_dir/second" "$test_dir/empty" "$test_dir/misma
 for fixture in clean second empty mismatch; do
   cp "$repo_root/components/ledger/.env.example" "$test_dir/$fixture/ledger.env"
   cp "$repo_root/components/tracer/.env.example" "$test_dir/$fixture/tracer.env"
-  sed -i 's/^TRACER_TRANSPORT=.*/TRACER_TRANSPORT=rest/' "$test_dir/$fixture/ledger.env"
+  sed_inplace 's/^TRACER_TRANSPORT=.*/TRACER_TRANSPORT=rest/' "$test_dir/$fixture/ledger.env"
 done
 
 config_output=$(LEDGER_ENV_FILE="$test_dir/clean/ledger.env" TRACER_ENV_FILE="$test_dir/clean/tracer.env" \
@@ -68,7 +80,7 @@ E2E_AUTH_CHILD_MARKER="$auth_child_marker" \
 test -s "$auth_child_marker"
 rm -f "$auth_child_marker"
 
-sed -i 's/^API_KEY=.*/API_KEY=/' "$test_dir/empty/tracer.env"
+sed_inplace 's/^API_KEY=.*/API_KEY=/' "$test_dir/empty/tracer.env"
 status=0
 E2E_AUTH_CHILD_MARKER="$auth_child_marker" \
   LEDGER_ENV_FILE="$test_dir/empty/ledger.env" TRACER_ENV_FILE="$test_dir/empty/tracer.env" \
@@ -82,9 +94,9 @@ if [[ -e $auth_child_marker ]]; then
   exit 1
 fi
 
-sed -i 's/^TRACER_API_KEY=.*/TRACER_API_KEY=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/' "$test_dir/mismatch/ledger.env"
-sed -i 's/^API_KEY=.*/API_KEY=bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb/' "$test_dir/mismatch/tracer.env"
-sed -i 's/^API_KEY_ENABLED=.*/API_KEY_ENABLED=true/' "$test_dir/mismatch/tracer.env"
+sed_inplace 's/^TRACER_API_KEY=.*/TRACER_API_KEY=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/' "$test_dir/mismatch/ledger.env"
+sed_inplace 's/^API_KEY=.*/API_KEY=bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb/' "$test_dir/mismatch/tracer.env"
+sed_inplace 's/^API_KEY_ENABLED=.*/API_KEY_ENABLED=true/' "$test_dir/mismatch/tracer.env"
 status=0
 E2E_AUTH_CHILD_MARKER="$auth_child_marker" \
   LEDGER_ENV_FILE="$test_dir/mismatch/ledger.env" TRACER_ENV_FILE="$test_dir/mismatch/tracer.env" \

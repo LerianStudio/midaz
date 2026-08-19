@@ -357,6 +357,9 @@ if [[ -n $resource_observer_pid ]]; then
     peak_rss_mb=$(sed -n 's/.*"peak_rss_mb":\([0-9]*\).*/\1/p' "$resource_raw_file")
     average_container_cpu_percent=$(sed -n 's/.*"average_container_cpu_percent":\([0-9.]*\).*/\1/p' "$resource_raw_file")
     resource_samples=$(sed -n 's/.*"samples":\([0-9]*\).*/\1/p' "$resource_raw_file")
+    cpu_marker=""
+    user_cpu_seconds=""
+    system_cpu_seconds=""
     read -r cpu_marker user_cpu_seconds system_cpu_seconds < "$cpu_time_file" || true
     if [[ $cpu_marker != MIDAZ_CPU_TIME || ! $user_cpu_seconds =~ ^[0-9]+([.][0-9]+)?$ || \
       ! $system_cpu_seconds =~ ^[0-9]+([.][0-9]+)?$ ]]; then

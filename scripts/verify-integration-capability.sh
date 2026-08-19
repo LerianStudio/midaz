@@ -35,8 +35,9 @@ if [[ ! -s $expected ]]; then
   echo "chaos capability allowlist selected zero identities" >&2
   exit 1
 fi
-if duplicate=$(uniq -d "$expected" | head -n 1) && [[ -n $duplicate ]]; then
-  echo "chaos capability allowlist contains duplicate identity: $duplicate" >&2
+duplicates=$(uniq -d "$expected")
+if [[ -n $duplicates ]]; then
+  echo "chaos capability allowlist contains duplicate identity: ${duplicates%%$'\n'*}" >&2
   exit 1
 fi
 
@@ -87,12 +88,14 @@ if [[ -z $capability_outcomes ]]; then
 fi
 sort -o "$base_skipped" "$base_skipped"
 
-if duplicate=$(uniq -d "$base_skipped" | head -n 1) && [[ -n $duplicate ]]; then
-  echo "base integration artifacts contain duplicate skipped identity: $duplicate" >&2
+duplicates=$(uniq -d "$base_skipped")
+if [[ -n $duplicates ]]; then
+  echo "base integration artifacts contain duplicate skipped identity: ${duplicates%%$'\n'*}" >&2
   exit 1
 fi
-if duplicate=$(uniq -d "$capability_passed" | head -n 1) && [[ -n $duplicate ]]; then
-  echo "chaos capability artifact contains duplicate passed identity: $duplicate" >&2
+duplicates=$(uniq -d "$capability_passed")
+if [[ -n $duplicates ]]; then
+  echo "chaos capability artifact contains duplicate passed identity: ${duplicates%%$'\n'*}" >&2
   exit 1
 fi
 if ! diff -u "$expected" "$base_skipped"; then

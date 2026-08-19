@@ -30,7 +30,7 @@ func TestIntegration_GetAllAccount_PaginationUnion(t *testing.T) {
 	// Setup repository and use case
 	connStr := pgtestutil.BuildConnectionString(container.Host, container.Port, container.Config)
 
-	conn := pgtestutil.ConnectPostgresClient(t, connStr, connStr)
+	conn := pgtestutil.ConnectPostgresClient(t.Context(), t, connStr, connStr)
 
 	accountRepo := account.NewAccountPostgreSQLRepository(conn)
 
@@ -105,7 +105,7 @@ func TestIntegration_GetAllAccount_PaginationStableOrder(t *testing.T) {
 	// Setup repository and use case
 	connStr := pgtestutil.BuildConnectionString(container.Host, container.Port, container.Config)
 
-	conn := pgtestutil.ConnectPostgresClient(t, connStr, connStr)
+	conn := pgtestutil.ConnectPostgresClient(t.Context(), t, connStr, connStr)
 
 	accountRepo := account.NewAccountPostgreSQLRepository(conn)
 

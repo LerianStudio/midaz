@@ -42,8 +42,9 @@ import (
 // databases wired PrimaryDSN=A / ReplicaDSN=B behind one *libPostgres.Client. They do
 // NOT replicate; A holds the seeded balance row, B does not (infinite lag). Redis is
 // provisioned and the balance key is verified ABSENT to document the NX-seed (cache
-// miss -> Postgres) precondition. Helpers migrateSchema / requireRowCount /
-// requireRedisKeyAbsent are reused from the sibling divergence file in this package.
+// miss -> Postgres) precondition. Helpers requireRowCount / requireRedisKeyAbsent are
+// reused from the sibling divergence file in this package; schema migration is handled
+// by pgtestutil.SetupMigratedContainer.
 func TestTransactionalRead_MultiTenant(t *testing.T) {
 	// --- Two independent Postgres databases: A = tenant primary, B = tenant replica ---
 	primary := pgtestutil.SetupMigratedContainer(t, "transaction") // A

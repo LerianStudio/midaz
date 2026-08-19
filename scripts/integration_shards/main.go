@@ -94,11 +94,15 @@ func main() {
 	}
 }
 
-func run(args []string, stdin io.Reader, stdout io.Writer) error {
-	if len(args) > 0 && args[0] == "verify-events" {
-		return runVerifyEvents(args[1:])
-	}
+// planOptions holds the validated flag values for the shard-plan mode of run.
+type planOptions struct {
+	shard             string
+	mode              string
+	capability        string
+	skipAllowlistPath string
+}
 
+func parsePlanOptions(args []string) (planOptions, error) {
 	flags := flag.NewFlagSet("integration-shards", flag.ContinueOnError)
 	flags.SetOutput(io.Discard)
 	shard := flags.String("shard", "", "emit only one shard")
@@ -106,49 +110,93 @@ func run(args []string, stdin io.Reader, stdout io.Writer) error {
 	capability := flags.String("capability", "", "emit the exact supplemental capability plan")
 	skipAllowlistPath := flags.String("skip-allowlist", "", "versioned integration skip allowlist")
 	if err := flags.Parse(args); err != nil {
-		return err
+		return planOptions{}, err
 	}
 	if flags.NArg() != 0 {
-		return fmt.Errorf("unexpected arguments: %s", strings.Join(flags.Args(), " "))
+		return planOptions{}, fmt.Errorf("unexpected arguments: %s", strings.Join(flags.Args(), " "))
 	}
 	if *shard != "" && !knownShard(*shard) {
-		return fmt.Errorf("unknown shard %q", *shard)
+		return planOptions{}, fmt.Errorf("unknown shard %q", *shard)
 	}
 	if *mode != "" && *mode != modeParallel && *mode != modeSerial {
-		return fmt.Errorf("unknown execution mode %q", *mode)
+		return planOptions{}, fmt.Errorf("unknown execution mode %q", *mode)
 	}
 	if *skipAllowlistPath == "" {
-		return errors.New("--skip-allowlist is required")
+		return planOptions{}, errors.New("--skip-allowlist is required")
 	}
+	return planOptions{
+		shard:             *shard,
+		mode:              *mode,
+		capability:        *capability,
+		skipAllowlistPath: *skipAllowlistPath,
+	}, nil
+}
 
+// buildPlanAssignments classifies the inventory, verifies the assignments and
+// the skip allowlist, and swaps in the capability plan when one is requested.
+func buildPlanAssignments(opts planOptions, stdin io.Reader) ([]assignment, error) {
 	inventory, err := readInventory(stdin)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	assignments := make([]assignment, 0, len(inventory))
 	for _, record := range inventory {
 		item, classifyErr := classify(record)
 		if classifyErr != nil {
-			return classifyErr
+			return nil, classifyErr
 		}
 		assignments = append(assignments, item)
 	}
 	if err := verifyAssignments(inventory, assignments); err != nil {
-		return err
+		return nil, err
 	}
-	allowances, err := readSkipAllowlistFile(*skipAllowlistPath)
+	allowances, err := readSkipAllowlistFile(opts.skipAllowlistPath)
+	if err != nil {
+		return nil, err
+	}
+	if err := verifySkipAllowlist(inventory, assignments, allowances); err != nil {
+		return nil, err
+	}
+	if opts.capability != "" {
+		assignments, err = buildCapabilityAssignments(opts.capability, allowances)
+		if err != nil {
+			return nil, err
+		}
+	}
+	return assignments, nil
+}
+
+func emitPlanAssignments(stdout io.Writer, assignments []assignment, opts planOptions) error {
+	writer := bufio.NewWriter(stdout)
+	defer writer.Flush()
+	for _, item := range assignments {
+		if opts.shard != "" && item.Shard != opts.shard {
+			continue
+		}
+		if opts.mode != "" && item.Mode != opts.mode {
+			continue
+		}
+		if _, err := fmt.Fprintf(writer, "%s\t%s\t%s\t%s\n", item.Shard, item.Mode, item.Package, item.Test); err != nil {
+			return fmt.Errorf("write shard plan: %w", err)
+		}
+	}
+	return nil
+}
+
+func run(args []string, stdin io.Reader, stdout io.Writer) error {
+	if len(args) > 0 && args[0] == "verify-events" {
+		return runVerifyEvents(args[1:])
+	}
+
+	opts, err := parsePlanOptions(args)
 	if err != nil {
 		return err
 	}
-	if err := verifySkipAllowlist(inventory, assignments, allowances); err != nil {
+
+	assignments, err := buildPlanAssignments(opts, stdin)
+	if err != nil {
 		return err
-	}
-	if *capability != "" {
-		assignments, err = buildCapabilityAssignments(*capability, allowances)
-		if err != nil {
-			return err
-		}
 	}
 
 	sort.Slice(assignments, func(i, j int) bool {
@@ -165,21 +213,7 @@ func run(args []string, stdin io.Reader, stdout io.Writer) error {
 		return left.Test < right.Test
 	})
 
-	writer := bufio.NewWriter(stdout)
-	defer writer.Flush()
-	for _, item := range assignments {
-		if *shard != "" && item.Shard != *shard {
-			continue
-		}
-		if *mode != "" && item.Mode != *mode {
-			continue
-		}
-		if _, err := fmt.Fprintf(writer, "%s\t%s\t%s\t%s\n", item.Shard, item.Mode, item.Package, item.Test); err != nil {
-			return fmt.Errorf("write shard plan: %w", err)
-		}
-	}
-
-	return nil
+	return emitPlanAssignments(stdout, assignments, opts)
 }
 
 func runVerifyEvents(args []string) error {
@@ -548,15 +582,18 @@ func verifySkipAllowlist(inventory []testRecord, assignments []assignment, allow
 	return nil
 }
 
-func verifyEventCoverage(pkg string, expected []string, allowances map[testRecord]skipAllowance, reader io.Reader) (eventCoverage, error) {
-	coverage := eventCoverage{Outcomes: make([]testOutcome, 0, len(expected))}
-	if pkg == "" {
-		return coverage, errors.New("event verification package is required")
-	}
-	if len(expected) == 0 {
-		return coverage, errors.New("event verification expected zero tests")
-	}
+// eventTally accumulates the per-test signals extracted from a Go test event
+// stream: run counts, terminal actions, and captured output lines.
+type eventTally struct {
+	started   map[string]int
+	terminals map[string][]string
+	outputs   map[string][]string
+	errors    []error
+}
 
+// tallyGoTestEvents decodes the Go test JSON event stream and buckets run,
+// terminal, and output events for the expected top-level tests of pkg.
+func tallyGoTestEvents(pkg string, expectedSet map[string]struct{}, reader io.Reader) eventTally {
 	type goTestEvent struct {
 		Action  string `json:"Action"`
 		Package string `json:"Package"`
@@ -564,16 +601,15 @@ func verifyEventCoverage(pkg string, expected []string, allowances map[testRecor
 		Output  string `json:"Output"`
 	}
 
-	expectedSet := make(map[string]struct{}, len(expected))
-	for _, name := range expected {
-		expectedSet[name] = struct{}{}
+	tally := eventTally{
+		started:   make(map[string]int, len(expectedSet)),
+		terminals: make(map[string][]string, len(expectedSet)),
+		outputs:   make(map[string][]string, len(expectedSet)),
+		errors:    make([]error, 0),
 	}
-	started := make(map[string]int, len(expected))
-	terminals := make(map[string][]string, len(expected))
-	outputs := make(map[string][]string, len(expected))
+
 	decoder := json.NewDecoder(reader)
 	eventCount := 0
-	verificationErrors := make([]error, 0)
 	for {
 		var event goTestEvent
 		err := decoder.Decode(&event)
@@ -581,7 +617,7 @@ func verifyEventCoverage(pkg string, expected []string, allowances map[testRecor
 			break
 		}
 		if err != nil {
-			verificationErrors = append(verificationErrors, fmt.Errorf("decode Go test event %d: %w", eventCount+1, err))
+			tally.errors = append(tally.errors, fmt.Errorf("decode Go test event %d: %w", eventCount+1, err))
 			break
 		}
 		eventCount++
@@ -594,97 +630,141 @@ func verifyEventCoverage(pkg string, expected []string, allowances map[testRecor
 		}
 		if _, exists := expectedSet[event.Test]; !exists {
 			if event.Action == "run" {
-				verificationErrors = append(verificationErrors, fmt.Errorf("package %s started unselected test %s", pkg, event.Test))
+				tally.errors = append(tally.errors, fmt.Errorf("package %s started unselected test %s", pkg, event.Test))
 			}
 			continue
 		}
 		switch event.Action {
 		case "run":
-			started[event.Test]++
+			tally.started[event.Test]++
 		case "pass", "skip", "fail":
-			terminals[event.Test] = append(terminals[event.Test], event.Action)
+			tally.terminals[event.Test] = append(tally.terminals[event.Test], event.Action)
 		case "output":
-			outputs[event.Test] = append(outputs[event.Test], event.Output)
+			tally.outputs[event.Test] = append(tally.outputs[event.Test], event.Output)
 		}
 	}
 	if eventCount == 0 {
-		verificationErrors = append(verificationErrors, errors.New("Go test event stream contained zero events"))
+		tally.errors = append(tally.errors, errors.New("go test event stream contained zero events"))
 	}
+
+	return tally
+}
+
+// lifecycleOutcome classifies a selected test's run/terminal event counts,
+// returning the outcome label ("missing" or "failed") and an explanatory error
+// when the lifecycle is malformed. A nil error means exactly one run produced
+// exactly one terminal event.
+func lifecycleOutcome(pkg, name string, started int, terminals []string) (string, error) {
+	switch {
+	case started == 0:
+		return "missing", fmt.Errorf("package %s did not start selected test %s", pkg, name)
+	case started != 1:
+		return "failed", fmt.Errorf("package %s started selected test %s %d times", pkg, name, started)
+	case len(terminals) == 0:
+		return "missing", fmt.Errorf("package %s selected test %s produced no terminal event", pkg, name)
+	case len(terminals) != 1:
+		return "failed", fmt.Errorf("package %s selected test %s produced %d terminal events", pkg, name, len(terminals))
+	default:
+		return "", nil
+	}
+}
+
+// evaluateSkipOutcome validates a skip terminal against the versioned skip
+// allowlist, mutating outcome in place and returning a verification error when
+// the skip is not an exact, currently valid allowance.
+func evaluateSkipOutcome(pkg, name string, outputs []string, allowances map[testRecord]skipAllowance, outcome *testOutcome) error {
+	reason, reasonErr := extractSkipReason(outputs)
+	outcome.Reason = reason
+	allowance, allowed := allowances[testRecord{Package: pkg, Test: name}]
+	switch {
+	case reasonErr != nil:
+		outcome.Outcome = "failed"
+		return fmt.Errorf("package %s selected test %s skip reason: %w", pkg, name, reasonErr)
+	case !allowed:
+		outcome.Outcome = "failed"
+		return fmt.Errorf("package %s selected test %s produced unallowlisted skip with reason %q", pkg, name, reason)
+	case allowance.Reason != reason:
+		outcome.Outcome = "failed"
+		outcome.AlternateCapability = allowance.AlternateCapability
+		return fmt.Errorf("package %s selected test %s skip reason changed: got %q, want %q", pkg, name, reason, allowance.Reason)
+	case !alternateCapabilityInactive(allowance.AlternateCapability):
+		outcome.Outcome = "failed"
+		outcome.AlternateCapability = allowance.AlternateCapability
+		return fmt.Errorf("package %s selected test %s skipped while alternate capability %s was active", pkg, name, allowance.AlternateCapability)
+	default:
+		outcome.Outcome = "skipped"
+		outcome.AlternateCapability = allowance.AlternateCapability
+		return nil
+	}
+}
+
+// evaluatePassOutcome rejects a pass that still carries a live skip allowance,
+// mutating outcome in place and returning a verification error for stale
+// allowances.
+func evaluatePassOutcome(pkg, name string, allowances map[testRecord]skipAllowance, outcome *testOutcome) error {
+	if allowance, exists := allowances[testRecord{Package: pkg, Test: name}]; exists && alternateCapabilityInactive(allowance.AlternateCapability) {
+		outcome.Outcome = "failed"
+		outcome.AlternateCapability = allowance.AlternateCapability
+		return fmt.Errorf("package %s selected test %s passed but still has a stale skip allowance", pkg, name)
+	}
+	outcome.Outcome = "passed"
+	return nil
+}
+
+func verifyEventCoverage(pkg string, expected []string, allowances map[testRecord]skipAllowance, reader io.Reader) (eventCoverage, error) {
+	coverage := eventCoverage{Outcomes: make([]testOutcome, 0, len(expected))}
+	if pkg == "" {
+		return coverage, errors.New("event verification package is required")
+	}
+	if len(expected) == 0 {
+		return coverage, errors.New("event verification expected zero tests")
+	}
+
+	expectedSet := make(map[string]struct{}, len(expected))
+	for _, name := range expected {
+		expectedSet[name] = struct{}{}
+	}
+
+	tally := tallyGoTestEvents(pkg, expectedSet, reader)
+	verificationErrors := tally.errors
 
 	for _, name := range expected {
 		outcome := testOutcome{Package: pkg, Test: name}
-		if started[name] == 0 {
-			outcome.Outcome = "missing"
-			coverage.Missing++
+
+		label, lifecycleErr := lifecycleOutcome(pkg, name, tally.started[name], tally.terminals[name])
+		if lifecycleErr != nil {
+			outcome.Outcome = label
+			if label == "missing" {
+				coverage.Missing++
+			} else {
+				coverage.Failed++
+			}
 			coverage.Outcomes = append(coverage.Outcomes, outcome)
-			verificationErrors = append(verificationErrors, fmt.Errorf("package %s did not start selected test %s", pkg, name))
-			continue
-		}
-		if started[name] != 1 {
-			outcome.Outcome = "failed"
-			coverage.Failed++
-			coverage.Outcomes = append(coverage.Outcomes, outcome)
-			verificationErrors = append(verificationErrors, fmt.Errorf("package %s started selected test %s %d times", pkg, name, started[name]))
-			continue
-		}
-		if len(terminals[name]) == 0 {
-			outcome.Outcome = "missing"
-			coverage.Missing++
-			coverage.Outcomes = append(coverage.Outcomes, outcome)
-			verificationErrors = append(verificationErrors, fmt.Errorf("package %s selected test %s produced no terminal event", pkg, name))
-			continue
-		}
-		if len(terminals[name]) != 1 {
-			outcome.Outcome = "failed"
-			coverage.Failed++
-			coverage.Outcomes = append(coverage.Outcomes, outcome)
-			verificationErrors = append(verificationErrors, fmt.Errorf("package %s selected test %s produced %d terminal events", pkg, name, len(terminals[name])))
+			verificationErrors = append(verificationErrors, lifecycleErr)
 			continue
 		}
 
-		switch terminals[name][0] {
+		var evalErr error
+		switch tally.terminals[name][0] {
 		case "pass":
-			if allowance, exists := allowances[testRecord{Package: pkg, Test: name}]; exists && alternateCapabilityInactive(allowance.AlternateCapability) {
-				outcome.Outcome = "failed"
-				outcome.AlternateCapability = allowance.AlternateCapability
-				coverage.Failed++
-				verificationErrors = append(verificationErrors, fmt.Errorf("package %s selected test %s passed but still has a stale skip allowance", pkg, name))
-			} else {
-				outcome.Outcome = "passed"
-				coverage.Passed++
-			}
+			evalErr = evaluatePassOutcome(pkg, name, allowances, &outcome)
 		case "fail":
 			outcome.Outcome = "failed"
-			coverage.Failed++
-			verificationErrors = append(verificationErrors, fmt.Errorf("package %s selected test %s terminated with fail", pkg, name))
+			evalErr = fmt.Errorf("package %s selected test %s terminated with fail", pkg, name)
 		case "skip":
-			reason, reasonErr := extractSkipReason(outputs[name])
-			outcome.Reason = reason
-			allowance, allowed := allowances[testRecord{Package: pkg, Test: name}]
-			switch {
-			case reasonErr != nil:
-				outcome.Outcome = "failed"
-				coverage.Failed++
-				verificationErrors = append(verificationErrors, fmt.Errorf("package %s selected test %s skip reason: %w", pkg, name, reasonErr))
-			case !allowed:
-				outcome.Outcome = "failed"
-				coverage.Failed++
-				verificationErrors = append(verificationErrors, fmt.Errorf("package %s selected test %s produced unallowlisted skip with reason %q", pkg, name, reason))
-			case allowance.Reason != reason:
-				outcome.Outcome = "failed"
-				coverage.Failed++
-				outcome.AlternateCapability = allowance.AlternateCapability
-				verificationErrors = append(verificationErrors, fmt.Errorf("package %s selected test %s skip reason changed: got %q, want %q", pkg, name, reason, allowance.Reason))
-			case !alternateCapabilityInactive(allowance.AlternateCapability):
-				outcome.Outcome = "failed"
-				coverage.Failed++
-				outcome.AlternateCapability = allowance.AlternateCapability
-				verificationErrors = append(verificationErrors, fmt.Errorf("package %s selected test %s skipped while alternate capability %s was active", pkg, name, allowance.AlternateCapability))
-			default:
-				outcome.Outcome = "skipped"
-				outcome.AlternateCapability = allowance.AlternateCapability
-				coverage.Skipped++
-			}
+			evalErr = evaluateSkipOutcome(pkg, name, tally.outputs[name], allowances, &outcome)
+		}
+
+		switch outcome.Outcome {
+		case "passed":
+			coverage.Passed++
+		case "skipped":
+			coverage.Skipped++
+		default:
+			coverage.Failed++
+		}
+		if evalErr != nil {
+			verificationErrors = append(verificationErrors, evalErr)
 		}
 		coverage.Outcomes = append(coverage.Outcomes, outcome)
 	}

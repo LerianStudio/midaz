@@ -48,7 +48,7 @@ func setupQuarantineRepo(t *testing.T) (*QuarantinePostgreSQLRepository, *sql.DB
 
 	connStr := pgtestutil.BuildConnectionString(pgContainer.Host, pgContainer.Port, pgContainer.Config)
 
-	conn := pgtestutil.ConnectPostgresClient(t, connStr, connStr)
+	conn := pgtestutil.ConnectPostgresClient(t.Context(), t, connStr, connStr)
 
 	return NewQuarantinePostgreSQLRepository(conn), pgContainer.DB
 }

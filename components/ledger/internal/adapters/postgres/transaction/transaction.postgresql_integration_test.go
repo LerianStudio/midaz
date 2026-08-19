@@ -107,7 +107,7 @@ func setupIntegrationInfra(t *testing.T) *integrationTestInfra {
 	// Create lib-commons PostgreSQL connection
 	connStr := pgtestutil.BuildConnectionString(pgContainer.Host, pgContainer.Port, pgContainer.Config)
 
-	conn := pgtestutil.ConnectPostgresClient(t, connStr, connStr)
+	conn := pgtestutil.ConnectPostgresClient(t.Context(), t, connStr, connStr)
 
 	// Create repository
 	repo := NewTransactionPostgreSQLRepository(conn)
@@ -1793,7 +1793,7 @@ func setupTenantContainer(t *testing.T) (*pgtestutil.ContainerResult, dbresolver
 	tenantContainer := pgtestutil.SetupMigratedContainer(t, "transaction")
 	connStr := pgtestutil.BuildConnectionString(tenantContainer.Host, tenantContainer.Port, tenantContainer.Config)
 
-	tempConn := pgtestutil.ConnectPostgresClient(t, connStr, connStr)
+	tempConn := pgtestutil.ConnectPostgresClient(t.Context(), t, connStr, connStr)
 
 	db, err := tempConn.Resolver(context.Background())
 	require.NoError(t, err, "failed to initialize tenant database")

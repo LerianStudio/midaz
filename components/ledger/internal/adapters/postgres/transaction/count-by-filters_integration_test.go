@@ -61,7 +61,7 @@ func setupCountByFiltersInfra(t *testing.T) *countByFiltersInfra {
 
 	connStr := pgtestutil.BuildConnectionString(pgContainer.Host, pgContainer.Port, pgContainer.Config)
 
-	conn := pgtestutil.ConnectPostgresClient(t, connStr, connStr)
+	conn := pgtestutil.ConnectPostgresClient(t.Context(), t, connStr, connStr)
 
 	repo := NewTransactionPostgreSQLRepository(conn)
 

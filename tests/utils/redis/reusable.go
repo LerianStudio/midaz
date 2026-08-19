@@ -83,6 +83,10 @@ func SetupReusableContainerWithConfig(t *testing.T, cfg ContainerConfig) *Contai
 
 	t.Cleanup(func() {
 		ctx := context.Background()
+
+		// Only a verified-clean database goes back into the slot pool: a failed
+		// flush or a detected leak would contaminate the next leaseholder.
+		reusable := false
 		if err := client.FlushDB(ctx).Err(); err != nil {
 			t.Errorf("failed to flush Valkey logical database %d: %v", db, err)
 		} else {
@@ -91,6 +95,8 @@ func SetupReusableContainerWithConfig(t *testing.T, cfg ContainerConfig) *Contai
 				t.Errorf("failed to audit Valkey logical database %d cleanup: %v", db, auditErr)
 			} else if size != 0 {
 				t.Errorf("Valkey logical database %d leaked %d keys after cleanup", db, size)
+			} else {
+				reusable = true
 			}
 		}
 
@@ -98,7 +104,9 @@ func SetupReusableContainerWithConfig(t *testing.T, cfg ContainerConfig) *Contai
 			t.Errorf("failed to close Valkey logical database %d client: %v", db, err)
 		}
 
-		server.slots <- db
+		if reusable {
+			server.slots <- db
+		}
 	})
 
 	return &ContainerResult{

@@ -121,8 +121,9 @@ else
   echo "shard '$shard' contains an unknown execution mode" >&2
   exit 2
 fi
-if duplicate=$(sort "$selection" | uniq -d | head -n 1) && [[ -n $duplicate ]]; then
-  echo "shard '$shard' contains a duplicate test assignment: $duplicate" >&2
+duplicates=$(sort "$selection" | uniq -d)
+if [[ -n $duplicates ]]; then
+  echo "shard '$shard' contains a duplicate test assignment: ${duplicates%%$'\n'*}" >&2
   exit 2
 fi
 
@@ -367,7 +368,7 @@ run_bounded_parallel_wave() {
   local wave_index=$2
   local wave_dir="$report_dir/parallel-waves/$wave_index"
 
-  xargs -P "$package_parallelism" -n 4 bash -c 'run_shard_job "$@"' _ < "$wave_manifest"
+  xargs -P "$package_parallelism" -n 4 bash -c 'set -euo pipefail; run_shard_job "$@"' _ < "$wave_manifest"
   mkdir -p "$wave_dir"
   if ! cleanup_shard_owner_containers "$wave_dir"; then
     parallel_cleanup_failures=$((parallel_cleanup_failures + 1))
@@ -404,7 +405,7 @@ if [[ -s $parallel_jobs ]]; then
       run_bounded_parallel_wave "$wave_manifest" "$padded_wave"
     fi
   else
-    xargs -P "$package_parallelism" -n 4 bash -c 'run_shard_job "$@"' _ < "$parallel_jobs"
+    xargs -P "$package_parallelism" -n 4 bash -c 'set -euo pipefail; run_shard_job "$@"' _ < "$parallel_jobs"
   fi
 fi
 while IFS=$'\t' read -r index mode package job_dir; do
