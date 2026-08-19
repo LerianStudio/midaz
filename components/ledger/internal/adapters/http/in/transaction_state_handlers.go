@@ -188,8 +188,8 @@ func (handler *TransactionHandler) RevertTransaction(c fiber.Ctx) error {
 //
 // Until then the ONLY control is detection: the replayed flag below, its Warn, and the
 // X-Idempotency-Replayed header the transports project. Do not treat that as a fix.
-// The reproduction is preserved, skipped, in
-// TestIntegration_TransactionV2Revert_IdempotencyNotScopedByOrigin_KnownDefect.
+// The integration reproduction re-lands together with the fix in the money-path layer
+// (the fail-closed integration gate forbids carrying it here as a permanent skip).
 //
 // revertTransaction is the transport-neutral revert core: it runs the full revert
 // eligibility gate (no-parent, not-already-a-revert, APPROVED status, non-empty reversal,
