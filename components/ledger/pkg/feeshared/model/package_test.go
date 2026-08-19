@@ -2177,6 +2177,7 @@ func TestFee_SetAndValidateHasFieldsToUpdate(t *testing.T) {
 				orgID,
 				ledgerID,
 				upFields,
+				bson.M{},
 				mockMidaz,
 			)
 
@@ -2321,6 +2322,7 @@ func TestFee_SetAndValidateHasFieldsToUpdate_CalculationModelCases(t *testing.T)
 				orgID,
 				ledgerID,
 				upFields,
+				bson.M{},
 				mockMidaz,
 			)
 
@@ -2500,6 +2502,7 @@ func TestFee_SetAndValidateHasFieldsToUpdate_IsDeductibleFromCases(t *testing.T)
 				orgID,
 				ledgerID,
 				upFields,
+				bson.M{},
 				mockMidaz,
 			)
 

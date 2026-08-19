@@ -65,7 +65,9 @@ func (uc *UseCase) CalculateFee(ctx context.Context, cf *model.FeeCalculate, org
 		return nil
 	}
 
-	validationResult, errValidationSend := transaction.ValidateSendSourceAndDistribute(ctx, cf.Transaction, "")
+	validationTransaction := transactionForFeeCalculation(cf.Transaction)
+
+	validationResult, errValidationSend := transaction.ValidateSendSourceAndDistribute(ctx, validationTransaction, "")
 	if errValidationSend != nil {
 		bizErr := pkg.ValidateBusinessError(constant.ErrValidateDistributeTransactionValue, "")
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to validate send struct", bizErr)
@@ -89,6 +91,40 @@ func (uc *UseCase) CalculateFee(ctx context.Context, cf *model.FeeCalculate, org
 	}
 
 	return uc.calculateFeeForMultiplePackages(ctx, logger, cf, packages, sendModel, validationResult, validationResultFromSize, validationResultToSize, organizationID)
+}
+
+// transactionForFeeCalculation gives every original leg a stable internal identity while the
+// fee engine operates on maps. The public transaction remains untouched: after calculation the
+// fee package materializer restores the authored alias and attributes in their original order.
+func transactionForFeeCalculation(input transaction.Transaction) transaction.Transaction {
+	cloned := input
+	cloned.Send.Source.From = append([]transaction.FromTo(nil), input.Send.Source.From...)
+	cloned.Send.Distribute.To = append([]transaction.FromTo(nil), input.Send.Distribute.To...)
+
+	qualifyDuplicateFeeAliases(cloned.Send.Source.From)
+	qualifyDuplicateFeeAliases(cloned.Send.Distribute.To)
+
+	return cloned
+}
+
+func qualifyDuplicateFeeAliases(entries []transaction.FromTo) {
+	counts := make(map[string]int, len(entries))
+	for _, entry := range entries {
+		if entry.AccountAlias == "" {
+			continue
+		}
+
+		counts[entry.AccountAlias]++
+	}
+
+	for _, count := range counts {
+		if count > 1 {
+			transaction.ApplyDefaultBalanceKeys(entries)
+			transaction.MutateConcatAliases(entries)
+
+			return
+		}
+	}
 }
 
 // resolveSourceSegment resolves the segment shared by the transaction's real
@@ -195,7 +231,7 @@ func (uc *UseCase) calculateFeeForSinglePackage(
 		ResolverCache:  make(map[string]*feeshared.Account),
 	}
 
-	errCalculateFee := feeUtils.CalculateFee(logger, cf, packFilter, validationResult, uc.defaultCurrency, segCtx)
+	errCalculateFee := feeUtils.CalculateFeePreservingLegs(logger, cf, packFilter, validationResult, uc.defaultCurrency, segCtx)
 	if errCalculateFee != nil {
 		return errCalculateFee
 	}
@@ -236,7 +272,7 @@ func (uc *UseCase) calculateFeeForMultiplePackages(
 		ResolverCache:  make(map[string]*feeshared.Account),
 	}
 
-	errCalculateFee := feeUtils.CalculateFee(logger, cf, packFilter, validationResult, uc.defaultCurrency, segCtx)
+	errCalculateFee := feeUtils.CalculateFeePreservingLegs(logger, cf, packFilter, validationResult, uc.defaultCurrency, segCtx)
 	if errCalculateFee != nil {
 		return errCalculateFee
 	}

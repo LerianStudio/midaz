@@ -38,7 +38,7 @@ type bulkTestInfra struct {
 func setupBulkTestInfra(t *testing.T) *bulkTestInfra {
 	t.Helper()
 
-	container := pgtestutil.SetupContainer(t)
+	container := pgtestutil.SetupMigratedContainer(t, "transaction")
 	repo := createRepository(t, container)
 	ids := createTestDependencies(t, container)
 

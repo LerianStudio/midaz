@@ -42,6 +42,7 @@ import (
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/ledger"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/operation"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/operationroute"
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/revertclaim"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/transaction"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/rabbitmq"
 	redis "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/redis/transaction"
@@ -58,6 +59,9 @@ import (
 	redistestutil "github.com/LerianStudio/midaz/v4/tests/utils/redis"
 )
 
+const integrationRedisDatasetGeneration = "645439df-1837-421e-9607-f60b091542c9"
+const integrationRolloutInitializationID = "52c85247-b684-4ff7-a45e-41d8f437e4f1"
+
 // testInfra holds all test infrastructure components.
 type testInfra struct {
 	pgContainer    *postgrestestutil.ContainerResult
@@ -65,6 +69,7 @@ type testInfra struct {
 	redisContainer *redistestutil.ContainerResult
 	pgConn         *libPostgres.Client
 	redisRepo      redis.RedisRepository
+	revertFreeze   *redis.RevertUpdateFreezeGuard
 	metadataRepo   mongodb.Repository
 	handler        *TransactionHandler
 	app            *fiber.App
@@ -82,22 +87,23 @@ func setupTestInfra(t *testing.T) *testInfra {
 
 	infra := &testInfra{}
 
-	// Start containers
-	infra.pgContainer = postgrestestutil.SetupContainer(t)
-	infra.mongoContainer = mongotestutil.SetupContainer(t)
-	infra.redisContainer = redistestutil.SetupContainer(t)
+	// Start reusable datastore processes with test-isolated databases.
+	infra.pgContainer = postgrestestutil.SetupMigratedContainer(t, "transaction")
+	infra.mongoContainer = mongotestutil.SetupReusableContainer(t)
+	infra.redisContainer = redistestutil.SetupReusableContainerWithConfig(
+		t, redistestutil.FinancialContainerConfig(),
+	)
 
 	// Create PostgreSQL connection following lib-commons pattern
-	migrationsPath := postgrestestutil.FindMigrationsPath(t, "transaction")
 	connStr := postgrestestutil.BuildConnectionString(infra.pgContainer.Host, infra.pgContainer.Port, infra.pgContainer.Config)
 
-	infra.pgConn = postgrestestutil.CreatePostgresClient(t, connStr, connStr, infra.pgContainer.Config.DBName, migrationsPath)
+	infra.pgConn = postgrestestutil.ConnectPostgresClient(t, connStr, connStr)
 
 	// Create MongoDB connection
-	mongoConn := mongotestutil.CreateConnection(t, infra.mongoContainer.URI, "test_db")
+	mongoConn := mongotestutil.CreateConnection(t, infra.mongoContainer.URI, infra.mongoContainer.DBName)
 
 	// Create Redis connection
-	redisConn := redistestutil.CreateConnection(t, infra.redisContainer.Addr)
+	redisConn := redistestutil.CreateConnectionWithDB(t, infra.redisContainer.Addr, infra.redisContainer.DB)
 
 	// Create repositories
 	transactionRepo := transaction.NewTransactionPostgreSQLRepository(infra.pgConn)
@@ -108,12 +114,27 @@ func setupTestInfra(t *testing.T) *testInfra {
 	// bidirectional-route gate (which resolves an operation's route_id) can run against a real
 	// repository instead of nil-panicking into a generic 500.
 	operationRouteRepo := operationroute.NewOperationRoutePostgreSQLRepository(infra.pgConn)
+	revertClaimRepo := revertclaim.NewPostgreSQLRepository(infra.pgConn)
 	metadataRepo := mongodb.NewMetadataMongoDBRepository(mongoConn)
 	redisRepo, err := redis.NewConsumerRedis(redisConn)
 	require.NoError(t, err, "failed to create Redis repository")
+	initializer := redis.NewRevertUpdateFreezeGuard(redisConn, redis.RevertUpdateFreezeInitialize,
+		integrationRedisDatasetGeneration).WithRolloutInitializationWitness(revertClaimRepo,
+		integrationRolloutInitializationID)
+	require.Eventually(t, func() bool {
+		return initializer.FinancialDurability(context.Background()) == nil
+	}, 10*time.Second, 50*time.Millisecond, "financial Redis test fixture never became durable")
+	require.NoError(t, initializer.InitializeFinancialDatasetGeneration(context.Background()),
+		"failed to initialize financial Redis dataset generation")
+	revertFreeze := redis.NewRevertUpdateFreezeGuard(redisConn, redis.RevertUpdateFreezeFinalized,
+		integrationRedisDatasetGeneration).WithRolloutInitializationWitness(revertClaimRepo, "")
+	require.NoError(t, revertFreeze.Activate(context.Background()), "failed to initialize active revert rollout barrier")
+	require.NoError(t, revertFreeze.MarkPhaseZeroDrained(context.Background()), "failed to initialize drained revert rollout barrier")
+	require.NoError(t, revertFreeze.Finalize(context.Background()), "failed to initialize finalized revert rollout barrier")
 
 	// Store repositories for test assertions
 	infra.redisRepo = redisRepo
+	infra.revertFreeze = revertFreeze
 	infra.metadataRepo = metadataRepo
 
 	// Create use cases
@@ -128,16 +149,22 @@ func setupTestInfra(t *testing.T) *testInfra {
 	}
 	commandUC := &command.UseCase{
 		TransactionRepo:         transactionRepo,
+		RevertClaimRepo:         revertClaimRepo,
+		RevertRolloutLease:      revertFreeze,
 		OperationRepo:           operationRepo,
 		BalanceRepo:             balanceRepo,
 		TransactionMetadataRepo: metadataRepo,
 		TransactionRedisRepo:    redisRepo,
+		RevertIdempotencyMode:   revertIdempotencyModeFinal,
 	}
 
 	// Create handler
 	infra.handler = &TransactionHandler{
-		Query:   queryUC,
-		Command: commandUC,
+		Query:                    queryUC,
+		Command:                  commandUC,
+		RevertIdempotencyMode:    revertIdempotencyModeFinal,
+		RevertUpdateFreeze:       revertFreeze,
+		FinancialRedisDurability: redis.NewFinancialRedisDurabilityGuard(redisConn),
 	}
 
 	// Use fake UUIDs for org and ledger (they're in the onboarding component, not transaction)
@@ -613,10 +640,10 @@ func setupAsyncTestInfra(t *testing.T) *testAsyncInfra {
 	infra := &testAsyncInfra{}
 
 	// Start containers
-	infra.pgContainer = postgrestestutil.SetupContainer(t)
-	infra.mongoContainer = mongotestutil.SetupContainer(t)
-	infra.redisContainer = redistestutil.SetupContainer(t)
-	infra.rabbitmqContainer = rabbitmqtestutil.SetupContainer(t)
+	infra.pgContainer = postgrestestutil.SetupMigratedContainer(t, "transaction")
+	infra.mongoContainer = mongotestutil.SetupReusableContainer(t)
+	infra.redisContainer = redistestutil.SetupReusableContainer(t)
+	infra.rabbitmqContainer = rabbitmqtestutil.SetupReusableContainer(t)
 
 	// Register cleanup for consumer connection
 	// NOTE: Consumer connection must be closed BEFORE containers to avoid reconnection errors.
@@ -624,6 +651,10 @@ func setupAsyncTestInfra(t *testing.T) *testAsyncInfra {
 	// so some "connection reset" logs may still appear during cleanup - this is expected behavior.
 	// Container cleanup is handled automatically by SetupContainer via t.Cleanup().
 	t.Cleanup(func() {
+		if infra.consumerRoutes != nil {
+			infra.consumerRoutes.StopConsumers()
+		}
+
 		// Close the consumer's RabbitMQ channel and connection first to signal goroutines to stop.
 		// The consumer watches for channel closure via NotifyClose, then enters retry mode.
 		if infra.consumerRabbitMQConn != nil {
@@ -633,9 +664,6 @@ func setupAsyncTestInfra(t *testing.T) *testAsyncInfra {
 			if infra.consumerRabbitMQConn.Connection != nil {
 				_ = infra.consumerRabbitMQConn.Connection.Close()
 			}
-			// Wait for the consumer's first retry backoff (~200-400ms) to start,
-			// so container termination happens while consumer is sleeping, not connecting.
-			time.Sleep(500 * time.Millisecond)
 		}
 	})
 
@@ -657,16 +685,15 @@ func setupAsyncTestInfra(t *testing.T) *testAsyncInfra {
 	rabbitmqtestutil.SetupQueue(t, infra.rabbitmqContainer.Channel, "test.transaction.queue", "test.transaction.exchange", "test.transaction.key")
 
 	// Create PostgreSQL connection following lib-commons pattern
-	migrationsPath := postgrestestutil.FindMigrationsPath(t, "transaction")
 	connStr := postgrestestutil.BuildConnectionString(infra.pgContainer.Host, infra.pgContainer.Port, infra.pgContainer.Config)
 
-	infra.pgConn = postgrestestutil.CreatePostgresClient(t, connStr, connStr, infra.pgContainer.Config.DBName, migrationsPath)
+	infra.pgConn = postgrestestutil.ConnectPostgresClient(t, connStr, connStr)
 
 	// Create MongoDB connection
-	mongoConn := mongotestutil.CreateConnection(t, infra.mongoContainer.URI, "test_db")
+	mongoConn := mongotestutil.CreateConnection(t, infra.mongoContainer.URI, infra.mongoContainer.DBName)
 
 	// Create Redis connection
-	redisConn := redistestutil.CreateConnection(t, infra.redisContainer.Addr)
+	redisConn := redistestutil.CreateConnectionWithDB(t, infra.redisContainer.Addr, infra.redisContainer.DB)
 	logger := &libLog.GoLogger{Level: libLog.LevelInfo}
 
 	// Create repositories
@@ -675,6 +702,7 @@ func setupAsyncTestInfra(t *testing.T) *testAsyncInfra {
 	balanceRepo := balance.NewBalancePostgreSQLRepository(infra.pgConn, false)
 	ledgerRepo := ledger.NewLedgerPostgreSQLRepository(infra.pgConn)
 	metadataRepo := mongodb.NewMetadataMongoDBRepository(mongoConn)
+	revertClaimRepo := revertclaim.NewPostgreSQLRepository(infra.pgConn)
 	redisRepo, err := redis.NewConsumerRedis(redisConn)
 	require.NoError(t, err, "failed to create Redis repository")
 
@@ -705,17 +733,20 @@ func setupAsyncTestInfra(t *testing.T) *testAsyncInfra {
 	}
 	infra.commandUC = &command.UseCase{
 		TransactionRepo:         transactionRepo,
+		RevertClaimRepo:         revertClaimRepo,
 		OperationRepo:           operationRepo,
 		BalanceRepo:             balanceRepo,
 		TransactionMetadataRepo: metadataRepo,
 		TransactionRedisRepo:    redisRepo,
 		RabbitMQRepo:            producerRepo,
+		RevertIdempotencyMode:   revertIdempotencyModeFinal,
 	}
 
 	// Create handler
 	infra.handler = &TransactionHandler{
-		Query:   queryUC,
-		Command: infra.commandUC,
+		Query:                 queryUC,
+		Command:               infra.commandUC,
+		RevertIdempotencyMode: revertIdempotencyModeFinal,
 	}
 
 	// Use fake UUIDs for org and ledger (they're in the onboarding component, not transaction)
@@ -2268,20 +2299,15 @@ func TestIntegration_TransactionHandler_IdempotencyReplay(t *testing.T) {
 	t.Logf("Idempotency replay test passed: transaction %s, balance %s", txID.String(), sourceBalance.String())
 }
 
-// TestIntegration_TransactionHandler_IdempotencyConflict tests that using the same
-// idempotency key with a different payload returns HTTP 409 Conflict.
+// TestIntegration_TransactionHandler_IdempotencyReplay_IgnoresChangedAmount proves
+// that an idempotency key always replays its first outcome, even when a later body
+// asks for a different amount.
 //
 // Flow:
 // 1. First request with X-Idempotency header creates transaction
-// 2. Second request with same key but different payload returns 409
-//
-// SKIPPED: This test documents EXPECTED behavior, but conflict detection is NOT implemented.
-// Current behavior: same key + different payload returns 201 with cached response (replay).
-// The hash parameter in CreateOrCheckTransactionIdempotency is only used as fallback key when
-// X-Idempotency header is not provided - it is never stored or compared.
-func TestIntegration_TransactionHandler_IdempotencyConflict(t *testing.T) {
-	t.Skip("PENDING: Conflict detection not implemented - same key returns cached response regardless of payload")
-
+// 2. Second request with the same key but a different amount replays the first
+// 3. Only the first amount affects balances
+func TestIntegration_TransactionHandler_IdempotencyReplay_IgnoresChangedAmount(t *testing.T) {
 	if testing.Short() {
 		t.Skip("skipping integration test in short mode")
 	}
@@ -2378,15 +2404,15 @@ func TestIntegration_TransactionHandler_IdempotencyConflict(t *testing.T) {
 	body2, err := io.ReadAll(resp2.Body)
 	require.NoError(t, err, "should read second response body")
 
-	// Second request with different payload should return 409 Conflict
-	// Note: The implementation may return 409 immediately (key exists without value during processing)
-	// or may return 409 after detecting hash mismatch
-	assert.Equal(t, 409, resp2.StatusCode,
-		"second request with different payload should return 409, got %d: %s", resp2.StatusCode, string(body2))
+	require.Equal(t, 201, resp2.StatusCode,
+		"the changed body must replay the first outcome, got %d: %s", resp2.StatusCode, string(body2))
+	assert.Equal(t, "true", resp2.Header.Get("X-Idempotency-Replayed"))
 
-	// Verify only the first transaction exists
-	var result1 map[string]any
+	// Verify the replay returned the first transaction.
+	var result1, result2 map[string]any
 	require.NoError(t, json.Unmarshal(body1, &result1), "first response should be valid JSON")
+	require.NoError(t, json.Unmarshal(body2, &result2), "replayed response should be valid JSON")
+	assert.Equal(t, result1["id"], result2["id"], "replay must return the first transaction")
 
 	txID, err := uuid.Parse(result1["id"].(string))
 	require.NoError(t, err, "transaction ID should be valid UUID")
@@ -2394,13 +2420,16 @@ func TestIntegration_TransactionHandler_IdempotencyConflict(t *testing.T) {
 	dbStatus := postgrestestutil.GetTransactionStatus(t, infra.pgContainer.DB, txID)
 	assert.NotEmpty(t, dbStatus, "first transaction should exist in database")
 
+	// Flush the first request's hot balance before checking PostgreSQL.
+	drainBalanceSync(t, context.Background(), infra.handler.Command, infra.redisRepo, infra.orgID, infra.ledgerID)
+
 	// Verify balance was only affected by the first transaction (100, not 200)
 	sourceBalance := postgrestestutil.GetBalanceByAlias(t, infra.pgContainer.DB, infra.orgID, infra.ledgerID, sourceAlias)
 	expectedBalance := initialBalance.Sub(decimal.NewFromInt(100))
 	assert.True(t, sourceBalance.Equal(expectedBalance),
 		"source balance should be %s (only first transaction), got %s", expectedBalance.String(), sourceBalance.String())
 
-	t.Logf("Idempotency conflict test passed: only transaction %s created, balance %s", txID.String(), sourceBalance.String())
+	t.Logf("Idempotency replay preserved transaction %s and balance %s", txID.String(), sourceBalance.String())
 }
 
 // TestIntegration_TransactionHandler_IdempotencyReplay_IgnoresReplayerSkip is the

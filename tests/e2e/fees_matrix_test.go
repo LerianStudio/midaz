@@ -128,7 +128,7 @@ func feematrixTryCreatePackage(t *testing.T, f fixture, opts feematrixPackageOpt
 	}
 
 	body := map[string]any{
-		"feeGroupLabel": "E2E Matrix " + uuid.NewString()[:8], "ledgerId": f.ledgerID,
+		"feeGroupLabel": "E2E Matrix " + uuid.NewString(), "ledgerId": f.ledgerID,
 		"minimumAmount": minAmount, "maximumAmount": maxAmount, "enable": true,
 		"fees": fees,
 	}

@@ -5,12 +5,14 @@
 package model
 
 import (
+	"encoding/json"
 	"fmt"
 
 	feeconstant "github.com/LerianStudio/midaz/v4/components/ledger/pkg/feeshared/constant"
 	"github.com/LerianStudio/midaz/v4/pkg"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
 
+	"github.com/google/uuid"
 	"github.com/shopspring/decimal"
 )
 
@@ -52,14 +54,69 @@ const (
 
 // Fee is a struct designed to encapsulate request create payload data.
 type Fee struct {
-	FeeLabel         string            `json:"feeLabel" validate:"required" example:"Taxa Administrativa"`
-	CalculationModel *CalculationModel `json:"calculationModel" validate:"required"`
-	ReferenceAmount  string            `json:"referenceAmount" validate:"oneof=originalAmount afterFeesAmount" example:"originalAmount"`
-	Priority         int               `json:"priority,omitempty" validate:"gte=0" example:"1"`
-	IsDeductibleFrom *bool             `json:"isDeductibleFrom" validate:"required" example:"true"`
-	CreditAccount    string            `json:"creditAccount" validate:"required" example:"conta_receita_taxas_adm"`
-	RouteFrom        *string           `json:"routeFrom,omitempty" example:"taxa_débito"`
-	RouteTo          *string           `json:"routeTo,omitempty" example:"taxa_crédito"`
+	FeeLabel             string            `json:"feeLabel" validate:"required" example:"Taxa Administrativa"`
+	CalculationModel     *CalculationModel `json:"calculationModel" validate:"required"`
+	ReferenceAmount      string            `json:"referenceAmount" validate:"oneof=originalAmount afterFeesAmount" example:"originalAmount"`
+	Priority             int               `json:"priority,omitempty" validate:"gte=0" example:"1"`
+	IsDeductibleFrom     *bool             `json:"isDeductibleFrom" validate:"required" example:"true"`
+	CreditAccount        string            `json:"creditAccount" validate:"required" example:"conta_receita_taxas_adm"`
+	RouteFrom            *string           `json:"routeFrom,omitempty" example:"taxa_débito"`
+	RouteTo              *string           `json:"routeTo,omitempty" example:"taxa_crédito"`
+	OperationRouteFromID *string           `json:"operationRouteFromId,omitempty" validate:"omitempty,uuid" example:"00000000-0000-0000-0000-000000000000" format:"uuid" nullable:"true"`
+	OperationRouteToID   *string           `json:"operationRouteToId,omitempty" validate:"omitempty,uuid" example:"00000000-0000-0000-0000-000000000000" format:"uuid" nullable:"true"`
+
+	operationRouteFromIDSet bool
+	operationRouteToIDSet   bool
+}
+
+// UnmarshalJSON preserves the PATCH distinction between an omitted operation
+// route (leave the stored value unchanged) and an explicit null (clear it).
+// The exported pointers remain the persisted/read representation, so create,
+// read and fee calculation keep their existing contract.
+func (f *Fee) UnmarshalJSON(data []byte) error {
+	type wireFee Fee
+
+	var decoded wireFee
+	if err := json.Unmarshal(data, &decoded); err != nil {
+		return err
+	}
+
+	var fields map[string]json.RawMessage
+	if err := json.Unmarshal(data, &fields); err != nil {
+		return err
+	}
+
+	*f = Fee(decoded)
+	_, f.operationRouteFromIDSet = fields["operationRouteFromId"]
+	_, f.operationRouteToIDSet = fields["operationRouteToId"]
+
+	return nil
+}
+
+// MarshalJSON keeps an explicit PATCH null visible to the fee HTTP decoder's
+// unknown-field comparison. A genuinely omitted route remains omitted.
+func (f Fee) MarshalJSON() ([]byte, error) {
+	type wireFee Fee
+
+	data, err := json.Marshal(wireFee(f))
+	if err != nil || (!f.operationRouteFromIDSet && !f.operationRouteToIDSet) {
+		return data, err
+	}
+
+	var fields map[string]any
+	if err := json.Unmarshal(data, &fields); err != nil {
+		return nil, err
+	}
+
+	if f.operationRouteFromIDSet && f.OperationRouteFromID == nil {
+		fields["operationRouteFromId"] = nil
+	}
+
+	if f.operationRouteToIDSet && f.OperationRouteToID == nil {
+		fields["operationRouteToId"] = nil
+	}
+
+	return json.Marshal(fields)
 }
 
 func (f *Fee) GetIsDeductibleFrom() bool {
@@ -186,10 +243,42 @@ func (f *Fee) ValidateIfFeeIsNil() bool {
 		f.ReferenceAmount == "" &&
 		f.Priority == 0 &&
 		f.IsDeductibleFrom == nil &&
-		f.CreditAccount == ""
+		f.CreditAccount == "" &&
+		!f.operationRouteFromIDSet &&
+		!f.operationRouteToIDSet &&
+		f.OperationRouteFromID == nil &&
+		f.OperationRouteToID == nil
+}
+
+func (f *Fee) validateOperationRouteIDs(feeKey string) error {
+	ids := []struct {
+		field string
+		value *string
+	}{
+		{field: "operationRouteFromId", value: f.OperationRouteFromID},
+		{field: "operationRouteToId", value: f.OperationRouteToID},
+	}
+
+	for _, id := range ids {
+		if id.value == nil || *id.value == "" {
+			continue
+		}
+
+		if _, err := uuid.Parse(*id.value); err != nil {
+			return pkg.ValidateBadRequestFieldsError(nil, pkg.FieldValidations{
+				feeKey + "." + id.field: "must be a valid UUID",
+			}, "Fee", nil)
+		}
+	}
+
+	return nil
 }
 
 func (f *Fee) ValidateNewFee(feeKey string, minAmount decimal.Decimal) error {
+	if err := f.validateOperationRouteIDs(feeKey); err != nil {
+		return err
+	}
+
 	if err := f.validateRequiredFields(); err != nil {
 		return err
 	}

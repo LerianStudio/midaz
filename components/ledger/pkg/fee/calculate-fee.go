@@ -130,6 +130,7 @@ func CalculateFee(logger libLog.Logger, f *model.FeeCalculate, p *pack.Package, 
 	}
 
 	directAliasesPtr := &directAliases
+	legRoutes := newFeeLegRoutes(resp)
 
 	for feeIndex, fee := range fees {
 		valueToCalculate := selectReferenceAmount(fee, f.Transaction.Send.Value, originalTransactionValue)
@@ -153,18 +154,49 @@ func CalculateFee(logger libLog.Logger, f *model.FeeCalculate, p *pack.Package, 
 			return err
 		}
 
+		if result.Value.IsZero() {
+			continue
+		}
+
 		// Fee total is emitted unrounded: the ledger is arbitrary-precision and
 		// every serialization seam round-trips full precision (P4-T23). The
 		// residual-to-max reconciliation in applyFeeCorrection holds sum(legs) ==
 		// fee total exactly without any asset-scale rounding.
 
-		if err := applyDeductibleAndReferenceAmountRules(logger, feeIndex, directAliasesPtr, segmentIDs, segCtx, fee, resp, result, f); err != nil {
+		if err := applyDeductibleAndReferenceAmountRules(logger, feeIndex, directAliasesPtr, segmentIDs, segCtx, fee, resp, result, f, legRoutes); err != nil {
 			return err
 		}
 	}
 
-	f.Transaction.Send.Source.From = updatedAmountsFromFee(resp.From)
-	f.Transaction.Send.Distribute.To = updatedAmountsFromFee(resp.To)
+	f.Transaction.Send.Source.From = updatedAmountsFromFee(resp.From, resp.OperationRoutesFrom)
+	f.Transaction.Send.Distribute.To = updatedAmountsFromFee(resp.To, resp.OperationRoutesTo)
+
+	return nil
+}
+
+// CalculateFeePreservingLegs applies the fee engine while retaining every authored transaction
+// leg. It is the strict ledger/estimate seam: unlike the lower-level CalculateFee helper, it
+// requires the resolved maps to contain every original leg and fails closed if identities drift.
+func CalculateFeePreservingLegs(logger libLog.Logger, f *model.FeeCalculate, p *pack.Package, resp *transaction.Responses, defaultCurrency string, segCtx *SegmentContext) error {
+	originalFrom := append([]transaction.FromTo(nil), f.Transaction.Send.Source.From...)
+	originalTo := append([]transaction.FromTo(nil), f.Transaction.Send.Distribute.To...)
+
+	if err := CalculateFee(logger, f, p, resp, defaultCurrency, segCtx); err != nil {
+		return err
+	}
+
+	materializedFrom, err := materializeAmountsAfterFee(originalFrom, resp.From, resp.OperationRoutesFrom)
+	if err != nil {
+		return err
+	}
+
+	materializedTo, err := materializeAmountsAfterFee(originalTo, resp.To, resp.OperationRoutesTo)
+	if err != nil {
+		return err
+	}
+
+	f.Transaction.Send.Source.From = materializedFrom
+	f.Transaction.Send.Distribute.To = materializedTo
 
 	return nil
 }

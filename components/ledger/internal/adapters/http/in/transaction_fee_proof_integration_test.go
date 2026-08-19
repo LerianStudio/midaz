@@ -411,7 +411,13 @@ func TestFeeProof_T16_C9_PerMode(t *testing.T) {
 		resp := h.post(t, app, h.txPath("annotation"), body, nil)
 		require.Equalf(t, 201, resp.status, "annotation create must succeed: %s", string(resp.rawBody))
 
-		legs := loadLegs(t, h.db, mustTxID(t, resp))
+		transactionID := mustTxID(t, resp)
+		assert.True(t, dbTxAmount(t, h.db, transactionID).Equal(decimal.NewFromInt(1000)),
+			"NOTED must preserve its nonzero informational transaction amount")
+		legs := loadLegs(t, h.db, transactionID)
+		for _, leg := range legs {
+			assert.True(t, leg.Amount.IsZero(), "NOTED operation rows must carry zero economic amount")
+		}
 		assert.Empty(t, feeCreditLegs(legs, "@fee_rev"),
 			"annotation (NOTED) must emit NO fee legs (one-sided, no balance movement)")
 	})

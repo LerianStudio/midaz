@@ -298,6 +298,59 @@ func TestHuma_UpdatePackage_Success(t *testing.T) {
 	assert.Equal(t, packID.String(), got["id"])
 }
 
+func TestHuma_UpdatePackage_OperationRoutePatchSemantics(t *testing.T) {
+	t.Parallel()
+
+	orgID := uuid.New()
+	packID := uuid.New()
+	fromID := uuid.NewString()
+	toID := uuid.NewString()
+	tests := []struct {
+		name   string
+		body   string
+		assert func(*testing.T, *model.UpdatePackageInput)
+	}{
+		{
+			name: "two partial fees carry only explicit route values",
+			body: `{"fees":{"firstFee":{"operationRouteFromId":"` + fromID + `"},"secondFee":{"operationRouteToId":"` + toID + `"}}}`,
+			assert: func(t *testing.T, input *model.UpdatePackageInput) {
+				require.Len(t, input.Fee, 2)
+				require.NotNil(t, input.Fee["firstFee"].OperationRouteFromID)
+				assert.Equal(t, fromID, *input.Fee["firstFee"].OperationRouteFromID)
+				require.NotNil(t, input.Fee["secondFee"].OperationRouteToID)
+				assert.Equal(t, toID, *input.Fee["secondFee"].OperationRouteToID)
+			},
+		},
+		{
+			name: "null remains an explicit field clear rather than fee removal",
+			body: `{"fees":{"serviceFee":{"operationRouteFromId":null}}}`,
+			assert: func(t *testing.T, input *model.UpdatePackageInput) {
+				fee := input.Fee["serviceFee"]
+				assert.Nil(t, fee.OperationRouteFromID)
+				assert.False(t, fee.ValidateIfFeeIsNil())
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			stub := &stubPackageService{getByIDResult: &pack.Package{ID: packID}}
+			app := buildHumaPackageApp(t, &PackageHandler{Service: stub}, true)
+			req := httptest.NewRequest(http.MethodPatch, feePkgV2Base+orgID.String()+"/ledgers/"+validLedgerUUID()+"/packages/"+packID.String(), bytes.NewBufferString(tt.body))
+			req.Header.Set("Content-Type", "application/json")
+
+			resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
+			require.NoError(t, err)
+			defer func() { _ = resp.Body.Close() }()
+			respBody, _ := io.ReadAll(resp.Body)
+			require.Equal(t, http.StatusOK, resp.StatusCode, "body: %s", string(respBody))
+			require.True(t, stub.updateCalled)
+			require.NotNil(t, stub.gotUpdate)
+			tt.assert(t, stub.gotUpdate)
+		})
+	}
+}
+
 func TestHuma_DeletePackage_204Empty(t *testing.T) {
 	orgID := uuid.New()
 	packID := uuid.New()

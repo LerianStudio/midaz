@@ -405,6 +405,179 @@ func TestCalculateFee_SinglePackage_Success(t *testing.T) {
 	assert.Greater(t, feeInput.Transaction.Send.Value.IntPart(), int64(1000))
 }
 
+func TestCalculateFee_RemainingSourceIsResolvedBeforeFeeDistribution(t *testing.T) {
+	t.Parallel()
+
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockPackRepo := pack.NewMockRepository(ctrl)
+	orgID := uuid.New()
+	ledgerID := uuid.New()
+	packID := uuid.New()
+	deductible := false
+
+	feeSvc := &UseCase{packageRepo: mockPackRepo}
+	routeID := uuid.New().String()
+	rateID := uuid.New().String()
+	explicitMetadata := map[string]any{"leg": "explicit"}
+	remainingMetadata := map[string]any{"leg": "remaining"}
+	destinationMetadata := map[string]any{"leg": "destination"}
+	feeDebitRoute := "fee-debit-route"
+	feeCreditRoute := "fee-credit-route"
+	feeInput := &model.FeeCalculate{
+		LedgerID: ledgerID,
+		Transaction: transaction.Transaction{
+			Send: transaction.Send{
+				Asset: "USD",
+				Value: decimal.NewFromInt(100),
+				Source: transaction.Source{From: []transaction.FromTo{
+					{
+						AccountAlias:    "@payer",
+						BalanceKey:      "reserved",
+						Amount:          &transaction.Amount{Asset: "USD", Value: decimal.NewFromInt(60)},
+						Rate:            &transaction.Rate{From: "USD", To: "USDe", Value: decimal.NewFromInt(1), ExternalID: rateID},
+						Description:     "explicit leg",
+						ChartOfAccounts: "asset.explicit",
+						Metadata:        explicitMetadata,
+						IsFrom:          true,
+						Route:           "legacy-explicit",
+						RouteID:         &routeID,
+					},
+					{
+						AccountAlias:    "@payer",
+						BalanceKey:      "available",
+						Remaining:       "remaining",
+						Description:     "remaining leg",
+						ChartOfAccounts: "asset.remaining",
+						Metadata:        remainingMetadata,
+						IsFrom:          true,
+						Route:           "legacy-remaining",
+					},
+				}},
+				Distribute: transaction.Distribute{To: []transaction.FromTo{{
+					AccountAlias:    "@destination",
+					BalanceKey:      "settlement",
+					Share:           &transaction.Share{Percentage: 100},
+					Description:     "destination leg",
+					ChartOfAccounts: "liability.destination",
+					Metadata:        destinationMetadata,
+					Route:           "legacy-destination",
+					RouteID:         &routeID,
+				}}},
+			},
+		},
+	}
+
+	feePackage := &pack.Package{
+		ID:            packID,
+		MinimumAmount: decimal.NewFromInt(1),
+		MaximumAmount: decimal.NewFromInt(1000),
+		Fees: map[string]model.Fee{
+			"flat": {
+				CalculationModel: &model.CalculationModel{
+					ApplicationRule: "flatFee",
+					Calculations:    []model.Calculation{{Type: "flat", Value: "10"}},
+				},
+				ReferenceAmount:  "originalAmount",
+				Priority:         1,
+				IsDeductibleFrom: &deductible,
+				CreditAccount:    "@fee_account",
+				RouteFrom:        &feeDebitRoute,
+				RouteTo:          &feeCreditRoute,
+			},
+		},
+		WaivedAccounts: &[]string{},
+	}
+
+	mockPackRepo.EXPECT().
+		FindByOrganizationIDAndLedgerID(gomock.Any(), orgID, ledgerID).
+		Return([]*pack.Package{feePackage}, nil)
+
+	err := feeSvc.CalculateFee(context.Background(), feeInput, orgID)
+	assert.NoError(t, err)
+	assert.Equal(t, decimal.NewFromInt(110), feeInput.Transaction.Send.Value)
+	assert.Len(t, feeInput.Transaction.Send.Source.From, 4, "both original legs and both proportional fee legs must survive")
+
+	explicit := feeInput.Transaction.Send.Source.From[0]
+	assert.Equal(t, "@payer", explicit.AccountAlias)
+	assert.Equal(t, "reserved", explicit.BalanceKey)
+	assert.Equal(t, "explicit leg", explicit.Description)
+	assert.Equal(t, "asset.explicit", explicit.ChartOfAccounts)
+	assert.Equal(t, explicitMetadata, explicit.Metadata)
+	assert.True(t, explicit.IsFrom)
+	assert.Equal(t, "legacy-explicit", explicit.Route)
+	assert.Equal(t, &routeID, explicit.RouteID)
+	assert.Equal(t, &transaction.Rate{From: "USD", To: "USDe", Value: decimal.NewFromInt(1), ExternalID: rateID}, explicit.Rate)
+	assert.Nil(t, explicit.Share)
+	assert.Empty(t, explicit.Remaining)
+	if assert.NotNil(t, explicit.Amount) {
+		assert.Equal(t, decimal.NewFromInt(60), explicit.Amount.Value)
+	}
+
+	remaining := feeInput.Transaction.Send.Source.From[1]
+	assert.Equal(t, "@payer", remaining.AccountAlias)
+	assert.Equal(t, "available", remaining.BalanceKey)
+	assert.Equal(t, "remaining leg", remaining.Description)
+	assert.Equal(t, "asset.remaining", remaining.ChartOfAccounts)
+	assert.Equal(t, remainingMetadata, remaining.Metadata)
+	assert.True(t, remaining.IsFrom)
+	assert.Equal(t, "legacy-remaining", remaining.Route)
+	assert.Nil(t, remaining.RouteID)
+	assert.Nil(t, remaining.Share)
+	assert.Empty(t, remaining.Remaining)
+	if assert.NotNil(t, remaining.Amount) {
+		assert.Equal(t, decimal.NewFromInt(40), remaining.Amount.Value)
+	}
+
+	assert.Len(t, feeInput.Transaction.Send.Distribute.To, 3, "the destination plus both proportional fee credits must survive")
+	destination := feeInput.Transaction.Send.Distribute.To[0]
+	assert.Equal(t, "@destination", destination.AccountAlias)
+	assert.Equal(t, "settlement", destination.BalanceKey)
+	assert.Equal(t, "destination leg", destination.Description)
+	assert.Equal(t, "liability.destination", destination.ChartOfAccounts)
+	assert.Equal(t, destinationMetadata, destination.Metadata)
+	assert.Equal(t, "legacy-destination", destination.Route)
+	assert.Equal(t, &routeID, destination.RouteID)
+	assert.Nil(t, destination.Share)
+	assert.Empty(t, destination.Remaining)
+	if assert.NotNil(t, destination.Amount) {
+		assert.True(t, decimal.NewFromInt(100).Equal(destination.Amount.Value))
+	}
+
+	for _, feeLeg := range feeInput.Transaction.Send.Source.From[2:] {
+		assert.Equal(t, "@payer", feeLeg.AccountAlias)
+		assert.Equal(t, feeDebitRoute, feeLeg.Route)
+		assert.Empty(t, feeLeg.BalanceKey, "new fee legs retain the default-balance semantics")
+	}
+
+	for _, feeLeg := range feeInput.Transaction.Send.Distribute.To[1:] {
+		assert.Equal(t, "@fee_account", feeLeg.AccountAlias)
+		assert.Equal(t, feeCreditRoute, feeLeg.Route)
+		assert.Equal(t, "@payer", feeLeg.Metadata["source"])
+	}
+
+	var sourceTotal, destinationTotal decimal.Decimal
+	for _, leg := range feeInput.Transaction.Send.Source.From {
+		assert.NotNil(t, leg.Amount, "fee normalization must preserve every resolved source leg")
+		if leg.Amount != nil {
+			assert.True(t, leg.Amount.Value.IsPositive(), "fee normalization must not emit a zero source leg")
+			sourceTotal = sourceTotal.Add(leg.Amount.Value)
+		}
+	}
+
+	for _, leg := range feeInput.Transaction.Send.Distribute.To {
+		assert.NotNil(t, leg.Amount, "fee normalization must preserve every resolved destination leg")
+		if leg.Amount != nil {
+			assert.True(t, leg.Amount.Value.IsPositive(), "fee normalization must not emit a zero destination leg")
+			destinationTotal = destinationTotal.Add(leg.Amount.Value)
+		}
+	}
+
+	assert.True(t, decimal.NewFromInt(110).Equal(sourceTotal), "source legs must sum to the fee-inclusive amount: %s", sourceTotal)
+	assert.True(t, decimal.NewFromInt(110).Equal(destinationTotal), "destination legs must sum to the fee-inclusive amount: %s", destinationTotal)
+}
+
 // TestCalculateFee_SinglePackage_CalculateFeeError tests error when calculating fee in single package
 func TestCalculateFee_SinglePackage_CalculateFeeError(t *testing.T) {
 	ctrl := gomock.NewController(t)

@@ -19,6 +19,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"go.mongodb.org/mongo-driver/v2/mongo"
 	"go.uber.org/mock/gomock"
 )
@@ -319,6 +320,99 @@ func TestCreateFeeEstimate(t *testing.T) {
 				assert.Contains(t, toValues, "1600", "To should contain non-deductible fee 1600, got %v", toValues)
 			}
 		})
+	}
+}
+
+func TestEstimateFeeCalculation_PreservesDuplicateRemainingLegs(t *testing.T) {
+	t.Parallel()
+
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockPackRepo := pack.NewMockRepository(ctrl)
+	feeSvc := &UseCase{packageRepo: mockPackRepo, defaultCurrency: "USD"}
+	orgID := uuid.New()
+	ledgerID := uuid.New()
+	packID := uuid.New()
+	deductible := false
+	operationRouteFromID := uuid.NewString()
+	operationRouteToID := uuid.NewString()
+	legacyRouteFrom := "estimate-debit"
+	legacyRouteTo := "estimate-credit"
+
+	feePackage := &pack.Package{
+		ID:            packID,
+		MinimumAmount: decimal.NewFromInt(1),
+		MaximumAmount: decimal.NewFromInt(1000),
+		Fees: map[string]model.Fee{
+			"flat": {
+				CalculationModel: &model.CalculationModel{
+					ApplicationRule: "flatFee",
+					Calculations:    []model.Calculation{{Type: "flat", Value: "10"}},
+				},
+				ReferenceAmount:      "originalAmount",
+				Priority:             1,
+				IsDeductibleFrom:     &deductible,
+				CreditAccount:        "@fee_account",
+				RouteFrom:            &legacyRouteFrom,
+				RouteTo:              &legacyRouteTo,
+				OperationRouteFromID: &operationRouteFromID,
+				OperationRouteToID:   &operationRouteToID,
+			},
+		},
+		WaivedAccounts: &[]string{},
+	}
+
+	mockPackRepo.EXPECT().
+		FindByID(gomock.Any(), packID, orgID, uuid.Nil).
+		Return(feePackage, nil)
+
+	input := &model.FeeEstimate{
+		PackageID: packID,
+		LedgerID:  ledgerID,
+		Transaction: transaction.Transaction{Send: transaction.Send{
+			Asset: "USD",
+			Value: decimal.NewFromInt(100),
+			Source: transaction.Source{From: []transaction.FromTo{
+				{AccountAlias: "@payer", BalanceKey: "reserved", Amount: &transaction.Amount{Asset: "USD", Value: decimal.NewFromInt(60)}, IsFrom: true},
+				{AccountAlias: "@payer", BalanceKey: "available", Remaining: "remaining", IsFrom: true},
+			}},
+			Distribute: transaction.Distribute{To: []transaction.FromTo{{
+				AccountAlias: "@destination",
+				Amount:       &transaction.Amount{Asset: "USD", Value: decimal.NewFromInt(100)},
+			}}},
+		}},
+	}
+
+	result, err := feeSvc.EstimateFeeCalculation(context.Background(), input, orgID)
+	assert.NoError(t, err)
+	if !assert.NotNil(t, result) {
+		return
+	}
+
+	assert.True(t, decimal.NewFromInt(110).Equal(result.Transaction.Send.Value))
+	assert.Len(t, result.Transaction.Send.Source.From, 4)
+	assert.Equal(t, "@payer", result.Transaction.Send.Source.From[0].AccountAlias)
+	assert.Equal(t, "reserved", result.Transaction.Send.Source.From[0].BalanceKey)
+	assert.Empty(t, result.Transaction.Send.Source.From[0].Remaining)
+	if assert.NotNil(t, result.Transaction.Send.Source.From[0].Amount) {
+		assert.True(t, decimal.NewFromInt(60).Equal(result.Transaction.Send.Source.From[0].Amount.Value))
+	}
+	assert.Equal(t, "@payer", result.Transaction.Send.Source.From[1].AccountAlias)
+	assert.Equal(t, "available", result.Transaction.Send.Source.From[1].BalanceKey)
+	assert.Empty(t, result.Transaction.Send.Source.From[1].Remaining)
+	if assert.NotNil(t, result.Transaction.Send.Source.From[1].Amount) {
+		assert.True(t, decimal.NewFromInt(40).Equal(result.Transaction.Send.Source.From[1].Amount.Value))
+	}
+	for _, feeLeg := range result.Transaction.Send.Source.From[2:] {
+		assert.Equal(t, legacyRouteFrom, feeLeg.Route)
+		require.NotNil(t, feeLeg.RouteID)
+		assert.Equal(t, operationRouteFromID, *feeLeg.RouteID)
+	}
+	for _, feeLeg := range result.Transaction.Send.Distribute.To[1:] {
+		assert.Equal(t, legacyRouteTo, feeLeg.Route)
+		require.NotNil(t, feeLeg.RouteID)
+		assert.Equal(t, operationRouteToID, *feeLeg.RouteID)
 	}
 }
 

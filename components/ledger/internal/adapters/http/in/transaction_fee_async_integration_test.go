@@ -80,10 +80,10 @@ func TestFeeProof_T25_AsyncFeeInclusive(t *testing.T) {
 	t.Setenv("RABBITMQ_TRANSACTION_BALANCE_OPERATION_KEY", "test.fee.key")
 	t.Setenv("RABBITMQ_TRANSACTION_BALANCE_OPERATION_QUEUE", "test.fee.queue")
 
-	pgContainer := postgrestestutil.SetupContainer(t)
-	mongoContainer := mongotestutil.SetupContainer(t)
-	redisContainer := redistestutil.SetupContainer(t)
-	rabbitContainer := rabbitmqtestutil.SetupContainer(t)
+	pgContainer := postgrestestutil.SetupLedgerContainer(t)
+	mongoContainer := mongotestutil.SetupReusableContainer(t)
+	redisContainer := redistestutil.SetupReusableContainer(t)
+	rabbitContainer := rabbitmqtestutil.SetupReusableContainer(t)
 
 	rabbitHealthURL := "http://" + rabbitContainer.Host + ":" + rabbitContainer.MgmtPort
 	t.Setenv("RABBITMQ_HEALTH_CHECK_URL", rabbitHealthURL)
@@ -91,13 +91,11 @@ func TestFeeProof_T25_AsyncFeeInclusive(t *testing.T) {
 	rabbitmqtestutil.SetupExchange(t, rabbitContainer.Channel, "test.fee.exchange", "direct")
 	rabbitmqtestutil.SetupQueue(t, rabbitContainer.Channel, "test.fee.queue", "test.fee.exchange", "test.fee.key")
 
-	migrationsPath := postgrestestutil.FindMigrationsPath(t, "transaction")
 	connStr := postgrestestutil.BuildConnectionString(pgContainer.Host, pgContainer.Port, pgContainer.Config)
-	pgConn := postgrestestutil.CreatePostgresClient(t, connStr, connStr, pgContainer.Config.DBName, migrationsPath)
-	postgrestestutil.ApplyOnboardingSchema(t, pgContainer.DB)
+	pgConn := postgrestestutil.ConnectPostgresClient(t, connStr, connStr)
 
-	mongoConn := mongotestutil.CreateConnection(t, mongoContainer.URI, "test_db")
-	redisConn := redistestutil.CreateConnection(t, redisContainer.Addr)
+	mongoConn := mongotestutil.CreateConnection(t, mongoContainer.URI, mongoContainer.DBName)
+	redisConn := redistestutil.CreateConnectionWithDB(t, redisContainer.Addr, redisContainer.DB)
 	logger := &libLog.GoLogger{Level: libLog.LevelInfo}
 
 	transactionRepo := transaction.NewTransactionPostgreSQLRepository(pgConn)
@@ -142,7 +140,7 @@ func TestFeeProof_T25_AsyncFeeInclusive(t *testing.T) {
 		TransactionMetadataRepo: metaRepo, TransactionRedisRepo: redisRepo, RabbitMQRepo: producerRepo,
 	}
 
-	feeConn := &feesmongo.MongoConnection{ConnectionStringSource: mongoContainer.URI, Database: "test_db", MaxPoolSize: 1, DB: mongoContainer.Client}
+	feeConn := &feesmongo.MongoConnection{ConnectionStringSource: mongoContainer.URI, Database: mongoContainer.DBName, MaxPoolSize: 1, DB: mongoContainer.Client}
 	packageRepo, err := pack.NewPackageMongoDBRepository(feeConn, logger)
 	require.NoError(t, err)
 	resolver, err := feesservices.NewQueryResolver(queryUC)
@@ -184,6 +182,7 @@ func TestFeeProof_T25_AsyncFeeInclusive(t *testing.T) {
 
 	routes, err := rabbitmq.NewConsumerRoutes(consumerConn, 1, 1, logger, telemetry)
 	require.NoError(t, err, "failed to create consumer routes")
+	t.Cleanup(routes.StopConsumers)
 	consumer := &asyncFeeConsumer{routes: routes, useCase: commandUC}
 	routes.Register(os.Getenv("RABBITMQ_TRANSACTION_BALANCE_OPERATION_QUEUE"), consumer.handle)
 

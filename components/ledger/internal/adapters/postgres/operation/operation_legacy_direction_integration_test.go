@@ -74,7 +74,7 @@ func insertLegacyDirectionNullOperation(
 }
 
 func TestIntegration_OperationRepository_LegacyDirectionFallback(t *testing.T) {
-	container := pgtestutil.SetupContainer(t)
+	container := pgtestutil.SetupMigratedContainer(t, "transaction")
 	repo := createRepository(t, container)
 	ids := createTestDependencies(t, container)
 	ctx := legacyDirectionTestContext(t)
@@ -163,7 +163,7 @@ func assertOperationNotInList(t *testing.T, operations []*Operation, operationID
 }
 
 func TestIntegration_OperationRepository_DirectionPassthroughOnModernRow(t *testing.T) {
-	container := pgtestutil.SetupContainer(t)
+	container := pgtestutil.SetupMigratedContainer(t, "transaction")
 	repo := createRepository(t, container)
 	ids := createTestDependencies(t, container)
 	ctx := legacyDirectionTestContext(t)

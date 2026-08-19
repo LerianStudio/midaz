@@ -123,7 +123,7 @@ func newMaintenancePackage(orgID, ledgerID, route string) *model.BillingPackage 
 // ============================================================================
 
 func TestIntegration_BillingPackageRepo_Create_PersistsAllFields(t *testing.T) {
-	container := mongotestutil.SetupContainer(t)
+	container := mongotestutil.SetupReusableContainer(t)
 	repo := newRepository(t, container)
 	ctx := context.Background()
 
@@ -201,7 +201,7 @@ func elemKeys(t *testing.T, arr any, i int) []string {
 // change, not a compile error. Scoping the by-ID verbs to a ledger must not move
 // a single key.
 func TestIntegration_BillingPackageRepo_DocumentShape(t *testing.T) {
-	container := mongotestutil.SetupContainer(t)
+	container := mongotestutil.SetupReusableContainer(t)
 	repo := newRepository(t, container)
 	ctx := context.Background()
 
@@ -251,7 +251,7 @@ func TestIntegration_BillingPackageRepo_DocumentShape(t *testing.T) {
 }
 
 func TestIntegration_BillingPackageRepo_Create_Nil(t *testing.T) {
-	container := mongotestutil.SetupContainer(t)
+	container := mongotestutil.SetupReusableContainer(t)
 	repo := newRepository(t, container)
 
 	result, err := repo.Create(context.Background(), nil)
@@ -266,7 +266,7 @@ func TestIntegration_BillingPackageRepo_Create_Nil(t *testing.T) {
 // ============================================================================
 
 func TestIntegration_BillingPackageRepo_FindByID(t *testing.T) {
-	container := mongotestutil.SetupContainer(t)
+	container := mongotestutil.SetupReusableContainer(t)
 	repo := newRepository(t, container)
 	ctx := context.Background()
 
@@ -284,7 +284,7 @@ func TestIntegration_BillingPackageRepo_FindByID(t *testing.T) {
 }
 
 func TestIntegration_BillingPackageRepo_FindByID_NotFound(t *testing.T) {
-	container := mongotestutil.SetupContainer(t)
+	container := mongotestutil.SetupReusableContainer(t)
 	repo := newRepository(t, container)
 
 	result, err := repo.FindByID(context.Background(), uuid.New().String(), uuid.New().String(), billing_package.AnyLedger)
@@ -295,7 +295,7 @@ func TestIntegration_BillingPackageRepo_FindByID_NotFound(t *testing.T) {
 }
 
 func TestIntegration_BillingPackageRepo_FindByID_WrongOrgIsolation(t *testing.T) {
-	container := mongotestutil.SetupContainer(t)
+	container := mongotestutil.SetupReusableContainer(t)
 	repo := newRepository(t, container)
 	ctx := context.Background()
 
@@ -311,7 +311,7 @@ func TestIntegration_BillingPackageRepo_FindByID_WrongOrgIsolation(t *testing.T)
 }
 
 func TestIntegration_BillingPackageRepo_FindByID_ExcludesSoftDeleted(t *testing.T) {
-	container := mongotestutil.SetupContainer(t)
+	container := mongotestutil.SetupReusableContainer(t)
 	repo := newRepository(t, container)
 	ctx := context.Background()
 
@@ -338,7 +338,7 @@ func TestIntegration_BillingPackageRepo_FindByID_ExcludesSoftDeleted(t *testing.
 // ============================================================================
 
 func TestIntegration_BillingPackageRepo_FindByID_WrongLedgerIsolation(t *testing.T) {
-	container := mongotestutil.SetupContainer(t)
+	container := mongotestutil.SetupReusableContainer(t)
 	repo := newRepository(t, container)
 	ctx := context.Background()
 
@@ -370,7 +370,7 @@ func TestIntegration_BillingPackageRepo_FindByID_WrongLedgerIsolation(t *testing
 }
 
 func TestIntegration_BillingPackageRepo_Update_WrongLedgerIsolation(t *testing.T) {
-	container := mongotestutil.SetupContainer(t)
+	container := mongotestutil.SetupReusableContainer(t)
 	repo := newRepository(t, container)
 	ctx := context.Background()
 
@@ -405,7 +405,7 @@ func TestIntegration_BillingPackageRepo_Update_WrongLedgerIsolation(t *testing.T
 }
 
 func TestIntegration_BillingPackageRepo_SoftDelete_WrongLedgerIsolation(t *testing.T) {
-	container := mongotestutil.SetupContainer(t)
+	container := mongotestutil.SetupReusableContainer(t)
 	repo := newRepository(t, container)
 	ctx := context.Background()
 
@@ -441,7 +441,7 @@ func TestIntegration_BillingPackageRepo_SoftDelete_WrongLedgerIsolation(t *testi
 // ============================================================================
 
 func TestIntegration_BillingPackageRepo_FindAll_FiltersAndPaginates(t *testing.T) {
-	container := mongotestutil.SetupContainer(t)
+	container := mongotestutil.SetupReusableContainer(t)
 	repo := newRepository(t, container)
 	ctx := context.Background()
 
@@ -498,7 +498,7 @@ func TestIntegration_BillingPackageRepo_FindAll_FiltersAndPaginates(t *testing.T
 }
 
 func TestIntegration_BillingPackageRepo_FindAll_ExcludesSoftDeleted(t *testing.T) {
-	container := mongotestutil.SetupContainer(t)
+	container := mongotestutil.SetupReusableContainer(t)
 	repo := newRepository(t, container)
 	ctx := context.Background()
 
@@ -527,7 +527,7 @@ func TestIntegration_BillingPackageRepo_FindAll_ExcludesSoftDeleted(t *testing.T
 // spans ledgers, so a surface whose path names a ledger must never reach here with
 // it. The organization boundary still holds under the widening.
 func TestIntegration_BillingPackageRepo_FindAll_AnyLedgerListsEveryLedger(t *testing.T) {
-	container := mongotestutil.SetupContainer(t)
+	container := mongotestutil.SetupReusableContainer(t)
 	repo := newRepository(t, container)
 	ctx := context.Background()
 
@@ -566,7 +566,7 @@ func TestIntegration_BillingPackageRepo_FindAll_AnyLedgerListsEveryLedger(t *tes
 }
 
 func TestIntegration_BillingPackageRepo_FindAll_Empty(t *testing.T) {
-	container := mongotestutil.SetupContainer(t)
+	container := mongotestutil.SetupReusableContainer(t)
 	repo := newRepository(t, container)
 
 	all, total, err := repo.FindAll(context.Background(), uuid.New().String(), uuid.New().String(), "", 10, 1)
@@ -580,7 +580,7 @@ func TestIntegration_BillingPackageRepo_FindAll_Empty(t *testing.T) {
 // ============================================================================
 
 func TestIntegration_BillingPackageRepo_FindMatchingPackages(t *testing.T) {
-	container := mongotestutil.SetupContainer(t)
+	container := mongotestutil.SetupReusableContainer(t)
 	repo := newRepository(t, container)
 	ctx := context.Background()
 
@@ -611,7 +611,7 @@ func TestIntegration_BillingPackageRepo_FindMatchingPackages(t *testing.T) {
 }
 
 func TestIntegration_BillingPackageRepo_FindActiveByType(t *testing.T) {
-	container := mongotestutil.SetupContainer(t)
+	container := mongotestutil.SetupReusableContainer(t)
 	repo := newRepository(t, container)
 	ctx := context.Background()
 
@@ -650,7 +650,7 @@ func TestIntegration_BillingPackageRepo_FindActiveByType(t *testing.T) {
 // ============================================================================
 
 func TestIntegration_BillingPackageRepo_Update_PersistsChange(t *testing.T) {
-	container := mongotestutil.SetupContainer(t)
+	container := mongotestutil.SetupReusableContainer(t)
 	repo := newRepository(t, container)
 	ctx := context.Background()
 
@@ -675,7 +675,7 @@ func TestIntegration_BillingPackageRepo_Update_PersistsChange(t *testing.T) {
 }
 
 func TestIntegration_BillingPackageRepo_Update_NotFound(t *testing.T) {
-	container := mongotestutil.SetupContainer(t)
+	container := mongotestutil.SetupReusableContainer(t)
 	repo := newRepository(t, container)
 
 	update := &bson.M{"$set": bson.M{"label": "x"}}
@@ -693,7 +693,7 @@ func TestIntegration_BillingPackageRepo_Update_NotFound(t *testing.T) {
 // ============================================================================
 
 func TestIntegration_BillingPackageRepo_SoftDelete_SetsDeletedAt(t *testing.T) {
-	container := mongotestutil.SetupContainer(t)
+	container := mongotestutil.SetupReusableContainer(t)
 	repo := newRepository(t, container)
 	ctx := context.Background()
 
@@ -713,7 +713,7 @@ func TestIntegration_BillingPackageRepo_SoftDelete_SetsDeletedAt(t *testing.T) {
 }
 
 func TestIntegration_BillingPackageRepo_SoftDelete_NotFound(t *testing.T) {
-	container := mongotestutil.SetupContainer(t)
+	container := mongotestutil.SetupReusableContainer(t)
 	repo := newRepository(t, container)
 
 	err := repo.SoftDelete(context.Background(), uuid.New().String(), uuid.New().String(), billing_package.AnyLedger)
@@ -725,7 +725,7 @@ func TestIntegration_BillingPackageRepo_SoftDelete_NotFound(t *testing.T) {
 }
 
 func TestIntegration_BillingPackageRepo_SoftDelete_Idempotency(t *testing.T) {
-	container := mongotestutil.SetupContainer(t)
+	container := mongotestutil.SetupReusableContainer(t)
 	repo := newRepository(t, container)
 	ctx := context.Background()
 

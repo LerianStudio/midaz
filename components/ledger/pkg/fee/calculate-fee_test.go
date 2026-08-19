@@ -17,6 +17,7 @@ import (
 	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/assert"
 
+	"github.com/LerianStudio/midaz/v4/pkg"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
 	transaction "github.com/LerianStudio/midaz/v4/pkg/mtransaction"
 )
@@ -1546,6 +1547,11 @@ func TestIsAccountExemptOrSegment_DecoratedKeys(t *testing.T) {
 			expected: true,
 		},
 		{
+			name:     "position and balance qualified fee key is canonicalized",
+			account:  "0#@account1#reserved->fee0->routeX",
+			expected: true,
+		},
+		{
 			name:     "fee_source-decorated key is canonicalized",
 			account:  "@creditAccount->fee_source0->@account1->routeY",
 			expected: true,
@@ -1574,6 +1580,89 @@ func TestIsAccountExemptOrSegment_DecoratedKeys(t *testing.T) {
 			assert.Equal(t, tt.expected, result)
 		})
 	}
+}
+
+func TestCalculateFeePreservingLegs_DuplicateAliasWaiverUsesAuthoredAlias(t *testing.T) {
+	t.Parallel()
+
+	logger, _ := libZap.New(libZap.Config{Environment: libZap.EnvironmentLocal, OTelLibraryName: "test"})
+	deductible := false
+	feeCalc := &model.FeeCalculate{Transaction: transaction.Transaction{Send: transaction.Send{
+		Asset: "USD",
+		Value: decimal.NewFromInt(100),
+		Source: transaction.Source{From: []transaction.FromTo{
+			{AccountAlias: "@payer", BalanceKey: "reserved", Amount: &transaction.Amount{Asset: "USD", Value: decimal.NewFromInt(60)}},
+			{AccountAlias: "@payer", BalanceKey: "available", Remaining: "remaining"},
+		}},
+		Distribute: transaction.Distribute{To: []transaction.FromTo{{
+			AccountAlias: "@receiver",
+			Amount:       &transaction.Amount{Asset: "USD", Value: decimal.NewFromInt(100)},
+		}}},
+	}}}
+	feePackage := &pack.Package{
+		Fees: map[string]model.Fee{"flat": {
+			CalculationModel: &model.CalculationModel{
+				ApplicationRule: feeconstant.AppRuleFlatFee,
+				Calculations:    []model.Calculation{{Type: feeconstant.FeeTypeFlat, Value: "10"}},
+			},
+			ReferenceAmount:  "originalAmount",
+			Priority:         1,
+			IsDeductibleFrom: &deductible,
+			CreditAccount:    "@fee_account",
+		}},
+		WaivedAccounts: &[]string{"@payer"},
+	}
+	resp := &transaction.Responses{
+		From: map[string]transaction.Amount{
+			"0#@payer#reserved":  {Asset: "USD", Value: decimal.NewFromInt(60)},
+			"1#@payer#available": {Asset: "USD", Value: decimal.NewFromInt(40)},
+		},
+		To: map[string]transaction.Amount{
+			"@receiver": {Asset: "USD", Value: decimal.NewFromInt(100)},
+		},
+	}
+
+	err := CalculateFeePreservingLegs(logger, feeCalc, feePackage, resp, "USD", nil)
+	assert.NoError(t, err)
+	assert.True(t, decimal.NewFromInt(100).Equal(feeCalc.Transaction.Send.Value), "an authored-alias waiver must suppress the fee")
+	assert.Len(t, feeCalc.Transaction.Send.Source.From, 2)
+	assert.Len(t, feeCalc.Transaction.Send.Distribute.To, 1)
+	assert.Empty(t, feeCalc.Transaction.Send.Source.From[1].Remaining)
+	if assert.NotNil(t, feeCalc.Transaction.Send.Source.From[1].Amount) {
+		assert.True(t, decimal.NewFromInt(40).Equal(feeCalc.Transaction.Send.Source.From[1].Amount.Value))
+	}
+}
+
+func TestCalculateFeePreservingLegs_FailsClosedWhenDuplicateIdentityWasCollapsed(t *testing.T) {
+	t.Parallel()
+
+	logger, _ := libZap.New(libZap.Config{Environment: libZap.EnvironmentLocal, OTelLibraryName: "test"})
+	feeCalc := &model.FeeCalculate{Transaction: transaction.Transaction{Send: transaction.Send{
+		Asset: "USD",
+		Value: decimal.NewFromInt(100),
+		Source: transaction.Source{From: []transaction.FromTo{
+			{AccountAlias: "@payer", Amount: &transaction.Amount{Asset: "USD", Value: decimal.NewFromInt(60)}},
+			{AccountAlias: "@payer", Remaining: "remaining"},
+		}},
+		Distribute: transaction.Distribute{To: []transaction.FromTo{{
+			AccountAlias: "@receiver",
+			Amount:       &transaction.Amount{Asset: "USD", Value: decimal.NewFromInt(100)},
+		}}},
+	}}}
+	resp := &transaction.Responses{
+		From: map[string]transaction.Amount{
+			"@payer": {Asset: "USD", Value: decimal.NewFromInt(40)},
+		},
+		To: map[string]transaction.Amount{
+			"@receiver": {Asset: "USD", Value: decimal.NewFromInt(100)},
+		},
+	}
+
+	err := CalculateFeePreservingLegs(logger, feeCalc, &pack.Package{}, resp, "USD", nil)
+	assert.Error(t, err)
+	internalErr, ok := err.(pkg.InternalServerError)
+	assert.True(t, ok)
+	assert.Equal(t, constant.ErrCalculateFee.Error(), internalErr.Code)
 }
 
 func TestIsAccountExemptOrSegment_ErrorOnMissingSegmentContext(t *testing.T) {
@@ -1725,7 +1814,7 @@ func TestUpdatedAmountsFromFee(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result := updatedAmountsFromFee(tt.amounts)
+			result := updatedAmountsFromFee(tt.amounts, nil)
 			assert.Len(t, result, tt.expected)
 
 			if tt.expected > 0 {
