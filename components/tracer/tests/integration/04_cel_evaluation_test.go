@@ -189,7 +189,7 @@ func TestValidation_CEL_Currency(t *testing.T) {
 	// PRECONDITIONS: Create and activate rule
 	ruleID := testutil.CreateTestRuleWithExpression(t,
 		"Asset Check Rule",
-		"currency == 'BRL'",
+		"asset == 'BRL'",
 		"ALLOW")
 	testutil.ActivateRule(t, ruleID)
 	t.Cleanup(func() { testutil.CleanupRule(t, ruleID) })
@@ -364,7 +364,7 @@ func TestValidation_CEL_Metadata_BracketNotation(t *testing.T) {
 func TestValidation_CEL_ComplexCombinedExpression(t *testing.T) {
 	// PRECONDITIONS: Create rule with complex expression
 	complexExpr := `transactionType == "CARD" && amount > 50000 && ` +
-		`currency == "BRL" && size(segment) > 0 && segment["name"] == "premium" && ` +
+		`asset == "BRL" && size(segment) > 0 && segment["name"] == "premium" && ` +
 		`account["status"] == "active"`
 
 	ruleID := testutil.CreateTestRuleWithExpression(t,

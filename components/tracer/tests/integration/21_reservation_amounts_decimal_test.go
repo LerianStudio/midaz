@@ -57,7 +57,7 @@ func TestReservationAmountsDecimalMigration(t *testing.T) {
 		dsn := startUpgradePathContainer(ctx, t)
 		mig, db := newHeadReservationMigrate(ctx, t, dsn)
 
-		require.NoError(t, applyMigrateUp(mig), "apply HEAD migrations up")
+		require.NoError(t, applyDecimalMigrationUp(mig), "apply migrations up to 000021")
 
 		require.Equal(t, "numeric",
 			reservationColumnType(ctx, t, db, "usage_counters", "reserved_usage"),
@@ -68,7 +68,7 @@ func TestReservationAmountsDecimalMigration(t *testing.T) {
 
 		// Idempotent up: reverse 000021 then re-apply — must land back at numeric.
 		require.NoError(t, mig.Steps(-1), "step down 000021 for idempotency check")
-		require.NoError(t, applyMigrateUp(mig), "re-apply HEAD migrations up (idempotent cycle)")
+		require.NoError(t, applyDecimalMigrationUp(mig), "re-apply migrations up to 000021 (idempotent cycle)")
 		require.Equal(t, "numeric",
 			reservationColumnType(ctx, t, db, "usage_counters", "reserved_usage"),
 			"re-applied 000021 up must be idempotent (numeric)")
@@ -81,7 +81,7 @@ func TestReservationAmountsDecimalMigration(t *testing.T) {
 		dsn := startUpgradePathContainer(ctx, t)
 		mig, db := newHeadReservationMigrate(ctx, t, dsn)
 
-		require.NoError(t, applyMigrateUp(mig), "apply HEAD migrations up")
+		require.NoError(t, applyDecimalMigrationUp(mig), "apply migrations up to 000021")
 
 		limitID := insertReservationTestLimit(ctx, t, db)
 
@@ -104,7 +104,7 @@ func TestReservationAmountsDecimalMigration(t *testing.T) {
 		dsn := startUpgradePathContainer(ctx, t)
 		mig, db := newHeadReservationMigrate(ctx, t, dsn)
 
-		require.NoError(t, applyMigrateUp(mig), "apply HEAD migrations up")
+		require.NoError(t, applyDecimalMigrationUp(mig), "apply migrations up to 000021")
 
 		limitID := insertReservationTestLimit(ctx, t, db)
 
@@ -156,8 +156,8 @@ func TestReservationAmountsDecimalMigration(t *testing.T) {
 			limitID, wantInt)
 		require.NoError(t, err, "insert integer amount before the cast")
 
-		// Advance to HEAD, applying 000021's BIGINT -> DECIMAL cast.
-		require.NoError(t, applyMigrateUp(mig), "apply 000021 up to HEAD")
+		// Advance to version 21, applying 000021's BIGINT -> DECIMAL cast.
+		require.NoError(t, applyDecimalMigrationUp(mig), "apply 000021 up")
 
 		require.Equal(t, "numeric",
 			reservationColumnType(ctx, t, db, "usage_counters", "reserved_usage"),
@@ -228,8 +228,27 @@ func newHeadReservationMigrate(ctx context.Context, t *testing.T, dsn string) (*
 	return mig, db
 }
 
-// applyMigrateUp runs mig.Up(), treating migrate.ErrNoChange as success so a
-// re-apply on an already-migrated DB is a clean no-op.
+// decimalMigrationVersion is the version this file is the contract for
+// (000021_reservation_amounts_to_decimal). The test migrates to exactly this
+// version rather than to HEAD so migrations layered on top of 000021 do not
+// change which migration a single down step reverses, nor which columns exist
+// while the reservation-decimal behaviour is exercised.
+const decimalMigrationVersion = 21
+
+// applyDecimalMigrationUp migrates up to decimalMigrationVersion, treating
+// migrate.ErrNoChange as success so a re-apply on an already-migrated DB is a
+// clean no-op.
+func applyDecimalMigrationUp(mig *migrate.Migrate) error {
+	if err := mig.Migrate(decimalMigrationVersion); err != nil && !errors.Is(err, migrate.ErrNoChange) {
+		return err
+	}
+
+	return nil
+}
+
+// applyMigrateUp runs mig.Up() (to HEAD), treating migrate.ErrNoChange as
+// success so a re-apply on an already-migrated DB is a clean no-op. Shared with
+// 22_rename_currency_to_asset_test.go, which exercises the HEAD rename.
 func applyMigrateUp(mig *migrate.Migrate) error {
 	if err := mig.Up(); err != nil && !errors.Is(err, migrate.ErrNoChange) {
 		return err
@@ -258,7 +277,8 @@ func reservationColumnType(ctx context.Context, t *testing.T, db *sql.DB, table,
 // insertReservationTestLimit inserts a minimal PER_TRANSACTION limit (which
 // satisfies every limits CHECK constraint without custom dates or a time window)
 // and returns its id, so usage_counters / usage_reservations rows can satisfy
-// their limit_id foreign key.
+// their limit_id foreign key. The asset column is written by its pre-000022 name
+// (currency) because this test operates at version 000021, below the rename.
 func insertReservationTestLimit(ctx context.Context, t *testing.T, db *sql.DB) uuid.UUID {
 	t.Helper()
 
@@ -266,7 +286,7 @@ func insertReservationTestLimit(ctx context.Context, t *testing.T, db *sql.DB) u
 
 	err := db.QueryRowContext(
 		ctx,
-		`INSERT INTO limits (name, limit_type, max_amount, asset)
+		`INSERT INTO limits (name, limit_type, max_amount, currency)
 		 VALUES ('reservation-decimal-test', 'PER_TRANSACTION', 1000, 'USD')
 		 RETURNING id`,
 	).Scan(&id)
