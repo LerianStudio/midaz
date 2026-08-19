@@ -90,6 +90,7 @@ type Amount struct {
 	TransactionType        string `json:"transactionType,omitempty" swaggerignore:"true"`
 	Direction              string `json:"direction,omitempty" swaggerignore:"true"`
 	RouteValidationEnabled bool   `json:"routeValidationEnabled,omitempty" swaggerignore:"true"`
+	EconomicRole           string `json:"-" swaggerignore:"true"`
 	// OverdraftAmount carries the exact overdraft delta for state-transition
 	// reversals. It is zero for normal transactions, where Lua derives the
 	// split from live balance state.
@@ -131,16 +132,18 @@ func (r Rate) IsEmpty() bool {
 
 // FromTo structure for marshaling/unmarshalling JSON.
 type FromTo struct {
-	AccountAlias    string         `json:"accountAlias,omitempty" example:"@person1"`
-	BalanceKey      string         `json:"balanceKey,omitempty" example:"asset-freeze"`
-	Amount          *Amount        `json:"amount,omitempty"`
-	Share           *Share         `json:"share,omitempty"`
+	AccountAlias string  `json:"accountAlias,omitempty" example:"@person1"`
+	BalanceKey   string  `json:"balanceKey,omitempty" example:"asset-freeze"`
+	Amount       *Amount `json:"amount,omitempty"`
+	Share        *Share  `json:"share,omitempty"`
+	// Remaining is a marker, not an enum: every non-empty value assigns the unresolved residual to this leg.
 	Remaining       string         `json:"remaining,omitempty" example:"remaining"`
 	Rate            *Rate          `json:"rate,omitempty"`
 	Description     string         `json:"description,omitempty" example:"description"`
 	ChartOfAccounts string         `json:"chartOfAccounts" example:"1000"`
 	Metadata        map[string]any `json:"metadata" validate:"dive,keys,keymax=100,endkeys,nonested,valuemax=2000"`
 	IsFrom          bool           `json:"isFrom,omitempty" example:"true"`
+	EconomicRole    string         `json:"-" swaggerignore:"true"`
 	// Deprecated: passive field kept for backward compatibility. Accepted from client and persisted, but not used in any validation or business logic. Use routeId instead.
 	Route string `json:"route,omitempty" validate:"omitempty,max=250" example:"00000000-0000-0000-0000-000000000000"`
 	// UUID of the operation route. Primary field used for route validation and accounting rules.

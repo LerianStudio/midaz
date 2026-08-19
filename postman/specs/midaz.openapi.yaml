@@ -10810,9 +10810,68 @@ paths:
         content:
           application/json:
             schema:
-              contentMediaType: application/octet-stream
-              format: binary
-              type: string
+              additionalProperties: false
+              properties:
+                account:
+                  $ref: '#/components/schemas/AccountContext'
+                amount:
+                  examples:
+                    - '100.00'
+                  type: string
+                currency:
+                  examples:
+                    - USD
+                  type: string
+                deliveryMode:
+                  enum:
+                    - UNSPECIFIED
+                    - LEGACY
+                    - LEDGER_OUTCOME_V2
+                  examples:
+                    - LEGACY
+                  type: string
+                longLived:
+                  examples:
+                    - false
+                  type: boolean
+                merchant:
+                  $ref: '#/components/schemas/MerchantContext'
+                metadata:
+                  additionalProperties: {}
+                  type: object
+                portfolio:
+                  $ref: '#/components/schemas/PortfolioContext'
+                requestId:
+                  examples:
+                    - 00000000-0000-0000-0000-000000000000
+                  format: uuid
+                  type: string
+                segment:
+                  $ref: '#/components/schemas/SegmentContext'
+                subType:
+                  examples:
+                    - purchase
+                  maxLength: 50
+                  type: string
+                transactionId:
+                  format: uuid
+                  type: string
+                transactionTimestamp:
+                  examples:
+                    - '2021-01-01T00:00:00Z'
+                  format: date-time
+                  type: string
+                transactionType:
+                  examples:
+                    - CARD
+                  type: string
+              required:
+                - transactionId
+                - requestId
+                - amount
+                - currency
+                - transactionTimestamp
+              type: object
         required: true
       responses:
         '201':
@@ -10828,9 +10887,97 @@ paths:
                 $ref: '#/components/schemas/Error'
           description: Error
       security:
-        - BearerAuth: []
         - ApiKeyAuth: []
       summary: Reserve transaction capacity (phase one)
+      tags:
+        - Midaz_Tracer_API_Reservations
+  /v1/reservations/ledger-outcome-v2:
+    post:
+      operationId: createLedgerOutcomeV2Reservation
+      requestBody:
+        content:
+          application/json:
+            schema:
+              additionalProperties: false
+              properties:
+                account:
+                  $ref: '#/components/schemas/AccountContext'
+                amount:
+                  examples:
+                    - '100.00'
+                  type: string
+                currency:
+                  examples:
+                    - USD
+                  type: string
+                deliveryMode:
+                  enum:
+                    - UNSPECIFIED
+                    - LEGACY
+                    - LEDGER_OUTCOME_V2
+                  examples:
+                    - LEDGER_OUTCOME_V2
+                  type: string
+                longLived:
+                  examples:
+                    - false
+                  type: boolean
+                merchant:
+                  $ref: '#/components/schemas/MerchantContext'
+                metadata:
+                  additionalProperties: {}
+                  type: object
+                portfolio:
+                  $ref: '#/components/schemas/PortfolioContext'
+                requestId:
+                  examples:
+                    - 00000000-0000-0000-0000-000000000000
+                  format: uuid
+                  type: string
+                segment:
+                  $ref: '#/components/schemas/SegmentContext'
+                subType:
+                  examples:
+                    - purchase
+                  maxLength: 50
+                  type: string
+                transactionId:
+                  format: uuid
+                  type: string
+                transactionTimestamp:
+                  examples:
+                    - '2021-01-01T00:00:00Z'
+                  format: date-time
+                  type: string
+                transactionType:
+                  examples:
+                    - CARD
+                  type: string
+              required:
+                - transactionId
+                - requestId
+                - amount
+                - currency
+                - transactionTimestamp
+                - deliveryMode
+              type: object
+        required: true
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReserveResponse'
+          description: Created
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Error
+      security:
+        - ApiKeyAuth: []
+      summary: Reserve capacity under the ledger-owned outcome protocol
       tags:
         - Midaz_Tracer_API_Reservations
   /v1/reservations/transaction/{transaction_id}/confirm:
@@ -10858,9 +11005,58 @@ paths:
                 $ref: '#/components/schemas/Error'
           description: Error
       security:
-        - BearerAuth: []
         - ApiKeyAuth: []
       summary: Confirm a transaction's reservations (phase two — commit by transaction)
+      tags:
+        - Midaz_Tracer_API_Reservations
+  /v1/reservations/transaction/{transaction_id}/outcome:
+    post:
+      operationId: applyReservationOutcome
+      parameters:
+        - description: Transaction ID (UUID)
+          in: path
+          name: transaction_id
+          required: true
+          schema:
+            description: Transaction ID (UUID)
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              additionalProperties: false
+              properties:
+                outcome:
+                  enum:
+                    - COMMITTED
+                    - ABORTED
+                  examples:
+                    - COMMITTED
+                  type: string
+                outcomeId:
+                  format: uuid
+                  type: string
+              required:
+                - outcomeId
+                - outcome
+              type: object
+        required: true
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApplyOutcomeResponse'
+          description: OK
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Error
+      security:
+        - ApiKeyAuth: []
+      summary: Apply the ledger's durable terminal reservation outcome
       tags:
         - Midaz_Tracer_API_Reservations
   /v1/reservations/transaction/{transaction_id}/release:
@@ -10888,7 +11084,6 @@ paths:
                 $ref: '#/components/schemas/Error'
           description: Error
       security:
-        - BearerAuth: []
         - ApiKeyAuth: []
       summary: Release a transaction's reservations (phase two — abort by transaction)
       tags:
@@ -10918,7 +11113,6 @@ paths:
                 $ref: '#/components/schemas/Error'
           description: Error
       security:
-        - BearerAuth: []
         - ApiKeyAuth: []
       summary: Confirm a reservation (phase two — commit)
       tags:
@@ -10948,7 +11142,6 @@ paths:
                 $ref: '#/components/schemas/Error'
           description: Error
       security:
-        - BearerAuth: []
         - ApiKeyAuth: []
       summary: Release a reservation (phase two — abort)
       tags:
@@ -13152,6 +13345,20 @@ components:
             - true
           type:
             - boolean
+            - 'null'
+        operationRouteFromId:
+          examples:
+            - 00000000-0000-0000-0000-000000000000
+          format: uuid
+          type:
+            - string
+            - 'null'
+        operationRouteToId:
+          examples:
+            - 00000000-0000-0000-0000-000000000000
+          format: uuid
+          type:
+            - string
             - 'null'
         priority:
           examples:
@@ -15934,6 +16141,36 @@ components:
         - name
         - ipAddress
       type: object
+    ApplyOutcomeResponse:
+      additionalProperties: false
+      properties:
+        outcome:
+          enum:
+            - COMMITTED
+            - ABORTED
+          type: string
+        outcomeId:
+          format: uuid
+          type: string
+        replayed:
+          examples:
+            - false
+          type: boolean
+        reservationCount:
+          examples:
+            - 2
+          format: int64
+          type: integer
+        transactionId:
+          format: uuid
+          type: string
+      required:
+        - transactionId
+        - outcomeId
+        - outcome
+        - reservationCount
+        - replayed
+      type: object
     AuditEvent:
       additionalProperties: false
       properties:
@@ -16291,6 +16528,9 @@ components:
           format: uuid
           type: string
         status:
+          enum:
+            - CONFIRMED
+            - RELEASED
           examples:
             - CONFIRMED
           type: string
@@ -16301,6 +16541,13 @@ components:
     ReserveResponse:
       additionalProperties: false
       properties:
+        deliveryMode:
+          enum:
+            - LEGACY
+            - LEDGER_OUTCOME_V2
+          examples:
+            - LEGACY
+          type: string
         denied:
           examples:
             - false
@@ -16319,6 +16566,7 @@ components:
         - transactionId
         - denied
         - reservationIds
+        - deliveryMode
       type: object
     Rule:
       additionalProperties: false
@@ -16450,6 +16698,9 @@ components:
           format: int64
           type: integer
         status:
+          enum:
+            - CONFIRMED
+            - RELEASED
           examples:
             - CONFIRMED
           type: string

@@ -143,6 +143,18 @@ var (
 		Description: "Total backup-replay records whose after-balances were recomputed rather than replayed from Lua, risking overdraft audit divergence.",
 	}
 
+	TracerOutcomeDispatchTotal = metrics.Metric{
+		Name:        "tracer_outcome_dispatch_total",
+		Unit:        "1",
+		Description: "Durable Ledger-to-Tracer outcome delivery attempts by outcome and result.",
+	}
+
+	TracerOutcomePreparedRecoveryTotal = metrics.Metric{
+		Name:        "tracer_outcome_prepared_recovery_total",
+		Unit:        "1",
+		Description: "Stale PREPARED tracer outcomes recovered to ABORTED by result.",
+	}
+
 	// DBReadSourceTotal counts read-routing decisions by the source that served
 	// the read. Counter. Single bounded label: source (primary|replica).
 	// Per-operation granularity is the span (db.read_source attribute), not a label.

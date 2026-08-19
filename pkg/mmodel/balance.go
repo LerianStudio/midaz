@@ -7,11 +7,11 @@ package mmodel
 import (
 	"encoding/json"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
 	"github.com/LerianStudio/midaz/v4/pkg/mtransaction"
-	"github.com/LerianStudio/midaz/v4/pkg/utils"
 	"github.com/google/uuid"
 	"github.com/shopspring/decimal"
 )
@@ -502,14 +502,160 @@ type BalanceRedis struct {
 	BalanceScope string `json:"balanceScope"`
 }
 
+// ToRedis returns the complete economic snapshot consumed and emitted by the
+// atomic balance Lua script. Defaults deliberately match the script's ARGV
+// plan so a Rabbit redelivery can compare its decoded model with the
+// authoritative Redis envelope without treating omitted legacy settings as a
+// different economic fact.
+func (b *Balance) ToRedis() BalanceRedis {
+	allowSending := 0
+	if b.AllowSending {
+		allowSending = 1
+	}
+
+	allowReceiving := 0
+	if b.AllowReceiving {
+		allowReceiving = 1
+	}
+
+	allowOverdraft := 0
+	overdraftLimitEnabled := 0
+	overdraftLimit := "0"
+	balanceScope := BalanceScopeTransactional
+
+	if b.Settings != nil {
+		if b.Settings.AllowOverdraft {
+			allowOverdraft = 1
+		}
+
+		if b.Settings.OverdraftLimitEnabled {
+			overdraftLimitEnabled = 1
+		}
+
+		if b.Settings.OverdraftLimit != nil {
+			overdraftLimit = *b.Settings.OverdraftLimit
+		}
+
+		if b.Settings.BalanceScope != "" {
+			balanceScope = b.Settings.BalanceScope
+		}
+	}
+
+	return BalanceRedis{
+		ID: b.ID, Alias: b.Alias, Key: b.Key, AccountID: b.AccountID, AssetCode: b.AssetCode,
+		Available: b.Available, OnHold: b.OnHold, Version: b.Version, AccountType: b.AccountType,
+		AllowSending: allowSending, AllowReceiving: allowReceiving, Direction: b.Direction,
+		OverdraftUsed: b.OverdraftUsed.String(), AllowOverdraft: allowOverdraft,
+		OverdraftLimitEnabled: overdraftLimitEnabled, OverdraftLimit: overdraftLimit,
+		BalanceScope: balanceScope,
+	}
+}
+
+// BalancesToRedis converts a complete model snapshot to the Lua/cache wire
+// shape. A nil member is invalid economic evidence and therefore returns nil;
+// callers' non-empty proof checks fail closed.
+func BalancesToRedis(balances []*Balance) []BalanceRedis {
+	result := make([]BalanceRedis, 0, len(balances))
+	for _, balance := range balances {
+		if balance == nil {
+			return nil
+		}
+
+		result = append(result, balance.ToRedis())
+	}
+
+	return result
+}
+
+// RedisBalanceSetEconomicEqual compares the complete, order-independent
+// balance fact copied into the transaction backup and immutable outcome by the
+// same Lua command. One transaction may touch the same balance more than once
+// (for example principal and fee settlement), so this is an exact multiset of
+// snapshots rather than a map keyed by balance identity.
+func RedisBalanceSetEconomicEqual(left, right []BalanceRedis) bool {
+	if len(left) != len(right) {
+		return false
+	}
+
+	used := make([]bool, len(right))
+
+	for _, candidate := range left {
+		matched := false
+
+		for index, canonical := range right {
+			if used[index] || !redisBalanceEconomicEqual(candidate, canonical) {
+				continue
+			}
+
+			used[index] = true
+			matched = true
+
+			break
+		}
+
+		if !matched {
+			return false
+		}
+	}
+
+	return true
+}
+
+// RedisBalanceSetEconomicComplete rejects a terminal snapshot that cannot
+// carry every money-path discriminator needed for replay/reconciliation. Zero
+// amounts and versions are valid; missing identities, policy fields, or
+// non-boolean wire flags are not.
+//nolint:gocyclo // Completeness proof checks every balance economic field; refactor candidate.
+func RedisBalanceSetEconomicComplete(balances []BalanceRedis) bool {
+	if len(balances) == 0 {
+		return false
+	}
+
+	for _, balance := range balances {
+		if balance.ID == "" || balance.Key == "" || balance.AccountID == "" || balance.AssetCode == "" ||
+			balance.AccountType == "" || balance.Direction == "" || balance.OverdraftUsed == "" ||
+			balance.OverdraftLimit == "" || balance.BalanceScope == "" ||
+			(balance.AllowSending != 0 && balance.AllowSending != 1) ||
+			(balance.AllowReceiving != 0 && balance.AllowReceiving != 1) ||
+			(balance.AllowOverdraft != 0 && balance.AllowOverdraft != 1) ||
+			(balance.OverdraftLimitEnabled != 0 && balance.OverdraftLimitEnabled != 1) {
+			return false
+		}
+	}
+
+	return true
+}
+
+func redisBalanceEconomicEqual(left, right BalanceRedis) bool {
+	return left.ID == right.ID && left.Alias == right.Alias && left.Key == right.Key &&
+		left.AccountID == right.AccountID && left.AssetCode == right.AssetCode &&
+		left.Available.Equal(right.Available) && left.OnHold.Equal(right.OnHold) &&
+		left.Version == right.Version && left.AccountType == right.AccountType &&
+		left.AllowSending == right.AllowSending && left.AllowReceiving == right.AllowReceiving &&
+		left.Direction == right.Direction && redisEconomicDecimalEqual(left.OverdraftUsed, right.OverdraftUsed) &&
+		left.AllowOverdraft == right.AllowOverdraft && left.OverdraftLimitEnabled == right.OverdraftLimitEnabled &&
+		redisEconomicDecimalEqual(left.OverdraftLimit, right.OverdraftLimit) && left.BalanceScope == right.BalanceScope
+}
+
+func redisEconomicDecimalEqual(left, right string) bool {
+	if left == "" || right == "" {
+		return left == right
+	}
+
+	leftDecimal, leftErr := decimal.NewFromString(left)
+	rightDecimal, rightErr := decimal.NewFromString(right)
+
+	return leftErr == nil && rightErr == nil && leftDecimal.Equal(rightDecimal)
+}
+
 // UnmarshalJSON is a custom unmarshal function for BalanceRedis
 func (b *BalanceRedis) UnmarshalJSON(data []byte) error {
 	type Alias BalanceRedis
 
 	aux := struct {
-		Available     any `json:"available"`
-		OnHold        any `json:"onHold"`
-		OverdraftUsed any `json:"overdraftUsed"`
+		Available     json.RawMessage `json:"available"`
+		OnHold        json.RawMessage `json:"onHold"`
+		OverdraftUsed json.RawMessage `json:"overdraftUsed"`
 		*Alias
 	}{
 		Alias: (*Alias)(b),
@@ -519,69 +665,26 @@ func (b *BalanceRedis) UnmarshalJSON(data []byte) error {
 		return err
 	}
 
-	switch v := aux.Available.(type) {
-	case float64:
-		b.Available = decimal.NewFromFloat(v)
-	case string:
-		decimalValue, err := decimal.NewFromString(v)
-		if err != nil {
-			return fmt.Errorf("err to converter available field from string to decimal: %v", err)
-		}
-
-		b.Available = decimalValue
-	case json.Number:
-		i, err := v.Int64()
-		if err != nil {
-			f, err := v.Float64()
-			if err != nil {
-				return fmt.Errorf("err to converter available field from json.Number: %v", err)
-			}
-
-			b.Available = decimal.NewFromFloat(f)
-		} else {
-			b.Available = decimal.NewFromInt(i)
-		}
-	default:
-		f, ok := v.(float64)
-		if !ok {
-			return fmt.Errorf("type unsuported to available: %T", v)
-		}
-
-		b.Available = decimal.NewFromFloat(f)
+	available, err := parseExactJSONDecimal(aux.Available, "available", false)
+	if err != nil {
+		return err
 	}
 
-	switch v := aux.OnHold.(type) {
-	case float64:
-		b.OnHold = decimal.NewFromFloat(v)
-	case string:
-		decimalValue, err := decimal.NewFromString(v)
-		if err != nil {
-			return fmt.Errorf("err to converter onHold field from string to decimal: %v", err)
-		}
+	b.Available = available
 
-		b.OnHold = decimalValue
-	case json.Number:
-		i, err := v.Int64()
-		if err != nil {
-			f, err := v.Float64()
-			if err != nil {
-				return fmt.Errorf("err to converter onHold field from json.Number: %v", err)
-			}
-
-			b.OnHold = decimal.NewFromFloat(f)
-		} else {
-			b.OnHold = decimal.NewFromInt(i)
-		}
-	default:
-		f, ok := v.(float64)
-		if !ok {
-			return fmt.Errorf("type unsuported to  onHold: %T", v)
-		}
-
-		b.OnHold = decimal.NewFromFloat(f)
+	onHold, err := parseExactJSONDecimal(aux.OnHold, "onHold", false)
+	if err != nil {
+		return err
 	}
 
-	b.OverdraftUsed = utils.ParseDecimalString(aux.OverdraftUsed, "0")
+	b.OnHold = onHold
+
+	overdraftUsed, err := exactJSONDecimalText(aux.OverdraftUsed, "overdraftUsed", true)
+	if err != nil {
+		return err
+	}
+
+	b.OverdraftUsed = overdraftUsed
 
 	if b.OverdraftLimit == "" {
 		b.OverdraftLimit = "0"
@@ -593,6 +696,47 @@ func (b *BalanceRedis) UnmarshalJSON(data []byte) error {
 	}
 
 	return nil
+}
+
+func exactJSONDecimalText(raw json.RawMessage, field string, defaultZero bool) (string, error) {
+	value := strings.TrimSpace(string(raw))
+	if value == "" || value == "null" {
+		if defaultZero {
+			return "0", nil
+		}
+
+		return "", fmt.Errorf("%s field is required", field)
+	}
+
+	if value[0] == '"' {
+		if err := json.Unmarshal(raw, &value); err != nil {
+			return "", fmt.Errorf("decode %s decimal string: %w", field, err)
+		}
+	}
+
+	if value == "" && defaultZero {
+		return "0", nil
+	}
+
+	if _, err := decimal.NewFromString(value); err != nil {
+		return "", fmt.Errorf("convert %s field to decimal: %w", field, err)
+	}
+
+	return value, nil
+}
+
+func parseExactJSONDecimal(raw json.RawMessage, field string, defaultZero bool) (decimal.Decimal, error) {
+	value, err := exactJSONDecimalText(raw, field, defaultZero)
+	if err != nil {
+		return decimal.Zero, err
+	}
+
+	parsed, err := decimal.NewFromString(value)
+	if err != nil {
+		return decimal.Zero, fmt.Errorf("convert %s field to decimal: %w", field, err)
+	}
+
+	return parsed, nil
 }
 
 // BalanceErrorResponse represents an error response for balance operations.
@@ -614,10 +758,13 @@ type BalanceErrorResponse struct {
 
 // BalanceOperation represents a balance operation with associated metadata for transaction processing on redis by cache-aside
 type BalanceOperation struct {
-	Balance     *Balance
-	Alias       string
-	Amount      mtransaction.Amount
-	InternalKey string
+	Balance              *Balance
+	Alias                string
+	Amount               mtransaction.Amount
+	InternalKey          string
+	EconomicSide         string
+	EconomicRole         string
+	ExpectedEconomicPlan *ExpectedEconomicPlan
 }
 
 // BalanceAtomicResult holds the before and after states returned by the
@@ -629,19 +776,100 @@ type BalanceAtomicResult struct {
 	After  []*Balance
 }
 
+const (
+	TransactionOutcomeCommitted = "COMMITTED"
+	TransactionOutcomeAborted   = "ABORTED"
+)
+
+// BalanceExecutionAttempt identifies one owner authorized to ask the balance
+// Lua for an immutable economic outcome. The execution and outcome keys share
+// the transaction hash slot with balances and the backup queue.
+type BalanceExecutionAttempt struct {
+	ExecutionKey       string
+	OutcomeKey         string
+	Owner              string
+	Outcome            string
+	Identity           uuid.UUID
+	RedisGeneration    string
+	Action             string
+	TracerOutcomeID    uuid.UUID
+	TracerOutcomeState string
+}
+
+// BalanceExecutionOutcome is the immutable fact written by the balance Lua in
+// the same atomic command as the economic mutation. Before and After are the
+// exact response replayed after a lost Redis response.
+type BalanceExecutionOutcome struct {
+	Identity            uuid.UUID      `json:"identity"`
+	Outcome             string         `json:"outcome"`
+	Owner               string         `json:"owner"`
+	EconomicPlanVersion string         `json:"economic_plan_version"`
+	EconomicPlanDigest  string         `json:"economic_plan_digest"`
+	Before              []BalanceRedis `json:"before"`
+	After               []BalanceRedis `json:"after"`
+}
+
+// TransactionEconomicContext is the caller's immutable view of the terminal
+// transaction identity. Redis compares it with the Lua-authored envelope so a
+// candidate cannot relabel the parent, lifecycle status, or action while
+// binding operation IDs.
+type TransactionEconomicContext struct {
+	ParentTransactionID  *uuid.UUID
+	TransactionStatus    string
+	Action               string
+	TransactionAmount    string
+	TransactionAssetCode string
+	Operations           []OperationRedis
+	BalancesAfter        []BalanceRedis
+}
+
+// TransactionPersistenceTombstone is the append-only terminal receipt written
+// in the same Redis command that removes a persisted transaction's backup and
+// economic outcome. It lets lost-ack redelivery prove the exact generation,
+// outcome, canonical operations, and after-balances without treating missing
+// hot-store evidence as a successful replay.
+type TransactionPersistenceTombstone struct {
+	Identity              uuid.UUID             `json:"identity"`
+	ParentTransactionID   string                `json:"parent_transaction_id"`
+	Outcome               string                `json:"outcome"`
+	Owner                 string                `json:"owner"`
+	RedisGeneration       string                `json:"redis_generation"`
+	TransactionStatus     string                `json:"transaction_status"`
+	Action                string                `json:"action"`
+	TransactionAmount     string                `json:"transaction_amount"`
+	TransactionAssetCode  string                `json:"transaction_asset_code"`
+	Operations            []OperationRedis      `json:"operations"`
+	BalancesAfter         []BalanceRedis        `json:"balancesAfter"`
+	EconomicEffectDigest  string                `json:"economic_effect_digest"`
+	ExpectedEconomicPlan  *ExpectedEconomicPlan `json:"expected_economic_plan,omitempty"`
+	OperationTypeOverride string                `json:"operation_type_override,omitempty"`
+}
+
 // TransactionRedisQueue represents a transaction queue for cache-aside
 type TransactionRedisQueue struct {
-	HeaderID          string                   `json:"header_id"`
-	TransactionID     uuid.UUID                `json:"transaction_id"`
-	OrganizationID    uuid.UUID                `json:"organization_id"`
-	LedgerID          uuid.UUID                `json:"ledger_id"`
-	Balances          []BalanceRedis           `json:"balances"`
-	BalancesAfter     []BalanceRedis           `json:"balancesAfter,omitempty"`
-	TransactionInput  mtransaction.Transaction `json:"parserDSL"`
-	TTL               time.Time                `json:"ttl"`
-	Validate          *mtransaction.Responses  `json:"validate"`
-	TransactionStatus string                   `json:"transaction_status"`
-	Action            string                   `json:"action,omitempty"`
-	TransactionDate   time.Time                `json:"transaction_date"`
-	Operations        []OperationRedis         `json:"operations,omitempty"`
+	HeaderID              string                   `json:"header_id"`
+	TransactionID         uuid.UUID                `json:"transaction_id"`
+	ParentTransactionID   *uuid.UUID               `json:"parent_transaction_id,omitempty"`
+	OrganizationID        uuid.UUID                `json:"organization_id"`
+	LedgerID              uuid.UUID                `json:"ledger_id"`
+	Balances              []BalanceRedis           `json:"balances"`
+	BalancesAfter         []BalanceRedis           `json:"balancesAfter,omitempty"`
+	TransactionInput      mtransaction.Transaction `json:"parserDSL"`
+	TTL                   time.Time                `json:"ttl"`
+	Validate              *mtransaction.Responses  `json:"validate"`
+	TransactionStatus     string                   `json:"transaction_status"`
+	Action                string                   `json:"action,omitempty"`
+	EffectModeVersion     int                      `json:"effect_mode_version,omitempty"`
+	EffectMode            TransactionEffectMode    `json:"effect_mode,omitempty"`
+	OperationTypeOverride string                   `json:"operation_type_override,omitempty"`
+	ExpectedEconomicPlan  *ExpectedEconomicPlan    `json:"expected_economic_plan,omitempty"`
+	AttemptOwner          string                   `json:"attempt_owner,omitempty"`
+	ExpectedOutcome       string                   `json:"expected_outcome,omitempty"`
+	RevertRolloutMode     string                   `json:"revert_rollout_mode,omitempty"`
+	RevertRolloutToken    string                   `json:"revert_rollout_token,omitempty"`
+	RevertLegacyFenceKey  string                   `json:"revert_legacy_fence_key,omitempty"`
+	RedisGeneration       string                   `json:"redis_generation,omitempty"`
+	TransactionDate       time.Time                `json:"transaction_date"`
+	Operations            []OperationRedis         `json:"operations,omitempty"`
+	EconomicEffectDigest  string                   `json:"economic_effect_digest,omitempty"`
 }

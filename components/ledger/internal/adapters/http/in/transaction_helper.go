@@ -24,9 +24,25 @@ import (
 // transactionPathParams holds the IDs extracted from URL path parameters.
 // TransactionID is uuid.Nil when the route has no :transaction_id segment.
 type transactionPathParams struct {
-	OrganizationID uuid.UUID
-	LedgerID       uuid.UUID
-	TransactionID  uuid.UUID
+	OrganizationID        uuid.UUID
+	LedgerID              uuid.UUID
+	TransactionID         uuid.UUID
+	ReservedTransactionID uuid.UUID
+	RevertExecution       *revertExecutionState
+	ExecutionAttempt      *mmodel.BalanceExecutionAttempt
+	RevertRolloutMode     string
+	RevertRolloutToken    string
+	RevertLegacyFenceKey  string
+	RedisGeneration       string
+}
+
+type revertExecutionState struct {
+	SeedWriteAmbiguous bool
+	SeedWritten        bool
+	ArmAttempted       bool
+	Armed              bool
+	BalanceAttempted   bool
+	BalanceCommitted   bool
 }
 
 // readPathParams extracts organization, ledger, and (optional) transaction
@@ -176,11 +192,11 @@ func buildBalanceOperations(ctx context.Context, organizationID, ledgerID uuid.U
 
 			ops = append(
 				ops,
-				mmodel.BalanceOperation{Balance: ref.balance, Alias: alias, Amount: op1, InternalKey: ref.internalKey},
-				mmodel.BalanceOperation{Balance: ref.balance, Alias: alias, Amount: op2, InternalKey: ref.internalKey},
+				mmodel.BalanceOperation{Balance: ref.balance, Alias: alias, Amount: op1, InternalKey: ref.internalKey, EconomicSide: mmodel.EconomicSideSource, EconomicRole: amount.EconomicRole},
+				mmodel.BalanceOperation{Balance: ref.balance, Alias: alias, Amount: op2, InternalKey: ref.internalKey, EconomicSide: mmodel.EconomicSideSource, EconomicRole: amount.EconomicRole},
 			)
 		} else {
-			ops = append(ops, mmodel.BalanceOperation{Balance: ref.balance, Alias: alias, Amount: amount, InternalKey: ref.internalKey})
+			ops = append(ops, mmodel.BalanceOperation{Balance: ref.balance, Alias: alias, Amount: amount, InternalKey: ref.internalKey, EconomicSide: mmodel.EconomicSideSource, EconomicRole: amount.EconomicRole})
 		}
 	}
 
@@ -201,7 +217,7 @@ func buildBalanceOperations(ctx context.Context, organizationID, ledgerID uuid.U
 			libLog.String("alias_balance", resolvedKey),
 			libLog.String("direction", amount.Direction))
 
-		ops = append(ops, mmodel.BalanceOperation{Balance: ref.balance, Alias: alias, Amount: amount, InternalKey: ref.internalKey})
+		ops = append(ops, mmodel.BalanceOperation{Balance: ref.balance, Alias: alias, Amount: amount, InternalKey: ref.internalKey, EconomicSide: mmodel.EconomicSideDestination, EconomicRole: amount.EconomicRole})
 	}
 
 	sort.Slice(ops, func(i, j int) bool {

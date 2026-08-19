@@ -109,10 +109,9 @@ func TestValidateTransactionTypeError_PerSurface(t *testing.T) {
 	}
 }
 
-// TestTransactionTypeOptions_LegSetExcludesRemaining pins the difference that motivates the
-// parameter. `remaining` resolves during validation but contributes no operation row, so the
-// v2 surface does not publish it; offering it in a rejection message would steer the caller
-// toward an expression that is answered with an unexpected-field 400.
+// TestTransactionTypeOptions_LegSetExcludesRemaining pins the difference between the detailed
+// v1 body and the leg-shaped v2 body. V1 supports `remaining`; v2 deliberately does not publish
+// that expression, so its error guidance must not tell callers that it accepts it.
 func TestTransactionTypeOptions_LegSetExcludesRemaining(t *testing.T) {
 	t.Parallel()
 

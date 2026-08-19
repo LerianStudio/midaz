@@ -27,11 +27,14 @@ import (
 	"github.com/lib/pq"
 	"go.opentelemetry.io/otel/attribute"
 
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/readseam"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services"
+	"github.com/LerianStudio/midaz/v4/components/ledger/pkg/readrouting"
 	"github.com/LerianStudio/midaz/v4/pkg"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
 	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v4/pkg/net/http"
+	"github.com/LerianStudio/midaz/v4/pkg/repository"
 
 	libLog "github.com/LerianStudio/lib-observability/v2/log"
 )
@@ -157,6 +160,17 @@ func (r *OperationRoutePostgreSQLRepository) getDB(ctx context.Context) (dbresol
 	return r.connection.Resolver(ctx)
 }
 
+func (r *OperationRoutePostgreSQLRepository) acquireRead(ctx context.Context) (repository.DBReader, func() error, error) {
+	db, err := r.getDB(ctx)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	reader, release, _, err := readseam.AcquireReadFrom(ctx, db, readrouting.IsPrimaryRead(ctx))
+
+	return reader, release, err
+}
+
 func (r *OperationRoutePostgreSQLRepository) Create(ctx context.Context, organizationID, ledgerID uuid.UUID, operationRoute *mmodel.OperationRoute) (*mmodel.OperationRoute, error) {
 	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
@@ -246,12 +260,14 @@ func (r *OperationRoutePostgreSQLRepository) FindByID(ctx context.Context, organ
 		return nil, err
 	}
 
-	db, err := r.getDB(ctx)
+	db, release, err := r.acquireRead(ctx)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(span, "Failed to get database connection", err)
 
 		return nil, err
 	}
+
+	defer func() { _ = release() }()
 
 	query, args, err := squirrel.Select("id", "organization_id", "ledger_id", "title", "description", "code", "operation_type", "account_rule_type", "account_rule_valid_if", "accounting_entries", "created_at", "updated_at", "deleted_at").
 		From(r.tableName).

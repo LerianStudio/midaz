@@ -6,6 +6,7 @@ package in
 
 import (
 	"context"
+	"fmt"
 	"strings"
 	"time"
 
@@ -45,9 +46,10 @@ const (
 // observes amounts and gates execution; it never alters Send.Value or balance
 // math (third rail).
 type reservationOutcome struct {
-	Kind   reservationOutcomeKind
-	Handle reservationHandle
-	Err    error
+	Kind      reservationOutcomeKind
+	Handle    reservationHandle
+	Err       error
+	Ambiguous bool
 }
 
 // reservationHandle carries the reservation ids produced by a successful
@@ -95,6 +97,7 @@ func (handler *TransactionHandler) reserveTransaction(
 	transactionTimestamp time.Time,
 	ttl reservationTTLPolicy,
 	honoredTracerSkip bool,
+	durableOutcome ...bool,
 ) reservationOutcome {
 	// off, unconfigured, no client injected, or an honored per-call tracer skip:
 	// the create path is unchanged and no reserve request is built or sent. An
@@ -105,6 +108,7 @@ func (handler *TransactionHandler) reserveTransaction(
 	}
 
 	advisory := settings.Mode == mmodel.TracerModeAdvisory
+	useDurableOutcome := len(durableOutcome) > 0 && durableOutcome[0]
 
 	req := tracer.ReserveRequest{
 		TransactionID:        transactionID,
@@ -115,10 +119,24 @@ func (handler *TransactionHandler) reserveTransaction(
 		TransactionTimestamp: transactionTimestamp.UTC().Format(time.RFC3339Nano),
 		LongLived:            ttl == reservationTTLLongLived,
 	}
+	if useDurableOutcome {
+		req.DeliveryMode = tracer.DeliveryModeLedgerOutcomeV2
+	}
 
 	result, err := handler.TracerReserver.Reserve(ctx, req)
 	if err != nil {
-		return handler.handleReserveError(ctx, span, logger, settings, transactionID, advisory, err)
+		return handler.handleReserveError(ctx, span, logger, settings, transactionID, advisory, useDurableOutcome, err)
+	}
+
+	if useDurableOutcome && result.DeliveryMode != tracer.DeliveryModeLedgerOutcomeV2 {
+		libOpentelemetry.HandleSpanError(span, "Tracer did not accept the durable reservation protocol",
+			fmt.Errorf("accepted delivery mode %q", result.DeliveryMode))
+
+		return reservationOutcome{
+			Kind:      reservationReject,
+			Err:       transactionLifecycleReconciliationError(),
+			Ambiguous: true,
+		}
 	}
 
 	if result.Denied {
@@ -157,9 +175,18 @@ func (handler *TransactionHandler) handleReserveError(
 	settings mmodel.TracerSettings,
 	transactionID uuid.UUID,
 	advisory bool,
+	durableOutcome bool,
 	err error,
 ) reservationOutcome {
 	libOpentelemetry.HandleSpanError(span, "Tracer reservation call failed", err)
+
+	if durableOutcome {
+		// Reserve may have committed after its response was lost. The PREPARED
+		// record stays fenced for recovery, which will deliver ABORTED; proceeding
+		// to balances here would make a second economic fact.
+		rejectErr := transactionLifecycleReconciliationError()
+		return reservationOutcome{Kind: reservationReject, Err: rejectErr, Ambiguous: true}
+	}
 
 	if advisory {
 		logger.Log(ctx, libLog.LevelWarn, "Tracer reservation failed in advisory mode; proceeding",
@@ -193,16 +220,15 @@ func (handler *TransactionHandler) handleReserveError(
 }
 
 // reservationRequestIDNamespace is the UUIDv5 namespace used to derive a
-// reserve requestId from a transactionID. A fixed namespace makes the requestId
-// deterministic per transaction, so a retried reserve carries the same requestId
-// and dedups against the prior attempt rather than minting a fresh request.
+// reserve requestId from a transactionID. The requestId correlates attempts;
+// idempotency is enforced by the persisted transaction, limit, scope, and period
+// tuple, not by requestId.
 var reservationRequestIDNamespace = uuid.MustParse("6f3c2d1e-4b5a-4c6d-8e7f-0a1b2c3d4e5f")
 
 // reservationRequestID derives the deterministic reserve requestId for a
 // transaction. The tracer reserve contract requires a non-nil requestId; the
 // ledger has no separate request handle at the anchor, so it derives one from
-// the transactionID. Determinism is the contract: identical transactionID →
-// identical requestId, so retries do not present as distinct requests.
+// the transactionID to keep correlation stable across retries.
 func reservationRequestID(transactionID uuid.UUID) uuid.UUID {
 	return uuid.NewSHA1(reservationRequestIDNamespace, transactionID[:])
 }
@@ -248,10 +274,10 @@ func firstSourceAccountID(sources []string, balances []*mmodel.Balance) string {
 }
 
 // confirmReservations commits held reservations after a successful balance
-// commit (F3-T14, the success phase). Transport is best-effort: a failure is
-// logged at Warn, span-recorded, and never propagated — the TTL reaper is the
-// durability backstop (design call G). A nil reserver or empty handle is a
-// no-op.
+// commit (F3-T14, the success phase). Transport is currently best-effort: a
+// failure is logged at Warn, span-recorded, and never propagated. This leaves a
+// known correctness gap: expiry later removes usage for money already moved.
+// A nil reserver or empty handle is a no-op.
 func (handler *TransactionHandler) confirmReservations(ctx context.Context, span trace.Span, logger libLog.Logger, handle reservationHandle) {
 	if handler.TracerReserver == nil {
 		return
@@ -279,14 +305,18 @@ func (handler *TransactionHandler) releaseReservations(ctx context.Context, span
 }
 
 // recordReservationTransportFailure logs and span-records a confirm/release
-// transport failure without propagating it. Both an availability failure
-// (tracer.ErrTracerUnavailable) and any other transport error are the
-// lost-transport case the reaper backstops at TTL, so both are Warn-logged and
-// swallowed.
+// transport failure without propagating it. Expiry safely drains a release that
+// was lost after an abort. A lost confirm after a balance commit instead leaves
+// a known usage-undercount window when the hold expires.
 func (handler *TransactionHandler) recordReservationTransportFailure(ctx context.Context, span trace.Span, logger libLog.Logger, action string, id uuid.UUID, err error) {
 	libOpentelemetry.HandleSpanError(span, "Tracer reservation "+action+" transport failed", err)
 
-	logger.Log(ctx, libLog.LevelWarn, "Tracer reservation transport failed; reaper will reconcile at TTL",
+	message := "Tracer reservation release transport failed; expiry will drain the abandoned hold"
+	if action == "confirm" {
+		message = "Tracer reservation confirm transport failed; usage may be undercounted after expiry"
+	}
+
+	logger.Log(ctx, libLog.LevelWarn, message,
 		libLog.String("reservation_action", action),
 		libLog.String("reservation_id", id.String()),
 		libLog.Err(err))
@@ -299,9 +329,8 @@ func (handler *TransactionHandler) recordReservationTransportFailure(ctx context
 // transaction holds, addressed by transaction id. Gated on the per-ledger tracer
 // settings (off / nil reserver → no call) and on an honored per-call tracer skip
 // (so a skip honored at create removes the gRPC cost here rather than relocating
-// it to commit); same best-effort, non-blocking posture as the by-id transport: a
-// failure is logged at Warn, span-recorded, and never propagated, with the TTL
-// reaper as the durability backstop.
+// it to commit); same best-effort, non-blocking posture as the by-id transport.
+// A lost confirm remains a known usage-undercount gap after expiry.
 func (handler *TransactionHandler) confirmReservationsByTransaction(ctx context.Context, span trace.Span, logger libLog.Logger, settings mmodel.TracerSettings, transactionID uuid.UUID, honoredTracerSkip bool) {
 	if honoredTracerSkip || !handler.tracerReservationEnabled(settings) {
 		return
@@ -335,12 +364,18 @@ func (handler *TransactionHandler) tracerReservationEnabled(settings mmodel.Trac
 }
 
 // recordReservationByTransactionFailure logs and span-records a by-transaction
-// confirm/release transport failure without propagating it — the reaper reconciles
-// any lost transition at TTL.
+// confirm/release transport failure without propagating it. Expiry safely drains
+// a lost release; a lost confirm creates the same known post-commit undercount as
+// the by-ID path.
 func (handler *TransactionHandler) recordReservationByTransactionFailure(ctx context.Context, span trace.Span, logger libLog.Logger, action string, transactionID uuid.UUID, err error) {
 	libOpentelemetry.HandleSpanError(span, "Tracer reservation "+action+" by transaction transport failed", err)
 
-	logger.Log(ctx, libLog.LevelWarn, "Tracer reservation by-transaction transport failed; reaper will reconcile at TTL",
+	message := "Tracer reservation release by transaction failed; expiry will drain the abandoned hold"
+	if action == "confirm" {
+		message = "Tracer reservation confirm by transaction failed; usage may be undercounted after expiry"
+	}
+
+	logger.Log(ctx, libLog.LevelWarn, message,
 		libLog.String("reservation_action", action),
 		libLog.String("transaction_id", transactionID.String()),
 		libLog.Err(err))

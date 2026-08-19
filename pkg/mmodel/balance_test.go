@@ -387,6 +387,13 @@ func TestBalanceRedis_UnmarshalJSON(t *testing.T) {
 			wantErr:    false,
 		},
 		{
+			name:       "unquoted integers above float64 precision remain exact",
+			input:      `{"id":"bal-6","accountId":"acc-6","assetCode":"USD","available":9007199254740993,"onHold":9007199254740991,"overdraftUsed":9007199254740995,"version":9007199254740993,"accountType":"deposit","allowSending":1,"allowReceiving":1,"key":"default","alias":"@exact"}`,
+			wantAvail:  decimal.RequireFromString("9007199254740993"),
+			wantOnHold: decimal.RequireFromString("9007199254740991"),
+			wantErr:    false,
+		},
+		{
 			name:       "invalid available string",
 			input:      `{"id":"bal-err","accountId":"acc-err","assetCode":"USD","available":"not-a-number","onHold":"100","version":1,"accountType":"deposit","allowSending":1,"allowReceiving":1,"key":"","alias":""}`,
 			wantErr:    true,
@@ -424,6 +431,10 @@ func TestBalanceRedis_UnmarshalJSON(t *testing.T) {
 			require.NoError(t, err)
 			assert.True(t, tt.wantAvail.Equal(br.Available), "Available mismatch: want %s, got %s", tt.wantAvail, br.Available)
 			assert.True(t, tt.wantOnHold.Equal(br.OnHold), "OnHold mismatch: want %s, got %s", tt.wantOnHold, br.OnHold)
+			if tt.name == "unquoted integers above float64 precision remain exact" {
+				assert.Equal(t, "9007199254740995", br.OverdraftUsed)
+				assert.Equal(t, int64(9007199254740993), br.Version)
+			}
 		})
 	}
 }
@@ -459,4 +470,100 @@ func TestBalanceRedis_UnmarshalJSON_OtherFields(t *testing.T) {
 	assert.Equal(t, 1, br.AllowSending)
 	assert.Equal(t, 0, br.AllowReceiving)
 	assert.Equal(t, "merchant-reserve", br.Key)
+}
+
+func TestRedisBalanceSetEconomicEqual_RequiresCompleteCanonicalEffect(t *testing.T) {
+	t.Parallel()
+
+	base := BalanceRedis{
+		ID: "balance-a", Alias: "@source", Key: "default", AccountID: "account-a", AssetCode: "USD",
+		Available: decimal.NewFromInt(100), OnHold: decimal.NewFromInt(10), Version: 7,
+		AccountType: "asset", AllowSending: 1, AllowReceiving: 1, Direction: "debit",
+		OverdraftUsed: "10.00", AllowOverdraft: 1, OverdraftLimitEnabled: 1,
+		OverdraftLimit: "50.0", BalanceScope: BalanceScopeTransactional,
+	}
+	second := base
+	second.ID = "balance-b"
+	second.AccountID = "account-b"
+	reorderedA := []BalanceRedis{base, second}
+	canonicalBase := base
+	canonicalBase.OverdraftUsed = "10"
+	canonicalBase.OverdraftLimit = "50.000"
+	reorderedB := []BalanceRedis{second, canonicalBase}
+	require.True(t, RedisBalanceSetEconomicEqual(reorderedA, reorderedB))
+
+	mutations := []struct {
+		name   string
+		mutate func(*BalanceRedis)
+	}{
+		{name: "identity", mutate: func(balance *BalanceRedis) { balance.ID = "other" }},
+		{name: "balance key", mutate: func(balance *BalanceRedis) { balance.Key = "settlement" }},
+		{name: "account", mutate: func(balance *BalanceRedis) { balance.AccountID = "other" }},
+		{name: "asset", mutate: func(balance *BalanceRedis) { balance.AssetCode = "BRL" }},
+		{name: "available", mutate: func(balance *BalanceRedis) { balance.Available = decimal.NewFromInt(99) }},
+		{name: "on hold", mutate: func(balance *BalanceRedis) { balance.OnHold = decimal.NewFromInt(9) }},
+		{name: "version", mutate: func(balance *BalanceRedis) { balance.Version++ }},
+		{name: "direction", mutate: func(balance *BalanceRedis) { balance.Direction = "credit" }},
+		{name: "overdraft", mutate: func(balance *BalanceRedis) { balance.OverdraftUsed = "11" }},
+		{name: "overdraft limit", mutate: func(balance *BalanceRedis) { balance.OverdraftLimit = "51" }},
+		{name: "scope", mutate: func(balance *BalanceRedis) { balance.BalanceScope = BalanceScopeInternal }},
+	}
+	for _, tc := range mutations {
+		t.Run(tc.name, func(t *testing.T) {
+			changed := base
+			tc.mutate(&changed)
+			assert.False(t, RedisBalanceSetEconomicEqual([]BalanceRedis{base}, []BalanceRedis{changed}))
+		})
+	}
+	assert.True(t, RedisBalanceSetEconomicEqual([]BalanceRedis{base, base}, []BalanceRedis{base, base}),
+		"repeated touches of one balance are compared as an exact multiset")
+	assert.False(t, RedisBalanceSetEconomicEqual([]BalanceRedis{base, base}, []BalanceRedis{base, second}),
+		"the multiset must preserve the exact count of every economic snapshot")
+}
+
+func TestRedisBalanceSetEconomicComplete_RejectsMissingReplayDiscriminator(t *testing.T) {
+	t.Parallel()
+
+	complete := BalanceRedis{
+		ID: "balance", Key: "default", AccountID: "account", AssetCode: "USD", AccountType: "asset",
+		Direction: "credit", OverdraftUsed: "0", OverdraftLimit: "0", BalanceScope: BalanceScopeTransactional,
+		AllowSending: 1, AllowReceiving: 1,
+	}
+	require.True(t, RedisBalanceSetEconomicComplete([]BalanceRedis{complete}))
+
+	missingDirection := complete
+	missingDirection.Direction = ""
+	assert.False(t, RedisBalanceSetEconomicComplete([]BalanceRedis{missingDirection}))
+	invalidFlag := complete
+	invalidFlag.AllowOverdraft = 2
+	assert.False(t, RedisBalanceSetEconomicComplete([]BalanceRedis{invalidFlag}))
+	assert.False(t, RedisBalanceSetEconomicComplete(nil))
+}
+
+func TestBalanceToRedis_MatchesAtomicLuaDefaultsAndSettings(t *testing.T) {
+	t.Parallel()
+
+	limit := "500.00"
+	balance := &Balance{
+		ID: "balance-id", Alias: "@account", Key: "default", AccountID: "account-id", AssetCode: "USD",
+		Available: decimal.NewFromInt(100), OnHold: decimal.NewFromInt(10), Version: 4,
+		AccountType: "deposit", AllowSending: true, Direction: "debit", OverdraftUsed: decimal.NewFromInt(25),
+		Settings: &BalanceSettings{BalanceScope: BalanceScopeInternal, AllowOverdraft: true,
+			OverdraftLimitEnabled: true, OverdraftLimit: &limit},
+	}
+
+	redisBalance := balance.ToRedis()
+	assert.Equal(t, 1, redisBalance.AllowSending)
+	assert.Zero(t, redisBalance.AllowReceiving)
+	assert.Equal(t, "25", redisBalance.OverdraftUsed)
+	assert.Equal(t, 1, redisBalance.AllowOverdraft)
+	assert.Equal(t, 1, redisBalance.OverdraftLimitEnabled)
+	assert.Equal(t, limit, redisBalance.OverdraftLimit)
+	assert.Equal(t, BalanceScopeInternal, redisBalance.BalanceScope)
+
+	defaults := (&Balance{}).ToRedis()
+	assert.Equal(t, "0", defaults.OverdraftUsed)
+	assert.Equal(t, "0", defaults.OverdraftLimit)
+	assert.Equal(t, BalanceScopeTransactional, defaults.BalanceScope)
+	assert.Nil(t, BalancesToRedis([]*Balance{nil}), "nil balance evidence must fail closed")
 }

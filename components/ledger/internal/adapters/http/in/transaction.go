@@ -34,6 +34,15 @@ type TransactionHandler struct {
 	// nil reserver means the tracer integration is disabled (the create path
 	// stays unchanged). The per-ledger tracer.mode gate lives at the call site.
 	TracerReserver TracerReserver
+	// TracerOutcomeV2 enables Ledger-owned durable reservation termination. It
+	// defaults false; boot wiring turns it on only with a live client and worker.
+	TracerOutcomeV2 bool
+	// FinancialRedisDurability is the independent admission guard for every V2
+	// money-path write. It is intentionally separate from the revert rollout:
+	// either feature can be enabled or drained without coupling their lifecycle.
+	FinancialRedisDurability interface {
+		FinancialDurability(context.Context) error
+	}
 	// FeesMongoManager resolves the CURRENT tenant's fee Mongo database at the
 	// fee seam when MultiTenantEnabled is true. The fee pack/billing repos read
 	// the GENERIC tmcore MB key, which the route-scoped feesTenantMiddleware
@@ -44,6 +53,24 @@ type TransactionHandler struct {
 	// MultiTenantEnabled gates the fee-seam tenant resolution. When false the
 	// static fee connection is correct and resolveFeesTenantContext is a no-op.
 	MultiTenantEnabled bool
+	// RevertIdempotencyMode is "legacy" for phase zero, "bridge" during
+	// old/new coexistence, and "final" after old pods and requests are drained.
+	RevertIdempotencyMode string
+	// RevertUpdateFreeze is a deployment-wide marker shared by phase-zero,
+	// bridge, readiness, and every tenant. It prevents mutable APPROVED origins
+	// from changing the payload-scoped key while old and bridge pods coexist.
+	RevertUpdateFreeze interface {
+		ApprovedUpdatePolicy(context.Context, string) (frozen bool, ready bool, err error)
+		ReadyForMode(context.Context, string) (bool, error)
+		AcquireApprovedUpdate(context.Context, string, string) (admitted bool, frozen bool, leaseHeld bool, err error)
+		ReleaseApprovedUpdate(context.Context, string) error
+		AcquireRevert(context.Context, string, string, string) (admitted bool, leaseHeld bool, phase string, err error)
+		ReleaseRevert(context.Context, string, string, string) error
+		CompleteRevert(context.Context, string, string) error
+		RevertTerminalHandoffComplete(context.Context, string, string) (bool, error)
+		FinancialDurability(context.Context) error
+		FinancialDatasetGeneration(context.Context) (string, error)
+	}
 }
 
 // CreateTransactionJSON method that create transaction using JSON

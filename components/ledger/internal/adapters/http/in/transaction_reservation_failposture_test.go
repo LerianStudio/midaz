@@ -140,7 +140,7 @@ const createSeamFuncName = "executeCreateTransaction"
 type failClosedSeamMetrics struct {
 	reservePos          int  // index of the reserveTransaction call (-1 if absent)
 	rejectDeleteIdemp   bool // deleteIdempotencyKey appears inside the reservationReject branch
-	rejectRemoveRedis   bool // RemoveTransactionFromRedisQueue appears inside the reject branch
+	rejectRemoveRedis   bool // pre-movement backup CAS appears inside the reject branch
 	rejectReturnsBefore bool // the reject branch returns (no fall-through to the balance commit)
 	processBalancePos   int  // index of the top-level ProcessBalanceOperations call (-1)
 }
@@ -185,7 +185,7 @@ func analyzeFailClosedSeam(t *testing.T, src string) failClosedSeamMetrics {
 
 		if ifStmt, ok := stmt.(*ast.IfStmt); ok && isReservationRejectGuard(ifStmt) {
 			m.rejectDeleteIdemp = blockCallsMethod(ifStmt.Body, "deleteIdempotencyKey")
-			m.rejectRemoveRedis = blockCallsMethod(ifStmt.Body, "RemoveTransactionFromRedisQueue")
+			m.rejectRemoveRedis = blockCallsMethod(ifStmt.Body, "removePreMovementTransactionBackup")
 			m.rejectReturnsBefore = blockEndsInReturn(ifStmt.Body)
 		}
 	}
@@ -265,7 +265,7 @@ func TestTracerFailClosedReject_ReleasesIdempotencyAndSkipsBalanceCommit(t *test
 	assert.True(t, m.rejectDeleteIdemp,
 		"fail-closed reject branch must release the idempotency key (deleteIdempotencyKey)")
 	assert.True(t, m.rejectRemoveRedis,
-		"fail-closed reject branch must remove the Redis-queue seed (RemoveTransactionFromRedisQueue)")
+		"fail-closed reject branch must remove the Redis-queue seed through the pre-movement CAS")
 	assert.True(t, m.rejectReturnsBefore,
 		"fail-closed reject branch must return — it must NOT fall through to ProcessBalanceOperations")
 }
@@ -307,7 +307,7 @@ func (handler *TransactionHandler) executeCreateTransaction() error {
 	reservation := handler.reserveTransaction()
 	if reservation.Kind == reservationReject {
 		handler.deleteIdempotencyKey()
-		handler.Command.RemoveTransactionFromRedisQueue()
+		handler.removePreMovementTransactionBackup()
 		return handler.WithError(reservation.Err)
 	}
 	result, err := handler.Command.ProcessBalanceOperations()

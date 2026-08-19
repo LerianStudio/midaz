@@ -233,6 +233,156 @@ type Balance struct {
 	OverdraftUsed decimal.Decimal `json:"overdraftUsed" example:"130" minimum:"0"`
 }
 
+// EconomicEffectEqual compares the complete economic fact carried by two
+// operations. Replay and terminal cleanup use it to prove that matching
+// operation IDs do not hide a different balance, direction, asset, amount, or
+// before/after movement.
+func EconomicEffectEqual(left, right *Operation) bool {
+	if left == nil || right == nil {
+		return left == nil && right == nil
+	}
+
+	return economicEffectsEqual(economicEffectFromOperation(left), economicEffectFromOperation(right))
+}
+
+// RedisEconomicEffectEqual applies the same economic comparison to queue
+// envelopes. Redis has a flat, fully populated representation, so zero values
+// are compared directly rather than using PostgreSQL's nullable fields.
+func RedisEconomicEffectEqual(left, right mmodel.OperationRedis) bool {
+	leftEffect, leftValid := economicEffectFromRedis(left)
+	rightEffect, rightValid := economicEffectFromRedis(right)
+
+	return leftValid && rightValid && economicEffectsEqual(leftEffect, rightEffect)
+}
+
+type economicDecimal struct {
+	value   decimal.Decimal
+	present bool
+}
+
+type economicInt64 struct {
+	value   int64
+	present bool
+}
+
+type economicEffect struct {
+	balanceID       string
+	balanceKey      string
+	accountID       string
+	operationType   string
+	direction       string
+	assetCode       string
+	balanceAffected bool
+	amount          economicDecimal
+	beforeAvailable economicDecimal
+	beforeOnHold    economicDecimal
+	beforeVersion   economicInt64
+	beforeOverdraft decimal.Decimal
+	afterAvailable  economicDecimal
+	afterOnHold     economicDecimal
+	afterVersion    economicInt64
+	afterOverdraft  decimal.Decimal
+}
+
+func economicEffectFromOperation(op *Operation) economicEffect {
+	return economicEffect{
+		balanceID:       op.BalanceID,
+		balanceKey:      op.BalanceKey,
+		accountID:       op.AccountID,
+		operationType:   op.Type,
+		direction:       op.Direction,
+		assetCode:       op.AssetCode,
+		balanceAffected: op.BalanceAffected,
+		amount:          economicDecimalFromPointer(op.Amount.Value),
+		beforeAvailable: economicDecimalFromPointer(op.Balance.Available),
+		beforeOnHold:    economicDecimalFromPointer(op.Balance.OnHold),
+		beforeVersion:   economicInt64FromPointer(op.Balance.Version),
+		beforeOverdraft: op.Balance.OverdraftUsed,
+		afterAvailable:  economicDecimalFromPointer(op.BalanceAfter.Available),
+		afterOnHold:     economicDecimalFromPointer(op.BalanceAfter.OnHold),
+		afterVersion:    economicInt64FromPointer(op.BalanceAfter.Version),
+		afterOverdraft:  op.BalanceAfter.OverdraftUsed,
+	}
+}
+
+func economicEffectFromRedis(op mmodel.OperationRedis) (economicEffect, bool) {
+	beforeOverdraft, err := parseEconomicSnapshotDecimal(op.Snapshot.OverdraftUsedBefore)
+	if err != nil {
+		return economicEffect{}, false
+	}
+
+	afterOverdraft, err := parseEconomicSnapshotDecimal(op.Snapshot.OverdraftUsedAfter)
+	if err != nil {
+		return economicEffect{}, false
+	}
+
+	return economicEffect{
+		balanceID:       op.BalanceID,
+		balanceKey:      op.BalanceKey,
+		accountID:       op.AccountID,
+		operationType:   op.Type,
+		direction:       op.Direction,
+		assetCode:       op.AssetCode,
+		balanceAffected: op.BalanceAffected,
+		amount:          economicDecimal{value: op.AmountValue, present: true},
+		beforeAvailable: economicDecimal{value: op.BalanceAvailable, present: true},
+		beforeOnHold:    economicDecimal{value: op.BalanceOnHold, present: true},
+		beforeVersion:   economicInt64{value: op.BalanceVersion, present: true},
+		beforeOverdraft: beforeOverdraft,
+		afterAvailable:  economicDecimal{value: op.BalanceAfterAvailable, present: true},
+		afterOnHold:     economicDecimal{value: op.BalanceAfterOnHold, present: true},
+		afterVersion:    economicInt64{value: op.BalanceAfterVersion, present: true},
+		afterOverdraft:  afterOverdraft,
+	}, true
+}
+
+func economicEffectsEqual(left, right economicEffect) bool {
+	return left.balanceID == right.balanceID &&
+		left.balanceKey == right.balanceKey &&
+		left.accountID == right.accountID &&
+		left.operationType == right.operationType &&
+		left.direction == right.direction &&
+		left.assetCode == right.assetCode &&
+		left.balanceAffected == right.balanceAffected &&
+		economicDecimalsEqual(left.amount, right.amount) &&
+		economicDecimalsEqual(left.beforeAvailable, right.beforeAvailable) &&
+		economicDecimalsEqual(left.beforeOnHold, right.beforeOnHold) &&
+		left.beforeVersion == right.beforeVersion &&
+		left.beforeOverdraft.Equal(right.beforeOverdraft) &&
+		economicDecimalsEqual(left.afterAvailable, right.afterAvailable) &&
+		economicDecimalsEqual(left.afterOnHold, right.afterOnHold) &&
+		left.afterVersion == right.afterVersion &&
+		left.afterOverdraft.Equal(right.afterOverdraft)
+}
+
+func economicDecimalFromPointer(value *decimal.Decimal) economicDecimal {
+	if value == nil {
+		return economicDecimal{}
+	}
+
+	return economicDecimal{value: *value, present: true}
+}
+
+func economicInt64FromPointer(value *int64) economicInt64 {
+	if value == nil {
+		return economicInt64{}
+	}
+
+	return economicInt64{value: *value, present: true}
+}
+
+func economicDecimalsEqual(left, right economicDecimal) bool {
+	return left.present == right.present && (!left.present || left.value.Equal(right.value))
+}
+
+func parseEconomicSnapshotDecimal(value string) (decimal.Decimal, error) {
+	if value == "" {
+		return decimal.Zero, nil
+	}
+
+	return decimal.NewFromString(value)
+}
+
 // IsEmpty method that set empty or nil in fields
 func (b Balance) IsEmpty() bool {
 	return b.Available == nil && b.OnHold == nil

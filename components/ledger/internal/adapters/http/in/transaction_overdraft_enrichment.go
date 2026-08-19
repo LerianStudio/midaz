@@ -466,15 +466,18 @@ func buildCompanionDebitOp(organizationID, ledgerID uuid.UUID, s overdraftSplit,
 	companionAmount.Value = s.deficit
 	companionAmount.Operation = libConstants.DEBIT
 	companionAmount.Direction = constant.DirectionDebit
+	companionAmount.EconomicRole = mmodel.EconomicRoleCompanion
 
 	internalKey := utils.BalanceInternalKey(organizationID, ledgerID,
 		companion.Alias+"#"+companion.Key)
 
 	return mmodel.BalanceOperation{
-		Balance:     companion,
-		Alias:       indexPrefix(s.source.Alias) + s.companionAliasKey,
-		Amount:      companionAmount,
-		InternalKey: internalKey,
+		Balance:      companion,
+		Alias:        indexPrefix(s.source.Alias) + s.companionAliasKey,
+		Amount:       companionAmount,
+		InternalKey:  internalKey,
+		EconomicSide: s.source.EconomicSide,
+		EconomicRole: mmodel.EconomicRoleCompanion,
 	}
 }
 
@@ -605,15 +608,18 @@ func buildCompanionCreditOp(organizationID, ledgerID uuid.UUID, r overdraftRefun
 	companionAmount.Value = r.repayAmount
 	companionAmount.Operation = libConstants.CREDIT
 	companionAmount.Direction = constant.DirectionCredit
+	companionAmount.EconomicRole = mmodel.EconomicRoleCompanion
 
 	internalKey := utils.BalanceInternalKey(organizationID, ledgerID,
 		companion.Alias+"#"+companion.Key)
 
 	return mmodel.BalanceOperation{
-		Balance:     companion,
-		Alias:       indexPrefix(r.destination.Alias) + r.companionAliasKey,
-		Amount:      companionAmount,
-		InternalKey: internalKey,
+		Balance:      companion,
+		Alias:        indexPrefix(r.destination.Alias) + r.companionAliasKey,
+		Amount:       companionAmount,
+		InternalKey:  internalKey,
+		EconomicSide: r.destination.EconomicSide,
+		EconomicRole: mmodel.EconomicRoleCompanion,
 	}
 }
 
@@ -655,6 +661,7 @@ func buildCompanionFromTo(primary mmodel.BalanceOperation, companionOp mmodel.Ba
 		TransactionType:        companionOp.Amount.TransactionType,
 		Direction:              companionOp.Amount.Direction,
 		RouteValidationEnabled: companionOp.Amount.RouteValidationEnabled,
+		EconomicRole:           mmodel.EconomicRoleCompanion,
 	}
 
 	// `primary` is the user-submitted BalanceOperation; we reach through its
@@ -684,6 +691,7 @@ func buildCompanionFromTo(primary mmodel.BalanceOperation, companionOp mmodel.Ba
 		ChartOfAccounts: chartOfAccounts,
 		Metadata:        metadata,
 		IsFrom:          isFrom,
+		EconomicRole:    mmodel.EconomicRoleCompanion,
 	}
 
 	// Only propagate routeID when the primary carries one. A nil RouteID on

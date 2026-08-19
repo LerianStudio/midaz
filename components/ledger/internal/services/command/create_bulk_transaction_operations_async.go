@@ -8,9 +8,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"os"
 	"sort"
-	"strings"
 	"sync"
 	"time"
 
@@ -30,10 +28,6 @@ import (
 	"github.com/LerianStudio/midaz/v4/pkg/repository"
 	"github.com/LerianStudio/midaz/v4/pkg/utils"
 )
-
-// bulkUpdateThreshold defines the minimum number of transactions required
-// to use bulk update. Below this threshold, individual updates are used.
-const bulkUpdateThreshold = 10
 
 // asyncOperationTimeout defines the timeout for fire-and-forget async operations
 // like sending events and cleaning up backup queues.
@@ -72,8 +66,8 @@ type BulkMessageResult struct {
 }
 
 // CreateBulkTransactionOperationsAsync processes multiple transaction payloads in bulk.
-// It extracts, sorts, and persists transactions and operations using bulk insert,
-// then handles status transitions for pending transactions using bulk update.
+// It extracts, sorts, and persists transactions, operations, and pending status
+// transitions through one atomic PostgreSQL batch.
 //
 // On failure, it falls back to individual processing using CreateBalanceTransactionOperationsAsync.
 // Duplicates are treated as success (idempotent processing).
@@ -94,6 +88,17 @@ func (uc *UseCase) CreateBulkTransactionOperationsAsync(
 		return result, nil
 	}
 
+	var err error
+
+	payloads, err = uc.preflightDurableBulkPayloads(ctx, payloads)
+	if err != nil {
+		return result, err
+	}
+
+	if len(payloads) == 0 {
+		return result, nil
+	}
+
 	// Legacy payload compatibility: messages from v3.5.x lack the Version field.
 	// Their balance persistence relied on UpdateBalances() in the consumer, which
 	// was removed in v3.6.x. Call UpdateBalances() for each legacy payload before
@@ -105,7 +110,7 @@ func (uc *UseCase) CreateBulkTransactionOperationsAsync(
 			if err != nil {
 				logger.Log(ctx, libLog.LevelWarn, "Legacy payload: failed to extract IDs", libLog.Err(err))
 
-				continue
+				return result, fmt.Errorf("extract legacy transaction identity: %w", err)
 			}
 
 			logger.Log(ctx, libLog.LevelWarn, "Legacy payload detected (no Version field), calling UpdateBalances",
@@ -114,6 +119,8 @@ func (uc *UseCase) CreateBulkTransactionOperationsAsync(
 			if err := uc.UpdateBalances(ctx, orgID, ledgerID, *p.Validate, p.Balances, p.BalancesAfter); err != nil {
 				logger.Log(ctx, libLog.LevelError, "Failed to update balances for legacy payload",
 					libLog.String("transaction_id", p.Transaction.ID), libLog.Err(err))
+
+				return result, fmt.Errorf("persist legacy transaction balances: %w", err)
 			}
 		}
 	}
@@ -136,9 +143,65 @@ func (uc *UseCase) CreateBulkTransactionOperationsAsync(
 
 	// Process metadata and send events only for actually-inserted transactions
 	// This ensures idempotency by skipping duplicates that were ignored during bulk insert
-	uc.processMetadataAndEvents(ctx, logger, payloads, result.InsertedTransactionIDs)
+	if err := uc.processMetadataAndEvents(ctx, logger, payloads, result.InsertedTransactionIDs); err != nil {
+		return result, err
+	}
 
 	return result, nil
+}
+
+// preflightDurableBulkPayloads proves every outcome-backed payload against its
+// authoritative terminal envelope before the bulk path is allowed to call any
+// PostgreSQL or balance repository. A deployment generation is an additional
+// witness when present, never the switch for this proof. The canonical operation
+// set is adopted here so inserts, updates, duplicates, and fallback all use the
+// same immutable economic snapshot.
+func (uc *UseCase) preflightDurableBulkPayloads(
+	ctx context.Context,
+	payloads []transaction.TransactionProcessingPayload,
+) ([]transaction.TransactionProcessingPayload, error) {
+	pending := make([]transaction.TransactionProcessingPayload, 0, len(payloads))
+	for i := range payloads {
+		payload := &payloads[i]
+		if payload.Transaction == nil {
+			if payload.AttemptOwner != "" || payload.ExpectedOutcome != "" || payload.RedisGeneration != "" {
+				return nil, fmt.Errorf("validate bulk Redis economic outcome: payload %d has nil transaction", i)
+			}
+
+			pending = append(pending, *payload)
+
+			continue
+		}
+
+		organizationID, ledgerID, err := uc.extractOrgLedgerIDs(*payload)
+		if err != nil {
+			return nil, fmt.Errorf("validate bulk Redis economic outcome for payload %d: %w", i, err)
+		}
+
+		outcomeBacked, terminal, err := uc.preflightOutcomeBackedTransaction(ctx, organizationID, ledgerID, payload)
+		if err != nil {
+			return nil, fmt.Errorf("validate bulk Redis economic outcome for transaction %s: %w",
+				payload.Transaction.ID, err)
+		}
+
+		if !outcomeBacked {
+			pending = append(pending, *payload)
+			continue
+		}
+
+		if terminal {
+			if _, err := uc.FinalizeDurableTransactionPersistence(ctx, organizationID, ledgerID, *payload); err != nil {
+				return nil, fmt.Errorf("finalize completed bulk transaction replay %s: %w",
+					payload.Transaction.ID, err)
+			}
+
+			continue
+		}
+
+		pending = append(pending, *payload)
+	}
+
+	return pending, nil
 }
 
 // extractOrgLedgerIDs extracts organization and ledger IDs from a payload.
@@ -267,9 +330,9 @@ func (uc *UseCase) prepareTransactionForInsert(tx *transaction.Transaction) {
 	}
 }
 
-// performBulkInsertAndUpdate performs bulk insert for new entities and bulk update for status transitions.
-// Inserts (transactions + operations) are wrapped in a single DB transaction for atomicity.
-// Status updates are performed separately as they operate on existing rows.
+// performBulkInsertAndUpdate makes fresh transactions, terminal status
+// transitions, and every operation in the batch visible at one PostgreSQL
+// commit boundary.
 func (uc *UseCase) performBulkInsertAndUpdate(
 	ctx context.Context,
 	logger libLog.Logger,
@@ -277,30 +340,21 @@ func (uc *UseCase) performBulkInsertAndUpdate(
 	toUpdate *bulkUpdateEntities,
 	result *BulkResult,
 ) error {
-	// Atomic bulk insert for transactions and operations
-	if len(toInsert.transactions) > 0 || len(toInsert.operations) > 0 {
-		if err := uc.atomicBulkInsert(ctx, logger, toInsert, result); err != nil {
-			return err
-		}
+	if len(toInsert.transactions) == 0 && len(toInsert.operations) == 0 && len(toUpdate.transactions) == 0 {
+		return nil
 	}
 
-	// Bulk update transactions (status transitions) - separate from inserts
-	// These operate on existing rows and don't need to be atomic with inserts
-	if len(toUpdate.transactions) > 0 {
-		if err := uc.performBulkStatusUpdate(ctx, logger, toUpdate.transactions, result); err != nil {
-			return err
-		}
-	}
-
-	return nil
+	return uc.atomicBulkInsert(ctx, logger, toInsert, toUpdate, result)
 }
 
-// atomicBulkInsert inserts transactions and operations in a single database transaction.
-// If either insert fails, the entire operation is rolled back to prevent partial state.
+// atomicBulkInsert persists fresh transactions, operations, and PENDING to
+// terminal status transitions in a single database transaction. If any write
+// fails, the entire batch is rolled back.
 func (uc *UseCase) atomicBulkInsert(
 	ctx context.Context,
 	logger libLog.Logger,
 	toInsert *bulkInsertEntities,
+	toUpdate *bulkUpdateEntities,
 	result *BulkResult,
 ) error {
 	// Begin database transaction
@@ -332,6 +386,46 @@ func (uc *UseCase) atomicBulkInsert(
 		if err := uc.bulkInsertOperationsTx(ctx, logger, dbTx, toInsert.operations, result); err != nil {
 			return err
 		}
+	}
+
+	// A status transition and its new operation set must never be visible in
+	// different snapshots. Apply the PENDING compare-and-set through the same
+	// caller-owned transaction used above.
+	result.TransactionsUpdateAttempted = int64(len(toUpdate.transactions))
+	for _, tran := range toUpdate.transactions {
+		organizationID, err := uuid.Parse(tran.OrganizationID)
+		if err != nil {
+			return fmt.Errorf("bulk terminal transaction has invalid organization ID: %w", err)
+		}
+
+		if organizationID == uuid.Nil {
+			return fmt.Errorf("bulk terminal transaction has invalid organization ID: UUID is nil")
+		}
+
+		ledgerID, err := uuid.Parse(tran.LedgerID)
+		if err != nil {
+			return fmt.Errorf("bulk terminal transaction has invalid ledger ID: %w", err)
+		}
+
+		if ledgerID == uuid.Nil {
+			return fmt.Errorf("bulk terminal transaction has invalid ledger ID: UUID is nil")
+		}
+
+		transactionID, err := uuid.Parse(tran.ID)
+		if err != nil {
+			return fmt.Errorf("bulk terminal transaction has invalid transaction ID: %w", err)
+		}
+
+		if transactionID == uuid.Nil {
+			return fmt.Errorf("bulk terminal transaction has invalid transaction ID: UUID is nil")
+		}
+
+		if _, err := uc.TransactionRepo.UpdateStatusFromPendingTx(ctx, dbTx,
+			organizationID, ledgerID, transactionID, &transaction.Transaction{Status: tran.Status}); err != nil {
+			return fmt.Errorf("bulk terminal transaction status: %w", err)
+		}
+
+		result.TransactionsUpdated++
 	}
 
 	// Commit the transaction
@@ -413,85 +507,6 @@ func (uc *UseCase) bulkInsertOperationsTx(
 	return nil
 }
 
-// performBulkStatusUpdate handles status transitions for transactions.
-// Uses bulk update for large batches and individual updates for small batches.
-func (uc *UseCase) performBulkStatusUpdate(
-	ctx context.Context,
-	logger libLog.Logger,
-	transactions []*transaction.Transaction,
-	result *BulkResult,
-) error {
-	result.TransactionsUpdateAttempted = int64(len(transactions))
-
-	if len(transactions) >= bulkUpdateThreshold {
-		return uc.bulkUpdateTransactionStatus(ctx, logger, transactions, result)
-	}
-
-	return uc.individualUpdateTransactionStatus(ctx, logger, transactions, result)
-}
-
-// bulkUpdateTransactionStatus uses bulk update for status transitions.
-func (uc *UseCase) bulkUpdateTransactionStatus(
-	ctx context.Context,
-	logger libLog.Logger,
-	transactions []*transaction.Transaction,
-	result *BulkResult,
-) error {
-	updateResult, err := uc.TransactionRepo.UpdateBulk(ctx, transactions)
-	if err != nil {
-		return fmt.Errorf("bulk update transactions: %w", err)
-	}
-
-	result.TransactionsUpdated = updateResult.Updated
-
-	logger.Log(ctx, libLog.LevelDebug, "Bulk updated transactions",
-		libLog.Int("attempted", int(result.TransactionsUpdateAttempted)),
-		libLog.Int("updated", int(updateResult.Updated)),
-		libLog.Int("unchanged", int(updateResult.Unchanged)))
-
-	return nil
-}
-
-// individualUpdateTransactionStatus uses individual updates for small batches.
-// Returns an aggregated error if any updates failed.
-func (uc *UseCase) individualUpdateTransactionStatus(
-	ctx context.Context,
-	logger libLog.Logger,
-	transactions []*transaction.Transaction,
-	result *BulkResult,
-) error {
-	var updated int64
-
-	var failureCount int64
-
-	for _, tx := range transactions {
-		_, err := uc.UpdateTransactionStatus(ctx, tx)
-		if err != nil {
-			logger.Log(ctx, libLog.LevelWarn, "Failed to update transaction status",
-				libLog.String("transaction_id", tx.ID), libLog.Err(err))
-
-			failureCount++
-
-			continue
-		}
-
-		updated++
-	}
-
-	result.TransactionsUpdated = updated
-
-	logger.Log(ctx, libLog.LevelDebug, "Individual updated transactions",
-		libLog.Int("attempted", int(result.TransactionsUpdateAttempted)),
-		libLog.Int("updated", int(updated)),
-		libLog.Int("failed", int(failureCount)))
-
-	if failureCount > 0 {
-		return fmt.Errorf("failed to update %d of %d transactions", failureCount, len(transactions))
-	}
-
-	return nil
-}
-
 // processMetadataAndEvents creates metadata and sends events for payloads that were actually inserted.
 // Skips duplicate transactions (those not in insertedTxIDs) to ensure idempotency.
 // If insertedTxIDs is nil or empty, processes all payloads (fallback behavior).
@@ -500,7 +515,7 @@ func (uc *UseCase) processMetadataAndEvents(
 	logger libLog.Logger,
 	payloads []transaction.TransactionProcessingPayload,
 	insertedTxIDs map[string]struct{},
-) {
+) error {
 	// Create all metadata in bulk (reduces N round-trips to 1 per collection)
 	uc.processMetadataAndEventsBulk(ctx, logger, payloads, insertedTxIDs)
 
@@ -512,31 +527,35 @@ func (uc *UseCase) processMetadataAndEvents(
 
 		tx := payload.Transaction
 
+		orgID, ledgerID, err := uc.extractOrgLedgerIDs(payload)
+		if err != nil {
+			return err
+		}
+
+		managedPersistence, err := uc.FinalizeDurableTransactionPersistence(ctx, orgID, ledgerID, payload)
+		if err != nil {
+			return fmt.Errorf("finalize transaction %s: %w", tx.ID, err)
+		}
+
 		// Clean up backup/write-behind entries for every payload that reached this stage,
 		// including duplicates ignored by INSERT ... ON CONFLICT DO NOTHING.
-		orgID, ledgerID, err := uc.extractOrgLedgerIDs(payload)
-		if err == nil {
-			useConditionalCleanup := strings.ToLower(os.Getenv("RABBITMQ_TRANSACTION_ASYNC")) == "true"
+		if !managedPersistence {
 			expectedStatus := utils.ExpectedBackupStatusForCleanup(tx.Status.Code, payload.Validate)
 
 			go func(orgID, ledgerID uuid.UUID, txID, status string) {
 				opCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), asyncOperationTimeout)
 				defer cancel()
 
-				if useConditionalCleanup {
-					uc.RemoveTransactionFromRedisQueueIfStatus(opCtx, logger, orgID, ledgerID, txID, status)
-				} else {
-					uc.RemoveTransactionFromRedisQueue(opCtx, logger, orgID, ledgerID, txID)
-				}
+				uc.RemoveTransactionFromRedisQueueIfStatus(opCtx, logger, orgID, ledgerID, txID, status, "", "")
 			}(orgID, ledgerID, tx.ID, expectedStatus)
-
-			go func(orgID, ledgerID uuid.UUID, txID string) {
-				opCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), asyncOperationTimeout)
-				defer cancel()
-
-				uc.DeleteWriteBehindTransaction(opCtx, orgID, ledgerID, txID)
-			}(orgID, ledgerID, tx.ID)
 		}
+
+		go func(orgID, ledgerID uuid.UUID, txID string) {
+			opCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), asyncOperationTimeout)
+			defer cancel()
+
+			uc.DeleteWriteBehindTransaction(opCtx, orgID, ledgerID, txID)
+		}(orgID, ledgerID, tx.ID)
 
 		// Skip if this transaction was not actually inserted (duplicate)
 		// If insertedTxIDs is empty, process all (fallback or status-update scenarios)
@@ -616,6 +635,8 @@ func (uc *UseCase) processMetadataAndEvents(
 			wg.Wait()
 		}(phase)
 	}
+
+	return nil
 }
 
 // fallbackToIndividualProcessing processes payloads individually when bulk fails.

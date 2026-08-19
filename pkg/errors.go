@@ -960,6 +960,24 @@ func ValidateBusinessError(err error, entityType string, args ...any) error {
 			Title:      "Duplicate Idempotency Key",
 			Message:    fmt.Sprintf("The idempotency key %v is already in use. Please provide a unique key and try again.", args...),
 		},
+		constant.ErrRevertReconciliationRequired: ServiceUnavailableError{
+			EntityType: entityType,
+			Code:       constant.ErrRevertReconciliationRequired.Error(),
+			Title:      "Transaction Revert Requires Reconciliation",
+			Message:    "The reversal may already have moved funds and is being reconciled. Retrying cannot create another reversal.",
+		},
+		constant.ErrRevertRolloutFreezeRequired: ServiceUnavailableError{
+			EntityType: entityType,
+			Code:       constant.ErrRevertRolloutFreezeRequired.Error(),
+			Title:      "Transaction Revert Rollout Freeze Required",
+			Message:    "The transaction update freeze required for the reversal rollout is not in the state required by this instance.",
+		},
+		constant.ErrTransactionOutcomeReconciliationRequired: ServiceUnavailableError{
+			EntityType: entityType,
+			Code:       constant.ErrTransactionOutcomeReconciliationRequired.Error(),
+			Title:      "Transaction Outcome Requires Reconciliation",
+			Message:    "The transaction may already have moved funds and its terminal outcome is being reconciled. Retrying cannot apply an opposite outcome.",
+		},
 		constant.ErrAccountAliasNotFound: EntityNotFoundError{
 			EntityType: entityType,
 			Code:       constant.ErrAccountAliasNotFound.Error(),
@@ -2891,6 +2909,30 @@ func ValidateBusinessError(err error, entityType string, args ...any) error {
 			Code:       constant.ErrReservationAlreadyTerminal.Error(),
 			Title:      "Reservation Already Terminal",
 			Message:    "Reservation: reservation is already in a terminal state.",
+		},
+		constant.ErrReservationDeliveryModeInvalid: ValidationError{
+			EntityType: entityType,
+			Code:       constant.ErrReservationDeliveryModeInvalid.Error(),
+			Title:      "Reservation Delivery Mode Invalid",
+			Message:    "Reservation: deliveryMode must be UNSPECIFIED, LEGACY, or LEDGER_OUTCOME_V2.",
+		},
+		constant.ErrReservationOutcomeInvalid: ValidationError{
+			EntityType: entityType,
+			Code:       constant.ErrReservationOutcomeInvalid.Error(),
+			Title:      "Reservation Outcome Invalid",
+			Message:    "Reservation: outcome must be COMMITTED or ABORTED.",
+		},
+		constant.ErrReservationOutcomeIDRequired: ValidationError{
+			EntityType: entityType,
+			Code:       constant.ErrReservationOutcomeIDRequired.Error(),
+			Title:      "Reservation Outcome ID Required",
+			Message:    "Reservation: outcomeId is required.",
+		},
+		constant.ErrReservationOutcomeConflict: EntityConflictError{
+			EntityType: entityType,
+			Code:       constant.ErrReservationOutcomeConflict.Error(),
+			Title:      "Reservation Outcome Conflict",
+			Message:    "Reservation: the transaction already has a different terminal outcome.",
 		},
 	}
 

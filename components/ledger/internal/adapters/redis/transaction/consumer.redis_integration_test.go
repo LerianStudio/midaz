@@ -394,8 +394,9 @@ func TestIntegration_Redis_BackupQueueOperations(t *testing.T) {
 	// 4. Remove messages from queue
 	t.Log("Step 4: Removing messages from queue")
 	for i, key := range messageKeys {
-		err := infra.repo.RemoveMessageFromQueue(ctx, key)
+		removed, err := infra.repo.RemoveMessageFromQueueIfValue(ctx, key, messages[key])
 		require.NoError(t, err, "should remove message %d", i)
+		assert.True(t, removed, "should remove the exact message %d", i)
 	}
 
 	// 5. Verify our test messages are removed

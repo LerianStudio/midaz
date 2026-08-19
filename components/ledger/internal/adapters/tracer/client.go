@@ -6,9 +6,9 @@
 // two-phase reservation API (POST /v1/reservations and the per-id
 // confirm/release transitions). It offers an HTTP (REST) and a gRPC transport
 // behind the same TracerReserver port; the composition root selects one from
-// cfg.TracerTransport. Service identity is mutual TLS (Epic 1.3), so neither
-// transport carries a static shared secret; the tenant travels as a trusted
-// X-Tenant-Id header / metadata (Phase 2) over the mTLS-verified connection.
+// cfg.TracerTransport. REST uses the Tracer's X-API-Key guard in addition to
+// the mTLS/mesh transport identity; gRPC remains mTLS-authenticated. The tenant
+// travels as trusted X-Tenant-Id header / metadata over the verified seam.
 package tracer
 
 import (
@@ -48,6 +48,10 @@ const (
 	// maxErrorResponseSize limits how much of an error response body is read to
 	// prevent OOM from a misconfigured or hostile upstream.
 	maxErrorResponseSize = 1 << 20 // 1 MB
+
+	// APIKeyHeader is the Tracer REST API's application credential header.
+	// #nosec G101 -- header name, not a credential value.
+	APIKeyHeader = "X-API-Key"
 )
 
 // ErrTracerUnavailable is the typed error returned when the reservation
@@ -105,6 +109,42 @@ type ReserveRequest struct {
 	// overload of transactionType=pending-long-lived, which polluted the
 	// transaction-type field and broke the tracer's reserve validation.
 	LongLived bool `json:"longLived,omitempty"`
+	// DeliveryMode selects the reservation termination protocol. Empty preserves
+	// the legacy confirm/release flow; LEDGER_OUTCOME_V2 waits for ApplyOutcome.
+	DeliveryMode ReservationDeliveryMode `json:"deliveryMode,omitempty"`
+}
+
+// ReservationDeliveryMode selects who owns reservation termination.
+type ReservationDeliveryMode string
+
+const (
+	DeliveryModeLegacy          ReservationDeliveryMode = "LEGACY"
+	DeliveryModeLedgerOutcomeV2 ReservationDeliveryMode = "LEDGER_OUTCOME_V2"
+)
+
+// ReservationOutcome is the Ledger's immutable terminal accounting decision.
+type ReservationOutcome string
+
+const (
+	ReservationOutcomeCommitted ReservationOutcome = "COMMITTED"
+	ReservationOutcomeAborted   ReservationOutcome = "ABORTED"
+)
+
+// ApplyOutcomeRequest is the durable terminal decision delivered to Tracer.
+type ApplyOutcomeRequest struct {
+	TransactionID uuid.UUID          `json:"-"`
+	OutcomeID     uuid.UUID          `json:"outcomeId"`
+	Outcome       ReservationOutcome `json:"outcome"`
+}
+
+// ApplyOutcomeResult is Tracer's durable receipt. Replayed is informational;
+// both a first application and an exact replay acknowledge delivery.
+type ApplyOutcomeResult struct {
+	TransactionID    uuid.UUID          `json:"transactionId"`
+	OutcomeID        uuid.UUID          `json:"outcomeId"`
+	Outcome          ReservationOutcome `json:"outcome"`
+	ReservationCount int                `json:"reservationCount"`
+	Replayed         bool               `json:"replayed"`
 }
 
 // ReserveResult is the handle returned by a successful reserve. Denied is the
@@ -112,9 +152,10 @@ type ReserveRequest struct {
 // ReservationIDs holds one id per counter-backed limit the ledger must later
 // confirm or release.
 type ReserveResult struct {
-	TransactionID  uuid.UUID   `json:"transactionId"`
-	Denied         bool        `json:"denied"`
-	ReservationIDs []uuid.UUID `json:"reservationIds"`
+	TransactionID  uuid.UUID               `json:"transactionId"`
+	Denied         bool                    `json:"denied"`
+	ReservationIDs []uuid.UUID             `json:"reservationIds"`
+	DeliveryMode   ReservationDeliveryMode `json:"deliveryMode"`
 }
 
 // TracerClient is the HTTP client for the tracer reservation API.
@@ -122,6 +163,16 @@ type TracerClient struct {
 	baseURL          string
 	httpClient       *http.Client
 	operationTimeout time.Duration
+	apiKey           string
+}
+
+// WithAPIKey configures the application credential required by the Tracer's
+// REST reservation routes. The value is kept only in memory and never logged
+// or included in transport errors.
+func WithAPIKey(apiKey string) TracerClientOption {
+	return func(c *TracerClient) {
+		c.apiKey = strings.TrimSpace(apiKey)
+	}
 }
 
 // TracerClientOption configures a TracerClient.
@@ -194,7 +245,15 @@ func (c *TracerClient) Reserve(ctx context.Context, req ReserveRequest) (*Reserv
 		return nil, fmt.Errorf("marshal reserve request: %w", err)
 	}
 
-	resp, err := c.do(ctx, http.MethodPost, "/v1/reservations", body)
+	path := "/v1/reservations"
+	if req.DeliveryMode == DeliveryModeLedgerOutcomeV2 {
+		// The distinct operation is the rollout capability barrier: a pre-V2
+		// Tracer returns 404 before it can create a legacy hold. Never fall back
+		// to the legacy collection after that response.
+		path = "/v1/reservations/ledger-outcome-v2"
+	}
+
+	resp, err := c.do(ctx, path, body)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(span, "Reserve transport failed", err)
 		return nil, err
@@ -253,10 +312,55 @@ func (c *TracerClient) ReleaseByTransaction(ctx context.Context, transactionID u
 	return c.transitionByTransaction(ctx, "release", transactionID)
 }
 
+// ApplyOutcome durably applies the Ledger-owned V2 terminal decision. An exact
+// retry returns the same receipt and is therefore a successful acknowledgement.
+func (c *TracerClient) ApplyOutcome(ctx context.Context, req ApplyOutcomeRequest) (*ApplyOutcomeResult, error) {
+	_, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
+
+	ctx, span := tracer.Start(ctx, "tracer.client.apply_outcome")
+	defer span.End()
+
+	span.SetAttributes(attribute.String("app.request.transaction_id", req.TransactionID.String()))
+
+	body, err := json.Marshal(req)
+	if err != nil {
+		return nil, fmt.Errorf("marshal reservation outcome: %w", err)
+	}
+
+	path := fmt.Sprintf("/v1/reservations/transaction/%s/outcome", req.TransactionID.String())
+
+	resp, err := c.do(ctx, path, body)
+	if err != nil {
+		libOpentelemetry.HandleSpanError(span, "ApplyOutcome transport failed", err)
+		return nil, err
+	}
+
+	defer func() { _ = resp.Body.Close() }()
+
+	if resp.StatusCode != http.StatusOK {
+		err := c.statusError("apply outcome", resp)
+		libOpentelemetry.HandleSpanError(span, "ApplyOutcome returned unexpected status", err)
+
+		return nil, err
+	}
+
+	var result ApplyOutcomeResult
+	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+		return nil, fmt.Errorf("decode reservation outcome receipt: %w", err)
+	}
+
+	if result.TransactionID != req.TransactionID || result.OutcomeID != req.OutcomeID || result.Outcome != req.Outcome {
+		return nil, errors.New("tracer returned a mismatched reservation outcome receipt")
+	}
+
+	return &result, nil
+}
+
 // transitionByTransaction is the shared by-transaction confirm/release body: POST
 // the action under the /reservations/transaction/{id}/{action} path and require a
-// 200. Availability failures return ErrTracerUnavailable so the caller's
-// best-effort post-commit transport can swallow them (the TTL reaper backstops).
+// 200. Availability failures return ErrTracerUnavailable. The caller currently
+// swallows post-commit failures, which leaves a known usage-undercount window
+// when the reservation later expires after money has already moved.
 func (c *TracerClient) transitionByTransaction(ctx context.Context, action string, transactionID uuid.UUID) error {
 	_, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
@@ -267,7 +371,7 @@ func (c *TracerClient) transitionByTransaction(ctx context.Context, action strin
 
 	path := fmt.Sprintf("/v1/reservations/transaction/%s/%s", transactionID.String(), action)
 
-	resp, err := c.do(ctx, http.MethodPost, path, nil)
+	resp, err := c.do(ctx, path, nil)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(span, "Reservation by-transaction transition transport failed", err)
 		return err
@@ -297,7 +401,7 @@ func (c *TracerClient) transition(ctx context.Context, action string, reservatio
 
 	path := fmt.Sprintf("/v1/reservations/%s/%s", reservationID.String(), action)
 
-	resp, err := c.do(ctx, http.MethodPost, path, nil)
+	resp, err := c.do(ctx, path, nil)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(span, "Reservation transition transport failed", err)
 		return err
@@ -323,7 +427,7 @@ func (c *TracerClient) transition(ctx context.Context, action string, reservatio
 // ErrTracerUnavailable so the reserve anchor can branch on tracer.failPosture;
 // a non-2xx status is NOT an availability failure and is surfaced verbatim by
 // the caller's status check.
-func (c *TracerClient) do(ctx context.Context, method, path string, body []byte) (*http.Response, error) {
+func (c *TracerClient) do(ctx context.Context, path string, body []byte) (*http.Response, error) {
 	ctx, cancel := context.WithTimeout(ctx, c.operationTimeout)
 	defer cancel()
 
@@ -333,13 +437,17 @@ func (c *TracerClient) do(ctx context.Context, method, path string, body []byte)
 		bodyReader = bytes.NewReader(body)
 	}
 
-	req, err := http.NewRequestWithContext(ctx, method, c.baseURL+path, bodyReader)
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, c.baseURL+path, bodyReader)
 	if err != nil {
 		return nil, fmt.Errorf("build tracer request: %w", err)
 	}
 
 	if body != nil {
 		req.Header.Set("Content-Type", "application/json")
+	}
+
+	if c.apiKey != "" {
+		req.Header.Set(APIKeyHeader, c.apiKey)
 	}
 
 	// Propagate the W3C trace context so the tracer's otelfiber middleware
@@ -369,9 +477,9 @@ const TenantHeader = "X-Tenant-Id"
 var tenantMetadataKey = strings.ToLower(TenantHeader)
 
 // injectTenant propagates the request's tenant to the tracer as the trusted
-// X-Tenant-Id header. mTLS replaces token identity, so there is no Authorization
-// header; the tenant travels as the trusted header over the mTLS-verified
-// connection. The value is resolved from context via tmcore.GetTenantIDContext;
+// X-Tenant-Id header. The application API key is orthogonal to this routing
+// identity and never carries a tenant. The value is resolved from context via
+// tmcore.GetTenantIDContext;
 // in single-tenant mode it is empty and no header is set (the tracer then runs
 // its single-tenant pass-through). The tenant value is never logged.
 func (c *TracerClient) injectTenant(ctx context.Context, req *http.Request) {
