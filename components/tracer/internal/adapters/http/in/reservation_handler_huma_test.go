@@ -42,6 +42,7 @@ type reservationSpyService struct {
 	capturedAction string
 	capturedTxID   uuid.UUID
 	capturedResID  uuid.UUID
+	capturedMode   model.ReservationDeliveryMode
 
 	reserveResult *services.ReserveResult
 	reserveErr    error
@@ -53,9 +54,12 @@ type reservationSpyService struct {
 	outcomeErr    error
 }
 
-func (s *reservationSpyService) Reserve(ctx context.Context, transactionID uuid.UUID, _ *model.CheckLimitsInput, _ bool, _ ...model.ReservationDeliveryMode) (*services.ReserveResult, error) {
+func (s *reservationSpyService) Reserve(ctx context.Context, transactionID uuid.UUID, _ *model.CheckLimitsInput, _ bool, modes ...model.ReservationDeliveryMode) (*services.ReserveResult, error) {
 	s.capturedTenant = tmctx.GetTenantIDContext(ctx)
 	s.capturedTxID = transactionID
+	if len(modes) > 0 {
+		s.capturedMode = modes[0]
+	}
 	return s.reserveResult, s.reserveErr
 }
 
@@ -171,6 +175,43 @@ func TestHuma_Reserve_Success(t *testing.T) {
 
 	assert.Equal(t, "tenant-alpha", svc.capturedTenant,
 		"tenant from c.Context() must reach the service via the Huma handler ctx")
+}
+
+func TestHuma_ReserveV2_RequiresAndEchoesV2(t *testing.T) {
+	reservationID := testutil.MustDeterministicUUID(11)
+	svc := &reservationSpyService{reserveResult: &services.ReserveResult{
+		ReservationIDs: []uuid.UUID{reservationID},
+		DeliveryMode:   model.DeliveryModeLedgerOutcomeV2,
+	}}
+	app := buildHumaReservationApp(t, svc, "tenant-v2")
+
+	request := newValidReserveRequest()
+	request.DeliveryMode = model.DeliveryModeLedgerOutcomeV2
+	body, err := json.Marshal(request)
+	require.NoError(t, err)
+	req := httptest.NewRequest(http.MethodPost, "/v1/reservations/ledger-outcome-v2", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
+	require.NoError(t, err)
+	defer func() { _ = resp.Body.Close() }()
+	require.Equal(t, http.StatusCreated, resp.StatusCode)
+
+	var got ReserveResponse
+	require.NoError(t, json.NewDecoder(resp.Body).Decode(&got))
+	assert.Equal(t, model.DeliveryModeLedgerOutcomeV2, got.DeliveryMode)
+	assert.Equal(t, model.DeliveryModeLedgerOutcomeV2, svc.capturedMode)
+	assert.Equal(t, "tenant-v2", svc.capturedTenant)
+
+	omittedSvc := &reservationSpyService{}
+	omittedApp := buildHumaReservationApp(t, omittedSvc, "tenant-v2")
+	omittedReq := httptest.NewRequest(http.MethodPost, "/v1/reservations/ledger-outcome-v2", bytes.NewReader(validReserveBody(t)))
+	omittedReq.Header.Set("Content-Type", "application/json")
+	omittedResp, err := omittedApp.Test(omittedReq, fiber.TestConfig{Timeout: 0})
+	require.NoError(t, err)
+	defer func() { _ = omittedResp.Body.Close() }()
+	assert.Equal(t, http.StatusBadRequest, omittedResp.StatusCode)
+	assert.Equal(t, uuid.Nil, omittedSvc.capturedTxID, "invalid V2 mode must fail before the service")
 }
 
 func TestHuma_ApplyOutcome_PreservesTenantAndReceipt(t *testing.T) {

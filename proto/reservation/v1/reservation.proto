@@ -21,6 +21,10 @@ service ReservationService {
   // reservation_ids, not a transport error.
   rpc Reserve(ReserveRequest) returns (ReserveResult);
 
+  // ReserveV2 is a capability-safe entry point for ledger-owned outcomes. A
+  // pre-V2 server returns UNIMPLEMENTED before creating a legacy reservation.
+  rpc ReserveV2(ReserveV2Request) returns (ReserveV2Response);
+
   // ConfirmByTransaction commits EVERY reservation a transaction holds.
   rpc ConfirmByTransaction(ConfirmByTransactionRequest) returns (ConfirmByTransactionResponse);
 
@@ -101,6 +105,21 @@ message ReserveResult {
   string transaction_id = 1;
   bool denied = 2;
   repeated string reservation_ids = 3;
+  // delivery_mode is the protocol the Tracer actually accepted after
+  // normalization. Callers requesting V2 must require an explicit V2 echo;
+  // absence means the response came from a legacy server.
+  ReservationDeliveryMode delivery_mode = 4;
+}
+
+// ReserveV2Request wraps the additive reserve shape under a distinct RPC input
+// so capability negotiation fails before any old server can create state.
+message ReserveV2Request {
+  ReserveRequest reserve = 1;
+}
+
+// ReserveV2Response carries the same normalized ReserveResult contract.
+message ReserveV2Response {
+  ReserveResult result = 1;
 }
 
 // ConfirmByTransactionRequest commits every reservation held by a transaction.

@@ -143,7 +143,24 @@ func (c *TracerGRPCClient) Reserve(ctx context.Context, req ReserveRequest) (*Re
 	ctx, cancel := context.WithTimeout(ctx, c.operationTimeout)
 	defer cancel()
 
-	resp, err := c.client.Reserve(ctx, toProtoReserveRequest(req))
+	var (
+		resp *reservationv1.ReserveResult
+		err  error
+	)
+	if req.DeliveryMode == DeliveryModeLedgerOutcomeV2 {
+		// ReserveV2 is deliberately a separate RPC. An old Tracer returns
+		// UNIMPLEMENTED before creating state; falling back here would leak a
+		// legacy hold, so the error is returned unchanged through mapGRPCError.
+		v2Resp, reserveErr := c.client.ReserveV2(ctx, &reservationv1.ReserveV2Request{
+			Reserve: toProtoReserveRequest(req),
+		})
+		if reserveErr == nil {
+			resp = v2Resp.GetResult()
+		}
+		err = reserveErr
+	} else {
+		resp, err = c.client.Reserve(ctx, toProtoReserveRequest(req))
+	}
 	if err != nil {
 		mapped := mapGRPCError(err)
 		libOpentelemetry.HandleSpanError(span, "Reserve transport failed", mapped)
@@ -405,11 +422,30 @@ func fromProtoReserveResult(resp *reservationv1.ReserveResult) (*ReserveResult, 
 		ids = append(ids, id)
 	}
 
+	deliveryMode, err := reservationDeliveryModeFromProto(resp.GetDeliveryMode())
+	if err != nil {
+		return nil, err
+	}
+
 	return &ReserveResult{
 		TransactionID:  transactionID,
 		Denied:         resp.GetDenied(),
 		ReservationIDs: ids,
+		DeliveryMode:   deliveryMode,
 	}, nil
+}
+
+func reservationDeliveryModeFromProto(mode reservationv1.ReservationDeliveryMode) (ReservationDeliveryMode, error) {
+	switch mode {
+	case reservationv1.ReservationDeliveryMode_RESERVATION_DELIVERY_MODE_UNSPECIFIED:
+		return "", nil
+	case reservationv1.ReservationDeliveryMode_RESERVATION_DELIVERY_MODE_LEGACY:
+		return DeliveryModeLegacy, nil
+	case reservationv1.ReservationDeliveryMode_RESERVATION_DELIVERY_MODE_LEDGER_OUTCOME_V2:
+		return DeliveryModeLedgerOutcomeV2, nil
+	default:
+		return "", fmt.Errorf("unsupported reservation delivery mode %d", mode)
+	}
 }
 
 // mapGRPCError normalises a gRPC RPC error to the seam's error vocabulary.

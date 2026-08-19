@@ -113,6 +113,12 @@ func (r *UsageReservationRepository) ReserveWithTx(ctx context.Context, db pgdb.
 	`
 
 	var persistedID uuid.UUID
+	var reservationExpiresAt any = reservation.ReservationExpiresAt
+	if reservation.DeliveryMode == model.DeliveryModeLedgerOutcomeV2 {
+		// NULL is a wire-compatible barrier against pre-V2 reapers: their fixed
+		// `reservation_expires_at < now` predicate cannot discover this row.
+		reservationExpiresAt = nil
+	}
 
 	err := db.QueryRowContext(
 		ctx,
@@ -125,7 +131,7 @@ func (r *UsageReservationRepository) ReserveWithTx(ctx context.Context, db pgdb.
 		string(reservation.Status),
 		string(reservation.DeliveryMode),
 		reservation.TransactionID,
-		reservation.ReservationExpiresAt,
+		reservationExpiresAt,
 		reservation.CreatedAt,
 	).Scan(&persistedID)
 	if errors.Is(err, sql.ErrNoRows) {
@@ -838,40 +844,9 @@ func (r *UsageReservationRepository) lockReservedByTransaction(ctx context.Conte
 	var reservations []*model.Reservation
 
 	for rows.Next() {
-		var (
-			res         model.Reservation
-			status      string
-			confirmedAt sql.NullTime
-			releasedAt  sql.NullTime
-		)
-
-		if err := rows.Scan(
-			&res.ID,
-			&res.LimitID,
-			&res.ScopeKey,
-			&res.PeriodKey,
-			&res.Amount,
-			&status,
-			&res.DeliveryMode,
-			&res.TransactionID,
-			&res.ReservationExpiresAt,
-			&res.CreatedAt,
-			&confirmedAt,
-			&releasedAt,
-		); err != nil {
+		res, err := scanReservation(rows.Scan)
+		if err != nil {
 			return nil, fmt.Errorf("failed to scan reserved row: %w", err)
-		}
-
-		res.Status = model.ReservationStatus(status)
-
-		if confirmedAt.Valid {
-			t := confirmedAt.Time
-			res.ConfirmedAt = &t
-		}
-
-		if releasedAt.Valid {
-			t := releasedAt.Time
-			res.ReleasedAt = &t
 		}
 
 		deliveryMode, err := res.DeliveryMode.Normalize()
@@ -880,7 +855,7 @@ func (r *UsageReservationRepository) lockReservedByTransaction(ctx context.Conte
 		}
 
 		if res.Status == model.StatusReserved {
-			reservations = append(reservations, &res)
+			reservations = append(reservations, res)
 		}
 	}
 
@@ -903,27 +878,7 @@ func (r *UsageReservationRepository) lockReservation(ctx context.Context, db pgd
 		FOR UPDATE
 	`
 
-	var (
-		res         model.Reservation
-		status      string
-		confirmedAt sql.NullTime
-		releasedAt  sql.NullTime
-	)
-
-	err := db.QueryRowContext(ctx, selectSQL, reservationID).Scan(
-		&res.ID,
-		&res.LimitID,
-		&res.ScopeKey,
-		&res.PeriodKey,
-		&res.Amount,
-		&status,
-		&res.DeliveryMode,
-		&res.TransactionID,
-		&res.ReservationExpiresAt,
-		&res.CreatedAt,
-		&confirmedAt,
-		&releasedAt,
-	)
+	res, err := scanReservation(db.QueryRowContext(ctx, selectSQL, reservationID).Scan)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, constant.ErrReservationNotFound
 	}
@@ -932,25 +887,14 @@ func (r *UsageReservationRepository) lockReservation(ctx context.Context, db pgd
 		return nil, fmt.Errorf("failed to load reservation: %w", err)
 	}
 
-	res.Status = model.ReservationStatus(status)
-
-	if confirmedAt.Valid {
-		t := confirmedAt.Time
-		res.ConfirmedAt = &t
-	}
-
-	if releasedAt.Valid {
-		t := releasedAt.Time
-		res.ReleasedAt = &t
-	}
-
-	return &res, nil
+	return res, nil
 }
 
 func scanReservation(scan func(dest ...any) error) (*model.Reservation, error) {
 	var (
 		reservation model.Reservation
 		status      string
+		expiresAt   sql.NullTime
 		confirmedAt sql.NullTime
 		releasedAt  sql.NullTime
 	)
@@ -964,7 +908,7 @@ func scanReservation(scan func(dest ...any) error) (*model.Reservation, error) {
 		&status,
 		&reservation.DeliveryMode,
 		&reservation.TransactionID,
-		&reservation.ReservationExpiresAt,
+		&expiresAt,
 		&reservation.CreatedAt,
 		&confirmedAt,
 		&releasedAt,
@@ -973,6 +917,9 @@ func scanReservation(scan func(dest ...any) error) (*model.Reservation, error) {
 	}
 
 	reservation.Status = model.ReservationStatus(status)
+	if expiresAt.Valid {
+		reservation.ReservationExpiresAt = expiresAt.Time
+	}
 
 	if confirmedAt.Valid {
 		t := confirmedAt.Time

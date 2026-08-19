@@ -115,12 +115,18 @@ func TestReservationHandler_Reserve(t *testing.T) {
 				m := mocks.NewMockReservationService(ctrl)
 				m.EXPECT().
 					Reserve(gomock.Any(), testutil.MustDeterministicUUID(1), gomock.Any(), false, model.DeliveryModeLedgerOutcomeV2).
-					Return(&services.ReserveResult{ReservationIDs: []uuid.UUID{reservationID}}, nil)
+					Return(&services.ReserveResult{
+						ReservationIDs: []uuid.UUID{reservationID},
+						DeliveryMode:   model.DeliveryModeLedgerOutcomeV2,
+					}, nil)
 				return m
 			},
 			expectedStatus: http.StatusCreated,
 			expectedBody: func(t *testing.T, body []byte) {
-				assert.Contains(t, string(body), reservationID.String())
+				var resp ReserveResponse
+				require.NoError(t, json.Unmarshal(body, &resp))
+				assert.Contains(t, resp.ReservationIDs, reservationID)
+				assert.Equal(t, model.DeliveryModeLedgerOutcomeV2, resp.DeliveryMode)
 			},
 		},
 		{

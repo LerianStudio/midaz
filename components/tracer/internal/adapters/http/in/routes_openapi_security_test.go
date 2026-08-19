@@ -63,6 +63,7 @@ type openAPISchema struct {
 	Ref        string                   `json:"$ref"`
 	Type       any                      `json:"type"`
 	Enum       []any                    `json:"enum"`
+	Examples   []any                    `json:"examples"`
 	Properties map[string]openAPISchema `json:"properties"`
 	Required   []string                 `json:"required"`
 }
@@ -91,6 +92,13 @@ func TestSpecLock_ReservationV2RequestBodies(t *testing.T) {
 	assert.ElementsMatch(t, []any{"UNSPECIFIED", "LEGACY", "LEDGER_OUTCOME_V2"}, delivery.Enum)
 	assert.NotContains(t, reserve.Required, "account", "reserve accepts transactions without an internal account")
 	assert.NotContains(t, reserve.Required, "transactionType", "reserve accepts external-source transactions without a rail type")
+
+	reserveV2 := requestSchema(t, spec, "/reservations/ledger-outcome-v2")
+	v2Delivery, ok := reserveV2.Properties["deliveryMode"]
+	require.True(t, ok, "V2 Reserve must publish deliveryMode")
+	assert.ElementsMatch(t, []any{"UNSPECIFIED", "LEGACY", "LEDGER_OUTCOME_V2"}, v2Delivery.Enum)
+	assert.Contains(t, reserveV2.Required, "deliveryMode")
+	assert.Equal(t, []any{"LEDGER_OUTCOME_V2"}, v2Delivery.Examples)
 
 	outcome := requestSchema(t, spec, "/reservations/transaction/{transaction_id}/outcome")
 	require.Contains(t, outcome.Properties, "outcomeId")
@@ -219,8 +227,9 @@ func TestSpecLock_AllOpsSecurity(t *testing.T) {
 		{"/limits/{id}/draft", http.MethodPost, bearerOrAPIKey},
 		{"/limits/{id}", http.MethodDelete, bearerOrAPIKey},
 		{"/limits/{id}/usage", http.MethodGet, bearerOrAPIKey},
-		// reservations (6)
+		// reservations (7)
 		{"/reservations", http.MethodPost, apiKeyOnly},
+		{"/reservations/ledger-outcome-v2", http.MethodPost, apiKeyOnly},
 		{"/reservations/transaction/{transaction_id}/outcome", http.MethodPost, apiKeyOnly},
 		{"/reservations/{id}/confirm", http.MethodPost, apiKeyOnly},
 		{"/reservations/{id}/release", http.MethodPost, apiKeyOnly},
@@ -237,7 +246,7 @@ func TestSpecLock_AllOpsSecurity(t *testing.T) {
 		{"/audit-events/{id}/verify", http.MethodGet, bearerOrAPIKey},
 	}
 
-	require.Lenf(t, cases, 29, "the tracer has 29 protected Huma ops; keep this table complete")
+	require.Lenf(t, cases, 30, "the tracer has 30 protected Huma ops; keep this table complete")
 
 	for _, tc := range cases {
 		t.Run(tc.method+" "+tc.path, func(t *testing.T) {

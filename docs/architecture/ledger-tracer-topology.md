@@ -273,9 +273,13 @@ Tracer owns reservation capacity and the durable receipt. There is no Tracer-to-
 
 ### Protocol
 
-1. `Reserve` carries `delivery_mode`. Omitted / `UNSPECIFIED` / `LEGACY` selects V1 exactly: existing
-   confirm/release operations and autonomous TTL expiry remain available. `LEDGER_OUTCOME_V2`
-   selects Ledger-owned termination.
+1. V1 continues to use `POST /v1/reservations` / `Reserve`. V2 uses the distinct
+   `POST /v1/reservations/ledger-outcome-v2` / `ReserveV2` operation and carries
+   `delivery_mode=LEDGER_OUTCOME_V2`. A pre-V2 server therefore returns `404` / `UNIMPLEMENTED`
+   **before creating any hold**; the Ledger never falls back to the legacy operation. Every successful
+   reserve response echoes the delivery mode the Tracer actually accepted. A V2 Ledger requires an
+   explicit V2 echo and rejects a legacy or omitted echo before the balance path. On the V1 operation,
+   omitted / `UNSPECIFIED` / `LEGACY` continues to select legacy confirm/release plus autonomous TTL.
 2. After its own durable decision, the Ledger delivers
    `ApplyOutcome(transactionId, outcomeId, COMMITTED|ABORTED)` over REST or gRPC. `COMMITTED` moves
    every reservation from held capacity to consumed usage; `ABORTED` returns every hold. The Tracer
@@ -292,7 +296,14 @@ Tracer owns reservation capacity and the durable receipt. There is no Tracer-to-
 
 ### Expiry and observability
 
-The reaper selects `LEGACY` reservations only. A V2 reservation stays `RESERVED` until the Ledger
+V2 reservations persist `reservation_expires_at=NULL`; legacy reservations are constrained to a
+non-null expiry. That representation is deliberate rolling-deploy compatibility: the fixed predicate
+in a pre-V2 reaper (`status='RESERVED' AND reservation_expires_at < now`) cannot discover a V2 row.
+Database triggers also reject any live V2 status change or deletion without the matching durable
+outcome receipt, and silently prevent deletion of a counter that backs a live V2 hold. Therefore an
+old reaper's counter decrement is rolled back with its rejected row transition, while an old cleanup
+worker skips the protected counter. The new reaper additionally selects `LEGACY` reservations only.
+A V2 reservation stays `RESERVED` until the Ledger
 delivers `COMMITTED` or `ABORTED`, including PENDING reservations older than 30 days. This deliberately
 prefers held capacity over silently reopening a limit after money may have moved. The reaper reports
 the V2 outstanding count and oldest age as gauges; observing a stale backlog never releases it. The
@@ -314,9 +325,13 @@ or audit the original tenant's reservation.
 
 ### Rollout and rollback
 
-1. Deploy migration `000021` and the Tracer first, with no V2 traffic. This is additive: all existing
-   callers remain V1.
-2. Deploy the Ledger-side durable outcome dispatcher second, then enable
+1. Deploy migration `000021` first. Existing binaries remain safe: their inserts receive the `LEGACY`
+   default, their reaper cannot see NULL-expiry V2 rows, and database triggers prevent their cleanup
+   paths from mutating live V2 state.
+2. Deploy the V2 Tracer across the fleet. Mixed Tracer fleets are safe: a V2 reserve routed to an old
+   pod fails at the distinct operation before a hold exists, and an outcome routed to an old pod fails
+   for retry. Neither failure can reach the Ledger money path or reopen held capacity.
+3. Deploy the Ledger-side durable outcome dispatcher, then enable
    `TRACER_OUTCOME_MODE=ledger_outcome_v2` reservation traffic. The Ledger persists `PREPARED` before
    Reserve and the balance Lua projects its exact economic proof into a dedicated outcome outbox;
    the Ledger must durably retain that outcome until the Tracer
@@ -329,12 +344,12 @@ or audit the original tenant's reservation.
    an unchanged inventory generation. An absent record is removed from those indexes only through the
    explicit missing-record quarantine path, so a concurrent prepare or tenant deletion cannot make backlog
    undiscoverable.
-3. During rollback, set `TRACER_OUTCOME_MODE=legacy` to stop new V2 reserves but keep
+4. During rollback, set `TRACER_OUTCOME_MODE=legacy` to stop new V2 reserves but keep
    `TRACER_OUTCOME_WORKER_ENABLED=true`; keep a Tracer version that understands V2 and the dispatcher running
    until the V2 outstanding gauge reaches zero. Disabling new V2 reserves does not make the existing
    backlog safe to forget.
-4. The migration down path refuses to remove V2 support while any V2 reservation or outcome receipt
-   exists and locks outcome writers across its guard and schema removal. Drain/archive that state
+5. The migration down path takes exclusive locks on receipts, reservations, and counters, then refuses
+   to remove V2 support while any V2 reservation or outcome receipt exists. Drain/archive that state
    explicitly before schema rollback; a forced rollback would erase the proof that money-path
    outcomes were applied exactly once.
 
@@ -346,6 +361,12 @@ admission unless every Redis shard proves `maxmemory-policy=noeviction`, `append
 AOF write, and `appendfsync=always|everysec`. `appendfsync=everysec` deliberately accepts an acknowledged
 persistence RPO of approximately one second; `always` is required where even that loss window is not
 acceptable. These checks are shared with revert durability but are not coupled to the revert rollout state.
+
+An old application binary cannot deliver an existing V2 outcome. Rolling it back while V2 state is
+live is therefore availability-fail-closed, not data-loss-safe progress: V2 capacity remains held and
+the Ledger keeps retrying until a V2 Tracer returns. The database invariants prevent that old binary
+from expiring or deleting the hold, and the down migration prevents removing those invariants while
+the backlog or its receipts exist.
 
 > **NOTE — `:4021` is illustrative, not canonical.** `TRACER_GRPC_PORT`'s doc comment says *"e.g.
 > :4021"* (`tracer/config.go:51`). There is no default value and no `EXPOSE 4021` anywhere. `:4021` is an

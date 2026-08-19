@@ -6,6 +6,7 @@ package in
 
 import (
 	"context"
+	"fmt"
 	"strings"
 	"time"
 
@@ -125,6 +126,17 @@ func (handler *TransactionHandler) reserveTransaction(
 	result, err := handler.TracerReserver.Reserve(ctx, req)
 	if err != nil {
 		return handler.handleReserveError(ctx, span, logger, settings, transactionID, advisory, useDurableOutcome, err)
+	}
+
+	if useDurableOutcome && result.DeliveryMode != tracer.DeliveryModeLedgerOutcomeV2 {
+		libOpentelemetry.HandleSpanError(span, "Tracer did not accept the durable reservation protocol",
+			fmt.Errorf("accepted delivery mode %q", result.DeliveryMode))
+
+		return reservationOutcome{
+			Kind:      reservationReject,
+			Err:       transactionLifecycleReconciliationError(),
+			Ambiguous: true,
+		}
 	}
 
 	if result.Denied {

@@ -7,6 +7,7 @@
 package postgres
 
 import (
+	"context"
 	"database/sql"
 	"os"
 	"path/filepath"
@@ -72,6 +73,94 @@ func TestIntegration_Migration000021_UpSchemaAndLegacyDefault(t *testing.T) {
 	`).Scan(&supportingIndexes)
 	require.NoError(t, err)
 	require.Equal(t, 2, supportingIndexes)
+
+	var reservationExpiryNullable string
+	err = db.QueryRow(`
+		SELECT is_nullable
+		FROM information_schema.columns
+		WHERE table_schema = 'public'
+		  AND table_name = 'usage_reservations'
+		  AND column_name = 'reservation_expires_at'
+	`).Scan(&reservationExpiryNullable)
+	require.NoError(t, err)
+	require.Equal(t, "YES", reservationExpiryNullable)
+}
+
+func TestIntegration_Migration000021_OldWorkersCannotMutateV2Holds(t *testing.T) {
+	db := testutil.SetupIntegrationDB(t)
+	limitID := createTestLimitNamed(t, db, 9971, "migration-old-worker-v2")
+	transactionID := testutil.MustDeterministicUUID(9972)
+	now := time.Date(2026, 8, 18, 18, 0, 0, 0, time.UTC)
+	reservation := newV2Reservation(t, limitID, transactionID, "v2:9972", "2026-08", 25, now)
+	repo := newReservationRepoIntegration(db)
+	counterExpiresAt := now.Add(-time.Hour)
+	t.Cleanup(func() {
+		_, _ = db.Exec(`
+			INSERT INTO reservation_outcome_receipts
+				(transaction_id, outcome_id, outcome, reservation_count, applied_at)
+			VALUES ($1, $2, 'ABORTED', 1, $3)
+			ON CONFLICT (transaction_id) DO NOTHING
+		`, transactionID, testutil.MustDeterministicUUID(9973), now.Add(time.Minute))
+		_, _ = db.Exec(`
+			UPDATE usage_reservations
+			SET status = 'RELEASED', released_at = $2
+			WHERE transaction_id = $1 AND status = 'RESERVED'
+		`, transactionID, now.Add(time.Minute))
+		cleanupOutcomeTransaction(t, db, transactionID)
+		cleanupTestLimit(t, db, limitID)
+	})
+
+	require.NoError(t, inRealTx(t, db, func(tx *sql.Tx) error {
+		_, _, err := repo.ReserveWithTx(t.Context(), tx, reservation, 100, &counterExpiresAt)
+		return err
+	}))
+
+	var expiry sql.NullTime
+	require.NoError(t, db.QueryRow(
+		"SELECT reservation_expires_at FROM usage_reservations WHERE id = $1", reservation.ID,
+	).Scan(&expiry))
+	require.False(t, expiry.Valid, "V2 must be invisible to an old reaper that only compares reservation_expires_at")
+
+	rows, err := db.QueryContext(t.Context(), `
+		SELECT id FROM usage_reservations
+		WHERE status = 'RESERVED' AND reservation_expires_at < $1
+	`, now)
+	require.NoError(t, err)
+	require.False(t, rows.Next(), "legacy reaper query must not discover V2 rows")
+	require.NoError(t, rows.Close())
+
+	oldReleaseTx, err := db.BeginTx(context.Background(), nil)
+	require.NoError(t, err)
+	_, err = oldReleaseTx.Exec(`
+		UPDATE usage_counters
+		SET reserved_usage = reserved_usage - $1
+		WHERE limit_id = $2 AND scope_key = $3 AND period_key = $4
+	`, reservation.Amount, limitID, reservation.ScopeKey, reservation.PeriodKey)
+	require.NoError(t, err)
+	_, err = oldReleaseTx.Exec(`
+		UPDATE usage_reservations
+		SET status = 'EXPIRED', released_at = $1
+		WHERE id = $2 AND status = 'RESERVED'
+	`, now, reservation.ID)
+	require.Error(t, err, "database must reject a legacy transition of a live V2 hold")
+	require.NoError(t, oldReleaseTx.Rollback())
+
+	result, err := db.Exec(`
+		DELETE FROM usage_counters
+		WHERE expires_at IS NOT NULL AND expires_at < $1
+	`, now)
+	require.NoError(t, err)
+	deleted, err := result.RowsAffected()
+	require.NoError(t, err)
+	require.Zero(t, deleted, "legacy cleanup must not delete a counter backing a live V2 hold")
+
+	_, err = db.Exec("DELETE FROM usage_reservations WHERE id = $1", reservation.ID)
+	require.Error(t, err, "database must reject deletion of a live V2 hold, including ON DELETE CASCADE")
+
+	current, reserved := readCounter(t, db, limitID, reservation.ScopeKey, reservation.PeriodKey)
+	require.Zero(t, current)
+	require.Equal(t, reservation.Amount, reserved)
+	require.Equal(t, string(model.StatusReserved), readReservationStatus(t, db, reservation.ID))
 }
 
 func TestIntegration_Migration000021_DownRefusesLiveReceipt(t *testing.T) {
@@ -168,6 +257,29 @@ func TestIntegration_Migration000021_DownSucceedsWhenBacklogEmpty(t *testing.T) 
 	// The suite database is shared within this package. Remove rows only inside
 	// this transaction so the down migration sees an empty backlog; rollback
 	// restores all schema and data after the assertion.
+	_, err = tx.Exec(`
+		INSERT INTO reservation_outcome_receipts
+			(transaction_id, outcome_id, outcome, reservation_count, applied_at)
+		SELECT DISTINCT transaction_id, transaction_id, 'ABORTED', 0, NOW()
+		FROM usage_reservations
+		WHERE delivery_mode = 'LEDGER_OUTCOME_V2' AND status = 'RESERVED'
+		ON CONFLICT (transaction_id) DO NOTHING
+	`)
+	require.NoError(t, err)
+	_, err = tx.Exec(`
+		UPDATE usage_reservations AS reservation
+		SET status = CASE receipt.outcome
+			WHEN 'COMMITTED' THEN 'CONFIRMED'
+			ELSE 'RELEASED'
+		END,
+		confirmed_at = CASE WHEN receipt.outcome = 'COMMITTED' THEN NOW() ELSE confirmed_at END,
+		released_at = CASE WHEN receipt.outcome = 'ABORTED' THEN NOW() ELSE released_at END
+		FROM reservation_outcome_receipts AS receipt
+		WHERE reservation.transaction_id = receipt.transaction_id
+		  AND reservation.delivery_mode = 'LEDGER_OUTCOME_V2'
+		  AND reservation.status = 'RESERVED'
+	`)
+	require.NoError(t, err)
 	_, err = tx.Exec("DELETE FROM reservation_outcome_receipts")
 	require.NoError(t, err)
 	_, err = tx.Exec("DELETE FROM usage_reservations")

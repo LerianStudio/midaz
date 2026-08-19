@@ -120,6 +120,29 @@ func TestUsageReservationRepository_Reserve(t *testing.T) {
 		assert.True(t, created)
 	})
 
+	t.Run("V2 persists without an autonomous expiry visible to legacy reapers", func(t *testing.T) {
+		repo, db, mock, cleanup := setupUsageReservationRepository(t)
+		defer cleanup()
+
+		res := newTestReservation(t)
+		res.DeliveryMode = model.DeliveryModeLedgerOutcomeV2
+		expectReservationProtocolGuard(mock, res.TransactionID, res.DeliveryMode)
+
+		mock.ExpectQuery(regexp.QuoteMeta(reserveInsertSQL)).
+			WithArgs(
+				res.ID, res.LimitID, res.ScopeKey, res.PeriodKey, res.Amount,
+				string(res.Status), string(res.DeliveryMode), res.TransactionID,
+				nil, res.CreatedAt,
+			).
+			WillReturnRows(sqlmock.NewRows([]string{"id"}).AddRow(res.ID))
+		mock.ExpectQuery(regexp.QuoteMeta(upsertReserveSQL)).
+			WillReturnRows(sqlmock.NewRows([]string{"reserved_usage", "succeeded"}).AddRow("400", true))
+
+		_, created, err := repo.ReserveWithTx(context.Background(), db, res, maxAmountTest, nil)
+		require.NoError(t, err)
+		assert.True(t, created)
+	})
+
 	t.Run("Guard denies - exceeds-limit error rolls back claimed row", func(t *testing.T) {
 		repo, db, mock, cleanup := setupUsageReservationRepository(t)
 		defer cleanup()

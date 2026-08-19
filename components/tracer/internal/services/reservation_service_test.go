@@ -622,8 +622,23 @@ func TestReservationService_ReserveLedgerOutcomeV2PersistsDeliveryMode(t *testin
 		Return(nil).
 		Times(1)
 
-	_, err := svc.Reserve(context.Background(), txID, input, true, model.DeliveryModeLedgerOutcomeV2)
+	result, err := svc.Reserve(context.Background(), txID, input, true, model.DeliveryModeLedgerOutcomeV2)
 	require.NoError(t, err)
+	require.NotNil(t, result)
+	assert.Equal(t, model.DeliveryModeLedgerOutcomeV2, result.DeliveryMode)
+}
+
+func TestReservationService_ReserveEchoesNormalizedLegacyModeWithoutReservations(t *testing.T) {
+	txID := testutil.MustDeterministicUUID(7650)
+	svc, deps := newReservationServiceDeps(t)
+	input := testCheckLimitsInput(t)
+
+	deps.resolver.EXPECT().ResolveReservations(gomock.Any(), input).Return(nil, false, nil).Times(1)
+
+	result, err := svc.Reserve(context.Background(), txID, input, false)
+	require.NoError(t, err)
+	require.NotNil(t, result)
+	assert.Equal(t, model.DeliveryModeLegacy, result.DeliveryMode)
 }
 
 func TestReservationService_ApplyOutcome(t *testing.T) {

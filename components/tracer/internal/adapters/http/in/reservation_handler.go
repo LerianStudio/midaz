@@ -93,6 +93,18 @@ func (h *ReservationHandler) Reserve(c fiber.Ctx) error {
 	return pkgHTTP.Created(c, response)
 }
 
+// ReserveV2 is the distinct capability-safe HTTP operation. A pre-V2 Tracer
+// returns 404 before parsing or persisting the request; the Ledger must never
+// retry that request through the legacy collection route.
+func (h *ReservationHandler) ReserveV2(c fiber.Ctx) error {
+	response, err := h.reserveV2(c.Context(), c.Body())
+	if err != nil {
+		return pkgHTTP.WithError(c, err)
+	}
+
+	return pkgHTTP.Created(c, response)
+}
+
 // reserve is the transport-agnostic core of the reserve operation shared by the
 // Fiber method (Reserve) and the Huma func (ReserveHuma). It owns the span, the
 // payload-size guard, the imperative json.Unmarshal + NormalizeAndReserveValidate,
@@ -104,6 +116,14 @@ func (h *ReservationHandler) Reserve(c fiber.Ctx) error {
 // payload-size guard is preserved from the Fiber path: Huma has no Fiber-style body
 // limit, so the check must live in the core.
 func (h *ReservationHandler) reserve(ctx context.Context, rawBody []byte) (*ReserveResponse, error) {
+	return h.reserveWithRequiredMode(ctx, rawBody, false)
+}
+
+func (h *ReservationHandler) reserveV2(ctx context.Context, rawBody []byte) (*ReserveResponse, error) {
+	return h.reserveWithRequiredMode(ctx, rawBody, true)
+}
+
+func (h *ReservationHandler) reserveWithRequiredMode(ctx context.Context, rawBody []byte, requireV2 bool) (*ReserveResponse, error) {
 	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "handler.reservations.reserve")
@@ -153,6 +173,12 @@ func (h *ReservationHandler) reserve(ctx context.Context, rawBody []byte) (*Rese
 		return nil, pkg.ValidateBusinessError(err, constant.EntityReservation)
 	}
 
+	if requireV2 && request.DeliveryMode != model.DeliveryModeLedgerOutcomeV2 {
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "V2 reservation operation requires V2 delivery mode", constant.ErrReservationDeliveryModeInvalid)
+
+		return nil, pkg.ValidateBusinessError(constant.ErrReservationDeliveryModeInvalid, constant.EntityReservation)
+	}
+
 	span.SetAttributes(
 		attribute.String("app.request.transaction_id", request.TransactionID.String()),
 		attribute.String("app.request.transaction_type", string(request.TransactionType)),
@@ -186,6 +212,7 @@ func (h *ReservationHandler) reserve(ctx context.Context, rawBody []byte) (*Rese
 		TransactionID:  request.TransactionID,
 		Denied:         result.Denied,
 		ReservationIDs: reservationIDsOrEmpty(result.ReservationIDs),
+		DeliveryMode:   result.DeliveryMode,
 	}, nil
 }
 

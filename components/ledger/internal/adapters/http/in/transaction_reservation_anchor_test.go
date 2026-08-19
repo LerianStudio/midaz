@@ -549,13 +549,22 @@ func TestReserveTransaction_DurableModeIsExplicitAndAmbiguousFailureFences(t *te
 	settings := mmodel.TracerSettings{Mode: mmodel.TracerModeEnforce, FailPosture: mmodel.TracerFailPostureOpen}
 	txID := uuid.MustParse("33333333-3333-3333-3333-333333333333")
 
-	capturing := &capturingReserver{result: &tracer.ReserveResult{}}
+	capturing := &capturingReserver{result: &tracer.ReserveResult{DeliveryMode: tracer.DeliveryModeLedgerOutcomeV2}}
 	handler := &TransactionHandler{TracerReserver: capturing}
 	out := handler.reserveTransaction(tracerCtx, sp, logger, settings, txID, decimal.NewFromInt(1000),
 		"BRL", fixedReserveAccountID, fixedReserveTimestamp, reservationTTLDefault, false, true)
 	require.Equal(t, reservationProceed, out.Kind)
 	assert.Equal(t, tracer.DeliveryModeLedgerOutcomeV2, capturing.lastReq.DeliveryMode)
 
+	for _, acceptedMode := range []tracer.ReservationDeliveryMode{"", tracer.DeliveryModeLegacy} {
+		capturing.result = &tracer.ReserveResult{DeliveryMode: acceptedMode}
+		out = handler.reserveTransaction(tracerCtx, sp, logger, settings, txID, decimal.NewFromInt(1000),
+			"BRL", fixedReserveAccountID, fixedReserveTimestamp, reservationTTLDefault, false, true)
+		require.Equal(t, reservationReject, out.Kind, "V2 must reject a Tracer that accepted %q", acceptedMode)
+		assert.True(t, out.Ambiguous, "the PREPARED outcome must stay fenced when protocol negotiation fails")
+	}
+
+	capturing.result = &tracer.ReserveResult{DeliveryMode: tracer.DeliveryModeLedgerOutcomeV2}
 	capturing.err = tracer.ErrTracerUnavailable
 	out = handler.reserveTransaction(tracerCtx, sp, logger, settings, txID, decimal.NewFromInt(1000),
 		"BRL", fixedReserveAccountID, fixedReserveTimestamp, reservationTTLDefault, false, true)

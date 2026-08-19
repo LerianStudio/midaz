@@ -97,6 +97,7 @@ type ReservationAuditWriter interface {
 type ReserveResult struct {
 	Denied         bool
 	ReservationIDs []uuid.UUID
+	DeliveryMode   model.ReservationDeliveryMode
 }
 
 // ApplyOutcomeResult is the durable receipt returned for a newly applied or
@@ -239,12 +240,12 @@ func (s *ReservationService) Reserve(
 	// Denied by a PER_TRANSACTION cap or the amount-alone pre-check: no capacity
 	// to hold, return the limit-exceeded decision without opening a transaction.
 	if denied {
-		return &ReserveResult{Denied: true}, nil
+		return &ReserveResult{Denied: true, DeliveryMode: deliveryMode}, nil
 	}
 
 	// No applicable counter-backed limits: nothing to reserve, allow.
 	if len(specs) == 0 {
-		return &ReserveResult{}, nil
+		return &ReserveResult{DeliveryMode: deliveryMode}, nil
 	}
 
 	expiresAt := s.reservationExpiresAt(longLived)
@@ -313,7 +314,7 @@ func (s *ReservationService) Reserve(
 		if guardDenied {
 			// Limit-exceeded is a business decision, not a service failure: the
 			// rollback already released any partial holds.
-			return &ReserveResult{Denied: true}, nil
+			return &ReserveResult{Denied: true, DeliveryMode: deliveryMode}, nil
 		}
 
 		if errors.Is(txErr, constant.ErrIdempotencyKey) || errors.Is(txErr, constant.ErrReservationAlreadyTerminal) {
@@ -332,7 +333,7 @@ func (s *ReservationService) Reserve(
 		libLog.Int("reservations", len(reservationIDs)),
 	).Log(ctx, libLog.LevelDebug, "Reserved capacity")
 
-	return &ReserveResult{ReservationIDs: reservationIDs}, nil
+	return &ReserveResult{ReservationIDs: reservationIDs, DeliveryMode: deliveryMode}, nil
 }
 
 func normalizeReservationDeliveryMode(requestedModes []model.ReservationDeliveryMode) (model.ReservationDeliveryMode, error) {

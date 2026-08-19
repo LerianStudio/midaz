@@ -35,7 +35,7 @@ func TestNewTracerClient_RejectsEmptyBaseURL(t *testing.T) {
 func TestTracerClient_Reserve_201ParsesHandle(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		assert.Equal(t, http.MethodPost, r.Method)
-		assert.Equal(t, "/v1/reservations", r.URL.Path)
+		assert.Equal(t, "/v1/reservations/ledger-outcome-v2", r.URL.Path)
 		assert.Equal(t, "application/json", r.Header.Get("Content-Type"))
 
 		var body ReserveRequest
@@ -47,6 +47,7 @@ func TestTracerClient_Reserve_201ParsesHandle(t *testing.T) {
 			TransactionID:  fixedTransactionID,
 			Denied:         false,
 			ReservationIDs: []uuid.UUID{fixedReservationID},
+			DeliveryMode:   DeliveryModeLedgerOutcomeV2,
 		})
 	}))
 	defer srv.Close()
@@ -59,13 +60,41 @@ func TestTracerClient_Reserve_201ParsesHandle(t *testing.T) {
 		Amount:        "100",
 		Currency:      "USD",
 		Account:       ReserveAccount{AccountID: "acc-1"},
+		DeliveryMode:  DeliveryModeLedgerOutcomeV2,
 	})
 
 	require.NoError(t, err)
 	require.NotNil(t, result)
 	assert.False(t, result.Denied)
+	assert.Equal(t, DeliveryModeLedgerOutcomeV2, result.DeliveryMode)
 	require.Len(t, result.ReservationIDs, 1)
 	assert.Equal(t, fixedReservationID, result.ReservationIDs[0])
+}
+
+func TestTracerClient_ReserveV2NeverFallsBackToLegacyEndpoint(t *testing.T) {
+	legacySideEffects := 0
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/v1/reservations" {
+			legacySideEffects++
+			w.WriteHeader(http.StatusCreated)
+			_ = json.NewEncoder(w).Encode(ReserveResult{TransactionID: fixedTransactionID})
+			return
+		}
+
+		w.WriteHeader(http.StatusNotFound)
+	}))
+	t.Cleanup(srv.Close)
+
+	client, err := NewTracerClient(srv.URL)
+	require.NoError(t, err)
+
+	result, err := client.Reserve(context.Background(), ReserveRequest{
+		TransactionID: fixedTransactionID,
+		DeliveryMode:  DeliveryModeLedgerOutcomeV2,
+	})
+	require.Error(t, err)
+	require.Nil(t, result)
+	assert.Zero(t, legacySideEffects, "a V2 caller must fail before an old server can create a legacy hold")
 }
 
 func TestTracerClient_Reserve_DeniedIsSuccessfulReturn(t *testing.T) {

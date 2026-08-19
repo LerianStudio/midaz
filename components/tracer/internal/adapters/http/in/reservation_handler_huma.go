@@ -103,6 +103,17 @@ func (h *ReservationHandler) ReserveHuma(ctx context.Context, in *ReserveInputHu
 	return &ReserveOutputHuma{Status: http.StatusCreated, Body: result}, nil
 }
 
+// ReserveV2Huma is the capability-safe V2 operation. Its distinct route makes
+// old Tracer binaries fail before they can persist a legacy reservation.
+func (h *ReservationHandler) ReserveV2Huma(ctx context.Context, in *ReserveInputHuma) (*ReserveOutputHuma, error) {
+	result, err := h.reserveV2(ctx, in.RawBody)
+	if err != nil {
+		return nil, humaProblem(err)
+	}
+
+	return &ReserveOutputHuma{Status: http.StatusCreated, Body: result}, nil
+}
+
 func (h *ReservationHandler) ApplyOutcomeHuma(ctx context.Context, in *ApplyOutcomeInputHuma) (*ApplyOutcomeOutputHuma, error) {
 	result, err := h.applyOutcome(ctx, in.TransactionID, in.RawBody)
 	if err != nil {
@@ -185,6 +196,20 @@ func RegisterReservationRoutes(api huma.API, h *ReservationHandler) {
 	documentJSONRequestBody(api, "/reservations", reflect.TypeOf(ReserveRequest{}), "account", "transactionType")
 
 	huma.Register(api, huma.Operation{
+		OperationID:      "createLedgerOutcomeV2Reservation",
+		Method:           http.MethodPost,
+		Path:             "/reservations/ledger-outcome-v2",
+		DefaultStatus:    http.StatusCreated,
+		Summary:          "Reserve capacity under the ledger-owned outcome protocol",
+		Tags:             []string{"Reservations"},
+		Security:         secBearerOrAPIKey,
+		SkipValidateBody: true,
+	}, h.ReserveV2Huma)
+	v2RequestSchema := documentJSONRequestBody(api, "/reservations/ledger-outcome-v2", reflect.TypeOf(ReserveRequest{}), "account", "transactionType")
+	v2RequestSchema.Required = append(v2RequestSchema.Required, "deliveryMode")
+	v2RequestSchema.Properties["deliveryMode"].Examples = []any{string(model.DeliveryModeLedgerOutcomeV2)}
+
+	huma.Register(api, huma.Operation{
 		OperationID:      "applyReservationOutcome",
 		Method:           http.MethodPost,
 		Path:             "/reservations/transaction/{transaction_id}/outcome",
@@ -235,7 +260,7 @@ func RegisterReservationRoutes(api huma.API, h *ReservationHandler) {
 // documentJSONRequestBody replaces the binary schema Huma infers from RawBody
 // with the JSON contract that callers actually send. Runtime validation remains
 // imperative so malformed requests continue to use Midaz's canonical errors.
-func documentJSONRequestBody(api huma.API, path string, bodyType reflect.Type, optionalFields ...string) {
+func documentJSONRequestBody(api huma.API, path string, bodyType reflect.Type, optionalFields ...string) *huma.Schema {
 	schema := huma.SchemaFromType(api.OpenAPI().Components.Schemas, bodyType)
 
 	if len(optionalFields) > 0 {
@@ -263,4 +288,6 @@ func documentJSONRequestBody(api huma.API, path string, bodyType reflect.Type, o
 			},
 		},
 	}
+
+	return schema
 }

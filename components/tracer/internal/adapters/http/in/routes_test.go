@@ -379,6 +379,7 @@ func TestRoutes_ReservationEndpoints_Mounted(t *testing.T) {
 		path   string
 	}{
 		{"POST /v1/reservations", http.MethodPost, "/v1/reservations"},
+		{"POST /v1/reservations/ledger-outcome-v2", http.MethodPost, "/v1/reservations/ledger-outcome-v2"},
 		{"POST /v1/reservations/:id/confirm", http.MethodPost, "/v1/reservations/" + reservationID.String() + "/confirm"},
 		{"POST /v1/reservations/:id/release", http.MethodPost, "/v1/reservations/" + reservationID.String() + "/release"},
 	}

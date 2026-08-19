@@ -152,9 +152,10 @@ type ApplyOutcomeResult struct {
 // ReservationIDs holds one id per counter-backed limit the ledger must later
 // confirm or release.
 type ReserveResult struct {
-	TransactionID  uuid.UUID   `json:"transactionId"`
-	Denied         bool        `json:"denied"`
-	ReservationIDs []uuid.UUID `json:"reservationIds"`
+	TransactionID  uuid.UUID               `json:"transactionId"`
+	Denied         bool                    `json:"denied"`
+	ReservationIDs []uuid.UUID             `json:"reservationIds"`
+	DeliveryMode   ReservationDeliveryMode `json:"deliveryMode"`
 }
 
 // TracerClient is the HTTP client for the tracer reservation API.
@@ -244,7 +245,15 @@ func (c *TracerClient) Reserve(ctx context.Context, req ReserveRequest) (*Reserv
 		return nil, fmt.Errorf("marshal reserve request: %w", err)
 	}
 
-	resp, err := c.do(ctx, http.MethodPost, "/v1/reservations", body)
+	path := "/v1/reservations"
+	if req.DeliveryMode == DeliveryModeLedgerOutcomeV2 {
+		// The distinct operation is the rollout capability barrier: a pre-V2
+		// Tracer returns 404 before it can create a legacy hold. Never fall back
+		// to the legacy collection after that response.
+		path = "/v1/reservations/ledger-outcome-v2"
+	}
+
+	resp, err := c.do(ctx, http.MethodPost, path, body)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(span, "Reserve transport failed", err)
 		return nil, err

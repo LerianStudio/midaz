@@ -24,6 +24,7 @@ const _ = grpc.SupportPackageIsVersion9
 
 const (
 	ReservationService_Reserve_FullMethodName              = "/lerian.midaz.reservation.v1.ReservationService/Reserve"
+	ReservationService_ReserveV2_FullMethodName            = "/lerian.midaz.reservation.v1.ReservationService/ReserveV2"
 	ReservationService_ConfirmByTransaction_FullMethodName = "/lerian.midaz.reservation.v1.ReservationService/ConfirmByTransaction"
 	ReservationService_ReleaseByTransaction_FullMethodName = "/lerian.midaz.reservation.v1.ReservationService/ReleaseByTransaction"
 	ReservationService_ConfirmById_FullMethodName          = "/lerian.midaz.reservation.v1.ReservationService/ConfirmById"
@@ -47,6 +48,9 @@ type ReservationServiceClient interface {
 	// decision is a successful response with denied=true and empty
 	// reservation_ids, not a transport error.
 	Reserve(ctx context.Context, in *ReserveRequest, opts ...grpc.CallOption) (*ReserveResult, error)
+	// ReserveV2 is a capability-safe entry point for ledger-owned outcomes. A
+	// pre-V2 server returns UNIMPLEMENTED before creating a legacy reservation.
+	ReserveV2(ctx context.Context, in *ReserveV2Request, opts ...grpc.CallOption) (*ReserveV2Response, error)
 	// ConfirmByTransaction commits EVERY reservation a transaction holds.
 	ConfirmByTransaction(ctx context.Context, in *ConfirmByTransactionRequest, opts ...grpc.CallOption) (*ConfirmByTransactionResponse, error)
 	// ReleaseByTransaction returns EVERY reservation a transaction holds.
@@ -72,6 +76,16 @@ func (c *reservationServiceClient) Reserve(ctx context.Context, in *ReserveReque
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(ReserveResult)
 	err := c.cc.Invoke(ctx, ReservationService_Reserve_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *reservationServiceClient) ReserveV2(ctx context.Context, in *ReserveV2Request, opts ...grpc.CallOption) (*ReserveV2Response, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ReserveV2Response)
+	err := c.cc.Invoke(ctx, ReservationService_ReserveV2_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -144,6 +158,9 @@ type ReservationServiceServer interface {
 	// decision is a successful response with denied=true and empty
 	// reservation_ids, not a transport error.
 	Reserve(context.Context, *ReserveRequest) (*ReserveResult, error)
+	// ReserveV2 is a capability-safe entry point for ledger-owned outcomes. A
+	// pre-V2 server returns UNIMPLEMENTED before creating a legacy reservation.
+	ReserveV2(context.Context, *ReserveV2Request) (*ReserveV2Response, error)
 	// ConfirmByTransaction commits EVERY reservation a transaction holds.
 	ConfirmByTransaction(context.Context, *ConfirmByTransactionRequest) (*ConfirmByTransactionResponse, error)
 	// ReleaseByTransaction returns EVERY reservation a transaction holds.
@@ -167,6 +184,9 @@ type UnimplementedReservationServiceServer struct{}
 
 func (UnimplementedReservationServiceServer) Reserve(context.Context, *ReserveRequest) (*ReserveResult, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method Reserve not implemented")
+}
+func (UnimplementedReservationServiceServer) ReserveV2(context.Context, *ReserveV2Request) (*ReserveV2Response, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ReserveV2 not implemented")
 }
 func (UnimplementedReservationServiceServer) ConfirmByTransaction(context.Context, *ConfirmByTransactionRequest) (*ConfirmByTransactionResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method ConfirmByTransaction not implemented")
@@ -218,6 +238,24 @@ func _ReservationService_Reserve_Handler(srv interface{}, ctx context.Context, d
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(ReservationServiceServer).Reserve(ctx, req.(*ReserveRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _ReservationService_ReserveV2_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ReserveV2Request)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ReservationServiceServer).ReserveV2(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ReservationService_ReserveV2_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ReservationServiceServer).ReserveV2(ctx, req.(*ReserveV2Request))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -322,6 +360,10 @@ var ReservationService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "Reserve",
 			Handler:    _ReservationService_Reserve_Handler,
+		},
+		{
+			MethodName: "ReserveV2",
+			Handler:    _ReservationService_ReserveV2_Handler,
 		},
 		{
 			MethodName: "ConfirmByTransaction",

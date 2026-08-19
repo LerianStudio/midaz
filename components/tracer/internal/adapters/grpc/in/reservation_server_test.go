@@ -142,15 +142,30 @@ func TestReservationServer_Reserve(t *testing.T) {
 		clk := testutil.NewMockClock(now)
 
 		svc.EXPECT().Reserve(gomock.Any(), transactionID, gomock.Any(), false, model.DeliveryModeLedgerOutcomeV2).
-			Return(&services.ReserveResult{}, nil)
+			Return(&services.ReserveResult{DeliveryMode: model.DeliveryModeLedgerOutcomeV2}, nil)
 
 		server, err := NewReservationServer(svc, clk)
 		require.NoError(t, err)
 
 		req := newReserveRequest(now, transactionID, requestID, accountID)
 		req.DeliveryMode = reservationv1.ReservationDeliveryMode_RESERVATION_DELIVERY_MODE_LEDGER_OUTCOME_V2
-		_, err = server.Reserve(context.Background(), req)
+		result, err := server.ReserveV2(context.Background(), &reservationv1.ReserveV2Request{Reserve: req})
 		require.NoError(t, err)
+		require.Equal(t,
+			reservationv1.ReservationDeliveryMode_RESERVATION_DELIVERY_MODE_LEDGER_OUTCOME_V2,
+			result.GetResult().GetDeliveryMode(),
+		)
+	})
+
+	t.Run("V2 RPC rejects an omitted V2 mode before calling the service", func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		svc := mocks.NewMockReservationService(ctrl)
+		server, err := NewReservationServer(svc, testutil.NewMockClock(now))
+		require.NoError(t, err)
+
+		req := newReserveRequest(now, transactionID, requestID, accountID)
+		_, err = server.ReserveV2(context.Background(), &reservationv1.ReserveV2Request{Reserve: req})
+		require.Equal(t, codes.InvalidArgument, status.Code(err))
 	})
 
 	t.Run("unknown delivery mode is InvalidArgument", func(t *testing.T) {

@@ -31,6 +31,7 @@ type stubReservationServer struct {
 	reservationv1.UnimplementedReservationServiceServer
 
 	reserveFn              func(*reservationv1.ReserveRequest) (*reservationv1.ReserveResult, error)
+	reserveV2Fn            func(*reservationv1.ReserveV2Request) (*reservationv1.ReserveV2Response, error)
 	confirmByIDFn          func(*reservationv1.ConfirmByIdRequest) (*reservationv1.ConfirmByIdResponse, error)
 	releaseByIDFn          func(*reservationv1.ReleaseByIdRequest) (*reservationv1.ReleaseByIdResponse, error)
 	confirmByTransactionFn func(*reservationv1.ConfirmByTransactionRequest) (*reservationv1.ConfirmByTransactionResponse, error)
@@ -40,6 +41,14 @@ type stubReservationServer struct {
 	// captureMetadata, when set, receives the incoming metadata the Reserve RPC
 	// arrived with so a test can assert on tenant propagation.
 	captureMetadata func(metadata.MD)
+}
+
+func (s *stubReservationServer) ReserveV2(_ context.Context, req *reservationv1.ReserveV2Request) (*reservationv1.ReserveV2Response, error) {
+	if s.reserveV2Fn == nil {
+		return nil, status.Error(codes.Unimplemented, "V2 is unavailable")
+	}
+
+	return s.reserveV2Fn(req)
 }
 
 func (s *stubReservationServer) Reserve(ctx context.Context, req *reservationv1.ReserveRequest) (*reservationv1.ReserveResult, error) {
@@ -154,14 +163,15 @@ func TestTracerGRPCClient_Reserve(t *testing.T) {
 		var captured *reservationv1.ReserveRequest
 
 		stub := &stubReservationServer{
-			reserveFn: func(req *reservationv1.ReserveRequest) (*reservationv1.ReserveResult, error) {
-				captured = req
+			reserveV2Fn: func(req *reservationv1.ReserveV2Request) (*reservationv1.ReserveV2Response, error) {
+				captured = req.GetReserve()
 
-				return &reservationv1.ReserveResult{
+				return &reservationv1.ReserveV2Response{Result: &reservationv1.ReserveResult{
 					TransactionId:  transactionID.String(),
 					Denied:         false,
 					ReservationIds: []string{reservationID.String()},
-				}, nil
+					DeliveryMode:   reservationv1.ReservationDeliveryMode_RESERVATION_DELIVERY_MODE_LEDGER_OUTCOME_V2,
+				}}, nil
 			},
 		}
 		client := newTestGRPCClient(t, stub)
@@ -173,6 +183,7 @@ func TestTracerGRPCClient_Reserve(t *testing.T) {
 			Currency:             "USD",
 			Account:              ReserveAccount{AccountID: accountID.String()},
 			TransactionTimestamp: "2026-06-11T00:00:00Z",
+			DeliveryMode:         DeliveryModeLedgerOutcomeV2,
 		}
 
 		result, err := client.Reserve(context.Background(), req)
@@ -189,6 +200,29 @@ func TestTracerGRPCClient_Reserve(t *testing.T) {
 		assert.False(t, result.Denied)
 		assert.Equal(t, transactionID, result.TransactionID)
 		assert.Equal(t, []uuid.UUID{reservationID}, result.ReservationIDs)
+		assert.Equal(t, DeliveryModeLedgerOutcomeV2, result.DeliveryMode)
+	})
+
+	t.Run("V2 never falls back to the legacy RPC", func(t *testing.T) {
+		t.Parallel()
+
+		legacyCalls := 0
+		stub := &stubReservationServer{
+			reserveFn: func(_ *reservationv1.ReserveRequest) (*reservationv1.ReserveResult, error) {
+				legacyCalls++
+				return &reservationv1.ReserveResult{TransactionId: transactionID.String()}, nil
+			},
+		}
+		client := newTestGRPCClient(t, stub)
+
+		result, err := client.Reserve(context.Background(), ReserveRequest{
+			TransactionID: transactionID,
+			DeliveryMode:  DeliveryModeLedgerOutcomeV2,
+		})
+		require.Error(t, err)
+		assert.Nil(t, result)
+		assert.Zero(t, legacyCalls)
+		assert.Equal(t, codes.Unimplemented, status.Code(err))
 	})
 
 	t.Run("denied is a successful result, not an error", func(t *testing.T) {

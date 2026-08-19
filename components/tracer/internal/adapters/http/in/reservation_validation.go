@@ -72,9 +72,10 @@ func (r *ReserveRequest) ToReserveInput() *model.CheckLimitsInput {
 // ReservationIDs holds one id per counter-backed limit the ledger must confirm or
 // release in phase two.
 type ReserveResponse struct {
-	TransactionID  uuid.UUID   `json:"transactionId" swaggertype:"string" format:"uuid"`
-	Denied         bool        `json:"denied" example:"false"`
-	ReservationIDs []uuid.UUID `json:"reservationIds" swaggertype:"array,string" format:"uuid"`
+	TransactionID  uuid.UUID                     `json:"transactionId" swaggertype:"string" format:"uuid"`
+	Denied         bool                          `json:"denied" example:"false"`
+	ReservationIDs []uuid.UUID                   `json:"reservationIds" swaggertype:"array,string" format:"uuid"`
+	DeliveryMode   model.ReservationDeliveryMode `json:"deliveryMode" enum:"LEGACY,LEDGER_OUTCOME_V2" example:"LEGACY"`
 }
 
 // ReservationActionResponse is the body returned by confirm and release. Status is

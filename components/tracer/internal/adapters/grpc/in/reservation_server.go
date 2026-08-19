@@ -143,7 +143,29 @@ func (s *ReservationServer) Reserve(ctx context.Context, req *reservationv1.Rese
 		TransactionId:  transactionID.String(),
 		Denied:         result.Denied,
 		ReservationIds: reservationIDStrings(result.ReservationIDs),
+		DeliveryMode:   deliveryModeToProto(result.DeliveryMode),
 	}, nil
+}
+
+// ReserveV2 is a capability-safe V2 entry point. A server that predates this
+// RPC rejects it as UNIMPLEMENTED before executing Reserve, which prevents a
+// mixed fleet from silently creating a legacy hold for a V2 Ledger request.
+func (s *ReservationServer) ReserveV2(ctx context.Context, req *reservationv1.ReserveV2Request) (*reservationv1.ReserveV2Response, error) {
+	if req == nil || req.GetReserve() == nil {
+		return nil, status.Error(codes.InvalidArgument, constant.ErrInvalidRequestBody.Error())
+	}
+
+	reserveReq := req.GetReserve()
+	if reserveReq.GetDeliveryMode() != reservationv1.ReservationDeliveryMode_RESERVATION_DELIVERY_MODE_LEDGER_OUTCOME_V2 {
+		return nil, status.Error(codes.InvalidArgument, constant.ErrReservationDeliveryModeInvalid.Error())
+	}
+
+	result, err := s.Reserve(ctx, reserveReq)
+	if err != nil {
+		return nil, err
+	}
+
+	return &reservationv1.ReserveV2Response{Result: result}, nil
 }
 
 // ApplyOutcome applies the ledger's immutable terminal decision and returns the
@@ -421,6 +443,14 @@ func deliveryModeFromProto(mode reservationv1.ReservationDeliveryMode) (model.Re
 	default:
 		return "", constant.ErrReservationDeliveryModeInvalid
 	}
+}
+
+func deliveryModeToProto(mode model.ReservationDeliveryMode) reservationv1.ReservationDeliveryMode {
+	if mode == model.DeliveryModeLedgerOutcomeV2 {
+		return reservationv1.ReservationDeliveryMode_RESERVATION_DELIVERY_MODE_LEDGER_OUTCOME_V2
+	}
+
+	return reservationv1.ReservationDeliveryMode_RESERVATION_DELIVERY_MODE_LEGACY
 }
 
 func outcomeFromProto(outcome reservationv1.ReservationOutcome) (model.ReservationOutcome, error) {

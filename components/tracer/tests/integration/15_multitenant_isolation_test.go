@@ -477,9 +477,9 @@ func seedTenantV2Reservation(t *testing.T, spec tenantPGSpec, limitID, transacti
 	_, err = db.Exec(`
 		INSERT INTO usage_reservations
 			(id, limit_id, scope_key, period_key, amount, status, transaction_id, reservation_expires_at, created_at, delivery_mode)
-		VALUES ($2, $1, 'tenant-outcome', '2026-08', 100, 'RESERVED', $3, $4, $5, 'LEDGER_OUTCOME_V2')
+		VALUES ($2, $1, 'tenant-outcome', '2026-08', 100, 'RESERVED', $3, NULL, $4, 'LEDGER_OUTCOME_V2')
 	`, limitID, reservationID, transactionID,
-		time.Date(2026, 7, 1, 0, 0, 0, 0, time.UTC), time.Date(2026, 6, 1, 0, 0, 0, 0, time.UTC))
+		time.Date(2026, 6, 1, 0, 0, 0, 0, time.UTC))
 	require.NoError(t, err)
 }
 

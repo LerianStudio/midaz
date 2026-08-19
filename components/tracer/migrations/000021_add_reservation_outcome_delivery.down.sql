@@ -20,6 +20,10 @@ BEGIN
         LOCK TABLE usage_reservations IN ACCESS EXCLUSIVE MODE;
     END IF;
 
+    IF to_regclass('usage_counters') IS NOT NULL THEN
+        LOCK TABLE usage_counters IN ACCESS EXCLUSIVE MODE;
+    END IF;
+
     IF EXISTS (
         SELECT 1
         FROM information_schema.columns
@@ -47,6 +51,11 @@ BEGIN
         RAISE EXCEPTION 'cannot roll back reservation outcome delivery while outcome receipts exist';
     END IF;
 
+    DROP TRIGGER IF EXISTS trg_protect_live_v2_reservation_counter ON usage_counters;
+    DROP TRIGGER IF EXISTS trg_protect_live_v2_reservation_transition ON usage_reservations;
+    DROP FUNCTION IF EXISTS protect_live_v2_reservation_counter();
+    DROP FUNCTION IF EXISTS protect_live_v2_reservation_transition();
+
     DROP TABLE IF EXISTS reservation_outcome_receipts;
 
     DROP INDEX IF EXISTS idx_usage_reservations_v2_outstanding;
@@ -55,7 +64,11 @@ BEGIN
 
     IF to_regclass('usage_reservations') IS NOT NULL THEN
         ALTER TABLE usage_reservations
+            DROP CONSTRAINT IF EXISTS usage_reservations_delivery_expiry_check;
+        ALTER TABLE usage_reservations
             DROP CONSTRAINT IF EXISTS usage_reservations_delivery_mode_check;
+        ALTER TABLE usage_reservations
+            ALTER COLUMN reservation_expires_at SET NOT NULL;
         ALTER TABLE usage_reservations
             DROP COLUMN IF EXISTS delivery_mode;
 

@@ -38,7 +38,10 @@ func (r *outcomeV2Reserver) Reserve(_ context.Context, req tracerclient.ReserveR
 	if r.reserveErr != nil {
 		return nil, r.reserveErr
 	}
-	return &tracerclient.ReserveResult{TransactionID: req.TransactionID}, nil
+	return &tracerclient.ReserveResult{
+		TransactionID: req.TransactionID,
+		DeliveryMode:  tracerclient.DeliveryModeLedgerOutcomeV2,
+	}, nil
 }
 func (*outcomeV2Reserver) Confirm(context.Context, uuid.UUID) error              { return nil }
 func (*outcomeV2Reserver) Release(context.Context, uuid.UUID) error              { return nil }
