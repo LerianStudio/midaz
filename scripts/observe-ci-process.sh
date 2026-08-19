@@ -39,11 +39,21 @@ container_cpu_percent_seconds=0
 sample_count=0
 observer_started_ns=$(date +%s%N)
 previous_sample_ns=$observer_started_ns
+proc_root=${CI_RESOURCE_PROC_ROOT:-/proc}
+proc_read_hook=${CI_RESOURCE_PROC_READ_HOOK:-}
+if [[ $proc_root != /* ]]; then
+  echo "CI_RESOURCE_PROC_ROOT must be an absolute path" >&2
+  exit 2
+fi
+if [[ -n $proc_read_hook && ! -x $proc_read_hook ]]; then
+  echo "CI_RESOURCE_PROC_READ_HOOK must be executable" >&2
+  exit 2
+fi
 page_size=$(getconf PAGESIZE) || {
   echo "resource observer could not read the system page size" >&2
   exit 1
 }
-if [[ ! -r /proc/uptime ]]; then
+if [[ ! -r $proc_root/uptime ]]; then
   echo "resource observer requires Linux procfs" >&2
   exit 1
 fi
@@ -219,15 +229,21 @@ while :; do
     fi
     visited_pids[$pid]=1
 
-    stat_file=/proc/$pid/stat
+    stat_file=$proc_root/$pid/stat
     [[ -r $stat_file ]] || continue
-    stat_line=$(<"$stat_file") || continue
+    if [[ -n $proc_read_hook ]]; then
+      "$proc_read_hook" "$pid" "$stat_file"
+    fi
+    stat_line=
+    if ! { IFS= read -r stat_line < "$stat_file"; } 2>/dev/null; then
+      continue
+    fi
     stat_fields=${stat_line##*) }
     read -r -a fields <<< "$stat_fields"
     if (( ${#fields[@]} < 20 )); then
       continue
     fi
-    statm_file=/proc/$pid/statm
+    statm_file=$proc_root/$pid/statm
     if [[ -r $statm_file ]]; then
       read -r _ process_rss_pages _ < "$statm_file" || process_rss_pages=0
       if (( process_rss_pages > 0 )); then
@@ -235,7 +251,7 @@ while :; do
       fi
     fi
 
-    children_file=/proc/$pid/task/$pid/children
+    children_file=$proc_root/$pid/task/$pid/children
     if [[ -r $children_file ]]; then
       child_pids=()
       read -r -a child_pids < "$children_file" || true

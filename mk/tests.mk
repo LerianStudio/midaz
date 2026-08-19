@@ -64,6 +64,7 @@ test-integration-shard-contract:
 	@go test ./scripts/integration_shards
 	@bash ./scripts/tests/run_integration_shard_test.sh
 	@bash ./scripts/tests/integration_shard_config_test.sh
+	@bash ./scripts/tests/observe_ci_process_test.sh
 	@bash ./scripts/tests/run_ci_lane_test.sh
 
 INTEGRATION_SHARD ?=
