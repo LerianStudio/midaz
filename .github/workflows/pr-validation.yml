@@ -253,8 +253,15 @@ jobs:
           sed -i 's|^REDPANDA_EXTERNAL_PORT=.*|REDPANDA_EXTERNAL_PORT=29092|' components/infra/.env
           scripts/configure-required-tracer-e2e-auth.sh
 
+      # rebuild-up (down + build + up) instead of up: plain `docker compose up`
+      # reuses any image already present in the runner's Docker daemon, and
+      # Blacksmith runners persist daemon state across runs — a previous run's
+      # ledger/tracer images (built from older source) would silently serve
+      # this PR's E2E gate. Building from the checked-out source is mandatory
+      # for the gate to prove anything; infra services are image-only, so the
+      # extra build pass is a no-op for them.
       - name: Start stack
-        run: scripts/run-ci-lane.sh stack-startup 10m make up
+        run: scripts/run-ci-lane.sh stack-startup 25m make rebuild-up
 
       - name: Wait for required deploy surfaces
         run: |
