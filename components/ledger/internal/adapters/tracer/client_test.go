@@ -35,7 +35,7 @@ func TestNewTracerClient_RejectsEmptyBaseURL(t *testing.T) {
 func TestTracerClient_Reserve_201ParsesHandle(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		assert.Equal(t, http.MethodPost, r.Method)
-		assert.Equal(t, "/v1/reservations", r.URL.Path)
+		assert.Equal(t, "/v1/reservations/ledger-outcome-v2", r.URL.Path)
 		assert.Equal(t, "application/json", r.Header.Get("Content-Type"))
 
 		var body ReserveRequest
@@ -47,6 +47,7 @@ func TestTracerClient_Reserve_201ParsesHandle(t *testing.T) {
 			TransactionID:  fixedTransactionID,
 			Denied:         false,
 			ReservationIDs: []uuid.UUID{fixedReservationID},
+			DeliveryMode:   DeliveryModeLedgerOutcomeV2,
 		})
 	}))
 	defer srv.Close()
@@ -59,13 +60,41 @@ func TestTracerClient_Reserve_201ParsesHandle(t *testing.T) {
 		Amount:        "100",
 		Currency:      "USD",
 		Account:       ReserveAccount{AccountID: "acc-1"},
+		DeliveryMode:  DeliveryModeLedgerOutcomeV2,
 	})
 
 	require.NoError(t, err)
 	require.NotNil(t, result)
 	assert.False(t, result.Denied)
+	assert.Equal(t, DeliveryModeLedgerOutcomeV2, result.DeliveryMode)
 	require.Len(t, result.ReservationIDs, 1)
 	assert.Equal(t, fixedReservationID, result.ReservationIDs[0])
+}
+
+func TestTracerClient_ReserveV2NeverFallsBackToLegacyEndpoint(t *testing.T) {
+	legacySideEffects := 0
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/v1/reservations" {
+			legacySideEffects++
+			w.WriteHeader(http.StatusCreated)
+			_ = json.NewEncoder(w).Encode(ReserveResult{TransactionID: fixedTransactionID})
+			return
+		}
+
+		w.WriteHeader(http.StatusNotFound)
+	}))
+	t.Cleanup(srv.Close)
+
+	client, err := NewTracerClient(srv.URL)
+	require.NoError(t, err)
+
+	result, err := client.Reserve(context.Background(), ReserveRequest{
+		TransactionID: fixedTransactionID,
+		DeliveryMode:  DeliveryModeLedgerOutcomeV2,
+	})
+	require.Error(t, err)
+	require.Nil(t, result)
+	assert.Zero(t, legacySideEffects, "a V2 caller must fail before an old server can create a legacy hold")
 }
 
 func TestTracerClient_Reserve_DeniedIsSuccessfulReturn(t *testing.T) {
@@ -96,6 +125,35 @@ func TestTracerClient_Reserve_DeniedIsSuccessfulReturn(t *testing.T) {
 	assert.Empty(t, result.ReservationIDs)
 }
 
+func TestTracerClient_ApplyOutcomePreservesReceiptAndTenant(t *testing.T) {
+	outcomeID := uuid.MustParse("33333333-3333-3333-3333-333333333333")
+	var gotTenant string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		assert.Equal(t, "/v1/reservations/transaction/"+fixedTransactionID.String()+"/outcome", r.URL.Path)
+		gotTenant = r.Header.Get(TenantHeader)
+		var body ApplyOutcomeRequest
+		require.NoError(t, json.NewDecoder(r.Body).Decode(&body))
+		assert.Equal(t, outcomeID, body.OutcomeID)
+		assert.Equal(t, ReservationOutcomeCommitted, body.Outcome)
+		_ = json.NewEncoder(w).Encode(ApplyOutcomeResult{
+			TransactionID: fixedTransactionID, OutcomeID: outcomeID, Outcome: ReservationOutcomeCommitted,
+			ReservationCount: 2, Replayed: true,
+		})
+	}))
+	defer srv.Close()
+
+	client, err := NewTracerClient(srv.URL)
+	require.NoError(t, err)
+	ctx := tmcore.ContextWithTenantID(context.Background(), "tenant-007")
+	result, err := client.ApplyOutcome(ctx, ApplyOutcomeRequest{
+		TransactionID: fixedTransactionID, OutcomeID: outcomeID, Outcome: ReservationOutcomeCommitted,
+	})
+	require.NoError(t, err)
+	assert.Equal(t, "tenant-007", gotTenant)
+	assert.Equal(t, 2, result.ReservationCount)
+	assert.True(t, result.Replayed)
+}
+
 func TestTracerClient_Reserve_TimeoutReturnsUnavailable(t *testing.T) {
 	release := make(chan struct{})
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
@@ -120,20 +178,23 @@ func TestTracerClient_Reserve_TimeoutReturnsUnavailable(t *testing.T) {
 	assert.ErrorIs(t, err, ErrTracerUnavailable)
 }
 
-// TestTracerClient_Reserve_NoAuthHeader pins the mTLS identity model: the REST
-// client never sends an Authorization header (token identity was retired in
-// favour of mutual TLS), so no Bearer credential leaks onto the wire.
-func TestTracerClient_Reserve_NoAuthHeader(t *testing.T) {
-	var hadAuth bool
+// TestTracerClient_Reserve_SendsConfiguredAPIKey pins the REST seam's
+// application credential in addition to mTLS. The key is sent only in the
+// dedicated X-API-Key header; it is never reused as a Bearer token.
+func TestTracerClient_Reserve_SendsConfiguredAPIKey(t *testing.T) {
+	const apiKey = "ledger-to-tracer-secret"
+	var gotAPIKey string
+	var hadAuthorization bool
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		_, hadAuth = r.Header["Authorization"]
+		gotAPIKey = r.Header.Get(APIKeyHeader)
+		_, hadAuthorization = r.Header["Authorization"]
 
 		w.WriteHeader(http.StatusCreated)
 		_ = json.NewEncoder(w).Encode(ReserveResult{TransactionID: fixedTransactionID, ReservationIDs: []uuid.UUID{}})
 	}))
 	defer srv.Close()
 
-	client, err := NewTracerClient(srv.URL)
+	client, err := NewTracerClient(srv.URL, WithAPIKey(apiKey))
 	require.NoError(t, err)
 
 	_, err = client.Reserve(context.Background(), ReserveRequest{
@@ -144,7 +205,33 @@ func TestTracerClient_Reserve_NoAuthHeader(t *testing.T) {
 	})
 
 	require.NoError(t, err)
-	assert.False(t, hadAuth)
+	assert.Equal(t, apiKey, gotAPIKey)
+	assert.False(t, hadAuthorization)
+}
+
+func TestTracerClient_Reserve_AuthenticatedGuardRejectsThenAcceptsConfiguredKey(t *testing.T) {
+	const apiKey = "ledger-to-tracer-secret"
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Header.Get(APIKeyHeader) != apiKey {
+			w.WriteHeader(http.StatusUnauthorized)
+			return
+		}
+
+		w.WriteHeader(http.StatusCreated)
+		_ = json.NewEncoder(w).Encode(ReserveResult{TransactionID: fixedTransactionID})
+	}))
+	defer srv.Close()
+
+	unauthenticated, err := NewTracerClient(srv.URL)
+	require.NoError(t, err)
+	_, err = unauthenticated.Reserve(context.Background(), ReserveRequest{TransactionID: fixedTransactionID})
+	require.ErrorContains(t, err, "status 401")
+	require.NotContains(t, err.Error(), apiKey)
+
+	authenticated, err := NewTracerClient(srv.URL, WithAPIKey(apiKey))
+	require.NoError(t, err)
+	_, err = authenticated.Reserve(context.Background(), ReserveRequest{TransactionID: fixedTransactionID})
+	require.NoError(t, err)
 }
 
 // TestTracerClient_Reserve_SetsTenantHeader pins trusted tenant propagation on

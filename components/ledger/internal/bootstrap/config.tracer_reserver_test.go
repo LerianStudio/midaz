@@ -97,6 +97,7 @@ func TestBuildTracerReserver_MTLSGuard(t *testing.T) {
 				MultiTenantEnabled: tt.multiTenantEnabled,
 				TracerBaseURL:      tt.tracerBaseURL,
 				TracerTLSMode:      tt.tlsMode,
+				TracerAPIKey:       "ledger-to-tracer-test-key",
 			}
 
 			if tt.certs == certPresent {
@@ -181,6 +182,7 @@ func TestBuildTracerReserver_TransportSelection(t *testing.T) {
 			cfg := &Config{
 				TracerBaseURL:   "http://tracer:4020",
 				TracerTransport: tt.transport,
+				TracerAPIKey:    "ledger-to-tracer-test-key",
 			}
 
 			reserver, err := buildTracerReserver(cfg, logger)
@@ -204,4 +206,15 @@ func TestBuildTracerReserver_TransportSelection(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestBuildTracerRESTReserverRequiresDedicatedAPIKey(t *testing.T) {
+	t.Parallel()
+
+	reserver, err := buildTracerReserver(&Config{
+		TracerBaseURL:   "http://tracer:4020",
+		TracerTransport: tracerTransportREST,
+	}, newBootstrapTestLogger(t))
+	require.ErrorContains(t, err, "TRACER_API_KEY")
+	require.Nil(t, reserver)
 }

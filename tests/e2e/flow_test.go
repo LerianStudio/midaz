@@ -17,6 +17,7 @@ import (
 // and fees (a flat-fee package) into the picture and prove the fee leg lands
 // in the transaction.
 func TestFullLedgerFlow(t *testing.T) {
+	parallelLedgerE2E(t)
 	requireStack(t)
 
 	f := newFixture(t, false)
@@ -82,6 +83,7 @@ func TestFullLedgerFlow(t *testing.T) {
 // `false` means "do not skip", so it is a no-op and must succeed regardless of
 // whether the ledger opted into the override.
 func TestSkipFlagsExplicitFalseAccepted(t *testing.T) {
+	parallelLedgerE2E(t)
 	requireStack(t)
 
 	f := newFixture(t, true)
@@ -116,6 +118,7 @@ func TestSkipFlagsExplicitFalseAccepted(t *testing.T) {
 // ledger that opts in (allowFeeSkip), skip.fees=true bypasses an otherwise
 // matching fee package — the transaction settles with no fee leg.
 func TestSkipFeesTrueBypassesFee(t *testing.T) {
+	parallelLedgerE2E(t)
 	requireStack(t)
 
 	f := newFixture(t, true)
@@ -141,6 +144,7 @@ func TestSkipFeesTrueBypassesFee(t *testing.T) {
 // model: requesting a skip on a ledger that did NOT opt in is rejected with
 // 422, not silently honored.
 func TestSkipWithoutOverrideRejected(t *testing.T) {
+	parallelLedgerE2E(t)
 	requireStack(t)
 
 	f := newFixture(t, false) // no overrides

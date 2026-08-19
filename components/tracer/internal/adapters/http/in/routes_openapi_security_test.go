@@ -9,6 +9,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"github.com/gofiber/fiber/v3"
@@ -34,8 +35,13 @@ type openAPISpec struct {
 
 type openAPIOperation struct {
 	// Security is a list of requirement objects; multiple entries mean OR.
-	Security  []map[string][]string      `json:"security"`
-	Responses map[string]openAPIResponse `json:"responses"`
+	Security    []map[string][]string      `json:"security"`
+	Responses   map[string]openAPIResponse `json:"responses"`
+	RequestBody struct {
+		Content map[string]struct {
+			Schema openAPISchema `json:"schema"`
+		} `json:"content"`
+	} `json:"requestBody"`
 }
 
 type openAPIResponse struct {
@@ -54,7 +60,51 @@ type openAPISecurityScheme struct {
 }
 
 type openAPISchema struct {
-	Properties map[string]json.RawMessage `json:"properties"`
+	Ref        string                   `json:"$ref"`
+	Type       any                      `json:"type"`
+	Enum       []any                    `json:"enum"`
+	Examples   []any                    `json:"examples"`
+	Properties map[string]openAPISchema `json:"properties"`
+	Required   []string                 `json:"required"`
+}
+
+func requestSchema(t *testing.T, spec openAPISpec, path string) openAPISchema {
+	t.Helper()
+	operation, ok := op(spec, path, http.MethodPost)
+	require.True(t, ok)
+	schema := operation.RequestBody.Content["application/json"].Schema
+	if schema.Ref == "" {
+		return schema
+	}
+	const prefix = "#/components/schemas/"
+	require.Contains(t, schema.Ref, prefix)
+	resolved, ok := spec.Components.Schemas[strings.TrimPrefix(schema.Ref, prefix)]
+	require.True(t, ok, "request schema ref %s must resolve", schema.Ref)
+	return resolved
+}
+
+func TestSpecLock_ReservationV2RequestBodies(t *testing.T) {
+	spec := fetchTracerSpec(t)
+
+	reserve := requestSchema(t, spec, "/reservations")
+	delivery, ok := reserve.Properties["deliveryMode"]
+	require.True(t, ok, "Reserve must publish deliveryMode")
+	assert.ElementsMatch(t, []any{"UNSPECIFIED", "LEGACY", "LEDGER_OUTCOME_V2"}, delivery.Enum)
+	assert.NotContains(t, reserve.Required, "account", "reserve accepts transactions without an internal account")
+	assert.NotContains(t, reserve.Required, "transactionType", "reserve accepts external-source transactions without a rail type")
+
+	reserveV2 := requestSchema(t, spec, "/reservations/ledger-outcome-v2")
+	v2Delivery, ok := reserveV2.Properties["deliveryMode"]
+	require.True(t, ok, "V2 Reserve must publish deliveryMode")
+	assert.ElementsMatch(t, []any{"UNSPECIFIED", "LEGACY", "LEDGER_OUTCOME_V2"}, v2Delivery.Enum)
+	assert.Contains(t, reserveV2.Required, "deliveryMode")
+	assert.Equal(t, []any{"LEDGER_OUTCOME_V2"}, v2Delivery.Examples)
+
+	outcome := requestSchema(t, spec, "/reservations/transaction/{transaction_id}/outcome")
+	require.Contains(t, outcome.Properties, "outcomeId")
+	outcomeValue, ok := outcome.Properties["outcome"]
+	require.True(t, ok)
+	assert.ElementsMatch(t, []any{"COMMITTED", "ABORTED"}, outcomeValue.Enum)
 }
 
 // fetchTracerSpec builds the tracer routes with the spec surface enabled and
@@ -141,7 +191,7 @@ func TestSpecLock_PerOpSecurity(t *testing.T) {
 	}
 }
 
-// TestSpecLock_AllOpsSecurity asserts EVERY one of the 28 Huma operations
+// TestSpecLock_AllOpsSecurity asserts EVERY protected Huma operation
 // advertises its expected per-op Security requirement in the served spec. This
 // is the CI backstop the tracer lacks otherwise: the docs security-coverage gate
 // is ledger-only, so it never inspects the tracer spec. Without this table, a future edit could
@@ -152,6 +202,7 @@ func TestSpecLock_AllOpsSecurity(t *testing.T) {
 	spec := fetchTracerSpec(t)
 
 	bearerOrAPIKey := []map[string][]string{{"BearerAuth": {}}, {"ApiKeyAuth": {}}}
+	apiKeyOnly := []map[string][]string{{"ApiKeyAuth": {}}}
 
 	cases := []struct {
 		path, method string
@@ -176,12 +227,16 @@ func TestSpecLock_AllOpsSecurity(t *testing.T) {
 		{"/limits/{id}/draft", http.MethodPost, bearerOrAPIKey},
 		{"/limits/{id}", http.MethodDelete, bearerOrAPIKey},
 		{"/limits/{id}/usage", http.MethodGet, bearerOrAPIKey},
-		// reservations (5)
-		{"/reservations", http.MethodPost, bearerOrAPIKey},
-		{"/reservations/{id}/confirm", http.MethodPost, bearerOrAPIKey},
-		{"/reservations/{id}/release", http.MethodPost, bearerOrAPIKey},
-		{"/reservations/transaction/{transaction_id}/confirm", http.MethodPost, bearerOrAPIKey},
-		{"/reservations/transaction/{transaction_id}/release", http.MethodPost, bearerOrAPIKey},
+		// Financial service-to-service operations are API-key-only in every
+		// runtime auth mode. API_KEY_ENABLED controls ordinary routes only.
+		// reservations (7)
+		{"/reservations", http.MethodPost, apiKeyOnly},
+		{"/reservations/ledger-outcome-v2", http.MethodPost, apiKeyOnly},
+		{"/reservations/transaction/{transaction_id}/outcome", http.MethodPost, apiKeyOnly},
+		{"/reservations/{id}/confirm", http.MethodPost, apiKeyOnly},
+		{"/reservations/{id}/release", http.MethodPost, apiKeyOnly},
+		{"/reservations/transaction/{transaction_id}/confirm", http.MethodPost, apiKeyOnly},
+		{"/reservations/transaction/{transaction_id}/release", http.MethodPost, apiKeyOnly},
 		// validations (3): all bearer|apikey — POST's runtime guard is config-driven
 		// (cfg.APIKeyOnlyValidation, default false), so the spec advertises the union.
 		{"/validations", http.MethodPost, bearerOrAPIKey},
@@ -193,7 +248,7 @@ func TestSpecLock_AllOpsSecurity(t *testing.T) {
 		{"/audit-events/{id}/verify", http.MethodGet, bearerOrAPIKey},
 	}
 
-	require.Lenf(t, cases, 28, "the tracer has 28 protected Huma ops; keep this table complete")
+	require.Lenf(t, cases, 30, "the tracer has 30 protected Huma ops; keep this table complete")
 
 	for _, tc := range cases {
 		t.Run(tc.method+" "+tc.path, func(t *testing.T) {

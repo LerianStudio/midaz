@@ -32,7 +32,8 @@ type ReserveRequest struct {
 	// still-valid pending that has no existing sweep (R18). It is a sibling wire
 	// field, NOT part of the embedded ValidationRequest, so the relaxed reserve
 	// validation never sees it.
-	LongLived               bool `json:"longLived,omitempty" example:"false"`
+	LongLived               bool                          `json:"longLived,omitempty" example:"false"`
+	DeliveryMode            model.ReservationDeliveryMode `json:"deliveryMode,omitempty" enum:"UNSPECIFIED,LEGACY,LEDGER_OUTCOME_V2" example:"LEGACY"`
 	model.ValidationRequest `swaggerignore:"true"`
 }
 
@@ -49,6 +50,13 @@ func (r *ReserveRequest) NormalizeAndReserveValidate(now time.Time) error {
 		return constant.ErrReservationTransactionIDReq
 	}
 
+	deliveryMode, err := r.DeliveryMode.Normalize()
+	if err != nil {
+		return err
+	}
+
+	r.DeliveryMode = deliveryMode
+
 	return r.NormalizeAndValidateForReserve(now)
 }
 
@@ -64,9 +72,10 @@ func (r *ReserveRequest) ToReserveInput() *model.CheckLimitsInput {
 // ReservationIDs holds one id per counter-backed limit the ledger must confirm or
 // release in phase two.
 type ReserveResponse struct {
-	TransactionID  uuid.UUID   `json:"transactionId" swaggertype:"string" format:"uuid"`
-	Denied         bool        `json:"denied" example:"false"`
-	ReservationIDs []uuid.UUID `json:"reservationIds" swaggertype:"array,string" format:"uuid"`
+	TransactionID  uuid.UUID                     `json:"transactionId" swaggertype:"string" format:"uuid"`
+	Denied         bool                          `json:"denied" example:"false"`
+	ReservationIDs []uuid.UUID                   `json:"reservationIds" swaggertype:"array,string" format:"uuid"`
+	DeliveryMode   model.ReservationDeliveryMode `json:"deliveryMode" enum:"LEGACY,LEDGER_OUTCOME_V2" example:"LEGACY"`
 }
 
 // ReservationActionResponse is the body returned by confirm and release. Status is
@@ -75,7 +84,7 @@ type ReserveResponse struct {
 // returns the same terminal status with HTTP 200.
 type ReservationActionResponse struct {
 	ReservationID uuid.UUID `json:"reservationId" swaggertype:"string" format:"uuid"`
-	Status        string    `json:"status" enums:"CONFIRMED,RELEASED" example:"CONFIRMED"`
+	Status        string    `json:"status" enum:"CONFIRMED,RELEASED" example:"CONFIRMED"`
 }
 
 // TransactionActionResponse is the body returned by the by-transaction confirm and
@@ -87,6 +96,35 @@ type ReservationActionResponse struct {
 // already terminal.
 type TransactionActionResponse struct {
 	TransactionID uuid.UUID `json:"transactionId" swaggertype:"string" format:"uuid"`
-	Status        string    `json:"status" enums:"CONFIRMED,RELEASED" example:"CONFIRMED"`
+	Status        string    `json:"status" enum:"CONFIRMED,RELEASED" example:"CONFIRMED"`
 	Flipped       int       `json:"flipped" example:"2"`
+}
+
+// ApplyOutcomeRequest is the durable Ledger-owned terminal decision for a V2
+// reservation transaction. OutcomeID identifies the delivery attempt across
+// retries; Outcome is the immutable accounting decision.
+type ApplyOutcomeRequest struct {
+	OutcomeID string                   `json:"outcomeId" format:"uuid"`
+	Outcome   model.ReservationOutcome `json:"outcome" enum:"COMMITTED,ABORTED" example:"COMMITTED"`
+}
+
+func (r *ApplyOutcomeRequest) Validate() (uuid.UUID, error) {
+	outcomeID, err := uuid.Parse(r.OutcomeID)
+	if err != nil || outcomeID == uuid.Nil {
+		return uuid.Nil, constant.ErrReservationOutcomeIDRequired
+	}
+
+	_, err = r.Outcome.TerminalStatus()
+
+	return outcomeID, err
+}
+
+// ApplyOutcomeResponse returns the stored receipt. Replayed distinguishes the
+// first application from an exact delivery retry without changing semantics.
+type ApplyOutcomeResponse struct {
+	TransactionID    uuid.UUID                `json:"transactionId" swaggertype:"string" format:"uuid"`
+	OutcomeID        uuid.UUID                `json:"outcomeId" swaggertype:"string" format:"uuid"`
+	Outcome          model.ReservationOutcome `json:"outcome" enum:"COMMITTED,ABORTED"`
+	ReservationCount int                      `json:"reservationCount" example:"2"`
+	Replayed         bool                     `json:"replayed" example:"false"`
 }

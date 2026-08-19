@@ -95,13 +95,16 @@ collapsing the two into one failure/scale unit.
   the balance commit; a reject returns *before* any balance moves (`transaction_create.go:1231-1239`).
   The tracer must therefore be **low-latency**, but each reservation's work is bounded per transaction.
 
-- **Confirm / Release are post-commit and best-effort (non-blocking).** After a successful balance
+- **V1 Confirm / Release are post-commit and best-effort (non-blocking).** After a successful balance
   commit, `confirmReservations` runs for non-PENDING transactions; on a commit failure
   `releaseReservations` runs; PENDING defers confirm to `/commit` and release to `/cancel`
   (`transaction_create.go:1241-1273`). Transport failures on confirm/release are logged at Warn,
-  span-recorded, and **never propagated** — the TTL reaper is the durability backstop
-  (`transaction_reservation_anchor.go:246-261, 282-289`). A tracer outage during the confirm/release
-  window degrades to reaper reconciliation, not request failure.
+  span-recorded, and **never propagated**. This is a known correctness gap, not a durability
+  backstop: if confirm is lost after money moves, expiry later removes that amount from Tracer usage
+  and reopens limit capacity (`transaction_reservation_anchor.go:246-261, 282-289`). Closing the gap
+  requires the V2 durable Ledger-owned outcome handoff described in §7. The Tracer receiver exists
+  additively; V1 remains unchanged until the Ledger explicitly reserves with
+  `LEDGER_OUTCOME_V2` and runs its durable dispatcher.
 
 Net: the tracer can stay a small replica set and tolerate occasional saturation on the post-commit path,
 while the pre-commit reserve path is the only latency-sensitive RPC — which is what co-scheduling (§2)
@@ -172,11 +175,17 @@ rather than at first transaction. `Close()` drains on SIGTERM when registered wi
 
 ---
 
-## 5. mTLS model (identity, not a shared secret)
+## 5. Transport identity and REST application authentication
 
-**Seam identity is mutual TLS — the verified mTLS peer IS the credential. There is no shared secret and
-no static key.** This is stated explicitly in code: *"identity on the reservation seam is mutual TLS
-(the verified peer IS the credential — no shared secret)"* (`config.go:1556-1564`).
+**Transport identity is mutual TLS; REST additionally authenticates with a dedicated Tracer API key.**
+The Ledger sends `TRACER_API_KEY` only as `X-API-Key`. The Tracer reservation routes deliberately use
+the API-key guard even when user-facing multi-tenant routes use plugin/JWT auth. The key is distinct
+from `MULTI_TENANT_SERVICE_API_KEY`; reusing the Tenant Manager credential would collapse two trust
+boundaries. `API_KEY_ENABLED` controls only the optional API-key fallback on Tracer's ordinary REST
+routes: setting it to `false` never disables authentication on reserve, confirm, release, or durable
+outcome operations. Those financial routes always require the configured `API_KEY`; a missing or
+mismatched credential returns `401` before tenant resolution or handler execution. gRPC carries no API
+key because its reservation listener authenticates the verified mTLS peer.
 
 `TRACER_TLS_MODE` selects the posture, with a fail-fast typed error on an invalid value
 (`ledger/tls_seam.go:51-62`, server-side mirror `tracer/tls_seam.go:48-59`):
@@ -215,9 +224,9 @@ knob, on **both** sides (`ledger/tls_seam.go:67-77`, `tracer/tls_seam.go:63-73`)
 ### Trusted `x-tenant-id` — the rationale
 
 Tenant crosses the seam as a **trusted `x-tenant-id`** — a REST header / gRPC outgoing metadata key, not
-a JWT claim and not a shared secret. It is trusted **precisely because the mTLS peer is verified** (or
-sits behind a verified mesh sidecar): *"mTLS replaces token identity, so there is no Authorization"*
-(`client.go:362-371`; gRPC emission via `AppendToOutgoingContext` at `grpc_client.go:278`). The key derives from one constant —
+a JWT claim and not the application credential. It is trusted because the transport peer is verified
+directly by mTLS or by the mesh; on REST, `X-API-Key` independently authenticates the calling application.
+The key derives from one constant —
 `TenantHeader = "X-Tenant-Id"` with the gRPC metadata key as its lower-cased form — so REST and gRPC
 cannot drift (`client.go:359-368`; tracer-side resolver `seamtenant/resolver.go:33-39`).
 
@@ -258,6 +267,112 @@ serves REST/health on `:4020` (`SERVER_ADDRESS`); the reservation **gRPC seam li
 port** via `TRACER_GRPC_PORT`, which is **empty by default**, so the gRPC server is off unless an
 operator configures it.
 
+---
+
+## 7. Durable reservation outcomes (V2)
+
+V2 closes the lost post-commit confirmation gap without making the Tracer infer Ledger state. The
+ownership boundary is strict: **the Ledger owns the terminal accounting decision and delivery; the
+Tracer owns reservation capacity and the durable receipt. There is no Tracer-to-Ledger pull RPC.**
+
+### Protocol
+
+1. V1 continues to use `POST /v1/reservations` / `Reserve`. V2 uses the distinct
+   `POST /v1/reservations/ledger-outcome-v2` / `ReserveV2` operation and carries
+   `delivery_mode=LEDGER_OUTCOME_V2`. A pre-V2 server therefore returns `404` / `UNIMPLEMENTED`
+   **before creating any hold**; the Ledger never falls back to the legacy operation. Every successful
+   reserve response echoes the delivery mode the Tracer actually accepted. A V2 Ledger requires an
+   explicit V2 echo and rejects a legacy or omitted echo before the balance path. On the V1 operation,
+   omitted / `UNSPECIFIED` / `LEGACY` continues to select legacy confirm/release plus autonomous TTL.
+2. After its own durable decision, the Ledger delivers
+   `ApplyOutcome(transactionId, outcomeId, COMMITTED|ABORTED)` over REST or gRPC. `COMMITTED` moves
+   every reservation from held capacity to consumed usage; `ABORTED` returns every hold. The Tracer
+   uses the coordinates already stored at reserve time and never re-resolves the current limit set.
+3. Receipt claim, every counter move, every reservation transition, and every reservation audit row
+   commit in one Tracer PostgreSQL transaction. A transaction with zero counter-backed limits still
+   gets a receipt, making delivery retryable even when there was no capacity row to transition.
+4. The exact `(transactionId, outcomeId, outcome)` replay returns the stored receipt without another
+   counter move or audit. Any different terminal decision for that transaction is a conflict. A
+   different outcome ID cannot replace the transaction's receipt.
+5. Reserve and ApplyOutcome serialize on the transaction ID. Once a receipt exists, no later reserve
+   can enter for that transaction; mixing V1 and V2 reservations under one transaction is also a
+   conflict. This prevents a zero-limit outcome racing a late reserve into a permanent hold.
+
+### Expiry and observability
+
+V2 reservations persist `reservation_expires_at=NULL`; legacy reservations are constrained to a
+non-null expiry. That representation is deliberate rolling-deploy compatibility: the fixed predicate
+in a pre-V2 reaper (`status='RESERVED' AND reservation_expires_at < now`) cannot discover a V2 row.
+Database triggers also reject any live V2 status change or deletion without the matching durable
+outcome receipt, and silently prevent deletion of a counter that backs a live V2 hold. Therefore an
+old reaper's counter decrement is rolled back with its rejected row transition, while an old cleanup
+worker skips the protected counter. The new reaper additionally selects `LEGACY` reservations only.
+A V2 reservation stays `RESERVED` until the Ledger
+delivers `COMMITTED` or `ABORTED`, including PENDING reservations older than 30 days. This deliberately
+prefers held capacity over silently reopening a limit after money may have moved. The reaper reports
+the V2 outstanding count and oldest age as gauges; observing a stale backlog never releases it. The
+observer runs even when `RESERVATION_REAPER_ENABLED=false`; that switch controls only autonomous V1
+expiry. In multi-tenant deployments, both gauges carry `tenant_id` so tenants cannot overwrite each
+other's series, and stopping a tenant worker resets its series instead of freezing stale values. The
+existing worker safety cap still applies: `MULTI_TENANT_MAX_TENANT_POOLS` must cover every active
+tenant assigned to the instance; an over-cap tenant is rejected by the instance and has no local
+observer. Counter retention also skips every counter referenced by a live reservation and skips
+counter rows locked by concurrent reserve/outcome work, so a V2 outcome remains applicable after the
+normal counter-retention horizon.
+
+### Tenant boundary
+
+REST and gRPC use the existing verified seam identity and trusted tenant metadata from §5. The receipt
+and reservation tables live inside the resolved tenant database. A transaction ID presented under a
+different tenant can at most create that tenant's zero-limit receipt; it cannot discover, transition,
+or audit the original tenant's reservation.
+
+### Rollout and rollback
+
+1. Deploy migration `000022` first. Existing binaries remain safe: their inserts receive the `LEGACY`
+   default, their reaper cannot see NULL-expiry V2 rows, and database triggers prevent their cleanup
+   paths from mutating live V2 state.
+2. Deploy the V2 Tracer across the fleet. Mixed Tracer fleets are safe: a V2 reserve routed to an old
+   pod fails at the distinct operation before a hold exists, and an outcome routed to an old pod fails
+   for retry. Neither failure can reach the Ledger money path or reopen held capacity.
+3. Deploy the Ledger-side durable outcome dispatcher, then enable
+   `TRACER_OUTCOME_MODE=ledger_outcome_v2` reservation traffic. The Ledger persists `PREPARED` before
+   Reserve and the balance Lua projects its exact economic proof into a dedicated outcome outbox;
+   the Ledger must durably retain that outcome until the Tracer
+   acknowledges its receipt; process-local retries are not a correctness mechanism.
+   In multi-tenant deployments, PREPARED, its delivery schedule, the tenant's active-outcome index, and the
+   deployment-global tenant inventory are written by one Lua command in the same Redis Cluster
+   `{transactions}` slot. An acknowledged outcome therefore cannot survive a shard failure or AOF recovery
+   without its discovery pointer. The worker reloads inventory tenants through Tenant Manager after a restart
+   instead of enumerating the expiring process cache; `PENDING_HELD` remains in the active index while
+   intentionally absent from delivery. Retirement atomically requires an empty active index and an unchanged
+   inventory generation in that same slot. An absent record leaves a false-positive discovery pointer until
+   the explicit missing-record quarantine path removes its indexes, so a concurrent prepare or tenant deletion
+   cannot make real backlog undiscoverable.
+4. During rollback, set `TRACER_OUTCOME_MODE=legacy` to stop new V2 reserves but keep
+   `TRACER_OUTCOME_WORKER_ENABLED=true`; keep a Tracer version that understands V2 and the dispatcher running
+   until the V2 outstanding gauge reaches zero. Disabling new V2 reserves does not make the existing
+   backlog safe to forget.
+5. The migration down path takes exclusive locks on receipts, reservations, and counters, then refuses
+   to remove V2 support while any V2 reservation or outcome receipt exists. Drain/archive that state
+   explicitly before schema rollback; a forced rollback would erase the proof that money-path
+   outcomes were applied exactly once.
+
+### Redis durability and RPO
+
+Outcome V2 treats Redis as authoritative before PostgreSQL receives the final transaction. Enabling V2,
+or keeping only its drain worker enabled during rollback, therefore fails boot, readiness, and per-request
+admission unless every Redis shard proves `maxmemory-policy=noeviction`, `appendonly=yes`, a healthy last
+AOF write, and `appendfsync=always|everysec`. `appendfsync=everysec` deliberately accepts an acknowledged
+persistence RPO of approximately one second; `always` is required where even that loss window is not
+acceptable. These checks are shared with revert durability but are not coupled to the revert rollout state.
+
+An old application binary cannot deliver an existing V2 outcome. Rolling it back while V2 state is
+live is therefore availability-fail-closed, not data-loss-safe progress: V2 capacity remains held and
+the Ledger keeps retrying until a V2 Tracer returns. The database invariants prevent that old binary
+from expiring or deleting the hold, and the down migration prevents removing those invariants while
+the backlog or its receipts exist.
+
 > **NOTE — `:4021` is illustrative, not canonical.** `TRACER_GRPC_PORT`'s doc comment says *"e.g.
 > :4021"* (`tracer/config.go:51`). There is no default value and no `EXPOSE 4021` anywhere. `:4021` is an
 > example in a comment, not a configured or bound port.
@@ -292,6 +407,7 @@ truth for their **existence and semantics**.
 |---|---|---|---|
 | `TRACER_BASE_URL` | ledger | opt-in switch for the whole integration; empty → disabled | `config.go:285-304, 1548-1554` |
 | `TRACER_TRANSPORT` | ledger | `grpc`\|`rest`; empty → `grpc` | `config.go:294-297, 1569-1588` |
+| `TRACER_API_KEY` | ledger | required `X-API-Key` credential when transport is REST | `config.go`, `client.go` |
 | `TRACER_TIMEOUT_MS` | ledger | reserve RPC timeout | struct tag, `config.go:304-310` |
 | `TRACER_TLS_MODE` | ledger | `mtls`\|`mesh`/empty | `config.go:298-303` |
 | `TRACER_TLS_CERT_FILE` / `_KEY_FILE` | ledger | client leaf material (mtls) | `tls_seam.go:67-77` |
@@ -301,13 +417,3 @@ truth for their **existence and semantics**.
 | `TRACER_TLS_CERT_FILE` / `_KEY_FILE` | tracer | server leaf material (mtls) | `tracer/tls_seam.go:63-73` |
 | `TRACER_TLS_CLIENT_CA_FILE` | tracer | CA verifying the **ledger's** client leaf | `tracer/config.go:68-72`, `tls_seam.go:83-86` |
 | `TENANT_CAP_RETRY_AFTER_SECONDS` | tracer | 503 `Retry-After` on tenant-pool cap (default 5s) | `tracer/.env.example:283-292` |
-
-> **DOCUMENTED GAP (not papered over):** the operator-facing `.env.example` templates **do not yet
-> surface the new seam vars.** `components/ledger/.env.example` has **zero** occurrences of
-> `TRACER_BASE_URL`, `TRACER_TIMEOUT_MS`, `TRACER_TRANSPORT`, `TRACER_TLS_MODE`, `TRACER_TLS_CERT_FILE`,
-> `TRACER_TLS_KEY_FILE`, or `TRACER_TLS_CA_FILE` — all seven exist only as Go struct tags in
-> `config.go:304-310`. `components/tracer/.env.example` has **zero** occurrences of `TRACER_GRPC_PORT`,
-> `TRACER_TLS_MODE`, `TRACER_TLS_CERT_FILE`, `TRACER_TLS_KEY_FILE`, or `TRACER_TLS_CLIENT_CA_FILE` —
-> they exist only as struct tags in the tracer `config.go:54-72`. **Recommendation:** update both
-> `.env.example` files to surface these vars with the semantics above before the gRPC/mTLS seam is
-> handed to operators. This is a follow-up, not yet codified.

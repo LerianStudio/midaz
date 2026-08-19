@@ -208,7 +208,7 @@ tracer/
 ├── tests/
 │   ├── integration/               # 45 testcontainers-based API test files
 │   └── end2end/                   # BDD (Godog) with Gherkin features
-├── migrations/                    # 20 migrations + seeds/
+├── migrations/                    # 22 migrations + seeds/
 ├── api/                           # Generated Swagger docs
 └── .golangci.yml                  # Linter config (golangci-lint v2)
 ```
@@ -332,7 +332,8 @@ Binding standard: [`../../docs/standards/telemetry.md`](../../docs/standards/tel
 
 - API Key via `X-API-Key` header
 - Constant-time comparison (`crypto/subtle`)
-- Configurable: `API_KEY_ENABLED`, `API_KEY_ENABLED_ONLY_VALIDATION`
+- Configurable on ordinary routes: `API_KEY_ENABLED`, `API_KEY_ENABLED_ONLY_VALIDATION`
+- Reservation and outcome operations always require `X-API-Key`, regardless of `API_KEY_ENABLED`
 - Access Manager plugin: `PLUGIN_AUTH_ENABLED`, `PLUGIN_AUTH_ADDRESS`
 - Public endpoints: `/health`, `/readyz`, `/metrics`, `/version`, `/swagger/*`
 
@@ -493,4 +494,4 @@ All CI uses shared workflows from `LerianStudio/github-actions-shared-workflows`
 
 **Last Updated**: June 2026
 **Go Version**: root `go.mod` `go 1.26.4`, Docker builder image `golang:1.26.6-alpine`
-**Migrations**: 20 (000001 through 000020)
+**Migrations**: 22 (000001 through 000022)

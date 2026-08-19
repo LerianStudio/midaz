@@ -39,3 +39,9 @@ type ReservationReaperRepository interface {
 	// and the release is expected, not a fault.
 	ReleaseExpired(ctx context.Context, reservationID uuid.UUID) error
 }
+
+// ReservationV2Observer is implemented by the production repository to expose
+// backlog health without granting the reaper authority to mutate V2 rows.
+type ReservationV2Observer interface {
+	ObserveV2Outstanding(ctx context.Context, now time.Time) (count int64, oldestAge time.Duration, err error)
+}

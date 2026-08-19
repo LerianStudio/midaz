@@ -22,7 +22,9 @@ import (
 	"net/http"
 	"os"
 	"strconv"
+	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -45,6 +47,112 @@ func envOr(key, def string) string {
 // httpClient is shared; the per-request timeout is generous because a cold
 // stack (first transaction after boot) can be slow.
 var httpClient = &http.Client{Timeout: 30 * time.Second}
+
+var e2eRunID = envOr("E2E_RUN_ID", uuid.NewString())
+
+var (
+	ledgerE2EWorkerLimit = ledgerE2EWorkerLimitFrom(os.Getenv("E2E_LEDGER_WORKERS"))
+	ledgerE2EWorkers     = make(chan struct{}, ledgerE2EWorkerLimit)
+	ledgerE2EActive      atomic.Int64
+	ledgerE2EMaxActive   atomic.Int64
+)
+
+func ledgerE2EWorkerLimitFrom(raw string) int {
+	if raw == "" {
+		return 4
+	}
+
+	workers, err := strconv.Atoi(raw)
+	if err != nil || workers < 1 {
+		return 4
+	}
+
+	return workers
+}
+
+func parallelLedgerE2E(t *testing.T) {
+	t.Helper()
+	t.Parallel()
+
+	ledgerE2EWorkers <- struct{}{}
+	active := ledgerE2EActive.Add(1)
+
+	for {
+		maximum := ledgerE2EMaxActive.Load()
+		if active <= maximum || ledgerE2EMaxActive.CompareAndSwap(maximum, active) {
+			break
+		}
+	}
+
+	t.Cleanup(func() {
+		ledgerE2EActive.Add(-1)
+		<-ledgerE2EWorkers
+	})
+}
+
+func e2eIdentity(prefix string) string {
+	return prefix + "-" + e2eRunID + "-" + uuid.NewString()
+}
+
+// TestMain turns the live-stack preflight into a hard gate only when the
+// mandatory runner explicitly opts in. The default remains developer-friendly:
+// individual tests retain their existing skip behavior against a down stack.
+func TestMain(m *testing.M) {
+	if e2eRequired() {
+		client := &http.Client{Timeout: 5 * time.Second}
+		if err := checkRequiredStack(client, ledgerURL(), tracerURL()); err != nil {
+			fmt.Fprintf(os.Stderr, "required e2e preflight failed: %v\n", err)
+			os.Exit(1)
+		}
+
+		fmt.Fprintf(os.Stderr, "required e2e preflight passed: ledger=%s tracer=%s\n", ledgerURL(), tracerURL())
+	}
+
+	code := m.Run()
+	fmt.Fprintf(os.Stderr, "ledger e2e metrics: run_id=%s worker_limit=%d max_workers=%d\n",
+		e2eRunID, ledgerE2EWorkerLimit, ledgerE2EMaxActive.Load())
+	os.Exit(code)
+}
+
+func e2eRequired() bool {
+	return os.Getenv("E2E_REQUIRED") == "1"
+}
+
+// checkRequiredStack proves that both deploy surfaces and the dependencies
+// covered by their readiness checks are available before a mandatory run.
+func checkRequiredStack(client *http.Client, ledgerBaseURL, tracerBaseURL string) error {
+	if err := checkRequiredService(client, "ledger", ledgerBaseURL+"/readyz"); err != nil {
+		return err
+	}
+
+	if err := checkRequiredService(client, "tracer", tracerBaseURL+"/readyz"); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func checkRequiredService(client *http.Client, name, readyURL string) error {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, readyURL, nil)
+	if err != nil {
+		return fmt.Errorf("%s readiness request: %w", name, err)
+	}
+
+	resp, err := client.Do(req)
+	if err != nil {
+		return fmt.Errorf("%s readiness at %s: %w", name, readyURL, err)
+	}
+	defer func() { _ = resp.Body.Close() }()
+
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("%s readiness at %s returned HTTP %d", name, readyURL, resp.StatusCode)
+	}
+
+	return nil
+}
 
 // stackOnce gates the whole suite on the ledger being reachable. A down stack
 // skips rather than fails: e2e is opt-in and needs `make up` first.
@@ -76,7 +184,11 @@ func requireStack(t *testing.T) {
 	})
 
 	if !stackUp {
-		t.Skipf("ledger not reachable at %s/readyz — start the stack with `make up` (set LEDGER_URL to override)", ledgerURL())
+		message := fmt.Sprintf("ledger not reachable at %s/readyz — start the stack with `make up` (set LEDGER_URL to override)", ledgerURL())
+		if e2eRequired() {
+			t.Fatal(message)
+		}
+		t.Skip(message)
 	}
 }
 
@@ -117,6 +229,11 @@ func call(t *testing.T, method, url string, body any) response {
 	req.Header.Set("Content-Type", "application/json")
 	// Fresh request id keeps the idempotency cache from short-circuiting repeats.
 	req.Header.Set("X-Request-Id", uuid.NewString())
+	if strings.HasPrefix(url, strings.TrimRight(tracerURL(), "/")+"/") {
+		if apiKey := os.Getenv("E2E_TRACER_API_KEY"); apiKey != "" {
+			req.Header.Set("X-API-Key", apiKey)
+		}
+	}
 
 	resp, err := httpClient.Do(req)
 	if err != nil {
@@ -163,9 +280,9 @@ func createOrg(t *testing.T) string {
 	t.Helper()
 
 	org := mustCreate(t, ledgerURL()+"/v1/organizations", map[string]any{
-		"legalName":       "E2E Org " + uuid.NewString()[:8],
-		"legalDocument":   "123456789012345",
-		"doingBusinessAs": "E2E",
+		"legalName":       e2eIdentity("E2E Org"),
+		"legalDocument":   e2eIdentity("E2E-document"),
+		"doingBusinessAs": e2eIdentity("E2E"),
 	})
 
 	return str(t, org, "id")
@@ -177,7 +294,7 @@ func createOrg(t *testing.T) string {
 func createLedger(t *testing.T, orgID string, allowSkips bool) string {
 	t.Helper()
 
-	body := map[string]any{"name": "E2E Ledger " + uuid.NewString()[:8]}
+	body := map[string]any{"name": e2eIdentity("E2E Ledger")}
 	if allowSkips {
 		body["settings"] = map[string]any{
 			"accounting": map[string]any{"requireHolder": false},
@@ -224,8 +341,8 @@ func createHolder(t *testing.T, orgID string) string {
 	t.Helper()
 
 	h := mustCreate(t, fmt.Sprintf("%s/v2/organizations/%s/holders", ledgerURL(), orgID), map[string]any{
-		"type": "NATURAL_PERSON", "name": "Jane Doe", "document": "91315026015",
-		"externalId": "E2E-" + uuid.NewString()[:8],
+		"type": "NATURAL_PERSON", "name": "Jane Doe", "document": e2eIdentity("E2E-document"),
+		"externalId": e2eIdentity("E2E-holder"),
 	})
 
 	return str(t, h, "id")
@@ -333,7 +450,11 @@ func requireTracer(t *testing.T) {
 	})
 
 	if !tracerUp {
-		t.Skipf("tracer not reachable at %s/readyz — start it with the tracer compose (set TRACER_URL to override)", tracerURL())
+		message := fmt.Sprintf("tracer not reachable at %s/readyz — start it with the tracer compose (set TRACER_URL to override)", tracerURL())
+		if e2eRequired() {
+			t.Fatal(message)
+		}
+		t.Skip(message)
 	}
 }
 
@@ -356,7 +477,7 @@ func fund(t *testing.T, f fixture, alias, value string) {
 // when non-nil, is attached verbatim (e.g. {"fees": false}).
 func transferBody(from, to, value string, skip map[string]any) map[string]any {
 	body := map[string]any{
-		"description": "xfer " + uuid.NewString()[:8],
+		"description": "xfer " + uuid.NewString(),
 		"send": map[string]any{
 			"asset": "USD", "value": value,
 			"source":     map[string]any{"from": []any{map[string]any{"accountAlias": from, "amount": map[string]any{"asset": "USD", "value": value}}}},

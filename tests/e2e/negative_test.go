@@ -15,6 +15,7 @@ import (
 // API must honor — the wrong status code here is a regression that silently
 // changes how every client handles failures.
 func TestNegativeTransactionContracts(t *testing.T) {
+	parallelLedgerE2E(t)
 	requireStack(t)
 
 	f := newFixture(t, false)
@@ -72,6 +73,7 @@ func TestNegativeTransactionContracts(t *testing.T) {
 
 // TestNegativeAccountAndPackageContracts covers the onboarding/fees error paths.
 func TestNegativeAccountAndPackageContracts(t *testing.T) {
+	parallelLedgerE2E(t)
 	requireStack(t)
 
 	f := newFixture(t, false)
@@ -88,7 +90,7 @@ func TestNegativeAccountAndPackageContracts(t *testing.T) {
 
 	t.Run("holder-owned account requires type", func(t *testing.T) {
 		holderID := createHolder(t, f.orgID)
-		r := call(t, http.MethodPost, f.ledgers()+"/holders/"+holderID+"/accounts", map[string]any{
+		r := call(t, http.MethodPost, ledgerURL()+"/v2/organizations/"+f.orgID+"/ledgers/"+f.ledgerID+"/holders/"+holderID+"/accounts", map[string]any{
 			"assetCode": "USD", // type omitted
 		})
 		if r.status != http.StatusBadRequest { // 400 — missing required field
@@ -116,6 +118,7 @@ func TestNegativeAccountAndPackageContracts(t *testing.T) {
 // partial settings object leaves tracer.mode="" which the API rejects, rather
 // than defaulting the omitted sub-fields.
 func TestNegativeLedgerSettings(t *testing.T) {
+	parallelLedgerE2E(t)
 	requireStack(t)
 
 	orgID := createOrg(t)

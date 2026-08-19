@@ -66,17 +66,18 @@ func (s ReservationStatus) IsTerminal() bool {
 // by value only. The (TransactionID, LimitID, ScopeKey, PeriodKey) tuple is the
 // idempotency grain for retried reserves.
 type Reservation struct {
-	ID                   uuid.UUID         `json:"reservationId" swaggertype:"string" format:"uuid"`
-	LimitID              uuid.UUID         `json:"limitId" swaggertype:"string" format:"uuid"`
-	ScopeKey             string            `json:"scopeKey"`
-	PeriodKey            string            `json:"periodKey"`
-	Amount               decimal.Decimal   `json:"amount" swaggertype:"string" example:"500.00" minimum:"0"`
-	Status               ReservationStatus `json:"status"`
-	TransactionID        uuid.UUID         `json:"transactionId" swaggertype:"string" format:"uuid"`
-	ReservationExpiresAt time.Time         `json:"reservationExpiresAt" format:"date-time"`
-	CreatedAt            time.Time         `json:"createdAt" format:"date-time"`
-	ConfirmedAt          *time.Time        `json:"confirmedAt,omitempty" format:"date-time"`
-	ReleasedAt           *time.Time        `json:"releasedAt,omitempty" format:"date-time"`
+	ID                   uuid.UUID               `json:"reservationId" swaggertype:"string" format:"uuid"`
+	LimitID              uuid.UUID               `json:"limitId" swaggertype:"string" format:"uuid"`
+	ScopeKey             string                  `json:"scopeKey"`
+	PeriodKey            string                  `json:"periodKey"`
+	Amount               decimal.Decimal         `json:"amount" swaggertype:"string" example:"500.00" minimum:"0"`
+	Status               ReservationStatus       `json:"status"`
+	DeliveryMode         ReservationDeliveryMode `json:"deliveryMode"`
+	TransactionID        uuid.UUID               `json:"transactionId" swaggertype:"string" format:"uuid"`
+	ReservationExpiresAt time.Time               `json:"reservationExpiresAt" format:"date-time"`
+	CreatedAt            time.Time               `json:"createdAt" format:"date-time"`
+	ConfirmedAt          *time.Time              `json:"confirmedAt,omitempty" format:"date-time"`
+	ReleasedAt           *time.Time              `json:"releasedAt,omitempty" format:"date-time"`
 }
 
 // NewReservation creates a RESERVED reservation after validating its invariants:
@@ -91,6 +92,30 @@ func NewReservation(
 	amount decimal.Decimal,
 	reservationExpiresAt time.Time,
 	createdAt time.Time,
+) (*Reservation, error) {
+	return NewReservationWithDeliveryMode(
+		limitID,
+		transactionID,
+		scopeKey,
+		periodKey,
+		amount,
+		reservationExpiresAt,
+		createdAt,
+		DeliveryModeLegacy,
+	)
+}
+
+// NewReservationWithDeliveryMode creates a reservation under the requested
+// delivery protocol. Unspecified mode normalizes to legacy behavior.
+func NewReservationWithDeliveryMode(
+	limitID uuid.UUID,
+	transactionID uuid.UUID,
+	scopeKey string,
+	periodKey string,
+	amount decimal.Decimal,
+	reservationExpiresAt time.Time,
+	createdAt time.Time,
+	deliveryMode ReservationDeliveryMode,
 ) (*Reservation, error) {
 	if limitID == uuid.Nil {
 		return nil, constant.ErrReservationLimitIDRequired
@@ -118,6 +143,11 @@ func NewReservation(
 		return nil, constant.ErrReservationExpiresAtRequired
 	}
 
+	normalizedDeliveryMode, err := deliveryMode.Normalize()
+	if err != nil {
+		return nil, err
+	}
+
 	return &Reservation{
 		ID:                   uuid.New(),
 		LimitID:              limitID,
@@ -125,6 +155,7 @@ func NewReservation(
 		PeriodKey:            normalizedPeriodKey,
 		Amount:               amount,
 		Status:               StatusReserved,
+		DeliveryMode:         normalizedDeliveryMode,
 		TransactionID:        transactionID,
 		ReservationExpiresAt: reservationExpiresAt.UTC(),
 		CreatedAt:            createdAt.UTC(),
@@ -157,6 +188,10 @@ func (r *Reservation) Validate() error {
 
 	if !r.Status.IsValid() {
 		return constant.ErrReservationInvalidStatus
+	}
+
+	if _, err := r.DeliveryMode.Normalize(); err != nil {
+		return constant.ErrReservationDeliveryModeInvalid
 	}
 
 	if r.ReservationExpiresAt.IsZero() {

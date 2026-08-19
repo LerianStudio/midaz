@@ -175,7 +175,8 @@ func TestAuditActor_APIKey_StampsAPIKeyActor(t *testing.T) {
 // TestAuditActor_HashChainStaysVerifiableAfterMigration confirms that the
 // new canonical hash formula (which includes the four actor fields) keeps
 // the chain internally consistent: trigger output and verifier output match
-// for every row inserted post-migration 000017.
+// for a row inserted post-migration 000017. The bounded range deliberately
+// excludes rows owned by other tests in this shared suite database.
 //
 // This is the core integration assertion that the migration applied cleanly
 // — both calculate_audit_event_hash() and verify_audit_hash_chain() updated
@@ -185,7 +186,23 @@ func TestAuditActor_HashChainStaysVerifiableAfterMigration(t *testing.T) {
 
 	// Drive one fresh audit row so the verifier has something to check that
 	// was definitely written under the new trigger.
-	_ = callValidationEndpoint(t)
+	resp := callValidationEndpoint(t)
+	validationID, ok := resp["validationId"].(string)
+	require.True(t, ok, "response must include validationId")
+
+	var auditEventID int64
+	require.Eventually(t, func() bool {
+		row := db.QueryRowContext(context.Background(), `
+			SELECT id
+			FROM audit_events
+			WHERE resource_id = $1
+			  AND event_type = 'TRANSACTION_VALIDATED'
+			ORDER BY id DESC
+			LIMIT 1
+		`, validationID)
+
+		return row.Scan(&auditEventID) == nil
+	}, 5*time.Second, 50*time.Millisecond, "audit row for validation must appear within 5s")
 
 	var (
 		isValid        bool
@@ -194,11 +211,13 @@ func TestAuditActor_HashChainStaysVerifiableAfterMigration(t *testing.T) {
 		errorDetail    sql.NullString
 	)
 
-	require.Eventually(t, func() bool {
-		row := db.QueryRowContext(context.Background(), `SELECT is_valid, first_invalid_id, total_checked, error_detail FROM verify_audit_hash_chain(1, NULL)`)
-
-		return row.Scan(&isValid, &firstInvalidID, &totalChecked, &errorDetail) == nil
-	}, 5*time.Second, 50*time.Millisecond, "verify_audit_hash_chain must be callable")
+	row := db.QueryRowContext(
+		context.Background(),
+		`SELECT is_valid, first_invalid_id, total_checked, error_detail FROM verify_audit_hash_chain($1, $1)`,
+		auditEventID,
+	)
+	require.NoError(t, row.Scan(&isValid, &firstInvalidID, &totalChecked, &errorDetail),
+		"verify_audit_hash_chain must be callable")
 
 	assert.True(t, isValid,
 		"hash chain MUST verify clean post-migration — failure here means calculate_audit_event_hash() and verify_audit_hash_chain() drifted out of lockstep. Detail: %s",
@@ -206,8 +225,8 @@ func TestAuditActor_HashChainStaysVerifiableAfterMigration(t *testing.T) {
 	assert.False(t, firstInvalidID.Valid,
 		"first_invalid_id MUST be NULL when chain is valid; got id=%d (detail=%s)",
 		firstInvalidID.Int64, errorDetail.String)
-	assert.Greater(t, totalChecked, int64(0),
-		"verifier should have inspected at least one row — the validation call above produces one")
+	assert.Equal(t, int64(1), totalChecked,
+		"verifier should inspect the isolated row produced by this test")
 }
 
 // TestAuditActor_EnumAcceptsAPIKeyValue is the schema-level sanity check that

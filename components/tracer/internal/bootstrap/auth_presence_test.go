@@ -66,7 +66,7 @@ func TestValidateAuthPresence(t *testing.T) {
 			wantErr:        false,
 		},
 		{
-			name:              "saas mode with plugin auth only passes",
+			name:              "saas mode with plugin auth and optional API key mode disabled passes",
 			deploymentMode:    "saas",
 			pluginAuthEnabled: true,
 			wantErr:           false,
@@ -106,7 +106,8 @@ func TestValidateAuthPresence(t *testing.T) {
 
 			if tt.wantWarn {
 				require.Len(t, logger.Calls, 1, "expected exactly one warning when all auth is disabled in local mode")
-				assert.Contains(t, logger.Calls[0].Message, "ALL authentication is DISABLED")
+				assert.Contains(t, logger.Calls[0].Message, "ordinary /v1 routes are open")
+				assert.Contains(t, logger.Calls[0].Message, "financial reservation routes still require X-API-Key")
 			} else {
 				assert.Empty(t, logger.Calls, "expected no warnings when at least one auth mechanism is enabled")
 			}

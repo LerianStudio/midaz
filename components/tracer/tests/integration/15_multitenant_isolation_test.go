@@ -27,9 +27,12 @@
 package integration
 
 import (
+	"bytes"
 	"context"
 	"database/sql"
+	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"path/filepath"
 	"strings"
@@ -44,6 +47,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	tracertestutil "github.com/LerianStudio/midaz/v4/components/tracer/internal/testutil"
 	testutil_integration "github.com/LerianStudio/midaz/v4/components/tracer/internal/testutil_integration"
 )
 
@@ -403,6 +407,135 @@ func TestMultiTenant_ValidationWrites_IsolatedBetweenTenants(t *testing.T) {
 	assert.False(t, foundInDefault,
 		"default pool MUST NOT contain requestId=%s — this is the isolation leak closed by the context-aware TxBeginnerAdapter",
 		requestID)
+}
+
+func TestMultiTenant_ReservationOutcomeV2_CannotCrossTenantBoundary(t *testing.T) {
+	dbA := "tracer_iso_outcome_a"
+	dbB := "tracer_iso_outcome_b"
+	specA := ensureTenantDatabase(t, dbA)
+	specB := ensureTenantDatabase(t, dbB)
+	require.NoError(t, applyMigrations(t, specA))
+	require.NoError(t, applyMigrations(t, specB))
+
+	transactionID := uuid.New()
+	outcomeID := uuid.New()
+	limitID := uuid.New()
+	reservationID := uuid.New()
+	seedTenantV2Reservation(t, specA, limitID, transactionID, reservationID)
+
+	h := newMTHarness(t)
+	h.RegisterTenant("iso-outcome-a", specA)
+	h.RegisterTenant("iso-outcome-b", specB)
+	cleanup := bootServiceInMTMode(t, h, nil)
+	defer cleanup()
+
+	body, err := json.Marshal(map[string]string{
+		"outcomeId": outcomeID.String(),
+		"outcome":   "COMMITTED",
+	})
+	require.NoError(t, err)
+	path := "/v1/reservations/transaction/" + transactionID.String() + "/outcome"
+
+	// Deliberately deliver tenant-A's transaction under tenant-B. The request
+	// may create tenant-B's zero-limit receipt, but it must never discover or
+	// mutate tenant-A's reservation/counter/audit state.
+	status, responseBody := doReservationTenantRequest(t, path, "iso-outcome-b", mintJWTWithTenantID("iso-outcome-b"), body)
+	require.Equal(t, http.StatusOK, status, string(responseBody))
+	requireTenantReservationState(t, specA, transactionID, reservationID, "RESERVED", 0, 100, false, false)
+	requireTenantReservationState(t, specB, transactionID, reservationID, "", 0, 0, true, false)
+
+	// Correct tenant delivery transitions all of tenant-A's state atomically
+	// and writes the per-reservation audit there only.
+	status, responseBody = doReservationTenantRequest(t, path, "iso-outcome-a", mintJWTWithTenantID("iso-outcome-a"), body)
+	require.Equal(t, http.StatusOK, status, string(responseBody))
+	requireTenantReservationState(t, specA, transactionID, reservationID, "CONFIRMED", 100, 0, true, true)
+	requireTenantReservationState(t, specB, transactionID, reservationID, "", 0, 0, true, false)
+}
+
+func openTenantDB(t *testing.T, spec tenantPGSpec) *sql.DB {
+	t.Helper()
+	dsn := fmt.Sprintf("postgres://%s:%s@%s:%d/%s?sslmode=%s", spec.Username, spec.Password, spec.Host, spec.Port, spec.Database, spec.SSLMode)
+	db, err := sql.Open("pgx", dsn)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = db.Close() })
+	return db
+}
+
+func seedTenantV2Reservation(t *testing.T, spec tenantPGSpec, limitID, transactionID, reservationID uuid.UUID) {
+	t.Helper()
+	db := openTenantDB(t, spec)
+	_, err := db.Exec(`
+		INSERT INTO limits (id, name, limit_type, max_amount, currency, scopes, status)
+		VALUES ($1, $2, 'DAILY', 1000, 'USD', '[]', 'ACTIVE')
+	`, limitID, "tenant-outcome-"+limitID.String())
+	require.NoError(t, err)
+	_, err = db.Exec(`
+		INSERT INTO usage_counters (limit_id, scope_key, period_key, current_usage, reserved_usage)
+		VALUES ($1, 'tenant-outcome', '2026-08', 0, 100)
+	`, limitID)
+	require.NoError(t, err)
+	_, err = db.Exec(`
+		INSERT INTO usage_reservations
+			(id, limit_id, scope_key, period_key, amount, status, transaction_id, reservation_expires_at, created_at, delivery_mode)
+		VALUES ($2, $1, 'tenant-outcome', '2026-08', 100, 'RESERVED', $3, NULL, $4, 'LEDGER_OUTCOME_V2')
+	`, limitID, reservationID, transactionID,
+		time.Date(2026, 6, 1, 0, 0, 0, 0, time.UTC))
+	require.NoError(t, err)
+}
+
+func doReservationTenantRequest(t *testing.T, path, tenantID, jwt string, body []byte) (int, []byte) {
+	t.Helper()
+	req, err := http.NewRequest(http.MethodPost, tracertestutil.GetBaseURL()+path, bytes.NewReader(body))
+	require.NoError(t, err)
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("X-API-Key", tracertestutil.GetAPIKey())
+	req.Header.Set("Authorization", "Bearer "+jwt)
+	req.Header.Set("X-Tenant-Id", tenantID)
+	resp, err := tracertestutil.HTTPClient.Do(req)
+	require.NoError(t, err)
+	defer resp.Body.Close()
+	responseBody, err := io.ReadAll(resp.Body)
+	require.NoError(t, err)
+	return resp.StatusCode, responseBody
+}
+
+func requireTenantReservationState(
+	t *testing.T,
+	spec tenantPGSpec,
+	transactionID, reservationID uuid.UUID,
+	wantStatus string,
+	wantCurrent, wantReserved int64,
+	wantReceipt, wantAudit bool,
+) {
+	t.Helper()
+	db := openTenantDB(t, spec)
+
+	var status string
+	err := db.QueryRow("SELECT status FROM usage_reservations WHERE id = $1", reservationID).Scan(&status)
+	if wantStatus == "" {
+		require.ErrorIs(t, err, sql.ErrNoRows)
+	} else {
+		require.NoError(t, err)
+		require.Equal(t, wantStatus, status)
+	}
+
+	var current, reserved int64
+	err = db.QueryRow("SELECT current_usage, reserved_usage FROM usage_counters WHERE scope_key = 'tenant-outcome' AND period_key = '2026-08'").Scan(&current, &reserved)
+	if wantStatus == "" {
+		require.ErrorIs(t, err, sql.ErrNoRows)
+	} else {
+		require.NoError(t, err)
+		require.Equal(t, wantCurrent, current)
+		require.Equal(t, wantReserved, reserved)
+	}
+
+	var receiptExists bool
+	require.NoError(t, db.QueryRow("SELECT EXISTS (SELECT 1 FROM reservation_outcome_receipts WHERE transaction_id = $1)", transactionID).Scan(&receiptExists))
+	require.Equal(t, wantReceipt, receiptExists)
+
+	var auditExists bool
+	require.NoError(t, db.QueryRow("SELECT EXISTS (SELECT 1 FROM audit_events WHERE resource_id = $1 AND event_type = 'RESERVATION_CONFIRMED')", reservationID.String()).Scan(&auditExists))
+	require.Equal(t, wantAudit, auditExists)
 }
 
 // primeTenantCache creates and activates a trivial ALLOW rule for the tenant

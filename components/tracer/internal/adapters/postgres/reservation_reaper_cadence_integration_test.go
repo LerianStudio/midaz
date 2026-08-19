@@ -130,7 +130,7 @@ func newRealReaper(
 	auditRepo := NewAuditEventRepositoryWithConnection(&testutil.IntegrationDBAdapter{DB: db})
 	auditor := command.NewRecordAuditEventCommand(auditRepo)
 
-	config := workers.ReservationReaperWorkerConfig{ReapInterval: clk.interval}
+	config := workers.ReservationReaperWorkerConfig{ReapInterval: clk.interval, ReleaseLegacy: true}
 
 	worker, err := workers.NewReservationReaperWorkerWithPoolResolver(
 		reaperRepo, auditor, config, testutil.NewMockLogger(), clk, tenantID, resolver,
@@ -203,10 +203,12 @@ func TestIntegration_ReservationReaperCadence_ReleasesExpiredWithinInterval(t *t
 	resRepo := newReservationRepoIntegration(db)
 
 	require.NoError(t, inRealTx(t, db, func(tx *sql.Tx) error {
-		return resRepo.ReserveWithTx(ctx, tx, expired, decimal.NewFromInt(10000))
+		_, _, reserveErr := resRepo.ReserveWithTx(ctx, tx, expired, decimal.NewFromInt(10000), nil)
+		return reserveErr
 	}))
 	require.NoError(t, inRealTx(t, db, func(tx *sql.Tx) error {
-		return resRepo.ReserveWithTx(ctx, tx, fresh, decimal.NewFromInt(10000))
+		_, _, reserveErr := resRepo.ReserveWithTx(ctx, tx, fresh, decimal.NewFromInt(10000), nil)
+		return reserveErr
 	}))
 
 	// Sanity: both rows are RESERVED and holding their amounts before the sweep.
@@ -234,12 +236,15 @@ func TestIntegration_ReservationReaperCadence_ReleasesExpiredWithinInterval(t *t
 
 	go func() { done <- worker.RunWithContext(runCtx) }()
 
-	// The expired row must flip to EXPIRED within a small multiple of the interval
-	// (the immediate start-up sweep alone should do it). Poll the row status with a
-	// deadline well under a minute to assert "released within the interval".
+	// The expired row and its batch-summary audit must both commit within a small
+	// multiple of the interval (the immediate start-up sweep alone should do it).
+	// Waiting for the complete sweep prevents cancellation after the row update but
+	// before the audit write, which would test the caller's timing rather than the
+	// reaper's cadence contract.
 	require.Eventually(t, func() bool {
-		return readReservationStatus(t, db, expired.ID) == string(model.StatusExpired)
-	}, 5*time.Second, 20*time.Millisecond, "expired reservation must be released within the sub-minute cadence")
+		return readReservationStatus(t, db, expired.ID) == string(model.StatusExpired) &&
+			countExpiryAuditRows(t, db, now) == 1
+	}, 5*time.Second, 20*time.Millisecond, "expired reservation and audit must commit within the sub-minute cadence")
 
 	cancel()
 	require.NoError(t, <-done, "reaper loop must stop cleanly on context cancel")
@@ -260,6 +265,63 @@ func TestIntegration_ReservationReaperCadence_ReleasesExpiredWithinInterval(t *t
 	// Exactly ONE batch-summary audit row for the sweep, scoped to this run's now.
 	assert.Equal(t, 1, countExpiryAuditRows(t, db, now),
 		"a non-empty sweep writes exactly one batch-summary audit row (Q11)")
+}
+
+func TestIntegration_ReservationReaperCadence_V2StaleRemainsReservedWhileLegacyExpires(t *testing.T) {
+	testutil.SetupTestTracing(t)
+	db := testutil.SetupIntegrationDB(t)
+	limitID := createTestLimitNamed(t, db, 9731, "reaper-v2-stale")
+	transactionID := testutil.MustDeterministicUUID(9732)
+	// Keep this sweep's audit scope distinct from the release-cadence proof.
+	// Both tests share one database and audit events intentionally outlive the
+	// reservation cleanup, so reusing the same deterministic timestamp makes
+	// shuffle order observable.
+	now := fixedReaperNow().Add(2 * time.Hour)
+	period := "2026-06"
+	legacyScope, v2Scope := "legacy:9731", "v2:9731"
+	t.Cleanup(func() {
+		cleanupOutcomeTransaction(t, db, transactionID)
+		cleanupTestLimit(t, db, limitID)
+	})
+
+	legacy, err := model.NewReservation(
+		limitID, testutil.MustDeterministicUUID(9733), legacyScope, period, decimal.NewFromInt(100),
+		now.Add(-time.Hour), now.Add(-2*time.Hour),
+	)
+	require.NoError(t, err)
+	v2 := newV2Reservation(t, limitID, transactionID, v2Scope, period, 200, now)
+
+	repo := newReservationRepoIntegration(db)
+	for _, reservation := range []*model.Reservation{legacy, v2} {
+		require.NoError(t, inRealTx(t, db, func(tx *sql.Tx) error {
+			_, _, reserveErr := repo.ReserveWithTx(t.Context(), tx, reservation, decimal.NewFromInt(10000), nil)
+			return reserveErr
+		}))
+	}
+
+	adapter := &testutil.IntegrationDBAdapter{DB: db}
+	clk := &tickerClock{now: now, interval: 20 * time.Millisecond}
+	worker := newRealReaper(t, db, adapter, sqlTxBeginner{db: db}, clk, "", nil)
+	ctx, cancel := context.WithCancel(t.Context())
+	done := make(chan error, 1)
+	go func() { done <- worker.RunWithContext(ctx) }()
+
+	require.Eventually(t, func() bool {
+		return readReservationStatus(t, db, legacy.ID) == string(model.StatusExpired)
+	}, time.Second, 10*time.Millisecond)
+	cancel()
+	require.NoError(t, <-done)
+
+	require.Equal(t, string(model.StatusReserved), readReservationStatus(t, db, v2.ID))
+	current, reserved := readCounter(t, db, limitID, v2Scope, period)
+	require.Zero(t, current)
+	require.Equal(t, int64(200), reserved, "stale V2 capacity stays held until Ledger applies an outcome")
+
+	reaperRepo := NewReservationReaperRepository(adapter, sqlTxBeginner{db: db}, repo)
+	count, oldestAge, err := reaperRepo.ObserveV2Outstanding(t.Context(), now)
+	require.NoError(t, err)
+	require.GreaterOrEqual(t, count, int64(1))
+	require.GreaterOrEqual(t, oldestAge, 45*24*time.Hour)
 }
 
 // TestIntegration_ReservationReaperCadence_SkipsCycleOnPoolFailure proves the
@@ -297,7 +359,8 @@ func TestIntegration_ReservationReaperCadence_SkipsCycleOnPoolFailure(t *testing
 
 	resRepo := newReservationRepoIntegration(db)
 	require.NoError(t, inRealTx(t, db, func(tx *sql.Tx) error {
-		return resRepo.ReserveWithTx(ctx, tx, expired, decimal.NewFromInt(10000))
+		_, _, reserveErr := resRepo.ReserveWithTx(ctx, tx, expired, decimal.NewFromInt(10000), nil)
+		return reserveErr
 	}))
 
 	// Spy connection + tx-beginner wrap the root DB and record any access. The

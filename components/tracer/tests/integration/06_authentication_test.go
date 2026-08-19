@@ -560,6 +560,26 @@ func TestAuth_6_1_12_DevModeAuthDisabled(t *testing.T) {
 		})
 	}
 
+	t.Run("reservation money path still requires API key", func(t *testing.T) {
+		req, err := http.NewRequest(
+			http.MethodPost,
+			testutil.GetBaseURL()+"/v1/reservations/ledger-outcome-v2",
+			bytes.NewReader([]byte(`{}`)),
+		)
+		require.NoError(t, err)
+		req.Header.Set("Content-Type", "application/json")
+		req.Header.Set("X-Tenant-Id", "attacker-controlled-tenant")
+
+		resp, err := testutil.HTTPClient.Do(req)
+		require.NoError(t, err)
+		defer resp.Body.Close()
+
+		body, err := io.ReadAll(resp.Body)
+		require.NoError(t, err)
+		require.Equal(t, http.StatusUnauthorized, resp.StatusCode,
+			"API_KEY_ENABLED=false must not expose the reservation money path, body: %s", string(body))
+	})
+
 	// Restore original config
 	err = cleanup()
 	require.NoError(t, err, "failed to restore server config")

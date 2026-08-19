@@ -213,8 +213,10 @@ services:
       - infra-network
 
   # Redpanda (Kafka-compatible) broker for lib-streaming local development.
-  # Single-node dev mode. Dual listener so both host (localhost:19092) and
-  # in-network containers (midaz-redpanda:9092) can reach it on infra-network.
+  # Single-node dev mode. Dual listener so both the host-facing address
+  # (localhost:${REDPANDA_EXTERNAL_PORT:-19092}) and in-network containers
+  # (midaz-redpanda:9092) can reach it on infra-network. The host port is
+  # configurable because another local stack may already own 19092.
   midaz-redpanda:
     container_name: midaz-redpanda
     image: redpandadata/redpanda:v24.2.7
@@ -226,9 +228,9 @@ services:
       - --smp=1
       - --default-log-level=info
       - --kafka-addr=internal://0.0.0.0:9092,external://0.0.0.0:19092
-      - --advertise-kafka-addr=internal://midaz-redpanda:9092,external://localhost:19092
+      - --advertise-kafka-addr=internal://midaz-redpanda:9092,external://localhost:${REDPANDA_EXTERNAL_PORT:-19092}
     ports:
-      - "19092:19092"
+      - "${REDPANDA_EXTERNAL_PORT:-19092}:19092"
       - "127.0.0.1:8081:8081"
     healthcheck:
       test: ["CMD-SHELL", "rpk cluster health | grep -q 'Healthy:.*true'"]

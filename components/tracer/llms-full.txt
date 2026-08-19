@@ -72,7 +72,8 @@ Every validation creates immutable audit event. Hash chain verification for SOX/
 ## Authentication
 - API Key via `X-API-Key` header
 - Constant-time comparison to prevent timing attacks
-- Configurable: API_KEY_ENABLED, API_KEY_ENABLED_ONLY_VALIDATION
+- Configurable on ordinary routes: API_KEY_ENABLED, API_KEY_ENABLED_ONLY_VALIDATION
+- Reservation and outcome operations always require X-API-Key, regardless of API_KEY_ENABLED
 - Access Manager plugin support: PLUGIN_AUTH_ENABLED, PLUGIN_AUTH_ADDRESS
 - Public endpoints: /health, /readyz, /metrics, /version, and the OpenAPI docs surface (/v1/openapi.{json,yaml}, /v1/docs) when enabled
 

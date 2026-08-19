@@ -12,6 +12,7 @@ package mocks
 import (
 	context "context"
 	reflect "reflect"
+	time "time"
 
 	db "github.com/LerianStudio/midaz/v4/components/tracer/internal/adapters/postgres/db"
 	command "github.com/LerianStudio/midaz/v4/components/tracer/internal/services/command"
@@ -86,6 +87,23 @@ func (m *MockReservationRepository) EXPECT() *MockReservationRepositoryMockRecor
 	return m.recorder
 }
 
+// ApplyOutcomeWithTx mocks base method.
+func (m *MockReservationRepository) ApplyOutcomeWithTx(ctx context.Context, arg1 db.DB, transactionID, outcomeID uuid.UUID, outcome model.ReservationOutcome, appliedAt time.Time) (*model.ReservationOutcomeReceipt, []*model.Reservation, bool, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ApplyOutcomeWithTx", ctx, arg1, transactionID, outcomeID, outcome, appliedAt)
+	ret0, _ := ret[0].(*model.ReservationOutcomeReceipt)
+	ret1, _ := ret[1].([]*model.Reservation)
+	ret2, _ := ret[2].(bool)
+	ret3, _ := ret[3].(error)
+	return ret0, ret1, ret2, ret3
+}
+
+// ApplyOutcomeWithTx indicates an expected call of ApplyOutcomeWithTx.
+func (mr *MockReservationRepositoryMockRecorder) ApplyOutcomeWithTx(ctx, arg1, transactionID, outcomeID, outcome, appliedAt any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ApplyOutcomeWithTx", reflect.TypeOf((*MockReservationRepository)(nil).ApplyOutcomeWithTx), ctx, arg1, transactionID, outcomeID, outcome, appliedAt)
+}
+
 // ConfirmByTransactionWithTx mocks base method.
 func (m *MockReservationRepository) ConfirmByTransactionWithTx(ctx context.Context, arg1 db.DB, transactionID uuid.UUID) ([]*model.Reservation, error) {
 	m.ctrl.T.Helper()
@@ -145,17 +163,19 @@ func (mr *MockReservationRepositoryMockRecorder) ReleaseWithTx(ctx, arg1, reserv
 }
 
 // ReserveWithTx mocks base method.
-func (m *MockReservationRepository) ReserveWithTx(ctx context.Context, arg1 db.DB, reservation *model.Reservation, maxAmount decimal.Decimal) error {
+func (m *MockReservationRepository) ReserveWithTx(ctx context.Context, arg1 db.DB, reservation *model.Reservation, maxAmount decimal.Decimal, counterExpiresAt *time.Time) (uuid.UUID, bool, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "ReserveWithTx", ctx, arg1, reservation, maxAmount)
-	ret0, _ := ret[0].(error)
-	return ret0
+	ret := m.ctrl.Call(m, "ReserveWithTx", ctx, arg1, reservation, maxAmount, counterExpiresAt)
+	ret0, _ := ret[0].(uuid.UUID)
+	ret1, _ := ret[1].(bool)
+	ret2, _ := ret[2].(error)
+	return ret0, ret1, ret2
 }
 
 // ReserveWithTx indicates an expected call of ReserveWithTx.
-func (mr *MockReservationRepositoryMockRecorder) ReserveWithTx(ctx, arg1, reservation, maxAmount any) *gomock.Call {
+func (mr *MockReservationRepositoryMockRecorder) ReserveWithTx(ctx, arg1, reservation, maxAmount, counterExpiresAt any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ReserveWithTx", reflect.TypeOf((*MockReservationRepository)(nil).ReserveWithTx), ctx, arg1, reservation, maxAmount)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ReserveWithTx", reflect.TypeOf((*MockReservationRepository)(nil).ReserveWithTx), ctx, arg1, reservation, maxAmount, counterExpiresAt)
 }
 
 // MockReservationAuditWriter is a mock of ReservationAuditWriter interface.

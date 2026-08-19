@@ -43,9 +43,10 @@ type AuthGuardConfig struct {
 //   - If PluginAuthEnabled, endpoints use plugin auth
 //   - Otherwise, endpoints fall back to API key auth
 type AuthGuard struct {
-	apiKeyAuth fiber.Handler
-	authClient *authMiddleware.AuthClient
-	cfg        AuthGuardConfig
+	apiKeyAuth         fiber.Handler
+	requiredAPIKeyAuth fiber.Handler
+	authClient         *authMiddleware.AuthClient
+	cfg                AuthGuardConfig
 }
 
 // NewAuthGuard creates a new AuthGuard with the given configuration.
@@ -61,6 +62,11 @@ func NewAuthGuard(cfg AuthGuardConfig, authClient *authMiddleware.AuthClient) *A
 		apiKeyAuth: APIKeyAuth(APIKeyConfig{
 			Key:     cfg.APIKey,
 			Enabled: cfg.APIKeyEnabled,
+			Label:   cfg.APIKeyLabel,
+		}),
+		requiredAPIKeyAuth: APIKeyAuth(APIKeyConfig{
+			Key:     cfg.APIKey,
+			Enabled: true,
 			Label:   cfg.APIKeyLabel,
 		}),
 		authClient: authClient,
@@ -100,14 +106,18 @@ func (g *AuthGuard) Protect(resource, method string) fiber.Handler {
 }
 
 // With returns the appropriate auth middleware for a route.
-// When forceAPIKeyAuth is true, returns API key auth directly (bypassing plugin auth).
-// Otherwise, returns Protect (plugin auth if enabled, else API key).
+// When forceAPIKeyAuth is true, returns an always-on API key guard directly
+// (bypassing plugin auth). APIKeyEnabled controls only the optional API-key
+// fallback on ordinary routes; it cannot disable authentication on financial
+// service-to-service routes. An empty or mismatched configured key therefore
+// fails closed instead of passing through.
+// Otherwise, returns Protect (plugin auth if enabled, else optional API key).
 //
 //	api.Post("/rules", guard.With("rules", "post", false), handler)
 //	api.Post("/validations", guard.With("validations", "post", cfg.APIKeyOnlyValidation), handler)
 func (g *AuthGuard) With(resource, method string, forceAPIKeyAuth bool) fiber.Handler {
 	if forceAPIKeyAuth {
-		return g.apiKeyAuth
+		return g.requiredAPIKeyAuth
 	}
 
 	return g.Protect(resource, method)

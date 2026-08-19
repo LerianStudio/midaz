@@ -33,8 +33,8 @@ import (
 //
 // Post-conditions enforced:
 //  1. After migrate-up, both columns report data_type = 'numeric'.
-//  2. Re-applying the up migration (down one step, then up again) is idempotent
-//     and lands back at 'numeric'.
+//  2. Re-applying the up migration (down below 000021, then up again) is
+//     idempotent and lands back at 'numeric'.
 //  3. migrate-down ABORTS (RAISE EXCEPTION) when any persisted reservation value
 //     carries a fractional part — it must fail loud, never ROUND/truncate.
 //  4. migrate-down reverts both columns to 'bigint' when every persisted value
@@ -66,8 +66,11 @@ func TestReservationAmountsDecimalMigration(t *testing.T) {
 			reservationColumnType(ctx, t, db, "usage_reservations", "amount"),
 			"000021 up must convert usage_reservations.amount BIGINT -> numeric")
 
-		// Idempotent up: reverse 000021 then re-apply — must land back at numeric.
-		require.NoError(t, mig.Steps(-1), "step down 000021 for idempotency check")
+		// Idempotent up: reverse back below 000021 then re-apply; must land back at
+		// numeric. HEAD is past 000021 (000022 adds outcome delivery), so target
+		// version 20 explicitly instead of Steps(-1), which would only reverse the
+		// latest migration.
+		require.NoError(t, mig.Migrate(20), "step down below 000021 for idempotency check")
 		require.NoError(t, applyMigrateUp(mig), "re-apply HEAD migrations up (idempotent cycle)")
 		require.Equal(t, "numeric",
 			reservationColumnType(ctx, t, db, "usage_counters", "reserved_usage"),
@@ -81,7 +84,10 @@ func TestReservationAmountsDecimalMigration(t *testing.T) {
 		dsn := startUpgradePathContainer(ctx, t)
 		mig, db := newHeadReservationMigrate(ctx, t, dsn)
 
-		require.NoError(t, applyMigrateUp(mig), "apply HEAD migrations up")
+		// Pin to exactly 000021 so Steps(-1) exercises ITS down migration; from
+		// HEAD (000022) a single step down would reverse the outcome-delivery
+		// migration instead and never reach the fractional guard.
+		require.NoError(t, mig.Migrate(21), "migrate up to exactly 000021")
 
 		limitID := insertReservationTestLimit(ctx, t, db)
 
@@ -104,7 +110,9 @@ func TestReservationAmountsDecimalMigration(t *testing.T) {
 		dsn := startUpgradePathContainer(ctx, t)
 		mig, db := newHeadReservationMigrate(ctx, t, dsn)
 
-		require.NoError(t, applyMigrateUp(mig), "apply HEAD migrations up")
+		// Pin to exactly 000021 so Steps(-1) exercises ITS down migration, not
+		// 000022's (see the fractional sub-test above).
+		require.NoError(t, mig.Migrate(21), "migrate up to exactly 000021")
 
 		limitID := insertReservationTestLimit(ctx, t, db)
 

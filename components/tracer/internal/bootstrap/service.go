@@ -23,6 +23,7 @@ import (
 
 	"github.com/LerianStudio/midaz/v4/components/tracer/internal/adapters/http/in"
 	"github.com/LerianStudio/midaz/v4/components/tracer/internal/services/workers"
+	"github.com/LerianStudio/midaz/v4/components/tracer/pkg/clock"
 	pkgsd "github.com/LerianStudio/midaz/v4/pkg/servicediscovery"
 )
 
@@ -40,10 +41,17 @@ type Service struct {
 	// grpcServer is the opt-in reservation gRPC seam. Nil when TRACER_GRPC_PORT
 	// is unset; when wired it runs as its own Launcher app so it drains on
 	// SIGTERM alongside the HTTP server.
-	grpcServer    *GRPCServer
-	postgresConn  *libPostgres.Client
-	cleanupWorker *workers.UsageCleanupWorker
-	syncWorker    *workers.RuleSyncWorker
+	grpcServer        *GRPCServer
+	postgresConn      *libPostgres.Client
+	cleanupWorker     *workers.UsageCleanupWorker
+	syncWorker        *workers.RuleSyncWorker
+	reservationReaper *workers.ReservationReaperWorker
+	// operatorMetricsClose unregisters the OTel→Prometheus bridge shared by
+	// readyz and reservation-backlog metrics. It is non-nil in full bootstrap.
+	operatorMetricsClose func() error
+	// clock is retained so integration builds can change mock time without
+	// restarting the full service. Production receives the ordinary clock.
+	clock clock.Clock
 
 	// Multi-tenant components (nil in single-tenant mode).
 	pgManager     *tmpostgres.Manager
@@ -163,6 +171,10 @@ func (app *Service) Run() {
 
 	if app.syncWorker != nil {
 		opts = append(opts, libCommons.RunApp("Rule Sync Worker", app.syncWorker))
+	}
+
+	if app.reservationReaper != nil {
+		opts = append(opts, libCommons.RunApp("Reservation Reaper Worker", app.reservationReaper))
 	}
 
 	// Streaming producer drain: register only when streaming is enabled AND a
@@ -433,6 +445,16 @@ func (app *Service) Shutdown(ctx context.Context) error {
 				libLog.String("error.message", err.Error()),
 			).Log(ctx, libLog.LevelWarn, "Failed to close PostgreSQL connection pool")
 		}
+	}
+
+	if app.operatorMetricsClose != nil {
+		if err := app.operatorMetricsClose(); err != nil {
+			logger.With(
+				libLog.String("error.message", err.Error()),
+			).Log(ctx, libLog.LevelWarn, "Failed to close operator metrics bridge")
+		}
+
+		app.operatorMetricsClose = nil
 	}
 
 	return nil

@@ -6,6 +6,7 @@ package postgres
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 	"fmt"
 	"time"
@@ -72,7 +73,7 @@ func (r *ReservationReaperRepository) FindExpiredReservations(ctx context.Contex
 	const findExpiredSQL = `
 		SELECT id
 		FROM usage_reservations
-		WHERE status = 'RESERVED' AND reservation_expires_at < $1
+		WHERE status = 'RESERVED' AND delivery_mode = 'LEGACY' AND reservation_expires_at < $1
 	`
 
 	rows, err := db.QueryContext(ctx, findExpiredSQL, now.UTC())
@@ -102,6 +103,55 @@ func (r *ReservationReaperRepository) FindExpiredReservations(ctx context.Contex
 	logger.With(libLog.Int("count", len(ids))).Log(ctx, libLog.LevelDebug, "Found expired reservations")
 
 	return ids, nil
+}
+
+// ObserveV2Outstanding reports the number and oldest age of V2 reservations
+// still waiting for a ledger outcome. It never mutates or releases capacity.
+func (r *ReservationReaperRepository) ObserveV2Outstanding(ctx context.Context, now time.Time) (int64, time.Duration, error) {
+	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
+
+	ctx, span := tracer.Start(ctx, "repository.reservation_reaper.observe_v2")
+	defer span.End()
+
+	logger = logging.WithTrace(ctx, logger)
+
+	db, err := r.conn.GetDB(ctx)
+	if err != nil {
+		libOtel.HandleSpanError(span, "Failed to resolve database connection", err)
+		return 0, 0, fmt.Errorf("failed to resolve database connection: %w", err)
+	}
+
+	const observeSQL = `
+		SELECT COUNT(*), MIN(created_at)
+		FROM usage_reservations
+		WHERE status = 'RESERVED' AND delivery_mode = 'LEDGER_OUTCOME_V2'
+	`
+
+	var (
+		count  int64
+		oldest sql.NullTime
+	)
+
+	if err := db.QueryRowContext(ctx, observeSQL).Scan(&count, &oldest); err != nil {
+		libOtel.HandleSpanError(span, "Failed to observe V2 reservations", err)
+		return 0, 0, fmt.Errorf("failed to observe V2 reservations: %w", err)
+	}
+
+	if !oldest.Valid || count == 0 {
+		return 0, 0, nil
+	}
+
+	age := now.UTC().Sub(oldest.Time.UTC())
+	if age < 0 {
+		age = 0
+	}
+
+	logger.With(
+		libLog.Any("outstanding", count),
+		libLog.String("oldest_age", age.String()),
+	).Log(ctx, libLog.LevelDebug, "Observed V2 reservation backlog")
+
+	return count, age, nil
 }
 
 // ReleaseExpired flips a RESERVED reservation to EXPIRED and returns its held

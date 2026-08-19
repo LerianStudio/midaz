@@ -41,6 +41,18 @@ func newRecorderWithRegistry(t *testing.T) (*Recorder, *prometheus.Registry) {
 	return NewRecorder(factory, nil), reg
 }
 
+func TestPrometheusBackedFactory_ShutdownUnregistersBridge(t *testing.T) {
+	reg := prometheus.NewRegistry()
+
+	_, shutdownFirst, err := NewPrometheusBackedFactory(reg, nil)
+	require.NoError(t, err)
+	require.NoError(t, shutdownFirst())
+
+	_, shutdownSecond, err := NewPrometheusBackedFactory(reg, nil)
+	require.NoError(t, err, "a restarted service must be able to reuse its Prometheus registry")
+	require.NoError(t, shutdownSecond())
+}
+
 // gather runs reg.Gather() and returns metric families keyed by name.
 // Wrapping the gather call in a helper keeps the assertion-side of every
 // test focused on the metric semantics rather than the registry mechanics.

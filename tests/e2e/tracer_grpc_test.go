@@ -97,8 +97,8 @@ func TestTracerGRPCOverLimitDenied(t *testing.T) {
 
 	f := newEnforceFixture(t, "open")
 
-	src := createAccount(t, f, "tgrpc-src-"+uuid.NewString()[:8])
-	dst := createAccount(t, f, "tgrpc-dst-"+uuid.NewString()[:8])
+	src := createAccount(t, f, "tgrpc-src-"+uuid.NewString())
+	dst := createAccount(t, f, "tgrpc-dst-"+uuid.NewString())
 
 	// Cap the SOURCE account at 50. A source-scoped limit matches a plain JSON
 	// transfer because the reserve carries account.accountId = first source
@@ -171,9 +171,9 @@ func TestTracerGRPCInLimitCommits(t *testing.T) {
 
 	f := newEnforceFixture(t, "open")
 
-	alias := "tgrpc-commit-" + uuid.NewString()[:8]
+	alias := "tgrpc-commit-" + uuid.NewString()
 	src := createAccount(t, f, alias)
-	dst := createAccount(t, f, "tgrpc-commit-dst-"+uuid.NewString()[:8])
+	dst := createAccount(t, f, "tgrpc-commit-dst-"+uuid.NewString())
 
 	// Cap of 1000 on the source account; an in-limit transfer of 100 must pass
 	// the gRPC reserve.

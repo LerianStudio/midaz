@@ -16,6 +16,21 @@ import (
 	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
 )
 
+type capturingRegisterer struct {
+	prometheus.Registerer
+	collector prometheus.Collector
+}
+
+func (r *capturingRegisterer) Register(collector prometheus.Collector) error {
+	if err := r.Registerer.Register(collector); err != nil {
+		return err
+	}
+
+	r.collector = collector
+
+	return nil
+}
+
 // readyzMeterName is the OTel instrumentation scope used for the readyz
 // metrics. Keeping this isolated from the application's primary instrumentation
 // scope ("tracer-api") makes operator queries and dashboards explicit about
@@ -50,8 +65,10 @@ func NewPrometheusBackedFactory(
 		registerer = prometheus.DefaultRegisterer
 	}
 
+	captured := &capturingRegisterer{Registerer: registerer}
+
 	exporter, err := otelprom.New(
-		otelprom.WithRegisterer(registerer),
+		otelprom.WithRegisterer(captured),
 		otelprom.WithTranslationStrategy(otlptranslator.UnderscoreEscapingWithoutSuffixes),
 		otelprom.WithoutTargetInfo(),
 		otelprom.WithoutScopeInfo(),
@@ -73,6 +90,10 @@ func NewPrometheusBackedFactory(
 	}
 
 	return factory, func() error {
+		if captured.collector != nil {
+			captured.Unregister(captured.collector)
+		}
+
 		return provider.Shutdown(context.Background())
 	}, nil
 }

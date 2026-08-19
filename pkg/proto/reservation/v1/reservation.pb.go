@@ -25,6 +25,113 @@ const (
 	_ = protoimpl.EnforceVersion(protoimpl.MaxVersion - 20)
 )
 
+// ReservationDeliveryMode selects who owns reservation termination.
+type ReservationDeliveryMode int32
+
+const (
+	// RESERVATION_DELIVERY_MODE_UNSPECIFIED preserves the legacy protocol.
+	ReservationDeliveryMode_RESERVATION_DELIVERY_MODE_UNSPECIFIED ReservationDeliveryMode = 0
+	// RESERVATION_DELIVERY_MODE_LEGACY allows confirm/release and TTL expiry.
+	ReservationDeliveryMode_RESERVATION_DELIVERY_MODE_LEGACY ReservationDeliveryMode = 1
+	// RESERVATION_DELIVERY_MODE_LEDGER_OUTCOME_V2 waits for ApplyOutcome and
+	// never expires autonomously.
+	ReservationDeliveryMode_RESERVATION_DELIVERY_MODE_LEDGER_OUTCOME_V2 ReservationDeliveryMode = 2
+)
+
+// Enum value maps for ReservationDeliveryMode.
+var (
+	ReservationDeliveryMode_name = map[int32]string{
+		0: "RESERVATION_DELIVERY_MODE_UNSPECIFIED",
+		1: "RESERVATION_DELIVERY_MODE_LEGACY",
+		2: "RESERVATION_DELIVERY_MODE_LEDGER_OUTCOME_V2",
+	}
+	ReservationDeliveryMode_value = map[string]int32{
+		"RESERVATION_DELIVERY_MODE_UNSPECIFIED":       0,
+		"RESERVATION_DELIVERY_MODE_LEGACY":            1,
+		"RESERVATION_DELIVERY_MODE_LEDGER_OUTCOME_V2": 2,
+	}
+)
+
+func (x ReservationDeliveryMode) Enum() *ReservationDeliveryMode {
+	p := new(ReservationDeliveryMode)
+	*p = x
+	return p
+}
+
+func (x ReservationDeliveryMode) String() string {
+	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
+}
+
+func (ReservationDeliveryMode) Descriptor() protoreflect.EnumDescriptor {
+	return file_reservation_v1_reservation_proto_enumTypes[0].Descriptor()
+}
+
+func (ReservationDeliveryMode) Type() protoreflect.EnumType {
+	return &file_reservation_v1_reservation_proto_enumTypes[0]
+}
+
+func (x ReservationDeliveryMode) Number() protoreflect.EnumNumber {
+	return protoreflect.EnumNumber(x)
+}
+
+// Deprecated: Use ReservationDeliveryMode.Descriptor instead.
+func (ReservationDeliveryMode) EnumDescriptor() ([]byte, []int) {
+	return file_reservation_v1_reservation_proto_rawDescGZIP(), []int{0}
+}
+
+// ReservationOutcome is the ledger's durable terminal decision.
+type ReservationOutcome int32
+
+const (
+	// RESERVATION_OUTCOME_UNSPECIFIED is invalid on ApplyOutcome.
+	ReservationOutcome_RESERVATION_OUTCOME_UNSPECIFIED ReservationOutcome = 0
+	// RESERVATION_OUTCOME_COMMITTED commits held usage.
+	ReservationOutcome_RESERVATION_OUTCOME_COMMITTED ReservationOutcome = 1
+	// RESERVATION_OUTCOME_ABORTED returns held capacity.
+	ReservationOutcome_RESERVATION_OUTCOME_ABORTED ReservationOutcome = 2
+)
+
+// Enum value maps for ReservationOutcome.
+var (
+	ReservationOutcome_name = map[int32]string{
+		0: "RESERVATION_OUTCOME_UNSPECIFIED",
+		1: "RESERVATION_OUTCOME_COMMITTED",
+		2: "RESERVATION_OUTCOME_ABORTED",
+	}
+	ReservationOutcome_value = map[string]int32{
+		"RESERVATION_OUTCOME_UNSPECIFIED": 0,
+		"RESERVATION_OUTCOME_COMMITTED":   1,
+		"RESERVATION_OUTCOME_ABORTED":     2,
+	}
+)
+
+func (x ReservationOutcome) Enum() *ReservationOutcome {
+	p := new(ReservationOutcome)
+	*p = x
+	return p
+}
+
+func (x ReservationOutcome) String() string {
+	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
+}
+
+func (ReservationOutcome) Descriptor() protoreflect.EnumDescriptor {
+	return file_reservation_v1_reservation_proto_enumTypes[1].Descriptor()
+}
+
+func (ReservationOutcome) Type() protoreflect.EnumType {
+	return &file_reservation_v1_reservation_proto_enumTypes[1]
+}
+
+func (x ReservationOutcome) Number() protoreflect.EnumNumber {
+	return protoreflect.EnumNumber(x)
+}
+
+// Deprecated: Use ReservationOutcome.Descriptor instead.
+func (ReservationOutcome) EnumDescriptor() ([]byte, []int) {
+	return file_reservation_v1_reservation_proto_rawDescGZIP(), []int{1}
+}
+
 // ReserveAccount is the account scope the tracer matches limits against. It
 // mirrors the ledger-side ReserveAccount: only the account id is carried; an
 // empty value parses to the nil UUID, which the relaxed reserve validation
@@ -94,7 +201,10 @@ type ReserveRequest struct {
 	TransactionTimestamp string `protobuf:"bytes,10,opt,name=transaction_timestamp,json=transactionTimestamp,proto3" json:"transaction_timestamp,omitempty"`
 	// long_lived hints the tracer to assign a long-lived reservation lifetime to
 	// a PENDING-transaction reservation.
-	LongLived     bool `protobuf:"varint,11,opt,name=long_lived,json=longLived,proto3" json:"long_lived,omitempty"`
+	LongLived bool `protobuf:"varint,11,opt,name=long_lived,json=longLived,proto3" json:"long_lived,omitempty"`
+	// delivery_mode is additive: unspecified and legacy preserve V1 behavior;
+	// only LEDGER_OUTCOME_V2 disables autonomous expiry and enables ApplyOutcome.
+	DeliveryMode  ReservationDeliveryMode `protobuf:"varint,12,opt,name=delivery_mode,json=deliveryMode,proto3,enum=lerian.midaz.reservation.v1.ReservationDeliveryMode" json:"delivery_mode,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -206,6 +316,13 @@ func (x *ReserveRequest) GetLongLived() bool {
 	return false
 }
 
+func (x *ReserveRequest) GetDeliveryMode() ReservationDeliveryMode {
+	if x != nil {
+		return x.DeliveryMode
+	}
+	return ReservationDeliveryMode_RESERVATION_DELIVERY_MODE_UNSPECIFIED
+}
+
 // ReserveResult is the handle returned by a successful reserve. denied is the
 // limit-exceeded decision (no capacity held, reservation_ids empty). Otherwise
 // reservation_ids holds one id per counter-backed limit the ledger must later
@@ -215,8 +332,12 @@ type ReserveResult struct {
 	TransactionId  string                 `protobuf:"bytes,1,opt,name=transaction_id,json=transactionId,proto3" json:"transaction_id,omitempty"`
 	Denied         bool                   `protobuf:"varint,2,opt,name=denied,proto3" json:"denied,omitempty"`
 	ReservationIds []string               `protobuf:"bytes,3,rep,name=reservation_ids,json=reservationIds,proto3" json:"reservation_ids,omitempty"`
-	unknownFields  protoimpl.UnknownFields
-	sizeCache      protoimpl.SizeCache
+	// delivery_mode is the protocol the Tracer actually accepted after
+	// normalization. Callers requesting V2 must require an explicit V2 echo;
+	// absence means the response came from a legacy server.
+	DeliveryMode  ReservationDeliveryMode `protobuf:"varint,4,opt,name=delivery_mode,json=deliveryMode,proto3,enum=lerian.midaz.reservation.v1.ReservationDeliveryMode" json:"delivery_mode,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
 }
 
 func (x *ReserveResult) Reset() {
@@ -270,6 +391,104 @@ func (x *ReserveResult) GetReservationIds() []string {
 	return nil
 }
 
+func (x *ReserveResult) GetDeliveryMode() ReservationDeliveryMode {
+	if x != nil {
+		return x.DeliveryMode
+	}
+	return ReservationDeliveryMode_RESERVATION_DELIVERY_MODE_UNSPECIFIED
+}
+
+// ReserveV2Request wraps the additive reserve shape under a distinct RPC input
+// so capability negotiation fails before any old server can create state.
+type ReserveV2Request struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Reserve       *ReserveRequest        `protobuf:"bytes,1,opt,name=reserve,proto3" json:"reserve,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ReserveV2Request) Reset() {
+	*x = ReserveV2Request{}
+	mi := &file_reservation_v1_reservation_proto_msgTypes[3]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ReserveV2Request) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ReserveV2Request) ProtoMessage() {}
+
+func (x *ReserveV2Request) ProtoReflect() protoreflect.Message {
+	mi := &file_reservation_v1_reservation_proto_msgTypes[3]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ReserveV2Request.ProtoReflect.Descriptor instead.
+func (*ReserveV2Request) Descriptor() ([]byte, []int) {
+	return file_reservation_v1_reservation_proto_rawDescGZIP(), []int{3}
+}
+
+func (x *ReserveV2Request) GetReserve() *ReserveRequest {
+	if x != nil {
+		return x.Reserve
+	}
+	return nil
+}
+
+// ReserveV2Response carries the same normalized ReserveResult contract.
+type ReserveV2Response struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Result        *ReserveResult         `protobuf:"bytes,1,opt,name=result,proto3" json:"result,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ReserveV2Response) Reset() {
+	*x = ReserveV2Response{}
+	mi := &file_reservation_v1_reservation_proto_msgTypes[4]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ReserveV2Response) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ReserveV2Response) ProtoMessage() {}
+
+func (x *ReserveV2Response) ProtoReflect() protoreflect.Message {
+	mi := &file_reservation_v1_reservation_proto_msgTypes[4]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ReserveV2Response.ProtoReflect.Descriptor instead.
+func (*ReserveV2Response) Descriptor() ([]byte, []int) {
+	return file_reservation_v1_reservation_proto_rawDescGZIP(), []int{4}
+}
+
+func (x *ReserveV2Response) GetResult() *ReserveResult {
+	if x != nil {
+		return x.Result
+	}
+	return nil
+}
+
 // ConfirmByTransactionRequest commits every reservation held by a transaction.
 type ConfirmByTransactionRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
@@ -280,7 +499,7 @@ type ConfirmByTransactionRequest struct {
 
 func (x *ConfirmByTransactionRequest) Reset() {
 	*x = ConfirmByTransactionRequest{}
-	mi := &file_reservation_v1_reservation_proto_msgTypes[3]
+	mi := &file_reservation_v1_reservation_proto_msgTypes[5]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -292,7 +511,7 @@ func (x *ConfirmByTransactionRequest) String() string {
 func (*ConfirmByTransactionRequest) ProtoMessage() {}
 
 func (x *ConfirmByTransactionRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_reservation_v1_reservation_proto_msgTypes[3]
+	mi := &file_reservation_v1_reservation_proto_msgTypes[5]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -305,7 +524,7 @@ func (x *ConfirmByTransactionRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ConfirmByTransactionRequest.ProtoReflect.Descriptor instead.
 func (*ConfirmByTransactionRequest) Descriptor() ([]byte, []int) {
-	return file_reservation_v1_reservation_proto_rawDescGZIP(), []int{3}
+	return file_reservation_v1_reservation_proto_rawDescGZIP(), []int{5}
 }
 
 func (x *ConfirmByTransactionRequest) GetTransactionId() string {
@@ -325,7 +544,7 @@ type ReleaseByTransactionRequest struct {
 
 func (x *ReleaseByTransactionRequest) Reset() {
 	*x = ReleaseByTransactionRequest{}
-	mi := &file_reservation_v1_reservation_proto_msgTypes[4]
+	mi := &file_reservation_v1_reservation_proto_msgTypes[6]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -337,7 +556,7 @@ func (x *ReleaseByTransactionRequest) String() string {
 func (*ReleaseByTransactionRequest) ProtoMessage() {}
 
 func (x *ReleaseByTransactionRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_reservation_v1_reservation_proto_msgTypes[4]
+	mi := &file_reservation_v1_reservation_proto_msgTypes[6]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -350,7 +569,7 @@ func (x *ReleaseByTransactionRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ReleaseByTransactionRequest.ProtoReflect.Descriptor instead.
 func (*ReleaseByTransactionRequest) Descriptor() ([]byte, []int) {
-	return file_reservation_v1_reservation_proto_rawDescGZIP(), []int{4}
+	return file_reservation_v1_reservation_proto_rawDescGZIP(), []int{6}
 }
 
 func (x *ReleaseByTransactionRequest) GetTransactionId() string {
@@ -370,7 +589,7 @@ type ConfirmByIdRequest struct {
 
 func (x *ConfirmByIdRequest) Reset() {
 	*x = ConfirmByIdRequest{}
-	mi := &file_reservation_v1_reservation_proto_msgTypes[5]
+	mi := &file_reservation_v1_reservation_proto_msgTypes[7]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -382,7 +601,7 @@ func (x *ConfirmByIdRequest) String() string {
 func (*ConfirmByIdRequest) ProtoMessage() {}
 
 func (x *ConfirmByIdRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_reservation_v1_reservation_proto_msgTypes[5]
+	mi := &file_reservation_v1_reservation_proto_msgTypes[7]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -395,7 +614,7 @@ func (x *ConfirmByIdRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ConfirmByIdRequest.ProtoReflect.Descriptor instead.
 func (*ConfirmByIdRequest) Descriptor() ([]byte, []int) {
-	return file_reservation_v1_reservation_proto_rawDescGZIP(), []int{5}
+	return file_reservation_v1_reservation_proto_rawDescGZIP(), []int{7}
 }
 
 func (x *ConfirmByIdRequest) GetReservationId() string {
@@ -415,7 +634,7 @@ type ReleaseByIdRequest struct {
 
 func (x *ReleaseByIdRequest) Reset() {
 	*x = ReleaseByIdRequest{}
-	mi := &file_reservation_v1_reservation_proto_msgTypes[6]
+	mi := &file_reservation_v1_reservation_proto_msgTypes[8]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -427,7 +646,7 @@ func (x *ReleaseByIdRequest) String() string {
 func (*ReleaseByIdRequest) ProtoMessage() {}
 
 func (x *ReleaseByIdRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_reservation_v1_reservation_proto_msgTypes[6]
+	mi := &file_reservation_v1_reservation_proto_msgTypes[8]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -440,7 +659,7 @@ func (x *ReleaseByIdRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ReleaseByIdRequest.ProtoReflect.Descriptor instead.
 func (*ReleaseByIdRequest) Descriptor() ([]byte, []int) {
-	return file_reservation_v1_reservation_proto_rawDescGZIP(), []int{6}
+	return file_reservation_v1_reservation_proto_rawDescGZIP(), []int{8}
 }
 
 func (x *ReleaseByIdRequest) GetReservationId() string {
@@ -448,6 +667,145 @@ func (x *ReleaseByIdRequest) GetReservationId() string {
 		return x.ReservationId
 	}
 	return ""
+}
+
+// ApplyOutcomeRequest delivers one terminal ledger outcome for a transaction.
+type ApplyOutcomeRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	TransactionId string                 `protobuf:"bytes,1,opt,name=transaction_id,json=transactionId,proto3" json:"transaction_id,omitempty"`
+	OutcomeId     string                 `protobuf:"bytes,2,opt,name=outcome_id,json=outcomeId,proto3" json:"outcome_id,omitempty"`
+	Outcome       ReservationOutcome     `protobuf:"varint,3,opt,name=outcome,proto3,enum=lerian.midaz.reservation.v1.ReservationOutcome" json:"outcome,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ApplyOutcomeRequest) Reset() {
+	*x = ApplyOutcomeRequest{}
+	mi := &file_reservation_v1_reservation_proto_msgTypes[9]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ApplyOutcomeRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ApplyOutcomeRequest) ProtoMessage() {}
+
+func (x *ApplyOutcomeRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_reservation_v1_reservation_proto_msgTypes[9]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ApplyOutcomeRequest.ProtoReflect.Descriptor instead.
+func (*ApplyOutcomeRequest) Descriptor() ([]byte, []int) {
+	return file_reservation_v1_reservation_proto_rawDescGZIP(), []int{9}
+}
+
+func (x *ApplyOutcomeRequest) GetTransactionId() string {
+	if x != nil {
+		return x.TransactionId
+	}
+	return ""
+}
+
+func (x *ApplyOutcomeRequest) GetOutcomeId() string {
+	if x != nil {
+		return x.OutcomeId
+	}
+	return ""
+}
+
+func (x *ApplyOutcomeRequest) GetOutcome() ReservationOutcome {
+	if x != nil {
+		return x.Outcome
+	}
+	return ReservationOutcome_RESERVATION_OUTCOME_UNSPECIFIED
+}
+
+// ApplyOutcomeResponse is the durable receipt. An exact retry returns the same
+// transaction, outcome and reservation count with replayed=true.
+type ApplyOutcomeResponse struct {
+	state            protoimpl.MessageState `protogen:"open.v1"`
+	TransactionId    string                 `protobuf:"bytes,1,opt,name=transaction_id,json=transactionId,proto3" json:"transaction_id,omitempty"`
+	OutcomeId        string                 `protobuf:"bytes,2,opt,name=outcome_id,json=outcomeId,proto3" json:"outcome_id,omitempty"`
+	Outcome          ReservationOutcome     `protobuf:"varint,3,opt,name=outcome,proto3,enum=lerian.midaz.reservation.v1.ReservationOutcome" json:"outcome,omitempty"`
+	ReservationCount int32                  `protobuf:"varint,4,opt,name=reservation_count,json=reservationCount,proto3" json:"reservation_count,omitempty"`
+	Replayed         bool                   `protobuf:"varint,5,opt,name=replayed,proto3" json:"replayed,omitempty"`
+	unknownFields    protoimpl.UnknownFields
+	sizeCache        protoimpl.SizeCache
+}
+
+func (x *ApplyOutcomeResponse) Reset() {
+	*x = ApplyOutcomeResponse{}
+	mi := &file_reservation_v1_reservation_proto_msgTypes[10]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ApplyOutcomeResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ApplyOutcomeResponse) ProtoMessage() {}
+
+func (x *ApplyOutcomeResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_reservation_v1_reservation_proto_msgTypes[10]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ApplyOutcomeResponse.ProtoReflect.Descriptor instead.
+func (*ApplyOutcomeResponse) Descriptor() ([]byte, []int) {
+	return file_reservation_v1_reservation_proto_rawDescGZIP(), []int{10}
+}
+
+func (x *ApplyOutcomeResponse) GetTransactionId() string {
+	if x != nil {
+		return x.TransactionId
+	}
+	return ""
+}
+
+func (x *ApplyOutcomeResponse) GetOutcomeId() string {
+	if x != nil {
+		return x.OutcomeId
+	}
+	return ""
+}
+
+func (x *ApplyOutcomeResponse) GetOutcome() ReservationOutcome {
+	if x != nil {
+		return x.Outcome
+	}
+	return ReservationOutcome_RESERVATION_OUTCOME_UNSPECIFIED
+}
+
+func (x *ApplyOutcomeResponse) GetReservationCount() int32 {
+	if x != nil {
+		return x.ReservationCount
+	}
+	return 0
+}
+
+func (x *ApplyOutcomeResponse) GetReplayed() bool {
+	if x != nil {
+		return x.Replayed
+	}
+	return false
 }
 
 // ConfirmByTransactionResponse is the response to ConfirmByTransaction.
@@ -459,7 +817,7 @@ type ConfirmByTransactionResponse struct {
 
 func (x *ConfirmByTransactionResponse) Reset() {
 	*x = ConfirmByTransactionResponse{}
-	mi := &file_reservation_v1_reservation_proto_msgTypes[7]
+	mi := &file_reservation_v1_reservation_proto_msgTypes[11]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -471,7 +829,7 @@ func (x *ConfirmByTransactionResponse) String() string {
 func (*ConfirmByTransactionResponse) ProtoMessage() {}
 
 func (x *ConfirmByTransactionResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_reservation_v1_reservation_proto_msgTypes[7]
+	mi := &file_reservation_v1_reservation_proto_msgTypes[11]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -484,7 +842,7 @@ func (x *ConfirmByTransactionResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ConfirmByTransactionResponse.ProtoReflect.Descriptor instead.
 func (*ConfirmByTransactionResponse) Descriptor() ([]byte, []int) {
-	return file_reservation_v1_reservation_proto_rawDescGZIP(), []int{7}
+	return file_reservation_v1_reservation_proto_rawDescGZIP(), []int{11}
 }
 
 // ReleaseByTransactionResponse is the response to ReleaseByTransaction.
@@ -496,7 +854,7 @@ type ReleaseByTransactionResponse struct {
 
 func (x *ReleaseByTransactionResponse) Reset() {
 	*x = ReleaseByTransactionResponse{}
-	mi := &file_reservation_v1_reservation_proto_msgTypes[8]
+	mi := &file_reservation_v1_reservation_proto_msgTypes[12]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -508,7 +866,7 @@ func (x *ReleaseByTransactionResponse) String() string {
 func (*ReleaseByTransactionResponse) ProtoMessage() {}
 
 func (x *ReleaseByTransactionResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_reservation_v1_reservation_proto_msgTypes[8]
+	mi := &file_reservation_v1_reservation_proto_msgTypes[12]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -521,7 +879,7 @@ func (x *ReleaseByTransactionResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ReleaseByTransactionResponse.ProtoReflect.Descriptor instead.
 func (*ReleaseByTransactionResponse) Descriptor() ([]byte, []int) {
-	return file_reservation_v1_reservation_proto_rawDescGZIP(), []int{8}
+	return file_reservation_v1_reservation_proto_rawDescGZIP(), []int{12}
 }
 
 // ConfirmByIdResponse is the response to ConfirmById.
@@ -533,7 +891,7 @@ type ConfirmByIdResponse struct {
 
 func (x *ConfirmByIdResponse) Reset() {
 	*x = ConfirmByIdResponse{}
-	mi := &file_reservation_v1_reservation_proto_msgTypes[9]
+	mi := &file_reservation_v1_reservation_proto_msgTypes[13]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -545,7 +903,7 @@ func (x *ConfirmByIdResponse) String() string {
 func (*ConfirmByIdResponse) ProtoMessage() {}
 
 func (x *ConfirmByIdResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_reservation_v1_reservation_proto_msgTypes[9]
+	mi := &file_reservation_v1_reservation_proto_msgTypes[13]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -558,7 +916,7 @@ func (x *ConfirmByIdResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ConfirmByIdResponse.ProtoReflect.Descriptor instead.
 func (*ConfirmByIdResponse) Descriptor() ([]byte, []int) {
-	return file_reservation_v1_reservation_proto_rawDescGZIP(), []int{9}
+	return file_reservation_v1_reservation_proto_rawDescGZIP(), []int{13}
 }
 
 // ReleaseByIdResponse is the response to ReleaseById.
@@ -570,7 +928,7 @@ type ReleaseByIdResponse struct {
 
 func (x *ReleaseByIdResponse) Reset() {
 	*x = ReleaseByIdResponse{}
-	mi := &file_reservation_v1_reservation_proto_msgTypes[10]
+	mi := &file_reservation_v1_reservation_proto_msgTypes[14]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -582,7 +940,7 @@ func (x *ReleaseByIdResponse) String() string {
 func (*ReleaseByIdResponse) ProtoMessage() {}
 
 func (x *ReleaseByIdResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_reservation_v1_reservation_proto_msgTypes[10]
+	mi := &file_reservation_v1_reservation_proto_msgTypes[14]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -595,7 +953,7 @@ func (x *ReleaseByIdResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ReleaseByIdResponse.ProtoReflect.Descriptor instead.
 func (*ReleaseByIdResponse) Descriptor() ([]byte, []int) {
-	return file_reservation_v1_reservation_proto_rawDescGZIP(), []int{10}
+	return file_reservation_v1_reservation_proto_rawDescGZIP(), []int{14}
 }
 
 var File_reservation_v1_reservation_proto protoreflect.FileDescriptor
@@ -605,7 +963,7 @@ const file_reservation_v1_reservation_proto_rawDesc = "" +
 	" reservation/v1/reservation.proto\x12\x1blerian.midaz.reservation.v1\"/\n" +
 	"\x0eReserveAccount\x12\x1d\n" +
 	"\n" +
-	"account_id\x18\x01 \x01(\tR\taccountId\"\xb3\x03\n" +
+	"account_id\x18\x01 \x01(\tR\taccountId\"\x8e\x04\n" +
 	"\x0eReserveRequest\x12%\n" +
 	"\x0etransaction_id\x18\x01 \x01(\tR\rtransactionId\x12\x1d\n" +
 	"\n" +
@@ -622,11 +980,17 @@ const file_reservation_v1_reservation_proto_rawDesc = "" +
 	"\x15transaction_timestamp\x18\n" +
 	" \x01(\tR\x14transactionTimestamp\x12\x1d\n" +
 	"\n" +
-	"long_lived\x18\v \x01(\bR\tlongLived\"w\n" +
+	"long_lived\x18\v \x01(\bR\tlongLived\x12Y\n" +
+	"\rdelivery_mode\x18\f \x01(\x0e24.lerian.midaz.reservation.v1.ReservationDeliveryModeR\fdeliveryMode\"\xd2\x01\n" +
 	"\rReserveResult\x12%\n" +
 	"\x0etransaction_id\x18\x01 \x01(\tR\rtransactionId\x12\x16\n" +
 	"\x06denied\x18\x02 \x01(\bR\x06denied\x12'\n" +
-	"\x0freservation_ids\x18\x03 \x03(\tR\x0ereservationIds\"D\n" +
+	"\x0freservation_ids\x18\x03 \x03(\tR\x0ereservationIds\x12Y\n" +
+	"\rdelivery_mode\x18\x04 \x01(\x0e24.lerian.midaz.reservation.v1.ReservationDeliveryModeR\fdeliveryMode\"Y\n" +
+	"\x10ReserveV2Request\x12E\n" +
+	"\areserve\x18\x01 \x01(\v2+.lerian.midaz.reservation.v1.ReserveRequestR\areserve\"W\n" +
+	"\x11ReserveV2Response\x12B\n" +
+	"\x06result\x18\x01 \x01(\v2*.lerian.midaz.reservation.v1.ReserveResultR\x06result\"D\n" +
 	"\x1bConfirmByTransactionRequest\x12%\n" +
 	"\x0etransaction_id\x18\x01 \x01(\tR\rtransactionId\"D\n" +
 	"\x1bReleaseByTransactionRequest\x12%\n" +
@@ -634,17 +998,39 @@ const file_reservation_v1_reservation_proto_rawDesc = "" +
 	"\x12ConfirmByIdRequest\x12%\n" +
 	"\x0ereservation_id\x18\x01 \x01(\tR\rreservationId\";\n" +
 	"\x12ReleaseByIdRequest\x12%\n" +
-	"\x0ereservation_id\x18\x01 \x01(\tR\rreservationId\"\x1e\n" +
+	"\x0ereservation_id\x18\x01 \x01(\tR\rreservationId\"\xa6\x01\n" +
+	"\x13ApplyOutcomeRequest\x12%\n" +
+	"\x0etransaction_id\x18\x01 \x01(\tR\rtransactionId\x12\x1d\n" +
+	"\n" +
+	"outcome_id\x18\x02 \x01(\tR\toutcomeId\x12I\n" +
+	"\aoutcome\x18\x03 \x01(\x0e2/.lerian.midaz.reservation.v1.ReservationOutcomeR\aoutcome\"\xf0\x01\n" +
+	"\x14ApplyOutcomeResponse\x12%\n" +
+	"\x0etransaction_id\x18\x01 \x01(\tR\rtransactionId\x12\x1d\n" +
+	"\n" +
+	"outcome_id\x18\x02 \x01(\tR\toutcomeId\x12I\n" +
+	"\aoutcome\x18\x03 \x01(\x0e2/.lerian.midaz.reservation.v1.ReservationOutcomeR\aoutcome\x12+\n" +
+	"\x11reservation_count\x18\x04 \x01(\x05R\x10reservationCount\x12\x1a\n" +
+	"\breplayed\x18\x05 \x01(\bR\breplayed\"\x1e\n" +
 	"\x1cConfirmByTransactionResponse\"\x1e\n" +
 	"\x1cReleaseByTransactionResponse\"\x15\n" +
 	"\x13ConfirmByIdResponse\"\x15\n" +
-	"\x13ReleaseByIdResponse2\xf8\x04\n" +
+	"\x13ReleaseByIdResponse*\x9b\x01\n" +
+	"\x17ReservationDeliveryMode\x12)\n" +
+	"%RESERVATION_DELIVERY_MODE_UNSPECIFIED\x10\x00\x12$\n" +
+	" RESERVATION_DELIVERY_MODE_LEGACY\x10\x01\x12/\n" +
+	"+RESERVATION_DELIVERY_MODE_LEDGER_OUTCOME_V2\x10\x02*}\n" +
+	"\x12ReservationOutcome\x12#\n" +
+	"\x1fRESERVATION_OUTCOME_UNSPECIFIED\x10\x00\x12!\n" +
+	"\x1dRESERVATION_OUTCOME_COMMITTED\x10\x01\x12\x1f\n" +
+	"\x1bRESERVATION_OUTCOME_ABORTED\x10\x022\xd9\x06\n" +
 	"\x12ReservationService\x12b\n" +
-	"\aReserve\x12+.lerian.midaz.reservation.v1.ReserveRequest\x1a*.lerian.midaz.reservation.v1.ReserveResult\x12\x8b\x01\n" +
+	"\aReserve\x12+.lerian.midaz.reservation.v1.ReserveRequest\x1a*.lerian.midaz.reservation.v1.ReserveResult\x12j\n" +
+	"\tReserveV2\x12-.lerian.midaz.reservation.v1.ReserveV2Request\x1a..lerian.midaz.reservation.v1.ReserveV2Response\x12\x8b\x01\n" +
 	"\x14ConfirmByTransaction\x128.lerian.midaz.reservation.v1.ConfirmByTransactionRequest\x1a9.lerian.midaz.reservation.v1.ConfirmByTransactionResponse\x12\x8b\x01\n" +
 	"\x14ReleaseByTransaction\x128.lerian.midaz.reservation.v1.ReleaseByTransactionRequest\x1a9.lerian.midaz.reservation.v1.ReleaseByTransactionResponse\x12p\n" +
 	"\vConfirmById\x12/.lerian.midaz.reservation.v1.ConfirmByIdRequest\x1a0.lerian.midaz.reservation.v1.ConfirmByIdResponse\x12p\n" +
-	"\vReleaseById\x12/.lerian.midaz.reservation.v1.ReleaseByIdRequest\x1a0.lerian.midaz.reservation.v1.ReleaseByIdResponseB\x8b\x02\n" +
+	"\vReleaseById\x12/.lerian.midaz.reservation.v1.ReleaseByIdRequest\x1a0.lerian.midaz.reservation.v1.ReleaseByIdResponse\x12s\n" +
+	"\fApplyOutcome\x120.lerian.midaz.reservation.v1.ApplyOutcomeRequest\x1a1.lerian.midaz.reservation.v1.ApplyOutcomeResponseB\x8b\x02\n" +
 	"\x1fcom.lerian.midaz.reservation.v1B\x10ReservationProtoP\x01ZGgithub.com/LerianStudio/midaz/v4/pkg/proto/reservation/v1;reservationv1\xa2\x02\x03LMR\xaa\x02\x1bLerian.Midaz.Reservation.V1\xca\x02\x1bLerian\\Midaz\\Reservation\\V1\xe2\x02'Lerian\\Midaz\\Reservation\\V1\\GPBMetadata\xea\x02\x1eLerian::Midaz::Reservation::V1b\x06proto3"
 
 var (
@@ -659,37 +1045,54 @@ func file_reservation_v1_reservation_proto_rawDescGZIP() []byte {
 	return file_reservation_v1_reservation_proto_rawDescData
 }
 
-var file_reservation_v1_reservation_proto_msgTypes = make([]protoimpl.MessageInfo, 11)
+var file_reservation_v1_reservation_proto_enumTypes = make([]protoimpl.EnumInfo, 2)
+var file_reservation_v1_reservation_proto_msgTypes = make([]protoimpl.MessageInfo, 15)
 var file_reservation_v1_reservation_proto_goTypes = []any{
-	(*ReserveAccount)(nil),               // 0: lerian.midaz.reservation.v1.ReserveAccount
-	(*ReserveRequest)(nil),               // 1: lerian.midaz.reservation.v1.ReserveRequest
-	(*ReserveResult)(nil),                // 2: lerian.midaz.reservation.v1.ReserveResult
-	(*ConfirmByTransactionRequest)(nil),  // 3: lerian.midaz.reservation.v1.ConfirmByTransactionRequest
-	(*ReleaseByTransactionRequest)(nil),  // 4: lerian.midaz.reservation.v1.ReleaseByTransactionRequest
-	(*ConfirmByIdRequest)(nil),           // 5: lerian.midaz.reservation.v1.ConfirmByIdRequest
-	(*ReleaseByIdRequest)(nil),           // 6: lerian.midaz.reservation.v1.ReleaseByIdRequest
-	(*ConfirmByTransactionResponse)(nil), // 7: lerian.midaz.reservation.v1.ConfirmByTransactionResponse
-	(*ReleaseByTransactionResponse)(nil), // 8: lerian.midaz.reservation.v1.ReleaseByTransactionResponse
-	(*ConfirmByIdResponse)(nil),          // 9: lerian.midaz.reservation.v1.ConfirmByIdResponse
-	(*ReleaseByIdResponse)(nil),          // 10: lerian.midaz.reservation.v1.ReleaseByIdResponse
+	(ReservationDeliveryMode)(0),         // 0: lerian.midaz.reservation.v1.ReservationDeliveryMode
+	(ReservationOutcome)(0),              // 1: lerian.midaz.reservation.v1.ReservationOutcome
+	(*ReserveAccount)(nil),               // 2: lerian.midaz.reservation.v1.ReserveAccount
+	(*ReserveRequest)(nil),               // 3: lerian.midaz.reservation.v1.ReserveRequest
+	(*ReserveResult)(nil),                // 4: lerian.midaz.reservation.v1.ReserveResult
+	(*ReserveV2Request)(nil),             // 5: lerian.midaz.reservation.v1.ReserveV2Request
+	(*ReserveV2Response)(nil),            // 6: lerian.midaz.reservation.v1.ReserveV2Response
+	(*ConfirmByTransactionRequest)(nil),  // 7: lerian.midaz.reservation.v1.ConfirmByTransactionRequest
+	(*ReleaseByTransactionRequest)(nil),  // 8: lerian.midaz.reservation.v1.ReleaseByTransactionRequest
+	(*ConfirmByIdRequest)(nil),           // 9: lerian.midaz.reservation.v1.ConfirmByIdRequest
+	(*ReleaseByIdRequest)(nil),           // 10: lerian.midaz.reservation.v1.ReleaseByIdRequest
+	(*ApplyOutcomeRequest)(nil),          // 11: lerian.midaz.reservation.v1.ApplyOutcomeRequest
+	(*ApplyOutcomeResponse)(nil),         // 12: lerian.midaz.reservation.v1.ApplyOutcomeResponse
+	(*ConfirmByTransactionResponse)(nil), // 13: lerian.midaz.reservation.v1.ConfirmByTransactionResponse
+	(*ReleaseByTransactionResponse)(nil), // 14: lerian.midaz.reservation.v1.ReleaseByTransactionResponse
+	(*ConfirmByIdResponse)(nil),          // 15: lerian.midaz.reservation.v1.ConfirmByIdResponse
+	(*ReleaseByIdResponse)(nil),          // 16: lerian.midaz.reservation.v1.ReleaseByIdResponse
 }
 var file_reservation_v1_reservation_proto_depIdxs = []int32{
-	0,  // 0: lerian.midaz.reservation.v1.ReserveRequest.account:type_name -> lerian.midaz.reservation.v1.ReserveAccount
-	1,  // 1: lerian.midaz.reservation.v1.ReservationService.Reserve:input_type -> lerian.midaz.reservation.v1.ReserveRequest
-	3,  // 2: lerian.midaz.reservation.v1.ReservationService.ConfirmByTransaction:input_type -> lerian.midaz.reservation.v1.ConfirmByTransactionRequest
-	4,  // 3: lerian.midaz.reservation.v1.ReservationService.ReleaseByTransaction:input_type -> lerian.midaz.reservation.v1.ReleaseByTransactionRequest
-	5,  // 4: lerian.midaz.reservation.v1.ReservationService.ConfirmById:input_type -> lerian.midaz.reservation.v1.ConfirmByIdRequest
-	6,  // 5: lerian.midaz.reservation.v1.ReservationService.ReleaseById:input_type -> lerian.midaz.reservation.v1.ReleaseByIdRequest
-	2,  // 6: lerian.midaz.reservation.v1.ReservationService.Reserve:output_type -> lerian.midaz.reservation.v1.ReserveResult
-	7,  // 7: lerian.midaz.reservation.v1.ReservationService.ConfirmByTransaction:output_type -> lerian.midaz.reservation.v1.ConfirmByTransactionResponse
-	8,  // 8: lerian.midaz.reservation.v1.ReservationService.ReleaseByTransaction:output_type -> lerian.midaz.reservation.v1.ReleaseByTransactionResponse
-	9,  // 9: lerian.midaz.reservation.v1.ReservationService.ConfirmById:output_type -> lerian.midaz.reservation.v1.ConfirmByIdResponse
-	10, // 10: lerian.midaz.reservation.v1.ReservationService.ReleaseById:output_type -> lerian.midaz.reservation.v1.ReleaseByIdResponse
-	6,  // [6:11] is the sub-list for method output_type
-	1,  // [1:6] is the sub-list for method input_type
-	1,  // [1:1] is the sub-list for extension type_name
-	1,  // [1:1] is the sub-list for extension extendee
-	0,  // [0:1] is the sub-list for field type_name
+	2,  // 0: lerian.midaz.reservation.v1.ReserveRequest.account:type_name -> lerian.midaz.reservation.v1.ReserveAccount
+	0,  // 1: lerian.midaz.reservation.v1.ReserveRequest.delivery_mode:type_name -> lerian.midaz.reservation.v1.ReservationDeliveryMode
+	0,  // 2: lerian.midaz.reservation.v1.ReserveResult.delivery_mode:type_name -> lerian.midaz.reservation.v1.ReservationDeliveryMode
+	3,  // 3: lerian.midaz.reservation.v1.ReserveV2Request.reserve:type_name -> lerian.midaz.reservation.v1.ReserveRequest
+	4,  // 4: lerian.midaz.reservation.v1.ReserveV2Response.result:type_name -> lerian.midaz.reservation.v1.ReserveResult
+	1,  // 5: lerian.midaz.reservation.v1.ApplyOutcomeRequest.outcome:type_name -> lerian.midaz.reservation.v1.ReservationOutcome
+	1,  // 6: lerian.midaz.reservation.v1.ApplyOutcomeResponse.outcome:type_name -> lerian.midaz.reservation.v1.ReservationOutcome
+	3,  // 7: lerian.midaz.reservation.v1.ReservationService.Reserve:input_type -> lerian.midaz.reservation.v1.ReserveRequest
+	5,  // 8: lerian.midaz.reservation.v1.ReservationService.ReserveV2:input_type -> lerian.midaz.reservation.v1.ReserveV2Request
+	7,  // 9: lerian.midaz.reservation.v1.ReservationService.ConfirmByTransaction:input_type -> lerian.midaz.reservation.v1.ConfirmByTransactionRequest
+	8,  // 10: lerian.midaz.reservation.v1.ReservationService.ReleaseByTransaction:input_type -> lerian.midaz.reservation.v1.ReleaseByTransactionRequest
+	9,  // 11: lerian.midaz.reservation.v1.ReservationService.ConfirmById:input_type -> lerian.midaz.reservation.v1.ConfirmByIdRequest
+	10, // 12: lerian.midaz.reservation.v1.ReservationService.ReleaseById:input_type -> lerian.midaz.reservation.v1.ReleaseByIdRequest
+	11, // 13: lerian.midaz.reservation.v1.ReservationService.ApplyOutcome:input_type -> lerian.midaz.reservation.v1.ApplyOutcomeRequest
+	4,  // 14: lerian.midaz.reservation.v1.ReservationService.Reserve:output_type -> lerian.midaz.reservation.v1.ReserveResult
+	6,  // 15: lerian.midaz.reservation.v1.ReservationService.ReserveV2:output_type -> lerian.midaz.reservation.v1.ReserveV2Response
+	13, // 16: lerian.midaz.reservation.v1.ReservationService.ConfirmByTransaction:output_type -> lerian.midaz.reservation.v1.ConfirmByTransactionResponse
+	14, // 17: lerian.midaz.reservation.v1.ReservationService.ReleaseByTransaction:output_type -> lerian.midaz.reservation.v1.ReleaseByTransactionResponse
+	15, // 18: lerian.midaz.reservation.v1.ReservationService.ConfirmById:output_type -> lerian.midaz.reservation.v1.ConfirmByIdResponse
+	16, // 19: lerian.midaz.reservation.v1.ReservationService.ReleaseById:output_type -> lerian.midaz.reservation.v1.ReleaseByIdResponse
+	12, // 20: lerian.midaz.reservation.v1.ReservationService.ApplyOutcome:output_type -> lerian.midaz.reservation.v1.ApplyOutcomeResponse
+	14, // [14:21] is the sub-list for method output_type
+	7,  // [7:14] is the sub-list for method input_type
+	7,  // [7:7] is the sub-list for extension type_name
+	7,  // [7:7] is the sub-list for extension extendee
+	0,  // [0:7] is the sub-list for field type_name
 }
 
 func init() { file_reservation_v1_reservation_proto_init() }
@@ -702,13 +1105,14 @@ func file_reservation_v1_reservation_proto_init() {
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_reservation_v1_reservation_proto_rawDesc), len(file_reservation_v1_reservation_proto_rawDesc)),
-			NumEnums:      0,
-			NumMessages:   11,
+			NumEnums:      2,
+			NumMessages:   15,
 			NumExtensions: 0,
 			NumServices:   1,
 		},
 		GoTypes:           file_reservation_v1_reservation_proto_goTypes,
 		DependencyIndexes: file_reservation_v1_reservation_proto_depIdxs,
+		EnumInfos:         file_reservation_v1_reservation_proto_enumTypes,
 		MessageInfos:      file_reservation_v1_reservation_proto_msgTypes,
 	}.Build()
 	File_reservation_v1_reservation_proto = out.File

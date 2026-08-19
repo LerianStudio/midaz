@@ -143,7 +143,27 @@ func (c *TracerGRPCClient) Reserve(ctx context.Context, req ReserveRequest) (*Re
 	ctx, cancel := context.WithTimeout(ctx, c.operationTimeout)
 	defer cancel()
 
-	resp, err := c.client.Reserve(ctx, toProtoReserveRequest(req))
+	var (
+		resp *reservationv1.ReserveResult
+		err  error
+	)
+
+	if req.DeliveryMode == DeliveryModeLedgerOutcomeV2 {
+		// ReserveV2 is deliberately a separate RPC. An old Tracer returns
+		// UNIMPLEMENTED before creating state; falling back here would leak a
+		// legacy hold, so the error is returned unchanged through mapGRPCError.
+		v2Resp, reserveErr := c.client.ReserveV2(ctx, &reservationv1.ReserveV2Request{
+			Reserve: toProtoReserveRequest(req),
+		})
+		if reserveErr == nil {
+			resp = v2Resp.GetResult()
+		}
+
+		err = reserveErr
+	} else {
+		resp, err = c.client.Reserve(ctx, toProtoReserveRequest(req))
+	}
+
 	if err != nil {
 		mapped := mapGRPCError(err)
 		libOpentelemetry.HandleSpanError(span, "Reserve transport failed", mapped)
@@ -261,6 +281,74 @@ func (c *TracerGRPCClient) ReleaseByTransaction(ctx context.Context, transaction
 	return nil
 }
 
+// ApplyOutcome durably applies the Ledger-owned V2 terminal decision over the
+// same tenant-aware, mTLS-capable gRPC seam used by Reserve.
+func (c *TracerGRPCClient) ApplyOutcome(ctx context.Context, req ApplyOutcomeRequest) (*ApplyOutcomeResult, error) {
+	_, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
+
+	ctx, span := tracer.Start(ctx, "tracer.grpc_client.apply_outcome")
+	defer span.End()
+
+	span.SetAttributes(attribute.String("app.request.transaction_id", req.TransactionID.String()))
+
+	ctx, cancel := context.WithTimeout(ctx, c.operationTimeout)
+	defer cancel()
+
+	var outcome reservationv1.ReservationOutcome
+
+	switch req.Outcome {
+	case ReservationOutcomeCommitted:
+		outcome = reservationv1.ReservationOutcome_RESERVATION_OUTCOME_COMMITTED
+	case ReservationOutcomeAborted:
+		outcome = reservationv1.ReservationOutcome_RESERVATION_OUTCOME_ABORTED
+	default:
+		return nil, fmt.Errorf("invalid reservation outcome %q", req.Outcome)
+	}
+
+	resp, err := c.client.ApplyOutcome(ctx, &reservationv1.ApplyOutcomeRequest{
+		TransactionId: req.TransactionID.String(),
+		OutcomeId:     req.OutcomeID.String(),
+		Outcome:       outcome,
+	})
+	if err != nil {
+		mapped := mapGRPCError(err)
+		libOpentelemetry.HandleSpanError(span, "ApplyOutcome transport failed", mapped)
+
+		return nil, mapped
+	}
+
+	transactionID, err := uuid.Parse(resp.GetTransactionId())
+	if err != nil {
+		return nil, fmt.Errorf("tracer returned invalid transaction id in outcome receipt: %w", err)
+	}
+
+	outcomeID, err := uuid.Parse(resp.GetOutcomeId())
+	if err != nil {
+		return nil, fmt.Errorf("tracer returned invalid outcome id in receipt: %w", err)
+	}
+
+	result := &ApplyOutcomeResult{
+		TransactionID:    transactionID,
+		OutcomeID:        outcomeID,
+		ReservationCount: int(resp.GetReservationCount()),
+		Replayed:         resp.GetReplayed(),
+	}
+	switch resp.GetOutcome() {
+	case reservationv1.ReservationOutcome_RESERVATION_OUTCOME_COMMITTED:
+		result.Outcome = ReservationOutcomeCommitted
+	case reservationv1.ReservationOutcome_RESERVATION_OUTCOME_ABORTED:
+		result.Outcome = ReservationOutcomeAborted
+	default:
+		return nil, errors.New("tracer returned an invalid reservation outcome receipt")
+	}
+
+	if result.TransactionID != req.TransactionID || result.OutcomeID != req.OutcomeID || result.Outcome != req.Outcome {
+		return nil, errors.New("tracer returned a mismatched reservation outcome receipt")
+	}
+
+	return result, nil
+}
+
 // tenantUnaryInterceptor propagates the request's tenant to the tracer as the
 // trusted x-tenant-id outgoing metadata on every RPC, mirroring the REST
 // client's TenantHeader injection. The value is resolved from context via
@@ -288,6 +376,15 @@ func tenantUnaryInterceptor(
 // AccountID serializes to an empty account_id, which the tracer's relaxed reserve
 // validation treats the same way the REST {} body is treated.
 func toProtoReserveRequest(req ReserveRequest) *reservationv1.ReserveRequest {
+	deliveryMode := reservationv1.ReservationDeliveryMode_RESERVATION_DELIVERY_MODE_UNSPECIFIED
+
+	switch req.DeliveryMode {
+	case DeliveryModeLegacy:
+		deliveryMode = reservationv1.ReservationDeliveryMode_RESERVATION_DELIVERY_MODE_LEGACY
+	case DeliveryModeLedgerOutcomeV2:
+		deliveryMode = reservationv1.ReservationDeliveryMode_RESERVATION_DELIVERY_MODE_LEDGER_OUTCOME_V2
+	}
+
 	return &reservationv1.ReserveRequest{
 		TransactionId:        req.TransactionID.String(),
 		RequestId:            req.RequestID,
@@ -300,6 +397,7 @@ func toProtoReserveRequest(req ReserveRequest) *reservationv1.ReserveRequest {
 		TransactionType:      req.TransactionType,
 		TransactionTimestamp: req.TransactionTimestamp,
 		LongLived:            req.LongLived,
+		DeliveryMode:         deliveryMode,
 	}
 }
 
@@ -328,11 +426,30 @@ func fromProtoReserveResult(resp *reservationv1.ReserveResult) (*ReserveResult, 
 		ids = append(ids, id)
 	}
 
+	deliveryMode, err := reservationDeliveryModeFromProto(resp.GetDeliveryMode())
+	if err != nil {
+		return nil, err
+	}
+
 	return &ReserveResult{
 		TransactionID:  transactionID,
 		Denied:         resp.GetDenied(),
 		ReservationIDs: ids,
+		DeliveryMode:   deliveryMode,
 	}, nil
+}
+
+func reservationDeliveryModeFromProto(mode reservationv1.ReservationDeliveryMode) (ReservationDeliveryMode, error) {
+	switch mode {
+	case reservationv1.ReservationDeliveryMode_RESERVATION_DELIVERY_MODE_UNSPECIFIED:
+		return "", nil
+	case reservationv1.ReservationDeliveryMode_RESERVATION_DELIVERY_MODE_LEGACY:
+		return DeliveryModeLegacy, nil
+	case reservationv1.ReservationDeliveryMode_RESERVATION_DELIVERY_MODE_LEDGER_OUTCOME_V2:
+		return DeliveryModeLedgerOutcomeV2, nil
+	default:
+		return "", fmt.Errorf("unsupported reservation delivery mode %d", mode)
+	}
 }
 
 // mapGRPCError normalises a gRPC RPC error to the seam's error vocabulary.

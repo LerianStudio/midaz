@@ -75,11 +75,12 @@ func trlcSeedPendingTransfer(t *testing.T, maxLimit, value string) (fixture, str
 
 	f := newEnforceFixture(t, "open")
 
-	src := createAccount(t, f, "trlc-src-"+uuid.NewString()[:8])
-	dst := createAccount(t, f, "trlc-dst-"+uuid.NewString()[:8])
+	src := createAccount(t, f, "trlc-src-"+uuid.NewString())
+	dst := createAccount(t, f, "trlc-dst-"+uuid.NewString())
 
-	// Cap the source account; an in-limit PENDING transfer reserves under it.
-	seedLimitRule(t, f, maxLimit, map[string]any{"accountId": accountIDByAlias(t, f, src)})
+	// Cap the source account with a counter-backed limit; an in-limit PENDING
+	// transfer must create a reservation under it.
+	seedCapacityLimitRule(t, f, maxLimit, map[string]any{"accountId": accountIDByAlias(t, f, src)})
 	fund(t, f, src, "1000")
 
 	body := transferBody(src, dst, value, nil)
@@ -184,10 +185,10 @@ func TestReserveLifecycleRevertConfirmsParent(t *testing.T) {
 
 	f := newEnforceFixture(t, "open")
 
-	src := createAccount(t, f, "trlc-rev-src-"+uuid.NewString()[:8])
-	dst := createAccount(t, f, "trlc-rev-dst-"+uuid.NewString()[:8])
+	src := createAccount(t, f, "trlc-rev-src-"+uuid.NewString())
+	dst := createAccount(t, f, "trlc-rev-dst-"+uuid.NewString())
 
-	seedLimitRule(t, f, "1000", map[string]any{"accountId": accountIDByAlias(t, f, src)})
+	seedCapacityLimitRule(t, f, "1000", map[string]any{"accountId": accountIDByAlias(t, f, src)})
 	fund(t, f, src, "1000")
 
 	// Direct (non-pending) transfer: reserve is CONFIRMED inline at create.
@@ -272,19 +273,16 @@ func TestReserveLifecycleReleaseIdempotent(t *testing.T) {
 	}
 }
 
-// TestReserveLifecycleReserveRequestIdNoDoubleHold (Epic 2.3 C) proves a reserve
-// retry carrying the SAME requestId does not double-hold. The ledger derives a
-// deterministic requestId per transaction (UUIDv5 of the transactionId,
-// transaction_reservation_anchor.go:206), so a retried reserve presents the same
-// requestId and the tracer dedups against the prior reservation rather than
-// minting a second hold.
+// TestReserveLifecycleTransactionTupleNoDoubleHold (Epic 2.3 C) proves an exact
+// reserve retry for the same transaction does not double-hold. Tracer identifies
+// the active hold by transactionId + limit + scope + period; requestId is not the
+// reservation idempotency key.
 //
 // We exercise the tracer reserve API directly (the ledger has no retry surface
-// over HTTP): two reserves with identical transactionId+requestId+account+amount.
-// The dedup contract is that the second reserve returns the SAME reservationIds as
-// the first — one logical hold, not two. Distinct ids on the second call would be
-// a double-hold (the same logical request reserving capacity twice).
-func TestReserveLifecycleReserveRequestIdNoDoubleHold(t *testing.T) {
+// over HTTP): two reserves with identical transactionId, account, amount, and
+// resolved limit tuple. The retry contract is that the second reserve returns the
+// SAME reservationIds as the first — one logical hold, not two.
+func TestReserveLifecycleTransactionTupleNoDoubleHold(t *testing.T) {
 	requireTracer(t)
 
 	// A source-scoped ACTIVE limit so the reserve actually creates a hold;
@@ -292,14 +290,14 @@ func TestReserveLifecycleReserveRequestIdNoDoubleHold(t *testing.T) {
 	// nothing to dedup. The fixture is enforce(fail-open) only to reuse the
 	// limit-seeding helpers; this test drives the tracer directly.
 	f := newEnforceFixture(t, "open")
-	src := createAccount(t, f, "trlc-rid-src-"+uuid.NewString()[:8])
+	src := createAccount(t, f, "trlc-rid-src-"+uuid.NewString())
 	accID := accountIDByAlias(t, f, src)
-	seedLimitRule(t, f, "1000", map[string]any{"accountId": accID})
+	seedCapacityLimitRule(t, f, "1000", map[string]any{"accountId": accID})
 
 	payload := reservePayload("")
 	payload["account"] = map[string]any{"accountId": accID}
 	payload["amount"] = "100"
-	// transactionId + requestId are FIXED so the retry presents the same request.
+	// transactionId and the resolved limit tuple remain fixed across the retry.
 
 	first := call(t, http.MethodPost, trlcReserveURL(), payload)
 	if first.status != http.StatusCreated {
@@ -309,12 +307,9 @@ func TestReserveLifecycleReserveRequestIdNoDoubleHold(t *testing.T) {
 		t.Fatalf("first reserve denied unexpectedly (cap 1000, amount 100)\nbody: %s", first.body)
 	}
 
-	firstIDs := trlcReservationIDs(t, first)
-	if len(firstIDs) == 0 {
-		t.Skipf("first reserve produced no reservationIds (no capacity-backed limit matched) — cannot exercise dedup; body: %s", first.body)
-	}
+	firstIDs := trlcRequireReservationIDs(t, first)
 
-	// Retry with the identical request: same transactionId + requestId.
+	// Retry with the identical transactionId + limit/scope/period tuple.
 	second := call(t, http.MethodPost, trlcReserveURL(), payload)
 	if second.status != http.StatusCreated {
 		t.Fatalf("retry reserve: want 201, got %d\nbody: %s", second.status, second.body)
@@ -322,8 +317,25 @@ func TestReserveLifecycleReserveRequestIdNoDoubleHold(t *testing.T) {
 
 	secondIDs := trlcReservationIDs(t, second)
 	if !trlcSameIDSet(firstIDs, secondIDs) {
-		t.Fatalf("reserve retry with the same requestId minted DIFFERENT reservationIds (double-hold)\nfirst:  %v\nsecond: %v", firstIDs, secondIDs)
+		t.Fatalf("reserve retry with the same transaction tuple minted DIFFERENT reservationIds (double-hold)\nfirst:  %v\nsecond: %v", firstIDs, secondIDs)
 	}
+}
+
+func trlcRequireReservationIDs(t *testing.T, r response) []string {
+	t.Helper()
+
+	ids := trlcReservationIDs(t, r)
+	if len(ids) > 0 {
+		return ids
+	}
+
+	message := fmt.Sprintf("first reserve produced no reservationIds (no capacity-backed limit matched) — cannot exercise transaction tuple idempotency; body: %s", r.body)
+	if e2eRequired() {
+		t.Fatalf("required reservation tuple idempotency capability produced no reservationIds: %s", message)
+	}
+	t.Skip(message)
+
+	return nil
 }
 
 // trlcReservationIDs extracts the reservationIds array (each a string uuid) from a
@@ -350,8 +362,8 @@ func trlcReservationIDs(t *testing.T, r response) []string {
 }
 
 // trlcSameIDSet reports whether two reservation-id slices contain the same set of
-// ids (order-insensitive). Used to assert dedup: a same-requestId retry returns
-// the same logical hold, not a fresh one.
+// ids (order-insensitive). Used to assert tuple idempotency: an exact retry for
+// the same transaction/limit/scope/period returns the same hold, not a fresh one.
 func trlcSameIDSet(a, b []string) bool {
 	if len(a) != len(b) {
 		return false

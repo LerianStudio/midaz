@@ -134,11 +134,15 @@ func TestSeamMTLSTenantIsolation(t *testing.T) {
 		ctxA, cancel := context.WithTimeout(ctxA, 5*time.Second)
 		defer cancel()
 
-		result, err := client.Reserve(ctxA, ReserveRequest{TransactionID: fixedTransactionID})
+		result, err := client.Reserve(ctxA, ReserveRequest{
+			TransactionID: fixedTransactionID,
+			DeliveryMode:  DeliveryModeLedgerOutcomeV2,
+		})
 		require.NoError(t, err, "tenant A reserve must complete over mTLS")
 		require.NotNil(t, result)
 		require.False(t, result.Denied)
 		require.Equal(t, []uuid.UUID{fixedReservationID}, result.ReservationIDs)
+		require.Equal(t, DeliveryModeLedgerOutcomeV2, result.DeliveryMode)
 	})
 
 	t.Run("tenant A's reservation is visible to tenant A", func(t *testing.T) {
@@ -188,7 +192,10 @@ func TestSeamMTLSTenantIsolation(t *testing.T) {
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
 
-		_, err := client.Reserve(ctx, ReserveRequest{TransactionID: fixedTransactionID})
+		_, err := client.Reserve(ctx, ReserveRequest{
+			TransactionID: fixedTransactionID,
+			DeliveryMode:  DeliveryModeLedgerOutcomeV2,
+		})
 		require.Error(t, err, "a tenantless reservation over the seam must be rejected under MT")
 		require.Equal(t, codes.InvalidArgument, status.Code(err),
 			"a missing tenant key must fail clean, never resolve a default pool")
@@ -227,6 +234,17 @@ func (s *isolationReservationServer) Reserve(ctx context.Context, req *reservati
 		Denied:         false,
 		ReservationIds: []string{fixedReservationID.String()},
 	}, nil
+}
+
+func (s *isolationReservationServer) ReserveV2(ctx context.Context, req *reservationv1.ReserveV2Request) (*reservationv1.ReserveV2Response, error) {
+	result, err := s.Reserve(ctx, req.GetReserve())
+	if err != nil {
+		return nil, err
+	}
+
+	result.DeliveryMode = reservationv1.ReservationDeliveryMode_RESERVATION_DELIVERY_MODE_LEDGER_OUTCOME_V2
+
+	return &reservationv1.ReserveV2Response{Result: result}, nil
 }
 
 // ConfirmByTransaction confirms only within the resolver-bound tenant's store.

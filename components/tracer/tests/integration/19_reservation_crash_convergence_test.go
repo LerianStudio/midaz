@@ -235,6 +235,13 @@ func resSpecDec(limitID uuid.UUID, scopeKey, periodKey string, amount, maxAmount
 	}
 }
 
+func resSpecWithCounterExpiry(limitID uuid.UUID, scopeKey, periodKey string, amount, maxAmount int64, expiresAt time.Time) query.ReservationSpec {
+	spec := resSpec(limitID, scopeKey, periodKey, amount, maxAmount)
+	spec.CounterExpiresAt = &expiresAt
+
+	return spec
+}
+
 // resCheckInput is a minimal valid CheckLimitsInput. The stub resolver ignores
 // its contents, but ReservationService.Reserve forwards it and a nil input is
 // rejected, so the proofs pass a well-formed one.
@@ -253,14 +260,147 @@ func resCheckInput(t *testing.T) *model.CheckLimitsInput {
 	return input
 }
 
+func TestIntegration_ReservationReserveIdempotency(t *testing.T) {
+	t.Run("sequential retries return one persisted reservation", func(t *testing.T) {
+		testutil.SetupTestTracing(t)
+
+		db := testutil.SetupIntegrationDB(t)
+		limitID := resSeedLimit(t, db, 8730, "idempotency-sequential", 1000)
+		t.Cleanup(func() { resCleanupLimit(t, db, limitID) })
+
+		scopeKey := "acct:idempotency-sequential"
+		periodKey := "2026-08-17"
+		txID := testutil.MustDeterministicUUID(8731)
+		audit := &resCountingAudit{}
+		svc := resWireService(t, db, resStubResolver{
+			specs: []query.ReservationSpec{resSpec(limitID, scopeKey, periodKey, 600, 1000)},
+		}, audit)
+		input := resCheckInput(t)
+
+		first, err := svc.Reserve(context.Background(), txID, input, false)
+		require.NoError(t, err)
+		require.Len(t, first.ReservationIDs, 1)
+
+		second, err := svc.Reserve(context.Background(), txID, input, false)
+		require.NoError(t, err)
+		require.Len(t, second.ReservationIDs, 1)
+		assert.Equal(t, first.ReservationIDs, second.ReservationIDs, "a retry must return the persisted reservation")
+
+		current, reserved := resReadCounter(t, db, limitID, scopeKey, periodKey)
+		assert.Equal(t, int64(0), current)
+		assert.Equal(t, int64(600), reserved, "a retry must not hold capacity twice")
+		assert.Equal(t, int64(1), audit.perRow.Load(), "a retry must not duplicate the reserve audit event")
+
+		conflictingSvc := resWireService(t, db, resStubResolver{
+			specs: []query.ReservationSpec{resSpec(limitID, scopeKey, periodKey, 500, 1000)},
+		}, audit)
+		_, err = conflictingSvc.Reserve(context.Background(), txID, input, false)
+		require.ErrorIs(t, err, constant.ErrIdempotencyKey)
+
+		current, reserved = resReadCounter(t, db, limitID, scopeKey, periodKey)
+		assert.Equal(t, int64(0), current)
+		assert.Equal(t, int64(600), reserved, "a conflicting retry must not change held capacity")
+
+		require.NoError(t, svc.Confirm(context.Background(), first.ReservationIDs[0]))
+		_, err = svc.Reserve(context.Background(), txID, input, false)
+		require.ErrorIs(t, err, constant.ErrReservationAlreadyTerminal)
+
+		current, reserved = resReadCounter(t, db, limitID, scopeKey, periodKey)
+		assert.Equal(t, int64(600), current)
+		assert.Equal(t, int64(0), reserved)
+		assert.Equal(t, int64(2), audit.perRow.Load(), "terminal retry must not emit another reserve audit event")
+	})
+
+	t.Run("concurrent retries converge on one persisted reservation", func(t *testing.T) {
+		testutil.SetupTestTracing(t)
+
+		db := testutil.SetupIntegrationDB(t)
+		limitID := resSeedLimit(t, db, 8732, "idempotency-concurrent", 1000)
+		t.Cleanup(func() { resCleanupLimit(t, db, limitID) })
+
+		scopeKey := "acct:idempotency-concurrent"
+		periodKey := "2026-08-17"
+		txID := testutil.MustDeterministicUUID(8733)
+		audit := &resCountingAudit{}
+		svc := resWireService(t, db, resStubResolver{
+			specs: []query.ReservationSpec{resSpec(limitID, scopeKey, periodKey, 600, 1000)},
+		}, audit)
+		input := resCheckInput(t)
+
+		type outcome struct {
+			result *services.ReserveResult
+			err    error
+		}
+
+		start := make(chan struct{})
+		outcomes := make(chan outcome, 2)
+		for range 2 {
+			go func() {
+				<-start
+				result, err := svc.Reserve(context.Background(), txID, input, false)
+				outcomes <- outcome{result: result, err: err}
+			}()
+		}
+		close(start)
+
+		first := <-outcomes
+		second := <-outcomes
+		require.NoError(t, first.err)
+		require.NoError(t, second.err)
+		require.NotNil(t, first.result)
+		require.NotNil(t, second.result)
+		require.Len(t, first.result.ReservationIDs, 1)
+		require.Len(t, second.result.ReservationIDs, 1)
+		assert.Equal(t, first.result.ReservationIDs, second.result.ReservationIDs, "concurrent retries must return the persisted reservation")
+
+		current, reserved := resReadCounter(t, db, limitID, scopeKey, periodKey)
+		assert.Equal(t, int64(0), current)
+		assert.Equal(t, int64(600), reserved, "concurrent retries must hold capacity once")
+		assert.Equal(t, int64(1), audit.perRow.Load(), "concurrent retries must emit one reserve audit event")
+	})
+}
+
+func TestIntegration_ConfirmedReservationCounterSurvivesReservationTTL(t *testing.T) {
+	testutil.SetupTestTracing(t)
+
+	db := testutil.SetupIntegrationDB(t)
+	limitID := resSeedLimit(t, db, 8734, "counter-retention", 1000)
+	t.Cleanup(func() { resCleanupLimit(t, db, limitID) })
+
+	now := time.Now().UTC()
+	counterExpiresAt := now.AddDate(0, 0, 90)
+	scopeKey := "acct:counter-retention"
+	periodKey := now.Format("2006-01-02")
+	txID := testutil.MustDeterministicUUID(8735)
+	audit := &resCountingAudit{}
+	svc := resWireService(t, db, resStubResolver{
+		specs: []query.ReservationSpec{
+			resSpecWithCounterExpiry(limitID, scopeKey, periodKey, 400, 1000, counterExpiresAt),
+		},
+	}, audit)
+
+	reserved, err := svc.Reserve(context.Background(), txID, resCheckInput(t), false)
+	require.NoError(t, err)
+	require.Len(t, reserved.ReservationIDs, 1)
+	require.NoError(t, svc.Confirm(context.Background(), reserved.ReservationIDs[0]))
+
+	adapter := &testutil.IntegrationDBAdapter{DB: db}
+	counterRepo := postgres.NewUsageCounterRepositoryWithConnection(adapter)
+	_, err = counterRepo.DeleteExpiredCounters(context.Background(), now.Add(6*time.Minute))
+	require.NoError(t, err)
+
+	current, held := resReadCounter(t, db, limitID, scopeKey, periodKey)
+	assert.Equal(t, int64(400), current)
+	assert.Equal(t, int64(0), held)
+}
+
 // ---------------------------------------------------------------------------
 // PROOF 1 — Crash convergence (Gate 1)
 //
-// The two-phase reservation must converge to the correct counter state under a
-// ledger crash at EVERY interleaving of reserve <-> confirm. The three sub-tests
-// are the three crash windows the plan enumerates; each asserts EXACT counter
-// values, which is the whole point — the TTL reaper is what makes (a) and (b)
-// converge, and (c) proves a delivered confirm survives a pre-reaper crash.
+// The three sub-tests pin every crash window around reserve and confirm. They
+// prove correct convergence before the balance commit and after a delivered
+// confirm, and expose the known usage undercount when the balance commits but
+// confirmation is lost.
 // ---------------------------------------------------------------------------
 
 func TestIntegration_ReservationCrashConvergence(t *testing.T) {
@@ -318,11 +458,10 @@ func TestIntegration_ReservationCrashConvergence(t *testing.T) {
 
 	// (b) The balance committed on the ledger, but the confirm transport was
 	// LOST (network drop, ledger crash after commit but before the confirm
-	// reaches the tracer). The tracer never hears the confirm, so to the tracer
-	// the reservation is indistinguishable from (a): the SAME TTL + reaper path
-	// converges it. THIS is why the TTL is mandatory — a best-effort confirm can
-	// always be lost, and without the reaper the capacity would leak forever.
-	t.Run("commit_then_confirm_lost_same_ttl_converges", func(t *testing.T) {
+	// reaches the tracer). The tracer cannot distinguish this from an abandoned
+	// hold: expiry releases capacity for money that already moved. This test pins
+	// that known correctness defect until confirmation becomes durable.
+	t.Run("commit_then_confirm_lost_exposes_known_usage_undercount", func(t *testing.T) {
 		testutil.SetupTestTracing(t)
 
 		db := testutil.SetupIntegrationDB(t)
@@ -350,7 +489,7 @@ func TestIntegration_ReservationCrashConvergence(t *testing.T) {
 
 		// --- The ledger COMMITTED its balance, then the Confirm RPC was lost. ---
 		// From the tracer's perspective nothing arrived; the reservation is still
-		// RESERVED. The TTL reaper is the durability backstop.
+		// RESERVED. The TTL reaper will expose the known undercount.
 
 		sweepAt := time.Now().UTC().Add(6 * time.Minute)
 		reaper := resWireReaper(t, db, audit, sweepAt)
@@ -359,15 +498,11 @@ func TestIntegration_ReservationCrashConvergence(t *testing.T) {
 		require.NoError(t, err)
 		assert.Equal(t, 1, released)
 
-		// The reservation drains to baseline via EXPIRED, exactly as in (a). The
-		// counter does NOT credit the lost-confirm amount — the tracer cannot
-		// invent a confirm it never received; reconciliation of a genuinely
-		// committed-but-unconfirmed transaction is the ledger's retry concern, not
-		// the counter's. The invariant the tracer guarantees is convergence to a
-		// drained reserved_usage, never a leaked hold.
+		// The reservation drains via EXPIRED, exactly as in (a). Because the ledger
+		// did commit, current_usage=0 is incorrect and reopens limit capacity.
 		current, reserved := resReadCounter(t, db, limitID, scopeKey, periodKey)
 		assert.Equal(t, int64(0), current)
-		assert.Equal(t, int64(0), reserved, "lost confirm + TTL reaper converges reserved_usage to baseline")
+		assert.Equal(t, int64(0), reserved, "expiry drains the hold while exposing the known current_usage undercount")
 		assert.Equal(t, string(model.StatusExpired), resReadStatus(t, db, res.ReservationIDs[0]))
 	})
 

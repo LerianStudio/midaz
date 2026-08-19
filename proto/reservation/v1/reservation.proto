@@ -21,6 +21,10 @@ service ReservationService {
   // reservation_ids, not a transport error.
   rpc Reserve(ReserveRequest) returns (ReserveResult);
 
+  // ReserveV2 is a capability-safe entry point for ledger-owned outcomes. A
+  // pre-V2 server returns UNIMPLEMENTED before creating a legacy reservation.
+  rpc ReserveV2(ReserveV2Request) returns (ReserveV2Response);
+
   // ConfirmByTransaction commits EVERY reservation a transaction holds.
   rpc ConfirmByTransaction(ConfirmByTransactionRequest) returns (ConfirmByTransactionResponse);
 
@@ -32,6 +36,31 @@ service ReservationService {
 
   // ReleaseById returns a single held reservation's capacity.
   rpc ReleaseById(ReleaseByIdRequest) returns (ReleaseByIdResponse);
+
+  // ApplyOutcome durably applies the ledger's terminal transaction outcome to
+  // every V2 reservation and returns the persisted idempotency receipt.
+  rpc ApplyOutcome(ApplyOutcomeRequest) returns (ApplyOutcomeResponse);
+}
+
+// ReservationDeliveryMode selects who owns reservation termination.
+enum ReservationDeliveryMode {
+  // RESERVATION_DELIVERY_MODE_UNSPECIFIED preserves the legacy protocol.
+  RESERVATION_DELIVERY_MODE_UNSPECIFIED = 0;
+  // RESERVATION_DELIVERY_MODE_LEGACY allows confirm/release and TTL expiry.
+  RESERVATION_DELIVERY_MODE_LEGACY = 1;
+  // RESERVATION_DELIVERY_MODE_LEDGER_OUTCOME_V2 waits for ApplyOutcome and
+  // never expires autonomously.
+  RESERVATION_DELIVERY_MODE_LEDGER_OUTCOME_V2 = 2;
+}
+
+// ReservationOutcome is the ledger's durable terminal decision.
+enum ReservationOutcome {
+  // RESERVATION_OUTCOME_UNSPECIFIED is invalid on ApplyOutcome.
+  RESERVATION_OUTCOME_UNSPECIFIED = 0;
+  // RESERVATION_OUTCOME_COMMITTED commits held usage.
+  RESERVATION_OUTCOME_COMMITTED = 1;
+  // RESERVATION_OUTCOME_ABORTED returns held capacity.
+  RESERVATION_OUTCOME_ABORTED = 2;
 }
 
 // ReserveAccount is the account scope the tracer matches limits against. It
@@ -63,6 +92,9 @@ message ReserveRequest {
   // long_lived hints the tracer to assign a long-lived reservation lifetime to
   // a PENDING-transaction reservation.
   bool long_lived = 11;
+  // delivery_mode is additive: unspecified and legacy preserve V1 behavior;
+  // only LEDGER_OUTCOME_V2 disables autonomous expiry and enables ApplyOutcome.
+  ReservationDeliveryMode delivery_mode = 12;
 }
 
 // ReserveResult is the handle returned by a successful reserve. denied is the
@@ -73,6 +105,21 @@ message ReserveResult {
   string transaction_id = 1;
   bool denied = 2;
   repeated string reservation_ids = 3;
+  // delivery_mode is the protocol the Tracer actually accepted after
+  // normalization. Callers requesting V2 must require an explicit V2 echo;
+  // absence means the response came from a legacy server.
+  ReservationDeliveryMode delivery_mode = 4;
+}
+
+// ReserveV2Request wraps the additive reserve shape under a distinct RPC input
+// so capability negotiation fails before any old server can create state.
+message ReserveV2Request {
+  ReserveRequest reserve = 1;
+}
+
+// ReserveV2Response carries the same normalized ReserveResult contract.
+message ReserveV2Response {
+  ReserveResult result = 1;
 }
 
 // ConfirmByTransactionRequest commits every reservation held by a transaction.
@@ -93,6 +140,23 @@ message ConfirmByIdRequest {
 // ReleaseByIdRequest releases a single reservation by its id.
 message ReleaseByIdRequest {
   string reservation_id = 1;
+}
+
+// ApplyOutcomeRequest delivers one terminal ledger outcome for a transaction.
+message ApplyOutcomeRequest {
+  string transaction_id = 1;
+  string outcome_id = 2;
+  ReservationOutcome outcome = 3;
+}
+
+// ApplyOutcomeResponse is the durable receipt. An exact retry returns the same
+// transaction, outcome and reservation count with replayed=true.
+message ApplyOutcomeResponse {
+  string transaction_id = 1;
+  string outcome_id = 2;
+  ReservationOutcome outcome = 3;
+  int32 reservation_count = 4;
+  bool replayed = 5;
 }
 
 // The confirm/release transitions are idempotent and the REST seam returns a

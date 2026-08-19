@@ -145,8 +145,8 @@ func mtNewTenantID() string { return uuid.NewString() }
 // createOrg) with a unique legal name so retries never clash.
 func mtOrgBody() map[string]any {
 	return map[string]any{
-		"legalName":       "MT Org " + uuid.NewString()[:8],
-		"legalDocument":   "123456789012345",
+		"legalName":       "MT Org " + uuid.NewString(),
+		"legalDocument":   e2eIdentity("MT-document"),
 		"doingBusinessAs": "MT",
 	}
 }
@@ -212,8 +212,8 @@ func TestMultiTenantSameAliasCoexists(t *testing.T) {
 	// Identical payload (same legalDocument) submitted under each tenant. The
 	// shared body makes the coexistence claim sharp: it is the SAME logical org.
 	shared := map[string]any{
-		"legalName":       "MT Shared " + uuid.NewString()[:8],
-		"legalDocument":   "123456789012345",
+		"legalName":       "MT Shared " + uuid.NewString(),
+		"legalDocument":   e2eIdentity("MT-shared-document"),
 		"doingBusinessAs": "MT",
 	}
 

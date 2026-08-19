@@ -148,12 +148,12 @@ func TestReservationService_Reserve(t *testing.T) {
 
 		// One reserve + one audit per applicable limit.
 		deps.repo.EXPECT().
-			ReserveWithTx(gomock.Any(), deps.tx, gomock.AssignableToTypeOf(&model.Reservation{}), decEq(decimal.NewFromInt(10000))).
-			Return(nil).
+			ReserveWithTx(gomock.Any(), deps.tx, gomock.AssignableToTypeOf(&model.Reservation{}), decEq(decimal.NewFromInt(10000)), gomock.Any()).
+			Return(testutil.MustDeterministicUUID(7061), true, nil).
 			Times(1)
 		deps.repo.EXPECT().
-			ReserveWithTx(gomock.Any(), deps.tx, gomock.AssignableToTypeOf(&model.Reservation{}), decEq(decimal.NewFromInt(5000))).
-			Return(nil).
+			ReserveWithTx(gomock.Any(), deps.tx, gomock.AssignableToTypeOf(&model.Reservation{}), decEq(decimal.NewFromInt(5000)), gomock.Any()).
+			Return(testutil.MustDeterministicUUID(7062), true, nil).
 			Times(1)
 		deps.auditWriter.EXPECT().
 			RecordReservationEventWithTx(gomock.Any(), deps.tx, model.AuditEventReservationReserved, model.AuditActionReserve, gomock.Any(), gomock.Any()).
@@ -164,6 +164,26 @@ func TestReservationService_Reserve(t *testing.T) {
 		require.NoError(t, err)
 		require.False(t, result.Denied)
 		assert.Len(t, result.ReservationIDs, 2)
+	})
+
+	t.Run("Idempotent retry returns persisted id without a second audit", func(t *testing.T) {
+		svc, deps := newReservationServiceDeps(t)
+		input := testCheckLimitsInput(t)
+		persistedID := testutil.MustDeterministicUUID(7063)
+
+		deps.resolver.EXPECT().
+			ResolveReservations(gomock.Any(), input).
+			Return(oneSpec(), false, nil).
+			Times(1)
+		deps.expectTxCommit()
+		deps.repo.EXPECT().
+			ReserveWithTx(gomock.Any(), deps.tx, gomock.Any(), decEq(decimal.NewFromInt(10000)), gomock.Any()).
+			Return(persistedID, false, nil).
+			Times(1)
+
+		result, err := svc.Reserve(context.Background(), txID, input, false)
+		require.NoError(t, err)
+		assert.Equal(t, []uuid.UUID{persistedID}, result.ReservationIDs)
 	})
 
 	t.Run("Fractional spec amount reaches the reservation row intact", func(t *testing.T) {
@@ -191,11 +211,11 @@ func TestReservationService_Reserve(t *testing.T) {
 
 		var captured decimal.Decimal
 		deps.repo.EXPECT().
-			ReserveWithTx(gomock.Any(), deps.tx, gomock.Any(), decEq(decimal.NewFromInt(20))).
-			DoAndReturn(func(_ context.Context, _ any, r *model.Reservation, _ decimal.Decimal) error {
+			ReserveWithTx(gomock.Any(), deps.tx, gomock.Any(), decEq(decimal.NewFromInt(20)), gomock.Any()).
+			DoAndReturn(func(_ context.Context, _ any, r *model.Reservation, _ decimal.Decimal, _ *time.Time) (uuid.UUID, bool, error) {
 				captured = r.Amount
 
-				return nil
+				return r.ID, true, nil
 			}).
 			Times(1)
 		deps.auditWriter.EXPECT().
@@ -242,8 +262,8 @@ func TestReservationService_Reserve(t *testing.T) {
 		// First reserve trips the over-limit guard; the whole tx rolls back and no
 		// further reserve/audit runs.
 		deps.repo.EXPECT().
-			ReserveWithTx(gomock.Any(), deps.tx, gomock.Any(), decEq(decimal.NewFromInt(10000))).
-			Return(constant.ErrUsageCounterExceedsLimit).
+			ReserveWithTx(gomock.Any(), deps.tx, gomock.Any(), decEq(decimal.NewFromInt(10000)), gomock.Any()).
+			Return(uuid.Nil, false, constant.ErrUsageCounterExceedsLimit).
 			Times(1)
 
 		result, err := svc.Reserve(context.Background(), txID, input, false)
@@ -251,6 +271,30 @@ func TestReservationService_Reserve(t *testing.T) {
 		assert.True(t, result.Denied, "guard-denied reserve must surface the limit-exceeded decision")
 		assert.Empty(t, result.ReservationIDs)
 	})
+
+	for _, tc := range []struct {
+		name    string
+		repoErr error
+	}{
+		{name: "idempotency conflict fails closed", repoErr: constant.ErrIdempotencyKey},
+		{name: "terminal retry is not an active handle", repoErr: constant.ErrReservationAlreadyTerminal},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			svc, deps := newReservationServiceDeps(t)
+			input := testCheckLimitsInput(t)
+
+			deps.resolver.EXPECT().ResolveReservations(gomock.Any(), input).Return(oneSpec(), false, nil).Times(1)
+			deps.expectTxRollback()
+			deps.repo.EXPECT().
+				ReserveWithTx(gomock.Any(), deps.tx, gomock.Any(), decEq(decimal.NewFromInt(10000)), gomock.Any()).
+				Return(uuid.Nil, false, tc.repoErr).
+				Times(1)
+
+			result, err := svc.Reserve(context.Background(), txID, input, false)
+			require.ErrorIs(t, err, tc.repoErr)
+			assert.Nil(t, result)
+		})
+	}
 
 	t.Run("No applicable limits -> allow with empty handle", func(t *testing.T) {
 		svc, deps := newReservationServiceDeps(t)
@@ -288,13 +332,15 @@ func TestReservationService_Reserve(t *testing.T) {
 
 		deps.expectTxCommit()
 
-		var captured time.Time
+		var capturedReservationExpiry time.Time
+		var capturedCounterExpiry *time.Time
 		deps.repo.EXPECT().
-			ReserveWithTx(gomock.Any(), deps.tx, gomock.Any(), decEq(decimal.NewFromInt(10000))).
-			DoAndReturn(func(_ context.Context, _ any, r *model.Reservation, _ decimal.Decimal) error {
-				captured = r.ReservationExpiresAt
+			ReserveWithTx(gomock.Any(), deps.tx, gomock.Any(), decEq(decimal.NewFromInt(10000)), gomock.Any()).
+			DoAndReturn(func(_ context.Context, _ any, r *model.Reservation, _ decimal.Decimal, counterExpiry *time.Time) (uuid.UUID, bool, error) {
+				capturedReservationExpiry = r.ReservationExpiresAt
+				capturedCounterExpiry = counterExpiry
 
-				return nil
+				return r.ID, true, nil
 			}).
 			Times(1)
 		deps.auditWriter.EXPECT().
@@ -306,7 +352,11 @@ func TestReservationService_Reserve(t *testing.T) {
 		require.NoError(t, err)
 
 		// Direct transactions use the fixed short TTL, NOT the long-lived knob.
-		assert.Equal(t, now.UTC().Add(reservationTTL), captured)
+		assert.Equal(t, now.UTC().Add(reservationTTL), capturedReservationExpiry)
+		require.NotNil(t, capturedCounterExpiry)
+		assert.Equal(t, *testCounterExpiry(), *capturedCounterExpiry)
+		assert.NotEqual(t, capturedReservationExpiry, *capturedCounterExpiry,
+			"counter retention must be independent from the reservation abandonment TTL")
 	})
 
 	t.Run("longLived=true sets the configured long-lived TTL on the reservation", func(t *testing.T) {
@@ -338,11 +388,11 @@ func TestReservationService_Reserve(t *testing.T) {
 
 		var captured time.Time
 		repo.EXPECT().
-			ReserveWithTx(gomock.Any(), tx, gomock.Any(), decEq(decimal.NewFromInt(10000))).
-			DoAndReturn(func(_ context.Context, _ any, r *model.Reservation, _ decimal.Decimal) error {
+			ReserveWithTx(gomock.Any(), tx, gomock.Any(), decEq(decimal.NewFromInt(10000)), gomock.Any()).
+			DoAndReturn(func(_ context.Context, _ any, r *model.Reservation, _ decimal.Decimal, _ *time.Time) (uuid.UUID, bool, error) {
 				captured = r.ReservationExpiresAt
 
-				return nil
+				return r.ID, true, nil
 			}).
 			Times(1)
 		auditWriter.EXPECT().
@@ -374,11 +424,11 @@ func TestReservationService_Reserve(t *testing.T) {
 
 		var captured time.Time
 		deps.repo.EXPECT().
-			ReserveWithTx(gomock.Any(), deps.tx, gomock.Any(), decEq(decimal.NewFromInt(10000))).
-			DoAndReturn(func(_ context.Context, _ any, r *model.Reservation, _ decimal.Decimal) error {
+			ReserveWithTx(gomock.Any(), deps.tx, gomock.Any(), decEq(decimal.NewFromInt(10000)), gomock.Any()).
+			DoAndReturn(func(_ context.Context, _ any, r *model.Reservation, _ decimal.Decimal, _ *time.Time) (uuid.UUID, bool, error) {
 				captured = r.ReservationExpiresAt
 
-				return nil
+				return r.ID, true, nil
 			}).
 			Times(1)
 		deps.auditWriter.EXPECT().
@@ -400,13 +450,20 @@ func TestReservationService_Reserve(t *testing.T) {
 func oneSpec() []query.ReservationSpec {
 	return []query.ReservationSpec{
 		{
-			LimitID:   testutil.MustDeterministicUUID(7101),
-			ScopeKey:  "acct:7001",
-			PeriodKey: "2026-06",
-			Amount:    decimal.NewFromInt(400),
-			MaxAmount: decimal.NewFromInt(10000),
+			LimitID:          testutil.MustDeterministicUUID(7101),
+			ScopeKey:         "acct:7001",
+			PeriodKey:        "2026-06",
+			Amount:           decimal.NewFromInt(400),
+			MaxAmount:        decimal.NewFromInt(10000),
+			CounterExpiresAt: testCounterExpiry(),
 		},
 	}
+}
+
+func testCounterExpiry() *time.Time {
+	expiresAt := testutil.FixedTime().AddDate(0, 0, 90)
+
+	return &expiresAt
 }
 
 func TestReservationService_Confirm(t *testing.T) {
@@ -591,5 +648,182 @@ func TestReservationService_ReleaseByTransaction(t *testing.T) {
 		flipped, err := svc.ReleaseByTransaction(context.Background(), txID)
 		require.NoError(t, err)
 		assert.Equal(t, 0, flipped)
+	})
+}
+
+func TestReservationService_ReserveLedgerOutcomeV2PersistsDeliveryMode(t *testing.T) {
+	txID := testutil.MustDeterministicUUID(7600)
+	svc, deps := newReservationServiceDeps(t)
+	input := testCheckLimitsInput(t)
+
+	deps.resolver.EXPECT().ResolveReservations(gomock.Any(), input).Return(oneSpec(), false, nil).Times(1)
+	deps.expectTxCommit()
+	deps.repo.EXPECT().
+		ReserveWithTx(gomock.Any(), deps.tx, gomock.Any(), decEq(decimal.NewFromInt(10000)), gomock.Any()).
+		DoAndReturn(func(_ context.Context, _ any, reservation *model.Reservation, _ decimal.Decimal, _ *time.Time) (uuid.UUID, bool, error) {
+			assert.Equal(t, model.DeliveryModeLedgerOutcomeV2, reservation.DeliveryMode)
+
+			return reservation.ID, true, nil
+		}).
+		Times(1)
+	deps.auditWriter.EXPECT().
+		RecordReservationEventWithTx(gomock.Any(), deps.tx, model.AuditEventReservationReserved, model.AuditActionReserve, gomock.Any(), gomock.Any()).
+		Return(nil).
+		Times(1)
+
+	result, err := svc.Reserve(context.Background(), txID, input, true, model.DeliveryModeLedgerOutcomeV2)
+	require.NoError(t, err)
+	require.NotNil(t, result)
+	assert.Equal(t, model.DeliveryModeLedgerOutcomeV2, result.DeliveryMode)
+}
+
+func TestReservationService_ReserveEchoesNormalizedLegacyModeWithoutReservations(t *testing.T) {
+	txID := testutil.MustDeterministicUUID(7650)
+	svc, deps := newReservationServiceDeps(t)
+	input := testCheckLimitsInput(t)
+
+	deps.resolver.EXPECT().ResolveReservations(gomock.Any(), input).Return(nil, false, nil).Times(1)
+
+	result, err := svc.Reserve(context.Background(), txID, input, false)
+	require.NoError(t, err)
+	require.NotNil(t, result)
+	assert.Equal(t, model.DeliveryModeLegacy, result.DeliveryMode)
+}
+
+func TestReservationService_ApplyOutcome(t *testing.T) {
+	txID := testutil.MustDeterministicUUID(7700)
+	outcomeID := testutil.MustDeterministicUUID(7701)
+	now := testutil.FixedTime()
+
+	newReceipt := func(outcome model.ReservationOutcome, count int) *model.ReservationOutcomeReceipt {
+		return &model.ReservationOutcomeReceipt{
+			TransactionID:    txID,
+			OutcomeID:        outcomeID,
+			Outcome:          outcome,
+			ReservationCount: count,
+			AppliedAt:        now,
+		}
+	}
+
+	t.Run("committed moves every reservation and audits in the receipt transaction", func(t *testing.T) {
+		svc, deps := newReservationServiceDeps(t)
+		reservations := twoReservations(txID)
+		for _, reservation := range reservations {
+			reservation.DeliveryMode = model.DeliveryModeLedgerOutcomeV2
+		}
+
+		deps.expectTxCommit()
+		deps.repo.EXPECT().
+			ApplyOutcomeWithTx(gomock.Any(), deps.tx, txID, outcomeID, model.OutcomeCommitted, now).
+			Return(newReceipt(model.OutcomeCommitted, 2), reservations, false, nil).
+			Times(1)
+		deps.auditWriter.EXPECT().
+			RecordReservationEventWithTx(gomock.Any(), deps.tx, model.AuditEventReservationConfirmed, model.AuditActionConfirm, gomock.Any(), gomock.Any()).
+			Return(nil).
+			Times(2)
+
+		result, err := svc.ApplyOutcome(context.Background(), txID, outcomeID, model.OutcomeCommitted)
+		require.NoError(t, err)
+		assert.Equal(t, 2, result.ReservationCount)
+		assert.False(t, result.Replayed)
+		assert.Equal(t, model.OutcomeCommitted, result.Outcome)
+	})
+
+	t.Run("aborted releases every reservation and audits", func(t *testing.T) {
+		svc, deps := newReservationServiceDeps(t)
+		reservations := twoReservations(txID)
+
+		deps.expectTxCommit()
+		deps.repo.EXPECT().
+			ApplyOutcomeWithTx(gomock.Any(), deps.tx, txID, outcomeID, model.OutcomeAborted, now).
+			Return(newReceipt(model.OutcomeAborted, 2), reservations, false, nil).
+			Times(1)
+		deps.auditWriter.EXPECT().
+			RecordReservationEventWithTx(gomock.Any(), deps.tx, model.AuditEventReservationReleased, model.AuditActionRelease, gomock.Any(), gomock.Any()).
+			Return(nil).
+			Times(2)
+
+		result, err := svc.ApplyOutcome(context.Background(), txID, outcomeID, model.OutcomeAborted)
+		require.NoError(t, err)
+		assert.Equal(t, model.OutcomeAborted, result.Outcome)
+		assert.Equal(t, 2, result.ReservationCount)
+	})
+
+	t.Run("exact replay returns persisted receipt without counters or audit", func(t *testing.T) {
+		svc, deps := newReservationServiceDeps(t)
+		receipt := newReceipt(model.OutcomeCommitted, 2)
+
+		deps.expectTxCommit()
+		deps.repo.EXPECT().
+			ApplyOutcomeWithTx(gomock.Any(), deps.tx, txID, outcomeID, model.OutcomeCommitted, now).
+			Return(receipt, nil, true, nil).
+			Times(1)
+
+		result, err := svc.ApplyOutcome(context.Background(), txID, outcomeID, model.OutcomeCommitted)
+		require.NoError(t, err)
+		assert.True(t, result.Replayed)
+		assert.Equal(t, 2, result.ReservationCount)
+	})
+
+	t.Run("zero limits still commits a durable receipt", func(t *testing.T) {
+		svc, deps := newReservationServiceDeps(t)
+
+		deps.expectTxCommit()
+		deps.repo.EXPECT().
+			ApplyOutcomeWithTx(gomock.Any(), deps.tx, txID, outcomeID, model.OutcomeCommitted, now).
+			Return(newReceipt(model.OutcomeCommitted, 0), nil, false, nil).
+			Times(1)
+
+		result, err := svc.ApplyOutcome(context.Background(), txID, outcomeID, model.OutcomeCommitted)
+		require.NoError(t, err)
+		assert.Zero(t, result.ReservationCount)
+		assert.False(t, result.Replayed)
+	})
+
+	t.Run("opposite outcome conflicts and rolls back", func(t *testing.T) {
+		svc, deps := newReservationServiceDeps(t)
+
+		deps.expectTxRollback()
+		deps.repo.EXPECT().
+			ApplyOutcomeWithTx(gomock.Any(), deps.tx, txID, outcomeID, model.OutcomeAborted, now).
+			Return(nil, nil, false, constant.ErrReservationOutcomeConflict).
+			Times(1)
+
+		result, err := svc.ApplyOutcome(context.Background(), txID, outcomeID, model.OutcomeAborted)
+		require.ErrorIs(t, err, constant.ErrReservationOutcomeConflict)
+		assert.Nil(t, result)
+	})
+
+	t.Run("audit failure rolls back receipt and every counter move", func(t *testing.T) {
+		svc, deps := newReservationServiceDeps(t)
+		reservations := twoReservations(txID)
+		auditErr := assert.AnError
+
+		deps.expectTxRollback()
+		deps.repo.EXPECT().
+			ApplyOutcomeWithTx(gomock.Any(), deps.tx, txID, outcomeID, model.OutcomeCommitted, now).
+			Return(newReceipt(model.OutcomeCommitted, 2), reservations, false, nil).
+			Times(1)
+		deps.auditWriter.EXPECT().
+			RecordReservationEventWithTx(gomock.Any(), deps.tx, model.AuditEventReservationConfirmed, model.AuditActionConfirm, gomock.Any(), gomock.Any()).
+			Return(auditErr).
+			Times(1)
+
+		result, err := svc.ApplyOutcome(context.Background(), txID, outcomeID, model.OutcomeCommitted)
+		require.ErrorIs(t, err, auditErr)
+		assert.Nil(t, result)
+	})
+
+	t.Run("invalid identifiers and outcome fail before opening a transaction", func(t *testing.T) {
+		svc, _ := newReservationServiceDeps(t)
+
+		_, err := svc.ApplyOutcome(context.Background(), uuid.Nil, outcomeID, model.OutcomeCommitted)
+		require.ErrorIs(t, err, ErrNilReservationTransationID)
+
+		_, err = svc.ApplyOutcome(context.Background(), txID, uuid.Nil, model.OutcomeCommitted)
+		require.ErrorIs(t, err, constant.ErrReservationOutcomeIDRequired)
+
+		_, err = svc.ApplyOutcome(context.Background(), txID, outcomeID, model.OutcomeUnspecified)
+		require.ErrorIs(t, err, constant.ErrReservationOutcomeInvalid)
 	})
 }

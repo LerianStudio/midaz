@@ -61,3 +61,19 @@ var MetricCacheSyncStalenessSeconds = Metric{
 	Unit:        "s",
 	Description: "Cache staleness: seconds since last successful sync",
 }
+
+// MetricReservationV2Outstanding tracks reservations waiting for a durable
+// ledger outcome. It is a gauge and never drives autonomous release.
+var MetricReservationV2Outstanding = Metric{
+	Name:        "tracer_reservation_v2_outstanding",
+	Unit:        "1",
+	Description: "V2 reservations waiting for a ledger outcome",
+}
+
+// MetricReservationV2OldestAgeSeconds tracks the age of the oldest V2
+// reservation still waiting for a ledger outcome.
+var MetricReservationV2OldestAgeSeconds = Metric{
+	Name:        "tracer_reservation_v2_oldest_age_seconds",
+	Unit:        "s",
+	Description: "Age in seconds of the oldest V2 reservation waiting for a ledger outcome",
+}

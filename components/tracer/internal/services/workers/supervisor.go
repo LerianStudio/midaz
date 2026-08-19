@@ -15,6 +15,7 @@ import (
 	tmclient "github.com/LerianStudio/lib-commons/v6/commons/tenant-manager/client"
 	tmcore "github.com/LerianStudio/lib-commons/v6/commons/tenant-manager/core"
 	libLog "github.com/LerianStudio/lib-observability/v2/log"
+	libMetrics "github.com/LerianStudio/lib-observability/v2/metrics"
 	libRuntime "github.com/LerianStudio/lib-observability/v2/runtime"
 
 	"github.com/LerianStudio/midaz/v4/components/tracer/internal/services/cache"
@@ -82,22 +83,24 @@ type WorkerSupervisorDeps struct {
 	// behavior in both modes (H8).
 	CleanupWorkerEnabled bool
 	// ReaperRepo + ReaperAuditor + ReaperConfig drive the per-tenant reservation
-	// reaper. Only required when ReaperWorkerEnabled is true (mirrors the
-	// UsageRepo / CleanupWorkerEnabled coupling).
+	// lifecycle observer. Only required when ReaperWorkerEnabled is true.
 	ReaperRepo    ReservationReaperRepository
 	ReaperAuditor ReservationExpiryAuditor
 	ReaperConfig  ReservationReaperWorkerConfig
-	// ReaperWorkerEnabled gates whether per-tenant reservation reapers spawn.
-	// False ⇒ the reaper does not run per tenant. Mirrors the single-tenant
-	// RESERVATION_REAPER_ENABLED knob (R22-adjacent: a tenant over the worker
-	// cap never spawns a reaper at all — see EnsureWorkers).
+	// ReaperWorkerEnabled gates whether per-tenant lifecycle observers spawn.
+	// Production keeps this true even when legacy expiry is disabled, because V2
+	// backlog metrics are not optional. A tenant over the worker cap never spawns
+	// an observer at all — see EnsureWorkers.
 	ReaperWorkerEnabled bool
-	CBTemplate          CircuitBreakerTemplate
-	TenantList          TenantLister
-	Service             string // tenant-manager service name; defaults to "tracer"
-	Clock               clock.Clock
-	MaxTenants          int
-	Logger              libLog.Logger
+	// MetricsFactory is injected into reservation lifecycle workers because their
+	// detached contexts do not inherit boot-scoped observability values.
+	MetricsFactory *libMetrics.MetricsFactory
+	CBTemplate     CircuitBreakerTemplate
+	TenantList     TenantLister
+	Service        string // tenant-manager service name; defaults to "tracer"
+	Clock          clock.Clock
+	MaxTenants     int
+	Logger         libLog.Logger
 	// Metrics emits the canonical multi-tenant metrics (tenant_connections_*
 	// and tenant_consumers_active). Optional: when nil, the supervisor uses a
 	// no-op, so all existing call sites keep working unchanged.
@@ -154,6 +157,7 @@ type WorkerSupervisor struct {
 	maxTenants           int
 	logger               libLog.Logger
 	metrics              metrics.MultiTenantMetrics
+	metricsFactory       *libMetrics.MetricsFactory
 	poolResolver         WorkerPoolResolver
 
 	// shutdownCh is closed by Shutdown to unblock a Run loop (if one was
@@ -276,6 +280,7 @@ func NewWorkerSupervisor(deps WorkerSupervisorDeps) (*WorkerSupervisor, error) {
 		maxTenants:           deps.MaxTenants,
 		logger:               deps.Logger,
 		metrics:              deps.Metrics,
+		metricsFactory:       deps.MetricsFactory,
 		poolResolver:         deps.PoolResolver,
 		shutdownCh:           make(chan struct{}),
 	}, nil
@@ -409,8 +414,8 @@ func (s *WorkerSupervisor) EnsureWorkers(ctx context.Context, tenantID string) e
 	var reaperWorker *ReservationReaperWorker
 
 	if s.reaperWorkerEnabled {
-		reaperWorker, err = NewReservationReaperWorkerWithPoolResolver(
-			s.reaperRepo, s.reaperAuditor, s.reaperConfig, s.logger, s.clock, tenantID, s.poolResolver,
+		reaperWorker, err = NewReservationReaperWorkerWithTelemetry(
+			s.reaperRepo, s.reaperAuditor, s.reaperConfig, s.logger, s.clock, tenantID, s.poolResolver, s.metricsFactory,
 		)
 		if err != nil {
 			s.metrics.IncConnectionErrors(ctx, tenantID, trcConstant.ModuleName, "reaper_worker_init")
@@ -534,7 +539,20 @@ func (s *WorkerSupervisor) StopWorkers(tenantID string) {
 	set.cancel()
 	<-set.done
 
-	s.ruleCache.EvictTenant(tenantID)
+	// Serialize the absence check + cleanup with EnsureWorkers' Store. A replacement
+	// worker may have spawned while this old generation was shutting down; its cache
+	// and freshly-observed backlog belong to the new generation and must survive.
+	cacheEvicted := false
+
+	s.spawnMu.Lock()
+	if _, replacementRunning := s.workers.Load(tenantID); !replacementRunning {
+		s.ruleCache.EvictTenant(tenantID)
+		setReservationV2Gauge(context.Background(), s.metricsFactory, s.logger, tenantID, MetricReservationV2Outstanding, 0)
+		setReservationV2Gauge(context.Background(), s.metricsFactory, s.logger, tenantID, MetricReservationV2OldestAgeSeconds, 0)
+
+		cacheEvicted = true
+	}
+	s.spawnMu.Unlock()
 
 	// Decrement the gauge only after the worker goroutines have actually
 	// exited — dashboards that drive "active consumers" alerts rely on the
@@ -545,7 +563,8 @@ func (s *WorkerSupervisor) StopWorkers(tenantID string) {
 	s.logger.With(
 		libLog.String("operation", "supervisor.stop_workers"),
 		libLog.String("tenant_id", tenantID),
-	).Log(context.Background(), libLog.LevelInfo, "Stopped per-tenant workers and evicted cache")
+		libLog.Bool("cache_evicted", cacheEvicted),
+	).Log(context.Background(), libLog.LevelInfo, "Stopped tenant worker generation")
 }
 
 // InitialTenantSync lists all active tenants from the Tenant Manager and

@@ -57,7 +57,8 @@ type Config struct {
 	// TracerTLSMode selects how the reservation seam is secured. "mtls"
 	// (Epic 1.3) makes the app load its own cert/key/CA and require+verify a
 	// client cert on BOTH the gRPC and the Fiber listeners — the verified mTLS
-	// peer is the seam credential (no shared secret). "mesh" lets a service-mesh
+	// peer is the transport credential. REST additionally uses the API_KEY guard;
+	// "mesh" lets a service-mesh
 	// sidecar (Istio/Linkerd) terminate mTLS, so the app listens plaintext and
 	// skips its own TLS. Empty/unset behaves like "mesh" (plaintext) so the
 	// Phase-1 toggle default and local dev keep working without cert material.
@@ -603,9 +604,8 @@ func LoadCleanupWorkerConfig(ctx context.Context, cfg *Config, logger libLog.Log
 }
 
 // LoadReservationReaperConfig creates a ReservationReaperWorkerConfig from
-// environment configuration. Returns a nil config (no error) when the reaper is
-// disabled (RESERVATION_REAPER_ENABLED=false, the default) so the caller can
-// propagate the "disabled" signal end-to-end exactly like LoadCleanupWorkerConfig.
+// environment configuration. The worker always runs to publish the V2 backlog;
+// RESERVATION_REAPER_ENABLED only authorizes autonomous expiry of legacy rows.
 // Returns an error if config or logger is nil, or if the interval is invalid.
 func LoadReservationReaperConfig(ctx context.Context, cfg *Config, logger libLog.Logger) (*workers.ReservationReaperWorkerConfig, error) {
 	if cfg == nil {
@@ -616,14 +616,6 @@ func LoadReservationReaperConfig(ctx context.Context, cfg *Config, logger libLog
 		return nil, fmt.Errorf("logger cannot be nil")
 	}
 
-	if !cfg.ReservationReaperEnabled {
-		logger.With(
-			libLog.String("config", "RESERVATION_REAPER_ENABLED"),
-		).Log(ctx, libLog.LevelInfo, "Reservation reaper worker is DISABLED")
-
-		return nil, nil
-	}
-
 	reapInterval, err := parseReservationReaperIntervalSeconds(cfg.ReservationReaperIntervalSeconds)
 	if err != nil {
 		return nil, fmt.Errorf("invalid RESERVATION_REAPER_INTERVAL_SECONDS: %w", err)
@@ -631,10 +623,12 @@ func LoadReservationReaperConfig(ctx context.Context, cfg *Config, logger libLog
 
 	logger.With(
 		libLog.String("reap_interval", reapInterval.String()),
-	).Log(ctx, libLog.LevelInfo, "Reservation reaper worker configuration loaded")
+		libLog.Bool("legacy_release_enabled", cfg.ReservationReaperEnabled),
+	).Log(ctx, libLog.LevelInfo, "Reservation lifecycle observer configuration loaded")
 
 	return &workers.ReservationReaperWorkerConfig{
-		ReapInterval: reapInterval,
+		ReapInterval:  reapInterval,
+		ReleaseLegacy: cfg.ReservationReaperEnabled,
 	}, nil
 }
 
@@ -735,10 +729,14 @@ func initCELAdapter(cfg *Config, logger libLog.Logger) (*cel.Adapter, error) {
 	return adapter, nil
 }
 
-// ValidateAuthConfig validates the authentication configuration.
-// It warns when auth is disabled (operator should be aware).
+// ValidateAuthConfig validates optional API-key authentication on ordinary
+// routes. It warns when that fallback is disabled (operator should be aware).
 // It fails if auth is enabled but key is missing.
 // It warns if the key is too short (security best practice).
+//
+// Financial reservation routes are a separate always-on API-key boundary.
+// API_KEY_ENABLED=false never opens them; they still compare X-API-Key against
+// API_KEY and fail closed when the configured credential is empty or wrong.
 //
 // M16: additionally rejects the combination of API_KEY_ENABLED=true with
 // CORS_ALLOWED_ORIGINS="*". The CORS policy allows the X-API-Key header with
@@ -747,9 +745,10 @@ func initCELAdapter(cfg *Config, logger libLog.Logger) (*cel.Adapter, error) {
 // origin this becomes a CSRF-style attack where a malicious site exfiltrates
 // data via legitimate-looking X-API-Key calls. Block at boot.
 func ValidateAuthConfig(ctx context.Context, cfg *Config, logger libLog.Logger) error {
-	// Warn if auth is disabled (operator should be aware)
+	// Warn if optional auth is disabled. The reservation money path remains
+	// protected by the guard's always-on API-key middleware.
 	if !cfg.APIKeyEnabled {
-		logger.With(libLog.String("config", "API_KEY_ENABLED")).Log(ctx, libLog.LevelWarn, "API Key authentication is DISABLED")
+		logger.With(libLog.String("config", "API_KEY_ENABLED")).Log(ctx, libLog.LevelWarn, "Optional API Key authentication is DISABLED; financial reservation routes still require X-API-Key")
 		return nil
 	}
 
@@ -984,9 +983,12 @@ func initTxBeginner(ctx context.Context, postgresConn *libPostgres.Client, enabl
 
 // limitServiceDeps holds the dependencies created during limit service initialization.
 type limitServiceDeps struct {
-	service          *services.LimitService
-	usageCounterRepo *postgres.UsageCounterRepository
-	limitRepo        *postgres.LimitRepository
+	service                *services.LimitService
+	usageCounterRepo       *postgres.UsageCounterRepository
+	limitRepo              *postgres.LimitRepository
+	usageReservationRepo   *postgres.UsageReservationRepository
+	reservationReaperRepo  *postgres.ReservationReaperRepository
+	reservationReaperAudit workers.ReservationExpiryAuditor
 }
 
 // initLimitService creates the limit service with all its dependencies.
@@ -1127,7 +1129,7 @@ func initHTTPServer(
 	// checker as the limit resolver and the shared audit writer / txBeginner so
 	// the reserve/confirm/release counter moves commit atomically with their
 	// audit rows — the same atomicity discipline as the validate path.
-	reservationRepo := postgres.NewUsageReservationRepositoryWithConnection(limitDeps.usageCounterRepo)
+	reservationRepo := limitDeps.usageReservationRepo
 
 	longLivedTTL, err := parseReservationLongLivedTTLHours(cfg.ReservationLongLivedTTLHours)
 	if err != nil {
@@ -1337,6 +1339,7 @@ func buildMultiTenantStack(
 	limitDeps *limitServiceDeps,
 	celAdapter *cel.Adapter,
 	clk clock.Clock,
+	operatorMetricsFactory *libMetrics.MetricsFactory,
 ) (*componentsMT, metrics.MultiTenantMetrics, error) {
 	var mtFactory *libMetrics.MetricsFactory
 	if telemetry != nil {
@@ -1351,7 +1354,7 @@ func buildMultiTenantStack(
 	// (rare fallback path that should never fire in production).
 	mtMetrics := metrics.NewMultiTenantMetrics(cfg.MultiTenantEnabled, mtFactory, logger)
 
-	mtComponents, err := initMultiTenant(ctx, cfg, logger, ruleCache, ruleSyncRepo, limitDeps, celAdapter, clk, mtMetrics)
+	mtComponents, err := initMultiTenant(ctx, cfg, logger, ruleCache, ruleSyncRepo, limitDeps, celAdapter, clk, mtMetrics, operatorMetricsFactory)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -1378,6 +1381,7 @@ func initMultiTenant(
 	celAdapter *cel.Adapter,
 	clk clock.Clock,
 	mtMetrics metrics.MultiTenantMetrics,
+	metricsFactory *libMetrics.MetricsFactory,
 ) (*componentsMT, error) {
 	if !cfg.MultiTenantEnabled {
 		return nil, nil
@@ -1404,6 +1408,18 @@ func initMultiTenant(
 
 	if cleanupEnabled {
 		resolvedCleanup = *cleanupCfg
+	}
+
+	reaperCfg, err := LoadReservationReaperConfig(ctx, cfg, logger)
+	if err != nil {
+		return nil, err
+	}
+
+	var resolvedReaper workers.ReservationReaperWorkerConfig
+
+	reaperEnabled := reaperCfg != nil
+	if reaperEnabled {
+		resolvedReaper = *reaperCfg
 	}
 
 	syncCBConfig := workers.DefaultSyncCircuitBreakerConfig()
@@ -1435,12 +1451,17 @@ func initMultiTenant(
 			},
 		},
 		workers.WorkerSupervisorDeps{
-			RuleCache:  ruleCache,
-			Clock:      clk,
-			Logger:     logger,
-			MaxTenants: cfg.MultiTenantMaxTenantPools,
-			Service:    cfg.ApplicationName,
-			Metrics:    mtMetrics,
+			RuleCache:           ruleCache,
+			Clock:               clk,
+			Logger:              logger,
+			MaxTenants:          cfg.MultiTenantMaxTenantPools,
+			Service:             cfg.ApplicationName,
+			Metrics:             mtMetrics,
+			ReaperRepo:          limitDeps.reservationReaperRepo,
+			ReaperAuditor:       limitDeps.reservationReaperAudit,
+			ReaperConfig:        resolvedReaper,
+			ReaperWorkerEnabled: reaperEnabled,
+			MetricsFactory:      metricsFactory,
 		},
 	)
 	if err != nil {
@@ -1500,17 +1521,21 @@ func initWorkers(
 	mtComponents *componentsMT,
 	streamingEmitter libStreaming.Emitter,
 	streamingClose func() error,
+	metricsFactory *libMetrics.MetricsFactory,
+	operatorMetricsClose func() error,
 ) (*Service, error) {
 	svc := &Service{
-		HTTPServer:       serverAPI,
-		grpcServer:       grpcServer,
-		Logger:           logger,
-		postgresConn:     postgresConn,
-		healthChecker:    healthChecker,
-		config:           cfg,
-		StreamingEmitter: streamingEmitter,
-		StreamingClose:   streamingClose,
-		StreamingEnabled: cfg.StreamingEnabled,
+		HTTPServer:           serverAPI,
+		grpcServer:           grpcServer,
+		Logger:               logger,
+		postgresConn:         postgresConn,
+		healthChecker:        healthChecker,
+		config:               cfg,
+		StreamingEmitter:     streamingEmitter,
+		StreamingClose:       streamingClose,
+		StreamingEnabled:     cfg.StreamingEnabled,
+		operatorMetricsClose: operatorMetricsClose,
+		clock:                clk,
 	}
 
 	if mtComponents != nil {
@@ -1529,6 +1554,27 @@ func initWorkers(
 
 	svc.cleanupWorker = cleanupWorker
 	svc.syncWorker = syncWorker
+
+	reaperConfig, err := LoadReservationReaperConfig(ctx, cfg, logger)
+	if err != nil {
+		return nil, err
+	}
+
+	if reaperConfig != nil {
+		svc.reservationReaper, err = workers.NewReservationReaperWorkerWithTelemetry(
+			limitDeps.reservationReaperRepo,
+			limitDeps.reservationReaperAudit,
+			*reaperConfig,
+			logger,
+			clk,
+			"",
+			nil,
+			metricsFactory,
+		)
+		if err != nil {
+			return nil, fmt.Errorf("failed to initialize reservation reaper: %w", err)
+		}
+	}
 
 	return svc, nil
 }
@@ -1737,7 +1783,7 @@ func initCoreInfra(ctx context.Context, cfg *Config) (libLog.Logger, *libOtel.Te
 func initClock() clock.Clock {
 	mockTime := os.Getenv("MOCK_TIME")
 	if mockTime == "" {
-		return clock.New()
+		return integrationControllableClock(clock.New())
 	}
 
 	t, err := time.Parse(time.RFC3339, mockTime)
@@ -1745,12 +1791,12 @@ func initClock() clock.Clock {
 		// Invalid format: fall back to real clock and log warning
 		// Don't fail server startup due to misconfigured test env var
 		fmt.Fprintf(os.Stderr, "WARNING: Invalid MOCK_TIME format '%s' (expected RFC3339), using real clock\n", mockTime)
-		return clock.New()
+		return integrationControllableClock(clock.New())
 	}
 
 	fmt.Fprintf(os.Stderr, "INFO: Using MOCK_TIME=%s (test mode)\n", mockTime)
 
-	return clock.NewFixedClock(t)
+	return integrationControllableClock(clock.NewFixedClock(t))
 }
 
 // InitServers initiate http and grpc servers. The ctx flows through
@@ -1824,7 +1870,11 @@ func InitServers(ctx context.Context) (*Service, error) {
 	// across the migration. A failure here is non-fatal: the bootstrap
 	// continues with a no-op recorder so probe semantics still gate /health,
 	// only metric emission is silenced.
-	readyzRecorder := buildReadyzRecorder(ctx, logger)
+	readyzRecorder, operatorMetricsFactory, operatorMetricsClose := buildReadyzRecorder(ctx, logger)
+
+	operatorMetricsTransferred := false
+	defer closeOperatorMetricsOnBootFailure(&operatorMetricsTransferred, operatorMetricsClose)
+
 	healthChecker.SetReadyzRecorder(readyzRecorder)
 
 	// Wire the streaming /readyz probe. The emitter is always non-nil (a
@@ -1897,7 +1947,14 @@ func InitServers(ctx context.Context) (*Service, error) {
 		return nil, err
 	}
 
-	mtComponents, mtMetrics, err := buildMultiTenantStack(ctx, cfg, logger, telemetry, ruleCache, ruleSyncRepo, limitDeps, celAdapter, clk)
+	// The reservation API and both reaper modes share one repository graph.
+	// The connection/transaction adapters resolve the tenant pool from context,
+	// so the same instances are safe for singleton and per-tenant workers.
+	limitDeps.usageReservationRepo = postgres.NewUsageReservationRepositoryWithConnection(limitDeps.usageCounterRepo)
+	limitDeps.reservationReaperRepo = postgres.NewReservationReaperRepository(pgConn, txBeginner, limitDeps.usageReservationRepo)
+	limitDeps.reservationReaperAudit = auditWriter
+
+	mtComponents, mtMetrics, err := buildMultiTenantStack(ctx, cfg, logger, telemetry, ruleCache, ruleSyncRepo, limitDeps, celAdapter, clk, operatorMetricsFactory)
 	if err != nil {
 		return nil, err
 	}
@@ -1944,10 +2001,12 @@ func InitServers(ctx context.Context) (*Service, error) {
 	// finalizeStartup also builds the opt-in reservation gRPC server and runs the
 	// startup self-probe BEFORE the HTTP server begins accepting traffic; folded
 	// into one helper to keep InitServers under the gocyclo budget.
-	svc, err := finalizeStartup(ctx, cfg, limitDeps, syncWorker, serverAPI, reservationService, postgresConn, healthChecker, logger, telemetry, clk, mtComponents, streamingEmitter, streamingClose)
+	svc, err := finalizeStartup(ctx, cfg, limitDeps, syncWorker, serverAPI, reservationService, postgresConn, healthChecker, logger, telemetry, clk, mtComponents, streamingEmitter, streamingClose, operatorMetricsFactory, operatorMetricsClose)
 	if err != nil {
 		return nil, err
 	}
+
+	operatorMetricsTransferred = true
 
 	// Hand the service-discovery outputs to the Service so Run() can register the
 	// discovery Launcher app (only when enabled) and drive graceful deregister.
@@ -1964,6 +2023,12 @@ func InitServers(ctx context.Context) (*Service, error) {
 	initSuccess = true
 
 	return svc, nil
+}
+
+func closeOperatorMetricsOnBootFailure(transferred *bool, closeMetrics func() error) {
+	if !*transferred && closeMetrics != nil {
+		_ = closeMetrics()
+	}
 }
 
 // metricsFactoryFromTelemetry reads the MetricsFactory off the telemetry handle
@@ -2119,6 +2184,8 @@ func finalizeStartup(
 	mtComponents *componentsMT,
 	streamingEmitter libStreaming.Emitter,
 	streamingClose func() error,
+	operatorMetricsFactory *libMetrics.MetricsFactory,
+	operatorMetricsClose func() error,
 ) (*Service, error) {
 	var pgManager *tmpostgres.Manager
 	if mtComponents != nil {
@@ -2130,7 +2197,7 @@ func finalizeStartup(
 		return nil, err
 	}
 
-	svc, err := initWorkers(ctx, cfg, limitDeps, syncWorker, serverAPI, grpcServer, postgresConn, healthChecker, logger, clk, mtComponents, streamingEmitter, streamingClose)
+	svc, err := initWorkers(ctx, cfg, limitDeps, syncWorker, serverAPI, grpcServer, postgresConn, healthChecker, logger, clk, mtComponents, streamingEmitter, streamingClose, operatorMetricsFactory, operatorMetricsClose)
 	if err != nil {
 		return nil, err
 	}
@@ -2152,11 +2219,11 @@ func finalizeStartup(
 // recorder so /readyz and the self-probe keep functioning end-to-end. The
 // error is logged at Warn level so operators notice the missing metric
 // stream without crashlooping the pod.
-func buildReadyzRecorder(ctx context.Context, logger libLog.Logger) *observability.Recorder {
+func buildReadyzRecorder(ctx context.Context, logger libLog.Logger) (*observability.Recorder, *libMetrics.MetricsFactory, func() error) {
 	// Note: NewPrometheusBackedFactory builds Prometheus
 	// HTTP-handler closures that serve scrape requests on their own ctx;
 	// boot ctx is the wrong lifecycle.
-	factory, _, err := observability.NewPrometheusBackedFactory(nil, logger)
+	factory, shutdown, err := observability.NewPrometheusBackedFactory(nil, logger)
 	if err != nil {
 		if logger != nil {
 			logger.With(
@@ -2166,10 +2233,10 @@ func buildReadyzRecorder(ctx context.Context, logger libLog.Logger) *observabili
 				"Falling back to no-op /readyz recorder")
 		}
 
-		return observability.NewNopRecorder()
+		return observability.NewNopRecorder(), nil, nil
 	}
 
-	return observability.NewRecorder(factory, logger)
+	return observability.NewRecorder(factory, logger), factory, shutdown
 }
 
 // executeStartupSelfProbe wires the /health gate and runs the one-shot

@@ -7,9 +7,11 @@ package in
 //go:generate mockgen -source=reservation_handler.go -destination=mocks/reservation_handler_service_mock.go -package=mocks
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
+	"io"
 
 	libObservability "github.com/LerianStudio/lib-observability/v2"
 	libLog "github.com/LerianStudio/lib-observability/v2/log"
@@ -32,7 +34,8 @@ import (
 // depends on. Interface defined locally per Ring pattern; satisfied by
 // *services.ReservationService.
 type ReservationService interface {
-	Reserve(ctx context.Context, transactionID uuid.UUID, input *model.CheckLimitsInput, longLived bool) (*services.ReserveResult, error)
+	Reserve(ctx context.Context, transactionID uuid.UUID, input *model.CheckLimitsInput, longLived bool, deliveryMode ...model.ReservationDeliveryMode) (*services.ReserveResult, error)
+	ApplyOutcome(ctx context.Context, transactionID, outcomeID uuid.UUID, outcome model.ReservationOutcome) (*services.ApplyOutcomeResult, error)
 	Confirm(ctx context.Context, reservationID uuid.UUID) error
 	Release(ctx context.Context, reservationID uuid.UUID) error
 	ConfirmByTransaction(ctx context.Context, transactionID uuid.UUID) (int, error)
@@ -62,8 +65,39 @@ func NewReservationHandler(service ReservationService, clk clock.Clock) (*Reserv
 	}, nil
 }
 
+func decodeStrictJSON(rawBody []byte, dst any) error {
+	decoder := json.NewDecoder(bytes.NewReader(rawBody))
+	decoder.DisallowUnknownFields()
+
+	if err := decoder.Decode(dst); err != nil {
+		return err
+	}
+
+	if err := decoder.Decode(&struct{}{}); !errors.Is(err, io.EOF) {
+		if err == nil {
+			return errors.New("request body contains multiple JSON values")
+		}
+
+		return err
+	}
+
+	return nil
+}
+
 func (h *ReservationHandler) Reserve(c fiber.Ctx) error {
 	response, err := h.reserve(c.Context(), c.Body())
+	if err != nil {
+		return pkgHTTP.WithError(c, err)
+	}
+
+	return pkgHTTP.Created(c, response)
+}
+
+// ReserveV2 is the distinct capability-safe HTTP operation. A pre-V2 Tracer
+// returns 404 before parsing or persisting the request; the Ledger must never
+// retry that request through the legacy collection route.
+func (h *ReservationHandler) ReserveV2(c fiber.Ctx) error {
+	response, err := h.reserveV2(c.Context(), c.Body())
 	if err != nil {
 		return pkgHTTP.WithError(c, err)
 	}
@@ -82,6 +116,14 @@ func (h *ReservationHandler) Reserve(c fiber.Ctx) error {
 // payload-size guard is preserved from the Fiber path: Huma has no Fiber-style body
 // limit, so the check must live in the core.
 func (h *ReservationHandler) reserve(ctx context.Context, rawBody []byte) (*ReserveResponse, error) {
+	return h.reserveWithRequiredMode(ctx, rawBody, false)
+}
+
+func (h *ReservationHandler) reserveV2(ctx context.Context, rawBody []byte) (*ReserveResponse, error) {
+	return h.reserveWithRequiredMode(ctx, rawBody, true)
+}
+
+func (h *ReservationHandler) reserveWithRequiredMode(ctx context.Context, rawBody []byte, requireV2 bool) (*ReserveResponse, error) {
 	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "handler.reservations.reserve")
@@ -131,13 +173,30 @@ func (h *ReservationHandler) reserve(ctx context.Context, rawBody []byte) (*Rese
 		return nil, pkg.ValidateBusinessError(err, constant.EntityReservation)
 	}
 
+	if requireV2 && request.DeliveryMode != model.DeliveryModeLedgerOutcomeV2 {
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "V2 reservation operation requires V2 delivery mode", constant.ErrReservationDeliveryModeInvalid)
+
+		return nil, pkg.ValidateBusinessError(constant.ErrReservationDeliveryModeInvalid, constant.EntityReservation)
+	}
+
 	span.SetAttributes(
 		attribute.String("app.request.transaction_id", request.TransactionID.String()),
 		attribute.String("app.request.transaction_type", string(request.TransactionType)),
 		attribute.String("app.request.currency", request.Currency),
 	)
 
-	result, err := h.service.Reserve(ctx, request.TransactionID, request.ToReserveInput(), request.LongLived)
+	var (
+		result *services.ReserveResult
+		err    error
+	)
+	if request.DeliveryMode == model.DeliveryModeLedgerOutcomeV2 {
+		result, err = h.service.Reserve(ctx, request.TransactionID, request.ToReserveInput(), request.LongLived, request.DeliveryMode)
+	} else {
+		// Omitted/UNSPECIFIED/explicit LEGACY all preserve the exact V1 service
+		// invocation and autonomous-expiry semantics.
+		result, err = h.service.Reserve(ctx, request.TransactionID, request.ToReserveInput(), request.LongLived)
+	}
+
 	if err != nil {
 		return nil, classifyReservationServiceError(span, err)
 	}
@@ -153,6 +212,68 @@ func (h *ReservationHandler) reserve(ctx context.Context, rawBody []byte) (*Rese
 		TransactionID:  request.TransactionID,
 		Denied:         result.Denied,
 		ReservationIDs: reservationIDsOrEmpty(result.ReservationIDs),
+		DeliveryMode:   result.DeliveryMode,
+	}, nil
+}
+
+func (h *ReservationHandler) ApplyOutcome(c fiber.Ctx) error {
+	response, err := h.applyOutcome(c.Context(), c.Params("transaction_id"), c.Body())
+	if err != nil {
+		return pkgHTTP.WithError(c, err)
+	}
+
+	return pkgHTTP.OK(c, response)
+}
+
+func (h *ReservationHandler) applyOutcome(ctx context.Context, txIDParam string, rawBody []byte) (*ApplyOutcomeResponse, error) {
+	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
+
+	ctx, span := tracer.Start(ctx, "handler.reservations.apply_outcome")
+	defer span.End()
+
+	logger = logging.WithTrace(ctx, logger)
+
+	transactionID, err := uuid.Parse(txIDParam)
+	if err != nil || transactionID == uuid.Nil {
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Invalid transaction ID", constant.ErrReservationTransactionIDReq)
+		return nil, pkg.ValidateBusinessError(constant.ErrReservationTransactionIDReq, constant.EntityReservation)
+	}
+
+	if len(rawBody) > maxPayloadSize {
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Payload exceeds size limit", constant.ErrPayloadTooLarge)
+		return nil, pkg.PayloadTooLargeError{EntityType: constant.EntityReservation, Code: constant.ErrPayloadTooLarge.Error(), Title: "Payload Too Large", Message: payloadTooLargeMessage}
+	}
+
+	var request ApplyOutcomeRequest
+	if err := decodeStrictJSON(rawBody, &request); err != nil {
+		libOpentelemetry.HandleSpanError(span, "Failed to parse request body", err)
+		return nil, pkg.ValidationError{Code: constant.ErrInvalidRequestBody.Error(), Title: "Bad Request", Message: "The request body is malformed or contains invalid JSON. Please verify the syntax and try again."}
+	}
+
+	outcomeID, err := request.Validate()
+	if err != nil {
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Outcome request validation failed", err)
+		return nil, pkg.ValidateBusinessError(err, constant.EntityReservation)
+	}
+
+	result, err := h.service.ApplyOutcome(ctx, transactionID, outcomeID, request.Outcome)
+	if err != nil {
+		return nil, classifyReservationServiceError(span, err)
+	}
+
+	logger.With(
+		libLog.String("operation", "handler.reservations.apply_outcome"),
+		libLog.String("transaction_id", transactionID.String()),
+		libLog.String("outcome_id", outcomeID.String()),
+		libLog.Bool("replayed", result.Replayed),
+	).Log(ctx, libLog.LevelDebug, "Reservation outcome applied")
+
+	return &ApplyOutcomeResponse{
+		TransactionID:    result.TransactionID,
+		OutcomeID:        result.OutcomeID,
+		Outcome:          result.Outcome,
+		ReservationCount: result.ReservationCount,
+		Replayed:         result.Replayed,
 	}, nil
 }
 
@@ -285,8 +406,8 @@ func (h *ReservationHandler) terminate(
 // classification the Fiber wrappers (which render via pkgHTTP.WithError) and the
 // Huma funcs (humaProblem -> *pkgHTTP.Detail) both consume, so both transports emit
 // field/status/code/type-identical envelopes. ErrReservationNotFound (a
-// confirm/release against a missing id) maps to 404; everything else is a technical
-// failure mapped to 500.
+// confirm/release against a missing id) maps to 404; semantic retry conflicts map
+// to their canonical 409/422 contracts; everything else is a technical 500.
 func classifyReservationServiceError(span trace.Span, err error) error {
 	switch {
 	case errors.Is(err, context.Canceled):
@@ -297,6 +418,24 @@ func classifyReservationServiceError(span trace.Span, err error) error {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Reservation not found", err)
 
 		return pkg.ValidateBusinessError(constant.ErrReservationNotFound, constant.EntityReservation)
+	case errors.Is(err, constant.ErrIdempotencyKey):
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Reservation idempotency conflict", err)
+
+		return pkg.ValidateBusinessError(constant.ErrIdempotencyKey, constant.EntityReservation, "reservation tuple")
+	case errors.Is(err, constant.ErrReservationAlreadyTerminal):
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Reservation already terminal", err)
+
+		return pkg.ValidateBusinessError(constant.ErrReservationAlreadyTerminal, constant.EntityReservation)
+	case errors.Is(err, constant.ErrReservationOutcomeConflict):
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Reservation outcome conflict", err)
+
+		return pkg.ValidateBusinessError(constant.ErrReservationOutcomeConflict, constant.EntityReservation)
+	case errors.Is(err, constant.ErrReservationDeliveryModeInvalid),
+		errors.Is(err, constant.ErrReservationOutcomeInvalid),
+		errors.Is(err, constant.ErrReservationOutcomeIDRequired):
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Reservation request invalid", err)
+
+		return pkg.ValidateBusinessError(err, constant.EntityReservation)
 	default:
 		libOpentelemetry.HandleSpanError(span, "Reservation processing failed", err)
 

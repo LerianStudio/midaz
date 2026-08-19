@@ -825,7 +825,9 @@ func (r *UsageCounterRepository) scanCounterFromRows(ctx context.Context, rows *
 }
 
 // DeleteExpiredCounters removes usage counters whose expires_at is before now.
-// Counters with NULL expires_at are preserved (never deleted).
+// Counters with NULL expires_at, non-zero reserved usage, or any outstanding
+// reservation hold are preserved: a terminal outcome still needs the counter row
+// to atomically drain reserved_usage.
 // Deletes are performed in batches to prevent long-running locks on large tables.
 // Returns the total number of deleted counters.
 func (r *UsageCounterRepository) DeleteExpiredCounters(ctx context.Context, now time.Time) (int64, error) {
@@ -864,12 +866,35 @@ func (r *UsageCounterRepository) DeleteExpiredCounters(ctx context.Context, now 
 			return totalDeleted, fmt.Errorf("failed to get database connection: %w", err)
 		}
 
-		// Build batched delete query using subquery:
-		// DELETE FROM usage_counters WHERE id IN (SELECT id FROM usage_counters WHERE expires_at IS NOT NULL AND expires_at < $1 LIMIT $2)
-		// PostgreSQL doesn't support LIMIT directly on DELETE, so we use a subquery approach.
-		// Counters with NULL expires_at are preserved (never deleted automatically).
+		// PostgreSQL doesn't support LIMIT directly on DELETE, so a locking CTE claims
+		// one bounded batch. SKIP LOCKED makes cleanup yield to any concurrent counter
+		// mutation instead of deciding eligibility from a stale statement snapshot.
+		// Counters with NULL expires_at and counters backing any RESERVED hold are
+		// preserved. This is essential for V2, whose ledger-owned outcome has no TTL.
+		// The outer reserved_usage predicate remains a final guard between candidate
+		// selection and deletion.
 		deleteQuery := fmt.Sprintf(
-			"DELETE FROM %s WHERE id IN (SELECT id FROM %s WHERE expires_at IS NOT NULL AND expires_at < $1 LIMIT $2)",
+			`WITH candidates AS (
+				 SELECT candidate.id
+				 FROM %s AS candidate
+				 WHERE candidate.expires_at IS NOT NULL
+				   AND candidate.expires_at < $1
+				   AND candidate.reserved_usage = 0
+				   AND NOT EXISTS (
+					 SELECT 1
+					 FROM usage_reservations AS reservation
+					 WHERE reservation.limit_id = candidate.limit_id
+					   AND reservation.scope_key = candidate.scope_key
+					   AND reservation.period_key = candidate.period_key
+					   AND reservation.status = 'RESERVED'
+				   )
+				 LIMIT $2
+				 FOR UPDATE OF candidate SKIP LOCKED
+			 )
+			 DELETE FROM %s AS counters
+			 USING candidates
+			 WHERE counters.reserved_usage = 0
+			   AND counters.id = candidates.id`,
 			usageCountersTable, usageCountersTable,
 		)
 

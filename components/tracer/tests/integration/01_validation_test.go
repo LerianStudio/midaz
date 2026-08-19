@@ -4378,7 +4378,8 @@ func TestValidation_1_3_32_DefaultPaginationLimit(t *testing.T) {
 func TestValidation_1_3_33_SortingByCreatedAtAsc(t *testing.T) {
 	accountID := testutil.MustDeterministicUUID(850).String()
 
-	// Create multiple validations with slight time gaps
+	// Create multiple validations. Each request is synchronous, so server-side
+	// creation timestamps are committed before the next request starts.
 	for i := 0; i < 5; i++ {
 		req := &testutil.ValidationRequest{
 			RequestID:            testutil.MustDeterministicUUID(int64(851 + i)).String(),
@@ -4394,7 +4395,6 @@ func TestValidation_1_3_33_SortingByCreatedAtAsc(t *testing.T) {
 		resp, body := testutil.CreateValidation(t, req)
 		require.Equal(t, http.StatusCreated, resp.StatusCode, "Expected 201 Created from POST, got: %s", string(body))
 		resp.Body.Close()
-		time.Sleep(10 * time.Millisecond) // Small delay to ensure different timestamps
 	}
 
 	// Query with sort_by=created_at&sort_order=ASC
@@ -4712,7 +4712,6 @@ func TestValidation_1_3_42_AllSortBySortOrderCombinations(t *testing.T) {
 		resp, body := testutil.CreateValidation(t, req)
 		require.Equal(t, http.StatusCreated, resp.StatusCode, "Expected 201 Created from POST, got: %s", string(body))
 		resp.Body.Close()
-		time.Sleep(10 * time.Millisecond)
 	}
 
 	testCases := []struct {

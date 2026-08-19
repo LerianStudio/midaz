@@ -120,3 +120,45 @@ func TestRealClock_ImplementsClockInterface(t *testing.T) {
 	// Compile-time check that RealClock implements Clock
 	var _ Clock = RealClock{}
 }
+
+func TestSwitchableClock_ReplacesAndRestoresSource(t *testing.T) {
+	first := time.Date(2026, 3, 11, 10, 0, 0, 0, time.UTC)
+	second := time.Date(2026, 3, 11, 22, 0, 0, 0, time.UTC)
+	c := NewSwitchableClock(NewFixedClock(first))
+
+	assert.Equal(t, first, c.Now())
+
+	restore := c.Use(NewFixedClock(second))
+	assert.Equal(t, second, c.Now())
+
+	restore()
+	assert.Equal(t, first, c.Now())
+}
+
+func TestSwitchableClock_RestoreDoesNotOverwriteNewerSource(t *testing.T) {
+	first := time.Date(2026, 3, 11, 10, 0, 0, 0, time.UTC)
+	second := time.Date(2026, 3, 11, 22, 0, 0, 0, time.UTC)
+	third := time.Date(2026, 3, 12, 8, 0, 0, 0, time.UTC)
+	c := NewSwitchableClock(NewFixedClock(first))
+
+	restoreSecond := c.Use(NewFixedClock(second))
+	_ = c.Use(NewFixedClock(third))
+	restoreSecond()
+
+	assert.Equal(t, third, c.Now())
+}
+
+func TestSwitchableClock_NestedSourcesRestoreInLIFOOrder(t *testing.T) {
+	first := time.Date(2026, 3, 11, 10, 0, 0, 0, time.UTC)
+	second := time.Date(2026, 3, 11, 22, 0, 0, 0, time.UTC)
+	third := time.Date(2026, 3, 12, 8, 0, 0, 0, time.UTC)
+	c := NewSwitchableClock(NewFixedClock(first))
+
+	restoreSecond := c.Use(NewFixedClock(second))
+	restoreThird := c.Use(NewFixedClock(third))
+	restoreThird()
+	assert.Equal(t, second, c.Now())
+
+	restoreSecond()
+	assert.Equal(t, first, c.Now())
+}

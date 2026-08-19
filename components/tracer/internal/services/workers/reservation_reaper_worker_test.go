@@ -14,10 +14,12 @@ import (
 	libLog "github.com/LerianStudio/lib-observability/v2/log"
 	"github.com/bxcodec/dbresolver/v2"
 	"github.com/google/uuid"
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 
+	"github.com/LerianStudio/midaz/v4/components/tracer/internal/observability"
 	"github.com/LerianStudio/midaz/v4/components/tracer/internal/services/command"
 	"github.com/LerianStudio/midaz/v4/components/tracer/internal/services/workers/mocks"
 	"github.com/LerianStudio/midaz/v4/components/tracer/internal/testutil"
@@ -212,6 +214,135 @@ type ttlPredicateRepo struct {
 	released  []uuid.UUID
 }
 
+type v2ObservingReaperRepo struct {
+	observedAt time.Time
+	released   []uuid.UUID
+	findCalls  int
+}
+
+func (r *v2ObservingReaperRepo) ObserveV2Outstanding(_ context.Context, now time.Time) (int64, time.Duration, error) {
+	r.observedAt = now
+	return 1, 45 * 24 * time.Hour, nil
+}
+
+func (r *v2ObservingReaperRepo) FindExpiredReservations(context.Context, time.Time) ([]uuid.UUID, error) {
+	r.findCalls++
+	return nil, nil
+}
+
+func (r *v2ObservingReaperRepo) ReleaseExpired(_ context.Context, reservationID uuid.UUID) error {
+	r.released = append(r.released, reservationID)
+	return nil
+}
+
+func TestReservationReaperWorker_RunOnce_V2StaleIsObservedButNeverReleased(t *testing.T) {
+	_, cleanup := setupTestTracer(t)
+	defer cleanup()
+
+	now := fixedReaperTime().Add(45 * 24 * time.Hour)
+	repo := &v2ObservingReaperRepo{}
+	auditor := mocks.NewMockReservationExpiryAuditor(gomock.NewController(t))
+
+	worker, err := NewReservationReaperWorker(
+		repo,
+		auditor,
+		DefaultReservationReaperWorkerConfig(),
+		testutil.NewMockLogger(),
+		mockClock{fixedTime: now},
+		"",
+	)
+	require.NoError(t, err)
+
+	released, err := worker.RunOnce(context.Background())
+	require.NoError(t, err)
+	assert.Zero(t, released)
+	assert.Equal(t, now.UTC(), repo.observedAt)
+	assert.Empty(t, repo.released, "V2 backlog age is observable but never grants release authority")
+}
+
+func TestReservationReaperWorker_RunOnce_EmitsV2BacklogGaugesFromInjectedTelemetry(t *testing.T) {
+	_, cleanup := setupTestTracer(t)
+	defer cleanup()
+
+	registry := prometheus.NewRegistry()
+	factory, shutdown, err := observability.NewPrometheusBackedFactory(registry, nil)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = shutdown() })
+
+	now := fixedReaperTime().Add(45 * 24 * time.Hour)
+	repo := &v2ObservingReaperRepo{}
+	worker, err := NewReservationReaperWorkerWithTelemetry(
+		repo,
+		mocks.NewMockReservationExpiryAuditor(gomock.NewController(t)),
+		DefaultReservationReaperWorkerConfig(),
+		testutil.NewMockLogger(),
+		mockClock{fixedTime: now},
+		"",
+		nil,
+		factory,
+	)
+	require.NoError(t, err)
+
+	_, err = worker.RunOnce(context.Background())
+	require.NoError(t, err)
+
+	families, err := registry.Gather()
+	require.NoError(t, err)
+	values := make(map[string]float64, len(families))
+	for _, family := range families {
+		if len(family.Metric) > 0 && family.Metric[0].Gauge != nil {
+			values[family.GetName()] = family.Metric[0].Gauge.GetValue()
+		}
+	}
+	require.Equal(t, float64(1), values[MetricReservationV2Outstanding.Name])
+	require.Equal(t, (45 * 24 * time.Hour).Seconds(), values[MetricReservationV2OldestAgeSeconds.Name])
+}
+
+func TestReservationReaperWorker_RunOnce_ObserverOnlyAndTenantLabeled(t *testing.T) {
+	_, cleanup := setupTestTracer(t)
+	defer cleanup()
+
+	registry := prometheus.NewRegistry()
+	factory, shutdown, err := observability.NewPrometheusBackedFactory(registry, nil)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = shutdown() })
+
+	now := fixedReaperTime().Add(45 * 24 * time.Hour)
+	repo := &v2ObservingReaperRepo{}
+	config := DefaultReservationReaperWorkerConfig()
+	config.ReleaseLegacy = false
+	worker, err := NewReservationReaperWorkerWithTelemetry(
+		repo,
+		mocks.NewMockReservationExpiryAuditor(gomock.NewController(t)),
+		config,
+		testutil.NewMockLogger(),
+		mockClock{fixedTime: now},
+		"tenant-a",
+		nil,
+		factory,
+	)
+	require.NoError(t, err)
+
+	released, err := worker.RunOnce(context.Background())
+	require.NoError(t, err)
+	require.Zero(t, released)
+	require.Zero(t, repo.findCalls, "observer-only mode must not invoke legacy expiry")
+
+	families, err := registry.Gather()
+	require.NoError(t, err)
+	for _, family := range families {
+		if family.GetName() != MetricReservationV2Outstanding.Name {
+			continue
+		}
+		require.Len(t, family.Metric, 1)
+		require.Len(t, family.Metric[0].Label, 1)
+		require.Equal(t, "tenant_id", family.Metric[0].Label[0].GetName())
+		require.Equal(t, "tenant-a", family.Metric[0].Label[0].GetValue())
+		return
+	}
+	t.Fatal("V2 outstanding metric was not emitted")
+}
+
 func (r *ttlPredicateRepo) FindExpiredReservations(_ context.Context, now time.Time) ([]uuid.UUID, error) {
 	var ids []uuid.UUID
 
@@ -389,7 +520,10 @@ func TestReservationReaperWorker_Cadence(t *testing.T) {
 		}).
 		MinTimes(3)
 
-	worker, err := NewReservationReaperWorker(mockRepo, mockAuditor, ReservationReaperWorkerConfig{ReapInterval: time.Hour}, logger, testClock, "")
+	worker, err := NewReservationReaperWorker(mockRepo, mockAuditor, ReservationReaperWorkerConfig{
+		ReapInterval:  time.Hour,
+		ReleaseLegacy: true,
+	}, logger, testClock, "")
 	require.NoError(t, err)
 
 	ctx, cancel := context.WithCancel(context.Background())

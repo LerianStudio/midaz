@@ -45,13 +45,28 @@ const trxLimitID = "limitId"
 func seedLimitRule(t *testing.T, f fixture, maxAmount string, scope map[string]any) string {
 	t.Helper()
 
+	return seedTypedLimitRule(t, f, "PER_TRANSACTION", maxAmount, scope)
+}
+
+// seedCapacityLimitRule creates a counter-backed DAILY limit. Unlike a
+// PER_TRANSACTION limit, it produces a reservation handle that phase-two and
+// request-id dedup tests can observe.
+func seedCapacityLimitRule(t *testing.T, f fixture, maxAmount string, scope map[string]any) string {
+	t.Helper()
+
+	return seedTypedLimitRule(t, f, "DAILY", maxAmount, scope)
+}
+
+func seedTypedLimitRule(t *testing.T, f fixture, limitType, maxAmount string, scope map[string]any) string {
+	t.Helper()
+
 	if scope == nil {
 		scope = map[string]any{"transactionType": "CARD"}
 	}
 
 	created := mustCreate(t, tracerURL()+"/v1/limits", map[string]any{
-		"name":      "E2E Limit " + uuid.NewString()[:8],
-		"limitType": "PER_TRANSACTION",
+		"name":      "E2E Limit " + uuid.NewString(),
+		"limitType": limitType,
 		"maxAmount": maxAmount,
 		"currency":  "USD",
 		"scopes":    []any{scope},
@@ -87,7 +102,7 @@ func trxCreateEnforceLedger(t *testing.T, orgID, failPosture string) string {
 	t.Helper()
 
 	body := map[string]any{
-		"name": "E2E Enforce Ledger " + uuid.NewString()[:8],
+		"name": "E2E Enforce Ledger " + uuid.NewString(),
 		"settings": map[string]any{
 			"accounting": map[string]any{"requireHolder": false},
 			"tracer":     map[string]any{"mode": "enforce", "failPosture": failPosture, "timeoutMs": 250},
@@ -121,7 +136,34 @@ var (
 	trxWiredOnce   sync.Once
 	trxWired       bool
 	trxWiredReason string
+	trxWiredClass  tracerWiringProbeClass
 )
+
+type tracerWiringProbeClass uint8
+
+const (
+	tracerWiringAbsent tracerWiringProbeClass = iota
+	tracerWiringFunctionalDenial
+	tracerWiringTechnicalFailure
+)
+
+// classifyTracerWiringProbe accepts only the tracer denial contract as proof of
+// wiring. A generic non-2xx response is not enough: 5xx and unrelated business
+// errors mean the stack is broken, not that the tracer correctly enforced a
+// limit.
+func classifyTracerWiringProbe(r response) tracerWiringProbeClass {
+	if r.status == http.StatusUnprocessableEntity {
+		if code, _ := r.json["code"].(string); code == "0177" {
+			return tracerWiringFunctionalDenial
+		}
+	}
+
+	if r.status >= 200 && r.status < 300 {
+		return tracerWiringAbsent
+	}
+
+	return tracerWiringTechnicalFailure
+}
 
 // requireTracerWired skips the calling test unless the ledger is BOTH reachable
 // AND actually forwarding reserves to the tracer (global TRACER_BASE_URL set).
@@ -150,8 +192,8 @@ func requireTracerWired(t *testing.T) {
 	trxWiredOnce.Do(func() {
 		f := newEnforceFixture(t, "open")
 
-		src := createAccount(t, f, "trx-probe-src-"+uuid.NewString()[:8])
-		dst := createAccount(t, f, "trx-probe-dst-"+uuid.NewString()[:8])
+		src := createAccount(t, f, "trx-probe-src-"+uuid.NewString())
+		dst := createAccount(t, f, "trx-probe-dst-"+uuid.NewString())
 
 		// Cap the source account at 1; fund it well above the over-limit amount so
 		// the ONLY gate that can reject the "100" transfer is the tracer reserve.
@@ -159,23 +201,30 @@ func requireTracerWired(t *testing.T) {
 		fund(t, f, src, "1000")
 
 		r := call(t, http.MethodPost, f.ledgers()+"/transactions/json", transferBody(src, dst, "100", nil))
-		switch {
-		case r.status == http.StatusCreated:
+		trxWiredClass = classifyTracerWiringProbe(r)
+		switch trxWiredClass {
+		case tracerWiringAbsent:
 			trxWired = false
-			trxWiredReason = fmt.Sprintf("over-limit transfer (cap 1, amount 100) returned 201 — no reserve happened (got body: %s)", r.body)
-		case r.status >= 200 && r.status < 300:
-			trxWired = false
-			trxWiredReason = fmt.Sprintf("over-limit transfer returned 2xx %d — reserve did not gate", r.status)
-		default:
-			// Denied (expected 422) — the reserve was consulted and blocked the
-			// over-limit transfer: the ledger is wired and enforcing.
+			trxWiredReason = fmt.Sprintf("over-limit transfer returned 2xx %d — no functional tracer denial (body: %s)", r.status, r.body)
+		case tracerWiringFunctionalDenial:
 			trxWired = true
-			trxWiredReason = fmt.Sprintf("over-limit transfer denied with %d (wired)", r.status)
+			trxWiredReason = "over-limit transfer denied with HTTP 422 / code 0177 (wired)"
+		case tracerWiringTechnicalFailure:
+			trxWired = false
+			trxWiredReason = fmt.Sprintf("over-limit wiring probe failed technically or with an unrelated contract: HTTP %d (body: %s)", r.status, r.body)
 		}
 	})
 
 	if !trxWired {
-		t.Skipf("ledger is reachable but NOT forwarding reserves to the tracer: %s — wire it by appending TRACER_BASE_URL=http://midaz-tracer:4020 and TRACER_TRANSPORT=rest to components/ledger/.env, then force-recreate the ledger container", trxWiredReason)
+		if trxWiredClass == tracerWiringTechnicalFailure {
+			t.Fatalf("tracer wiring probe did not produce the expected functional denial: %s", trxWiredReason)
+		}
+
+		message := fmt.Sprintf("ledger is reachable but NOT forwarding reserves to the tracer: %s — wire it by setting TRACER_BASE_URL=http://midaz-tracer:4020 and TRACER_TRANSPORT=rest in components/ledger/.env, then force-recreate the ledger container", trxWiredReason)
+		if e2eRequired() {
+			t.Fatal(message)
+		}
+		t.Skip(message)
 	}
 }
 
@@ -189,9 +238,9 @@ func TestTracerWiredSmoke(t *testing.T) {
 
 	f := newEnforceFixture(t, "open")
 
-	alias := "trx-smoke-" + uuid.NewString()[:8]
+	alias := "trx-smoke-" + uuid.NewString()
 	src := createAccount(t, f, alias)
-	dst := createAccount(t, f, "trx-smoke-dst-"+uuid.NewString()[:8])
+	dst := createAccount(t, f, "trx-smoke-dst-"+uuid.NewString())
 
 	// Cap of 1000 on the source account; an in-limit transfer of 100 must pass.
 	seedLimitRule(t, f, "1000", map[string]any{"accountId": accountIDByAlias(t, f, src)})

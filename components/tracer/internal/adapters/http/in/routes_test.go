@@ -9,7 +9,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
-	"os"
+	"strings"
 	"testing"
 
 	authMiddleware "github.com/LerianStudio/lib-auth/v3/auth/middleware"
@@ -27,13 +27,6 @@ import (
 	"github.com/LerianStudio/midaz/v4/components/tracer/pkg/clock"
 	"github.com/LerianStudio/midaz/v4/components/tracer/pkg/model"
 )
-
-func TestMain(m *testing.M) {
-	// Skip telemetry middleware that causes data races in lib-commons ContextWithLogger.
-	// The race occurs when multiple goroutines call it concurrently (as happens in Fiber's app.Test).
-	os.Setenv("SKIP_LIB_COMMONS_TELEMETRY", "true")
-	os.Exit(m.Run())
-}
 
 // errorResponse represents the standard error response format from libHTTP.
 type errorResponse struct {
@@ -130,7 +123,6 @@ func createTestRouter(t *testing.T, guardCfg middleware.AuthGuardConfig) *fiber.
 }
 
 func TestRoutes_PublicEndpoints_NoAuthRequired(t *testing.T) {
-	// Note: SKIP_LIB_COMMONS_TELEMETRY=true is set in TestMain to skip telemetry middleware that causes data races.
 	guardCfg := middleware.AuthGuardConfig{
 		APIKey:        "test-secret-key-32-characters-long",
 		APIKeyEnabled: true,
@@ -300,6 +292,88 @@ func TestRoutes_ProtectedEndpoints_ValidKey(t *testing.T) {
 	}
 }
 
+func TestRoutes_ReservationRESTUsesAPIKeyWhenPluginAuthIsEnabled(t *testing.T) {
+	const apiKey = "ledger-to-tracer-test-key"
+	deps := newTestRouterDeps(t, middleware.AuthGuardConfig{
+		APIKey:            apiKey,
+		APIKeyEnabled:     true,
+		PluginAuthEnabled: true,
+		AppName:           "tracer",
+	})
+	app := deps.build()
+
+	unauthenticated := httptest.NewRequest(http.MethodPost, "/v1/reservations", strings.NewReader(`{}`))
+	unauthenticated.Header.Set("Content-Type", "application/json")
+	response, err := app.Test(unauthenticated, fiber.TestConfig{Timeout: 0})
+	require.NoError(t, err)
+	require.NoError(t, response.Body.Close())
+	require.Equal(t, http.StatusUnauthorized, response.StatusCode)
+
+	authenticated := httptest.NewRequest(http.MethodPost, "/v1/reservations", strings.NewReader(`{}`))
+	authenticated.Header.Set("Content-Type", "application/json")
+	authenticated.Header.Set(middleware.HeaderAPIKey, apiKey)
+	response, err = app.Test(authenticated, fiber.TestConfig{Timeout: 0})
+	require.NoError(t, err)
+	defer response.Body.Close()
+	require.NotEqual(t, http.StatusUnauthorized, response.StatusCode,
+		"the service-to-service reservation seam must not be redirected into user bearer auth")
+}
+
+func TestRoutes_FinancialRESTAlwaysRequiresConfiguredAPIKey(t *testing.T) {
+	reservationID := testutil.MustDeterministicUUID(1)
+	transactionID := testutil.MustDeterministicUUID(2)
+
+	tests := []struct {
+		name string
+		path string
+	}{
+		{"reserve", "/v1/reservations"},
+		{"reserve V2", "/v1/reservations/ledger-outcome-v2"},
+		{"apply V2 outcome", "/v1/reservations/transaction/" + transactionID.String() + "/outcome"},
+		{"confirm by reservation", "/v1/reservations/" + reservationID.String() + "/confirm"},
+		{"release by reservation", "/v1/reservations/" + reservationID.String() + "/release"},
+		{"confirm by transaction", "/v1/reservations/transaction/" + transactionID.String() + "/confirm"},
+		{"release by transaction", "/v1/reservations/transaction/" + transactionID.String() + "/release"},
+	}
+	authCases := []struct {
+		name          string
+		globalEnabled bool
+		header        string
+	}{
+		{"global API key mode disabled and key missing", false, ""},
+		{"global API key mode disabled and key mismatched", false, "wrong-key"},
+		{"global API key mode enabled and key missing", true, ""},
+		{"global API key mode enabled and key mismatched", true, "wrong-key"},
+	}
+
+	for _, tt := range tests {
+		for _, authCase := range authCases {
+			t.Run(tt.name+"/"+authCase.name, func(t *testing.T) {
+				app := createTestRouter(t, middleware.AuthGuardConfig{
+					APIKey:            "configured-ledger-to-tracer-key",
+					APIKeyEnabled:     authCase.globalEnabled,
+					PluginAuthEnabled: true,
+					AppName:           "tracer",
+				})
+
+				req := httptest.NewRequest(http.MethodPost, tt.path, strings.NewReader(`{}`))
+				req.Header.Set("Content-Type", "application/json")
+				req.Header.Set("X-Tenant-Id", "attacker-controlled-tenant")
+				if authCase.header != "" {
+					req.Header.Set(middleware.HeaderAPIKey, authCase.header)
+				}
+
+				resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
+				require.NoError(t, err)
+				defer resp.Body.Close()
+
+				require.Equal(t, http.StatusUnauthorized, resp.StatusCode,
+					"financial route %s must reject an absent or mismatched X-API-Key before tenant resolution or handler execution", tt.path)
+			})
+		}
+	}
+}
+
 func TestRoutes_ProtectedEndpoints_AuthDisabled(t *testing.T) {
 	tests := []struct {
 		name      string
@@ -360,6 +434,7 @@ func TestRoutes_ReservationEndpoints_Mounted(t *testing.T) {
 		path   string
 	}{
 		{"POST /v1/reservations", http.MethodPost, "/v1/reservations"},
+		{"POST /v1/reservations/ledger-outcome-v2", http.MethodPost, "/v1/reservations/ledger-outcome-v2"},
 		{"POST /v1/reservations/:id/confirm", http.MethodPost, "/v1/reservations/" + reservationID.String() + "/confirm"},
 		{"POST /v1/reservations/:id/release", http.MethodPost, "/v1/reservations/" + reservationID.String() + "/release"},
 	}

@@ -43,6 +43,21 @@ func (m *MockReservationService) EXPECT() *MockReservationServiceMockRecorder {
 	return m.recorder
 }
 
+// ApplyOutcome mocks base method.
+func (m *MockReservationService) ApplyOutcome(ctx context.Context, transactionID, outcomeID uuid.UUID, outcome model.ReservationOutcome) (*services.ApplyOutcomeResult, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ApplyOutcome", ctx, transactionID, outcomeID, outcome)
+	ret0, _ := ret[0].(*services.ApplyOutcomeResult)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// ApplyOutcome indicates an expected call of ApplyOutcome.
+func (mr *MockReservationServiceMockRecorder) ApplyOutcome(ctx, transactionID, outcomeID, outcome any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ApplyOutcome", reflect.TypeOf((*MockReservationService)(nil).ApplyOutcome), ctx, transactionID, outcomeID, outcome)
+}
+
 // Confirm mocks base method.
 func (m *MockReservationService) Confirm(ctx context.Context, reservationID uuid.UUID) error {
 	m.ctrl.T.Helper()
@@ -102,16 +117,21 @@ func (mr *MockReservationServiceMockRecorder) ReleaseByTransaction(ctx, transact
 }
 
 // Reserve mocks base method.
-func (m *MockReservationService) Reserve(ctx context.Context, transactionID uuid.UUID, input *model.CheckLimitsInput, longLived bool) (*services.ReserveResult, error) {
+func (m *MockReservationService) Reserve(ctx context.Context, transactionID uuid.UUID, input *model.CheckLimitsInput, longLived bool, deliveryMode ...model.ReservationDeliveryMode) (*services.ReserveResult, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Reserve", ctx, transactionID, input, longLived)
+	varargs := []any{ctx, transactionID, input, longLived}
+	for _, a := range deliveryMode {
+		varargs = append(varargs, a)
+	}
+	ret := m.ctrl.Call(m, "Reserve", varargs...)
 	ret0, _ := ret[0].(*services.ReserveResult)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // Reserve indicates an expected call of Reserve.
-func (mr *MockReservationServiceMockRecorder) Reserve(ctx, transactionID, input, longLived any) *gomock.Call {
+func (mr *MockReservationServiceMockRecorder) Reserve(ctx, transactionID, input, longLived any, deliveryMode ...any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Reserve", reflect.TypeOf((*MockReservationService)(nil).Reserve), ctx, transactionID, input, longLived)
+	varargs := append([]any{ctx, transactionID, input, longLived}, deliveryMode...)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Reserve", reflect.TypeOf((*MockReservationService)(nil).Reserve), varargs...)
 }

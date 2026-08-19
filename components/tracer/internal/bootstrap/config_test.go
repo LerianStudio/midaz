@@ -33,7 +33,7 @@ func TestValidateAuthConfig_Success_AuthDisabled_LogsWarning(t *testing.T) {
 	// Assert
 	require.NoError(t, err)
 	assert.Len(t, logger.Calls, 1, "expected exactly one warning when auth is disabled")
-	assert.Contains(t, logger.Calls[0].Message, "API Key authentication is DISABLED")
+	assert.Contains(t, logger.Calls[0].Message, "financial reservation routes still require X-API-Key")
 }
 
 func TestValidateAuthConfig_Error_AuthEnabledNoKey_ReturnsError(t *testing.T) {
@@ -1179,6 +1179,42 @@ func TestLoadCleanupWorkerConfig(t *testing.T) {
 					assert.Equal(t, tc.expectedInterval, result.CleanupInterval)
 				}
 			}
+		})
+	}
+}
+
+func TestLoadReservationReaperConfig(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name         string
+		enabled      bool
+		interval     string
+		wantInterval time.Duration
+		wantRelease  bool
+		wantErr      bool
+	}{
+		{name: "disabled keeps observer and forbids legacy release", wantInterval: 30 * time.Second},
+		{name: "enabled defaults to sub-minute cadence", enabled: true, wantInterval: 30 * time.Second, wantRelease: true},
+		{name: "enabled accepts custom cadence", enabled: true, interval: "17", wantInterval: 17 * time.Second, wantRelease: true},
+		{name: "enabled rejects invalid cadence", enabled: true, interval: "invalid", wantErr: true},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			got, err := LoadReservationReaperConfig(t.Context(), &Config{
+				ReservationReaperEnabled:         tc.enabled,
+				ReservationReaperIntervalSeconds: tc.interval,
+			}, testutil.NewMockLogger())
+			if tc.wantErr {
+				require.Error(t, err)
+				return
+			}
+			require.NoError(t, err)
+			require.NotNil(t, got)
+			require.Equal(t, tc.wantInterval, got.ReapInterval)
+			require.Equal(t, tc.wantRelease, got.ReleaseLegacy)
 		})
 	}
 }

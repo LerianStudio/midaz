@@ -217,9 +217,6 @@ func NewRoutes(deps RoutesDeps) (*fiber.App, error) {
 
 		return nil
 	})
-	// Check if telemetry should be skipped to avoid data race in lib-commons ContextWithLogger.
-	// The race occurs when multiple goroutines call WithTelemetry concurrently in tests.
-	skipTelemetry := os.Getenv("SKIP_LIB_COMMONS_TELEMETRY") == "true"
 
 	tlMid := libObsMiddleware.NewTelemetryMiddleware(tl)
 
@@ -228,10 +225,7 @@ func NewRoutes(deps RoutesDeps) (*fiber.App, error) {
 	//    readiness/metrics probe paths are passed as excluded routes so they skip
 	//    detailed telemetry (the responsibility the removed OTel-Fiber WithNext
 	//    predicate used to carry).
-	// Skipped when SKIP_LIB_COMMONS_TELEMETRY=true to avoid data race in lib-commons ContextWithLogger.
-	if !skipTelemetry {
-		f.Use(tlMid.WithTelemetry(tl, skipTelemetryPaths...))
-	}
+	f.Use(tlMid.WithTelemetry(tl, skipTelemetryPaths...))
 
 	// 2. Recover - Second: captures panics before they propagate
 	// Stack trace disabled in production to prevent information leakage (OWASP).
@@ -256,10 +250,7 @@ func NewRoutes(deps RoutesDeps) (*fiber.App, error) {
 	f.Use(middleware.ClientIPMiddlewareWithTrustedProxies(cfg.TrustedProxyCIDRs))
 
 	// 5. HTTP Logging - Fifth: structured request/response logging
-	// Skipped when SKIP_LIB_COMMONS_TELEMETRY=true to avoid data race in lib-commons ContextWithLogger.
-	if !skipTelemetry {
-		f.Use(libObsMiddleware.WithHTTPLogging(libObsMiddleware.WithCustomLogger(lg)))
-	}
+	f.Use(libObsMiddleware.WithHTTPLogging(libObsMiddleware.WithCustomLogger(lg)))
 
 	// 6. Fault Injection - Sixth: ONLY for integration tests
 	// Enabled via FAULT_INJECTION_ENABLED=true environment variable.
@@ -457,10 +448,8 @@ func NewRoutes(deps RoutesDeps) (*fiber.App, error) {
 		openapi.ServeSpec(f, humaAPI, lg, "/v1", "Midaz Tracer API")
 	}
 
-	// End tracing spans middleware - skipped when telemetry is disabled
-	if !skipTelemetry {
-		f.Use(tlMid.EndTracingSpans)
-	}
+	// End tracing spans middleware.
+	f.Use(tlMid.EndTracingSpans)
 
 	return f, nil
 }
@@ -569,18 +558,21 @@ func registerTracerHumaRoutes(api fiber.Router, humaAPI huma.API, h tracerHumaHa
 		//
 		// TWO Fiber middlewares per route (resTenantMW THEN guard.With), both
 		// middleware-only: resTenantMW resolves the per-tenant DB, guard.With
-		// authenticates, then c.Next() advances into the Huma handler. The
+		// authenticates with the dedicated API key even when user-facing routes
+		// use plugin/JWT auth, then c.Next() advances into the Huma handler. The
 		// by-transaction routes are declared BEFORE the "/reservations/:id/..."
 		// param routes so Fiber matches the static "transaction" segment first
 		// (otherwise it binds the literal "transaction" to :id). Ordering and both
 		// middlewares are preserved exactly from the pre-Huma inline routes.
 		resTenantMW := h.ResTenantMW
 
-		api.Post("/reservations", resTenantMW, guard.With("reservations", "post", false))
-		api.Post("/reservations/transaction/:transaction_id/confirm", resTenantMW, guard.With("reservations", "post", false))
-		api.Post("/reservations/transaction/:transaction_id/release", resTenantMW, guard.With("reservations", "post", false))
-		api.Post("/reservations/:id/confirm", resTenantMW, guard.With("reservations", "post", false))
-		api.Post("/reservations/:id/release", resTenantMW, guard.With("reservations", "post", false))
+		api.Post("/reservations", resTenantMW, guard.With("reservations", "post", true))
+		api.Post("/reservations/ledger-outcome-v2", resTenantMW, guard.With("reservations", "post", true))
+		api.Post("/reservations/transaction/:transaction_id/outcome", resTenantMW, guard.With("reservations", "post", true))
+		api.Post("/reservations/transaction/:transaction_id/confirm", resTenantMW, guard.With("reservations", "post", true))
+		api.Post("/reservations/transaction/:transaction_id/release", resTenantMW, guard.With("reservations", "post", true))
+		api.Post("/reservations/:id/confirm", resTenantMW, guard.With("reservations", "post", true))
+		api.Post("/reservations/:id/release", resTenantMW, guard.With("reservations", "post", true))
 		RegisterReservationRoutes(humaAPI, h.Reservation)
 	}
 

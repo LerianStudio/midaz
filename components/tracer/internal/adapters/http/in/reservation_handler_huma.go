@@ -7,6 +7,7 @@ package in
 import (
 	"context"
 	"net/http"
+	"reflect"
 
 	"github.com/danielgtaylor/huma/v2"
 
@@ -81,6 +82,16 @@ type TransactionActionOutputHuma struct {
 	Body   *TransactionActionResponse
 }
 
+type ApplyOutcomeInputHuma struct {
+	TransactionID string `path:"transaction_id" doc:"Transaction ID (UUID)"`
+	RawBody       []byte `contentType:"application/json"`
+}
+
+type ApplyOutcomeOutputHuma struct {
+	Status int
+	Body   *ApplyOutcomeResponse
+}
+
 // ReserveHuma is the Huma handler for POST /v1/reservations. It delegates to the
 // shared core and, on success, returns 201 with the reservation handle.
 func (h *ReservationHandler) ReserveHuma(ctx context.Context, in *ReserveInputHuma) (*ReserveOutputHuma, error) {
@@ -90,6 +101,26 @@ func (h *ReservationHandler) ReserveHuma(ctx context.Context, in *ReserveInputHu
 	}
 
 	return &ReserveOutputHuma{Status: http.StatusCreated, Body: result}, nil
+}
+
+// ReserveV2Huma is the capability-safe V2 operation. Its distinct route makes
+// old Tracer binaries fail before they can persist a legacy reservation.
+func (h *ReservationHandler) ReserveV2Huma(ctx context.Context, in *ReserveInputHuma) (*ReserveOutputHuma, error) {
+	result, err := h.reserveV2(ctx, in.RawBody)
+	if err != nil {
+		return nil, humaProblem(err)
+	}
+
+	return &ReserveOutputHuma{Status: http.StatusCreated, Body: result}, nil
+}
+
+func (h *ReservationHandler) ApplyOutcomeHuma(ctx context.Context, in *ApplyOutcomeInputHuma) (*ApplyOutcomeOutputHuma, error) {
+	result, err := h.applyOutcome(ctx, in.TransactionID, in.RawBody)
+	if err != nil {
+		return nil, humaProblem(err)
+	}
+
+	return &ApplyOutcomeOutputHuma{Status: http.StatusOK, Body: result}, nil
 }
 
 // ConfirmHuma is the Huma handler for POST /v1/reservations/{id}/confirm. It
@@ -154,7 +185,7 @@ func RegisterReservationRoutes(api huma.API, h *ReservationHandler) {
 		DefaultStatus: http.StatusCreated,
 		Summary:       "Reserve transaction capacity (phase one)",
 		Tags:          []string{"Reservations"},
-		Security:      secBearerOrAPIKey,
+		Security:      secAPIKeyOnly,
 		// SkipValidateBody: the body is taken as RawBody and validated imperatively
 		// by NormalizeAndReserveValidate inside the core, which produces the
 		// canonical Midaz error codes. Without this, Huma validates the JSON body
@@ -162,6 +193,32 @@ func RegisterReservationRoutes(api huma.API, h *ReservationHandler) {
 		// handler runs.
 		SkipValidateBody: true,
 	}, h.ReserveHuma)
+	documentJSONRequestBody(api, "/reservations", reflect.TypeOf(ReserveRequest{}), "account", "transactionType")
+
+	huma.Register(api, huma.Operation{
+		OperationID:      "createLedgerOutcomeV2Reservation",
+		Method:           http.MethodPost,
+		Path:             "/reservations/ledger-outcome-v2",
+		DefaultStatus:    http.StatusCreated,
+		Summary:          "Reserve capacity under the ledger-owned outcome protocol",
+		Tags:             []string{"Reservations"},
+		Security:         secAPIKeyOnly,
+		SkipValidateBody: true,
+	}, h.ReserveV2Huma)
+	v2RequestSchema := documentJSONRequestBody(api, "/reservations/ledger-outcome-v2", reflect.TypeOf(ReserveRequest{}), "account", "transactionType")
+	v2RequestSchema.Required = append(v2RequestSchema.Required, "deliveryMode")
+	v2RequestSchema.Properties["deliveryMode"].Examples = []any{string(model.DeliveryModeLedgerOutcomeV2)}
+
+	huma.Register(api, huma.Operation{
+		OperationID:      "applyReservationOutcome",
+		Method:           http.MethodPost,
+		Path:             "/reservations/transaction/{transaction_id}/outcome",
+		Summary:          "Apply the ledger's durable terminal reservation outcome",
+		Tags:             []string{"Reservations"},
+		Security:         secAPIKeyOnly,
+		SkipValidateBody: true,
+	}, h.ApplyOutcomeHuma)
+	documentJSONRequestBody(api, "/reservations/transaction/{transaction_id}/outcome", reflect.TypeOf(ApplyOutcomeRequest{}))
 
 	huma.Register(api, huma.Operation{
 		OperationID: "confirmReservation",
@@ -169,7 +226,7 @@ func RegisterReservationRoutes(api huma.API, h *ReservationHandler) {
 		Path:        "/reservations/{id}/confirm",
 		Summary:     "Confirm a reservation (phase two — commit)",
 		Tags:        []string{"Reservations"},
-		Security:    secBearerOrAPIKey,
+		Security:    secAPIKeyOnly,
 	}, h.ConfirmHuma)
 
 	huma.Register(api, huma.Operation{
@@ -178,7 +235,7 @@ func RegisterReservationRoutes(api huma.API, h *ReservationHandler) {
 		Path:        "/reservations/{id}/release",
 		Summary:     "Release a reservation (phase two — abort)",
 		Tags:        []string{"Reservations"},
-		Security:    secBearerOrAPIKey,
+		Security:    secAPIKeyOnly,
 	}, h.ReleaseHuma)
 
 	huma.Register(api, huma.Operation{
@@ -187,7 +244,7 @@ func RegisterReservationRoutes(api huma.API, h *ReservationHandler) {
 		Path:        "/reservations/transaction/{transaction_id}/confirm",
 		Summary:     "Confirm a transaction's reservations (phase two — commit by transaction)",
 		Tags:        []string{"Reservations"},
-		Security:    secBearerOrAPIKey,
+		Security:    secAPIKeyOnly,
 	}, h.ConfirmByTransactionHuma)
 
 	huma.Register(api, huma.Operation{
@@ -196,6 +253,41 @@ func RegisterReservationRoutes(api huma.API, h *ReservationHandler) {
 		Path:        "/reservations/transaction/{transaction_id}/release",
 		Summary:     "Release a transaction's reservations (phase two — abort by transaction)",
 		Tags:        []string{"Reservations"},
-		Security:    secBearerOrAPIKey,
+		Security:    secAPIKeyOnly,
 	}, h.ReleaseByTransactionHuma)
+}
+
+// documentJSONRequestBody replaces the binary schema Huma infers from RawBody
+// with the JSON contract that callers actually send. Runtime validation remains
+// imperative so malformed requests continue to use Midaz's canonical errors.
+func documentJSONRequestBody(api huma.API, path string, bodyType reflect.Type, optionalFields ...string) *huma.Schema {
+	schema := huma.SchemaFromType(api.OpenAPI().Components.Schemas, bodyType)
+
+	if len(optionalFields) > 0 {
+		optional := make(map[string]struct{}, len(optionalFields))
+		for _, field := range optionalFields {
+			optional[field] = struct{}{}
+		}
+
+		required := schema.Required[:0]
+		for _, field := range schema.Required {
+			if _, ok := optional[field]; !ok {
+				required = append(required, field)
+			}
+		}
+
+		schema.Required = required
+	}
+
+	operation := api.OpenAPI().Paths[path].Post
+	operation.RequestBody = &huma.RequestBody{
+		Required: true,
+		Content: map[string]*huma.MediaType{
+			"application/json": {
+				Schema: schema,
+			},
+		},
+	}
+
+	return schema
 }

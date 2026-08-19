@@ -6,6 +6,7 @@ package query
 
 import (
 	"context"
+	"time"
 
 	libObservability "github.com/LerianStudio/lib-observability/v2"
 	libLog "github.com/LerianStudio/lib-observability/v2/log"
@@ -24,11 +25,12 @@ import (
 // PeriodKey/Amount, and the reserve guard uses MaxAmount. Amounts are decimal
 // currency values (e.g. 10.50), matching the DECIMAL counter columns.
 type ReservationSpec struct {
-	LimitID   uuid.UUID
-	ScopeKey  string
-	PeriodKey string
-	Amount    decimal.Decimal
-	MaxAmount decimal.Decimal
+	LimitID          uuid.UUID
+	ScopeKey         string
+	PeriodKey        string
+	Amount           decimal.Decimal
+	MaxAmount        decimal.Decimal
+	CounterExpiresAt *time.Time
 }
 
 // ResolveReservations resolves the applicable limits for a transaction ONCE and
@@ -115,12 +117,16 @@ func (s *LimitCheckerService) ResolveReservations(ctx context.Context, input *mo
 			return nil, true, nil
 		}
 
+		resetAt := model.CalculateResetAt(limit.LimitType, serverNow)
+		counterExpiresAt := calculateCounterExpiresAt(limit.LimitType, resetAt, limit.CustomEndDate)
+
 		specs = append(specs, ReservationSpec{
-			LimitID:   limit.ID,
-			ScopeKey:  calculateScopeKeyFromScopes(limit.Scopes, txScope),
-			PeriodKey: periodKey,
-			Amount:    input.Amount,
-			MaxAmount: limit.MaxAmount,
+			LimitID:          limit.ID,
+			ScopeKey:         calculateScopeKeyFromScopes(limit.Scopes, txScope),
+			PeriodKey:        periodKey,
+			Amount:           input.Amount,
+			MaxAmount:        limit.MaxAmount,
+			CounterExpiresAt: counterExpiresAt,
 		})
 	}
 
