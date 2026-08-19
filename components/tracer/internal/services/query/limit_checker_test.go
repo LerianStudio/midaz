@@ -690,6 +690,37 @@ func TestLimitCheckerService_CheckLimits(t *testing.T) {
 	}
 }
 
+// TestLimitCheckerService_CheckLimits_CanceledContext proves getApplicableLimits
+// checks ctx.Err() before its paginated repository loop: an already-canceled
+// context returns the wrapped context error and fetches no pages. The limit
+// repository mock carries NO List expectation, so gomock fails the test if any
+// page is fetched.
+func TestLimitCheckerService_CheckLimits_CanceledContext(t *testing.T) {
+	ctrl := gomock.NewController(t)
+
+	mockLimitRepo := NewMockLimitRepository(ctrl) // no List expectation: must not be called
+	mockUsageRepo := NewMockUsageCounterRepository(ctrl)
+	mockDB := dbmocks.NewMockDB(ctrl)
+
+	ctx, cancel := context.WithCancel(setupTest(t))
+	cancel() // canceled before the call
+
+	checker, err := NewLimitChecker(mockLimitRepo, mockUsageRepo, testutil.NewDefaultMockClock())
+	require.NoError(t, err)
+
+	input := &model.CheckLimitsInput{
+		Amount:               decimal.RequireFromString("50"),
+		Asset:                "USD",
+		AccountID:            testutil.MustDeterministicUUID(100),
+		TransactionTimestamp: time.Date(2025, 12, 28, 10, 0, 0, 0, time.UTC),
+	}
+
+	output, err := checker.CheckLimits(ctx, mockDB, input)
+	require.Error(t, err)
+	assert.ErrorIs(t, err, context.Canceled)
+	assert.Nil(t, output)
+}
+
 func TestLimitCheckerService_CheckLimits_ConcurrentAccess(t *testing.T) {
 	// This test verifies that CheckLimits handles concurrent requests correctly.
 	// The key behaviors tested:

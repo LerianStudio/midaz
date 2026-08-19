@@ -90,7 +90,7 @@ func readExpression(t *testing.T, db *sql.DB, id uuid.UUID) string {
 
 func mustRewrite(t *testing.T, expression string) string {
 	t.Helper()
-	out, err := cel.RewriteCurrencyToAsset(expression)
+	out, _, err := cel.RewriteCurrencyToAsset(expression)
 	require.NoError(t, err)
 	return out
 }
@@ -145,6 +145,46 @@ func TestIntegration_CELRuleMigration_Up_RewritesGlobalPreservesOthers(t *testin
 	assert.Equal(t, mustRewrite(t, shadowExpr), gotShadow)
 	assert.Contains(t, gotShadow, "currency")
 	assert.NotContains(t, gotShadow, "asset")
+}
+
+func TestIntegration_CELRuleMigration_Up_NonCanonicalNoCurrency_NotRewritten(t *testing.T) {
+	testutil.SetupTestTracing(t)
+
+	db := testutil.SetupIntegrationDB(t)
+	cleanRules(t, db)
+	t.Cleanup(func() { cleanRules(t, db) })
+
+	const (
+		globalExpr = `currency == "BRL"`
+		// Stored NON-canonically (no spaces around >). The rewriter canonicalizes
+		// this to "amount > 0" but renames no global currency, so the migration must
+		// classify it unchanged and leave the stored text byte-identical.
+		nonCanonicalExpr = `amount>0`
+	)
+
+	globalID := seedRule(t, db, 40, "global-currency", globalExpr)
+	nonCanonicalID := seedRule(t, db, 41, "non-canonical-no-currency", nonCanonicalExpr)
+
+	m := newTestMigrator(t, db)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
+	t.Cleanup(cancel)
+
+	res, err := m.Up(ctx)
+	require.NoError(t, err)
+	assert.Equal(t, 2, res.Scanned)
+	// Only the global-currency rule is a genuine rewrite; the non-canonical rule
+	// carries no global currency, so it is unchanged despite differing canonical text.
+	assert.Equal(t, 1, res.Rewritten)
+	assert.Equal(t, 1, res.Unchanged)
+
+	// The global currency rule is renamed and persisted.
+	assert.Equal(t, mustRewrite(t, globalExpr), readExpression(t, db, globalID))
+
+	// The non-canonical no-currency rule was NOT persisted: its stored text stays
+	// byte-identical to the seed, NOT the canonical "amount > 0" form.
+	assert.Equal(t, nonCanonicalExpr, readExpression(t, db, nonCanonicalID),
+		"a no-currency rule must not be reformatted or persisted")
 }
 
 func TestIntegration_CELRuleMigration_Up_RollsBackOnBadRule(t *testing.T) {

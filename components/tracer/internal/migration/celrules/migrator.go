@@ -86,8 +86,11 @@ type ExpressionCompiler interface {
 
 // Rewriter renames the global currency reference to asset in a single stored
 // expression, preserving field selections, string literals, and shadowing
-// comprehension bindings. Satisfied by cel.RewriteCurrencyToAsset.
-type Rewriter func(expression string) (string, error)
+// comprehension bindings. The bool reports whether a global currency reference
+// was actually renamed; it is false for an expression with no global currency,
+// even when the returned canonical text differs from a non-canonical input.
+// Satisfied by cel.RewriteCurrencyToAsset.
+type Rewriter func(expression string) (string, bool, error)
 
 // Result reports what the up migration did. It carries only counts — never rule
 // expressions, which may encode business logic.
@@ -209,7 +212,7 @@ func (m *Migrator) Up(ctx context.Context) (Result, error) {
 			continue
 		}
 
-		rewritten, err := m.rewrite(rule.Expression)
+		rewritten, changed, err := m.rewrite(rule.Expression)
 		if err != nil {
 			// The rewrite error wraps cel-go output that can embed the rule
 			// expression; keep that detail at Debug and put only the sentinel
@@ -234,7 +237,12 @@ func (m *Migrator) Up(ctx context.Context) (Result, error) {
 			return res, boundedErr
 		}
 
-		if rewritten == rule.Expression {
+		// Classify by whether a global currency reference was actually renamed,
+		// NOT by text inequality: the rewriter returns a canonical serialization,
+		// so a rule stored non-canonically (e.g. "amount>0") comes back reformatted
+		// ("amount > 0") with no rename. Persisting on text difference would rewrite
+		// and count such rules even though no currency->asset change happened.
+		if !changed {
 			res.Unchanged++
 			continue
 		}

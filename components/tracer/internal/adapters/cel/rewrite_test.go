@@ -167,8 +167,8 @@ func (w *refWalker) walk(e celast.Expr) {
 }
 
 // mustCompileAsset asserts the expression compiles against the asset environment
-// (the env after Task 2.2.1, which declares asset and NOT currency). A surviving
-// GLOBAL currency reference fails here with "undeclared reference to 'currency'".
+// (which declares asset and NOT currency). A surviving GLOBAL currency reference
+// fails here with "undeclared reference to 'currency'".
 func mustCompileAsset(t *testing.T, expr string) {
 	t.Helper()
 
@@ -301,7 +301,7 @@ func TestRewriteCurrencyToAsset(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			out, err := RewriteCurrencyToAsset(tt.input)
+			out, _, err := RewriteCurrencyToAsset(tt.input)
 			require.NoError(t, err)
 
 			// The output must always compile against the asset env: this proves no
@@ -391,7 +391,7 @@ func TestRewriteCurrencyToAsset_SemanticEquivalence(t *testing.T) {
 		t.Run(expr, func(t *testing.T) {
 			t.Parallel()
 
-			out, rerr := RewriteCurrencyToAsset(expr)
+			out, _, rerr := RewriteCurrencyToAsset(expr)
 			require.NoError(t, rerr)
 
 			for _, v := range values {
@@ -532,7 +532,7 @@ func TestRewriteCurrencyToAsset_Errors(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			out, err := RewriteCurrencyToAsset(tt.input)
+			out, changed, err := RewriteCurrencyToAsset(tt.input)
 
 			if tt.wantErr {
 				require.Error(t, err)
@@ -541,11 +541,72 @@ func TestRewriteCurrencyToAsset_Errors(t *testing.T) {
 
 			require.NoError(t, err)
 			require.Equal(t, tt.input, out)
+			assert.False(t, changed, "a no-currency expression reports no rename")
 			assert.NotContains(t, out, "currency")
 			assert.NotContains(t, out, "asset")
 
 			refs := inspectCurrency(t, out)
 			assert.Equal(t, 0, refs.globals)
+		})
+	}
+}
+
+// TestRewriteCurrencyToAsset_ReportsChanged locks the second return value: true
+// iff a GLOBAL currency reference was renamed, and false otherwise — including for
+// a NON-CANONICAL no-currency expression whose canonical serialization differs
+// from the input. The migrator relies on this flag (not text inequality) to avoid
+// counting/persisting a mere reformat as a rewrite.
+func TestRewriteCurrencyToAsset_ReportsChanged(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name        string
+		input       string
+		wantChanged bool
+		wantOut     string // exact canonical output; empty = do not assert
+	}{
+		{
+			name:        "global currency renamed",
+			input:       `currency == "BRL"`,
+			wantChanged: true,
+			wantOut:     `asset == "BRL"`,
+		},
+		{
+			name:        "canonical no-currency is unchanged",
+			input:       `amount > 0`,
+			wantChanged: false,
+			wantOut:     `amount > 0`,
+		},
+		{
+			name:        "non-canonical no-currency reformats but reports unchanged",
+			input:       `amount>0`,
+			wantChanged: false,
+			wantOut:     `amount > 0`,
+		},
+		{
+			name:        "metadata.currency field selection is unchanged",
+			input:       `metadata.currency == "BRL"`,
+			wantChanged: false,
+		},
+		{
+			name:        "shadowed comprehension binding is unchanged",
+			input:       `["BRL"].exists(currency, currency == "BRL")`,
+			wantChanged: false,
+		},
+	}
+
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			out, changed, err := RewriteCurrencyToAsset(tt.input)
+			require.NoError(t, err)
+			assert.Equal(t, tt.wantChanged, changed)
+
+			if tt.wantOut != "" {
+				assert.Equal(t, tt.wantOut, out)
+			}
 		})
 	}
 }

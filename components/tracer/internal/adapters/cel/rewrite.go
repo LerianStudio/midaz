@@ -41,22 +41,29 @@ var rewriteEnv = sync.OnceValues(func() (*cel.Env, error) {
 // iteration or accumulation variable shadows the global within the macro body, so
 // those references are preserved.
 //
+// The second return value reports whether at least one global currency reference
+// was renamed. It is false when the expression carries no global currency, even
+// though the returned text is the canonical serialization and may therefore differ
+// from a non-canonically stored input (e.g. "amount>0" serializes to "amount > 0"
+// without any rename). Callers that persist only genuinely-renamed rules MUST
+// branch on this flag, not on text inequality.
+//
 // The function is pure: it performs no I/O and mutates no shared state. It returns
 // the canonical serialization of the rewritten expression. A parse failure is
 // reported as constant.ErrExpressionSyntax.
-func RewriteCurrencyToAsset(expression string) (string, error) {
+func RewriteCurrencyToAsset(expression string) (string, bool, error) {
 	if expression == "" {
-		return "", fmt.Errorf("%w: expression cannot be empty", constant.ErrExpressionSyntax)
+		return "", false, fmt.Errorf("%w: expression cannot be empty", constant.ErrExpressionSyntax)
 	}
 
 	env, err := rewriteEnv()
 	if err != nil {
-		return "", fmt.Errorf("failed to create rewrite environment: %w", err)
+		return "", false, fmt.Errorf("failed to create rewrite environment: %w", err)
 	}
 
 	parsed, issues := env.Parse(expression)
 	if issues != nil && issues.Err() != nil {
-		return "", fmt.Errorf("%w: %w", constant.ErrExpressionSyntax, issues.Err())
+		return "", false, fmt.Errorf("%w: %w", constant.ErrExpressionSyntax, issues.Err())
 	}
 
 	nativeAST := parsed.NativeRep()
@@ -69,19 +76,20 @@ func RewriteCurrencyToAsset(expression string) (string, error) {
 
 	out, err := parser.Unparse(nativeAST.Expr(), nativeAST.SourceInfo())
 	if err != nil {
-		return "", fmt.Errorf("%w: failed to serialize rewritten expression: %w", constant.ErrExpressionSyntax, err)
+		return "", false, fmt.Errorf("%w: failed to serialize rewritten expression: %w", constant.ErrExpressionSyntax, err)
 	}
 
-	return out, nil
+	return out, rw.changed, nil
 }
 
 // currencyRewriter walks the surface expression tree the unparser renders (macro
 // calls grafted at macro-expanded node IDs) while maintaining a scope stack of
 // names bound by enclosing comprehension macros.
 type currencyRewriter struct {
-	info  *celast.SourceInfo
-	fac   celast.ExprFactory
-	scope []map[string]struct{}
+	info    *celast.SourceInfo
+	fac     celast.ExprFactory
+	scope   []map[string]struct{}
+	changed bool // set once a global currency ident is renamed to asset
 }
 
 // shadowed reports whether name is currently bound by an enclosing comprehension.
@@ -153,6 +161,7 @@ func (r *currencyRewriter) walk(e celast.Expr) {
 	case celast.IdentKind:
 		if e.AsIdent() == oldGlobalName && !r.shadowed(oldGlobalName) {
 			e.SetKindCase(r.fac.NewIdent(e.ID(), newGlobalName))
+			r.changed = true
 		}
 	case celast.SelectKind:
 		// Recurse only into the operand; the field name is not an identifier and
