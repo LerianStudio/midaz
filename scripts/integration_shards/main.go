@@ -167,9 +167,16 @@ func buildPlanAssignments(opts planOptions, stdin io.Reader) ([]assignment, erro
 	return assignments, nil
 }
 
-func emitPlanAssignments(stdout io.Writer, assignments []assignment, opts planOptions) error {
+func emitPlanAssignments(stdout io.Writer, assignments []assignment, opts planOptions) (err error) {
 	writer := bufio.NewWriter(stdout)
-	defer writer.Flush()
+	// bufio.Writer reports a failed or short final write only at Flush; dropping
+	// that error would let a truncated shard plan exit 0 and silently shrink the
+	// fail-closed selection.
+	defer func() {
+		if flushErr := writer.Flush(); flushErr != nil && err == nil {
+			err = fmt.Errorf("flush shard plan: %w", flushErr)
+		}
+	}()
 	for _, item := range assignments {
 		if opts.shard != "" && item.Shard != opts.shard {
 			continue
