@@ -45,6 +45,7 @@ func newPodRequestToken() (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("resolve rollout request owner: %w", err)
 	}
+
 	if hostname == "" {
 		return "", fmt.Errorf("resolve rollout request owner: empty hostname")
 	}
@@ -69,11 +70,14 @@ func (handler *TransactionHandler) acquireTransactionMutationLock(
 	if err != nil {
 		return nil, err
 	}
+
 	key := utils.PendingTransactionLockKey(organizationID, ledgerID, transactionID.String())
+
 	acquired, err := handler.Command.TransactionRedisRepo.AcquireOwnedKey(ctx, key, owner, ttl)
 	if err != nil {
 		return nil, fmt.Errorf("acquire transaction mutation lock: %w", err)
 	}
+
 	if !acquired {
 		return nil, pkg.ValidateBusinessError(constant.ErrPendingTransactionLocked, "ValidateTransactionNotPending")
 	}
@@ -86,6 +90,7 @@ func (handler *TransactionHandler) acquireTransactionMutationLock(
 		if err != nil {
 			return fmt.Errorf("release transaction mutation lock: %w", err)
 		}
+
 		if !released {
 			return fmt.Errorf("release transaction mutation lock: ownership lost")
 		}
@@ -131,6 +136,7 @@ func (handler *TransactionHandler) CommitTransaction(c fiber.Ctx) error {
 // status so the span names stay byte-identical to the pre-migration Fiber path),
 // fetches the transaction (write-behind cache first, DB fallback), then delegates to the
 // untouched commitOrCancelTransaction state machine.
+//nolint:gocyclo // Commit path branches per cache, replay, and freeze state; refactor candidate.
 func (handler *TransactionHandler) commitTransaction(ctx context.Context, organizationID, ledgerID, transactionID uuid.UUID, transactionStatus string) (
 	result *transaction.Transaction,
 	retErr error,
@@ -149,11 +155,13 @@ func (handler *TransactionHandler) commitTransaction(ctx context.Context, organi
 	if err != nil {
 		return nil, err
 	}
+
 	keepSuccessfulLock := false
 	defer func() {
 		if keepSuccessfulLock {
 			return
 		}
+
 		if err := releaseTransactionLock(); err != nil {
 			retErr = errors.Join(retErr, err)
 			result = nil
@@ -161,6 +169,7 @@ func (handler *TransactionHandler) commitTransaction(ctx context.Context, organi
 	}()
 
 	primaryCtx := readrouting.WithPrimaryRead(ctx)
+
 	tran, err := handler.Query.GetWriteBehindTransaction(primaryCtx, organizationID, ledgerID, transactionID)
 	if err != nil {
 		// Load the operations with the transaction: cancel needs them to unwind an
@@ -191,6 +200,7 @@ func (handler *TransactionHandler) commitTransaction(ctx context.Context, organi
 			}
 		}
 	}
+
 	if tran.Status.Code != constant.PENDING {
 		return nil, pkg.ValidateBusinessError(constant.ErrCommitTransactionNotPending, "ValidateTransactionNotPending")
 	}
@@ -199,6 +209,7 @@ func (handler *TransactionHandler) commitTransaction(ctx context.Context, organi
 	if stateRepo == nil && handler.Query != nil {
 		stateRepo = handler.Query.TransactionRepo
 	}
+
 	if stateRepo == nil {
 		return nil, fmt.Errorf("transaction state repository not configured")
 	}
@@ -213,9 +224,11 @@ func (handler *TransactionHandler) commitTransaction(ctx context.Context, organi
 	if err != nil {
 		return nil, err
 	}
+
 	if locked.Status.Code != constant.PENDING {
 		return nil, pkg.ValidateBusinessError(constant.ErrCommitTransactionNotPending, "ValidateTransactionNotPending")
 	}
+
 	tran.Description = locked.Description
 	tran.Body = locked.Body
 	tran.Status = locked.Status
@@ -301,6 +314,7 @@ func (handler *TransactionHandler) RevertTransaction(c fiber.Ctx) error {
 // reused by Redis backup recovery, so a lost response cannot mint a second
 // economic mutation. Bridge mode also participates in the released payload-
 // hash Redis barrier; final mode only reads that legacy fence during rollout.
+//nolint:gocognit,gocyclo // Revert orchestration spans claim, replay, and rollout branches; refactor candidate.
 func (handler *TransactionHandler) revertTransaction(ctx context.Context, organizationID, ledgerID, transactionID uuid.UUID) (
 	result *transaction.Transaction,
 	replayed bool,
@@ -317,14 +331,18 @@ func (handler *TransactionHandler) revertTransaction(ctx context.Context, organi
 	if err != nil {
 		return nil, false, err
 	}
+
 	releaseRolloutLeaseOnReturn := true
+
 	if releaseRolloutLease != nil {
 		defer func() {
 			if !releaseRolloutLeaseOnReturn {
 				return
 			}
+
 			if err := releaseRolloutLease(); err != nil {
 				retErr = errors.Join(retErr, err)
+
 				if result != nil {
 					result = nil
 					replayed = false
@@ -332,18 +350,22 @@ func (handler *TransactionHandler) revertTransaction(ctx context.Context, organi
 			}
 		}()
 	}
+
 	durablePhaseZero := handler.activeRevertIdempotencyMode() == revertIdempotencyModeLegacy &&
 		rolloutToken != "" && (rolloutPhase == transactionRedis.RevertUpdateFreezePrepared ||
 		rolloutPhase == transactionRedis.RevertUpdateFreezeActive)
+
 	rolloutMode := ""
 	if rolloutToken != "" {
 		rolloutMode = handler.activeRevertIdempotencyMode()
 	}
+
 	var claimRolloutMode, claimRolloutToken *string
 	if rolloutToken != "" {
 		claimRolloutMode = &rolloutMode
 		claimRolloutToken = &rolloutToken
 	}
+
 	var claimRedisGeneration *string
 	if redisGeneration != "" {
 		claimRedisGeneration = &redisGeneration
@@ -369,49 +391,63 @@ func (handler *TransactionHandler) revertTransaction(ctx context.Context, organi
 		if handler.activeRevertIdempotencyMode() == revertIdempotencyModeLegacy && !durablePhaseZero {
 			return nil, false, pkg.ValidateBusinessError(constant.ErrTransactionIDHasAlreadyParentTransaction, "RevertTransaction")
 		}
+
 		if handler.Command == nil || handler.Command.RevertClaimRepo == nil {
 			return nil, false, pkg.ValidateBusinessError(constant.ErrTransactionIDHasAlreadyParentTransaction, "RevertTransaction")
 		}
 
-		var adoptionLegacyKey *string
-		var adoptedReverseID uuid.UUID
+		var (
+			adoptionLegacyKey *string
+			adoptedReverseID  uuid.UUID
+		)
+
 		if handler.activeRevertIdempotencyMode() == revertIdempotencyModeBridge || durablePhaseZero {
 			reverseID, parseErr := uuid.Parse(parent.ID)
 			if parseErr != nil {
 				return finish(nil, false, pkg.ValidateBusinessError(constant.ErrRevertReconciliationRequired, constant.EntityTransaction))
 			}
+
 			adoptedReverseID = reverseID
+
 			existingClaim, claimErr := handler.Command.GetRevertClaim(ctx, organizationID, ledgerID, transactionID)
 			if claimErr != nil {
 				return finish(nil, false, claimErr)
 			}
+
 			var legacyKey string
+
 			if existingClaim != nil {
 				if existingClaim.ReverseTransactionID != reverseID {
 					return finish(nil, false, pkg.ValidateBusinessError(constant.ErrRevertReconciliationRequired, constant.EntityTransaction))
 				}
+
 				legacyKey, claimErr = legacyRevertBarrierKeyFromClaim(existingClaim)
 			} else {
 				legacyKey, claimErr = handler.legacyRevertBarrierKeyFromBackup(ctx, organizationID, ledgerID,
 					transactionID, reverseID)
 			}
+
 			if claimErr != nil {
 				return finish(nil, false, claimErr)
 			}
+
 			adoptionLegacyKey = &legacyKey
 		}
-		persisted, replayed, adoptErr := handler.adoptPersistedReverse(ctx, organizationID, ledgerID, transactionID,
+
+		persisted, adoptReplayed, adoptErr := handler.adoptPersistedReverse(ctx, organizationID, ledgerID, transactionID,
 			parent, claimRolloutMode, claimRolloutToken, claimRedisGeneration, adoptionLegacyKey)
 		if rolloutToken != "" {
 			releaseRolloutLeaseOnReturn = !handler.revertRolloutHandoffPending(ctx, organizationID, ledgerID,
 				transactionID, adoptedReverseID)
 		}
+
 		if adoptErr != nil {
 			return finish(nil, false, adoptErr)
 		}
 
-		return finish(persisted, replayed, nil)
+		return finish(persisted, adoptReplayed, nil)
 	}
+
 	tran, err := handler.Query.GetTransactionWithOperationsByID(ctx, organizationID, ledgerID, transactionID)
 	if err != nil {
 		handleSpanByErrorClass(span, "Failed to retrieve transaction on query", err)
@@ -495,14 +531,14 @@ func (handler *TransactionHandler) revertTransaction(ctx context.Context, organi
 			return nil, false, barrierErr
 		}
 
-		result, replayed, createErr := handler.createRevertTransaction(ctx, params, transactionReverted,
+		created, createReplayed, createErr := handler.createRevertTransaction(ctx, params, transactionReverted,
 			constant.CREATED, "", http.ParseIdempotencyTTL(""))
 		if rolloutToken != "" {
 			releaseRolloutLeaseOnReturn = !handler.revertRolloutHandoffPending(ctx, organizationID, ledgerID,
 				transactionID, params.ReservedTransactionID)
 		}
 
-		return result, replayed, createErr
+		return created, createReplayed, createErr
 	}
 
 	legacyHash, err := legacyRevertIdempotencyHash(transactionReverted)
@@ -514,6 +550,7 @@ func (handler *TransactionHandler) revertTransaction(ctx context.Context, organi
 	if err != nil {
 		return nil, false, err
 	}
+
 	if legacyCached != nil {
 		if reverseBelongsToOrigin(legacyCached, transactionID) {
 			cachedID, parseErr := uuid.Parse(legacyCached.ID)
@@ -525,29 +562,33 @@ func (handler *TransactionHandler) revertTransaction(ctx context.Context, organi
 			if handler.activeRevertIdempotencyMode() == revertIdempotencyModeBridge || durablePhaseZero {
 				cachedLegacyKey = &legacyKey
 			}
+
 			claim, acquired, claimErr := handler.Command.ClaimRevert(ctx, organizationID, ledgerID, transactionID,
 				cachedID, cachedLegacyKey, nil, claimRolloutMode, claimRolloutToken, claimRedisGeneration)
 			if claimErr != nil {
 				return nil, false, claimErr
 			}
+
 			if claim.ReverseTransactionID != cachedID {
 				return nil, false, pkg.ValidateBusinessError(constant.ErrRevertReconciliationRequired, constant.EntityTransaction)
 			}
+
 			if acquired {
 				reason := "legacy_revert_cached_before_primary_persistence"
 				_ = handler.Command.MarkRevertClaim(ctx, organizationID, ledgerID, transactionID, cachedID, revertclaim.StateReconciliationRequired, &reason)
 			}
 
-			persisted, replayed, resolveErr := handler.resolveDurableRevertClaim(ctx, claim)
+			persisted, resolveReplayed, resolveErr := handler.resolveDurableRevertClaim(ctx, claim)
 			if resolveErr == nil && persisted != nil {
 				resolveErr = handler.completeCurrentRevertRollout(ctx, claim, claimRolloutMode, claimRolloutToken)
 			}
+
 			if rolloutToken != "" {
 				releaseRolloutLeaseOnReturn = !handler.revertRolloutHandoffPending(ctx, organizationID, ledgerID,
 					transactionID, claim.ReverseTransactionID)
 			}
 
-			return finish(persisted, replayed, resolveErr)
+			return finish(persisted, resolveReplayed, resolveErr)
 		}
 
 		if handler.activeRevertIdempotencyMode() == revertIdempotencyModeBridge || durablePhaseZero {
@@ -568,28 +609,34 @@ func (handler *TransactionHandler) revertTransaction(ctx context.Context, organi
 		Identity:        reverseID,
 		RedisGeneration: redisGeneration,
 	}
+
 	executionLeaseAcquired, executionLeaseErr := handler.Command.TransactionRedisRepo.AcquireOwnedKey(ctx,
 		executionAttempt.ExecutionKey, executionAttempt.Owner, revertExecutionLeaseTTL)
 	if executionLeaseErr != nil {
 		return nil, false, fmt.Errorf("reserve revert balance execution attempt: %w", executionLeaseErr)
 	}
+
 	if !executionLeaseAcquired {
 		return nil, false, pkg.ValidateBusinessError(constant.ErrIdempotencyKey, "RevertTransaction", reverseID.String())
 	}
+
 	releaseUnclaimedAttempt := func() error {
 		released, releaseErr := handler.Command.TransactionRedisRepo.ReleaseOwnedKey(ctx,
 			executionAttempt.ExecutionKey, executionAttempt.Owner)
 		if releaseErr != nil {
 			return fmt.Errorf("release unclaimed revert balance execution attempt: %w", releaseErr)
 		}
+
 		if released {
 			return nil
 		}
+
 		values, readErr := handler.Command.TransactionRedisRepo.MGet(ctx,
 			[]string{executionAttempt.ExecutionKey, executionAttempt.ExecutionKey + ":owner"})
 		if readErr != nil {
 			return fmt.Errorf("verify unclaimed revert balance execution attempt release: %w", readErr)
 		}
+
 		if len(values) != 0 {
 			return fmt.Errorf("release unclaimed revert balance execution attempt: ownership lost")
 		}
@@ -603,19 +650,23 @@ func (handler *TransactionHandler) revertTransaction(ctx context.Context, organi
 		owner := reverseID.String()
 		claimedLegacyOwner = &owner
 	}
+
 	claim, acquired, err := handler.Command.ClaimRevert(ctx, organizationID, ledgerID, transactionID, reverseID,
 		claimedLegacyKey, claimedLegacyOwner, claimRolloutMode, claimRolloutToken, claimRedisGeneration)
 	if err != nil {
 		return nil, false, errors.Join(err, releaseUnclaimedAttempt())
 	}
+
 	if claim == nil {
 		return nil, false, errors.Join(fmt.Errorf("revert claim repository returned no claim"),
 			releaseUnclaimedAttempt())
 	}
+
 	if !acquired {
 		if releaseErr := releaseUnclaimedAttempt(); releaseErr != nil {
 			return nil, false, releaseErr
 		}
+
 		if claim.State == revertclaim.StateClaimed || claim.State == revertclaim.StateArmed ||
 			claim.State == revertclaim.StateRecovering {
 			// Final pods can recover claims left by bridge pods. Recovery uses only
@@ -627,6 +678,7 @@ func (handler *TransactionHandler) revertTransaction(ctx context.Context, organi
 			if recoverErr != nil {
 				return finish(nil, false, recoverErr)
 			}
+
 			if recovered {
 				// Re-enter through the complete eligibility/claim path after the
 				// recovery owner released the PostgreSQL claim last.
@@ -634,13 +686,15 @@ func (handler *TransactionHandler) revertTransaction(ctx context.Context, organi
 			}
 		}
 
-		persisted, replayed, resolveErr := handler.resolveDurableRevertClaim(ctx, claim)
+		persisted, resolveReplayed, resolveErr := handler.resolveDurableRevertClaim(ctx, claim)
 		if resolveErr == nil && persisted != nil {
 			resolveErr = handler.completeCurrentRevertRollout(ctx, claim, claimRolloutMode, claimRolloutToken)
 		}
+
 		if resolveErr != nil {
 			return finish(nil, false, resolveErr)
 		}
+
 		if persisted != nil && rolloutToken != "" {
 			// Successful resolution proves the reverse and every operation durable,
 			// completes both exact replays, and performs owner-checked cleanup.
@@ -648,8 +702,9 @@ func (handler *TransactionHandler) revertTransaction(ctx context.Context, organi
 				transactionID, claim.ReverseTransactionID)
 		}
 
-		return finish(persisted, replayed, nil)
+		return finish(persisted, resolveReplayed, nil)
 	}
+
 	if rolloutToken != "" {
 		// From the durable claim onward a process crash must leave the rollout
 		// admission in place. A same-origin retry reuses this deterministic token
@@ -660,33 +715,40 @@ func (handler *TransactionHandler) revertTransaction(ctx context.Context, organi
 	// From this point the local string tracks only a legacy fence owned by this
 	// request. The immutable key remains in the durable claim for every retry.
 	legacyKey = ""
+
 	if handler.activeRevertIdempotencyMode() == revertIdempotencyModeBridge || durablePhaseZero {
 		var legacyReplay *transaction.Transaction
+
 		legacyKey, legacyReplay, err = handler.acquireLegacyRevertBarrier(ctx, claim)
 		if err != nil {
 			if releaseErr := releaseUnclaimedAttempt(); releaseErr != nil {
 				return nil, false, handler.requireRevertReconciliation(ctx, claim,
 					"legacy_fence_acquire_attempt_cleanup_failed")
 			}
+
 			if releaseErr := handler.releaseFreshRevertClaim(ctx, claim, legacyKey, true, false); releaseErr != nil {
 				return nil, false, handler.requireRevertReconciliation(ctx, claim, "legacy_fence_acquire_cleanup_failed")
 			}
+
 			releaseRolloutLeaseOnReturn = !handler.revertRolloutHandoffPending(ctx, organizationID, ledgerID,
 				transactionID, claim.ReverseTransactionID)
 
 			return nil, false, err
 		}
+
 		if legacyReplay != nil {
 			if releaseErr := releaseUnclaimedAttempt(); releaseErr != nil {
 				return nil, false, handler.requireRevertReconciliation(ctx, claim,
 					"legacy_replay_attempt_cleanup_failed")
 			}
+
 			released, releaseErr := handler.Command.ReleaseRevertClaim(ctx, organizationID, ledgerID,
 				transactionID, claim.ReverseTransactionID)
 			if releaseErr != nil || !released {
 				return nil, false, handler.requireRevertReconciliation(ctx, claim,
 					"legacy_replay_claim_cleanup_failed")
 			}
+
 			releaseRolloutLeaseOnReturn = !handler.revertRolloutHandoffPending(ctx, organizationID, ledgerID,
 				transactionID, claim.ReverseTransactionID)
 
@@ -696,6 +758,7 @@ func (handler *TransactionHandler) revertTransaction(ctx context.Context, organi
 	}
 
 	execution := &revertExecutionState{}
+
 	params := &transactionPathParams{
 		OrganizationID:        organizationID,
 		LedgerID:              ledgerID,
@@ -710,8 +773,10 @@ func (handler *TransactionHandler) revertTransaction(ctx context.Context, organi
 	if claim.LegacyFenceKey != nil {
 		params.RevertLegacyFenceKey = *claim.LegacyFenceKey
 	}
+
 	if barrierErr := handler.requireRevertRolloutBarrier(ctx); barrierErr != nil {
 		failureErr := handler.failRevertClaim(ctx, claim, execution, legacyKey, barrierErr)
+
 		if releaseRolloutLease != nil {
 			releaseRolloutLeaseOnReturn = true
 		}
@@ -729,10 +794,12 @@ func (handler *TransactionHandler) revertTransaction(ctx context.Context, organi
 
 		return nil, false, failureErr
 	}
+
 	if rolloutToken != "" {
 		releaseRolloutLeaseOnReturn = !handler.revertRolloutHandoffPending(ctx, organizationID, ledgerID,
 			transactionID, params.ReservedTransactionID)
 	}
+
 	if replayed || !reverseMatchesClaim(tranReverted, claim) {
 		// The durable claim is the authority. A fresh claimant can only find an
 		// origin Redis replay when Redis and PostgreSQL disagree; returning that
@@ -825,6 +892,7 @@ func (handler *TransactionHandler) acquireApprovedUpdateRolloutRequest(ctx conte
 	if err != nil {
 		return nil, err
 	}
+
 	admitted, frozen, leaseHeld, err := handler.RevertUpdateFreeze.AcquireApprovedUpdate(ctx, mode, token)
 	if err != nil {
 		acquireErr := fmt.Errorf("acquire revert rollout approved-update lease: %w", err)
@@ -833,12 +901,15 @@ func (handler *TransactionHandler) acquireApprovedUpdateRolloutRequest(ctx conte
 			return handler.RevertUpdateFreeze.ReleaseApprovedUpdate(releaseCtx, token)
 		})
 	}
+
 	if frozen {
 		return nil, pkg.ValidateBusinessError(constant.ErrActionNotPermitted, "TransactionUpdateDuringRevertRollout")
 	}
+
 	if !admitted {
 		return nil, pkg.ValidateBusinessError(constant.ErrRevertRolloutFreezeRequired, constant.EntityTransaction)
 	}
+
 	if !leaseHeld {
 		return nil, nil
 	}
@@ -855,39 +926,11 @@ func (handler *TransactionHandler) acquireApprovedUpdateRolloutRequest(ctx conte
 	}, nil
 }
 
-func (handler *TransactionHandler) enforceRevertUpdateFreeze(ctx context.Context, status string) error {
-	if status != constant.APPROVED {
-		return nil
-	}
-
-	mode := handler.activeRevertIdempotencyMode()
-	if handler.RevertUpdateFreeze == nil {
-		if mode == revertIdempotencyModeBridge || mode == revertIdempotencyModeFinal {
-			return pkg.ValidateBusinessError(constant.ErrRevertRolloutFreezeRequired, constant.EntityTransaction)
-		}
-
-		return nil
-	}
-
-	frozen, ready, err := handler.RevertUpdateFreeze.ApprovedUpdatePolicy(ctx, mode)
-	if err != nil {
-		return fmt.Errorf("read revert rollout update policy: %w", err)
-	}
-	if frozen {
-		return pkg.ValidateBusinessError(constant.ErrActionNotPermitted, "TransactionUpdateDuringRevertRollout")
-	}
-	if !ready {
-		return pkg.ValidateBusinessError(constant.ErrRevertRolloutFreezeRequired, constant.EntityTransaction)
-	}
-
-	return nil
-}
-
 // commitOrCancelTransaction is the transport-neutral state-transition core. The
 // caller holds the PostgreSQL row lock across its Redis movement and terminal
 // CAS, and both Fiber wrappers and Huma shells use this same state machine.
 //
-//nolint:gocyclo // State machine with branches per status × action combination; refactor candidate.
+//nolint:gocognit,gocyclo // State machine with branches per status × action combination; refactor candidate.
 func (handler *TransactionHandler) commitOrCancelTransaction(
 	ctx context.Context,
 	tran *transaction.Transaction,
@@ -944,6 +987,7 @@ func (handler *TransactionHandler) commitOrCancelTransaction(
 
 		return nil, err
 	}
+
 	ledgerSettings, err := handler.Query.GetParsedLedgerSettings(ctx, organizationID, ledgerID)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(span, "Failed to get ledger settings", err)
@@ -955,6 +999,7 @@ func (handler *TransactionHandler) commitOrCancelTransaction(
 	if ledgerSettings.Accounting.ValidateRoutes {
 		mtransaction.PropagateRouteValidation(ctx, validate, transactionStatus)
 	}
+
 	if err := handler.clearDurableLegacyHoldBackup(ctx, organizationID, ledgerID, tran.IDtoUUID()); err != nil {
 		libOpentelemetry.HandleSpanError(span, "Failed to close durable pending transaction handoff", err)
 		logger.Log(ctx, libLog.LevelError, "Failed to close durable pending transaction handoff",
@@ -966,10 +1011,12 @@ func (handler *TransactionHandler) commitOrCancelTransaction(
 	expectedOutcome := economicOutcomeForStatus(transactionStatus)
 	executionKey := utils.TransactionBalanceExecutionKey(organizationID, ledgerID, tran.IDtoUUID())
 	outcomeKey := utils.TransactionBalanceOutcomeKey(organizationID, ledgerID, tran.IDtoUUID())
+
 	queuedAttempt, err := handler.readTransactionLifecycleOutcome(ctx, organizationID, ledgerID, tran.IDtoUUID())
 	if err != nil {
 		return nil, transactionLifecycleReconciliationError()
 	}
+
 	persistedOutcome, err := handler.readBalanceExecutionOutcome(ctx, organizationID, ledgerID, tran.IDtoUUID())
 	if err != nil {
 		return nil, transactionLifecycleReconciliationError()
@@ -986,8 +1033,11 @@ func (handler *TransactionHandler) commitOrCancelTransaction(
 			(expectedOutcome == mmodel.TransactionOutcomeCommitted && tracerOutcomeRecord.State == mmodel.TracerOutcomeCommitted) ||
 			(expectedOutcome == mmodel.TransactionOutcomeAborted && tracerOutcomeRecord.State == mmodel.TracerOutcomeAborted))
 
-	var result *mmodel.BalanceAtomicResult
-	var executionAttempt *mmodel.BalanceExecutionAttempt
+	var (
+		result           *mmodel.BalanceAtomicResult
+		executionAttempt *mmodel.BalanceExecutionAttempt
+	)
+
 	if persistedOutcome != nil {
 		if queuedAttempt == nil || queuedAttempt.AttemptOwner != persistedOutcome.Owner ||
 			queuedAttempt.ExpectedOutcome != persistedOutcome.Outcome {
@@ -1007,10 +1057,12 @@ func (handler *TransactionHandler) commitOrCancelTransaction(
 			if persistedOutcome.Outcome == mmodel.TransactionOutcomeAborted {
 				persistedStatus = constant.CANCELED
 			}
+
 			tran.Status = transaction.Status{Code: persistedStatus, Description: &persistedStatus}
 			if _, err := handler.Command.UpdateTransactionStatusTx(ctx, dbTx, tran); err != nil {
 				return nil, err
 			}
+
 			if err := dbTx.Commit(); err != nil {
 				return nil, fmt.Errorf("commit recovered transaction outcome: %w", err)
 			}
@@ -1026,6 +1078,7 @@ func (handler *TransactionHandler) commitOrCancelTransaction(
 
 			return nil, transactionLifecycleReconciliationError()
 		}
+
 		executionAttempt = &mmodel.BalanceExecutionAttempt{
 			ExecutionKey: executionKey,
 			OutcomeKey:   outcomeKey,
@@ -1064,7 +1117,6 @@ func (handler *TransactionHandler) commitOrCancelTransaction(
 		if cleanupErr != nil || !removed {
 			return nil, transactionLifecycleReconciliationError()
 		}
-		queuedAttempt = nil
 	}
 
 	// Re-resolve the per-call tracer skip from the persisted body so an honored
@@ -1131,6 +1183,7 @@ func (handler *TransactionHandler) commitOrCancelTransaction(
 		if ownerErr != nil {
 			return nil, ownerErr
 		}
+
 		attempt := &mmodel.BalanceExecutionAttempt{
 			ExecutionKey: executionKey,
 			OutcomeKey:   outcomeKey,
@@ -1146,7 +1199,9 @@ func (handler *TransactionHandler) commitOrCancelTransaction(
 				attempt.TracerOutcomeState = mmodel.TracerOutcomeAborted
 			}
 		}
+
 		executionAttempt = attempt
+
 		acquired, acquireErr := handler.Command.TransactionRedisRepo.AcquireOwnedKey(ctx,
 			executionKey, attemptOwner, balanceExecutionLeaseTTL)
 		if acquireErr != nil || !acquired {
@@ -1168,6 +1223,7 @@ func (handler *TransactionHandler) commitOrCancelTransaction(
 
 			return nil, pkg.ValidateBusinessError(backupErr, constant.EntityTransaction)
 		}
+
 		spanBackupSeed.End()
 
 		result, err = handler.Command.ProcessBalanceOperations(ctx, command.ProcessBalanceOperationsInput{
@@ -1185,16 +1241,17 @@ func (handler *TransactionHandler) commitOrCancelTransaction(
 			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to process balance operations", err)
 			logger.Log(ctx, libLog.LevelError, "Failed to process balance operations", libLog.Err(err))
 
-			persistedOutcome, outcomeErr := handler.readBalanceExecutionOutcome(ctx, organizationID, ledgerID, tran.IDtoUUID())
-			if outcomeErr != nil || persistedOutcome == nil || persistedOutcome.Owner != attemptOwner ||
-				persistedOutcome.Outcome != expectedOutcome {
+			recoveredOutcome, outcomeErr := handler.readBalanceExecutionOutcome(ctx, organizationID, ledgerID, tran.IDtoUUID())
+			if outcomeErr != nil || recoveredOutcome == nil || recoveredOutcome.Owner != attemptOwner ||
+				recoveredOutcome.Outcome != expectedOutcome {
 				if markMovementApplied != nil {
 					markMovementApplied()
 				}
 
 				return nil, transactionLifecycleReconciliationError()
 			}
-			result = balanceAtomicResultFromOutcome(persistedOutcome, organizationID, ledgerID)
+
+			result = balanceAtomicResultFromOutcome(recoveredOutcome, organizationID, ledgerID)
 			if result == nil {
 				if markMovementApplied != nil {
 					markMovementApplied()
@@ -1204,11 +1261,13 @@ func (handler *TransactionHandler) commitOrCancelTransaction(
 			}
 		}
 	}
+
 	if markMovementApplied != nil {
 		markMovementApplied()
 	}
 
 	tran.UpdatedAt = time.Now()
+
 	tran.Status = transaction.Status{
 		Code:        transactionStatus,
 		Description: &transactionStatus,
@@ -1218,6 +1277,7 @@ func (handler *TransactionHandler) commitOrCancelTransaction(
 
 		return nil, err
 	}
+
 	if err := dbTx.Commit(); err != nil {
 		libOpentelemetry.HandleSpanError(span, "Failed to commit transaction status", err)
 
@@ -1282,6 +1342,7 @@ func (handler *TransactionHandler) commitOrCancelTransaction(
 
 		return nil, err
 	}
+
 	tran.Operations = operations
 
 	executionAttempt.Action = action
@@ -1295,6 +1356,7 @@ func (handler *TransactionHandler) commitOrCancelTransaction(
 			Action:          action,
 			RedisGeneration: executionAttempt.RedisGeneration,
 		}
+
 		persisted, replayErr := handler.Command.ProveCompletedDurableReplay(ctx, organizationID, ledgerID, payload)
 		if replayErr != nil {
 			return nil, replayErr
@@ -1314,6 +1376,7 @@ func (handler *TransactionHandler) commitOrCancelTransaction(
 
 		return nil, err
 	}
+
 	tenantCtx := tmcore.ContextWithTenantID(context.Background(), tmcore.GetTenantIDContext(ctx))
 
 	go handler.Command.SendLogTransactionAuditQueue(tenantCtx, operations, organizationID, ledgerID, tran.IDtoUUID())

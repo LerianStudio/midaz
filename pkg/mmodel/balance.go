@@ -512,24 +512,30 @@ func (b *Balance) ToRedis() BalanceRedis {
 	if b.AllowSending {
 		allowSending = 1
 	}
+
 	allowReceiving := 0
 	if b.AllowReceiving {
 		allowReceiving = 1
 	}
+
 	allowOverdraft := 0
 	overdraftLimitEnabled := 0
 	overdraftLimit := "0"
 	balanceScope := BalanceScopeTransactional
+
 	if b.Settings != nil {
 		if b.Settings.AllowOverdraft {
 			allowOverdraft = 1
 		}
+
 		if b.Settings.OverdraftLimitEnabled {
 			overdraftLimitEnabled = 1
 		}
+
 		if b.Settings.OverdraftLimit != nil {
 			overdraftLimit = *b.Settings.OverdraftLimit
 		}
+
 		if b.Settings.BalanceScope != "" {
 			balanceScope = b.Settings.BalanceScope
 		}
@@ -554,6 +560,7 @@ func BalancesToRedis(balances []*Balance) []BalanceRedis {
 		if balance == nil {
 			return nil
 		}
+
 		result = append(result, balance.ToRedis())
 	}
 
@@ -571,16 +578,21 @@ func RedisBalanceSetEconomicEqual(left, right []BalanceRedis) bool {
 	}
 
 	used := make([]bool, len(right))
+
 	for _, candidate := range left {
 		matched := false
+
 		for index, canonical := range right {
 			if used[index] || !redisBalanceEconomicEqual(candidate, canonical) {
 				continue
 			}
+
 			used[index] = true
 			matched = true
+
 			break
 		}
+
 		if !matched {
 			return false
 		}
@@ -593,10 +605,12 @@ func RedisBalanceSetEconomicEqual(left, right []BalanceRedis) bool {
 // carry every money-path discriminator needed for replay/reconciliation. Zero
 // amounts and versions are valid; missing identities, policy fields, or
 // non-boolean wire flags are not.
+//nolint:gocyclo // Completeness proof checks every balance economic field; refactor candidate.
 func RedisBalanceSetEconomicComplete(balances []BalanceRedis) bool {
 	if len(balances) == 0 {
 		return false
 	}
+
 	for _, balance := range balances {
 		if balance.ID == "" || balance.Key == "" || balance.AccountID == "" || balance.AssetCode == "" ||
 			balance.AccountType == "" || balance.Direction == "" || balance.OverdraftUsed == "" ||
@@ -627,6 +641,7 @@ func redisEconomicDecimalEqual(left, right string) bool {
 	if left == "" || right == "" {
 		return left == right
 	}
+
 	leftDecimal, leftErr := decimal.NewFromString(left)
 	rightDecimal, rightErr := decimal.NewFromString(right)
 
@@ -654,18 +669,21 @@ func (b *BalanceRedis) UnmarshalJSON(data []byte) error {
 	if err != nil {
 		return err
 	}
+
 	b.Available = available
 
 	onHold, err := parseExactJSONDecimal(aux.OnHold, "onHold", false)
 	if err != nil {
 		return err
 	}
+
 	b.OnHold = onHold
 
 	overdraftUsed, err := exactJSONDecimalText(aux.OverdraftUsed, "overdraftUsed", true)
 	if err != nil {
 		return err
 	}
+
 	b.OverdraftUsed = overdraftUsed
 
 	if b.OverdraftLimit == "" {
@@ -689,14 +707,17 @@ func exactJSONDecimalText(raw json.RawMessage, field string, defaultZero bool) (
 
 		return "", fmt.Errorf("%s field is required", field)
 	}
+
 	if value[0] == '"' {
 		if err := json.Unmarshal(raw, &value); err != nil {
 			return "", fmt.Errorf("decode %s decimal string: %w", field, err)
 		}
 	}
+
 	if value == "" && defaultZero {
 		return "0", nil
 	}
+
 	if _, err := decimal.NewFromString(value); err != nil {
 		return "", fmt.Errorf("convert %s field to decimal: %w", field, err)
 	}
@@ -709,6 +730,7 @@ func parseExactJSONDecimal(raw json.RawMessage, field string, defaultZero bool) 
 	if err != nil {
 		return decimal.Zero, err
 	}
+
 	parsed, err := decimal.NewFromString(value)
 	if err != nil {
 		return decimal.Zero, fmt.Errorf("convert %s field to decimal: %w", field, err)

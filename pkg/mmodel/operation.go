@@ -87,9 +87,11 @@ func RedisOperationEconomicComplete(operation OperationRedis) bool {
 		operation.Snapshot.OverdraftUsedBefore == "" || operation.Snapshot.OverdraftUsedAfter == "" {
 		return false
 	}
+
 	if _, err := decimal.NewFromString(operation.Snapshot.OverdraftUsedBefore); err != nil {
 		return false
 	}
+
 	if _, err := decimal.NewFromString(operation.Snapshot.OverdraftUsedAfter); err != nil {
 		return false
 	}

@@ -426,6 +426,7 @@ func (r *RedisQueueConsumer) processMessage(ctx context.Context, key, rawPayload
 
 		return
 	}
+
 	effectMode, effectModeErr := mmodel.ResolveTransactionEffectMode(&m)
 	if effectModeErr != nil {
 		logger.Log(msgCtxWithSpan, libLog.LevelError, "Transaction backup effect mode is invalid; backup retained",
@@ -433,6 +434,7 @@ func (r *RedisQueueConsumer) processMessage(ctx context.Context, key, rawPayload
 
 		return
 	}
+
 	if effectMode == mmodel.TransactionEffectAnnotationOnly &&
 		(m.AttemptOwner != "" || m.ExpectedOutcome != "" || len(m.Balances) != 0 || len(m.BalancesAfter) != 0) {
 		logger.Log(msgCtxWithSpan, libLog.LevelError, "Annotation backup carries financial evidence; backup retained",
@@ -501,6 +503,7 @@ func (r *RedisQueueConsumer) processMessage(ctx context.Context, key, rawPayload
 
 		return
 	}
+
 	if poisonReason != "" {
 		if poisonReason == "revert_balance_outcome_missing" {
 			// This is a valid pre-Lua seed, not corrupt financial data. Keep it
@@ -512,6 +515,7 @@ func (r *RedisQueueConsumer) processMessage(ctx context.Context, key, rawPayload
 
 			return
 		}
+
 		if poisonReason == "phase_zero_pre_movement_seed_drained" {
 			// The shared rollout marker admits this cleanup only after every
 			// phase-zero pod is unready and its in-flight requests are drained.
@@ -522,6 +526,7 @@ func (r *RedisQueueConsumer) processMessage(ctx context.Context, key, rawPayload
 			if m.ParentTransactionID == nil {
 				return
 			}
+
 			claim, claimErr := r.TransactionHandler.Command.GetRevertClaim(msgCtxWithSpan,
 				m.OrganizationID, m.LedgerID, *m.ParentTransactionID)
 			if claimErr != nil || claim != nil {
@@ -530,9 +535,11 @@ func (r *RedisQueueConsumer) processMessage(ctx context.Context, key, rawPayload
 
 				return
 			}
+
 			legacyKey, keyErr := persistedDrainedLegacyFenceKey(m)
 			if keyErr != nil {
 				poisonReason = "phase_zero_pre_movement_seed_legacy_fence_unproven"
+
 				logger.Log(msgCtxWithSpan, libLog.LevelError, "Drained phase-zero seed lacks an exact H1 witness",
 					libLog.String("transaction_id", m.TransactionID.String()), libLog.Err(keyErr))
 			} else {
@@ -544,6 +551,7 @@ func (r *RedisQueueConsumer) processMessage(ctx context.Context, key, rawPayload
 
 					return
 				}
+
 				removed, removeErr := r.TransactionHandler.Command.TransactionRedisRepo.RemoveMessageFromQueueIfStatus(
 					msgCtxWithSpan, key, m.TransactionStatus, "", "", true)
 				if removeErr != nil || !removed {
@@ -552,6 +560,7 @@ func (r *RedisQueueConsumer) processMessage(ctx context.Context, key, rawPayload
 
 					return
 				}
+
 				r.clearBackupAttempt(msgCtxWithSpan, logger, key)
 				logger.Log(msgCtxWithSpan, libLog.LevelInfo, "Removed drained phase-zero pre-movement revert seed",
 					libLog.String("transaction_id", m.TransactionID.String()))
@@ -611,6 +620,7 @@ func (r *RedisQueueConsumer) processMessage(ctx context.Context, key, rawPayload
 	}
 
 	var operations []*operation.Operation
+
 	operationsWereMissing := len(m.Operations) == 0
 
 	if !operationsWereMissing {
@@ -702,9 +712,12 @@ func (r *RedisQueueConsumer) processMessage(ctx context.Context, key, rawPayload
 			RedisGeneration: m.RedisGeneration,
 		}
 	}
+
 	terminalReplay := false
+
 	if operationsWereMissing || executionAttempt != nil {
 		var enrichErr error
+
 		operations, terminalReplay, enrichErr = r.TransactionHandler.Command.UpdateTransactionBackupOperations(
 			msgCtxWithSpan, m.OrganizationID, m.LedgerID, m.TransactionID, operations,
 			mmodel.BalancesToRedis(balancesAfter), action, executionAttempt,
@@ -724,6 +737,7 @@ func (r *RedisQueueConsumer) processMessage(ctx context.Context, key, rawPayload
 
 	tran.Source = m.Validate.Sources
 	tran.Destination = m.Validate.Destinations
+
 	tran.Operations = operations
 	if terminalReplay {
 		payload := postgreTransaction.TransactionProcessingPayload{
@@ -744,6 +758,7 @@ func (r *RedisQueueConsumer) processMessage(ctx context.Context, key, rawPayload
 
 			return
 		}
+
 		r.clearBackupAttempt(msgCtxWithSpan, logger, key)
 
 		return
@@ -775,10 +790,12 @@ func persistedDrainedLegacyFenceKey(m mmodel.TransactionRedisQueue) (string, err
 	if m.RevertLegacyFenceKey == "" || m.ParentTransactionID == nil || m.TransactionInput.IsEmpty() {
 		return "", fmt.Errorf("persisted legacy fence identity is incomplete")
 	}
+
 	legacyHash, err := utils.LegacyTransactionIdempotencyHash(m.TransactionInput)
 	if err != nil {
 		return "", fmt.Errorf("derive immutable backup legacy fence identity: %w", err)
 	}
+
 	expected := utils.IdempotencyInternalKey(m.OrganizationID, m.LedgerID, legacyHash)
 	if m.RevertLegacyFenceKey != expected {
 		return "", fmt.Errorf("persisted legacy fence differs from immutable backup input")
@@ -803,6 +820,7 @@ func balanceFromBackup(balance mmodel.BalanceRedis, organizationID, ledgerID uui
 	}
 
 	var settings *mmodel.BalanceSettings
+
 	if balance.AllowOverdraft != 0 || balance.OverdraftLimitEnabled != 0 ||
 		(balance.BalanceScope != "" && balance.BalanceScope != mmodel.BalanceScopeTransactional) ||
 		(balance.OverdraftLimit != "" && balance.OverdraftLimit != "0") {
@@ -810,6 +828,7 @@ func balanceFromBackup(balance mmodel.BalanceRedis, organizationID, ledgerID uui
 		if scope == "" {
 			scope = mmodel.BalanceScopeTransactional
 		}
+
 		settings = &mmodel.BalanceSettings{
 			BalanceScope:          scope,
 			AllowOverdraft:        balance.AllowOverdraft == 1,
@@ -851,6 +870,7 @@ func (r *RedisQueueConsumer) resolveBackupParentTransactionID(ctx context.Contex
 	if err != nil {
 		return nil, "", err
 	}
+
 	if claim == nil {
 		// Every phase-zero-capable request has a claim before H1. A claim-less
 		// explicit-parent record therefore belongs to a genuinely old compatible
@@ -864,6 +884,7 @@ func (r *RedisQueueConsumer) resolveBackupParentTransactionID(ctx context.Contex
 				if phaseErr != nil {
 					return nil, "", phaseErr
 				}
+
 				if drained {
 					return nil, "phase_zero_pre_movement_seed_drained", nil
 				}
@@ -878,9 +899,11 @@ func (r *RedisQueueConsumer) resolveBackupParentTransactionID(ctx context.Contex
 
 		return nil, "revert_claim_missing", nil
 	}
+
 	if m.ParentTransactionID != nil && *m.ParentTransactionID != claim.OriginTransactionID {
 		return nil, "revert_origin_claim_mismatch", nil
 	}
+
 	if len(m.BalancesAfter) == 0 {
 		// A revert backup is seeded before balance Lua dispatch. Only the Lua
 		// command writes BalancesAfter atomically with the movement, so a seed

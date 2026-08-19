@@ -147,6 +147,7 @@ func (c *TracerGRPCClient) Reserve(ctx context.Context, req ReserveRequest) (*Re
 		resp *reservationv1.ReserveResult
 		err  error
 	)
+
 	if req.DeliveryMode == DeliveryModeLedgerOutcomeV2 {
 		// ReserveV2 is deliberately a separate RPC. An old Tracer returns
 		// UNIMPLEMENTED before creating state; falling back here would leak a
@@ -157,10 +158,12 @@ func (c *TracerGRPCClient) Reserve(ctx context.Context, req ReserveRequest) (*Re
 		if reserveErr == nil {
 			resp = v2Resp.GetResult()
 		}
+
 		err = reserveErr
 	} else {
 		resp, err = c.client.Reserve(ctx, toProtoReserveRequest(req))
 	}
+
 	if err != nil {
 		mapped := mapGRPCError(err)
 		libOpentelemetry.HandleSpanError(span, "Reserve transport failed", mapped)
@@ -381,6 +384,7 @@ func toProtoReserveRequest(req ReserveRequest) *reservationv1.ReserveRequest {
 	case DeliveryModeLedgerOutcomeV2:
 		deliveryMode = reservationv1.ReservationDeliveryMode_RESERVATION_DELIVERY_MODE_LEDGER_OUTCOME_V2
 	}
+
 	return &reservationv1.ReserveRequest{
 		TransactionId:        req.TransactionID.String(),
 		RequestId:            req.RequestID,

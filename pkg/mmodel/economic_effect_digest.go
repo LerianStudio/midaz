@@ -79,6 +79,7 @@ func RedisEconomicEffectDigest(
 	if err != nil {
 		return "", err
 	}
+
 	if len(operations) == 0 || len(balances) == 0 {
 		return "", fmt.Errorf("complete economic operations and balances are required")
 	}
@@ -91,16 +92,19 @@ func RedisEconomicEffectDigest(
 	if !RedisBalanceSetEconomicComplete(balances) {
 		return "", fmt.Errorf("economic balance snapshot is incomplete")
 	}
+
 	canonicalBalances := make([]json.RawMessage, 0, len(balances))
 	for _, balance := range balances {
 		overdraftUsed, err := canonicalEconomicDecimal(balance.OverdraftUsed)
 		if err != nil {
 			return "", fmt.Errorf("canonicalize balance %q overdraft used: %w", balance.ID, err)
 		}
+
 		overdraftLimit, err := canonicalEconomicDecimal(balance.OverdraftLimit)
 		if err != nil {
 			return "", fmt.Errorf("canonicalize balance %q overdraft limit: %w", balance.ID, err)
 		}
+
 		encoded, err := json.Marshal(canonicalRedisBalanceEffect{
 			ID: balance.ID, Alias: balance.Alias, Key: balance.Key, AccountID: balance.AccountID,
 			AssetCode: balance.AssetCode, Available: balance.Available.String(), OnHold: balance.OnHold.String(),
@@ -112,6 +116,7 @@ func RedisEconomicEffectDigest(
 		if err != nil {
 			return "", fmt.Errorf("encode canonical economic balance: %w", err)
 		}
+
 		canonicalBalances = append(canonicalBalances, encoded)
 	}
 
@@ -121,6 +126,7 @@ func RedisEconomicEffectDigest(
 	sort.Slice(canonicalBalances, func(i, j int) bool {
 		return bytes.Compare(canonicalBalances[i], canonicalBalances[j]) < 0
 	})
+
 	canonical, err := json.Marshal(struct {
 		Version              int               `json:"version"`
 		TransactionAmount    string            `json:"transactionAmount"`
@@ -134,6 +140,7 @@ func RedisEconomicEffectDigest(
 	if err != nil {
 		return "", fmt.Errorf("encode canonical economic effect: %w", err)
 	}
+
 	return digestCanonicalEffect(economicEffectDigestDomain, canonical), nil
 }
 
@@ -148,10 +155,12 @@ func RedisAnnotationEffectDigest(
 	if err != nil {
 		return "", err
 	}
+
 	canonicalOperations, err := canonicalRedisOperationEffects(operations)
 	if err != nil {
 		return "", err
 	}
+
 	canonical, err := json.Marshal(struct {
 		Version              int               `json:"version"`
 		TransactionAmount    string            `json:"transactionAmount"`
@@ -172,10 +181,12 @@ func canonicalTransactionIdentity(transactionAmount, transactionAssetCode string
 	if transactionAssetCode == "" {
 		return "", fmt.Errorf("transaction asset code is required")
 	}
+
 	canonicalAmount, err := canonicalEconomicDecimal(transactionAmount)
 	if err != nil {
 		return "", fmt.Errorf("canonicalize transaction amount: %w", err)
 	}
+
 	parsed, err := decimal.NewFromString(canonicalAmount)
 	if err != nil || !parsed.IsPositive() {
 		return "", fmt.Errorf("transaction amount must be positive")
@@ -188,19 +199,23 @@ func canonicalRedisOperationEffects(operations []OperationRedis) ([]json.RawMess
 	if len(operations) == 0 {
 		return nil, fmt.Errorf("complete transaction operations are required")
 	}
+
 	canonicalOperations := make([]json.RawMessage, 0, len(operations))
 	for _, operation := range operations {
 		if !RedisOperationEconomicComplete(operation) {
 			return nil, fmt.Errorf("economic operation %q is incomplete", operation.ID)
 		}
+
 		beforeOverdraft, err := canonicalEconomicDecimal(operation.Snapshot.OverdraftUsedBefore)
 		if err != nil {
 			return nil, fmt.Errorf("canonicalize operation %q before overdraft: %w", operation.ID, err)
 		}
+
 		afterOverdraft, err := canonicalEconomicDecimal(operation.Snapshot.OverdraftUsedAfter)
 		if err != nil {
 			return nil, fmt.Errorf("canonicalize operation %q after overdraft: %w", operation.ID, err)
 		}
+
 		encoded, err := json.Marshal(canonicalRedisOperationEffect{
 			ID: operation.ID, TransactionID: operation.TransactionID, BalanceID: operation.BalanceID,
 			BalanceKey: operation.BalanceKey, AccountID: operation.AccountID,
@@ -215,8 +230,10 @@ func canonicalRedisOperationEffects(operations []OperationRedis) ([]json.RawMess
 		if err != nil {
 			return nil, fmt.Errorf("encode canonical economic operation: %w", err)
 		}
+
 		canonicalOperations = append(canonicalOperations, encoded)
 	}
+
 	sort.Slice(canonicalOperations, func(i, j int) bool {
 		return bytes.Compare(canonicalOperations[i], canonicalOperations[j]) < 0
 	})

@@ -22,6 +22,7 @@ type revertRolloutTransition interface {
 	Finalize(context.Context) error
 }
 
+//nolint:gocyclo // Validation enumerates every rollout mode transition; refactor candidate.
 func validateRevertRolloutConfiguration(
 	configuredMode, configuredTarget, configuredGeneration, configuredInitializationID string,
 ) error {
@@ -33,6 +34,7 @@ func validateRevertRolloutConfiguration(
 	if mode != "legacy" && mode != "bridge" && mode != "final" {
 		return fmt.Errorf("invalid REVERT_IDEMPOTENCY_MODE %q: expected legacy, bridge, or final", configuredMode)
 	}
+
 	if target != "" && target != transactionredis.RevertUpdateFreezeInitialize &&
 		target != transactionredis.RevertUpdateFreezePrepared && target != transactionredis.RevertUpdateFreezeActive &&
 		target != transactionredis.RevertUpdateFreezeDrained && target != transactionredis.RevertUpdateFreezeFinalized {
@@ -47,19 +49,23 @@ func validateRevertRolloutConfiguration(
 	if !compatible {
 		return fmt.Errorf("REVERT_ROLLOUT_TARGET %q is incompatible with REVERT_IDEMPOTENCY_MODE %q", configuredTarget, configuredMode)
 	}
+
 	if target == "" {
 		if generation != "" {
 			return fmt.Errorf("REVERT_REDIS_DATASET_GENERATION requires a non-empty REVERT_ROLLOUT_TARGET")
 		}
+
 		if initializationID != "" {
 			return fmt.Errorf("REVERT_ROLLOUT_INITIALIZATION_ID requires REVERT_ROLLOUT_TARGET=initialize")
 		}
 
 		return nil
 	}
+
 	if _, err := uuid.Parse(generation); err != nil {
 		return fmt.Errorf("REVERT_REDIS_DATASET_GENERATION must be a UUID for rollout target %q", configuredTarget)
 	}
+
 	if target == transactionredis.RevertUpdateFreezeInitialize {
 		if _, err := uuid.Parse(initializationID); err != nil {
 			return fmt.Errorf("REVERT_ROLLOUT_INITIALIZATION_ID must be a UUID for rollout target initialize")

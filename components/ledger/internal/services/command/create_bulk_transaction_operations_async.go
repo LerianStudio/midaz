@@ -87,11 +87,14 @@ func (uc *UseCase) CreateBulkTransactionOperationsAsync(
 	if len(payloads) == 0 {
 		return result, nil
 	}
+
 	var err error
+
 	payloads, err = uc.preflightDurableBulkPayloads(ctx, payloads)
 	if err != nil {
 		return result, err
 	}
+
 	if len(payloads) == 0 {
 		return result, nil
 	}
@@ -164,29 +167,37 @@ func (uc *UseCase) preflightDurableBulkPayloads(
 			if payload.AttemptOwner != "" || payload.ExpectedOutcome != "" || payload.RedisGeneration != "" {
 				return nil, fmt.Errorf("validate bulk Redis economic outcome: payload %d has nil transaction", i)
 			}
+
 			pending = append(pending, *payload)
+
 			continue
 		}
+
 		organizationID, ledgerID, err := uc.extractOrgLedgerIDs(*payload)
 		if err != nil {
 			return nil, fmt.Errorf("validate bulk Redis economic outcome for payload %d: %w", i, err)
 		}
+
 		outcomeBacked, terminal, err := uc.preflightOutcomeBackedTransaction(ctx, organizationID, ledgerID, payload)
 		if err != nil {
 			return nil, fmt.Errorf("validate bulk Redis economic outcome for transaction %s: %w",
 				payload.Transaction.ID, err)
 		}
+
 		if !outcomeBacked {
 			pending = append(pending, *payload)
 			continue
 		}
+
 		if terminal {
 			if _, err := uc.FinalizeDurableTransactionPersistence(ctx, organizationID, ledgerID, *payload); err != nil {
 				return nil, fmt.Errorf("finalize completed bulk transaction replay %s: %w",
 					payload.Transaction.ID, err)
 			}
+
 			continue
 		}
+
 		pending = append(pending, *payload)
 	}
 
@@ -386,27 +397,34 @@ func (uc *UseCase) atomicBulkInsert(
 		if err != nil {
 			return fmt.Errorf("bulk terminal transaction has invalid organization ID: %w", err)
 		}
+
 		if organizationID == uuid.Nil {
 			return fmt.Errorf("bulk terminal transaction has invalid organization ID: UUID is nil")
 		}
+
 		ledgerID, err := uuid.Parse(tran.LedgerID)
 		if err != nil {
 			return fmt.Errorf("bulk terminal transaction has invalid ledger ID: %w", err)
 		}
+
 		if ledgerID == uuid.Nil {
 			return fmt.Errorf("bulk terminal transaction has invalid ledger ID: UUID is nil")
 		}
+
 		transactionID, err := uuid.Parse(tran.ID)
 		if err != nil {
 			return fmt.Errorf("bulk terminal transaction has invalid transaction ID: %w", err)
 		}
+
 		if transactionID == uuid.Nil {
 			return fmt.Errorf("bulk terminal transaction has invalid transaction ID: UUID is nil")
 		}
+
 		if _, err := uc.TransactionRepo.UpdateStatusFromPendingTx(ctx, dbTx,
 			organizationID, ledgerID, transactionID, &transaction.Transaction{Status: tran.Status}); err != nil {
 			return fmt.Errorf("bulk terminal transaction status: %w", err)
 		}
+
 		result.TransactionsUpdated++
 	}
 
@@ -508,10 +526,12 @@ func (uc *UseCase) processMetadataAndEvents(
 		}
 
 		tx := payload.Transaction
+
 		orgID, ledgerID, err := uc.extractOrgLedgerIDs(payload)
 		if err != nil {
 			return err
 		}
+
 		managedPersistence, err := uc.FinalizeDurableTransactionPersistence(ctx, orgID, ledgerID, payload)
 		if err != nil {
 			return fmt.Errorf("finalize transaction %s: %w", tx.ID, err)
@@ -528,7 +548,6 @@ func (uc *UseCase) processMetadataAndEvents(
 
 				uc.RemoveTransactionFromRedisQueueIfStatus(opCtx, logger, orgID, ledgerID, txID, status, "", "")
 			}(orgID, ledgerID, tx.ID, expectedStatus)
-
 		}
 
 		go func(orgID, ledgerID uuid.UUID, txID string) {

@@ -32,6 +32,7 @@ func ValidateRedisLegacyTransactionEconomicEffect(envelope *TransactionRedisQueu
 	return validateRedisTransactionEconomicEffect(envelope, operations, false)
 }
 
+//nolint:gocyclo // Effect proof validates every economic field pair; refactor candidate.
 func validateRedisTransactionEconomicEffect(
 	envelope *TransactionRedisQueue,
 	operations []OperationRedis,
@@ -40,32 +41,40 @@ func validateRedisTransactionEconomicEffect(
 	if envelope == nil || envelope.TransactionID == uuid.Nil || envelope.OrganizationID == uuid.Nil || envelope.LedgerID == uuid.Nil {
 		return fmt.Errorf("complete transaction economic envelope is required")
 	}
+
 	mode, err := ResolveTransactionEffectMode(envelope)
 	if err != nil {
 		return fmt.Errorf("resolve transaction balance mutation mode: %w", err)
 	}
+
 	if mode != TransactionEffectBalanceMutation {
 		return fmt.Errorf("transaction balance mutation mode is required")
 	}
+
 	if !envelope.TransactionInput.Send.Value.IsPositive() || envelope.TransactionInput.Send.Asset == "" {
 		return fmt.Errorf("positive immutable transaction amount and asset are required")
 	}
+
 	if len(operations) == 0 || len(envelope.Balances) == 0 || len(envelope.Balances) != len(envelope.BalancesAfter) {
 		return fmt.Errorf("complete operation and balance movement sets are required")
 	}
+
 	if !RedisBalanceSetEconomicComplete(envelope.Balances) || !RedisBalanceSetEconomicComplete(envelope.BalancesAfter) {
 		return fmt.Errorf("transaction balance movement is incomplete")
 	}
+
 	for _, operation := range operations {
 		if !RedisOperationEconomicComplete(operation) || operation.TransactionID != envelope.TransactionID.String() ||
 			operation.OrganizationID != envelope.OrganizationID.String() || operation.LedgerID != envelope.LedgerID.String() ||
 			!operation.BalanceAffected {
 			return fmt.Errorf("transaction economic operation %q is incomplete", operation.ID)
 		}
+
 		if envelope.TransactionInput.Send.Asset != "" && operation.AssetCode != envelope.TransactionInput.Send.Asset {
 			return fmt.Errorf("transaction economic operation %q asset differs from immutable input", operation.ID)
 		}
 	}
+
 	if requireExpectedPlan || envelope.ExpectedEconomicPlan != nil {
 		if err := ValidateRedisExpectedEconomicPlanOperations(envelope, operations); err != nil {
 			return err
@@ -77,6 +86,7 @@ func validateRedisTransactionEconomicEffect(
 				return fmt.Errorf("legacy transaction economic operation %q semantics differ from immutable input", operation.ID)
 			}
 		}
+
 		if !redisLegacyImmutableInputOperationsCovered(envelope, operations) {
 			return fmt.Errorf("legacy transaction economic effect omits an immutable input leg")
 		}
@@ -94,23 +104,29 @@ func validateRedisTransactionEconomicEffect(
 // envelope can persist audit rows but cannot carry a financial outcome. The
 // annotation amount is informational and must match the immutable input; every
 // balance field and overdraft snapshot remains exactly zero.
+//nolint:gocyclo // Annotation proof validates every effect mode branch; refactor candidate.
 func ValidateRedisTransactionAnnotationEffect(envelope *TransactionRedisQueue, operations []OperationRedis) error {
 	if envelope == nil || envelope.TransactionID == uuid.Nil || envelope.OrganizationID == uuid.Nil || envelope.LedgerID == uuid.Nil {
 		return fmt.Errorf("complete transaction annotation envelope is required")
 	}
+
 	mode, err := ResolveTransactionEffectMode(envelope)
 	if err != nil {
 		return fmt.Errorf("resolve transaction annotation-only mode: %w", err)
 	}
+
 	if mode != TransactionEffectAnnotationOnly {
 		return fmt.Errorf("transaction annotation-only mode is required")
 	}
+
 	if !envelope.TransactionInput.Send.Value.IsPositive() || envelope.TransactionInput.Send.Asset == "" {
 		return fmt.Errorf("positive immutable annotation amount and asset are required")
 	}
+
 	if envelope.AttemptOwner != "" || envelope.ExpectedOutcome != "" || len(envelope.Balances) != 0 || len(envelope.BalancesAfter) != 0 {
 		return fmt.Errorf("annotation-only transaction cannot carry balance or outcome evidence")
 	}
+
 	if envelope.Validate == nil || len(operations) == 0 || envelope.OperationTypeOverride != "" {
 		return fmt.Errorf("complete immutable annotation input is required")
 	}
@@ -121,6 +137,7 @@ func ValidateRedisTransactionAnnotationEffect(envelope *TransactionRedisQueue, o
 		typeCode  string
 		direction string
 	}
+
 	expected := make([]expectedAnnotationOperation, 0, len(envelope.Validate.From)+len(envelope.Validate.To))
 	appendExpected := func(values map[string]mtransaction.Amount) {
 		for key, amount := range values {
@@ -132,11 +149,13 @@ func ValidateRedisTransactionAnnotationEffect(envelope *TransactionRedisQueue, o
 	}
 	appendExpected(envelope.Validate.From)
 	appendExpected(envelope.Validate.To)
+
 	if len(expected) != len(operations) {
 		return fmt.Errorf("annotation operation set differs from immutable input")
 	}
 
 	used := make([]bool, len(expected))
+
 	for _, operation := range operations {
 		if !RedisOperationEconomicComplete(operation) || operation.TransactionID != envelope.TransactionID.String() ||
 			operation.OrganizationID != envelope.OrganizationID.String() || operation.LedgerID != envelope.LedgerID.String() ||
@@ -148,22 +167,28 @@ func ValidateRedisTransactionAnnotationEffect(envelope *TransactionRedisQueue, o
 			!redisEconomicDecimalEqual(operation.Snapshot.OverdraftUsedAfter, "0") {
 			return fmt.Errorf("transaction annotation operation %q is incomplete or affects a balance", operation.ID)
 		}
+
 		operationKey := mtransaction.AliasKey(operation.AccountAlias, operation.BalanceKey)
 		matched := false
+
 		for index, immutable := range expected {
 			asset := immutable.asset
 			if asset == "" {
 				asset = envelope.TransactionInput.Send.Asset
 			}
+
 			keyMatches := immutable.key == operationKey || mtransaction.SplitAliasWithKey(immutable.key) == operationKey
 			if used[index] || !keyMatches ||
 				asset != operation.AssetCode || immutable.typeCode != operation.Type || immutable.direction != operation.Direction {
 				continue
 			}
+
 			used[index] = true
 			matched = true
+
 			break
 		}
+
 		if !matched {
 			return fmt.Errorf("transaction annotation operation %q differs from immutable input", operation.ID)
 		}
@@ -179,17 +204,23 @@ func RedisOperationSetEconomicEqualIgnoringIDs(left, right []OperationRedis) boo
 	if len(left) != len(right) {
 		return false
 	}
+
 	used := make([]bool, len(right))
+
 	for _, candidate := range left {
 		matched := false
+
 		for index, canonical := range right {
 			if used[index] || !redisOperationEconomicEqualIgnoringID(candidate, canonical) {
 				continue
 			}
+
 			used[index] = true
 			matched = true
+
 			break
 		}
+
 		if !matched {
 			return false
 		}
@@ -198,6 +229,7 @@ func RedisOperationSetEconomicEqualIgnoringIDs(left, right []OperationRedis) boo
 	return true
 }
 
+//nolint:gocyclo // Equality compares every economic operation field; refactor candidate.
 func redisOperationEconomicEqualIgnoringID(left, right OperationRedis) bool {
 	return left.TransactionID == right.TransactionID && left.BalanceID == right.BalanceID &&
 		left.BalanceKey == right.BalanceKey && left.AccountID == right.AccountID &&
@@ -226,13 +258,16 @@ func ValidateRedisExpectedEconomicPlanOperations(envelope *TransactionRedisQueue
 		} else if envelope.OperationTypeOverride != "" {
 			expectedType = envelope.OperationTypeOverride
 		}
+
 		if leg.ExpectedOperationType != expectedType || leg.AssetCode != envelope.TransactionInput.Send.Asset {
 			return fmt.Errorf("transaction final economic plan conflicts with immutable transaction input")
 		}
+
 		if leg.PersistsOperation {
 			expected = append(expected, leg)
 		}
 	}
+
 	if len(expected) != len(operations) {
 		return fmt.Errorf("transaction operation set differs from final economic plan")
 	}
@@ -249,10 +284,13 @@ func matchRedisExpectedEconomicPlanOperations(operations []OperationRedis, expec
 	if operationIndex == len(operations) {
 		return true
 	}
+
 	operation := operations[operationIndex]
+
 	for _, exactAmount := range []bool{true, false} {
 		for index, leg := range expected {
 			plannedAmount, err := decimal.NewFromString(leg.Amount)
+
 			amountEqual := err == nil && operation.AmountValue.Equal(plannedAmount)
 			if used[index] || err != nil || amountEqual != exactAmount || operation.AmountValue.GreaterThan(plannedAmount) ||
 				leg.BalanceID != operation.BalanceID || leg.BalanceKey != operation.BalanceKey ||
@@ -260,10 +298,12 @@ func matchRedisExpectedEconomicPlanOperations(operations []OperationRedis, expec
 				leg.ExpectedOperationType != operation.Type || leg.Direction != operation.Direction {
 				continue
 			}
+
 			used[index] = true
 			if matchRedisExpectedEconomicPlanOperations(operations, expected, operationIndex+1, used) {
 				return true
 			}
+
 			used[index] = false
 		}
 	}
@@ -277,9 +317,11 @@ func (s redisLegacyOperationSemantics) add(operationType, direction string) {
 	if operationType == "" || direction == "" {
 		return
 	}
+
 	if s[operationType] == nil {
 		s[operationType] = make(map[string]struct{})
 	}
+
 	s[operationType][direction] = struct{}{}
 }
 
@@ -297,13 +339,17 @@ func redisAllowedLegacyOperationSemantics(
 	if envelope.Validate == nil {
 		return allowed, false
 	}
+
 	balance, found := redisEconomicBalanceForOperation(envelope.Balances, operation)
 	if !found {
 		return allowed, false
 	}
+
 	inputMatched := false
+
 	add := func(amount mtransaction.Amount) {
 		inputMatched = true
+
 		for operationType, directions := range redisLegacyOperationSemanticsForAmount(envelope, amount) {
 			for direction := range directions {
 				allowed.add(operationType, direction)
@@ -315,6 +361,7 @@ func redisAllowedLegacyOperationSemantics(
 			add(amount)
 		}
 	}
+
 	for key, amount := range envelope.Validate.To {
 		if redisLegacyEconomicInputTargetsBalance(key, balance) {
 			add(amount)
@@ -329,16 +376,20 @@ func redisLegacyOperationSemanticsForAmount(
 	amount mtransaction.Amount,
 ) redisLegacyOperationSemantics {
 	allowed := make(redisLegacyOperationSemantics)
+
 	operationType := amount.Operation
 	if envelope.OperationTypeOverride != "" {
 		operationType = envelope.OperationTypeOverride
 	}
+
 	allowed.add(operationType, amount.Direction)
 	allowed.add(constant.OVERDRAFT, amount.Direction)
+
 	if amount.RouteValidationEnabled && amount.TransactionType == constant.PENDING {
 		allowed.add(constant.DEBIT, constant.DirectionDebit)
 		allowed.add(constant.ONHOLD, constant.DirectionCredit)
 	}
+
 	if amount.RouteValidationEnabled && amount.TransactionType == constant.CANCELED {
 		allowed.add(constant.RELEASE, constant.DirectionDebit)
 		allowed.add(constant.CREDIT, constant.DirectionCredit)
@@ -351,49 +402,62 @@ func redisLegacyImmutableInputOperationsCovered(envelope *TransactionRedisQueue,
 	if envelope.Validate == nil {
 		return false
 	}
+
 	type expectedInput struct {
 		key    string
 		amount mtransaction.Amount
 	}
+
 	sourceOnly := envelope.TransactionStatus == constant.PENDING || envelope.TransactionStatus == constant.CANCELED
+
 	expectedCapacity := len(envelope.Validate.From)
 	if !sourceOnly {
 		expectedCapacity += len(envelope.Validate.To)
 	}
+
 	expected := make([]expectedInput, 0, expectedCapacity)
 	for key, amount := range envelope.Validate.From {
 		expected = append(expected, expectedInput{key: key, amount: amount})
 	}
+
 	if !sourceOnly {
 		for key, amount := range envelope.Validate.To {
 			expected = append(expected, expectedInput{key: key, amount: amount})
 		}
 	}
+
 	if len(expected) == 0 {
 		return false
 	}
 
 	used := make([]bool, len(operations))
+
 	for _, immutable := range expected {
 		matched := false
 		allowed := redisLegacyOperationSemanticsForAmount(envelope, immutable.amount)
+
 		asset := immutable.amount.Asset
 		if asset == "" {
 			asset = envelope.TransactionInput.Send.Asset
 		}
+
 		for index, operation := range operations {
 			if used[index] || operation.AssetCode != asset || !operation.AmountValue.Equal(immutable.amount.Value) ||
 				!allowed.matches(operation) {
 				continue
 			}
+
 			balance, found := redisEconomicBalanceForOperation(envelope.Balances, operation)
 			if !found || !redisLegacyEconomicInputTargetsBalance(immutable.key, balance) {
 				continue
 			}
+
 			used[index] = true
 			matched = true
+
 			break
 		}
+
 		if !matched {
 			return false
 		}
@@ -406,10 +470,12 @@ func redisLegacyEconomicInputTargetsBalance(key string, balance BalanceRedis) bo
 	if key == balance.ID {
 		return true
 	}
+
 	target := balance.Alias
 	if !strings.HasSuffix(target, "#"+balance.Key) {
 		target = mtransaction.AliasKey(target, balance.Key)
 	}
+
 	normalized := mtransaction.SplitAliasWithKey(key)
 	legacyFullKey := strings.Contains(balance.Key, "#") && (key == balance.Key || normalized == balance.Key)
 
@@ -442,17 +508,21 @@ func matchRedisEconomicBalanceMovements(
 
 		return true
 	}
+
 	if !redisBalanceIdentityAndPolicyEqual(before[pair], after[pair]) {
 		return false
 	}
+
 	paths := redisEconomicOperationPaths(before[pair], after[pair], before, after, operations, used)
 	for _, path := range paths {
 		for _, index := range path {
 			used[index] = true
 		}
+
 		if matchRedisEconomicBalanceMovements(before, after, operations, pair+1, used) {
 			return true
 		}
+
 		for _, index := range path {
 			used[index] = false
 		}
@@ -467,16 +537,21 @@ func redisEconomicOperationPaths(
 	operations []OperationRedis,
 	used []bool,
 ) [][]int {
-	var paths [][]int
-	var visit func(decimal.Decimal, decimal.Decimal, int64, []int)
+	var (
+		paths [][]int
+		visit func(decimal.Decimal, decimal.Decimal, int64, []int)
+	)
+
 	visit = func(available, onHold decimal.Decimal, version int64, path []int) {
 		if len(path) > 0 && available.Equal(after.Available) && onHold.Equal(after.OnHold) && version == after.Version {
 			paths = append(paths, append([]int(nil), path...))
 			return
 		}
+
 		if len(path) >= len(operations) {
 			return
 		}
+
 		for index, operation := range operations {
 			if used[index] || containsOperationIndex(path, index) ||
 				!redisOperationStartsAt(operation, before, available, onHold, version) ||
@@ -484,6 +559,7 @@ func redisEconomicOperationPaths(
 				!redisOperationSnapshotMatches(operation, before, after, allBefore, allAfter) {
 				continue
 			}
+
 			visit(operation.BalanceAfterAvailable, operation.BalanceAfterOnHold,
 				operation.BalanceAfterVersion, append(path, index))
 		}
@@ -518,16 +594,20 @@ func redisOperationStartsAt(
 func redisOperationMovementExact(operation OperationRedis) bool {
 	availableDelta := operation.BalanceAfterAvailable.Sub(operation.BalanceAvailable).Abs()
 	onHoldDelta := operation.BalanceAfterOnHold.Sub(operation.BalanceOnHold).Abs()
+
 	movement := availableDelta
 	if onHoldDelta.GreaterThan(movement) {
 		movement = onHoldDelta
 	}
+
 	if movement.IsZero() {
 		before, beforeErr := decimal.NewFromString(operation.Snapshot.OverdraftUsedBefore)
+
 		after, afterErr := decimal.NewFromString(operation.Snapshot.OverdraftUsedAfter)
 		if beforeErr != nil || afterErr != nil {
 			return false
 		}
+
 		movement = after.Sub(before).Abs()
 	}
 
@@ -543,6 +623,7 @@ func redisOperationSnapshotMatches(
 		redisEconomicDecimalEqual(operation.Snapshot.OverdraftUsedAfter, after.OverdraftUsed) {
 		return true
 	}
+
 	for index := range allBefore {
 		if allBefore[index].AccountID == before.AccountID && allBefore[index].Key == constant.DefaultBalanceKey &&
 			allAfter[index].AccountID == after.AccountID && allAfter[index].Key == constant.DefaultBalanceKey &&

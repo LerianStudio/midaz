@@ -185,6 +185,7 @@ func (cr *ConsumerRoutes) RunConsumers() error {
 		cr.consumers.Add(1)
 		go func() {
 			defer cr.consumers.Done()
+
 			cr.runConsumerLoop(ctx, queueName, handler, bulkHandler, useBulkMode)
 		}()
 	}
@@ -196,6 +197,7 @@ func (cr *ConsumerRoutes) RunConsumers() error {
 // have stopped. It is safe to call more than once.
 func (cr *ConsumerRoutes) StopConsumers() {
 	cr.lifecycleMu.Lock()
+
 	cancel := cr.cancel
 	if cancel == nil {
 		cr.lifecycleMu.Unlock()
@@ -292,6 +294,7 @@ func (cr *ConsumerRoutes) logAndSleep(ctx context.Context, errMsg, retryMsg, que
 
 	sleepDuration := utils.FullJitter(*backoff)
 	cr.Log(ctx, libLog.LevelWarn, retryMsg, libLog.String("queue", queueName), libLog.Any("sleepDuration", sleepDuration))
+
 	timer := time.NewTimer(sleepDuration)
 	defer timer.Stop()
 
@@ -352,6 +355,7 @@ func (cr *ConsumerRoutes) waitForChannelCloseAndCancel(ctx context.Context, queu
 	// Small delay to allow workers to clean up before reconnection attempt.
 	timer := time.NewTimer(100 * time.Millisecond)
 	defer timer.Stop()
+
 	select {
 	case <-timer.C:
 	case <-ctx.Done():

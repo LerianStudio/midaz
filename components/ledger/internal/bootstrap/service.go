@@ -86,6 +86,7 @@ func (s *Service) Run() {
 
 		return
 	}
+
 	s.Logger.Log(context.Background(), libLog.LevelInfo, "Running unified ledger service with single-port mode")
 
 	apps := s.launcherApps()
@@ -115,6 +116,7 @@ func (s *Service) launcherApps() []launcherApp {
 	if s.RolloutInitializationOnly {
 		return nil
 	}
+
 	apps := make([]launcherApp, 0)
 
 	// Service discovery: registered only when discovery is enabled to preserve

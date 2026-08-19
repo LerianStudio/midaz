@@ -63,10 +63,12 @@ type economicPlanDigestPayload struct {
 	Legs    []ExpectedEconomicLeg `json:"legs"`
 }
 
+//nolint:gocognit,gocyclo // Plan construction folds every operation effect variant; refactor candidate.
 func BuildExpectedEconomicPlan(balanceOperations []BalanceOperation, transactionStatus string, pending bool, operationTypeOverride string) (*ExpectedEconomicPlan, error) {
 	if len(balanceOperations) == 0 {
 		return nil, fmt.Errorf("expected economic plan requires at least one balance leg")
 	}
+
 	if operationTypeOverride != "" && operationTypeOverride != constant.BLOCK && operationTypeOverride != constant.UNBLOCK {
 		return nil, fmt.Errorf("unsupported expected operation type override %q", operationTypeOverride)
 	}
@@ -76,10 +78,12 @@ func BuildExpectedEconomicPlan(balanceOperations []BalanceOperation, transaction
 		if operation.Balance == nil || strings.TrimSpace(operation.Alias) == "" || strings.TrimSpace(operation.InternalKey) == "" {
 			return nil, fmt.Errorf("expected economic plan leg requires balance, alias, and internal key")
 		}
+
 		amount := operation.Amount.Value
 		if !amount.IsPositive() {
 			return nil, fmt.Errorf("expected economic plan leg requires positive amount")
 		}
+
 		if operation.Balance.ID == "" || operation.Balance.Key == "" || operation.Balance.AccountID == "" ||
 			operation.Balance.AssetCode == "" || operation.Amount.Operation == "" || operation.Amount.Direction == "" {
 			return nil, fmt.Errorf("expected economic plan leg is incomplete")
@@ -89,9 +93,11 @@ func BuildExpectedEconomicPlan(balanceOperations []BalanceOperation, transaction
 		if role == "" {
 			role = EconomicRolePrimary
 		}
+
 		if operation.Balance.Key == constant.OverdraftBalanceKey {
 			role = EconomicRoleCompanion
 		}
+
 		if role != EconomicRolePrimary && role != EconomicRoleFee && role != EconomicRoleCompanion {
 			return nil, fmt.Errorf("unsupported expected economic role %q", role)
 		}
@@ -100,6 +106,7 @@ func BuildExpectedEconomicPlan(balanceOperations []BalanceOperation, transaction
 		if side == "" {
 			side = EconomicSideUnspecified
 		}
+
 		if side != EconomicSideSource && side != EconomicSideDestination && side != EconomicSideUnspecified {
 			return nil, fmt.Errorf("unsupported expected economic side %q", side)
 		}
@@ -127,6 +134,7 @@ func BuildExpectedEconomicPlan(balanceOperations []BalanceOperation, transaction
 	}
 
 	canonicalizeExpectedEconomicLegs(legs)
+
 	occurrences := make(map[string]int, len(legs))
 	for index := range legs {
 		position := legs[index].Alias
@@ -134,23 +142,29 @@ func BuildExpectedEconomicPlan(balanceOperations []BalanceOperation, transaction
 		occurrences[position] = occurrence + 1
 		legs[index].Identity = position + "/" + strconv.Itoa(occurrence)
 	}
+
 	canonicalizeExpectedEconomicLegs(legs)
 
 	plan := &ExpectedEconomicPlan{Version: ExpectedEconomicPlanVersion, Legs: legs}
+
 	digest, err := expectedEconomicPlanDigest(plan.Version, plan.Legs)
 	if err != nil {
 		return nil, err
 	}
+
 	plan.Digest = digest
 
 	return plan, nil
 }
 
+//nolint:gocyclo // Validation checks every plan field invariant; refactor candidate.
 func ValidateExpectedEconomicPlan(plan *ExpectedEconomicPlan) error {
 	if plan == nil || plan.Version != ExpectedEconomicPlanVersion || len(plan.Legs) == 0 || plan.Digest == "" {
 		return fmt.Errorf("complete expected economic plan version %d is required", ExpectedEconomicPlanVersion)
 	}
+
 	seen := make(map[string]struct{}, len(plan.Legs))
+
 	canonical := append([]ExpectedEconomicLeg(nil), plan.Legs...)
 	for index := range canonical {
 		leg := &canonical[index]
@@ -159,27 +173,35 @@ func ValidateExpectedEconomicPlan(plan *ExpectedEconomicPlan) error {
 			leg.AssetCode == "" || leg.ExpectedOperationType == "" {
 			return fmt.Errorf("expected economic plan leg is incomplete")
 		}
+
 		if _, duplicate := seen[leg.Identity]; duplicate {
 			return fmt.Errorf("expected economic plan leg identity %q is duplicated", leg.Identity)
 		}
+
 		seen[leg.Identity] = struct{}{}
+
 		amount, err := decimal.NewFromString(leg.Amount)
 		if err != nil || !amount.IsPositive() {
 			return fmt.Errorf("expected economic plan leg %q has invalid amount", leg.Identity)
 		}
+
 		leg.Amount = amount.String()
 		if leg.Role != EconomicRolePrimary && leg.Role != EconomicRoleFee && leg.Role != EconomicRoleCompanion {
 			return fmt.Errorf("expected economic plan leg %q has invalid role", leg.Identity)
 		}
+
 		if leg.Side != EconomicSideSource && leg.Side != EconomicSideDestination && leg.Side != EconomicSideUnspecified {
 			return fmt.Errorf("expected economic plan leg %q has invalid side", leg.Identity)
 		}
 	}
+
 	canonicalizeExpectedEconomicLegs(canonical)
+
 	digest, err := expectedEconomicPlanDigest(plan.Version, canonical)
 	if err != nil {
 		return err
 	}
+
 	if digest != plan.Digest {
 		return fmt.Errorf("expected economic plan digest mismatch")
 	}
@@ -193,10 +215,12 @@ func expectedEconomicPlanDigest(version int, legs []ExpectedEconomicLeg) (string
 		Legs: append([]ExpectedEconomicLeg(nil), legs...),
 	}
 	canonicalizeExpectedEconomicLegs(payload.Legs)
+
 	raw, err := json.Marshal(payload)
 	if err != nil {
 		return "", fmt.Errorf("marshal expected economic plan: %w", err)
 	}
+
 	digest := sha256.Sum256(raw)
 
 	return "sha256:" + hex.EncodeToString(digest[:]), nil

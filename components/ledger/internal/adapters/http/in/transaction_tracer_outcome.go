@@ -116,6 +116,7 @@ func (handler *TransactionHandler) admitDurableTracerOutcome(ctx context.Context
 	if handler.FinancialRedisDurability == nil {
 		return fmt.Errorf("financial Redis durability guard is not configured")
 	}
+
 	if err := handler.FinancialRedisDurability.FinancialDurability(ctx); err != nil {
 		return fmt.Errorf("financial Redis durability: %w", err)
 	}

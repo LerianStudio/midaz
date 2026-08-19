@@ -315,15 +315,17 @@ func (r *TransactionRoutePostgreSQLRepository) FindByID(ctx context.Context, org
 	operationRoutesMap := make(map[uuid.UUID]bool)
 
 	for rows.Next() {
-		var tr TransactionRoutePostgreSQLModel
-		var relationID, relationOperationRouteID, relationTransactionRouteID uuid.NullUUID
-		var relationCreatedAt, relationDeletedAt sql.NullTime
-		var operationRouteID, operationRouteOrganizationID, operationRouteLedgerID uuid.NullUUID
-		var operationRouteTitle, operationRouteDescription, operationRouteType sql.NullString
-		var accountRuleType, accountRuleValidIf sql.NullString
-		var accountingEntries []byte
-		var operationRouteCreatedAt, operationRouteUpdatedAt, operationRouteDeletedAt sql.NullTime
-		var operationRouteCode sql.NullString
+		var (
+			tr                                                                        TransactionRoutePostgreSQLModel
+			relationID, relationOperationRouteID, relationTransactionRouteID          uuid.NullUUID
+			relationCreatedAt, relationDeletedAt                                      sql.NullTime
+			operationRouteID, operationRouteOrganizationID, operationRouteLedgerID    uuid.NullUUID
+			operationRouteTitle, operationRouteDescription, operationRouteType        sql.NullString
+			accountRuleType, accountRuleValidIf                                       sql.NullString
+			accountingEntries                                                         []byte
+			operationRouteCreatedAt, operationRouteUpdatedAt, operationRouteDeletedAt sql.NullTime
+			operationRouteCode                                                        sql.NullString
+		)
 
 		if err := rows.Scan(
 			// Transaction route fields

@@ -212,6 +212,7 @@ func (r *TransactionPostgreSQLRepository) Create(ctx context.Context, transactio
 
 		return nil, err
 	}
+
 	record := &TransactionPostgreSQLModel{}
 	record.FromEntity(transaction)
 
@@ -1018,6 +1019,7 @@ func (r *TransactionPostgreSQLRepository) FindForUpdate(ctx context.Context, tx 
 	query := `SELECT ` + transactionColumns + ` FROM ` + r.tableName + `
 		WHERE organization_id = $1 AND ledger_id = $2 AND id = $3 AND deleted_at IS NULL
 		FOR UPDATE`
+
 	rows, err := querier.QueryContext(ctx, query, organizationID, ledgerID, id)
 	if err != nil {
 		return nil, err
@@ -1028,10 +1030,12 @@ func (r *TransactionPostgreSQLRepository) FindForUpdate(ctx context.Context, tx 
 		if err := rows.Err(); err != nil {
 			return nil, err
 		}
+
 		return nil, pkg.ValidateBusinessError(constant.ErrEntityNotFound, constant.EntityTransaction)
 	}
 
 	record := &TransactionPostgreSQLModel{}
+
 	var body *string
 	if err := rows.Scan(
 		&record.ID,
@@ -1055,6 +1059,7 @@ func (r *TransactionPostgreSQLRepository) FindForUpdate(ctx context.Context, tx 
 	); err != nil {
 		return nil, err
 	}
+
 	if !libCommons.IsNilOrEmpty(body) {
 		if err := json.Unmarshal([]byte(*body), &record.Body); err != nil {
 			return nil, err
@@ -1152,6 +1157,7 @@ func (r *TransactionPostgreSQLRepository) FindByParentID(ctx context.Context, or
 
 		return nil, err
 	}
+
 	if err := rows.Err(); err != nil {
 		libOpentelemetry.HandleSpanError(span, "Failed to finish child transaction query", err)
 
@@ -1183,6 +1189,7 @@ func (r *TransactionPostgreSQLRepository) Update(ctx context.Context, organizati
 
 		return nil, err
 	}
+
 	return r.updateWithExecutor(ctx, db, organizationID, ledgerID, id, transaction, false)
 }
 
@@ -1228,6 +1235,7 @@ func (r *TransactionPostgreSQLRepository) updateWithExecutor(ctx context.Context
 	organizationID, ledgerID, id uuid.UUID, transaction *Transaction, requirePending bool,
 ) (*Transaction, error) {
 	_, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
+
 	ctx, span := tracer.Start(ctx, "postgres.update_transaction.exec")
 	defer span.End()
 
@@ -1257,10 +1265,12 @@ func (r *TransactionPostgreSQLRepository) updateWithExecutor(ctx context.Context
 	}
 
 	statusCASPosition := 0
+
 	if requirePending {
 		if transaction.Status.IsEmpty() {
 			return nil, fmt.Errorf("terminal status is required")
 		}
+
 		statusCASPosition = len(args) + 1
 		args = append(args, constant.PENDING)
 	}
@@ -1305,6 +1315,7 @@ func (r *TransactionPostgreSQLRepository) updateWithExecutor(ctx context.Context
 			if statusErr != nil {
 				return nil, statusErr
 			}
+
 			if currentStatus == transaction.Status.Code {
 				return record.ToEntity(), nil
 			}

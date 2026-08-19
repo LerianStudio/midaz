@@ -52,10 +52,12 @@ func CleanupReusableContainers() error {
 	reusablePostgresServers.Unlock()
 
 	var cleanupErrors []error
+
 	for _, server := range servers {
 		if server.admin != nil {
 			cleanupErrors = append(cleanupErrors, server.admin.Close())
 		}
+
 		if server.container != nil {
 			cleanupErrors = append(cleanupErrors, server.container.Terminate(context.Background()))
 		}
@@ -222,11 +224,14 @@ func (s *reusablePostgresServer) ensureTemplate(t *testing.T, component string) 
 	templateConfig := s.config
 	templateConfig.DBName = templateName
 	templateDSN := BuildConnectionString(s.host, s.port, templateConfig)
+
 	migrationComponent := component
 	if component == "ledger" {
 		migrationComponent = "transaction"
 	}
+
 	migrationsPath := FindMigrationsPath(t, migrationComponent)
+
 	migrator, err := libPostgres.NewMigrator(libPostgres.MigrationConfig{
 		PrimaryDSN:     templateDSN,
 		DatabaseName:   templateName,
@@ -235,6 +240,7 @@ func (s *reusablePostgresServer) ensureTemplate(t *testing.T, component string) 
 	if err == nil {
 		err = migrator.Up(context.Background())
 	}
+
 	if err != nil {
 		_, dropErr := s.admin.ExecContext(
 			context.Background(),

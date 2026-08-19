@@ -28,6 +28,7 @@ func (handler *TransactionHandler) readTransactionLifecycleOutcome(
 	organizationID, ledgerID, transactionID uuid.UUID,
 ) (*mmodel.TransactionRedisQueue, error) {
 	backupKey := utils.TransactionInternalKey(organizationID, ledgerID, transactionID.String())
+
 	raw, err := handler.Command.TransactionRedisRepo.ReadMessageFromQueue(ctx, backupKey)
 	if err != nil {
 		if err == redislib.Nil {
@@ -41,13 +42,16 @@ func (handler *TransactionHandler) readTransactionLifecycleOutcome(
 	if err := json.Unmarshal(raw, queued); err != nil {
 		return nil, fmt.Errorf("decode transaction balance outcome: %w", err)
 	}
+
 	if queued.OrganizationID != organizationID || queued.LedgerID != ledgerID ||
 		queued.TransactionID != transactionID {
 		return nil, fmt.Errorf("transaction balance outcome scope mismatch")
 	}
+
 	if queued.Action != constant.ActionCommit && queued.Action != constant.ActionCancel {
 		return nil, nil
 	}
+
 	if queued.TransactionStatus != constant.APPROVED && queued.TransactionStatus != constant.CANCELED {
 		return nil, fmt.Errorf("transaction balance outcome status mismatch")
 	}
@@ -66,6 +70,7 @@ func (handler *TransactionHandler) clearDurableLegacyHoldBackup(
 	organizationID, ledgerID, transactionID uuid.UUID,
 ) error {
 	backupKey := utils.TransactionInternalKey(organizationID, ledgerID, transactionID.String())
+
 	raw, err := handler.Command.TransactionRedisRepo.ReadMessageFromQueue(ctx, backupKey)
 	if err != nil {
 		if err == redislib.Nil {
@@ -79,13 +84,16 @@ func (handler *TransactionHandler) clearDurableLegacyHoldBackup(
 	if err := json.Unmarshal(raw, queued); err != nil {
 		return fmt.Errorf("decode durable pending transaction backup: %w", err)
 	}
+
 	if queued.OrganizationID != organizationID || queued.LedgerID != ledgerID ||
 		queued.TransactionID != transactionID {
 		return fmt.Errorf("durable pending transaction backup scope mismatch")
 	}
+
 	if queued.TransactionStatus != constant.PENDING || queued.Action != constant.ActionHold {
 		return nil
 	}
+
 	if queued.AttemptOwner != "" || queued.ExpectedOutcome != "" {
 		return fmt.Errorf("durable pending transaction still has owned economic evidence")
 	}
@@ -109,6 +117,7 @@ func lifecycleBalanceAtomicResult(queued *mmodel.TransactionRedisQueue) *mmodel.
 	for _, balance := range queued.Balances {
 		before = append(before, lifecycleBalanceFromBackup(balance, queued.OrganizationID, queued.LedgerID))
 	}
+
 	after := make([]*mmodel.Balance, 0, len(queued.BalancesAfter))
 	for _, balance := range queued.BalancesAfter {
 		after = append(after, lifecycleBalanceFromBackup(balance, queued.OrganizationID, queued.LedgerID))
@@ -122,12 +131,14 @@ func lifecycleBalanceFromBackup(balance mmodel.BalanceRedis, organizationID, led
 	if balanceKey == "" {
 		balanceKey = constant.DefaultBalanceKey
 	}
+
 	overdraftUsed, err := decimal.NewFromString(balance.OverdraftUsed)
 	if err != nil {
 		overdraftUsed = decimal.Zero
 	}
 
 	var settings *mmodel.BalanceSettings
+
 	if balance.AllowOverdraft != 0 || balance.OverdraftLimitEnabled != 0 ||
 		(balance.BalanceScope != "" && balance.BalanceScope != mmodel.BalanceScopeTransactional) ||
 		(balance.OverdraftLimit != "" && balance.OverdraftLimit != "0") {
@@ -135,6 +146,7 @@ func lifecycleBalanceFromBackup(balance mmodel.BalanceRedis, organizationID, led
 		if scope == "" {
 			scope = mmodel.BalanceScopeTransactional
 		}
+
 		settings = &mmodel.BalanceSettings{
 			BalanceScope:          scope,
 			AllowOverdraft:        balance.AllowOverdraft == 1,
@@ -166,15 +178,6 @@ func lifecycleBalanceFromBackup(balance mmodel.BalanceRedis, organizationID, led
 	}
 }
 
-func lifecycleOutcomeMatchesTarget(queued *mmodel.TransactionRedisQueue, status string) bool {
-	if queued == nil || queued.TransactionStatus != status {
-		return false
-	}
-
-	return (status == constant.APPROVED && queued.Action == constant.ActionCommit) ||
-		(status == constant.CANCELED && queued.Action == constant.ActionCancel)
-}
-
 func (handler *TransactionHandler) readBalanceExecutionOutcome(
 	ctx context.Context,
 	organizationID, ledgerID, transactionID uuid.UUID,
@@ -184,6 +187,7 @@ func (handler *TransactionHandler) readBalanceExecutionOutcome(
 	if err != nil {
 		return nil, fmt.Errorf("read balance execution outcome: %w", err)
 	}
+
 	if raw == "" {
 		return nil, nil
 	}
@@ -192,6 +196,7 @@ func (handler *TransactionHandler) readBalanceExecutionOutcome(
 	if err := json.Unmarshal([]byte(raw), outcome); err != nil {
 		return nil, fmt.Errorf("decode balance execution outcome: %w", err)
 	}
+
 	if outcome.Identity != transactionID || outcome.Owner == "" ||
 		(outcome.Outcome != mmodel.TransactionOutcomeCommitted && outcome.Outcome != mmodel.TransactionOutcomeAborted) {
 		return nil, fmt.Errorf("balance execution outcome identity mismatch")

@@ -221,6 +221,7 @@ func (c *FinancialRedisDurabilityChecker) Check(ctx context.Context) DependencyC
 
 	start := time.Now()
 	err := c.guard.FinancialDurability(ctx)
+
 	latencyMs := time.Since(start).Milliseconds()
 	if err != nil {
 		return DependencyCheck{
@@ -265,6 +266,7 @@ func (c *RevertRolloutBarrierChecker) Check(ctx context.Context) DependencyCheck
 	}
 
 	start := time.Now()
+
 	phase, err := c.guard.Phase(ctx)
 	if err != nil {
 		latencyMs := time.Since(start).Milliseconds()
@@ -280,17 +282,21 @@ func (c *RevertRolloutBarrierChecker) Check(ctx context.Context) DependencyCheck
 
 			return DependencyCheck{Status: StatusDown, LatencyMs: &latencyMs, Error: fmt.Sprintf("financial Redis durability: %v", err)}
 		}
+
 		if err := c.guard.ValidateFinancialDatasetGeneration(ctx); err != nil {
 			latencyMs := time.Since(start).Milliseconds()
 
 			return DependencyCheck{Status: StatusDown, LatencyMs: &latencyMs, Error: fmt.Sprintf("financial Redis generation: %v", err)}
 		}
 	}
+
 	ready, err := c.guard.ReadyForMode(ctx, c.mode)
+
 	latencyMs := time.Since(start).Milliseconds()
 	if err != nil {
 		return DependencyCheck{Status: StatusDown, LatencyMs: &latencyMs, Error: fmt.Sprintf("read rollout barrier: %v", err)}
 	}
+
 	if !ready {
 		return DependencyCheck{Status: StatusDown, LatencyMs: &latencyMs, Reason: "rollout phase does not admit the configured revert mode"}
 	}

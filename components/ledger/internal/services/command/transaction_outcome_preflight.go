@@ -29,28 +29,36 @@ func (uc *UseCase) preflightOutcomeBackedTransaction(
 	if err != nil {
 		return false, false, err
 	}
+
 	attempt, outcomeBacked, err := outcomeBackedAttempt(organizationID, ledgerID, payload)
 	if err != nil {
 		return outcomeBacked, false, err
 	}
+
 	reverseBacked := payload != nil && payload.Transaction != nil && payload.Transaction.ParentTransactionID != nil
+
 	annotationBacked := effectMode == mmodel.TransactionEffectAnnotationOnly
 	if !outcomeBacked && !reverseBacked && !annotationBacked {
 		return false, false, nil
 	}
+
 	if uc.TransactionRedisRepo == nil {
 		return outcomeBacked, false, fmt.Errorf("transaction economic evidence repository is required")
 	}
 
 	transactionID := payload.Transaction.IDtoUUID()
+
 	var parentTransactionID *uuid.UUID
+
 	if payload.Transaction.ParentTransactionID != nil {
 		parsedParent, parseErr := uuid.Parse(*payload.Transaction.ParentTransactionID)
 		if parseErr != nil || parsedParent == uuid.Nil {
 			return outcomeBacked, false, fmt.Errorf("transaction economic parent identity is invalid")
 		}
+
 		parentTransactionID = &parsedParent
 	}
+
 	canonicalOperations, terminal, err := uc.UpdateTransactionBackupOperations(
 		ctx,
 		organizationID,
@@ -70,11 +78,13 @@ func (uc *UseCase) preflightOutcomeBackedTransaction(
 	if err != nil {
 		return outcomeBacked, false, err
 	}
+
 	payload.Transaction.Operations = canonicalOperations
 
 	return outcomeBacked, terminal, nil
 }
 
+//nolint:gocyclo // Preflight validates every payload effect mode combination; refactor candidate.
 func validateProcessingPayloadEffectMode(
 	organizationID, ledgerID uuid.UUID,
 	payload *transaction.TransactionProcessingPayload,
@@ -82,10 +92,12 @@ func validateProcessingPayloadEffectMode(
 	if payload == nil || payload.Transaction == nil {
 		return "", fmt.Errorf("transaction persistence payload is required")
 	}
+
 	transactionID, err := uuid.Parse(payload.Transaction.ID)
 	if err != nil || transactionID == uuid.Nil {
 		return "", fmt.Errorf("transaction persistence identity is invalid")
 	}
+
 	queue := mmodel.TransactionRedisQueue{
 		TransactionID:         transactionID,
 		OrganizationID:        organizationID,
@@ -103,10 +115,12 @@ func validateProcessingPayloadEffectMode(
 	if payload.Input != nil {
 		queue.TransactionInput = *payload.Input
 	}
+
 	mode, err := mmodel.ResolveTransactionEffectMode(&queue)
 	if err != nil {
 		return "", fmt.Errorf("resolve transaction persistence effect mode: %w", err)
 	}
+
 	requiresEconomicIdentity := mode == mmodel.TransactionEffectAnnotationOnly ||
 		payload.EffectModeVersion != 0 || payload.EffectMode != "" ||
 		payload.AttemptOwner != "" || payload.ExpectedOutcome != "" ||
@@ -114,28 +128,36 @@ func validateProcessingPayloadEffectMode(
 	if !requiresEconomicIdentity {
 		return mode, nil
 	}
+
 	if payload.Input == nil || payload.Transaction.Amount == nil {
 		return "", fmt.Errorf("transaction persistence amount and immutable input are required")
 	}
+
 	if !payload.Input.Send.Value.IsPositive() || !payload.Transaction.Amount.IsPositive() {
 		return "", fmt.Errorf("transaction persistence amount must be positive")
 	}
+
 	if !payload.Transaction.Amount.Equal(payload.Input.Send.Value) {
 		return "", fmt.Errorf("transaction persistence amount differs from immutable input")
 	}
+
 	if payload.Input.Send.Asset == "" || payload.Transaction.AssetCode != payload.Input.Send.Asset {
 		return "", fmt.Errorf("transaction persistence asset differs from immutable input")
 	}
+
 	if mode != mmodel.TransactionEffectAnnotationOnly {
 		return mode, nil
 	}
+
 	operations := make([]mmodel.OperationRedis, 0, len(payload.Transaction.Operations))
 	for _, candidate := range payload.Transaction.Operations {
 		if candidate == nil {
 			return "", fmt.Errorf("transaction annotation operation is required")
 		}
+
 		operations = append(operations, candidate.ToRedis())
 	}
+
 	if err := mmodel.ValidateRedisTransactionAnnotationEffect(&queue, operations); err != nil {
 		return "", fmt.Errorf("prove transaction annotation event: %w", err)
 	}
@@ -150,7 +172,9 @@ func outcomeBackedAttempt(
 	if payload == nil {
 		return nil, false, fmt.Errorf("transaction persistence payload is required")
 	}
+
 	hasOwner := payload.AttemptOwner != ""
+
 	hasOutcome := payload.ExpectedOutcome != ""
 	if !hasOwner && !hasOutcome {
 		if payload.RedisGeneration != "" {
@@ -159,16 +183,20 @@ func outcomeBackedAttempt(
 
 		return nil, false, nil
 	}
+
 	if !hasOwner || !hasOutcome {
 		return nil, true, fmt.Errorf("incomplete transaction balance execution identity")
 	}
+
 	if payload.ExpectedOutcome != mmodel.TransactionOutcomeCommitted &&
 		payload.ExpectedOutcome != mmodel.TransactionOutcomeAborted {
 		return nil, true, fmt.Errorf("transaction balance execution outcome is not terminal")
 	}
+
 	if payload.Transaction == nil {
 		return nil, true, fmt.Errorf("outcome-backed transaction envelope is required")
 	}
+
 	transactionID, err := uuid.Parse(payload.Transaction.ID)
 	if err != nil || transactionID == uuid.Nil {
 		return nil, true, fmt.Errorf("outcome-backed transaction identity is invalid")

@@ -61,9 +61,11 @@ func (c ContainerConfig) command() []string {
 	if c.MaxmemoryPolicy != "" {
 		command = append(command, "--maxmemory-policy", c.MaxmemoryPolicy)
 	}
+
 	if c.AppendOnly {
 		command = append(command, "--appendonly", "yes")
 	}
+
 	if c.AppendFsync != "" {
 		command = append(command, "--appendfsync", c.AppendFsync)
 	}

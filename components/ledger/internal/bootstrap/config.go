@@ -392,6 +392,7 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 	}
 
 	applyConfigDefaults(cfg)
+
 	if err := validateRevertRolloutConfiguration(cfg.RevertIdempotencyMode, cfg.RevertRolloutTarget,
 		cfg.RevertRedisDatasetGeneration, cfg.RevertRolloutInitializationID); err != nil {
 		return nil, err
@@ -400,10 +401,12 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 	if err := validateBootAuthGates(cfg); err != nil {
 		return nil, err
 	}
+
 	outcomeMode, err := normalizeTracerOutcomeMode(cfg.TracerOutcomeMode)
 	if err != nil {
 		return nil, err
 	}
+
 	workerRequired := tracerOutcomeRequiresDurableRedis(outcomeMode, cfg.TracerOutcomeWorkerEnabled)
 
 	// Logger: use injected or create fresh
@@ -633,10 +636,13 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 	addCleanup(func() { _ = redisConnection.Close() })
 
 	financialRedisDurability := txRedis.NewFinancialRedisDurabilityGuard(redisConnection)
+
 	if workerRequired {
 		durabilityCtx, cancelDurability := context.WithTimeout(context.Background(), 5*time.Second)
 		durabilityErr := financialRedisDurability.FinancialDurability(durabilityCtx)
+
 		cancelDurability()
+
 		if durabilityErr != nil {
 			doCleanup()
 			return nil, fmt.Errorf("tracer outcome requires durable financial Redis: %w", durabilityErr)
@@ -648,12 +654,15 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 		cfg.RevertRolloutInitializationID)
 	transitionCtx, cancelTransition := context.WithTimeout(context.Background(), 5*time.Second)
 	err = applyRevertRolloutTarget(transitionCtx, revertRolloutGuard, cfg.RevertRolloutTarget)
+
 	cancelTransition()
+
 	if err != nil {
 		doCleanup()
 
 		return nil, fmt.Errorf("apply revert rollout target: %w", err)
 	}
+
 	if strings.EqualFold(strings.TrimSpace(cfg.RevertRolloutTarget), txRedis.RevertUpdateFreezeInitialize) {
 		doCleanup()
 
@@ -1869,6 +1878,7 @@ func applyConfigDefaults(cfg *Config) {
 	intDefault(&cfg.RedisMaxRetries, 3)
 	intDefault(&cfg.RedisMinRetryBackoff, 8)
 	intDefault(&cfg.RedisMaxRetryBackoff, 1)
+
 	if strings.TrimSpace(cfg.RevertIdempotencyMode) == "" {
 		cfg.RevertIdempotencyMode = "legacy"
 	}

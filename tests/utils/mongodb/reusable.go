@@ -50,10 +50,12 @@ func CleanupReusableContainers() error {
 	reusableMongoServers.Unlock()
 
 	var cleanupErrors []error
+
 	for _, server := range servers {
 		if server.client != nil {
 			cleanupErrors = append(cleanupErrors, server.client.Disconnect(context.Background()))
 		}
+
 		if server.container != nil {
 			cleanupErrors = append(cleanupErrors, server.container.Terminate(context.Background()))
 		}
@@ -91,15 +93,17 @@ func SetupReusableContainerWithConfig(tb testing.TB, cfg ContainerConfig) *Conta
 // CreateOwnedDatabase allocates an additional isolated database on a reusable
 // MongoDB server. Multi-tenant tests use it when one test owns more than one
 // logical database; cleanup drops and audits the additional database as well.
-func CreateOwnedDatabase(tb testing.TB, container *ContainerResult) *mongo.Database {
+func CreateOwnedDatabase(tb testing.TB, result *ContainerResult) *mongo.Database {
 	tb.Helper()
-	require.NotNil(tb, container, "MongoDB container result is required")
-	require.NotNil(tb, container.Client, "MongoDB client is required")
+	require.NotNil(tb, result, "MongoDB container result is required")
+	require.NotNil(tb, result.Client, "MongoDB client is required")
 
-	return createOwnedDatabase(tb, container.Client)
+	return createOwnedDatabase(tb, result.Client)
 }
 
 func createOwnedDatabase(tb testing.TB, client *mongo.Client) *mongo.Database {
+	tb.Helper()
+
 	sequence := ownedMongoDatabaseSequence.Add(1)
 	sum := sha256.Sum256([]byte(fmt.Sprintf("%s-%d", tb.Name(), sequence)))
 	databaseName := fmt.Sprintf("midaz_test_%x", sum[:8])

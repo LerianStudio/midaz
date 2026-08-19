@@ -310,6 +310,7 @@ func economicEffectFromRedis(op mmodel.OperationRedis) (economicEffect, bool) {
 	if err != nil {
 		return economicEffect{}, false
 	}
+
 	afterOverdraft, err := parseEconomicSnapshotDecimal(op.Snapshot.OverdraftUsedAfter)
 	if err != nil {
 		return economicEffect{}, false

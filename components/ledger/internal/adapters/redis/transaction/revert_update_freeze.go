@@ -251,6 +251,7 @@ func NewRevertUpdateFreezeGuard(connection *libRedis.Client, settings ...string)
 	if len(settings) > 0 {
 		guard.target = strings.ToLower(strings.TrimSpace(settings[0]))
 	}
+
 	if len(settings) > 1 {
 		guard.expectedGeneration = strings.TrimSpace(settings[1])
 	}
@@ -287,6 +288,7 @@ func (g *FinancialRedisDurabilityGuard) FinancialDurability(ctx context.Context)
 	if g == nil || g.connection == nil {
 		return fmt.Errorf("financial Redis connection not configured")
 	}
+
 	client, err := g.connection.GetClient(ctx)
 	if err != nil {
 		return fmt.Errorf("get financial Redis client: %w", err)
@@ -313,28 +315,35 @@ func (g *RevertUpdateFreezeGuard) InitializeFinancialDatasetGeneration(ctx conte
 	if g == nil || g.connection == nil {
 		return fmt.Errorf("revert rollout Redis connection not configured")
 	}
+
 	if g.initializationWitness == nil {
 		return fmt.Errorf("revert rollout PostgreSQL birth certificate is required")
 	}
+
 	redisGeneration, err := uuid.Parse(g.expectedGeneration)
 	if err != nil {
 		return fmt.Errorf("financial Redis dataset generation must be a UUID: %w", err)
 	}
+
 	initializationRequestID, err := uuid.Parse(g.initializationRequestID)
 	if err != nil {
 		return fmt.Errorf("revert rollout initialization request id must be a UUID: %w", err)
 	}
+
 	prepared, _, err := g.initializationWitness.BeginRolloutInitialization(ctx, redisGeneration,
 		initializationRequestID)
 	if err != nil {
 		return fmt.Errorf("begin revert rollout initialization: %w", err)
 	}
+
 	if prepared {
 		return g.ValidatePrepared(ctx)
 	}
+
 	if err := g.prepareFinancialDatasetGeneration(ctx); err != nil {
 		return err
 	}
+
 	if err := g.initializationWitness.CompleteRolloutInitialization(ctx, redisGeneration,
 		initializationRequestID); err != nil {
 		return fmt.Errorf("complete revert rollout PostgreSQL birth certificate: %w", err)
@@ -347,6 +356,7 @@ func (g *RevertUpdateFreezeGuard) prepareFinancialDatasetGeneration(ctx context.
 	if err := g.FinancialDurability(ctx); err != nil {
 		return fmt.Errorf("initialize revert rollout without durable financial Redis: %w", err)
 	}
+
 	client, err := g.connection.GetClient(ctx)
 	if err != nil {
 		return fmt.Errorf("get revert rollout Redis client: %w", err)
@@ -358,9 +368,11 @@ func (g *RevertUpdateFreezeGuard) prepareFinancialDatasetGeneration(ctx context.
 	if err != nil {
 		return fmt.Errorf("inspect revert rollout initialization: %w", err)
 	}
+
 	if initializationState == 0 {
 		return fmt.Errorf("initialize revert rollout: existing marker or generation witness differs")
 	}
+
 	if initializationState == 2 {
 		if err := g.validateRedisFinancialDatasetGeneration(ctx); err != nil {
 			return fmt.Errorf("validate completed revert rollout initialization: %w", err)
@@ -373,11 +385,13 @@ func (g *RevertUpdateFreezeGuard) prepareFinancialDatasetGeneration(ctx context.
 	if err != nil {
 		return fmt.Errorf("prepare financial Redis dataset generation: %w", err)
 	}
+
 	if !created {
 		generation, generationErr := g.financialDatasetGeneration(ctx)
 		if generationErr != nil {
 			return generationErr
 		}
+
 		if generation != g.expectedGeneration {
 			return fmt.Errorf("financial Redis dataset generation differs from configured witness")
 		}
@@ -389,6 +403,7 @@ func (g *RevertUpdateFreezeGuard) prepareFinancialDatasetGeneration(ctx context.
 	if err != nil {
 		return fmt.Errorf("complete revert rollout initialization: %w", err)
 	}
+
 	if !initialized {
 		return fmt.Errorf("complete revert rollout initialization: state changed concurrently")
 	}
@@ -402,10 +417,12 @@ func (g *RevertUpdateFreezeGuard) ValidatePrepared(ctx context.Context) error {
 	if err := g.validateGeneration(ctx); err != nil {
 		return err
 	}
+
 	phase, witness, err := g.rolloutStateAndGeneration(ctx)
 	if err != nil {
 		return err
 	}
+
 	if phase != RevertUpdateFreezePrepared || witness != g.expectedGeneration {
 		return fmt.Errorf("prepared revert rollout marker or generation witness differs")
 	}
@@ -428,10 +445,12 @@ func (g *RevertUpdateFreezeGuard) financialDatasetGeneration(ctx context.Context
 	if g == nil || g.connection == nil {
 		return "", fmt.Errorf("revert rollout Redis connection not configured")
 	}
+
 	client, err := g.connection.GetClient(ctx)
 	if err != nil {
 		return "", fmt.Errorf("get revert rollout Redis client: %w", err)
 	}
+
 	generation, err := client.Get(ctx, FinancialDatasetGenerationKey).Result()
 	if err != nil {
 		if errors.Is(err, redislib.Nil) {
@@ -440,6 +459,7 @@ func (g *RevertUpdateFreezeGuard) financialDatasetGeneration(ctx context.Context
 
 		return "", fmt.Errorf("read financial Redis dataset generation: %w", err)
 	}
+
 	if strings.TrimSpace(generation) == "" {
 		return "", fmt.Errorf("financial Redis dataset generation is missing")
 	}
@@ -451,6 +471,7 @@ func (g *RevertUpdateFreezeGuard) validateGeneration(ctx context.Context) error 
 	if strings.TrimSpace(g.expectedGeneration) == "" {
 		return fmt.Errorf("financial Redis dataset generation is required")
 	}
+
 	if err := g.FinancialDurability(ctx); err != nil {
 		return fmt.Errorf("financial Redis durability: %w", err)
 	}
@@ -472,10 +493,12 @@ func (g *RevertUpdateFreezeGuard) validateRedisFinancialDatasetGeneration(ctx co
 	if strings.TrimSpace(g.expectedGeneration) == "" {
 		return fmt.Errorf("financial Redis dataset generation is required")
 	}
+
 	generation, err := g.financialDatasetGeneration(ctx)
 	if err != nil {
 		return err
 	}
+
 	if generation != g.expectedGeneration {
 		return fmt.Errorf("financial Redis dataset generation differs from configured witness")
 	}
@@ -487,21 +510,25 @@ func (g *RevertUpdateFreezeGuard) validateRolloutBirthCertificate(ctx context.Co
 	if g == nil || g.initializationWitness == nil {
 		return fmt.Errorf("revert rollout PostgreSQL birth certificate is required")
 	}
+
 	if g.target == "" {
 		exists, _, state, err := g.initializationWitness.InspectRolloutInitialization(ctx)
 		if err != nil {
 			return fmt.Errorf("inspect revert rollout PostgreSQL birth certificate: %w", err)
 		}
+
 		if exists {
 			return fmt.Errorf("released legacy rollout is fenced by %s PostgreSQL birth certificate", state)
 		}
 
 		return nil
 	}
+
 	generation, err := uuid.Parse(g.expectedGeneration)
 	if err != nil {
 		return fmt.Errorf("financial Redis dataset generation must be a UUID: %w", err)
 	}
+
 	if err := g.initializationWitness.ValidatePreparedRollout(ctx, generation); err != nil {
 		return fmt.Errorf("validate revert rollout PostgreSQL birth certificate: %w", err)
 	}
@@ -513,19 +540,24 @@ func (g *RevertUpdateFreezeGuard) rolloutStateAndGeneration(ctx context.Context)
 	if g == nil || g.connection == nil {
 		return "", "", fmt.Errorf("revert rollout Redis connection not configured")
 	}
+
 	client, err := g.connection.GetClient(ctx)
 	if err != nil {
 		return "", "", fmt.Errorf("get revert rollout Redis client: %w", err)
 	}
+
 	values, err := client.MGet(ctx, RevertUpdateFreezeKey, RevertRolloutGenerationKey).Result()
 	if err != nil {
 		return "", "", fmt.Errorf("read revert rollout marker and generation witness: %w", err)
 	}
+
 	phase := ""
 	witness := ""
+
 	if values[0] != nil {
 		phase = fmt.Sprint(values[0])
 	}
+
 	if values[1] != nil {
 		witness = fmt.Sprint(values[1])
 	}
@@ -538,6 +570,7 @@ func validateFinancialRedisNode(ctx context.Context, client redislib.Cmdable) er
 	if err != nil {
 		return fmt.Errorf("read maxmemory policy: %w", err)
 	}
+
 	if policy["maxmemory-policy"] != "noeviction" {
 		return fmt.Errorf("maxmemory-policy must be noeviction")
 	}
@@ -546,13 +579,16 @@ func validateFinancialRedisNode(ctx context.Context, client redislib.Cmdable) er
 	if err != nil {
 		return fmt.Errorf("read appendonly policy: %w", err)
 	}
+
 	if aof["appendonly"] != "yes" {
 		return fmt.Errorf("appendonly must be enabled")
 	}
+
 	fsync, err := client.ConfigGet(ctx, "appendfsync").Result()
 	if err != nil {
 		return fmt.Errorf("read appendfsync policy: %w", err)
 	}
+
 	if fsync["appendfsync"] != "always" && fsync["appendfsync"] != "everysec" {
 		return fmt.Errorf("appendfsync must be always or everysec")
 	}
@@ -561,6 +597,7 @@ func validateFinancialRedisNode(ctx context.Context, client redislib.Cmdable) er
 	if err != nil {
 		return fmt.Errorf("read persistence health: %w", err)
 	}
+
 	if redisInfoField(info, "aof_enabled") != "1" || redisInfoField(info, "aof_last_write_status") != "ok" {
 		return fmt.Errorf("AOF persistence is not healthy")
 	}
@@ -601,6 +638,7 @@ func (g *RevertUpdateFreezeGuard) ApprovedUpdatePolicy(ctx context.Context, mode
 	if err := g.validateRolloutBirthCertificate(ctx); err != nil {
 		return false, false, err
 	}
+
 	value, witness, err := g.rolloutStateAndGeneration(ctx)
 	if err != nil {
 		return false, false, err
@@ -648,6 +686,7 @@ func (g *RevertUpdateFreezeGuard) AcquireRevert(ctx context.Context, mode, origi
 		if mode == "legacy" {
 			phase = RevertUpdateFreezeActive
 		}
+
 		return true, true, phase, nil
 	case 3:
 		return true, false, RevertUpdateFreezeFinalized, nil
@@ -672,12 +711,15 @@ func (g *RevertUpdateFreezeGuard) acquireRequest(ctx context.Context, mode, kind
 	if g == nil || g.connection == nil {
 		return 0, fmt.Errorf("revert update freeze Redis connection not configured")
 	}
+
 	if token == "" {
 		return 0, fmt.Errorf("revert rollout request token is required")
 	}
+
 	if attemptID == "" {
 		return 0, fmt.Errorf("revert rollout attempt id is required")
 	}
+
 	if err := g.validateRolloutBirthCertificate(ctx); err != nil {
 		return 0, err
 	}
@@ -686,11 +728,13 @@ func (g *RevertUpdateFreezeGuard) acquireRequest(ctx context.Context, mode, kind
 	if err != nil {
 		return 0, fmt.Errorf("get revert update freeze Redis client: %w", err)
 	}
+
 	if g.target != "" {
 		generation, generationErr := client.Get(ctx, FinancialDatasetGenerationKey).Result()
 		if errors.Is(generationErr, redislib.Nil) || (generationErr == nil && generation != g.expectedGeneration) {
 			return 0, nil
 		}
+
 		if generationErr != nil {
 			return 0, fmt.Errorf("read financial Redis dataset generation before rollout admission: %w", generationErr)
 		}
@@ -738,12 +782,15 @@ func (g *RevertUpdateFreezeGuard) CompleteRevert(ctx context.Context, mode, toke
 	if err != nil {
 		return err
 	}
+
 	if key == "" {
 		return nil
 	}
+
 	if g == nil || g.connection == nil {
 		return fmt.Errorf("revert update freeze Redis connection not configured")
 	}
+
 	if token == "" {
 		return fmt.Errorf("revert rollout request token is required")
 	}
@@ -752,10 +799,12 @@ func (g *RevertUpdateFreezeGuard) CompleteRevert(ctx context.Context, mode, toke
 	if err != nil {
 		return fmt.Errorf("get revert update freeze Redis client: %w", err)
 	}
+
 	completedKey := revertPhaseZeroCompletedKey
 	if mode == "bridge" {
 		completedKey = revertBridgeCompletedKey
 	}
+
 	if err := client.Eval(ctx, completeRevertRolloutRequestScript, []string{
 		revertRolloutOriginAttemptKey(mode, token), key, completedKey,
 	}, token).Err(); err != nil {
@@ -775,12 +824,15 @@ func (g *RevertUpdateFreezeGuard) RevertTerminalHandoffComplete(
 	if err != nil {
 		return false, err
 	}
+
 	if key == "" {
 		return true, nil
 	}
+
 	if g == nil || g.connection == nil {
 		return false, fmt.Errorf("revert update freeze Redis connection not configured")
 	}
+
 	if token == "" {
 		return false, fmt.Errorf("revert rollout request token is required")
 	}
@@ -789,16 +841,19 @@ func (g *RevertUpdateFreezeGuard) RevertTerminalHandoffComplete(
 	if err != nil {
 		return false, fmt.Errorf("get revert update freeze Redis client: %w", err)
 	}
+
 	completedKey := revertPhaseZeroCompletedKey
 	if mode == "bridge" {
 		completedKey = revertBridgeCompletedKey
 	}
+
 	result, err := client.Eval(ctx, proveRevertRolloutCompletionScript, []string{
 		revertRolloutOriginAttemptKey(mode, token), key, completedKey,
 	}, token).Int64()
 	if err != nil {
 		return false, fmt.Errorf("prove revert rollout terminal handoff: %w", err)
 	}
+
 	if result < 0 {
 		return false, fmt.Errorf("revert rollout terminal handoff is inconsistent")
 	}
@@ -827,12 +882,15 @@ func (g *RevertUpdateFreezeGuard) releaseRevertAttempt(ctx context.Context, mode
 	if key == "" {
 		return nil
 	}
+
 	if g == nil || g.connection == nil {
 		return fmt.Errorf("revert update freeze Redis connection not configured")
 	}
+
 	if originToken == "" {
 		return fmt.Errorf("revert rollout request token is required")
 	}
+
 	if attemptID == "" {
 		return fmt.Errorf("revert rollout attempt id is required")
 	}
@@ -841,10 +899,12 @@ func (g *RevertUpdateFreezeGuard) releaseRevertAttempt(ctx context.Context, mode
 	if err != nil {
 		return fmt.Errorf("get revert update freeze Redis client: %w", err)
 	}
+
 	completedKey := revertPhaseZeroCompletedKey
 	if mode == "bridge" {
 		completedKey = revertBridgeCompletedKey
 	}
+
 	if err := client.Eval(ctx, releaseRevertRolloutRequestScript, []string{
 		revertRolloutOriginAttemptKey(mode, originToken), key, completedKey,
 	}, originToken, attemptID).Err(); err != nil {
@@ -858,6 +918,7 @@ func (g *RevertUpdateFreezeGuard) releaseRequest(ctx context.Context, key, token
 	if g == nil || g.connection == nil {
 		return fmt.Errorf("revert update freeze Redis connection not configured")
 	}
+
 	if token == "" {
 		return fmt.Errorf("revert rollout request token is required")
 	}
@@ -866,6 +927,7 @@ func (g *RevertUpdateFreezeGuard) releaseRequest(ctx context.Context, key, token
 	if err != nil {
 		return fmt.Errorf("get revert update freeze Redis client: %w", err)
 	}
+
 	if err := client.SRem(ctx, key, token).Err(); err != nil {
 		return fmt.Errorf("release revert rollout request lease: %w", err)
 	}
@@ -879,10 +941,12 @@ func (g *RevertUpdateFreezeGuard) ReadyForMode(ctx context.Context, mode string)
 	if err := g.validateRolloutBirthCertificate(ctx); err != nil {
 		return false, err
 	}
+
 	value, witness, err := g.rolloutStateAndGeneration(ctx)
 	if err != nil {
 		return false, err
 	}
+
 	witnessReady := g.target == "" || (g.expectedGeneration != "" && witness == g.expectedGeneration)
 
 	return witnessReady && revertModeReadyForPhase(value, mode) && revertTargetReached(value, g.target), nil
@@ -935,6 +999,7 @@ func (g *RevertUpdateFreezeGuard) state(ctx context.Context) (string, error) {
 	if errors.Is(err, redislib.Nil) {
 		return "", nil
 	}
+
 	if err != nil {
 		return "", fmt.Errorf("read revert update freeze marker: %w", err)
 	}
@@ -948,6 +1013,7 @@ func (g *RevertUpdateFreezeGuard) Activate(ctx context.Context) error {
 	if g == nil || g.connection == nil {
 		return fmt.Errorf("revert update freeze Redis connection not configured")
 	}
+
 	if err := g.validateGeneration(ctx); err != nil {
 		return fmt.Errorf("activate revert update freeze without prepared financial dataset: %w", err)
 	}
@@ -956,6 +1022,7 @@ func (g *RevertUpdateFreezeGuard) Activate(ctx context.Context) error {
 	if err != nil {
 		return fmt.Errorf("get revert update freeze Redis client: %w", err)
 	}
+
 	activated, err := client.Eval(ctx, activateRevertUpdateFreezeScript,
 		[]string{RevertUpdateFreezeKey, revertApprovedUpdateLeaseKey, revertPhaseZeroRequestLeaseKey,
 			RevertRolloutGenerationKey},
@@ -963,6 +1030,7 @@ func (g *RevertUpdateFreezeGuard) Activate(ctx context.Context) error {
 	if err != nil {
 		return fmt.Errorf("activate revert update freeze: %w", err)
 	}
+
 	if !activated {
 		return fmt.Errorf("activate revert update freeze: expected prepared phase, exact generation, and complete drain")
 	}
@@ -990,6 +1058,7 @@ func (g *RevertUpdateFreezeGuard) advance(ctx context.Context, from, to, leaseKe
 	if g == nil || g.connection == nil {
 		return fmt.Errorf("revert update freeze Redis connection not configured")
 	}
+
 	if err := g.validateGeneration(ctx); err != nil {
 		return fmt.Errorf("%s without exact financial dataset generation: %w", operation, err)
 	}
@@ -1005,6 +1074,7 @@ func (g *RevertUpdateFreezeGuard) advance(ctx context.Context, from, to, leaseKe
 	if err != nil {
 		return fmt.Errorf("%s: %w", operation, err)
 	}
+
 	if !advanced {
 		return fmt.Errorf("%s: expected %q phase", operation, from)
 	}

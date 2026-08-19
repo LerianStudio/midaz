@@ -370,6 +370,7 @@ func (h *ReadyzHandler) logAndSanitizeCheck(ctx context.Context, checkerName str
 
 // buildReadyzHandler creates the ReadyzHandler with appropriate checkers.
 // All checkers return actual status for single-tenant mode.
+//nolint:gocyclo // Readiness handler aggregates every dependency check; refactor candidate.
 func buildReadyzHandler(
 	cfg *Config,
 	logger libLog.Logger,
@@ -530,6 +531,7 @@ func revertRolloutBarrierMode(configured string) string {
 	if strings.EqualFold(configured, "legacy") {
 		return "legacy"
 	}
+
 	if strings.EqualFold(configured, "final") {
 		return "final"
 	}

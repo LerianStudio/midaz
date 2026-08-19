@@ -175,6 +175,7 @@ func (w *TracerOutcomeWorker) runCycle(ctx context.Context) {
 		if _, err := w.tenantLoader.LoadTenant(tenantCtx, registration.TenantID); err != nil {
 			w.logFailure(tenantCtx, "Failed to load tracer outcome tenant", err)
 			w.retireTenantIfEmpty(tenantCtx, registration)
+
 			continue
 		}
 
@@ -232,6 +233,7 @@ func (w *TracerOutcomeWorker) dispatchOne(ctx context.Context, key string, now t
 		if err := w.repo.RemoveMissingTracerOutcome(ctx, key); err != nil {
 			w.logFailure(ctx, "Failed to quarantine missing tracer outcome", err)
 		}
+
 		return
 	}
 
@@ -262,11 +264,13 @@ func (w *TracerOutcomeWorker) dispatchOne(ctx context.Context, key string, now t
 		if err := w.repo.RemoveTracerOutcomeSchedule(ctx, key); err != nil {
 			w.logFailure(ctx, "Failed to remove pending-held tracer outcome schedule", err)
 		}
+
 		return
 	case mmodel.TracerOutcomeDelivered:
 		if err := w.repo.RemoveTracerOutcomeSchedule(ctx, key); err != nil {
 			w.logFailure(ctx, "Failed to remove delivered tracer outcome schedule", err)
 		}
+
 		return
 	case mmodel.TracerOutcomeCommitted, mmodel.TracerOutcomeAborted:
 	default:

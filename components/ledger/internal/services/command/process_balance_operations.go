@@ -61,6 +61,7 @@ func (uc *UseCase) ProcessBalanceOperations(ctx context.Context, input ProcessBa
 		if err := mmodel.ValidateExpectedEconomicPlan(input.ExpectedEconomicPlan); err != nil {
 			return nil, fmt.Errorf("validate final balance economic plan: %w", err)
 		}
+
 		for index := range input.BalanceOperations {
 			input.BalanceOperations[index].ExpectedEconomicPlan = input.ExpectedEconomicPlan
 		}
@@ -102,8 +103,10 @@ func (uc *UseCase) ProcessBalanceOperations(ctx context.Context, input ProcessBa
 	}
 
 	// Execute the atomic Lua script that mutates balances in Redis.
-	var result *mmodel.BalanceAtomicResult
-	var err error
+	var (
+		result *mmodel.BalanceAtomicResult
+		err    error
+	)
 	if input.ExecutionAttempt != nil {
 		result, err = uc.TransactionRedisRepo.ProcessOutcomeBalanceAtomicOperation(
 			ctx,
@@ -126,6 +129,7 @@ func (uc *UseCase) ProcessBalanceOperations(ctx context.Context, input ProcessBa
 			input.BalanceOperations,
 		)
 	}
+
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to execute atomic balance operation", err)
 		logger.Log(ctx, libLog.LevelError, "Failed to execute atomic balance operation", libLog.Err(err))

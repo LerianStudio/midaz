@@ -236,6 +236,7 @@ func materializeAmountsAfterFee(original []transaction.FromTo, amounts map[strin
 
 	for i, leg := range original {
 		key := originalAmountKey(i, leg, amounts, consumed)
+
 		amount, ok := amounts[key]
 		if !ok {
 			return nil, pkg.ValidateBusinessError(constant.ErrCalculateFee, "")
@@ -298,6 +299,7 @@ func syntheticFeeIndex(key string) (int, bool) {
 	}
 
 	segment := parts[1]
+
 	var numericSuffix string
 
 	switch {
@@ -320,6 +322,7 @@ func syntheticFeeIndex(key string) (int, bool) {
 	}
 
 	index, err := strconv.Atoi(numericSuffix)
+
 	return index, err == nil
 }
 
@@ -533,6 +536,7 @@ func emitDeductibleLeg(
 	legKey := feeModel.CreditAccount + "->fee_source" + strconv.Itoa(feeIndex) + "->" + key + "->" + feeModel.GetRouteTo()
 	updateAmount[legKey] = resultAmount
 	registerFeeLegRoute(routes.to, legKey, feeModel.OperationRouteToID)
+
 	amount.Value = amount.Value.Sub(resultAmount.Value)
 
 	*exemptAccounts = append(*exemptAccounts, legKey)

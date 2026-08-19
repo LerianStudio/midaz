@@ -48,6 +48,7 @@ func (up *UpdatePackageInput) GetMaximumAmount() string {
 	return *up.MaxAmount
 }
 
+//nolint:gocognit // Fee validation checks every rule and priority combination; refactor candidate.
 func (up *UpdatePackageInput) ValidateFees() error {
 	for key, fee := range up.Fee {
 		if !fee.ValidateIfFeeIsNil() {

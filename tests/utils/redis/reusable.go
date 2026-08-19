@@ -45,6 +45,7 @@ func CleanupReusableContainers() error {
 	reusableRedisServers.Unlock()
 
 	var cleanupErrors []error
+
 	for _, server := range servers {
 		if server.container != nil {
 			cleanupErrors = append(cleanupErrors, server.container.Terminate(context.Background()))
@@ -92,9 +93,11 @@ func SetupReusableContainerWithConfig(t *testing.T, cfg ContainerConfig) *Contai
 				t.Errorf("Valkey logical database %d leaked %d keys after cleanup", db, size)
 			}
 		}
+
 		if err := client.Close(); err != nil {
 			t.Errorf("failed to close Valkey logical database %d client: %v", db, err)
 		}
+
 		server.slots <- db
 	})
 
@@ -151,6 +154,7 @@ func getReusableRedisServer(t *testing.T, cfg ContainerConfig) *reusableRedisSer
 	for db := range reusableLogicalDatabaseCount {
 		server.slots <- db
 	}
+
 	reusableRedisServers.servers[key] = server
 
 	return server

@@ -253,7 +253,7 @@ func (c *TracerClient) Reserve(ctx context.Context, req ReserveRequest) (*Reserv
 		path = "/v1/reservations/ledger-outcome-v2"
 	}
 
-	resp, err := c.do(ctx, http.MethodPost, path, body)
+	resp, err := c.do(ctx, path, body)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(span, "Reserve transport failed", err)
 		return nil, err
@@ -329,7 +329,7 @@ func (c *TracerClient) ApplyOutcome(ctx context.Context, req ApplyOutcomeRequest
 
 	path := fmt.Sprintf("/v1/reservations/transaction/%s/outcome", req.TransactionID.String())
 
-	resp, err := c.do(ctx, http.MethodPost, path, body)
+	resp, err := c.do(ctx, path, body)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(span, "ApplyOutcome transport failed", err)
 		return nil, err
@@ -371,7 +371,7 @@ func (c *TracerClient) transitionByTransaction(ctx context.Context, action strin
 
 	path := fmt.Sprintf("/v1/reservations/transaction/%s/%s", transactionID.String(), action)
 
-	resp, err := c.do(ctx, http.MethodPost, path, nil)
+	resp, err := c.do(ctx, path, nil)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(span, "Reservation by-transaction transition transport failed", err)
 		return err
@@ -401,7 +401,7 @@ func (c *TracerClient) transition(ctx context.Context, action string, reservatio
 
 	path := fmt.Sprintf("/v1/reservations/%s/%s", reservationID.String(), action)
 
-	resp, err := c.do(ctx, http.MethodPost, path, nil)
+	resp, err := c.do(ctx, path, nil)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(span, "Reservation transition transport failed", err)
 		return err
@@ -427,7 +427,7 @@ func (c *TracerClient) transition(ctx context.Context, action string, reservatio
 // ErrTracerUnavailable so the reserve anchor can branch on tracer.failPosture;
 // a non-2xx status is NOT an availability failure and is surfaced verbatim by
 // the caller's status check.
-func (c *TracerClient) do(ctx context.Context, method, path string, body []byte) (*http.Response, error) {
+func (c *TracerClient) do(ctx context.Context, path string, body []byte) (*http.Response, error) {
 	ctx, cancel := context.WithTimeout(ctx, c.operationTimeout)
 	defer cancel()
 
@@ -437,7 +437,7 @@ func (c *TracerClient) do(ctx context.Context, method, path string, body []byte)
 		bodyReader = bytes.NewReader(body)
 	}
 
-	req, err := http.NewRequestWithContext(ctx, method, c.baseURL+path, bodyReader)
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, c.baseURL+path, bodyReader)
 	if err != nil {
 		return nil, fmt.Errorf("build tracer request: %w", err)
 	}
@@ -445,6 +445,7 @@ func (c *TracerClient) do(ctx context.Context, method, path string, body []byte)
 	if body != nil {
 		req.Header.Set("Content-Type", "application/json")
 	}
+
 	if c.apiKey != "" {
 		req.Header.Set(APIKeyHeader, c.apiKey)
 	}

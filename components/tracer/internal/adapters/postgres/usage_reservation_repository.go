@@ -112,8 +112,10 @@ func (r *UsageReservationRepository) ReserveWithTx(ctx context.Context, db pgdb.
 		RETURNING id
 	`
 
-	var persistedID uuid.UUID
-	var reservationExpiresAt any = reservation.ReservationExpiresAt
+	var (
+		persistedID          uuid.UUID
+		reservationExpiresAt any = reservation.ReservationExpiresAt
+	)
 	if reservation.DeliveryMode == model.DeliveryModeLedgerOutcomeV2 {
 		// NULL is a wire-compatible barrier against pre-V2 reapers: their fixed
 		// `reservation_expires_at < now` predicate cannot discover this row.

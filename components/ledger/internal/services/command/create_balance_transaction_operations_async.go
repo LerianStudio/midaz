@@ -59,10 +59,12 @@ func (uc *UseCase) CreateBalanceTransactionOperationsAsync(ctx context.Context, 
 
 		return fmt.Errorf("transaction payload has nil Transaction field")
 	}
+
 	_, terminal, preflightErr := uc.preflightOutcomeBackedTransaction(ctx, data.OrganizationID, data.LedgerID, &t)
 	if preflightErr != nil {
 		return fmt.Errorf("validate current Redis economic outcome before PostgreSQL persistence: %w", preflightErr)
 	}
+
 	if terminal {
 		_, replayErr := uc.FinalizeDurableTransactionPersistence(ctx, data.OrganizationID, data.LedgerID, t)
 
@@ -170,9 +172,9 @@ func (uc *UseCase) CreateBalanceTransactionOperationsAsync(ctx context.Context, 
 		wg.Wait()
 	}()
 
-	if managedPersistence {
-		// The exact backup and outcome were already removed atomically above.
-	} else {
+	// When persistence is managed, the exact backup and outcome were already
+	// removed atomically above and no queue cleanup is needed.
+	if !managedPersistence {
 		if backupStatusForCleanup == "" {
 			backupStatusForCleanup = utils.ExpectedBackupStatusForCleanup(tran.Status.Code, t.Validate)
 		}
@@ -180,6 +182,7 @@ func (uc *UseCase) CreateBalanceTransactionOperationsAsync(ctx context.Context, 
 		go func() {
 			cleanupCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), asyncOperationTimeout)
 			defer cancel()
+
 			uc.RemoveTransactionFromRedisQueueIfStatus(cleanupCtx, logger, data.OrganizationID, data.LedgerID,
 				tran.ID, backupStatusForCleanup, t.AttemptOwner, t.ExpectedOutcome)
 		}()
@@ -194,9 +197,11 @@ func actionForTransactionPayload(payload transaction.TransactionProcessingPayloa
 	if payload.Action != "" {
 		return payload.Action
 	}
+
 	if payload.Transaction == nil {
 		return ""
 	}
+
 	if payload.Transaction.ParentTransactionID != nil {
 		return constant.ActionRevert
 	}
@@ -211,11 +216,13 @@ func actionForTransactionPayload(payload transaction.TransactionProcessingPayloa
 // the status compare-and-set inside the same transaction, while an already
 // terminal redelivery only replays the operation inserts before committing a
 // no-op.
+//nolint:gocognit,gocyclo // Atomic persistence covers transaction, operations, and metadata legs; refactor candidate.
 func (uc *UseCase) persistTransactionAndOperationsAtomic(
 	ctx context.Context,
 	payload transaction.TransactionProcessingPayload,
 ) (_ *transaction.Transaction, phase string, retErr error) {
 	logger, _, _, _ := libObservability.NewTrackingFromContext(ctx)
+
 	tran := payload.Transaction
 	if tran == nil {
 		return nil, TransactionLifecyclePhaseNoop, fmt.Errorf("transaction payload is required")
@@ -230,6 +237,7 @@ func (uc *UseCase) persistTransactionAndOperationsAtomic(
 		if payload.Input == nil {
 			return nil, TransactionLifecyclePhaseNoop, fmt.Errorf("pending transaction input is required")
 		}
+
 		tran.Body = *payload.Input
 	}
 
@@ -237,6 +245,7 @@ func (uc *UseCase) persistTransactionAndOperationsAtomic(
 		if oper == nil {
 			return nil, TransactionLifecyclePhaseNoop, fmt.Errorf("transaction operation is required")
 		}
+
 		if err := validateOperationDirection(ctx, logger, oper); err != nil {
 			return nil, TransactionLifecyclePhaseNoop, err
 		}
@@ -246,11 +255,13 @@ func (uc *UseCase) persistTransactionAndOperationsAtomic(
 	if err != nil {
 		return nil, TransactionLifecyclePhaseNoop, fmt.Errorf("begin atomic transaction persistence: %w", err)
 	}
+
 	committed := false
 	defer func() {
 		if committed {
 			return
 		}
+
 		if rollbackErr := dbTx.Rollback(); rollbackErr != nil {
 			retErr = errors.Join(retErr, fmt.Errorf("rollback atomic transaction persistence: %w", rollbackErr))
 		}
@@ -260,6 +271,7 @@ func (uc *UseCase) persistTransactionAndOperationsAtomic(
 	if err != nil {
 		return nil, TransactionLifecyclePhaseNoop, fmt.Errorf("persist transaction atomically: %w", err)
 	}
+
 	if insertResult == nil || insertResult.Inserted+insertResult.Ignored != 1 {
 		return nil, TransactionLifecyclePhaseNoop, fmt.Errorf("persist transaction atomically: invalid insert result")
 	}
@@ -274,9 +286,11 @@ func (uc *UseCase) persistTransactionAndOperationsAtomic(
 		if createErr != nil {
 			return nil, TransactionLifecyclePhaseNoop, fmt.Errorf("persist transaction operations atomically: %w", createErr)
 		}
+
 		if operationResult == nil || operationResult.Inserted+operationResult.Ignored != int64(len(tran.Operations)) {
 			return nil, TransactionLifecyclePhaseNoop, fmt.Errorf("persist transaction operations atomically: invalid insert result")
 		}
+
 		if phase == TransactionLifecyclePhaseCreated && operationResult.Inserted != int64(len(tran.Operations)) {
 			return nil, TransactionLifecyclePhaseNoop, fmt.Errorf("persist transaction operations atomically: fresh transaction operation conflict")
 		}
@@ -287,23 +301,28 @@ func (uc *UseCase) persistTransactionAndOperationsAtomic(
 		if identityErr != nil {
 			return nil, TransactionLifecyclePhaseNoop, identityErr
 		}
+
 		transactionID, identityErr := uuid.Parse(tran.ID)
 		if identityErr != nil {
 			return nil, TransactionLifecyclePhaseNoop, fmt.Errorf("invalid transaction ID: %w", identityErr)
 		}
+
 		if transactionID == uuid.Nil {
 			return nil, TransactionLifecyclePhaseNoop, fmt.Errorf("invalid transaction ID: UUID is nil")
 		}
+
 		if _, updateErr := uc.TransactionRepo.UpdateStatusFromPendingTx(ctx, dbTx,
 			organizationID, ledgerID, transactionID, &transaction.Transaction{Status: tran.Status}); updateErr != nil {
 			return nil, TransactionLifecyclePhaseNoop, fmt.Errorf("persist terminal transaction status atomically: %w", updateErr)
 		}
+
 		phase = TransactionLifecyclePhaseUpdated
 	}
 
 	if err := dbTx.Commit(); err != nil {
 		return nil, TransactionLifecyclePhaseNoop, fmt.Errorf("commit atomic transaction persistence: %w", err)
 	}
+
 	committed = true
 
 	return tran, phase, nil
@@ -370,6 +389,7 @@ func (uc *UseCase) RemoveTransactionFromRedisQueueIfStatus(
 
 		return
 	}
+
 	if !removed {
 		logger.Log(ctx, libLog.LevelDebug, "Backup queue: skip cleanup because transaction status changed",
 			libLog.String("transaction_key", transactionKey),
@@ -390,6 +410,7 @@ type TransactionBackupSeedOptions struct {
 // When balances is non-nil (e.g. commit/cancel flows), the snapshot is included
 // directly in the backup message so the Redis consumer can retry without relying
 // on the Lua script to populate them.
+//nolint:gocognit,gocyclo // Queue handoff branches per backup and rollout state; refactor candidate.
 func (uc *UseCase) SendTransactionToRedisQueue(ctx context.Context, organizationID, ledgerID, transactionID uuid.UUID, transactionInput mtransaction.Transaction, validate *mtransaction.Responses, transactionStatus, action string, transactionDate time.Time, balances []*mmodel.Balance, parentTransactionID *uuid.UUID, options ...TransactionBackupSeedOptions) error {
 	logger, _, reqId, _ := libObservability.NewTrackingFromContext(ctx)
 	transactionKey := utils.TransactionInternalKey(organizationID, ledgerID, transactionID.String())
@@ -446,6 +467,7 @@ func (uc *UseCase) SendTransactionToRedisQueue(ctx context.Context, organization
 	if transactionStatus == constant.NOTED {
 		effectMode = mmodel.TransactionEffectAnnotationOnly
 	}
+
 	queue := mmodel.TransactionRedisQueue{
 		HeaderID:              reqId,
 		OrganizationID:        organizationID,
@@ -465,6 +487,7 @@ func (uc *UseCase) SendTransactionToRedisQueue(ctx context.Context, organization
 	if parentTransactionID != nil && *parentTransactionID != uuid.Nil {
 		queue.ParentTransactionID = parentTransactionID
 	}
+
 	var executionAttempt *mmodel.BalanceExecutionAttempt
 	if len(options) > 0 {
 		executionAttempt = options[0].ExecutionAttempt
@@ -474,11 +497,13 @@ func (uc *UseCase) SendTransactionToRedisQueue(ctx context.Context, organization
 		queue.RedisGeneration = options[0].RedisGeneration
 		queue.ExpectedEconomicPlan = options[0].ExpectedEconomicPlan
 	}
+
 	if queue.ExpectedEconomicPlan != nil {
 		if err := mmodel.ValidateExpectedEconomicPlan(queue.ExpectedEconomicPlan); err != nil {
 			return fmt.Errorf("validate transaction expected economic plan: %w", err)
 		}
 	}
+
 	validRolloutMode := queue.RevertRolloutMode == "legacy" || queue.RevertRolloutMode == "bridge"
 	if (queue.RevertRolloutToken == "") != (queue.RevertRolloutMode == "") ||
 		(queue.RevertRolloutToken != "" && (!validRolloutMode || queue.RevertLegacyFenceKey == "" || queue.ParentTransactionID == nil ||
@@ -486,9 +511,11 @@ func (uc *UseCase) SendTransactionToRedisQueue(ctx context.Context, organization
 			executionAttempt.Outcome != mmodel.TransactionOutcomeCommitted || queue.RedisGeneration == "")) {
 		return fmt.Errorf("rollout revert backup requires exact generation, origin, input, and committed outcome owner")
 	}
+
 	if executionAttempt != nil && executionAttempt.RedisGeneration != queue.RedisGeneration {
 		return fmt.Errorf("transaction backup Redis generation mismatch")
 	}
+
 	if executionAttempt != nil {
 		queue.AttemptOwner = executionAttempt.Owner
 		queue.ExpectedOutcome = executionAttempt.Outcome
@@ -506,6 +533,7 @@ func (uc *UseCase) SendTransactionToRedisQueue(ctx context.Context, organization
 	} else {
 		err = uc.TransactionRedisRepo.AddMessageToQueue(ctx, transactionKey, raw)
 	}
+
 	if err != nil {
 		logger.Log(ctx, libLog.LevelError, "Failed to send transaction to redis queue", libLog.Err(err))
 
@@ -539,12 +567,15 @@ func (uc *UseCase) UpdateTransactionBackupOperations(
 		if op == nil {
 			return nil, false, fmt.Errorf("transaction economic operation is required")
 		}
+
 		redisOps = append(redisOps, op.ToRedis())
 	}
+
 	if len(expected) != 1 || expected[0].TransactionStatus == "" ||
 		expected[0].TransactionAmount == "" || expected[0].TransactionAssetCode == "" {
 		return nil, false, fmt.Errorf("one transaction economic context is required")
 	}
+
 	proof := expected[0]
 	proof.Action = action
 	ctx = mmodel.WithTransactionEconomicContext(ctx, proof)
@@ -557,12 +588,14 @@ func (uc *UseCase) UpdateTransactionBackupOperations(
 
 		return nil, false, err
 	}
+
 	operationEffectMatches := sameRedisEconomicOperationMultiset(
 		organizationID, ledgerID, transactionID, redisOps, canonicalRedisOps,
 	)
 	if attempt == nil && proof.TransactionStatus == constant.NOTED && !operationEffectMatches {
 		return nil, false, fmt.Errorf("transaction annotation operation effect differs from its authoritative Redis envelope")
 	}
+
 	if attempt != nil && (!operationEffectMatches || !mmodel.RedisBalanceSetEconomicComplete(balancesAfter) ||
 		!mmodel.RedisBalanceSetEconomicComplete(canonicalBalancesAfter) ||
 		!mmodel.RedisBalanceSetEconomicEqual(balancesAfter, canonicalBalancesAfter)) {
@@ -584,14 +617,18 @@ func sameRedisEconomicOperationMultiset(
 	if len(left) == 0 || len(left) != len(right) {
 		return false
 	}
+
 	used := make([]bool, len(right))
+
 	for _, candidate := range left {
 		if candidate.TransactionID != transactionID.String() ||
 			candidate.OrganizationID != organizationID.String() || candidate.LedgerID != ledgerID.String() ||
 			!mmodel.RedisOperationEconomicComplete(candidate) {
 			return false
 		}
+
 		matched := false
+
 		for index, canonical := range right {
 			if used[index] || canonical.TransactionID != transactionID.String() ||
 				canonical.OrganizationID != organizationID.String() || canonical.LedgerID != ledgerID.String() ||
@@ -599,10 +636,13 @@ func sameRedisEconomicOperationMultiset(
 				!operation.RedisEconomicEffectEqual(candidate, canonical) {
 				continue
 			}
+
 			used[index] = true
 			matched = true
+
 			break
 		}
+
 		if !matched {
 			return false
 		}

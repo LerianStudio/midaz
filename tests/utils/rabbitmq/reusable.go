@@ -52,6 +52,7 @@ func CleanupReusableContainers() error {
 	reusableRabbitMQServers.Unlock()
 
 	var cleanupErrors []error
+
 	for _, server := range servers {
 		if server.container != nil {
 			cleanupErrors = append(cleanupErrors, server.container.Terminate(context.Background()))
@@ -121,11 +122,12 @@ func SetupReusableContainerWithConfig(t *testing.T, cfg ContainerConfig) *Contai
 		if ch != nil {
 			_ = ch.Close()
 		}
+
 		if conn != nil {
 			_ = conn.Close()
 		}
 
-		status, cleanupErr := rabbitManagementRequest(
+		cleanupStatus, cleanupErr := rabbitManagementRequest(
 			cfg,
 			server.host,
 			server.mgmtPort,
@@ -137,12 +139,13 @@ func SetupReusableContainerWithConfig(t *testing.T, cfg ContainerConfig) *Contai
 			t.Errorf("failed to drop RabbitMQ test virtual host %q: %v", vhost, cleanupErr)
 			return
 		}
-		if status != http.StatusNoContent {
-			t.Errorf("failed to drop RabbitMQ test virtual host %q: status %d", vhost, status)
+
+		if cleanupStatus != http.StatusNoContent {
+			t.Errorf("failed to drop RabbitMQ test virtual host %q: status %d", vhost, cleanupStatus)
 			return
 		}
 
-		status, auditErr := rabbitManagementRequest(
+		auditStatus, auditErr := rabbitManagementRequest(
 			cfg,
 			server.host,
 			server.mgmtPort,
@@ -152,8 +155,8 @@ func SetupReusableContainerWithConfig(t *testing.T, cfg ContainerConfig) *Contai
 		)
 		if auditErr != nil {
 			t.Errorf("failed to audit RabbitMQ test virtual host cleanup %q: %v", vhost, auditErr)
-		} else if status != http.StatusNotFound {
-			t.Errorf("RabbitMQ test virtual host %q leaked after cleanup: status %d", vhost, status)
+		} else if auditStatus != http.StatusNotFound {
+			t.Errorf("RabbitMQ test virtual host %q leaked after cleanup: status %d", vhost, auditStatus)
 		}
 	})
 
@@ -236,7 +239,9 @@ func rabbitManagementRequest(cfg ContainerConfig, host, port, method, path strin
 	if err != nil {
 		return 0, fmt.Errorf("build RabbitMQ management request: %w", err)
 	}
+
 	req.SetBasicAuth(cfg.User, cfg.Password)
+
 	if body != nil {
 		req.Header.Set("Content-Type", "application/json")
 	}
@@ -247,11 +252,13 @@ func rabbitManagementRequest(cfg ContainerConfig, host, port, method, path strin
 			DisableKeepAlives: true,
 		},
 	}
+
 	resp, err := client.Do(req)
 	if err != nil {
 		return 0, fmt.Errorf("execute RabbitMQ management request: %w", err)
 	}
 	defer resp.Body.Close()
+
 	_, _ = io.Copy(io.Discard, resp.Body)
 
 	return resp.StatusCode, nil

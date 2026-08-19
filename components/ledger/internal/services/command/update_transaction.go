@@ -107,8 +107,10 @@ func (uc *UseCase) UpdateTransactionSerialized(
 	if err != nil {
 		return nil, fmt.Errorf("begin serialized transaction update: %w", err)
 	}
+
 	committed := false
 	releaseGateOnReturn := true
+
 	defer func() {
 		if !committed {
 			_ = dbTx.Rollback()
@@ -127,11 +129,13 @@ func (uc *UseCase) UpdateTransactionSerialized(
 			return nil, err
 		}
 	}
+
 	if releaseGate != nil {
 		defer func() {
 			if !releaseGateOnReturn {
 				return
 			}
+
 			if err := releaseGate(); err != nil {
 				retErr = errors.Join(retErr, err)
 				result = nil
@@ -140,6 +144,7 @@ func (uc *UseCase) UpdateTransactionSerialized(
 	}
 
 	updateVersion := nextTransactionUpdateVersion(current.UpdatedAt)
+
 	result, err = uc.TransactionRepo.UpdateTx(ctx, dbTx, organizationID, ledgerID, transactionID, &transaction.Transaction{
 		Description: uti.Description,
 		UpdatedAt:   updateVersion,
@@ -149,13 +154,16 @@ func (uc *UseCase) UpdateTransactionSerialized(
 	}
 
 	metadataBefore := map[string]any{}
+
 	existingMetadata, err := uc.TransactionMetadataRepo.FindByEntity(ctx, constant.EntityTransaction, transactionID.String())
 	if err != nil {
 		return nil, err
 	}
+
 	if existingMetadata != nil {
 		metadataBefore = maps.Clone(existingMetadata.Data)
 	}
+
 	metadataUpdated, err := uc.updateTransactionMetadataFromSnapshot(ctx, constant.EntityTransaction,
 		transactionID.String(), uti.Metadata, existingMetadata)
 	if err != nil {
@@ -164,6 +172,7 @@ func (uc *UseCase) UpdateTransactionSerialized(
 
 		return nil, fmt.Errorf("transaction metadata update is ambiguous: %v: %w", err, reconciliationErr)
 	}
+
 	if commitErr := dbTx.Commit(); commitErr != nil {
 		state, persisted, reconcileErr := uc.reconcileTransactionUpdateCommit(ctx, organizationID, ledgerID,
 			transactionID, current, updateVersion, uti.Description)
@@ -185,6 +194,7 @@ func (uc *UseCase) UpdateTransactionSerialized(
 			return nil, fmt.Errorf("commit serialized transaction update: %w", commitErr)
 		default:
 			releaseGateOnReturn = false
+
 			reconciliationErr := pkg.ValidateBusinessError(constant.ErrRevertReconciliationRequired, constant.EntityTransaction)
 			if reconcileErr != nil {
 				return nil, fmt.Errorf("reconcile ambiguous serialized transaction update: %v: %w", reconcileErr, reconciliationErr)
@@ -194,6 +204,7 @@ func (uc *UseCase) UpdateTransactionSerialized(
 				commitErr, reconciliationErr)
 		}
 	}
+
 	committed = true
 	result.Metadata = metadataUpdated
 
@@ -202,6 +213,7 @@ func (uc *UseCase) UpdateTransactionSerialized(
 
 func nextTransactionUpdateVersion(previous time.Time) time.Time {
 	next := time.Now().UTC().Truncate(time.Microsecond)
+
 	previous = previous.UTC().Truncate(time.Microsecond)
 	if !next.After(previous) {
 		return previous.Add(time.Microsecond)
@@ -221,6 +233,7 @@ func (uc *UseCase) reconcileTransactionUpdateCommit(
 	defer cancel()
 
 	var lastErr error
+
 	for attempt := 0; attempt < transactionUpdateCommitReadAttempts; attempt++ {
 		persisted, err := uc.TransactionRepo.Find(readrouting.WithPrimaryRead(reconcileCtx), organizationID, ledgerID, transactionID)
 		if err == nil {
@@ -228,16 +241,20 @@ func (uc *UseCase) reconcileTransactionUpdateCommit(
 			if expectedDescription == "" {
 				expectedDescription = before.Description
 			}
+
 			if exactTransactionUpdateVersion(persisted, before, updateVersion, expectedDescription) {
 				return transactionUpdateCommitApplied, persisted, nil
 			}
+
 			if exactTransactionUpdateVersion(persisted, before, before.UpdatedAt, before.Description) {
 				return transactionUpdateCommitRolledBack, persisted, nil
 			}
 
 			return transactionUpdateCommitUnknown, persisted, nil
 		}
+
 		lastErr = err
+
 		if attempt+1 == transactionUpdateCommitReadAttempts {
 			break
 		}

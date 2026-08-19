@@ -297,56 +297,6 @@ func TestAcquireRolloutRequest_AmbiguousAdmissionPreservesSharedRevertOrigin(t *
 	}
 }
 
-func TestEnforceRevertUpdateFreeze_RolloutPhases(t *testing.T) {
-	t.Parallel()
-
-	tests := []struct {
-		name       string
-		mode       string
-		status     string
-		freeze     *revertUpdateFreezeStub
-		wantCode   string
-		policyRead int
-	}{
-		{name: "phase zero marker off preserves approved updates", mode: revertIdempotencyModeLegacy, status: constant.APPROVED, freeze: &revertUpdateFreezeStub{ready: true}, policyRead: 1},
-		{name: "phase zero marker on freezes approved updates", mode: revertIdempotencyModeLegacy, status: constant.APPROVED, freeze: &revertUpdateFreezeStub{active: true, ready: true}, wantCode: constant.ErrActionNotPermitted.Error(), policyRead: 1},
-		{name: "finalized marker fences a surviving phase zero pod", mode: revertIdempotencyModeLegacy, status: constant.APPROVED, freeze: &revertUpdateFreezeStub{}, wantCode: constant.ErrRevertRolloutFreezeRequired.Error(), policyRead: 1},
-		{name: "bridge marker off blocks approved updates", mode: revertIdempotencyModeBridge, status: constant.APPROVED, freeze: &revertUpdateFreezeStub{}, wantCode: constant.ErrRevertRolloutFreezeRequired.Error(), policyRead: 1},
-		{name: "bridge marker on freezes approved updates", mode: revertIdempotencyModeBridge, status: constant.APPROVED, freeze: &revertUpdateFreezeStub{active: true, ready: true}, wantCode: constant.ErrActionNotPermitted.Error(), policyRead: 1},
-		{name: "final remains frozen before rollout finalization", mode: revertIdempotencyModeFinal, status: constant.APPROVED, freeze: &revertUpdateFreezeStub{active: true, ready: true}, wantCode: constant.ErrActionNotPermitted.Error(), policyRead: 1},
-		{name: "finalized marker restores approved updates", mode: revertIdempotencyModeFinal, status: constant.APPROVED, freeze: &revertUpdateFreezeStub{ready: true}, policyRead: 1},
-		{name: "pending updates remain allowed while frozen", mode: revertIdempotencyModeBridge, status: constant.PENDING, freeze: &revertUpdateFreezeStub{active: true, ready: true}},
-	}
-
-	for _, tc := range tests {
-		tc := tc
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-
-			handler := &TransactionHandler{RevertIdempotencyMode: tc.mode, RevertUpdateFreeze: tc.freeze}
-			err := handler.enforceRevertUpdateFreeze(context.Background(), tc.status)
-			assert.Equal(t, tc.policyRead, tc.freeze.policyRead)
-			if tc.wantCode == "" {
-				require.NoError(t, err)
-
-				return
-			}
-
-			require.Error(t, err)
-			switch tc.wantCode {
-			case constant.ErrActionNotPermitted.Error():
-				var businessErr pkg.UnprocessableOperationError
-				require.ErrorAs(t, err, &businessErr)
-				assert.Equal(t, tc.wantCode, businessErr.Code)
-			case constant.ErrRevertRolloutFreezeRequired.Error():
-				var businessErr pkg.ServiceUnavailableError
-				require.ErrorAs(t, err, &businessErr)
-				assert.Equal(t, tc.wantCode, businessErr.Code)
-			}
-		})
-	}
-}
-
 func TestRequireRevertRolloutBarrier_RejectsMissingOrUnreadableMarker(t *testing.T) {
 	t.Parallel()
 

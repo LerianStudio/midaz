@@ -95,10 +95,12 @@ func (r *PostgreSQLRepository) BeginRolloutInitialization(
 	if err != nil {
 		return false, false, err
 	}
+
 	tx, err := db.BeginTx(ctx, nil)
 	if err != nil {
 		return false, false, fmt.Errorf("begin revert rollout initialization: %w", err)
 	}
+
 	defer func() { _ = tx.Rollback() }()
 
 	result, err := tx.ExecContext(ctx, `
@@ -109,6 +111,7 @@ func (r *PostgreSQLRepository) BeginRolloutInitialization(
 	if err != nil {
 		return false, false, fmt.Errorf("insert revert rollout initialization: %w", err)
 	}
+
 	rows, err := result.RowsAffected()
 	if err != nil {
 		return false, false, fmt.Errorf("read revert rollout initialization insert result: %w", err)
@@ -121,12 +124,15 @@ func (r *PostgreSQLRepository) BeginRolloutInitialization(
 	if err != nil {
 		return false, false, fmt.Errorf("read revert rollout initialization: %w", err)
 	}
+
 	if storedGeneration != redisGeneration {
 		return false, false, fmt.Errorf("revert rollout dataset generation differs from its birth certificate")
 	}
+
 	if storedRequestID != initializationRequestID {
 		return false, false, fmt.Errorf("revert rollout initialization request differs from its birth certificate")
 	}
+
 	if state != "PREPARING" && state != "PREPARED" {
 		return false, false, fmt.Errorf("invalid revert rollout initialization state %q", state)
 	}
@@ -155,10 +161,12 @@ func (r *PostgreSQLRepository) CompleteRolloutInitialization(
 	if err != nil {
 		return err
 	}
+
 	tx, err := db.BeginTx(ctx, nil)
 	if err != nil {
 		return fmt.Errorf("begin revert rollout completion: %w", err)
 	}
+
 	defer func() { _ = tx.Rollback() }()
 
 	result, err := tx.ExecContext(ctx, `
@@ -171,10 +179,12 @@ func (r *PostgreSQLRepository) CompleteRolloutInitialization(
 	if err != nil {
 		return fmt.Errorf("complete revert rollout initialization: %w", err)
 	}
+
 	rows, err := result.RowsAffected()
 	if err != nil {
 		return fmt.Errorf("read revert rollout completion result: %w", err)
 	}
+
 	if rows == 0 {
 		storedGeneration, storedRequestID, state, readErr := readRolloutInitializationRow(tx.QueryRowContext(ctx, `
 			SELECT redis_generation, initialization_request_id, state
@@ -183,12 +193,15 @@ func (r *PostgreSQLRepository) CompleteRolloutInitialization(
 		if readErr != nil {
 			return fmt.Errorf("read revert rollout completion identity: %w", readErr)
 		}
+
 		if storedGeneration != redisGeneration {
 			return fmt.Errorf("revert rollout dataset generation differs from its birth certificate")
 		}
+
 		if storedRequestID != initializationRequestID {
 			return fmt.Errorf("revert rollout initialization request differs from its birth certificate")
 		}
+
 		if state != "PREPARED" {
 			return fmt.Errorf("revert rollout initialization is not prepared")
 		}
@@ -199,6 +212,7 @@ func (r *PostgreSQLRepository) CompleteRolloutInitialization(
 		if reconcileErr == nil && prepared {
 			return nil
 		}
+
 		if reconcileErr == nil {
 			reconcileErr = fmt.Errorf("revert rollout initialization remains preparing")
 		}
@@ -216,10 +230,12 @@ func (r *PostgreSQLRepository) ValidatePreparedRollout(ctx context.Context, redi
 	if err != nil {
 		return err
 	}
+
 	tx, err := db.BeginTx(ctx, &sql.TxOptions{ReadOnly: true})
 	if err != nil {
 		return fmt.Errorf("begin primary revert rollout validation: %w", err)
 	}
+
 	defer func() { _ = tx.Rollback() }()
 
 	storedGeneration, _, state, err := readRolloutInitializationRow(tx.QueryRowContext(ctx, `
@@ -229,15 +245,19 @@ func (r *PostgreSQLRepository) ValidatePreparedRollout(ctx context.Context, redi
 	if errors.Is(err, sql.ErrNoRows) {
 		return fmt.Errorf("revert rollout birth certificate is missing")
 	}
+
 	if err != nil {
 		return fmt.Errorf("read revert rollout birth certificate: %w", err)
 	}
+
 	if storedGeneration != redisGeneration {
 		return fmt.Errorf("revert rollout dataset generation differs from its birth certificate")
 	}
+
 	if state != "PREPARED" {
 		return fmt.Errorf("revert rollout birth certificate is not prepared")
 	}
+
 	if err := tx.Commit(); err != nil {
 		return fmt.Errorf("commit primary revert rollout validation: %w", err)
 	}
@@ -256,10 +276,12 @@ func (r *PostgreSQLRepository) InspectRolloutInitialization(
 	if err != nil {
 		return false, uuid.Nil, "", err
 	}
+
 	tx, err := db.BeginTx(ctx, &sql.TxOptions{ReadOnly: true})
 	if err != nil {
 		return false, uuid.Nil, "", fmt.Errorf("begin primary revert rollout inspection: %w", err)
 	}
+
 	defer func() { _ = tx.Rollback() }()
 
 	storedGeneration, _, storedState, err := readRolloutInitializationRow(tx.QueryRowContext(ctx, `
@@ -273,12 +295,15 @@ func (r *PostgreSQLRepository) InspectRolloutInitialization(
 
 		return false, uuid.Nil, "", nil
 	}
+
 	if err != nil {
 		return false, uuid.Nil, "", fmt.Errorf("inspect revert rollout birth certificate: %w", err)
 	}
+
 	if storedState != "PREPARING" && storedState != "PREPARED" {
 		return false, uuid.Nil, "", fmt.Errorf("invalid revert rollout initialization state %q", storedState)
 	}
+
 	if err := tx.Commit(); err != nil {
 		return false, uuid.Nil, "", fmt.Errorf("commit primary revert rollout inspection: %w", err)
 	}
@@ -310,10 +335,12 @@ func (r *PostgreSQLRepository) readExactRolloutInitialization(
 	if err != nil {
 		return false, err
 	}
+
 	tx, err := db.BeginTx(ctx, &sql.TxOptions{ReadOnly: true})
 	if err != nil {
 		return false, fmt.Errorf("begin primary revert rollout reconciliation: %w", err)
 	}
+
 	defer func() { _ = tx.Rollback() }()
 
 	storedGeneration, storedRequestID, state, err := readRolloutInitializationRow(tx.QueryRowContext(ctx, `
@@ -323,18 +350,23 @@ func (r *PostgreSQLRepository) readExactRolloutInitialization(
 	if errors.Is(err, sql.ErrNoRows) {
 		return false, fmt.Errorf("revert rollout birth certificate is missing")
 	}
+
 	if err != nil {
 		return false, fmt.Errorf("read revert rollout birth certificate: %w", err)
 	}
+
 	if storedGeneration != redisGeneration {
 		return false, fmt.Errorf("revert rollout dataset generation differs from its birth certificate")
 	}
+
 	if storedRequestID != initializationRequestID {
 		return false, fmt.Errorf("revert rollout initialization request differs from its birth certificate")
 	}
+
 	if state != "PREPARING" && state != "PREPARED" {
 		return false, fmt.Errorf("invalid revert rollout initialization state %q", state)
 	}
+
 	if err := tx.Commit(); err != nil {
 		return false, fmt.Errorf("commit primary revert rollout reconciliation: %w", err)
 	}
@@ -343,9 +375,11 @@ func (r *PostgreSQLRepository) readExactRolloutInitialization(
 }
 
 func readRolloutInitializationRow(row interface{ Scan(...any) error }) (uuid.UUID, uuid.UUID, string, error) {
-	var redisGeneration uuid.UUID
-	var initializationRequestID uuid.UUID
-	var state string
+	var (
+		redisGeneration         uuid.UUID
+		initializationRequestID uuid.UUID
+		state                   string
+	)
 	if err := row.Scan(&redisGeneration, &initializationRequestID, &state); err != nil {
 		return uuid.Nil, uuid.Nil, "", err
 	}
@@ -357,12 +391,15 @@ func (r *PostgreSQLRepository) getDB(ctx context.Context) (dbresolver.DB, error)
 	if db := tmcore.GetPGContext(ctx, constant.ModuleTransaction); db != nil {
 		return db, nil
 	}
+
 	if db := tmcore.GetPGContext(ctx); db != nil {
 		return db, nil
 	}
+
 	if r.requireTenant {
 		return nil, fmt.Errorf("tenant postgres connection missing from context")
 	}
+
 	if r.connection == nil {
 		return nil, fmt.Errorf("postgres connection not available")
 	}
@@ -393,6 +430,7 @@ func scanClaim(row interface{ Scan(...any) error }) (*Claim, error) {
 	return claim, nil
 }
 
+//nolint:gocyclo // Claim CAS handles every persisted claim state transition; refactor candidate.
 func (r *PostgreSQLRepository) Claim(
 	ctx context.Context,
 	organizationID, ledgerID, originID, reverseID uuid.UUID,
@@ -401,26 +439,33 @@ func (r *PostgreSQLRepository) Claim(
 	if legacyFenceKey != nil && strings.TrimSpace(*legacyFenceKey) == "" {
 		return nil, false, fmt.Errorf("legacy fence key cannot be empty")
 	}
+
 	if legacyFenceOwner != nil && (legacyFenceKey == nil || *legacyFenceOwner != reverseID.String()) {
 		return nil, false, fmt.Errorf("legacy fence owner requires an exact fence key")
 	}
+
 	if (rolloutMode == nil) != (rolloutToken == nil) {
 		return nil, false, fmt.Errorf("revert rollout mode and token must be provided together")
 	}
+
 	if rolloutMode != nil {
 		if *rolloutMode != "legacy" && *rolloutMode != "bridge" {
 			return nil, false, fmt.Errorf("revert rollout mode must be legacy or bridge")
 		}
+
 		if strings.TrimSpace(*rolloutToken) == "" {
 			return nil, false, fmt.Errorf("revert rollout token cannot be empty")
 		}
+
 		if redisGeneration == nil {
 			return nil, false, fmt.Errorf("revert rollout requires a financial Redis generation")
 		}
 	}
+
 	if redisGeneration != nil && strings.TrimSpace(*redisGeneration) == "" {
 		return nil, false, fmt.Errorf("financial Redis generation cannot be empty")
 	}
+
 	db, err := r.getDB(ctx)
 	if err != nil {
 		return nil, false, err
@@ -494,6 +539,7 @@ func (r *PostgreSQLRepository) Get(ctx context.Context, organizationID, ledgerID
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, nil
 	}
+
 	if err != nil {
 		return nil, fmt.Errorf("read revert claim: %w", err)
 	}
@@ -528,6 +574,7 @@ func (r *PostgreSQLRepository) GetByReverseID(ctx context.Context, organizationI
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, nil
 	}
+
 	if err != nil {
 		return nil, fmt.Errorf("read revert claim by reverse id: %w", err)
 	}
@@ -551,14 +598,17 @@ func (r *PostgreSQLRepository) Arm(
 	if attemptOwner != reverseID.String() {
 		return fmt.Errorf("revert claim arm requires the reserved reverse as attempt owner")
 	}
+
 	db, err := r.getDB(ctx)
 	if err != nil {
 		return err
 	}
+
 	tx, err := db.BeginTx(ctx, nil)
 	if err != nil {
 		return fmt.Errorf("begin revert claim arm: %w", err)
 	}
+
 	defer func() { _ = tx.Rollback() }()
 
 	result, err := tx.ExecContext(ctx, `
@@ -572,10 +622,12 @@ func (r *PostgreSQLRepository) Arm(
 	if err != nil {
 		return fmt.Errorf("arm revert claim: %w", err)
 	}
+
 	rows, err := result.RowsAffected()
 	if err != nil {
 		return fmt.Errorf("read revert claim arm result: %w", err)
 	}
+
 	if rows == 0 {
 		var state State
 		if err := tx.QueryRowContext(ctx, `
@@ -587,6 +639,7 @@ func (r *PostgreSQLRepository) Arm(
 		).Scan(&state); err != nil {
 			return fmt.Errorf("read revert claim arm identity: %w", err)
 		}
+
 		if state != StateArmed {
 			return fmt.Errorf("revert claim is %s, not armed", state)
 		}
@@ -597,6 +650,7 @@ func (r *PostgreSQLRepository) Arm(
 		if readErr == nil && claim != nil && claim.ReverseTransactionID == reverseID && claim.State == StateArmed {
 			return nil
 		}
+
 		if readErr == nil {
 			readErr = fmt.Errorf("primary does not prove the exact armed revert claim")
 		}
@@ -649,8 +703,9 @@ func (r *PostgreSQLRepository) Transition(ctx context.Context, organizationID, l
 	if err != nil {
 		return fmt.Errorf("read revert claim transition result: %w", err)
 	}
+
 	if rows == 0 {
-		return fmt.Errorf("revert claim not transitionable")
+		return fmt.Errorf("revert claim not transitional")
 	}
 
 	return nil
@@ -736,6 +791,7 @@ func (r *PostgreSQLRepository) ReleaseRejectedArm(
 	if err != nil {
 		return false, fmt.Errorf("release definitively rejected armed revert claim: %w", err)
 	}
+
 	rows, err := result.RowsAffected()
 	if err != nil {
 		return false, fmt.Errorf("read definitively rejected armed revert claim release result: %w", err)

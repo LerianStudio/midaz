@@ -112,10 +112,12 @@ func setupContainerWithConfig(t *testing.T, cfg ContainerConfig, fixedHostPort s
 		).WithDeadline(180 * time.Second),
 		HostConfigModifier: func(hc *container.HostConfig) {
 			testutils.ApplyResourceLimits(hc, cfg.MemoryMB, cfg.CPULimit)
+
 			if fixedHostPort != "" {
 				if hc.PortBindings == nil {
 					hc.PortBindings = mobynetwork.PortMap{}
 				}
+
 				hc.PortBindings[mobynetwork.MustParsePort("5432/tcp")] = []mobynetwork.PortBinding{
 					{HostIP: netip.MustParseAddr("0.0.0.0"), HostPort: fixedHostPort},
 				}

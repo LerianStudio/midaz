@@ -28,24 +28,29 @@ func ResolveTransactionEffectMode(queue *TransactionRedisQueue) (TransactionEffe
 	if queue == nil {
 		return "", fmt.Errorf("transaction effect envelope is required")
 	}
+
 	if queue.EffectModeVersion == 0 && queue.EffectMode == "" {
 		if err := validateOperationTypeOverride(queue.TransactionStatus, queue.OperationTypeOverride); err != nil {
 			return "", err
 		}
+
 		if queue.TransactionStatus == constant.NOTED {
 			return TransactionEffectAnnotationOnly, nil
 		}
 
 		return TransactionEffectBalanceMutation, nil
 	}
+
 	if queue.EffectModeVersion != TransactionEffectModeVersion {
 		return "", fmt.Errorf("unsupported transaction effect mode version %d", queue.EffectModeVersion)
 	}
+
 	switch queue.EffectMode {
 	case TransactionEffectBalanceMutation:
 		if queue.TransactionStatus == constant.NOTED {
 			return "", fmt.Errorf("NOTED transaction cannot declare a balance mutation")
 		}
+
 		if err := validateOperationTypeOverride(queue.TransactionStatus, queue.OperationTypeOverride); err != nil {
 			return "", err
 		}
@@ -53,6 +58,7 @@ func ResolveTransactionEffectMode(queue *TransactionRedisQueue) (TransactionEffe
 		if queue.TransactionStatus != constant.NOTED {
 			return "", fmt.Errorf("annotation-only transaction must be NOTED")
 		}
+
 		if queue.OperationTypeOverride != "" {
 			return "", fmt.Errorf("annotation-only transaction cannot override its operation type")
 		}
@@ -67,6 +73,7 @@ func validateOperationTypeOverride(transactionStatus, operationTypeOverride stri
 	if operationTypeOverride == "" {
 		return nil
 	}
+
 	if transactionStatus == constant.NOTED ||
 		(operationTypeOverride != constant.BLOCK && operationTypeOverride != constant.UNBLOCK) {
 		return fmt.Errorf("unsupported transaction operation type override %q", operationTypeOverride)
