@@ -49,11 +49,13 @@ producer conventions in `CLAUDE.md` (Streaming section) and
 - **Master flag:** `STREAMING_ENABLED` (default `false`). When disabled, bootstrap
   injects a `NoopEmitter`, no broker connection is attempted, and `/readyz` reports
   the streaming check as `skipped` rather than healthy. `STREAMING_ENABLED=true`
-  with an empty `STREAMING_BROKERS` — or with no events registered — REFUSES BOOT
-  (`pkgStreaming.RequireBrokers`): an enabled producer with nowhere to publish
+  with an empty `STREAMING_BROKERS` REFUSES BOOT (`pkgStreaming.RequireBrokers`,
+  which validates only the broker list); an empty event registry also refuses
+  boot, via a separate inline check in the tracer's `BuildStreamingEmitter`, not
+  `RequireBrokers`. An enabled producer with nowhere (or nothing) to publish
   discards every event silently while readiness stays green, which is the same
-  invisible-total-loss failure the roster source gate exists to kill. To run without
-  streaming, set `STREAMING_ENABLED=false`.
+  invisible-total-loss failure the roster source gate exists to kill. To run
+  without streaming, set `STREAMING_ENABLED=false`.
 - **No `organizationId` / `ledgerId` on the wire.** Those dimensions do not
   exist anywhere in Tracer's domain. Tenant isolation travels only in the
   `ce-tenantid` header (see [ce-tenantid](#ce-tenantid)).

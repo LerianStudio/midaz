@@ -42,13 +42,14 @@ producer conventions in `CLAUDE.md` (Streaming section) and
   (`"<resourceType>.<eventType>"`), its `schemaVersion`, and its `class` — always
   `"fact"` here. It is independent of `STREAMING_ENABLED` and degraded-safe.
 - **Master flag:** `STREAMING_ENABLED` (default `false`). When disabled, bootstrap
-  injects a `NoopEmitter`, no broker connection is attempted, and `/readyz` reports
-  the streaming check as `skipped` rather than healthy. `STREAMING_ENABLED=true`
-  with an empty `STREAMING_BROKERS` — or with no events registered — REFUSES BOOT
-  (`pkgStreaming.RequireBrokers`): an enabled producer with nowhere to publish
-  discards every event silently while readiness stays green, which is the same
-  invisible-total-loss failure the roster source gate exists to kill. To run without
-  streaming, set `STREAMING_ENABLED=false`.
+  injects a `NoopEmitter` and no broker connection is attempted (the ledger binary
+  has no streaming readiness prober, so `/readyz` carries no streaming check).
+  `STREAMING_ENABLED=true` with an empty `STREAMING_BROKERS` REFUSES BOOT
+  (`pkgStreaming.RequireBrokers`, which validates only the broker list): an
+  enabled producer with nowhere to publish discards every event silently while
+  readiness stays green, which is the same invisible-total-loss failure the
+  roster source gate exists to kill. To run without streaming, set
+  `STREAMING_ENABLED=false`.
 - **Local broker:** the infra Redpanda. Set `STREAMING_ENABLED=true` and
   `STREAMING_BROKERS=localhost:19092` to exercise the real emit path locally.
 

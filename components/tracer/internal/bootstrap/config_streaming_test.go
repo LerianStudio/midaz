@@ -29,15 +29,22 @@ var streamingEnvVars = []string{
 	"STREAMING_ALLOW_PLAINTEXT_SASL",
 }
 
+// clearStreamingEnv resets every tracked STREAMING_* key to empty so a leaked
+// value from the surrounding shell or CI cannot influence an assertion.
+// t.Setenv restores prior values on cleanup.
+func clearStreamingEnv(t *testing.T) {
+	t.Helper()
+
+	for _, ev := range streamingEnvVars {
+		t.Setenv(ev, "")
+	}
+}
+
 // TestConfig_StreamingDefaults verifies the safe-by-default posture: with every
 // STREAMING_* env var unset, a loaded Config has streaming disabled, so a
 // deployment that never sets these vars is not broken by the new dependency.
 func TestConfig_StreamingDefaults(t *testing.T) {
-	// Setenv every streaming key to empty to exercise the default path
-	// deterministically. t.Setenv restores prior values on cleanup.
-	for _, ev := range streamingEnvVars {
-		t.Setenv(ev, "")
-	}
+	clearStreamingEnv(t)
 
 	cfg := &Config{}
 	require.NoError(t, libCommons.SetConfigFromEnvVars(cfg))
@@ -70,6 +77,7 @@ func TestConfig_StreamingParsesEnvVars(t *testing.T) {
 // TLS broker was unreachable. Reading them through LoadConfig — the value the
 // Builder's TLSFromConfig / SASLFromConfig consume — is what makes the knobs real.
 func TestStreamingLoadConfig_ReadsTLSAndSASL(t *testing.T) {
+	clearStreamingEnv(t)
 	t.Setenv("STREAMING_ENABLED", "true")
 	t.Setenv("STREAMING_BROKERS", "broker-a:9092,broker-b:9092")
 	t.Setenv("STREAMING_CLOUDEVENTS_SOURCE", "tracer")
@@ -105,11 +113,10 @@ func TestStreamingLoadConfig_ReadsTLSAndSASL(t *testing.T) {
 func TestStreamingLoadConfig_PlaintextSASLCanonicalAndDeprecatedNames(t *testing.T) {
 	baseEnv := func(t *testing.T) {
 		t.Helper()
+		clearStreamingEnv(t)
 		t.Setenv("STREAMING_ENABLED", "true")
 		t.Setenv("STREAMING_BROKERS", "broker-a:9092")
 		t.Setenv("STREAMING_CLOUDEVENTS_SOURCE", "tracer")
-		t.Setenv("STREAMING_SASL_ALLOW_PLAINTEXT", "")
-		t.Setenv("STREAMING_ALLOW_PLAINTEXT_SASL", "")
 	}
 
 	t.Run("canonical name", func(t *testing.T) {
