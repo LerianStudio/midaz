@@ -35,7 +35,7 @@ const (
 	revertIdempotencyModeLegacy = "legacy"
 	revertIdempotencyModeBridge = "bridge"
 	revertIdempotencyModeFinal  = "final"
-	revertExecutionLeaseTTL     = time.Duration(300)
+	revertExecutionLeaseTTL     = 300 * time.Second
 )
 
 func (handler *TransactionHandler) activeRevertIdempotencyMode() string {

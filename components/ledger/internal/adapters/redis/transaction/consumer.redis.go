@@ -149,6 +149,13 @@ const TransactionBackupAttemptsQueue = TransactionBackupQueue + ":attempts"
 // to prevent oversized payloads. Operations with more items are split into chunks.
 const maxRedisBatchSize = 1000
 
+// transactionPersistenceTombstoneTTLSeconds bounds how long a terminal
+// persistence tombstone survives in Redis. PostgreSQL holds the durable
+// terminal truth once finalize succeeds; the tombstone only serves in-flight
+// replay and recovery, so it expires instead of accumulating one key per
+// finalized transaction forever.
+const transactionPersistenceTombstoneTTLSeconds int64 = 24 * 60 * 60
+
 // RedisRepository provides an interface for redis.
 // It defines methods for setting, getting keys, and incrementing values.
 //
@@ -183,9 +190,11 @@ type RedisRepository interface {
 	SetNX(ctx context.Context, key, value string, ttl time.Duration) (bool, error)
 	// AcquireOwnedKey stores a legacy-compatible empty fence plus an owner token
 	// in the same Redis Cluster slot. A non-positive TTL keeps both keys until
-	// explicit release or completion. ReleaseOwnedKey deletes the fence only
-	// while that token still owns it; CompleteOwnedKey atomically replaces the
-	// fence with its replay value and removes the owner token.
+	// explicit release or completion; a positive TTL is applied with whole-second
+	// granularity (sub-second durations round up to one second). ReleaseOwnedKey
+	// deletes the fence only while that token still owns it; CompleteOwnedKey
+	// atomically replaces the fence with its replay value and removes the owner
+	// token.
 	AcquireOwnedKey(ctx context.Context, key, owner string, ttl time.Duration) (bool, error)
 	ReleaseOwnedKey(ctx context.Context, key, owner string) (bool, error)
 	// ReleaseUnownedEmptyKey removes only an old-compatible empty fence with no
@@ -424,7 +433,15 @@ func (rr *RedisConsumerRepository) AcquireOwnedKey(ctx context.Context, key, own
 		return false, err
 	}
 
-	result, err := acquireOwnedKeyScript.Run(ctx, rds, keys, owner, int64(ttl)).Int64()
+	// The Lua script consumes the TTL as EX seconds; a non-positive value keeps
+	// the fence until explicit release. Positive sub-second durations round up
+	// so a requested expiry never silently becomes "no expiry".
+	ttlSeconds := int64(0)
+	if ttl > 0 {
+		ttlSeconds = max(int64(1), int64(ttl/time.Second))
+	}
+
+	result, err := acquireOwnedKeyScript.Run(ctx, rds, keys, owner, ttlSeconds).Int64()
 	if err != nil {
 		libOpentelemetry.HandleSpanError(span, "Failed to acquire owned Redis key", err)
 		logger.Log(ctx, libLog.LevelError, "Failed to acquire owned Redis key", libLog.Err(err))
@@ -2283,6 +2300,7 @@ func (rr *RedisConsumerRepository) FinalizeTransactionPersistence(
 		transactionID.String(), attempt.Owner, attempt.Outcome,
 		economicEffectDigest, expectedParent, proof.TransactionStatus, proof.Action,
 		attempt.RedisGeneration, proof.TransactionAmount, proof.TransactionAssetCode,
+		transactionPersistenceTombstoneTTLSeconds,
 	}
 	if attempt.RedisGeneration != "" {
 		prefixedKeys = append(prefixedKeys, FinancialDatasetGenerationKey)
@@ -2748,7 +2766,7 @@ func (rr *RedisConsumerRepository) FinalizeLegacyTransactionPersistence(
 	if _, err := finalizeLegacyTransactionPersistenceScript.Run(ctx, rds, prefixedKeys,
 		transactionID.String(), parentTransactionID.String(), transactionStatus,
 		string(encodedOperationIDs), economicEffectDigest, proof.TransactionAmount,
-		proof.TransactionAssetCode).Result(); err != nil {
+		proof.TransactionAssetCode, transactionPersistenceTombstoneTTLSeconds).Result(); err != nil {
 		libOpentelemetry.HandleSpanError(span, "Failed to atomically finalize legacy transaction persistence", err)
 		logger.Log(ctx, libLog.LevelWarn, "Failed to atomically finalize legacy transaction persistence", libLog.Err(err))
 
@@ -2960,7 +2978,14 @@ func (rr *RedisConsumerRepository) RemoveMessageFromQueueIfValue(
 	ctx, span := tracer.Start(ctx, "redis.remove_message_from_queue_if_value")
 	defer span.End()
 
-	prefixedKeys, err := tenantKeysFromContext(ctx, []string{TransactionBackupQueue, key})
+	prefixedQueue, err := tenantKeyFromContextOrError(ctx, TransactionBackupQueue)
+	if err != nil {
+		return false, err
+	}
+
+	// The hash field is tenant-prefixed data inside one hash key. It travels in
+	// ARGV, not KEYS, so Redis Cluster never hashes it into a second slot.
+	prefixedField, err := tenantKeyFromContextOrError(ctx, key)
 	if err != nil {
 		return false, err
 	}
@@ -2970,7 +2995,7 @@ func (rr *RedisConsumerRepository) RemoveMessageFromQueueIfValue(
 		return false, err
 	}
 
-	removed, err := removeTransactionBackupIfValueScript.Run(ctx, rds, prefixedKeys, expected).Int64()
+	removed, err := removeTransactionBackupIfValueScript.Run(ctx, rds, []string{prefixedQueue}, prefixedField, expected).Int64()
 	if err != nil {
 		libOpentelemetry.HandleSpanError(span, "Failed to remove exact transaction backup", err)
 		logger.Log(ctx, libLog.LevelWarn, "Failed to remove exact transaction backup", libLog.Err(err))

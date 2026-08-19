@@ -765,9 +765,11 @@ local function main()
         -- changed and trigger a cache + sync update. We compare against
         -- `newOverdraftUsed` (the candidate computed above) rather than the
         -- still-original `balance.OverdraftUsed` to detect overdraft deltas.
-        local hasChange = (result ~= balance.Available)
-            or (resultOnHold ~= balance.OnHold)
-            or (newOverdraftUsed ~= originalOverdraftUsed)
+        -- Numeric comparison, not string comparison: representations such as
+        -- "10" vs "10.0" are the same value and must not count as a change.
+        local hasChange = (compare_decimal(result, balance.Available) ~= 0)
+            or (compare_decimal(resultOnHold, balance.OnHold) ~= 0)
+            or (compare_decimal(newOverdraftUsed, originalOverdraftUsed) ~= 0)
 
         if hasChange then
             balance.Alias = alias

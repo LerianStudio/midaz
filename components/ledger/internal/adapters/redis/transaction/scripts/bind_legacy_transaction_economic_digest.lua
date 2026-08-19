@@ -50,7 +50,20 @@ if envelope.economic_effect_digest ~= nil and envelope.economic_effect_digest ~=
    envelope.economic_effect_digest ~= ARGV[2] then
     return redis.error_reply("TRANSACTION_ECONOMIC_DIGEST_MISMATCH")
 end
+-- cjson.decode turns "[]" into an empty Lua table that cjson.encode would
+-- write back as "{}", which the Go decoder cannot unmarshal into a slice.
+-- Restore the array type on every envelope slice before re-encoding.
+local function force_array(value)
+    if type(value) == "table" and next(value) == nil then
+        return cjson.decode("[]")
+    end
+    return value
+end
+
 envelope.economic_effect_digest = ARGV[2]
+envelope.operations = force_array(envelope.operations)
+envelope.balancesAfter = force_array(envelope.balancesAfter)
+envelope.balances = force_array(envelope.balances)
 redis.call("HSET", KEYS[1], KEYS[2], cjson.encode(envelope))
 
 return 1

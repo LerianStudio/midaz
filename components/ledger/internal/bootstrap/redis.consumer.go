@@ -427,18 +427,25 @@ func (r *RedisQueueConsumer) processMessage(ctx context.Context, key, rawPayload
 		return
 	}
 
+	// Both guards below reject structural properties of an immutable payload:
+	// no later cycle can make them valid, so retaining the record would
+	// reprocess it forever without ever reaching the quarantine threshold.
 	effectMode, effectModeErr := mmodel.ResolveTransactionEffectMode(&m)
 	if effectModeErr != nil {
-		logger.Log(msgCtxWithSpan, libLog.LevelError, "Transaction backup effect mode is invalid; backup retained",
+		logger.Log(msgCtxWithSpan, libLog.LevelError, "Transaction backup effect mode is invalid; routing to quarantine flow",
 			libLog.String("transaction_id", m.TransactionID.String()), libLog.Err(effectModeErr))
+
+		r.quarantinePoisonRecord(msgCtxWithSpan, msgSpan, logger, key, m.OrganizationID, m.LedgerID, m.TransactionID, []byte(rawPayload), "invalid_effect_mode")
 
 		return
 	}
 
 	if effectMode == mmodel.TransactionEffectAnnotationOnly &&
 		(m.AttemptOwner != "" || m.ExpectedOutcome != "" || len(m.Balances) != 0 || len(m.BalancesAfter) != 0) {
-		logger.Log(msgCtxWithSpan, libLog.LevelError, "Annotation backup carries financial evidence; backup retained",
+		logger.Log(msgCtxWithSpan, libLog.LevelError, "Annotation backup carries financial evidence; routing to quarantine flow",
 			libLog.String("transaction_id", m.TransactionID.String()))
+
+		r.quarantinePoisonRecord(msgCtxWithSpan, msgSpan, logger, key, m.OrganizationID, m.LedgerID, m.TransactionID, []byte(rawPayload), "annotation_financial_evidence")
 
 		return
 	}

@@ -8,6 +8,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"time"
 
 	"github.com/google/uuid"
 	redislib "github.com/redis/go-redis/v9"
@@ -20,7 +21,7 @@ import (
 )
 
 const (
-	balanceExecutionLeaseTTL = 300
+	balanceExecutionLeaseTTL = 300 * time.Second
 )
 
 func (handler *TransactionHandler) readTransactionLifecycleOutcome(
@@ -108,33 +109,54 @@ func (handler *TransactionHandler) clearDurableLegacyHoldBackup(
 	return nil
 }
 
-func lifecycleBalanceAtomicResult(queued *mmodel.TransactionRedisQueue) *mmodel.BalanceAtomicResult {
+func lifecycleBalanceAtomicResult(queued *mmodel.TransactionRedisQueue) (*mmodel.BalanceAtomicResult, error) {
 	if queued == nil || len(queued.BalancesAfter) == 0 {
-		return nil
+		return nil, nil
 	}
 
 	before := make([]*mmodel.Balance, 0, len(queued.Balances))
+
 	for _, balance := range queued.Balances {
-		before = append(before, lifecycleBalanceFromBackup(balance, queued.OrganizationID, queued.LedgerID))
+		reconstructed, err := lifecycleBalanceFromBackup(balance, queued.OrganizationID, queued.LedgerID)
+		if err != nil {
+			return nil, err
+		}
+
+		before = append(before, reconstructed)
 	}
 
 	after := make([]*mmodel.Balance, 0, len(queued.BalancesAfter))
+
 	for _, balance := range queued.BalancesAfter {
-		after = append(after, lifecycleBalanceFromBackup(balance, queued.OrganizationID, queued.LedgerID))
+		reconstructed, err := lifecycleBalanceFromBackup(balance, queued.OrganizationID, queued.LedgerID)
+		if err != nil {
+			return nil, err
+		}
+
+		after = append(after, reconstructed)
 	}
 
-	return &mmodel.BalanceAtomicResult{Before: before, After: after}
+	return &mmodel.BalanceAtomicResult{Before: before, After: after}, nil
 }
 
-func lifecycleBalanceFromBackup(balance mmodel.BalanceRedis, organizationID, ledgerID uuid.UUID) *mmodel.Balance {
+func lifecycleBalanceFromBackup(balance mmodel.BalanceRedis, organizationID, ledgerID uuid.UUID) (*mmodel.Balance, error) {
 	balanceKey := balance.Key
 	if balanceKey == "" {
 		balanceKey = constant.DefaultBalanceKey
 	}
 
-	overdraftUsed, err := decimal.NewFromString(balance.OverdraftUsed)
-	if err != nil {
-		overdraftUsed = decimal.Zero
+	// An empty OverdraftUsed is the expected legacy shape and means zero. A
+	// malformed non-empty value is corrupt financial evidence and must fail
+	// closed instead of silently reporting that no overdraft was consumed.
+	overdraftUsed := decimal.Zero
+
+	if balance.OverdraftUsed != "" {
+		parsed, err := decimal.NewFromString(balance.OverdraftUsed)
+		if err != nil {
+			return nil, fmt.Errorf("decode durable balance overdraft used %q: %w", balance.OverdraftUsed, err)
+		}
+
+		overdraftUsed = parsed
 	}
 
 	var settings *mmodel.BalanceSettings
@@ -175,7 +197,7 @@ func lifecycleBalanceFromBackup(balance mmodel.BalanceRedis, organizationID, led
 		Direction:      balance.Direction,
 		OverdraftUsed:  overdraftUsed,
 		Settings:       settings,
-	}
+	}, nil
 }
 
 func (handler *TransactionHandler) readBalanceExecutionOutcome(
@@ -205,9 +227,9 @@ func (handler *TransactionHandler) readBalanceExecutionOutcome(
 	return outcome, nil
 }
 
-func balanceAtomicResultFromOutcome(outcome *mmodel.BalanceExecutionOutcome, organizationID, ledgerID uuid.UUID) *mmodel.BalanceAtomicResult {
+func balanceAtomicResultFromOutcome(outcome *mmodel.BalanceExecutionOutcome, organizationID, ledgerID uuid.UUID) (*mmodel.BalanceAtomicResult, error) {
 	if outcome == nil || len(outcome.After) == 0 {
-		return nil
+		return nil, nil
 	}
 
 	queued := &mmodel.TransactionRedisQueue{

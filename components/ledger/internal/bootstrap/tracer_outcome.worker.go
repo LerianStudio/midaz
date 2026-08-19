@@ -194,8 +194,7 @@ func (w *TracerOutcomeWorker) retireTenantIfEmpty(
 }
 
 func (w *TracerOutcomeWorker) runTenantCycle(ctx context.Context) {
-	acquired, err := w.repo.AcquireOwnedKey(ctx, utils.TracerOutcomeDispatcherLock, w.owner,
-		time.Duration(max(int64(1), int64(w.config.LeaderTTL/time.Second))))
+	acquired, err := w.repo.AcquireOwnedKey(ctx, utils.TracerOutcomeDispatcherLock, w.owner, w.config.LeaderTTL)
 	if err != nil || !acquired {
 		return
 	}
@@ -214,8 +213,22 @@ func (w *TracerOutcomeWorker) runTenantCycle(ctx context.Context) {
 		return
 	}
 
+	// The leadership lease expires after LeaderTTL and this loop never renews
+	// it. Stop dispatching before the lease can lapse so two pods never run
+	// the batch concurrently; the remaining keys stay due for the next cycle.
+	batchDeadline := w.now().Add(w.config.LeaderTTL / 2)
+
 	for _, key := range keys {
 		if ctx.Err() != nil {
+			return
+		}
+
+		if !w.now().Before(batchDeadline) {
+			if w.logger != nil {
+				w.logger.Log(ctx, libLog.LevelWarn, "Tracer outcome batch stopped before leadership lease expiry",
+					libLog.Any("leader_ttl", w.config.LeaderTTL.String()))
+			}
+
 			return
 		}
 

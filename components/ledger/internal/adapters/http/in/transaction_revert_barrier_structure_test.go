@@ -62,7 +62,7 @@ func TestTransactionBackupDeletionRequiresAtomicProof(t *testing.T) {
 			`redis.call("SET", KEYS[4]`, "HDEL",
 		},
 		"remove_transaction_backup_if_status.lua": {"attempt_owner", "expected_outcome", "balancesAfter", "HDEL"},
-		"remove_transaction_backup_if_value.lua":  {"raw ~= ARGV[1]", "HDEL"},
+		"remove_transaction_backup_if_value.lua":  {"raw ~= ARGV[2]", "HDEL"},
 		"release_pre_movement_revert.lua":         {"KEYS[6]", "ARGV[1]", "attempt_owner", "HDEL"},
 	}
 	entries, err := os.ReadDir(scriptDirectory)
@@ -276,7 +276,7 @@ func TestRevertBarrierAcquisitionOrder(t *testing.T) {
 	claimSource, err := os.ReadFile("transaction_revert_claim.go")
 	require.NoError(t, err)
 
-	stateCalls := callsInFunction(t, stateSource, "revertTransaction")
+	stateCalls := callsInFunction(t, stateSource, "revertTransactionWithBudget")
 	require.Len(t, stateCalls["WithPrimaryRead"], 1)
 	require.NotEmpty(t, stateCalls["GetParentByTransactionID"])
 	require.NotEmpty(t, stateCalls["GetTransactionWithOperationsByID"])

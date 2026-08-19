@@ -2,6 +2,16 @@ if #KEYS == 5 and redis.call("GET", KEYS[5]) ~= ARGV[8] then
     return redis.error_reply("FINANCIAL_DATASET_GENERATION_MISMATCH")
 end
 
+-- cjson.decode turns "[]" into an empty Lua table that cjson.encode would
+-- write back as "{}", which the Go decoder cannot unmarshal into a slice.
+-- Restore the array type before any re-encode.
+local function force_array(value)
+    if type(value) == "table" and next(value) == nil then
+        return cjson.decode("[]")
+    end
+    return value
+end
+
 if type(ARGV[4]) ~= "string" or ARGV[4] == "" or
    type(ARGV[9]) ~= "string" or ARGV[9] == "" or
    type(ARGV[10]) ~= "string" or ARGV[10] == "" then
@@ -78,13 +88,20 @@ local tombstone = {
     action = ARGV[7],
     transaction_amount = ARGV[9],
     transaction_asset_code = ARGV[10],
-    operations = envelope.operations,
-    balancesAfter = envelope.balancesAfter,
+    operations = force_array(envelope.operations),
+    balancesAfter = force_array(envelope.balancesAfter),
     economic_effect_digest = envelope.economic_effect_digest,
     expected_economic_plan = envelope.expected_economic_plan,
     operation_type_override = envelope.operation_type_override
 }
-redis.call("SET", KEYS[4], cjson.encode(tombstone))
+-- ARGV[11] is a TTL in seconds, kept as a string so this script stays free
+-- of Lua number conversions (the money-path guard forbids them entirely).
+local tombstoneTTL = ARGV[11]
+if type(tombstoneTTL) == "string" and tombstoneTTL ~= "" and tombstoneTTL ~= "0" then
+    redis.call("SET", KEYS[4], cjson.encode(tombstone), "EX", tombstoneTTL)
+else
+    redis.call("SET", KEYS[4], cjson.encode(tombstone))
+end
 redis.call("HDEL", KEYS[1], KEYS[2])
 redis.call("DEL", KEYS[3])
 

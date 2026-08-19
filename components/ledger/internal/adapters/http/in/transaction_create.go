@@ -286,12 +286,36 @@ func assignDeterministicRevertOperationIDs(reverseTransactionID string, operatio
 		return fmt.Errorf("parse reverse transaction id for deterministic operation ids: %w", err)
 	}
 
-	for index, op := range operations {
+	occurrences := make(map[string]int, len(operations))
+
+	for _, op := range operations {
 		// A reverse can be rebuilt after PostgreSQL persisted only part of
 		// its operation set. Deriving every operation ID from the durable,
 		// reserved reverse ID makes the replay idempotent even when the
 		// best-effort Redis materialization was lost before the crash.
-		digest := sha256.Sum256([]byte(namespace.String() + "/operation/" + strconv.Itoa(index)))
+		//
+		// The digest input is the operation's stable economic identity (not
+		// its slice position), so a rebuilt reverse that enumerates the same
+		// legs in a different order still reproduces the same IDs. Identical
+		// legs are economically interchangeable; an occurrence counter keeps
+		// their IDs distinct.
+		amountValue := ""
+		if op.Amount.Value != nil {
+			amountValue = op.Amount.Value.String()
+		}
+
+		identity := strings.Join([]string{
+			op.AccountID,
+			op.AccountAlias,
+			op.BalanceKey,
+			op.Type,
+			op.AssetCode,
+			amountValue,
+		}, "|")
+		occurrence := occurrences[identity]
+		occurrences[identity] = occurrence + 1
+
+		digest := sha256.Sum256([]byte(namespace.String() + "/operation/" + identity + "/" + strconv.Itoa(occurrence)))
 
 		var operationID uuid.UUID
 		// Preserve the reserved reverse's UUIDv7 timestamp prefix while the
@@ -1789,14 +1813,18 @@ func isDefinitiveBalanceRejection(err error) bool {
 		return false
 	}
 
-	message := err.Error()
+	var rejection pkg.UnprocessableOperationError
+	if !errors.As(err, &rejection) {
+		return false
+	}
+
 	for _, definitiveCode := range []string{
 		constant.ErrInsufficientFunds.Error(),
 		constant.ErrAccountIneligibility.Error(),
 		constant.ErrOverdraftLimitExceeded.Error(),
 		constant.ErrStaleBalanceVersion.Error(),
 	} {
-		if strings.Contains(message, definitiveCode) {
+		if rejection.Code == definitiveCode {
 			return true
 		}
 	}

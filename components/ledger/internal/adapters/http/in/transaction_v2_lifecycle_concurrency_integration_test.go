@@ -277,7 +277,10 @@ func TestIntegration_TransactionV2CommitAndCancel_ConcurrentOppositesHaveOneEcon
 	v2App := buildHumaV2DirectApp(t, infra.handler)
 	hold := decodeTxResponse(t, postV2Create(t, v2App, "hold", infra.orgID, infra.ledgerID,
 		concurrentHoldV2Body, ""), nethttp.StatusCreated)
-	pendingID := uuid.MustParse(hold["id"].(string))
+	rawPendingID, ok := hold["id"].(string)
+	require.True(t, ok, "the hold response must carry a string transaction id")
+	pendingID, err := uuid.Parse(rawPendingID)
+	require.NoErrorf(t, err, "the hold response transaction id %q must be a valid UUID", rawPendingID)
 	drainBalanceSync(t, ctx, infra.handler.Command, infra.redisRepo, infra.orgID, infra.ledgerID)
 
 	start := make(chan struct{})

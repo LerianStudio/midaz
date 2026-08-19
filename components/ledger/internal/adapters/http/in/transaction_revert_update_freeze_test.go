@@ -239,14 +239,12 @@ func TestAcquireRolloutRequest_AmbiguousAdmissionPreservesSharedRevertOrigin(t *
 	t.Parallel()
 
 	acquireErr := errors.New("redis response lost")
-	releaseErr := errors.New("redis cleanup unavailable")
 
 	tests := []struct {
-		name           string
-		invoke         func(*TransactionHandler) error
-		wantApproved   int
-		wantRevert     int
-		wantReleaseErr bool
+		name         string
+		invoke       func(*TransactionHandler) error
+		wantApproved int
+		wantRevert   int
 	}{
 		{
 			name: "approved update",
@@ -256,15 +254,6 @@ func TestAcquireRolloutRequest_AmbiguousAdmissionPreservesSharedRevertOrigin(t *
 				return err
 			},
 			wantApproved: 1,
-		},
-		{
-			name: "revert",
-			invoke: func(handler *TransactionHandler) error {
-				_, _, _, _, err := handler.acquireRevertRolloutRequest(context.Background(), uuid.New(), uuid.New(), uuid.New())
-
-				return err
-			},
-			wantRevert: 0,
 		},
 		{
 			name: "revert admission remains durable when its response is ambiguous",
@@ -283,16 +272,12 @@ func TestAcquireRolloutRequest_AmbiguousAdmissionPreservesSharedRevertOrigin(t *
 			t.Parallel()
 
 			freeze := &revertUpdateFreezeStub{err: acquireErr}
-			if tc.wantReleaseErr {
-				freeze.releaseErr = releaseErr
-			}
 			handler := &TransactionHandler{RevertIdempotencyMode: revertIdempotencyModeBridge, RevertUpdateFreeze: freeze}
 
 			err := tc.invoke(handler)
 			require.ErrorIs(t, err, acquireErr)
 			assert.Equal(t, tc.wantApproved, freeze.approvedReleases)
 			assert.Equal(t, tc.wantRevert, freeze.revertReleases)
-			assert.Equal(t, tc.wantReleaseErr, errors.Is(err, releaseErr))
 		})
 	}
 }

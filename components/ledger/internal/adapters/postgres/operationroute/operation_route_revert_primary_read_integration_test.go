@@ -15,6 +15,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/LerianStudio/midaz/v4/components/ledger/pkg/readrouting"
+	"github.com/LerianStudio/midaz/v4/pkg"
 	pgtestutil "github.com/LerianStudio/midaz/v4/tests/utils/postgres"
 )
 
@@ -39,7 +40,8 @@ func TestIntegration_RevertRouteEligibilityIgnoresReplicaLag(t *testing.T) {
 	repo := NewOperationRoutePostgreSQLRepository(connection)
 
 	_, err = repo.FindByID(context.Background(), organizationID, ledgerID, routeID)
-	require.Error(t, err, "unmarked read proves the delayed replica does not contain the route")
+	var notFoundErr pkg.EntityNotFoundError
+	require.ErrorAs(t, err, &notFoundErr, "unmarked read proves the delayed replica does not contain the route")
 
 	route, err := repo.FindByID(readrouting.WithPrimaryRead(context.Background()), organizationID, ledgerID, routeID)
 	require.NoError(t, err)

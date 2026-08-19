@@ -40,6 +40,16 @@ import (
 // idempotency slot answers with a cached reverse instead of a new one.
 const revertIdempotencyReplayedLogMessage = "Revert replayed a cached reverse transaction"
 
+// transactionMutationLockTTL fences one commit/cancel transition. The lease
+// expires on its own if the pod dies mid-transition, so a crashed owner never
+// wedges the pending transaction forever.
+const transactionMutationLockTTL = 5 * time.Minute
+
+// revertRecoveryBudget bounds how many times one revert request may re-enter
+// itself after recovering an abandoned pre-movement claim. Exhausting the
+// budget surfaces the reconciliation error instead of recursing without bound.
+const revertRecoveryBudget = 3
+
 func newPodRequestToken() (string, error) {
 	hostname, err := os.Hostname()
 	if err != nil {
@@ -152,7 +162,8 @@ func (handler *TransactionHandler) commitTransaction(ctx context.Context, organi
 	_, span := tracer.Start(ctx, spanName)
 	defer span.End()
 
-	releaseTransactionLock, err := handler.acquireTransactionMutationLock(ctx, organizationID, ledgerID, transactionID, 300)
+	releaseTransactionLock, err := handler.acquireTransactionMutationLock(ctx, organizationID, ledgerID, transactionID,
+		transactionMutationLockTTL)
 	if err != nil {
 		return nil, err
 	}
@@ -317,9 +328,25 @@ func (handler *TransactionHandler) RevertTransaction(c fiber.Ctx) error {
 // reused by Redis backup recovery, so a lost response cannot mint a second
 // economic mutation. Bridge mode also participates in the released payload-
 // hash Redis barrier; final mode only reads that legacy fence during rollout.
+func (handler *TransactionHandler) revertTransaction(ctx context.Context, organizationID, ledgerID, transactionID uuid.UUID) (
+	*transaction.Transaction,
+	bool,
+	error,
+) {
+	return handler.revertTransactionWithBudget(ctx, organizationID, ledgerID, transactionID, revertRecoveryBudget)
+}
+
+// revertTransactionWithBudget is the recursive core of revertTransaction. The
+// recoveryBudget bounds how many abandoned-claim recoveries one request may
+// perform before it stops and reports reconciliation instead of recursing
+// without bound.
 //
 //nolint:gocognit,gocyclo // Revert orchestration spans claim, replay, and rollout branches; refactor candidate.
-func (handler *TransactionHandler) revertTransaction(ctx context.Context, organizationID, ledgerID, transactionID uuid.UUID) (
+func (handler *TransactionHandler) revertTransactionWithBudget(
+	ctx context.Context,
+	organizationID, ledgerID, transactionID uuid.UUID,
+	recoveryBudget int,
+) (
 	result *transaction.Transaction,
 	replayed bool,
 	retErr error,
@@ -684,9 +711,17 @@ func (handler *TransactionHandler) revertTransaction(ctx context.Context, organi
 			}
 
 			if recovered {
+				if recoveryBudget <= 0 {
+					// Repeated recoveries without a terminal outcome mean pods keep
+					// recovering each other's claims. Stop and report reconciliation
+					// instead of recursing (and leasing) without bound.
+					return finish(nil, false,
+						pkg.ValidateBusinessError(constant.ErrRevertReconciliationRequired, constant.EntityTransaction))
+				}
+
 				// Re-enter through the complete eligibility/claim path after the
 				// recovery owner released the PostgreSQL claim last.
-				return handler.revertTransaction(ctx, organizationID, ledgerID, transactionID)
+				return handler.revertTransactionWithBudget(ctx, organizationID, ledgerID, transactionID, recoveryBudget-1)
 			}
 		}
 
@@ -1016,6 +1051,10 @@ func (handler *TransactionHandler) commitOrCancelTransaction(
 	executionKey := utils.TransactionBalanceExecutionKey(organizationID, ledgerID, tran.IDtoUUID())
 	outcomeKey := utils.TransactionBalanceOutcomeKey(organizationID, ledgerID, tran.IDtoUUID())
 
+	if handler.Command == nil || handler.Command.TransactionRedisRepo == nil {
+		return nil, fmt.Errorf("transaction lifecycle outcome repository not configured")
+	}
+
 	queuedAttempt, err := handler.readTransactionLifecycleOutcome(ctx, organizationID, ledgerID, tran.IDtoUUID())
 	if err != nil {
 		return nil, transactionLifecycleReconciliationError()
@@ -1074,8 +1113,10 @@ func (handler *TransactionHandler) commitOrCancelTransaction(
 			return nil, pkg.ValidateBusinessError(constant.ErrCommitTransactionNotPending, "ValidateTransactionNotPending")
 		}
 
-		result = balanceAtomicResultFromOutcome(persistedOutcome, organizationID, ledgerID)
-		if result == nil {
+		var resultErr error
+
+		result, resultErr = balanceAtomicResultFromOutcome(persistedOutcome, organizationID, ledgerID)
+		if resultErr != nil || result == nil {
 			if markMovementApplied != nil {
 				markMovementApplied()
 			}
@@ -1255,8 +1296,10 @@ func (handler *TransactionHandler) commitOrCancelTransaction(
 				return nil, transactionLifecycleReconciliationError()
 			}
 
-			result = balanceAtomicResultFromOutcome(recoveredOutcome, organizationID, ledgerID)
-			if result == nil {
+			var resultErr error
+
+			result, resultErr = balanceAtomicResultFromOutcome(recoveredOutcome, organizationID, ledgerID)
+			if resultErr != nil || result == nil {
 				if markMovementApplied != nil {
 					markMovementApplied()
 				}

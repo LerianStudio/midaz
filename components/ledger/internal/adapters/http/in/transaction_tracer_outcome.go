@@ -54,8 +54,12 @@ func (handler *TransactionHandler) buildTracerOutcomeAttempt(
 		}
 
 		acquired, err := handler.Command.TransactionRedisRepo.AcquireOwnedKey(ctx, attempt.ExecutionKey, owner, 0)
-		if err != nil || !acquired {
-			return nil, false, fmt.Errorf("reserve tracer outcome execution attempt: acquired=%t: %w", acquired, err)
+		if err != nil {
+			return nil, false, fmt.Errorf("reserve tracer outcome execution attempt: %w", err)
+		}
+
+		if !acquired {
+			return nil, false, fmt.Errorf("reserve tracer outcome execution attempt: already owned")
 		}
 
 		acquiredHere = true
@@ -140,5 +144,12 @@ func tracerOutcomeResult(record *mmodel.TracerOutcomeRecord, organizationID, led
 		return nil
 	}
 
-	return balanceAtomicResultFromOutcome(record.EconomicOutcome, organizationID, ledgerID)
+	result, err := balanceAtomicResultFromOutcome(record.EconomicOutcome, organizationID, ledgerID)
+	if err != nil {
+		// Corrupt durable evidence must not be adopted as a terminal result. The
+		// caller maps the missing result to the reconciliation error.
+		return nil
+	}
+
+	return result
 }
