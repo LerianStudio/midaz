@@ -75,8 +75,8 @@ func TestAdvancedEdgeCase_InOperator(t *testing.T) {
 			expected:   false,
 		},
 		{
-			name:       "currency in list - match",
-			expression: `currency in ["BRL", "USD", "EUR"]`,
+			name:       "asset in list - match",
+			expression: `asset in ["BRL", "USD", "EUR"]`,
 			expected:   true,
 		},
 		{
@@ -689,7 +689,7 @@ func TestAdvancedEdgeCase_StringComparisons(t *testing.T) {
 		},
 		{
 			name:       "empty string check - not empty",
-			expression: `currency != ""`,
+			expression: `asset != ""`,
 			expected:   true,
 		},
 	}

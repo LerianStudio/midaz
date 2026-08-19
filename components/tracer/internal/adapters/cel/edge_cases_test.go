@@ -302,8 +302,8 @@ func TestEdgeCase_EmptyStrings(t *testing.T) {
 		expected   bool
 	}{
 		{
-			name:       "empty currency check",
-			expression: `currency == ""`,
+			name:       "empty asset check",
+			expression: `asset == ""`,
 			expected:   true,
 		},
 		{
