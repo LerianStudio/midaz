@@ -514,7 +514,7 @@ func TestResolveSASLMechanism_Unsupported(t *testing.T) {
 // every registered tracer event, with the bare service name ("tracer") as the
 // CloudEvents source. This convergence is what lets a Kafka ACL scoped to the
 // "tracer." prefix cover every topic tracer emits: the two derivations must
-// never diverge. Card #3783 Task 5.2.
+// never diverge.
 //
 // The convergence asserted here holds ONLY because the service name is pure
 // [a-z0-9] (as "tracer" is): midaz's sanitizeServiceSegment keeps [a-z0-9] while

@@ -236,11 +236,14 @@ type Config struct {
 	// libStreaming.LoadConfig() directly from STREAMING_* env at build time.
 	StreamingEnabled bool `env:"STREAMING_ENABLED"`
 
-	// StreamingCloudEventsSource overrides the CloudEvents `ce-source` stamped
-	// on every event tracer emits. When empty (the default), the in-code
-	// default lerian.midaz.tracer is used, so an existing deployment that never
-	// sets this var keeps the historical source. Operators set it only to
-	// distinguish sources across environments or shadow deployments.
+	// StreamingCloudEventsSource sets the CloudEvents `ce-source` stamped on
+	// every event tracer emits. It is REQUIRED when streaming is enabled:
+	// libStreaming.LoadConfig fails closed (ErrMissingSource) on a genuinely-unset
+	// value, so the binary never starts with streaming enabled and this empty.
+	// The in-code fallback is the bare service name "tracer" (a defense-in-depth
+	// guard for a whitespace-only value that slips past LoadConfig, aligned with
+	// the leading ACL-scoped topic segment "tracer."); operators set it to the
+	// bare service name so ce-source and the emitted topics agree on that prefix.
 	StreamingCloudEventsSource string `env:"STREAMING_CLOUDEVENTS_SOURCE"`
 
 	// --- Streaming SASL/TLS auth ---
