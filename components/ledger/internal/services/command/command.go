@@ -8,8 +8,8 @@ import (
 	"context"
 
 	"github.com/LerianStudio/lib-observability/v2/metrics"
-	libStreaming "github.com/LerianStudio/lib-streaming/v2"
-	billing "github.com/LerianStudio/lib-streaming/v2/billing"
+	libStreaming "github.com/LerianStudio/lib-streaming/v3"
+	billing "github.com/LerianStudio/lib-streaming/v3/billing"
 
 	onbMongo "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/mongodb/onboarding"
 	txMongo "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/mongodb/transaction"

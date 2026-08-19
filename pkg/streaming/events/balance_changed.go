@@ -9,7 +9,7 @@ import (
 	"fmt"
 	"time"
 
-	libStreaming "github.com/LerianStudio/lib-streaming/v2"
+	libStreaming "github.com/LerianStudio/lib-streaming/v3"
 	"github.com/shopspring/decimal"
 )
 
@@ -44,8 +44,8 @@ const (
 // balance.changed fires on transaction-driven mutations of an existing balance.
 //
 // IMPORTANT posture: emit failures MUST NOT fail the parent transaction.
-// EventType "changed" is a single word — no underscore/hyphen concern with the
-// lib-streaming route-key regex. Wire topic: ledger.balance.changed.
+// Consumers select this event by its "balance.changed" key inside the ledger's
+// application stream; there is no per-event topic.
 var BalanceChangedDefinition = Definition{
 	ResourceType:  "balance",
 	EventType:     "changed",

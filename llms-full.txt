@@ -783,10 +783,24 @@ are set programmatically by `applyConfigDefaults()`.
 | BALANCE_SYNC_FLUSH_TIMEOUT_MS | 500 | Max ms before flush (TIMEOUT trigger) |
 | BALANCE_SYNC_POLL_INTERVAL_MS | 50 | ZSET polling interval (ms) when draining |
 
-#### Streaming (lib-streaming/v2 v2.0.0 / Kafka)
+#### Streaming (lib-streaming/v3 v3.0.0 / Kafka)
 The master flag is `STREAMING_ENABLED`; when false, a no-op emitter is injected. The rest are
 loaded by `libStreaming.LoadConfig()` with franz-go defaults. Wire format: CloudEvents 1.0 binary
 mode on Kafka.
+
+One topic per producing application: every event a binary emits rides
+`lerian.streaming.<app>`, with `<app>` being its `STREAMING_CLOUDEVENTS_SOURCE`: `ledger` (whose
+one topic carries ledger core, fees and CRM alike) and `tracer`. A failed publish is copied to
+`lerian.streaming.<app>.dlq`. One exception: `billing_recorded` (billable usage, emitted only
+when billing is wired) rides the fixed lib-owned topic `lerian.streaming.billing.recorded`, not
+the application topic. The source is accepted only when it is exactly the application's roster
+name (`ledger` for the ledger binary, `tracer` for tracer); any other non-blank value, malformed
+or merely different, is rejected at startup, never normalized, and the check runs even when
+`STREAMING_ENABLED=false`. A blank value (unset or whitespace-only) defaults to the roster name
+before that check, so omission passes it; an enabled producer must still set the variable, since
+`libStreaming.LoadConfig()` fail-closes on a missing source. `ce-type` is
+`studio.lerian.<app>.<resourceType>.<eventType>`; schema version travels only in
+`ce-schemaversion`, and tenant only in `ce-tenantid`.
 
 | Variable | Default | Description |
 |----------|---------|-------------|
@@ -1012,7 +1026,7 @@ There is no standalone CRM image — CRM ships inside the ledger image.
 |------------|---------|---------|
 | github.com/LerianStudio/lib-commons/v6 | v6.2.0 | Shared library (tenant-manager, Redis, HTTP toolkit, lifecycle, outbox, Huma/OpenAPI + RFC 9457 problem wrappers) |
 | github.com/LerianStudio/lib-observability/v2 | v2.1.0 | Logging, metrics, tracing, assertions, panic recovery, redaction |
-| github.com/LerianStudio/lib-streaming/v2 | v2.0.0 | CloudEvents/Kafka streaming producer (franz-go) |
+| github.com/LerianStudio/lib-streaming/v3 | v3.0.0 | CloudEvents/Kafka streaming producer (franz-go) |
 | github.com/LerianStudio/lib-auth/v3 | v3.3.0 | Authentication middleware |
 | github.com/danielgtaylor/huma/v2 | v2.38.0 | OpenAPI 3.1 contract + request/response validation over Fiber |
 | github.com/gofiber/fiber/v3 | v3.4.0 | HTTP framework (runtime router / middleware) |

@@ -13,21 +13,10 @@ import (
 
 	libLog "github.com/LerianStudio/lib-observability/v2/log"
 	libOtel "github.com/LerianStudio/lib-observability/v2/tracing"
-	libStreaming "github.com/LerianStudio/lib-streaming/v2"
-	"github.com/twmb/franz-go/pkg/sasl"
-	"github.com/twmb/franz-go/pkg/sasl/plain"
-	"github.com/twmb/franz-go/pkg/sasl/scram"
+	libStreaming "github.com/LerianStudio/lib-streaming/v3"
 
 	pkgStreaming "github.com/LerianStudio/midaz/v4/pkg/streaming"
 	"github.com/LerianStudio/midaz/v4/pkg/streaming/events"
-)
-
-// SASL mechanism names accepted by STREAMING_SASL_MECHANISM. Compared
-// case-insensitively at parse time so operators can write any casing.
-const (
-	saslMechanismPlain    = "PLAIN"
-	saslMechanismScram256 = "SCRAM-SHA-256"
-	saslMechanismScram512 = "SCRAM-SHA-512"
 )
 
 // streamingPrimaryTargetName is the canonical name for tracer's single
@@ -36,33 +25,38 @@ const (
 // sync.
 const streamingPrimaryTargetName = "primary"
 
-// streamingServiceName is the leading, ACL-scoped service segment of every
-// tracer topic name produced by pkgStreaming.TopicName. Topic names take the
-// shape "tracer.<resource>.<event>", so a single Kafka ACL prefix "tracer."
-// covers every topic tracer emits.
+// streamingServiceName is this application's name on the streaming roster: the
+// ce-source tracer stamps on every event and the single segment its one topic is
+// derived from, "lerian.streaming.tracer". A Kafka ACL scoped to the three names
+// lib-streaming derives from it (topic, commands queue, DLQ) covers everything
+// tracer writes.
 const streamingServiceName = "tracer"
 
-// streamingSource is the CloudEvents source used as the nil/whitespace-only
-// fallback in resolveStreamingSource. It is intentionally the bare service name
-// "tracer" (not the historical "lerian.midaz.tracer") so ce-source matches the
-// leading ACL-scoped topic segment "tracer.": the route Destination topics are
-// "tracer.<resource>.<event>" and the ce-source-derived topic / Phase-2 manifest
-// agree on the same "tracer." ACL prefix. STREAMING_CLOUDEVENTS_SOURCE is
-// REQUIRED when streaming is enabled — a genuinely-unset value fail-closes at
-// libStreaming.LoadConfig (ErrMissingSource) before this fallback is ever
-// reached.
-const streamingSource = "tracer"
+// streamingFactRouteKey identifies the single catch-all route that carries every
+// fact tracer emits to its application topic. Under one topic per producing
+// application there is nothing left to fan out per event, so one route replaces
+// the former route-per-catalog-entry table. The key is an operator-facing
+// identifier only — it never reaches the wire.
+const streamingFactRouteKey = streamingServiceName + ".facts." + streamingPrimaryTargetName
 
-// resolveStreamingSource normalizes the configured CloudEvents source to stamp
-// on emitted events. STREAMING_CLOUDEVENTS_SOURCE is REQUIRED when streaming is
-// enabled: libStreaming.LoadConfig fail-closes with ErrMissingSource on a
-// genuinely-unset value, so BuildStreamingEmitter aborts and the binary never
-// starts without it (.env.example recommends the bare service name "tracer" so
-// ce-source matches the leading ACL-scoped topic segment "tracer."). This
-// helper only trims the configured value and returns it verbatim; the in-code
-// streamingSource default ("tracer") is a defense-in-depth fallback for a nil or
-// whitespace-only config value that slips past LoadConfig's empty-string check,
-// NOT the unset-env default.
+// resolveStreamingSource normalizes the configured CloudEvents source. The
+// resolved value is load-bearing three times over and MUST be one value: it is
+// stamped as ce-source, it derives the application topic every event rides
+// (libStreaming.AppTopic), and it is what the manifest advertises to the
+// streaming hub. A divergence between any two of those would point provisioning
+// at a stream nothing writes, and a source-verifying consumer would quarantine
+// every record it received.
+//
+// STREAMING_CLOUDEVENTS_SOURCE is REQUIRED when streaming is enabled:
+// libStreaming.LoadConfig fail-closes with ErrMissingSource on a genuinely-unset
+// value, so BuildStreamingEmitter aborts and the binary never starts without it
+// (.env.example recommends the roster name "tracer"). lib-streaming REJECTS a
+// source that is not a single dot-free lowercase segment rather than rewriting
+// it, so a malformed value fails startup instead of silently colonizing another
+// application's topic namespace. This helper only trims the configured value and
+// returns it verbatim; streamingServiceName ("tracer") is a defense-in-depth
+// fallback for a nil or whitespace-only config value that slips past
+// LoadConfig's empty-string check, NOT the unset-env default.
 func resolveStreamingSource(cfg *Config) string {
 	if cfg != nil {
 		if source := strings.TrimSpace(cfg.StreamingCloudEventsSource); source != "" {
@@ -70,7 +64,7 @@ func resolveStreamingSource(cfg *Config) string {
 		}
 	}
 
-	return streamingSource
+	return streamingServiceName
 }
 
 // noopStreamingCloser is the close hook returned by BuildStreamingEmitter
@@ -87,19 +81,19 @@ func noopStreamingCloser() error { return nil }
 //     pilot) the function returns libStreaming.NewNoopEmitter() and a no-op
 //     close hook. No transport client is constructed and no broker
 //     connection is attempted.
-//   - When STREAMING_BROKERS is empty, libStreaming.LoadConfig fails closed
-//     with ErrMissingBrokers. The function treats that as an
-//     operator-correctable misconfiguration and degrades to a NoopEmitter
-//     (no error, Warn logged) rather than aborting bootstrap. Any OTHER
+//   - When STREAMING_BROKERS is empty the function refuses boot via
+//     pkgStreaming.RequireBrokers. An enabled producer with nowhere to publish
+//     discards every event silently while readiness reports healthy, so it gets
+//     the roster gate's posture rather than a degraded start. Any OTHER
 //     LoadConfig failure propagates as a wrapped error.
-//   - When tracerEventDefinitions() is empty the function returns a
-//     NoopEmitter. An empty catalog can never build a live producer; this
-//     is a defensive guard so a future edit that empties the definition set
-//     degrades to Noop rather than failing bootstrap.
+//   - When tracerEventDefinitions() is empty the function refuses boot. An empty
+//     catalog can never build a live producer, so with streaming ENABLED it is
+//     the same silent-total-loss condition as a missing broker.
 //   - Otherwise the function builds a single-target catalog-first Producer
 //     via libStreaming.NewBuilder(), wiring the tracer CloudEvents source
-//     onto the Builder and registering all tracer event definitions in the
-//     Catalog with a matching RouteDefinition per event.
+//     onto the Builder, registering all tracer event definitions in the
+//     Catalog, and pointing one catch-all route at the application topic
+//     derived from that source.
 func BuildStreamingEmitter(
 	ctx context.Context,
 	cfg *Config,
@@ -116,6 +110,17 @@ func BuildStreamingEmitter(
 
 	_ = telemetry
 
+	// Fail closed on a ce-source that is not the roster name, BEFORE the enabled
+	// check: the topics and Kafka ACLs exist for the roster name only, so any other
+	// value publishes into a stream that neither exists nor is granted — and the
+	// IMPORTANT posture would swallow every one of those failures as a Warn while the
+	// pod stays Ready. Checked even when streaming is disabled so a source left over
+	// from the pre-v3 dotted or URI shape fails startup instead of waiting in an env
+	// file for someone to flip the flag.
+	if err := pkgStreaming.RequireRosterSource(resolveStreamingSource(cfg), streamingServiceName); err != nil {
+		return nil, noopStreamingCloser, err
+	}
+
 	if !cfg.StreamingEnabled {
 		if logger != nil {
 			logger.Log(ctx, libLog.LevelInfo, "Streaming disabled (STREAMING_ENABLED=false); using NoopEmitter")
@@ -124,16 +129,14 @@ func BuildStreamingEmitter(
 		return libStreaming.NewNoopEmitter(), noopStreamingCloser, nil
 	}
 
-	// An empty catalog can never build a live producer. Defensive guard so a
-	// future edit that empties the definition set degrades to Noop rather
-	// than reaching the Builder with zero routes.
+	// An empty catalog can never build a live producer. With streaming ENABLED
+	// that is the same condition RequireBrokers refuses: every emit would resolve
+	// to nothing while readiness reported the dependency healthy. Fail closed so a
+	// future edit that empties the definition set cannot ship as a silent no-op.
 	if len(tracerEventDefinitions()) == 0 {
-		if logger != nil {
-			logger.Log(ctx, libLog.LevelInfo,
-				"Streaming enabled but no tracer events are registered yet; using NoopEmitter")
-		}
-
-		return libStreaming.NewNoopEmitter(), noopStreamingCloser, nil
+		return nil, noopStreamingCloser, fmt.Errorf(
+			"streaming is enabled but no tracer event definitions are registered:" +
+				" an empty catalog publishes nothing while readiness reports healthy")
 	}
 
 	// Delegate env-var loading + defaulting to libStreaming.LoadConfig so
@@ -142,17 +145,13 @@ func BuildStreamingEmitter(
 	// the zero value of the struct.
 	streamingCfg, warnings, err := libStreaming.LoadConfig()
 	if err != nil {
-		// A missing broker list is an operator-correctable misconfiguration,
-		// not a reason to abort bootstrap: degrade to a NoopEmitter so the
-		// service starts with streaming disabled. Any OTHER LoadConfig
-		// failure is a genuine config error and propagates.
-		if errors.Is(err, libStreaming.ErrMissingBrokers) {
-			if logger != nil {
-				logger.Log(ctx, libLog.LevelWarn,
-					"STREAMING_ENABLED=true but STREAMING_BROKERS is empty; falling back to NoopEmitter")
-			}
-
-			return libStreaming.NewNoopEmitter(), noopStreamingCloser, nil
+		// LoadConfig validates the broker list itself, so the missing-broker case
+		// surfaces here rather than at the shared gate below. Route it through the
+		// gate anyway: ledger and tracer then refuse boot with one error identity
+		// and one piece of operator guidance. Any OTHER LoadConfig failure is a
+		// different config error and propagates wrapped.
+		if errors.Is(err, libStreaming.ErrProducerMissingBrokers) {
+			return nil, noopStreamingCloser, pkgStreaming.RequireBrokers(streamingCfg.Brokers)
 		}
 
 		return nil, noopStreamingCloser, fmt.Errorf("failed to load streaming config: %w", err)
@@ -187,11 +186,24 @@ func buildLiveStreamingEmitter(
 		return nil, noopStreamingCloser, fmt.Errorf("failed to build streaming catalog: %w", err)
 	}
 
-	// Build the route table. One required route per event keyed to the
-	// canonical "tracer.<resource>.<event>" topic name (service = tracer).
-	routes := buildRoutes(streamingPrimaryTargetName)
-
 	source := resolveStreamingSource(cfg)
+
+	// Defense in depth against a config that reaches here with no broker: the
+	// enabled flag on the midaz Config and the one libStreaming.LoadConfig reads
+	// are two separate parses of STREAMING_ENABLED, so a value only one of them
+	// accepts would skip LoadConfig's own broker validation and arrive here with an
+	// empty list. Building the Target on it would yield a producer with nowhere to
+	// publish, which is silent total event loss.
+	if err := pkgStreaming.RequireBrokers(streamingCfg.Brokers); err != nil {
+		return nil, noopStreamingCloser, err
+	}
+
+	// Build the route table: ONE required catch-all route carrying every fact
+	// tracer emits to its single application topic.
+	routes, err := buildRoutes(streamingPrimaryTargetName, source)
+	if err != nil {
+		return nil, noopStreamingCloser, err
+	}
 
 	builder := libStreaming.NewBuilder().
 		Source(source).
@@ -203,26 +215,14 @@ func buildLiveStreamingEmitter(
 			Brokers: streamingCfg.Brokers,
 		})
 
-	// Apply SASL/TLS auth knobs from cfg. resolveSASLMechanism returns a
-	// nil mechanism (and an empty mechanism name) when SASL is disabled,
-	// in which case the Builder is left untouched and the producer dials
-	// the broker without authentication — matching the historical local/dev
-	// behaviour. When SASL is enabled but TLS is not, lib-streaming
-	// rejects construction with ErrPlaintextSASLNotAllowed unless the
-	// caller also opts into AllowPlaintextSASL — gated behind
-	// STREAMING_ALLOW_PLAINTEXT_SASL=true for dev brokers.
-	mechanism, mechanismName, err := resolveSASLMechanism(cfg)
-	if err != nil {
-		return nil, noopStreamingCloser, fmt.Errorf("failed to resolve streaming SASL mechanism: %w", err)
-	}
-
-	if mechanism != nil {
-		builder = builder.SASL(mechanism)
-
-		if cfg.StreamingAllowPlaintextSASL {
-			builder = builder.AllowPlaintextSASL()
-		}
-	}
+	// SASL/TLS are owned by lib-streaming: TLSFromConfig and SASLFromConfig read
+	// the STREAMING_TLS_* and STREAMING_SASL_* knobs already parsed by LoadConfig
+	// and wire the broker dial. tracer does not parse these itself — a hand-rolled
+	// SASL mechanism here is what left STREAMING_TLS_ENABLED with no reader at all,
+	// making a TLS broker unreachable and forcing every authenticated deployment
+	// through the unsafe plaintext opt-in.
+	builder = builder.TLSFromConfig(streamingCfg)
+	builder = builder.SASLFromConfig(streamingCfg)
 
 	emitter, err := builder.Build(ctx)
 	if err != nil {
@@ -233,9 +233,9 @@ func buildLiveStreamingEmitter(
 		// NOTE: only mechanism name is logged. Username and password are
 		// NEVER logged, even at debug level.
 		authMode := "none"
-		if mechanismName != "" {
-			authMode = mechanismName
-			if cfg.StreamingAllowPlaintextSASL {
+		if streamingCfg.SASLMechanism != "" {
+			authMode = streamingCfg.SASLMechanism
+			if streamingCfg.SASLAllowPlaintext {
 				authMode += " (plaintext)"
 			}
 		}
@@ -246,63 +246,13 @@ func buildLiveStreamingEmitter(
 			libLog.String("client_id", streamingCfg.ClientID),
 			libLog.String("ce_source", source),
 			libLog.String("auth", authMode),
+			libLog.Bool("tls", streamingCfg.TLSEnabled),
 			libLog.Int("catalog_size", catalog.Len()),
 			libLog.Int("routes", len(routes)),
 		)
 	}
 
 	return emitter, emitter.Close, nil
-}
-
-// resolveSASLMechanism inspects the streaming SASL knobs on cfg and
-// returns the matching franz-go sasl.Mechanism plus its canonical name.
-//
-// Behaviour:
-//   - StreamingSASLMechanism empty (after trimming) → returns (nil, "", nil).
-//     The Builder stays unauthenticated, matching the existing local/dev
-//     default.
-//   - StreamingSASLMechanism set but USERNAME or PASSWORD empty → returns
-//     a config error. SASL with empty credentials would either be rejected
-//     by the broker after I/O (PLAIN) or panic inside franz-go's SCRAM
-//     handshake; failing closed at bootstrap is the safer contract.
-//   - StreamingSASLMechanism unrecognised → returns a config error
-//     enumerating the accepted values.
-//
-// The mechanism name returned is the canonical upper-case form
-// ("PLAIN", "SCRAM-SHA-256", "SCRAM-SHA-512") — used for the bootstrap
-// log line. Username and password are NEVER returned to the caller and
-// never logged.
-func resolveSASLMechanism(cfg *Config) (sasl.Mechanism, string, error) {
-	raw := strings.TrimSpace(cfg.StreamingSASLMechanism)
-	if raw == "" {
-		return nil, "", nil
-	}
-
-	mechanism := strings.ToUpper(raw)
-
-	user := cfg.StreamingSASLUsername
-	pass := cfg.StreamingSASLPassword
-
-	if user == "" || pass == "" {
-		return nil, "", fmt.Errorf(
-			"STREAMING_SASL_MECHANISM=%q requires STREAMING_SASL_USERNAME and STREAMING_SASL_PASSWORD",
-			mechanism,
-		)
-	}
-
-	switch mechanism {
-	case saslMechanismPlain:
-		return plain.Auth{User: user, Pass: pass}.AsMechanism(), saslMechanismPlain, nil
-	case saslMechanismScram256:
-		return scram.Auth{User: user, Pass: pass}.AsSha256Mechanism(), saslMechanismScram256, nil
-	case saslMechanismScram512:
-		return scram.Auth{User: user, Pass: pass}.AsSha512Mechanism(), saslMechanismScram512, nil
-	default:
-		return nil, "", fmt.Errorf(
-			"STREAMING_SASL_MECHANISM=%q is not supported (accepted: %s, %s, %s)",
-			raw, saslMechanismPlain, saslMechanismScram256, saslMechanismScram512,
-		)
-	}
 }
 
 // tracerEventDefinitions returns the canonical, ordered list of tracer
@@ -339,43 +289,40 @@ func buildCatalog() (libStreaming.Catalog, error) {
 
 // BuildStreamingManifestHandler builds the catalog-only lib-streaming manifest
 // HTTP handler the tracer serves at pkgStreaming.ManifestRoutePath. It is a thin
-// wrapper over pkgStreaming.NewManifestHandler, delegating to the single shared
-// helper so the manifest SourceBase stays pinned to the bare service segment
-// (streamingServiceName, "tracer") — making the advertised topics equal the
-// emitted topics regardless of STREAMING_CLOUDEVENTS_SOURCE. cfg is intentionally
-// unused: the manifest is INDEPENDENT of STREAMING_ENABLED and of the configured
-// ce-source.
-func BuildStreamingManifestHandler(_ *Config) (nethttp.Handler, error) {
-	return pkgStreaming.NewManifestHandler(streamingServiceName, tracerEventDefinitions())
+// wrapper over pkgStreaming.NewManifestHandler.
+//
+// The descriptor Source is the SAME resolved ce-source the emitter publishes
+// under, so the application topic the manifest advertises is by construction the
+// topic tracer writes: under one topic per application the manifest carries that
+// topic at document level, derived from the descriptor's Source. The manifest
+// stays INDEPENDENT of STREAMING_ENABLED — it is served whether or not a producer
+// was built, falling back to the roster name when no source is configured.
+func BuildStreamingManifestHandler(cfg *Config) (nethttp.Handler, error) {
+	return pkgStreaming.NewManifestHandler(streamingServiceName, resolveStreamingSource(cfg), tracerEventDefinitions())
 }
 
-// buildRoutes constructs one RouteRequired route per tracer event,
-// targeting the single broker named targetName. Topic names are
-// "tracer.<resource>.<event>", rendered via pkgStreaming.TopicName from the
-// underscore-canonical Definition.Key().
+// buildRoutes constructs tracer's single RouteRequired catch-all route, carrying
+// every fact in the catalog to the one application topic
+// "lerian.streaming.<source>" on the broker named targetName.
 //
-// Route Keys are composed as "<route-key>.<target-name>" (e.g.
-// "rule.created.primary"), where <route-key> is the hyphenated routing handle
-// (RouteKey()) — Route.Key must match lib-streaming's lower-case hyphenated
-// dot-delimited grammar, and the target-name suffix guarantees uniqueness when
-// the same event is later routed to multiple targets (e.g. a parallel shadow
-// route). The wire topic, by contrast, derives from the underscore-canonical
-// Key() so it converges with EventDefinition.Topic.
-func buildRoutes(targetName string) []libStreaming.RouteDefinition {
-	defs := tracerEventDefinitions()
-	routes := make([]libStreaming.RouteDefinition, 0, len(defs))
-
-	for _, d := range defs {
-		key := d.Key()
-		routeKey := d.RouteKey()
-		routes = append(routes, libStreaming.RouteDefinition{
-			Key:           routeKey + "." + targetName,
-			DefinitionKey: key,
-			Target:        targetName,
-			Destination:   libStreaming.KafkaTopic(pkgStreaming.TopicName(streamingServiceName, key)),
-			Requirement:   libStreaming.RouteRequired,
-		})
+// DefinitionKey is deliberately EMPTY: that is what makes the route a catch-all
+// serving every definition. One topic per producing application leaves nothing to
+// fan out per event — every event has the same destination — so a single route
+// replaces the former one-route-per-catalog-entry table.
+//
+// The destination is derived through libStreaming.AppTopic, which VALIDATES the
+// source and returns an error rather than handing back a topic name built from a
+// malformed one.
+func buildRoutes(targetName, source string) ([]libStreaming.RouteDefinition, error) {
+	topic, err := libStreaming.AppTopic(source)
+	if err != nil {
+		return nil, fmt.Errorf("failed to derive tracer application topic: %w", err)
 	}
 
-	return routes
+	return []libStreaming.RouteDefinition{{
+		Key:         streamingFactRouteKey,
+		Target:      targetName,
+		Destination: libStreaming.KafkaTopic(topic),
+		Requirement: libStreaming.RouteRequired,
+	}}, nil
 }
