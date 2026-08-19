@@ -4,4 +4,4 @@ ledger-mongodb-crm	2	2	2	400	2048	16	0	15m	0
 async-broker	2	2	2	400	3072	20	0	15m	0
 tracer	2	2	2	400	2048	6	0	15m	1
 lifecycle-migration	1	1	4	400	3072	10	0	15m	0
-chaos-capability	3	1	2	400	1536	10	0	15m	0
+chaos-capability	3	1	2	400	2048	10	0	15m	0

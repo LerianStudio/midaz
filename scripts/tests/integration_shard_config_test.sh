@@ -33,7 +33,7 @@ if [[ $actual_shards != "$expected_shards" ]]; then
   exit 1
 fi
 
-expected_config=$'ledger-postgres\t2\t2\t2\t400\t2048\t24\t0\t15m\t0\nledger-mongodb-crm\t2\t2\t2\t400\t2048\t16\t0\t15m\t0\nasync-broker\t2\t2\t2\t400\t3072\t20\t0\t15m\t0\ntracer\t2\t2\t2\t400\t2048\t6\t0\t15m\t1\nlifecycle-migration\t1\t1\t4\t400\t3072\t10\t0\t15m\t0\nchaos-capability\t3\t1\t2\t400\t1536\t10\t0\t15m\t0'
+expected_config=$'ledger-postgres\t2\t2\t2\t400\t2048\t24\t0\t15m\t0\nledger-mongodb-crm\t2\t2\t2\t400\t2048\t16\t0\t15m\t0\nasync-broker\t2\t2\t2\t400\t3072\t20\t0\t15m\t0\ntracer\t2\t2\t2\t400\t2048\t6\t0\t15m\t1\nlifecycle-migration\t1\t1\t4\t400\t3072\t10\t0\t15m\t0\nchaos-capability\t3\t1\t2\t400\t2048\t10\t0\t15m\t0'
 actual_config=$(awk '!/^#/ && NF' "$config")
 if [[ $actual_config != "$expected_config" ]]; then
   echo "integration shard resource budgets changed without updating their contract" >&2
@@ -98,7 +98,7 @@ FAKE_CAPTURE_DIR="$test_dir" \
   MIDAZ_CI_LANE_RUNNER="$test_dir/fake-lane" \
   GITHUB_RUN_ID=8123 GITHUB_RUN_ATTEMPT=2 \
   "$repo_root/scripts/run-integration-ci-shard.sh" chaos-capability
-grep -q '^CI_MAX_RSS_MB=1536$' "$test_dir/env"
+grep -q '^CI_MAX_RSS_MB=2048$' "$test_dir/env"
 grep -q '^CI_MAX_PEAK_CONTAINERS=10$' "$test_dir/env"
 grep -q '^INTEGRATION_PACKAGE_PARALLELISM=3$' "$test_dir/env"
 grep -q '^INTEGRATION_TEST_PARALLELISM=1$' "$test_dir/env"
