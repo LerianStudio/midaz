@@ -166,6 +166,12 @@ func TestNewEnvironment_RejectInvalidVariable(t *testing.T) {
 			description: "Expression with typo in variable name should fail compilation",
 		},
 		{
+			name:        "Error - reject legacy currency variable (no alias for renamed asset)",
+			expression:  `currency == "USD"`,
+			expectErr:   true,
+			description: "The renamed asset variable exposes no currency alias; referencing currency must fail compilation with an undeclared reference",
+		},
+		{
 			name:        "Success - compile expression with dynamic account field access",
 			expression:  `account.invalidField == "test"`,
 			expectErr:   false,
