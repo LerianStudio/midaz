@@ -26,9 +26,12 @@ var LimitUpdatedDefinition = Definition{
 // same twelve-field shape as LimitCreatedPayload; the fence EXCLUDES name,
 // description, and maxAmount.
 type LimitUpdatedPayload struct {
-	ID              string             `json:"id"`
-	Status          string             `json:"status"`
-	LimitType       string             `json:"limitType"`
+	ID        string `json:"id"`
+	Status    string `json:"status"`
+	LimitType string `json:"limitType"`
+	// Currency deliberately carries the renamed domain field model.Limit.Asset.
+	// The wire name/json tag stay "currency" for consumer compatibility; do not
+	// rename without a SchemaVersion bump and coordinated consumer rollout.
 	Currency        string             `json:"currency"`
 	Scopes          []RuleScopePayload `json:"scopes"`
 	ActiveTimeStart *string            `json:"activeTimeStart"`

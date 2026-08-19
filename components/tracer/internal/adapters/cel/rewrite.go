@@ -95,9 +95,20 @@ func (r *currencyRewriter) shadowed(name string) bool {
 	return false
 }
 
-// push binds a comprehension's iteration and accumulation variables for the
-// duration of its body traversal.
-func (r *currencyRewriter) push(comp celast.ComprehensionExpr) {
+// comprehensionMacros are the standard CEL comprehension macros. Each binds an
+// iteration variable (their first argument) that shadows the global inside the
+// predicate/transform argument. `has` is deliberately absent: it binds nothing.
+var comprehensionMacros = map[string]struct{}{
+	"exists":     {},
+	"all":        {},
+	"exists_one": {},
+	"map":        {},
+	"filter":     {},
+}
+
+// frameFromComprehension collects the names a materialized comprehension binds:
+// its iteration variable(s) and accumulator.
+func frameFromComprehension(comp celast.ComprehensionExpr) map[string]struct{} {
 	frame := map[string]struct{}{}
 
 	if v := comp.IterVar(); v != "" {
@@ -112,7 +123,13 @@ func (r *currencyRewriter) push(comp celast.ComprehensionExpr) {
 		frame[v] = struct{}{}
 	}
 
-	r.scope = append(r.scope, frame)
+	return frame
+}
+
+// push binds a comprehension's iteration and accumulation variables for the
+// duration of its body traversal.
+func (r *currencyRewriter) push(comp celast.ComprehensionExpr) {
+	r.scope = append(r.scope, frameFromComprehension(comp))
 }
 
 func (r *currencyRewriter) pop() {
@@ -191,25 +208,56 @@ func (r *currencyRewriter) walkComprehension(comp celast.ComprehensionExpr) {
 // binding occurrences and the macro body) are walked with the comprehension's
 // bound names pushed, so a binding named currency shadows the global. Non-macro
 // forms (e.g. a has() presence test) introduce no bindings and are walked as-is.
+//
+// The bound names come from the expanded comprehension when it is materialized
+// here (the top-level macro), or from the macro call's binding argument when the
+// expanded node is only a placeholder — which is how a comprehension macro
+// NESTED as another macro's argument is represented (kind Unspecified, but still
+// macro-tracked). Deriving the frame from the call in that case keeps a nested
+// binding named currency shadowing the global; otherwise the nested binding
+// would be walked in the enclosing scope only and wrongly renamed.
 func (r *currencyRewriter) walkMacroCall(expanded, macroCall celast.Expr) {
-	if expanded.Kind() == celast.ComprehensionKind && macroCall.Kind() == celast.CallKind {
-		comp := expanded.AsComprehension()
-		call := macroCall.AsCall()
-
-		if call.IsMemberFunction() {
-			r.walk(call.Target())
-		}
-
-		r.push(comp)
-
-		for _, a := range call.Args() {
-			r.walk(a)
-		}
-
-		r.pop()
-
+	if macroCall.Kind() != celast.CallKind {
+		r.walk(macroCall)
 		return
 	}
 
-	r.walk(macroCall)
+	call := macroCall.AsCall()
+
+	frame, ok := r.macroFrame(expanded, call)
+	if !ok {
+		r.walk(macroCall)
+		return
+	}
+
+	if call.IsMemberFunction() {
+		r.walk(call.Target())
+	}
+
+	r.scope = append(r.scope, frame)
+
+	for _, a := range call.Args() {
+		r.walk(a)
+	}
+
+	r.pop()
+}
+
+// macroFrame returns the names an enclosing comprehension macro binds, and
+// whether macroCall is a comprehension macro at all. A materialized expanded
+// comprehension carries the authoritative iter/accumulator vars; a placeholder
+// expanded node (a nested macro argument) falls back to the standard macro's
+// first argument, which is its iteration variable.
+func (r *currencyRewriter) macroFrame(expanded celast.Expr, call celast.CallExpr) (map[string]struct{}, bool) {
+	if expanded.Kind() == celast.ComprehensionKind {
+		return frameFromComprehension(expanded.AsComprehension()), true
+	}
+
+	if _, ok := comprehensionMacros[call.FunctionName()]; ok {
+		if args := call.Args(); len(args) > 0 && args[0].Kind() == celast.IdentKind {
+			return map[string]struct{}{args[0].AsIdent(): {}}, true
+		}
+	}
+
+	return nil, false
 }

@@ -54,8 +54,9 @@ func (c celCompileChecker) Compile(expression string) error {
 // started. The caller MUST call Close on the returned value.
 //
 // The migration is single-tenant scoped: it resolves the connection through the
-// static pool. In strict multi-tenant mode a per-tenant execution context would
-// be required, which is out of scope for this job.
+// static pool and has no per-tenant fan-out. It therefore refuses to run under
+// MULTI_TENANT_ENABLED=true — the guard below fails loud before any resource is
+// opened. Per-tenant execution is a documented follow-up.
 func InitCELRuleMigration(ctx context.Context) (*CELRuleMigration, error) {
 	cfg := &Config{}
 	if err := libCommons.SetConfigFromEnvVars(cfg); err != nil {
@@ -63,6 +64,13 @@ func InitCELRuleMigration(ctx context.Context) (*CELRuleMigration, error) {
 	}
 
 	ApplyMultiTenantDefaults(cfg)
+
+	// Fail loud BEFORE opening the logger, the connection pool, or any
+	// transaction: the job has no per-tenant fan-out, so running it in
+	// multi-tenant mode would half-migrate the deployment.
+	if cfg.MultiTenantEnabled {
+		return nil, celrules.ErrMultiTenantUnsupported
+	}
 
 	zapEnv := libZap.Environment(cfg.OtelDeploymentEnv)
 	if zapEnv == "" {
@@ -114,7 +122,7 @@ func InitCELRuleMigration(ctx context.Context) (*CELRuleMigration, error) {
 		return nil, fmt.Errorf("failed to create CEL environment: %w", err)
 	}
 
-	migrator, err := celrules.NewMigrator(txBeginner, ruleRepo, celCompileChecker{env: celEnv}, cel.RewriteCurrencyToAsset)
+	migrator, err := celrules.NewMigrator(txBeginner, ruleRepo, celCompileChecker{env: celEnv}, cel.RewriteCurrencyToAsset, cfg.MultiTenantEnabled)
 	if err != nil {
 		return nil, fmt.Errorf("failed to construct CEL rule migrator: %w", err)
 	}
