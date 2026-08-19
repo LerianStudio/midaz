@@ -166,7 +166,7 @@ parallel_cleanup_failures=0
 docker_bin=
 cleanup_timeout_bin=
 owner_cleanup_timeout=${INTEGRATION_OWNER_CLEANUP_TIMEOUT_SECONDS:-30}
-if [[ $shard == lifecycle-migration || $shard == async-broker ]]; then
+if [[ $shard == lifecycle-migration || $shard == async-broker || $shard == ledger-mongodb-crm ]]; then
   docker_bin=$(command -v docker || true)
   cleanup_timeout_bin=$(command -v timeout || command -v gtimeout || true)
   if [[ -z $docker_bin || -z $cleanup_timeout_bin ]]; then
@@ -341,7 +341,7 @@ awk -F '\t' '$2 == "parallel"' "$jobs_manifest" > "$parallel_jobs"
 awk -F '\t' '$2 == "serial"' "$jobs_manifest" > "$serial_jobs"
 : > "$parallel_cleanup_failures_file"
 
-run_async_parallel_wave() {
+run_bounded_parallel_wave() {
   local wave_manifest=$1
   local wave_index=$2
   local wave_dir="$report_dir/parallel-waves/$wave_index"
@@ -359,7 +359,7 @@ echo "[$shard] selected $(wc -l < "$selection" | tr -d ' ') tests across $job_in
 echo "[$shard] package parallelism=$package_parallelism, in-package parallelism=$test_parallelism, shuffle=$shuffle_seed, flake budget=$flake_budget"
 
 if [[ -s $parallel_jobs ]]; then
-  if [[ $shard == async-broker ]]; then
+  if [[ $shard == async-broker || $shard == ledger-mongodb-crm ]]; then
     parallel_wave_size=$((package_parallelism * 2))
     wave_index=0
     wave_jobs=0
@@ -375,12 +375,12 @@ if [[ -s $parallel_jobs ]]; then
       printf '%s\t%s\t%s\t%s\n' "$index" "$mode" "$package" "$job_dir" >> "$wave_manifest"
       wave_jobs=$((wave_jobs + 1))
       if [[ $wave_jobs -eq $parallel_wave_size ]]; then
-        run_async_parallel_wave "$wave_manifest" "$padded_wave"
+        run_bounded_parallel_wave "$wave_manifest" "$padded_wave"
         wave_jobs=0
       fi
     done < "$parallel_jobs"
     if [[ $wave_jobs -gt 0 ]]; then
-      run_async_parallel_wave "$wave_manifest" "$padded_wave"
+      run_bounded_parallel_wave "$wave_manifest" "$padded_wave"
     fi
   else
     xargs -P "$package_parallelism" -n 4 bash -c 'run_shard_job "$@"' _ < "$parallel_jobs"

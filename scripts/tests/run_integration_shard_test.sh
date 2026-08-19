@@ -216,6 +216,63 @@ grep -q '"failed_jobs":0' "$test_dir/async-failure-reports/async-broker/summary.
 grep -q $'wave-001\tparallel\towner-containers\tcleanup=1' "$test_dir/async-failure-reports/async-broker/failures.tsv"
 grep -q $'\tfailed$' "$test_dir/async-failure-reports/async-broker/parallel-waves/001/container-cleanup.tsv"
 
+cat > "$test_dir/mongo-plan.tsv" <<'EOF'
+ledger-mongodb-crm	parallel	example.test/mongo-one	TestMongoOne
+ledger-mongodb-crm	parallel	example.test/mongo-two	TestMongoTwo
+ledger-mongodb-crm	parallel	example.test/mongo-three	TestMongoThree
+ledger-mongodb-crm	parallel	example.test/mongo-four	TestMongoFour
+ledger-mongodb-crm	parallel	example.test/mongo-five	TestMongoFive
+EOF
+mkdir -p "$test_dir/docker-mongo-state"
+: > "$test_dir/docker-mongo-calls"
+PATH="$test_dir/bin:$PATH" \
+  FAKE_CALLS_DIR="$test_dir/calls" \
+  FAKE_DOCKER_CALLS="$test_dir/docker-mongo-calls" \
+  FAKE_DOCKER_STATE_DIR="$test_dir/docker-mongo-state" \
+  FAKE_RESET_WAVE_CLEANUP=1 \
+  TESTCONTAINERS_SESSION_ID=owner-mongo \
+  INTEGRATION_SHARD_PLAN_FILE="$test_dir/mongo-plan.tsv" \
+  INTEGRATION_PACKAGE_PARALLELISM=2 \
+  INTEGRATION_TEST_PARALLELISM=2 \
+  TEST_REPORTS_DIR="$test_dir/mongo-reports" \
+  "$repo_root/scripts/run-integration-shard.sh" ledger-mongodb-crm
+
+if [[ $(grep -Fxc 'deadbeefdead' "$test_dir/docker-mongo-calls") -ne 2 ]]; then
+  echo "MongoDB/CRM shard did not clean after both parallel waves" >&2
+  exit 1
+fi
+if grep -Fq 'feedfacefeed' "$test_dir/docker-mongo-calls"; then
+  echo "MongoDB/CRM wave cleanup attempted to remove Ryuk" >&2
+  exit 1
+fi
+test -s "$test_dir/mongo-reports/ledger-mongodb-crm/parallel-waves/001/container-cleanup.tsv"
+test -s "$test_dir/mongo-reports/ledger-mongodb-crm/parallel-waves/002/container-cleanup.tsv"
+grep -q '"parallel_cleanup_failures":0' "$test_dir/mongo-reports/ledger-mongodb-crm/summary.json"
+
+mkdir -p "$test_dir/docker-mongo-failure-state"
+: > "$test_dir/docker-mongo-failure-calls"
+status=0
+PATH="$test_dir/bin:$PATH" \
+  FAKE_CALLS_DIR="$test_dir/calls" \
+  FAKE_DOCKER_CALLS="$test_dir/docker-mongo-failure-calls" \
+  FAKE_DOCKER_KEEP=1 \
+  FAKE_DOCKER_STATE_DIR="$test_dir/docker-mongo-failure-state" \
+  FAKE_RESET_WAVE_CLEANUP=1 \
+  TESTCONTAINERS_SESSION_ID=owner-mongo-failure \
+  INTEGRATION_SHARD_PLAN_FILE="$test_dir/mongo-plan.tsv" \
+  INTEGRATION_PACKAGE_PARALLELISM=2 \
+  INTEGRATION_TEST_PARALLELISM=2 \
+  TEST_REPORTS_DIR="$test_dir/mongo-failure-reports" \
+  "$repo_root/scripts/run-integration-shard.sh" ledger-mongodb-crm || status=$?
+if [[ $status -eq 0 ]]; then
+  echo "failed MongoDB/CRM wave cleanup produced a passing shard" >&2
+  exit 1
+fi
+grep -q '"parallel_cleanup_failures":2' "$test_dir/mongo-failure-reports/ledger-mongodb-crm/summary.json"
+grep -q '"failed_jobs":0' "$test_dir/mongo-failure-reports/ledger-mongodb-crm/summary.json"
+grep -q $'wave-001\tparallel\towner-containers\tcleanup=1' "$test_dir/mongo-failure-reports/ledger-mongodb-crm/failures.tsv"
+grep -q $'\tfailed$' "$test_dir/mongo-failure-reports/ledger-mongodb-crm/parallel-waves/001/container-cleanup.tsv"
+
 status=0
 PATH="$test_dir/bin:$PATH" \
   FAKE_CALLS_DIR="$test_dir/calls" \
