@@ -131,11 +131,16 @@ func TestNewMigrator_RequiredArgs(t *testing.T) {
 func TestMigrator_Up_ErrorPaths(t *testing.T) {
 	t.Parallel()
 
+	// rawLeakToken is a distinctive marker embedded in the collaborator errors
+	// for the rewrite and recompile branches. Up must return a bounded sentinel
+	// (ErrExpressionSyntax) and MUST NOT propagate this raw collaborator text.
+	const rawLeakToken = "RAW_CEL_LEAK_TOKEN"
+
 	beginErr := errors.New("begin boom")
 	lockErr := errors.New("lock boom")
 	listErr := errors.New("list boom")
-	rewriteErr := errors.New("rewrite boom")
-	compileErr := errors.New("undeclared reference")
+	rewriteErr := errors.New("rewrite boom " + rawLeakToken)
+	compileErr := errors.New("undeclared reference " + rawLeakToken)
 	updateErr := errors.New("update boom")
 	commitErr := errors.New("commit boom")
 
@@ -150,7 +155,11 @@ func TestMigrator_Up_ErrorPaths(t *testing.T) {
 		// wantErrIs, when set, asserts the returned error wraps this sentinel
 		// (errors.Is). Used for the rewrite/recompile branches, which return a
 		// bounded ErrExpressionSyntax rather than the raw cel-go error.
-		wantErrIs  error
+		wantErrIs error
+		// wantNoLeak, when set, asserts the returned error text does NOT contain
+		// this token — proving the bounded sentinel does not propagate the
+		// collaborator's raw error detail.
+		wantNoLeak string
 		wantRolled bool // true when a tx was started and must be rolled back
 	}{
 		{
@@ -204,6 +213,7 @@ func TestMigrator_Up_ErrorPaths(t *testing.T) {
 			},
 			rewrite:    func(string) (string, error) { return "", rewriteErr },
 			wantErrIs:  constant.ErrExpressionSyntax,
+			wantNoLeak: rawLeakToken,
 			wantRolled: true,
 		},
 		{
@@ -217,6 +227,7 @@ func TestMigrator_Up_ErrorPaths(t *testing.T) {
 			},
 			rewrite:    toAssetRewrite,
 			wantErrIs:  constant.ErrExpressionSyntax,
+			wantNoLeak: rawLeakToken,
 			wantRolled: true,
 		},
 		{
@@ -272,6 +283,11 @@ func TestMigrator_Up_ErrorPaths(t *testing.T) {
 
 			if tt.wantErrIs != nil {
 				assert.ErrorIs(t, err, tt.wantErrIs)
+			}
+
+			if tt.wantNoLeak != "" {
+				assert.NotContains(t, err.Error(), tt.wantNoLeak,
+					"the bounded error must not leak the collaborator's raw error text")
 			}
 
 			if tt.wantRolled {
@@ -403,11 +419,11 @@ func TestMigrator_Up_MultiTenant_RefusesBeforeAnyDBWork(t *testing.T) {
 func TestMigrator_Down_FailsLoud(t *testing.T) {
 	t.Parallel()
 
-	tx := &fakeTx{}
-
 	ctrl := gomock.NewController(t)
-	beginner := dbmocks.NewMockTxBeginner(ctrl) // no calls expected
-	store := NewMockRuleStore(ctrl)             // no calls expected
+	// No BeginTx expectation: a single database call would fail the test, which
+	// is the proof that Down performs no I/O.
+	beginner := dbmocks.NewMockTxBeginner(ctrl)
+	store := NewMockRuleStore(ctrl)
 	compiler := NewMockExpressionCompiler(ctrl)
 
 	m, err := NewMigrator(beginner, store, compiler, identityRewrite, false)
@@ -416,8 +432,4 @@ func TestMigrator_Down_FailsLoud(t *testing.T) {
 	err = m.Down(context.Background())
 	require.Error(t, err)
 	assert.ErrorIs(t, err, ErrDownIrreversible)
-
-	// Down performs no I/O.
-	assert.False(t, tx.committed)
-	assert.False(t, tx.rolledBack)
 }

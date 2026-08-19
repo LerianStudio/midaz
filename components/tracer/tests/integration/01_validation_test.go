@@ -942,7 +942,7 @@ func TestValidation_InvalidAmount(t *testing.T) {
 }
 
 // Test 1.1.13: Validation rejects invalid asset
-func TestValidation_InvalidCurrency(t *testing.T) {
+func TestValidation_InvalidAsset(t *testing.T) {
 	accountID := testutil.MustDeterministicUUID(170).String()
 	timestamp := testutil.FixedTime().Format(time.RFC3339)
 

@@ -648,7 +648,7 @@ func TestNewValidationRequest_DefensiveCopyContextMetadata(t *testing.T) {
 func TestValidationRequest_Validate_PastTimestamp(t *testing.T) {
 	t.Parallel()
 
-	now := time.Now()
+	now := testutil.FixedTime()
 
 	// validRequest builds a valid request using deterministic UUIDs from seed range 8100-8109.
 	// The timestamp is set to now so it passes all existing checks.
@@ -730,7 +730,7 @@ func TestValidationRequest_Validate_PastTimestamp(t *testing.T) {
 func TestValidationRequest_Validate_PastTimestamp_Boundary(t *testing.T) {
 	t.Parallel()
 
-	now := time.Now()
+	now := testutil.FixedTime()
 
 	// validRequest builds a valid request using deterministic UUIDs from seed range 8110-8119.
 	validRequest := func() *ValidationRequest {
@@ -798,7 +798,7 @@ func TestValidationRequest_Validate_PastTimestamp_CustomMaxAge(t *testing.T) {
 
 	defer func() { MaxTimestampAge = original }()
 
-	now := time.Now()
+	now := testutil.FixedTime()
 
 	// validRequest builds a valid request using deterministic UUIDs from seed range 8120-8129.
 	validRequest := func() *ValidationRequest {
