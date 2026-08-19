@@ -120,6 +120,10 @@ func TestIntegration_CELRuleMigration_Up_RewritesGlobalPreservesOthers(t *testin
 	res, err := m.Up(ctx)
 	require.NoError(t, err)
 	assert.Equal(t, 3, res.Scanned)
+	// Only the global-currency rule is rewritten; metadata.currency and the
+	// shadowing comprehension binding stay unchanged.
+	assert.Equal(t, 1, res.Rewritten)
+	assert.Equal(t, 2, res.Unchanged)
 
 	// The global currency reference is renamed to asset and recompiles/evaluates
 	// against the new environment.

@@ -439,9 +439,9 @@ func TestValidation_AmountNonPositive_ReturnsError(t *testing.T) {
 	}
 }
 
-// TestValidation_MissingCurrency_ReturnsError verifies that missing asset returns an error.
+// TestValidation_MissingAsset_ReturnsError verifies that missing asset returns an error.
 // 0416: asset is required
-func TestValidation_MissingCurrency_ReturnsError(t *testing.T) {
+func TestValidation_MissingAsset_ReturnsError(t *testing.T) {
 	baseURL := testutil.GetBaseURL()
 	apiKey := testutil.GetAPIKey()
 
@@ -480,9 +480,9 @@ func TestValidation_MissingCurrency_ReturnsError(t *testing.T) {
 	assert.Equal(t, "Asset is required.", errResp.Detail)
 }
 
-// TestValidation_InvalidCurrency_ReturnsError verifies that invalid asset code returns an error.
+// TestValidation_InvalidAsset_ReturnsError verifies that invalid asset code returns an error.
 // 0417: asset must be valid ISO 4217 code (e.g., BRL, USD)
-func TestValidation_InvalidCurrency_ReturnsError(t *testing.T) {
+func TestValidation_InvalidAsset_ReturnsError(t *testing.T) {
 	baseURL := testutil.GetBaseURL()
 	apiKey := testutil.GetAPIKey()
 

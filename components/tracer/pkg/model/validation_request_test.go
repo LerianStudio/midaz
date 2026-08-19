@@ -187,8 +187,8 @@ func TestValidationRequest_Validate(t *testing.T) {
 // TestValidationRequest_ValidateForReserve locks the reserve-path relaxation:
 // transactionType and account are OPTIONAL on reserve (the ledger has no card
 // rail and may reserve for an external-only source), while requestId, amount,
-// asset and the timestamp window stay mandatory. This is the contract that
-// closed the F3 enforce gap; tightening it back re-breaks the ledger reserve.
+// asset and the timestamp window stay mandatory. Tightening transactionType or
+// account back to mandatory re-breaks the ledger reserve path.
 func TestValidationRequest_ValidateForReserve(t *testing.T) {
 	validRequest := func() *ValidationRequest {
 		return &ValidationRequest{

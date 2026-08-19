@@ -814,7 +814,7 @@ func TestValidation_1_1_50_VeryOldTimestamp(t *testing.T) {
 }
 
 // Test 1.1.51: Validation rejects lowercase asset (ISO 4217 requires uppercase)
-func TestValidation_1_1_51_LowercaseCurrencyRejected(t *testing.T) {
+func TestValidation_1_1_51_LowercaseAssetRejected(t *testing.T) {
 	accountID := testutil.MustDeterministicUUID(1110).String()
 	requestID := testutil.MustDeterministicUUID(1111).String()
 
