@@ -25,6 +25,9 @@ done
 
 [[ -n $events && -n $junit ]]
 [[ -n ${MIDAZ_SHARD_JOB_SELECTION_FILE:-} ]]
+if [[ ${FAKE_RESET_WAVE_CLEANUP:-0} == 1 ]]; then
+  rm -f "$FAKE_DOCKER_STATE_DIR/wave.removed"
+fi
 mkdir -p "$(dirname "$events")"
 : > "$events"
 while IFS= read -r test_name; do
@@ -51,10 +54,11 @@ set -euo pipefail
 
 case ${1:-} in
   ps)
-    state_file="$FAKE_DOCKER_STATE_DIR/${MIDAZ_SHARD_JOB_INDEX}.removed"
+    cleanup_key=${MIDAZ_SHARD_JOB_INDEX:-wave}
+    state_file="$FAKE_DOCKER_STATE_DIR/${cleanup_key}.removed"
     if [[ ! -e $state_file ]]; then
-      printf '%064d\tjob-%s-postgres\tpostgres:17-alpine\torg.testcontainers.sessionId=%s\n' \
-        "$MIDAZ_SHARD_JOB_INDEX" "$MIDAZ_SHARD_JOB_INDEX" "$TESTCONTAINERS_SESSION_ID"
+      printf 'deadbeefdead\tjob-%s-postgres\tpostgres:17-alpine\torg.testcontainers.sessionId=%s\n' \
+        "$cleanup_key" "$TESTCONTAINERS_SESSION_ID"
     fi
     printf 'feedfacefeed\treaper_%s\ttestcontainers/ryuk:0.14.0\torg.testcontainers.ryuk=true,org.testcontainers.sessionId=%s\n' \
       "$TESTCONTAINERS_SESSION_ID" "$TESTCONTAINERS_SESSION_ID"
@@ -65,7 +69,7 @@ case ${1:-} in
     shift
     printf '%s\n' "$*" >> "$FAKE_DOCKER_CALLS"
     if [[ ${FAKE_DOCKER_KEEP:-0} != 1 ]]; then
-      touch "$FAKE_DOCKER_STATE_DIR/${MIDAZ_SHARD_JOB_INDEX}.removed"
+      touch "$FAKE_DOCKER_STATE_DIR/${MIDAZ_SHARD_JOB_INDEX:-wave}.removed"
     fi
     ;;
   *)
@@ -121,8 +125,10 @@ PATH="$test_dir/bin:$PATH" \
   TEST_REPORTS_DIR="$test_dir/lifecycle-reports" \
   "$repo_root/scripts/run-integration-shard.sh" lifecycle-migration
 
-grep -Fxq '0000000000000000000000000000000000000000000000000000000000000001' "$test_dir/docker-calls"
-grep -Fxq '0000000000000000000000000000000000000000000000000000000000000002' "$test_dir/docker-calls"
+if [[ $(grep -Fxc 'deadbeefdead' "$test_dir/docker-calls") -ne 2 ]]; then
+  echo "lifecycle shard did not clean after both serial jobs" >&2
+  exit 1
+fi
 if grep -Fq 'feedfacefeed' "$test_dir/docker-calls"; then
   echo "lifecycle job cleanup attempted to remove Ryuk" >&2
   exit 1
@@ -152,6 +158,63 @@ fi
 grep -q '"serial_cleanup_failures":2' "$test_dir/lifecycle-failure-reports/lifecycle-migration/summary.json"
 grep -q $'cleanup=1$' "$test_dir/lifecycle-failure-reports/lifecycle-migration/failures.tsv"
 grep -q $'\tfailed$' "$test_dir/lifecycle-failure-reports/lifecycle-migration/jobs/001/container-cleanup.tsv"
+
+cat > "$test_dir/async-plan.tsv" <<'EOF'
+async-broker	parallel	example.test/async-one	TestAsyncOne
+async-broker	parallel	example.test/async-two	TestAsyncTwo
+async-broker	parallel	example.test/async-three	TestAsyncThree
+async-broker	parallel	example.test/async-four	TestAsyncFour
+async-broker	parallel	example.test/async-five	TestAsyncFive
+EOF
+mkdir -p "$test_dir/docker-async-state"
+: > "$test_dir/docker-async-calls"
+PATH="$test_dir/bin:$PATH" \
+  FAKE_CALLS_DIR="$test_dir/calls" \
+  FAKE_DOCKER_CALLS="$test_dir/docker-async-calls" \
+  FAKE_DOCKER_STATE_DIR="$test_dir/docker-async-state" \
+  FAKE_RESET_WAVE_CLEANUP=1 \
+  TESTCONTAINERS_SESSION_ID=owner-async \
+  INTEGRATION_SHARD_PLAN_FILE="$test_dir/async-plan.tsv" \
+  INTEGRATION_PACKAGE_PARALLELISM=2 \
+  INTEGRATION_TEST_PARALLELISM=2 \
+  TEST_REPORTS_DIR="$test_dir/async-reports" \
+  "$repo_root/scripts/run-integration-shard.sh" async-broker
+
+if [[ $(grep -Fxc 'deadbeefdead' "$test_dir/docker-async-calls") -ne 2 ]]; then
+  echo "async shard did not clean after both parallel waves" >&2
+  exit 1
+fi
+if grep -Fq 'feedfacefeed' "$test_dir/docker-async-calls"; then
+  echo "async wave cleanup attempted to remove Ryuk" >&2
+  exit 1
+fi
+test -s "$test_dir/async-reports/async-broker/parallel-waves/001/container-cleanup.tsv"
+test -s "$test_dir/async-reports/async-broker/parallel-waves/002/container-cleanup.tsv"
+grep -q '"parallel_cleanup_failures":0' "$test_dir/async-reports/async-broker/summary.json"
+
+mkdir -p "$test_dir/docker-async-failure-state"
+: > "$test_dir/docker-async-failure-calls"
+status=0
+PATH="$test_dir/bin:$PATH" \
+  FAKE_CALLS_DIR="$test_dir/calls" \
+  FAKE_DOCKER_CALLS="$test_dir/docker-async-failure-calls" \
+  FAKE_DOCKER_KEEP=1 \
+  FAKE_DOCKER_STATE_DIR="$test_dir/docker-async-failure-state" \
+  FAKE_RESET_WAVE_CLEANUP=1 \
+  TESTCONTAINERS_SESSION_ID=owner-async-failure \
+  INTEGRATION_SHARD_PLAN_FILE="$test_dir/async-plan.tsv" \
+  INTEGRATION_PACKAGE_PARALLELISM=2 \
+  INTEGRATION_TEST_PARALLELISM=2 \
+  TEST_REPORTS_DIR="$test_dir/async-failure-reports" \
+  "$repo_root/scripts/run-integration-shard.sh" async-broker || status=$?
+if [[ $status -eq 0 ]]; then
+  echo "failed async wave cleanup produced a passing shard" >&2
+  exit 1
+fi
+grep -q '"parallel_cleanup_failures":2' "$test_dir/async-failure-reports/async-broker/summary.json"
+grep -q '"failed_jobs":0' "$test_dir/async-failure-reports/async-broker/summary.json"
+grep -q $'wave-001\tparallel\towner-containers\tcleanup=1' "$test_dir/async-failure-reports/async-broker/failures.tsv"
+grep -q $'\tfailed$' "$test_dir/async-failure-reports/async-broker/parallel-waves/001/container-cleanup.tsv"
 
 status=0
 PATH="$test_dir/bin:$PATH" \
