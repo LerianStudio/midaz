@@ -8,6 +8,7 @@ package transaction
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"sync"
 	"testing"
@@ -101,14 +102,12 @@ type networkChaosTestInfra struct {
 func setupIntegrationInfra(t *testing.T) *integrationTestInfra {
 	t.Helper()
 
-	// Setup PostgreSQL container
-	pgContainer := pgtestutil.SetupContainer(t)
+	pgContainer := pgtestutil.SetupMigratedContainer(t, "transaction")
 
 	// Create lib-commons PostgreSQL connection
-	migrationsPath := pgtestutil.FindMigrationsPath(t, "transaction")
 	connStr := pgtestutil.BuildConnectionString(pgContainer.Host, pgContainer.Port, pgContainer.Config)
 
-	conn := pgtestutil.CreatePostgresClient(t, connStr, connStr, pgContainer.Config.DBName, migrationsPath)
+	conn := pgtestutil.ConnectPostgresClient(t.Context(), t, connStr, connStr)
 
 	// Create repository
 	repo := NewTransactionPostgreSQLRepository(conn)
@@ -135,7 +134,7 @@ func setupChaosInfra(t *testing.T) *chaosTestInfra {
 	t.Helper()
 
 	// Setup PostgreSQL container
-	pgContainer := pgtestutil.SetupContainer(t)
+	pgContainer := pgtestutil.SetupContainerWithFixedPort(t)
 
 	// Create lib-commons PostgreSQL connection
 	migrationsPath := pgtestutil.FindMigrationsPath(t, "transaction")
@@ -603,9 +602,7 @@ func TestIntegration_Transaction_GracefulDegradation(t *testing.T) {
 
 // TestChaos_Transaction_PostgresRestart tests that the repository recovers
 // after a PostgreSQL container restart.
-// SKIPPED: lib-commons PostgreSQL connection pool does not recover after restart.
 func TestIntegration_Chaos_Transaction_PostgresRestart(t *testing.T) {
-	t.Skip("skipping: lib-commons connection pool does not recover after PostgreSQL restart")
 	skipIfNotChaos(t)
 	if testing.Short() {
 		t.Skip("skipping chaos test in short mode")
@@ -630,7 +627,16 @@ func TestIntegration_Chaos_Transaction_PostgresRestart(t *testing.T) {
 	err = infra.chaosOrch.WaitForContainerRunning(ctx, containerID, 60*time.Second)
 	require.NoError(t, err, "container should be running after restart")
 
-	// Wait for database to be ready again
+	mappedPort, err := infra.pgContainer.Container.MappedPort(ctx, "5432/tcp")
+	require.NoError(t, err, "resolve PostgreSQL endpoint after restart")
+	require.Equal(t, infra.pgContainer.Port, mappedPort.Port(),
+		"restart must preserve the endpoint; otherwise this is endpoint discovery, not reconnect recovery")
+
+	// Prove the original DSN becomes ready before exercising the repository.
+	chaos.AssertRecoveryWithin(t, func() error {
+		return infra.pgContainer.DB.PingContext(ctx)
+	}, 30*time.Second, "original PostgreSQL DSN should become ready after restart")
+
 	chaos.AssertRecoveryWithin(t, func() error {
 		_, err := infra.repo.Find(ctx, infra.orgID, infra.ledgerID, parseID(t, tx.ID))
 		return err
@@ -793,8 +799,8 @@ func TestIntegration_Chaos_Transaction_NetworkPartition(t *testing.T) {
 	t.Log("Chaos test passed: network partition handled gracefully")
 }
 
-// TestChaos_Transaction_PacketLoss tests that the repository handles
-// packet loss gracefully with retries.
+// TestChaos_Transaction_PacketLoss tests that a silent network loss is bounded
+// by the caller context and that the repository recovers without losing data.
 func TestIntegration_Chaos_Transaction_PacketLoss(t *testing.T) {
 	skipIfNotChaos(t)
 	if testing.Short() {
@@ -810,33 +816,35 @@ func TestIntegration_Chaos_Transaction_PacketLoss(t *testing.T) {
 	tx := infra.createTestTransaction(t, "Pre-packet-loss transaction")
 	t.Logf("Created transaction %s before packet loss", tx.ID)
 
-	// Add 10% packet loss
-	t.Log("Chaos: Adding 10% packet loss")
-	err := infra.proxy.AddPacketLoss(10)
+	// Drop every downstream packet. Unlike a disconnected socket, this is a
+	// silent failure and therefore proves that request cancellation is honored.
+	t.Log("Chaos: Dropping downstream packets")
+	err := infra.proxy.AddPacketLoss(100)
 	require.NoError(t, err, "failed to add packet loss")
 	defer infra.proxy.RemoveAllToxics()
 
-	// Execute multiple operations - some may fail, but overall should be resilient
-	// 10 attempts is statistically sufficient to verify resilience with 10% packet loss
-	successCount := 0
-	errorCount := 0
-	totalAttempts := 10
+	lossCtx, cancel := context.WithTimeout(ctx, 2*time.Second)
+	_, lossErr := infra.repo.Find(lossCtx, infra.orgID, infra.ledgerID, parseID(t, tx.ID))
+	cancel()
+	require.Error(t, lossErr, "silent packet loss must not be reported as a successful read")
 
-	for i := 0; i < totalAttempts; i++ {
-		_, err := infra.repo.Find(ctx, infra.orgID, infra.ledgerID, parseID(t, tx.ID))
-		if err != nil {
-			errorCount++
-		} else {
-			successCount++
+	require.NoError(t, infra.proxy.RemoveAllToxics(), "failed to restore network after packet loss")
+	chaos.AssertRecoveryWithin(t, func() error {
+		attemptCtx, attemptCancel := context.WithTimeout(ctx, 2*time.Second)
+		defer attemptCancel()
+
+		found, findErr := infra.repo.Find(attemptCtx, infra.orgID, infra.ledgerID, parseID(t, tx.ID))
+		if findErr != nil {
+			return findErr
 		}
-	}
+		if found.ID != tx.ID {
+			return fmt.Errorf("recovered transaction ID = %s, want %s", found.ID, tx.ID)
+		}
 
-	t.Logf("Packet loss test: %d/%d operations succeeded", successCount, totalAttempts)
+		return nil
+	}, 30*time.Second, "repository should recover after packet loss")
 
-	// Most operations should succeed despite packet loss
-	assert.Greater(t, successCount, totalAttempts/2, "majority of operations should succeed despite packet loss")
-
-	t.Log("Chaos test passed: packet loss handled with acceptable success rate")
+	t.Log("Chaos test passed: packet loss was bounded and recovery preserved data")
 }
 
 // TestChaos_Transaction_IntermittentFailure tests that the repository handles
@@ -972,6 +980,7 @@ func TestIntegration_Transaction_FindByParentID(t *testing.T) {
 	if testing.Short() {
 		t.Skip("skipping integration test in short mode")
 	}
+	t.Setenv("ALLOW_INSECURE_TLS", "true")
 
 	infra := setupIntegrationInfra(t)
 
@@ -1775,25 +1784,19 @@ func TestIntegration_GetDB_CreateAndFindRoundTrip(t *testing.T) {
 //   - If getDB correctly returns the tenant DB, the data is found.
 //   - If getDB incorrectly falls back to static, the data is NOT found (test fails).
 
-// setupTenantContainer starts a second PostgreSQL container with migrations applied
+// setupTenantContainer allocates a second PostgreSQL database from the migrated template
 // and returns both the ContainerResult and a dbresolver.DB wrapper suitable for
 // injection into tenant context.
 func setupTenantContainer(t *testing.T) (*pgtestutil.ContainerResult, dbresolver.DB) {
 	t.Helper()
 
-	tenantContainer := pgtestutil.SetupContainer(t)
-
-	// Run migrations on the tenant container by creating a temporary
-	// PostgresConnection and letting the constructor trigger migration.
-	migrationsPath := pgtestutil.FindMigrationsPath(t, "transaction")
+	tenantContainer := pgtestutil.SetupMigratedContainer(t, "transaction")
 	connStr := pgtestutil.BuildConnectionString(tenantContainer.Host, tenantContainer.Port, tenantContainer.Config)
 
-	// Create a temporary connection to apply migrations (the constructor runs them).
-	tempConn := pgtestutil.CreatePostgresClient(t, connStr, connStr, tenantContainer.Config.DBName, migrationsPath)
+	tempConn := pgtestutil.ConnectPostgresClient(t.Context(), t, connStr, connStr)
 
-	// Trigger migration by calling GetDB (same as constructor does).
 	db, err := tempConn.Resolver(context.Background())
-	require.NoError(t, err, "failed to initialize tenant container database with migrations")
+	require.NoError(t, err, "failed to initialize tenant database")
 
 	// Close the temporary connection pool so it does not leak.
 	t.Cleanup(func() {

@@ -58,7 +58,7 @@ import (
 //	    tenant middleware, driven by the JWT tenantId the middleware reads.
 func TestIntegration_CRMCollapse(t *testing.T) {
 	t.Run("single_tenant_cipher_round_trip", func(t *testing.T) {
-		container := mongotestutil.SetupContainer(t)
+		container := mongotestutil.SetupReusableContainer(t)
 
 		cfg := &Config{
 			CrmPrefixedMongoURI:    container.URI,
@@ -104,7 +104,7 @@ func TestIntegration_CRMCollapse(t *testing.T) {
 	// vice-versa. The HTTP-level test below proves the same property end-to-end
 	// through the real route-scoped middleware; this one isolates the repo layer.
 	t.Run("multi_tenant_cross_tenant_non_contamination", func(t *testing.T) {
-		container := mongotestutil.SetupContainer(t)
+		container := mongotestutil.SetupReusableContainer(t)
 		fieldEncryptor := cipherFieldEncryptor(t, testutils.SetupCrypto(t))
 
 		// MT-style repos: nil static connection => DB comes from context per request.
@@ -115,9 +115,12 @@ func TestIntegration_CRMCollapse(t *testing.T) {
 
 		uc := &crmservices.UseCase{HolderRepo: holderRepo, InstrumentRepo: instrumentRepo}
 
-		// Two separate tenant databases inside the same Mongo container.
-		dbA := mongotestutil.CreateConnection(t, container.URI, "tenant_a")
-		dbB := mongotestutil.CreateConnection(t, container.URI, "tenant_b")
+		// Two separate per-invocation tenant databases inside the same Mongo
+		// container; neither reuses the container's shared default database.
+		tenantADatabase := mongotestutil.CreateOwnedDatabase(t, container)
+		tenantBDatabase := mongotestutil.CreateOwnedDatabase(t, container)
+		dbA := mongotestutil.CreateConnection(t, container.URI, tenantADatabase.Name())
+		dbB := mongotestutil.CreateConnection(t, container.URI, tenantBDatabase.Name())
 		mongoA, err := dbA.Database(context.Background())
 		require.NoError(t, err)
 		mongoB, err := dbB.Database(context.Background())
@@ -175,7 +178,7 @@ func TestIntegration_CRMCollapse(t *testing.T) {
 	})
 
 	t.Run("validation_error_returns_canonical_midaz_code_not_crm_shim", func(t *testing.T) {
-		container := mongotestutil.SetupContainer(t)
+		container := mongotestutil.SetupReusableContainer(t)
 
 		cfg := &Config{
 			CrmPrefixedMongoURI:    container.URI,
@@ -218,7 +221,7 @@ func TestIntegration_CRMCollapse(t *testing.T) {
 	})
 
 	t.Run("handler_panic_returns_500_via_hoisted_withrecover_no_leak", func(t *testing.T) {
-		container := mongotestutil.SetupContainer(t)
+		container := mongotestutil.SetupReusableContainer(t)
 
 		cfg := &Config{
 			CrmPrefixedMongoURI:    container.URI,
@@ -291,23 +294,23 @@ func TestIntegration_CRMCollapse(t *testing.T) {
 func runHTTPCrossTenantIsolation(t *testing.T, breakIsolation bool) {
 	t.Helper()
 
-	container := mongotestutil.SetupContainer(t)
+	container := mongotestutil.SetupReusableContainer(t)
 	logger := &libLog.GoLogger{}
+	tenantADatabase := mongotestutil.CreateOwnedDatabase(t, container)
+	tenantBDatabase := mongotestutil.CreateOwnedDatabase(t, container)
 
 	const (
 		tenantA = "tenant-a"
 		tenantB = "tenant-b"
-		dbA     = "crm_tenant_a"
-		dbB     = "crm_tenant_b"
 		// Identical org in both tenants: only the DB differs. A literal UUID
 		// because organization_id is now a path parameter under UUID validation.
 		orgID = "f47ac10b-58cc-4372-a567-0e02b2c3d479"
 	)
 
 	// When isolation is broken, both tenants are pointed at the same database.
-	tenantDBs := map[string]string{tenantA: dbA, tenantB: dbB}
+	tenantDBs := map[string]string{tenantA: tenantADatabase.Name(), tenantB: tenantBDatabase.Name()}
 	if breakIsolation {
-		tenantDBs[tenantB] = dbA
+		tenantDBs[tenantB] = tenantADatabase.Name()
 	}
 
 	// Fake tenant-manager control plane: returns a per-tenant crm-api MongoDB

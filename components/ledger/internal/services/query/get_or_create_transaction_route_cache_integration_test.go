@@ -47,18 +47,17 @@ func setupCacheQueryTestInfra(t *testing.T) *cacheQueryTestInfra {
 	t.Helper()
 
 	// Setup PostgreSQL
-	pgContainer := pgtestutil.SetupContainer(t)
+	pgContainer := pgtestutil.SetupMigratedContainer(t, "transaction")
 
-	migrationsPath := pgtestutil.FindMigrationsPath(t, "transaction")
 	connStr := pgtestutil.BuildConnectionString(pgContainer.Host, pgContainer.Port, pgContainer.Config)
 
-	conn := pgtestutil.CreatePostgresClient(t, connStr, connStr, pgContainer.Config.DBName, migrationsPath)
+	conn := pgtestutil.ConnectPostgresClient(t.Context(), t, connStr, connStr)
 
 	txRouteRepo := transactionroute.NewTransactionRoutePostgreSQLRepository(conn)
 
 	// Setup Redis
-	redisContainer := redistestutil.SetupContainer(t)
-	redisConn := redistestutil.CreateConnection(t, redisContainer.Addr)
+	redisContainer := redistestutil.SetupReusableContainer(t)
+	redisConn := redistestutil.CreateConnectionWithDB(t, redisContainer.Addr, redisContainer.DB)
 
 	redisRepo, err := redis.NewConsumerRedis(redisConn)
 	require.NoError(t, err, "failed to create Redis repository")

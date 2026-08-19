@@ -1,0 +1,461 @@
+{
+  "version": 1,
+  "entries": [
+    {
+      "package": "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/mongodb/onboarding",
+      "test": "TestIntegration_Chaos_Metadata_IntermittentFailure",
+      "reason": "skipping chaos test (set CHAOS=1 to run)",
+      "alternate_capability": "integration-chaos:CHAOS=1"
+    },
+    {
+      "package": "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/mongodb/onboarding",
+      "test": "TestIntegration_Chaos_Metadata_NetworkLatency",
+      "reason": "skipping chaos test (set CHAOS=1 to run)",
+      "alternate_capability": "integration-chaos:CHAOS=1"
+    },
+    {
+      "package": "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/mongodb/onboarding",
+      "test": "TestIntegration_Chaos_Metadata_NetworkPartition",
+      "reason": "skipping chaos test (set CHAOS=1 to run)",
+      "alternate_capability": "integration-chaos:CHAOS=1"
+    },
+    {
+      "package": "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/mongodb/onboarding",
+      "test": "TestIntegration_Chaos_Metadata_PacketLoss",
+      "reason": "skipping chaos test (set CHAOS=1 to run)",
+      "alternate_capability": "integration-chaos:CHAOS=1"
+    },
+    {
+      "package": "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/mongodb/onboarding",
+      "test": "TestIntegration_Metadata_DataIntegrity",
+      "reason": "skipping chaos test (set CHAOS=1 to run)",
+      "alternate_capability": "integration-chaos:CHAOS=1"
+    },
+    {
+      "package": "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/mongodb/transaction",
+      "test": "TestIntegration_Chaos_Metadata_IntermittentFailure",
+      "reason": "skipping chaos test (set CHAOS=1 to run)",
+      "alternate_capability": "integration-chaos:CHAOS=1"
+    },
+    {
+      "package": "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/mongodb/transaction",
+      "test": "TestIntegration_Chaos_Metadata_NetworkLatency",
+      "reason": "skipping chaos test (set CHAOS=1 to run)",
+      "alternate_capability": "integration-chaos:CHAOS=1"
+    },
+    {
+      "package": "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/mongodb/transaction",
+      "test": "TestIntegration_Chaos_Metadata_NetworkPartition",
+      "reason": "skipping chaos test (set CHAOS=1 to run)",
+      "alternate_capability": "integration-chaos:CHAOS=1"
+    },
+    {
+      "package": "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/mongodb/transaction",
+      "test": "TestIntegration_Chaos_Metadata_PacketLoss",
+      "reason": "skipping chaos test (set CHAOS=1 to run)",
+      "alternate_capability": "integration-chaos:CHAOS=1"
+    },
+    {
+      "package": "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/mongodb/transaction",
+      "test": "TestIntegration_Metadata_DataIntegrity",
+      "reason": "skipping chaos test (set CHAOS=1 to run)",
+      "alternate_capability": "integration-chaos:CHAOS=1"
+    },
+    {
+      "package": "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/organization",
+      "test": "TestIntegration_Chaos_Organization_ConnectionLoss",
+      "reason": "Set CHAOS=1 to run chaos tests",
+      "alternate_capability": "integration-chaos:CHAOS=1"
+    },
+    {
+      "package": "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/organization",
+      "test": "TestIntegration_Chaos_Organization_HighLatency",
+      "reason": "Set CHAOS=1 to run chaos tests",
+      "alternate_capability": "integration-chaos:CHAOS=1"
+    },
+    {
+      "package": "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/organization",
+      "test": "TestIntegration_Chaos_Organization_NetworkPartition",
+      "reason": "Set CHAOS=1 to run chaos tests",
+      "alternate_capability": "integration-chaos:CHAOS=1"
+    },
+    {
+      "package": "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/transaction",
+      "test": "TestIntegration_Chaos_CountByFilters_ConnectionLoss",
+      "reason": "skipping chaos test (set CHAOS=1 to run)",
+      "alternate_capability": "integration-chaos:CHAOS=1"
+    },
+    {
+      "package": "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/transaction",
+      "test": "TestIntegration_Chaos_CountByFilters_ConnectionPoolExhaustion",
+      "reason": "skipping chaos test (set CHAOS=1 to run)",
+      "alternate_capability": "integration-chaos:CHAOS=1"
+    },
+    {
+      "package": "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/transaction",
+      "test": "TestIntegration_Chaos_CountByFilters_HighLatency",
+      "reason": "skipping chaos test (set CHAOS=1 to run)",
+      "alternate_capability": "integration-chaos:CHAOS=1"
+    },
+    {
+      "package": "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/transaction",
+      "test": "TestIntegration_Chaos_Transaction_DataIntegrity",
+      "reason": "skipping chaos test (set CHAOS=1 to run)",
+      "alternate_capability": "integration-chaos:CHAOS=1"
+    },
+    {
+      "package": "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/transaction",
+      "test": "TestIntegration_Chaos_Transaction_GetDB_ConnectionLoss",
+      "reason": "Set CHAOS=1 to run chaos tests",
+      "alternate_capability": "integration-chaos:CHAOS=1"
+    },
+    {
+      "package": "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/transaction",
+      "test": "TestIntegration_Chaos_Transaction_GetDB_HighLatency",
+      "reason": "Set CHAOS=1 to run chaos tests",
+      "alternate_capability": "integration-chaos:CHAOS=1"
+    },
+    {
+      "package": "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/transaction",
+      "test": "TestIntegration_Chaos_Transaction_GetDB_NetworkPartition",
+      "reason": "Set CHAOS=1 to run chaos tests",
+      "alternate_capability": "integration-chaos:CHAOS=1"
+    },
+    {
+      "package": "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/transaction",
+      "test": "TestIntegration_Chaos_Transaction_IntermittentFailure",
+      "reason": "skipping chaos test (set CHAOS=1 to run)",
+      "alternate_capability": "integration-chaos:CHAOS=1"
+    },
+    {
+      "package": "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/transaction",
+      "test": "TestIntegration_Chaos_Transaction_NetworkLatency",
+      "reason": "skipping chaos test (set CHAOS=1 to run)",
+      "alternate_capability": "integration-chaos:CHAOS=1"
+    },
+    {
+      "package": "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/transaction",
+      "test": "TestIntegration_Chaos_Transaction_NetworkPartition",
+      "reason": "skipping chaos test (set CHAOS=1 to run)",
+      "alternate_capability": "integration-chaos:CHAOS=1"
+    },
+    {
+      "package": "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/transaction",
+      "test": "TestIntegration_Chaos_Transaction_PacketLoss",
+      "reason": "skipping chaos test (set CHAOS=1 to run)",
+      "alternate_capability": "integration-chaos:CHAOS=1"
+    },
+    {
+      "package": "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/transaction",
+      "test": "TestIntegration_Chaos_Transaction_PostgresRestart",
+      "reason": "skipping chaos test (set CHAOS=1 to run)",
+      "alternate_capability": "integration-chaos:CHAOS=1"
+    },
+    {
+      "package": "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/transactionroute",
+      "test": "TestIntegration_Chaos_TransactionRoute_ConnectionLoss",
+      "reason": "Set CHAOS=1 to run chaos tests",
+      "alternate_capability": "integration-chaos:CHAOS=1"
+    },
+    {
+      "package": "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/transactionroute",
+      "test": "TestIntegration_Chaos_TransactionRoute_HighLatency",
+      "reason": "Set CHAOS=1 to run chaos tests",
+      "alternate_capability": "integration-chaos:CHAOS=1"
+    },
+    {
+      "package": "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/transactionroute",
+      "test": "TestIntegration_Chaos_TransactionRoute_NetworkPartition",
+      "reason": "Set CHAOS=1 to run chaos tests",
+      "alternate_capability": "integration-chaos:CHAOS=1"
+    },
+    {
+      "package": "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/rabbitmq",
+      "test": "TestIntegration_Chaos_CircuitBreaker_FastFailWhenOpen",
+      "reason": "skipping chaos integration test (set CHAOS=1 to run)",
+      "alternate_capability": "integration-chaos:CHAOS=1"
+    },
+    {
+      "package": "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/rabbitmq",
+      "test": "TestIntegration_Chaos_CircuitBreaker_FullLifecycle",
+      "reason": "skipping chaos integration test (set CHAOS=1 to run)",
+      "alternate_capability": "integration-chaos:CHAOS=1"
+    },
+    {
+      "package": "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/rabbitmq",
+      "test": "TestIntegration_Chaos_CircuitBreaker_OpensOnFailure",
+      "reason": "skipping chaos integration test (set CHAOS=1 to run)",
+      "alternate_capability": "integration-chaos:CHAOS=1"
+    },
+    {
+      "package": "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/rabbitmq",
+      "test": "TestIntegration_Chaos_Consumer_ContainerRestart",
+      "reason": "skipping chaos test (set CHAOS=1 to run)",
+      "alternate_capability": "integration-chaos:CHAOS=1"
+    },
+    {
+      "package": "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/rabbitmq",
+      "test": "TestIntegration_Chaos_Consumer_NetworkLatency",
+      "reason": "skipping chaos test (set CHAOS=1 to run)",
+      "alternate_capability": "integration-chaos:CHAOS=1"
+    },
+    {
+      "package": "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/rabbitmq",
+      "test": "TestIntegration_Chaos_RabbitMQ_ConnectionKilledByBroker",
+      "reason": "skipping chaos test (set CHAOS=1 to run)",
+      "alternate_capability": "integration-chaos:CHAOS=1"
+    },
+    {
+      "package": "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/rabbitmq",
+      "test": "TestIntegration_Chaos_RabbitMQ_DataIntegrityAfterRestart",
+      "reason": "skipping chaos test (set CHAOS=1 to run)",
+      "alternate_capability": "integration-chaos:CHAOS=1"
+    },
+    {
+      "package": "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/rabbitmq",
+      "test": "TestIntegration_Chaos_RabbitMQ_NetworkLatency",
+      "reason": "skipping chaos test (set CHAOS=1 to run)",
+      "alternate_capability": "integration-chaos:CHAOS=1"
+    },
+    {
+      "package": "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/rabbitmq",
+      "test": "TestIntegration_Chaos_RabbitMQ_PauseUnpauseDuringPublish",
+      "reason": "skipping chaos test (set CHAOS=1 to run)",
+      "alternate_capability": "integration-chaos:CHAOS=1"
+    },
+    {
+      "package": "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/rabbitmq",
+      "test": "TestIntegration_Chaos_RabbitMQ_RetryDuringNetworkOutage",
+      "reason": "skipping chaos test (set CHAOS=1 to run)",
+      "alternate_capability": "integration-chaos:CHAOS=1"
+    },
+    {
+      "package": "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/redis/onboarding",
+      "test": "TestIntegration_Chaos_RedisNamespacing_ConnectionLossOnSet",
+      "reason": "Set CHAOS=1 to run chaos tests",
+      "alternate_capability": "integration-chaos:CHAOS=1"
+    },
+    {
+      "package": "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/redis/onboarding",
+      "test": "TestIntegration_Chaos_RedisNamespacing_RecoveryAfterReconnect",
+      "reason": "Set CHAOS=1 to run chaos tests",
+      "alternate_capability": "integration-chaos:CHAOS=1"
+    },
+    {
+      "package": "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/redis/transaction",
+      "test": "TestIntegration_Chaos_BalanceAtomic_ConnectionLossOnApprovedSource",
+      "reason": "Set CHAOS=1 to run chaos tests",
+      "alternate_capability": "integration-chaos:CHAOS=1"
+    },
+    {
+      "package": "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/redis/transaction",
+      "test": "TestIntegration_Chaos_BalanceAtomic_ConnectionLossOnCanceledRelease",
+      "reason": "Set CHAOS=1 to run chaos tests",
+      "alternate_capability": "integration-chaos:CHAOS=1"
+    },
+    {
+      "package": "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/redis/transaction",
+      "test": "TestIntegration_Chaos_BalanceAtomic_ConnectionLossOnDoubleEntry",
+      "reason": "Set CHAOS=1 to run chaos tests",
+      "alternate_capability": "integration-chaos:CHAOS=1"
+    },
+    {
+      "package": "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/redis/transaction",
+      "test": "TestIntegration_Chaos_BalanceAtomic_ConnectionResetOnDoubleEntry",
+      "reason": "Set CHAOS=1 to run chaos tests",
+      "alternate_capability": "integration-chaos:CHAOS=1"
+    },
+    {
+      "package": "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/redis/transaction",
+      "test": "TestIntegration_Chaos_BalanceAtomic_HighLatencyOnApprovedDestination",
+      "reason": "Set CHAOS=1 to run chaos tests",
+      "alternate_capability": "integration-chaos:CHAOS=1"
+    },
+    {
+      "package": "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/redis/transaction",
+      "test": "TestIntegration_Chaos_BalanceAtomic_HighLatencyOnCanceledCredit",
+      "reason": "Set CHAOS=1 to run chaos tests",
+      "alternate_capability": "integration-chaos:CHAOS=1"
+    },
+    {
+      "package": "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/redis/transaction",
+      "test": "TestIntegration_Chaos_BalanceAtomic_HighLatencyOnDoubleEntry",
+      "reason": "Set CHAOS=1 to run chaos tests",
+      "alternate_capability": "integration-chaos:CHAOS=1"
+    },
+    {
+      "package": "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/redis/transaction",
+      "test": "TestIntegration_Chaos_BalanceAtomic_RecoveryAfterReconnectCanceled",
+      "reason": "Set CHAOS=1 to run chaos tests",
+      "alternate_capability": "integration-chaos:CHAOS=1"
+    },
+    {
+      "package": "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/redis/transaction",
+      "test": "TestIntegration_Chaos_BalanceAtomic_TimeoutOnApprovedOperation",
+      "reason": "Set CHAOS=1 to run chaos tests",
+      "alternate_capability": "integration-chaos:CHAOS=1"
+    },
+    {
+      "package": "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/redis/transaction",
+      "test": "TestIntegration_Chaos_RedisNamespacing_ConnectionLossOnMGet",
+      "reason": "Set CHAOS=1 to run chaos tests",
+      "alternate_capability": "integration-chaos:CHAOS=1"
+    },
+    {
+      "package": "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/redis/transaction",
+      "test": "TestIntegration_Chaos_RedisNamespacing_ConnectionLossOnQueueOp",
+      "reason": "Set CHAOS=1 to run chaos tests",
+      "alternate_capability": "integration-chaos:CHAOS=1"
+    },
+    {
+      "package": "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/redis/transaction",
+      "test": "TestIntegration_Chaos_RedisNamespacing_ConnectionLossOnSet",
+      "reason": "Set CHAOS=1 to run chaos tests",
+      "alternate_capability": "integration-chaos:CHAOS=1"
+    },
+    {
+      "package": "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/redis/transaction",
+      "test": "TestIntegration_Chaos_RedisNamespacing_HighLatencyOnGet",
+      "reason": "Set CHAOS=1 to run chaos tests",
+      "alternate_capability": "integration-chaos:CHAOS=1"
+    },
+    {
+      "package": "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/redis/transaction",
+      "test": "TestIntegration_Chaos_RedisNamespacing_RecoveryAfterReconnect",
+      "reason": "Set CHAOS=1 to run chaos tests",
+      "alternate_capability": "integration-chaos:CHAOS=1"
+    },
+    {
+      "package": "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/redis/transaction",
+      "test": "TestIntegration_Chaos_Redis_ConcurrentBalanceOperations",
+      "reason": "skipping chaos test (set CHAOS=1 to run)",
+      "alternate_capability": "integration-chaos:CHAOS=1"
+    },
+    {
+      "package": "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/redis/transaction",
+      "test": "TestIntegration_Chaos_Redis_DataIntegrityAfterRestart",
+      "reason": "skipping chaos test (set CHAOS=1 to run)",
+      "alternate_capability": "integration-chaos:CHAOS=1"
+    },
+    {
+      "package": "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/redis/transaction",
+      "test": "TestIntegration_Chaos_Redis_GracefulDegradation",
+      "reason": "skipping chaos test (set CHAOS=1 to run)",
+      "alternate_capability": "integration-chaos:CHAOS=1"
+    },
+    {
+      "package": "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/redis/transaction",
+      "test": "TestIntegration_Chaos_Redis_InsufficientFundsUnderLoad",
+      "reason": "skipping chaos test (set CHAOS=1 to run)",
+      "alternate_capability": "integration-chaos:CHAOS=1"
+    },
+    {
+      "package": "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/redis/transaction",
+      "test": "TestIntegration_Chaos_Redis_NetworkLatency",
+      "reason": "skipping chaos test (set CHAOS=1 to run)",
+      "alternate_capability": "integration-chaos:CHAOS=1"
+    },
+    {
+      "package": "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/redis/transaction",
+      "test": "TestIntegration_Chaos_Redis_NetworkPartition",
+      "reason": "skipping chaos test (set CHAOS=1 to run)",
+      "alternate_capability": "integration-chaos:CHAOS=1"
+    },
+    {
+      "package": "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/redis/transaction",
+      "test": "TestIntegration_Chaos_Redis_RestartRecovery",
+      "reason": "skipping chaos test (set CHAOS=1 to run)",
+      "alternate_capability": "integration-chaos:CHAOS=1"
+    },
+    {
+      "package": "github.com/LerianStudio/midaz/v4/components/ledger/internal/bootstrap",
+      "test": "TestIntegration_Chaos_InitOnboardingPostgres_MultiTenantConnectionLoss",
+      "reason": "Set CHAOS=1 to run chaos tests",
+      "alternate_capability": "integration-chaos:CHAOS=1"
+    },
+    {
+      "package": "github.com/LerianStudio/midaz/v4/components/ledger/internal/bootstrap",
+      "test": "TestIntegration_Chaos_InitOnboardingPostgres_PostInitConnectionLoss",
+      "reason": "Set CHAOS=1 to run chaos tests",
+      "alternate_capability": "integration-chaos:CHAOS=1"
+    },
+    {
+      "package": "github.com/LerianStudio/midaz/v4/components/ledger/internal/bootstrap",
+      "test": "TestIntegration_Chaos_InitOnboardingPostgres_SingleTenantConnectionLoss",
+      "reason": "Set CHAOS=1 to run chaos tests",
+      "alternate_capability": "integration-chaos:CHAOS=1"
+    },
+    {
+      "package": "github.com/LerianStudio/midaz/v4/components/ledger/internal/bootstrap",
+      "test": "TestIntegration_Chaos_InitPostgres_MultiTenantConnectionLoss",
+      "reason": "Set CHAOS=1 to run chaos tests",
+      "alternate_capability": "integration-chaos:CHAOS=1"
+    },
+    {
+      "package": "github.com/LerianStudio/midaz/v4/components/ledger/internal/bootstrap",
+      "test": "TestIntegration_Chaos_InitPostgres_PostInitConnectionLoss",
+      "reason": "Set CHAOS=1 to run chaos tests",
+      "alternate_capability": "integration-chaos:CHAOS=1"
+    },
+    {
+      "package": "github.com/LerianStudio/midaz/v4/components/ledger/internal/bootstrap",
+      "test": "TestIntegration_Chaos_InitPostgres_SingleTenantConnectionLoss",
+      "reason": "Set CHAOS=1 to run chaos tests",
+      "alternate_capability": "integration-chaos:CHAOS=1"
+    },
+    {
+      "package": "github.com/LerianStudio/midaz/v4/components/ledger/internal/services/command",
+      "test": "TestIntegration_Chaos_Redis_ConnectionLoss_CreateAccountingRouteCache",
+      "reason": "Set CHAOS=1 to run chaos tests",
+      "alternate_capability": "integration-chaos:CHAOS=1"
+    },
+    {
+      "package": "github.com/LerianStudio/midaz/v4/components/ledger/internal/services/command",
+      "test": "TestIntegration_Chaos_Redis_ConnectionLoss_ReloadOperationRouteCache",
+      "reason": "Set CHAOS=1 to run chaos tests",
+      "alternate_capability": "integration-chaos:CHAOS=1"
+    },
+    {
+      "package": "github.com/LerianStudio/midaz/v4/components/ledger/internal/services/command",
+      "test": "TestIntegration_Chaos_Redis_HighLatency_CreateAccountingRouteCache",
+      "reason": "Set CHAOS=1 to run chaos tests",
+      "alternate_capability": "integration-chaos:CHAOS=1"
+    },
+    {
+      "package": "github.com/LerianStudio/midaz/v4/components/ledger/internal/services/query",
+      "test": "TestIntegration_Chaos_BothDown_GetOrCreateTransactionRouteCache",
+      "reason": "Set CHAOS=1 to run chaos tests",
+      "alternate_capability": "integration-chaos:CHAOS=1"
+    },
+    {
+      "package": "github.com/LerianStudio/midaz/v4/components/ledger/internal/services/query",
+      "test": "TestIntegration_Chaos_Postgres_ConnectionLoss_GetOrCreateTransactionRouteCache",
+      "reason": "Set CHAOS=1 to run chaos tests",
+      "alternate_capability": "integration-chaos:CHAOS=1"
+    },
+    {
+      "package": "github.com/LerianStudio/midaz/v4/components/ledger/internal/services/query",
+      "test": "TestIntegration_Chaos_Postgres_HighLatency_GetOrCreateTransactionRouteCache",
+      "reason": "Set CHAOS=1 to run chaos tests",
+      "alternate_capability": "integration-chaos:CHAOS=1"
+    },
+    {
+      "package": "github.com/LerianStudio/midaz/v4/components/ledger/internal/services/query",
+      "test": "TestIntegration_Chaos_Redis_ConnectionLoss_GetOrCreateTransactionRouteCache",
+      "reason": "Set CHAOS=1 to run chaos tests",
+      "alternate_capability": "integration-chaos:CHAOS=1"
+    },
+    {
+      "package": "github.com/LerianStudio/midaz/v4/components/ledger/internal/services/query",
+      "test": "TestIntegration_Chaos_Redis_HighLatency_GetOrCreateTransactionRouteCache",
+      "reason": "Set CHAOS=1 to run chaos tests",
+      "alternate_capability": "integration-chaos:CHAOS=1"
+    },
+    {
+      "package": "github.com/LerianStudio/midaz/v4/components/ledger/internal/services/query",
+      "test": "TestIntegration_Chaos_Redis_WriteTimeout_GetOrCreateTransactionRouteCache",
+      "reason": "Set CHAOS=1 to run chaos tests",
+      "alternate_capability": "integration-chaos:CHAOS=1"
+    }
+  ]
+}
