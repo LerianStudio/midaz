@@ -4,16 +4,16 @@
 
 **Architecture:** Integration build tags define what belongs to each lane. Required gates fail closed when discovery or prerequisites are missing. Datastore processes are eventually reused at package or shard scope, while every test keeps an isolated database, schema, namespace, or vhost. Parallelism is introduced only after isolation is explicit and measured.
 
-**Status:** P0-P3 are implemented together and their consolidated gates are green. The current signal contains 1,726 exact integration tests; P1 reduces datastore starts by 92.9%, P2 reduces the serial critical path by 74%, and P3 removes redundant restarts, waits, cleanup, and history scans. The single final independent review is now the active step. Repository ruleset enforcement remains deliberately last.
+**Status:** P0-P3 and every finding from the final independent review are implemented together. The current signal contains 1,732 exact integration tests; P1 reduces datastore starts by 92.9%, P2 reduces the serial critical path by 74.5%, and P3 removes redundant restarts, waits, cleanup, and history scans. The complete current-head matrix, unit, property, contract, API-drift, and real Ledger-to-Tracer V2 gates are green. Repository ruleset enforcement remains deliberately last.
 
 ## Phase overview
 
 | Phase | Outcome | Status |
 |---|---|---|
-| P0 | Every required gate executes the coverage it claims and emits usable timing evidence | Complete — consolidated gates green |
+| P0 | Every required gate executes the coverage it claims and emits usable timing evidence | Complete — final review findings and consolidated gates green |
 | P1 | Ledger datastore startup and migrations are reused without sharing mutable test state | Complete — consolidated randomized and serial gates green |
 | P2 | Independent families run concurrently within an explicit resource budget | Complete — five current-head shards green within budget |
-| P3 | Tracer restarts, fixed waits, polling, cleanup, and streaming history scans are reduced | Implemented and measured |
+| P3 | Tracer restarts, fixed waits, polling, cleanup, and streaming history scans are reduced | Complete — implemented, measured, and revalidated |
 
 ### Execution order — 2026-08-17
 
@@ -101,7 +101,7 @@ Chosen revert rollout contract: first deploy a freeze-capable legacy phase witho
 
 V1 `remaining` closure: every resolved leg and balance identity survives direct execution, pending commit, pending cancel, revert, Redis replay, fees, zero-fee no-ops, persistence, and balance synchronization. Fee packages expose additive `operationRouteFromId` and `operationRouteToId` UUIDs while the existing free-form route labels remain passive; omission preserves an existing UUID, `null` clears only that UUID, and multi-fee partial updates preserve stored priorities atomically. The full low-resource lane passed with 1,620 selected tests, 1,540 passes, 80 classified skips, 1,320 container starts, zero restarts, and 2,972 seconds of wall time.
 
-**Next P0:** run the single final money-path review with the rest of P0-P3, then resolve any finding against the same consolidated gates.
+Final review closure: decimal balance arithmetic is exact beyond IEEE-754 precision; Ledger discovers multi-tenant outcome backlog from durable state instead of an expiring process cache; V2 admission requires non-evicting AOF-backed Valkey; Ledger-to-Tracer REST uses a dedicated API key with mTLS and tenant identity; and rolling Tracer deployments fail before the money path unless the selected pod explicitly accepts the V2 protocol. The required E2E proves the complete Ledger-to-Tracer flow, receipt persistence, exact audit context, and replay after an acknowledgement is lost.
 
 ### P0 exit gate
 
@@ -154,10 +154,10 @@ P1 final measurement: 1,726 selected tests completed serially in 530 seconds wit
 ### P2 exit gate
 
 - [x] Achieve a material wall-clock reduction over P1 without reducing selected-test counts.
-- [x] Show no statistically meaningful increase in flakes across repeated CI runs.
+- [x] Run repeated seeded CI rounds with zero retries or failures; do not claim statistical significance from a small sample.
 - [x] Preserve deterministic failure attribution to one shard and one test.
 
-P2 final measurement: 1,726 exact tests across five non-overlapping shards, zero retries, failures, or container restarts. At `p=2`, the current-head critical path is 138 seconds versus P1's 530 seconds (-74%). Peak memory remained below 1.5 GiB in every shard and peak live containers stayed inside each explicit budget. `p=4` is intentionally not promoted because 628 shared-server Tracer tests remain serial and dominate the critical path.
+P2 final measurement: 1,732 exact tests across five non-overlapping shards (462 PostgreSQL, 216 MongoDB/CRM, 295 async/broker, 656 Tracer, and 103 lifecycle/migration), with zero retries, failures, or container restarts. At `p=2`, the current-head critical path is 135 seconds versus P1's 530 seconds (-74.5%). Every shard includes process-tree and owner-container resources: peak total RSS was 1,368 MiB, and peak live containers stayed inside each explicit budget. Completed package fixtures are cleaned at safe barriers, so retained Ryuk sessions cannot inflate MongoDB, broker, or lifecycle resource use. Tracer's 656 tests run with the race detector. `p=4` is intentionally not promoted because the shared-server Tracer tests remain serial by contract and added concurrency would not shorten the measured critical path.
 
 ## P3 — Remove secondary work
 
