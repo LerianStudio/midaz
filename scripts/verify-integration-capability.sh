@@ -40,7 +40,10 @@ if duplicate=$(uniq -d "$expected" | head -n 1) && [[ -n $duplicate ]]; then
   exit 1
 fi
 
-mapfile -t outcome_files < <(find "$artifact_root" -type f -path '*/integration-shards/*/outcomes.tsv' | sort)
+# Match only the per-shard aggregate outcomes.tsv. The wildcard in -path
+# crosses directory separators, so the per-job copies under
+# integration-shards/<shard>/jobs/<n>/outcomes.tsv must be excluded.
+mapfile -t outcome_files < <(find "$artifact_root" -type f -path '*/integration-shards/*/outcomes.tsv' ! -path '*/integration-shards/*/jobs/*' | sort)
 if [[ ${#outcome_files[@]} -ne 6 ]]; then
   echo "required integration proof has ${#outcome_files[@]} outcome artifacts, want 6" >&2
   exit 1
