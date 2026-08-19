@@ -11,6 +11,7 @@ import (
 	"database/sql"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
@@ -50,7 +51,7 @@ func newTestMigrator(t *testing.T, db *sql.DB) *Migrator {
 
 	repo := postgres.NewRepositoryWithConnection(&testutil.IntegrationDBAdapter{DB: db})
 
-	m, err := NewMigrator(sqlTxBeginner{db: db}, repo, celCompiler{env: env}, cel.RewriteCurrencyToAsset)
+	m, err := NewMigrator(sqlTxBeginner{db: db}, repo, celCompiler{env: env}, cel.RewriteCurrencyToAsset, false)
 	require.NoError(t, err)
 
 	return m
@@ -112,7 +113,10 @@ func TestIntegration_CELRuleMigration_Up_RewritesGlobalPreservesOthers(t *testin
 
 	m := newTestMigrator(t, db)
 
-	res, err := m.Up(context.Background())
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
+	t.Cleanup(cancel)
+
+	res, err := m.Up(ctx)
 	require.NoError(t, err)
 	assert.Equal(t, 3, res.Scanned)
 
@@ -161,7 +165,10 @@ func TestIntegration_CELRuleMigration_Up_RollsBackOnBadRule(t *testing.T) {
 
 	m := newTestMigrator(t, db)
 
-	_, err := m.Up(context.Background())
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
+	t.Cleanup(cancel)
+
+	_, err := m.Up(ctx)
 	require.Error(t, err, "recompile-all gate must abort on the undeclared reference")
 
 	// All-or-nothing: not a single rule was mutated.
@@ -183,7 +190,10 @@ func TestIntegration_CELRuleMigration_Down_FailsLoudAndMutatesNothing(t *testing
 
 	m := newTestMigrator(t, db)
 
-	err := m.Down(context.Background())
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
+	t.Cleanup(cancel)
+
+	err := m.Down(ctx)
 	require.Error(t, err, "down must fail loud")
 	assert.ErrorIs(t, err, ErrDownIrreversible)
 

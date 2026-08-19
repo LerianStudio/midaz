@@ -10,14 +10,20 @@
 // stays 000022) because the rewrite operates on rule TEXT, not schema, and
 // needs the CEL rewriter and the new (asset) environment.
 //
+// SINGLE-TENANT ONLY: the job resolves rules through the static connection and
+// has no per-tenant fan-out, so it refuses to run under MULTI_TENANT_ENABLED=true
+// (exiting non-zero) rather than half-migrate a multi-tenant deployment.
+// Per-tenant execution is a documented follow-up.
+//
 // ROLLOUT (stop-the-world / drained): there is NO currency->asset alias, so the
 // CEL env variable and the stored rules must BOTH be asset before any instance
 // serves traffic. Run this job in the same coordinated, drained release as the
 // schema rename, after traffic is stopped and before instances come back up.
 //
 // UP (default, or --up): atomic. One transaction write-locks the rules table,
-// rewrites and RECOMPILES every rule against the new environment, and commits
-// only if all recompile; any failure rolls the whole transaction back.
+// rewrites and RECOMPILES every non-deleted rule against the new environment,
+// and commits only if all recompile; any failure rolls the whole transaction
+// back.
 //
 // DOWN (--down): IRREVERSIBLE. The rules table stores no provenance of the
 // rewrite, so a migrated asset rule is indistinguishable from an authored one.
@@ -61,6 +67,9 @@ func usage() {
 Usage:
   migrate-cel-rules [--up]     apply the rewrite (default)
   migrate-cel-rules --down     refuse (irreversible) and exit non-zero
+
+SINGLE-TENANT ONLY: this job has no per-tenant fan-out. It refuses to run under
+MULTI_TENANT_ENABLED=true and exits non-zero. Per-tenant execution is a follow-up.
 
 Rollout is STOP-THE-WORLD / DRAINED: there is no currency->asset alias, so the
 CEL env variable and the stored rules must both be asset before any instance

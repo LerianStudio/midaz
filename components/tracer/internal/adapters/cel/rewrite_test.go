@@ -58,8 +58,13 @@ func (w *refWalker) shadowed(name string) bool {
 }
 
 func (w *refWalker) push(comp celast.ComprehensionExpr) {
+	w.pushNames(comp.IterVar(), comp.IterVar2(), comp.AccuVar())
+}
+
+func (w *refWalker) pushNames(names ...string) {
 	f := map[string]struct{}{}
-	for _, v := range []string{comp.IterVar(), comp.IterVar2(), comp.AccuVar()} {
+
+	for _, v := range names {
 		if v != "" {
 			f[v] = struct{}{}
 		}
@@ -72,6 +77,24 @@ func (w *refWalker) push(comp celast.ComprehensionExpr) {
 	w.scope = append(w.scope, f)
 }
 
+// macroBindings mirrors the rewriter's macroFrame: the bound iteration variable
+// comes from the materialized comprehension, or from a nested comprehension
+// macro's first argument when the expanded node is only a placeholder.
+func (w *refWalker) macroBindings(expanded celast.Expr, call celast.CallExpr) ([]string, bool) {
+	if expanded.Kind() == celast.ComprehensionKind {
+		comp := expanded.AsComprehension()
+		return []string{comp.IterVar(), comp.IterVar2(), comp.AccuVar()}, true
+	}
+
+	if _, ok := comprehensionMacros[call.FunctionName()]; ok {
+		if args := call.Args(); len(args) > 0 && args[0].Kind() == celast.IdentKind {
+			return []string{args[0].AsIdent()}, true
+		}
+	}
+
+	return nil, false
+}
+
 func (w *refWalker) pop() { w.scope = w.scope[:len(w.scope)-1] }
 
 func (w *refWalker) walk(e celast.Expr) {
@@ -80,23 +103,24 @@ func (w *refWalker) walk(e celast.Expr) {
 	}
 
 	if mc, ok := w.info.GetMacroCall(e.ID()); ok {
-		if e.Kind() == celast.ComprehensionKind && mc.Kind() == celast.CallKind {
-			comp := e.AsComprehension()
+		if mc.Kind() == celast.CallKind {
 			call := mc.AsCall()
 
-			if call.IsMemberFunction() {
-				w.walk(call.Target())
+			if names, isComp := w.macroBindings(e, call); isComp {
+				if call.IsMemberFunction() {
+					w.walk(call.Target())
+				}
+
+				w.pushNames(names...)
+
+				for _, a := range call.Args() {
+					w.walk(a)
+				}
+
+				w.pop()
+
+				return
 			}
-
-			w.push(comp)
-
-			for _, a := range call.Args() {
-				w.walk(a)
-			}
-
-			w.pop()
-
-			return
 		}
 
 		w.walk(mc)
@@ -234,9 +258,46 @@ func TestRewriteCurrencyToAsset(t *testing.T) {
 			wantLocalKept: true,
 			wantContains:  "[asset]",
 		},
+		// ---- Nested comprehensions: the scope stack must resolve depth > 1 ----
+		{
+			// Inner `currency` is a LOCAL binding of the nested exists; `x` is the
+			// outer iterVar; no global is present, so nothing is renamed.
+			name:           "nested exists, inner currency is a local binding",
+			input:          `["A"].exists(x, ["B"].exists(currency, currency == x))`,
+			wantLocalKept:  true,
+			wantContains:   "currency",
+			wantNotContain: "asset",
+		},
+		{
+			// The FIRST currency is the GLOBAL. The currency inside the nested all
+			// body has no local currency binding in scope (iterVars are x and y),
+			// so it ALSO resolves to the GLOBAL. Both are renamed to asset.
+			name:           "nested all, deep global is renamed",
+			input:          `currency == "Z" && ["A"].exists(x, ["B"].all(y, currency == y))`,
+			wantContains:   "asset",
+			wantNotContain: "currency",
+		},
+		{
+			// Shadow inside shadow: both bindings are named currency, so the
+			// innermost body reference is a local and stays currency; the ranges
+			// carry no global.
+			name:           "shadow inside shadow, both bindings named currency",
+			input:          `["A"].exists(currency, ["B"].exists(currency, currency == "X"))`,
+			wantLocalKept:  true,
+			wantContains:   "currency",
+			wantNotContain: "asset",
+		},
+		{
+			// exists_one binds currency locally, so the body reference is preserved.
+			name:           "exists_one shadowing iterVar",
+			input:          `["BRL"].exists_one(currency, currency == "BRL")`,
+			wantLocalKept:  true,
+			wantNotContain: "asset",
+		},
 	}
 
 	for _, tt := range tests {
+		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
@@ -311,6 +372,10 @@ func TestRewriteCurrencyToAsset_SemanticEquivalence(t *testing.T) {
 		`metadata.currency == "BRL"`,
 		`metadata["currency"] == "BRL"`,
 		`currency == "USD" && ["BRL"].exists(currency, currency == "BRL")`,
+		// Nested comprehension: the top global and the global deep inside the all
+		// body must both be renamed, or the rewritten expr would not compile
+		// against the asset env below.
+		`currency == "USD" && ["BRL"].all(y, currency == y)`,
 	}
 
 	// Activations vary the currency/asset value and the metadata payload so that a
@@ -322,6 +387,7 @@ func TestRewriteCurrencyToAsset_SemanticEquivalence(t *testing.T) {
 	}
 
 	for _, expr := range cases {
+		expr := expr
 		t.Run(expr, func(t *testing.T) {
 			t.Parallel()
 

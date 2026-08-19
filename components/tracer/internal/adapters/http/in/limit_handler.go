@@ -242,7 +242,7 @@ func (h *LimitHandler) updateLimit(ctx context.Context, idParam string, rawBody 
 			return nil, pkg.ValidateBusinessError(constant.ErrLimitImmutableField, constant.EntityLimit)
 		}
 
-		if _, hasCurrency := rawMap["asset"]; hasCurrency {
+		if _, hasAsset := rawMap["asset"]; hasAsset {
 			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Immutable field asset in request", constant.ErrLimitImmutableField)
 			return nil, pkg.ValidateBusinessError(constant.ErrLimitImmutableField, constant.EntityLimit)
 		}
