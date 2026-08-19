@@ -15,8 +15,6 @@ tags:
     x-displayName: Accounts (v2)
   - name: Midaz_Ledger_API_Asset Rates (v1)
     x-displayName: Asset Rates (v1)
-  - name: Midaz_Ledger_API_Asset Rates (v2)
-    x-displayName: Asset Rates (v2)
   - name: Midaz_Ledger_API_Assets (v1)
     x-displayName: Assets (v1)
   - name: Midaz_Ledger_API_Assets (v2)
@@ -7077,183 +7075,6 @@ paths:
       summary: Update an account
       tags:
         - Midaz_Ledger_API_Accounts (v2)
-  /v2/organizations/{organization_id}/ledgers/{ledger_id}/asset-rates:
-    put:
-      operationId: createOrUpdateAssetRateV2
-      parameters:
-        - description: Organization ID (UUID)
-          in: path
-          name: organization_id
-          required: true
-          schema:
-            description: Organization ID (UUID)
-            type: string
-        - description: Ledger ID (UUID)
-          in: path
-          name: ledger_id
-          required: true
-          schema:
-            description: Ledger ID (UUID)
-            type: string
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/CreateAssetRateInput'
-        required: true
-      responses:
-        '201':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/AssetRate'
-          description: Created
-        default:
-          content:
-            application/problem+json:
-              schema:
-                $ref: '#/components/schemas/Error'
-          description: Error
-      security:
-        - BearerAuth: []
-        - ApiKeyAuth: []
-      summary: Create or Update an AssetRate
-      tags:
-        - Midaz_Ledger_API_Asset Rates (v2)
-  /v2/organizations/{organization_id}/ledgers/{ledger_id}/asset-rates/from/{asset_code}:
-    get:
-      operationId: getAllAssetRatesByAssetCodeV2
-      parameters:
-        - description: Organization ID (UUID)
-          in: path
-          name: organization_id
-          required: true
-          schema:
-            description: Organization ID (UUID)
-            type: string
-        - description: Ledger ID (UUID)
-          in: path
-          name: ledger_id
-          required: true
-          schema:
-            description: Ledger ID (UUID)
-            type: string
-        - description: Source asset code
-          in: path
-          name: asset_code
-          required: true
-          schema:
-            description: Source asset code
-            type: string
-        - description: Filter by destination asset codes
-          explode: false
-          in: query
-          name: to
-          schema:
-            description: Filter by destination asset codes
-            items:
-              type: string
-            type:
-              - array
-              - 'null'
-        - description: Max items per page (1-100, default 10)
-          explode: false
-          in: query
-          name: limit
-          schema:
-            description: Max items per page (1-100, default 10)
-            type: string
-        - description: Filter asset rates created on/after this date (YYYY-MM-DD)
-          explode: false
-          in: query
-          name: start_date
-          schema:
-            description: Filter asset rates created on/after this date (YYYY-MM-DD)
-            type: string
-        - description: Filter asset rates created on/before this date (YYYY-MM-DD)
-          explode: false
-          in: query
-          name: end_date
-          schema:
-            description: Filter asset rates created on/before this date (YYYY-MM-DD)
-            type: string
-        - description: Sort direction (asc, desc)
-          explode: false
-          in: query
-          name: sort_order
-          schema:
-            description: Sort direction (asc, desc)
-            type: string
-        - description: Opaque cursor token for pagination
-          explode: false
-          in: query
-          name: cursor
-          schema:
-            description: Opaque cursor token for pagination
-            type: string
-      responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Pagination'
-          description: OK
-        default:
-          content:
-            application/problem+json:
-              schema:
-                $ref: '#/components/schemas/Error'
-          description: Error
-      security:
-        - BearerAuth: []
-        - ApiKeyAuth: []
-      summary: Get an AssetRate by the Asset Code
-      tags:
-        - Midaz_Ledger_API_Asset Rates (v2)
-  /v2/organizations/{organization_id}/ledgers/{ledger_id}/asset-rates/{external_id}:
-    get:
-      operationId: getAssetRateByExternalIDV2
-      parameters:
-        - description: Organization ID (UUID)
-          in: path
-          name: organization_id
-          required: true
-          schema:
-            description: Organization ID (UUID)
-            type: string
-        - description: Ledger ID (UUID)
-          in: path
-          name: ledger_id
-          required: true
-          schema:
-            description: Ledger ID (UUID)
-            type: string
-        - description: External ID (UUID)
-          in: path
-          name: external_id
-          required: true
-          schema:
-            description: External ID (UUID)
-            type: string
-      responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/AssetRate'
-          description: OK
-        default:
-          content:
-            application/problem+json:
-              schema:
-                $ref: '#/components/schemas/Error'
-          description: Error
-      security:
-        - BearerAuth: []
-        - ApiKeyAuth: []
-      summary: Get an AssetRate by External ID
-      tags:
-        - Midaz_Ledger_API_Asset Rates (v2)
   /v2/organizations/{organization_id}/ledgers/{ledger_id}/assets:
     get:
       operationId: listAssetsV2
@@ -9643,7 +9464,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Pagination'
+                $ref: '#/components/schemas/TransactionV2ListBody'
           description: OK
         default:
           content:
@@ -9654,192 +9475,6 @@ paths:
       security:
         - BearerAuth: []
       summary: Get all Transactions
-      tags:
-        - Midaz_Ledger_API_Transactions (v2)
-  /v2/organizations/{organization_id}/ledgers/{ledger_id}/transactions/annotation:
-    post:
-      operationId: createTransactionAnnotationV2
-      parameters:
-        - description: Organization ID (UUID)
-          in: path
-          name: organization_id
-          required: true
-          schema:
-            description: Organization ID (UUID)
-            type: string
-        - description: Ledger ID (UUID)
-          in: path
-          name: ledger_id
-          required: true
-          schema:
-            description: Ledger ID (UUID)
-            type: string
-        - description: >-
-            Idempotency key to safely retry the create; an identical retry
-            returns the original transaction
-          in: header
-          name: X-Idempotency
-          schema:
-            description: >-
-              Idempotency key to safely retry the create; an identical retry
-              returns the original transaction
-            type: string
-        - description: Idempotency slot TTL in seconds (default 300)
-          in: header
-          name: X-TTL
-          schema:
-            description: Idempotency slot TTL in seconds (default 300)
-            type: string
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/CreateTransactionInput'
-        required: true
-      responses:
-        '201':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Transaction'
-          description: Created
-          headers:
-            X-Idempotency-Replayed:
-              schema:
-                type: string
-        default:
-          content:
-            application/problem+json:
-              schema:
-                $ref: '#/components/schemas/Error'
-          description: Error
-      security:
-        - BearerAuth: []
-      summary: Create a Transaction Annotation using JSON
-      tags:
-        - Midaz_Ledger_API_Transactions (v2)
-  /v2/organizations/{organization_id}/ledgers/{ledger_id}/transactions/inflow:
-    post:
-      operationId: createTransactionInflowV2
-      parameters:
-        - description: Organization ID (UUID)
-          in: path
-          name: organization_id
-          required: true
-          schema:
-            description: Organization ID (UUID)
-            type: string
-        - description: Ledger ID (UUID)
-          in: path
-          name: ledger_id
-          required: true
-          schema:
-            description: Ledger ID (UUID)
-            type: string
-        - description: >-
-            Idempotency key to safely retry the create; an identical retry
-            returns the original transaction
-          in: header
-          name: X-Idempotency
-          schema:
-            description: >-
-              Idempotency key to safely retry the create; an identical retry
-              returns the original transaction
-            type: string
-        - description: Idempotency slot TTL in seconds (default 300)
-          in: header
-          name: X-TTL
-          schema:
-            description: Idempotency slot TTL in seconds (default 300)
-            type: string
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/CreateTransactionInflowInput'
-        required: true
-      responses:
-        '201':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Transaction'
-          description: Created
-          headers:
-            X-Idempotency-Replayed:
-              schema:
-                type: string
-        default:
-          content:
-            application/problem+json:
-              schema:
-                $ref: '#/components/schemas/Error'
-          description: Error
-      security:
-        - BearerAuth: []
-      summary: Create a Transaction without passing from source
-      tags:
-        - Midaz_Ledger_API_Transactions (v2)
-  /v2/organizations/{organization_id}/ledgers/{ledger_id}/transactions/json:
-    post:
-      operationId: createTransactionJSONV2
-      parameters:
-        - description: Organization ID (UUID)
-          in: path
-          name: organization_id
-          required: true
-          schema:
-            description: Organization ID (UUID)
-            type: string
-        - description: Ledger ID (UUID)
-          in: path
-          name: ledger_id
-          required: true
-          schema:
-            description: Ledger ID (UUID)
-            type: string
-        - description: >-
-            Idempotency key to safely retry the create; an identical retry
-            returns the original transaction
-          in: header
-          name: X-Idempotency
-          schema:
-            description: >-
-              Idempotency key to safely retry the create; an identical retry
-              returns the original transaction
-            type: string
-        - description: Idempotency slot TTL in seconds (default 300)
-          in: header
-          name: X-TTL
-          schema:
-            description: Idempotency slot TTL in seconds (default 300)
-            type: string
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/CreateTransactionInput'
-        required: true
-      responses:
-        '201':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Transaction'
-          description: Created
-          headers:
-            X-Idempotency-Replayed:
-              schema:
-                type: string
-        default:
-          content:
-            application/problem+json:
-              schema:
-                $ref: '#/components/schemas/Error'
-          description: Error
-      security:
-        - BearerAuth: []
-      summary: Create a Transaction using JSON
       tags:
         - Midaz_Ledger_API_Transactions (v2)
   /v2/organizations/{organization_id}/ledgers/{ledger_id}/transactions/metrics/count:
@@ -9914,68 +9549,6 @@ paths:
       summary: Count Transactions by Filters
       tags:
         - Midaz_Ledger_API_Transactions (v2)
-  /v2/organizations/{organization_id}/ledgers/{ledger_id}/transactions/outflow:
-    post:
-      operationId: createTransactionOutflowV2
-      parameters:
-        - description: Organization ID (UUID)
-          in: path
-          name: organization_id
-          required: true
-          schema:
-            description: Organization ID (UUID)
-            type: string
-        - description: Ledger ID (UUID)
-          in: path
-          name: ledger_id
-          required: true
-          schema:
-            description: Ledger ID (UUID)
-            type: string
-        - description: >-
-            Idempotency key to safely retry the create; an identical retry
-            returns the original transaction
-          in: header
-          name: X-Idempotency
-          schema:
-            description: >-
-              Idempotency key to safely retry the create; an identical retry
-              returns the original transaction
-            type: string
-        - description: Idempotency slot TTL in seconds (default 300)
-          in: header
-          name: X-TTL
-          schema:
-            description: Idempotency slot TTL in seconds (default 300)
-            type: string
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/CreateTransactionOutflowInput'
-        required: true
-      responses:
-        '201':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Transaction'
-          description: Created
-          headers:
-            X-Idempotency-Replayed:
-              schema:
-                type: string
-        default:
-          content:
-            application/problem+json:
-              schema:
-                $ref: '#/components/schemas/Error'
-          description: Error
-      security:
-        - BearerAuth: []
-      summary: Create a Transaction without passing to distribution
-      tags:
-        - Midaz_Ledger_API_Transactions (v2)
   /v2/organizations/{organization_id}/ledgers/{ledger_id}/transactions/{transaction_id}:
     get:
       operationId: getTransactionV2
@@ -10006,7 +9579,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Transaction'
+                $ref: '#/components/schemas/TransactionV2'
           description: OK
           headers:
             X-Cache-Hit:
@@ -10058,7 +9631,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Transaction'
+                $ref: '#/components/schemas/TransactionV2'
           description: OK
         default:
           content:
@@ -15092,6 +14665,140 @@ components:
         - description
         - metadata
       type: object
+    OperationV2:
+      additionalProperties: false
+      properties:
+        accountAlias:
+          examples:
+            - '@person1'
+          maxLength: 256
+          type: string
+        accountId:
+          examples:
+            - 00000000-0000-0000-0000-000000000000
+          format: uuid
+          type: string
+        amount:
+          $ref: '#/components/schemas/OperationAmount'
+        assetCode:
+          examples:
+            - BRL
+          maxLength: 10
+          minLength: 2
+          type: string
+        balance:
+          $ref: '#/components/schemas/OperationBalance'
+        balanceAffected:
+          examples:
+            - true
+          format: boolean
+          type: boolean
+        balanceAfter:
+          $ref: '#/components/schemas/OperationBalance'
+        balanceId:
+          examples:
+            - 00000000-0000-0000-0000-000000000000
+          format: uuid
+          type: string
+        balanceKey:
+          examples:
+            - asset-freeze
+          maxLength: 100
+          type: string
+        createdAt:
+          examples:
+            - '2021-01-01T00:00:00Z'
+          format: date-time
+          type: string
+        deletedAt:
+          examples:
+            - '2021-01-01T00:00:00Z'
+          format: date-time
+          type:
+            - string
+            - 'null'
+        description:
+          examples:
+            - Credit card operation
+          maxLength: 256
+          type: string
+        direction:
+          examples:
+            - debit
+          maxLength: 50
+          type: string
+        id:
+          examples:
+            - 00000000-0000-0000-0000-000000000000
+          format: uuid
+          type: string
+        ledgerId:
+          examples:
+            - 00000000-0000-0000-0000-000000000000
+          format: uuid
+          type: string
+        metadata:
+          additionalProperties: {}
+          type: object
+        organizationId:
+          examples:
+            - 00000000-0000-0000-0000-000000000000
+          format: uuid
+          type: string
+        routeCode:
+          examples:
+            - ROUTE-001
+          maxLength: 100
+          type: string
+        routeDescription:
+          examples:
+            - Settlement route for service charges
+          maxLength: 250
+          type: string
+        routeId:
+          examples:
+            - 00000000-0000-0000-0000-000000000000
+          format: uuid
+          type: string
+        status:
+          $ref: '#/components/schemas/OperationStatus'
+        transactionId:
+          examples:
+            - 00000000-0000-0000-0000-000000000000
+          format: uuid
+          type: string
+        type:
+          examples:
+            - DEBIT
+          maxLength: 50
+          type: string
+        updatedAt:
+          examples:
+            - '2021-01-01T00:00:00Z'
+          format: date-time
+          type: string
+      required:
+        - id
+        - transactionId
+        - description
+        - type
+        - assetCode
+        - amount
+        - balance
+        - balanceAfter
+        - status
+        - accountId
+        - accountAlias
+        - balanceKey
+        - balanceId
+        - organizationId
+        - ledgerId
+        - balanceAffected
+        - createdAt
+        - updatedAt
+        - deletedAt
+        - metadata
+      type: object
     Organization:
       additionalProperties: false
       properties:
@@ -15882,11 +15589,6 @@ components:
           maxLength: 10
           minLength: 2
           type: string
-        chartOfAccountsGroupName:
-          examples:
-            - Chart of accounts group name
-          maxLength: 256
-          type: string
         createdAt:
           examples:
             - '2021-01-01T00:00:00Z'
@@ -15939,7 +15641,7 @@ components:
           type: object
         operations:
           items:
-            $ref: '#/components/schemas/Operation'
+            $ref: '#/components/schemas/OperationV2'
           type:
             - array
             - 'null'
@@ -15952,11 +15654,6 @@ components:
           examples:
             - 00000000-0000-0000-0000-000000000000
           format: uuid
-          type: string
-        route:
-          examples:
-            - 00000000-0000-0000-0000-000000000000
-          maxLength: 250
           type: string
         routeId:
           examples:
@@ -15980,18 +15677,47 @@ components:
         - status
         - amount
         - assetCode
-        - chartOfAccountsGroupName
         - debit
         - credit
         - ledgerId
         - organizationId
-        - route
         - feesSkipped
         - tracerSkipped
         - createdAt
         - updatedAt
         - deletedAt
         - operations
+      type: object
+    TransactionV2ListBody:
+      additionalProperties: false
+      properties:
+        items:
+          items:
+            $ref: '#/components/schemas/TransactionV2'
+          type:
+            - array
+            - 'null'
+        limit:
+          examples:
+            - 10
+          format: int64
+          type: integer
+        next_cursor:
+          examples:
+            - eyJpZCI6IjAxOTI...
+          type: string
+        page:
+          examples:
+            - 1
+          format: int64
+          type: integer
+        prev_cursor:
+          examples:
+            - eyJpZCI6IjAxOTE...
+          type: string
+      required:
+        - items
+        - limit
       type: object
     UpdateAccountInput:
       additionalProperties: false
@@ -17296,7 +17022,6 @@ x-tagGroups:
       - Midaz_Ledger_API_Accounts (v1)
       - Midaz_Ledger_API_Accounts (v2)
       - Midaz_Ledger_API_Asset Rates (v1)
-      - Midaz_Ledger_API_Asset Rates (v2)
       - Midaz_Ledger_API_Assets (v1)
       - Midaz_Ledger_API_Assets (v2)
       - Midaz_Ledger_API_Balances (v1)

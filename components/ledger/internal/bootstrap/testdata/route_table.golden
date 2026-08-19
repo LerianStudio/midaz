@@ -157,10 +157,6 @@ GET	/v2/organizations/:organization_id/ledgers/:ledger_id/accounts/external/:cod
 GET	/v2/organizations/:organization_id/ledgers/:ledger_id/accounts/external/:code	1
 GET	/v2/organizations/:organization_id/ledgers/:ledger_id/accounts/external/:code/balances	3
 GET	/v2/organizations/:organization_id/ledgers/:ledger_id/accounts/external/:code/balances	1
-GET	/v2/organizations/:organization_id/ledgers/:ledger_id/asset-rates/:external_id	3
-GET	/v2/organizations/:organization_id/ledgers/:ledger_id/asset-rates/:external_id	1
-GET	/v2/organizations/:organization_id/ledgers/:ledger_id/asset-rates/from/:asset_code	3
-GET	/v2/organizations/:organization_id/ledgers/:ledger_id/asset-rates/from/:asset_code	1
 GET	/v2/organizations/:organization_id/ledgers/:ledger_id/assets	3
 GET	/v2/organizations/:organization_id/ledgers/:ledger_id/assets	1
 GET	/v2/organizations/:organization_id/ledgers/:ledger_id/assets/:id	3
@@ -311,14 +307,6 @@ POST	/v2/organizations/:organization_id/ledgers/:ledger_id/transactions/:transac
 POST	/v2/organizations/:organization_id/ledgers/:ledger_id/transactions/:transaction_id/commit	1
 POST	/v2/organizations/:organization_id/ledgers/:ledger_id/transactions/:transaction_id/revert	3
 POST	/v2/organizations/:organization_id/ledgers/:ledger_id/transactions/:transaction_id/revert	1
-POST	/v2/organizations/:organization_id/ledgers/:ledger_id/transactions/annotation	3
-POST	/v2/organizations/:organization_id/ledgers/:ledger_id/transactions/annotation	1
-POST	/v2/organizations/:organization_id/ledgers/:ledger_id/transactions/inflow	3
-POST	/v2/organizations/:organization_id/ledgers/:ledger_id/transactions/inflow	1
-POST	/v2/organizations/:organization_id/ledgers/:ledger_id/transactions/json	3
-POST	/v2/organizations/:organization_id/ledgers/:ledger_id/transactions/json	1
-POST	/v2/organizations/:organization_id/ledgers/:ledger_id/transactions/outflow	3
-POST	/v2/organizations/:organization_id/ledgers/:ledger_id/transactions/outflow	1
 POST	/v2/settings/metadata-indexes/entities/:entity_name	3
 POST	/v2/transactions/block	3
 POST	/v2/transactions/block	1
@@ -329,4 +317,3 @@ POST	/v2/transactions/hold	1
 POST	/v2/transactions/unblock	3
 POST	/v2/transactions/unblock	1
 PUT	/v1/organizations/:organization_id/ledgers/:ledger_id/asset-rates	4
-PUT	/v2/organizations/:organization_id/ledgers/:ledger_id/asset-rates	4

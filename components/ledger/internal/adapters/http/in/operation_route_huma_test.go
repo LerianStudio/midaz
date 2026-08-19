@@ -33,8 +33,8 @@ import (
 
 // buildHumaOperationRouteApp mounts the five operation-route Huma operations on a
 // /v1 group, faithfully mirroring the production wiring (see buildHumaAssetApp for
-// the full rationale). auth resource is "operation-routes" under the "routing"
-// appName; the auth shim stands in for auth.Authorize("routing","operation-routes",
+// the full rationale). auth resource is "operation-routes" under the "midaz"
+// appName; the auth shim stands in for auth.Authorize("midaz","operation-routes",
 // verb) + tenant PostAuthMiddlewares.
 //
 // MUST-NOT-PARALLELIZE: libProblem.Install() swaps the process-global huma.NewError

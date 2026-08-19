@@ -202,10 +202,10 @@ func (handler *AssetRateHandler) ListAssetRatesByAssetCodeHuma(ctx context.Conte
 // Paths are GROUP-RELATIVE: the Huma API is bound to a versioned Fiber group, so the
 // humafiber adapter registers on that group and Fiber prepends the version prefix.
 //
-// opSuffix distinguishes the operation IDs one version group publishes from another's —
-// see routeOpSuffixV1. A straight v1/v2 mirror reuses the same handler methods and the
-// same input/output types, so only the operation IDs differ between the twins; the PUT
-// upsert carries the suffix exactly like the two GETs.
+// opSuffix is appended to each operation ID (see routeOpSuffixV1), keeping the parameter
+// shape identical to the sibling dual-version registrars. Asset-rate is served on /v1 only
+// and has no v2 twin, so a single suffix is in play; the PUT upsert carries it exactly like
+// the two GETs.
 func RegisterAssetRateRoutes(api huma.API, h *AssetRateHandler, opSuffix string) {
 	const (
 		basePath     = "/organizations/{organization_id}/ledgers/{ledger_id}/asset-rates"
@@ -252,29 +252,20 @@ func RegisterAssetRateRoutesToApp(group fiber.Router, api huma.API, auth *middle
 	registerAssetRateRoutesToApp(group, api, auth, h, routeOptions, routeOpSuffixV1)
 }
 
-// RegisterAssetRateV2RoutesToApp wires the same asset-rate surface onto the /v2 contract:
-// same paths, same handlers, same authz tuples and tenant chain, differing only in the
-// operation IDs the contract publishes. It is additive — /v1 keeps serving asset-rates in
-// parallel — and introduces no new policy surface.
-func RegisterAssetRateV2RoutesToApp(group fiber.Router, api huma.API, auth *middleware.AuthClient, h *AssetRateHandler, routeOptions *pkgHTTP.ProtectedRouteOptions) {
-	registerAssetRateRoutesToApp(group, api, auth, h, routeOptions, routeOpSuffixV2)
-}
-
 // registerAssetRateRoutesToApp is the single description of the asset-rate route surface,
-// shared by every versioned contract that serves it. For each of the three ops it attaches
+// mounted on the /v1 contract. For each of the three ops it attaches
 // the Fiber auth chain — protectedMidaz(auth,"asset-rates",verb) (=
 // auth.Authorize("midaz","asset-rates",verb) + tenant PostAuthMiddlewares) +
 // ParseUUIDPathParameters("asset-rate") — as MIDDLEWARE ONLY (no terminal) on the VERSIONED
 // GROUP with GROUP-RELATIVE paths, then registers the Huma terminals via
 // RegisterAssetRateRoutes on the SAME group's Huma API. This preserves the pre-Huma
 // ("asset-rates", verb) authz tuples and tenant resolution BYTE-FOR-BYTE (the plural
-// resource + the "asset-rate" entity-name for ParseUUIDPathParameters, exactly as in the
-// pre-migration routes.go) — no asset-rate route becomes public on whichever version group
-// it is mounted on. asset-rate is MONEY-adjacent (exchange rates).
+// resource + the "asset-rate" entity-name for ParseUUIDPathParameters) — no asset-rate route
+// becomes public on the /v1 group. asset-rate is MONEY-adjacent (exchange rates).
 //
-// opSuffix distinguishes the operation IDs one version group publishes from another's —
-// see routeOpSuffixV1. Nothing else varies between contracts, so a change to the surface
-// reaches every version it is mounted on.
+// opSuffix is appended to each operation ID (see routeOpSuffixV1). It keeps this registrar's
+// signature identical to the sibling dual-version registrars; asset-rate mounts on /v1 only,
+// so a single suffix is in play.
 func registerAssetRateRoutesToApp(group fiber.Router, api huma.API, auth *middleware.AuthClient, h *AssetRateHandler, routeOptions *pkgHTTP.ProtectedRouteOptions, opSuffix string) {
 	const (
 		basePath     = "/organizations/:organization_id/ledgers/:ledger_id/asset-rates"

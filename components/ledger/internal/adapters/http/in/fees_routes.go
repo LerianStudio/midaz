@@ -88,8 +88,8 @@ func attachFeeGuards(group fiber.Router, auth *middleware.AuthClient, routeOptio
 	}
 }
 
-// protectedFees is the plugin-fees analogue of protectedMidaz/protectedRouting: it
-// builds the auth-attaching Fiber chain under the "plugin-fees" authz appName.
+// protectedFees is the plugin-fees analogue of protectedMidaz: it builds the
+// auth-attaching Fiber chain under the "plugin-fees" authz appName.
 func protectedFees(auth *middleware.AuthClient, resource, action string, routeOptions *http.ProtectedRouteOptions, handlers ...fiber.Handler) []fiber.Handler {
 	return http.ProtectedRouteChain(auth.Authorize(feesApplicationName, resource, action), routeOptions, handlers...)
 }

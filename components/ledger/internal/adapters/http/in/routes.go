@@ -12,10 +12,7 @@ import (
 	"github.com/LerianStudio/midaz/v4/pkg/net/http"
 )
 
-const (
-	midazName   = "midaz"
-	routingName = "routing"
-)
+const midazName = "midaz"
 
 // SettingsMaxPayloadSize defines the maximum payload size for settings endpoints (64KB).
 const SettingsMaxPayloadSize = 64 * 1024
@@ -297,13 +294,12 @@ func RegisterOperationRouteV2RoutesToApp(group fiber.Router, api huma.API, auth 
 }
 
 // registerOperationRouteRoutesToApp is the single description of the operation-route surface,
-// shared by every versioned contract that serves it. Auth is the "routing" appName:
-// auth.Authorize("routing","operation-routes",verb) + tenant +
+// shared by every versioned contract that serves it. Auth is the "midaz" appName:
+// auth.Authorize("midaz","operation-routes",verb) + tenant +
 // ParseUUIDPathParameters("operation_route"), attached as MIDDLEWARE ONLY (group-relative
 // paths, no terminal) on the versioned group, then it registers the Huma terminals via
-// RegisterOperationRouteRoutes on the SAME group's Huma API. This preserves the pre-Huma
-// ("routing","operation-routes",verb) authz tuples and tenant resolution BYTE-FOR-BYTE on
-// whichever version group it is mounted on.
+// RegisterOperationRouteRoutes on the SAME group's Huma API. The ("midaz","operation-routes",
+// verb) authz tuples and tenant resolution hold on whichever version group it is mounted on.
 //
 // opSuffix distinguishes the operation IDs one version group publishes from another's — see
 // routeOpSuffixV1. Nothing else varies between contracts, so a change to the surface reaches
@@ -316,11 +312,11 @@ func registerOperationRouteRoutesToApp(group fiber.Router, api huma.API, auth *m
 
 	parse := http.ParseUUIDPathParameters("operation_route")
 
-	routePost(group, listPath, protectedRouting(auth, "operation-routes", "post", routeOptions, parse))
-	routeGet(group, listPath, protectedRouting(auth, "operation-routes", "get", routeOptions, parse))
-	routeGet(group, idPath, protectedRouting(auth, "operation-routes", "get", routeOptions, parse))
-	routePatch(group, idPath, protectedRouting(auth, "operation-routes", "patch", routeOptions, parse))
-	routeDelete(group, idPath, protectedRouting(auth, "operation-routes", "delete", routeOptions, parse))
+	routePost(group, listPath, protectedMidaz(auth, "operation-routes", "post", routeOptions, parse))
+	routeGet(group, listPath, protectedMidaz(auth, "operation-routes", "get", routeOptions, parse))
+	routeGet(group, idPath, protectedMidaz(auth, "operation-routes", "get", routeOptions, parse))
+	routePatch(group, idPath, protectedMidaz(auth, "operation-routes", "patch", routeOptions, parse))
+	routeDelete(group, idPath, protectedMidaz(auth, "operation-routes", "delete", routeOptions, parse))
 
 	RegisterOperationRouteRoutes(api, orh, opSuffix)
 }
@@ -340,13 +336,12 @@ func RegisterTransactionRouteV2RoutesToApp(group fiber.Router, api huma.API, aut
 }
 
 // registerTransactionRouteRoutesToApp is the single description of the transaction-route surface,
-// shared by every versioned contract that serves it. Auth is the "routing" appName:
-// auth.Authorize("routing","transaction-routes",verb) + tenant +
+// shared by every versioned contract that serves it. Auth is the "midaz" appName:
+// auth.Authorize("midaz","transaction-routes",verb) + tenant +
 // ParseUUIDPathParameters("transaction_route"), attached as MIDDLEWARE ONLY (group-relative
 // paths, no terminal) on the versioned group, then it registers the Huma terminals via
-// RegisterTransactionRouteRoutes on the SAME group's Huma API. This preserves the pre-Huma
-// ("routing","transaction-routes",verb) authz tuples and tenant resolution BYTE-FOR-BYTE on
-// whichever version group it is mounted on.
+// RegisterTransactionRouteRoutes on the SAME group's Huma API. The ("midaz","transaction-routes",
+// verb) authz tuples and tenant resolution hold on whichever version group it is mounted on.
 //
 // opSuffix distinguishes the operation IDs one version group publishes from another's — see
 // routeOpSuffixV1. Nothing else varies between contracts, so a change to the surface reaches
@@ -359,21 +354,17 @@ func registerTransactionRouteRoutesToApp(group fiber.Router, api huma.API, auth 
 
 	parse := http.ParseUUIDPathParameters("transaction_route")
 
-	routePost(group, listPath, protectedRouting(auth, "transaction-routes", "post", routeOptions, parse))
-	routeGet(group, listPath, protectedRouting(auth, "transaction-routes", "get", routeOptions, parse))
-	routeGet(group, idPath, protectedRouting(auth, "transaction-routes", "get", routeOptions, parse))
-	routePatch(group, idPath, protectedRouting(auth, "transaction-routes", "patch", routeOptions, parse))
-	routeDelete(group, idPath, protectedRouting(auth, "transaction-routes", "delete", routeOptions, parse))
+	routePost(group, listPath, protectedMidaz(auth, "transaction-routes", "post", routeOptions, parse))
+	routeGet(group, listPath, protectedMidaz(auth, "transaction-routes", "get", routeOptions, parse))
+	routeGet(group, idPath, protectedMidaz(auth, "transaction-routes", "get", routeOptions, parse))
+	routePatch(group, idPath, protectedMidaz(auth, "transaction-routes", "patch", routeOptions, parse))
+	routeDelete(group, idPath, protectedMidaz(auth, "transaction-routes", "delete", routeOptions, parse))
 
 	RegisterTransactionRouteRoutes(api, trh, opSuffix)
 }
 
 func protectedMidaz(auth *middleware.AuthClient, resource, action string, routeOptions *http.ProtectedRouteOptions, handlers ...fiber.Handler) []fiber.Handler {
 	return http.ProtectedRouteChain(auth.Authorize(midazName, resource, action), routeOptions, handlers...)
-}
-
-func protectedRouting(auth *middleware.AuthClient, resource, action string, routeOptions *http.ProtectedRouteOptions, handlers ...fiber.Handler) []fiber.Handler {
-	return http.ProtectedRouteChain(auth.Authorize(routingName, resource, action), routeOptions, handlers...)
 }
 
 // registerRoute registers a protected handler chain on a Fiber v3 router. Fiber

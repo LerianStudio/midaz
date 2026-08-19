@@ -1,0 +1,57 @@
+# Access-Manager RI (Responsibility Inversion) declaration manifest.
+#
+# Identity (service slug): "plugin-fees" — the embedded fees/billing component.
+# It ships inside the single `ledger` deployable but declares its OWN manifest
+# under its OWN slug and M2M identity. The slug is the first argument of every
+# auth.Authorize("plugin-fees", resource, verb) guard (const feesApplicationName,
+# fees_routes.go:19). The `plugin-` prefix is KEPT, not stripped (R9): tenant-
+# manager RBAC keys on this string. Keys mirror the yaml tags on lib-auth/v3
+# auth/declaration.DeclarationManifest (auth/declaration/manifest.go).
+#
+# The (resource, action) tuples are the EXACT surface the fee routes enforce, the
+# single source of truth `feeGuardRoutes` in
+# components/ledger/internal/adapters/http/in/fees_routes.go:63, attached to BOTH
+# the org-scoped (/v1) and ledger-scoped (/v2) fee surfaces via protectedFees. The
+# action is the HTTP verb (post/get/patch/delete), preserved verbatim — NOT a
+# semantic rename — so a granted role's permission matches what the middleware
+# checks. `resource` is bare; the reconciler composes the "plugin-fees/" prefix.
+#
+# ### TEAM: please confirm ### — ROLE MODEL IS INFERRED (no role data in code):
+# read (get) -> editor + viewer; every mutating verb (post/patch/delete, incl.
+# the estimate and billing-calculate dry-runs served over POST) -> editor only.
+service: plugin-fees
+version: 1
+permissions:
+  # packages — fee packages (fees_routes.go:63)
+  - { resource: packages, action: post,   effect: allow, roles: [editor] }
+  - { resource: packages, action: get,    effect: allow, roles: [editor, viewer] }
+  - { resource: packages, action: patch,  effect: allow, roles: [editor] }
+  - { resource: packages, action: delete, effect: allow, roles: [editor] }
+
+  # estimates — fee estimate dry-run (fees_routes.go:70)
+  - { resource: estimates, action: post, effect: allow, roles: [editor] }
+
+  # billing-packages (fees_routes.go:72)
+  - { resource: billing-packages, action: post,   effect: allow, roles: [editor] }
+  - { resource: billing-packages, action: get,    effect: allow, roles: [editor, viewer] }
+  - { resource: billing-packages, action: patch,  effect: allow, roles: [editor] }
+  - { resource: billing-packages, action: delete, effect: allow, roles: [editor] }
+
+  # billing-calculate — billing calculate dry-run (fees_routes.go:78)
+  - { resource: billing-calculate, action: post, effect: allow, roles: [editor] }
+
+roles:
+  # ### TEAM: please confirm ### — role -> group bindings are INFERRED.
+  - name: editor
+    granted_to:
+      - group: fees-admins   ### TEAM: please confirm ###
+  - name: viewer
+    granted_to:
+      - group: fees-viewers  ### TEAM: please confirm ###
+
+m2m:
+  # EXPORT: fees exposes its M2M editor surface. IMPORT: it calls midaz (the
+  # ledger) — so midaz must declare `exposed: true` for this to reconcile.
+  exposed: true
+  needs:
+    - midaz

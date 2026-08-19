@@ -29,16 +29,20 @@ namespace string.
 > A grant that authorizes a `/v1` fee call authorizes its `/v2` twin, and vice versa. No second
 > policy surface exists to migrate.
 
-## The three namespaces
+## The two namespaces
 
-The merged binary calls `auth.Authorize(<namespace>, <resource>, <action>)` under three distinct
+The merged binary calls `auth.Authorize(<namespace>, <resource>, <action>)` under two distinct
 namespace literals:
 
 | Namespace | Owner / code | Resources | Source |
 |-----------|--------------|-----------|--------|
-| `midaz` | ledger — `midazName` const; CRM (collapsed package) — `ApplicationName` const | `organizations`, `ledgers`, `assets`, `asset-rates`, `portfolios`, `segments`, `accounts`, `balances`, `transactions`, `operations`, `settings`, `holders`, `instruments` | `components/ledger/internal/adapters/http/in/routes.go` (`midazName = "midaz"`, helper `protectedMidaz`); `components/ledger/internal/adapters/http/in/crm_routes.go` (`const ApplicationName = "midaz"`) for the `holders`/`instruments` resources |
-| `routing` | ledger — `routingName` const | `account-types`, `operation-routes`, `transaction-routes` | `components/ledger/internal/adapters/http/in/routes.go` (`routingName = "routing"`, helper `protectedRouting`) |
+| `midaz` | ledger — `midazName` const; CRM (collapsed package) — `ApplicationName` const | `organizations`, `ledgers`, `assets`, `asset-rates`, `portfolios`, `segments`, `accounts`, `balances`, `transactions`, `operations`, `settings`, `account-types`, `operation-routes`, `transaction-routes`, `holders`, `instruments` | `components/ledger/internal/adapters/http/in/routes.go` (`midazName = "midaz"`, helper `protectedMidaz`); `components/ledger/internal/adapters/http/in/crm_routes.go` (`const ApplicationName = "midaz"`) for the `holders`/`instruments` resources |
 | `plugin-fees` | fees (embedded in ledger) | `packages`, `estimates`, `billing-packages`, `billing-calculate` | `components/ledger/internal/adapters/http/in/fees_routes.go` (`feesApplicationName = "plugin-fees"`, helper `protectedFees`); also `pkg/constant.ModuleFees = "plugin-fees"` and `components/ledger/pkg/feeshared/constant/app.go`. The ledger-scoped `/v2` twins in `fees_v2_register.go` (`RegisterFeesV2RoutesToApp`) attach the same `feeGuardRoutes` table through the same helper — same namespace, same tuples |
+
+The `account-types`, `operation-routes`, and `transaction-routes` resources authorize under the
+`midaz` namespace (helper `protectedMidaz`), parity with `main` — there is no separate `routing`
+namespace in the ledger binary. The tenant-manager grant re-key for any environment that still holds
+`routing:*` grants remains gated to X1 (below).
 
 The `(<action>)` dimension is the HTTP verb mapped to `get` / `post` / `patch` / `delete`. The CRM
 `related-parties` DELETE authorizes under the `instruments` resource (sub-resource maintenance,
@@ -46,7 +50,7 @@ verb `delete`), not its own resource.
 
 ## Tenant-manager policy-key coupling
 
-The three namespace strings above are the **policy keys** that tenant-manager RBAC policies are
+The two namespace strings above are the **policy keys** that tenant-manager RBAC policies are
 written against. Authorization for a request resolves as:
 
 ```
@@ -88,7 +92,7 @@ not require the policies to be migrated first. Local/dev deployments with auth d
 unaffected. Until the migration runs, environments with auth enabled must have their
 tenant-manager policies updated in lockstep with the v4 release.
 
-The remaining namespaces (`midaz`, `routing`, `plugin-fees`) are the authoritative authorization
+The remaining namespaces (`midaz`, `plugin-fees`) are the authoritative authorization
 contract for the unified binary. Risk **R9** (the original namespace divergence) is closed for
 CRM by this flip; the fee namespace stays distinct by design.
 
@@ -97,48 +101,45 @@ CRM by this flip; the fee namespace stays distinct by design.
 # Cross-monorepo namespace strategy (Epic 3.3 — auth-stabilization)
 
 The section above scopes R9/X1 to the **ledger binary** and the CRM flip. This section widens the
-lens to the **whole monorepo**: after consolidation, four authz namespaces ship across the two Go
+lens to the **whole monorepo**: after consolidation, three authz namespaces ship across the two Go
 deploy units. This is a **decision document only** — it records options + a recommendation for the
 owner and **defers all execution to the X1 gate**. No namespace literal is changed by this doc.
 
-## 1. Current state — four namespaces across two deploy units
+## 1. Current state — three namespaces across two deploy units
 
 `auth.Authorize(<namespace>, <resource>, <action>)` (lib-auth v3.0.0, global RBAC check) is called
-under four distinct namespace literals across the monorepo:
+under three distinct namespace literals across the monorepo:
 
 Refs below are anchored on **symbol names**, not line numbers: line numbers rot silently on the
 next edit to the file, and four of the eight that used to sit in this table had already drifted.
 
 | Namespace | Deploy unit | Resources (verified) | Source (file + symbol) |
 |-----------|-------------|----------------------|------------------------|
-| `midaz` | ledger (`:3002`) | `organizations`, `ledgers`, `assets`, `asset-rates`, `portfolios`, `segments`, `accounts`, `balances`, `transactions`, `operations`, `settings`, `holders`, `instruments` | `components/ledger/internal/adapters/http/in/routes.go` (`midazName`, helper `protectedMidaz`); `crm_routes.go` (`ApplicationName`) for `holders`/`instruments` |
-| `routing` | ledger (`:3002`, same binary) | `account-types`, `operation-routes`, `transaction-routes` | `components/ledger/internal/adapters/http/in/routes.go` (`routingName`, helper `protectedRouting`) |
+| `midaz` | ledger (`:3002`) | `organizations`, `ledgers`, `assets`, `asset-rates`, `portfolios`, `segments`, `accounts`, `balances`, `transactions`, `operations`, `settings`, `account-types`, `operation-routes`, `transaction-routes`, `holders`, `instruments` | `components/ledger/internal/adapters/http/in/routes.go` (`midazName`, helper `protectedMidaz`); `crm_routes.go` (`ApplicationName`) for `holders`/`instruments` |
 | `plugin-fees` | ledger (`:3002`, same binary) | `packages`, `estimates`, `billing-packages`, `billing-calculate` | `components/ledger/internal/adapters/http/in/fees_routes.go` (`feesApplicationName`, table `feeGuardRoutes`, helpers `attachFeeGuards`/`protectedFees`); the ledger-scoped `/v2` twins in `fees_v2_register.go` (`RegisterFeesV2RoutesToApp`) attach the same table |
 | `tracer` | tracer (`:4020`) | `reservations`, `audit-events` | `components/tracer/pkg/constant/app.go` (`ApplicationName`); wired via `components/tracer/internal/bootstrap/config.go` (`AppName:`), consumed at `middleware/auth_guard.go` (`(*AuthGuard).Protect`) |
 
-> **Audit-ref check:** every symbol above resolves in the tree as written, and the namespace-to-
-> resource split is as listed — `routing` separating
-> `account-types`/`operation-routes`/`transaction-routes` from their `midaz` siblings inside the
-> **same ledger binary**. Three of the four namespaces (`midaz`/`routing`/`plugin-fees`) ship from
-> the one ledger binary; only `tracer` is a separate deploy unit. Serving fees at a second scope
-> (`/v2`) added no namespace: the count stays four.
+> **Audit-ref check:** every symbol above resolves in the tree as written. `account-types`,
+> `operation-routes`, and `transaction-routes` authorize under `midaz` (helper `protectedMidaz`),
+> parity with `main`; the ledger binary carries no separate `routing` namespace. Two of the three
+> namespaces (`midaz`/`plugin-fees`) ship from the one ledger binary; only `tracer` is a separate
+> deploy unit. Serving fees at a second scope (`/v2`) added no namespace: the count stays three.
 
 ## 2. Consequence — silent 403 across the platform
 
-The four literals are independent **policy keys** in tenant-manager. A grant under one key is
+The three literals are independent **policy keys** in tenant-manager. A grant under one key is
 invisible to the others. So a tenant provisioned with `midaz:*` (a natural "give me everything"
-grant) **silently 403s** every `routing`, `plugin-fees`, and `tracer` resource:
+grant) **silently 403s** every `plugin-fees` and `tracer` resource:
 
 ```
 midaz:transactions:post     → 200   (granted)
-routing:operation-routes:post → 403  (no routing grant — silent)
 plugin-fees:packages:post     → 403  (no plugin-fees grant — silent)
 tracer:audit-events:get       → 403  (no tracer grant — silent)
 ```
 
 Failure mode is the worst kind: **silent 403, no hint that the answer is "wrong namespace".** To
-authorize one logical platform, an integrator must provision grants in **four namespaces** and
-discover the boundaries by hitting 403s. Three of those boundaries (`midaz`/`routing`/`plugin-fees`)
+authorize one logical platform, an integrator must provision grants in **three namespaces** and
+discover the boundaries by hitting 403s. Two of those boundaries (`midaz`/`plugin-fees`)
 live in a single binary, which makes the split especially non-obvious.
 
 ## 3. Trust-model context (owner decision, 2026-06-06)
@@ -175,8 +176,11 @@ Three independent sub-decisions:
 
 **Recommendation (one call, owner-gated):**
 
-- **A1 — unify `routing` into `midaz`.** Same binary, same domain, smallest blast radius, kills the
-  least-defensible split. This is the single highest-value change.
+- **A1 — unify `routing` into `midaz`. Landed in code.** `account-types`, `operation-routes`, and
+  `transaction-routes` now register under `midaz` (helper `protectedMidaz`), parity with `main`;
+  the ledger binary no longer defines a `routing` namespace. Same binary, same domain, smallest
+  blast radius, kills the least-defensible split. The tenant-manager grant re-key for any
+  environment that still holds `routing:*` grants remains gated to X1 (§5).
 - **B1 — keep `plugin-fees` separate.** Honors the R9 closure; do not reopen a settled decision for
   marginal grant-count savings.
 - **C1 — keep `tracer` per-deploy-unit**, but ship a **documented grant bundle** (the
@@ -206,7 +210,7 @@ plugin-crm:holders:{get,post,patch,delete}  →  midaz:holders:{get,post,patch,d
 plugin-crm:aliases:{get,post,patch,delete}  →  midaz:instruments:{get,post,patch,delete}
    (related-parties DELETE)                  →  midaz:instruments:delete
 
-# Epic 3.3 — routing unification (proposed, A1, if accepted at the gate)
+# Epic 3.3 — routing unification (A1 landed in code; grant re-key at the gate)
 routing:account-types:{get,post,patch,delete}      →  midaz:account-types:{...}
 routing:operation-routes:{get,post,patch,delete}   →  midaz:operation-routes:{...}
 routing:transaction-routes:{get,post,patch,delete} →  midaz:transaction-routes:{...}
@@ -218,15 +222,18 @@ tracer:*        (C1 — stays distinct; documented grant bundle)
 
 Sequencing within the single X1 release:
 
-1. **Code:** flip `routingName`/`protectedRouting` to register under `midazName` (one-line per
-   helper at `routes.go:27,231`), landing in the same release as the CRM flip. Merge ≠ authz merge:
-   the code change can merge ahead; grants migrate at the release gate.
+1. **Code — landed.** `account-types`, `operation-routes`, and `transaction-routes` register under
+   `midazName` via `protectedMidaz`; the `routing` const and helper are removed from `routes.go`.
+   Merge ≠ authz merge: the code change merges ahead; grants migrate at the release gate.
 2. **Policy:** tenant-manager re-issues `plugin-crm:*` **and** `routing:*` grants under `midaz` in
    one migration window, executed with the plugin-auth team.
 3. **Docs:** publish the platform grant bundle (the §1 table, post-unification: `midaz` +
    `plugin-fees` + `tracer`) so integrators see the full three-namespace set up front.
 
 **This document decides nothing unilaterally.** It records the current state, the consequence, the
-trust model, and a recommended option set. Execution — including whether to accept A1 at all — is
-**deferred to the X1 gate**, owner-decided with the plugin-auth team, so that the only namespace
-break integrators ever absorb is the single coordinated X1 migration.
+trust model, and a recommended option set. The A1 **code** decision has landed — `account-types`,
+`operation-routes`, and `transaction-routes` are folded into `midaz` in the ledger binary (§4, §5).
+What remains **deferred to the X1 gate** is the **execution** of the tenant-manager policy migration
+and the re-key of any environment still holding `routing:*` grants — owner-decided with the
+plugin-auth team, so that the only namespace break integrators ever absorb is the single coordinated
+X1 migration.

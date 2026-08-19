@@ -20,7 +20,7 @@ Readiness: `GET http://localhost:4020/readyz`
 |-----------|-------|
 | **Project** | Real-time transaction validation and fraud prevention API |
 | **Component** | Co-located deploy unit in the `midaz` monorepo (module `github.com/LerianStudio/midaz/v4`, single root `go.mod`, no own `go.mod`) |
-| **Language** | Go (root `go.mod`: `go 1.26.4`; Dockerfile builder: `golang:1.26.3-alpine`) |
+| **Language** | Go (root `go.mod`: `go 1.26.4`; Dockerfile builder: `golang:1.26.6-alpine`) |
 | **Architecture** | Hexagonal (Ports & Adapters) + CQRS |
 | **Database** | PostgreSQL 17 |
 | **Rule Engine** | Google CEL (cel-go v0.28.1) |
@@ -367,7 +367,7 @@ The component compose declares only the `tracer` app service (container `midaz-t
 
 ### Dockerfile (Production)
 
-Multi-stage: `golang:1.26.3-alpine` (builder, `--platform=$BUILDPLATFORM`) → `gcr.io/distroless/static-debian12:nonroot` (runtime, stage `prod`). Both Dockerfiles COPY `go.mod`/`go.sum` from the repo-root build context and build `components/tracer/cmd/app/main.go`. Exposes 4020. Non-root user. No shell in production — use orchestrator probes.
+Multi-stage: `golang:1.26.6-alpine` (builder, `--platform=$BUILDPLATFORM`) → `gcr.io/distroless/static-debian12:nonroot` (runtime, stage `prod`). Both Dockerfiles COPY `go.mod`/`go.sum` from the repo-root build context and build `components/tracer/cmd/app/main.go`. Exposes 4020. Non-root user. No shell in production — use orchestrator probes.
 
 ## Linting
 
@@ -493,5 +493,5 @@ All CI uses shared workflows from `LerianStudio/github-actions-shared-workflows`
 ---
 
 **Last Updated**: June 2026
-**Go Version**: root `go.mod` `go 1.26.4`, Docker builder image `golang:1.26.3-alpine`
+**Go Version**: root `go.mod` `go 1.26.4`, Docker builder image `golang:1.26.6-alpine`
 **Migrations**: 21 (000001 through 000021)

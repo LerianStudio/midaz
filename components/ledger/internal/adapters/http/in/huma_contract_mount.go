@@ -85,8 +85,8 @@ type HumaMountDeps struct {
 // authz tuple and the same route options the pre-Huma inline route used:
 //   - organization/ledger/portfolio/segment/account/asset use OnboardingOptions
 //     ([authAssertion, WithTenantDB]).
-//   - account-type uses OnboardingOptions too, but authorizes against the "routing"
-//     appName (protectedRouting).
+//   - account-type uses OnboardingOptions too, authorizing against the "midaz"
+//     appName (protectedMidaz).
 //   - asset-rate uses TransactionOptions ([authAssertion, WithTenantDB]) — it is
 //     MONEY-adjacent (exchange rates), so it shares the transaction tenant chain.
 //   - metadata-index uses LedgerOptions ([authAssertion] ONLY, no WithTenantDB).
@@ -120,9 +120,7 @@ func (d HumaMountDeps) registerWave1(group fiber.Router, api huma.API) {
 
 // registerWave2 mounts balance, operation-read, transaction-count, operation-route
 // and transaction-route. All carry TransactionOptions ([authAssertion,
-// WithTenantDB]). balance/operation/count authorize against the "midaz" appName
-// (protectedMidaz); operation-route/transaction-route authorize against the
-// "routing" appName (protectedRouting).
+// WithTenantDB]) and authorize against the "midaz" appName (protectedMidaz).
 func (d HumaMountDeps) registerWave2(group fiber.Router, api huma.API) {
 	RegisterBalanceRoutesToApp(group, api, d.Auth, d.Balance, d.TransactionOptions)
 	RegisterOperationRoutesToApp(group, api, d.Auth, d.Operation, d.TransactionOptions)
@@ -140,9 +138,8 @@ func (d HumaMountDeps) registerWave2(group fiber.Router, api huma.API) {
 // The seven onboarding families — organizations, ledgers, portfolios, segments,
 // accounts, account-types, assets — carry OnboardingOptions and reuse the same authz
 // tuples and tenant chain as their v1 twins; they are straight mirrors, additive over v1,
-// with no new policy surface. account-types is the one nuance: it authorizes against the
-// "routing" appName (protectedRouting), NOT "midaz", exactly as on v1 (see
-// registerWave1 / registerAccountTypeRoutesToApp).
+// with no new policy surface. account-types authorizes against the "midaz" appName
+// (protectedMidaz), exactly as on v1 (see registerWave1 / registerAccountTypeRoutesToApp).
 //
 // metadata-index is the LEDGER-AGNOSTIC settings resource: it carries LedgerOptions
 // ([authAssertion] ONLY, no WithTenantDB) and authorizes against the "midaz" appName under
@@ -153,13 +150,12 @@ func (d HumaMountDeps) registerWave2(group fiber.Router, api huma.API) {
 // The transaction ops carry TransactionOptions ([authAssertion, WithTenantDB]) and
 // authorize against the "midaz" appName (protectedMidaz) — the same auth + tenant
 // chain the v1 transaction CREATE ops use, no new policy. RegisterTransactionMirrorV2RoutesToApp
-// additionally mirrors the seven v1 ops that have no dedicated v2 wire shape — the legacy-create
-// twins (json/inflow/outflow/annotation), the PATCH update, and the two reads (get-by-id + list) —
-// as straight v1 twins carrying the same TransactionOptions and "midaz" appName. block/unblock
-// create and commit/cancel/revert lifecycle are intentionally absent from that mirror: they are
-// already published as v2 ops by RegisterTransactionV2RoutesToApp. asset-rate is MONEY-adjacent
-// (exchange rates): it likewise carries TransactionOptions and authorizes against the
-// "midaz" appName, exactly as on v1 (see registerWave1 / registerAssetRateRoutesToApp).
+// additionally mirrors the three v1 ops that have no dedicated v2 wire shape — the PATCH update
+// and the two reads (get-by-id + list) — as straight v1 twins carrying the same TransactionOptions
+// and "midaz" appName. The legacy-create ops (json/inflow/outflow/annotation) are served on /v1
+// only; block/unblock create and commit/cancel/revert lifecycle are also absent from that mirror,
+// because they are already published as v2 ops by RegisterTransactionV2RoutesToApp. asset-rate is
+// served on /v1 only and has no v2 twin.
 // balance (resource "balances") and operation (resource "operations") also carry
 // TransactionOptions and authorize against the "midaz" appName, matching their v1 twins.
 // The transaction-count HEAD op (RegisterCountTransactionV2RoutesToApp) is a straight mirror:
@@ -177,10 +173,10 @@ func (d HumaMountDeps) registerWave2(group fiber.Router, api huma.API) {
 // resource; it is served ONLY on this /v2 contract (see RegisterCompositionV2RoutesToApp).
 //
 // operation-routes carry TransactionOptions ([authAssertion, WithTenantDB]) and authorize
-// against the "routing" appName (protectedRouting), NOT "midaz", exactly as on v1 (see
-// registerWave2 / RegisterOperationRouteRoutesToApp). transaction-routes likewise carry
-// TransactionOptions and authorize against the "routing" appName (protectedRouting), NOT
-// "midaz", exactly as on v1 (see registerWave2 / RegisterTransactionRouteRoutesToApp).
+// against the "midaz" appName (protectedMidaz), exactly as on v1 (see registerWave2 /
+// RegisterOperationRouteRoutesToApp). transaction-routes likewise carry TransactionOptions
+// and authorize against the "midaz" appName (protectedMidaz), exactly as on v1 (see
+// registerWave2 / RegisterTransactionRouteRoutesToApp).
 func (d HumaMountDeps) MountV2(group fiber.Router, api huma.API) {
 	RegisterOrganizationV2RoutesToApp(group, api, d.Auth, d.Organization, d.OnboardingOptions)
 	RegisterLedgerV2RoutesToApp(group, api, d.Auth, d.Ledger, d.OnboardingOptions)
@@ -190,7 +186,6 @@ func (d HumaMountDeps) MountV2(group fiber.Router, api huma.API) {
 	RegisterAccountTypeV2RoutesToApp(group, api, d.Auth, d.AccountType, d.OnboardingOptions)
 	RegisterMetadataIndexV2RoutesToApp(group, api, d.Auth, d.MetadataIndex, d.LedgerOptions)
 	RegisterAssetV2RoutesToApp(group, api, d.Auth, d.Asset, d.OnboardingOptions)
-	RegisterAssetRateV2RoutesToApp(group, api, d.Auth, d.AssetRate, d.TransactionOptions)
 	RegisterTransactionV2RoutesToApp(group, api, d.Auth, d.Transaction, d.TransactionOptions)
 	RegisterTransactionMirrorV2RoutesToApp(group, api, d.Auth, d.Transaction, d.TransactionOptions)
 	RegisterCountTransactionV2RoutesToApp(group, api, d.Auth, d.Transaction, d.TransactionOptions)

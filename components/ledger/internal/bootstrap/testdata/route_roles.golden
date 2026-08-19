@@ -92,8 +92,6 @@ GET	/v2/organizations/:organization_id/ledgers/:ledger_id/accounts/alias/:alias	
 GET	/v2/organizations/:organization_id/ledgers/:ledger_id/accounts/alias/:alias/balances	transaction
 GET	/v2/organizations/:organization_id/ledgers/:ledger_id/accounts/external/:code	onboarding
 GET	/v2/organizations/:organization_id/ledgers/:ledger_id/accounts/external/:code/balances	transaction
-GET	/v2/organizations/:organization_id/ledgers/:ledger_id/asset-rates/:external_id	transaction
-GET	/v2/organizations/:organization_id/ledgers/:ledger_id/asset-rates/from/:asset_code	transaction
 GET	/v2/organizations/:organization_id/ledgers/:ledger_id/assets	onboarding
 GET	/v2/organizations/:organization_id/ledgers/:ledger_id/assets/:id	onboarding
 GET	/v2/organizations/:organization_id/ledgers/:ledger_id/balances	transaction
@@ -201,14 +199,9 @@ POST	/v2/organizations/:organization_id/ledgers/:ledger_id/transaction-routes	tr
 POST	/v2/organizations/:organization_id/ledgers/:ledger_id/transactions/:transaction_id/cancel	transaction
 POST	/v2/organizations/:organization_id/ledgers/:ledger_id/transactions/:transaction_id/commit	transaction
 POST	/v2/organizations/:organization_id/ledgers/:ledger_id/transactions/:transaction_id/revert	transaction
-POST	/v2/organizations/:organization_id/ledgers/:ledger_id/transactions/annotation	transaction
-POST	/v2/organizations/:organization_id/ledgers/:ledger_id/transactions/inflow	transaction
-POST	/v2/organizations/:organization_id/ledgers/:ledger_id/transactions/json	transaction
-POST	/v2/organizations/:organization_id/ledgers/:ledger_id/transactions/outflow	transaction
 POST	/v2/settings/metadata-indexes/entities/:entity_name	ledger
 POST	/v2/transactions/block	transaction
 POST	/v2/transactions/direct	transaction
 POST	/v2/transactions/hold	transaction
 POST	/v2/transactions/unblock	transaction
 PUT	/v1/organizations/:organization_id/ledgers/:ledger_id/asset-rates	transaction
-PUT	/v2/organizations/:organization_id/ledgers/:ledger_id/asset-rates	transaction
