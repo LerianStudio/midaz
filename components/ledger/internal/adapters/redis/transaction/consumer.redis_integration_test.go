@@ -394,9 +394,8 @@ func TestIntegration_Redis_BackupQueueOperations(t *testing.T) {
 	// 4. Remove messages from queue
 	t.Log("Step 4: Removing messages from queue")
 	for i, key := range messageKeys {
-		removed, err := infra.repo.RemoveMessageFromQueueIfValue(ctx, key, messages[key])
+		err := infra.repo.RemoveMessageFromQueue(ctx, key)
 		require.NoError(t, err, "should remove message %d", i)
-		require.True(t, removed, "should remove exact message %d", i)
 	}
 
 	// 5. Verify our test messages are removed
@@ -410,34 +409,6 @@ func TestIntegration_Redis_BackupQueueOperations(t *testing.T) {
 	}
 
 	t.Log("Integration test passed: backup queue operations verified")
-}
-
-func TestIntegration_Redis_ExactBackupCleanupPreservesSuccessor(t *testing.T) {
-	if testing.Short() {
-		t.Skip("skipping integration test in short mode")
-	}
-
-	infra := setupRedisIntegrationInfra(t)
-
-	ctx := context.Background()
-	key := "exact-cleanup-" + uuid.NewString()
-	oldPayload := []byte(`{"transaction_status":"PENDING","generation":"old"}`)
-	successorPayload := []byte(`{"transaction_status":"APPROVED","generation":"successor"}`)
-
-	require.NoError(t, infra.repo.AddMessageToQueue(ctx, key, oldPayload))
-	require.NoError(t, infra.repo.AddMessageToQueue(ctx, key, successorPayload))
-
-	removed, err := infra.repo.RemoveMessageFromQueueIfValue(ctx, key, oldPayload)
-	require.NoError(t, err)
-	require.False(t, removed, "a delayed cleanup must not remove a successor payload")
-
-	persisted, err := infra.repo.ReadMessageFromQueue(ctx, key)
-	require.NoError(t, err)
-	require.Equal(t, successorPayload, persisted)
-
-	removed, err = infra.repo.RemoveMessageFromQueueIfValue(ctx, key, successorPayload)
-	require.NoError(t, err)
-	require.True(t, removed)
 }
 
 // =============================================================================

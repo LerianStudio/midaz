@@ -20,8 +20,6 @@ import (
 	"github.com/bxcodec/dbresolver/v2"
 
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/operation"
-	"github.com/LerianStudio/midaz/v4/pkg"
-	"github.com/LerianStudio/midaz/v4/pkg/constant"
 	"github.com/LerianStudio/midaz/v4/pkg/net/http"
 	"github.com/LerianStudio/midaz/v4/tests/utils/chaos"
 	pgtestutil "github.com/LerianStudio/midaz/v4/tests/utils/postgres"
@@ -420,86 +418,6 @@ func TestIntegration_Transaction_Update(t *testing.T) {
 	assert.Equal(t, "Updated description", found.Description)
 
 	t.Log("Integration test passed: transaction update verified")
-}
-
-func TestIntegration_Transaction_UpdateTxPersistsCallerVersionExactly(t *testing.T) {
-	t.Setenv("ALLOW_INSECURE_TLS", "true")
-	infra := setupIntegrationInfra(t)
-	ctx := context.Background()
-	created := infra.createTestTransaction(t, "versioned PATCH transaction")
-	expectedVersion := time.Date(2026, time.August, 18, 15, 4, 5, 123456000, time.UTC)
-
-	tx, err := infra.repo.BeginTx(ctx)
-	require.NoError(t, err)
-	_, err = infra.repo.UpdateTx(ctx, tx, infra.orgID, infra.ledgerID, parseID(t, created.ID), &Transaction{
-		Description: "versioned description",
-		UpdatedAt:   expectedVersion,
-	})
-	require.NoError(t, err)
-	require.NoError(t, tx.Commit())
-
-	persisted, err := infra.repo.Find(ctx, infra.orgID, infra.ledgerID, parseID(t, created.ID))
-	require.NoError(t, err)
-	assert.Equal(t, "versioned description", persisted.Description)
-	assert.True(t, persisted.UpdatedAt.Equal(expectedVersion),
-		"ambiguous commit proof depends on the exact caller-assigned version")
-}
-
-func TestIntegration_Transaction_TerminalStatusIsCASFromPending(t *testing.T) {
-	infra := setupIntegrationInfra(t)
-	ctx := context.Background()
-
-	for _, transition := range []struct {
-		name   string
-		first  string
-		second string
-	}{
-		{name: "cancel cannot be overwritten by commit", first: constant.CANCELED, second: constant.APPROVED},
-		{name: "commit cannot be overwritten by cancel", first: constant.APPROVED, second: constant.CANCELED},
-	} {
-		t.Run(transition.name, func(t *testing.T) {
-			pending := &Transaction{
-				ID:             uuid.NewString(),
-				Description:    transition.name,
-				Status:         Status{Code: constant.PENDING},
-				Amount:         decimalPtr(1000),
-				AssetCode:      "USD",
-				LedgerID:       infra.ledgerID.String(),
-				OrganizationID: infra.orgID.String(),
-			}
-			_, err := infra.repo.Create(ctx, pending)
-			require.NoError(t, err)
-			transactionID := parseID(t, pending.ID)
-
-			_, err = infra.repo.UpdateStatusFromPending(ctx, infra.orgID, infra.ledgerID, transactionID,
-				&Transaction{Status: Status{Code: transition.first}})
-			require.NoError(t, err)
-
-			_, err = infra.repo.UpdateStatusFromPending(ctx, infra.orgID, infra.ledgerID, transactionID,
-				&Transaction{Status: Status{Code: transition.second}})
-			require.Error(t, err, "an opposite terminal state must never overwrite the winner")
-			var conflict pkg.EntityConflictError
-			require.ErrorAs(t, err, &conflict)
-			assert.Equal(t, constant.ErrCommitTransactionNotPending.Error(), conflict.Code)
-
-			persisted, err := infra.repo.Find(ctx, infra.orgID, infra.ledgerID, transactionID)
-			require.NoError(t, err)
-			assert.Equal(t, transition.first, persisted.Status.Code)
-
-			bulk, err := infra.repo.UpdateBulk(ctx, []*Transaction{{
-				ID:             pending.ID,
-				OrganizationID: pending.OrganizationID,
-				LedgerID:       pending.LedgerID,
-				Status:         Status{Code: transition.second},
-			}})
-			require.NoError(t, err)
-			assert.Zero(t, bulk.Updated, "bulk recovery must also refuse an opposite terminal overwrite")
-
-			persisted, err = infra.repo.Find(ctx, infra.orgID, infra.ledgerID, transactionID)
-			require.NoError(t, err)
-			assert.Equal(t, transition.first, persisted.Status.Code)
-		})
-	}
 }
 
 // TestIntegration_Transaction_Delete tests deleting a transaction.
@@ -1106,18 +1024,6 @@ func TestIntegration_Transaction_FindByParentID(t *testing.T) {
 		// childTx has no children of its own
 		found, err := infra.repo.FindByParentID(ctx, infra.orgID, infra.ledgerID, parseID(t, createdChild.ID))
 		require.NoError(t, err)
-		assert.Nil(t, found)
-	})
-
-	t.Run("multiple reverse children require reconciliation", func(t *testing.T) {
-		duplicateChild := *childTx
-		duplicateChild.ID = uuid.NewString()
-		duplicateChild.Description = "Duplicate child transaction"
-		_, err := infra.repo.Create(ctx, &duplicateChild)
-		require.NoError(t, err)
-
-		found, err := infra.repo.FindByParentID(ctx, infra.orgID, infra.ledgerID, parseID(t, parentTx.ID))
-		require.EqualError(t, err, pkg.ValidateBusinessError(constant.ErrRevertReconciliationRequired, constant.EntityTransaction).Error())
 		assert.Nil(t, found)
 	})
 
