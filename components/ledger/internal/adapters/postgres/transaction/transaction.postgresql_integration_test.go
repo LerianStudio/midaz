@@ -8,6 +8,7 @@ package transaction
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"sync"
 	"testing"
@@ -880,8 +881,8 @@ func TestIntegration_Chaos_Transaction_NetworkPartition(t *testing.T) {
 	t.Log("Chaos test passed: network partition handled gracefully")
 }
 
-// TestChaos_Transaction_PacketLoss tests that the repository handles
-// packet loss gracefully with retries.
+// TestChaos_Transaction_PacketLoss tests that a silent network loss is bounded
+// by the caller context and that the repository recovers without losing data.
 func TestIntegration_Chaos_Transaction_PacketLoss(t *testing.T) {
 	skipIfNotChaos(t)
 	if testing.Short() {
@@ -897,33 +898,35 @@ func TestIntegration_Chaos_Transaction_PacketLoss(t *testing.T) {
 	tx := infra.createTestTransaction(t, "Pre-packet-loss transaction")
 	t.Logf("Created transaction %s before packet loss", tx.ID)
 
-	// Add 10% packet loss
-	t.Log("Chaos: Adding 10% packet loss")
-	err := infra.proxy.AddPacketLoss(10)
+	// Drop every downstream packet. Unlike a disconnected socket, this is a
+	// silent failure and therefore proves that request cancellation is honored.
+	t.Log("Chaos: Dropping downstream packets")
+	err := infra.proxy.AddPacketLoss(100)
 	require.NoError(t, err, "failed to add packet loss")
 	defer infra.proxy.RemoveAllToxics()
 
-	// Execute multiple operations - some may fail, but overall should be resilient
-	// 10 attempts is statistically sufficient to verify resilience with 10% packet loss
-	successCount := 0
-	errorCount := 0
-	totalAttempts := 10
+	lossCtx, cancel := context.WithTimeout(ctx, 2*time.Second)
+	_, lossErr := infra.repo.Find(lossCtx, infra.orgID, infra.ledgerID, parseID(t, tx.ID))
+	cancel()
+	require.Error(t, lossErr, "silent packet loss must not be reported as a successful read")
 
-	for i := 0; i < totalAttempts; i++ {
-		_, err := infra.repo.Find(ctx, infra.orgID, infra.ledgerID, parseID(t, tx.ID))
-		if err != nil {
-			errorCount++
-		} else {
-			successCount++
+	require.NoError(t, infra.proxy.RemoveAllToxics(), "failed to restore network after packet loss")
+	chaos.AssertRecoveryWithin(t, func() error {
+		attemptCtx, attemptCancel := context.WithTimeout(ctx, 2*time.Second)
+		defer attemptCancel()
+
+		found, findErr := infra.repo.Find(attemptCtx, infra.orgID, infra.ledgerID, parseID(t, tx.ID))
+		if findErr != nil {
+			return findErr
 		}
-	}
+		if found.ID != tx.ID {
+			return fmt.Errorf("recovered transaction ID = %s, want %s", found.ID, tx.ID)
+		}
 
-	t.Logf("Packet loss test: %d/%d operations succeeded", successCount, totalAttempts)
+		return nil
+	}, 30*time.Second, "repository should recover after packet loss")
 
-	// Most operations should succeed despite packet loss
-	assert.Greater(t, successCount, totalAttempts/2, "majority of operations should succeed despite packet loss")
-
-	t.Log("Chaos test passed: packet loss handled with acceptable success rate")
+	t.Log("Chaos test passed: packet loss was bounded and recovery preserved data")
 }
 
 // TestChaos_Transaction_IntermittentFailure tests that the repository handles

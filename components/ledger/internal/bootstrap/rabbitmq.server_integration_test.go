@@ -8,6 +8,7 @@ package bootstrap
 
 import (
 	"context"
+	"database/sql"
 	"encoding/json"
 	"errors"
 	"strconv"
@@ -39,6 +40,7 @@ import (
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
 	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v4/pkg/mtransaction"
+	"github.com/LerianStudio/midaz/v4/pkg/repository"
 	"github.com/LerianStudio/midaz/v4/pkg/utils"
 	postgrestestutil "github.com/LerianStudio/midaz/v4/tests/utils/postgres"
 	rmqtestutil "github.com/LerianStudio/midaz/v4/tests/utils/rabbitmq"
@@ -57,6 +59,24 @@ type legacyTransactionQueue struct {
 	Balances    []*mmodel.Balance         `json:"balances"`
 	Transaction *transaction.Transaction  `json:"transaction"`
 	ParseDSL    *mtransaction.Transaction `json:"parseDSL"`
+}
+
+type legacyAtomicTransaction struct {
+	onCommit func()
+}
+
+func (*legacyAtomicTransaction) ExecContext(context.Context, string, ...any) (sql.Result, error) {
+	return nil, errors.New("unexpected direct execution")
+}
+
+func (tx *legacyAtomicTransaction) Commit() error {
+	tx.onCommit()
+
+	return nil
+}
+
+func (*legacyAtomicTransaction) Rollback() error {
+	return nil
 }
 
 type failOnceTransactionFinalizer struct {
@@ -377,13 +397,20 @@ func TestIntegration_HandlerBTOQueue_LegacyWireFormatCompatibility(t *testing.T)
 			Return(nil).
 			Times(1)
 
+		dbTx := &legacyAtomicTransaction{onCommit: processingDone.Done}
+		mockTransactionRepo.EXPECT().BeginTx(gomock.Any()).Return(dbTx, nil).Times(1)
 		mockTransactionRepo.EXPECT().
-			Create(gomock.Any(), gomock.Any()).
-			DoAndReturn(func(_ context.Context, tran *transaction.Transaction) (*transaction.Transaction, error) {
-				// Signal that processing completed successfully
-				defer processingDone.Done()
-				t.Logf("Transaction created: ID=%s, Description=%s", tran.ID, tran.Description)
-				return tran, nil
+			CreateBulkTx(gomock.Any(), dbTx, gomock.Any()).
+			DoAndReturn(func(_ context.Context, _ repository.DBExecutor, transactions []*transaction.Transaction) (*repository.BulkInsertResult, error) {
+				require.Len(t, transactions, 1)
+				require.Equal(t, constant.APPROVED, transactions[0].Status.Code)
+				t.Logf("Transaction committed atomically: ID=%s, Description=%s", transactions[0].ID, transactions[0].Description)
+
+				return &repository.BulkInsertResult{
+					Attempted:   1,
+					Inserted:    1,
+					InsertedIDs: []string{transactions[0].ID},
+				}, nil
 			}).
 			Times(1)
 

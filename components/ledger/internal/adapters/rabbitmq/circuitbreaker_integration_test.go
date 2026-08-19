@@ -304,7 +304,7 @@ func TestIntegration_Chaos_CircuitBreaker_OpensOnFailure(t *testing.T) {
 	}
 
 	// Use aggressive config to open circuit quickly
-	infra := setupCircuitBreakerTestInfra(t, aggressiveCircuitBreakerConfig())
+	infra := setupCircuitBreakerTestInfraWithPorts(t, aggressiveCircuitBreakerConfig(), true)
 	ctx := context.Background()
 
 	// Step 1: Verify baseline - publish one message successfully
@@ -369,21 +369,23 @@ func TestIntegration_Chaos_CircuitBreaker_OpensOnFailure(t *testing.T) {
 	assert.NotEqual(t, libCircuitBreaker.StateClosed, state,
 		"circuit should not be closed after failures")
 
-	// Verify state change was recorded
-	records := infra.stateChangeListener.GetRecords()
-	assert.NotEmpty(t, records,
-		"state change should have been recorded")
+	// State listeners are notified asynchronously after the breaker changes.
+	// Require the exact transition within a bounded delivery window.
+	var openTransition *cbStateChangeRecord
+	require.Eventually(t, func() bool {
+		for _, record := range infra.stateChangeListener.GetRecords() {
+			if record.To == libCircuitBreaker.StateOpen {
+				recordCopy := record
+				openTransition = &recordCopy
 
-	// Find the state change to open
-	foundOpenTransition := false
-	for _, record := range records {
-		if record.To == libCircuitBreaker.StateOpen {
-			foundOpenTransition = true
-			t.Logf("State change recorded: %s -> %s at %v",
-				record.From, record.To, record.Timestamp)
+				return true
+			}
 		}
-	}
-	assert.True(t, foundOpenTransition, "should have recorded transition to open state")
+
+		return false
+	}, 2*time.Second, 10*time.Millisecond, "state change to open should have been recorded")
+	t.Logf("State change recorded: %s -> %s at %v",
+		openTransition.From, openTransition.To, openTransition.Timestamp)
 
 	t.Log("Chaos test passed: circuit opens on consecutive failures")
 }
@@ -396,7 +398,7 @@ func TestIntegration_Chaos_CircuitBreaker_FastFailWhenOpen(t *testing.T) {
 		t.Skip("skipping chaos integration test in short mode")
 	}
 
-	infra := setupCircuitBreakerTestInfra(t, aggressiveCircuitBreakerConfig())
+	infra := setupCircuitBreakerTestInfraWithPorts(t, aggressiveCircuitBreakerConfig(), true)
 	ctx := context.Background()
 
 	// Step 1: Stop container and open circuit

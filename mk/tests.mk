@@ -64,6 +64,7 @@ test-integration-shard-contract:
 	@go test ./scripts/integration_shards
 	@bash ./scripts/tests/run_integration_shard_test.sh
 	@bash ./scripts/tests/integration_shard_config_test.sh
+	@bash ./scripts/tests/verify_integration_capability_test.sh
 	@bash ./scripts/tests/observe_ci_process_test.sh
 	@bash ./scripts/tests/run_ci_lane_test.sh
 
@@ -79,7 +80,7 @@ test-integration-shard:
 .PHONY: test-integration-shards
 test-integration-shards:
 	@set -e; \
-	for shard in ledger-postgres ledger-mongodb-crm async-broker tracer lifecycle-migration; do \
+	for shard in ledger-postgres ledger-mongodb-crm async-broker tracer lifecycle-migration chaos-capability; do \
 		$(MAKE) test-integration-shard INTEGRATION_SHARD=$$shard; \
 	done
 

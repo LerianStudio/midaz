@@ -25,6 +25,7 @@ done
 
 [[ -n $events && -n $junit ]]
 [[ -n ${MIDAZ_SHARD_JOB_SELECTION_FILE:-} ]]
+[[ ${CHAOS:-0} == ${FAKE_EXPECT_CHAOS:-0} ]]
 if [[ ${FAKE_RESET_WAVE_CLEANUP:-0} == 1 ]]; then
   rm -f "$FAKE_DOCKER_STATE_DIR/wave.removed"
 fi
@@ -353,6 +354,29 @@ grep -q '"failed_jobs":1' "$test_dir/failure-reports/tracer/summary.json"
 grep -q 'example.test/tracer-cache' "$test_dir/failure-reports/tracer/failures.tsv"
 test -s "$test_dir/failure-reports/tracer/jobs/001/events.json"
 test -s "$test_dir/failure-reports/tracer/jobs/003/events.json"
+
+cat > "$test_dir/chaos-capability-plan.tsv" <<'EOF'
+chaos-capability	parallel	example.test/chaos-a	TestChaosOne
+chaos-capability	parallel	example.test/chaos-b	TestChaosTwo
+EOF
+mkdir -p "$test_dir/docker-chaos-state"
+: > "$test_dir/docker-chaos-calls"
+PATH="$test_dir/bin:$PATH" \
+  FAKE_CALLS_DIR="$test_dir/calls" \
+  FAKE_DOCKER_CALLS="$test_dir/docker-chaos-calls" \
+  FAKE_DOCKER_STATE_DIR="$test_dir/docker-chaos-state" \
+  FAKE_EXPECT_CHAOS=1 \
+  TESTCONTAINERS_SESSION_ID=owner-chaos \
+  INTEGRATION_SHARD_PLAN_FILE="$test_dir/chaos-capability-plan.tsv" \
+  INTEGRATION_PACKAGE_PARALLELISM=2 \
+  INTEGRATION_TEST_PARALLELISM=1 \
+  TEST_REPORTS_DIR="$test_dir/chaos-capability-reports" \
+  "$repo_root/scripts/run-integration-shard.sh" chaos-capability
+grep -q '"selected_test_count":2' "$test_dir/chaos-capability-reports/chaos-capability/summary.json"
+grep -q '"passed_test_count":2' "$test_dir/chaos-capability-reports/chaos-capability/summary.json"
+grep -q '"skipped_test_count":0' "$test_dir/chaos-capability-reports/chaos-capability/summary.json"
+grep -q '"covered_test_count":2' "$test_dir/chaos-capability-reports/chaos-capability/summary.json"
+test -s "$test_dir/chaos-capability-reports/chaos-capability/outcomes.tsv"
 
 status=0
 PATH="$test_dir/bin:$PATH" \

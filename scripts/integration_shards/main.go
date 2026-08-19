@@ -25,6 +25,7 @@ const (
 	shardAsyncBroker        = "async-broker"
 	shardTracer             = "tracer"
 	shardLifecycleMigration = "lifecycle-migration"
+	shardChaosCapability    = "chaos-capability"
 
 	modeParallel = "parallel"
 	modeSerial   = "serial"
@@ -102,6 +103,7 @@ func run(args []string, stdin io.Reader, stdout io.Writer) error {
 	flags.SetOutput(io.Discard)
 	shard := flags.String("shard", "", "emit only one shard")
 	mode := flags.String("mode", "", "emit only parallel or serial work")
+	capability := flags.String("capability", "", "emit the exact supplemental capability plan")
 	skipAllowlistPath := flags.String("skip-allowlist", "", "versioned integration skip allowlist")
 	if err := flags.Parse(args); err != nil {
 		return err
@@ -141,6 +143,12 @@ func run(args []string, stdin io.Reader, stdout io.Writer) error {
 	}
 	if err := verifySkipAllowlist(inventory, assignments, allowances); err != nil {
 		return err
+	}
+	if *capability != "" {
+		assignments, err = buildCapabilityAssignments(*capability, allowances)
+		if err != nil {
+			return err
+		}
 	}
 
 	sort.Slice(assignments, func(i, j int) bool {
@@ -386,6 +394,35 @@ func shardRank(shard string) int {
 		}
 	}
 	return len(shardOrder)
+}
+
+func buildCapabilityAssignments(capability string, allowances map[testRecord]skipAllowance) ([]assignment, error) {
+	if capability != capabilityChaosIntegration {
+		return nil, fmt.Errorf("unknown alternate capability %q", capability)
+	}
+
+	assignments := make([]assignment, 0, len(allowances))
+	for record, allowance := range allowances {
+		if allowance.AlternateCapability != capability {
+			continue
+		}
+		assignments = append(assignments, assignment{
+			testRecord: record,
+			Shard:      shardChaosCapability,
+			Mode:       modeParallel,
+		})
+	}
+	if len(assignments) == 0 {
+		return nil, fmt.Errorf("alternate capability %q selected zero tests", capability)
+	}
+	sort.Slice(assignments, func(i, j int) bool {
+		if assignments[i].Package != assignments[j].Package {
+			return assignments[i].Package < assignments[j].Package
+		}
+		return assignments[i].Test < assignments[j].Test
+	})
+
+	return assignments, nil
 }
 
 func readExpectedTests(reader io.Reader) ([]string, error) {

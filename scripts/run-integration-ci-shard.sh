@@ -46,6 +46,7 @@ if [[ ${INTEGRATION_CPUSET:-auto} == auto && $(nproc) -gt 4 && -n $(command -v t
     async-broker) cpu_start=8 ;;
     tracer) cpu_start=12 ;;
     lifecycle-migration) cpu_start=16 ;;
+    chaos-capability) cpu_start=20 ;;
   esac
   cpu_end=$((cpu_start + 3))
   lane_command=(taskset --cpu-list "$cpu_start-$cpu_end" "${lane_command[@]}")

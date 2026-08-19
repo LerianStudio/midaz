@@ -117,14 +117,16 @@ jobs:
   # integration_test_command. Midaz's integration/property targets live only at
   # the monorepo root, so dedicated root jobs are the only non-duplicating path.
   integration:
-    name: Integration / ${{ matrix.shard }}
+    # Keep the four independent external contexts stable. Lifecycle and chaos
+    # are internal proofs aggregated into the existing lifecycle context below.
+    name: ${{ (matrix.shard == 'lifecycle-migration' || matrix.shard == 'chaos-capability') && format('Integration internal / {0}', matrix.shard) || format('Integration / {0}', matrix.shard) }}
     runs-on: blacksmith-4vcpu-ubuntu-2404
     timeout-minutes: 40
     permissions:
       contents: read
     strategy:
       fail-fast: false
-      max-parallel: 5
+      max-parallel: 6
       matrix:
         shard:
           - ledger-postgres
@@ -132,6 +134,7 @@ jobs:
           - async-broker
           - tracer
           - lifecycle-migration
+          - chaos-capability
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -158,6 +161,35 @@ jobs:
           path: reports/ci/
           if-no-files-found: warn
           retention-days: 7
+
+  integration-required:
+    # This external name is intentionally stable for the repository ruleset.
+    name: Integration / lifecycle-migration
+    if: always()
+    needs: integration
+    runs-on: ubuntu-latest
+    permissions:
+      actions: read
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Download exact integration outcome artifacts
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
+        with:
+          pattern: integration-*-reports
+          path: reports/required-integration
+
+      - name: Prove every deferred capability passed
+        run: scripts/verify-integration-capability.sh reports/required-integration
+
+      - name: Require every base shard and capability lane
+        env:
+          INTEGRATION_RESULT: ${{ needs.integration.result }}
+        run: test "$INTEGRATION_RESULT" = success
 
   property:
     name: Property Tests

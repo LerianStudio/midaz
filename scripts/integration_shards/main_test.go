@@ -387,6 +387,29 @@ func TestVerifyEventCoverageExecutesAllowlistedAlternateCapability(t *testing.T)
 	}
 }
 
+func TestVerifyEventCoverageRejectsSkipWhenAlternateCapabilityIsActive(t *testing.T) {
+	t.Setenv("CHAOS", "1")
+
+	allowances := map[testRecord]skipAllowance{
+		{Package: "example.test/pkg", Test: "TestOne"}: {
+			Package:             "example.test/pkg",
+			Test:                "TestOne",
+			Reason:              "set CHAOS=1 to run chaos tests",
+			AlternateCapability: capabilityChaosIntegration,
+		},
+	}
+	events := strings.Join([]string{
+		`{"Action":"run","Package":"example.test/pkg","Test":"TestOne"}`,
+		`{"Action":"output","Package":"example.test/pkg","Test":"TestOne","Output":"    pkg_test.go:42: set CHAOS=1 to run chaos tests\n"}`,
+		`{"Action":"skip","Package":"example.test/pkg","Test":"TestOne"}`,
+	}, "\n")
+
+	_, err := verifyEventCoverage("example.test/pkg", []string{"TestOne"}, allowances, strings.NewReader(events))
+	if err == nil || !strings.Contains(err.Error(), "alternate capability") {
+		t.Fatalf("verifyEventCoverage() error = %v, want active alternate capability rejection", err)
+	}
+}
+
 func TestSkipAllowlistIsVersionedExactAndHasNoStaleEntries(t *testing.T) {
 	t.Parallel()
 
@@ -410,6 +433,44 @@ func TestSkipAllowlistIsVersionedExactAndHasNoStaleEntries(t *testing.T) {
 	staleAssignments := []assignment{{testRecord: staleInventory[0], Shard: shardLifecycleMigration, Mode: modeSerial}}
 	if err := verifySkipAllowlist(staleInventory, staleAssignments, allowances); err == nil || !strings.Contains(err.Error(), "unknown or stale") {
 		t.Fatalf("verifySkipAllowlist() stale error = %v", err)
+	}
+}
+
+func TestCapabilityPlanContainsEveryAndOnlyAllowlistedChaosIdentity(t *testing.T) {
+	t.Parallel()
+
+	allowances := map[testRecord]skipAllowance{
+		{Package: "example.test/b", Test: "TestChaosTwo"}: {
+			Package:             "example.test/b",
+			Test:                "TestChaosTwo",
+			AlternateCapability: capabilityChaosIntegration,
+		},
+		{Package: "example.test/a", Test: "TestChaosOne"}: {
+			Package:             "example.test/a",
+			Test:                "TestChaosOne",
+			AlternateCapability: capabilityChaosIntegration,
+		},
+	}
+
+	assignments, err := buildCapabilityAssignments(capabilityChaosIntegration, allowances)
+	if err != nil {
+		t.Fatalf("buildCapabilityAssignments() error = %v", err)
+	}
+	want := []assignment{
+		{testRecord: testRecord{Package: "example.test/a", Test: "TestChaosOne"}, Shard: shardChaosCapability, Mode: modeParallel},
+		{testRecord: testRecord{Package: "example.test/b", Test: "TestChaosTwo"}, Shard: shardChaosCapability, Mode: modeParallel},
+	}
+	if len(assignments) != len(want) {
+		t.Fatalf("assignments = %+v, want %+v", assignments, want)
+	}
+	for index := range want {
+		if assignments[index] != want[index] {
+			t.Fatalf("assignment %d = %+v, want %+v", index, assignments[index], want[index])
+		}
+	}
+
+	if _, err := buildCapabilityAssignments("invented", allowances); err == nil || !strings.Contains(err.Error(), "unknown alternate capability") {
+		t.Fatalf("unknown capability error = %v", err)
 	}
 }
 

@@ -262,6 +262,9 @@ func setupConsumerNetworkChaosInfra(t *testing.T, numWorkers, prefetch int) *con
 
 // cleanup releases all resources for chaos tests.
 func (infra *consumerChaosTestInfra) cleanup() {
+	if infra.consumer != nil {
+		infra.consumer.StopConsumers()
+	}
 	if infra.chaosOrch != nil {
 		infra.chaosOrch.Close()
 	}
@@ -269,6 +272,9 @@ func (infra *consumerChaosTestInfra) cleanup() {
 
 // cleanup releases all resources for network chaos infrastructure.
 func (infra *consumerNetworkChaosTestInfra) cleanup() {
+	if infra.proxyConsumer != nil {
+		infra.proxyConsumer.StopConsumers()
+	}
 	if infra.chaosInfra != nil {
 		infra.chaosInfra.Cleanup()
 	}

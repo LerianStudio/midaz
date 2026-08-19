@@ -8,7 +8,7 @@ set -euo pipefail
 runner_started_epoch=$(date +%s)
 
 usage() {
-  echo "usage: $0 <ledger-postgres|ledger-mongodb-crm|async-broker|tracer|lifecycle-migration>" >&2
+  echo "usage: $0 <ledger-postgres|ledger-mongodb-crm|async-broker|tracer|lifecycle-migration|chaos-capability>" >&2
 }
 
 if [[ $# -ne 1 ]]; then
@@ -18,7 +18,7 @@ fi
 
 shard=$1
 case $shard in
-  ledger-postgres|ledger-mongodb-crm|async-broker|tracer|lifecycle-migration) ;;
+  ledger-postgres|ledger-mongodb-crm|async-broker|tracer|lifecycle-migration|chaos-capability) ;;
   *)
     usage
     exit 2
@@ -99,7 +99,11 @@ else
   (cd "$repo_root" && \
     scripts/list-tagged-test-functions.sh integration integration \
       ./components/... ./pkg/... ./tests/...) > "$inventory"
-  "$shard_tool" --skip-allowlist "$skip_allowlist" < "$inventory" > "$full_plan"
+  plan_args=(--skip-allowlist "$skip_allowlist")
+  if [[ $shard == chaos-capability ]]; then
+    plan_args+=(--capability 'integration-chaos:CHAOS=1')
+  fi
+  "$shard_tool" "${plan_args[@]}" < "$inventory" > "$full_plan"
 fi
 
 selection=$report_dir/selection.tsv
@@ -158,7 +162,14 @@ if [[ -z ${TESTCONTAINERS_SESSION_ID:-} ]]; then
 fi
 
 export ALLOW_INSECURE_TLS=true
-export CHAOS=${CHAOS:-0}
+# Base shards classify exact, versioned skips without calling them passes. The
+# supplemental required lane activates every allowlisted chaos identity and
+# rejects anything other than a terminal pass.
+if [[ $shard == chaos-capability ]]; then
+  export CHAOS=1
+else
+  export CHAOS=0
+fi
 export GOFLAGS="-buildvcs=false ${GOFLAGS:-}"
 export INTEGRATION_PACKAGE_PARALLELISM="$package_parallelism"
 export INTEGRATION_TEST_PARALLELISM="$test_parallelism"
@@ -174,7 +185,7 @@ parallel_cleanup_failures=0
 docker_bin=
 cleanup_timeout_bin=
 owner_cleanup_timeout=${INTEGRATION_OWNER_CLEANUP_TIMEOUT_SECONDS:-30}
-if [[ $shard == lifecycle-migration || $shard == async-broker || $shard == ledger-mongodb-crm ]]; then
+if [[ $shard == lifecycle-migration || $shard == async-broker || $shard == ledger-mongodb-crm || $shard == chaos-capability ]]; then
   docker_bin=$(command -v docker || true)
   cleanup_timeout_bin=$(command -v timeout || command -v gtimeout || true)
   if [[ -z $docker_bin || -z $cleanup_timeout_bin ]]; then
@@ -369,7 +380,7 @@ echo "[$shard] selected $(wc -l < "$selection" | tr -d ' ') tests across $job_in
 echo "[$shard] package parallelism=$package_parallelism, in-package parallelism=$test_parallelism, shuffle=$shuffle_seed, flake budget=$flake_budget"
 
 if [[ -s $parallel_jobs ]]; then
-  if [[ $shard == async-broker || $shard == ledger-mongodb-crm ]]; then
+  if [[ $shard == async-broker || $shard == ledger-mongodb-crm || $shard == chaos-capability ]]; then
     parallel_wave_size=$((package_parallelism * 2))
     wave_index=0
     wave_jobs=0
@@ -448,9 +459,9 @@ if [[ $unclassified_test_count -ne 0 || $unknown_outcome_count -ne 0 ]]; then
     unclassified_test_count=0
   fi
 fi
-covered_test_count=$((passed_test_count + skipped_test_count))
+covered_test_count=$passed_test_count
 uncovered_test_count=$((failed_test_count + missing_test_count + unclassified_test_count))
-if ((covered_test_count + uncovered_test_count != selected_test_count)); then
+if ((covered_test_count + skipped_test_count + uncovered_test_count != selected_test_count)); then
   classification_integrity_failures=1
 fi
 runner_duration_seconds=$(($(date +%s) - runner_started_epoch))
