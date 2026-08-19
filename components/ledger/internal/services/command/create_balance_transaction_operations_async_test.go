@@ -9,10 +9,10 @@ import (
 	"encoding/json"
 	"errors"
 	"testing"
+	"time"
 
 	libLog "github.com/LerianStudio/lib-observability/v2/log"
 	"github.com/google/uuid"
-	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -25,13 +25,191 @@ import (
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/transaction"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/rabbitmq"
 	redis "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/redis/transaction"
+	"github.com/LerianStudio/midaz/v4/pkg/constant"
 	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v4/pkg/mtransaction"
+	"github.com/LerianStudio/midaz/v4/pkg/repository"
+	"github.com/LerianStudio/midaz/v4/pkg/utils"
 )
+
+func TestSendTransactionToRedisQueue_PersistsPhaseZeroRolloutOwner(t *testing.T) {
+	t.Parallel()
+
+	ctrl := gomock.NewController(t)
+	redisRepo := redis.NewMockRedisRepository(ctrl)
+	organizationID := uuid.New()
+	ledgerID := uuid.New()
+	transactionID := uuid.New()
+	originID := uuid.New()
+	rolloutToken := uuid.NewString()
+	redisGeneration := uuid.NewString()
+	legacyFenceKey := utils.IdempotencyInternalKey(organizationID, ledgerID, uuid.NewString())
+	input := mtransaction.Transaction{Description: "phase-zero reverse", Send: mtransaction.Send{
+		Asset: "USD", Value: decimal.NewFromInt(10),
+	}}
+	attempt := &mmodel.BalanceExecutionAttempt{
+		Owner: transactionID.String(), Outcome: mmodel.TransactionOutcomeCommitted, Identity: transactionID,
+		RedisGeneration: redisGeneration,
+	}
+	expectedPlan, err := mmodel.BuildExpectedEconomicPlan([]mmodel.BalanceOperation{{
+		Balance: &mmodel.Balance{
+			ID: uuid.NewString(), Key: "default", AccountID: uuid.NewString(), AssetCode: "USD",
+			Direction: constant.DirectionCredit,
+		},
+		Alias: "0#@source#default", InternalKey: uuid.NewString(),
+		EconomicSide: mmodel.EconomicSideSource, EconomicRole: mmodel.EconomicRolePrimary,
+		Amount: mtransaction.Amount{
+			Asset: "USD", Value: decimal.NewFromInt(10), Operation: constant.DEBIT, Direction: constant.DirectionDebit,
+		},
+	}}, constant.CREATED, false, "")
+	require.NoError(t, err)
+
+	redisRepo.EXPECT().SeedTransactionBackup(gomock.Any(), organizationID, ledgerID, transactionID,
+		gomock.Any(), *attempt).
+		DoAndReturn(func(_ context.Context, _, _, _ uuid.UUID, raw []byte, seededAttempt mmodel.BalanceExecutionAttempt) error {
+			queued := mmodel.TransactionRedisQueue{}
+			require.NoError(t, json.Unmarshal(raw, &queued))
+			assert.Equal(t, rolloutToken, queued.RevertRolloutToken)
+			assert.Equal(t, "legacy", queued.RevertRolloutMode)
+			assert.Equal(t, legacyFenceKey, queued.RevertLegacyFenceKey)
+			assert.Equal(t, redisGeneration, queued.RedisGeneration)
+			require.NotNil(t, queued.ExpectedEconomicPlan)
+			assert.Equal(t, expectedPlan, queued.ExpectedEconomicPlan)
+			assert.Equal(t, transactionID, queued.TransactionID)
+			assert.Equal(t, *attempt, seededAttempt)
+			require.NotNil(t, queued.ParentTransactionID)
+			assert.Equal(t, originID, *queued.ParentTransactionID)
+
+			return nil
+		})
+
+	uc := &UseCase{TransactionRedisRepo: redisRepo}
+	err = uc.SendTransactionToRedisQueue(context.Background(), organizationID, ledgerID, transactionID,
+		input, &mtransaction.Responses{}, constant.CREATED, constant.ActionRevert,
+		time.Date(2026, time.August, 18, 0, 0, 0, 0, time.UTC), nil, &originID,
+		TransactionBackupSeedOptions{
+			ExecutionAttempt: attempt, ExpectedEconomicPlan: expectedPlan,
+			RevertRolloutMode: "legacy", RevertRolloutToken: rolloutToken,
+			RevertLegacyFenceKey: legacyFenceKey, RedisGeneration: redisGeneration,
+		})
+	require.NoError(t, err)
+}
+
+func TestCreateBalanceTransactionOperationsAsync_GenerationPreflightRunsBeforePostgres(t *testing.T) {
+	t.Parallel()
+
+	ctrl := gomock.NewController(t)
+	redisRepo := redis.NewMockRedisRepository(ctrl)
+	organizationID := uuid.New()
+	ledgerID := uuid.New()
+	transactionID := uuid.New()
+	generation := uuid.NewString()
+	owner := transactionID.String()
+	transactionAmount := decimal.NewFromInt(10)
+	redisRepo.EXPECT().EnrichTransactionBackup(gomock.Any(), organizationID, ledgerID, transactionID,
+		gomock.Any(), constant.ActionRevert, gomock.Any()).
+		DoAndReturn(func(_ context.Context, _, _, _ uuid.UUID, _ []mmodel.OperationRedis, _ string,
+			attempt *mmodel.BalanceExecutionAttempt) ([]mmodel.OperationRedis, []mmodel.BalanceRedis, bool, error) {
+			require.NotNil(t, attempt)
+			assert.Equal(t, generation, attempt.RedisGeneration)
+			assert.Equal(t, owner, attempt.Owner)
+
+			return nil, nil, false, errors.New("financial dataset generation changed")
+		})
+
+	parentID := uuid.NewString()
+	payload := transaction.TransactionProcessingPayload{
+		Transaction: &transaction.Transaction{
+			ID: transactionID.String(), OrganizationID: organizationID.String(), LedgerID: ledgerID.String(),
+			Amount: &transactionAmount, AssetCode: "USD",
+			ParentTransactionID: &parentID,
+			Status:              transaction.Status{Code: constant.CREATED},
+			Operations:          []*operation.Operation{{ID: uuid.NewString(), TransactionID: transactionID.String()}},
+		},
+		Input:        &mtransaction.Transaction{Send: mtransaction.Send{Asset: "USD", Value: transactionAmount}},
+		AttemptOwner: owner, ExpectedOutcome: mmodel.TransactionOutcomeCommitted, RedisGeneration: generation,
+	}
+	raw, err := msgpack.Marshal(payload)
+	require.NoError(t, err)
+	uc := &UseCase{TransactionRedisRepo: redisRepo}
+	err = uc.CreateBalanceTransactionOperationsAsync(context.Background(), mmodel.Queue{
+		OrganizationID: organizationID,
+		LedgerID:       ledgerID,
+		QueueData:      []mmodel.QueueData{{ID: uuid.New(), Value: raw}},
+	})
+	require.ErrorContains(t, err, "validate current Redis economic outcome before PostgreSQL persistence")
+}
 
 // Int64Ptr returns a pointer to the given int64 value
 func Int64Ptr(v int64) *int64 {
 	return &v
+}
+
+func TestTransactionRedisQueue_RemainingReplayUsesPersistedValidation(t *testing.T) {
+	t.Parallel()
+
+	input := mtransaction.Transaction{
+		Send: mtransaction.Send{
+			Asset: "USD",
+			Value: decimal.NewFromInt(100),
+			Source: mtransaction.Source{From: []mtransaction.FromTo{
+				{AccountAlias: "@explicit", Amount: &mtransaction.Amount{Asset: "USD", Value: decimal.NewFromInt(60)}, IsFrom: true},
+				{AccountAlias: "@remaining", Remaining: "remaining", IsFrom: true},
+			}},
+			Distribute: mtransaction.Distribute{To: []mtransaction.FromTo{{
+				AccountAlias: "@destination",
+				Amount:       &mtransaction.Amount{Asset: "USD", Value: decimal.NewFromInt(100)},
+			}}},
+		},
+	}
+
+	mtransaction.ApplyDefaultBalanceKeys(input.Send.Source.From)
+	mtransaction.ApplyDefaultBalanceKeys(input.Send.Distribute.To)
+	mtransaction.MutateConcatAliases(input.Send.Source.From)
+	mtransaction.MutateConcatAliases(input.Send.Distribute.To)
+
+	validate, err := mtransaction.ValidateSendSourceAndDistribute(context.Background(), input, constant.CREATED)
+	require.NoError(t, err)
+
+	raw, err := json.Marshal(mmodel.TransactionRedisQueue{
+		TransactionInput:  input,
+		Validate:          validate,
+		TransactionStatus: constant.CREATED,
+	})
+	require.NoError(t, err)
+
+	var replay mmodel.TransactionRedisQueue
+	require.NoError(t, json.Unmarshal(raw, &replay))
+	require.NotNil(t, replay.Validate)
+
+	remaining := replay.TransactionInput.Send.Source.From[1]
+	assert.Nil(t, remaining.Amount, "the replay payload must keep the request expression, not a materialized amount")
+
+	resolved, _, err := mtransaction.ValidateFromToOperation(remaining, *replay.Validate, &mtransaction.Balance{
+		Available: decimal.NewFromInt(1000),
+		OnHold:    decimal.Zero,
+	})
+	require.NoError(t, err)
+	assert.True(t, decimal.NewFromInt(40).Equal(resolved.Value),
+		"replay must consume the persisted validation map for the remaining amount")
+}
+
+func TestTransactionRedisQueue_PersistsEffectModeAndOperationTypeOverride(t *testing.T) {
+	t.Parallel()
+
+	raw, err := json.Marshal(mmodel.TransactionRedisQueue{
+		TransactionStatus:     constant.CREATED,
+		EffectModeVersion:     mmodel.TransactionEffectModeVersion,
+		EffectMode:            mmodel.TransactionEffectBalanceMutation,
+		OperationTypeOverride: constant.BLOCK,
+	})
+	require.NoError(t, err)
+
+	var replay mmodel.TransactionRedisQueue
+	require.NoError(t, json.Unmarshal(raw, &replay))
+	assert.Equal(t, mmodel.TransactionEffectModeVersion, replay.EffectModeVersion)
+	assert.Equal(t, mmodel.TransactionEffectBalanceMutation, replay.EffectMode)
+	assert.Equal(t, constant.BLOCK, replay.OperationTypeOverride)
 }
 
 // MockLogger is a mock implementation of logger for testing
@@ -157,10 +335,11 @@ func TestCreateBalanceTransactionOperationsAsync(t *testing.T) {
 
 		// Note: Balance updates are handled by BalanceSyncWorker, not in this flow
 
-		// Mock TransactionRepo.Create
+		dbTx := &orderedAtomicTx{events: &[]string{}}
+		mockTransactionRepo.EXPECT().BeginTx(gomock.Any()).Return(dbTx, nil)
 		mockTransactionRepo.EXPECT().
-			Create(gomock.Any(), gomock.Any()).
-			Return(tran, nil).
+			CreateBulkTx(gomock.Any(), dbTx, gomock.Any()).
+			Return(&repository.BulkInsertResult{Attempted: 1, Inserted: 1, InsertedIDs: []string{tran.ID}}, nil).
 			Times(1)
 
 		// Mock MetadataRepo.Create for transaction metadata
@@ -175,13 +354,12 @@ func TestCreateBalanceTransactionOperationsAsync(t *testing.T) {
 			Return(nil, nil).
 			AnyTimes()
 
-		// Mock RedisRepo.RemoveMessageFromQueue for removing transaction from queue
 		mockRedisRepo.EXPECT().
-			RemoveMessageFromQueue(gomock.Any(), gomock.Any()).
-			Return(nil).
+			RemoveMessageFromQueueIfStatus(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), false).
+			Return(true, nil).
 			AnyTimes()
 
-		// Mock RedisRepo.Del for removing transaction from write-behind cache
+		// Mock RedisRepo.Del for removing transaction from write-behind cache.
 		mockRedisRepo.EXPECT().
 			Del(gomock.Any(), gomock.Any()).
 			Return(nil).
@@ -282,11 +460,11 @@ func TestCreateBalanceTransactionOperationsAsync(t *testing.T) {
 
 		// Note: Balance updates are handled by BalanceSyncWorker, not in this flow
 
-		// Mock TransactionRepo.Create with duplicate key error
-		pgErr := &pgconn.PgError{Code: "23505"}
+		dbTx := &orderedAtomicTx{events: &[]string{}}
+		mockTransactionRepo.EXPECT().BeginTx(gomock.Any()).Return(dbTx, nil)
 		mockTransactionRepo.EXPECT().
-			Create(gomock.Any(), gomock.Any()).
-			Return(nil, pgErr).
+			CreateBulkTx(gomock.Any(), dbTx, gomock.Any()).
+			Return(&repository.BulkInsertResult{Attempted: 1, Ignored: 1}, nil).
 			Times(1)
 
 		// Mock MetadataRepo.Create for transaction metadata (should be called even with duplicate error)
@@ -301,10 +479,9 @@ func TestCreateBalanceTransactionOperationsAsync(t *testing.T) {
 			Return(nil, nil).
 			AnyTimes()
 
-		// Mock RedisRepo.RemoveMessageFromQueue for removing transaction from queue
 		mockRedisRepo.EXPECT().
-			RemoveMessageFromQueue(gomock.Any(), gomock.Any()).
-			Return(nil).
+			RemoveMessageFromQueueIfStatus(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), false).
+			Return(true, nil).
 			AnyTimes()
 
 		// Mock RedisRepo.Del for removing transaction from write-behind cache
@@ -312,7 +489,6 @@ func TestCreateBalanceTransactionOperationsAsync(t *testing.T) {
 			Del(gomock.Any(), gomock.Any()).
 			Return(nil).
 			AnyTimes()
-
 		err := uc.CreateBalanceTransactionOperationsAsync(ctx, queue)
 
 		assert.NoError(t, err) // Duplicate key errors are handled gracefully
@@ -487,10 +663,11 @@ func TestCreateBalanceTransactionOperationsAsync(t *testing.T) {
 
 		// Note: Balance updates are handled by BalanceSyncWorker, not in this flow
 
-		// Mock TransactionRepo.Create
+		dbTx := &orderedAtomicTx{events: &[]string{}}
+		mockTransactionRepo.EXPECT().BeginTx(gomock.Any()).Return(dbTx, nil)
 		mockTransactionRepo.EXPECT().
-			Create(gomock.Any(), gomock.Any()).
-			Return(tran, nil).
+			CreateBulkTx(gomock.Any(), dbTx, gomock.Any()).
+			Return(&repository.BulkInsertResult{Attempted: 1, Inserted: 1, InsertedIDs: []string{tran.ID}}, nil).
 			Times(1)
 
 		// Mock MetadataRepo.Create for transaction metadata
@@ -499,7 +676,7 @@ func TestCreateBalanceTransactionOperationsAsync(t *testing.T) {
 			Return(nil).
 			Times(1)
 
-		// Mock OperationRepo.Create for both operations and assert versions exist.
+		// Mock the one atomic operation batch and assert every snapshot survives.
 		// Identity is asserted by ID inside DoAndReturn — direct struct equality
 		// against operation1 / operation2 isn't usable here because the
 		// transaction payload survives a msgpack round-trip via the queue, and
@@ -515,34 +692,24 @@ func TestCreateBalanceTransactionOperationsAsync(t *testing.T) {
 			operation2.ID: operation2,
 		}
 		mockOperationRepo.EXPECT().
-			Create(gomock.Any(), gomock.Any()).
-			DoAndReturn(func(_ context.Context, op *operation.Operation) (*operation.Operation, error) {
-				exp, ok := expectedOps[op.ID]
-				require.True(t, ok, "unexpected operation ID: %s", op.ID)
-				delete(expectedOps, op.ID)
+			CreateBulkTx(gomock.Any(), dbTx, gomock.Any()).
+			DoAndReturn(func(_ context.Context, _ repository.DBExecutor, operations []*operation.Operation) (*repository.BulkInsertResult, error) {
+				for _, op := range operations {
+					exp, ok := expectedOps[op.ID]
+					require.True(t, ok, "unexpected operation ID: %s", op.ID)
+					delete(expectedOps, op.ID)
 
-				assert.NotNil(t, op.Balance.Version)
-				assert.NotNil(t, op.BalanceAfter.Version)
+					assert.NotNil(t, op.Balance.Version)
+					assert.NotNil(t, op.BalanceAfter.Version)
+					assert.Equal(t, exp.Snapshot.OverdraftUsedBefore, op.Snapshot.OverdraftUsedBefore)
+					assert.Equal(t, exp.Snapshot.OverdraftUsedAfter, op.Snapshot.OverdraftUsedAfter)
+					assert.True(t, op.Balance.OverdraftUsed.Equal(exp.Balance.OverdraftUsed))
+					assert.True(t, op.BalanceAfter.OverdraftUsed.Equal(exp.BalanceAfter.OverdraftUsed))
+				}
 
-				// Always-populated snapshot contract: msgpack must preserve snapshot fields.
-				assert.Equal(t, exp.Snapshot.OverdraftUsedBefore, op.Snapshot.OverdraftUsedBefore,
-					"msgpack must preserve Snapshot.OverdraftUsedBefore for op %s", op.ID)
-				assert.Equal(t, exp.Snapshot.OverdraftUsedAfter, op.Snapshot.OverdraftUsedAfter,
-					"msgpack must preserve Snapshot.OverdraftUsedAfter for op %s", op.ID)
-
-				// Decimal-aware equality survives msgpack big.Int normalization
-				// (decimal.Zero{} vs decimal.NewFromInt(0) are .Equal() but not
-				// reflect.DeepEqual).
-				assert.True(t, op.Balance.OverdraftUsed.Equal(exp.Balance.OverdraftUsed),
-					"msgpack must preserve Balance.OverdraftUsed for op %s: got %s want %s",
-					op.ID, op.Balance.OverdraftUsed.String(), exp.Balance.OverdraftUsed.String())
-				assert.True(t, op.BalanceAfter.OverdraftUsed.Equal(exp.BalanceAfter.OverdraftUsed),
-					"msgpack must preserve BalanceAfter.OverdraftUsed for op %s: got %s want %s",
-					op.ID, op.BalanceAfter.OverdraftUsed.String(), exp.BalanceAfter.OverdraftUsed.String())
-
-				return op, nil
+				return &repository.BulkInsertResult{Attempted: int64(len(operations)), Inserted: int64(len(operations))}, nil
 			}).
-			Times(2)
+			Times(1)
 
 		// Mock MetadataRepo.Create for operation metadata
 		mockMetadataRepo.EXPECT().
@@ -556,10 +723,9 @@ func TestCreateBalanceTransactionOperationsAsync(t *testing.T) {
 			Return(nil, nil).
 			AnyTimes()
 
-		// Mock RedisRepo.RemoveMessageFromQueue for removing transaction from queue
 		mockRedisRepo.EXPECT().
-			RemoveMessageFromQueue(gomock.Any(), gomock.Any()).
-			Return(nil).
+			RemoveMessageFromQueueIfStatus(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), false).
+			Return(true, nil).
 			AnyTimes()
 
 		// Mock RedisRepo.Del for removing transaction from write-behind cache
@@ -567,7 +733,6 @@ func TestCreateBalanceTransactionOperationsAsync(t *testing.T) {
 			Del(gomock.Any(), gomock.Any()).
 			Return(nil).
 			AnyTimes()
-
 		// Call the method
 		err := uc.CreateBalanceTransactionOperationsAsync(ctx, queue)
 
@@ -701,22 +866,17 @@ func TestCreateBalanceTransactionOperationsAsync(t *testing.T) {
 
 		// Note: Balance updates are handled by BalanceSyncWorker, not in this flow
 
-		// Mock TransactionRepo.Create
+		dbTx := &orderedAtomicTx{events: &[]string{}}
+		mockTransactionRepo.EXPECT().BeginTx(gomock.Any()).Return(dbTx, nil)
 		mockTransactionRepo.EXPECT().
-			Create(gomock.Any(), gomock.Any()).
-			Return(tran, nil).
+			CreateBulkTx(gomock.Any(), dbTx, gomock.Any()).
+			Return(&repository.BulkInsertResult{Attempted: 1, Inserted: 1, InsertedIDs: []string{tran.ID}}, nil).
 			Times(1)
 
-		// Mock MetadataRepo.Create for transaction metadata
-		mockMetadataRepo.EXPECT().
-			Create(gomock.Any(), gomock.Any(), gomock.Any()).
-			Return(nil).
-			Times(1)
-
-		// Mock OperationRepo.Create to return an error for the first operation
+		// Any operation failure rolls back before transaction metadata is exposed.
 		operationError := errors.New("failed to create operation")
 		mockOperationRepo.EXPECT().
-			Create(gomock.Any(), gomock.Any()).
+			CreateBulkTx(gomock.Any(), dbTx, gomock.Any()).
 			Return(nil, operationError).
 			Times(1)
 
@@ -854,35 +1014,18 @@ func TestCreateBalanceTransactionOperationsAsync(t *testing.T) {
 
 		// Note: Balance updates are handled by BalanceSyncWorker, not in this flow
 
-		// Mock TransactionRepo.Create
+		dbTx := &orderedAtomicTx{events: &[]string{}}
+		mockTransactionRepo.EXPECT().BeginTx(gomock.Any()).Return(dbTx, nil)
 		mockTransactionRepo.EXPECT().
-			Create(gomock.Any(), gomock.Any()).
-			Return(tran, nil).
+			CreateBulkTx(gomock.Any(), dbTx, gomock.Any()).
+			Return(&repository.BulkInsertResult{Attempted: 1, Inserted: 1, InsertedIDs: []string{tran.ID}}, nil).
 			Times(1)
 
-		// Mock MetadataRepo.Create for transaction metadata
-		mockMetadataRepo.EXPECT().
-			Create(gomock.Any(), gomock.Any(), gomock.Any()).
-			Return(nil).
-			Times(1)
-
-		// Mock OperationRepo.Create to return a duplicate key error for the first operation
-		pgErr := &pgconn.PgError{Code: "23505"}
+		// A fresh transaction cannot silently accept an operation-ID collision:
+		// doing so would publish an incomplete economic multiset.
 		mockOperationRepo.EXPECT().
-			Create(gomock.Any(), gomock.Any()).
-			Return(nil, pgErr).
-			Times(1)
-
-		// Mock OperationRepo.Create for the second operation
-		mockOperationRepo.EXPECT().
-			Create(gomock.Any(), gomock.Any()).
-			Return(operation2, nil).
-			Times(1)
-
-		// Mock MetadataRepo.Create for operation metadata (only for second operation)
-		mockMetadataRepo.EXPECT().
-			Create(gomock.Any(), gomock.Any(), gomock.Any()).
-			Return(nil).
+			CreateBulkTx(gomock.Any(), dbTx, gomock.Any()).
+			Return(&repository.BulkInsertResult{Attempted: 2, Inserted: 1, Ignored: 1}, nil).
 			Times(1)
 
 		// Mock RabbitMQRepo.ProducerDefault for transaction events (goroutine will still be called)
@@ -891,10 +1034,9 @@ func TestCreateBalanceTransactionOperationsAsync(t *testing.T) {
 			Return(nil, nil).
 			AnyTimes()
 
-		// Mock RedisRepo.RemoveMessageFromQueue for removing transaction from queue
 		mockRedisRepo.EXPECT().
-			RemoveMessageFromQueue(gomock.Any(), gomock.Any()).
-			Return(nil).
+			RemoveMessageFromQueueIfStatus(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), false).
+			Return(true, nil).
 			AnyTimes()
 
 		// Mock RedisRepo.Del for removing transaction from write-behind cache
@@ -906,7 +1048,8 @@ func TestCreateBalanceTransactionOperationsAsync(t *testing.T) {
 		// Call the method
 		err := uc.CreateBalanceTransactionOperationsAsync(ctx, queue)
 
-		assert.NoError(t, err) // Duplicate key errors are handled gracefully
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "fresh transaction operation conflict")
 	})
 
 	t.Run("error_creating_operation_metadata", func(t *testing.T) {
@@ -1015,10 +1158,11 @@ func TestCreateBalanceTransactionOperationsAsync(t *testing.T) {
 
 		// Note: Balance updates are handled by BalanceSyncWorker, not in this flow
 
-		// Mock TransactionRepo.Create
+		dbTx := &orderedAtomicTx{events: &[]string{}}
+		mockTransactionRepo.EXPECT().BeginTx(gomock.Any()).Return(dbTx, nil)
 		mockTransactionRepo.EXPECT().
-			Create(gomock.Any(), gomock.Any()).
-			Return(tran, nil).
+			CreateBulkTx(gomock.Any(), dbTx, gomock.Any()).
+			Return(&repository.BulkInsertResult{Attempted: 1, Inserted: 1, InsertedIDs: []string{tran.ID}}, nil).
 			Times(1)
 
 		// Mock MetadataRepo.Create for transaction metadata
@@ -1027,10 +1171,10 @@ func TestCreateBalanceTransactionOperationsAsync(t *testing.T) {
 			Return(nil).
 			Times(1)
 
-		// Mock OperationRepo.Create for the operation
+		// Operation and transaction commit together before non-financial metadata.
 		mockOperationRepo.EXPECT().
-			Create(gomock.Any(), gomock.Any()).
-			Return(operation1, nil).
+			CreateBulkTx(gomock.Any(), dbTx, gomock.Any()).
+			Return(&repository.BulkInsertResult{Attempted: 1, Inserted: 1, InsertedIDs: []string{operation1.ID}}, nil).
 			Times(1)
 
 		// Mock MetadataRepo.Create for operation metadata to return an error
@@ -1184,9 +1328,11 @@ func TestCreateBTOAsync(t *testing.T) {
 		Return(nil).
 		AnyTimes()
 
+	dbTx := &orderedAtomicTx{events: &[]string{}}
+	mockTransactionRepo.EXPECT().BeginTx(gomock.Any()).Return(dbTx, nil)
 	mockTransactionRepo.EXPECT().
-		Create(gomock.Any(), gomock.Any()).
-		Return(tran, nil).
+		CreateBulkTx(gomock.Any(), dbTx, gomock.Any()).
+		Return(&repository.BulkInsertResult{Attempted: 1, Inserted: 1, InsertedIDs: []string{tran.ID}}, nil).
 		AnyTimes()
 
 	mockMetadataRepo.EXPECT().
@@ -1200,10 +1346,9 @@ func TestCreateBTOAsync(t *testing.T) {
 		Return(nil, nil).
 		AnyTimes()
 
-	// Mock RedisRepo.RemoveMessageFromQueue for removing transaction from queue
 	mockRedisRepo.EXPECT().
-		RemoveMessageFromQueue(gomock.Any(), gomock.Any()).
-		Return(nil).
+		RemoveMessageFromQueueIfStatus(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), false).
+		Return(true, nil).
 		AnyTimes()
 
 	// Mock RedisRepo.Del for removing transaction from write-behind cache
@@ -1230,7 +1375,7 @@ func TestUpdateTransactionBackupOperations(t *testing.T) {
 		ctx := context.Background()
 		organizationID := uuid.New()
 		ledgerID := uuid.New()
-		transactionID := uuid.New().String()
+		transactionID := uuid.New()
 
 		amount := decimal.NewFromFloat(100.00)
 		avail := decimal.NewFromFloat(500.00)
@@ -1240,7 +1385,7 @@ func TestUpdateTransactionBackupOperations(t *testing.T) {
 		operations := []*operation.Operation{
 			{
 				ID:            "op-1",
-				TransactionID: transactionID,
+				TransactionID: transactionID.String(),
 				Type:          "DEBIT",
 				AssetCode:     "BRL",
 				Amount:        operation.Amount{Value: &amount},
@@ -1261,30 +1406,27 @@ func TestUpdateTransactionBackupOperations(t *testing.T) {
 			},
 		}
 
-		backupJSON := `{"header_id":"req-1","transaction_id":"` + transactionID + `","organization_id":"` + organizationID.String() + `","ledger_id":"` + ledgerID.String() + `","ttl":"2026-01-01T00:00:00Z","transaction_status":"CREATED","transaction_date":"2026-01-01T00:00:00Z"}`
-
 		mockRedisRepo.EXPECT().
-			ReadMessageFromQueue(gomock.Any(), gomock.Any()).
-			Return([]byte(backupJSON), nil).
-			Times(1)
-
-		mockRedisRepo.EXPECT().
-			AddMessageToQueue(gomock.Any(), gomock.Any(), gomock.Any()).
-			DoAndReturn(func(_ context.Context, _ string, raw []byte) error {
-				var queue mmodel.TransactionRedisQueue
-				err := json.Unmarshal(raw, &queue)
-				require.NoError(t, err)
-				assert.Len(t, queue.Operations, 1)
-				assert.Equal(t, "op-1", queue.Operations[0].ID)
-				assert.Equal(t, "DEBIT", queue.Operations[0].Type)
-				return nil
+			EnrichTransactionBackup(gomock.Any(), organizationID, ledgerID, transactionID, gomock.Any(), constant.ActionCommit, nil).
+			DoAndReturn(func(_ context.Context, _, _, _ uuid.UUID, redisOperations []mmodel.OperationRedis, _ string, _ *mmodel.BalanceExecutionAttempt) ([]mmodel.OperationRedis, []mmodel.BalanceRedis, bool, error) {
+				assert.Len(t, redisOperations, 1)
+				assert.Equal(t, "op-1", redisOperations[0].ID)
+				assert.Equal(t, "DEBIT", redisOperations[0].Type)
+				return redisOperations, nil, false, nil
 			}).
 			Times(1)
 
-		uc.UpdateTransactionBackupOperations(ctx, organizationID, ledgerID, transactionID, operations)
+		canonical, terminal, err := uc.UpdateTransactionBackupOperations(ctx, organizationID, ledgerID, transactionID,
+			operations, nil, constant.ActionCommit, nil,
+			mmodel.TransactionEconomicContext{TransactionStatus: constant.CREATED,
+				TransactionAmount: "100", TransactionAssetCode: "BRL"})
+		require.NoError(t, err)
+		assert.False(t, terminal)
+		require.Len(t, canonical, 1)
+		require.Equal(t, "op-1", canonical[0].ID)
 	})
 
-	t.Run("read_failure_does_not_panic", func(t *testing.T) {
+	t.Run("redis_failure_is_returned", func(t *testing.T) {
 		ctrl := gomock.NewController(t)
 		defer ctrl.Finish()
 
@@ -1294,64 +1436,48 @@ func TestUpdateTransactionBackupOperations(t *testing.T) {
 			TransactionRedisRepo: mockRedisRepo,
 		}
 
-		ctx := context.Background()
-
+		organizationID := uuid.New()
+		ledgerID := uuid.New()
+		transactionID := uuid.New()
+		attempt := &mmodel.BalanceExecutionAttempt{Identity: transactionID}
 		mockRedisRepo.EXPECT().
-			ReadMessageFromQueue(gomock.Any(), gomock.Any()).
-			Return(nil, errors.New("redis connection refused")).
-			Times(1)
+			EnrichTransactionBackup(gomock.Any(), organizationID, ledgerID, transactionID,
+				gomock.Any(), constant.ActionCancel, attempt).
+			Return(nil, nil, false, errors.New("redis write failed"))
 
-		// Should not panic, just log and return
-		uc.UpdateTransactionBackupOperations(ctx, uuid.New(), uuid.New(), "tx-1", nil)
+		_, _, err := uc.UpdateTransactionBackupOperations(context.Background(), organizationID, ledgerID,
+			transactionID, nil, nil, constant.ActionCancel, attempt,
+			mmodel.TransactionEconomicContext{TransactionStatus: constant.PENDING,
+				TransactionAmount: "100", TransactionAssetCode: "BRL"})
+		require.ErrorContains(t, err, "redis write failed")
 	})
 
-	t.Run("unmarshal_failure_does_not_panic", func(t *testing.T) {
+	t.Run("terminal_receipt_with_different_balance_snapshot_is_rejected", func(t *testing.T) {
 		ctrl := gomock.NewController(t)
-		defer ctrl.Finish()
-
 		mockRedisRepo := redis.NewMockRedisRepository(ctrl)
-
-		uc := &UseCase{
-			TransactionRedisRepo: mockRedisRepo,
+		organizationID := uuid.New()
+		ledgerID := uuid.New()
+		transactionID := uuid.New()
+		economicOperation := &operation.Operation{ID: uuid.NewString(), TransactionID: transactionID.String()}
+		expectedBalance := (&mmodel.Balance{ID: uuid.NewString(), Key: "default"}).ToRedis()
+		foreignBalance := expectedBalance
+		foreignBalance.Direction = constant.DirectionDebit
+		attempt := &mmodel.BalanceExecutionAttempt{
+			ExecutionKey: utils.TransactionBalanceExecutionKey(organizationID, ledgerID, transactionID),
+			OutcomeKey:   utils.TransactionBalanceOutcomeKey(organizationID, ledgerID, transactionID),
+			Owner:        uuid.NewString(), Outcome: mmodel.TransactionOutcomeCommitted, Identity: transactionID,
 		}
+		mockRedisRepo.EXPECT().EnrichTransactionBackup(gomock.Any(), organizationID, ledgerID, transactionID,
+			gomock.Any(), constant.ActionCommit, attempt).
+			Return([]mmodel.OperationRedis{economicOperation.ToRedis()}, []mmodel.BalanceRedis{foreignBalance}, true, nil)
 
-		ctx := context.Background()
-
-		mockRedisRepo.EXPECT().
-			ReadMessageFromQueue(gomock.Any(), gomock.Any()).
-			Return([]byte("invalid json{{{"), nil).
-			Times(1)
-
-		// Should not panic, just log and return
-		uc.UpdateTransactionBackupOperations(ctx, uuid.New(), uuid.New(), "tx-2", nil)
-	})
-
-	t.Run("write_failure_does_not_panic", func(t *testing.T) {
-		ctrl := gomock.NewController(t)
-		defer ctrl.Finish()
-
-		mockRedisRepo := redis.NewMockRedisRepository(ctrl)
-
-		uc := &UseCase{
-			TransactionRedisRepo: mockRedisRepo,
-		}
-
-		ctx := context.Background()
-
-		backupJSON := `{"header_id":"req-1","transaction_id":"` + uuid.New().String() + `","organization_id":"` + uuid.New().String() + `","ledger_id":"` + uuid.New().String() + `","ttl":"2026-01-01T00:00:00Z","transaction_status":"CREATED","transaction_date":"2026-01-01T00:00:00Z"}`
-
-		mockRedisRepo.EXPECT().
-			ReadMessageFromQueue(gomock.Any(), gomock.Any()).
-			Return([]byte(backupJSON), nil).
-			Times(1)
-
-		mockRedisRepo.EXPECT().
-			AddMessageToQueue(gomock.Any(), gomock.Any(), gomock.Any()).
-			Return(errors.New("redis write failed")).
-			Times(1)
-
-		// Should not panic, just log and return
-		uc.UpdateTransactionBackupOperations(ctx, uuid.New(), uuid.New(), "tx-3", []*operation.Operation{})
+		uc := &UseCase{TransactionRedisRepo: mockRedisRepo}
+		_, _, err := uc.UpdateTransactionBackupOperations(context.Background(), organizationID, ledgerID,
+			transactionID, []*operation.Operation{economicOperation}, []mmodel.BalanceRedis{expectedBalance},
+			constant.ActionCommit, attempt,
+			mmodel.TransactionEconomicContext{TransactionStatus: constant.CREATED,
+				TransactionAmount: "100", TransactionAssetCode: "BRL"})
+		require.ErrorContains(t, err, "transaction economic effect differs from its authoritative Redis envelope")
 	})
 }
 

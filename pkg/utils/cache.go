@@ -14,6 +14,15 @@ const (
 	BalanceSyncScheduleKey       = "schedule:{transactions}:balance-sync-v2"
 	BalanceSyncScheduleKeyLegacy = "schedule:{transactions}:balance-sync"
 	BalanceSyncLockPrefix        = "lock:{transactions}:balance-sync:"
+	TracerOutcomeScheduleKey     = "schedule:{transactions}:tracer-outcomes-v2"
+	TracerOutcomeActiveKey       = "active:{transactions}:tracer-outcomes-v2"
+	TracerOutcomeDispatcherLock  = "lock:{transactions}:tracer-outcomes-v2"
+	// TracerOutcomeTenantRegistry is deployment-global rather than tenant-
+	// prefixed: its only payload is opaque tenant IDs and a monotonic generation
+	// used to discover tenant-scoped outboxes after a process restart. It shares
+	// the transaction hash tag so PREPARED, active index, delivery schedule, and
+	// discovery registration commit in one Redis Cluster Lua command.
+	TracerOutcomeTenantRegistry = "registry:{transactions}:tracer-outcome-tenants"
 )
 
 const (
@@ -42,6 +51,58 @@ func TransactionInternalKey(organizationID, ledgerID uuid.UUID, key string) stri
 	builder.WriteString(key)
 
 	return builder.String()
+}
+
+// TransactionBalanceExecutionKey is the same-slot attempt lease consumed
+// atomically by the balance Lua when it records an economic outcome.
+func TransactionBalanceExecutionKey(organizationID, ledgerID, transactionID uuid.UUID) string {
+	return TransactionInternalKey(organizationID, ledgerID, transactionID.String()+":balance-execution")
+}
+
+// TransactionPendingBalanceExecutionKey isolates the initial hold mutation
+// from the later commit/cancel mutation of the same transaction.
+func TransactionPendingBalanceExecutionKey(organizationID, ledgerID, transactionID uuid.UUID) string {
+	return TransactionInternalKey(organizationID, ledgerID, transactionID.String()+":pending-hold:balance-execution")
+}
+
+// TransactionBalanceOutcomeKey stores the immutable economic outcome written
+// by the same Lua command that mutates the transaction's balances.
+func TransactionBalanceOutcomeKey(organizationID, ledgerID, transactionID uuid.UUID) string {
+	return TransactionInternalKey(organizationID, ledgerID, transactionID.String()+":balance-outcome")
+}
+
+// TransactionPendingBalanceOutcomeKey stores the immutable initial-hold fact;
+// the terminal lifecycle keeps the standard transaction outcome key.
+func TransactionPendingBalanceOutcomeKey(organizationID, ledgerID, transactionID uuid.UUID) string {
+	return TransactionInternalKey(organizationID, ledgerID, transactionID.String()+":pending-hold:balance-outcome")
+}
+
+// TransactionTracerOutcomeKey stores the durable delivery projection written
+// from the balance outcome in the same Redis Lua command.
+func TransactionTracerOutcomeKey(organizationID, ledgerID, transactionID uuid.UUID) string {
+	return TransactionInternalKey(organizationID, ledgerID, transactionID.String()+":tracer-outcome-v2")
+}
+
+var tracerOutcomeIDNamespace = uuid.MustParse("87533e65-910a-5b37-88dd-fb26f25ce75c")
+
+// TransactionTracerOutcomeID derives the stable delivery identity used across
+// lost responses and dispatcher retries.
+func TransactionTracerOutcomeID(transactionID uuid.UUID) uuid.UUID {
+	return uuid.NewSHA1(tracerOutcomeIDNamespace, transactionID[:])
+}
+
+// TransactionPersistenceTombstoneKey stores the append-only proof that the
+// exact Redis economic outcome was durably handed off to PostgreSQL. It shares
+// the transaction slot so terminal cleanup and tombstone publication are one
+// atomic operation.
+func TransactionPersistenceTombstoneKey(organizationID, ledgerID, transactionID uuid.UUID) string {
+	return TransactionInternalKey(organizationID, ledgerID, transactionID.String()+":persistence-tombstone")
+}
+
+// TransactionPendingPersistenceTombstoneKey keeps replay proof for the hold
+// phase without occupying the commit/cancel terminal tombstone identity.
+func TransactionPendingPersistenceTombstoneKey(organizationID, ledgerID, transactionID uuid.UUID) string {
+	return TransactionInternalKey(organizationID, ledgerID, transactionID.String()+":pending-hold:persistence-tombstone")
 }
 
 // BalanceInternalKey returns a key with the following format to be used on redis cluster:
@@ -105,6 +166,14 @@ func IdempotencyInternalKey(organizationID, ledgerID uuid.UUID, key string) stri
 	builder.WriteString(endKey)
 
 	return builder.String()
+}
+
+// RevertIdempotencyHashSource is the stable preimage for the final,
+// origin-scoped Redis idempotency barrier. The PostgreSQL claim is the durable
+// authority; this value keeps concurrent final/bridge pods on the same
+// per-origin Redis slot without coupling identity to economic payload content.
+func RevertIdempotencyHashSource(originTransactionID uuid.UUID) string {
+	return "revert\x00" + originTransactionID.String()
 }
 
 // AccountingRoutesInternalKey returns a key with the following format to be used on redis cluster:

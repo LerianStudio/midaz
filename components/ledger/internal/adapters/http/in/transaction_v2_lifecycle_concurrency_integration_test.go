@@ -266,3 +266,69 @@ func TestIntegration_TransactionV2Cancel_ConcurrentSingleWinner(t *testing.T) {
 	requireDecimalEqual(t, decimal.Zero, postgrestestutil.GetBalanceAvailable(t, infra.pgContainer.DB, dstID), "destination never credited on cancel")
 	requireDecimalEqual(t, decimal.Zero, postgrestestutil.GetBalanceOnHold(t, infra.pgContainer.DB, dstID), "destination on-hold after cancel")
 }
+
+func TestIntegration_TransactionV2CommitAndCancel_ConcurrentOppositesHaveOneEconomicWinner(t *testing.T) {
+	t.Setenv("ALLOW_INSECURE_TLS", "true")
+	t.Setenv("RABBITMQ_TRANSACTION_ASYNC", "false")
+
+	infra := setupTestInfra(t)
+	ctx := context.Background()
+	srcID, dstID := seedTransfer(t, infra.pgContainer.DB, infra.orgID, infra.ledgerID, "@src", "@dst", 1000)
+	v2App := buildHumaV2DirectApp(t, infra.handler)
+	hold := decodeTxResponse(t, postV2Create(t, v2App, "hold", infra.orgID, infra.ledgerID,
+		concurrentHoldV2Body, ""), nethttp.StatusCreated)
+	pendingID := uuid.MustParse(hold["id"].(string))
+	drainBalanceSync(t, ctx, infra.handler.Command, infra.redisRepo, infra.orgID, infra.ledgerID)
+
+	start := make(chan struct{})
+	results := make(chan revertRaceResult, 2)
+	var ready sync.WaitGroup
+	ready.Add(2)
+	for _, endpoint := range []string{
+		v2CommitURL(infra.orgID, infra.ledgerID, pendingID),
+		v2CancelURL(infra.orgID, infra.ledgerID, pendingID),
+	} {
+		go func(url string) {
+			ready.Done()
+			<-start
+			results <- fireRevert(v2App, url)
+		}(endpoint)
+	}
+	ready.Wait()
+	close(start)
+	first, second := <-results, <-results
+
+	winners := 0
+	for _, result := range []revertRaceResult{first, second} {
+		require.NoError(t, result.transportErr)
+		if result.status == nethttp.StatusCreated {
+			winners++
+			continue
+		}
+		assert.Equal(t, nethttp.StatusConflict, result.status)
+		assert.Equal(t, cn.ErrPendingTransactionLocked.Error(), result.problemCode)
+	}
+	require.Equal(t, 1, winners, "commit and cancel may produce exactly one terminal economic outcome")
+	drainBalanceSync(t, ctx, infra.handler.Command, infra.redisRepo, infra.orgID, infra.ledgerID)
+
+	status := postgrestestutil.GetTransactionStatus(t, infra.pgContainer.DB, pendingID)
+	assert.Equal(t, 1, countTransactionsInLedger(t, infra.pgContainer.DB, infra.ledgerID))
+	switch status {
+	case cn.APPROVED:
+		requireDecimalEqual(t, decimal.NewFromInt(500), postgrestestutil.GetBalanceAvailable(t, infra.pgContainer.DB, srcID),
+			"commit winner moves the held amount once")
+		requireDecimalEqual(t, decimal.Zero, postgrestestutil.GetBalanceOnHold(t, infra.pgContainer.DB, srcID),
+			"commit winner releases the hold once")
+		requireDecimalEqual(t, decimal.NewFromInt(500), postgrestestutil.GetBalanceAvailable(t, infra.pgContainer.DB, dstID),
+			"commit winner credits the destination once")
+	case cn.CANCELED:
+		requireDecimalEqual(t, decimal.NewFromInt(1000), postgrestestutil.GetBalanceAvailable(t, infra.pgContainer.DB, srcID),
+			"cancel winner restores the held amount once")
+		requireDecimalEqual(t, decimal.Zero, postgrestestutil.GetBalanceOnHold(t, infra.pgContainer.DB, srcID),
+			"cancel winner releases the hold once")
+		requireDecimalEqual(t, decimal.Zero, postgrestestutil.GetBalanceAvailable(t, infra.pgContainer.DB, dstID),
+			"cancel winner never credits the destination")
+	default:
+		require.Failf(t, "missing terminal winner", "status=%s", status)
+	}
+}

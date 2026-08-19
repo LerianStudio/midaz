@@ -179,6 +179,131 @@ type RedisChecker struct {
 	tlsEnabled bool
 }
 
+type revertRolloutBarrier interface {
+	ReadyForMode(context.Context, string) (bool, error)
+	Phase(context.Context) (string, error)
+	FinancialDurability(context.Context) error
+	FinancialDatasetGeneration(context.Context) (string, error)
+	ValidateFinancialDatasetGeneration(context.Context) error
+}
+
+type financialRedisDurability interface {
+	FinancialDurability(context.Context) error
+}
+
+// FinancialRedisDurabilityChecker keeps pods out of service while a feature
+// that owns pre-PostgreSQL money-path state cannot prove no-eviction and
+// healthy AOF persistence. It is independent of the revert rollout barrier.
+type FinancialRedisDurabilityChecker struct {
+	guard      financialRedisDurability
+	tlsEnabled bool
+}
+
+func NewFinancialRedisDurabilityChecker(
+	guard financialRedisDurability,
+	tlsEnabled bool,
+) *FinancialRedisDurabilityChecker {
+	return &FinancialRedisDurabilityChecker{guard: guard, tlsEnabled: tlsEnabled}
+}
+
+func (c *FinancialRedisDurabilityChecker) Name() string {
+	return "redis_financial_durability"
+}
+
+func (c *FinancialRedisDurabilityChecker) TLSEnabled() bool {
+	return c.tlsEnabled
+}
+
+func (c *FinancialRedisDurabilityChecker) Check(ctx context.Context) DependencyCheck {
+	if c.guard == nil {
+		return DependencyCheck{Status: StatusDown, Reason: "financial Redis durability guard is not configured"}
+	}
+
+	start := time.Now()
+	err := c.guard.FinancialDurability(ctx)
+
+	latencyMs := time.Since(start).Milliseconds()
+	if err != nil {
+		return DependencyCheck{
+			Status: StatusDown, LatencyMs: &latencyMs,
+			Error: fmt.Sprintf("financial Redis durability: %v", err),
+		}
+	}
+
+	return DependencyCheck{Status: StatusUp, LatencyMs: &latencyMs}
+}
+
+// RevertRolloutBarrierChecker prevents bridge/final pods from receiving
+// traffic unless the shared rollout state proves the approved-update fence
+// was activated before the new revert algorithm.
+type RevertRolloutBarrierChecker struct {
+	guard      revertRolloutBarrier
+	mode       string
+	target     string
+	tlsEnabled bool
+}
+
+// NewRevertRolloutBarrierChecker creates the rollout readiness check for one
+// revert algorithm phase.
+func NewRevertRolloutBarrierChecker(guard revertRolloutBarrier, mode, target string, tlsEnabled bool) *RevertRolloutBarrierChecker {
+	return &RevertRolloutBarrierChecker{guard: guard, mode: mode, target: strings.ToLower(strings.TrimSpace(target)), tlsEnabled: tlsEnabled}
+}
+
+// Name returns the checker identifier.
+func (c *RevertRolloutBarrierChecker) Name() string {
+	return "revert_rollout_barrier"
+}
+
+// TLSEnabled reports whether the shared Redis connection uses TLS.
+func (c *RevertRolloutBarrierChecker) TLSEnabled() bool {
+	return c.tlsEnabled
+}
+
+// Check verifies that the shared marker admits this pod's revert algorithm.
+func (c *RevertRolloutBarrierChecker) Check(ctx context.Context) DependencyCheck {
+	if c.guard == nil {
+		return DependencyCheck{Status: StatusDown, Reason: "revert rollout barrier is not configured"}
+	}
+
+	start := time.Now()
+
+	phase, err := c.guard.Phase(ctx)
+	if err != nil {
+		latencyMs := time.Since(start).Milliseconds()
+
+		return DependencyCheck{Status: StatusDown, LatencyMs: &latencyMs, Error: fmt.Sprintf("read rollout phase: %v", err)}
+	}
+	// The released legacy algorithm remains deployable before phase zero. Once
+	// the durable rollout marker exists, and for every bridge/final pod, Redis is
+	// an explicitly verified financial trust boundary.
+	if phase != "" || c.target != "" || c.mode != "legacy" {
+		if err := c.guard.FinancialDurability(ctx); err != nil {
+			latencyMs := time.Since(start).Milliseconds()
+
+			return DependencyCheck{Status: StatusDown, LatencyMs: &latencyMs, Error: fmt.Sprintf("financial Redis durability: %v", err)}
+		}
+
+		if err := c.guard.ValidateFinancialDatasetGeneration(ctx); err != nil {
+			latencyMs := time.Since(start).Milliseconds()
+
+			return DependencyCheck{Status: StatusDown, LatencyMs: &latencyMs, Error: fmt.Sprintf("financial Redis generation: %v", err)}
+		}
+	}
+
+	ready, err := c.guard.ReadyForMode(ctx, c.mode)
+
+	latencyMs := time.Since(start).Milliseconds()
+	if err != nil {
+		return DependencyCheck{Status: StatusDown, LatencyMs: &latencyMs, Error: fmt.Sprintf("read rollout barrier: %v", err)}
+	}
+
+	if !ready {
+		return DependencyCheck{Status: StatusDown, LatencyMs: &latencyMs, Reason: "rollout phase does not admit the configured revert mode"}
+	}
+
+	return DependencyCheck{Status: StatusUp, LatencyMs: &latencyMs}
+}
+
 // NewRedisChecker creates a new Redis health checker.
 func NewRedisChecker(name string, client *libRedis.Client, host string, tlsConfigEnabled bool) *RedisChecker {
 	return &RedisChecker{

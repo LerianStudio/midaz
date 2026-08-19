@@ -75,3 +75,26 @@ type OperationRedis struct {
 	// shape contract.
 	Snapshot OperationSnapshot `json:"snapshot"`
 }
+
+// RedisOperationEconomicComplete rejects a terminal operation that cannot
+// identify every balance fact needed for replay and reconciliation. Numeric
+// zero values are valid; missing identities, direction, asset, or overdraft
+// snapshots are not.
+func RedisOperationEconomicComplete(operation OperationRedis) bool {
+	if operation.ID == "" || operation.TransactionID == "" || operation.BalanceID == "" ||
+		operation.BalanceKey == "" || operation.AccountID == "" || operation.OrganizationID == "" ||
+		operation.LedgerID == "" || operation.Type == "" || operation.Direction == "" || operation.AssetCode == "" ||
+		operation.Snapshot.OverdraftUsedBefore == "" || operation.Snapshot.OverdraftUsedAfter == "" {
+		return false
+	}
+
+	if _, err := decimal.NewFromString(operation.Snapshot.OverdraftUsedBefore); err != nil {
+		return false
+	}
+
+	if _, err := decimal.NewFromString(operation.Snapshot.OverdraftUsedAfter); err != nil {
+		return false
+	}
+
+	return true
+}

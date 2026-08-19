@@ -1,184 +1,223 @@
-local function split_decimal(s)
-    local sign = ""
+local function normalize_integer(intp)
+    intp = intp:gsub("^0+", "")
+    return (intp == "" and "0") or intp
+end
+
+local function trim_fraction(fracp)
+    return fracp:gsub("0+$", "")
+end
+
+local function split_decimal(value)
+    local s = tostring(value)
+    local negative = false
 
     if s:sub(1, 1) == "-" then
-        sign = "-"
+        negative = true
         s = s:sub(2)
     end
 
     local intp, fracp = s:match("^(%d+)%.(%d+)$")
-    if intp then
-        return sign .. intp, fracp, sign ~= ""
-    else
-        return sign .. s, "", sign ~= ""
+    if not intp then
+        intp = s:match("^(%d+)$")
+        fracp = ""
     end
+    if not intp then
+        error("invalid decimal string")
+    end
+
+    intp = normalize_integer(intp)
+    fracp = trim_fraction(fracp)
+    if intp == "0" and fracp == "" then
+        negative = false
+    end
+
+    return intp, fracp, negative
 end
 
-local function rtrim_zeros(frac)
-    frac = frac:gsub("0+$", "")
-    return (frac == "" and "0") or frac
+local function format_decimal(intp, fracp, negative)
+    intp = normalize_integer(intp)
+    fracp = trim_fraction(fracp)
+
+    if intp == "0" and fracp == "" then
+        return "0"
+    end
+
+    local result = intp
+    if fracp ~= "" then
+        result = result .. "." .. fracp
+    end
+    if negative then
+        result = "-" .. result
+    end
+
+    return result
 end
 
-local sub_decimal
+local function decimal_digit(s, index)
+    if index < 1 or index > #s then
+        return 0
+    end
+    return string.byte(s, index) - string.byte("0")
+end
 
-local function add_decimal(a, b)
-    a = tostring(a)
-    b = tostring(b)
-    local ai, af, a_negative = split_decimal(a)
-    local bi, bf, b_negative = split_decimal(b)
+local function compare_digit_strings(a, b)
+    if #a < #b then
+        return -1
+    end
+    if #a > #b then
+        return 1
+    end
+    if a < b then
+        return -1
+    end
+    if a > b then
+        return 1
+    end
+    return 0
+end
 
-    if a_negative and b_negative then
-        local result = add_decimal(a:sub(2), b:sub(2))
-        return "-" .. result
+local function compare_absolute_parts(ai, af, bi, bf)
+    local integer_comparison = compare_digit_strings(ai, bi)
+    if integer_comparison ~= 0 then
+        return integer_comparison
     end
 
-    if a_negative then
-        return sub_decimal(b, a:sub(2))
+    local scale = math.max(#af, #bf)
+    for i = 1, scale do
+        local a_digit = decimal_digit(af, i)
+        local b_digit = decimal_digit(bf, i)
+        if a_digit < b_digit then
+            return -1
+        end
+        if a_digit > b_digit then
+            return 1
+        end
     end
 
-    if b_negative then
-        return sub_decimal(a, b:sub(2))
-    end
+    return 0
+end
 
-    if ai:sub(1, 1) == "-" then ai = ai:sub(2) end
-    if bi:sub(1, 1) == "-" then bi = bi:sub(2) end
-
-    if #af < #bf then
-        af = af .. string.rep("0", #bf - #af)
-    elseif #bf < #af then
-        bf = bf .. string.rep("0", #af - #bf)
-    end
+local function add_absolute(ai, af, bi, bf, negative)
+    local scale = math.max(#af, #bf)
+    af = af .. string.rep("0", scale - #af)
+    bf = bf .. string.rep("0", scale - #bf)
 
     local carry = 0
     local frac_sum = {}
-    for i = #af, 1, -1 do
-        local da = tonumber(af:sub(i, i))
-        local db = tonumber(bf:sub(i, i))
-        local s = da + db + carry
-        carry = math.floor(s / 10)
-        frac_sum[#af - i + 1] = tostring(s % 10)
+    for i = scale, 1, -1 do
+        local sum = decimal_digit(af, i) + decimal_digit(bf, i) + carry
+        carry = math.floor(sum / 10)
+        frac_sum[scale - i + 1] = tostring(sum % 10)
     end
 
-    local rii = ai:reverse()
-    local rbi = bi:reverse()
-    local max_i = math.max(#rii, #rbi)
+    local a_reverse = ai:reverse()
+    local b_reverse = bi:reverse()
+    local width = math.max(#a_reverse, #b_reverse)
     local int_sum = {}
-    for i = 1, max_i do
-        local da = tonumber(rii:sub(i, i)) or 0
-        local db = tonumber(rbi:sub(i, i)) or 0
-        local s = da + db + carry
-        carry = math.floor(s / 10)
-        int_sum[i] = tostring(s % 10)
+    for i = 1, width do
+        local sum = decimal_digit(a_reverse, i) + decimal_digit(b_reverse, i) + carry
+        carry = math.floor(sum / 10)
+        int_sum[i] = tostring(sum % 10)
     end
     if carry > 0 then
         int_sum[#int_sum + 1] = tostring(carry)
     end
 
-    local int_res = table.concat(int_sum):reverse()
-    local frac_res = table.concat(frac_sum):reverse()
-    frac_res = rtrim_zeros(frac_res)
-
-    if frac_res == "0" then
-        return int_res
-    end
-    return int_res .. "." .. frac_res
+    return format_decimal(table.concat(int_sum):reverse(), table.concat(frac_sum):reverse(), negative)
 end
 
-sub_decimal = function(a, b)
-    a = tostring(a)
-    b = tostring(b)
+-- subtract_absolute assumes a >= b and performs one exact digit-wise borrow.
+local function subtract_absolute(ai, af, bi, bf, negative)
+    local scale = math.max(#af, #bf)
+    af = af .. string.rep("0", scale - #af)
+    bf = bf .. string.rep("0", scale - #bf)
+
+    local borrow = 0
+    local frac_result = {}
+    for i = scale, 1, -1 do
+        local difference = decimal_digit(af, i) - decimal_digit(bf, i) - borrow
+        if difference < 0 then
+            difference = difference + 10
+            borrow = 1
+        else
+            borrow = 0
+        end
+        frac_result[scale - i + 1] = tostring(difference)
+    end
+
+    local a_reverse = ai:reverse()
+    local b_reverse = bi:reverse()
+    local int_result = {}
+    for i = 1, math.max(#a_reverse, #b_reverse) do
+        local difference = decimal_digit(a_reverse, i) - decimal_digit(b_reverse, i) - borrow
+        if difference < 0 then
+            difference = difference + 10
+            borrow = 1
+        else
+            borrow = 0
+        end
+        int_result[i] = tostring(difference)
+    end
+
+    if borrow ~= 0 then
+        error("invalid absolute decimal subtraction")
+    end
+
+    return format_decimal(table.concat(int_result):reverse(), table.concat(frac_result):reverse(), negative)
+end
+
+local function compare_decimal(a, b)
     local ai, af, a_negative = split_decimal(a)
     local bi, bf, b_negative = split_decimal(b)
 
-    if a_negative and b_negative then
-        return sub_decimal(b:sub(2), a:sub(2))
+    if a_negative ~= b_negative then
+        return a_negative and -1 or 1
     end
 
-    if a_negative then
-        local result = add_decimal(a:sub(2), b)
-        return "-" .. result
-    end
-
-    if b_negative then
-        return add_decimal(a, b:sub(2))
-    end
-
-    local a_num = tonumber(a)
-    local b_num = tonumber(b)
-    if a_num < b_num then
-        local result = sub_decimal(b, a)
-        return "-" .. result
-    end
-
-    if ai:sub(1, 1) == "-" then ai = ai:sub(2) end
-    if bi:sub(1, 1) == "-" then bi = bi:sub(2) end
-
-    if #af < #bf then
-        af = af .. string.rep("0", #bf - #af)
-    elseif #bf < #af then
-        bf = bf .. string.rep("0", #af - #bf)
-    end
-
-    local borrow = 0
-    local frac_res_tbl = {}
-    for i = #af, 1, -1 do
-        local da = tonumber(af:sub(i, i))
-        local db = tonumber(bf:sub(i, i))
-        local diff = da - db - borrow
-        if diff < 0 then
-            diff = diff + 10
-            borrow = 1
-        else
-            borrow = 0
-        end
-        frac_res_tbl[#af - i + 1] = tostring(diff)
-    end
-
-    local rii = ai:reverse()
-    local rbi = bi:reverse()
-    local max_i = math.max(#rii, #rbi)
-    local int_res_tbl = {}
-    for i = 1, max_i do
-        local da = tonumber(rii:sub(i, i)) or 0
-        local db = tonumber(rbi:sub(i, i)) or 0
-        local diff = da - db - borrow
-        if diff < 0 then
-            diff = diff + 10
-            borrow = 1
-        else
-            borrow = 0
-        end
-        int_res_tbl[i] = tostring(diff)
-    end
-
-    local res_int_rev = table.concat(int_res_tbl)
-    local res_int = res_int_rev:reverse():gsub("^0+", "")
-    if res_int == "" then
-        res_int = "0"
-    end
-
-    local frac_normal = table.concat(frac_res_tbl):reverse()
-    frac_normal = rtrim_zeros(frac_normal)
-
-    if frac_normal == "0" then
-        return res_int
-    end
-    return res_int .. "." .. frac_normal
+    local absolute_comparison = compare_absolute_parts(ai, af, bi, bf)
+    return a_negative and -absolute_comparison or absolute_comparison
 end
 
-local function startsWithMinus(s)
-    return s:sub(1, 1) == "-"
+local function add_decimal(a, b)
+    local ai, af, a_negative = split_decimal(a)
+    local bi, bf, b_negative = split_decimal(b)
+
+    if a_negative == b_negative then
+        return add_absolute(ai, af, bi, bf, a_negative)
+    end
+
+    local absolute_comparison = compare_absolute_parts(ai, af, bi, bf)
+    if absolute_comparison == 0 then
+        return "0"
+    end
+    if absolute_comparison > 0 then
+        return subtract_absolute(ai, af, bi, bf, a_negative)
+    end
+    return subtract_absolute(bi, bf, ai, af, b_negative)
+end
+
+local function sub_decimal(a, b)
+    local ai, af, a_negative = split_decimal(a)
+    local bi, bf, b_negative = split_decimal(b)
+
+    if a_negative ~= b_negative then
+        return add_absolute(ai, af, bi, bf, a_negative)
+    end
+
+    local absolute_comparison = compare_absolute_parts(ai, af, bi, bf)
+    if absolute_comparison == 0 then
+        return "0"
+    end
+    if absolute_comparison > 0 then
+        return subtract_absolute(ai, af, bi, bf, a_negative)
+    end
+    return subtract_absolute(bi, bf, ai, af, not a_negative)
 end
 
 -- isPositive checks if a decimal string represents a value greater than zero
 -- Returns true if the value is positive (not negative and not zero)
 local function isPositive(s)
-    if startsWithMinus(s) then
-        return false
-    end
-    -- Check if it's zero (could be "0", "0.0", "0.00", etc.)
-    local normalized = s:gsub("%.?0+$", ""):gsub("^0+", "")
-    return normalized ~= "" and normalized ~= "."
+    return compare_decimal(s, "0") > 0
 end
 
 local function cloneBalance(tbl)
@@ -189,12 +228,10 @@ local function cloneBalance(tbl)
     return copy
 end
 
--- min_decimal returns the smaller of two decimal strings. Implemented via
--- sub_decimal so the caller does not need a numeric coercion step — this
--- keeps the precision behavior identical to add_decimal/sub_decimal for
--- values that overflow Lua's double representation.
+-- min_decimal returns the smaller of two exact decimal strings without
+-- coercing either full value to Lua's binary floating-point number type.
 local function min_decimal(a, b)
-    if startsWithMinus(sub_decimal(a, b)) then
+    if compare_decimal(a, b) < 0 then
         return a
     end
     return b
@@ -249,6 +286,113 @@ local function main()
     local transactionBackupQueue = KEYS[1]
     local transactionKey = KEYS[2]
     local scheduleKey = KEYS[3]
+    local argStart = 1
+    local attemptOwner = nil
+    local desiredOutcome = nil
+    local transactionIdentity = nil
+    local economicPlanVersion = nil
+    local economicPlanDigest = nil
+	local tracerOutcomeV2 = false
+	local tracerOutcomeID = nil
+	local tracerOutcomeState = nil
+	local tracerOutcomeMember = nil
+	local tracerOutcomeRecord = nil
+
+    -- The reusable outcome protocol passes an owned attempt pair plus an
+    -- immutable outcome key in the same {transactions} slot. A replay of the
+    -- same outcome returns the exact original snapshots without moving funds;
+    -- an opposite terminal outcome conflicts before the first balance write.
+    if #KEYS >= 6 then
+        attemptOwner = ARGV[1]
+        desiredOutcome = ARGV[2]
+        transactionIdentity = ARGV[3]
+        argStart = 4
+
+        if #KEYS == 8 or #KEYS == 9 then
+			if ARGV[argStart] ~= "TRACER_OUTCOME_V2" then
+				return redis.error_reply("TRACER_OUTCOME_INVALID")
+			end
+			tracerOutcomeV2 = true
+			tracerOutcomeID = ARGV[argStart + 1]
+			tracerOutcomeState = ARGV[argStart + 2]
+			tracerOutcomeMember = ARGV[argStart + 3]
+			argStart = argStart + 4
+		end
+
+        if #KEYS == 7 or #KEYS == 9 then
+            if redis.call("GET", KEYS[#KEYS]) ~= ARGV[argStart] then
+                return redis.error_reply("FINANCIAL_DATASET_GENERATION_MISMATCH")
+            end
+			argStart = argStart + 1
+        end
+    end
+
+    if ARGV[argStart] == "EXPECTED_ECONOMIC_PLAN" then
+        economicPlanVersion = ARGV[argStart + 1]
+        economicPlanDigest = ARGV[argStart + 2]
+        argStart = argStart + 3
+
+        local rawEnvelope = redis.call("HGET", transactionBackupQueue, transactionKey)
+        if not rawEnvelope then
+            return redis.error_reply("EXPECTED_ECONOMIC_PLAN_MISSING")
+        end
+        local ok, envelope = pcall(cjson.decode, rawEnvelope)
+        if not ok or type(envelope) ~= "table" or type(envelope.expected_economic_plan) ~= "table" or
+           tostring(envelope.expected_economic_plan.version) ~= economicPlanVersion or
+           envelope.expected_economic_plan.digest ~= economicPlanDigest then
+            return redis.error_reply("EXPECTED_ECONOMIC_PLAN_MISMATCH")
+        end
+    end
+
+	if tracerOutcomeV2 then
+		local tracerRaw = redis.call("GET", KEYS[7])
+		local tracerOK
+		tracerOK, tracerOutcomeRecord = pcall(cjson.decode, tracerRaw or "")
+		if not tracerOK or type(tracerOutcomeRecord) ~= "table" or
+		   tracerOutcomeRecord.transaction_id ~= transactionIdentity or
+		   tracerOutcomeRecord.outcome_id ~= tracerOutcomeID or
+		   (tracerOutcomeRecord.state ~= "PENDING_HELD" and
+		    (tostring(tracerOutcomeRecord.economic_plan_version) ~= economicPlanVersion or
+		     tracerOutcomeRecord.economic_plan_digest ~= economicPlanDigest)) then
+			return redis.error_reply("TRACER_OUTCOME_CONFLICT")
+		end
+		local validTransition =
+			(tracerOutcomeRecord.state == "PREPARED" and tracerOutcomeRecord.owner == attemptOwner and
+			 (tracerOutcomeState == "PENDING_HELD" or tracerOutcomeState == "COMMITTED" or tracerOutcomeState == "ABORTED")) or
+			(tracerOutcomeRecord.state == "PENDING_HELD" and
+			 (tracerOutcomeState == "COMMITTED" or tracerOutcomeState == "ABORTED")) or
+			(tracerOutcomeRecord.state == tracerOutcomeState and tracerOutcomeRecord.owner == attemptOwner) or
+			(tracerOutcomeRecord.state == "DELIVERED" and tracerOutcomeRecord.owner == attemptOwner and
+			 type(tracerOutcomeRecord.economic_outcome) == "table" and
+			 ((tracerOutcomeState == "COMMITTED" and tracerOutcomeRecord.economic_outcome.outcome == "COMMITTED") or
+			  (tracerOutcomeState == "ABORTED" and tracerOutcomeRecord.economic_outcome.outcome == "ABORTED")))
+		if not validTransition then
+			return redis.error_reply("TRACER_OUTCOME_STALE_EXECUTOR")
+		end
+	end
+
+    if #KEYS >= 6 then
+        local existingRaw = redis.call("GET", KEYS[6])
+		if existingRaw then
+			local existing = cjson.decode(existingRaw)
+			if existing.identity ~= transactionIdentity or existing.outcome ~= desiredOutcome then
+				return redis.error_reply("0099")
+			end
+			if tracerOutcomeV2 and existing.owner ~= attemptOwner then
+				return redis.error_reply("TRACER_OUTCOME_STALE_EXECUTOR")
+			end
+            if economicPlanDigest ~= nil and
+               (tostring(existing.economic_plan_version) ~= economicPlanVersion or existing.economic_plan_digest ~= economicPlanDigest) then
+                return redis.error_reply("EXPECTED_ECONOMIC_PLAN_MISMATCH")
+            end
+
+            return cjson.encode({ before = existing.before, after = existing.after })
+        end
+
+        if redis.call("EXISTS", KEYS[4]) ~= 1 or redis.call("GET", KEYS[5]) ~= attemptOwner then
+            return redis.error_reply("0084")
+        end
+    end
 
     -- Schedule balance sync immediately (eligible for worker pickup right away).
     -- The worker uses a dual-trigger (size OR timeout) to batch multiple keys
@@ -261,6 +405,37 @@ local function main()
     -- ensuring rollback compatibility with versions that interpret scores as seconds.
     local timeNow = redis.call("TIME")
     local dueAt = tonumber(timeNow[1]) + tonumber(timeNow[2]) / 1000000
+	local dueAtMS = tonumber(timeNow[1]) * 1000 + math.floor(tonumber(timeNow[2]) / 1000)
+
+	local function writeOutcome(before, after)
+		local economicOutcome
+		if #before == 0 and #after == 0 then
+			economicOutcome = cjson.decode('{"before":[],"after":[]}')
+		else
+			economicOutcome = { before = before, after = after }
+		end
+		economicOutcome.identity = transactionIdentity
+		economicOutcome.outcome = desiredOutcome
+		economicOutcome.owner = attemptOwner
+		economicOutcome.economic_plan_version = economicPlanVersion
+		economicOutcome.economic_plan_digest = economicPlanDigest
+		redis.call("SET", KEYS[6], cjson.encode(economicOutcome))
+		if tracerOutcomeV2 then
+			tracerOutcomeRecord.state = tracerOutcomeState
+			tracerOutcomeRecord.owner = attemptOwner
+			tracerOutcomeRecord.economic_plan_version = economicPlanVersion
+			tracerOutcomeRecord.economic_plan_digest = economicPlanDigest
+			tracerOutcomeRecord.updated_at_unix_ms = dueAtMS
+			tracerOutcomeRecord.economic_outcome = economicOutcome
+			redis.call("SET", KEYS[7], cjson.encode(tracerOutcomeRecord))
+			if tracerOutcomeState == "PENDING_HELD" then
+				redis.call("ZREM", KEYS[8], tracerOutcomeMember)
+			else
+				redis.call("ZADD", KEYS[8], dueAtMS, tracerOutcomeMember)
+			end
+		end
+		redis.call("DEL", KEYS[4], KEYS[5])
+	end
 
     -- Delete marker guard: reject the whole batch before any mutation if any balance
     -- in it carries a live deletion marker. The delete marker is a SEPARATE key
@@ -271,13 +446,13 @@ local function main()
     -- the main loop below (groupSize=24; ARGV[i] is the balance key). A bounded
     -- per-key EXISTS check early-returns on the first delete marker found, so the
     -- whole batch is rejected without unpacking a client-influenced number of keys.
-    for i = 1, #ARGV, groupSize do
+    for i = argStart, #ARGV, groupSize do
         if redis.call("EXISTS", ARGV[i] .. ":deleted") == 1 then
             return redis.error_reply("0019")
         end
     end
 
-    for i = 1, #ARGV, groupSize do
+    for i = argStart, #ARGV, groupSize do
         local redisBalanceKey = ARGV[i]
         local isPending = tonumber(ARGV[i + 1])
         local transactionStatus = ARGV[i + 2]
@@ -538,7 +713,7 @@ local function main()
             result = sub_decimal(result, repay)
         end
 
-        if startsWithMinus(result) and balance.AccountType ~= "external" then
+        if compare_decimal(result, "0") < 0 and balance.AccountType ~= "external" then
             -- Direction-aware overdraft: credit-direction balances with
             -- AllowOverdraft=1 may go temporarily negative. The shortfall
             -- is floored at zero in Available and accrued in OverdraftUsed,
@@ -566,10 +741,9 @@ local function main()
                 newOverdraftUsed = add_decimal(balance.OverdraftUsed, deficit)
 
                 if (balance.OverdraftLimitEnabled or 0) == 1 then
-                    -- sub_decimal(limit, newOverdraftUsed) is negative iff
-                    -- the candidate strictly exceeds limit. Equal is allowed
-                    -- (at-limit).
-                    if startsWithMinus(sub_decimal(balance.OverdraftLimit, newOverdraftUsed)) then
+                    -- Equal is allowed; one decimal quantum above the limit
+                    -- is rejected regardless of integer width or scale.
+                    if compare_decimal(newOverdraftUsed, balance.OverdraftLimit) > 0 then
                         rollback(rollbackBalances, ttl)
                         return redis.error_reply("0167")
                     end
@@ -621,10 +795,17 @@ local function main()
     if #returnBalances == 0 then
         local emptyArray = cjson.decode("[]")
         updateTransactionHash(transactionBackupQueue, transactionKey, emptyArray, emptyArray)
+        if #KEYS >= 6 then
+			writeOutcome(emptyArray, emptyArray)
+        end
         return cjson.encode({ before = cjson.decode("[]"), after = cjson.decode("[]") })
     end
 
     updateTransactionHash(transactionBackupQueue, transactionKey, returnBalances, returnBalancesAfter)
+
+    if #KEYS >= 6 then
+		writeOutcome(returnBalances, returnBalancesAfter)
+    end
 
     return cjson.encode({ before = returnBalances, after = returnBalancesAfter })
 end

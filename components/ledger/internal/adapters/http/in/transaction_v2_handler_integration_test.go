@@ -229,22 +229,29 @@ func decimalContext(msgAndArgs []any) string {
 	return fmt.Sprintf(format, msgAndArgs[1:]...)
 }
 
-// volatileResponseKeys are the identity/timestamp fields deleted (recursively) before a
-// v1↔v2 response deep-equal, so two economically-identical transactions in two ledgers
-// compare equal on everything that carries economic meaning.
+// volatileResponseKeys are the fields deleted (recursively) before a v1↔v2 response
+// deep-equal, so two economically-identical transactions in two ledgers compare equal on
+// everything that carries economic meaning. Two kinds of keys live here: identity/timestamp
+// fields that legitimately differ per row, and the deprecated fields the /v2 wire contract
+// deliberately drops while v1 keeps emitting them (transaction-level `chartOfAccountsGroupName`
+// and `route`, operation-level `chartOfAccounts` and `route` — see transaction_v2_output.go).
+// The drop itself is pinned by the field-removal and mirror-reads suites, which read the raw
+// maps on purpose; here the deprecated keys are just noise outside the economic envelope.
 var volatileResponseKeys = map[string]struct{}{
-	"id":                  {},
-	"transactionId":       {},
-	"parentTransactionId": {},
-	"ledgerId":            {},
-	"organizationId":      {},
-	"accountId":           {},
-	"balanceId":           {},
-	"createdAt":           {},
-	"updatedAt":           {},
-	"deletedAt":           {},
-	"route":               {},
-	"routeId":             {},
+	"id":                       {},
+	"transactionId":            {},
+	"parentTransactionId":      {},
+	"ledgerId":                 {},
+	"organizationId":           {},
+	"accountId":                {},
+	"balanceId":                {},
+	"createdAt":                {},
+	"updatedAt":                {},
+	"deletedAt":                {},
+	"route":                    {},
+	"routeId":                  {},
+	"chartOfAccounts":          {},
+	"chartOfAccountsGroupName": {},
 }
 
 // stripVolatile recursively removes identity/timestamp keys so the remaining tree is the
@@ -1596,21 +1603,14 @@ func sumOperationAmountsByType(ops []operationEconomicRow) map[string]decimal.De
 }
 
 // =============================================================================
-// 13. KNOWN DEFECT — `remaining` LEG DROPPED ON THE v1 SURFACE: a leg whose value is the
-//     `remaining` expression resolves correctly during validation (so the balance check
-//     passes) but contributes NO balance movement and NO operation row, and the transaction is
-//     nevertheless committed as APPROVED with debits and credits that do not sum to each other.
-//
-//     This test asserts the CURRENT WRONG behavior on purpose, and it is v1-ONLY. The defect
-//     sits in the shared create funnel, so fixing it changes released v1 behavior and needs its
-//     own release; the v2 surface answers it by publishing no `remaining` expression at all, so
-//     there is no v2 spelling of this shape to pin (see
-//     TestV2LegInput_NoRemainingExpression). The pin lives in this file because it records what
-//     the v2 advanced form deliberately does NOT inherit. When the funnel is fixed, this test
-//     goes red and is the place to record the corrected v1 contract.
+// 13. `remaining` LEG ON THE v1 SURFACE: a leg whose value is the `remaining` expression must
+//     resolve to the same amount on every validation pass, persist one operation row, move its
+//     own balance, and keep the committed transaction double-entry balanced. The expression is
+//     v1-only; the v2 surface publishes no equivalent field (see
+//     TestV2LegInput_NoRemainingExpression).
 // =============================================================================
 
-func TestIntegration_TransactionV1Detailed_RemainingLegDropped_KnownDefect(t *testing.T) {
+func TestIntegration_TransactionV1Detailed_RemainingLegPersistsAndBalances(t *testing.T) {
 	// NOT parallel: process-global huma state (see file header).
 	t.Setenv("ALLOW_INSECURE_TLS", "true")
 
@@ -1627,28 +1627,34 @@ func TestIntegration_TransactionV1Detailed_RemainingLegDropped_KnownDefect(t *te
 	txID := uuid.MustParse(resp["id"].(string))
 
 	assert.Equal(t, cn.APPROVED, postgrestestutil.GetTransactionStatus(t, infra.pgContainer.DB, txID),
-		"the transaction is committed despite the dropped leg")
+		"the transaction with a remaining leg should be committed")
 	drainBalanceSync(t, ctx, infra.handler.Command, infra.redisRepo, infra.orgID, infra.ledgerID)
 
 	ops := fetchOperationRows(t, infra.pgContainer.DB, txID)
 
-	// The remaining leg produces no operation row at all: two of the three legs persist.
-	require.Len(t, ops, 2, "the remaining leg contributes no operation row")
+	// Every resolved leg produces one operation row, including the remaining source leg.
+	require.Len(t, ops, 3, "the remaining leg must contribute one operation row")
 
 	byAlias := indexOpsByAlias(t, ops)
-	_, remainingLegPersisted := byAlias["@srcB"]
-	assert.False(t, remainingLegPersisted, "@srcB is the remaining leg and persists no operation")
+	remainingOp, remainingLegPersisted := byAlias["@srcB"]
+	require.True(t, remainingLegPersisted, "@srcB is the remaining leg and must persist an operation")
+	assert.Equal(t, cn.DEBIT, remainingOp.Type, "the remaining source leg must be a debit")
+	requireDecimalEqual(t, decimal.NewFromInt(40), remainingOp.Amount, "the remaining source leg amount")
 
-	// And no balance movement: @srcB keeps every unit it was seeded with.
-	requireDecimalEqual(t, decimal.NewFromInt(1000), postgrestestutil.GetBalanceAvailable(t, infra.pgContainer.DB, balances.srcB),
-		"@srcB is untouched even though it was resolved to 40 during validation")
+	// The resolved amount moves the balance belonging to the remaining leg.
+	requireDecimalEqual(t, decimal.NewFromInt(960), postgrestestutil.GetBalanceAvailable(t, infra.pgContainer.DB, balances.srcB),
+		"@srcB must be debited by its resolved remaining amount")
+	requireDecimalEqual(t, decimal.NewFromInt(940), postgrestestutil.GetBalanceAvailable(t, infra.pgContainer.DB, balances.srcA),
+		"@srcA must be debited by its explicit amount")
+	requireDecimalEqual(t, decimal.NewFromInt(100), postgrestestutil.GetBalanceAvailable(t, infra.pgContainer.DB, balances.dstA),
+		"@dstA must receive the full transaction amount")
 
-	// The committed result is unbalanced: 60 debited against 100 credited.
+	// The persisted result is balanced: 60 + 40 debited against 100 credited.
 	totals := sumOperationAmountsByType(ops)
-	requireDecimalEqual(t, decimal.NewFromInt(60), totals[cn.DEBIT], "persisted debit total")
+	requireDecimalEqual(t, decimal.NewFromInt(100), totals[cn.DEBIT], "persisted debit total")
 	requireDecimalEqual(t, decimal.NewFromInt(100), totals[cn.CREDIT], "persisted credit total")
-	assert.False(t, totals[cn.DEBIT].Equal(totals[cn.CREDIT]),
-		"the committed transaction does not balance — this is the defect being pinned")
+	assert.True(t, totals[cn.DEBIT].Equal(totals[cn.CREDIT]),
+		"the committed transaction must balance after remaining resolution")
 }
 
 // =============================================================================
@@ -2121,10 +2127,8 @@ func assertAliasBalances(t *testing.T, db *sql.DB, ids map[string]uuid.UUID, wan
 }
 
 // assertLegsSumToTotal asserts the persisted operations of a settled transaction sum to the
-// declared total on BOTH sides of the entry. The funnel checks the SUBMITTED legs against the
-// declared amount before it commits, which is a different claim: a leg that validates and then
-// contributes no operation row leaves that check green while the persisted result is unbalanced.
-// This reads the committed rows instead.
+// declared total on BOTH sides of the entry. The funnel's pre-commit validation is a different
+// claim from the persisted ledger result, so this reads the committed rows instead.
 func assertLegsSumToTotal(t *testing.T, ops []operationEconomicRow, total decimal.Decimal, surface string) {
 	t.Helper()
 
@@ -2246,8 +2250,8 @@ func TestIntegration_TransactionV2Advanced_MultiLegParityWithV1Detailed(t *testi
 			v2Ops := fetchOperationRows(t, infra.pgContainer.DB, v2TxID)
 
 			// Absolute proof first: every leg resolved to ITS OWN expected figure, and the
-			// operation count is pinned to the number of legs the bodies spell, so a collapsed or
-			// dropped leg fails here instead of passing a looser check.
+			// operation count is pinned to the number of legs the bodies spell, so a collapsed leg
+			// fails here instead of passing a looser check.
 			assertAdvancedLegOps(t, v1Ops, tc.wantOps)
 			assertAdvancedLegOps(t, v2Ops, tc.wantOps)
 

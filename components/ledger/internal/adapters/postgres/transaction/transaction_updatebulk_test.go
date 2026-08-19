@@ -416,7 +416,7 @@ func TestUpdateBulk_BatchedQuery_SingleExecPerChunk(t *testing.T) {
 	// Verify query uses UPDATE...FROM (VALUES...) pattern with org/ledger scoping
 	assert.Contains(t, mockDB.capturedQuery, "UPDATE transaction t")
 	assert.Contains(t, mockDB.capturedQuery, "FROM (VALUES")
-	assert.Contains(t, mockDB.capturedQuery, "t.status != v.new_status")
+	assert.Contains(t, mockDB.capturedQuery, "t.status = 'PENDING'")
 	assert.Contains(t, mockDB.capturedQuery, "t.deleted_at IS NULL")
 	assert.Contains(t, mockDB.capturedQuery, "t.organization_id = v.organization_id")
 	assert.Contains(t, mockDB.capturedQuery, "t.ledger_id = v.ledger_id")

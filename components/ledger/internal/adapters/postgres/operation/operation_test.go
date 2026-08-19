@@ -1153,3 +1153,134 @@ func TestOperationLog_JSONMarshal_OmitsSnapshot(t *testing.T) {
 	assert.NotContains(t, raw, `"overdraftUsedAfter"`,
 		"OperationLog JSON must not leak inner snapshot keys")
 }
+
+func TestEconomicEffectEqual_RejectsAnyDifferentMoneyFact(t *testing.T) {
+	t.Parallel()
+
+	newOperation := func() *Operation {
+		amount := decimal.NewFromInt(10)
+		availableBefore := decimal.NewFromInt(100)
+		onHoldBefore := decimal.NewFromInt(20)
+		availableAfter := decimal.NewFromInt(90)
+		onHoldAfter := decimal.NewFromInt(20)
+		versionBefore := int64(7)
+		versionAfter := int64(8)
+
+		return &Operation{
+			ID:              "operation-id",
+			Type:            "DEBIT",
+			AssetCode:       "USD",
+			Amount:          Amount{Value: &amount},
+			BalanceID:       "balance-id",
+			BalanceKey:      "default",
+			Direction:       "debit",
+			BalanceAffected: true,
+			Balance: Balance{
+				Available:     &availableBefore,
+				OnHold:        &onHoldBefore,
+				Version:       &versionBefore,
+				OverdraftUsed: decimal.NewFromInt(3),
+			},
+			BalanceAfter: Balance{
+				Available:     &availableAfter,
+				OnHold:        &onHoldAfter,
+				Version:       &versionAfter,
+				OverdraftUsed: decimal.NewFromInt(4),
+			},
+			Snapshot: mmodel.OperationSnapshot{
+				OverdraftUsedBefore: "3",
+				OverdraftUsedAfter:  "4",
+			},
+		}
+	}
+
+	tests := []struct {
+		name   string
+		mutate func(*Operation)
+	}{
+		{name: "balance id", mutate: func(op *Operation) { op.BalanceID = "other-balance-id" }},
+		{name: "balance key", mutate: func(op *Operation) { op.BalanceKey = "other-balance-key" }},
+		{name: "direction", mutate: func(op *Operation) { op.Direction = "credit" }},
+		{name: "type", mutate: func(op *Operation) { op.Type = "CREDIT" }},
+		{name: "asset", mutate: func(op *Operation) { op.AssetCode = "BRL" }},
+		{name: "amount", mutate: func(op *Operation) {
+			amount := decimal.NewFromInt(11)
+			op.Amount.Value = &amount
+		}},
+		{name: "balance affected", mutate: func(op *Operation) { op.BalanceAffected = false }},
+		{name: "before available", mutate: func(op *Operation) {
+			value := decimal.NewFromInt(99)
+			op.Balance.Available = &value
+		}},
+		{name: "before on hold", mutate: func(op *Operation) {
+			value := decimal.NewFromInt(19)
+			op.Balance.OnHold = &value
+		}},
+		{name: "before version", mutate: func(op *Operation) {
+			value := int64(6)
+			op.Balance.Version = &value
+		}},
+		{name: "before overdraft", mutate: func(op *Operation) {
+			op.Balance.OverdraftUsed = decimal.NewFromInt(2)
+		}},
+		{name: "after available", mutate: func(op *Operation) {
+			value := decimal.NewFromInt(89)
+			op.BalanceAfter.Available = &value
+		}},
+		{name: "after on hold", mutate: func(op *Operation) {
+			value := decimal.NewFromInt(21)
+			op.BalanceAfter.OnHold = &value
+		}},
+		{name: "after version", mutate: func(op *Operation) {
+			value := int64(9)
+			op.BalanceAfter.Version = &value
+		}},
+		{name: "after overdraft", mutate: func(op *Operation) {
+			op.BalanceAfter.OverdraftUsed = decimal.NewFromInt(5)
+		}},
+	}
+
+	require.True(t, EconomicEffectEqual(newOperation(), newOperation()))
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			left := newOperation()
+			right := newOperation()
+			tt.mutate(right)
+
+			assert.False(t, EconomicEffectEqual(left, right))
+		})
+	}
+	assert.True(t, EconomicEffectEqual(nil, nil))
+	assert.False(t, EconomicEffectEqual(newOperation(), nil))
+
+	redisTests := []struct {
+		name   string
+		mutate func(*mmodel.OperationRedis)
+	}{
+		{name: "balance id", mutate: func(op *mmodel.OperationRedis) { op.BalanceID = "other-balance-id" }},
+		{name: "balance key", mutate: func(op *mmodel.OperationRedis) { op.BalanceKey = "other-balance-key" }},
+		{name: "direction", mutate: func(op *mmodel.OperationRedis) { op.Direction = "credit" }},
+		{name: "type", mutate: func(op *mmodel.OperationRedis) { op.Type = "CREDIT" }},
+		{name: "asset", mutate: func(op *mmodel.OperationRedis) { op.AssetCode = "BRL" }},
+		{name: "amount", mutate: func(op *mmodel.OperationRedis) { op.AmountValue = decimal.NewFromInt(11) }},
+		{name: "balance affected", mutate: func(op *mmodel.OperationRedis) { op.BalanceAffected = false }},
+		{name: "before available", mutate: func(op *mmodel.OperationRedis) { op.BalanceAvailable = decimal.NewFromInt(99) }},
+		{name: "before on hold", mutate: func(op *mmodel.OperationRedis) { op.BalanceOnHold = decimal.NewFromInt(19) }},
+		{name: "before version", mutate: func(op *mmodel.OperationRedis) { op.BalanceVersion = 6 }},
+		{name: "before overdraft", mutate: func(op *mmodel.OperationRedis) { op.Snapshot.OverdraftUsedBefore = "2" }},
+		{name: "after available", mutate: func(op *mmodel.OperationRedis) { op.BalanceAfterAvailable = decimal.NewFromInt(89) }},
+		{name: "after on hold", mutate: func(op *mmodel.OperationRedis) { op.BalanceAfterOnHold = decimal.NewFromInt(21) }},
+		{name: "after version", mutate: func(op *mmodel.OperationRedis) { op.BalanceAfterVersion = 9 }},
+		{name: "after overdraft", mutate: func(op *mmodel.OperationRedis) { op.Snapshot.OverdraftUsedAfter = "5" }},
+	}
+
+	for _, tt := range redisTests {
+		t.Run("redis "+tt.name, func(t *testing.T) {
+			left := newOperation().ToRedis()
+			right := newOperation().ToRedis()
+			tt.mutate(&right)
+
+			assert.False(t, RedisEconomicEffectEqual(left, right))
+		})
+	}
+}

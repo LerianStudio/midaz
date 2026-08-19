@@ -22,8 +22,8 @@ const (
 	// TransactionTypeOptionsDetailed is the set the detailed transaction body accepts.
 	TransactionTypeOptionsDetailed = "'amount', 'share', or 'remaining'"
 
-	// TransactionTypeOptionsLeg is the set one leg of a transaction side accepts. It has no
-	// `remaining`: that expression resolves during validation but contributes no operation
-	// row, so a transaction carrying it commits unbalanced.
+	// TransactionTypeOptionsLeg is the set one v2 leg accepts. The v2 surface deliberately
+	// publishes no `remaining` expression; the detailed v1 surface remains the owner of that
+	// expression and resolves it into a persisted operation before the ledger effect.
 	TransactionTypeOptionsLeg = "'amount' or 'share'"
 )

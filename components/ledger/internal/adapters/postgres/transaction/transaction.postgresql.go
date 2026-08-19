@@ -31,6 +31,8 @@ import (
 	"github.com/shopspring/decimal"
 
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/operation"
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/readseam"
+	"github.com/LerianStudio/midaz/v4/components/ledger/pkg/readrouting"
 	"github.com/LerianStudio/midaz/v4/pkg"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
 	"github.com/LerianStudio/midaz/v4/pkg/net/http"
@@ -106,6 +108,10 @@ type Repository interface {
 	UpdateBulk(ctx context.Context, transactions []*Transaction) (*repository.BulkUpdateResult, error)
 	UpdateBulkTx(ctx context.Context, tx repository.DBExecutor, transactions []*Transaction) (*repository.BulkUpdateResult, error)
 	BeginTx(ctx context.Context) (repository.DBTransaction, error)
+	FindForUpdate(ctx context.Context, tx repository.DBExecutor, organizationID, ledgerID, id uuid.UUID) (*Transaction, error)
+	UpdateTx(ctx context.Context, tx repository.DBExecutor, organizationID, ledgerID, id uuid.UUID, transaction *Transaction) (*Transaction, error)
+	UpdateStatusFromPending(ctx context.Context, organizationID, ledgerID, id uuid.UUID, transaction *Transaction) (*Transaction, error)
+	UpdateStatusFromPendingTx(ctx context.Context, tx repository.DBExecutor, organizationID, ledgerID, id uuid.UUID, transaction *Transaction) (*Transaction, error)
 	FindAll(ctx context.Context, organizationID, ledgerID uuid.UUID, filter http.Pagination) ([]*Transaction, libHTTP.CursorPagination, error)
 	Find(ctx context.Context, organizationID, ledgerID, id uuid.UUID) (*Transaction, error)
 	FindByParentID(ctx context.Context, organizationID, ledgerID, parentID uuid.UUID) (*Transaction, error)
@@ -125,6 +131,17 @@ type TransactionPostgreSQLRepository struct {
 	connection    *libPostgres.Client
 	tableName     string
 	requireTenant bool
+}
+
+func (r *TransactionPostgreSQLRepository) acquireRead(ctx context.Context) (repository.DBReader, func() error, error) {
+	db, err := r.getDB(ctx)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	reader, release, _, err := readseam.AcquireReadFrom(ctx, db, readrouting.IsPrimaryRead(ctx))
+
+	return reader, release, err
 }
 
 // NewTransactionPostgreSQLRepository returns a new instance of TransactionPostgreSQLRepository using the given Postgres connection.
@@ -659,7 +676,7 @@ func (r *TransactionPostgreSQLRepository) updateTransactionChunk(ctx context.Con
 		WHERE t.id = v.id
 		  AND t.organization_id = v.organization_id
 		  AND t.ledger_id = v.ledger_id
-		  AND t.status != v.new_status
+		  AND t.status = '`+constant.PENDING+`'
 		  AND t.deleted_at IS NULL`,
 		r.tableName,
 		strings.Join(valuesClauses, ", "))
@@ -910,12 +927,13 @@ func (r *TransactionPostgreSQLRepository) Find(ctx context.Context, organization
 	ctx, span := tracer.Start(ctx, "postgres.find_transaction")
 	defer span.End()
 
-	db, err := r.getDB(ctx)
+	db, release, err := r.acquireRead(ctx)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(span, "Failed to get database connection", err)
 
 		return nil, err
 	}
+	defer func() { _ = release() }()
 
 	findOne := squirrel.Select(transactionColumns).
 		From(r.tableName).
@@ -986,6 +1004,71 @@ func (r *TransactionPostgreSQLRepository) Find(ctx context.Context, organization
 	return transaction.ToEntity(), nil
 }
 
+// FindForUpdate reads one transaction from the primary while holding its row
+// lock in the caller-owned PostgreSQL transaction. Status writers naturally
+// wait on this lock, so a cross-store PATCH finishes before PENDING can become
+// APPROVED.
+func (r *TransactionPostgreSQLRepository) FindForUpdate(ctx context.Context, tx repository.DBExecutor,
+	organizationID, ledgerID, id uuid.UUID,
+) (*Transaction, error) {
+	querier, ok := tx.(repository.DBQuerier)
+	if !ok {
+		return nil, repository.ErrQueryContextNotSupported
+	}
+
+	query := `SELECT ` + transactionColumns + ` FROM ` + r.tableName + `
+		WHERE organization_id = $1 AND ledger_id = $2 AND id = $3 AND deleted_at IS NULL
+		FOR UPDATE`
+
+	rows, err := querier.QueryContext(ctx, query, organizationID, ledgerID, id)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	if !rows.Next() {
+		if err := rows.Err(); err != nil {
+			return nil, err
+		}
+
+		return nil, pkg.ValidateBusinessError(constant.ErrEntityNotFound, constant.EntityTransaction)
+	}
+
+	record := &TransactionPostgreSQLModel{}
+
+	var body *string
+	if err := rows.Scan(
+		&record.ID,
+		&record.ParentTransactionID,
+		&record.Description,
+		&record.Status,
+		&record.StatusDescription,
+		&record.Amount,
+		&record.AssetCode,
+		&record.ChartOfAccountsGroupName,
+		&record.LedgerID,
+		&record.OrganizationID,
+		&body,
+		&record.CreatedAt,
+		&record.UpdatedAt,
+		&record.DeletedAt,
+		&record.Route,
+		&record.RouteID,
+		&record.FeesSkipped,
+		&record.TracerSkipped,
+	); err != nil {
+		return nil, err
+	}
+
+	if !libCommons.IsNilOrEmpty(body) {
+		if err := json.Unmarshal([]byte(*body), &record.Body); err != nil {
+			return nil, err
+		}
+	}
+
+	return record.ToEntity(), nil
+}
+
 // FindByParentID retrieves a Transaction entity from the database using the provided parent ID.
 func (r *TransactionPostgreSQLRepository) FindByParentID(ctx context.Context, organizationID, ledgerID, parentID uuid.UUID) (*Transaction, error) {
 	_, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
@@ -993,12 +1076,13 @@ func (r *TransactionPostgreSQLRepository) FindByParentID(ctx context.Context, or
 	ctx, span := tracer.Start(ctx, "postgres.find_transaction")
 	defer span.End()
 
-	db, err := r.getDB(ctx)
+	db, release, err := r.acquireRead(ctx)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(span, "Failed to get database connection", err)
 
 		return nil, err
 	}
+	defer func() { _ = release() }()
 
 	findOne := squirrel.Select(transactionColumns).
 		From(r.tableName).
@@ -1006,6 +1090,8 @@ func (r *TransactionPostgreSQLRepository) FindByParentID(ctx context.Context, or
 		Where(squirrel.Expr("ledger_id = ?", ledgerID)).
 		Where(squirrel.Expr("parent_transaction_id = ?", parentID)).
 		Where(squirrel.Eq{"deleted_at": nil}).
+		OrderBy("created_at ASC", "id ASC").
+		Limit(2).
 		PlaceholderFormat(squirrel.Dollar)
 
 	query, args, err := findOne.ToSql()
@@ -1022,9 +1108,25 @@ func (r *TransactionPostgreSQLRepository) FindByParentID(ctx context.Context, or
 	_, spanQuery := tracer.Start(ctx, "postgres.find.query")
 	defer spanQuery.End()
 
-	row := db.QueryRowContext(ctx, query, args...)
+	rows, err := db.QueryContext(ctx, query, args...)
+	if err != nil {
+		libOpentelemetry.HandleSpanError(span, "Failed to query child transaction", err)
 
-	if err := row.Scan(
+		return nil, err
+	}
+	defer rows.Close()
+
+	if !rows.Next() {
+		if err := rows.Err(); err != nil {
+			libOpentelemetry.HandleSpanError(span, "Failed to read child transaction", err)
+
+			return nil, err
+		}
+
+		return nil, nil
+	}
+
+	if err := rows.Scan(
 		&transaction.ID,
 		&transaction.ParentTransactionID,
 		&transaction.Description,
@@ -1044,13 +1146,20 @@ func (r *TransactionPostgreSQLRepository) FindByParentID(ctx context.Context, or
 		&transaction.FeesSkipped,
 		&transaction.TracerSkipped,
 	); err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "No transaction found", err)
-
-			return nil, nil
-		}
-
 		libOpentelemetry.HandleSpanError(span, "Failed to scan row", err)
+
+		return nil, err
+	}
+
+	if rows.Next() {
+		err := pkg.ValidateBusinessError(constant.ErrRevertReconciliationRequired, constant.EntityTransaction)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Multiple reverse transactions found for one origin", err)
+
+		return nil, err
+	}
+
+	if err := rows.Err(); err != nil {
+		libOpentelemetry.HandleSpanError(span, "Failed to finish child transaction query", err)
 
 		return nil, err
 	}
@@ -1081,6 +1190,55 @@ func (r *TransactionPostgreSQLRepository) Update(ctx context.Context, organizati
 		return nil, err
 	}
 
+	return r.updateWithExecutor(ctx, db, organizationID, ledgerID, id, transaction, false)
+}
+
+// UpdateTx updates one transaction through a caller-owned PostgreSQL
+// transaction, preserving the row lock acquired by FindForUpdate.
+func (r *TransactionPostgreSQLRepository) UpdateTx(ctx context.Context, tx repository.DBExecutor,
+	organizationID, ledgerID, id uuid.UUID, transaction *Transaction,
+) (*Transaction, error) {
+	if tx == nil {
+		return nil, repository.ErrNilDBExecutor
+	}
+
+	return r.updateWithExecutor(ctx, tx, organizationID, ledgerID, id, transaction, false)
+}
+
+// UpdateStatusFromPending applies one terminal status only while the durable
+// row is still PENDING. An already-terminal row can never be overwritten by an
+// opposite command or delayed consumer.
+func (r *TransactionPostgreSQLRepository) UpdateStatusFromPending(ctx context.Context,
+	organizationID, ledgerID, id uuid.UUID, transaction *Transaction,
+) (*Transaction, error) {
+	db, err := r.getDB(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	return r.updateWithExecutor(ctx, db, organizationID, ledgerID, id, transaction, true)
+}
+
+// UpdateStatusFromPendingTx is the caller-owned-transaction variant used while
+// the lifecycle command holds the row lock across the Redis balance movement.
+func (r *TransactionPostgreSQLRepository) UpdateStatusFromPendingTx(ctx context.Context, tx repository.DBExecutor,
+	organizationID, ledgerID, id uuid.UUID, transaction *Transaction,
+) (*Transaction, error) {
+	if tx == nil {
+		return nil, repository.ErrNilDBExecutor
+	}
+
+	return r.updateWithExecutor(ctx, tx, organizationID, ledgerID, id, transaction, true)
+}
+
+func (r *TransactionPostgreSQLRepository) updateWithExecutor(ctx context.Context, db repository.DBExecutor,
+	organizationID, ledgerID, id uuid.UUID, transaction *Transaction, requirePending bool,
+) (*Transaction, error) {
+	_, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
+
+	ctx, span := tracer.Start(ctx, "postgres.update_transaction.exec")
+	defer span.End()
+
 	record := &TransactionPostgreSQLModel{}
 	record.FromEntity(transaction)
 
@@ -1088,9 +1246,9 @@ func (r *TransactionPostgreSQLRepository) Update(ctx context.Context, organizati
 
 	var args []any
 
-	if transaction.Body.IsEmpty() {
+	if !transaction.Body.IsEmpty() {
 		updates = append(updates, "body = $"+strconv.Itoa(len(args)+1))
-		args = append(args, nil)
+		args = append(args, record.Body)
 	}
 
 	if transaction.Description != "" {
@@ -1106,7 +1264,20 @@ func (r *TransactionPostgreSQLRepository) Update(ctx context.Context, organizati
 		args = append(args, record.StatusDescription)
 	}
 
-	record.UpdatedAt = time.Now()
+	statusCASPosition := 0
+
+	if requirePending {
+		if transaction.Status.IsEmpty() {
+			return nil, fmt.Errorf("terminal status is required")
+		}
+
+		statusCASPosition = len(args) + 1
+		args = append(args, constant.PENDING)
+	}
+
+	if transaction.UpdatedAt.IsZero() {
+		record.UpdatedAt = time.Now()
+	}
 
 	updates = append(updates, "updated_at = $"+strconv.Itoa(len(args)+1))
 
@@ -1117,6 +1288,9 @@ func (r *TransactionPostgreSQLRepository) Update(ctx context.Context, organizati
 		` AND ledger_id = $` + strconv.Itoa(len(args)-1) +
 		` AND id = $` + strconv.Itoa(len(args)) +
 		` AND deleted_at IS NULL`
+	if statusCASPosition > 0 {
+		query += ` AND status = $` + strconv.Itoa(statusCASPosition)
+	}
 
 	_, spanExec := tracer.Start(ctx, "postgres.update.exec")
 	defer spanExec.End()
@@ -1136,6 +1310,19 @@ func (r *TransactionPostgreSQLRepository) Update(ctx context.Context, organizati
 	}
 
 	if rowsAffected == 0 {
+		if statusCASPosition > 0 {
+			currentStatus, statusErr := r.statusWithExecutor(ctx, db, organizationID, ledgerID, id)
+			if statusErr != nil {
+				return nil, statusErr
+			}
+
+			if currentStatus == transaction.Status.Code {
+				return record.ToEntity(), nil
+			}
+
+			return nil, pkg.ValidateBusinessError(constant.ErrCommitTransactionNotPending, "ValidateTransactionNotPending")
+		}
+
 		err := pkg.ValidateBusinessError(constant.ErrEntityNotFound, constant.EntityTransaction)
 
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to update transaction. Rows affected is 0", err)
@@ -1144,6 +1331,40 @@ func (r *TransactionPostgreSQLRepository) Update(ctx context.Context, organizati
 	}
 
 	return record.ToEntity(), nil
+}
+
+func (r *TransactionPostgreSQLRepository) statusWithExecutor(
+	ctx context.Context,
+	db repository.DBExecutor,
+	organizationID, ledgerID, id uuid.UUID,
+) (string, error) {
+	querier, ok := db.(repository.DBQuerier)
+	if !ok {
+		return "", repository.ErrQueryContextNotSupported
+	}
+
+	rows, err := querier.QueryContext(ctx, `SELECT status FROM transaction
+		WHERE organization_id = $1 AND ledger_id = $2 AND id = $3 AND deleted_at IS NULL`,
+		organizationID, ledgerID, id)
+	if err != nil {
+		return "", err
+	}
+	defer rows.Close()
+
+	if !rows.Next() {
+		if err := rows.Err(); err != nil {
+			return "", err
+		}
+
+		return "", pkg.ValidateBusinessError(constant.ErrEntityNotFound, constant.EntityTransaction)
+	}
+
+	var status string
+	if err := rows.Scan(&status); err != nil {
+		return "", err
+	}
+
+	return status, nil
 }
 
 // Delete removes a Transaction entity from the database using the provided IDs.
@@ -1196,12 +1417,13 @@ func (r *TransactionPostgreSQLRepository) FindWithOperations(ctx context.Context
 	ctx, span := tracer.Start(ctx, "postgres.find_transaction_with_operations")
 	defer span.End()
 
-	db, err := r.getDB(ctx)
+	db, release, err := r.acquireRead(ctx)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(span, "Failed to get database connection", err)
 
 		return nil, err
 	}
+	defer func() { _ = release() }()
 
 	_, spanQuery := tracer.Start(ctx, "postgres.find_transaction_with_operations.query")
 	defer spanQuery.End()

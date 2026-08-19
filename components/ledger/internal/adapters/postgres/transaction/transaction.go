@@ -195,6 +195,14 @@ type Transaction struct {
 
 	// List of operations associated with this transaction
 	Operations []*operation.Operation `json:"operations"`
+
+	// RevertRolloutMode and RevertRolloutToken are transient handoff state for a
+	// generation-scoped reverse admission. They are carried through Redis and
+	// RabbitMQ until the complete transaction and operations are durable, but are
+	// never persisted or exposed.
+	RevertRolloutMode  string `json:"-" msgpack:"-"`
+	RevertRolloutToken string `json:"-" msgpack:"-"`
+	RedisGeneration    string `json:"-" msgpack:"-"`
 }
 
 // IDtoUUID is a func that convert UUID string to uuid.UUID
@@ -446,6 +454,27 @@ type TransactionProcessingPayload struct {
 	// ""  : produced by v3.5.x  — consumer must call UpdateBalances() directly,
 	//       because the sync worker may not have ZSET entries for these transactions.
 	Version string `json:"version,omitempty" msgpack:"Version,omitempty"`
+
+	// AttemptOwner and ExpectedOutcome carry the immutable Redis economic
+	// outcome handoff through RabbitMQ until PostgreSQL persistence is complete.
+	AttemptOwner    string `json:"attemptOwner,omitempty" msgpack:"AttemptOwner,omitempty"`
+	ExpectedOutcome string `json:"expectedOutcome,omitempty" msgpack:"ExpectedOutcome,omitempty"`
+	Action          string `json:"action,omitempty" msgpack:"Action,omitempty"`
+
+	// EffectModeVersion and EffectMode distinguish balance mutations from
+	// annotation-only audit rows across backup and RabbitMQ redelivery. The
+	// operation override is carried separately because TransactionInput keeps
+	// the internal field out of public JSON/msgpack contracts.
+	EffectModeVersion     int                          `json:"effectModeVersion,omitempty" msgpack:"EffectModeVersion,omitempty"`
+	EffectMode            mmodel.TransactionEffectMode `json:"effectMode,omitempty" msgpack:"EffectMode,omitempty"`
+	OperationTypeOverride string                       `json:"operationTypeOverride,omitempty" msgpack:"OperationTypeOverride,omitempty"`
+
+	// RevertRolloutMode and RevertRolloutToken keep the exact generation's
+	// admission fenced until the terminal handoff proves PostgreSQL and cleans
+	// Redis.
+	RevertRolloutMode  string `json:"revertRolloutMode,omitempty" msgpack:"RevertRolloutMode,omitempty"`
+	RevertRolloutToken string `json:"revertRolloutToken,omitempty" msgpack:"RevertRolloutToken,omitempty"`
+	RedisGeneration    string `json:"redisGeneration,omitempty" msgpack:"RedisGeneration,omitempty"`
 }
 
 // TransactionResponse represents a success response containing a single transaction.

@@ -6,6 +6,7 @@ package in
 
 import (
 	"context"
+	"database/sql"
 	"encoding/json"
 	"errors"
 	"io"
@@ -33,12 +34,22 @@ import (
 	redis "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/redis/transaction"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services/command"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services/query"
+	"github.com/LerianStudio/midaz/v4/components/ledger/pkg/readrouting"
 	"github.com/LerianStudio/midaz/v4/pkg"
 	cn "github.com/LerianStudio/midaz/v4/pkg/constant"
 	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v4/pkg/mtransaction"
 	"github.com/LerianStudio/midaz/v4/pkg/net/http"
 )
+
+type handlerTestDBTransaction struct{}
+
+func (*handlerTestDBTransaction) ExecContext(context.Context, string, ...any) (sql.Result, error) {
+	return nil, nil
+}
+
+func (*handlerTestDBTransaction) Commit() error   { return nil }
+func (*handlerTestDBTransaction) Rollback() error { return nil }
 
 func TestTransactionHandler_GetTransaction(t *testing.T) {
 	tests := []struct {
@@ -382,14 +393,14 @@ func TestCommitTransaction_InvalidStatus_ReturnsError(t *testing.T) {
 
 			// Mock: Redis lock acquired successfully
 			mockRedisRepo.EXPECT().
-				SetNX(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+				AcquireOwnedKey(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
 				Return(true, nil).
 				Times(1)
 
 			// Mock: Redis lock cleanup after error
 			mockRedisRepo.EXPECT().
-				Del(gomock.Any(), gomock.Any()).
-				Return(nil).
+				ReleaseOwnedKey(gomock.Any(), gomock.Any(), gomock.Any()).
+				Return(true, nil).
 				Times(1)
 
 			// Write-behind cache miss (fall through to Postgres Find)
@@ -1474,7 +1485,7 @@ func TestCommitTransaction_GetTransactionError_ReturnsError(t *testing.T) {
 }
 
 // TestCommitTransaction_RedisLockError_ReturnsError validates that errors from
-// Redis SetNX (lock acquisition) are properly propagated.
+// Redis owned lock (lock acquisition) are properly propagated.
 func TestCommitTransaction_RedisLockError_ReturnsError(t *testing.T) {
 	t.Parallel()
 
@@ -1490,53 +1501,9 @@ func TestCommitTransaction_RedisLockError_ReturnsError(t *testing.T) {
 	mockMetadataRepo := mongodb.NewMockRepository(ctrl)
 	mockRedisRepo := redis.NewMockRedisRepository(ctrl)
 
-	amount := decimal.NewFromInt(1000)
-	txBody := mtransaction.Transaction{
-		Send: mtransaction.Send{
-			Asset: "USD",
-			Value: amount,
-			Source: mtransaction.Source{
-				From: []mtransaction.FromTo{{AccountAlias: "@acc1"}},
-			},
-			Distribute: mtransaction.Distribute{
-				To: []mtransaction.FromTo{{AccountAlias: "@acc2"}},
-			},
-		},
-	}
-	tran := &transaction.Transaction{
-		ID:             transactionID.String(),
-		OrganizationID: orgID.String(),
-		LedgerID:       ledgerID.String(),
-		Description:    "Test transaction",
-		AssetCode:      "USD",
-		Amount:         &amount,
-		Status: transaction.Status{
-			Code: cn.PENDING,
-		},
-		Body: txBody,
-	}
-
-	// Mock: commit/cancel fallback fetch (with operations)
-	mockTransactionRepo.EXPECT().
-		FindWithOperations(gomock.Any(), orgID, ledgerID, transactionID).
-		Return(tran, nil).
-		Times(1)
-
-	// Mock: Metadata lookup
-	mockMetadataRepo.EXPECT().
-		FindByEntity(gomock.Any(), "Transaction", transactionID.String()).
-		Return(nil, nil).
-		Times(1)
-
-	// Mock: Write-behind cache miss (fall through to Postgres Find)
-	mockRedisRepo.EXPECT().
-		GetBytes(gomock.Any(), gomock.Any()).
-		Return(nil, errors.New("cache miss")).
-		AnyTimes()
-
 	// Mock: Redis lock acquisition fails with error
 	mockRedisRepo.EXPECT().
-		SetNX(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+		AcquireOwnedKey(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
 		Return(false, pkg.InternalServerError{
 			Code:    "0046",
 			Title:   "Internal Server Error",
@@ -1604,53 +1571,9 @@ func TestCommitTransaction_LockNotAcquired_ReturnsError(t *testing.T) {
 	mockMetadataRepo := mongodb.NewMockRepository(ctrl)
 	mockRedisRepo := redis.NewMockRedisRepository(ctrl)
 
-	amount := decimal.NewFromInt(1000)
-	txBody := mtransaction.Transaction{
-		Send: mtransaction.Send{
-			Asset: "USD",
-			Value: amount,
-			Source: mtransaction.Source{
-				From: []mtransaction.FromTo{{AccountAlias: "@acc1"}},
-			},
-			Distribute: mtransaction.Distribute{
-				To: []mtransaction.FromTo{{AccountAlias: "@acc2"}},
-			},
-		},
-	}
-	tran := &transaction.Transaction{
-		ID:             transactionID.String(),
-		OrganizationID: orgID.String(),
-		LedgerID:       ledgerID.String(),
-		Description:    "Test transaction",
-		AssetCode:      "USD",
-		Amount:         &amount,
-		Status: transaction.Status{
-			Code: cn.PENDING,
-		},
-		Body: txBody,
-	}
-
-	// Mock: commit/cancel fallback fetch (with operations)
-	mockTransactionRepo.EXPECT().
-		FindWithOperations(gomock.Any(), orgID, ledgerID, transactionID).
-		Return(tran, nil).
-		Times(1)
-
-	// Mock: Metadata lookup
-	mockMetadataRepo.EXPECT().
-		FindByEntity(gomock.Any(), "Transaction", transactionID.String()).
-		Return(nil, nil).
-		Times(1)
-
-	// Mock: Write-behind cache miss (fall through to Postgres Find)
-	mockRedisRepo.EXPECT().
-		GetBytes(gomock.Any(), gomock.Any()).
-		Return(nil, errors.New("cache miss")).
-		AnyTimes()
-
 	// Mock: Redis lock NOT acquired (returns false, nil) - transaction already being processed
 	mockRedisRepo.EXPECT().
-		SetNX(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+		AcquireOwnedKey(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
 		Return(false, nil).
 		Times(1)
 
@@ -2182,9 +2105,13 @@ func TestTransactionHandler_UpdateTransaction(t *testing.T) {
 			setupMocks: func(transactionRepo *transaction.MockRepository, metadataRepo *mongodb.MockRepository, operationRepo *operation.MockRepository, orgID, ledgerID, transactionID uuid.UUID) {
 				amount := decimal.NewFromInt(1000)
 
-				// Command.UpdateTransaction calls TransactionRepo.Update
 				transactionRepo.EXPECT().
-					Update(gomock.Any(), orgID, ledgerID, transactionID, gomock.Any()).
+					FindForUpdate(gomock.Any(), gomock.Any(), orgID, ledgerID, transactionID).
+					Return(&transaction.Transaction{Status: transaction.Status{Code: cn.APPROVED}}, nil).
+					Times(1)
+
+				transactionRepo.EXPECT().
+					UpdateTx(gomock.Any(), gomock.Any(), orgID, ledgerID, transactionID, gomock.Any()).
 					Return(&transaction.Transaction{
 						ID:             transactionID.String(),
 						OrganizationID: orgID.String(),
@@ -2213,17 +2140,22 @@ func TestTransactionHandler_UpdateTransaction(t *testing.T) {
 				// Query.GetTransactionByID (read-after-write pattern) calls TransactionRepo.Find
 				transactionRepo.EXPECT().
 					Find(gomock.Any(), orgID, ledgerID, transactionID).
-					Return(&transaction.Transaction{
-						ID:             transactionID.String(),
-						OrganizationID: orgID.String(),
-						LedgerID:       ledgerID.String(),
-						Description:    "Updated description",
-						AssetCode:      "USD",
-						Amount:         &amount,
-						Status: transaction.Status{
-							Code: cn.APPROVED,
-						},
-					}, nil).
+					DoAndReturn(func(ctx context.Context, _, _, _ uuid.UUID) (*transaction.Transaction, error) {
+						require.True(t, readrouting.IsPrimaryRead(ctx),
+							"PATCH response must be read from PostgreSQL primary")
+
+						return &transaction.Transaction{
+							ID:             transactionID.String(),
+							OrganizationID: orgID.String(),
+							LedgerID:       ledgerID.String(),
+							Description:    "Updated description",
+							AssetCode:      "USD",
+							Amount:         &amount,
+							Status: transaction.Status{
+								Code: cn.APPROVED,
+							},
+						}, nil
+					}).
 					Times(1)
 
 				// Query.GetTransactionByID calls FindByEntity for transaction metadata
@@ -2250,7 +2182,7 @@ func TestTransactionHandler_UpdateTransaction(t *testing.T) {
 			requestBody: `{"description": "Updated description"}`,
 			setupMocks: func(transactionRepo *transaction.MockRepository, metadataRepo *mongodb.MockRepository, operationRepo *operation.MockRepository, orgID, ledgerID, transactionID uuid.UUID) {
 				transactionRepo.EXPECT().
-					Update(gomock.Any(), orgID, ledgerID, transactionID, gomock.Any()).
+					FindForUpdate(gomock.Any(), gomock.Any(), orgID, ledgerID, transactionID).
 					Return(nil, pkg.EntityNotFoundError{
 						EntityType: "Transaction",
 						Code:       cn.ErrTransactionIDNotFound.Error(),
@@ -2274,7 +2206,11 @@ func TestTransactionHandler_UpdateTransaction(t *testing.T) {
 			requestBody: `{"description": "Updated description"}`,
 			setupMocks: func(transactionRepo *transaction.MockRepository, metadataRepo *mongodb.MockRepository, operationRepo *operation.MockRepository, orgID, ledgerID, transactionID uuid.UUID) {
 				transactionRepo.EXPECT().
-					Update(gomock.Any(), orgID, ledgerID, transactionID, gomock.Any()).
+					FindForUpdate(gomock.Any(), gomock.Any(), orgID, ledgerID, transactionID).
+					Return(&transaction.Transaction{Status: transaction.Status{Code: cn.APPROVED}}, nil).
+					Times(1)
+				transactionRepo.EXPECT().
+					UpdateTx(gomock.Any(), gomock.Any(), orgID, ledgerID, transactionID, gomock.Any()).
 					Return(nil, pkg.InternalServerError{
 						Code:    "0046",
 						Title:   "Internal Server Error",
@@ -2297,9 +2233,13 @@ func TestTransactionHandler_UpdateTransaction(t *testing.T) {
 			setupMocks: func(transactionRepo *transaction.MockRepository, metadataRepo *mongodb.MockRepository, operationRepo *operation.MockRepository, orgID, ledgerID, transactionID uuid.UUID) {
 				amount := decimal.NewFromInt(1000)
 
-				// Update succeeds
 				transactionRepo.EXPECT().
-					Update(gomock.Any(), orgID, ledgerID, transactionID, gomock.Any()).
+					FindForUpdate(gomock.Any(), gomock.Any(), orgID, ledgerID, transactionID).
+					Return(&transaction.Transaction{Status: transaction.Status{Code: cn.APPROVED}}, nil).
+					Times(1)
+
+				transactionRepo.EXPECT().
+					UpdateTx(gomock.Any(), gomock.Any(), orgID, ledgerID, transactionID, gomock.Any()).
 					Return(&transaction.Transaction{
 						ID:             transactionID.String(),
 						OrganizationID: orgID.String(),
@@ -2359,6 +2299,7 @@ func TestTransactionHandler_UpdateTransaction(t *testing.T) {
 			mockTransactionRepo := transaction.NewMockRepository(ctrl)
 			mockMetadataRepo := mongodb.NewMockRepository(ctrl)
 			mockOperationRepo := operation.NewMockRepository(ctrl)
+			mockTransactionRepo.EXPECT().BeginTx(gomock.Any()).Return(&handlerTestDBTransaction{}, nil).Times(1)
 			tt.setupMocks(mockTransactionRepo, mockMetadataRepo, mockOperationRepo, orgID, ledgerID, transactionID)
 
 			queryUC := &query.UseCase{
@@ -2497,6 +2438,14 @@ func TestCancelTransaction(t *testing.T) {
 		{
 			name: "transaction not found returns 404",
 			setupMocks: func(transactionRepo *transaction.MockRepository, metadataRepo *mongodb.MockRepository, operationRepo *operation.MockRepository, redisRepo *redis.MockRedisRepository, orgID, ledgerID, transactionID uuid.UUID) {
+				redisRepo.EXPECT().
+					AcquireOwnedKey(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+					Return(true, nil).
+					Times(1)
+				redisRepo.EXPECT().
+					ReleaseOwnedKey(gomock.Any(), gomock.Any(), gomock.Any()).
+					Return(true, nil).
+					Times(1)
 				transactionRepo.EXPECT().
 					FindWithOperations(gomock.Any(), orgID, ledgerID, transactionID).
 					Return(nil, pkg.EntityNotFoundError{
@@ -2561,14 +2510,14 @@ func TestCancelTransaction(t *testing.T) {
 
 				// Redis lock acquired successfully
 				redisRepo.EXPECT().
-					SetNX(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+					AcquireOwnedKey(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
 					Return(true, nil).
 					Times(1)
 
 				// Redis lock cleanup after error
 				redisRepo.EXPECT().
-					Del(gomock.Any(), gomock.Any()).
-					Return(nil).
+					ReleaseOwnedKey(gomock.Any(), gomock.Any(), gomock.Any()).
+					Return(true, nil).
 					Times(1)
 			},
 			expectedStatus: 409,
@@ -2616,16 +2565,16 @@ func TestCancelTransaction(t *testing.T) {
 				transactionRepo.EXPECT().
 					FindWithOperations(gomock.Any(), orgID, ledgerID, transactionID).
 					Return(tran, nil).
-					Times(1)
+					Times(0)
 
 				metadataRepo.EXPECT().
 					FindByEntity(gomock.Any(), "Transaction", transactionID.String()).
 					Return(nil, nil).
-					Times(1)
+					Times(0)
 
-				// Redis SetNX returns error
+				// Redis owned lock returns error
 				redisRepo.EXPECT().
-					SetNX(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+					AcquireOwnedKey(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
 					Return(false, pkg.InternalServerError{
 						Code:    "0046",
 						Title:   "Internal Server Error",
@@ -2677,16 +2626,16 @@ func TestCancelTransaction(t *testing.T) {
 				transactionRepo.EXPECT().
 					FindWithOperations(gomock.Any(), orgID, ledgerID, transactionID).
 					Return(tran, nil).
-					Times(1)
+					Times(0)
 
 				metadataRepo.EXPECT().
 					FindByEntity(gomock.Any(), "Transaction", transactionID.String()).
 					Return(nil, nil).
-					Times(1)
+					Times(0)
 
-				// Redis SetNX returns false (lock already held by another process)
+				// Redis owned lock returns false (lock already held by another process)
 				redisRepo.EXPECT().
-					SetNX(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+					AcquireOwnedKey(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
 					Return(false, nil).
 					Times(1)
 			},
@@ -2703,6 +2652,14 @@ func TestCancelTransaction(t *testing.T) {
 		{
 			name: "metadata retrieval error returns 500",
 			setupMocks: func(transactionRepo *transaction.MockRepository, metadataRepo *mongodb.MockRepository, operationRepo *operation.MockRepository, redisRepo *redis.MockRedisRepository, orgID, ledgerID, transactionID uuid.UUID) {
+				redisRepo.EXPECT().
+					AcquireOwnedKey(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+					Return(true, nil).
+					Times(1)
+				redisRepo.EXPECT().
+					ReleaseOwnedKey(gomock.Any(), gomock.Any(), gomock.Any()).
+					Return(true, nil).
+					Times(1)
 				amount := decimal.NewFromInt(1000)
 				tran := &transaction.Transaction{
 					ID:             transactionID.String(),
@@ -2937,6 +2894,7 @@ func TestCancelTransaction_WriteBehindMiss_PostgresHit(t *testing.T) {
 	}
 
 	tran := newTestTransactionData(orgID, ledgerID, tranID)
+	tran.Status.Code = cn.APPROVED
 
 	// Write-behind miss
 	mockRedisRepo.EXPECT().
@@ -2956,10 +2914,14 @@ func TestCancelTransaction_WriteBehindMiss_PostgresHit(t *testing.T) {
 		Return(nil, nil).
 		Times(1)
 
-	// commitOrCancelTransaction: SetNX short-circuits (we're only testing the lookup path)
+	// commitOrCancelTransaction: owned lock short-circuits (we're only testing the lookup path)
 	mockRedisRepo.EXPECT().
-		SetNX(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
-		Return(false, errors.New("lock error")).
+		AcquireOwnedKey(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+		Return(true, nil).
+		Times(1)
+	mockRedisRepo.EXPECT().
+		ReleaseOwnedKey(gomock.Any(), gomock.Any(), gomock.Any()).
+		Return(true, nil).
 		Times(1)
 
 	app := fiber.New()
@@ -2974,7 +2936,7 @@ func TestCancelTransaction_WriteBehindMiss_PostgresHit(t *testing.T) {
 	resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
 	require.NoError(t, err)
 
-	// Response is an error (from SetNX), but the important thing is Find WAS called (fallback worked)
+	// Response is an error (from owned lock), but the important thing is Find WAS called (fallback worked)
 	assert.True(t, resp.StatusCode >= 400)
 }
 
@@ -2997,6 +2959,7 @@ func TestCancelTransaction_WriteBehindHit_PostgresNotCalled(t *testing.T) {
 
 	// Write-behind hit
 	tran := newTestTransactionData(orgID, ledgerID, tranID)
+	tran.Status.Code = cn.APPROVED
 	wbData, err := msgpack.Marshal(tran)
 	require.NoError(t, err)
 
@@ -3007,10 +2970,14 @@ func TestCancelTransaction_WriteBehindHit_PostgresNotCalled(t *testing.T) {
 
 	// No TransactionRepo mock -> proves Postgres is never called
 
-	// commitOrCancelTransaction: SetNX short-circuits
+	// commitOrCancelTransaction: owned lock short-circuits
 	mockRedisRepo.EXPECT().
-		SetNX(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
-		Return(false, errors.New("lock error")).
+		AcquireOwnedKey(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+		Return(true, nil).
+		Times(1)
+	mockRedisRepo.EXPECT().
+		ReleaseOwnedKey(gomock.Any(), gomock.Any(), gomock.Any()).
+		Return(true, nil).
 		Times(1)
 
 	app := fiber.New()
@@ -3025,7 +2992,7 @@ func TestCancelTransaction_WriteBehindHit_PostgresNotCalled(t *testing.T) {
 	resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
 	require.NoError(t, err)
 
-	// Error from SetNX short-circuit, but write-behind was used and Postgres was NOT called
+	// Error from owned lock short-circuit, but write-behind was used and Postgres was NOT called
 	assert.True(t, resp.StatusCode >= 400)
 }
 
@@ -3100,6 +3067,7 @@ func TestCommitTransaction_WriteBehindMiss_PostgresHit(t *testing.T) {
 	}
 
 	tran := newTestTransactionData(orgID, ledgerID, tranID)
+	tran.Status.Code = cn.APPROVED
 
 	// Write-behind miss
 	mockRedisRepo.EXPECT().
@@ -3119,10 +3087,14 @@ func TestCommitTransaction_WriteBehindMiss_PostgresHit(t *testing.T) {
 		Return(nil, nil).
 		Times(1)
 
-	// commitOrCancelTransaction: SetNX short-circuits
+	// commitOrCancelTransaction: owned lock short-circuits
 	mockRedisRepo.EXPECT().
-		SetNX(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
-		Return(false, errors.New("lock error")).
+		AcquireOwnedKey(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+		Return(true, nil).
+		Times(1)
+	mockRedisRepo.EXPECT().
+		ReleaseOwnedKey(gomock.Any(), gomock.Any(), gomock.Any()).
+		Return(true, nil).
 		Times(1)
 
 	app := fiber.New()
@@ -3137,7 +3109,7 @@ func TestCommitTransaction_WriteBehindMiss_PostgresHit(t *testing.T) {
 	resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
 	require.NoError(t, err)
 
-	// Error from SetNX short-circuit, but Find WAS called (fallback worked)
+	// Error from owned lock short-circuit, but Find WAS called (fallback worked)
 	assert.True(t, resp.StatusCode >= 400)
 }
 
@@ -3160,6 +3132,7 @@ func TestCommitTransaction_WriteBehindHit_PostgresNotCalled(t *testing.T) {
 
 	// Write-behind hit
 	tran := newTestTransactionData(orgID, ledgerID, tranID)
+	tran.Status.Code = cn.APPROVED
 	wbData, err := msgpack.Marshal(tran)
 	require.NoError(t, err)
 
@@ -3170,10 +3143,14 @@ func TestCommitTransaction_WriteBehindHit_PostgresNotCalled(t *testing.T) {
 
 	// No TransactionRepo mock -> proves Postgres is never called
 
-	// commitOrCancelTransaction: SetNX short-circuits
+	// commitOrCancelTransaction: owned lock short-circuits
 	mockRedisRepo.EXPECT().
-		SetNX(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
-		Return(false, errors.New("lock error")).
+		AcquireOwnedKey(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+		Return(true, nil).
+		Times(1)
+	mockRedisRepo.EXPECT().
+		ReleaseOwnedKey(gomock.Any(), gomock.Any(), gomock.Any()).
+		Return(true, nil).
 		Times(1)
 
 	app := fiber.New()
@@ -3188,7 +3165,7 @@ func TestCommitTransaction_WriteBehindHit_PostgresNotCalled(t *testing.T) {
 	resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
 	require.NoError(t, err)
 
-	// Error from SetNX short-circuit, but write-behind was used and Postgres was NOT called
+	// Error from owned lock short-circuit, but write-behind was used and Postgres was NOT called
 	assert.True(t, resp.StatusCode >= 400)
 }
 

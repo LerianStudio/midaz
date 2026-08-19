@@ -77,7 +77,7 @@ func TestQuarantine_ReachesThreshold_QuarantinesThenDeletes(t *testing.T) {
 
 				return nil
 			}),
-		mockRedis.EXPECT().RemoveMessageFromQueue(gomock.Any(), key).Return(nil),
+		mockRedis.EXPECT().RemoveMessageFromQueueIfValue(gomock.Any(), key, payload).Return(true, nil),
 		mockRedis.EXPECT().ClearBackupAttempt(gomock.Any(), key).Return(nil),
 	)
 

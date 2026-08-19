@@ -279,6 +279,7 @@ func TestUpdateTransactionStatus(t *testing.T) {
 		ID:             transactionID.String(),
 		LedgerID:       ledgerID.String(),
 		OrganizationID: organizationID.String(),
+		Description:    "stale description",
 		Status: transaction.Status{
 			Code:        "COMPLETED",
 			Description: ptr("Transaction completed"),
@@ -297,7 +298,7 @@ func TestUpdateTransactionStatus(t *testing.T) {
 	}
 
 	mockTransactionRepo.EXPECT().
-		Update(gomock.Any(), organizationID, ledgerID, transactionID, inputTransaction).
+		UpdateStatusFromPending(gomock.Any(), organizationID, ledgerID, transactionID, &transaction.Transaction{Status: inputTransaction.Status}).
 		Return(expectedTransaction, nil).
 		Times(1)
 
@@ -334,7 +335,7 @@ func TestUpdateTransactionStatus_NotFound(t *testing.T) {
 	}
 
 	mockTransactionRepo.EXPECT().
-		Update(gomock.Any(), organizationID, ledgerID, transactionID, inputTransaction).
+		UpdateStatusFromPending(gomock.Any(), organizationID, ledgerID, transactionID, &transaction.Transaction{Status: inputTransaction.Status}).
 		Return(nil, services.ErrDatabaseItemNotFound).
 		Times(1)
 
@@ -374,7 +375,7 @@ func TestUpdateTransactionStatus_RepositoryError(t *testing.T) {
 	}
 
 	mockTransactionRepo.EXPECT().
-		Update(gomock.Any(), organizationID, ledgerID, transactionID, inputTransaction).
+		UpdateStatusFromPending(gomock.Any(), organizationID, ledgerID, transactionID, &transaction.Transaction{Status: inputTransaction.Status}).
 		Return(nil, databaseError).
 		Times(1)
 

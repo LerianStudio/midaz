@@ -8,6 +8,7 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"strings"
 	"sync/atomic"
 	"time"
 
@@ -19,6 +20,7 @@ import (
 	"go.opentelemetry.io/otel/attribute"
 
 	feesmongo "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/mongodb/fees"
+	transactionredis "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/redis/transaction"
 	"github.com/LerianStudio/midaz/v4/pkg/utils"
 )
 
@@ -70,11 +72,12 @@ type DependencyCheck struct {
 
 // ReadyzResponse is the response body for the /readyz endpoint.
 type ReadyzResponse struct {
-	Status         string                     `json:"status"`
-	Checks         map[string]DependencyCheck `json:"checks"`
-	Version        string                     `json:"version"`
-	DeploymentMode string                     `json:"deployment_mode"`
-	Reason         string                     `json:"reason,omitempty"`
+	Status            string                     `json:"status"`
+	Checks            map[string]DependencyCheck `json:"checks"`
+	Version           string                     `json:"version"`
+	DeploymentMode    string                     `json:"deployment_mode"`
+	TracerOutcomeMode string                     `json:"tracer_outcome_mode"`
+	Reason            string                     `json:"reason,omitempty"`
 }
 
 // DependencyChecker is the interface for probing a dependency's health.
@@ -92,10 +95,11 @@ type DependencyChecker interface {
 
 // ReadyzHandler handles /readyz requests.
 type ReadyzHandler struct {
-	logger         libLog.Logger
-	checkers       []DependencyChecker
-	version        string
-	deploymentMode string
+	logger            libLog.Logger
+	checkers          []DependencyChecker
+	version           string
+	deploymentMode    string
+	tracerOutcomeMode string
 
 	// Lifecycle state
 	serverReady atomic.Bool // true after HTTP server is listening
@@ -107,21 +111,28 @@ type ReadyzHandler struct {
 
 // ReadyzHandlerConfig holds configuration for creating a ReadyzHandler.
 type ReadyzHandlerConfig struct {
-	Logger         libLog.Logger
-	Checkers       []DependencyChecker
-	Version        string
-	DeploymentMode string
-	MetricsFactory *metrics.MetricsFactory
+	Logger            libLog.Logger
+	Checkers          []DependencyChecker
+	Version           string
+	DeploymentMode    string
+	TracerOutcomeMode string
+	MetricsFactory    *metrics.MetricsFactory
 }
 
 // NewReadyzHandler creates a new ReadyzHandler with the given configuration.
 func NewReadyzHandler(cfg ReadyzHandlerConfig) *ReadyzHandler {
+	tracerOutcomeMode := strings.ToLower(strings.TrimSpace(cfg.TracerOutcomeMode))
+	if tracerOutcomeMode == "" {
+		tracerOutcomeMode = tracerOutcomeModeLegacy
+	}
+
 	return &ReadyzHandler{
-		logger:         cfg.Logger,
-		checkers:       cfg.Checkers,
-		version:        cfg.Version,
-		deploymentMode: ResolveDeploymentMode(cfg.DeploymentMode),
-		metricsFactory: cfg.MetricsFactory,
+		logger:            cfg.Logger,
+		checkers:          cfg.Checkers,
+		version:           cfg.Version,
+		deploymentMode:    ResolveDeploymentMode(cfg.DeploymentMode),
+		tracerOutcomeMode: tracerOutcomeMode,
+		metricsFactory:    cfg.MetricsFactory,
 	}
 }
 
@@ -207,11 +218,12 @@ func (h *ReadyzHandler) HandleReadyz(c fiber.Ctx) error {
 	// Check lifecycle state first (self-probe and graceful drain)
 	if reason, ok := h.checkLifecycleState(); !ok {
 		return c.Status(http.StatusServiceUnavailable).JSON(ReadyzResponse{
-			Status:         "unhealthy",
-			Checks:         map[string]DependencyCheck{},
-			Version:        h.version,
-			DeploymentMode: h.deploymentMode,
-			Reason:         reason,
+			Status:            "unhealthy",
+			Checks:            map[string]DependencyCheck{},
+			Version:           h.version,
+			DeploymentMode:    h.deploymentMode,
+			TracerOutcomeMode: h.tracerOutcomeMode,
+			Reason:            reason,
 		})
 	}
 
@@ -262,10 +274,11 @@ func (h *ReadyzHandler) HandleReadyz(c fiber.Ctx) error {
 	h.recordRequestMetrics(c.Context(), "/readyz", allHealthy)
 
 	response := ReadyzResponse{
-		Status:         status,
-		Checks:         checks,
-		Version:        h.version,
-		DeploymentMode: h.deploymentMode,
+		Status:            status,
+		Checks:            checks,
+		Version:           h.version,
+		DeploymentMode:    h.deploymentMode,
+		TracerOutcomeMode: h.tracerOutcomeMode,
 	}
 
 	return c.Status(httpStatus).JSON(response)
@@ -357,6 +370,7 @@ func (h *ReadyzHandler) logAndSanitizeCheck(ctx context.Context, checkerName str
 
 // buildReadyzHandler creates the ReadyzHandler with appropriate checkers.
 // All checkers return actual status for single-tenant mode.
+//nolint:gocyclo // Readiness handler aggregates every dependency check; refactor candidate.
 func buildReadyzHandler(
 	cfg *Config,
 	logger libLog.Logger,
@@ -450,6 +464,21 @@ func buildReadyzHandler(
 	if redisConnection != nil {
 		checkers = append(checkers,
 			NewRedisChecker("redis", redisConnection, cfg.RedisHost, cfg.RedisTLS))
+		if tracerOutcomeRequiresDurableRedis(cfg.TracerOutcomeMode, cfg.TracerOutcomeWorkerEnabled) {
+			checkers = append(checkers, NewFinancialRedisDurabilityChecker(
+				transactionredis.NewFinancialRedisDurabilityGuard(redisConnection),
+				detectRedisTLS(cfg.RedisHost, cfg.RedisTLS),
+			))
+		}
+
+		checkers = append(checkers, NewRevertRolloutBarrierChecker(
+			transactionredis.NewRevertUpdateFreezeGuard(redisConnection, cfg.RevertRolloutTarget,
+				cfg.RevertRedisDatasetGeneration).WithRolloutInitializationWitness(txnPG.revertClaimRepo,
+				cfg.RevertRolloutInitializationID),
+			revertRolloutBarrierMode(cfg.RevertIdempotencyMode),
+			cfg.RevertRolloutTarget,
+			detectRedisTLS(cfg.RedisHost, cfg.RedisTLS),
+		))
 	}
 
 	// RabbitMQ checker
@@ -489,12 +518,25 @@ func buildReadyzHandler(
 	}
 
 	return NewReadyzHandler(ReadyzHandlerConfig{
-		Logger:         logger,
-		Checkers:       checkers,
-		Version:        cfg.Version,
-		DeploymentMode: cfg.DeploymentMode,
-		MetricsFactory: metricsFactory,
+		Logger:            logger,
+		Checkers:          checkers,
+		Version:           cfg.Version,
+		DeploymentMode:    cfg.DeploymentMode,
+		TracerOutcomeMode: cfg.TracerOutcomeMode,
+		MetricsFactory:    metricsFactory,
 	}), nil
+}
+
+func revertRolloutBarrierMode(configured string) string {
+	if strings.EqualFold(configured, "legacy") {
+		return "legacy"
+	}
+
+	if strings.EqualFold(configured, "final") {
+		return "final"
+	}
+
+	return "bridge"
 }
 
 // appendFeesMongoChecker appends a fees Mongo readiness checker when a static fees

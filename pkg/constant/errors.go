@@ -476,7 +476,14 @@ var (
 	ErrReadyzTenantManagerUnavailable         = errors.New("0495")
 	ErrReadyzStreamingUnhealthy               = errors.New("0496")
 	// 0499 is intentionally skipped: it is the last slot of the reserved Tracer platform block (0328-0499); 0500 starts fresh beyond all documented blocks.
-	ErrInvalidAccountTypeDirection = errors.New("0500")
+	ErrInvalidAccountTypeDirection              = errors.New("0500")
+	ErrReservationDeliveryModeInvalid           = errors.New("0501")
+	ErrReservationOutcomeInvalid                = errors.New("0502")
+	ErrReservationOutcomeIDRequired             = errors.New("0503")
+	ErrReservationOutcomeConflict               = errors.New("0504")
+	ErrRevertReconciliationRequired             = errors.New("0505")
+	ErrRevertRolloutFreezeRequired              = errors.New("0506")
+	ErrTransactionOutcomeReconciliationRequired = errors.New("0507")
 )
 
 // List of CRM domain errors.

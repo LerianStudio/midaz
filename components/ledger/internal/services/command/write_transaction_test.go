@@ -16,11 +16,15 @@ import (
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/transaction"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/rabbitmq"
 	redis "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/redis/transaction"
+	"github.com/LerianStudio/midaz/v4/pkg/constant"
 	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v4/pkg/mtransaction"
+	"github.com/LerianStudio/midaz/v4/pkg/repository"
 	"github.com/google/uuid"
 	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"github.com/vmihailenco/msgpack/v5"
 	"go.uber.org/mock/gomock"
 )
 
@@ -38,8 +42,11 @@ type testData struct {
 // createTestData creates common test data for transaction write tests
 func createTestData(organizationID, ledgerID uuid.UUID) *testData {
 	transactionID := uuid.New().String()
+	transactionAmount := decimal.NewFromInt(100)
 
-	transactionInput := &mtransaction.Transaction{}
+	transactionInput := &mtransaction.Transaction{Send: mtransaction.Send{
+		Asset: "USD", Value: transactionAmount,
+	}}
 
 	validate := &mtransaction.Responses{
 		Aliases: []string{"alias1", "alias2"},
@@ -92,6 +99,8 @@ func createTestData(organizationID, ledgerID uuid.UUID) *testData {
 		ID:             transactionID,
 		OrganizationID: organizationID.String(),
 		LedgerID:       ledgerID.String(),
+		Amount:         &transactionAmount,
+		AssetCode:      "USD",
 		Operations:     []*operation.Operation{},
 		Metadata:       map[string]any{},
 	}
@@ -121,10 +130,11 @@ func setupMocksForFallback(
 ) {
 	// Note: Balance updates are handled by BalanceSyncWorker, not in this flow
 
-	// Mock TransactionRepo.Create
+	dbTx := &orderedAtomicTx{events: &[]string{}}
+	mockTransactionRepo.EXPECT().BeginTx(gomock.Any()).Return(dbTx, nil).AnyTimes()
 	mockTransactionRepo.EXPECT().
-		Create(gomock.Any(), gomock.Any()).
-		Return(tran, nil).
+		CreateBulkTx(gomock.Any(), dbTx, gomock.Any()).
+		Return(&repository.BulkInsertResult{Attempted: 1, Inserted: 1, InsertedIDs: []string{tran.ID}}, nil).
 		AnyTimes()
 
 	// Mock MetadataRepo.Create for transaction metadata
@@ -139,10 +149,9 @@ func setupMocksForFallback(
 		Return(nil, nil).
 		AnyTimes()
 
-	// Mock RedisRepo.RemoveMessageFromQueue for removing transaction from queue
 	mockRedisRepo.EXPECT().
-		RemoveMessageFromQueue(gomock.Any(), gomock.Any()).
-		Return(nil).
+		RemoveMessageFromQueueIfStatus(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), false).
+		Return(true, nil).
 		AnyTimes()
 
 	// Mock RedisRepo.Del for removing transaction from write-behind cache
@@ -349,16 +358,72 @@ func TestWriteTransactionAsync(t *testing.T) {
 		organizationID := uuid.New()
 		ledgerID := uuid.New()
 		td := createTestData(organizationID, ledgerID)
+		td.transactionInput.OperationTypeOverride = constant.BLOCK
+		td.tran.RevertRolloutMode = "bridge"
+		td.tran.RevertRolloutToken = "origin-rollout-token"
+		attempt := &mmodel.BalanceExecutionAttempt{
+			Owner:   "attempt-owner",
+			Outcome: mmodel.TransactionOutcomeCommitted,
+		}
 
-		// Expect RabbitMQ producer to be called with correct exchange and key
+		// The immutable economic outcome identity crosses the asynchronous
+		// transport boundary; publishing must not clear it before the consumer
+		// makes the transaction and operations durable.
 		mockRabbitMQRepo.EXPECT().
 			ProducerDefaultWithContext(gomock.Any(), "test-exchange", "test-key", gomock.Any()).
-			Return(nil, nil).
+			DoAndReturn(func(_ context.Context, _, _ string, message []byte) (*string, error) {
+				var queue mmodel.Queue
+				require.NoError(t, msgpack.Unmarshal(message, &queue))
+				require.Len(t, queue.QueueData, 1)
+
+				var payload transaction.TransactionProcessingPayload
+				require.NoError(t, msgpack.Unmarshal(queue.QueueData[0].Value, &payload))
+				assert.Equal(t, attempt.Owner, payload.AttemptOwner)
+				assert.Equal(t, attempt.Outcome, payload.ExpectedOutcome)
+				assert.Equal(t, "bridge", payload.RevertRolloutMode)
+				assert.Equal(t, "origin-rollout-token", payload.RevertRolloutToken)
+				assert.Equal(t, mmodel.TransactionEffectModeVersion, payload.EffectModeVersion)
+				assert.Equal(t, mmodel.TransactionEffectBalanceMutation, payload.EffectMode)
+				assert.Equal(t, constant.BLOCK, payload.OperationTypeOverride)
+
+				return nil, nil
+			}).
 			Times(1)
 
-		err := uc.WriteTransactionAsync(ctx, organizationID, ledgerID, td.transactionInput, td.validate, td.balances, nil, td.tran)
+		err := uc.WriteTransactionAsync(ctx, organizationID, ledgerID, td.transactionInput, td.validate,
+			td.balances, nil, td.tran, attempt)
 
 		assert.NoError(t, err)
+	})
+
+	t.Run("annotation_event_carries_explicit_nonfinancial_mode_without_balances", func(t *testing.T) {
+		t.Setenv("RABBITMQ_TRANSACTION_BALANCE_OPERATION_EXCHANGE", "test-exchange")
+		t.Setenv("RABBITMQ_TRANSACTION_BALANCE_OPERATION_KEY", "test-key")
+		ctrl := gomock.NewController(t)
+		mockRabbitMQRepo := rabbitmq.NewMockProducerRepository(ctrl)
+		uc := &UseCase{RabbitMQRepo: mockRabbitMQRepo}
+		organizationID := uuid.New()
+		ledgerID := uuid.New()
+		td := createTestData(organizationID, ledgerID)
+		td.tran.Status.Code = constant.NOTED
+
+		mockRabbitMQRepo.EXPECT().
+			ProducerDefaultWithContext(gomock.Any(), "test-exchange", "test-key", gomock.Any()).
+			DoAndReturn(func(_ context.Context, _, _ string, message []byte) (*string, error) {
+				var queue mmodel.Queue
+				require.NoError(t, msgpack.Unmarshal(message, &queue))
+				var payload transaction.TransactionProcessingPayload
+				require.NoError(t, msgpack.Unmarshal(queue.QueueData[0].Value, &payload))
+				assert.Equal(t, mmodel.TransactionEffectModeVersion, payload.EffectModeVersion)
+				assert.Equal(t, mmodel.TransactionEffectAnnotationOnly, payload.EffectMode)
+				assert.Empty(t, payload.Balances)
+				assert.Empty(t, payload.BalancesAfter)
+
+				return nil, nil
+			})
+
+		require.NoError(t, uc.WriteTransactionAsync(context.Background(), organizationID, ledgerID,
+			td.transactionInput, td.validate, td.balances, td.balances, td.tran))
 	})
 
 	t.Run("rabbitmq_fails_fallback_to_db_succeeds", func(t *testing.T) {
@@ -436,9 +501,11 @@ func TestWriteTransactionAsync(t *testing.T) {
 
 		// Note: Balance updates are handled by BalanceSyncWorker, not in this flow
 
-		// Fallback also fails - TransactionRepo.Create returns error
+		dbTx := &orderedAtomicTx{events: &[]string{}}
+		mockTransactionRepo.EXPECT().BeginTx(gomock.Any()).Return(dbTx, nil)
+		// Fallback also fails before any terminal state is committed.
 		mockTransactionRepo.EXPECT().
-			Create(gomock.Any(), gomock.Any()).
+			CreateBulkTx(gomock.Any(), dbTx, gomock.Any()).
 			Return(nil, errors.New("database connection failed")).
 			Times(1)
 
@@ -543,9 +610,11 @@ func TestWriteTransactionSync(t *testing.T) {
 
 		// Note: Balance updates are handled by BalanceSyncWorker, not in this flow
 
-		// TransactionRepo.Create fails (not a duplicate key error)
+		dbTx := &orderedAtomicTx{events: &[]string{}}
+		mockTransactionRepo.EXPECT().BeginTx(gomock.Any()).Return(dbTx, nil)
+		// Atomic transaction persistence fails before commit.
 		mockTransactionRepo.EXPECT().
-			Create(gomock.Any(), gomock.Any()).
+			CreateBulkTx(gomock.Any(), dbTx, gomock.Any()).
 			Return(nil, errors.New("failed to create transaction")).
 			Times(1)
 
@@ -597,10 +666,14 @@ func TestWriteTransactionSync(t *testing.T) {
 				AssetCode:      "USD",
 			},
 		}
+		transactionAmount := decimal.NewFromInt(100)
+		transactionInput.Send = mtransaction.Send{Asset: "USD", Value: transactionAmount}
 		tran := &transaction.Transaction{
 			ID:             transactionID,
 			OrganizationID: organizationID.String(),
 			LedgerID:       ledgerID.String(),
+			Amount:         &transactionAmount,
+			AssetCode:      "USD",
 			Operations:     []*operation.Operation{},
 			Metadata:       map[string]any{},
 		}
@@ -615,10 +688,11 @@ func TestWriteTransactionSync(t *testing.T) {
 
 		// Note: Balance updates are handled by BalanceSyncWorker, not in this flow
 
-		// Mock TransactionRepo.Create
+		dbTx := &orderedAtomicTx{events: &[]string{}}
+		mockTransactionRepo.EXPECT().BeginTx(gomock.Any()).Return(dbTx, nil)
 		mockTransactionRepo.EXPECT().
-			Create(gomock.Any(), gomock.Any()).
-			Return(tran, nil).
+			CreateBulkTx(gomock.Any(), dbTx, gomock.Any()).
+			Return(&repository.BulkInsertResult{Attempted: 1, Inserted: 1, InsertedIDs: []string{tran.ID}}, nil).
 			AnyTimes()
 
 		// Mock MetadataRepo.Create
@@ -633,10 +707,9 @@ func TestWriteTransactionSync(t *testing.T) {
 			Return(nil, nil).
 			AnyTimes()
 
-		// Mock RedisRepo.RemoveMessageFromQueue
 		mockRedisRepo.EXPECT().
-			RemoveMessageFromQueue(gomock.Any(), gomock.Any()).
-			Return(nil).
+			RemoveMessageFromQueueIfStatus(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), false).
+			Return(true, nil).
 			AnyTimes()
 
 		// Mock RedisRepo.Del for removing transaction from write-behind cache
