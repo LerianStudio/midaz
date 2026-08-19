@@ -248,14 +248,12 @@ services:
   #
   # Topic set is the FULL platform catalog derived from the two canonical
   # registration functions — DO NOT hand-edit stale entries; keep in sync with:
-  #   - midazEventDefinitions()  (components/ledger/internal/bootstrap/streaming.go) — 49 ledger/fee/crm topics
-  #   - tracerEventDefinitions() (components/tracer/internal/bootstrap/streaming.go) — 12 tracer.rule.*/tracer.limit.* topics
-  # Total: 62 topics. Topic name = "<service>.<resource>.<event>" (ACL-prefix
-  # grammar, pkg/streaming TopicName): the fee/crm events ride the single
-  # "ledger" segment because they are embedded in the ledger binary.
-  # Note: lerian.streaming.billing.recorded is registered separately via
-  # billing.Definition() (not midazEventDefinitions()), so it is an explicit
-  # addition below rather than a member of the two catalog functions above.
+  #   - midazEventDefinitions()  (components/ledger/internal/bootstrap/streaming.go) — 49 topics, all under the "ledger." segment (fees keep a fee_ resource prefix; crm has no separate segment)
+  #   - tracerEventDefinitions() (components/tracer/internal/bootstrap/streaming.go) — 12 rule.*/limit.* topics under the "tracer." segment
+  # Total: 62 topics. Topic name = "{service}.{resource}.{event}" (service = ledger|tracer).
+  # Note: lerian.streaming.billing.recorded is the exception — registered separately via
+  # billing.Definition() (not midazEventDefinitions()), a fixed lib topic (Confluent-framed
+  # Protobuf) kept verbatim, not renamed to the {service}.{resource}.{event} grammar.
   midaz-redpanda-init:
     container_name: midaz-redpanda-init
     image: redpandadata/redpanda:v24.2.7
@@ -303,7 +301,7 @@ services:
         rpk topic create ledger.transaction_route.created -r 1 -p 1 --brokers midaz-redpanda:9092 || true
         rpk topic create ledger.transaction_route.deleted -r 1 -p 1 --brokers midaz-redpanda:9092 || true
         rpk topic create ledger.transaction_route.updated -r 1 -p 1 --brokers midaz-redpanda:9092 || true
-        # fees (7) — embedded in the ledger binary, single "ledger" segment
+        # fees (7) — embedded in the ledger binary, emit under ledger.fee_* (ce-source ledger)
         rpk topic create ledger.fee_billing_packages.created -r 1 -p 1 --brokers midaz-redpanda:9092 || true
         rpk topic create ledger.fee_billing_packages.deleted -r 1 -p 1 --brokers midaz-redpanda:9092 || true
         rpk topic create ledger.fee_billing_packages.updated -r 1 -p 1 --brokers midaz-redpanda:9092 || true
@@ -311,7 +309,7 @@ services:
         rpk topic create ledger.fee_packages.created -r 1 -p 1 --brokers midaz-redpanda:9092 || true
         rpk topic create ledger.fee_packages.deleted -r 1 -p 1 --brokers midaz-redpanda:9092 || true
         rpk topic create ledger.fee_packages.updated -r 1 -p 1 --brokers midaz-redpanda:9092 || true
-        # crm (7) — embedded in the ledger binary, single "ledger" segment
+        # crm (7) — embedded in the ledger binary, emit under ledger.* (ce-source ledger)
         rpk topic create ledger.holder.created -r 1 -p 1 --brokers midaz-redpanda:9092 || true
         rpk topic create ledger.holder.deleted -r 1 -p 1 --brokers midaz-redpanda:9092 || true
         rpk topic create ledger.holder.updated -r 1 -p 1 --brokers midaz-redpanda:9092 || true
@@ -319,7 +317,7 @@ services:
         rpk topic create ledger.instrument.deleted -r 1 -p 1 --brokers midaz-redpanda:9092 || true
         rpk topic create ledger.instrument.related_party_deleted -r 1 -p 1 --brokers midaz-redpanda:9092 || true
         rpk topic create ledger.instrument.updated -r 1 -p 1 --brokers midaz-redpanda:9092 || true
-        # tracer (12)
+        # tracer (12) — ce-source tracer
         rpk topic create tracer.limit.activated -r 1 -p 1 --brokers midaz-redpanda:9092 || true
         rpk topic create tracer.limit.created -r 1 -p 1 --brokers midaz-redpanda:9092 || true
         rpk topic create tracer.limit.deactivated -r 1 -p 1 --brokers midaz-redpanda:9092 || true
