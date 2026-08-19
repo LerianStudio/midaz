@@ -1295,30 +1295,44 @@ func (rr *RedisConsumerRepository) ProcessOutcomeBalanceAtomicOperation(
 		return nil, fmt.Errorf("complete balance execution attempt is required")
 	}
 
-	if (attempt.TracerOutcomeID == uuid.Nil) != (attempt.TracerOutcomeState == "") {
-		return nil, fmt.Errorf("complete tracer outcome transition is required")
-	}
-
-	if attempt.TracerOutcomeID != uuid.Nil && attempt.TracerOutcomeState != mmodel.TracerOutcomePendingHeld &&
-		attempt.TracerOutcomeState != mmodel.TracerOutcomeCommitted && attempt.TracerOutcomeState != mmodel.TracerOutcomeAborted {
-		return nil, fmt.Errorf("invalid tracer outcome transition %q", attempt.TracerOutcomeState)
-	}
-
-	if attempt.TracerOutcomeID != uuid.Nil {
-		abortedPair := attempt.Outcome == mmodel.TransactionOutcomeAborted &&
-			attempt.TracerOutcomeState == mmodel.TracerOutcomeAborted
-		committedPair := attempt.Outcome == mmodel.TransactionOutcomeCommitted &&
-			(attempt.TracerOutcomeState == mmodel.TracerOutcomePendingHeld ||
-				attempt.TracerOutcomeState == mmodel.TracerOutcomeCommitted)
-
-		if !abortedPair && !committedPair {
-			return nil, fmt.Errorf("tracer outcome transition %q conflicts with balance outcome %q",
-				attempt.TracerOutcomeState, attempt.Outcome)
-		}
+	if err := validateTracerOutcomeTransition(attempt); err != nil {
+		return nil, err
 	}
 
 	return rr.processBalanceAtomicOperation(ctx, organizationID, ledgerID, transactionID,
 		transactionStatus, pending, balancesOperation, &attempt)
+}
+
+// validateTracerOutcomeTransition enforces that a balance execution attempt
+// carries a coherent tracer outcome transition: ID and state are provided
+// together, the state is a known terminal-or-held value, and the transition
+// agrees with the balance outcome.
+func validateTracerOutcomeTransition(attempt mmodel.BalanceExecutionAttempt) error {
+	if (attempt.TracerOutcomeID == uuid.Nil) != (attempt.TracerOutcomeState == "") {
+		return fmt.Errorf("complete tracer outcome transition is required")
+	}
+
+	if attempt.TracerOutcomeID == uuid.Nil {
+		return nil
+	}
+
+	if attempt.TracerOutcomeState != mmodel.TracerOutcomePendingHeld &&
+		attempt.TracerOutcomeState != mmodel.TracerOutcomeCommitted && attempt.TracerOutcomeState != mmodel.TracerOutcomeAborted {
+		return fmt.Errorf("invalid tracer outcome transition %q", attempt.TracerOutcomeState)
+	}
+
+	abortedPair := attempt.Outcome == mmodel.TransactionOutcomeAborted &&
+		attempt.TracerOutcomeState == mmodel.TracerOutcomeAborted
+	committedPair := attempt.Outcome == mmodel.TransactionOutcomeCommitted &&
+		(attempt.TracerOutcomeState == mmodel.TracerOutcomePendingHeld ||
+			attempt.TracerOutcomeState == mmodel.TracerOutcomeCommitted)
+
+	if !abortedPair && !committedPair {
+		return fmt.Errorf("tracer outcome transition %q conflicts with balance outcome %q",
+			attempt.TracerOutcomeState, attempt.Outcome)
+	}
+
+	return nil
 }
 
 func decodeTracerOutcome(raw string) (*mmodel.TracerOutcomeRecord, error) {

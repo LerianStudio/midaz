@@ -487,9 +487,10 @@ func (uc *UseCase) completeUnownedReplay(
 	key, encoded string,
 	replay *transaction.Transaction,
 ) error {
-	const replayTTLSeconds time.Duration = 300
+	// The Redis adapter forwards the raw duration value as EX seconds.
+	const replayTTL time.Duration = 300
 
-	completed, err := uc.TransactionRedisRepo.CompleteUnownedKey(ctx, key, encoded, replayTTLSeconds)
+	completed, err := uc.TransactionRedisRepo.CompleteUnownedKey(ctx, key, encoded, replayTTL)
 	if err == nil && completed {
 		return nil
 	}
@@ -520,9 +521,10 @@ func (uc *UseCase) completeOwnedReplay(
 	key, owner, encoded string,
 	replay *transaction.Transaction,
 ) error {
-	const replayTTLSeconds time.Duration = 300
+	// The Redis adapter forwards the raw duration value as EX seconds.
+	const replayTTL time.Duration = 300
 
-	completed, err := uc.TransactionRedisRepo.CompleteOwnedKey(ctx, key, owner, encoded, replayTTLSeconds)
+	completed, err := uc.TransactionRedisRepo.CompleteOwnedKey(ctx, key, owner, encoded, replayTTL)
 	if err == nil && completed {
 		return nil
 	}
@@ -559,7 +561,7 @@ func (uc *UseCase) completeOwnedReplay(
 		return fmt.Errorf("durable replay owner unavailable")
 	}
 
-	completed, err = uc.TransactionRedisRepo.CompleteOwnedKey(ctx, key, owner, encoded, replayTTLSeconds)
+	completed, err = uc.TransactionRedisRepo.CompleteOwnedKey(ctx, key, owner, encoded, replayTTL)
 	if err != nil || !completed {
 		if err != nil {
 			return err
