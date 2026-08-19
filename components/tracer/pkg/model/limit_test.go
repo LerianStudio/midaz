@@ -234,7 +234,7 @@ func TestNewLimit(t *testing.T) {
 		limitType           LimitType
 		maxAmount           decimal.Decimal
 		asset               string
-		expectedCurrency    string // if empty, defaults to asset (for normalization tests)
+		expectedAsset       string // if empty, defaults to asset (for normalization tests)
 		scopes              []Scope
 		description         *string
 		expectedDescription *string // if nil and description is set, defaults to description (for normalization tests)
@@ -354,24 +354,24 @@ func TestNewLimit(t *testing.T) {
 			errorIs:     constant.ErrLimitInvalidCurrency,
 		},
 		{
-			name:             "normalizes lowercase asset to uppercase",
-			limitName:        "Test Limit",
-			limitType:        LimitTypeDaily,
-			maxAmount:        decimal.RequireFromString("1000"),
-			asset:            "usd",
-			expectedCurrency: "USD",
-			scopes:           []Scope{validScope},
-			expectError:      false,
+			name:          "normalizes lowercase asset to uppercase",
+			limitName:     "Test Limit",
+			limitType:     LimitTypeDaily,
+			maxAmount:     decimal.RequireFromString("1000"),
+			asset:         "usd",
+			expectedAsset: "USD",
+			scopes:        []Scope{validScope},
+			expectError:   false,
 		},
 		{
-			name:             "trims and normalizes asset",
-			limitName:        "Test Limit",
-			limitType:        LimitTypeDaily,
-			maxAmount:        decimal.RequireFromString("1000"),
-			asset:            "  brl  ",
-			expectedCurrency: "BRL",
-			scopes:           []Scope{validScope},
-			expectError:      false,
+			name:          "trims and normalizes asset",
+			limitName:     "Test Limit",
+			limitType:     LimitTypeDaily,
+			maxAmount:     decimal.RequireFromString("1000"),
+			asset:         "  brl  ",
+			expectedAsset: "BRL",
+			scopes:        []Scope{validScope},
+			expectError:   false,
 		},
 		{
 			name:        "rejects asset with numbers",
@@ -558,12 +558,12 @@ func TestNewLimit(t *testing.T) {
 				assert.Equal(t, tc.limitType, limit.LimitType)
 				assert.True(t, tc.maxAmount.Equal(limit.MaxAmount), "expected MaxAmount %s, got %s", tc.maxAmount, limit.MaxAmount)
 
-				expectedCurrency := tc.asset
-				if tc.expectedCurrency != "" {
-					expectedCurrency = tc.expectedCurrency
+				expectedAsset := tc.asset
+				if tc.expectedAsset != "" {
+					expectedAsset = tc.expectedAsset
 				}
 
-				assert.Equal(t, expectedCurrency, limit.Asset)
+				assert.Equal(t, expectedAsset, limit.Asset)
 				// Scopes ordering is part of NewLimit's contract (see limit.go comment).
 				// Using Equal (not ElementsMatch) to verify order preservation.
 				assert.Equal(t, tc.scopes, limit.Scopes)

@@ -456,39 +456,50 @@ func TestRewriteWalker_NonMacroComprehension(t *testing.T) {
 	env, err := cel.NewEnv() // no EnableMacroCallTracking: no macro-call entries
 	require.NoError(t, err)
 
-	t.Run("global reference in body is renamed", func(t *testing.T) {
-		t.Parallel()
+	tests := []struct {
+		name        string
+		expression  string
+		wantIdent   string
+		wantMsg     string
+		absentIdent string
+		absentMsg   string
+	}{
+		{
+			name:        "global reference in body is renamed",
+			expression:  `["USD"].exists(x, x == currency)`,
+			wantIdent:   "asset",
+			wantMsg:     "global currency must be renamed to asset",
+			absentIdent: "currency",
+			absentMsg:   "no global currency should remain",
+		},
+		{
+			name:        "shadowed local binding is preserved",
+			expression:  `["BRL"].exists(currency, currency == "BRL")`,
+			wantIdent:   "currency",
+			wantMsg:     "shadowed local binding must be preserved",
+			absentIdent: "asset",
+			absentMsg:   "shadowed local must not be renamed to asset",
+		},
+	}
 
-		a, iss := env.Parse(`["USD"].exists(x, x == currency)`)
-		require.False(t, iss != nil && iss.Err() != nil)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 
-		nat := a.NativeRep()
-		rw := &currencyRewriter{info: nat.SourceInfo(), fac: celast.NewExprFactory()}
-		rw.walk(nat.Expr())
+			a, iss := env.Parse(tt.expression)
+			require.False(t, iss != nil && iss.Err() != nil)
 
-		var idents []string
-		collectIdents(nat.Expr(), &idents)
+			nat := a.NativeRep()
+			rw := &currencyRewriter{info: nat.SourceInfo(), fac: celast.NewExprFactory()}
+			rw.walk(nat.Expr())
 
-		assert.Contains(t, idents, "asset", "global currency must be renamed to asset")
-		assert.NotContains(t, idents, "currency", "no global currency should remain")
-	})
+			var idents []string
+			collectIdents(nat.Expr(), &idents)
 
-	t.Run("shadowed local binding is preserved", func(t *testing.T) {
-		t.Parallel()
-
-		a, iss := env.Parse(`["BRL"].exists(currency, currency == "BRL")`)
-		require.False(t, iss != nil && iss.Err() != nil)
-
-		nat := a.NativeRep()
-		rw := &currencyRewriter{info: nat.SourceInfo(), fac: celast.NewExprFactory()}
-		rw.walk(nat.Expr())
-
-		var idents []string
-		collectIdents(nat.Expr(), &idents)
-
-		assert.Contains(t, idents, "currency", "shadowed local binding must be preserved")
-		assert.NotContains(t, idents, "asset", "shadowed local must not be renamed to asset")
-	})
+			assert.Contains(t, idents, tt.wantIdent, tt.wantMsg)
+			assert.NotContains(t, idents, tt.absentIdent, tt.absentMsg)
+		})
+	}
 }
 
 func TestRewriteCurrencyToAsset_Errors(t *testing.T) {

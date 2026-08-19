@@ -30,6 +30,7 @@ import (
 	"github.com/LerianStudio/midaz/v4/components/tracer/pkg/logging"
 	"github.com/LerianStudio/midaz/v4/components/tracer/pkg/model"
 	"github.com/LerianStudio/midaz/v4/components/tracer/pkg/sanitize"
+	"github.com/LerianStudio/midaz/v4/pkg/constant"
 )
 
 // validationPersistTimeout is the maximum duration for transaction validation record persistence.
@@ -711,7 +712,7 @@ func validateTransactionValidation(tv *model.TransactionValidation) error {
 
 	// Asset must not be empty
 	if tv.Asset == "" {
-		return errors.New("asset is empty")
+		return constant.ErrValidationCurrencyRequired
 	}
 
 	// TransactionTimestamp must be valid for compliance audit trail

@@ -229,7 +229,7 @@ func TestReserveContract_DetectsLedgerShapeDrift(t *testing.T) {
 	originalBuggyBody := map[string]any{
 		"transactionId":   uuid.MustParse("77777777-7777-7777-7777-777777777777").String(),
 		"amount":          "1000",
-		"asset":           "BRL",
+		"currency":        "BRL",                // LEGACY key on purpose: the old ledger wire shape
 		"account":         "@source-account",    // STRING, not the AccountContext object
 		"transactionType": "pending-long-lived", // the invalid enum the old hint smuggled in
 	}
