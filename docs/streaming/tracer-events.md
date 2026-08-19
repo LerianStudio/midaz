@@ -415,6 +415,39 @@ application name (`tracer`) plus the event key (`rule.created`);
 no `name`, `description`, or `expression`. All UUIDs above are illustrative
 placeholders.
 
+> **Before upgrading:** the ce-source is now REFUSED at startup unless it is exactly
+> `tracer`. A value carried over from before the one-topic contract — the dotted
+> `lerian.midaz.tracer` or URI `//lerian.midaz/tracer` shapes, or any other legal
+> name — must be removed from every env file first, or the service will not boot. The
+> refusal is deliberate: broker topics and Kafka ACLs are provisioned for the roster
+> name alone, so any other value would publish into a stream that neither exists nor
+> is granted, and midaz would swallow every one of those failures as a Warn while
+> reporting healthy. The check runs whether or not `STREAMING_ENABLED` is set.
+
+## Partitioning
+
+lib-streaming picks a record's partition key by falling back through: system event
+→ tenant → `ce-subject` → event id. Under one topic per application that has one
+consequence worth stating plainly.
+
+- **Multi-tenant deployments** key by the resolved tenant, so the stream spreads
+  across `lerian.streaming.tracer`'s partitions and every tenant's events keep a
+  stable partition affinity.
+- **Single-tenant deployments** carry the literal tenant `"default"` on every event
+  (see `ce-tenantid` above), so the ENTIRE stream hashes to ONE partition regardless
+  of how many the topic has. Consumer parallelism on that stream is capped at one.
+
+That is a throughput ceiling, not a correctness problem: a single partition makes
+ordering stronger, not weaker — total order across the stream instead of order per
+tenant — and nothing is dropped or misrouted. Plan capacity for it in single-tenant
+deployments.
+
+The ceiling stands until the platform-wide partition-key default is decided in
+lib-streaming (tenant+subject is the likely shape). midaz deliberately does not
+override the key locally: partitioning is a fleet contract, and one service opting
+out of it privately is how two consumers of the same stream end up disagreeing about
+what a partition means.
+
 ## Local testing
 
 To exercise the real emit path against a broker, run a Redpanda instance and

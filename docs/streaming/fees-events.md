@@ -242,6 +242,15 @@ Every emission carries a `ce-tenantid` header sourced from
 Note: `organizationId` is a **payload** field (a collection/sub-tenant
 dimension), not the tenant. It is never used as `ce-tenantid`.
 
+> **Before upgrading:** the ce-source is now REFUSED at startup unless it is exactly
+> `ledger`. A value carried over from before the one-topic contract — the dotted
+> `lerian.midaz.ledger` or URI `//lerian.midaz/ledger` shapes, or any other legal
+> name — must be removed from every env file first, or the service will not boot. The
+> refusal is deliberate: broker topics and Kafka ACLs are provisioned for the roster
+> name alone, so any other value would publish into a stream that neither exists nor
+> is granted, and midaz would swallow every one of those failures as a Warn while
+> reporting healthy. The check runs whether or not `STREAMING_ENABLED` is set.
+
 ## Local testing
 
 To exercise the real emit path against a broker, run the infra Redpanda and
