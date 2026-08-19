@@ -21,6 +21,7 @@ import (
 	"github.com/LerianStudio/midaz/v4/components/tracer/internal/adapters/postgres"
 	pgdb "github.com/LerianStudio/midaz/v4/components/tracer/internal/adapters/postgres/db"
 	"github.com/LerianStudio/midaz/v4/components/tracer/internal/testutil"
+	"github.com/LerianStudio/midaz/v4/pkg/constant"
 )
 
 // sqlTxBeginner adapts a raw *sql.DB to pgdb.TxBeginner. The integration suite
@@ -173,6 +174,8 @@ func TestIntegration_CELRuleMigration_Up_RollsBackOnBadRule(t *testing.T) {
 
 	_, err := m.Up(ctx)
 	require.Error(t, err, "recompile-all gate must abort on the undeclared reference")
+	assert.ErrorIs(t, err, constant.ErrExpressionSyntax,
+		"the bounded error must wrap the sentinel, not the raw cel-go error")
 
 	// All-or-nothing: not a single rule was mutated.
 	for id, original := range ids {

@@ -18,6 +18,7 @@ import (
 	dbmocks "github.com/LerianStudio/midaz/v4/components/tracer/internal/adapters/postgres/db/mocks"
 	"github.com/LerianStudio/midaz/v4/components/tracer/internal/testutil"
 	"github.com/LerianStudio/midaz/v4/components/tracer/pkg/model"
+	"github.com/LerianStudio/midaz/v4/pkg/constant"
 )
 
 // --- transaction stub ----------------------------------------------------
@@ -143,9 +144,13 @@ func TestMigrator_Up_ErrorPaths(t *testing.T) {
 		// setup configures the mocks for the case and returns the fakeTx that
 		// BeginTx will hand back (nil when no transaction is started), so the
 		// subtest can assert rollback.
-		setup      func(b *dbmocks.MockTxBeginner, s *MockRuleStore, c *MockExpressionCompiler) *fakeTx
-		rewrite    Rewriter
-		wantErr    string
+		setup   func(b *dbmocks.MockTxBeginner, s *MockRuleStore, c *MockExpressionCompiler) *fakeTx
+		rewrite Rewriter
+		wantErr string
+		// wantErrIs, when set, asserts the returned error wraps this sentinel
+		// (errors.Is). Used for the rewrite/recompile branches, which return a
+		// bounded ErrExpressionSyntax rather than the raw cel-go error.
+		wantErrIs  error
 		wantRolled bool // true when a tx was started and must be rolled back
 	}{
 		{
@@ -198,7 +203,7 @@ func TestMigrator_Up_ErrorPaths(t *testing.T) {
 				return tx
 			},
 			rewrite:    func(string) (string, error) { return "", rewriteErr },
-			wantErr:    "rewrite rule",
+			wantErrIs:  constant.ErrExpressionSyntax,
 			wantRolled: true,
 		},
 		{
@@ -211,7 +216,7 @@ func TestMigrator_Up_ErrorPaths(t *testing.T) {
 				return tx
 			},
 			rewrite:    toAssetRewrite,
-			wantErr:    "recompile gate failed",
+			wantErrIs:  constant.ErrExpressionSyntax,
 			wantRolled: true,
 		},
 		{
@@ -260,7 +265,14 @@ func TestMigrator_Up_ErrorPaths(t *testing.T) {
 
 			_, err = m.Up(context.Background())
 			require.Error(t, err)
-			assert.Contains(t, err.Error(), tt.wantErr)
+
+			if tt.wantErr != "" {
+				assert.Contains(t, err.Error(), tt.wantErr)
+			}
+
+			if tt.wantErrIs != nil {
+				assert.ErrorIs(t, err, tt.wantErrIs)
+			}
 
 			if tt.wantRolled {
 				require.NotNil(t, tx)

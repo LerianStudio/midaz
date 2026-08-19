@@ -219,19 +219,19 @@ func (m *Migrator) Up(ctx context.Context) (Result, error) {
 			logger.Log(ctx, libLog.LevelError, "Failed to rewrite rule expression", libLog.String("rule_id", rule.ID.String()), libLog.Err(constant.ErrExpressionSyntax))
 			logger.Log(ctx, libLog.LevelDebug, "Rule expression rewrite error detail", libLog.String("rule_id", rule.ID.String()), libLog.Err(err))
 
-			return res, fmt.Errorf("rewrite rule %s: %w", rule.ID, err)
+			return res, boundedErr
 		}
 
 		if err := m.compiler.Compile(rewritten); err != nil {
 			// The compiler error can echo the rewritten expression; keep it at
 			// Debug and put only a bounded classification plus rule ID on the
 			// operator-facing span and log.
-			boundedErr := fmt.Errorf("rewritten expression failed the recompile-all gate for rule %s", rule.ID)
+			boundedErr := fmt.Errorf("%w: rewritten expression failed the recompile-all gate for rule %s", constant.ErrExpressionSyntax, rule.ID)
 			libOtel.HandleSpanError(span, "Rewritten expression failed the recompile-all gate", boundedErr)
-			logger.Log(ctx, libLog.LevelError, "Rewritten expression failed the recompile-all gate", libLog.String("rule_id", rule.ID.String()))
+			logger.Log(ctx, libLog.LevelError, "Rewritten expression failed the recompile-all gate", libLog.String("rule_id", rule.ID.String()), libLog.Err(constant.ErrExpressionSyntax))
 			logger.Log(ctx, libLog.LevelDebug, "Recompile-all gate error detail", libLog.String("rule_id", rule.ID.String()), libLog.Err(err))
 
-			return res, fmt.Errorf("recompile gate failed for rule %s: %w", rule.ID, err)
+			return res, boundedErr
 		}
 
 		if rewritten == rule.Expression {
