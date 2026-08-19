@@ -62,7 +62,7 @@ func TestValidation_Metadata_MaxEntries_BoundaryValid(t *testing.T) {
 		"requestId":            testutil.MustDeterministicUUID(4301).String(),
 		"transactionType":      "CARD",
 		"amount":               100,
-		"currency":             "BRL",
+		"asset":                "BRL",
 		"transactionTimestamp": testutil.FixedTime().Add(-1 * time.Minute).Format(time.RFC3339),
 		"account": map[string]any{
 			"accountId": testutil.MustDeterministicUUID(4302).String(),
@@ -116,7 +116,7 @@ func TestValidation_Metadata_ExceedsMaxEntries(t *testing.T) {
 		"requestId":            testutil.MustDeterministicUUID(4303).String(),
 		"transactionType":      "CARD",
 		"amount":               100,
-		"currency":             "BRL",
+		"asset":                "BRL",
 		"transactionTimestamp": testutil.FixedTime().Add(-1 * time.Minute).Format(time.RFC3339),
 		"account": map[string]any{
 			"accountId": testutil.MustDeterministicUUID(4304).String(),
@@ -195,7 +195,7 @@ func TestValidation_Metadata_KeyWithInvalidCharacters(t *testing.T) {
 				"requestId":            testutil.MustDeterministicUUID(int64(4305 + i*2)).String(),
 				"transactionType":      "CARD",
 				"amount":               100,
-				"currency":             "BRL",
+				"asset":                "BRL",
 				"transactionTimestamp": testutil.FixedTime().Add(-1 * time.Minute).Format(time.RFC3339),
 				"account": map[string]any{
 					"accountId": testutil.MustDeterministicUUID(int64(4306 + i*2)).String(),
@@ -249,7 +249,7 @@ func TestValidation_Metadata_KeyExceedsMaxLength(t *testing.T) {
 		"requestId":            testutil.MustDeterministicUUID(4315).String(),
 		"transactionType":      "CARD",
 		"amount":               100,
-		"currency":             "BRL",
+		"asset":                "BRL",
 		"transactionTimestamp": testutil.FixedTime().Add(-1 * time.Minute).Format(time.RFC3339),
 		"account": map[string]any{
 			"accountId": testutil.MustDeterministicUUID(4316).String(),
@@ -299,7 +299,7 @@ func TestValidation_Metadata_KeyAtMaxLength_BoundaryValid(t *testing.T) {
 		"requestId":            testutil.MustDeterministicUUID(4317).String(),
 		"transactionType":      "CARD",
 		"amount":               100,
-		"currency":             "BRL",
+		"asset":                "BRL",
 		"transactionTimestamp": testutil.FixedTime().Add(-1 * time.Minute).Format(time.RFC3339),
 		"account": map[string]any{
 			"accountId": testutil.MustDeterministicUUID(4318).String(),
@@ -348,7 +348,7 @@ func TestValidation_Metadata_DifferentValueTypes(t *testing.T) {
 		"requestId":            testutil.MustDeterministicUUID(4319).String(),
 		"transactionType":      "CARD",
 		"amount":               100,
-		"currency":             "BRL",
+		"asset":                "BRL",
 		"transactionTimestamp": testutil.FixedTime().Add(-1 * time.Minute).Format(time.RFC3339),
 		"account": map[string]any{
 			"accountId": testutil.MustDeterministicUUID(4320).String(),

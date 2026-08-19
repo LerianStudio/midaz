@@ -34,7 +34,7 @@ func limitFixture(id, scopeSeed int64, status model.LimitStatus) *model.Limit {
 		Name:      "Streaming Limit",
 		LimitType: model.LimitTypeDaily,
 		MaxAmount: decimal.RequireFromString("1000"),
-		Currency:  "USD",
+		Asset:     "USD",
 		Status:    status,
 		Scopes: []model.Scope{
 			{AccountID: testutil.UUIDPtr(testutil.MustDeterministicUUID(scopeSeed))},
@@ -81,7 +81,7 @@ func TestCreateLimit_EmitsLimitCreated(t *testing.T) {
 		Description: testutil.StringPtr("Daily spending limit"),
 		LimitType:   model.LimitTypeDaily,
 		MaxAmount:   decimal.RequireFromString("1000"),
-		Currency:    "USD",
+		Asset:       "USD",
 		Scopes:      []model.Scope{{AccountID: testutil.UUIDPtr(testutil.MustDeterministicUUID(1))}},
 	}
 
@@ -122,7 +122,7 @@ func TestCreateLimit_NilEmitter_NoEmit_NoPanic(t *testing.T) {
 
 	input := &CreateLimitInput{
 		Name: "Daily Card Limit", LimitType: model.LimitTypeDaily,
-		MaxAmount: decimal.RequireFromString("1000"), Currency: "USD",
+		MaxAmount: decimal.RequireFromString("1000"), Asset: "USD",
 		Scopes: []model.Scope{{AccountID: testutil.UUIDPtr(testutil.MustDeterministicUUID(1))}},
 	}
 
@@ -148,7 +148,7 @@ func TestCreateLimit_NoopEmitter_Succeeds(t *testing.T) {
 
 	input := &CreateLimitInput{
 		Name: "Daily Card Limit", LimitType: model.LimitTypeDaily,
-		MaxAmount: decimal.RequireFromString("1000"), Currency: "USD",
+		MaxAmount: decimal.RequireFromString("1000"), Asset: "USD",
 		Scopes: []model.Scope{{AccountID: testutil.UUIDPtr(testutil.MustDeterministicUUID(1))}},
 	}
 
@@ -176,7 +176,7 @@ func TestCreateLimit_EmitFailure_RequestStillSucceeds(t *testing.T) {
 
 	input := &CreateLimitInput{
 		Name: "Daily Card Limit", LimitType: model.LimitTypeDaily,
-		MaxAmount: decimal.RequireFromString("1000"), Currency: "USD",
+		MaxAmount: decimal.RequireFromString("1000"), Asset: "USD",
 		Scopes: []model.Scope{{AccountID: testutil.UUIDPtr(testutil.MustDeterministicUUID(1))}},
 	}
 

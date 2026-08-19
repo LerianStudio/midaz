@@ -28,7 +28,7 @@ type TransactionValidationPostgreSQLModel struct {
 	TransactionType      string          `db:"transaction_type"`
 	SubType              *string         `db:"sub_type"`
 	Amount               decimal.Decimal `db:"amount"`
-	Currency             string          `db:"currency"`
+	Asset                string          `db:"asset"`
 	TransactionTimestamp time.Time       `db:"transaction_timestamp"`
 	Account              string          `db:"account"`   // JSONB
 	Segment              *string         `db:"segment"`   // JSONB (nullable)
@@ -71,7 +71,7 @@ func (m *TransactionValidationPostgreSQLModel) ToEntity() (*model.TransactionVal
 		TransactionType:      model.TransactionType(m.TransactionType),
 		SubType:              m.SubType,
 		Amount:               m.Amount,
-		Currency:             m.Currency,
+		Asset:                m.Asset,
 		TransactionTimestamp: m.TransactionTimestamp,
 		EvaluationResult: model.EvaluationResult{
 			Decision:         model.Decision(m.Decision),
@@ -151,7 +151,7 @@ func (m *TransactionValidationPostgreSQLModel) FromEntity(entity *model.Transact
 	m.TransactionType = string(entity.TransactionType)
 	m.SubType = entity.SubType
 	m.Amount = entity.Amount
-	m.Currency = entity.Currency
+	m.Asset = entity.Asset
 	m.TransactionTimestamp = entity.TransactionTimestamp
 	m.Decision = string(entity.Decision)
 	m.Reason = entity.Reason

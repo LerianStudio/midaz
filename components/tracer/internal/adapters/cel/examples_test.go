@@ -45,7 +45,7 @@ func newExampleRequest() *model.ValidationRequest {
 		TransactionType: "PIX",
 		SubType:         &subType,
 		Amount:          decimal.RequireFromString("1500"),
-		Currency:        "BRL",
+		Asset:           "BRL",
 		Account: model.AccountContext{
 			ID:     exampleTestAccountID,
 			Type:   "checking",
@@ -505,7 +505,7 @@ func TestCombinedExpressions(t *testing.T) {
 				req.TransactionType = "PIX"
 				req.Amount = decimal.RequireFromString("500")
 				req.Account.Status = "active"
-				req.Currency = "BRL"
+				req.Asset = "BRL"
 			},
 			expected: true,
 		},
@@ -516,7 +516,7 @@ func TestCombinedExpressions(t *testing.T) {
 				req.TransactionType = "PIX"
 				req.Amount = decimal.RequireFromString("500")
 				req.Account.Status = "active"
-				req.Currency = "USD"
+				req.Asset = "USD"
 			},
 			expected: false,
 		},

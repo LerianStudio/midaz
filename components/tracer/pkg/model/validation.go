@@ -75,7 +75,7 @@ type ValidationRequest struct {
 	// SubType is normalized to lowercase canonical form; matching is case-insensitive.
 	SubType              *string           `json:"subType,omitempty" validate:"omitempty,max=50" maxLength:"50" extensions:"x-normalization=lowercase" example:"purchase"`
 	Amount               decimal.Decimal   `json:"amount" validate:"required" swaggertype:"string" example:"100.00"`
-	Currency             string            `json:"currency" validate:"required" example:"USD"`
+	Asset                string            `json:"asset" validate:"required" example:"USD"`
 	TransactionTimestamp time.Time         `json:"transactionTimestamp" format:"date-time" validate:"required" example:"2021-01-01T00:00:00Z"`
 	Account              AccountContext    `json:"account" validate:"required"`
 	Segment              *SegmentContext   `json:"segment,omitempty"`
@@ -85,24 +85,24 @@ type ValidationRequest struct {
 }
 
 // NewValidationRequest creates a new ValidationRequest with validation and normalization.
-// Currency is normalized to uppercase and trimmed (auto-corrects case).
+// Asset is normalized to uppercase and trimmed (auto-corrects case).
 // SubType is trimmed and lowercased (canonical form) if provided; matching is case-insensitive.
 // Metadata is shallow-copied (top-level keys only) to detach from the original map.
 // Note: nested maps/slices within metadata values remain shared references.
 // Returns error if validation fails after normalization.
 //
 // Use this constructor when:
-// - Building requests programmatically where currency normalization is desired
-// - You want automatic currency case correction (e.g., "usd" → "USD")
+// - Building requests programmatically where asset normalization is desired
+// - You want automatic asset case correction (e.g., "usd" → "USD")
 //
-// For strict post-JSON-parse validation without currency normalization, use NormalizeAndValidate() instead.
+// For strict post-JSON-parse validation without asset normalization, use NormalizeAndValidate() instead.
 func NewValidationRequest(
 	now time.Time,
 	requestID uuid.UUID,
 	transactionType TransactionType,
 	subType *string,
 	amount decimal.Decimal,
-	currency string,
+	asset string,
 	transactionTimestamp time.Time,
 	account AccountContext,
 	segment *SegmentContext,
@@ -110,8 +110,8 @@ func NewValidationRequest(
 	merchant *MerchantContext,
 	metadata map[string]any,
 ) (*ValidationRequest, error) {
-	// Normalize currency (uppercase and trim)
-	normalizedCurrency := strings.ToUpper(strings.TrimSpace(currency))
+	// Normalize asset (uppercase and trim)
+	normalizedAsset := strings.ToUpper(strings.TrimSpace(asset))
 
 	// Normalize subType if provided (trim + lowercase for canonical form)
 	normalizedSubType := normalizeSubTypeRaw(subType)
@@ -134,7 +134,7 @@ func NewValidationRequest(
 		TransactionType:      transactionType,
 		SubType:              normalizedSubType,
 		Amount:               amount,
-		Currency:             normalizedCurrency,
+		Asset:                normalizedAsset,
 		TransactionTimestamp: transactionTimestamp,
 		Account:              account,
 		Segment:              segmentCopy,
@@ -156,17 +156,17 @@ func NewValidationRequest(
 // - Top-level Metadata map is shallow-copied
 // - Nested context metadata (Segment.Metadata, Portfolio.Metadata, Merchant.Metadata) are also shallow-copied
 // Note: Values within metadata maps remain shared references if they are maps/slices themselves.
-// Currency is NOT normalized - API enforces strict ISO 4217 uppercase validation (e.g., "usd" will fail).
+// Asset is NOT normalized - API enforces strict ISO 4217 uppercase validation (e.g., "usd" will fail).
 // Returns error if validation fails after normalization.
 //
 // Atomicity: If validation fails, the receiver is NOT modified. Normalization is only applied
 // after successful validation. This allows callers to safely retry or inspect the original values.
 //
 // Use this method when:
-// - Validating after JSON deserialization where strict ISO 4217 uppercase currency is required
-// - You want to enforce that clients send properly formatted currency codes
+// - Validating after JSON deserialization where strict ISO 4217 uppercase asset is required
+// - You want to enforce that clients send properly formatted asset codes
 //
-// For programmatic construction with automatic currency normalization, use NewValidationRequest() instead.
+// For programmatic construction with automatic asset normalization, use NewValidationRequest() instead.
 func (r *ValidationRequest) NormalizeAndValidate(now time.Time) error {
 	return r.normalizeAndValidateWith(now, (*ValidationRequest).Validate)
 }
@@ -338,7 +338,7 @@ func (r *ValidationRequest) Validate(now time.Time) error {
 		return constant.ErrValidationInvalidTransactionType
 	}
 
-	if err := r.validateAmountCurrencyTimestamp(now); err != nil {
+	if err := r.validateAmountAssetTimestamp(now); err != nil {
 		return err
 	}
 
@@ -359,7 +359,7 @@ func (r *ValidationRequest) Validate(now time.Time) error {
 
 // ValidateForReserve validates the request for the two-phase reserve path. It
 // runs the SAME core checks as the synchronous validate path (requestId,
-// positive amount, ISO-4217 currency, in-window timestamp) but relaxes two
+// positive amount, ISO-4217 asset, in-window timestamp) but relaxes two
 // fields the ledger legitimately cannot supply at the reserve anchor:
 //
 //   - transactionType: optional. The ledger is a double-entry ledger with no
@@ -378,7 +378,7 @@ func (r *ValidationRequest) ValidateForReserve(now time.Time) error {
 		return constant.ErrValidationRequestIDRequired
 	}
 
-	if err := r.validateAmountCurrencyTimestamp(now); err != nil {
+	if err := r.validateAmountAssetTimestamp(now); err != nil {
 		return err
 	}
 
@@ -397,22 +397,22 @@ func (r *ValidationRequest) ValidateForReserve(now time.Time) error {
 	return r.validateMetadata()
 }
 
-// validateAmountCurrencyTimestamp validates the value/currency/timestamp core
+// validateAmountAssetTimestamp validates the value/asset/timestamp core
 // shared by the synchronous validate path and the reserve path: a positive
-// amount, an ISO-4217 currency, and an in-window (not-future / not-too-far-past)
+// amount, an ISO-4217 asset, and an in-window (not-future / not-too-far-past)
 // timestamp. The requestId, transactionType-enum, and account-presence checks
 // live in the orchestrators (Validate / ValidateForReserve) because their
 // requiredness differs between the two paths.
-func (r *ValidationRequest) validateAmountCurrencyTimestamp(now time.Time) error {
+func (r *ValidationRequest) validateAmountAssetTimestamp(now time.Time) error {
 	if r.Amount.LessThanOrEqual(decimal.Zero) {
 		return constant.ErrValidationAmountNonPositive
 	}
 
-	if r.Currency == "" {
+	if r.Asset == "" {
 		return constant.ErrValidationCurrencyRequired
 	}
 
-	if !pkg.IsValidCurrency(r.Currency) {
+	if !pkg.IsValidCurrency(r.Asset) {
 		return constant.ErrValidationInvalidCurrency
 	}
 
@@ -519,7 +519,7 @@ func (r *ValidationRequest) transactionTypePtr() *TransactionType {
 func (r *ValidationRequest) ToCheckLimitsInput() *CheckLimitsInput {
 	input := &CheckLimitsInput{
 		Amount:               r.Amount,
-		Currency:             r.Currency,
+		Asset:                r.Asset,
 		AccountID:            r.Account.ID,
 		TransactionType:      r.transactionTypePtr(),
 		SubType:              r.SubType,

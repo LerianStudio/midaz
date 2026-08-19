@@ -31,7 +31,7 @@ func TestNewCheckLimitsInput_Valid(t *testing.T) {
 
 	require.NoError(t, err)
 	assert.True(t, decimal.RequireFromString("100").Equal(input.Amount))
-	assert.Equal(t, "BRL", input.Currency)
+	assert.Equal(t, "BRL", input.Asset)
 	assert.Equal(t, accountID, input.AccountID)
 }
 
@@ -44,7 +44,7 @@ func TestNewCheckLimitsInput_NormalizeCurrency(t *testing.T) {
 	input, err := model.NewCheckLimitsInput(decimal.RequireFromString("100"), "brl", accountID, nil, nil, nil, nil, nil, fixedTime)
 
 	require.NoError(t, err)
-	assert.Equal(t, "BRL", input.Currency)
+	assert.Equal(t, "BRL", input.Asset)
 }
 
 func TestNewCheckLimitsInput_InvalidAmount(t *testing.T) {
@@ -80,10 +80,10 @@ func TestNewCheckLimitsInput_InvalidCurrency(t *testing.T) {
 	fixedTime := testutil.FixedTime()
 
 	tests := []struct {
-		name     string
-		currency string
+		name  string
+		asset string
 	}{
-		{"empty currency", ""},
+		{"empty asset", ""},
 		{"too short", "BR"},
 		{"too long", "BRLL"},
 		{"two chars lowercase", "br"},
@@ -95,7 +95,7 @@ func TestNewCheckLimitsInput_InvalidCurrency(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			_, err := model.NewCheckLimitsInput(decimal.RequireFromString("100"), tt.currency, accountID, nil, nil, nil, nil, nil, fixedTime)
+			_, err := model.NewCheckLimitsInput(decimal.RequireFromString("100"), tt.asset, accountID, nil, nil, nil, nil, nil, fixedTime)
 
 			require.Error(t, err)
 			assert.ErrorIs(t, err, constant.ErrCheckLimitsInvalidCurrency)
@@ -122,7 +122,7 @@ func TestCheckLimitsInput_ValidateForReserve_AllowsNilAccount(t *testing.T) {
 
 	input := &model.CheckLimitsInput{
 		Amount:               decimal.RequireFromString("100"),
-		Currency:             "USD",
+		Asset:                "USD",
 		AccountID:            uuid.Nil, // external-only source: no internal account
 		TransactionTimestamp: testutil.FixedTime(),
 	}
@@ -131,7 +131,7 @@ func TestCheckLimitsInput_ValidateForReserve_AllowsNilAccount(t *testing.T) {
 	assert.ErrorIs(t, input.Validate(), constant.ErrCheckLimitsInvalidAccountID, "synchronous validate must still require an account")
 
 	// Core checks still apply on the reserve path.
-	bad := &model.CheckLimitsInput{Amount: decimal.Zero, Currency: "USD", TransactionTimestamp: testutil.FixedTime()}
+	bad := &model.CheckLimitsInput{Amount: decimal.Zero, Asset: "USD", TransactionTimestamp: testutil.FixedTime()}
 	assert.ErrorIs(t, bad.ValidateForReserve(), constant.ErrCheckLimitsInvalidAmount, "reserve must still reject a non-positive amount")
 }
 
@@ -182,7 +182,7 @@ func TestCheckLimitsInput_Validate(t *testing.T) {
 
 	input := &model.CheckLimitsInput{
 		Amount:               decimal.RequireFromString("100"),
-		Currency:             "BRL",
+		Asset:                "BRL",
 		AccountID:            accountID,
 		TransactionTimestamp: fixedTime,
 	}
@@ -293,17 +293,17 @@ func TestCheckLimitsInput_Validate_Invalid(t *testing.T) {
 			name: "zero amount",
 			input: model.CheckLimitsInput{
 				Amount:               decimal.RequireFromString("0"),
-				Currency:             "BRL",
+				Asset:                "BRL",
 				AccountID:            accountID,
 				TransactionTimestamp: fixedTime,
 			},
 			expectedErr: constant.ErrCheckLimitsInvalidAmount,
 		},
 		{
-			name: "invalid currency",
+			name: "invalid asset",
 			input: model.CheckLimitsInput{
 				Amount:               decimal.RequireFromString("100"),
-				Currency:             "XX",
+				Asset:                "XX",
 				AccountID:            accountID,
 				TransactionTimestamp: fixedTime,
 			},
@@ -313,7 +313,7 @@ func TestCheckLimitsInput_Validate_Invalid(t *testing.T) {
 			name: "nil account ID",
 			input: model.CheckLimitsInput{
 				Amount:               decimal.RequireFromString("100"),
-				Currency:             "BRL",
+				Asset:                "BRL",
 				AccountID:            uuid.Nil,
 				TransactionTimestamp: fixedTime,
 			},
@@ -323,7 +323,7 @@ func TestCheckLimitsInput_Validate_Invalid(t *testing.T) {
 			name: "zero timestamp",
 			input: model.CheckLimitsInput{
 				Amount:               decimal.RequireFromString("100"),
-				Currency:             "BRL",
+				Asset:                "BRL",
 				AccountID:            accountID,
 				TransactionTimestamp: time.Time{},
 			},
@@ -664,7 +664,7 @@ func TestCheckLimitsInput_Validate_InvalidSegmentID(t *testing.T) {
 
 	input := &model.CheckLimitsInput{
 		Amount:               decimal.RequireFromString("100"),
-		Currency:             "BRL",
+		Asset:                "BRL",
 		AccountID:            accountID,
 		SegmentID:            &zero,
 		TransactionTimestamp: fixedTime,
@@ -685,7 +685,7 @@ func TestCheckLimitsInput_Validate_InvalidPortfolioID(t *testing.T) {
 
 	input := &model.CheckLimitsInput{
 		Amount:               decimal.RequireFromString("100"),
-		Currency:             "BRL",
+		Asset:                "BRL",
 		AccountID:            accountID,
 		PortfolioID:          &zero,
 		TransactionTimestamp: fixedTime,
@@ -706,7 +706,7 @@ func TestCheckLimitsInput_Validate_InvalidMerchantID(t *testing.T) {
 
 	input := &model.CheckLimitsInput{
 		Amount:               decimal.RequireFromString("100"),
-		Currency:             "BRL",
+		Asset:                "BRL",
 		AccountID:            accountID,
 		MerchantID:           &zero,
 		TransactionTimestamp: fixedTime,
@@ -727,7 +727,7 @@ func TestCheckLimitsInput_Validate_InvalidTransactionType(t *testing.T) {
 
 	input := &model.CheckLimitsInput{
 		Amount:               decimal.RequireFromString("100"),
-		Currency:             "BRL",
+		Asset:                "BRL",
 		AccountID:            accountID,
 		TransactionTimestamp: fixedTime,
 		TransactionType:      &invalidTxType,
@@ -748,7 +748,7 @@ func TestCheckLimitsInput_Validate_SubTypeTooLong(t *testing.T) {
 
 	input := &model.CheckLimitsInput{
 		Amount:               decimal.RequireFromString("100"),
-		Currency:             "BRL",
+		Asset:                "BRL",
 		AccountID:            accountID,
 		TransactionTimestamp: fixedTime,
 		SubType:              &longSubType,
@@ -769,7 +769,7 @@ func TestCheckLimitsInput_Validate_SubTypeExactlyAtLimit(t *testing.T) {
 
 	input := &model.CheckLimitsInput{
 		Amount:               decimal.RequireFromString("100"),
-		Currency:             "BRL",
+		Asset:                "BRL",
 		AccountID:            accountID,
 		TransactionTimestamp: fixedTime,
 		SubType:              &exactSubType,

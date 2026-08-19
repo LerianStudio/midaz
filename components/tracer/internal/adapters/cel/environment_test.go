@@ -228,7 +228,7 @@ func TestBuildActivation_FullRequest(t *testing.T) {
 				TransactionType:      model.TransactionTypeCard,
 				SubType:              &subType,
 				Amount:               decimal.RequireFromString("100.75"),
-				Currency:             "USD",
+				Asset:                "USD",
 				TransactionTimestamp: time.Now(),
 				Account: model.AccountContext{
 					ID:     envTestAccountID1,
@@ -358,7 +358,7 @@ func TestBuildActivation_NilOptionalFields(t *testing.T) {
 				TransactionType:      model.TransactionTypeWire,
 				SubType:              nil,
 				Amount:               decimal.RequireFromString("50"),
-				Currency:             "BRL",
+				Asset:                "BRL",
 				TransactionTimestamp: time.Now(),
 				Account: model.AccountContext{
 					ID:     envTestAccountID2,
@@ -379,7 +379,7 @@ func TestBuildActivation_NilOptionalFields(t *testing.T) {
 				TransactionType:      model.TransactionTypePix,
 				SubType:              nil,
 				Amount:               decimal.RequireFromString("10"),
-				Currency:             "BRL",
+				Asset:                "BRL",
 				TransactionTimestamp: time.Now(),
 				Account: model.AccountContext{
 					ID:     envTestAccountID3,
@@ -400,7 +400,7 @@ func TestBuildActivation_NilOptionalFields(t *testing.T) {
 				TransactionType:      model.TransactionTypeCrypto,
 				SubType:              nil,
 				Amount:               decimal.RequireFromString("1000"),
-				Currency:             "USD",
+				Asset:                "USD",
 				TransactionTimestamp: time.Now(),
 				Account: model.AccountContext{
 					ID:     envTestAccountID4,
@@ -519,7 +519,7 @@ func TestBuildActivation_AmountPrecisionValidation(t *testing.T) {
 				RequestID:            uuid.New(),
 				TransactionType:      model.TransactionTypePix,
 				Amount:               decimal.RequireFromString(tc.amount),
-				Currency:             "BRL",
+				Asset:                "BRL",
 				TransactionTimestamp: time.Now(),
 				Account: model.AccountContext{
 					ID:     envTestAccountID1,

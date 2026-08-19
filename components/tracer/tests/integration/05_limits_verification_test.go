@@ -40,7 +40,7 @@ type limitVerificationResponse struct {
 	Name      string               `json:"name"`
 	LimitType string               `json:"limitType"`
 	MaxAmount decimal.Decimal      `json:"maxAmount"`
-	Currency  string               `json:"currency"`
+	Asset     string               `json:"asset"`
 	Scopes    []limitScopeResponse `json:"scopes"`
 	Status    string               `json:"status"`
 	ResetAt   *string              `json:"resetAt,omitempty"`
@@ -79,7 +79,7 @@ func TestLimitsVerification_5_1_1_FindsApplicableLimitsByScope(t *testing.T) {
 		RequestID:            testutil.MustDeterministicUUID(50103).String(),
 		TransactionType:      "PIX",
 		Amount:               decimal.RequireFromString("300"),
-		Currency:             "BRL",
+		Asset:                "BRL",
 		TransactionTimestamp: testutil.FixedTime().Format(time.RFC3339),
 		Account: &testutil.AccountContext{
 			ID: accountID1,
@@ -130,7 +130,7 @@ func TestLimitsVerification_5_1_2_CalculatesProjectedUsage(t *testing.T) {
 		RequestID:            testutil.MustDeterministicUUID(50111).String(),
 		TransactionType:      "PIX",
 		Amount:               decimal.RequireFromString("400"),
-		Currency:             "BRL",
+		Asset:                "BRL",
 		TransactionTimestamp: testutil.FixedTime().Format(time.RFC3339),
 		Account: &testutil.AccountContext{
 			ID: accountID,
@@ -147,7 +147,7 @@ func TestLimitsVerification_5_1_2_CalculatesProjectedUsage(t *testing.T) {
 		RequestID:            testutil.MustDeterministicUUID(50112).String(),
 		TransactionType:      "PIX",
 		Amount:               decimal.RequireFromString("300"),
-		Currency:             "BRL",
+		Asset:                "BRL",
 		TransactionTimestamp: testutil.FixedTime().Format(time.RFC3339),
 		Account: &testutil.AccountContext{
 			ID: accountID,
@@ -196,7 +196,7 @@ func TestLimitsVerification_5_1_3_ReturnsExceededWhenProjectedGreaterThanLimit(t
 		RequestID:            testutil.MustDeterministicUUID(50121).String(),
 		TransactionType:      "PIX",
 		Amount:               decimal.RequireFromString("800"),
-		Currency:             "BRL",
+		Asset:                "BRL",
 		TransactionTimestamp: testutil.FixedTime().Format(time.RFC3339),
 		Account: &testutil.AccountContext{
 			ID: accountID,
@@ -212,7 +212,7 @@ func TestLimitsVerification_5_1_3_ReturnsExceededWhenProjectedGreaterThanLimit(t
 		RequestID:            testutil.MustDeterministicUUID(50122).String(),
 		TransactionType:      "PIX",
 		Amount:               decimal.RequireFromString("300"),
-		Currency:             "BRL",
+		Asset:                "BRL",
 		TransactionTimestamp: testutil.FixedTime().Format(time.RFC3339),
 		Account: &testutil.AccountContext{
 			ID: accountID,
@@ -263,7 +263,7 @@ func TestLimitsVerification_5_1_4_ReturnsOKWhenProjectedEqualsLimit(t *testing.T
 		RequestID:            testutil.MustDeterministicUUID(50131).String(),
 		TransactionType:      "PIX",
 		Amount:               decimal.RequireFromString("700"),
-		Currency:             "BRL",
+		Asset:                "BRL",
 		TransactionTimestamp: testutil.FixedTime().Format(time.RFC3339),
 		Account: &testutil.AccountContext{
 			ID: accountID,
@@ -279,7 +279,7 @@ func TestLimitsVerification_5_1_4_ReturnsOKWhenProjectedEqualsLimit(t *testing.T
 		RequestID:            testutil.MustDeterministicUUID(50132).String(),
 		TransactionType:      "PIX",
 		Amount:               decimal.RequireFromString("300"),
-		Currency:             "BRL",
+		Asset:                "BRL",
 		TransactionTimestamp: testutil.FixedTime().Format(time.RFC3339),
 		Account: &testutil.AccountContext{
 			ID: accountID,
@@ -327,7 +327,7 @@ func TestLimitsVerification_5_1_5_ReturnsOKWhenProjectedLessThanLimit(t *testing
 		RequestID:            testutil.MustDeterministicUUID(50141).String(),
 		TransactionType:      "PIX",
 		Amount:               decimal.RequireFromString("500"),
-		Currency:             "BRL",
+		Asset:                "BRL",
 		TransactionTimestamp: testutil.FixedTime().Format(time.RFC3339),
 		Account: &testutil.AccountContext{
 			ID: accountID,
@@ -343,7 +343,7 @@ func TestLimitsVerification_5_1_5_ReturnsOKWhenProjectedLessThanLimit(t *testing
 		RequestID:            testutil.MustDeterministicUUID(50142).String(),
 		TransactionType:      "PIX",
 		Amount:               decimal.RequireFromString("300"),
-		Currency:             "BRL",
+		Asset:                "BRL",
 		TransactionTimestamp: testutil.FixedTime().Format(time.RFC3339),
 		Account: &testutil.AccountContext{
 			ID: accountID,
@@ -398,7 +398,7 @@ func TestLimitsVerification_5_1_6_ChecksMultipleLimits(t *testing.T) {
 			RequestID:            testutil.MustDeterministicUUID(50161).String(),
 			TransactionType:      "PIX",
 			Amount:               decimal.RequireFromString("300"),
-			Currency:             "BRL",
+			Asset:                "BRL",
 			TransactionTimestamp: testutil.FixedTime().Format(time.RFC3339),
 			Account: &testutil.AccountContext{
 				ID: accountID1,
@@ -451,7 +451,7 @@ func TestLimitsVerification_5_1_6_ChecksMultipleLimits(t *testing.T) {
 			RequestID:            testutil.MustDeterministicUUID(50171).String(),
 			TransactionType:      "PIX",
 			Amount:               decimal.RequireFromString("1200"), // Exceeds DAILY limit of 1000
-			Currency:             "BRL",
+			Asset:                "BRL",
 			TransactionTimestamp: testutil.FixedTime().Format(time.RFC3339),
 			Account: &testutil.AccountContext{
 				ID: accountID2,
@@ -512,7 +512,7 @@ func TestLimitsVerification_5_1_9_PerTransactionLimitChecksValueOnly(t *testing.
 				RequestID:            testutil.MustDeterministicUUID(int64(50191 + i*10)).String(),
 				TransactionType:      transactionType,
 				Amount:               tc.amount,
-				Currency:             "BRL",
+				Asset:                "BRL",
 				TransactionTimestamp: testutil.FixedTime().Format(time.RFC3339),
 				Account: &testutil.AccountContext{
 					ID: accountID,
@@ -573,7 +573,7 @@ func TestLimitsVerification_5_2_1_IncrementsUsageAtomically(t *testing.T) {
 		RequestID:            testutil.MustDeterministicUUID(50202).String(),
 		TransactionType:      "PIX",
 		Amount:               decimal.RequireFromString("200"),
-		Currency:             "BRL",
+		Asset:                "BRL",
 		TransactionTimestamp: testutil.FixedTime().Format(time.RFC3339),
 		Account: &testutil.AccountContext{
 			ID: accountID,
@@ -639,7 +639,7 @@ func TestLimitsVerification_5_2_2_DoesNotIncrementOnRuleBasedDeny(t *testing.T) 
 		RequestID:            uuid.New().String(),
 		TransactionType:      "PIX",
 		Amount:               decimal.RequireFromString("500"),
-		Currency:             "BRL",
+		Asset:                "BRL",
 		TransactionTimestamp: testutil.FixedTime().Format(time.RFC3339),
 		Account: &testutil.AccountContext{
 			ID: accountID,
@@ -666,7 +666,7 @@ func TestLimitsVerification_5_2_2_DoesNotIncrementOnRuleBasedDeny(t *testing.T) 
 		RequestID:            testutil.MustDeterministicUUID(50212).String(),
 		TransactionType:      "CARD",
 		Amount:               decimal.RequireFromString("200"),
-		Currency:             "BRL",
+		Asset:                "BRL",
 		TransactionTimestamp: testutil.FixedTime().Format(time.RFC3339),
 		Account: &testutil.AccountContext{
 			ID: accountID,
@@ -731,7 +731,7 @@ func TestLimitsVerification_5_2_3_DoesNotIncrementOnReview(t *testing.T) {
 		RequestID:            testutil.MustDeterministicUUID(50222).String(),
 		TransactionType:      "PIX",
 		Amount:               decimal.RequireFromString("300"),
-		Currency:             "BRL",
+		Asset:                "BRL",
 		TransactionTimestamp: testutil.FixedTime().Format(time.RFC3339),
 		Account: &testutil.AccountContext{
 			ID: accountID,
@@ -758,7 +758,7 @@ func TestLimitsVerification_5_2_3_DoesNotIncrementOnReview(t *testing.T) {
 		RequestID:            testutil.MustDeterministicUUID(50221).String(),
 		TransactionType:      "WIRE",
 		Amount:               decimal.RequireFromString("200"),
-		Currency:             "BRL",
+		Asset:                "BRL",
 		TransactionTimestamp: testutil.FixedTime().Format(time.RFC3339),
 		Account: &testutil.AccountContext{
 			ID: accountID,
@@ -835,7 +835,7 @@ func TestLimitsVerification_5_2_4_ConcurrentTransactionsAccumulateCorrectly(t *t
 				RequestID:            testutil.MustDeterministicUUID(int64(50231 + idx)).String(),
 				TransactionType:      "PIX",
 				Amount:               decimal.RequireFromString("100"),
-				Currency:             "BRL",
+				Asset:                "BRL",
 				TransactionTimestamp: testutil.FixedTime().Format(time.RFC3339),
 				Account: &testutil.AccountContext{
 					ID: accountID,
@@ -939,7 +939,7 @@ func TestLimitsVerification_5_2_5_RaceConditionPrevented(t *testing.T) {
 		RequestID:            testutil.MustDeterministicUUID(50251).String(),
 		TransactionType:      "PIX",
 		Amount:               decimal.RequireFromString("900"),
-		Currency:             "BRL",
+		Asset:                "BRL",
 		TransactionTimestamp: fixedTimestamp,
 		Account: &testutil.AccountContext{
 			ID: accountID,
@@ -968,7 +968,7 @@ func TestLimitsVerification_5_2_5_RaceConditionPrevented(t *testing.T) {
 				RequestID:            testutil.MustDeterministicUUID(int64(50252 + idx)).String(),
 				TransactionType:      "PIX",
 				Amount:               decimal.RequireFromString("100"),
-				Currency:             "BRL",
+				Asset:                "BRL",
 				TransactionTimestamp: fixedTimestamp,
 				Account: &testutil.AccountContext{
 					ID: accountID,
@@ -1125,7 +1125,7 @@ func TestLimitsVerification_DailyLimitPeriodFormat(t *testing.T) {
 		RequestID:            testutil.MustDeterministicUUID(50308).String(),
 		TransactionType:      "PIX",
 		Amount:               decimal.RequireFromString("100"),
-		Currency:             "BRL",
+		Asset:                "BRL",
 		TransactionTimestamp: testutil.FixedTime().Format(time.RFC3339),
 		Account: &testutil.AccountContext{
 			ID: accountID,
@@ -1172,7 +1172,7 @@ func TestLimitsVerification_MonthlyLimitPeriodFormat(t *testing.T) {
 		RequestID:            testutil.MustDeterministicUUID(50318).String(),
 		TransactionType:      "PIX",
 		Amount:               decimal.RequireFromString("100"),
-		Currency:             "BRL",
+		Asset:                "BRL",
 		TransactionTimestamp: testutil.FixedTime().Format(time.RFC3339),
 		Account: &testutil.AccountContext{
 			ID: accountID,
@@ -1227,7 +1227,7 @@ func TestLimitsVerification_5_2_6_RollbackWorks(t *testing.T) {
 		RequestID:            testutil.MustDeterministicUUID(50261).String(),
 		TransactionType:      "PIX",
 		Amount:               decimal.RequireFromString("500"),
-		Currency:             "BRL",
+		Asset:                "BRL",
 		TransactionTimestamp: testutil.FixedTime().Format(time.RFC3339),
 		Account: &testutil.AccountContext{
 			ID: accountID,
@@ -1269,7 +1269,7 @@ func TestLimitsVerification_5_2_6_RollbackWorks(t *testing.T) {
 		RequestID:            testutil.MustDeterministicUUID(50262).String(),
 		TransactionType:      "PIX",
 		Amount:               decimal.RequireFromString("200"),
-		Currency:             "BRL",
+		Asset:                "BRL",
 		TransactionTimestamp: testutil.FixedTime().Format(time.RFC3339),
 		Account: &testutil.AccountContext{
 			ID: accountID,
@@ -1366,7 +1366,7 @@ func TestLimitsVerification_5_3_2_UsageResetsInNewDailyPeriod(t *testing.T) {
 		RequestID:            testutil.MustDeterministicUUID(50321).String(),
 		TransactionType:      "PIX",
 		Amount:               decimal.RequireFromString("800"),
-		Currency:             "BRL",
+		Asset:                "BRL",
 		TransactionTimestamp: testutil.FixedTime().Format(time.RFC3339),
 		Account: &testutil.AccountContext{
 			ID: accountID,
@@ -1462,7 +1462,7 @@ func TestLimitsVerification_5_3_3_UsageResetsInNewMonthlyPeriod(t *testing.T) {
 		RequestID:            testutil.MustDeterministicUUID(50331).String(),
 		TransactionType:      "PIX",
 		Amount:               decimal.RequireFromString("4500"),
-		Currency:             "BRL",
+		Asset:                "BRL",
 		TransactionTimestamp: testutil.FixedTime().Format(time.RFC3339),
 		Account: &testutil.AccountContext{
 			ID: accountID,
@@ -1568,7 +1568,7 @@ func TestLimitsVerification_5_3_4_OldCountersCleanedUp(t *testing.T) {
 		RequestID:            testutil.MustDeterministicUUID(50341).String(),
 		TransactionType:      "PIX",
 		Amount:               decimal.RequireFromString("300"),
-		Currency:             "BRL",
+		Asset:                "BRL",
 		TransactionTimestamp: testutil.FixedTime().Format(time.RFC3339),
 		Account: &testutil.AccountContext{
 			ID: accountID,
@@ -1667,7 +1667,7 @@ func TestLimitsVerification_5_2_7_HighConcurrencyAtomicEnforcement(t *testing.T)
 				RequestID:            testutil.MustDeterministicUUID(int64(90151 + idx)).String(),
 				TransactionType:      "PIX",
 				Amount:               decimal.RequireFromString("1000"),
-				Currency:             "BRL",
+				Asset:                "BRL",
 				TransactionTimestamp: fixedTimestamp,
 				Account: &testutil.AccountContext{
 					ID: accountID,
@@ -1773,7 +1773,7 @@ func TestLimitsVerification_5_4_1_BackdatedTimestampBypass(t *testing.T) {
 			RequestID:            testutil.MustDeterministicUUID(int64(90201 + i)).String(),
 			TransactionType:      "PIX",
 			Amount:               decimal.RequireFromString("1000"),
-			Currency:             "BRL",
+			Asset:                "BRL",
 			TransactionTimestamp: currentTimestamp,
 			Account: &testutil.AccountContext{
 				ID: accountID,
@@ -1809,7 +1809,7 @@ func TestLimitsVerification_5_4_1_BackdatedTimestampBypass(t *testing.T) {
 			RequestID:            testutil.MustDeterministicUUID(int64(90206 + i)).String(),
 			TransactionType:      "PIX",
 			Amount:               decimal.RequireFromString("1000"),
-			Currency:             "BRL",
+			Asset:                "BRL",
 			TransactionTimestamp: yesterdayTimestamp,
 			Account: &testutil.AccountContext{
 				ID: accountID,
@@ -1852,7 +1852,7 @@ func TestLimitsVerification_5_4_2_PastTimestampRejection(t *testing.T) {
 		RequestID:            testutil.MustDeterministicUUID(90211).String(),
 		TransactionType:      "PIX",
 		Amount:               decimal.RequireFromString("100"),
-		Currency:             "BRL",
+		Asset:                "BRL",
 		TransactionTimestamp: pastTimestamp,
 		Account: &testutil.AccountContext{
 			ID: accountID,
@@ -1893,7 +1893,7 @@ func TestLimitsVerification_5_4_3_MaxTimestampAgeBoundary(t *testing.T) {
 			RequestID:            testutil.MustDeterministicUUID(90221).String(),
 			TransactionType:      "PIX",
 			Amount:               decimal.RequireFromString("100"),
-			Currency:             "BRL",
+			Asset:                "BRL",
 			TransactionTimestamp: acceptedTimestamp,
 			Account: &testutil.AccountContext{
 				ID: accountID,
@@ -1928,7 +1928,7 @@ func TestLimitsVerification_5_4_3_MaxTimestampAgeBoundary(t *testing.T) {
 			RequestID:            testutil.MustDeterministicUUID(90223).String(),
 			TransactionType:      "PIX",
 			Amount:               decimal.RequireFromString("100"),
-			Currency:             "BRL",
+			Asset:                "BRL",
 			TransactionTimestamp: rejectedTimestamp,
 			Account: &testutil.AccountContext{
 				ID: accountID,
@@ -1967,7 +1967,7 @@ func TestLimitsVerification_5_4_4_AuditTrailPreservation(t *testing.T) {
 		RequestID:            testutil.MustDeterministicUUID(90231).String(),
 		TransactionType:      "PIX",
 		Amount:               decimal.RequireFromString("100"),
-		Currency:             "BRL",
+		Asset:                "BRL",
 		TransactionTimestamp: pastTimestamp,
 		Account: &testutil.AccountContext{
 			ID: accountID,
@@ -2039,7 +2039,7 @@ func TestLimitsVerification_5_4_5_PerTransactionUnaffected(t *testing.T) {
 			RequestID:            testutil.MustDeterministicUUID(90241).String(),
 			TransactionType:      transactionType,
 			Amount:               decimal.RequireFromString("30000"),
-			Currency:             "BRL",
+			Asset:                "BRL",
 			TransactionTimestamp: time.Now().UTC().Format(time.RFC3339),
 			Account: &testutil.AccountContext{
 				ID: accountID,
@@ -2075,7 +2075,7 @@ func TestLimitsVerification_5_4_5_PerTransactionUnaffected(t *testing.T) {
 			RequestID:            testutil.MustDeterministicUUID(90243).String(),
 			TransactionType:      transactionType,
 			Amount:               decimal.RequireFromString("30000"),
-			Currency:             "BRL",
+			Asset:                "BRL",
 			TransactionTimestamp: pastTimestamp,
 			Account: &testutil.AccountContext{
 				ID: accountID,
@@ -2109,7 +2109,7 @@ func TestLimitsVerification_5_4_5_PerTransactionUnaffected(t *testing.T) {
 			RequestID:            testutil.MustDeterministicUUID(90245).String(),
 			TransactionType:      transactionType,
 			Amount:               decimal.RequireFromString("60000"), // Exceeds 50000 limit
-			Currency:             "BRL",
+			Asset:                "BRL",
 			TransactionTimestamp: time.Now().UTC().Format(time.RFC3339),
 			Account: &testutil.AccountContext{
 				ID: accountID,

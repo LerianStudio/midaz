@@ -36,7 +36,7 @@ func newAdvancedTestRequest() *model.ValidationRequest {
 		TransactionType:      "PIX",
 		SubType:              &subType,
 		Amount:               decimal.RequireFromString("1500"),
-		Currency:             "BRL",
+		Asset:                "BRL",
 		Account: model.AccountContext{
 			ID:     advTestAccountID,
 			Type:   "checking",
@@ -591,7 +591,7 @@ func TestAdvancedEdgeCase_AmountBoundaries(t *testing.T) {
 				TransactionTimestamp: advTestTimestamp,
 				TransactionType:      "PIX",
 				Amount:               tc.amount,
-				Currency:             "BRL",
+				Asset:                "BRL",
 				Account: model.AccountContext{
 					ID:     advTestAccountID,
 					Status: "active",

@@ -52,7 +52,7 @@ func minimalLimit() *model.Limit {
 		Description: &desc,
 		LimitType:   model.LimitTypeDaily,
 		MaxAmount:   decimal.RequireFromString("1000.00"),
-		Currency:    "USD",
+		Asset:       "USD",
 		Scopes:      nil,
 		Status:      model.LimitStatusDraft,
 		CreatedAt:   fixedTime,

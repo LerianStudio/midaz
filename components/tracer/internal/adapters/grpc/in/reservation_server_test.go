@@ -37,7 +37,7 @@ func newReserveRequest(now time.Time, transactionID, requestID, accountID uuid.U
 		TransactionId:        transactionID.String(),
 		RequestId:            requestID.String(),
 		Amount:               canonicalAmount,
-		Currency:             canonicalCurrency,
+		Asset:                canonicalCurrency,
 		Account:              &reservationv1.ReserveAccount{AccountId: accountID.String()},
 		TransactionType:      string(model.TransactionTypeCard),
 		TransactionTimestamp: now.Add(-1 * time.Second).Format(time.RFC3339),
@@ -81,7 +81,7 @@ func TestReservationServer_Reserve(t *testing.T) {
 				// The gRPC server must hand the use case the SAME CheckLimitsInput
 				// the REST path produces (no fork).
 				require.True(t, gotInput.Amount.Equal(expected.Amount))
-				require.Equal(t, expected.Currency, gotInput.Currency)
+				require.Equal(t, expected.Asset, gotInput.Asset)
 				require.Equal(t, expected.AccountID, gotInput.AccountID)
 				require.NotNil(t, gotInput.TransactionType)
 				require.Equal(t, *expected.TransactionType, *gotInput.TransactionType)
@@ -279,7 +279,7 @@ func expectedInput(now time.Time, requestID, accountID uuid.UUID) *model.CheckLi
 		RequestID:            requestID,
 		TransactionType:      model.TransactionTypeCard,
 		Amount:               decimal.RequireFromString(canonicalAmount),
-		Currency:             canonicalCurrency,
+		Asset:                canonicalCurrency,
 		TransactionTimestamp: now.Add(-1 * time.Second),
 		Account:              model.AccountContext{ID: accountID},
 	}

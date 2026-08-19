@@ -189,8 +189,8 @@ func BuildActivation(req *model.ValidationRequest) (map[string]any, error) {
 	// Amount (converted to float64 for CEL DynType via InexactFloat64())
 	activation["amount"] = req.Amount.InexactFloat64()
 
-	// Currency (ISO 4217 string)
-	activation["currency"] = req.Currency
+	// Asset (ISO 4217 string)
+	activation["currency"] = req.Asset
 
 	// Account context (map with id, type, status, metadata)
 	activation["account"] = req.Account.ToMap()

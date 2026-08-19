@@ -42,7 +42,7 @@ func TestValidation_1_1_40_MonthlyLimitType(t *testing.T) {
 		RequestID:            testutil.MustDeterministicUUID(1001).String(),
 		TransactionType:      "PIX",
 		Amount:               decimal.RequireFromString("9000"),
-		Currency:             "BRL",
+		Asset:                "BRL",
 		TransactionTimestamp: testutil.FixedTime().UTC().Format(time.RFC3339),
 		Account: &testutil.AccountContext{
 			ID: accountID,
@@ -63,7 +63,7 @@ func TestValidation_1_1_40_MonthlyLimitType(t *testing.T) {
 		RequestID:            testutil.MustDeterministicUUID(1002).String(),
 		TransactionType:      "PIX",
 		Amount:               decimal.RequireFromString("1500"),
-		Currency:             "BRL",
+		Asset:                "BRL",
 		TransactionTimestamp: testutil.FixedTime().UTC().Format(time.RFC3339),
 		Account: &testutil.AccountContext{
 			ID: accountID,
@@ -114,7 +114,7 @@ func TestValidation_1_1_41_PerTransactionLimitType(t *testing.T) {
 			RequestID:            testutil.MustDeterministicUUID(1011).String(),
 			TransactionType:      "CARD",
 			Amount:               decimal.RequireFromString("500"),
-			Currency:             "BRL",
+			Asset:                "BRL",
 			TransactionTimestamp: testutil.FixedTime().UTC().Format(time.RFC3339),
 			Account: &testutil.AccountContext{
 				ID: accountID,
@@ -153,7 +153,7 @@ func TestValidation_1_1_41_PerTransactionLimitType(t *testing.T) {
 			RequestID:            testutil.MustDeterministicUUID(1012).String(),
 			TransactionType:      "CARD",
 			Amount:               decimal.RequireFromString("1500"),
-			Currency:             "BRL",
+			Asset:                "BRL",
 			TransactionTimestamp: testutil.FixedTime().UTC().Format(time.RFC3339),
 			Account: &testutil.AccountContext{
 				ID: accountID,
@@ -192,7 +192,7 @@ func TestValidation_1_1_41_PerTransactionLimitType(t *testing.T) {
 			RequestID:            testutil.MustDeterministicUUID(1013).String(),
 			TransactionType:      "CARD",
 			Amount:               decimal.RequireFromString("1000"), // Exactly at limit
-			Currency:             "BRL",
+			Asset:                "BRL",
 			TransactionTimestamp: testutil.FixedTime().UTC().Format(time.RFC3339),
 			Account: &testutil.AccountContext{
 				ID: accountID,
@@ -248,7 +248,7 @@ func TestValidation_1_1_42_ScopeMatchingRulesSegment(t *testing.T) {
 			RequestID:            testutil.MustDeterministicUUID(1023).String(),
 			TransactionType:      "CARD",
 			Amount:               decimal.RequireFromString("100"),
-			Currency:             "BRL",
+			Asset:                "BRL",
 			TransactionTimestamp: testutil.FixedTime().UTC().Format(time.RFC3339),
 			Account: &testutil.AccountContext{
 				ID: accountID,
@@ -277,7 +277,7 @@ func TestValidation_1_1_42_ScopeMatchingRulesSegment(t *testing.T) {
 			RequestID:            testutil.MustDeterministicUUID(1024).String(),
 			TransactionType:      "CARD",
 			Amount:               decimal.RequireFromString("100"),
-			Currency:             "BRL",
+			Asset:                "BRL",
 			TransactionTimestamp: testutil.FixedTime().UTC().Format(time.RFC3339),
 			Account: &testutil.AccountContext{
 				ID: accountID,
@@ -323,7 +323,7 @@ func TestValidation_1_1_43_ScopeMatchingRulesPortfolio(t *testing.T) {
 			RequestID:            testutil.MustDeterministicUUID(1033).String(),
 			TransactionType:      "WIRE",
 			Amount:               decimal.RequireFromString("1000"),
-			Currency:             "BRL",
+			Asset:                "BRL",
 			TransactionTimestamp: testutil.FixedTime().UTC().Format(time.RFC3339),
 			Account: &testutil.AccountContext{
 				ID: accountID,
@@ -352,7 +352,7 @@ func TestValidation_1_1_43_ScopeMatchingRulesPortfolio(t *testing.T) {
 			RequestID:            testutil.MustDeterministicUUID(1034).String(),
 			TransactionType:      "WIRE",
 			Amount:               decimal.RequireFromString("1000"),
-			Currency:             "BRL",
+			Asset:                "BRL",
 			TransactionTimestamp: testutil.FixedTime().UTC().Format(time.RFC3339),
 			Account: &testutil.AccountContext{
 				ID: accountID,
@@ -397,7 +397,7 @@ func TestValidation_1_1_44_ScopeMatchingRulesTransactionType(t *testing.T) {
 			RequestID:            testutil.MustDeterministicUUID(1041).String(),
 			TransactionType:      "CRYPTO",
 			Amount:               decimal.RequireFromString("100"),
-			Currency:             "BRL",
+			Asset:                "BRL",
 			TransactionTimestamp: testutil.FixedTime().UTC().Format(time.RFC3339),
 			Account: &testutil.AccountContext{
 				ID: accountID,
@@ -423,7 +423,7 @@ func TestValidation_1_1_44_ScopeMatchingRulesTransactionType(t *testing.T) {
 			RequestID:            testutil.MustDeterministicUUID(1042).String(),
 			TransactionType:      "PIX",
 			Amount:               decimal.RequireFromString("100"),
-			Currency:             "BRL",
+			Asset:                "BRL",
 			TransactionTimestamp: testutil.FixedTime().UTC().Format(time.RFC3339),
 			Account: &testutil.AccountContext{
 				ID: accountID,
@@ -467,7 +467,7 @@ func TestValidation_1_1_45_DenyRulePrecedenceOverLimitExceeded(t *testing.T) {
 		RequestID:            testutil.MustDeterministicUUID(1051).String(),
 		TransactionType:      "PIX",
 		Amount:               decimal.RequireFromString("500"), // <= 500 to avoid DENY rule, will be ALLOWED
-		Currency:             "BRL",
+		Asset:                "BRL",
 		TransactionTimestamp: testutil.FixedTime().UTC().Format(time.RFC3339),
 		Account: &testutil.AccountContext{
 			ID: accountID,
@@ -488,7 +488,7 @@ func TestValidation_1_1_45_DenyRulePrecedenceOverLimitExceeded(t *testing.T) {
 		RequestID:            testutil.MustDeterministicUUID(1052).String(),
 		TransactionType:      "CARD",
 		Amount:               decimal.RequireFromString("600"), // > 500 (triggers DENY rule) AND 500+600 > 1000 (exceeds limit)
-		Currency:             "BRL",
+		Asset:                "BRL",
 		TransactionTimestamp: testutil.FixedTime().UTC().Format(time.RFC3339),
 		Account: &testutil.AccountContext{
 			ID: accountID,
@@ -533,7 +533,7 @@ func TestValidation_1_1_46_LimitUsageUpdatedOnlyOnAllow(t *testing.T) {
 		RequestID:            testutil.MustDeterministicUUID(1061).String(),
 		TransactionType:      "PIX",
 		Amount:               decimal.RequireFromString("300"),
-		Currency:             "BRL",
+		Asset:                "BRL",
 		TransactionTimestamp: testutil.FixedTime().UTC().Format(time.RFC3339),
 		Account: &testutil.AccountContext{
 			ID: accountID,
@@ -557,7 +557,7 @@ func TestValidation_1_1_46_LimitUsageUpdatedOnlyOnAllow(t *testing.T) {
 		RequestID:            testutil.MustDeterministicUUID(1062).String(),
 		TransactionType:      "CARD",
 		Amount:               decimal.RequireFromString("500"),
-		Currency:             "BRL",
+		Asset:                "BRL",
 		TransactionTimestamp: testutil.FixedTime().UTC().Format(time.RFC3339),
 		Account: &testutil.AccountContext{
 			ID: accountID,
@@ -580,7 +580,7 @@ func TestValidation_1_1_46_LimitUsageUpdatedOnlyOnAllow(t *testing.T) {
 		RequestID:            testutil.MustDeterministicUUID(1063).String(),
 		TransactionType:      "PIX",
 		Amount:               decimal.RequireFromString("10"),
-		Currency:             "BRL",
+		Asset:                "BRL",
 		TransactionTimestamp: testutil.FixedTime().UTC().Format(time.RFC3339),
 		Account: &testutil.AccountContext{
 			ID: accountID,
@@ -637,7 +637,7 @@ func TestValidation_1_1_47_RejectsAmountExceedingCELPrecision(t *testing.T) {
 		"requestId": "%s",
 		"transactionType": "CARD",
 		"amount": "9223372036854775808",
-		"currency": "BRL",
+		"asset": "BRL",
 		"transactionTimestamp": "%s",
 		"account": {"accountId": "%s"}
 	}`, testutil.MustDeterministicUUID(1071).String(), testutil.FixedTime().UTC().Format(time.RFC3339), accountID)
@@ -684,7 +684,7 @@ func TestValidation_1_1_47b_AcceptsMaxSafeCELAmount(t *testing.T) {
 		"requestId": "%s",
 		"transactionType": "CARD",
 		"amount": "9007199254740992",
-		"currency": "BRL",
+		"asset": "BRL",
 		"transactionTimestamp": "%s",
 		"account": {"accountId": "%s"}
 	}`, testutil.MustDeterministicUUID(1073).String(), testutil.FixedTime().UTC().Format(time.RFC3339), accountID)
@@ -723,7 +723,7 @@ func TestValidation_1_1_48_EmptyMetadataObject(t *testing.T) {
 		RequestID:            requestID,
 		TransactionType:      "CARD",
 		Amount:               decimal.RequireFromString("100"),
-		Currency:             "BRL",
+		Asset:                "BRL",
 		TransactionTimestamp: testutil.FixedTime().UTC().Format(time.RFC3339),
 		Account: &testutil.AccountContext{
 			ID: accountID,
@@ -755,7 +755,7 @@ func TestValidation_1_1_49_NullOptionalFields(t *testing.T) {
 		"transactionType": "CARD",
 		"subType": null,
 		"amount": "100.00",
-		"currency": "BRL",
+		"asset": "BRL",
 		"transactionTimestamp": "%s",
 		"account": {"accountId": "%s"},
 		"segment": null,
@@ -795,7 +795,7 @@ func TestValidation_1_1_50_VeryOldTimestamp(t *testing.T) {
 		RequestID:            requestID,
 		TransactionType:      "CARD",
 		Amount:               decimal.RequireFromString("100"),
-		Currency:             "BRL",
+		Asset:                "BRL",
 		TransactionTimestamp: "2020-01-01T00:00:00Z", // Very old timestamp
 		Account: &testutil.AccountContext{
 			ID: accountID,
@@ -813,7 +813,7 @@ func TestValidation_1_1_50_VeryOldTimestamp(t *testing.T) {
 		"Error code should be TRC-0228 for timestamp too far in the past")
 }
 
-// Test 1.1.51: Validation rejects lowercase currency (ISO 4217 requires uppercase)
+// Test 1.1.51: Validation rejects lowercase asset (ISO 4217 requires uppercase)
 func TestValidation_1_1_51_LowercaseCurrencyRejected(t *testing.T) {
 	accountID := testutil.MustDeterministicUUID(1110).String()
 	requestID := testutil.MustDeterministicUUID(1111).String()
@@ -822,7 +822,7 @@ func TestValidation_1_1_51_LowercaseCurrencyRejected(t *testing.T) {
 		RequestID:            requestID,
 		TransactionType:      "CARD",
 		Amount:               decimal.RequireFromString("100"),
-		Currency:             "brl", // Lowercase currency - ISO 4217 specifies uppercase
+		Asset:                "brl", // Lowercase asset - ISO 4217 specifies uppercase
 		TransactionTimestamp: testutil.FixedTime().UTC().Format(time.RFC3339),
 		Account: &testutil.AccountContext{
 			ID: accountID,
@@ -832,17 +832,17 @@ func TestValidation_1_1_51_LowercaseCurrencyRejected(t *testing.T) {
 	resp, body := testutil.CreateValidation(t, req)
 	defer resp.Body.Close()
 
-	// ISO 4217 currency codes are canonically uppercase (USD, EUR, BRL)
+	// ISO 4217 asset codes are canonically uppercase (USD, EUR, BRL)
 	// API enforces strict validation - lowercase is rejected
 	assert.Equal(t, http.StatusBadRequest, resp.StatusCode,
-		"Lowercase currency should be rejected (ISO 4217 requires uppercase)")
+		"Lowercase asset should be rejected (ISO 4217 requires uppercase)")
 
 	// Verify structured error response
 	errResp := testutil.ParseErrorResponse(t, body)
-	assert.Equal(t, "0417", errResp.Code, "Error response should have invalid currency error code")
-	assert.Equal(t, "Validation Invalid Currency", errResp.Title, "Error response should have invalid currency title")
+	assert.Equal(t, "0417", errResp.Code, "Error response should have invalid asset error code")
+	assert.Equal(t, "Validation Invalid Asset", errResp.Title, "Error response should have invalid asset title")
 	assert.Empty(t, errResp.Message, "RFC 9457 carries the human message in detail, not message")
-	assert.Equal(t, "Currency must be valid ISO 4217.", errResp.Detail, "RFC 9457 detail carries the human-readable currency validation message")
+	assert.Equal(t, "Asset must be valid ISO 4217.", errResp.Detail, "RFC 9457 detail carries the human-readable asset validation message")
 }
 
 // Test 1.1.52: Duplicate requestId returns cached response (idempotent behavior)
@@ -854,7 +854,7 @@ func TestValidation_1_1_52_UniqueValidationIdPerRequest(t *testing.T) {
 		RequestID:            requestID,
 		TransactionType:      "CARD",
 		Amount:               decimal.RequireFromString("100"),
-		Currency:             "BRL",
+		Asset:                "BRL",
 		TransactionTimestamp: testutil.FixedTime().UTC().Format(time.RFC3339),
 		Account: &testutil.AccountContext{
 			ID: accountID,
@@ -916,7 +916,7 @@ func TestValidation_1_1_53_IdempotentBehavior(t *testing.T) {
 		RequestID:            requestID,
 		TransactionType:      "CARD",
 		Amount:               decimal.RequireFromString("600"),
-		Currency:             "BRL",
+		Asset:                "BRL",
 		TransactionTimestamp: testutil.FixedTime().UTC().Format(time.RFC3339),
 		Account: &testutil.AccountContext{
 			ID: accountID,
@@ -956,7 +956,7 @@ func TestValidation_1_1_53_IdempotentBehavior(t *testing.T) {
 		RequestID:            testutil.MustDeterministicUUID(1132).String(),
 		TransactionType:      "CARD",
 		Amount:               decimal.RequireFromString("400"),
-		Currency:             "BRL",
+		Asset:                "BRL",
 		TransactionTimestamp: testutil.FixedTime().UTC().Format(time.RFC3339),
 		Account: &testutil.AccountContext{
 			ID: accountID,
@@ -1004,7 +1004,7 @@ func TestValidation_1_1_54_AllRuleActionsMatching(t *testing.T) {
 		RequestID:            testutil.MustDeterministicUUID(1141).String(),
 		TransactionType:      "CARD",
 		Amount:               decimal.RequireFromString("150"), // Matches all 3 rules
-		Currency:             "BRL",
+		Asset:                "BRL",
 		TransactionTimestamp: testutil.FixedTime().UTC().Format(time.RFC3339),
 		Account: &testutil.AccountContext{
 			ID: accountID,

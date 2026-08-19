@@ -205,7 +205,7 @@ func TestLimitSubTypeCaseInsensitive_Integration(t *testing.T) {
 		TransactionType:      "CARD",
 		SubType:              matchingSubType,
 		Amount:               decimal.RequireFromString("100"),
-		Currency:             "BRL",
+		Asset:                "BRL",
 		TransactionTimestamp: testutil.FixedTime().Format(time.RFC3339),
 		Account: &testutil.AccountContext{
 			ID: accountID,
@@ -241,7 +241,7 @@ func TestLimitSubTypeCaseInsensitive_Integration(t *testing.T) {
 		TransactionType:      "CARD",
 		SubType:              otherSubType,
 		Amount:               decimal.RequireFromString("100"),
-		Currency:             "BRL",
+		Asset:                "BRL",
 		TransactionTimestamp: testutil.FixedTime().Format(time.RFC3339),
 		Account: &testutil.AccountContext{
 			ID: accountID,

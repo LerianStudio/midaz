@@ -252,7 +252,7 @@ func TestAuditRollback_CreateLimit_Integration(t *testing.T) {
 		"name":      uniqueLimitName,
 		"limitType": "DAILY",
 		"maxAmount": "1000",
-		"currency":  "BRL",
+		"asset":     "BRL",
 		"scopes": []map[string]any{
 			{"accountId": accountID},
 		},
@@ -381,7 +381,7 @@ func TestAuditRollback_CreateLimit_HappyPath_BothRowsPresent(t *testing.T) {
 		"name":      uniqueLimitName,
 		"limitType": "DAILY",
 		"maxAmount": "1000",
-		"currency":  "BRL",
+		"asset":     "BRL",
 		"scopes": []map[string]any{
 			{"accountId": accountID},
 		},

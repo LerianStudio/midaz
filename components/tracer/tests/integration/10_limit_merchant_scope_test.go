@@ -66,7 +66,7 @@ func TestLimitMerchantScope_Integration(t *testing.T) {
 		RequestID:            testutil.MustDeterministicUUID(100110).String(),
 		TransactionType:      "CARD",
 		Amount:               decimal.RequireFromString("100"),
-		Currency:             "BRL",
+		Asset:                "BRL",
 		TransactionTimestamp: testutil.FixedTime().Format(time.RFC3339),
 		Account: &testutil.AccountContext{
 			ID: accountID,
@@ -109,7 +109,7 @@ func TestLimitMerchantScope_Integration(t *testing.T) {
 		RequestID:            testutil.MustDeterministicUUID(100111).String(),
 		TransactionType:      "CARD",
 		Amount:               decimal.RequireFromString("100"),
-		Currency:             "BRL",
+		Asset:                "BRL",
 		TransactionTimestamp: testutil.FixedTime().Format(time.RFC3339),
 		Account: &testutil.AccountContext{
 			ID: accountID,
@@ -139,7 +139,7 @@ func TestLimitMerchantScope_Integration(t *testing.T) {
 		RequestID:            testutil.MustDeterministicUUID(100112).String(),
 		TransactionType:      "CARD",
 		Amount:               decimal.RequireFromString("100"),
-		Currency:             "BRL",
+		Asset:                "BRL",
 		TransactionTimestamp: testutil.FixedTime().Format(time.RFC3339),
 		Account: &testutil.AccountContext{
 			ID: accountID,

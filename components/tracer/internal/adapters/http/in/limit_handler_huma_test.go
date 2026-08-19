@@ -142,7 +142,7 @@ func validLimit(id uuid.UUID) *model.Limit {
 		Name:      "Daily Cap",
 		LimitType: model.LimitTypeDaily,
 		MaxAmount: decimal.RequireFromString("1000.00"),
-		Currency:  "USD",
+		Asset:     "USD",
 		Status:    model.LimitStatusDraft,
 		CreatedAt: testutil.FixedTime(),
 		UpdatedAt: testutil.FixedTime(),
@@ -154,7 +154,7 @@ func validCreateLimitBody() []byte {
 		"name":      "Daily Cap",
 		"limitType": "DAILY",
 		"maxAmount": "1000.00",
-		"currency":  "USD",
+		"asset":     "USD",
 		"scopes":    []map[string]any{{"accountId": testutil.MustDeterministicUUID(99).String()}},
 	})
 	return body
@@ -198,7 +198,7 @@ func TestHuma_CreateLimit_ValidationError(t *testing.T) {
 	body, _ := json.Marshal(map[string]any{
 		"limitType": "DAILY",
 		"maxAmount": "1000.00",
-		"currency":  "USD",
+		"asset":     "USD",
 		"scopes":    []map[string]any{{"accountId": testutil.MustDeterministicUUID(99).String()}},
 	})
 
@@ -386,7 +386,7 @@ func TestHuma_UpdateLimit_MalformedJSON(t *testing.T) {
 }
 
 // TestHuma_UpdateLimit_ImmutableField pins the raw-body map-probe: a body
-// carrying limitType or currency must be rejected with ErrLimitImmutableField
+// carrying limitType or asset must be rejected with ErrLimitImmutableField
 // (0380) BEFORE BodyParser, identical to the Fiber path. The probe reads the
 // RawBody the shell passes; the service must never be reached.
 func TestHuma_UpdateLimit_ImmutableField(t *testing.T) {
@@ -397,7 +397,7 @@ func TestHuma_UpdateLimit_ImmutableField(t *testing.T) {
 		body map[string]any
 	}{
 		{"limitType present", map[string]any{"limitType": "MONTHLY"}},
-		{"currency present", map[string]any{"currency": "EUR"}},
+		{"asset present", map[string]any{"asset": "EUR"}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			svc := &tenantSpyLimitService{}

@@ -68,7 +68,7 @@ func NewLimitCreated(limit *model.Limit) LimitCreatedPayload {
 		ID:              limit.ID.String(),
 		Status:          string(limit.Status),
 		LimitType:       string(limit.LimitType),
-		Currency:        limit.Currency,
+		Currency:        limit.Asset,
 		Scopes:          newRuleScopePayloads(limit.Scopes),
 		ActiveTimeStart: formatOptionalTimeOfDay(limit.ActiveTimeStart),
 		ActiveTimeEnd:   formatOptionalTimeOfDay(limit.ActiveTimeEnd),

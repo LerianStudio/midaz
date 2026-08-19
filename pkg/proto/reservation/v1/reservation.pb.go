@@ -11,11 +11,12 @@
 package reservationv1
 
 import (
-	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
-	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 	reflect "reflect"
 	sync "sync"
 	unsafe "unsafe"
+
+	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
+	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 )
 
 const (
@@ -82,7 +83,7 @@ type ReserveRequest struct {
 	RequestId     string                 `protobuf:"bytes,2,opt,name=request_id,json=requestId,proto3" json:"request_id,omitempty"`
 	// amount is a decimal serialized as a string to avoid float rounding.
 	Amount      string          `protobuf:"bytes,3,opt,name=amount,proto3" json:"amount,omitempty"`
-	Currency    string          `protobuf:"bytes,4,opt,name=currency,proto3" json:"currency,omitempty"`
+	Asset       string          `protobuf:"bytes,4,opt,name=asset,proto3" json:"asset,omitempty"`
 	Account     *ReserveAccount `protobuf:"bytes,5,opt,name=account,proto3" json:"account,omitempty"`
 	SegmentId   string          `protobuf:"bytes,6,opt,name=segment_id,json=segmentId,proto3" json:"segment_id,omitempty"`
 	PortfolioId string          `protobuf:"bytes,7,opt,name=portfolio_id,json=portfolioId,proto3" json:"portfolio_id,omitempty"`
@@ -150,9 +151,9 @@ func (x *ReserveRequest) GetAmount() string {
 	return ""
 }
 
-func (x *ReserveRequest) GetCurrency() string {
+func (x *ReserveRequest) GetAsset() string {
 	if x != nil {
-		return x.Currency
+		return x.Asset
 	}
 	return ""
 }
@@ -605,13 +606,13 @@ const file_reservation_v1_reservation_proto_rawDesc = "" +
 	" reservation/v1/reservation.proto\x12\x1blerian.midaz.reservation.v1\"/\n" +
 	"\x0eReserveAccount\x12\x1d\n" +
 	"\n" +
-	"account_id\x18\x01 \x01(\tR\taccountId\"\xb3\x03\n" +
+	"account_id\x18\x01 \x01(\tR\taccountId\"\xad\x03\n" +
 	"\x0eReserveRequest\x12%\n" +
 	"\x0etransaction_id\x18\x01 \x01(\tR\rtransactionId\x12\x1d\n" +
 	"\n" +
 	"request_id\x18\x02 \x01(\tR\trequestId\x12\x16\n" +
-	"\x06amount\x18\x03 \x01(\tR\x06amount\x12\x1a\n" +
-	"\bcurrency\x18\x04 \x01(\tR\bcurrency\x12E\n" +
+	"\x06amount\x18\x03 \x01(\tR\x06amount\x12\x14\n" +
+	"\x05asset\x18\x04 \x01(\tR\x05asset\x12E\n" +
 	"\aaccount\x18\x05 \x01(\v2+.lerian.midaz.reservation.v1.ReserveAccountR\aaccount\x12\x1d\n" +
 	"\n" +
 	"segment_id\x18\x06 \x01(\tR\tsegmentId\x12!\n" +
@@ -659,20 +660,22 @@ func file_reservation_v1_reservation_proto_rawDescGZIP() []byte {
 	return file_reservation_v1_reservation_proto_rawDescData
 }
 
-var file_reservation_v1_reservation_proto_msgTypes = make([]protoimpl.MessageInfo, 11)
-var file_reservation_v1_reservation_proto_goTypes = []any{
-	(*ReserveAccount)(nil),               // 0: lerian.midaz.reservation.v1.ReserveAccount
-	(*ReserveRequest)(nil),               // 1: lerian.midaz.reservation.v1.ReserveRequest
-	(*ReserveResult)(nil),                // 2: lerian.midaz.reservation.v1.ReserveResult
-	(*ConfirmByTransactionRequest)(nil),  // 3: lerian.midaz.reservation.v1.ConfirmByTransactionRequest
-	(*ReleaseByTransactionRequest)(nil),  // 4: lerian.midaz.reservation.v1.ReleaseByTransactionRequest
-	(*ConfirmByIdRequest)(nil),           // 5: lerian.midaz.reservation.v1.ConfirmByIdRequest
-	(*ReleaseByIdRequest)(nil),           // 6: lerian.midaz.reservation.v1.ReleaseByIdRequest
-	(*ConfirmByTransactionResponse)(nil), // 7: lerian.midaz.reservation.v1.ConfirmByTransactionResponse
-	(*ReleaseByTransactionResponse)(nil), // 8: lerian.midaz.reservation.v1.ReleaseByTransactionResponse
-	(*ConfirmByIdResponse)(nil),          // 9: lerian.midaz.reservation.v1.ConfirmByIdResponse
-	(*ReleaseByIdResponse)(nil),          // 10: lerian.midaz.reservation.v1.ReleaseByIdResponse
-}
+var (
+	file_reservation_v1_reservation_proto_msgTypes = make([]protoimpl.MessageInfo, 11)
+	file_reservation_v1_reservation_proto_goTypes  = []any{
+		(*ReserveAccount)(nil),               // 0: lerian.midaz.reservation.v1.ReserveAccount
+		(*ReserveRequest)(nil),               // 1: lerian.midaz.reservation.v1.ReserveRequest
+		(*ReserveResult)(nil),                // 2: lerian.midaz.reservation.v1.ReserveResult
+		(*ConfirmByTransactionRequest)(nil),  // 3: lerian.midaz.reservation.v1.ConfirmByTransactionRequest
+		(*ReleaseByTransactionRequest)(nil),  // 4: lerian.midaz.reservation.v1.ReleaseByTransactionRequest
+		(*ConfirmByIdRequest)(nil),           // 5: lerian.midaz.reservation.v1.ConfirmByIdRequest
+		(*ReleaseByIdRequest)(nil),           // 6: lerian.midaz.reservation.v1.ReleaseByIdRequest
+		(*ConfirmByTransactionResponse)(nil), // 7: lerian.midaz.reservation.v1.ConfirmByTransactionResponse
+		(*ReleaseByTransactionResponse)(nil), // 8: lerian.midaz.reservation.v1.ReleaseByTransactionResponse
+		(*ConfirmByIdResponse)(nil),          // 9: lerian.midaz.reservation.v1.ConfirmByIdResponse
+		(*ReleaseByIdResponse)(nil),          // 10: lerian.midaz.reservation.v1.ReleaseByIdResponse
+	}
+)
 var file_reservation_v1_reservation_proto_depIdxs = []int32{
 	0,  // 0: lerian.midaz.reservation.v1.ReserveRequest.account:type_name -> lerian.midaz.reservation.v1.ReserveAccount
 	1,  // 1: lerian.midaz.reservation.v1.ReservationService.Reserve:input_type -> lerian.midaz.reservation.v1.ReserveRequest

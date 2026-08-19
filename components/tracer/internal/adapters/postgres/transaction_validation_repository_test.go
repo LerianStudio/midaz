@@ -64,7 +64,7 @@ func testTransactionValidation() *model.TransactionValidation {
 		TransactionType:      model.TransactionTypeCard,
 		SubType:              nil,
 		Amount:               decimal.RequireFromString("500"),
-		Currency:             "USD",
+		Asset:                "USD",
 		TransactionTimestamp: time.Date(2024, 1, 15, 9, 0, 0, 0, time.UTC),
 		Account: model.AccountContext{
 			ID:     testutil.MustDeterministicUUID(200),
@@ -95,7 +95,7 @@ func testTransactionValidationWithArrays() *model.TransactionValidation {
 		TransactionType:      model.TransactionTypeWire,
 		SubType:              nil,
 		Amount:               decimal.RequireFromString("1000"),
-		Currency:             "USD",
+		Asset:                "USD",
 		TransactionTimestamp: time.Date(2024, 1, 15, 10, 0, 0, 0, time.UTC),
 		Account: model.AccountContext{
 			ID:     testutil.MustDeterministicUUID(201),
@@ -144,7 +144,7 @@ func transactionValidationRow(t *testing.T, tv *model.TransactionValidation) *sq
 			string(tv.TransactionType),
 			tv.SubType,
 			tv.Amount,
-			tv.Currency,
+			tv.Asset,
 			tv.TransactionTimestamp,
 			mustMarshalJSON(t, tv.Account),
 			mustMarshalJSONOrNil(t, tv.Segment),
@@ -242,7 +242,7 @@ func TestTransactionValidationPostgresRepository_Insert(t *testing.T) {
 						string(tv.TransactionType),
 						tv.SubType,
 						tv.Amount,
-						tv.Currency,
+						tv.Asset,
 						tv.TransactionTimestamp,
 						sqlmock.AnyArg(), // account (JSONB)
 						sqlmock.AnyArg(), // segment (JSONB)
@@ -272,7 +272,7 @@ func TestTransactionValidationPostgresRepository_Insert(t *testing.T) {
 						string(tv.TransactionType),
 						tv.SubType,
 						tv.Amount,
-						tv.Currency,
+						tv.Asset,
 						tv.TransactionTimestamp,
 						sqlmock.AnyArg(), // account (JSONB)
 						sqlmock.AnyArg(), // segment (JSONB)
@@ -483,7 +483,7 @@ func TestTransactionValidationPostgresRepository_List(t *testing.T) {
 					string(tv2.TransactionType),
 					tv2.SubType,
 					tv2.Amount,
-					tv2.Currency,
+					tv2.Asset,
 					tv2.TransactionTimestamp,
 					mustMarshalJSON(t, tv2.Account),
 					mustMarshalJSONOrNil(t, tv2.Segment),
@@ -1489,7 +1489,7 @@ func TestTransactionValidationPostgresRepository_InsertWithTx(t *testing.T) {
 						string(tv.TransactionType),
 						tv.SubType,
 						tv.Amount,
-						tv.Currency,
+						tv.Asset,
 						tv.TransactionTimestamp,
 						sqlmock.AnyArg(), // account (JSONB)
 						sqlmock.AnyArg(), // segment (JSONB)
@@ -1588,7 +1588,7 @@ func TestTransactionValidationPostgresRepository_InsertWithTx_UsesProvidedDB(t *
 			string(tv.TransactionType),
 			tv.SubType,
 			tv.Amount,
-			tv.Currency,
+			tv.Asset,
 			tv.TransactionTimestamp,
 			sqlmock.AnyArg(), // account (JSONB)
 			sqlmock.AnyArg(), // segment (JSONB)
@@ -1659,7 +1659,7 @@ func TestTransactionValidationPostgresRepository_InsertWithTx_UniqueViolation(t 
 			string(tv.TransactionType),
 			tv.SubType,
 			tv.Amount,
-			tv.Currency,
+			tv.Asset,
 			tv.TransactionTimestamp,
 			sqlmock.AnyArg(),
 			sqlmock.AnyArg(),

@@ -69,7 +69,7 @@ func TestResolveReservations_PreservesFractionalAmount(t *testing.T) {
 					Name:      "Daily fractional cap",
 					LimitType: model.LimitTypeDaily,
 					MaxAmount: decimal.RequireFromString("20.75"),
-					Currency:  "USD",
+					Asset:     "USD",
 					Scopes:    []model.Scope{{AccountID: &accountID}},
 					Status:    model.LimitStatusActive,
 				},

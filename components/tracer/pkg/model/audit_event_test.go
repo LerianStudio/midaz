@@ -75,7 +75,7 @@ func TestAuditEvent_WithValidationContext(t *testing.T) {
 		request := map[string]any{
 			"transactionType": "PIX",
 			"amount":          150000,
-			"currency":        "BRL",
+			"asset":           "BRL",
 		}
 
 		matchedRuleID := testutil.MustDeterministicUUID(1)

@@ -57,7 +57,7 @@ func TestTracerClient_Reserve_201ParsesHandle(t *testing.T) {
 	result, err := client.Reserve(context.Background(), ReserveRequest{
 		TransactionID: fixedTransactionID,
 		Amount:        "100",
-		Currency:      "USD",
+		Asset:         "USD",
 		Account:       ReserveAccount{AccountID: "acc-1"},
 	})
 
@@ -85,7 +85,7 @@ func TestTracerClient_Reserve_DeniedIsSuccessfulReturn(t *testing.T) {
 	result, err := client.Reserve(context.Background(), ReserveRequest{
 		TransactionID: fixedTransactionID,
 		Amount:        "100",
-		Currency:      "USD",
+		Asset:         "USD",
 		Account:       ReserveAccount{AccountID: "acc-1"},
 	})
 
@@ -111,7 +111,7 @@ func TestTracerClient_Reserve_TimeoutReturnsUnavailable(t *testing.T) {
 	result, err := client.Reserve(context.Background(), ReserveRequest{
 		TransactionID: fixedTransactionID,
 		Amount:        "100",
-		Currency:      "USD",
+		Asset:         "USD",
 		Account:       ReserveAccount{AccountID: "acc-1"},
 	})
 
@@ -139,7 +139,7 @@ func TestTracerClient_Reserve_NoAuthHeader(t *testing.T) {
 	_, err = client.Reserve(context.Background(), ReserveRequest{
 		TransactionID: fixedTransactionID,
 		Amount:        "100",
-		Currency:      "USD",
+		Asset:         "USD",
 		Account:       ReserveAccount{AccountID: "acc-1"},
 	})
 
@@ -170,7 +170,7 @@ func TestTracerClient_Reserve_SetsTenantHeader(t *testing.T) {
 	_, err = client.Reserve(ctx, ReserveRequest{
 		TransactionID: fixedTransactionID,
 		Amount:        "100",
-		Currency:      "USD",
+		Asset:         "USD",
 		Account:       ReserveAccount{AccountID: "acc-1"},
 	})
 
@@ -199,7 +199,7 @@ func TestTracerClient_Reserve_OmitsTenantHeaderWhenAbsent(t *testing.T) {
 	_, err = client.Reserve(context.Background(), ReserveRequest{
 		TransactionID: fixedTransactionID,
 		Amount:        "100",
-		Currency:      "USD",
+		Asset:         "USD",
 		Account:       ReserveAccount{AccountID: "acc-1"},
 	})
 
@@ -220,7 +220,7 @@ func TestTracerClient_Reserve_NonCreatedStatusErrors(t *testing.T) {
 	result, err := client.Reserve(context.Background(), ReserveRequest{
 		TransactionID: fixedTransactionID,
 		Amount:        "100",
-		Currency:      "USD",
+		Asset:         "USD",
 		Account:       ReserveAccount{AccountID: "acc-1"},
 	})
 

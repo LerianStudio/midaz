@@ -27,7 +27,7 @@ import (
 //
 // Context: usage_counters.reserved_usage (000018) and usage_reservations.amount
 // (000019) were introduced as BIGINT AFTER 000005 decimalized current_usage /
-// max_amount. They hold a whole currency UNIT (the reservation path stores the
+// max_amount. They hold a whole asset UNIT (the reservation path stores the
 // result of IntPart), not cents, so 000021 converts them BIGINT -> DECIMAL with
 // a DIRECT cast and NO divide-by-100.
 //
@@ -266,7 +266,7 @@ func insertReservationTestLimit(ctx context.Context, t *testing.T, db *sql.DB) u
 
 	err := db.QueryRowContext(
 		ctx,
-		`INSERT INTO limits (name, limit_type, max_amount, currency)
+		`INSERT INTO limits (name, limit_type, max_amount, asset)
 		 VALUES ('reservation-decimal-test', 'PER_TRANSACTION', 1000, 'USD')
 		 RETURNING id`,
 	).Scan(&id)

@@ -23,7 +23,7 @@ import (
 // AccountID is required; SegmentID, PortfolioID, MerchantID, TransactionType and SubType are optional for scope matching.
 type CheckLimitsInput struct {
 	Amount               decimal.Decimal  `json:"amount"`
-	Currency             string           `json:"currency"`
+	Asset                string           `json:"asset"`
 	AccountID            uuid.UUID        `json:"accountId"`
 	SegmentID            *uuid.UUID       `json:"segmentId,omitempty"`
 	PortfolioID          *uuid.UUID       `json:"portfolioId,omitempty"`
@@ -34,16 +34,16 @@ type CheckLimitsInput struct {
 }
 
 // NewCheckLimitsInput creates a new CheckLimitsInput with validation.
-// Currency is normalized to uppercase.
+// Asset is normalized to uppercase.
 // Amount must be positive.
 // AccountID is required.
 // SegmentID, PortfolioID, MerchantID, transactionType and subType are optional scope fields.
-func NewCheckLimitsInput(amount decimal.Decimal, currency string, accountID uuid.UUID, segmentID, portfolioID, merchantID *uuid.UUID, transactionType *TransactionType, subType *string, timestamp time.Time) (*CheckLimitsInput, error) {
-	normalizedCurrency := strings.ToUpper(strings.TrimSpace(currency))
+func NewCheckLimitsInput(amount decimal.Decimal, asset string, accountID uuid.UUID, segmentID, portfolioID, merchantID *uuid.UUID, transactionType *TransactionType, subType *string, timestamp time.Time) (*CheckLimitsInput, error) {
+	normalizedAsset := strings.ToUpper(strings.TrimSpace(asset))
 
 	input := &CheckLimitsInput{
 		Amount:               amount,
-		Currency:             normalizedCurrency,
+		Asset:                normalizedAsset,
 		AccountID:            accountID,
 		SegmentID:            segmentID,
 		PortfolioID:          portfolioID,
@@ -87,7 +87,7 @@ func (i *CheckLimitsInput) validate(requireAccount bool) error {
 		return constant.ErrCheckLimitsInvalidAmount
 	}
 
-	if !pkg.IsValidCurrency(i.Currency) {
+	if !pkg.IsValidCurrency(i.Asset) {
 		return constant.ErrCheckLimitsInvalidCurrency
 	}
 

@@ -33,7 +33,7 @@ import (
 // Tests from roteiro section 4.4:
 //   - 4.4.1: Missing required field - requestId
 //   - 4.4.2: Missing required field - amount
-//   - 4.4.3: Missing required field - currency
+//   - 4.4.3: Missing required field - asset
 //   - 4.4.4: Missing required field - transactionType
 //   - 4.4.13b: Missing required field - transactionTimestamp
 //   - 4.4.5: Invalid amount - zero value
@@ -60,7 +60,7 @@ func TestValidation_ErrorHandling_MissingRequestId(t *testing.T) {
 		// "requestId" intentionally omitted
 		"transactionType":      "CARD",
 		"amount":               "100.00",
-		"currency":             "BRL",
+		"asset":                "BRL",
 		"transactionTimestamp": testutil.FixedTime().Add(-1 * time.Minute).Format(time.RFC3339),
 		"account": map[string]any{
 			"accountId": testutil.MustDeterministicUUID(4601).String(),
@@ -106,7 +106,7 @@ func TestValidation_ErrorHandling_MissingAmount(t *testing.T) {
 		"requestId":       testutil.MustDeterministicUUID(4602).String(),
 		"transactionType": "CARD",
 		// "amount" intentionally omitted from JSON payload (server treats missing amount as invalid, triggering TRC-0222)
-		"currency":             "BRL",
+		"asset":                "BRL",
 		"transactionTimestamp": testutil.FixedTime().Add(-1 * time.Minute).Format(time.RFC3339),
 		"account": map[string]any{
 			"accountId": testutil.MustDeterministicUUID(4603).String(),
@@ -140,19 +140,19 @@ func TestValidation_ErrorHandling_MissingAmount(t *testing.T) {
 	assert.Equal(t, "Amount must be positive.", testutil.ParseErrorResponse(t, respBody).Detail, "Error detail should match exactly")
 }
 
-// TestValidation_ErrorHandling_MissingCurrency verifies 400 when currency is missing.
+// TestValidation_ErrorHandling_MissingCurrency verifies 400 when asset is missing.
 // Test 4.4.3 from roteiro 04-rules-evaluation.md
 // Reference: API Design 3.2, 4.1.1 ValidateTransaction
 func TestValidation_ErrorHandling_MissingCurrency(t *testing.T) {
 	baseURL := testutil.GetBaseURL()
 	apiKey := testutil.GetAPIKey()
 
-	// EXECUTION: Send request WITHOUT currency
+	// EXECUTION: Send request WITHOUT asset
 	payload := map[string]any{
 		"requestId":       testutil.MustDeterministicUUID(4604).String(),
 		"transactionType": "CARD",
 		"amount":          "100.00",
-		// "currency" intentionally omitted
+		// "asset" intentionally omitted
 		"transactionTimestamp": testutil.FixedTime().Add(-1 * time.Minute).Format(time.RFC3339),
 		"account": map[string]any{
 			"accountId": testutil.MustDeterministicUUID(4605).String(),
@@ -178,12 +178,12 @@ func TestValidation_ErrorHandling_MissingCurrency(t *testing.T) {
 
 	// VALIDATIONS
 	require.Equal(t, http.StatusBadRequest, resp.StatusCode,
-		"Missing currency should return 400 Bad Request")
+		"Missing asset should return 400 Bad Request")
 
 	errorResp := testutil.ParseErrorResponse(t, respBody)
 	assert.Equal(t, "0416", errorResp.Code, "Error code should be 0416")
-	assert.Equal(t, "Validation Currency Required", errorResp.Title, "Error title should match the currency error")
-	assert.Equal(t, "Currency is required.", testutil.ParseErrorResponse(t, respBody).Detail, "Error detail should match exactly")
+	assert.Equal(t, "Validation Asset Required", errorResp.Title, "Error title should match the asset error")
+	assert.Equal(t, "Asset is required.", testutil.ParseErrorResponse(t, respBody).Detail, "Error detail should match exactly")
 }
 
 // TestValidation_ErrorHandling_MissingTransactionType verifies 400 when transactionType is missing.
@@ -198,7 +198,7 @@ func TestValidation_ErrorHandling_MissingTransactionType(t *testing.T) {
 		"requestId": testutil.MustDeterministicUUID(4606).String(),
 		// "transactionType" intentionally omitted
 		"amount":               "100.00",
-		"currency":             "BRL",
+		"asset":                "BRL",
 		"transactionTimestamp": testutil.FixedTime().Add(-1 * time.Minute).Format(time.RFC3339),
 		"account": map[string]any{
 			"accountId": testutil.MustDeterministicUUID(4607).String(),
@@ -244,7 +244,7 @@ func TestValidation_ErrorHandling_MissingTransactionTimestamp(t *testing.T) {
 		"requestId":       testutil.MustDeterministicUUID(4608).String(),
 		"transactionType": "CARD",
 		"amount":          "100.00",
-		"currency":        "BRL",
+		"asset":           "BRL",
 		// "transactionTimestamp" intentionally omitted
 		"account": map[string]any{
 			"accountId": testutil.MustDeterministicUUID(4609).String(),
@@ -290,7 +290,7 @@ func TestValidation_ErrorHandling_InvalidAmount_ZeroValue(t *testing.T) {
 		"requestId":            testutil.MustDeterministicUUID(4610).String(),
 		"transactionType":      "CARD",
 		"amount":               "0", // Zero is invalid per API Design 6.10
-		"currency":             "BRL",
+		"asset":                "BRL",
 		"transactionTimestamp": testutil.FixedTime().Add(-1 * time.Minute).Format(time.RFC3339),
 		"account": map[string]any{
 			"accountId": testutil.MustDeterministicUUID(4611).String(),
@@ -336,7 +336,7 @@ func TestValidation_ErrorHandling_InvalidAmount_NegativeValue(t *testing.T) {
 		"requestId":            testutil.MustDeterministicUUID(4612).String(),
 		"transactionType":      "CARD",
 		"amount":               "-100.00", // Negative is invalid
-		"currency":             "BRL",
+		"asset":                "BRL",
 		"transactionTimestamp": testutil.FixedTime().Add(-1 * time.Minute).Format(time.RFC3339),
 		"account": map[string]any{
 			"accountId": testutil.MustDeterministicUUID(4613).String(),
@@ -383,7 +383,7 @@ func TestValidation_ErrorHandling_InvalidAmount_StringValue(t *testing.T) {
 		"requestId": "` + testutil.MustDeterministicUUID(4614).String() + `",
 		"transactionType": "CARD",
 		"amount": "not_a_number",
-		"currency": "BRL",
+		"asset": "BRL",
 		"transactionTimestamp": "` + testutil.FixedTime().Add(-1*time.Minute).Format(time.RFC3339) + `",
 		"account": {
 			"accountId": "` + testutil.MustDeterministicUUID(4615).String() + `",
@@ -414,16 +414,16 @@ func TestValidation_ErrorHandling_InvalidAmount_StringValue(t *testing.T) {
 	assert.Contains(t, testutil.ParseErrorResponse(t, respBody).Detail, "invalid", "Error detail should mention invalid request")
 }
 
-// TestValidation_ErrorHandling_InvalidCurrency_MixedCase verifies strict uppercase validation for currency.
+// TestValidation_ErrorHandling_InvalidCurrency_MixedCase verifies strict uppercase validation for asset.
 // Test 4.4.9 from roteiro 04-rules-evaluation.md
-// Reference: API Design 6.9 Currency Code Validation
+// Reference: API Design 6.9 Asset Code Validation
 func TestValidation_ErrorHandling_InvalidCurrency_MixedCase(t *testing.T) {
 	baseURL := testutil.GetBaseURL()
 	apiKey := testutil.GetAPIKey()
 
 	testCases := []struct {
-		name     string
-		currency string
+		name  string
+		asset string
 	}{
 		{"mixed_case", "Brl"},
 		{"lowercase", "brl"},
@@ -436,7 +436,7 @@ func TestValidation_ErrorHandling_InvalidCurrency_MixedCase(t *testing.T) {
 				"requestId":            testutil.MustDeterministicUUID(4616).String(),
 				"transactionType":      "CARD",
 				"amount":               "100.00",
-				"currency":             tc.currency, // Invalid case
+				"asset":                tc.asset, // Invalid case
 				"transactionTimestamp": testutil.FixedTime().Add(-1 * time.Minute).Format(time.RFC3339),
 				"account": map[string]any{
 					"accountId": testutil.MustDeterministicUUID(4617).String(),
@@ -462,12 +462,12 @@ func TestValidation_ErrorHandling_InvalidCurrency_MixedCase(t *testing.T) {
 
 			// VALIDATIONS
 			require.Equal(t, http.StatusBadRequest, resp.StatusCode,
-				"Non-uppercase currency '%s' should return 400 Bad Request", tc.currency)
+				"Non-uppercase asset '%s' should return 400 Bad Request", tc.asset)
 
 			errorResp := testutil.ParseErrorResponse(t, respBody)
-			assert.Equal(t, "0417", errorResp.Code, "Error code should be 0417 for invalid currency")
-			assert.Equal(t, "Validation Invalid Currency", errorResp.Title, "Error title should match the currency error")
-			assert.Equal(t, "Currency must be valid ISO 4217.", testutil.ParseErrorResponse(t, respBody).Detail, "Error detail should match exactly")
+			assert.Equal(t, "0417", errorResp.Code, "Error code should be 0417 for invalid asset")
+			assert.Equal(t, "Validation Invalid Asset", errorResp.Title, "Error title should match the asset error")
+			assert.Equal(t, "Asset must be valid ISO 4217.", testutil.ParseErrorResponse(t, respBody).Detail, "Error detail should match exactly")
 		})
 	}
 }
@@ -484,8 +484,8 @@ func TestValidation_ErrorHandling_InvalidCurrency_MixedCase(t *testing.T) {
 // ADDITIONAL ERROR HANDLING TESTS:
 // The following tests from roteiro 04.4 are already covered in 01_validation_*.go:
 //
-//   ✅ 4.4.8  - Invalid currency lowercase (01_validation_test.go:1_1_51)
-//   ✅ 4.4.10 - Invalid currency non-ISO (01_validation_test.go)
+//   ✅ 4.4.8  - Invalid asset lowercase (01_validation_test.go:1_1_51)
+//   ✅ 4.4.10 - Invalid asset non-ISO (01_validation_test.go)
 //   ✅ 4.4.11 - Invalid UUID requestId (01_validation_test.go:1_1_22)
 //   ✅ 4.4.12 - Invalid UUID accountId (01_validation_test.go:1_1_23)
 //   ✅ 4.4.13 - Invalid UUID segmentId (01_validation_test.go:1_1_24)

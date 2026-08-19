@@ -46,7 +46,7 @@ func TestComponents_AllTransactionFields(t *testing.T) {
 	// - TransactionType: "PIX"
 	// - SubType: "instant"
 	// - Amount: 1500
-	// - Currency: "BRL"
+	// - Asset: "BRL"
 	// - TransactionTimestamp: time.Now()
 	// - Account: {ID: testAccountID, Type: "checking", Status: "active"}
 	// - Merchant: {ID: testMerchantID, Name: "Test Store", Category: "5411", Country: "BR"}

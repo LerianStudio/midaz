@@ -65,7 +65,7 @@ func LimitToMap(limit *model.Limit) map[string]any {
 		"description": description,
 		"limitType":   limit.LimitType,
 		"maxAmount":   limit.MaxAmount,
-		"currency":    limit.Currency,
+		"asset":       limit.Asset,
 		"scopes":      scopesCopy,
 		"status":      limit.Status,
 		"resetAt":     resetAt,

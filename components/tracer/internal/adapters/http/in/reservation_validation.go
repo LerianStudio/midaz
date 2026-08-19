@@ -14,7 +14,7 @@ import (
 )
 
 // ReserveRequest is the body of POST /v1/reservations. It mirrors the validation
-// request shape (amount, currency, account/segment/portfolio/merchant context,
+// request shape (amount, asset, account/segment/portfolio/merchant context,
 // transaction type and timestamp) and adds the ledger transactionId — the
 // correlation handle the two-phase reservation lifecycle is keyed on. The embedded
 // ValidationRequest carries the scope fields and reuses its NormalizeAndValidate
@@ -39,7 +39,7 @@ type ReserveRequest struct {
 // NormalizeAndReserveValidate validates the reserve body: the transactionId must be
 // present, then the embedded validation-request fields are normalized and validated
 // with the relaxed reserve rules (NormalizeAndValidateForReserve) — requestId,
-// amount, currency and timestamp stay mandatory, but transactionType and account
+// amount, asset and timestamp stay mandatory, but transactionType and account
 // are optional because the ledger (a double-entry ledger with external-source
 // transactions) cannot always supply a card-rail type or an internal account UUID
 // at the reserve anchor. now drives the timestamp-window check (injected clock for
