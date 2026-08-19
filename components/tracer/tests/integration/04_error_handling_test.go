@@ -27,10 +27,10 @@ import (
 //
 // These tests verify input validation and error handling for the validation endpoint.
 // Many error handling tests already exist in 01_validation_*.go.
-// This file contains ONLY the critical tests from roteiro 04.4 that follow
+// This file contains ONLY the critical tests from test plan 04.4 that follow
 // the naming conventions and patterns of other 04_*.go files.
 //
-// Tests from roteiro section 4.4:
+// Tests from test plan section 4.4:
 //   - 4.4.1: Missing required field - requestId
 //   - 4.4.2: Missing required field - amount
 //   - 4.4.3: Missing required field - asset
@@ -49,7 +49,7 @@ import (
 // =============================================================================
 
 // TestValidation_ErrorHandling_MissingRequestId verifies 400 when requestId is missing.
-// Test 4.4.1 from roteiro 04-rules-evaluation.md
+// Test 4.4.1 from test plan 04-rules-evaluation.md
 // Reference: API Design 3.2, 4.1.1 ValidateTransaction, Change Log 1.3.2
 func TestValidation_ErrorHandling_MissingRequestId(t *testing.T) {
 	baseURL := testutil.GetBaseURL()
@@ -95,7 +95,7 @@ func TestValidation_ErrorHandling_MissingRequestId(t *testing.T) {
 }
 
 // TestValidation_ErrorHandling_MissingAmount verifies 400 when amount is missing.
-// Test 4.4.2 from roteiro 04-rules-evaluation.md
+// Test 4.4.2 from test plan 04-rules-evaluation.md
 // Reference: API Design 3.2, 4.1.1 ValidateTransaction
 func TestValidation_ErrorHandling_MissingAmount(t *testing.T) {
 	baseURL := testutil.GetBaseURL()
@@ -141,7 +141,7 @@ func TestValidation_ErrorHandling_MissingAmount(t *testing.T) {
 }
 
 // TestValidation_ErrorHandling_MissingAsset verifies 400 when asset is missing.
-// Test 4.4.3 from roteiro 04-rules-evaluation.md
+// Test 4.4.3 from test plan 04-rules-evaluation.md
 // Reference: API Design 3.2, 4.1.1 ValidateTransaction
 func TestValidation_ErrorHandling_MissingAsset(t *testing.T) {
 	baseURL := testutil.GetBaseURL()
@@ -187,7 +187,7 @@ func TestValidation_ErrorHandling_MissingAsset(t *testing.T) {
 }
 
 // TestValidation_ErrorHandling_MissingTransactionType verifies 400 when transactionType is missing.
-// Test 4.4.4 from roteiro 04-rules-evaluation.md
+// Test 4.4.4 from test plan 04-rules-evaluation.md
 // Reference: API Design 3.2, 4.1.1 ValidateTransaction
 func TestValidation_ErrorHandling_MissingTransactionType(t *testing.T) {
 	baseURL := testutil.GetBaseURL()
@@ -233,7 +233,7 @@ func TestValidation_ErrorHandling_MissingTransactionType(t *testing.T) {
 }
 
 // TestValidation_ErrorHandling_MissingTransactionTimestamp verifies 400 when transactionTimestamp is missing.
-// Test 4.4.13b from roteiro 04-rules-evaluation.md
+// Test 4.4.13b from test plan 04-rules-evaluation.md
 // Reference: API Design 3.2, 4.1.1 ValidateTransaction
 func TestValidation_ErrorHandling_MissingTransactionTimestamp(t *testing.T) {
 	baseURL := testutil.GetBaseURL()
@@ -279,7 +279,7 @@ func TestValidation_ErrorHandling_MissingTransactionTimestamp(t *testing.T) {
 }
 
 // TestValidation_ErrorHandling_InvalidAmount_ZeroValue verifies 400 when amount is zero.
-// Test 4.4.5 from roteiro 04-rules-evaluation.md
+// Test 4.4.5 from test plan 04-rules-evaluation.md
 // Reference: API Design 3.2, 6.10 Monetary Amounts
 func TestValidation_ErrorHandling_InvalidAmount_ZeroValue(t *testing.T) {
 	baseURL := testutil.GetBaseURL()
@@ -325,7 +325,7 @@ func TestValidation_ErrorHandling_InvalidAmount_ZeroValue(t *testing.T) {
 }
 
 // TestValidation_ErrorHandling_InvalidAmount_NegativeValue verifies 400 when amount is negative.
-// Test 4.4.6 from roteiro 04-rules-evaluation.md
+// Test 4.4.6 from test plan 04-rules-evaluation.md
 // Reference: API Design 3.2, 6.10 Monetary Amounts
 func TestValidation_ErrorHandling_InvalidAmount_NegativeValue(t *testing.T) {
 	baseURL := testutil.GetBaseURL()
@@ -371,7 +371,7 @@ func TestValidation_ErrorHandling_InvalidAmount_NegativeValue(t *testing.T) {
 }
 
 // TestValidation_ErrorHandling_InvalidAmount_StringValue verifies 400 when amount is string instead of integer.
-// Test 4.4.7 from roteiro 04-rules-evaluation.md
+// Test 4.4.7 from test plan 04-rules-evaluation.md
 // Reference: API Design 3.2, 6.10 Monetary Amounts
 func TestValidation_ErrorHandling_InvalidAmount_StringValue(t *testing.T) {
 	baseURL := testutil.GetBaseURL()
@@ -415,7 +415,7 @@ func TestValidation_ErrorHandling_InvalidAmount_StringValue(t *testing.T) {
 }
 
 // TestValidation_ErrorHandling_InvalidAsset_MixedCase verifies strict uppercase validation for asset.
-// Test 4.4.9 from roteiro 04-rules-evaluation.md
+// Test 4.4.9 from test plan 04-rules-evaluation.md
 // Reference: API Design 6.9 Asset Code Validation
 func TestValidation_ErrorHandling_InvalidAsset_MixedCase(t *testing.T) {
 	baseURL := testutil.GetBaseURL()
@@ -478,11 +478,11 @@ func TestValidation_ErrorHandling_InvalidAsset_MixedCase(t *testing.T) {
 //
 // COVERAGE STATUS:
 //
-// This file implements 8 critical error handling tests from roteiro 04.4
+// This file implements 8 critical error handling tests from test plan 04.4
 // following the naming patterns of other 04_*.go files.
 //
 // ADDITIONAL ERROR HANDLING TESTS:
-// The following tests from roteiro 04.4 are already covered in 01_validation_*.go:
+// The following tests from test plan 04.4 are already covered in 01_validation_*.go:
 //
 //   ✅ 4.4.8  - Invalid asset lowercase (01_validation_test.go:1_1_51)
 //   ✅ 4.4.10 - Invalid asset non-ISO (01_validation_test.go)

@@ -505,29 +505,46 @@ func TestRewriteWalker_NonMacroComprehension(t *testing.T) {
 func TestRewriteCurrencyToAsset_Errors(t *testing.T) {
 	t.Parallel()
 
-	t.Run("empty expression", func(t *testing.T) {
-		t.Parallel()
+	tests := []struct {
+		name    string
+		input   string
+		wantErr bool
+	}{
+		{
+			name:    "empty expression",
+			input:   "",
+			wantErr: true,
+		},
+		{
+			name:    "invalid syntax",
+			input:   `currency == ==`,
+			wantErr: true,
+		},
+		{
+			name:    "no currency reference is a no-op",
+			input:   `amount > 0`,
+			wantErr: false,
+		},
+	}
 
-		_, err := RewriteCurrencyToAsset("")
-		require.Error(t, err)
-	})
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 
-	t.Run("invalid syntax", func(t *testing.T) {
-		t.Parallel()
+			out, err := RewriteCurrencyToAsset(tt.input)
 
-		_, err := RewriteCurrencyToAsset(`currency == ==`)
-		require.Error(t, err)
-	})
+			if tt.wantErr {
+				require.Error(t, err)
+				return
+			}
 
-	t.Run("no currency reference is a no-op", func(t *testing.T) {
-		t.Parallel()
+			require.NoError(t, err)
+			assert.NotContains(t, out, "currency")
+			assert.NotContains(t, out, "asset")
 
-		out, err := RewriteCurrencyToAsset(`amount > 0`)
-		require.NoError(t, err)
-		assert.NotContains(t, out, "currency")
-		assert.NotContains(t, out, "asset")
-
-		refs := inspectCurrency(t, out)
-		assert.Equal(t, 0, refs.globals)
-	})
+			refs := inspectCurrency(t, out)
+			assert.Equal(t, 0, refs.globals)
+		})
+	}
 }
