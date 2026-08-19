@@ -8,8 +8,8 @@
 -- ============================================
 
 -- usage_reservations table (depends on limits)
--- amount is stored in the smallest currency unit (e.g., cents), matching
--- usage_counters.current_usage / reserved_usage.
+-- amount holds a currency amount matching usage_counters.current_usage /
+-- reserved_usage (a whole currency unit here; widened to DECIMAL in 000021).
 -- scope_key / period_key mirror usage_counters semantics so a reservation
 -- targets exactly one counter bucket.
 -- transaction_id is the ledger transaction correlation id. It is NOT a foreign

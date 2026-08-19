@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/bxcodec/dbresolver/v2"
+	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -188,13 +189,13 @@ func TestIntegration_ReservationReaperCadence_ReleasesExpiredWithinInterval(t *t
 	// counter (the reaper must return it). Expired row: TTL strictly before the
 	// reaper's now. Fresh row: TTL far after now (the reaper must never touch it).
 	expired, err := model.NewReservation(
-		limitID, testutil.MustDeterministicUUID(9721), scopeKey, periodKey, 400,
+		limitID, testutil.MustDeterministicUUID(9721), scopeKey, periodKey, decimal.NewFromInt(400),
 		now.Add(-10*time.Minute), now.Add(-15*time.Minute),
 	)
 	require.NoError(t, err)
 
 	fresh, err := model.NewReservation(
-		limitID, testutil.MustDeterministicUUID(9722), freshScopeKey, periodKey, 250,
+		limitID, testutil.MustDeterministicUUID(9722), freshScopeKey, periodKey, decimal.NewFromInt(250),
 		now.Add(1*time.Hour), now,
 	)
 	require.NoError(t, err)
@@ -202,10 +203,10 @@ func TestIntegration_ReservationReaperCadence_ReleasesExpiredWithinInterval(t *t
 	resRepo := newReservationRepoIntegration(db)
 
 	require.NoError(t, inRealTx(t, db, func(tx *sql.Tx) error {
-		return resRepo.ReserveWithTx(ctx, tx, expired, 10000)
+		return resRepo.ReserveWithTx(ctx, tx, expired, decimal.NewFromInt(10000))
 	}))
 	require.NoError(t, inRealTx(t, db, func(tx *sql.Tx) error {
-		return resRepo.ReserveWithTx(ctx, tx, fresh, 10000)
+		return resRepo.ReserveWithTx(ctx, tx, fresh, decimal.NewFromInt(10000))
 	}))
 
 	// Sanity: both rows are RESERVED and holding their amounts before the sweep.
@@ -289,14 +290,14 @@ func TestIntegration_ReservationReaperCadence_SkipsCycleOnPoolFailure(t *testing
 	// An expired row sitting on the root DB. If the reaper wrongly fell back to the
 	// root pool, it would reap this; the invariant is that it must not.
 	expired, err := model.NewReservation(
-		limitID, testutil.MustDeterministicUUID(9821), scopeKey, periodKey, 400,
+		limitID, testutil.MustDeterministicUUID(9821), scopeKey, periodKey, decimal.NewFromInt(400),
 		now.Add(-10*time.Minute), now.Add(-15*time.Minute),
 	)
 	require.NoError(t, err)
 
 	resRepo := newReservationRepoIntegration(db)
 	require.NoError(t, inRealTx(t, db, func(tx *sql.Tx) error {
-		return resRepo.ReserveWithTx(ctx, tx, expired, 10000)
+		return resRepo.ReserveWithTx(ctx, tx, expired, decimal.NewFromInt(10000))
 	}))
 
 	// Spy connection + tx-beginner wrap the root DB and record any access. The

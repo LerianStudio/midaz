@@ -11,6 +11,7 @@ import (
 	libLog "github.com/LerianStudio/lib-observability/v2/log"
 	libOtel "github.com/LerianStudio/lib-observability/v2/tracing"
 	"github.com/google/uuid"
+	"github.com/shopspring/decimal"
 
 	"github.com/LerianStudio/midaz/v4/components/tracer/pkg/logging"
 	"github.com/LerianStudio/midaz/v4/components/tracer/pkg/model"
@@ -20,14 +21,14 @@ import (
 // ReservationSpec is one counter-backed limit's resolved reservation parameters.
 // It carries everything the reservation row and the reserve CTE need so confirm
 // and release never re-query limits (R38): the row stores LimitID/ScopeKey/
-// PeriodKey/Amount, and the reserve guard uses MaxAmount. Amounts are the smallest
-// currency unit (cents), matching the BIGINT counter columns.
+// PeriodKey/Amount, and the reserve guard uses MaxAmount. Amounts are decimal
+// currency values (e.g. 10.50), matching the DECIMAL counter columns.
 type ReservationSpec struct {
 	LimitID   uuid.UUID
 	ScopeKey  string
 	PeriodKey string
-	Amount    int64
-	MaxAmount int64
+	Amount    decimal.Decimal
+	MaxAmount decimal.Decimal
 }
 
 // ResolveReservations resolves the applicable limits for a transaction ONCE and
@@ -118,8 +119,8 @@ func (s *LimitCheckerService) ResolveReservations(ctx context.Context, input *mo
 			LimitID:   limit.ID,
 			ScopeKey:  calculateScopeKeyFromScopes(limit.Scopes, txScope),
 			PeriodKey: periodKey,
-			Amount:    input.Amount.IntPart(),
-			MaxAmount: limit.MaxAmount.IntPart(),
+			Amount:    input.Amount,
+			MaxAmount: limit.MaxAmount,
 		})
 	}
 

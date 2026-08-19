@@ -40,8 +40,8 @@ import (
 const legacyHeadVersion = 12
 
 // headVersion is the expected final schema_migrations.version after applying
-// the HEAD migrations (unified single-runner, 000001..000020).
-const headVersion = 20
+// the HEAD migrations (unified single-runner, 000001..000021).
+const headVersion = 21
 
 // legacyDevelopRef is the immutable commit representing the last state of
 // origin/develop before the unify-sql-migrations feature branched. Pinned
@@ -64,7 +64,7 @@ const legacyDevelopRef = "0a77ac3e4945db1846626aab91f9899079877365"
 //     (dual-runner layout: `migrations/functions/` + numbered schema
 //     migrations 001..012, tracked in `schema_migrations_functions` +
 //     `schema_migrations`).
-//  2. In-place upgrade to HEAD migrations (unified single-runner, 000001..000020)
+//  2. In-place upgrade to HEAD migrations (unified single-runner, 000001..000021)
 //     using the exact same boot runner production will use (libPostgres.Migrator).
 //  3. Assertions that the final state matches a fresh install: version=headVersion,
 //     legacy tracking table dropped, hash-chain functions installed, audit
