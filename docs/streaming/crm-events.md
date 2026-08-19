@@ -15,10 +15,11 @@ complements — does not duplicate — the producer conventions in `CLAUDE.md`
 - **Wire format:** CloudEvents 1.0, binary mode, over Kafka.
 - **Component:** CRM is embedded in the ledger binary
   (`components/ledger/internal/crm`); there is no standalone CRM service.
-- **CloudEvents source (`ce-source`):** `lerian.midaz.ledger` — the process-wide
-  source of the ledger binary CRM rides on, NOT `lerian.midaz.crm`. Consumers
-  attribute events to CRM via the `crm_` topic segment and the `holder` /
-  `instrument` resource types, not via `ce-source`.
+- **CloudEvents source (`ce-source`):** `ledger` (the bare service name) — the
+  process-wide source of the ledger binary CRM rides on, NOT a separate `crm`
+  source. CRM topics collapse into the `ledger.` service segment; consumers
+  attribute events to CRM via the `holder` / `instrument` resource types, not via
+  `ce-source` or a service-specific topic segment.
 - **Posture:** all 7 events are **IMPORTANT** — direct-emit, synchronous, via
   `pkgStreaming.EmitImportant`. Emit is best-effort at the post-commit slot in
   the command use case: a build/emit failure logs a Warn and is recorded on the
@@ -27,8 +28,11 @@ complements — does not duplicate — the producer conventions in `CLAUDE.md`
 - **No outbox.** Emission is direct-emit only, identical to the current ledger
   state. When an outbox lands, only the emit call sites change; the Definitions
   and payload contracts below stay put.
-- **No HTTP event-manifest endpoint.** Out of scope for this pilot (same as the
-  ledger).
+- **HTTP event-manifest endpoint.** The ledger binary serves
+  `GET /v1/streaming/manifest` (auth `streaming-manifest`/`get`) — a catalog-only
+  view of the registered event Definitions, including the CRM `holder.*` /
+  `instrument.*` events. It is independent of `STREAMING_ENABLED` and
+  degraded-safe (it reflects the static Catalog, not a live broker connection).
 - **Master flag:** `STREAMING_ENABLED` (default `false`). When disabled — or
   when `STREAMING_BROKERS` is empty, or no events are registered — bootstrap
   injects a `NoopEmitter` and no broker connection is attempted.
@@ -43,11 +47,15 @@ Catalog and the route table:
 - **`ce-type`** = lib-streaming auto-prefixes the key: `studio.lerian.<key>`.
   The resource stays `holder` / `instrument`, so `ce-type` is unchanged by the
   per-service topic segment (e.g. `studio.lerian.holder.created`).
-- **Kafka topic** = `pkgStreaming.TopicName("crm", key)` =
-  `lerian.streaming.crm_<key>`, with hyphens in `<key>` converted to underscores
-  in the topic name only (e.g.
-  `lerian.streaming.crm_instrument.related_party_deleted`). The event key and
-  `ce-type` keep the hyphen.
+- **Kafka topic** = `pkgStreaming.TopicName("ledger", def.Key())` =
+  `ledger.<resource>.<event>`. The `crm` service segment no longer exists — CRM
+  events emit under the `ledger.` segment like every other ledger-binary event,
+  distinguished only by the `holder` / `instrument` resource type. The key is
+  underscore-canonical, so no fold happens here (e.g.
+  `ledger.instrument.related_party_deleted`). The **event key** and `ce-type` are
+  underscore-canonical too (`instrument.related_party_deleted`); only
+  `RouteDefinition.Key` folds to the hyphenated routing handle
+  (`instrument.related-party-deleted`), used for internal routing only.
 - **`ce-subject`** = the aggregate ID (`EmitRequest.Subject`).
 - **`ce-tenantid`** = `EmitRequest.TenantID`, resolved by
   `pkgStreaming.ResolveTenantID(ctx)` (see [ce-tenantid](#ce-tenantid)).
@@ -58,20 +66,25 @@ All 7 events carry `SchemaVersion = 1.0.0`.
 
 | Event key | Resource / Event | `ce-type` | Kafka topic | `ce-subject` | Trigger (use case) |
 |-----------|------------------|-----------|-------------|--------------|--------------------|
-| `holder.created` | holder / created | `studio.lerian.holder.created` | `lerian.streaming.crm_holder.created` | holder ID | `CreateHolder` |
-| `holder.updated` | holder / updated | `studio.lerian.holder.updated` | `lerian.streaming.crm_holder.updated` | holder ID | `UpdateHolderByID` |
-| `holder.deleted` | holder / deleted | `studio.lerian.holder.deleted` | `lerian.streaming.crm_holder.deleted` | holder ID | `DeleteHolderByID` |
-| `instrument.created` | instrument / created | `studio.lerian.instrument.created` | `lerian.streaming.crm_instrument.created` | instrument ID | `CreateInstrument` |
-| `instrument.updated` | instrument / updated | `studio.lerian.instrument.updated` | `lerian.streaming.crm_instrument.updated` | instrument ID | `UpdateInstrumentByID` |
-| `instrument.deleted` | instrument / deleted | `studio.lerian.instrument.deleted` | `lerian.streaming.crm_instrument.deleted` | instrument ID | `DeleteInstrumentByID` |
-| `instrument.related-party-deleted` | instrument / related-party-deleted | `studio.lerian.instrument.related-party-deleted` | `lerian.streaming.crm_instrument.related_party_deleted` | **instrument ID** (not the related-party ID) | `DeleteRelatedPartyByID` |
+| `holder.created` | holder / created | `studio.lerian.holder.created` | `ledger.holder.created` | holder ID | `CreateHolder` |
+| `holder.updated` | holder / updated | `studio.lerian.holder.updated` | `ledger.holder.updated` | holder ID | `UpdateHolderByID` |
+| `holder.deleted` | holder / deleted | `studio.lerian.holder.deleted` | `ledger.holder.deleted` | holder ID | `DeleteHolderByID` |
+| `instrument.created` | instrument / created | `studio.lerian.instrument.created` | `ledger.instrument.created` | instrument ID | `CreateInstrument` |
+| `instrument.updated` | instrument / updated | `studio.lerian.instrument.updated` | `ledger.instrument.updated` | instrument ID | `UpdateInstrumentByID` |
+| `instrument.deleted` | instrument / deleted | `studio.lerian.instrument.deleted` | `ledger.instrument.deleted` | instrument ID | `DeleteInstrumentByID` |
+| `instrument.related_party_deleted` | instrument / related_party_deleted | `studio.lerian.instrument.related_party_deleted` | `ledger.instrument.related_party_deleted` | **instrument ID** (not the related-party ID) | `DeleteRelatedPartyByID` |
 
-> **Hyphen, not underscore.** The `instrument.related-party-deleted` event type is
-> hyphenated. The lib-streaming route-key validator rejects underscores, so the
-> key and `ce-type` keep the hyphen. The Kafka topic is the only place hyphens
-> become underscores: `lerian.streaming.crm_instrument.related_party_deleted`.
+> **Underscore on the wire, hyphen only in the route key.** The
+> `instrument.related_party_deleted` event is multi-word. Its **event key**
+> (`Definition.Key()`), **`ce-type`**, and **Kafka topic** are all
+> underscore-canonical — that is what consumers see on the wire
+> (`studio.lerian.instrument.related_party_deleted`,
+> `ledger.instrument.related_party_deleted`). The lib-streaming route-key grammar
+> rejects underscores, so `RouteDefinition.Key` (via `Definition.RouteKey()`)
+> folds it to a hyphen for internal routing only
+> (`instrument.related-party-deleted`); that spelling never appears on the wire.
 
-> **`ce-subject` on `instrument.related-party-deleted`.** The aggregate is the instrument,
+> **`ce-subject` on `instrument.related_party_deleted`.** The aggregate is the instrument,
 > so `ce-subject` is the **instrument ID**, and the removed party's ID travels in the
 > body as `relatedPartyId`. Every other event uses its own record ID as subject.
 
@@ -142,7 +155,7 @@ Source: `pkg/streaming/events/instrument_deleted.go`.
 | `deletionType` | string | `"soft"` or `"hard"`, derived from the `hardDelete` flag. |
 | `deletedAt` | string | RFC3339 deletion timestamp. |
 
-### `instrument.related-party-deleted` — 5 fields
+### `instrument.related_party_deleted` — 5 fields
 
 Source: `pkg/streaming/events/instrument_related_party_deleted.go`.
 

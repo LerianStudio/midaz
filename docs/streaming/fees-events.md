@@ -16,7 +16,7 @@ producer conventions in `CLAUDE.md` (Streaming section) and
 - **Wire format:** CloudEvents 1.0, binary mode, over Kafka.
 - **Component:** ledger (`components/ledger`). Fees are embedded in the ledger
   binary; there is no standalone fees service.
-- **CloudEvents source (`ce-source`):** `lerian.midaz.ledger`.
+- **CloudEvents source (`ce-source`):** `ledger` (the bare service name).
 - **Posture:** all 7 events are **IMPORTANT** — direct-emit, synchronous, via
   `pkgStreaming.EmitImportant`. Emit is best-effort at the post-commit slot in
   the command use case: a build/emit failure logs a Warn and is recorded on the
@@ -25,6 +25,10 @@ producer conventions in `CLAUDE.md` (Streaming section) and
 - **No outbox.** Emission is direct-emit only, identical to the rest of the
   ledger streaming surface. When an outbox lands, only the emit call sites
   change; the Definitions and payload contracts below stay put.
+- **HTTP event-manifest endpoint.** The ledger binary serves
+  `GET /v1/streaming/manifest` (auth `streaming-manifest`/`get`) — a catalog-only
+  view of the registered event Definitions, including the `fee_*` events. It is
+  independent of `STREAMING_ENABLED` and degraded-safe.
 - **Master flag:** `STREAMING_ENABLED` (default `false`). When disabled — or
   when `STREAMING_BROKERS` is empty, or no events are registered — bootstrap
   injects a `NoopEmitter` and no broker connection is attempted.
@@ -38,15 +42,17 @@ in `midazEventDefinitions()`
 Catalog (`buildCatalog`) and the route table (`buildRoutes`):
 
 - **Event key** = `<resourceType>.<eventType>` via `Definition.Key()` (e.g.
-  `fee-packages.created`).
-- **`ce-type`** = lib-streaming auto-prefixes the key: `studio.lerian.<key>`
-  (stays hyphenated, e.g. `studio.lerian.fee-packages.created`).
-- **Kafka topic** = `pkgStreaming.TopicName("fee", key)` =
-  `lerian.streaming.<service>_<resource>.<event>` — the producing-service
-  segment (`fee`) is folded in and hyphens in the resource/event become
-  underscores in the topic name only (e.g. `lerian.streaming.fee_packages.created`).
-  The service segment is `fee` even though fees ride the ledger binary; the
-  process-wide `ce-source` stays `lerian.midaz.ledger`.
+  `fee_packages.created`).
+- **`ce-type`** = lib-streaming auto-prefixes the key: `studio.lerian.<key>`,
+  underscore-canonical like the key (e.g. `studio.lerian.fee_packages.created`).
+- **Kafka topic** = `pkgStreaming.TopicName("ledger", def.Key())` =
+  `ledger.<resource>.<event>` (where `<resource>` already carries its `fee_`
+  prefix, e.g. `ledger.fee_packages.created`). The `fee` service segment collapsed into
+  `ledger` — fees emit under the `ledger.` segment like every other ledger-binary
+  event. The `fee_` prefix on the ResourceType STAYS, namespacing fees inside the
+  `ledger.` segment (e.g. `ledger.fee_packages.created`,
+  `ledger.fee_charge.applied`). The key is underscore-canonical, so no fold
+  happens at this step; the process-wide `ce-source` is `ledger`.
 - **`ce-subject`** = the aggregate ID (`EmitRequest.Subject`).
 - **`ce-tenantid`** = `EmitRequest.TenantID`, resolved by
   `pkgStreaming.ResolveTenantID(ctx)` inside `EmitImportant` (see
@@ -58,21 +64,26 @@ All 7 events carry `SchemaVersion = 1.0.0`.
 
 | Event key | Resource / Event | `ce-type` | Kafka topic | `ce-subject` | Trigger (use case) |
 |-----------|------------------|-----------|-------------|--------------|--------------------|
-| `fee-packages.created` | fee-packages / created | `studio.lerian.fee-packages.created` | `lerian.streaming.fee_packages.created` | package ID | create fee package |
-| `fee-packages.updated` | fee-packages / updated | `studio.lerian.fee-packages.updated` | `lerian.streaming.fee_packages.updated` | package ID | update fee package |
-| `fee-packages.deleted` | fee-packages / deleted | `studio.lerian.fee-packages.deleted` | `lerian.streaming.fee_packages.deleted` | package ID | delete fee package |
-| `fee-billing-packages.created` | fee-billing-packages / created | `studio.lerian.fee-billing-packages.created` | `lerian.streaming.fee_billing_packages.created` | billing package ID | create billing package |
-| `fee-billing-packages.updated` | fee-billing-packages / updated | `studio.lerian.fee-billing-packages.updated` | `lerian.streaming.fee_billing_packages.updated` | billing package ID | update billing package |
-| `fee-billing-packages.deleted` | fee-billing-packages / deleted | `studio.lerian.fee-billing-packages.deleted` | `lerian.streaming.fee_billing_packages.deleted` | billing package ID | delete billing package |
-| `fee-charge.applied` | fee-charge / applied | `studio.lerian.fee-charge.applied` | `lerian.streaming.fee_charge.applied` | **transaction ID** | fee charged on a posted transaction |
+| `fee_packages.created` | fee_packages / created | `studio.lerian.fee_packages.created` | `ledger.fee_packages.created` | package ID | create fee package |
+| `fee_packages.updated` | fee_packages / updated | `studio.lerian.fee_packages.updated` | `ledger.fee_packages.updated` | package ID | update fee package |
+| `fee_packages.deleted` | fee_packages / deleted | `studio.lerian.fee_packages.deleted` | `ledger.fee_packages.deleted` | package ID | delete fee package |
+| `fee_billing_packages.created` | fee_billing_packages / created | `studio.lerian.fee_billing_packages.created` | `ledger.fee_billing_packages.created` | billing package ID | create billing package |
+| `fee_billing_packages.updated` | fee_billing_packages / updated | `studio.lerian.fee_billing_packages.updated` | `ledger.fee_billing_packages.updated` | billing package ID | update billing package |
+| `fee_billing_packages.deleted` | fee_billing_packages / deleted | `studio.lerian.fee_billing_packages.deleted` | `ledger.fee_billing_packages.deleted` | billing package ID | delete billing package |
+| `fee_charge.applied` | fee_charge / applied | `studio.lerian.fee_charge.applied` | `ledger.fee_charge.applied` | **transaction ID** | fee charged on a posted transaction |
 
-> **Hyphen in the key/ce-type, underscore in the topic.** The `fee-packages`
-> and `fee-billing-packages` resource types are hyphenated. The lib-streaming
-> route-key validator rejects underscores, so the event **key** and **`ce-type`**
-> keep the hyphen; only the derived **Kafka topic** name substitutes underscores
-> for hyphens (and folds in the `fee` service segment).
+> **Underscore on the wire, hyphen only in the route key.** The `fee_packages`
+> and `fee_billing_packages` resource types are multi-word. Their **event key**
+> (`Definition.Key()`), **`ce-type`**, and **Kafka topic** are all
+> underscore-canonical — that is what consumers see on the wire (e.g. key
+> `fee_packages.created`, ce-type `studio.lerian.fee_packages.created`, topic
+> `ledger.fee_packages.created`), with the `fee_` prefix remaining as the fees
+> namespace inside `ledger.`. The lib-streaming route-key grammar rejects
+> underscores, so `RouteDefinition.Key` (via `Definition.RouteKey()`) folds them to
+> hyphens for internal routing only (`fee-packages.created`,
+> `fee-billing-packages.created`); that spelling never appears on the wire.
 
-> **`ce-subject` on `fee-charge.applied`.** The aggregate is the transaction the fee
+> **`ce-subject` on `fee_charge.applied`.** The aggregate is the transaction the fee
 > was charged against, so `ce-subject` is the **transaction ID**, and the
 > charged fee package's ID travels in the body as `feePackageId`. The
 > package/billing-package events use their own record ID as subject.
@@ -83,7 +94,7 @@ The wire keys below are the exact JSON field set produced by the Payload structs
 in `pkg/streaming/events/`. The "field count" is the number the JSONShape test
 locks.
 
-### `fee-packages.created` / `fee-packages.updated` — 8 fields
+### `fee_packages.created` / `fee_packages.updated` — 8 fields
 
 Source: `pkg/streaming/events/fees_package_created.go`,
 `fees_package_updated.go`.
@@ -103,7 +114,7 @@ Source: `pkg/streaming/events/fees_package_created.go`,
 `feeGroupLabel`, `description`, `minimumAmount`, `maximumAmount`, `fees`,
 `waivedAccounts`.
 
-### `fee-packages.deleted` — 4 fields
+### `fee_packages.deleted` — 4 fields
 
 Source: `pkg/streaming/events/fees_package_deleted.go`.
 
@@ -118,7 +129,7 @@ Source: `pkg/streaming/events/fees_package_deleted.go`.
 `feeGroupLabel`, `description`, `minimumAmount`, `maximumAmount`, `fees`,
 `waivedAccounts`, `segmentId`, `transactionRoute`, `enable`.
 
-### `fee-billing-packages.created` / `fee-billing-packages.updated` — 9 fields
+### `fee_billing_packages.created` / `fee_billing_packages.updated` — 9 fields
 
 Source: `pkg/streaming/events/fees_billing_package_created.go`,
 `fees_billing_package_updated.go`.
@@ -140,7 +151,7 @@ Source: `pkg/streaming/events/fees_billing_package_created.go`,
 `freeQuota`, `eventFilter`, `accountTarget`, `debitAccountAlias`,
 `creditAccountAlias`, `maintenanceCreditAccount`.
 
-### `fee-billing-packages.deleted` — 4 fields
+### `fee_billing_packages.deleted` — 4 fields
 
 Source: `pkg/streaming/events/fees_billing_package_deleted.go`.
 
@@ -157,7 +168,7 @@ Source: `pkg/streaming/events/fees_billing_package_deleted.go`.
 `creditAccountAlias`, `maintenanceCreditAccount`, `type`, `pricingModel`,
 `countMode`, `enable`, `createdAt`, `updatedAt`.
 
-### `fee-charge.applied` — 5 fields
+### `fee_charge.applied` — 5 fields
 
 Source: `pkg/streaming/events/fees_applied.go`.
 
@@ -173,9 +184,9 @@ Source: `pkg/streaming/events/fees_applied.go`.
 `amount`, `assetCode`, `source`, `destination`, `metadata`, `operations`,
 `description`, `fees`, `waivedAccounts`.
 
-## `fee-charge.applied` semantics
+## `fee_charge.applied` semantics
 
-`fee-charge.applied` is a charge signal, not a transaction signal:
+`fee_charge.applied` is a charge signal, not a transaction signal:
 
 - **Charged only.** It is emitted only when a fee was actually **charged** —
   `emitFeesAppliedEvent` fires only when `feeApplied=true` and a non-empty
@@ -227,7 +238,7 @@ point the ledger at it:
 - Bind the broker on host port `19092`; join `infra-network` so it is reachable
   from both host (`localhost:19092`) and containers (`<container>:9092`).
 - Set `STREAMING_ENABLED=true`, `STREAMING_BROKERS=localhost:19092`, and
-  `STREAMING_CLOUDEVENTS_SOURCE=lerian.midaz.ledger`.
+  `STREAMING_CLOUDEVENTS_SOURCE=ledger`.
 - Pre-provision topics explicitly; do not rely on auto-create.
 
 The default unit suite (`make test-unit`) never touches a broker — the

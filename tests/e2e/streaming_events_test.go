@@ -42,7 +42,8 @@ import (
 const strmDefaultBroker = "localhost:19092"
 
 // strmServiceName is the ledger-core service segment used to render topics of
-// the shape "lerian.streaming.<service>_<resource>.<event>".
+// the shape "<service>.<resource>.<event>" (the service is the leading,
+// ACL-scoped segment).
 const strmServiceName = "ledger"
 
 // strmCEType is the reverse-DNS namespace prepended to every ce-type header by
@@ -243,10 +244,11 @@ func strmEnsureTopics(ctx context.Context, brokers []string) error {
 	return nil
 }
 
-// strmCatalogTopics builds the lerian.streaming.* names for the full event
-// catalog (mirrors pkg/streaming/events). Every topic the ledger may emit to
-// during a test's fixtures is created so no missing-topic emit trips the
-// producer circuit breaker.
+// strmCatalogTopics builds the "<service>.<resource>.<event>" names for the full
+// event catalog (mirrors pkg/streaming/events). Keys are the underscore-canonical
+// Definition.Key() form (TopicName no longer folds hyphens). Every topic the
+// ledger may emit to during a test's fixtures is created so no missing-topic emit
+// trips the producer circuit breaker.
 func strmCatalogTopics() []string {
 	families := map[string][]string{
 		"organization":      {"created", "updated", "deleted"},
@@ -257,7 +259,7 @@ func strmCatalogTopics() []string {
 		"segment":           {"created", "updated", "deleted"},
 		"operation_route":   {"created", "updated", "deleted"},
 		"transaction_route": {"created", "updated", "deleted"},
-		"balance":           {"created", "config_changed", "deleted", "overdraft-drawn", "overdraft-repaid", "overdraft-cleared"},
+		"balance":           {"created", "config_changed", "deleted", "overdraft_drawn", "overdraft_repaid", "overdraft_cleared"},
 		"transaction":       {"posted", "committed", "canceled", "reverted"},
 	}
 
@@ -269,12 +271,21 @@ func strmCatalogTopics() []string {
 		}
 	}
 
-	// CRM resources (holder/instrument) are folded into the ledger binary but
-	// emit under the "crm" service segment, so their topics carry the "crm_"
-	// prefix. Provision them too so a holder create's IMPORTANT-posture emit has
-	// a live destination and never trips the producer circuit breaker.
-	for _, e := range []string{"created", "updated", "deleted"} {
-		topics = append(topics, pkgStreaming.TopicName("crm", "holder."+e))
+	// CRM resources (holder/instrument) are folded into the ledger binary and,
+	// after the service collapse, emit under the single "ledger" segment, so
+	// their topics take the "ledger.<resource>.<event>" shape. Provision the full
+	// CRM key set so any CRM fixture's IMPORTANT-posture emit has a live
+	// destination and never trips the producer circuit breaker.
+	for _, key := range []string{
+		"holder.created",
+		"holder.updated",
+		"holder.deleted",
+		"instrument.created",
+		"instrument.updated",
+		"instrument.deleted",
+		"instrument.related_party_deleted",
+	} {
+		topics = append(topics, pkgStreaming.TopicName(strmServiceName, key))
 	}
 
 	return topics
@@ -387,7 +398,7 @@ func strmAssertKeySet(t *testing.T, label string, actual map[string]any, allowed
 }
 
 // TestStreamingAccountCreatedEmitted asserts an account create produces a
-// CloudEvents record on lerian.streaming.account.created whose ce-subject is
+// CloudEvents record on the ledger.account.created topic whose ce-subject is
 // the account id, ce-type is studio.lerian.account.created, and whose payload
 // top-level key set EXACTLY matches the 17-key account.created contract.
 func TestStreamingAccountCreatedEmitted(t *testing.T) {
@@ -434,7 +445,7 @@ func TestStreamingAccountCreatedEmitted(t *testing.T) {
 }
 
 // TestStreamingTransactionPostedEmitted funds then transfers, and asserts a
-// record on lerian.streaming.transaction.posted whose ce-subject is the
+// record on the ledger.transaction.posted topic whose ce-subject is the
 // transaction id, ce-type is studio.lerian.transaction.posted, and whose
 // payload keys are a subset of the transaction.posted superset (optional
 // fields are path-dependent) with the always-present core keys present.
@@ -503,7 +514,7 @@ func TestStreamingTransactionPostedEmitted(t *testing.T) {
 }
 
 // TestStreamingHolderCreateEmitsRedacted asserts that creating a holder emits a
-// CloudEvents record on crm_holder.created whose ce-subject is the holder id and
+// CloudEvents record on ledger.holder.created whose ce-subject is the holder id and
 // ce-type is studio.lerian.holder.created, with PII redacted: the payload MUST
 // carry only id/organizationId/type/externalId/timestamps and MUST NOT carry
 // name, document, or any other PII key.
@@ -513,7 +524,7 @@ func TestStreamingHolderCreateEmitsRedacted(t *testing.T) {
 	strmRequireBroker(t)
 
 	orgID := createOrg(t)
-	topic := pkgStreaming.TopicName("crm", "holder.created")
+	topic := pkgStreaming.TopicName(strmServiceName, "holder.created")
 	capture := strmCaptureFromEnd(t, topic)
 	holderID := createHolder(t, orgID)
 

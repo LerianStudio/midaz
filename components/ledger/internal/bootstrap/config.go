@@ -1179,6 +1179,21 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 
 	ledgerRouteRegistrar := httpin.CreateRouteRegistrar(auth, metadataIndexHandler, routeSetup.ledgerRouteOptions)
 
+	// Streaming manifest route (catalog-only lib-streaming manifest). Built
+	// DEGRADED-SAFE and INDEPENDENT of STREAMING_ENABLED: the manifest advertises
+	// the event taxonomy even with publication off. A build error logs at Warn and
+	// leaves the route unmounted (the hub sees 404), never failing ledger startup.
+	streamingManifestHandler, streamingManifestErr := BuildStreamingManifestHandler(cfg)
+	if streamingManifestErr != nil {
+		logger.Log(context.Background(), libLog.LevelWarn,
+			"Streaming manifest route disabled: failed to build manifest handler",
+			libLog.Err(streamingManifestErr))
+	}
+
+	streamingManifestRegistrar := func(router fiber.Router) {
+		httpin.RegisterStreamingManifestRouteToApp(router, auth, routeSetup.onboardingRouteOptions, streamingManifestHandler)
+	}
+
 	logger.Log(context.Background(), libLog.LevelInfo, "Creating unified HTTP server on "+cfg.ServerAddress)
 
 	// === Readyz handler ===
@@ -1203,6 +1218,7 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 		humaMountDeps.MountV2,
 		onboardingRouteRegistrar,
 		ledgerRouteRegistrar,
+		streamingManifestRegistrar,
 	)
 
 	// === Workers ===

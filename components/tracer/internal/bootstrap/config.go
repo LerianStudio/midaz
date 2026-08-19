@@ -237,11 +237,14 @@ type Config struct {
 	// libStreaming.LoadConfig() directly from STREAMING_* env at build time.
 	StreamingEnabled bool `env:"STREAMING_ENABLED"`
 
-	// StreamingCloudEventsSource overrides the CloudEvents `ce-source` stamped
-	// on every event tracer emits. When empty (the default), the in-code
-	// default lerian.midaz.tracer is used, so an existing deployment that never
-	// sets this var keeps the historical source. Operators set it only to
-	// distinguish sources across environments or shadow deployments.
+	// StreamingCloudEventsSource sets the CloudEvents `ce-source` stamped on
+	// every event tracer emits. It is REQUIRED when streaming is enabled:
+	// libStreaming.LoadConfig fails closed (ErrMissingSource) on a genuinely-unset
+	// value, so the binary never starts with streaming enabled and this empty.
+	// The in-code fallback is the bare service name "tracer" (a defense-in-depth
+	// guard for a whitespace-only value that slips past LoadConfig, aligned with
+	// the leading ACL-scoped topic segment "tracer."); operators set it to the
+	// bare service name so ce-source and the emitted topics agree on that prefix.
 	StreamingCloudEventsSource string `env:"STREAMING_CLOUDEVENTS_SOURCE"`
 
 	// --- Streaming SASL/TLS auth ---
@@ -1194,6 +1197,17 @@ func initHTTPServer(
 		workerSupervisor = mtComponents.supervisor
 	}
 
+	// Streaming manifest route (catalog-only lib-streaming manifest). Built
+	// DEGRADED-SAFE and INDEPENDENT of STREAMING_ENABLED: the manifest advertises
+	// the event taxonomy even with publication off. A build error logs at Warn and
+	// leaves the route unmounted (the hub sees 404), never failing tracer startup.
+	streamingManifestHandler, streamingManifestErr := BuildStreamingManifestHandler(cfg)
+	if streamingManifestErr != nil {
+		logger.Log(ctx, libLog.LevelWarn,
+			"Streaming manifest route disabled: failed to build manifest handler",
+			libLog.Err(streamingManifestErr))
+	}
+
 	// Note: NewRoutes wires ReadyzHandler which is a Fiber
 	// handler closure that receives ctx per-request via c.Context();
 	// passing boot-time ctx here is conceptually wrong (boot ctx outlives
@@ -1214,6 +1228,7 @@ func initHTTPServer(
 		MultiTenantEnabled:           cfg.MultiTenantEnabled,
 		PgManager:                    pgManager,
 		Supervisor:                   workerSupervisor,
+		StreamingManifestHandler:     streamingManifestHandler,
 	})
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to create routes: %w", err)

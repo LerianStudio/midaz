@@ -5,6 +5,7 @@
 package in
 
 import (
+	nethttp "net/http"
 	"os"
 	"regexp"
 	"sort"
@@ -17,6 +18,8 @@ import (
 	"github.com/gofiber/fiber/v3"
 	"github.com/stretchr/testify/require"
 	"gopkg.in/yaml.v3"
+
+	pkgStreaming "github.com/LerianStudio/midaz/v4/pkg/streaming"
 )
 
 // unifiedHumaMountDeps is the HumaMountDeps every offline harness in this package
@@ -86,6 +89,13 @@ func buildUnifiedHumaAPI() (*fiber.App, huma.API) {
 	RegisterMetadataRoutesToApp(app, auth, deps.MetadataIndex, deps.OnboardingOptions)
 	RegisterOnboardingRoutesToApp(app, auth, deps.Account, deps.Portfolio, deps.Ledger, deps.Organization, deps.Segment, deps.AccountType, deps.OnboardingOptions)
 
+	// The streaming manifest is a wrapped stdlib net/http handler (not a Huma
+	// operation), mounted on the app root exactly as the unified server mounts it.
+	// A stub handler is enough here: the diff gate compares paths and methods, not
+	// bodies, and excludedPaths carves this path out of the contract comparison.
+	RegisterStreamingManifestRouteToApp(app, auth, deps.OnboardingOptions,
+		nethttp.HandlerFunc(func(nethttp.ResponseWriter, *nethttp.Request) {}))
+
 	api := AssembleHumaContract(app, app, openapi.Config{
 		Title:   "Midaz Ledger API",
 		Version: "4.0.0",
@@ -125,6 +135,12 @@ var excludedPaths = map[string]bool{
 	canonicalizePath("/health"):  true,
 	canonicalizePath("/version"): true,
 	canonicalizePath("/readyz"):  true,
+	// Streaming manifest: a wrapped stdlib net/http handler (lib-streaming,
+	// adaptor.HTTPHandler), guarded by the midaz authz chain but carrying no Huma
+	// OAS operation, so it is deliberately absent from the generated contract. It
+	// is mounted on the served surface (buildUnifiedHumaAPI mounts it too) and
+	// dropped from the diff here rather than forced into the spec.
+	canonicalizePath(pkgStreaming.ManifestRoutePath): true,
 }
 
 // pathParam matches a single path-parameter segment in EITHER syntax: Fiber
