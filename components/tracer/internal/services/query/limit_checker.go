@@ -487,6 +487,12 @@ func (s *LimitCheckerService) getApplicableLimits(ctx context.Context, input *mo
 
 	logger = logging.WithTrace(ctx, logger)
 
+	// Check context cancellation before the paginated repository loop begins.
+	if err := ctx.Err(); err != nil {
+		libOtel.HandleSpanError(span, "Context cancelled before listing applicable limits", err)
+		return nil, fmt.Errorf("get applicable limits: %w", err)
+	}
+
 	// Fetch active limits matching asset (filtered at DB level)
 	// Use pagination loop to handle cases where more limits exist than MaxPaginationLimit
 	status := model.LimitStatusActive

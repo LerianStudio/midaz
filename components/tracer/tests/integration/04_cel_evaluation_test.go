@@ -183,9 +183,9 @@ func TestValidation_CEL_Amount_Comparison(t *testing.T) {
 	}
 }
 
-// TestValidation_CEL_Currency verifies CEL can evaluate asset field.
+// TestValidation_CEL_Asset verifies CEL can evaluate the asset field.
 // Test 4.1.4 from roteiro 04-rules-evaluation.md
-func TestValidation_CEL_Currency(t *testing.T) {
+func TestValidation_CEL_Asset(t *testing.T) {
 	// PRECONDITIONS: Create and activate rule
 	ruleID := testutil.CreateTestRuleWithExpression(t,
 		"Asset Check Rule",

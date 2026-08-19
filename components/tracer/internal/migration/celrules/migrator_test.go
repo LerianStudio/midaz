@@ -53,16 +53,29 @@ func (f *fakeTx) Rollback() error {
 }
 
 // identityRewrite returns the input unchanged (marks the rule "unchanged").
-func identityRewrite(expression string) (string, error) { return expression, nil }
+func identityRewrite(expression string) (string, bool, error) { return expression, false, nil }
 
 // toAssetRewrite is a trivial rename used only to make the changed-vs-unchanged
-// branch observable in unit tests; the real rename lives in the cel package.
-func toAssetRewrite(expression string) (string, error) {
+// branch observable in unit tests; the real rename lives in the cel package. It
+// reports changed=true only when it actually renames.
+func toAssetRewrite(expression string) (string, bool, error) {
 	if expression == "currency" {
-		return "asset", nil
+		return "asset", true, nil
 	}
 
-	return expression, nil
+	return expression, false, nil
+}
+
+// canonicalizeNoRename mimics the real rewriter's canonical serialization of a
+// rule that carries NO global currency: it returns different text (whitespace
+// normalized) but reports changed=false, so the migrator must classify it as
+// unchanged and never persist it.
+func canonicalizeNoRename(expression string) (string, bool, error) {
+	if expression == "amount>0" {
+		return "amount > 0", false, nil
+	}
+
+	return expression, false, nil
 }
 
 func newRule(t *testing.T, seed int64, expression string) *model.Rule {
@@ -211,7 +224,7 @@ func TestMigrator_Up_ErrorPaths(t *testing.T) {
 				s.EXPECT().ListByStatus(gomock.Any(), gomock.Any()).Return([]*model.Rule{newRule(t, 1, "currency")}, nil)
 				return tx
 			},
-			rewrite:    func(string) (string, error) { return "", rewriteErr },
+			rewrite:    func(string) (string, bool, error) { return "", false, rewriteErr },
 			wantErrIs:  constant.ErrExpressionSyntax,
 			wantNoLeak: rawLeakToken,
 			wantRolled: true,
@@ -374,9 +387,9 @@ func TestMigrator_Up_EmptyExpression_SkippedAsUnchanged(t *testing.T) {
 			// expression must be skipped before both. GoMock fails on any such call.
 
 			// The rewriter must never be invoked for an empty expression.
-			failRewrite := func(string) (string, error) {
+			failRewrite := func(string) (string, bool, error) {
 				t.Errorf("rewriter must not be called for an empty expression")
-				return "", errors.New("rewriter should not run")
+				return "", false, errors.New("rewriter should not run")
 			}
 
 			m, err := NewMigrator(beginner, store, compiler, failRewrite, false)
@@ -393,6 +406,42 @@ func TestMigrator_Up_EmptyExpression_SkippedAsUnchanged(t *testing.T) {
 			assert.False(t, tx.rolledBack)
 		})
 	}
+}
+
+// TestMigrator_Up_NonCanonicalNoCurrency_SkippedAsUnchanged proves a rule with
+// NO global currency is classified unchanged and never persisted, even when the
+// rewriter returns different (canonicalized) text. Classification is by the
+// changed flag, not by text inequality: "amount>0" reformats to "amount > 0" with
+// no currency->asset rename, so it must NOT be counted or written as rewritten.
+func TestMigrator_Up_NonCanonicalNoCurrency_SkippedAsUnchanged(t *testing.T) {
+	t.Parallel()
+
+	tx := &fakeTx{}
+
+	ctrl := gomock.NewController(t)
+	beginner := dbmocks.NewMockTxBeginner(ctrl)
+	store := NewMockRuleStore(ctrl)
+	compiler := NewMockExpressionCompiler(ctrl)
+
+	beginner.EXPECT().BeginTx(gomock.Any(), gomock.Any()).Return(tx, nil)
+	store.EXPECT().ListByStatus(gomock.Any(), gomock.Any()).Return([]*model.Rule{newRule(t, 8, "amount>0")}, nil)
+	// The recompile-all gate still runs against the canonicalized text, but no
+	// UpdateWithTx expectation: the rule must be skipped as unchanged. GoMock
+	// fails the test on any persist call.
+	compiler.EXPECT().Compile("amount > 0").Return(nil)
+
+	m, err := NewMigrator(beginner, store, compiler, canonicalizeNoRename, false)
+	require.NoError(t, err)
+
+	res, err := m.Up(context.Background())
+	require.NoError(t, err)
+
+	assert.Equal(t, 1, res.Scanned)
+	assert.Equal(t, 0, res.Rewritten)
+	assert.Equal(t, 1, res.Unchanged)
+
+	assert.True(t, tx.committed)
+	assert.False(t, tx.rolledBack)
 }
 
 // TestMigrator_Up_MultiTenant_RefusesBeforeAnyDBWork proves the multi-tenant
