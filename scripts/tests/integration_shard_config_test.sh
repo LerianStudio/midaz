@@ -33,7 +33,7 @@ if [[ $actual_shards != "$expected_shards" ]]; then
   exit 1
 fi
 
-expected_config=$'ledger-postgres\t2\t2\t2\t400\t2048\t20\t0\t15m\t0\nledger-mongodb-crm\t2\t2\t2\t400\t2048\t16\t0\t15m\t0\nasync-broker\t2\t2\t2\t400\t3072\t20\t0\t15m\t0\ntracer\t2\t2\t2\t400\t2048\t6\t0\t15m\t1\nlifecycle-migration\t1\t1\t4\t400\t3072\t10\t0\t15m\t0\nchaos-capability\t3\t1\t2\t400\t1536\t10\t0\t15m\t0'
+expected_config=$'ledger-postgres\t2\t2\t2\t400\t2048\t24\t0\t15m\t0\nledger-mongodb-crm\t2\t2\t2\t400\t2048\t16\t0\t15m\t0\nasync-broker\t2\t2\t2\t400\t3072\t20\t0\t15m\t0\ntracer\t2\t2\t2\t400\t2048\t6\t0\t15m\t1\nlifecycle-migration\t1\t1\t4\t400\t3072\t10\t0\t15m\t0\nchaos-capability\t3\t1\t2\t400\t1536\t10\t0\t15m\t0'
 actual_config=$(awk '!/^#/ && NF' "$config")
 if [[ $actual_config != "$expected_config" ]]; then
   echo "integration shard resource budgets changed without updating their contract" >&2

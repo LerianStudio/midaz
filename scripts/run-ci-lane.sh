@@ -515,6 +515,7 @@ if [[ -n $docker_event_scope && $docker_events_failed -eq 0 ]]; then
   if [[ -n ${CI_MAX_PEAK_CONTAINERS:-} ]] && \
     awk -v value="$peak_live_containers" -v limit="$CI_MAX_PEAK_CONTAINERS" 'BEGIN { exit !(value > limit) }'; then
     container_budget_status=exceeded
+    echo "required CI lane '$lane' exceeded its peak container budget ($peak_live_containers > $CI_MAX_PEAK_CONTAINERS)" >&2
     if [[ $exit_code -eq 0 ]]; then
       exit_code=2
     fi
