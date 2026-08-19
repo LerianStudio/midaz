@@ -252,7 +252,6 @@ jobs:
           sed -i 's|^STREAMING_ENABLED=.*|STREAMING_ENABLED=true|' components/ledger/.env
           sed -i 's|^# STREAMING_BROKERS=.*|STREAMING_BROKERS=midaz-redpanda:9092|' components/ledger/.env
           sed -i 's|^# STREAMING_CLOUDEVENTS_SOURCE=.*|STREAMING_CLOUDEVENTS_SOURCE=ledger|' components/ledger/.env
-          sed -i 's|^REDPANDA_EXTERNAL_PORT=.*|REDPANDA_EXTERNAL_PORT=29092|' components/infra/.env
           # Fail closed if any sed above silently missed its target line
           # (e.g. after an .env.example format change).
           grep -q '^TRACER_BASE_URL=http://midaz-tracer:4020$' components/ledger/.env
@@ -260,7 +259,6 @@ jobs:
           grep -q '^STREAMING_ENABLED=true$' components/ledger/.env
           grep -q '^STREAMING_BROKERS=midaz-redpanda:9092$' components/ledger/.env
           grep -q '^STREAMING_CLOUDEVENTS_SOURCE=ledger$' components/ledger/.env
-          grep -q '^REDPANDA_EXTERNAL_PORT=29092$' components/infra/.env
           # configure-required-tracer-e2e-auth.sh activates in the Ledger-Tracer
           # outcome layer, once the ledger gains TRACER_API_KEY support. This
           # layer's ledger cannot present a key, so tracer API-key auth stays
@@ -287,8 +285,11 @@ jobs:
       # gate activate in the Ledger-Tracer outcome layer, which introduces
       # TRACER_OUTCOME_MODE=ledger_outcome_v2 and its E2E proof. This layer
       # ships the reusable gate scripts only.
+      # This layer's compose file hardcodes redpanda's external listener on
+      # 19092; the REDPANDA_EXTERNAL_PORT parameterization arrives in a later
+      # layer of the train.
       - name: Run mandatory Ledger E2E lane
-        run: STREAMING_BROKERS=localhost:29092 scripts/run-required-e2e.sh
+        run: STREAMING_BROKERS=localhost:19092 scripts/run-required-e2e.sh
 
       - name: Capture stack logs
         if: always()
