@@ -99,31 +99,55 @@ func TestBuildStreamingManifestHandler_AdvertisesApplicationTopic(t *testing.T) 
 	}
 }
 
-// TestBuildStreamingManifestHandler_TopicFollowsConfiguredSource locks the
-// coherence invariant the v3 contract rests on: the topic the manifest advertises
-// is derived from the SAME ce-source the emitter publishes under, so the streaming
-// hub and topic provisioning are pointed at the stream the ledger actually writes.
+// TestStreamingRouteAndManifestAgreeOnTopic is the coherence lock the whole design
+// rests on: ONE resolved ce-source feeds both the emitter's route table and the
+// manifest handler, and the topic the ledger publishes to must be byte-identical to
+// the topic the manifest advertises.
 //
-// This inverts the pre-v3 behaviour deliberately. Before the collapse, topics were
-// derived from a compile-time service segment and the configured ce-source only
-// reached the header, so pinning the manifest against the config was the safe
-// choice. Now the topic IS the source: pinning them apart would advertise a topic
-// nothing writes, and a source-verifying consumer subscribing by application name
-// would quarantine every record it received.
-func TestBuildStreamingManifestHandler_TopicFollowsConfiguredSource(t *testing.T) {
+// A divergence here is invisible in production and total: the streaming hub and
+// topic provisioning would follow the manifest to a stream nothing writes, while a
+// consumer subscribing by application name would quarantine every record it did
+// receive for an unexpected ce-source. The invariant was previously only stated in
+// prose, which is what let a reviewer find it unasserted.
+//
+// Every case uses the roster name, because the bootstrap gate refuses anything
+// else — see TestBuildStreamingEmitter_RefusesNonRosterSource. The table exists to
+// cover the paths that REACH the resolver differently (explicit value, unset,
+// whitespace, nil config), not to vary the source.
+func TestStreamingRouteAndManifestAgreeOnTopic(t *testing.T) {
 	t.Parallel()
 
-	const configuredSource = "midaz-ledger"
+	cases := []struct {
+		name string
+		cfg  *Config
+	}{
+		{name: "source configured explicitly", cfg: &Config{StreamingCloudEventsSource: streamingServiceName}},
+		{name: "source unset falls back to roster", cfg: &Config{}},
+		{name: "whitespace-only source falls back to roster", cfg: &Config{StreamingCloudEventsSource: "  \t "}},
+		{name: "nil config falls back to roster", cfg: nil},
+	}
 
-	doc := fetchLedgerManifest(t, &Config{StreamingCloudEventsSource: configuredSource})
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
 
-	wantTopic, err := libStreaming.AppTopic(configuredSource)
-	require.NoError(t, err)
+			source := resolveStreamingSource(tc.cfg)
 
-	require.Equal(t, configuredSource, doc.Publisher.Source)
-	require.Equal(t, wantTopic, doc.Topic,
-		"manifest topic must follow the configured ce-source, which is what the emitter publishes to")
-	require.Equal(t, "lerian.streaming.midaz-ledger", doc.Topic)
+			routes, err := buildRoutes(streamingPrimaryTargetName, source)
+			require.NoError(t, err)
+			require.Len(t, routes, 1)
+
+			emitted := routes[0].Destination.Name
+			advertised := fetchLedgerManifest(t, tc.cfg).Topic
+
+			require.Equal(t, emitted, advertised,
+				"the topic the ledger publishes to and the topic its manifest advertises must be the same string")
+
+			// Pin the shared value too, so a change that moves BOTH sides together
+			// still has to be deliberate.
+			require.Equal(t, "lerian.streaming.ledger", emitted)
+		})
+	}
 }
 
 // TestBuildStreamingManifestHandler_RejectsIllegalConfiguredSource proves a

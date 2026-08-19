@@ -102,6 +102,17 @@ func BuildStreamingEmitter(
 
 	_ = telemetry
 
+	// Fail closed on a ce-source that is not the roster name, BEFORE the enabled
+	// check: the topics and Kafka ACLs exist for the roster name only, so any other
+	// value publishes into a stream that neither exists nor is granted — and midaz's
+	// IMPORTANT posture would swallow every one of those failures as a Warn while the
+	// pod stays Ready. Checked even when streaming is disabled so a source left over
+	// from the pre-v3 dotted or URI shape fails startup instead of waiting in an env
+	// file for someone to flip the flag.
+	if err := pkgStreaming.RequireRosterSource(resolveStreamingSource(cfg), streamingServiceName); err != nil {
+		return nil, noopStreamingCloser, err
+	}
+
 	if !cfg.StreamingEnabled {
 		if logger != nil {
 			logger.Log(ctx, libLog.LevelInfo, "Streaming disabled (STREAMING_ENABLED=false); using NoopEmitter")
@@ -378,7 +389,7 @@ func buildCatalog() (libStreaming.Catalog, error) {
 // literal topic owned by the billing package, not the ledger's application
 // topic) by advertising only midazEventDefinitions().
 func BuildStreamingManifestHandler(cfg *Config) (nethttp.Handler, error) {
-	return pkgStreaming.NewManifestHandler(resolveStreamingSource(cfg), midazEventDefinitions())
+	return pkgStreaming.NewManifestHandler(streamingServiceName, resolveStreamingSource(cfg), midazEventDefinitions())
 }
 
 // buildRoutes constructs the ledger's single RouteRequired catch-all route,

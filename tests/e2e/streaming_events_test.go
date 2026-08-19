@@ -9,9 +9,11 @@ package e2e
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"net"
 	"net/http"
 	"os"
+	"sort"
 	"strings"
 	"sync"
 	"testing"
@@ -294,6 +296,13 @@ func strmConsumeMatch(t *testing.T, topic, wantCEType, wantSubject string, timeo
 
 	deadline := time.Now().Add(timeout)
 
+	// Every ce-type seen on the topic, counted. On a miss this is the difference
+	// between "the event never arrived" and "it arrived under a ce-type the test
+	// does not expect" — a ce-type drift would otherwise present as a bare timeout
+	// with nothing to read, which is the least informative possible failure for the
+	// one header the v3 migration changed.
+	seenCETypes := map[string]int{}
+
 	for time.Now().Before(deadline) {
 		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 		fetches := cl.PollFetches(ctx)
@@ -309,11 +318,14 @@ func strmConsumeMatch(t *testing.T, topic, wantCEType, wantSubject string, timeo
 		for !iter.Done() {
 			rec := iter.Next()
 
+			ct, _ := strmHeader(rec, strmHeaderCEType)
+			seenCETypes[ct]++
+
 			if subj, ok := strmHeader(rec, strmHeaderCESubject); !ok || subj != wantSubject {
 				continue
 			}
 
-			if ct, ok := strmHeader(rec, strmHeaderCEType); !ok || ct != wantCEType {
+			if ct != wantCEType {
 				continue
 			}
 
@@ -324,7 +336,38 @@ func strmConsumeMatch(t *testing.T, topic, wantCEType, wantSubject string, timeo
 		}
 	}
 
+	t.Logf("streaming: no record matched ce-type=%q ce-subject=%q on %s within %s; ce-types observed on the topic: %s",
+		wantCEType, wantSubject, topic, timeout, strmFormatSeenCETypes(seenCETypes))
+
 	return nil, false
+}
+
+// strmFormatSeenCETypes renders the observed ce-type tally in a stable order so the
+// diagnostic line is comparable between runs. An empty tally means the topic held no
+// records at all, which is a different fault from a drifted ce-type.
+func strmFormatSeenCETypes(seen map[string]int) string {
+	if len(seen) == 0 {
+		return "(none — the topic held no records)"
+	}
+
+	keys := make([]string, 0, len(seen))
+	for k := range seen {
+		keys = append(keys, k)
+	}
+
+	sort.Strings(keys)
+
+	parts := make([]string, 0, len(keys))
+	for _, k := range keys {
+		label := k
+		if label == "" {
+			label = "(no ce-type header)"
+		}
+
+		parts = append(parts, fmt.Sprintf("%s x%d", label, seen[k]))
+	}
+
+	return strings.Join(parts, ", ")
 }
 
 // strmHeader returns the (last-wins) value of a Kafka record header by key.

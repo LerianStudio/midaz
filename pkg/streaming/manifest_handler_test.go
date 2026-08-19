@@ -23,7 +23,8 @@ import (
 // (eventKey) and its class.
 type manifestEnvelope struct {
 	Publisher struct {
-		Source string `json:"source"`
+		ServiceName string `json:"serviceName"`
+		Source      string `json:"source"`
 	} `json:"publisher"`
 	Topic         string `json:"topic"`
 	DLQTopic      string `json:"dlqTopic"`
@@ -77,7 +78,7 @@ func TestNewManifestHandler_AdvertisesApplicationTopic(t *testing.T) {
 
 			defs := sampleDefs()
 
-			handler, err := pkgStreaming.NewManifestHandler(source, defs)
+			handler, err := pkgStreaming.NewManifestHandler(source, source, defs)
 			require.NoError(t, err)
 			require.NotNil(t, handler)
 
@@ -91,6 +92,8 @@ func TestNewManifestHandler_AdvertisesApplicationTopic(t *testing.T) {
 
 			require.Equal(t, source, doc.Publisher.Source,
 				"publisher source must be the ce-source the emitter publishes under")
+			require.Equal(t, source, doc.Publisher.ServiceName,
+				"publisher serviceName must carry the roster identity")
 			require.Equal(t, wantTopic, doc.Topic,
 				"manifest must advertise the application topic derived from the source")
 			require.Equal(t, wantDLQ, doc.DLQTopic,
@@ -135,7 +138,7 @@ func TestNewManifestHandler_RejectsIllegalSource(t *testing.T) {
 		t.Run(source, func(t *testing.T) {
 			t.Parallel()
 
-			handler, err := pkgStreaming.NewManifestHandler(source, sampleDefs())
+			handler, err := pkgStreaming.NewManifestHandler("ledger", source, sampleDefs())
 			require.Error(t, err, "an illegal ce-source must not produce a manifest handler")
 			require.Nil(t, handler)
 		})
@@ -147,7 +150,7 @@ func TestNewManifestHandler_RejectsIllegalSource(t *testing.T) {
 func TestNewManifestHandler_MethodAllowlist(t *testing.T) {
 	t.Parallel()
 
-	handler, err := pkgStreaming.NewManifestHandler("ledger", sampleDefs())
+	handler, err := pkgStreaming.NewManifestHandler("ledger", "ledger", sampleDefs())
 	require.NoError(t, err)
 
 	req := httptest.NewRequest(nethttp.MethodPost, pkgStreaming.ManifestRoutePath, nil)

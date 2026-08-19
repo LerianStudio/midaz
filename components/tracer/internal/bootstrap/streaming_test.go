@@ -6,6 +6,7 @@ package bootstrap
 
 import (
 	"context"
+	"strconv"
 	"testing"
 
 	libStreaming "github.com/LerianStudio/lib-streaming/v3"
@@ -572,5 +573,68 @@ func TestEventKeyConvergesWithEventDefinition(t *testing.T) {
 	for i, def := range defs {
 		assert.Equal(t, def.Key(), entries[i].Key)
 		assert.Equal(t, def.Key(), entries[i].EventKey())
+	}
+}
+
+// TestBuildStreamingEmitter_RefusesNonRosterSource locks the fail-closed gate.
+//
+// A grammar-legal ce-source is not a usable one: the tenant-manager grants a
+// producer WRITE+DESCRIBE on LITERAL topic names derived from the roster name alone
+// — literal precisely so a grant cannot reach a neighbouring application — and the
+// roster name is what gates association admission, so no other name is ever
+// provisioned. Publishing under one would hit a topic that does not exist, is not
+// auto-created, and carries no grant, with the derived DLQ equally ungranted. The
+// IMPORTANT posture swallows all of that as a single Warn and pods stay Ready on the strength of the rest of the service, so the
+// deployment would lose every event while reporting healthy.
+//
+// The gate therefore bites regardless of STREAMING_ENABLED: a source left over from
+// the pre-v3 dotted or URI shape must fail startup, not sit in an env file until
+// someone flips the flag.
+func TestBuildStreamingEmitter_RefusesNonRosterSource(t *testing.T) {
+	t.Parallel()
+
+	sources := []string{
+		"midaz-tracer",          // grammar-legal, unprovisionable
+		"tracerx",               // a PREFIXED grant would have reached this; a literal one does not
+		"lerian.midaz.tracer",   // stale pre-v3 dotted shape
+		"//lerian.midaz/tracer", // stale pre-v3 URI shape
+	}
+
+	for _, source := range sources {
+		for _, enabled := range []bool{false, true} {
+			t.Run(source+"/enabled="+strconv.FormatBool(enabled), func(t *testing.T) {
+				t.Parallel()
+
+				cfg := &Config{StreamingEnabled: enabled, StreamingCloudEventsSource: source}
+
+				emitter, closer, err := BuildStreamingEmitter(context.Background(), cfg, nil, nil)
+				require.Error(t, err, "a non-roster ce-source must refuse boot")
+				require.ErrorIs(t, err, pkgStreaming.ErrSourceNotRoster)
+				assert.Nil(t, emitter, "no emitter may be handed back on a refused source")
+				require.NotNil(t, closer)
+				assert.NoError(t, closer())
+			})
+		}
+	}
+}
+
+// TestBuildStreamingEmitter_AcceptsRosterSource is the other half of the gate: the
+// roster name passes, both spelled out and left to the resolver's fallback, so the
+// gate cannot be satisfied only by accident of an unset variable.
+func TestBuildStreamingEmitter_AcceptsRosterSource(t *testing.T) {
+	t.Parallel()
+
+	for _, source := range []string{streamingServiceName, "", "  \t "} {
+		t.Run("source="+strconv.Quote(source), func(t *testing.T) {
+			t.Parallel()
+
+			cfg := &Config{StreamingEnabled: false, StreamingCloudEventsSource: source}
+
+			emitter, closer, err := BuildStreamingEmitter(context.Background(), cfg, nil, nil)
+			require.NoError(t, err)
+			require.NotNil(t, emitter)
+			require.NotNil(t, closer)
+			assert.NoError(t, closer())
+		})
 	}
 }
