@@ -492,8 +492,11 @@ func (r *RedisQueueConsumer) processMessage(ctx context.Context, key, rawPayload
 	for _, balance := range m.Balances {
 		rebuilt, balanceErr := balanceFromBackup(balance, m.OrganizationID, m.LedgerID)
 		if balanceErr != nil {
-			logger.Log(msgCtxWithSpan, libLog.LevelError, "Transaction backup carries malformed balance evidence; backup retained",
+			logger.Log(msgCtxWithSpan, libLog.LevelError, "Transaction backup carries malformed balance evidence; routing to quarantine flow",
 				libLog.String("transaction_id", m.TransactionID.String()), libLog.Err(balanceErr))
+
+			r.quarantinePoisonRecord(msgCtxWithSpan, msgSpan, logger, key, m.OrganizationID, m.LedgerID,
+				m.TransactionID, []byte(rawPayload), "malformed_balance_evidence")
 
 			return
 		}
@@ -509,8 +512,11 @@ func (r *RedisQueueConsumer) processMessage(ctx context.Context, key, rawPayload
 		for _, balance := range m.BalancesAfter {
 			rebuilt, balanceErr := balanceFromBackup(balance, m.OrganizationID, m.LedgerID)
 			if balanceErr != nil {
-				logger.Log(msgCtxWithSpan, libLog.LevelError, "Transaction backup carries malformed balance evidence; backup retained",
+				logger.Log(msgCtxWithSpan, libLog.LevelError, "Transaction backup carries malformed balance evidence; routing to quarantine flow",
 					libLog.String("transaction_id", m.TransactionID.String()), libLog.Err(balanceErr))
+
+				r.quarantinePoisonRecord(msgCtxWithSpan, msgSpan, logger, key, m.OrganizationID, m.LedgerID,
+					m.TransactionID, []byte(rawPayload), "malformed_balance_evidence")
 
 				return
 			}
