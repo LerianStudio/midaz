@@ -4,15 +4,15 @@
 
 **Architecture:** Integration build tags define what belongs to each lane. Required gates fail closed when discovery or prerequisites are missing. Datastore processes are eventually reused at package or shard scope, while every test keeps an isolated database, schema, namespace, or vhost. Parallelism is introduced only after isolation is explicit and measured.
 
-**Status:** P0's trustworthy gates, V1 `remaining`, origin-scoped revert idempotency, and the durable Ledger-to-Tracer outcome protocol are implemented. P1 infrastructure reuse and P3 secondary-work reductions are implemented; P1 is being revalidated on the consolidated money-path head. P2 bounded parallelism has passed repeated `p=2` shard runs and is in its final integration round. Independent review begins only after P0-P3 are together. Repository ruleset enforcement remains deliberately last.
+**Status:** P0-P3 are implemented together and their consolidated gates are green. The current signal contains 1,726 exact integration tests; P1 reduces datastore starts by 92.9%, P2 reduces the serial critical path by 74%, and P3 removes redundant restarts, waits, cleanup, and history scans. The single final independent review is now the active step. Repository ruleset enforcement remains deliberately last.
 
 ## Phase overview
 
 | Phase | Outcome | Status |
 |---|---|---|
-| P0 | Every required gate executes the coverage it claims and emits usable timing evidence | Implemented — aggregate post-merge validation in progress |
-| P1 | Ledger datastore startup and migrations are reused without sharing mutable test state | Implemented — consolidated-head hardening in progress |
-| P2 | Independent families run concurrently within an explicit resource budget | Implemented — final seeded round and integration in progress |
+| P0 | Every required gate executes the coverage it claims and emits usable timing evidence | Complete — consolidated gates green |
+| P1 | Ledger datastore startup and migrations are reused without sharing mutable test state | Complete — consolidated randomized and serial gates green |
+| P2 | Independent families run concurrently within an explicit resource budget | Complete — five current-head shards green within budget |
 | P3 | Tracer restarts, fixed waits, polling, cleanup, and streaming history scans are reduced | Implemented and measured |
 
 ### Execution order — 2026-08-17
@@ -101,7 +101,7 @@ Chosen revert rollout contract: first deploy a freeze-capable legacy phase witho
 
 V1 `remaining` closure: every resolved leg and balance identity survives direct execution, pending commit, pending cancel, revert, Redis replay, fees, zero-fee no-ops, persistence, and balance synchronization. Fee packages expose additive `operationRouteFromId` and `operationRouteToId` UUIDs while the existing free-form route labels remain passive; omission preserves an existing UUID, `null` clears only that UUID, and multi-fee partial updates preserve stored priorities atomically. The full low-resource lane passed with 1,620 selected tests, 1,540 passes, 80 classified skips, 1,320 container starts, zero restarts, and 2,972 seconds of wall time.
 
-**Next P0:** complete aggregate current-head gates after P1 and P2 land, then run the single final money-path review with the rest of P0-P3.
+**Next P0:** run the single final money-path review with the rest of P0-P3, then resolve any finding against the same consolidated gates.
 
 ### P0 exit gate
 
@@ -139,7 +139,7 @@ V1 `remaining` closure: every resolved leg and balance identity survives direct 
 - [x] Preserve migration, recovery, tenant-isolation, and money-path assertions unchanged.
 - [x] Run focused race detection on every newly shared fixture.
 
-P1 measurement: 1,644 selected tests completed serially in 586 seconds with 120 owner-attributed container starts and zero restarts, down from 1,320 starts and 2,972 seconds. The 36 reusable packages also passed two randomized repetitions in 457 seconds. Current-head hardening is re-running the same contracts after the P0 money-path additions.
+P1 final measurement: 1,726 selected tests completed serially in 530 seconds with 94 owner-attributed datastore starts, zero restarts, and zero leaks, down 92.9% from 1,320 starts and 2,972 seconds. The 37 reusable packages also passed two randomized repetitions in 577 seconds. The financial Valkey profile uses no eviction, AOF, and synchronous persistence; lifecycle and configuration-mutating tests remain exclusive.
 
 ## P2 — Bounded parallelism
 
@@ -157,7 +157,7 @@ P1 measurement: 1,644 selected tests completed serially in 586 seconds with 120 
 - [x] Show no statistically meaningful increase in flakes across repeated CI runs.
 - [x] Preserve deterministic failure attribution to one shard and one test.
 
-P2 measurement so far: 1,645 exact tests across five non-overlapping shards, zero retries, failures, or container restarts. At `p=2`, the critical path is 183 seconds versus P1's 586 seconds (-69%). `p=4` is intentionally not promoted because 628 shared-server Tracer tests remain serial and dominate the critical path.
+P2 final measurement: 1,726 exact tests across five non-overlapping shards, zero retries, failures, or container restarts. At `p=2`, the current-head critical path is 138 seconds versus P1's 530 seconds (-74%). Peak memory remained below 1.5 GiB in every shard and peak live containers stayed inside each explicit budget. `p=4` is intentionally not promoted because 628 shared-server Tracer tests remain serial and dominate the critical path.
 
 ## P3 — Remove secondary work
 
@@ -174,6 +174,6 @@ P2 measurement so far: 1,645 exact tests across five non-overlapping shards, zer
 - [x] Tracer restart count and fixed-wait time are measured and materially reduced.
 - [x] Streaming duration remains stable as broker history grows.
 - [x] Ledger E2E remains deterministic under its bounded worker count.
-- [ ] Every optimization preserves the consolidated P0 selected-test counts and P2 resource budgets.
+- [x] Every optimization preserves the consolidated P0 selected-test counts and P2 resource budgets.
 
 P3 measurement: Tracer restarts fell from 100 to 20, fixed waits from 4.9 seconds to zero, and the measured duration from 147.5 to 51.9 seconds. Streaming with 5,000 historical events examines one event instead of 5,001. Ledger E2E passed all 39 cases across three four-worker rounds; the full E2E lane passed 111 tests with 13 explicit capability skips in 9 seconds.
