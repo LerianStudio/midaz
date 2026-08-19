@@ -29,10 +29,6 @@ import (
 	"github.com/LerianStudio/midaz/v4/pkg/utils"
 )
 
-// bulkUpdateThreshold defines the minimum number of transactions required
-// to use bulk update. Below this threshold, individual updates are used.
-const bulkUpdateThreshold = 10
-
 // asyncOperationTimeout defines the timeout for fire-and-forget async operations
 // like sending events and cleaning up backup queues.
 const asyncOperationTimeout = 30 * time.Second
@@ -70,8 +66,8 @@ type BulkMessageResult struct {
 }
 
 // CreateBulkTransactionOperationsAsync processes multiple transaction payloads in bulk.
-// It extracts, sorts, and persists transactions and operations using bulk insert,
-// then handles status transitions for pending transactions using bulk update.
+// It extracts, sorts, and persists transactions, operations, and pending status
+// transitions through one atomic PostgreSQL batch.
 //
 // On failure, it falls back to individual processing using CreateBalanceTransactionOperationsAsync.
 // Duplicates are treated as success (idempotent processing).
@@ -323,9 +319,9 @@ func (uc *UseCase) prepareTransactionForInsert(tx *transaction.Transaction) {
 	}
 }
 
-// performBulkInsertAndUpdate performs bulk insert for new entities and bulk update for status transitions.
-// Inserts (transactions + operations) are wrapped in a single DB transaction for atomicity.
-// Status updates are performed separately as they operate on existing rows.
+// performBulkInsertAndUpdate makes fresh transactions, terminal status
+// transitions, and every operation in the batch visible at one PostgreSQL
+// commit boundary.
 func (uc *UseCase) performBulkInsertAndUpdate(
 	ctx context.Context,
 	logger libLog.Logger,
@@ -333,30 +329,21 @@ func (uc *UseCase) performBulkInsertAndUpdate(
 	toUpdate *bulkUpdateEntities,
 	result *BulkResult,
 ) error {
-	// Atomic bulk insert for transactions and operations
-	if len(toInsert.transactions) > 0 || len(toInsert.operations) > 0 {
-		if err := uc.atomicBulkInsert(ctx, logger, toInsert, result); err != nil {
-			return err
-		}
+	if len(toInsert.transactions) == 0 && len(toInsert.operations) == 0 && len(toUpdate.transactions) == 0 {
+		return nil
 	}
 
-	// Bulk update transactions (status transitions) - separate from inserts
-	// These operate on existing rows and don't need to be atomic with inserts
-	if len(toUpdate.transactions) > 0 {
-		if err := uc.performBulkStatusUpdate(ctx, logger, toUpdate.transactions, result); err != nil {
-			return err
-		}
-	}
-
-	return nil
+	return uc.atomicBulkInsert(ctx, logger, toInsert, toUpdate, result)
 }
 
-// atomicBulkInsert inserts transactions and operations in a single database transaction.
-// If either insert fails, the entire operation is rolled back to prevent partial state.
+// atomicBulkInsert persists fresh transactions, operations, and PENDING to
+// terminal status transitions in a single database transaction. If any write
+// fails, the entire batch is rolled back.
 func (uc *UseCase) atomicBulkInsert(
 	ctx context.Context,
 	logger libLog.Logger,
 	toInsert *bulkInsertEntities,
+	toUpdate *bulkUpdateEntities,
 	result *BulkResult,
 ) error {
 	// Begin database transaction
@@ -388,6 +375,39 @@ func (uc *UseCase) atomicBulkInsert(
 		if err := uc.bulkInsertOperationsTx(ctx, logger, dbTx, toInsert.operations, result); err != nil {
 			return err
 		}
+	}
+
+	// A status transition and its new operation set must never be visible in
+	// different snapshots. Apply the PENDING compare-and-set through the same
+	// caller-owned transaction used above.
+	result.TransactionsUpdateAttempted = int64(len(toUpdate.transactions))
+	for _, tran := range toUpdate.transactions {
+		organizationID, err := uuid.Parse(tran.OrganizationID)
+		if err != nil {
+			return fmt.Errorf("bulk terminal transaction has invalid organization ID: %w", err)
+		}
+		if organizationID == uuid.Nil {
+			return fmt.Errorf("bulk terminal transaction has invalid organization ID: UUID is nil")
+		}
+		ledgerID, err := uuid.Parse(tran.LedgerID)
+		if err != nil {
+			return fmt.Errorf("bulk terminal transaction has invalid ledger ID: %w", err)
+		}
+		if ledgerID == uuid.Nil {
+			return fmt.Errorf("bulk terminal transaction has invalid ledger ID: UUID is nil")
+		}
+		transactionID, err := uuid.Parse(tran.ID)
+		if err != nil {
+			return fmt.Errorf("bulk terminal transaction has invalid transaction ID: %w", err)
+		}
+		if transactionID == uuid.Nil {
+			return fmt.Errorf("bulk terminal transaction has invalid transaction ID: UUID is nil")
+		}
+		if _, err := uc.TransactionRepo.UpdateStatusFromPendingTx(ctx, dbTx,
+			organizationID, ledgerID, transactionID, &transaction.Transaction{Status: tran.Status}); err != nil {
+			return fmt.Errorf("bulk terminal transaction status: %w", err)
+		}
+		result.TransactionsUpdated++
 	}
 
 	// Commit the transaction
@@ -465,85 +485,6 @@ func (uc *UseCase) bulkInsertOperationsTx(
 		libLog.Int("attempted", int(result.OperationsAttempted)),
 		libLog.Int("inserted", int(result.OperationsInserted)),
 		libLog.Int("ignored", int(result.OperationsIgnored)))
-
-	return nil
-}
-
-// performBulkStatusUpdate handles status transitions for transactions.
-// Uses bulk update for large batches and individual updates for small batches.
-func (uc *UseCase) performBulkStatusUpdate(
-	ctx context.Context,
-	logger libLog.Logger,
-	transactions []*transaction.Transaction,
-	result *BulkResult,
-) error {
-	result.TransactionsUpdateAttempted = int64(len(transactions))
-
-	if len(transactions) >= bulkUpdateThreshold {
-		return uc.bulkUpdateTransactionStatus(ctx, logger, transactions, result)
-	}
-
-	return uc.individualUpdateTransactionStatus(ctx, logger, transactions, result)
-}
-
-// bulkUpdateTransactionStatus uses bulk update for status transitions.
-func (uc *UseCase) bulkUpdateTransactionStatus(
-	ctx context.Context,
-	logger libLog.Logger,
-	transactions []*transaction.Transaction,
-	result *BulkResult,
-) error {
-	updateResult, err := uc.TransactionRepo.UpdateBulk(ctx, transactions)
-	if err != nil {
-		return fmt.Errorf("bulk update transactions: %w", err)
-	}
-
-	result.TransactionsUpdated = updateResult.Updated
-
-	logger.Log(ctx, libLog.LevelDebug, "Bulk updated transactions",
-		libLog.Int("attempted", int(result.TransactionsUpdateAttempted)),
-		libLog.Int("updated", int(updateResult.Updated)),
-		libLog.Int("unchanged", int(updateResult.Unchanged)))
-
-	return nil
-}
-
-// individualUpdateTransactionStatus uses individual updates for small batches.
-// Returns an aggregated error if any updates failed.
-func (uc *UseCase) individualUpdateTransactionStatus(
-	ctx context.Context,
-	logger libLog.Logger,
-	transactions []*transaction.Transaction,
-	result *BulkResult,
-) error {
-	var updated int64
-
-	var failureCount int64
-
-	for _, tx := range transactions {
-		_, err := uc.UpdateTransactionStatus(ctx, tx)
-		if err != nil {
-			logger.Log(ctx, libLog.LevelWarn, "Failed to update transaction status",
-				libLog.String("transaction_id", tx.ID), libLog.Err(err))
-
-			failureCount++
-
-			continue
-		}
-
-		updated++
-	}
-
-	result.TransactionsUpdated = updated
-
-	logger.Log(ctx, libLog.LevelDebug, "Individual updated transactions",
-		libLog.Int("attempted", int(result.TransactionsUpdateAttempted)),
-		libLog.Int("updated", int(updated)),
-		libLog.Int("failed", int(failureCount)))
-
-	if failureCount > 0 {
-		return fmt.Errorf("failed to update %d of %d transactions", failureCount, len(transactions))
-	}
 
 	return nil
 }

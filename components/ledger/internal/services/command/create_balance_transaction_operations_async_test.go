@@ -13,7 +13,6 @@ import (
 
 	libLog "github.com/LerianStudio/lib-observability/v2/log"
 	"github.com/google/uuid"
-	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -29,6 +28,7 @@ import (
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
 	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v4/pkg/mtransaction"
+	"github.com/LerianStudio/midaz/v4/pkg/repository"
 	"github.com/LerianStudio/midaz/v4/pkg/utils"
 )
 
@@ -335,10 +335,11 @@ func TestCreateBalanceTransactionOperationsAsync(t *testing.T) {
 
 		// Note: Balance updates are handled by BalanceSyncWorker, not in this flow
 
-		// Mock TransactionRepo.Create
+		dbTx := &orderedAtomicTx{events: &[]string{}}
+		mockTransactionRepo.EXPECT().BeginTx(gomock.Any()).Return(dbTx, nil)
 		mockTransactionRepo.EXPECT().
-			Create(gomock.Any(), gomock.Any()).
-			Return(tran, nil).
+			CreateBulkTx(gomock.Any(), dbTx, gomock.Any()).
+			Return(&repository.BulkInsertResult{Attempted: 1, Inserted: 1, InsertedIDs: []string{tran.ID}}, nil).
 			Times(1)
 
 		// Mock MetadataRepo.Create for transaction metadata
@@ -459,11 +460,11 @@ func TestCreateBalanceTransactionOperationsAsync(t *testing.T) {
 
 		// Note: Balance updates are handled by BalanceSyncWorker, not in this flow
 
-		// Mock TransactionRepo.Create with duplicate key error
-		pgErr := &pgconn.PgError{Code: "23505"}
+		dbTx := &orderedAtomicTx{events: &[]string{}}
+		mockTransactionRepo.EXPECT().BeginTx(gomock.Any()).Return(dbTx, nil)
 		mockTransactionRepo.EXPECT().
-			Create(gomock.Any(), gomock.Any()).
-			Return(nil, pgErr).
+			CreateBulkTx(gomock.Any(), dbTx, gomock.Any()).
+			Return(&repository.BulkInsertResult{Attempted: 1, Ignored: 1}, nil).
 			Times(1)
 
 		// Mock MetadataRepo.Create for transaction metadata (should be called even with duplicate error)
@@ -662,10 +663,11 @@ func TestCreateBalanceTransactionOperationsAsync(t *testing.T) {
 
 		// Note: Balance updates are handled by BalanceSyncWorker, not in this flow
 
-		// Mock TransactionRepo.Create
+		dbTx := &orderedAtomicTx{events: &[]string{}}
+		mockTransactionRepo.EXPECT().BeginTx(gomock.Any()).Return(dbTx, nil)
 		mockTransactionRepo.EXPECT().
-			Create(gomock.Any(), gomock.Any()).
-			Return(tran, nil).
+			CreateBulkTx(gomock.Any(), dbTx, gomock.Any()).
+			Return(&repository.BulkInsertResult{Attempted: 1, Inserted: 1, InsertedIDs: []string{tran.ID}}, nil).
 			Times(1)
 
 		// Mock MetadataRepo.Create for transaction metadata
@@ -674,7 +676,7 @@ func TestCreateBalanceTransactionOperationsAsync(t *testing.T) {
 			Return(nil).
 			Times(1)
 
-		// Mock OperationRepo.Create for both operations and assert versions exist.
+		// Mock the one atomic operation batch and assert every snapshot survives.
 		// Identity is asserted by ID inside DoAndReturn — direct struct equality
 		// against operation1 / operation2 isn't usable here because the
 		// transaction payload survives a msgpack round-trip via the queue, and
@@ -690,34 +692,24 @@ func TestCreateBalanceTransactionOperationsAsync(t *testing.T) {
 			operation2.ID: operation2,
 		}
 		mockOperationRepo.EXPECT().
-			Create(gomock.Any(), gomock.Any()).
-			DoAndReturn(func(_ context.Context, op *operation.Operation) (*operation.Operation, error) {
-				exp, ok := expectedOps[op.ID]
-				require.True(t, ok, "unexpected operation ID: %s", op.ID)
-				delete(expectedOps, op.ID)
+			CreateBulkTx(gomock.Any(), dbTx, gomock.Any()).
+			DoAndReturn(func(_ context.Context, _ repository.DBExecutor, operations []*operation.Operation) (*repository.BulkInsertResult, error) {
+				for _, op := range operations {
+					exp, ok := expectedOps[op.ID]
+					require.True(t, ok, "unexpected operation ID: %s", op.ID)
+					delete(expectedOps, op.ID)
 
-				assert.NotNil(t, op.Balance.Version)
-				assert.NotNil(t, op.BalanceAfter.Version)
+					assert.NotNil(t, op.Balance.Version)
+					assert.NotNil(t, op.BalanceAfter.Version)
+					assert.Equal(t, exp.Snapshot.OverdraftUsedBefore, op.Snapshot.OverdraftUsedBefore)
+					assert.Equal(t, exp.Snapshot.OverdraftUsedAfter, op.Snapshot.OverdraftUsedAfter)
+					assert.True(t, op.Balance.OverdraftUsed.Equal(exp.Balance.OverdraftUsed))
+					assert.True(t, op.BalanceAfter.OverdraftUsed.Equal(exp.BalanceAfter.OverdraftUsed))
+				}
 
-				// Always-populated snapshot contract: msgpack must preserve snapshot fields.
-				assert.Equal(t, exp.Snapshot.OverdraftUsedBefore, op.Snapshot.OverdraftUsedBefore,
-					"msgpack must preserve Snapshot.OverdraftUsedBefore for op %s", op.ID)
-				assert.Equal(t, exp.Snapshot.OverdraftUsedAfter, op.Snapshot.OverdraftUsedAfter,
-					"msgpack must preserve Snapshot.OverdraftUsedAfter for op %s", op.ID)
-
-				// Decimal-aware equality survives msgpack big.Int normalization
-				// (decimal.Zero{} vs decimal.NewFromInt(0) are .Equal() but not
-				// reflect.DeepEqual).
-				assert.True(t, op.Balance.OverdraftUsed.Equal(exp.Balance.OverdraftUsed),
-					"msgpack must preserve Balance.OverdraftUsed for op %s: got %s want %s",
-					op.ID, op.Balance.OverdraftUsed.String(), exp.Balance.OverdraftUsed.String())
-				assert.True(t, op.BalanceAfter.OverdraftUsed.Equal(exp.BalanceAfter.OverdraftUsed),
-					"msgpack must preserve BalanceAfter.OverdraftUsed for op %s: got %s want %s",
-					op.ID, op.BalanceAfter.OverdraftUsed.String(), exp.BalanceAfter.OverdraftUsed.String())
-
-				return op, nil
+				return &repository.BulkInsertResult{Attempted: int64(len(operations)), Inserted: int64(len(operations))}, nil
 			}).
-			Times(2)
+			Times(1)
 
 		// Mock MetadataRepo.Create for operation metadata
 		mockMetadataRepo.EXPECT().
@@ -874,22 +866,17 @@ func TestCreateBalanceTransactionOperationsAsync(t *testing.T) {
 
 		// Note: Balance updates are handled by BalanceSyncWorker, not in this flow
 
-		// Mock TransactionRepo.Create
+		dbTx := &orderedAtomicTx{events: &[]string{}}
+		mockTransactionRepo.EXPECT().BeginTx(gomock.Any()).Return(dbTx, nil)
 		mockTransactionRepo.EXPECT().
-			Create(gomock.Any(), gomock.Any()).
-			Return(tran, nil).
+			CreateBulkTx(gomock.Any(), dbTx, gomock.Any()).
+			Return(&repository.BulkInsertResult{Attempted: 1, Inserted: 1, InsertedIDs: []string{tran.ID}}, nil).
 			Times(1)
 
-		// Mock MetadataRepo.Create for transaction metadata
-		mockMetadataRepo.EXPECT().
-			Create(gomock.Any(), gomock.Any(), gomock.Any()).
-			Return(nil).
-			Times(1)
-
-		// Mock OperationRepo.Create to return an error for the first operation
+		// Any operation failure rolls back before transaction metadata is exposed.
 		operationError := errors.New("failed to create operation")
 		mockOperationRepo.EXPECT().
-			Create(gomock.Any(), gomock.Any()).
+			CreateBulkTx(gomock.Any(), dbTx, gomock.Any()).
 			Return(nil, operationError).
 			Times(1)
 
@@ -1027,35 +1014,18 @@ func TestCreateBalanceTransactionOperationsAsync(t *testing.T) {
 
 		// Note: Balance updates are handled by BalanceSyncWorker, not in this flow
 
-		// Mock TransactionRepo.Create
+		dbTx := &orderedAtomicTx{events: &[]string{}}
+		mockTransactionRepo.EXPECT().BeginTx(gomock.Any()).Return(dbTx, nil)
 		mockTransactionRepo.EXPECT().
-			Create(gomock.Any(), gomock.Any()).
-			Return(tran, nil).
+			CreateBulkTx(gomock.Any(), dbTx, gomock.Any()).
+			Return(&repository.BulkInsertResult{Attempted: 1, Inserted: 1, InsertedIDs: []string{tran.ID}}, nil).
 			Times(1)
 
-		// Mock MetadataRepo.Create for transaction metadata
-		mockMetadataRepo.EXPECT().
-			Create(gomock.Any(), gomock.Any(), gomock.Any()).
-			Return(nil).
-			Times(1)
-
-		// Mock OperationRepo.Create to return a duplicate key error for the first operation
-		pgErr := &pgconn.PgError{Code: "23505"}
+		// A fresh transaction cannot silently accept an operation-ID collision:
+		// doing so would publish an incomplete economic multiset.
 		mockOperationRepo.EXPECT().
-			Create(gomock.Any(), gomock.Any()).
-			Return(nil, pgErr).
-			Times(1)
-
-		// Mock OperationRepo.Create for the second operation
-		mockOperationRepo.EXPECT().
-			Create(gomock.Any(), gomock.Any()).
-			Return(operation2, nil).
-			Times(1)
-
-		// Mock MetadataRepo.Create for operation metadata (only for second operation)
-		mockMetadataRepo.EXPECT().
-			Create(gomock.Any(), gomock.Any(), gomock.Any()).
-			Return(nil).
+			CreateBulkTx(gomock.Any(), dbTx, gomock.Any()).
+			Return(&repository.BulkInsertResult{Attempted: 2, Inserted: 1, Ignored: 1}, nil).
 			Times(1)
 
 		// Mock RabbitMQRepo.ProducerDefault for transaction events (goroutine will still be called)
@@ -1078,7 +1048,8 @@ func TestCreateBalanceTransactionOperationsAsync(t *testing.T) {
 		// Call the method
 		err := uc.CreateBalanceTransactionOperationsAsync(ctx, queue)
 
-		assert.NoError(t, err) // Duplicate key errors are handled gracefully
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "fresh transaction operation conflict")
 	})
 
 	t.Run("error_creating_operation_metadata", func(t *testing.T) {
@@ -1187,10 +1158,11 @@ func TestCreateBalanceTransactionOperationsAsync(t *testing.T) {
 
 		// Note: Balance updates are handled by BalanceSyncWorker, not in this flow
 
-		// Mock TransactionRepo.Create
+		dbTx := &orderedAtomicTx{events: &[]string{}}
+		mockTransactionRepo.EXPECT().BeginTx(gomock.Any()).Return(dbTx, nil)
 		mockTransactionRepo.EXPECT().
-			Create(gomock.Any(), gomock.Any()).
-			Return(tran, nil).
+			CreateBulkTx(gomock.Any(), dbTx, gomock.Any()).
+			Return(&repository.BulkInsertResult{Attempted: 1, Inserted: 1, InsertedIDs: []string{tran.ID}}, nil).
 			Times(1)
 
 		// Mock MetadataRepo.Create for transaction metadata
@@ -1199,10 +1171,10 @@ func TestCreateBalanceTransactionOperationsAsync(t *testing.T) {
 			Return(nil).
 			Times(1)
 
-		// Mock OperationRepo.Create for the operation
+		// Operation and transaction commit together before non-financial metadata.
 		mockOperationRepo.EXPECT().
-			Create(gomock.Any(), gomock.Any()).
-			Return(operation1, nil).
+			CreateBulkTx(gomock.Any(), dbTx, gomock.Any()).
+			Return(&repository.BulkInsertResult{Attempted: 1, Inserted: 1, InsertedIDs: []string{operation1.ID}}, nil).
 			Times(1)
 
 		// Mock MetadataRepo.Create for operation metadata to return an error
@@ -1356,9 +1328,11 @@ func TestCreateBTOAsync(t *testing.T) {
 		Return(nil).
 		AnyTimes()
 
+	dbTx := &orderedAtomicTx{events: &[]string{}}
+	mockTransactionRepo.EXPECT().BeginTx(gomock.Any()).Return(dbTx, nil)
 	mockTransactionRepo.EXPECT().
-		Create(gomock.Any(), gomock.Any()).
-		Return(tran, nil).
+		CreateBulkTx(gomock.Any(), dbTx, gomock.Any()).
+		Return(&repository.BulkInsertResult{Attempted: 1, Inserted: 1, InsertedIDs: []string{tran.ID}}, nil).
 		AnyTimes()
 
 	mockMetadataRepo.EXPECT().

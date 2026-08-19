@@ -18,9 +18,7 @@ import (
 	libRuntime "github.com/LerianStudio/lib-observability/v2/runtime"
 	libOpentelemetry "github.com/LerianStudio/lib-observability/v2/tracing"
 	"github.com/google/uuid"
-	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/vmihailenco/msgpack/v5"
-	"go.opentelemetry.io/otel/trace"
 
 	mongodb "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/mongodb/transaction"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/operation"
@@ -91,14 +89,14 @@ func (uc *UseCase) CreateBalanceTransactionOperationsAsync(ctx context.Context, 
 	// Hot balance was already updated atomically by Lua script during validation.
 	// Cold balance persistence is scheduled via ZADD to schedule:balance-sync.
 
-	ctxProcessTransaction, spanUpdateTransaction := tracer.Start(ctx, "command.create_balance_transaction_operations.create_transaction")
+	ctxProcessTransaction, spanUpdateTransaction := tracer.Start(ctx, "command.create_balance_transaction_operations.persist_atomic")
 	defer spanUpdateTransaction.End()
 
-	tran, phase, err := uc.CreateOrUpdateTransaction(ctxProcessTransaction, logger, tracer, t)
+	tran, phase, err := uc.persistTransactionAndOperationsAtomic(ctxProcessTransaction, t)
 	if err != nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(spanUpdateTransaction, "Failed to create or update transaction", err)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(spanUpdateTransaction, "Failed to persist transaction and operations atomically", err)
 
-		logger.Log(ctx, libLog.LevelError, "Failed to create or update transaction", libLog.Err(err))
+		logger.Log(ctx, libLog.LevelError, "Failed to persist transaction and operations atomically", libLog.Err(err))
 
 		return err
 	}
@@ -115,38 +113,9 @@ func (uc *UseCase) CreateBalanceTransactionOperationsAsync(ctx context.Context, 
 		return err
 	}
 
-	ctxProcessOperation, spanCreateOperation := tracer.Start(ctx, "command.create_balance_transaction_operations.create_operation")
-	defer spanCreateOperation.End()
-
 	for _, oper := range tran.Operations {
-		if err := validateOperationDirection(ctx, logger, oper); err != nil {
-			return err
-		}
-
-		_, err = uc.OperationRepo.Create(ctxProcessOperation, oper)
-		if err != nil {
-			var pgErr *pgconn.PgError
-			if errors.As(err, &pgErr) && pgErr.Code == constant.UniqueViolationCode {
-				msg := fmt.Sprintf("Skipping to create operation, operation already exists: %v", oper.ID)
-
-				libOpentelemetry.HandleSpanBusinessErrorEvent(spanCreateOperation, msg, err)
-
-				logger.Log(ctx, libLog.LevelWarn, msg)
-
-				continue
-			} else {
-				libOpentelemetry.HandleSpanBusinessErrorEvent(spanCreateOperation, "Failed to create operation", err)
-
-				logger.Log(ctx, libLog.LevelError, "Error creating operation", libLog.Err(err))
-
-				return err
-			}
-		}
-
 		err = uc.CreateMetadataAsync(ctx, logger, oper.Metadata, oper.ID, constant.EntityOperation)
 		if err != nil {
-			libOpentelemetry.HandleSpanBusinessErrorEvent(spanCreateOperation, "Failed to create metadata on operation", err)
-
 			logger.Log(ctx, libLog.LevelError, "Failed to create metadata on operation", libLog.Err(err))
 
 			return err
@@ -235,83 +204,109 @@ func actionForTransactionPayload(payload transaction.TransactionProcessingPayloa
 	return mtransaction.StatusToAction(payload.Transaction.Status.Code)
 }
 
-// CreateOrUpdateTransaction func that is responsible to create or update a transaction.
-//
-// The string return value carries the lifecycle phase the call resolved
-// to, used by SendTransactionEvents to pick the corresponding
-// lib-streaming event_type:
-//
-//   - TransactionLifecyclePhaseCreated — fresh insert via
-//     TransactionRepo.Create (L193 success). Emits transaction.posted
-//     when ParentTransactionID is nil, transaction.reverted otherwise.
-//   - TransactionLifecyclePhaseUpdated — status transition via the
-//     unique-violation idempotency branch
-//     (UpdateTransactionStatus, L198 success). Emits
-//     transaction.committed when Status.Code is APPROVED,
-//     transaction.canceled when CANCELED.
-//   - TransactionLifecyclePhaseNoop — no state change occurred (e.g.
-//     unique violation with no status transition). Callers must NOT
-//     emit a lifecycle event in this phase.
-//
-// Tracking the phase explicitly inside this function — rather than
-// inferring it from CreatedAt vs UpdatedAt downstream — keeps the
-// branch decision pinned to the actual code path that ran. Inference
-// would be fragile because both timestamps may be touched by DB
-// triggers or msgpack roundtrips before SendTransactionEvents runs.
-func (uc *UseCase) CreateOrUpdateTransaction(ctx context.Context, logger libLog.Logger, tracer trace.Tracer, t transaction.TransactionProcessingPayload) (*transaction.Transaction, string, error) {
-	_, spanCreateTransaction := tracer.Start(ctx, "command.create_balance_transaction_operations.create_transaction")
-	defer spanCreateTransaction.End()
+// persistTransactionAndOperationsAtomic makes the terminal transaction row and
+// its complete operation set visible at one PostgreSQL commit boundary. This is
+// the individual-consumer equivalent of the bulk path's atomic persistence.
+// Duplicate inserts are idempotent: a pending-to-terminal redelivery performs
+// the status compare-and-set inside the same transaction, while an already
+// terminal redelivery only replays the operation inserts before committing a
+// no-op.
+func (uc *UseCase) persistTransactionAndOperationsAtomic(
+	ctx context.Context,
+	payload transaction.TransactionProcessingPayload,
+) (_ *transaction.Transaction, phase string, retErr error) {
+	logger, _, _, _ := libObservability.NewTrackingFromContext(ctx)
+	tran := payload.Transaction
+	if tran == nil {
+		return nil, TransactionLifecyclePhaseNoop, fmt.Errorf("transaction payload is required")
+	}
 
-	tran := t.Transaction
 	tran.Body = mtransaction.Transaction{}
-
 	switch tran.Status.Code {
 	case constant.CREATED:
 		description := constant.APPROVED
-		status := transaction.Status{
-			Code:        description,
-			Description: &description,
-		}
-
-		tran.Status = status
+		tran.Status = transaction.Status{Code: description, Description: &description}
 	case constant.PENDING:
-		tran.Body = *t.Input
-	}
-
-	_, err := uc.TransactionRepo.Create(ctx, tran)
-	if err != nil {
-		var pgErr *pgconn.PgError
-		if errors.As(err, &pgErr) && pgErr.Code == constant.UniqueViolationCode {
-			if t.Validate != nil && t.Validate.Pending && (tran.Status.Code == constant.APPROVED || tran.Status.Code == constant.CANCELED) {
-				_, err = uc.UpdateTransactionStatus(ctx, tran)
-				if err != nil {
-					libOpentelemetry.HandleSpanBusinessErrorEvent(spanCreateTransaction, "Failed to update transaction", err)
-
-					logger.Log(ctx, libLog.LevelWarn, "Failed to update transaction status",
-						libLog.String("status", tran.Status.Code), libLog.String("transaction_id", tran.ID))
-
-					return nil, TransactionLifecyclePhaseNoop, err
-				}
-
-				// Status transition succeeded via the idempotency branch.
-				return tran, TransactionLifecyclePhaseUpdated, nil
-			}
-
-			// Unique violation with no eligible status transition.
-			// Caller should NOT emit a lifecycle event for this path
-			// (no state change observed on this attempt).
-			return tran, TransactionLifecyclePhaseNoop, nil
+		if payload.Input == nil {
+			return nil, TransactionLifecyclePhaseNoop, fmt.Errorf("pending transaction input is required")
 		}
-
-		libOpentelemetry.HandleSpanBusinessErrorEvent(spanCreateTransaction, "Failed to create transaction on repo", err)
-
-		logger.Log(ctx, libLog.LevelError, "Failed to create transaction on repo", libLog.Err(err))
-
-		return nil, TransactionLifecyclePhaseNoop, err
+		tran.Body = *payload.Input
 	}
 
-	// Fresh insert succeeded.
-	return tran, TransactionLifecyclePhaseCreated, nil
+	for _, oper := range tran.Operations {
+		if oper == nil {
+			return nil, TransactionLifecyclePhaseNoop, fmt.Errorf("transaction operation is required")
+		}
+		if err := validateOperationDirection(ctx, logger, oper); err != nil {
+			return nil, TransactionLifecyclePhaseNoop, err
+		}
+	}
+
+	dbTx, err := uc.TransactionRepo.BeginTx(ctx)
+	if err != nil {
+		return nil, TransactionLifecyclePhaseNoop, fmt.Errorf("begin atomic transaction persistence: %w", err)
+	}
+	committed := false
+	defer func() {
+		if committed {
+			return
+		}
+		if rollbackErr := dbTx.Rollback(); rollbackErr != nil {
+			retErr = errors.Join(retErr, fmt.Errorf("rollback atomic transaction persistence: %w", rollbackErr))
+		}
+	}()
+
+	insertResult, err := uc.TransactionRepo.CreateBulkTx(ctx, dbTx, []*transaction.Transaction{tran})
+	if err != nil {
+		return nil, TransactionLifecyclePhaseNoop, fmt.Errorf("persist transaction atomically: %w", err)
+	}
+	if insertResult == nil || insertResult.Inserted+insertResult.Ignored != 1 {
+		return nil, TransactionLifecyclePhaseNoop, fmt.Errorf("persist transaction atomically: invalid insert result")
+	}
+
+	phase = TransactionLifecyclePhaseNoop
+	if insertResult.Inserted == 1 {
+		phase = TransactionLifecyclePhaseCreated
+	}
+
+	if len(tran.Operations) > 0 {
+		operationResult, createErr := uc.OperationRepo.CreateBulkTx(ctx, dbTx, tran.Operations)
+		if createErr != nil {
+			return nil, TransactionLifecyclePhaseNoop, fmt.Errorf("persist transaction operations atomically: %w", createErr)
+		}
+		if operationResult == nil || operationResult.Inserted+operationResult.Ignored != int64(len(tran.Operations)) {
+			return nil, TransactionLifecyclePhaseNoop, fmt.Errorf("persist transaction operations atomically: invalid insert result")
+		}
+		if phase == TransactionLifecyclePhaseCreated && operationResult.Inserted != int64(len(tran.Operations)) {
+			return nil, TransactionLifecyclePhaseNoop, fmt.Errorf("persist transaction operations atomically: fresh transaction operation conflict")
+		}
+	}
+
+	if insertResult.Ignored == 1 && uc.isStatusTransition(payload) {
+		organizationID, ledgerID, identityErr := uc.extractOrgLedgerIDs(payload)
+		if identityErr != nil {
+			return nil, TransactionLifecyclePhaseNoop, identityErr
+		}
+		transactionID, identityErr := uuid.Parse(tran.ID)
+		if identityErr != nil {
+			return nil, TransactionLifecyclePhaseNoop, fmt.Errorf("invalid transaction ID: %w", identityErr)
+		}
+		if transactionID == uuid.Nil {
+			return nil, TransactionLifecyclePhaseNoop, fmt.Errorf("invalid transaction ID: UUID is nil")
+		}
+		if _, updateErr := uc.TransactionRepo.UpdateStatusFromPendingTx(ctx, dbTx,
+			organizationID, ledgerID, transactionID, &transaction.Transaction{Status: tran.Status}); updateErr != nil {
+			return nil, TransactionLifecyclePhaseNoop, fmt.Errorf("persist terminal transaction status atomically: %w", updateErr)
+		}
+		phase = TransactionLifecyclePhaseUpdated
+	}
+
+	if err := dbTx.Commit(); err != nil {
+		return nil, TransactionLifecyclePhaseNoop, fmt.Errorf("commit atomic transaction persistence: %w", err)
+	}
+	committed = true
+
+	return tran, phase, nil
 }
 
 // CreateMetadataAsync func that create metadata into operations

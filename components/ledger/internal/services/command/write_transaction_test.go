@@ -19,6 +19,7 @@ import (
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
 	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v4/pkg/mtransaction"
+	"github.com/LerianStudio/midaz/v4/pkg/repository"
 	"github.com/google/uuid"
 	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/assert"
@@ -129,10 +130,11 @@ func setupMocksForFallback(
 ) {
 	// Note: Balance updates are handled by BalanceSyncWorker, not in this flow
 
-	// Mock TransactionRepo.Create
+	dbTx := &orderedAtomicTx{events: &[]string{}}
+	mockTransactionRepo.EXPECT().BeginTx(gomock.Any()).Return(dbTx, nil).AnyTimes()
 	mockTransactionRepo.EXPECT().
-		Create(gomock.Any(), gomock.Any()).
-		Return(tran, nil).
+		CreateBulkTx(gomock.Any(), dbTx, gomock.Any()).
+		Return(&repository.BulkInsertResult{Attempted: 1, Inserted: 1, InsertedIDs: []string{tran.ID}}, nil).
 		AnyTimes()
 
 	// Mock MetadataRepo.Create for transaction metadata
@@ -499,9 +501,11 @@ func TestWriteTransactionAsync(t *testing.T) {
 
 		// Note: Balance updates are handled by BalanceSyncWorker, not in this flow
 
-		// Fallback also fails - TransactionRepo.Create returns error
+		dbTx := &orderedAtomicTx{events: &[]string{}}
+		mockTransactionRepo.EXPECT().BeginTx(gomock.Any()).Return(dbTx, nil)
+		// Fallback also fails before any terminal state is committed.
 		mockTransactionRepo.EXPECT().
-			Create(gomock.Any(), gomock.Any()).
+			CreateBulkTx(gomock.Any(), dbTx, gomock.Any()).
 			Return(nil, errors.New("database connection failed")).
 			Times(1)
 
@@ -606,9 +610,11 @@ func TestWriteTransactionSync(t *testing.T) {
 
 		// Note: Balance updates are handled by BalanceSyncWorker, not in this flow
 
-		// TransactionRepo.Create fails (not a duplicate key error)
+		dbTx := &orderedAtomicTx{events: &[]string{}}
+		mockTransactionRepo.EXPECT().BeginTx(gomock.Any()).Return(dbTx, nil)
+		// Atomic transaction persistence fails before commit.
 		mockTransactionRepo.EXPECT().
-			Create(gomock.Any(), gomock.Any()).
+			CreateBulkTx(gomock.Any(), dbTx, gomock.Any()).
 			Return(nil, errors.New("failed to create transaction")).
 			Times(1)
 
@@ -682,10 +688,11 @@ func TestWriteTransactionSync(t *testing.T) {
 
 		// Note: Balance updates are handled by BalanceSyncWorker, not in this flow
 
-		// Mock TransactionRepo.Create
+		dbTx := &orderedAtomicTx{events: &[]string{}}
+		mockTransactionRepo.EXPECT().BeginTx(gomock.Any()).Return(dbTx, nil)
 		mockTransactionRepo.EXPECT().
-			Create(gomock.Any(), gomock.Any()).
-			Return(tran, nil).
+			CreateBulkTx(gomock.Any(), dbTx, gomock.Any()).
+			Return(&repository.BulkInsertResult{Attempted: 1, Inserted: 1, InsertedIDs: []string{tran.ID}}, nil).
 			AnyTimes()
 
 		// Mock MetadataRepo.Create

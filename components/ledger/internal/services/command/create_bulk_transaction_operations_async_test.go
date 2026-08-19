@@ -14,7 +14,6 @@ import (
 	"time"
 
 	libCommons "github.com/LerianStudio/lib-commons/v6/commons"
-	libLog "github.com/LerianStudio/lib-observability/v2/log"
 	"github.com/google/uuid"
 	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/assert"
@@ -666,10 +665,11 @@ func TestCreateBulkTransactionOperationsAsync_StatusTransition_BelowThreshold(t 
 
 	// Note: Balance updates are handled by BalanceSyncWorker, not in this flow
 
-	// Below threshold (< 10), uses individual update via UpdateTransactionStatus
-	// which internally calls the PENDING-only terminal CAS.
+	// Terminal CAS shares the same database transaction as the operation batch.
+	mockTx := &mockDBTransaction{}
+	mockTransactionRepo.EXPECT().BeginTx(gomock.Any()).Return(mockTx, nil)
 	mockTransactionRepo.EXPECT().
-		UpdateStatusFromPending(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+		UpdateStatusFromPendingTx(gomock.Any(), mockTx, gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
 		Return(&transaction.Transaction{ID: transactionID}, nil).
 		Times(1)
 
@@ -902,17 +902,18 @@ func TestCreateBulkTransactionOperationsAsync_BulkInsertFails_UsesFallback(t *te
 		Return(nil, errors.New("bulk insert failed")).
 		Times(1)
 
-	// Fallback processing calls CreateBalanceTransactionOperationsAsync
-	// which creates or updates transaction individually
+	// Fallback opens a new atomic boundary for the individual payload.
+	fallbackTx := &mockDBTransaction{}
+	mockTransactionRepo.EXPECT().BeginTx(gomock.Any()).Return(fallbackTx, nil)
 	mockTransactionRepo.EXPECT().
-		Create(gomock.Any(), gomock.Any()).
-		Return(&transaction.Transaction{ID: transactionID}, nil).
+		CreateBulkTx(gomock.Any(), fallbackTx, gomock.Any()).
+		Return(&repository.BulkInsertResult{Attempted: 1, Inserted: 1, InsertedIDs: []string{transactionID}}, nil).
 		Times(1)
 
-	// Fallback also creates operations
+	// Fallback persists all operations before the same commit.
 	mockOperationRepo.EXPECT().
-		Create(gomock.Any(), gomock.Any()).
-		Return(&operation.Operation{ID: operationID}, nil).
+		CreateBulkTx(gomock.Any(), fallbackTx, gomock.Any()).
+		Return(&repository.BulkInsertResult{Attempted: 1, Inserted: 1, InsertedIDs: []string{operationID}}, nil).
 		Times(1)
 
 	// Note: Balance updates are handled by BalanceSyncWorker, not in fallback flow
@@ -1343,15 +1344,14 @@ func TestCreateBulkTransactionOperationsAsync_StatusTransition_AboveThreshold_Us
 
 	// Note: Balance updates are handled by BalanceSyncWorker, not in this flow
 
-	// Mock bulk update (above threshold uses UpdateBulk instead of individual Update)
+	// Every terminal CAS is contained by the one batch transaction. Avoiding a
+	// separate bulk UPDATE is what closes the APPROVED-before-operations window.
+	mockTx := &mockDBTransaction{}
+	mockTransactionRepo.EXPECT().BeginTx(gomock.Any()).Return(mockTx, nil)
 	mockTransactionRepo.EXPECT().
-		UpdateBulk(gomock.Any(), gomock.Any()).
-		Return(&repository.BulkUpdateResult{
-			Attempted: 12,
-			Updated:   12,
-			Unchanged: 0,
-		}, nil).
-		Times(1)
+		UpdateStatusFromPendingTx(gomock.Any(), mockTx, gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+		Return(&transaction.Transaction{}, nil).
+		Times(12)
 
 	// Mock metadata and events
 	mockMetadataRepo.EXPECT().Create(gomock.Any(), gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
@@ -1416,74 +1416,6 @@ func TestClassifyAndExtractEntities_DoesNotMutateOriginal(t *testing.T) {
 	// Verify original transaction ID is preserved (shallow copy of value fields)
 	assert.Equal(t, originalPayload.Transaction.ID, toInsert.transactions[0].ID,
 		"Transaction ID should be preserved in copy")
-}
-
-func TestIndividualUpdateTransactionStatus_PartialFailure(t *testing.T) {
-	t.Parallel()
-
-	// This test verifies that individualUpdateTransactionStatus returns an
-	// aggregated error when some updates fail, instead of swallowing errors.
-
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-
-	mockTransactionRepo := transaction.NewMockRepository(ctrl)
-
-	uc := &UseCase{
-		TransactionRepo: mockTransactionRepo,
-	}
-
-	// Create 5 transactions for update
-	transactions := make([]*transaction.Transaction, 5)
-	for i := range 5 {
-		transactions[i] = &transaction.Transaction{
-			ID:             uuid.New().String(),
-			OrganizationID: uuid.New().String(),
-			LedgerID:       uuid.New().String(),
-			Status:         transaction.Status{Code: constant.APPROVED},
-		}
-	}
-
-	// Mock: first 3 succeed, last 2 fail
-	// The PENDING-only terminal CAS is called for each transaction.
-	gomock.InOrder(
-		mockTransactionRepo.EXPECT().
-			UpdateStatusFromPending(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
-			Return(&transaction.Transaction{}, nil),
-		mockTransactionRepo.EXPECT().
-			UpdateStatusFromPending(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
-			Return(&transaction.Transaction{}, nil),
-		mockTransactionRepo.EXPECT().
-			UpdateStatusFromPending(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
-			Return(&transaction.Transaction{}, nil),
-		mockTransactionRepo.EXPECT().
-			UpdateStatusFromPending(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
-			Return(nil, errors.New("database connection lost")),
-		mockTransactionRepo.EXPECT().
-			UpdateStatusFromPending(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
-			Return(nil, errors.New("database timeout")),
-	)
-
-	result := &BulkResult{
-		TransactionsUpdateAttempted: int64(len(transactions)),
-	}
-
-	logger := libLog.NewMockLogger(ctrl)
-	// Expect warning logs for 2 failed updates (msg + transaction_id field + err field)
-	// and a debug summary log (msg + 3 count fields).
-	logger.EXPECT().Log(gomock.Any(), libLog.LevelWarn, gomock.Any(), gomock.Any(), gomock.Any()).Times(2)
-	logger.EXPECT().Log(gomock.Any(), libLog.LevelDebug, gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Times(1)
-
-	err := uc.individualUpdateTransactionStatus(context.Background(), logger, transactions, result)
-
-	// CRITICAL: Should return error indicating partial failure
-	require.Error(t, err, "Should return error when some updates fail")
-	assert.Contains(t, err.Error(), "failed to update 2 of 5 transactions",
-		"Error should contain accurate failure count")
-
-	// Verify result reflects only successful updates
-	assert.Equal(t, int64(3), result.TransactionsUpdated,
-		"TransactionsUpdated should reflect only successful updates")
 }
 
 // TestClassifyAndExtractEntities_CollectsOperationsForStatusTransitions verifies that
