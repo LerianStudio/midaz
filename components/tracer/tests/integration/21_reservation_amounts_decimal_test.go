@@ -16,6 +16,7 @@ import (
 	"github.com/golang-migrate/migrate/v4"
 	migratepostgres "github.com/golang-migrate/migrate/v4/database/postgres"
 	_ "github.com/golang-migrate/migrate/v4/source/file"
+	"github.com/google/uuid"
 	_ "github.com/jackc/pgx/v5/stdlib"
 	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/require"
@@ -258,10 +259,10 @@ func reservationColumnType(ctx context.Context, t *testing.T, db *sql.DB, table,
 // satisfies every limits CHECK constraint without custom dates or a time window)
 // and returns its id, so usage_counters / usage_reservations rows can satisfy
 // their limit_id foreign key.
-func insertReservationTestLimit(ctx context.Context, t *testing.T, db *sql.DB) string {
+func insertReservationTestLimit(ctx context.Context, t *testing.T, db *sql.DB) uuid.UUID {
 	t.Helper()
 
-	var id string
+	var id uuid.UUID
 
 	err := db.QueryRowContext(
 		ctx,

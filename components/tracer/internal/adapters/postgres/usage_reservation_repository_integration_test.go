@@ -403,6 +403,13 @@ func TestIntegration_UsageReservationRepository_Reserve_RowIdempotent(t *testing
 	).Scan(&rowCount)
 	require.NoError(t, err)
 	assert.Equal(t, 1, rowCount, "retried reserve must not duplicate the reservation row")
+
+	// The replay must be a counter no-op: reserved_usage stays at the single held
+	// amount, never doubled. This is the regression lock for the insert-first gate.
+	current, reserved := readCounterDecimal(t, db, limitID, scopeKey, periodKey)
+	assert.True(t, current.IsZero(), "replayed reserve must not touch current_usage; got %s", current)
+	assert.True(t, decimal.NewFromInt(100).Equal(reserved),
+		"replayed reserve must not increase reserved_usage")
 }
 
 // TestIntegration_UsageReservationRepository_SubUnitaryAmount_Preserved proves a
