@@ -160,10 +160,11 @@ func setupTestInfra(t *testing.T) *testInfra {
 
 	// Create handler
 	infra.handler = &TransactionHandler{
-		Query:                 queryUC,
-		Command:               commandUC,
-		RevertIdempotencyMode: revertIdempotencyModeFinal,
-		RevertUpdateFreeze:    revertFreeze,
+		Query:                    queryUC,
+		Command:                  commandUC,
+		RevertIdempotencyMode:    revertIdempotencyModeFinal,
+		RevertUpdateFreeze:       revertFreeze,
+		FinancialRedisDurability: redis.NewFinancialRedisDurabilityGuard(redisConn),
 	}
 
 	// Use fake UUIDs for org and ledger (they're in the onboarding component, not transaction)

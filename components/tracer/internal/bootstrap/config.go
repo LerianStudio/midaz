@@ -57,7 +57,8 @@ type Config struct {
 	// TracerTLSMode selects how the reservation seam is secured. "mtls"
 	// (Epic 1.3) makes the app load its own cert/key/CA and require+verify a
 	// client cert on BOTH the gRPC and the Fiber listeners — the verified mTLS
-	// peer is the seam credential (no shared secret). "mesh" lets a service-mesh
+	// peer is the transport credential. REST additionally uses the API_KEY guard;
+	// "mesh" lets a service-mesh
 	// sidecar (Istio/Linkerd) terminate mTLS, so the app listens plaintext and
 	// skips its own TLS. Empty/unset behaves like "mesh" (plaintext) so the
 	// Phase-1 toggle default and local dev keep working without cert material.

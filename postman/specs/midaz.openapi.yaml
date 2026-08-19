@@ -11314,7 +11314,6 @@ paths:
                 $ref: '#/components/schemas/Error'
           description: Error
       security:
-        - BearerAuth: []
         - ApiKeyAuth: []
       summary: Reserve transaction capacity (phase one)
       tags:
@@ -11344,7 +11343,6 @@ paths:
                 $ref: '#/components/schemas/Error'
           description: Error
       security:
-        - BearerAuth: []
         - ApiKeyAuth: []
       summary: Confirm a transaction's reservations (phase two — commit by transaction)
       tags:
@@ -11395,7 +11393,6 @@ paths:
                 $ref: '#/components/schemas/Error'
           description: Error
       security:
-        - BearerAuth: []
         - ApiKeyAuth: []
       summary: Apply the ledger's durable terminal reservation outcome
       tags:
@@ -11425,7 +11422,6 @@ paths:
                 $ref: '#/components/schemas/Error'
           description: Error
       security:
-        - BearerAuth: []
         - ApiKeyAuth: []
       summary: Release a transaction's reservations (phase two — abort by transaction)
       tags:
@@ -11455,7 +11451,6 @@ paths:
                 $ref: '#/components/schemas/Error'
           description: Error
       security:
-        - BearerAuth: []
         - ApiKeyAuth: []
       summary: Confirm a reservation (phase two — commit)
       tags:
@@ -11485,7 +11480,6 @@ paths:
                 $ref: '#/components/schemas/Error'
           description: Error
       security:
-        - BearerAuth: []
         - ApiKeyAuth: []
       summary: Release a reservation (phase two — abort)
       tags:

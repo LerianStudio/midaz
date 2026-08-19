@@ -11,7 +11,6 @@ import (
 	"time"
 
 	tmcore "github.com/LerianStudio/lib-commons/v6/commons/tenant-manager/core"
-	"github.com/LerianStudio/lib-commons/v6/commons/tenant-manager/tenantcache"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -29,6 +28,20 @@ type outcomeApplierStub struct {
 	tenants  []string
 }
 
+type outcomeTenantLoaderStub struct {
+	loaded []string
+	err    error
+}
+
+func (s *outcomeTenantLoaderStub) LoadTenant(_ context.Context, tenantID string) (*tmcore.TenantConfig, error) {
+	s.loaded = append(s.loaded, tenantID)
+	if s.err != nil {
+		return nil, s.err
+	}
+
+	return &tmcore.TenantConfig{}, nil
+}
+
 func (s *outcomeApplierStub) ApplyOutcome(ctx context.Context, req tracerclient.ApplyOutcomeRequest) (*tracerclient.ApplyOutcomeResult, error) {
 	s.requests = append(s.requests, req)
 	s.tenants = append(s.tenants, tmcore.GetTenantIDContext(ctx))
@@ -40,29 +53,51 @@ func (s *outcomeApplierStub) ApplyOutcome(ctx context.Context, req tracerclient.
 	}, nil
 }
 
-func TestTracerOutcomeWorkerMultiTenantPreservesTenantContext(t *testing.T) {
+func TestTracerOutcomeWorkerMultiTenantDiscoversDurableBacklogAfterRestart(t *testing.T) {
 	t.Parallel()
 
 	ctrl := gomock.NewController(t)
 	repo := redisTransaction.NewMockRedisRepository(ctrl)
 	applier := &outcomeApplierStub{}
-	cache := tenantcache.NewTenantCache()
-	cache.Set("tenant-a", &tmcore.TenantConfig{}, time.Hour)
-	cache.Set("tenant-b", &tmcore.TenantConfig{}, time.Hour)
+	loader := &outcomeTenantLoaderStub{}
 	worker := NewTracerOutcomeWorkerMT(newTestLogger(), repo, applier,
-		TracerOutcomeWorkerConfig{DeliveredTTL: time.Hour}, cache)
+		TracerOutcomeWorkerConfig{DeliveredTTL: time.Hour}, loader)
 	now := time.Unix(1700000000, 0).UTC()
 	worker.now = func() time.Time { return now }
 	record := completeWorkerOutcome(mmodel.TracerOutcomeCommitted)
 	key := utils.TransactionTracerOutcomeKey(record.OrganizationID, record.LedgerID, record.TransactionID)
+	repo.EXPECT().ListTracerOutcomeTenants(gomock.Any()).Return([]redisTransaction.TracerOutcomeTenantRegistration{
+		{TenantID: "tenant-a", Generation: 4},
+		{TenantID: "tenant-b", Generation: 9},
+	}, nil)
 	repo.EXPECT().AcquireOwnedKey(gomock.Any(), utils.TracerOutcomeDispatcherLock, worker.owner, gomock.Any()).Return(true, nil).Times(2)
 	repo.EXPECT().ListDueTracerOutcomes(gomock.Any(), now, int64(100)).Return([]string{key}, nil).Times(2)
 	repo.EXPECT().ReadTracerOutcomeByKey(gomock.Any(), key).Return(record, nil).Times(2)
 	repo.EXPECT().MarkTracerOutcomeDelivered(gomock.Any(), key, record.OutcomeID, record.State, now, time.Hour).Return(true, nil).Times(2)
 	repo.EXPECT().ReleaseOwnedKey(gomock.Any(), utils.TracerOutcomeDispatcherLock, worker.owner).Return(true, nil).Times(2)
+	repo.EXPECT().RetireTracerOutcomeTenant(gomock.Any(), "tenant-a", int64(4)).Return(true, nil)
+	repo.EXPECT().RetireTracerOutcomeTenant(gomock.Any(), "tenant-b", int64(9)).Return(true, nil)
 
 	worker.runCycle(context.Background())
+	assert.ElementsMatch(t, []string{"tenant-a", "tenant-b"}, loader.loaded)
 	assert.ElementsMatch(t, []string{"tenant-a", "tenant-b"}, applier.tenants)
+}
+
+func TestTracerOutcomeWorkerMultiTenantKeepsDeletedTenantWithBacklog(t *testing.T) {
+	t.Parallel()
+
+	ctrl := gomock.NewController(t)
+	repo := redisTransaction.NewMockRedisRepository(ctrl)
+	loader := &outcomeTenantLoaderStub{err: tmcore.ErrTenantNotFound}
+	worker := NewTracerOutcomeWorkerMT(newTestLogger(), repo, &outcomeApplierStub{},
+		TracerOutcomeWorkerConfig{}, loader)
+	repo.EXPECT().ListTracerOutcomeTenants(gomock.Any()).Return([]redisTransaction.TracerOutcomeTenantRegistration{
+		{TenantID: "deleted-tenant", Generation: 3},
+	}, nil)
+	repo.EXPECT().RetireTracerOutcomeTenant(gomock.Any(), "deleted-tenant", int64(3)).Return(false, nil)
+
+	worker.runCycle(context.Background())
+	assert.Equal(t, []string{"deleted-tenant"}, loader.loaded)
 }
 
 func completeWorkerOutcome(state string) *mmodel.TracerOutcomeRecord {

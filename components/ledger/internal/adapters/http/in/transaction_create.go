@@ -1422,6 +1422,18 @@ func (handler *TransactionHandler) executeCreateTransaction(ctx context.Context,
 	}
 
 	durableTracerOutcome := handler.durableTracerOutcomeEnabled(ledgerSettings.Tracer, transactionStatus, honoredTracerSkip)
+	if durableTracerOutcome {
+		if durabilityErr := handler.admitDurableTracerOutcome(ctx); durabilityErr != nil {
+			libOpentelemetry.HandleSpanError(span, "Financial Redis durability rejected tracer outcome", durabilityErr)
+			logger.Log(ctx, libLog.LevelError, "Financial Redis durability rejected tracer outcome",
+				libLog.Err(durabilityErr))
+			handler.deleteIdempotencyKey(ctx, idempotencyResult.InternalKey, params.RevertExecution)
+			handler.removePreMovementTransactionBackup(ctx, logger, params, transactionID, transactionStatus)
+
+			return nil, false, pkg.ValidateBusinessError(constant.ErrTransactionReservationUnavailable,
+				constant.EntityTransaction)
+		}
+	}
 
 	tracerAttemptAcquiredHere := false
 	if durableTracerOutcome {

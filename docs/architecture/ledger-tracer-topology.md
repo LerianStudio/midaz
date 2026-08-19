@@ -175,11 +175,13 @@ rather than at first transaction. `Close()` drains on SIGTERM when registered wi
 
 ---
 
-## 5. mTLS model (identity, not a shared secret)
+## 5. Transport identity and REST application authentication
 
-**Seam identity is mutual TLS — the verified mTLS peer IS the credential. There is no shared secret and
-no static key.** This is stated explicitly in code: *"identity on the reservation seam is mutual TLS
-(the verified peer IS the credential — no shared secret)"* (`config.go:1556-1564`).
+**Transport identity is mutual TLS; REST additionally authenticates with a dedicated Tracer API key.**
+The Ledger sends `TRACER_API_KEY` only as `X-API-Key`. The Tracer reservation routes deliberately use
+the API-key guard even when user-facing multi-tenant routes use plugin/JWT auth. The key is distinct
+from `MULTI_TENANT_SERVICE_API_KEY`; reusing the Tenant Manager credential would collapse two trust
+boundaries. gRPC carries no API key because its reservation listener authenticates the verified mTLS peer.
 
 `TRACER_TLS_MODE` selects the posture, with a fail-fast typed error on an invalid value
 (`ledger/tls_seam.go:51-62`, server-side mirror `tracer/tls_seam.go:48-59`):
@@ -218,9 +220,9 @@ knob, on **both** sides (`ledger/tls_seam.go:67-77`, `tracer/tls_seam.go:63-73`)
 ### Trusted `x-tenant-id` — the rationale
 
 Tenant crosses the seam as a **trusted `x-tenant-id`** — a REST header / gRPC outgoing metadata key, not
-a JWT claim and not a shared secret. It is trusted **precisely because the mTLS peer is verified** (or
-sits behind a verified mesh sidecar): *"mTLS replaces token identity, so there is no Authorization"*
-(`client.go:362-371`; gRPC emission via `AppendToOutgoingContext` at `grpc_client.go:278`). The key derives from one constant —
+a JWT claim and not the application credential. It is trusted because the transport peer is verified
+directly by mTLS or by the mesh; on REST, `X-API-Key` independently authenticates the calling application.
+The key derives from one constant —
 `TenantHeader = "X-Tenant-Id"` with the gRPC metadata key as its lower-cased form — so REST and gRPC
 cannot drift (`client.go:359-368`; tracer-side resolver `seamtenant/resolver.go:33-39`).
 
@@ -319,6 +321,14 @@ or audit the original tenant's reservation.
    Reserve and the balance Lua projects its exact economic proof into a dedicated outcome outbox;
    the Ledger must durably retain that outcome until the Tracer
    acknowledges its receipt; process-local retries are not a correctness mechanism.
+   In multi-tenant deployments, every V2 attempt first writes a tenant-scoped prepare intent, then increments
+   a deployment-global tenant inventory, before either PREPARED or Reserve. Prepare atomically swaps that
+   intent into the tenant's active-outcome index. The worker reloads inventory tenants through Tenant Manager
+   after a restart instead of enumerating the expiring process cache; `PENDING_HELD` remains in the active
+   index while intentionally absent from delivery. Retirement requires empty intent and active indexes plus
+   an unchanged inventory generation. An absent record is removed from those indexes only through the
+   explicit missing-record quarantine path, so a concurrent prepare or tenant deletion cannot make backlog
+   undiscoverable.
 3. During rollback, set `TRACER_OUTCOME_MODE=legacy` to stop new V2 reserves but keep
    `TRACER_OUTCOME_WORKER_ENABLED=true`; keep a Tracer version that understands V2 and the dispatcher running
    until the V2 outstanding gauge reaches zero. Disabling new V2 reserves does not make the existing
@@ -327,6 +337,15 @@ or audit the original tenant's reservation.
    exists and locks outcome writers across its guard and schema removal. Drain/archive that state
    explicitly before schema rollback; a forced rollback would erase the proof that money-path
    outcomes were applied exactly once.
+
+### Redis durability and RPO
+
+Outcome V2 treats Redis as authoritative before PostgreSQL receives the final transaction. Enabling V2,
+or keeping only its drain worker enabled during rollback, therefore fails boot, readiness, and per-request
+admission unless every Redis shard proves `maxmemory-policy=noeviction`, `appendonly=yes`, a healthy last
+AOF write, and `appendfsync=always|everysec`. `appendfsync=everysec` deliberately accepts an acknowledged
+persistence RPO of approximately one second; `always` is required where even that loss window is not
+acceptable. These checks are shared with revert durability but are not coupled to the revert rollout state.
 
 > **NOTE — `:4021` is illustrative, not canonical.** `TRACER_GRPC_PORT`'s doc comment says *"e.g.
 > :4021"* (`tracer/config.go:51`). There is no default value and no `EXPOSE 4021` anywhere. `:4021` is an
@@ -362,6 +381,7 @@ truth for their **existence and semantics**.
 |---|---|---|---|
 | `TRACER_BASE_URL` | ledger | opt-in switch for the whole integration; empty → disabled | `config.go:285-304, 1548-1554` |
 | `TRACER_TRANSPORT` | ledger | `grpc`\|`rest`; empty → `grpc` | `config.go:294-297, 1569-1588` |
+| `TRACER_API_KEY` | ledger | required `X-API-Key` credential when transport is REST | `config.go`, `client.go` |
 | `TRACER_TIMEOUT_MS` | ledger | reserve RPC timeout | struct tag, `config.go:304-310` |
 | `TRACER_TLS_MODE` | ledger | `mtls`\|`mesh`/empty | `config.go:298-303` |
 | `TRACER_TLS_CERT_FILE` / `_KEY_FILE` | ledger | client leaf material (mtls) | `tls_seam.go:67-77` |
@@ -371,13 +391,3 @@ truth for their **existence and semantics**.
 | `TRACER_TLS_CERT_FILE` / `_KEY_FILE` | tracer | server leaf material (mtls) | `tracer/tls_seam.go:63-73` |
 | `TRACER_TLS_CLIENT_CA_FILE` | tracer | CA verifying the **ledger's** client leaf | `tracer/config.go:68-72`, `tls_seam.go:83-86` |
 | `TENANT_CAP_RETRY_AFTER_SECONDS` | tracer | 503 `Retry-After` on tenant-pool cap (default 5s) | `tracer/.env.example:283-292` |
-
-> **DOCUMENTED GAP (not papered over):** the operator-facing `.env.example` templates **do not yet
-> surface the new seam vars.** `components/ledger/.env.example` has **zero** occurrences of
-> `TRACER_BASE_URL`, `TRACER_TIMEOUT_MS`, `TRACER_TRANSPORT`, `TRACER_TLS_MODE`, `TRACER_TLS_CERT_FILE`,
-> `TRACER_TLS_KEY_FILE`, or `TRACER_TLS_CA_FILE` — all seven exist only as Go struct tags in
-> `config.go:304-310`. `components/tracer/.env.example` has **zero** occurrences of `TRACER_GRPC_PORT`,
-> `TRACER_TLS_MODE`, `TRACER_TLS_CERT_FILE`, `TRACER_TLS_KEY_FILE`, or `TRACER_TLS_CLIENT_CA_FILE` —
-> they exist only as struct tags in the tracer `config.go:54-72`. **Recommendation:** update both
-> `.env.example` files to surface these vars with the semantics above before the gRPC/mTLS seam is
-> handed to operators. This is a follow-up, not yet codified.

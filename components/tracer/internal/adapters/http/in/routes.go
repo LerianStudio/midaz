@@ -544,19 +544,20 @@ func registerTracerHumaRoutes(api fiber.Router, humaAPI huma.API, h tracerHumaHa
 		//
 		// TWO Fiber middlewares per route (resTenantMW THEN guard.With), both
 		// middleware-only: resTenantMW resolves the per-tenant DB, guard.With
-		// authenticates, then c.Next() advances into the Huma handler. The
+		// authenticates with the dedicated API key even when user-facing routes
+		// use plugin/JWT auth, then c.Next() advances into the Huma handler. The
 		// by-transaction routes are declared BEFORE the "/reservations/:id/..."
 		// param routes so Fiber matches the static "transaction" segment first
 		// (otherwise it binds the literal "transaction" to :id). Ordering and both
 		// middlewares are preserved exactly from the pre-Huma inline routes.
 		resTenantMW := h.ResTenantMW
 
-		api.Post("/reservations", resTenantMW, guard.With("reservations", "post", false))
-		api.Post("/reservations/transaction/:transaction_id/outcome", resTenantMW, guard.With("reservations", "post", false))
-		api.Post("/reservations/transaction/:transaction_id/confirm", resTenantMW, guard.With("reservations", "post", false))
-		api.Post("/reservations/transaction/:transaction_id/release", resTenantMW, guard.With("reservations", "post", false))
-		api.Post("/reservations/:id/confirm", resTenantMW, guard.With("reservations", "post", false))
-		api.Post("/reservations/:id/release", resTenantMW, guard.With("reservations", "post", false))
+		api.Post("/reservations", resTenantMW, guard.With("reservations", "post", true))
+		api.Post("/reservations/transaction/:transaction_id/outcome", resTenantMW, guard.With("reservations", "post", true))
+		api.Post("/reservations/transaction/:transaction_id/confirm", resTenantMW, guard.With("reservations", "post", true))
+		api.Post("/reservations/transaction/:transaction_id/release", resTenantMW, guard.With("reservations", "post", true))
+		api.Post("/reservations/:id/confirm", resTenantMW, guard.With("reservations", "post", true))
+		api.Post("/reservations/:id/release", resTenantMW, guard.With("reservations", "post", true))
 		RegisterReservationRoutes(humaAPI, h.Reservation)
 	}
 

@@ -9,6 +9,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	authMiddleware "github.com/LerianStudio/lib-auth/v3/auth/middleware"
@@ -289,6 +290,33 @@ func TestRoutes_ProtectedEndpoints_ValidKey(t *testing.T) {
 				"Protected endpoint %s with valid API key should not return 401", tt.path)
 		})
 	}
+}
+
+func TestRoutes_ReservationRESTUsesAPIKeyWhenPluginAuthIsEnabled(t *testing.T) {
+	const apiKey = "ledger-to-tracer-test-key"
+	deps := newTestRouterDeps(t, middleware.AuthGuardConfig{
+		APIKey:            apiKey,
+		APIKeyEnabled:     true,
+		PluginAuthEnabled: true,
+		AppName:           "tracer",
+	})
+	app := deps.build()
+
+	unauthenticated := httptest.NewRequest(http.MethodPost, "/v1/reservations", strings.NewReader(`{}`))
+	unauthenticated.Header.Set("Content-Type", "application/json")
+	response, err := app.Test(unauthenticated, fiber.TestConfig{Timeout: 0})
+	require.NoError(t, err)
+	require.NoError(t, response.Body.Close())
+	require.Equal(t, http.StatusUnauthorized, response.StatusCode)
+
+	authenticated := httptest.NewRequest(http.MethodPost, "/v1/reservations", strings.NewReader(`{}`))
+	authenticated.Header.Set("Content-Type", "application/json")
+	authenticated.Header.Set(middleware.HeaderAPIKey, apiKey)
+	response, err = app.Test(authenticated, fiber.TestConfig{Timeout: 0})
+	require.NoError(t, err)
+	defer response.Body.Close()
+	require.NotEqual(t, http.StatusUnauthorized, response.StatusCode,
+		"the service-to-service reservation seam must not be redirected into user bearer auth")
 }
 
 func TestRoutes_ProtectedEndpoints_AuthDisabled(t *testing.T) {

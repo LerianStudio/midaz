@@ -304,14 +304,15 @@ type Config struct {
 	// so the tracer must expose its gRPC seam (TRACER_GRPC_PORT) and, under
 	// TRACER_TLS_MODE=mtls, both ends need cert material.
 	// TracerTLSMode secures the reservation seam: "mtls" presents a client
-	// certificate and verifies the tracer's server certificate against the CA
-	// (mutual TLS is the seam's identity — no shared secret); "mesh" (and the
-	// empty default) speaks plaintext to a local service-mesh sidecar that
+	// certificate and verifies the tracer's server certificate against the CA;
+	// "mesh" (and the empty default) speaks plaintext to a local service-mesh sidecar that
 	// terminates mTLS. Under "mtls" the cert/key/CA paths are required when the
-	// integration is on, enforced by buildTracerReserver.
+	// integration is on, enforced by buildTracerReserver. REST additionally
+	// requires TRACER_API_KEY; gRPC authenticates only at the transport layer.
 	TracerBaseURL     string `env:"TRACER_BASE_URL"`
 	TracerTimeoutMs   int    `env:"TRACER_TIMEOUT_MS"`
 	TracerTransport   string `env:"TRACER_TRANSPORT"`
+	TracerAPIKey      string `env:"TRACER_API_KEY"`
 	TracerTLSMode     string `env:"TRACER_TLS_MODE"`
 	TracerTLSCertFile string `env:"TRACER_TLS_CERT_FILE"`
 	TracerTLSKeyFile  string `env:"TRACER_TLS_KEY_FILE"`
@@ -399,6 +400,11 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 	if err := validateBootAuthGates(cfg); err != nil {
 		return nil, err
 	}
+	outcomeMode, err := normalizeTracerOutcomeMode(cfg.TracerOutcomeMode)
+	if err != nil {
+		return nil, err
+	}
+	workerRequired := tracerOutcomeRequiresDurableRedis(outcomeMode, cfg.TracerOutcomeWorkerEnabled)
 
 	// Logger: use injected or create fresh
 	var baseLogger libLog.Logger
@@ -625,6 +631,17 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 	}
 
 	addCleanup(func() { _ = redisConnection.Close() })
+
+	financialRedisDurability := txRedis.NewFinancialRedisDurabilityGuard(redisConnection)
+	if workerRequired {
+		durabilityCtx, cancelDurability := context.WithTimeout(context.Background(), 5*time.Second)
+		durabilityErr := financialRedisDurability.FinancialDurability(durabilityCtx)
+		cancelDurability()
+		if durabilityErr != nil {
+			doCleanup()
+			return nil, fmt.Errorf("tracer outcome requires durable financial Redis: %w", durabilityErr)
+		}
+	}
 
 	revertRolloutGuard := txRedis.NewRevertUpdateFreezeGuard(redisConnection, cfg.RevertRolloutTarget,
 		cfg.RevertRedisDatasetGeneration).WithRolloutInitializationWitness(txnPG.revertClaimRepo,
@@ -1012,18 +1029,11 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 		return nil, fmt.Errorf("failed to initialize tracer reservation client: %w", err)
 	}
 
-	outcomeMode, err := normalizeTracerOutcomeMode(cfg.TracerOutcomeMode)
-	if err != nil {
-		doCleanup()
-		return nil, err
-	}
-
 	var tracerOutcomeApplier httpin.TracerOutcomeApplier
 	if tracerReserver != nil {
 		tracerOutcomeApplier, _ = tracerReserver.(httpin.TracerOutcomeApplier)
 	}
 
-	workerRequired := outcomeMode == tracerOutcomeModeV2 || cfg.TracerOutcomeWorkerEnabled
 	if workerRequired && tracerOutcomeApplier == nil {
 		doCleanup()
 		return nil, fmt.Errorf("TRACER_OUTCOME_MODE=%s requires a healthy Tracer client and outcome worker", outcomeMode)
@@ -1045,15 +1055,16 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 
 	// Transaction handlers
 	transactionHandler := &httpin.TransactionHandler{
-		Command:               commandUseCase,
-		Query:                 queryUseCase,
-		FeeApplier:            fees.useCase,
-		TracerReserver:        tracerReserver,
-		TracerOutcomeV2:       outcomeMode == tracerOutcomeModeV2,
-		FeesMongoManager:      feeMgo.mongoManager,
-		MultiTenantEnabled:    cfg.MultiTenantEnabled,
-		RevertIdempotencyMode: cfg.RevertIdempotencyMode,
-		RevertUpdateFreeze:    revertRolloutGuard,
+		Command:                  commandUseCase,
+		Query:                    queryUseCase,
+		FeeApplier:               fees.useCase,
+		TracerReserver:           tracerReserver,
+		TracerOutcomeV2:          outcomeMode == tracerOutcomeModeV2,
+		FinancialRedisDurability: financialRedisDurability,
+		FeesMongoManager:         feeMgo.mongoManager,
+		MultiTenantEnabled:       cfg.MultiTenantEnabled,
+		RevertIdempotencyMode:    cfg.RevertIdempotencyMode,
+		RevertUpdateFreeze:       revertRolloutGuard,
 	}
 	operationHandler := &httpin.OperationHandler{Command: commandUseCase, Query: queryUseCase}
 	assetRateHandler := &httpin.AssetRateHandler{Command: commandUseCase, Query: queryUseCase}
@@ -1225,7 +1236,7 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 			BatchSize:       cfg.TracerOutcomeBatchSize,
 		}
 		if cfg.MultiTenantEnabled && tenantCache != nil {
-			tracerOutcomeWorker = NewTracerOutcomeWorkerMT(logger, txnRedisRepo, tracerOutcomeApplier, workerConfig, tenantCache)
+			tracerOutcomeWorker = NewTracerOutcomeWorkerMT(logger, txnRedisRepo, tracerOutcomeApplier, workerConfig, tenantLoader)
 		} else {
 			tracerOutcomeWorker = NewTracerOutcomeWorker(logger, txnRedisRepo, tracerOutcomeApplier, workerConfig)
 		}
@@ -1921,8 +1932,7 @@ func buildTracerReserver(cfg *Config, logger libLog.Logger) (httpin.TracerReserv
 		return nil, nil
 	}
 
-	// Fail-fast guard: identity on the reservation seam is mutual TLS (the
-	// verified peer IS the credential — no shared secret). The discriminator is
+	// Fail-fast guard: transport identity on the reservation seam is mutual TLS. The discriminator is
 	// the transport's security, NOT tenancy: with the integration on and
 	// TRACER_TLS_MODE=mtls, the cert/key/CA material is mandatory, so a
 	// misconfigured deploy fails at boot rather than dialing an unverified seam.
@@ -1969,6 +1979,10 @@ func normalizeTracerOutcomeMode(value string) (string, error) {
 	}
 }
 
+func tracerOutcomeRequiresDurableRedis(mode string, workerEnabled bool) bool {
+	return strings.EqualFold(strings.TrimSpace(mode), tracerOutcomeModeV2) || workerEnabled
+}
+
 // buildTracerRESTReserver wires the HTTP reservation client. When tlsConfig is
 // non-nil (TRACER_TLS_MODE=mtls) it is applied to the client's transport so the
 // REST seam presents the ledger's client cert and verifies the tracer's server
@@ -1977,7 +1991,12 @@ func buildTracerRESTReserver(cfg *Config, baseURL string, tlsConfig *tls.Config,
 	logger.Log(context.Background(), libLog.LevelInfo, "Tracer reservation transport selected",
 		libLog.String("transport", tracerTransportREST))
 
-	opts := []tracerclient.TracerClientOption{}
+	apiKey := strings.TrimSpace(cfg.TracerAPIKey)
+	if apiKey == "" {
+		return nil, fmt.Errorf("TRACER_TRANSPORT=rest requires TRACER_API_KEY")
+	}
+
+	opts := []tracerclient.TracerClientOption{tracerclient.WithAPIKey(apiKey)}
 	if cfg.TracerTimeoutMs > 0 {
 		opts = append(opts, tracerclient.WithOperationTimeout(time.Duration(cfg.TracerTimeoutMs)*time.Millisecond))
 	}

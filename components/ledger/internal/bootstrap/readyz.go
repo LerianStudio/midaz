@@ -452,6 +452,12 @@ func buildReadyzHandler(
 	if redisConnection != nil {
 		checkers = append(checkers,
 			NewRedisChecker("redis", redisConnection, cfg.RedisHost, cfg.RedisTLS))
+		if tracerOutcomeRequiresDurableRedis(cfg.TracerOutcomeMode, cfg.TracerOutcomeWorkerEnabled) {
+			checkers = append(checkers, NewFinancialRedisDurabilityChecker(
+				transactionredis.NewFinancialRedisDurabilityGuard(redisConnection),
+				detectRedisTLS(cfg.RedisHost, cfg.RedisTLS),
+			))
+		}
 
 		checkers = append(checkers, NewRevertRolloutBarrierChecker(
 			transactionredis.NewRevertUpdateFreezeGuard(redisConnection, cfg.RevertRolloutTarget,

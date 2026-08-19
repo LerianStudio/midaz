@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"time"
 
+	tmcore "github.com/LerianStudio/lib-commons/v6/commons/tenant-manager/core"
 	"github.com/google/uuid"
 
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
@@ -76,6 +77,17 @@ func (handler *TransactionHandler) prepareTracerOutcome(
 	attempt *mmodel.BalanceExecutionAttempt,
 	plan *mmodel.ExpectedEconomicPlan,
 ) error {
+	if handler.MultiTenantEnabled {
+		tenantID := tmcore.GetTenantIDContext(ctx)
+		if tenantID == "" {
+			return fmt.Errorf("prepare durable tracer outcome: tenant context is required")
+		}
+		outcomeKey := utils.TransactionTracerOutcomeKey(organizationID, ledgerID, transactionID)
+		if err := handler.Command.TransactionRedisRepo.RegisterTracerOutcomeTenant(ctx, tenantID, outcomeKey); err != nil {
+			return fmt.Errorf("register durable tracer outcome tenant: %w", err)
+		}
+	}
+
 	preparedAt := time.Now().UTC()
 
 	record, err := handler.Command.TransactionRedisRepo.PrepareTracerOutcome(ctx, organizationID, ledgerID, transactionID,
@@ -103,6 +115,17 @@ func (handler *TransactionHandler) prepareTracerOutcome(
 	}
 
 	return fmt.Errorf("prepare durable tracer outcome: %w", err)
+}
+
+func (handler *TransactionHandler) admitDurableTracerOutcome(ctx context.Context) error {
+	if handler.FinancialRedisDurability == nil {
+		return fmt.Errorf("financial Redis durability guard is not configured")
+	}
+	if err := handler.FinancialRedisDurability.FinancialDurability(ctx); err != nil {
+		return fmt.Errorf("financial Redis durability: %w", err)
+	}
+
+	return nil
 }
 
 func (handler *TransactionHandler) abortPreparedTracerOutcome(

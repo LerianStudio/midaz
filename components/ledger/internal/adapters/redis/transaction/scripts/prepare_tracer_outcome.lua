@@ -11,6 +11,10 @@ if existingRaw then
        (redis.call("EXISTS", KEYS[3]) ~= 1 or redis.call("GET", KEYS[4]) ~= ARGV[1]) then
         return redis.error_reply("TRACER_OUTCOME_STALE_EXECUTOR")
     end
+    if existing.state ~= "DELIVERED" then
+        redis.call("ZADD", KEYS[7], tonumber(existing.prepared_at_unix_ms or ARGV[8]), ARGV[10])
+    end
+    redis.call("SREM", KEYS[8], ARGV[10])
     return existingRaw
 end
 
@@ -52,4 +56,6 @@ local record = {
 local encoded = cjson.encode(record)
 redis.call("SET", KEYS[5], encoded)
 redis.call("ZADD", KEYS[6], tonumber(ARGV[9]), ARGV[10])
+redis.call("ZADD", KEYS[7], tonumber(ARGV[8]), ARGV[10])
+redis.call("SREM", KEYS[8], ARGV[10])
 return encoded

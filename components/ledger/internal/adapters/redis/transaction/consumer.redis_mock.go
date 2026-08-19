@@ -325,6 +325,21 @@ func (mr *MockRedisRepositoryMockRecorder) ListDueTracerOutcomes(ctx, dueAt, lim
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListDueTracerOutcomes", reflect.TypeOf((*MockRedisRepository)(nil).ListDueTracerOutcomes), ctx, dueAt, limit)
 }
 
+// ListTracerOutcomeTenants mocks base method.
+func (m *MockRedisRepository) ListTracerOutcomeTenants(ctx context.Context) ([]TracerOutcomeTenantRegistration, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ListTracerOutcomeTenants", ctx)
+	ret0, _ := ret[0].([]TracerOutcomeTenantRegistration)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// ListTracerOutcomeTenants indicates an expected call of ListTracerOutcomeTenants.
+func (mr *MockRedisRepositoryMockRecorder) ListTracerOutcomeTenants(ctx any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListTracerOutcomeTenants", reflect.TypeOf((*MockRedisRepository)(nil).ListTracerOutcomeTenants), ctx)
+}
+
 // MGet mocks base method.
 func (m *MockRedisRepository) MGet(ctx context.Context, keys []string) (map[string]string, error) {
 	m.ctrl.T.Helper()
@@ -460,6 +475,20 @@ func (mr *MockRedisRepositoryMockRecorder) ReadTracerOutcomeByKey(ctx, key any) 
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ReadTracerOutcomeByKey", reflect.TypeOf((*MockRedisRepository)(nil).ReadTracerOutcomeByKey), ctx, key)
 }
 
+// RegisterTracerOutcomeTenant mocks base method.
+func (m *MockRedisRepository) RegisterTracerOutcomeTenant(ctx context.Context, tenantID, outcomeKey string) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "RegisterTracerOutcomeTenant", ctx, tenantID, outcomeKey)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// RegisterTracerOutcomeTenant indicates an expected call of RegisterTracerOutcomeTenant.
+func (mr *MockRedisRepositoryMockRecorder) RegisterTracerOutcomeTenant(ctx, tenantID, outcomeKey any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RegisterTracerOutcomeTenant", reflect.TypeOf((*MockRedisRepository)(nil).RegisterTracerOutcomeTenant), ctx, tenantID, outcomeKey)
+}
+
 // ReleaseOwnedKey mocks base method.
 func (m *MockRedisRepository) ReleaseOwnedKey(ctx context.Context, key, owner string) (bool, error) {
 	m.ctrl.T.Helper()
@@ -551,6 +580,20 @@ func (mr *MockRedisRepositoryMockRecorder) RemoveMessageFromQueueIfValue(ctx, ke
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RemoveMessageFromQueueIfValue", reflect.TypeOf((*MockRedisRepository)(nil).RemoveMessageFromQueueIfValue), ctx, key, expected)
 }
 
+// RemoveMissingTracerOutcome mocks base method.
+func (m *MockRedisRepository) RemoveMissingTracerOutcome(ctx context.Context, key string) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "RemoveMissingTracerOutcome", ctx, key)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// RemoveMissingTracerOutcome indicates an expected call of RemoveMissingTracerOutcome.
+func (mr *MockRedisRepositoryMockRecorder) RemoveMissingTracerOutcome(ctx, key any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RemoveMissingTracerOutcome", reflect.TypeOf((*MockRedisRepository)(nil).RemoveMissingTracerOutcome), ctx, key)
+}
+
 // RemoveTracerOutcomeSchedule mocks base method.
 func (m *MockRedisRepository) RemoveTracerOutcomeSchedule(ctx context.Context, key string) error {
 	m.ctrl.T.Helper()
@@ -577,6 +620,21 @@ func (m *MockRedisRepository) RescheduleTracerOutcome(ctx context.Context, key s
 func (mr *MockRedisRepositoryMockRecorder) RescheduleTracerOutcome(ctx, key, outcomeID, expectedState, lastError, updatedAt, nextAttemptAt any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RescheduleTracerOutcome", reflect.TypeOf((*MockRedisRepository)(nil).RescheduleTracerOutcome), ctx, key, outcomeID, expectedState, lastError, updatedAt, nextAttemptAt)
+}
+
+// RetireTracerOutcomeTenant mocks base method.
+func (m *MockRedisRepository) RetireTracerOutcomeTenant(ctx context.Context, tenantID string, observedGeneration int64) (bool, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "RetireTracerOutcomeTenant", ctx, tenantID, observedGeneration)
+	ret0, _ := ret[0].(bool)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// RetireTracerOutcomeTenant indicates an expected call of RetireTracerOutcomeTenant.
+func (mr *MockRedisRepositoryMockRecorder) RetireTracerOutcomeTenant(ctx, tenantID, observedGeneration any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RetireTracerOutcomeTenant", reflect.TypeOf((*MockRedisRepository)(nil).RetireTracerOutcomeTenant), ctx, tenantID, observedGeneration)
 }
 
 // ScheduleBalanceSyncBatch mocks base method.
@@ -648,6 +706,21 @@ func (m *MockRedisRepository) SetNX(ctx context.Context, key, value string, ttl 
 func (mr *MockRedisRepositoryMockRecorder) SetNX(ctx, key, value, ttl any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetNX", reflect.TypeOf((*MockRedisRepository)(nil).SetNX), ctx, key, value, ttl)
+}
+
+// TracerOutcomeTenantHasBacklog mocks base method.
+func (m *MockRedisRepository) TracerOutcomeTenantHasBacklog(ctx context.Context) (bool, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "TracerOutcomeTenantHasBacklog", ctx)
+	ret0, _ := ret[0].(bool)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// TracerOutcomeTenantHasBacklog indicates an expected call of TracerOutcomeTenantHasBacklog.
+func (mr *MockRedisRepositoryMockRecorder) TracerOutcomeTenantHasBacklog(ctx any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "TracerOutcomeTenantHasBacklog", reflect.TypeOf((*MockRedisRepository)(nil).TracerOutcomeTenantHasBacklog), ctx)
 }
 
 // TransactionEconomicEvidenceExists mocks base method.

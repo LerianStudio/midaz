@@ -20,3 +20,10 @@ var secBearerOrAPIKey = []map[string][]string{
 	{"BearerAuth": {}},
 	{"ApiKeyAuth": {}},
 }
+
+// secAPIKeyOnly advertises the service-to-service credential required by the
+// reservation protocol. User bearer tokens are intentionally not accepted by
+// this internal money-path seam.
+var secAPIKeyOnly = []map[string][]string{
+	{"ApiKeyAuth": {}},
+}

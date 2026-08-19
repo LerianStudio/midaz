@@ -17739,9 +17739,6 @@
         },
         "security": [
           {
-            "BearerAuth": []
-          },
-          {
             "ApiKeyAuth": []
           }
         ],
@@ -17789,9 +17786,6 @@
           }
         },
         "security": [
-          {
-            "BearerAuth": []
-          },
           {
             "ApiKeyAuth": []
           }
@@ -17872,9 +17866,6 @@
         },
         "security": [
           {
-            "BearerAuth": []
-          },
-          {
             "ApiKeyAuth": []
           }
         ],
@@ -17922,9 +17913,6 @@
           }
         },
         "security": [
-          {
-            "BearerAuth": []
-          },
           {
             "ApiKeyAuth": []
           }
@@ -17974,9 +17962,6 @@
         },
         "security": [
           {
-            "BearerAuth": []
-          },
-          {
             "ApiKeyAuth": []
           }
         ],
@@ -18024,9 +18009,6 @@
           }
         },
         "security": [
-          {
-            "BearerAuth": []
-          },
           {
             "ApiKeyAuth": []
           }

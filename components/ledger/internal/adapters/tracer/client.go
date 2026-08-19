@@ -6,9 +6,9 @@
 // two-phase reservation API (POST /v1/reservations and the per-id
 // confirm/release transitions). It offers an HTTP (REST) and a gRPC transport
 // behind the same TracerReserver port; the composition root selects one from
-// cfg.TracerTransport. Service identity is mutual TLS (Epic 1.3), so neither
-// transport carries a static shared secret; the tenant travels as a trusted
-// X-Tenant-Id header / metadata (Phase 2) over the mTLS-verified connection.
+// cfg.TracerTransport. REST uses the Tracer's X-API-Key guard in addition to
+// the mTLS/mesh transport identity; gRPC remains mTLS-authenticated. The tenant
+// travels as trusted X-Tenant-Id header / metadata over the verified seam.
 package tracer
 
 import (
@@ -48,6 +48,10 @@ const (
 	// maxErrorResponseSize limits how much of an error response body is read to
 	// prevent OOM from a misconfigured or hostile upstream.
 	maxErrorResponseSize = 1 << 20 // 1 MB
+
+	// APIKeyHeader is the Tracer REST API's application credential header.
+	// #nosec G101 -- header name, not a credential value.
+	APIKeyHeader = "X-API-Key"
 )
 
 // ErrTracerUnavailable is the typed error returned when the reservation
@@ -158,6 +162,16 @@ type TracerClient struct {
 	baseURL          string
 	httpClient       *http.Client
 	operationTimeout time.Duration
+	apiKey           string
+}
+
+// WithAPIKey configures the application credential required by the Tracer's
+// REST reservation routes. The value is kept only in memory and never logged
+// or included in transport errors.
+func WithAPIKey(apiKey string) TracerClientOption {
+	return func(c *TracerClient) {
+		c.apiKey = strings.TrimSpace(apiKey)
+	}
 }
 
 // TracerClientOption configures a TracerClient.
@@ -422,6 +436,9 @@ func (c *TracerClient) do(ctx context.Context, method, path string, body []byte)
 	if body != nil {
 		req.Header.Set("Content-Type", "application/json")
 	}
+	if c.apiKey != "" {
+		req.Header.Set(APIKeyHeader, c.apiKey)
+	}
 
 	// Propagate the W3C trace context so the tracer's otelfiber middleware
 	// continues the ledger transaction-create trace instead of starting a fresh
@@ -450,9 +467,9 @@ const TenantHeader = "X-Tenant-Id"
 var tenantMetadataKey = strings.ToLower(TenantHeader)
 
 // injectTenant propagates the request's tenant to the tracer as the trusted
-// X-Tenant-Id header. mTLS replaces token identity, so there is no Authorization
-// header; the tenant travels as the trusted header over the mTLS-verified
-// connection. The value is resolved from context via tmcore.GetTenantIDContext;
+// X-Tenant-Id header. The application API key is orthogonal to this routing
+// identity and never carries a tenant. The value is resolved from context via
+// tmcore.GetTenantIDContext;
 // in single-tenant mode it is empty and no header is set (the tracer then runs
 // its single-tenant pass-through). The tenant value is never logged.
 func (c *TracerClient) injectTenant(ctx context.Context, req *http.Request) {

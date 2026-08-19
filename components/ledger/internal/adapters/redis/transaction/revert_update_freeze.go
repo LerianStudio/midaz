@@ -223,6 +223,17 @@ type RevertUpdateFreezeGuard struct {
 	initializationWitness   RevertRolloutInitializationWitness
 }
 
+// FinancialRedisDurabilityGuard verifies the shared Redis persistence posture
+// independently of any feature rollout. Revert idempotency and Tracer Outcome
+// V2 both delegate to this one trust-boundary check.
+type FinancialRedisDurabilityGuard struct {
+	connection *libRedis.Client
+}
+
+func NewFinancialRedisDurabilityGuard(connection *libRedis.Client) *FinancialRedisDurabilityGuard {
+	return &FinancialRedisDurabilityGuard{connection: connection}
+}
+
 // RevertRolloutInitializationWitness is the deployment-scoped PostgreSQL
 // birth certificate for a Redis financial dataset. Redis can prove the exact
 // contents it still has, but it cannot distinguish first installation from
@@ -265,12 +276,20 @@ func (g *RevertUpdateFreezeGuard) WithRolloutInitializationWitness(
 // smaller RPO than the configured appendfsync policy; it only fails closed when
 // the required durability mechanism is absent or unhealthy.
 func (g *RevertUpdateFreezeGuard) FinancialDurability(ctx context.Context) error {
-	if g == nil || g.connection == nil {
+	if g == nil {
 		return fmt.Errorf("revert rollout Redis connection not configured")
+	}
+
+	return NewFinancialRedisDurabilityGuard(g.connection).FinancialDurability(ctx)
+}
+
+func (g *FinancialRedisDurabilityGuard) FinancialDurability(ctx context.Context) error {
+	if g == nil || g.connection == nil {
+		return fmt.Errorf("financial Redis connection not configured")
 	}
 	client, err := g.connection.GetClient(ctx)
 	if err != nil {
-		return fmt.Errorf("get revert rollout Redis client: %w", err)
+		return fmt.Errorf("get financial Redis client: %w", err)
 	}
 
 	if cluster, ok := client.(*redislib.ClusterClient); ok {

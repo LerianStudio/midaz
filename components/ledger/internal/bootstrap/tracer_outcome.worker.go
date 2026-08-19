@@ -15,7 +15,6 @@ import (
 	libCommons "github.com/LerianStudio/lib-commons/v6/commons"
 	libBackoff "github.com/LerianStudio/lib-commons/v6/commons/backoff"
 	tmcore "github.com/LerianStudio/lib-commons/v6/commons/tenant-manager/core"
-	"github.com/LerianStudio/lib-commons/v6/commons/tenant-manager/tenantcache"
 	libLog "github.com/LerianStudio/lib-observability/v2/log"
 	"github.com/LerianStudio/lib-observability/v2/metrics"
 	"github.com/google/uuid"
@@ -76,12 +75,16 @@ type TracerOutcomeWorker struct {
 	repo           redisTransaction.RedisRepository
 	applier        in.TracerOutcomeApplier
 	config         TracerOutcomeWorkerConfig
-	tenantCache    *tenantcache.TenantCache
+	tenantLoader   tracerOutcomeTenantLoader
 	mtEnabled      bool
 	owner          string
 	now            func() time.Time
 	backoff        func(int) time.Duration
 	metricsFactory *metrics.MetricsFactory
+}
+
+type tracerOutcomeTenantLoader interface {
+	LoadTenant(context.Context, string) (*tmcore.TenantConfig, error)
 }
 
 func (w *TracerOutcomeWorker) WithMetricsFactory(factory *metrics.MetricsFactory) *TracerOutcomeWorker {
@@ -111,17 +114,17 @@ func NewTracerOutcomeWorkerMT(
 	repo redisTransaction.RedisRepository,
 	applier in.TracerOutcomeApplier,
 	config TracerOutcomeWorkerConfig,
-	cache *tenantcache.TenantCache,
+	loader tracerOutcomeTenantLoader,
 ) *TracerOutcomeWorker {
 	w := NewTracerOutcomeWorker(logger, repo, applier, config)
 	w.mtEnabled = true
-	w.tenantCache = cache
+	w.tenantLoader = loader
 
 	return w
 }
 
 func (w *TracerOutcomeWorker) Ready() bool {
-	return w != nil && w.repo != nil && w.applier != nil && (!w.mtEnabled || w.tenantCache != nil)
+	return w != nil && w.repo != nil && w.applier != nil && (!w.mtEnabled || w.tenantLoader != nil)
 }
 
 func (w *TracerOutcomeWorker) Run(_ *libCommons.Launcher) error {
@@ -157,12 +160,35 @@ func (w *TracerOutcomeWorker) runCycle(ctx context.Context) {
 		return
 	}
 
-	for _, tenantID := range w.tenantCache.TenantIDs() {
+	registrations, err := w.repo.ListTracerOutcomeTenants(ctx)
+	if err != nil {
+		w.logFailure(ctx, "Failed to list tracer outcome tenants", err)
+		return
+	}
+
+	for _, registration := range registrations {
 		if ctx.Err() != nil {
 			return
 		}
 
-		w.runTenantCycle(tmcore.ContextWithTenantID(ctx, tenantID))
+		tenantCtx := tmcore.ContextWithTenantID(ctx, registration.TenantID)
+		if _, err := w.tenantLoader.LoadTenant(tenantCtx, registration.TenantID); err != nil {
+			w.logFailure(tenantCtx, "Failed to load tracer outcome tenant", err)
+			w.retireTenantIfEmpty(tenantCtx, registration)
+			continue
+		}
+
+		w.runTenantCycle(tenantCtx)
+		w.retireTenantIfEmpty(tenantCtx, registration)
+	}
+}
+
+func (w *TracerOutcomeWorker) retireTenantIfEmpty(
+	ctx context.Context,
+	registration redisTransaction.TracerOutcomeTenantRegistration,
+) {
+	if _, err := w.repo.RetireTracerOutcomeTenant(ctx, registration.TenantID, registration.Generation); err != nil {
+		w.logFailure(ctx, "Failed to retire empty tracer outcome tenant", err)
 	}
 }
 
@@ -203,14 +229,18 @@ func (w *TracerOutcomeWorker) dispatchOne(ctx context.Context, key string, now t
 	}
 
 	if record == nil {
-		_ = w.repo.RemoveTracerOutcomeSchedule(ctx, key)
+		if err := w.repo.RemoveMissingTracerOutcome(ctx, key); err != nil {
+			w.logFailure(ctx, "Failed to quarantine missing tracer outcome", err)
+		}
 		return
 	}
 
 	if record.State == mmodel.TracerOutcomePrepared {
 		if now.UnixMilli()-record.PreparedAtUnixMS < w.config.PreparedTimeout.Milliseconds() {
-			_ = w.repo.RescheduleTracerOutcome(ctx, key, record.OutcomeID, record.State, "",
-				now, time.UnixMilli(record.PreparedAtUnixMS).Add(w.config.PreparedTimeout))
+			if err := w.repo.RescheduleTracerOutcome(ctx, key, record.OutcomeID, record.State, "",
+				now, time.UnixMilli(record.PreparedAtUnixMS).Add(w.config.PreparedTimeout)); err != nil {
+				w.logFailure(ctx, "Failed to reschedule prepared tracer outcome", err)
+			}
 
 			return
 		}
@@ -229,10 +259,14 @@ func (w *TracerOutcomeWorker) dispatchOne(ctx context.Context, key string, now t
 
 	switch record.State {
 	case mmodel.TracerOutcomePendingHeld:
-		_ = w.repo.RemoveTracerOutcomeSchedule(ctx, key)
+		if err := w.repo.RemoveTracerOutcomeSchedule(ctx, key); err != nil {
+			w.logFailure(ctx, "Failed to remove pending-held tracer outcome schedule", err)
+		}
 		return
 	case mmodel.TracerOutcomeDelivered:
-		_ = w.repo.RemoveTracerOutcomeSchedule(ctx, key)
+		if err := w.repo.RemoveTracerOutcomeSchedule(ctx, key); err != nil {
+			w.logFailure(ctx, "Failed to remove delivered tracer outcome schedule", err)
+		}
 		return
 	case mmodel.TracerOutcomeCommitted, mmodel.TracerOutcomeAborted:
 	default:

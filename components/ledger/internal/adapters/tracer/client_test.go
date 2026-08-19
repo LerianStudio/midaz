@@ -149,20 +149,23 @@ func TestTracerClient_Reserve_TimeoutReturnsUnavailable(t *testing.T) {
 	assert.ErrorIs(t, err, ErrTracerUnavailable)
 }
 
-// TestTracerClient_Reserve_NoAuthHeader pins the mTLS identity model: the REST
-// client never sends an Authorization header (token identity was retired in
-// favour of mutual TLS), so no Bearer credential leaks onto the wire.
-func TestTracerClient_Reserve_NoAuthHeader(t *testing.T) {
-	var hadAuth bool
+// TestTracerClient_Reserve_SendsConfiguredAPIKey pins the REST seam's
+// application credential in addition to mTLS. The key is sent only in the
+// dedicated X-API-Key header; it is never reused as a Bearer token.
+func TestTracerClient_Reserve_SendsConfiguredAPIKey(t *testing.T) {
+	const apiKey = "ledger-to-tracer-secret"
+	var gotAPIKey string
+	var hadAuthorization bool
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		_, hadAuth = r.Header["Authorization"]
+		gotAPIKey = r.Header.Get(APIKeyHeader)
+		_, hadAuthorization = r.Header["Authorization"]
 
 		w.WriteHeader(http.StatusCreated)
 		_ = json.NewEncoder(w).Encode(ReserveResult{TransactionID: fixedTransactionID, ReservationIDs: []uuid.UUID{}})
 	}))
 	defer srv.Close()
 
-	client, err := NewTracerClient(srv.URL)
+	client, err := NewTracerClient(srv.URL, WithAPIKey(apiKey))
 	require.NoError(t, err)
 
 	_, err = client.Reserve(context.Background(), ReserveRequest{
@@ -173,7 +176,33 @@ func TestTracerClient_Reserve_NoAuthHeader(t *testing.T) {
 	})
 
 	require.NoError(t, err)
-	assert.False(t, hadAuth)
+	assert.Equal(t, apiKey, gotAPIKey)
+	assert.False(t, hadAuthorization)
+}
+
+func TestTracerClient_Reserve_AuthenticatedGuardRejectsThenAcceptsConfiguredKey(t *testing.T) {
+	const apiKey = "ledger-to-tracer-secret"
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Header.Get(APIKeyHeader) != apiKey {
+			w.WriteHeader(http.StatusUnauthorized)
+			return
+		}
+
+		w.WriteHeader(http.StatusCreated)
+		_ = json.NewEncoder(w).Encode(ReserveResult{TransactionID: fixedTransactionID})
+	}))
+	defer srv.Close()
+
+	unauthenticated, err := NewTracerClient(srv.URL)
+	require.NoError(t, err)
+	_, err = unauthenticated.Reserve(context.Background(), ReserveRequest{TransactionID: fixedTransactionID})
+	require.ErrorContains(t, err, "status 401")
+	require.NotContains(t, err.Error(), apiKey)
+
+	authenticated, err := NewTracerClient(srv.URL, WithAPIKey(apiKey))
+	require.NoError(t, err)
+	_, err = authenticated.Reserve(context.Background(), ReserveRequest{TransactionID: fixedTransactionID})
+	require.NoError(t, err)
 }
 
 // TestTracerClient_Reserve_SetsTenantHeader pins trusted tenant propagation on

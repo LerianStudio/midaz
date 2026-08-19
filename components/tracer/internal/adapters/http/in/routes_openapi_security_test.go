@@ -194,6 +194,7 @@ func TestSpecLock_AllOpsSecurity(t *testing.T) {
 	spec := fetchTracerSpec(t)
 
 	bearerOrAPIKey := []map[string][]string{{"BearerAuth": {}}, {"ApiKeyAuth": {}}}
+	apiKeyOnly := []map[string][]string{{"ApiKeyAuth": {}}}
 
 	cases := []struct {
 		path, method string
@@ -219,12 +220,12 @@ func TestSpecLock_AllOpsSecurity(t *testing.T) {
 		{"/limits/{id}", http.MethodDelete, bearerOrAPIKey},
 		{"/limits/{id}/usage", http.MethodGet, bearerOrAPIKey},
 		// reservations (6)
-		{"/reservations", http.MethodPost, bearerOrAPIKey},
-		{"/reservations/transaction/{transaction_id}/outcome", http.MethodPost, bearerOrAPIKey},
-		{"/reservations/{id}/confirm", http.MethodPost, bearerOrAPIKey},
-		{"/reservations/{id}/release", http.MethodPost, bearerOrAPIKey},
-		{"/reservations/transaction/{transaction_id}/confirm", http.MethodPost, bearerOrAPIKey},
-		{"/reservations/transaction/{transaction_id}/release", http.MethodPost, bearerOrAPIKey},
+		{"/reservations", http.MethodPost, apiKeyOnly},
+		{"/reservations/transaction/{transaction_id}/outcome", http.MethodPost, apiKeyOnly},
+		{"/reservations/{id}/confirm", http.MethodPost, apiKeyOnly},
+		{"/reservations/{id}/release", http.MethodPost, apiKeyOnly},
+		{"/reservations/transaction/{transaction_id}/confirm", http.MethodPost, apiKeyOnly},
+		{"/reservations/transaction/{transaction_id}/release", http.MethodPost, apiKeyOnly},
 		// validations (3): all bearer|apikey — POST's runtime guard is config-driven
 		// (cfg.APIKeyOnlyValidation, default false), so the spec advertises the union.
 		{"/validations", http.MethodPost, bearerOrAPIKey},

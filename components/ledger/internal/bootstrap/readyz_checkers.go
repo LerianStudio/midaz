@@ -187,6 +187,51 @@ type revertRolloutBarrier interface {
 	ValidateFinancialDatasetGeneration(context.Context) error
 }
 
+type financialRedisDurability interface {
+	FinancialDurability(context.Context) error
+}
+
+// FinancialRedisDurabilityChecker keeps pods out of service while a feature
+// that owns pre-PostgreSQL money-path state cannot prove no-eviction and
+// healthy AOF persistence. It is independent of the revert rollout barrier.
+type FinancialRedisDurabilityChecker struct {
+	guard      financialRedisDurability
+	tlsEnabled bool
+}
+
+func NewFinancialRedisDurabilityChecker(
+	guard financialRedisDurability,
+	tlsEnabled bool,
+) *FinancialRedisDurabilityChecker {
+	return &FinancialRedisDurabilityChecker{guard: guard, tlsEnabled: tlsEnabled}
+}
+
+func (c *FinancialRedisDurabilityChecker) Name() string {
+	return "redis_financial_durability"
+}
+
+func (c *FinancialRedisDurabilityChecker) TLSEnabled() bool {
+	return c.tlsEnabled
+}
+
+func (c *FinancialRedisDurabilityChecker) Check(ctx context.Context) DependencyCheck {
+	if c.guard == nil {
+		return DependencyCheck{Status: StatusDown, Reason: "financial Redis durability guard is not configured"}
+	}
+
+	start := time.Now()
+	err := c.guard.FinancialDurability(ctx)
+	latencyMs := time.Since(start).Milliseconds()
+	if err != nil {
+		return DependencyCheck{
+			Status: StatusDown, LatencyMs: &latencyMs,
+			Error: fmt.Sprintf("financial Redis durability: %v", err),
+		}
+	}
+
+	return DependencyCheck{Status: StatusUp, LatencyMs: &latencyMs}
+}
+
 // RevertRolloutBarrierChecker prevents bridge/final pods from receiving
 // traffic unless the shared rollout state proves the approved-update fence
 // was activated before the new revert algorithm.

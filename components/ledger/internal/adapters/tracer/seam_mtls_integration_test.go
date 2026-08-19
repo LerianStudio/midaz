@@ -61,6 +61,8 @@ import (
 	reservationv1 "github.com/LerianStudio/midaz/v4/pkg/proto/reservation/v1"
 )
 
+const seamTracerAPIKey = "seam-tracer-api-key"
+
 // The deterministic ids the reconstructed tracer returns and the ledger client
 // round-trips are the package-shared fixedTransactionID / fixedReservationID
 // (client_test.go) — fixed literals, no uuid.New / time.Now — so the assertions
@@ -121,7 +123,7 @@ func TestSeamMTLS(t *testing.T) {
 	t.Run("REST reserve->confirm succeeds over mTLS", func(t *testing.T) {
 		baseURL := startRESTSeamServer(t, serverTLS)
 
-		client, err := NewTracerClient(baseURL, WithTLSConfig(clientTLS))
+		client, err := NewTracerClient(baseURL, WithTLSConfig(clientTLS), WithAPIKey(seamTracerAPIKey))
 		require.NoError(t, err)
 
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -147,7 +149,7 @@ func TestSeamMTLS(t *testing.T) {
 	t.Run("REST reserve is rejected without a valid client cert", func(t *testing.T) {
 		baseURL := startRESTSeamServer(t, serverTLS)
 
-		client, err := NewTracerClient(baseURL, WithTLSConfig(serverOnlyTLSConfig(fixture)))
+		client, err := NewTracerClient(baseURL, WithTLSConfig(serverOnlyTLSConfig(fixture)), WithAPIKey(seamTracerAPIKey))
 		require.NoError(t, err)
 
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -216,6 +218,11 @@ func startRESTSeamServer(t *testing.T, serverTLS *tls.Config) string {
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("/v1/reservations", func(w http.ResponseWriter, r *http.Request) {
+		if r.Header.Get(APIKeyHeader) != seamTracerAPIKey {
+			w.WriteHeader(http.StatusUnauthorized)
+			return
+		}
+
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusCreated)
 		_ = json.NewEncoder(w).Encode(ReserveResult{
@@ -227,6 +234,11 @@ func startRESTSeamServer(t *testing.T, serverTLS *tls.Config) string {
 	// The per-id confirm path: any /v1/reservations/{id}/confirm returns 200,
 	// matching the tracer's idempotent confirm contract.
 	mux.HandleFunc("/v1/reservations/", func(w http.ResponseWriter, r *http.Request) {
+		if r.Header.Get(APIKeyHeader) != seamTracerAPIKey {
+			w.WriteHeader(http.StatusUnauthorized)
+			return
+		}
+
 		if strings.HasSuffix(r.URL.Path, "/confirm") || strings.HasSuffix(r.URL.Path, "/release") {
 			w.WriteHeader(http.StatusOK)
 			return
