@@ -55,15 +55,21 @@ const streamingFactRouteKey = streamingServiceName + ".facts." + streamingPrimar
 // (.env.example recommends the roster name "ledger"). lib-streaming REJECTS a
 // source that is not a single dot-free lowercase segment rather than rewriting
 // it, so a malformed value fails startup instead of silently colonizing another
-// application's topic namespace. This helper only trims the configured value and
-// returns it verbatim; streamingServiceName ("ledger") is a defense-in-depth
-// fallback for a nil or whitespace-only config value that slips past
-// LoadConfig's empty-string check, NOT the unset-env default.
+// application's topic namespace.
+//
+// Whitespace is trimmed ONLY to recognize "unset". The value returned is the RAW
+// configured one, deliberately: it is what RequireRosterSource compares, and
+// lib-streaming's ValidateSource rejects " ledger " because a space is not in the
+// ce-source charset. A helper that returned the trimmed value would wave a padded
+// source through the gate with streaming OFF and then refuse boot the day the flag
+// flips — the exact deferred failure the gate exists to pull forward.
+//
+// streamingServiceName ("ledger") is a defense-in-depth fallback for a nil or
+// whitespace-only config value that slips past LoadConfig's empty-string check,
+// NOT the unset-env default.
 func resolveStreamingSource(cfg *Config) string {
-	if cfg != nil {
-		if source := strings.TrimSpace(cfg.StreamingCloudEventsSource); source != "" {
-			return source
-		}
+	if cfg != nil && strings.TrimSpace(cfg.StreamingCloudEventsSource) != "" {
+		return cfg.StreamingCloudEventsSource
 	}
 
 	return streamingServiceName

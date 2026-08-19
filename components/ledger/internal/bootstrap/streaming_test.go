@@ -97,9 +97,12 @@ func TestResolveStreamingSource(t *testing.T) {
 			expected: "midaz-ledger-staging",
 		},
 		{
-			name:     "configured value is trimmed",
+			// Padded comes back RAW, not trimmed: the raw value is what the roster
+			// gate compares and what lib-streaming's ValidateSource rejects, so a
+			// padded source must refuse boot NOW rather than the day the flag flips.
+			name:     "padded configured value is returned raw",
 			cfg:      &Config{StreamingCloudEventsSource: "  midaz-ledger-shadow  "},
-			expected: "midaz-ledger-shadow",
+			expected: "  midaz-ledger-shadow  ",
 		},
 	}
 
@@ -296,6 +299,7 @@ func TestBuildStreamingEmitter_RefusesNonRosterSource(t *testing.T) {
 		"ledgerx",               // a PREFIXED grant would have reached this; a literal one does not
 		"lerian.midaz.ledger",   // stale pre-v3 dotted shape
 		"//lerian.midaz/ledger", // stale pre-v3 URI shape
+		" ledger ",              // roster name with padding: ValidateSource rejects the space
 	}
 
 	for _, source := range sources {
