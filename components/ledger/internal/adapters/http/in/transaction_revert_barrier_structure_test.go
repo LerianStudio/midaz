@@ -332,6 +332,25 @@ func TestRevertBarrierAcquisitionOrder(t *testing.T) {
 		"the origin barrier and reserved-reverse owner must be one atomic same-slot acquisition")
 }
 
+func TestTesthookPausesStayBetweenEconomicMutationAndTerminalHandoff(t *testing.T) {
+	t.Parallel()
+
+	source, err := os.ReadFile("transaction_create.go")
+	require.NoError(t, err)
+	calls := callsInFunction(t, source, "executeCreateTransaction")
+
+	require.Len(t, calls["ProcessBalanceOperations"], 1)
+	require.Len(t, calls["Pause"], 2)
+	require.Len(t, calls["MarkRevertClaim"], 1)
+
+	assert.Less(t, calls["ProcessBalanceOperations"][0], calls["Pause"][0],
+		"the first hook must run only after Redis/Lua reports economic success")
+	assert.Less(t, calls["Pause"][0], calls["MarkRevertClaim"][0],
+		"the first hook must run before the durable revert claim is marked MUTATED")
+	assert.Less(t, calls["MarkRevertClaim"][0], calls["Pause"][1],
+		"the second hook must run only after the durable revert claim is marked MUTATED")
+}
+
 func TestEveryProductionBalanceMutationCarriesThePersistedFinalPlan(t *testing.T) {
 	t.Parallel()
 

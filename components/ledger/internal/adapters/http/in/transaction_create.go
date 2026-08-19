@@ -29,6 +29,7 @@ import (
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/revertclaim"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/transaction"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services/command"
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/testhooks"
 	"github.com/LerianStudio/midaz/v4/components/ledger/pkg/readrouting"
 	"github.com/LerianStudio/midaz/v4/pkg"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
@@ -1625,6 +1626,11 @@ func (handler *TransactionHandler) executeCreateTransaction(ctx context.Context,
 		return nil, false, err
 	}
 
+	if err := testhooks.Pause(ctx, testhooks.PointAfterEconomicMutation,
+		testhooks.IDs{RequestID: idempotencyKey, TransactionID: transactionID.String(), OriginID: revertOriginID(params), ReverseID: revertReverseID(params, transactionID)}); err != nil {
+		return nil, false, fmt.Errorf("pause after economic mutation: %w", err)
+	}
+
 	if params.RevertExecution != nil {
 		params.RevertExecution.BalanceCommitted = true
 		if err := handler.Command.MarkRevertClaim(ctx, params.OrganizationID, params.LedgerID, params.TransactionID,
@@ -1633,6 +1639,11 @@ func (handler *TransactionHandler) executeCreateTransaction(ctx context.Context,
 			logger.Log(ctx, libLog.LevelError, "Failed to mark revert balance mutation", libLog.String("transaction_id", transactionID.String()), libLog.Err(err))
 
 			return nil, false, err
+		}
+
+		if err := testhooks.Pause(ctx, testhooks.PointAfterRevertClaimMutated,
+			testhooks.IDs{RequestID: idempotencyKey, TransactionID: transactionID.String(), OriginID: params.TransactionID.String(), ReverseID: transactionID.String()}); err != nil {
+			return nil, false, fmt.Errorf("pause after revert claim mutation: %w", err)
 		}
 	}
 

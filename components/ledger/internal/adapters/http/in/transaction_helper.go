@@ -45,6 +45,22 @@ type revertExecutionState struct {
 	BalanceCommitted   bool
 }
 
+func revertOriginID(params *transactionPathParams) string {
+	if params == nil || params.RevertExecution == nil || params.TransactionID == uuid.Nil {
+		return ""
+	}
+
+	return params.TransactionID.String()
+}
+
+func revertReverseID(params *transactionPathParams, transactionID uuid.UUID) string {
+	if params == nil || params.RevertExecution == nil {
+		return ""
+	}
+
+	return transactionID.String()
+}
+
 // readPathParams extracts organization, ledger, and (optional) transaction
 // IDs from Fiber locals populated by the UUID-parsing middleware.
 func readPathParams(c fiber.Ctx) (*transactionPathParams, error) {
