@@ -132,7 +132,7 @@ func TestCreateLimitInput_ValidLimitTypeValues(t *testing.T) {
 	}
 }
 
-func TestCreateLimitInput_CurrencyValidation(t *testing.T) {
+func TestCreateLimitInput_AssetValidation(t *testing.T) {
 	tests := []struct {
 		name    string
 		asset   string

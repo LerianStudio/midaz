@@ -507,7 +507,7 @@ func TestValidation_InvalidAsset_ReturnsError(t *testing.T) {
 			description: "Asset code with 2 characters",
 		},
 		{
-			name:        "numeric_currency",
+			name:        "numeric_asset",
 			asset:       "123",
 			description: "Numeric asset code",
 		},

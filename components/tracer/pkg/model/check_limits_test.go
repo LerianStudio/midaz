@@ -35,7 +35,7 @@ func TestNewCheckLimitsInput_Valid(t *testing.T) {
 	assert.Equal(t, accountID, input.AccountID)
 }
 
-func TestNewCheckLimitsInput_NormalizeCurrency(t *testing.T) {
+func TestNewCheckLimitsInput_NormalizeAsset(t *testing.T) {
 	t.Parallel()
 
 	accountID := testutil.MustDeterministicUUID(1)
@@ -73,7 +73,7 @@ func TestNewCheckLimitsInput_InvalidAmount(t *testing.T) {
 	}
 }
 
-func TestNewCheckLimitsInput_InvalidCurrency(t *testing.T) {
+func TestNewCheckLimitsInput_InvalidAsset(t *testing.T) {
 	t.Parallel()
 
 	accountID := testutil.MustDeterministicUUID(1)
