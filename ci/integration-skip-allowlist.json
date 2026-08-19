@@ -456,6 +456,12 @@
       "test": "TestIntegration_Chaos_Redis_WriteTimeout_GetOrCreateTransactionRouteCache",
       "reason": "Set CHAOS=1 to run chaos tests",
       "alternate_capability": "integration-chaos:CHAOS=1"
+    },
+    {
+      "package": "github.com/LerianStudio/midaz/v4/components/tracer/internal/bootstrap",
+      "test": "TestStreamingSmoke",
+      "reason": "streaming smoke skipped: no reachable broker (set STREAMING_BROKERS to activate)",
+      "alternate_capability": "required-streaming:STREAMING_BROKERS"
     }
   ]
 }

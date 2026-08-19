@@ -110,9 +110,15 @@ func TestStreamingSmoke(t *testing.T) {
 func skipIfBrokerUnreachable(ctx context.Context, t *testing.T, broker string) {
 	t.Helper()
 
+	// The skip reason must stay a single stable line: the integration shard
+	// verifier only accepts skips whose reason exactly matches the versioned
+	// allowlist entry (ci/integration-skip-allowlist.json), so no dynamic
+	// broker address or dial error may leak into it.
+	const skipReason = "streaming smoke skipped: no reachable broker (set STREAMING_BROKERS to activate)"
+
 	cl, err := kgo.NewClient(kgo.SeedBrokers(broker))
 	if err != nil {
-		t.Skipf("streaming smoke skipped: cannot build probe client for %q: %v", broker, err)
+		t.Skip(skipReason)
 	}
 
 	defer cl.Close()
@@ -121,7 +127,7 @@ func skipIfBrokerUnreachable(ctx context.Context, t *testing.T, broker string) {
 	defer cancel()
 
 	if err := cl.Ping(pingCtx); err != nil {
-		t.Skipf("streaming smoke skipped: broker %q unreachable: %v", broker, err)
+		t.Skip(skipReason)
 	}
 }
 
