@@ -540,6 +540,7 @@ func TestRewriteCurrencyToAsset_Errors(t *testing.T) {
 			}
 
 			require.NoError(t, err)
+			require.Equal(t, tt.input, out)
 			assert.NotContains(t, out, "currency")
 			assert.NotContains(t, out, "asset")
 

@@ -176,6 +176,8 @@ func TestIntegration_CELRuleMigration_Up_RollsBackOnBadRule(t *testing.T) {
 	require.Error(t, err, "recompile-all gate must abort on the undeclared reference")
 	assert.ErrorIs(t, err, constant.ErrExpressionSyntax,
 		"the bounded error must wrap the sentinel, not the raw cel-go error")
+	assert.NotContains(t, err.Error(), "undeclaredThing",
+		"the bounded error must not leak the offending CEL expression detail")
 
 	// All-or-nothing: not a single rule was mutated.
 	for id, original := range ids {
