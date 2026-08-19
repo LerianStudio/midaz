@@ -2435,7 +2435,7 @@ func TestIntegration_TransactionV2Revert_LostBalanceResponseStaysFenced(t *testi
 	assert.Equal(t, revertclaim.StateArmed, hardCrashClaim.State,
 		"a retry must not overwrite the shared phase while the original owner may still be completing persistence")
 	assert.Nil(t, hardCrashClaim.FailureReason,
-		"the HTTP 0501 response exposes reconciliation while ARMED remains the durable no-retry fence")
+		"the HTTP 0505 response exposes reconciliation while ARMED remains the durable no-retry fence")
 	assert.Equal(t, 1, countTransactionsInLedger(t, infra.pgContainer.DB, infra.ledgerID),
 		"ambiguous movement stays unpersisted and fenced until backup reconciliation")
 
@@ -3212,7 +3212,7 @@ func TestIntegration_TransactionV2Revert_ConcurrentSingleWinner(t *testing.T) {
 	//   replay  — 201 + X-Idempotency-Replayed: true. Lost the claim, then read the winner's
 	//             persisted reverse from PostgreSQL primary and echoed it. Creates nothing, moves
 	//             nothing, and MUST NOT be counted against the exactly-one-create invariant.
-	//   loser   — 4xx while the claim is active, or 503/0501 after Redis has
+	//   loser   — 4xx while the claim is active, or 503/0505 after Redis has
 	//             committed but before PostgreSQL persistence is visible.
 	//
 	// Which of the two losing shapes a racer gets is a pure timing coin-flip against the

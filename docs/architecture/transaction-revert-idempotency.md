@@ -86,10 +86,10 @@ protocol adds no multi-slot assumption.
 | `RECOVERING` | One process holds a 30-second cleanup lease for a proven pre-arm claim | Every other caller remains fenced; a crashed cleanup owner is re-electable after its lease expires |
 | `MUTATED` | Balance Lua returned success | Reconcile or finish persistence with the reserved ID |
 | `COMPLETED` | Reverse transaction and operations are durable | Return the exact persisted reverse; a losing retry cannot downgrade this terminal state |
-| `RECONCILIATION_REQUIRED` | Lua result was ambiguous or persistence failed after movement | Return error `0501`; never release the claim or Redis fences |
+| `RECONCILIATION_REQUIRED` | Lua result was ambiguous or persistence failed after movement | Return error `0505`; never release the claim or Redis fences |
 
 A competing same-origin request that observes the winner's committed outcome
-before PostgreSQL persistence returns `0501` without changing the shared claim.
+before PostgreSQL persistence returns `0505` without changing the shared claim.
 Only the process carrying the authoritative Lua result may promote
 `ARMED -> MUTATED`; otherwise a loser could poison a live winner and turn a
 correctly serialized race into zero successful reversals. If the winner really
@@ -276,7 +276,7 @@ resumes after that successor completes.
 attempt plus a missing backup/outcome may be either a crash before Lua or
 selective loss of Redis evidence after Lua moved funds. The system never
 guesses between them: it preserves the PostgreSQL claim and all surviving
-fences, returns `0501`, and requires manual reconciliation. A global dataset
+fences, returns `0505`, and requires manual reconciliation. A global dataset
 generation proves which Redis dataset is being read; it cannot prove that one
 transaction's keys were never lost.
 
@@ -368,7 +368,7 @@ compatibility cleanup never touches an outcome-backed envelope.
 | Crash after an old-compatible child is durable but before backup cleanup | Child, all operations, and completed adopted claim exist on PostgreSQL primary; legacy backup has no owner/outcome envelope | Compare reverse, parent, status, every operation ID, and require field-complete economic operation and balance bodies in one Lua command; incomplete evidence stays quarantined; only exact evidence publishes a compatibility receipt and removes the backup |
 | Crash before queue seed | `CLAIMED` names the exact origin, reverse, H1 key, owner, and current dataset generation; one atomic generation-bound read proves backup, execution attempt, and immutable outcome absent | Elect one `RECOVERING` owner, generation-check and owner-release the exact barriers, release PostgreSQL last, and retry; the stale writer cannot arm after recovery wins the primary CAS |
 | Crash after seed but before arm | A valid exact-origin queue seed exists without `balancesAfter` or immutable outcome, the claim remains `CLAIMED`, the exact execution attempt is absent, and the configured/claim/Redis generation still agrees | Elect one `RECOVERING` owner, generation-check and clear Redis barriers/seed, release PostgreSQL last, and retry; the stale writer cannot arm after recovery wins the primary CAS |
-| Crash after `ARMED` but before Lua, or loss of all per-transaction Redis keys | Primary proves the attempt crossed the durable point of no automatic return, but Redis cannot prove whether movement occurred | Preserve claim and every surviving barrier, return `0501`, and require manual reconciliation; the global dataset witness alone cannot authorize retry |
+| Crash after `ARMED` but before Lua, or loss of all per-transaction Redis keys | Primary proves the attempt crossed the durable point of no automatic return, but Redis cannot prove whether movement occurred | Preserve claim and every surviving barrier, return `0505`, and require manual reconciliation; the global dataset witness alone cannot authorize retry |
 | Pre-movement cleanup races a terminal Lua envelope | Status/owner/outcome no longer match the exact seed selected for cleanup | Atomic cleanup removes nothing; preserve all barriers and require reconciliation |
 | Crash while cleaning `RECOVERING` | PostgreSQL retains the cleanup state and timestamp | Re-elect after 30 seconds and resume idempotent cleanup; PostgreSQL remains the last record released |
 
@@ -411,7 +411,7 @@ persists `APPROVED`, and rejects cancel without a second movement. A lost
 `ABORTED` response followed by commit symmetrically persists `CANCELED` and
 rejects commit. This remains true after the five-minute request lease expires
 and while the durable consumer is delayed. If Redis outcome resolution is
-unavailable, the API returns reconciliation error `0503`; it never guesses from
+unavailable, the API returns reconciliation error `0507`; it never guesses from
 the PostgreSQL status or moves funds again.
 
 The Lua-authored backup remains the authoritative handoff after movement.
@@ -456,11 +456,11 @@ birth certificate; they never create any of them:
 
 | Value | Phase-zero readiness/revert | APPROVED updates | Bridge readiness/revert | Final readiness/revert |
 |---|---|---|---|---|
-| absent | Released old algorithm plus initialization drain lease; rollout targets rejected | Allowed only with empty target | Rejected with `0502` | Rejected with `0502` |
-| `prepared` | Allowed with target `prepared` | Allowed and durably counted | Rejected with `0502` | Rejected with `0502` |
-| `active` | Allowed | Rejected with `0008` on phase zero, bridge, and final | Allowed | Rejected with `0502` |
-| `phase-zero-drained` | Rejected with `0502` | Rejected with `0008` on bridge and final | Allowed | Allowed |
-| `finalized` | Rejected with `0502` | Allowed on final | Rejected with `0502` | Allowed |
+| absent | Released old algorithm plus initialization drain lease; rollout targets rejected | Allowed only with empty target | Rejected with `0506` | Rejected with `0506` |
+| `prepared` | Allowed with target `prepared` | Allowed and durably counted | Rejected with `0506` | Rejected with `0506` |
+| `active` | Allowed | Rejected with `0008` on phase zero, bridge, and final | Allowed | Rejected with `0506` |
+| `phase-zero-drained` | Rejected with `0506` | Rejected with `0008` on bridge and final | Allowed | Allowed |
+| `finalized` | Rejected with `0506` | Allowed on final | Rejected with `0506` | Allowed |
 
 PENDING transactions remain mutable in every state because they are not
 eligible for revert. The marker is global rather than tenant-prefixed, so every
@@ -712,7 +712,7 @@ verifiable; it is not a human assertion hidden in a runbook.
 1. Deploy with `REVERT_IDEMPOTENCY_MODE=bridge` and
    `REVERT_ROLLOUT_TARGET=active`, preserving the exact
    `REVERT_REDIS_DATASET_GENERATION`. A pod remains unready and every
-   revert returns `0502` unless the shared marker is `active` or
+   revert returns `0506` unless the shared marker is `active` or
    `phase-zero-drained`; coexistence starts in `active`.
 2. Keep the marker active while phase-zero and bridge pods coexist. Both
    generations reject APPROVED updates and serialize reverts on the legacy
@@ -790,7 +790,7 @@ claim, both replays, and Redis economic cleanup are durably complete.
 ## Rollback and migration down
 
 The current rollout is forward-only after `finalized`. A bridge binary remains
-unready and its per-request preflight returns `0502`; configuration cannot
+unready and its per-request preflight returns `0506`; configuration cannot
 reopen the v1 marker. A future rollback would require a new marker version,
 another Release 0 freeze/capability proof, and an explicit backfill of exact
 legacy fence keys for claims created by final. Without all three, downgrade
@@ -819,13 +819,13 @@ bridge/final pods. This is not a rolling rollback step.
 - Completed replay: HTTP 201 with `X-Idempotency-Replayed: true` and the original
   reserved reverse ID.
 - Active same-origin attempt: duplicate-idempotency conflict; no money movement.
-- Ambiguous or post-movement failure: HTTP 503 with stable code `0501`; the
+- Ambiguous or post-movement failure: HTTP 503 with stable code `0505`; the
   code is the revert client/operator reconciliation signal even when production
   5xx detail is redacted by the canonical error renderer.
 - Commit/cancel outcome temporarily unreadable after an ambiguous Redis
-  response: HTTP 503 with stable code `0503`; the opposite terminal remains
+  response: HTTP 503 with stable code `0507`; the opposite terminal remains
   fenced and no second movement is attempted.
-- Bridge/final rollout precondition missing: HTTP 503 with stable code `0502`;
+- Bridge/final rollout precondition missing: HTTP 503 with stable code `0506`;
   the pod is also unready, and no balance mutation is attempted.
 - APPROVED update while the freeze is active: HTTP 422 with stable code `0008`.
   PENDING updates remain available; `finalized` restores APPROVED updates.
