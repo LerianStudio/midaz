@@ -40,11 +40,14 @@ run_tests() {
     return "$test_status"
   fi
 
+  # One sentinel per selected capability: full-stack flow, streaming emission,
+  # and the ledger-driven reservation lifecycle. Later stack layers extend this
+  # list as their capabilities (and tests) land.
   required_passes=(
-    TestRequiredStackLane
+    TestFullLedgerFlow
     TestStreamingAccountCreatedEmitted
     TestStreamingHolderCreateEmitsRedacted
-    TestReserveLifecycleTransactionTupleNoDoubleHold
+    TestReserveLifecycleConfirmIdempotent
   )
   for required_test in "${required_passes[@]}"; do
     if ! grep -Eq "\"Action\":\"pass\".*\"Test\":\"$required_test\"|\"Test\":\"$required_test\".*\"Action\":\"pass\"" "$json_file"; then

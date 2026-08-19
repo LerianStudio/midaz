@@ -251,7 +251,10 @@ jobs:
           sed -i 's|^# STREAMING_BROKERS=.*|STREAMING_BROKERS=midaz-redpanda:9092|' components/ledger/.env
           sed -i 's|^# STREAMING_CLOUDEVENTS_SOURCE=.*|STREAMING_CLOUDEVENTS_SOURCE=ledger|' components/ledger/.env
           sed -i 's|^REDPANDA_EXTERNAL_PORT=.*|REDPANDA_EXTERNAL_PORT=29092|' components/infra/.env
-          scripts/configure-required-tracer-e2e-auth.sh
+          # configure-required-tracer-e2e-auth.sh activates in the Ledger-Tracer
+          # outcome layer, once the ledger gains TRACER_API_KEY support. This
+          # layer's ledger cannot present a key, so tracer API-key auth stays
+          # at its .env.example default (disabled) here.
 
       # rebuild-up (down + build + up) instead of up: plain `docker compose up`
       # reuses any image already present in the runner's Docker daemon, and
@@ -270,21 +273,12 @@ jobs:
             until curl --fail --silent http://localhost:4020/readyz >/dev/null; do sleep 2; done
           '
 
+      # The durable Tracer outcome restart and run-required-tracer-v2-e2e.sh
+      # gate activate in the Ledger-Tracer outcome layer, which introduces
+      # TRACER_OUTCOME_MODE=ledger_outcome_v2 and its E2E proof. This layer
+      # ships the reusable gate scripts only.
       - name: Run mandatory Ledger E2E lane
-        run: STREAMING_BROKERS=localhost:29092 scripts/configure-required-tracer-e2e-auth.sh --exec scripts/run-required-e2e.sh
-
-      - name: Restart Ledger in durable Tracer outcome mode
-        run: |
-          sed -i 's|^TRACER_OUTCOME_MODE=.*|TRACER_OUTCOME_MODE=ledger_outcome_v2|' components/ledger/.env
-          sed -i 's|^TRACER_OUTCOME_WORKER_ENABLED=.*|TRACER_OUTCOME_WORKER_ENABLED=true|' components/ledger/.env
-          sed -i 's|^TRACER_OUTCOME_POLL_MS=.*|TRACER_OUTCOME_POLL_MS=100|' components/ledger/.env
-          docker compose -f components/ledger/docker-compose.yml up -d --force-recreate ledger
-          scripts/run-ci-lane.sh ledger-v2-readiness 4m bash -c '
-            until curl --fail --silent http://localhost:3002/readyz >/dev/null; do sleep 2; done
-          '
-
-      - name: Run mandatory Ledger to Tracer V2 E2E gate
-        run: scripts/configure-required-tracer-e2e-auth.sh --exec scripts/run-required-tracer-v2-e2e.sh
+        run: STREAMING_BROKERS=localhost:29092 scripts/run-required-e2e.sh
 
       - name: Capture stack logs
         if: always()

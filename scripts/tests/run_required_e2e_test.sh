@@ -15,7 +15,7 @@ ln -s "$repo_root/scripts/tests/fixtures/fake-gotestsum" "$test_dir/bin/gotestsu
 PATH="$test_dir/bin:$PATH" CI_REPORT_DIR="$test_dir/pass" FAKE_SENTINEL=1 \
   E2E_REQUIRED_WALL_TIMEOUT=5s "$repo_root/scripts/run-required-e2e.sh"
 grep -q '"status":"passed"' "$test_dir/pass/ledger-e2e-timing.json"
-grep -q 'TestRequiredStackLane' "$test_dir/pass/ledger-e2e.json"
+grep -q 'TestFullLedgerFlow' "$test_dir/pass/ledger-e2e.json"
 test -s "$test_dir/pass/ledger-e2e.xml"
 
 status=0
