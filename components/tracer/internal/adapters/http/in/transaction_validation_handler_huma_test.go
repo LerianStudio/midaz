@@ -101,7 +101,7 @@ func TestHuma_GetTransactionValidation_Success(t *testing.T) {
 	tv := &model.TransactionValidation{
 		ID:              id,
 		Amount:          decimal.RequireFromString("100.00"),
-		Currency:        "USD",
+		Asset:           "USD",
 		TransactionType: model.TransactionTypeCard,
 		Account:         model.AccountContext{ID: testutil.MustDeterministicUUID(8)},
 		EvaluationResult: model.EvaluationResult{
@@ -211,7 +211,7 @@ func TestHuma_ListTransactionValidations_Success(t *testing.T) {
 	tv := &model.TransactionValidation{
 		ID:              testutil.MustDeterministicUUID(20),
 		Amount:          decimal.RequireFromString("100.00"),
-		Currency:        "USD",
+		Asset:           "USD",
 		TransactionType: model.TransactionTypeCard,
 		Account:         model.AccountContext{ID: testutil.MustDeterministicUUID(21)},
 		EvaluationResult: model.EvaluationResult{

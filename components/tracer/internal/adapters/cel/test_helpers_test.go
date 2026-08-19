@@ -65,7 +65,7 @@ func newTestRequest() *model.ValidationRequest {
 		TransactionType:      "PIX",
 		SubType:              &subType,
 		Amount:               decimal.RequireFromString("1500"),
-		Currency:             "BRL",
+		Asset:                "BRL",
 		TransactionTimestamp: testTimestamp,
 		Account: model.AccountContext{
 			ID:     testAccountID,

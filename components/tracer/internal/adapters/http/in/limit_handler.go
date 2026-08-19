@@ -234,7 +234,7 @@ func (h *LimitHandler) updateLimit(ctx context.Context, idParam string, rawBody 
 	}
 
 	// Check for immutable fields BEFORE parsing into struct
-	// This ensures we detect if limitType or currency was sent in the request
+	// This ensures we detect if limitType or asset was sent in the request
 	var rawMap map[string]any
 	if err := json.Unmarshal(rawBody, &rawMap); err == nil {
 		if _, hasLimitType := rawMap["limitType"]; hasLimitType {
@@ -242,8 +242,8 @@ func (h *LimitHandler) updateLimit(ctx context.Context, idParam string, rawBody 
 			return nil, pkg.ValidateBusinessError(constant.ErrLimitImmutableField, constant.EntityLimit)
 		}
 
-		if _, hasCurrency := rawMap["currency"]; hasCurrency {
-			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Immutable field currency in request", constant.ErrLimitImmutableField)
+		if _, hasCurrency := rawMap["asset"]; hasCurrency {
+			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Immutable field asset in request", constant.ErrLimitImmutableField)
 			return nil, pkg.ValidateBusinessError(constant.ErrLimitImmutableField, constant.EntityLimit)
 		}
 	}
@@ -531,7 +531,7 @@ func classifyLimitServiceError(span trace.Span, err error) error {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Invalid max amount", err)
 		return pkg.ValidateBusinessError(constant.ErrLimitInvalidMaxAmount, constant.EntityLimit)
 	case errors.Is(err, constant.ErrLimitInvalidCurrency):
-		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Invalid currency", err)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Invalid asset", err)
 		return pkg.ValidateBusinessError(constant.ErrLimitInvalidCurrency, constant.EntityLimit)
 	case errors.Is(err, constant.ErrLimitInvalidScope):
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Invalid scope", err)

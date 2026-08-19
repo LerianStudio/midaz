@@ -164,7 +164,7 @@ func (s *LimitCheckerService) checkLimitsInternal(
 		return nil, err
 	}
 
-	// Get applicable limits (active limits matching currency and scopes)
+	// Get applicable limits (active limits matching asset and scopes)
 	limits, err := s.getApplicableLimits(ctx, input)
 	if err != nil {
 		libOtel.HandleSpanError(span, "Failed to get applicable limits", err)
@@ -177,7 +177,7 @@ func (s *LimitCheckerService) checkLimitsInternal(
 	if len(limits) == 0 {
 		logger.With(
 			libLog.String("operation", operationName),
-			libLog.String("currency", input.Currency),
+			libLog.String("asset", input.Asset),
 		).Log(ctx, libLog.LevelDebug, "No active limits found for criteria")
 
 		output := model.NewCheckLimitsOutput(true, serverNow)
@@ -477,7 +477,7 @@ func (s *LimitCheckerService) processLimitAtomic(
 	return detail, false, nil
 }
 
-// getApplicableLimits fetches active limits matching currency and scopes.
+// getApplicableLimits fetches active limits matching asset and scopes.
 // Handles pagination to retrieve all matching limits beyond MaxPaginationLimit.
 func (s *LimitCheckerService) getApplicableLimits(ctx context.Context, input *model.CheckLimitsInput) ([]model.Limit, error) {
 	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
@@ -487,10 +487,10 @@ func (s *LimitCheckerService) getApplicableLimits(ctx context.Context, input *mo
 
 	logger = logging.WithTrace(ctx, logger)
 
-	// Fetch active limits matching currency (filtered at DB level)
+	// Fetch active limits matching asset (filtered at DB level)
 	// Use pagination loop to handle cases where more limits exist than MaxPaginationLimit
 	status := model.LimitStatusActive
-	currency := input.Currency
+	asset := input.Asset
 
 	var allLimits []model.Limit
 
@@ -498,10 +498,10 @@ func (s *LimitCheckerService) getApplicableLimits(ctx context.Context, input *mo
 
 	for {
 		filter := &model.ListLimitsFilter{
-			Status:   &status,
-			Currency: &currency,
-			Limit:    trcConstant.MaxPaginationLimit,
-			Cursor:   cursor,
+			Status: &status,
+			Asset:  &asset,
+			Limit:  trcConstant.MaxPaginationLimit,
+			Cursor: cursor,
 		}
 
 		result, err := s.limitRepo.List(ctx, filter)
@@ -537,9 +537,9 @@ func (s *LimitCheckerService) getApplicableLimits(ctx context.Context, input *mo
 
 	logger.With(
 		libLog.String("operation", "service.limit_checker.get_applicable_limits"),
-		libLog.Int("limits_for_currency", len(allLimits)),
+		libLog.Int("limits_for_asset", len(allLimits)),
 		libLog.Int("applicable_limits", len(applicable)),
-		libLog.String("currency", input.Currency),
+		libLog.String("asset", input.Asset),
 	).Log(ctx, libLog.LevelDebug, "Filtered applicable limits")
 
 	return applicable, nil

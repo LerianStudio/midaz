@@ -26,7 +26,7 @@ func TestValidateMetadata(t *testing.T) {
 			RequestID:            testutil.MustDeterministicUUID(1),
 			TransactionType:      TransactionTypeCard,
 			Amount:               decimal.RequireFromString("10"),
-			Currency:             "USD",
+			Asset:                "USD",
 			TransactionTimestamp: testutil.FixedTime(),
 			Account: AccountContext{
 				ID: testutil.MustDeterministicUUID(2),
@@ -233,7 +233,7 @@ func TestValidateOptionalFields_AccountType(t *testing.T) {
 			RequestID:            testutil.MustDeterministicUUID(10),
 			TransactionType:      TransactionTypeCard,
 			Amount:               decimal.RequireFromString("10"),
-			Currency:             "USD",
+			Asset:                "USD",
 			TransactionTimestamp: testutil.FixedTime(),
 			Account: AccountContext{
 				ID: testutil.MustDeterministicUUID(11),
@@ -300,7 +300,7 @@ func TestValidateOptionalFields_AccountStatus(t *testing.T) {
 			RequestID:            testutil.MustDeterministicUUID(10),
 			TransactionType:      TransactionTypeCard,
 			Amount:               decimal.RequireFromString("10"),
-			Currency:             "USD",
+			Asset:                "USD",
 			TransactionTimestamp: testutil.FixedTime(),
 			Account: AccountContext{
 				ID: testutil.MustDeterministicUUID(11),
@@ -367,7 +367,7 @@ func TestValidateOptionalFields_SubType(t *testing.T) {
 			RequestID:            testutil.MustDeterministicUUID(10),
 			TransactionType:      TransactionTypeCard,
 			Amount:               decimal.RequireFromString("10"),
-			Currency:             "USD",
+			Asset:                "USD",
 			TransactionTimestamp: testutil.FixedTime(),
 			Account: AccountContext{
 				ID: testutil.MustDeterministicUUID(11),

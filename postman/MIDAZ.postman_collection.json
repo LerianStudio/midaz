@@ -47038,7 +47038,7 @@
                 }
               ],
               "cookie": [],
-              "body": "{\n  \"activeTimeEnd\": \"17:00\",\n  \"activeTimeStart\": \"09:00\",\n  \"createdAt\": \"2021-01-01T00:00:00Z\",\n  \"currency\": \"USD\",\n  \"customEndDate\": \"2021-12-31T23:59:59Z\",\n  \"customStartDate\": \"2021-01-01T00:00:00Z\",\n  \"deletedAt\": \"2021-01-01T00:00:00Z\",\n  \"description\": \"Caps daily USD outflows for retail accounts\",\n  \"limitId\": \"00000000-0000-0000-0000-000000000000\",\n  \"limitType\": \"DAILY\",\n  \"maxAmount\": \"1000.00\",\n  \"name\": \"Daily USD spending cap\",\n  \"resetAt\": \"2021-01-02T00:00:00Z\",\n  \"scopes\": null,\n  \"status\": \"ACTIVE\",\n  \"updatedAt\": \"2021-01-01T00:00:00Z\"\n}"
+              "body": "{\n  \"activeTimeEnd\": \"17:00\",\n  \"activeTimeStart\": \"09:00\",\n  \"asset\": \"USD\",\n  \"createdAt\": \"2021-01-01T00:00:00Z\",\n  \"customEndDate\": \"2021-12-31T23:59:59Z\",\n  \"customStartDate\": \"2021-01-01T00:00:00Z\",\n  \"deletedAt\": \"2021-01-01T00:00:00Z\",\n  \"description\": \"Caps daily USD outflows for retail accounts\",\n  \"limitId\": \"00000000-0000-0000-0000-000000000000\",\n  \"limitType\": \"DAILY\",\n  \"maxAmount\": \"1000.00\",\n  \"name\": \"Daily USD spending cap\",\n  \"resetAt\": \"2021-01-02T00:00:00Z\",\n  \"scopes\": null,\n  \"status\": \"ACTIVE\",\n  \"updatedAt\": \"2021-01-01T00:00:00Z\"\n}"
             }
           ],
           "event": [
@@ -47304,7 +47304,7 @@
                 }
               ],
               "cookie": [],
-              "body": "{\n  \"activeTimeEnd\": \"17:00\",\n  \"activeTimeStart\": \"09:00\",\n  \"createdAt\": \"2021-01-01T00:00:00Z\",\n  \"currency\": \"USD\",\n  \"customEndDate\": \"2021-12-31T23:59:59Z\",\n  \"customStartDate\": \"2021-01-01T00:00:00Z\",\n  \"deletedAt\": \"2021-01-01T00:00:00Z\",\n  \"description\": \"Caps daily USD outflows for retail accounts\",\n  \"limitId\": \"00000000-0000-0000-0000-000000000000\",\n  \"limitType\": \"DAILY\",\n  \"maxAmount\": \"1000.00\",\n  \"name\": \"Daily USD spending cap\",\n  \"resetAt\": \"2021-01-02T00:00:00Z\",\n  \"scopes\": null,\n  \"status\": \"ACTIVE\",\n  \"updatedAt\": \"2021-01-01T00:00:00Z\"\n}"
+              "body": "{\n  \"activeTimeEnd\": \"17:00\",\n  \"activeTimeStart\": \"09:00\",\n  \"asset\": \"USD\",\n  \"createdAt\": \"2021-01-01T00:00:00Z\",\n  \"customEndDate\": \"2021-12-31T23:59:59Z\",\n  \"customStartDate\": \"2021-01-01T00:00:00Z\",\n  \"deletedAt\": \"2021-01-01T00:00:00Z\",\n  \"description\": \"Caps daily USD outflows for retail accounts\",\n  \"limitId\": \"00000000-0000-0000-0000-000000000000\",\n  \"limitType\": \"DAILY\",\n  \"maxAmount\": \"1000.00\",\n  \"name\": \"Daily USD spending cap\",\n  \"resetAt\": \"2021-01-02T00:00:00Z\",\n  \"scopes\": null,\n  \"status\": \"ACTIVE\",\n  \"updatedAt\": \"2021-01-01T00:00:00Z\"\n}"
             }
           ],
           "event": [
@@ -47480,7 +47480,7 @@
                 }
               ],
               "cookie": [],
-              "body": "{\n  \"activeTimeEnd\": \"17:00\",\n  \"activeTimeStart\": \"09:00\",\n  \"createdAt\": \"2021-01-01T00:00:00Z\",\n  \"currency\": \"USD\",\n  \"customEndDate\": \"2021-12-31T23:59:59Z\",\n  \"customStartDate\": \"2021-01-01T00:00:00Z\",\n  \"deletedAt\": \"2021-01-01T00:00:00Z\",\n  \"description\": \"Caps daily USD outflows for retail accounts\",\n  \"limitId\": \"00000000-0000-0000-0000-000000000000\",\n  \"limitType\": \"DAILY\",\n  \"maxAmount\": \"1000.00\",\n  \"name\": \"Daily USD spending cap\",\n  \"resetAt\": \"2021-01-02T00:00:00Z\",\n  \"scopes\": null,\n  \"status\": \"ACTIVE\",\n  \"updatedAt\": \"2021-01-01T00:00:00Z\"\n}"
+              "body": "{\n  \"activeTimeEnd\": \"17:00\",\n  \"activeTimeStart\": \"09:00\",\n  \"asset\": \"USD\",\n  \"createdAt\": \"2021-01-01T00:00:00Z\",\n  \"customEndDate\": \"2021-12-31T23:59:59Z\",\n  \"customStartDate\": \"2021-01-01T00:00:00Z\",\n  \"deletedAt\": \"2021-01-01T00:00:00Z\",\n  \"description\": \"Caps daily USD outflows for retail accounts\",\n  \"limitId\": \"00000000-0000-0000-0000-000000000000\",\n  \"limitType\": \"DAILY\",\n  \"maxAmount\": \"1000.00\",\n  \"name\": \"Daily USD spending cap\",\n  \"resetAt\": \"2021-01-02T00:00:00Z\",\n  \"scopes\": null,\n  \"status\": \"ACTIVE\",\n  \"updatedAt\": \"2021-01-01T00:00:00Z\"\n}"
             }
           ],
           "event": [
@@ -47640,7 +47640,7 @@
                 }
               ],
               "cookie": [],
-              "body": "{\n  \"activeTimeEnd\": \"17:00\",\n  \"activeTimeStart\": \"09:00\",\n  \"createdAt\": \"2021-01-01T00:00:00Z\",\n  \"currency\": \"USD\",\n  \"customEndDate\": \"2021-12-31T23:59:59Z\",\n  \"customStartDate\": \"2021-01-01T00:00:00Z\",\n  \"deletedAt\": \"2021-01-01T00:00:00Z\",\n  \"description\": \"Caps daily USD outflows for retail accounts\",\n  \"limitId\": \"00000000-0000-0000-0000-000000000000\",\n  \"limitType\": \"DAILY\",\n  \"maxAmount\": \"1000.00\",\n  \"name\": \"Daily USD spending cap\",\n  \"resetAt\": \"2021-01-02T00:00:00Z\",\n  \"scopes\": null,\n  \"status\": \"ACTIVE\",\n  \"updatedAt\": \"2021-01-01T00:00:00Z\"\n}"
+              "body": "{\n  \"activeTimeEnd\": \"17:00\",\n  \"activeTimeStart\": \"09:00\",\n  \"asset\": \"USD\",\n  \"createdAt\": \"2021-01-01T00:00:00Z\",\n  \"customEndDate\": \"2021-12-31T23:59:59Z\",\n  \"customStartDate\": \"2021-01-01T00:00:00Z\",\n  \"deletedAt\": \"2021-01-01T00:00:00Z\",\n  \"description\": \"Caps daily USD outflows for retail accounts\",\n  \"limitId\": \"00000000-0000-0000-0000-000000000000\",\n  \"limitType\": \"DAILY\",\n  \"maxAmount\": \"1000.00\",\n  \"name\": \"Daily USD spending cap\",\n  \"resetAt\": \"2021-01-02T00:00:00Z\",\n  \"scopes\": null,\n  \"status\": \"ACTIVE\",\n  \"updatedAt\": \"2021-01-01T00:00:00Z\"\n}"
             }
           ],
           "event": [
@@ -47800,7 +47800,7 @@
                 }
               ],
               "cookie": [],
-              "body": "{\n  \"activeTimeEnd\": \"17:00\",\n  \"activeTimeStart\": \"09:00\",\n  \"createdAt\": \"2021-01-01T00:00:00Z\",\n  \"currency\": \"USD\",\n  \"customEndDate\": \"2021-12-31T23:59:59Z\",\n  \"customStartDate\": \"2021-01-01T00:00:00Z\",\n  \"deletedAt\": \"2021-01-01T00:00:00Z\",\n  \"description\": \"Caps daily USD outflows for retail accounts\",\n  \"limitId\": \"00000000-0000-0000-0000-000000000000\",\n  \"limitType\": \"DAILY\",\n  \"maxAmount\": \"1000.00\",\n  \"name\": \"Daily USD spending cap\",\n  \"resetAt\": \"2021-01-02T00:00:00Z\",\n  \"scopes\": null,\n  \"status\": \"ACTIVE\",\n  \"updatedAt\": \"2021-01-01T00:00:00Z\"\n}"
+              "body": "{\n  \"activeTimeEnd\": \"17:00\",\n  \"activeTimeStart\": \"09:00\",\n  \"asset\": \"USD\",\n  \"createdAt\": \"2021-01-01T00:00:00Z\",\n  \"customEndDate\": \"2021-12-31T23:59:59Z\",\n  \"customStartDate\": \"2021-01-01T00:00:00Z\",\n  \"deletedAt\": \"2021-01-01T00:00:00Z\",\n  \"description\": \"Caps daily USD outflows for retail accounts\",\n  \"limitId\": \"00000000-0000-0000-0000-000000000000\",\n  \"limitType\": \"DAILY\",\n  \"maxAmount\": \"1000.00\",\n  \"name\": \"Daily USD spending cap\",\n  \"resetAt\": \"2021-01-02T00:00:00Z\",\n  \"scopes\": null,\n  \"status\": \"ACTIVE\",\n  \"updatedAt\": \"2021-01-01T00:00:00Z\"\n}"
             }
           ],
           "event": [
@@ -47960,7 +47960,7 @@
                 }
               ],
               "cookie": [],
-              "body": "{\n  \"activeTimeEnd\": \"17:00\",\n  \"activeTimeStart\": \"09:00\",\n  \"createdAt\": \"2021-01-01T00:00:00Z\",\n  \"currency\": \"USD\",\n  \"customEndDate\": \"2021-12-31T23:59:59Z\",\n  \"customStartDate\": \"2021-01-01T00:00:00Z\",\n  \"deletedAt\": \"2021-01-01T00:00:00Z\",\n  \"description\": \"Caps daily USD outflows for retail accounts\",\n  \"limitId\": \"00000000-0000-0000-0000-000000000000\",\n  \"limitType\": \"DAILY\",\n  \"maxAmount\": \"1000.00\",\n  \"name\": \"Daily USD spending cap\",\n  \"resetAt\": \"2021-01-02T00:00:00Z\",\n  \"scopes\": null,\n  \"status\": \"ACTIVE\",\n  \"updatedAt\": \"2021-01-01T00:00:00Z\"\n}"
+              "body": "{\n  \"activeTimeEnd\": \"17:00\",\n  \"activeTimeStart\": \"09:00\",\n  \"asset\": \"USD\",\n  \"createdAt\": \"2021-01-01T00:00:00Z\",\n  \"customEndDate\": \"2021-12-31T23:59:59Z\",\n  \"customStartDate\": \"2021-01-01T00:00:00Z\",\n  \"deletedAt\": \"2021-01-01T00:00:00Z\",\n  \"description\": \"Caps daily USD outflows for retail accounts\",\n  \"limitId\": \"00000000-0000-0000-0000-000000000000\",\n  \"limitType\": \"DAILY\",\n  \"maxAmount\": \"1000.00\",\n  \"name\": \"Daily USD spending cap\",\n  \"resetAt\": \"2021-01-02T00:00:00Z\",\n  \"scopes\": null,\n  \"status\": \"ACTIVE\",\n  \"updatedAt\": \"2021-01-01T00:00:00Z\"\n}"
             }
           ],
           "event": [
@@ -50946,7 +50946,7 @@
                 }
               ],
               "cookie": [],
-              "body": "{\n  \"account\": {\n    \"accountId\": \"00000000-0000-0000-0000-000000000000\",\n    \"metadata\": {\n      \"key\": \"value\"\n    },\n    \"status\": \"active\",\n    \"type\": \"checking\"\n  },\n  \"amount\": \"100.00\",\n  \"createdAt\": \"2021-01-01T00:00:00Z\",\n  \"currency\": \"USD\",\n  \"decision\": \"ALLOW\",\n  \"evaluatedRuleIds\": null,\n  \"limitUsageDetails\": null,\n  \"matchedRuleIds\": null,\n  \"merchant\": {\n    \"category\": \"5411\",\n    \"country\": \"US\",\n    \"merchantId\": \"00000000-0000-0000-0000-000000000000\",\n    \"metadata\": {\n      \"key\": \"value\"\n    },\n    \"name\": \"Acme Store\"\n  },\n  \"metadata\": {\n    \"key\": \"value\"\n  },\n  \"portfolio\": {\n    \"metadata\": {\n      \"key\": \"value\"\n    },\n    \"name\": \"growth\",\n    \"portfolioId\": \"00000000-0000-0000-0000-000000000000\"\n  },\n  \"processingTimeMs\": 12.5,\n  \"reason\": \"Transaction denied by rule 'Block high-value checking transactions'\",\n  \"requestId\": \"00000000-0000-0000-0000-000000000000\",\n  \"segment\": {\n    \"metadata\": {\n      \"key\": \"value\"\n    },\n    \"name\": \"retail\",\n    \"segmentId\": \"00000000-0000-0000-0000-000000000000\"\n  },\n  \"subType\": \"purchase\",\n  \"totalRulesLoaded\": 42,\n  \"transactionTimestamp\": \"2021-01-01T00:00:00Z\",\n  \"transactionType\": \"CARD\",\n  \"truncated\": false,\n  \"validationId\": \"00000000-0000-0000-0000-000000000000\"\n}"
+              "body": "{\n  \"account\": {\n    \"accountId\": \"00000000-0000-0000-0000-000000000000\",\n    \"metadata\": {\n      \"key\": \"value\"\n    },\n    \"status\": \"active\",\n    \"type\": \"checking\"\n  },\n  \"amount\": \"100.00\",\n  \"asset\": \"USD\",\n  \"createdAt\": \"2021-01-01T00:00:00Z\",\n  \"decision\": \"ALLOW\",\n  \"evaluatedRuleIds\": null,\n  \"limitUsageDetails\": null,\n  \"matchedRuleIds\": null,\n  \"merchant\": {\n    \"category\": \"5411\",\n    \"country\": \"US\",\n    \"merchantId\": \"00000000-0000-0000-0000-000000000000\",\n    \"metadata\": {\n      \"key\": \"value\"\n    },\n    \"name\": \"Acme Store\"\n  },\n  \"metadata\": {\n    \"key\": \"value\"\n  },\n  \"portfolio\": {\n    \"metadata\": {\n      \"key\": \"value\"\n    },\n    \"name\": \"growth\",\n    \"portfolioId\": \"00000000-0000-0000-0000-000000000000\"\n  },\n  \"processingTimeMs\": 12.5,\n  \"reason\": \"Transaction denied by rule 'Block high-value checking transactions'\",\n  \"requestId\": \"00000000-0000-0000-0000-000000000000\",\n  \"segment\": {\n    \"metadata\": {\n      \"key\": \"value\"\n    },\n    \"name\": \"retail\",\n    \"segmentId\": \"00000000-0000-0000-0000-000000000000\"\n  },\n  \"subType\": \"purchase\",\n  \"totalRulesLoaded\": 42,\n  \"transactionTimestamp\": \"2021-01-01T00:00:00Z\",\n  \"transactionType\": \"CARD\",\n  \"truncated\": false,\n  \"validationId\": \"00000000-0000-0000-0000-000000000000\"\n}"
             }
           ],
           "event": [

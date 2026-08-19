@@ -253,7 +253,7 @@ func TestAuditEventRecording_CreateLimit(t *testing.T) {
 	require.NoError(t, err)
 	_, err = cmd.Execute(context.Background(), &CreateLimitInput{
 		Name: "Test", LimitType: model.LimitTypeDaily, MaxAmount: decimal.RequireFromString("1000"),
-		Currency: "BRL", Scopes: []model.Scope{{AccountID: testutil.UUIDPtr(testutil.MustDeterministicUUID(50))}},
+		Asset: "BRL", Scopes: []model.Scope{{AccountID: testutil.UUIDPtr(testutil.MustDeterministicUUID(50))}},
 	})
 	require.NoError(t, err)
 }
@@ -424,7 +424,7 @@ func TestAuditEventRecording_ValidationEvent(t *testing.T) {
 		"requestId":       testutil.MustDeterministicUUID(102).String(),
 		"transactionType": "PIX",
 		"amount":          decimal.RequireFromString("100"),
-		"currency":        "BRL",
+		"asset":           "BRL",
 		"timestamp":       testutil.FixedTime(),
 		"account": map[string]any{
 			"id":       accountID.String(),
@@ -485,7 +485,7 @@ func TestAuditEventRecording_ValidationEvent(t *testing.T) {
 	assert.Equal(t, request["requestId"], capturedRequest["requestId"], "requestId must be in snapshot")
 	assert.Equal(t, "PIX", capturedRequest["transactionType"], "transaction type must be in snapshot")
 	assert.Equal(t, decimal.RequireFromString("100"), capturedRequest["amount"], "amount must be in snapshot")
-	assert.Equal(t, "BRL", capturedRequest["currency"], "currency must be in snapshot")
+	assert.Equal(t, "BRL", capturedRequest["asset"], "asset must be in snapshot")
 	assert.NotNil(t, capturedRequest["account"], "account must be in snapshot")
 
 	assert.Equal(t, model.DecisionAllow, capturedEvalResult.Decision, "decision must match")

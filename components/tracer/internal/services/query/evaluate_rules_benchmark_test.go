@@ -308,7 +308,7 @@ func setupBenchmarkData(count int, action model.Decision) ([]*model.Rule, *model
 		RequestID:       testutil.MustDeterministicUUID(benchmarkRequestIDSeed),
 		TransactionType: model.TransactionTypeCard,
 		Amount:          decimal.RequireFromString("50"),
-		Currency:        "USD",
+		Asset:           "USD",
 		Account:         model.AccountContext{ID: testutil.MustDeterministicUUID(benchmarkAccountIDSeed), Type: "checking"},
 	}
 

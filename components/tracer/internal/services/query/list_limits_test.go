@@ -47,7 +47,7 @@ func TestListLimitsQuery_Execute(t *testing.T) {
 			Name:      name,
 			LimitType: limitType,
 			MaxAmount: decimal.RequireFromString("1000"),
-			Currency:  "USD",
+			Asset:     "USD",
 			Scopes:    []model.Scope{{AccountID: testutil.UUIDPtr(testutil.MustDeterministicUUID(2))}},
 			Status:    status,
 			CreatedAt: now,

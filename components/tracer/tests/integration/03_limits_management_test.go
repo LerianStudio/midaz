@@ -32,7 +32,7 @@ type createLimitRequest struct {
 	Description     *string           `json:"description,omitempty"`
 	LimitType       string            `json:"limitType"`
 	MaxAmount       decimal.Decimal   `json:"maxAmount"`
-	Currency        string            `json:"currency"`
+	Asset           string            `json:"asset"`
 	Scopes          []limitScopeInput `json:"scopes"`
 	CustomStartDate *string           `json:"customStartDate,omitempty"`
 	CustomEndDate   *string           `json:"customEndDate,omitempty"`
@@ -69,7 +69,7 @@ type limitResponse struct {
 	Description *string              `json:"description,omitempty"`
 	LimitType   string               `json:"limitType"`
 	MaxAmount   decimal.Decimal      `json:"maxAmount"`
-	Currency    string               `json:"currency"`
+	Asset       string               `json:"asset"`
 	Scopes      []limitScopeResponse `json:"scopes"`
 	Status      string               `json:"status"`
 	ResetAt     *string              `json:"resetAt,omitempty"`
@@ -290,7 +290,7 @@ func TestLimits_CreateLimit_ValidationError_NameTooLong(t *testing.T) {
 		Name:      longName,
 		LimitType: "DAILY",
 		MaxAmount: decimal.RequireFromString("1000"),
-		Currency:  "USD",
+		Asset:     "USD",
 		Scopes:    []limitScopeInput{{TransactionType: testutil.Ptr("CARD")}},
 	}
 
@@ -320,7 +320,7 @@ func TestLimits_CreateLimit_ValidationError_DescriptionTooLong(t *testing.T) {
 		Description: &longDesc,
 		LimitType:   "DAILY",
 		MaxAmount:   decimal.RequireFromString("1000"),
-		Currency:    "USD",
+		Asset:       "USD",
 		Scopes:      []limitScopeInput{{TransactionType: testutil.Ptr("CARD")}},
 	}
 
@@ -344,10 +344,10 @@ func TestLimits_CreateLimit_ValidationError_InvalidCurrency(t *testing.T) {
 	baseURL := testutil.GetBaseURL()
 
 	reqBody := createLimitRequest{
-		Name:      "Invalid Currency Limit",
+		Name:      "Invalid Asset Limit",
 		LimitType: "DAILY",
 		MaxAmount: decimal.RequireFromString("1000"),
-		Currency:  "INVALID", // Not ISO 4217
+		Asset:     "INVALID", // Not ISO 4217
 		Scopes:    []limitScopeInput{{TransactionType: testutil.Ptr("CARD")}},
 	}
 
@@ -363,7 +363,7 @@ func TestLimits_CreateLimit_ValidationError_InvalidCurrency(t *testing.T) {
 	require.NoError(t, err)
 	defer resp.Body.Close()
 
-	assert.Equal(t, http.StatusBadRequest, resp.StatusCode, "Invalid currency should return 400")
+	assert.Equal(t, http.StatusBadRequest, resp.StatusCode, "Invalid asset should return 400")
 }
 
 func TestLimits_CreateLimit_ValidationError_NegativeMaxAmount(t *testing.T) {
@@ -374,7 +374,7 @@ func TestLimits_CreateLimit_ValidationError_NegativeMaxAmount(t *testing.T) {
 		Name:      "Negative Amount Limit",
 		LimitType: "DAILY",
 		MaxAmount: decimal.RequireFromString("-1"),
-		Currency:  "USD",
+		Asset:     "USD",
 		Scopes:    []limitScopeInput{{TransactionType: testutil.Ptr("CARD")}},
 	}
 
@@ -663,7 +663,7 @@ func TestLimits_CreateLimit_Success(t *testing.T) {
 		Description: &description,
 		LimitType:   "DAILY",
 		MaxAmount:   decimal.RequireFromString("1000"),
-		Currency:    "USD",
+		Asset:       "USD",
 		Scopes: []limitScopeInput{
 			{TransactionType: testutil.Ptr("CARD")},
 		},
@@ -694,7 +694,7 @@ func TestLimits_CreateLimit_Success(t *testing.T) {
 	assert.Equal(t, uniqueName, limit.Name)
 	assert.Equal(t, "DAILY", limit.LimitType)
 	assert.True(t, limit.MaxAmount.Equal(decimal.RequireFromString("1000")))
-	assert.Equal(t, "USD", limit.Currency)
+	assert.Equal(t, "USD", limit.Asset)
 	assert.Equal(t, "DRAFT", limit.Status, "Newly created limits should be DRAFT")
 	assert.NotEmpty(t, limit.CreatedAt)
 	assert.Nil(t, limit.DeletedAt)
@@ -712,7 +712,7 @@ func TestLimits_CreateLimit_ValidationError_MissingName(t *testing.T) {
 		Name:      "", // Empty name should fail validation
 		LimitType: "DAILY",
 		MaxAmount: decimal.RequireFromString("1000"),
-		Currency:  "USD",
+		Asset:     "USD",
 		Scopes: []limitScopeInput{
 			{TransactionType: testutil.Ptr("CARD")},
 		},
@@ -741,7 +741,7 @@ func TestLimits_CreateLimit_ValidationError_InvalidLimitType(t *testing.T) {
 		Name:      "Invalid Type Limit",
 		LimitType: "INVALID_TYPE",
 		MaxAmount: decimal.RequireFromString("1000"),
-		Currency:  "USD",
+		Asset:     "USD",
 		Scopes: []limitScopeInput{
 			{TransactionType: testutil.Ptr("CARD")},
 		},
@@ -770,7 +770,7 @@ func TestLimits_CreateLimit_ValidationError_EmptyScopes(t *testing.T) {
 		Name:      "Empty Scopes Limit",
 		LimitType: "DAILY",
 		MaxAmount: decimal.RequireFromString("1000"),
-		Currency:  "USD",
+		Asset:     "USD",
 		Scopes:    []limitScopeInput{}, // Empty scopes should fail
 	}
 
@@ -953,7 +953,7 @@ func TestLimits_ListLimits_FilterByWeeklyType(t *testing.T) {
 		Name:      uniqueName,
 		LimitType: "WEEKLY",
 		MaxAmount: decimal.RequireFromString("5000"),
-		Currency:  "USD",
+		Asset:     "USD",
 		Scopes: []limitScopeInput{
 			{TransactionType: testutil.Ptr("CARD")},
 		},
@@ -1031,7 +1031,7 @@ func TestLimits_ListLimits_FilterByCustomType(t *testing.T) {
 		Name:            uniqueName,
 		LimitType:       "CUSTOM",
 		MaxAmount:       decimal.RequireFromString("10000"),
-		Currency:        "USD",
+		Asset:           "USD",
 		CustomStartDate: &customStart,
 		CustomEndDate:   &customEnd,
 		Scopes: []limitScopeInput{
@@ -1509,7 +1509,7 @@ func TestLimits_FullLifecycle(t *testing.T) {
 		Description: &description,
 		LimitType:   "DAILY",
 		MaxAmount:   decimal.RequireFromString("1000"),
-		Currency:    "USD",
+		Asset:       "USD",
 		Scopes: []limitScopeInput{
 			{TransactionType: testutil.Ptr("CARD")},
 		},
@@ -1646,7 +1646,7 @@ func createTestLimit(t *testing.T) string {
 		Name:      uniqueName,
 		LimitType: "DAILY",
 		MaxAmount: decimal.RequireFromString("1000"),
-		Currency:  "USD",
+		Asset:     "USD",
 		Scopes: []limitScopeInput{
 			{TransactionType: testutil.Ptr("CARD")},
 		},
@@ -1748,7 +1748,7 @@ func TestLimits_CreateLimit_Monthly_ResetAtCalculated(t *testing.T) {
 		Name:      uniqueName,
 		LimitType: "MONTHLY",
 		MaxAmount: decimal.RequireFromString("1000"),
-		Currency:  "BRL",
+		Asset:     "BRL",
 		Scopes: []limitScopeInput{
 			{SegmentID: testutil.Ptr(testutil.MustDeterministicUUID(3012).String())},
 		},
@@ -1811,7 +1811,7 @@ func TestLimits_CreateLimit_PerTransaction_ResetAtNull(t *testing.T) {
 		Name:      uniqueName,
 		LimitType: "PER_TRANSACTION",
 		MaxAmount: decimal.RequireFromString("1000"),
-		Currency:  "BRL",
+		Asset:     "BRL",
 		Scopes: []limitScopeInput{
 			{TransactionType: testutil.Ptr("CARD")},
 		},
@@ -1861,7 +1861,7 @@ func TestLimits_CreateLimit_MultipleScopesArray(t *testing.T) {
 		Name:      uniqueName,
 		LimitType: "DAILY",
 		MaxAmount: decimal.RequireFromString("1000"),
-		Currency:  "BRL",
+		Asset:     "BRL",
 		Scopes: []limitScopeInput{
 			{AccountID: &accountID},
 			{AccountID: &accountID, TransactionType: testutil.Ptr("PIX")},
@@ -1908,7 +1908,7 @@ func TestLimits_CreateLimit_ScopeWithoutFields_BadRequest(t *testing.T) {
 		"name": "Empty Scope Fields Test",
 		"limitType": "DAILY",
 		"maxAmount": "100000.00",
-		"currency": "BRL",
+		"asset": "BRL",
 		"scopes": [{}]
 	}`
 
@@ -2115,22 +2115,22 @@ func TestLimits_UpdateLimit_BlocksLimitTypeChange(t *testing.T) {
 }
 
 // TestLimits_UpdateLimit_BlocksCurrencyChange (3.4.6)
-// Verifies that currency is immutable on PATCH.
-// The API rejects a currency change with 422 (code 0380, "Limit Immutable Field")
-// and leaves the stored currency unchanged.
+// Verifies that asset is immutable on PATCH.
+// The API rejects a asset change with 422 (code 0380, "Limit Immutable Field")
+// and leaves the stored asset unchanged.
 func TestLimits_UpdateLimit_BlocksCurrencyChange(t *testing.T) {
 	apiKey := testutil.GetAPIKey()
 	baseURL := testutil.GetBaseURL()
 
-	// Create a limit with USD currency
+	// Create a limit with USD asset
 	limitID := createTestLimit(t)
 	t.Cleanup(func() {
 		cleanupLimit(t, limitID)
 	})
 
-	// Try to change currency to BRL (should be ignored)
+	// Try to change asset to BRL (should be ignored)
 	updateBody := map[string]interface{}{
-		"currency": "BRL",
+		"asset": "BRL",
 	}
 
 	body, err := json.Marshal(updateBody)
@@ -2145,10 +2145,10 @@ func TestLimits_UpdateLimit_BlocksCurrencyChange(t *testing.T) {
 	require.NoError(t, err)
 	defer resp.Body.Close()
 
-	// API rejects the immutable currency change with 422 (Limit Immutable Field)
-	assert.Equal(t, http.StatusUnprocessableEntity, resp.StatusCode, "Changing currency should return 422")
+	// API rejects the immutable asset change with 422 (Limit Immutable Field)
+	assert.Equal(t, http.StatusUnprocessableEntity, resp.StatusCode, "Changing asset should return 422")
 
-	// Verify currency was not changed by fetching the limit
+	// Verify asset was not changed by fetching the limit
 	getReq, err := http.NewRequest("GET", baseURL+"/v1/limits/"+limitID, nil)
 	require.NoError(t, err)
 	getReq.Header.Set("X-API-Key", apiKey)
@@ -2164,7 +2164,7 @@ func TestLimits_UpdateLimit_BlocksCurrencyChange(t *testing.T) {
 	err = json.Unmarshal(getBody, &limit)
 	require.NoError(t, err)
 
-	assert.Equal(t, "USD", limit.Currency, "currency should remain USD (immutable)")
+	assert.Equal(t, "USD", limit.Asset, "asset should remain USD (immutable)")
 }
 
 // TestLimits_UpdateLimit_ValidatesPositiveMaxAmount (3.4.7)
@@ -2275,7 +2275,7 @@ func TestLimits_UpdateLimit_EmptyBody_ReturnsTRC0002(t *testing.T) {
 	assert.Equal(t, originalLimit.Description, fetchedLimit.Description, "description should be unchanged")
 	assert.Equal(t, originalLimit.LimitType, fetchedLimit.LimitType, "limitType should be unchanged")
 	assert.True(t, originalLimit.MaxAmount.Equal(fetchedLimit.MaxAmount), "maxAmount should be unchanged")
-	assert.Equal(t, originalLimit.Currency, fetchedLimit.Currency, "currency should be unchanged")
+	assert.Equal(t, originalLimit.Asset, fetchedLimit.Asset, "asset should be unchanged")
 	assert.Equal(t, originalLimit.Status, fetchedLimit.Status, "status should be unchanged")
 	assert.Equal(t, originalLimit.CreatedAt, fetchedLimit.CreatedAt, "createdAt should be unchanged")
 	assert.Equal(t, originalLimit.UpdatedAt, fetchedLimit.UpdatedAt, "updatedAt should be unchanged (failed PATCH should not update timestamp)")
@@ -2397,7 +2397,7 @@ func TestLimits_GetUsage_PerTransaction(t *testing.T) {
 		Name:      uniqueName,
 		LimitType: "PER_TRANSACTION",
 		MaxAmount: decimal.RequireFromString("500"),
-		Currency:  "USD",
+		Asset:     "USD",
 		Scopes: []limitScopeInput{
 			{TransactionType: testutil.Ptr("CARD")},
 		},
@@ -2619,7 +2619,7 @@ func TestLimits_DeleteLimit_ExcludedFromList(t *testing.T) {
 		Name:      uniqueName,
 		LimitType: "DAILY",
 		MaxAmount: decimal.RequireFromString("1000"),
-		Currency:  "USD",
+		Asset:     "USD",
 		Scopes: []limitScopeInput{
 			{TransactionType: testutil.Ptr("CARD")},
 		},
@@ -2712,7 +2712,7 @@ func TestLimits_CreateLimit_ValidationError_NameWithXSS(t *testing.T) {
 		Name:      "<script>alert('xss')</script>",
 		LimitType: "DAILY",
 		MaxAmount: decimal.RequireFromString("1000"),
-		Currency:  "USD",
+		Asset:     "USD",
 		Scopes: []limitScopeInput{
 			{TransactionType: testutil.Ptr("CARD")},
 		},
@@ -2769,7 +2769,7 @@ func TestLimits_CreateLimit_ValidationError_DescriptionWithXSS(t *testing.T) {
 		Description: &xssDescription,
 		LimitType:   "DAILY",
 		MaxAmount:   decimal.RequireFromString("1000"),
-		Currency:    "USD",
+		Asset:       "USD",
 		Scopes: []limitScopeInput{
 			{TransactionType: testutil.Ptr("CARD")},
 		},
@@ -2830,7 +2830,7 @@ func TestLimits_CreateLimit_ValidationError_InvalidScopeUUID(t *testing.T) {
 		Name:      "Invalid Scope UUID Test " + testutil.RandomSuffix(),
 		LimitType: "DAILY",
 		MaxAmount: decimal.RequireFromString("1000"),
-		Currency:  "USD",
+		Asset:     "USD",
 		Scopes: []limitScopeInput{
 			{AccountID: &invalidUUID},
 		},
@@ -2862,7 +2862,7 @@ func TestLimits_CreateLimit_ValidationError_InvalidTransactionTypeInScope(t *tes
 		Name:      "Invalid Transaction Type Test " + testutil.RandomSuffix(),
 		LimitType: "DAILY",
 		MaxAmount: decimal.RequireFromString("1000"),
-		Currency:  "USD",
+		Asset:     "USD",
 		Scopes: []limitScopeInput{
 			{TransactionType: testutil.Ptr("INVALID")},
 		},
@@ -2945,7 +2945,7 @@ func TestLimits_CreateLimit_ValidationError_ZeroMaxAmount(t *testing.T) {
 		Name:      "Zero Amount Limit " + testutil.RandomSuffix(),
 		LimitType: "DAILY",
 		MaxAmount: decimal.RequireFromString("0"), // Zero should fail (must be positive)
-		Currency:  "USD",
+		Asset:     "USD",
 		Scopes: []limitScopeInput{
 			{TransactionType: testutil.Ptr("CARD")},
 		},
@@ -2967,17 +2967,17 @@ func TestLimits_CreateLimit_ValidationError_ZeroMaxAmount(t *testing.T) {
 		"maxAmount=0 should return 400 Bad Request (must be positive)")
 }
 
-// TestLimits_CreateLimit_ValidationError_EmptyCurrency tests that empty currency
+// TestLimits_CreateLimit_ValidationError_EmptyCurrency tests that empty asset
 // string is rejected.
 func TestLimits_CreateLimit_ValidationError_EmptyCurrency(t *testing.T) {
 	apiKey := testutil.GetAPIKey()
 	baseURL := testutil.GetBaseURL()
 
 	reqBody := createLimitRequest{
-		Name:      "Empty Currency Limit " + testutil.RandomSuffix(),
+		Name:      "Empty Asset Limit " + testutil.RandomSuffix(),
 		LimitType: "DAILY",
 		MaxAmount: decimal.RequireFromString("1000"),
-		Currency:  "", // Empty should fail
+		Asset:     "", // Empty should fail
 		Scopes: []limitScopeInput{
 			{TransactionType: testutil.Ptr("CARD")},
 		},
@@ -2996,7 +2996,7 @@ func TestLimits_CreateLimit_ValidationError_EmptyCurrency(t *testing.T) {
 	defer resp.Body.Close()
 
 	assert.Equal(t, http.StatusBadRequest, resp.StatusCode,
-		"Empty currency should return 400 Bad Request")
+		"Empty asset should return 400 Bad Request")
 }
 
 // TestLimits_CreateLimit_ValidationError_TooManyScopes tests that scopes array
@@ -3016,7 +3016,7 @@ func TestLimits_CreateLimit_ValidationError_TooManyScopes(t *testing.T) {
 		Name:      "Too Many Scopes Limit " + testutil.RandomSuffix(),
 		LimitType: "DAILY",
 		MaxAmount: decimal.RequireFromString("1000"),
-		Currency:  "USD",
+		Asset:     "USD",
 		Scopes:    scopes,
 	}
 
@@ -3053,7 +3053,7 @@ func TestLimits_CreateLimit_Success_ExactlyMaxScopes(t *testing.T) {
 		Name:      "Max Scopes Limit " + testutil.RandomSuffix(),
 		LimitType: "DAILY",
 		MaxAmount: decimal.RequireFromString("1000"),
-		Currency:  "USD",
+		Asset:     "USD",
 		Scopes:    scopes,
 	}
 
@@ -3345,7 +3345,7 @@ func TestLimits_CreateLimit_Boundary_NameExactly255Chars(t *testing.T) {
 		Name:      exactName,
 		LimitType: "DAILY",
 		MaxAmount: decimal.RequireFromString("1000"),
-		Currency:  "USD",
+		Asset:     "USD",
 		Scopes: []limitScopeInput{
 			{TransactionType: testutil.Ptr("CARD")},
 		},
@@ -3393,7 +3393,7 @@ func TestLimits_CreateLimit_Boundary_DescriptionExactly1000Chars(t *testing.T) {
 		Description: &exactDesc,
 		LimitType:   "DAILY",
 		MaxAmount:   decimal.RequireFromString("1000"),
-		Currency:    "USD",
+		Asset:       "USD",
 		Scopes: []limitScopeInput{
 			{TransactionType: testutil.Ptr("CARD")},
 		},
@@ -3447,7 +3447,7 @@ func TestLimits_CreateLimit_ResponseFields_Complete(t *testing.T) {
 		Description: &description,
 		LimitType:   "DAILY",
 		MaxAmount:   decimal.RequireFromString("1000"),
-		Currency:    "USD",
+		Asset:       "USD",
 		Scopes: []limitScopeInput{
 			{AccountID: &accountID, TransactionType: testutil.Ptr("CARD")},
 		},
@@ -3489,7 +3489,7 @@ func TestLimits_CreateLimit_ResponseFields_Complete(t *testing.T) {
 
 	assert.Equal(t, "DAILY", limit.LimitType, "limitType should match request")
 	assert.True(t, limit.MaxAmount.Equal(decimal.RequireFromString("1000")), "maxAmount should match request")
-	assert.Equal(t, "USD", limit.Currency, "currency should match request")
+	assert.Equal(t, "USD", limit.Asset, "asset should match request")
 
 	// Validate scopes
 	require.Len(t, limit.Scopes, 1, "scopes should have 1 entry")
@@ -3605,7 +3605,7 @@ func TestLimits_GetLimit_ResponseFields_Complete(t *testing.T) {
 		Description: &description,
 		LimitType:   "MONTHLY",
 		MaxAmount:   decimal.RequireFromString("5000"),
-		Currency:    "BRL",
+		Asset:       "BRL",
 		Scopes: []limitScopeInput{
 			{AccountID: &accountID},
 			{TransactionType: testutil.Ptr("PIX")},
@@ -3660,7 +3660,7 @@ func TestLimits_GetLimit_ResponseFields_Complete(t *testing.T) {
 	assert.Equal(t, description, *limit.Description, "description should match")
 	assert.Equal(t, "MONTHLY", limit.LimitType, "limitType should match")
 	assert.True(t, limit.MaxAmount.Equal(decimal.RequireFromString("5000")), "maxAmount should match")
-	assert.Equal(t, "BRL", limit.Currency, "currency should match")
+	assert.Equal(t, "BRL", limit.Asset, "asset should match")
 	assert.Equal(t, "DRAFT", limit.Status, "status should be DRAFT for newly created limit")
 
 	// Validate scopes
@@ -3682,15 +3682,15 @@ func TestLimits_GetLimit_ResponseFields_Complete(t *testing.T) {
 // =============================================================================
 // ImmutableField Validation Tests
 // =============================================================================
-// These tests verify that attempting to change immutable fields (limitType, currency)
+// These tests verify that attempting to change immutable fields (limitType, asset)
 // via PATCH returns HTTP 422 with error code 0380 ("Limit Immutable Field").
 //
 // Immutable-field changes are an unprocessable business rule:
-// | 422 | Limit Immutable Field | Attempted to change limitType or currency |
+// | 422 | Limit Immutable Field | Attempted to change limitType or asset |
 // =============================================================================
 
 // TestLimits_UpdateLimit_ImmutableFields_ReturnsTRC0138 verifies that attempting to change
-// immutable fields (limitType, currency) returns HTTP 422 with error code 0380.
+// immutable fields (limitType, asset) returns HTTP 422 with error code 0380.
 func TestLimits_UpdateLimit_ImmutableFields_ReturnsTRC0138(t *testing.T) {
 	apiKey := testutil.GetAPIKey()
 	baseURL := testutil.GetBaseURL()
@@ -3721,19 +3721,19 @@ func TestLimits_UpdateLimit_ImmutableFields_ReturnsTRC0138(t *testing.T) {
 		{
 			name: "change_currency_USD_to_BRL",
 			updateBody: map[string]interface{}{
-				"currency": "BRL",
+				"asset": "BRL",
 			},
-			expectedField: "currency",
-			description:   "Attempt to change currency from USD to BRL",
+			expectedField: "asset",
+			description:   "Attempt to change asset from USD to BRL",
 		},
 		{
 			name: "change_both_limitType_and_currency",
 			updateBody: map[string]interface{}{
 				"limitType": "MONTHLY",
-				"currency":  "BRL",
+				"asset":     "BRL",
 			},
 			expectedField: "limitType", // First immutable field encountered
-			description:   "Attempt to change both limitType and currency together",
+			description:   "Attempt to change both limitType and asset together",
 		},
 	}
 
@@ -3780,7 +3780,7 @@ func TestLimits_UpdateLimit_ImmutableFields_ReturnsTRC0138(t *testing.T) {
 				tc.name, errResp.Title)
 
 			// Assert error detail mentions the immutable field(s) that cannot be modified (case-insensitive).
-			// The detail lists all immutable fields (limitType, currency), so any target key is present.
+			// The detail lists all immutable fields (limitType, asset), so any target key is present.
 			detail := testutil.ParseErrorResponse(t, respBody).Detail
 			if len(tc.updateBody) > 1 {
 				// Check that detail contains at least one of the updateBody keys
@@ -3821,8 +3821,8 @@ func TestLimits_UpdateLimit_ImmutableFields_ReturnsTRC0138(t *testing.T) {
 			// Verify immutable fields remain unchanged
 			assert.Equal(t, "DAILY", limit.LimitType,
 				"[%s] limitType should remain DAILY (immutable)", tc.name)
-			assert.Equal(t, "USD", limit.Currency,
-				"[%s] currency should remain USD (immutable)", tc.name)
+			assert.Equal(t, "USD", limit.Asset,
+				"[%s] asset should remain USD (immutable)", tc.name)
 		})
 	}
 }

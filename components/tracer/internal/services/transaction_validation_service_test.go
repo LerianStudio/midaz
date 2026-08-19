@@ -121,7 +121,7 @@ func TestTransactionValidationService_GetTransactionValidation(t *testing.T) {
 					RequestID:            requestID,
 					TransactionType:      model.TransactionTypeCard,
 					Amount:               decimal.RequireFromString("100"),
-					Currency:             "USD",
+					Asset:                "USD",
 					TransactionTimestamp: fixedTime,
 					Account:              model.AccountContext{ID: accountID},
 					EvaluationResult: model.EvaluationResult{
@@ -138,7 +138,7 @@ func TestTransactionValidationService_GetTransactionValidation(t *testing.T) {
 				assert.Equal(t, requestID, result.RequestID)
 				assert.Equal(t, model.TransactionTypeCard, result.TransactionType)
 				assert.Equal(t, decimal.RequireFromString("100").String(), result.Amount.String())
-				assert.Equal(t, "USD", result.Currency)
+				assert.Equal(t, "USD", result.Asset)
 				assert.Equal(t, model.DecisionAllow, result.EvaluationResult.Decision)
 				assert.Equal(t, "Transaction allowed", result.EvaluationResult.Reason)
 			},
@@ -249,7 +249,7 @@ func TestTransactionValidationService_ListTransactionValidations(t *testing.T) {
 							RequestID:            requestID1,
 							TransactionType:      model.TransactionTypeCard,
 							Amount:               decimal.RequireFromString("100"),
-							Currency:             "USD",
+							Asset:                "USD",
 							TransactionTimestamp: fixedTime,
 							Account:              model.AccountContext{ID: accountID},
 							EvaluationResult: model.EvaluationResult{
@@ -263,7 +263,7 @@ func TestTransactionValidationService_ListTransactionValidations(t *testing.T) {
 							RequestID:            requestID2,
 							TransactionType:      model.TransactionTypePix,
 							Amount:               decimal.RequireFromString("50"),
-							Currency:             "BRL",
+							Asset:                "BRL",
 							TransactionTimestamp: fixedTime.Add(time.Hour),
 							Account:              model.AccountContext{ID: accountID},
 							EvaluationResult: model.EvaluationResult{
@@ -299,7 +299,7 @@ func TestTransactionValidationService_ListTransactionValidations(t *testing.T) {
 							RequestID:            requestID1,
 							TransactionType:      model.TransactionTypeCard,
 							Amount:               decimal.RequireFromString("100"),
-							Currency:             "USD",
+							Asset:                "USD",
 							TransactionTimestamp: fixedTime,
 							Account:              model.AccountContext{ID: accountID},
 							EvaluationResult: model.EvaluationResult{

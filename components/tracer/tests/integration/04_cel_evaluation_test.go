@@ -28,7 +28,7 @@ import (
 //   - 4.1.1: TransactionType comparison
 //   - 4.1.2 + 4.1.2b: SubType (match + no-match scenarios)
 //   - 4.1.3: Amount (table-driven com 4 boundary cases)
-//   - 4.1.4: Currency comparison
+//   - 4.1.4: Asset comparison
 //   - 4.1.5 + 4.1.5b: Segment context (dot + bracket notation)
 //   - 4.1.6: Merchant context opcional (size() function)
 //   - 4.1.7: Account context fields
@@ -55,7 +55,7 @@ func TestValidation_CEL_TransactionType(t *testing.T) {
 		"requestId":            testutil.MustDeterministicUUID(4201).String(),
 		"transactionType":      "CARD",
 		"amount":               100,
-		"currency":             "BRL",
+		"asset":                "BRL",
 		"transactionTimestamp": testutil.FixedTime().Add(-1 * time.Minute).Format(time.RFC3339),
 		"account": map[string]any{
 			"accountId": testutil.MustDeterministicUUID(4202).String(),
@@ -183,12 +183,12 @@ func TestValidation_CEL_Amount_Comparison(t *testing.T) {
 	}
 }
 
-// TestValidation_CEL_Currency verifies CEL can evaluate currency field.
+// TestValidation_CEL_Currency verifies CEL can evaluate asset field.
 // Test 4.1.4 from roteiro 04-rules-evaluation.md
 func TestValidation_CEL_Currency(t *testing.T) {
 	// PRECONDITIONS: Create and activate rule
 	ruleID := testutil.CreateTestRuleWithExpression(t,
-		"Currency Check Rule",
+		"Asset Check Rule",
 		"currency == 'BRL'",
 		"ALLOW")
 	testutil.ActivateRule(t, ruleID)
@@ -196,7 +196,7 @@ func TestValidation_CEL_Currency(t *testing.T) {
 
 	// EXECUTION: Send validation request
 	payload := testutil.CreateBasicValidationPayload()
-	payload["currency"] = "BRL"
+	payload["asset"] = "BRL"
 
 	result, status := testutil.ExecuteValidationRequest(t, payload)
 	require.Equal(t, http.StatusCreated, status)
@@ -378,7 +378,7 @@ func TestValidation_CEL_ComplexCombinedExpression(t *testing.T) {
 	payload := testutil.CreateBasicValidationPayload()
 	payload["transactionType"] = "CARD"
 	payload["amount"] = 75000
-	payload["currency"] = "BRL"
+	payload["asset"] = "BRL"
 	payload["segment"] = map[string]any{
 		"segmentId": testutil.MustDeterministicUUID(4207).String(),
 		"name":      "premium",
@@ -400,7 +400,7 @@ func TestValidation_CEL_ComplexCombinedExpression(t *testing.T) {
 	payload2 := testutil.CreateBasicValidationPayload()
 	payload2["transactionType"] = "CARD"
 	payload2["amount"] = 30000 // Below 50000 threshold
-	payload2["currency"] = "BRL"
+	payload2["asset"] = "BRL"
 	payload2["segment"] = map[string]any{
 		"segmentId": testutil.MustDeterministicUUID(4209).String(),
 		"name":      "premium",

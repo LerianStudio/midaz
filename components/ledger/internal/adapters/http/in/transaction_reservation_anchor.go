@@ -110,7 +110,7 @@ func (handler *TransactionHandler) reserveTransaction(
 		TransactionID:        transactionID,
 		RequestID:            reservationRequestID(transactionID).String(),
 		Amount:               amount.String(),
-		Currency:             asset,
+		Asset:                asset,
 		Account:              tracer.ReserveAccount{AccountID: accountID},
 		TransactionTimestamp: transactionTimestamp.UTC().Format(time.RFC3339Nano),
 		LongLived:            ttl == reservationTTLLongLived,

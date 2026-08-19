@@ -25,7 +25,7 @@ func TestValidationRequest_Validate(t *testing.T) {
 			RequestID:            testutil.MustDeterministicUUID(2),
 			TransactionType:      TransactionTypeCard,
 			Amount:               decimal.RequireFromString("100"), // $100.00
-			Currency:             "USD",
+			Asset:                "USD",
 			TransactionTimestamp: testutil.FixedTime(),
 			Account: AccountContext{
 				ID:     accountID,
@@ -81,30 +81,30 @@ func TestValidationRequest_Validate(t *testing.T) {
 			expectedErr: constant.ErrValidationAmountNonPositive,
 		},
 		{
-			name: "empty currency fails",
+			name: "empty asset fails",
 			modify: func(r *ValidationRequest) {
-				r.Currency = ""
+				r.Asset = ""
 			},
 			expectedErr: constant.ErrValidationCurrencyRequired,
 		},
 		{
-			name: "invalid currency format fails",
+			name: "invalid asset format fails",
 			modify: func(r *ValidationRequest) {
-				r.Currency = "INVALID"
+				r.Asset = "INVALID"
 			},
 			expectedErr: constant.ErrValidationInvalidCurrency,
 		},
 		{
-			name: "too short currency fails",
+			name: "too short asset fails",
 			modify: func(r *ValidationRequest) {
-				r.Currency = "US"
+				r.Asset = "US"
 			},
 			expectedErr: constant.ErrValidationInvalidCurrency,
 		},
 		{
-			name: "too long currency fails",
+			name: "too long asset fails",
 			modify: func(r *ValidationRequest) {
-				r.Currency = "USDD"
+				r.Asset = "USDD"
 			},
 			expectedErr: constant.ErrValidationInvalidCurrency,
 		},
@@ -187,7 +187,7 @@ func TestValidationRequest_Validate(t *testing.T) {
 // TestValidationRequest_ValidateForReserve locks the reserve-path relaxation:
 // transactionType and account are OPTIONAL on reserve (the ledger has no card
 // rail and may reserve for an external-only source), while requestId, amount,
-// currency and the timestamp window stay mandatory. This is the contract that
+// asset and the timestamp window stay mandatory. This is the contract that
 // closed the F3 enforce gap; tightening it back re-breaks the ledger reserve.
 func TestValidationRequest_ValidateForReserve(t *testing.T) {
 	validRequest := func() *ValidationRequest {
@@ -195,7 +195,7 @@ func TestValidationRequest_ValidateForReserve(t *testing.T) {
 			RequestID:            testutil.MustDeterministicUUID(2),
 			TransactionType:      TransactionTypeCard,
 			Amount:               decimal.RequireFromString("100"),
-			Currency:             "USD",
+			Asset:                "USD",
 			TransactionTimestamp: testutil.FixedTime(),
 			Account: AccountContext{
 				ID: testutil.MustDeterministicUUID(1),
@@ -257,9 +257,9 @@ func TestValidationRequest_ValidateForReserve(t *testing.T) {
 			expectedErr: constant.ErrValidationAmountNonPositive,
 		},
 		{
-			name: "invalid currency still fails",
+			name: "invalid asset still fails",
 			modify: func(r *ValidationRequest) {
-				r.Currency = "usd"
+				r.Asset = "usd"
 			},
 			expectedErr: constant.ErrValidationInvalidCurrency,
 		},
@@ -307,7 +307,7 @@ func TestValidationRequest_ToCheckLimitsInput(t *testing.T) {
 			TransactionType:      TransactionTypeCard,
 			SubType:              &subType,
 			Amount:               decimal.RequireFromString("500"),
-			Currency:             "USD",
+			Asset:                "USD",
 			TransactionTimestamp: timestamp,
 			Account: AccountContext{
 				ID: accountID,
@@ -320,7 +320,7 @@ func TestValidationRequest_ToCheckLimitsInput(t *testing.T) {
 
 		require.NotNil(t, input)
 		assert.Equal(t, req.Amount, input.Amount)
-		assert.Equal(t, req.Currency, input.Currency)
+		assert.Equal(t, req.Asset, input.Asset)
 		assert.Equal(t, accountID, input.AccountID)
 		assert.Equal(t, &segmentID, input.SegmentID)
 		assert.Equal(t, &portfolioID, input.PortfolioID)
@@ -337,7 +337,7 @@ func TestValidationRequest_ToCheckLimitsInput(t *testing.T) {
 				RequestID:            testutil.MustDeterministicUUID(50),
 				TransactionType:      tt,
 				Amount:               decimal.RequireFromString("100"),
-				Currency:             "USD",
+				Asset:                "USD",
 				TransactionTimestamp: testutil.FixedTime(),
 				Account:              AccountContext{ID: testutil.MustDeterministicUUID(51)},
 			}
@@ -360,7 +360,7 @@ func TestValidationRequest_ToCheckLimitsInput(t *testing.T) {
 			TransactionType:      TransactionTypePix,
 			SubType:              nil,
 			Amount:               decimal.RequireFromString("100"),
-			Currency:             "BRL",
+			Asset:                "BRL",
 			TransactionTimestamp: testutil.FixedTime(),
 			Account: AccountContext{
 				ID: accountID,
@@ -388,7 +388,7 @@ func TestValidationRequest_ToCheckLimitsInput(t *testing.T) {
 			RequestID:            testutil.MustDeterministicUUID(52),
 			TransactionType:      TransactionTypeCard,
 			Amount:               decimal.RequireFromString("250"),
-			Currency:             "USD",
+			Asset:                "USD",
 			TransactionTimestamp: testutil.FixedTime(),
 			Account: AccountContext{
 				ID: accountID,
@@ -424,7 +424,7 @@ func TestValidationRequest_ToCheckLimitsInput(t *testing.T) {
 			TransactionType:      TransactionTypeCard,
 			SubType:              &subType,
 			Amount:               decimal.RequireFromString("50"),
-			Currency:             "USD",
+			Asset:                "USD",
 			TransactionTimestamp: testutil.FixedTime(),
 			Account: AccountContext{
 				ID: accountID,
@@ -471,7 +471,7 @@ func TestValidationRequest_ToCheckLimitsInput(t *testing.T) {
 			RequestID:            testutil.MustDeterministicUUID(61),
 			TransactionType:      TransactionTypePix,
 			Amount:               decimal.RequireFromString("10"),
-			Currency:             "BRL",
+			Asset:                "BRL",
 			TransactionTimestamp: testutil.FixedTime(),
 			Account: AccountContext{
 				ID: accountID,

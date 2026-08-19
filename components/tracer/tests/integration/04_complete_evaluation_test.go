@@ -77,7 +77,7 @@ func TestValidation_CompleteEvaluation_AllActiveRules(t *testing.T) {
 	payload := testutil.CreateBasicValidationPayload()
 	payload["transactionType"] = "CARD"
 	payload["amount"] = "100.00"
-	payload["currency"] = "BRL"
+	payload["asset"] = "BRL"
 	payload["account"] = map[string]any{
 		"accountId": testAccountID,
 		"type":      "checking",
@@ -263,7 +263,7 @@ func TestValidation_CompleteEvaluation_DraftRulesNotEvaluated(t *testing.T) {
 	payload := testutil.CreateBasicValidationPayload()
 	payload["transactionType"] = "CARD"
 	payload["amount"] = "100.00"
-	payload["currency"] = "BRL" // Would match DRAFT rule if it were active
+	payload["asset"] = "BRL" // Would match DRAFT rule if it were active
 
 	result, status := testutil.ExecuteValidationRequest(t, payload)
 	require.Equal(t, http.StatusCreated, status)
@@ -304,7 +304,7 @@ func TestValidation_CompleteEvaluation_InactiveRulesNotEvaluated(t *testing.T) {
 	payload := testutil.CreateBasicValidationPayload()
 	payload["transactionType"] = "CARD"
 	payload["amount"] = "100.00"
-	payload["currency"] = "BRL" // Would match INACTIVE rule if it were active
+	payload["asset"] = "BRL" // Would match INACTIVE rule if it were active
 
 	result, status := testutil.ExecuteValidationRequest(t, payload)
 	require.Equal(t, http.StatusCreated, status)
@@ -344,7 +344,7 @@ func TestValidation_CompleteEvaluation_DeletedRulesNotEvaluated(t *testing.T) {
 	payload := testutil.CreateBasicValidationPayload()
 	payload["transactionType"] = "CARD"
 	payload["amount"] = "100.00"
-	payload["currency"] = "BRL" // Would match DELETED rule if it existed
+	payload["asset"] = "BRL" // Would match DELETED rule if it existed
 
 	result, status := testutil.ExecuteValidationRequest(t, payload)
 	require.Equal(t, http.StatusCreated, status)

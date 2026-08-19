@@ -113,7 +113,7 @@ func writeTracerError(w http.ResponseWriter, status int, code, message string) {
 
 // ledgerStyleReserveRequest builds the reserve request the ledger anchor sends:
 // requestId derived from the transactionID, the structured account scope, a
-// fee-inclusive amount/currency, and an in-window timestamp. ts must be inside
+// fee-inclusive amount/asset, and an in-window timestamp. ts must be inside
 // the tracer's accept window (not future, within 24h) relative to the
 // endpoint's now.
 func ledgerStyleReserveRequest(transactionID, requestID uuid.UUID, ts time.Time) ReserveRequest {
@@ -121,7 +121,7 @@ func ledgerStyleReserveRequest(transactionID, requestID uuid.UUID, ts time.Time)
 		TransactionID:        transactionID,
 		RequestID:            requestID.String(),
 		Amount:               "1000",
-		Currency:             "BRL",
+		Asset:                "BRL",
 		Account:              ReserveAccount{AccountID: uuid.NewString()},
 		TransactionTimestamp: ts.UTC().Format(time.RFC3339Nano),
 	}
@@ -229,7 +229,7 @@ func TestReserveContract_DetectsLedgerShapeDrift(t *testing.T) {
 	originalBuggyBody := map[string]any{
 		"transactionId":   uuid.MustParse("77777777-7777-7777-7777-777777777777").String(),
 		"amount":          "1000",
-		"currency":        "BRL",
+		"asset":           "BRL",
 		"account":         "@source-account",    // STRING, not the AccountContext object
 		"transactionType": "pending-long-lived", // the invalid enum the old hint smuggled in
 	}

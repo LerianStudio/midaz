@@ -428,7 +428,7 @@ func TestAuditEvents_11_2_7_FiltersByAccountId(t *testing.T) {
 		RequestID:            testutil.MustDeterministicUUID(7005).String(),
 		TransactionType:      "PIX",
 		Amount:               decimal.RequireFromString("500"),
-		Currency:             "BRL",
+		Asset:                "BRL",
 		TransactionTimestamp: testutil.FixedTime().Format(time.RFC3339),
 		Account: &testutil.AccountContext{
 			ID:     accountID,
@@ -484,7 +484,7 @@ func TestAuditEvents_11_2_8_FiltersByTransactionType(t *testing.T) {
 		RequestID:            testutil.MustDeterministicUUID(7006).String(),
 		TransactionType:      "PIX",
 		Amount:               decimal.RequireFromString("10"),
-		Currency:             "BRL",
+		Asset:                "BRL",
 		TransactionTimestamp: testutil.FixedTime().Format(time.RFC3339),
 		Account: &testutil.AccountContext{
 			ID:     testutil.MustDeterministicUUID(7007).String(),
@@ -500,7 +500,7 @@ func TestAuditEvents_11_2_8_FiltersByTransactionType(t *testing.T) {
 		RequestID:            testutil.MustDeterministicUUID(7008).String(),
 		TransactionType:      "CARD",
 		Amount:               decimal.RequireFromString("20"),
-		Currency:             "BRL",
+		Asset:                "BRL",
 		TransactionTimestamp: testutil.FixedTime().Format(time.RFC3339),
 		Account: &testutil.AccountContext{
 			ID:     testutil.MustDeterministicUUID(7009).String(),
@@ -560,7 +560,7 @@ func TestAuditEvents_11_2_9_FiltersByMatchedRuleId(t *testing.T) {
 		RequestID:            testutil.MustDeterministicUUID(7011).String(),
 		TransactionType:      "PIX",
 		Amount:               decimal.RequireFromString("10"), // 10 > 5, will match rule
-		Currency:             "BRL",
+		Asset:                "BRL",
 		TransactionTimestamp: testutil.FixedTime().Format(time.RFC3339),
 		Account: &testutil.AccountContext{
 			ID:     testutil.MustDeterministicUUID(7012).String(),
@@ -1436,7 +1436,7 @@ func TestAuditEvents_11_4_5_GeneratesAuditForTransactionValidation(t *testing.T)
 		RequestID:            requestID,
 		TransactionType:      "PIX",
 		Amount:               decimal.RequireFromString("500"),
-		Currency:             "BRL",
+		Asset:                "BRL",
 		TransactionTimestamp: testutil.FixedTime().Format(time.RFC3339),
 		Account: &testutil.AccountContext{
 			ID:     accountID,
@@ -1481,7 +1481,7 @@ func TestAuditEvents_11_4_5_GeneratesAuditForTransactionValidation(t *testing.T)
 	// Validate request data
 	assert.Equal(t, "PIX", request["transactionType"])
 	assert.Equal(t, "500", request["amount"])
-	assert.Equal(t, "BRL", request["currency"])
+	assert.Equal(t, "BRL", request["asset"])
 
 	account := request["account"].(map[string]any)
 	assert.Equal(t, accountID, account["id"])
@@ -1607,7 +1607,7 @@ func TestAuditEvents_11_4_7_GeneratesAuditForLimitCreation(t *testing.T) {
 	after := context["after"].(map[string]any)
 	assert.Equal(t, "DAILY", after["limitType"])
 	assert.Equal(t, "1000", after["maxAmount"])
-	assert.Equal(t, "BRL", after["currency"])
+	assert.Equal(t, "BRL", after["asset"])
 	assert.Equal(t, "DRAFT", after["status"])
 
 	// Verify before is null for CREATE
@@ -2174,7 +2174,7 @@ func TestAuditEvents_11_10_2_ValidationTriggersAuditEvent(t *testing.T) {
 		RequestID:            requestID,
 		TransactionType:      "PIX",
 		Amount:               decimal.RequireFromString("100"),
-		Currency:             "BRL",
+		Asset:                "BRL",
 		TransactionTimestamp: testutil.FixedTime().Format(time.RFC3339),
 		Account: &testutil.AccountContext{
 			ID:     accountID,
@@ -2637,7 +2637,7 @@ func TestAuditEvents_11_6_1_FiltersBySegmentId(t *testing.T) {
 		RequestID:            testutil.MustDeterministicUUID(7032).String(),
 		TransactionType:      "PIX",
 		Amount:               decimal.RequireFromString("10"),
-		Currency:             "BRL",
+		Asset:                "BRL",
 		TransactionTimestamp: testutil.FixedTime().Format(time.RFC3339),
 		Account: &testutil.AccountContext{
 			ID:     testutil.MustDeterministicUUID(7033).String(),
@@ -2706,7 +2706,7 @@ func TestAuditEvents_11_6_2_FiltersByPortfolioId(t *testing.T) {
 		RequestID:            testutil.MustDeterministicUUID(7035).String(),
 		TransactionType:      "CARD",
 		Amount:               decimal.RequireFromString("20"),
-		Currency:             "BRL",
+		Asset:                "BRL",
 		TransactionTimestamp: testutil.FixedTime().Format(time.RFC3339),
 		Account: &testutil.AccountContext{
 			ID:     testutil.MustDeterministicUUID(7036).String(),
@@ -2778,7 +2778,7 @@ func TestAuditEvents_11_6_3_CombinesMultipleJSONBFilters(t *testing.T) {
 		RequestID:            testutil.MustDeterministicUUID(7040).String(),
 		TransactionType:      "PIX",
 		Amount:               decimal.RequireFromString("50"),
-		Currency:             "BRL",
+		Asset:                "BRL",
 		TransactionTimestamp: testutil.FixedTime().Format(time.RFC3339),
 		Account: &testutil.AccountContext{
 			ID:     accountID,

@@ -134,7 +134,7 @@ func (h *ReservationHandler) reserve(ctx context.Context, rawBody []byte) (*Rese
 	span.SetAttributes(
 		attribute.String("app.request.transaction_id", request.TransactionID.String()),
 		attribute.String("app.request.transaction_type", string(request.TransactionType)),
-		attribute.String("app.request.currency", request.Currency),
+		attribute.String("app.request.asset", request.Asset),
 	)
 
 	result, err := h.service.Reserve(ctx, request.TransactionID, request.ToReserveInput(), request.LongLived)

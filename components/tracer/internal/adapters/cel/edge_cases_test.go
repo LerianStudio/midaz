@@ -57,7 +57,7 @@ func TestEdgeCase_NilMerchant(t *testing.T) {
 			req := &model.ValidationRequest{
 				TransactionType: "PIX",
 				Amount:          decimal.RequireFromString("1500"),
-				Currency:        "BRL",
+				Asset:           "BRL",
 				Account: model.AccountContext{
 					ID:     edgeTestAccountID,
 					Status: "active",
@@ -108,7 +108,7 @@ func TestEdgeCase_NilSegmentPortfolio(t *testing.T) {
 			req := &model.ValidationRequest{
 				TransactionType: "PIX",
 				Amount:          decimal.RequireFromString("1500"),
-				Currency:        "BRL",
+				Asset:           "BRL",
 				Account: model.AccountContext{
 					ID:     edgeTestAccountID,
 					Status: "active",
@@ -164,7 +164,7 @@ func TestEdgeCase_EmptyMetadata(t *testing.T) {
 			req := &model.ValidationRequest{
 				TransactionType: "PIX",
 				Amount:          decimal.RequireFromString("1500"),
-				Currency:        "BRL",
+				Asset:           "BRL",
 				Account: model.AccountContext{
 					ID:     edgeTestAccountID,
 					Status: "active",
@@ -192,7 +192,7 @@ func TestEdgeCase_NilSubType(t *testing.T) {
 		TransactionType: "PIX",
 		SubType:         nil, // nil subType
 		Amount:          decimal.RequireFromString("1500"),
-		Currency:        "BRL",
+		Asset:           "BRL",
 		Account: model.AccountContext{
 			ID:     edgeTestAccountID,
 			Status: "active",
@@ -217,7 +217,7 @@ func TestEdgeCase_MinimalRequest(t *testing.T) {
 	req := &model.ValidationRequest{
 		TransactionType: "PIX",
 		Amount:          decimal.RequireFromString("1500"),
-		Currency:        "BRL",
+		Asset:           "BRL",
 		Account: model.AccountContext{
 			ID:     edgeTestAccountID,
 			Status: "active",
@@ -276,7 +276,7 @@ func TestEdgeCase_ZeroAmount(t *testing.T) {
 			req := &model.ValidationRequest{
 				TransactionType: "PIX",
 				Amount:          decimal.RequireFromString("0"), // zero amount
-				Currency:        "BRL",
+				Asset:           "BRL",
 				Account: model.AccountContext{
 					ID:     edgeTestAccountID,
 					Status: "active",
@@ -321,7 +321,7 @@ func TestEdgeCase_EmptyStrings(t *testing.T) {
 			req := &model.ValidationRequest{
 				TransactionType: "PIX",
 				Amount:          decimal.RequireFromString("1500"),
-				Currency:        "", // empty string
+				Asset:           "", // empty string
 				Account: model.AccountContext{
 					ID:     edgeTestAccountID,
 					Status: "", // empty string
@@ -347,7 +347,7 @@ func TestEdgeCase_NilAccountMetadata(t *testing.T) {
 	req := &model.ValidationRequest{
 		TransactionType: "PIX",
 		Amount:          decimal.RequireFromString("1500"),
-		Currency:        "BRL",
+		Asset:           "BRL",
 		Account: model.AccountContext{
 			ID:       edgeTestAccountID,
 			Status:   "active",
@@ -372,7 +372,7 @@ func TestEdgeCase_MerchantWithNilMetadata(t *testing.T) {
 	req := &model.ValidationRequest{
 		TransactionType: "PIX",
 		Amount:          decimal.RequireFromString("1500"),
-		Currency:        "BRL",
+		Asset:           "BRL",
 		Account: model.AccountContext{
 			ID:     edgeTestAccountID,
 			Status: "active",
@@ -437,7 +437,7 @@ func TestEdgeCase_FractionalAmount(t *testing.T) {
 			req := &model.ValidationRequest{
 				TransactionType: "PIX",
 				Amount:          tc.amount,
-				Currency:        "BRL",
+				Asset:           "BRL",
 				Account: model.AccountContext{
 					ID:     edgeTestAccountID,
 					Status: "active",
@@ -497,7 +497,7 @@ func TestEdgeCase_NegativeAmount(t *testing.T) {
 		req := &model.ValidationRequest{
 			TransactionType: "REFUND",
 			Amount:          decimal.RequireFromString("-499.99"),
-			Currency:        "BRL",
+			Asset:           "BRL",
 			Account: model.AccountContext{
 				ID:     edgeTestAccountID,
 				Status: "active",
@@ -518,7 +518,7 @@ func TestEdgeCase_NegativeAmount(t *testing.T) {
 			req := &model.ValidationRequest{
 				TransactionType: "REFUND",
 				Amount:          decimal.RequireFromString("-500"), // negative amount (refund)
-				Currency:        "BRL",
+				Asset:           "BRL",
 				Account: model.AccountContext{
 					ID:     edgeTestAccountID,
 					Status: "active",

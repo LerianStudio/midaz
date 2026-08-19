@@ -30,7 +30,7 @@ func newTestTransactionValidation(id uuid.UUID) *model.TransactionValidation {
 		RequestID:            testutil.MustDeterministicUUID(100),
 		TransactionType:      model.TransactionTypeCard,
 		Amount:               decimal.RequireFromString("100"),
-		Currency:             "USD",
+		Asset:                "USD",
 		TransactionTimestamp: testutil.FixedTime().Add(-time.Hour),
 		Account: model.AccountContext{
 			ID:     testutil.MustDeterministicUUID(101),

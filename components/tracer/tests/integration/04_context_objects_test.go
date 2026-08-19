@@ -70,7 +70,7 @@ func TestValidation_AccountContext_AllFields(t *testing.T) {
 		"requestId":            testutil.MustDeterministicUUID(4101).String(),
 		"transactionType":      "CARD",
 		"amount":               "100.00",
-		"currency":             "BRL",
+		"asset":                "BRL",
 		"transactionTimestamp": testutil.FixedTime().Add(-1 * time.Minute).Format(time.RFC3339),
 		"account": map[string]any{
 			"accountId": testutil.MustDeterministicUUID(4102).String(),
@@ -132,7 +132,7 @@ func TestValidation_AccountContext_MinimalFields(t *testing.T) {
 		"requestId":            testutil.MustDeterministicUUID(4104).String(),
 		"transactionType":      "CARD",
 		"amount":               "100.00",
-		"currency":             "BRL",
+		"asset":                "BRL",
 		"transactionTimestamp": testutil.FixedTime().Add(-1 * time.Minute).Format(time.RFC3339),
 		"account": map[string]any{
 			"accountId": accountID,
@@ -181,7 +181,7 @@ func TestValidation_ContextObjects_MissingAccount_ReturnsError(t *testing.T) {
 		"requestId":            testutil.MustDeterministicUUID(4105).String(),
 		"transactionType":      "CARD",
 		"amount":               "100.00",
-		"currency":             "BRL",
+		"asset":                "BRL",
 		"transactionTimestamp": testutil.FixedTime().Add(-1 * time.Minute).Format(time.RFC3339),
 		// account field intentionally omitted
 	}
@@ -232,7 +232,7 @@ func TestValidation_SegmentContext_Structure(t *testing.T) {
 		"requestId":            testutil.MustDeterministicUUID(4106).String(),
 		"transactionType":      "CARD",
 		"amount":               "100.00",
-		"currency":             "BRL",
+		"asset":                "BRL",
 		"transactionTimestamp": testutil.FixedTime().Add(-1 * time.Minute).Format(time.RFC3339),
 		"account": map[string]any{
 			"accountId": testutil.MustDeterministicUUID(4107).String(),
@@ -298,7 +298,7 @@ func TestValidation_SegmentContext_CELFieldAccess(t *testing.T) {
 		"requestId":            testutil.MustDeterministicUUID(4110).String(),
 		"transactionType":      "CARD",
 		"amount":               "100.00",
-		"currency":             "BRL",
+		"asset":                "BRL",
 		"transactionTimestamp": testutil.FixedTime().Add(-1 * time.Minute).Format(time.RFC3339),
 		"account": map[string]any{
 			"accountId": testutil.MustDeterministicUUID(4111).String(),
@@ -362,7 +362,7 @@ func TestValidation_PortfolioContext_Structure(t *testing.T) {
 		"requestId":            testutil.MustDeterministicUUID(4112).String(),
 		"transactionType":      "CARD",
 		"amount":               "100.00",
-		"currency":             "BRL",
+		"asset":                "BRL",
 		"transactionTimestamp": testutil.FixedTime().Add(-1 * time.Minute).Format(time.RFC3339),
 		"account": map[string]any{
 			"accountId": testutil.MustDeterministicUUID(4113).String(),
@@ -428,7 +428,7 @@ func TestValidation_PortfolioContext_CELFieldAccess(t *testing.T) {
 		"requestId":            testutil.MustDeterministicUUID(4116).String(),
 		"transactionType":      "CARD",
 		"amount":               "100.00",
-		"currency":             "BRL",
+		"asset":                "BRL",
 		"transactionTimestamp": testutil.FixedTime().Add(-1 * time.Minute).Format(time.RFC3339),
 		"account": map[string]any{
 			"accountId": testutil.MustDeterministicUUID(4117).String(),
@@ -492,7 +492,7 @@ func TestValidation_MerchantContext_CompleteStructure(t *testing.T) {
 		"requestId":            testutil.MustDeterministicUUID(4118).String(),
 		"transactionType":      "CARD",
 		"amount":               "100.00",
-		"currency":             "BRL",
+		"asset":                "BRL",
 		"transactionTimestamp": testutil.FixedTime().Add(-1 * time.Minute).Format(time.RFC3339),
 		"account": map[string]any{
 			"accountId": testutil.MustDeterministicUUID(4119).String(),
@@ -548,7 +548,7 @@ func TestValidation_AccountContext_MissingAccountId(t *testing.T) {
 		"requestId":            testutil.MustDeterministicUUID(4121).String(),
 		"transactionType":      "CARD",
 		"amount":               "100.00",
-		"currency":             "BRL",
+		"asset":                "BRL",
 		"transactionTimestamp": testutil.FixedTime().Add(-1 * time.Minute).Format(time.RFC3339),
 		"account": map[string]any{
 			// "accountId" intentionally omitted
