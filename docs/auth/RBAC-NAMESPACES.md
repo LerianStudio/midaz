@@ -37,7 +37,7 @@ namespace literals:
 | Namespace | Owner / code | Resources | Source |
 |-----------|--------------|-----------|--------|
 | `midaz` | ledger — `midazName` const; CRM (collapsed package) — `ApplicationName` const | `organizations`, `ledgers`, `assets`, `asset-rates`, `portfolios`, `segments`, `accounts`, `balances`, `transactions`, `operations`, `settings`, `account-types`, `operation-routes`, `transaction-routes`, `holders`, `instruments` | `components/ledger/internal/adapters/http/in/routes.go` (`midazName = "midaz"`, helper `protectedMidaz`); `components/ledger/internal/adapters/http/in/crm_routes.go` (`const ApplicationName = "midaz"`) for the `holders`/`instruments` resources |
-| `plugin-fees` | fees (embedded in ledger) | `packages`, `estimates`, `billing-packages`, `billing-calculate` | `components/ledger/internal/adapters/http/in/fees_routes.go` (`feesApplicationName = "plugin-fees"`, helper `protectedFees`); also `pkg/constant.ModuleFees = "plugin-fees"` and `components/ledger/pkg/feeshared/constant/app.go`. The ledger-scoped `/v2` twins in `fees_v2_register.go` (`RegisterFeesV2RoutesToApp`) attach the same `feeGuardRoutes` table through the same helper — same namespace, same tuples |
+| `plugin-fees` | fees (embedded in ledger) | `packages`, `estimates`, `billing-packages`, `billing-calculate` | `components/ledger/internal/adapters/http/in/fees_routes.go` (`feesApplicationName = "plugin-fees"`, helper `protectedFees`) and `components/ledger/pkg/feeshared/constant/app.go` (`ApplicationName = "plugin-fees"`). The tenant-manager module name is a SEPARATE literal (`pkg/constant.ModuleFees = "fees-api"`) and carries no authz meaning. The ledger-scoped `/v2` twins in `fees_v2_register.go` (`RegisterFeesV2RoutesToApp`) attach the same `feeGuardRoutes` table through the same helper — same namespace, same tuples |
 
 The `account-types`, `operation-routes`, and `transaction-routes` resources authorize under the
 `midaz` namespace (helper `protectedMidaz`), parity with `main` — there is no separate `routing`
@@ -67,8 +67,11 @@ Consequences:
   is X1 (below) — the in-code flip is intentional and lands at v4; the policy migration is gated
   to release, not to merge.
 - The fee/billing namespace literal is intentionally identical (`plugin-fees`) across the
-  ledger route registrar, `pkg/constant.ModuleFees`, and `components/ledger/pkg/feeshared` so the
-  embedded fee code, its Mongo tenant client, and its authz all key on the same string.
+  ledger route registrar and `components/ledger/pkg/feeshared`, so the embedded fee code and its
+  authz key on the same string. Its Mongo tenant client keys on a different string:
+  `pkg/constant.ModuleFees` (`fees-api`) is the tenant-manager MODULE name, matching what
+  tenant-manager provisions for fees. Authz namespace and tenant module are independent — renaming
+  one does not move the other.
 
 ## X1 — policy migration (`plugin-crm` → `midaz`)
 

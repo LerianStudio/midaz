@@ -82,7 +82,7 @@ func initFeesMongo(opts *Options, cfg *Config, logger libLog.Logger) (*feesMongo
 }
 
 // buildFeesMongoManager builds the fee tenant-manager Mongo manager. It reuses
-// ledger's tenant client and is keyed on constant.ModuleFees ("plugin-fees") so
+// ledger's tenant client and is keyed on constant.ModuleFees so
 // tenant-manager resolves the fee module DB for the merged binary. The per-tenant
 // DB lands on the request context (tmcore) via the CRM-style route-scoped
 // middleware in buildUnifiedRouteSetup.

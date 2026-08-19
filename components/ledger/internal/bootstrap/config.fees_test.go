@@ -148,13 +148,13 @@ func TestFeesDefaultCurrencyDefault(t *testing.T) {
 		"an explicit DEFAULT_CURRENCY must not be overridden")
 }
 
-// TestModuleFeesProvisioningName locks the tenant-manager / auth namespace value.
-// The standalone fees service registered under "plugin-fees" (auth namespace +
-// single-module tenant service name). Renaming this breaks RBAC and tenant DB
-// resolution for already-provisioned tenants (the CRM crm->crm-api footgun).
+// TestModuleFeesProvisioningName locks the tenant-manager module name. The value
+// MUST match what tenant-manager provisions for the fee module, or per-tenant fee
+// DB resolution silently misses. The auth/RBAC namespace is a separate literal
+// (feeshared constant.ApplicationName) and is NOT covered by this test.
 func TestModuleFeesProvisioningName(t *testing.T) {
 	t.Parallel()
 
-	assert.Equal(t, "plugin-fees", constant.ModuleFees,
-		"ModuleFees MUST equal 'plugin-fees' to match tenant-manager provisioning + RBAC (R9, P4-T22)")
+	assert.Equal(t, "fees-api", constant.ModuleFees,
+		"ModuleFees MUST equal 'fees-api' to match tenant-manager provisioning")
 }
