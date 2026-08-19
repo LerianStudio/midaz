@@ -106,21 +106,26 @@ func testCheckLimitsInput(t *testing.T) *model.CheckLimitsInput {
 	return input
 }
 
+// decEq matches a decimal.Decimal argument by value (decimal.Equal, never ==).
+func decEq(want decimal.Decimal) gomock.Matcher {
+	return gomock.Cond(func(got decimal.Decimal) bool { return got.Equal(want) })
+}
+
 func twoSpecs() []query.ReservationSpec {
 	return []query.ReservationSpec{
 		{
 			LimitID:   testutil.MustDeterministicUUID(7101),
 			ScopeKey:  "acct:7001",
 			PeriodKey: "2026-06",
-			Amount:    400,
-			MaxAmount: 10000,
+			Amount:    decimal.NewFromInt(400),
+			MaxAmount: decimal.NewFromInt(10000),
 		},
 		{
 			LimitID:   testutil.MustDeterministicUUID(7102),
 			ScopeKey:  "global",
 			PeriodKey: "2026-06-05",
-			Amount:    400,
-			MaxAmount: 5000,
+			Amount:    decimal.NewFromInt(400),
+			MaxAmount: decimal.NewFromInt(5000),
 		},
 	}
 }
@@ -143,11 +148,11 @@ func TestReservationService_Reserve(t *testing.T) {
 
 		// One reserve + one audit per applicable limit.
 		deps.repo.EXPECT().
-			ReserveWithTx(gomock.Any(), deps.tx, gomock.AssignableToTypeOf(&model.Reservation{}), int64(10000)).
+			ReserveWithTx(gomock.Any(), deps.tx, gomock.AssignableToTypeOf(&model.Reservation{}), decEq(decimal.NewFromInt(10000))).
 			Return(nil).
 			Times(1)
 		deps.repo.EXPECT().
-			ReserveWithTx(gomock.Any(), deps.tx, gomock.AssignableToTypeOf(&model.Reservation{}), int64(5000)).
+			ReserveWithTx(gomock.Any(), deps.tx, gomock.AssignableToTypeOf(&model.Reservation{}), decEq(decimal.NewFromInt(5000))).
 			Return(nil).
 			Times(1)
 		deps.auditWriter.EXPECT().
@@ -159,6 +164,50 @@ func TestReservationService_Reserve(t *testing.T) {
 		require.NoError(t, err)
 		require.False(t, result.Denied)
 		assert.Len(t, result.ReservationIDs, 2)
+	})
+
+	t.Run("Fractional spec amount reaches the reservation row intact", func(t *testing.T) {
+		svc, deps := newReservationServiceDeps(t)
+
+		input := testCheckLimitsInput(t)
+
+		fractional := decimal.RequireFromString("10.50")
+		spec := []query.ReservationSpec{
+			{
+				LimitID:   testutil.MustDeterministicUUID(7101),
+				ScopeKey:  "acct:7001",
+				PeriodKey: "2026-06",
+				Amount:    fractional,
+				MaxAmount: decimal.NewFromInt(20),
+			},
+		}
+
+		deps.resolver.EXPECT().
+			ResolveReservations(gomock.Any(), input).
+			Return(spec, false, nil).
+			Times(1)
+
+		deps.expectTxCommit()
+
+		var captured decimal.Decimal
+		deps.repo.EXPECT().
+			ReserveWithTx(gomock.Any(), deps.tx, gomock.Any(), decEq(decimal.NewFromInt(20))).
+			DoAndReturn(func(_ context.Context, _ any, r *model.Reservation, _ decimal.Decimal) error {
+				captured = r.Amount
+
+				return nil
+			}).
+			Times(1)
+		deps.auditWriter.EXPECT().
+			RecordReservationEventWithTx(gomock.Any(), deps.tx, model.AuditEventReservationReserved, model.AuditActionReserve, gomock.Any(), gomock.Any()).
+			Return(nil).
+			Times(1)
+
+		_, err := svc.Reserve(context.Background(), txID, input, false)
+		require.NoError(t, err)
+
+		// The pre-fix int64 path would have persisted 10 here.
+		assert.True(t, fractional.Equal(captured), "expected 10.50 held, got %s", captured)
 	})
 
 	t.Run("Denied by resolver (per-transaction cap) returns Denied without a tx", func(t *testing.T) {
@@ -193,7 +242,7 @@ func TestReservationService_Reserve(t *testing.T) {
 		// First reserve trips the over-limit guard; the whole tx rolls back and no
 		// further reserve/audit runs.
 		deps.repo.EXPECT().
-			ReserveWithTx(gomock.Any(), deps.tx, gomock.Any(), int64(10000)).
+			ReserveWithTx(gomock.Any(), deps.tx, gomock.Any(), decEq(decimal.NewFromInt(10000))).
 			Return(constant.ErrUsageCounterExceedsLimit).
 			Times(1)
 
@@ -241,8 +290,8 @@ func TestReservationService_Reserve(t *testing.T) {
 
 		var captured time.Time
 		deps.repo.EXPECT().
-			ReserveWithTx(gomock.Any(), deps.tx, gomock.Any(), int64(10000)).
-			DoAndReturn(func(_ context.Context, _ any, r *model.Reservation, _ int64) error {
+			ReserveWithTx(gomock.Any(), deps.tx, gomock.Any(), decEq(decimal.NewFromInt(10000))).
+			DoAndReturn(func(_ context.Context, _ any, r *model.Reservation, _ decimal.Decimal) error {
 				captured = r.ReservationExpiresAt
 
 				return nil
@@ -289,8 +338,8 @@ func TestReservationService_Reserve(t *testing.T) {
 
 		var captured time.Time
 		repo.EXPECT().
-			ReserveWithTx(gomock.Any(), tx, gomock.Any(), int64(10000)).
-			DoAndReturn(func(_ context.Context, _ any, r *model.Reservation, _ int64) error {
+			ReserveWithTx(gomock.Any(), tx, gomock.Any(), decEq(decimal.NewFromInt(10000))).
+			DoAndReturn(func(_ context.Context, _ any, r *model.Reservation, _ decimal.Decimal) error {
 				captured = r.ReservationExpiresAt
 
 				return nil
@@ -325,8 +374,8 @@ func TestReservationService_Reserve(t *testing.T) {
 
 		var captured time.Time
 		deps.repo.EXPECT().
-			ReserveWithTx(gomock.Any(), deps.tx, gomock.Any(), int64(10000)).
-			DoAndReturn(func(_ context.Context, _ any, r *model.Reservation, _ int64) error {
+			ReserveWithTx(gomock.Any(), deps.tx, gomock.Any(), decEq(decimal.NewFromInt(10000))).
+			DoAndReturn(func(_ context.Context, _ any, r *model.Reservation, _ decimal.Decimal) error {
 				captured = r.ReservationExpiresAt
 
 				return nil
@@ -354,8 +403,8 @@ func oneSpec() []query.ReservationSpec {
 			LimitID:   testutil.MustDeterministicUUID(7101),
 			ScopeKey:  "acct:7001",
 			PeriodKey: "2026-06",
-			Amount:    400,
-			MaxAmount: 10000,
+			Amount:    decimal.NewFromInt(400),
+			MaxAmount: decimal.NewFromInt(10000),
 		},
 	}
 }
@@ -445,11 +494,11 @@ func TestReservationService_Release(t *testing.T) {
 
 func twoReservations(txID uuid.UUID) []*model.Reservation {
 	res1, _ := model.NewReservation(
-		testutil.MustDeterministicUUID(7401), txID, "acct:7401", "2026-06", 400,
+		testutil.MustDeterministicUUID(7401), txID, "acct:7401", "2026-06", decimal.NewFromInt(400),
 		testutil.FixedTime().Add(5*time.Minute), testutil.FixedTime(),
 	)
 	res2, _ := model.NewReservation(
-		testutil.MustDeterministicUUID(7402), txID, "global", "2026-06-05", 400,
+		testutil.MustDeterministicUUID(7402), txID, "global", "2026-06-05", decimal.NewFromInt(400),
 		testutil.FixedTime().Add(5*time.Minute), testutil.FixedTime(),
 	)
 

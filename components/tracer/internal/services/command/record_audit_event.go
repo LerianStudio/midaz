@@ -13,6 +13,7 @@ import (
 	libObservability "github.com/LerianStudio/lib-observability/v2"
 	libOpentelemetry "github.com/LerianStudio/lib-observability/v2/tracing"
 	"github.com/google/uuid"
+	"github.com/shopspring/decimal"
 
 	pgdb "github.com/LerianStudio/midaz/v4/components/tracer/internal/adapters/postgres/db"
 	"github.com/LerianStudio/midaz/v4/components/tracer/pkg/contextutil"
@@ -239,13 +240,14 @@ func (c *RecordAuditEventCommand) RecordLimitEventWithTx(
 // ReservationAuditContext is the forensic payload recorded for a single
 // reservation transition. It carries the resolved limit coordinates the
 // reservation already holds (R38) so the audit row is self-describing without a
-// limit re-query. Amount is the smallest currency unit (cents).
+// limit re-query. Amount is a decimal currency value (e.g. 10.50); it serializes
+// to a JSON string in the audit context.
 type ReservationAuditContext struct {
 	TransactionID uuid.UUID
 	LimitID       uuid.UUID
 	ScopeKey      string
 	PeriodKey     string
-	Amount        int64
+	Amount        decimal.Decimal
 	Status        string
 }
 
