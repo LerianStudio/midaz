@@ -4,7 +4,7 @@
 
 **Architecture:** Integration build tags define what belongs to each lane. Required gates fail closed when discovery or prerequisites are missing. Datastore processes are eventually reused at package or shard scope, while every test keeps an isolated database, schema, namespace, or vhost. Parallelism is introduced only after isolation is explicit and measured.
 
-**Status:** P0-P3 and every finding from the final independent review are implemented together. The current signal contains 1,732 exact integration tests; P1 reduces datastore starts by 92.9%, P2 reduces the serial critical path by 74.5%, and P3 removes redundant restarts, waits, cleanup, and history scans. The complete current-head matrix, unit, property, contract, API-drift, and real Ledger-to-Tracer V2 gates are green. Repository ruleset enforcement remains deliberately last.
+**Status:** P0-P3 and every finding from the final independent review are implemented together. The current signal contains 1,735 exact integration tests; P1 reduces datastore starts by 92.9%, P2 reduces the like-for-like base critical path by 70.4%, and P3 removes redundant restarts, waits, cleanup, and history scans. A required capability lane additionally executes all 76 chaos scenarios that the base matrix classifies as skips, making the complete required critical path 478 seconds. Repository ruleset enforcement remains deliberately last.
 
 ## Phase overview
 
@@ -12,7 +12,7 @@
 |---|---|---|
 | P0 | Every required gate executes the coverage it claims and emits usable timing evidence | Complete — final review findings and consolidated gates green |
 | P1 | Ledger datastore startup and migrations are reused without sharing mutable test state | Complete — consolidated randomized and serial gates green |
-| P2 | Independent families run concurrently within an explicit resource budget | Complete — five current-head shards green within budget |
+| P2 | Independent families run concurrently within an explicit resource budget | Complete — five base shards plus the required chaos capability green within budget |
 | P3 | Tracer restarts, fixed waits, polling, cleanup, and streaming history scans are reduced | Complete — implemented, measured, and revalidated |
 
 ### Execution order — 2026-08-17
@@ -49,6 +49,8 @@
 - [x] Prevent a required E2E command from succeeding after all tests were skipped.
 - [x] Add a process-level timeout and structured test report.
 - [x] Require the Tracer wiring probe to observe HTTP 422 with code 0177; treat 5xx as a technical failure.
+- [x] Generate one ephemeral CI credential for Ledger and Tracer without logging it, and reject empty, mismatched, or disabled REST authentication before starting the runner.
+- [x] Require the seven Tracer financial REST operations to authenticate independently of the global API-key mode; keep non-financial routes under plugin authentication and gRPC under mTLS.
 
 ### P0.4 CI contract and measurement
 
@@ -58,6 +60,8 @@
 - [x] Establish wall-clock, container-start, and restart baselines for every lane.
 - [x] Fail closed when the Docker event observer cannot start or dies before the lane finishes.
 - [x] Keep test-result caching disabled in CI; compilation and module caches remain enabled.
+- [x] Record terminal pass, skip, fail, and missing outcomes; reject unclassified, stale, or changed skip declarations.
+- [x] Prove every classified chaos skip by exact `package#test` identity in a required capability artifact; declarations without an executed pass fail closed.
 
 #### P0 baseline — Mordor, 2026-08-17
 
@@ -101,7 +105,7 @@ Chosen revert rollout contract: first deploy a freeze-capable legacy phase witho
 
 V1 `remaining` closure: every resolved leg and balance identity survives direct execution, pending commit, pending cancel, revert, Redis replay, fees, zero-fee no-ops, persistence, and balance synchronization. Fee packages expose additive `operationRouteFromId` and `operationRouteToId` UUIDs while the existing free-form route labels remain passive; omission preserves an existing UUID, `null` clears only that UUID, and multi-fee partial updates preserve stored priorities atomically. The full low-resource lane passed with 1,620 selected tests, 1,540 passes, 80 classified skips, 1,320 container starts, zero restarts, and 2,972 seconds of wall time.
 
-Final review closure: decimal balance arithmetic is exact beyond IEEE-754 precision; Ledger discovers multi-tenant outcome backlog from durable state instead of an expiring process cache; V2 admission requires non-evicting AOF-backed Valkey; Ledger-to-Tracer REST uses a dedicated API key with mTLS and tenant identity; and rolling Tracer deployments fail before the money path unless the selected pod explicitly accepts the V2 protocol. The required E2E proves the complete Ledger-to-Tracer flow, receipt persistence, exact audit context, and replay after an acknowledgement is lost.
+Final review closure: decimal balance arithmetic is exact beyond IEEE-754 precision; Ledger discovers multi-tenant outcome backlog from durable state instead of an expiring process cache; outcome, active index, schedule, and tenant discovery share one Redis Cluster slot and one atomic prepare; V2 admission requires non-evicting AOF-backed Valkey; Ledger-to-Tracer REST uses a dedicated always-on API key with mTLS and tenant identity; and rolling Tracer deployments fail before the money path unless the selected pod explicitly accepts the V2 protocol. Async persistence publishes terminal status and the complete operation multiset in one PostgreSQL commit, so no reader can observe an approved half-entry. Required integration artifacts distinguish base skips from executed coverage, and the required E2E proves the complete Ledger-to-Tracer flow, receipt persistence, exact audit context, and replay after an acknowledgement is lost from a clean generated environment.
 
 ### P0 exit gate
 
@@ -111,6 +115,7 @@ Final review closure: decimal balance arithmetic is exact beyond IEEE-754 precis
 - [x] Pull requests run the required integration signal.
 - [x] Tracer integration runs with the race detector enabled.
 - [x] Baseline timings and selected-test counts are persisted as CI artifacts.
+- [x] Every base skip is either rejected or matched to an exact passing capability test; the current required set proves all 76 chaos identities.
 
 **External enforcement gap, scheduled last:** the new jobs run on every pull request event covered by the workflow, but the repository rulesets do not yet require their new check contexts. Apply the repository-admin mutation only after P0-P3 and the final completion audit.
 
@@ -148,6 +153,7 @@ P1 final measurement: 1,726 selected tests completed serially in 530 seconds wit
 - [x] Make package parallelism configurable; benchmark `2` before `4`.
 - [x] Cap in-package parallelism independently from package parallelism.
 - [x] Keep shared-server, fixed-port, BDD journey, and system-chaos families serial.
+- [x] Execute chaos capability packages in bounded owner-isolated waves and aggregate their exact terminal outcomes into the stable lifecycle check.
 - [x] Set CPU, memory, container-count, and flake-rate budgets.
 - [x] Promote a higher parallelism level only when repeated runs stay within every budget.
 
@@ -157,7 +163,7 @@ P1 final measurement: 1,726 selected tests completed serially in 530 seconds wit
 - [x] Run repeated seeded CI rounds with zero retries or failures; do not claim statistical significance from a small sample.
 - [x] Preserve deterministic failure attribution to one shard and one test.
 
-P2 final measurement: 1,732 exact tests across five non-overlapping shards (462 PostgreSQL, 216 MongoDB/CRM, 295 async/broker, 656 Tracer, and 103 lifecycle/migration), with zero retries, failures, or container restarts. At `p=2`, the current-head critical path is 135 seconds versus P1's 530 seconds (-74.5%). Every shard includes process-tree and owner-container resources: peak total RSS was 1,368 MiB, and peak live containers stayed inside each explicit budget. Completed package fixtures are cleaned at safe barriers, so retained Ryuk sessions cannot inflate MongoDB, broker, or lifecycle resource use. Tracer's 656 tests run with the race detector. `p=4` is intentionally not promoted because the shared-server Tracer tests remain serial by contract and added concurrency would not shorten the measured critical path.
+P2 final measurement: 1,735 exact base tests across five non-overlapping shards (462 PostgreSQL, 216 MongoDB/CRM, 298 async/broker, 656 Tracer, and 103 lifecycle/migration). The base artifacts contain 1,659 passes and 76 classified chaos skips, with zero failures, missing outcomes, or retries. A sixth required capability lane executes those same 76 `package#test` identities under real chaos: 76 passes, zero skips/failures/retries, and exact aggregation back into the stable lifecycle check. The base current-head critical path is 157 seconds versus P1's 530 seconds (-70.4%); the expanded required path including chaos is 478 seconds. Every lane includes process-tree and owner-container resources and stayed inside its CPU, RSS, and container budgets; the chaos lane peaked at 840 MiB RSS and seven live containers. Completed fixtures are cleaned at safe barriers, no non-Ryuk container survives, and expected chaos restarts are attributed to the owning lane. Tracer's 656 tests run with the race detector. Higher base parallelism is intentionally not promoted because the shared-server Tracer tests remain serial by contract and added concurrency would not shorten the measured base path.
 
 ## P3 — Remove secondary work
 
