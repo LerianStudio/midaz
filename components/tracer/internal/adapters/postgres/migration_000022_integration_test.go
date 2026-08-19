@@ -158,9 +158,10 @@ func TestIntegration_Migration000022_OldWorkersCannotMutateV2Holds(t *testing.T)
 	_, err = db.Exec("DELETE FROM usage_reservations WHERE id = $1", reservation.ID)
 	require.Error(t, err, "database must reject deletion of a live V2 hold, including ON DELETE CASCADE")
 
-	current, reserved := readCounter(t, db, limitID, reservation.ScopeKey, reservation.PeriodKey)
-	require.Zero(t, current)
-	require.Equal(t, reservation.Amount, reserved)
+	current, reserved := readCounterDecimal(t, db, limitID, reservation.ScopeKey, reservation.PeriodKey)
+	require.True(t, current.IsZero(), "current_usage must stay zero, got %s", current)
+	require.True(t, reservation.Amount.Equal(reserved),
+		"reserved_usage must still back the live V2 hold; want %s got %s", reservation.Amount, reserved)
 	require.Equal(t, string(model.StatusReserved), readReservationStatus(t, db, reservation.ID))
 }
 
