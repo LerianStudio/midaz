@@ -117,6 +117,7 @@ func TestIntegration_UsageReservationRepository_DoubleConfirm_Idempotent(t *test
 	periodKey := "2026-06"
 
 	ctx := context.Background()
+	now := testutil.FixedTime()
 
 	res, err := model.NewReservation(
 		limitID,
@@ -124,8 +125,8 @@ func TestIntegration_UsageReservationRepository_DoubleConfirm_Idempotent(t *test
 		scopeKey,
 		periodKey,
 		decimal.NewFromInt(400),
-		time.Now().UTC().Add(5*time.Minute),
-		time.Now().UTC(),
+		now.Add(5*time.Minute),
+		now,
 	)
 	require.NoError(t, err)
 
@@ -177,6 +178,7 @@ func TestIntegration_UsageReservationRepository_FractionalAmount_Preserved(t *te
 	periodKey := "2026-06"
 
 	ctx := context.Background()
+	now := testutil.FixedTime()
 
 	want := decimal.RequireFromString("10.50")
 
@@ -186,8 +188,8 @@ func TestIntegration_UsageReservationRepository_FractionalAmount_Preserved(t *te
 		scopeKey,
 		periodKey,
 		want,
-		time.Now().UTC().Add(5*time.Minute),
-		time.Now().UTC(),
+		now.Add(5*time.Minute),
+		now,
 	)
 	require.NoError(t, err)
 
@@ -224,6 +226,7 @@ func TestIntegration_UsageReservationRepository_ReleaseThenConfirm_Idempotent(t 
 	periodKey := "2026-06"
 
 	ctx := context.Background()
+	now := testutil.FixedTime()
 
 	res, err := model.NewReservation(
 		limitID,
@@ -231,8 +234,8 @@ func TestIntegration_UsageReservationRepository_ReleaseThenConfirm_Idempotent(t 
 		scopeKey,
 		periodKey,
 		decimal.NewFromInt(250),
-		time.Now().UTC().Add(5*time.Minute),
-		time.Now().UTC(),
+		now.Add(5*time.Minute),
+		now,
 	)
 	require.NoError(t, err)
 
@@ -288,14 +291,15 @@ func TestIntegration_UsageReservationRepository_ConfirmByTransaction_FlipsAll(t 
 	periodKey := "2026-06"
 
 	ctx := context.Background()
+	now := testutil.FixedTime()
 
 	// Two reservations under ONE transaction, on two different limits.
 	resA, err := model.NewReservation(limitA, txID, scopeA, periodKey, decimal.NewFromInt(400),
-		time.Now().UTC().Add(5*time.Minute), time.Now().UTC())
+		now.Add(5*time.Minute), now)
 	require.NoError(t, err)
 
 	resB, err := model.NewReservation(limitB, txID, scopeB, periodKey, decimal.NewFromInt(250),
-		time.Now().UTC().Add(5*time.Minute), time.Now().UTC())
+		now.Add(5*time.Minute), now)
 	require.NoError(t, err)
 
 	require.NoError(t, inRealTx(t, db, func(tx *sql.Tx) error {
@@ -368,6 +372,7 @@ func TestIntegration_UsageReservationRepository_Reserve_RowIdempotent(t *testing
 	periodKey := "2026-06"
 
 	ctx := context.Background()
+	now := testutil.FixedTime()
 
 	res, err := model.NewReservation(
 		limitID,
@@ -375,8 +380,8 @@ func TestIntegration_UsageReservationRepository_Reserve_RowIdempotent(t *testing
 		scopeKey,
 		periodKey,
 		decimal.NewFromInt(100),
-		time.Now().UTC().Add(5*time.Minute),
-		time.Now().UTC(),
+		now.Add(5*time.Minute),
+		now,
 	)
 	require.NoError(t, err)
 
@@ -419,6 +424,7 @@ func TestIntegration_UsageReservationRepository_SubUnitaryAmount_Preserved(t *te
 	periodKey := "2026-06"
 
 	ctx := context.Background()
+	now := testutil.FixedTime()
 
 	want := decimal.RequireFromString("0.99")
 
@@ -428,8 +434,8 @@ func TestIntegration_UsageReservationRepository_SubUnitaryAmount_Preserved(t *te
 		scopeKey,
 		periodKey,
 		want,
-		time.Now().UTC().Add(5*time.Minute),
-		time.Now().UTC(),
+		now.Add(5*time.Minute),
+		now,
 	)
 	require.NoError(t, err)
 
@@ -472,6 +478,7 @@ func TestIntegration_UsageReservationRepository_FractionalCap_Denies(t *testing.
 	periodKey := "2026-06"
 
 	ctx := context.Background()
+	now := testutil.FixedTime()
 
 	// The reserve guard checks against the maxAmount the caller passes, not the limit
 	// column, so the cap is set here to a sub-unitary 0.75.
@@ -486,8 +493,8 @@ func TestIntegration_UsageReservationRepository_FractionalCap_Denies(t *testing.
 		scopeKey,
 		periodKey,
 		half,
-		time.Now().UTC().Add(5*time.Minute),
-		time.Now().UTC(),
+		now.Add(5*time.Minute),
+		now,
 	)
 	require.NoError(t, err)
 
@@ -497,8 +504,8 @@ func TestIntegration_UsageReservationRepository_FractionalCap_Denies(t *testing.
 		scopeKey,
 		periodKey,
 		half,
-		time.Now().UTC().Add(5*time.Minute),
-		time.Now().UTC(),
+		now.Add(5*time.Minute),
+		now,
 	)
 	require.NoError(t, err)
 

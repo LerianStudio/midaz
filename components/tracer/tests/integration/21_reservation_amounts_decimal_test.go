@@ -17,6 +17,7 @@ import (
 	migratepostgres "github.com/golang-migrate/migrate/v4/database/postgres"
 	_ "github.com/golang-migrate/migrate/v4/source/file"
 	_ "github.com/jackc/pgx/v5/stdlib"
+	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/require"
 )
 
@@ -37,6 +38,8 @@ import (
 //     carries a fractional part — it must fail loud, never ROUND/truncate.
 //  4. migrate-down reverts both columns to 'bigint' when every persisted value
 //     is integral.
+//  5. An existing integer BIGINT VALUE survives the ::decimal cast bit-exact —
+//     the direct cast neither divides by 100 nor otherwise mutates the number.
 //
 // Each sub-test provisions its OWN throwaway Postgres container (via
 // startUpgradePathContainer from 10_upgrade_path_test.go): the fractional-abort
@@ -117,6 +120,70 @@ func TestReservationAmountsDecimalMigration(t *testing.T) {
 		require.Equal(t, "bigint",
 			reservationColumnType(ctx, t, db, "usage_reservations", "amount"),
 			"000021 down must revert usage_reservations.amount numeric -> bigint")
+	})
+
+	t.Run("up_preserves_existing_bigint_values", func(t *testing.T) {
+		dsn := startUpgradePathContainer(ctx, t)
+		mig, db := newHeadReservationMigrate(ctx, t, dsn)
+
+		// Stop one short of 000021 so the reservation-seam columns are still BIGINT
+		// and can hold a pre-existing integer value the cast must preserve.
+		require.NoError(t, mig.Migrate(20), "migrate up to version 20 (pre-000021)")
+		require.Equal(t, "bigint",
+			reservationColumnType(ctx, t, db, "usage_counters", "reserved_usage"),
+			"pre-000021 usage_counters.reserved_usage must still be bigint")
+		require.Equal(t, "bigint",
+			reservationColumnType(ctx, t, db, "usage_reservations", "amount"),
+			"pre-000021 usage_reservations.amount must still be bigint")
+
+		// Seed a distinctive integer value into BOTH reservation-seam columns. A
+		// value-corrupting cast (e.g. an unwanted /100) would turn 12345 into 123.
+		const wantInt = 12345
+		want := decimal.NewFromInt(wantInt)
+
+		limitID := insertReservationTestLimit(ctx, t, db)
+
+		_, err := db.ExecContext(ctx, `
+			INSERT INTO usage_counters (limit_id, scope_key, period_key, current_usage, reserved_usage)
+			VALUES ($1, 'scope-preserve', 'period-preserve', 0, $2)`, limitID, wantInt)
+		require.NoError(t, err, "insert integer reserved_usage before the cast")
+
+		_, err = db.ExecContext(ctx, `
+			INSERT INTO usage_reservations
+				(limit_id, scope_key, period_key, amount, transaction_id, reservation_expires_at)
+			VALUES ($1, 'scope-preserve', 'period-preserve', $2, gen_random_uuid(), NOW() + INTERVAL '5 minutes')`,
+			limitID, wantInt)
+		require.NoError(t, err, "insert integer amount before the cast")
+
+		// Advance to HEAD, applying 000021's BIGINT -> DECIMAL cast.
+		require.NoError(t, applyMigrateUp(mig), "apply 000021 up to HEAD")
+
+		require.Equal(t, "numeric",
+			reservationColumnType(ctx, t, db, "usage_counters", "reserved_usage"),
+			"000021 up must convert usage_counters.reserved_usage to numeric")
+		require.Equal(t, "numeric",
+			reservationColumnType(ctx, t, db, "usage_reservations", "amount"),
+			"000021 up must convert usage_reservations.amount to numeric")
+
+		// Read the post-cast values back as exact decimals: the cast must preserve
+		// 12345 bit-exact, not divide, round, or truncate it.
+		var gotReserved, gotAmount decimal.Decimal
+
+		require.NoError(t, db.QueryRowContext(
+			ctx,
+			`SELECT reserved_usage FROM usage_counters
+			 WHERE scope_key = 'scope-preserve' AND period_key = 'period-preserve'`,
+		).Scan(&gotReserved), "read back reserved_usage after cast")
+		require.NoError(t, db.QueryRowContext(
+			ctx,
+			`SELECT amount FROM usage_reservations
+			 WHERE scope_key = 'scope-preserve' AND period_key = 'period-preserve'`,
+		).Scan(&gotAmount), "read back amount after cast")
+
+		require.True(t, want.Equal(gotReserved),
+			"000021 cast must preserve usage_counters.reserved_usage exactly; want %s got %s", want, gotReserved)
+		require.True(t, want.Equal(gotAmount),
+			"000021 cast must preserve usage_reservations.amount exactly; want %s got %s", want, gotAmount)
 	})
 }
 
