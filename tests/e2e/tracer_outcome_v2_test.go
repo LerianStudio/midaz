@@ -18,6 +18,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/shopspring/decimal"
 
 	"github.com/LerianStudio/midaz/v4/pkg/utils"
 )
@@ -208,8 +209,16 @@ func assertReservationAuditContext(
 	if got, _ := ctx["status"].(string); got != "CONFIRMED" {
 		t.Fatalf("audit status=%q, want CONFIRMED", got)
 	}
-	if got, ok := ctx["amount"].(float64); !ok || got != float64(amount) {
-		t.Fatalf("audit amount=%v, want %d", ctx["amount"], amount)
+	// ReservationAuditContext.Amount is a decimal.Decimal, which serializes
+	// to a JSON string in the audit context; compare numerically so scale
+	// variants ("100" vs "100.00") stay equal.
+	rawAmount, ok := ctx["amount"].(string)
+	if !ok {
+		t.Fatalf("audit amount=%v (%T), want decimal string", ctx["amount"], ctx["amount"])
+	}
+	gotAmount, err := decimal.NewFromString(rawAmount)
+	if err != nil || !gotAmount.Equal(decimal.NewFromInt(int64(amount))) {
+		t.Fatalf("audit amount=%q, want %d", rawAmount, amount)
 	}
 
 	gotPeriod, _ := ctx["periodKey"].(string)
