@@ -119,6 +119,9 @@ permissions:
   - { resource: settings, action: get,    effect: allow, roles: [editor, viewer] }
   - { resource: settings, action: delete, effect: allow, roles: [editor] }
 
+  # streaming-manifest — event catalog (streaming_manifest_route.go:35)
+  - { resource: streaming-manifest, action: get, effect: allow, roles: [editor, viewer] }
+
   # transaction-routes (routes.go:357)
   - { resource: transaction-routes, action: post,   effect: allow, roles: [editor] }
   - { resource: transaction-routes, action: patch,  effect: allow, roles: [editor] }
