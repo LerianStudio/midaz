@@ -46,6 +46,9 @@ permissions:
   # audit-events — hash-chained audit read (routes.go:574)
   - { resource: audit-events, action: get, effect: allow, roles: [editor, viewer] }
 
+  # streaming-manifest — event catalog (streaming_manifest_route.go:48)
+  - { resource: streaming-manifest, action: get, effect: allow, roles: [editor, viewer] }
+
 roles:
   # ### TEAM: please confirm ### — role -> group bindings are INFERRED.
   - name: editor
