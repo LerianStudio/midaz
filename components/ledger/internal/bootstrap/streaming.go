@@ -6,14 +6,15 @@ package bootstrap
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	nethttp "net/http"
 	"strings"
 
 	libLog "github.com/LerianStudio/lib-observability/v2/log"
 	libOpentelemetry "github.com/LerianStudio/lib-observability/v2/tracing"
-	libStreaming "github.com/LerianStudio/lib-streaming/v2"
-	billing "github.com/LerianStudio/lib-streaming/v2/billing"
+	libStreaming "github.com/LerianStudio/lib-streaming/v3"
+	billing "github.com/LerianStudio/lib-streaming/v3/billing"
 
 	pkgStreaming "github.com/LerianStudio/midaz/v4/pkg/streaming"
 	"github.com/LerianStudio/midaz/v4/pkg/streaming/events"
@@ -25,25 +26,39 @@ import (
 // sync.
 const streamingPrimaryTargetName = "primary"
 
-// streamingServiceName is the leading, ACL-scoped service segment of every
-// topic name produced by pkgStreaming.TopicName, yielding
-// "ledger.<resource>.<event>". The monorepo binary emits every event it owns
-// (ledger core, fees, CRM) under this one segment: the per-product segments
-// were collapsed into "ledger" so the whole binary shares one namespace and a
-// single Kafka ACL prefix "ledger." covers every topic.
+// streamingServiceName is this application's name on the streaming roster: the
+// ce-source it stamps on every event and the single segment its one topic is
+// derived from, "lerian.streaming.ledger". The monorepo binary emits every
+// event it owns (ledger core, fees, CRM) under this one application name, so a
+// Kafka ACL scoped to the three names lib-streaming derives from it (topic,
+// commands queue, DLQ) covers everything the binary writes.
 const streamingServiceName = "ledger"
 
-// resolveStreamingSource normalizes the configured CloudEvents source to stamp
-// on emitted events. STREAMING_CLOUDEVENTS_SOURCE is REQUIRED when streaming is
-// enabled: libStreaming.LoadConfig fail-closes with ErrMissingSource on a
-// genuinely-unset value, so BuildStreamingEmitter aborts and the binary never
-// starts without it (.env.example recommends the bare service name "ledger" so
-// ce-source matches the leading ACL-scoped topic segment "ledger." — the route
-// Destination topics are "ledger.<resource>.<event>"). This helper only trims
-// the configured value and returns it verbatim; the bare service name
-// streamingServiceName ("ledger") is a defense-in-depth fallback for a nil or
-// whitespace-only config value that slips past LoadConfig's empty-string check,
-// NOT the unset-env default.
+// streamingFactRouteKey identifies the single catch-all route that carries every
+// fact the ledger emits to its application topic. Under one topic per producing
+// application there is nothing left to fan out per event, so one route replaces
+// the former route-per-catalog-entry table. The key is an operator-facing
+// identifier only — it never reaches the wire.
+const streamingFactRouteKey = streamingServiceName + ".facts." + streamingPrimaryTargetName
+
+// resolveStreamingSource normalizes the configured CloudEvents source. The
+// resolved value is load-bearing three times over and MUST be one value: it is
+// stamped as ce-source, it derives the application topic every event rides
+// (libStreaming.AppTopic), and it is what the manifest advertises to the
+// streaming hub. A divergence between any two of those would point provisioning
+// at a stream nothing writes, and a source-verifying consumer would quarantine
+// every record it received.
+//
+// STREAMING_CLOUDEVENTS_SOURCE is REQUIRED when streaming is enabled:
+// libStreaming.LoadConfig fail-closes with ErrMissingSource on a genuinely-unset
+// value, so BuildStreamingEmitter aborts and the binary never starts without it
+// (.env.example recommends the roster name "ledger"). lib-streaming REJECTS a
+// source that is not a single dot-free lowercase segment rather than rewriting
+// it, so a malformed value fails startup instead of silently colonizing another
+// application's topic namespace. This helper only trims the configured value and
+// returns it verbatim; streamingServiceName ("ledger") is a defense-in-depth
+// fallback for a nil or whitespace-only config value that slips past
+// LoadConfig's empty-string check, NOT the unset-env default.
 func resolveStreamingSource(cfg *Config) string {
 	if cfg != nil {
 		if source := strings.TrimSpace(cfg.StreamingCloudEventsSource); source != "" {
@@ -68,13 +83,15 @@ func noopStreamingCloser() error { return nil }
 //     pilot) the function returns libStreaming.NewNoopEmitter() and a no-op
 //     close hook. No transport client is constructed and no broker
 //     connection is attempted.
-//   - When STREAMING_BROKERS is empty (LoadConfig surfaces this as an empty
-//     Brokers slice) the function ALSO returns a NoopEmitter — the Builder
-//     would otherwise reject construction with ErrMissingTarget Brokers.
+//   - When STREAMING_BROKERS is empty the function refuses boot via
+//     pkgStreaming.RequireBrokers. An enabled producer with nowhere to publish
+//     discards every event silently while readiness reports healthy, so it gets
+//     the roster gate's posture rather than a degraded start.
 //   - Otherwise the function builds a single-target catalog-first Producer
 //     via libStreaming.NewBuilder(), wiring the configured CloudEvents
-//     source onto the Builder and registering all midaz event definitions
-//     in the Catalog with a matching RouteDefinition per event.
+//     source onto the Builder, registering all midaz event definitions in
+//     the Catalog, and pointing one catch-all route at the application topic
+//     derived from that source.
 func BuildStreamingEmitter(
 	ctx context.Context,
 	cfg *Config,
@@ -86,6 +103,17 @@ func BuildStreamingEmitter(
 	}
 
 	_ = telemetry
+
+	// Fail closed on a ce-source that is not the roster name, BEFORE the enabled
+	// check: the topics and Kafka ACLs exist for the roster name only, so any other
+	// value publishes into a stream that neither exists nor is granted — and midaz's
+	// IMPORTANT posture would swallow every one of those failures as a Warn while the
+	// pod stays Ready. Checked even when streaming is disabled so a source left over
+	// from the pre-v3 dotted or URI shape fails startup instead of waiting in an env
+	// file for someone to flip the flag.
+	if err := pkgStreaming.RequireRosterSource(resolveStreamingSource(cfg), streamingServiceName); err != nil {
+		return nil, noopStreamingCloser, err
+	}
 
 	if !cfg.StreamingEnabled {
 		if logger != nil {
@@ -101,6 +129,16 @@ func BuildStreamingEmitter(
 	// the zero value of the struct.
 	streamingCfg, warnings, err := libStreaming.LoadConfig()
 	if err != nil {
+		// LoadConfig validates the broker list itself, so the missing-broker case
+		// surfaces here rather than at the shared gate below. Route it through the
+		// gate anyway: ledger and tracer then refuse boot with one error identity
+		// and one piece of operator guidance — including the sentence that stops
+		// someone "fixing" it by pointing STREAMING_BROKERS at a dead host. Any
+		// OTHER LoadConfig failure is a different config error and propagates wrapped.
+		if errors.Is(err, libStreaming.ErrProducerMissingBrokers) {
+			return nil, noopStreamingCloser, pkgStreaming.RequireBrokers(streamingCfg.Brokers)
+		}
+
 		return nil, noopStreamingCloser, fmt.Errorf("failed to load streaming config: %w", err)
 	}
 
@@ -110,13 +148,14 @@ func BuildStreamingEmitter(
 		}
 	}
 
-	if len(streamingCfg.Brokers) == 0 {
-		if logger != nil {
-			logger.Log(ctx, libLog.LevelWarn,
-				"STREAMING_ENABLED=true but STREAMING_BROKERS is empty; falling back to NoopEmitter")
-		}
-
-		return libStreaming.NewNoopEmitter(), noopStreamingCloser, nil
+	// Fail closed on an enabled producer with no broker. LoadConfig validates the
+	// broker list itself when it agrees that streaming is enabled, so in a normal
+	// env-driven boot this gate is reached only when the two parses of
+	// STREAMING_ENABLED disagree — but that is precisely the case that used to fall
+	// through to a NoopEmitter, discarding every event while the ledger, which has
+	// no streaming readiness prober, stayed Ready throughout.
+	if err := pkgStreaming.RequireBrokers(streamingCfg.Brokers); err != nil {
+		return nil, noopStreamingCloser, err
 	}
 
 	// Build the immutable Catalog of every event midaz emits. Catalog
@@ -129,22 +168,27 @@ func BuildStreamingEmitter(
 		return nil, noopStreamingCloser, fmt.Errorf("failed to build streaming catalog: %w", err)
 	}
 
-	// Build the route table. One required route per event keyed to the
-	// canonical "ledger.<resource>.<event>" topic name: every event routes
-	// under the single "ledger" service segment.
-	routes := buildRoutes(streamingPrimaryTargetName)
-
 	source := resolveStreamingSource(cfg)
+
+	// Build the route table: ONE required catch-all route carrying every fact
+	// the ledger emits to its single application topic.
+	routes, err := buildRoutes(streamingPrimaryTargetName, source)
+	if err != nil {
+		return nil, noopStreamingCloser, err
+	}
 
 	builder := libStreaming.NewBuilder().
 		Source(source).
 		Catalog(catalog).
 		Routes(routes...).
 		// The shared billing_recorded route targets a FIXED literal topic owned
-		// by the billing package (not a per-product topic from pkgStreaming.TopicName),
-		// so it is wired explicitly here rather than through buildRoutes. Merge is
-		// replace-by-DefinitionKey: billing_recorded matches no domain route, so it
-		// is appended and every domain route stays intact.
+		// by the billing package, not the ledger's application topic, so it is
+		// wired explicitly here rather than through buildRoutes. It is scoped to
+		// the billing_recorded DefinitionKey on the SAME target as the catch-all,
+		// which is precisely how lib-streaming expresses "this one event goes
+		// somewhere else": the scoped route REPLACES the catch-all for that
+		// definition on that target, so billing_recorded rides the billing topic
+		// only and never double-publishes onto the ledger's own stream.
 		RouteOverrides(billing.Route()).
 		Target(libStreaming.TargetConfig{
 			Name:    streamingPrimaryTargetName,
@@ -180,6 +224,7 @@ func BuildStreamingEmitter(
 			libLog.String("client_id", streamingCfg.ClientID),
 			libLog.String("ce_source", source),
 			libLog.String("auth", authMode),
+			libLog.Bool("tls", streamingCfg.TLSEnabled),
 			libLog.Int("catalog_size", catalog.Len()),
 			libLog.Int("routes", len(routes)),
 		)
@@ -344,46 +389,47 @@ func buildCatalog() (libStreaming.Catalog, error) {
 
 // BuildStreamingManifestHandler builds the catalog-only lib-streaming manifest
 // HTTP handler the ledger serves at pkgStreaming.ManifestRoutePath. It is a thin
-// wrapper over pkgStreaming.NewManifestHandler, delegating to the single shared
-// helper so the manifest SourceBase stays pinned to the bare service segment
-// (streamingServiceName) — making the advertised topics equal the emitted topics
-// regardless of STREAMING_CLOUDEVENTS_SOURCE. cfg is intentionally unused: the
-// manifest is INDEPENDENT of STREAMING_ENABLED and of the configured ce-source.
+// wrapper over pkgStreaming.NewManifestHandler.
+//
+// The descriptor Source is the SAME resolved ce-source the emitter publishes
+// under, so the application topic the manifest advertises is by construction the
+// topic the ledger writes: under one topic per application the manifest carries
+// that topic at document level, derived from the descriptor's Source. The
+// manifest stays INDEPENDENT of STREAMING_ENABLED — it is served whether or not
+// a producer was built, falling back to the roster name when no source is
+// configured.
+//
 // The manifest excludes the shared billing entry (billing.recorded rides a FIXED
-// literal topic, not a pkgStreaming.TopicName-derived one) by advertising only
-// midazEventDefinitions().
-func BuildStreamingManifestHandler(_ *Config) (nethttp.Handler, error) {
-	return pkgStreaming.NewManifestHandler(streamingServiceName, midazEventDefinitions())
+// literal topic owned by the billing package, not the ledger's application
+// topic) by advertising only midazEventDefinitions().
+func BuildStreamingManifestHandler(cfg *Config) (nethttp.Handler, error) {
+	return pkgStreaming.NewManifestHandler(streamingServiceName, resolveStreamingSource(cfg), midazEventDefinitions())
 }
 
-// buildRoutes constructs one RouteRequired route per midaz event,
-// targeting the single broker named targetName. Topic names are
-// "ledger.<resource>.<event>": every event routes under the single "ledger"
-// service segment, with the underscore-canonical Definition.Key() as the
-// two trailing segments.
+// buildRoutes constructs the ledger's single RouteRequired catch-all route,
+// carrying every fact in the catalog to the one application topic
+// "lerian.streaming.<source>" on the broker named targetName.
 //
-// Route Keys are composed as "<route-key>.<target-name>" (e.g.
-// "account.created.primary"), where <route-key> is the hyphenated routing
-// handle (RouteKey()) — Route.Key must match lib-streaming's lower-case
-// hyphenated dot-delimited grammar, and the target-name suffix guarantees
-// uniqueness when the same event is later routed to multiple targets (e.g. a
-// parallel shadow route). The wire topic, by contrast, derives from the
-// underscore-canonical Key() so it converges with EventDefinition.Topic.
-func buildRoutes(targetName string) []libStreaming.RouteDefinition {
-	defs := midazEventDefinitions()
-	routes := make([]libStreaming.RouteDefinition, 0, len(defs))
-
-	for _, def := range defs {
-		key := def.Key()
-		routeKey := def.RouteKey()
-		routes = append(routes, libStreaming.RouteDefinition{
-			Key:           routeKey + "." + targetName,
-			DefinitionKey: key,
-			Target:        targetName,
-			Destination:   libStreaming.KafkaTopic(pkgStreaming.TopicName(streamingServiceName, key)),
-			Requirement:   libStreaming.RouteRequired,
-		})
+// DefinitionKey is deliberately EMPTY: that is what makes the route a catch-all
+// serving every definition. One topic per producing application leaves nothing
+// to fan out per event — every event has the same destination — so a single
+// route replaces the former one-route-per-catalog-entry table. A definition that
+// needs a different destination is expressed as a scoped RouteOverrides entry on
+// this same target (see the billing route in BuildStreamingEmitter).
+//
+// The destination is derived through libStreaming.AppTopic, which VALIDATES the
+// source and returns an error rather than handing back a topic name built from a
+// malformed one.
+func buildRoutes(targetName, source string) ([]libStreaming.RouteDefinition, error) {
+	topic, err := libStreaming.AppTopic(source)
+	if err != nil {
+		return nil, fmt.Errorf("failed to derive ledger application topic: %w", err)
 	}
 
-	return routes
+	return []libStreaming.RouteDefinition{{
+		Key:         streamingFactRouteKey,
+		Target:      targetName,
+		Destination: libStreaming.KafkaTopic(topic),
+		Requirement: libStreaming.RouteRequired,
+	}}, nil
 }

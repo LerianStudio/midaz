@@ -10,7 +10,7 @@ import (
 	"testing"
 
 	"github.com/LerianStudio/lib-auth/v3/auth/middleware"
-	libStreaming "github.com/LerianStudio/lib-streaming/v2"
+	libStreaming "github.com/LerianStudio/lib-streaming/v3"
 	"github.com/gofiber/fiber/v3"
 	"github.com/stretchr/testify/require"
 
@@ -33,7 +33,7 @@ func newManifestTestHandler(t *testing.T) nethttp.Handler {
 
 	handler, err := libStreaming.NewStreamingHandler(libStreaming.PublisherDescriptor{
 		ServiceName: "ledger",
-		SourceBase:  "ledger",
+		Source:      "ledger",
 		RoutePath:   pkgStreaming.ManifestRoutePath,
 	}, catalog)
 	require.NoError(t, err, "manifest test handler must build")

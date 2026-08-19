@@ -7,7 +7,7 @@ package command
 import (
 	"testing"
 
-	billing "github.com/LerianStudio/lib-streaming/v2/billing"
+	billing "github.com/LerianStudio/lib-streaming/v3/billing"
 )
 
 // TestBillingSerializerSeam_ConcreteSatisfies locks that the concrete

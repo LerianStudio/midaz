@@ -15,12 +15,11 @@ import (
 )
 
 func TestBalanceConfigChangedDefinition_Key(t *testing.T) {
-	// EventType is the underscored canonical form (config_changed): Key() is
-	// balance.config_changed and only RouteKey() folds it to the hyphenated
-	// balance.config-changed routing handle. The payload changeType discriminator
-	// (settings_updated / overdraft_enabled) is separate payload data.
+	// EventType is the underscored canonical form (config_changed), so Key() is
+	// balance.config_changed and reaches the wire that way. The payload
+	// changeType discriminator (settings_updated / overdraft_enabled) is
+	// separate payload data.
 	assert.Equal(t, "balance.config_changed", events.BalanceConfigChangedDefinition.Key())
-	assert.Equal(t, "balance.config-changed", events.BalanceConfigChangedDefinition.RouteKey())
 	assert.Equal(t, "balance", events.BalanceConfigChangedDefinition.ResourceType)
 	assert.Equal(t, "config_changed", events.BalanceConfigChangedDefinition.EventType)
 	assert.Equal(t, "1.0.0", events.BalanceConfigChangedDefinition.SchemaVersion)

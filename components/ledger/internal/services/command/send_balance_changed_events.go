@@ -9,7 +9,7 @@ import (
 	"strings"
 
 	libObs "github.com/LerianStudio/lib-observability/v2"
-	libStreaming "github.com/LerianStudio/lib-streaming/v2"
+	libStreaming "github.com/LerianStudio/lib-streaming/v3"
 	"github.com/shopspring/decimal"
 
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/transaction"

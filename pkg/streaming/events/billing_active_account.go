@@ -5,7 +5,7 @@
 package events
 
 import (
-	"github.com/LerianStudio/lib-streaming/v2/billing"
+	"github.com/LerianStudio/lib-streaming/v3/billing"
 )
 
 // ActiveAccountBillable pairs an active-account billing payload with the
