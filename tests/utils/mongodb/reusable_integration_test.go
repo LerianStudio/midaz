@@ -8,11 +8,29 @@ package mongodb
 
 import (
 	"context"
+	"io"
+	"strconv"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/require"
+	tcexec "github.com/testcontainers/testcontainers-go/exec"
 	"go.mongodb.org/mongo-driver/v2/bson"
 )
+
+func TestReusableContainerSupportsPackageLongDatabaseChurn(t *testing.T) {
+	container := SetupReusableContainer(t)
+
+	exitCode, output, err := container.Container.Exec(context.Background(), []string{"sh", "-c", "ulimit -n"}, tcexec.Multiplexed())
+	require.NoError(t, err)
+	require.Zero(t, exitCode)
+
+	limitOutput, err := io.ReadAll(output)
+	require.NoError(t, err)
+	limit, err := strconv.ParseUint(strings.TrimSpace(string(limitOutput)), 10, 64)
+	require.NoError(t, err)
+	require.GreaterOrEqual(t, limit, uint64(65536), "MongoDB must retain enough file descriptors for package-long database churn")
+}
 
 func TestReusableContainerIsolatesDatabases(t *testing.T) {
 	first := SetupReusableContainer(t)

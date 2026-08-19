@@ -32,6 +32,8 @@ type reusableMongoServer struct {
 	uri       string
 }
 
+const reusableMongoOpenFileLimit = 65536
+
 var ownedMongoDatabaseSequence atomic.Uint64
 
 var reusableMongoServers = struct {
@@ -143,6 +145,11 @@ func getReusableMongoServer(tb testing.TB, cfg ContainerConfig) *reusableMongoSe
 		).WithDeadline(mongoStartupDeadline),
 		HostConfigModifier: func(hc *container.HostConfig) {
 			testutils.ApplyResourceLimits(hc, cfg.MemoryMB, cfg.CPULimit)
+			hc.Ulimits = append(hc.Ulimits, &container.Ulimit{
+				Name: "nofile",
+				Soft: reusableMongoOpenFileLimit,
+				Hard: reusableMongoOpenFileLimit,
+			})
 		},
 	}
 
