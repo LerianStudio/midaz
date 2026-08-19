@@ -104,7 +104,7 @@ func (e *Environment) CELEnv() *cel.Env {
 //   - transactionType (string): CARD, WIRE, PIX, CRYPTO
 //   - subType (string): debit, credit, instant, etc. (optional, empty string if nil)
 //   - amount (dyn): Decimal amount as float64 — dyn enables cross-type == with int literals
-//   - currency (string): ISO 4217 currency code
+//   - asset (string): ISO 4217 currency code
 //   - account (map[string]dyn): Account context with id, type, status, metadata
 //   - segment (map[string]dyn): Segment context (optional, empty map if nil)
 //   - portfolio (map[string]dyn): Portfolio context (optional, empty map if nil)
@@ -119,7 +119,7 @@ func NewEnvironment() (*Environment, error) {
 		cel.Variable("transactionType", cel.StringType),
 		cel.Variable("subType", cel.StringType),
 		cel.Variable("amount", cel.DynType),
-		cel.Variable("currency", cel.StringType),
+		cel.Variable("asset", cel.StringType),
 
 		// Context objects (maps for flexible field access)
 		cel.Variable("account", cel.MapType(cel.StringType, cel.DynType)),
@@ -190,7 +190,7 @@ func BuildActivation(req *model.ValidationRequest) (map[string]any, error) {
 	activation["amount"] = req.Amount.InexactFloat64()
 
 	// Asset (ISO 4217 string)
-	activation["currency"] = req.Asset
+	activation["asset"] = req.Asset
 
 	// Account context (map with id, type, status, metadata)
 	activation["account"] = req.Account.ToMap()

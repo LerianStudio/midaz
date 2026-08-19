@@ -92,10 +92,10 @@ func TestComponents_AllTransactionFields(t *testing.T) {
 			description: "amount 1500 should not be < 1000",
 		},
 		{
-			name:        "currency equals BRL",
-			expression:  `currency == "BRL"`,
+			name:        "asset equals BRL",
+			expression:  `asset == "BRL"`,
 			expectTrue:  true,
-			description: "currency should match BRL",
+			description: "asset should match BRL",
 		},
 		{
 			name:        "transactionTimestamp positive",
@@ -221,7 +221,7 @@ func TestComponents_AllTransactionFields(t *testing.T) {
 		// Complex expressions combining multiple fields
 		{
 			name:        "complex - high value PIX",
-			expression:  `transactionType == "PIX" && amount > 1000 && currency == "BRL"`,
+			expression:  `transactionType == "PIX" && amount > 1000 && asset == "BRL"`,
 			expectTrue:  true,
 			description: "complex expression with multiple fields should match",
 		},
@@ -299,7 +299,7 @@ func TestComponents_MultipleExpressions(t *testing.T) {
 		`transactionType == "PIX"`,
 		`account["status"] == "active"`,
 		`merchant["category"] == "5411"`,
-		"currency == \"BRL\"",
+		"asset == \"BRL\"",
 	}
 
 	programs := make([]*CompiledProgram, len(expressions))

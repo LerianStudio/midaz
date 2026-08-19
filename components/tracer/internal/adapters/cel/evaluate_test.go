@@ -95,8 +95,8 @@ func TestEvaluate_Success(t *testing.T) {
 			description: "PIX transaction with amount > 1000",
 		},
 		{
-			name:        "Success - currency check",
-			expression:  `currency == "BRL"`,
+			name:        "Success - asset check",
+			expression:  `asset == "BRL"`,
 			expected:    true,
 			description: "Asset is BRL",
 		},

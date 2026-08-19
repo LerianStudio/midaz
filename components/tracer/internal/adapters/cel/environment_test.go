@@ -28,7 +28,7 @@ func TestNewEnvironment(t *testing.T) {
 			name:        "Success - creates CEL environment with all required variables",
 			expectErr:   false,
 			expectEnv:   true,
-			description: "Environment should be created with transactionType, subType, amount, currency, account, merchant, segment, portfolio, metadata, transactionTimestamp variables",
+			description: "Environment should be created with transactionType, subType, amount, asset, account, merchant, segment, portfolio, metadata, transactionTimestamp variables",
 		},
 	}
 
@@ -74,10 +74,10 @@ func TestNewEnvironment_CompileValidExpression(t *testing.T) {
 			description: "Expression using amount with decimal literal should compile",
 		},
 		{
-			name:        "Success - compile expression with currency check",
-			expression:  `currency == "USD"`,
+			name:        "Success - compile expression with asset check",
+			expression:  `asset == "USD"`,
 			expectErr:   false,
-			description: "Expression using currency string variable should compile",
+			description: "Expression using asset string variable should compile",
 		},
 		{
 			name:        "Success - compile expression with account map access",
@@ -213,7 +213,7 @@ func TestBuildActivation_FullRequest(t *testing.T) {
 		expectedTransType  string
 		expectedSubType    string
 		expectedAmount     float64
-		expectedCurrency   string
+		expectedAsset      string
 		expectedAccountID  string
 		expectedMerchantID string
 		expectMerchantNil  bool
@@ -256,7 +256,7 @@ func TestBuildActivation_FullRequest(t *testing.T) {
 			expectedTransType:  "CARD",
 			expectedSubType:    "debit",
 			expectedAmount:     float64(100.75),
-			expectedCurrency:   "USD",
+			expectedAsset:      "USD",
 			expectedAccountID:  envTestAccountID1.String(),
 			expectedMerchantID: envTestMerchantID1.String(),
 			expectMerchantNil:  false,
@@ -290,10 +290,10 @@ func TestBuildActivation_FullRequest(t *testing.T) {
 			assert.True(t, found, "Activation should contain amount")
 			assert.Equal(t, tc.expectedAmount, amountVal, "amount should match")
 
-			// Verify currency
-			currencyVal, found := activation["currency"]
-			assert.True(t, found, "Activation should contain currency")
-			assert.Equal(t, tc.expectedCurrency, currencyVal, "currency should match")
+			// Verify asset
+			assetVal, found := activation["asset"]
+			assert.True(t, found, "Activation should contain asset")
+			assert.Equal(t, tc.expectedAsset, assetVal, "asset should match")
 
 			// Verify account
 			accountVal, found := activation["account"]
@@ -432,8 +432,8 @@ func TestBuildActivation_NilOptionalFields(t *testing.T) {
 			_, found = activation["amount"]
 			assert.True(t, found, "Activation should contain amount")
 
-			_, found = activation["currency"]
-			assert.True(t, found, "Activation should contain currency")
+			_, found = activation["asset"]
+			assert.True(t, found, "Activation should contain asset")
 
 			_, found = activation["account"]
 			assert.True(t, found, "Activation should contain account")

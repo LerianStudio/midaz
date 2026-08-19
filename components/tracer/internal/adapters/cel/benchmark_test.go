@@ -32,7 +32,7 @@ func BenchmarkCompile(b *testing.B) {
 func BenchmarkCompile_ComplexExpression(b *testing.B) {
 	adapter := newTestAdapter(b)
 	ctx := context.Background()
-	expression := `transactionType == "PIX" && amount > 1000 && account["status"] == "active" && currency == "BRL"`
+	expression := `transactionType == "PIX" && amount > 1000 && account["status"] == "active" && asset == "BRL"`
 
 	for b.Loop() {
 		compiled, err := adapter.Compile(ctx, expression)
@@ -71,7 +71,7 @@ func BenchmarkEvaluate(b *testing.B) {
 func BenchmarkEvaluate_ComplexExpression(b *testing.B) {
 	adapter := newTestAdapter(b)
 	ctx := context.Background()
-	expression := `transactionType == "PIX" && amount > 1000 && account["status"] == "active" && currency == "BRL"`
+	expression := `transactionType == "PIX" && amount > 1000 && account["status"] == "active" && asset == "BRL"`
 
 	program, err := adapter.Compile(ctx, expression)
 	if err != nil {

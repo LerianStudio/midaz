@@ -500,7 +500,7 @@ func TestCombinedExpressions(t *testing.T) {
 		},
 		{
 			name:       "full_validation_true",
-			expression: `transactionType == "PIX" && amount > 100 && account["status"] == "active" && currency == "BRL"`,
+			expression: `transactionType == "PIX" && amount > 100 && account["status"] == "active" && asset == "BRL"`,
 			modify: func(req *model.ValidationRequest) {
 				req.TransactionType = "PIX"
 				req.Amount = decimal.RequireFromString("500")
@@ -510,8 +510,8 @@ func TestCombinedExpressions(t *testing.T) {
 			expected: true,
 		},
 		{
-			name:       "full_validation_false_currency",
-			expression: `transactionType == "PIX" && amount > 100 && account["status"] == "active" && currency == "BRL"`,
+			name:       "full_validation_false_asset",
+			expression: `transactionType == "PIX" && amount > 100 && account["status"] == "active" && asset == "BRL"`,
 			modify: func(req *model.ValidationRequest) {
 				req.TransactionType = "PIX"
 				req.Amount = decimal.RequireFromString("500")
