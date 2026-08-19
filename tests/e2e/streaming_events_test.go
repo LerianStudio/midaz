@@ -20,6 +20,7 @@ import (
 	"time"
 
 	libStreaming "github.com/LerianStudio/lib-streaming/v3"
+	"github.com/LerianStudio/lib-streaming/v3/billing"
 
 	"github.com/google/uuid"
 	"github.com/twmb/franz-go/pkg/kgo"
@@ -242,15 +243,15 @@ func strmEnsureTopics(t *testing.T, brokers []string) {
 }
 
 // strmCatalogTopics returns every topic the ledger writes: its ONE application
-// topic — carrying the whole event catalog, ledger core plus fees plus CRM — and
-// its DLQ, where a failed publish is copied.
+// topic (carrying the whole event catalog, ledger core plus fees plus CRM) and
+// its DLQ, where a failed publish is copied, plus the fixed lib-owned billing
+// topic (and its DLQ) that billing.Route() targets for billing_recorded.
 //
-// The former per-event list (49 topics enumerated by hand) is gone with the topic
-// collapse. That is the point of provisioning it here: lib-streaming's producer
-// does not request auto-topic-creation, so a missing destination both fails the
-// emit AND trips the circuit breaker, poisoning every later emit. Two names now
-// cover the whole catalog instead of forty-nine that had to stay in sync with the
-// registry by hand.
+// Provisioning all of them matters because lib-streaming's producer does not
+// request auto-topic-creation, so a missing destination both fails the emit AND
+// trips the circuit breaker, poisoning every later emit. billing_recorded is a
+// Required route on the same target, so its absent topic would poison the
+// breaker for ledger events too.
 func strmCatalogTopics(t *testing.T) []string {
 	t.Helper()
 
@@ -259,7 +260,7 @@ func strmCatalogTopics(t *testing.T) []string {
 		t.Fatalf("derive ledger DLQ topic: %v", err)
 	}
 
-	return []string{strmAppTopic(t), dlqTopic}
+	return []string{strmAppTopic(t), dlqTopic, billing.Topic, billing.Topic + ".dlq"}
 }
 
 // strmConsumeMatch consumes the ledger's application topic from the beginning

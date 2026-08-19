@@ -789,10 +789,14 @@ loaded by `libStreaming.LoadConfig()` with franz-go defaults. Wire format: Cloud
 mode on Kafka.
 
 One topic per producing application: every event a binary emits rides
-`lerian.streaming.<app>`, with `<app>` being its `STREAMING_CLOUDEVENTS_SOURCE` — `ledger` (whose
+`lerian.streaming.<app>`, with `<app>` being its `STREAMING_CLOUDEVENTS_SOURCE`: `ledger` (whose
 one topic carries ledger core, fees and CRM alike) and `tracer`. A failed publish is copied to
-`lerian.streaming.<app>.dlq`. The source must be a single dot-free lowercase segment and is
-rejected, never normalized, when it is not. `ce-type` is
+`lerian.streaming.<app>.dlq`. One exception: `billing_recorded` (billable usage, emitted only
+when billing is wired) rides the fixed lib-owned topic `lerian.streaming.billing.recorded`, not
+the application topic. The source is accepted only when it is exactly the application's roster
+name (`ledger` for the ledger binary, `tracer` for tracer); any other value, malformed or merely
+different, is rejected at startup, never normalized, and the check runs even when
+`STREAMING_ENABLED=false`. `ce-type` is
 `studio.lerian.<app>.<resourceType>.<eventType>`; schema version travels only in
 `ce-schemaversion`, and tenant only in `ce-tenantid`.
 

@@ -38,8 +38,8 @@ type manifestEnvelope struct {
 
 // sampleDefs returns a small, deterministic set of event Definitions to exercise
 // the shared manifest helper without depending on any binary's event registry.
-// Schema version no longer influences any topic name — it travels only in
-// ce-schemaversion — so a mixed set of majors is deliberate here.
+// The mixed schema versions are deliberate: the manifest must advertise the same
+// single application topic regardless of any definition's schema version.
 func sampleDefs() []events.Definition {
 	return []events.Definition{
 		{ResourceType: "account", EventType: "created", SchemaVersion: "1.0.0"},
@@ -127,10 +127,9 @@ func TestNewManifestHandler_AdvertisesApplicationTopic(t *testing.T) {
 }
 
 // TestNewManifestHandler_RejectsIllegalSource proves the helper fails rather than
-// advertising a topic derived from a malformed ce-source. lib-streaming REJECTS an
-// illegal source instead of rewriting it, so the composition root leaves the
-// manifest route unmounted instead of publishing a garbage topic name that
-// provisioning and ACL tooling would then act on.
+// advertising a topic derived from a malformed ce-source, so the composition root
+// leaves the manifest route unmounted instead of publishing a garbage topic name
+// that provisioning and ACL tooling would then act on.
 func TestNewManifestHandler_RejectsIllegalSource(t *testing.T) {
 	t.Parallel()
 

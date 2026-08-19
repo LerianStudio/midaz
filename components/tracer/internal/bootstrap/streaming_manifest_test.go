@@ -96,21 +96,15 @@ func TestBuildStreamingManifestHandler_AdvertisesApplicationTopic(t *testing.T) 
 	}
 }
 
-// TestStreamingRouteAndManifestAgreeOnTopic is the coherence lock the whole design
-// rests on: ONE resolved ce-source feeds both the emitter's route table and the
-// manifest handler, and the topic tracer publishes to must be byte-identical to the
-// topic the manifest advertises.
+// TestStreamingRouteAndManifestAgreeOnTopic locks the coherence invariant: ONE
+// resolved ce-source feeds both the emitter's route table and the manifest
+// handler, so the topic tracer publishes to and the topic its manifest
+// advertises must be byte-identical. A divergence would point provisioning at a
+// stream nothing writes while consumers quarantine every record they receive.
 //
-// A divergence here is invisible in production and total: the streaming hub and
-// topic provisioning would follow the manifest to a stream nothing writes, while a
-// consumer subscribing by application name would quarantine every record it did
-// receive for an unexpected ce-source. The invariant was previously only stated in
-// prose, which is what let a reviewer find it unasserted.
-//
-// Every case uses the roster name, because the bootstrap gate refuses anything
-// else — see TestBuildStreamingEmitter_RefusesNonRosterSource. The table exists to
-// cover the paths that REACH the resolver differently (explicit value, unset,
-// whitespace, nil config), not to vary the source.
+// Every case uses the roster name, the only source the bootstrap gate admits.
+// The table varies only how the resolver is reached (explicit value, unset,
+// whitespace, nil config), not the source.
 func TestStreamingRouteAndManifestAgreeOnTopic(t *testing.T) {
 	t.Parallel()
 
@@ -149,10 +143,8 @@ func TestStreamingRouteAndManifestAgreeOnTopic(t *testing.T) {
 
 // TestBuildStreamingManifestHandler_RejectsIllegalConfiguredSource proves a
 // malformed STREAMING_CLOUDEVENTS_SOURCE leaves the manifest route UNMOUNTED
-// rather than advertising a topic name derived from garbage. lib-streaming rejects
-// an illegal source instead of normalizing it — the v2 normalization could fold
-// two distinct services onto one topic namespace with neither owner noticing — and
-// the composition root treats a manifest build failure as degraded-safe.
+// rather than advertising a topic name derived from garbage: the build fails
+// and the composition root treats that failure as degraded-safe.
 func TestBuildStreamingManifestHandler_RejectsIllegalConfiguredSource(t *testing.T) {
 	t.Parallel()
 

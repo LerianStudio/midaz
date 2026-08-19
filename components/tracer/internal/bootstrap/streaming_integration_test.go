@@ -54,13 +54,14 @@ var forbiddenPayloadKeys = []string{"name", "description", "expression", "maxAmo
 // rides and the application segment of ce-type derive from it.
 const smokeSource = "tracer"
 
-// smokeCEType is the ce-type header lib-streaming stamps for one event, composed
-// through the library's own facade rather than by re-spelling the prefix and
-// separators here: the reverse-DNS namespace, the PRODUCING APPLICATION, then the
-// resource and event types. The application segment is what stops two services emitting a
-// byte-identical ce-type for same-named events.
+// smokeCEType is the ce-type header expected on the wire for one tracer event,
+// spelled as an independent literal template rather than through the library's
+// own formatter: deriving the expectation from libStreaming.CloudEventsType
+// would let a formatter change move producer and assertion together, and this
+// smoke test exists to catch exactly that drift. Shape: reverse-DNS namespace,
+// the PRODUCING APPLICATION, then the resource and event types.
 func smokeCEType(resourceType, eventType string) string {
-	return libStreaming.CloudEventsType(smokeSource, resourceType, eventType)
+	return fmt.Sprintf("studio.lerian.%s.%s.%s", smokeSource, resourceType, eventType)
 }
 
 // smokeEvent pairs an EmitRequest with the ce-type it must surface once
