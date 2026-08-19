@@ -46,7 +46,7 @@ type onboardingIntegrationTestInfra struct {
 func setupOnboardingBootstrapIntegrationInfra(t *testing.T) *onboardingIntegrationTestInfra {
 	t.Helper()
 
-	pgResult := pgtestutil.SetupContainer(t)
+	pgResult := pgtestutil.SetupMigratedContainer(t, "onboarding")
 
 	return &onboardingIntegrationTestInfra{
 		pgResult: pgResult,

@@ -46,10 +46,10 @@ func setupOnboardingRedisIntegrationInfra(t *testing.T) *integrationTestInfra {
 	t.Helper()
 
 	// Start a Valkey container (valkey/valkey:8 image from DefaultContainerConfig).
-	redisContainer := redistestutil.SetupContainer(t)
+	redisContainer := redistestutil.SetupReusableContainer(t)
 
 	// Build lib-commons RedisConnection from the mapped address.
-	conn := redistestutil.CreateConnection(t, redisContainer.Addr)
+	conn := redistestutil.CreateConnectionWithDB(t, redisContainer.Addr, redisContainer.DB)
 
 	repo := &RedisConsumerRepository{
 		conn: conn,

@@ -229,9 +229,9 @@ Drift discipline: wire-contract change updates (a) Payload struct, (b) construct
 
 ### Local testing
 
-- Run any Kafka-compatible broker (Redpanda recommended). Bind host port `19092`; join `infra-network` so it's reachable from both host (`localhost:19092`) and containers (`<container>:9092`).
+- Run any Kafka-compatible broker (Redpanda recommended). The local compose stack binds host port `19092` by default; set `REDPANDA_EXTERNAL_PORT` in `components/infra/.env` when another process owns that port. Join `infra-network` so the broker is reachable from both host (`localhost:<external-port>`) and containers (`<container>:9092`).
 - Pre-provision topics explicitly. Don't rely on auto-create — typos become silent ghost topics.
-- Local debug: `STREAMING_ENABLED=true`, `STREAMING_BROKERS=localhost:19092`, `STREAMING_CLOUDEVENTS_SOURCE=<service>` (the bare service name — `ledger` or `tracer`). If local broker startup is slow, tune `STREAMING_IMPORTANT_EMIT_TIMEOUT_MS`; keep it below the HTTP client timeout.
+- Local debug: `STREAMING_ENABLED=true`, `STREAMING_BROKERS=localhost:<external-port>` (matching `REDPANDA_EXTERNAL_PORT`, default `19092`), `STREAMING_CLOUDEVENTS_SOURCE=<service>` (the bare service name — `ledger` or `tracer`). If local broker startup is slow, tune `STREAMING_IMPORTANT_EMIT_TIMEOUT_MS`; keep it below the HTTP client timeout.
 
 ## Multi-Tenancy
 

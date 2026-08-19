@@ -159,6 +159,13 @@ func (f fixture) ledgers() string {
 	return fmt.Sprintf("%s/v1/organizations/%s/ledgers/%s", ledgerURL(), f.orgID, f.ledgerID)
 }
 
+// holderAccounts returns the holder-account composition URL for holderID. The
+// CRM/composition surface is served ONLY on the /v2 contract (see
+// RegisterCompositionV2RoutesToApp), so this cannot be built from f.ledgers().
+func (f fixture) holderAccounts(holderID string) string {
+	return fmt.Sprintf("%s/v2/organizations/%s/ledgers/%s/holders/%s/accounts", ledgerURL(), f.orgID, f.ledgerID, holderID)
+}
+
 func createOrg(t *testing.T) string {
 	t.Helper()
 
@@ -238,7 +245,7 @@ func createHolder(t *testing.T, orgID string) string {
 func createHolderAccount(t *testing.T, f fixture, holderID string) map[string]any {
 	t.Helper()
 
-	env := mustCreate(t, fmt.Sprintf("%s/v2/organizations/%s/ledgers/%s/holders/%s/accounts", ledgerURL(), f.orgID, f.ledgerID, holderID), map[string]any{
+	env := mustCreate(t, f.holderAccounts(holderID), map[string]any{
 		"assetCode": "USD", "type": "deposit",
 	})
 

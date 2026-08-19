@@ -50,7 +50,7 @@ func DefaultContainerConfig() ContainerConfig {
 		User:     DefaultUser,
 		Password: DefaultPassword,
 		Image:    "rabbitmq:4.1-management-alpine",
-		MemoryMB: 256, // 256MB - moderate for messaging
+		MemoryMB: 512,
 		CPULimit: 0.5, // 0.5 CPU core
 	}
 }
@@ -64,6 +64,7 @@ type ContainerResult struct {
 	AMQPPort  string
 	MgmtPort  string
 	URI       string
+	VHost     string
 }
 
 // SetupContainer starts a RabbitMQ container for integration testing.
@@ -139,6 +140,7 @@ func SetupContainerWithConfig(t *testing.T, cfg ContainerConfig) *ContainerResul
 		AMQPPort:  amqpPort.Port(),
 		MgmtPort:  mgmtPort.Port(),
 		URI:       uri,
+		VHost:     "/",
 	}
 }
 
@@ -228,6 +230,7 @@ func SetupContainerWithFixedPortsConfig(t *testing.T, cfg ContainerConfig) *Cont
 		AMQPPort:  amqpHostPort,
 		MgmtPort:  mgmtHostPort,
 		URI:       uri,
+		VHost:     "/",
 	}
 }
 
@@ -307,6 +310,7 @@ func SetupContainerOnNetworkWithConfig(t *testing.T, cfg ContainerConfig, networ
 		AMQPPort:  amqpPort.Port(),
 		MgmtPort:  mgmtPort.Port(),
 		URI:       uri,
+		VHost:     "/",
 	}
 }
 

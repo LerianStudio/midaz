@@ -48,16 +48,18 @@ type tenantEnv struct {
 func newTenantEnv(t *testing.T) *tenantEnv {
 	t.Helper()
 
-	pgContainer := pgtestutil.SetupContainer(t)
-	mongoContainer := mongotestutil.SetupContainer(t)
+	pgContainer := pgtestutil.SetupMigratedContainer(t, "onboarding")
+	mongoContainer := mongotestutil.SetupReusableContainer(t)
+	// Each tenant env owns a per-invocation database so two envs built from the
+	// same reusable container never collapse onto the shared default database.
+	tenantDatabase := mongotestutil.CreateOwnedDatabase(t, mongoContainer)
 
-	migrationsPath := pgtestutil.FindMigrationsPath(t, "onboarding")
 	connStr := pgtestutil.BuildConnectionString(pgContainer.Host, pgContainer.Port, pgContainer.Config)
-	pgClient := pgtestutil.CreatePostgresClient(t, connStr, connStr, pgContainer.Config.DBName, migrationsPath)
+	pgClient := pgtestutil.ConnectPostgresClient(t.Context(), t, connStr, connStr)
 
 	orgRepo := organization.NewOrganizationPostgreSQLRepository(pgClient)
 
-	mongoConn := mongotestutil.CreateConnection(t, mongoContainer.URI, mongoContainer.DBName)
+	mongoConn := mongotestutil.CreateConnection(t, mongoContainer.URI, tenantDatabase.Name())
 	crypto := testutils.SetupCrypto(t)
 	encResolver := encryption.NewProtectionStateResolver(nil, encryption.NewProtectionMetrics(nil))
 	svc := encryption.NewEncryptionService(encResolver, nil, nil, crypto, encryption.NewProtectionMetrics(nil))
@@ -73,12 +75,12 @@ func newTenantEnv(t *testing.T) *tenantEnv {
 	require.NoError(t, err)
 
 	ctx := tmcore.ContextWithPG(context.Background(), resolver, constant.ModuleOnboarding)
-	ctx = tmcore.ContextWithMB(ctx, mongoContainer.Database)
+	ctx = tmcore.ContextWithMB(ctx, tenantDatabase)
 
 	return &tenantEnv{
 		pg:      pgContainer,
 		mongo:   mongoContainer,
-		mongoDB: mongoContainer.Database,
+		mongoDB: tenantDatabase,
 		ctx:     ctx,
 		runner:  runner,
 	}

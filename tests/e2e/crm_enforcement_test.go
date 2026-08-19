@@ -398,7 +398,7 @@ func TestCompositionAtomicity(t *testing.T) {
 
 	// An invalid relatedParty role makes the instrument leg fail (ValidateRelatedParties)
 	// AFTER the account leg has already committed inside the composition service.
-	r := call(t, http.MethodPost, fmt.Sprintf("%s/holders/%s/accounts", f.ledgers(), holderID), map[string]any{
+	r := call(t, http.MethodPost, f.holderAccounts(holderID), map[string]any{
 		"assetCode": "USD", "type": "deposit", "alias": alias,
 		"relatedParties": []any{map[string]any{
 			"document": "12345678900", "name": "Bad Role", "role": "NOT_A_ROLE", "startDate": "2025-01-01",
@@ -464,7 +464,7 @@ func TestHolderDeleteIntegrity(t *testing.T) {
 
 		alias := "@del_acct_" + uuid.NewString()[:8]
 		// Holder-owned account with NO instrument fields (account-only composition).
-		env := mustCreate(t, fmt.Sprintf("%s/holders/%s/accounts", f.ledgers(), holderID), map[string]any{
+		env := mustCreate(t, f.holderAccounts(holderID), map[string]any{
 			"assetCode": "USD", "type": "deposit", "alias": alias,
 		})
 		acc, _ := env["account"].(map[string]any)

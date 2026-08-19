@@ -45,7 +45,7 @@ func createRepository(t *testing.T, container *mongotestutil.ContainerResult) *M
 
 func TestIntegration_MetadataRepository_Create_InsertsMetadata(t *testing.T) {
 	// Arrange
-	container := mongotestutil.SetupContainer(t)
+	container := mongotestutil.SetupReusableContainer(t)
 
 	repo := createRepository(t, container)
 	ctx := context.Background()
@@ -76,7 +76,7 @@ func TestIntegration_MetadataRepository_Create_InsertsMetadata(t *testing.T) {
 
 func TestIntegration_MetadataRepository_FindList_FiltersByMetadata(t *testing.T) {
 	// Arrange
-	container := mongotestutil.SetupContainer(t)
+	container := mongotestutil.SetupReusableContainer(t)
 
 	repo := createRepository(t, container)
 	ctx := context.Background()
@@ -116,7 +116,7 @@ func TestIntegration_MetadataRepository_FindList_FiltersByMetadata(t *testing.T)
 
 func TestIntegration_MetadataRepository_FindList_SupportsPagination(t *testing.T) {
 	// Arrange
-	container := mongotestutil.SetupContainer(t)
+	container := mongotestutil.SetupReusableContainer(t)
 
 	repo := createRepository(t, container)
 	ctx := context.Background()
@@ -171,7 +171,7 @@ func TestIntegration_MetadataRepository_FindList_SupportsPagination(t *testing.T
 
 func TestIntegration_MetadataRepository_FindList_ReturnsEmptyForNoMatch(t *testing.T) {
 	// Arrange
-	container := mongotestutil.SetupContainer(t)
+	container := mongotestutil.SetupReusableContainer(t)
 
 	repo := createRepository(t, container)
 	ctx := context.Background()
@@ -206,7 +206,7 @@ func TestIntegration_MetadataRepository_FindList_ReturnsEmptyForNoMatch(t *testi
 
 func TestIntegration_MetadataRepository_FindByEntity_ReturnsMetadata(t *testing.T) {
 	// Arrange
-	container := mongotestutil.SetupContainer(t)
+	container := mongotestutil.SetupReusableContainer(t)
 
 	repo := createRepository(t, container)
 	ctx := context.Background()
@@ -231,7 +231,7 @@ func TestIntegration_MetadataRepository_FindByEntity_ReturnsMetadata(t *testing.
 
 func TestIntegration_MetadataRepository_FindByEntity_ReturnsNilForNonExistent(t *testing.T) {
 	// Arrange
-	container := mongotestutil.SetupContainer(t)
+	container := mongotestutil.SetupReusableContainer(t)
 
 	repo := createRepository(t, container)
 	ctx := context.Background()
@@ -250,7 +250,7 @@ func TestIntegration_MetadataRepository_FindByEntity_ReturnsNilForNonExistent(t 
 
 func TestIntegration_MetadataRepository_FindByEntityIDs_ReturnsBatch(t *testing.T) {
 	// Arrange
-	container := mongotestutil.SetupContainer(t)
+	container := mongotestutil.SetupReusableContainer(t)
 
 	repo := createRepository(t, container)
 	ctx := context.Background()
@@ -281,7 +281,7 @@ func TestIntegration_MetadataRepository_FindByEntityIDs_ReturnsBatch(t *testing.
 
 func TestIntegration_MetadataRepository_FindByEntityIDs_ReturnsEmptyForEmptyInput(t *testing.T) {
 	// Arrange
-	container := mongotestutil.SetupContainer(t)
+	container := mongotestutil.SetupReusableContainer(t)
 
 	repo := createRepository(t, container)
 	ctx := context.Background()
@@ -296,7 +296,7 @@ func TestIntegration_MetadataRepository_FindByEntityIDs_ReturnsEmptyForEmptyInpu
 
 func TestIntegration_MetadataRepository_FindByEntityIDs_HandlesPartialMatch(t *testing.T) {
 	// Arrange
-	container := mongotestutil.SetupContainer(t)
+	container := mongotestutil.SetupReusableContainer(t)
 
 	repo := createRepository(t, container)
 	ctx := context.Background()
@@ -323,7 +323,7 @@ func TestIntegration_MetadataRepository_FindByEntityIDs_HandlesPartialMatch(t *t
 
 func TestIntegration_MetadataRepository_Update_UpdatesExisting(t *testing.T) {
 	// Arrange
-	container := mongotestutil.SetupContainer(t)
+	container := mongotestutil.SetupReusableContainer(t)
 
 	repo := createRepository(t, container)
 	ctx := context.Background()
@@ -351,7 +351,7 @@ func TestIntegration_MetadataRepository_Update_UpdatesExisting(t *testing.T) {
 
 func TestIntegration_MetadataRepository_Update_UpsertsIfNotExists(t *testing.T) {
 	// Arrange
-	container := mongotestutil.SetupContainer(t)
+	container := mongotestutil.SetupReusableContainer(t)
 
 	repo := createRepository(t, container)
 	ctx := context.Background()
@@ -376,7 +376,7 @@ func TestIntegration_MetadataRepository_Update_UpsertsIfNotExists(t *testing.T) 
 
 func TestIntegration_MetadataRepository_Delete_RemovesMetadata(t *testing.T) {
 	// Arrange
-	container := mongotestutil.SetupContainer(t)
+	container := mongotestutil.SetupReusableContainer(t)
 
 	repo := createRepository(t, container)
 	ctx := context.Background()
@@ -406,7 +406,7 @@ func TestIntegration_MetadataRepository_Delete_RemovesMetadata(t *testing.T) {
 
 func TestIntegration_MetadataRepository_Delete_IsIdempotent(t *testing.T) {
 	// Arrange
-	container := mongotestutil.SetupContainer(t)
+	container := mongotestutil.SetupReusableContainer(t)
 
 	repo := createRepository(t, container)
 	ctx := context.Background()
@@ -424,7 +424,7 @@ func TestIntegration_MetadataRepository_Delete_IsIdempotent(t *testing.T) {
 
 func TestIntegration_MetadataRepository_CollectionIsolation(t *testing.T) {
 	// Arrange
-	container := mongotestutil.SetupContainer(t)
+	container := mongotestutil.SetupReusableContainer(t)
 
 	repo := createRepository(t, container)
 	ctx := context.Background()
@@ -466,7 +466,7 @@ func TestIntegration_MetadataRepository_CollectionIsolation(t *testing.T) {
 
 func TestIntegration_MetadataRepository_CreateIndex(t *testing.T) {
 	// Arrange
-	container := mongotestutil.SetupContainer(t)
+	container := mongotestutil.SetupReusableContainer(t)
 
 	repo := createRepository(t, container)
 	ctx := context.Background()
@@ -507,7 +507,7 @@ func TestIntegration_MetadataRepository_CreateIndex(t *testing.T) {
 
 func TestIntegration_MetadataRepository_CreateIndex_Unique(t *testing.T) {
 	// Arrange
-	container := mongotestutil.SetupContainer(t)
+	container := mongotestutil.SetupReusableContainer(t)
 
 	repo := createRepository(t, container)
 	ctx := context.Background()
@@ -555,7 +555,7 @@ func TestIntegration_MetadataRepository_CreateIndex_Unique(t *testing.T) {
 
 func TestIntegration_MetadataRepository_CreateIndex_DuplicateIndex(t *testing.T) {
 	// Arrange
-	container := mongotestutil.SetupContainer(t)
+	container := mongotestutil.SetupReusableContainer(t)
 
 	repo := createRepository(t, container)
 	ctx := context.Background()
@@ -586,7 +586,7 @@ func TestIntegration_MetadataRepository_CreateIndex_DuplicateIndex(t *testing.T)
 
 func TestIntegration_MetadataRepository_FindAllIndexes(t *testing.T) {
 	// Arrange
-	container := mongotestutil.SetupContainer(t)
+	container := mongotestutil.SetupReusableContainer(t)
 
 	repo := createRepository(t, container)
 	ctx := context.Background()
@@ -639,7 +639,7 @@ func TestIntegration_MetadataRepository_FindAllIndexes(t *testing.T) {
 
 func TestIntegration_MetadataRepository_FindAllIndexes_Empty(t *testing.T) {
 	// Arrange
-	container := mongotestutil.SetupContainer(t)
+	container := mongotestutil.SetupReusableContainer(t)
 
 	repo := createRepository(t, container)
 	ctx := context.Background()
@@ -655,7 +655,7 @@ func TestIntegration_MetadataRepository_FindAllIndexes_Empty(t *testing.T) {
 
 func TestIntegration_MetadataRepository_FindAllIndexes_FiltersMetadataOnly(t *testing.T) {
 	// Arrange
-	container := mongotestutil.SetupContainer(t)
+	container := mongotestutil.SetupReusableContainer(t)
 
 	repo := createRepository(t, container)
 	ctx := context.Background()
@@ -690,7 +690,7 @@ func TestIntegration_MetadataRepository_FindAllIndexes_FiltersMetadataOnly(t *te
 
 func TestIntegration_MetadataRepository_DeleteIndex(t *testing.T) {
 	// Arrange
-	container := mongotestutil.SetupContainer(t)
+	container := mongotestutil.SetupReusableContainer(t)
 
 	repo := createRepository(t, container)
 	ctx := context.Background()
@@ -739,7 +739,7 @@ func TestIntegration_MetadataRepository_DeleteIndex(t *testing.T) {
 
 func TestIntegration_MetadataRepository_DeleteIndex_NotFound(t *testing.T) {
 	// Arrange
-	container := mongotestutil.SetupContainer(t)
+	container := mongotestutil.SetupReusableContainer(t)
 
 	repo := createRepository(t, container)
 	ctx := context.Background()
@@ -1181,15 +1181,10 @@ type tenantIsolationInfra struct {
 func setupTenantIsolation(t *testing.T) *tenantIsolationInfra {
 	t.Helper()
 
-	container := mongotestutil.SetupContainer(t)
+	container := mongotestutil.SetupReusableContainer(t)
 
-	const (
-		tenantADB = "tenant_a_db"
-		tenantBDB = "tenant_b_db"
-	)
-
-	tenantADatabase := container.Client.Database(tenantADB)
-	tenantBDatabase := container.Client.Database(tenantBDB)
+	tenantADatabase := mongotestutil.CreateOwnedDatabase(t, container)
+	tenantBDatabase := mongotestutil.CreateOwnedDatabase(t, container)
 
 	// Build a placeholder connection — in multi-tenant mode the static
 	// connection is never used because every request carries its own DB.
@@ -1204,8 +1199,8 @@ func setupTenantIsolation(t *testing.T) *tenantIsolationInfra {
 		repo:      repo,
 		ctxA:      ctxA,
 		ctxB:      ctxB,
-		dbA:       tenantADB,
-		dbB:       tenantBDB,
+		dbA:       tenantADatabase.Name(),
+		dbB:       tenantBDatabase.Name(),
 	}
 }
 
@@ -1349,7 +1344,7 @@ func TestIntegration_MetadataRepository_TenantIsolation_DeleteDoesNotCrossTenant
 // proves that when no tenant DB is injected into context, the repository falls
 // back to the static connection and CRUD operations work normally (single-tenant path).
 func TestIntegration_MetadataRepository_FallbackToStaticConnection_WhenNoTenantContext(t *testing.T) {
-	container := mongotestutil.SetupContainer(t)
+	container := mongotestutil.SetupReusableContainer(t)
 	repo := createRepository(t, container)
 
 	ctx := context.Background()
@@ -1396,10 +1391,9 @@ func TestIntegration_MetadataRepository_FallbackToStaticConnection_WhenNoTenantC
 // the static connection's database — even if the static connection points to a
 // real, populated database.
 func TestIntegration_MetadataRepository_TenantContext_TakesPrecedence_OverStaticConnection(t *testing.T) {
-	container := mongotestutil.SetupContainer(t)
+	container := mongotestutil.SetupReusableContainer(t)
 
-	// Create a repo with a real static connection pointing to "default_db".
-	staticConn := mongotestutil.CreateConnection(t, container.URI, "default_db")
+	staticConn := mongotestutil.CreateConnection(t, container.URI, container.DBName)
 	repo := NewMetadataMongoDBRepository(staticConn)
 
 	collection := "account"
@@ -1420,15 +1414,15 @@ func TestIntegration_MetadataRepository_TenantContext_TakesPrecedence_OverStatic
 	// Confirm the document exists through the static path.
 	found, err := repo.FindByEntity(staticCtx, collection, "precedence-entity")
 	require.NoError(t, err)
-	require.NotNil(t, found, "document should exist in default_db")
+	require.NotNil(t, found, "document should exist in the static database")
 
 	// -- Query with a tenant context pointing to a DIFFERENT database --
-	tenantDB := container.Client.Database("tenant_isolated_db")
+	tenantDB := mongotestutil.CreateOwnedDatabase(t, container)
 	tenantCtx := tmcore.ContextWithMB(context.Background(), tenantDB)
 
 	tenantResult, err := repo.FindByEntity(tenantCtx, collection, "precedence-entity")
 	require.NoError(t, err)
-	assert.Nil(t, tenantResult, "tenant context should override static connection; data is in default_db, not tenant_isolated_db")
+	assert.Nil(t, tenantResult, "tenant context should override the static connection")
 }
 
 // ============================================================================
@@ -1441,7 +1435,7 @@ func TestIntegration_MetadataRepository_TenantContext_TakesPrecedence_OverStatic
 // zero ObjectID. This guarantees server-side _id generation for new documents.
 func TestIntegration_MetadataRepository_Create_ServerAssignsObjectID(t *testing.T) {
 	// Arrange
-	container := mongotestutil.SetupContainer(t)
+	container := mongotestutil.SetupReusableContainer(t)
 
 	repo := createRepository(t, container)
 	ctx := context.Background()
@@ -1477,7 +1471,7 @@ func TestIntegration_MetadataRepository_Create_ServerAssignsObjectID(t *testing.
 // concrete type and value.
 func TestIntegration_MetadataRepository_FindByEntity_DecodeRoundTrips(t *testing.T) {
 	// Arrange
-	container := mongotestutil.SetupContainer(t)
+	container := mongotestutil.SetupReusableContainer(t)
 
 	repo := createRepository(t, container)
 	ctx := context.Background()

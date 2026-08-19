@@ -1,0 +1,63 @@
+#!/usr/bin/env bash
+# Copyright (c) 2026 Lerian Studio. All rights reserved.
+# Use of this source code is governed by the Elastic License 2.0
+# that can be found in the LICENSE file.
+
+# Test fixture for run_required_e2e_test.sh.
+
+set -euo pipefail
+
+json_file=
+junit_file=
+saw_parallel=0
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --jsonfile)
+      json_file=$2
+      shift 2
+      ;;
+    --junitfile)
+      junit_file=$2
+      shift 2
+      ;;
+    -parallel=4)
+      saw_parallel=1
+      shift
+      ;;
+    *)
+      shift
+      ;;
+  esac
+done
+
+if [[ ${E2E_REQUIRED:-} != 1 ]]; then
+  echo "E2E_REQUIRED was not passed to gotestsum" >&2
+  exit 9
+fi
+if [[ ${E2E_STREAMING:-} != 1 ]]; then
+  echo "E2E_STREAMING was not passed to gotestsum" >&2
+  exit 10
+fi
+if [[ ${E2E_LEDGER_WORKERS:-} != 4 || $saw_parallel -ne 1 ]]; then
+  echo "required E2E did not enforce the initial four-worker bound" >&2
+  exit 11
+fi
+
+printf '<testsuite name="fake"/>\n' > "$junit_file"
+if [[ ${FAKE_SENTINEL:-0} == 1 ]]; then
+  printf '{"Action":"pass","Test":"TestFullLedgerFlow"}\n' > "$json_file"
+  if [[ ${FAKE_STREAMING_SKIP:-0} == 1 ]]; then
+    printf '{"Action":"skip","Test":"TestStreamingAccountCreatedEmitted"}\n' >> "$json_file"
+    printf '{"Action":"skip","Test":"TestStreamingHolderCreateEmitsRedacted"}\n' >> "$json_file"
+  else
+    printf '{"Action":"pass","Test":"TestStreamingAccountCreatedEmitted"}\n' >> "$json_file"
+    printf '{"Action":"pass","Test":"TestStreamingHolderCreateEmitsRedacted"}\n' >> "$json_file"
+  fi
+  if [[ ${FAKE_RESERVATION_SKIP:-0} == 1 ]]; then
+    printf '{"Action":"skip","Test":"TestReserveLifecycleConfirmIdempotent"}\n' >> "$json_file"
+  else
+    printf '{"Action":"pass","Test":"TestReserveLifecycleConfirmIdempotent"}\n' >> "$json_file"
+  fi
+else
+  printf '{"Action":"skip","Test":"TestFullLedgerFlow"}\n' > "$json_file"
+fi
