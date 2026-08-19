@@ -27,7 +27,7 @@ var tracerOutcomeIntegrationFuture = time.Unix(4102444800, 0).UTC()
 
 func TestIntegration_TracerOutcomeMovesWithBalanceAndFencesStaleRecovery(t *testing.T) {
 	t.Setenv("ALLOW_INSECURE_TLS", "true")
-	infra := setupRedisIntegrationInfra(t)
+	infra := setupFinancialRedisIntegrationInfra(t)
 	ctx := context.Background()
 	organizationID, ledgerID, transactionID := uuid.New(), uuid.New(), uuid.New()
 	owner := uuid.NewString()
@@ -119,7 +119,7 @@ func TestIntegration_TracerOutcomeMovesWithBalanceAndFencesStaleRecovery(t *test
 
 func TestIntegration_TracerOutcomePendingHeldTransitionsOnlyOnCancelLua(t *testing.T) {
 	t.Setenv("ALLOW_INSECURE_TLS", "true")
-	infra := setupRedisIntegrationInfra(t)
+	infra := setupFinancialRedisIntegrationInfra(t)
 	ctx := context.Background()
 	organizationID, ledgerID, transactionID := uuid.New(), uuid.New(), uuid.New()
 	outcomeID := utils.TransactionTracerOutcomeID(transactionID)

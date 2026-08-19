@@ -29,7 +29,22 @@ func setupRevertClaimRepository(t *testing.T) (*PostgreSQLRepository, *postgrest
 	t.Helper()
 	t.Setenv("ALLOW_INSECURE_TLS", "true")
 
-	container := postgrestestutil.SetupContainer(t)
+	return setupRevertClaimRepositoryWithContainer(t, postgrestestutil.SetupMigratedContainer(t, "transaction"))
+}
+
+func setupExclusiveRevertClaimRepository(t *testing.T) (*PostgreSQLRepository, *postgrestestutil.ContainerResult) {
+	t.Helper()
+	t.Setenv("ALLOW_INSECURE_TLS", "true")
+
+	return setupRevertClaimRepositoryWithContainer(t, postgrestestutil.SetupContainer(t))
+}
+
+func setupRevertClaimRepositoryWithContainer(
+	t *testing.T,
+	container *postgrestestutil.ContainerResult,
+) (*PostgreSQLRepository, *postgrestestutil.ContainerResult) {
+	t.Helper()
+
 	migrationsPath := postgrestestutil.FindMigrationsPath(t, "transaction")
 	dsn := postgrestestutil.BuildConnectionString(container.Host, container.Port, container.Config)
 	client := postgrestestutil.CreatePostgresClient(t, dsn, dsn, container.Config.DBName, migrationsPath)
@@ -225,7 +240,7 @@ func TestIntegration_RevertRolloutInitializationBirthCertificateIsOneShot(t *tes
 }
 
 func TestIntegration_RevertRolloutInitializationMigration38MissingTableFailsLoudly(t *testing.T) {
-	repo, container := setupRevertClaimRepository(t)
+	repo, container := setupExclusiveRevertClaimRepository(t)
 	ctx := context.Background()
 	_, err := container.DB.ExecContext(ctx, `UPDATE schema_migrations SET version = 38, dirty = FALSE`)
 	require.NoError(t, err,
@@ -658,7 +673,7 @@ func migrateRevertClaimSchema(t *testing.T, dsn, databaseName, migrationsPath st
 }
 
 func TestIntegration_RevertClaim_MigrationDownAndUp(t *testing.T) {
-	repo, container := setupRevertClaimRepository(t)
+	repo, container := setupExclusiveRevertClaimRepository(t)
 	ctx := context.Background()
 	organizationID := uuid.New()
 	ledgerID := uuid.New()
@@ -731,7 +746,7 @@ func TestIntegration_RevertClaim_MigrationDownAndUp(t *testing.T) {
 }
 
 func TestIntegration_RevertClaim_MigrationDownCannotRaceConcurrentClaim(t *testing.T) {
-	_, container := setupRevertClaimRepository(t)
+	_, container := setupExclusiveRevertClaimRepository(t)
 	ctx := context.Background()
 	migrationsPath := postgrestestutil.FindMigrationsPath(t, "transaction")
 	down, err := os.ReadFile(filepath.Join(migrationsPath, "000037_add_revert_rollout_generation.down.sql"))

@@ -72,8 +72,28 @@ type networkChaosTestInfra struct {
 func setupRedisIntegrationInfra(t *testing.T) *integrationTestInfra {
 	t.Helper()
 
-	// Setup Redis container
-	redisContainer := redistestutil.SetupReusableContainer(t)
+	return setupRedisIntegrationInfraWithContainer(t, redistestutil.SetupReusableContainer(t))
+}
+
+func setupFinancialRedisIntegrationInfra(t *testing.T) *integrationTestInfra {
+	t.Helper()
+
+	return setupRedisIntegrationInfraWithContainer(t, redistestutil.SetupReusableContainerWithConfig(
+		t, redistestutil.FinancialContainerConfig(),
+	))
+}
+
+func setupExclusiveRedisIntegrationInfra(t *testing.T) *integrationTestInfra {
+	t.Helper()
+
+	return setupRedisIntegrationInfraWithContainer(t, redistestutil.SetupContainer(t))
+}
+
+func setupRedisIntegrationInfraWithContainer(
+	t *testing.T,
+	redisContainer *redistestutil.ContainerResult,
+) *integrationTestInfra {
+	t.Helper()
 
 	// Create lib-commons Redis connection
 	conn := redistestutil.CreateConnectionWithDB(t, redisContainer.Addr, redisContainer.DB)

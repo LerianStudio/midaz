@@ -90,13 +90,9 @@ func setupTestInfra(t *testing.T) *testInfra {
 	// Start reusable datastore processes with test-isolated databases.
 	infra.pgContainer = postgrestestutil.SetupMigratedContainer(t, "transaction")
 	infra.mongoContainer = mongotestutil.SetupReusableContainer(t)
-	infra.redisContainer = redistestutil.SetupReusableContainer(t)
-	require.NoError(t, infra.redisContainer.Client.ConfigSet(context.Background(),
-		"maxmemory-policy", "noeviction").Err())
-	require.NoError(t, infra.redisContainer.Client.ConfigSet(context.Background(),
-		"appendfsync", "always").Err())
-	require.NoError(t, infra.redisContainer.Client.ConfigSet(context.Background(),
-		"appendonly", "yes").Err())
+	infra.redisContainer = redistestutil.SetupReusableContainerWithConfig(
+		t, redistestutil.FinancialContainerConfig(),
+	)
 
 	// Create PostgreSQL connection following lib-commons pattern
 	connStr := postgrestestutil.BuildConnectionString(infra.pgContainer.Host, infra.pgContainer.Port, infra.pgContainer.Config)

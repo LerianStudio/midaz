@@ -10,6 +10,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"strconv"
 	"sync"
 	"testing"
 	"time"
@@ -90,12 +91,12 @@ func TestIntegration_HandlerBTOBulk_DefaultAsyncRedeliveryCompletesOneDurableHan
 		"the production async configuration must select this bulk handler")
 
 	ctx := context.Background()
-	postgresContainer := postgrestestutil.SetupContainer(t)
+	postgresContainer := postgrestestutil.SetupMigratedContainer(t, "transaction")
 	postgresDSN := postgrestestutil.BuildConnectionString(postgresContainer.Host, postgresContainer.Port, postgresContainer.Config)
 	postgresClient := postgrestestutil.CreatePostgresClient(t, postgresDSN, postgresDSN,
 		postgresContainer.Config.DBName, postgrestestutil.FindMigrationsPath(t, "transaction"))
-	redisContainer := redistestutil.SetupContainer(t)
-	redisConnection := redistestutil.CreateConnection(t, redisContainer.Addr)
+	redisContainer := redistestutil.SetupReusableContainer(t)
+	redisConnection := redistestutil.CreateConnectionWithDB(t, redisContainer.Addr, redisContainer.DB)
 	redisRepo, err := redis.NewConsumerRedis(redisConnection)
 	require.NoError(t, err)
 
@@ -264,17 +265,21 @@ func TestIntegration_HandlerBTOBulk_DefaultAsyncRedeliveryCompletesOneDurableHan
 		TransactionDate:      fixedTime,
 		Operations:           []mmodel.OperationRedis{operations[0].ToRedis(), operations[1].ToRedis()},
 	}
+	backup.ExpectedEconomicPlan = expectedEconomicPlanForRecovery(t, organizationID, ledgerID, validate,
+		beforeBalances, created, false)
 	backupRaw, err := json.Marshal(backup)
 	require.NoError(t, err)
 	backupKey := utils.TransactionInternalKey(organizationID, ledgerID, reverseID.String())
 	require.NoError(t, redisRepo.AddMessageToQueue(ctx, backupKey, backupRaw))
 	outcomeKey := utils.TransactionBalanceOutcomeKey(organizationID, ledgerID, reverseID)
 	outcomeRaw, err := json.Marshal(mmodel.BalanceExecutionOutcome{
-		Identity: reverseID,
-		Outcome:  mmodel.TransactionOutcomeCommitted,
-		Owner:    owner,
-		Before:   before,
-		After:    after,
+		Identity:            reverseID,
+		Outcome:             mmodel.TransactionOutcomeCommitted,
+		Owner:               owner,
+		EconomicPlanVersion: strconv.Itoa(backup.ExpectedEconomicPlan.Version),
+		EconomicPlanDigest:  backup.ExpectedEconomicPlan.Digest,
+		Before:              before,
+		After:               after,
 	})
 	require.NoError(t, err)
 	require.NoError(t, redisRepo.Set(ctx, outcomeKey, string(outcomeRaw), 0))

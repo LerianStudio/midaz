@@ -8,6 +8,7 @@ package redis
 
 import (
 	"context"
+	"strings"
 	"testing"
 
 	redislib "github.com/redis/go-redis/v9"
@@ -25,6 +26,27 @@ func TestReusableContainerIsolatesLogicalDatabases(t *testing.T) {
 	value, err := second.Client.Get(context.Background(), "owned").Result()
 	require.ErrorIs(t, err, redislib.Nil)
 	require.Empty(t, value)
+}
+
+func TestReusableFinancialContainerHasDurableNoEvictionProfile(t *testing.T) {
+	container := SetupReusableContainerWithConfig(t, FinancialContainerConfig())
+	ctx := context.Background()
+
+	policy, err := container.Client.ConfigGet(ctx, "maxmemory-policy").Result()
+	require.NoError(t, err)
+	require.Equal(t, "noeviction", policy["maxmemory-policy"])
+
+	appendOnly, err := container.Client.ConfigGet(ctx, "appendonly").Result()
+	require.NoError(t, err)
+	require.Equal(t, "yes", appendOnly["appendonly"])
+
+	appendFsync, err := container.Client.ConfigGet(ctx, "appendfsync").Result()
+	require.NoError(t, err)
+	require.Equal(t, "always", appendFsync["appendfsync"])
+
+	persistence, err := container.Client.Info(ctx, "persistence").Result()
+	require.NoError(t, err)
+	require.Contains(t, strings.ReplaceAll(persistence, "\r", ""), "aof_enabled:1\n")
 }
 
 func TestReusableContainerFlushesTheOwningTestsDatabase(t *testing.T) {

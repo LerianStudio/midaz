@@ -110,7 +110,7 @@ func prepareRevertUpdateFreeze(t *testing.T, infra *testInfra) {
 	require.NoError(t, err)
 	require.NoError(t, client.Del(ctx, transactionredis.RevertUpdateFreezeKey,
 		transactionredis.RevertRolloutGenerationKey, transactionredis.FinancialDatasetGenerationKey).Err())
-	connection := redistestutil.CreateConnection(t, infra.redisContainer.Addr)
+	connection := redistestutil.CreateConnectionWithDB(t, infra.redisContainer.Addr, infra.redisContainer.DB)
 	rolloutWitness := revertclaim.NewPostgreSQLRepository(infra.pgConn)
 	initializer := transactionredis.NewRevertUpdateFreezeGuard(connection,
 		transactionredis.RevertUpdateFreezeInitialize, integrationRedisDatasetGeneration).
@@ -129,7 +129,7 @@ func activateRevertUpdateFreeze(t *testing.T, infra *testInfra) {
 	t.Helper()
 	prepareRevertUpdateFreeze(t, infra)
 	ctx := context.Background()
-	connection := redistestutil.CreateConnection(t, infra.redisContainer.Addr)
+	connection := redistestutil.CreateConnectionWithDB(t, infra.redisContainer.Addr, infra.redisContainer.DB)
 	rolloutWitness := revertclaim.NewPostgreSQLRepository(infra.pgConn)
 	active := transactionredis.NewRevertUpdateFreezeGuard(connection,
 		transactionredis.RevertUpdateFreezeActive, integrationRedisDatasetGeneration).
@@ -1788,7 +1788,7 @@ func TestIntegration_TransactionPendingUpdateSerializesCommitAcrossFreezeActivat
 	require.NoError(t, infra.revertFreeze.MarkPhaseZeroDrained(ctx))
 	infra.handler.RevertIdempotencyMode = revertIdempotencyModeFinal
 	require.NoError(t, infra.revertFreeze.Finalize(ctx))
-	finalConnection := redistestutil.CreateConnection(t, infra.redisContainer.Addr)
+	finalConnection := redistestutil.CreateConnectionWithDB(t, infra.redisContainer.Addr, infra.redisContainer.DB)
 	finalGuard := transactionredis.NewRevertUpdateFreezeGuard(finalConnection,
 		transactionredis.RevertUpdateFreezeFinalized, integrationRedisDatasetGeneration).
 		WithRolloutInitializationWitness(revertclaim.NewPostgreSQLRepository(infra.pgConn), "")

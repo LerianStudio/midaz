@@ -1954,9 +1954,9 @@ func TestIntegration_OwnedLegacyFence_RedisClusterRejectsCrossSlotButAcceptsComp
 
 func TestIntegration_RevertUpdateFreezeMarkerIsSharedPersistentAndFinalizable(t *testing.T) {
 	t.Setenv("ALLOW_INSECURE_TLS", "true")
-	infra := setupRedisIntegrationInfra(t)
+	infra := setupExclusiveRedisIntegrationInfra(t)
 	ctx := context.Background()
-	connection := redistestutil.CreateConnection(t, infra.redisContainer.Addr)
+	connection := redistestutil.CreateConnectionWithDB(t, infra.redisContainer.Addr, infra.redisContainer.DB)
 	witness := &rolloutInitializationWitnessStub{}
 	initializer := NewRevertUpdateFreezeGuard(connection, RevertUpdateFreezeInitialize,
 		redisIntegrationDatasetGeneration).WithRolloutInitializationWitness(witness,
@@ -2214,10 +2214,9 @@ func TestIntegration_RevertUpdateFreezeMarkerIsSharedPersistentAndFinalizable(t 
 
 func TestIntegration_RevertRolloutInitializationIsConcurrentSingleAssignment(t *testing.T) {
 	t.Setenv("ALLOW_INSECURE_TLS", "true")
-	infra := setupRedisIntegrationInfra(t)
+	infra := setupFinancialRedisIntegrationInfra(t)
 	ctx := context.Background()
-	configureFinancialRedisDurability(t, ctx, infra.redisContainer.Client)
-	connection := redistestutil.CreateConnection(t, infra.redisContainer.Addr)
+	connection := redistestutil.CreateConnectionWithDB(t, infra.redisContainer.Addr, infra.redisContainer.DB)
 	witness := &rolloutInitializationWitnessStub{}
 	preparedBeforeRedis, created, err := witness.BeginRolloutInitialization(ctx,
 		uuid.MustParse(redisIntegrationDatasetGeneration), uuid.MustParse(redisIntegrationInitializationRequestID))

@@ -109,7 +109,8 @@ func SetupReusableContainerWithConfig(t *testing.T, cfg ContainerConfig) *Contai
 func getReusableRedisServer(t *testing.T, cfg ContainerConfig) *reusableRedisServer {
 	t.Helper()
 
-	key := fmt.Sprintf("%s|%d|%g", cfg.Image, cfg.MemoryMB, cfg.CPULimit)
+	key := fmt.Sprintf("%s|%d|%g|%s|%t|%s", cfg.Image, cfg.MemoryMB, cfg.CPULimit,
+		cfg.MaxmemoryPolicy, cfg.AppendOnly, cfg.AppendFsync)
 
 	reusableRedisServers.Lock()
 	defer reusableRedisServers.Unlock()
@@ -122,6 +123,7 @@ func getReusableRedisServer(t *testing.T, cfg ContainerConfig) *reusableRedisSer
 	req := testcontainers.ContainerRequest{
 		Image:        cfg.Image,
 		ExposedPorts: []string{"6379/tcp"},
+		Cmd:          cfg.command(),
 		WaitingFor: wait.ForAll(
 			wait.ForLog("Ready to accept connections"),
 			wait.ForListeningPort("6379/tcp"),

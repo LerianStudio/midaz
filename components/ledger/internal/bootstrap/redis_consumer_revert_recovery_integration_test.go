@@ -10,6 +10,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"strconv"
 	"testing"
 	"time"
 
@@ -43,15 +44,12 @@ func TestIntegration_RevertBackupRecoveryPersistsExactParentAndCompletesClaim(t 
 	t.Setenv("AUDIT_LOG_ENABLED", "false")
 
 	ctx := context.Background()
-	postgresContainer := postgrestestutil.SetupContainer(t)
+	postgresContainer := postgrestestutil.SetupMigratedContainer(t, "transaction")
 	postgresDSN := postgrestestutil.BuildConnectionString(postgresContainer.Host, postgresContainer.Port, postgresContainer.Config)
 	postgresClient := postgrestestutil.CreatePostgresClient(t, postgresDSN, postgresDSN, postgresContainer.Config.DBName,
 		postgrestestutil.FindMigrationsPath(t, "transaction"))
-	redisContainer := redistestutil.SetupContainer(t)
-	require.NoError(t, redisContainer.Client.ConfigSet(ctx, "maxmemory-policy", "noeviction").Err())
-	require.NoError(t, redisContainer.Client.ConfigSet(ctx, "appendfsync", "always").Err())
-	require.NoError(t, redisContainer.Client.ConfigSet(ctx, "appendonly", "yes").Err())
-	redisConnection := redistestutil.CreateConnection(t, redisContainer.Addr)
+	redisContainer := redistestutil.SetupReusableContainerWithConfig(t, redistestutil.FinancialContainerConfig())
+	redisConnection := redistestutil.CreateConnectionWithDB(t, redisContainer.Addr, redisContainer.DB)
 	redisRepo, err := transactionredis.NewConsumerRedis(redisConnection)
 	require.NoError(t, err)
 	claimRepo := revertclaim.NewPostgreSQLRepository(postgresClient)
@@ -195,6 +193,11 @@ func TestIntegration_RevertBackupRecoveryPersistsExactParentAndCompletesClaim(t 
 			operations[1].ToRedis(),
 		},
 	}
+	queue.ExpectedEconomicPlan = expectedEconomicPlanForRecovery(t, organizationID, ledgerID, queue.Validate,
+		[]*mmodel.Balance{
+			balanceFromBackup(queue.Balances[0], organizationID, ledgerID),
+			balanceFromBackup(queue.Balances[1], organizationID, ledgerID),
+		}, queue.TransactionStatus, false)
 	raw, err := json.Marshal(queue)
 	require.NoError(t, err)
 	backupKey := utils.TransactionInternalKey(organizationID, ledgerID, reverseID.String())
@@ -203,11 +206,13 @@ func TestIntegration_RevertBackupRecoveryPersistsExactParentAndCompletesClaim(t 
 	require.NoError(t, err)
 	require.True(t, legacyAcquired, "the phase-zero request must leave its old-compatible empty H1 fence")
 	outcomeRaw, err := json.Marshal(mmodel.BalanceExecutionOutcome{
-		Identity: reverseID,
-		Owner:    reverseID.String(),
-		Outcome:  mmodel.TransactionOutcomeCommitted,
-		Before:   queue.Balances,
-		After:    queue.BalancesAfter,
+		Identity:            reverseID,
+		Owner:               reverseID.String(),
+		Outcome:             mmodel.TransactionOutcomeCommitted,
+		EconomicPlanVersion: strconv.Itoa(queue.ExpectedEconomicPlan.Version),
+		EconomicPlanDigest:  queue.ExpectedEconomicPlan.Digest,
+		Before:              queue.Balances,
+		After:               queue.BalancesAfter,
 	})
 	require.NoError(t, err)
 	require.NoError(t, redisRepo.Set(ctx,
@@ -337,12 +342,12 @@ func TestIntegration_LifecycleBackupRecoveryAfterLeaseExpiryPersistsExactOperati
 	t.Setenv("AUDIT_LOG_ENABLED", "false")
 
 	ctx := context.Background()
-	postgresContainer := postgrestestutil.SetupContainer(t)
+	postgresContainer := postgrestestutil.SetupMigratedContainer(t, "transaction")
 	postgresDSN := postgrestestutil.BuildConnectionString(postgresContainer.Host, postgresContainer.Port, postgresContainer.Config)
 	postgresClient := postgrestestutil.CreatePostgresClient(t, postgresDSN, postgresDSN, postgresContainer.Config.DBName,
 		postgrestestutil.FindMigrationsPath(t, "transaction"))
-	redisContainer := redistestutil.SetupContainer(t)
-	redisConnection := redistestutil.CreateConnection(t, redisContainer.Addr)
+	redisContainer := redistestutil.SetupReusableContainer(t)
+	redisConnection := redistestutil.CreateConnectionWithDB(t, redisContainer.Addr, redisContainer.DB)
 	redisRepo, err := transactionredis.NewConsumerRedis(redisConnection)
 	require.NoError(t, err)
 
@@ -450,17 +455,24 @@ func TestIntegration_LifecycleBackupRecoveryAfterLeaseExpiryPersistsExactOperati
 		ExpectedOutcome:   mmodel.TransactionOutcomeCommitted,
 		Operations:        []mmodel.OperationRedis{operations[0].ToRedis(), operations[1].ToRedis()},
 	}
+	queue.ExpectedEconomicPlan = expectedEconomicPlanForRecovery(t, organizationID, ledgerID, queue.Validate,
+		[]*mmodel.Balance{
+			balanceFromBackup(queue.Balances[0], organizationID, ledgerID),
+			balanceFromBackup(queue.Balances[1], organizationID, ledgerID),
+		}, queue.TransactionStatus, true)
 	raw, err := json.Marshal(queue)
 	require.NoError(t, err)
 	backupKey := utils.TransactionInternalKey(organizationID, ledgerID, transactionID.String())
 	outcomeKey := utils.TransactionBalanceOutcomeKey(organizationID, ledgerID, transactionID)
 	require.NoError(t, redisRepo.AddMessageToQueue(ctx, backupKey, raw))
 	outcomeRaw, err := json.Marshal(mmodel.BalanceExecutionOutcome{
-		Identity: transactionID,
-		Outcome:  mmodel.TransactionOutcomeCommitted,
-		Owner:    owner,
-		Before:   before,
-		After:    after,
+		Identity:            transactionID,
+		Outcome:             mmodel.TransactionOutcomeCommitted,
+		Owner:               owner,
+		EconomicPlanVersion: strconv.Itoa(queue.ExpectedEconomicPlan.Version),
+		EconomicPlanDigest:  queue.ExpectedEconomicPlan.Digest,
+		Before:              before,
+		After:               after,
 	})
 	require.NoError(t, err)
 	require.NoError(t, redisRepo.Set(ctx, outcomeKey, string(outcomeRaw), 0))
@@ -488,12 +500,12 @@ func TestIntegration_RevertBackupRecoveryAdoptsPartialDeterministicOperationSet(
 	t.Setenv("AUDIT_LOG_ENABLED", "false")
 
 	ctx := context.Background()
-	postgresContainer := postgrestestutil.SetupContainer(t)
+	postgresContainer := postgrestestutil.SetupMigratedContainer(t, "transaction")
 	postgresDSN := postgrestestutil.BuildConnectionString(postgresContainer.Host, postgresContainer.Port, postgresContainer.Config)
 	postgresClient := postgrestestutil.CreatePostgresClient(t, postgresDSN, postgresDSN, postgresContainer.Config.DBName,
 		postgrestestutil.FindMigrationsPath(t, "transaction"))
-	redisContainer := redistestutil.SetupContainer(t)
-	redisConnection := redistestutil.CreateConnection(t, redisContainer.Addr)
+	redisContainer := redistestutil.SetupReusableContainer(t)
+	redisConnection := redistestutil.CreateConnectionWithDB(t, redisContainer.Addr, redisContainer.DB)
 	redisRepo, err := transactionredis.NewConsumerRedis(redisConnection)
 	require.NoError(t, err)
 
@@ -618,6 +630,11 @@ func TestIntegration_RevertBackupRecoveryAdoptsPartialDeterministicOperationSet(
 		// Operations intentionally absent: this is the lost best-effort
 		// materialization window that used to mint new IDs on every replay.
 	}
+	queue.ExpectedEconomicPlan = expectedEconomicPlanForRecovery(t, organizationID, ledgerID, queue.Validate,
+		[]*mmodel.Balance{
+			balanceFromBackup(queue.Balances[0], organizationID, ledgerID),
+			balanceFromBackup(queue.Balances[1], organizationID, ledgerID),
+		}, queue.TransactionStatus, false)
 	rebuiltEconomicOperations := make([]mmodel.OperationRedis, 0, len(expected))
 	for _, candidate := range expected {
 		rebuiltEconomicOperations = append(rebuiltEconomicOperations, candidate.ToRedis())
@@ -629,11 +646,13 @@ func TestIntegration_RevertBackupRecoveryAdoptsPartialDeterministicOperationSet(
 	backupKey := utils.TransactionInternalKey(organizationID, ledgerID, reverseID.String())
 	require.NoError(t, redisRepo.AddMessageToQueue(ctx, backupKey, raw))
 	outcomeRaw, err := json.Marshal(mmodel.BalanceExecutionOutcome{
-		Identity: reverseID,
-		Owner:    reverseID.String(),
-		Outcome:  mmodel.TransactionOutcomeCommitted,
-		Before:   queue.Balances,
-		After:    queue.BalancesAfter,
+		Identity:            reverseID,
+		Owner:               reverseID.String(),
+		Outcome:             mmodel.TransactionOutcomeCommitted,
+		EconomicPlanVersion: strconv.Itoa(queue.ExpectedEconomicPlan.Version),
+		EconomicPlanDigest:  queue.ExpectedEconomicPlan.Digest,
+		Before:              queue.Balances,
+		After:               queue.BalancesAfter,
 	})
 	require.NoError(t, err)
 	require.NoError(t, redisRepo.Set(ctx,
@@ -666,6 +685,53 @@ func TestIntegration_RevertBackupRecoveryAdoptsPartialDeterministicOperationSet(
 	require.NoError(t, err)
 	require.NotNil(t, completed)
 	assert.Equal(t, revertclaim.StateCompleted, completed.State)
+}
+
+func expectedEconomicPlanForRecovery(
+	t *testing.T,
+	organizationID, ledgerID uuid.UUID,
+	validate *mtransaction.Responses,
+	balances []*mmodel.Balance,
+	transactionStatus string,
+	pending bool,
+) *mmodel.ExpectedEconomicPlan {
+	t.Helper()
+
+	balancesByAlias := make(map[string]*mmodel.Balance, len(balances))
+	for _, balance := range balances {
+		key := balance.Key
+		if key == "" {
+			key = constant.DefaultBalanceKey
+		}
+		balancesByAlias[mtransaction.AliasKey(balance.Alias, key)] = balance
+		balancesByAlias[mtransaction.SplitAliasWithKey(balance.Alias)] = balance
+	}
+
+	operations := make([]mmodel.BalanceOperation, 0, len(validate.From)+len(validate.To))
+	appendOperations := func(amounts map[string]mtransaction.Amount, side string) {
+		for alias, amount := range amounts {
+			resolvedAlias := mtransaction.SplitAliasWithKey(alias)
+			balance := balancesByAlias[resolvedAlias]
+			require.NotNil(t, balance, "expected economic plan balance for %s", alias)
+			operations = append(operations, mmodel.BalanceOperation{
+				Balance: balance,
+				Alias:   alias,
+				Amount:  amount,
+				InternalKey: utils.BalanceInternalKey(
+					organizationID, ledgerID, resolvedAlias,
+				),
+				EconomicSide: side,
+				EconomicRole: amount.EconomicRole,
+			})
+		}
+	}
+	appendOperations(validate.From, mmodel.EconomicSideSource)
+	appendOperations(validate.To, mmodel.EconomicSideDestination)
+
+	plan, err := mmodel.BuildExpectedEconomicPlan(operations, transactionStatus, pending, "")
+	require.NoError(t, err)
+
+	return plan
 }
 
 func recoveryOperation(

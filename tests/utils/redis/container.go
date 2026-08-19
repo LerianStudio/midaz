@@ -24,9 +24,12 @@ import (
 
 // ContainerConfig holds configuration for Redis test container.
 type ContainerConfig struct {
-	Image    string
-	MemoryMB int64   // Memory limit in MB (0 = no limit)
-	CPULimit float64 // CPU limit in cores (0 = no limit)
+	Image           string
+	MemoryMB        int64   // Memory limit in MB (0 = no limit)
+	CPULimit        float64 // CPU limit in cores (0 = no limit)
+	MaxmemoryPolicy string
+	AppendOnly      bool
+	AppendFsync     string
 }
 
 // DefaultContainerConfig returns the default container configuration.
@@ -36,6 +39,36 @@ func DefaultContainerConfig() ContainerConfig {
 		MemoryMB: 128, // 128MB - lightweight in-memory store
 		CPULimit: 0.5, // 0.5 CPU core
 	}
+}
+
+// FinancialContainerConfig returns the fail-closed persistence profile used
+// when Valkey temporarily owns authoritative money-path state.
+func FinancialContainerConfig() ContainerConfig {
+	cfg := DefaultContainerConfig()
+	cfg.MaxmemoryPolicy = "noeviction"
+	cfg.AppendOnly = true
+	cfg.AppendFsync = "always"
+
+	return cfg
+}
+
+func (c ContainerConfig) command() []string {
+	if c.MaxmemoryPolicy == "" && !c.AppendOnly && c.AppendFsync == "" {
+		return nil
+	}
+
+	command := []string{"valkey-server"}
+	if c.MaxmemoryPolicy != "" {
+		command = append(command, "--maxmemory-policy", c.MaxmemoryPolicy)
+	}
+	if c.AppendOnly {
+		command = append(command, "--appendonly", "yes")
+	}
+	if c.AppendFsync != "" {
+		command = append(command, "--appendfsync", c.AppendFsync)
+	}
+
+	return command
 }
 
 // ContainerResult holds the result of starting a Redis container.
@@ -62,6 +95,7 @@ func SetupContainerWithConfig(t *testing.T, cfg ContainerConfig) *ContainerResul
 	req := testcontainers.ContainerRequest{
 		Image:        cfg.Image,
 		ExposedPorts: []string{"6379/tcp"},
+		Cmd:          cfg.command(),
 		WaitingFor: wait.ForAll(
 			wait.ForLog("Ready to accept connections"),
 			wait.ForListeningPort("6379/tcp"),
@@ -127,6 +161,7 @@ func SetupContainerOnNetworkWithConfig(t *testing.T, cfg ContainerConfig, networ
 		ExposedPorts:   []string{"6379/tcp"},
 		Networks:       []string{networkName},
 		NetworkAliases: map[string][]string{networkName: {networkAlias}},
+		Cmd:            cfg.command(),
 		WaitingFor: wait.ForAll(
 			wait.ForLog("Ready to accept connections"),
 			wait.ForListeningPort("6379/tcp"),
