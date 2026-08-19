@@ -115,12 +115,15 @@ func TestStreamingEmitter_Integration_AllSevenFeeEvents(t *testing.T) {
 	createTopics(t, ctx, brokers, topics)
 
 	// Build the emitter through the REAL bootstrap path. LoadConfig reads
-	// STREAMING_BROKERS / STREAMING_CLOUDEVENTS_SOURCE from env.
+	// STREAMING_BROKERS / STREAMING_CLOUDEVENTS_SOURCE from env; the stamped
+	// ce-source, however, comes from resolveStreamingSource(cfg), whose
+	// StreamingCloudEventsSource field is env-parsed in production
+	// (InitServersWithOptions), so the test populates it the same way.
 	t.Setenv("STREAMING_ENABLED", "true")
 	t.Setenv("STREAMING_BROKERS", brokersEnv)
 	t.Setenv("STREAMING_CLOUDEVENTS_SOURCE", streamingITSource)
 
-	cfg := &Config{StreamingEnabled: true}
+	cfg := &Config{StreamingEnabled: true, StreamingCloudEventsSource: streamingITSource}
 
 	emitter, closeFn, err := BuildStreamingEmitter(ctx, cfg, libLog.NewNop(), nil)
 	require.NoError(t, err)
