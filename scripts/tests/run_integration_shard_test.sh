@@ -33,7 +33,13 @@ mkdir -p "$(dirname "$events")"
 while IFS= read -r test_name; do
   [[ -n $test_name ]] || continue
   printf '{"Action":"run","Package":"%s","Test":"%s"}\n' "$MIDAZ_SHARD_JOB_PACKAGE" "$test_name" >> "$events"
-  printf '{"Action":"pass","Package":"%s","Test":"%s"}\n' "$MIDAZ_SHARD_JOB_PACKAGE" "$test_name" >> "$events"
+  if [[ ${FAKE_SKIP_TEST:-} == "$test_name" ]]; then
+    printf '{"Action":"output","Package":"%s","Test":"%s","Output":"    fake_test.go:42: %s\\n"}\n' \
+      "$MIDAZ_SHARD_JOB_PACKAGE" "$test_name" "${FAKE_SKIP_REASON:-unexpected skip reason}" >> "$events"
+    printf '{"Action":"skip","Package":"%s","Test":"%s"}\n' "$MIDAZ_SHARD_JOB_PACKAGE" "$test_name" >> "$events"
+  else
+    printf '{"Action":"pass","Package":"%s","Test":"%s"}\n' "$MIDAZ_SHARD_JOB_PACKAGE" "$test_name" >> "$events"
+  fi
 done < "$MIDAZ_SHARD_JOB_SELECTION_FILE"
 printf '<testsuite/>\n' > "$junit"
 printf '%s\t%s\t%s\t%s\t%s\t%s\n' \
@@ -102,11 +108,67 @@ grep -q $'parallel\texample.test/tracer-worker\towner-tracer\t2\t600s\t.*-race.*
 grep -q $'parallel\texample.test/tracer-cache\towner-tracer\t2\t600s\t.*-race.*-parallel 3.*-shuffle=417' "$test_dir/calls/002.tsv"
 grep -q $'serial\texample.test/tracer-journey\towner-tracer\t1\t600s\t.*-race.*-parallel 1.*-shuffle=417' "$test_dir/calls/003.tsv"
 grep -q '"selected_test_count":4' "$test_dir/reports/tracer/summary.json"
+grep -q '"covered_test_count":4' "$test_dir/reports/tracer/summary.json"
+grep -q '"passed_test_count":4' "$test_dir/reports/tracer/summary.json"
+grep -q '"skipped_test_count":0' "$test_dir/reports/tracer/summary.json"
+grep -q '"uncovered_test_count":0' "$test_dir/reports/tracer/summary.json"
 grep -q '"failed_jobs":0' "$test_dir/reports/tracer/summary.json"
 grep -q '"race_enabled":true' "$test_dir/reports/tracer/summary.json"
 test -s "$test_dir/reports/tracer/selection.sha256"
 test -s "$test_dir/reports/tracer/jobs/003/events.json"
 test -s "$test_dir/reports/tracer/jobs/003/junit.xml"
+test -s "$test_dir/reports/tracer/outcomes.tsv"
+
+status=0
+PATH="$test_dir/bin:$PATH" \
+  FAKE_CALLS_DIR="$test_dir/calls" \
+  FAKE_SKIP_TEST=TestCacheOne \
+  TESTCONTAINERS_SESSION_ID=owner-tracer-skip \
+  INTEGRATION_SHARD_PLAN_FILE="$test_dir/tracer-plan.tsv" \
+  INTEGRATION_PACKAGE_PARALLELISM=2 \
+  INTEGRATION_TEST_PARALLELISM=3 \
+  INTEGRATION_SHUFFLE_SEED=417 \
+  TEST_REPORTS_DIR="$test_dir/tracer-skip-reports" \
+  "$repo_root/scripts/run-integration-shard.sh" tracer || status=$?
+if [[ $status -eq 0 ]]; then
+  echo "unallowlisted terminal skip produced a passing shard" >&2
+  exit 1
+fi
+grep -q '"passed_test_count":3' "$test_dir/tracer-skip-reports/tracer/summary.json"
+grep -q '"skipped_test_count":0' "$test_dir/tracer-skip-reports/tracer/summary.json"
+grep -q '"failed_test_count":1' "$test_dir/tracer-skip-reports/tracer/summary.json"
+grep -q '"uncovered_test_count":1' "$test_dir/tracer-skip-reports/tracer/summary.json"
+grep -q $'example.test/tracer-cache\tTestCacheOne\tfailed\tunexpected skip reason\t' "$test_dir/tracer-skip-reports/tracer/outcomes.tsv"
+
+cat > "$test_dir/skip-allowlist.json" <<'EOF'
+{
+  "version": 1,
+  "entries": [
+    {
+      "package": "example.test/tracer-cache",
+      "test": "TestCacheOne",
+      "reason": "set STREAMING_BROKERS to run",
+      "alternate_capability": "required-streaming:STREAMING_BROKERS"
+    }
+  ]
+}
+EOF
+PATH="$test_dir/bin:$PATH" \
+  FAKE_CALLS_DIR="$test_dir/calls" \
+  FAKE_SKIP_TEST=TestCacheOne \
+  FAKE_SKIP_REASON='set STREAMING_BROKERS to run' \
+  TESTCONTAINERS_SESSION_ID=owner-tracer-allowlisted-skip \
+  INTEGRATION_SKIP_ALLOWLIST="$test_dir/skip-allowlist.json" \
+  INTEGRATION_SHARD_PLAN_FILE="$test_dir/tracer-plan.tsv" \
+  INTEGRATION_PACKAGE_PARALLELISM=2 \
+  INTEGRATION_TEST_PARALLELISM=3 \
+  INTEGRATION_SHUFFLE_SEED=417 \
+  TEST_REPORTS_DIR="$test_dir/tracer-allowlisted-skip-reports" \
+  "$repo_root/scripts/run-integration-shard.sh" tracer
+grep -q '"passed_test_count":3' "$test_dir/tracer-allowlisted-skip-reports/tracer/summary.json"
+grep -q '"skipped_test_count":1' "$test_dir/tracer-allowlisted-skip-reports/tracer/summary.json"
+grep -q '"uncovered_test_count":0' "$test_dir/tracer-allowlisted-skip-reports/tracer/summary.json"
+grep -q $'example.test/tracer-cache\tTestCacheOne\tskipped\tset STREAMING_BROKERS to run\trequired-streaming:STREAMING_BROKERS' "$test_dir/tracer-allowlisted-skip-reports/tracer/outcomes.tsv"
 
 cat > "$test_dir/lifecycle-plan.tsv" <<'EOF'
 lifecycle-migration	serial	example.test/lifecycle-one	TestLifecycleOne

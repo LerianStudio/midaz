@@ -201,17 +201,30 @@ func TestVerifyEventCoverageRequiresEveryAndOnlySelectedTopLevelTest(t *testing.
 	t.Parallel()
 
 	expected := []string{"TestOne", "TestTwo"}
+	allowances := map[testRecord]skipAllowance{
+		{Package: "example.test/pkg", Test: "TestTwo"}: {
+			Package:             "example.test/pkg",
+			Test:                "TestTwo",
+			Reason:              "set CHAOS=1 to run chaos tests",
+			AlternateCapability: capabilityChaosIntegration,
+		},
+	}
 	events := strings.Join([]string{
 		`{"Action":"run","Package":"example.test/pkg","Test":"TestOne"}`,
 		`{"Action":"run","Package":"example.test/pkg","Test":"TestOne/child"}`,
 		`{"Action":"pass","Package":"example.test/pkg","Test":"TestOne/child"}`,
 		`{"Action":"pass","Package":"example.test/pkg","Test":"TestOne"}`,
 		`{"Action":"run","Package":"example.test/pkg","Test":"TestTwo"}`,
+		`{"Action":"output","Package":"example.test/pkg","Test":"TestTwo","Output":"    pkg_test.go:42: set CHAOS=1 to run chaos tests\n"}`,
 		`{"Action":"skip","Package":"example.test/pkg","Test":"TestTwo"}`,
 	}, "\n")
 
-	if err := verifyEventCoverage("example.test/pkg", expected, strings.NewReader(events)); err != nil {
+	result, err := verifyEventCoverage("example.test/pkg", expected, allowances, strings.NewReader(events))
+	if err != nil {
 		t.Fatalf("verifyEventCoverage() error = %v", err)
+	}
+	if result.Passed != 1 || result.Skipped != 1 || result.Failed != 0 || result.Missing != 0 {
+		t.Fatalf("verifyEventCoverage() result = %+v, want 1 passed and 1 allowlisted skip", result)
 	}
 }
 
@@ -224,15 +237,20 @@ func TestVerifyEventCoverageFailsClosed(t *testing.T) {
 		want   string
 	}{
 		{
-			name:   "missing",
-			events: `{"Action":"run","Package":"example.test/pkg","Test":"TestOne"}`,
-			want:   "did not start selected test TestTwo",
+			name: "missing",
+			events: strings.Join([]string{
+				`{"Action":"run","Package":"example.test/pkg","Test":"TestOne"}`,
+				`{"Action":"pass","Package":"example.test/pkg","Test":"TestOne"}`,
+			}, "\n"),
+			want: "did not start selected test TestTwo",
 		},
 		{
 			name: "unexpected",
 			events: strings.Join([]string{
 				`{"Action":"run","Package":"example.test/pkg","Test":"TestOne"}`,
+				`{"Action":"pass","Package":"example.test/pkg","Test":"TestOne"}`,
 				`{"Action":"run","Package":"example.test/pkg","Test":"TestTwo"}`,
+				`{"Action":"pass","Package":"example.test/pkg","Test":"TestTwo"}`,
 				`{"Action":"run","Package":"example.test/pkg","Test":"TestThree"}`,
 			}, "\n"),
 			want: "started unselected test TestThree",
@@ -242,9 +260,41 @@ func TestVerifyEventCoverageFailsClosed(t *testing.T) {
 			events: strings.Join([]string{
 				`{"Action":"run","Package":"example.test/pkg","Test":"TestOne"}`,
 				`{"Action":"run","Package":"example.test/pkg","Test":"TestOne"}`,
+				`{"Action":"pass","Package":"example.test/pkg","Test":"TestOne"}`,
 				`{"Action":"run","Package":"example.test/pkg","Test":"TestTwo"}`,
+				`{"Action":"pass","Package":"example.test/pkg","Test":"TestTwo"}`,
 			}, "\n"),
 			want: "started selected test TestOne 2 times",
+		},
+		{
+			name: "started without terminal",
+			events: strings.Join([]string{
+				`{"Action":"run","Package":"example.test/pkg","Test":"TestOne"}`,
+				`{"Action":"run","Package":"example.test/pkg","Test":"TestTwo"}`,
+				`{"Action":"pass","Package":"example.test/pkg","Test":"TestTwo"}`,
+			}, "\n"),
+			want: "selected test TestOne produced no terminal event",
+		},
+		{
+			name: "unallowlisted skip",
+			events: strings.Join([]string{
+				`{"Action":"run","Package":"example.test/pkg","Test":"TestOne"}`,
+				`{"Action":"output","Package":"example.test/pkg","Test":"TestOne","Output":"    pkg_test.go:42: new skip\n"}`,
+				`{"Action":"skip","Package":"example.test/pkg","Test":"TestOne"}`,
+				`{"Action":"run","Package":"example.test/pkg","Test":"TestTwo"}`,
+				`{"Action":"pass","Package":"example.test/pkg","Test":"TestTwo"}`,
+			}, "\n"),
+			want: "unallowlisted skip",
+		},
+		{
+			name: "terminal fail",
+			events: strings.Join([]string{
+				`{"Action":"run","Package":"example.test/pkg","Test":"TestOne"}`,
+				`{"Action":"fail","Package":"example.test/pkg","Test":"TestOne"}`,
+				`{"Action":"run","Package":"example.test/pkg","Test":"TestTwo"}`,
+				`{"Action":"pass","Package":"example.test/pkg","Test":"TestTwo"}`,
+			}, "\n"),
+			want: "terminated with fail",
 		},
 		{name: "invalid json", events: `{`, want: "decode Go test event"},
 		{name: "empty", events: "", want: "contained zero events"},
@@ -254,13 +304,134 @@ func TestVerifyEventCoverageFailsClosed(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			err := verifyEventCoverage(
+			_, err := verifyEventCoverage(
 				"example.test/pkg",
 				[]string{"TestOne", "TestTwo"},
+				nil,
 				bytes.NewBufferString(tt.events),
 			)
 			if err == nil || !strings.Contains(err.Error(), tt.want) {
 				t.Fatalf("verifyEventCoverage() error = %v, want containing %q", err, tt.want)
+			}
+		})
+	}
+}
+
+func TestVerifyEventCoverageRejectsChangedSkipReason(t *testing.T) {
+	t.Parallel()
+
+	allowances := map[testRecord]skipAllowance{
+		{Package: "example.test/pkg", Test: "TestOne"}: {
+			Package:             "example.test/pkg",
+			Test:                "TestOne",
+			Reason:              "expected reason",
+			AlternateCapability: capabilityChaosIntegration,
+		},
+	}
+	events := strings.Join([]string{
+		`{"Action":"run","Package":"example.test/pkg","Test":"TestOne"}`,
+		`{"Action":"output","Package":"example.test/pkg","Test":"TestOne","Output":"    pkg_test.go:42: changed reason\n"}`,
+		`{"Action":"skip","Package":"example.test/pkg","Test":"TestOne"}`,
+	}, "\n")
+
+	_, err := verifyEventCoverage("example.test/pkg", []string{"TestOne"}, allowances, strings.NewReader(events))
+	if err == nil || !strings.Contains(err.Error(), "skip reason changed") {
+		t.Fatalf("verifyEventCoverage() error = %v, want changed skip reason", err)
+	}
+}
+
+func TestVerifyEventCoverageRejectsAllowanceAfterTestPasses(t *testing.T) {
+	t.Setenv("CHAOS", "0")
+
+	allowances := map[testRecord]skipAllowance{
+		{Package: "example.test/pkg", Test: "TestOne"}: {
+			Package:             "example.test/pkg",
+			Test:                "TestOne",
+			Reason:              "set CHAOS=1 to run chaos tests",
+			AlternateCapability: capabilityChaosIntegration,
+		},
+	}
+	events := strings.Join([]string{
+		`{"Action":"run","Package":"example.test/pkg","Test":"TestOne"}`,
+		`{"Action":"pass","Package":"example.test/pkg","Test":"TestOne"}`,
+	}, "\n")
+
+	_, err := verifyEventCoverage("example.test/pkg", []string{"TestOne"}, allowances, strings.NewReader(events))
+	if err == nil || !strings.Contains(err.Error(), "stale skip allowance") {
+		t.Fatalf("verifyEventCoverage() error = %v, want stale skip allowance", err)
+	}
+}
+
+func TestVerifyEventCoverageExecutesAllowlistedAlternateCapability(t *testing.T) {
+	t.Setenv("CHAOS", "1")
+
+	allowances := map[testRecord]skipAllowance{
+		{Package: "example.test/pkg", Test: "TestOne"}: {
+			Package:             "example.test/pkg",
+			Test:                "TestOne",
+			Reason:              "set CHAOS=1 to run chaos tests",
+			AlternateCapability: capabilityChaosIntegration,
+		},
+	}
+	events := strings.Join([]string{
+		`{"Action":"run","Package":"example.test/pkg","Test":"TestOne"}`,
+		`{"Action":"pass","Package":"example.test/pkg","Test":"TestOne"}`,
+	}, "\n")
+
+	result, err := verifyEventCoverage("example.test/pkg", []string{"TestOne"}, allowances, strings.NewReader(events))
+	if err != nil {
+		t.Fatalf("verifyEventCoverage() error = %v", err)
+	}
+	if result.Passed != 1 || result.Skipped != 0 {
+		t.Fatalf("verifyEventCoverage() result = %+v, want alternate capability pass", result)
+	}
+}
+
+func TestSkipAllowlistIsVersionedExactAndHasNoStaleEntries(t *testing.T) {
+	t.Parallel()
+
+	inventory := []testRecord{{Package: "example.test/pkg", Test: "TestChaos"}}
+	assignments := []assignment{{
+		testRecord: inventory[0],
+		Shard:      shardLifecycleMigration,
+		Mode:       modeSerial,
+	}}
+	contents := `{"version":1,"entries":[{"package":"example.test/pkg","test":"TestChaos","reason":"set CHAOS=1 to run chaos tests","alternate_capability":"integration-chaos:CHAOS=1"}]}`
+
+	allowances, err := readSkipAllowlist(strings.NewReader(contents))
+	if err != nil {
+		t.Fatalf("readSkipAllowlist() error = %v", err)
+	}
+	if err := verifySkipAllowlist(inventory, assignments, allowances); err != nil {
+		t.Fatalf("verifySkipAllowlist() error = %v", err)
+	}
+
+	staleInventory := []testRecord{{Package: "example.test/pkg", Test: "TestRenamed"}}
+	staleAssignments := []assignment{{testRecord: staleInventory[0], Shard: shardLifecycleMigration, Mode: modeSerial}}
+	if err := verifySkipAllowlist(staleInventory, staleAssignments, allowances); err == nil || !strings.Contains(err.Error(), "unknown or stale") {
+		t.Fatalf("verifySkipAllowlist() stale error = %v", err)
+	}
+}
+
+func TestSkipAllowlistRejectsUnknownVersionCapabilityAndDuplicates(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name     string
+		contents string
+		want     string
+	}{
+		{name: "version", contents: `{"version":2,"entries":[]}`, want: "version 2"},
+		{name: "capability", contents: `{"version":1,"entries":[{"package":"example.test/pkg","test":"TestOne","reason":"reason","alternate_capability":"invented"}]}`, want: "unknown alternate capability"},
+		{name: "duplicate", contents: `{"version":1,"entries":[{"package":"example.test/pkg","test":"TestOne","reason":"set CHAOS=1 to run","alternate_capability":"integration-chaos:CHAOS=1"},{"package":"example.test/pkg","test":"TestOne","reason":"set CHAOS=1 to run","alternate_capability":"integration-chaos:CHAOS=1"}]}`, want: "duplicate skip allowance"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			_, err := readSkipAllowlist(strings.NewReader(tt.contents))
+			if err == nil || !strings.Contains(err.Error(), tt.want) {
+				t.Fatalf("readSkipAllowlist() error = %v, want containing %q", err, tt.want)
 			}
 		})
 	}

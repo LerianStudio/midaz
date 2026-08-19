@@ -69,6 +69,14 @@ fi
 export GOMAXPROCS=$job_gomaxprocs
 
 repo_root=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
+skip_allowlist=${INTEGRATION_SKIP_ALLOWLIST:-$repo_root/ci/integration-skip-allowlist.json}
+if [[ $skip_allowlist != /* ]]; then
+  skip_allowlist=$repo_root/$skip_allowlist
+fi
+if [[ ! -r $skip_allowlist ]]; then
+  echo "integration skip allowlist is not readable: $skip_allowlist" >&2
+  exit 2
+fi
 report_root=${TEST_REPORTS_DIR:-$repo_root/reports/integration-shards}
 if [[ $report_root != /* ]]; then
   report_root=$repo_root/$report_root
@@ -91,7 +99,7 @@ else
   (cd "$repo_root" && \
     scripts/list-tagged-test-functions.sh integration integration \
       ./components/... ./pkg/... ./tests/...) > "$inventory"
-  "$shard_tool" < "$inventory" > "$full_plan"
+  "$shard_tool" --skip-allowlist "$skip_allowlist" < "$inventory" > "$full_plan"
 fi
 
 selection=$report_dir/selection.tsv
@@ -178,7 +186,7 @@ if [[ $shard == lifecycle-migration || $shard == async-broker || $shard == ledge
     exit 2
   fi
 fi
-export shard docker_bin cleanup_timeout_bin owner_cleanup_timeout
+export shard skip_allowlist docker_bin cleanup_timeout_bin owner_cleanup_timeout
 
 cleanup_shard_owner_containers() {
   local job_dir=$1
@@ -260,6 +268,7 @@ run_shard_job() {
   local events=$job_dir/events.json
   local junit=$job_dir/junit.xml
   local log=$job_dir/test.log
+  local outcomes=$job_dir/outcomes.tsv
   local status_file=$job_dir/status.tsv
   local effective_test_parallelism=$INTEGRATION_TEST_PARALLELISM
   local effective_package_parallelism=$INTEGRATION_PACKAGE_PARALLELISM
@@ -317,6 +326,7 @@ run_shard_job() {
   local verifier_status=0
   if ! "$MIDAZ_INTEGRATION_SHARD_TOOL" verify-events \
     --package "$package" --expected "$selected_tests" --events "$events" \
+    --skip-allowlist "$skip_allowlist" --outcomes "$outcomes" \
     >> "$log" 2>&1; then
     verifier_status=1
   fi
@@ -416,19 +426,46 @@ done < "$jobs_manifest"
 selected_test_count=$(wc -l < "$selection" | tr -d ' ')
 parallel_test_count=$(awk -F '\t' '$1 == "parallel" { count++ } END { print count + 0 }' "$selection")
 serial_test_count=$(awk -F '\t' '$1 == "serial" { count++ } END { print count + 0 }' "$selection")
+outcomes=$report_dir/outcomes.tsv
+printf 'package\ttest\toutcome\treason\talternate_capability\n' > "$outcomes"
+while IFS=$'\t' read -r _ _ _ job_dir; do
+  [[ -s $job_dir/outcomes.tsv ]] || continue
+  tail -n +2 "$job_dir/outcomes.tsv" >> "$outcomes"
+done < "$jobs_manifest"
+passed_test_count=$(awk -F '\t' '$3 == "passed" { count++ } END { print count + 0 }' "$outcomes")
+skipped_test_count=$(awk -F '\t' '$3 == "skipped" { count++ } END { print count + 0 }' "$outcomes")
+failed_test_count=$(awk -F '\t' '$3 == "failed" { count++ } END { print count + 0 }' "$outcomes")
+missing_test_count=$(awk -F '\t' '$3 == "missing" { count++ } END { print count + 0 }' "$outcomes")
+classified_test_count=$((passed_test_count + skipped_test_count + failed_test_count + missing_test_count))
+unclassified_test_count=$((selected_test_count - classified_test_count))
+classification_integrity_failures=0
+unknown_outcome_count=$(awk -F '\t' 'NR > 1 && $3 != "passed" && $3 != "skipped" && $3 != "failed" && $3 != "missing" { count++ } END { print count + 0 }' "$outcomes")
+if [[ $unclassified_test_count -ne 0 || $unknown_outcome_count -ne 0 ]]; then
+  classification_integrity_failures=1
+  printf 'outcomes\tclassification\tunion\tselected=%d\tclassified=%d\n' \
+    "$selected_test_count" "$classified_test_count" >> "$failures"
+  if [[ $unclassified_test_count -lt 0 ]]; then
+    unclassified_test_count=0
+  fi
+fi
+covered_test_count=$((passed_test_count + skipped_test_count))
+uncovered_test_count=$((failed_test_count + missing_test_count + unclassified_test_count))
+if ((covered_test_count + uncovered_test_count != selected_test_count)); then
+  classification_integrity_failures=1
+fi
 runner_duration_seconds=$(($(date +%s) - runner_started_epoch))
 race_enabled_json=false
 if [[ $race_enabled == 1 ]]; then
   race_enabled_json=true
 fi
-printf '{"shard":"%s","selected_test_count":%d,"parallel_test_count":%d,"serial_test_count":%d,"package_runs":%d,"package_parallelism":%d,"test_parallelism":%d,"job_gomaxprocs":%d,"shuffle_seed":"%s","flake_budget":%d,"race_enabled":%s,"serial_cleanup_failures":%d,"parallel_cleanup_failures":%d,"failed_jobs":%d,"duration_seconds":%d}\n' \
-  "$shard" "$selected_test_count" "$parallel_test_count" "$serial_test_count" "$job_index" \
-  "$package_parallelism" "$test_parallelism" "$job_gomaxprocs" "$shuffle_seed" "$flake_budget" "$race_enabled_json" "$serial_cleanup_failures" "$parallel_cleanup_failures" "$failed_jobs" "$runner_duration_seconds" \
+printf '{"shard":"%s","selected_test_count":%d,"covered_test_count":%d,"passed_test_count":%d,"skipped_test_count":%d,"failed_test_count":%d,"missing_test_count":%d,"unclassified_test_count":%d,"uncovered_test_count":%d,"parallel_test_count":%d,"serial_test_count":%d,"package_runs":%d,"package_parallelism":%d,"test_parallelism":%d,"job_gomaxprocs":%d,"shuffle_seed":"%s","flake_budget":%d,"race_enabled":%s,"serial_cleanup_failures":%d,"parallel_cleanup_failures":%d,"classification_integrity_failures":%d,"failed_jobs":%d,"duration_seconds":%d}\n' \
+  "$shard" "$selected_test_count" "$covered_test_count" "$passed_test_count" "$skipped_test_count" "$failed_test_count" "$missing_test_count" "$unclassified_test_count" "$uncovered_test_count" "$parallel_test_count" "$serial_test_count" "$job_index" \
+  "$package_parallelism" "$test_parallelism" "$job_gomaxprocs" "$shuffle_seed" "$flake_budget" "$race_enabled_json" "$serial_cleanup_failures" "$parallel_cleanup_failures" "$classification_integrity_failures" "$failed_jobs" "$runner_duration_seconds" \
   > "$report_dir/summary.json"
 
-if [[ $failed_jobs -ne 0 || $parallel_cleanup_failures -ne 0 ]]; then
-  echo "[$shard] failed: $failed_jobs package run(s), $parallel_cleanup_failures parallel cleanup failure(s); see $failures" >&2
+if [[ $failed_jobs -ne 0 || $parallel_cleanup_failures -ne 0 || $classification_integrity_failures -ne 0 || $uncovered_test_count -ne 0 ]]; then
+  echo "[$shard] failed: $failed_jobs package run(s), $parallel_cleanup_failures parallel cleanup failure(s), $uncovered_test_count uncovered test(s); see $failures" >&2
   exit 1
 fi
 
-echo "[$shard] passed: $selected_test_count exact tests, zero retries"
+echo "[$shard] covered: $passed_test_count passed, $skipped_test_count allowlisted skipped, zero retries"

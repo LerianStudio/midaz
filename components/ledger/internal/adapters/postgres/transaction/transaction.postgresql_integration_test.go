@@ -135,7 +135,7 @@ func setupChaosInfra(t *testing.T) *chaosTestInfra {
 	t.Helper()
 
 	// Setup PostgreSQL container
-	pgContainer := pgtestutil.SetupContainer(t)
+	pgContainer := pgtestutil.SetupContainerWithFixedPort(t)
 
 	// Create lib-commons PostgreSQL connection
 	migrationsPath := pgtestutil.FindMigrationsPath(t, "transaction")
@@ -683,9 +683,7 @@ func TestIntegration_Transaction_GracefulDegradation(t *testing.T) {
 
 // TestChaos_Transaction_PostgresRestart tests that the repository recovers
 // after a PostgreSQL container restart.
-// SKIPPED: lib-commons PostgreSQL connection pool does not recover after restart.
 func TestIntegration_Chaos_Transaction_PostgresRestart(t *testing.T) {
-	t.Skip("skipping: lib-commons connection pool does not recover after PostgreSQL restart")
 	skipIfNotChaos(t)
 	if testing.Short() {
 		t.Skip("skipping chaos test in short mode")
@@ -710,7 +708,16 @@ func TestIntegration_Chaos_Transaction_PostgresRestart(t *testing.T) {
 	err = infra.chaosOrch.WaitForContainerRunning(ctx, containerID, 60*time.Second)
 	require.NoError(t, err, "container should be running after restart")
 
-	// Wait for database to be ready again
+	mappedPort, err := infra.pgContainer.Container.MappedPort(ctx, "5432/tcp")
+	require.NoError(t, err, "resolve PostgreSQL endpoint after restart")
+	require.Equal(t, infra.pgContainer.Port, mappedPort.Port(),
+		"restart must preserve the endpoint; otherwise this is endpoint discovery, not reconnect recovery")
+
+	// Prove the original DSN becomes ready before exercising the repository.
+	chaos.AssertRecoveryWithin(t, func() error {
+		return infra.pgContainer.DB.PingContext(ctx)
+	}, 30*time.Second, "original PostgreSQL DSN should become ready after restart")
+
 	chaos.AssertRecoveryWithin(t, func() error {
 		_, err := infra.repo.Find(ctx, infra.orgID, infra.ledgerID, parseID(t, tx.ID))
 		return err

@@ -11,10 +11,9 @@
 // binary-mode headers (ce-type, ce-source, ce-subject, ce-tenantid) plus the
 // absence of fee-detail / PII keys on every body.
 //
-// It requires a LIVE Kafka-compatible broker supplied via STREAMING_BROKERS
-// (e.g. the infra `midaz-redpanda` service on localhost:19092 after `make up`).
-// When STREAMING_BROKERS is empty the test skips cleanly — it never starts a
-// broker itself.
+// It uses the Kafka-compatible broker supplied via STREAMING_BROKERS when set.
+// Otherwise it starts an in-process protocol broker so the required integration
+// shard always executes the capability instead of silently skipping it.
 //
 // Build/run: this file is gated behind `//go:build integration`, so the default
 // unit suite (`go test ./...` with no tag) never compiles or runs it and stays
@@ -46,6 +45,7 @@ import (
 	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/twmb/franz-go/pkg/kfake"
 	"github.com/twmb/franz-go/pkg/kgo"
 	"github.com/twmb/franz-go/pkg/kmsg"
 
@@ -99,13 +99,9 @@ type streamingITExpectation struct {
 // wire contract (ce-type / ce-source / ce-subject / ce-tenantid + fee-detail
 // absence) per event.
 func TestStreamingEmitter_Integration_AllSevenFeeEvents(t *testing.T) {
-	brokersEnv := strings.TrimSpace(os.Getenv("STREAMING_BROKERS"))
-	if brokersEnv == "" {
-		t.Skip("set STREAMING_BROKERS (e.g. localhost:19092, e.g. via make up) to run the streaming smoke test")
-	}
-
 	ctx := context.Background()
-	brokers := strings.Split(brokersEnv, ",")
+	brokers := streamingITBrokers(t)
+	brokersEnv := strings.Join(brokers, ",")
 
 	expectations := streamingITExpectations()
 
@@ -165,6 +161,19 @@ func TestStreamingEmitter_Integration_AllSevenFeeEvents(t *testing.T) {
 
 		assertRecord(t, e, rec)
 	}
+}
+
+func streamingITBrokers(t *testing.T) []string {
+	t.Helper()
+
+	if configured := strings.TrimSpace(os.Getenv("STREAMING_BROKERS")); configured != "" {
+		return strings.Split(configured, ",")
+	}
+
+	cluster, err := kfake.NewCluster(kfake.NumBrokers(1))
+	require.NoError(t, err)
+	t.Cleanup(cluster.Close)
+	return cluster.ListenAddrs()
 }
 
 // streamingITExpectations builds the 7 EmitRequests from the real fee event
