@@ -33,7 +33,6 @@ func TestFeesAppliedDefinition_Key(t *testing.T) {
 	t.Parallel()
 
 	assert.Equal(t, "fee_charge.applied", events.FeesAppliedDefinition.Key())
-	assert.Equal(t, "fee-charge.applied", events.FeesAppliedDefinition.RouteKey())
 	assert.Equal(t, "fee_charge", events.FeesAppliedDefinition.ResourceType)
 	assert.Equal(t, "applied", events.FeesAppliedDefinition.EventType)
 	assert.Equal(t, "1.0.0", events.FeesAppliedDefinition.SchemaVersion)

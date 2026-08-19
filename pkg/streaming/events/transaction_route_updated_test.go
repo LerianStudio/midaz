@@ -15,7 +15,6 @@ import (
 
 func TestTransactionRouteUpdatedDefinition_Key(t *testing.T) {
 	assert.Equal(t, "transaction_route.updated", events.TransactionRouteUpdatedDefinition.Key())
-	assert.Equal(t, "transaction-route.updated", events.TransactionRouteUpdatedDefinition.RouteKey())
 	assert.Equal(t, "transaction_route", events.TransactionRouteUpdatedDefinition.ResourceType)
 	assert.Equal(t, "updated", events.TransactionRouteUpdatedDefinition.EventType)
 	assert.Equal(t, "1.0.0", events.TransactionRouteUpdatedDefinition.SchemaVersion)

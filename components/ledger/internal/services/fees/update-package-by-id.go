@@ -23,7 +23,7 @@ import (
 	"github.com/LerianStudio/lib-commons/v6/commons"
 	libLog "github.com/LerianStudio/lib-observability/v2/log"
 	libOpentelemetry "github.com/LerianStudio/lib-observability/v2/tracing"
-	libStreaming "github.com/LerianStudio/lib-streaming/v2"
+	libStreaming "github.com/LerianStudio/lib-streaming/v3"
 	"github.com/google/uuid"
 	"github.com/iancoleman/strcase"
 	"github.com/shopspring/decimal"

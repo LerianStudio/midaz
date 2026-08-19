@@ -13,7 +13,7 @@ import (
 
 	libLog "github.com/LerianStudio/lib-observability/v2/log"
 	libOtel "github.com/LerianStudio/lib-observability/v2/tracing"
-	libStreaming "github.com/LerianStudio/lib-streaming/v2"
+	libStreaming "github.com/LerianStudio/lib-streaming/v3"
 	"github.com/twmb/franz-go/pkg/sasl"
 	"github.com/twmb/franz-go/pkg/sasl/plain"
 	"github.com/twmb/franz-go/pkg/sasl/scram"
@@ -36,33 +36,38 @@ const (
 // sync.
 const streamingPrimaryTargetName = "primary"
 
-// streamingServiceName is the leading, ACL-scoped service segment of every
-// tracer topic name produced by pkgStreaming.TopicName. Topic names take the
-// shape "tracer.<resource>.<event>", so a single Kafka ACL prefix "tracer."
-// covers every topic tracer emits.
+// streamingServiceName is this application's name on the streaming roster: the
+// ce-source tracer stamps on every event and the single segment its one topic is
+// derived from, "lerian.streaming.tracer". A Kafka ACL scoped to the three names
+// lib-streaming derives from it (topic, commands queue, DLQ) covers everything
+// tracer writes.
 const streamingServiceName = "tracer"
 
-// streamingSource is the CloudEvents source used as the nil/whitespace-only
-// fallback in resolveStreamingSource. It is intentionally the bare service name
-// "tracer" (not the historical "lerian.midaz.tracer") so ce-source matches the
-// leading ACL-scoped topic segment "tracer.": the route Destination topics are
-// "tracer.<resource>.<event>" and the ce-source-derived topic / Phase-2 manifest
-// agree on the same "tracer." ACL prefix. STREAMING_CLOUDEVENTS_SOURCE is
-// REQUIRED when streaming is enabled — a genuinely-unset value fail-closes at
-// libStreaming.LoadConfig (ErrMissingSource) before this fallback is ever
-// reached.
-const streamingSource = "tracer"
+// streamingFactRouteKey identifies the single catch-all route that carries every
+// fact tracer emits to its application topic. Under one topic per producing
+// application there is nothing left to fan out per event, so one route replaces
+// the former route-per-catalog-entry table. The key is an operator-facing
+// identifier only — it never reaches the wire.
+const streamingFactRouteKey = streamingServiceName + ".facts." + streamingPrimaryTargetName
 
-// resolveStreamingSource normalizes the configured CloudEvents source to stamp
-// on emitted events. STREAMING_CLOUDEVENTS_SOURCE is REQUIRED when streaming is
-// enabled: libStreaming.LoadConfig fail-closes with ErrMissingSource on a
-// genuinely-unset value, so BuildStreamingEmitter aborts and the binary never
-// starts without it (.env.example recommends the bare service name "tracer" so
-// ce-source matches the leading ACL-scoped topic segment "tracer."). This
-// helper only trims the configured value and returns it verbatim; the in-code
-// streamingSource default ("tracer") is a defense-in-depth fallback for a nil or
-// whitespace-only config value that slips past LoadConfig's empty-string check,
-// NOT the unset-env default.
+// resolveStreamingSource normalizes the configured CloudEvents source. The
+// resolved value is load-bearing three times over and MUST be one value: it is
+// stamped as ce-source, it derives the application topic every event rides
+// (libStreaming.AppTopic), and it is what the manifest advertises to the
+// streaming hub. A divergence between any two of those would point provisioning
+// at a stream nothing writes, and a source-verifying consumer would quarantine
+// every record it received.
+//
+// STREAMING_CLOUDEVENTS_SOURCE is REQUIRED when streaming is enabled:
+// libStreaming.LoadConfig fail-closes with ErrMissingSource on a genuinely-unset
+// value, so BuildStreamingEmitter aborts and the binary never starts without it
+// (.env.example recommends the roster name "tracer"). lib-streaming REJECTS a
+// source that is not a single dot-free lowercase segment rather than rewriting
+// it, so a malformed value fails startup instead of silently colonizing another
+// application's topic namespace. This helper only trims the configured value and
+// returns it verbatim; streamingServiceName ("tracer") is a defense-in-depth
+// fallback for a nil or whitespace-only config value that slips past
+// LoadConfig's empty-string check, NOT the unset-env default.
 func resolveStreamingSource(cfg *Config) string {
 	if cfg != nil {
 		if source := strings.TrimSpace(cfg.StreamingCloudEventsSource); source != "" {
@@ -70,7 +75,7 @@ func resolveStreamingSource(cfg *Config) string {
 		}
 	}
 
-	return streamingSource
+	return streamingServiceName
 }
 
 // noopStreamingCloser is the close hook returned by BuildStreamingEmitter
@@ -88,7 +93,7 @@ func noopStreamingCloser() error { return nil }
 //     close hook. No transport client is constructed and no broker
 //     connection is attempted.
 //   - When STREAMING_BROKERS is empty, libStreaming.LoadConfig fails closed
-//     with ErrMissingBrokers. The function treats that as an
+//     with ErrProducerMissingBrokers. The function treats that as an
 //     operator-correctable misconfiguration and degrades to a NoopEmitter
 //     (no error, Warn logged) rather than aborting bootstrap. Any OTHER
 //     LoadConfig failure propagates as a wrapped error.
@@ -98,8 +103,9 @@ func noopStreamingCloser() error { return nil }
 //     degrades to Noop rather than failing bootstrap.
 //   - Otherwise the function builds a single-target catalog-first Producer
 //     via libStreaming.NewBuilder(), wiring the tracer CloudEvents source
-//     onto the Builder and registering all tracer event definitions in the
-//     Catalog with a matching RouteDefinition per event.
+//     onto the Builder, registering all tracer event definitions in the
+//     Catalog, and pointing one catch-all route at the application topic
+//     derived from that source.
 func BuildStreamingEmitter(
 	ctx context.Context,
 	cfg *Config,
@@ -146,7 +152,7 @@ func BuildStreamingEmitter(
 		// not a reason to abort bootstrap: degrade to a NoopEmitter so the
 		// service starts with streaming disabled. Any OTHER LoadConfig
 		// failure is a genuine config error and propagates.
-		if errors.Is(err, libStreaming.ErrMissingBrokers) {
+		if errors.Is(err, libStreaming.ErrProducerMissingBrokers) {
 			if logger != nil {
 				logger.Log(ctx, libLog.LevelWarn,
 					"STREAMING_ENABLED=true but STREAMING_BROKERS is empty; falling back to NoopEmitter")
@@ -187,11 +193,14 @@ func buildLiveStreamingEmitter(
 		return nil, noopStreamingCloser, fmt.Errorf("failed to build streaming catalog: %w", err)
 	}
 
-	// Build the route table. One required route per event keyed to the
-	// canonical "tracer.<resource>.<event>" topic name (service = tracer).
-	routes := buildRoutes(streamingPrimaryTargetName)
-
 	source := resolveStreamingSource(cfg)
+
+	// Build the route table: ONE required catch-all route carrying every fact
+	// tracer emits to its single application topic.
+	routes, err := buildRoutes(streamingPrimaryTargetName, source)
+	if err != nil {
+		return nil, noopStreamingCloser, err
+	}
 
 	builder := libStreaming.NewBuilder().
 		Source(source).
@@ -339,43 +348,40 @@ func buildCatalog() (libStreaming.Catalog, error) {
 
 // BuildStreamingManifestHandler builds the catalog-only lib-streaming manifest
 // HTTP handler the tracer serves at pkgStreaming.ManifestRoutePath. It is a thin
-// wrapper over pkgStreaming.NewManifestHandler, delegating to the single shared
-// helper so the manifest SourceBase stays pinned to the bare service segment
-// (streamingServiceName, "tracer") — making the advertised topics equal the
-// emitted topics regardless of STREAMING_CLOUDEVENTS_SOURCE. cfg is intentionally
-// unused: the manifest is INDEPENDENT of STREAMING_ENABLED and of the configured
-// ce-source.
-func BuildStreamingManifestHandler(_ *Config) (nethttp.Handler, error) {
-	return pkgStreaming.NewManifestHandler(streamingServiceName, tracerEventDefinitions())
+// wrapper over pkgStreaming.NewManifestHandler.
+//
+// The descriptor Source is the SAME resolved ce-source the emitter publishes
+// under, so the application topic the manifest advertises is by construction the
+// topic tracer writes: under one topic per application the manifest carries that
+// topic at document level, derived from the descriptor's Source. The manifest
+// stays INDEPENDENT of STREAMING_ENABLED — it is served whether or not a producer
+// was built, falling back to the roster name when no source is configured.
+func BuildStreamingManifestHandler(cfg *Config) (nethttp.Handler, error) {
+	return pkgStreaming.NewManifestHandler(resolveStreamingSource(cfg), tracerEventDefinitions())
 }
 
-// buildRoutes constructs one RouteRequired route per tracer event,
-// targeting the single broker named targetName. Topic names are
-// "tracer.<resource>.<event>", rendered via pkgStreaming.TopicName from the
-// underscore-canonical Definition.Key().
+// buildRoutes constructs tracer's single RouteRequired catch-all route, carrying
+// every fact in the catalog to the one application topic
+// "lerian.streaming.<source>" on the broker named targetName.
 //
-// Route Keys are composed as "<route-key>.<target-name>" (e.g.
-// "rule.created.primary"), where <route-key> is the hyphenated routing handle
-// (RouteKey()) — Route.Key must match lib-streaming's lower-case hyphenated
-// dot-delimited grammar, and the target-name suffix guarantees uniqueness when
-// the same event is later routed to multiple targets (e.g. a parallel shadow
-// route). The wire topic, by contrast, derives from the underscore-canonical
-// Key() so it converges with EventDefinition.Topic.
-func buildRoutes(targetName string) []libStreaming.RouteDefinition {
-	defs := tracerEventDefinitions()
-	routes := make([]libStreaming.RouteDefinition, 0, len(defs))
-
-	for _, d := range defs {
-		key := d.Key()
-		routeKey := d.RouteKey()
-		routes = append(routes, libStreaming.RouteDefinition{
-			Key:           routeKey + "." + targetName,
-			DefinitionKey: key,
-			Target:        targetName,
-			Destination:   libStreaming.KafkaTopic(pkgStreaming.TopicName(streamingServiceName, key)),
-			Requirement:   libStreaming.RouteRequired,
-		})
+// DefinitionKey is deliberately EMPTY: that is what makes the route a catch-all
+// serving every definition. One topic per producing application leaves nothing to
+// fan out per event — every event has the same destination — so a single route
+// replaces the former one-route-per-catalog-entry table.
+//
+// The destination is derived through libStreaming.AppTopic, which VALIDATES the
+// source and returns an error rather than handing back a topic name built from a
+// malformed one.
+func buildRoutes(targetName, source string) ([]libStreaming.RouteDefinition, error) {
+	topic, err := libStreaming.AppTopic(source)
+	if err != nil {
+		return nil, fmt.Errorf("failed to derive tracer application topic: %w", err)
 	}
 
-	return routes
+	return []libStreaming.RouteDefinition{{
+		Key:         streamingFactRouteKey,
+		Target:      targetName,
+		Destination: libStreaming.KafkaTopic(topic),
+		Requirement: libStreaming.RouteRequired,
+	}}, nil
 }

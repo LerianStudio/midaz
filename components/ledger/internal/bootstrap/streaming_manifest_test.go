@@ -10,18 +10,27 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	libStreaming "github.com/LerianStudio/lib-streaming/v3"
 	"github.com/stretchr/testify/require"
 
 	pkgStreaming "github.com/LerianStudio/midaz/v4/pkg/streaming"
 )
 
-// manifestEnvelope captures only the fields the ledger manifest contract asserts:
-// the per-event key and the advertised topic. The full lib-streaming document
-// carries more, but drift on the rest is locked by lib-streaming's own tests.
+// manifestEnvelope captures only the fields the ledger manifest contract asserts.
+// Under one topic per producing application the topic pair is a DOCUMENT-level
+// fact; each event carries only its dispatch selector. The full lib-streaming
+// document carries more, but drift on the rest is locked by lib-streaming's own
+// tests.
 type manifestEnvelope struct {
-	Events []struct {
-		Key   string `json:"key"`
-		Topic string `json:"topic"`
+	Publisher struct {
+		Source string `json:"source"`
+	} `json:"publisher"`
+	Topic         string `json:"topic"`
+	DLQTopic      string `json:"dlqTopic"`
+	CommandsTopic string `json:"commandsTopic"`
+	Events        []struct {
+		Key      string `json:"key"`
+		EventKey string `json:"eventKey"`
 	} `json:"events"`
 }
 
@@ -46,72 +55,100 @@ func fetchLedgerManifest(t *testing.T, cfg *Config) manifestEnvelope {
 	return doc
 }
 
-// TestBuildStreamingManifestHandler_TopicsConvergeWithTopicName locks the
-// contract invariant: for every midaz event Definition, the topic the manifest
-// advertises equals pkgStreaming.TopicName(streamingServiceName, def.Key()).
-// If the manifest's ce-source (SourceBase) ever drifts from the bare service
-// segment, or TopicName changes grammar, this convergence breaks — the hub would
-// subscribe to a topic the producer never emits on.
-func TestBuildStreamingManifestHandler_TopicsConvergeWithTopicName(t *testing.T) {
+// TestBuildStreamingManifestHandler_AdvertisesApplicationTopic locks the
+// one-topic-per-application manifest: the ledger advertises ONE topic for its
+// whole catalog plus its DLQ, no commands queue (it emits facts only), and one
+// entry per midaz Definition whose eventKey is the dispatch selector a consumer
+// registers a handler under.
+func TestBuildStreamingManifestHandler_AdvertisesApplicationTopic(t *testing.T) {
 	t.Parallel()
 
 	doc := fetchLedgerManifest(t, &Config{})
 
-	byKey := make(map[string]string, len(doc.Events))
-	for _, ev := range doc.Events {
-		byKey[ev.Key] = ev.Topic
-	}
+	wantTopic, err := libStreaming.AppTopic(streamingServiceName)
+	require.NoError(t, err)
+
+	wantDLQ, err := libStreaming.AppDLQTopic(streamingServiceName)
+	require.NoError(t, err)
+
+	require.Equal(t, streamingServiceName, doc.Publisher.Source)
+	require.Equal(t, wantTopic, doc.Topic, "manifest must advertise the ledger application topic")
+	require.Equal(t, wantDLQ, doc.DLQTopic, "manifest must advertise the ledger DLQ")
+	require.Empty(t, doc.CommandsTopic,
+		"the ledger emits facts only; advertising a commands queue would point provisioning at a stream nothing writes")
 
 	defs := midazEventDefinitions()
 
 	// The manifest advertises exactly the midaz definitions — no billing entry,
-	// whose fixed literal topic would not converge with TopicName.
+	// which rides a fixed literal topic owned by lib-streaming's billing package
+	// rather than the ledger's application topic.
 	require.Len(t, doc.Events, len(defs),
 		"manifest must advertise exactly the midaz definitions (billing excluded)")
-
-	for _, def := range defs {
-		key := def.Key()
-		topic, ok := byKey[key]
-		require.Truef(t, ok, "manifest must advertise event %q", key)
-		require.Equalf(t, pkgStreaming.TopicName(streamingServiceName, key), topic,
-			"manifest topic for %q must converge with pkgStreaming.TopicName", key)
-	}
-}
-
-// TestBuildStreamingManifestHandler_TopicsIndependentOfCeSource locks the HIGH
-// invariant: a NON-BARE STREAMING_CLOUDEVENTS_SOURCE must NOT leak into the
-// manifest's advertised topics. The manifest SourceBase is pinned to the bare
-// service segment (streamingServiceName), so the served topics stay equal to the
-// EMITTED topics (pkgStreaming.TopicName(streamingServiceName, def.Key()))
-// regardless of the operator-configured ce-source.
-func TestBuildStreamingManifestHandler_TopicsIndependentOfCeSource(t *testing.T) {
-	t.Parallel()
-
-	cfg := &Config{StreamingCloudEventsSource: "lerian.midaz.ledger"}
-	doc := fetchLedgerManifest(t, cfg)
 
 	byKey := make(map[string]string, len(doc.Events))
 	for _, ev := range doc.Events {
-		byKey[ev.Key] = ev.Topic
+		byKey[ev.Key] = ev.EventKey
 	}
-
-	defs := midazEventDefinitions()
-
-	require.Len(t, doc.Events, len(defs),
-		"manifest must advertise exactly the midaz definitions (billing excluded)")
 
 	for _, def := range defs {
 		key := def.Key()
-		topic, ok := byKey[key]
+		eventKey, ok := byKey[key]
 		require.Truef(t, ok, "manifest must advertise event %q", key)
-		require.Equalf(t, pkgStreaming.TopicName(streamingServiceName, key), topic,
-			"manifest topic for %q must equal the emitted topic even when ce-source is non-bare", key)
+		require.Equalf(t, key, eventKey,
+			"manifest eventKey for %q must be the <resource>.<event> dispatch selector", key)
+	}
+}
+
+// TestBuildStreamingManifestHandler_TopicFollowsConfiguredSource locks the
+// coherence invariant the v3 contract rests on: the topic the manifest advertises
+// is derived from the SAME ce-source the emitter publishes under, so the streaming
+// hub and topic provisioning are pointed at the stream the ledger actually writes.
+//
+// This inverts the pre-v3 behaviour deliberately. Before the collapse, topics were
+// derived from a compile-time service segment and the configured ce-source only
+// reached the header, so pinning the manifest against the config was the safe
+// choice. Now the topic IS the source: pinning them apart would advertise a topic
+// nothing writes, and a source-verifying consumer subscribing by application name
+// would quarantine every record it received.
+func TestBuildStreamingManifestHandler_TopicFollowsConfiguredSource(t *testing.T) {
+	t.Parallel()
+
+	const configuredSource = "midaz-ledger"
+
+	doc := fetchLedgerManifest(t, &Config{StreamingCloudEventsSource: configuredSource})
+
+	wantTopic, err := libStreaming.AppTopic(configuredSource)
+	require.NoError(t, err)
+
+	require.Equal(t, configuredSource, doc.Publisher.Source)
+	require.Equal(t, wantTopic, doc.Topic,
+		"manifest topic must follow the configured ce-source, which is what the emitter publishes to")
+	require.Equal(t, "lerian.streaming.midaz-ledger", doc.Topic)
+}
+
+// TestBuildStreamingManifestHandler_RejectsIllegalConfiguredSource proves a
+// malformed STREAMING_CLOUDEVENTS_SOURCE leaves the manifest route UNMOUNTED
+// rather than advertising a topic name derived from garbage. lib-streaming rejects
+// an illegal source instead of normalizing it — the v2 normalization could fold
+// two distinct services onto one topic namespace with neither owner noticing — and
+// the composition root treats a manifest build failure as degraded-safe.
+func TestBuildStreamingManifestHandler_RejectsIllegalConfiguredSource(t *testing.T) {
+	t.Parallel()
+
+	for _, source := range []string{"lerian.midaz.ledger", "//lerian.midaz/ledger", "Ledger"} {
+		t.Run(source, func(t *testing.T) {
+			t.Parallel()
+
+			handler, err := BuildStreamingManifestHandler(&Config{StreamingCloudEventsSource: source})
+			require.Error(t, err, "an illegal ce-source must not produce a manifest handler")
+			require.Nil(t, handler)
+		})
 	}
 }
 
 // TestBuildStreamingManifestHandler_IndependentOfStreamingEnabled asserts the
 // manifest is built regardless of STREAMING_ENABLED and regardless of a nil
-// config (the descriptor's SourceBase then falls back to the bare service name).
+// config (the descriptor's Source then falls back to the roster name).
 func TestBuildStreamingManifestHandler_IndependentOfStreamingEnabled(t *testing.T) {
 	t.Parallel()
 
@@ -126,6 +163,9 @@ func TestBuildStreamingManifestHandler_IndependentOfStreamingEnabled(t *testing.
 
 	defs := midazEventDefinitions()
 
+	wantTopic, err := libStreaming.AppTopic(streamingServiceName)
+	require.NoError(t, err)
+
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
@@ -133,6 +173,8 @@ func TestBuildStreamingManifestHandler_IndependentOfStreamingEnabled(t *testing.
 			doc := fetchLedgerManifest(t, tc.cfg)
 			require.Len(t, doc.Events, len(defs),
 				"manifest must advertise exactly the midaz definitions regardless of STREAMING_ENABLED / nil config")
+			require.Equal(t, wantTopic, doc.Topic,
+				"an unset ce-source must fall back to the roster name, never to an empty topic")
 		})
 	}
 }

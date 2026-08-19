@@ -11,7 +11,7 @@ import (
 
 	authMiddleware "github.com/LerianStudio/lib-auth/v3/auth/middleware"
 	libLog "github.com/LerianStudio/lib-observability/v2/log"
-	libStreaming "github.com/LerianStudio/lib-streaming/v2"
+	libStreaming "github.com/LerianStudio/lib-streaming/v3"
 	"github.com/gofiber/fiber/v3"
 	"github.com/stretchr/testify/require"
 
@@ -35,7 +35,7 @@ func newManifestTestHandler(t *testing.T) nethttp.Handler {
 
 	handler, err := libStreaming.NewStreamingHandler(libStreaming.PublisherDescriptor{
 		ServiceName: "tracer",
-		SourceBase:  "tracer",
+		Source:      "tracer",
 		RoutePath:   pkgStreaming.ManifestRoutePath,
 	}, catalog)
 	require.NoError(t, err, "manifest test handler must build")

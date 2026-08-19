@@ -8,7 +8,7 @@ import (
 	"encoding/json"
 	"testing"
 
-	libStreaming "github.com/LerianStudio/lib-streaming/v2"
+	libStreaming "github.com/LerianStudio/lib-streaming/v3"
 	"github.com/google/uuid"
 	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/assert"
@@ -62,8 +62,8 @@ func minimalTransactionSource() events.TransactionSource {
 }
 
 func TestTransactionLifecycleDefinitions_Keys(t *testing.T) {
-	// All four event_types are single-word and pass the lib-streaming
-	// route-key regex (^[a-z0-9][a-z0-9-]*(\.[a-z0-9][a-z0-9-]*)+$).
+	// All four event types are single-word. The key is the consumer's dispatch
+	// selector inside the ledger stream, not a topic name.
 	assert.Equal(t, "transaction.posted", events.TransactionPostedDefinition.Key())
 	assert.Equal(t, "transaction.committed", events.TransactionCommittedDefinition.Key())
 	assert.Equal(t, "transaction.canceled", events.TransactionCanceledDefinition.Key())

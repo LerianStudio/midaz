@@ -10,7 +10,7 @@ import (
 	"testing"
 
 	libLog "github.com/LerianStudio/lib-observability/v2/log"
-	libStreaming "github.com/LerianStudio/lib-streaming/v2"
+	libStreaming "github.com/LerianStudio/lib-streaming/v3"
 )
 
 // captureLogger is a minimal libLog.Logger that records every Log call so a

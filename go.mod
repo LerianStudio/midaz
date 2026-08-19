@@ -87,7 +87,7 @@ require (
 	github.com/LerianStudio/lib-commons/v6 v6.7.0
 	github.com/LerianStudio/lib-observability/v2 v2.1.2
 	github.com/LerianStudio/lib-service-discovery v1.1.0
-	github.com/LerianStudio/lib-streaming/v2 v2.1.0
+	github.com/LerianStudio/lib-streaming/v3 v3.0.0
 	github.com/Shopify/toxiproxy/v2 v2.12.0
 	github.com/alicebob/miniredis/v2 v2.38.0
 	github.com/cucumber/godog v0.15.1

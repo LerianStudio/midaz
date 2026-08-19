@@ -17,7 +17,8 @@ import (
 	"testing"
 	"time"
 
-	pkgStreaming "github.com/LerianStudio/midaz/v4/pkg/streaming"
+	libStreaming "github.com/LerianStudio/lib-streaming/v3"
+
 	"github.com/google/uuid"
 	"github.com/twmb/franz-go/pkg/kgo"
 	"github.com/twmb/franz-go/pkg/kmsg"
@@ -39,15 +40,33 @@ import (
 // host port (CLAUDE.md "Streaming / Local testing": bind 19092).
 const strmDefaultBroker = "localhost:19092"
 
-// strmServiceName is the ledger-core service segment used to render topics of
-// the shape "<service>.<resource>.<event>" (the service is the leading,
-// ACL-scoped segment).
+// strmServiceName is the ledger's name on the streaming roster: its ce-source,
+// and the single segment its ONE topic is derived from. Every event the ledger
+// emits rides "lerian.streaming.ledger".
 const strmServiceName = "ledger"
 
-// strmCEType is the reverse-DNS namespace prepended to every ce-type header by
-// lib-streaming (internal/cloudevents/cloudevents.go cloudEventsTypePrefix):
-// the wire ce-type is "studio.lerian.<resource>.<event>".
-const strmCETypePrefix = "studio.lerian."
+// strmCETypeFor is the ce-type header lib-streaming stamps for one event, composed
+// through the library's own facade rather than by re-spelling the prefix and
+// separators here: the reverse-DNS namespace, the PRODUCING APPLICATION, then the
+// resource and event types. The application segment is what stops two services emitting a
+// byte-identical ce-type for same-named events — a homonym collision a consumer
+// reading only ce-type could not detect, and one that a single topic per
+// application makes reachable in practice.
+func strmCETypeFor(resourceType, eventType string) string {
+	return libStreaming.CloudEventsType(strmServiceName, resourceType, eventType)
+}
+
+// strmAppTopic is the one topic the ledger publishes every fact to.
+func strmAppTopic(t *testing.T) string {
+	t.Helper()
+
+	topic, err := libStreaming.AppTopic(strmServiceName)
+	if err != nil {
+		t.Fatalf("derive ledger application topic: %v", err)
+	}
+
+	return topic
+}
 
 // CloudEvents 1.0 binary-mode Kafka header keys. CONFIRMED hyphenated against
 // lib-streaming@v1.5.1 internal/cloudevents/cloudevents.go (headerCEType etc.):
@@ -191,7 +210,7 @@ func strmEnsureTopics(t *testing.T, brokers []string) {
 
 	req := kmsg.NewPtrCreateTopicsRequest()
 
-	for _, name := range strmCatalogTopics() {
+	for _, name := range strmCatalogTopics(t) {
 		rt := kmsg.NewCreateTopicsRequestTopic()
 		rt.Topic = name
 		rt.NumPartitions = 1
@@ -220,60 +239,41 @@ func strmEnsureTopics(t *testing.T, brokers []string) {
 	}
 }
 
-// strmCatalogTopics builds the "<service>.<resource>.<event>" names for the full
-// event catalog (mirrors pkg/streaming/events). Keys are the underscore-canonical
-// Definition.Key() form (TopicName no longer folds hyphens). Every topic the
-// ledger may emit to during a test's fixtures is created so no missing-topic emit
-// trips the producer circuit breaker.
-func strmCatalogTopics() []string {
-	families := map[string][]string{
-		"organization":      {"created", "updated", "deleted"},
-		"ledger":            {"created", "updated", "deleted"},
-		"account":           {"created", "updated", "deleted"},
-		"asset":             {"created", "updated", "deleted"},
-		"portfolio":         {"created", "updated", "deleted"},
-		"segment":           {"created", "updated", "deleted"},
-		"operation_route":   {"created", "updated", "deleted"},
-		"transaction_route": {"created", "updated", "deleted"},
-		"balance":           {"created", "config_changed", "deleted", "overdraft_drawn", "overdraft_repaid", "overdraft_cleared"},
-		"transaction":       {"posted", "committed", "canceled", "reverted"},
+// strmCatalogTopics returns every topic the ledger writes: its ONE application
+// topic — carrying the whole event catalog, ledger core plus fees plus CRM — and
+// its DLQ, where a failed publish is copied.
+//
+// The former per-event list (49 topics enumerated by hand) is gone with the topic
+// collapse. That is the point of provisioning it here: lib-streaming's producer
+// does not request auto-topic-creation, so a missing destination both fails the
+// emit AND trips the circuit breaker, poisoning every later emit. Two names now
+// cover the whole catalog instead of forty-nine that had to stay in sync with the
+// registry by hand.
+func strmCatalogTopics(t *testing.T) []string {
+	t.Helper()
+
+	dlqTopic, err := libStreaming.AppDLQTopic(strmServiceName)
+	if err != nil {
+		t.Fatalf("derive ledger DLQ topic: %v", err)
 	}
 
-	var topics []string
-
-	for resource, events := range families {
-		for _, e := range events {
-			topics = append(topics, pkgStreaming.TopicName(strmServiceName, resource+"."+e))
-		}
-	}
-
-	// CRM resources (holder/instrument) are folded into the ledger binary and,
-	// after the service collapse, emit under the single "ledger" segment, so
-	// their topics take the "ledger.<resource>.<event>" shape. Provision the full
-	// CRM key set so any CRM fixture's IMPORTANT-posture emit has a live
-	// destination and never trips the producer circuit breaker.
-	for _, key := range []string{
-		"holder.created",
-		"holder.updated",
-		"holder.deleted",
-		"instrument.created",
-		"instrument.updated",
-		"instrument.deleted",
-		"instrument.related_party_deleted",
-	} {
-		topics = append(topics, pkgStreaming.TopicName(strmServiceName, key))
-	}
-
-	return topics
+	return []string{strmAppTopic(t), dlqTopic}
 }
 
-// strmConsumeMatch consumes topic from the beginning with a short poll loop
-// and returns the first record whose ce-subject header equals wantSubject. It
-// returns the record's ce-type, ce-subject, decoded JSON payload, and whether
-// a match was found within timeout. A unique consumer group is used per call
-// (group offset reset to earliest) so repeated runs replay from the start
-// rather than resuming a committed offset.
-func strmConsumeMatch(t *testing.T, topic, wantSubject string, timeout time.Duration) (ceType, subject string, payload map[string]any, found bool) {
+// strmConsumeMatch consumes the ledger's application topic from the beginning
+// with a short poll loop and returns the decoded payload of the first record
+// matching BOTH wantCEType and wantSubject.
+//
+// Matching on the pair is required, not belt-and-braces: selection moved from the
+// broker into the consumer with the topic collapse, so one subscription now
+// delivers every event the ledger emits. A subject-only filter would happily
+// return transaction.committed when the caller asked for transaction.posted —
+// both carry the transaction id as ce-subject — and assert the wrong contract
+// against the wrong payload.
+//
+// A unique consumer group is used per call (group offset reset to earliest) so
+// repeated runs replay from the start rather than resuming a committed offset.
+func strmConsumeMatch(t *testing.T, topic, wantCEType, wantSubject string, timeout time.Duration) (payload map[string]any, found bool) {
 	t.Helper()
 
 	cl, err := kgo.NewClient(
@@ -309,18 +309,22 @@ func strmConsumeMatch(t *testing.T, topic, wantSubject string, timeout time.Dura
 		for !iter.Done() {
 			rec := iter.Next()
 
-			if subj, ok := strmHeader(rec, strmHeaderCESubject); ok && subj == wantSubject {
-				ct, _ := strmHeader(rec, strmHeaderCEType)
-
-				var decoded map[string]any
-				_ = json.Unmarshal(rec.Value, &decoded)
-
-				return ct, subj, decoded, true
+			if subj, ok := strmHeader(rec, strmHeaderCESubject); !ok || subj != wantSubject {
+				continue
 			}
+
+			if ct, ok := strmHeader(rec, strmHeaderCEType); !ok || ct != wantCEType {
+				continue
+			}
+
+			var decoded map[string]any
+			_ = json.Unmarshal(rec.Value, &decoded)
+
+			return decoded, true
 		}
 	}
 
-	return "", "", nil, false
+	return nil, false
 }
 
 // strmHeader returns the (last-wins) value of a Kafka record header by key.
@@ -353,8 +357,8 @@ func strmAssertKeySet(t *testing.T, label string, actual map[string]any, allowed
 }
 
 // TestStreamingAccountCreatedEmitted asserts an account create produces a
-// CloudEvents record on the ledger.account.created topic whose ce-subject is
-// the account id, ce-type is studio.lerian.account.created, and whose payload
+// CloudEvents record on the ledger's application topic whose ce-subject is the
+// account id, ce-type is studio.lerian.ledger.account.created, and whose payload
 // top-level key set EXACTLY matches the 17-key account.created contract.
 func TestStreamingAccountCreatedEmitted(t *testing.T) {
 	requireStack(t)
@@ -369,19 +373,12 @@ func TestStreamingAccountCreatedEmitted(t *testing.T) {
 
 	accID := str(t, acc, "id")
 
-	topic := pkgStreaming.TopicName(strmServiceName, "account.created")
+	topic := strmAppTopic(t)
+	wantCEType := strmCETypeFor("account", "created")
 
-	ceType, subject, payload, ok := strmConsumeMatch(t, topic, accID, 15*time.Second)
+	payload, ok := strmConsumeMatch(t, topic, wantCEType, accID, 15*time.Second)
 	if !ok {
-		t.Fatalf("no account.created record with ce-subject=%s on %s within timeout", accID, topic)
-	}
-
-	if subject != accID {
-		t.Errorf("ce-subject = %q, want account id %q", subject, accID)
-	}
-
-	if want := strmCETypePrefix + "account.created"; ceType != want {
-		t.Errorf("ce-type = %q, want %q", ceType, want)
+		t.Fatalf("no record with ce-type=%s and ce-subject=%s on %s within timeout", wantCEType, accID, topic)
 	}
 
 	// Exact-set lock (fail-closed) + count, mirroring the JSONShape unit test.
@@ -399,10 +396,10 @@ func TestStreamingAccountCreatedEmitted(t *testing.T) {
 }
 
 // TestStreamingTransactionPostedEmitted funds then transfers, and asserts a
-// record on the ledger.transaction.posted topic whose ce-subject is the
-// transaction id, ce-type is studio.lerian.transaction.posted, and whose
-// payload keys are a subset of the transaction.posted superset (optional
-// fields are path-dependent) with the always-present core keys present.
+// record on the ledger's application topic whose ce-subject is the transaction
+// id, ce-type is studio.lerian.ledger.transaction.posted, and whose payload keys
+// are a subset of the transaction.posted superset (optional fields are
+// path-dependent) with the always-present core keys present.
 //
 // FINDING (supervisor, live-verified): transaction lifecycle streaming events
 // have TWO preconditions beyond STREAMING_ENABLED, both off by default:
@@ -436,19 +433,14 @@ func TestStreamingTransactionPostedEmitted(t *testing.T) {
 	txn := mustCreate(t, f.ledgers()+"/transactions/json", transferBody("@strm-src", "@strm-dst", "100", nil))
 	txnID := str(t, txn, "id")
 
-	topic := pkgStreaming.TopicName(strmServiceName, "transaction.posted")
+	topic := strmAppTopic(t)
+	wantCEType := strmCETypeFor("transaction", "posted")
 
-	ceType, subject, payload, ok := strmConsumeMatch(t, topic, txnID, 20*time.Second)
+	// The ce-type half of the filter is load-bearing here: transaction.committed
+	// carries the SAME transaction id as ce-subject and rides the same topic.
+	payload, ok := strmConsumeMatch(t, topic, wantCEType, txnID, 20*time.Second)
 	if !ok {
-		t.Fatalf("no transaction.posted record with ce-subject=%s on %s within timeout", txnID, topic)
-	}
-
-	if subject != txnID {
-		t.Errorf("ce-subject = %q, want transaction id %q", subject, txnID)
-	}
-
-	if want := strmCETypePrefix + "transaction.posted"; ceType != want {
-		t.Errorf("ce-type = %q, want %q", ceType, want)
+		t.Fatalf("no record with ce-type=%s and ce-subject=%s on %s within timeout", wantCEType, txnID, topic)
 	}
 
 	// Subset lock (fail-closed): no key may fall outside the declared superset.
@@ -467,10 +459,10 @@ func TestStreamingTransactionPostedEmitted(t *testing.T) {
 }
 
 // TestStreamingHolderCreateEmitsRedacted asserts that creating a holder emits a
-// CloudEvents record on ledger.holder.created whose ce-subject is the holder id and
-// ce-type is studio.lerian.holder.created, with PII redacted: the payload MUST
-// carry only id/organizationId/type/externalId/timestamps and MUST NOT carry
-// name, document, or any other PII key.
+// CloudEvents record on the ledger's application topic whose ce-subject is the
+// holder id and ce-type is studio.lerian.ledger.holder.created, with PII
+// redacted: the payload MUST carry only id/organizationId/type/externalId/
+// timestamps and MUST NOT carry name, document, or any other PII key.
 func TestStreamingHolderCreateEmitsRedacted(t *testing.T) {
 	requireStack(t)
 	strmRequireBroker(t)
@@ -478,19 +470,12 @@ func TestStreamingHolderCreateEmitsRedacted(t *testing.T) {
 	orgID := createOrg(t)
 	holderID := createHolder(t, orgID)
 
-	topic := pkgStreaming.TopicName(strmServiceName, "holder.created")
+	topic := strmAppTopic(t)
+	wantCEType := strmCETypeFor("holder", "created")
 
-	ceType, subject, payload, ok := strmConsumeMatch(t, topic, holderID, 15*time.Second)
+	payload, ok := strmConsumeMatch(t, topic, wantCEType, holderID, 15*time.Second)
 	if !ok {
-		t.Fatalf("no holder.created record on %s within timeout", topic)
-	}
-
-	if subject != holderID {
-		t.Errorf("ce-subject does not match the created holder")
-	}
-
-	if want := strmCETypePrefix + "holder.created"; ceType != want {
-		t.Errorf("ce-type = %q, want %q", ceType, want)
+		t.Fatalf("no record with ce-type=%s and ce-subject=%s on %s within timeout", wantCEType, holderID, topic)
 	}
 
 	// Exact-set lock (fail-closed) + count, mirroring the JSONShape unit test.

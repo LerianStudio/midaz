@@ -22,7 +22,7 @@ import (
 	libRuntime "github.com/LerianStudio/lib-observability/v2/runtime"
 	libOtel "github.com/LerianStudio/lib-observability/v2/tracing"
 	libZap "github.com/LerianStudio/lib-observability/v2/zap"
-	libStreaming "github.com/LerianStudio/lib-streaming/v2"
+	libStreaming "github.com/LerianStudio/lib-streaming/v3"
 	"google.golang.org/grpc"
 
 	"github.com/LerianStudio/midaz/v4/components/tracer/internal/adapters/cel"

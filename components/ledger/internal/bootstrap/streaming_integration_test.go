@@ -41,7 +41,7 @@ import (
 	"time"
 
 	libLog "github.com/LerianStudio/lib-observability/v2/log"
-	libStreaming "github.com/LerianStudio/lib-streaming/v2"
+	libStreaming "github.com/LerianStudio/lib-streaming/v3"
 	"github.com/google/uuid"
 	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/assert"
@@ -64,8 +64,22 @@ const (
 	streamingITCESubject = "ce-subject"
 	streamingITCETenant  = "ce-tenantid"
 
-	streamingITSource = "lerian.midaz.ledger"
+	// streamingITSource is the ledger's roster name — a single dot-free lowercase
+	// segment, which is the only shape lib-streaming accepts as a ce-source. Every
+	// event below rides the one topic derived from it.
+	streamingITSource = "ledger"
 )
+
+// streamingITCETypeFor is the ce-type header lib-streaming stamps for one event,
+// composed through the library's own facade rather than by re-spelling the prefix
+// and separators here: the reverse-DNS namespace, the PRODUCING APPLICATION, then
+// the resource and event types. The application segment is what stops two services
+// emitting a byte-identical ce-type for same-named events — a homonym collision a
+// consumer reading only ce-type could not detect, and one that a single shared
+// topic per application makes reachable in practice.
+func streamingITCETypeFor(resourceType, eventType string) string {
+	return libStreaming.CloudEventsType(streamingITSource, resourceType, eventType)
+}
 
 // streamingITFixedTime is the deterministic timestamp stamped on every emitted
 // event so ce-time round-trips are exact-match. No time.Now() anywhere.
@@ -83,11 +97,15 @@ var streamingITForbiddenKeys = []string{
 }
 
 // streamingITExpectation describes one emitted event: the built EmitRequest
-// closure, the topic it routes to, the ce-type it must carry, and the aggregate
-// id that must appear as ce-subject.
+// closure, the ce-type it must carry, and the aggregate id that must appear as
+// ce-subject.
+//
+// There is no per-event topic any more: all seven fee events ride the ledger's
+// single application topic, so the pair (ce-type, ce-subject) is what identifies a
+// record inside the stream. Both halves are load-bearing — created and updated on
+// the same package share a ce-subject and differ only in ce-type.
 type streamingITExpectation struct {
 	name       string
-	topic      string
 	ceType     string
 	subject    string
 	emitReq    func(tenantID string) (libStreaming.EmitRequest, error)
@@ -109,14 +127,16 @@ func TestStreamingEmitter_Integration_AllSevenFeeEvents(t *testing.T) {
 
 	expectations := streamingITExpectations()
 
-	// Pre-create the 7 topics so the test never depends on broker auto-create
-	// (a typo would otherwise become a silent ghost topic).
-	topics := make([]string, 0, len(expectations))
-	for _, e := range expectations {
-		topics = append(topics, e.topic)
-	}
+	// Pre-create the ledger's application topic and its DLQ so the test never
+	// depends on broker auto-create. Under one topic per producing application
+	// these two names are the ledger's whole write surface.
+	appTopic, err := libStreaming.AppTopic(streamingITSource)
+	require.NoError(t, err)
 
-	createTopics(t, ctx, brokers, topics)
+	dlqTopic, err := libStreaming.AppDLQTopic(streamingITSource)
+	require.NoError(t, err)
+
+	createTopics(t, ctx, brokers, []string{appTopic, dlqTopic})
 
 	// Build the emitter through the REAL bootstrap path. LoadConfig reads
 	// STREAMING_BROKERS / STREAMING_CLOUDEVENTS_SOURCE from env.
@@ -134,15 +154,15 @@ func TestStreamingEmitter_Integration_AllSevenFeeEvents(t *testing.T) {
 
 	// Emit all 7 through the IMPORTANT-posture helper (the same call the use
 	// cases make). IMPORTANT never propagates errors, so failures surface via
-	// the consumer timing out on a missing topic below.
+	// the consumer timing out on a missing record below.
 	for _, e := range expectations {
 		pkgStreaming.EmitImportant(ctx, nil, libLog.NewNop(), emitter, e.ceType, e.emitReq)
 	}
 
-	// Consume each topic and assert the wire contract.
+	// Consume the one application topic and assert the wire contract per event.
 	client, err := kgo.NewClient(
 		kgo.SeedBrokers(brokers...),
-		kgo.ConsumeTopics(topics...),
+		kgo.ConsumeTopics(appTopic),
 		kgo.ConsumeResetOffset(kgo.NewOffset().AtStart()),
 	)
 	require.NoError(t, err)
@@ -150,18 +170,21 @@ func TestStreamingEmitter_Integration_AllSevenFeeEvents(t *testing.T) {
 	t.Cleanup(client.Close)
 
 	// Match only records whose ce-subject is THIS run's freshly-generated id for
-	// the topic. Stale records from a prior run carry different UUIDs and are
+	// the ce-type. Stale records from a prior run carry different UUIDs and are
 	// skipped, so a persistent broker cannot mask a later regression.
-	wantSubjectByTopic := make(map[string]string, len(expectations))
+	wantSubjectByCEType := make(map[string]string, len(expectations))
 	for _, e := range expectations {
-		wantSubjectByTopic[e.topic] = e.subject
+		wantSubjectByCEType[e.ceType] = e.subject
 	}
 
-	got := drainOnePerTopic(t, ctx, client, wantSubjectByTopic)
+	got := drainOnePerCEType(t, ctx, client, wantSubjectByCEType)
 
 	for _, e := range expectations {
-		rec, ok := got[e.topic]
-		require.Truef(t, ok, "no record consumed from topic %q (ghost topic?)", e.topic)
+		rec, ok := got[e.ceType]
+		require.Truef(t, ok, "no record with ce-type %q consumed from %q", e.ceType, appTopic)
+
+		assert.Equalf(t, appTopic, rec.Topic,
+			"%s: every fact must ride the ledger application topic", e.name)
 
 		assertRecord(t, e, rec)
 	}
@@ -210,8 +233,7 @@ func streamingITExpectations() []streamingITExpectation {
 	return []streamingITExpectation{
 		{
 			name:       "fee_packages.created",
-			topic:      pkgStreaming.TopicName("ledger", events.FeesPackageCreatedDefinition.Key()),
-			ceType:     "studio.lerian." + events.FeesPackageCreatedDefinition.Key(),
+			ceType:     streamingITCETypeFor(events.FeesPackageCreatedDefinition.ResourceType, events.FeesPackageCreatedDefinition.EventType),
 			subject:    packageID,
 			requireKey: []string{"id", "organizationId", "ledgerId", "enable", "createdAt", "updatedAt"},
 			emitReq: func(tenantID string) (libStreaming.EmitRequest, error) {
@@ -221,8 +243,7 @@ func streamingITExpectations() []streamingITExpectation {
 		},
 		{
 			name:       "fee_packages.updated",
-			topic:      pkgStreaming.TopicName("ledger", events.FeesPackageUpdatedDefinition.Key()),
-			ceType:     "studio.lerian." + events.FeesPackageUpdatedDefinition.Key(),
+			ceType:     streamingITCETypeFor(events.FeesPackageUpdatedDefinition.ResourceType, events.FeesPackageUpdatedDefinition.EventType),
 			subject:    packageID,
 			requireKey: []string{"id", "organizationId", "ledgerId", "enable", "createdAt", "updatedAt"},
 			emitReq: func(tenantID string) (libStreaming.EmitRequest, error) {
@@ -232,8 +253,7 @@ func streamingITExpectations() []streamingITExpectation {
 		},
 		{
 			name:       "fee_packages.deleted",
-			topic:      pkgStreaming.TopicName("ledger", events.FeesPackageDeletedDefinition.Key()),
-			ceType:     "studio.lerian." + events.FeesPackageDeletedDefinition.Key(),
+			ceType:     streamingITCETypeFor(events.FeesPackageDeletedDefinition.ResourceType, events.FeesPackageDeletedDefinition.EventType),
 			subject:    packageID,
 			requireKey: []string{"id", "organizationId", "ledgerId", "deletedAt"},
 			emitReq: func(tenantID string) (libStreaming.EmitRequest, error) {
@@ -243,8 +263,7 @@ func streamingITExpectations() []streamingITExpectation {
 		},
 		{
 			name:       "fee_billing_packages.created",
-			topic:      pkgStreaming.TopicName("ledger", events.FeesBillingPackageCreatedDefinition.Key()),
-			ceType:     "studio.lerian." + events.FeesBillingPackageCreatedDefinition.Key(),
+			ceType:     streamingITCETypeFor(events.FeesBillingPackageCreatedDefinition.ResourceType, events.FeesBillingPackageCreatedDefinition.EventType),
 			subject:    billingID,
 			requireKey: []string{"id", "organizationId", "ledgerId", "type", "enable", "createdAt", "updatedAt"},
 			emitReq: func(tenantID string) (libStreaming.EmitRequest, error) {
@@ -257,8 +276,7 @@ func streamingITExpectations() []streamingITExpectation {
 		},
 		{
 			name:       "fee_billing_packages.updated",
-			topic:      pkgStreaming.TopicName("ledger", events.FeesBillingPackageUpdatedDefinition.Key()),
-			ceType:     "studio.lerian." + events.FeesBillingPackageUpdatedDefinition.Key(),
+			ceType:     streamingITCETypeFor(events.FeesBillingPackageUpdatedDefinition.ResourceType, events.FeesBillingPackageUpdatedDefinition.EventType),
 			subject:    billingID,
 			requireKey: []string{"id", "organizationId", "ledgerId", "type", "enable", "createdAt", "updatedAt"},
 			emitReq: func(tenantID string) (libStreaming.EmitRequest, error) {
@@ -271,8 +289,7 @@ func streamingITExpectations() []streamingITExpectation {
 		},
 		{
 			name:       "fee_billing_packages.deleted",
-			topic:      pkgStreaming.TopicName("ledger", events.FeesBillingPackageDeletedDefinition.Key()),
-			ceType:     "studio.lerian." + events.FeesBillingPackageDeletedDefinition.Key(),
+			ceType:     streamingITCETypeFor(events.FeesBillingPackageDeletedDefinition.ResourceType, events.FeesBillingPackageDeletedDefinition.EventType),
 			subject:    billingID,
 			requireKey: []string{"id", "organizationId", "ledgerId", "deletedAt"},
 			emitReq: func(tenantID string) (libStreaming.EmitRequest, error) {
@@ -283,8 +300,7 @@ func streamingITExpectations() []streamingITExpectation {
 		{
 			// ce-subject for fee_charge.applied is the TRANSACTION id, not a package id.
 			name:       "fee_charge.applied",
-			topic:      pkgStreaming.TopicName("ledger", events.FeesAppliedDefinition.Key()),
-			ceType:     "studio.lerian." + events.FeesAppliedDefinition.Key(),
+			ceType:     streamingITCETypeFor(events.FeesAppliedDefinition.ResourceType, events.FeesAppliedDefinition.EventType),
 			subject:    transactionID,
 			requireKey: []string{"transactionId", "organizationId", "ledgerId", "feePackageId", "appliedAt"},
 			emitReq: func(tenantID string) (libStreaming.EmitRequest, error) {
@@ -357,24 +373,28 @@ func createTopics(t *testing.T, ctx context.Context, brokers, topics []string) {
 	}
 }
 
-// drainOnePerTopic polls until it has captured, for every topic, the record
-// whose ce-subject matches this run's expected subject (or the context deadline
-// fires). Records whose ce-subject is not this run's expected subject for their
-// topic — e.g. stale records from a prior run on a persistent broker — are
-// skipped, so they cannot mask a regression.
-func drainOnePerTopic(t *testing.T, ctx context.Context, client *kgo.Client, wantSubjectByTopic map[string]string) map[string]*kgo.Record {
+// drainOnePerCEType polls the single application topic until it has captured, for
+// every expected ce-type, the record whose ce-subject matches this run's expected
+// subject (or the context deadline fires).
+//
+// Selection moved from the broker into the consumer with the topic collapse: one
+// subscription now delivers the producer's entire stream, so a record is
+// identified by (ce-type, ce-subject) rather than by the topic it arrived on.
+// Records carrying an unexpected ce-type, or a ce-subject from a prior run on a
+// persistent broker, are skipped and cannot mask a regression.
+func drainOnePerCEType(t *testing.T, ctx context.Context, client *kgo.Client, wantSubjectByCEType map[string]string) map[string]*kgo.Record {
 	t.Helper()
 
 	pollCtx, cancel := context.WithTimeout(ctx, 60*time.Second)
 	defer cancel()
 
-	want := len(wantSubjectByTopic)
+	want := len(wantSubjectByCEType)
 	got := map[string]*kgo.Record{}
 
 	for len(got) < want {
 		fetches := client.PollFetches(pollCtx)
 		if err := pollCtx.Err(); err != nil {
-			t.Fatalf("timed out consuming events: got %d of %d topics: %v", len(got), want, err)
+			t.Fatalf("timed out consuming events: got %d of %d expected ce-types: %v", len(got), want, err)
 		}
 
 		if errs := fetches.Errors(); len(errs) > 0 {
@@ -382,31 +402,32 @@ func drainOnePerTopic(t *testing.T, ctx context.Context, client *kgo.Client, wan
 		}
 
 		fetches.EachRecord(func(rec *kgo.Record) {
-			wantSubject, tracked := wantSubjectByTopic[rec.Topic]
+			ceType := recordHeader(rec, streamingITCEType)
+
+			wantSubject, tracked := wantSubjectByCEType[ceType]
 			if !tracked {
 				return
 			}
 
-			if _, seen := got[rec.Topic]; seen {
+			if _, seen := got[ceType]; seen {
 				return
 			}
 
-			if recordSubject(rec) != wantSubject {
+			if recordHeader(rec, streamingITCESubject) != wantSubject {
 				return
 			}
 
-			got[rec.Topic] = rec
+			got[ceType] = rec
 		})
 	}
 
 	return got
 }
 
-// recordSubject returns the ce-subject header value of a record, or "" when
-// absent.
-func recordSubject(rec *kgo.Record) string {
+// recordHeader returns the value of a record header by key, or "" when absent.
+func recordHeader(rec *kgo.Record, key string) string {
 	for _, h := range rec.Headers {
-		if h.Key == streamingITCESubject {
+		if h.Key == key {
 			return string(h.Value)
 		}
 	}

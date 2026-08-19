@@ -30,8 +30,6 @@
 // file count becomes unwieldy.
 package events
 
-import "strings"
-
 // Definition captures the routing constants for a single event type:
 //
 //   - ResourceType  — the aggregate this event belongs to (e.g. "account")
@@ -50,15 +48,6 @@ type Definition struct {
 // "<ResourceType>.<EventType>" (e.g. "account.created").
 func (d Definition) Key() string {
 	return d.ResourceType + "." + d.EventType
-}
-
-// RouteKey returns the hyphenated routing handle for this definition. It is the
-// value used for RouteDefinition.Key and as the input to the wire topic name;
-// lib-streaming's route-key grammar accepts only [a-z0-9-], so the underscored
-// canonical Key() is folded to hyphens here. Key() and the ce-type keep the
-// underscored canonical form.
-func (d Definition) RouteKey() string {
-	return strings.ReplaceAll(d.Key(), "_", "-")
 }
 
 // Deletion-type values carried on every *.deleted event. "soft" sets DeletedAt

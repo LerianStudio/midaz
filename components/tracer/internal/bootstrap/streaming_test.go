@@ -8,7 +8,7 @@ import (
 	"context"
 	"testing"
 
-	libStreaming "github.com/LerianStudio/lib-streaming/v2"
+	libStreaming "github.com/LerianStudio/lib-streaming/v3"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -100,7 +100,7 @@ func TestBuildStreamingEmitter_DisabledReturnsNoop(t *testing.T) {
 
 // TestBuildStreamingEmitter_EnabledMissingBrokersDegradesToNoop asserts the
 // graceful-degradation contract: with STREAMING_ENABLED=true and no
-// STREAMING_BROKERS, libStreaming.LoadConfig returns ErrMissingBrokers, which
+// STREAMING_BROKERS, libStreaming.LoadConfig returns ErrProducerMissingBrokers, which
 // BuildStreamingEmitter recognises as a caller-correctable misconfiguration
 // and degrades to a NoopEmitter (no error, safe closer) rather than aborting
 // bootstrap. A missing broker list is an operator-fixable condition, not a
@@ -110,7 +110,7 @@ func TestBuildStreamingEmitter_DisabledReturnsNoop(t *testing.T) {
 func TestBuildStreamingEmitter_EnabledMissingBrokersDegradesToNoop(t *testing.T) {
 	t.Setenv("STREAMING_ENABLED", "true")
 	t.Setenv("STREAMING_BROKERS", "")
-	t.Setenv("STREAMING_CLOUDEVENTS_SOURCE", "lerian.midaz.tracer.test")
+	t.Setenv("STREAMING_CLOUDEVENTS_SOURCE", "tracer")
 
 	cfg := &Config{StreamingEnabled: true}
 
@@ -134,7 +134,7 @@ func TestBuildStreamingEmitter_EnabledMissingBrokersDegradesToNoop(t *testing.T)
 func TestBuildStreamingEmitter_EnabledWithRuleCatalogBuildsLive(t *testing.T) {
 	t.Setenv("STREAMING_ENABLED", "true")
 	t.Setenv("STREAMING_BROKERS", "127.0.0.1:0")
-	t.Setenv("STREAMING_CLOUDEVENTS_SOURCE", "lerian.midaz.tracer.test")
+	t.Setenv("STREAMING_CLOUDEVENTS_SOURCE", "tracer")
 
 	cfg := &Config{StreamingEnabled: true}
 
@@ -173,7 +173,7 @@ func TestBuildStreamingEmitter_NilConfig(t *testing.T) {
 func TestBuildLiveStreamingEmitter_BuildsWithRuleCatalog(t *testing.T) {
 	t.Setenv("STREAMING_ENABLED", "true")
 	t.Setenv("STREAMING_BROKERS", "127.0.0.1:0")
-	t.Setenv("STREAMING_CLOUDEVENTS_SOURCE", "lerian.midaz.tracer.test")
+	t.Setenv("STREAMING_CLOUDEVENTS_SOURCE", "tracer")
 
 	streamingCfg, _, err := libStreaming.LoadConfig()
 	require.NoError(t, err)
@@ -208,40 +208,71 @@ func TestBuildCatalog_CoversAllLifecycles(t *testing.T) {
 	}
 }
 
-// TestBuildRoutes_CoversAllLifecycles exercises buildRoutes against the
-// populated Rule + Limit definition set: one required route per event, each
-// keyed "<event>.<target>" and pointing at the canonical
-// "tracer.<resource>.<event>" Kafka topic.
-func TestBuildRoutes_CoversAllLifecycles(t *testing.T) {
+// TestBuildRoutes_SingleCatchAllRoute exercises buildRoutes under one topic per
+// producing application: ONE required catch-all route carries every lifecycle
+// event to "lerian.streaming.tracer". A route count that tracked the event count
+// again would mean the per-event fan-out came back, and with it twelve topics no
+// consumer subscribes to.
+func TestBuildRoutes_SingleCatchAllRoute(t *testing.T) {
 	t.Parallel()
 
-	routes := buildRoutes(streamingPrimaryTargetName)
-	require.Len(t, routes, len(expectedAllEventKeys),
-		"one route per lifecycle event")
+	routes, err := buildRoutes(streamingPrimaryTargetName, streamingServiceName)
+	require.NoError(t, err)
+	require.Len(t, routes, 1, "tracer publishes through exactly one catch-all route")
 
-	byDefKey := make(map[string]libStreaming.RouteDefinition, len(routes))
-	for _, r := range routes {
-		byDefKey[r.DefinitionKey] = r
-	}
+	route := routes[0]
+	assert.Empty(t, route.DefinitionKey,
+		"an empty DefinitionKey is what makes the route a catch-all serving the whole catalog")
+	assert.Equal(t, streamingPrimaryTargetName, route.Target)
+	assert.Equal(t, libStreaming.RouteRequired, route.Requirement,
+		"the only route carrying every fact must be required, or a lost publish would report success")
+
+	wantTopic, err := libStreaming.AppTopic(streamingServiceName)
+	require.NoError(t, err)
+	assert.Equal(t, libStreaming.KafkaTopic(wantTopic), route.Destination)
+	assert.Equal(t, "lerian.streaming.tracer", wantTopic)
+
+	// Every lifecycle event resolves through the catch-all bucket.
+	table, err := libStreaming.NewRouteTable(routes...)
+	require.NoError(t, err, "tracer's catch-all route must satisfy lib-streaming's route validation")
 
 	for _, key := range expectedAllEventKeys {
-		r, ok := byDefKey[key]
-		require.Truef(t, ok, "missing route for %q", key)
-		assert.Equal(t, key+"."+streamingPrimaryTargetName, r.Key,
-			"route Key must be <event>.<target>")
-		assert.Equal(t, streamingPrimaryTargetName, r.Target)
-		assert.Equal(t, libStreaming.RouteRequired, r.Requirement)
-		assert.Equal(t, libStreaming.KafkaTopic(pkgStreaming.TopicName("tracer", key)), r.Destination,
-			"route Destination must be the canonical tracer-namespaced Kafka topic")
+		resolved := table.Routes(key)
+		require.Lenf(t, resolved, 1, "%q must resolve to exactly one route", key)
+		assert.Equalf(t, wantTopic, resolved[0].Destination.Name,
+			"%q must ride the tracer application topic", key)
 	}
 }
 
-// TestTracerCatalog_CoversAllEmittedEvents is the drift lock: it asserts an
-// exact 1:1:1 bijection between the registered event definitions, the
-// catalog entries, and the route table — no event registered without a
-// route, no route pointing at an unregistered event (ghost topic), and no
-// count drift between the three. It locks all twelve events (six Rule, six
-// Limit).
+// TestBuildRoutes_RejectsIllegalSource proves the route table is never built from
+// a malformed ce-source. lib-streaming REJECTS an illegal source rather than
+// normalizing it: the v2 normalization could fold two distinct applications onto
+// one topic namespace and one ACL scope with neither owner noticing, so a bad
+// value must fail startup instead of quietly publishing into somebody else's
+// stream.
+func TestBuildRoutes_RejectsIllegalSource(t *testing.T) {
+	t.Parallel()
+
+	for _, source := range []string{"", "Tracer", "lerian.midaz.tracer", "tracer service"} {
+		t.Run(source, func(t *testing.T) {
+			t.Parallel()
+
+			routes, err := buildRoutes(streamingPrimaryTargetName, source)
+			require.Error(t, err)
+			assert.Nil(t, routes)
+		})
+	}
+}
+
+// TestTracerCatalog_CoversAllEmittedEvents is the drift lock: every registered
+// event definition has a catalog entry, and every catalog entry resolves to
+// exactly one deliverable route. It locks all twelve events (six Rule, six Limit).
+//
+// The route half of the old bijection is gone with the topic collapse — there is
+// one route, not one per event — so what matters now is RESOLUTION: a definition
+// that resolved to zero required routes could lose every copy and still return a
+// nil Emit error, which is why lib-streaming fails construction on it and why this
+// test walks every key through the route table.
 func TestTracerCatalog_CoversAllEmittedEvents(t *testing.T) {
 	t.Parallel()
 
@@ -252,13 +283,11 @@ func TestTracerCatalog_CoversAllEmittedEvents(t *testing.T) {
 	catalog, err := buildCatalog()
 	require.NoError(t, err)
 
-	routes := buildRoutes(streamingPrimaryTargetName)
+	routes, err := buildRoutes(streamingPrimaryTargetName, streamingServiceName)
+	require.NoError(t, err)
 
-	// (a) count parity across all three views.
 	assert.Equal(t, len(defs), catalog.Len(),
 		"catalog entry count must equal definition count")
-	assert.Equal(t, len(defs), len(routes),
-		"route count must equal definition count")
 
 	// Definition key set (the source of truth).
 	defKeys := make(map[string]struct{}, len(defs))
@@ -269,33 +298,28 @@ func TestTracerCatalog_CoversAllEmittedEvents(t *testing.T) {
 	require.Lenf(t, defKeys, len(defs),
 		"definition keys must be unique (found %d unique of %d defs)", len(defKeys), len(defs))
 
-	// (b) every definition resolves to a catalog entry.
+	// Every definition resolves to a catalog entry.
 	for key := range defKeys {
 		_, ok := catalog.Lookup(key)
 		assert.Truef(t, ok, "catalog is missing a definition-registered key %q", key)
 	}
 
-	// (c) route set is a bijection with the definition set: every route
-	// targets a registered definition (no ghost topics) and every
-	// definition has exactly one route.
-	routeKeys := make(map[string]struct{}, len(routes))
-	for _, r := range routes {
-		_, dup := routeKeys[r.DefinitionKey]
-		require.Falsef(t, dup, "duplicate route for definition key %q", r.DefinitionKey)
+	// Every catalog entry resolves to exactly one required route on the
+	// application topic — no unroutable event, no double publish.
+	table, err := libStreaming.NewRouteTable(routes...)
+	require.NoError(t, err)
 
-		routeKeys[r.DefinitionKey] = struct{}{}
+	wantTopic, err := libStreaming.AppTopic(streamingServiceName)
+	require.NoError(t, err)
 
-		_, registered := defKeys[r.DefinitionKey]
-		assert.Truef(t, registered,
-			"route %q points at an unregistered event (ghost topic)", r.DefinitionKey)
-
-		// (d) destination topic derives from the definition key.
-		assert.Equal(t, libStreaming.KafkaTopic(pkgStreaming.TopicName("tracer", r.DefinitionKey)), r.Destination,
-			"route Destination must be tracer.<resource>.<event>")
+	for _, entry := range catalog.Definitions() {
+		resolved := table.Routes(entry.Key)
+		require.Lenf(t, resolved, 1, "catalog entry %q must resolve to exactly one route", entry.Key)
+		assert.Equalf(t, libStreaming.RouteRequired, resolved[0].Requirement,
+			"catalog entry %q must resolve to a REQUIRED route, or a lost publish reports success", entry.Key)
+		assert.Equalf(t, wantTopic, resolved[0].Destination.Name,
+			"catalog entry %q must ride the tracer application topic", entry.Key)
 	}
-
-	assert.Equal(t, defKeys, routeKeys,
-		"route definition-key set must exactly equal the registered definition-key set")
 
 	// Guard against a stale reference to the events package import.
 	assert.Equal(t, "rule.created", events.RuleCreatedDefinition.Key())
@@ -305,13 +329,18 @@ func TestTracerCatalog_CoversAllEmittedEvents(t *testing.T) {
 // TestResolveStreamingSource locks the HELPER-level CloudEvents source
 // resolution contract: a trimmed, non-empty STREAMING_CLOUDEVENTS_SOURCE value
 // wins verbatim; a nil, empty, or whitespace-only config value normalizes to the
-// in-code streamingSource default ("tracer").
+// roster name streamingServiceName ("tracer").
 //
 // This is a helper-level fallback only, NOT an end-to-end unset-env default: a
 // genuinely-unset STREAMING_CLOUDEVENTS_SOURCE fail-closes at
 // libStreaming.LoadConfig (ErrMissingSource) before resolveStreamingSource ever
 // runs, so a live enabled deployment never converges here — it MUST set the var
-// (.env.example recommends the bare service name).
+// (.env.example recommends the roster name).
+//
+// The helper does not validate the grammar; lib-streaming does, at LoadConfig,
+// Builder.Build, and AppTopic. The configured-value cases below therefore use
+// legal single-segment sources — a dotted or upper-case value is rejected
+// downstream rather than normalized, so it never reaches a topic name.
 func TestResolveStreamingSource(t *testing.T) {
 	t.Parallel()
 
@@ -325,31 +354,31 @@ func TestResolveStreamingSource(t *testing.T) {
 			// LoadConfig (ErrMissingSource) before this helper runs.
 			name:     "nil config normalizes to default",
 			cfg:      nil,
-			expected: streamingSource,
+			expected: streamingServiceName,
 		},
 		{
 			// Helper-level fallback; a genuinely-unset env fail-closes at
 			// LoadConfig (ErrMissingSource) before this helper runs.
 			name:     "empty config value normalizes to default",
 			cfg:      &Config{StreamingCloudEventsSource: ""},
-			expected: streamingSource,
+			expected: streamingServiceName,
 		},
 		{
 			// Whitespace-only slips past LoadConfig's == "" check, so the
 			// helper's trim-based fallback to the default applies.
 			name:     "whitespace-only config value normalizes to default",
 			cfg:      &Config{StreamingCloudEventsSource: "  \t  "},
-			expected: streamingSource,
+			expected: streamingServiceName,
 		},
 		{
 			name:     "configured value wins",
-			cfg:      &Config{StreamingCloudEventsSource: "lerian.midaz.tracer.staging"},
-			expected: "lerian.midaz.tracer.staging",
+			cfg:      &Config{StreamingCloudEventsSource: "midaz-tracer-staging"},
+			expected: "midaz-tracer-staging",
 		},
 		{
 			name:     "configured value is trimmed",
-			cfg:      &Config{StreamingCloudEventsSource: "  lerian.midaz.tracer.shadow  "},
-			expected: "lerian.midaz.tracer.shadow",
+			cfg:      &Config{StreamingCloudEventsSource: "  midaz-tracer-shadow  "},
+			expected: "midaz-tracer-shadow",
 		},
 	}
 
@@ -509,38 +538,39 @@ func TestResolveSASLMechanism_Unsupported(t *testing.T) {
 	}
 }
 
-// TestTopicConvergesWithEventDefinition proves midaz's pkgStreaming.TopicName
-// and lib-streaming's own EventDefinition.Topic derive the SAME Kafka topic for
-// every registered tracer event, with the bare service name ("tracer") as the
-// CloudEvents source. This convergence is what lets a Kafka ACL scoped to the
-// "tracer." prefix cover every topic tracer emits: the two derivations must
-// never diverge.
+// TestEventKeyConvergesWithEventDefinition proves midaz's Definition.Key() is the
+// SAME string lib-streaming publishes as the dispatch selector
+// (EventDefinition.EventKey) for every registered tracer event.
 //
-// The convergence asserted here holds ONLY because the service name is pure
-// [a-z0-9] (as "tracer" is): midaz's sanitizeServiceSegment keeps [a-z0-9] while
-// lib-streaming's sanitizeSourceSegment keeps [a-z0-9._-], so the two legitimately
-// diverge for non-alphanumeric input. That is why this test uses the bare service
-// name and deliberately does NOT assert a non-identity source case — a source with
-// a "." or "-" would produce different segments from each sanitizer by design.
-func TestTopicConvergesWithEventDefinition(t *testing.T) {
+// This replaced a topic-convergence test. Under one topic per application a
+// definition has no topic of its own; what a consumer selects on inside the stream
+// is this key, carried on the wire as ce-resourcetype / ce-eventtype and as the
+// trailing two segments of ce-type. Underscores now survive end to end — the
+// hyphen-folding both sides used to apply is gone — so the two forms can no longer
+// drift apart.
+func TestEventKeyConvergesWithEventDefinition(t *testing.T) {
 	t.Parallel()
 
-	const ceSource = streamingServiceName // the bare service name is the ce-source
-
 	for _, def := range tracerEventDefinitions() {
-		ed := libStreaming.EventDefinition{
+		entry := libStreaming.EventDefinition{
 			Key:           def.Key(),
 			ResourceType:  def.ResourceType,
 			EventType:     def.EventType,
 			SchemaVersion: def.SchemaVersion,
 		}
 
-		want := ed.Topic(ceSource)
-		got := pkgStreaming.TopicName(streamingServiceName, def.Key())
+		assert.Equalf(t, def.Key(), entry.EventKey(),
+			"Definition.Key and EventDefinition.EventKey must converge for %q", def.Key())
+	}
 
-		assert.Equalf(t, want, got,
-			"TopicName and EventDefinition.Topic must converge for %q", def.Key())
-		assert.Equalf(t, streamingServiceName+"."+def.Key(), got,
-			"topic for %q must be service + \".\" + Key()", def.Key())
+	// The shared mapper is the single place a Definition becomes a catalog entry;
+	// lock that it carries the key through unchanged.
+	defs := tracerEventDefinitions()
+	entries := pkgStreaming.CatalogEntriesFromDefinitions(defs)
+	require.Len(t, entries, len(defs))
+
+	for i, def := range defs {
+		assert.Equal(t, def.Key(), entries[i].Key)
+		assert.Equal(t, def.Key(), entries[i].EventKey())
 	}
 }

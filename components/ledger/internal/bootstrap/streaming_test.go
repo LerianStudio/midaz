@@ -6,11 +6,9 @@ package bootstrap
 
 import (
 	"context"
-	"regexp"
-	"strings"
 	"testing"
 
-	libStreaming "github.com/LerianStudio/lib-streaming/v2"
+	libStreaming "github.com/LerianStudio/lib-streaming/v3"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -49,13 +47,18 @@ func TestBuildStreamingEmitter_DisabledReturnsNoop(t *testing.T) {
 // TestResolveStreamingSource locks the HELPER-level CloudEvents source
 // resolution contract: a trimmed, non-empty STREAMING_CLOUDEVENTS_SOURCE value
 // wins verbatim; a nil, empty, or whitespace-only config value normalizes to the
-// bare service name streamingServiceName ("ledger").
+// roster name streamingServiceName ("ledger").
 //
 // This is a helper-level fallback only, NOT an end-to-end unset-env default: a
 // genuinely-unset STREAMING_CLOUDEVENTS_SOURCE fail-closes at
 // libStreaming.LoadConfig (ErrMissingSource) before resolveStreamingSource ever
 // runs, so a live enabled deployment never converges here — it MUST set the var
-// (.env.example recommends the bare service name).
+// (.env.example recommends the roster name).
+//
+// The helper does not validate the grammar; lib-streaming does, at LoadConfig,
+// Builder.Build, and AppTopic. The configured-value cases below therefore use
+// legal single-segment sources — a dotted or upper-case value is rejected
+// downstream rather than normalized, so it never reaches a topic name.
 func TestResolveStreamingSource(t *testing.T) {
 	t.Parallel()
 
@@ -67,33 +70,33 @@ func TestResolveStreamingSource(t *testing.T) {
 		{
 			// Helper-level fallback; a genuinely-unset env fail-closes at
 			// LoadConfig (ErrMissingSource) before this helper runs.
-			name:     "nil config normalizes to bare service name",
+			name:     "nil config normalizes to roster name",
 			cfg:      nil,
 			expected: streamingServiceName,
 		},
 		{
 			// Helper-level fallback; a genuinely-unset env fail-closes at
 			// LoadConfig (ErrMissingSource) before this helper runs.
-			name:     "empty config value normalizes to bare service name",
+			name:     "empty config value normalizes to roster name",
 			cfg:      &Config{StreamingCloudEventsSource: ""},
 			expected: streamingServiceName,
 		},
 		{
 			// Whitespace-only slips past LoadConfig's == "" check, so the
-			// helper's trim-based fallback to the bare service name applies.
-			name:     "whitespace-only config value normalizes to bare service name",
+			// helper's trim-based fallback to the roster name applies.
+			name:     "whitespace-only config value normalizes to roster name",
 			cfg:      &Config{StreamingCloudEventsSource: "  \t  "},
 			expected: streamingServiceName,
 		},
 		{
 			name:     "configured value wins",
-			cfg:      &Config{StreamingCloudEventsSource: "lerian.midaz.ledger.staging"},
-			expected: "lerian.midaz.ledger.staging",
+			cfg:      &Config{StreamingCloudEventsSource: "midaz-ledger-staging"},
+			expected: "midaz-ledger-staging",
 		},
 		{
 			name:     "configured value is trimmed",
-			cfg:      &Config{StreamingCloudEventsSource: "  lerian.midaz.ledger.shadow  "},
-			expected: "lerian.midaz.ledger.shadow",
+			cfg:      &Config{StreamingCloudEventsSource: "  midaz-ledger-shadow  "},
+			expected: "midaz-ledger-shadow",
 		},
 	}
 
@@ -124,72 +127,50 @@ func TestMidazEventDefinitions_IncludesBalanceChanged(t *testing.T) {
 	assert.True(t, found, "balance.changed must be registered in midazEventDefinitions")
 }
 
-// TestBuildRoutes_BalanceChangedTopic asserts the balance.changed route
-// resolves to the canonical ledger.balance.changed Kafka topic under the
-// ACL-prefix grammar.
-func TestBuildRoutes_BalanceChangedTopic(t *testing.T) {
+// TestBuildRoutes_RejectsIllegalSource proves the route table is never built from
+// a malformed ce-source. lib-streaming REJECTS an illegal source rather than
+// normalizing it: the v2 normalization could fold two distinct applications onto
+// one topic namespace and one ACL scope with neither owner noticing, so a bad
+// value must fail startup instead of quietly publishing into somebody else's
+// stream.
+func TestBuildRoutes_RejectsIllegalSource(t *testing.T) {
 	t.Parallel()
 
-	routes := buildRoutes(streamingPrimaryTargetName)
+	for _, source := range []string{"", "Ledger", "lerian.midaz.ledger", "ledger service"} {
+		t.Run(source, func(t *testing.T) {
+			t.Parallel()
 
-	var dest string
-	for _, r := range routes {
-		if r.DefinitionKey == "balance.changed" {
-			// KafkaTopic stores the topic string in Destination.Name
-			// (Destination is a struct, not a string).
-			dest = r.Destination.Name
-		}
-	}
-	assert.Equal(t, "ledger.balance.changed", dest)
-}
-
-// TestBuildRoutes_UnderscoreTopics pins the wire topic names for the ledger
-// events whose <resource> or <event> segment carries an underscore in the
-// canonical Definition.Key() — the segments feed straight through TopicName to
-// the wire topic, so this guards that no accidental fold reappears.
-func TestBuildRoutes_UnderscoreTopics(t *testing.T) {
-	t.Parallel()
-
-	want := map[string]string{
-		"operation_route.created": "ledger.operation_route.created",
-		"balance.config_changed":  "ledger.balance.config_changed",
-		"balance.overdraft_drawn": "ledger.balance.overdraft_drawn",
-	}
-
-	got := make(map[string]string, len(want))
-	for _, r := range buildRoutes(streamingPrimaryTargetName) {
-		if _, ok := want[r.DefinitionKey]; ok {
-			got[r.DefinitionKey] = r.Destination.Name
-		}
-	}
-
-	for key, topic := range want {
-		assert.Equal(t, topic, got[key], "route for %q must target topic %q", key, topic)
+			routes, err := buildRoutes(streamingPrimaryTargetName, source)
+			require.Error(t, err)
+			assert.Nil(t, routes)
+		})
 	}
 }
 
-// TestBuildRoutes_TopicsMatchConsumerRegex asserts every ledger route
-// destination stays inside the streaming-hub ingest consumer's subscription
-// grammar: a leading service segment [a-z0-9][a-z0-9-]* then the two trailing
-// segments over [a-z0-9_] (no hyphen) with an optional ".vN" suffix. The two
-// trailing (resource, event) segments must carry no hyphen — a hyphen there
-// would silently fall outside the consumer regex.
-func TestBuildRoutes_TopicsMatchConsumerRegex(t *testing.T) {
+// TestBuildRoutes_RouteTableAccepted proves the catch-all route midaz builds is
+// accepted by lib-streaming's own validation — the route-key grammar, the empty
+// DefinitionKey (catch-all), the destination shape, and the no-duplicate rule are
+// all enforced there, so building the table is the real assertion.
+func TestBuildRoutes_RouteTableAccepted(t *testing.T) {
 	t.Parallel()
 
-	consumerRegex := regexp.MustCompile(`^[a-z0-9][a-z0-9-]*\.[a-z0-9_]+\.[a-z0-9_]+(\.v[0-9]+)?$`)
+	routes, err := buildRoutes(streamingPrimaryTargetName, streamingServiceName)
+	require.NoError(t, err)
 
-	for _, r := range buildRoutes(streamingPrimaryTargetName) {
-		assert.Regexp(t, consumerRegex, r.Destination.Name,
-			"topic %q must match the streaming-hub consumer regex", r.Destination.Name)
+	table, err := libStreaming.NewRouteTable(routes...)
+	require.NoError(t, err, "midaz's catch-all route must satisfy lib-streaming's route validation")
 
-		// The resource.event tail (everything after the leading service segment)
-		// must contain no hyphen: those two segments come from the underscore-
-		// canonical Key() and a hyphen there would break the consumer subscription.
-		_, tail, found := strings.Cut(r.Destination.Name, ".")
-		require.True(t, found, "topic %q must have a service segment then a resource.event tail", r.Destination.Name)
-		assert.NotContains(t, tail, "-",
-			"topic tail %q must not contain a hyphen (resource/event are underscore-canonical)", tail)
+	wantTopic, err := libStreaming.AppTopic(streamingServiceName)
+	require.NoError(t, err)
+
+	// Every catalog definition resolves through the catch-all bucket, including
+	// keys with underscores — v3 route keys accept them, so the hyphen-folding the
+	// old table needed is gone and the two forms can no longer drift.
+	for _, key := range []string{"balance.changed", "operation_route.created", "balance.config_changed", "balance.overdraft_drawn"} {
+		resolved := table.Routes(key)
+		require.Lenf(t, resolved, 1, "%q must resolve to exactly one route", key)
+		assert.Equalf(t, wantTopic, resolved[0].Destination.Name,
+			"%q must ride the ledger application topic", key)
 	}
 }
 
@@ -203,7 +184,7 @@ func TestBuildStreamingEmitter_SASLWithoutTLSFailsClosed(t *testing.T) {
 	// t.Setenv prevents t.Parallel — lib-streaming's LoadConfig reads process env.
 	t.Setenv("STREAMING_ENABLED", "true")
 	t.Setenv("STREAMING_BROKERS", "127.0.0.1:9092")
-	t.Setenv("STREAMING_CLOUDEVENTS_SOURCE", "lerian.midaz.ledger.test")
+	t.Setenv("STREAMING_CLOUDEVENTS_SOURCE", "ledger")
 	t.Setenv("STREAMING_SASL_MECHANISM", "PLAIN")
 	t.Setenv("STREAMING_SASL_USERNAME", "u")
 	t.Setenv("STREAMING_SASL_PASSWORD", "p")
@@ -227,7 +208,7 @@ func TestBuildStreamingEmitter_SASLWithoutTLSFailsClosed(t *testing.T) {
 func TestBuildStreamingEmitter_EnabledBuildsAndCloses(t *testing.T) {
 	t.Setenv("STREAMING_ENABLED", "true")
 	t.Setenv("STREAMING_BROKERS", "127.0.0.1:9092")
-	t.Setenv("STREAMING_CLOUDEVENTS_SOURCE", "lerian.midaz.ledger.test")
+	t.Setenv("STREAMING_CLOUDEVENTS_SOURCE", "ledger")
 	t.Setenv("STREAMING_SASL_MECHANISM", "PLAIN")
 	t.Setenv("STREAMING_SASL_USERNAME", "u")
 	t.Setenv("STREAMING_SASL_PASSWORD", "p")
