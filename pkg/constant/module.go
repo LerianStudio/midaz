@@ -13,6 +13,7 @@ const (
 	// schemas. The value MUST be "crm-api" to match tenant-manager provisioning.
 	ModuleCRM = "crm-api"
 	// ModuleFees is the tenant-manager module name for fee/billing-package database
-	// schemas.
+	// schemas. The value MUST be "fees-api" to match tenant-manager provisioning.
+	// The fee auth/RBAC namespace is a separate literal (feeshared ApplicationName).
 	ModuleFees = "fees-api"
 )
