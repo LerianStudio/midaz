@@ -249,11 +249,19 @@ func strmCatalogTopics() []string {
 
 	// CRM resources (holder/instrument) are folded into the ledger binary and,
 	// after the service collapse, emit under the single "ledger" segment, so
-	// their topics take the "ledger.<resource>.<event>" shape. Provision them too
-	// so a holder create's IMPORTANT-posture emit has a live destination and never
-	// trips the producer circuit breaker.
-	for _, e := range []string{"created", "updated", "deleted"} {
-		topics = append(topics, pkgStreaming.TopicName("ledger", "holder."+e))
+	// their topics take the "ledger.<resource>.<event>" shape. Provision the full
+	// CRM key set so any CRM fixture's IMPORTANT-posture emit has a live
+	// destination and never trips the producer circuit breaker.
+	for _, key := range []string{
+		"holder.created",
+		"holder.updated",
+		"holder.deleted",
+		"instrument.created",
+		"instrument.updated",
+		"instrument.deleted",
+		"instrument.related_party_deleted",
+	} {
+		topics = append(topics, pkgStreaming.TopicName(strmServiceName, key))
 	}
 
 	return topics
@@ -470,7 +478,7 @@ func TestStreamingHolderCreateEmitsRedacted(t *testing.T) {
 	orgID := createOrg(t)
 	holderID := createHolder(t, orgID)
 
-	topic := pkgStreaming.TopicName("ledger", "holder.created")
+	topic := pkgStreaming.TopicName(strmServiceName, "holder.created")
 
 	ceType, subject, payload, ok := strmConsumeMatch(t, topic, holderID, 15*time.Second)
 	if !ok {
