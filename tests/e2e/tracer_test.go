@@ -23,7 +23,7 @@ func reservePayload(transactionType string) map[string]any {
 		"transactionId":        uuid.NewString(),
 		"requestId":            uuid.NewString(),
 		"amount":               "10",
-		"currency":             "USD",
+		"asset":                "USD",
 		"account":              map[string]any{"accountId": uuid.NewString()},
 		"transactionTimestamp": time.Now().UTC().Format(time.RFC3339),
 	}

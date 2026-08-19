@@ -53,7 +53,7 @@ func seedLimitRule(t *testing.T, f fixture, maxAmount string, scope map[string]a
 		"name":      "E2E Limit " + uuid.NewString()[:8],
 		"limitType": "PER_TRANSACTION",
 		"maxAmount": maxAmount,
-		"currency":  "USD",
+		"asset":     "USD",
 		"scopes":    []any{scope},
 	})
 

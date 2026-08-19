@@ -52,6 +52,7 @@ func main() {
 	up := flag.Bool("up", true, "apply the currency->asset rewrite to all stored CEL rules (atomic; rolls back on any recompile failure)")
 
 	flag.Usage = usage
+
 	flag.Parse()
 
 	if err := run(*up, *down); err != nil {
