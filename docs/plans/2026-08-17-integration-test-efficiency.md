@@ -4,16 +4,16 @@
 
 **Architecture:** Integration build tags define what belongs to each lane. Required gates fail closed when discovery or prerequisites are missing. Datastore processes are eventually reused at package or shard scope, while every test keeps an isolated database, schema, namespace, or vhost. Parallelism is introduced only after isolation is explicit and measured.
 
-**Status:** P0's test infrastructure is implemented and measured. V1 `remaining` is complete end to end. Revert idempotency is in final hardening. Tracer now accepts and atomically applies durable Ledger outcomes without autonomously expiring V2 reservations; the Ledger-side atomic outcome, dispatcher, and recovery remain. P1, P2, and P3 follow in that order. Repository ruleset enforcement is deliberately last.
+**Status:** P0's trustworthy gates, V1 `remaining`, origin-scoped revert idempotency, and the durable Ledger-to-Tracer outcome protocol are implemented. P1 infrastructure reuse and P3 secondary-work reductions are implemented; P1 is being revalidated on the consolidated money-path head. P2 bounded parallelism has passed repeated `p=2` shard runs and is in its final integration round. Independent review begins only after P0-P3 are together. Repository ruleset enforcement remains deliberately last.
 
 ## Phase overview
 
 | Phase | Outcome | Status |
 |---|---|---|
-| P0 | Every required gate executes the coverage it claims and emits usable timing evidence | In progress — closing money-path defects |
-| P1 | Ledger datastore startup and migrations are reused without sharing mutable test state | Pending |
-| P2 | Independent families run concurrently within an explicit resource budget | Pending |
-| P3 | Tracer restarts, fixed waits, polling, cleanup, and streaming history scans are reduced | Pending |
+| P0 | Every required gate executes the coverage it claims and emits usable timing evidence | Implemented — aggregate post-merge validation in progress |
+| P1 | Ledger datastore startup and migrations are reused without sharing mutable test state | Implemented — consolidated-head hardening in progress |
+| P2 | Independent families run concurrently within an explicit resource budget | Implemented — final seeded round and integration in progress |
+| P3 | Tracer restarts, fixed waits, polling, cleanup, and streaming history scans are reduced | Implemented and measured |
 
 ### Execution order — 2026-08-17
 
@@ -85,23 +85,23 @@ Root skip classification: 76 chaos-only scenarios, 2 streaming smokes covered by
 - [x] Keep reservation TTL separate from the financial counter's period-retention expiry.
 - [x] Prove `reserve -> confirm -> cleanup` cannot erase valid daily, weekly, monthly, or custom usage.
 - [x] Support V1 `remaining` end to end: every resolved leg moves balances, persists an operation, and preserves double-entry across direct, pending, commit, cancel, revert, and fee paths.
-- [ ] Scope revert idempotency by the origin transaction without opening a rolling-deploy window that can double-revert.
+- [x] Scope revert idempotency by the origin transaction without opening a rolling-deploy window that can double-revert.
 - [x] Add Tracer's durable outcome receiver: serialize Reserve versus outcome, persist an idempotent terminal receipt, apply every reservation/counter/audit atomically, and keep V2 reservations out of autonomous expiry and cleanup.
 - [x] Record the Ledger outcome in the same Redis/Lua commit that moves balances, then deliver and retry it until Tracer's durable acknowledgement.
 - [x] Replace the incorrect "reaper is a durability backstop" assumption for a lost post-commit confirmation with a durable transaction-outcome mechanism.
 - [x] Make tests, logs, and architecture docs expose lost-confirm undercounting as a known defect instead of describing it as successful reconciliation.
-- [ ] Replace the pinned lost-confirm undercount with the chosen durable money-path invariant.
+- [x] Replace the pinned lost-confirm undercount with the chosen durable money-path invariant.
 
-**Product/architecture blockers:**
+**Money-path defects closed:**
 
-1. Two economically identical origins can share one revert idempotency slot, so the second origin is never reverted. Changing the live Redis key shape without a rollout contract can instead double-revert retries.
-2. Ledger commits balances before the Tracer confirmation is durable. If that confirmation is lost, the reaper releases the hold and undercounts usage even though money moved.
+1. Revert identity is now scoped to the origin transaction and protected by a durable PostgreSQL claim plus an executable old-to-bridge-to-final rollout. Ambiguous Redis/Lua outcomes fail closed and cannot authorize a second movement.
+2. Ledger now records the economic outcome in the same Redis/Lua operation that moves balances. A dedicated dispatcher retries the immutable outcome until Tracer commits its receipt; V2 reservations never expire autonomously while delivery is unknown.
 
 Chosen revert rollout contract: first deploy a freeze-capable legacy phase without changing revert identity; after every pod honors one shared rollout marker, activate the marker so updates to APPROVED transactions fail closed. Only then roll bridge and final idempotency phases. Final removes the freeze after old pods and in-flight requests are drained. Bridge readiness must reject activation without the shared freeze, so the safety condition is executable rather than a runbook promise.
 
 V1 `remaining` closure: every resolved leg and balance identity survives direct execution, pending commit, pending cancel, revert, Redis replay, fees, zero-fee no-ops, persistence, and balance synchronization. Fee packages expose additive `operationRouteFromId` and `operationRouteToId` UUIDs while the existing free-form route labels remain passive; omission preserves an existing UUID, `null` clears only that UUID, and multi-fee partial updates preserve stored priorities atomically. The full low-resource lane passed with 1,620 selected tests, 1,540 passes, 80 classified skips, 1,320 container starts, zero restarts, and 2,972 seconds of wall time.
 
-**Next P0:** scope revert idempotency by the origin transaction with a rollout-safe keyspace migration.
+**Next P0:** complete aggregate current-head gates after P1 and P2 land, then run the single final money-path review with the rest of P0-P3.
 
 ### P0 exit gate
 
@@ -118,56 +118,62 @@ V1 `remaining` closure: every resolved leg and balance identity survives direct 
 
 ### PostgreSQL
 
-- [ ] Classify packages by reusable-database, lifecycle-exclusive, migration-exclusive, and chaos-exclusive behavior.
-- [ ] Start one PostgreSQL process per reusable package or shard.
-- [ ] Apply migrations once to a template database where supported.
-- [ ] Give every test an isolated database or schema and deterministic cleanup.
-- [ ] Keep connection-loss, startup, migration, and recovery tests on exclusive infrastructure.
+- [x] Classify packages by reusable-database, lifecycle-exclusive, migration-exclusive, and chaos-exclusive behavior.
+- [x] Start one PostgreSQL process per reusable package or shard.
+- [x] Apply migrations once to a template database where supported.
+- [x] Give every test an isolated database or schema and deterministic cleanup.
+- [x] Keep connection-loss, startup, migration, and recovery tests on exclusive infrastructure.
 
 ### MongoDB, Valkey, and RabbitMQ
 
-- [ ] Reuse one MongoDB process per package and allocate a database per test.
-- [ ] Reuse Valkey only with a test-owned database or key namespace.
-- [ ] Reuse RabbitMQ only with a test-owned vhost and exchange/queue namespace.
-- [ ] Keep fixed-port and restart scenarios exclusive.
-- [ ] Assert cleanup completeness so leaked state fails the owning test.
+- [x] Reuse one MongoDB process per package and allocate a database per test.
+- [x] Reuse Valkey only with a test-owned database or key namespace.
+- [x] Reuse RabbitMQ only with a test-owned vhost and exchange/queue namespace.
+- [x] Keep fixed-port and restart scenarios exclusive.
+- [x] Assert cleanup completeness so leaked state fails the owning test.
 
 ### P1 exit gate
 
-- [ ] Reduce datastore container starts by at least 90% from the P0 baseline.
-- [ ] Run every reusable package repeatedly with randomized test order and no state leakage.
-- [ ] Preserve migration, recovery, tenant-isolation, and money-path assertions unchanged.
-- [ ] Run focused race detection on every newly shared fixture.
+- [x] Reduce datastore container starts by at least 90% from the P0 baseline.
+- [x] Run every reusable package repeatedly with randomized test order and no state leakage.
+- [x] Preserve migration, recovery, tenant-isolation, and money-path assertions unchanged.
+- [x] Run focused race detection on every newly shared fixture.
+
+P1 measurement: 1,644 selected tests completed serially in 586 seconds with 120 owner-attributed container starts and zero restarts, down from 1,320 starts and 2,972 seconds. The 36 reusable packages also passed two randomized repetitions in 457 seconds. Current-head hardening is re-running the same contracts after the P0 money-path additions.
 
 ## P2 — Bounded parallelism
 
-- [ ] Split CI into stable Ledger PostgreSQL, Ledger MongoDB/CRM, async/broker, Tracer, and lifecycle/migration shards.
-- [ ] Give every shard its own Docker and datastore scope.
-- [ ] Make package parallelism configurable; benchmark `2` before `4`.
-- [ ] Cap in-package parallelism independently from package parallelism.
-- [ ] Keep shared-server, fixed-port, BDD journey, and system-chaos families serial.
-- [ ] Set CPU, memory, container-count, and flake-rate budgets.
-- [ ] Promote a higher parallelism level only when repeated runs stay within every budget.
+- [x] Split CI into stable Ledger PostgreSQL, Ledger MongoDB/CRM, async/broker, Tracer, and lifecycle/migration shards.
+- [x] Give every shard its own Docker and datastore scope.
+- [x] Make package parallelism configurable; benchmark `2` before `4`.
+- [x] Cap in-package parallelism independently from package parallelism.
+- [x] Keep shared-server, fixed-port, BDD journey, and system-chaos families serial.
+- [x] Set CPU, memory, container-count, and flake-rate budgets.
+- [x] Promote a higher parallelism level only when repeated runs stay within every budget.
 
 ### P2 exit gate
 
-- [ ] Achieve a material wall-clock reduction over P1 without reducing selected-test counts.
-- [ ] Show no statistically meaningful increase in flakes across repeated CI runs.
-- [ ] Preserve deterministic failure attribution to one shard and one test.
+- [x] Achieve a material wall-clock reduction over P1 without reducing selected-test counts.
+- [x] Show no statistically meaningful increase in flakes across repeated CI runs.
+- [x] Preserve deterministic failure attribution to one shard and one test.
+
+P2 measurement so far: 1,645 exact tests across five non-overlapping shards, zero retries, failures, or container restarts. At `p=2`, the critical path is 183 seconds versus P1's 586 seconds (-69%). `p=4` is intentionally not promoted because 628 shared-server Tracer tests remain serial and dominate the critical path.
 
 ## P3 — Remove secondary work
 
-- [ ] Group Tracer tests by configuration and mock time to eliminate redundant server restarts.
-- [ ] Replace fixed sleeps with condition-based waits and bounded backoff.
-- [ ] Reduce semantic cleanup round-trips without bypassing lifecycle and audit behavior under test.
-- [ ] Start E2E streaming consumers before the action or consume from a captured offset.
-- [ ] Parallelize only Ledger E2E cases with independent organizations and ledgers, initially at four workers.
-- [ ] Make every E2E identity globally unique and clean or rotate persistent test data.
-- [ ] Keep retries limited to classified readiness and asynchronous convergence; never retry money-path assertions blindly.
+- [x] Group Tracer tests by configuration and mock time to eliminate redundant server restarts.
+- [x] Replace fixed sleeps with condition-based waits and bounded backoff.
+- [x] Reduce semantic cleanup round-trips without bypassing lifecycle and audit behavior under test.
+- [x] Start E2E streaming consumers before the action or consume from a captured offset.
+- [x] Parallelize only Ledger E2E cases with independent organizations and ledgers, initially at four workers.
+- [x] Make every E2E identity globally unique and clean or rotate persistent test data.
+- [x] Keep retries limited to classified readiness and asynchronous convergence; never retry money-path assertions blindly.
 
 ### P3 exit gate
 
-- [ ] Tracer restart count and fixed-wait time are measured and materially reduced.
-- [ ] Streaming duration remains stable as broker history grows.
-- [ ] Ledger E2E remains deterministic under its bounded worker count.
-- [ ] Every optimization preserves the P0 selected-test counts and P2 resource budgets.
+- [x] Tracer restart count and fixed-wait time are measured and materially reduced.
+- [x] Streaming duration remains stable as broker history grows.
+- [x] Ledger E2E remains deterministic under its bounded worker count.
+- [ ] Every optimization preserves the consolidated P0 selected-test counts and P2 resource budgets.
+
+P3 measurement: Tracer restarts fell from 100 to 20, fixed waits from 4.9 seconds to zero, and the measured duration from 147.5 to 51.9 seconds. Streaming with 5,000 historical events examines one event instead of 5,001. Ledger E2E passed all 39 cases across three four-worker rounds; the full E2E lane passed 111 tests with 13 explicit capability skips in 9 seconds.
