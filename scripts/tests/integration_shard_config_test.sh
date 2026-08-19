@@ -1,0 +1,82 @@
+#!/usr/bin/env bash
+# Copyright (c) 2026 Lerian Studio. All rights reserved.
+# Use of this source code is governed by the Elastic License 2.0
+# that can be found in the LICENSE file.
+
+set -euo pipefail
+
+repo_root=$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)
+config="$repo_root/ci/integration-shards.tsv"
+
+testcontainers_version=$(cd "$repo_root" && go list -m -f '{{.Version}}' github.com/testcontainers/testcontainers-go)
+if [[ $testcontainers_version != v0.44.0 ]]; then
+  echo "owner-aware Docker events require testcontainers-go v0.44.0, got $testcontainers_version" >&2
+  exit 1
+fi
+
+[[ -s $config ]]
+rows=$(awk -F '\t' '!/^#/ && NF { count++ } END { print count + 0 }' "$config")
+if [[ $rows -ne 5 ]]; then
+  echo "integration shard config has $rows rows, want 5" >&2
+  exit 1
+fi
+
+expected_shards='async-broker
+ledger-mongodb-crm
+ledger-postgres
+lifecycle-migration
+tracer'
+actual_shards=$(awk -F '\t' '!/^#/ && NF { print $1 }' "$config" | sort)
+if [[ $actual_shards != "$expected_shards" ]]; then
+  echo "integration shard config does not contain the five stable shards" >&2
+  exit 1
+fi
+
+expected_config=$'ledger-postgres\t2\t2\t2\t400\t2048\t20\t0\t15m\nledger-mongodb-crm\t2\t2\t2\t400\t2048\t16\t0\t15m\nasync-broker\t2\t2\t2\t400\t3072\t20\t0\t15m\ntracer\t2\t2\t2\t400\t2048\t6\t0\t15m\nlifecycle-migration\t1\t1\t4\t400\t3072\t10\t0\t15m'
+actual_config=$(awk '!/^#/ && NF' "$config")
+if [[ $actual_config != "$expected_config" ]]; then
+  echo "integration shard resource budgets changed without updating their contract" >&2
+  exit 1
+fi
+
+awk -F '\t' '
+  /^#/ || !NF { next }
+  NF != 9 { printf "line %d has %d fields, want 9\n", NR, NF > "/dev/stderr"; exit 1 }
+  $2 !~ /^[1-4]$/ || $3 !~ /^[1-4]$/ || $4 !~ /^[1-4]$/ { exit 1 }
+  $5 !~ /^[1-9][0-9]*$/ || $6 !~ /^[1-9][0-9]*$/ || $7 !~ /^[1-9][0-9]*$/ { exit 1 }
+  $8 != 0 { print "flake budget must remain zero" > "/dev/stderr"; exit 1 }
+  $9 !~ /^[0-9]+(m|h)$/ { print "invalid wall timeout" > "/dev/stderr"; exit 1 }
+  $1 == "lifecycle-migration" && ($2 != 1 || $3 != 1) { print "lifecycle shard is not serial" > "/dev/stderr"; exit 1 }
+' "$config"
+
+test_dir=$(mktemp -d)
+trap 'rm -rf "$test_dir"' EXIT
+cat > "$test_dir/fake-lane" <<'EOF'
+#!/usr/bin/env bash
+set -euo pipefail
+printf '%s\n' "$*" > "$FAKE_CAPTURE_DIR/args"
+env | sort > "$FAKE_CAPTURE_DIR/env"
+EOF
+chmod +x "$test_dir/fake-lane"
+
+FAKE_CAPTURE_DIR="$test_dir" \
+  MIDAZ_CI_LANE_RUNNER="$test_dir/fake-lane" \
+  GITHUB_RUN_ID=8123 GITHUB_RUN_ATTEMPT=2 \
+  "$repo_root/scripts/run-integration-ci-shard.sh" ledger-postgres
+
+grep -q '^CI_CAPTURE_DOCKER_EVENTS=owner$' "$test_dir/env"
+grep -q '^CI_CAPTURE_RESOURCES=1$' "$test_dir/env"
+grep -q '^CI_DOCKER_OWNER=midaz-8123-2-ledger-postgres$' "$test_dir/env"
+grep -q '^CI_MAX_AVERAGE_CPU_PERCENT=400$' "$test_dir/env"
+grep -q '^INTEGRATION_PACKAGE_PARALLELISM=2$' "$test_dir/env"
+grep -q '^INTEGRATION_TEST_PARALLELISM=2$' "$test_dir/env"
+grep -q '^INTEGRATION_JOB_GOMAXPROCS=2$' "$test_dir/env"
+grep -q '^GOMAXPROCS=2$' "$test_dir/env"
+grep -q '^INTEGRATION_FLAKE_BUDGET=0$' "$test_dir/env"
+if [[ $(nproc) -gt 4 && -n $(command -v taskset || true) ]]; then
+  grep -q 'integration-ledger-postgres 15m taskset --cpu-list 0-3 make test-integration-shard INTEGRATION_SHARD=ledger-postgres' "$test_dir/args"
+else
+  grep -q 'integration-ledger-postgres 15m make test-integration-shard INTEGRATION_SHARD=ledger-postgres' "$test_dir/args"
+fi
+
+echo "integration shard config tests passed"

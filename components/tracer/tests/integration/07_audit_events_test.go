@@ -206,6 +206,9 @@ func TestAuditEvents_11_1_4_Returns401WithoutAPIKey(t *testing.T) {
 func TestAuditEvents_11_2_1_ListsAllWithDefaultParams(t *testing.T) {
 	apiKey := testutil.GetAPIKey()
 	baseURL := testutil.GetBaseURL()
+	ruleID := testutil.CreateTestRule(t,
+		"audit-list-default-"+testutil.MustDeterministicUUID(7021).String()[:8])
+	t.Cleanup(func() { testutil.CleanupRule(t, ruleID) })
 
 	req, err := http.NewRequest(http.MethodGet, baseURL+"/v1/audit-events", nil)
 	require.NoError(t, err)

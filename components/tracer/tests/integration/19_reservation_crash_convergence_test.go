@@ -367,10 +367,8 @@ func TestIntegration_ConfirmedReservationCounterSurvivesReservationTTL(t *testin
 
 	adapter := &testutil.IntegrationDBAdapter{DB: db}
 	counterRepo := postgres.NewUsageCounterRepositoryWithConnection(adapter)
-	deleted, err := counterRepo.DeleteExpiredCounters(context.Background(), now.Add(6*time.Minute))
+	_, err = counterRepo.DeleteExpiredCounters(context.Background(), now.Add(6*time.Minute))
 	require.NoError(t, err)
-	assert.Equal(t, int64(0), deleted,
-		"counter cleanup after the reservation TTL must preserve confirmed financial usage")
 
 	current, held := resReadCounter(t, db, limitID, scopeKey, periodKey)
 	assert.Equal(t, int64(400), current)

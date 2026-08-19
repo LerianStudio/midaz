@@ -58,6 +58,30 @@ test-gate-selection:
 	$(call print_title,Verifying Make test gate selection)
 	@bash ./scripts/tests/test-gate-selection.sh
 
+.PHONY: test-integration-shard-contract
+test-integration-shard-contract:
+	$(call print_title,Verifying bounded integration shard contracts)
+	@go test ./scripts/integration_shards
+	@bash ./scripts/tests/run_integration_shard_test.sh
+	@bash ./scripts/tests/integration_shard_config_test.sh
+	@bash ./scripts/tests/run_ci_lane_test.sh
+
+INTEGRATION_SHARD ?=
+
+.PHONY: test-integration-shard
+test-integration-shard:
+	@if [ -z "$(INTEGRATION_SHARD)" ]; then \
+		echo "[error] INTEGRATION_SHARD is required" >&2; exit 2; \
+	fi
+	@./scripts/run-integration-shard.sh "$(INTEGRATION_SHARD)"
+
+.PHONY: test-integration-shards
+test-integration-shards:
+	@set -e; \
+	for shard in ledger-postgres ledger-mongodb-crm async-broker tracer lifecycle-migration; do \
+		$(MAKE) test-integration-shard INTEGRATION_SHARD=$$shard; \
+	done
+
 #-------------------------------------------------------
 # Core Commands
 #-------------------------------------------------------

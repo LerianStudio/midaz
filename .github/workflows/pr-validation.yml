@@ -117,11 +117,21 @@ jobs:
   # integration_test_command. Midaz's integration/property targets live only at
   # the monorepo root, so dedicated root jobs are the only non-duplicating path.
   integration:
-    name: Integration Tests
+    name: Integration / ${{ matrix.shard }}
     runs-on: blacksmith-4vcpu-ubuntu-2404
-    timeout-minutes: 90
+    timeout-minutes: 40
     permissions:
       contents: read
+    strategy:
+      fail-fast: false
+      max-parallel: 5
+      matrix:
+        shard:
+          - ledger-postgres
+          - ledger-mongodb-crm
+          - async-broker
+          - tracer
+          - lifecycle-migration
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -137,17 +147,15 @@ jobs:
       - name: Install test reporter
         run: go install gotest.tools/gotestsum@v1.13.0
 
-      - name: Run root integration lane
-        env:
-          CI_CAPTURE_DOCKER_EVENTS: testcontainers
-        run: scripts/run-ci-lane.sh integration 75m make test-integration LOW_RESOURCE=1 TEST_REPORTS_DIR=reports/ci
+      - name: Run bounded integration shard
+        run: scripts/run-integration-ci-shard.sh ${{ matrix.shard }}
 
       - name: Upload integration timing and log
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          name: integration-reports
-          path: reports/ci/integration*
+          name: integration-${{ matrix.shard }}-reports
+          path: reports/ci/
           if-no-files-found: warn
           retention-days: 7
 

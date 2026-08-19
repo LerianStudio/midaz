@@ -271,7 +271,11 @@ func TestIntegration_ReservationReaperCadence_V2StaleRemainsReservedWhileLegacyE
 	db := testutil.SetupIntegrationDB(t)
 	limitID := createTestLimitNamed(t, db, 9731, "reaper-v2-stale")
 	transactionID := testutil.MustDeterministicUUID(9732)
-	now := fixedReaperNow()
+	// Keep this sweep's audit scope distinct from the release-cadence proof.
+	// Both tests share one database and audit events intentionally outlive the
+	// reservation cleanup, so reusing the same deterministic timestamp makes
+	// shuffle order observable.
+	now := fixedReaperNow().Add(2 * time.Hour)
 	period := "2026-06"
 	legacyScope, v2Scope := "legacy:9731", "v2:9731"
 	t.Cleanup(func() {
