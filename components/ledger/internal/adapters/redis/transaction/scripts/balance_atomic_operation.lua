@@ -1,184 +1,223 @@
-local function split_decimal(s)
-    local sign = ""
+local function normalize_integer(intp)
+    intp = intp:gsub("^0+", "")
+    return (intp == "" and "0") or intp
+end
+
+local function trim_fraction(fracp)
+    return fracp:gsub("0+$", "")
+end
+
+local function split_decimal(value)
+    local s = tostring(value)
+    local negative = false
 
     if s:sub(1, 1) == "-" then
-        sign = "-"
+        negative = true
         s = s:sub(2)
     end
 
     local intp, fracp = s:match("^(%d+)%.(%d+)$")
-    if intp then
-        return sign .. intp, fracp, sign ~= ""
-    else
-        return sign .. s, "", sign ~= ""
+    if not intp then
+        intp = s:match("^(%d+)$")
+        fracp = ""
     end
+    if not intp then
+        error("invalid decimal string")
+    end
+
+    intp = normalize_integer(intp)
+    fracp = trim_fraction(fracp)
+    if intp == "0" and fracp == "" then
+        negative = false
+    end
+
+    return intp, fracp, negative
 end
 
-local function rtrim_zeros(frac)
-    frac = frac:gsub("0+$", "")
-    return (frac == "" and "0") or frac
+local function format_decimal(intp, fracp, negative)
+    intp = normalize_integer(intp)
+    fracp = trim_fraction(fracp)
+
+    if intp == "0" and fracp == "" then
+        return "0"
+    end
+
+    local result = intp
+    if fracp ~= "" then
+        result = result .. "." .. fracp
+    end
+    if negative then
+        result = "-" .. result
+    end
+
+    return result
 end
 
-local sub_decimal
+local function decimal_digit(s, index)
+    if index < 1 or index > #s then
+        return 0
+    end
+    return string.byte(s, index) - string.byte("0")
+end
 
-local function add_decimal(a, b)
-    a = tostring(a)
-    b = tostring(b)
-    local ai, af, a_negative = split_decimal(a)
-    local bi, bf, b_negative = split_decimal(b)
+local function compare_digit_strings(a, b)
+    if #a < #b then
+        return -1
+    end
+    if #a > #b then
+        return 1
+    end
+    if a < b then
+        return -1
+    end
+    if a > b then
+        return 1
+    end
+    return 0
+end
 
-    if a_negative and b_negative then
-        local result = add_decimal(a:sub(2), b:sub(2))
-        return "-" .. result
+local function compare_absolute_parts(ai, af, bi, bf)
+    local integer_comparison = compare_digit_strings(ai, bi)
+    if integer_comparison ~= 0 then
+        return integer_comparison
     end
 
-    if a_negative then
-        return sub_decimal(b, a:sub(2))
+    local scale = math.max(#af, #bf)
+    for i = 1, scale do
+        local a_digit = decimal_digit(af, i)
+        local b_digit = decimal_digit(bf, i)
+        if a_digit < b_digit then
+            return -1
+        end
+        if a_digit > b_digit then
+            return 1
+        end
     end
 
-    if b_negative then
-        return sub_decimal(a, b:sub(2))
-    end
+    return 0
+end
 
-    if ai:sub(1, 1) == "-" then ai = ai:sub(2) end
-    if bi:sub(1, 1) == "-" then bi = bi:sub(2) end
-
-    if #af < #bf then
-        af = af .. string.rep("0", #bf - #af)
-    elseif #bf < #af then
-        bf = bf .. string.rep("0", #af - #bf)
-    end
+local function add_absolute(ai, af, bi, bf, negative)
+    local scale = math.max(#af, #bf)
+    af = af .. string.rep("0", scale - #af)
+    bf = bf .. string.rep("0", scale - #bf)
 
     local carry = 0
     local frac_sum = {}
-    for i = #af, 1, -1 do
-        local da = tonumber(af:sub(i, i))
-        local db = tonumber(bf:sub(i, i))
-        local s = da + db + carry
-        carry = math.floor(s / 10)
-        frac_sum[#af - i + 1] = tostring(s % 10)
+    for i = scale, 1, -1 do
+        local sum = decimal_digit(af, i) + decimal_digit(bf, i) + carry
+        carry = math.floor(sum / 10)
+        frac_sum[scale - i + 1] = tostring(sum % 10)
     end
 
-    local rii = ai:reverse()
-    local rbi = bi:reverse()
-    local max_i = math.max(#rii, #rbi)
+    local a_reverse = ai:reverse()
+    local b_reverse = bi:reverse()
+    local width = math.max(#a_reverse, #b_reverse)
     local int_sum = {}
-    for i = 1, max_i do
-        local da = tonumber(rii:sub(i, i)) or 0
-        local db = tonumber(rbi:sub(i, i)) or 0
-        local s = da + db + carry
-        carry = math.floor(s / 10)
-        int_sum[i] = tostring(s % 10)
+    for i = 1, width do
+        local sum = decimal_digit(a_reverse, i) + decimal_digit(b_reverse, i) + carry
+        carry = math.floor(sum / 10)
+        int_sum[i] = tostring(sum % 10)
     end
     if carry > 0 then
         int_sum[#int_sum + 1] = tostring(carry)
     end
 
-    local int_res = table.concat(int_sum):reverse()
-    local frac_res = table.concat(frac_sum):reverse()
-    frac_res = rtrim_zeros(frac_res)
-
-    if frac_res == "0" then
-        return int_res
-    end
-    return int_res .. "." .. frac_res
+    return format_decimal(table.concat(int_sum):reverse(), table.concat(frac_sum):reverse(), negative)
 end
 
-sub_decimal = function(a, b)
-    a = tostring(a)
-    b = tostring(b)
+-- subtract_absolute assumes a >= b and performs one exact digit-wise borrow.
+local function subtract_absolute(ai, af, bi, bf, negative)
+    local scale = math.max(#af, #bf)
+    af = af .. string.rep("0", scale - #af)
+    bf = bf .. string.rep("0", scale - #bf)
+
+    local borrow = 0
+    local frac_result = {}
+    for i = scale, 1, -1 do
+        local difference = decimal_digit(af, i) - decimal_digit(bf, i) - borrow
+        if difference < 0 then
+            difference = difference + 10
+            borrow = 1
+        else
+            borrow = 0
+        end
+        frac_result[scale - i + 1] = tostring(difference)
+    end
+
+    local a_reverse = ai:reverse()
+    local b_reverse = bi:reverse()
+    local int_result = {}
+    for i = 1, math.max(#a_reverse, #b_reverse) do
+        local difference = decimal_digit(a_reverse, i) - decimal_digit(b_reverse, i) - borrow
+        if difference < 0 then
+            difference = difference + 10
+            borrow = 1
+        else
+            borrow = 0
+        end
+        int_result[i] = tostring(difference)
+    end
+
+    if borrow ~= 0 then
+        error("invalid absolute decimal subtraction")
+    end
+
+    return format_decimal(table.concat(int_result):reverse(), table.concat(frac_result):reverse(), negative)
+end
+
+local function compare_decimal(a, b)
     local ai, af, a_negative = split_decimal(a)
     local bi, bf, b_negative = split_decimal(b)
 
-    if a_negative and b_negative then
-        return sub_decimal(b:sub(2), a:sub(2))
+    if a_negative ~= b_negative then
+        return a_negative and -1 or 1
     end
 
-    if a_negative then
-        local result = add_decimal(a:sub(2), b)
-        return "-" .. result
-    end
-
-    if b_negative then
-        return add_decimal(a, b:sub(2))
-    end
-
-    local a_num = tonumber(a)
-    local b_num = tonumber(b)
-    if a_num < b_num then
-        local result = sub_decimal(b, a)
-        return "-" .. result
-    end
-
-    if ai:sub(1, 1) == "-" then ai = ai:sub(2) end
-    if bi:sub(1, 1) == "-" then bi = bi:sub(2) end
-
-    if #af < #bf then
-        af = af .. string.rep("0", #bf - #af)
-    elseif #bf < #af then
-        bf = bf .. string.rep("0", #af - #bf)
-    end
-
-    local borrow = 0
-    local frac_res_tbl = {}
-    for i = #af, 1, -1 do
-        local da = tonumber(af:sub(i, i))
-        local db = tonumber(bf:sub(i, i))
-        local diff = da - db - borrow
-        if diff < 0 then
-            diff = diff + 10
-            borrow = 1
-        else
-            borrow = 0
-        end
-        frac_res_tbl[#af - i + 1] = tostring(diff)
-    end
-
-    local rii = ai:reverse()
-    local rbi = bi:reverse()
-    local max_i = math.max(#rii, #rbi)
-    local int_res_tbl = {}
-    for i = 1, max_i do
-        local da = tonumber(rii:sub(i, i)) or 0
-        local db = tonumber(rbi:sub(i, i)) or 0
-        local diff = da - db - borrow
-        if diff < 0 then
-            diff = diff + 10
-            borrow = 1
-        else
-            borrow = 0
-        end
-        int_res_tbl[i] = tostring(diff)
-    end
-
-    local res_int_rev = table.concat(int_res_tbl)
-    local res_int = res_int_rev:reverse():gsub("^0+", "")
-    if res_int == "" then
-        res_int = "0"
-    end
-
-    local frac_normal = table.concat(frac_res_tbl):reverse()
-    frac_normal = rtrim_zeros(frac_normal)
-
-    if frac_normal == "0" then
-        return res_int
-    end
-    return res_int .. "." .. frac_normal
+    local absolute_comparison = compare_absolute_parts(ai, af, bi, bf)
+    return a_negative and -absolute_comparison or absolute_comparison
 end
 
-local function startsWithMinus(s)
-    return s:sub(1, 1) == "-"
+local function add_decimal(a, b)
+    local ai, af, a_negative = split_decimal(a)
+    local bi, bf, b_negative = split_decimal(b)
+
+    if a_negative == b_negative then
+        return add_absolute(ai, af, bi, bf, a_negative)
+    end
+
+    local absolute_comparison = compare_absolute_parts(ai, af, bi, bf)
+    if absolute_comparison == 0 then
+        return "0"
+    end
+    if absolute_comparison > 0 then
+        return subtract_absolute(ai, af, bi, bf, a_negative)
+    end
+    return subtract_absolute(bi, bf, ai, af, b_negative)
+end
+
+local function sub_decimal(a, b)
+    local ai, af, a_negative = split_decimal(a)
+    local bi, bf, b_negative = split_decimal(b)
+
+    if a_negative ~= b_negative then
+        return add_absolute(ai, af, bi, bf, a_negative)
+    end
+
+    local absolute_comparison = compare_absolute_parts(ai, af, bi, bf)
+    if absolute_comparison == 0 then
+        return "0"
+    end
+    if absolute_comparison > 0 then
+        return subtract_absolute(ai, af, bi, bf, a_negative)
+    end
+    return subtract_absolute(bi, bf, ai, af, not a_negative)
 end
 
 -- isPositive checks if a decimal string represents a value greater than zero
 -- Returns true if the value is positive (not negative and not zero)
 local function isPositive(s)
-    if startsWithMinus(s) then
-        return false
-    end
-    -- Check if it's zero (could be "0", "0.0", "0.00", etc.)
-    local normalized = s:gsub("%.?0+$", ""):gsub("^0+", "")
-    return normalized ~= "" and normalized ~= "."
+    return compare_decimal(s, "0") > 0
 end
 
 local function cloneBalance(tbl)
@@ -189,12 +228,10 @@ local function cloneBalance(tbl)
     return copy
 end
 
--- min_decimal returns the smaller of two decimal strings. Implemented via
--- sub_decimal so the caller does not need a numeric coercion step — this
--- keeps the precision behavior identical to add_decimal/sub_decimal for
--- values that overflow Lua's double representation.
+-- min_decimal returns the smaller of two exact decimal strings without
+-- coercing either full value to Lua's binary floating-point number type.
 local function min_decimal(a, b)
-    if startsWithMinus(sub_decimal(a, b)) then
+    if compare_decimal(a, b) < 0 then
         return a
     end
     return b
@@ -676,7 +713,7 @@ local function main()
             result = sub_decimal(result, repay)
         end
 
-        if startsWithMinus(result) and balance.AccountType ~= "external" then
+        if compare_decimal(result, "0") < 0 and balance.AccountType ~= "external" then
             -- Direction-aware overdraft: credit-direction balances with
             -- AllowOverdraft=1 may go temporarily negative. The shortfall
             -- is floored at zero in Available and accrued in OverdraftUsed,
@@ -704,10 +741,9 @@ local function main()
                 newOverdraftUsed = add_decimal(balance.OverdraftUsed, deficit)
 
                 if (balance.OverdraftLimitEnabled or 0) == 1 then
-                    -- sub_decimal(limit, newOverdraftUsed) is negative iff
-                    -- the candidate strictly exceeds limit. Equal is allowed
-                    -- (at-limit).
-                    if startsWithMinus(sub_decimal(balance.OverdraftLimit, newOverdraftUsed)) then
+                    -- Equal is allowed; one decimal quantum above the limit
+                    -- is rejected regardless of integer width or scale.
+                    if compare_decimal(newOverdraftUsed, balance.OverdraftLimit) > 0 then
                         rollback(rollbackBalances, ttl)
                         return redis.error_reply("0167")
                     end
