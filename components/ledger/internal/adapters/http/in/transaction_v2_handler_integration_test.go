@@ -229,22 +229,29 @@ func decimalContext(msgAndArgs []any) string {
 	return fmt.Sprintf(format, msgAndArgs[1:]...)
 }
 
-// volatileResponseKeys are the identity/timestamp fields deleted (recursively) before a
-// v1↔v2 response deep-equal, so two economically-identical transactions in two ledgers
-// compare equal on everything that carries economic meaning.
+// volatileResponseKeys are the fields deleted (recursively) before a v1↔v2 response
+// deep-equal, so two economically-identical transactions in two ledgers compare equal on
+// everything that carries economic meaning. Two kinds of keys live here: identity/timestamp
+// fields that legitimately differ per row, and the deprecated fields the /v2 wire contract
+// deliberately drops while v1 keeps emitting them (transaction-level `chartOfAccountsGroupName`
+// and `route`, operation-level `chartOfAccounts` and `route` — see transaction_v2_output.go).
+// The drop itself is pinned by the field-removal and mirror-reads suites, which read the raw
+// maps on purpose; here the deprecated keys are just noise outside the economic envelope.
 var volatileResponseKeys = map[string]struct{}{
-	"id":                  {},
-	"transactionId":       {},
-	"parentTransactionId": {},
-	"ledgerId":            {},
-	"organizationId":      {},
-	"accountId":           {},
-	"balanceId":           {},
-	"createdAt":           {},
-	"updatedAt":           {},
-	"deletedAt":           {},
-	"route":               {},
-	"routeId":             {},
+	"id":                       {},
+	"transactionId":            {},
+	"parentTransactionId":      {},
+	"ledgerId":                 {},
+	"organizationId":           {},
+	"accountId":                {},
+	"balanceId":                {},
+	"createdAt":                {},
+	"updatedAt":                {},
+	"deletedAt":                {},
+	"route":                    {},
+	"routeId":                  {},
+	"chartOfAccounts":          {},
+	"chartOfAccountsGroupName": {},
 }
 
 // stripVolatile recursively removes identity/timestamp keys so the remaining tree is the
