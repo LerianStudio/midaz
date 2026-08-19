@@ -28,13 +28,12 @@ import (
 // as new accounts are created within a ledger.
 func TestIntegration_CountAccounts_Monotonic(t *testing.T) {
 	// Setup container
-	container := pgtestutil.SetupContainer(t)
+	container := pgtestutil.SetupMigratedContainer(t, "onboarding")
 
 	// Setup repository and use case
-	migrationsPath := pgtestutil.FindMigrationsPath(t, "onboarding")
 	connStr := pgtestutil.BuildConnectionString(container.Host, container.Port, container.Config)
 
-	conn := pgtestutil.CreatePostgresClient(t, connStr, connStr, container.Config.DBName, migrationsPath)
+	conn := pgtestutil.ConnectPostgresClient(t, connStr, connStr)
 
 	accountRepo := account.NewAccountPostgreSQLRepository(conn)
 
@@ -85,13 +84,12 @@ func TestIntegration_CountAccounts_Monotonic(t *testing.T) {
 // isolated by ledger - accounts from one ledger should not affect counts in another.
 func TestIntegration_CountAccounts_IsolatedByLedger(t *testing.T) {
 	// Setup container
-	container := pgtestutil.SetupContainer(t)
+	container := pgtestutil.SetupMigratedContainer(t, "onboarding")
 
 	// Setup repository and use case
-	migrationsPath := pgtestutil.FindMigrationsPath(t, "onboarding")
 	connStr := pgtestutil.BuildConnectionString(container.Host, container.Port, container.Config)
 
-	conn := pgtestutil.CreatePostgresClient(t, connStr, connStr, container.Config.DBName, migrationsPath)
+	conn := pgtestutil.ConnectPostgresClient(t, connStr, connStr)
 
 	accountRepo := account.NewAccountPostgreSQLRepository(conn)
 

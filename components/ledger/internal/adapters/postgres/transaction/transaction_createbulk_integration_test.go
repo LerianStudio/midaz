@@ -38,13 +38,12 @@ func setupBulkTestInfra(t *testing.T) *bulkTestInfra {
 	t.Helper()
 
 	// Setup PostgreSQL container
-	pgContainer := pgtestutil.SetupContainer(t)
+	pgContainer := pgtestutil.SetupMigratedContainer(t, "transaction")
 
 	// Create lib-commons PostgreSQL connection
-	migrationsPath := pgtestutil.FindMigrationsPath(t, "transaction")
 	connStr := pgtestutil.BuildConnectionString(pgContainer.Host, pgContainer.Port, pgContainer.Config)
 
-	conn := pgtestutil.CreatePostgresClient(t, connStr, connStr, pgContainer.Config.DBName, migrationsPath)
+	conn := pgtestutil.ConnectPostgresClient(t, connStr, connStr)
 
 	// Create repository
 	repo := NewTransactionPostgreSQLRepository(conn)

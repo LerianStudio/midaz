@@ -88,7 +88,7 @@ func setupIntegrationInfra(t *testing.T) *integrationTestInfra {
 	t.Helper()
 
 	// Setup RabbitMQ container
-	rmqContainer := rmqtestutil.SetupContainer(t)
+	rmqContainer := rmqtestutil.SetupReusableContainer(t)
 
 	// Setup exchange and queue
 	exchange := "test-exchange"

@@ -43,3 +43,25 @@ func CreatePostgresClient(t *testing.T, primaryDSN, replicaDSN, dbName, migratio
 
 	return conn
 }
+
+// ConnectPostgresClient creates and connects a lib-commons PostgreSQL client
+// without running migrations. Use it with SetupMigratedContainer, whose cloned
+// database already contains the complete schema.
+func ConnectPostgresClient(t *testing.T, primaryDSN, replicaDSN string) *libPostgres.Client {
+	t.Helper()
+
+	conn, err := libPostgres.New(libPostgres.Config{
+		PrimaryDSN: primaryDSN,
+		ReplicaDSN: replicaDSN,
+	})
+	require.NoError(t, err, "failed to create postgres client")
+	require.NoError(t, conn.Connect(context.Background()), "failed to connect postgres client")
+
+	t.Cleanup(func() {
+		if closeErr := conn.Close(); closeErr != nil {
+			t.Logf("failed to close postgres client: %v", closeErr)
+		}
+	})
+
+	return conn
+}

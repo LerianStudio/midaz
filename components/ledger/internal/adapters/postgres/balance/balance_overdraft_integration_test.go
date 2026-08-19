@@ -26,22 +26,9 @@ import (
 // Overdraft Column Integration Tests
 // ============================================================================
 
-// applyTransactionMigrations runs the transaction-component migrations against
-// the container so the balance table (including the overdraft columns added in
-// migration 000031) exists before the raw SQL inserts below. The returned
-// client is discarded; CreatePostgresClient registers its own cleanup.
-func applyTransactionMigrations(t *testing.T, container *pgtestutil.ContainerResult) {
-	t.Helper()
-
-	migrationsPath := pgtestutil.FindMigrationsPath(t, "transaction")
-	connStr := pgtestutil.BuildConnectionString(container.Host, container.Port, container.Config)
-	pgtestutil.CreatePostgresClient(t, connStr, connStr, container.Config.DBName, migrationsPath)
-}
-
 func TestIntegration_BalanceOverdraft_DirectionPersisted(t *testing.T) {
 	// Arrange
-	container := pgtestutil.SetupContainer(t)
-	applyTransactionMigrations(t, container)
+	container := pgtestutil.SetupMigratedContainer(t, "transaction")
 
 	orgID := uuid.Must(libCommons.GenerateUUIDv7())
 	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
@@ -75,8 +62,7 @@ func TestIntegration_BalanceOverdraft_DirectionPersisted(t *testing.T) {
 
 func TestIntegration_BalanceOverdraft_SchemaDefaults(t *testing.T) {
 	// Arrange — insert a row WITHOUT specifying overdraft columns
-	container := pgtestutil.SetupContainer(t)
-	applyTransactionMigrations(t, container)
+	container := pgtestutil.SetupMigratedContainer(t, "transaction")
 
 	orgID := uuid.Must(libCommons.GenerateUUIDv7())
 	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
@@ -116,8 +102,7 @@ func TestIntegration_BalanceOverdraft_SchemaDefaults(t *testing.T) {
 
 func TestIntegration_BalanceOverdraft_SettingsJSONBRoundTrip(t *testing.T) {
 	// Arrange
-	container := pgtestutil.SetupContainer(t)
-	applyTransactionMigrations(t, container)
+	container := pgtestutil.SetupMigratedContainer(t, "transaction")
 
 	orgID := uuid.Must(libCommons.GenerateUUIDv7())
 	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
@@ -174,8 +159,7 @@ func TestIntegration_BalanceOverdraft_UpdateOverdraftUsedViaSQLBatch(t *testing.
 	// Arrange — simulates the UpdateMany path (Redis→PG sync) at the SQL level.
 	// When the repository is updated to include overdraft_used in UpdateMany,
 	// this test verifies the column can be modified via a batch UPDATE.
-	container := pgtestutil.SetupContainer(t)
-	applyTransactionMigrations(t, container)
+	container := pgtestutil.SetupMigratedContainer(t, "transaction")
 
 	orgID := uuid.Must(libCommons.GenerateUUIDv7())
 	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
@@ -226,8 +210,7 @@ func TestIntegration_BalanceOverdraft_UpdateOverdraftUsedViaSQLBatch(t *testing.
 
 func TestIntegration_BalanceOverdraft_NilSettingsDoesNotCauseParseError(t *testing.T) {
 	// Arrange — insert with NULL settings (legacy/no-overdraft balance)
-	container := pgtestutil.SetupContainer(t)
-	applyTransactionMigrations(t, container)
+	container := pgtestutil.SetupMigratedContainer(t, "transaction")
 
 	orgID := uuid.Must(libCommons.GenerateUUIDv7())
 	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
@@ -261,8 +244,7 @@ func TestIntegration_BalanceOverdraft_NilSettingsDoesNotCauseParseError(t *testi
 
 func TestIntegration_BalanceOverdraft_ListByAliasesReturnsOverdraftColumns(t *testing.T) {
 	// Arrange
-	container := pgtestutil.SetupContainer(t)
-	applyTransactionMigrations(t, container)
+	container := pgtestutil.SetupMigratedContainer(t, "transaction")
 
 	orgID := uuid.Must(libCommons.GenerateUUIDv7())
 	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())

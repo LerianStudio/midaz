@@ -72,11 +72,31 @@ type networkChaosTestInfra struct {
 func setupRedisIntegrationInfra(t *testing.T) *integrationTestInfra {
 	t.Helper()
 
-	// Setup Redis container
-	redisContainer := redistestutil.SetupContainer(t)
+	return setupRedisIntegrationInfraWithContainer(t, redistestutil.SetupReusableContainer(t))
+}
+
+func setupFinancialRedisIntegrationInfra(t *testing.T) *integrationTestInfra {
+	t.Helper()
+
+	return setupRedisIntegrationInfraWithContainer(t, redistestutil.SetupReusableContainerWithConfig(
+		t, redistestutil.FinancialContainerConfig(),
+	))
+}
+
+func setupExclusiveRedisIntegrationInfra(t *testing.T) *integrationTestInfra {
+	t.Helper()
+
+	return setupRedisIntegrationInfraWithContainer(t, redistestutil.SetupContainer(t))
+}
+
+func setupRedisIntegrationInfraWithContainer(
+	t *testing.T,
+	redisContainer *redistestutil.ContainerResult,
+) *integrationTestInfra {
+	t.Helper()
 
 	// Create lib-commons Redis connection
-	conn := redistestutil.CreateConnection(t, redisContainer.Addr)
+	conn := redistestutil.CreateConnectionWithDB(t, redisContainer.Addr, redisContainer.DB)
 
 	// Create repository
 	repo := &RedisConsumerRepository{
@@ -344,6 +364,7 @@ func TestIntegration_Redis_BackupQueueOperations(t *testing.T) {
 	// 1. Add multiple messages to queue
 	t.Log("Step 1: Adding messages to backup queue")
 	messageKeys := make([]string, numMessages)
+	messages := make(map[string][]byte, numMessages)
 	for i := 0; i < numMessages; i++ {
 		key := fmt.Sprintf("test-msg-%d-%s", i, uuid.New().String())
 		msg := []byte(fmt.Sprintf(`{"id":"%s","data":"test message %d"}`, key, i))
@@ -351,6 +372,7 @@ func TestIntegration_Redis_BackupQueueOperations(t *testing.T) {
 		err := infra.repo.AddMessageToQueue(ctx, key, msg)
 		require.NoError(t, err, "should add message %d to queue", i)
 		messageKeys[i] = key
+		messages[key] = msg
 	}
 	t.Logf("Added %d messages to backup queue", numMessages)
 
@@ -372,8 +394,9 @@ func TestIntegration_Redis_BackupQueueOperations(t *testing.T) {
 	// 4. Remove messages from queue
 	t.Log("Step 4: Removing messages from queue")
 	for i, key := range messageKeys {
-		err := infra.repo.RemoveMessageFromQueue(ctx, key)
+		removed, err := infra.repo.RemoveMessageFromQueueIfValue(ctx, key, messages[key])
 		require.NoError(t, err, "should remove message %d", i)
+		require.True(t, removed, "should remove exact message %d", i)
 	}
 
 	// 5. Verify our test messages are removed
@@ -387,6 +410,34 @@ func TestIntegration_Redis_BackupQueueOperations(t *testing.T) {
 	}
 
 	t.Log("Integration test passed: backup queue operations verified")
+}
+
+func TestIntegration_Redis_ExactBackupCleanupPreservesSuccessor(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping integration test in short mode")
+	}
+
+	infra := setupRedisIntegrationInfra(t)
+
+	ctx := context.Background()
+	key := "exact-cleanup-" + uuid.NewString()
+	oldPayload := []byte(`{"transaction_status":"PENDING","generation":"old"}`)
+	successorPayload := []byte(`{"transaction_status":"APPROVED","generation":"successor"}`)
+
+	require.NoError(t, infra.repo.AddMessageToQueue(ctx, key, oldPayload))
+	require.NoError(t, infra.repo.AddMessageToQueue(ctx, key, successorPayload))
+
+	removed, err := infra.repo.RemoveMessageFromQueueIfValue(ctx, key, oldPayload)
+	require.NoError(t, err)
+	require.False(t, removed, "a delayed cleanup must not remove a successor payload")
+
+	persisted, err := infra.repo.ReadMessageFromQueue(ctx, key)
+	require.NoError(t, err)
+	require.Equal(t, successorPayload, persisted)
+
+	removed, err = infra.repo.RemoveMessageFromQueueIfValue(ctx, key, successorPayload)
+	require.NoError(t, err)
+	require.True(t, removed)
 }
 
 // =============================================================================
@@ -700,8 +751,6 @@ func TestIntegration_Chaos_Redis_ConcurrentBalanceOperations(t *testing.T) {
 		t.Skip("skipping chaos test in short mode")
 	}
 
-	t.Skip("skipping: lib-commons RedisConnection.GetClient() fix")
-
 	infra := setupRedisChaosInfra(t)
 	defer infra.cleanup()
 
@@ -771,8 +820,6 @@ func TestIntegration_Chaos_Redis_InsufficientFundsUnderLoad(t *testing.T) {
 	if testing.Short() {
 		t.Skip("skipping chaos test in short mode")
 	}
-
-	t.Skip("skipping: lib-commons RedisConnection.GetClient() fix")
 
 	infra := setupRedisChaosInfra(t)
 	defer infra.cleanup()

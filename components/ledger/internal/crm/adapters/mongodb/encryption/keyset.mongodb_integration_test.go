@@ -74,7 +74,7 @@ func createValidKeyset(organizationID string) *mmodel.OrganizationKeyset {
 
 func TestIntegration_KeysetRepo_Save(t *testing.T) {
 	// Arrange
-	container := mongotestutil.SetupContainer(t)
+	container := mongotestutil.SetupReusableContainer(t)
 	repo := createKeysetRepository(t, container)
 	ctx := context.Background()
 
@@ -94,7 +94,7 @@ func TestIntegration_KeysetRepo_Save(t *testing.T) {
 
 func TestIntegration_KeysetRepo_Save_SetsRevisionToOne(t *testing.T) {
 	// Arrange
-	container := mongotestutil.SetupContainer(t)
+	container := mongotestutil.SetupReusableContainer(t)
 	repo := createKeysetRepository(t, container)
 	ctx := context.Background()
 
@@ -114,7 +114,7 @@ func TestIntegration_KeysetRepo_Save_SetsRevisionToOne(t *testing.T) {
 
 func TestIntegration_KeysetRepo_Save_AlreadyExists(t *testing.T) {
 	// Arrange
-	container := mongotestutil.SetupContainer(t)
+	container := mongotestutil.SetupReusableContainer(t)
 	repo := createKeysetRepository(t, container)
 	ctx := context.Background()
 
@@ -136,7 +136,7 @@ func TestIntegration_KeysetRepo_Save_AlreadyExists(t *testing.T) {
 
 func TestIntegration_KeysetRepo_Save_DifferentOrganizations(t *testing.T) {
 	// Arrange
-	container := mongotestutil.SetupContainer(t)
+	container := mongotestutil.SetupReusableContainer(t)
 	repo := createKeysetRepository(t, container)
 	ctx := context.Background()
 
@@ -160,7 +160,7 @@ func TestIntegration_KeysetRepo_Save_DifferentOrganizations(t *testing.T) {
 
 func TestIntegration_KeysetRepo_Save_WithHMACKeyset(t *testing.T) {
 	// Arrange
-	container := mongotestutil.SetupContainer(t)
+	container := mongotestutil.SetupReusableContainer(t)
 	repo := createKeysetRepository(t, container)
 	ctx := context.Background()
 
@@ -180,7 +180,7 @@ func TestIntegration_KeysetRepo_Save_WithHMACKeyset(t *testing.T) {
 
 func TestIntegration_KeysetRepo_Save_WithoutHMACKeyset(t *testing.T) {
 	// Arrange
-	container := mongotestutil.SetupContainer(t)
+	container := mongotestutil.SetupReusableContainer(t)
 	repo := createKeysetRepository(t, container)
 	ctx := context.Background()
 
@@ -205,7 +205,7 @@ func TestIntegration_KeysetRepo_Save_WithoutHMACKeyset(t *testing.T) {
 
 func TestIntegration_KeysetRepo_Get(t *testing.T) {
 	// Arrange
-	container := mongotestutil.SetupContainer(t)
+	container := mongotestutil.SetupReusableContainer(t)
 	repo := createKeysetRepository(t, container)
 	ctx := context.Background()
 
@@ -229,7 +229,7 @@ func TestIntegration_KeysetRepo_Get(t *testing.T) {
 
 func TestIntegration_KeysetRepo_Get_NotFound(t *testing.T) {
 	// Arrange
-	container := mongotestutil.SetupContainer(t)
+	container := mongotestutil.SetupReusableContainer(t)
 	repo := createKeysetRepository(t, container)
 	ctx := context.Background()
 
@@ -246,7 +246,7 @@ func TestIntegration_KeysetRepo_Get_NotFound(t *testing.T) {
 
 func TestIntegration_KeysetRepo_Get_ReturnsAllFields(t *testing.T) {
 	// Arrange
-	container := mongotestutil.SetupContainer(t)
+	container := mongotestutil.SetupReusableContainer(t)
 	repo := createKeysetRepository(t, container)
 	ctx := context.Background()
 
@@ -277,7 +277,7 @@ func TestIntegration_KeysetRepo_Get_ReturnsAllFields(t *testing.T) {
 
 func TestIntegration_KeysetRepo_Update(t *testing.T) {
 	// Arrange
-	container := mongotestutil.SetupContainer(t)
+	container := mongotestutil.SetupReusableContainer(t)
 	repo := createKeysetRepository(t, container)
 	ctx := context.Background()
 
@@ -311,7 +311,7 @@ func TestIntegration_KeysetRepo_Update(t *testing.T) {
 
 func TestIntegration_KeysetRepo_Update_IncrementRevision(t *testing.T) {
 	// Arrange
-	container := mongotestutil.SetupContainer(t)
+	container := mongotestutil.SetupReusableContainer(t)
 	repo := createKeysetRepository(t, container)
 	ctx := context.Background()
 
@@ -338,7 +338,7 @@ func TestIntegration_KeysetRepo_Update_IncrementRevision(t *testing.T) {
 
 func TestIntegration_KeysetRepo_Update_RevisionConflict(t *testing.T) {
 	// Arrange
-	container := mongotestutil.SetupContainer(t)
+	container := mongotestutil.SetupReusableContainer(t)
 	repo := createKeysetRepository(t, container)
 	ctx := context.Background()
 
@@ -369,7 +369,7 @@ func TestIntegration_KeysetRepo_Update_RevisionConflict(t *testing.T) {
 
 func TestIntegration_KeysetRepo_Update_DoesNotMutateInputOnFailure(t *testing.T) {
 	// Arrange
-	container := mongotestutil.SetupContainer(t)
+	container := mongotestutil.SetupReusableContainer(t)
 	repo := createKeysetRepository(t, container)
 	ctx := context.Background()
 
@@ -395,7 +395,7 @@ func TestIntegration_KeysetRepo_Update_DoesNotMutateInputOnFailure(t *testing.T)
 
 func TestIntegration_KeysetRepo_Update_NotFound(t *testing.T) {
 	// Arrange
-	container := mongotestutil.SetupContainer(t)
+	container := mongotestutil.SetupReusableContainer(t)
 	repo := createKeysetRepository(t, container)
 	ctx := context.Background()
 
@@ -413,7 +413,7 @@ func TestIntegration_KeysetRepo_Update_NotFound(t *testing.T) {
 
 func TestIntegration_KeysetRepo_Update_MultipleUpdates(t *testing.T) {
 	// Arrange
-	container := mongotestutil.SetupContainer(t)
+	container := mongotestutil.SetupReusableContainer(t)
 	repo := createKeysetRepository(t, container)
 	ctx := context.Background()
 
@@ -441,7 +441,7 @@ func TestIntegration_KeysetRepo_Update_MultipleUpdates(t *testing.T) {
 
 func TestIntegration_KeysetRepo_Update_RotatedAt(t *testing.T) {
 	// Arrange
-	container := mongotestutil.SetupContainer(t)
+	container := mongotestutil.SetupReusableContainer(t)
 	repo := createKeysetRepository(t, container)
 	ctx := context.Background()
 
@@ -476,7 +476,7 @@ func TestIntegration_KeysetRepo_Update_RotatedAt(t *testing.T) {
 
 func TestIntegration_KeysetRepo_UniqueIndex_OrganizationID(t *testing.T) {
 	// Arrange
-	container := mongotestutil.SetupContainer(t)
+	container := mongotestutil.SetupReusableContainer(t)
 	repo := createKeysetRepository(t, container)
 	ctx := context.Background()
 
@@ -506,7 +506,7 @@ func TestIntegration_KeysetRepo_UniqueIndex_OrganizationID(t *testing.T) {
 
 func TestIntegration_KeysetRepo_RoundTrip(t *testing.T) {
 	// Arrange
-	container := mongotestutil.SetupContainer(t)
+	container := mongotestutil.SetupReusableContainer(t)
 	repo := createKeysetRepository(t, container)
 	ctx := context.Background()
 
@@ -572,7 +572,7 @@ func createMixedKeyset(organizationID string) *mmodel.OrganizationKeyset {
 // (hmac_keyset_info.keys) array is the migrated-org gap this asserts.
 func TestIntegration_KeysetRepo_RoundTrip_MixedKeyset(t *testing.T) {
 	// Arrange
-	container := mongotestutil.SetupContainer(t)
+	container := mongotestutil.SetupReusableContainer(t)
 	repo := createKeysetRepository(t, container)
 	ctx := context.Background()
 
@@ -614,7 +614,7 @@ func TestIntegration_KeysetRepo_RoundTrip_MixedKeyset(t *testing.T) {
 
 func TestIntegration_KeysetRepo_RoundTrip_WithMultipleKeys(t *testing.T) {
 	// Arrange
-	container := mongotestutil.SetupContainer(t)
+	container := mongotestutil.SetupReusableContainer(t)
 	repo := createKeysetRepository(t, container)
 	ctx := context.Background()
 

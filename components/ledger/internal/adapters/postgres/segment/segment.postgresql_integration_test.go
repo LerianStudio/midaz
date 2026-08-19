@@ -27,11 +27,9 @@ import (
 func createRepository(t *testing.T, container *pgtestutil.ContainerResult) *SegmentPostgreSQLRepository {
 	t.Helper()
 
-	migrationsPath := pgtestutil.FindMigrationsPath(t, "onboarding")
-
 	connStr := pgtestutil.BuildConnectionString(container.Host, container.Port, container.Config)
 
-	conn := pgtestutil.CreatePostgresClient(t, connStr, connStr, container.Config.DBName, migrationsPath)
+	conn := pgtestutil.ConnectPostgresClient(t, connStr, connStr)
 
 	return NewSegmentPostgreSQLRepository(conn)
 }
@@ -41,7 +39,7 @@ func createRepository(t *testing.T, container *pgtestutil.ContainerResult) *Segm
 // ============================================================================
 
 func TestIntegration_SegmentRepository_Find_ReturnsSegment(t *testing.T) {
-	container := pgtestutil.SetupContainer(t)
+	container := pgtestutil.SetupMigratedContainer(t, "onboarding")
 
 	repo := createRepository(t, container)
 
@@ -71,7 +69,7 @@ func TestIntegration_SegmentRepository_Find_ReturnsSegment(t *testing.T) {
 }
 
 func TestIntegration_SegmentRepository_Find_ReturnsErrNotFound(t *testing.T) {
-	container := pgtestutil.SetupContainer(t)
+	container := pgtestutil.SetupMigratedContainer(t, "onboarding")
 
 	repo := createRepository(t, container)
 
@@ -94,7 +92,7 @@ func TestIntegration_SegmentRepository_Find_ReturnsErrNotFound(t *testing.T) {
 }
 
 func TestIntegration_SegmentRepository_Find_IgnoresDeletedSegment(t *testing.T) {
-	container := pgtestutil.SetupContainer(t)
+	container := pgtestutil.SetupMigratedContainer(t, "onboarding")
 
 	repo := createRepository(t, container)
 
@@ -124,7 +122,7 @@ func TestIntegration_SegmentRepository_Find_IgnoresDeletedSegment(t *testing.T) 
 // ============================================================================
 
 func TestIntegration_SegmentRepository_ExistsByName_ReturnsTrueForDuplicate(t *testing.T) {
-	container := pgtestutil.SetupContainer(t)
+	container := pgtestutil.SetupMigratedContainer(t, "onboarding")
 
 	repo := createRepository(t, container)
 
@@ -152,7 +150,7 @@ func TestIntegration_SegmentRepository_ExistsByName_ReturnsTrueForDuplicate(t *t
 }
 
 func TestIntegration_SegmentRepository_ExistsByName_ReturnsFalseWhenNotFound(t *testing.T) {
-	container := pgtestutil.SetupContainer(t)
+	container := pgtestutil.SetupMigratedContainer(t, "onboarding")
 
 	repo := createRepository(t, container)
 
@@ -174,7 +172,7 @@ func TestIntegration_SegmentRepository_ExistsByName_ReturnsFalseWhenNotFound(t *
 // ============================================================================
 
 func TestIntegration_SegmentRepository_Create_InsertsAndReturnsSegment(t *testing.T) {
-	container := pgtestutil.SetupContainer(t)
+	container := pgtestutil.SetupMigratedContainer(t, "onboarding")
 
 	repo := createRepository(t, container)
 
@@ -216,7 +214,7 @@ func TestIntegration_SegmentRepository_Create_InsertsAndReturnsSegment(t *testin
 // ============================================================================
 
 func TestIntegration_SegmentRepository_Update_ChangesNameAndStatus(t *testing.T) {
-	container := pgtestutil.SetupContainer(t)
+	container := pgtestutil.SetupMigratedContainer(t, "onboarding")
 
 	repo := createRepository(t, container)
 
@@ -260,7 +258,7 @@ func TestIntegration_SegmentRepository_Update_ChangesNameAndStatus(t *testing.T)
 }
 
 func TestIntegration_SegmentRepository_Update_ReturnsErrNotFound(t *testing.T) {
-	container := pgtestutil.SetupContainer(t)
+	container := pgtestutil.SetupMigratedContainer(t, "onboarding")
 
 	repo := createRepository(t, container)
 
@@ -289,7 +287,7 @@ func TestIntegration_SegmentRepository_Update_ReturnsErrNotFound(t *testing.T) {
 // ============================================================================
 
 func TestIntegration_SegmentRepository_FindAll_ReturnsSegments(t *testing.T) {
-	container := pgtestutil.SetupContainer(t)
+	container := pgtestutil.SetupMigratedContainer(t, "onboarding")
 
 	repo := createRepository(t, container)
 
@@ -320,7 +318,7 @@ func TestIntegration_SegmentRepository_FindAll_ReturnsSegments(t *testing.T) {
 }
 
 func TestIntegration_SegmentRepository_FindAll_Pagination(t *testing.T) {
-	container := pgtestutil.SetupContainer(t)
+	container := pgtestutil.SetupMigratedContainer(t, "onboarding")
 
 	repo := createRepository(t, container)
 
@@ -393,7 +391,7 @@ func TestIntegration_SegmentRepository_FindAll_Pagination(t *testing.T) {
 }
 
 func TestIntegration_SegmentRepository_FindAll_ExcludesDeleted(t *testing.T) {
-	container := pgtestutil.SetupContainer(t)
+	container := pgtestutil.SetupMigratedContainer(t, "onboarding")
 
 	repo := createRepository(t, container)
 
@@ -432,7 +430,7 @@ func TestIntegration_SegmentRepository_FindAll_ExcludesDeleted(t *testing.T) {
 // ============================================================================
 
 func TestIntegration_SegmentRepository_FindByIDs_ReturnsMatchingSegments(t *testing.T) {
-	container := pgtestutil.SetupContainer(t)
+	container := pgtestutil.SetupMigratedContainer(t, "onboarding")
 
 	repo := createRepository(t, container)
 
@@ -467,7 +465,7 @@ func TestIntegration_SegmentRepository_FindByIDs_ReturnsMatchingSegments(t *test
 }
 
 func TestIntegration_SegmentRepository_FindByIDs_ReturnsEmptyForNoMatches(t *testing.T) {
-	container := pgtestutil.SetupContainer(t)
+	container := pgtestutil.SetupMigratedContainer(t, "onboarding")
 
 	repo := createRepository(t, container)
 
@@ -490,7 +488,7 @@ func TestIntegration_SegmentRepository_FindByIDs_ReturnsEmptyForNoMatches(t *tes
 // ============================================================================
 
 func TestIntegration_SegmentRepository_Delete_SoftDeletesSegment(t *testing.T) {
-	container := pgtestutil.SetupContainer(t)
+	container := pgtestutil.SetupMigratedContainer(t, "onboarding")
 
 	repo := createRepository(t, container)
 
@@ -524,7 +522,7 @@ func TestIntegration_SegmentRepository_Delete_SoftDeletesSegment(t *testing.T) {
 }
 
 func TestIntegration_SegmentRepository_Delete_ReturnsErrNotFound(t *testing.T) {
-	container := pgtestutil.SetupContainer(t)
+	container := pgtestutil.SetupMigratedContainer(t, "onboarding")
 
 	repo := createRepository(t, container)
 
@@ -549,7 +547,7 @@ func TestIntegration_SegmentRepository_Delete_ReturnsErrNotFound(t *testing.T) {
 // ============================================================================
 
 func TestIntegration_SegmentRepository_Count_ReturnsCorrectCount(t *testing.T) {
-	container := pgtestutil.SetupContainer(t)
+	container := pgtestutil.SetupMigratedContainer(t, "onboarding")
 
 	repo := createRepository(t, container)
 
@@ -577,7 +575,7 @@ func TestIntegration_SegmentRepository_Count_ReturnsCorrectCount(t *testing.T) {
 }
 
 func TestIntegration_SegmentRepository_Count_ExcludesDeletedSegments(t *testing.T) {
-	container := pgtestutil.SetupContainer(t)
+	container := pgtestutil.SetupMigratedContainer(t, "onboarding")
 
 	repo := createRepository(t, container)
 
@@ -609,7 +607,7 @@ func TestIntegration_SegmentRepository_Count_ExcludesDeletedSegments(t *testing.
 }
 
 func TestIntegration_SegmentRepository_Count_ReturnsZeroForEmptyLedger(t *testing.T) {
-	container := pgtestutil.SetupContainer(t)
+	container := pgtestutil.SetupMigratedContainer(t, "onboarding")
 
 	repo := createRepository(t, container)
 

@@ -40,8 +40,8 @@ type cacheTestInfra struct {
 func setupCacheTestInfra(t *testing.T) *cacheTestInfra {
 	t.Helper()
 
-	container := redistestutil.SetupContainer(t)
-	conn := redistestutil.CreateConnection(t, container.Addr)
+	container := redistestutil.SetupReusableContainer(t)
+	conn := redistestutil.CreateConnectionWithDB(t, container.Addr, container.DB)
 
 	redisRepo, err := redis.NewConsumerRedis(conn)
 	require.NoError(t, err, "failed to create Redis repository")

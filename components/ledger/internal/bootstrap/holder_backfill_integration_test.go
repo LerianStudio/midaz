@@ -46,11 +46,10 @@ func (fakeProvisioner) CreateHolderWithID(_ context.Context, _ string, id uuid.U
 // succeeds and the account's holder_id was materialised — proving Run now injects
 // the ambient onboarding PG connection into the context.
 func TestIntegration_HolderBackfillRunner_SingleTenant_Run(t *testing.T) {
-	pgContainer := pgtestutil.SetupContainer(t)
+	pgContainer := pgtestutil.SetupMigratedContainer(t, "onboarding")
 
-	migrationsPath := pgtestutil.FindMigrationsPath(t, "onboarding")
 	connStr := pgtestutil.BuildConnectionString(pgContainer.Host, pgContainer.Port, pgContainer.Config)
-	pgClient := pgtestutil.CreatePostgresClient(t, connStr, connStr, pgContainer.Config.DBName, migrationsPath)
+	pgClient := pgtestutil.ConnectPostgresClient(t, connStr, connStr)
 
 	orgRepo := organization.NewOrganizationPostgreSQLRepository(pgClient)
 

@@ -48,12 +48,11 @@ type tenantEnv struct {
 func newTenantEnv(t *testing.T) *tenantEnv {
 	t.Helper()
 
-	pgContainer := pgtestutil.SetupContainer(t)
-	mongoContainer := mongotestutil.SetupContainer(t)
+	pgContainer := pgtestutil.SetupMigratedContainer(t, "onboarding")
+	mongoContainer := mongotestutil.SetupReusableContainer(t)
 
-	migrationsPath := pgtestutil.FindMigrationsPath(t, "onboarding")
 	connStr := pgtestutil.BuildConnectionString(pgContainer.Host, pgContainer.Port, pgContainer.Config)
-	pgClient := pgtestutil.CreatePostgresClient(t, connStr, connStr, pgContainer.Config.DBName, migrationsPath)
+	pgClient := pgtestutil.ConnectPostgresClient(t, connStr, connStr)
 
 	orgRepo := organization.NewOrganizationPostgreSQLRepository(pgClient)
 
