@@ -177,7 +177,7 @@ Every validation creates an immutable audit record:
 
 ### 🔐 Security
 
-- **API Key authentication** - Per-organization keys
+- **API Key authentication** - Per-organization keys; always enforced on reservation and outcome operations
 - **Resource authorization** - Validates access to specific resources
 - **Input validation** - Struct tags + validator/v10
 - **Audit compliance** - SOX/GLBA 7-year retention
@@ -490,7 +490,9 @@ http://localhost:4020/v1
 
 ### Authentication
 
-All endpoints require API Key header:
+Protected endpoints accept the configured API Key or Access Manager policy according to deployment
+mode. Reservation and outcome operations are the financial service-to-service exception: they always
+require the configured API Key, even when `API_KEY_ENABLED=false` disables API-key fallback elsewhere.
 
 ```http
 X-API-Key: your-api-key

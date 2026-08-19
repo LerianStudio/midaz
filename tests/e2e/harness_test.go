@@ -22,6 +22,7 @@ import (
 	"net/http"
 	"os"
 	"strconv"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -228,6 +229,11 @@ func call(t *testing.T, method, url string, body any) response {
 	req.Header.Set("Content-Type", "application/json")
 	// Fresh request id keeps the idempotency cache from short-circuiting repeats.
 	req.Header.Set("X-Request-Id", uuid.NewString())
+	if strings.HasPrefix(url, strings.TrimRight(tracerURL(), "/")+"/") {
+		if apiKey := os.Getenv("E2E_TRACER_API_KEY"); apiKey != "" {
+			req.Header.Set("X-API-Key", apiKey)
+		}
+	}
 
 	resp, err := httpClient.Do(req)
 	if err != nil {

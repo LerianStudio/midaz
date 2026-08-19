@@ -296,6 +296,72 @@ func TestAuthGuard_With(t *testing.T) {
 			expectedBody:   "success",
 		},
 		{
+			name: "apiKey=true, global API key mode disabled - valid API key still returns 200",
+			cfg: AuthGuardConfig{
+				APIKey:            "valid-key",
+				APIKeyEnabled:     false,
+				PluginAuthEnabled: true,
+				AppName:           "tracer",
+			},
+			apiKeyParam:    true,
+			apiKey:         "valid-key",
+			setHeader:      true,
+			expectedStatus: http.StatusOK,
+			expectedBody:   "success",
+		},
+		{
+			name: "apiKey=true, global API key mode disabled - missing API key fails closed",
+			cfg: AuthGuardConfig{
+				APIKey:            "valid-key",
+				APIKeyEnabled:     false,
+				PluginAuthEnabled: true,
+				AppName:           "tracer",
+			},
+			apiKeyParam:    true,
+			setHeader:      false,
+			expectedStatus: http.StatusUnauthorized,
+		},
+		{
+			name: "apiKey=true, global API key mode disabled - mismatched API key fails closed",
+			cfg: AuthGuardConfig{
+				APIKey:            "valid-key",
+				APIKeyEnabled:     false,
+				PluginAuthEnabled: true,
+				AppName:           "tracer",
+			},
+			apiKeyParam:    true,
+			apiKey:         "wrong-key",
+			setHeader:      true,
+			expectedStatus: http.StatusUnauthorized,
+		},
+		{
+			name: "apiKey=true, configured key empty - supplied key fails closed",
+			cfg: AuthGuardConfig{
+				APIKey:            "",
+				APIKeyEnabled:     false,
+				PluginAuthEnabled: true,
+				AppName:           "tracer",
+			},
+			apiKeyParam:    true,
+			apiKey:         "attacker-chosen-key",
+			setHeader:      true,
+			expectedStatus: http.StatusUnauthorized,
+		},
+		{
+			name: "apiKey=false, global API key mode disabled - plugin auth remains authoritative",
+			cfg: AuthGuardConfig{
+				APIKey:            "valid-key",
+				APIKeyEnabled:     false,
+				PluginAuthEnabled: true,
+				AppName:           "tracer",
+			},
+			apiKeyParam:    false,
+			apiKey:         "valid-key",
+			setHeader:      true,
+			expectedStatus: http.StatusUnauthorized,
+			expectedBody:   "Missing Token",
+		},
+		{
 			name: "apiKey=true, plugin enabled - bypasses plugin auth, missing key returns API key 401",
 			cfg: AuthGuardConfig{
 				APIKey:            "valid-key",
@@ -308,7 +374,7 @@ func TestAuthGuard_With(t *testing.T) {
 			expectedStatus: http.StatusUnauthorized,
 		},
 		{
-			name: "apiKey=true, all auth disabled - passes through",
+			name: "apiKey=true, all optional auth disabled - required API key still fails closed",
 			cfg: AuthGuardConfig{
 				APIKey:            "valid-key",
 				APIKeyEnabled:     false,
@@ -317,8 +383,7 @@ func TestAuthGuard_With(t *testing.T) {
 			},
 			apiKeyParam:    true,
 			setHeader:      false,
-			expectedStatus: http.StatusOK,
-			expectedBody:   "success",
+			expectedStatus: http.StatusUnauthorized,
 		},
 	}
 

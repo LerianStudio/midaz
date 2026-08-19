@@ -181,7 +181,11 @@ rather than at first transaction. `Close()` drains on SIGTERM when registered wi
 The Ledger sends `TRACER_API_KEY` only as `X-API-Key`. The Tracer reservation routes deliberately use
 the API-key guard even when user-facing multi-tenant routes use plugin/JWT auth. The key is distinct
 from `MULTI_TENANT_SERVICE_API_KEY`; reusing the Tenant Manager credential would collapse two trust
-boundaries. gRPC carries no API key because its reservation listener authenticates the verified mTLS peer.
+boundaries. `API_KEY_ENABLED` controls only the optional API-key fallback on Tracer's ordinary REST
+routes: setting it to `false` never disables authentication on reserve, confirm, release, or durable
+outcome operations. Those financial routes always require the configured `API_KEY`; a missing or
+mismatched credential returns `401` before tenant resolution or handler execution. gRPC carries no API
+key because its reservation listener authenticates the verified mTLS peer.
 
 `TRACER_TLS_MODE` selects the posture, with a fail-fast typed error on an invalid value
 (`ledger/tls_seam.go:51-62`, server-side mirror `tracer/tls_seam.go:48-59`):

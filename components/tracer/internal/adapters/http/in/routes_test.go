@@ -319,6 +319,61 @@ func TestRoutes_ReservationRESTUsesAPIKeyWhenPluginAuthIsEnabled(t *testing.T) {
 		"the service-to-service reservation seam must not be redirected into user bearer auth")
 }
 
+func TestRoutes_FinancialRESTAlwaysRequiresConfiguredAPIKey(t *testing.T) {
+	reservationID := testutil.MustDeterministicUUID(1)
+	transactionID := testutil.MustDeterministicUUID(2)
+
+	tests := []struct {
+		name string
+		path string
+	}{
+		{"reserve", "/v1/reservations"},
+		{"reserve V2", "/v1/reservations/ledger-outcome-v2"},
+		{"apply V2 outcome", "/v1/reservations/transaction/" + transactionID.String() + "/outcome"},
+		{"confirm by reservation", "/v1/reservations/" + reservationID.String() + "/confirm"},
+		{"release by reservation", "/v1/reservations/" + reservationID.String() + "/release"},
+		{"confirm by transaction", "/v1/reservations/transaction/" + transactionID.String() + "/confirm"},
+		{"release by transaction", "/v1/reservations/transaction/" + transactionID.String() + "/release"},
+	}
+	authCases := []struct {
+		name          string
+		globalEnabled bool
+		header        string
+	}{
+		{"global API key mode disabled and key missing", false, ""},
+		{"global API key mode disabled and key mismatched", false, "wrong-key"},
+		{"global API key mode enabled and key missing", true, ""},
+		{"global API key mode enabled and key mismatched", true, "wrong-key"},
+	}
+
+	for _, tt := range tests {
+		for _, authCase := range authCases {
+			t.Run(tt.name+"/"+authCase.name, func(t *testing.T) {
+				app := createTestRouter(t, middleware.AuthGuardConfig{
+					APIKey:            "configured-ledger-to-tracer-key",
+					APIKeyEnabled:     authCase.globalEnabled,
+					PluginAuthEnabled: true,
+					AppName:           "tracer",
+				})
+
+				req := httptest.NewRequest(http.MethodPost, tt.path, strings.NewReader(`{}`))
+				req.Header.Set("Content-Type", "application/json")
+				req.Header.Set("X-Tenant-Id", "attacker-controlled-tenant")
+				if authCase.header != "" {
+					req.Header.Set(middleware.HeaderAPIKey, authCase.header)
+				}
+
+				resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
+				require.NoError(t, err)
+				defer resp.Body.Close()
+
+				require.Equal(t, http.StatusUnauthorized, resp.StatusCode,
+					"financial route %s must reject an absent or mismatched X-API-Key before tenant resolution or handler execution", tt.path)
+			})
+		}
+	}
+}
+
 func TestRoutes_ProtectedEndpoints_AuthDisabled(t *testing.T) {
 	tests := []struct {
 		name      string

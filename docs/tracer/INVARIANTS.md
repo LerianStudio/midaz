@@ -237,4 +237,7 @@ acceptable justifications. Default expectation: idempotency via the mechanisms l
 Kubernetes `ClusterIP` Service, NetworkPolicy, or equivalent firewall — never exposed via
 public ingress. Public endpoints: `/health`, `/readyz`, `/metrics`, `/version`, `/swagger/*`.
 Everything else requires auth (API Key `X-API-Key` with constant-time comparison, plus the
-Access Manager plugin via `PLUGIN_AUTH_ENABLED` / `PLUGIN_AUTH_ADDRESS`).
+Access Manager plugin via `PLUGIN_AUTH_ENABLED` / `PLUGIN_AUTH_ADDRESS`). `API_KEY_ENABLED=false`
+disables only the optional API-key fallback on ordinary routes. Reservation and outcome operations
+are financial service-to-service routes and always require `X-API-Key`; missing, empty, or mismatched
+configuration fails closed before a trusted tenant header is consumed.

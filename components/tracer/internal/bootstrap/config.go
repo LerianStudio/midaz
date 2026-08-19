@@ -726,10 +726,14 @@ func initCELAdapter(cfg *Config, logger libLog.Logger) (*cel.Adapter, error) {
 	return adapter, nil
 }
 
-// ValidateAuthConfig validates the authentication configuration.
-// It warns when auth is disabled (operator should be aware).
+// ValidateAuthConfig validates optional API-key authentication on ordinary
+// routes. It warns when that fallback is disabled (operator should be aware).
 // It fails if auth is enabled but key is missing.
 // It warns if the key is too short (security best practice).
+//
+// Financial reservation routes are a separate always-on API-key boundary.
+// API_KEY_ENABLED=false never opens them; they still compare X-API-Key against
+// API_KEY and fail closed when the configured credential is empty or wrong.
 //
 // M16: additionally rejects the combination of API_KEY_ENABLED=true with
 // CORS_ALLOWED_ORIGINS="*". The CORS policy allows the X-API-Key header with
@@ -738,9 +742,10 @@ func initCELAdapter(cfg *Config, logger libLog.Logger) (*cel.Adapter, error) {
 // origin this becomes a CSRF-style attack where a malicious site exfiltrates
 // data via legitimate-looking X-API-Key calls. Block at boot.
 func ValidateAuthConfig(ctx context.Context, cfg *Config, logger libLog.Logger) error {
-	// Warn if auth is disabled (operator should be aware)
+	// Warn if optional auth is disabled. The reservation money path remains
+	// protected by the guard's always-on API-key middleware.
 	if !cfg.APIKeyEnabled {
-		logger.With(libLog.String("config", "API_KEY_ENABLED")).Log(ctx, libLog.LevelWarn, "API Key authentication is DISABLED")
+		logger.With(libLog.String("config", "API_KEY_ENABLED")).Log(ctx, libLog.LevelWarn, "Optional API Key authentication is DISABLED; financial reservation routes still require X-API-Key")
 		return nil
 	}
 

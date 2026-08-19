@@ -33,7 +33,7 @@ func TestValidateAuthConfig_Success_AuthDisabled_LogsWarning(t *testing.T) {
 	// Assert
 	require.NoError(t, err)
 	assert.Len(t, logger.Calls, 1, "expected exactly one warning when auth is disabled")
-	assert.Contains(t, logger.Calls[0].Message, "API Key authentication is DISABLED")
+	assert.Contains(t, logger.Calls[0].Message, "financial reservation routes still require X-API-Key")
 }
 
 func TestValidateAuthConfig_Error_AuthEnabledNoKey_ReturnsError(t *testing.T) {

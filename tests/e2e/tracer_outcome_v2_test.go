@@ -233,6 +233,10 @@ func postAndDropResponse(t *testing.T, rawURL string, body any) {
 	if err != nil {
 		t.Fatalf("marshal lost-ACK outcome: %v", err)
 	}
+	apiKey := os.Getenv("E2E_TRACER_API_KEY")
+	if apiKey == "" {
+		t.Fatal("E2E_TRACER_API_KEY is required for the lost-ACK outcome probe")
+	}
 	address := u.Host
 	if !strings.Contains(address, ":") {
 		address += ":80"
@@ -243,8 +247,8 @@ func postAndDropResponse(t *testing.T, rawURL string, body any) {
 	}
 	defer func() { _ = conn.Close() }()
 	_ = conn.SetWriteDeadline(time.Now().Add(5 * time.Second))
-	request := fmt.Sprintf("POST %s HTTP/1.1\r\nHost: %s\r\nContent-Type: application/json\r\nX-Request-Id: %s\r\nContent-Length: %d\r\nConnection: close\r\n\r\n%s",
-		u.RequestURI(), u.Host, uuid.NewString(), len(payload), payload)
+	request := fmt.Sprintf("POST %s HTTP/1.1\r\nHost: %s\r\nContent-Type: application/json\r\nX-Request-Id: %s\r\nX-API-Key: %s\r\nContent-Length: %d\r\nConnection: close\r\n\r\n%s",
+		u.RequestURI(), u.Host, uuid.NewString(), apiKey, len(payload), payload)
 	if _, err := conn.Write([]byte(request)); err != nil {
 		t.Fatalf("write lost-ACK outcome: %v", err)
 	}

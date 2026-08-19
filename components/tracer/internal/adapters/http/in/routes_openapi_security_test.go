@@ -227,6 +227,8 @@ func TestSpecLock_AllOpsSecurity(t *testing.T) {
 		{"/limits/{id}/draft", http.MethodPost, bearerOrAPIKey},
 		{"/limits/{id}", http.MethodDelete, bearerOrAPIKey},
 		{"/limits/{id}/usage", http.MethodGet, bearerOrAPIKey},
+		// Financial service-to-service operations are API-key-only in every
+		// runtime auth mode. API_KEY_ENABLED controls ordinary routes only.
 		// reservations (7)
 		{"/reservations", http.MethodPost, apiKeyOnly},
 		{"/reservations/ledger-outcome-v2", http.MethodPost, apiKeyOnly},

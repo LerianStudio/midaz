@@ -332,7 +332,8 @@ Binding standard: [`../../docs/standards/telemetry.md`](../../docs/standards/tel
 
 - API Key via `X-API-Key` header
 - Constant-time comparison (`crypto/subtle`)
-- Configurable: `API_KEY_ENABLED`, `API_KEY_ENABLED_ONLY_VALIDATION`
+- Configurable on ordinary routes: `API_KEY_ENABLED`, `API_KEY_ENABLED_ONLY_VALIDATION`
+- Reservation and outcome operations always require `X-API-Key`, regardless of `API_KEY_ENABLED`
 - Access Manager plugin: `PLUGIN_AUTH_ENABLED`, `PLUGIN_AUTH_ADDRESS`
 - Public endpoints: `/health`, `/readyz`, `/metrics`, `/version`, `/swagger/*`
 
