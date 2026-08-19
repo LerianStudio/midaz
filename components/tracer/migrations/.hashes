@@ -1,6 +1,6 @@
 # Audit-hash-chain migration integrity manifest (P5-T03, SOX/GLBA gate)
 # Source: github.com/LerianStudio/tracer @ 7a0bf2030d5934914c9938d01c0d33386be4552a
-# SHA256 of every migration .sql (42 top-level: 21 up/down pairs) + 2 seeds.
+# SHA256 of every migration .sql (44 top-level: 22 up/down pairs) + 2 seeds.
 # Regenerated from the working-tree migration files. Recompute with:
 #   (cd components/tracer/migrations && shasum -a 256 *.sql seeds/*.sql)
 # A mismatch on 000001/000002/000017 (audit hash chain) is a SOX/GLBA integrity failure.
@@ -46,5 +46,7 @@ beb2fd2e3a9f36b2113f626a35db5215dbaf96fd55cc9ef50a3c767fb5bba24a  000016_drop_le
 eebea75c30a1d5e4ec93f84afb616aa5ae48ecb5b81b0d2317d4241be80f630f  000020_add_reservation_audit_enums.up.sql
 875b00366070d992a16da04955b17c9c3cd13ee6550987af09c96ff191cd3d97  000021_reservation_amounts_to_decimal.down.sql
 49265bfd515d8cc5f46eca24f2a34aa67cdc9ea832809be1587dd398e5584832  000021_reservation_amounts_to_decimal.up.sql
+974cba05a0bd4585aed6a5e352abf30bce31a13e03aa92bf97f7eb9d6f459a8f  000022_rename_currency_to_asset.down.sql
+3be4c7c6191481c56265e866eafa3150ce1fb38665f87383fc995189dddfab87  000022_rename_currency_to_asset.up.sql
 4b684b8154d0db0342aebb6e234043dfa3fa23d7c7ec0ec382eee2fd96e25bdd  seeds/001_dev_data.down.sql
 7d6a4ce6efd8221d16e0482ac86bb358a6aabbd32a08b0a2b52db9e31672862a  seeds/001_dev_data.sql
