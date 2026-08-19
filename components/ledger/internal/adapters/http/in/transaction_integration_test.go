@@ -42,6 +42,7 @@ import (
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/ledger"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/operation"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/operationroute"
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/revertclaim"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/transaction"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/rabbitmq"
 	redis "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/redis/transaction"
@@ -58,6 +59,9 @@ import (
 	redistestutil "github.com/LerianStudio/midaz/v4/tests/utils/redis"
 )
 
+const integrationRedisDatasetGeneration = "645439df-1837-421e-9607-f60b091542c9"
+const integrationRolloutInitializationID = "52c85247-b684-4ff7-a45e-41d8f437e4f1"
+
 // testInfra holds all test infrastructure components.
 type testInfra struct {
 	pgContainer    *postgrestestutil.ContainerResult
@@ -65,6 +69,7 @@ type testInfra struct {
 	redisContainer *redistestutil.ContainerResult
 	pgConn         *libPostgres.Client
 	redisRepo      redis.RedisRepository
+	revertFreeze   *redis.RevertUpdateFreezeGuard
 	metadataRepo   mongodb.Repository
 	handler        *TransactionHandler
 	app            *fiber.App
@@ -82,10 +87,12 @@ func setupTestInfra(t *testing.T) *testInfra {
 
 	infra := &testInfra{}
 
-	// Start containers
+	// Start containers. The Redis container uses the durable financial profile
+	// (AOF + noeviction) because the revert rollout barrier's durability guard
+	// fails closed on anything weaker.
 	infra.pgContainer = postgrestestutil.SetupContainer(t)
 	infra.mongoContainer = mongotestutil.SetupContainer(t)
-	infra.redisContainer = redistestutil.SetupContainer(t)
+	infra.redisContainer = redistestutil.SetupContainerWithConfig(t, redistestutil.FinancialContainerConfig())
 
 	// Create PostgreSQL connection following lib-commons pattern
 	migrationsPath := postgrestestutil.FindMigrationsPath(t, "transaction")
@@ -108,12 +115,27 @@ func setupTestInfra(t *testing.T) *testInfra {
 	// bidirectional-route gate (which resolves an operation's route_id) can run against a real
 	// repository instead of nil-panicking into a generic 500.
 	operationRouteRepo := operationroute.NewOperationRoutePostgreSQLRepository(infra.pgConn)
+	revertClaimRepo := revertclaim.NewPostgreSQLRepository(infra.pgConn)
 	metadataRepo := mongodb.NewMetadataMongoDBRepository(mongoConn)
 	redisRepo, err := redis.NewConsumerRedis(redisConn)
 	require.NoError(t, err, "failed to create Redis repository")
+	initializer := redis.NewRevertUpdateFreezeGuard(redisConn, redis.RevertUpdateFreezeInitialize,
+		integrationRedisDatasetGeneration).WithRolloutInitializationWitness(revertClaimRepo,
+		integrationRolloutInitializationID)
+	require.Eventually(t, func() bool {
+		return initializer.FinancialDurability(context.Background()) == nil
+	}, 10*time.Second, 50*time.Millisecond, "financial Redis test fixture never became durable")
+	require.NoError(t, initializer.InitializeFinancialDatasetGeneration(context.Background()),
+		"failed to initialize financial Redis dataset generation")
+	revertFreeze := redis.NewRevertUpdateFreezeGuard(redisConn, redis.RevertUpdateFreezeFinalized,
+		integrationRedisDatasetGeneration).WithRolloutInitializationWitness(revertClaimRepo, "")
+	require.NoError(t, revertFreeze.Activate(context.Background()), "failed to initialize active revert rollout barrier")
+	require.NoError(t, revertFreeze.MarkPhaseZeroDrained(context.Background()), "failed to initialize drained revert rollout barrier")
+	require.NoError(t, revertFreeze.Finalize(context.Background()), "failed to initialize finalized revert rollout barrier")
 
 	// Store repositories for test assertions
 	infra.redisRepo = redisRepo
+	infra.revertFreeze = revertFreeze
 	infra.metadataRepo = metadataRepo
 
 	// Create use cases
@@ -128,16 +150,22 @@ func setupTestInfra(t *testing.T) *testInfra {
 	}
 	commandUC := &command.UseCase{
 		TransactionRepo:         transactionRepo,
+		RevertClaimRepo:         revertClaimRepo,
+		RevertRolloutLease:      revertFreeze,
 		OperationRepo:           operationRepo,
 		BalanceRepo:             balanceRepo,
 		TransactionMetadataRepo: metadataRepo,
 		TransactionRedisRepo:    redisRepo,
+		RevertIdempotencyMode:   revertIdempotencyModeFinal,
 	}
 
 	// Create handler
 	infra.handler = &TransactionHandler{
-		Query:   queryUC,
-		Command: commandUC,
+		Query:                    queryUC,
+		Command:                  commandUC,
+		RevertIdempotencyMode:    revertIdempotencyModeFinal,
+		RevertUpdateFreeze:       revertFreeze,
+		FinancialRedisDurability: redis.NewFinancialRedisDurabilityGuard(redisConn),
 	}
 
 	// Use fake UUIDs for org and ledger (they're in the onboarding component, not transaction)

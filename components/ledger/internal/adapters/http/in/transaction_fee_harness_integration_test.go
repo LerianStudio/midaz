@@ -32,6 +32,7 @@ import (
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/operation"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/organization"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/portfolio"
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/revertclaim"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/segment"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/transaction"
 	redis "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/redis/transaction"
@@ -113,6 +114,7 @@ func setupFeeHarness(t *testing.T) *feeHarness {
 	// Transaction-domain repos.
 	transactionRepo := transaction.NewTransactionPostgreSQLRepository(h.pgConn)
 	operationRepo := operation.NewOperationPostgreSQLRepository(h.pgConn)
+	revertClaimRepo := revertclaim.NewPostgreSQLRepository(h.pgConn)
 	balanceRepo := balance.NewBalancePostgreSQLRepository(h.pgConn, false)
 	h.metaRepo = mongotxn.NewMetadataMongoDBRepository(mongoTxnConn)
 
@@ -154,6 +156,7 @@ func setupFeeHarness(t *testing.T) *feeHarness {
 		OnboardingMetadataRepo:  onbMetaRepo,
 		TransactionRepo:         transactionRepo,
 		OperationRepo:           operationRepo,
+		RevertClaimRepo:         revertClaimRepo,
 		BalanceRepo:             balanceRepo,
 		TransactionMetadataRepo: h.metaRepo,
 		TransactionRedisRepo:    redisRepo,

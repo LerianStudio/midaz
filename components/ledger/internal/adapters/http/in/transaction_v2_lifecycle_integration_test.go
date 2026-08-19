@@ -577,7 +577,7 @@ func assertProblemCode(t *testing.T, resp *nethttp.Response, wantStatus int, wan
 //     SAME ParseUUIDPathParameters Fiber guard. Each gate has its own sentinel and its own
 //     status CLASS:
 //       - origin that was ALREADY reverted (a child revert exists)
-//             -> 409 ErrTransactionIDHasAlreadyParentTransaction (0087, EntityConflictError)
+//             -> 201 with the exact durable reverse and X-Idempotency-Replayed=true
 //       - the reverse transaction itself (carries a ParentTransactionID)
 //             -> 409 ErrTransactionIDIsAlreadyARevert (0088, EntityConflictError)
 //       - a non-APPROVED transaction (PENDING or CANCELED)
@@ -612,7 +612,7 @@ func TestIntegration_TransactionV2Revert_IneligibilityAndIDErrors(t *testing.T) 
 	v2App := buildHumaV2DirectApp(t, infra.handler)
 
 	// Subject pair 1: an APPROVED direct transfer and its reverse. After this pair the origin
-	// HAS a child revert and the reverse IS one, so each is the subject of its own gate.
+	// MUST replay its durable reverse while the reverse itself remains ineligible.
 	originResp := decodeTxResponse(t, postV2Create(t, v2App, "direct", infra.orgID, infra.ledgerID, equivalentV2Body, ""), nethttp.StatusCreated)
 	originTxID := uuid.MustParse(originResp["id"].(string))
 	require.Equal(t, cn.APPROVED, postgrestestutil.GetTransactionStatus(t, infra.pgContainer.DB, originTxID), "the origin transfer should be APPROVED")
@@ -667,12 +667,6 @@ func TestIntegration_TransactionV2Revert_IneligibilityAndIDErrors(t *testing.T) 
 		wantStatus int
 		wantCode   string
 	}{
-		{
-			name:       "revert of an already reverted transaction conflicts on the existing child",
-			url:        v2RevertURL(infra.orgID, infra.ledgerID, originTxID),
-			wantStatus: nethttp.StatusConflict,
-			wantCode:   cn.ErrTransactionIDHasAlreadyParentTransaction.Error(),
-		},
 		{
 			name:       "revert of a reverse transaction conflicts because it is already a revert",
 			url:        v2RevertURL(infra.orgID, infra.ledgerID, revertTxID),
@@ -747,14 +741,22 @@ func TestIntegration_TransactionV2Revert_IneligibilityAndIDErrors(t *testing.T) 
 		})
 	}
 
+	v2ReplayResponse := postTransaction(t, v2App, v2RevertURL(infra.orgID, infra.ledgerID, originTxID), "", "")
+	assert.Equal(t, "true", v2ReplayResponse.Header.Get("X-Idempotency-Replayed"))
+	v2Replay := decodeTxResponse(t, v2ReplayResponse, nethttp.StatusCreated)
+	assert.Equal(t, revertTxID.String(), v2Replay["id"], "same-origin v2 retry must return the durable reverse")
+	v1ReplayResponse := postTransaction(t, v1App, v1RevertURL(infra.orgID, infra.ledgerID, originTxID), "", "")
+	assert.Equal(t, "true", v1ReplayResponse.Header.Get("X-Idempotency-Replayed"))
+	v1Replay := decodeTxResponse(t, v1ReplayResponse, nethttp.StatusCreated)
+	assert.Equal(t, revertTxID.String(), v1Replay["id"], "same-origin v1 retry must return the durable reverse")
+
 	// v1↔v2 ineligibility parity, sampled on the two gates whose contract is easiest to get
-	// wrong: the same subjects rejected through the EXISTING v1 revert endpoint return the
+	// wrong: the same unknown subject rejected through the EXISTING v1 revert endpoint returns the
 	// byte-identical problem envelope, so the v2 surface adds no divergent error behavior.
 	for _, tc := range []struct {
 		name string
 		txID uuid.UUID
 	}{
-		{"already reverted origin", originTxID},
 		{"unknown transaction id", unknownTxID},
 	} {
 		v1Resp := postTransaction(t, v1App, v1RevertURL(infra.orgID, infra.ledgerID, tc.txID), "", "")
@@ -767,8 +769,8 @@ func TestIntegration_TransactionV2Revert_IneligibilityAndIDErrors(t *testing.T) 
 		assert.JSONEq(t, string(v1Body), string(v2Body), "%s: v1 and v2 revert must reject with the same problem envelope", tc.name)
 	}
 
-	// Every rejected revert left its subject exactly as it was and persisted nothing: the five
-	// created transactions plus the seeded degenerate one, and no extra reverse.
+	// Every rejected or replayed revert left its subject exactly as it was and persisted nothing:
+	// the five created transactions plus the seeded degenerate one, and no extra reverse.
 	assert.Equal(t, cn.APPROVED, postgrestestutil.GetTransactionStatus(t, infra.pgContainer.DB, originTxID), "the origin must stay APPROVED after the rejected reverts")
 	assert.Equal(t, cn.APPROVED, postgrestestutil.GetTransactionStatus(t, infra.pgContainer.DB, revertTxID), "the reverse must stay APPROVED after the rejected reverts")
 	assert.Equal(t, cn.PENDING, postgrestestutil.GetTransactionStatus(t, infra.pgContainer.DB, pendingTxID), "the PENDING subject must stay PENDING")
@@ -779,17 +781,10 @@ func TestIntegration_TransactionV2Revert_IneligibilityAndIDErrors(t *testing.T) 
 }
 
 // =============================================================================
-// 19. CONCURRENT REVERT OF ONE ORIGIN — EXACTLY ONE WINNER (money path): concurrent reverts of
-//     ONE origin all derive the SAME preimage — reverting one origin twice yields byte-identical
-//     reversal payloads — so exactly one of them wins the Redis SetNX and the rest are rejected
-//     BEFORE any balance work. The SEQUENTIAL repeat is rejected by the already-has-a-child
-//     gate instead; only this concurrent race exercises the window the shared claim exists for.
-//
-//     That window is real: the eligibility gate reads GetParentByTransactionID, which cannot
-//     see a concurrent revert's not-yet-committed child (and, in production, reads a Postgres
-//     REPLICA while the child is written to the PRIMARY, which is tracked externally).
-//     The gate therefore cannot be the serialization point; the shared claim has to be. If it
-//     is not, the failure mode is a DOUBLE money movement: one origin reversed twice.
+// 19. CONCURRENT REVERT OF ONE ORIGIN — EXACTLY ONE MUTATION (money path):
+//     concurrent requests share the PostgreSQL claim and origin Redis barrier.
+//     Callers racing after persistence may receive the same successful replay;
+//     only one reverse transaction and one balance mutation may exist.
 //
 //     N racers revert one APPROVED origin from a common start barrier. The invariant asserted
 //     is "exactly one 201, every other answer a 4xx" rather than one specific sentinel: the
@@ -920,9 +915,10 @@ func TestIntegration_TransactionV2Revert_ConcurrentSingleWinner(t *testing.T) {
 	//
 	//   winner  — 201 + X-Idempotency-Replayed: false. Created the one reverse, moved money.
 	//   replay  — 201 + X-Idempotency-Replayed: true. Lost the claim, then read the winner's
-	//             cached reverse back out of the slot and echoed it. Creates nothing, moves
+	//             persisted reverse from PostgreSQL primary and echoed it. Creates nothing, moves
 	//             nothing, and MUST NOT be counted against the exactly-one-create invariant.
-	//   loser   — 4xx. Lost the claim before the winner had written its value.
+	//   loser   — 4xx while the claim is active, or 503/0505 after Redis has
+	//             committed but before PostgreSQL persistence is visible.
 	//
 	// Which of the two losing shapes a racer gets is a pure timing coin-flip against the
 	// winner's async cache write, so folding replays into winners would make the
@@ -941,6 +937,7 @@ func TestIntegration_TransactionV2Revert_ConcurrentSingleWinner(t *testing.T) {
 	allowedLoserCodes := []string{
 		cn.ErrIdempotencyKey.Error(),
 		cn.ErrTransactionIDHasAlreadyParentTransaction.Error(),
+		cn.ErrRevertReconciliationRequired.Error(),
 	}
 
 	for i, res := range results {
@@ -957,8 +954,14 @@ func TestIntegration_TransactionV2Revert_ConcurrentSingleWinner(t *testing.T) {
 			continue
 		}
 
-		assert.GreaterOrEqualf(t, res.status, 400, "racer %d: a losing revert must be a client rejection, not a server error; body: %s", i, res.body)
-		assert.Lessf(t, res.status, 500, "racer %d: a losing revert must be a client rejection, not a server error; body: %s", i, res.body)
+		assert.GreaterOrEqualf(t, res.status, 400, "racer %d: a losing revert must be fenced; body: %s", i, res.body)
+		if res.problemCode == cn.ErrRevertReconciliationRequired.Error() {
+			assert.Equalf(t, nethttp.StatusServiceUnavailable, res.status,
+				"racer %d: post-movement reconciliation must surface as 503; body: %s", i, res.body)
+		} else {
+			assert.Lessf(t, res.status, 500,
+				"racer %d: an active pre-movement claim is a client conflict; body: %s", i, res.body)
+		}
 		assert.Containsf(t, allowedLoserCodes, res.problemCode,
 			"racer %d: a losing revert may only be rejected for losing the idempotency claim (%v); body: %s",
 			i, allowedLoserCodes, res.body)
