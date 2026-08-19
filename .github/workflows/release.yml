@@ -34,7 +34,7 @@ jobs:
 
   pipeline:
     needs: dockerhub-visibility
-    uses: LerianStudio/github-actions-shared-workflows/.github/workflows/go-release.yml@v1.46.5
+    uses: LerianStudio/github-actions-shared-workflows/.github/workflows/go-release.yml@v1.56.0-beta.1
     with:
       enable_changelog: ${{ github.ref == 'refs/heads/main' }}
       release_single_app: true
