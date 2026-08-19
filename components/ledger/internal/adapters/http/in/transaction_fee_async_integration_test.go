@@ -182,6 +182,7 @@ func TestFeeProof_T25_AsyncFeeInclusive(t *testing.T) {
 
 	routes, err := rabbitmq.NewConsumerRoutes(consumerConn, 1, 1, logger, telemetry)
 	require.NoError(t, err, "failed to create consumer routes")
+	t.Cleanup(routes.StopConsumers)
 	consumer := &asyncFeeConsumer{routes: routes, useCase: commandUC}
 	routes.Register(os.Getenv("RABBITMQ_TRANSACTION_BALANCE_OPERATION_QUEUE"), consumer.handle)
 

@@ -106,6 +106,7 @@ func setupConsumerInfra(t *testing.T, numWorkers, prefetch int) *consumerTestInf
 	// Create consumer routes
 	consumer, err := NewConsumerRoutes(conn, numWorkers, prefetch, logger, telemetry)
 	require.NoError(t, err, "failed to create consumer routes")
+	t.Cleanup(consumer.StopConsumers)
 
 	// Create producer for publishing test messages
 	producer, err := NewProducerRabbitMQ(conn)

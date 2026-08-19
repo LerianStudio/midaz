@@ -7,6 +7,7 @@ package rabbitmq
 import (
 	"context"
 	"fmt"
+	"sync"
 	"time"
 
 	libCommons "github.com/LerianStudio/lib-commons/v6/commons"
@@ -97,6 +98,9 @@ type ConsumerRoutes struct {
 	NumbersOfPrefetch int
 	libLog.Logger
 	libOpentelemetry.Telemetry
+	lifecycleMu sync.Mutex
+	cancel      context.CancelFunc
+	consumers   sync.WaitGroup
 }
 
 // NewConsumerRoutes creates a new instance of ConsumerRoutes.
@@ -159,6 +163,16 @@ func (cr *ConsumerRoutes) RegisterBulk(queueName string, handler BulkHandlerFunc
 
 // RunConsumers init consume for all registry queues.
 func (cr *ConsumerRoutes) RunConsumers() error {
+	cr.lifecycleMu.Lock()
+	defer cr.lifecycleMu.Unlock()
+
+	if cr.cancel != nil {
+		return fmt.Errorf("rabbitmq consumers already running")
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cr.cancel = cancel
+
 	for queueName, handler := range cr.routes {
 		cr.Log(context.Background(), libLog.LevelInfo, "Initializing consumer for queue", libLog.String("queue", queueName))
 
@@ -168,10 +182,30 @@ func (cr *ConsumerRoutes) RunConsumers() error {
 
 		cr.logConsumerMode(queueName, useBulkMode, hasBulkHandler)
 
-		go cr.runConsumerLoop(queueName, handler, bulkHandler, useBulkMode)
+		cr.consumers.Add(1)
+		go func() {
+			defer cr.consumers.Done()
+			cr.runConsumerLoop(ctx, queueName, handler, bulkHandler, useBulkMode)
+		}()
 	}
 
 	return nil
+}
+
+// StopConsumers cancels every consumer loop and waits until reconnect attempts
+// have stopped. It is safe to call more than once.
+func (cr *ConsumerRoutes) StopConsumers() {
+	cr.lifecycleMu.Lock()
+	cancel := cr.cancel
+	if cancel == nil {
+		cr.lifecycleMu.Unlock()
+		return
+	}
+
+	cancel()
+	cr.consumers.Wait()
+	cr.cancel = nil
+	cr.lifecycleMu.Unlock()
 }
 
 // logConsumerMode logs the processing mode for a queue.
@@ -196,17 +230,20 @@ func (cr *ConsumerRoutes) logConsumerMode(queueName string, useBulkMode, hasBulk
 // runConsumerLoop runs the main consumer loop for a queue with automatic reconnection.
 // Creates a channel-scoped context that cancels when the channel closes, ensuring
 // workers stop cleanly without attempting to ack messages with stale delivery tags.
-func (cr *ConsumerRoutes) runConsumerLoop(queueName string, handler QueueHandlerFunc, bulkHandler BulkHandlerFunc, useBulkMode bool) {
+func (cr *ConsumerRoutes) runConsumerLoop(ctx context.Context, queueName string, handler QueueHandlerFunc, bulkHandler BulkHandlerFunc, useBulkMode bool) {
 	backoff := utils.InitialBackoff
-	bgCtx := context.Background()
 
 	for {
-		messages, shouldRetry := cr.setupChannelAndConsume(bgCtx, queueName, &backoff)
+		if ctx.Err() != nil {
+			return
+		}
+
+		messages, shouldRetry := cr.setupChannelAndConsume(ctx, queueName, &backoff)
 		if shouldRetry {
 			continue
 		}
 
-		cr.Log(bgCtx, libLog.LevelInfo, "consuming started", libLog.String("queue", queueName))
+		cr.Log(ctx, libLog.LevelInfo, "consuming started", libLog.String("queue", queueName))
 
 		backoff = utils.InitialBackoff
 
@@ -215,12 +252,12 @@ func (cr *ConsumerRoutes) runConsumerLoop(queueName string, handler QueueHandler
 
 		// Create channel-scoped context that cancels when channel closes.
 		// This ensures workers stop cleanly without acking stale delivery tags.
-		channelCtx, channelCancel := context.WithCancel(bgCtx)
+		channelCtx, channelCancel := context.WithCancel(ctx)
 
 		cr.startWorkers(channelCtx, queueName, handler, bulkHandler, useBulkMode, messages)
 
 		// Wait for channel close and cancel the channel context
-		cr.waitForChannelCloseAndCancel(bgCtx, queueName, notifyClose, channelCancel)
+		cr.waitForChannelCloseAndCancel(ctx, queueName, notifyClose, channelCancel)
 	}
 }
 
@@ -255,7 +292,13 @@ func (cr *ConsumerRoutes) logAndSleep(ctx context.Context, errMsg, retryMsg, que
 
 	sleepDuration := utils.FullJitter(*backoff)
 	cr.Log(ctx, libLog.LevelWarn, retryMsg, libLog.String("queue", queueName), libLog.Any("sleepDuration", sleepDuration))
-	time.Sleep(sleepDuration)
+	timer := time.NewTimer(sleepDuration)
+	defer timer.Stop()
+
+	select {
+	case <-timer.C:
+	case <-ctx.Done():
+	}
 
 	*backoff = utils.NextBackoff(*backoff)
 }
@@ -281,25 +324,39 @@ func (cr *ConsumerRoutes) startWorkers(ctx context.Context, queueName string, ha
 // and logs the event. The context cancellation signals workers to stop processing
 // and skip acking messages with stale delivery tags.
 func (cr *ConsumerRoutes) waitForChannelCloseAndCancel(ctx context.Context, queueName string, notifyClose <-chan *amqp.Error, cancel context.CancelFunc) {
-	if errClose := <-notifyClose; errClose != nil {
-		cr.Log(
-			ctx, libLog.LevelWarn, "channel closed - cancelling workers",
-			libLog.String("queue", queueName),
-			libLog.Err(errClose),
-		)
-	} else {
-		cr.Log(
-			ctx, libLog.LevelWarn, "channel closed (no error info) - cancelling workers",
-			libLog.String("queue", queueName),
-		)
+	select {
+	case errClose := <-notifyClose:
+		if errClose != nil {
+			cr.Log(
+				ctx, libLog.LevelWarn, "channel closed - cancelling workers",
+				libLog.String("queue", queueName),
+				libLog.Err(errClose),
+			)
+		} else {
+			cr.Log(
+				ctx, libLog.LevelWarn, "channel closed (no error info) - cancelling workers",
+				libLog.String("queue", queueName),
+			)
+		}
+	case <-ctx.Done():
 	}
 
 	// Cancel channel context to signal workers to stop
 	// This prevents workers from acking messages with stale delivery tags
 	cancel()
 
-	// Small delay to allow workers to clean up before reconnection attempt
-	time.Sleep(100 * time.Millisecond)
+	if ctx.Err() != nil {
+		return
+	}
+
+	// Small delay to allow workers to clean up before reconnection attempt.
+	timer := time.NewTimer(100 * time.Millisecond)
+	defer timer.Stop()
+	select {
+	case <-timer.C:
+	case <-ctx.Done():
+		return
+	}
 
 	cr.Log(ctx, libLog.LevelWarn, "restarting consumer", libLog.String("queue", queueName))
 }

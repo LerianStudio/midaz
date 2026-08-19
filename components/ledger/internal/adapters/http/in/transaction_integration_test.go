@@ -654,6 +654,10 @@ func setupAsyncTestInfra(t *testing.T) *testAsyncInfra {
 	// so some "connection reset" logs may still appear during cleanup - this is expected behavior.
 	// Container cleanup is handled automatically by SetupContainer via t.Cleanup().
 	t.Cleanup(func() {
+		if infra.consumerRoutes != nil {
+			infra.consumerRoutes.StopConsumers()
+		}
+
 		// Close the consumer's RabbitMQ channel and connection first to signal goroutines to stop.
 		// The consumer watches for channel closure via NotifyClose, then enters retry mode.
 		if infra.consumerRabbitMQConn != nil {
@@ -663,9 +667,6 @@ func setupAsyncTestInfra(t *testing.T) *testAsyncInfra {
 			if infra.consumerRabbitMQConn.Connection != nil {
 				_ = infra.consumerRabbitMQConn.Connection.Close()
 			}
-			// Wait for the consumer's first retry backoff (~200-400ms) to start,
-			// so container termination happens while consumer is sleeping, not connecting.
-			time.Sleep(500 * time.Millisecond)
 		}
 	})
 
