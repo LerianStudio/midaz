@@ -10,13 +10,13 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 
 	pgdb "github.com/LerianStudio/midaz/v4/components/tracer/internal/adapters/postgres/db"
 	dbmocks "github.com/LerianStudio/midaz/v4/components/tracer/internal/adapters/postgres/db/mocks"
+	"github.com/LerianStudio/midaz/v4/components/tracer/internal/testutil"
 	"github.com/LerianStudio/midaz/v4/components/tracer/pkg/model"
 )
 
@@ -64,9 +64,9 @@ func toAssetRewrite(expression string) (string, error) {
 	return expression, nil
 }
 
-func newRule(t *testing.T, expression string) *model.Rule {
+func newRule(t *testing.T, seed int64, expression string) *model.Rule {
 	t.Helper()
-	return &model.Rule{ID: uuid.New(), Expression: expression}
+	return &model.Rule{ID: testutil.MustDeterministicUUID(seed), Expression: expression}
 }
 
 // --- tests ---------------------------------------------------------------
@@ -87,7 +87,6 @@ func TestNewMigrator_RequiredArgs(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
@@ -195,7 +194,7 @@ func TestMigrator_Up_ErrorPaths(t *testing.T) {
 			setup: func(b *dbmocks.MockTxBeginner, s *MockRuleStore, _ *MockExpressionCompiler) *fakeTx {
 				tx := &fakeTx{}
 				b.EXPECT().BeginTx(gomock.Any(), gomock.Any()).Return(tx, nil)
-				s.EXPECT().ListByStatus(gomock.Any(), gomock.Any()).Return([]*model.Rule{newRule(t, "currency")}, nil)
+				s.EXPECT().ListByStatus(gomock.Any(), gomock.Any()).Return([]*model.Rule{newRule(t, 1, "currency")}, nil)
 				return tx
 			},
 			rewrite:    func(string) (string, error) { return "", rewriteErr },
@@ -207,7 +206,7 @@ func TestMigrator_Up_ErrorPaths(t *testing.T) {
 			setup: func(b *dbmocks.MockTxBeginner, s *MockRuleStore, c *MockExpressionCompiler) *fakeTx {
 				tx := &fakeTx{}
 				b.EXPECT().BeginTx(gomock.Any(), gomock.Any()).Return(tx, nil)
-				s.EXPECT().ListByStatus(gomock.Any(), gomock.Any()).Return([]*model.Rule{newRule(t, "currency")}, nil)
+				s.EXPECT().ListByStatus(gomock.Any(), gomock.Any()).Return([]*model.Rule{newRule(t, 2, "currency")}, nil)
 				c.EXPECT().Compile("asset").Return(compileErr)
 				return tx
 			},
@@ -220,7 +219,7 @@ func TestMigrator_Up_ErrorPaths(t *testing.T) {
 			setup: func(b *dbmocks.MockTxBeginner, s *MockRuleStore, c *MockExpressionCompiler) *fakeTx {
 				tx := &fakeTx{}
 				b.EXPECT().BeginTx(gomock.Any(), gomock.Any()).Return(tx, nil)
-				s.EXPECT().ListByStatus(gomock.Any(), gomock.Any()).Return([]*model.Rule{newRule(t, "currency")}, nil)
+				s.EXPECT().ListByStatus(gomock.Any(), gomock.Any()).Return([]*model.Rule{newRule(t, 3, "currency")}, nil)
 				c.EXPECT().Compile("asset").Return(nil)
 				s.EXPECT().UpdateWithTx(gomock.Any(), gomock.Any(), gomock.Any()).Return(updateErr)
 				return tx
@@ -234,7 +233,7 @@ func TestMigrator_Up_ErrorPaths(t *testing.T) {
 			setup: func(b *dbmocks.MockTxBeginner, s *MockRuleStore, c *MockExpressionCompiler) *fakeTx {
 				tx := &fakeTx{commitErr: commitErr}
 				b.EXPECT().BeginTx(gomock.Any(), gomock.Any()).Return(tx, nil)
-				s.EXPECT().ListByStatus(gomock.Any(), gomock.Any()).Return([]*model.Rule{newRule(t, "currency")}, nil)
+				s.EXPECT().ListByStatus(gomock.Any(), gomock.Any()).Return([]*model.Rule{newRule(t, 4, "currency")}, nil)
 				c.EXPECT().Compile("asset").Return(nil)
 				s.EXPECT().UpdateWithTx(gomock.Any(), gomock.Any(), gomock.Any()).Return(nil)
 				return tx
@@ -246,7 +245,6 @@ func TestMigrator_Up_ErrorPaths(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
@@ -276,8 +274,8 @@ func TestMigrator_Up_Success(t *testing.T) {
 	t.Parallel()
 
 	tx := &fakeTx{}
-	changed := newRule(t, "currency")   // rewrites to "asset" -> updated
-	unchanged := newRule(t, "constant") // rewrite is identity -> skipped
+	changed := newRule(t, 5, "currency")   // rewrites to "asset" -> updated
+	unchanged := newRule(t, 6, "constant") // rewrite is identity -> skipped
 
 	ctrl := gomock.NewController(t)
 	beginner := dbmocks.NewMockTxBeginner(ctrl)
@@ -332,7 +330,6 @@ func TestMigrator_Up_EmptyExpression_SkippedAsUnchanged(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
@@ -344,7 +341,7 @@ func TestMigrator_Up_EmptyExpression_SkippedAsUnchanged(t *testing.T) {
 			compiler := NewMockExpressionCompiler(ctrl)
 
 			beginner.EXPECT().BeginTx(gomock.Any(), gomock.Any()).Return(tx, nil)
-			store.EXPECT().ListByStatus(gomock.Any(), gomock.Any()).Return([]*model.Rule{newRule(t, tt.expression)}, nil)
+			store.EXPECT().ListByStatus(gomock.Any(), gomock.Any()).Return([]*model.Rule{newRule(t, 7, tt.expression)}, nil)
 			// No compiler.Compile and no store.UpdateWithTx expectations: an empty
 			// expression must be skipped before both. GoMock fails on any such call.
 

@@ -25,6 +25,7 @@ import (
 	queryMocks "github.com/LerianStudio/midaz/v4/components/tracer/internal/services/query/mocks"
 	"github.com/LerianStudio/midaz/v4/components/tracer/internal/testutil"
 	"github.com/LerianStudio/midaz/v4/components/tracer/pkg/model"
+	"github.com/LerianStudio/midaz/v4/pkg/constant"
 )
 
 func TestValidateTransaction(t *testing.T) {
@@ -1003,6 +1004,7 @@ func TestValidateTransactionValidation(t *testing.T) {
 		tv        *model.TransactionValidation
 		wantError bool
 		errMsg    string
+		wantErrIs error // when set, assert errors.Is instead of a message substring
 	}{
 		{
 			name:      "valid transaction validation record",
@@ -1077,7 +1079,7 @@ func TestValidateTransactionValidation(t *testing.T) {
 				return v
 			}(),
 			wantError: true,
-			errMsg:    "asset is empty",
+			wantErrIs: constant.ErrValidationCurrencyRequired,
 		},
 		{
 			name: "zero transaction timestamp",
@@ -1109,7 +1111,12 @@ func TestValidateTransactionValidation(t *testing.T) {
 
 			if tc.wantError {
 				require.Error(t, err)
-				assert.Contains(t, err.Error(), tc.errMsg)
+
+				if tc.wantErrIs != nil {
+					assert.ErrorIs(t, err, tc.wantErrIs)
+				} else {
+					assert.Contains(t, err.Error(), tc.errMsg)
+				}
 			} else {
 				require.NoError(t, err)
 			}
@@ -1147,6 +1154,7 @@ func TestValidateTransactionValidation_AllRequiredRequestFields(t *testing.T) {
 		name      string
 		modify    func(*model.TransactionValidation)
 		errSubstr string
+		wantErrIs error // when set, assert errors.Is instead of a message substring
 	}{
 		{
 			name: "ID is required",
@@ -1181,7 +1189,7 @@ func TestValidateTransactionValidation_AllRequiredRequestFields(t *testing.T) {
 			modify: func(tv *model.TransactionValidation) {
 				tv.Asset = ""
 			},
-			errSubstr: "asset is empty",
+			wantErrIs: constant.ErrValidationCurrencyRequired,
 		},
 		{
 			name: "TransactionTimestamp is required",
@@ -1209,7 +1217,12 @@ func TestValidateTransactionValidation_AllRequiredRequestFields(t *testing.T) {
 			err := validateTransactionValidation(tv)
 
 			require.Error(t, err, "Expected validation error for: %s", tc.name)
-			assert.Contains(t, err.Error(), tc.errSubstr)
+
+			if tc.wantErrIs != nil {
+				assert.ErrorIs(t, err, tc.wantErrIs)
+			} else {
+				assert.Contains(t, err.Error(), tc.errSubstr)
+			}
 		})
 	}
 

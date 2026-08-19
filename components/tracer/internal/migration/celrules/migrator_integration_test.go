@@ -63,10 +63,10 @@ func cleanRules(t *testing.T, db *sql.DB) {
 	require.NoError(t, err)
 }
 
-func seedRule(t *testing.T, db *sql.DB, name, expression string) uuid.UUID {
+func seedRule(t *testing.T, db *sql.DB, seed int64, name, expression string) uuid.UUID {
 	t.Helper()
 
-	id := uuid.New()
+	id := testutil.MustDeterministicUUID(seed)
 	_, err := db.ExecContext(context.Background(),
 		`INSERT INTO rules (id, name, expression, action, scopes, status)
 		 VALUES ($1, $2, $3, 'ALLOW', '[]', 'ACTIVE')`,
@@ -107,9 +107,9 @@ func TestIntegration_CELRuleMigration_Up_RewritesGlobalPreservesOthers(t *testin
 		shadowExpr = `["BRL"].exists(currency, currency == "BRL")`
 	)
 
-	globalID := seedRule(t, db, "global-currency", globalExpr)
-	metaID := seedRule(t, db, "metadata-currency", metaExpr)
-	shadowID := seedRule(t, db, "shadowing-currency", shadowExpr)
+	globalID := seedRule(t, db, 10, "global-currency", globalExpr)
+	metaID := seedRule(t, db, 11, "metadata-currency", metaExpr)
+	shadowID := seedRule(t, db, 12, "shadowing-currency", shadowExpr)
 
 	m := newTestMigrator(t, db)
 
@@ -159,8 +159,11 @@ func TestIntegration_CELRuleMigration_Up_RollsBackOnBadRule(t *testing.T) {
 	}
 
 	ids := make(map[uuid.UUID]string, len(seeds))
+	seed := int64(20)
+
 	for name, expr := range seeds {
-		ids[seedRule(t, db, name, expr)] = expr
+		ids[seedRule(t, db, seed, name, expr)] = expr
+		seed++
 	}
 
 	m := newTestMigrator(t, db)
@@ -186,7 +189,7 @@ func TestIntegration_CELRuleMigration_Down_FailsLoudAndMutatesNothing(t *testing
 	t.Cleanup(func() { cleanRules(t, db) })
 
 	const globalExpr = `currency == "BRL"`
-	globalID := seedRule(t, db, "global-currency", globalExpr)
+	globalID := seedRule(t, db, 30, "global-currency", globalExpr)
 
 	m := newTestMigrator(t, db)
 

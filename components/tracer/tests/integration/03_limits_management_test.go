@@ -339,7 +339,7 @@ func TestLimits_CreateLimit_ValidationError_DescriptionTooLong(t *testing.T) {
 	assert.Equal(t, http.StatusBadRequest, resp.StatusCode, "Description exceeding max length should return 400")
 }
 
-func TestLimits_CreateLimit_ValidationError_InvalidCurrency(t *testing.T) {
+func TestLimits_CreateLimit_ValidationError_InvalidAsset(t *testing.T) {
 	apiKey := testutil.GetAPIKey()
 	baseURL := testutil.GetBaseURL()
 
@@ -2114,11 +2114,11 @@ func TestLimits_UpdateLimit_BlocksLimitTypeChange(t *testing.T) {
 	assert.Equal(t, "DAILY", limit.LimitType, "limitType should remain DAILY (immutable)")
 }
 
-// TestLimits_UpdateLimit_BlocksCurrencyChange (3.4.6)
+// TestLimits_UpdateLimit_BlocksAssetChange (3.4.6)
 // Verifies that asset is immutable on PATCH.
 // The API rejects a asset change with 422 (code 0380, "Limit Immutable Field")
 // and leaves the stored asset unchanged.
-func TestLimits_UpdateLimit_BlocksCurrencyChange(t *testing.T) {
+func TestLimits_UpdateLimit_BlocksAssetChange(t *testing.T) {
 	apiKey := testutil.GetAPIKey()
 	baseURL := testutil.GetBaseURL()
 
@@ -2967,9 +2967,9 @@ func TestLimits_CreateLimit_ValidationError_ZeroMaxAmount(t *testing.T) {
 		"maxAmount=0 should return 400 Bad Request (must be positive)")
 }
 
-// TestLimits_CreateLimit_ValidationError_EmptyCurrency tests that empty asset
+// TestLimits_CreateLimit_ValidationError_EmptyAsset tests that empty asset
 // string is rejected.
-func TestLimits_CreateLimit_ValidationError_EmptyCurrency(t *testing.T) {
+func TestLimits_CreateLimit_ValidationError_EmptyAsset(t *testing.T) {
 	apiKey := testutil.GetAPIKey()
 	baseURL := testutil.GetBaseURL()
 
@@ -3719,7 +3719,7 @@ func TestLimits_UpdateLimit_ImmutableFields_ReturnsTRC0138(t *testing.T) {
 			description:   "Attempt to change limitType from DAILY to PER_TRANSACTION",
 		},
 		{
-			name: "change_currency_USD_to_BRL",
+			name: "change_asset_USD_to_BRL",
 			updateBody: map[string]interface{}{
 				"asset": "BRL",
 			},
@@ -3727,7 +3727,7 @@ func TestLimits_UpdateLimit_ImmutableFields_ReturnsTRC0138(t *testing.T) {
 			description:   "Attempt to change asset from USD to BRL",
 		},
 		{
-			name: "change_both_limitType_and_currency",
+			name: "change_both_limitType_and_asset",
 			updateBody: map[string]interface{}{
 				"limitType": "MONTHLY",
 				"asset":     "BRL",
@@ -3739,7 +3739,7 @@ func TestLimits_UpdateLimit_ImmutableFields_ReturnsTRC0138(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			// Create a limit with known values: limitType=DAILY, currency=USD
+			// Create a limit with known values: limitType=DAILY, asset=USD
 			limitID := createTestLimit(t)
 			t.Cleanup(func() {
 				cleanupLimit(t, limitID)

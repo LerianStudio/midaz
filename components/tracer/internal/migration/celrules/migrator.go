@@ -281,7 +281,7 @@ func (m *Migrator) Up(ctx context.Context) (Result, error) {
 func (m *Migrator) Down(ctx context.Context) error {
 	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
-	_, span := tracer.Start(ctx, "migration.celrules.down")
+	ctx, span := tracer.Start(ctx, "migration.celrules.down")
 	defer span.End()
 
 	libOtel.HandleSpanError(span, "Refusing irreversible down migration", ErrDownIrreversible)

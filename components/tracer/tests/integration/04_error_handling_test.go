@@ -140,10 +140,10 @@ func TestValidation_ErrorHandling_MissingAmount(t *testing.T) {
 	assert.Equal(t, "Amount must be positive.", testutil.ParseErrorResponse(t, respBody).Detail, "Error detail should match exactly")
 }
 
-// TestValidation_ErrorHandling_MissingCurrency verifies 400 when asset is missing.
+// TestValidation_ErrorHandling_MissingAsset verifies 400 when asset is missing.
 // Test 4.4.3 from roteiro 04-rules-evaluation.md
 // Reference: API Design 3.2, 4.1.1 ValidateTransaction
-func TestValidation_ErrorHandling_MissingCurrency(t *testing.T) {
+func TestValidation_ErrorHandling_MissingAsset(t *testing.T) {
 	baseURL := testutil.GetBaseURL()
 	apiKey := testutil.GetAPIKey()
 
@@ -414,10 +414,10 @@ func TestValidation_ErrorHandling_InvalidAmount_StringValue(t *testing.T) {
 	assert.Contains(t, testutil.ParseErrorResponse(t, respBody).Detail, "invalid", "Error detail should mention invalid request")
 }
 
-// TestValidation_ErrorHandling_InvalidCurrency_MixedCase verifies strict uppercase validation for asset.
+// TestValidation_ErrorHandling_InvalidAsset_MixedCase verifies strict uppercase validation for asset.
 // Test 4.4.9 from roteiro 04-rules-evaluation.md
 // Reference: API Design 6.9 Asset Code Validation
-func TestValidation_ErrorHandling_InvalidCurrency_MixedCase(t *testing.T) {
+func TestValidation_ErrorHandling_InvalidAsset_MixedCase(t *testing.T) {
 	baseURL := testutil.GetBaseURL()
 	apiKey := testutil.GetAPIKey()
 

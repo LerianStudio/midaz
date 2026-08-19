@@ -310,7 +310,7 @@ func TestNormalizeAndValidate_Atomicity(t *testing.T) {
 		// Capture original values before call
 		originalSubType := *req.SubType
 		originalSubTypePtr := req.SubType
-		originalCurrency := req.Asset
+		originalAsset := req.Asset
 
 		// Call NormalizeAndValidate - should fail due to invalid asset
 		err := req.NormalizeAndValidate(testutil.FixedTime())
@@ -323,7 +323,7 @@ func TestNormalizeAndValidate_Atomicity(t *testing.T) {
 		require.NotNil(t, req.SubType, "SubType should not be nil")
 		assert.Equal(t, originalSubType, *req.SubType, "SubType should be unchanged after failed validation")
 		assert.Same(t, originalSubTypePtr, req.SubType, "SubType pointer should be unchanged (same reference)")
-		assert.Equal(t, originalCurrency, req.Asset, "Asset should be unchanged after failed validation")
+		assert.Equal(t, originalAsset, req.Asset, "Asset should be unchanged after failed validation")
 
 		// Verify original metadata map still assigned (not replaced)
 		// Add a marker to original to verify it's the same map instance
@@ -380,14 +380,14 @@ func TestNormalizeAndValidate_Atomicity(t *testing.T) {
 		}
 
 		// Capture original asset before call
-		originalCurrency := req.Asset
+		originalAsset := req.Asset
 
 		err := req.NormalizeAndValidate(testutil.FixedTime())
 
 		assert.Error(t, err)
 		assert.Nil(t, req.SubType, "SubType should remain nil")
 		assert.Nil(t, req.Metadata, "Metadata should remain nil")
-		assert.Equal(t, originalCurrency, req.Asset, "Asset should be unchanged after failed validation")
+		assert.Equal(t, originalAsset, req.Asset, "Asset should be unchanged after failed validation")
 	})
 }
 

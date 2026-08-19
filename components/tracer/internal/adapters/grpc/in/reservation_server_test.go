@@ -25,8 +25,8 @@ import (
 )
 
 const (
-	canonicalAmount   = "100.00"
-	canonicalCurrency = "USD"
+	canonicalAmount = "100.00"
+	canonicalAsset  = "USD"
 )
 
 // newReserveRequest builds a valid proto reserve request whose timestamp sits
@@ -37,7 +37,7 @@ func newReserveRequest(now time.Time, transactionID, requestID, accountID uuid.U
 		TransactionId:        transactionID.String(),
 		RequestId:            requestID.String(),
 		Amount:               canonicalAmount,
-		Asset:                canonicalCurrency,
+		Asset:                canonicalAsset,
 		Account:              &reservationv1.ReserveAccount{AccountId: accountID.String()},
 		TransactionType:      string(model.TransactionTypeCard),
 		TransactionTimestamp: now.Add(-1 * time.Second).Format(time.RFC3339),
@@ -279,7 +279,7 @@ func expectedInput(now time.Time, requestID, accountID uuid.UUID) *model.CheckLi
 		RequestID:            requestID,
 		TransactionType:      model.TransactionTypeCard,
 		Amount:               decimal.RequireFromString(canonicalAmount),
-		Asset:                canonicalCurrency,
+		Asset:                canonicalAsset,
 		TransactionTimestamp: now.Add(-1 * time.Second),
 		Account:              model.AccountContext{ID: accountID},
 	}
