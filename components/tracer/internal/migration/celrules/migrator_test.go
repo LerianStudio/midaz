@@ -6,7 +6,6 @@ package celrules
 
 import (
 	"context"
-	"database/sql"
 	"errors"
 	"testing"
 
@@ -21,36 +20,9 @@ import (
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
 )
 
-// --- transaction stub ----------------------------------------------------
-//
-// fakeTx is kept as a small state-recording stub (not a GoMock) on purpose:
-// the tests assert the commit/rollback LIFECYCLE (which of Commit/Rollback ran,
-// and that Rollback runs on any error), which reads more clearly from recorded
-// booleans than from ordered GoMock expectations. The store, compiler, and
-// transaction beginner are GoMock mocks.
-type fakeTx struct {
-	execErr    error
-	commitErr  error
-	committed  bool
-	rolledBack bool
-}
-
-func (f *fakeTx) ExecContext(context.Context, string, ...any) (sql.Result, error) {
-	return nil, f.execErr
-}
-
-func (f *fakeTx) QueryContext(context.Context, string, ...any) (*sql.Rows, error) { return nil, nil }
-func (f *fakeTx) QueryRowContext(context.Context, string, ...any) *sql.Row        { return nil }
-
-func (f *fakeTx) Commit() error {
-	f.committed = true
-	return f.commitErr
-}
-
-func (f *fakeTx) Rollback() error {
-	f.rolledBack = true
-	return nil
-}
+// The transaction lifecycle (Commit on success, Rollback on any error) is
+// asserted through GoMock expectations on dbmocks.MockTx: an EXPECT().Rollback()
+// that goes uncalled fails the controller, and an unexpected Commit fails too.
 
 // identityRewrite returns the input unchanged (marks the rule "unchanged").
 func identityRewrite(expression string) (string, bool, error) { return expression, false, nil }
@@ -159,10 +131,10 @@ func TestMigrator_Up_ErrorPaths(t *testing.T) {
 
 	tests := []struct {
 		name string
-		// setup configures the mocks for the case and returns the fakeTx that
-		// BeginTx will hand back (nil when no transaction is started), so the
-		// subtest can assert rollback.
-		setup   func(b *dbmocks.MockTxBeginner, s *MockRuleStore, c *MockExpressionCompiler) *fakeTx
+		// setup configures the mocks for the case. The transaction lifecycle is
+		// asserted by the expectations themselves: a case that must roll back
+		// sets tx.EXPECT().Rollback(), which the controller fails if uncalled.
+		setup   func(b *dbmocks.MockTxBeginner, s *MockRuleStore, c *MockExpressionCompiler, tx *dbmocks.MockTx)
 		rewrite Rewriter
 		wantErr string
 		// wantErrIs, when set, asserts the returned error wraps this sentinel
@@ -173,107 +145,101 @@ func TestMigrator_Up_ErrorPaths(t *testing.T) {
 		// this token — proving the bounded sentinel does not propagate the
 		// collaborator's raw error detail.
 		wantNoLeak string
-		wantRolled bool // true when a tx was started and must be rolled back
 	}{
 		{
 			name: "begin transaction error",
-			setup: func(b *dbmocks.MockTxBeginner, _ *MockRuleStore, _ *MockExpressionCompiler) *fakeTx {
+			setup: func(b *dbmocks.MockTxBeginner, _ *MockRuleStore, _ *MockExpressionCompiler, _ *dbmocks.MockTx) {
 				b.EXPECT().BeginTx(gomock.Any(), gomock.Any()).Return(nil, beginErr)
-				return nil
 			},
 			rewrite: identityRewrite,
 			wantErr: "begin transaction",
 		},
 		{
 			name: "nil transaction without error",
-			setup: func(b *dbmocks.MockTxBeginner, _ *MockRuleStore, _ *MockExpressionCompiler) *fakeTx {
+			setup: func(b *dbmocks.MockTxBeginner, _ *MockRuleStore, _ *MockExpressionCompiler, _ *dbmocks.MockTx) {
 				b.EXPECT().BeginTx(gomock.Any(), gomock.Any()).Return(nil, nil)
-				return nil
 			},
 			rewrite: identityRewrite,
 			wantErr: "nil transaction",
 		},
 		{
 			name: "lock table error",
-			setup: func(b *dbmocks.MockTxBeginner, _ *MockRuleStore, _ *MockExpressionCompiler) *fakeTx {
-				tx := &fakeTx{execErr: lockErr}
+			setup: func(b *dbmocks.MockTxBeginner, _ *MockRuleStore, _ *MockExpressionCompiler, tx *dbmocks.MockTx) {
 				b.EXPECT().BeginTx(gomock.Any(), gomock.Any()).Return(tx, nil)
-				return tx
+				tx.EXPECT().ExecContext(gomock.Any(), gomock.Any()).Return(nil, lockErr)
+				tx.EXPECT().Rollback().Return(nil)
 			},
-			rewrite:    identityRewrite,
-			wantErr:    "lock rules table",
-			wantRolled: true,
+			rewrite: identityRewrite,
+			wantErr: "lock rules table",
 		},
 		{
 			name: "list rules error",
-			setup: func(b *dbmocks.MockTxBeginner, s *MockRuleStore, _ *MockExpressionCompiler) *fakeTx {
-				tx := &fakeTx{}
+			setup: func(b *dbmocks.MockTxBeginner, s *MockRuleStore, _ *MockExpressionCompiler, tx *dbmocks.MockTx) {
 				b.EXPECT().BeginTx(gomock.Any(), gomock.Any()).Return(tx, nil)
+				tx.EXPECT().ExecContext(gomock.Any(), gomock.Any()).Return(nil, nil)
 				s.EXPECT().ListByStatus(gomock.Any(), gomock.Any()).Return(nil, listErr)
-				return tx
+				tx.EXPECT().Rollback().Return(nil)
 			},
-			rewrite:    identityRewrite,
-			wantErr:    "load rules",
-			wantRolled: true,
+			rewrite: identityRewrite,
+			wantErr: "load rules",
 		},
 		{
 			name: "rewrite error",
-			setup: func(b *dbmocks.MockTxBeginner, s *MockRuleStore, _ *MockExpressionCompiler) *fakeTx {
-				tx := &fakeTx{}
+			setup: func(b *dbmocks.MockTxBeginner, s *MockRuleStore, _ *MockExpressionCompiler, tx *dbmocks.MockTx) {
 				b.EXPECT().BeginTx(gomock.Any(), gomock.Any()).Return(tx, nil)
+				tx.EXPECT().ExecContext(gomock.Any(), gomock.Any()).Return(nil, nil)
 				s.EXPECT().ListByStatus(gomock.Any(), gomock.Any()).Return([]*model.Rule{newRule(t, 1, "currency")}, nil)
-				return tx
+				tx.EXPECT().Rollback().Return(nil)
 			},
 			rewrite:    func(string) (string, bool, error) { return "", false, rewriteErr },
 			wantErrIs:  constant.ErrExpressionSyntax,
 			wantNoLeak: rawLeakToken,
-			wantRolled: true,
 		},
 		{
 			name: "recompile gate error rolls back",
-			setup: func(b *dbmocks.MockTxBeginner, s *MockRuleStore, c *MockExpressionCompiler) *fakeTx {
-				tx := &fakeTx{}
+			setup: func(b *dbmocks.MockTxBeginner, s *MockRuleStore, c *MockExpressionCompiler, tx *dbmocks.MockTx) {
 				b.EXPECT().BeginTx(gomock.Any(), gomock.Any()).Return(tx, nil)
+				tx.EXPECT().ExecContext(gomock.Any(), gomock.Any()).Return(nil, nil)
 				s.EXPECT().ListByStatus(gomock.Any(), gomock.Any()).Return([]*model.Rule{newRule(t, 2, "currency")}, nil)
 				c.EXPECT().Compile("asset").Return(compileErr)
-				return tx
+				tx.EXPECT().Rollback().Return(nil)
 			},
 			rewrite:    toAssetRewrite,
 			wantErrIs:  constant.ErrExpressionSyntax,
 			wantNoLeak: rawLeakToken,
-			wantRolled: true,
 		},
 		{
 			name: "update error rolls back",
-			setup: func(b *dbmocks.MockTxBeginner, s *MockRuleStore, c *MockExpressionCompiler) *fakeTx {
-				tx := &fakeTx{}
+			setup: func(b *dbmocks.MockTxBeginner, s *MockRuleStore, c *MockExpressionCompiler, tx *dbmocks.MockTx) {
 				b.EXPECT().BeginTx(gomock.Any(), gomock.Any()).Return(tx, nil)
+				tx.EXPECT().ExecContext(gomock.Any(), gomock.Any()).Return(nil, nil)
 				s.EXPECT().ListByStatus(gomock.Any(), gomock.Any()).Return([]*model.Rule{newRule(t, 3, "currency")}, nil)
 				c.EXPECT().Compile("asset").Return(nil)
 				s.EXPECT().UpdateWithTx(gomock.Any(), gomock.Any(), gomock.Any()).Return(updateErr)
-				return tx
+				tx.EXPECT().Rollback().Return(nil)
 			},
-			rewrite:    toAssetRewrite,
-			wantErr:    "persist rule",
-			wantRolled: true,
+			rewrite: toAssetRewrite,
+			wantErr: "persist rule",
 		},
 		{
 			name: "commit error",
-			setup: func(b *dbmocks.MockTxBeginner, s *MockRuleStore, c *MockExpressionCompiler) *fakeTx {
-				tx := &fakeTx{commitErr: commitErr}
+			setup: func(b *dbmocks.MockTxBeginner, s *MockRuleStore, c *MockExpressionCompiler, tx *dbmocks.MockTx) {
 				b.EXPECT().BeginTx(gomock.Any(), gomock.Any()).Return(tx, nil)
+				tx.EXPECT().ExecContext(gomock.Any(), gomock.Any()).Return(nil, nil)
 				s.EXPECT().ListByStatus(gomock.Any(), gomock.Any()).Return([]*model.Rule{newRule(t, 4, "currency")}, nil)
 				c.EXPECT().Compile("asset").Return(nil)
 				s.EXPECT().UpdateWithTx(gomock.Any(), gomock.Any(), gomock.Any()).Return(nil)
-				return tx
+				tx.EXPECT().Commit().Return(commitErr)
+				// Commit failed, so the deferred rollback still runs.
+				tx.EXPECT().Rollback().Return(nil)
 			},
-			rewrite:    toAssetRewrite,
-			wantErr:    "commit migration",
-			wantRolled: true,
+			rewrite: toAssetRewrite,
+			wantErr: "commit migration",
 		},
 	}
 
 	for _, tt := range tests {
+		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
@@ -281,8 +247,9 @@ func TestMigrator_Up_ErrorPaths(t *testing.T) {
 			beginner := dbmocks.NewMockTxBeginner(ctrl)
 			store := NewMockRuleStore(ctrl)
 			compiler := NewMockExpressionCompiler(ctrl)
+			tx := dbmocks.NewMockTx(ctrl)
 
-			tx := tt.setup(beginner, store, compiler)
+			tt.setup(beginner, store, compiler, tx)
 
 			m, err := NewMigrator(beginner, store, compiler, tt.rewrite, false)
 			require.NoError(t, err)
@@ -302,11 +269,6 @@ func TestMigrator_Up_ErrorPaths(t *testing.T) {
 				assert.NotContains(t, err.Error(), tt.wantNoLeak,
 					"the bounded error must not leak the collaborator's raw error text")
 			}
-
-			if tt.wantRolled {
-				require.NotNil(t, tx)
-				assert.True(t, tx.rolledBack, "a started transaction must be rolled back on any error")
-			}
 		})
 	}
 }
@@ -314,7 +276,6 @@ func TestMigrator_Up_ErrorPaths(t *testing.T) {
 func TestMigrator_Up_Success(t *testing.T) {
 	t.Parallel()
 
-	tx := &fakeTx{}
 	changed := newRule(t, 5, "currency")   // rewrites to "asset" -> updated
 	unchanged := newRule(t, 6, "constant") // rewrite is identity -> skipped
 
@@ -322,8 +283,10 @@ func TestMigrator_Up_Success(t *testing.T) {
 	beginner := dbmocks.NewMockTxBeginner(ctrl)
 	store := NewMockRuleStore(ctrl)
 	compiler := NewMockExpressionCompiler(ctrl)
+	tx := dbmocks.NewMockTx(ctrl)
 
 	beginner.EXPECT().BeginTx(gomock.Any(), gomock.Any()).Return(tx, nil)
+	tx.EXPECT().ExecContext(gomock.Any(), gomock.Any()).Return(nil, nil)
 	store.EXPECT().ListByStatus(gomock.Any(), gomock.Any()).Return([]*model.Rule{changed, unchanged}, nil)
 	// The recompile-all gate runs for every scanned rule before any persist.
 	compiler.EXPECT().Compile("asset").Return(nil)
@@ -337,6 +300,9 @@ func TestMigrator_Up_Success(t *testing.T) {
 			return nil
 		},
 	)
+	// Commit on success; no Rollback expectation, so the controller fails the
+	// test if the migrator ever rolls back the committed path.
+	tx.EXPECT().Commit().Return(nil)
 
 	m, err := NewMigrator(beginner, store, compiler, toAssetRewrite, false)
 	require.NoError(t, err)
@@ -347,9 +313,6 @@ func TestMigrator_Up_Success(t *testing.T) {
 	assert.Equal(t, 2, res.Scanned)
 	assert.Equal(t, 1, res.Rewritten)
 	assert.Equal(t, 1, res.Unchanged)
-
-	assert.True(t, tx.committed)
-	assert.False(t, tx.rolledBack)
 
 	require.Len(t, persisted, 1)
 	assert.Equal(t, changed.ID, persisted[0].ID)
@@ -374,17 +337,18 @@ func TestMigrator_Up_EmptyExpression_SkippedAsUnchanged(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			tx := &fakeTx{}
-
 			ctrl := gomock.NewController(t)
 			beginner := dbmocks.NewMockTxBeginner(ctrl)
 			store := NewMockRuleStore(ctrl)
 			compiler := NewMockExpressionCompiler(ctrl)
+			tx := dbmocks.NewMockTx(ctrl)
 
 			beginner.EXPECT().BeginTx(gomock.Any(), gomock.Any()).Return(tx, nil)
+			tx.EXPECT().ExecContext(gomock.Any(), gomock.Any()).Return(nil, nil)
 			store.EXPECT().ListByStatus(gomock.Any(), gomock.Any()).Return([]*model.Rule{newRule(t, 7, tt.expression)}, nil)
 			// No compiler.Compile and no store.UpdateWithTx expectations: an empty
 			// expression must be skipped before both. GoMock fails on any such call.
+			tx.EXPECT().Commit().Return(nil)
 
 			// The rewriter must never be invoked for an empty expression.
 			failRewrite := func(string) (string, bool, error) {
@@ -401,9 +365,6 @@ func TestMigrator_Up_EmptyExpression_SkippedAsUnchanged(t *testing.T) {
 			assert.Equal(t, 1, res.Scanned)
 			assert.Equal(t, 0, res.Rewritten)
 			assert.Equal(t, 1, res.Unchanged)
-
-			assert.True(t, tx.committed)
-			assert.False(t, tx.rolledBack)
 		})
 	}
 }
@@ -416,19 +377,20 @@ func TestMigrator_Up_EmptyExpression_SkippedAsUnchanged(t *testing.T) {
 func TestMigrator_Up_NonCanonicalNoCurrency_SkippedAsUnchanged(t *testing.T) {
 	t.Parallel()
 
-	tx := &fakeTx{}
-
 	ctrl := gomock.NewController(t)
 	beginner := dbmocks.NewMockTxBeginner(ctrl)
 	store := NewMockRuleStore(ctrl)
 	compiler := NewMockExpressionCompiler(ctrl)
+	tx := dbmocks.NewMockTx(ctrl)
 
 	beginner.EXPECT().BeginTx(gomock.Any(), gomock.Any()).Return(tx, nil)
+	tx.EXPECT().ExecContext(gomock.Any(), gomock.Any()).Return(nil, nil)
 	store.EXPECT().ListByStatus(gomock.Any(), gomock.Any()).Return([]*model.Rule{newRule(t, 8, "amount>0")}, nil)
 	// The recompile-all gate still runs against the canonicalized text, but no
 	// UpdateWithTx expectation: the rule must be skipped as unchanged. GoMock
 	// fails the test on any persist call.
 	compiler.EXPECT().Compile("amount > 0").Return(nil)
+	tx.EXPECT().Commit().Return(nil)
 
 	m, err := NewMigrator(beginner, store, compiler, canonicalizeNoRename, false)
 	require.NoError(t, err)
@@ -439,9 +401,6 @@ func TestMigrator_Up_NonCanonicalNoCurrency_SkippedAsUnchanged(t *testing.T) {
 	assert.Equal(t, 1, res.Scanned)
 	assert.Equal(t, 0, res.Rewritten)
 	assert.Equal(t, 1, res.Unchanged)
-
-	assert.True(t, tx.committed)
-	assert.False(t, tx.rolledBack)
 }
 
 // TestMigrator_Up_MultiTenant_RefusesBeforeAnyDBWork proves the multi-tenant

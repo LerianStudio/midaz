@@ -134,15 +134,16 @@ func TestIntegration_CELRuleMigration_Up_RewritesGlobalPreservesOthers(t *testin
 		"global rule must no longer reference the currency global")
 
 	// A metadata.currency field selection is preserved (currency is a field name,
-	// not the global variable).
+	// not the global variable). Classified unchanged and never persisted, so the
+	// stored text must be byte-identical to the seed, not the rewriter's output.
 	gotMeta := readExpression(t, db, metaID)
-	assert.Equal(t, mustRewrite(t, metaExpr), gotMeta)
+	assert.Equal(t, metaExpr, gotMeta)
 	assert.Contains(t, gotMeta, "metadata.currency")
 
 	// A comprehension binding named currency shadows the global inside the macro
-	// body and is preserved.
+	// body and is preserved. Also unchanged, so the stored text is the seed itself.
 	gotShadow := readExpression(t, db, shadowID)
-	assert.Equal(t, mustRewrite(t, shadowExpr), gotShadow)
+	assert.Equal(t, shadowExpr, gotShadow)
 	assert.Contains(t, gotShadow, "currency")
 	assert.NotContains(t, gotShadow, "asset")
 }
@@ -196,19 +197,24 @@ func TestIntegration_CELRuleMigration_Up_RollsBackOnBadRule(t *testing.T) {
 
 	// The bad rule rewrites cleanly (parse-only) but references an undeclared
 	// variable, so it fails the recompile-all gate against the new environment.
-	seeds := map[string]string{
-		"global-currency":    `currency == "BRL"`,
-		"metadata-currency":  `metadata.currency == "USD"`,
-		"shadowing-currency": `["BRL"].exists(currency, currency == "BRL")`,
-		"broken-rule":        `currency == "BRL" && undeclaredThing > 0`,
+	//
+	// Ordered slice, not a map: each rule must pair with a FIXED deterministic
+	// seed so a failure reports the same rule ID every run. Go randomizes map
+	// iteration, which would drift the seed->name pairing across runs.
+	seeds := []struct {
+		seed int64
+		name string
+		expr string
+	}{
+		{20, "global-currency", `currency == "BRL"`},
+		{21, "metadata-currency", `metadata.currency == "USD"`},
+		{22, "shadowing-currency", `["BRL"].exists(currency, currency == "BRL")`},
+		{23, "broken-rule", `currency == "BRL" && undeclaredThing > 0`},
 	}
 
 	ids := make(map[uuid.UUID]string, len(seeds))
-	seed := int64(20)
-
-	for name, expr := range seeds {
-		ids[seedRule(t, db, seed, name, expr)] = expr
-		seed++
+	for _, s := range seeds {
+		ids[seedRule(t, db, s.seed, s.name, s.expr)] = s.expr
 	}
 
 	m := newTestMigrator(t, db)
