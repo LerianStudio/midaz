@@ -105,6 +105,42 @@ type ReserveRequest struct {
 	// overload of transactionType=pending-long-lived, which polluted the
 	// transaction-type field and broke the tracer's reserve validation.
 	LongLived bool `json:"longLived,omitempty"`
+	// DeliveryMode selects the reservation termination protocol. Empty preserves
+	// the legacy confirm/release flow; LEDGER_OUTCOME_V2 waits for ApplyOutcome.
+	DeliveryMode ReservationDeliveryMode `json:"deliveryMode,omitempty"`
+}
+
+// ReservationDeliveryMode selects who owns reservation termination.
+type ReservationDeliveryMode string
+
+const (
+	DeliveryModeLegacy          ReservationDeliveryMode = "LEGACY"
+	DeliveryModeLedgerOutcomeV2 ReservationDeliveryMode = "LEDGER_OUTCOME_V2"
+)
+
+// ReservationOutcome is the Ledger's immutable terminal accounting decision.
+type ReservationOutcome string
+
+const (
+	ReservationOutcomeCommitted ReservationOutcome = "COMMITTED"
+	ReservationOutcomeAborted   ReservationOutcome = "ABORTED"
+)
+
+// ApplyOutcomeRequest is the durable terminal decision delivered to Tracer.
+type ApplyOutcomeRequest struct {
+	TransactionID uuid.UUID          `json:"-"`
+	OutcomeID     uuid.UUID          `json:"outcomeId"`
+	Outcome       ReservationOutcome `json:"outcome"`
+}
+
+// ApplyOutcomeResult is Tracer's durable receipt. Replayed is informational;
+// both a first application and an exact replay acknowledge delivery.
+type ApplyOutcomeResult struct {
+	TransactionID    uuid.UUID          `json:"transactionId"`
+	OutcomeID        uuid.UUID          `json:"outcomeId"`
+	Outcome          ReservationOutcome `json:"outcome"`
+	ReservationCount int                `json:"reservationCount"`
+	Replayed         bool               `json:"replayed"`
 }
 
 // ReserveResult is the handle returned by a successful reserve. Denied is the
@@ -251,6 +287,50 @@ func (c *TracerClient) ConfirmByTransaction(ctx context.Context, transactionID u
 // transaction id. Idempotent like ConfirmByTransaction.
 func (c *TracerClient) ReleaseByTransaction(ctx context.Context, transactionID uuid.UUID) error {
 	return c.transitionByTransaction(ctx, "release", transactionID)
+}
+
+// ApplyOutcome durably applies the Ledger-owned V2 terminal decision. An exact
+// retry returns the same receipt and is therefore a successful acknowledgement.
+func (c *TracerClient) ApplyOutcome(ctx context.Context, req ApplyOutcomeRequest) (*ApplyOutcomeResult, error) {
+	_, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
+
+	ctx, span := tracer.Start(ctx, "tracer.client.apply_outcome")
+	defer span.End()
+
+	span.SetAttributes(attribute.String("app.request.transaction_id", req.TransactionID.String()))
+
+	body, err := json.Marshal(req)
+	if err != nil {
+		return nil, fmt.Errorf("marshal reservation outcome: %w", err)
+	}
+
+	path := fmt.Sprintf("/v1/reservations/transaction/%s/outcome", req.TransactionID.String())
+
+	resp, err := c.do(ctx, http.MethodPost, path, body)
+	if err != nil {
+		libOpentelemetry.HandleSpanError(span, "ApplyOutcome transport failed", err)
+		return nil, err
+	}
+
+	defer func() { _ = resp.Body.Close() }()
+
+	if resp.StatusCode != http.StatusOK {
+		err := c.statusError("apply outcome", resp)
+		libOpentelemetry.HandleSpanError(span, "ApplyOutcome returned unexpected status", err)
+
+		return nil, err
+	}
+
+	var result ApplyOutcomeResult
+	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+		return nil, fmt.Errorf("decode reservation outcome receipt: %w", err)
+	}
+
+	if result.TransactionID != req.TransactionID || result.OutcomeID != req.OutcomeID || result.Outcome != req.Outcome {
+		return nil, errors.New("tracer returned a mismatched reservation outcome receipt")
+	}
+
+	return &result, nil
 }
 
 // transitionByTransaction is the shared by-transaction confirm/release body: POST

@@ -763,12 +763,15 @@ const (
 // Lua for an immutable economic outcome. The execution and outcome keys share
 // the transaction hash slot with balances and the backup queue.
 type BalanceExecutionAttempt struct {
-	ExecutionKey    string
-	OutcomeKey      string
-	Owner           string
-	Outcome         string
-	Identity        uuid.UUID
-	RedisGeneration string
+	ExecutionKey       string
+	OutcomeKey         string
+	Owner              string
+	Outcome            string
+	Identity           uuid.UUID
+	RedisGeneration    string
+	Action             string
+	TracerOutcomeID    uuid.UUID
+	TracerOutcomeState string
 }
 
 // BalanceExecutionOutcome is the immutable fact written by the balance Lua in

@@ -315,9 +315,12 @@ or audit the original tenant's reservation.
 1. Deploy migration `000021` and the Tracer first, with no V2 traffic. This is additive: all existing
    callers remain V1.
 2. Deploy the Ledger-side durable outcome dispatcher second, then enable
-   `LEDGER_OUTCOME_V2` reservation traffic. The Ledger must durably retain an outcome until the Tracer
+   `TRACER_OUTCOME_MODE=ledger_outcome_v2` reservation traffic. The Ledger persists `PREPARED` before
+   Reserve and the balance Lua projects its exact economic proof into a dedicated outcome outbox;
+   the Ledger must durably retain that outcome until the Tracer
    acknowledges its receipt; process-local retries are not a correctness mechanism.
-3. During rollback, keep a Tracer version that understands V2 and keep the Ledger dispatcher running
+3. During rollback, set `TRACER_OUTCOME_MODE=legacy` to stop new V2 reserves but keep
+   `TRACER_OUTCOME_WORKER_ENABLED=true`; keep a Tracer version that understands V2 and the dispatcher running
    until the V2 outstanding gauge reaches zero. Disabling new V2 reserves does not make the existing
    backlog safe to forget.
 4. The migration down path refuses to remove V2 support while any V2 reservation or outcome receipt

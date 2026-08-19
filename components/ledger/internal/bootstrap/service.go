@@ -28,6 +28,7 @@ type Service struct {
 	RedisQueueConsumer       *RedisQueueConsumer
 	BalanceSyncWorker        *BalanceSyncWorker
 	LegacyBalanceSyncDrainer *LegacyBalanceSyncDrainer
+	TracerOutcomeWorker      *TracerOutcomeWorker
 	EventListener            *tmevent.TenantEventListener
 	CircuitBreakerManager    *CircuitBreakerManager
 	Logger                   libLog.Logger
@@ -154,6 +155,10 @@ func (s *Service) launcherApps() []launcherApp {
 	// Legacy balance sync drainer — drains pre-v3.6.2 ZSET entries
 	if s.LegacyBalanceSyncDrainer != nil {
 		apps = append(apps, launcherApp{"Legacy Balance Sync Drainer", s.LegacyBalanceSyncDrainer})
+	}
+
+	if s.TracerOutcomeWorker != nil {
+		apps = append(apps, launcherApp{"Tracer Outcome Worker", s.TracerOutcomeWorker})
 	}
 
 	// Tenant event listener (Redis Pub/Sub)

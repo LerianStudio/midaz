@@ -536,11 +536,34 @@ func TestReleaseReservationsByTransaction(t *testing.T) {
 type capturingReserver struct {
 	lastReq tracer.ReserveRequest
 	result  *tracer.ReserveResult
+	err     error
 }
 
 func (c *capturingReserver) Reserve(_ context.Context, req tracer.ReserveRequest) (*tracer.ReserveResult, error) {
 	c.lastReq = req
-	return c.result, nil
+	return c.result, c.err
+}
+
+func TestReserveTransaction_DurableModeIsExplicitAndAmbiguousFailureFences(t *testing.T) {
+	tracerCtx, sp, logger := anchorDeps()
+	settings := mmodel.TracerSettings{Mode: mmodel.TracerModeEnforce, FailPosture: mmodel.TracerFailPostureOpen}
+	txID := uuid.MustParse("33333333-3333-3333-3333-333333333333")
+
+	capturing := &capturingReserver{result: &tracer.ReserveResult{}}
+	handler := &TransactionHandler{TracerReserver: capturing}
+	out := handler.reserveTransaction(tracerCtx, sp, logger, settings, txID, decimal.NewFromInt(1000),
+		"BRL", fixedReserveAccountID, fixedReserveTimestamp, reservationTTLDefault, false, true)
+	require.Equal(t, reservationProceed, out.Kind)
+	assert.Equal(t, tracer.DeliveryModeLedgerOutcomeV2, capturing.lastReq.DeliveryMode)
+
+	capturing.err = tracer.ErrTracerUnavailable
+	out = handler.reserveTransaction(tracerCtx, sp, logger, settings, txID, decimal.NewFromInt(1000),
+		"BRL", fixedReserveAccountID, fixedReserveTimestamp, reservationTTLDefault, false, true)
+	require.Equal(t, reservationReject, out.Kind)
+	assert.True(t, out.Ambiguous, "a lost Reserve response must leave PREPARED for recovery")
+	var unavailable pkg.ServiceUnavailableError
+	require.ErrorAs(t, out.Err, &unavailable)
+	assert.Equal(t, constant.ErrTransactionOutcomeReconciliationRequired.Error(), unavailable.Code)
 }
 
 func (c *capturingReserver) Confirm(_ context.Context, _ uuid.UUID) error { return nil }

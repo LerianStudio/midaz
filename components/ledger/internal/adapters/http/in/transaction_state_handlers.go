@@ -968,6 +968,17 @@ func (handler *TransactionHandler) commitOrCancelTransaction(
 		return nil, transactionLifecycleReconciliationError()
 	}
 
+	tracerOutcomeRecord, err := handler.Command.TransactionRedisRepo.ReadTracerOutcome(ctx,
+		organizationID, ledgerID, tran.IDtoUUID())
+	if err != nil {
+		return nil, transactionLifecycleReconciliationError()
+	}
+
+	durableLifecycleOutcome := tracerOutcomeRecord != nil &&
+		(tracerOutcomeRecord.State == mmodel.TracerOutcomePendingHeld ||
+			(expectedOutcome == mmodel.TransactionOutcomeCommitted && tracerOutcomeRecord.State == mmodel.TracerOutcomeCommitted) ||
+			(expectedOutcome == mmodel.TransactionOutcomeAborted && tracerOutcomeRecord.State == mmodel.TracerOutcomeAborted))
+
 	var result *mmodel.BalanceAtomicResult
 	var executionAttempt *mmodel.BalanceExecutionAttempt
 	if persistedOutcome != nil {
@@ -1120,6 +1131,14 @@ func (handler *TransactionHandler) commitOrCancelTransaction(
 			Outcome:      expectedOutcome,
 			Identity:     tran.IDtoUUID(),
 		}
+		if durableLifecycleOutcome {
+			attempt.TracerOutcomeID = tracerOutcomeRecord.OutcomeID
+
+			attempt.TracerOutcomeState = mmodel.TracerOutcomeCommitted
+			if transactionStatus == constant.CANCELED {
+				attempt.TracerOutcomeState = mmodel.TracerOutcomeAborted
+			}
+		}
 		executionAttempt = attempt
 		acquired, acquireErr := handler.Command.TransactionRedisRepo.AcquireOwnedKey(ctx,
 			executionKey, attemptOwner, balanceExecutionLeaseTTL)
@@ -1209,9 +1228,13 @@ func (handler *TransactionHandler) commitOrCancelTransaction(
 	// until this transition.
 	switch transactionStatus {
 	case constant.APPROVED:
-		handler.confirmReservationsByTransaction(ctx, span, logger, ledgerSettings.Tracer, tran.IDtoUUID(), honoredTracerSkip)
+		if !durableLifecycleOutcome {
+			handler.confirmReservationsByTransaction(ctx, span, logger, ledgerSettings.Tracer, tran.IDtoUUID(), honoredTracerSkip)
+		}
 	case constant.CANCELED:
-		handler.releaseReservationsByTransaction(ctx, span, logger, ledgerSettings.Tracer, tran.IDtoUUID(), honoredTracerSkip)
+		if !durableLifecycleOutcome {
+			handler.releaseReservationsByTransaction(ctx, span, logger, ledgerSettings.Tracer, tran.IDtoUUID(), honoredTracerSkip)
+		}
 	}
 
 	balancesBefore, balancesAfter := result.Before, result.After
@@ -1253,6 +1276,8 @@ func (handler *TransactionHandler) commitOrCancelTransaction(
 		return nil, err
 	}
 	tran.Operations = operations
+
+	executionAttempt.Action = action
 	if terminalReplay {
 		payload := transaction.TransactionProcessingPayload{
 			Transaction: tran, Input: &transactionInput, Validate: validate,
@@ -1260,6 +1285,7 @@ func (handler *TransactionHandler) commitOrCancelTransaction(
 			EffectMode:            mmodel.TransactionEffectBalanceMutation,
 			OperationTypeOverride: transactionInput.OperationTypeOverride,
 			AttemptOwner:          executionAttempt.Owner, ExpectedOutcome: executionAttempt.Outcome,
+			Action:          action,
 			RedisGeneration: executionAttempt.RedisGeneration,
 		}
 		persisted, replayErr := handler.Command.ProveCompletedDurableReplay(ctx, organizationID, ledgerID, payload)

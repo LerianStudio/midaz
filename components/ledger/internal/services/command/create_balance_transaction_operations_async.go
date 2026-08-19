@@ -222,6 +222,9 @@ func (uc *UseCase) CreateBalanceTransactionOperationsAsync(ctx context.Context, 
 }
 
 func actionForTransactionPayload(payload transaction.TransactionProcessingPayload) string {
+	if payload.Action != "" {
+		return payload.Action
+	}
 	if payload.Transaction == nil {
 		return ""
 	}

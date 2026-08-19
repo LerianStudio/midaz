@@ -14,6 +14,8 @@ const (
 	BalanceSyncScheduleKey       = "schedule:{transactions}:balance-sync-v2"
 	BalanceSyncScheduleKeyLegacy = "schedule:{transactions}:balance-sync"
 	BalanceSyncLockPrefix        = "lock:{transactions}:balance-sync:"
+	TracerOutcomeScheduleKey     = "schedule:{transactions}:tracer-outcomes-v2"
+	TracerOutcomeDispatcherLock  = "lock:{transactions}:tracer-outcomes-v2"
 )
 
 const (
@@ -50,10 +52,36 @@ func TransactionBalanceExecutionKey(organizationID, ledgerID, transactionID uuid
 	return TransactionInternalKey(organizationID, ledgerID, transactionID.String()+":balance-execution")
 }
 
+// TransactionPendingBalanceExecutionKey isolates the initial hold mutation
+// from the later commit/cancel mutation of the same transaction.
+func TransactionPendingBalanceExecutionKey(organizationID, ledgerID, transactionID uuid.UUID) string {
+	return TransactionInternalKey(organizationID, ledgerID, transactionID.String()+":pending-hold:balance-execution")
+}
+
 // TransactionBalanceOutcomeKey stores the immutable economic outcome written
 // by the same Lua command that mutates the transaction's balances.
 func TransactionBalanceOutcomeKey(organizationID, ledgerID, transactionID uuid.UUID) string {
 	return TransactionInternalKey(organizationID, ledgerID, transactionID.String()+":balance-outcome")
+}
+
+// TransactionPendingBalanceOutcomeKey stores the immutable initial-hold fact;
+// the terminal lifecycle keeps the standard transaction outcome key.
+func TransactionPendingBalanceOutcomeKey(organizationID, ledgerID, transactionID uuid.UUID) string {
+	return TransactionInternalKey(organizationID, ledgerID, transactionID.String()+":pending-hold:balance-outcome")
+}
+
+// TransactionTracerOutcomeKey stores the durable delivery projection written
+// from the balance outcome in the same Redis Lua command.
+func TransactionTracerOutcomeKey(organizationID, ledgerID, transactionID uuid.UUID) string {
+	return TransactionInternalKey(organizationID, ledgerID, transactionID.String()+":tracer-outcome-v2")
+}
+
+var tracerOutcomeIDNamespace = uuid.MustParse("87533e65-910a-5b37-88dd-fb26f25ce75c")
+
+// TransactionTracerOutcomeID derives the stable delivery identity used across
+// lost responses and dispatcher retries.
+func TransactionTracerOutcomeID(transactionID uuid.UUID) uuid.UUID {
+	return uuid.NewSHA1(tracerOutcomeIDNamespace, transactionID[:])
 }
 
 // TransactionPersistenceTombstoneKey stores the append-only proof that the
@@ -62,6 +90,12 @@ func TransactionBalanceOutcomeKey(organizationID, ledgerID, transactionID uuid.U
 // atomic operation.
 func TransactionPersistenceTombstoneKey(organizationID, ledgerID, transactionID uuid.UUID) string {
 	return TransactionInternalKey(organizationID, ledgerID, transactionID.String()+":persistence-tombstone")
+}
+
+// TransactionPendingPersistenceTombstoneKey keeps replay proof for the hold
+// phase without occupying the commit/cancel terminal tombstone identity.
+func TransactionPendingPersistenceTombstoneKey(organizationID, ledgerID, transactionID uuid.UUID) string {
+	return TransactionInternalKey(organizationID, ledgerID, transactionID.String()+":pending-hold:persistence-tombstone")
 }
 
 // BalanceInternalKey returns a key with the following format to be used on redis cluster:

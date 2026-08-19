@@ -459,6 +459,7 @@ type TransactionProcessingPayload struct {
 	// outcome handoff through RabbitMQ until PostgreSQL persistence is complete.
 	AttemptOwner    string `json:"attemptOwner,omitempty" msgpack:"AttemptOwner,omitempty"`
 	ExpectedOutcome string `json:"expectedOutcome,omitempty" msgpack:"ExpectedOutcome,omitempty"`
+	Action          string `json:"action,omitempty" msgpack:"Action,omitempty"`
 
 	// EffectModeVersion and EffectMode distinguish balance mutations from
 	// annotation-only audit rows across backup and RabbitMQ redelivery. The

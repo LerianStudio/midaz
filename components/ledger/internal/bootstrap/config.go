@@ -316,6 +316,16 @@ type Config struct {
 	TracerTLSCertFile string `env:"TRACER_TLS_CERT_FILE"`
 	TracerTLSKeyFile  string `env:"TRACER_TLS_KEY_FILE"`
 	TracerTLSCAFile   string `env:"TRACER_TLS_CA_FILE"`
+	// TracerOutcomeMode defaults to legacy. ledger_outcome_v2 is an explicit
+	// rollout activation and requires both the client and durable worker.
+	TracerOutcomeMode          string `env:"TRACER_OUTCOME_MODE"`
+	TracerOutcomeWorkerEnabled bool   `env:"TRACER_OUTCOME_WORKER_ENABLED"`
+	TracerOutcomePollMs        int    `env:"TRACER_OUTCOME_POLL_MS"`
+	TracerOutcomePreparedMs    int    `env:"TRACER_OUTCOME_PREPARED_TIMEOUT_MS"`
+	TracerOutcomeRetryBaseMs   int    `env:"TRACER_OUTCOME_RETRY_BASE_MS"`
+	TracerOutcomeRetryMaxMs    int    `env:"TRACER_OUTCOME_RETRY_MAX_MS"`
+	TracerOutcomeRetentionHrs  int    `env:"TRACER_OUTCOME_RETENTION_HOURS"`
+	TracerOutcomeBatchSize     int64  `env:"TRACER_OUTCOME_BATCH_SIZE"`
 }
 
 // Options contains optional dependencies that can be injected by callers.
@@ -1002,6 +1012,23 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 		return nil, fmt.Errorf("failed to initialize tracer reservation client: %w", err)
 	}
 
+	outcomeMode, err := normalizeTracerOutcomeMode(cfg.TracerOutcomeMode)
+	if err != nil {
+		doCleanup()
+		return nil, err
+	}
+
+	var tracerOutcomeApplier httpin.TracerOutcomeApplier
+	if tracerReserver != nil {
+		tracerOutcomeApplier, _ = tracerReserver.(httpin.TracerOutcomeApplier)
+	}
+
+	workerRequired := outcomeMode == tracerOutcomeModeV2 || cfg.TracerOutcomeWorkerEnabled
+	if workerRequired && tracerOutcomeApplier == nil {
+		doCleanup()
+		return nil, fmt.Errorf("TRACER_OUTCOME_MODE=%s requires a healthy Tracer client and outcome worker", outcomeMode)
+	}
+
 	// Resolve the optional SIGTERM teardown hook for the tracer transport.
 	// The gRPC client holds a persistent grpc.ClientConn and exposes
 	// Close() error; the REST client does not implement the interface, so
@@ -1022,6 +1049,7 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 		Query:                 queryUseCase,
 		FeeApplier:            fees.useCase,
 		TracerReserver:        tracerReserver,
+		TracerOutcomeV2:       outcomeMode == tracerOutcomeModeV2,
 		FeesMongoManager:      feeMgo.mongoManager,
 		MultiTenantEnabled:    cfg.MultiTenantEnabled,
 		RevertIdempotencyMode: cfg.RevertIdempotencyMode,
@@ -1185,6 +1213,31 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 		PollIntervalMs: 1000,
 	})
 
+	var tracerOutcomeWorker *TracerOutcomeWorker
+
+	if workerRequired {
+		workerConfig := TracerOutcomeWorkerConfig{
+			PollInterval:    time.Duration(cfg.TracerOutcomePollMs) * time.Millisecond,
+			PreparedTimeout: time.Duration(cfg.TracerOutcomePreparedMs) * time.Millisecond,
+			RetryBase:       time.Duration(cfg.TracerOutcomeRetryBaseMs) * time.Millisecond,
+			RetryMax:        time.Duration(cfg.TracerOutcomeRetryMaxMs) * time.Millisecond,
+			DeliveredTTL:    time.Duration(cfg.TracerOutcomeRetentionHrs) * time.Hour,
+			BatchSize:       cfg.TracerOutcomeBatchSize,
+		}
+		if cfg.MultiTenantEnabled && tenantCache != nil {
+			tracerOutcomeWorker = NewTracerOutcomeWorkerMT(logger, txnRedisRepo, tracerOutcomeApplier, workerConfig, tenantCache)
+		} else {
+			tracerOutcomeWorker = NewTracerOutcomeWorker(logger, txnRedisRepo, tracerOutcomeApplier, workerConfig)
+		}
+
+		if !tracerOutcomeWorker.Ready() {
+			doCleanup()
+			return nil, fmt.Errorf("tracer outcome worker failed readiness validation")
+		}
+
+		tracerOutcomeWorker.WithMetricsFactory(metricsFactory)
+	}
+
 	logger.Log(
 		context.Background(), libLog.LevelInfo, "Unified ledger component started successfully with single-port mode",
 		libLog.String("version", cfg.Version),
@@ -1201,6 +1254,7 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 		RedisQueueConsumer:       redisConsumer,
 		BalanceSyncWorker:        balanceSyncWorker,
 		LegacyBalanceSyncDrainer: legacyDrainer,
+		TracerOutcomeWorker:      tracerOutcomeWorker,
 		EventListener:            eventListener,
 		CircuitBreakerManager:    rmq.circuitBreakerManager,
 		Logger:                   logger,
@@ -1897,9 +1951,23 @@ func buildTracerReserver(cfg *Config, logger libLog.Logger) (httpin.TracerReserv
 
 // Tracer reservation transports selected by TRACER_TRANSPORT.
 const (
-	tracerTransportGRPC = "grpc"
-	tracerTransportREST = "rest"
+	tracerTransportGRPC     = "grpc"
+	tracerTransportREST     = "rest"
+	tracerOutcomeModeLegacy = "legacy"
+	tracerOutcomeModeV2     = "ledger_outcome_v2"
 )
+
+func normalizeTracerOutcomeMode(value string) (string, error) {
+	switch strings.ToLower(strings.TrimSpace(value)) {
+	case "", tracerOutcomeModeLegacy:
+		return tracerOutcomeModeLegacy, nil
+	case tracerOutcomeModeV2:
+		return tracerOutcomeModeV2, nil
+	default:
+		return "", fmt.Errorf("invalid TRACER_OUTCOME_MODE %q: expected %q or %q", value,
+			tracerOutcomeModeLegacy, tracerOutcomeModeV2)
+	}
+}
 
 // buildTracerRESTReserver wires the HTTP reservation client. When tlsConfig is
 // non-nil (TRACER_TLS_MODE=mtls) it is applied to the client's transport so the

@@ -210,4 +210,5 @@ func applyExecutionAttemptToPayload(payload *transaction.TransactionProcessingPa
 
 	payload.AttemptOwner = attempts[0].Owner
 	payload.ExpectedOutcome = attempts[0].Outcome
+	payload.Action = attempts[0].Action
 }

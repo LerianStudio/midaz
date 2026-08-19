@@ -44,3 +44,10 @@ type TracerReserver interface {
 	ConfirmByTransaction(ctx context.Context, transactionID uuid.UUID) error
 	ReleaseByTransaction(ctx context.Context, transactionID uuid.UUID) error
 }
+
+// TracerOutcomeApplier is the durable V2 delivery port. It stays separate from
+// the legacy reservation port so existing legacy-only fakes and deployments do
+// not accidentally claim worker readiness.
+type TracerOutcomeApplier interface {
+	ApplyOutcome(ctx context.Context, req tracer.ApplyOutcomeRequest) (*tracer.ApplyOutcomeResult, error)
+}

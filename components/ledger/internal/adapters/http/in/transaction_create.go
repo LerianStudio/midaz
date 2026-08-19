@@ -1420,6 +1420,21 @@ func (handler *TransactionHandler) executeCreateTransaction(ctx context.Context,
 			return nil, false, fmt.Errorf("build final transaction economic plan: %w", err)
 		}
 	}
+
+	durableTracerOutcome := handler.durableTracerOutcomeEnabled(ledgerSettings.Tracer, transactionStatus, honoredTracerSkip)
+
+	tracerAttemptAcquiredHere := false
+	if durableTracerOutcome {
+		params.ExecutionAttempt, tracerAttemptAcquiredHere, err = handler.buildTracerOutcomeAttempt(ctx,
+			params.OrganizationID, params.LedgerID, transactionID, transactionStatus, params.ExecutionAttempt)
+		if err != nil {
+			return nil, false, transactionLifecycleReconciliationError()
+		}
+	}
+
+	if params.ExecutionAttempt != nil {
+		params.ExecutionAttempt.Action = action
+	}
 	err = handler.Command.SendTransactionToRedisQueue(ctx, params.OrganizationID, params.LedgerID, transactionID,
 		transactionInput, validate, transactionStatus, action, transactionDate, nil, parentTransactionID,
 		command.TransactionBackupSeedOptions{
@@ -1436,10 +1451,22 @@ func (handler *TransactionHandler) executeCreateTransaction(ctx context.Context,
 		}
 		handler.deleteIdempotencyKey(ctx, idempotencyResult.InternalKey, params.RevertExecution)
 
+		if tracerAttemptAcquiredHere {
+			_, _ = handler.Command.TransactionRedisRepo.ReleaseOwnedKey(ctx,
+				params.ExecutionAttempt.ExecutionKey, params.ExecutionAttempt.Owner)
+		}
+
 		return nil, false, pkg.ValidateBusinessError(err, constant.EntityTransaction)
 	}
 	if params.RevertExecution != nil {
 		params.RevertExecution.SeedWritten = true
+	}
+
+	if durableTracerOutcome {
+		if err := handler.prepareTracerOutcome(ctx, params.OrganizationID, params.LedgerID, transactionID,
+			params.ExecutionAttempt, expectedEconomicPlan); err != nil {
+			return nil, false, transactionLifecycleReconciliationError()
+		}
 	}
 
 	// Reserve anchor (F3-T13): hold usage-limit capacity against the
@@ -1452,8 +1479,14 @@ func (handler *TransactionHandler) executeCreateTransaction(ctx context.Context,
 	// is confirmed on success / released on abort at the post-commit transport.
 	reservation := handler.reserveTransaction(ctx, span, logger, ledgerSettings.Tracer, transactionID,
 		transactionInput.Send.Value, transactionInput.Send.Asset, firstSourceAccountID(validate.Sources, balances),
-		transactionDate, reservationTTLForStatus(transactionStatus), honoredTracerSkip)
+		transactionDate, reservationTTLForStatus(transactionStatus), honoredTracerSkip, durableTracerOutcome)
 	if reservation.Kind == reservationReject {
+		if durableTracerOutcome && !reservation.Ambiguous {
+			if abortErr := handler.abortPreparedTracerOutcome(ctx, params.OrganizationID, params.LedgerID,
+				transactionID, params.ExecutionAttempt); abortErr != nil {
+				return nil, false, transactionLifecycleReconciliationError()
+			}
+		}
 		handler.deleteIdempotencyKey(ctx, idempotencyResult.InternalKey, params.RevertExecution)
 		handler.removePreMovementTransactionBackup(ctx, logger, params, transactionID, transactionStatus)
 
@@ -1498,6 +1531,28 @@ func (handler *TransactionHandler) executeCreateTransaction(ctx context.Context,
 		ExecutionAttempt:     params.ExecutionAttempt,
 		ExpectedEconomicPlan: expectedEconomicPlan,
 	})
+	if err != nil && durableTracerOutcome {
+		if pkg.IsBusinessError(err) {
+			if abortErr := handler.abortPreparedTracerOutcome(ctx, params.OrganizationID, params.LedgerID,
+				transactionID, params.ExecutionAttempt); abortErr != nil {
+				return nil, false, transactionLifecycleReconciliationError()
+			}
+		} else {
+			record, readErr := handler.Command.TransactionRedisRepo.ReadTracerOutcome(ctx,
+				params.OrganizationID, params.LedgerID, transactionID)
+			if readErr == nil && record != nil && record.OutcomeID == params.ExecutionAttempt.TracerOutcomeID &&
+				record.State == params.ExecutionAttempt.TracerOutcomeState {
+				result = tracerOutcomeResult(record, params.OrganizationID, params.LedgerID)
+				if result != nil {
+					err = nil
+				}
+			}
+
+			if err != nil {
+				return nil, false, transactionLifecycleReconciliationError()
+			}
+		}
+	}
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to process balance operations", err)
 		logger.Log(ctx, libLog.LevelWarn, "Failed to process balance operations", libLog.Err(err))
@@ -1511,7 +1566,7 @@ func (handler *TransactionHandler) executeCreateTransaction(ctx context.Context,
 		// whole batch. A transport error is ambiguous: the Lua command may have
 		// committed after the client lost its response, so its reservation must
 		// remain consumed until reconciliation sees the atomic backup marker.
-		if mayReleaseRevertFences(params.RevertExecution, err) || isRevertExecutionFenceRejected(params.RevertExecution, err) {
+		if !durableTracerOutcome && (mayReleaseRevertFences(params.RevertExecution, err) || isRevertExecutionFenceRejected(params.RevertExecution, err)) {
 			handler.releaseReservations(ctx, span, logger, reservation.Handle)
 		}
 
@@ -1535,7 +1590,7 @@ func (handler *TransactionHandler) executeCreateTransaction(ctx context.Context,
 	// open here for them. Downstream BuildOperations/WriteTransaction failures
 	// do NOT release: the balance has already moved and the backup queue
 	// reconstructs the transaction, so the consumed capacity stands.
-	if transactionStatus != constant.PENDING {
+	if transactionStatus != constant.PENDING && !durableTracerOutcome {
 		handler.confirmReservations(ctx, span, logger, reservation.Handle)
 	}
 
@@ -1645,6 +1700,7 @@ func (handler *TransactionHandler) executeCreateTransaction(ctx context.Context,
 		if params.ExecutionAttempt != nil {
 			payload.AttemptOwner = params.ExecutionAttempt.Owner
 			payload.ExpectedOutcome = params.ExecutionAttempt.Outcome
+			payload.Action = action
 		}
 		persisted, replayErr := handler.Command.ProveCompletedDurableReplay(ctx,
 			params.OrganizationID, params.LedgerID, payload)

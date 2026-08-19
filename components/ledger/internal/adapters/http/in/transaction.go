@@ -34,6 +34,9 @@ type TransactionHandler struct {
 	// nil reserver means the tracer integration is disabled (the create path
 	// stays unchanged). The per-ledger tracer.mode gate lives at the call site.
 	TracerReserver TracerReserver
+	// TracerOutcomeV2 enables Ledger-owned durable reservation termination. It
+	// defaults false; boot wiring turns it on only with a live client and worker.
+	TracerOutcomeV2 bool
 	// FeesMongoManager resolves the CURRENT tenant's fee Mongo database at the
 	// fee seam when MultiTenantEnabled is true. The fee pack/billing repos read
 	// the GENERIC tmcore MB key, which the route-scoped feesTenantMiddleware

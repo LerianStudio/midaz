@@ -96,6 +96,35 @@ func TestTracerClient_Reserve_DeniedIsSuccessfulReturn(t *testing.T) {
 	assert.Empty(t, result.ReservationIDs)
 }
 
+func TestTracerClient_ApplyOutcomePreservesReceiptAndTenant(t *testing.T) {
+	outcomeID := uuid.MustParse("33333333-3333-3333-3333-333333333333")
+	var gotTenant string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		assert.Equal(t, "/v1/reservations/transaction/"+fixedTransactionID.String()+"/outcome", r.URL.Path)
+		gotTenant = r.Header.Get(TenantHeader)
+		var body ApplyOutcomeRequest
+		require.NoError(t, json.NewDecoder(r.Body).Decode(&body))
+		assert.Equal(t, outcomeID, body.OutcomeID)
+		assert.Equal(t, ReservationOutcomeCommitted, body.Outcome)
+		_ = json.NewEncoder(w).Encode(ApplyOutcomeResult{
+			TransactionID: fixedTransactionID, OutcomeID: outcomeID, Outcome: ReservationOutcomeCommitted,
+			ReservationCount: 2, Replayed: true,
+		})
+	}))
+	defer srv.Close()
+
+	client, err := NewTracerClient(srv.URL)
+	require.NoError(t, err)
+	ctx := tmcore.ContextWithTenantID(context.Background(), "tenant-007")
+	result, err := client.ApplyOutcome(ctx, ApplyOutcomeRequest{
+		TransactionID: fixedTransactionID, OutcomeID: outcomeID, Outcome: ReservationOutcomeCommitted,
+	})
+	require.NoError(t, err)
+	assert.Equal(t, "tenant-007", gotTenant)
+	assert.Equal(t, 2, result.ReservationCount)
+	assert.True(t, result.Replayed)
+}
+
 func TestTracerClient_Reserve_TimeoutReturnsUnavailable(t *testing.T) {
 	release := make(chan struct{})
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {

@@ -78,13 +78,9 @@ func (uc *UseCase) FinalizeDurableTransactionPersistence(
 	}
 
 	if outcomeBacked {
-		attempt := mmodel.BalanceExecutionAttempt{
-			ExecutionKey:    utils.TransactionBalanceExecutionKey(organizationID, ledgerID, transactionID),
-			OutcomeKey:      utils.TransactionBalanceOutcomeKey(organizationID, ledgerID, transactionID),
-			Owner:           payload.AttemptOwner,
-			Outcome:         payload.ExpectedOutcome,
-			Identity:        transactionID,
-			RedisGeneration: payload.RedisGeneration,
+		attempt, _, attemptErr := outcomeBackedAttempt(organizationID, ledgerID, &payload)
+		if attemptErr != nil || attempt == nil {
+			return true, fmt.Errorf("rebuild durable transaction balance attempt: %w", attemptErr)
 		}
 		redisOperations := make([]mmodel.OperationRedis, 0, len(payload.Transaction.Operations))
 		for _, transactionOperation := range payload.Transaction.Operations {
@@ -109,7 +105,7 @@ func (uc *UseCase) FinalizeDurableTransactionPersistence(
 			TransactionAssetCode: payload.Input.Send.Asset,
 		})
 		if err := uc.TransactionRedisRepo.FinalizeTransactionPersistence(finalizeCtx,
-			organizationID, ledgerID, transactionID, attempt, redisOperations,
+			organizationID, ledgerID, transactionID, *attempt, redisOperations,
 			mmodel.BalancesToRedis(payload.BalancesAfter)); err != nil {
 			return true, fmt.Errorf("finalize durable transaction balance outcome: %w", err)
 		}

@@ -84,6 +84,18 @@ var transactionEconomicEvidenceExistsLua string
 //go:embed scripts/release_pre_movement_revert.lua
 var releasePreMovementRevertLua string
 
+//go:embed scripts/prepare_tracer_outcome.lua
+var prepareTracerOutcomeLua string
+
+//go:embed scripts/abort_prepared_tracer_outcome.lua
+var abortPreparedTracerOutcomeLua string
+
+//go:embed scripts/reschedule_tracer_outcome.lua
+var rescheduleTracerOutcomeLua string
+
+//go:embed scripts/mark_tracer_outcome_delivered.lua
+var markTracerOutcomeDeliveredLua string
+
 // balanceAtomicScript and claimBalanceSyncScript are built once at package init.
 // redis.NewScript computes the source SHA1 eagerly, so hoisting these out of the
 // per-call hot paths (runBalanceAtomicScript, GetBalanceSyncKeys,
@@ -107,6 +119,10 @@ var (
 	seedTransactionBackupScript                = redis.NewScript(seedTransactionBackupLua)
 	transactionEconomicEvidenceExistsScript    = redis.NewScript(transactionEconomicEvidenceExistsLua)
 	releasePreMovementRevertScript             = redis.NewScript(releasePreMovementRevertLua)
+	prepareTracerOutcomeScript                 = redis.NewScript(prepareTracerOutcomeLua)
+	abortPreparedTracerOutcomeScript           = redis.NewScript(abortPreparedTracerOutcomeLua)
+	rescheduleTracerOutcomeScript              = redis.NewScript(rescheduleTracerOutcomeLua)
+	markTracerOutcomeDeliveredScript           = redis.NewScript(markTracerOutcomeDeliveredLua)
 )
 
 //go:embed scripts/remove_balance_sync_keys_batch.lua
@@ -183,6 +199,14 @@ type RedisRepository interface {
 	// writes an immutable, replayable outcome in the same Lua command as the
 	// balance mutation. An opposite outcome is rejected before any movement.
 	ProcessOutcomeBalanceAtomicOperation(ctx context.Context, organizationID, ledgerID, transactionID uuid.UUID, transactionStatus string, pending bool, balances []mmodel.BalanceOperation, attempt mmodel.BalanceExecutionAttempt) (*mmodel.BalanceAtomicResult, error)
+	PrepareTracerOutcome(ctx context.Context, organizationID, ledgerID, transactionID uuid.UUID, owner string, outcomeID uuid.UUID, plan *mmodel.ExpectedEconomicPlan, preparedAt, recoverAt time.Time) (*mmodel.TracerOutcomeRecord, error)
+	AbortPreparedTracerOutcome(ctx context.Context, organizationID, ledgerID, transactionID uuid.UUID, owner string, outcomeID uuid.UUID, abortedAt time.Time) (*mmodel.TracerOutcomeRecord, error)
+	ReadTracerOutcome(ctx context.Context, organizationID, ledgerID, transactionID uuid.UUID) (*mmodel.TracerOutcomeRecord, error)
+	ReadTracerOutcomeByKey(ctx context.Context, key string) (*mmodel.TracerOutcomeRecord, error)
+	ListDueTracerOutcomes(ctx context.Context, dueAt time.Time, limit int64) ([]string, error)
+	RemoveTracerOutcomeSchedule(ctx context.Context, key string) error
+	RescheduleTracerOutcome(ctx context.Context, key string, outcomeID uuid.UUID, expectedState, lastError string, updatedAt, nextAttemptAt time.Time) error
+	MarkTracerOutcomeDelivered(ctx context.Context, key string, outcomeID uuid.UUID, expectedState string, deliveredAt time.Time, retention time.Duration) (bool, error)
 	// TransactionEconomicEvidenceExists atomically reports whether the exact
 	// backup, immutable outcome, execution attempt, or attempt owner survives.
 	// A rollout drain may proceed only after this same-slot proof is false and
@@ -1169,6 +1193,40 @@ func (rr *RedisConsumerRepository) ProcessBalanceAtomicOperation(ctx context.Con
 	return rr.processBalanceAtomicOperation(ctx, organizationID, ledgerID, transactionID, transactionStatus, pending, balancesOperation, nil)
 }
 
+func expectedBalanceAttemptKeys(organizationID, ledgerID, transactionID uuid.UUID, action string) (string, string) {
+	if action == constant.ActionHold {
+		return utils.TransactionPendingBalanceExecutionKey(organizationID, ledgerID, transactionID),
+			utils.TransactionPendingBalanceOutcomeKey(organizationID, ledgerID, transactionID)
+	}
+
+	return utils.TransactionBalanceExecutionKey(organizationID, ledgerID, transactionID),
+		utils.TransactionBalanceOutcomeKey(organizationID, ledgerID, transactionID)
+}
+
+func balanceAttemptKeysMatch(organizationID, ledgerID, transactionID uuid.UUID, attempt mmodel.BalanceExecutionAttempt) bool {
+	executionKey, outcomeKey := expectedBalanceAttemptKeys(organizationID, ledgerID, transactionID, attempt.Action)
+
+	return attempt.ExecutionKey == executionKey && attempt.OutcomeKey == outcomeKey
+}
+
+func tracerPlanEconomicPhase(plan *mmodel.ExpectedEconomicPlan) string {
+	for _, leg := range plan.Legs {
+		if leg.Operation == "ON_HOLD" {
+			return mmodel.TracerOutcomeEconomicPhasePendingHold
+		}
+	}
+
+	return ""
+}
+
+func tracerPhaseExecutionKey(organizationID, ledgerID, transactionID uuid.UUID, phase string) string {
+	if phase == mmodel.TracerOutcomeEconomicPhasePendingHold {
+		return utils.TransactionPendingBalanceExecutionKey(organizationID, ledgerID, transactionID)
+	}
+
+	return utils.TransactionBalanceExecutionKey(organizationID, ledgerID, transactionID)
+}
+
 func (rr *RedisConsumerRepository) ProcessOutcomeBalanceAtomicOperation(
 	ctx context.Context,
 	organizationID, ledgerID, transactionID uuid.UUID,
@@ -1180,13 +1238,257 @@ func (rr *RedisConsumerRepository) ProcessOutcomeBalanceAtomicOperation(
 	if attempt.ExecutionKey == "" || attempt.OutcomeKey == "" || attempt.Owner == "" ||
 		(attempt.Outcome != mmodel.TransactionOutcomeCommitted && attempt.Outcome != mmodel.TransactionOutcomeAborted) ||
 		attempt.Identity != transactionID ||
-		attempt.ExecutionKey != utils.TransactionBalanceExecutionKey(organizationID, ledgerID, transactionID) ||
-		attempt.OutcomeKey != utils.TransactionBalanceOutcomeKey(organizationID, ledgerID, transactionID) {
+		!balanceAttemptKeysMatch(organizationID, ledgerID, transactionID, attempt) {
 		return nil, fmt.Errorf("complete balance execution attempt is required")
+	}
+
+	if (attempt.TracerOutcomeID == uuid.Nil) != (attempt.TracerOutcomeState == "") {
+		return nil, fmt.Errorf("complete tracer outcome transition is required")
+	}
+
+	if attempt.TracerOutcomeID != uuid.Nil && attempt.TracerOutcomeState != mmodel.TracerOutcomePendingHeld &&
+		attempt.TracerOutcomeState != mmodel.TracerOutcomeCommitted && attempt.TracerOutcomeState != mmodel.TracerOutcomeAborted {
+		return nil, fmt.Errorf("invalid tracer outcome transition %q", attempt.TracerOutcomeState)
 	}
 
 	return rr.processBalanceAtomicOperation(ctx, organizationID, ledgerID, transactionID,
 		transactionStatus, pending, balancesOperation, &attempt)
+}
+
+func decodeTracerOutcome(raw string) (*mmodel.TracerOutcomeRecord, error) {
+	if raw == "" {
+		return nil, nil
+	}
+
+	// Redis cjson loses the empty-array marker when an economic outcome is
+	// nested inside the delivery record. Normalize only the two proof fields;
+	// non-empty decimal snapshots remain byte-for-byte untouched.
+	normalized := bytes.ReplaceAll([]byte(raw), []byte(`"before":{}`), []byte(`"before":[]`))
+	normalized = bytes.ReplaceAll(normalized, []byte(`"after":{}`), []byte(`"after":[]`))
+
+	var outcome mmodel.TracerOutcomeRecord
+	if err := decodeExactJSON(normalized, &outcome); err != nil {
+		return nil, fmt.Errorf("decode tracer outcome: %w", err)
+	}
+
+	if err := outcome.Validate(); err != nil {
+		return nil, fmt.Errorf("validate tracer outcome: %w", err)
+	}
+
+	return &outcome, nil
+}
+
+func (rr *RedisConsumerRepository) PrepareTracerOutcome(
+	ctx context.Context,
+	organizationID, ledgerID, transactionID uuid.UUID,
+	owner string,
+	outcomeID uuid.UUID,
+	plan *mmodel.ExpectedEconomicPlan,
+	preparedAt, recoverAt time.Time,
+) (*mmodel.TracerOutcomeRecord, error) {
+	if owner == "" || outcomeID == uuid.Nil || plan == nil || preparedAt.IsZero() || recoverAt.Before(preparedAt) {
+		return nil, fmt.Errorf("complete tracer outcome preparation is required")
+	}
+
+	if err := mmodel.ValidateExpectedEconomicPlan(plan); err != nil {
+		return nil, fmt.Errorf("validate tracer outcome economic plan: %w", err)
+	}
+
+	transactionKey := utils.TransactionInternalKey(organizationID, ledgerID, transactionID.String())
+	phase := tracerPlanEconomicPhase(plan)
+	executionKey := tracerPhaseExecutionKey(organizationID, ledgerID, transactionID, phase)
+	outcomeKey := utils.TransactionTracerOutcomeKey(organizationID, ledgerID, transactionID)
+
+	keys, err := tenantKeysFromContext(ctx, []string{
+		TransactionBackupQueue, transactionKey, executionKey, executionKey + ":owner",
+		outcomeKey, utils.TracerOutcomeScheduleKey,
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	rds, err := rr.conn.GetClient(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	raw, err := prepareTracerOutcomeScript.Run(ctx, rds, keys,
+		owner, transactionID.String(), outcomeID.String(), organizationID.String(), ledgerID.String(),
+		strconv.Itoa(plan.Version), plan.Digest, preparedAt.UnixMilli(), recoverAt.UnixMilli(), outcomeKey, phase).Text()
+	if err != nil {
+		return nil, fmt.Errorf("prepare tracer outcome: %w", err)
+	}
+
+	return decodeTracerOutcome(raw)
+}
+
+func (rr *RedisConsumerRepository) AbortPreparedTracerOutcome(
+	ctx context.Context,
+	organizationID, ledgerID, transactionID uuid.UUID,
+	owner string,
+	outcomeID uuid.UUID,
+	abortedAt time.Time,
+) (*mmodel.TracerOutcomeRecord, error) {
+	if owner == "" || outcomeID == uuid.Nil || abortedAt.IsZero() {
+		return nil, fmt.Errorf("complete prepared tracer outcome identity is required")
+	}
+
+	phase := ""
+
+	record, readErr := rr.ReadTracerOutcome(ctx, organizationID, ledgerID, transactionID)
+	if readErr != nil {
+		return nil, fmt.Errorf("read prepared tracer outcome phase: %w", readErr)
+	}
+
+	if record != nil {
+		phase = record.EconomicPhase
+	}
+
+	executionKey := tracerPhaseExecutionKey(organizationID, ledgerID, transactionID, phase)
+	outcomeKey := utils.TransactionTracerOutcomeKey(organizationID, ledgerID, transactionID)
+
+	keys, err := tenantKeysFromContext(ctx, []string{
+		executionKey, executionKey + ":owner", outcomeKey, utils.TracerOutcomeScheduleKey,
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	rds, err := rr.conn.GetClient(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	raw, err := abortPreparedTracerOutcomeScript.Run(ctx, rds, keys,
+		transactionID.String(), outcomeID.String(), owner, abortedAt.UnixMilli(), outcomeKey).Text()
+	if err != nil {
+		return nil, fmt.Errorf("abort prepared tracer outcome: %w", err)
+	}
+
+	return decodeTracerOutcome(raw)
+}
+
+func (rr *RedisConsumerRepository) ReadTracerOutcome(
+	ctx context.Context,
+	organizationID, ledgerID, transactionID uuid.UUID,
+) (*mmodel.TracerOutcomeRecord, error) {
+	raw, err := rr.Get(ctx, utils.TransactionTracerOutcomeKey(organizationID, ledgerID, transactionID))
+	if err != nil {
+		return nil, err
+	}
+
+	return decodeTracerOutcome(raw)
+}
+
+func (rr *RedisConsumerRepository) ReadTracerOutcomeByKey(ctx context.Context, key string) (*mmodel.TracerOutcomeRecord, error) {
+	raw, err := rr.Get(ctx, key)
+	if err != nil {
+		return nil, err
+	}
+
+	return decodeTracerOutcome(raw)
+}
+
+func (rr *RedisConsumerRepository) ListDueTracerOutcomes(ctx context.Context, dueAt time.Time, limit int64) ([]string, error) {
+	if limit <= 0 {
+		return nil, fmt.Errorf("tracer outcome list limit must be positive")
+	}
+
+	scheduleKey, err := tenantKeyFromContextOrError(ctx, utils.TracerOutcomeScheduleKey)
+	if err != nil {
+		return nil, err
+	}
+
+	rds, err := rr.conn.GetClient(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	return rds.ZRangeByScore(ctx, scheduleKey, &redis.ZRangeBy{
+		Min: "-inf", Max: strconv.FormatInt(dueAt.UnixMilli(), 10), Offset: 0, Count: limit,
+	}).Result()
+}
+
+func (rr *RedisConsumerRepository) RemoveTracerOutcomeSchedule(ctx context.Context, key string) error {
+	if key == "" {
+		return fmt.Errorf("tracer outcome schedule key is required")
+	}
+
+	scheduleKey, err := tenantKeyFromContextOrError(ctx, utils.TracerOutcomeScheduleKey)
+	if err != nil {
+		return err
+	}
+
+	rds, err := rr.conn.GetClient(ctx)
+	if err != nil {
+		return err
+	}
+
+	return rds.ZRem(ctx, scheduleKey, key).Err()
+}
+
+func (rr *RedisConsumerRepository) RescheduleTracerOutcome(
+	ctx context.Context,
+	key string,
+	outcomeID uuid.UUID,
+	expectedState, lastError string,
+	updatedAt, nextAttemptAt time.Time,
+) error {
+	if key == "" || outcomeID == uuid.Nil || expectedState == "" || updatedAt.IsZero() || nextAttemptAt.Before(updatedAt) {
+		return fmt.Errorf("complete tracer outcome reschedule is required")
+	}
+
+	if len(lastError) > 256 {
+		lastError = lastError[:256]
+	}
+
+	keys, err := tenantKeysFromContext(ctx, []string{key, utils.TracerOutcomeScheduleKey})
+	if err != nil {
+		return err
+	}
+
+	rds, err := rr.conn.GetClient(ctx)
+	if err != nil {
+		return err
+	}
+
+	if _, err := rescheduleTracerOutcomeScript.Run(ctx, rds, keys,
+		outcomeID.String(), expectedState, lastError, updatedAt.UnixMilli(), key, nextAttemptAt.UnixMilli()).Result(); err != nil {
+		return fmt.Errorf("reschedule tracer outcome: %w", err)
+	}
+
+	return nil
+}
+
+func (rr *RedisConsumerRepository) MarkTracerOutcomeDelivered(
+	ctx context.Context,
+	key string,
+	outcomeID uuid.UUID,
+	expectedState string,
+	deliveredAt time.Time,
+	retention time.Duration,
+) (bool, error) {
+	if key == "" || outcomeID == uuid.Nil || expectedState == "" || deliveredAt.IsZero() || retention <= 0 {
+		return false, fmt.Errorf("complete tracer outcome delivery receipt is required")
+	}
+
+	keys, err := tenantKeysFromContext(ctx, []string{key, utils.TracerOutcomeScheduleKey})
+	if err != nil {
+		return false, err
+	}
+
+	rds, err := rr.conn.GetClient(ctx)
+	if err != nil {
+		return false, err
+	}
+
+	result, err := markTracerOutcomeDeliveredScript.Run(ctx, rds, keys,
+		outcomeID.String(), expectedState, deliveredAt.UnixMilli(), key, retention.Milliseconds()).Int()
+	if err != nil {
+		return false, fmt.Errorf("mark tracer outcome delivered: %w", err)
+	}
+
+	return result == 1, nil
 }
 
 func (rr *RedisConsumerRepository) processBalanceAtomicOperation(ctx context.Context, organizationID, ledgerID, transactionID uuid.UUID, transactionStatus string, pending bool, balancesOperation []mmodel.BalanceOperation, attempt *mmodel.BalanceExecutionAttempt) (*mmodel.BalanceAtomicResult, error) {
@@ -1254,6 +1556,11 @@ func (rr *RedisConsumerRepository) processBalanceAtomicOperation(ctx context.Con
 	keys := []string{TransactionBackupQueue, transactionKey, utils.BalanceSyncScheduleKey}
 	if attempt != nil {
 		keys = append(keys, attempt.ExecutionKey, attempt.ExecutionKey+":owner", attempt.OutcomeKey)
+		if attempt.TracerOutcomeID != uuid.Nil {
+			keys = append(keys,
+				utils.TransactionTracerOutcomeKey(organizationID, ledgerID, transactionID),
+				utils.TracerOutcomeScheduleKey)
+		}
 	}
 	prefixedKeys, err := tenantKeysFromContext(ctx, keys)
 	if err != nil {
@@ -1263,6 +1570,10 @@ func (rr *RedisConsumerRepository) processBalanceAtomicOperation(ctx context.Con
 	finalArgs := append(economicPlanArgs, plan.args...)
 	if attempt != nil {
 		attemptArgs := []any{attempt.Owner, attempt.Outcome, attempt.Identity.String()}
+		if attempt.TracerOutcomeID != uuid.Nil {
+			attemptArgs = append(attemptArgs, "TRACER_OUTCOME_V2", attempt.TracerOutcomeID.String(),
+				attempt.TracerOutcomeState, utils.TransactionTracerOutcomeKey(organizationID, ledgerID, transactionID))
+		}
 		if attempt.RedisGeneration != "" {
 			prefixedKeys = append(prefixedKeys, FinancialDatasetGenerationKey)
 			attemptArgs = append(attemptArgs, attempt.RedisGeneration)
@@ -1398,8 +1709,7 @@ func (rr *RedisConsumerRepository) SeedTransactionBackup(
 
 	if attempt.Identity != transactionID || attempt.Owner == "" ||
 		(attempt.Outcome != mmodel.TransactionOutcomeCommitted && attempt.Outcome != mmodel.TransactionOutcomeAborted) ||
-		attempt.ExecutionKey != utils.TransactionBalanceExecutionKey(organizationID, ledgerID, transactionID) ||
-		attempt.OutcomeKey != utils.TransactionBalanceOutcomeKey(organizationID, ledgerID, transactionID) {
+		!balanceAttemptKeysMatch(organizationID, ledgerID, transactionID, attempt) {
 		return fmt.Errorf("complete balance execution attempt is required")
 	}
 	transactionKey := utils.TransactionInternalKey(organizationID, ledgerID, transactionID.String())
@@ -1445,16 +1755,20 @@ func (rr *RedisConsumerRepository) EnrichTransactionBackup(
 	defer span.End()
 
 	transactionKey := utils.TransactionInternalKey(organizationID, ledgerID, transactionID.String())
-	keys := []string{TransactionBackupQueue, transactionKey,
-		utils.TransactionBalanceOutcomeKey(organizationID, ledgerID, transactionID)}
+
+	economicOutcomeKey := utils.TransactionBalanceOutcomeKey(organizationID, ledgerID, transactionID)
+	if attempt != nil {
+		economicOutcomeKey = attempt.OutcomeKey
+	}
+
+	keys := []string{TransactionBackupQueue, transactionKey, economicOutcomeKey}
 	requireOutcome := "0"
 	owner := ""
 	outcome := ""
 	if attempt != nil {
 		if attempt.Identity != transactionID || attempt.Owner == "" ||
 			(attempt.Outcome != mmodel.TransactionOutcomeCommitted && attempt.Outcome != mmodel.TransactionOutcomeAborted) ||
-			attempt.ExecutionKey != utils.TransactionBalanceExecutionKey(organizationID, ledgerID, transactionID) ||
-			attempt.OutcomeKey != utils.TransactionBalanceOutcomeKey(organizationID, ledgerID, transactionID) {
+			!balanceAttemptKeysMatch(organizationID, ledgerID, transactionID, *attempt) {
 			return nil, nil, false, fmt.Errorf("complete balance execution attempt is required")
 		}
 		requireOutcome = "1"
@@ -1467,6 +1781,9 @@ func (rr *RedisConsumerRepository) EnrichTransactionBackup(
 		return nil, nil, false, err
 	}
 	tombstoneKey := utils.TransactionPersistenceTombstoneKey(organizationID, ledgerID, transactionID)
+	if attempt != nil && attempt.Action == constant.ActionHold {
+		tombstoneKey = utils.TransactionPendingPersistenceTombstoneKey(organizationID, ledgerID, transactionID)
+	}
 	prefixedTombstoneKey, err := tenantKeyFromContextOrError(ctx, tombstoneKey)
 	if err != nil {
 		return nil, nil, false, err
@@ -1704,8 +2021,7 @@ func (rr *RedisConsumerRepository) FinalizeTransactionPersistence(
 	}
 	if attempt.Identity != transactionID || attempt.Owner == "" ||
 		(attempt.Outcome != mmodel.TransactionOutcomeCommitted && attempt.Outcome != mmodel.TransactionOutcomeAborted) ||
-		attempt.ExecutionKey != utils.TransactionBalanceExecutionKey(organizationID, ledgerID, transactionID) ||
-		attempt.OutcomeKey != utils.TransactionBalanceOutcomeKey(organizationID, ledgerID, transactionID) ||
+		!balanceAttemptKeysMatch(organizationID, ledgerID, transactionID, attempt) ||
 		!redisEconomicOperationsComplete(organizationID, ledgerID, transactionID, operations) ||
 		!mmodel.RedisBalanceSetEconomicComplete(balancesAfter) {
 		return fmt.Errorf("complete balance execution attempt is required")
@@ -1718,6 +2034,9 @@ func (rr *RedisConsumerRepository) FinalizeTransactionPersistence(
 
 	transactionKey := utils.TransactionInternalKey(organizationID, ledgerID, transactionID.String())
 	tombstoneKey := utils.TransactionPersistenceTombstoneKey(organizationID, ledgerID, transactionID)
+	if attempt.Action == constant.ActionHold {
+		tombstoneKey = utils.TransactionPendingPersistenceTombstoneKey(organizationID, ledgerID, transactionID)
+	}
 	prefixedKeys, err := tenantKeysFromContext(ctx,
 		[]string{TransactionBackupQueue, transactionKey, attempt.OutcomeKey, tombstoneKey})
 	if err != nil {

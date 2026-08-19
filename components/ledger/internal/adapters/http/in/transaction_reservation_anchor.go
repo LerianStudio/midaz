@@ -45,9 +45,10 @@ const (
 // observes amounts and gates execution; it never alters Send.Value or balance
 // math (third rail).
 type reservationOutcome struct {
-	Kind   reservationOutcomeKind
-	Handle reservationHandle
-	Err    error
+	Kind      reservationOutcomeKind
+	Handle    reservationHandle
+	Err       error
+	Ambiguous bool
 }
 
 // reservationHandle carries the reservation ids produced by a successful
@@ -95,6 +96,7 @@ func (handler *TransactionHandler) reserveTransaction(
 	transactionTimestamp time.Time,
 	ttl reservationTTLPolicy,
 	honoredTracerSkip bool,
+	durableOutcome ...bool,
 ) reservationOutcome {
 	// off, unconfigured, no client injected, or an honored per-call tracer skip:
 	// the create path is unchanged and no reserve request is built or sent. An
@@ -105,6 +107,7 @@ func (handler *TransactionHandler) reserveTransaction(
 	}
 
 	advisory := settings.Mode == mmodel.TracerModeAdvisory
+	useDurableOutcome := len(durableOutcome) > 0 && durableOutcome[0]
 
 	req := tracer.ReserveRequest{
 		TransactionID:        transactionID,
@@ -115,10 +118,13 @@ func (handler *TransactionHandler) reserveTransaction(
 		TransactionTimestamp: transactionTimestamp.UTC().Format(time.RFC3339Nano),
 		LongLived:            ttl == reservationTTLLongLived,
 	}
+	if useDurableOutcome {
+		req.DeliveryMode = tracer.DeliveryModeLedgerOutcomeV2
+	}
 
 	result, err := handler.TracerReserver.Reserve(ctx, req)
 	if err != nil {
-		return handler.handleReserveError(ctx, span, logger, settings, transactionID, advisory, err)
+		return handler.handleReserveError(ctx, span, logger, settings, transactionID, advisory, useDurableOutcome, err)
 	}
 
 	if result.Denied {
@@ -157,9 +163,18 @@ func (handler *TransactionHandler) handleReserveError(
 	settings mmodel.TracerSettings,
 	transactionID uuid.UUID,
 	advisory bool,
+	durableOutcome bool,
 	err error,
 ) reservationOutcome {
 	libOpentelemetry.HandleSpanError(span, "Tracer reservation call failed", err)
+
+	if durableOutcome {
+		// Reserve may have committed after its response was lost. The PREPARED
+		// record stays fenced for recovery, which will deliver ABORTED; proceeding
+		// to balances here would make a second economic fact.
+		rejectErr := transactionLifecycleReconciliationError()
+		return reservationOutcome{Kind: reservationReject, Err: rejectErr, Ambiguous: true}
+	}
 
 	if advisory {
 		logger.Log(ctx, libLog.LevelWarn, "Tracer reservation failed in advisory mode; proceeding",

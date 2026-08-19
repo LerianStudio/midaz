@@ -255,22 +255,38 @@ local function main()
     local transactionIdentity = nil
     local economicPlanVersion = nil
     local economicPlanDigest = nil
+	local tracerOutcomeV2 = false
+	local tracerOutcomeID = nil
+	local tracerOutcomeState = nil
+	local tracerOutcomeMember = nil
+	local tracerOutcomeRecord = nil
 
     -- The reusable outcome protocol passes an owned attempt pair plus an
     -- immutable outcome key in the same {transactions} slot. A replay of the
     -- same outcome returns the exact original snapshots without moving funds;
     -- an opposite terminal outcome conflicts before the first balance write.
-    if #KEYS == 6 or #KEYS == 7 then
+    if #KEYS >= 6 then
         attemptOwner = ARGV[1]
         desiredOutcome = ARGV[2]
         transactionIdentity = ARGV[3]
         argStart = 4
 
-        if #KEYS == 7 then
-            if redis.call("GET", KEYS[7]) ~= ARGV[4] then
+        if #KEYS == 8 or #KEYS == 9 then
+			if ARGV[argStart] ~= "TRACER_OUTCOME_V2" then
+				return redis.error_reply("TRACER_OUTCOME_INVALID")
+			end
+			tracerOutcomeV2 = true
+			tracerOutcomeID = ARGV[argStart + 1]
+			tracerOutcomeState = ARGV[argStart + 2]
+			tracerOutcomeMember = ARGV[argStart + 3]
+			argStart = argStart + 4
+		end
+
+        if #KEYS == 7 or #KEYS == 9 then
+            if redis.call("GET", KEYS[#KEYS]) ~= ARGV[argStart] then
                 return redis.error_reply("FINANCIAL_DATASET_GENERATION_MISMATCH")
             end
-            argStart = 5
+			argStart = argStart + 1
         end
     end
 
@@ -291,13 +307,43 @@ local function main()
         end
     end
 
-    if #KEYS == 6 or #KEYS == 7 then
+	if tracerOutcomeV2 then
+		local tracerRaw = redis.call("GET", KEYS[7])
+		local tracerOK
+		tracerOK, tracerOutcomeRecord = pcall(cjson.decode, tracerRaw or "")
+		if not tracerOK or type(tracerOutcomeRecord) ~= "table" or
+		   tracerOutcomeRecord.transaction_id ~= transactionIdentity or
+		   tracerOutcomeRecord.outcome_id ~= tracerOutcomeID or
+		   (tracerOutcomeRecord.state ~= "PENDING_HELD" and
+		    (tostring(tracerOutcomeRecord.economic_plan_version) ~= economicPlanVersion or
+		     tracerOutcomeRecord.economic_plan_digest ~= economicPlanDigest)) then
+			return redis.error_reply("TRACER_OUTCOME_CONFLICT")
+		end
+		local validTransition =
+			(tracerOutcomeRecord.state == "PREPARED" and tracerOutcomeRecord.owner == attemptOwner and
+			 (tracerOutcomeState == "PENDING_HELD" or tracerOutcomeState == "COMMITTED" or tracerOutcomeState == "ABORTED")) or
+			(tracerOutcomeRecord.state == "PENDING_HELD" and
+			 (tracerOutcomeState == "COMMITTED" or tracerOutcomeState == "ABORTED")) or
+			(tracerOutcomeRecord.state == tracerOutcomeState and tracerOutcomeRecord.owner == attemptOwner) or
+			(tracerOutcomeRecord.state == "DELIVERED" and tracerOutcomeRecord.owner == attemptOwner and
+			 type(tracerOutcomeRecord.economic_outcome) == "table" and
+			 ((tracerOutcomeState == "COMMITTED" and tracerOutcomeRecord.economic_outcome.outcome == "COMMITTED") or
+			  (tracerOutcomeState == "ABORTED" and tracerOutcomeRecord.economic_outcome.outcome == "ABORTED")))
+		if not validTransition then
+			return redis.error_reply("TRACER_OUTCOME_STALE_EXECUTOR")
+		end
+	end
+
+    if #KEYS >= 6 then
         local existingRaw = redis.call("GET", KEYS[6])
-        if existingRaw then
-            local existing = cjson.decode(existingRaw)
-            if existing.identity ~= transactionIdentity or existing.outcome ~= desiredOutcome then
-                return redis.error_reply("0099")
-            end
+		if existingRaw then
+			local existing = cjson.decode(existingRaw)
+			if existing.identity ~= transactionIdentity or existing.outcome ~= desiredOutcome then
+				return redis.error_reply("0099")
+			end
+			if tracerOutcomeV2 and existing.owner ~= attemptOwner then
+				return redis.error_reply("TRACER_OUTCOME_STALE_EXECUTOR")
+			end
             if economicPlanDigest ~= nil and
                (tostring(existing.economic_plan_version) ~= economicPlanVersion or existing.economic_plan_digest ~= economicPlanDigest) then
                 return redis.error_reply("EXPECTED_ECONOMIC_PLAN_MISMATCH")
@@ -322,6 +368,37 @@ local function main()
     -- ensuring rollback compatibility with versions that interpret scores as seconds.
     local timeNow = redis.call("TIME")
     local dueAt = tonumber(timeNow[1]) + tonumber(timeNow[2]) / 1000000
+	local dueAtMS = tonumber(timeNow[1]) * 1000 + math.floor(tonumber(timeNow[2]) / 1000)
+
+	local function writeOutcome(before, after)
+		local economicOutcome
+		if #before == 0 and #after == 0 then
+			economicOutcome = cjson.decode('{"before":[],"after":[]}')
+		else
+			economicOutcome = { before = before, after = after }
+		end
+		economicOutcome.identity = transactionIdentity
+		economicOutcome.outcome = desiredOutcome
+		economicOutcome.owner = attemptOwner
+		economicOutcome.economic_plan_version = economicPlanVersion
+		economicOutcome.economic_plan_digest = economicPlanDigest
+		redis.call("SET", KEYS[6], cjson.encode(economicOutcome))
+		if tracerOutcomeV2 then
+			tracerOutcomeRecord.state = tracerOutcomeState
+			tracerOutcomeRecord.owner = attemptOwner
+			tracerOutcomeRecord.economic_plan_version = economicPlanVersion
+			tracerOutcomeRecord.economic_plan_digest = economicPlanDigest
+			tracerOutcomeRecord.updated_at_unix_ms = dueAtMS
+			tracerOutcomeRecord.economic_outcome = economicOutcome
+			redis.call("SET", KEYS[7], cjson.encode(tracerOutcomeRecord))
+			if tracerOutcomeState == "PENDING_HELD" then
+				redis.call("ZREM", KEYS[8], tracerOutcomeMember)
+			else
+				redis.call("ZADD", KEYS[8], dueAtMS, tracerOutcomeMember)
+			end
+		end
+		redis.call("DEL", KEYS[4], KEYS[5])
+	end
 
     -- Delete marker guard: reject the whole batch before any mutation if any balance
     -- in it carries a live deletion marker. The delete marker is a SEPARATE key
@@ -682,34 +759,16 @@ local function main()
     if #returnBalances == 0 then
         local emptyArray = cjson.decode("[]")
         updateTransactionHash(transactionBackupQueue, transactionKey, emptyArray, emptyArray)
-        if #KEYS == 6 or #KEYS == 7 then
-            redis.call("SET", KEYS[6], cjson.encode({
-                identity = transactionIdentity,
-                outcome = desiredOutcome,
-                owner = attemptOwner,
-                economic_plan_version = economicPlanVersion,
-                economic_plan_digest = economicPlanDigest,
-                before = emptyArray,
-                after = emptyArray
-            }))
-            redis.call("DEL", KEYS[4], KEYS[5])
+        if #KEYS >= 6 then
+			writeOutcome(emptyArray, emptyArray)
         end
         return cjson.encode({ before = cjson.decode("[]"), after = cjson.decode("[]") })
     end
 
     updateTransactionHash(transactionBackupQueue, transactionKey, returnBalances, returnBalancesAfter)
 
-    if #KEYS == 6 or #KEYS == 7 then
-        redis.call("SET", KEYS[6], cjson.encode({
-            identity = transactionIdentity,
-            outcome = desiredOutcome,
-            owner = attemptOwner,
-            economic_plan_version = economicPlanVersion,
-            economic_plan_digest = economicPlanDigest,
-            before = returnBalances,
-            after = returnBalancesAfter
-        }))
-        redis.call("DEL", KEYS[4], KEYS[5])
+    if #KEYS >= 6 then
+		writeOutcome(returnBalances, returnBalancesAfter)
     end
 
     return cjson.encode({ before = returnBalances, after = returnBalancesAfter })

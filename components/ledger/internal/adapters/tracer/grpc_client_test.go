@@ -35,6 +35,7 @@ type stubReservationServer struct {
 	releaseByIDFn          func(*reservationv1.ReleaseByIdRequest) (*reservationv1.ReleaseByIdResponse, error)
 	confirmByTransactionFn func(*reservationv1.ConfirmByTransactionRequest) (*reservationv1.ConfirmByTransactionResponse, error)
 	releaseByTransactionFn func(*reservationv1.ReleaseByTransactionRequest) (*reservationv1.ReleaseByTransactionResponse, error)
+	applyOutcomeFn         func(*reservationv1.ApplyOutcomeRequest) (*reservationv1.ApplyOutcomeResponse, error)
 
 	// captureMetadata, when set, receives the incoming metadata the Reserve RPC
 	// arrived with so a test can assert on tenant propagation.
@@ -64,6 +65,14 @@ func (s *stubReservationServer) ConfirmByTransaction(_ context.Context, req *res
 
 func (s *stubReservationServer) ReleaseByTransaction(_ context.Context, req *reservationv1.ReleaseByTransactionRequest) (*reservationv1.ReleaseByTransactionResponse, error) {
 	return s.releaseByTransactionFn(req)
+}
+
+func (s *stubReservationServer) ApplyOutcome(ctx context.Context, req *reservationv1.ApplyOutcomeRequest) (*reservationv1.ApplyOutcomeResponse, error) {
+	if s.captureMetadata != nil {
+		md, _ := metadata.FromIncomingContext(ctx)
+		s.captureMetadata(md)
+	}
+	return s.applyOutcomeFn(req)
 }
 
 // newTestGRPCClient stands up the stub server on an in-memory bufconn listener
@@ -391,6 +400,37 @@ func TestTracerGRPCClient_ReleaseByTransaction(t *testing.T) {
 	require.NoError(t, client.ReleaseByTransaction(context.Background(), transactionID))
 	require.NotNil(t, captured)
 	assert.Equal(t, transactionID.String(), captured.GetTransactionId())
+}
+
+func TestTracerGRPCClient_ApplyOutcomePreservesReceiptAndTenant(t *testing.T) {
+	t.Parallel()
+
+	outcomeID := uuid.MustParse("33333333-3333-3333-3333-333333333333")
+	var captured *reservationv1.ApplyOutcomeRequest
+	var capturedMetadata metadata.MD
+	stub := &stubReservationServer{
+		captureMetadata: func(md metadata.MD) { capturedMetadata = md },
+		applyOutcomeFn: func(req *reservationv1.ApplyOutcomeRequest) (*reservationv1.ApplyOutcomeResponse, error) {
+			captured = req
+			return &reservationv1.ApplyOutcomeResponse{
+				TransactionId: req.GetTransactionId(), OutcomeId: req.GetOutcomeId(), Outcome: req.GetOutcome(),
+				ReservationCount: 2, Replayed: true,
+			}, nil
+		},
+	}
+	client := newTestGRPCClient(t, stub)
+	ctx := tmcore.ContextWithTenantID(context.Background(), "tenant-007")
+	result, err := client.ApplyOutcome(ctx, ApplyOutcomeRequest{
+		TransactionID: fixedTransactionID, OutcomeID: outcomeID, Outcome: ReservationOutcomeCommitted,
+	})
+	require.NoError(t, err)
+	require.NotNil(t, captured)
+	assert.Equal(t, fixedTransactionID.String(), captured.GetTransactionId())
+	assert.Equal(t, outcomeID.String(), captured.GetOutcomeId())
+	assert.Equal(t, reservationv1.ReservationOutcome_RESERVATION_OUTCOME_COMMITTED, captured.GetOutcome())
+	assert.Equal(t, []string{"tenant-007"}, capturedMetadata.Get(tenantMetadataKey))
+	assert.Equal(t, 2, result.ReservationCount)
+	assert.True(t, result.Replayed)
 }
 
 // TestTracerGRPCClient_PropagatesTenantMetadata pins trusted tenant propagation

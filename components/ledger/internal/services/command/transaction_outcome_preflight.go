@@ -11,6 +11,7 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/transaction"
+	"github.com/LerianStudio/midaz/v4/pkg/constant"
 	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v4/pkg/utils"
 )
@@ -173,12 +174,21 @@ func outcomeBackedAttempt(
 		return nil, true, fmt.Errorf("outcome-backed transaction identity is invalid")
 	}
 
+	executionKey := utils.TransactionBalanceExecutionKey(organizationID, ledgerID, transactionID)
+
+	outcomeKey := utils.TransactionBalanceOutcomeKey(organizationID, ledgerID, transactionID)
+	if payload.Action == constant.ActionHold {
+		executionKey = utils.TransactionPendingBalanceExecutionKey(organizationID, ledgerID, transactionID)
+		outcomeKey = utils.TransactionPendingBalanceOutcomeKey(organizationID, ledgerID, transactionID)
+	}
+
 	return &mmodel.BalanceExecutionAttempt{
-		ExecutionKey:    utils.TransactionBalanceExecutionKey(organizationID, ledgerID, transactionID),
-		OutcomeKey:      utils.TransactionBalanceOutcomeKey(organizationID, ledgerID, transactionID),
+		ExecutionKey:    executionKey,
+		OutcomeKey:      outcomeKey,
 		Owner:           payload.AttemptOwner,
 		Outcome:         payload.ExpectedOutcome,
 		Identity:        transactionID,
 		RedisGeneration: payload.RedisGeneration,
+		Action:          payload.Action,
 	}, true, nil
 }
