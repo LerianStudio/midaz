@@ -78,13 +78,8 @@ func (handler *TransactionHandler) prepareTracerOutcome(
 	plan *mmodel.ExpectedEconomicPlan,
 ) error {
 	if handler.MultiTenantEnabled {
-		tenantID := tmcore.GetTenantIDContext(ctx)
-		if tenantID == "" {
+		if tmcore.GetTenantIDContext(ctx) == "" {
 			return fmt.Errorf("prepare durable tracer outcome: tenant context is required")
-		}
-		outcomeKey := utils.TransactionTracerOutcomeKey(organizationID, ledgerID, transactionID)
-		if err := handler.Command.TransactionRedisRepo.RegisterTracerOutcomeTenant(ctx, tenantID, outcomeKey); err != nil {
-			return fmt.Errorf("register durable tracer outcome tenant: %w", err)
 		}
 	}
 

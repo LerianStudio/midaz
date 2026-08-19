@@ -9,11 +9,14 @@ package redis
 import (
 	"context"
 	"encoding/json"
+	"net"
+	"strings"
 	"testing"
 	"time"
 
 	tmcore "github.com/LerianStudio/lib-commons/v6/commons/tenant-manager/core"
 	"github.com/google/uuid"
+	goredis "github.com/redis/go-redis/v9"
 	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -21,10 +24,97 @@ import (
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
 	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v4/pkg/utils"
+	"github.com/LerianStudio/midaz/v4/tests/utils/chaos"
 	redistestutil "github.com/LerianStudio/midaz/v4/tests/utils/redis"
 )
 
 var tracerOutcomeIntegrationFuture = time.Unix(4102444800, 0).UTC()
+
+func TestIntegration_TracerOutcomeDiscoveryIsAtomicOnRedisCluster(t *testing.T) {
+	t.Setenv("ALLOW_INSECURE_TLS", "true")
+	ctx := context.Background()
+	cluster := startSingleNodeRedisCluster(t, ctx)
+	connection := redistestutil.CreateConnection(t, cluster.Addr)
+	repo, err := NewConsumerRedis(connection)
+	require.NoError(t, err)
+
+	const tenantID = "tenant-cluster-discovery"
+	tenantCtx := tmcore.ContextWithTenantID(ctx, tenantID)
+	organizationID, ledgerID, transactionID := uuid.New(), uuid.New(), uuid.New()
+	outcomeKey := utils.TransactionTracerOutcomeKey(organizationID, ledgerID, transactionID)
+	tenantOutcomeKey, err := tenantKeyFromContextOrError(tenantCtx, outcomeKey)
+	require.NoError(t, err)
+	registrySlot, err := cluster.Client.Do(ctx, "CLUSTER", "KEYSLOT", utils.TracerOutcomeTenantRegistry).Int()
+	require.NoError(t, err)
+	outcomeSlot, err := cluster.Client.Do(ctx, "CLUSTER", "KEYSLOT", tenantOutcomeKey).Int()
+	require.NoError(t, err)
+	require.Equal(t, outcomeSlot, registrySlot,
+		"tenant discovery and its durable outcome must share one Redis Cluster failure domain")
+
+	operations := []mmodel.BalanceOperation{redistestutil.CreateBalanceOperationWithAvailable(
+		organizationID, ledgerID, "@cluster-discovery", "USD", constant.DEBIT,
+		decimal.NewFromInt(1), decimal.NewFromInt(100), "deposit",
+	)}
+	queue := mmodel.TransactionRedisQueue{
+		TransactionID: transactionID, OrganizationID: organizationID, LedgerID: ledgerID,
+		AttemptOwner: "cluster-owner", ExpectedOutcome: mmodel.TransactionOutcomeCommitted,
+		TransactionStatus: constant.APPROVED,
+	}
+	operations = bindFinalEconomicPlan(t, &queue, operations, constant.APPROVED, false)
+	seed, err := json.Marshal(queue)
+	require.NoError(t, err)
+	require.NoError(t, repo.AddMessageToQueue(tenantCtx,
+		utils.TransactionInternalKey(organizationID, ledgerID, transactionID.String()), seed))
+
+	preparedAt := time.Unix(1700000000, 0).UTC()
+	_, err = repo.PrepareTracerOutcome(tenantCtx, organizationID, ledgerID, transactionID,
+		queue.AttemptOwner, utils.TransactionTracerOutcomeID(transactionID), queue.ExpectedEconomicPlan,
+		preparedAt, preparedAt.Add(time.Minute))
+	require.NoError(t, err)
+	registrations, err := repo.ListTracerOutcomeTenants(ctx)
+	require.NoError(t, err)
+	require.Equal(t, []TracerOutcomeTenantRegistration{{TenantID: tenantID, Generation: 1}}, registrations,
+		"PREPARED must make tenant discovery durable in the same atomic command")
+	require.NoError(t, NewFinancialRedisDurabilityGuard(connection).FinancialDurability(ctx))
+
+	// Kill Valkey without a graceful shutdown. A new Ledger process must recover
+	// the outcome and its only discovery pointer together from the same AOF.
+	chaosOrchestrator := chaos.NewOrchestrator(t)
+	t.Cleanup(func() { require.NoError(t, chaosOrchestrator.Close()) })
+	containerID := cluster.Container.GetContainerID()
+	require.NoError(t, chaosOrchestrator.KillContainer(ctx, containerID, "SIGKILL"))
+	require.Eventually(t, func() bool {
+		running, runningErr := chaosOrchestrator.IsContainerRunning(ctx, containerID)
+		return runningErr == nil && !running
+	}, 5*time.Second, 50*time.Millisecond)
+	require.NoError(t, cluster.Container.Start(ctx))
+	host, err := cluster.Container.Host(ctx)
+	require.NoError(t, err)
+	port, err := cluster.Container.MappedPort(ctx, "6379/tcp")
+	require.NoError(t, err)
+	restartedAddr := net.JoinHostPort(host, port.Port())
+	restartedClient := goredis.NewClient(&goredis.Options{Addr: restartedAddr})
+	t.Cleanup(func() { require.NoError(t, restartedClient.Close()) })
+	require.Eventually(t, func() bool {
+		if pingErr := restartedClient.Ping(ctx).Err(); pingErr != nil {
+			return false
+		}
+		info, infoErr := restartedClient.ClusterInfo(ctx).Result()
+		return infoErr == nil && strings.Contains(info, "cluster_state:ok")
+	}, 30*time.Second, 100*time.Millisecond)
+
+	restartedConnection := redistestutil.CreateConnection(t, restartedAddr)
+	restartedRepo, err := NewConsumerRedis(restartedConnection)
+	require.NoError(t, err)
+	recovered, err := restartedRepo.ReadTracerOutcome(tenantCtx, organizationID, ledgerID, transactionID)
+	require.NoError(t, err)
+	require.NotNil(t, recovered)
+	require.Equal(t, mmodel.TracerOutcomePrepared, recovered.State)
+	recoveredRegistrations, err := restartedRepo.ListTracerOutcomeTenants(ctx)
+	require.NoError(t, err)
+	require.Equal(t, registrations, recoveredRegistrations,
+		"an abrupt restart must never recover an undiscoverable tenant outcome")
+}
 
 func TestIntegration_TracerOutcomeTenantRetirementCannotRaceNewPrepare(t *testing.T) {
 	t.Setenv("ALLOW_INSECURE_TLS", "true")
@@ -32,40 +122,115 @@ func TestIntegration_TracerOutcomeTenantRetirementCannotRaceNewPrepare(t *testin
 	const tenantID = "tenant-generation-cas"
 	ctx := tmcore.ContextWithTenantID(context.Background(), tenantID)
 	organizationID, ledgerID := uuid.New(), uuid.New()
-	firstOutcomeKey := utils.TransactionTracerOutcomeKey(organizationID, ledgerID, uuid.New())
-	secondOutcomeKey := utils.TransactionTracerOutcomeKey(organizationID, ledgerID, uuid.New())
+	preparedAt := time.Unix(1700000000, 0).UTC()
+	prepare := func(transactionID uuid.UUID, address string) (string, uuid.UUID) {
+		t.Helper()
+		owner := uuid.NewString()
+		operations := []mmodel.BalanceOperation{redistestutil.CreateBalanceOperationWithAvailable(
+			organizationID, ledgerID, address, "USD", constant.DEBIT,
+			decimal.NewFromInt(1), decimal.NewFromInt(100), "deposit",
+		)}
+		queue := mmodel.TransactionRedisQueue{
+			TransactionID: transactionID, OrganizationID: organizationID, LedgerID: ledgerID,
+			AttemptOwner: owner, ExpectedOutcome: mmodel.TransactionOutcomeCommitted,
+			TransactionStatus: constant.APPROVED,
+		}
+		operations = bindFinalEconomicPlan(t, &queue, operations, constant.APPROVED, false)
+		seed, marshalErr := json.Marshal(queue)
+		require.NoError(t, marshalErr)
+		require.NoError(t, infra.repo.AddMessageToQueue(ctx,
+			utils.TransactionInternalKey(organizationID, ledgerID, transactionID.String()), seed))
+		outcomeID := utils.TransactionTracerOutcomeID(transactionID)
+		_, prepareErr := infra.repo.PrepareTracerOutcome(ctx, organizationID, ledgerID, transactionID,
+			owner, outcomeID, queue.ExpectedEconomicPlan, preparedAt, preparedAt.Add(time.Minute))
+		require.NoError(t, prepareErr)
+		return utils.TransactionTracerOutcomeKey(organizationID, ledgerID, transactionID), outcomeID
+	}
 
-	require.NoError(t, infra.repo.RegisterTracerOutcomeTenant(ctx, tenantID, firstOutcomeKey))
+	firstOutcomeKey, firstOutcomeID := prepare(uuid.New(), "@tenant-generation-first")
 	registrations, err := infra.repo.ListTracerOutcomeTenants(context.Background())
 	require.NoError(t, err)
 	require.Equal(t, []TracerOutcomeTenantRegistration{{TenantID: tenantID, Generation: 1}}, registrations)
 	hasBacklog, err := infra.repo.TracerOutcomeTenantHasBacklog(ctx)
 	require.NoError(t, err)
-	require.True(t, hasBacklog, "the pre-prepare intent must prevent retirement")
-	retired, err := infra.repo.RetireTracerOutcomeTenant(ctx, tenantID, 1)
+	require.True(t, hasBacklog)
+	delivered, err := infra.repo.MarkTracerOutcomeDelivered(ctx, firstOutcomeKey, firstOutcomeID,
+		mmodel.TracerOutcomePrepared, preparedAt.Add(time.Minute), time.Hour)
 	require.NoError(t, err)
-	require.False(t, retired, "a tenant with an in-flight prepare intent cannot retire")
+	require.True(t, delivered)
+	hasBacklog, err = infra.repo.TracerOutcomeTenantHasBacklog(ctx)
+	require.NoError(t, err)
+	require.False(t, hasBacklog)
 
 	// Simulate a producer entering after the worker observed generation 1 but
-	// before it executes retirement. The stale CAS must preserve discovery.
-	require.NoError(t, infra.repo.RegisterTracerOutcomeTenant(ctx, tenantID, secondOutcomeKey))
-	retired, err = infra.repo.RetireTracerOutcomeTenant(ctx, tenantID, 1)
+	// before it executes retirement. Prepare must atomically recreate backlog
+	// and advance the generation before the stale retirement can run.
+	secondOutcomeKey, secondOutcomeID := prepare(uuid.New(), "@tenant-generation-second")
+	retired, err := infra.repo.RetireTracerOutcomeTenant(ctx, tenantID, 1)
 	require.NoError(t, err)
 	require.False(t, retired)
+	delivered, err = infra.repo.MarkTracerOutcomeDelivered(ctx, secondOutcomeKey, secondOutcomeID,
+		mmodel.TracerOutcomePrepared, preparedAt.Add(2*time.Minute), time.Hour)
+	require.NoError(t, err)
+	require.True(t, delivered)
+	retired, err = infra.repo.RetireTracerOutcomeTenant(ctx, tenantID, 1)
+	require.NoError(t, err)
+	require.False(t, retired, "a stale observed generation cannot remove a newer registration")
 	registrations, err = infra.repo.ListTracerOutcomeTenants(context.Background())
 	require.NoError(t, err)
 	require.Equal(t, []TracerOutcomeTenantRegistration{{TenantID: tenantID, Generation: 2}}, registrations)
 
-	// Both producers stopped before prepare, so an operator may explicitly
-	// quarantine the absent outcome records. Only then is retirement proven safe.
-	require.NoError(t, infra.repo.RemoveMissingTracerOutcome(ctx, firstOutcomeKey))
-	require.NoError(t, infra.repo.RemoveMissingTracerOutcome(ctx, secondOutcomeKey))
 	hasBacklog, err = infra.repo.TracerOutcomeTenantHasBacklog(ctx)
 	require.NoError(t, err)
 	require.False(t, hasBacklog)
 	retired, err = infra.repo.RetireTracerOutcomeTenant(ctx, tenantID, 2)
 	require.NoError(t, err)
 	require.True(t, retired)
+}
+
+func TestIntegration_TracerOutcomePrepareFailureLeavesDiscoverableFalsePositive(t *testing.T) {
+	t.Setenv("ALLOW_INSECURE_TLS", "true")
+	infra := setupFinancialRedisIntegrationInfra(t)
+	const tenantID = "tenant-failed-prepare"
+	ctx := tmcore.ContextWithTenantID(context.Background(), tenantID)
+	organizationID, ledgerID, transactionID := uuid.New(), uuid.New(), uuid.New()
+	operations := []mmodel.BalanceOperation{redistestutil.CreateBalanceOperationWithAvailable(
+		organizationID, ledgerID, "@failed-prepare", "USD", constant.DEBIT,
+		decimal.NewFromInt(1), decimal.NewFromInt(100), "deposit",
+	)}
+	queue := mmodel.TransactionRedisQueue{
+		TransactionID: transactionID, OrganizationID: organizationID, LedgerID: ledgerID,
+		AttemptOwner: "failed-prepare-owner", ExpectedOutcome: mmodel.TransactionOutcomeCommitted,
+		TransactionStatus: constant.APPROVED,
+	}
+	operations = bindFinalEconomicPlan(t, &queue, operations, constant.APPROVED, false)
+	seed, err := json.Marshal(queue)
+	require.NoError(t, err)
+	require.NoError(t, infra.repo.AddMessageToQueue(ctx,
+		utils.TransactionInternalKey(organizationID, ledgerID, transactionID.String()), seed))
+
+	// Redis Lua does not roll back commands that ran before a runtime error. A
+	// corrupt schedule therefore exercises the only safe partial result: tenant
+	// discovery and active evidence survive even though PREPARED does not.
+	scheduleKey, err := tenantKeyFromContextOrError(ctx, utils.TracerOutcomeScheduleKey)
+	require.NoError(t, err)
+	rds, err := infra.repo.conn.GetClient(ctx)
+	require.NoError(t, err)
+	require.NoError(t, rds.Set(ctx, scheduleKey, "wrong-type", 0).Err())
+	preparedAt := time.Unix(1700000000, 0).UTC()
+	_, err = infra.repo.PrepareTracerOutcome(ctx, organizationID, ledgerID, transactionID,
+		queue.AttemptOwner, utils.TransactionTracerOutcomeID(transactionID), queue.ExpectedEconomicPlan,
+		preparedAt, preparedAt.Add(time.Minute))
+	require.ErrorContains(t, err, "WRONGTYPE")
+	record, err := infra.repo.ReadTracerOutcome(ctx, organizationID, ledgerID, transactionID)
+	require.NoError(t, err)
+	require.Nil(t, record)
+	registrations, err := infra.repo.ListTracerOutcomeTenants(context.Background())
+	require.NoError(t, err)
+	require.Equal(t, []TracerOutcomeTenantRegistration{{TenantID: tenantID, Generation: 1}}, registrations)
+	hasBacklog, err := infra.repo.TracerOutcomeTenantHasBacklog(ctx)
+	require.NoError(t, err)
+	require.True(t, hasBacklog, "a partial script failure may strand work, never hide it")
 }
 
 func TestIntegration_FinancialRedisDurabilityGuardAcceptsDocumentedRPO(t *testing.T) {
@@ -108,8 +273,11 @@ func TestIntegration_TracerOutcomeMovesWithBalanceAndFencesStaleRecovery(t *test
 	require.NoError(t, err)
 	require.NoError(t, infra.repo.AddMessageToQueue(ctx,
 		utils.TransactionInternalKey(organizationID, ledgerID, transactionID.String()), seed))
-	outcomeKey := utils.TransactionTracerOutcomeKey(organizationID, ledgerID, transactionID)
-	require.NoError(t, infra.repo.RegisterTracerOutcomeTenant(ctx, tenantID, outcomeKey))
+	preparedAt := time.Unix(1700000000, 0).UTC()
+	prepared, err := infra.repo.PrepareTracerOutcome(ctx, organizationID, ledgerID, transactionID,
+		owner, outcomeID, queue.ExpectedEconomicPlan, preparedAt, preparedAt.Add(time.Minute))
+	require.NoError(t, err)
+	require.Equal(t, mmodel.TracerOutcomePrepared, prepared.State)
 
 	restartedRepo := &RedisConsumerRepository{conn: infra.repo.conn}
 	registrations, err := restartedRepo.ListTracerOutcomeTenants(context.Background())
@@ -117,15 +285,6 @@ func TestIntegration_TracerOutcomeMovesWithBalanceAndFencesStaleRecovery(t *test
 	require.Contains(t, registrations, TracerOutcomeTenantRegistration{TenantID: tenantID, Generation: 1},
 		"a fresh process must discover backlog without a process-local tenant cache")
 	hasBacklog, err := restartedRepo.TracerOutcomeTenantHasBacklog(ctx)
-	require.NoError(t, err)
-	require.True(t, hasBacklog, "the durable intent must cover the register-to-prepare window")
-
-	preparedAt := time.Unix(1700000000, 0).UTC()
-	prepared, err := infra.repo.PrepareTracerOutcome(ctx, organizationID, ledgerID, transactionID,
-		owner, outcomeID, queue.ExpectedEconomicPlan, preparedAt, preparedAt.Add(time.Minute))
-	require.NoError(t, err)
-	require.Equal(t, mmodel.TracerOutcomePrepared, prepared.State)
-	hasBacklog, err = infra.repo.TracerOutcomeTenantHasBacklog(ctx)
 	require.NoError(t, err)
 	require.True(t, hasBacklog)
 

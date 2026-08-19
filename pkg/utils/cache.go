@@ -16,14 +16,13 @@ const (
 	BalanceSyncLockPrefix        = "lock:{transactions}:balance-sync:"
 	TracerOutcomeScheduleKey     = "schedule:{transactions}:tracer-outcomes-v2"
 	TracerOutcomeActiveKey       = "active:{transactions}:tracer-outcomes-v2"
-	TracerOutcomeIntentKey       = "intent:{transactions}:tracer-outcomes-v2"
 	TracerOutcomeDispatcherLock  = "lock:{transactions}:tracer-outcomes-v2"
 	// TracerOutcomeTenantRegistry is deployment-global rather than tenant-
 	// prefixed: its only payload is opaque tenant IDs and a monotonic generation
-	// used to discover tenant-scoped outboxes after a process restart. The
-	// dedicated hash tag keeps its CAS local to one Redis Cluster slot; it is
-	// deliberately never included in the tenant outbox Lua transaction.
-	TracerOutcomeTenantRegistry = "registry:{tracer-outcome-tenants}:backlog"
+	// used to discover tenant-scoped outboxes after a process restart. It shares
+	// the transaction hash tag so PREPARED, active index, delivery schedule, and
+	// discovery registration commit in one Redis Cluster Lua command.
+	TracerOutcomeTenantRegistry = "registry:{transactions}:tracer-outcome-tenants"
 )
 
 const (

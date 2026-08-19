@@ -475,20 +475,6 @@ func (mr *MockRedisRepositoryMockRecorder) ReadTracerOutcomeByKey(ctx, key any) 
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ReadTracerOutcomeByKey", reflect.TypeOf((*MockRedisRepository)(nil).ReadTracerOutcomeByKey), ctx, key)
 }
 
-// RegisterTracerOutcomeTenant mocks base method.
-func (m *MockRedisRepository) RegisterTracerOutcomeTenant(ctx context.Context, tenantID, outcomeKey string) error {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "RegisterTracerOutcomeTenant", ctx, tenantID, outcomeKey)
-	ret0, _ := ret[0].(error)
-	return ret0
-}
-
-// RegisterTracerOutcomeTenant indicates an expected call of RegisterTracerOutcomeTenant.
-func (mr *MockRedisRepositoryMockRecorder) RegisterTracerOutcomeTenant(ctx, tenantID, outcomeKey any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RegisterTracerOutcomeTenant", reflect.TypeOf((*MockRedisRepository)(nil).RegisterTracerOutcomeTenant), ctx, tenantID, outcomeKey)
-}
-
 // ReleaseOwnedKey mocks base method.
 func (m *MockRedisRepository) ReleaseOwnedKey(ctx context.Context, key, owner string) (bool, error) {
 	m.ctrl.T.Helper()

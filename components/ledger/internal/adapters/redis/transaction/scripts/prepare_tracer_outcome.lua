@@ -12,9 +12,11 @@ if existingRaw then
         return redis.error_reply("TRACER_OUTCOME_STALE_EXECUTOR")
     end
     if existing.state ~= "DELIVERED" then
+        if ARGV[12] ~= "" then
+            redis.call("ZINCRBY", KEYS[8], 1, ARGV[12])
+        end
         redis.call("ZADD", KEYS[7], tonumber(existing.prepared_at_unix_ms or ARGV[8]), ARGV[10])
     end
-    redis.call("SREM", KEYS[8], ARGV[10])
     return existingRaw
 end
 
@@ -54,8 +56,10 @@ local record = {
     delivery_attempts = 0
 }
 local encoded = cjson.encode(record)
-redis.call("SET", KEYS[5], encoded)
-redis.call("ZADD", KEYS[6], tonumber(ARGV[9]), ARGV[10])
+if ARGV[12] ~= "" then
+    redis.call("ZINCRBY", KEYS[8], 1, ARGV[12])
+end
 redis.call("ZADD", KEYS[7], tonumber(ARGV[8]), ARGV[10])
-redis.call("SREM", KEYS[8], ARGV[10])
+redis.call("ZADD", KEYS[6], tonumber(ARGV[9]), ARGV[10])
+redis.call("SET", KEYS[5], encoded)
 return encoded

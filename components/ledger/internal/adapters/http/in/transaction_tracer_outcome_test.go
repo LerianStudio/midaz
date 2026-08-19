@@ -18,7 +18,6 @@ import (
 	redisTransaction "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/redis/transaction"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services/command"
 	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
-	"github.com/LerianStudio/midaz/v4/pkg/utils"
 )
 
 type financialRedisDurabilityStub struct {
@@ -31,7 +30,7 @@ func (s *financialRedisDurabilityStub) FinancialDurability(context.Context) erro
 	return s.err
 }
 
-func TestPrepareTracerOutcomeRegistersTenantBeforeDurablePrepare(t *testing.T) {
+func TestPrepareTracerOutcomeDelegatesAtomicTenantPrepare(t *testing.T) {
 	t.Parallel()
 
 	ctrl := gomock.NewController(t)
@@ -45,19 +44,31 @@ func TestPrepareTracerOutcomeRegistersTenantBeforeDurablePrepare(t *testing.T) {
 	organizationID, ledgerID, transactionID := uuid.New(), uuid.New(), uuid.New()
 	attempt := &mmodel.BalanceExecutionAttempt{Owner: "owner", TracerOutcomeID: uuid.New()}
 	plan := &mmodel.ExpectedEconomicPlan{Version: 1, Digest: "digest"}
-	outcomeKey := utils.TransactionTracerOutcomeKey(organizationID, ledgerID, transactionID)
 
-	gomock.InOrder(
-		repo.EXPECT().RegisterTracerOutcomeTenant(gomock.Any(), tenantID, outcomeKey).Return(nil),
-		repo.EXPECT().PrepareTracerOutcome(gomock.Any(), organizationID, ledgerID, transactionID,
-			attempt.Owner, attempt.TracerOutcomeID, plan, gomock.Any(), gomock.Any()).
-			DoAndReturn(func(_ context.Context, _, _, _ uuid.UUID, _ string, _ uuid.UUID,
-				_ *mmodel.ExpectedEconomicPlan, preparedAt, _ time.Time) (*mmodel.TracerOutcomeRecord, error) {
-				return &mmodel.TracerOutcomeRecord{State: mmodel.TracerOutcomePrepared, PreparedAtUnixMS: preparedAt.UnixMilli()}, nil
-			}),
-	)
+	repo.EXPECT().PrepareTracerOutcome(gomock.Any(), organizationID, ledgerID, transactionID,
+		attempt.Owner, attempt.TracerOutcomeID, plan, gomock.Any(), gomock.Any()).
+		DoAndReturn(func(repoCtx context.Context, _, _, _ uuid.UUID, _ string, _ uuid.UUID,
+			_ *mmodel.ExpectedEconomicPlan, preparedAt, _ time.Time) (*mmodel.TracerOutcomeRecord, error) {
+			require.Equal(t, tenantID, tmcore.GetTenantIDContext(repoCtx))
+			return &mmodel.TracerOutcomeRecord{State: mmodel.TracerOutcomePrepared, PreparedAtUnixMS: preparedAt.UnixMilli()}, nil
+		})
 
 	require.NoError(t, handler.prepareTracerOutcome(ctx, organizationID, ledgerID, transactionID, attempt, plan))
+}
+
+func TestPrepareTracerOutcomeRequiresTenantContextBeforeRedis(t *testing.T) {
+	t.Parallel()
+
+	ctrl := gomock.NewController(t)
+	handler := &TransactionHandler{
+		Command:            &command.UseCase{TransactionRedisRepo: redisTransaction.NewMockRedisRepository(ctrl)},
+		MultiTenantEnabled: true,
+	}
+
+	err := handler.prepareTracerOutcome(context.Background(), uuid.New(), uuid.New(), uuid.New(),
+		&mmodel.BalanceExecutionAttempt{Owner: "owner", TracerOutcomeID: uuid.New()},
+		&mmodel.ExpectedEconomicPlan{Version: 1, Digest: "digest"})
+	require.ErrorContains(t, err, "tenant context is required")
 }
 
 func TestDurableTracerOutcomeAdmissionFailsClosedOnUnsafeRedis(t *testing.T) {

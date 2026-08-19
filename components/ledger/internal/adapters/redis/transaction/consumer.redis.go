@@ -103,9 +103,6 @@ var retireTracerOutcomeTenantLua string
 //go:embed scripts/remove_missing_tracer_outcome.lua
 var removeMissingTracerOutcomeLua string
 
-//go:embed scripts/tracer_outcome_tenant_has_backlog.lua
-var tracerOutcomeTenantHasBacklogLua string
-
 // balanceAtomicScript and claimBalanceSyncScript are built once at package init.
 // redis.NewScript computes the source SHA1 eagerly, so hoisting these out of the
 // per-call hot paths (runBalanceAtomicScript, GetBalanceSyncKeys,
@@ -135,7 +132,6 @@ var (
 	markTracerOutcomeDeliveredScript           = redis.NewScript(markTracerOutcomeDeliveredLua)
 	retireTracerOutcomeTenantScript            = redis.NewScript(retireTracerOutcomeTenantLua)
 	removeMissingTracerOutcomeScript           = redis.NewScript(removeMissingTracerOutcomeLua)
-	tracerOutcomeTenantHasBacklogScript        = redis.NewScript(tracerOutcomeTenantHasBacklogLua)
 )
 
 //go:embed scripts/remove_balance_sync_keys_batch.lua
@@ -220,7 +216,6 @@ type RedisRepository interface {
 	// writes an immutable, replayable outcome in the same Lua command as the
 	// balance mutation. An opposite outcome is rejected before any movement.
 	ProcessOutcomeBalanceAtomicOperation(ctx context.Context, organizationID, ledgerID, transactionID uuid.UUID, transactionStatus string, pending bool, balances []mmodel.BalanceOperation, attempt mmodel.BalanceExecutionAttempt) (*mmodel.BalanceAtomicResult, error)
-	RegisterTracerOutcomeTenant(ctx context.Context, tenantID, outcomeKey string) error
 	ListTracerOutcomeTenants(ctx context.Context) ([]TracerOutcomeTenantRegistration, error)
 	TracerOutcomeTenantHasBacklog(ctx context.Context) (bool, error)
 	RetireTracerOutcomeTenant(ctx context.Context, tenantID string, observedGeneration int64) (bool, error)
@@ -1304,50 +1299,6 @@ func decodeTracerOutcome(raw string) (*mmodel.TracerOutcomeRecord, error) {
 	return &outcome, nil
 }
 
-// RegisterTracerOutcomeTenant writes a tenant-scoped prepare intent and then
-// publishes the tenant into the deployment-global discovery index before
-// PREPARED or Reserve. A crash between steps leaves only a harmless orphan
-// intent; reversing the order would let retirement race the register-to-prepare
-// window. The keys occupy distinct Redis Cluster slots, so ordering supplies
-// the safety invariant that a cross-slot transaction cannot.
-func (rr *RedisConsumerRepository) RegisterTracerOutcomeTenant(ctx context.Context, tenantID, outcomeKey string) error {
-	tenantID = strings.TrimSpace(tenantID)
-	if tenantID == "" {
-		return fmt.Errorf("tracer outcome tenant id is required")
-	}
-	if outcomeKey == "" {
-		return fmt.Errorf("tracer outcome key is required")
-	}
-	if _, err := tmvalkey.GetKey(tenantID, ""); err != nil {
-		return fmt.Errorf("validate tracer outcome tenant id: %w", err)
-	}
-	if contextTenantID := tmcore.GetTenantIDContext(ctx); contextTenantID != tenantID {
-		return fmt.Errorf("tracer outcome tenant context does not match registration")
-	}
-
-	rds, err := rr.conn.GetClient(ctx)
-	if err != nil {
-		return err
-	}
-	intentKey, err := tenantKeyFromContextOrError(ctx, utils.TracerOutcomeIntentKey)
-	if err != nil {
-		return err
-	}
-
-	// The tenant-scoped intent is first. Once the global registry is visible,
-	// retirement can therefore prove either an in-flight prepare or an active
-	// outcome exists. Prepare swaps intent -> active atomically in one slot.
-	if err := rds.SAdd(ctx, intentKey, outcomeKey).Err(); err != nil {
-		return fmt.Errorf("register tracer outcome tenant intent: %w", err)
-	}
-
-	if err := rds.ZIncrBy(ctx, utils.TracerOutcomeTenantRegistry, 1, tenantID).Err(); err != nil {
-		return fmt.Errorf("register tracer outcome tenant: %w", err)
-	}
-
-	return nil
-}
-
 // ListTracerOutcomeTenants reads the durable discovery index without applying
 // the caller's tenant namespace. Only opaque tenant IDs and generations live
 // here; every economic record remains under its tenant-prefixed keyspace.
@@ -1376,14 +1327,11 @@ func (rr *RedisConsumerRepository) ListTracerOutcomeTenants(ctx context.Context)
 	return registrations, nil
 }
 
-// TracerOutcomeTenantHasBacklog atomically checks the tenant-scoped active
-// index and pre-prepare intent set. Unlike the delivery schedule, the active
-// index retains PENDING_HELD outcomes until their later commit/cancel is
-// acknowledged. Both empty is the retirement proof.
+// TracerOutcomeTenantHasBacklog checks the tenant-scoped active index. Unlike
+// the delivery schedule, this index retains PENDING_HELD outcomes until their
+// later commit/cancel is acknowledged.
 func (rr *RedisConsumerRepository) TracerOutcomeTenantHasBacklog(ctx context.Context) (bool, error) {
-	keys, err := tenantKeysFromContext(ctx, []string{
-		utils.TracerOutcomeActiveKey, utils.TracerOutcomeIntentKey,
-	})
+	key, err := tenantKeyFromContextOrError(ctx, utils.TracerOutcomeActiveKey)
 	if err != nil {
 		return false, err
 	}
@@ -1392,7 +1340,7 @@ func (rr *RedisConsumerRepository) TracerOutcomeTenantHasBacklog(ctx context.Con
 		return false, err
 	}
 
-	count, err := tracerOutcomeTenantHasBacklogScript.Run(ctx, rds, keys).Int()
+	count, err := rds.ZCard(ctx, key).Result()
 	if err != nil {
 		return false, fmt.Errorf("inspect active tracer outcomes: %w", err)
 	}
@@ -1400,11 +1348,10 @@ func (rr *RedisConsumerRepository) TracerOutcomeTenantHasBacklog(ctx context.Con
 	return count > 0, nil
 }
 
-// RetireTracerOutcomeTenant proves both the tenant's active outcomes and
-// pre-prepare intents are empty, then removes the discovery pointer only if no
-// producer incremented its generation since the worker observed it. A
-// concurrent producer writes its intent before incrementing the registry, so
-// the cross-slot proof cannot create a durable false negative.
+// RetireTracerOutcomeTenant atomically proves the tenant's active index is
+// empty and removes only the observed inventory generation. Prepare registers
+// the tenant and activates the outcome in the same Redis Cluster slot, so a
+// concurrent producer either prevents this removal or recreates the pointer.
 func (rr *RedisConsumerRepository) RetireTracerOutcomeTenant(
 	ctx context.Context,
 	tenantID string,
@@ -1420,12 +1367,9 @@ func (rr *RedisConsumerRepository) RetireTracerOutcomeTenant(
 	if contextTenantID := tmcore.GetTenantIDContext(ctx); contextTenantID != tenantID {
 		return false, fmt.Errorf("tracer outcome tenant context does not match retirement")
 	}
-	hasBacklog, err := rr.TracerOutcomeTenantHasBacklog(ctx)
+	activeKey, err := tenantKeyFromContextOrError(ctx, utils.TracerOutcomeActiveKey)
 	if err != nil {
 		return false, err
-	}
-	if hasBacklog {
-		return false, nil
 	}
 	rds, err := rr.conn.GetClient(ctx)
 	if err != nil {
@@ -1433,7 +1377,7 @@ func (rr *RedisConsumerRepository) RetireTracerOutcomeTenant(
 	}
 
 	removed, err := retireTracerOutcomeTenantScript.Run(ctx, rds,
-		[]string{utils.TracerOutcomeTenantRegistry}, tenantID, observedGeneration).Int()
+		[]string{activeKey, utils.TracerOutcomeTenantRegistry}, tenantID, observedGeneration).Int()
 	if err != nil {
 		return false, fmt.Errorf("retire tracer outcome tenant: %w", err)
 	}
@@ -1464,11 +1408,16 @@ func (rr *RedisConsumerRepository) PrepareTracerOutcome(
 
 	keys, err := tenantKeysFromContext(ctx, []string{
 		TransactionBackupQueue, transactionKey, executionKey, executionKey + ":owner",
-		outcomeKey, utils.TracerOutcomeScheduleKey, utils.TracerOutcomeActiveKey, utils.TracerOutcomeIntentKey,
+		outcomeKey, utils.TracerOutcomeScheduleKey, utils.TracerOutcomeActiveKey,
 	})
 	if err != nil {
 		return nil, err
 	}
+	// The deployment-global registry deliberately bypasses tenant prefixing. Its
+	// shared {transactions} hash tag keeps it in the same Redis Cluster slot as
+	// every tenant-scoped outcome key used by the preparation script.
+	keys = append(keys, utils.TracerOutcomeTenantRegistry)
+	tenantID := tmcore.GetTenantIDContext(ctx)
 
 	rds, err := rr.conn.GetClient(ctx)
 	if err != nil {
@@ -1477,7 +1426,8 @@ func (rr *RedisConsumerRepository) PrepareTracerOutcome(
 
 	raw, err := prepareTracerOutcomeScript.Run(ctx, rds, keys,
 		owner, transactionID.String(), outcomeID.String(), organizationID.String(), ledgerID.String(),
-		strconv.Itoa(plan.Version), plan.Digest, preparedAt.UnixMilli(), recoverAt.UnixMilli(), outcomeKey, phase).Text()
+		strconv.Itoa(plan.Version), plan.Digest, preparedAt.UnixMilli(), recoverAt.UnixMilli(), outcomeKey, phase,
+		tenantID).Text()
 	if err != nil {
 		return nil, fmt.Errorf("prepare tracer outcome: %w", err)
 	}
@@ -1600,7 +1550,7 @@ func (rr *RedisConsumerRepository) RemoveMissingTracerOutcome(ctx context.Contex
 	}
 
 	keys, err := tenantKeysFromContext(ctx, []string{
-		key, utils.TracerOutcomeScheduleKey, utils.TracerOutcomeActiveKey, utils.TracerOutcomeIntentKey,
+		key, utils.TracerOutcomeScheduleKey, utils.TracerOutcomeActiveKey,
 	})
 	if err != nil {
 		return err
@@ -1663,7 +1613,7 @@ func (rr *RedisConsumerRepository) MarkTracerOutcomeDelivered(
 	}
 
 	keys, err := tenantKeysFromContext(ctx, []string{
-		key, utils.TracerOutcomeScheduleKey, utils.TracerOutcomeActiveKey, utils.TracerOutcomeIntentKey,
+		key, utils.TracerOutcomeScheduleKey, utils.TracerOutcomeActiveKey,
 	})
 	if err != nil {
 		return false, err

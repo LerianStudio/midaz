@@ -336,14 +336,15 @@ or audit the original tenant's reservation.
    Reserve and the balance Lua projects its exact economic proof into a dedicated outcome outbox;
    the Ledger must durably retain that outcome until the Tracer
    acknowledges its receipt; process-local retries are not a correctness mechanism.
-   In multi-tenant deployments, every V2 attempt first writes a tenant-scoped prepare intent, then increments
-   a deployment-global tenant inventory, before either PREPARED or Reserve. Prepare atomically swaps that
-   intent into the tenant's active-outcome index. The worker reloads inventory tenants through Tenant Manager
-   after a restart instead of enumerating the expiring process cache; `PENDING_HELD` remains in the active
-   index while intentionally absent from delivery. Retirement requires empty intent and active indexes plus
-   an unchanged inventory generation. An absent record is removed from those indexes only through the
-   explicit missing-record quarantine path, so a concurrent prepare or tenant deletion cannot make backlog
-   undiscoverable.
+   In multi-tenant deployments, PREPARED, its delivery schedule, the tenant's active-outcome index, and the
+   deployment-global tenant inventory are written by one Lua command in the same Redis Cluster
+   `{transactions}` slot. An acknowledged outcome therefore cannot survive a shard failure or AOF recovery
+   without its discovery pointer. The worker reloads inventory tenants through Tenant Manager after a restart
+   instead of enumerating the expiring process cache; `PENDING_HELD` remains in the active index while
+   intentionally absent from delivery. Retirement atomically requires an empty active index and an unchanged
+   inventory generation in that same slot. An absent record leaves a false-positive discovery pointer until
+   the explicit missing-record quarantine path removes its indexes, so a concurrent prepare or tenant deletion
+   cannot make real backlog undiscoverable.
 4. During rollback, set `TRACER_OUTCOME_MODE=legacy` to stop new V2 reserves but keep
    `TRACER_OUTCOME_WORKER_ENABLED=true`; keep a Tracer version that understands V2 and the dispatcher running
    until the V2 outstanding gauge reaches zero. Disabling new V2 reserves does not make the existing
