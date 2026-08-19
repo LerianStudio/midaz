@@ -14,20 +14,9 @@ import (
 	libLog "github.com/LerianStudio/lib-observability/v2/log"
 	libOtel "github.com/LerianStudio/lib-observability/v2/tracing"
 	libStreaming "github.com/LerianStudio/lib-streaming/v3"
-	"github.com/twmb/franz-go/pkg/sasl"
-	"github.com/twmb/franz-go/pkg/sasl/plain"
-	"github.com/twmb/franz-go/pkg/sasl/scram"
 
 	pkgStreaming "github.com/LerianStudio/midaz/v4/pkg/streaming"
 	"github.com/LerianStudio/midaz/v4/pkg/streaming/events"
-)
-
-// SASL mechanism names accepted by STREAMING_SASL_MECHANISM. Compared
-// case-insensitively at parse time so operators can write any casing.
-const (
-	saslMechanismPlain    = "PLAIN"
-	saslMechanismScram256 = "SCRAM-SHA-256"
-	saslMechanismScram512 = "SCRAM-SHA-512"
 )
 
 // streamingPrimaryTargetName is the canonical name for tracer's single
@@ -92,15 +81,14 @@ func noopStreamingCloser() error { return nil }
 //     pilot) the function returns libStreaming.NewNoopEmitter() and a no-op
 //     close hook. No transport client is constructed and no broker
 //     connection is attempted.
-//   - When STREAMING_BROKERS is empty, libStreaming.LoadConfig fails closed
-//     with ErrProducerMissingBrokers. The function treats that as an
-//     operator-correctable misconfiguration and degrades to a NoopEmitter
-//     (no error, Warn logged) rather than aborting bootstrap. Any OTHER
+//   - When STREAMING_BROKERS is empty the function refuses boot via
+//     pkgStreaming.RequireBrokers. An enabled producer with nowhere to publish
+//     discards every event silently while readiness reports healthy, so it gets
+//     the roster gate's posture rather than a degraded start. Any OTHER
 //     LoadConfig failure propagates as a wrapped error.
-//   - When tracerEventDefinitions() is empty the function returns a
-//     NoopEmitter. An empty catalog can never build a live producer; this
-//     is a defensive guard so a future edit that empties the definition set
-//     degrades to Noop rather than failing bootstrap.
+//   - When tracerEventDefinitions() is empty the function refuses boot. An empty
+//     catalog can never build a live producer, so with streaming ENABLED it is
+//     the same silent-total-loss condition as a missing broker.
 //   - Otherwise the function builds a single-target catalog-first Producer
 //     via libStreaming.NewBuilder(), wiring the tracer CloudEvents source
 //     onto the Builder, registering all tracer event definitions in the
@@ -141,16 +129,14 @@ func BuildStreamingEmitter(
 		return libStreaming.NewNoopEmitter(), noopStreamingCloser, nil
 	}
 
-	// An empty catalog can never build a live producer. Defensive guard so a
-	// future edit that empties the definition set degrades to Noop rather
-	// than reaching the Builder with zero routes.
+	// An empty catalog can never build a live producer. With streaming ENABLED
+	// that is the same condition RequireBrokers refuses: every emit would resolve
+	// to nothing while readiness reported the dependency healthy. Fail closed so a
+	// future edit that empties the definition set cannot ship as a silent no-op.
 	if len(tracerEventDefinitions()) == 0 {
-		if logger != nil {
-			logger.Log(ctx, libLog.LevelInfo,
-				"Streaming enabled but no tracer events are registered yet; using NoopEmitter")
-		}
-
-		return libStreaming.NewNoopEmitter(), noopStreamingCloser, nil
+		return nil, noopStreamingCloser, fmt.Errorf(
+			"streaming is enabled but no tracer event definitions are registered:" +
+				" an empty catalog publishes nothing while readiness reports healthy")
 	}
 
 	// Delegate env-var loading + defaulting to libStreaming.LoadConfig so
@@ -159,17 +145,13 @@ func BuildStreamingEmitter(
 	// the zero value of the struct.
 	streamingCfg, warnings, err := libStreaming.LoadConfig()
 	if err != nil {
-		// A missing broker list is an operator-correctable misconfiguration,
-		// not a reason to abort bootstrap: degrade to a NoopEmitter so the
-		// service starts with streaming disabled. Any OTHER LoadConfig
-		// failure is a genuine config error and propagates.
+		// LoadConfig validates the broker list itself, so the missing-broker case
+		// surfaces here rather than at the shared gate below. Route it through the
+		// gate anyway: ledger and tracer then refuse boot with one error identity
+		// and one piece of operator guidance. Any OTHER LoadConfig failure is a
+		// different config error and propagates wrapped.
 		if errors.Is(err, libStreaming.ErrProducerMissingBrokers) {
-			if logger != nil {
-				logger.Log(ctx, libLog.LevelWarn,
-					"STREAMING_ENABLED=true but STREAMING_BROKERS is empty; falling back to NoopEmitter")
-			}
-
-			return libStreaming.NewNoopEmitter(), noopStreamingCloser, nil
+			return nil, noopStreamingCloser, pkgStreaming.RequireBrokers(streamingCfg.Brokers)
 		}
 
 		return nil, noopStreamingCloser, fmt.Errorf("failed to load streaming config: %w", err)
@@ -206,6 +188,16 @@ func buildLiveStreamingEmitter(
 
 	source := resolveStreamingSource(cfg)
 
+	// Defense in depth against a config that reaches here with no broker: the
+	// enabled flag on the midaz Config and the one libStreaming.LoadConfig reads
+	// are two separate parses of STREAMING_ENABLED, so a value only one of them
+	// accepts would skip LoadConfig's own broker validation and arrive here with an
+	// empty list. Building the Target on it would yield a producer with nowhere to
+	// publish, which is silent total event loss.
+	if err := pkgStreaming.RequireBrokers(streamingCfg.Brokers); err != nil {
+		return nil, noopStreamingCloser, err
+	}
+
 	// Build the route table: ONE required catch-all route carrying every fact
 	// tracer emits to its single application topic.
 	routes, err := buildRoutes(streamingPrimaryTargetName, source)
@@ -223,26 +215,14 @@ func buildLiveStreamingEmitter(
 			Brokers: streamingCfg.Brokers,
 		})
 
-	// Apply SASL/TLS auth knobs from cfg. resolveSASLMechanism returns a
-	// nil mechanism (and an empty mechanism name) when SASL is disabled,
-	// in which case the Builder is left untouched and the producer dials
-	// the broker without authentication — matching the historical local/dev
-	// behaviour. When SASL is enabled but TLS is not, lib-streaming
-	// rejects construction with ErrPlaintextSASLNotAllowed unless the
-	// caller also opts into AllowPlaintextSASL — gated behind
-	// STREAMING_ALLOW_PLAINTEXT_SASL=true for dev brokers.
-	mechanism, mechanismName, err := resolveSASLMechanism(cfg)
-	if err != nil {
-		return nil, noopStreamingCloser, fmt.Errorf("failed to resolve streaming SASL mechanism: %w", err)
-	}
-
-	if mechanism != nil {
-		builder = builder.SASL(mechanism)
-
-		if cfg.StreamingAllowPlaintextSASL {
-			builder = builder.AllowPlaintextSASL()
-		}
-	}
+	// SASL/TLS are owned by lib-streaming: TLSFromConfig and SASLFromConfig read
+	// the STREAMING_TLS_* and STREAMING_SASL_* knobs already parsed by LoadConfig
+	// and wire the broker dial. tracer does not parse these itself — a hand-rolled
+	// SASL mechanism here is what left STREAMING_TLS_ENABLED with no reader at all,
+	// making a TLS broker unreachable and forcing every authenticated deployment
+	// through the unsafe plaintext opt-in.
+	builder = builder.TLSFromConfig(streamingCfg)
+	builder = builder.SASLFromConfig(streamingCfg)
 
 	emitter, err := builder.Build(ctx)
 	if err != nil {
@@ -253,9 +233,9 @@ func buildLiveStreamingEmitter(
 		// NOTE: only mechanism name is logged. Username and password are
 		// NEVER logged, even at debug level.
 		authMode := "none"
-		if mechanismName != "" {
-			authMode = mechanismName
-			if cfg.StreamingAllowPlaintextSASL {
+		if streamingCfg.SASLMechanism != "" {
+			authMode = streamingCfg.SASLMechanism
+			if streamingCfg.SASLAllowPlaintext {
 				authMode += " (plaintext)"
 			}
 		}
@@ -266,63 +246,13 @@ func buildLiveStreamingEmitter(
 			libLog.String("client_id", streamingCfg.ClientID),
 			libLog.String("ce_source", source),
 			libLog.String("auth", authMode),
+			libLog.Bool("tls", streamingCfg.TLSEnabled),
 			libLog.Int("catalog_size", catalog.Len()),
 			libLog.Int("routes", len(routes)),
 		)
 	}
 
 	return emitter, emitter.Close, nil
-}
-
-// resolveSASLMechanism inspects the streaming SASL knobs on cfg and
-// returns the matching franz-go sasl.Mechanism plus its canonical name.
-//
-// Behaviour:
-//   - StreamingSASLMechanism empty (after trimming) → returns (nil, "", nil).
-//     The Builder stays unauthenticated, matching the existing local/dev
-//     default.
-//   - StreamingSASLMechanism set but USERNAME or PASSWORD empty → returns
-//     a config error. SASL with empty credentials would either be rejected
-//     by the broker after I/O (PLAIN) or panic inside franz-go's SCRAM
-//     handshake; failing closed at bootstrap is the safer contract.
-//   - StreamingSASLMechanism unrecognised → returns a config error
-//     enumerating the accepted values.
-//
-// The mechanism name returned is the canonical upper-case form
-// ("PLAIN", "SCRAM-SHA-256", "SCRAM-SHA-512") — used for the bootstrap
-// log line. Username and password are NEVER returned to the caller and
-// never logged.
-func resolveSASLMechanism(cfg *Config) (sasl.Mechanism, string, error) {
-	raw := strings.TrimSpace(cfg.StreamingSASLMechanism)
-	if raw == "" {
-		return nil, "", nil
-	}
-
-	mechanism := strings.ToUpper(raw)
-
-	user := cfg.StreamingSASLUsername
-	pass := cfg.StreamingSASLPassword
-
-	if user == "" || pass == "" {
-		return nil, "", fmt.Errorf(
-			"STREAMING_SASL_MECHANISM=%q requires STREAMING_SASL_USERNAME and STREAMING_SASL_PASSWORD",
-			mechanism,
-		)
-	}
-
-	switch mechanism {
-	case saslMechanismPlain:
-		return plain.Auth{User: user, Pass: pass}.AsMechanism(), saslMechanismPlain, nil
-	case saslMechanismScram256:
-		return scram.Auth{User: user, Pass: pass}.AsSha256Mechanism(), saslMechanismScram256, nil
-	case saslMechanismScram512:
-		return scram.Auth{User: user, Pass: pass}.AsSha512Mechanism(), saslMechanismScram512, nil
-	default:
-		return nil, "", fmt.Errorf(
-			"STREAMING_SASL_MECHANISM=%q is not supported (accepted: %s, %s, %s)",
-			raw, saslMechanismPlain, saslMechanismScram256, saslMechanismScram512,
-		)
-	}
 }
 
 // tracerEventDefinitions returns the canonical, ordered list of tracer

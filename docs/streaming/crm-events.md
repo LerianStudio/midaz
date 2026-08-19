@@ -43,9 +43,14 @@ complements — does not duplicate — the producer conventions in `CLAUDE.md`
   `eventKey` (`"<resourceType>.<eventType>"`), its `schemaVersion`, and its
   `class` — always `"fact"` here. It is independent of `STREAMING_ENABLED` and
   degraded-safe (it reflects the static Catalog, not a live broker connection).
-- **Master flag:** `STREAMING_ENABLED` (default `false`). When disabled — or
-  when `STREAMING_BROKERS` is empty, or no events are registered — bootstrap
-  injects a `NoopEmitter` and no broker connection is attempted.
+- **Master flag:** `STREAMING_ENABLED` (default `false`). When disabled, bootstrap
+  injects a `NoopEmitter`, no broker connection is attempted, and `/readyz` reports
+  the streaming check as `skipped` rather than healthy. `STREAMING_ENABLED=true`
+  with an empty `STREAMING_BROKERS` — or with no events registered — REFUSES BOOT
+  (`pkgStreaming.RequireBrokers`): an enabled producer with nowhere to publish
+  discards every event silently while readiness stays green, which is the same
+  invisible-total-loss failure the roster source gate exists to kill. To run without
+  streaming, set `STREAMING_ENABLED=false`.
 
 Routing constants are assembled from `Definition{ResourceType, EventType,
 SchemaVersion}` (`pkg/streaming/events/events.go`) and registered exactly once

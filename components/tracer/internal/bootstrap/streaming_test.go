@@ -75,19 +75,19 @@ func TestTracerEventDefinitions_CoversAllLifecycles(t *testing.T) {
 }
 
 // TestBuildStreamingEmitter_DisabledReturnsNoop covers the master-flag-off
-// branch: BuildStreamingEmitter returns the concrete NoopEmitter without
-// loading libStreaming.LoadConfig or touching a broker. SASL fields are
-// ignored on this path.
+// branch: BuildStreamingEmitter returns the concrete NoopEmitter without loading
+// libStreaming.LoadConfig or touching a broker. This is the ONE noop path that
+// survives — and readiness reports it as "skipped", never as a healthy enabled
+// producer. Broker-security env is set here to prove it is ignored entirely on
+// this path: a disabled producer must not fail closed on SASL-without-TLS.
 func TestBuildStreamingEmitter_DisabledReturnsNoop(t *testing.T) {
 	t.Setenv("STREAMING_ENABLED", "false")
+	t.Setenv("STREAMING_SASL_MECHANISM", "PLAIN")
+	t.Setenv("STREAMING_SASL_USERNAME", "u")
+	t.Setenv("STREAMING_SASL_PASSWORD", "p")
+	t.Setenv("STREAMING_TLS_ENABLED", "false")
 
-	cfg := &Config{
-		StreamingEnabled: false,
-		// SASL fields ignored when disabled.
-		StreamingSASLMechanism: "PLAIN",
-		StreamingSASLUsername:  "u",
-		StreamingSASLPassword:  "p",
-	}
+	cfg := &Config{StreamingEnabled: false}
 
 	emitter, closer, err := BuildStreamingEmitter(context.Background(), cfg, nil, nil)
 	require.NoError(t, err)
@@ -99,16 +99,16 @@ func TestBuildStreamingEmitter_DisabledReturnsNoop(t *testing.T) {
 	assert.NoError(t, closer())
 }
 
-// TestBuildStreamingEmitter_EnabledMissingBrokersDegradesToNoop asserts the
-// graceful-degradation contract: with STREAMING_ENABLED=true and no
-// STREAMING_BROKERS, libStreaming.LoadConfig returns ErrProducerMissingBrokers, which
-// BuildStreamingEmitter recognises as a caller-correctable misconfiguration
-// and degrades to a NoopEmitter (no error, safe closer) rather than aborting
-// bootstrap. A missing broker list is an operator-fixable condition, not a
-// reason to prevent the service from starting; the Warn log records the
-// degradation. Any OTHER LoadConfig failure still propagates as a wrapped
-// error.
-func TestBuildStreamingEmitter_EnabledMissingBrokersDegradesToNoop(t *testing.T) {
+// TestBuildStreamingEmitter_EnabledMissingBrokersRefusesBoot locks the
+// fail-closed contract for an enabled producer with nowhere to publish.
+//
+// STREAMING_ENABLED=true with an empty STREAMING_BROKERS is not a degraded
+// mode, it is total event loss: every emit lands on a NoopEmitter and is
+// discarded, the IMPORTANT posture swallows nothing because nothing fails, and
+// readiness reports the streaming dependency healthy because the noop emitter
+// answers healthy. That is the same invisible-total-loss failure the roster
+// source gate exists to kill, so it gets the same posture — refuse boot.
+func TestBuildStreamingEmitter_EnabledMissingBrokersRefusesBoot(t *testing.T) {
 	t.Setenv("STREAMING_ENABLED", "true")
 	t.Setenv("STREAMING_BROKERS", "")
 	t.Setenv("STREAMING_CLOUDEVENTS_SOURCE", "tracer")
@@ -116,13 +116,62 @@ func TestBuildStreamingEmitter_EnabledMissingBrokersDegradesToNoop(t *testing.T)
 	cfg := &Config{StreamingEnabled: true}
 
 	emitter, closer, err := BuildStreamingEmitter(context.Background(), cfg, nil, nil)
-	require.NoError(t, err)
+	require.Error(t, err)
+	assert.ErrorIs(t, err, pkgStreaming.ErrMissingBrokers)
+	assert.Nil(t, emitter, "an enabled producer with no brokers must not yield an emitter")
+	require.NotNil(t, closer)
+	assert.NoError(t, closer())
+}
+
+// TestBuildStreamingEmitter_SASLWithoutTLSFailsClosed proves the tracer wires
+// lib-streaming's canonical SASLFromConfig rather than parsing STREAMING_SASL_*
+// itself: with SASL configured, TLS off and no plaintext opt-in, Build must fail
+// closed instead of dialling the broker with credentials in cleartext. Drop the
+// SASLFromConfig call and the build succeeds unauthenticated, which this catches.
+func TestBuildStreamingEmitter_SASLWithoutTLSFailsClosed(t *testing.T) {
+	t.Setenv("STREAMING_ENABLED", "true")
+	t.Setenv("STREAMING_BROKERS", "127.0.0.1:9092")
+	t.Setenv("STREAMING_CLOUDEVENTS_SOURCE", "tracer")
+	t.Setenv("STREAMING_SASL_MECHANISM", "PLAIN")
+	t.Setenv("STREAMING_SASL_USERNAME", "u")
+	t.Setenv("STREAMING_SASL_PASSWORD", "p")
+	t.Setenv("STREAMING_TLS_ENABLED", "false")
+	t.Setenv("STREAMING_SASL_ALLOW_PLAINTEXT", "false")
+
+	emitter, closer, err := BuildStreamingEmitter(context.Background(), &Config{StreamingEnabled: true}, nil, nil)
+	require.Error(t, err)
+	assert.ErrorIs(t, err, libStreaming.ErrPlaintextSASLNotAllowed)
+	assert.Nil(t, emitter)
+	require.NotNil(t, closer)
+	assert.NoError(t, closer())
+}
+
+// TestBuildStreamingEmitter_TLSFromConfigWired proves STREAMING_TLS_ENABLED
+// reaches the broker dial. The tracer previously hand-rolled SASL and never
+// touched the TLS knobs at all, so a TLS-only broker was unreachable and the
+// setting was silently inert.
+//
+// The discriminator is lib-streaming's fail-closed SASL-requires-TLS gate, which
+// runs at Build with no network I/O: SASL configured and plaintext NOT permitted
+// builds successfully only when a *tls.Config was also wired. Unwire
+// TLSFromConfig and this same config fails with ErrPlaintextSASLNotAllowed,
+// which is exactly the pre-fix behaviour. Asserting on a malformed CA would NOT
+// discriminate — LoadConfig rejects that before the builder is ever touched.
+func TestBuildStreamingEmitter_TLSFromConfigWired(t *testing.T) {
+	t.Setenv("STREAMING_ENABLED", "true")
+	t.Setenv("STREAMING_BROKERS", "127.0.0.1:9092")
+	t.Setenv("STREAMING_CLOUDEVENTS_SOURCE", "tracer")
+	t.Setenv("STREAMING_TLS_ENABLED", "true")
+	t.Setenv("STREAMING_SASL_MECHANISM", "SCRAM-SHA-512")
+	t.Setenv("STREAMING_SASL_USERNAME", "u")
+	t.Setenv("STREAMING_SASL_PASSWORD", "p")
+	t.Setenv("STREAMING_SASL_ALLOW_PLAINTEXT", "false")
+
+	emitter, closer, err := BuildStreamingEmitter(context.Background(), &Config{StreamingEnabled: true}, nil, nil)
+	require.NoError(t, err, "STREAMING_TLS_ENABLED must satisfy the SASL-requires-TLS gate")
 	require.NotNil(t, emitter)
 	require.NotNil(t, closer)
-
-	assert.IsType(t, noopEmitterReference, emitter,
-		"missing brokers must degrade to the NoopEmitter, not fail closed")
-	assert.NoError(t, closer())
+	t.Cleanup(func() { _ = closer() })
 }
 
 // TestBuildStreamingEmitter_EnabledWithRuleCatalogBuildsLive proves that once
@@ -388,153 +437,6 @@ func TestResolveStreamingSource(t *testing.T) {
 			t.Parallel()
 
 			assert.Equal(t, tc.expected, resolveStreamingSource(tc.cfg))
-		})
-	}
-}
-
-// TestResolveSASLMechanism_Disabled covers the default code path: an empty
-// (or whitespace) STREAMING_SASL_MECHANISM yields a nil mechanism and
-// empty name so the Builder is left unauthenticated — the back-compat
-// contract for local/dev brokers running without auth.
-func TestResolveSASLMechanism_Disabled(t *testing.T) {
-	t.Parallel()
-
-	cases := []struct {
-		name string
-		cfg  *Config
-	}{
-		{name: "empty", cfg: &Config{}},
-		{name: "whitespace only", cfg: &Config{StreamingSASLMechanism: "   \t  "}},
-		{
-			name: "credentials without mechanism",
-			cfg: &Config{
-				StreamingSASLUsername: "u",
-				StreamingSASLPassword: "p",
-			},
-		},
-	}
-
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-
-			mech, name, err := resolveSASLMechanism(tc.cfg)
-			require.NoError(t, err)
-			assert.Nil(t, mech)
-			assert.Empty(t, name)
-		})
-	}
-}
-
-// TestResolveSASLMechanism_Supported covers every accepted mechanism
-// string, including case-insensitive matching, and asserts the returned
-// canonical name matches the upper-case form used in the bootstrap log.
-func TestResolveSASLMechanism_Supported(t *testing.T) {
-	t.Parallel()
-
-	cases := []struct {
-		input        string
-		expectedName string
-	}{
-		{input: "PLAIN", expectedName: saslMechanismPlain},
-		{input: "plain", expectedName: saslMechanismPlain},
-		{input: "  PLAIN  ", expectedName: saslMechanismPlain},
-		{input: "SCRAM-SHA-256", expectedName: saslMechanismScram256},
-		{input: "scram-sha-256", expectedName: saslMechanismScram256},
-		{input: "SCRAM-SHA-512", expectedName: saslMechanismScram512},
-		{input: "scram-sha-512", expectedName: saslMechanismScram512},
-	}
-
-	for _, tc := range cases {
-		t.Run(tc.input, func(t *testing.T) {
-			t.Parallel()
-
-			cfg := &Config{
-				StreamingSASLMechanism: tc.input,
-				StreamingSASLUsername:  "tracer-prod",
-				StreamingSASLPassword:  "s3cret",
-			}
-
-			mech, name, err := resolveSASLMechanism(cfg)
-			require.NoError(t, err)
-			require.NotNil(t, mech)
-			assert.Equal(t, tc.expectedName, name)
-			assert.Equal(t, tc.expectedName, mech.Name())
-		})
-	}
-}
-
-// TestResolveSASLMechanism_MissingCredentials guarantees the resolver
-// fails closed when MECHANISM is set but USERNAME or PASSWORD is empty.
-func TestResolveSASLMechanism_MissingCredentials(t *testing.T) {
-	t.Parallel()
-
-	cases := []struct {
-		name string
-		cfg  *Config
-	}{
-		{name: "missing both", cfg: &Config{StreamingSASLMechanism: "PLAIN"}},
-		{
-			name: "missing username",
-			cfg: &Config{
-				StreamingSASLMechanism: "SCRAM-SHA-256",
-				StreamingSASLPassword:  "p",
-			},
-		},
-		{
-			name: "missing password",
-			cfg: &Config{
-				StreamingSASLMechanism: "SCRAM-SHA-512",
-				StreamingSASLUsername:  "u",
-			},
-		},
-	}
-
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-
-			mech, name, err := resolveSASLMechanism(tc.cfg)
-			require.Error(t, err)
-			assert.Nil(t, mech)
-			assert.Empty(t, name)
-			assert.Contains(t, err.Error(), "STREAMING_SASL_USERNAME")
-			assert.Contains(t, err.Error(), "STREAMING_SASL_PASSWORD")
-		})
-	}
-}
-
-// TestResolveSASLMechanism_Unsupported guards against typos and
-// unsupported mechanisms; the error must enumerate the accepted values.
-func TestResolveSASLMechanism_Unsupported(t *testing.T) {
-	t.Parallel()
-
-	cases := []string{
-		"OAUTHBEARER",
-		"GSSAPI",
-		"SCRAM",
-		"SCRAM-SHA-1",
-		"plain-sha-256",
-		"unknown",
-	}
-
-	for _, input := range cases {
-		t.Run(input, func(t *testing.T) {
-			t.Parallel()
-
-			cfg := &Config{
-				StreamingSASLMechanism: input,
-				StreamingSASLUsername:  "u",
-				StreamingSASLPassword:  "p",
-			}
-
-			mech, name, err := resolveSASLMechanism(cfg)
-			require.Error(t, err)
-			assert.Nil(t, mech)
-			assert.Empty(t, name)
-			assert.Contains(t, err.Error(), saslMechanismPlain)
-			assert.Contains(t, err.Error(), saslMechanismScram256)
-			assert.Contains(t, err.Error(), saslMechanismScram512)
 		})
 	}
 }

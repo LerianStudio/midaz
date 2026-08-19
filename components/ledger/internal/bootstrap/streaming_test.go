@@ -177,6 +177,55 @@ func TestBuildRoutes_RouteTableAccepted(t *testing.T) {
 	}
 }
 
+// TestBuildStreamingEmitter_EnabledMissingBrokersRefusesBoot locks the
+// fail-closed contract for an enabled producer with nowhere to publish.
+//
+// STREAMING_ENABLED=true with an empty STREAMING_BROKERS is not a degraded
+// mode, it is total event loss: every emit lands on a NoopEmitter and is
+// discarded, and the ledger has no streaming readiness prober, so the pod stays
+// Ready throughout. That is the same invisible-total-loss failure the roster
+// source gate exists to kill, so it gets the same posture and the same error
+// identity — refuse boot with pkgStreaming.ErrMissingBrokers, so the two
+// components are indistinguishable to an operator reading the log.
+func TestBuildStreamingEmitter_EnabledMissingBrokersRefusesBoot(t *testing.T) {
+	t.Setenv("STREAMING_ENABLED", "true")
+	t.Setenv("STREAMING_BROKERS", "")
+	t.Setenv("STREAMING_CLOUDEVENTS_SOURCE", "ledger")
+
+	emitter, closer, err := BuildStreamingEmitter(context.Background(), &Config{StreamingEnabled: true}, nil, nil)
+	require.Error(t, err)
+	assert.ErrorIs(t, err, pkgStreaming.ErrMissingBrokers)
+	assert.Nil(t, emitter, "an enabled producer with no brokers must not yield an emitter")
+	require.NotNil(t, closer)
+	assert.NoError(t, closer())
+}
+
+// TestBuildStreamingEmitter_TLSFromConfigWired proves STREAMING_TLS_ENABLED
+// reaches the broker dial, so a TLS-only broker is reachable.
+//
+// The discriminator is lib-streaming's fail-closed SASL-requires-TLS gate, which
+// runs at Build with no network I/O: SASL configured and plaintext NOT permitted
+// builds successfully only when a *tls.Config was also wired. Unwire
+// TLSFromConfig and this same config fails with ErrPlaintextSASLNotAllowed.
+// Asserting on a malformed CA would NOT discriminate — LoadConfig rejects that
+// before the builder is ever touched.
+func TestBuildStreamingEmitter_TLSFromConfigWired(t *testing.T) {
+	t.Setenv("STREAMING_ENABLED", "true")
+	t.Setenv("STREAMING_BROKERS", "127.0.0.1:9092")
+	t.Setenv("STREAMING_CLOUDEVENTS_SOURCE", "ledger")
+	t.Setenv("STREAMING_TLS_ENABLED", "true")
+	t.Setenv("STREAMING_SASL_MECHANISM", "SCRAM-SHA-512")
+	t.Setenv("STREAMING_SASL_USERNAME", "u")
+	t.Setenv("STREAMING_SASL_PASSWORD", "p")
+	t.Setenv("STREAMING_SASL_ALLOW_PLAINTEXT", "false")
+
+	emitter, closer, err := BuildStreamingEmitter(context.Background(), &Config{StreamingEnabled: true}, nil, nil)
+	require.NoError(t, err, "STREAMING_TLS_ENABLED must satisfy the SASL-requires-TLS gate")
+	require.NotNil(t, emitter)
+	require.NotNil(t, closer)
+	t.Cleanup(func() { _ = closer() })
+}
+
 // TestBuildStreamingEmitter_SASLWithoutTLSFailsClosed locks the security
 // contract at midaz's wiring seam: with SASL configured, TLS disabled, and no
 // plaintext opt-in, BuildStreamingEmitter must fail closed rather than dial the

@@ -232,8 +232,11 @@ type Config struct {
 	// service with STREAMING_ENABLED=false injects a NoopEmitter and never
 	// initialises the underlying transport, so an existing deployment that never
 	// sets these vars is not broken by the new dependency. Transport knobs
-	// (brokers, compression, acks, linger) are NOT bound here — they are read by
-	// libStreaming.LoadConfig() directly from STREAMING_* env at build time.
+	// (brokers, compression, acks, linger, TLS and SASL) are NOT bound here — they
+	// are read by libStreaming.LoadConfig() directly from STREAMING_* env at build
+	// time and handed to the Builder via TLSFromConfig / SASLFromConfig. Binding
+	// them here a second time is what left STREAMING_TLS_ENABLED with no reader at
+	// all: the duplicate struct simply had no TLS field.
 	StreamingEnabled bool `env:"STREAMING_ENABLED"`
 
 	// StreamingCloudEventsSource sets the CloudEvents `ce-source` stamped on
@@ -245,22 +248,6 @@ type Config struct {
 	// the leading ACL-scoped topic segment "tracer."); operators set it to the
 	// bare service name so ce-source and the emitted topics agree on that prefix.
 	StreamingCloudEventsSource string `env:"STREAMING_CLOUDEVENTS_SOURCE"`
-
-	// --- Streaming SASL/TLS auth ---
-	// When STREAMING_SASL_MECHANISM is empty (default) the producer connects
-	// without authentication, matching the existing behaviour for local/dev
-	// brokers. When set, the value must be one of PLAIN, SCRAM-SHA-256,
-	// SCRAM-SHA-512 (case-insensitive); USERNAME and PASSWORD are then required.
-	//
-	// SASL without TLS is rejected by lib-streaming with
-	// ErrPlaintextSASLNotAllowed. STREAMING_ALLOW_PLAINTEXT_SASL=true is the
-	// explicit unsafe opt-in for local/dev brokers that do not terminate TLS. It
-	// must NOT be set in production: SASL credentials cross the network in
-	// cleartext.
-	StreamingSASLMechanism      string `env:"STREAMING_SASL_MECHANISM"`
-	StreamingSASLUsername       string `env:"STREAMING_SASL_USERNAME"`
-	StreamingSASLPassword       string `env:"STREAMING_SASL_PASSWORD"`
-	StreamingAllowPlaintextSASL bool   `env:"STREAMING_ALLOW_PLAINTEXT_SASL"`
 }
 
 // minAPIKeyLength is the minimum recommended length for API keys.

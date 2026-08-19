@@ -6,6 +6,7 @@ package bootstrap
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	nethttp "net/http"
 	"strings"
@@ -82,9 +83,10 @@ func noopStreamingCloser() error { return nil }
 //     pilot) the function returns libStreaming.NewNoopEmitter() and a no-op
 //     close hook. No transport client is constructed and no broker
 //     connection is attempted.
-//   - When STREAMING_BROKERS is empty (LoadConfig surfaces this as an empty
-//     Brokers slice) the function ALSO returns a NoopEmitter — the Builder
-//     would otherwise reject construction with ErrMissingTarget Brokers.
+//   - When STREAMING_BROKERS is empty the function refuses boot via
+//     pkgStreaming.RequireBrokers. An enabled producer with nowhere to publish
+//     discards every event silently while readiness reports healthy, so it gets
+//     the roster gate's posture rather than a degraded start.
 //   - Otherwise the function builds a single-target catalog-first Producer
 //     via libStreaming.NewBuilder(), wiring the configured CloudEvents
 //     source onto the Builder, registering all midaz event definitions in
@@ -127,6 +129,16 @@ func BuildStreamingEmitter(
 	// the zero value of the struct.
 	streamingCfg, warnings, err := libStreaming.LoadConfig()
 	if err != nil {
+		// LoadConfig validates the broker list itself, so the missing-broker case
+		// surfaces here rather than at the shared gate below. Route it through the
+		// gate anyway: ledger and tracer then refuse boot with one error identity
+		// and one piece of operator guidance — including the sentence that stops
+		// someone "fixing" it by pointing STREAMING_BROKERS at a dead host. Any
+		// OTHER LoadConfig failure is a different config error and propagates wrapped.
+		if errors.Is(err, libStreaming.ErrProducerMissingBrokers) {
+			return nil, noopStreamingCloser, pkgStreaming.RequireBrokers(streamingCfg.Brokers)
+		}
+
 		return nil, noopStreamingCloser, fmt.Errorf("failed to load streaming config: %w", err)
 	}
 
@@ -136,13 +148,14 @@ func BuildStreamingEmitter(
 		}
 	}
 
-	if len(streamingCfg.Brokers) == 0 {
-		if logger != nil {
-			logger.Log(ctx, libLog.LevelWarn,
-				"STREAMING_ENABLED=true but STREAMING_BROKERS is empty; falling back to NoopEmitter")
-		}
-
-		return libStreaming.NewNoopEmitter(), noopStreamingCloser, nil
+	// Fail closed on an enabled producer with no broker. LoadConfig validates the
+	// broker list itself when it agrees that streaming is enabled, so in a normal
+	// env-driven boot this gate is reached only when the two parses of
+	// STREAMING_ENABLED disagree — but that is precisely the case that used to fall
+	// through to a NoopEmitter, discarding every event while the ledger, which has
+	// no streaming readiness prober, stayed Ready throughout.
+	if err := pkgStreaming.RequireBrokers(streamingCfg.Brokers); err != nil {
+		return nil, noopStreamingCloser, err
 	}
 
 	// Build the immutable Catalog of every event midaz emits. Catalog
@@ -211,6 +224,7 @@ func BuildStreamingEmitter(
 			libLog.String("client_id", streamingCfg.ClientID),
 			libLog.String("ce_source", source),
 			libLog.String("auth", authMode),
+			libLog.Bool("tls", streamingCfg.TLSEnabled),
 			libLog.Int("catalog_size", catalog.Len()),
 			libLog.Int("routes", len(routes)),
 		)
