@@ -19,6 +19,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -844,10 +845,30 @@ func TestAuditEvents_11_2_10_B_IteratesThroughMultiplePages(t *testing.T) {
 
 // TestAuditEvents_11_2_11_SupportsCustomSorting tests custom sorting.
 func TestAuditEvents_11_2_11_SupportsCustomSorting(t *testing.T) {
+	db := testutil.SetupIntegrationDB(t)
 	apiKey := testutil.GetAPIKey()
 	baseURL := testutil.GetBaseURL()
+	resourceID := uuid.New()
 
-	req, err := http.NewRequest(http.MethodGet, baseURL+"/v1/audit-events?sort_by=event_type&sort_order=ASC&limit=10", nil)
+	_, err := db.ExecContext(context.Background(), `
+		INSERT INTO audit_events (
+			event_id, event_type, created_at, action, result,
+			resource_id, resource_type,
+			actor_type, actor_id, actor_name, actor_ip_address,
+			context, metadata
+		) VALUES
+			($1, 'RULE_CREATED', NOW(), 'CREATE', 'SUCCESS',
+			 $3, 'rule', 'system', 'sort-test', '', '127.0.0.1', '{}'::jsonb, '{}'::jsonb),
+			($2, 'TRANSACTION_VALIDATED', NOW(), 'VALIDATE', 'ALLOW',
+			 $3, 'transaction', 'system', 'sort-test', '', '127.0.0.1', '{}'::jsonb, '{}'::jsonb)
+	`, uuid.New(), uuid.New(), resourceID.String())
+	require.NoError(t, err)
+
+	req, err := http.NewRequest(
+		http.MethodGet,
+		fmt.Sprintf("%s/v1/audit-events?resource_id=%s&sort_by=event_type&sort_order=ASC&limit=10", baseURL, resourceID),
+		nil,
+	)
 	require.NoError(t, err)
 	req.Header.Set("X-API-Key", apiKey)
 
@@ -862,14 +883,11 @@ func TestAuditEvents_11_2_11_SupportsCustomSorting(t *testing.T) {
 	err = json.NewDecoder(resp.Body).Decode(&result)
 	require.NoError(t, err)
 
-	// Verify ascending order
-	if len(result.AuditEvents) >= 2 {
-		for i := 0; i < len(result.AuditEvents)-1; i++ {
-			curr := result.AuditEvents[i]["eventType"].(string)
-			next := result.AuditEvents[i+1]["eventType"].(string)
-			assert.LessOrEqual(t, curr, next, "Events should be sorted by event_type ASC")
-		}
-	}
+	// PostgreSQL enums sort by their declared order, not lexically. Isolating
+	// the fixture also keeps this assertion independent of earlier audit tests.
+	require.Len(t, result.AuditEvents, 2)
+	assert.Equal(t, "TRANSACTION_VALIDATED", result.AuditEvents[0]["eventType"])
+	assert.Equal(t, "RULE_CREATED", result.AuditEvents[1]["eventType"])
 }
 
 // TestAuditEvents_11_2_12_Returns400ForInvalidFilters tests validation of filter parameters.

@@ -32,7 +32,7 @@ if [[ $actual_shards != "$expected_shards" ]]; then
   exit 1
 fi
 
-expected_config=$'ledger-postgres\t2\t2\t2\t400\t2048\t20\t0\t15m\nledger-mongodb-crm\t2\t2\t2\t400\t2048\t16\t0\t15m\nasync-broker\t2\t2\t2\t400\t3072\t20\t0\t15m\ntracer\t2\t2\t2\t400\t2048\t6\t0\t15m\nlifecycle-migration\t1\t1\t4\t400\t3072\t10\t0\t15m'
+expected_config=$'ledger-postgres\t2\t2\t2\t400\t2048\t20\t0\t15m\t0\nledger-mongodb-crm\t2\t2\t2\t400\t2048\t16\t0\t15m\t0\nasync-broker\t2\t2\t2\t400\t3072\t20\t0\t15m\t0\ntracer\t2\t2\t2\t400\t2048\t6\t0\t15m\t1\nlifecycle-migration\t1\t1\t4\t400\t3072\t10\t0\t15m\t0'
 actual_config=$(awk '!/^#/ && NF' "$config")
 if [[ $actual_config != "$expected_config" ]]; then
   echo "integration shard resource budgets changed without updating their contract" >&2
@@ -41,11 +41,14 @@ fi
 
 awk -F '\t' '
   /^#/ || !NF { next }
-  NF != 9 { printf "line %d has %d fields, want 9\n", NR, NF > "/dev/stderr"; exit 1 }
+  NF != 10 { printf "line %d has %d fields, want 10\n", NR, NF > "/dev/stderr"; exit 1 }
   $2 !~ /^[1-4]$/ || $3 !~ /^[1-4]$/ || $4 !~ /^[1-4]$/ { exit 1 }
   $5 !~ /^[1-9][0-9]*$/ || $6 !~ /^[1-9][0-9]*$/ || $7 !~ /^[1-9][0-9]*$/ { exit 1 }
   $8 != 0 { print "flake budget must remain zero" > "/dev/stderr"; exit 1 }
   $9 !~ /^[0-9]+(m|h)$/ { print "invalid wall timeout" > "/dev/stderr"; exit 1 }
+  $10 !~ /^[01]$/ { print "race flag must be 0 or 1" > "/dev/stderr"; exit 1 }
+  $1 == "tracer" && $10 != 1 { print "tracer shard must run with race detection" > "/dev/stderr"; exit 1 }
+  $1 != "tracer" && $10 != 0 { print "only tracer shard may enable race detection" > "/dev/stderr"; exit 1 }
   $1 == "lifecycle-migration" && ($2 != 1 || $3 != 1) { print "lifecycle shard is not serial" > "/dev/stderr"; exit 1 }
 ' "$config"
 
@@ -65,6 +68,7 @@ FAKE_CAPTURE_DIR="$test_dir" \
   "$repo_root/scripts/run-integration-ci-shard.sh" ledger-postgres
 
 grep -q '^CI_CAPTURE_DOCKER_EVENTS=owner$' "$test_dir/env"
+grep -q '^CI_REQUIRE_DOCKER_OWNER_EVENTS=1$' "$test_dir/env"
 grep -q '^CI_CAPTURE_RESOURCES=1$' "$test_dir/env"
 grep -q '^CI_DOCKER_OWNER=midaz-8123-2-ledger-postgres$' "$test_dir/env"
 grep -q '^CI_MAX_AVERAGE_CPU_PERCENT=400$' "$test_dir/env"
@@ -73,10 +77,18 @@ grep -q '^INTEGRATION_TEST_PARALLELISM=2$' "$test_dir/env"
 grep -q '^INTEGRATION_JOB_GOMAXPROCS=2$' "$test_dir/env"
 grep -q '^GOMAXPROCS=2$' "$test_dir/env"
 grep -q '^INTEGRATION_FLAKE_BUDGET=0$' "$test_dir/env"
+grep -q '^INTEGRATION_RACE=0$' "$test_dir/env"
 if [[ $(nproc) -gt 4 && -n $(command -v taskset || true) ]]; then
   grep -q 'integration-ledger-postgres 15m taskset --cpu-list 0-3 make test-integration-shard INTEGRATION_SHARD=ledger-postgres' "$test_dir/args"
 else
   grep -q 'integration-ledger-postgres 15m make test-integration-shard INTEGRATION_SHARD=ledger-postgres' "$test_dir/args"
 fi
+
+FAKE_CAPTURE_DIR="$test_dir" \
+  MIDAZ_CI_LANE_RUNNER="$test_dir/fake-lane" \
+  GITHUB_RUN_ID=8123 GITHUB_RUN_ATTEMPT=2 \
+  "$repo_root/scripts/run-integration-ci-shard.sh" tracer
+grep -q '^INTEGRATION_RACE=1$' "$test_dir/env"
+grep -q '^CI_REQUIRE_DOCKER_OWNER_EVENTS=1$' "$test_dir/env"
 
 echo "integration shard config tests passed"

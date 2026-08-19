@@ -33,9 +33,10 @@ while IFS= read -r test_name; do
   printf '{"Action":"pass","Package":"%s","Test":"%s"}\n' "$MIDAZ_SHARD_JOB_PACKAGE" "$test_name" >> "$events"
 done < "$MIDAZ_SHARD_JOB_SELECTION_FILE"
 printf '<testsuite/>\n' > "$junit"
-printf '%s\t%s\t%s\t%s\t%s\n' \
+printf '%s\t%s\t%s\t%s\t%s\t%s\n' \
   "$MIDAZ_SHARD_JOB_MODE" "$MIDAZ_SHARD_JOB_PACKAGE" \
-  "$TESTCONTAINERS_SESSION_ID" "$INTEGRATION_PACKAGE_PARALLELISM" "$*" \
+  "$TESTCONTAINERS_SESSION_ID" "$INTEGRATION_PACKAGE_PARALLELISM" \
+  "$RYUK_RECONNECTION_TIMEOUT" "$*" \
   > "$FAKE_CALLS_DIR/$MIDAZ_SHARD_JOB_INDEX.tsv"
 
 if [[ ${FAKE_FAIL_PACKAGE:-} == "$MIDAZ_SHARD_JOB_PACKAGE" ]]; then
@@ -57,15 +58,17 @@ PATH="$test_dir/bin:$PATH" \
   INTEGRATION_SHARD_PLAN_FILE="$test_dir/tracer-plan.tsv" \
   INTEGRATION_PACKAGE_PARALLELISM=2 \
   INTEGRATION_TEST_PARALLELISM=3 \
+  INTEGRATION_RACE=1 \
   INTEGRATION_SHUFFLE_SEED=417 \
   TEST_REPORTS_DIR="$test_dir/reports" \
   "$repo_root/scripts/run-integration-shard.sh" tracer
 
-grep -q $'parallel\texample.test/tracer-worker\towner-tracer\t2\t.*-parallel 3.*-shuffle=417' "$test_dir/calls/001.tsv"
-grep -q $'parallel\texample.test/tracer-cache\towner-tracer\t2\t.*-parallel 3.*-shuffle=417' "$test_dir/calls/002.tsv"
-grep -q $'serial\texample.test/tracer-journey\towner-tracer\t1\t.*-parallel 1.*-shuffle=417' "$test_dir/calls/003.tsv"
+grep -q $'parallel\texample.test/tracer-worker\towner-tracer\t2\t600s\t.*-race.*-parallel 3.*-shuffle=417' "$test_dir/calls/001.tsv"
+grep -q $'parallel\texample.test/tracer-cache\towner-tracer\t2\t600s\t.*-race.*-parallel 3.*-shuffle=417' "$test_dir/calls/002.tsv"
+grep -q $'serial\texample.test/tracer-journey\towner-tracer\t1\t600s\t.*-race.*-parallel 1.*-shuffle=417' "$test_dir/calls/003.tsv"
 grep -q '"selected_test_count":4' "$test_dir/reports/tracer/summary.json"
 grep -q '"failed_jobs":0' "$test_dir/reports/tracer/summary.json"
+grep -q '"race_enabled":true' "$test_dir/reports/tracer/summary.json"
 test -s "$test_dir/reports/tracer/selection.sha256"
 test -s "$test_dir/reports/tracer/jobs/003/events.json"
 test -s "$test_dir/reports/tracer/jobs/003/junit.xml"

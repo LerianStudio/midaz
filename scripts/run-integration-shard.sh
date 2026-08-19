@@ -32,6 +32,7 @@ flake_budget=${INTEGRATION_FLAKE_BUDGET:-0}
 test_timeout=${INTEGRATION_TEST_TIMEOUT:-600s}
 race_enabled=${INTEGRATION_RACE:-0}
 job_gomaxprocs=${INTEGRATION_JOB_GOMAXPROCS:-2}
+ryuk_reconnection_timeout=${RYUK_RECONNECTION_TIMEOUT:-$test_timeout}
 
 validate_parallelism() {
   local label=$1
@@ -55,6 +56,10 @@ if [[ $race_enabled != 0 && $race_enabled != 1 ]]; then
 fi
 if [[ ! $test_timeout =~ ^[0-9]+(ms|s|m|h)$ ]]; then
   echo "INTEGRATION_TEST_TIMEOUT must be a Go duration, got '$test_timeout'" >&2
+  exit 2
+fi
+if [[ ! $ryuk_reconnection_timeout =~ ^[0-9]+(ms|s|m|h)$ ]]; then
+  echo "RYUK_RECONNECTION_TIMEOUT must be a Go duration, got '$ryuk_reconnection_timeout'" >&2
   exit 2
 fi
 if [[ $shuffle_seed != on && $shuffle_seed != off && ! $shuffle_seed =~ ^[0-9]+$ ]]; then
@@ -154,6 +159,7 @@ export INTEGRATION_TEST_TIMEOUT="$test_timeout"
 export INTEGRATION_RACE="$race_enabled"
 export INTEGRATION_JOB_GOMAXPROCS="$job_gomaxprocs"
 export MIDAZ_INTEGRATION_SHARD_TOOL="$shard_tool"
+export RYUK_RECONNECTION_TIMEOUT="$ryuk_reconnection_timeout"
 
 run_shard_job() {
   local index=$1
@@ -271,9 +277,13 @@ selected_test_count=$(wc -l < "$selection" | tr -d ' ')
 parallel_test_count=$(awk -F '\t' '$1 == "parallel" { count++ } END { print count + 0 }' "$selection")
 serial_test_count=$(awk -F '\t' '$1 == "serial" { count++ } END { print count + 0 }' "$selection")
 runner_duration_seconds=$(($(date +%s) - runner_started_epoch))
-printf '{"shard":"%s","selected_test_count":%d,"parallel_test_count":%d,"serial_test_count":%d,"package_runs":%d,"package_parallelism":%d,"test_parallelism":%d,"job_gomaxprocs":%d,"shuffle_seed":"%s","flake_budget":%d,"failed_jobs":%d,"duration_seconds":%d}\n' \
+race_enabled_json=false
+if [[ $race_enabled == 1 ]]; then
+  race_enabled_json=true
+fi
+printf '{"shard":"%s","selected_test_count":%d,"parallel_test_count":%d,"serial_test_count":%d,"package_runs":%d,"package_parallelism":%d,"test_parallelism":%d,"job_gomaxprocs":%d,"shuffle_seed":"%s","flake_budget":%d,"race_enabled":%s,"failed_jobs":%d,"duration_seconds":%d}\n' \
   "$shard" "$selected_test_count" "$parallel_test_count" "$serial_test_count" "$job_index" \
-  "$package_parallelism" "$test_parallelism" "$job_gomaxprocs" "$shuffle_seed" "$flake_budget" "$failed_jobs" "$runner_duration_seconds" \
+  "$package_parallelism" "$test_parallelism" "$job_gomaxprocs" "$shuffle_seed" "$flake_budget" "$race_enabled_json" "$failed_jobs" "$runner_duration_seconds" \
   > "$report_dir/summary.json"
 
 if [[ $failed_jobs -ne 0 ]]; then

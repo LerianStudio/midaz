@@ -24,7 +24,8 @@ config_row=$(awk -F '\t' -v selected="$shard" '
   }
 ' "$config")
 IFS=$'\t' read -r _ package_parallelism test_parallelism job_gomaxprocs \
-  max_average_cpu_percent max_rss_mb max_peak_containers flake_budget wall_timeout <<< "$config_row"
+  max_average_cpu_percent max_rss_mb max_peak_containers flake_budget wall_timeout \
+  race_enabled <<< "$config_row"
 
 run_id=${GITHUB_RUN_ID:-local-$$-$(date +%s)}
 run_attempt=${GITHUB_RUN_ATTEMPT:-0}
@@ -56,6 +57,7 @@ fi
 cd "$repo_root"
 exec env \
   CI_CAPTURE_DOCKER_EVENTS=owner \
+  CI_REQUIRE_DOCKER_OWNER_EVENTS=1 \
   CI_DOCKER_OWNER="$docker_owner" \
   CI_CAPTURE_RESOURCES=1 \
   CI_MAX_AVERAGE_CPU_PERCENT="$max_average_cpu_percent" \
@@ -68,6 +70,7 @@ exec env \
   INTEGRATION_JOB_GOMAXPROCS="$job_gomaxprocs" \
   GOMAXPROCS="$job_gomaxprocs" \
   INTEGRATION_FLAKE_BUDGET="$flake_budget" \
+  INTEGRATION_RACE="$race_enabled" \
   INTEGRATION_SHUFFLE_SEED="$shuffle_seed" \
   "$lane_runner" "integration-$shard" "$wall_timeout" \
     "${lane_command[@]}"

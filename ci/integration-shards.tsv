@@ -1,6 +1,6 @@
-# shard	package_parallelism	test_parallelism	job_gomaxprocs	max_average_cpu_percent	max_rss_mb	max_peak_containers	flake_budget	wall_timeout
-ledger-postgres	2	2	2	400	2048	20	0	15m
-ledger-mongodb-crm	2	2	2	400	2048	16	0	15m
-async-broker	2	2	2	400	3072	20	0	15m
-tracer	2	2	2	400	2048	6	0	15m
-lifecycle-migration	1	1	4	400	3072	10	0	15m
+# shard	package_parallelism	test_parallelism	job_gomaxprocs	max_average_cpu_percent	max_rss_mb	max_peak_containers	flake_budget	wall_timeout	race_enabled
+ledger-postgres	2	2	2	400	2048	20	0	15m	0
+ledger-mongodb-crm	2	2	2	400	2048	16	0	15m	0
+async-broker	2	2	2	400	3072	20	0	15m	0
+tracer	2	2	2	400	2048	6	0	15m	1
+lifecycle-migration	1	1	4	400	3072	10	0	15m	0
