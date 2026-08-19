@@ -51,6 +51,18 @@ func TestSendTransactionToRedisQueue_PersistsPhaseZeroRolloutOwner(t *testing.T)
 		Owner: transactionID.String(), Outcome: mmodel.TransactionOutcomeCommitted, Identity: transactionID,
 		RedisGeneration: redisGeneration,
 	}
+	expectedPlan, err := mmodel.BuildExpectedEconomicPlan([]mmodel.BalanceOperation{{
+		Balance: &mmodel.Balance{
+			ID: uuid.NewString(), Key: "default", AccountID: uuid.NewString(), AssetCode: "USD",
+			Direction: constant.DirectionCredit,
+		},
+		Alias: "0#@source#default", InternalKey: uuid.NewString(),
+		EconomicSide: mmodel.EconomicSideSource, EconomicRole: mmodel.EconomicRolePrimary,
+		Amount: mtransaction.Amount{
+			Asset: "USD", Value: decimal.NewFromInt(10), Operation: constant.DEBIT, Direction: constant.DirectionDebit,
+		},
+	}}, constant.CREATED, false, "")
+	require.NoError(t, err)
 
 	redisRepo.EXPECT().SeedTransactionBackup(gomock.Any(), organizationID, ledgerID, transactionID,
 		gomock.Any(), *attempt).
@@ -61,6 +73,8 @@ func TestSendTransactionToRedisQueue_PersistsPhaseZeroRolloutOwner(t *testing.T)
 			assert.Equal(t, "legacy", queued.RevertRolloutMode)
 			assert.Equal(t, legacyFenceKey, queued.RevertLegacyFenceKey)
 			assert.Equal(t, redisGeneration, queued.RedisGeneration)
+			require.NotNil(t, queued.ExpectedEconomicPlan)
+			assert.Equal(t, expectedPlan, queued.ExpectedEconomicPlan)
 			assert.Equal(t, transactionID, queued.TransactionID)
 			assert.Equal(t, *attempt, seededAttempt)
 			require.NotNil(t, queued.ParentTransactionID)
@@ -70,11 +84,12 @@ func TestSendTransactionToRedisQueue_PersistsPhaseZeroRolloutOwner(t *testing.T)
 		})
 
 	uc := &UseCase{TransactionRedisRepo: redisRepo}
-	err := uc.SendTransactionToRedisQueue(context.Background(), organizationID, ledgerID, transactionID,
+	err = uc.SendTransactionToRedisQueue(context.Background(), organizationID, ledgerID, transactionID,
 		input, &mtransaction.Responses{}, constant.CREATED, constant.ActionRevert,
 		time.Date(2026, time.August, 18, 0, 0, 0, 0, time.UTC), nil, &originID,
 		TransactionBackupSeedOptions{
-			ExecutionAttempt: attempt, RevertRolloutMode: "legacy", RevertRolloutToken: rolloutToken,
+			ExecutionAttempt: attempt, ExpectedEconomicPlan: expectedPlan,
+			RevertRolloutMode: "legacy", RevertRolloutToken: rolloutToken,
 			RevertLegacyFenceKey: legacyFenceKey, RedisGeneration: redisGeneration,
 		})
 	require.NoError(t, err)

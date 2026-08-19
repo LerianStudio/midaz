@@ -192,11 +192,11 @@ func buildBalanceOperations(ctx context.Context, organizationID, ledgerID uuid.U
 
 			ops = append(
 				ops,
-				mmodel.BalanceOperation{Balance: ref.balance, Alias: alias, Amount: op1, InternalKey: ref.internalKey},
-				mmodel.BalanceOperation{Balance: ref.balance, Alias: alias, Amount: op2, InternalKey: ref.internalKey},
+				mmodel.BalanceOperation{Balance: ref.balance, Alias: alias, Amount: op1, InternalKey: ref.internalKey, EconomicSide: mmodel.EconomicSideSource, EconomicRole: amount.EconomicRole},
+				mmodel.BalanceOperation{Balance: ref.balance, Alias: alias, Amount: op2, InternalKey: ref.internalKey, EconomicSide: mmodel.EconomicSideSource, EconomicRole: amount.EconomicRole},
 			)
 		} else {
-			ops = append(ops, mmodel.BalanceOperation{Balance: ref.balance, Alias: alias, Amount: amount, InternalKey: ref.internalKey})
+			ops = append(ops, mmodel.BalanceOperation{Balance: ref.balance, Alias: alias, Amount: amount, InternalKey: ref.internalKey, EconomicSide: mmodel.EconomicSideSource, EconomicRole: amount.EconomicRole})
 		}
 	}
 
@@ -217,7 +217,7 @@ func buildBalanceOperations(ctx context.Context, organizationID, ledgerID uuid.U
 			libLog.String("alias_balance", resolvedKey),
 			libLog.String("direction", amount.Direction))
 
-		ops = append(ops, mmodel.BalanceOperation{Balance: ref.balance, Alias: alias, Amount: amount, InternalKey: ref.internalKey})
+		ops = append(ops, mmodel.BalanceOperation{Balance: ref.balance, Alias: alias, Amount: amount, InternalKey: ref.internalKey, EconomicSide: mmodel.EconomicSideDestination, EconomicRole: amount.EconomicRole})
 	}
 
 	sort.Slice(ops, func(i, j int) bool {

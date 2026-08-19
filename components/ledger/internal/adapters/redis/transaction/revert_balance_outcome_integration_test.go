@@ -89,6 +89,42 @@ func redisEconomicOperationFromMovement(
 	}
 }
 
+func bindFinalEconomicPlan(
+	t *testing.T,
+	queue *mmodel.TransactionRedisQueue,
+	operations []mmodel.BalanceOperation,
+	transactionStatus string,
+	pending bool,
+) []mmodel.BalanceOperation {
+	t.Helper()
+
+	bound := append([]mmodel.BalanceOperation(nil), operations...)
+	for index := range bound {
+		if bound[index].EconomicSide == "" {
+			bound[index].EconomicSide = mmodel.EconomicSideSource
+		}
+		if bound[index].EconomicRole == "" {
+			bound[index].EconomicRole = mmodel.EconomicRolePrimary
+		}
+		if bound[index].Amount.Direction == "" {
+			switch bound[index].Amount.Operation {
+			case constant.CREDIT, constant.RELEASE:
+				bound[index].Amount.Direction = constant.DirectionCredit
+			default:
+				bound[index].Amount.Direction = constant.DirectionDebit
+			}
+		}
+	}
+	plan, err := mmodel.BuildExpectedEconomicPlan(bound, transactionStatus, pending, queue.OperationTypeOverride)
+	require.NoError(t, err)
+	queue.ExpectedEconomicPlan = plan
+	for index := range bound {
+		bound[index].ExpectedEconomicPlan = plan
+	}
+
+	return bound
+}
+
 type rolloutInitializationWitnessStub struct {
 	mu               sync.Mutex
 	generation       string
@@ -203,21 +239,23 @@ func TestIntegration_BalanceExecutionOutcomeIsImmutableAndExactlyReplayable(t *t
 		constant.APPROVED, false, nil, wrongKeyAttempt)
 	require.ErrorContains(t, err, "complete balance execution attempt is required",
 		"an attempt cannot bind one transaction identity to another transaction's outcome key")
-	seed, err := json.Marshal(mmodel.TransactionRedisQueue{
-		TransactionID:   transactionID,
-		OrganizationID:  organizationID,
-		LedgerID:        ledgerID,
-		AttemptOwner:    owner,
-		ExpectedOutcome: attempt.Outcome,
-	})
-	require.NoError(t, err)
-	require.NoError(t, infra.repo.AddMessageToQueue(ctx,
-		utils.TransactionInternalKey(organizationID, ledgerID, transactionID.String()), seed))
-
 	operations := []mmodel.BalanceOperation{redistestutil.CreateBalanceOperationWithAvailable(
 		organizationID, ledgerID, "@shared-outcome", "USD", constant.DEBIT,
 		decimal.NewFromInt(100), decimal.NewFromInt(1000), "deposit",
 	)}
+	queue := mmodel.TransactionRedisQueue{
+		TransactionID:     transactionID,
+		OrganizationID:    organizationID,
+		LedgerID:          ledgerID,
+		AttemptOwner:      owner,
+		ExpectedOutcome:   attempt.Outcome,
+		TransactionStatus: constant.APPROVED,
+	}
+	operations = bindFinalEconomicPlan(t, &queue, operations, constant.APPROVED, false)
+	seed, err := json.Marshal(queue)
+	require.NoError(t, err)
+	require.NoError(t, infra.repo.AddMessageToQueue(ctx,
+		utils.TransactionInternalKey(organizationID, ledgerID, transactionID.String()), seed))
 	first, err := infra.repo.ProcessOutcomeBalanceAtomicOperation(ctx, organizationID, ledgerID, transactionID,
 		constant.APPROVED, false, operations, attempt)
 	require.NoError(t, err)
@@ -253,6 +291,87 @@ func TestIntegration_BalanceExecutionOutcomeIsImmutableAndExactlyReplayable(t *t
 	assert.Contains(t, balance, `"Available":"900"`, "same replay and opposite conflict must not move funds again")
 }
 
+func TestIntegration_BalanceOutcomeAtomicallyBindsFinalEconomicPlan(t *testing.T) {
+	t.Setenv("ALLOW_INSECURE_TLS", "true")
+	infra := setupRedisIntegrationInfra(t)
+	ctx := context.Background()
+	organizationID := uuid.New()
+	ledgerID := uuid.New()
+	transactionID := uuid.New()
+	owner := uuid.NewString()
+	attempt := mmodel.BalanceExecutionAttempt{
+		ExecutionKey: utils.TransactionBalanceExecutionKey(organizationID, ledgerID, transactionID),
+		OutcomeKey:   utils.TransactionBalanceOutcomeKey(organizationID, ledgerID, transactionID),
+		Owner:        owner, Outcome: mmodel.TransactionOutcomeCommitted, Identity: transactionID,
+	}
+	require.NoError(t, func() error {
+		acquired, err := infra.repo.AcquireOwnedKey(ctx, attempt.ExecutionKey, owner, 300)
+		if err != nil || !acquired {
+			return fmt.Errorf("acquire attempt: acquired=%t: %w", acquired, err)
+		}
+		return nil
+	}())
+
+	operations := []mmodel.BalanceOperation{redistestutil.CreateBalanceOperationWithAvailable(
+		organizationID, ledgerID, "@plan-bound", "USD", constant.DEBIT,
+		decimal.NewFromInt(100), decimal.NewFromInt(1000), "deposit",
+	)}
+	operations[0].EconomicSide = mmodel.EconomicSideSource
+	operations[0].Amount.Direction = constant.DirectionDebit
+	operations[0].Balance.Direction = constant.DirectionCredit
+	plan, err := mmodel.BuildExpectedEconomicPlan(operations, constant.CREATED, false, "")
+	require.NoError(t, err)
+	seed, err := json.Marshal(mmodel.TransactionRedisQueue{
+		TransactionID: transactionID, OrganizationID: organizationID, LedgerID: ledgerID,
+		TransactionStatus: constant.CREATED, AttemptOwner: owner, ExpectedOutcome: attempt.Outcome,
+		EffectModeVersion: mmodel.TransactionEffectModeVersion, EffectMode: mmodel.TransactionEffectBalanceMutation,
+		Action: constant.ActionDirect, ExpectedEconomicPlan: plan,
+		TransactionInput: mtransaction.Transaction{Send: mtransaction.Send{Asset: "USD", Value: decimal.NewFromInt(100)}},
+	})
+	require.NoError(t, err)
+	require.NoError(t, infra.repo.SeedTransactionBackup(ctx, organizationID, ledgerID, transactionID, seed, attempt))
+
+	divergentOperations := append([]mmodel.BalanceOperation(nil), operations...)
+	divergentOperations[0].Amount.Value = decimal.NewFromInt(101)
+	divergentPlan, err := mmodel.BuildExpectedEconomicPlan(divergentOperations, constant.CREATED, false, "")
+	require.NoError(t, err)
+	for index := range divergentOperations {
+		divergentOperations[index].ExpectedEconomicPlan = divergentPlan
+	}
+	_, err = infra.repo.ProcessOutcomeBalanceAtomicOperation(ctx, organizationID, ledgerID, transactionID,
+		constant.CREATED, false, divergentOperations, attempt)
+	require.ErrorContains(t, err, "EXPECTED_ECONOMIC_PLAN_MISMATCH")
+	assert.Empty(t, mustGetRedisString(t, infra.repo, ctx, attempt.OutcomeKey))
+	assert.Empty(t, mustGetRedisString(t, infra.repo, ctx, operations[0].InternalKey),
+		"a plan mismatch must reject before even seeding a balance")
+
+	for index := range operations {
+		operations[index].ExpectedEconomicPlan = plan
+	}
+	result, err := infra.repo.ProcessOutcomeBalanceAtomicOperation(ctx, organizationID, ledgerID, transactionID,
+		constant.CREATED, false, operations, attempt)
+	require.NoError(t, err)
+	require.Len(t, result.After, 1)
+	rawOutcome := mustGetRedisString(t, infra.repo, ctx, attempt.OutcomeKey)
+	persisted := mmodel.BalanceExecutionOutcome{}
+	require.NoError(t, json.Unmarshal([]byte(rawOutcome), &persisted))
+	assert.Equal(t, fmt.Sprint(plan.Version), persisted.EconomicPlanVersion)
+	assert.Equal(t, plan.Digest, persisted.EconomicPlanDigest)
+
+	replay, err := infra.repo.ProcessOutcomeBalanceAtomicOperation(ctx, organizationID, ledgerID, transactionID,
+		constant.CREATED, false, operations, attempt)
+	require.NoError(t, err)
+	assert.Equal(t, result, replay)
+}
+
+func mustGetRedisString(t *testing.T, repo *RedisConsumerRepository, ctx context.Context, key string) string {
+	t.Helper()
+	value, err := repo.Get(ctx, key)
+	require.NoError(t, err)
+
+	return value
+}
+
 func TestIntegration_GenerationBoundBalanceOutcomeRemainsImmutableAndExactlyReplayable(t *testing.T) {
 	t.Setenv("ALLOW_INSECURE_TLS", "true")
 	infra := setupRedisIntegrationInfra(t)
@@ -273,7 +392,12 @@ func TestIntegration_GenerationBoundBalanceOutcomeRemainsImmutableAndExactlyRepl
 	acquired, err := infra.repo.AcquireOwnedKey(ctx, attempt.ExecutionKey, attempt.Owner, 300)
 	require.NoError(t, err)
 	require.True(t, acquired)
-	seed, err := json.Marshal(mmodel.TransactionRedisQueue{
+	operations := []mmodel.BalanceOperation{redistestutil.CreateBalanceOperationWithAvailable(
+		organizationID, ledgerID, "@generation-bound", "USD", constant.DEBIT,
+		decimal.NewFromInt(100), decimal.NewFromInt(1000), "deposit",
+	)}
+	operations[0].Balance.Direction = constant.DirectionDebit
+	queue := mmodel.TransactionRedisQueue{
 		TransactionID: transactionID, OrganizationID: organizationID, LedgerID: ledgerID,
 		TransactionStatus: constant.CREATED, AttemptOwner: attempt.Owner, ExpectedOutcome: attempt.Outcome,
 		EffectModeVersion: mmodel.TransactionEffectModeVersion, EffectMode: mmodel.TransactionEffectBalanceMutation,
@@ -283,14 +407,11 @@ func TestIntegration_GenerationBoundBalanceOutcomeRemainsImmutableAndExactlyRepl
 			"@generation-bound#default": {Asset: "USD", Value: decimal.NewFromInt(100),
 				Operation: constant.DEBIT, Direction: constant.DirectionDebit},
 		}},
-	})
+	}
+	operations = bindFinalEconomicPlan(t, &queue, operations, constant.CREATED, false)
+	seed, err := json.Marshal(queue)
 	require.NoError(t, err)
 	require.NoError(t, infra.repo.SeedTransactionBackup(ctx, organizationID, ledgerID, transactionID, seed, attempt))
-	operations := []mmodel.BalanceOperation{redistestutil.CreateBalanceOperationWithAvailable(
-		organizationID, ledgerID, "@generation-bound", "USD", constant.DEBIT,
-		decimal.NewFromInt(100), decimal.NewFromInt(1000), "deposit",
-	)}
-	operations[0].Balance.Direction = constant.DirectionDebit
 
 	first, err := infra.repo.ProcessOutcomeBalanceAtomicOperation(ctx, organizationID, ledgerID, transactionID,
 		constant.CREATED, false, operations, attempt)
@@ -373,7 +494,12 @@ func TestIntegration_GlobalFinancialGenerationServesTwoTenantsAndSurvivesTenantR
 		acquired, err := infra.repo.AcquireOwnedKey(tenantCtx, attempt.ExecutionKey, attempt.Owner, 300)
 		require.NoError(t, err)
 		require.True(t, acquired)
-		seed, err := json.Marshal(mmodel.TransactionRedisQueue{
+		balanceOperations := []mmodel.BalanceOperation{redistestutil.CreateBalanceOperationWithAvailable(
+			organizationID, ledgerID, "@global-generation-"+tenantID, "USD", constant.DEBIT,
+			decimal.NewFromInt(100), decimal.NewFromInt(1000), "deposit",
+		)}
+		balanceOperations[0].Balance.Direction = constant.DirectionDebit
+		queue := mmodel.TransactionRedisQueue{
 			TransactionID: transactionID, OrganizationID: organizationID, LedgerID: ledgerID,
 			TransactionStatus: constant.CREATED, AttemptOwner: attempt.Owner, ExpectedOutcome: attempt.Outcome,
 			EffectModeVersion: mmodel.TransactionEffectModeVersion, EffectMode: mmodel.TransactionEffectBalanceMutation,
@@ -387,15 +513,12 @@ func TestIntegration_GlobalFinancialGenerationServesTwoTenantsAndSurvivesTenantR
 					Operation: constant.DEBIT, Direction: constant.DirectionDebit,
 				},
 			}},
-		})
+		}
+		balanceOperations = bindFinalEconomicPlan(t, &queue, balanceOperations, constant.CREATED, false)
+		seed, err := json.Marshal(queue)
 		require.NoError(t, err)
 		require.NoError(t, infra.repo.SeedTransactionBackup(tenantCtx,
 			organizationID, ledgerID, transactionID, seed, attempt))
-		balanceOperations := []mmodel.BalanceOperation{redistestutil.CreateBalanceOperationWithAvailable(
-			organizationID, ledgerID, "@global-generation-"+tenantID, "USD", constant.DEBIT,
-			decimal.NewFromInt(100), decimal.NewFromInt(1000), "deposit",
-		)}
-		balanceOperations[0].Balance.Direction = constant.DirectionDebit
 		result, err := infra.repo.ProcessOutcomeBalanceAtomicOperation(tenantCtx,
 			organizationID, ledgerID, transactionID, constant.CREATED, false, balanceOperations, attempt)
 		require.NoError(t, err)
@@ -467,7 +590,12 @@ func TestIntegration_TransactionBackupEnrichmentPreservesOutcomeUntilExactDurabl
 	acquired, err := infra.repo.AcquireOwnedKey(ctx, attempt.ExecutionKey, attempt.Owner, 300)
 	require.NoError(t, err)
 	require.True(t, acquired)
-	seed, err := json.Marshal(mmodel.TransactionRedisQueue{
+	balanceOperations := []mmodel.BalanceOperation{redistestutil.CreateBalanceOperationWithAvailable(
+		organizationID, ledgerID, "@backup-envelope", "USD", constant.DEBIT,
+		decimal.NewFromInt(100), decimal.NewFromInt(1000), "deposit",
+	)}
+	balanceOperations[0].Balance.Direction = constant.DirectionDebit
+	queue := mmodel.TransactionRedisQueue{
 		TransactionID:       transactionID,
 		OrganizationID:      organizationID,
 		LedgerID:            ledgerID,
@@ -485,16 +613,13 @@ func TestIntegration_TransactionBackupEnrichmentPreservesOutcomeUntilExactDurabl
 			"@backup-envelope#default": {Asset: "USD", Value: decimal.NewFromInt(100),
 				Operation: constant.DEBIT, Direction: constant.DirectionDebit},
 		}},
-	})
+	}
+	balanceOperations = bindFinalEconomicPlan(t, &queue, balanceOperations, constant.APPROVED, false)
+	seed, err := json.Marshal(queue)
 	require.NoError(t, err)
 	transactionKey := utils.TransactionInternalKey(organizationID, ledgerID, transactionID.String())
 	require.NoError(t, infra.repo.AddMessageToQueue(ctx, transactionKey, seed))
 
-	balanceOperations := []mmodel.BalanceOperation{redistestutil.CreateBalanceOperationWithAvailable(
-		organizationID, ledgerID, "@backup-envelope", "USD", constant.DEBIT,
-		decimal.NewFromInt(100), decimal.NewFromInt(1000), "deposit",
-	)}
-	balanceOperations[0].Balance.Direction = constant.DirectionDebit
 	result, err := infra.repo.ProcessOutcomeBalanceAtomicOperation(ctx, organizationID, ledgerID, transactionID,
 		constant.APPROVED, false, balanceOperations, attempt)
 	require.NoError(t, err)
@@ -759,7 +884,12 @@ func TestIntegration_TransactionBackupOperationIDsAreSingleAssignmentAcrossConsu
 	acquired, err := infra.repo.AcquireOwnedKey(ctx, attempt.ExecutionKey, attempt.Owner, 300)
 	require.NoError(t, err)
 	require.True(t, acquired)
-	seed, err := json.Marshal(mmodel.TransactionRedisQueue{
+	balanceOperations := []mmodel.BalanceOperation{redistestutil.CreateBalanceOperationWithAvailable(
+		organizationID, ledgerID, "@single-assignment", "USD", constant.DEBIT,
+		decimal.NewFromInt(100), decimal.NewFromInt(1000), "deposit",
+	)}
+	balanceOperations[0].Balance.Direction = constant.DirectionDebit
+	queue := mmodel.TransactionRedisQueue{
 		TransactionID:         transactionID,
 		OrganizationID:        organizationID,
 		LedgerID:              ledgerID,
@@ -777,14 +907,11 @@ func TestIntegration_TransactionBackupOperationIDsAreSingleAssignmentAcrossConsu
 			"@single-assignment#default": {Asset: "USD", Value: decimal.NewFromInt(100),
 				Operation: constant.DEBIT, Direction: constant.DirectionDebit},
 		}},
-	})
+	}
+	balanceOperations = bindFinalEconomicPlan(t, &queue, balanceOperations, constant.APPROVED, false)
+	seed, err := json.Marshal(queue)
 	require.NoError(t, err)
 	require.NoError(t, infra.repo.SeedTransactionBackup(ctx, organizationID, ledgerID, transactionID, seed, attempt))
-	balanceOperations := []mmodel.BalanceOperation{redistestutil.CreateBalanceOperationWithAvailable(
-		organizationID, ledgerID, "@single-assignment", "USD", constant.DEBIT,
-		decimal.NewFromInt(100), decimal.NewFromInt(1000), "deposit",
-	)}
-	balanceOperations[0].Balance.Direction = constant.DirectionDebit
 	result, err := infra.repo.ProcessOutcomeBalanceAtomicOperation(ctx, organizationID, ledgerID, transactionID,
 		constant.APPROVED, false, balanceOperations, attempt)
 	require.NoError(t, err)
@@ -1326,15 +1453,30 @@ func TestIntegration_BalanceExecutionAttemptIsCheckedAndConsumedWithOutcome(t *t
 		organizationID, ledgerID, "@economic-execution-attempt", "USD", constant.DEBIT,
 		decimal.NewFromInt(100), decimal.NewFromInt(1000), "deposit",
 	)}
+	queue := mmodel.TransactionRedisQueue{
+		TransactionID: transactionID, OrganizationID: organizationID, LedgerID: ledgerID,
+		TransactionStatus: constant.CREATED, AttemptOwner: owner, ExpectedOutcome: attempt.Outcome,
+		EffectModeVersion: mmodel.TransactionEffectModeVersion, EffectMode: mmodel.TransactionEffectBalanceMutation,
+		TransactionInput: mtransaction.Transaction{Send: mtransaction.Send{
+			Asset: "USD", Value: decimal.NewFromInt(100),
+		}},
+	}
+	operations = bindFinalEconomicPlan(t, &queue, operations, constant.CREATED, false)
+	seed, err := json.Marshal(queue)
+	require.NoError(t, err)
+	transactionKey := utils.TransactionInternalKey(organizationID, ledgerID, transactionID.String())
+	require.NoError(t, infra.repo.AddMessageToQueue(ctx, transactionKey, seed))
 
-	_, err := infra.repo.ProcessOutcomeBalanceAtomicOperation(ctx, organizationID, ledgerID, transactionID,
+	_, err = infra.repo.ProcessOutcomeBalanceAtomicOperation(ctx, organizationID, ledgerID, transactionID,
 		constant.CREATED, false, operations, attempt)
 	require.Error(t, err)
 	var conflict pkg.EntityConflictError
 	require.ErrorAs(t, err, &conflict)
 	assert.Equal(t, constant.ErrIdempotencyKey.Error(), conflict.Code)
-	_, err = infra.repo.ReadMessageFromQueue(ctx, utils.TransactionInternalKey(organizationID, ledgerID, transactionID.String()))
-	assert.ErrorIs(t, err, redis.Nil, "an absent execution attempt must reject before publishing a movement outcome")
+	retained, err := infra.repo.ReadMessageFromQueue(ctx, transactionKey)
+	require.NoError(t, err)
+	assert.JSONEq(t, string(seed), string(retained),
+		"an absent execution attempt must reject without changing the pre-Lua economic plan")
 
 	acquired, err := infra.repo.AcquireOwnedKey(ctx, executionKey, owner, 300)
 	require.NoError(t, err)
@@ -1596,7 +1738,12 @@ func TestIntegration_OwnedLegacyFence_RedisClusterRejectsCrossSlotButAcceptsComp
 	leaseAcquired, err := repo.AcquireOwnedKey(ctx, executionKey, attempt.Owner, 300)
 	require.NoError(t, err)
 	require.True(t, leaseAcquired)
-	seed, err := json.Marshal(mmodel.TransactionRedisQueue{
+	operations := []mmodel.BalanceOperation{redistestutil.CreateBalanceOperationWithAvailable(
+		organizationID, ledgerID, "@cluster-fenced-revert", "USD", constant.DEBIT,
+		decimal.NewFromInt(100), decimal.NewFromInt(1000), "deposit",
+	)}
+	operations[0].Balance.Direction = constant.DirectionDebit
+	queue := mmodel.TransactionRedisQueue{
 		TransactionID:     transactionID,
 		OrganizationID:    organizationID,
 		LedgerID:          ledgerID,
@@ -1615,7 +1762,9 @@ func TestIntegration_OwnedLegacyFence_RedisClusterRejectsCrossSlotButAcceptsComp
 				Operation: constant.DEBIT, Direction: constant.DirectionDebit,
 			},
 		}},
-	})
+	}
+	operations = bindFinalEconomicPlan(t, &queue, operations, constant.CREATED, false)
+	seed, err := json.Marshal(queue)
 	require.NoError(t, err)
 	require.NoError(t, repo.SeedTransactionBackup(ctx, organizationID, ledgerID, transactionID, seed, attempt),
 		"owner-fenced backup seeding must remain in the transactions slot")
@@ -1623,11 +1772,6 @@ func TestIntegration_OwnedLegacyFence_RedisClusterRejectsCrossSlotButAcceptsComp
 	require.NoError(t, err, "atomic rollout evidence inspection must remain in the transactions slot")
 	require.True(t, evidence)
 	require.True(t, generationMatches)
-	operations := []mmodel.BalanceOperation{redistestutil.CreateBalanceOperationWithAvailable(
-		organizationID, ledgerID, "@cluster-fenced-revert", "USD", constant.DEBIT,
-		decimal.NewFromInt(100), decimal.NewFromInt(1000), "deposit",
-	)}
-	operations[0].Balance.Direction = constant.DirectionDebit
 	result, err := repo.ProcessOutcomeBalanceAtomicOperation(ctx, organizationID, ledgerID, transactionID,
 		constant.CREATED, false, operations, attempt)
 	require.NoError(t, err, "the execution lease and balance outcome must share the existing transactions slot")
@@ -1734,7 +1878,12 @@ func TestIntegration_OwnedLegacyFence_RedisClusterRejectsCrossSlotButAcceptsComp
 	tenantLease, err := repo.AcquireOwnedKey(tenantCtx, tenantAttempt.ExecutionKey, tenantAttempt.Owner, 300)
 	require.NoError(t, err)
 	require.True(t, tenantLease)
-	tenantSeed, err := json.Marshal(mmodel.TransactionRedisQueue{
+	tenantBalanceOperations := []mmodel.BalanceOperation{redistestutil.CreateBalanceOperationWithAvailable(
+		organizationID, ledgerID, "@cluster-global-generation", "USD", constant.DEBIT,
+		decimal.NewFromInt(100), decimal.NewFromInt(1000), "deposit",
+	)}
+	tenantBalanceOperations[0].Balance.Direction = constant.DirectionDebit
+	tenantQueue := mmodel.TransactionRedisQueue{
 		TransactionID: tenantTransactionID, OrganizationID: organizationID, LedgerID: ledgerID,
 		TransactionStatus: constant.CREATED, AttemptOwner: tenantAttempt.Owner,
 		EffectModeVersion: mmodel.TransactionEffectModeVersion, EffectMode: mmodel.TransactionEffectBalanceMutation,
@@ -1749,16 +1898,13 @@ func TestIntegration_OwnedLegacyFence_RedisClusterRejectsCrossSlotButAcceptsComp
 				Operation: constant.DEBIT, Direction: constant.DirectionDebit,
 			},
 		}},
-	})
+	}
+	tenantBalanceOperations = bindFinalEconomicPlan(t, &tenantQueue, tenantBalanceOperations, constant.CREATED, false)
+	tenantSeed, err := json.Marshal(tenantQueue)
 	require.NoError(t, err)
 	require.NoError(t, repo.SeedTransactionBackup(tenantCtx, organizationID, ledgerID,
 		tenantTransactionID, tenantSeed, tenantAttempt),
 		"tenant-scoped backup and deployment generation must share the transactions slot")
-	tenantBalanceOperations := []mmodel.BalanceOperation{redistestutil.CreateBalanceOperationWithAvailable(
-		organizationID, ledgerID, "@cluster-global-generation", "USD", constant.DEBIT,
-		decimal.NewFromInt(100), decimal.NewFromInt(1000), "deposit",
-	)}
-	tenantBalanceOperations[0].Balance.Direction = constant.DirectionDebit
 	tenantResult, err := repo.ProcessOutcomeBalanceAtomicOperation(tenantCtx, organizationID, ledgerID,
 		tenantTransactionID, constant.CREATED, false, tenantBalanceOperations, tenantAttempt)
 	require.NoError(t, err,

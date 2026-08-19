@@ -11,9 +11,17 @@ end
 local existing = redis.call("HGET", KEYS[1], KEYS[2])
 if existing then
     local ok, envelope = pcall(cjson.decode, existing)
+    local incomingOK, incoming = pcall(cjson.decode, ARGV[4])
     if not ok or type(envelope) ~= "table" or envelope.transaction_id ~= ARGV[2] or
        envelope.attempt_owner ~= ARGV[1] or envelope.expected_outcome ~= ARGV[3] or
-       envelope.balancesAfter ~= nil then
+       envelope.balancesAfter ~= nil or not incomingOK or type(incoming) ~= "table" then
+        return redis.error_reply("TRANSACTION_BACKUP_OWNER_MISMATCH")
+    end
+    local existingPlan = envelope.expected_economic_plan
+    local incomingPlan = incoming.expected_economic_plan
+    if (existingPlan == nil) ~= (incomingPlan == nil) or
+       (existingPlan ~= nil and (type(existingPlan) ~= "table" or type(incomingPlan) ~= "table" or
+        existingPlan.version ~= incomingPlan.version or existingPlan.digest ~= incomingPlan.digest)) then
         return redis.error_reply("TRANSACTION_BACKUP_OWNER_MISMATCH")
     end
 

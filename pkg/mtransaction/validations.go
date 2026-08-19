@@ -441,9 +441,10 @@ func CalculateTotal(fromTos []FromTo, transaction Transaction, transactionType s
 	remainingValue := transaction.Send.Value
 
 	type remainingEntry struct {
-		alias     string
-		operation string
-		direction string
+		alias        string
+		operation    string
+		direction    string
+		economicRole string
 	}
 
 	remainingEntries := make([]remainingEntry, 0, 1)
@@ -463,9 +464,10 @@ func CalculateTotal(fromTos []FromTo, transaction Transaction, transactionType s
 		// in-memory payloads while the public validator rejects that combination.
 		if !commons.IsNilOrEmpty(&fromTos[i].Remaining) {
 			remainingEntries = append(remainingEntries, remainingEntry{
-				alias:     fromTos[i].AccountAlias,
-				operation: operation,
-				direction: direction,
+				alias:        fromTos[i].AccountAlias,
+				operation:    operation,
+				direction:    direction,
+				economicRole: fromTos[i].EconomicRole,
 			})
 
 			scdt = append(scdt, AliasKey(fromTos[i].SplitAlias(), fromTos[i].BalanceKey))
@@ -493,6 +495,7 @@ func CalculateTotal(fromTos []FromTo, transaction Transaction, transactionType s
 				Operation:       operation,
 				TransactionType: transactionType,
 				Direction:       direction,
+				EconomicRole:    fromTos[i].EconomicRole,
 			}
 
 			total = total.Add(shareValue)
@@ -506,6 +509,7 @@ func CalculateTotal(fromTos []FromTo, transaction Transaction, transactionType s
 				Operation:       operation,
 				TransactionType: transactionType,
 				Direction:       direction,
+				EconomicRole:    fromTos[i].EconomicRole,
 			}
 
 			fmto[fromTos[i].AccountAlias] = amount
@@ -528,6 +532,7 @@ func CalculateTotal(fromTos []FromTo, transaction Transaction, transactionType s
 			Operation:       entry.operation,
 			TransactionType: transactionType,
 			Direction:       entry.direction,
+			EconomicRole:    entry.economicRole,
 		}
 
 		fmto[entry.alias] = amount

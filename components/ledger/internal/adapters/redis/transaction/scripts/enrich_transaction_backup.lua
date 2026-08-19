@@ -55,6 +55,11 @@ if ARGV[2] == "1" then
        type(outcome.before) ~= "table" or type(outcome.after) ~= "table" then
         return redis.error_reply("TRANSACTION_OUTCOME_MISMATCH")
     end
+    if type(envelope.expected_economic_plan) == "table" and
+       (tostring(outcome.economic_plan_version) ~= tostring(envelope.expected_economic_plan.version) or
+        outcome.economic_plan_digest ~= envelope.expected_economic_plan.digest) then
+        return redis.error_reply("EXPECTED_ECONOMIC_PLAN_MISMATCH")
+    end
     if ARGV[6] ~= "" and envelope.redis_generation ~= ARGV[6] then
         return redis.error_reply("FINANCIAL_DATASET_GENERATION_MISMATCH")
     end

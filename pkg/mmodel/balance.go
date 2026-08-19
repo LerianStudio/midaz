@@ -736,10 +736,13 @@ type BalanceErrorResponse struct {
 
 // BalanceOperation represents a balance operation with associated metadata for transaction processing on redis by cache-aside
 type BalanceOperation struct {
-	Balance     *Balance
-	Alias       string
-	Amount      mtransaction.Amount
-	InternalKey string
+	Balance              *Balance
+	Alias                string
+	Amount               mtransaction.Amount
+	InternalKey          string
+	EconomicSide         string
+	EconomicRole         string
+	ExpectedEconomicPlan *ExpectedEconomicPlan
 }
 
 // BalanceAtomicResult holds the before and after states returned by the
@@ -772,11 +775,13 @@ type BalanceExecutionAttempt struct {
 // the same atomic command as the economic mutation. Before and After are the
 // exact response replayed after a lost Redis response.
 type BalanceExecutionOutcome struct {
-	Identity uuid.UUID      `json:"identity"`
-	Outcome  string         `json:"outcome"`
-	Owner    string         `json:"owner"`
-	Before   []BalanceRedis `json:"before"`
-	After    []BalanceRedis `json:"after"`
+	Identity            uuid.UUID      `json:"identity"`
+	Outcome             string         `json:"outcome"`
+	Owner               string         `json:"owner"`
+	EconomicPlanVersion string         `json:"economic_plan_version"`
+	EconomicPlanDigest  string         `json:"economic_plan_digest"`
+	Before              []BalanceRedis `json:"before"`
+	After               []BalanceRedis `json:"after"`
 }
 
 // TransactionEconomicContext is the caller's immutable view of the terminal
@@ -799,18 +804,20 @@ type TransactionEconomicContext struct {
 // outcome, canonical operations, and after-balances without treating missing
 // hot-store evidence as a successful replay.
 type TransactionPersistenceTombstone struct {
-	Identity             uuid.UUID        `json:"identity"`
-	ParentTransactionID  string           `json:"parent_transaction_id"`
-	Outcome              string           `json:"outcome"`
-	Owner                string           `json:"owner"`
-	RedisGeneration      string           `json:"redis_generation"`
-	TransactionStatus    string           `json:"transaction_status"`
-	Action               string           `json:"action"`
-	TransactionAmount    string           `json:"transaction_amount"`
-	TransactionAssetCode string           `json:"transaction_asset_code"`
-	Operations           []OperationRedis `json:"operations"`
-	BalancesAfter        []BalanceRedis   `json:"balancesAfter"`
-	EconomicEffectDigest string           `json:"economic_effect_digest"`
+	Identity              uuid.UUID             `json:"identity"`
+	ParentTransactionID   string                `json:"parent_transaction_id"`
+	Outcome               string                `json:"outcome"`
+	Owner                 string                `json:"owner"`
+	RedisGeneration       string                `json:"redis_generation"`
+	TransactionStatus     string                `json:"transaction_status"`
+	Action                string                `json:"action"`
+	TransactionAmount     string                `json:"transaction_amount"`
+	TransactionAssetCode  string                `json:"transaction_asset_code"`
+	Operations            []OperationRedis      `json:"operations"`
+	BalancesAfter         []BalanceRedis        `json:"balancesAfter"`
+	EconomicEffectDigest  string                `json:"economic_effect_digest"`
+	ExpectedEconomicPlan  *ExpectedEconomicPlan `json:"expected_economic_plan,omitempty"`
+	OperationTypeOverride string                `json:"operation_type_override,omitempty"`
 }
 
 // TransactionRedisQueue represents a transaction queue for cache-aside
@@ -830,6 +837,7 @@ type TransactionRedisQueue struct {
 	EffectModeVersion     int                      `json:"effect_mode_version,omitempty"`
 	EffectMode            TransactionEffectMode    `json:"effect_mode,omitempty"`
 	OperationTypeOverride string                   `json:"operation_type_override,omitempty"`
+	ExpectedEconomicPlan  *ExpectedEconomicPlan    `json:"expected_economic_plan,omitempty"`
 	AttemptOwner          string                   `json:"attempt_owner,omitempty"`
 	ExpectedOutcome       string                   `json:"expected_outcome,omitempty"`
 	RevertRolloutMode     string                   `json:"revert_rollout_mode,omitempty"`

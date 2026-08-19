@@ -381,6 +381,7 @@ func (uc *UseCase) RemoveTransactionFromRedisQueueIfStatus(
 
 type TransactionBackupSeedOptions struct {
 	ExecutionAttempt     *mmodel.BalanceExecutionAttempt
+	ExpectedEconomicPlan *mmodel.ExpectedEconomicPlan
 	RevertRolloutMode    string
 	RevertRolloutToken   string
 	RevertLegacyFenceKey string
@@ -473,6 +474,12 @@ func (uc *UseCase) SendTransactionToRedisQueue(ctx context.Context, organization
 		queue.RevertRolloutToken = options[0].RevertRolloutToken
 		queue.RevertLegacyFenceKey = options[0].RevertLegacyFenceKey
 		queue.RedisGeneration = options[0].RedisGeneration
+		queue.ExpectedEconomicPlan = options[0].ExpectedEconomicPlan
+	}
+	if queue.ExpectedEconomicPlan != nil {
+		if err := mmodel.ValidateExpectedEconomicPlan(queue.ExpectedEconomicPlan); err != nil {
+			return fmt.Errorf("validate transaction expected economic plan: %w", err)
+		}
 	}
 	validRolloutMode := queue.RevertRolloutMode == "legacy" || queue.RevertRolloutMode == "bridge"
 	if (queue.RevertRolloutToken == "") != (queue.RevertRolloutMode == "") ||

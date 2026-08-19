@@ -43,6 +43,23 @@ func TestValidateRedisTransactionEconomicEffect_UsesImmutableMovementNotCandidat
 	}
 }
 
+func TestValidateRedisLegacyTransactionEconomicEffect_IsExplicitAndStillFailClosed(t *testing.T) {
+	t.Parallel()
+
+	envelope, operation := exactEconomicProofFixture(t)
+	envelope.ExpectedEconomicPlan = nil
+	require.NoError(t, ValidateRedisLegacyTransactionEconomicEffect(envelope, []OperationRedis{operation}))
+	assert.Error(t, ValidateRedisTransactionEconomicEffect(envelope, []OperationRedis{operation}),
+		"new outcome-backed persistence must never enter the planless compatibility rule")
+
+	maliciousType := operation
+	maliciousType.Type = constant.BLOCK
+	assert.Error(t, ValidateRedisLegacyTransactionEconomicEffect(envelope, []OperationRedis{maliciousType}),
+		"legacy compatibility must still derive type and direction from immutable input")
+	assert.Error(t, ValidateRedisLegacyTransactionEconomicEffect(envelope, nil),
+		"legacy compatibility must never infer an omitted economic leg")
+}
+
 func TestValidateRedisTransactionEconomicEffect_PreservesExactLargeDecimals(t *testing.T) {
 	t.Parallel()
 
@@ -97,6 +114,7 @@ func TestValidateRedisTransactionEconomicEffect_BindsSemanticsToImmutableBalance
 			Operation: constant.CREDIT, Direction: constant.DirectionCredit,
 		},
 	}
+	setExpectedPlanFromRedisOperations(t, envelope, []OperationRedis{debit, credit}, "")
 
 	require.NoError(t, ValidateRedisTransactionEconomicEffect(envelope, []OperationRedis{debit, credit}))
 	truncated := *envelope
@@ -130,6 +148,7 @@ func TestValidateRedisTransactionEconomicEffect_PendingOutcomeCoversOnlyHeldSour
 			TransactionType: constant.PENDING, Direction: constant.DirectionCredit,
 		},
 	}
+	setExpectedPlanFromRedisOperations(t, envelope, []OperationRedis{hold}, "")
 
 	require.NoError(t, ValidateRedisTransactionEconomicEffect(envelope, []OperationRedis{hold}),
 		"a hold outcome must prove its source movement without inventing the destination operation reserved for commit")
@@ -162,6 +181,7 @@ func TestValidateRedisTransactionEconomicEffect_CancelOutcomeCoversOnlyReleasedS
 			TransactionType: constant.CANCELED, Direction: constant.DirectionCredit,
 		},
 	}
+	setExpectedPlanFromRedisOperations(t, envelope, []OperationRedis{release}, "")
 
 	require.NoError(t, ValidateRedisTransactionEconomicEffect(envelope, []OperationRedis{release}),
 		"cancel must prove the held source release without inventing a destination movement that never occurred")
@@ -175,6 +195,7 @@ func TestValidateRedisTransactionEconomicEffect_UsesDurableOperationTypeOverride
 	envelope.EffectMode = TransactionEffectBalanceMutation
 	envelope.OperationTypeOverride = constant.BLOCK
 	operation.Type = constant.BLOCK
+	setExpectedPlanFromRedisOperations(t, envelope, []OperationRedis{operation}, constant.BLOCK)
 	require.NoError(t, ValidateRedisTransactionEconomicEffect(envelope, []OperationRedis{operation}))
 
 	envelope.OperationTypeOverride = ""
@@ -303,6 +324,46 @@ func exactEconomicProofFixture(t *testing.T) (*TransactionRedisQueue, OperationR
 		AccountAlias: before.Alias, OrganizationID: organizationID, LedgerID: ledgerID, BalanceAffected: true,
 		Snapshot: OperationSnapshot{OverdraftUsedBefore: "0", OverdraftUsedAfter: "0"},
 	}
+	setExpectedPlanFromRedisOperations(t, envelope, []OperationRedis{operation}, "")
 
 	return envelope, operation
+}
+
+func setExpectedPlanFromRedisOperations(t *testing.T, envelope *TransactionRedisQueue, operations []OperationRedis, override string) {
+	t.Helper()
+
+	balanceOperations := make([]BalanceOperation, 0, len(operations))
+	for _, operation := range operations {
+		var before BalanceRedis
+		found := false
+		for _, candidate := range envelope.Balances {
+			if candidate.ID == operation.BalanceID && candidate.Key == operation.BalanceKey && candidate.AccountID == operation.AccountID {
+				before = candidate
+				found = true
+				break
+			}
+		}
+		require.True(t, found)
+		balanceOperations = append(balanceOperations, BalanceOperation{
+			Balance: &Balance{ID: before.ID, Key: before.Key, AccountID: before.AccountID, AssetCode: before.AssetCode, Direction: before.Direction},
+			Alias:   operation.AccountAlias + "#" + operation.BalanceKey, InternalKey: "redis:" + operation.BalanceID,
+			EconomicSide: EconomicSideUnspecified,
+			Amount: mtransaction.Amount{Asset: operation.AssetCode, Value: operation.AmountValue,
+				Operation: redisProofBaseOperationType(operation, override), Direction: operation.Direction},
+		})
+	}
+	plan, err := BuildExpectedEconomicPlan(balanceOperations, envelope.TransactionStatus, false, override)
+	require.NoError(t, err)
+	envelope.ExpectedEconomicPlan = plan
+}
+
+func redisProofBaseOperationType(operation OperationRedis, override string) string {
+	if override == "" || operation.Type != override {
+		return operation.Type
+	}
+	if operation.Direction == constant.DirectionDebit {
+		return constant.DEBIT
+	}
+
+	return constant.CREDIT
 }

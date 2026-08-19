@@ -205,6 +205,7 @@ func updatedAmountsFromFee(amounts map[string]transaction.Amount, operationRoute
 		fromTo := transaction.FromTo{
 			AccountAlias: cleanAccount,
 			Amount:       &transaction.Amount{Asset: amount.Asset, Value: amount.Value},
+			EconomicRole: "FEE",
 		}
 		if len(metadata) > 0 {
 			fromTo.Metadata = metadata

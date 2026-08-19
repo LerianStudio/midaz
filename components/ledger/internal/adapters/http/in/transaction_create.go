@@ -1345,33 +1345,6 @@ func (handler *TransactionHandler) executeCreateTransaction(ctx context.Context,
 		parentTransactionID = &params.TransactionID
 	}
 
-	err = handler.Command.SendTransactionToRedisQueue(ctx, params.OrganizationID, params.LedgerID, transactionID,
-		transactionInput, validate, transactionStatus, action, transactionDate, nil, parentTransactionID,
-		command.TransactionBackupSeedOptions{
-			ExecutionAttempt:     params.ExecutionAttempt,
-			RevertRolloutMode:    params.RevertRolloutMode,
-			RevertRolloutToken:   params.RevertRolloutToken,
-			RevertLegacyFenceKey: params.RevertLegacyFenceKey,
-			RedisGeneration:      params.RedisGeneration,
-		})
-	if err != nil {
-		if params.RevertExecution != nil && errors.Is(err, constant.ErrTransactionBackupCacheFailed) {
-			// HSET can commit and lose its response. The surviving seed is the
-			// evidence recovery needs, so no fence may be released until its
-			// presence is resolved after the execution lease expires.
-			params.RevertExecution.SeedWriteAmbiguous = true
-		}
-		libOpentelemetry.HandleSpanError(span, "Failed to send transaction to backup cache", err)
-		logger.Log(ctx, libLog.LevelError, "Failed to send transaction to backup cache", libLog.Err(err))
-
-		handler.deleteIdempotencyKey(ctx, idempotencyResult.InternalKey, params.RevertExecution)
-
-		return nil, false, pkg.ValidateBusinessError(err, constant.EntityTransaction)
-	}
-	if params.RevertExecution != nil {
-		params.RevertExecution.SeedWritten = true
-	}
-
 	// Mark the transactional-flow balance reads below so they can be served from
 	// the primary, avoiding a stale replica read before the commit.
 	ctx = readrouting.WithPrimaryRead(ctx)
@@ -1387,10 +1360,8 @@ func (handler *TransactionHandler) executeCreateTransaction(ctx context.Context,
 		return nil, false, err
 	}
 
-	// Scope protection on the CREATE path: SendTransactionToRedisQueue above
-	// runs with nil balances (the queue seed precedes GetBalances), so its
-	// built-in scope guard is a no-op for user-created transactions. Re-check
-	// here now that balances are loaded. Rejecting a direct operation on an
+	// Scope protection on the CREATE path runs once balances are loaded and
+	// before the queue seed. Rejecting a direct operation on an
 	// internal-scope balance BEFORE enrichment runs keeps the companion
 	// balance isolated from client-initiated mutations.
 	if err := rejectInternalScopeBalances(ctx, balances); err != nil {
@@ -1441,6 +1412,36 @@ func (handler *TransactionHandler) executeCreateTransaction(ctx context.Context,
 		return nil, false, err
 	}
 
+	var expectedEconomicPlan *mmodel.ExpectedEconomicPlan
+	if transactionStatus != constant.NOTED {
+		expectedEconomicPlan, err = mmodel.BuildExpectedEconomicPlan(balanceOps, transactionStatus, validate.Pending,
+			transactionInput.OperationTypeOverride)
+		if err != nil {
+			return nil, false, fmt.Errorf("build final transaction economic plan: %w", err)
+		}
+	}
+	err = handler.Command.SendTransactionToRedisQueue(ctx, params.OrganizationID, params.LedgerID, transactionID,
+		transactionInput, validate, transactionStatus, action, transactionDate, nil, parentTransactionID,
+		command.TransactionBackupSeedOptions{
+			ExecutionAttempt:     params.ExecutionAttempt,
+			ExpectedEconomicPlan: expectedEconomicPlan,
+			RevertRolloutMode:    params.RevertRolloutMode,
+			RevertRolloutToken:   params.RevertRolloutToken,
+			RevertLegacyFenceKey: params.RevertLegacyFenceKey,
+			RedisGeneration:      params.RedisGeneration,
+		})
+	if err != nil {
+		if params.RevertExecution != nil && errors.Is(err, constant.ErrTransactionBackupCacheFailed) {
+			params.RevertExecution.SeedWriteAmbiguous = true
+		}
+		handler.deleteIdempotencyKey(ctx, idempotencyResult.InternalKey, params.RevertExecution)
+
+		return nil, false, pkg.ValidateBusinessError(err, constant.EntityTransaction)
+	}
+	if params.RevertExecution != nil {
+		params.RevertExecution.SeedWritten = true
+	}
+
 	// Reserve anchor (F3-T13): hold usage-limit capacity against the
 	// FEE-INCLUSIVE transaction immediately before the balance commit. This
 	// observes the validated fee-inclusive send amount; it never mutates
@@ -1487,14 +1488,15 @@ func (handler *TransactionHandler) executeCreateTransaction(ctx context.Context,
 	}
 
 	result, err := handler.Command.ProcessBalanceOperations(ctx, command.ProcessBalanceOperationsInput{
-		OrganizationID:    params.OrganizationID,
-		LedgerID:          params.LedgerID,
-		TransactionID:     transactionID,
-		TransactionInput:  &transactionInput,
-		Validate:          validate,
-		BalanceOperations: balanceOps,
-		TransactionStatus: transactionStatus,
-		ExecutionAttempt:  params.ExecutionAttempt,
+		OrganizationID:       params.OrganizationID,
+		LedgerID:             params.LedgerID,
+		TransactionID:        transactionID,
+		TransactionInput:     &transactionInput,
+		Validate:             validate,
+		BalanceOperations:    balanceOps,
+		TransactionStatus:    transactionStatus,
+		ExecutionAttempt:     params.ExecutionAttempt,
+		ExpectedEconomicPlan: expectedEconomicPlan,
 	})
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to process balance operations", err)

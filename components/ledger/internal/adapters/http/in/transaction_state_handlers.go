@@ -1102,6 +1102,12 @@ func (handler *TransactionHandler) commitOrCancelTransaction(
 		return nil, err
 	}
 
+	expectedEconomicPlan, err := mmodel.BuildExpectedEconomicPlan(balanceOps, transactionStatus, validate.Pending,
+		transactionInput.OperationTypeOverride)
+	if err != nil {
+		return nil, fmt.Errorf("build final lifecycle economic plan: %w", err)
+	}
+
 	if result == nil {
 		attemptOwner, ownerErr := newPodRequestToken()
 		if ownerErr != nil {
@@ -1124,7 +1130,7 @@ func (handler *TransactionHandler) commitOrCancelTransaction(
 		ctxBackupSeed, spanBackupSeed := tracer.Start(ctx, "handler.commit_or_cancel_transaction.pre_seed_backup")
 		if backupErr := handler.Command.SendTransactionToRedisQueue(ctxBackupSeed, organizationID, ledgerID,
 			tran.IDtoUUID(), transactionInput, validate, transactionStatus, action, time.Now(), nil, nil,
-			command.TransactionBackupSeedOptions{ExecutionAttempt: attempt}); backupErr != nil {
+			command.TransactionBackupSeedOptions{ExecutionAttempt: attempt, ExpectedEconomicPlan: expectedEconomicPlan}); backupErr != nil {
 			libOpentelemetry.HandleSpanError(spanBackupSeed, "Failed to pre-seed transaction backup cache", backupErr)
 			logger.Log(ctx, libLog.LevelError, "Failed to pre-seed commit/cancel transaction backup cache", libLog.Err(backupErr))
 			spanBackupSeed.End()
@@ -1139,14 +1145,15 @@ func (handler *TransactionHandler) commitOrCancelTransaction(
 		spanBackupSeed.End()
 
 		result, err = handler.Command.ProcessBalanceOperations(ctx, command.ProcessBalanceOperationsInput{
-			OrganizationID:    organizationID,
-			LedgerID:          ledgerID,
-			TransactionID:     tran.IDtoUUID(),
-			TransactionInput:  nil, // State transitions skip balance-rule re-validation
-			Validate:          validate,
-			BalanceOperations: balanceOps,
-			TransactionStatus: transactionStatus,
-			ExecutionAttempt:  attempt,
+			OrganizationID:       organizationID,
+			LedgerID:             ledgerID,
+			TransactionID:        tran.IDtoUUID(),
+			TransactionInput:     nil, // State transitions skip balance-rule re-validation
+			Validate:             validate,
+			BalanceOperations:    balanceOps,
+			TransactionStatus:    transactionStatus,
+			ExecutionAttempt:     attempt,
+			ExpectedEconomicPlan: expectedEconomicPlan,
 		})
 		if err != nil {
 			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to process balance operations", err)

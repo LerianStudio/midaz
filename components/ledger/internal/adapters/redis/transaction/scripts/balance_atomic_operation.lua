@@ -253,6 +253,8 @@ local function main()
     local attemptOwner = nil
     local desiredOutcome = nil
     local transactionIdentity = nil
+    local economicPlanVersion = nil
+    local economicPlanDigest = nil
 
     -- The reusable outcome protocol passes an owned attempt pair plus an
     -- immutable outcome key in the same {transactions} slot. A replay of the
@@ -270,12 +272,35 @@ local function main()
             end
             argStart = 5
         end
+    end
 
+    if ARGV[argStart] == "EXPECTED_ECONOMIC_PLAN" then
+        economicPlanVersion = ARGV[argStart + 1]
+        economicPlanDigest = ARGV[argStart + 2]
+        argStart = argStart + 3
+
+        local rawEnvelope = redis.call("HGET", transactionBackupQueue, transactionKey)
+        if not rawEnvelope then
+            return redis.error_reply("EXPECTED_ECONOMIC_PLAN_MISSING")
+        end
+        local ok, envelope = pcall(cjson.decode, rawEnvelope)
+        if not ok or type(envelope) ~= "table" or type(envelope.expected_economic_plan) ~= "table" or
+           tostring(envelope.expected_economic_plan.version) ~= economicPlanVersion or
+           envelope.expected_economic_plan.digest ~= economicPlanDigest then
+            return redis.error_reply("EXPECTED_ECONOMIC_PLAN_MISMATCH")
+        end
+    end
+
+    if #KEYS == 6 or #KEYS == 7 then
         local existingRaw = redis.call("GET", KEYS[6])
         if existingRaw then
             local existing = cjson.decode(existingRaw)
             if existing.identity ~= transactionIdentity or existing.outcome ~= desiredOutcome then
                 return redis.error_reply("0099")
+            end
+            if economicPlanDigest ~= nil and
+               (tostring(existing.economic_plan_version) ~= economicPlanVersion or existing.economic_plan_digest ~= economicPlanDigest) then
+                return redis.error_reply("EXPECTED_ECONOMIC_PLAN_MISMATCH")
             end
 
             return cjson.encode({ before = existing.before, after = existing.after })
@@ -662,6 +687,8 @@ local function main()
                 identity = transactionIdentity,
                 outcome = desiredOutcome,
                 owner = attemptOwner,
+                economic_plan_version = economicPlanVersion,
+                economic_plan_digest = economicPlanDigest,
                 before = emptyArray,
                 after = emptyArray
             }))
@@ -677,6 +704,8 @@ local function main()
             identity = transactionIdentity,
             outcome = desiredOutcome,
             owner = attemptOwner,
+            economic_plan_version = economicPlanVersion,
+            economic_plan_digest = economicPlanDigest,
             before = returnBalances,
             after = returnBalancesAfter
         }))

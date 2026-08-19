@@ -80,7 +80,9 @@ local tombstone = {
     transaction_asset_code = ARGV[10],
     operations = envelope.operations,
     balancesAfter = envelope.balancesAfter,
-    economic_effect_digest = envelope.economic_effect_digest
+    economic_effect_digest = envelope.economic_effect_digest,
+    expected_economic_plan = envelope.expected_economic_plan,
+    operation_type_override = envelope.operation_type_override
 }
 redis.call("SET", KEYS[4], cjson.encode(tombstone))
 redis.call("HDEL", KEYS[1], KEYS[2])

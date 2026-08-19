@@ -14,6 +14,7 @@ import (
 	"github.com/google/uuid"
 	"go.opentelemetry.io/otel/attribute"
 
+	"github.com/LerianStudio/midaz/v4/pkg/constant"
 	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v4/pkg/mtransaction"
 )
@@ -23,14 +24,15 @@ import (
 // improves readability, makes future extensions backward-compatible,
 // and clearly separates "own" fields from pass-through values.
 type ProcessBalanceOperationsInput struct {
-	OrganizationID    uuid.UUID
-	LedgerID          uuid.UUID
-	TransactionID     uuid.UUID
-	TransactionInput  *mtransaction.Transaction // nil skips balance-rule validation (state transitions)
-	Validate          *mtransaction.Responses
-	BalanceOperations []mmodel.BalanceOperation
-	TransactionStatus string
-	ExecutionAttempt  *mmodel.BalanceExecutionAttempt
+	OrganizationID       uuid.UUID
+	LedgerID             uuid.UUID
+	TransactionID        uuid.UUID
+	TransactionInput     *mtransaction.Transaction // nil skips balance-rule validation (state transitions)
+	Validate             *mtransaction.Responses
+	BalanceOperations    []mmodel.BalanceOperation
+	TransactionStatus    string
+	ExecutionAttempt     *mmodel.BalanceExecutionAttempt
+	ExpectedEconomicPlan *mmodel.ExpectedEconomicPlan
 }
 
 // ProcessBalanceOperations validates balance rules and executes the atomic Lua
@@ -55,6 +57,14 @@ func (uc *UseCase) ProcessBalanceOperations(ctx context.Context, input ProcessBa
 	defer span.End()
 
 	skipBalanceValidation := input.TransactionInput == nil
+	if input.TransactionStatus != constant.NOTED && input.ExpectedEconomicPlan != nil {
+		if err := mmodel.ValidateExpectedEconomicPlan(input.ExpectedEconomicPlan); err != nil {
+			return nil, fmt.Errorf("validate final balance economic plan: %w", err)
+		}
+		for index := range input.BalanceOperations {
+			input.BalanceOperations[index].ExpectedEconomicPlan = input.ExpectedEconomicPlan
+		}
+	}
 
 	span.SetAttributes(
 		attribute.String("app.organization_id", input.OrganizationID.String()),

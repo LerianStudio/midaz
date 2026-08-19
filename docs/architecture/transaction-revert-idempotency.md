@@ -42,11 +42,13 @@ Phase-zero-capable and bridge requests acquire barriers in this order:
 5. Redis origin barrier plus its reserved-reverse owner companion, shared with
    bridge and final pods.
 6. Recoverable queue seed carrying the exact origin, attempt owner, expected
-   outcome, and immutable transaction input.
+   outcome, immutable transaction input, and the versioned plan for the final
+   resolved balance batch.
 7. PostgreSQL primary compare-and-set from `CLAIMED` to `ARMED`, after the
    exact Redis attempt owner and seed exist.
-8. Atomic Redis balance Lua, which checks the exact attempt owner before its
-   first write and writes an immutable economic outcome in the same command.
+8. Atomic Redis balance Lua, which checks the exact attempt owner and persisted
+   plan digest before its first write, then writes an immutable economic outcome
+   bound to that same plan in the same command.
 
 The attempt is reserved before the claim is published, so recovery can never
 observe a live claimant without the Redis owner check that fences a stale
@@ -101,12 +103,35 @@ different witness is a trust-boundary failure, never a pre-movement fact.
 
 The balance Lua changes balances, updates the transaction backup, and writes a
 separate immutable economic outcome in one atomic command. The shared outcome
-shape is `{identity, outcome, owner, before, after}`. `outcome` is `COMMITTED`
+shape is `{identity, outcome, owner, economic_plan_version,
+economic_plan_digest, before, after}`. `outcome` is `COMMITTED`
 or `ABORTED`; the same identity and outcome replays the exact original balance
 snapshots, while a different identity or opposite terminal outcome conflicts
 before any movement. Commit, cancel, and revert use this same primitive. It is
 also the boundary the later Ledger-to-Tracer dispatcher will consume; this P0
 does not wire that dispatcher.
+
+Before the queue seed or Lua dispatch, the command resolves `remaining`,
+expands fees, adds overdraft companion legs, and applies accounting routing.
+It then seals that exact final batch as `expected_economic_plan` version 1.
+Each leg carries a unique positional identity plus balance ID/key/account,
+internal Redis key, accounting direction, movement type, asset, exact decimal
+amount, source/destination side, primary/fee/companion role, and expected
+persisted operation type. Canonical sorting makes the digest independent of
+batch order while occurrence identities preserve duplicate legs. Two fees on
+one balance, identical repeated aliases, and primary-plus-fee movements are
+therefore separate economic facts rather than map collisions.
+
+The plan is built from the final balance batch, never reconstructed from the
+validation alias maps. Those maps intentionally collapse aliases and cannot
+represent repeated legs, fee expansion, or overdraft companions. Every new
+outcome-backed balance invocation requires all operations to carry the same
+plan, and Lua requires the queue seed to contain the identical version and
+digest before it may seed or change a balance. A mismatch leaves no outcome and
+performs no movement. Consumer enrichment and terminal replay compare the
+materialized operation multiset against the persisted plan and the
+Lua-authored before/after snapshots; a candidate operation can never define
+both sides of its own proof.
 
 The backup consumer accepts every owner-and-terminal-outcome envelope through
 the same economic preflight, even when the envelope predates financial-dataset
@@ -262,7 +287,7 @@ removal belongs to one of four explicit proof classes:
 |---|---|
 | Proven pre-movement failure | Status, attempt owner, expected outcome, and absence of `balancesAfter` all match in one Lua command |
 | Outcome-backed durable persistence | Transaction identity, immutable owner/outcome, terminal backup, operation identities and complete economic operation and balance bodies match; backup and outcome are removed together |
-| Drained old-compatible persistence | Reverse ID, origin ID, terminal status, complete persisted operation identities, and complete economic operation and balance bodies are present; an outcome-backed or incomplete envelope is rejected; the compatibility receipt is written before the backup is removed |
+| Drained old-compatible persistence | Reverse ID, origin ID, terminal status, complete persisted operation identities, and complete economic operation and balance bodies are present; an outcome-backed or incomplete envelope is rejected; the compatibility receipt is written before the backup is removed. This is the only explicit planless compatibility rule. |
 | Durable quarantine | The raw bytes copied into PostgreSQL still exactly equal the Redis field; a successor value under the same key is preserved |
 
 The retry-attempt counter is non-economic bookkeeping and is the only direct Go
@@ -704,8 +729,8 @@ verifiable; it is not a human assertion hidden in a runbook.
    while bridge/final pods keep APPROVED updates frozen.
 4. Drain or reconcile every backup created by old or phase-zero pods. A
    phase-zero-capable backup always carries its explicit parent, pre-movement
-   claim, the exact persisted H1 key and owner, and the atomic balance outcome
-   after movement. A
+   claim, the exact persisted H1 key and owner, the final economic plan, and the
+   atomic balance outcome after movement. A
    parent-less backup is accepted only when its reverse ID already has a durable
    claim. A genuinely old backup with no trustworthy origin is quarantined. An
    old explicit-parent seed without an atomic outcome remains untouched before

@@ -310,6 +310,7 @@ func TestRevertBarrierAcquisitionOrder(t *testing.T) {
 
 	createCalls := callsInFunction(t, createSource, "executeCreateTransaction")
 	require.Len(t, createCalls["acquireOriginRevertBarrier"], 1)
+	require.Len(t, createCalls["BuildExpectedEconomicPlan"], 1)
 	require.Len(t, createCalls["SendTransactionToRedisQueue"], 1)
 	require.Len(t, createCalls["ArmRevertClaim"], 1)
 	require.Len(t, createCalls["ProcessBalanceOperations"], 1)
@@ -317,6 +318,8 @@ func TestRevertBarrierAcquisitionOrder(t *testing.T) {
 		"origin Redis barrier must be acquired before balance mutation")
 	assert.Less(t, createCalls["acquireOriginRevertBarrier"][0], createCalls["SendTransactionToRedisQueue"][0],
 		"the origin owner companion must exist before the recoverable seed is written")
+	assert.Less(t, createCalls["BuildExpectedEconomicPlan"][0], createCalls["SendTransactionToRedisQueue"][0],
+		"the final resolved economic batch must be persisted before the recoverable seed becomes visible")
 	assert.Less(t, createCalls["SendTransactionToRedisQueue"][0], createCalls["ArmRevertClaim"][0],
 		"the exact recoverable seed must exist before the PostgreSQL claim is armed")
 	assert.Less(t, createCalls["ArmRevertClaim"][0], createCalls["ProcessBalanceOperations"][0],
@@ -324,6 +327,59 @@ func TestRevertBarrierAcquisitionOrder(t *testing.T) {
 	originCalls := callsInFunction(t, claimSource, "acquireOriginRevertBarrier")
 	require.Len(t, originCalls["AcquireOwnedKey"], 1,
 		"the origin barrier and reserved-reverse owner must be one atomic same-slot acquisition")
+}
+
+func TestEveryProductionBalanceMutationCarriesThePersistedFinalPlan(t *testing.T) {
+	t.Parallel()
+
+	for _, name := range []string{"transaction_create.go", "transaction_state_handlers.go"} {
+		source, err := os.ReadFile(name)
+		require.NoError(t, err)
+
+		fset := token.NewFileSet()
+		file, err := parser.ParseFile(fset, name, source, 0)
+		require.NoError(t, err)
+		seen := 0
+		ast.Inspect(file, func(node ast.Node) bool {
+			literal, ok := node.(*ast.CompositeLit)
+			if !ok {
+				return true
+			}
+			selector, ok := literal.Type.(*ast.SelectorExpr)
+			if !ok || selector.Sel.Name != "ProcessBalanceOperationsInput" {
+				return true
+			}
+
+			seen++
+			fields := make(map[string]struct{}, len(literal.Elts))
+			for _, element := range literal.Elts {
+				keyed, ok := element.(*ast.KeyValueExpr)
+				if !ok {
+					continue
+				}
+				field, ok := keyed.Key.(*ast.Ident)
+				if ok {
+					fields[field.Name] = struct{}{}
+				}
+			}
+			assert.Contains(t, fields, "ExpectedEconomicPlan",
+				"every production balance mutation must carry the plan persisted before Lua: %s", fset.Position(literal.Pos()))
+
+			return true
+		})
+		require.Equal(t, 1, seen, "%s must have exactly one balance mutation entry point", name)
+	}
+
+	stateSource, err := os.ReadFile("transaction_state_handlers.go")
+	require.NoError(t, err)
+	stateCalls := callsInFunction(t, stateSource, "commitOrCancelTransaction")
+	require.Len(t, stateCalls["BuildExpectedEconomicPlan"], 1)
+	require.Len(t, stateCalls["SendTransactionToRedisQueue"], 1)
+	require.Len(t, stateCalls["ProcessBalanceOperations"], 1)
+	assert.Less(t, stateCalls["BuildExpectedEconomicPlan"][0], stateCalls["SendTransactionToRedisQueue"][0],
+		"commit and cancel must persist the final plan before publishing their recoverable seed")
+	assert.Less(t, stateCalls["SendTransactionToRedisQueue"][0], stateCalls["ProcessBalanceOperations"][0],
+		"commit and cancel must persist the final plan before balance Lua")
 }
 
 func TestRevertRecoveryNeverBlindDeletesOriginFence(t *testing.T) {

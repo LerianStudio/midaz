@@ -29,6 +29,7 @@ import (
 	"github.com/LerianStudio/midaz/v4/pkg"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
 	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
+	"github.com/LerianStudio/midaz/v4/pkg/mtransaction"
 	"github.com/LerianStudio/midaz/v4/pkg/utils"
 )
 
@@ -1222,6 +1223,34 @@ func (rr *RedisConsumerRepository) processBalanceAtomicOperation(ctx context.Con
 
 	transactionKey := utils.TransactionInternalKey(organizationID, ledgerID, transactionID.String())
 
+	var expectedEconomicPlan *mmodel.ExpectedEconomicPlan
+	for index := range balancesOperation {
+		candidate := balancesOperation[index].ExpectedEconomicPlan
+		if candidate == nil {
+			if attempt != nil {
+				return nil, fmt.Errorf("outcome-backed balance operation requires the persisted final economic plan")
+			}
+			continue
+		}
+		if expectedEconomicPlan == nil {
+			expectedEconomicPlan = candidate
+			continue
+		}
+		if candidate.Version != expectedEconomicPlan.Version || candidate.Digest != expectedEconomicPlan.Digest {
+			return nil, fmt.Errorf("balance operations carry divergent expected economic plans")
+		}
+	}
+	if attempt != nil && expectedEconomicPlan == nil {
+		return nil, fmt.Errorf("outcome-backed balance operation requires the persisted final economic plan")
+	}
+	var economicPlanArgs []any
+	if expectedEconomicPlan != nil {
+		if err := mmodel.ValidateExpectedEconomicPlan(expectedEconomicPlan); err != nil {
+			return nil, fmt.Errorf("validate balance Lua expected economic plan: %w", err)
+		}
+		economicPlanArgs = []any{"EXPECTED_ECONOMIC_PLAN", strconv.Itoa(expectedEconomicPlan.Version), expectedEconomicPlan.Digest}
+	}
+
 	keys := []string{TransactionBackupQueue, transactionKey, utils.BalanceSyncScheduleKey}
 	if attempt != nil {
 		keys = append(keys, attempt.ExecutionKey, attempt.ExecutionKey+":owner", attempt.OutcomeKey)
@@ -1231,7 +1260,7 @@ func (rr *RedisConsumerRepository) processBalanceAtomicOperation(ctx context.Con
 		return nil, err
 	}
 
-	finalArgs := plan.args
+	finalArgs := append(economicPlanArgs, plan.args...)
 	if attempt != nil {
 		attemptArgs := []any{attempt.Owner, attempt.Outcome, attempt.Identity.String()}
 		if attempt.RedisGeneration != "" {
@@ -1499,6 +1528,21 @@ func (rr *RedisConsumerRepository) EnrichTransactionBackup(
 			if !redisEconomicOperationsComplete(organizationID, ledgerID, transactionID, tombstone.Operations) ||
 				!mmodel.RedisOperationSetEconomicEqualIgnoringIDs(operations, tombstone.Operations) {
 				return nil, nil, false, fmt.Errorf("terminal transaction economic operations differ")
+			}
+			if tombstone.ExpectedEconomicPlan != nil {
+				planEnvelope := &mmodel.TransactionRedisQueue{
+					ExpectedEconomicPlan:  tombstone.ExpectedEconomicPlan,
+					OperationTypeOverride: tombstone.OperationTypeOverride,
+					TransactionInput: mtransaction.Transaction{Send: mtransaction.Send{
+						Asset: tombstone.TransactionAssetCode,
+					}},
+				}
+				if err := mmodel.ValidateExpectedEconomicPlan(tombstone.ExpectedEconomicPlan); err != nil {
+					return nil, nil, false, fmt.Errorf("terminal expected economic plan differs: %w", err)
+				}
+				if err := mmodel.ValidateRedisExpectedEconomicPlanOperations(planEnvelope, tombstone.Operations); err != nil {
+					return nil, nil, false, err
+				}
 			}
 			digest, err := mmodel.RedisEconomicEffectDigest(tombstone.TransactionAmount,
 				tombstone.TransactionAssetCode, tombstone.Operations, tombstone.BalancesAfter)
@@ -1843,6 +1887,11 @@ func validateImmutableOutcome(
 		!mmodel.RedisBalanceSetEconomicEqual(outcome.After, envelope.BalancesAfter) {
 		return fmt.Errorf("immutable transaction outcome differs from backup movement")
 	}
+	if envelope.ExpectedEconomicPlan != nil &&
+		(outcome.EconomicPlanVersion != strconv.Itoa(envelope.ExpectedEconomicPlan.Version) ||
+			outcome.EconomicPlanDigest != envelope.ExpectedEconomicPlan.Digest) {
+		return fmt.Errorf("immutable transaction outcome differs from expected economic plan")
+	}
 
 	return nil
 }
@@ -2038,7 +2087,7 @@ func (rr *RedisConsumerRepository) FinalizeLegacyTransactionPersistence(
 			constant.ActionRevert, []mmodel.TransactionEconomicContext{proof}, &envelope); err != nil {
 			return fmt.Errorf("validate legacy transaction identity: %w", err)
 		}
-		if err := mmodel.ValidateRedisTransactionEconomicEffect(&envelope, envelope.Operations); err != nil {
+		if err := mmodel.ValidateRedisLegacyTransactionEconomicEffect(&envelope, envelope.Operations); err != nil {
 			return fmt.Errorf("prove legacy transaction economic operations: %w", err)
 		}
 		economicEffectDigest, err = mmodel.RedisEconomicEffectDigest(envelope.TransactionInput.Send.Value.String(),
