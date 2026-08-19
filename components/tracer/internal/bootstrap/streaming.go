@@ -8,6 +8,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	nethttp "net/http"
 	"strings"
 
 	libLog "github.com/LerianStudio/lib-observability/v2/log"
@@ -35,22 +36,33 @@ const (
 // sync.
 const streamingPrimaryTargetName = "primary"
 
-// streamingServiceName is the producing-service segment folded into every
-// tracer topic name via pkgStreaming.TopicName. Topic names take the shape
-// "lerian.streaming.<service>_<resource>.<event>" (service = tracer).
+// streamingServiceName is the leading, ACL-scoped service segment of every
+// tracer topic name produced by pkgStreaming.TopicName. Topic names take the
+// shape "tracer.<resource>.<event>", so a single Kafka ACL prefix "tracer."
+// covers every topic tracer emits.
 const streamingServiceName = "tracer"
 
-// streamingSource is the default CloudEvents source stamped on every event
-// tracer emits. Distinct from the ledger component's source so downstream
-// consumers can attribute events to the emitting service. Overridable via
-// STREAMING_CLOUDEVENTS_SOURCE (see resolveStreamingSource).
-const streamingSource = "lerian.midaz.tracer"
+// streamingSource is the CloudEvents source used as the nil/whitespace-only
+// fallback in resolveStreamingSource. It is intentionally the bare service name
+// "tracer" (not the historical "lerian.midaz.tracer") so ce-source matches the
+// leading ACL-scoped topic segment "tracer.": the route Destination topics are
+// "tracer.<resource>.<event>" and the ce-source-derived topic / Phase-2 manifest
+// agree on the same "tracer." ACL prefix. STREAMING_CLOUDEVENTS_SOURCE is
+// REQUIRED when streaming is enabled — a genuinely-unset value fail-closes at
+// libStreaming.LoadConfig (ErrMissingSource) before this fallback is ever
+// reached.
+const streamingSource = "tracer"
 
-// resolveStreamingSource returns the CloudEvents source to stamp on emitted
-// events. The configured STREAMING_CLOUDEVENTS_SOURCE value wins when set
-// (after trimming surrounding whitespace); otherwise the in-code default
-// streamingSource is used so an unset var never breaks the historical
-// behaviour.
+// resolveStreamingSource normalizes the configured CloudEvents source to stamp
+// on emitted events. STREAMING_CLOUDEVENTS_SOURCE is REQUIRED when streaming is
+// enabled: libStreaming.LoadConfig fail-closes with ErrMissingSource on a
+// genuinely-unset value, so BuildStreamingEmitter aborts and the binary never
+// starts without it (.env.example recommends the bare service name "tracer" so
+// ce-source matches the leading ACL-scoped topic segment "tracer."). This
+// helper only trims the configured value and returns it verbatim; the in-code
+// streamingSource default ("tracer") is a defense-in-depth fallback for a nil or
+// whitespace-only config value that slips past LoadConfig's empty-string check,
+// NOT the unset-env default.
 func resolveStreamingSource(cfg *Config) string {
 	if cfg != nil {
 		if source := strings.TrimSpace(cfg.StreamingCloudEventsSource); source != "" {
@@ -176,8 +188,7 @@ func buildLiveStreamingEmitter(
 	}
 
 	// Build the route table. One required route per event keyed to the
-	// canonical "lerian.streaming.<service>_<resource>.<event>" topic name
-	// (service = tracer).
+	// canonical "tracer.<resource>.<event>" topic name (service = tracer).
 	routes := buildRoutes(streamingPrimaryTargetName)
 
 	source := resolveStreamingSource(cfg)
@@ -323,32 +334,33 @@ func tracerEventDefinitions() []events.Definition {
 // "<resource>.<event>" key to its ResourceType / EventType /
 // SchemaVersion triple.
 func buildCatalog() (libStreaming.Catalog, error) {
-	defs := tracerEventDefinitions()
-	entries := make([]libStreaming.EventDefinition, 0, len(defs))
+	return libStreaming.NewCatalog(pkgStreaming.CatalogEntriesFromDefinitions(tracerEventDefinitions())...)
+}
 
-	for _, d := range defs {
-		entries = append(entries, libStreaming.EventDefinition{
-			Key:           d.Key(),
-			ResourceType:  d.ResourceType,
-			EventType:     d.EventType,
-			SchemaVersion: d.SchemaVersion,
-		})
-	}
-
-	return libStreaming.NewCatalog(entries...)
+// BuildStreamingManifestHandler builds the catalog-only lib-streaming manifest
+// HTTP handler the tracer serves at pkgStreaming.ManifestRoutePath. It is a thin
+// wrapper over pkgStreaming.NewManifestHandler, delegating to the single shared
+// helper so the manifest SourceBase stays pinned to the bare service segment
+// (streamingServiceName, "tracer") — making the advertised topics equal the
+// emitted topics regardless of STREAMING_CLOUDEVENTS_SOURCE. cfg is intentionally
+// unused: the manifest is INDEPENDENT of STREAMING_ENABLED and of the configured
+// ce-source.
+func BuildStreamingManifestHandler(_ *Config) (nethttp.Handler, error) {
+	return pkgStreaming.NewManifestHandler(streamingServiceName, tracerEventDefinitions())
 }
 
 // buildRoutes constructs one RouteRequired route per tracer event,
 // targeting the single broker named targetName. Topic names are
-// "lerian.streaming.<service>_<resource>.<event>" (service = tracer),
-// rendered via pkgStreaming.TopicName.
+// "tracer.<resource>.<event>", rendered via pkgStreaming.TopicName from the
+// underscore-canonical Definition.Key().
 //
 // Route Keys are composed as "<route-key>.<target-name>" (e.g.
 // "rule.created.primary"), where <route-key> is the hyphenated routing handle
 // (RouteKey()) — Route.Key must match lib-streaming's lower-case hyphenated
 // dot-delimited grammar, and the target-name suffix guarantees uniqueness when
 // the same event is later routed to multiple targets (e.g. a parallel shadow
-// route).
+// route). The wire topic, by contrast, derives from the underscore-canonical
+// Key() so it converges with EventDefinition.Topic.
 func buildRoutes(targetName string) []libStreaming.RouteDefinition {
 	defs := tracerEventDefinitions()
 	routes := make([]libStreaming.RouteDefinition, 0, len(defs))
@@ -360,7 +372,7 @@ func buildRoutes(targetName string) []libStreaming.RouteDefinition {
 			Key:           routeKey + "." + targetName,
 			DefinitionKey: key,
 			Target:        targetName,
-			Destination:   libStreaming.KafkaTopic(pkgStreaming.TopicName(streamingServiceName, routeKey)),
+			Destination:   libStreaming.KafkaTopic(pkgStreaming.TopicName(streamingServiceName, key)),
 			Requirement:   libStreaming.RouteRequired,
 		})
 	}

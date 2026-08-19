@@ -13,14 +13,18 @@ import (
 )
 
 // hubTopicGrammar mirrors the streaming-hub ingest consumer subscription:
-// exactly two [a-z0-9_] segments after the prefix, no hyphen.
-var hubTopicGrammar = regexp.MustCompile(`^lerian\.streaming\.[a-z0-9_]+\.[a-z0-9_]+$`)
+// a first (service) segment [a-z0-9][a-z0-9-]* — hyphens allowed because the
+// hub also accepts lib-streaming-derived source segments — then the two LAST
+// segments (resource, event) over [a-z0-9_] with no hyphen, and an optional
+// ".vN" schema-major suffix.
+var hubTopicGrammar = regexp.MustCompile(`^[a-z0-9][a-z0-9-]*\.[a-z0-9_]+\.[a-z0-9_]+(\.v[0-9]+)?$`)
 
-// TestTopicName locks the service-folding + hyphen-to-underscore transform that
-// keeps wire topic names inside the streaming-hub consumer regex
-// (^lerian.streaming.<seg>.<seg>$ over [a-z0-9_]) while route keys / ce-type
-// stay hyphenated. It also locks the leading-"<service>-" strip that keeps
-// fee-folded topics from becoming "fee_fee_*".
+// TestTopicName locks the ACL-prefix grammar produced by TopicName:
+// "{sanitize(service)}.{resource}.{event}" where the key is the
+// underscore-canonical Definition.Key(). The prefix "lerian.streaming." and the
+// service-fold-into-first-segment are gone; the service is its own leading
+// segment so a Kafka ACL granted on "{service}." matches every topic the
+// service emits.
 func TestTopicName(t *testing.T) {
 	t.Parallel()
 
@@ -31,94 +35,76 @@ func TestTopicName(t *testing.T) {
 		want    string
 	}{
 		{
-			name:    "ledger no-hyphen key",
+			name:    "ledger no-underscore key",
 			service: "ledger",
 			key:     "balance.changed",
-			want:    "lerian.streaming.ledger_balance.changed",
+			want:    "ledger.balance.changed",
 		},
 		{
-			name:    "ledger single-hyphen resource",
+			name:    "ledger underscore resource segment",
 			service: "ledger",
-			key:     "operation-route.created",
-			want:    "lerian.streaming.ledger_operation_route.created",
+			key:     "operation_route.created",
+			want:    "ledger.operation_route.created",
 		},
 		{
-			name:    "ledger hyphen in event segment",
+			name:    "ledger underscore event segment",
 			service: "ledger",
-			key:     "balance.config-changed",
-			want:    "lerian.streaming.ledger_balance.config_changed",
+			key:     "balance.config_changed",
+			want:    "ledger.balance.config_changed",
 		},
 		{
-			name:    "ledger account created no-op proof",
+			name:    "ledger account created",
 			service: "ledger",
 			key:     "account.created",
-			want:    "lerian.streaming.ledger_account.created",
+			want:    "ledger.account.created",
 		},
 		{
-			name:    "ledger created resource equals service no-op proof",
+			name:    "ledger folded fee resource",
 			service: "ledger",
-			key:     "ledger.created",
-			want:    "lerian.streaming.ledger_ledger.created",
+			key:     "fee_packages.created",
+			want:    "ledger.fee_packages.created",
 		},
 		{
-			name:    "crm multi-hyphen event segment",
-			service: "crm",
-			key:     "alias.related-party-deleted",
-			want:    "lerian.streaming.crm_alias.related_party_deleted",
+			name:    "ledger folded fee billing resource",
+			service: "ledger",
+			key:     "fee_billing_packages.created",
+			want:    "ledger.fee_billing_packages.created",
 		},
 		{
-			name:    "crm no-hyphen key",
-			service: "crm",
-			key:     "holder.created",
-			want:    "lerian.streaming.crm_holder.created",
+			name:    "ledger folded fee charge",
+			service: "ledger",
+			key:     "fee_charge.applied",
+			want:    "ledger.fee_charge.applied",
 		},
 		{
-			name:    "crm instrument multi-hyphen event no-op proof",
-			service: "crm",
-			key:     "instrument.related-party-deleted",
-			want:    "lerian.streaming.crm_instrument.related_party_deleted",
+			name:    "ledger crm instrument multi-word event",
+			service: "ledger",
+			key:     "instrument.related_party_deleted",
+			want:    "ledger.instrument.related_party_deleted",
 		},
 		{
-			name:    "fee packages created strips leading service prefix",
-			service: "fee",
-			key:     "fee-packages.created",
-			want:    "lerian.streaming.fee_packages.created",
-		},
-		{
-			name:    "fee packages updated strips leading service prefix",
-			service: "fee",
-			key:     "fee-packages.updated",
-			want:    "lerian.streaming.fee_packages.updated",
-		},
-		{
-			name:    "fee packages deleted strips leading service prefix",
-			service: "fee",
-			key:     "fee-packages.deleted",
-			want:    "lerian.streaming.fee_packages.deleted",
-		},
-		{
-			name:    "fee billing-packages created strips leading service prefix",
-			service: "fee",
-			key:     "fee-billing-packages.created",
-			want:    "lerian.streaming.fee_billing_packages.created",
-		},
-		{
-			name:    "fee charge applied strips leading service prefix",
-			service: "fee",
-			key:     "fee-charge.applied",
-			want:    "lerian.streaming.fee_charge.applied",
-		},
-		{
-			name:    "tracer rule created no strip",
+			name:    "tracer rule created",
 			service: "tracer",
 			key:     "rule.created",
-			want:    "lerian.streaming.tracer_rule.created",
+			want:    "tracer.rule.created",
 		},
 		{
-			name:    "tracer limit deactivated no strip",
+			name:    "tracer limit deactivated",
 			service: "tracer",
 			key:     "limit.deactivated",
-			want:    "lerian.streaming.tracer_limit.deactivated",
+			want:    "tracer.limit.deactivated",
+		},
+		{
+			name:    "service is lowercased",
+			service: "Ledger",
+			key:     "balance.changed",
+			want:    "ledger.balance.changed",
+		},
+		{
+			name:    "service non-alphanumerics dropped",
+			service: "lerian.midaz-ledger",
+			key:     "balance.changed",
+			want:    "lerianmidazledger.balance.changed",
 		},
 	}
 
@@ -129,15 +115,13 @@ func TestTopicName(t *testing.T) {
 			got := pkgStreaming.TopicName(tt.service, tt.key)
 			assert.Equal(t, tt.want, got)
 			assert.Regexp(t, hubTopicGrammar, got,
-				"topic must match the two-segment streaming-hub grammar")
+				"topic must match the streaming-hub ingest grammar")
 		})
 	}
-}
 
-// TestTopicPrefix pins the exported prefix constant so callers that build or
-// assert topic names against it cannot drift from the wire contract.
-func TestTopicPrefix(t *testing.T) {
-	t.Parallel()
-
-	assert.Equal(t, "lerian.streaming.", pkgStreaming.TopicPrefix)
+	// Negative lock: the two LAST segments (resource, event) are [a-z0-9_] with
+	// no hyphen, so a hyphen in the tail must be rejected even though the first
+	// (service) segment tolerates hyphens.
+	assert.NotRegexp(t, hubTopicGrammar, "ledger.fee-packages.created",
+		"hub grammar must reject a hyphen in the resource/event tail")
 }

@@ -211,7 +211,7 @@ func TestBuildCatalog_CoversAllLifecycles(t *testing.T) {
 // TestBuildRoutes_CoversAllLifecycles exercises buildRoutes against the
 // populated Rule + Limit definition set: one required route per event, each
 // keyed "<event>.<target>" and pointing at the canonical
-// "lerian.streaming.<event>" Kafka topic.
+// "tracer.<resource>.<event>" Kafka topic.
 func TestBuildRoutes_CoversAllLifecycles(t *testing.T) {
 	t.Parallel()
 
@@ -291,7 +291,7 @@ func TestTracerCatalog_CoversAllEmittedEvents(t *testing.T) {
 
 		// (d) destination topic derives from the definition key.
 		assert.Equal(t, libStreaming.KafkaTopic(pkgStreaming.TopicName("tracer", r.DefinitionKey)), r.Destination,
-			"route Destination must be lerian.streaming.tracer_<resource>.<event>")
+			"route Destination must be tracer.<resource>.<event>")
 	}
 
 	assert.Equal(t, defKeys, routeKeys,
@@ -302,11 +302,16 @@ func TestTracerCatalog_CoversAllEmittedEvents(t *testing.T) {
 	assert.Equal(t, "limit.created", events.LimitCreatedDefinition.Key())
 }
 
-// TestResolveStreamingSource locks the CloudEvents source resolution
-// contract: a trimmed, non-empty STREAMING_CLOUDEVENTS_SOURCE value wins;
-// an empty, whitespace-only, or nil config falls back to the in-code
-// streamingSource default so an unset var never changes historical
-// behaviour.
+// TestResolveStreamingSource locks the HELPER-level CloudEvents source
+// resolution contract: a trimmed, non-empty STREAMING_CLOUDEVENTS_SOURCE value
+// wins verbatim; a nil, empty, or whitespace-only config value normalizes to the
+// in-code streamingSource default ("tracer").
+//
+// This is a helper-level fallback only, NOT an end-to-end unset-env default: a
+// genuinely-unset STREAMING_CLOUDEVENTS_SOURCE fail-closes at
+// libStreaming.LoadConfig (ErrMissingSource) before resolveStreamingSource ever
+// runs, so a live enabled deployment never converges here — it MUST set the var
+// (.env.example recommends the bare service name).
 func TestResolveStreamingSource(t *testing.T) {
 	t.Parallel()
 
@@ -316,17 +321,23 @@ func TestResolveStreamingSource(t *testing.T) {
 		expected string
 	}{
 		{
-			name:     "nil config falls back to default",
+			// Helper-level fallback; a genuinely-unset env fail-closes at
+			// LoadConfig (ErrMissingSource) before this helper runs.
+			name:     "nil config normalizes to default",
 			cfg:      nil,
 			expected: streamingSource,
 		},
 		{
-			name:     "empty value falls back to default",
+			// Helper-level fallback; a genuinely-unset env fail-closes at
+			// LoadConfig (ErrMissingSource) before this helper runs.
+			name:     "empty config value normalizes to default",
 			cfg:      &Config{StreamingCloudEventsSource: ""},
 			expected: streamingSource,
 		},
 		{
-			name:     "whitespace-only value falls back to default",
+			// Whitespace-only slips past LoadConfig's == "" check, so the
+			// helper's trim-based fallback to the default applies.
+			name:     "whitespace-only config value normalizes to default",
 			cfg:      &Config{StreamingCloudEventsSource: "  \t  "},
 			expected: streamingSource,
 		},
@@ -495,5 +506,41 @@ func TestResolveSASLMechanism_Unsupported(t *testing.T) {
 			assert.Contains(t, err.Error(), saslMechanismScram256)
 			assert.Contains(t, err.Error(), saslMechanismScram512)
 		})
+	}
+}
+
+// TestTopicConvergesWithEventDefinition proves midaz's pkgStreaming.TopicName
+// and lib-streaming's own EventDefinition.Topic derive the SAME Kafka topic for
+// every registered tracer event, with the bare service name ("tracer") as the
+// CloudEvents source. This convergence is what lets a Kafka ACL scoped to the
+// "tracer." prefix cover every topic tracer emits: the two derivations must
+// never diverge.
+//
+// The convergence asserted here holds ONLY because the service name is pure
+// [a-z0-9] (as "tracer" is): midaz's sanitizeServiceSegment keeps [a-z0-9] while
+// lib-streaming's sanitizeSourceSegment keeps [a-z0-9._-], so the two legitimately
+// diverge for non-alphanumeric input. That is why this test uses the bare service
+// name and deliberately does NOT assert a non-identity source case — a source with
+// a "." or "-" would produce different segments from each sanitizer by design.
+func TestTopicConvergesWithEventDefinition(t *testing.T) {
+	t.Parallel()
+
+	const ceSource = streamingServiceName // the bare service name is the ce-source
+
+	for _, def := range tracerEventDefinitions() {
+		ed := libStreaming.EventDefinition{
+			Key:           def.Key(),
+			ResourceType:  def.ResourceType,
+			EventType:     def.EventType,
+			SchemaVersion: def.SchemaVersion,
+		}
+
+		want := ed.Topic(ceSource)
+		got := pkgStreaming.TopicName(streamingServiceName, def.Key())
+
+		assert.Equalf(t, want, got,
+			"TopicName and EventDefinition.Topic must converge for %q", def.Key())
+		assert.Equalf(t, streamingServiceName+"."+def.Key(), got,
+			"topic for %q must be service + \".\" + Key()", def.Key())
 	}
 }

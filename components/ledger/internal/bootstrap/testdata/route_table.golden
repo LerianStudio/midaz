@@ -116,6 +116,7 @@ GET	/v1/organizations/:organization_id/ledgers/:ledger_id/transactions	1
 GET	/v1/organizations/:organization_id/ledgers/:ledger_id/transactions/:transaction_id	3
 GET	/v1/organizations/:organization_id/ledgers/:ledger_id/transactions/:transaction_id	1
 GET	/v1/settings/metadata-indexes	3
+GET	/v1/streaming/manifest	3
 GET	/v2/organizations	2
 GET	/v2/organizations	1
 GET	/v2/organizations/:id	3

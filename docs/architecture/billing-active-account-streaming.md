@@ -73,7 +73,7 @@ This is a fixed literal topic owned by lib-streaming's `billing` package, wired 
 | CloudEvents attribute | Value |
 |---|---|
 | `ce-type` | `studio.lerian.billing.recorded` |
-| `ce-source` | `lerian.midaz.ledger` |
+| `ce-source` | `ledger` |
 | `ce-subject` | the account ID |
 | `ce-datacontenttype` | `application/vnd.confluent.protobuf` |
 | `ce-tenantid` | resolved from the request context |

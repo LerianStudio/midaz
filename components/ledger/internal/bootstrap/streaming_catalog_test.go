@@ -17,9 +17,9 @@ import (
 
 // TestMidazCatalogRoutesAssembly locks the catalog/routes assembly path: it
 // must produce exactly one catalog entry and one required route per event
-// definition, each route pointing at its PER-PRODUCT topic (ledger core under
-// service "ledger", fees under "fee", CRM under "crm"), with no duplicate or
-// orphan keys in either direction (the ghost-topic guard).
+// definition, each route pointing at its topic under the single "ledger"
+// service segment (ledger core, fees, and CRM all collapsed into "ledger"),
+// with no duplicate or orphan keys in either direction (the ghost-topic guard).
 func TestMidazCatalogRoutesAssembly(t *testing.T) {
 	t.Parallel()
 
@@ -40,22 +40,18 @@ func TestMidazCatalogRoutesAssembly(t *testing.T) {
 	// The set of definition keys is the source of truth for the bijection, and
 	// each key carries its producing service so route topics are verified
 	// per-product. Key the checks off DefinitionKey (NOT route.Key, which
-	// carries the ".primary" target suffix).
+	// carries the ".primary" target suffix). Under the ACL-prefix grammar the
+	// wire topic derives from the underscore-canonical Key() directly, so the
+	// expected topic is simply TopicName(service, DefinitionKey).
 	defKeys := make(map[string]struct{}, len(defs))
 	serviceByKey := make(map[string]string, len(defs))
-	// routeKeyByKey folds the underscored canonical Key() back to the hyphenated
-	// RouteKey(). Expected topics must derive from the route key (what production
-	// feeds into TopicName), not the DefinitionKey — otherwise the "fee-" prefix
-	// strip cannot fire and the fee topics would regress to "fee_fee_*".
-	routeKeyByKey := make(map[string]string, len(defs))
 
-	for _, rd := range defs {
-		key := rd.def.Key()
+	for _, def := range defs {
+		key := def.Key()
 		_, dup := defKeys[key]
 		require.False(t, dup, "duplicate definition key %q in midazEventDefinitions", key)
 		defKeys[key] = struct{}{}
-		serviceByKey[key] = rd.service
-		routeKeyByKey[key] = rd.def.RouteKey()
+		serviceByKey[key] = streamingServiceName
 	}
 
 	seenRouteKeys := make(map[string]struct{}, len(routes))
@@ -66,7 +62,7 @@ func TestMidazCatalogRoutesAssembly(t *testing.T) {
 		service, ok := serviceByKey[r.DefinitionKey]
 		require.Truef(t, ok, "route DefinitionKey %q has no matching event definition (dead/ghost route)", r.DefinitionKey)
 
-		wantTopic := libStreaming.KafkaTopic(pkgStreaming.TopicName(service, routeKeyByKey[r.DefinitionKey]))
+		wantTopic := libStreaming.KafkaTopic(pkgStreaming.TopicName(service, r.DefinitionKey))
 		assert.Equal(t, wantTopic, r.Destination,
 			"route for %q must target topic %q", r.DefinitionKey, wantTopic)
 
@@ -81,18 +77,21 @@ func TestMidazCatalogRoutesAssembly(t *testing.T) {
 		assert.True(t, ok, "definition %q has no route (unroutable event)", key)
 	}
 
-	// Per-product routing regression lock (#3388): an INDEPENDENT expected-service
-	// map keyed by Definition.Key() with LITERAL service segments, deliberately
-	// NOT derived from midazEventDefinitions (the code under test). serviceByKey
-	// above is computed from the registry and would tautologically agree with a
-	// wrong-service bug; this map enumerates every event's expected service so a
-	// regression on ANY event — not just a handful of spot-checks — is caught at
-	// unit speed. The literals "ledger"/"fee"/"crm" are intentional (not the
-	// serviceLedger/serviceFee/serviceCRM constants the production code uses).
+	// Single-service routing regression lock (#3388): an INDEPENDENT
+	// expected-service map keyed by Definition.Key() with LITERAL service
+	// segments, deliberately NOT derived from midazEventDefinitions (the code
+	// under test). serviceByKey above is computed from the registry and would
+	// tautologically agree with a wrong-service bug; this map enumerates every
+	// event's expected service so a regression on ANY event — not just a handful
+	// of spot-checks — is caught at unit speed. After the collapse every event
+	// (ledger core, fees, CRM) routes under the single "ledger" segment; the
+	// wantFee/wantCRM aliases are kept only to document which events used to carry
+	// a distinct segment. The literal "ledger" is intentional (not the
+	// streamingServiceName constant the production code uses).
 	const (
 		wantLedger = "ledger"
-		wantFee    = "fee"
-		wantCRM    = "crm"
+		wantFee    = "ledger"
+		wantCRM    = "ledger"
 	)
 
 	expectedService := map[string]string{
@@ -171,33 +170,32 @@ func TestMidazCatalogRoutesAssembly(t *testing.T) {
 			continue
 		}
 
-		wantTopic := libStreaming.KafkaTopic(pkgStreaming.TopicName(want, routeKeyByKey[r.DefinitionKey]))
+		wantTopic := libStreaming.KafkaTopic(pkgStreaming.TopicName(want, r.DefinitionKey))
 		assert.Equalf(t, wantTopic, r.Destination,
 			"route %q must target %q (independent service lock)", r.DefinitionKey, wantTopic)
 	}
 
-	// Fee-family destination lock (underscore canonicalization): the route key
-	// folds the underscored DefinitionKey back to the hyphenated routing handle
-	// before TopicName strips the "fee-" prefix, so fee topics keep a single
-	// "fee_" segment and never regress to "fee_fee_*". Literal broker topics so
-	// feeding the DefinitionKey (instead of the route key) into TopicName fails.
+	// Fee-family destination lock: after the collapse every fee event routes
+	// under the "ledger" segment, so the fee resource ("fee_packages",
+	// "fee_charge", ...) becomes the resource segment of "ledger.<resource>.<event>".
+	// Literal broker topics so a regression on the fee namespace is caught directly.
 	destByKey := make(map[string]string, len(routes))
 	for _, r := range routes {
 		destByKey[r.DefinitionKey] = r.Destination.Name
 	}
 
 	feeTopics := map[string]string{
-		"fee_packages.created":         "lerian.streaming.fee_packages.created",
-		"fee_packages.updated":         "lerian.streaming.fee_packages.updated",
-		"fee_packages.deleted":         "lerian.streaming.fee_packages.deleted",
-		"fee_billing_packages.created": "lerian.streaming.fee_billing_packages.created",
-		"fee_billing_packages.updated": "lerian.streaming.fee_billing_packages.updated",
-		"fee_billing_packages.deleted": "lerian.streaming.fee_billing_packages.deleted",
-		"fee_charge.applied":           "lerian.streaming.fee_charge.applied",
+		"fee_packages.created":         "ledger.fee_packages.created",
+		"fee_packages.updated":         "ledger.fee_packages.updated",
+		"fee_packages.deleted":         "ledger.fee_packages.deleted",
+		"fee_billing_packages.created": "ledger.fee_billing_packages.created",
+		"fee_billing_packages.updated": "ledger.fee_billing_packages.updated",
+		"fee_billing_packages.deleted": "ledger.fee_billing_packages.deleted",
+		"fee_charge.applied":           "ledger.fee_charge.applied",
 	}
 	for key, topic := range feeTopics {
 		assert.Equalf(t, topic, destByKey[key],
-			"fee route %q must target %q (no fee_fee_* regression)", key, topic)
+			"fee route %q must target %q", key, topic)
 	}
 }
 
@@ -235,4 +233,44 @@ func TestFeesEventsRegistered(t *testing.T) {
 	assert.Equal(t, "fee_packages.created", events.FeesPackageCreatedDefinition.Key())
 	assert.Equal(t, "fee_billing_packages.deleted", events.FeesBillingPackageDeletedDefinition.Key())
 	assert.Equal(t, "fee_charge.applied", events.FeesAppliedDefinition.Key())
+}
+
+// TestTopicConvergesWithEventDefinition proves midaz's pkgStreaming.TopicName
+// and lib-streaming's own EventDefinition.Topic derive the SAME Kafka topic for
+// every registered event, with the bare service name ("ledger") as the
+// CloudEvents source. This convergence is what lets a Kafka ACL scoped to the
+// "ledger." prefix — granted from the tenant-manager's SanitizeKafkaSegment —
+// cover every topic the producer emits: the two derivations must never diverge.
+// Card #3783 Task 5.2.
+//
+// The convergence asserted here holds ONLY because the service name is pure
+// [a-z0-9] (as "ledger" is): midaz's sanitizeServiceSegment keeps [a-z0-9] while
+// lib-streaming's sanitizeSourceSegment keeps [a-z0-9._-], so the two legitimately
+// diverge for non-alphanumeric input. That is why this test uses the bare service
+// name and deliberately does NOT assert a non-identity source case — a source with
+// a "." or "-" would produce different segments from each sanitizer by design.
+func TestTopicConvergesWithEventDefinition(t *testing.T) {
+	t.Parallel()
+
+	const ceSource = streamingServiceName // the bare service name is the ce-source
+
+	for _, def := range midazEventDefinitions() {
+		ed := libStreaming.EventDefinition{
+			Key:           def.Key(),
+			ResourceType:  def.ResourceType,
+			EventType:     def.EventType,
+			SchemaVersion: def.SchemaVersion,
+		}
+
+		want := ed.Topic(ceSource)
+		got := pkgStreaming.TopicName(streamingServiceName, def.Key())
+
+		assert.Equalf(t, want, got,
+			"TopicName and EventDefinition.Topic must converge for %q", def.Key())
+		// Lock the literal invariant the convergence rests on: for a service name
+		// that is already [a-z0-9]-only, both sanitizers are the identity, so the
+		// topic is exactly service + "." + Key().
+		assert.Equalf(t, streamingServiceName+"."+def.Key(), got,
+			"topic for %q must be service + \".\" + Key()", def.Key())
+	}
 }

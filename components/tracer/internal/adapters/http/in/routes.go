@@ -9,6 +9,7 @@ import (
 	"errors"
 	"fmt"
 	"net"
+	nethttp "net/http"
 	"os"
 	"strings"
 
@@ -167,6 +168,12 @@ type RoutesDeps struct {
 	MultiTenantEnabled           bool
 	PgManager                    *tmpostgres.Manager
 	Supervisor                   WorkerEnsurer
+
+	// StreamingManifestHandler is the catalog-only lib-streaming manifest
+	// handler built degraded-safe in bootstrap (BuildStreamingManifestHandler).
+	// If nil (build failed, logged at Warn in the composition root), the manifest
+	// route is not mounted and GET pkgStreaming.ManifestRoutePath returns 404.
+	StreamingManifestHandler nethttp.Handler
 }
 
 // NewRoutes builds the Fiber app with every middleware and route wired. The
@@ -434,6 +441,13 @@ func NewRoutes(deps RoutesDeps) (*fiber.App, error) {
 		ResTenantMW:           resTenantMW,
 		AuditEvent:            NewAuditEventHandler(auditEventService),
 	})
+
+	// Streaming manifest route (catalog-only lib-streaming manifest). Mounted
+	// INSIDE the protected /v1 group under the AuthGuard authz tuple
+	// ("streaming-manifest", "get"), never in the public probe block. Built
+	// degraded-safe in bootstrap and INDEPENDENT of STREAMING_ENABLED: a nil
+	// handler (build failed, logged at Warn upstream) leaves the route unmounted.
+	RegisterStreamingManifestRoute(api, guard, deps.StreamingManifestHandler)
 
 	// Native Huma OpenAPI 3.1 spec + Scalar docs, gated on OpenAPIDocsEnabled. Mounted
 	// AFTER every huma.Register above so the snapshotted spec is complete. These
