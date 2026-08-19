@@ -794,9 +794,11 @@ one topic carries ledger core, fees and CRM alike) and `tracer`. A failed publis
 `lerian.streaming.<app>.dlq`. One exception: `billing_recorded` (billable usage, emitted only
 when billing is wired) rides the fixed lib-owned topic `lerian.streaming.billing.recorded`, not
 the application topic. The source is accepted only when it is exactly the application's roster
-name (`ledger` for the ledger binary, `tracer` for tracer); any other value, malformed or merely
-different, is rejected at startup, never normalized, and the check runs even when
-`STREAMING_ENABLED=false`. `ce-type` is
+name (`ledger` for the ledger binary, `tracer` for tracer); any other non-blank value, malformed
+or merely different, is rejected at startup, never normalized, and the check runs even when
+`STREAMING_ENABLED=false`. A blank value (unset or whitespace-only) defaults to the roster name
+before that check, so omission passes it; an enabled producer must still set the variable, since
+`libStreaming.LoadConfig()` fail-closes on a missing source. `ce-type` is
 `studio.lerian.<app>.<resourceType>.<eventType>`; schema version travels only in
 `ce-schemaversion`, and tenant only in `ce-tenantid`.
 
