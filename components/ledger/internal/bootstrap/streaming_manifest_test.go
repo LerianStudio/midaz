@@ -102,10 +102,8 @@ func TestBuildStreamingManifestHandler_AdvertisesApplicationTopic(t *testing.T) 
 // TestStreamingRouteAndManifestAgreeOnTopic locks the coherence invariant: ONE
 // resolved ce-source feeds both the emitter's route table and the manifest
 // handler, so the topic the ledger publishes to and the topic its manifest
-// advertises must be byte-identical. A divergence would point provisioning at a
-// stream nothing writes while consumers quarantine every record they receive.
+// advertises must be byte-identical.
 //
-// Every case uses the roster name, the only source the bootstrap gate admits.
 // The table varies only how the resolver is reached (explicit value, unset,
 // whitespace, nil config), not the source.
 func TestStreamingRouteAndManifestAgreeOnTopic(t *testing.T) {
@@ -144,10 +142,9 @@ func TestStreamingRouteAndManifestAgreeOnTopic(t *testing.T) {
 	}
 }
 
-// TestBuildStreamingManifestHandler_RejectsIllegalConfiguredSource proves a
-// malformed STREAMING_CLOUDEVENTS_SOURCE leaves the manifest route UNMOUNTED
-// rather than advertising a topic name derived from garbage: the build fails
-// and the composition root treats that failure as degraded-safe.
+// TestBuildStreamingManifestHandler_RejectsIllegalConfiguredSource locks the
+// invalid-source invariant: a malformed STREAMING_CLOUDEVENTS_SOURCE must fail
+// the manifest handler build instead of producing a handler.
 func TestBuildStreamingManifestHandler_RejectsIllegalConfiguredSource(t *testing.T) {
 	t.Parallel()
 

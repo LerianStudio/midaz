@@ -126,10 +126,9 @@ func TestNewManifestHandler_AdvertisesApplicationTopic(t *testing.T) {
 	}
 }
 
-// TestNewManifestHandler_RejectsIllegalSource proves the helper fails rather than
-// advertising a topic derived from a malformed ce-source, so the composition root
-// leaves the manifest route unmounted instead of publishing a garbage topic name
-// that provisioning and ACL tooling would then act on.
+// TestNewManifestHandler_RejectsIllegalSource locks the invalid-source
+// invariant: a malformed ce-source must fail handler construction instead of
+// producing a manifest handler.
 func TestNewManifestHandler_RejectsIllegalSource(t *testing.T) {
 	t.Parallel()
 
