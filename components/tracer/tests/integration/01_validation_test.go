@@ -632,9 +632,9 @@ func TestValidation_1_1_8_MultipleMatchingRules(t *testing.T) {
 	rule2ID := testutil.CreateTestRuleWithExpression(t, rule2Name, "amount > 50", "ALLOW")
 	testutil.ActivateRule(t, rule2ID)
 
-	// Rule 3: matches currency == 'BRL'
+	// Rule 3: matches asset == 'BRL'
 	rule3Name := "allow-asset-rule3-" + testutil.MustDeterministicUUID(304).String()[:8]
-	rule3ID := testutil.CreateTestRuleWithExpression(t, rule3Name, "currency == 'BRL'", "ALLOW")
+	rule3ID := testutil.CreateTestRuleWithExpression(t, rule3Name, "asset == 'BRL'", "ALLOW")
 	testutil.ActivateRule(t, rule3ID)
 
 	t.Cleanup(func() {

@@ -59,7 +59,7 @@ func TestValidation_CompleteEvaluation_AllActiveRules(t *testing.T) {
 	}{
 		{"Rule 1", `transactionType == "CARD"`},
 		{"Rule 2", "amount > 10"},
-		{"Rule 3", `currency == "BRL"`},
+		{"Rule 3", `asset == "BRL"`},
 		{"Rule 4", `account["status"] == "active"`},
 		{"Rule 5", "amount < 10000"},
 	}
@@ -119,7 +119,7 @@ func TestValidation_CompleteEvaluation_CollectsMatchingWithDenyPrecedence(t *tes
 	allowRules := []string{
 		testutil.CreateRuleWithScope(t, "ALLOW Rule 1", `transactionType == "CARD"`, "ALLOW", []testutil.ScopeInput{accountScope}),
 		testutil.CreateRuleWithScope(t, "ALLOW Rule 2", "amount > 50", "ALLOW", []testutil.ScopeInput{accountScope}),
-		testutil.CreateRuleWithScope(t, "ALLOW Rule 3", `currency == "BRL"`, "ALLOW", []testutil.ScopeInput{accountScope}),
+		testutil.CreateRuleWithScope(t, "ALLOW Rule 3", `asset == "BRL"`, "ALLOW", []testutil.ScopeInput{accountScope}),
 	}
 	for _, ruleID := range allowRules {
 		testutil.ActivateRule(t, ruleID)
@@ -255,7 +255,7 @@ func TestValidation_CompleteEvaluation_DraftRulesNotEvaluated(t *testing.T) {
 	t.Cleanup(func() { testutil.CleanupRule(t, activeRule2) })
 
 	// Create 1 DRAFT rule (should NOT be evaluated)
-	draftRule := testutil.CreateTestRuleWithExpression(t, "Draft Rule", `currency == "BRL"`, "ALLOW")
+	draftRule := testutil.CreateTestRuleWithExpression(t, "Draft Rule", `asset == "BRL"`, "ALLOW")
 	// Do NOT activate - keep in DRAFT status
 	t.Cleanup(func() { testutil.CleanupRule(t, draftRule) })
 
@@ -295,7 +295,7 @@ func TestValidation_CompleteEvaluation_InactiveRulesNotEvaluated(t *testing.T) {
 	t.Cleanup(func() { testutil.CleanupRule(t, activeRule2) })
 
 	// Create and then DEACTIVATE 1 rule
-	inactiveRule := testutil.CreateTestRuleWithExpression(t, "Inactive Rule", `currency == "BRL"`, "ALLOW")
+	inactiveRule := testutil.CreateTestRuleWithExpression(t, "Inactive Rule", `asset == "BRL"`, "ALLOW")
 	testutil.ActivateRule(t, inactiveRule)
 	testutil.DeactivateRule(t, inactiveRule) // Deactivate it
 	t.Cleanup(func() { testutil.CleanupRule(t, inactiveRule) })
@@ -336,7 +336,7 @@ func TestValidation_CompleteEvaluation_DeletedRulesNotEvaluated(t *testing.T) {
 	t.Cleanup(func() { testutil.CleanupRule(t, activeRule2) })
 
 	// Create, activate, deactivate, and DELETE 1 rule
-	deletedRule := testutil.CreateTestRuleWithExpression(t, "Deleted Rule", `currency == "BRL"`, "ALLOW")
+	deletedRule := testutil.CreateTestRuleWithExpression(t, "Deleted Rule", `asset == "BRL"`, "ALLOW")
 	testutil.ActivateRule(t, deletedRule)
 	testutil.DeleteRuleViaAPI(t, deletedRule) // This deactivates and deletes
 
