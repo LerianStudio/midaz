@@ -67,12 +67,14 @@ lerian.streaming.billing.recorded
 
 This is a fixed literal topic owned by lib-streaming's `billing` package, wired explicitly via
 `RouteOverrides(billing.Route())` in `BuildStreamingEmitter`
-(`components/ledger/internal/bootstrap/streaming.go`) — **not** a per-product topic derived from
-`pkgStreaming.TopicName`.
+(`components/ledger/internal/bootstrap/streaming.go`) — **not** the ledger's application topic
+`lerian.streaming.ledger`, which every other ledger event rides and which is derived from the
+service's `ce-source`. The billing event is the one destination the ledger writes whose name does
+not come from the application name.
 
 | CloudEvents attribute | Value |
 |---|---|
-| `ce-type` | `studio.lerian.billing.recorded` |
+| `ce-type` | `studio.lerian.ledger.billing.recorded` — the `ledger` segment is the producing application, stamped from `ce-source` |
 | `ce-source` | `ledger` |
 | `ce-subject` | the account ID |
 | `ce-datacontenttype` | `application/vnd.confluent.protobuf` |
@@ -195,11 +197,13 @@ Two things must exist per environment before billing works:
 
 ### Local
 
-The `midaz-redpanda-init` compose service (`components/infra/docker-compose.yml`) pre-creates the topic
-alongside the domain topics:
+The `midaz-redpanda-init` compose service (`components/infra/docker-compose.yml`) pre-creates the
+billing topic and its DLQ alongside the two application topics (`lerian.streaming.ledger` and
+`lerian.streaming.tracer`, each with its own `.dlq`):
 
 ```
 rpk topic create lerian.streaming.billing.recorded -r 1 -p 1 --brokers midaz-redpanda:9092
+rpk topic create lerian.streaming.billing.recorded.dlq -r 1 -p 1 --brokers midaz-redpanda:9092
 ```
 
 Redpanda's built-in Schema Registry serves the local registry on `:8081`.
@@ -207,8 +211,8 @@ Redpanda's built-in Schema Registry serves the local registry on `:8081`.
 ### Deployed
 
 Topic creation is the platform's topic-provisioning responsibility for the target environment. Create
-`lerian.streaming.billing.recorded` through the same mechanism you use for the domain topics, and point
-`STREAMING_SCHEMA_REGISTRY_URL` at the environment's Schema Registry.
+`lerian.streaming.billing.recorded` through the same mechanism you use for the application topics, and
+point `STREAMING_SCHEMA_REGISTRY_URL` at the environment's Schema Registry.
 
 ---
 
