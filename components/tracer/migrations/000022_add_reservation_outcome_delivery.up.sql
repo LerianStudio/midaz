@@ -1,5 +1,5 @@
 -- ============================================
--- Migration: 000021_add_reservation_outcome_delivery
+-- Migration: 000022_add_reservation_outcome_delivery
 -- Description: Durable ledger-owned outcome delivery for usage reservations.
 -- Date: 2026-08-18
 -- ============================================

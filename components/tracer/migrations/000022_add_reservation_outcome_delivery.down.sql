@@ -1,5 +1,5 @@
 -- ============================================
--- Migration: 000021_add_reservation_outcome_delivery (DOWN)
+-- Migration: 000022_add_reservation_outcome_delivery (DOWN)
 -- Description: Refuse rollback while V2 state remains, then restore V1 schema.
 -- Date: 2026-08-18
 -- ============================================

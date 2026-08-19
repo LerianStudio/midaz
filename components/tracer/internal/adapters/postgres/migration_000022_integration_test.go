@@ -14,23 +14,24 @@ import (
 	"testing"
 	"time"
 
+	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/require"
 
 	"github.com/LerianStudio/midaz/v4/components/tracer/internal/testutil"
 	"github.com/LerianStudio/midaz/v4/components/tracer/pkg/model"
 )
 
-func migration000021SQL(t *testing.T, direction string) string {
+func migration000022SQL(t *testing.T, direction string) string {
 	t.Helper()
-	path := filepath.Join("..", "..", "..", "migrations", "000021_add_reservation_outcome_delivery."+direction+".sql")
+	path := filepath.Join("..", "..", "..", "migrations", "000022_add_reservation_outcome_delivery."+direction+".sql")
 	contents, err := os.ReadFile(path)
 	require.NoError(t, err)
 	return string(contents)
 }
 
-func TestIntegration_Migration000021_UpSchemaAndLegacyDefault(t *testing.T) {
+func TestIntegration_Migration000022_UpSchemaAndLegacyDefault(t *testing.T) {
 	db := testutil.SetupIntegrationDB(t)
-	_, err := db.Exec(migration000021SQL(t, "up"))
+	_, err := db.Exec(migration000022SQL(t, "up"))
 	require.NoError(t, err, "up migration must be idempotent")
 
 	var (
@@ -86,7 +87,7 @@ func TestIntegration_Migration000021_UpSchemaAndLegacyDefault(t *testing.T) {
 	require.Equal(t, "YES", reservationExpiryNullable)
 }
 
-func TestIntegration_Migration000021_OldWorkersCannotMutateV2Holds(t *testing.T) {
+func TestIntegration_Migration000022_OldWorkersCannotMutateV2Holds(t *testing.T) {
 	db := testutil.SetupIntegrationDB(t)
 	limitID := createTestLimitNamed(t, db, 9971, "migration-old-worker-v2")
 	transactionID := testutil.MustDeterministicUUID(9972)
@@ -111,7 +112,7 @@ func TestIntegration_Migration000021_OldWorkersCannotMutateV2Holds(t *testing.T)
 	})
 
 	require.NoError(t, inRealTx(t, db, func(tx *sql.Tx) error {
-		_, _, err := repo.ReserveWithTx(t.Context(), tx, reservation, 100, &counterExpiresAt)
+		_, _, err := repo.ReserveWithTx(t.Context(), tx, reservation, decimal.NewFromInt(100), &counterExpiresAt)
 		return err
 	}))
 
@@ -163,7 +164,7 @@ func TestIntegration_Migration000021_OldWorkersCannotMutateV2Holds(t *testing.T)
 	require.Equal(t, string(model.StatusReserved), readReservationStatus(t, db, reservation.ID))
 }
 
-func TestIntegration_Migration000021_DownRefusesLiveReceipt(t *testing.T) {
+func TestIntegration_Migration000022_DownRefusesLiveReceipt(t *testing.T) {
 	db := testutil.SetupIntegrationDB(t)
 	tx, err := db.BeginTx(t.Context(), nil)
 	require.NoError(t, err)
@@ -177,12 +178,12 @@ func TestIntegration_Migration000021_DownRefusesLiveReceipt(t *testing.T) {
 	`, transactionID, testutil.MustDeterministicUUID(9952), time.Date(2026, 8, 18, 15, 0, 0, 0, time.UTC))
 	require.NoError(t, err)
 
-	_, err = tx.Exec(migration000021SQL(t, "down"))
+	_, err = tx.Exec(migration000022SQL(t, "down"))
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "outcome receipts exist")
 }
 
-func TestIntegration_Migration000021_DownWaitsForConcurrentReceipt(t *testing.T) {
+func TestIntegration_Migration000022_DownWaitsForConcurrentReceipt(t *testing.T) {
 	db := testutil.SetupIntegrationDB(t)
 	observerDB := testutil.SetupIntegrationDB(t)
 	transactionID := testutil.MustDeterministicUUID(9961)
@@ -200,7 +201,7 @@ func TestIntegration_Migration000021_DownWaitsForConcurrentReceipt(t *testing.T)
 
 	downResult := make(chan error, 1)
 	go func() {
-		_, downErr := db.Exec(migration000021SQL(t, "down"))
+		_, downErr := db.Exec(migration000022SQL(t, "down"))
 		downResult <- downErr
 	}()
 
@@ -228,7 +229,7 @@ func TestIntegration_Migration000021_DownWaitsForConcurrentReceipt(t *testing.T)
 	require.NoError(t, err)
 }
 
-func TestIntegration_Migration000021_DownRefusesLiveV2Reservation(t *testing.T) {
+func TestIntegration_Migration000022_DownRefusesLiveV2Reservation(t *testing.T) {
 	db := testutil.SetupIntegrationDB(t)
 	limitID := createTestLimitNamed(t, db, 9953, "migration-down-v2")
 	t.Cleanup(func() { cleanupTestLimit(t, db, limitID) })
@@ -240,15 +241,15 @@ func TestIntegration_Migration000021_DownRefusesLiveV2Reservation(t *testing.T) 
 	now := time.Date(2026, 8, 18, 15, 30, 0, 0, time.UTC)
 	reservation := newV2Reservation(t, limitID, testutil.MustDeterministicUUID(9954), "v2:9954", "2026-08", 1, now)
 	repo := newReservationRepoIntegration(db)
-	_, _, err = repo.ReserveWithTx(t.Context(), tx, reservation, 100, nil)
+	_, _, err = repo.ReserveWithTx(t.Context(), tx, reservation, decimal.NewFromInt(100), nil)
 	require.NoError(t, err)
 
-	_, err = tx.Exec(migration000021SQL(t, "down"))
+	_, err = tx.Exec(migration000022SQL(t, "down"))
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "V2 reservations exist")
 }
 
-func TestIntegration_Migration000021_DownSucceedsWhenBacklogEmpty(t *testing.T) {
+func TestIntegration_Migration000022_DownSucceedsWhenBacklogEmpty(t *testing.T) {
 	db := testutil.SetupIntegrationDB(t)
 	tx, err := db.BeginTx(t.Context(), &sql.TxOptions{})
 	require.NoError(t, err)
@@ -285,9 +286,9 @@ func TestIntegration_Migration000021_DownSucceedsWhenBacklogEmpty(t *testing.T) 
 	_, err = tx.Exec("DELETE FROM usage_reservations")
 	require.NoError(t, err)
 
-	_, err = tx.Exec(migration000021SQL(t, "down"))
+	_, err = tx.Exec(migration000022SQL(t, "down"))
 	require.NoError(t, err)
-	_, err = tx.Exec(migration000021SQL(t, "down"))
+	_, err = tx.Exec(migration000022SQL(t, "down"))
 	require.NoError(t, err, "down migration must be idempotent once V2 state is absent")
 
 	var deliveryModeColumnExists bool

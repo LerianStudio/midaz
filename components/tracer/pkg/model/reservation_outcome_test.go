@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -26,7 +27,7 @@ func TestNewReservationWithDeliveryMode(t *testing.T) {
 		uuid.MustParse("20000000-0000-0000-0000-000000000002"),
 		"account:1",
 		"2026-08",
-		500,
+		decimal.NewFromInt(500),
 		expiresAt,
 		createdAt,
 		DeliveryModeLedgerOutcomeV2,
@@ -40,7 +41,7 @@ func TestNewReservationWithDeliveryMode(t *testing.T) {
 		uuid.MustParse("20000000-0000-0000-0000-000000000002"),
 		"account:1",
 		"2026-08",
-		500,
+		decimal.NewFromInt(500),
 		expiresAt,
 		createdAt,
 		ReservationDeliveryMode("ASYNC_V3"),

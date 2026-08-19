@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/shopspring/decimal"
 
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
 )
@@ -56,10 +57,9 @@ func (s ReservationStatus) IsTerminal() bool {
 }
 
 // Reservation is a single two-phase reservation row, mirroring the
-// usage_reservations table. Amount is stored in the smallest currency unit
-// (int64 / BIGINT) to match usage_counters.current_usage and reserved_usage —
-// not decimal, because the counter columns the reservation moves against are
-// BIGINT.
+// usage_reservations table. Amount is a decimal currency value (e.g. 10.50),
+// matching usage_counters.current_usage and reserved_usage, whose DECIMAL
+// columns the reservation moves against.
 //
 // TransactionID is the ledger transaction correlation id. It is NOT a foreign
 // key: the ledger transaction lives in a different service, so the reference is
@@ -70,7 +70,7 @@ type Reservation struct {
 	LimitID              uuid.UUID               `json:"limitId" swaggertype:"string" format:"uuid"`
 	ScopeKey             string                  `json:"scopeKey"`
 	PeriodKey            string                  `json:"periodKey"`
-	Amount               int64                   `json:"amount" example:"50000" minimum:"0"`
+	Amount               decimal.Decimal         `json:"amount" swaggertype:"string" example:"500.00" minimum:"0"`
 	Status               ReservationStatus       `json:"status"`
 	DeliveryMode         ReservationDeliveryMode `json:"deliveryMode"`
 	TransactionID        uuid.UUID               `json:"transactionId" swaggertype:"string" format:"uuid"`
@@ -89,7 +89,7 @@ func NewReservation(
 	transactionID uuid.UUID,
 	scopeKey string,
 	periodKey string,
-	amount int64,
+	amount decimal.Decimal,
 	reservationExpiresAt time.Time,
 	createdAt time.Time,
 ) (*Reservation, error) {
@@ -112,7 +112,7 @@ func NewReservationWithDeliveryMode(
 	transactionID uuid.UUID,
 	scopeKey string,
 	periodKey string,
-	amount int64,
+	amount decimal.Decimal,
 	reservationExpiresAt time.Time,
 	createdAt time.Time,
 	deliveryMode ReservationDeliveryMode,
@@ -135,7 +135,7 @@ func NewReservationWithDeliveryMode(
 		return nil, constant.ErrReservationPeriodKeyRequired
 	}
 
-	if amount < 0 {
+	if amount.IsNegative() {
 		return nil, constant.ErrReservationAmountInvalid
 	}
 
@@ -182,7 +182,7 @@ func (r *Reservation) Validate() error {
 		return constant.ErrReservationPeriodKeyRequired
 	}
 
-	if r.Amount < 0 {
+	if r.Amount.IsNegative() {
 		return constant.ErrReservationAmountInvalid
 	}
 

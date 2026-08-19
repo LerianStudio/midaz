@@ -16,6 +16,7 @@ import (
 	libLog "github.com/LerianStudio/lib-observability/v2/log"
 	libOpentelemetry "github.com/LerianStudio/lib-observability/v2/tracing"
 	"github.com/google/uuid"
+	"github.com/shopspring/decimal"
 	"go.opentelemetry.io/otel/trace"
 
 	pgdb "github.com/LerianStudio/midaz/v4/components/tracer/internal/adapters/postgres/db"
@@ -67,7 +68,7 @@ type LimitResolver interface {
 // counter bucket move, and the audit write commit together. Implemented by
 // postgres.UsageReservationRepository.
 type ReservationRepository interface {
-	ReserveWithTx(ctx context.Context, db pgdb.DB, reservation *model.Reservation, maxAmount int64, counterExpiresAt *time.Time) (reservationID uuid.UUID, created bool, err error)
+	ReserveWithTx(ctx context.Context, db pgdb.DB, reservation *model.Reservation, maxAmount decimal.Decimal, counterExpiresAt *time.Time) (reservationID uuid.UUID, created bool, err error)
 	ApplyOutcomeWithTx(ctx context.Context, db pgdb.DB, transactionID, outcomeID uuid.UUID, outcome model.ReservationOutcome, appliedAt time.Time) (receipt *model.ReservationOutcomeReceipt, reservations []*model.Reservation, replayed bool, err error)
 	ConfirmWithTx(ctx context.Context, db pgdb.DB, reservationID uuid.UUID) error
 	ReleaseWithTx(ctx context.Context, db pgdb.DB, reservationID uuid.UUID, status model.ReservationStatus) error

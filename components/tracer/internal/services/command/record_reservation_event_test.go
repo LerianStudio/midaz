@@ -10,6 +10,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
@@ -20,13 +21,17 @@ import (
 	"github.com/LerianStudio/midaz/v4/components/tracer/pkg/model"
 )
 
+// fractionalAuditAmount is a sub-unit amount that the pre-fix int64 audit context
+// would have truncated to 400. It stays exact under the decimal context.
+var fractionalAuditAmount = decimal.RequireFromString("400.50")
+
 func reservationAuditCtx() ReservationAuditContext {
 	return ReservationAuditContext{
 		TransactionID: testutil.MustDeterministicUUID(400),
 		LimitID:       testutil.MustDeterministicUUID(401),
 		ScopeKey:      "acct:400",
 		PeriodKey:     "2026-06",
-		Amount:        400,
+		Amount:        fractionalAuditAmount,
 		Status:        string(model.StatusReserved),
 	}
 }
@@ -52,6 +57,10 @@ func TestRecordReservationEventWithTx_WritesOneRowInTx(t *testing.T) {
 		assert.Equal(t, model.ResourceTypeReservation, event.ResourceType)
 		assert.Equal(t, resID.String(), event.ResourceID)
 		assert.Equal(t, resID.String(), event.Context["reservationId"])
+		gotAmount, ok := event.Context["amount"].(decimal.Decimal)
+		require.True(t, ok, "audit context amount must be a decimal")
+		assert.True(t, fractionalAuditAmount.Equal(gotAmount),
+			"audit amount must preserve the fractional part, not truncate")
 		return nil
 	}).Times(1)
 
@@ -121,7 +130,7 @@ func TestRecordReservationEvent_SkippedUsesNonTxInsert(t *testing.T) {
 			LimitID:       testutil.MustDeterministicUUID(422),
 			ScopeKey:      "acct:420",
 			PeriodKey:     "2026-06",
-			Amount:        400,
+			Amount:        decimal.NewFromInt(400),
 			Status:        "SKIPPED",
 		},
 	)

@@ -87,7 +87,7 @@ func TestClassifyKeepsSerialExclusionsOutOfParallelWork(t *testing.T) {
 		},
 		{
 			Package: "github.com/LerianStudio/midaz/v4/components/tracer/internal/adapters/postgres",
-			Test:    "TestIntegration_Migration000021_DownRefusesLiveReceipt",
+			Test:    "TestIntegration_Migration000022_DownRefusesLiveReceipt",
 		},
 		{
 			Package: "github.com/LerianStudio/midaz/v4/components/ledger/internal/bootstrap",

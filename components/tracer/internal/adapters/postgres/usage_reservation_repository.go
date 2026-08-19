@@ -38,7 +38,8 @@ const usageReservationsTable = "usage_reservations"
 // service (mirroring the RuleRepository/LimitRepository *WithTx pattern).
 //
 //   - ReserveWithTx: claims the idempotent 4-tuple, then seeds
-//     usage_counters.reserved_usage via the guarded reserve CTE only for the new
+//     usage_counters.reserved_usage via the guarded reserve CTE (guarded on
+//     current_usage + reserved_usage + amount <= maxAmount) only for the new
 //     row; retries return the persisted row without moving capacity.
 //   - ConfirmWithTx: moves the amount reserved_usage -> current_usage AND flips the
 //     row to CONFIRMED, guarded WHERE status='RESERVED'.
@@ -76,7 +77,7 @@ func NewUsageReservationRepositoryWithConnection(counterRepo *UsageCounterReposi
 // caller is responsible for rolling the transaction back on any error so a denied
 // reserve leaves no RESERVED row whose capacity was never held. Concurrent and
 // sequential retries collapse onto the existing row through the unique 4-tuple.
-func (r *UsageReservationRepository) ReserveWithTx(ctx context.Context, db pgdb.DB, reservation *model.Reservation, maxAmount int64, counterExpiresAt *time.Time) (uuid.UUID, bool, error) {
+func (r *UsageReservationRepository) ReserveWithTx(ctx context.Context, db pgdb.DB, reservation *model.Reservation, maxAmount decimal.Decimal, counterExpiresAt *time.Time) (uuid.UUID, bool, error) {
 	if db == nil {
 		return uuid.Nil, false, pgdb.ErrNilConnection
 	}
@@ -148,7 +149,7 @@ func (r *UsageReservationRepository) ReserveWithTx(ctx context.Context, db pgdb.
 		`
 
 		var (
-			persistedAmount       int64
+			persistedAmount       decimal.Decimal
 			persistedStatus       model.ReservationStatus
 			persistedDeliveryMode model.ReservationDeliveryMode
 		)
@@ -170,11 +171,11 @@ func (r *UsageReservationRepository) ReserveWithTx(ctx context.Context, db pgdb.
 			return uuid.Nil, false, constant.ErrReservationAlreadyTerminal
 		}
 
-		if persistedAmount != reservation.Amount {
+		if !persistedAmount.Equal(reservation.Amount) {
 			libOtel.HandleSpanBusinessErrorEvent(span, "Reservation idempotency amount conflict", constant.ErrIdempotencyKey)
 
 			return uuid.Nil, false, fmt.Errorf(
-				"%w: reservation tuple already holds amount %d, got %d",
+				"%w: reservation tuple already holds amount %s, got %s",
 				constant.ErrIdempotencyKey,
 				persistedAmount,
 				reservation.Amount,
@@ -201,15 +202,16 @@ func (r *UsageReservationRepository) ReserveWithTx(ctx context.Context, db pgdb.
 	}
 
 	// Only the transaction that claimed the idempotency tuple may hold capacity.
-	// On guard failure the caller rolls back both this row and the counter attempt.
+	// On guard failure this returns ErrUsageCounterExceedsLimit; the caller rolls
+	// back both this row and the counter attempt.
 	if _, err := r.counterRepo.UpsertAndReserveAtomic(
 		ctx,
 		db,
 		reservation.LimitID,
 		reservation.ScopeKey,
 		reservation.PeriodKey,
-		decimal.NewFromInt(reservation.Amount),
-		decimal.NewFromInt(maxAmount),
+		reservation.Amount,
+		maxAmount,
 		counterExpiresAt,
 	); err != nil {
 		return uuid.Nil, false, err

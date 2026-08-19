@@ -208,7 +208,7 @@ tracer/
 ├── tests/
 │   ├── integration/               # 45 testcontainers-based API test files
 │   └── end2end/                   # BDD (Godog) with Gherkin features
-├── migrations/                    # 20 migrations + seeds/
+├── migrations/                    # 22 migrations + seeds/
 ├── api/                           # Generated Swagger docs
 └── .golangci.yml                  # Linter config (golangci-lint v2)
 ```
@@ -494,4 +494,4 @@ All CI uses shared workflows from `LerianStudio/github-actions-shared-workflows`
 
 **Last Updated**: June 2026
 **Go Version**: root `go.mod` `go 1.26.4`, Docker builder image `golang:1.26.6-alpine`
-**Migrations**: 21 (000001 through 000021)
+**Migrations**: 22 (000001 through 000022)

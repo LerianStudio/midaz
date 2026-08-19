@@ -329,7 +329,7 @@ or audit the original tenant's reservation.
 
 ### Rollout and rollback
 
-1. Deploy migration `000021` first. Existing binaries remain safe: their inserts receive the `LEGACY`
+1. Deploy migration `000022` first. Existing binaries remain safe: their inserts receive the `LEGACY`
    default, their reaper cannot see NULL-expiry V2 rows, and database triggers prevent their cleanup
    paths from mutating live V2 state.
 2. Deploy the V2 Tracer across the fleet. Mixed Tracer fleets are safe: a V2 reserve routed to an old

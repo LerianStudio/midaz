@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -69,7 +70,7 @@ func TestNewReservation(t *testing.T) {
 		transactionID uuid.UUID
 		scopeKey      string
 		periodKey     string
-		amount        int64
+		amount        decimal.Decimal
 		expiresAt     time.Time
 		wantErr       error
 	}{
@@ -79,7 +80,7 @@ func TestNewReservation(t *testing.T) {
 			transactionID: txID,
 			scopeKey:      "acct:abc-123",
 			periodKey:     "2026-06-05",
-			amount:        50000,
+			amount:        decimal.NewFromInt(50000),
 			expiresAt:     expiresAt,
 			wantErr:       nil,
 		},
@@ -89,7 +90,17 @@ func TestNewReservation(t *testing.T) {
 			transactionID: txID,
 			scopeKey:      "acct:abc-123",
 			periodKey:     "2026-06-05",
-			amount:        0,
+			amount:        decimal.Zero,
+			expiresAt:     expiresAt,
+			wantErr:       nil,
+		},
+		{
+			name:          "fractional amount is preserved exactly",
+			limitID:       limitID,
+			transactionID: txID,
+			scopeKey:      "acct:abc-123",
+			periodKey:     "2026-06-05",
+			amount:        decimal.RequireFromString("10.50"),
 			expiresAt:     expiresAt,
 			wantErr:       nil,
 		},
@@ -99,7 +110,7 @@ func TestNewReservation(t *testing.T) {
 			transactionID: txID,
 			scopeKey:      "acct:abc-123",
 			periodKey:     "2026-06-05",
-			amount:        50000,
+			amount:        decimal.NewFromInt(50000),
 			expiresAt:     expiresAt,
 			wantErr:       constant.ErrReservationLimitIDRequired,
 		},
@@ -109,7 +120,7 @@ func TestNewReservation(t *testing.T) {
 			transactionID: uuid.Nil,
 			scopeKey:      "acct:abc-123",
 			periodKey:     "2026-06-05",
-			amount:        50000,
+			amount:        decimal.NewFromInt(50000),
 			expiresAt:     expiresAt,
 			wantErr:       constant.ErrReservationTransactionIDReq,
 		},
@@ -119,7 +130,7 @@ func TestNewReservation(t *testing.T) {
 			transactionID: txID,
 			scopeKey:      "   ",
 			periodKey:     "2026-06-05",
-			amount:        50000,
+			amount:        decimal.NewFromInt(50000),
 			expiresAt:     expiresAt,
 			wantErr:       constant.ErrReservationScopeKeyRequired,
 		},
@@ -129,7 +140,7 @@ func TestNewReservation(t *testing.T) {
 			transactionID: txID,
 			scopeKey:      "acct:abc-123",
 			periodKey:     "",
-			amount:        50000,
+			amount:        decimal.NewFromInt(50000),
 			expiresAt:     expiresAt,
 			wantErr:       constant.ErrReservationPeriodKeyRequired,
 		},
@@ -139,7 +150,7 @@ func TestNewReservation(t *testing.T) {
 			transactionID: txID,
 			scopeKey:      "acct:abc-123",
 			periodKey:     "2026-06-05",
-			amount:        -1,
+			amount:        decimal.NewFromInt(-1),
 			expiresAt:     expiresAt,
 			wantErr:       constant.ErrReservationAmountInvalid,
 		},
@@ -149,7 +160,7 @@ func TestNewReservation(t *testing.T) {
 			transactionID: txID,
 			scopeKey:      "acct:abc-123",
 			periodKey:     "2026-06-05",
-			amount:        50000,
+			amount:        decimal.NewFromInt(50000),
 			expiresAt:     time.Time{},
 			wantErr:       constant.ErrReservationExpiresAtRequired,
 		},
@@ -172,7 +183,7 @@ func TestNewReservation(t *testing.T) {
 			assert.NotEqual(t, uuid.Nil, r.ID)
 			assert.Equal(t, tt.limitID, r.LimitID)
 			assert.Equal(t, tt.transactionID, r.TransactionID)
-			assert.Equal(t, tt.amount, r.Amount)
+			assert.True(t, tt.amount.Equal(r.Amount), "expected amount %s, got %s", tt.amount, r.Amount)
 			assert.Equal(t, StatusReserved, r.Status)
 			assert.Equal(t, expiresAt.UTC(), r.ReservationExpiresAt)
 			assert.Equal(t, createdAt.UTC(), r.CreatedAt)
@@ -188,7 +199,7 @@ func TestNewReservationTrimsScopeAndPeriod(t *testing.T) {
 		testutil.MustDeterministicUUID(2),
 		"  acct:abc-123  ",
 		"  2026-06-05  ",
-		1000,
+		decimal.NewFromInt(1000),
 		testutil.FixedTime().Add(30*time.Second),
 		testutil.FixedTime(),
 	)
@@ -209,7 +220,7 @@ func TestReservationValidate(t *testing.T) {
 			LimitID:              limitID,
 			ScopeKey:             "acct:abc-123",
 			PeriodKey:            "2026-06-05",
-			Amount:               50000,
+			Amount:               decimal.NewFromInt(50000),
 			Status:               StatusReserved,
 			TransactionID:        txID,
 			ReservationExpiresAt: expiresAt,
@@ -228,7 +239,7 @@ func TestReservationValidate(t *testing.T) {
 		{name: "nil transaction ID", mutate: func(r *Reservation) { r.TransactionID = uuid.Nil }, wantErr: constant.ErrReservationTransactionIDReq},
 		{name: "empty scope", mutate: func(r *Reservation) { r.ScopeKey = " " }, wantErr: constant.ErrReservationScopeKeyRequired},
 		{name: "empty period", mutate: func(r *Reservation) { r.PeriodKey = "" }, wantErr: constant.ErrReservationPeriodKeyRequired},
-		{name: "negative amount", mutate: func(r *Reservation) { r.Amount = -5 }, wantErr: constant.ErrReservationAmountInvalid},
+		{name: "negative amount", mutate: func(r *Reservation) { r.Amount = decimal.NewFromInt(-5) }, wantErr: constant.ErrReservationAmountInvalid},
 		{name: "invalid status", mutate: func(r *Reservation) { r.Status = ReservationStatus("SKIPPED") }, wantErr: constant.ErrReservationInvalidStatus},
 		{name: "zero expiry", mutate: func(r *Reservation) { r.ReservationExpiresAt = time.Time{} }, wantErr: constant.ErrReservationExpiresAtRequired},
 	}

@@ -13,6 +13,7 @@ import (
 
 	"github.com/DATA-DOG/go-sqlmock"
 	"github.com/google/uuid"
+	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -22,9 +23,9 @@ import (
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
 )
 
-const (
-	reserveAmount = int64(400)
-	maxAmountTest = int64(1000)
+var (
+	reserveAmount = decimal.NewFromInt(400)
+	maxAmountTest = decimal.NewFromInt(1000)
 )
 
 // setupUsageReservationRepository wires the reservation repository plus the shared
@@ -102,7 +103,7 @@ func expectReservationProtocolGuard(mock sqlmock.Sqlmock, transactionID uuid.UUI
 func TestUsageReservationRepository_Reserve(t *testing.T) {
 	testutil.SetupTestTracing(t)
 
-	t.Run("Success - reserve seeds counter and inserts row", func(t *testing.T) {
+	t.Run("Success - reserve inserts row then seeds counter", func(t *testing.T) {
 		repo, db, mock, cleanup := setupUsageReservationRepository(t)
 		defer cleanup()
 
@@ -139,6 +140,70 @@ func TestUsageReservationRepository_Reserve(t *testing.T) {
 			WillReturnRows(sqlmock.NewRows([]string{"reserved_usage", "succeeded"}).AddRow("400", true))
 
 		_, created, err := repo.ReserveWithTx(context.Background(), db, res, maxAmountTest, nil)
+		require.NoError(t, err)
+		assert.True(t, created)
+	})
+
+	t.Run("Fractional amount is inserted without truncation", func(t *testing.T) {
+		repo, db, mock, cleanup := setupUsageReservationRepository(t)
+		defer cleanup()
+
+		res, err := model.NewReservation(
+			testutil.MustDeterministicUUID(8001),
+			testutil.MustDeterministicUUID(8002),
+			"acct:8001",
+			"2026-06",
+			decimal.RequireFromString("10.50"),
+			testutil.FixedTime().Add(5*time.Minute),
+			testutil.FixedTime(),
+		)
+		require.NoError(t, err)
+		expectReservationProtocolGuard(mock, res.TransactionID, res.DeliveryMode)
+
+		// The reservation carries the exact decimal; the pre-fix int64 row would have
+		// held 10.
+		require.Equal(t, "10.5", res.Amount.String())
+
+		maxAmount := decimal.NewFromInt(20)
+
+		// WithArgs guards the changed line: the exact fractional amount (not a
+		// truncated integer) MUST reach both the row insert and the reserve CTE. The row
+		// insert runs first; its $5 amount carries the exact fraction on the row.
+		mock.ExpectQuery(regexp.QuoteMeta(reserveInsertSQL)).
+			WithArgs(
+				res.ID,                             // $1 reservation id
+				res.LimitID,                        // $2 limit id
+				res.ScopeKey,                       // $3 scope key
+				res.PeriodKey,                      // $4 period key
+				decimal.RequireFromString("10.50"), // $5 amount: exact fraction on the row
+				string(res.Status),                 // $6 status
+				string(res.DeliveryMode),           // $7 delivery mode
+				res.TransactionID,                  // $8 transaction id
+				sqlmock.AnyArg(),                   // $9 reservation_expires_at
+				sqlmock.AnyArg(),                   // $10 created_at
+			).
+			WillReturnRows(sqlmock.NewRows([]string{"id"}).AddRow(res.ID))
+		// A new row was inserted, so the reserve CTE follows. It binds the amount three
+		// times ($5 INSERT seed, $7 UPDATE increment, $9 WHERE-guard check) and the cap
+		// once ($10); the counter id, timestamps and expiry are non-deterministic. A
+		// hardcoded return row alone would pass even if the repo truncated the amount.
+		mock.ExpectQuery(regexp.QuoteMeta(upsertReserveSQL)).
+			WithArgs(
+				sqlmock.AnyArg(),                   // $1 counter id (uuid.New)
+				res.LimitID.String(),               // $2 limit id
+				res.ScopeKey,                       // $3 scope key
+				res.PeriodKey,                      // $4 period key
+				decimal.RequireFromString("10.50"), // $5 INSERT reserved_usage seed
+				sqlmock.AnyArg(),                   // $6 last_updated_at
+				decimal.RequireFromString("10.50"), // $7 UPDATE reserved_usage increment
+				sqlmock.AnyArg(),                   // $8 last_updated_at
+				decimal.RequireFromString("10.50"), // $9 WHERE-guard amount
+				maxAmount,                          // $10 WHERE-guard cap
+				sqlmock.AnyArg(),                   // $11 reservation_expires_at
+			).
+			WillReturnRows(sqlmock.NewRows([]string{"reserved_usage", "succeeded"}).AddRow("10.5", true))
+
+		_, created, err := repo.ReserveWithTx(context.Background(), db, res, maxAmount, nil)
 		require.NoError(t, err)
 		assert.True(t, created)
 	})
@@ -189,7 +254,7 @@ func TestUsageReservationRepository_Reserve(t *testing.T) {
 
 		mock.ExpectQuery(regexp.QuoteMeta(reserveInsertSQL)).WillReturnError(sql.ErrNoRows)
 		mock.ExpectQuery(regexp.QuoteMeta(findExistingReservationSQL)).
-			WillReturnRows(sqlmock.NewRows([]string{"id", "amount", "status", "delivery_mode"}).AddRow(persistedID, res.Amount+1, model.StatusReserved, model.DeliveryModeLegacy))
+			WillReturnRows(sqlmock.NewRows([]string{"id", "amount", "status", "delivery_mode"}).AddRow(persistedID, res.Amount.Add(decimal.NewFromInt(1)), model.StatusReserved, model.DeliveryModeLegacy))
 
 		_, created, err := repo.ReserveWithTx(context.Background(), db, res, maxAmountTest, nil)
 		require.ErrorIs(t, err, constant.ErrIdempotencyKey)
@@ -383,7 +448,8 @@ func TestUsageReservationRepository_ConfirmByTransaction(t *testing.T) {
 
 		// Two reservations for one transaction (two limits): the select returns both
 		// and each gets a counter move + row flip in the SAME (caller-owned) tx.
-		expectReservedByTransactionSelect(mock, txID,
+		expectReservedByTransactionSelect(
+			mock, txID,
 			[4]any{res1, limit1, "acct:8601", "2026-06"},
 			[4]any{res2, limit2, "global", "2026-06-05"},
 		)
@@ -450,7 +516,8 @@ func TestUsageReservationRepository_ReleaseByTransaction(t *testing.T) {
 		repo, db, mock, cleanup := setupUsageReservationRepository(t)
 		defer cleanup()
 
-		expectReservedByTransactionSelect(mock, txID,
+		expectReservedByTransactionSelect(
+			mock, txID,
 			[4]any{res1, limit1, "acct:8701", "2026-06"},
 			[4]any{res2, limit2, "global", "2026-06-05"},
 		)
