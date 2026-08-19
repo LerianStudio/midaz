@@ -113,11 +113,16 @@ case $command in
       exit 0
     fi
     case ${FAKE_DOCKER_MODE:-} in
+      cleanup-nonryuk)
+        if [[ ! -e ${FAKE_DOCKER_CLEANUP_STATE:?} ]]; then
+          printf 'deadbeefdead\tpostgres-test\tpostgres:17\torg.testcontainers.sessionId=midaz-owner-test\n'
+        fi
+        ;;
       nonryuk-survivor)
-        printf 'deadbeef\tpostgres-test\tpostgres:17\torg.testcontainers.sessionId=midaz-owner-test\n'
+        printf 'deadbeefdead\tpostgres-test\tpostgres:17\torg.testcontainers.sessionId=midaz-owner-test\n'
         ;;
       ryuk-survivor)
-        printf 'feedface\treaper_owner\ttestcontainers/ryuk:0.14.0\torg.testcontainers.sessionId=midaz-owner-test\n'
+        printf 'feedfacefeed\treaper_owner\ttestcontainers/ryuk:0.14.0\torg.testcontainers.sessionId=midaz-owner-test\n'
         ;;
     esac
     ;;
@@ -134,6 +139,21 @@ case $command in
 			exit 0
 		fi
 		printf 'resource-container\t25.00%%\t64MiB / 1GiB\n'
+    ;;
+  rm)
+    case ${FAKE_DOCKER_MODE:-} in
+      cleanup-nonryuk)
+        touch "${FAKE_DOCKER_CLEANUP_STATE:?}"
+        printf 'deadbeefdead\n'
+        ;;
+      nonryuk-survivor)
+        exit 9
+        ;;
+      *)
+        echo "unexpected fake Docker cleanup: $*" >&2
+        exit 2
+        ;;
+    esac
     ;;
   *)
     echo "unexpected fake Docker command: $command" >&2
@@ -180,6 +200,24 @@ FAKE_DOCKER_MODE=stats-batch-failure \
   "$repo_root/scripts/run-ci-lane.sh" resource-batch-failure 5s bash -c 'sleep 1'
 grep -q '"peak_container_rss_mb":72' "$test_dir/resource-batch-failure-resources.json"
 
+FAKE_DOCKER_MODE=cleanup-nonryuk FAKE_DOCKER_CLEANUP_STATE="$test_dir/cleanup-state" \
+  FAKE_DOCKER_ARGS_FILE="$test_dir/cleanup-docker-args.txt" \
+  CI_CAPTURE_DOCKER_EVENTS=owner CI_DOCKER_OWNER=midaz-owner-test \
+  CI_REQUIRE_DOCKER_OWNER_EVENTS=1 CI_DOCKER_CLEANUP_TIMEOUT_SECONDS=1 \
+  CI_REPORT_DIR="$test_dir" PATH="$test_dir/bin:$PATH" \
+  "$repo_root/scripts/run-ci-lane.sh" owner-cleanup 5s bash -c 'sleep 1'
+grep -q $'deadbeefdead\tpostgres-test\tpostgres:17\tremoved' "$test_dir/owner-cleanup-docker-cleanup.tsv"
+grep -q '^rm -f deadbeefdead$' "$test_dir/cleanup-docker-args.txt"
+grep -q '"cleanup_candidates":1,"cleanup_failures":0' "$test_dir/owner-cleanup-docker-summary.json"
+if grep -q '^rm .*feedfacefeed' "$test_dir/cleanup-docker-args.txt"; then
+  echo "owner cleanup attempted to remove Ryuk" >&2
+  exit 1
+fi
+if tail -n +2 "$test_dir/owner-cleanup-docker-survivors.tsv" | grep -q .; then
+  echo "owner cleanup left a survivor" >&2
+  exit 1
+fi
+
 status=0
 FAKE_DOCKER_MODE=zero-events CI_CAPTURE_DOCKER_EVENTS=owner \
   CI_DOCKER_OWNER=midaz-owner-test CI_REQUIRE_DOCKER_OWNER_EVENTS=1 \
@@ -210,7 +248,8 @@ if [[ $status -ne 2 ]]; then
   echo "lane with a non-Ryuk survivor returned $status, want 2" >&2
   exit 1
 fi
-grep -q $'deadbeef\tpostgres-test\tpostgres:17\tnon-ryuk' "$test_dir/leaked-owner-container-docker-survivors.tsv"
+grep -q $'deadbeefdead\tpostgres-test\tpostgres:17\tnon-ryuk' "$test_dir/leaked-owner-container-docker-survivors.tsv"
+grep -q '"cleanup_candidates":1,"cleanup_failures":1' "$test_dir/leaked-owner-container-docker-summary.json"
 grep -q '"non_ryuk_survivors":1' "$test_dir/leaked-owner-container-docker-summary.json"
 
 FAKE_DOCKER_MODE=ryuk-survivor CI_CAPTURE_DOCKER_EVENTS=owner \
@@ -218,7 +257,7 @@ FAKE_DOCKER_MODE=ryuk-survivor CI_CAPTURE_DOCKER_EVENTS=owner \
   CI_DOCKER_CLEANUP_TIMEOUT_SECONDS=1 CI_REPORT_DIR="$test_dir" \
   PATH="$test_dir/bin:$PATH" \
   "$repo_root/scripts/run-ci-lane.sh" ryuk-only-survivor 5s bash -c 'sleep 1'
-grep -q $'feedface\treaper_owner\ttestcontainers/ryuk:0.14.0\tryuk' "$test_dir/ryuk-only-survivor-docker-survivors.tsv"
+grep -q $'feedfacefeed\treaper_owner\ttestcontainers/ryuk:0.14.0\tryuk' "$test_dir/ryuk-only-survivor-docker-survivors.tsv"
 grep -q '"non_ryuk_survivors":0' "$test_dir/ryuk-only-survivor-docker-summary.json"
 
 status=0

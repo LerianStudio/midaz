@@ -41,6 +41,8 @@ log_file="$report_dir/$lane.log"
 timing_file="$report_dir/$lane-timing.json"
 docker_events_file="$report_dir/$lane-docker-events.jsonl"
 docker_summary_file="$report_dir/$lane-docker-summary.json"
+docker_cleanup_file="$report_dir/$lane-docker-cleanup.tsv"
+docker_cleanup_log="$report_dir/$lane-docker-cleanup.log"
 docker_survivors_file="$report_dir/$lane-docker-survivors.tsv"
 started_at=$(date -u +%Y-%m-%dT%H:%M:%SZ)
 started_epoch=$(date +%s)
@@ -48,6 +50,10 @@ started_epoch=$(date +%s)
 docker_events_pid=
 docker_events_failed=0
 docker_owner=
+docker_bin=
+owner_cleanup_done=0
+owner_cleanup_candidates=0
+owner_cleanup_failures=0
 lane_pid=
 lane_pgid=
 lane_active=0
@@ -65,6 +71,94 @@ stop_docker_events() {
     fi
     docker_events_pid=
   fi
+}
+
+cleanup_owner_containers() {
+  if [[ $owner_cleanup_done -eq 1 ]]; then
+    [[ $owner_cleanup_failures -eq 0 ]]
+    return
+  fi
+  owner_cleanup_done=1
+
+  printf 'container_id\tname\timage\toutcome\n' > "$docker_cleanup_file"
+  : > "$docker_cleanup_log"
+  if [[ -z $docker_owner || -z $docker_bin ]]; then
+    return 0
+  fi
+
+  local cleanup_timeout=${CI_DOCKER_CLEANUP_TIMEOUT_SECONDS:-30}
+  if [[ ! $cleanup_timeout =~ ^[1-9][0-9]*$ ]]; then
+    owner_cleanup_failures=1
+    echo "CI_DOCKER_CLEANUP_TIMEOUT_SECONDS must be a positive integer" >> "$docker_cleanup_log"
+    return 1
+  fi
+
+  local inventory_file="$report_dir/$lane-docker-cleanup-inventory.tmp"
+  if ! "$docker_bin" ps -a --no-trunc \
+    --filter "label=org.testcontainers.sessionId=$docker_owner" \
+    --format '{{.ID}}\t{{.Names}}\t{{.Image}}\t{{.Labels}}' > "$inventory_file"; then
+    owner_cleanup_failures=1
+    echo "could not inspect owner containers before cleanup" >> "$docker_cleanup_log"
+    rm -f "$inventory_file"
+    return 1
+  fi
+
+  local container_id name image labels identity index outcome
+  local current_inventory current_ids
+  local -a cleanup_ids=() cleanup_names=() cleanup_images=()
+  while IFS=$'\t' read -r container_id name image labels; do
+    [[ -n $container_id ]] || continue
+    identity=${name,,}' '${image,,}' '${labels,,}
+    if [[ $identity == *testcontainers/ryuk* || $identity =~ (^|[[:space:]])reaper[_-] || \
+      $identity == *org.testcontainers.ryuk=true* ]]; then
+      continue
+    fi
+    if [[ ! $container_id =~ ^[a-f0-9]{12,64}$ ]]; then
+      printf '%s\t%s\t%s\tinvalid-id\n' "$container_id" "$name" "$image" >> "$docker_cleanup_file"
+      owner_cleanup_failures=$((owner_cleanup_failures + 1))
+      continue
+    fi
+    cleanup_ids+=("$container_id")
+    cleanup_names+=("$name")
+    cleanup_images+=("$image")
+  done < "$inventory_file"
+  rm -f "$inventory_file"
+
+  owner_cleanup_candidates=${#cleanup_ids[@]}
+  if [[ $owner_cleanup_candidates -eq 0 ]]; then
+    [[ $owner_cleanup_failures -eq 0 ]]
+    return
+  fi
+
+  "$timeout_bin" --foreground --kill-after=5s "${cleanup_timeout}s" \
+    "$docker_bin" rm -f "${cleanup_ids[@]}" >> "$docker_cleanup_log" 2>&1 || true
+
+  if ! current_inventory=$("$docker_bin" ps -a --no-trunc \
+    --filter "label=org.testcontainers.sessionId=$docker_owner" \
+    --format '{{.ID}}\t{{.Names}}\t{{.Image}}\t{{.Labels}}'); then
+    owner_cleanup_failures=$((owner_cleanup_failures + owner_cleanup_candidates))
+    echo "could not inspect owner containers after cleanup" >> "$docker_cleanup_log"
+    for index in "${!cleanup_ids[@]}"; do
+      printf '%s\t%s\t%s\tunknown\n' \
+        "${cleanup_ids[$index]}" "${cleanup_names[$index]}" "${cleanup_images[$index]}" \
+        >> "$docker_cleanup_file"
+    done
+    return 1
+  fi
+  current_ids=$(awk -F '\t' 'NF { print $1 }' <<< "$current_inventory")
+
+  for index in "${!cleanup_ids[@]}"; do
+    outcome=removed
+    if grep -Fxq "${cleanup_ids[$index]}" <<< "$current_ids"; then
+      outcome=failed
+      owner_cleanup_failures=$((owner_cleanup_failures + 1))
+    fi
+    printf '%s\t%s\t%s\t%s\n' \
+      "${cleanup_ids[$index]}" "${cleanup_names[$index]}" "${cleanup_images[$index]}" "$outcome" \
+      >> "$docker_cleanup_file"
+  done
+
+  [[ $owner_cleanup_failures -eq 0 ]]
 }
 
 # ShellCheck cannot see calls made from the EXIT trap body.
@@ -110,6 +204,9 @@ cleanup_on_exit() {
   if [[ -n ${lane_ready_file:-} ]]; then
     rm -f "$lane_ready_file" "$lane_start_file"
   fi
+  if ! cleanup_owner_containers && [[ $status -eq 0 ]]; then
+    status=2
+  fi
   stop_docker_events
   exit "$status"
 }
@@ -129,7 +226,6 @@ if [[ $require_owner_events == 1 && $docker_event_scope != owner ]]; then
   exit 2
 fi
 
-docker_bin=
 if [[ -n $docker_event_scope ]]; then
   docker_bin=$(command -v docker || true)
   if [[ -z $docker_bin ]]; then
@@ -315,6 +411,13 @@ if [[ -n $resource_observer_pid ]]; then
   fi
 fi
 
+if [[ $docker_event_scope == owner ]] && ! cleanup_owner_containers; then
+  echo "required CI lane '$lane' could not remove $owner_cleanup_failures of $owner_cleanup_candidates owner container(s)" >&2
+  if [[ $exit_code -eq 0 ]]; then
+    exit_code=2
+  fi
+fi
+
 ryuk_survivors=0
 non_ryuk_survivors=0
 if [[ $docker_event_scope == owner ]]; then
@@ -416,10 +519,11 @@ if [[ -n $docker_event_scope && $docker_events_failed -eq 0 ]]; then
       exit_code=2
     fi
   fi
-  printf '{"lane":"%s","scope":"%s","owner":"%s","observer_status":"%s","container_start_events":%d,"container_restart_events":%d,"peak_live_containers":%d,"owner_mismatches":%d,"ryuk_survivors":%d,"non_ryuk_survivors":%d,"max_peak_containers":"%s","budget_status":"%s"}\n' \
+  printf '{"lane":"%s","scope":"%s","owner":"%s","observer_status":"%s","container_start_events":%d,"container_restart_events":%d,"peak_live_containers":%d,"owner_mismatches":%d,"cleanup_candidates":%d,"cleanup_failures":%d,"ryuk_survivors":%d,"non_ryuk_survivors":%d,"max_peak_containers":"%s","budget_status":"%s"}\n' \
     "$lane" "$docker_event_scope" "$docker_owner" "$observer_status" \
     "$container_starts" "$container_restarts" "$peak_live_containers" \
-    "$owner_mismatches" "$ryuk_survivors" "$non_ryuk_survivors" \
+    "$owner_mismatches" "$owner_cleanup_candidates" "$owner_cleanup_failures" \
+    "$ryuk_survivors" "$non_ryuk_survivors" \
     "${CI_MAX_PEAK_CONTAINERS:-}" "$container_budget_status" > "$docker_summary_file"
 fi
 
