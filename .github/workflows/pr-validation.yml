@@ -250,6 +250,7 @@ jobs:
           sed -i 's|^STREAMING_ENABLED=.*|STREAMING_ENABLED=true|' components/ledger/.env
           sed -i 's|^# STREAMING_BROKERS=.*|STREAMING_BROKERS=midaz-redpanda:9092|' components/ledger/.env
           sed -i 's|^# STREAMING_CLOUDEVENTS_SOURCE=.*|STREAMING_CLOUDEVENTS_SOURCE=lerian.midaz.ledger|' components/ledger/.env
+          sed -i 's|^REDPANDA_EXTERNAL_PORT=.*|REDPANDA_EXTERNAL_PORT=29092|' components/infra/.env
           scripts/configure-required-tracer-e2e-auth.sh
 
       - name: Start stack
@@ -263,7 +264,7 @@ jobs:
           '
 
       - name: Run mandatory Ledger E2E lane
-        run: scripts/configure-required-tracer-e2e-auth.sh --exec scripts/run-required-e2e.sh
+        run: STREAMING_BROKERS=localhost:29092 scripts/configure-required-tracer-e2e-auth.sh --exec scripts/run-required-e2e.sh
 
       - name: Restart Ledger in durable Tracer outcome mode
         run: |
