@@ -161,6 +161,95 @@ export INTEGRATION_JOB_GOMAXPROCS="$job_gomaxprocs"
 export MIDAZ_INTEGRATION_SHARD_TOOL="$shard_tool"
 export RYUK_RECONNECTION_TIMEOUT="$ryuk_reconnection_timeout"
 
+serial_cleanup_failures=0
+docker_bin=
+cleanup_timeout_bin=
+serial_cleanup_timeout=${INTEGRATION_SERIAL_CLEANUP_TIMEOUT_SECONDS:-30}
+if [[ $shard == lifecycle-migration ]]; then
+  docker_bin=$(command -v docker || true)
+  cleanup_timeout_bin=$(command -v timeout || command -v gtimeout || true)
+  if [[ -z $docker_bin || -z $cleanup_timeout_bin ]]; then
+    echo "lifecycle-migration requires Docker and GNU timeout for per-job cleanup" >&2
+    exit 2
+  fi
+  if [[ ! $serial_cleanup_timeout =~ ^[1-9][0-9]*$ ]]; then
+    echo "INTEGRATION_SERIAL_CLEANUP_TIMEOUT_SECONDS must be a positive integer" >&2
+    exit 2
+  fi
+fi
+export shard docker_bin cleanup_timeout_bin serial_cleanup_timeout
+
+cleanup_lifecycle_job_containers() {
+  local job_dir=$1
+  local cleanup_file="$job_dir/container-cleanup.tsv"
+  local cleanup_log="$job_dir/container-cleanup.log"
+  local inventory_file="$job_dir/container-cleanup-inventory.tmp"
+  local current_inventory current_ids container_id name image labels identity index outcome
+  local cleanup_failures=0
+  local -a cleanup_ids=() cleanup_names=() cleanup_images=()
+
+  printf 'container_id\tname\timage\toutcome\n' > "$cleanup_file"
+  : > "$cleanup_log"
+  if ! "$docker_bin" ps -a --no-trunc \
+    --filter "label=org.testcontainers.sessionId=$TESTCONTAINERS_SESSION_ID" \
+    --format '{{.ID}}\t{{.Names}}\t{{.Image}}\t{{.Labels}}' > "$inventory_file"; then
+    echo "could not inspect lifecycle owner containers before job cleanup" >> "$cleanup_log"
+    rm -f "$inventory_file"
+    return 1
+  fi
+
+  while IFS=$'\t' read -r container_id name image labels; do
+    [[ -n $container_id ]] || continue
+    identity=${name,,}' '${image,,}' '${labels,,}
+    if [[ $identity == *testcontainers/ryuk* || $identity =~ (^|[[:space:]])reaper[_-] || \
+      $identity == *org.testcontainers.ryuk=true* ]]; then
+      continue
+    fi
+    if [[ ! $container_id =~ ^[a-f0-9]{12,64}$ ]]; then
+      printf '%s\t%s\t%s\tinvalid-id\n' "$container_id" "$name" "$image" >> "$cleanup_file"
+      cleanup_failures=$((cleanup_failures + 1))
+      continue
+    fi
+    cleanup_ids+=("$container_id")
+    cleanup_names+=("$name")
+    cleanup_images+=("$image")
+  done < "$inventory_file"
+  rm -f "$inventory_file"
+
+  if [[ ${#cleanup_ids[@]} -gt 0 ]]; then
+    "$cleanup_timeout_bin" --foreground --kill-after=5s "${serial_cleanup_timeout}s" \
+      "$docker_bin" rm -f "${cleanup_ids[@]}" >> "$cleanup_log" 2>&1 || true
+  fi
+
+  if ! current_inventory=$("$docker_bin" ps -a --no-trunc \
+    --filter "label=org.testcontainers.sessionId=$TESTCONTAINERS_SESSION_ID" \
+    --format '{{.ID}}\t{{.Names}}\t{{.Image}}\t{{.Labels}}'); then
+    echo "could not inspect lifecycle owner containers after job cleanup" >> "$cleanup_log"
+    for index in "${!cleanup_ids[@]}"; do
+      printf '%s\t%s\t%s\tunknown\n' \
+        "${cleanup_ids[$index]}" "${cleanup_names[$index]}" "${cleanup_images[$index]}" \
+        >> "$cleanup_file"
+      cleanup_failures=$((cleanup_failures + 1))
+    done
+    return 1
+  fi
+  current_ids=$(awk -F '\t' 'NF { print $1 }' <<< "$current_inventory")
+
+  for index in "${!cleanup_ids[@]}"; do
+    outcome=removed
+    if grep -Fxq "${cleanup_ids[$index]}" <<< "$current_ids"; then
+      outcome=failed
+      cleanup_failures=$((cleanup_failures + 1))
+    fi
+    printf '%s\t%s\t%s\t%s\n' \
+      "${cleanup_ids[$index]}" "${cleanup_names[$index]}" "${cleanup_images[$index]}" "$outcome" \
+      >> "$cleanup_file"
+  done
+
+  [[ $cleanup_failures -eq 0 ]]
+}
+export -f cleanup_lifecycle_job_containers
+
 run_shard_job() {
   local index=$1
   local mode=$2
@@ -230,8 +319,13 @@ run_shard_job() {
     >> "$log" 2>&1; then
     verifier_status=1
   fi
-  printf '%s\t%s\t%s\t%d\t%d\n' \
-    "$index" "$mode" "$package" "$command_status" "$verifier_status" > "$status_file"
+  local cleanup_status=0
+  if [[ $shard == lifecycle-migration ]] && ! cleanup_lifecycle_job_containers "$job_dir"; then
+    cleanup_status=1
+  fi
+  printf '%s\t%s\t%s\t%d\t%d\t%d\n' \
+    "$index" "$mode" "$package" "$command_status" "$verifier_status" "$cleanup_status" \
+    > "$status_file"
 
   # A job failure is recorded and aggregated after every peer has finished.
   # Returning success here prevents xargs from suppressing later attribution.
@@ -265,11 +359,14 @@ while IFS=$'\t' read -r index mode package job_dir; do
     failed_jobs=$((failed_jobs + 1))
     continue
   fi
-  IFS=$'\t' read -r _ _ _ command_status verifier_status < "$status_file"
-  if [[ $command_status -ne 0 || $verifier_status -ne 0 ]]; then
-    printf '%s\t%s\t%s\tcommand=%s\tverification=%s\n' \
-      "$index" "$mode" "$package" "$command_status" "$verifier_status" >> "$failures"
+  IFS=$'\t' read -r _ _ _ command_status verifier_status cleanup_status < "$status_file"
+  if [[ $command_status -ne 0 || $verifier_status -ne 0 || $cleanup_status -ne 0 ]]; then
+    printf '%s\t%s\t%s\tcommand=%s\tverification=%s\tcleanup=%s\n' \
+      "$index" "$mode" "$package" "$command_status" "$verifier_status" "$cleanup_status" >> "$failures"
     failed_jobs=$((failed_jobs + 1))
+    if [[ $cleanup_status -ne 0 ]]; then
+      serial_cleanup_failures=$((serial_cleanup_failures + 1))
+    fi
   fi
 done < "$jobs_manifest"
 
@@ -281,9 +378,9 @@ race_enabled_json=false
 if [[ $race_enabled == 1 ]]; then
   race_enabled_json=true
 fi
-printf '{"shard":"%s","selected_test_count":%d,"parallel_test_count":%d,"serial_test_count":%d,"package_runs":%d,"package_parallelism":%d,"test_parallelism":%d,"job_gomaxprocs":%d,"shuffle_seed":"%s","flake_budget":%d,"race_enabled":%s,"failed_jobs":%d,"duration_seconds":%d}\n' \
+printf '{"shard":"%s","selected_test_count":%d,"parallel_test_count":%d,"serial_test_count":%d,"package_runs":%d,"package_parallelism":%d,"test_parallelism":%d,"job_gomaxprocs":%d,"shuffle_seed":"%s","flake_budget":%d,"race_enabled":%s,"serial_cleanup_failures":%d,"failed_jobs":%d,"duration_seconds":%d}\n' \
   "$shard" "$selected_test_count" "$parallel_test_count" "$serial_test_count" "$job_index" \
-  "$package_parallelism" "$test_parallelism" "$job_gomaxprocs" "$shuffle_seed" "$flake_budget" "$race_enabled_json" "$failed_jobs" "$runner_duration_seconds" \
+  "$package_parallelism" "$test_parallelism" "$job_gomaxprocs" "$shuffle_seed" "$flake_budget" "$race_enabled_json" "$serial_cleanup_failures" "$failed_jobs" "$runner_duration_seconds" \
   > "$report_dir/summary.json"
 
 if [[ $failed_jobs -ne 0 ]]; then

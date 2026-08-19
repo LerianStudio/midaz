@@ -45,6 +45,37 @@ fi
 EOF
 chmod +x "$test_dir/bin/gotestsum"
 
+cat > "$test_dir/bin/docker" <<'EOF'
+#!/usr/bin/env bash
+set -euo pipefail
+
+case ${1:-} in
+  ps)
+    state_file="$FAKE_DOCKER_STATE_DIR/${MIDAZ_SHARD_JOB_INDEX}.removed"
+    if [[ ! -e $state_file ]]; then
+      printf '%064d\tjob-%s-postgres\tpostgres:17-alpine\torg.testcontainers.sessionId=%s\n' \
+        "$MIDAZ_SHARD_JOB_INDEX" "$MIDAZ_SHARD_JOB_INDEX" "$TESTCONTAINERS_SESSION_ID"
+    fi
+    printf 'feedfacefeed\treaper_%s\ttestcontainers/ryuk:0.14.0\torg.testcontainers.ryuk=true,org.testcontainers.sessionId=%s\n' \
+      "$TESTCONTAINERS_SESSION_ID" "$TESTCONTAINERS_SESSION_ID"
+    ;;
+  rm)
+    shift
+    [[ ${1:-} == -f ]]
+    shift
+    printf '%s\n' "$*" >> "$FAKE_DOCKER_CALLS"
+    if [[ ${FAKE_DOCKER_KEEP:-0} != 1 ]]; then
+      touch "$FAKE_DOCKER_STATE_DIR/${MIDAZ_SHARD_JOB_INDEX}.removed"
+    fi
+    ;;
+  *)
+    echo "unexpected docker command: $*" >&2
+    exit 2
+    ;;
+esac
+EOF
+chmod +x "$test_dir/bin/docker"
+
 cat > "$test_dir/tracer-plan.tsv" <<'EOF'
 tracer	parallel	example.test/tracer-worker	TestWorkerOne
 tracer	parallel	example.test/tracer-cache	TestCacheOne
@@ -72,6 +103,55 @@ grep -q '"race_enabled":true' "$test_dir/reports/tracer/summary.json"
 test -s "$test_dir/reports/tracer/selection.sha256"
 test -s "$test_dir/reports/tracer/jobs/003/events.json"
 test -s "$test_dir/reports/tracer/jobs/003/junit.xml"
+
+cat > "$test_dir/lifecycle-plan.tsv" <<'EOF'
+lifecycle-migration	serial	example.test/lifecycle-one	TestLifecycleOne
+lifecycle-migration	serial	example.test/lifecycle-two	TestLifecycleTwo
+EOF
+mkdir -p "$test_dir/docker-state"
+: > "$test_dir/docker-calls"
+PATH="$test_dir/bin:$PATH" \
+  FAKE_CALLS_DIR="$test_dir/calls" \
+  FAKE_DOCKER_CALLS="$test_dir/docker-calls" \
+  FAKE_DOCKER_STATE_DIR="$test_dir/docker-state" \
+  TESTCONTAINERS_SESSION_ID=owner-lifecycle \
+  INTEGRATION_SHARD_PLAN_FILE="$test_dir/lifecycle-plan.tsv" \
+  INTEGRATION_PACKAGE_PARALLELISM=1 \
+  INTEGRATION_TEST_PARALLELISM=1 \
+  TEST_REPORTS_DIR="$test_dir/lifecycle-reports" \
+  "$repo_root/scripts/run-integration-shard.sh" lifecycle-migration
+
+grep -Fxq '0000000000000000000000000000000000000000000000000000000000000001' "$test_dir/docker-calls"
+grep -Fxq '0000000000000000000000000000000000000000000000000000000000000002' "$test_dir/docker-calls"
+if grep -Fq 'feedfacefeed' "$test_dir/docker-calls"; then
+  echo "lifecycle job cleanup attempted to remove Ryuk" >&2
+  exit 1
+fi
+grep -q $'container_id\tname\timage\toutcome' "$test_dir/lifecycle-reports/lifecycle-migration/jobs/001/container-cleanup.tsv"
+grep -q $'\tremoved$' "$test_dir/lifecycle-reports/lifecycle-migration/jobs/001/container-cleanup.tsv"
+grep -q '"serial_cleanup_failures":0' "$test_dir/lifecycle-reports/lifecycle-migration/summary.json"
+
+mkdir -p "$test_dir/docker-failure-state"
+: > "$test_dir/docker-failure-calls"
+status=0
+PATH="$test_dir/bin:$PATH" \
+  FAKE_CALLS_DIR="$test_dir/calls" \
+  FAKE_DOCKER_CALLS="$test_dir/docker-failure-calls" \
+  FAKE_DOCKER_KEEP=1 \
+  FAKE_DOCKER_STATE_DIR="$test_dir/docker-failure-state" \
+  TESTCONTAINERS_SESSION_ID=owner-lifecycle-failure \
+  INTEGRATION_SHARD_PLAN_FILE="$test_dir/lifecycle-plan.tsv" \
+  INTEGRATION_PACKAGE_PARALLELISM=1 \
+  INTEGRATION_TEST_PARALLELISM=1 \
+  TEST_REPORTS_DIR="$test_dir/lifecycle-failure-reports" \
+  "$repo_root/scripts/run-integration-shard.sh" lifecycle-migration || status=$?
+if [[ $status -eq 0 ]]; then
+  echo "failed lifecycle job cleanup produced a passing shard" >&2
+  exit 1
+fi
+grep -q '"serial_cleanup_failures":2' "$test_dir/lifecycle-failure-reports/lifecycle-migration/summary.json"
+grep -q $'cleanup=1$' "$test_dir/lifecycle-failure-reports/lifecycle-migration/failures.tsv"
+grep -q $'\tfailed$' "$test_dir/lifecycle-failure-reports/lifecycle-migration/jobs/001/container-cleanup.tsv"
 
 status=0
 PATH="$test_dir/bin:$PATH" \
