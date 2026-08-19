@@ -28,11 +28,9 @@ import (
 func createRepository(t *testing.T, container *pgtestutil.ContainerResult) *OperationRoutePostgreSQLRepository {
 	t.Helper()
 
-	migrationsPath := pgtestutil.FindMigrationsPath(t, "transaction")
-
 	connStr := pgtestutil.BuildConnectionString(container.Host, container.Port, container.Config)
 
-	conn := pgtestutil.CreatePostgresClient(t, connStr, connStr, container.Config.DBName, migrationsPath)
+	conn := pgtestutil.ConnectPostgresClient(t.Context(), t, connStr, connStr)
 
 	return NewOperationRoutePostgreSQLRepository(conn)
 }
@@ -42,7 +40,7 @@ func createRepository(t *testing.T, container *pgtestutil.ContainerResult) *Oper
 // ============================================================================
 
 func TestIntegration_OperationRouteRepository_Create(t *testing.T) {
-	container := pgtestutil.SetupContainer(t)
+	container := pgtestutil.SetupMigratedContainer(t, "transaction")
 	repo := createRepository(t, container)
 
 	orgID := uuid.Must(libCommons.GenerateUUIDv7())
@@ -86,7 +84,7 @@ func TestIntegration_OperationRouteRepository_Create(t *testing.T) {
 }
 
 func TestIntegration_OperationRouteRepository_Create_WithAccountTypeRule(t *testing.T) {
-	container := pgtestutil.SetupContainer(t)
+	container := pgtestutil.SetupMigratedContainer(t, "transaction")
 	repo := createRepository(t, container)
 
 	orgID := uuid.Must(libCommons.GenerateUUIDv7())
@@ -127,7 +125,7 @@ func TestIntegration_OperationRouteRepository_Create_WithAccountTypeRule(t *test
 }
 
 func TestIntegration_OperationRouteRepository_Create_WithoutOptionalFields(t *testing.T) {
-	container := pgtestutil.SetupContainer(t)
+	container := pgtestutil.SetupMigratedContainer(t, "transaction")
 	repo := createRepository(t, container)
 
 	orgID := uuid.Must(libCommons.GenerateUUIDv7())
@@ -162,7 +160,7 @@ func TestIntegration_OperationRouteRepository_Create_WithoutOptionalFields(t *te
 // ============================================================================
 
 func TestIntegration_OperationRouteRepository_FindByID(t *testing.T) {
-	container := pgtestutil.SetupContainer(t)
+	container := pgtestutil.SetupMigratedContainer(t, "transaction")
 	repo := createRepository(t, container)
 
 	orgID := uuid.Must(libCommons.GenerateUUIDv7())
@@ -203,7 +201,7 @@ func TestIntegration_OperationRouteRepository_FindByID(t *testing.T) {
 }
 
 func TestIntegration_OperationRouteRepository_FindByID_NotFound(t *testing.T) {
-	container := pgtestutil.SetupContainer(t)
+	container := pgtestutil.SetupMigratedContainer(t, "transaction")
 	repo := createRepository(t, container)
 
 	orgID := uuid.Must(libCommons.GenerateUUIDv7())
@@ -225,7 +223,7 @@ func TestIntegration_OperationRouteRepository_FindByID_NotFound(t *testing.T) {
 }
 
 func TestIntegration_OperationRouteRepository_FindByID_WrongOrganization(t *testing.T) {
-	container := pgtestutil.SetupContainer(t)
+	container := pgtestutil.SetupMigratedContainer(t, "transaction")
 	repo := createRepository(t, container)
 
 	orgID := uuid.Must(libCommons.GenerateUUIDv7())
@@ -246,7 +244,7 @@ func TestIntegration_OperationRouteRepository_FindByID_WrongOrganization(t *test
 }
 
 func TestIntegration_OperationRouteRepository_FindByID_SoftDeleted(t *testing.T) {
-	container := pgtestutil.SetupContainer(t)
+	container := pgtestutil.SetupMigratedContainer(t, "transaction")
 	repo := createRepository(t, container)
 
 	orgID := uuid.Must(libCommons.GenerateUUIDv7())
@@ -274,7 +272,7 @@ func TestIntegration_OperationRouteRepository_FindByID_SoftDeleted(t *testing.T)
 // ============================================================================
 
 func TestIntegration_OperationRouteRepository_FindByIDs(t *testing.T) {
-	container := pgtestutil.SetupContainer(t)
+	container := pgtestutil.SetupMigratedContainer(t, "transaction")
 	repo := createRepository(t, container)
 
 	orgID := uuid.Must(libCommons.GenerateUUIDv7())
@@ -305,7 +303,7 @@ func TestIntegration_OperationRouteRepository_FindByIDs(t *testing.T) {
 }
 
 func TestIntegration_OperationRouteRepository_FindByIDs_EmptyInput(t *testing.T) {
-	container := pgtestutil.SetupContainer(t)
+	container := pgtestutil.SetupMigratedContainer(t, "transaction")
 	repo := createRepository(t, container)
 
 	orgID := uuid.Must(libCommons.GenerateUUIDv7())
@@ -322,7 +320,7 @@ func TestIntegration_OperationRouteRepository_FindByIDs_EmptyInput(t *testing.T)
 }
 
 func TestIntegration_OperationRouteRepository_FindByIDs_SomeMissing(t *testing.T) {
-	container := pgtestutil.SetupContainer(t)
+	container := pgtestutil.SetupMigratedContainer(t, "transaction")
 	repo := createRepository(t, container)
 
 	orgID := uuid.Must(libCommons.GenerateUUIDv7())
@@ -346,7 +344,7 @@ func TestIntegration_OperationRouteRepository_FindByIDs_SomeMissing(t *testing.T
 }
 
 func TestIntegration_OperationRouteRepository_FindByIDs_ExcludesSoftDeleted(t *testing.T) {
-	container := pgtestutil.SetupContainer(t)
+	container := pgtestutil.SetupMigratedContainer(t, "transaction")
 	repo := createRepository(t, container)
 
 	orgID := uuid.Must(libCommons.GenerateUUIDv7())
@@ -377,7 +375,7 @@ func TestIntegration_OperationRouteRepository_FindByIDs_ExcludesSoftDeleted(t *t
 // ============================================================================
 
 func TestIntegration_OperationRouteRepository_Update(t *testing.T) {
-	container := pgtestutil.SetupContainer(t)
+	container := pgtestutil.SetupMigratedContainer(t, "transaction")
 	repo := createRepository(t, container)
 
 	orgID := uuid.Must(libCommons.GenerateUUIDv7())
@@ -414,7 +412,7 @@ func TestIntegration_OperationRouteRepository_Update(t *testing.T) {
 }
 
 func TestIntegration_OperationRouteRepository_Update_PartialFields(t *testing.T) {
-	container := pgtestutil.SetupContainer(t)
+	container := pgtestutil.SetupMigratedContainer(t, "transaction")
 	repo := createRepository(t, container)
 
 	orgID := uuid.Must(libCommons.GenerateUUIDv7())
@@ -449,7 +447,7 @@ func TestIntegration_OperationRouteRepository_Update_PartialFields(t *testing.T)
 }
 
 func TestIntegration_OperationRouteRepository_Update_NotFound(t *testing.T) {
-	container := pgtestutil.SetupContainer(t)
+	container := pgtestutil.SetupMigratedContainer(t, "transaction")
 	repo := createRepository(t, container)
 
 	orgID := uuid.Must(libCommons.GenerateUUIDv7())
@@ -472,7 +470,7 @@ func TestIntegration_OperationRouteRepository_Update_NotFound(t *testing.T) {
 }
 
 func TestIntegration_OperationRouteRepository_Update_SoftDeleted(t *testing.T) {
-	container := pgtestutil.SetupContainer(t)
+	container := pgtestutil.SetupMigratedContainer(t, "transaction")
 	repo := createRepository(t, container)
 
 	orgID := uuid.Must(libCommons.GenerateUUIDv7())
@@ -504,7 +502,7 @@ func TestIntegration_OperationRouteRepository_Update_SoftDeleted(t *testing.T) {
 // ============================================================================
 
 func TestIntegration_OperationRouteRepository_Delete(t *testing.T) {
-	container := pgtestutil.SetupContainer(t)
+	container := pgtestutil.SetupMigratedContainer(t, "transaction")
 	repo := createRepository(t, container)
 
 	orgID := uuid.Must(libCommons.GenerateUUIDv7())
@@ -528,7 +526,7 @@ func TestIntegration_OperationRouteRepository_Delete(t *testing.T) {
 }
 
 func TestIntegration_OperationRouteRepository_Delete_AlreadyDeleted(t *testing.T) {
-	container := pgtestutil.SetupContainer(t)
+	container := pgtestutil.SetupMigratedContainer(t, "transaction")
 	repo := createRepository(t, container)
 
 	orgID := uuid.Must(libCommons.GenerateUUIDv7())
@@ -552,7 +550,7 @@ func TestIntegration_OperationRouteRepository_Delete_AlreadyDeleted(t *testing.T
 }
 
 func TestIntegration_OperationRouteRepository_Delete_NotFound(t *testing.T) {
-	container := pgtestutil.SetupContainer(t)
+	container := pgtestutil.SetupMigratedContainer(t, "transaction")
 	repo := createRepository(t, container)
 
 	orgID := uuid.Must(libCommons.GenerateUUIDv7())
@@ -574,7 +572,7 @@ func TestIntegration_OperationRouteRepository_Delete_NotFound(t *testing.T) {
 // ============================================================================
 
 func TestIntegration_OperationRouteRepository_FindAll(t *testing.T) {
-	container := pgtestutil.SetupContainer(t)
+	container := pgtestutil.SetupMigratedContainer(t, "transaction")
 	repo := createRepository(t, container)
 
 	orgID := uuid.Must(libCommons.GenerateUUIDv7())
@@ -609,7 +607,7 @@ func TestIntegration_OperationRouteRepository_FindAll(t *testing.T) {
 }
 
 func TestIntegration_OperationRouteRepository_FindAll_Empty(t *testing.T) {
-	container := pgtestutil.SetupContainer(t)
+	container := pgtestutil.SetupMigratedContainer(t, "transaction")
 	repo := createRepository(t, container)
 
 	orgID := uuid.Must(libCommons.GenerateUUIDv7())
@@ -635,7 +633,7 @@ func TestIntegration_OperationRouteRepository_FindAll_Empty(t *testing.T) {
 }
 
 func TestIntegration_OperationRouteRepository_FindAll_Pagination(t *testing.T) {
-	container := pgtestutil.SetupContainer(t)
+	container := pgtestutil.SetupMigratedContainer(t, "transaction")
 	repo := createRepository(t, container)
 
 	orgID := uuid.Must(libCommons.GenerateUUIDv7())
@@ -669,7 +667,7 @@ func TestIntegration_OperationRouteRepository_FindAll_Pagination(t *testing.T) {
 }
 
 func TestIntegration_OperationRouteRepository_FindAll_ExcludesSoftDeleted(t *testing.T) {
-	container := pgtestutil.SetupContainer(t)
+	container := pgtestutil.SetupMigratedContainer(t, "transaction")
 	repo := createRepository(t, container)
 
 	orgID := uuid.Must(libCommons.GenerateUUIDv7())
@@ -710,7 +708,7 @@ func TestIntegration_OperationRouteRepository_FindAll_ExcludesSoftDeleted(t *tes
 // ============================================================================
 
 func TestIntegration_OperationRouteRepository_HasTransactionRouteLinks_NoLinks(t *testing.T) {
-	container := pgtestutil.SetupContainer(t)
+	container := pgtestutil.SetupMigratedContainer(t, "transaction")
 	repo := createRepository(t, container)
 
 	orgID := uuid.Must(libCommons.GenerateUUIDv7())
@@ -730,7 +728,7 @@ func TestIntegration_OperationRouteRepository_HasTransactionRouteLinks_NoLinks(t
 }
 
 func TestIntegration_OperationRouteRepository_HasTransactionRouteLinks_WithLinks(t *testing.T) {
-	container := pgtestutil.SetupContainer(t)
+	container := pgtestutil.SetupMigratedContainer(t, "transaction")
 	repo := createRepository(t, container)
 
 	orgID := uuid.Must(libCommons.GenerateUUIDv7())
@@ -756,7 +754,7 @@ func TestIntegration_OperationRouteRepository_HasTransactionRouteLinks_WithLinks
 }
 
 func TestIntegration_OperationRouteRepository_HasTransactionRouteLinks_WrongScope(t *testing.T) {
-	container := pgtestutil.SetupContainer(t)
+	container := pgtestutil.SetupMigratedContainer(t, "transaction")
 	repo := createRepository(t, container)
 
 	orgID := uuid.Must(libCommons.GenerateUUIDv7())
@@ -780,7 +778,7 @@ func TestIntegration_OperationRouteRepository_HasTransactionRouteLinks_WrongScop
 }
 
 func TestIntegration_OperationRouteRepository_HasTransactionRouteLinks_SoftDeletedLink(t *testing.T) {
-	container := pgtestutil.SetupContainer(t)
+	container := pgtestutil.SetupMigratedContainer(t, "transaction")
 	repo := createRepository(t, container)
 
 	orgID := uuid.Must(libCommons.GenerateUUIDv7())
@@ -811,7 +809,7 @@ func TestIntegration_OperationRouteRepository_HasTransactionRouteLinks_SoftDelet
 // ============================================================================
 
 func TestIntegration_OperationRouteRepository_FindTransactionRouteIDs_NoLinks(t *testing.T) {
-	container := pgtestutil.SetupContainer(t)
+	container := pgtestutil.SetupMigratedContainer(t, "transaction")
 	repo := createRepository(t, container)
 
 	orgID := uuid.Must(libCommons.GenerateUUIDv7())
@@ -831,7 +829,7 @@ func TestIntegration_OperationRouteRepository_FindTransactionRouteIDs_NoLinks(t 
 }
 
 func TestIntegration_OperationRouteRepository_FindTransactionRouteIDs_WithLinks(t *testing.T) {
-	container := pgtestutil.SetupContainer(t)
+	container := pgtestutil.SetupMigratedContainer(t, "transaction")
 	repo := createRepository(t, container)
 
 	orgID := uuid.Must(libCommons.GenerateUUIDv7())
@@ -874,7 +872,7 @@ func TestIntegration_OperationRouteRepository_FindTransactionRouteIDs_WithLinks(
 }
 
 func TestIntegration_OperationRouteRepository_FindTransactionRouteIDs_ExcludesSoftDeletedLinks(t *testing.T) {
-	container := pgtestutil.SetupContainer(t)
+	container := pgtestutil.SetupMigratedContainer(t, "transaction")
 	repo := createRepository(t, container)
 
 	orgID := uuid.Must(libCommons.GenerateUUIDv7())

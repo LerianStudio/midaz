@@ -109,15 +109,14 @@ func setupCompositionTestInfra(t *testing.T, instrumentCreator composition.Instr
 
 	infra := &compositionTestInfra{}
 
-	pgContainer := postgrestestutil.SetupContainer(t)
-	mongoContainer := mongotestutil.SetupContainer(t)
+	pgContainer := postgrestestutil.SetupMigratedContainer(t, "onboarding")
+	mongoContainer := mongotestutil.SetupReusableContainer(t)
 
 	// Onboarding-PG connection + repos for the account leg.
-	migrationsPath := postgrestestutil.FindMigrationsPath(t, "onboarding")
 	connStr := postgrestestutil.BuildConnectionString(pgContainer.Host, pgContainer.Port, pgContainer.Config)
-	infra.pgConn = postgrestestutil.CreatePostgresClient(t, connStr, connStr, pgContainer.Config.DBName, migrationsPath)
+	infra.pgConn = postgrestestutil.ConnectPostgresClient(t.Context(), t, connStr, connStr)
 
-	infra.mongoConn = mongotestutil.CreateConnection(t, mongoContainer.URI, "composition_test_db")
+	infra.mongoConn = mongotestutil.CreateConnection(t, mongoContainer.URI, mongoContainer.DBName)
 
 	orgRepo := organization.NewOrganizationPostgreSQLRepository(infra.pgConn)
 	ledgerRepo := ledger.NewLedgerPostgreSQLRepository(infra.pgConn)

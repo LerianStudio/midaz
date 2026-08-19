@@ -72,11 +72,31 @@ type networkChaosTestInfra struct {
 func setupRedisIntegrationInfra(t *testing.T) *integrationTestInfra {
 	t.Helper()
 
-	// Setup Redis container
-	redisContainer := redistestutil.SetupContainer(t)
+	return setupRedisIntegrationInfraWithContainer(t, redistestutil.SetupReusableContainer(t))
+}
+
+func setupFinancialRedisIntegrationInfra(t *testing.T) *integrationTestInfra {
+	t.Helper()
+
+	return setupRedisIntegrationInfraWithContainer(t, redistestutil.SetupReusableContainerWithConfig(
+		t, redistestutil.FinancialContainerConfig(),
+	))
+}
+
+func setupExclusiveRedisIntegrationInfra(t *testing.T) *integrationTestInfra {
+	t.Helper()
+
+	return setupRedisIntegrationInfraWithContainer(t, redistestutil.SetupContainer(t))
+}
+
+func setupRedisIntegrationInfraWithContainer(
+	t *testing.T,
+	redisContainer *redistestutil.ContainerResult,
+) *integrationTestInfra {
+	t.Helper()
 
 	// Create lib-commons Redis connection
-	conn := redistestutil.CreateConnection(t, redisContainer.Addr)
+	conn := redistestutil.CreateConnectionWithDB(t, redisContainer.Addr, redisContainer.DB)
 
 	// Create repository
 	repo := &RedisConsumerRepository{
@@ -344,6 +364,7 @@ func TestIntegration_Redis_BackupQueueOperations(t *testing.T) {
 	// 1. Add multiple messages to queue
 	t.Log("Step 1: Adding messages to backup queue")
 	messageKeys := make([]string, numMessages)
+	messages := make(map[string][]byte, numMessages)
 	for i := 0; i < numMessages; i++ {
 		key := fmt.Sprintf("test-msg-%d-%s", i, uuid.New().String())
 		msg := []byte(fmt.Sprintf(`{"id":"%s","data":"test message %d"}`, key, i))
@@ -351,6 +372,7 @@ func TestIntegration_Redis_BackupQueueOperations(t *testing.T) {
 		err := infra.repo.AddMessageToQueue(ctx, key, msg)
 		require.NoError(t, err, "should add message %d to queue", i)
 		messageKeys[i] = key
+		messages[key] = msg
 	}
 	t.Logf("Added %d messages to backup queue", numMessages)
 
@@ -700,8 +722,6 @@ func TestIntegration_Chaos_Redis_ConcurrentBalanceOperations(t *testing.T) {
 		t.Skip("skipping chaos test in short mode")
 	}
 
-	t.Skip("skipping: lib-commons RedisConnection.GetClient() fix")
-
 	infra := setupRedisChaosInfra(t)
 	defer infra.cleanup()
 
@@ -771,8 +791,6 @@ func TestIntegration_Chaos_Redis_InsufficientFundsUnderLoad(t *testing.T) {
 	if testing.Short() {
 		t.Skip("skipping chaos test in short mode")
 	}
-
-	t.Skip("skipping: lib-commons RedisConnection.GetClient() fix")
 
 	infra := setupRedisChaosInfra(t)
 	defer infra.cleanup()

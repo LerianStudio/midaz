@@ -88,7 +88,7 @@ func TestNegativeAccountAndPackageContracts(t *testing.T) {
 
 	t.Run("holder-owned account requires type", func(t *testing.T) {
 		holderID := createHolder(t, f.orgID)
-		r := call(t, http.MethodPost, f.ledgers()+"/holders/"+holderID+"/accounts", map[string]any{
+		r := call(t, http.MethodPost, f.holderAccounts(holderID), map[string]any{
 			"assetCode": "USD", // type omitted
 		})
 		if r.status != http.StatusBadRequest { // 400 — missing required field

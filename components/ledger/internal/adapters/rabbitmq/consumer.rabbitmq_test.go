@@ -325,6 +325,23 @@ func TestConsumerRoutes_RunConsumers_NoRoutes(t *testing.T) {
 	require.NoError(t, err)
 }
 
+func TestConsumerRoutes_ConsumerLifecycle(t *testing.T) {
+	t.Parallel()
+
+	cr := &ConsumerRoutes{
+		routes: make(map[string]QueueHandlerFunc),
+		Logger: testLogger,
+	}
+
+	require.NoError(t, cr.RunConsumers())
+	require.ErrorContains(t, cr.RunConsumers(), "already running")
+
+	cr.StopConsumers()
+	cr.StopConsumers()
+	require.NoError(t, cr.RunConsumers())
+	t.Cleanup(cr.StopConsumers)
+}
+
 // Note: TestConsumerRoutes_RunConsumers_ReturnsImmediately removed.
 // The test made real network dial attempts (wrong level) and is covered by
 // TestIntegration_Consumer_BasicMessageConsumption.

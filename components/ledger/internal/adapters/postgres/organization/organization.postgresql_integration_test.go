@@ -29,11 +29,9 @@ import (
 func createRepository(t *testing.T, container *pgtestutil.ContainerResult) *OrganizationPostgreSQLRepository {
 	t.Helper()
 
-	migrationsPath := pgtestutil.FindMigrationsPath(t, "onboarding")
-
 	connStr := pgtestutil.BuildConnectionString(container.Host, container.Port, container.Config)
 
-	conn := pgtestutil.CreatePostgresClient(t, connStr, connStr, container.Config.DBName, migrationsPath)
+	conn := pgtestutil.ConnectPostgresClient(t.Context(), t, connStr, connStr)
 
 	return NewOrganizationPostgreSQLRepository(conn)
 }
@@ -43,7 +41,7 @@ func createRepository(t *testing.T, container *pgtestutil.ContainerResult) *Orga
 // ============================================================================
 
 func TestIntegration_OrganizationRepository_Create(t *testing.T) {
-	container := pgtestutil.SetupContainer(t)
+	container := pgtestutil.SetupMigratedContainer(t, "onboarding")
 
 	repo := createRepository(t, container)
 	ctx := context.Background()
@@ -71,7 +69,7 @@ func TestIntegration_OrganizationRepository_Create(t *testing.T) {
 // ============================================================================
 
 func TestIntegration_OrganizationRepository_Find(t *testing.T) {
-	container := pgtestutil.SetupContainer(t)
+	container := pgtestutil.SetupMigratedContainer(t, "onboarding")
 
 	repo := createRepository(t, container)
 	ctx := context.Background()
@@ -90,7 +88,7 @@ func TestIntegration_OrganizationRepository_Find(t *testing.T) {
 }
 
 func TestIntegration_OrganizationRepository_Find_NotFound(t *testing.T) {
-	container := pgtestutil.SetupContainer(t)
+	container := pgtestutil.SetupMigratedContainer(t, "onboarding")
 
 	repo := createRepository(t, container)
 	ctx := context.Background()
@@ -109,7 +107,7 @@ func TestIntegration_OrganizationRepository_Find_NotFound(t *testing.T) {
 }
 
 func TestIntegration_OrganizationRepository_Find_ExcludesSoftDeleted(t *testing.T) {
-	container := pgtestutil.SetupContainer(t)
+	container := pgtestutil.SetupMigratedContainer(t, "onboarding")
 
 	repo := createRepository(t, container)
 	ctx := context.Background()
@@ -132,7 +130,7 @@ func TestIntegration_OrganizationRepository_Find_ExcludesSoftDeleted(t *testing.
 // ============================================================================
 
 func TestIntegration_OrganizationRepository_Update(t *testing.T) {
-	container := pgtestutil.SetupContainer(t)
+	container := pgtestutil.SetupMigratedContainer(t, "onboarding")
 
 	repo := createRepository(t, container)
 	ctx := context.Background()
@@ -156,7 +154,7 @@ func TestIntegration_OrganizationRepository_Update(t *testing.T) {
 }
 
 func TestIntegration_OrganizationRepository_Update_NotFound(t *testing.T) {
-	container := pgtestutil.SetupContainer(t)
+	container := pgtestutil.SetupMigratedContainer(t, "onboarding")
 
 	repo := createRepository(t, container)
 	ctx := context.Background()
@@ -182,7 +180,7 @@ func TestIntegration_OrganizationRepository_Update_NotFound(t *testing.T) {
 // ============================================================================
 
 func TestIntegration_OrganizationRepository_Delete(t *testing.T) {
-	container := pgtestutil.SetupContainer(t)
+	container := pgtestutil.SetupMigratedContainer(t, "onboarding")
 
 	repo := createRepository(t, container)
 	ctx := context.Background()
@@ -212,7 +210,7 @@ func TestIntegration_OrganizationRepository_Delete(t *testing.T) {
 }
 
 func TestIntegration_OrganizationRepository_Delete_NotFound(t *testing.T) {
-	container := pgtestutil.SetupContainer(t)
+	container := pgtestutil.SetupMigratedContainer(t, "onboarding")
 
 	repo := createRepository(t, container)
 	ctx := context.Background()
@@ -230,7 +228,7 @@ func TestIntegration_OrganizationRepository_Delete_NotFound(t *testing.T) {
 }
 
 func TestIntegration_OrganizationRepository_Delete_AlreadyDeleted(t *testing.T) {
-	container := pgtestutil.SetupContainer(t)
+	container := pgtestutil.SetupMigratedContainer(t, "onboarding")
 
 	repo := createRepository(t, container)
 	ctx := context.Background()
@@ -257,7 +255,7 @@ func TestIntegration_OrganizationRepository_Delete_AlreadyDeleted(t *testing.T) 
 // ============================================================================
 
 func TestIntegration_OrganizationRepository_Count(t *testing.T) {
-	container := pgtestutil.SetupContainer(t)
+	container := pgtestutil.SetupMigratedContainer(t, "onboarding")
 
 	repo := createRepository(t, container)
 	ctx := context.Background()
@@ -281,7 +279,7 @@ func TestIntegration_OrganizationRepository_Count(t *testing.T) {
 }
 
 func TestIntegration_OrganizationRepository_Count_ExcludesSoftDeleted(t *testing.T) {
-	container := pgtestutil.SetupContainer(t)
+	container := pgtestutil.SetupMigratedContainer(t, "onboarding")
 
 	repo := createRepository(t, container)
 	ctx := context.Background()
@@ -314,7 +312,7 @@ func TestIntegration_OrganizationRepository_Count_ExcludesSoftDeleted(t *testing
 
 func TestIntegration_OrganizationRepository_ListByIDs_ReturnsMatchingOrganizations(t *testing.T) {
 	// Arrange
-	container := pgtestutil.SetupContainer(t)
+	container := pgtestutil.SetupMigratedContainer(t, "onboarding")
 
 	repo := createRepository(t, container)
 
@@ -353,7 +351,7 @@ func TestIntegration_OrganizationRepository_ListByIDs_ReturnsMatchingOrganizatio
 
 func TestIntegration_OrganizationRepository_ListByIDs_ExcludesSoftDeleted(t *testing.T) {
 	// Arrange
-	container := pgtestutil.SetupContainer(t)
+	container := pgtestutil.SetupMigratedContainer(t, "onboarding")
 
 	repo := createRepository(t, container)
 
@@ -382,7 +380,7 @@ func TestIntegration_OrganizationRepository_ListByIDs_ExcludesSoftDeleted(t *tes
 }
 
 func TestIntegration_OrganizationRepository_ListByIDs_EdgeCases(t *testing.T) {
-	container := pgtestutil.SetupContainer(t)
+	container := pgtestutil.SetupMigratedContainer(t, "onboarding")
 
 	repo := createRepository(t, container)
 
@@ -456,7 +454,7 @@ func defaultQueryHeader(page, limit int) http.QueryHeader {
 }
 
 func TestIntegration_OrganizationRepository_FindAll_Pagination(t *testing.T) {
-	container := pgtestutil.SetupContainer(t)
+	container := pgtestutil.SetupMigratedContainer(t, "onboarding")
 
 	repo := createRepository(t, container)
 	ctx := context.Background()
@@ -514,7 +512,7 @@ func TestIntegration_OrganizationRepository_FindAll_Pagination(t *testing.T) {
 }
 
 func TestIntegration_OrganizationRepository_FindAll_NoDuplicatesAcrossPages(t *testing.T) {
-	container := pgtestutil.SetupContainer(t)
+	container := pgtestutil.SetupMigratedContainer(t, "onboarding")
 
 	repo := createRepository(t, container)
 	ctx := context.Background()
@@ -550,7 +548,7 @@ func TestIntegration_OrganizationRepository_FindAll_NoDuplicatesAcrossPages(t *t
 }
 
 func TestIntegration_OrganizationRepository_FindAll_ExcludesSoftDeleted(t *testing.T) {
-	container := pgtestutil.SetupContainer(t)
+	container := pgtestutil.SetupMigratedContainer(t, "onboarding")
 
 	repo := createRepository(t, container)
 	ctx := context.Background()
@@ -586,7 +584,7 @@ func TestIntegration_OrganizationRepository_FindAll_ExcludesSoftDeleted(t *testi
 // ============================================================================
 
 func TestIntegration_OrganizationRepository_FindAll_FilterByLegalName(t *testing.T) {
-	container := pgtestutil.SetupContainer(t)
+	container := pgtestutil.SetupMigratedContainer(t, "onboarding")
 
 	repo := createRepository(t, container)
 	ctx := context.Background()
@@ -622,7 +620,7 @@ func TestIntegration_OrganizationRepository_FindAll_FilterByLegalName(t *testing
 }
 
 func TestIntegration_OrganizationRepository_FindAll_FilterByLegalName_CaseInsensitive(t *testing.T) {
-	container := pgtestutil.SetupContainer(t)
+	container := pgtestutil.SetupMigratedContainer(t, "onboarding")
 
 	repo := createRepository(t, container)
 	ctx := context.Background()
@@ -644,7 +642,7 @@ func TestIntegration_OrganizationRepository_FindAll_FilterByLegalName_CaseInsens
 }
 
 func TestIntegration_OrganizationRepository_FindAll_FilterByDoingBusinessAs(t *testing.T) {
-	container := pgtestutil.SetupContainer(t)
+	container := pgtestutil.SetupMigratedContainer(t, "onboarding")
 
 	repo := createRepository(t, container)
 	ctx := context.Background()
@@ -679,7 +677,7 @@ func TestIntegration_OrganizationRepository_FindAll_FilterByDoingBusinessAs(t *t
 }
 
 func TestIntegration_OrganizationRepository_FindAll_FilterByBothNames(t *testing.T) {
-	container := pgtestutil.SetupContainer(t)
+	container := pgtestutil.SetupMigratedContainer(t, "onboarding")
 
 	repo := createRepository(t, container)
 	ctx := context.Background()
@@ -712,7 +710,7 @@ func TestIntegration_OrganizationRepository_FindAll_FilterByBothNames(t *testing
 }
 
 func TestIntegration_OrganizationRepository_FindAll_NilFiltersReturnsAll(t *testing.T) {
-	container := pgtestutil.SetupContainer(t)
+	container := pgtestutil.SetupMigratedContainer(t, "onboarding")
 
 	repo := createRepository(t, container)
 	ctx := context.Background()
@@ -733,7 +731,7 @@ func TestIntegration_OrganizationRepository_FindAll_NilFiltersReturnsAll(t *test
 }
 
 func TestIntegration_OrganizationRepository_FindAll_PrefixMatchOnly(t *testing.T) {
-	container := pgtestutil.SetupContainer(t)
+	container := pgtestutil.SetupMigratedContainer(t, "onboarding")
 
 	repo := createRepository(t, container)
 	ctx := context.Background()
@@ -758,7 +756,7 @@ func TestIntegration_OrganizationRepository_FindAll_PrefixMatchOnly(t *testing.T
 // ============================================================================
 
 func TestIntegration_OrganizationRepository_FindAll_WildcardInjection(t *testing.T) {
-	container := pgtestutil.SetupContainer(t)
+	container := pgtestutil.SetupMigratedContainer(t, "onboarding")
 
 	repo := createRepository(t, container)
 	ctx := context.Background()
@@ -820,7 +818,7 @@ func TestIntegration_OrganizationRepository_FindAll_WildcardInjection(t *testing
 }
 
 func TestIntegration_OrganizationRepository_FindAll_LiteralSpecialCharsInName(t *testing.T) {
-	container := pgtestutil.SetupContainer(t)
+	container := pgtestutil.SetupMigratedContainer(t, "onboarding")
 
 	repo := createRepository(t, container)
 	ctx := context.Background()
@@ -847,7 +845,7 @@ func TestIntegration_OrganizationRepository_FindAll_LiteralSpecialCharsInName(t 
 // ============================================================================
 
 func TestIntegration_GetDB_StaticFallback_ReturnsValidHandle(t *testing.T) {
-	container := pgtestutil.SetupContainer(t)
+	container := pgtestutil.SetupMigratedContainer(t, "onboarding")
 
 	repo := createRepository(t, container)
 	ctx := context.Background()
@@ -862,7 +860,7 @@ func TestIntegration_GetDB_StaticFallback_ReturnsValidHandle(t *testing.T) {
 }
 
 func TestIntegration_GetDB_StaticFallback_CanExecuteQueries(t *testing.T) {
-	container := pgtestutil.SetupContainer(t)
+	container := pgtestutil.SetupMigratedContainer(t, "onboarding")
 
 	repo := createRepository(t, container)
 	ctx := context.Background()
@@ -881,7 +879,7 @@ func TestIntegration_GetDB_StaticFallback_CanExecuteQueries(t *testing.T) {
 }
 
 func TestIntegration_GetDB_StaticFallback_SupportsRepositoryOperations(t *testing.T) {
-	container := pgtestutil.SetupContainer(t)
+	container := pgtestutil.SetupMigratedContainer(t, "onboarding")
 
 	repo := createRepository(t, container)
 	ctx := context.Background()
@@ -912,7 +910,7 @@ func TestIntegration_GetDB_StaticFallback_SupportsRepositoryOperations(t *testin
 // round-trip works through getDB for both static and tenant paths.
 
 func TestIntegration_GetDB_CreateAndFindRoundTrip(t *testing.T) {
-	container := pgtestutil.SetupContainer(t)
+	container := pgtestutil.SetupMigratedContainer(t, "onboarding")
 
 	repo := createRepository(t, container)
 	ctx := context.Background()
@@ -952,34 +950,27 @@ func TestIntegration_GetDB_CreateAndFindRoundTrip(t *testing.T) {
 // context via tmcore.ContextWithPG(tenantDB),
 // the getDB method returns that tenant DB instead of the static connection.
 //
-// Strategy: Two separate PostgreSQL containers.
-//   - Container A (static): used to satisfy the constructor (NewOrganizationPostgreSQLRepository).
-//   - Container B (tenant): wrapped in dbresolver.DB, injected into context.
-//   - Data is inserted only into Container B, then retrieved through the repo.
+// Strategy: Two separate PostgreSQL databases.
+//   - Database A (static): used to satisfy the constructor (NewOrganizationPostgreSQLRepository).
+//   - Database B (tenant): wrapped in dbresolver.DB, injected into context.
+//   - Data is inserted only into Database B, then retrieved through the repo.
 //   - If getDB correctly returns the tenant DB, the data is found.
 //   - If getDB incorrectly falls back to static, the data is NOT found (test fails).
 
-// setupTenantContainer starts a second PostgreSQL container with migrations applied
+// setupTenantContainer allocates a second PostgreSQL database from the migrated template
 // and returns both the raw *sql.DB and a dbresolver.DB wrapper suitable for injection
 // into tenant context.
 func setupTenantContainer(t *testing.T) (*pgtestutil.ContainerResult, dbresolver.DB) {
 	t.Helper()
 
-	tenantContainer := pgtestutil.SetupContainer(t)
+	tenantContainer := pgtestutil.SetupMigratedContainer(t, "onboarding")
 
-	// Run migrations on the tenant container by creating a temporary
-	// PostgresConnection and letting NewOrganizationPostgreSQLRepository
-	// trigger migration. Instead, we can just open the DB through
-	// lib-commons the same way createRepository does.
-	migrationsPath := pgtestutil.FindMigrationsPath(t, "onboarding")
 	connStr := pgtestutil.BuildConnectionString(tenantContainer.Host, tenantContainer.Port, tenantContainer.Config)
 
-	// Create a temporary connection to apply migrations (the constructor runs them).
-	tempConn := pgtestutil.CreatePostgresClient(t, connStr, connStr, tenantContainer.Config.DBName, migrationsPath)
+	tempConn := pgtestutil.ConnectPostgresClient(t.Context(), t, connStr, connStr)
 
-	// Trigger migration by calling GetDB (same as constructor does).
 	db, err := tempConn.Resolver(context.Background())
-	require.NoError(t, err, "failed to initialize tenant container database with migrations")
+	require.NoError(t, err, "failed to initialize tenant database")
 
 	// Close the temporary connection pool so it does not leak.
 	t.Cleanup(func() {
@@ -997,7 +988,7 @@ func setupTenantContainer(t *testing.T) (*pgtestutil.ContainerResult, dbresolver
 
 func TestIntegration_GetDB_TenantContext_ReturnsValidHandle(t *testing.T) {
 	// Arrange -- static container for constructor, tenant container for context.
-	staticContainer := pgtestutil.SetupContainer(t)
+	staticContainer := pgtestutil.SetupMigratedContainer(t, "onboarding")
 	repo := createRepository(t, staticContainer)
 
 	_, tenantDB := setupTenantContainer(t)
@@ -1013,7 +1004,7 @@ func TestIntegration_GetDB_TenantContext_ReturnsValidHandle(t *testing.T) {
 
 func TestIntegration_GetDB_TenantContext_CanExecuteQueries(t *testing.T) {
 	// Arrange
-	staticContainer := pgtestutil.SetupContainer(t)
+	staticContainer := pgtestutil.SetupMigratedContainer(t, "onboarding")
 	repo := createRepository(t, staticContainer)
 
 	_, tenantDB := setupTenantContainer(t)
@@ -1033,7 +1024,7 @@ func TestIntegration_GetDB_TenantContext_CanExecuteQueries(t *testing.T) {
 
 func TestIntegration_GetDB_TenantContext_RoutesToTenantDatabase(t *testing.T) {
 	// Arrange -- two separate containers with different data.
-	staticContainer := pgtestutil.SetupContainer(t)
+	staticContainer := pgtestutil.SetupMigratedContainer(t, "onboarding")
 	repo := createRepository(t, staticContainer)
 
 	tenantContainer, tenantDB := setupTenantContainer(t)
@@ -1066,7 +1057,7 @@ func TestIntegration_GetDB_TenantContext_RoutesToTenantDatabase(t *testing.T) {
 
 func TestIntegration_GetDB_TenantContext_CreateAndFind(t *testing.T) {
 	// Arrange
-	staticContainer := pgtestutil.SetupContainer(t)
+	staticContainer := pgtestutil.SetupMigratedContainer(t, "onboarding")
 	repo := createRepository(t, staticContainer)
 
 	_, tenantDB := setupTenantContainer(t)
@@ -1104,7 +1095,7 @@ func TestIntegration_GetDB_TenantContext_CreateAndFind(t *testing.T) {
 
 func TestIntegration_GetDB_TenantContext_CountIsolation(t *testing.T) {
 	// Arrange
-	staticContainer := pgtestutil.SetupContainer(t)
+	staticContainer := pgtestutil.SetupMigratedContainer(t, "onboarding")
 	repo := createRepository(t, staticContainer)
 
 	tenantContainer, tenantDB := setupTenantContainer(t)
@@ -1140,7 +1131,7 @@ func TestIntegration_GetDB_TenantContext_CountIsolation(t *testing.T) {
 func TestIntegration_GetDB_TenantContext_AlwaysReturnsTenantDB(t *testing.T) {
 	// Arrange -- inject tenant DB via the generic tenant PG connection.
 	// getDB should always return the tenant DB when present in context.
-	staticContainer := pgtestutil.SetupContainer(t)
+	staticContainer := pgtestutil.SetupMigratedContainer(t, "onboarding")
 	repo := createRepository(t, staticContainer)
 
 	tenantContainer, tenantDB := setupTenantContainer(t)
@@ -1165,7 +1156,7 @@ func TestIntegration_GetDB_TenantContext_AlwaysReturnsTenantDB(t *testing.T) {
 
 func TestIntegration_GetDB_TenantContext_UpdateAndDeleteThroughTenantPath(t *testing.T) {
 	// Arrange
-	staticContainer := pgtestutil.SetupContainer(t)
+	staticContainer := pgtestutil.SetupMigratedContainer(t, "onboarding")
 	repo := createRepository(t, staticContainer)
 
 	tenantContainer, tenantDB := setupTenantContainer(t)
@@ -1212,7 +1203,7 @@ func TestIntegration_GetDB_TenantContext_UpdateAndDeleteThroughTenantPath(t *tes
 
 func TestIntegration_GetDB_TenantContext_FindAllThroughTenantPath(t *testing.T) {
 	// Arrange
-	staticContainer := pgtestutil.SetupContainer(t)
+	staticContainer := pgtestutil.SetupMigratedContainer(t, "onboarding")
 	repo := createRepository(t, staticContainer)
 
 	tenantContainer, tenantDB := setupTenantContainer(t)
@@ -1241,7 +1232,7 @@ func TestIntegration_GetDB_TenantContext_FindAllThroughTenantPath(t *testing.T) 
 
 func TestIntegration_GetDB_TenantContext_ListByIDsThroughTenantPath(t *testing.T) {
 	// Arrange
-	staticContainer := pgtestutil.SetupContainer(t)
+	staticContainer := pgtestutil.SetupMigratedContainer(t, "onboarding")
 	repo := createRepository(t, staticContainer)
 
 	tenantContainer, tenantDB := setupTenantContainer(t)

@@ -315,17 +315,17 @@ func (r *TransactionRoutePostgreSQLRepository) FindByID(ctx context.Context, org
 	operationRoutesMap := make(map[uuid.UUID]bool)
 
 	for rows.Next() {
-		var tr TransactionRoutePostgreSQLModel
-
-		var otr struct {
-			ID                 uuid.UUID
-			OperationRouteID   uuid.UUID
-			TransactionRouteID uuid.UUID
-			CreatedAt          time.Time
-			DeletedAt          *time.Time
-		}
-
-		var opRoute operationroute.OperationRoutePostgreSQLModel
+		var (
+			tr                                                                        TransactionRoutePostgreSQLModel
+			relationID, relationOperationRouteID, relationTransactionRouteID          uuid.NullUUID
+			relationCreatedAt, relationDeletedAt                                      sql.NullTime
+			operationRouteID, operationRouteOrganizationID, operationRouteLedgerID    uuid.NullUUID
+			operationRouteTitle, operationRouteDescription, operationRouteType        sql.NullString
+			accountRuleType, accountRuleValidIf                                       sql.NullString
+			accountingEntries                                                         []byte
+			operationRouteCreatedAt, operationRouteUpdatedAt, operationRouteDeletedAt sql.NullTime
+			operationRouteCode                                                        sql.NullString
+		)
 
 		if err := rows.Scan(
 			// Transaction route fields
@@ -338,25 +338,25 @@ func (r *TransactionRoutePostgreSQLRepository) FindByID(ctx context.Context, org
 			&tr.UpdatedAt,
 			&tr.DeletedAt,
 			// Operation transaction route relation fields
-			&otr.ID,
-			&otr.OperationRouteID,
-			&otr.TransactionRouteID,
-			&otr.CreatedAt,
-			&otr.DeletedAt,
+			&relationID,
+			&relationOperationRouteID,
+			&relationTransactionRouteID,
+			&relationCreatedAt,
+			&relationDeletedAt,
 			// Operation route fields
-			&opRoute.ID,
-			&opRoute.OrganizationID,
-			&opRoute.LedgerID,
-			&opRoute.Title,
-			&opRoute.Description,
-			&opRoute.OperationType,
-			&opRoute.AccountRuleType,
-			&opRoute.AccountRuleValidIf,
-			&opRoute.AccountingEntries,
-			&opRoute.CreatedAt,
-			&opRoute.UpdatedAt,
-			&opRoute.DeletedAt,
-			&opRoute.Code,
+			&operationRouteID,
+			&operationRouteOrganizationID,
+			&operationRouteLedgerID,
+			&operationRouteTitle,
+			&operationRouteDescription,
+			&operationRouteType,
+			&accountRuleType,
+			&accountRuleValidIf,
+			&accountingEntries,
+			&operationRouteCreatedAt,
+			&operationRouteUpdatedAt,
+			&operationRouteDeletedAt,
+			&operationRouteCode,
 		); err != nil {
 			errMsg := "Failed to scan transaction route"
 
@@ -378,9 +378,22 @@ func (r *TransactionRoutePostgreSQLRepository) FindByID(ctx context.Context, org
 			transactionRoute.OperationRoutes = make([]mmodel.OperationRoute, 0)
 		}
 
-		nilUUID := uuid.UUID{}
-
-		if opRoute.ID != nilUUID && !operationRoutesMap[opRoute.ID] {
+		if operationRouteID.Valid && !operationRoutesMap[operationRouteID.UUID] {
+			opRoute := operationroute.OperationRoutePostgreSQLModel{
+				ID:                 operationRouteID.UUID,
+				OrganizationID:     operationRouteOrganizationID.UUID,
+				LedgerID:           operationRouteLedgerID.UUID,
+				Title:              operationRouteTitle.String,
+				Description:        operationRouteDescription.String,
+				Code:               operationRouteCode,
+				OperationType:      operationRouteType.String,
+				AccountRuleType:    accountRuleType.String,
+				AccountRuleValidIf: accountRuleValidIf.String,
+				AccountingEntries:  accountingEntries,
+				CreatedAt:          operationRouteCreatedAt.Time,
+				UpdatedAt:          operationRouteUpdatedAt.Time,
+				DeletedAt:          operationRouteDeletedAt,
+			}
 			operationRoute := opRoute.ToEntity()
 			transactionRoute.OperationRoutes = append(transactionRoute.OperationRoutes, *operationRoute)
 			operationRoutesMap[opRoute.ID] = true

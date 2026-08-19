@@ -5,6 +5,10 @@ on:
     branches: [develop, release-candidate, main]
     types: [opened, edited, synchronize, reopened, ready_for_review]
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
 permissions:
   actions: read
   contents: read
@@ -107,3 +111,201 @@ jobs:
 
       - name: Verify protobuf stubs are up to date
         run: make proto-check
+
+  # The reusable v1.46.5 integration hook runs once inside every
+  # filter_paths working directory and its umbrella workflow does not expose
+  # integration_test_command. Midaz's integration/property targets live only at
+  # the monorepo root, so dedicated root jobs are the only non-duplicating path.
+  integration:
+    # Keep the four independent external contexts stable. Lifecycle and chaos
+    # are internal proofs aggregated into the existing lifecycle context below.
+    name: ${{ (matrix.shard == 'lifecycle-migration' || matrix.shard == 'chaos-capability') && format('Integration internal / {0}', matrix.shard) || format('Integration / {0}', matrix.shard) }}
+    runs-on: blacksmith-4vcpu-ubuntu-2404
+    timeout-minutes: 40
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      max-parallel: 6
+      matrix:
+        shard:
+          - ledger-postgres
+          - ledger-mongodb-crm
+          - async-broker
+          - tracer
+          - lifecycle-migration
+          - chaos-capability
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up Go
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version: '1.26.4'
+          cache: true
+
+      - name: Install test reporter
+        run: go install gotest.tools/gotestsum@v1.13.0
+
+      - name: Run bounded integration shard
+        env:
+          INTEGRATION_SHARD: ${{ matrix.shard }}
+        run: scripts/run-integration-ci-shard.sh "$INTEGRATION_SHARD"
+
+      - name: Upload integration timing and log
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: integration-${{ matrix.shard }}-reports
+          path: reports/ci/
+          if-no-files-found: warn
+          retention-days: 7
+
+  integration-required:
+    # This external name is intentionally stable for the repository ruleset.
+    name: Integration / lifecycle-migration
+    if: always()
+    needs: integration
+    runs-on: ubuntu-latest
+    permissions:
+      actions: read
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Download exact integration outcome artifacts
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
+        with:
+          pattern: integration-*-reports
+          path: reports/required-integration
+
+      - name: Prove every deferred capability passed
+        run: scripts/verify-integration-capability.sh reports/required-integration
+
+      - name: Require every base shard and capability lane
+        env:
+          INTEGRATION_RESULT: ${{ needs.integration.result }}
+        run: test "$INTEGRATION_RESULT" = success
+
+  property:
+    name: Property Tests
+    runs-on: blacksmith-4vcpu-ubuntu-2404
+    timeout-minutes: 20
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up Go
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version: '1.26.4'
+          cache: true
+
+      - name: Run root property lane
+        run: scripts/run-ci-lane.sh property 15m make test-property LOW_RESOURCE=1
+
+      - name: Upload property timing and log
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: property-reports
+          path: reports/ci/property*
+          if-no-files-found: warn
+          retention-days: 7
+
+  required-e2e:
+    name: Required Ledger E2E
+    runs-on: blacksmith-4vcpu-ubuntu-2404
+    timeout-minutes: 45
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up Go
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version: '1.26.4'
+          cache: true
+
+      - name: Install test reporter
+        run: go install gotest.tools/gotestsum@v1.13.0
+
+      - name: Configure required stack
+        run: |
+          make set-env
+          sed -i 's|^TRACER_BASE_URL=.*|TRACER_BASE_URL=http://midaz-tracer:4020|' components/ledger/.env
+          sed -i 's|^TRACER_TRANSPORT=.*|TRACER_TRANSPORT=rest|' components/ledger/.env
+          sed -i 's|^STREAMING_ENABLED=.*|STREAMING_ENABLED=true|' components/ledger/.env
+          sed -i 's|^# STREAMING_BROKERS=.*|STREAMING_BROKERS=midaz-redpanda:9092|' components/ledger/.env
+          sed -i 's|^# STREAMING_CLOUDEVENTS_SOURCE=.*|STREAMING_CLOUDEVENTS_SOURCE=ledger|' components/ledger/.env
+          # Fail closed if any sed above silently missed its target line
+          # (e.g. after an .env.example format change).
+          grep -q '^TRACER_BASE_URL=http://midaz-tracer:4020$' components/ledger/.env
+          grep -q '^TRACER_TRANSPORT=rest$' components/ledger/.env
+          grep -q '^STREAMING_ENABLED=true$' components/ledger/.env
+          grep -q '^STREAMING_BROKERS=midaz-redpanda:9092$' components/ledger/.env
+          grep -q '^STREAMING_CLOUDEVENTS_SOURCE=ledger$' components/ledger/.env
+          # configure-required-tracer-e2e-auth.sh activates in the Ledger-Tracer
+          # outcome layer, once the ledger gains TRACER_API_KEY support. This
+          # layer's ledger cannot present a key, so tracer API-key auth stays
+          # at its .env.example default (disabled) here.
+
+      # rebuild-up (down + build + up) instead of up: plain `docker compose up`
+      # reuses any image already present in the runner's Docker daemon, and
+      # Blacksmith runners persist daemon state across runs — a previous run's
+      # ledger/tracer images (built from older source) would silently serve
+      # this PR's E2E gate. Building from the checked-out source is mandatory
+      # for the gate to prove anything; infra services are image-only, so the
+      # extra build pass is a no-op for them.
+      - name: Start stack
+        run: scripts/run-ci-lane.sh stack-startup 25m make rebuild-up
+
+      - name: Wait for required deploy surfaces
+        run: |
+          scripts/run-ci-lane.sh stack-readiness 4m bash -c '
+            until curl --fail --silent http://localhost:3002/readyz >/dev/null; do sleep 2; done
+            until curl --fail --silent http://localhost:4020/readyz >/dev/null; do sleep 2; done
+          '
+
+      # The durable Tracer outcome restart and run-required-tracer-v2-e2e.sh
+      # gate activate in the Ledger-Tracer outcome layer, which introduces
+      # TRACER_OUTCOME_MODE=ledger_outcome_v2 and its E2E proof. This layer
+      # ships the reusable gate scripts only.
+      # This layer's compose file hardcodes redpanda's external listener on
+      # 19092; the REDPANDA_EXTERNAL_PORT parameterization arrives in a later
+      # layer of the train.
+      - name: Run mandatory Ledger E2E lane
+        run: STREAMING_BROKERS=localhost:19092 scripts/run-required-e2e.sh
+
+      - name: Capture stack logs
+        if: always()
+        run: |
+          mkdir -p reports/ci
+          make logs > reports/ci/stack.log 2>&1 || true
+
+      - name: Stop stack
+        if: always()
+        run: make down
+
+      - name: Upload E2E reports and timings
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: required-ledger-e2e-reports
+          path: reports/ci/
+          if-no-files-found: warn
+          retention-days: 7

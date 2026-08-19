@@ -20,16 +20,12 @@ import (
 	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/require"
 	"github.com/twmb/franz-go/pkg/kadm"
+	"github.com/twmb/franz-go/pkg/kfake"
 	"github.com/twmb/franz-go/pkg/kgo"
 
 	"github.com/LerianStudio/midaz/v4/components/tracer/pkg/model"
 	"github.com/LerianStudio/midaz/v4/pkg/streaming/events"
 )
-
-// defaultSmokeBroker is the host-facing Redpanda listener the local
-// components/infra stack advertises (external://localhost:19092). Overridable
-// via STREAMING_BROKERS so CI can target another broker.
-const defaultSmokeBroker = "localhost:19092"
 
 // smokeDeadline bounds the whole emit+consume round-trip so a wedged broker
 // can never hang the suite. Generous because a cold Redpanda + first-write
@@ -79,13 +75,16 @@ type smokeEvent struct {
 // CloudEvents headers and the payload fence for each one. This is the core
 // contract check — not merely "emit returned no error".
 //
-// The test skips (never fails) when no broker is reachable, so a unit-only CI
-// run without infra stays green. It runs under the `integration` build tag so
-// `make test-unit` excludes it.
+// When STREAMING_BROKERS is unset the test starts an in-process Kafka protocol
+// broker. An explicitly configured broker must be reachable. The integration
+// capability therefore never disappears behind a skip.
 func TestStreamingSmoke(t *testing.T) {
 	broker := strings.TrimSpace(os.Getenv("STREAMING_BROKERS"))
 	if broker == "" {
-		broker = defaultSmokeBroker
+		cluster, err := kfake.NewCluster(kfake.NumBrokers(1))
+		require.NoError(t, err)
+		t.Cleanup(cluster.Close)
+		broker = cluster.ListenAddrs()[0]
 	}
 
 	// First broker in a comma list is enough for a single-node dev cluster.
@@ -94,7 +93,7 @@ func TestStreamingSmoke(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), smokeDeadline)
 	defer cancel()
 
-	skipIfBrokerUnreachable(ctx, t, broker)
+	requireBrokerReachable(ctx, t, broker)
 
 	// Unique per-run identifiers so repeat runs never read each other's
 	// records. tenant is stamped into every event and matched on consume.
@@ -118,25 +117,21 @@ func TestStreamingSmoke(t *testing.T) {
 	assertConsumed(t, tenant, smokeEvents, consumed)
 }
 
-// skipIfBrokerUnreachable probes the broker's metadata once. An unreachable
-// broker means "no infra" -> t.Skip (safe for unit CI). A reachable broker
-// means the smoke MUST run.
-func skipIfBrokerUnreachable(ctx context.Context, t *testing.T, broker string) {
+// requireBrokerReachable probes the broker's metadata once. The integration
+// shard supplies its own broker when none is configured, so any failure here
+// is a real capability failure.
+func requireBrokerReachable(ctx context.Context, t *testing.T, broker string) {
 	t.Helper()
 
 	cl, err := kgo.NewClient(kgo.SeedBrokers(broker))
-	if err != nil {
-		t.Skipf("streaming smoke skipped: cannot build probe client for %q: %v", broker, err)
-	}
+	require.NoErrorf(t, err, "build streaming probe client for %q", broker)
 
 	defer cl.Close()
 
 	pingCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
 
-	if err := cl.Ping(pingCtx); err != nil {
-		t.Skipf("streaming smoke skipped: broker %q unreachable: %v", broker, err)
-	}
+	require.NoErrorf(t, cl.Ping(pingCtx), "streaming broker %q must be reachable", broker)
 }
 
 // buildSmokeEmitter constructs the production emitter via BuildStreamingEmitter

@@ -29,13 +29,12 @@ import (
 // the monotonicity invariant of the count metric.
 func TestIntegration_CountLedgers_Monotonic(t *testing.T) {
 	// Setup container
-	container := pgtestutil.SetupContainer(t)
+	container := pgtestutil.SetupMigratedContainer(t, "onboarding")
 
 	// Setup repository and use case
-	migrationsPath := pgtestutil.FindMigrationsPath(t, "onboarding")
 	connStr := pgtestutil.BuildConnectionString(container.Host, container.Port, container.Config)
 
-	conn := pgtestutil.CreatePostgresClient(t, connStr, connStr, container.Config.DBName, migrationsPath)
+	conn := pgtestutil.ConnectPostgresClient(t.Context(), t, connStr, connStr)
 
 	ledgerRepo := ledger.NewLedgerPostgreSQLRepository(conn)
 
@@ -81,13 +80,12 @@ func TestIntegration_CountLedgers_Monotonic(t *testing.T) {
 // isolated by organization - ledgers from one org should not affect counts in another.
 func TestIntegration_CountLedgers_IsolatedByOrganization(t *testing.T) {
 	// Setup container
-	container := pgtestutil.SetupContainer(t)
+	container := pgtestutil.SetupMigratedContainer(t, "onboarding")
 
 	// Setup repository and use case
-	migrationsPath := pgtestutil.FindMigrationsPath(t, "onboarding")
 	connStr := pgtestutil.BuildConnectionString(container.Host, container.Port, container.Config)
 
-	conn := pgtestutil.CreatePostgresClient(t, connStr, connStr, container.Config.DBName, migrationsPath)
+	conn := pgtestutil.ConnectPostgresClient(t.Context(), t, connStr, connStr)
 
 	ledgerRepo := ledger.NewLedgerPostgreSQLRepository(conn)
 

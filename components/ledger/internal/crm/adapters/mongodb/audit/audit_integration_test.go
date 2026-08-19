@@ -64,7 +64,7 @@ func newIntegrationEvent(t *testing.T, organizationID string) *mmodel.Protection
 }
 
 func TestIntegration_AuditRepo_Create_CleanEventInserts(t *testing.T) {
-	container := mongotestutil.SetupContainer(t)
+	container := mongotestutil.SetupReusableContainer(t)
 	repo := createAuditRepository(t, container)
 	ctx := context.Background()
 
@@ -79,7 +79,7 @@ func TestIntegration_AuditRepo_Create_CleanEventInserts(t *testing.T) {
 }
 
 func TestIntegration_AuditRepo_Create_BuildsAllSixIndexes(t *testing.T) {
-	container := mongotestutil.SetupContainer(t)
+	container := mongotestutil.SetupReusableContainer(t)
 	repo := createAuditRepository(t, container)
 	ctx := context.Background()
 
@@ -125,7 +125,7 @@ func TestIntegration_AuditRepo_Create_BuildsAllSixIndexes(t *testing.T) {
 }
 
 func TestIntegration_AuditRepo_Create_ForbiddenContentNotInserted(t *testing.T) {
-	container := mongotestutil.SetupContainer(t)
+	container := mongotestutil.SetupReusableContainer(t)
 	repo := createAuditRepository(t, container)
 	ctx := context.Background()
 
@@ -179,7 +179,7 @@ func seedEvents(t *testing.T, repo *MongoDBRepository, organizationID string, n 
 }
 
 func TestIntegration_AuditRepo_FindByOrganization_EmptyResult(t *testing.T) {
-	container := mongotestutil.SetupContainer(t)
+	container := mongotestutil.SetupReusableContainer(t)
 	repo := createAuditRepository(t, container)
 	ctx := context.Background()
 
@@ -194,7 +194,7 @@ func TestIntegration_AuditRepo_FindByOrganization_EmptyResult(t *testing.T) {
 }
 
 func TestIntegration_AuditRepo_FindByOrganization_CursorPaginationRoundTrips(t *testing.T) {
-	container := mongotestutil.SetupContainer(t)
+	container := mongotestutil.SetupReusableContainer(t)
 	repo := createAuditRepository(t, container)
 	ctx := context.Background()
 
@@ -230,7 +230,7 @@ func TestIntegration_AuditRepo_FindByOrganization_CursorPaginationRoundTrips(t *
 }
 
 func TestIntegration_AuditRepo_FindByOrganization_SortOrder(t *testing.T) {
-	container := mongotestutil.SetupContainer(t)
+	container := mongotestutil.SetupReusableContainer(t)
 	repo := createAuditRepository(t, container)
 	ctx := context.Background()
 
@@ -254,7 +254,7 @@ func TestIntegration_AuditRepo_FindByOrganization_SortOrder(t *testing.T) {
 }
 
 func TestIntegration_AuditRepo_FindByOrganization_EqualityFilters(t *testing.T) {
-	container := mongotestutil.SetupContainer(t)
+	container := mongotestutil.SetupReusableContainer(t)
 	repo := createAuditRepository(t, container)
 	ctx := context.Background()
 
@@ -292,7 +292,7 @@ func TestIntegration_AuditRepo_FindByOrganization_EqualityFilters(t *testing.T) 
 }
 
 func TestIntegration_AuditRepo_FindByOrganization_FilterWithPaginationAcrossPages(t *testing.T) {
-	container := mongotestutil.SetupContainer(t)
+	container := mongotestutil.SetupReusableContainer(t)
 	repo := createAuditRepository(t, container)
 	ctx := context.Background()
 
@@ -344,7 +344,7 @@ func TestIntegration_AuditRepo_FindByOrganization_FilterWithPaginationAcrossPage
 }
 
 func TestIntegration_AuditRepo_FindByOrganization_TimeRangeFilter(t *testing.T) {
-	container := mongotestutil.SetupContainer(t)
+	container := mongotestutil.SetupReusableContainer(t)
 	repo := createAuditRepository(t, container)
 	ctx := context.Background()
 
@@ -380,7 +380,7 @@ func TestIntegration_AuditRepo_FindByOrganization_TimeRangeFilter(t *testing.T) 
 }
 
 func TestIntegration_AuditRepo_FindByOrganization_InvalidCursorRejected(t *testing.T) {
-	container := mongotestutil.SetupContainer(t)
+	container := mongotestutil.SetupReusableContainer(t)
 	repo := createAuditRepository(t, container)
 	ctx := context.Background()
 

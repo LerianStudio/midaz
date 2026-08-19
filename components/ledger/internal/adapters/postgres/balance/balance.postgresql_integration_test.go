@@ -29,11 +29,9 @@ import (
 func createRepository(t *testing.T, container *pgtestutil.ContainerResult) *BalancePostgreSQLRepository {
 	t.Helper()
 
-	migrationsPath := pgtestutil.FindMigrationsPath(t, "transaction")
-
 	connStr := pgtestutil.BuildConnectionString(container.Host, container.Port, container.Config)
 
-	conn := pgtestutil.CreatePostgresClient(t, connStr, connStr, container.Config.DBName, migrationsPath)
+	conn := pgtestutil.ConnectPostgresClient(t.Context(), t, connStr, connStr)
 
 	return NewBalancePostgreSQLRepository(conn, false)
 }
@@ -50,7 +48,7 @@ func createTestAccountID() uuid.UUID {
 
 func TestIntegration_BalanceRepository_Find_ReturnsBalance(t *testing.T) {
 	// Arrange
-	container := pgtestutil.SetupContainer(t)
+	container := pgtestutil.SetupMigratedContainer(t, "transaction")
 
 	repo := createRepository(t, container)
 
@@ -95,7 +93,7 @@ func TestIntegration_BalanceRepository_Find_ReturnsBalance(t *testing.T) {
 }
 
 func TestIntegration_BalanceRepository_Find_ReturnsEntityNotFoundError(t *testing.T) {
-	container := pgtestutil.SetupContainer(t)
+	container := pgtestutil.SetupMigratedContainer(t, "transaction")
 
 	repo := createRepository(t, container)
 
@@ -119,7 +117,7 @@ func TestIntegration_BalanceRepository_Find_ReturnsEntityNotFoundError(t *testin
 }
 
 func TestIntegration_BalanceRepository_Find_IgnoresDeletedBalance(t *testing.T) {
-	container := pgtestutil.SetupContainer(t)
+	container := pgtestutil.SetupMigratedContainer(t, "transaction")
 
 	repo := createRepository(t, container)
 
@@ -157,7 +155,7 @@ func TestIntegration_BalanceRepository_Find_IgnoresDeletedBalance(t *testing.T) 
 // ============================================================================
 
 func TestIntegration_BalanceRepository_Create_Success(t *testing.T) {
-	container := pgtestutil.SetupContainer(t)
+	container := pgtestutil.SetupMigratedContainer(t, "transaction")
 
 	repo := createRepository(t, container)
 
@@ -205,7 +203,7 @@ func TestIntegration_BalanceRepository_Create_Success(t *testing.T) {
 }
 
 func TestIntegration_BalanceRepository_Create_ForwardCompat_NewColumns(t *testing.T) {
-	container := pgtestutil.SetupContainer(t)
+	container := pgtestutil.SetupMigratedContainer(t, "transaction")
 
 	repo := createRepository(t, container)
 	ctx := context.Background()
@@ -255,7 +253,7 @@ func TestIntegration_BalanceRepository_Create_ForwardCompat_NewColumns(t *testin
 // ============================================================================
 
 func TestIntegration_BalanceRepository_SchemaDefaults(t *testing.T) {
-	container := pgtestutil.SetupContainer(t)
+	container := pgtestutil.SetupMigratedContainer(t, "transaction")
 
 	repo := createRepository(t, container)
 	ctx := context.Background()
@@ -331,7 +329,7 @@ func TestIntegration_BalanceRepository_SchemaDefaults(t *testing.T) {
 // ============================================================================
 
 func TestIntegration_BalanceRepository_ListAllByAccountID_ReturnsBalances(t *testing.T) {
-	container := pgtestutil.SetupContainer(t)
+	container := pgtestutil.SetupMigratedContainer(t, "transaction")
 
 	repo := createRepository(t, container)
 
@@ -363,7 +361,7 @@ func TestIntegration_BalanceRepository_ListAllByAccountID_ReturnsBalances(t *tes
 }
 
 func TestIntegration_BalanceRepository_ListAllByAccountID_EmptyForNonExistentAccount(t *testing.T) {
-	container := pgtestutil.SetupContainer(t)
+	container := pgtestutil.SetupMigratedContainer(t, "transaction")
 
 	repo := createRepository(t, container)
 
@@ -382,7 +380,7 @@ func TestIntegration_BalanceRepository_ListAllByAccountID_EmptyForNonExistentAcc
 }
 
 func TestIntegration_BalanceRepository_ListAllByAccountID_FiltersByDateRange(t *testing.T) {
-	container := pgtestutil.SetupContainer(t)
+	container := pgtestutil.SetupMigratedContainer(t, "transaction")
 
 	repo := createRepository(t, container)
 
@@ -421,7 +419,7 @@ func TestIntegration_BalanceRepository_ListAllByAccountID_FiltersByDateRange(t *
 }
 
 func TestIntegration_BalanceRepository_ListAllByAccountID_Pagination(t *testing.T) {
-	container := pgtestutil.SetupContainer(t)
+	container := pgtestutil.SetupMigratedContainer(t, "transaction")
 
 	repo := createRepository(t, container)
 
@@ -484,7 +482,7 @@ func TestIntegration_BalanceRepository_ListAllByAccountID_Pagination(t *testing.
 }
 
 func TestIntegration_BalanceRepository_ListAllByAccountID_PreservesLargePrecision(t *testing.T) {
-	container := pgtestutil.SetupContainer(t)
+	container := pgtestutil.SetupMigratedContainer(t, "transaction")
 
 	repo := createRepository(t, container)
 
@@ -512,7 +510,7 @@ func TestIntegration_BalanceRepository_ListAllByAccountID_PreservesLargePrecisio
 // ============================================================================
 
 func TestIntegration_BalanceRepository_Delete_SoftDeletesBalance(t *testing.T) {
-	container := pgtestutil.SetupContainer(t)
+	container := pgtestutil.SetupMigratedContainer(t, "transaction")
 
 	repo := createRepository(t, container)
 
@@ -545,7 +543,7 @@ func TestIntegration_BalanceRepository_Delete_SoftDeletesBalance(t *testing.T) {
 }
 
 func TestIntegration_BalanceRepository_Delete_ReturnsErrorForNonExistent(t *testing.T) {
-	container := pgtestutil.SetupContainer(t)
+	container := pgtestutil.SetupMigratedContainer(t, "transaction")
 
 	repo := createRepository(t, container)
 
@@ -570,7 +568,7 @@ func TestIntegration_BalanceRepository_Delete_ReturnsErrorForNonExistent(t *test
 // ============================================================================
 
 func TestIntegration_BalanceRepository_Update_ReturnsUpdatedBalance(t *testing.T) {
-	container := pgtestutil.SetupContainer(t)
+	container := pgtestutil.SetupMigratedContainer(t, "transaction")
 
 	repo := createRepository(t, container)
 
@@ -620,7 +618,7 @@ func TestIntegration_BalanceRepository_Update_ReturnsUpdatedBalance(t *testing.T
 }
 
 func TestIntegration_BalanceRepository_Update_ReturnedBalanceMatchesPersistedData(t *testing.T) {
-	container := pgtestutil.SetupContainer(t)
+	container := pgtestutil.SetupMigratedContainer(t, "transaction")
 
 	repo := createRepository(t, container)
 
@@ -671,7 +669,7 @@ func TestIntegration_BalanceRepository_Update_ReturnedBalanceMatchesPersistedDat
 }
 
 func TestIntegration_BalanceRepository_Update_ReturnsEntityNotFoundError(t *testing.T) {
-	container := pgtestutil.SetupContainer(t)
+	container := pgtestutil.SetupMigratedContainer(t, "transaction")
 
 	repo := createRepository(t, container)
 
@@ -698,7 +696,7 @@ func TestIntegration_BalanceRepository_Update_ReturnsEntityNotFoundError(t *test
 }
 
 func TestIntegration_BalanceRepository_Update_ChangesAllowFlags(t *testing.T) {
-	container := pgtestutil.SetupContainer(t)
+	container := pgtestutil.SetupMigratedContainer(t, "transaction")
 
 	repo := createRepository(t, container)
 
@@ -752,7 +750,7 @@ func TestIntegration_BalanceRepository_Update_ChangesAllowFlags(t *testing.T) {
 // ============================================================================
 
 func TestIntegration_BalanceRepository_ListByAliases_ReturnsMatchingBalances(t *testing.T) {
-	container := pgtestutil.SetupContainer(t)
+	container := pgtestutil.SetupMigratedContainer(t, "transaction")
 
 	repo := createRepository(t, container)
 
@@ -796,7 +794,7 @@ func TestIntegration_BalanceRepository_ListByAliases_ReturnsMatchingBalances(t *
 }
 
 func TestIntegration_BalanceRepository_ListByAliases_PreservesLargePrecision(t *testing.T) {
-	container := pgtestutil.SetupContainer(t)
+	container := pgtestutil.SetupMigratedContainer(t, "transaction")
 
 	repo := createRepository(t, container)
 
@@ -820,7 +818,7 @@ func TestIntegration_BalanceRepository_ListByAliases_PreservesLargePrecision(t *
 }
 
 func TestIntegration_BalanceRepository_ListByAliases_EmptyForNonExistentAlias(t *testing.T) {
-	container := pgtestutil.SetupContainer(t)
+	container := pgtestutil.SetupMigratedContainer(t, "transaction")
 
 	repo := createRepository(t, container)
 
@@ -842,7 +840,7 @@ func TestIntegration_BalanceRepository_ListByAliases_EmptyForNonExistentAlias(t 
 // ============================================================================
 
 func TestIntegration_BalanceRepository_FindByAccountIDAndKey_ReturnsBalance(t *testing.T) {
-	container := pgtestutil.SetupContainer(t)
+	container := pgtestutil.SetupMigratedContainer(t, "transaction")
 
 	repo := createRepository(t, container)
 
@@ -868,7 +866,7 @@ func TestIntegration_BalanceRepository_FindByAccountIDAndKey_ReturnsBalance(t *t
 }
 
 func TestIntegration_BalanceRepository_FindByAccountIDAndKey_ReturnsErrorForWrongKey(t *testing.T) {
-	container := pgtestutil.SetupContainer(t)
+	container := pgtestutil.SetupMigratedContainer(t, "transaction")
 
 	repo := createRepository(t, container)
 
@@ -899,7 +897,7 @@ func TestIntegration_BalanceRepository_FindByAccountIDAndKey_ReturnsErrorForWron
 // ============================================================================
 
 func TestIntegration_BalanceRepository_UpdateMany_UpdatesMultipleBalances(t *testing.T) {
-	container := pgtestutil.SetupContainer(t)
+	container := pgtestutil.SetupMigratedContainer(t, "transaction")
 
 	repo := createRepository(t, container)
 
@@ -961,7 +959,7 @@ func TestIntegration_BalanceRepository_UpdateMany_UpdatesMultipleBalances(t *tes
 }
 
 func TestIntegration_BalanceRepository_UpdateMany_IgnoresOlderVersions(t *testing.T) {
-	container := pgtestutil.SetupContainer(t)
+	container := pgtestutil.SetupMigratedContainer(t, "transaction")
 
 	repo := createRepository(t, container)
 
@@ -1007,7 +1005,7 @@ func TestIntegration_BalanceRepository_UpdateMany_IgnoresOlderVersions(t *testin
 }
 
 func TestIntegration_BalanceRepository_UpdateMany_EmptyBatchReturnsZero(t *testing.T) {
-	container := pgtestutil.SetupContainer(t)
+	container := pgtestutil.SetupMigratedContainer(t, "transaction")
 
 	repo := createRepository(t, container)
 
@@ -1025,7 +1023,7 @@ func TestIntegration_BalanceRepository_UpdateMany_EmptyBatchReturnsZero(t *testi
 }
 
 func TestIntegration_BalanceRepository_UpdateMany_PartialUpdate(t *testing.T) {
-	container := pgtestutil.SetupContainer(t)
+	container := pgtestutil.SetupMigratedContainer(t, "transaction")
 
 	repo := createRepository(t, container)
 
@@ -1092,7 +1090,7 @@ func TestIntegration_BalanceRepository_UpdateMany_PartialUpdate(t *testing.T) {
 }
 
 func TestIntegration_BalanceRepository_UpdateMany_RespectsContextCancellation(t *testing.T) {
-	container := pgtestutil.SetupContainer(t)
+	container := pgtestutil.SetupMigratedContainer(t, "transaction")
 
 	repo := createRepository(t, container)
 
@@ -1123,7 +1121,7 @@ func TestIntegration_BalanceRepository_UpdateMany_RespectsContextCancellation(t 
 }
 
 func TestIntegration_BalanceRepository_UpdateMany_InvalidUUID(t *testing.T) {
-	container := pgtestutil.SetupContainer(t)
+	container := pgtestutil.SetupMigratedContainer(t, "transaction")
 
 	repo := createRepository(t, container)
 
@@ -1152,7 +1150,7 @@ func TestIntegration_BalanceRepository_UpdateMany_InvalidUUID(t *testing.T) {
 }
 
 func TestIntegration_BalanceRepository_UpdateMany_LargeBatch(t *testing.T) {
-	container := pgtestutil.SetupContainer(t)
+	container := pgtestutil.SetupMigratedContainer(t, "transaction")
 
 	repo := createRepository(t, container)
 
@@ -1211,7 +1209,7 @@ func TestIntegration_BalanceRepository_UpdateMany_LargeBatch(t *testing.T) {
 // ============================================================================
 
 func TestIntegration_BalanceRepository_ListAll_ReturnsBalances(t *testing.T) {
-	container := pgtestutil.SetupContainer(t)
+	container := pgtestutil.SetupMigratedContainer(t, "transaction")
 
 	repo := createRepository(t, container)
 
@@ -1242,7 +1240,7 @@ func TestIntegration_BalanceRepository_ListAll_ReturnsBalances(t *testing.T) {
 }
 
 func TestIntegration_BalanceRepository_ListAll_FiltersByDateRange(t *testing.T) {
-	container := pgtestutil.SetupContainer(t)
+	container := pgtestutil.SetupMigratedContainer(t, "transaction")
 
 	repo := createRepository(t, container)
 
@@ -1282,7 +1280,7 @@ func TestIntegration_BalanceRepository_ListAll_FiltersByDateRange(t *testing.T) 
 }
 
 func TestIntegration_BalanceRepository_ListAll_Pagination(t *testing.T) {
-	container := pgtestutil.SetupContainer(t)
+	container := pgtestutil.SetupMigratedContainer(t, "transaction")
 
 	repo := createRepository(t, container)
 
@@ -1344,7 +1342,7 @@ func TestIntegration_BalanceRepository_ListAll_Pagination(t *testing.T) {
 }
 
 func TestIntegration_BalanceRepository_ListAll_EmptyForNonExistentLedger(t *testing.T) {
-	container := pgtestutil.SetupContainer(t)
+	container := pgtestutil.SetupMigratedContainer(t, "transaction")
 
 	repo := createRepository(t, container)
 
@@ -1362,7 +1360,7 @@ func TestIntegration_BalanceRepository_ListAll_EmptyForNonExistentLedger(t *test
 }
 
 func TestIntegration_BalanceRepository_ListAll_PreservesLargePrecision(t *testing.T) {
-	container := pgtestutil.SetupContainer(t)
+	container := pgtestutil.SetupMigratedContainer(t, "transaction")
 
 	repo := createRepository(t, container)
 
@@ -1439,7 +1437,7 @@ func TestIntegration_BalancesUpdate_OptimisticLock_HighestVersionWins(t *testing
 	// Each goroutine sets Available = version * 100, so we can verify
 	// which version actually got persisted by checking the final Available value.
 
-	container := pgtestutil.SetupContainer(t)
+	container := pgtestutil.SetupMigratedContainer(t, "transaction")
 
 	repo := createRepository(t, container)
 
@@ -1507,7 +1505,7 @@ func TestIntegration_BalancesUpdate_ParallelUpdates_DifferentBalances(t *testing
 	// This test verifies that parallel updates to DIFFERENT balances
 	// do not interfere with each other.
 
-	container := pgtestutil.SetupContainer(t)
+	container := pgtestutil.SetupMigratedContainer(t, "transaction")
 
 	repo := createRepository(t, container)
 
@@ -1578,7 +1576,7 @@ func TestIntegration_BalancesUpdate_ParallelUpdates_DifferentBalances(t *testing
 func TestIntegration_BalancesUpdate_SequentialVersioning(t *testing.T) {
 	// This test verifies that sequential updates with incrementing versions work correctly.
 
-	container := pgtestutil.SetupContainer(t)
+	container := pgtestutil.SetupMigratedContainer(t, "transaction")
 
 	repo := createRepository(t, container)
 
@@ -1633,7 +1631,7 @@ func TestIntegration_BalancesUpdate_SequentialVersioning(t *testing.T) {
 func TestIntegration_BalancesUpdate_EmptySlice_NoError(t *testing.T) {
 	// Verify that updating with an empty slice doesn't cause errors
 
-	container := pgtestutil.SetupContainer(t)
+	container := pgtestutil.SetupMigratedContainer(t, "transaction")
 
 	repo := createRepository(t, container)
 
@@ -1649,7 +1647,7 @@ func TestIntegration_BalancesUpdate_EmptySlice_NoError(t *testing.T) {
 func TestIntegration_BalancesUpdate_BatchUpdate_AllSucceed(t *testing.T) {
 	// Test batch update of multiple balances in a single call
 
-	container := pgtestutil.SetupContainer(t)
+	container := pgtestutil.SetupMigratedContainer(t, "transaction")
 
 	repo := createRepository(t, container)
 

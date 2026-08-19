@@ -67,24 +67,22 @@ func setupAssetTestInfra(t *testing.T) *assetTestInfra {
 
 	go func() {
 		defer wg.Done()
-		infra.pgContainer = postgrestestutil.SetupContainer(t)
+		infra.pgContainer = postgrestestutil.SetupMigratedContainer(t, "onboarding")
 	}()
 
 	go func() {
 		defer wg.Done()
-		infra.mongoContainer = mongotestutil.SetupContainer(t)
+		infra.mongoContainer = mongotestutil.SetupReusableContainer(t)
 	}()
 
 	wg.Wait()
 
-	// Create PostgreSQL connection following lib-commons pattern
-	migrationsPath := postgrestestutil.FindMigrationsPath(t, "onboarding")
 	connStr := postgrestestutil.BuildConnectionString(infra.pgContainer.Host, infra.pgContainer.Port, infra.pgContainer.Config)
 
-	infra.pgConn = postgrestestutil.CreatePostgresClient(t, connStr, connStr, infra.pgContainer.Config.DBName, migrationsPath)
+	infra.pgConn = postgrestestutil.ConnectPostgresClient(t.Context(), t, connStr, connStr)
 
 	// Create MongoDB connection
-	mongoConn := mongotestutil.CreateConnection(t, infra.mongoContainer.URI, "test_db")
+	mongoConn := mongotestutil.CreateConnection(t, infra.mongoContainer.URI, infra.mongoContainer.DBName)
 
 	// Create repositories
 	orgRepo := organization.NewOrganizationPostgreSQLRepository(infra.pgConn)
