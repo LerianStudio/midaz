@@ -43,8 +43,9 @@ func TestTracerOutcomeV2LedgerToTracerAndLostACK(t *testing.T) {
 	dst := createAccount(t, f, "v2-dst-"+uuid.NewString())
 	sourceID := accountIDByAlias(t, f, src)
 	fund(t, f, src, "1000")
-	seedCapacityLimitRule(t, f, "100", map[string]any{"accountId": sourceID})
+	limitID := seedCapacityLimitRule(t, f, "100", map[string]any{"accountId": sourceID})
 
+	periodStartedAt := time.Now().UTC()
 	transaction := mustCreate(t, f.ledgers()+"/transactions/json", transferBody(src, dst, "100", nil))
 	transactionID := str(t, transaction, "id")
 	if got := atoiDecimal(t, availableBalance(t, f, src)); got != 900 {
@@ -57,7 +58,9 @@ func TestTracerOutcomeV2LedgerToTracerAndLostACK(t *testing.T) {
 	// The CONFIRMED audit is committed in the same PostgreSQL transaction as the
 	// receipt and counter move. Waiting for it proves the Ledger worker, not this
 	// test, delivered the terminal outcome.
-	waitForReservationAudit(t, "RESERVATION_CONFIRMED", "", transactionID, 20*time.Second)
+	ledgerReservationID, ledgerAuditContext := waitForReservationAudit(t, "RESERVATION_CONFIRMED", "", transactionID, 20*time.Second)
+	assertReservationAuditContext(t, ledgerAuditContext, ledgerReservationID, transactionID, limitID,
+		"acct:"+sourceID, 100, periodStartedAt, time.Now().UTC())
 	parsedTransactionID, err := uuid.Parse(transactionID)
 	if err != nil {
 		t.Fatalf("parse ledger transaction id: %v", err)
@@ -84,12 +87,13 @@ func TestTracerOutcomeV2LedgerToTracerAndLostACK(t *testing.T) {
 	directOutcomeID := uuid.New()
 	directAccount := createAccount(t, f, "v2-ack-src-"+uuid.NewString())
 	directAccountID := accountIDByAlias(t, f, directAccount)
-	seedCapacityLimitRule(t, f, "100", map[string]any{"accountId": directAccountID})
+	directLimitID := seedCapacityLimitRule(t, f, "100", map[string]any{"accountId": directAccountID})
 	directPayload := reservePayload("")
 	directPayload["transactionId"] = directTransactionID.String()
 	directPayload["amount"] = "25"
 	directPayload["account"] = map[string]any{"accountId": directAccountID}
 	directPayload["deliveryMode"] = "LEDGER_OUTCOME_V2"
+	directPeriodStartedAt := time.Now().UTC()
 	directReserve := call(t, http.MethodPost, tracerURL()+"/v1/reservations/ledger-outcome-v2", directPayload)
 	if directReserve.status != http.StatusCreated {
 		t.Fatalf("direct V2 reserve: want 201, got %d\nbody: %s", directReserve.status, directReserve.body)
@@ -101,7 +105,9 @@ func TestTracerOutcomeV2LedgerToTracerAndLostACK(t *testing.T) {
 
 	outcomeBody := map[string]any{"outcomeId": directOutcomeID.String(), "outcome": "COMMITTED"}
 	postAndDropResponse(t, tracerURL()+"/v1/reservations/transaction/"+directTransactionID.String()+"/outcome", outcomeBody)
-	waitForReservationAudit(t, "RESERVATION_CONFIRMED", directReservationID, directTransactionID.String(), 20*time.Second)
+	_, directAuditContext := waitForReservationAudit(t, "RESERVATION_CONFIRMED", directReservationID, directTransactionID.String(), 20*time.Second)
+	assertReservationAuditContext(t, directAuditContext, directReservationID, directTransactionID.String(), directLimitID,
+		"acct:"+directAccountID, 25, directPeriodStartedAt, time.Now().UTC())
 	lostACKReplay := call(t, http.MethodPost,
 		tracerURL()+"/v1/reservations/transaction/"+directTransactionID.String()+"/outcome", outcomeBody)
 	assertOutcomeReplay(t, lostACKReplay, directTransactionID.String(), directOutcomeID.String(), 1)
@@ -144,7 +150,7 @@ func assertOutcomeReplay(t *testing.T, r response, transactionID, outcomeID stri
 	}
 }
 
-func waitForReservationAudit(t *testing.T, eventType, reservationID, transactionID string, timeout time.Duration) string {
+func waitForReservationAudit(t *testing.T, eventType, reservationID, transactionID string, timeout time.Duration) (string, map[string]any) {
 	t.Helper()
 	deadline := time.Now().Add(timeout)
 	for time.Now().Before(deadline) {
@@ -169,13 +175,49 @@ func waitForReservationAudit(t *testing.T, eventType, reservationID, transaction
 			ctx, _ := event["context"].(map[string]any)
 			if tx, _ := ctx["transactionId"].(string); tx == transactionID {
 				id, _ := event["resourceId"].(string)
-				return id
+				return id, ctx
 			}
 		}
 		time.Sleep(100 * time.Millisecond)
 	}
 	t.Fatalf("no %s audit for transaction %s within %s", eventType, transactionID, timeout)
-	return ""
+	return "", nil
+}
+
+func assertReservationAuditContext(
+	t *testing.T,
+	ctx map[string]any,
+	reservationID, transactionID, limitID, scopeKey string,
+	amount int,
+	periodStartedAt, periodObservedAt time.Time,
+) {
+	t.Helper()
+
+	if got, _ := ctx["reservationId"].(string); got != reservationID {
+		t.Fatalf("audit reservationId=%q, want %q", got, reservationID)
+	}
+	if got, _ := ctx["transactionId"].(string); got != transactionID {
+		t.Fatalf("audit transactionId=%q, want %q", got, transactionID)
+	}
+	if got, _ := ctx["limitId"].(string); got != limitID {
+		t.Fatalf("audit limitId=%q, want %q", got, limitID)
+	}
+	if got, _ := ctx["scopeKey"].(string); got != scopeKey {
+		t.Fatalf("audit scopeKey=%q, want %q", got, scopeKey)
+	}
+	if got, _ := ctx["status"].(string); got != "CONFIRMED" {
+		t.Fatalf("audit status=%q, want CONFIRMED", got)
+	}
+	if got, ok := ctx["amount"].(float64); !ok || got != float64(amount) {
+		t.Fatalf("audit amount=%v, want %d", ctx["amount"], amount)
+	}
+
+	gotPeriod, _ := ctx["periodKey"].(string)
+	startPeriod := periodStartedAt.UTC().Format(time.DateOnly)
+	endPeriod := periodObservedAt.UTC().Format(time.DateOnly)
+	if gotPeriod != startPeriod && gotPeriod != endPeriod {
+		t.Fatalf("audit periodKey=%q, want %q or %q", gotPeriod, startPeriod, endPeriod)
+	}
 }
 
 // postAndDropResponse writes a complete HTTP request and closes the socket

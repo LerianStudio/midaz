@@ -6,10 +6,16 @@ package bootstrap
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
+	"net/http"
+	"net/http/httptest"
 	"testing"
 
+	libLog "github.com/LerianStudio/lib-observability/v2/log"
+	"github.com/gofiber/fiber/v3"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 type financialDurabilityCheckerStub struct {
@@ -41,4 +47,23 @@ func TestTracerOutcomeRequiresDurableRedisForModeOrDrainWorker(t *testing.T) {
 	assert.True(t, tracerOutcomeRequiresDurableRedis(tracerOutcomeModeLegacy, true),
 		"rollback drain keeps the old durable backlog authoritative")
 	assert.False(t, tracerOutcomeRequiresDurableRedis(tracerOutcomeModeLegacy, false))
+}
+
+func TestReadyzReportsEffectiveTracerOutcomeMode(t *testing.T) {
+	t.Parallel()
+
+	handler := newReadyHandler(ReadyzHandlerConfig{
+		Logger:            libLog.NewNop(),
+		TracerOutcomeMode: tracerOutcomeModeV2,
+	})
+	app := fiber.New()
+	app.Get("/readyz", handler.HandleReadyz)
+
+	response, err := app.Test(httptest.NewRequest(http.MethodGet, "/readyz", nil))
+	require.NoError(t, err)
+	require.Equal(t, http.StatusOK, response.StatusCode)
+
+	var body ReadyzResponse
+	require.NoError(t, json.NewDecoder(response.Body).Decode(&body))
+	assert.Equal(t, tracerOutcomeModeV2, body.TracerOutcomeMode)
 }

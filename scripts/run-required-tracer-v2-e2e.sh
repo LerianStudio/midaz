@@ -12,6 +12,20 @@ go_timeout=${E2E_TRACER_V2_GO_TIMEOUT:-9m}
 json_file="$report_dir/ledger-tracer-v2-e2e.json"
 junit_file="$report_dir/ledger-tracer-v2-e2e.xml"
 
+require_ledger_v2_mode() {
+  local readiness
+  if ! readiness=$(curl --fail --silent --show-error "$LEDGER_URL/readyz"); then
+    echo "Tracer V2 E2E preflight could not read Ledger readiness at $LEDGER_URL/readyz" >&2
+    return 1
+  fi
+
+  if ! grep -Eq '"tracer_outcome_mode"[[:space:]]*:[[:space:]]*"ledger_outcome_v2"' <<<"$readiness"; then
+    echo "Tracer V2 E2E requires the running Ledger to report tracer_outcome_mode=ledger_outcome_v2" >&2
+    echo "Ledger readiness: $readiness" >&2
+    return 1
+  fi
+}
+
 run_tests() {
   mkdir -p "$report_dir"
   cd "$repo_root"
@@ -21,6 +35,8 @@ run_tests() {
   export E2E_LEDGER_WORKERS=1
   export LEDGER_URL=${LEDGER_URL:-http://localhost:3002}
   export TRACER_URL=${TRACER_URL:-http://localhost:4020}
+
+  require_ledger_v2_mode
 
   go_args=(-tags=e2e -v -count=1 -parallel=1 "-timeout=$go_timeout" -run '^TestTracerOutcomeV2LedgerToTracerAndLostACK$' ./tests/e2e/...)
   test_status=0
