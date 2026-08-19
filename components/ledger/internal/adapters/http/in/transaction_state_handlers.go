@@ -955,6 +955,13 @@ func (handler *TransactionHandler) commitOrCancelTransaction(
 	if ledgerSettings.Accounting.ValidateRoutes {
 		mtransaction.PropagateRouteValidation(ctx, validate, transactionStatus)
 	}
+	if err := handler.clearDurableLegacyHoldBackup(ctx, organizationID, ledgerID, tran.IDtoUUID()); err != nil {
+		libOpentelemetry.HandleSpanError(span, "Failed to close durable pending transaction handoff", err)
+		logger.Log(ctx, libLog.LevelError, "Failed to close durable pending transaction handoff",
+			libLog.String("transaction_id", tran.ID), libLog.Err(err))
+
+		return nil, transactionLifecycleReconciliationError()
+	}
 
 	expectedOutcome := economicOutcomeForStatus(transactionStatus)
 	executionKey := utils.TransactionBalanceExecutionKey(organizationID, ledgerID, tran.IDtoUUID())

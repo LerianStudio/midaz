@@ -86,6 +86,29 @@ func v1RevertURL(orgID, ledgerID, txID uuid.UUID) string {
 	return "/v1/organizations/" + orgID.String() + "/ledgers/" + ledgerID.String() + "/transactions/" + txID.String() + "/revert"
 }
 
+type skippedFirstLegacyHoldCleanupRepository struct {
+	transactionredis.RedisRepository
+	skipped   atomic.Bool
+	attempted chan struct{}
+}
+
+func (r *skippedFirstLegacyHoldCleanupRepository) RemoveMessageFromQueueIfStatus(
+	ctx context.Context,
+	key, expectedStatus, expectedOwner, expectedOutcome string,
+	allowTerminalOutcome bool,
+) (bool, error) {
+	if expectedStatus == cn.PENDING && expectedOwner == "" && expectedOutcome == "" &&
+		!allowTerminalOutcome && r.skipped.CompareAndSwap(false, true) {
+		close(r.attempted)
+
+		return false, nil
+	}
+
+	return r.RedisRepository.RemoveMessageFromQueueIfStatus(
+		ctx, key, expectedStatus, expectedOwner, expectedOutcome, allowTerminalOutcome,
+	)
+}
+
 func patchV1Transaction(t *testing.T, app *fiber.App, orgID, ledgerID, txID uuid.UUID, body string) *nethttp.Response {
 	t.Helper()
 
@@ -217,6 +240,46 @@ func TestIntegration_TransactionV2Hold_CommitViaV2_ParityWithV1(t *testing.T) {
 	// settled operations embedded) is indistinguishable from the v1 commit response.
 	require.Equal(t, stripVolatile(v1CommitResp), stripVolatile(renameV2LegKeys(v2CommitResp)),
 		"v2 commit response must be indistinguishable from the v1 commit equivalent (ignoring IDs/timestamps)")
+}
+
+func TestIntegration_TransactionPendingCommitClearsDurableLegacyHoldBackup(t *testing.T) {
+	t.Setenv("ALLOW_INSECURE_TLS", "true")
+	t.Setenv("RABBITMQ_TRANSACTION_ASYNC", "false")
+
+	infra := setupTestInfra(t)
+	ctx := context.Background()
+	_, _ = seedFundedTransfer(t, infra.pgContainer.DB, infra.orgID, infra.ledgerID,
+		"@src", "@dst", 1000, 1000)
+	faultRepo := &skippedFirstLegacyHoldCleanupRepository{
+		RedisRepository: infra.redisRepo,
+		attempted:       make(chan struct{}),
+	}
+	infra.handler.Command.TransactionRedisRepo = faultRepo
+	v2App := buildHumaV2DirectApp(t, infra.handler)
+
+	pending := decodeTxResponse(t, postV2Create(t, v2App, "hold", infra.orgID, infra.ledgerID,
+		holdParityV2Body, ""), nethttp.StatusCreated)
+	pendingID := uuid.MustParse(pending["id"].(string))
+	select {
+	case <-faultRepo.attempted:
+	case <-time.After(3 * time.Second):
+		require.FailNow(t, "legacy hold cleanup was not attempted")
+	}
+
+	backupKey := utils.TransactionInternalKey(infra.orgID, infra.ledgerID, pendingID.String())
+	rawBackup, err := infra.redisRepo.ReadMessageFromQueue(ctx, backupKey)
+	require.NoError(t, err)
+	queued := mmodel.TransactionRedisQueue{}
+	require.NoError(t, json.Unmarshal(rawBackup, &queued))
+	assert.Equal(t, cn.PENDING, queued.TransactionStatus)
+	assert.Equal(t, cn.ActionHold, queued.Action)
+	assert.Empty(t, queued.AttemptOwner)
+	assert.Empty(t, queued.ExpectedOutcome)
+
+	decodeTxResponse(t, postTransaction(t, v2App,
+		v2CommitURL(infra.orgID, infra.ledgerID, pendingID), "", ""), nethttp.StatusCreated)
+	assert.Equal(t, cn.APPROVED,
+		postgrestestutil.GetTransactionStatus(t, infra.pgContainer.DB, pendingID))
 }
 
 // =============================================================================

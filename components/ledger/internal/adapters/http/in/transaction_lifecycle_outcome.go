@@ -55,6 +55,51 @@ func (handler *TransactionHandler) readTransactionLifecycleOutcome(
 	return queued, nil
 }
 
+// clearDurableLegacyHoldBackup closes the handoff between a synchronously
+// persisted legacy hold and its next lifecycle stage. Legacy holds have no
+// outcome owner, so their best-effort post-persistence cleanup may still be in
+// flight when a client immediately commits or cancels the durable PENDING row.
+// Remove only that exact unowned PENDING hold; owned economic evidence and a
+// newer terminal-stage backup are never eligible.
+func (handler *TransactionHandler) clearDurableLegacyHoldBackup(
+	ctx context.Context,
+	organizationID, ledgerID, transactionID uuid.UUID,
+) error {
+	backupKey := utils.TransactionInternalKey(organizationID, ledgerID, transactionID.String())
+	raw, err := handler.Command.TransactionRedisRepo.ReadMessageFromQueue(ctx, backupKey)
+	if err != nil {
+		if err == redislib.Nil {
+			return nil
+		}
+
+		return fmt.Errorf("read durable pending transaction backup: %w", err)
+	}
+
+	queued := &mmodel.TransactionRedisQueue{}
+	if err := json.Unmarshal(raw, queued); err != nil {
+		return fmt.Errorf("decode durable pending transaction backup: %w", err)
+	}
+	if queued.OrganizationID != organizationID || queued.LedgerID != ledgerID ||
+		queued.TransactionID != transactionID {
+		return fmt.Errorf("durable pending transaction backup scope mismatch")
+	}
+	if queued.TransactionStatus != constant.PENDING || queued.Action != constant.ActionHold {
+		return nil
+	}
+	if queued.AttemptOwner != "" || queued.ExpectedOutcome != "" {
+		return fmt.Errorf("durable pending transaction still has owned economic evidence")
+	}
+
+	_, err = handler.Command.TransactionRedisRepo.RemoveMessageFromQueueIfStatus(
+		ctx, backupKey, constant.PENDING, "", "", false,
+	)
+	if err != nil {
+		return fmt.Errorf("clear durable pending transaction backup: %w", err)
+	}
+
+	return nil
+}
+
 func lifecycleBalanceAtomicResult(queued *mmodel.TransactionRedisQueue) *mmodel.BalanceAtomicResult {
 	if queued == nil || len(queued.BalancesAfter) == 0 {
 		return nil
