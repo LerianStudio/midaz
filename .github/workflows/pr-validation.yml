@@ -249,6 +249,13 @@ jobs:
           make set-env
           sed -i 's|^TRACER_BASE_URL=.*|TRACER_BASE_URL=http://midaz-tracer:4020|' components/ledger/.env
           sed -i 's|^TRACER_TRANSPORT=.*|TRACER_TRANSPORT=rest|' components/ledger/.env
+          # This layer's ledger fails fast on TRACER_TRANSPORT=rest without a
+          # TRACER_API_KEY, so provision an ephemeral key for the boot guard.
+          # Tracer-side API-key auth stays at its .env.example default
+          # (disabled), so the header is ignored on the wire; the shared-key
+          # handshake (configure-required-tracer-e2e-auth.sh) activates in the
+          # Ledger-Tracer outcome layer together with key-aware E2E tests.
+          sed -i 's|^TRACER_API_KEY=.*|TRACER_API_KEY='"$(openssl rand -hex 32)"'|' components/ledger/.env
           sed -i 's|^STREAMING_ENABLED=.*|STREAMING_ENABLED=true|' components/ledger/.env
           sed -i 's|^# STREAMING_BROKERS=.*|STREAMING_BROKERS=midaz-redpanda:9092|' components/ledger/.env
           sed -i 's|^# STREAMING_CLOUDEVENTS_SOURCE=.*|STREAMING_CLOUDEVENTS_SOURCE=ledger|' components/ledger/.env
@@ -256,13 +263,10 @@ jobs:
           # (e.g. after an .env.example format change).
           grep -q '^TRACER_BASE_URL=http://midaz-tracer:4020$' components/ledger/.env
           grep -q '^TRACER_TRANSPORT=rest$' components/ledger/.env
+          grep -Eq '^TRACER_API_KEY=[0-9a-f]{64}$' components/ledger/.env
           grep -q '^STREAMING_ENABLED=true$' components/ledger/.env
           grep -q '^STREAMING_BROKERS=midaz-redpanda:9092$' components/ledger/.env
           grep -q '^STREAMING_CLOUDEVENTS_SOURCE=ledger$' components/ledger/.env
-          # configure-required-tracer-e2e-auth.sh activates in the Ledger-Tracer
-          # outcome layer, once the ledger gains TRACER_API_KEY support. This
-          # layer's ledger cannot present a key, so tracer API-key auth stays
-          # at its .env.example default (disabled) here.
 
       # rebuild-up (down + build + up) instead of up: plain `docker compose up`
       # reuses any image already present in the runner's Docker daemon, and
