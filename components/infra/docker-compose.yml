@@ -6,11 +6,19 @@ services:
       - .env
     restart: always
     healthcheck:
-      test: echo 'db.runCommand("ping").ok'
+      test:
+        [
+          "CMD-SHELL",
+          "mongosh --host 127.0.0.1 --port ${MONGO_PORT} --quiet --eval 'const ping = db.adminCommand(\"ping\"); const hello = db.adminCommand(\"hello\"); quit(ping.ok === 1 && hello.ok === 1 && (hello.isWritablePrimary === true || hello.secondary === true) ? 0 : 1)'"
+        ]
       interval: 10s
       timeout: 5s
       retries: 5
     user: root
+    ulimits:
+      nofile:
+        soft: 65536
+        hard: 524288
     environment:
       MONGO_INITDB_ROOT_USERNAME: ${MONGO_USER}
       MONGO_INITDB_ROOT_PASSWORD: ${MONGO_PASSWORD}
