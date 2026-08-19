@@ -48,7 +48,7 @@ func (uc *UseCase) FinalizeDurableTransactionPersistence(
 
 	reverse := payload.Transaction.ParentTransactionID != nil
 
-	validRolloutMode := payload.RevertRolloutMode == "legacy" || payload.RevertRolloutMode == "bridge"
+	validRolloutMode := payload.RevertRolloutMode == constant.RevertRolloutModeLegacy || payload.RevertRolloutMode == constant.RevertRolloutModeBridge
 	if (payload.RevertRolloutToken == "") != (payload.RevertRolloutMode == "") ||
 		(payload.RevertRolloutToken != "" && (!validRolloutMode || !reverse || payload.Input == nil ||
 			payload.Input.IsEmpty() || !outcomeBacked || payload.RedisGeneration == "")) ||
@@ -86,8 +86,12 @@ func (uc *UseCase) FinalizeDurableTransactionPersistence(
 
 	if outcomeBacked {
 		attempt, _, attemptErr := outcomeBackedAttempt(organizationID, ledgerID, &payload)
-		if attemptErr != nil || attempt == nil {
+		if attemptErr != nil {
 			return true, fmt.Errorf("rebuild durable transaction balance attempt: %w", attemptErr)
+		}
+
+		if attempt == nil {
+			return true, fmt.Errorf("rebuild durable transaction balance attempt: attempt is missing")
 		}
 
 		redisOperations := make([]mmodel.OperationRedis, 0, len(payload.Transaction.Operations))
@@ -97,6 +101,10 @@ func (uc *UseCase) FinalizeDurableTransactionPersistence(
 			}
 
 			redisOperations = append(redisOperations, transactionOperation.ToRedis())
+		}
+
+		if payload.Input == nil {
+			return true, fmt.Errorf("finalize durable transaction input is required")
 		}
 
 		var parentTransactionID *uuid.UUID
@@ -443,7 +451,7 @@ func (uc *UseCase) completeDurableRevertReplay(
 			err = uc.completeOwnedReplay(ctx, *claim.LegacyFenceKey, *claim.LegacyFenceOwner, encoded, replay)
 		}
 
-		if err != nil && strings.EqualFold(strings.TrimSpace(uc.RevertIdempotencyMode), "final") {
+		if err != nil && strings.EqualFold(strings.TrimSpace(uc.RevertIdempotencyMode), constant.RevertRolloutModeFinal) {
 			values, readErr := uc.TransactionRedisRepo.MGet(ctx,
 				[]string{*claim.LegacyFenceKey, *claim.LegacyFenceKey + ":owner"})
 			if readErr == nil {
@@ -479,9 +487,9 @@ func (uc *UseCase) completeUnownedReplay(
 	key, encoded string,
 	replay *transaction.Transaction,
 ) error {
-	const replayTTL time.Duration = 300
+	const replayTTLSeconds time.Duration = 300
 
-	completed, err := uc.TransactionRedisRepo.CompleteUnownedKey(ctx, key, encoded, replayTTL)
+	completed, err := uc.TransactionRedisRepo.CompleteUnownedKey(ctx, key, encoded, replayTTLSeconds)
 	if err == nil && completed {
 		return nil
 	}
@@ -512,9 +520,9 @@ func (uc *UseCase) completeOwnedReplay(
 	key, owner, encoded string,
 	replay *transaction.Transaction,
 ) error {
-	const replayTTL time.Duration = 300
+	const replayTTLSeconds time.Duration = 300
 
-	completed, err := uc.TransactionRedisRepo.CompleteOwnedKey(ctx, key, owner, encoded, replayTTL)
+	completed, err := uc.TransactionRedisRepo.CompleteOwnedKey(ctx, key, owner, encoded, replayTTLSeconds)
 	if err == nil && completed {
 		return nil
 	}
@@ -551,7 +559,7 @@ func (uc *UseCase) completeOwnedReplay(
 		return fmt.Errorf("durable replay owner unavailable")
 	}
 
-	completed, err = uc.TransactionRedisRepo.CompleteOwnedKey(ctx, key, owner, encoded, replayTTL)
+	completed, err = uc.TransactionRedisRepo.CompleteOwnedKey(ctx, key, owner, encoded, replayTTLSeconds)
 	if err != nil || !completed {
 		if err != nil {
 			return err

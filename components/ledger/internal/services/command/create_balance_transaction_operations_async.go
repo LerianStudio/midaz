@@ -66,9 +66,13 @@ func (uc *UseCase) CreateBalanceTransactionOperationsAsync(ctx context.Context, 
 	}
 
 	if terminal {
-		_, replayErr := uc.FinalizeDurableTransactionPersistence(ctx, data.OrganizationID, data.LedgerID, t)
+		if _, replayErr := uc.FinalizeDurableTransactionPersistence(ctx, data.OrganizationID, data.LedgerID, t); replayErr != nil {
+			return replayErr
+		}
 
-		return replayErr
+		uc.DeleteWriteBehindTransaction(ctx, data.OrganizationID, data.LedgerID, t.Transaction.ID)
+
+		return nil
 	}
 
 	backupStatusForCleanup := utils.ExpectedBackupStatusForCleanup(t.Transaction.Status.Code, t.Validate)
@@ -299,18 +303,9 @@ func (uc *UseCase) persistTransactionAndOperationsAtomic(
 	}
 
 	if insertResult.Ignored == 1 && uc.isStatusTransition(payload) {
-		organizationID, ledgerID, identityErr := uc.extractOrgLedgerIDs(payload)
+		organizationID, ledgerID, transactionID, identityErr := terminalTransactionIdentity(tran)
 		if identityErr != nil {
 			return nil, TransactionLifecyclePhaseNoop, identityErr
-		}
-
-		transactionID, identityErr := uuid.Parse(tran.ID)
-		if identityErr != nil {
-			return nil, TransactionLifecyclePhaseNoop, fmt.Errorf("invalid transaction ID: %w", identityErr)
-		}
-
-		if transactionID == uuid.Nil {
-			return nil, TransactionLifecyclePhaseNoop, fmt.Errorf("invalid transaction ID: UUID is nil")
 		}
 
 		if _, updateErr := uc.TransactionRepo.UpdateStatusFromPendingTx(ctx, dbTx,
@@ -491,6 +486,10 @@ func (uc *UseCase) SendTransactionToRedisQueue(ctx context.Context, organization
 		queue.ParentTransactionID = parentTransactionID
 	}
 
+	if len(options) > 1 {
+		return fmt.Errorf("at most one transaction backup seed options value is supported")
+	}
+
 	var executionAttempt *mmodel.BalanceExecutionAttempt
 	if len(options) > 0 {
 		executionAttempt = options[0].ExecutionAttempt
@@ -507,7 +506,7 @@ func (uc *UseCase) SendTransactionToRedisQueue(ctx context.Context, organization
 		}
 	}
 
-	validRolloutMode := queue.RevertRolloutMode == "legacy" || queue.RevertRolloutMode == "bridge"
+	validRolloutMode := queue.RevertRolloutMode == constant.RevertRolloutModeLegacy || queue.RevertRolloutMode == constant.RevertRolloutModeBridge
 	if (queue.RevertRolloutToken == "") != (queue.RevertRolloutMode == "") ||
 		(queue.RevertRolloutToken != "" && (!validRolloutMode || queue.RevertLegacyFenceKey == "" || queue.ParentTransactionID == nil ||
 			transactionInput.IsEmpty() || executionAttempt == nil || executionAttempt.Owner != transactionID.String() ||

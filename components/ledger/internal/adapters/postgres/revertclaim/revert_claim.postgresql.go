@@ -714,6 +714,10 @@ func (r *PostgreSQLRepository) Transition(ctx context.Context, organizationID, l
 	return nil
 }
 
+// preMutationRecoveryLeaseSeconds is how long a RECOVERING claim fences other
+// recovery candidates before its lease can be stolen.
+const preMutationRecoveryLeaseSeconds = 30
+
 // BeginPreMutationRecovery elects exactly one recovery owner while the durable
 // claim still fences every competing bridge/final request. Redis cleanup is
 // performed only by that owner, and the PostgreSQL claim is released last.
@@ -730,9 +734,9 @@ func (r *PostgreSQLRepository) BeginPreMutationRecovery(ctx context.Context, org
 		  AND origin_transaction_id = $3 AND reverse_transaction_id = $4
 		  AND (
 		    state = 'CLAIMED'
-		    OR (state = 'RECOVERING' AND updated_at <= NOW() - INTERVAL '30 seconds')
+		    OR (state = 'RECOVERING' AND updated_at <= NOW() - make_interval(secs => $5))
 		  )`,
-		organizationID, ledgerID, originID, reverseID,
+		organizationID, ledgerID, originID, reverseID, preMutationRecoveryLeaseSeconds,
 	)
 	if err != nil {
 		return false, fmt.Errorf("begin pre-mutation revert recovery: %w", err)

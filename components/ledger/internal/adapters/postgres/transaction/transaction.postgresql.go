@@ -1012,8 +1012,15 @@ func (r *TransactionPostgreSQLRepository) Find(ctx context.Context, organization
 func (r *TransactionPostgreSQLRepository) FindForUpdate(ctx context.Context, tx repository.DBExecutor,
 	organizationID, ledgerID, id uuid.UUID,
 ) (*Transaction, error) {
+	_, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
+
+	ctx, span := tracer.Start(ctx, "postgres.find_transaction_for_update")
+	defer span.End()
+
 	querier, ok := tx.(repository.DBQuerier)
 	if !ok {
+		libOpentelemetry.HandleSpanError(span, "Query context is not supported", repository.ErrQueryContextNotSupported)
+
 		return nil, repository.ErrQueryContextNotSupported
 	}
 
@@ -1023,6 +1030,8 @@ func (r *TransactionPostgreSQLRepository) FindForUpdate(ctx context.Context, tx 
 
 	rows, err := querier.QueryContext(ctx, query, organizationID, ledgerID, id)
 	if err != nil {
+		libOpentelemetry.HandleSpanError(span, "Failed to query transaction for update", err)
+
 		return nil, err
 	}
 	defer rows.Close()

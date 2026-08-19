@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 	"time"
 
@@ -209,7 +210,7 @@ func (w *TracerOutcomeWorker) runTenantCycle(ctx context.Context) {
 
 	keys, err := w.repo.ListDueTracerOutcomes(ctx, now, w.config.BatchSize)
 	if err != nil {
-		w.logFailure(ctx, "Failed to list due tracer outcomes", err)
+		w.logError(ctx, "Failed to list due tracer outcomes", err)
 		return
 	}
 
@@ -239,7 +240,7 @@ func (w *TracerOutcomeWorker) runTenantCycle(ctx context.Context) {
 func (w *TracerOutcomeWorker) dispatchOne(ctx context.Context, key string, now time.Time) {
 	record, err := w.repo.ReadTracerOutcomeByKey(ctx, key)
 	if err != nil {
-		w.logFailure(ctx, "Failed to read tracer outcome", err)
+		w.logError(ctx, "Failed to read tracer outcome", err)
 		return
 	}
 
@@ -264,9 +265,16 @@ func (w *TracerOutcomeWorker) dispatchOne(ctx context.Context, key string, now t
 		record, err = w.repo.AbortPreparedTracerOutcome(ctx, record.OrganizationID, record.LedgerID,
 			record.TransactionID, record.Owner, record.OutcomeID, now)
 		if err != nil {
-			w.emit(ctx, utils.TracerOutcomePreparedRecoveryTotal, map[string]string{"result": "conflict"})
-			// A concurrent Lua terminal transition wins the CAS. The next schedule
-			// pass observes it; recovery never overwrites that economic fact.
+			if strings.Contains(err.Error(), "TRACER_OUTCOME_CONFLICT") {
+				w.emit(ctx, utils.TracerOutcomePreparedRecoveryTotal, map[string]string{"result": "conflict"})
+				// A concurrent Lua terminal transition wins the CAS. The next schedule
+				// pass observes it; recovery never overwrites that economic fact.
+				return
+			}
+
+			w.emit(ctx, utils.TracerOutcomePreparedRecoveryTotal, map[string]string{"result": "error"})
+			w.logError(ctx, "Failed to abort prepared tracer outcome", err)
+
 			return
 		}
 
@@ -306,7 +314,7 @@ func (w *TracerOutcomeWorker) dispatchOne(ctx context.Context, key string, now t
 		next := now.Add(w.backoff(record.DeliveryAttempts))
 		if rescheduleErr := w.repo.RescheduleTracerOutcome(ctx, key, record.OutcomeID, record.State,
 			err.Error(), now, next); rescheduleErr != nil {
-			w.logFailure(ctx, "Failed to reschedule tracer outcome", rescheduleErr)
+			w.logError(ctx, "Failed to reschedule tracer outcome", rescheduleErr)
 		}
 
 		return
@@ -314,7 +322,7 @@ func (w *TracerOutcomeWorker) dispatchOne(ctx context.Context, key string, now t
 
 	if _, err := w.repo.MarkTracerOutcomeDelivered(ctx, key, record.OutcomeID, record.State, now, w.config.DeliveredTTL); err != nil {
 		w.emit(ctx, utils.TracerOutcomeDispatchTotal, map[string]string{"outcome": string(outcome), "result": "ack_persist_failed"})
-		w.logFailure(ctx, "Failed to persist tracer outcome acknowledgement", err)
+		w.logError(ctx, "Failed to persist tracer outcome acknowledgement", err)
 
 		return
 	}
@@ -325,6 +333,15 @@ func (w *TracerOutcomeWorker) dispatchOne(ctx context.Context, key string, now t
 func (w *TracerOutcomeWorker) logFailure(ctx context.Context, message string, err error) {
 	if w.logger != nil {
 		w.logger.Log(ctx, libLog.LevelWarn, message, libLog.Err(err))
+	}
+}
+
+// logError reports infrastructure failures (Redis reads and writes on the
+// durable money path) at Error level so operators can separate them from
+// recoverable degradation, which stays at Warn via logFailure.
+func (w *TracerOutcomeWorker) logError(ctx context.Context, message string, err error) {
+	if w.logger != nil {
+		w.logger.Log(ctx, libLog.LevelError, message, libLog.Err(err))
 	}
 }
 

@@ -361,6 +361,7 @@ func TestWriteTransactionAsync(t *testing.T) {
 		td.transactionInput.OperationTypeOverride = constant.BLOCK
 		td.tran.RevertRolloutMode = "bridge"
 		td.tran.RevertRolloutToken = "origin-rollout-token"
+		td.tran.RedisGeneration = "origin-redis-generation"
 		attempt := &mmodel.BalanceExecutionAttempt{
 			Owner:   "attempt-owner",
 			Outcome: mmodel.TransactionOutcomeCommitted,
@@ -382,6 +383,7 @@ func TestWriteTransactionAsync(t *testing.T) {
 				assert.Equal(t, attempt.Outcome, payload.ExpectedOutcome)
 				assert.Equal(t, "bridge", payload.RevertRolloutMode)
 				assert.Equal(t, "origin-rollout-token", payload.RevertRolloutToken)
+				assert.Equal(t, "origin-redis-generation", payload.RedisGeneration)
 				assert.Equal(t, mmodel.TransactionEffectModeVersion, payload.EffectModeVersion)
 				assert.Equal(t, mmodel.TransactionEffectBalanceMutation, payload.EffectMode)
 				assert.Equal(t, constant.BLOCK, payload.OperationTypeOverride)

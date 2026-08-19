@@ -170,7 +170,7 @@ func (uc *UseCase) UpdateTransactionSerialized(
 		releaseGateOnReturn = false
 		reconciliationErr := pkg.ValidateBusinessError(constant.ErrRevertReconciliationRequired, constant.EntityTransaction)
 
-		return nil, fmt.Errorf("transaction metadata update is ambiguous: %v: %w", err, reconciliationErr)
+		return nil, fmt.Errorf("transaction metadata update is ambiguous: %w: %w", err, reconciliationErr)
 	}
 
 	if commitErr := dbTx.Commit(); commitErr != nil {
@@ -187,7 +187,7 @@ func (uc *UseCase) UpdateTransactionSerialized(
 				releaseGateOnReturn = false
 				reconciliationErr := pkg.ValidateBusinessError(constant.ErrRevertReconciliationRequired, constant.EntityTransaction)
 
-				return nil, fmt.Errorf("serialized transaction update rolled back after metadata changed: %v: %w",
+				return nil, fmt.Errorf("serialized transaction update rolled back after metadata changed: %w: %w",
 					commitErr, reconciliationErr)
 			}
 
@@ -197,10 +197,10 @@ func (uc *UseCase) UpdateTransactionSerialized(
 
 			reconciliationErr := pkg.ValidateBusinessError(constant.ErrRevertReconciliationRequired, constant.EntityTransaction)
 			if reconcileErr != nil {
-				return nil, fmt.Errorf("reconcile ambiguous serialized transaction update: %v: %w", reconcileErr, reconciliationErr)
+				return nil, fmt.Errorf("reconcile ambiguous serialized transaction update: %w: %w", reconcileErr, reconciliationErr)
 			}
 
-			return nil, fmt.Errorf("reconcile ambiguous serialized transaction update after commit error: %v: %w",
+			return nil, fmt.Errorf("reconcile ambiguous serialized transaction update after commit error: %w: %w",
 				commitErr, reconciliationErr)
 		}
 	}
@@ -358,9 +358,10 @@ func (uc *UseCase) UpdateTransactionStatusTx(
 		return nil, errors.New("transaction cannot be nil")
 	}
 
-	organizationID := uuid.MustParse(tran.OrganizationID)
-	ledgerID := uuid.MustParse(tran.LedgerID)
-	transactionID := uuid.MustParse(tran.ID)
+	organizationID, ledgerID, transactionID, err := terminalTransactionIdentity(tran)
+	if err != nil {
+		return nil, err
+	}
 
 	return uc.TransactionRepo.UpdateStatusFromPendingTx(ctx, dbTx, organizationID, ledgerID, transactionID, &transaction.Transaction{
 		Status: tran.Status,

@@ -23,22 +23,25 @@ func TestRedisOperationEconomicComplete_RequiresEveryReplayDiscriminator(t *test
 	}
 	require.True(t, RedisOperationEconomicComplete(complete))
 
-	for _, mutate := range []func(*OperationRedis){
-		func(value *OperationRedis) { value.ID = "" },
-		func(value *OperationRedis) { value.TransactionID = "" },
-		func(value *OperationRedis) { value.BalanceID = "" },
-		func(value *OperationRedis) { value.BalanceKey = "" },
-		func(value *OperationRedis) { value.AccountID = "" },
-		func(value *OperationRedis) { value.OrganizationID = "" },
-		func(value *OperationRedis) { value.LedgerID = "" },
-		func(value *OperationRedis) { value.Type = "" },
-		func(value *OperationRedis) { value.Direction = "" },
-		func(value *OperationRedis) { value.AssetCode = "" },
-		func(value *OperationRedis) { value.Snapshot.OverdraftUsedBefore = "" },
-		func(value *OperationRedis) { value.Snapshot.OverdraftUsedAfter = "invalid" },
+	for _, mutation := range []struct {
+		name   string
+		mutate func(*OperationRedis)
+	}{
+		{name: "missing id", mutate: func(value *OperationRedis) { value.ID = "" }},
+		{name: "missing transaction id", mutate: func(value *OperationRedis) { value.TransactionID = "" }},
+		{name: "missing balance id", mutate: func(value *OperationRedis) { value.BalanceID = "" }},
+		{name: "missing balance key", mutate: func(value *OperationRedis) { value.BalanceKey = "" }},
+		{name: "missing account id", mutate: func(value *OperationRedis) { value.AccountID = "" }},
+		{name: "missing organization id", mutate: func(value *OperationRedis) { value.OrganizationID = "" }},
+		{name: "missing ledger id", mutate: func(value *OperationRedis) { value.LedgerID = "" }},
+		{name: "missing type", mutate: func(value *OperationRedis) { value.Type = "" }},
+		{name: "missing direction", mutate: func(value *OperationRedis) { value.Direction = "" }},
+		{name: "missing asset code", mutate: func(value *OperationRedis) { value.AssetCode = "" }},
+		{name: "missing overdraft used before", mutate: func(value *OperationRedis) { value.Snapshot.OverdraftUsedBefore = "" }},
+		{name: "malformed overdraft used after", mutate: func(value *OperationRedis) { value.Snapshot.OverdraftUsedAfter = "invalid" }},
 	} {
 		candidate := complete
-		mutate(&candidate)
-		assert.False(t, RedisOperationEconomicComplete(candidate))
+		mutation.mutate(&candidate)
+		assert.False(t, RedisOperationEconomicComplete(candidate), "mutation %q must make the operation incomplete", mutation.name)
 	}
 }

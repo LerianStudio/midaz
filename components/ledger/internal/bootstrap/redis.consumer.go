@@ -488,16 +488,34 @@ func (r *RedisQueueConsumer) processMessage(ctx context.Context, key, rawPayload
 	}
 
 	balances := make([]*mmodel.Balance, 0, len(m.Balances))
+
 	for _, balance := range m.Balances {
-		balances = append(balances, balanceFromBackup(balance, m.OrganizationID, m.LedgerID))
+		rebuilt, balanceErr := balanceFromBackup(balance, m.OrganizationID, m.LedgerID)
+		if balanceErr != nil {
+			logger.Log(msgCtxWithSpan, libLog.LevelError, "Transaction backup carries malformed balance evidence; backup retained",
+				libLog.String("transaction_id", m.TransactionID.String()), libLog.Err(balanceErr))
+
+			return
+		}
+
+		balances = append(balances, rebuilt)
 	}
 
 	// Parse AFTER balances from backup queue (nil for legacy entries written by old pods)
 	var balancesAfter []*mmodel.Balance
 	if len(m.BalancesAfter) > 0 {
 		balancesAfter = make([]*mmodel.Balance, 0, len(m.BalancesAfter))
+
 		for _, balance := range m.BalancesAfter {
-			balancesAfter = append(balancesAfter, balanceFromBackup(balance, m.OrganizationID, m.LedgerID))
+			rebuilt, balanceErr := balanceFromBackup(balance, m.OrganizationID, m.LedgerID)
+			if balanceErr != nil {
+				logger.Log(msgCtxWithSpan, libLog.LevelError, "Transaction backup carries malformed balance evidence; backup retained",
+					libLog.String("transaction_id", m.TransactionID.String()), libLog.Err(balanceErr))
+
+				return
+			}
+
+			balancesAfter = append(balancesAfter, rebuilt)
 		}
 
 		logger.Log(ctx, libLog.LevelDebug, "Using AFTER balances from backup for direct persistence", libLog.Int("balance_count", len(balancesAfter)))
@@ -815,15 +833,24 @@ func requiresAtomicOutcomeBackup(m mmodel.TransactionRedisQueue) bool {
 	return m.AttemptOwner != "" || m.ExpectedOutcome != ""
 }
 
-func balanceFromBackup(balance mmodel.BalanceRedis, organizationID, ledgerID uuid.UUID) *mmodel.Balance {
+func balanceFromBackup(balance mmodel.BalanceRedis, organizationID, ledgerID uuid.UUID) (*mmodel.Balance, error) {
 	balanceKey := balance.Key
 	if balanceKey == "" {
 		balanceKey = constant.DefaultBalanceKey
 	}
 
-	overdraftUsed, err := decimal.NewFromString(balance.OverdraftUsed)
-	if err != nil {
-		overdraftUsed = decimal.Zero
+	// An empty OverdraftUsed is the expected legacy shape and means zero. A
+	// malformed non-empty value is corrupt financial evidence and must fail
+	// closed instead of silently reporting that no overdraft was consumed.
+	overdraftUsed := decimal.Zero
+
+	if balance.OverdraftUsed != "" {
+		parsed, err := decimal.NewFromString(balance.OverdraftUsed)
+		if err != nil {
+			return nil, fmt.Errorf("decode backup overdraft used for balance %s: %w", balance.ID, err)
+		}
+
+		overdraftUsed = parsed
 	}
 
 	var settings *mmodel.BalanceSettings
@@ -864,7 +891,7 @@ func balanceFromBackup(balance mmodel.BalanceRedis, organizationID, ledgerID uui
 		Direction:      balance.Direction,
 		OverdraftUsed:  overdraftUsed,
 		Settings:       settings,
-	}
+	}, nil
 }
 
 func (r *RedisQueueConsumer) resolveBackupParentTransactionID(ctx context.Context, m mmodel.TransactionRedisQueue) (*string, string, error) {

@@ -178,17 +178,15 @@ func (uc *UseCase) preflightDurableBulkPayloads(
 			return nil, fmt.Errorf("validate bulk Redis economic outcome for payload %d: %w", i, err)
 		}
 
-		outcomeBacked, terminal, err := uc.preflightOutcomeBackedTransaction(ctx, organizationID, ledgerID, payload)
+		_, terminal, err := uc.preflightOutcomeBackedTransaction(ctx, organizationID, ledgerID, payload)
 		if err != nil {
 			return nil, fmt.Errorf("validate bulk Redis economic outcome for transaction %s: %w",
 				payload.Transaction.ID, err)
 		}
 
-		if !outcomeBacked {
-			pending = append(pending, *payload)
-			continue
-		}
-
+		// Match the single-payload path: a terminal transaction replays its
+		// durable finalization regardless of whether the attempt is
+		// outcome-backed; every other payload proceeds to persistence.
 		if terminal {
 			if _, err := uc.FinalizeDurableTransactionPersistence(ctx, organizationID, ledgerID, *payload); err != nil {
 				return nil, fmt.Errorf("finalize completed bulk transaction replay %s: %w",
@@ -202,6 +200,40 @@ func (uc *UseCase) preflightDurableBulkPayloads(
 	}
 
 	return pending, nil
+}
+
+// terminalTransactionIdentity parses and validates the organization, ledger,
+// and transaction UUIDs carried by a terminal transaction row. Both the bulk
+// and single-payload status-transition paths share it.
+func terminalTransactionIdentity(tran *transaction.Transaction) (uuid.UUID, uuid.UUID, uuid.UUID, error) {
+	organizationID, err := uuid.Parse(tran.OrganizationID)
+	if err != nil {
+		return uuid.Nil, uuid.Nil, uuid.Nil, fmt.Errorf("terminal transaction has invalid organization ID: %w", err)
+	}
+
+	if organizationID == uuid.Nil {
+		return uuid.Nil, uuid.Nil, uuid.Nil, fmt.Errorf("terminal transaction has invalid organization ID: UUID is nil")
+	}
+
+	ledgerID, err := uuid.Parse(tran.LedgerID)
+	if err != nil {
+		return uuid.Nil, uuid.Nil, uuid.Nil, fmt.Errorf("terminal transaction has invalid ledger ID: %w", err)
+	}
+
+	if ledgerID == uuid.Nil {
+		return uuid.Nil, uuid.Nil, uuid.Nil, fmt.Errorf("terminal transaction has invalid ledger ID: UUID is nil")
+	}
+
+	transactionID, err := uuid.Parse(tran.ID)
+	if err != nil {
+		return uuid.Nil, uuid.Nil, uuid.Nil, fmt.Errorf("terminal transaction has invalid transaction ID: %w", err)
+	}
+
+	if transactionID == uuid.Nil {
+		return uuid.Nil, uuid.Nil, uuid.Nil, fmt.Errorf("terminal transaction has invalid transaction ID: UUID is nil")
+	}
+
+	return organizationID, ledgerID, transactionID, nil
 }
 
 // extractOrgLedgerIDs extracts organization and ledger IDs from a payload.
@@ -390,34 +422,17 @@ func (uc *UseCase) atomicBulkInsert(
 
 	// A status transition and its new operation set must never be visible in
 	// different snapshots. Apply the PENDING compare-and-set through the same
-	// caller-owned transaction used above.
-	result.TransactionsUpdateAttempted = int64(len(toUpdate.transactions))
+	// caller-owned transaction used above. Counters are assigned to the shared
+	// result only after the commit succeeds so a failed commit reports zero
+	// applied updates.
+	updateAttempted := int64(len(toUpdate.transactions))
+
+	var updated int64
+
 	for _, tran := range toUpdate.transactions {
-		organizationID, err := uuid.Parse(tran.OrganizationID)
+		organizationID, ledgerID, transactionID, err := terminalTransactionIdentity(tran)
 		if err != nil {
-			return fmt.Errorf("bulk terminal transaction has invalid organization ID: %w", err)
-		}
-
-		if organizationID == uuid.Nil {
-			return fmt.Errorf("bulk terminal transaction has invalid organization ID: UUID is nil")
-		}
-
-		ledgerID, err := uuid.Parse(tran.LedgerID)
-		if err != nil {
-			return fmt.Errorf("bulk terminal transaction has invalid ledger ID: %w", err)
-		}
-
-		if ledgerID == uuid.Nil {
-			return fmt.Errorf("bulk terminal transaction has invalid ledger ID: UUID is nil")
-		}
-
-		transactionID, err := uuid.Parse(tran.ID)
-		if err != nil {
-			return fmt.Errorf("bulk terminal transaction has invalid transaction ID: %w", err)
-		}
-
-		if transactionID == uuid.Nil {
-			return fmt.Errorf("bulk terminal transaction has invalid transaction ID: UUID is nil")
+			return fmt.Errorf("bulk %w", err)
 		}
 
 		if _, err := uc.TransactionRepo.UpdateStatusFromPendingTx(ctx, dbTx,
@@ -425,7 +440,7 @@ func (uc *UseCase) atomicBulkInsert(
 			return fmt.Errorf("bulk terminal transaction status: %w", err)
 		}
 
-		result.TransactionsUpdated++
+		updated++
 	}
 
 	// Commit the transaction
@@ -434,6 +449,8 @@ func (uc *UseCase) atomicBulkInsert(
 	}
 
 	committed = true
+	result.TransactionsUpdateAttempted = updateAttempted
+	result.TransactionsUpdated = updated
 
 	return nil
 }
@@ -542,12 +559,12 @@ func (uc *UseCase) processMetadataAndEvents(
 		if !managedPersistence {
 			expectedStatus := utils.ExpectedBackupStatusForCleanup(tx.Status.Code, payload.Validate)
 
-			go func(orgID, ledgerID uuid.UUID, txID, status string) {
+			go func(orgID, ledgerID uuid.UUID, txID, status, attemptOwner, expectedOutcome string) {
 				opCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), asyncOperationTimeout)
 				defer cancel()
 
-				uc.RemoveTransactionFromRedisQueueIfStatus(opCtx, logger, orgID, ledgerID, txID, status, "", "")
-			}(orgID, ledgerID, tx.ID, expectedStatus)
+				uc.RemoveTransactionFromRedisQueueIfStatus(opCtx, logger, orgID, ledgerID, txID, status, attemptOwner, expectedOutcome)
+			}(orgID, ledgerID, tx.ID, expectedStatus, payload.AttemptOwner, payload.ExpectedOutcome)
 		}
 
 		go func(orgID, ledgerID uuid.UUID, txID string) {

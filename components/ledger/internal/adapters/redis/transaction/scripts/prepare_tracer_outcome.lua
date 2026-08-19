@@ -12,9 +12,6 @@ if existingRaw then
         return redis.error_reply("TRACER_OUTCOME_STALE_EXECUTOR")
     end
     if existing.state ~= "DELIVERED" then
-        if ARGV[12] ~= "" then
-            redis.call("ZINCRBY", KEYS[8], 1, ARGV[12])
-        end
         redis.call("ZADD", KEYS[7], tonumber(existing.prepared_at_unix_ms or ARGV[8]), ARGV[10])
     end
     return existingRaw

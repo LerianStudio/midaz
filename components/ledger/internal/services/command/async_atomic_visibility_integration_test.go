@@ -10,6 +10,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"sync"
 	"testing"
 	"time"
 
@@ -30,6 +31,7 @@ type commitBarrierTransactionRepository struct {
 	transaction.Repository
 	commitReady chan struct{}
 	allowCommit chan struct{}
+	readyOnce   sync.Once
 }
 
 func (repo *commitBarrierTransactionRepository) BeginTx(ctx context.Context) (repository.DBTransaction, error) {
@@ -42,6 +44,7 @@ func (repo *commitBarrierTransactionRepository) BeginTx(ctx context.Context) (re
 		DBTransaction: dbTx,
 		commitReady:   repo.commitReady,
 		allowCommit:   repo.allowCommit,
+		readyOnce:     &repo.readyOnce,
 	}, nil
 }
 
@@ -49,6 +52,7 @@ type commitBarrierDBTransaction struct {
 	repository.DBTransaction
 	commitReady chan struct{}
 	allowCommit chan struct{}
+	readyOnce   *sync.Once
 }
 
 func (tx *commitBarrierDBTransaction) QueryContext(ctx context.Context, query string, args ...any) (*sql.Rows, error) {
@@ -61,7 +65,7 @@ func (tx *commitBarrierDBTransaction) QueryContext(ctx context.Context, query st
 }
 
 func (tx *commitBarrierDBTransaction) Commit() error {
-	close(tx.commitReady)
+	tx.readyOnce.Do(func() { close(tx.commitReady) })
 	<-tx.allowCommit
 
 	return tx.DBTransaction.Commit()
@@ -260,7 +264,7 @@ func integrationAtomicPayload(status string, pending bool) transaction.Transacti
 	ledgerID := uuid.New()
 	transactionID := uuid.New()
 	transactionAmount := decimal.NewFromInt(1000)
-	now := time.Now().UTC().Truncate(time.Microsecond)
+	now := time.Date(2026, time.January, 2, 3, 4, 5, 0, time.UTC)
 	legAmounts := []int64{1000, 10, 1000, 10}
 	directions := []string{"debit", "debit", "credit", "credit"}
 	operations := make([]*operation.Operation, 0, len(legAmounts))

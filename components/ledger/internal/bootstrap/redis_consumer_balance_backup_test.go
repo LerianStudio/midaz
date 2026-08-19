@@ -22,7 +22,7 @@ func TestBalanceFromBackup_PreservesOverdraftAuditState(t *testing.T) {
 	organizationID := uuid.New()
 	ledgerID := uuid.New()
 	limit := "500"
-	balance := balanceFromBackup(mmodel.BalanceRedis{
+	balance, err := balanceFromBackup(mmodel.BalanceRedis{
 		ID:                    uuid.NewString(),
 		AccountID:             uuid.NewString(),
 		Alias:                 "0#@source#default",
@@ -37,6 +37,7 @@ func TestBalanceFromBackup_PreservesOverdraftAuditState(t *testing.T) {
 		BalanceScope:          mmodel.BalanceScopeInternal,
 	}, organizationID, ledgerID)
 
+	require.NoError(t, err)
 	assert.Equal(t, constant.DefaultBalanceKey, balance.Key)
 	assert.Equal(t, constant.DirectionDebit, balance.Direction)
 	assert.True(t, decimal.NewFromInt(125).Equal(balance.OverdraftUsed))

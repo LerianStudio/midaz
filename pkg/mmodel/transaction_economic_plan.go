@@ -227,10 +227,22 @@ func expectedEconomicPlanDigest(version int, legs []ExpectedEconomicLeg) (string
 }
 
 func canonicalizeExpectedEconomicLegs(legs []ExpectedEconomicLeg) {
-	sort.Slice(legs, func(i, j int) bool {
-		left, _ := json.Marshal(legs[i])
-		right, _ := json.Marshal(legs[j])
+	type keyedLeg struct {
+		key string
+		leg ExpectedEconomicLeg
+	}
 
-		return string(left) < string(right)
+	keyed := make([]keyedLeg, len(legs))
+	for index, leg := range legs {
+		raw, _ := json.Marshal(leg)
+		keyed[index] = keyedLeg{key: string(raw), leg: leg}
+	}
+
+	sort.Slice(keyed, func(i, j int) bool {
+		return keyed[i].key < keyed[j].key
 	})
+
+	for index := range keyed {
+		legs[index] = keyed[index].leg
+	}
 }

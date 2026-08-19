@@ -100,6 +100,10 @@ func (uc *UseCase) CompleteRevertClaim(
 		return fmt.Errorf("adopt durable revert claim: %w", err)
 	}
 
+	if claim == nil {
+		return fmt.Errorf("adopt durable revert claim: claim is missing")
+	}
+
 	if claim.ReverseTransactionID != reverseID {
 		return fmt.Errorf("revert claim reserved %s but backup contains %s", claim.ReverseTransactionID, reverseID)
 	}

@@ -472,12 +472,12 @@ func redisLegacyEconomicInputTargetsBalance(key string, balance BalanceRedis) bo
 	}
 
 	target := balance.Alias
-	if !strings.HasSuffix(target, "#"+balance.Key) {
+	if !strings.HasSuffix(target, mtransaction.AliasSeparatorString+balance.Key) {
 		target = mtransaction.AliasKey(target, balance.Key)
 	}
 
 	normalized := mtransaction.SplitAliasWithKey(key)
-	legacyFullKey := strings.Contains(balance.Key, "#") && (key == balance.Key || normalized == balance.Key)
+	legacyFullKey := strings.Contains(balance.Key, mtransaction.AliasSeparatorString) && (key == balance.Key || normalized == balance.Key)
 
 	return key == target || normalized == target || legacyFullKey
 }

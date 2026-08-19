@@ -21,6 +21,7 @@ import (
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
 	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v4/pkg/mtransaction"
+	"github.com/LerianStudio/midaz/v4/pkg/utils"
 )
 
 func TestCreateBalanceTransactionOperationsAsync_OutcomeWithoutGenerationPreflightsBeforeWrites(t *testing.T) {
@@ -175,6 +176,9 @@ func TestCreateBalanceTransactionOperationsAsync_OutcomeWithoutGenerationLostAck
 
 			return nil
 		})
+	redisRepo.EXPECT().Del(gomock.Any(),
+		utils.WriteBehindTransactionKey(organizationID, ledgerID, transactionID.String())).
+		Return(nil)
 	payload := transaction.TransactionProcessingPayload{
 		Transaction: persisted, Validate: &mtransaction.Responses{}, Version: "v2",
 		BalancesAfter: []*mmodel.Balance{balanceAfter}, AttemptOwner: uuid.NewString(),

@@ -52,22 +52,7 @@ func (uc *UseCase) WriteTransactionAsync(ctx context.Context, organizationID, le
 
 	queueData := make([]mmodel.QueueData, 0, 1)
 
-	effectMode, eventBalances, eventBalancesAfter := transactionEventEffect(tran, blc, blcAfter)
-	value := transaction.TransactionProcessingPayload{
-		Validate:              validate,
-		Balances:              eventBalances,
-		BalancesAfter:         eventBalancesAfter,
-		Transaction:           tran,
-		Input:                 transactionInput,
-		Version:               "v2",
-		EffectModeVersion:     mmodel.TransactionEffectModeVersion,
-		EffectMode:            effectMode,
-		OperationTypeOverride: transactionOperationTypeOverride(transactionInput),
-		RevertRolloutMode:     tran.RevertRolloutMode,
-		RevertRolloutToken:    tran.RevertRolloutToken,
-		RedisGeneration:       tran.RedisGeneration,
-	}
-	applyExecutionAttemptToPayload(&value, attempts)
+	value := buildTransactionProcessingPayload(transactionInput, validate, blc, blcAfter, tran, attempts)
 
 	marshal, err := msgpack.Marshal(value)
 	if err != nil {
@@ -135,22 +120,7 @@ func (uc *UseCase) WriteTransactionSync(ctx context.Context, organizationID, led
 
 	queueData := make([]mmodel.QueueData, 0, 1)
 
-	effectMode, eventBalances, eventBalancesAfter := transactionEventEffect(tran, blc, blcAfter)
-	value := transaction.TransactionProcessingPayload{
-		Validate:              validate,
-		Balances:              eventBalances,
-		BalancesAfter:         eventBalancesAfter,
-		Transaction:           tran,
-		Input:                 transactionInput,
-		Version:               "v2",
-		EffectModeVersion:     mmodel.TransactionEffectModeVersion,
-		EffectMode:            effectMode,
-		OperationTypeOverride: transactionOperationTypeOverride(transactionInput),
-		RevertRolloutMode:     tran.RevertRolloutMode,
-		RevertRolloutToken:    tran.RevertRolloutToken,
-		RedisGeneration:       tran.RedisGeneration,
-	}
-	applyExecutionAttemptToPayload(&value, attempts)
+	value := buildTransactionProcessingPayload(transactionInput, validate, blc, blcAfter, tran, attempts)
 
 	marshal, err := msgpack.Marshal(value)
 	if err != nil {
@@ -182,6 +152,30 @@ func (uc *UseCase) WriteTransactionSync(ctx context.Context, organizationID, led
 	}
 
 	return nil
+}
+
+// buildTransactionProcessingPayload assembles the queue payload shared by the
+// async and sync write paths, including effect-mode derivation and execution
+// attempt propagation.
+func buildTransactionProcessingPayload(transactionInput *mtransaction.Transaction, validate *mtransaction.Responses, blc, blcAfter []*mmodel.Balance, tran *transaction.Transaction, attempts []*mmodel.BalanceExecutionAttempt) transaction.TransactionProcessingPayload {
+	effectMode, eventBalances, eventBalancesAfter := transactionEventEffect(tran, blc, blcAfter)
+	value := transaction.TransactionProcessingPayload{
+		Validate:              validate,
+		Balances:              eventBalances,
+		BalancesAfter:         eventBalancesAfter,
+		Transaction:           tran,
+		Input:                 transactionInput,
+		Version:               "v2",
+		EffectModeVersion:     mmodel.TransactionEffectModeVersion,
+		EffectMode:            effectMode,
+		OperationTypeOverride: transactionOperationTypeOverride(transactionInput),
+		RevertRolloutMode:     tran.RevertRolloutMode,
+		RevertRolloutToken:    tran.RevertRolloutToken,
+		RedisGeneration:       tran.RedisGeneration,
+	}
+	applyExecutionAttemptToPayload(&value, attempts)
+
+	return value
 }
 
 func transactionEventEffect(

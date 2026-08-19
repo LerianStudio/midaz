@@ -523,6 +523,11 @@ func (b *Balance) ToRedis() BalanceRedis {
 	overdraftLimit := "0"
 	balanceScope := BalanceScopeTransactional
 
+	key := b.Key
+	if key == "" {
+		key = constant.DefaultBalanceKey
+	}
+
 	if b.Settings != nil {
 		if b.Settings.AllowOverdraft {
 			allowOverdraft = 1
@@ -542,7 +547,7 @@ func (b *Balance) ToRedis() BalanceRedis {
 	}
 
 	return BalanceRedis{
-		ID: b.ID, Alias: b.Alias, Key: b.Key, AccountID: b.AccountID, AssetCode: b.AssetCode,
+		ID: b.ID, Alias: b.Alias, Key: key, AccountID: b.AccountID, AssetCode: b.AssetCode,
 		Available: b.Available, OnHold: b.OnHold, Version: b.Version, AccountType: b.AccountType,
 		AllowSending: allowSending, AllowReceiving: allowReceiving, Direction: b.Direction,
 		OverdraftUsed: b.OverdraftUsed.String(), AllowOverdraft: allowOverdraft,

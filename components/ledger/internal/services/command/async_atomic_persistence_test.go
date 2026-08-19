@@ -103,6 +103,28 @@ func TestPersistTransactionAndOperationsAtomic_OperationFailureRollsBackTerminal
 	require.Equal(t, []string{"rollback"}, events)
 }
 
+func TestPersistTransactionAndOperationsAtomic_CommitFailurePropagatesAndRollsBack(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	txRepo := transaction.NewMockRepository(ctrl)
+	opRepo := operation.NewMockRepository(ctrl)
+	uc := &UseCase{TransactionRepo: txRepo, OperationRepo: opRepo}
+
+	events := make([]string, 0, 2)
+	commitErr := errors.New("commit failed")
+	dbTx := &orderedAtomicTx{events: &events, commitErr: commitErr}
+	payload := atomicPersistencePayload(t, constant.CREATED, false, 2)
+
+	txRepo.EXPECT().BeginTx(gomock.Any()).Return(dbTx, nil)
+	txRepo.EXPECT().CreateBulkTx(gomock.Any(), dbTx, gomock.Any()).Return(
+		&repository.BulkInsertResult{Attempted: 1, Inserted: 1, InsertedIDs: []string{payload.Transaction.ID}}, nil)
+	opRepo.EXPECT().CreateBulkTx(gomock.Any(), dbTx, gomock.Any()).Return(
+		&repository.BulkInsertResult{Attempted: 2, Inserted: 2}, nil)
+
+	_, _, err := uc.persistTransactionAndOperationsAtomic(context.Background(), payload)
+	require.ErrorIs(t, err, commitErr)
+	require.Equal(t, []string{"commit", "rollback"}, events)
+}
+
 func TestPersistTransactionAndOperationsAtomic_LostACKRedeliveryIsOneAtomicNoop(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	txRepo := transaction.NewMockRepository(ctrl)

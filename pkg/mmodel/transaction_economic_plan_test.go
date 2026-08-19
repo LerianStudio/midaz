@@ -56,10 +56,16 @@ func TestBuildExpectedEconomicPlan_DistinguishesBalanceKeyRoleAndMultiplicity(t 
 	require.NoError(t, err)
 	duplicate, err := BuildExpectedEconomicPlan([]BalanceOperation{build("default", EconomicRolePrimary), build("default", EconomicRolePrimary)}, constant.CREATED, false, "")
 	require.NoError(t, err)
+	overdraftCompanion, err := BuildExpectedEconomicPlan([]BalanceOperation{build(constant.OverdraftBalanceKey, EconomicRolePrimary)}, constant.CREATED, false, "")
+	require.NoError(t, err)
 
 	assert.NotEqual(t, base.Digest, differentKey.Digest)
 	assert.NotEqual(t, base.Digest, differentRole.Digest)
 	assert.NotEqual(t, base.Digest, duplicate.Digest)
+	assert.NotEqual(t, base.Digest, overdraftCompanion.Digest)
+	require.Len(t, overdraftCompanion.Legs, 1)
+	assert.Equal(t, EconomicRoleCompanion, overdraftCompanion.Legs[0].Role)
+	assert.Equal(t, constant.OVERDRAFT, overdraftCompanion.Legs[0].ExpectedOperationType)
 }
 
 func TestBuildExpectedEconomicPlan_ExactDecimalAndInvalidity(t *testing.T) {

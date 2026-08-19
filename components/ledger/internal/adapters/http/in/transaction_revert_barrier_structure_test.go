@@ -175,11 +175,14 @@ func TestTransactionEffectModeCrossesBackupAndEveryPersistenceEvent(t *testing.T
 
 	eventProducer, err := os.ReadFile(filepath.Join(commandDirectory, "write_transaction.go"))
 	require.NoError(t, err)
+	builderBody := functionBody(t, eventProducer, "buildTransactionProcessingPayload")
+	for _, field := range []string{"EffectModeVersion", "EffectMode", "OperationTypeOverride"} {
+		assert.Contains(t, builderBody, field, "the shared payload builder must carry %s across persistence transport", field)
+	}
 	for _, function := range []string{"WriteTransactionAsync", "WriteTransactionSync"} {
 		body := functionBody(t, eventProducer, function)
-		for _, field := range []string{"EffectModeVersion", "EffectMode", "OperationTypeOverride"} {
-			assert.Contains(t, body, field, "%s must carry %s across persistence transport", function, field)
-		}
+		assert.Contains(t, body, "buildTransactionProcessingPayload(",
+			"%s must assemble its payload through the shared builder", function)
 	}
 
 	preflight, err := os.ReadFile(filepath.Join(commandDirectory, "transaction_outcome_preflight.go"))

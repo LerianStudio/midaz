@@ -344,12 +344,14 @@ func TestBalanceRedis_UnmarshalJSON(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		name       string
-		input      string
-		wantAvail  decimal.Decimal
-		wantOnHold decimal.Decimal
-		wantErr    bool
-		errContain string
+		name              string
+		input             string
+		wantAvail         decimal.Decimal
+		wantOnHold        decimal.Decimal
+		wantOverdraftUsed string
+		wantVersion       int64
+		wantErr           bool
+		errContain        string
 	}{
 		{
 			name:       "float64 values",
@@ -387,11 +389,13 @@ func TestBalanceRedis_UnmarshalJSON(t *testing.T) {
 			wantErr:    false,
 		},
 		{
-			name:       "unquoted integers above float64 precision remain exact",
-			input:      `{"id":"bal-6","accountId":"acc-6","assetCode":"USD","available":9007199254740993,"onHold":9007199254740991,"overdraftUsed":9007199254740995,"version":9007199254740993,"accountType":"deposit","allowSending":1,"allowReceiving":1,"key":"default","alias":"@exact"}`,
-			wantAvail:  decimal.RequireFromString("9007199254740993"),
-			wantOnHold: decimal.RequireFromString("9007199254740991"),
-			wantErr:    false,
+			name:              "unquoted integers above float64 precision remain exact",
+			input:             `{"id":"bal-6","accountId":"acc-6","assetCode":"USD","available":9007199254740993,"onHold":9007199254740991,"overdraftUsed":9007199254740995,"version":9007199254740993,"accountType":"deposit","allowSending":1,"allowReceiving":1,"key":"default","alias":"@exact"}`,
+			wantAvail:         decimal.RequireFromString("9007199254740993"),
+			wantOnHold:        decimal.RequireFromString("9007199254740991"),
+			wantOverdraftUsed: "9007199254740995",
+			wantVersion:       9007199254740993,
+			wantErr:           false,
 		},
 		{
 			name:       "invalid available string",
@@ -431,9 +435,11 @@ func TestBalanceRedis_UnmarshalJSON(t *testing.T) {
 			require.NoError(t, err)
 			assert.True(t, tt.wantAvail.Equal(br.Available), "Available mismatch: want %s, got %s", tt.wantAvail, br.Available)
 			assert.True(t, tt.wantOnHold.Equal(br.OnHold), "OnHold mismatch: want %s, got %s", tt.wantOnHold, br.OnHold)
-			if tt.name == "unquoted integers above float64 precision remain exact" {
-				assert.Equal(t, "9007199254740995", br.OverdraftUsed)
-				assert.Equal(t, int64(9007199254740993), br.Version)
+			if tt.wantOverdraftUsed != "" {
+				assert.Equal(t, tt.wantOverdraftUsed, br.OverdraftUsed)
+			}
+			if tt.wantVersion != 0 {
+				assert.Equal(t, tt.wantVersion, br.Version)
 			}
 		})
 	}

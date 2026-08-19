@@ -1304,6 +1304,19 @@ func (rr *RedisConsumerRepository) ProcessOutcomeBalanceAtomicOperation(
 		return nil, fmt.Errorf("invalid tracer outcome transition %q", attempt.TracerOutcomeState)
 	}
 
+	if attempt.TracerOutcomeID != uuid.Nil {
+		abortedPair := attempt.Outcome == mmodel.TransactionOutcomeAborted &&
+			attempt.TracerOutcomeState == mmodel.TracerOutcomeAborted
+		committedPair := attempt.Outcome == mmodel.TransactionOutcomeCommitted &&
+			(attempt.TracerOutcomeState == mmodel.TracerOutcomePendingHeld ||
+				attempt.TracerOutcomeState == mmodel.TracerOutcomeCommitted)
+
+		if !abortedPair && !committedPair {
+			return nil, fmt.Errorf("tracer outcome transition %q conflicts with balance outcome %q",
+				attempt.TracerOutcomeState, attempt.Outcome)
+		}
+	}
+
 	return rr.processBalanceAtomicOperation(ctx, organizationID, ledgerID, transactionID,
 		transactionStatus, pending, balancesOperation, &attempt)
 }
@@ -2867,8 +2880,10 @@ func (rr *RedisConsumerRepository) ReleaseProvenPreMovementRevert(
 	attempt mmodel.BalanceExecutionAttempt,
 ) (bool, bool, error) {
 	if originID == uuid.Nil || transactionID == uuid.Nil || expectedStatus == "" ||
-		attempt.Identity != transactionID || attempt.Owner == "" || attempt.Outcome == "" ||
-		attempt.RedisGeneration == "" {
+		attempt.Identity != transactionID || attempt.Owner == "" ||
+		(attempt.Outcome != mmodel.TransactionOutcomeCommitted && attempt.Outcome != mmodel.TransactionOutcomeAborted) ||
+		attempt.RedisGeneration == "" ||
+		!balanceAttemptKeysMatch(organizationID, ledgerID, transactionID, attempt) {
 		return false, false, fmt.Errorf("complete pre-movement revert proof is required")
 	}
 

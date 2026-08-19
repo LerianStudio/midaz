@@ -21,6 +21,7 @@ import (
 
 	feesmongo "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/mongodb/fees"
 	transactionredis "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/redis/transaction"
+	"github.com/LerianStudio/midaz/v4/pkg/constant"
 	"github.com/LerianStudio/midaz/v4/pkg/utils"
 )
 
@@ -528,15 +529,17 @@ func buildReadyzHandler(
 }
 
 func revertRolloutBarrierMode(configured string) string {
-	if strings.EqualFold(configured, "legacy") {
-		return "legacy"
+	normalized := strings.ToLower(strings.TrimSpace(configured))
+
+	if normalized == constant.RevertRolloutModeLegacy {
+		return constant.RevertRolloutModeLegacy
 	}
 
-	if strings.EqualFold(configured, "final") {
-		return "final"
+	if normalized == constant.RevertRolloutModeFinal {
+		return constant.RevertRolloutModeFinal
 	}
 
-	return "bridge"
+	return constant.RevertRolloutModeBridge
 }
 
 // appendFeesMongoChecker appends a fees Mongo readiness checker when a static fees

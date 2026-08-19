@@ -5,6 +5,8 @@
 package migrations
 
 import (
+	"crypto/sha256"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -22,6 +24,10 @@ func TestMigration000036_RevertClaimContract(t *testing.T) {
 	require.NoError(t, err)
 	down, err := os.ReadFile(filepath.Join(dir, "000036_create_revert_claim.down.sql"))
 	require.NoError(t, err)
+	assert.Equal(t, "562ac8d0c6c91d1faf62f692d6f6d84ac2405023e28886608b5423453c981c0d",
+		fmt.Sprintf("%x", sha256.Sum256(up)), "published migration up bytes must never be rewritten")
+	assert.Equal(t, "d6fcdbef9278f8019f1f2bd19429939fc72631c2d42047be3ca2f592d0d2cb93",
+		fmt.Sprintf("%x", sha256.Sum256(down)), "published migration down bytes must never be rewritten")
 
 	upSQL := strings.ToLower(string(up))
 	for _, required := range []string{

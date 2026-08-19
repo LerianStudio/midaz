@@ -87,13 +87,30 @@ func (r TracerOutcomeRecord) economicResultMatches() bool {
 		return false
 	}
 
-	if r.State == TracerOutcomeAborted {
+	switch r.State {
+	case TracerOutcomeAborted:
 		return r.EconomicOutcome.Outcome == TransactionOutcomeAborted
+	case TracerOutcomePendingHeld, TracerOutcomeCommitted:
+		return r.EconomicOutcome.Outcome == TransactionOutcomeCommitted &&
+			r.economicSnapshotsComplete()
+	case TracerOutcomeDelivered:
+		switch r.EconomicOutcome.Outcome {
+		case TransactionOutcomeCommitted:
+			return r.economicSnapshotsComplete()
+		case TransactionOutcomeAborted:
+			return true
+		default:
+			return false
+		}
+	default:
+		return false
 	}
+}
 
-	if r.State == TracerOutcomePendingHeld || r.State == TracerOutcomeCommitted {
-		return r.EconomicOutcome.Outcome == TransactionOutcomeCommitted
-	}
-
-	return true
+// economicSnapshotsComplete requires the committed economic result to carry
+// replayable before/after balance snapshots; aborted outcomes legitimately
+// carry empty snapshots because no money moved.
+func (r TracerOutcomeRecord) economicSnapshotsComplete() bool {
+	return RedisBalanceSetEconomicComplete(r.EconomicOutcome.Before) &&
+		RedisBalanceSetEconomicComplete(r.EconomicOutcome.After)
 }

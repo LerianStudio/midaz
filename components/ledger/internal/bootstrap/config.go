@@ -1895,9 +1895,12 @@ func applyConfigDefaults(cfg *Config) {
 	intDefault(&cfg.RedisMinRetryBackoff, 8)
 	intDefault(&cfg.RedisMaxRetryBackoff, 1)
 
-	if strings.TrimSpace(cfg.RevertIdempotencyMode) == "" {
-		cfg.RevertIdempotencyMode = "legacy"
+	cfg.RevertIdempotencyMode = strings.ToLower(strings.TrimSpace(cfg.RevertIdempotencyMode))
+	if cfg.RevertIdempotencyMode == "" {
+		cfg.RevertIdempotencyMode = constant.RevertRolloutModeLegacy
 	}
+
+	cfg.RevertRolloutTarget = strings.ToLower(strings.TrimSpace(cfg.RevertRolloutTarget))
 
 	// Bulk Recorder defaults
 	// BulkRecorderEnabled defaults to true when the env var is not set or empty.

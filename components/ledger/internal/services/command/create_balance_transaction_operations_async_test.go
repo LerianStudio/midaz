@@ -707,6 +707,8 @@ func TestCreateBalanceTransactionOperationsAsync(t *testing.T) {
 					assert.True(t, op.BalanceAfter.OverdraftUsed.Equal(exp.BalanceAfter.OverdraftUsed))
 				}
 
+				assert.Empty(t, expectedOps, "every expected operation must reach the atomic batch")
+
 				return &repository.BulkInsertResult{Attempted: int64(len(operations)), Inserted: int64(len(operations))}, nil
 			}).
 			Times(1)

@@ -196,10 +196,12 @@ type Transaction struct {
 	// List of operations associated with this transaction
 	Operations []*operation.Operation `json:"operations"`
 
-	// RevertRolloutMode and RevertRolloutToken are transient handoff state for a
-	// generation-scoped reverse admission. They are carried through Redis and
-	// RabbitMQ until the complete transaction and operations are durable, but are
-	// never persisted or exposed.
+	// RevertRolloutMode, RevertRolloutToken, and RedisGeneration are transient
+	// handoff state: the first two scope a generation-bound reverse admission and
+	// the third pins the Redis financial dataset generation that produced the
+	// economic evidence. They are carried through Redis and RabbitMQ until the
+	// complete transaction and operations are durable, but are never persisted
+	// or exposed.
 	RevertRolloutMode  string `json:"-" msgpack:"-"`
 	RevertRolloutToken string `json:"-" msgpack:"-"`
 	RedisGeneration    string `json:"-" msgpack:"-"`

@@ -27,3 +27,20 @@ const (
 	// expression and resolves it into a persisted operation before the ledger effect.
 	TransactionTypeOptionsLeg = "'amount' or 'share'"
 )
+
+// Revert idempotency rollout modes. The configuration (REVERT_IDEMPOTENCY_MODE),
+// the readiness barrier, and the generation-scoped reverse admission handoff
+// all discriminate on these values.
+const (
+	// RevertRolloutModeLegacy admits reverses through the released
+	// payload-scoped idempotency path only.
+	RevertRolloutModeLegacy = "legacy"
+
+	// RevertRolloutModeBridge runs the durable claim alongside the legacy
+	// fence during the rollout transition.
+	RevertRolloutModeBridge = "bridge"
+
+	// RevertRolloutModeFinal admits reverses through the durable
+	// origin-scoped claim only.
+	RevertRolloutModeFinal = "final"
+)

@@ -124,4 +124,8 @@ func TestRevertRolloutBarrierMode(t *testing.T) {
 	assert.Equal(t, "legacy", revertRolloutBarrierMode("legacy"))
 	assert.Equal(t, "bridge", revertRolloutBarrierMode("bridge"))
 	assert.Equal(t, "final", revertRolloutBarrierMode("final"))
+	assert.Equal(t, "legacy", revertRolloutBarrierMode(" legacy "))
+	assert.Equal(t, "legacy", revertRolloutBarrierMode("LEGACY"))
+	assert.Equal(t, "final", revertRolloutBarrierMode(" FINAL "))
+	assert.Equal(t, "bridge", revertRolloutBarrierMode("unknown"))
 }
