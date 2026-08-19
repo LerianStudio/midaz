@@ -202,7 +202,7 @@ func RegisterReservationRoutes(api huma.API, h *ReservationHandler) {
 		DefaultStatus:    http.StatusCreated,
 		Summary:          "Reserve capacity under the ledger-owned outcome protocol",
 		Tags:             []string{"Reservations"},
-		Security:         secBearerOrAPIKey,
+		Security:         secAPIKeyOnly,
 		SkipValidateBody: true,
 	}, h.ReserveV2Huma)
 	v2RequestSchema := documentJSONRequestBody(api, "/reservations/ledger-outcome-v2", reflect.TypeOf(ReserveRequest{}), "account", "transactionType")

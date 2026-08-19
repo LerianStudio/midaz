@@ -17872,9 +17872,6 @@
         },
         "security": [
           {
-            "BearerAuth": []
-          },
-          {
             "ApiKeyAuth": []
           }
         ],

@@ -11403,7 +11403,6 @@ paths:
                 $ref: '#/components/schemas/Error'
           description: Error
       security:
-        - BearerAuth: []
         - ApiKeyAuth: []
       summary: Reserve capacity under the ledger-owned outcome protocol
       tags:
