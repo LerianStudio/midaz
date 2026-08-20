@@ -226,7 +226,23 @@ jobs:
   required-e2e:
     name: Required Ledger E2E
     runs-on: blacksmith-4vcpu-ubuntu-2404
-    timeout-minutes: 45
+    # The job budget must sit ABOVE the sum of this job's own step timeouts, so a
+    # step's timeout always fires first and its diagnostics survive. At the job
+    # limit the runner SIGKILLs everything: `Capture stack logs`, `Stop stack` and
+    # the artifact upload never run — precisely when those logs are worth most.
+    #
+    # Step wall timeouts (run-ci-lane.sh adds --kill-after=30s to each):
+    #   Start stack             25m + 30s
+    #   Wait for surfaces        4m + 30s
+    #   Run mandatory lane      20m + 30s  (E2E_REQUIRED_WALL_TIMEOUT in
+    #                                       scripts/run-required-e2e.sh; the
+    #                                       go test inside it is capped at 19m)
+    #   subtotal                50.5m
+    # The untimed steps (checkout, setup-go, gotestsum install, env sed, log
+    # capture, `make down`, artifact upload) add ~10m worst case: ~60m in total.
+    # 70 leaves ~10m of headroom. When a lane needs more room, raise its STEP
+    # timeout and then this budget — never shorten a test to fit the job.
+    timeout-minutes: 70
     permissions:
       contents: read
     steps:
