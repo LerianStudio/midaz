@@ -76,6 +76,9 @@ func TestSendTransactionToRedisQueue_PersistsPhaseZeroRolloutOwner(t *testing.T)
 			require.NotNil(t, queued.ExpectedEconomicPlan)
 			assert.Equal(t, expectedPlan, queued.ExpectedEconomicPlan)
 			assert.Equal(t, transactionID, queued.TransactionID)
+			assert.Equal(t, "direct-recovery-key", queued.IdempotencyKey)
+			assert.Equal(t, "direct-recovery-hash", queued.IdempotencyHash)
+			assert.Equal(t, int64(300), queued.IdempotencyTTL)
 			assert.Equal(t, *attempt, seededAttempt)
 			require.NotNil(t, queued.ParentTransactionID)
 			assert.Equal(t, originID, *queued.ParentTransactionID)
@@ -91,6 +94,7 @@ func TestSendTransactionToRedisQueue_PersistsPhaseZeroRolloutOwner(t *testing.T)
 			ExecutionAttempt: attempt, ExpectedEconomicPlan: expectedPlan,
 			RevertRolloutMode: "legacy", RevertRolloutToken: rolloutToken,
 			RevertLegacyFenceKey: legacyFenceKey, RedisGeneration: redisGeneration,
+			IdempotencyKey: "direct-recovery-key", IdempotencyHash: "direct-recovery-hash", IdempotencyTTL: 300,
 		})
 	require.NoError(t, err)
 }

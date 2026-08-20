@@ -1488,6 +1488,9 @@ func (handler *TransactionHandler) executeCreateTransaction(ctx context.Context,
 			RevertRolloutToken:   params.RevertRolloutToken,
 			RevertLegacyFenceKey: params.RevertLegacyFenceKey,
 			RedisGeneration:      params.RedisGeneration,
+			IdempotencyKey:       idempotencyKey,
+			IdempotencyHash:      idempotencyHash,
+			IdempotencyTTL:       idempotencyTTL,
 		})
 	if err != nil {
 		if params.RevertExecution != nil && errors.Is(err, constant.ErrTransactionBackupCacheFailed) {

@@ -401,6 +401,9 @@ type TransactionBackupSeedOptions struct {
 	RevertRolloutToken   string
 	RevertLegacyFenceKey string
 	RedisGeneration      string
+	IdempotencyKey       string
+	IdempotencyHash      string
+	IdempotencyTTL       time.Duration
 }
 
 // SendTransactionToRedisQueue func that send transaction to redis queue.
@@ -498,6 +501,9 @@ func (uc *UseCase) SendTransactionToRedisQueue(ctx context.Context, organization
 		queue.RevertLegacyFenceKey = options[0].RevertLegacyFenceKey
 		queue.RedisGeneration = options[0].RedisGeneration
 		queue.ExpectedEconomicPlan = options[0].ExpectedEconomicPlan
+		queue.IdempotencyKey = options[0].IdempotencyKey
+		queue.IdempotencyHash = options[0].IdempotencyHash
+		queue.IdempotencyTTL = int64(options[0].IdempotencyTTL)
 	}
 
 	if queue.ExpectedEconomicPlan != nil {

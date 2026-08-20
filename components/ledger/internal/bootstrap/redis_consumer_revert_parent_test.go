@@ -8,6 +8,7 @@ import (
 	"context"
 	"encoding/json"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/shopspring/decimal"
@@ -330,4 +331,39 @@ func TestRequiresAtomicOutcomeBackup_LegacyLifecycleCanReachRecoveryFallback(t *
 		AttemptOwner:    uuid.NewString(),
 		ExpectedOutcome: mmodel.TransactionOutcomeCommitted,
 	}), "a corrupted or rolling payload cannot erase its action to bypass an existing economic outcome identity")
+}
+
+func TestBackupEligibleForCurrentCycle_OnlyPostMutationEvidenceBypassesAge(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, 8, 20, 12, 0, 0, 0, time.UTC)
+
+	postMutation := mmodel.TransactionRedisQueue{
+		TTL:             now.Add(-time.Minute),
+		AttemptOwner:    uuid.NewString(),
+		ExpectedOutcome: mmodel.TransactionOutcomeCommitted,
+		BalancesAfter:   []mmodel.BalanceRedis{{ID: uuid.NewString()}},
+	}
+	assert.True(t, backupEligibleForCurrentCycle(postMutation, now),
+		"Lua-authored after-state is a terminal economic fact and must recover immediately")
+
+	legacyPostMutation := mmodel.TransactionRedisQueue{
+		TTL:           now.Add(-time.Minute),
+		BalancesAfter: []mmodel.BalanceRedis{{ID: uuid.NewString()}},
+	}
+	assert.True(t, backupEligibleForCurrentCycle(legacyPostMutation, now),
+		"legacy requests also carry Lua-authored after-state after economic mutation")
+
+	preMutation := postMutation
+	preMutation.BalancesAfter = nil
+	assert.False(t, backupEligibleForCurrentCycle(preMutation, now),
+		"a fresh seed without after-state must never be promoted before Lua")
+
+	legacyFresh := mmodel.TransactionRedisQueue{TTL: now.Add(-time.Minute)}
+	assert.False(t, backupEligibleForCurrentCycle(legacyFresh, now),
+		"legacy fresh backups retain the age guard because they lack atomic proof")
+
+	legacyOld := mmodel.TransactionRedisQueue{TTL: now.Add(-31 * time.Minute)}
+	assert.True(t, backupEligibleForCurrentCycle(legacyOld, now),
+		"legacy backups remain eligible after the existing safety window")
 }

@@ -140,6 +140,11 @@ func (r *RedisQueueConsumer) runSingleTenant() error {
 	defer ticker.Stop()
 
 	r.Logger.Log(ctx, libLog.LevelInfo, "RedisQueueConsumer started (single-tenant mode)")
+	// Reconcile durable post-Lua envelopes as soon as a pod becomes ready. The
+	// periodic cadence remains deliberately long for legacy records, but a
+	// process restart must not leave an already-mutated transaction waiting for
+	// that cadence before its PostgreSQL handoff can resume.
+	r.executeCycle(ctx)
 
 	for {
 		select {
@@ -180,6 +185,10 @@ func (r *RedisQueueConsumer) runMultiTenant() error {
 	defer ticker.Stop()
 
 	r.Logger.Log(ctx, libLog.LevelInfo, "RedisQueueConsumer started (multi-tenant mode)")
+	// The first cycle is immediate for the same reason as single-tenant mode:
+	// atomic after-state is already a terminal economic fact and must be handed
+	// off after restart without waiting for the legacy 30-minute cadence.
+	r.executeMultiTenantCycle(ctx)
 
 	for {
 		select {
@@ -314,6 +323,7 @@ func (r *RedisQueueConsumer) readMessagesAndProcess(ctx context.Context) {
 	var wg sync.WaitGroup
 
 	totalMessagesLessThanOneHour := 0
+	now := time.Now()
 
 	// oldestTTL tracks the earliest record TTL across successfully-parsed
 	// records, computed in the SAME pass that dispatches processing so each
@@ -352,7 +362,7 @@ Outer:
 			oldestTTL = transaction.TTL
 		}
 
-		if transaction.TTL.Unix() > time.Now().Add(-MessageTimeOfLife*time.Minute).Unix() {
+		if !backupEligibleForCurrentCycle(transaction, now) {
 			totalMessagesLessThanOneHour++
 			continue
 		}
@@ -389,8 +399,24 @@ Outer:
 	r.Logger.Log(ctx, libLog.LevelDebug, "Finished processing eligible messages", libLog.Int("eligible_count", len(messages)-totalMessagesLessThanOneHour))
 }
 
+// backupEligibleForCurrentCycle keeps the age guard for legacy records while
+// allowing a Lua-authored after-state to recover immediately. A fresh seed has
+// no BalancesAfter and remains in Redis until the balance command writes the
+// atomic outcome; it is never promoted merely because a consumer started.
+func backupEligibleForCurrentCycle(m mmodel.TransactionRedisQueue, now time.Time) bool {
+	if len(m.BalancesAfter) > 0 {
+		// BalancesAfter is authored by the atomic balance command, including for
+		// legacy requests that predate the explicit execution-attempt envelope.
+		// It is therefore safe to hand off immediately without relying on the
+		// attempt discriminator being present.
+		return true
+	}
+
+	return !m.TTL.After(now.Add(-MessageTimeOfLife * time.Minute))
+}
+
 // processMessage handles a single Redis backup queue message: rebuilds balances
-// and operations, and writes the transaction via the async path.
+// and operations, then performs the durable transaction handoff.
 // Duplicate-processing prevention is handled at the cycle level by acquireCycleLock;
 // only the leader pod reaches this method.
 //
@@ -797,15 +823,39 @@ func (r *RedisQueueConsumer) processMessage(ctx context.Context, key, rawPayload
 
 	utils.SanitizeAccountAliases(&m.TransactionInput)
 
-	if err := r.TransactionHandler.Command.WriteTransactionAsync(
-		msgCtxWithSpan, m.OrganizationID, m.LedgerID, &m.TransactionInput, m.Validate, balances, balancesAfter, tran,
-		executionAttempt,
-	); err != nil {
-		libOpentelemetry.HandleSpanError(msgSpan, "Failed sending message to queue", err)
+	var persistErr error
+	if len(m.BalancesAfter) > 0 {
+		// An after-state is proof that Lua already performed the economic
+		// mutation. Persist that exact envelope synchronously so a same-key
+		// retry cannot observe an empty idempotency slot after the Redis backup
+		// has been acknowledged. The sync path is still idempotent at the
+		// transaction/operation boundary and never invokes Lua again.
+		persistErr = r.TransactionHandler.Command.WriteTransactionSync(
+			msgCtxWithSpan, m.OrganizationID, m.LedgerID, &m.TransactionInput, m.Validate, balances, balancesAfter, tran,
+			executionAttempt,
+		)
+	} else {
+		persistErr = r.TransactionHandler.Command.WriteTransactionAsync(
+			msgCtxWithSpan, m.OrganizationID, m.LedgerID, &m.TransactionInput, m.Validate, balances, balancesAfter, tran,
+			executionAttempt,
+		)
+	}
 
-		logger.Log(ctx, libLog.LevelError, "Failed sending message to queue", libLog.String("key", key), libLog.Err(err))
+	if persistErr != nil {
+		libOpentelemetry.HandleSpanError(msgSpan, "Failed persisting backup transaction", persistErr)
+
+		logger.Log(ctx, libLog.LevelError, "Failed persisting backup transaction", libLog.String("key", key), libLog.Err(persistErr))
 
 		return
+	}
+
+	if m.IdempotencyHash != "" && m.IdempotencyTTL > 0 {
+		// The synchronous handoff above has committed the transaction and its
+		// operations before this replay value is published. A retry can now
+		// return the original response instead of being trapped by 0084.
+		r.TransactionHandler.Command.SetTransactionIdempotencyValue(msgCtxWithSpan,
+			m.OrganizationID, m.LedgerID, m.IdempotencyKey, m.IdempotencyHash, *tran,
+			time.Duration(m.IdempotencyTTL))
 	}
 
 	logger.Log(ctx, libLog.LevelDebug, "Transaction message processed", libLog.String("key", key))

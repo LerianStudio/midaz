@@ -877,4 +877,7 @@ type TransactionRedisQueue struct {
 	TransactionDate       time.Time                `json:"transaction_date"`
 	Operations            []OperationRedis         `json:"operations,omitempty"`
 	EconomicEffectDigest  string                   `json:"economic_effect_digest,omitempty"`
+	IdempotencyKey        string                   `json:"idempotency_key,omitempty"`
+	IdempotencyHash       string                   `json:"idempotency_hash,omitempty"`
+	IdempotencyTTL        int64                    `json:"idempotency_ttl,omitempty"`
 }
