@@ -97,7 +97,7 @@ func run(up, down bool) error {
 	}
 
 	defer func() {
-		if closeErr := migration.Close(); closeErr != nil {
+		if closeErr := migration.Close(ctx); closeErr != nil {
 			migration.Logger.Log(ctx, libLog.LevelError, "Failed to close migration resources", libLog.Err(closeErr))
 		}
 	}()
