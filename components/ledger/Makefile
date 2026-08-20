@@ -28,8 +28,10 @@ include $(MIDAZ_ROOT)/mk/docker.mk
 include $(MIDAZ_ROOT)/mk/quality.mk
 include $(MIDAZ_ROOT)/mk/security.mk
 # Database migrations: provides ensure-migrate, MIGRATE_BIN, MIGRATE_VERSION and
-# the single-DB migrate/migrate-down targets. The ledger serves TWO schemas, so
-# the two-DB section below overrides migrate/migrate-down (last definition wins).
+# seed. The ledger serves TWO schemas, so DB_MULTI_SCHEMA suppresses the
+# fragment's single-DB migrate/migrate-down and the two-DB section below owns
+# those target names outright.
+DB_MULTI_SCHEMA := 1
 include $(MIDAZ_ROOT)/mk/database.mk
 # Unit test coverage (scoped to ledger via COVERAGE_PACKAGES above).
 include $(MIDAZ_ROOT)/mk/coverage-unit.mk
@@ -158,7 +160,8 @@ migrate-transaction: ensure-migrate
 	@$(MIGRATE_BIN) -database "$(call ledger_db_url,TRANSACTION,transaction)" -path $(TRANSACTION_MIGRATIONS_PATH) up
 	@echo "$(GREEN)$(BOLD)[ok]$(NC) Transaction migrations applied successfully$(GREEN) ✔️$(NC)"
 
-# Aggregate override: apply BOTH schemas (shadows the single-DB mk/database.mk target).
+# Aggregate: apply BOTH schemas (mk/database.mk's single-DB target is suppressed
+# via DB_MULTI_SCHEMA).
 .PHONY: migrate
 migrate: migrate-onboarding migrate-transaction
 	@echo "$(GREEN)$(BOLD)[ok]$(NC) All ledger migrations applied successfully$(GREEN) ✔️$(NC)"
@@ -175,7 +178,8 @@ migrate-down-transaction: ensure-migrate
 	@$(MIGRATE_BIN) -database "$(call ledger_db_url,TRANSACTION,transaction)" -path $(TRANSACTION_MIGRATIONS_PATH) down 1
 	@echo "$(GREEN)$(BOLD)[ok]$(NC) Last transaction migration rolled back successfully$(GREEN) ✔️$(NC)"
 
-# Aggregate override: roll back BOTH schemas (shadows the single-DB mk/database.mk target).
+# Aggregate: roll back BOTH schemas (mk/database.mk's single-DB target is
+# suppressed via DB_MULTI_SCHEMA).
 .PHONY: migrate-down
 migrate-down: migrate-down-onboarding migrate-down-transaction
 	@echo "$(GREEN)$(BOLD)[ok]$(NC) Last ledger migration rolled back on both schemas$(GREEN) ✔️$(NC)"
