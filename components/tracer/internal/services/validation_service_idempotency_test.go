@@ -50,7 +50,7 @@ func TestValidate_DuplicateRequestID_ReturnsOriginal(t *testing.T) {
 		RequestID:            requestID,
 		TransactionType:      model.TransactionTypeCard,
 		Amount:               decimal.RequireFromString("100"),
-		Currency:             "USD",
+		Asset:                "USD",
 		TransactionTimestamp: fixedTime,
 		Account:              model.AccountContext{ID: accountID},
 	}
@@ -143,7 +143,7 @@ func TestValidate_DuplicateRequestID_ReturnsOriginal(t *testing.T) {
 	existingTV.RequestID = requestID
 	existingTV.TransactionType = model.TransactionTypeCard
 	existingTV.Amount = decimal.RequireFromString("100")
-	existingTV.Currency = "USD"
+	existingTV.Asset = "USD"
 	existingTV.TransactionTimestamp = fixedTime
 	existingTV.Account = model.AccountContext{ID: accountID}
 	existingTV.EvaluationResult = *evalResult
@@ -186,7 +186,7 @@ func TestValidate_DuplicateRequestID_NoDoubleCount(t *testing.T) {
 		RequestID:            requestID,
 		TransactionType:      model.TransactionTypeCard,
 		Amount:               decimal.RequireFromString("100"),
-		Currency:             "USD",
+		Asset:                "USD",
 		TransactionTimestamp: fixedTime,
 		Account:              model.AccountContext{ID: accountID},
 	}
@@ -214,7 +214,7 @@ func TestValidate_DuplicateRequestID_NoDoubleCount(t *testing.T) {
 	existingTV.RequestID = requestID
 	existingTV.TransactionType = model.TransactionTypeCard
 	existingTV.Amount = decimal.RequireFromString("100")
-	existingTV.Currency = "USD"
+	existingTV.Asset = "USD"
 	existingTV.TransactionTimestamp = fixedTime
 	existingTV.Account = model.AccountContext{ID: accountID}
 	existingTV.EvaluationResult = *evalResult
@@ -291,7 +291,7 @@ func TestValidate_DuplicateRequestID_NoAudit(t *testing.T) {
 		RequestID:            requestID,
 		TransactionType:      model.TransactionTypeCard,
 		Amount:               decimal.RequireFromString("50"),
-		Currency:             "USD",
+		Asset:                "USD",
 		TransactionTimestamp: fixedTime,
 		Account:              model.AccountContext{ID: accountID},
 	}
@@ -311,7 +311,7 @@ func TestValidate_DuplicateRequestID_NoAudit(t *testing.T) {
 	existingTV.RequestID = requestID
 	existingTV.TransactionType = model.TransactionTypeCard
 	existingTV.Amount = decimal.RequireFromString("50")
-	existingTV.Currency = "USD"
+	existingTV.Asset = "USD"
 	existingTV.TransactionTimestamp = fixedTime
 	existingTV.Account = model.AccountContext{ID: accountID}
 	existingTV.MatchedRuleIDs = []uuid.UUID{}
@@ -360,7 +360,7 @@ func TestValidate_DenyByRule_RetryTolerant(t *testing.T) {
 		RequestID:            requestID,
 		TransactionType:      model.TransactionTypeCard,
 		Amount:               decimal.RequireFromString("1000"),
-		Currency:             "USD",
+		Asset:                "USD",
 		TransactionTimestamp: fixedTime,
 		Account:              model.AccountContext{ID: accountID},
 	}
@@ -449,7 +449,7 @@ func TestValidate_DenyByLimit_RollbackAtomic(t *testing.T) {
 		RequestID:            requestID,
 		TransactionType:      model.TransactionTypeCard,
 		Amount:               decimal.RequireFromString("500"),
-		Currency:             "USD",
+		Asset:                "USD",
 		TransactionTimestamp: fixedTime,
 		Account:              model.AccountContext{ID: accountID},
 	}
@@ -560,7 +560,7 @@ func TestValidate_Review_RollbackAtomic(t *testing.T) {
 		RequestID:            requestID,
 		TransactionType:      model.TransactionTypeCard,
 		Amount:               decimal.RequireFromString("200"),
-		Currency:             "USD",
+		Asset:                "USD",
 		TransactionTimestamp: fixedTime,
 		Account:              model.AccountContext{ID: accountID},
 	}

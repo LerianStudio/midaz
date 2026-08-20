@@ -134,7 +134,7 @@ func (h *ValidationHandler) validate(ctx context.Context, rawBody []byte) (*serv
 	}
 
 	// Normalize and validate request (business error - use HandleSpanBusinessErrorEvent)
-	// This validates currency is ISO 4217 uppercase (does NOT normalize), trims and lowercases subType (canonical form; matching is case-insensitive), and creates defensive metadata copy
+	// This validates asset is ISO 4217 uppercase (does NOT normalize), trims and lowercases subType (canonical form; matching is case-insensitive), and creates defensive metadata copy
 	// Use injected clock for timestamp validation to support MOCK_TIME in tests
 	now := h.clock.Now()
 	if err := request.NormalizeAndValidate(now); err != nil {
@@ -151,7 +151,7 @@ func (h *ValidationHandler) validate(ctx context.Context, rawBody []byte) (*serv
 	span.SetAttributes(
 		attribute.String("app.request.request_id", request.RequestID.String()),
 		attribute.String("app.request.transaction_type", string(request.TransactionType)),
-		attribute.String("app.request.currency", request.Currency),
+		attribute.String("app.request.asset", request.Asset),
 	)
 
 	// Call validation service

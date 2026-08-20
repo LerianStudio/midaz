@@ -61,7 +61,7 @@ type CreateLimitInput struct {
 	Description     *string
 	LimitType       model.LimitType
 	MaxAmount       decimal.Decimal
-	Currency        string
+	Asset           string
 	Scopes          []model.Scope
 	ActiveTimeStart *model.TimeOfDay
 	ActiveTimeEnd   *model.TimeOfDay
@@ -143,12 +143,12 @@ func (c *CreateLimitCommand) Execute(ctx context.Context, input *CreateLimitInpu
 	// Create normalized copy to avoid mutating caller's input
 	normalizedInput := *input
 	normalizedInput.Name = strings.TrimSpace(normalizedInput.Name)
-	normalizedInput.Currency = strings.ToUpper(strings.TrimSpace(normalizedInput.Currency))
+	normalizedInput.Asset = strings.ToUpper(strings.TrimSpace(normalizedInput.Asset))
 
 	span.SetAttributes(
 		attribute.String("app.request.limit_name", normalizedInput.Name),
 		attribute.String("app.request.limit_type", string(normalizedInput.LimitType)),
-		attribute.String("app.request.currency", normalizedInput.Currency),
+		attribute.String("app.request.asset", normalizedInput.Asset),
 	)
 
 	// Create domain entity via appropriate NewLimit* function
@@ -195,7 +195,7 @@ func (c *CreateLimitCommand) Execute(ctx context.Context, input *CreateLimitInpu
 				normalizedInput.Name,
 				normalizedInput.LimitType,
 				normalizedInput.MaxAmount,
-				normalizedInput.Currency,
+				normalizedInput.Asset,
 				normalizedInput.Scopes,
 				normalizedInput.Description,
 				customStart,
@@ -209,7 +209,7 @@ func (c *CreateLimitCommand) Execute(ctx context.Context, input *CreateLimitInpu
 				normalizedInput.Name,
 				normalizedInput.LimitType,
 				normalizedInput.MaxAmount,
-				normalizedInput.Currency,
+				normalizedInput.Asset,
 				normalizedInput.Scopes,
 				normalizedInput.Description,
 				customStart,
@@ -223,7 +223,7 @@ func (c *CreateLimitCommand) Execute(ctx context.Context, input *CreateLimitInpu
 			normalizedInput.Name,
 			normalizedInput.LimitType,
 			normalizedInput.MaxAmount,
-			normalizedInput.Currency,
+			normalizedInput.Asset,
 			normalizedInput.Scopes,
 			normalizedInput.Description,
 			normalizedInput.ActiveTimeStart.String(),
@@ -236,7 +236,7 @@ func (c *CreateLimitCommand) Execute(ctx context.Context, input *CreateLimitInpu
 			normalizedInput.Name,
 			normalizedInput.LimitType,
 			normalizedInput.MaxAmount,
-			normalizedInput.Currency,
+			normalizedInput.Asset,
 			normalizedInput.Scopes,
 			normalizedInput.Description,
 			now,

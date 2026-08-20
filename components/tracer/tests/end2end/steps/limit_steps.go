@@ -33,7 +33,7 @@ func registerLimitSteps(ctx *godog.ScenarioContext, sc *support.ScenarioContext)
 	// end-to-end. Example:
 	// `Maria creates a daily limit of 1000 USD called "Crypto Sweep" with sub-type "  Buy  "`
 	ctx.Step(`^(\w+) creates a daily limit of ([0-9,.]+) (\w+) called "([^"]*)" with sub-type "([^"]*)"$`,
-		func(persona, amount, currency, name, subType string) error {
+		func(persona, amount, asset, name, subType string) error {
 			amt, err := decimal.NewFromString(normalizeAmount(amount))
 			if err != nil {
 				return fmt.Errorf("parsing amount %q: %w", amount, err)
@@ -41,7 +41,7 @@ func registerLimitSteps(ctx *godog.ScenarioContext, sc *support.ScenarioContext)
 
 			sc.InitPendingLimit(name, "DAILY")
 			sc.PendingLimit.MaxAmount = amt
-			sc.PendingLimit.Currency = strings.ToUpper(currency)
+			sc.PendingLimit.Asset = strings.ToUpper(asset)
 
 			accountID := support.TestAccountUUID()
 			sc.PendingLimit.Scopes = []testutil.ScopeInput{
@@ -57,7 +57,7 @@ func registerLimitSteps(ctx *godog.ScenarioContext, sc *support.ScenarioContext)
 	// has ID "X"`) target the same merchantId. Example:
 	// `Maria creates a daily limit of 1000 USD called "Acme Daily Cap" for merchant "acme-corp"`
 	ctx.Step(`^(\w+) creates a daily limit of ([0-9,.]+) (\w+) called "([^"]*)" for merchant "([^"]*)"$`,
-		func(persona, amount, currency, name, merchant string) error {
+		func(persona, amount, asset, name, merchant string) error {
 			amt, err := decimal.NewFromString(normalizeAmount(amount))
 			if err != nil {
 				return fmt.Errorf("parsing amount %q: %w", amount, err)
@@ -71,7 +71,7 @@ func registerLimitSteps(ctx *godog.ScenarioContext, sc *support.ScenarioContext)
 
 			sc.InitPendingLimit(name, "DAILY")
 			sc.PendingLimit.MaxAmount = amt
-			sc.PendingLimit.Currency = strings.ToUpper(currency)
+			sc.PendingLimit.Asset = strings.ToUpper(asset)
 			sc.PendingLimit.Scopes = []testutil.ScopeInput{
 				{MerchantID: testutil.Ptr(merchantID)},
 			}
@@ -124,7 +124,7 @@ func registerLimitSteps(ctx *godog.ScenarioContext, sc *support.ScenarioContext)
 	// limit is created unscoped and the `the limit should be created
 	// successfully in Draft status` assertion posts the request.
 	ctx.Step(`^(\w+) creates a daily spending limit of ([0-9,.]+) (\w+) called "([^"]*)"$`,
-		func(persona, amount, currency, name string) error {
+		func(persona, amount, asset, name string) error {
 			amt, err := decimal.NewFromString(normalizeAmount(amount))
 			if err != nil {
 				return fmt.Errorf("parsing amount %q: %w", amount, err)
@@ -132,7 +132,7 @@ func registerLimitSteps(ctx *godog.ScenarioContext, sc *support.ScenarioContext)
 
 			sc.InitPendingLimit(name, "DAILY")
 			sc.PendingLimit.MaxAmount = amt
-			sc.PendingLimit.Currency = strings.ToUpper(currency)
+			sc.PendingLimit.Asset = strings.ToUpper(asset)
 			// Default to a deterministic account scope so the API accepts
 			// the limit (at least one scope attribute required).
 			accountID := support.TestAccountUUID()
@@ -143,7 +143,7 @@ func registerLimitSteps(ctx *godog.ScenarioContext, sc *support.ScenarioContext)
 			return nil
 		})
 
-	ctx.Step(`^(?:he|she) sets the maximum amount to R\$([0-9,.]+) in (\w+)$`, func(amount, currency string) error {
+	ctx.Step(`^(?:he|she) sets the maximum amount to R\$([0-9,.]+) in (\w+)$`, func(amount, asset string) error {
 		if sc.PendingLimit == nil {
 			return fmt.Errorf("no pending limit — call 'creates a daily limit' first")
 		}
@@ -154,7 +154,7 @@ func registerLimitSteps(ctx *godog.ScenarioContext, sc *support.ScenarioContext)
 		}
 
 		sc.PendingLimit.MaxAmount = amt
-		sc.PendingLimit.Currency = strings.ToUpper(currency)
+		sc.PendingLimit.Asset = strings.ToUpper(asset)
 
 		return nil
 	})
@@ -193,7 +193,7 @@ func registerLimitSteps(ctx *godog.ScenarioContext, sc *support.ScenarioContext)
 				Name:      sc.PendingLimit.Name,
 				LimitType: sc.PendingLimit.LimitType,
 				MaxAmount: sc.PendingLimit.MaxAmount,
-				Currency:  sc.PendingLimit.Currency,
+				Asset:     sc.PendingLimit.Asset,
 				Scopes:    sc.PendingLimit.Scopes,
 			}
 
@@ -395,7 +395,7 @@ func registerLimitSteps(ctx *godog.ScenarioContext, sc *support.ScenarioContext)
 		return nil
 	})
 
-	ctx.Step(`^the maximum amount is R\$([0-9,.]+) in (\w+)$`, func(amount, currency string) error {
+	ctx.Step(`^the maximum amount is R\$([0-9,.]+) in (\w+)$`, func(amount, asset string) error {
 		if sc.PendingLimit == nil {
 			return fmt.Errorf("no pending limit")
 		}
@@ -406,7 +406,7 @@ func registerLimitSteps(ctx *godog.ScenarioContext, sc *support.ScenarioContext)
 		}
 
 		sc.PendingLimit.MaxAmount = amt
-		sc.PendingLimit.Currency = strings.ToUpper(currency)
+		sc.PendingLimit.Asset = strings.ToUpper(asset)
 
 		return nil
 	})
@@ -433,7 +433,7 @@ func registerLimitSteps(ctx *godog.ScenarioContext, sc *support.ScenarioContext)
 			Name:      sc.PendingLimit.Name,
 			LimitType: sc.PendingLimit.LimitType,
 			MaxAmount: sc.PendingLimit.MaxAmount,
-			Currency:  sc.PendingLimit.Currency,
+			Asset:     sc.PendingLimit.Asset,
 			Scopes:    sc.PendingLimit.Scopes,
 		}
 

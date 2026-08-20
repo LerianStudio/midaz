@@ -428,7 +428,7 @@ func TestAuditEvents_11_2_7_FiltersByAccountId(t *testing.T) {
 		RequestID:            testutil.MustDeterministicUUID(7005).String(),
 		TransactionType:      "PIX",
 		Amount:               decimal.RequireFromString("500"),
-		Currency:             "BRL",
+		Asset:                "BRL",
 		TransactionTimestamp: testutil.FixedTime().Format(time.RFC3339),
 		Account: &testutil.AccountContext{
 			ID:     accountID,
@@ -484,7 +484,7 @@ func TestAuditEvents_11_2_8_FiltersByTransactionType(t *testing.T) {
 		RequestID:            testutil.MustDeterministicUUID(7006).String(),
 		TransactionType:      "PIX",
 		Amount:               decimal.RequireFromString("10"),
-		Currency:             "BRL",
+		Asset:                "BRL",
 		TransactionTimestamp: testutil.FixedTime().Format(time.RFC3339),
 		Account: &testutil.AccountContext{
 			ID:     testutil.MustDeterministicUUID(7007).String(),
@@ -500,7 +500,7 @@ func TestAuditEvents_11_2_8_FiltersByTransactionType(t *testing.T) {
 		RequestID:            testutil.MustDeterministicUUID(7008).String(),
 		TransactionType:      "CARD",
 		Amount:               decimal.RequireFromString("20"),
-		Currency:             "BRL",
+		Asset:                "BRL",
 		TransactionTimestamp: testutil.FixedTime().Format(time.RFC3339),
 		Account: &testutil.AccountContext{
 			ID:     testutil.MustDeterministicUUID(7009).String(),
@@ -560,7 +560,7 @@ func TestAuditEvents_11_2_9_FiltersByMatchedRuleId(t *testing.T) {
 		RequestID:            testutil.MustDeterministicUUID(7011).String(),
 		TransactionType:      "PIX",
 		Amount:               decimal.RequireFromString("10"), // 10 > 5, will match rule
-		Currency:             "BRL",
+		Asset:                "BRL",
 		TransactionTimestamp: testutil.FixedTime().Format(time.RFC3339),
 		Account: &testutil.AccountContext{
 			ID:     testutil.MustDeterministicUUID(7012).String(),
@@ -856,33 +856,85 @@ func TestAuditEvents_11_2_10_B_IteratesThroughMultiplePages(t *testing.T) {
 	t.Logf("✓ Page 3 hasMore=%v, nextCursor=%q", page3.HasMore, page3.NextCursor)
 }
 
-// TestAuditEvents_11_2_11_SupportsCustomSorting tests custom sorting.
+// TestAuditEvents_11_2_11_SupportsCustomSorting verifies GET /v1/audit-events honors
+// sort_by=event_type&sort_order=ASC.
+//
+// audit_events is a GLOBAL, append-only table written by the entire integration suite, so
+// asserting order over the unfiltered global result is non-deterministic under parallel load:
+// any event another test inserts concurrently can land in the returned page. Instead this test
+// seeds rows it fully controls — a single rule emits two distinct event_types (RULE_CREATED then
+// RULE_UPDATED) that share one resource_id — and constrains the query to that resource_id, so the
+// ordering assertion covers ONLY the seeded rows while still exercising the server-side sort
+// end-to-end. A real sort regression (server not honoring event_type ASC) still fails here,
+// because the seeded set spans two distinct, order-sensitive event_types.
 func TestAuditEvents_11_2_11_SupportsCustomSorting(t *testing.T) {
 	apiKey := testutil.GetAPIKey()
 	baseURL := testutil.GetBaseURL()
 
-	req, err := http.NewRequest(http.MethodGet, baseURL+"/v1/audit-events?sort_by=event_type&sort_order=ASC&limit=10", nil)
-	require.NoError(t, err)
-	req.Header.Set("X-API-Key", apiKey)
+	// Seed RULE_CREATED.
+	ruleName := "audit-sort-rule-" + testutil.MustDeterministicUUID(7211).String()[:8]
+	ruleID := testutil.CreateTestRuleWithExpression(t, ruleName, "amount > 10", "DENY")
+	t.Cleanup(func() { testutil.CleanupRule(t, ruleID) })
 
-	resp, err := testutil.HTTPClient.Do(req)
-	require.NoError(t, err)
-	defer resp.Body.Close()
-	require.Equal(t, http.StatusOK, resp.StatusCode)
-
-	var result struct {
-		AuditEvents []map[string]any `json:"auditEvents"`
-	}
-	err = json.NewDecoder(resp.Body).Decode(&result)
+	// Seed RULE_UPDATED on the SAME resource_id — a second, distinct event_type.
+	updateBody, err := json.Marshal(map[string]any{"name": ruleName + "-updated"})
 	require.NoError(t, err)
 
-	// Verify ascending order
-	if len(result.AuditEvents) >= 2 {
-		for i := 0; i < len(result.AuditEvents)-1; i++ {
-			curr := result.AuditEvents[i]["eventType"].(string)
-			next := result.AuditEvents[i+1]["eventType"].(string)
-			assert.LessOrEqual(t, curr, next, "Events should be sorted by event_type ASC")
+	updReq, err := http.NewRequest(http.MethodPatch, baseURL+"/v1/rules/"+ruleID, bytes.NewReader(updateBody))
+	require.NoError(t, err)
+	updReq.Header.Set("X-API-Key", apiKey)
+	updReq.Header.Set("Content-Type", "application/json")
+
+	updResp, err := testutil.HTTPClient.Do(updReq)
+	require.NoError(t, err)
+	defer updResp.Body.Close()
+	require.Equal(t, http.StatusOK, updResp.StatusCode)
+
+	// Rule mutations persist their audit event atomically with the mutation, so the 200s above
+	// imply both RULE_CREATED and RULE_UPDATED are committed. Poll the read side briefly to
+	// absorb read-your-writes visibility lag before asserting — bounded, never a blind sleep,
+	// and it only gates visibility: the ordering assertion below is unchanged.
+	listURL := baseURL + "/v1/audit-events?resource_id=" + ruleID + "&sort_by=event_type&sort_order=ASC&limit=100"
+
+	var events []map[string]any
+
+	require.Eventually(t, func() bool {
+		req, reqErr := http.NewRequest(http.MethodGet, listURL, nil)
+		if reqErr != nil {
+			return false
 		}
+		req.Header.Set("X-API-Key", apiKey)
+
+		resp, doErr := testutil.HTTPClient.Do(req)
+		if doErr != nil {
+			return false
+		}
+		defer resp.Body.Close()
+
+		if resp.StatusCode != http.StatusOK {
+			return false
+		}
+
+		var result struct {
+			AuditEvents []map[string]any `json:"auditEvents"`
+		}
+		if decErr := json.NewDecoder(resp.Body).Decode(&result); decErr != nil {
+			return false
+		}
+
+		events = result.AuditEvents
+
+		return len(events) >= 2
+	}, 5*time.Second, 100*time.Millisecond,
+		"expected the seeded rule to yield at least RULE_CREATED and RULE_UPDATED audit events")
+
+	// Ordering assertion over the isolated, seeded rows only. With >= 2 distinct event_types the
+	// assertion is never vacuous, and any subsequence of a correctly event_type-ASC page is
+	// itself ascending — so this passes iff the server actually sorted by event_type ASC.
+	for i := 0; i < len(events)-1; i++ {
+		curr := events[i]["eventType"].(string)
+		next := events[i+1]["eventType"].(string)
+		assert.LessOrEqual(t, curr, next, "Events should be sorted by event_type ASC")
 	}
 }
 
@@ -1436,7 +1488,7 @@ func TestAuditEvents_11_4_5_GeneratesAuditForTransactionValidation(t *testing.T)
 		RequestID:            requestID,
 		TransactionType:      "PIX",
 		Amount:               decimal.RequireFromString("500"),
-		Currency:             "BRL",
+		Asset:                "BRL",
 		TransactionTimestamp: testutil.FixedTime().Format(time.RFC3339),
 		Account: &testutil.AccountContext{
 			ID:     accountID,
@@ -1481,7 +1533,7 @@ func TestAuditEvents_11_4_5_GeneratesAuditForTransactionValidation(t *testing.T)
 	// Validate request data
 	assert.Equal(t, "PIX", request["transactionType"])
 	assert.Equal(t, "500", request["amount"])
-	assert.Equal(t, "BRL", request["currency"])
+	assert.Equal(t, "BRL", request["asset"])
 
 	account := request["account"].(map[string]any)
 	assert.Equal(t, accountID, account["id"])
@@ -1607,7 +1659,7 @@ func TestAuditEvents_11_4_7_GeneratesAuditForLimitCreation(t *testing.T) {
 	after := context["after"].(map[string]any)
 	assert.Equal(t, "DAILY", after["limitType"])
 	assert.Equal(t, "1000", after["maxAmount"])
-	assert.Equal(t, "BRL", after["currency"])
+	assert.Equal(t, "BRL", after["asset"])
 	assert.Equal(t, "DRAFT", after["status"])
 
 	// Verify before is null for CREATE
@@ -2174,7 +2226,7 @@ func TestAuditEvents_11_10_2_ValidationTriggersAuditEvent(t *testing.T) {
 		RequestID:            requestID,
 		TransactionType:      "PIX",
 		Amount:               decimal.RequireFromString("100"),
-		Currency:             "BRL",
+		Asset:                "BRL",
 		TransactionTimestamp: testutil.FixedTime().Format(time.RFC3339),
 		Account: &testutil.AccountContext{
 			ID:     accountID,
@@ -2637,7 +2689,7 @@ func TestAuditEvents_11_6_1_FiltersBySegmentId(t *testing.T) {
 		RequestID:            testutil.MustDeterministicUUID(7032).String(),
 		TransactionType:      "PIX",
 		Amount:               decimal.RequireFromString("10"),
-		Currency:             "BRL",
+		Asset:                "BRL",
 		TransactionTimestamp: testutil.FixedTime().Format(time.RFC3339),
 		Account: &testutil.AccountContext{
 			ID:     testutil.MustDeterministicUUID(7033).String(),
@@ -2706,7 +2758,7 @@ func TestAuditEvents_11_6_2_FiltersByPortfolioId(t *testing.T) {
 		RequestID:            testutil.MustDeterministicUUID(7035).String(),
 		TransactionType:      "CARD",
 		Amount:               decimal.RequireFromString("20"),
-		Currency:             "BRL",
+		Asset:                "BRL",
 		TransactionTimestamp: testutil.FixedTime().Format(time.RFC3339),
 		Account: &testutil.AccountContext{
 			ID:     testutil.MustDeterministicUUID(7036).String(),
@@ -2778,7 +2830,7 @@ func TestAuditEvents_11_6_3_CombinesMultipleJSONBFilters(t *testing.T) {
 		RequestID:            testutil.MustDeterministicUUID(7040).String(),
 		TransactionType:      "PIX",
 		Amount:               decimal.RequireFromString("50"),
-		Currency:             "BRL",
+		Asset:                "BRL",
 		TransactionTimestamp: testutil.FixedTime().Format(time.RFC3339),
 		Account: &testutil.AccountContext{
 			ID:     accountID,

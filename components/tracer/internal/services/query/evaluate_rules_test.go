@@ -110,7 +110,7 @@ func TestEvaluateRulesQuery_Execute(t *testing.T) {
 		RequestID:       testutil.MustDeterministicUUID(100),
 		TransactionType: model.TransactionTypeCard,
 		Amount:          decimal.RequireFromString("150"),
-		Currency:        "USD",
+		Asset:           "USD",
 		Account:         model.AccountContext{ID: testutil.MustDeterministicUUID(200), Type: "checking"},
 	}
 
@@ -369,7 +369,7 @@ func TestEvaluateRulesQuery_Execute_ContextCancellation(t *testing.T) {
 		RequestID:       testutil.MustDeterministicUUID(100),
 		TransactionType: model.TransactionTypeCard,
 		Amount:          decimal.RequireFromString("10"),
-		Currency:        "USD",
+		Asset:           "USD",
 		Account:         model.AccountContext{ID: testutil.MustDeterministicUUID(200), Type: "checking"},
 	}
 

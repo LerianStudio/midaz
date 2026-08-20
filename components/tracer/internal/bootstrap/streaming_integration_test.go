@@ -263,7 +263,7 @@ func newSmokeLimit(t *testing.T, ts time.Time) *model.Limit {
 		Description:     &desc,
 		LimitType:       model.LimitTypeDaily,
 		MaxAmount:       decimal.RequireFromString("1000.00"),
-		Currency:        "USD",
+		Asset:           "USD",
 		Scopes:          []model.Scope{fencedScope()},
 		Status:          model.LimitStatusActive,
 		ActiveTimeStart: &start,

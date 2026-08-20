@@ -142,7 +142,7 @@ func TestIsMissingKeyError_RealCELEvaluation(t *testing.T) {
 				RequestID:       uuid.MustParse("550e8400-e29b-41d4-a716-446655440090"),
 				TransactionType: model.TransactionTypePix,
 				Amount:          decimal.RequireFromString("100"),
-				Currency:        "BRL",
+				Asset:           "BRL",
 				Account: model.AccountContext{
 					ID:     uuid.MustParse("550e8400-e29b-41d4-a716-446655440091"),
 					Type:   "checking",

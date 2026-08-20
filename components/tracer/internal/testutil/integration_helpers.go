@@ -312,7 +312,7 @@ type ValidationRequest struct {
 	TransactionType      string            `json:"transactionType,omitempty"`
 	SubType              string            `json:"subType,omitempty"`
 	Amount               decimal.Decimal   `json:"amount"`
-	Currency             string            `json:"currency,omitempty"`
+	Asset                string            `json:"asset,omitempty"`
 	TransactionTimestamp string            `json:"transactionTimestamp,omitempty"`
 	Account              *AccountContext   `json:"account,omitempty"`
 	Segment              *SegmentContext   `json:"segment,omitempty"`
@@ -629,7 +629,7 @@ type ValidationDetailResponse struct {
 	TransactionType      string             `json:"transactionType"`
 	SubType              *string            `json:"subType,omitempty"`
 	Amount               decimal.Decimal    `json:"amount"`
-	Currency             string             `json:"currency"`
+	Asset                string             `json:"asset"`
 	TransactionTimestamp string             `json:"transactionTimestamp"`
 	Account              map[string]any     `json:"account"`
 	Segment              map[string]any     `json:"segment,omitempty"`
@@ -695,7 +695,7 @@ type ValidationSummary struct {
 	Decision         string          `json:"decision"`
 	Reason           string          `json:"reason"`
 	Amount           decimal.Decimal `json:"amount"`
-	Currency         string          `json:"currency"`
+	Asset            string          `json:"asset"`
 	TransactionType  string          `json:"transactionType"`
 	AccountID        string          `json:"accountId"`
 	SegmentID        string          `json:"segmentId,omitempty"`
@@ -803,7 +803,7 @@ type createLimitRequestAccount struct {
 	Name      string                   `json:"name"`
 	LimitType string                   `json:"limitType"`
 	MaxAmount decimal.Decimal          `json:"maxAmount"`
-	Currency  string                   `json:"currency"`
+	Asset     string                   `json:"asset"`
 	Scopes    []limitScopeInputAccount `json:"scopes"`
 }
 
@@ -812,7 +812,7 @@ type createLimitRequestTransactionType struct {
 	Name      string                           `json:"name"`
 	LimitType string                           `json:"limitType"`
 	MaxAmount decimal.Decimal                  `json:"maxAmount"`
-	Currency  string                           `json:"currency"`
+	Asset     string                           `json:"asset"`
 	Scopes    []limitScopeInputTransactionType `json:"scopes"`
 }
 
@@ -848,7 +848,7 @@ func CreateLimitWithAccountScopeAndType(t *testing.T, accountID string, maxAmoun
 		Name:      uniqueName,
 		LimitType: limitType,
 		MaxAmount: decimal.RequireFromString(maxAmount),
-		Currency:  "BRL",
+		Asset:     "BRL",
 		Scopes: []limitScopeInputAccount{
 			{AccountID: &accountID},
 		},
@@ -892,7 +892,7 @@ func CreateLimitWithTransactionTypeScope(t *testing.T, transactionType string, m
 		Name:      uniqueName,
 		LimitType: "PER_TRANSACTION",
 		MaxAmount: decimal.RequireFromString(maxAmount),
-		Currency:  "BRL",
+		Asset:     "BRL",
 		Scopes: []limitScopeInputTransactionType{
 			{TransactionType: &transactionType},
 		},
@@ -1032,7 +1032,7 @@ func CreateLimitWithScope(t *testing.T, name string, maxAmount string, scopes []
 		Name      string       `json:"name"`
 		LimitType string       `json:"limitType"`
 		MaxAmount string       `json:"maxAmount"`
-		Currency  string       `json:"currency"`
+		Asset     string       `json:"asset"`
 		Scopes    []ScopeInput `json:"scopes"`
 	}
 
@@ -1047,7 +1047,7 @@ func CreateLimitWithScope(t *testing.T, name string, maxAmount string, scopes []
 		Name:      name,
 		LimitType: "DAILY",
 		MaxAmount: maxAmount,
-		Currency:  "BRL",
+		Asset:     "BRL",
 		Scopes:    scopes,
 	}
 
@@ -1120,7 +1120,7 @@ func CreateRuleWithScope(t *testing.T, name, expression, action string, scopes [
 var basicPayloadCounter int64 = 90000
 
 // CreateBasicValidationPayload returns a basic valid validation request payload
-// with all required fields (requestId, transactionType, amount, currency, timestamp, account).
+// with all required fields (requestId, transactionType, amount, asset, timestamp, account).
 // Helper for tests that need a minimal valid payload to customize.
 // Uses deterministic UUIDs based on an incrementing counter for reproducible tests.
 func CreateBasicValidationPayload() map[string]any {
@@ -1131,7 +1131,7 @@ func CreateBasicValidationPayload() map[string]any {
 		"requestId":            MustDeterministicUUID(currentBase).String(),
 		"transactionType":      "CARD",
 		"amount":               "100.00",
-		"currency":             "BRL",
+		"asset":                "BRL",
 		"transactionTimestamp": FixedTime().Add(-1 * time.Minute).Format(time.RFC3339),
 		"account": map[string]any{
 			"accountId": MustDeterministicUUID(currentBase + 1).String(),

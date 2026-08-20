@@ -51,7 +51,7 @@ type nameUniquenessLimitRequest struct {
 	Name      string                `json:"name"`
 	LimitType string                `json:"limitType"`
 	MaxAmount decimal.Decimal       `json:"maxAmount"`
-	Currency  string                `json:"currency"`
+	Asset     string                `json:"asset"`
 	Scopes    []testutil.ScopeInput `json:"scopes"`
 	RuleID    *string               `json:"ruleId,omitempty"` // Future field for rule association
 }
@@ -361,7 +361,7 @@ func TestCreateLimit_DuplicateName_Returns409(t *testing.T) {
 		Name:      limitName,
 		LimitType: "DAILY",
 		MaxAmount: decimal.RequireFromString("1000"),
-		Currency:  "BRL",
+		Asset:     "BRL",
 		Scopes: []testutil.ScopeInput{
 			{AccountID: testutil.StringPtr(accountID)},
 		},
@@ -399,7 +399,7 @@ func TestCreateLimit_DuplicateName_Returns409(t *testing.T) {
 		Name:      limitName, // Same name as first limit
 		LimitType: "DAILY",
 		MaxAmount: decimal.RequireFromString("2000"),
-		Currency:  "BRL",
+		Asset:     "BRL",
 		Scopes: []testutil.ScopeInput{
 			{AccountID: testutil.StringPtr(accountID)},
 		},
@@ -455,7 +455,7 @@ func TestCreateLimit_DeletedNameReuse_Returns201(t *testing.T) {
 		Name:      limitName,
 		LimitType: "DAILY",
 		MaxAmount: decimal.RequireFromString("1000"),
-		Currency:  "BRL",
+		Asset:     "BRL",
 		Scopes: []testutil.ScopeInput{
 			{AccountID: testutil.StringPtr(accountID)},
 		},
@@ -493,7 +493,7 @@ func TestCreateLimit_DeletedNameReuse_Returns201(t *testing.T) {
 		Name:      limitName, // Same name as the deleted limit
 		LimitType: "MONTHLY",
 		MaxAmount: decimal.RequireFromString("5000"),
-		Currency:  "BRL",
+		Asset:     "BRL",
 		Scopes: []testutil.ScopeInput{
 			{AccountID: testutil.StringPtr(accountID)},
 		},

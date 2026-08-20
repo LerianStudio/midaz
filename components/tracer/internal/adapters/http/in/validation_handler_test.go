@@ -41,7 +41,7 @@ func TestValidationHandler_Validate(t *testing.T) {
 		RequestID:            validRequestID,
 		TransactionType:      model.TransactionTypeCard,
 		Amount:               decimal.RequireFromString("100"), // $100.00
-		Currency:             "USD",
+		Asset:                "USD",
 		TransactionTimestamp: now,
 		Account: model.AccountContext{
 			ID: accountID,
@@ -199,7 +199,7 @@ func TestValidationHandler_Validate(t *testing.T) {
 			requestBody: map[string]any{
 				"transactionType":      "CARD",
 				"amount":               100,
-				"currency":             "USD",
+				"asset":                "USD",
 				"transactionTimestamp": now.Format(time.RFC3339),
 				"account":              map[string]any{"accountId": accountID.String()},
 			},
@@ -217,7 +217,7 @@ func TestValidationHandler_Validate(t *testing.T) {
 				"requestId":            validRequestID.String(),
 				"transactionType":      "INVALID_TYPE",
 				"amount":               100,
-				"currency":             "USD",
+				"asset":                "USD",
 				"transactionTimestamp": now.Format(time.RFC3339),
 				"account":              map[string]any{"accountId": accountID.String()},
 			},
@@ -234,7 +234,7 @@ func TestValidationHandler_Validate(t *testing.T) {
 				"requestId":            validRequestID.String(),
 				"transactionType":      "CARD",
 				"amount":               0,
-				"currency":             "USD",
+				"asset":                "USD",
 				"transactionTimestamp": now.Format(time.RFC3339),
 				"account":              map[string]any{"accountId": accountID.String()},
 			},
@@ -251,7 +251,7 @@ func TestValidationHandler_Validate(t *testing.T) {
 				"requestId":            validRequestID.String(),
 				"transactionType":      "CARD",
 				"amount":               -100,
-				"currency":             "USD",
+				"asset":                "USD",
 				"transactionTimestamp": now.Format(time.RFC3339),
 				"account":              map[string]any{"accountId": accountID.String()},
 			},
@@ -263,7 +263,7 @@ func TestValidationHandler_Validate(t *testing.T) {
 			},
 		},
 		{
-			name: "error - missing currency",
+			name: "error - missing asset",
 			requestBody: map[string]any{
 				"requestId":            validRequestID.String(),
 				"transactionType":      "CARD",
@@ -284,7 +284,7 @@ func TestValidationHandler_Validate(t *testing.T) {
 				"requestId":       validRequestID.String(),
 				"transactionType": "CARD",
 				"amount":          100,
-				"currency":        "USD",
+				"asset":           "USD",
 				"account":         map[string]any{"accountId": accountID.String()},
 			},
 			mockSetup: func(ctrl *gomock.Controller) *mocks.MockValidationService {
@@ -370,7 +370,7 @@ func TestValidationHandler_Validate(t *testing.T) {
 				"requestId":            validRequestID.String(),
 				"transactionType":      "CARD",
 				"amount":               100,
-				"currency":             "USD",
+				"asset":                "USD",
 				"transactionTimestamp": now.Format("2006-01-02T15:04:05Z07:00"),
 			},
 			mockSetup: func(ctrl *gomock.Controller) *mocks.MockValidationService {
@@ -387,7 +387,7 @@ func TestValidationHandler_Validate(t *testing.T) {
 				"requestId":            validRequestID.String(),
 				"transactionType":      "CARD",
 				"amount":               100,
-				"currency":             "USD",
+				"asset":                "USD",
 				"transactionTimestamp": now.Format("2006-01-02T15:04:05Z07:00"),
 				"account":              map[string]any{"accountId": ""},
 			},
@@ -460,7 +460,7 @@ func TestValidationHandler_Validate_PayloadSizeCheck(t *testing.T) {
 			RequestID:            validRequestID,
 			TransactionType:      model.TransactionTypeCard,
 			Amount:               decimal.RequireFromString("100"),
-			Currency:             "USD",
+			Asset:                "USD",
 			TransactionTimestamp: now,
 			Account: model.AccountContext{
 				ID: accountID,

@@ -40,7 +40,7 @@ func TestUpdateLimit_TimeWindow(t *testing.T) {
 		Name:            "Test Limit",
 		LimitType:       model.LimitTypeDaily,
 		MaxAmount:       decimal.RequireFromString("1000.00"),
-		Currency:        "BRL",
+		Asset:           "BRL",
 		Scopes:          []model.Scope{{AccountID: testutil.UUIDPtr(testutil.MustDeterministicUUID(2))}},
 		Status:          model.LimitStatusActive,
 		ActiveTimeStart: nil, // NO time window initially
@@ -111,7 +111,7 @@ func TestUpdateLimit_CustomPeriod(t *testing.T) {
 		Name:            "Black Friday Limit",
 		LimitType:       model.LimitTypeCustom,
 		MaxAmount:       decimal.RequireFromString("10000.00"),
-		Currency:        "BRL",
+		Asset:           "BRL",
 		Scopes:          []model.Scope{{AccountID: testutil.UUIDPtr(testutil.MustDeterministicUUID(2))}},
 		Status:          model.LimitStatusActive,
 		CustomStartDate: &initialStart,

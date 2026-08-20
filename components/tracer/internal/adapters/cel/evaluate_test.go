@@ -44,7 +44,7 @@ func newEvalTestRequest() *model.ValidationRequest {
 		TransactionType: "PIX",
 		SubType:         &subType,
 		Amount:          decimal.RequireFromString("1500"),
-		Currency:        "BRL",
+		Asset:           "BRL",
 		Account: model.AccountContext{
 			ID:     evalTestAccountID,
 			Type:   "checking",
@@ -95,10 +95,10 @@ func TestEvaluate_Success(t *testing.T) {
 			description: "PIX transaction with amount > 1000",
 		},
 		{
-			name:        "Success - currency check",
-			expression:  `currency == "BRL"`,
+			name:        "Success - asset check",
+			expression:  `asset == "BRL"`,
 			expected:    true,
-			description: "Currency is BRL",
+			description: "Asset is BRL",
 		},
 		{
 			name:        "Success - account status check",
@@ -220,7 +220,7 @@ func TestEvaluate_NilFields(t *testing.T) {
 			req: &model.ValidationRequest{
 				TransactionType: "PIX",
 				Amount:          decimal.RequireFromString("1500"),
-				Currency:        "BRL",
+				Asset:           "BRL",
 				Account: model.AccountContext{
 					ID:     evalTestAccountID,
 					Status: "active",
@@ -238,7 +238,7 @@ func TestEvaluate_NilFields(t *testing.T) {
 				TransactionType: "PIX",
 				SubType:         nil,
 				Amount:          decimal.RequireFromString("1500"),
-				Currency:        "BRL",
+				Asset:           "BRL",
 			},
 			expected:    true,
 			expectError: false,
@@ -250,7 +250,7 @@ func TestEvaluate_NilFields(t *testing.T) {
 			req: &model.ValidationRequest{
 				TransactionType: "PIX",
 				Amount:          decimal.RequireFromString("1500"),
-				Currency:        "BRL",
+				Asset:           "BRL",
 				Metadata:        nil,
 			},
 			expected:    true,
@@ -263,7 +263,7 @@ func TestEvaluate_NilFields(t *testing.T) {
 			req: &model.ValidationRequest{
 				TransactionType: "PIX",
 				Amount:          decimal.RequireFromString("15.75"),
-				Currency:        "BRL",
+				Asset:           "BRL",
 				Account: model.AccountContext{
 					ID:     evalTestAccountID,
 					Status: "active",
@@ -280,7 +280,7 @@ func TestEvaluate_NilFields(t *testing.T) {
 			req: &model.ValidationRequest{
 				TransactionType: "PIX",
 				Amount:          decimal.RequireFromString("1500"),
-				Currency:        "BRL",
+				Asset:           "BRL",
 				Account: model.AccountContext{
 					ID:     evalTestAccountID,
 					Status: "active",

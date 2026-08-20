@@ -70,7 +70,7 @@ func TestLimitRepository_CreateWithTx(t *testing.T) {
 						lmt.Description,
 						lmt.LimitType,
 						lmt.MaxAmount,
-						lmt.Currency,
+						lmt.Asset,
 						sqlmock.AnyArg(), // scopesJSON
 						lmt.Status,
 						sqlmock.AnyArg(), // resetAt
