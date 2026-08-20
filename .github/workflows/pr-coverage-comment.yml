@@ -1,0 +1,30 @@
+name: PR Coverage Comment (fork fallback)
+
+# go-pr-analysis.yml's inline coverage-comment step can't post on fork PRs:
+# pull_request runs from forks always get a read-only GITHUB_TOKEN and no
+# custom secrets, no matter what permissions the call chain declares. This
+# stub runs under workflow_run instead (not fork-restricted, so its token is
+# write-scoped) and delegates to go-pr-coverage-comment.yml, which only reads
+# the coverage-report-* artifacts PR Validation already produced — it never
+# checks out the PR's code.
+
+on:
+  workflow_run:
+    workflows: ["PR Validation"]
+    types: [completed]
+
+permissions:
+  actions: read
+  pull-requests: write
+
+jobs:
+  comment:
+    if: >
+      github.event.workflow_run.event == 'pull_request' &&
+      github.event.workflow_run.head_repository.full_name != github.repository
+    uses: LerianStudio/github-actions-shared-workflows/.github/workflows/go-pr-coverage-comment.yml@v1.57.0-beta.2
+    with:
+      source_run_id: ${{ github.event.workflow_run.id }}
+      pr_number: ${{ github.event.workflow_run.pull_requests[0].number }}
+      coverage_threshold: 80
+    secrets: inherit
