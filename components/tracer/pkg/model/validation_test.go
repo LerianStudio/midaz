@@ -301,7 +301,7 @@ func TestNormalizeAndValidate_Atomicity(t *testing.T) {
 			TransactionType:      TransactionTypeCard,
 			SubType:              &subType,
 			Amount:               decimal.RequireFromString("10"),
-			Currency:             "invalid", // lowercase - will fail validation
+			Asset:                "invalid", // lowercase - will fail validation
 			TransactionTimestamp: testutil.FixedTime(),
 			Account:              AccountContext{ID: uuid.MustParse("550e8400-e29b-41d4-a716-446655440002")},
 			Metadata:             originalMetadata,
@@ -310,9 +310,9 @@ func TestNormalizeAndValidate_Atomicity(t *testing.T) {
 		// Capture original values before call
 		originalSubType := *req.SubType
 		originalSubTypePtr := req.SubType
-		originalCurrency := req.Currency
+		originalAsset := req.Asset
 
-		// Call NormalizeAndValidate - should fail due to invalid currency
+		// Call NormalizeAndValidate - should fail due to invalid asset
 		err := req.NormalizeAndValidate(testutil.FixedTime())
 
 		// Verify validation failed
@@ -323,7 +323,7 @@ func TestNormalizeAndValidate_Atomicity(t *testing.T) {
 		require.NotNil(t, req.SubType, "SubType should not be nil")
 		assert.Equal(t, originalSubType, *req.SubType, "SubType should be unchanged after failed validation")
 		assert.Same(t, originalSubTypePtr, req.SubType, "SubType pointer should be unchanged (same reference)")
-		assert.Equal(t, originalCurrency, req.Currency, "Currency should be unchanged after failed validation")
+		assert.Equal(t, originalAsset, req.Asset, "Asset should be unchanged after failed validation")
 
 		// Verify original metadata map still assigned (not replaced)
 		// Add a marker to original to verify it's the same map instance
@@ -340,7 +340,7 @@ func TestNormalizeAndValidate_Atomicity(t *testing.T) {
 			TransactionType:      TransactionTypeCard,
 			SubType:              &subType,
 			Amount:               decimal.RequireFromString("10"),
-			Currency:             "USD", // valid uppercase
+			Asset:                "USD", // valid uppercase
 			TransactionTimestamp: testutil.FixedTime(),
 			Account:              AccountContext{ID: uuid.MustParse("550e8400-e29b-41d4-a716-446655440002")},
 			Metadata:             originalMetadata,
@@ -373,21 +373,21 @@ func TestNormalizeAndValidate_Atomicity(t *testing.T) {
 			TransactionType:      TransactionTypeCard,
 			SubType:              nil, // no subtype
 			Amount:               decimal.RequireFromString("10"),
-			Currency:             "invalid", // will fail
+			Asset:                "invalid", // will fail
 			TransactionTimestamp: testutil.FixedTime(),
 			Account:              AccountContext{ID: uuid.MustParse("550e8400-e29b-41d4-a716-446655440002")},
 			Metadata:             nil, // no metadata
 		}
 
-		// Capture original currency before call
-		originalCurrency := req.Currency
+		// Capture original asset before call
+		originalAsset := req.Asset
 
 		err := req.NormalizeAndValidate(testutil.FixedTime())
 
 		assert.Error(t, err)
 		assert.Nil(t, req.SubType, "SubType should remain nil")
 		assert.Nil(t, req.Metadata, "Metadata should remain nil")
-		assert.Equal(t, originalCurrency, req.Currency, "Currency should be unchanged after failed validation")
+		assert.Equal(t, originalAsset, req.Asset, "Asset should be unchanged after failed validation")
 	})
 }
 
@@ -402,7 +402,7 @@ func TestValidationRequest_Validate_MerchantID(t *testing.T) {
 			RequestID:            validRequestID,
 			TransactionType:      TransactionTypeCard,
 			Amount:               decimal.RequireFromString("10"),
-			Currency:             "BRL",
+			Asset:                "BRL",
 			TransactionTimestamp: fixedTimestamp,
 			Account:              AccountContext{ID: validAccountID},
 		}
@@ -468,7 +468,7 @@ func TestNormalizeAndValidate_NestedMetadataDefensiveCopy(t *testing.T) {
 			RequestID:            uuid.MustParse("550e8400-e29b-41d4-a716-446655440001"),
 			TransactionType:      TransactionTypeCard,
 			Amount:               decimal.RequireFromString("10"),
-			Currency:             "USD",
+			Asset:                "USD",
 			TransactionTimestamp: testutil.FixedTime(),
 			Account:              AccountContext{ID: uuid.MustParse("550e8400-e29b-41d4-a716-446655440002")},
 			Segment: &SegmentContext{
@@ -518,7 +518,7 @@ func TestNormalizeAndValidate_NestedMetadataDefensiveCopy(t *testing.T) {
 			RequestID:            uuid.MustParse("550e8400-e29b-41d4-a716-446655440001"),
 			TransactionType:      TransactionTypeCard,
 			Amount:               decimal.RequireFromString("10"),
-			Currency:             "USD",
+			Asset:                "USD",
 			TransactionTimestamp: testutil.FixedTime(),
 			Account:              AccountContext{ID: uuid.MustParse("550e8400-e29b-41d4-a716-446655440002")},
 			Segment:              nil,
@@ -540,7 +540,7 @@ func TestNormalizeAndValidate_NestedMetadataDefensiveCopy(t *testing.T) {
 			RequestID:            uuid.MustParse("550e8400-e29b-41d4-a716-446655440001"),
 			TransactionType:      TransactionTypeCard,
 			Amount:               decimal.RequireFromString("10"),
-			Currency:             "USD",
+			Asset:                "USD",
 			TransactionTimestamp: testutil.FixedTime(),
 			Account:              AccountContext{ID: uuid.MustParse("550e8400-e29b-41d4-a716-446655440002")},
 			Segment: &SegmentContext{
@@ -648,7 +648,7 @@ func TestNewValidationRequest_DefensiveCopyContextMetadata(t *testing.T) {
 func TestValidationRequest_Validate_PastTimestamp(t *testing.T) {
 	t.Parallel()
 
-	now := time.Now()
+	now := testutil.FixedTime()
 
 	// validRequest builds a valid request using deterministic UUIDs from seed range 8100-8109.
 	// The timestamp is set to now so it passes all existing checks.
@@ -657,7 +657,7 @@ func TestValidationRequest_Validate_PastTimestamp(t *testing.T) {
 			RequestID:            testutil.MustDeterministicUUID(8100),
 			TransactionType:      TransactionTypeCard,
 			Amount:               decimal.RequireFromString("250.00"),
-			Currency:             "USD",
+			Asset:                "USD",
 			TransactionTimestamp: now, // will be overridden per test case
 			Account: AccountContext{
 				ID:     testutil.MustDeterministicUUID(8101),
@@ -730,7 +730,7 @@ func TestValidationRequest_Validate_PastTimestamp(t *testing.T) {
 func TestValidationRequest_Validate_PastTimestamp_Boundary(t *testing.T) {
 	t.Parallel()
 
-	now := time.Now()
+	now := testutil.FixedTime()
 
 	// validRequest builds a valid request using deterministic UUIDs from seed range 8110-8119.
 	validRequest := func() *ValidationRequest {
@@ -738,7 +738,7 @@ func TestValidationRequest_Validate_PastTimestamp_Boundary(t *testing.T) {
 			RequestID:            testutil.MustDeterministicUUID(8110),
 			TransactionType:      TransactionTypePix,
 			Amount:               decimal.RequireFromString("500.00"),
-			Currency:             "BRL",
+			Asset:                "BRL",
 			TransactionTimestamp: now,
 			Account: AccountContext{
 				ID:     testutil.MustDeterministicUUID(8111),
@@ -798,7 +798,7 @@ func TestValidationRequest_Validate_PastTimestamp_CustomMaxAge(t *testing.T) {
 
 	defer func() { MaxTimestampAge = original }()
 
-	now := time.Now()
+	now := testutil.FixedTime()
 
 	// validRequest builds a valid request using deterministic UUIDs from seed range 8120-8129.
 	validRequest := func() *ValidationRequest {
@@ -806,7 +806,7 @@ func TestValidationRequest_Validate_PastTimestamp_CustomMaxAge(t *testing.T) {
 			RequestID:            testutil.MustDeterministicUUID(8120),
 			TransactionType:      TransactionTypeWire,
 			Amount:               decimal.RequireFromString("100.00"),
-			Currency:             "EUR",
+			Asset:                "EUR",
 			TransactionTimestamp: now,
 			Account: AccountContext{
 				ID:     testutil.MustDeterministicUUID(8121),

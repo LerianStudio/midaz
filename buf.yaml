@@ -15,3 +15,13 @@ lint:
 breaking:
   use:
     - FILE
+  ignore_only:
+    # Reservation field 4 was renamed currency -> asset (same field number, same
+    # wire type). This is an intentional, coordinated break: renaming the field
+    # changes both its name and its (default) JSON name, so FILE flags it under
+    # BOTH FIELD_SAME_NAME and FIELD_SAME_JSON_NAME. Each is scoped to just this
+    # file so both rules still guard every other proto.
+    FIELD_SAME_NAME:
+      - proto/reservation/v1/reservation.proto
+    FIELD_SAME_JSON_NAME:
+      - proto/reservation/v1/reservation.proto

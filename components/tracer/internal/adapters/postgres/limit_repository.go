@@ -108,8 +108,8 @@ func (r *LimitRepository) createInternal(ctx context.Context, db pgdb.DB, lmt *m
 	}
 
 	query := sq.Insert(r.tableName).
-		Columns("id", "name", "description", "limit_type", "max_amount", "currency", "scopes", "status", "reset_at", "active_time_start", "active_time_end", "custom_start_date", "custom_end_date", "created_at", "updated_at").
-		Values(dbModel.ID, dbModel.Name, dbModel.Description, dbModel.LimitType, dbModel.MaxAmount, dbModel.Currency, dbModel.Scopes, dbModel.Status, dbModel.ResetAt, dbModel.ActiveTimeStart, dbModel.ActiveTimeEnd, dbModel.CustomStartDate, dbModel.CustomEndDate, dbModel.CreatedAt, dbModel.UpdatedAt).
+		Columns("id", "name", "description", "limit_type", "max_amount", "asset", "scopes", "status", "reset_at", "active_time_start", "active_time_end", "custom_start_date", "custom_end_date", "created_at", "updated_at").
+		Values(dbModel.ID, dbModel.Name, dbModel.Description, dbModel.LimitType, dbModel.MaxAmount, dbModel.Asset, dbModel.Scopes, dbModel.Status, dbModel.ResetAt, dbModel.ActiveTimeStart, dbModel.ActiveTimeEnd, dbModel.CustomStartDate, dbModel.CustomEndDate, dbModel.CreatedAt, dbModel.UpdatedAt).
 		PlaceholderFormat(sq.Dollar)
 
 	sqlStr, args, err := query.ToSql()
@@ -154,7 +154,7 @@ func (r *LimitRepository) GetByID(ctx context.Context, limitID uuid.UUID) (*mode
 		return nil, fmt.Errorf("failed to get database connection: %w", err)
 	}
 
-	query := sq.Select("id", "name", "description", "limit_type", "max_amount", "currency", "scopes", "status", "reset_at", "active_time_start", "active_time_end", "custom_start_date", "custom_end_date", "created_at", "updated_at", "deleted_at").
+	query := sq.Select("id", "name", "description", "limit_type", "max_amount", "asset", "scopes", "status", "reset_at", "active_time_start", "active_time_end", "custom_start_date", "custom_end_date", "created_at", "updated_at", "deleted_at").
 		From(r.tableName).
 		Where(sq.Eq{"id": limitID}).
 		Where(sq.Eq{"deleted_at": nil}).
@@ -215,7 +215,7 @@ func (r *LimitRepository) List(ctx context.Context, filters *model.ListLimitsFil
 		return nil, fmt.Errorf("failed to get database connection: %w", err)
 	}
 
-	query := sq.Select("id", "name", "description", "limit_type", "max_amount", "currency", "scopes", "status", "reset_at", "active_time_start", "active_time_end", "custom_start_date", "custom_end_date", "created_at", "updated_at", "deleted_at").
+	query := sq.Select("id", "name", "description", "limit_type", "max_amount", "asset", "scopes", "status", "reset_at", "active_time_start", "active_time_end", "custom_start_date", "custom_end_date", "created_at", "updated_at", "deleted_at").
 		From(r.tableName).
 		Where(sq.Eq{"deleted_at": nil}).
 		PlaceholderFormat(sq.Dollar)
@@ -673,9 +673,9 @@ func (r *LimitRepository) applyListFilters(query sq.SelectBuilder, filters *mode
 		query = query.Where(sq.Eq{"limit_type": string(*filters.LimitType)})
 	}
 
-	if filters.Currency != nil {
-		normalizedCurrency := strings.ToUpper(*filters.Currency)
-		query = query.Where(sq.Eq{"currency": normalizedCurrency})
+	if filters.Asset != nil {
+		normalizedAsset := strings.ToUpper(*filters.Asset)
+		query = query.Where(sq.Eq{"asset": normalizedAsset})
 	}
 
 	// Apply scope filter using shared buildScopeFilter() JSONB logic
@@ -778,7 +778,7 @@ func (r *LimitRepository) scanLimit(ctx context.Context, row *sql.Row) (*model.L
 		&dbModel.Description,
 		&dbModel.LimitType,
 		&dbModel.MaxAmount,
-		&dbModel.Currency,
+		&dbModel.Asset,
 		&scopesJSON,
 		&dbModel.Status,
 		&dbModel.ResetAt,
@@ -830,7 +830,7 @@ func (r *LimitRepository) scanLimitFromRows(ctx context.Context, rows *sql.Rows)
 		&dbModel.Description,
 		&dbModel.LimitType,
 		&dbModel.MaxAmount,
-		&dbModel.Currency,
+		&dbModel.Asset,
 		&scopesJSON,
 		&dbModel.Status,
 		&dbModel.ResetAt,

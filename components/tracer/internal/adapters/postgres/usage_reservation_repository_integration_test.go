@@ -58,7 +58,7 @@ func createTestLimitNamed(t *testing.T, db *sql.DB, seed int64, name string) uui
 	limitID := testutil.MustDeterministicUUID(seed)
 
 	_, err := db.Exec(`
-		INSERT INTO limits (id, name, limit_type, max_amount, currency, scopes, status)
+		INSERT INTO limits (id, name, limit_type, max_amount, asset, scopes, status)
 		VALUES ($1, $2, $3, $4, $5, $6, $7)
 	`, limitID, "Test Limit "+name, "DAILY", decimal.NewFromInt(10000), "USD", "[]", "ACTIVE")
 	require.NoError(t, err, "Failed to create named test limit")

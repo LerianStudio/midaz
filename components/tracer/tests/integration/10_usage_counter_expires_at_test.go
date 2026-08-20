@@ -71,7 +71,7 @@ func TestUsageCounter_ExpiresAt_DAILY(t *testing.T) {
 		RequestID:            uuid.New().String(),
 		TransactionType:      "PIX",
 		Amount:               decimal.RequireFromString("100.00"),
-		Currency:             "BRL",
+		Asset:                "BRL",
 		TransactionTimestamp: txTime.Format(time.RFC3339),
 		Account: &testutil.AccountContext{
 			ID: accountID,
@@ -141,7 +141,7 @@ func TestUsageCounter_ExpiresAt_MONTHLY(t *testing.T) {
 		RequestID:            uuid.New().String(),
 		TransactionType:      "PIX",
 		Amount:               decimal.RequireFromString("500.00"),
-		Currency:             "BRL",
+		Asset:                "BRL",
 		TransactionTimestamp: txTime.Format(time.RFC3339),
 		Account: &testutil.AccountContext{
 			ID: accountID,
@@ -211,7 +211,7 @@ func TestUsageCounter_ExpiresAt_WEEKLY(t *testing.T) {
 		RequestID:            uuid.New().String(),
 		TransactionType:      "PIX",
 		Amount:               decimal.RequireFromString("300.00"),
-		Currency:             "BRL",
+		Asset:                "BRL",
 		TransactionTimestamp: txTime.Format(time.RFC3339),
 		Account: &testutil.AccountContext{
 			ID: accountID,
@@ -283,7 +283,7 @@ func TestUsageCounter_ExpiresAt_CUSTOM(t *testing.T) {
 		RequestID:            uuid.New().String(),
 		TransactionType:      "PIX",
 		Amount:               decimal.RequireFromString("1000.00"),
-		Currency:             "BRL",
+		Asset:                "BRL",
 		TransactionTimestamp: txTime.Format(time.RFC3339),
 		Account: &testutil.AccountContext{
 			ID: accountID,
@@ -349,7 +349,7 @@ func TestUsageCounter_ExpiresAt_PER_TRANSACTION(t *testing.T) {
 		RequestID:            uuid.New().String(),
 		TransactionType:      "PIX",
 		Amount:               decimal.RequireFromString("100.00"),
-		Currency:             "BRL",
+		Asset:                "BRL",
 		TransactionTimestamp: txTime.Format(time.RFC3339),
 		Account: &testutil.AccountContext{
 			ID: accountID,
@@ -409,7 +409,7 @@ func TestUsageCounter_NullExpiresAt_NeverDeleted(t *testing.T) {
 		RequestID:            uuid.New().String(),
 		TransactionType:      "PIX",
 		Amount:               decimal.RequireFromString("100.00"),
-		Currency:             "BRL",
+		Asset:                "BRL",
 		TransactionTimestamp: txTime.Format(time.RFC3339),
 		Account: &testutil.AccountContext{
 			ID: accountID,
@@ -479,7 +479,7 @@ func createLimitForExpiresAtTest(t *testing.T, accountID, limitType, maxAmount s
 		"name":      fmt.Sprintf("Test Limit ExpiresAt %s", limitType),
 		"limitType": limitType,
 		"maxAmount": maxAmount,
-		"currency":  "BRL",
+		"asset":     "BRL",
 		"scopes": []map[string]interface{}{
 			{"accountId": accountID},
 		},

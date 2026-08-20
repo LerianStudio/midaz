@@ -101,7 +101,7 @@ func BenchmarkValidationService_Validate(b *testing.B) {
 		RequestID:            testutil.MustDeterministicUUID(1),
 		TransactionType:      model.TransactionTypeCard,
 		Amount:               decimal.RequireFromString("100"),
-		Currency:             "USD",
+		Asset:                "USD",
 		TransactionTimestamp: time.Now(),
 		Account:              model.AccountContext{ID: accountID},
 	}
@@ -183,7 +183,7 @@ func BenchmarkValidationService_Validate_WithDenyRule(b *testing.B) {
 		RequestID:            testutil.MustDeterministicUUID(1),
 		TransactionType:      model.TransactionTypeCard,
 		Amount:               decimal.RequireFromString("100"),
-		Currency:             "USD",
+		Asset:                "USD",
 		TransactionTimestamp: time.Now(),
 		Account:              model.AccountContext{ID: accountID},
 	}
@@ -283,7 +283,7 @@ func BenchmarkValidationService_Validate_Parallel(b *testing.B) {
 			RequestID:            uuid.New(),
 			TransactionType:      model.TransactionTypeCard,
 			Amount:               decimal.RequireFromString("100"),
-			Currency:             "USD",
+			Asset:                "USD",
 			TransactionTimestamp: time.Now(),
 			Account:              model.AccountContext{ID: accountID},
 		}

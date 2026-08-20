@@ -443,7 +443,7 @@ type ValidationSummary struct {
 	Decision         model.Decision        `json:"decision" swaggertype:"string" enums:"ALLOW,DENY,REVIEW" example:"ALLOW"`
 	Reason           string                `json:"reason" example:"All rules passed"`
 	Amount           decimal.Decimal       `json:"amount" swaggertype:"string" example:"100.00"`
-	Currency         string                `json:"currency" example:"USD"`
+	Asset            string                `json:"asset" example:"USD"`
 	TransactionType  model.TransactionType `json:"transactionType" swaggertype:"string" enums:"CARD,WIRE,PIX,CRYPTO" example:"CARD"`
 	AccountID        uuid.UUID             `json:"accountId" swaggertype:"string" format:"uuid"`
 	SegmentID        *uuid.UUID            `json:"segmentId,omitempty" swaggertype:"string" format:"uuid"`
@@ -465,7 +465,7 @@ func ToValidationSummary(tv *model.TransactionValidation) *ValidationSummary {
 		Decision:         tv.Decision,
 		Reason:           tv.Reason,
 		Amount:           tv.Amount,
-		Currency:         tv.Currency,
+		Asset:            tv.Asset,
 		TransactionType:  tv.TransactionType,
 		AccountID:        tv.Account.ID,
 		MatchedRuleIDs:   ensureUUIDSlice(tv.MatchedRuleIDs),

@@ -37,9 +37,9 @@ type TransactionValidation struct {
 	// Transaction amount that was validated
 	Amount decimal.Decimal `json:"amount" swaggertype:"string" example:"100.00"`
 
-	// ISO 4217 currency code of the transaction
+	// ISO 4217 asset code of the transaction
 	// example: USD
-	Currency string `json:"currency" example:"USD"`
+	Asset string `json:"asset" example:"USD"`
 
 	// Timestamp of the original transaction
 	// format: date-time

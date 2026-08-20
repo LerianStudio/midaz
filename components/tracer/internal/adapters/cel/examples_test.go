@@ -45,7 +45,7 @@ func newExampleRequest() *model.ValidationRequest {
 		TransactionType: "PIX",
 		SubType:         &subType,
 		Amount:          decimal.RequireFromString("1500"),
-		Currency:        "BRL",
+		Asset:           "BRL",
 		Account: model.AccountContext{
 			ID:     exampleTestAccountID,
 			Type:   "checking",
@@ -500,23 +500,23 @@ func TestCombinedExpressions(t *testing.T) {
 		},
 		{
 			name:       "full_validation_true",
-			expression: `transactionType == "PIX" && amount > 100 && account["status"] == "active" && currency == "BRL"`,
+			expression: `transactionType == "PIX" && amount > 100 && account["status"] == "active" && asset == "BRL"`,
 			modify: func(req *model.ValidationRequest) {
 				req.TransactionType = "PIX"
 				req.Amount = decimal.RequireFromString("500")
 				req.Account.Status = "active"
-				req.Currency = "BRL"
+				req.Asset = "BRL"
 			},
 			expected: true,
 		},
 		{
-			name:       "full_validation_false_currency",
-			expression: `transactionType == "PIX" && amount > 100 && account["status"] == "active" && currency == "BRL"`,
+			name:       "full_validation_false_asset",
+			expression: `transactionType == "PIX" && amount > 100 && account["status"] == "active" && asset == "BRL"`,
 			modify: func(req *model.ValidationRequest) {
 				req.TransactionType = "PIX"
 				req.Amount = decimal.RequireFromString("500")
 				req.Account.Status = "active"
-				req.Currency = "USD"
+				req.Asset = "USD"
 			},
 			expected: false,
 		},

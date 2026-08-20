@@ -40,7 +40,7 @@ func TestGetLimitQuery_Execute(t *testing.T) {
 		Description: testutil.StringPtr("A test limit description"),
 		LimitType:   model.LimitTypeDaily,
 		MaxAmount:   decimal.RequireFromString("1000"),
-		Currency:    "USD",
+		Asset:       "USD",
 		Scopes:      []model.Scope{{AccountID: testutil.UUIDPtr(testutil.MustDeterministicUUID(2))}},
 		Status:      model.LimitStatusActive,
 		ResetAt:     testutil.Ptr(now.Add(24 * time.Hour)),
@@ -68,7 +68,7 @@ func TestGetLimitQuery_Execute(t *testing.T) {
 				assert.Equal(t, "Test Limit", limit.Name)
 				assert.Equal(t, model.LimitTypeDaily, limit.LimitType)
 				assert.True(t, decimal.RequireFromString("1000").Equal(limit.MaxAmount))
-				assert.Equal(t, "USD", limit.Currency)
+				assert.Equal(t, "USD", limit.Asset)
 				assert.Equal(t, model.LimitStatusActive, limit.Status)
 				assert.NotNil(t, limit.Description)
 				assert.NotNil(t, limit.ResetAt)
@@ -83,7 +83,7 @@ func TestGetLimitQuery_Execute(t *testing.T) {
 					Name:      "Inactive Limit",
 					LimitType: model.LimitTypeMonthly,
 					MaxAmount: decimal.RequireFromString("5000"),
-					Currency:  "BRL",
+					Asset:     "BRL",
 					Scopes:    []model.Scope{{PortfolioID: testutil.UUIDPtr(testutil.MustDeterministicUUID(10))}},
 					Status:    model.LimitStatusInactive,
 					CreatedAt: now,
@@ -105,7 +105,7 @@ func TestGetLimitQuery_Execute(t *testing.T) {
 					Name:      "Per Transaction Limit",
 					LimitType: model.LimitTypePerTransaction,
 					MaxAmount: decimal.RequireFromString("100"),
-					Currency:  "EUR",
+					Asset:     "EUR",
 					Scopes:    []model.Scope{{AccountID: testutil.UUIDPtr(testutil.MustDeterministicUUID(11))}},
 					Status:    model.LimitStatusActive,
 					ResetAt:   nil,

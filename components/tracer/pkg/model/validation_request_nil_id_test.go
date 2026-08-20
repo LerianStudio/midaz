@@ -53,7 +53,7 @@ func TestValidationRequest_NormalizeAndValidate_RequestIDNil(t *testing.T) {
 				RequestID:            tt.requestID,
 				TransactionType:      TransactionTypeCard,
 				Amount:               decimal.RequireFromString("100"),
-				Currency:             "USD",
+				Asset:                "USD",
 				TransactionTimestamp: testutil.FixedTime(),
 				Account: AccountContext{
 					ID:     accountID,

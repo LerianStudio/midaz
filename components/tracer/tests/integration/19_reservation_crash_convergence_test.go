@@ -60,7 +60,7 @@ func (b resSQLTxBeginner) BeginTx(ctx context.Context, opts *sql.TxOptions) (pgd
 }
 
 // resStubResolver returns a fixed set of ReservationSpecs, isolating the proof
-// from the DB-wide "list every active limit for this currency" behaviour of the
+// from the DB-wide "list every active limit for this asset" behaviour of the
 // real ResolveReservations (which would couple the assertion to other tests'
 // lingering limits). It is the LimitResolver the ReservationService consumes.
 type resStubResolver struct {
@@ -112,7 +112,7 @@ func resSeedLimit(t *testing.T, db *sql.DB, seed int64, name string, maxAmount i
 	limitID := testutil.MustDeterministicUUID(seed)
 
 	_, err := db.Exec(`
-		INSERT INTO limits (id, name, limit_type, max_amount, currency, scopes, status)
+		INSERT INTO limits (id, name, limit_type, max_amount, asset, scopes, status)
 		VALUES ($1, $2, $3, $4, $5, $6, $7)
 	`, limitID, "Reservation Proof Limit "+name, "DAILY", decimal.NewFromInt(maxAmount), "USD", "[]", "ACTIVE")
 	require.NoError(t, err, "failed to seed proof limit")

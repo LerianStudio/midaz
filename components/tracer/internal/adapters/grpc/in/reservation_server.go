@@ -111,7 +111,7 @@ func (s *ReservationServer) Reserve(ctx context.Context, req *reservationv1.Rese
 	span.SetAttributes(
 		attribute.String("app.request.transaction_id", transactionID.String()),
 		attribute.String("app.request.transaction_type", string(validationReq.TransactionType)),
-		attribute.String("app.request.currency", validationReq.Currency),
+		attribute.String("app.request.asset", validationReq.Asset),
 	)
 
 	result, err := s.service.Reserve(ctx, transactionID, validationReq.ToCheckLimitsInput(), req.GetLongLived())
@@ -255,7 +255,7 @@ func (s *ReservationServer) terminateByID(
 
 // toValidationRequest builds the model.ValidationRequest the reserve path
 // validates and converts, from the proto request. It mirrors the field set the
-// REST DTO carries: requestId, amount (decimal-as-string), currency, account,
+// REST DTO carries: requestId, amount (decimal-as-string), asset, account,
 // optional segment/portfolio/merchant ids, transactionType, transactionTimestamp
 // (RFC3339). Normalization and validation are delegated to the model so the
 // gRPC path never forks the reserve input contract.
@@ -290,7 +290,7 @@ func (s *ReservationServer) toValidationRequest(req *reservationv1.ReserveReques
 		RequestID:            requestID,
 		TransactionType:      model.TransactionType(req.GetTransactionType()),
 		Amount:               amount,
-		Currency:             req.GetCurrency(),
+		Asset:                req.GetAsset(),
 		TransactionTimestamp: transactionTimestamp,
 		Account:              model.AccountContext{ID: accountID},
 	}

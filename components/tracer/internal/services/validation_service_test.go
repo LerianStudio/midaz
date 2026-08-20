@@ -25,6 +25,7 @@ import (
 	queryMocks "github.com/LerianStudio/midaz/v4/components/tracer/internal/services/query/mocks"
 	"github.com/LerianStudio/midaz/v4/components/tracer/internal/testutil"
 	"github.com/LerianStudio/midaz/v4/components/tracer/pkg/model"
+	"github.com/LerianStudio/midaz/v4/pkg/constant"
 )
 
 func TestValidateTransaction(t *testing.T) {
@@ -40,7 +41,7 @@ func TestValidateTransaction(t *testing.T) {
 		RequestID:            requestID,
 		TransactionType:      model.TransactionTypeCard,
 		Amount:               decimal.RequireFromString("100"),
-		Currency:             "USD",
+		Asset:                "USD",
 		TransactionTimestamp: fixedTime,
 		Account:              model.AccountContext{ID: accountID},
 	}
@@ -97,7 +98,8 @@ func TestValidateTransaction(t *testing.T) {
 					func(_ context.Context, _ *model.TransactionValidation) error {
 						close(persistDone)
 						return nil
-					})
+					},
+				)
 
 				return mockTxBeginner, ruleEval, limitCheck, transactionValidationRepo, transactionValidationQueryRepo, auditWriter
 			},
@@ -168,7 +170,8 @@ func TestValidateTransaction(t *testing.T) {
 					func(_ context.Context, _ *model.TransactionValidation) error {
 						close(persistDone)
 						return nil
-					})
+					},
+				)
 
 				return mockTxBeginner, ruleEval, limitCheck, transactionValidationRepo, transactionValidationQueryRepo, auditWriter
 			},
@@ -243,7 +246,8 @@ func TestValidateTransaction(t *testing.T) {
 					func(_ context.Context, _ *model.TransactionValidation) error {
 						close(persistDone)
 						return nil
-					})
+					},
+				)
 
 				return mockTxBeginner, ruleEval, limitCheck, transactionValidationRepo, transactionValidationQueryRepo, auditWriter
 			},
@@ -319,7 +323,8 @@ func TestValidateTransaction(t *testing.T) {
 					func(_ context.Context, _ *model.TransactionValidation) error {
 						close(persistDone)
 						return nil
-					})
+					},
+				)
 
 				return mockTxBeginner, ruleEval, limitCheck, transactionValidationRepo, transactionValidationQueryRepo, auditWriter
 			},
@@ -390,7 +395,8 @@ func TestValidateTransaction(t *testing.T) {
 					func(_ context.Context, _ *model.TransactionValidation) error {
 						close(persistDone)
 						return nil
-					})
+					},
+				)
 
 				return mockTxBeginner, ruleEval, limitCheck, transactionValidationRepo, transactionValidationQueryRepo, auditWriter
 			},
@@ -458,7 +464,8 @@ func TestValidateTransaction(t *testing.T) {
 					func(_ context.Context, _ pgdb.DB, _ *model.TransactionValidation) error {
 						close(persistDone)
 						return nil
-					})
+					},
+				)
 
 				// Commit is called after successful ALLOW
 				mockTx.EXPECT().Commit().Return(nil).Times(1)
@@ -515,7 +522,8 @@ func TestValidateTransaction(t *testing.T) {
 					func(_ context.Context, _ pgdb.DB, _ *model.TransactionValidation) error {
 						close(persistDone)
 						return nil
-					})
+					},
+				)
 
 				// Commit is called after successful ALLOW
 				mockTx.EXPECT().Commit().Return(nil).Times(1)
@@ -717,7 +725,7 @@ func TestValidateTransaction_AuditFieldsPopulated(t *testing.T) {
 		TransactionType:      model.TransactionTypeCard,
 		SubType:              &subType,
 		Amount:               decimal.RequireFromString("250"), // $250.00
-		Currency:             "BRL",
+		Asset:                "BRL",
 		TransactionTimestamp: fixedTime,
 		Account: model.AccountContext{
 			ID:     accountID,
@@ -795,7 +803,8 @@ func TestValidateTransaction_AuditFieldsPopulated(t *testing.T) {
 			capturedTV = audit
 			close(persistDone)
 			return nil
-		})
+		},
+	)
 
 	// Commit is called after successful ALLOW
 	mockTx.EXPECT().Commit().Return(nil).Times(1)
@@ -823,7 +832,7 @@ func TestValidateTransaction_AuditFieldsPopulated(t *testing.T) {
 	assert.Equal(t, model.TransactionTypeCard, capturedTV.TransactionType)
 	assert.Equal(t, &subType, capturedTV.SubType)
 	assert.True(t, decimal.RequireFromString("250").Equal(capturedTV.Amount), "Amount should be 250")
-	assert.Equal(t, "BRL", capturedTV.Currency)
+	assert.Equal(t, "BRL", capturedTV.Asset)
 	assert.Equal(t, fixedTime, capturedTV.TransactionTimestamp)
 
 	// Account context
@@ -982,7 +991,7 @@ func TestValidateTransactionValidation(t *testing.T) {
 			RequestID:            requestID,
 			TransactionType:      model.TransactionTypeCard,
 			Amount:               decimal.RequireFromString("100"),
-			Currency:             "USD",
+			Asset:                "USD",
 			TransactionTimestamp: fixedTime,
 			Account:              model.AccountContext{ID: accountID, Type: "checking", Status: "active"},
 			EvaluationResult:     model.EvaluationResult{Decision: model.DecisionAllow},
@@ -995,6 +1004,7 @@ func TestValidateTransactionValidation(t *testing.T) {
 		tv        *model.TransactionValidation
 		wantError bool
 		errMsg    string
+		wantErrIs error // when set, assert errors.Is instead of a message substring
 	}{
 		{
 			name:      "valid transaction validation record",
@@ -1062,14 +1072,14 @@ func TestValidateTransactionValidation(t *testing.T) {
 			errMsg:    "invalid amount",
 		},
 		{
-			name: "empty currency",
+			name: "empty asset",
 			tv: func() *model.TransactionValidation {
 				v := validTV()
-				v.Currency = ""
+				v.Asset = ""
 				return v
 			}(),
 			wantError: true,
-			errMsg:    "currency is empty",
+			wantErrIs: constant.ErrValidationCurrencyRequired,
 		},
 		{
 			name: "zero transaction timestamp",
@@ -1101,7 +1111,12 @@ func TestValidateTransactionValidation(t *testing.T) {
 
 			if tc.wantError {
 				require.Error(t, err)
-				assert.Contains(t, err.Error(), tc.errMsg)
+
+				if tc.wantErrIs != nil {
+					assert.ErrorIs(t, err, tc.wantErrIs)
+				} else {
+					assert.Contains(t, err.Error(), tc.errMsg)
+				}
 			} else {
 				require.NoError(t, err)
 			}
@@ -1110,7 +1125,7 @@ func TestValidateTransactionValidation(t *testing.T) {
 }
 
 // TestValidateTransactionValidation_AllRequiredRequestFields verifies that all required request fields
-// are validated (ID, RequestID, TransactionType, Amount, Currency, Account.ID).
+// are validated (ID, RequestID, TransactionType, Amount, Asset, Account.ID).
 func TestValidateTransactionValidation_AllRequiredRequestFields(t *testing.T) {
 	t.Parallel()
 
@@ -1126,7 +1141,7 @@ func TestValidateTransactionValidation_AllRequiredRequestFields(t *testing.T) {
 			RequestID:            requestID,
 			TransactionType:      model.TransactionTypeCard,
 			Amount:               decimal.RequireFromString("100"),
-			Currency:             "USD",
+			Asset:                "USD",
 			TransactionTimestamp: fixedTime,
 			Account:              model.AccountContext{ID: accountID, Type: "checking", Status: "active"},
 			EvaluationResult:     model.EvaluationResult{Decision: model.DecisionAllow},
@@ -1139,6 +1154,7 @@ func TestValidateTransactionValidation_AllRequiredRequestFields(t *testing.T) {
 		name      string
 		modify    func(*model.TransactionValidation)
 		errSubstr string
+		wantErrIs error // when set, assert errors.Is instead of a message substring
 	}{
 		{
 			name: "ID is required",
@@ -1169,11 +1185,11 @@ func TestValidateTransactionValidation_AllRequiredRequestFields(t *testing.T) {
 			errSubstr: "invalid amount",
 		},
 		{
-			name: "Currency is required",
+			name: "Asset is required",
 			modify: func(tv *model.TransactionValidation) {
-				tv.Currency = ""
+				tv.Asset = ""
 			},
-			errSubstr: "currency is empty",
+			wantErrIs: constant.ErrValidationCurrencyRequired,
 		},
 		{
 			name: "TransactionTimestamp is required",
@@ -1201,7 +1217,12 @@ func TestValidateTransactionValidation_AllRequiredRequestFields(t *testing.T) {
 			err := validateTransactionValidation(tv)
 
 			require.Error(t, err, "Expected validation error for: %s", tc.name)
-			assert.Contains(t, err.Error(), tc.errSubstr)
+
+			if tc.wantErrIs != nil {
+				assert.ErrorIs(t, err, tc.wantErrIs)
+			} else {
+				assert.Contains(t, err.Error(), tc.errSubstr)
+			}
 		})
 	}
 
@@ -1232,7 +1253,7 @@ func TestValidateTransactionValidation_AllRequiredResponseFields(t *testing.T) {
 			RequestID:            requestID,
 			TransactionType:      model.TransactionTypeCard,
 			Amount:               decimal.RequireFromString("100"),
-			Currency:             "USD",
+			Asset:                "USD",
 			TransactionTimestamp: fixedTime,
 			Account:              model.AccountContext{ID: accountID, Type: "checking", Status: "active"},
 			EvaluationResult:     model.EvaluationResult{Decision: model.DecisionAllow},
@@ -1286,7 +1307,7 @@ func TestValidateTransactionValidation_AllValidDecisions(t *testing.T) {
 				RequestID:            requestID,
 				TransactionType:      model.TransactionTypeCard,
 				Amount:               decimal.RequireFromString("100"),
-				Currency:             "USD",
+				Asset:                "USD",
 				TransactionTimestamp: fixedTime,
 				Account:              model.AccountContext{ID: accountID, Type: "checking", Status: "active"},
 				EvaluationResult:     model.EvaluationResult{Decision: decision},
@@ -1312,7 +1333,7 @@ func TestValidate_TransactionValidationPersistenceSuccess(t *testing.T) {
 		RequestID:            requestID,
 		TransactionType:      model.TransactionTypeCard,
 		Amount:               decimal.RequireFromString("100"),
-		Currency:             "USD",
+		Asset:                "USD",
 		TransactionTimestamp: fixedTime,
 		Account:              model.AccountContext{ID: accountID},
 	}
@@ -1365,7 +1386,8 @@ func TestValidate_TransactionValidationPersistenceSuccess(t *testing.T) {
 	transactionValidationRepo.EXPECT().InsertWithTx(gomock.Any(), mockTx, gomock.Any()).Times(1).DoAndReturn(
 		func(_ context.Context, _ pgdb.DB, _ *model.TransactionValidation) error {
 			return nil
-		})
+		},
+	)
 
 	// Commit is called after successful ALLOW
 	mockTx.EXPECT().Commit().Return(nil).Times(1)
@@ -1400,7 +1422,7 @@ func TestValidate_AuditPersistFailure_LogsError(t *testing.T) {
 		RequestID:            requestID,
 		TransactionType:      model.TransactionTypeCard,
 		Amount:               decimal.RequireFromString("100"),
-		Currency:             "USD",
+		Asset:                "USD",
 		TransactionTimestamp: fixedTime,
 		Account:              model.AccountContext{ID: accountID},
 	}
@@ -1444,7 +1466,8 @@ func TestValidate_AuditPersistFailure_LogsError(t *testing.T) {
 		func(_ context.Context, _ *model.TransactionValidation) error {
 			close(errorLogged)
 			return errors.New("database connection failed")
-		})
+		},
+	)
 
 	service, err := NewValidationService(mockTxBeginner, ruleEval, limitCheck, transactionValidationRepo, transactionValidationQueryRepo, auditWriter, nil)
 	require.NoError(t, err)
@@ -1480,7 +1503,7 @@ func TestValidate_WithSegmentAndPortfolio(t *testing.T) {
 		RequestID:            requestID,
 		TransactionType:      model.TransactionTypeCard,
 		Amount:               decimal.RequireFromString("100"),
-		Currency:             "USD",
+		Asset:                "USD",
 		TransactionTimestamp: fixedTime,
 		Account: model.AccountContext{
 			ID:     accountID,
@@ -1581,7 +1604,8 @@ func TestValidate_WithSegmentAndPortfolio(t *testing.T) {
 			assert.Equal(t, portfolioID, tv.Portfolio.ID)
 			close(persistDone)
 			return nil
-		})
+		},
+	)
 
 	// Commit is called after successful ALLOW
 	mockTx.EXPECT().Commit().Return(nil).Times(1)
@@ -1640,7 +1664,7 @@ func TestValidate_RuleEvaluatorReturnsNil(t *testing.T) {
 		RequestID:            requestID,
 		TransactionType:      model.TransactionTypeCard,
 		Amount:               decimal.RequireFromString("100"),
-		Currency:             "USD",
+		Asset:                "USD",
 		TransactionTimestamp: fixedTime,
 		Account:              model.AccountContext{ID: accountID},
 	}
@@ -1690,7 +1714,7 @@ func TestValidate_LimitCheckerReturnsNil(t *testing.T) {
 		RequestID:            requestID,
 		TransactionType:      model.TransactionTypeCard,
 		Amount:               decimal.RequireFromString("100"),
-		Currency:             "USD",
+		Asset:                "USD",
 		TransactionTimestamp: fixedTime,
 		Account:              model.AccountContext{ID: accountID},
 	}
@@ -1761,7 +1785,7 @@ func TestValidate_AuditEventWriterFailure(t *testing.T) {
 		RequestID:            requestID,
 		TransactionType:      model.TransactionTypeCard,
 		Amount:               decimal.RequireFromString("100"),
-		Currency:             "USD",
+		Asset:                "USD",
 		TransactionTimestamp: fixedTime,
 		Account:              model.AccountContext{ID: accountID},
 	}
@@ -1806,7 +1830,8 @@ func TestValidate_AuditEventWriterFailure(t *testing.T) {
 		func(_ context.Context, _ *model.TransactionValidation) error {
 			close(persistDone)
 			return nil
-		})
+		},
+	)
 
 	service, err := NewValidationService(mockTxBeginner, ruleEval, limitCheck, transactionValidationRepo, transactionValidationQueryRepo, auditWriter, nil)
 	require.NoError(t, err)
@@ -1844,7 +1869,7 @@ func TestValidationService_Validate_NilMetricsFactory_DoesNotPanic(t *testing.T)
 		RequestID:            requestID,
 		TransactionType:      model.TransactionTypeCard,
 		Amount:               decimal.RequireFromString("100"),
-		Currency:             "USD",
+		Asset:                "USD",
 		TransactionTimestamp: fixedTime,
 		Account:              model.AccountContext{ID: accountID},
 	}
@@ -1925,7 +1950,7 @@ func TestPersistAuditEvent_UsesDetachedContext(t *testing.T) {
 		RequestID:            requestID,
 		TransactionType:      model.TransactionTypeCard,
 		Amount:               decimal.RequireFromString("100"),
-		Currency:             "USD",
+		Asset:                "USD",
 		TransactionTimestamp: fixedTime,
 		Account:              model.AccountContext{ID: accountID},
 	}
@@ -2006,7 +2031,7 @@ func TestPersistAuditEvent_NilMetricsFactory_DoesNotPanicOnFailure(t *testing.T)
 		RequestID:            requestID,
 		TransactionType:      model.TransactionTypeCard,
 		Amount:               decimal.RequireFromString("100"),
-		Currency:             "USD",
+		Asset:                "USD",
 		TransactionTimestamp: fixedTime,
 		Account:              model.AccountContext{ID: accountID},
 	}
@@ -2085,7 +2110,7 @@ func TestPersistAuditEvent_LogFieldIsErrorMessage(t *testing.T) {
 		RequestID:            requestID,
 		TransactionType:      model.TransactionTypeCard,
 		Amount:               decimal.RequireFromString("100"),
-		Currency:             "USD",
+		Asset:                "USD",
 		TransactionTimestamp: fixedTime,
 		Account:              model.AccountContext{ID: accountID},
 	}
@@ -2161,7 +2186,7 @@ func TestPersistAuditEvent_SucceedsWithCancelledParentContext(t *testing.T) {
 		RequestID:            requestID,
 		TransactionType:      model.TransactionTypeCard,
 		Amount:               decimal.RequireFromString("100"),
-		Currency:             "USD",
+		Asset:                "USD",
 		TransactionTimestamp: fixedTime,
 		Account:              model.AccountContext{ID: accountID},
 	}

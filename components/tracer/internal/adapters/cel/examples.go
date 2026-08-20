@@ -239,7 +239,7 @@ var CombinedExpressions = []ExampleExpression{
 	},
 	{
 		Name:        "full_validation",
-		Expression:  `transactionType == "PIX" && amount > 100 && account["status"] == "active" && currency == "BRL"`,
+		Expression:  `transactionType == "PIX" && amount > 100 && account["status"] == "active" && asset == "BRL"`,
 		Description: "Full PIX validation with multiple checks",
 		Category:    "combined",
 	},

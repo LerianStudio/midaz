@@ -43,7 +43,7 @@ import (
 //   - Command layer remains framework-agnostic and testable
 //   - Domain model (limit.Update) performs business validation
 //
-// Note: LimitType and Currency are immutable and cannot be updated.
+// Note: LimitType and Asset are immutable and cannot be updated.
 type UpdateLimitInput struct {
 	Name            *string          `json:"name,omitempty"`
 	Description     *string          `json:"description,omitempty"`

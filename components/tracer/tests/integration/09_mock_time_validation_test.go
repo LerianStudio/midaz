@@ -51,7 +51,7 @@ func TestMockTime_TimeWindow_Explicit_22h(t *testing.T) {
 		RequestID:            uuid.New().String(),
 		TransactionType:      "PIX",
 		Amount:               decimal.RequireFromString("500.00"),
-		Currency:             "BRL",
+		Asset:                "BRL",
 		TransactionTimestamp: testutil.TestNow().Add(-30 * time.Second).Format(time.RFC3339),
 		Account: &testutil.AccountContext{
 			ID: accountID,
@@ -103,7 +103,7 @@ func TestMockTime_TimeWindow_Explicit_10h(t *testing.T) {
 		RequestID:            uuid.New().String(),
 		TransactionType:      "PIX",
 		Amount:               decimal.RequireFromString("500.00"),
-		Currency:             "BRL",
+		Asset:                "BRL",
 		TransactionTimestamp: testutil.TestNow().Add(-30 * time.Second).Format(time.RFC3339),
 		Account: &testutil.AccountContext{
 			ID: accountID,

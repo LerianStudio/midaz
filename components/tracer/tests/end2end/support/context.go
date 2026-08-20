@@ -103,7 +103,7 @@ type PendingLimit struct {
 	Name      string
 	LimitType string
 	MaxAmount decimal.Decimal
-	Currency  string
+	Asset     string
 	Scopes    []testutil.ScopeInput
 }
 
@@ -112,7 +112,7 @@ type PendingTransaction struct {
 	TransactionType string
 	SubType         string
 	Amount          decimal.Decimal
-	Currency        string
+	Asset           string
 	AccountID       string
 	SegmentID       string
 	Metadata        map[string]any
@@ -307,7 +307,7 @@ func (sc *ScenarioContext) InitPendingLimit(name, limitType string) {
 	sc.PendingLimit = &PendingLimit{
 		Name:      name,
 		LimitType: limitType,
-		Currency:  "BRL", // Default currency
+		Asset:     "BRL", // Default asset
 	}
 }
 
@@ -316,7 +316,7 @@ func (sc *ScenarioContext) InitPendingTransaction(txType string, amount decimal.
 	sc.PendingTransaction = &PendingTransaction{
 		TransactionType: txType,
 		Amount:          amount,
-		Currency:        "BRL",
+		Asset:           "BRL",
 		Metadata:        make(map[string]any),
 	}
 }
@@ -333,7 +333,7 @@ func (sc *ScenarioContext) BuildValidationRequest() *testutil.ValidationRequest 
 		TransactionType: pt.TransactionType,
 		SubType:         pt.SubType,
 		Amount:          pt.Amount,
-		Currency:        pt.Currency,
+		Asset:           pt.Asset,
 	}
 
 	if pt.AccountID != "" {

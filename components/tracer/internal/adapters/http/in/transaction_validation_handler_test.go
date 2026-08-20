@@ -1003,7 +1003,7 @@ func TestToValidationSummary_NilSlices_ReturnEmptyArrays(t *testing.T) {
 	tv := &model.TransactionValidation{
 		ID:              validationID,
 		Amount:          decimal.RequireFromString("100"),
-		Currency:        "BRL",
+		Asset:           "BRL",
 		TransactionType: model.TransactionTypePix,
 		Account:         model.AccountContext{ID: accountID},
 		EvaluationResult: model.EvaluationResult{

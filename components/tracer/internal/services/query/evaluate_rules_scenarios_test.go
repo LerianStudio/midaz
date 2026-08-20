@@ -63,7 +63,7 @@ func TestEvaluateRulesIntegration_DenyPrecedence_AllThreeRuleTypesMatch(t *testi
 		RequestID:       testutil.MustDeterministicUUID(100),
 		TransactionType: model.TransactionTypeCard,
 		Amount:          decimal.RequireFromString("150"), // Matches all 3 rules
-		Currency:        "USD",
+		Asset:           "USD",
 		Account:         model.AccountContext{ID: testutil.MustDeterministicUUID(200), Type: "checking"},
 	}
 
@@ -133,7 +133,7 @@ func TestEvaluateRulesIntegration_ScopeFiltering_OnlyScopeMatchedRulesEvaluated(
 		RequestID:       testutil.MustDeterministicUUID(100),
 		TransactionType: model.TransactionTypeCard,
 		Amount:          decimal.RequireFromString("50"),
-		Currency:        "USD",
+		Asset:           "USD",
 		Account:         model.AccountContext{ID: accountID, Type: "checking"},
 	}
 
@@ -204,7 +204,7 @@ func TestEvaluateRulesIntegration_DefaultDecisionFallback(t *testing.T) {
 				RequestID:       testutil.MustDeterministicUUID(100),
 				TransactionType: model.TransactionTypeCard,
 				Amount:          decimal.RequireFromString("1"), // Low amount doesn't match rule
-				Currency:        "USD",
+				Asset:           "USD",
 				Account:         model.AccountContext{ID: testutil.MustDeterministicUUID(200), Type: "checking"},
 			}
 
@@ -264,7 +264,7 @@ func TestEvaluateRulesIntegration_MaxRulesPerRequestLimit(t *testing.T) {
 		RequestID:       testutil.MustDeterministicUUID(1000),
 		TransactionType: model.TransactionTypeCard,
 		Amount:          decimal.RequireFromString("10"),
-		Currency:        "USD",
+		Asset:           "USD",
 		Account:         model.AccountContext{ID: testutil.MustDeterministicUUID(2000), Type: "checking"},
 	}
 
@@ -340,7 +340,7 @@ func TestEvaluateRulesIntegration_ReviewWithoutDeny_ReturnsReview(t *testing.T) 
 		RequestID:       testutil.MustDeterministicUUID(100),
 		TransactionType: model.TransactionTypeCard,
 		Amount:          decimal.RequireFromString("50"), // Matches both rules
-		Currency:        "USD",
+		Asset:           "USD",
 		Account:         model.AccountContext{ID: testutil.MustDeterministicUUID(200), Type: "checking"},
 	}
 

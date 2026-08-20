@@ -131,7 +131,7 @@ func TestSeamMTLS(t *testing.T) {
 			TransactionID:        fixedTransactionID,
 			RequestID:            fixedReservationID.String(),
 			Amount:               "100",
-			Currency:             "USD",
+			Asset:                "USD",
 			Account:              ReserveAccount{AccountID: fixedReservationID.String()},
 			TransactionTimestamp: "2020-01-02T00:00:00Z",
 		})
@@ -157,7 +157,7 @@ func TestSeamMTLS(t *testing.T) {
 			TransactionID:        fixedTransactionID,
 			RequestID:            fixedReservationID.String(),
 			Amount:               "100",
-			Currency:             "USD",
+			Asset:                "USD",
 			Account:              ReserveAccount{AccountID: fixedReservationID.String()},
 			TransactionTimestamp: "2020-01-02T00:00:00Z",
 		})
