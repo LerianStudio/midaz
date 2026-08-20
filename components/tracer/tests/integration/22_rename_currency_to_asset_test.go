@@ -41,9 +41,10 @@ import (
 //
 // Each sub-test provisions its OWN throwaway Postgres container (via
 // startUpgradePathContainer from 10_upgrade_path_test.go) so a step-down in one
-// case never leaks schema state into another. The migrate helpers
-// (newHeadReservationMigrate / applyMigrateUp) are shared with the Phase 1
-// reservation-decimal migration test.
+// case never leaks schema state into another. newHeadReservationMigrate is
+// shared with the Phase 1 reservation-decimal migration test; applyRenameMigrationUp
+// pins the up sequence to migration 000022 so migrations layered on top do not
+// change which migration a single down step reverses.
 func TestRenameCurrencyToAssetMigration(t *testing.T) {
 	// Sub-tests intentionally do NOT call t.Parallel(): the integration Makefile
 	// enforces -p=1 and each case drives its own container to completion.
@@ -60,7 +61,7 @@ func TestRenameCurrencyToAssetMigration(t *testing.T) {
 		{
 			name: "up_renames_currency_to_asset_preserving_type_and_length",
 			run: func(t *testing.T, mig *migrate.Migrate, db *sql.DB) {
-				require.NoError(t, applyMigrateUp(mig), "apply HEAD migrations up")
+				require.NoError(t, applyRenameMigrationUp(mig), "apply HEAD migrations up")
 
 				// limits: VARCHAR(3) is reported as character varying, length 3.
 				dt, ml, ok := columnCharInfo(ctx, t, db, "limits", "asset")
@@ -84,7 +85,7 @@ func TestRenameCurrencyToAssetMigration(t *testing.T) {
 		{
 			name: "down_reverts_asset_to_currency_losslessly",
 			run: func(t *testing.T, mig *migrate.Migrate, db *sql.DB) {
-				require.NoError(t, applyMigrateUp(mig), "apply HEAD migrations up")
+				require.NoError(t, applyRenameMigrationUp(mig), "apply HEAD migrations up")
 				require.NoError(t, mig.Steps(-1), "step down 000022")
 
 				dt, ml, ok := columnCharInfo(ctx, t, db, "limits", "currency")
@@ -107,9 +108,9 @@ func TestRenameCurrencyToAssetMigration(t *testing.T) {
 		{
 			name: "up_down_up_cycle_is_idempotent",
 			run: func(t *testing.T, mig *migrate.Migrate, db *sql.DB) {
-				require.NoError(t, applyMigrateUp(mig), "apply HEAD migrations up")
+				require.NoError(t, applyRenameMigrationUp(mig), "apply HEAD migrations up")
 				require.NoError(t, mig.Steps(-1), "step down 000022 for idempotency check")
-				require.NoError(t, applyMigrateUp(mig), "re-apply HEAD migrations up (idempotent cycle)")
+				require.NoError(t, applyRenameMigrationUp(mig), "re-apply HEAD migrations up (idempotent cycle)")
 
 				_, _, ok := columnCharInfo(ctx, t, db, "limits", "asset")
 				require.True(t, ok, "limits.asset must be present after up/down/up")
@@ -134,7 +135,7 @@ func TestRenameCurrencyToAssetMigration(t *testing.T) {
 
 				// Pin at version 000021 (one below the rename) so both columns are
 				// still named `currency` and can hold the seeded values.
-				require.NoError(t, mig.Migrate(21), "migrate up to version 21 (pre-000022)")
+				require.NoError(t, mig.Migrate(renameMigrationVersion-1), "migrate up to version 21 (pre-000022)")
 
 				_, _, ok := columnCharInfo(ctx, t, db, "limits", "currency")
 				require.True(t, ok, "pre-000022 limits.currency must exist for the value seed")
@@ -157,7 +158,7 @@ func TestRenameCurrencyToAssetMigration(t *testing.T) {
 				require.NoError(t, err, "seed transaction_validations row under currency")
 
 				// UP applies 000022: currency -> asset. Values must be intact.
-				require.NoError(t, applyMigrateUp(mig), "apply 000022 up over seeded rows")
+				require.NoError(t, applyRenameMigrationUp(mig), "apply 000022 up over seeded rows")
 				require.Equal(t, limitAsset, readValue(ctx, t, db,
 					`SELECT asset FROM limits WHERE name = 'rename-value-preserve'`),
 					"limits value must survive the rename to asset unchanged")
@@ -175,7 +176,7 @@ func TestRenameCurrencyToAssetMigration(t *testing.T) {
 					"transaction_validations value must survive the revert to currency unchanged")
 
 				// UP again (idempotent cycle): value must land back under asset intact.
-				require.NoError(t, applyMigrateUp(mig), "re-apply 000022 up (idempotent cycle)")
+				require.NoError(t, applyRenameMigrationUp(mig), "re-apply 000022 up (idempotent cycle)")
 				require.Equal(t, limitAsset, readValue(ctx, t, db,
 					`SELECT asset FROM limits WHERE name = 'rename-value-preserve'`),
 					"limits value must survive the up/down/up cycle unchanged")
@@ -193,6 +194,24 @@ func TestRenameCurrencyToAssetMigration(t *testing.T) {
 			tt.run(t, mig, db)
 		})
 	}
+}
+
+// renameMigrationVersion is the version this file is the contract for
+// (000022_rename_currency_to_asset). The test migrates to exactly this version
+// rather than to HEAD so migrations layered on top of 000022 do not change
+// which migration a single down step reverses, nor which columns exist while
+// the rename behaviour is exercised.
+const renameMigrationVersion = 22
+
+// applyRenameMigrationUp migrates up to renameMigrationVersion, treating
+// migrate.ErrNoChange as success so a re-apply on an already-migrated DB is a
+// clean no-op.
+func applyRenameMigrationUp(mig *migrate.Migrate) error {
+	if err := mig.Migrate(renameMigrationVersion); err != nil && !errors.Is(err, migrate.ErrNoChange) {
+		return err
+	}
+
+	return nil
 }
 
 // readValue runs a single-column, single-row query and returns the scanned

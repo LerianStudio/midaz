@@ -246,17 +246,6 @@ func applyDecimalMigrationUp(mig *migrate.Migrate) error {
 	return nil
 }
 
-// applyMigrateUp runs mig.Up() (to HEAD), treating migrate.ErrNoChange as
-// success so a re-apply on an already-migrated DB is a clean no-op. Shared with
-// 22_rename_currency_to_asset_test.go, which exercises the HEAD rename.
-func applyMigrateUp(mig *migrate.Migrate) error {
-	if err := mig.Up(); err != nil && !errors.Is(err, migrate.ErrNoChange) {
-		return err
-	}
-
-	return nil
-}
-
 // reservationColumnType returns the information_schema data_type of table.column.
 func reservationColumnType(ctx context.Context, t *testing.T, db *sql.DB, table, column string) string {
 	t.Helper()
