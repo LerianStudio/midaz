@@ -125,7 +125,7 @@ func TestMultiTenant_BackwardCompatibility(t *testing.T) {
 			"requestId":            uuid.New().String(),
 			"transactionType":      "CARD",
 			"amount":               decimal.RequireFromString("10").String(),
-			"currency":             "BRL",
+			"asset":                "BRL",
 			"transactionTimestamp": time.Now().UTC().Format(time.RFC3339),
 			"account": map[string]any{
 				"accountId": uuid.New().String(),

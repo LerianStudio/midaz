@@ -103,7 +103,7 @@ func TestTransactionValidation_ToValidationResponse(t *testing.T) {
 				RequestID:            requestID,
 				TransactionType:      TransactionTypeCard,
 				Amount:               decimal.RequireFromString("500.00"),
-				Currency:             "USD",
+				Asset:                "USD",
 				TransactionTimestamp: fixedTxTimestamp,
 				Account: AccountContext{
 					ID:     accountID,

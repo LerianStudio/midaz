@@ -307,7 +307,7 @@ func TestReserveTransaction_BuildsFaithfulTracerRequest(t *testing.T) {
 	req := capturing.lastReq
 	assert.Equal(t, txID, req.TransactionID)
 	assert.Equal(t, "1000", req.Amount)
-	assert.Equal(t, "BRL", req.Currency)
+	assert.Equal(t, "BRL", req.Asset)
 	assert.Equal(t, fixedReserveAccountID, req.Account.AccountID, "account scope must be the structured account, not a bare string")
 	assert.NotEmpty(t, req.RequestID, "the tracer reserve contract requires a non-nil requestId")
 	assert.Equal(t, fixedReserveTimestamp.Format(time.RFC3339Nano), req.TransactionTimestamp)

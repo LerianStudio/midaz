@@ -31,7 +31,7 @@ func TestValidationRequest_Validate_WithClock(t *testing.T) {
 			RequestID:            uuid.New(),
 			TransactionType:      model.TransactionTypePix,
 			Amount:               decimal.NewFromFloat(100.00),
-			Currency:             "BRL",
+			Asset:                "BRL",
 			TransactionTimestamp: txTime,
 			Account: model.AccountContext{
 				ID: uuid.New(),
@@ -50,7 +50,7 @@ func TestValidationRequest_Validate_WithClock(t *testing.T) {
 			RequestID:            uuid.New(),
 			TransactionType:      model.TransactionTypePix,
 			Amount:               decimal.NewFromFloat(100.00),
-			Currency:             "BRL",
+			Asset:                "BRL",
 			TransactionTimestamp: txTime,
 			Account: model.AccountContext{
 				ID: uuid.New(),
@@ -70,7 +70,7 @@ func TestValidationRequest_Validate_WithClock(t *testing.T) {
 			RequestID:            uuid.New(),
 			TransactionType:      model.TransactionTypePix,
 			Amount:               decimal.NewFromFloat(100.00),
-			Currency:             "BRL",
+			Asset:                "BRL",
 			TransactionTimestamp: txTime,
 			Account: model.AccountContext{
 				ID: uuid.New(),
@@ -90,7 +90,7 @@ func TestValidationRequest_Validate_WithClock(t *testing.T) {
 			RequestID:            uuid.New(),
 			TransactionType:      model.TransactionTypePix,
 			Amount:               decimal.NewFromFloat(100.00),
-			Currency:             "BRL",
+			Asset:                "BRL",
 			TransactionTimestamp: txTime,
 			Account: model.AccountContext{
 				ID: uuid.New(),
@@ -111,7 +111,7 @@ func TestValidationRequest_Validate_WithClock(t *testing.T) {
 			RequestID:            uuid.New(),
 			TransactionType:      model.TransactionTypePix,
 			Amount:               decimal.NewFromFloat(100.00),
-			Currency:             "BRL",
+			Asset:                "BRL",
 			TransactionTimestamp: txTime,
 			Account: model.AccountContext{
 				ID: uuid.New(),
@@ -134,7 +134,7 @@ func TestValidationRequest_Validate_WithClock(t *testing.T) {
 			RequestID:            uuid.New(),
 			TransactionType:      model.TransactionTypePix,
 			Amount:               decimal.NewFromFloat(100.00),
-			Currency:             "BRL",
+			Asset:                "BRL",
 			TransactionTimestamp: txTime,
 			Account: model.AccountContext{
 				ID: uuid.New(),
@@ -159,7 +159,7 @@ func TestValidationRequest_NormalizeAndValidate_WithClock(t *testing.T) {
 			RequestID:            uuid.New(),
 			TransactionType:      model.TransactionTypePix,
 			Amount:               decimal.NewFromFloat(100.00),
-			Currency:             "BRL",
+			Asset:                "BRL",
 			TransactionTimestamp: txTime,
 			Account: model.AccountContext{
 				ID: uuid.New(),
@@ -177,7 +177,7 @@ func TestValidationRequest_NormalizeAndValidate_WithClock(t *testing.T) {
 			RequestID:            uuid.New(),
 			TransactionType:      model.TransactionTypePix,
 			Amount:               decimal.NewFromFloat(100.00),
-			Currency:             "BRL",
+			Asset:                "BRL",
 			TransactionTimestamp: txTime,
 			Account: model.AccountContext{
 				ID: uuid.New(),

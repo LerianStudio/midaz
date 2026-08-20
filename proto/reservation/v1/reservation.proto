@@ -50,7 +50,7 @@ message ReserveRequest {
   string request_id = 2;
   // amount is a decimal serialized as a string to avoid float rounding.
   string amount = 3;
-  string currency = 4;
+  string asset = 4;
   ReserveAccount account = 5;
   string segment_id = 6;
   string portfolio_id = 7;

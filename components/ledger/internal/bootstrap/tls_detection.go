@@ -164,10 +164,10 @@ func ResolveDeploymentMode(mode string) string {
 // Returns an error ONLY when DEPLOYMENT_MODE=saas and any dependency lacks TLS.
 // The error includes the specific dependency name(s) that failed validation.
 func ValidateSaaSTLS(deploymentMode string, dependencies []TLSValidationResult) error {
-	lowerMode := strings.ToLower(deploymentMode)
-
-	// Only enforce TLS in SaaS mode
-	if lowerMode != DeploymentModeSaaS {
+	// Only enforce TLS in SaaS mode. Normalizing through ResolveDeploymentMode is what
+	// keeps a padded value like " saas " from slipping past plain string equality and
+	// silently disabling every gate below.
+	if ResolveDeploymentMode(deploymentMode) != DeploymentModeSaaS {
 		return nil
 	}
 
@@ -190,10 +190,37 @@ func ValidateSaaSTLS(deploymentMode string, dependencies []TLSValidationResult) 
 
 // IsTLSEnforcementRequired returns true if the deployment mode requires TLS enforcement.
 func IsTLSEnforcementRequired(deploymentMode string) bool {
-	return strings.ToLower(deploymentMode) == DeploymentModeSaaS
+	return ResolveDeploymentMode(deploymentMode) == DeploymentModeSaaS
 }
 
 // IsTLSRecommended returns true if TLS is recommended (but not required) for the deployment mode.
 func IsTLSRecommended(deploymentMode string) bool {
-	return strings.ToLower(deploymentMode) == DeploymentModeBYOC
+	return ResolveDeploymentMode(deploymentMode) == DeploymentModeBYOC
+}
+
+// ValidateSaaSStreamingTLS extends the SaaS TLS gate to the lib-streaming Kafka
+// broker dial. It is separate from ValidateSaaSTLS because STREAMING_TLS_* is
+// lib-streaming's own env contract and never lands on the midaz Config (binding
+// it there is explicitly forbidden): the flag only exists once
+// libStreaming.LoadConfig has run, so BuildStreamingEmitter resolves it and
+// passes it in.
+//
+// The rule is the one every other managed dependency already answers to — in
+// SaaS mode the transport is encrypted or the service does not boot. The check
+// is reached only when streaming is ENABLED, because a disabled producer opens
+// no broker connection at all. BYOC and local deployments keep their plaintext
+// brokers.
+//
+// Delegating to ValidateSaaSTLS keeps the error sentence byte-identical to the
+// Postgres/Mongo/Redis/RabbitMQ siblings; the suffix adds the one thing a
+// dependency name cannot carry, the knob that fixes it.
+func ValidateSaaSStreamingTLS(deploymentMode string, streamingTLSEnabled bool) error {
+	if err := ValidateSaaSTLS(deploymentMode, []TLSValidationResult{{
+		Name:       "streaming",
+		TLSEnabled: streamingTLSEnabled,
+	}}); err != nil {
+		return fmt.Errorf("%w (set STREAMING_TLS_ENABLED=true)", err)
+	}
+
+	return nil
 }

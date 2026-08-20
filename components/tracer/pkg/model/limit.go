@@ -98,9 +98,9 @@ type Limit struct {
 	// Maximum amount allowed within the period
 	MaxAmount decimal.Decimal `json:"maxAmount" swaggertype:"string" example:"1000.00"`
 
-	// ISO 4217 currency code this limit applies to
+	// ISO 4217 asset code this limit applies to
 	// example: USD
-	Currency string `json:"currency" example:"USD"`
+	Asset string `json:"asset" example:"USD"`
 
 	// Scopes that restrict which transactions this limit applies to
 	Scopes []Scope `json:"scopes"`
@@ -223,9 +223,9 @@ func CalculateCustomResetAt(customEndDate time.Time) *time.Time {
 	return &resetAt
 }
 
-// validateCurrency checks if currency is a valid ISO 4217 code (3 uppercase letters)
-func validateCurrency(currency string) error {
-	if !pkg.IsValidCurrency(currency) {
+// validateAsset checks if asset is a valid ISO 4217 code (3 uppercase letters)
+func validateAsset(asset string) error {
+	if !pkg.IsValidCurrency(asset) {
 		return constant.ErrLimitInvalidCurrency
 	}
 
@@ -234,13 +234,13 @@ func validateCurrency(currency string) error {
 
 // newLimitBase performs common normalization and creates base Limit struct.
 // This function is private and shared by all NewLimit* constructors to reduce duplication.
-// It normalizes textual inputs (name, currency, description), creates defensive copy of scopes,
+// It normalizes textual inputs (name, asset, description), creates defensive copy of scopes,
 // and initializes common fields (ID, Status, CreatedAt, UpdatedAt).
 func newLimitBase(
 	name string,
 	limitType LimitType,
 	maxAmount decimal.Decimal,
-	currency string,
+	asset string,
 	scopes []Scope,
 	description *string,
 	createdAt time.Time,
@@ -249,7 +249,7 @@ func newLimitBase(
 
 	// Normalize textual inputs
 	normalizedName := strings.TrimSpace(name)
-	normalizedCurrency := strings.ToUpper(strings.TrimSpace(currency))
+	normalizedAsset := strings.ToUpper(strings.TrimSpace(asset))
 
 	var normalizedDescription *string
 
@@ -272,7 +272,7 @@ func newLimitBase(
 		Description: normalizedDescription,
 		LimitType:   limitType,
 		MaxAmount:   maxAmount,
-		Currency:    normalizedCurrency,
+		Asset:       normalizedAsset,
 		Scopes:      scopesCopy,
 		Status:      LimitStatusDraft,
 		CreatedAt:   now,
@@ -308,12 +308,12 @@ func NewLimit(
 	name string,
 	limitType LimitType,
 	maxAmount decimal.Decimal,
-	currency string,
+	asset string,
 	scopes []Scope,
 	description *string,
 	createdAt time.Time,
 ) (*Limit, error) {
-	limit := newLimitBase(name, limitType, maxAmount, currency, scopes, description, createdAt)
+	limit := newLimitBase(name, limitType, maxAmount, asset, scopes, description, createdAt)
 
 	now := createdAt.UTC()
 	limit.ResetAt = CalculateResetAt(limitType, now)
@@ -332,7 +332,7 @@ func NewLimitWithTimeWindow(
 	name string,
 	limitType LimitType,
 	maxAmount decimal.Decimal,
-	currency string,
+	asset string,
 	scopes []Scope,
 	description *string,
 	activeTimeStart string,
@@ -355,7 +355,7 @@ func NewLimitWithTimeWindow(
 		return nil, err
 	}
 
-	limit := newLimitBase(name, limitType, maxAmount, currency, scopes, description, createdAt)
+	limit := newLimitBase(name, limitType, maxAmount, asset, scopes, description, createdAt)
 
 	now := createdAt.UTC()
 	limit.ActiveTimeStart = &startTime
@@ -375,7 +375,7 @@ func NewLimitWithCustomPeriod(
 	name string,
 	limitType LimitType,
 	maxAmount decimal.Decimal,
-	currency string,
+	asset string,
 	scopes []Scope,
 	description *string,
 	customStartDate time.Time,
@@ -387,7 +387,7 @@ func NewLimitWithCustomPeriod(
 		return nil, err
 	}
 
-	limit := newLimitBase(name, limitType, maxAmount, currency, scopes, description, createdAt)
+	limit := newLimitBase(name, limitType, maxAmount, asset, scopes, description, createdAt)
 
 	limit.CustomStartDate = &customStartDate
 	limit.CustomEndDate = &customEndDate
@@ -407,7 +407,7 @@ func NewLimitWithCustomPeriodAndTimeWindow(
 	name string,
 	limitType LimitType,
 	maxAmount decimal.Decimal,
-	currency string,
+	asset string,
 	scopes []Scope,
 	description *string,
 	customStartDate time.Time,
@@ -434,7 +434,7 @@ func NewLimitWithCustomPeriodAndTimeWindow(
 		return nil, err
 	}
 
-	limit := newLimitBase(name, limitType, maxAmount, currency, scopes, description, createdAt)
+	limit := newLimitBase(name, limitType, maxAmount, asset, scopes, description, createdAt)
 
 	limit.CustomStartDate = &customStartDate
 	limit.CustomEndDate = &customEndDate
@@ -789,7 +789,7 @@ func (l *Limit) Validate() error {
 		return err
 	}
 
-	if err := validateCurrency(l.Currency); err != nil {
+	if err := validateAsset(l.Asset); err != nil {
 		return err
 	}
 
@@ -944,7 +944,7 @@ type ListLimitsFilter struct {
 	Name        *string      `json:"name,omitempty"` // Filter by name (case-insensitive partial match / contains)
 	Status      *LimitStatus `json:"status,omitempty" swaggertype:"string" enums:"DRAFT,ACTIVE,INACTIVE,DELETED" example:"ACTIVE"`
 	LimitType   *LimitType   `json:"limitType,omitempty" swaggertype:"string" enums:"DAILY,MONTHLY,PER_TRANSACTION,WEEKLY,CUSTOM" example:"DAILY"`
-	Currency    *string      `json:"currency,omitempty"`
+	Asset       *string      `json:"asset,omitempty"`
 	ScopeFilter *Scope       `json:"scopeFilter,omitempty"` // Optional scope filter for JSONB scope matching
 	Limit       int          `json:"limit"`
 	Cursor      string       `json:"cursor,omitempty"`

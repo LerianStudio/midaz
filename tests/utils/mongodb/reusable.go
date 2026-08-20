@@ -169,6 +169,7 @@ func getReusableMongoServer(tb testing.TB, cfg ContainerConfig) *reusableMongoSe
 
 	pingCtx, cancel := context.WithTimeout(ctx, mongoStartupDeadline)
 	defer cancel()
+
 	require.NoError(tb, client.Ping(pingCtx, nil), "failed to ping reusable MongoDB container")
 
 	server := &reusableMongoServer{

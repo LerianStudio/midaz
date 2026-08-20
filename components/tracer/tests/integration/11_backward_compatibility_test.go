@@ -60,7 +60,7 @@ func TestBackwardCompatibility_DAILY_NoTimeWindow(t *testing.T) {
 		RequestID:            uuid.New().String(),
 		TransactionType:      "PIX",
 		Amount:               decimal.RequireFromString("400.00"),
-		Currency:             "BRL",
+		Asset:                "BRL",
 		TransactionTimestamp: tx1Time.Format(time.RFC3339),
 		Account: &testutil.AccountContext{
 			ID: accountID,
@@ -91,7 +91,7 @@ func TestBackwardCompatibility_DAILY_NoTimeWindow(t *testing.T) {
 		RequestID:            uuid.New().String(),
 		TransactionType:      "PIX",
 		Amount:               decimal.RequireFromString("700.00"),
-		Currency:             "BRL",
+		Asset:                "BRL",
 		TransactionTimestamp: tx2Time.Format(time.RFC3339),
 		Account: &testutil.AccountContext{
 			ID: accountID,
@@ -148,7 +148,7 @@ func TestBackwardCompatibility_MONTHLY_NoTimeWindow(t *testing.T) {
 			RequestID:            uuid.New().String(),
 			TransactionType:      "PIX",
 			Amount:               decimal.RequireFromString(amount),
-			Currency:             "BRL",
+			Asset:                "BRL",
 			TransactionTimestamp: txTime.Format(time.RFC3339),
 			Account: &testutil.AccountContext{
 				ID: accountID,
@@ -177,7 +177,7 @@ func TestBackwardCompatibility_MONTHLY_NoTimeWindow(t *testing.T) {
 		RequestID:            uuid.New().String(),
 		TransactionType:      "PIX",
 		Amount:               decimal.RequireFromString("1.00"), // Small amount to check counter
-		Currency:             "BRL",
+		Asset:                "BRL",
 		TransactionTimestamp: finalTxTime.Format(time.RFC3339),
 		Account: &testutil.AccountContext{
 			ID: accountID,
@@ -229,7 +229,7 @@ func TestBackwardCompatibility_WEEKLY_NoTimeWindow(t *testing.T) {
 		RequestID:            uuid.New().String(),
 		TransactionType:      "PIX",
 		Amount:               decimal.RequireFromString("3000.00"),
-		Currency:             "BRL",
+		Asset:                "BRL",
 		TransactionTimestamp: tx1Time.Format(time.RFC3339),
 		Account: &testutil.AccountContext{
 			ID: accountID,
@@ -258,7 +258,7 @@ func TestBackwardCompatibility_WEEKLY_NoTimeWindow(t *testing.T) {
 		RequestID:            uuid.New().String(),
 		TransactionType:      "PIX",
 		Amount:               decimal.RequireFromString("8000.00"),
-		Currency:             "BRL",
+		Asset:                "BRL",
 		TransactionTimestamp: tx2Time.Format(time.RFC3339),
 		Account: &testutil.AccountContext{
 			ID: accountID,
@@ -309,7 +309,7 @@ func TestBackwardCompatibility_API_Fields(t *testing.T) {
 		RequestID:            uuid.New().String(),
 		TransactionType:      "PIX",
 		Amount:               decimal.RequireFromString("1000.00"),
-		Currency:             "BRL",
+		Asset:                "BRL",
 		TransactionTimestamp: txTime.Format(time.RFC3339),
 		Account: &testutil.AccountContext{
 			ID: accountID,
@@ -410,7 +410,7 @@ func TestBackwardCompatibility_MultipleTraditionalLimits(t *testing.T) {
 		RequestID:            uuid.New().String(),
 		TransactionType:      "PIX",
 		Amount:               decimal.RequireFromString("500.00"),
-		Currency:             "BRL",
+		Asset:                "BRL",
 		TransactionTimestamp: txTime.Format(time.RFC3339),
 		Account: &testutil.AccountContext{
 			ID: accountID,
@@ -458,7 +458,7 @@ func createTraditionalLimit(t *testing.T, accountID, limitType, maxAmount string
 		"name":      "Test Traditional " + limitType + " " + accountID + " " + testutil.RandomSuffix(),
 		"limitType": limitType,
 		"maxAmount": maxAmount,
-		"currency":  "BRL",
+		"asset":     "BRL",
 		"scopes": []map[string]interface{}{
 			{"accountId": accountID},
 		},

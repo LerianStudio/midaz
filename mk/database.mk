@@ -48,6 +48,13 @@ ensure-migrate:
 		go install -tags 'postgres' github.com/golang-migrate/migrate/v4/cmd/migrate@$(MIGRATE_VERSION); \
 	fi
 
+# Components serving MULTIPLE schemas (ledger) define their own aggregate
+# migrate/migrate-down over per-schema targets, and set DB_MULTI_SCHEMA := 1
+# before including this fragment so the single-DB targets below are never
+# defined. Without the guard make warns about overriding commands on every
+# parse of that component's Makefile.
+ifndef DB_MULTI_SCHEMA
+
 # Apply all pending migrations
 .PHONY: migrate
 migrate: ensure-migrate
@@ -61,6 +68,8 @@ migrate-down: ensure-migrate
 	$(call title1,"Rolling back last migration")
 	@$(MIGRATE_BIN) -database "$(DATABASE_URL)" -path $(MIGRATIONS_PATH) down 1
 	@echo "$(GREEN)$(BOLD)[ok]$(NC) Last migration rolled back successfully$(GREEN) ✔️$(NC)"
+
+endif
 
 # Load development seed data into database
 # Requires: ./migrations/seeds/001_dev_data.sql

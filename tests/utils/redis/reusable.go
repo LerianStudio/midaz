@@ -87,6 +87,7 @@ func SetupReusableContainerWithConfig(t *testing.T, cfg ContainerConfig) *Contai
 		// Only a verified-clean database goes back into the slot pool: a failed
 		// flush or a detected leak would contaminate the next leaseholder.
 		reusable := false
+
 		if err := client.FlushDB(ctx).Err(); err != nil {
 			t.Errorf("failed to flush Valkey logical database %d: %v", db, err)
 		} else {

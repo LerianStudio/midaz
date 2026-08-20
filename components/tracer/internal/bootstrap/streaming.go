@@ -169,6 +169,15 @@ func BuildStreamingEmitter(
 		}
 	}
 
+	// A Lerian-hosted deployment must not dial the broker in cleartext. Postgres
+	// is gated by ValidateSaaSTLS in initCoreInfra; the Kafka flag belongs to
+	// lib-streaming's env contract and exists only once LoadConfig has run, so the
+	// same rule is applied here — the first point where STREAMING_TLS_ENABLED is
+	// known.
+	if err := ValidateSaaSStreamingTLS(cfg, streamingCfg.TLSEnabled); err != nil {
+		return nil, noopStreamingCloser, err
+	}
+
 	return buildLiveStreamingEmitter(ctx, cfg, logger, streamingCfg)
 }
 

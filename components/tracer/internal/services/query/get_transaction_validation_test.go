@@ -30,7 +30,7 @@ func newTestTransactionValidation(id uuid.UUID) *model.TransactionValidation {
 		RequestID:            testutil.MustDeterministicUUID(100),
 		TransactionType:      model.TransactionTypeCard,
 		Amount:               decimal.RequireFromString("100"),
-		Currency:             "USD",
+		Asset:                "USD",
 		TransactionTimestamp: testutil.FixedTime().Add(-time.Hour),
 		Account: model.AccountContext{
 			ID:     testutil.MustDeterministicUUID(101),
@@ -131,6 +131,7 @@ func TestGetTransactionValidationQuery_Execute(t *testing.T) {
 				require.NoError(t, err)
 				require.NotNil(t, result)
 				assert.Equal(t, tt.tvID, result.ID)
+				assert.Equal(t, testTV.Asset, result.Asset)
 				assert.Equal(t, testTV.EvaluationResult.Decision, result.EvaluationResult.Decision)
 				assert.Equal(t, testTV.EvaluationResult.Reason, result.EvaluationResult.Reason)
 				assert.Equal(t, testTV.ProcessingTimeMs, result.ProcessingTimeMs)

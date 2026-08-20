@@ -44,7 +44,7 @@ func TestValidationHandler_Validate_ReturnsCorrectStatusCodes(t *testing.T) {
 		RequestID:            validRequestID,
 		TransactionType:      model.TransactionTypeCard,
 		Amount:               decimal.RequireFromString("100"),
-		Currency:             "USD",
+		Asset:                "USD",
 		TransactionTimestamp: now,
 		Account: model.AccountContext{
 			ID: accountID,
@@ -159,7 +159,7 @@ func TestValidationHandler_Validate_IdempotencyHeader(t *testing.T) {
 		RequestID:            validRequestID,
 		TransactionType:      model.TransactionTypeCard,
 		Amount:               decimal.RequireFromString("100"),
-		Currency:             "USD",
+		Asset:                "USD",
 		TransactionTimestamp: now,
 		Account: model.AccountContext{
 			ID:     accountID,

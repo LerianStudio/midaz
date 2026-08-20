@@ -313,7 +313,7 @@ type ValidationSummary struct {
 	Decision         string          `json:"decision"`
 	Reason           string          `json:"reason"`
 	Amount           decimal.Decimal `json:"amount"`
-	Currency         string          `json:"currency"`
+	Asset            string          `json:"asset"`
 	TransactionType  string          `json:"transactionType"`
 	AccountID        string          `json:"accountId"`
 	SegmentID        string          `json:"segmentId,omitempty"`
@@ -442,7 +442,7 @@ type LimitResponse struct {
 	Name      string                `json:"name"`
 	LimitType string                `json:"limitType"`
 	MaxAmount decimal.Decimal       `json:"maxAmount"`
-	Currency  string                `json:"currency"`
+	Asset     string                `json:"asset"`
 	Status    string                `json:"status"`
 	Scopes    []testutil.ScopeInput `json:"scopes,omitempty"`
 	CreatedAt string                `json:"createdAt"`
@@ -454,7 +454,7 @@ type LimitRequest struct {
 	Name      string                `json:"name"`
 	LimitType string                `json:"limitType"`
 	MaxAmount decimal.Decimal       `json:"maxAmount"`
-	Currency  string                `json:"currency"`
+	Asset     string                `json:"asset"`
 	Scopes    []testutil.ScopeInput `json:"scopes"`
 }
 

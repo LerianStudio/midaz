@@ -75,7 +75,7 @@ func TestValidationService_Validate_Allow_UsesTransaction(t *testing.T) {
 		RequestID:            requestID,
 		TransactionType:      model.TransactionTypeCard,
 		Amount:               decimal.RequireFromString("100"),
-		Currency:             "USD",
+		Asset:                "USD",
 		TransactionTimestamp: fixedTime,
 		Account:              model.AccountContext{ID: accountID},
 	}
@@ -190,7 +190,7 @@ func TestValidationService_Validate_DenyByLimit_RollsBackCounters(t *testing.T) 
 		RequestID:            requestID,
 		TransactionType:      model.TransactionTypeCard,
 		Amount:               decimal.RequireFromString("600"),
-		Currency:             "USD",
+		Asset:                "USD",
 		TransactionTimestamp: fixedTime,
 		Account:              model.AccountContext{ID: accountID},
 	}
@@ -305,7 +305,7 @@ func TestValidationService_Validate_Review_RollsBackCounters(t *testing.T) {
 		RequestID:            requestID,
 		TransactionType:      model.TransactionTypeCard,
 		Amount:               decimal.RequireFromString("100"),
-		Currency:             "USD",
+		Asset:                "USD",
 		TransactionTimestamp: fixedTime,
 		Account:              model.AccountContext{ID: accountID},
 	}
@@ -425,7 +425,7 @@ func TestValidationService_Validate_ConcurrentDuplicate_ReturnsCachedResponse(t 
 		RequestID:            requestID,
 		TransactionType:      model.TransactionTypeCard,
 		Amount:               decimal.RequireFromString("100"),
-		Currency:             "USD",
+		Asset:                "USD",
 		TransactionTimestamp: fixedTime,
 		Account:              model.AccountContext{ID: accountID},
 	}
@@ -495,7 +495,7 @@ func TestValidationService_Validate_ConcurrentDuplicate_ReturnsCachedResponse(t 
 	require.NoError(t, err)
 	existingValidation.RequestID = requestID
 	existingValidation.Amount = decimal.RequireFromString("100")
-	existingValidation.Currency = "USD"
+	existingValidation.Asset = "USD"
 	existingValidation.Account = model.AccountContext{ID: accountID}
 	transactionValidationQueryRepo.EXPECT().
 		FindByRequestID(gomock.Any(), requestID).
@@ -529,7 +529,7 @@ func TestValidationService_Validate_ConcurrentDuplicate_FindByRequestIDFails(t *
 		RequestID:            requestID,
 		TransactionType:      model.TransactionTypeCard,
 		Amount:               decimal.RequireFromString("100"),
-		Currency:             "USD",
+		Asset:                "USD",
 		TransactionTimestamp: fixedTime,
 		Account:              model.AccountContext{ID: accountID},
 	}
@@ -604,7 +604,7 @@ func TestValidationService_Validate_BeginTxFailure(t *testing.T) {
 		RequestID:            requestID,
 		TransactionType:      model.TransactionTypeCard,
 		Amount:               decimal.RequireFromString("100"),
-		Currency:             "USD",
+		Asset:                "USD",
 		TransactionTimestamp: fixedTime,
 		Account:              model.AccountContext{ID: accountID},
 	}
@@ -666,7 +666,7 @@ func TestValidationService_Validate_CommitFailure(t *testing.T) {
 		RequestID:            requestID,
 		TransactionType:      model.TransactionTypeCard,
 		Amount:               decimal.RequireFromString("100"),
-		Currency:             "USD",
+		Asset:                "USD",
 		TransactionTimestamp: fixedTime,
 		Account:              model.AccountContext{ID: accountID},
 	}
@@ -767,7 +767,7 @@ func TestValidationService_Validate_Allow_InsertWithTxFailure(t *testing.T) {
 		RequestID:            requestID,
 		TransactionType:      model.TransactionTypeCard,
 		Amount:               decimal.RequireFromString("100"),
-		Currency:             "USD",
+		Asset:                "USD",
 		TransactionTimestamp: fixedTime,
 		Account:              model.AccountContext{ID: accountID},
 	}
@@ -834,7 +834,7 @@ func TestValidationService_Validate_Allow_AuditWriteFailure(t *testing.T) {
 		RequestID:            requestID,
 		TransactionType:      model.TransactionTypeCard,
 		Amount:               decimal.RequireFromString("100"),
-		Currency:             "USD",
+		Asset:                "USD",
 		TransactionTimestamp: fixedTime,
 		Account:              model.AccountContext{ID: accountID},
 	}
@@ -904,7 +904,7 @@ func TestValidationService_Validate_TxContextTimeout(t *testing.T) {
 		RequestID:            requestID,
 		TransactionType:      model.TransactionTypeCard,
 		Amount:               decimal.RequireFromString("100"),
-		Currency:             "USD",
+		Asset:                "USD",
 		TransactionTimestamp: fixedTime,
 		Account:              model.AccountContext{ID: accountID},
 	}
@@ -973,7 +973,7 @@ func TestValidationService_Validate_DenyByLimit_ConcurrentDuplicate(t *testing.T
 		RequestID:            requestID,
 		TransactionType:      model.TransactionTypeCard,
 		Amount:               decimal.RequireFromString("600"),
-		Currency:             "USD",
+		Asset:                "USD",
 		TransactionTimestamp: fixedTime,
 		Account:              model.AccountContext{ID: accountID},
 	}
@@ -1035,7 +1035,7 @@ func TestValidationService_Validate_DenyByLimit_ConcurrentDuplicate(t *testing.T
 	require.NoError(t, err)
 	existing.RequestID = requestID
 	existing.Amount = decimal.RequireFromString("600")
-	existing.Currency = "USD"
+	existing.Asset = "USD"
 	existing.Account = model.AccountContext{ID: accountID}
 	transactionValidationQueryRepo.EXPECT().
 		FindByRequestID(gomock.Any(), requestID).
@@ -1078,7 +1078,7 @@ func TestValidationService_Validate_Review_ConcurrentDuplicate(t *testing.T) {
 		RequestID:            requestID,
 		TransactionType:      model.TransactionTypeCard,
 		Amount:               decimal.RequireFromString("100"),
-		Currency:             "USD",
+		Asset:                "USD",
 		TransactionTimestamp: fixedTime,
 		Account:              model.AccountContext{ID: accountID},
 	}
@@ -1140,7 +1140,7 @@ func TestValidationService_Validate_Review_ConcurrentDuplicate(t *testing.T) {
 	require.NoError(t, err)
 	existing.RequestID = requestID
 	existing.Amount = decimal.RequireFromString("100")
-	existing.Currency = "USD"
+	existing.Asset = "USD"
 	existing.Account = model.AccountContext{ID: accountID}
 	transactionValidationQueryRepo.EXPECT().
 		FindByRequestID(gomock.Any(), requestID).

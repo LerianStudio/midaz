@@ -346,7 +346,7 @@ func TestMultiTenant_ValidationWrites_IsolatedBetweenTenants(t *testing.T) {
 		"requestId": "%s",
 		"transactionType": "PIX",
 		"amount": "42.00",
-		"currency": "BRL",
+		"asset": "BRL",
 		"transactionTimestamp": "%s",
 		"account": {"accountId": "%s"}
 	}`, requestID, time.Now().UTC().Format(time.RFC3339), accountID)
@@ -517,7 +517,8 @@ func hasRequestID(t *testing.T, spec tenantPGSpec, requestID string) bool {
 	defer cancel()
 
 	var exists bool
-	err = db.QueryRowContext(ctx,
+	err = db.QueryRowContext(
+		ctx,
 		`SELECT EXISTS (SELECT 1 FROM transaction_validations WHERE request_id = $1)`,
 		requestID,
 	).Scan(&exists)

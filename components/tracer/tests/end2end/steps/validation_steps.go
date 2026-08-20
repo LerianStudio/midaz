@@ -250,7 +250,7 @@ func registerValidationSteps(ctx *godog.ScenarioContext, sc *support.ScenarioCon
 			RequestID:       testutil.MustDeterministicUUID(support.NextRequestID()).String(),
 			TransactionType: normalizeTransactionType(txType),
 			Amount:          amt,
-			Currency:        "BRL",
+			Asset:           "BRL",
 		}
 
 		valResp, status, err := support.CreateValidationE(req)
@@ -281,7 +281,7 @@ func registerValidationSteps(ctx *godog.ScenarioContext, sc *support.ScenarioCon
 			RequestID:       testutil.MustDeterministicUUID(support.NextRequestID()).String(),
 			TransactionType: normalizeTransactionType(txType),
 			Amount:          amt,
-			Currency:        "BRL",
+			Asset:           "BRL",
 			Segment:         &testutil.SegmentContext{ID: segmentID},
 		}
 
@@ -313,7 +313,7 @@ func registerValidationSteps(ctx *godog.ScenarioContext, sc *support.ScenarioCon
 			RequestID:       testutil.MustDeterministicUUID(support.NextRequestID()).String(),
 			TransactionType: normalizeTransactionType(txType),
 			Amount:          amt,
-			Currency:        "BRL",
+			Asset:           "BRL",
 			Account:         &testutil.AccountContext{ID: accountID},
 		}
 
@@ -345,7 +345,7 @@ func registerValidationSteps(ctx *godog.ScenarioContext, sc *support.ScenarioCon
 			RequestID:       testutil.MustDeterministicUUID(support.NextRequestID()).String(),
 			TransactionType: normalizeTransactionType(txType),
 			Amount:          amt,
-			Currency:        "BRL",
+			Asset:           "BRL",
 			Account:         &testutil.AccountContext{ID: accountID},
 		}
 
@@ -380,7 +380,7 @@ func registerValidationSteps(ctx *godog.ScenarioContext, sc *support.ScenarioCon
 			RequestID:       testutil.MustDeterministicUUID(support.NextRequestID()).String(),
 			TransactionType: normalizeTransactionType(txType),
 			Amount:          amt,
-			Currency:        "BRL",
+			Asset:           "BRL",
 			Merchant:        &testutil.MerchantContext{ID: merchantID, Name: merchant},
 		}
 
@@ -604,7 +604,7 @@ func registerValidationSteps(ctx *godog.ScenarioContext, sc *support.ScenarioCon
 				RequestID:       testutil.MustDeterministicUUID(support.NextRequestID()).String(),
 				TransactionType: txType,
 				Amount:          amt,
-				Currency:        "BRL",
+				Asset:           "BRL",
 				Account:         &testutil.AccountContext{ID: analysisAccountID},
 			}
 

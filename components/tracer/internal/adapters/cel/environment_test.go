@@ -28,7 +28,7 @@ func TestNewEnvironment(t *testing.T) {
 			name:        "Success - creates CEL environment with all required variables",
 			expectErr:   false,
 			expectEnv:   true,
-			description: "Environment should be created with transactionType, subType, amount, currency, account, merchant, segment, portfolio, metadata, transactionTimestamp variables",
+			description: "Environment should be created with transactionType, subType, amount, asset, account, merchant, segment, portfolio, metadata, transactionTimestamp variables",
 		},
 	}
 
@@ -74,10 +74,10 @@ func TestNewEnvironment_CompileValidExpression(t *testing.T) {
 			description: "Expression using amount with decimal literal should compile",
 		},
 		{
-			name:        "Success - compile expression with currency check",
-			expression:  `currency == "USD"`,
+			name:        "Success - compile expression with asset check",
+			expression:  `asset == "USD"`,
 			expectErr:   false,
-			description: "Expression using currency string variable should compile",
+			description: "Expression using asset string variable should compile",
 		},
 		{
 			name:        "Success - compile expression with account map access",
@@ -166,6 +166,12 @@ func TestNewEnvironment_RejectInvalidVariable(t *testing.T) {
 			description: "Expression with typo in variable name should fail compilation",
 		},
 		{
+			name:        "Error - reject legacy currency variable (no alias for renamed asset)",
+			expression:  `currency == "USD"`,
+			expectErr:   true,
+			description: "The renamed asset variable exposes no currency alias; referencing currency must fail compilation with an undeclared reference",
+		},
+		{
 			name:        "Success - compile expression with dynamic account field access",
 			expression:  `account.invalidField == "test"`,
 			expectErr:   false,
@@ -213,7 +219,7 @@ func TestBuildActivation_FullRequest(t *testing.T) {
 		expectedTransType  string
 		expectedSubType    string
 		expectedAmount     float64
-		expectedCurrency   string
+		expectedAsset      string
 		expectedAccountID  string
 		expectedMerchantID string
 		expectMerchantNil  bool
@@ -228,7 +234,7 @@ func TestBuildActivation_FullRequest(t *testing.T) {
 				TransactionType:      model.TransactionTypeCard,
 				SubType:              &subType,
 				Amount:               decimal.RequireFromString("100.75"),
-				Currency:             "USD",
+				Asset:                "USD",
 				TransactionTimestamp: time.Now(),
 				Account: model.AccountContext{
 					ID:     envTestAccountID1,
@@ -256,7 +262,7 @@ func TestBuildActivation_FullRequest(t *testing.T) {
 			expectedTransType:  "CARD",
 			expectedSubType:    "debit",
 			expectedAmount:     float64(100.75),
-			expectedCurrency:   "USD",
+			expectedAsset:      "USD",
 			expectedAccountID:  envTestAccountID1.String(),
 			expectedMerchantID: envTestMerchantID1.String(),
 			expectMerchantNil:  false,
@@ -290,10 +296,10 @@ func TestBuildActivation_FullRequest(t *testing.T) {
 			assert.True(t, found, "Activation should contain amount")
 			assert.Equal(t, tc.expectedAmount, amountVal, "amount should match")
 
-			// Verify currency
-			currencyVal, found := activation["currency"]
-			assert.True(t, found, "Activation should contain currency")
-			assert.Equal(t, tc.expectedCurrency, currencyVal, "currency should match")
+			// Verify asset
+			assetVal, found := activation["asset"]
+			assert.True(t, found, "Activation should contain asset")
+			assert.Equal(t, tc.expectedAsset, assetVal, "asset should match")
 
 			// Verify account
 			accountVal, found := activation["account"]
@@ -358,7 +364,7 @@ func TestBuildActivation_NilOptionalFields(t *testing.T) {
 				TransactionType:      model.TransactionTypeWire,
 				SubType:              nil,
 				Amount:               decimal.RequireFromString("50"),
-				Currency:             "BRL",
+				Asset:                "BRL",
 				TransactionTimestamp: time.Now(),
 				Account: model.AccountContext{
 					ID:     envTestAccountID2,
@@ -379,7 +385,7 @@ func TestBuildActivation_NilOptionalFields(t *testing.T) {
 				TransactionType:      model.TransactionTypePix,
 				SubType:              nil,
 				Amount:               decimal.RequireFromString("10"),
-				Currency:             "BRL",
+				Asset:                "BRL",
 				TransactionTimestamp: time.Now(),
 				Account: model.AccountContext{
 					ID:     envTestAccountID3,
@@ -400,7 +406,7 @@ func TestBuildActivation_NilOptionalFields(t *testing.T) {
 				TransactionType:      model.TransactionTypeCrypto,
 				SubType:              nil,
 				Amount:               decimal.RequireFromString("1000"),
-				Currency:             "USD",
+				Asset:                "USD",
 				TransactionTimestamp: time.Now(),
 				Account: model.AccountContext{
 					ID:     envTestAccountID4,
@@ -432,8 +438,8 @@ func TestBuildActivation_NilOptionalFields(t *testing.T) {
 			_, found = activation["amount"]
 			assert.True(t, found, "Activation should contain amount")
 
-			_, found = activation["currency"]
-			assert.True(t, found, "Activation should contain currency")
+			_, found = activation["asset"]
+			assert.True(t, found, "Activation should contain asset")
 
 			_, found = activation["account"]
 			assert.True(t, found, "Activation should contain account")
@@ -519,7 +525,7 @@ func TestBuildActivation_AmountPrecisionValidation(t *testing.T) {
 				RequestID:            uuid.New(),
 				TransactionType:      model.TransactionTypePix,
 				Amount:               decimal.RequireFromString(tc.amount),
-				Currency:             "BRL",
+				Asset:                "BRL",
 				TransactionTimestamp: time.Now(),
 				Account: model.AccountContext{
 					ID:     envTestAccountID1,
