@@ -340,3 +340,43 @@ func TestBuildStreamingEmitter_AcceptsRosterSource(t *testing.T) {
 		})
 	}
 }
+
+// TestBuildStreamingEmitter_RefusesPlaintextBrokerInSaaSMode is the wiring half
+// of the SaaS streaming TLS gate: having the validator is worthless if nothing
+// calls it. DEPLOYMENT_MODE=saas already refuses to boot against a plaintext
+// Postgres, Mongo, Redis or RabbitMQ; the Kafka dial was exempt, so an enabled
+// producer shipped every business event in cleartext on a Lerian-hosted tenant.
+func TestBuildStreamingEmitter_RefusesPlaintextBrokerInSaaSMode(t *testing.T) {
+	t.Setenv("STREAMING_ENABLED", "true")
+	t.Setenv("STREAMING_BROKERS", "127.0.0.1:9092")
+	t.Setenv("STREAMING_CLOUDEVENTS_SOURCE", "ledger")
+	t.Setenv("STREAMING_TLS_ENABLED", "false")
+
+	cfg := &Config{StreamingEnabled: true, DeploymentMode: DeploymentModeSaaS}
+
+	emitter, closer, err := BuildStreamingEmitter(context.Background(), cfg, nil, nil)
+	require.Error(t, err, "DEPLOYMENT_MODE=saas must refuse a plaintext Kafka dial")
+	assert.Contains(t, err.Error(), "STREAMING_TLS_ENABLED")
+	assert.Nil(t, emitter, "a refused SaaS boot must not yield an emitter")
+	require.NotNil(t, closer)
+	assert.NoError(t, closer())
+}
+
+// TestBuildStreamingEmitter_AcceptsTLSBrokerInSaaSMode is the other half of the
+// gate: a SaaS deployment that dials the broker over TLS builds normally. Without
+// it the refusal test above would still pass on a gate that rejected everything.
+func TestBuildStreamingEmitter_AcceptsTLSBrokerInSaaSMode(t *testing.T) {
+	t.Setenv("STREAMING_ENABLED", "true")
+	t.Setenv("STREAMING_BROKERS", "127.0.0.1:9092")
+	t.Setenv("STREAMING_CLOUDEVENTS_SOURCE", "ledger")
+	t.Setenv("STREAMING_TLS_ENABLED", "true")
+	t.Setenv("STREAMING_TLS_CA_CERT", "")
+
+	cfg := &Config{StreamingEnabled: true, DeploymentMode: DeploymentModeSaaS}
+
+	emitter, closer, err := BuildStreamingEmitter(context.Background(), cfg, nil, nil)
+	require.NoError(t, err)
+	require.NotNil(t, emitter)
+	require.NotNil(t, closer)
+	t.Cleanup(func() { _ = closer() })
+}

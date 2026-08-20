@@ -164,6 +164,19 @@ func BuildStreamingEmitter(
 		return nil, noopStreamingCloser, err
 	}
 
+	// A Lerian-hosted deployment must not dial the broker in cleartext. Postgres,
+	// Mongo, Redis, Vault and RabbitMQ are gated by ValidateSaaSTLS during readyz
+	// wiring; the Kafka flag belongs to lib-streaming's env contract and exists
+	// only once LoadConfig has run, so the same rule is applied here — the first
+	// point where STREAMING_TLS_ENABLED is known. This is a BOOT gate only: the
+	// ledger has no streaming readiness prober, so there is no /readyz checker to
+	// hang a streaming TLS reporter off (the readyz `tls` field is a byproduct of
+	// a live DependencyChecker, and inventing a Kafka health probe here would be a
+	// new readiness dependency, not a TLS report).
+	if err := ValidateSaaSStreamingTLS(cfg.DeploymentMode, streamingCfg.TLSEnabled); err != nil {
+		return nil, noopStreamingCloser, err
+	}
+
 	// Build the immutable Catalog of every event midaz emits. Catalog
 	// lookup at emit time resolves ResourceType/EventType/SchemaVersion
 	// from these entries via the EmitRequest.DefinitionKey, so the

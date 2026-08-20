@@ -39,7 +39,7 @@ func ValidateSaaSTLS(cfg *Config) error {
 
 	// Normalize deployment mode (case + whitespace) so values like "SaaS" or
 	// " saas " cannot bypass the gate by string-equality alone.
-	if !strings.EqualFold(strings.TrimSpace(cfg.DeploymentMode), "saas") {
+	if !isSaaSMode(cfg.DeploymentMode) {
 		return nil
 	}
 
@@ -65,4 +65,36 @@ func ValidateSaaSTLS(cfg *Config) error {
 	}
 
 	return nil
+}
+
+// ValidateSaaSStreamingTLS extends the SaaS TLS gate to the lib-streaming Kafka
+// broker dial. It is separate from ValidateSaaSTLS because STREAMING_TLS_* is
+// lib-streaming's own env contract and never lands on tracer's Config — binding
+// it there is what left STREAMING_TLS_ENABLED with no reader at all in the
+// pre-v3 tracer. The flag exists only once libStreaming.LoadConfig has run, so
+// BuildStreamingEmitter resolves it and passes it in.
+//
+// The rule is the one Postgres already answers to above: in SaaS mode the
+// transport is encrypted or the service does not boot. The check is reached only
+// when streaming is ENABLED, because a disabled producer opens no broker
+// connection at all. BYOC and local deployments keep their plaintext brokers.
+func ValidateSaaSStreamingTLS(cfg *Config, streamingTLSEnabled bool) error {
+	if cfg == nil {
+		return fmt.Errorf("validate SaaS streaming TLS: nil config")
+	}
+
+	if !isSaaSMode(cfg.DeploymentMode) || streamingTLSEnabled {
+		return nil
+	}
+
+	return fmt.Errorf(
+		"DEPLOYMENT_MODE=saas: TLS required for streaming but not configured (set STREAMING_TLS_ENABLED=true)",
+	)
+}
+
+// isSaaSMode normalizes the deployment mode (case + whitespace) so values like
+// "SaaS" or " saas " cannot bypass a gate by string-equality alone. Shared by
+// both SaaS gates in this file so the normalization can never drift between them.
+func isSaaSMode(deploymentMode string) bool {
+	return strings.EqualFold(strings.TrimSpace(deploymentMode), "saas")
 }
