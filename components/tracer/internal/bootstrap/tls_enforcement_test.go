@@ -147,3 +147,55 @@ func TestValidateSaaSTLS(t *testing.T) {
 		})
 	}
 }
+
+// TestValidateSaaSStreamingTLS covers the streaming half of the SaaS TLS gate.
+// STREAMING_TLS_ENABLED belongs to lib-streaming's env contract and never lands
+// on tracer's Config (binding it there is what left the flag with no reader at
+// all in the pre-v3 tracer), so the resolved flag is passed in. The rule and the
+// error sentence match the Postgres sibling above, plus the knob name.
+func TestValidateSaaSStreamingTLS(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name       string
+		cfg        *Config
+		tlsEnabled bool
+		wantErr    bool
+	}{
+		{name: "saas plaintext broker refused", cfg: &Config{DeploymentMode: "saas"}, wantErr: true},
+		{name: "saas tls broker allowed", cfg: &Config{DeploymentMode: "saas"}, tlsEnabled: true},
+		{name: "saas padded and uppercase is still saas", cfg: &Config{DeploymentMode: " SaaS "}, wantErr: true},
+		{name: "byoc keeps plaintext broker", cfg: &Config{DeploymentMode: "byoc"}},
+		{name: "local keeps plaintext broker", cfg: &Config{DeploymentMode: "local"}},
+		{name: "unset mode keeps plaintext broker", cfg: &Config{}},
+		{name: "nil config is an error", cfg: nil, wantErr: true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			err := ValidateSaaSStreamingTLS(tt.cfg, tt.tlsEnabled)
+
+			if tt.wantErr {
+				require.Error(t, err)
+
+				return
+			}
+
+			require.NoError(t, err)
+		})
+	}
+}
+
+// TestValidateSaaSStreamingTLS_ErrorNamesTheKnob keeps the operator-facing
+// sentence locked: the failing dependency and the env var that fixes it.
+func TestValidateSaaSStreamingTLS_ErrorNamesTheKnob(t *testing.T) {
+	t.Parallel()
+
+	err := ValidateSaaSStreamingTLS(&Config{DeploymentMode: "saas"}, false)
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "DEPLOYMENT_MODE=saas")
+	require.Contains(t, err.Error(), "streaming")
+	require.Contains(t, err.Error(), "STREAMING_TLS_ENABLED")
+}

@@ -791,3 +791,45 @@ func TestDetectRedisTLS_EdgeCases(t *testing.T) {
 		})
 	}
 }
+
+// TestValidateSaaSStreamingTLS covers the streaming half of the SaaS TLS gate.
+// STREAMING_TLS_ENABLED belongs to lib-streaming's env contract and never lands
+// on the midaz Config, so the resolved flag is passed in — but the rule and the
+// error sentence are the ones Postgres, Mongo, Redis and RabbitMQ already answer
+// to, plus the knob name so an operator knows what to set.
+func TestValidateSaaSStreamingTLS(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name           string
+		deploymentMode string
+		tlsEnabled     bool
+		wantErr        bool
+	}{
+		{name: "saas_plaintext_broker_refused", deploymentMode: "saas", tlsEnabled: false, wantErr: true},
+		{name: "saas_tls_broker_allowed", deploymentMode: "saas", tlsEnabled: true},
+		{name: "byoc_keeps_plaintext_broker", deploymentMode: "byoc", tlsEnabled: false},
+		{name: "local_keeps_plaintext_broker", deploymentMode: "local", tlsEnabled: false},
+		{name: "unset_mode_keeps_plaintext_broker", deploymentMode: "", tlsEnabled: false},
+		{name: "saas_uppercase_is_still_saas", deploymentMode: "SAAS", tlsEnabled: false, wantErr: true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			err := ValidateSaaSStreamingTLS(tt.deploymentMode, tt.tlsEnabled)
+
+			if tt.wantErr {
+				require.Error(t, err)
+				assert.Contains(t, err.Error(), "DEPLOYMENT_MODE=saas")
+				assert.Contains(t, err.Error(), "streaming")
+				assert.Contains(t, err.Error(), "STREAMING_TLS_ENABLED")
+
+				return
+			}
+
+			require.NoError(t, err)
+		})
+	}
+}
