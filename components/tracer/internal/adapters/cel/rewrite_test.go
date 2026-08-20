@@ -297,7 +297,6 @@ func TestRewriteCurrencyToAsset(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
@@ -387,7 +386,6 @@ func TestRewriteCurrencyToAsset_SemanticEquivalence(t *testing.T) {
 	}
 
 	for _, expr := range cases {
-		expr := expr
 		t.Run(expr, func(t *testing.T) {
 			t.Parallel()
 
@@ -528,7 +526,6 @@ func TestRewriteCurrencyToAsset_Errors(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
@@ -596,7 +593,6 @@ func TestRewriteCurrencyToAsset_ReportsChanged(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 

@@ -27,10 +27,18 @@ type CELRuleMigration struct {
 	close func() error
 }
 
-// Close releases the migration's resources (the Postgres connection pool).
+// Close releases the migration's resources (the Postgres connection pool),
+// flushing any buffered final log line first.
 func (m *CELRuleMigration) Close() error {
 	if m == nil || m.close == nil {
 		return nil
+	}
+
+	// Flush the logger before releasing the pool so a buffered final migration
+	// line is not lost. Sync on stderr can return a benign error, so the result
+	// is deliberately ignored (same cleanup convention as the pool close below).
+	if m.Logger != nil {
+		_ = m.Logger.Sync(context.Background())
 	}
 
 	return m.close()

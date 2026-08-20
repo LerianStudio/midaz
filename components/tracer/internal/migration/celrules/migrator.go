@@ -198,12 +198,19 @@ func (m *Migrator) Up(ctx context.Context) (Result, error) {
 
 	res.Scanned = len(rules)
 
+	span.SetAttributes(attribute.Int("app.migration.rules_scanned", res.Scanned))
+
 	// Rewrite and recompile EVERY rule before persisting any. A single failed
 	// recompile aborts here, before the first write, so the deferred rollback
 	// leaves the table untouched.
 	toUpdate := make([]*model.Rule, 0, len(rules))
 
 	for _, rule := range rules {
+		if err := ctx.Err(); err != nil {
+			libOtel.HandleSpanError(span, "Context canceled during rule rewrite", err)
+			return res, fmt.Errorf("context canceled during rule rewrite: %w", err)
+		}
+
 		// An empty or whitespace-only expression has no currency reference to
 		// rewrite; treat it as unchanged rather than letting the rewriter reject
 		// it (ErrExpressionSyntax) and abort the whole migration.
@@ -268,7 +275,6 @@ func (m *Migrator) Up(ctx context.Context) (Result, error) {
 	committed = true
 
 	span.SetAttributes(
-		attribute.Int("app.migration.rules_scanned", res.Scanned),
 		attribute.Int("app.migration.rules_rewritten", res.Rewritten),
 		attribute.Int("app.migration.rules_unchanged", res.Unchanged),
 	)
