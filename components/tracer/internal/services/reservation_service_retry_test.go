@@ -11,6 +11,7 @@ import (
 	"testing"
 	"time"
 
+	libBackoff "github.com/LerianStudio/lib-commons/v6/commons/backoff"
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -52,6 +53,8 @@ func newRetryService(t *testing.T) (*ReservationService, *pgdbMocks.MockTxBeginn
 }
 
 func TestReservationService_inTx_RetriesTransientThenSucceeds(t *testing.T) {
+	t.Parallel()
+
 	svc, conn, tx, sleeps := newRetryService(t)
 	span := trace.SpanFromContext(context.Background())
 
@@ -77,6 +80,8 @@ func TestReservationService_inTx_RetriesTransientThenSucceeds(t *testing.T) {
 }
 
 func TestReservationService_inTx_NonTransientDoesNotRetry(t *testing.T) {
+	t.Parallel()
+
 	cases := map[string]error{
 		"pg unique violation": &pgconn.PgError{Code: "23505"},
 		"plain error":         errors.New("boom"),
@@ -84,6 +89,8 @@ func TestReservationService_inTx_NonTransientDoesNotRetry(t *testing.T) {
 
 	for name, injErr := range cases {
 		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+
 			svc, conn, tx, sleeps := newRetryService(t)
 			span := trace.SpanFromContext(context.Background())
 
@@ -106,6 +113,8 @@ func TestReservationService_inTx_NonTransientDoesNotRetry(t *testing.T) {
 }
 
 func TestReservationService_inTx_ExhaustsRetriesAndReturnsLastError(t *testing.T) {
+	t.Parallel()
+
 	svc, conn, tx, sleeps := newRetryService(t)
 	span := trace.SpanFromContext(context.Background())
 
@@ -133,6 +142,8 @@ func TestReservationService_inTx_ExhaustsRetriesAndReturnsLastError(t *testing.T
 }
 
 func TestReservationService_inTx_ContextCancellationStopsRetries(t *testing.T) {
+	t.Parallel()
+
 	svc, conn, tx, _ := newRetryService(t)
 	span := trace.SpanFromContext(context.Background())
 
@@ -159,6 +170,8 @@ func TestReservationService_inTx_ContextCancellationStopsRetries(t *testing.T) {
 }
 
 func TestReservationService_inTx_PreCanceledContextReturnsImmediately(t *testing.T) {
+	t.Parallel()
+
 	svc, conn, _, _ := newRetryService(t)
 	span := trace.SpanFromContext(context.Background())
 
@@ -211,40 +224,17 @@ func TestPgSQLState(t *testing.T) {
 	assert.Equal(t, "", pgSQLState(errors.New("not a pg error")))
 }
 
-func TestBackoffDelay_WithinExponentialWindow(t *testing.T) {
+func TestBackoffDelay_ExponentialWithJitter_WithinWindow(t *testing.T) {
 	t.Parallel()
 
+	// inTx passes attempt-1 (0-based) to libBackoff.ExponentialWithJitter, so the
+	// wait for retry attempt n stays in [0, reserveRetryBaseBackoff*2^(n-1)) — the
+	// same full-jitter window the deleted hand-rolled helper produced.
 	for attempt := 1; attempt <= reserveMaxAttempts; attempt++ {
 		window := reserveRetryBaseBackoff << (attempt - 1)
 
-		d := backoffDelay(attempt)
+		d := libBackoff.ExponentialWithJitter(reserveRetryBaseBackoff, attempt-1)
 		assert.GreaterOrEqual(t, d, time.Duration(0))
 		assert.Less(t, d, window, "delay must stay under the exponential window for the attempt")
 	}
-}
-
-func TestSleepWithContext(t *testing.T) {
-	t.Parallel()
-
-	t.Run("non-positive duration is an immediate no-op", func(t *testing.T) {
-		t.Parallel()
-
-		require.NoError(t, sleepWithContext(context.Background(), 0))
-	})
-
-	t.Run("cancelled context returns before the timer", func(t *testing.T) {
-		t.Parallel()
-
-		ctx, cancel := context.WithCancel(context.Background())
-		cancel()
-
-		// A long window would block, but the already-cancelled context wins the select.
-		require.ErrorIs(t, sleepWithContext(ctx, time.Hour), context.Canceled)
-	})
-
-	t.Run("timer fires when the context stays live", func(t *testing.T) {
-		t.Parallel()
-
-		require.NoError(t, sleepWithContext(context.Background(), time.Millisecond))
-	})
 }

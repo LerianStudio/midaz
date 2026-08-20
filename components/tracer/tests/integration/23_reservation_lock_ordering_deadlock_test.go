@@ -28,7 +28,7 @@ import (
 )
 
 // ---------------------------------------------------------------------------
-// Lock-ordering deadlock proof (Task 1.1.2).
+// Lock-ordering deadlock proof.
 //
 // The pre-fix reserve loop takes a fine-grained usage_counters ROW lock (via the
 // reserve CTE's INSERT ... ON CONFLICT DO UPDATE) BEFORE the audit BEFORE-INSERT
@@ -44,7 +44,7 @@ import (
 // (the crash-convergence proofs deliberately stub the audit writer to skip it).
 // The discriminating, retry-independent signal is PostgreSQL's own
 // pg_stat_database.deadlocks counter: a deadlock is counted the moment it is
-// detected, even when the Task 1.1.1 transient-retry then re-runs the victim and
+// detected, even when the transient-retry then re-runs the victim and
 // hides the 40P01 from the caller. The root-cause fix (a per-account advisory lock
 // acquired at transaction start, before any counter row is touched) must drive that
 // delta to exactly zero: same-account reserves serialize on the scope lock and can
@@ -221,6 +221,11 @@ func TestIntegration_ReservationConcurrentSameAccount_NoDeadlock(t *testing.T) {
 
 	after := resReadDeadlockCount(t, db)
 
+	// The pg_stat_database.deadlocks delta is a probabilistic signal: it only
+	// advances if the racing goroutines happen to interleave into a cycle within the
+	// window. TestIntegration_AuditHashChain_PreFixForkReproduction (test 24) is the
+	// authoritative, deterministic RED for the same lock-ordering class — it drives
+	// the fork by hand rather than by timing, so it fails reliably pre-fix.
 	assert.Equal(t, before, after,
 		"no PostgreSQL deadlock (40P01) may form: the per-account advisory lock must serialize same-account reserves before any counter row is locked (delta before=%d after=%d)",
 		before, after)

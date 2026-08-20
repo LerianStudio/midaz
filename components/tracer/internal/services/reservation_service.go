@@ -11,14 +11,14 @@ import (
 	"errors"
 	"fmt"
 	"hash/fnv"
-	"math/rand/v2"
 	"time"
 
+	libBackoff "github.com/LerianStudio/lib-commons/v6/commons/backoff"
+	libPostgres "github.com/LerianStudio/lib-commons/v6/commons/postgres"
 	libObservability "github.com/LerianStudio/lib-observability/v2"
 	libLog "github.com/LerianStudio/lib-observability/v2/log"
 	libOpentelemetry "github.com/LerianStudio/lib-observability/v2/tracing"
 	"github.com/google/uuid"
-	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/shopspring/decimal"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
@@ -205,7 +205,7 @@ func NewReservationServiceWithLongLivedTTL(
 		auditWriter:  auditWriter,
 		clock:        clk,
 		longLivedTTL: longLivedTTL,
-		retrySleep:   sleepWithContext,
+		retrySleep:   libBackoff.WaitContext,
 	}, nil
 }
 
@@ -286,7 +286,7 @@ func (s *ReservationService) Reserve(ctx context.Context, transactionID uuid.UUI
 		// Deterministic lock order: acquire the per-account advisory lock FIRST, so
 		// no reserve can hold a counter row while another waits on the audit
 		// hash-chain advisory lock — the cycle that produced SQLSTATE 40P01. The
-		// Task 1.1.1 transient-retry remains as the safety net for the residual
+		// transient-retry remains as the safety net for the residual
 		// (e.g. cross-account contention on a shared counter).
 		if err := s.repo.AcquireReserveScopeLock(ctx, db, scopeLockKey); err != nil {
 			return err
@@ -642,7 +642,7 @@ func (s *ReservationService) inTx(ctx context.Context, span trace.Span, fn func(
 			attribute.String("app.reservation.retry_sqlstate", pgSQLState(lastErr)),
 		))
 
-		if sleepErr := s.retrySleep(ctx, backoffDelay(attempt)); sleepErr != nil {
+		if sleepErr := s.retrySleep(ctx, libBackoff.ExponentialWithJitter(reserveRetryBaseBackoff, attempt-1)); sleepErr != nil {
 			return sleepErr
 		}
 	}
@@ -713,12 +713,12 @@ func (s *ReservationService) runTxOnce(ctx context.Context, span trace.Span, fn 
 // that a fresh transaction can retry. Any other error (business or infrastructure) is
 // not transient.
 func isTransientDBError(err error) bool {
-	var pgErr *pgconn.PgError
-	if !errors.As(err, &pgErr) {
+	state, ok := libPostgres.SQLState(err)
+	if !ok {
 		return false
 	}
 
-	switch pgErr.SQLState() {
+	switch state {
 	case sqlStateSerializationFailure, sqlStateDeadlockDetected, sqlStateLockNotAvailable:
 		return true
 	default:
@@ -726,24 +726,12 @@ func isTransientDBError(err error) bool {
 	}
 }
 
-// pgSQLState returns the SQLSTATE of the underlying *pgconn.PgError, or "" when err
-// is not a Postgres error. Used only to annotate the retry span event.
+// pgSQLState returns the SQLSTATE carried by err, or "" when err is not a Postgres
+// error. Used only to annotate the retry span event.
 func pgSQLState(err error) string {
-	var pgErr *pgconn.PgError
-	if errors.As(err, &pgErr) {
-		return pgErr.SQLState()
-	}
+	state, _ := libPostgres.SQLState(err)
 
-	return ""
-}
-
-// backoffDelay is the full-jitter exponential backoff before retry attempt n+1: a
-// random duration in [0, reserveRetryBaseBackoff*2^(attempt-1)). Full jitter spreads
-// concurrent deadlock losers so they do not re-collide in lockstep.
-func backoffDelay(attempt int) time.Duration {
-	window := reserveRetryBaseBackoff << (attempt - 1)
-
-	return time.Duration(rand.Int64N(int64(window)))
+	return state
 }
 
 // reserveScopeLockKey derives a stable 64-bit advisory-lock key from the reserve's
@@ -760,23 +748,4 @@ func reserveScopeLockKey(accountID uuid.UUID) int64 {
 	_, _ = h.Write(accountID[:])
 
 	return int64(h.Sum64())
-}
-
-// sleepWithContext is the production retrySleep: it waits d, or returns early with
-// ctx.Err() if the context is cancelled first. A non-positive d is an immediate,
-// cancellation-aware no-op.
-func sleepWithContext(ctx context.Context, d time.Duration) error {
-	if d <= 0 {
-		return ctx.Err()
-	}
-
-	timer := time.NewTimer(d)
-	defer timer.Stop()
-
-	select {
-	case <-ctx.Done():
-		return ctx.Err()
-	case <-timer.C:
-		return nil
-	}
 }

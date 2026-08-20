@@ -11,11 +11,13 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 
+	pgdb "github.com/LerianStudio/midaz/v4/components/tracer/internal/adapters/postgres/db"
 	pgdbMocks "github.com/LerianStudio/midaz/v4/components/tracer/internal/adapters/postgres/db/mocks"
 	servicesMocks "github.com/LerianStudio/midaz/v4/components/tracer/internal/services/mocks"
 	"github.com/LerianStudio/midaz/v4/components/tracer/internal/services/query"
@@ -71,7 +73,7 @@ func (d *reservationDeps) expectTxRollback() {
 }
 
 // expectScopeLock wires the per-account advisory lock the reserve closure acquires
-// on the shared mock tx before any counter row is touched (Task 1.1.2). Only the
+// on the shared mock tx before any counter row is touched. Only the
 // Reserve path takes it; confirm/release do not, so it is opt-in per subtest.
 func (d *reservationDeps) expectScopeLock() {
 	d.repo.EXPECT().AcquireReserveScopeLock(gomock.Any(), d.tx, gomock.Any()).Return(nil).Times(1)
@@ -436,18 +438,78 @@ func TestReservationService_Reserve(t *testing.T) {
 	})
 }
 
+// TestReservationService_Reserve_TransientRetry_NoDuplicateHandles locks the
+// per-attempt accumulator reset (reservationIDs[:0] / guardDenied=false) at the top
+// of the reserve closure. Attempt 1 reserves the first spec, then trips a transient
+// 40P01 on the second and rolls back; attempt 2 begins fresh and reserves BOTH. Two
+// BeginTx calls prove the retry; the result must carry exactly one handle per spec —
+// never the three that a missing reset would accumulate across attempts.
+func TestReservationService_Reserve_TransientRetry_NoDuplicateHandles(t *testing.T) {
+	svc, deps := newReservationServiceDeps(t)
+
+	input := testCheckLimitsInput(t)
+	specs := twoSpecs()
+
+	deps.resolver.EXPECT().
+		ResolveReservations(gomock.Any(), input).
+		Return(specs, false, nil).
+		Times(1)
+
+	// Fresh transaction per attempt: attempt 1 rolls back on the transient abort,
+	// attempt 2 commits.
+	deps.conn.EXPECT().BeginTx(gomock.Any(), gomock.Any()).Return(deps.tx, nil).Times(2)
+	deps.tx.EXPECT().Rollback().Return(nil).Times(1)
+	deps.tx.EXPECT().Commit().Return(nil).Times(1)
+
+	// The scope lock succeeds on both attempts.
+	deps.repo.EXPECT().
+		AcquireReserveScopeLock(gomock.Any(), deps.tx, gomock.Any()).
+		Return(nil).
+		Times(2)
+
+	// Four ReserveWithTx calls: (a1,spec0) ok, (a1,spec1) 40P01, (a2,spec0) ok,
+	// (a2,spec1) ok. The transient abort lands on the SECOND spec so attempt 1 has
+	// already appended one handle — that is what a missing reset would duplicate.
+	reserveCalls := 0
+	deps.repo.EXPECT().
+		ReserveWithTx(gomock.Any(), deps.tx, gomock.AssignableToTypeOf(&model.Reservation{}), gomock.Any()).
+		DoAndReturn(func(_ context.Context, _ pgdb.DB, _ *model.Reservation, _ decimal.Decimal) error {
+			reserveCalls++
+			if reserveCalls == 2 {
+				return &pgconn.PgError{Code: "40P01"} // deadlock_detected, transient
+			}
+
+			return nil
+		}).
+		Times(4)
+
+	// One audit row per successful reserve: one in attempt 1, two in attempt 2.
+	deps.auditWriter.EXPECT().
+		RecordReservationEventWithTx(gomock.Any(), deps.tx, model.AuditEventReservationReserved, model.AuditActionReserve, gomock.Any(), gomock.Any()).
+		Return(nil).
+		Times(3)
+
+	// Deterministic retry: no wall-clock backoff.
+	svc.retrySleep = func(context.Context, time.Duration) error { return nil }
+
+	res, err := svc.Reserve(context.Background(), testutil.MustDeterministicUUID(7050), input, false)
+	require.NoError(t, err)
+	require.False(t, res.Denied)
+	assert.Len(t, res.ReservationIDs, len(specs),
+		"the retry must reset the per-attempt accumulator: exactly one handle per spec, never doubled")
+}
+
 func TestReserveScopeLockKey(t *testing.T) {
 	t.Parallel()
 
 	acctA := testutil.MustDeterministicUUID(7401)
 	acctB := testutil.MustDeterministicUUID(7402)
 
-	t.Run("deterministic for the same account", func(t *testing.T) {
-		t.Parallel()
-
-		assert.Equal(t, reserveScopeLockKey(acctA), reserveScopeLockKey(acctA),
-			"the same account must always map to the same advisory-lock key")
-	})
+	// nilAccountScopeLockKey is the FNV-1a (64-bit) of 16 zero bytes, cast to int64 —
+	// the fixed key every external-only (nil-account) reserve must map to. Pinning the
+	// literal locks the hashing so a change to reserveScopeLockKey cannot silently move
+	// the shared key.
+	const nilAccountScopeLockKey = int64(-8637869204239850395)
 
 	t.Run("distinct accounts map to distinct keys", func(t *testing.T) {
 		t.Parallel()
@@ -456,11 +518,11 @@ func TestReserveScopeLockKey(t *testing.T) {
 			"distinct accounts must not collapse onto one key (parallelism preserved)")
 	})
 
-	t.Run("nil account maps to a fixed key", func(t *testing.T) {
+	t.Run("nil account maps to the fixed precomputed key", func(t *testing.T) {
 		t.Parallel()
 
-		assert.Equal(t, reserveScopeLockKey(uuid.Nil), reserveScopeLockKey(uuid.Nil),
-			"an external-only (nil-account) reserve must serialize deterministically")
+		assert.Equal(t, nilAccountScopeLockKey, reserveScopeLockKey(uuid.Nil),
+			"an external-only (nil-account) reserve must serialize on the fixed FNV-1a-of-zeroes key")
 	})
 }
 
