@@ -58,7 +58,7 @@ INSERT INTO rules (
 
 -- Limit 1: Daily spending limit ($50,000.00)
 INSERT INTO limits (
-    id, name, description, limit_type, max_amount, currency,
+    id, name, description, limit_type, max_amount, asset,
     scopes, status, reset_at
 ) VALUES (
     '20000000-0000-0000-0000-000000000001',
@@ -74,7 +74,7 @@ INSERT INTO limits (
 
 -- Limit 2: Monthly portfolio limit ($1,000,000.00)
 INSERT INTO limits (
-    id, name, description, limit_type, max_amount, currency,
+    id, name, description, limit_type, max_amount, asset,
     scopes, status, reset_at
 ) VALUES (
     '20000000-0000-0000-0000-000000000002',
@@ -126,7 +126,7 @@ INSERT INTO transaction_validations (
     transaction_type,
     sub_type,
     amount,
-    currency,
+    asset,
     transaction_timestamp,
     account,
     segment,

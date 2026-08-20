@@ -64,7 +64,7 @@ func TestTimeWindow_InsideWindow(t *testing.T) {
 		RequestID:            uuid.New().String(),
 		TransactionType:      "PIX",
 		Amount:               decimal.RequireFromString("300.00"),
-		Currency:             "BRL",
+		Asset:                "BRL",
 		TransactionTimestamp: txTime.Format(time.RFC3339),
 		Account: &testutil.AccountContext{
 			ID: accountID,
@@ -118,7 +118,7 @@ func TestTimeWindow_OutsideWindow(t *testing.T) {
 		RequestID:            uuid.New().String(),
 		TransactionType:      "PIX",
 		Amount:               decimal.RequireFromString("500.00"),
-		Currency:             "BRL",
+		Asset:                "BRL",
 		TransactionTimestamp: txTime.Format(time.RFC3339),
 		Account: &testutil.AccountContext{
 			ID: accountID,
@@ -173,7 +173,7 @@ func TestTimeWindow_OvernightWindow(t *testing.T) {
 			RequestID:            uuid.New().String(),
 			TransactionType:      "PIX",
 			Amount:               decimal.RequireFromString("100.00"),
-			Currency:             "BRL",
+			Asset:                "BRL",
 			TransactionTimestamp: txTime.Format(time.RFC3339),
 			Account: &testutil.AccountContext{
 				ID: accountID,
@@ -220,7 +220,7 @@ func TestTimeWindow_OvernightWindow(t *testing.T) {
 			RequestID:            uuid.New().String(),
 			TransactionType:      "PIX",
 			Amount:               decimal.RequireFromString("100.00"),
-			Currency:             "BRL",
+			Asset:                "BRL",
 			TransactionTimestamp: txTime.Format(time.RFC3339),
 			Account: &testutil.AccountContext{
 				ID: accountID,
@@ -267,7 +267,7 @@ func TestTimeWindow_OvernightWindow(t *testing.T) {
 			RequestID:            uuid.New().String(),
 			TransactionType:      "PIX",
 			Amount:               decimal.RequireFromString("100.00"),
-			Currency:             "BRL",
+			Asset:                "BRL",
 			TransactionTimestamp: txTime.Format(time.RFC3339),
 			Account: &testutil.AccountContext{
 				ID: accountID,
@@ -320,7 +320,7 @@ func TestTimeWindow_Boundaries(t *testing.T) {
 			RequestID:            uuid.New().String(),
 			TransactionType:      "PIX",
 			Amount:               decimal.RequireFromString("200.00"),
-			Currency:             "BRL",
+			Asset:                "BRL",
 			TransactionTimestamp: txTime.Format(time.RFC3339),
 			Account: &testutil.AccountContext{
 				ID: accountID,
@@ -366,7 +366,7 @@ func TestTimeWindow_Boundaries(t *testing.T) {
 			RequestID:            uuid.New().String(),
 			TransactionType:      "PIX",
 			Amount:               decimal.RequireFromString("200.00"),
-			Currency:             "BRL",
+			Asset:                "BRL",
 			TransactionTimestamp: txTime.Format(time.RFC3339),
 			Account: &testutil.AccountContext{
 				ID: accountID,
@@ -413,7 +413,7 @@ func TestTimeWindow_Boundaries(t *testing.T) {
 			RequestID:            uuid.New().String(),
 			TransactionType:      "PIX",
 			Amount:               decimal.RequireFromString("200.00"),
-			Currency:             "BRL",
+			Asset:                "BRL",
 			TransactionTimestamp: txTime.Format(time.RFC3339),
 			Account: &testutil.AccountContext{
 				ID: accountID,
@@ -459,7 +459,7 @@ func TestTimeWindow_Boundaries(t *testing.T) {
 			RequestID:            uuid.New().String(),
 			TransactionType:      "PIX",
 			Amount:               decimal.RequireFromString("200.00"),
-			Currency:             "BRL",
+			Asset:                "BRL",
 			TransactionTimestamp: txTime.Format(time.RFC3339),
 			Account: &testutil.AccountContext{
 				ID: accountID,
@@ -507,7 +507,7 @@ func createLimitWithTimeWindow(t *testing.T, accountID, start, end, maxAmount st
 		"name":            fmt.Sprintf("Test Limit TW %s-%s %s", sanitizedStart, sanitizedEnd, testutil.RandomSuffix()),
 		"limitType":       "DAILY",
 		"maxAmount":       maxAmount,
-		"currency":        "BRL",
+		"asset":           "BRL",
 		"activeTimeStart": start,
 		"activeTimeEnd":   end,
 		"scopes": []map[string]interface{}{
@@ -572,7 +572,7 @@ func TestCustomPeriod_BeforePeriod(t *testing.T) {
 		RequestID:            uuid.New().String(),
 		TransactionType:      "PIX",
 		Amount:               decimal.RequireFromString("500.00"),
-		Currency:             "BRL",
+		Asset:                "BRL",
 		TransactionTimestamp: txTime.Format(time.RFC3339),
 		Account: &testutil.AccountContext{
 			ID: accountID,
@@ -623,7 +623,7 @@ func TestCustomPeriod_DuringPeriod(t *testing.T) {
 		RequestID:            uuid.New().String(),
 		TransactionType:      "PIX",
 		Amount:               decimal.RequireFromString("500.00"),
-		Currency:             "BRL",
+		Asset:                "BRL",
 		TransactionTimestamp: txTime.Format(time.RFC3339),
 		Account: &testutil.AccountContext{
 			ID: accountID,
@@ -674,7 +674,7 @@ func TestCustomPeriod_AfterPeriod(t *testing.T) {
 		RequestID:            uuid.New().String(),
 		TransactionType:      "PIX",
 		Amount:               decimal.RequireFromString("500.00"),
-		Currency:             "BRL",
+		Asset:                "BRL",
 		TransactionTimestamp: txTime.Format(time.RFC3339),
 		Account: &testutil.AccountContext{
 			ID: accountID,
@@ -724,7 +724,7 @@ func TestCustomPeriod_Boundaries(t *testing.T) {
 			RequestID:            uuid.New().String(),
 			TransactionType:      "PIX",
 			Amount:               decimal.RequireFromString("100.00"),
-			Currency:             "BRL",
+			Asset:                "BRL",
 			TransactionTimestamp: txTime.Format(time.RFC3339),
 			Account: &testutil.AccountContext{
 				ID: accountID,
@@ -768,7 +768,7 @@ func TestCustomPeriod_Boundaries(t *testing.T) {
 			RequestID:            uuid.New().String(),
 			TransactionType:      "PIX",
 			Amount:               decimal.RequireFromString("100.00"),
-			Currency:             "BRL",
+			Asset:                "BRL",
 			TransactionTimestamp: txTime.Format(time.RFC3339),
 			Account: &testutil.AccountContext{
 				ID: accountID,
@@ -812,7 +812,7 @@ func TestCustomPeriod_Boundaries(t *testing.T) {
 			RequestID:            uuid.New().String(),
 			TransactionType:      "PIX",
 			Amount:               decimal.RequireFromString("100.00"),
-			Currency:             "BRL",
+			Asset:                "BRL",
 			TransactionTimestamp: txTime.Format(time.RFC3339),
 			Account: &testutil.AccountContext{
 				ID: accountID,
@@ -862,7 +862,7 @@ func TestCustomPeriod_AccumulationAcrossDays(t *testing.T) {
 		RequestID:            uuid.New().String(),
 		TransactionType:      "PIX",
 		Amount:               decimal.RequireFromString("100.00"),
-		Currency:             "BRL",
+		Asset:                "BRL",
 		TransactionTimestamp: txTime1.Format(time.RFC3339),
 		Account: &testutil.AccountContext{
 			ID: accountID,
@@ -891,7 +891,7 @@ func TestCustomPeriod_AccumulationAcrossDays(t *testing.T) {
 		RequestID:            uuid.New().String(),
 		TransactionType:      "PIX",
 		Amount:               decimal.RequireFromString("200.00"),
-		Currency:             "BRL",
+		Asset:                "BRL",
 		TransactionTimestamp: txTime2.Format(time.RFC3339),
 		Account: &testutil.AccountContext{
 			ID: accountID,
@@ -931,7 +931,7 @@ func createLimitWithCustomPeriod(t *testing.T, accountID, startDate, endDate, ma
 		"name":            "Test Limit Custom Period " + testutil.RandomSuffix(),
 		"limitType":       "CUSTOM",
 		"maxAmount":       maxAmount,
-		"currency":        "BRL",
+		"asset":           "BRL",
 		"customStartDate": startDate,
 		"customEndDate":   endDate,
 		"scopes": []map[string]interface{}{
@@ -1000,7 +1000,7 @@ func TestSkipLogic_NoCounterCreated(t *testing.T) {
 		RequestID:            uuid.New().String(),
 		TransactionType:      "PIX",
 		Amount:               decimal.RequireFromString("500.00"),
-		Currency:             "BRL",
+		Asset:                "BRL",
 		TransactionTimestamp: txTime.Format(time.RFC3339),
 		Account: &testutil.AccountContext{
 			ID: accountID,
@@ -1077,7 +1077,7 @@ func TestSkipLogic_MixedInsideOutside(t *testing.T) {
 		RequestID:            uuid.New().String(),
 		TransactionType:      "PIX",
 		Amount:               decimal.RequireFromString("300.00"),
-		Currency:             "BRL",
+		Asset:                "BRL",
 		TransactionTimestamp: txTime.Format(time.RFC3339),
 		Account: &testutil.AccountContext{
 			ID: accountID,
@@ -1160,7 +1160,7 @@ func TestSkipLogic_SkippedNeverBlocks(t *testing.T) {
 		RequestID:            uuid.New().String(),
 		TransactionType:      "PIX",
 		Amount:               decimal.RequireFromString("5000.00"), // 50x the limit!
-		Currency:             "BRL",
+		Asset:                "BRL",
 		TransactionTimestamp: txTime.Format(time.RFC3339),
 		Account: &testutil.AccountContext{
 			ID: accountID,
@@ -1222,7 +1222,7 @@ func TestEvaluatedAt_PresentAndValid(t *testing.T) {
 		RequestID:            uuid.New().String(),
 		TransactionType:      "PIX",
 		Amount:               decimal.RequireFromString("100.00"),
-		Currency:             "BRL",
+		Asset:                "BRL",
 		TransactionTimestamp: txTime.Format(time.RFC3339),
 		Account: &testutil.AccountContext{
 			ID: accountID,
@@ -1284,7 +1284,7 @@ func TestEvaluatedAt_UsesServerNow(t *testing.T) {
 		RequestID:            uuid.New().String(),
 		TransactionType:      "PIX",
 		Amount:               decimal.RequireFromString("100.00"),
-		Currency:             "BRL",
+		Asset:                "BRL",
 		TransactionTimestamp: fakeTransactionTime.Format(time.RFC3339), // yesterday 22:00 (fake)
 		Account: &testutil.AccountContext{
 			ID: accountID,
@@ -1354,7 +1354,7 @@ func TestWeekly_YearBoundary(t *testing.T) {
 			RequestID:            uuid.New().String(),
 			TransactionType:      "PIX",
 			Amount:               decimal.RequireFromString("1000.00"),
-			Currency:             "BRL",
+			Asset:                "BRL",
 			TransactionTimestamp: txTime.Format(time.RFC3339),
 			Account: &testutil.AccountContext{
 				ID: accountID,
@@ -1414,7 +1414,7 @@ func TestWeekly_YearBoundary(t *testing.T) {
 			RequestID:            uuid.New().String(),
 			TransactionType:      "PIX",
 			Amount:               decimal.RequireFromString("2000.00"),
-			Currency:             "BRL",
+			Asset:                "BRL",
 			TransactionTimestamp: txTime.Format(time.RFC3339),
 			Account: &testutil.AccountContext{
 				ID: accountID,
@@ -1496,7 +1496,7 @@ func TestCustomPeriodWithTimeWindow_AC09(t *testing.T) {
 			RequestID:            uuid.New().String(),
 			TransactionType:      "PIX",
 			Amount:               decimal.RequireFromString("500.00"),
-			Currency:             "BRL",
+			Asset:                "BRL",
 			TransactionTimestamp: txTime.Format(time.RFC3339),
 			Account:              &testutil.AccountContext{ID: accountID},
 		}
@@ -1541,7 +1541,7 @@ func TestCustomPeriodWithTimeWindow_AC09(t *testing.T) {
 			RequestID:            uuid.New().String(),
 			TransactionType:      "PIX",
 			Amount:               decimal.RequireFromString("500.00"),
-			Currency:             "BRL",
+			Asset:                "BRL",
 			TransactionTimestamp: txTime.Format(time.RFC3339),
 			Account:              &testutil.AccountContext{ID: accountID},
 		}
@@ -1586,7 +1586,7 @@ func TestCustomPeriodWithTimeWindow_AC09(t *testing.T) {
 			RequestID:            uuid.New().String(),
 			TransactionType:      "PIX",
 			Amount:               decimal.RequireFromString("500.00"),
-			Currency:             "BRL",
+			Asset:                "BRL",
 			TransactionTimestamp: txTime.Format(time.RFC3339),
 			Account:              &testutil.AccountContext{ID: accountID},
 		}
@@ -1624,7 +1624,7 @@ func createLimitWithCustomPeriodAndTimeWindow(t *testing.T, accountID, startDate
 		"name":            fmt.Sprintf("Test Limit CustomTW %s-%s %s", sanitizedStart, sanitizedEnd, testutil.RandomSuffix()),
 		"limitType":       "CUSTOM",
 		"maxAmount":       maxAmount,
-		"currency":        "BRL",
+		"asset":           "BRL",
 		"customStartDate": startDate,
 		"customEndDate":   endDate,
 		"activeTimeStart": startTime,
@@ -1673,7 +1673,7 @@ func createLimitForWeeklyTest(t *testing.T, accountID, maxAmount string) string 
 		"name":      "Test Limit WEEKLY " + testutil.RandomSuffix(),
 		"limitType": "WEEKLY",
 		"maxAmount": maxAmount,
-		"currency":  "BRL",
+		"asset":     "BRL",
 		"scopes": []map[string]interface{}{
 			{"accountId": accountID},
 		},
@@ -1756,7 +1756,7 @@ func TestPIXCompliancePattern_AC11(t *testing.T) {
 			RequestID:            uuid.New().String(),
 			TransactionType:      "PIX",
 			Amount:               decimal.RequireFromString("300.00"),
-			Currency:             "BRL",
+			Asset:                "BRL",
 			TransactionTimestamp: txTime.Format(time.RFC3339),
 			Account: &testutil.AccountContext{
 				ID: accountID,
@@ -1838,7 +1838,7 @@ func TestPIXCompliancePattern_AC11(t *testing.T) {
 			RequestID:            uuid.New().String(),
 			TransactionType:      "PIX",
 			Amount:               decimal.RequireFromString("200.00"),
-			Currency:             "BRL",
+			Asset:                "BRL",
 			TransactionTimestamp: txTime.Format(time.RFC3339),
 			Account: &testutil.AccountContext{
 				ID: accountID,
@@ -1921,7 +1921,7 @@ func TestPIXCompliancePattern_AC11(t *testing.T) {
 				RequestID:            uuid.New().String(),
 				TransactionType:      "PIX",
 				Amount:               decimal.RequireFromString(amount),
-				Currency:             "BRL",
+				Asset:                "BRL",
 				TransactionTimestamp: txTime.Format(time.RFC3339),
 				Account: &testutil.AccountContext{
 					ID: accountID,

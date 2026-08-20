@@ -40,7 +40,7 @@ func newValidReserveRequest() ReserveRequest {
 			RequestID:            testutil.MustDeterministicUUID(2),
 			TransactionType:      model.TransactionTypeCard,
 			Amount:               decimal.RequireFromString("100"),
-			Currency:             "USD",
+			Asset:                "USD",
 			TransactionTimestamp: testutil.FixedTime(),
 			Account: model.AccountContext{
 				ID: testutil.MustDeterministicUUID(3),
@@ -206,10 +206,10 @@ func TestReservationHandler_Reserve(t *testing.T) {
 			},
 		},
 		{
-			name: "bad input - invalid currency returns 400, service not called",
+			name: "bad input - invalid asset returns 400, service not called",
 			requestBody: func() any {
 				r := newValidReserveRequest()
-				r.Currency = "usd" // lowercase rejected by strict ISO 4217 check
+				r.Asset = "usd" // lowercase rejected by strict ISO 4217 check
 				return r
 			}(),
 			mockSetup: func(ctrl *gomock.Controller) *mocks.MockReservationService {

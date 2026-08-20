@@ -36,7 +36,7 @@ func newAdvancedTestRequest() *model.ValidationRequest {
 		TransactionType:      "PIX",
 		SubType:              &subType,
 		Amount:               decimal.RequireFromString("1500"),
-		Currency:             "BRL",
+		Asset:                "BRL",
 		Account: model.AccountContext{
 			ID:     advTestAccountID,
 			Type:   "checking",
@@ -75,8 +75,8 @@ func TestAdvancedEdgeCase_InOperator(t *testing.T) {
 			expected:   false,
 		},
 		{
-			name:       "currency in list - match",
-			expression: `currency in ["BRL", "USD", "EUR"]`,
+			name:       "asset in list - match",
+			expression: `asset in ["BRL", "USD", "EUR"]`,
 			expected:   true,
 		},
 		{
@@ -591,7 +591,7 @@ func TestAdvancedEdgeCase_AmountBoundaries(t *testing.T) {
 				TransactionTimestamp: advTestTimestamp,
 				TransactionType:      "PIX",
 				Amount:               tc.amount,
-				Currency:             "BRL",
+				Asset:                "BRL",
 				Account: model.AccountContext{
 					ID:     advTestAccountID,
 					Status: "active",
@@ -689,7 +689,7 @@ func TestAdvancedEdgeCase_StringComparisons(t *testing.T) {
 		},
 		{
 			name:       "empty string check - not empty",
-			expression: `currency != ""`,
+			expression: `asset != ""`,
 			expected:   true,
 		},
 	}

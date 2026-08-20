@@ -93,7 +93,7 @@ func validValidationRequestBody(t *testing.T) []byte {
 		RequestID:            testutil.MustDeterministicUUID(1),
 		TransactionType:      model.TransactionTypeCard,
 		Amount:               decimal.RequireFromString("100"),
-		Currency:             "USD",
+		Asset:                "USD",
 		TransactionTimestamp: testutil.FixedTime(),
 		Account:              model.AccountContext{ID: testutil.MustDeterministicUUID(2)},
 	})

@@ -161,7 +161,7 @@ func TestTracerGRPCClient_Reserve(t *testing.T) {
 			TransactionID:        transactionID,
 			RequestID:            "req-1",
 			Amount:               "100.50",
-			Currency:             "USD",
+			Asset:                "USD",
 			Account:              ReserveAccount{AccountID: accountID.String()},
 			TransactionTimestamp: "2026-06-11T00:00:00Z",
 		}
@@ -173,7 +173,7 @@ func TestTracerGRPCClient_Reserve(t *testing.T) {
 		assert.Equal(t, transactionID.String(), captured.GetTransactionId())
 		assert.Equal(t, "req-1", captured.GetRequestId())
 		assert.Equal(t, "100.50", captured.GetAmount())
-		assert.Equal(t, "USD", captured.GetCurrency())
+		assert.Equal(t, "USD", captured.GetAsset())
 		assert.Equal(t, accountID.String(), captured.GetAccount().GetAccountId())
 		assert.Equal(t, "2026-06-11T00:00:00Z", captured.GetTransactionTimestamp())
 

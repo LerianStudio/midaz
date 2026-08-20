@@ -292,7 +292,7 @@ func toProtoReserveRequest(req ReserveRequest) *reservationv1.ReserveRequest {
 		TransactionId:        req.TransactionID.String(),
 		RequestId:            req.RequestID,
 		Amount:               req.Amount,
-		Currency:             req.Currency,
+		Asset:                req.Asset,
 		Account:              &reservationv1.ReserveAccount{AccountId: req.Account.AccountID},
 		SegmentId:            req.SegmentID,
 		PortfolioId:          req.PortfolioID,

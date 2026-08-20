@@ -27,7 +27,7 @@ func validLimitDBModel(t *testing.T) LimitPostgreSQLModel {
 		Name:      "Valid Limit",
 		LimitType: "DAILY",
 		MaxAmount: decimal.RequireFromString("100"),
-		Currency:  "USD",
+		Asset:     "USD",
 		Scopes:    "[]",
 		Status:    "ACTIVE",
 		CreatedAt: ft,

@@ -2157,8 +2157,8 @@ func ValidateBusinessError(err error, entityType string, args ...any) error {
 		constant.ErrLimitInvalidCurrency: ValidationError{
 			EntityType: entityType,
 			Code:       constant.ErrLimitInvalidCurrency.Error(),
-			Title:      "Limit Invalid Currency",
-			Message:    "Currency must be valid ISO 4217.",
+			Title:      "Limit Invalid Asset",
+			Message:    "Asset must be valid ISO 4217.",
 		},
 		constant.ErrLimitInvalidScope: ValidationError{
 			EntityType: entityType,
@@ -2242,7 +2242,7 @@ func ValidateBusinessError(err error, entityType string, args ...any) error {
 			EntityType: entityType,
 			Code:       constant.ErrLimitImmutableField.Error(),
 			Title:      "Limit Immutable Field",
-			Message:    "Cannot modify immutable field (limitType, currency).",
+			Message:    "Cannot modify immutable field (limitType, asset).",
 		},
 		constant.ErrAuditEventNotFound: EntityNotFoundError{
 			EntityType: entityType,
@@ -2361,8 +2361,8 @@ func ValidateBusinessError(err error, entityType string, args ...any) error {
 		constant.ErrCheckLimitsInvalidCurrency: ValidationError{
 			EntityType: entityType,
 			Code:       constant.ErrCheckLimitsInvalidCurrency.Error(),
-			Title:      "Check Limits Invalid Currency",
-			Message:    "Check limits currency must be valid ISO 4217.",
+			Title:      "Check Limits Invalid Asset",
+			Message:    "Check limits asset must be valid ISO 4217.",
 		},
 		constant.ErrCheckLimitsUnknownLimitType: ValidationError{
 			EntityType: entityType,
@@ -2457,14 +2457,14 @@ func ValidateBusinessError(err error, entityType string, args ...any) error {
 		constant.ErrValidationCurrencyRequired: ValidationError{
 			EntityType: entityType,
 			Code:       constant.ErrValidationCurrencyRequired.Error(),
-			Title:      "Validation Currency Required",
-			Message:    "Currency is required.",
+			Title:      "Validation Asset Required",
+			Message:    "Asset is required.",
 		},
 		constant.ErrValidationInvalidCurrency: ValidationError{
 			EntityType: entityType,
 			Code:       constant.ErrValidationInvalidCurrency.Error(),
-			Title:      "Validation Invalid Currency",
-			Message:    "Currency must be valid ISO 4217.",
+			Title:      "Validation Invalid Asset",
+			Message:    "Asset must be valid ISO 4217.",
 		},
 		constant.ErrValidationTimestampRequired: ValidationError{
 			EntityType: entityType,

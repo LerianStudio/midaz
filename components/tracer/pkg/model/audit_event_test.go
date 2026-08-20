@@ -75,7 +75,7 @@ func TestAuditEvent_WithValidationContext(t *testing.T) {
 		request := map[string]any{
 			"transactionType": "PIX",
 			"amount":          150000,
-			"currency":        "BRL",
+			"asset":           "BRL",
 		}
 
 		matchedRuleID := testutil.MustDeterministicUUID(1)
@@ -100,6 +100,13 @@ func TestAuditEvent_WithValidationContext(t *testing.T) {
 		assert.Equal(t, event, result)
 		assert.NotNil(t, event.Context["request"])
 		assert.NotNil(t, event.Context["response"])
+
+		// The request snapshot carries the renamed asset field and no legacy
+		// currency key, locking the currency->asset rename into the audit payload.
+		requestData, ok := event.Context["request"].(map[string]any)
+		require.True(t, ok)
+		assert.Equal(t, "BRL", requestData["asset"])
+		assert.NotContains(t, requestData, "currency")
 
 		responseData, ok := event.Context["response"].(map[string]any)
 		require.True(t, ok)

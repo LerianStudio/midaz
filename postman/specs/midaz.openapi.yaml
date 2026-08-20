@@ -16030,14 +16030,14 @@ components:
           examples:
             - '09:00'
           type: string
+        asset:
+          examples:
+            - USD
+          type: string
         createdAt:
           examples:
             - '2021-01-01T00:00:00Z'
           format: date-time
-          type: string
-        currency:
-          examples:
-            - USD
           type: string
         customEndDate:
           examples:
@@ -16101,7 +16101,7 @@ components:
         - name
         - limitType
         - maxAmount
-        - currency
+        - asset
         - scopes
         - status
         - createdAt
@@ -16470,14 +16470,14 @@ components:
           examples:
             - '100.00'
           type: string
+        asset:
+          examples:
+            - USD
+          type: string
         createdAt:
           examples:
             - '2021-01-01T00:00:00Z'
           format: date-time
-          type: string
-        currency:
-          examples:
-            - USD
           type: string
         decision:
           examples:
@@ -16561,7 +16561,7 @@ components:
         - requestId
         - transactionType
         - amount
-        - currency
+        - asset
         - transactionTimestamp
         - account
         - limitUsageDetails
@@ -16692,12 +16692,12 @@ components:
           examples:
             - '100.00'
           type: string
-        createdAt:
-          format: date-time
-          type: string
-        currency:
+        asset:
           examples:
             - USD
+          type: string
+        createdAt:
+          format: date-time
           type: string
         decision:
           examples:
@@ -16744,7 +16744,7 @@ components:
         - decision
         - reason
         - amount
-        - currency
+        - asset
         - transactionType
         - accountId
         - matchedRuleIds

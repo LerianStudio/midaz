@@ -45,7 +45,7 @@ func TestRuleEvaluator_Evaluate(t *testing.T) {
 		RequestID:            testRequestID,
 		TransactionType:      model.TransactionTypeCard,
 		Amount:               decimal.RequireFromString("1500"), // $1500.00, should trigger rule
-		Currency:             "USD",
+		Asset:                "USD",
 		TransactionTimestamp: now,
 		Account: model.AccountContext{
 			ID: testAccountID,
@@ -57,7 +57,7 @@ func TestRuleEvaluator_Evaluate(t *testing.T) {
 		RequestID:            testRequestNoMatchID,
 		TransactionType:      model.TransactionTypeCard,
 		Amount:               decimal.RequireFromString("50"), // $50.00, should NOT trigger rule
-		Currency:             "USD",
+		Asset:                "USD",
 		TransactionTimestamp: now,
 		Account: model.AccountContext{
 			ID: testAccountID,
@@ -239,7 +239,7 @@ func TestRuleEvaluator_ScopeMismatch(t *testing.T) {
 		RequestID:            requestID,
 		TransactionType:      model.TransactionTypeCard,
 		Amount:               decimal.RequireFromString("1500"),
-		Currency:             "USD",
+		Asset:                "USD",
 		TransactionTimestamp: now,
 		Account: model.AccountContext{
 			ID: accountID, // Different account than rule scope
@@ -288,7 +288,7 @@ func TestRuleEvaluator_ScopeMatch(t *testing.T) {
 		RequestID:            requestID,
 		TransactionType:      model.TransactionTypeCard,
 		Amount:               decimal.RequireFromString("1500"),
-		Currency:             "USD",
+		Asset:                "USD",
 		TransactionTimestamp: now,
 		Account: model.AccountContext{
 			ID: accountID, // Same account as rule scope
@@ -345,7 +345,7 @@ func TestRuleEvaluator_EmptyScopesMatchAny(t *testing.T) {
 		RequestID:            requestID,
 		TransactionType:      model.TransactionTypeCard,
 		Amount:               decimal.RequireFromString("1500"),
-		Currency:             "USD",
+		Asset:                "USD",
 		TransactionTimestamp: now,
 		Account: model.AccountContext{
 			ID: accountID,
@@ -402,7 +402,7 @@ func TestRuleEvaluator_NilScopesMatchAny(t *testing.T) {
 		RequestID:            requestID,
 		TransactionType:      model.TransactionTypeCard,
 		Amount:               decimal.RequireFromString("1500"),
-		Currency:             "USD",
+		Asset:                "USD",
 		TransactionTimestamp: now,
 		Account: model.AccountContext{
 			ID: accountID,
@@ -464,7 +464,7 @@ func TestRuleEvaluator_MultipleScopesOneMatch(t *testing.T) {
 		RequestID:            requestID,
 		TransactionType:      model.TransactionTypeCard,
 		Amount:               decimal.RequireFromString("1500"),
-		Currency:             "USD",
+		Asset:                "USD",
 		TransactionTimestamp: now,
 		Account: model.AccountContext{
 			ID: accountID,
@@ -528,7 +528,7 @@ func TestRuleEvaluator_MultipleScopesNoneMatch(t *testing.T) {
 		RequestID:            requestID,
 		TransactionType:      model.TransactionTypeCard,
 		Amount:               decimal.RequireFromString("1500"),
-		Currency:             "USD",
+		Asset:                "USD",
 		TransactionTimestamp: now,
 		Account: model.AccountContext{
 			ID: accountID,
@@ -583,7 +583,7 @@ func TestRuleEvaluator_PreCompiledProgram(t *testing.T) {
 		RequestID:            requestID,
 		TransactionType:      model.TransactionTypeCard,
 		Amount:               decimal.RequireFromString("1500"),
-		Currency:             "USD",
+		Asset:                "USD",
 		TransactionTimestamp: now,
 		Account:              model.AccountContext{ID: accountID},
 	}
@@ -635,7 +635,7 @@ func TestRuleEvaluator_PreCompiledProgram_WrongType(t *testing.T) {
 		RequestID:            requestID,
 		TransactionType:      model.TransactionTypeCard,
 		Amount:               decimal.RequireFromString("1500"),
-		Currency:             "USD",
+		Asset:                "USD",
 		TransactionTimestamp: now,
 		Account:              model.AccountContext{ID: accountID},
 	}
@@ -681,7 +681,7 @@ func TestRuleEvaluator_ScopeWithNilAccountID(t *testing.T) {
 		RequestID:            requestID,
 		TransactionType:      model.TransactionTypeCard,
 		Amount:               decimal.RequireFromString("1500"),
-		Currency:             "USD",
+		Asset:                "USD",
 		TransactionTimestamp: now,
 		Account: model.AccountContext{
 			ID: accountID,
@@ -797,7 +797,7 @@ func TestRuleEvaluator_MissingMetadataKey(t *testing.T) {
 				RequestID:            requestID,
 				TransactionType:      model.TransactionTypeCard,
 				Amount:               decimal.RequireFromString("100"),
-				Currency:             "USD",
+				Asset:                "USD",
 				TransactionTimestamp: now,
 				Account:              model.AccountContext{ID: accountID},
 				Metadata:             tc.metadata,

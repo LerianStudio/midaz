@@ -123,7 +123,7 @@ func TestCreateLimitInput_ValidLimitTypeValues(t *testing.T) {
 				Name:      "Test Limit",
 				LimitType: limitType,
 				MaxAmount: decimal.RequireFromString("1000"),
-				Currency:  "BRL",
+				Asset:     "BRL",
 				Scopes:    []model.Scope{{AccountID: testutil.UUIDPtr(limitValidUUID1)}},
 			}
 			err := input.Validate()
@@ -132,51 +132,51 @@ func TestCreateLimitInput_ValidLimitTypeValues(t *testing.T) {
 	}
 }
 
-func TestCreateLimitInput_CurrencyValidation(t *testing.T) {
+func TestCreateLimitInput_AssetValidation(t *testing.T) {
 	tests := []struct {
-		name     string
-		currency string
-		wantErr  bool
-		errMsg   string
+		name    string
+		asset   string
+		wantErr bool
+		errMsg  string
 	}{
 		{
-			name:     "valid - BRL",
-			currency: "BRL",
-			wantErr:  false,
+			name:    "valid - BRL",
+			asset:   "BRL",
+			wantErr: false,
 		},
 		{
-			name:     "valid - USD",
-			currency: "USD",
-			wantErr:  false,
+			name:    "valid - USD",
+			asset:   "USD",
+			wantErr: false,
 		},
 		{
-			name:     "valid - EUR",
-			currency: "EUR",
-			wantErr:  false,
+			name:    "valid - EUR",
+			asset:   "EUR",
+			wantErr: false,
 		},
 		{
-			name:     "invalid - lowercase",
-			currency: "brl",
-			wantErr:  true,
-			errMsg:   "currency must be uppercase",
+			name:    "invalid - lowercase",
+			asset:   "brl",
+			wantErr: true,
+			errMsg:  "asset must be uppercase",
 		},
 		{
-			name:     "invalid - too short",
-			currency: "BR",
-			wantErr:  true,
-			errMsg:   "currency must be exactly 3 characters",
+			name:    "invalid - too short",
+			asset:   "BR",
+			wantErr: true,
+			errMsg:  "asset must be exactly 3 characters",
 		},
 		{
-			name:     "invalid - too long",
-			currency: "BRLL",
-			wantErr:  true,
-			errMsg:   "currency must be exactly 3 characters",
+			name:    "invalid - too long",
+			asset:   "BRLL",
+			wantErr: true,
+			errMsg:  "asset must be exactly 3 characters",
 		},
 		{
-			name:     "invalid - empty",
-			currency: "",
-			wantErr:  true,
-			errMsg:   "currency is a required field",
+			name:    "invalid - empty",
+			asset:   "",
+			wantErr: true,
+			errMsg:  "asset is a required field",
 		},
 	}
 
@@ -186,7 +186,7 @@ func TestCreateLimitInput_CurrencyValidation(t *testing.T) {
 				Name:      "Test Limit",
 				LimitType: model.LimitTypeDaily,
 				MaxAmount: decimal.RequireFromString("1000"),
-				Currency:  tt.currency,
+				Asset:     tt.asset,
 				Scopes:    []model.Scope{{AccountID: testutil.UUIDPtr(limitValidUUID1)}},
 			}
 			err := input.Validate()
@@ -243,7 +243,7 @@ func TestCreateLimitInput_MaxAmountValidation(t *testing.T) {
 				Name:      "Test Limit",
 				LimitType: model.LimitTypeDaily,
 				MaxAmount: tt.maxAmount,
-				Currency:  "BRL",
+				Asset:     "BRL",
 				Scopes:    []model.Scope{{AccountID: testutil.UUIDPtr(limitValidUUID1)}},
 			}
 			err := input.Validate()
@@ -269,7 +269,7 @@ func TestCreateLimitInput_ScopesMaxCount(t *testing.T) {
 			Name:      "Test Limit",
 			LimitType: model.LimitTypeDaily,
 			MaxAmount: decimal.RequireFromString("1000"),
-			Currency:  "BRL",
+			Asset:     "BRL",
 			Scopes:    scopes,
 		}
 		err := input.Validate()
@@ -286,7 +286,7 @@ func TestCreateLimitInput_ScopesMaxCount(t *testing.T) {
 			Name:      "Test Limit",
 			LimitType: model.LimitTypeDaily,
 			MaxAmount: decimal.RequireFromString("1000"),
-			Currency:  "BRL",
+			Asset:     "BRL",
 			Scopes:    scopes,
 		}
 		err := input.Validate()
@@ -309,7 +309,7 @@ func TestLimitScopeInput_TransactionTypeValidation(t *testing.T) {
 				Name:      "Test Limit",
 				LimitType: model.LimitTypeDaily,
 				MaxAmount: decimal.RequireFromString("1000"),
-				Currency:  "BRL",
+				Asset:     "BRL",
 				Scopes: []model.Scope{
 					{TransactionType: testutil.Ptr(txType)},
 				},
@@ -325,7 +325,7 @@ func TestLimitScopeInput_TransactionTypeValidation(t *testing.T) {
 			Name:      "Test Limit",
 			LimitType: model.LimitTypeDaily,
 			MaxAmount: decimal.RequireFromString("1000"),
-			Currency:  "BRL",
+			Asset:     "BRL",
 			Scopes: []model.Scope{
 				{TransactionType: &invalidType},
 			},
@@ -342,7 +342,7 @@ func TestLimitScopeInput_SubTypeValidation(t *testing.T) {
 			Name:      "Test Limit",
 			LimitType: model.LimitTypeDaily,
 			MaxAmount: decimal.RequireFromString("1000"),
-			Currency:  "BRL",
+			Asset:     "BRL",
 			Scopes: []model.Scope{
 				{SubType: testutil.StringPtr("Credit")},
 			},
@@ -356,7 +356,7 @@ func TestLimitScopeInput_SubTypeValidation(t *testing.T) {
 			Name:      "Test Limit",
 			LimitType: model.LimitTypeDaily,
 			MaxAmount: decimal.RequireFromString("1000"),
-			Currency:  "BRL",
+			Asset:     "BRL",
 			Scopes: []model.Scope{
 				{SubType: testutil.StringPtr(strings.Repeat("x", MaxLimitSubTypeLength))},
 			},
@@ -370,7 +370,7 @@ func TestLimitScopeInput_SubTypeValidation(t *testing.T) {
 			Name:      "Test Limit",
 			LimitType: model.LimitTypeDaily,
 			MaxAmount: decimal.RequireFromString("1000"),
-			Currency:  "BRL",
+			Asset:     "BRL",
 			Scopes: []model.Scope{
 				{SubType: testutil.StringPtr(strings.Repeat("x", MaxLimitSubTypeLength+1))},
 			},
@@ -388,7 +388,7 @@ func TestCreateLimitInput_DescriptionValidation(t *testing.T) {
 			Description: nil,
 			LimitType:   model.LimitTypeDaily,
 			MaxAmount:   decimal.RequireFromString("1000"),
-			Currency:    "BRL",
+			Asset:       "BRL",
 			Scopes:      []model.Scope{{AccountID: testutil.UUIDPtr(limitValidUUID1)}},
 		}
 		err := input.Validate()
@@ -401,7 +401,7 @@ func TestCreateLimitInput_DescriptionValidation(t *testing.T) {
 			Description: testutil.StringPtr(strings.Repeat("d", MaxLimitDescriptionLength)),
 			LimitType:   model.LimitTypeDaily,
 			MaxAmount:   decimal.RequireFromString("1000"),
-			Currency:    "BRL",
+			Asset:       "BRL",
 			Scopes:      []model.Scope{{AccountID: testutil.UUIDPtr(limitValidUUID1)}},
 		}
 		err := input.Validate()
@@ -414,7 +414,7 @@ func TestCreateLimitInput_DescriptionValidation(t *testing.T) {
 			Description: testutil.StringPtr(strings.Repeat("d", MaxLimitDescriptionLength+1)),
 			LimitType:   model.LimitTypeDaily,
 			MaxAmount:   decimal.RequireFromString("1000"),
-			Currency:    "BRL",
+			Asset:       "BRL",
 			Scopes:      []model.Scope{{AccountID: testutil.UUIDPtr(limitValidUUID1)}},
 		}
 		err := input.Validate()
@@ -429,7 +429,7 @@ func TestCreateLimitInput_NameValidation(t *testing.T) {
 			Name:      strings.Repeat("n", MaxLimitNameLength),
 			LimitType: model.LimitTypeDaily,
 			MaxAmount: decimal.RequireFromString("1000"),
-			Currency:  "BRL",
+			Asset:     "BRL",
 			Scopes:    []model.Scope{{AccountID: testutil.UUIDPtr(limitValidUUID1)}},
 		}
 		err := input.Validate()
@@ -441,7 +441,7 @@ func TestCreateLimitInput_NameValidation(t *testing.T) {
 			Name:      strings.Repeat("n", MaxLimitNameLength+1),
 			LimitType: model.LimitTypeDaily,
 			MaxAmount: decimal.RequireFromString("1000"),
-			Currency:  "BRL",
+			Asset:     "BRL",
 			Scopes:    []model.Scope{{AccountID: testutil.UUIDPtr(limitValidUUID1)}},
 		}
 		err := input.Validate()
@@ -454,7 +454,7 @@ func TestCreateLimitInput_NameValidation(t *testing.T) {
 			Name:      "",
 			LimitType: model.LimitTypeDaily,
 			MaxAmount: decimal.RequireFromString("1000"),
-			Currency:  "BRL",
+			Asset:     "BRL",
 			Scopes:    []model.Scope{{AccountID: testutil.UUIDPtr(limitValidUUID1)}},
 		}
 		err := input.Validate()
@@ -531,7 +531,7 @@ func TestFormatLimitValidationError_ScopeIndexExtraction(t *testing.T) {
 				Name:      "Test Limit",
 				LimitType: model.LimitTypeDaily,
 				MaxAmount: decimal.RequireFromString("1000"),
-				Currency:  "BRL",
+				Asset:     "BRL",
 				Scopes:    tt.scopes,
 			}
 			err := input.Validate()
