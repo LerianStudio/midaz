@@ -10,6 +10,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"hash/fnv"
 	"math/rand/v2"
 	"time"
 
@@ -92,6 +93,14 @@ type LimitResolver interface {
 // counter bucket move, and the audit write commit together. Implemented by
 // postgres.UsageReservationRepository.
 type ReservationRepository interface {
+	// AcquireReserveScopeLock takes a transaction-scoped advisory lock on the given
+	// key using the supplied handle, BEFORE any counter row is touched. It is what
+	// makes the per-account serialization work: two reserves that could contend on
+	// the same account's usage_counters rows block here on the same key, so only one
+	// at a time proceeds to lock counter rows and take the audit hash-chain advisory
+	// lock — the interleaving that formed the lock-ordering deadlock cycle can no
+	// longer occur. The lock releases automatically at commit or rollback.
+	AcquireReserveScopeLock(ctx context.Context, db pgdb.DB, key int64) error
 	ReserveWithTx(ctx context.Context, db pgdb.DB, reservation *model.Reservation, maxAmount decimal.Decimal) error
 	ConfirmWithTx(ctx context.Context, db pgdb.DB, reservationID uuid.UUID) error
 	ReleaseWithTx(ctx context.Context, db pgdb.DB, reservationID uuid.UUID, status model.ReservationStatus) error
@@ -261,6 +270,11 @@ func (s *ReservationService) Reserve(ctx context.Context, transactionID uuid.UUI
 	expiresAt := s.clock.Now().UTC().Add(ttl)
 	reservationIDs := make([]uuid.UUID, 0, len(specs))
 
+	// Serialize reserves that could contend on the same account's counter rows on a
+	// stable per-account key, taken BEFORE any counter row is locked. Computed once,
+	// outside the closure, so every transient-retry attempt reuses the same key.
+	scopeLockKey := reserveScopeLockKey(input.AccountID)
+
 	guardDenied := false
 
 	txErr := s.inTx(ctx, span, func(db pgdb.DB) error {
@@ -268,6 +282,15 @@ func (s *ReservationService) Reserve(ctx context.Context, transactionID uuid.UUI
 		// accumulators so a retry holds exactly one id per spec, never a duplicate.
 		reservationIDs = reservationIDs[:0]
 		guardDenied = false
+
+		// Deterministic lock order: acquire the per-account advisory lock FIRST, so
+		// no reserve can hold a counter row while another waits on the audit
+		// hash-chain advisory lock — the cycle that produced SQLSTATE 40P01. The
+		// Task 1.1.1 transient-retry remains as the safety net for the residual
+		// (e.g. cross-account contention on a shared counter).
+		if err := s.repo.AcquireReserveScopeLock(ctx, db, scopeLockKey); err != nil {
+			return err
+		}
 
 		for i := range specs {
 			spec := specs[i]
@@ -721,6 +744,22 @@ func backoffDelay(attempt int) time.Duration {
 	window := reserveRetryBaseBackoff << (attempt - 1)
 
 	return time.Duration(rand.Int64N(int64(window)))
+}
+
+// reserveScopeLockKey derives a stable 64-bit advisory-lock key from the reserve's
+// account, so all reserves for one account serialize on the same key. FNV-1a over
+// the 16 account bytes is deterministic and collision-resistant enough for lock
+// bucketing (a collision only over-serializes two unrelated accounts; it never
+// weakens isolation). The key is stable within a database, which is all an
+// advisory lock needs — in multi-tenant mode each tenant's reserves run on that
+// tenant's own connection and its own advisory-lock namespace, so no tenant field
+// is folded in. A nil account (external-only source) maps to a fixed key, serializing
+// those rare reserves together, which is correct if slightly conservative.
+func reserveScopeLockKey(accountID uuid.UUID) int64 {
+	h := fnv.New64a()
+	_, _ = h.Write(accountID[:])
+
+	return int64(h.Sum64())
 }
 
 // sleepWithContext is the production retrySleep: it waits d, or returns early with

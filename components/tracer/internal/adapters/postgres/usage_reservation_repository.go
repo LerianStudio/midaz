@@ -30,6 +30,11 @@ import (
 // Using a constant prevents SQL injection via table name interpolation.
 const usageReservationsTable = "usage_reservations"
 
+// reserveScopeLockSQL takes a transaction-scoped advisory lock. pg_advisory_xact_lock
+// blocks until the key is free and releases it automatically at commit or rollback,
+// so no explicit unlock is needed and a crashed transaction never leaks the lock.
+const reserveScopeLockSQL = `SELECT pg_advisory_xact_lock($1)`
+
 // UsageReservationRepository implements the two-phase reservation lifecycle over
 // usage_reservations, keeping each transition atomic with the matching
 // usage_counters bucket move. Every method takes the caller's db handle (a *sql.Tx
@@ -61,6 +66,31 @@ type UsageReservationRepository struct {
 // insert run on the same transaction handle.
 func NewUsageReservationRepositoryWithConnection(counterRepo *UsageCounterRepository) *UsageReservationRepository {
 	return &UsageReservationRepository{counterRepo: counterRepo}
+}
+
+// AcquireReserveScopeLock takes the per-account transaction-scoped advisory lock on
+// the supplied handle before any counter row is touched, serializing reserves that
+// could contend on the same account's usage_counters rows so the counter-row /
+// audit-advisory lock ordering can never form a deadlock cycle. Held until the
+// caller's transaction commits or rolls back.
+func (r *UsageReservationRepository) AcquireReserveScopeLock(ctx context.Context, db pgdb.DB, key int64) error {
+	if db == nil {
+		return pgdb.ErrNilConnection
+	}
+
+	_, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
+
+	ctx, span := tracer.Start(ctx, "repository.usage_reservation.acquire_scope_lock")
+	defer span.End()
+
+	span.SetAttributes(attribute.Int64("app.request.reserve_scope_lock_key", key))
+
+	if _, err := db.ExecContext(ctx, reserveScopeLockSQL, key); err != nil {
+		libOtel.HandleSpanError(span, "Failed to acquire reserve scope advisory lock", err)
+		return fmt.Errorf("failed to acquire reserve scope advisory lock: %w", err)
+	}
+
+	return nil
 }
 
 // ReserveWithTx inserts the reservation row idempotently on the (transaction_id,

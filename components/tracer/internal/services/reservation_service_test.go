@@ -6,6 +6,7 @@ package services
 
 import (
 	"context"
+	"errors"
 	"testing"
 	"time"
 
@@ -67,6 +68,13 @@ func (d *reservationDeps) expectTxCommit() {
 func (d *reservationDeps) expectTxRollback() {
 	d.conn.EXPECT().BeginTx(gomock.Any(), gomock.Any()).Return(d.tx, nil).Times(1)
 	d.tx.EXPECT().Rollback().Return(nil).Times(1)
+}
+
+// expectScopeLock wires the per-account advisory lock the reserve closure acquires
+// on the shared mock tx before any counter row is touched (Task 1.1.2). Only the
+// Reserve path takes it; confirm/release do not, so it is opt-in per subtest.
+func (d *reservationDeps) expectScopeLock() {
+	d.repo.EXPECT().AcquireReserveScopeLock(gomock.Any(), d.tx, gomock.Any()).Return(nil).Times(1)
 }
 
 func TestNewReservationService_NilDeps(t *testing.T) {
@@ -145,6 +153,7 @@ func TestReservationService_Reserve(t *testing.T) {
 			Times(1)
 
 		deps.expectTxCommit()
+		deps.expectScopeLock()
 
 		// One reserve + one audit per applicable limit.
 		deps.repo.EXPECT().
@@ -188,6 +197,7 @@ func TestReservationService_Reserve(t *testing.T) {
 			Times(1)
 
 		deps.expectTxCommit()
+		deps.expectScopeLock()
 
 		var captured decimal.Decimal
 		deps.repo.EXPECT().
@@ -238,6 +248,7 @@ func TestReservationService_Reserve(t *testing.T) {
 			Times(1)
 
 		deps.expectTxRollback()
+		deps.expectScopeLock()
 
 		// First reserve trips the over-limit guard; the whole tx rolls back and no
 		// further reserve/audit runs.
@@ -250,6 +261,31 @@ func TestReservationService_Reserve(t *testing.T) {
 		require.NoError(t, err)
 		assert.True(t, result.Denied, "guard-denied reserve must surface the limit-exceeded decision")
 		assert.Empty(t, result.ReservationIDs)
+	})
+
+	t.Run("Scope-lock acquisition failure aborts the reserve", func(t *testing.T) {
+		svc, deps := newReservationServiceDeps(t)
+
+		input := testCheckLimitsInput(t)
+
+		deps.resolver.EXPECT().
+			ResolveReservations(gomock.Any(), input).
+			Return(twoSpecs(), false, nil).
+			Times(1)
+
+		deps.expectTxRollback()
+
+		lockErr := errors.New("advisory lock failed")
+
+		// The scope lock is taken FIRST; its failure rolls the tx back and no
+		// reserve/audit runs.
+		deps.repo.EXPECT().
+			AcquireReserveScopeLock(gomock.Any(), deps.tx, gomock.Any()).
+			Return(lockErr).
+			Times(1)
+
+		_, err := svc.Reserve(context.Background(), txID, input, false)
+		require.ErrorIs(t, err, lockErr)
 	})
 
 	t.Run("No applicable limits -> allow with empty handle", func(t *testing.T) {
@@ -302,6 +338,8 @@ func TestReservationService_Reserve(t *testing.T) {
 			Return(nil).
 			Times(1)
 
+		deps.expectScopeLock()
+
 		_, err := svc.Reserve(context.Background(), txID, input, false)
 		require.NoError(t, err)
 
@@ -335,6 +373,7 @@ func TestReservationService_Reserve(t *testing.T) {
 
 		conn.EXPECT().BeginTx(gomock.Any(), gomock.Any()).Return(tx, nil).Times(1)
 		tx.EXPECT().Commit().Return(nil).Times(1)
+		repo.EXPECT().AcquireReserveScopeLock(gomock.Any(), tx, gomock.Any()).Return(nil).Times(1)
 
 		var captured time.Time
 		repo.EXPECT().
@@ -386,12 +425,42 @@ func TestReservationService_Reserve(t *testing.T) {
 			Return(nil).
 			Times(1)
 
+		deps.expectScopeLock()
+
 		_, err := svc.Reserve(context.Background(), txID, input, true)
 		require.NoError(t, err)
 
 		// newReservationServiceDeps passes longLivedTTL=0, so the service falls back
 		// to defaultLongLivedReservationTTL (30 days).
 		assert.Equal(t, now.UTC().Add(defaultLongLivedReservationTTL), captured)
+	})
+}
+
+func TestReserveScopeLockKey(t *testing.T) {
+	t.Parallel()
+
+	acctA := testutil.MustDeterministicUUID(7401)
+	acctB := testutil.MustDeterministicUUID(7402)
+
+	t.Run("deterministic for the same account", func(t *testing.T) {
+		t.Parallel()
+
+		assert.Equal(t, reserveScopeLockKey(acctA), reserveScopeLockKey(acctA),
+			"the same account must always map to the same advisory-lock key")
+	})
+
+	t.Run("distinct accounts map to distinct keys", func(t *testing.T) {
+		t.Parallel()
+
+		assert.NotEqual(t, reserveScopeLockKey(acctA), reserveScopeLockKey(acctB),
+			"distinct accounts must not collapse onto one key (parallelism preserved)")
+	})
+
+	t.Run("nil account maps to a fixed key", func(t *testing.T) {
+		t.Parallel()
+
+		assert.Equal(t, reserveScopeLockKey(uuid.Nil), reserveScopeLockKey(uuid.Nil),
+			"an external-only (nil-account) reserve must serialize deterministically")
 	})
 }
 

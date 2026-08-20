@@ -80,6 +80,41 @@ const reserveInsertSQL = `
 		ON CONFLICT (transaction_id, limit_id, scope_key, period_key) DO NOTHING
 	`
 
+func TestUsageReservationRepository_AcquireReserveScopeLock(t *testing.T) {
+	testutil.SetupTestTracing(t)
+
+	t.Run("issues the advisory lock on the supplied handle", func(t *testing.T) {
+		repo, db, mock, cleanup := setupUsageReservationRepository(t)
+		defer cleanup()
+
+		mock.ExpectExec(regexp.QuoteMeta(`SELECT pg_advisory_xact_lock($1)`)).
+			WithArgs(int64(4242)).
+			WillReturnResult(sqlmock.NewResult(0, 0))
+
+		require.NoError(t, repo.AcquireReserveScopeLock(context.Background(), db, 4242))
+	})
+
+	t.Run("nil handle returns the connection sentinel", func(t *testing.T) {
+		repo, _, _, cleanup := setupUsageReservationRepository(t)
+		defer cleanup()
+
+		require.ErrorIs(t, repo.AcquireReserveScopeLock(context.Background(), nil, 1), pgdb.ErrNilConnection)
+	})
+
+	t.Run("wraps a driver error", func(t *testing.T) {
+		repo, db, mock, cleanup := setupUsageReservationRepository(t)
+		defer cleanup()
+
+		mock.ExpectExec(regexp.QuoteMeta(`SELECT pg_advisory_xact_lock($1)`)).
+			WithArgs(int64(7)).
+			WillReturnError(assert.AnError)
+
+		err := repo.AcquireReserveScopeLock(context.Background(), db, 7)
+		require.Error(t, err)
+		assert.ErrorIs(t, err, assert.AnError)
+	})
+}
+
 func TestUsageReservationRepository_Reserve(t *testing.T) {
 	testutil.SetupTestTracing(t)
 
