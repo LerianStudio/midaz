@@ -13,9 +13,16 @@ on:
     workflows: ["PR Validation"]
     types: [completed]
 
+# Keyed on PR number so an older PR Validation run finishing after a newer one
+# (e.g. its Coverage job took longer) can't post a stale coverage comment over
+# the current one — the older workflow_run job gets cancelled instead.
+concurrency:
+  group: pr-coverage-comment-${{ github.event.workflow_run.pull_requests[0].number || github.event.workflow_run.head_branch }}
+  cancel-in-progress: true
+
 permissions:
-  actions: read
-  pull-requests: write
+  actions: read       # download-artifact from the PR Validation run
+  pull-requests: write # create/update the sticky coverage comment
 
 jobs:
   comment:
@@ -27,4 +34,3 @@ jobs:
       source_run_id: ${{ github.event.workflow_run.id }}
       pr_number: ${{ github.event.workflow_run.pull_requests[0].number }}
       coverage_threshold: 80
-    secrets: inherit
