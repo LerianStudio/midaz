@@ -164,10 +164,10 @@ func ResolveDeploymentMode(mode string) string {
 // Returns an error ONLY when DEPLOYMENT_MODE=saas and any dependency lacks TLS.
 // The error includes the specific dependency name(s) that failed validation.
 func ValidateSaaSTLS(deploymentMode string, dependencies []TLSValidationResult) error {
-	lowerMode := strings.ToLower(deploymentMode)
-
-	// Only enforce TLS in SaaS mode
-	if lowerMode != DeploymentModeSaaS {
+	// Only enforce TLS in SaaS mode. Normalizing through ResolveDeploymentMode is what
+	// keeps a padded value like " saas " from slipping past plain string equality and
+	// silently disabling every gate below.
+	if ResolveDeploymentMode(deploymentMode) != DeploymentModeSaaS {
 		return nil
 	}
 
@@ -190,12 +190,12 @@ func ValidateSaaSTLS(deploymentMode string, dependencies []TLSValidationResult) 
 
 // IsTLSEnforcementRequired returns true if the deployment mode requires TLS enforcement.
 func IsTLSEnforcementRequired(deploymentMode string) bool {
-	return strings.ToLower(deploymentMode) == DeploymentModeSaaS
+	return ResolveDeploymentMode(deploymentMode) == DeploymentModeSaaS
 }
 
 // IsTLSRecommended returns true if TLS is recommended (but not required) for the deployment mode.
 func IsTLSRecommended(deploymentMode string) bool {
-	return strings.ToLower(deploymentMode) == DeploymentModeBYOC
+	return ResolveDeploymentMode(deploymentMode) == DeploymentModeBYOC
 }
 
 // ValidateSaaSStreamingTLS extends the SaaS TLS gate to the lib-streaming Kafka

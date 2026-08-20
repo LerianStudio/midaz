@@ -431,6 +431,15 @@ func TestValidateSaaSTLS(t *testing.T) {
 			wantErr: false,
 		},
 		{
+			name:           "padded_saas_mode_one_insecure_fails",
+			deploymentMode: "  saas  ",
+			dependencies: []TLSValidationResult{
+				{Name: "postgres", TLSEnabled: false},
+			},
+			wantErr:     true,
+			errContains: "postgres",
+		},
+		{
 			name:           "saas_mode_one_insecure_fails",
 			deploymentMode: "saas",
 			dependencies: []TLSValidationResult{
@@ -502,6 +511,7 @@ func TestIsTLSEnforcementRequired(t *testing.T) {
 	}{
 		{"saas_requires_enforcement", "saas", true},
 		{"SAAS_uppercase_requires_enforcement", "SAAS", true},
+		{"padded_saas_requires_enforcement", " saas ", true},
 		{"byoc_no_enforcement", "byoc", false},
 		{"local_no_enforcement", "local", false},
 		{"empty_no_enforcement", "", false},
@@ -528,6 +538,7 @@ func TestIsTLSRecommended(t *testing.T) {
 	}{
 		{"byoc_recommended", "byoc", true},
 		{"BYOC_uppercase_recommended", "BYOC", true},
+		{"padded_byoc_recommended", " byoc ", true},
 		{"saas_not_recommended_but_required", "saas", false},
 		{"local_not_recommended", "local", false},
 		{"empty_not_recommended", "", false},
@@ -812,6 +823,7 @@ func TestValidateSaaSStreamingTLS(t *testing.T) {
 		{name: "local_keeps_plaintext_broker", deploymentMode: "local", tlsEnabled: false},
 		{name: "unset_mode_keeps_plaintext_broker", deploymentMode: "", tlsEnabled: false},
 		{name: "saas_uppercase_is_still_saas", deploymentMode: "SAAS", tlsEnabled: false, wantErr: true},
+		{name: "saas_whitespace_padded_is_still_saas", deploymentMode: "  saas  ", tlsEnabled: false, wantErr: true},
 	}
 
 	for _, tt := range tests {
