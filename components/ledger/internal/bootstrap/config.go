@@ -1667,7 +1667,7 @@ func buildUnifiedRouteSetup(
 	// the fee pack/billing_package repos read tmcore.GetMBContext(ctx) on the
 	// GENERIC key (the standalone fees service ran single-module — it registered
 	// its manager under the SERVICE name with no WithModule). A module-keyed
-	// WithMB would write the plugin-fees key while the repos read the generic
+	// WithMB would write the fee module key while the repos read the generic
 	// key, so MT fee requests would fail DB resolution. Route scoping keeps the
 	// generic-key write from colliding with the module-keyed onboarding/
 	// transaction injection on ledger routes. (The manager itself still carries

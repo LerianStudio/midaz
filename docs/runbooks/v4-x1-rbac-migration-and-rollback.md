@@ -57,7 +57,7 @@ Namespace layout in v4 (for context — the CRM and routing rows flipped to `mid
 | `midaz` | organizations, ledgers, assets, asset-rates, portfolios, segments, accounts, balances, transactions, operations, settings | `routes.go` (`midazName`, `protectedMidaz`) |
 | `midaz` (flipped in v4) | **holders, instruments, related-parties** | `crm_routes.go:20`, `crm_routes.go:62-79` |
 | `midaz` (flipped in v4) | account-types, operation-routes, transaction-routes | `routes.go` (`midazName`, `protectedMidaz`) |
-| `plugin-fees` (**UNCHANGED**) | packages, estimates, billing-packages, billing-calculate | `fees_routes.go:18` (`feesApplicationName`), `pkg/constant/module.go:24` |
+| `plugin-fees` (**UNCHANGED**) | packages, estimates, billing-packages, billing-calculate | `fees_routes.go:18` (`feesApplicationName`), `components/ledger/pkg/feeshared/constant/app.go` |
 
 > **Fees do NOT migrate.** `plugin-fees:*` is intentionally preserved with no migration
 > (`RBAC-NAMESPACES.md:7-8, 15, 84-86`). Do not touch fees grants during X1.
