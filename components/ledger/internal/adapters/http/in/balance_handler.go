@@ -25,7 +25,7 @@ import (
 //     Fiber handlers that read c.Params("alias") / c.Params("code") directly.
 //  2. The two history ops carry `date` as a query param with NO validation tag,
 //     so Huma never emits a native 422. The imperative parseBalanceHistoryDate
-//     core (balance.go) is the sole date validator across both transports.
+//     core (balance.go) is its sole validator.
 //  3. The three write ops (PATCH update, POST create-additional, DELETE) are
 //     MONEY-adjacent: the migration is transport-only; the command use cases are
 //     untouched. RawBody + SkipValidateBody keeps http.DecodeAndValidate the sole
@@ -37,9 +37,9 @@ import (
 
 // --- GET /balances (list) -----------------------------------------------------
 
-// ListBalancesInputHuma advertises the list query params (doc-only) and captures
+// ListBalancesRequest advertises the list query params (doc-only) and captures
 // the raw query via Resolve for the imperative http.ValidateParameters binder.
-type ListBalancesInputHuma struct {
+type ListBalancesRequest struct {
 	OrganizationID string `path:"organization_id" doc:"Organization ID (UUID)"`
 	LedgerID       string `path:"ledger_id" doc:"Ledger ID (UUID)"`
 	Limit          string `query:"limit" doc:"Max items per page (max 100, default 10)"`
@@ -53,7 +53,7 @@ type ListBalancesInputHuma struct {
 
 // Resolve captures the raw query before the handler (no validation; canonical
 // rejection stays in http.ValidateParameters).
-func (in *ListBalancesInputHuma) Resolve(ctx huma.Context) []error {
+func (in *ListBalancesRequest) Resolve(ctx huma.Context) []error {
 	u := ctx.URL()
 	in.rawQuery = u.Query()
 
@@ -63,7 +63,7 @@ func (in *ListBalancesInputHuma) Resolve(ctx huma.Context) []error {
 // queries rebuilds the map[string]string that http.ValidateParameters consumes,
 // matching Fiber's c.Queries() (last value wins for a repeated key). Inlined per
 // the pattern (the query binder is copied, not a shared helper).
-func (in *ListBalancesInputHuma) queries() map[string]string {
+func (in *ListBalancesRequest) queries() map[string]string {
 	out := make(map[string]string, len(in.rawQuery))
 	for k, vs := range in.rawQuery {
 		if len(vs) == 0 {
@@ -77,14 +77,14 @@ func (in *ListBalancesInputHuma) queries() map[string]string {
 	return out
 }
 
-// ListBalancesOutputHuma carries the pagination envelope verbatim.
-type ListBalancesOutputHuma struct {
+// ListBalancesResponse carries the pagination envelope verbatim.
+type ListBalancesResponse struct {
 	Status int
 	Body   pkgHTTP.Pagination
 }
 
-// GetAllBalancesHuma binds the query imperatively then delegates to getAllBalances.
-func (handler *BalanceHandler) GetAllBalancesHuma(ctx context.Context, in *ListBalancesInputHuma) (*ListBalancesOutputHuma, error) {
+// GetAllBalances binds the query imperatively then delegates to getAllBalances.
+func (handler *BalanceHandler) GetAllBalances(ctx context.Context, in *ListBalancesRequest) (*ListBalancesResponse, error) {
 	orgID, ledgerID, err := parseOrgLedger(in.OrganizationID, in.LedgerID)
 	if err != nil {
 		return nil, pkgHTTP.HumaProblem(err)
@@ -95,13 +95,13 @@ func (handler *BalanceHandler) GetAllBalancesHuma(ctx context.Context, in *ListB
 		return nil, pkgHTTP.HumaProblem(err)
 	}
 
-	return &ListBalancesOutputHuma{Status: http.StatusOK, Body: pagination}, nil
+	return &ListBalancesResponse{Status: http.StatusOK, Body: pagination}, nil
 }
 
 // --- GET /accounts/{account_id}/balances (list) -------------------------------
 
-// ListAccountBalancesInputHuma is the by-account list envelope.
-type ListAccountBalancesInputHuma struct {
+// ListAccountBalancesRequest is the by-account list envelope.
+type ListAccountBalancesRequest struct {
 	OrganizationID string `path:"organization_id" doc:"Organization ID (UUID)"`
 	LedgerID       string `path:"ledger_id" doc:"Ledger ID (UUID)"`
 	AccountID      string `path:"account_id" doc:"Account ID (UUID)"`
@@ -114,14 +114,14 @@ type ListAccountBalancesInputHuma struct {
 	rawQuery url.Values
 }
 
-func (in *ListAccountBalancesInputHuma) Resolve(ctx huma.Context) []error {
+func (in *ListAccountBalancesRequest) Resolve(ctx huma.Context) []error {
 	u := ctx.URL()
 	in.rawQuery = u.Query()
 
 	return nil
 }
 
-func (in *ListAccountBalancesInputHuma) queries() map[string]string {
+func (in *ListAccountBalancesRequest) queries() map[string]string {
 	out := make(map[string]string, len(in.rawQuery))
 	for k, vs := range in.rawQuery {
 		if len(vs) == 0 {
@@ -135,8 +135,8 @@ func (in *ListAccountBalancesInputHuma) queries() map[string]string {
 	return out
 }
 
-// GetAllBalancesByAccountIDHuma binds the query imperatively then delegates.
-func (handler *BalanceHandler) GetAllBalancesByAccountIDHuma(ctx context.Context, in *ListAccountBalancesInputHuma) (*ListBalancesOutputHuma, error) {
+// GetAllBalancesByAccountID binds the query imperatively then delegates.
+func (handler *BalanceHandler) GetAllBalancesByAccountID(ctx context.Context, in *ListAccountBalancesRequest) (*ListBalancesResponse, error) {
 	orgID, ledgerID, err := parseOrgLedger(in.OrganizationID, in.LedgerID)
 	if err != nil {
 		return nil, pkgHTTP.HumaProblem(err)
@@ -152,26 +152,26 @@ func (handler *BalanceHandler) GetAllBalancesByAccountIDHuma(ctx context.Context
 		return nil, pkgHTTP.HumaProblem(err)
 	}
 
-	return &ListBalancesOutputHuma{Status: http.StatusOK, Body: pagination}, nil
+	return &ListBalancesResponse{Status: http.StatusOK, Body: pagination}, nil
 }
 
 // --- GET /balances/{balance_id} -----------------------------------------------
 
-// GetBalanceInputHuma is the by-id request envelope.
-type GetBalanceInputHuma struct {
+// GetBalanceRequest is the by-id request envelope.
+type GetBalanceRequest struct {
 	OrganizationID string `path:"organization_id" doc:"Organization ID (UUID)"`
 	LedgerID       string `path:"ledger_id" doc:"Ledger ID (UUID)"`
 	BalanceID      string `path:"balance_id" doc:"Balance ID (UUID)"`
 }
 
-// GetBalanceOutputHuma carries the balance verbatim.
-type GetBalanceOutputHuma struct {
+// GetBalanceResponse carries the balance verbatim.
+type GetBalanceResponse struct {
 	Status int
 	Body   *mmodel.Balance
 }
 
-// GetBalanceByIDHuma delegates to getBalanceByID.
-func (handler *BalanceHandler) GetBalanceByIDHuma(ctx context.Context, in *GetBalanceInputHuma) (*GetBalanceOutputHuma, error) {
+// GetBalanceByID delegates to getBalanceByID.
+func (handler *BalanceHandler) GetBalanceByID(ctx context.Context, in *GetBalanceRequest) (*GetBalanceResponse, error) {
 	orgID, ledgerID, err := parseOrgLedger(in.OrganizationID, in.LedgerID)
 	if err != nil {
 		return nil, pkgHTTP.HumaProblem(err)
@@ -187,28 +187,28 @@ func (handler *BalanceHandler) GetBalanceByIDHuma(ctx context.Context, in *GetBa
 		return nil, pkgHTTP.HumaProblem(err)
 	}
 
-	return &GetBalanceOutputHuma{Status: http.StatusOK, Body: balance}, nil
+	return &GetBalanceResponse{Status: http.StatusOK, Body: balance}, nil
 }
 
 // --- PATCH /balances/{balance_id} (MONEY-adjacent) ----------------------------
 
-// UpdateBalanceInputHuma is the update envelope (RawBody, see asset Create).
-type UpdateBalanceInputHuma struct {
+// UpdateBalanceRequest is the update envelope (RawBody, see asset Create).
+type UpdateBalanceRequest struct {
 	OrganizationID string `path:"organization_id" doc:"Organization ID (UUID)"`
 	LedgerID       string `path:"ledger_id" doc:"Ledger ID (UUID)"`
 	BalanceID      string `path:"balance_id" doc:"Balance ID (UUID)"`
 	RawBody        []byte `contentType:"application/json"`
 }
 
-// UpdateBalanceOutputHuma carries the updated balance (200).
-type UpdateBalanceOutputHuma struct {
+// UpdateBalanceResponse carries the updated balance (200).
+type UpdateBalanceResponse struct {
 	Status int
 	Body   *mmodel.Balance
 }
 
-// UpdateBalanceHuma decodes+validates the raw body imperatively then delegates to
+// UpdateBalance decodes+validates the raw body imperatively then delegates to
 // the shared updateBalance core (command use case untouched).
-func (handler *BalanceHandler) UpdateBalanceHuma(ctx context.Context, in *UpdateBalanceInputHuma) (*UpdateBalanceOutputHuma, error) {
+func (handler *BalanceHandler) UpdateBalance(ctx context.Context, in *UpdateBalanceRequest) (*UpdateBalanceResponse, error) {
 	orgID, ledgerID, err := parseOrgLedger(in.OrganizationID, in.LedgerID)
 	if err != nil {
 		return nil, pkgHTTP.HumaProblem(err)
@@ -229,17 +229,17 @@ func (handler *BalanceHandler) UpdateBalanceHuma(ctx context.Context, in *Update
 		return nil, pkgHTTP.HumaProblem(err)
 	}
 
-	return &UpdateBalanceOutputHuma{Status: http.StatusOK, Body: balance}, nil
+	return &UpdateBalanceResponse{Status: http.StatusOK, Body: balance}, nil
 }
 
 // --- DELETE /balances/{balance_id} (MONEY-adjacent) ---------------------------
 
-// DeleteBalanceOutputHuma has NO Body field: paired with DefaultStatus 204 it makes
+// DeleteBalanceResponse has NO Body field: paired with DefaultStatus 204 it makes
 // Huma emit a bodiless 204, matching the Fiber http.NoContent path.
-type DeleteBalanceOutputHuma struct{}
+type DeleteBalanceResponse struct{}
 
-// DeleteBalanceByIDHuma delegates to deleteBalance; returns a bodiless 204.
-func (handler *BalanceHandler) DeleteBalanceByIDHuma(ctx context.Context, in *GetBalanceInputHuma) (*DeleteBalanceOutputHuma, error) {
+// DeleteBalanceByID delegates to deleteBalance; returns a bodiless 204.
+func (handler *BalanceHandler) DeleteBalanceByID(ctx context.Context, in *GetBalanceRequest) (*DeleteBalanceResponse, error) {
 	orgID, ledgerID, err := parseOrgLedger(in.OrganizationID, in.LedgerID)
 	if err != nil {
 		return nil, pkgHTTP.HumaProblem(err)
@@ -254,28 +254,28 @@ func (handler *BalanceHandler) DeleteBalanceByIDHuma(ctx context.Context, in *Ge
 		return nil, pkgHTTP.HumaProblem(err)
 	}
 
-	return &DeleteBalanceOutputHuma{}, nil
+	return &DeleteBalanceResponse{}, nil
 }
 
 // --- POST /accounts/{account_id}/balances (MONEY-adjacent) --------------------
 
-// CreateAdditionalBalanceInputHuma is the create-additional envelope (RawBody).
-type CreateAdditionalBalanceInputHuma struct {
+// CreateAdditionalBalanceRequest is the create-additional envelope (RawBody).
+type CreateAdditionalBalanceRequest struct {
 	OrganizationID string `path:"organization_id" doc:"Organization ID (UUID)"`
 	LedgerID       string `path:"ledger_id" doc:"Ledger ID (UUID)"`
 	AccountID      string `path:"account_id" doc:"Account ID (UUID)"`
 	RawBody        []byte `contentType:"application/json"`
 }
 
-// CreateAdditionalBalanceOutputHuma pins 201.
-type CreateAdditionalBalanceOutputHuma struct {
+// CreateAdditionalBalanceResponse pins 201.
+type CreateAdditionalBalanceResponse struct {
 	Status int
 	Body   *mmodel.Balance
 }
 
-// CreateAdditionalBalanceHuma decodes+validates imperatively then delegates to the
+// CreateAdditionalBalance decodes+validates imperatively then delegates to the
 // shared createAdditionalBalance core (command use case untouched).
-func (handler *BalanceHandler) CreateAdditionalBalanceHuma(ctx context.Context, in *CreateAdditionalBalanceInputHuma) (*CreateAdditionalBalanceOutputHuma, error) {
+func (handler *BalanceHandler) CreateAdditionalBalance(ctx context.Context, in *CreateAdditionalBalanceRequest) (*CreateAdditionalBalanceResponse, error) {
 	orgID, ledgerID, err := parseOrgLedger(in.OrganizationID, in.LedgerID)
 	if err != nil {
 		return nil, pkgHTTP.HumaProblem(err)
@@ -296,20 +296,20 @@ func (handler *BalanceHandler) CreateAdditionalBalanceHuma(ctx context.Context, 
 		return nil, pkgHTTP.HumaProblem(err)
 	}
 
-	return &CreateAdditionalBalanceOutputHuma{Status: http.StatusCreated, Body: balance}, nil
+	return &CreateAdditionalBalanceResponse{Status: http.StatusCreated, Body: balance}, nil
 }
 
 // --- GET /accounts/alias/{alias}/balances -------------------------------------
 
-// GetBalancesByAliasInputHuma carries the raw alias path string (no UUID parse).
-type GetBalancesByAliasInputHuma struct {
+// GetBalancesByAliasRequest carries the raw alias path string (no UUID parse).
+type GetBalancesByAliasRequest struct {
 	OrganizationID string `path:"organization_id" doc:"Organization ID (UUID)"`
 	LedgerID       string `path:"ledger_id" doc:"Ledger ID (UUID)"`
 	Alias          string `path:"alias" doc:"Alias (e.g. @person1)"`
 }
 
-// GetBalancesByAliasHuma delegates to getBalancesByAlias.
-func (handler *BalanceHandler) GetBalancesByAliasHuma(ctx context.Context, in *GetBalancesByAliasInputHuma) (*ListBalancesOutputHuma, error) {
+// GetBalancesByAlias delegates to getBalancesByAlias.
+func (handler *BalanceHandler) GetBalancesByAlias(ctx context.Context, in *GetBalancesByAliasRequest) (*ListBalancesResponse, error) {
 	orgID, ledgerID, err := parseOrgLedger(in.OrganizationID, in.LedgerID)
 	if err != nil {
 		return nil, pkgHTTP.HumaProblem(err)
@@ -320,20 +320,20 @@ func (handler *BalanceHandler) GetBalancesByAliasHuma(ctx context.Context, in *G
 		return nil, pkgHTTP.HumaProblem(err)
 	}
 
-	return &ListBalancesOutputHuma{Status: http.StatusOK, Body: pagination}, nil
+	return &ListBalancesResponse{Status: http.StatusOK, Body: pagination}, nil
 }
 
 // --- GET /accounts/external/{code}/balances -----------------------------------
 
-// GetBalancesExternalByCodeInputHuma carries the raw code path string (no UUID parse).
-type GetBalancesExternalByCodeInputHuma struct {
+// GetBalancesExternalByCodeRequest carries the raw code path string (no UUID parse).
+type GetBalancesExternalByCodeRequest struct {
 	OrganizationID string `path:"organization_id" doc:"Organization ID (UUID)"`
 	LedgerID       string `path:"ledger_id" doc:"Ledger ID (UUID)"`
 	Code           string `path:"code" doc:"Code (e.g. BRL)"`
 }
 
-// GetBalancesExternalByCodeHuma delegates to getBalancesExternalByCode.
-func (handler *BalanceHandler) GetBalancesExternalByCodeHuma(ctx context.Context, in *GetBalancesExternalByCodeInputHuma) (*ListBalancesOutputHuma, error) {
+// GetBalancesExternalByCode delegates to getBalancesExternalByCode.
+func (handler *BalanceHandler) GetBalancesExternalByCode(ctx context.Context, in *GetBalancesExternalByCodeRequest) (*ListBalancesResponse, error) {
 	orgID, ledgerID, err := parseOrgLedger(in.OrganizationID, in.LedgerID)
 	if err != nil {
 		return nil, pkgHTTP.HumaProblem(err)
@@ -344,29 +344,29 @@ func (handler *BalanceHandler) GetBalancesExternalByCodeHuma(ctx context.Context
 		return nil, pkgHTTP.HumaProblem(err)
 	}
 
-	return &ListBalancesOutputHuma{Status: http.StatusOK, Body: pagination}, nil
+	return &ListBalancesResponse{Status: http.StatusOK, Body: pagination}, nil
 }
 
 // --- GET /balances/{balance_id}/history ---------------------------------------
 
-// GetBalanceHistoryInputHuma carries the date query param with NO validation tag
+// GetBalanceHistoryRequest carries the date query param with NO validation tag
 // (the imperative core is the sole date validator — see file header).
-type GetBalanceHistoryInputHuma struct {
+type GetBalanceHistoryRequest struct {
 	OrganizationID string `path:"organization_id" doc:"Organization ID (UUID)"`
 	LedgerID       string `path:"ledger_id" doc:"Ledger ID (UUID)"`
 	BalanceID      string `path:"balance_id" doc:"Balance ID (UUID)"`
 	Date           string `query:"date" doc:"Point in time (format: yyyy-mm-dd hh:mm:ss)"`
 }
 
-// GetBalanceHistoryOutputHuma carries the balance history snapshot.
-type GetBalanceHistoryOutputHuma struct {
+// GetBalanceHistoryResponse carries the balance history snapshot.
+type GetBalanceHistoryResponse struct {
 	Status int
 	Body   *mmodel.BalanceHistory
 }
 
-// GetBalanceAtTimestampHuma validates the date imperatively (in the core) then
+// GetBalanceAtTimestamp validates the date imperatively (in the core) then
 // delegates to getBalanceAtTimestamp.
-func (handler *BalanceHandler) GetBalanceAtTimestampHuma(ctx context.Context, in *GetBalanceHistoryInputHuma) (*GetBalanceHistoryOutputHuma, error) {
+func (handler *BalanceHandler) GetBalanceAtTimestamp(ctx context.Context, in *GetBalanceHistoryRequest) (*GetBalanceHistoryResponse, error) {
 	orgID, ledgerID, err := parseOrgLedger(in.OrganizationID, in.LedgerID)
 	if err != nil {
 		return nil, pkgHTTP.HumaProblem(err)
@@ -382,28 +382,28 @@ func (handler *BalanceHandler) GetBalanceAtTimestampHuma(ctx context.Context, in
 		return nil, pkgHTTP.HumaProblem(err)
 	}
 
-	return &GetBalanceHistoryOutputHuma{Status: http.StatusOK, Body: history}, nil
+	return &GetBalanceHistoryResponse{Status: http.StatusOK, Body: history}, nil
 }
 
 // --- GET /accounts/{account_id}/balances/history ------------------------------
 
-// GetAccountBalanceHistoryInputHuma carries the date query param (no validation tag).
-type GetAccountBalanceHistoryInputHuma struct {
+// GetAccountBalanceHistoryRequest carries the date query param (no validation tag).
+type GetAccountBalanceHistoryRequest struct {
 	OrganizationID string `path:"organization_id" doc:"Organization ID (UUID)"`
 	LedgerID       string `path:"ledger_id" doc:"Ledger ID (UUID)"`
 	AccountID      string `path:"account_id" doc:"Account ID (UUID)"`
 	Date           string `query:"date" doc:"Point in time (format: yyyy-mm-dd hh:mm:ss)"`
 }
 
-// GetAccountBalanceHistoryOutputHuma carries the list of history snapshots.
-type GetAccountBalanceHistoryOutputHuma struct {
+// GetAccountBalanceHistoryResponse carries the list of history snapshots.
+type GetAccountBalanceHistoryResponse struct {
 	Status int
 	Body   []*mmodel.BalanceHistory
 }
 
-// GetAccountBalancesAtTimestampHuma validates the date imperatively (in the core)
+// GetAccountBalancesAtTimestamp validates the date imperatively (in the core)
 // then delegates to getAccountBalancesAtTimestamp.
-func (handler *BalanceHandler) GetAccountBalancesAtTimestampHuma(ctx context.Context, in *GetAccountBalanceHistoryInputHuma) (*GetAccountBalanceHistoryOutputHuma, error) {
+func (handler *BalanceHandler) GetAccountBalancesAtTimestamp(ctx context.Context, in *GetAccountBalanceHistoryRequest) (*GetAccountBalanceHistoryResponse, error) {
 	orgID, ledgerID, err := parseOrgLedger(in.OrganizationID, in.LedgerID)
 	if err != nil {
 		return nil, pkgHTTP.HumaProblem(err)
@@ -419,10 +419,10 @@ func (handler *BalanceHandler) GetAccountBalancesAtTimestampHuma(ctx context.Con
 		return nil, pkgHTTP.HumaProblem(err)
 	}
 
-	return &GetAccountBalanceHistoryOutputHuma{Status: http.StatusOK, Body: history}, nil
+	return &GetAccountBalanceHistoryResponse{Status: http.StatusOK, Body: history}, nil
 }
 
-// RegisterBalanceRoutes registers the ten migrated balance operations on the
+// RegisterBalanceRoutes registers the ten balance operations on the
 // shared Huma API. The auth
 // (auth.Authorize("midaz","balances",verb)) + tenant + ParseUUIDPathParameters
 // ("balance") chain for these routes is attached in the unified server (Fiber
@@ -453,7 +453,7 @@ func RegisterBalanceRoutes(api huma.API, h *BalanceHandler, opSuffix string) {
 		Summary:     "Get all balances",
 		Tags:        []string{tag},
 		Security:    secAssetBearerOrAPIKey,
-	}, h.GetAllBalancesHuma)
+	}, h.GetAllBalances)
 
 	huma.Register(api, huma.Operation{
 		OperationID: "getBalanceByID" + opSuffix,
@@ -462,7 +462,7 @@ func RegisterBalanceRoutes(api huma.API, h *BalanceHandler, opSuffix string) {
 		Summary:     "Get Balance by id",
 		Tags:        []string{tag},
 		Security:    secAssetBearerOrAPIKey,
-	}, h.GetBalanceByIDHuma)
+	}, h.GetBalanceByID)
 
 	huma.Register(api, huma.Operation{
 		OperationID: "getBalanceAtTimestamp" + opSuffix,
@@ -471,7 +471,7 @@ func RegisterBalanceRoutes(api huma.API, h *BalanceHandler, opSuffix string) {
 		Summary:     "Get Balance history at date",
 		Tags:        []string{tag},
 		Security:    secAssetBearerOrAPIKey,
-	}, h.GetBalanceAtTimestampHuma)
+	}, h.GetBalanceAtTimestamp)
 
 	huma.Register(api, huma.Operation{
 		OperationID: "getAllBalancesByAccountID" + opSuffix,
@@ -480,7 +480,7 @@ func RegisterBalanceRoutes(api huma.API, h *BalanceHandler, opSuffix string) {
 		Summary:     "Get all balances by account id",
 		Tags:        []string{tag},
 		Security:    secAssetBearerOrAPIKey,
-	}, h.GetAllBalancesByAccountIDHuma)
+	}, h.GetAllBalancesByAccountID)
 
 	huma.Register(api, huma.Operation{
 		OperationID: "getAccountBalancesAtTimestamp" + opSuffix,
@@ -489,7 +489,7 @@ func RegisterBalanceRoutes(api huma.API, h *BalanceHandler, opSuffix string) {
 		Summary:     "Get Account Balances history at date",
 		Tags:        []string{tag},
 		Security:    secAssetBearerOrAPIKey,
-	}, h.GetAccountBalancesAtTimestampHuma)
+	}, h.GetAccountBalancesAtTimestamp)
 
 	huma.Register(api, huma.Operation{
 		OperationID: "getBalancesByAlias" + opSuffix,
@@ -498,7 +498,7 @@ func RegisterBalanceRoutes(api huma.API, h *BalanceHandler, opSuffix string) {
 		Summary:     "Get Balances using Alias",
 		Tags:        []string{tag},
 		Security:    secAssetBearerOrAPIKey,
-	}, h.GetBalancesByAliasHuma)
+	}, h.GetBalancesByAlias)
 
 	huma.Register(api, huma.Operation{
 		OperationID: "getBalancesExternalByCode" + opSuffix,
@@ -507,7 +507,7 @@ func RegisterBalanceRoutes(api huma.API, h *BalanceHandler, opSuffix string) {
 		Summary:     "Get External balances using code",
 		Tags:        []string{tag},
 		Security:    secAssetBearerOrAPIKey,
-	}, h.GetBalancesExternalByCodeHuma)
+	}, h.GetBalancesExternalByCode)
 
 	huma.Register(api, huma.Operation{
 		OperationID:      "updateBalance" + opSuffix,
@@ -517,7 +517,7 @@ func RegisterBalanceRoutes(api huma.API, h *BalanceHandler, opSuffix string) {
 		Tags:             []string{tag},
 		Security:         secAssetBearerOrAPIKey,
 		SkipValidateBody: true, // body validated imperatively — see file header.
-	}, h.UpdateBalanceHuma)
+	}, h.UpdateBalance)
 	attachTypedRequestBody[mmodel.UpdateBalance](api, "updateBalance"+opSuffix)
 
 	huma.Register(api, huma.Operation{
@@ -529,7 +529,7 @@ func RegisterBalanceRoutes(api huma.API, h *BalanceHandler, opSuffix string) {
 		Security:         secAssetBearerOrAPIKey,
 		SkipValidateBody: true, // body validated imperatively — see file header.
 		DefaultStatus:    http.StatusCreated,
-	}, h.CreateAdditionalBalanceHuma)
+	}, h.CreateAdditionalBalance)
 	attachTypedRequestBody[mmodel.CreateAdditionalBalance](api, "createAdditionalBalance"+opSuffix)
 
 	huma.Register(api, huma.Operation{
@@ -541,5 +541,5 @@ func RegisterBalanceRoutes(api huma.API, h *BalanceHandler, opSuffix string) {
 		Security:    secAssetBearerOrAPIKey,
 		// DefaultStatus 204 + an Out struct with no Body field => bodiless 204.
 		DefaultStatus: http.StatusNoContent,
-	}, h.DeleteBalanceByIDHuma)
+	}, h.DeleteBalanceByID)
 }

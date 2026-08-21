@@ -17,7 +17,7 @@ import (
 
 // This file is the ledger's Huma adoption of the operation resource (Wave 2,
 // money-read + routing). It mirrors the asset exemplar (asset_handler.go)
-// and the balance sibling (balance_handler_huma.go); see those headers for the
+// and the balance sibling (balance_handler.go); see those headers for the
 // full conventions. Operation-specific notes:
 //
 //  1. Only the two READ ops migrate here: GetAllOperationsByAccount (cursor-

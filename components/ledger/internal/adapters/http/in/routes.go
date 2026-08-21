@@ -62,7 +62,7 @@ func registerAssetRoutesToApp(group fiber.Router, api huma.API, auth *middleware
 	RegisterAssetRoutes(api, ih, opSuffix)
 }
 
-// RegisterBalanceRoutesToApp wires the Huma-migrated balance surface onto the /v1
+// RegisterBalanceRoutesToApp wires the balance surface onto the /v1
 // contract. See registerBalanceRoutesToApp for what it attaches.
 func RegisterBalanceRoutesToApp(group fiber.Router, api huma.API, auth *middleware.AuthClient, bh *BalanceHandler, routeOptions *http.ProtectedRouteOptions) {
 	registerBalanceRoutesToApp(group, api, auth, bh, routeOptions, routeOpSuffixV1)
@@ -83,9 +83,8 @@ func RegisterBalanceV2RoutesToApp(group fiber.Router, api huma.API, auth *middle
 // on the VERSIONED GROUP, then registers the Huma terminals via RegisterBalanceRoutes on the
 // SAME group's Huma API. The alias/code path segments are NOT UUIDs;
 // ParseUUIDPathParameters("balance") only validates org/ledger/balance_id/account_id, so those
-// routes pass alias/code through raw (identical to the pre-Huma Fiber path). This preserves the
-// ("midaz","balances",verb) authz tuples and tenant resolution BYTE-FOR-BYTE on whichever
-// version group it is mounted on.
+// routes pass alias/code through raw. The ("midaz","balances",verb) authz tuples and tenant
+// resolution therefore apply on whichever version group it is mounted on.
 //
 // opSuffix distinguishes the operation IDs one version group publishes from another's — see
 // routeOpSuffixV1. Nothing else varies between contracts, so a change to the surface reaches
