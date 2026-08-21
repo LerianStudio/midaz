@@ -9,6 +9,7 @@ package integration
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 	"sync"
 	"testing"
@@ -344,7 +345,7 @@ const auditChainHeadVersion = 23
 // migrateAuditChainUp migrates up to auditChainHeadVersion, treating
 // migrate.ErrNoChange as success so a re-apply is a clean no-op.
 func migrateAuditChainUp(mig *migrate.Migrate) error {
-	if err := mig.Migrate(auditChainHeadVersion); err != nil && err != migrate.ErrNoChange {
+	if err := mig.Migrate(auditChainHeadVersion); err != nil && !errors.Is(err, migrate.ErrNoChange) {
 		return err
 	}
 

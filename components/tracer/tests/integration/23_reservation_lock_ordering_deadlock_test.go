@@ -117,6 +117,28 @@ func resReadDeadlockCount(t *testing.T, db *sql.DB) int64 {
 	return deadlocks
 }
 
+// resSettledDeadlockCount reads the deadlock counter with a bounded settle-poll.
+// pg_stat_database.deadlocks is maintained by the stats collector and can lag the
+// racing window by the reporting interval, so a single immediate read can let a
+// late-surfacing deadlock turn a real cycle into a false pass. It polls with fresh
+// autocommit reads until the counter advances past before or the deadline expires;
+// a genuinely deadlock-free run simply exhausts the bounded deadline at before. The
+// deadline is derived from the test context, not a wall-clock read.
+func resSettledDeadlockCount(t *testing.T, db *sql.DB, before int64) int64 {
+	t.Helper()
+
+	settleCtx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
+	defer cancel()
+
+	after := resReadDeadlockCount(t, db)
+	for after == before && settleCtx.Err() == nil {
+		time.Sleep(25 * time.Millisecond)
+		after = resReadDeadlockCount(t, db)
+	}
+
+	return after
+}
+
 // resCheckInputForAccount is resCheckInput with a caller-chosen account id, so the
 // distinct-account proof gives each reserve its own per-account advisory-lock key.
 func resCheckInputForAccount(t *testing.T, accountID uuid.UUID) *model.CheckLimitsInput {
@@ -225,20 +247,7 @@ func TestIntegration_ReservationConcurrentSameAccount_NoDeadlock(t *testing.T) {
 
 	wg.Wait()
 
-	// pg_stat_database.deadlocks is maintained by the stats collector and can lag
-	// the racing window by the reporting interval. Poll with fresh autocommit reads
-	// so a late-surfacing deadlock cannot slip past a single immediate read and turn
-	// a real cycle into a false pass; a genuinely deadlock-free run simply exhausts
-	// the bounded deadline at the pre-race value. The deadline is derived from the
-	// test context, not a wall-clock read.
-	settleCtx, settleCancel := context.WithTimeout(t.Context(), 5*time.Second)
-	defer settleCancel()
-
-	after := resReadDeadlockCount(t, db)
-	for after == before && settleCtx.Err() == nil {
-		time.Sleep(25 * time.Millisecond)
-		after = resReadDeadlockCount(t, db)
-	}
+	after := resSettledDeadlockCount(t, db, before)
 
 	// The pg_stat_database.deadlocks delta is a probabilistic signal: it only
 	// advances if the racing goroutines happen to interleave into a cycle within the
@@ -330,7 +339,7 @@ func TestIntegration_ReservationConcurrentDistinctAccounts_Parallelizes(t *testi
 
 	wg.Wait()
 
-	after := resReadDeadlockCount(t, db)
+	after := resSettledDeadlockCount(t, db, before)
 
 	assert.Equal(t, before, after, "distinct-account reserves share no counter and must never deadlock")
 	assert.Equal(t, int64(0), hardError.Load(), "no reserve may surface a hard error")
@@ -421,7 +430,7 @@ func TestIntegration_ReservationConcurrentSameAccount_OverLimitStillDenies(t *te
 
 	wg.Wait()
 
-	after := resReadDeadlockCount(t, db)
+	after := resSettledDeadlockCount(t, db, before)
 
 	assert.Equal(t, before, after, "the over-limit path must also be deadlock-free")
 	assert.Equal(t, int64(0), hardError.Load(), "no reserve may surface a hard error")
