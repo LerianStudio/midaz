@@ -316,11 +316,11 @@ func calculateProportionalFees(
 			// total exactly.
 
 			// Denominate the fee leg in feeValue.Asset (the transaction's
-			// Send.Asset, set by CalculateFee), NOT the payer account's asset
-			// (P4-T24). This guarantees every emitted fee leg shares the
-			// transaction asset, so the ledger validator's per-asset aggregation
-			// balances under exact decimal.Equal — no leg can escape into the
-			// global default currency or a divergent payer asset.
+			// Send.Asset), NOT the payer account's asset (P4-T24). This
+			// guarantees every emitted fee leg shares the transaction asset, so
+			// the ledger validator's per-asset aggregation balances under exact
+			// decimal.Equal — no leg can escape into a substitute asset or a
+			// divergent payer asset.
 			resultAmount := transaction.Amount{
 				Asset: feeValue.Asset,
 				Value: feeApplied,

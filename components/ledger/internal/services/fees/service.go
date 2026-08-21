@@ -78,9 +78,6 @@ type UseCase struct {
 	// resolver resolves account/transaction reads in-process via the ledger query layer.
 	resolver feeshared.MidazResolver
 
-	// defaultCurrency is the default currency for fee calculations
-	defaultCurrency string
-
 	// MetricsFactory emits the bounded domain_operations_total /
 	// domain_operation_duration_ms metrics for every state-mutating fee
 	// entrypoint via utils.RecordDomainOperation. Assigned at bootstrap; a nil
@@ -105,12 +102,9 @@ var ErrNilPackageRepo = errors.New("PackageRepo is required and cannot be nil")
 // ErrNilResolver is returned when a nil MidazResolver is provided to NewUseCase.
 var ErrNilResolver = errors.New("MidazResolver is required and cannot be nil")
 
-// ErrEmptyDefaultCurrency is returned when an empty DefaultCurrency is provided to NewUseCase.
-var ErrEmptyDefaultCurrency = errors.New("DefaultCurrency is required and cannot be empty")
-
 // NewUseCase creates a new UseCase with validated dependencies.
-// Returns an error if any required dependency is nil or empty.
-func NewUseCase(packageRepo pack.Repository, resolver feeshared.MidazResolver, defaultCurrency string) (*UseCase, error) {
+// Returns an error if any required dependency is nil.
+func NewUseCase(packageRepo pack.Repository, resolver feeshared.MidazResolver) (*UseCase, error) {
 	if packageRepo == nil {
 		return nil, ErrNilPackageRepo
 	}
@@ -119,14 +113,9 @@ func NewUseCase(packageRepo pack.Repository, resolver feeshared.MidazResolver, d
 		return nil, ErrNilResolver
 	}
 
-	if defaultCurrency == "" {
-		return nil, ErrEmptyDefaultCurrency
-	}
-
 	return &UseCase{
-		packageRepo:     packageRepo,
-		resolver:        resolver,
-		defaultCurrency: defaultCurrency,
+		packageRepo: packageRepo,
+		resolver:    resolver,
 	}, nil
 }
 
@@ -138,11 +127,6 @@ func (uc *UseCase) PackageRepo() pack.Repository {
 // Resolver returns the in-process Midaz resolver dependency.
 func (uc *UseCase) Resolver() feeshared.MidazResolver {
 	return uc.resolver
-}
-
-// DefaultCurrency returns the default currency for fee calculations.
-func (uc *UseCase) DefaultCurrency() string {
-	return uc.defaultCurrency
 }
 
 // findPackagesCached returns the enabled fee packages for (org,ledger), serving

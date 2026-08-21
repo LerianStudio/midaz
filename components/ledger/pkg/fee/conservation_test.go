@@ -343,7 +343,7 @@ func TestConservation_NonDeductible_LegSumEqualsFeeTotal(t *testing.T) {
 
 			feeCalc, p, resp := cf.build()
 
-			err := CalculateFee(logger, feeCalc, p, resp, mc.asset, nil)
+			err := CalculateFee(logger, feeCalc, p, resp, nil)
 			require.NoError(t, err, "CalculateFee must not error")
 
 			want := expectedFeeTotal(t, f, baseSendValue, mc.asset)
@@ -403,7 +403,7 @@ func TestConservation_Deductible_LegSumEqualsFeeTotal(t *testing.T) {
 
 			feeCalc, p, resp := cf.build()
 
-			err := CalculateFee(logger, feeCalc, p, resp, mc.asset, nil)
+			err := CalculateFee(logger, feeCalc, p, resp, nil)
 			require.NoError(t, err, "CalculateFee must not error")
 
 			want := expectedFeeTotal(t, f, baseSendValue, mc.asset)
@@ -541,7 +541,7 @@ func TestConservation_DeltaDropEdgeCase(t *testing.T) {
 
 			feeCalc, p, resp := cf.build()
 
-			err := CalculateFee(logger, feeCalc, p, resp, tc.asset, nil)
+			err := CalculateFee(logger, feeCalc, p, resp, nil)
 			require.NoError(t, err)
 
 			want := expectedFeeTotal(t, tc.fee, cf.sendValue, tc.asset)

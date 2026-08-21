@@ -848,11 +848,6 @@ enabling discovery with an empty advertise address aborts boot
 
 Seam topology and TLS posture: [docs/architecture/ledger-tracer-topology.md](docs/architecture/ledger-tracer-topology.md).
 
-#### Fee Engine
-| Variable | Default | Description |
-|----------|---------|-------------|
-| DEFAULT_CURRENCY | USD | Default currency for fee calculation |
-
 ### 6.2 CRM + Fees (folded into the ledger binary)
 
 Since CRM and fees are served by the ledger binary, their config lives in the unified ledger
