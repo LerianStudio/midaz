@@ -5,9 +5,14 @@
 package command
 
 import (
+	"context"
+
+	libLog "github.com/LerianStudio/lib-observability/v2/log"
 	"github.com/LerianStudio/lib-observability/v2/metrics"
+	libOpentelemetry "github.com/LerianStudio/lib-observability/v2/tracing"
 	libStreaming "github.com/LerianStudio/lib-streaming/v3"
 	billing "github.com/LerianStudio/lib-streaming/v3/billing"
+	"go.opentelemetry.io/otel/trace"
 
 	onbMongo "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/mongodb/onboarding"
 	txMongo "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/mongodb/transaction"
@@ -27,6 +32,7 @@ import (
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/rabbitmq"
 	onbRedis "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/redis/onboarding"
 	txRedis "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/redis/transaction"
+	"github.com/LerianStudio/midaz/v4/pkg"
 )
 
 // billingSerializer is the narrow seam over lib-streaming's *billing.Serializer.
@@ -172,4 +178,19 @@ type UseCase struct {
 	// entrypoint via utils.RecordDomainOperation. A nil value is a no-op so
 	// the binary runs with telemetry disabled.
 	MetricsFactory *metrics.MetricsFactory
+}
+
+// recordCommandError records err on span and logs it with the helper and level that
+// match its class: business/4xx keeps the span green and logs at Warn (T5, T7); technical/5xx
+// flips the span red and logs at Error so it feeds error-rate SLOs and pages an operator.
+func recordCommandError(ctx context.Context, span trace.Span, logger libLog.Logger, message string, err error) {
+	if pkg.IsBusinessError(err) {
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, message, err)
+		logger.Log(ctx, libLog.LevelWarn, message, libLog.Err(err))
+
+		return
+	}
+
+	libOpentelemetry.HandleSpanError(span, message, err)
+	logger.Log(ctx, libLog.LevelError, message, libLog.Err(err))
 }

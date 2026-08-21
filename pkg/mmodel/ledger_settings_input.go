@@ -40,9 +40,8 @@ type OverridePolicyInput struct {
 }
 
 // ToSparseMap renders only the keys the client actually sent, in the nested shape
-// ValidateSettings and ParseLedgerSettings consume. A nil receiver returns nil; a group whose
-// pointer is nil contributes no key at all; a group sent as {} contributes an empty nested
-// map, which both consumers read as "no field set in this group".
+// ValidateSettings and ParseLedgerSettings consume. A nil receiver returns nil so the caller
+// can distinguish "no settings key in the request" from "an empty settings object".
 //
 // Each call returns freshly allocated maps, so a caller may mutate the result without
 // affecting the receiver or an earlier result.

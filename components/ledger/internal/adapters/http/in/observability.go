@@ -54,6 +54,7 @@ var payloadFields = []payloadField{
 	{name: "SegmentID", attrKey: "app.request.payload.has_segment_id", logLabel: "hasSegmentID"},
 	{name: "EntityID", attrKey: "app.request.payload.has_entity_id", logLabel: "hasEntityID"},
 	{name: "LegalDocument", attrKey: "app.request.payload.has_legal_document", logLabel: "hasLegalDocument"},
+	{name: "Settings", attrKey: "app.request.payload.has_settings", logLabel: "hasSettings"},
 	// Transaction entities
 	{name: "Key", attrKey: "app.request.payload.has_key", logLabel: "hasKey"},
 	{name: "AccountID", attrKey: "app.request.payload.has_account_id", logLabel: "hasAccountID"},

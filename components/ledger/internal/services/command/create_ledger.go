@@ -13,6 +13,7 @@ import (
 	libOpentelemetry "github.com/LerianStudio/lib-observability/v2/tracing"
 	libStreaming "github.com/LerianStudio/lib-streaming/v3"
 	"github.com/google/uuid"
+	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
 
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
@@ -40,22 +41,28 @@ func (uc *UseCase) CreateLedger(ctx context.Context, organizationID uuid.UUID, c
 		status.Code = "ACTIVE"
 	}
 
+	// Dual-class: span helper and log level are picked by error class.
 	_, err = uc.LedgerRepo.FindByName(ctx, organizationID, cli.Name)
 	if err != nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to find ledger by name", err)
-		logger.Log(ctx, libLog.LevelError, "Failed to find ledger by name", libLog.Err(err))
+		recordCommandError(ctx, span, logger, "Failed to find ledger by name", err)
 
 		return nil, err
 	}
 
-	// Only the keys the client actually sent are validated, then defaults fill the rest, so a
-	// partial settings object is accepted. Validation runs before the ledger is created.
-	//
-	// ParseLedgerSettings always yields a complete struct, so the all-defaults case is only
-	// detectable on its output: a nil settingsToPersist is what leaves the settings column unset.
+	// Validate before creating the ledger. Persist only when the result differs from the
+	// defaults, so an all-defaults request leaves the settings column at its '{}' default.
 	var settingsToPersist *mmodel.LedgerSettings
 
 	if sparseSettings := cli.Settings.ToSparseMap(); sparseSettings != nil {
+		// Group presence only, never the sent keys or their values (T4). A settings
+		// validation error names a field path; without these flags that error is
+		// indistinguishable from one naming a group the client never sent.
+		span.SetAttributes(
+			attribute.Bool("app.request.settings.has_accounting", cli.Settings.Accounting != nil),
+			attribute.Bool("app.request.settings.has_tracer", cli.Settings.Tracer != nil),
+			attribute.Bool("app.request.settings.has_overrides", cli.Settings.Overrides != nil),
+		)
+
 		if err := mmodel.ValidateSettings(sparseSettings); err != nil {
 			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Settings validation failed", err)
 			logger.Log(ctx, libLog.LevelWarn, "Settings validation failed", libLog.Err(err))
@@ -80,10 +87,10 @@ func (uc *UseCase) CreateLedger(ctx context.Context, organizationID uuid.UUID, c
 		Settings:       settingsToPersist,
 	}
 
+	// Dual-class: span helper and log level are picked by error class.
 	led, err := uc.LedgerRepo.Create(ctx, ledger)
 	if err != nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to create ledger", err)
-		logger.Log(ctx, libLog.LevelError, "Failed to create ledger", libLog.Err(err))
+		recordCommandError(ctx, span, logger, "Failed to create ledger", err)
 
 		return nil, err
 	}
@@ -92,7 +99,7 @@ func (uc *UseCase) CreateLedger(ctx context.Context, organizationID uuid.UUID, c
 
 	metadata, err := uc.CreateOnboardingMetadata(ctx, constant.EntityLedger, led.ID, cli.Metadata)
 	if err != nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to create ledger metadata", err)
+		libOpentelemetry.HandleSpanError(span, "Failed to create ledger metadata", err)
 		logger.Log(ctx, libLog.LevelError, "Failed to create ledger metadata", libLog.Err(err))
 
 		return nil, err
