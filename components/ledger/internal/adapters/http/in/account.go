@@ -6,13 +6,11 @@ package in
 
 import (
 	"context"
-	"fmt"
 
 	libCommons "github.com/LerianStudio/lib-commons/v6/commons"
 	libObservability "github.com/LerianStudio/lib-observability/v2"
 	libLog "github.com/LerianStudio/lib-observability/v2/log"
 	libOpentelemetry "github.com/LerianStudio/lib-observability/v2/tracing"
-	"github.com/gofiber/fiber/v3"
 	"github.com/google/uuid"
 	"go.mongodb.org/mongo-driver/v2/bson"
 	"go.opentelemetry.io/otel/attribute"
@@ -35,20 +33,15 @@ type AccountHandler struct {
 //
 // The createAccount/updateAccount/... cores below own the span, the imperative
 // query binding, the service call(s) and the success log/metric. They take
-// primitive args (parsed UUIDs, the already-decoded payload, the query map) so
-// BOTH transports feed them: the Fiber wrappers pull those from fiber.Ctx
-// (Locals + WithBody-decoded payload + c.Queries) and the Huma handlers
-// (account_handler_huma.go) pull them from the request envelope. Every canonical
-// Midaz error the cores return is rendered by the caller — http.WithError on the
-// Fiber path, http.HumaProblem on the Huma path — so the code + HTTP status are
-// identical across both transports.
+// primitive args — parsed UUIDs, the already-decoded payload, the query map — so
+// nothing transport-shaped reaches them; the handlers in account_handler.go pull
+// those out of the request envelope. Every canonical Midaz error a core returns is
+// rendered by its caller via http.HumaProblem, which fixes the code + HTTP status.
 
 // createAccount owns the span + service call + success log + created metric for an
-// already-decoded payload. Body decode+validation happens BEFORE this core: the
-// Fiber path decodes via the WithBody decorator (passing the struct as `i`), the
-// Huma path decodes via http.DecodeAndValidate(RawBody). Both feed the SAME
-// validated *CreateAccountInput here. The RecordAccountCreated metric lives here
-// (not in a transport wrapper) so both transports emit it identically.
+// already-decoded payload. Body decode+validation happens BEFORE this core, in the
+// handler, via http.DecodeAndValidate(RawBody). The RecordAccountCreated metric
+// lives here, alongside the service call it describes.
 func (handler *AccountHandler) createAccount(ctx context.Context, organizationID, ledgerID uuid.UUID, payload *mmodel.CreateAccountInput, token string) (*mmodel.Account, error) {
 	logger, tracer, _, metricFactory := libObservability.NewTrackingFromContext(ctx)
 
@@ -76,11 +69,10 @@ func (handler *AccountHandler) createAccount(ctx context.Context, organizationID
 	return account, nil
 }
 
-// getAllAccounts binds the query map imperatively (http.ValidateParameters — the
-// SAME binder the Fiber path used), validates the account-specific status enum,
-// resolves the optional portfolio_id/segment_id UUID filters, then branches on
-// metadata exactly as the pre-Huma handler did. A bad query / status yields the
-// canonical 400.
+// getAllAccounts binds the query map imperatively via http.ValidateParameters,
+// validates the account-specific status enum, resolves the optional
+// portfolio_id/segment_id UUID filters, then branches on metadata. A bad query or
+// status yields the canonical 400.
 func (handler *AccountHandler) getAllAccounts(ctx context.Context, organizationID, ledgerID uuid.UUID, queries map[string]string) (http.Pagination, error) {
 	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
@@ -194,8 +186,8 @@ func (handler *AccountHandler) getAccountByAlias(ctx context.Context, spanName s
 }
 
 // updateAccount owns the span + update-then-get flow for an already-decoded
-// payload (see createAccount for the decode split across transports). It updates,
-// then re-reads so the caller receives the freshly persisted account.
+// payload. It updates, then re-reads so the caller receives the freshly persisted
+// account.
 func (handler *AccountHandler) updateAccount(ctx context.Context, organizationID, ledgerID, id uuid.UUID, payload *mmodel.UpdateAccountInput) (*mmodel.Account, error) {
 	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
@@ -252,208 +244,4 @@ func (handler *AccountHandler) countAccounts(ctx context.Context, organizationID
 	}
 
 	return count, nil
-}
-
-// --- Fiber wrappers (thin) ----------------------------------------------------
-//
-// These stay so the legacy Fiber unit/integration tests keep exercising the
-// handler methods directly; each pulls the transport inputs from fiber.Ctx
-// (Locals set by ParseUUIDPathParameters, the WithBody-decoded payload as `i`) and
-// delegates to the shared core. NOTE: the LIVE account routes are Huma now (see
-// account_handler_huma.go + RegisterAccountRoutesToApp); these Fiber wrappers are
-// not mounted by the unified server.
-
-// CreateAccount is a method that creates account information.
-func (handler *AccountHandler) CreateAccount(i any, c fiber.Ctx) error {
-	ctx := c.Context()
-
-	organizationID, err := http.GetUUIDFromLocals(c, "organization_id")
-	if err != nil {
-		return http.WithError(c, err)
-	}
-
-	ledgerID, err := http.GetUUIDFromLocals(c, "ledger_id")
-	if err != nil {
-		return http.WithError(c, err)
-	}
-
-	account, err := handler.createAccount(ctx, organizationID, ledgerID, i.(*mmodel.CreateAccountInput), c.Get("Authorization"))
-	if err != nil {
-		return http.WithError(c, err)
-	}
-
-	return http.Created(c, account)
-}
-
-// GetAllAccounts is a method that retrieves all Accounts.
-func (handler *AccountHandler) GetAllAccounts(c fiber.Ctx) error {
-	ctx := c.Context()
-
-	organizationID, err := http.GetUUIDFromLocals(c, "organization_id")
-	if err != nil {
-		return http.WithError(c, err)
-	}
-
-	ledgerID, err := http.GetUUIDFromLocals(c, "ledger_id")
-	if err != nil {
-		return http.WithError(c, err)
-	}
-
-	pagination, err := handler.getAllAccounts(ctx, organizationID, ledgerID, c.Queries())
-	if err != nil {
-		return http.WithError(c, err)
-	}
-
-	return http.OK(c, pagination)
-}
-
-// GetAccountByID is a method that retrieves Account information by a given account id.
-func (handler *AccountHandler) GetAccountByID(c fiber.Ctx) error {
-	ctx := c.Context()
-
-	organizationID, err := http.GetUUIDFromLocals(c, "organization_id")
-	if err != nil {
-		return http.WithError(c, err)
-	}
-
-	ledgerID, err := http.GetUUIDFromLocals(c, "ledger_id")
-	if err != nil {
-		return http.WithError(c, err)
-	}
-
-	id, err := http.GetUUIDFromLocals(c, "id")
-	if err != nil {
-		return http.WithError(c, err)
-	}
-
-	account, err := handler.getAccountByID(ctx, organizationID, ledgerID, id)
-	if err != nil {
-		return http.WithError(c, err)
-	}
-
-	return http.OK(c, account)
-}
-
-// GetAccountExternalByCode is a method that retrieves External Account information by a given asset code.
-func (handler *AccountHandler) GetAccountExternalByCode(c fiber.Ctx) error {
-	ctx := c.Context()
-
-	organizationID, err := http.GetUUIDFromLocals(c, "organization_id")
-	if err != nil {
-		return http.WithError(c, err)
-	}
-
-	ledgerID, err := http.GetUUIDFromLocals(c, "ledger_id")
-	if err != nil {
-		return http.WithError(c, err)
-	}
-
-	alias := constant.DefaultExternalAccountAliasPrefix + c.Params("code")
-
-	account, err := handler.getAccountByAlias(ctx, "handler.get_account_external_by_code", organizationID, ledgerID, alias)
-	if err != nil {
-		return http.WithError(c, err)
-	}
-
-	return http.OK(c, account)
-}
-
-// GetAccountByAlias is a method that retrieves Account information by a given account alias.
-func (handler *AccountHandler) GetAccountByAlias(c fiber.Ctx) error {
-	ctx := c.Context()
-
-	organizationID, err := http.GetUUIDFromLocals(c, "organization_id")
-	if err != nil {
-		return http.WithError(c, err)
-	}
-
-	ledgerID, err := http.GetUUIDFromLocals(c, "ledger_id")
-	if err != nil {
-		return http.WithError(c, err)
-	}
-
-	account, err := handler.getAccountByAlias(ctx, "handler.get_account_by_alias", organizationID, ledgerID, c.Params("alias"))
-	if err != nil {
-		return http.WithError(c, err)
-	}
-
-	return http.OK(c, account)
-}
-
-// UpdateAccount is a method that updates Account information.
-func (handler *AccountHandler) UpdateAccount(i any, c fiber.Ctx) error {
-	ctx := c.Context()
-
-	organizationID, err := http.GetUUIDFromLocals(c, "organization_id")
-	if err != nil {
-		return http.WithError(c, err)
-	}
-
-	ledgerID, err := http.GetUUIDFromLocals(c, "ledger_id")
-	if err != nil {
-		return http.WithError(c, err)
-	}
-
-	id, err := http.GetUUIDFromLocals(c, "id")
-	if err != nil {
-		return http.WithError(c, err)
-	}
-
-	account, err := handler.updateAccount(ctx, organizationID, ledgerID, id, i.(*mmodel.UpdateAccountInput))
-	if err != nil {
-		return http.WithError(c, err)
-	}
-
-	return http.OK(c, account)
-}
-
-// DeleteAccountByID is a method that removes Account information by a given account id.
-func (handler *AccountHandler) DeleteAccountByID(c fiber.Ctx) error {
-	ctx := c.Context()
-
-	organizationID, err := http.GetUUIDFromLocals(c, "organization_id")
-	if err != nil {
-		return http.WithError(c, err)
-	}
-
-	ledgerID, err := http.GetUUIDFromLocals(c, "ledger_id")
-	if err != nil {
-		return http.WithError(c, err)
-	}
-
-	id, err := http.GetUUIDFromLocals(c, "id")
-	if err != nil {
-		return http.WithError(c, err)
-	}
-
-	if err := handler.deleteAccount(ctx, organizationID, ledgerID, id, c.Get("Authorization")); err != nil {
-		return http.WithError(c, err)
-	}
-
-	return http.NoContent(c)
-}
-
-// CountAccounts is a method that counts all accounts for a given organization and ledger, with an optional portfolio ID.
-func (handler *AccountHandler) CountAccounts(c fiber.Ctx) error {
-	ctx := c.Context()
-
-	organizationID, err := http.GetUUIDFromLocals(c, "organization_id")
-	if err != nil {
-		return http.WithError(c, err)
-	}
-
-	ledgerID, err := http.GetUUIDFromLocals(c, "ledger_id")
-	if err != nil {
-		return http.WithError(c, err)
-	}
-
-	count, err := handler.countAccounts(ctx, organizationID, ledgerID)
-	if err != nil {
-		return http.WithError(c, err)
-	}
-
-	c.Set(constant.XTotalCount, fmt.Sprintf("%d", count))
-	c.Set(constant.ContentLength, "0")
-
-	return http.NoContent(c)
 }

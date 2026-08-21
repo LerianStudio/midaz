@@ -19,22 +19,20 @@ import (
 	pkgHTTP "github.com/LerianStudio/midaz/v4/pkg/net/http"
 )
 
-// This file is the ledger's Huma adoption of the account resource, following the
-// asset exemplar (asset_handler_huma.go) verbatim: shared parseOrgLedger /
-// parsePathUUID / HumaProblem / DecodeAndValidate helpers, path params as plain
-// strings (ParseUUIDPathParameters is the sole UUID validator — no format tag), raw
-// body bytes decoded imperatively (no native Huma 422), and the query bound via the
-// same ValidateParameters path. Auth stays the Fiber middleware chain attached in
-// RegisterAccountRoutesToApp; the per-op Security metadata is SPEC-ONLY.
+// This file holds the account resource's Huma transport, following the asset
+// exemplar (asset_handler.go): shared parseOrgLedger / parsePathUUID / HumaProblem /
+// DecodeAndValidate helpers, path params as plain strings (ParseUUIDPathParameters is
+// the sole UUID validator — no format tag), raw body bytes decoded imperatively (no
+// native Huma 422), and the query bound via ValidateParameters. Auth is the Fiber
+// middleware chain attached in RegisterAccountRoutesToApp; the per-op Security
+// metadata is SPEC-ONLY.
 //
-// Account differs from the asset exemplar in two ways, both absorbed by the cores:
-//  1. TWO extra by-key reads — GET .../accounts/alias/{alias} and
-//     GET .../accounts/external/{code} — whose path params are NOT UUIDs.
-//     ParseUUIDPathParameters only UUID-parses params in cn.UUIDPathParameters
-//     ("id","organization_id","ledger_id",...); "alias" and "code" fall through as
-//     raw string locals, so no format tag is needed and no native 422 can fire.
-//  2. The RecordAccountCreated metric and the status-enum / portfolio+segment filter
-//     logic live in the shared cores (account.go), so both transports match.
+// Account differs from the asset exemplar in one way: TWO extra by-key reads — GET
+// .../accounts/alias/{alias} and GET .../accounts/external/{code} — whose path params
+// are NOT UUIDs. ParseUUIDPathParameters only UUID-parses params in
+// cn.UUIDPathParameters ("id","organization_id","ledger_id",...); "alias" and "code"
+// fall through as raw string locals, so no format tag is needed and no native 422 can
+// fire.
 
 // secAccountBearerOrAPIKey advertises that each account operation accepts EITHER a
 // JWT bearer token OR an X-API-Key (SPEC metadata only; runtime auth is the Fiber
@@ -46,25 +44,25 @@ var secAccountBearerOrAPIKey = []map[string][]string{
 
 // --- POST /accounts -----------------------------------------------------------
 
-// CreateAccountInputHuma is the Huma request envelope for POST. RawBody keeps the
+// CreateAccountRequest is the Huma request envelope for POST. RawBody keeps the
 // body out of Huma's validator; the org+ledger path params are validated by the
 // Fiber middleware, not by a format tag.
-type CreateAccountInputHuma struct {
+type CreateAccountRequest struct {
 	OrganizationID string `path:"organization_id" doc:"Organization ID (UUID)"`
 	LedgerID       string `path:"ledger_id" doc:"Ledger ID (UUID)"`
 	Authorization  string `header:"Authorization" doc:"Bearer token (forwarded to the service)"`
 	RawBody        []byte `contentType:"application/json"`
 }
 
-// CreateAccountOutputHuma pins 201 (matching http.Created).
-type CreateAccountOutputHuma struct {
+// CreateAccountResponse pins 201 (matching http.Created).
+type CreateAccountResponse struct {
 	Status int
 	Body   *mmodel.Account
 }
 
-// CreateAccountHuma decodes+validates the raw body imperatively then delegates to
+// CreateAccount decodes+validates the raw body imperatively then delegates to
 // the shared createAccount core.
-func (handler *AccountHandler) CreateAccountHuma(ctx context.Context, in *CreateAccountInputHuma) (*CreateAccountOutputHuma, error) {
+func (handler *AccountHandler) CreateAccount(ctx context.Context, in *CreateAccountRequest) (*CreateAccountResponse, error) {
 	orgID, ledgerID, err := parseOrgLedger(in.OrganizationID, in.LedgerID)
 	if err != nil {
 		return nil, pkgHTTP.HumaProblem(err)
@@ -80,15 +78,15 @@ func (handler *AccountHandler) CreateAccountHuma(ctx context.Context, in *Create
 		return nil, pkgHTTP.HumaProblem(err)
 	}
 
-	return &CreateAccountOutputHuma{Status: http.StatusCreated, Body: account}, nil
+	return &CreateAccountResponse{Status: http.StatusCreated, Body: account}, nil
 }
 
 // --- GET /accounts (list) -----------------------------------------------------
 
-// ListAccountsInputHuma advertises the list query params in the spec (doc-only, no
+// ListAccountsRequest advertises the list query params in the spec (doc-only, no
 // validation tags) and captures the raw query via Resolve for the imperative
 // http.ValidateParameters binder.
-type ListAccountsInputHuma struct {
+type ListAccountsRequest struct {
 	OrganizationID  string `path:"organization_id" doc:"Organization ID (UUID)"`
 	LedgerID        string `path:"ledger_id" doc:"Ledger ID (UUID)"`
 	Metadata        string `query:"metadata" doc:"JSON string to filter accounts by metadata fields"`
@@ -115,7 +113,7 @@ type ListAccountsInputHuma struct {
 
 // Resolve captures the raw query before the handler. It performs NO validation and
 // NEVER returns an error — canonical rejection stays in http.ValidateParameters.
-func (in *ListAccountsInputHuma) Resolve(ctx huma.Context) []error {
+func (in *ListAccountsRequest) Resolve(ctx huma.Context) []error {
 	u := ctx.URL()
 	in.rawQuery = u.Query()
 
@@ -125,7 +123,7 @@ func (in *ListAccountsInputHuma) Resolve(ctx huma.Context) []error {
 // queries rebuilds the map[string]string that http.ValidateParameters consumes,
 // matching Fiber's c.Queries() (last value wins for a repeated key, present-but-
 // empty keys included).
-func (in *ListAccountsInputHuma) queries() map[string]string {
+func (in *ListAccountsRequest) queries() map[string]string {
 	out := make(map[string]string, len(in.rawQuery))
 	for k, vs := range in.rawQuery {
 		if len(vs) == 0 {
@@ -139,14 +137,14 @@ func (in *ListAccountsInputHuma) queries() map[string]string {
 	return out
 }
 
-// ListAccountsOutputHuma carries the pagination envelope verbatim.
-type ListAccountsOutputHuma struct {
+// ListAccountsResponse carries the pagination envelope verbatim.
+type ListAccountsResponse struct {
 	Status int
 	Body   pkgHTTP.Pagination
 }
 
-// ListAccountsHuma binds the query imperatively then delegates to getAllAccounts.
-func (handler *AccountHandler) ListAccountsHuma(ctx context.Context, in *ListAccountsInputHuma) (*ListAccountsOutputHuma, error) {
+// ListAccounts binds the query imperatively then delegates to getAllAccounts.
+func (handler *AccountHandler) ListAccounts(ctx context.Context, in *ListAccountsRequest) (*ListAccountsResponse, error) {
 	orgID, ledgerID, err := parseOrgLedger(in.OrganizationID, in.LedgerID)
 	if err != nil {
 		return nil, pkgHTTP.HumaProblem(err)
@@ -157,27 +155,27 @@ func (handler *AccountHandler) ListAccountsHuma(ctx context.Context, in *ListAcc
 		return nil, pkgHTTP.HumaProblem(err)
 	}
 
-	return &ListAccountsOutputHuma{Status: http.StatusOK, Body: pagination}, nil
+	return &ListAccountsResponse{Status: http.StatusOK, Body: pagination}, nil
 }
 
 // --- GET /accounts/{id} -------------------------------------------------------
 
-// GetAccountInputHuma is the by-id request envelope. The id path param carries no
+// GetAccountRequest is the by-id request envelope. The id path param carries no
 // format tag (ParseUUIDPathParameters is the sole validator).
-type GetAccountInputHuma struct {
+type GetAccountRequest struct {
 	OrganizationID string `path:"organization_id" doc:"Organization ID (UUID)"`
 	LedgerID       string `path:"ledger_id" doc:"Ledger ID (UUID)"`
 	ID             string `path:"id" doc:"Account ID (UUID)"`
 }
 
-// GetAccountOutputHuma carries the account verbatim.
-type GetAccountOutputHuma struct {
+// GetAccountResponse carries the account verbatim.
+type GetAccountResponse struct {
 	Status int
 	Body   *mmodel.Account
 }
 
-// GetAccountByIDHuma delegates to getAccountByID.
-func (handler *AccountHandler) GetAccountByIDHuma(ctx context.Context, in *GetAccountInputHuma) (*GetAccountOutputHuma, error) {
+// GetAccountByID delegates to getAccountByID.
+func (handler *AccountHandler) GetAccountByID(ctx context.Context, in *GetAccountRequest) (*GetAccountResponse, error) {
 	orgID, ledgerID, err := parseOrgLedger(in.OrganizationID, in.LedgerID)
 	if err != nil {
 		return nil, pkgHTTP.HumaProblem(err)
@@ -193,22 +191,22 @@ func (handler *AccountHandler) GetAccountByIDHuma(ctx context.Context, in *GetAc
 		return nil, pkgHTTP.HumaProblem(err)
 	}
 
-	return &GetAccountOutputHuma{Status: http.StatusOK, Body: account}, nil
+	return &GetAccountResponse{Status: http.StatusOK, Body: account}, nil
 }
 
 // --- GET /accounts/alias/{alias} ----------------------------------------------
 
-// GetAccountByAliasInputHuma is the by-alias request envelope. alias is NOT a UUID;
+// GetAccountByAliasRequest is the by-alias request envelope. alias is NOT a UUID;
 // it rides through ParseUUIDPathParameters as a raw string local, so it carries no
 // format tag and can never trigger a native Huma 422.
-type GetAccountByAliasInputHuma struct {
+type GetAccountByAliasRequest struct {
 	OrganizationID string `path:"organization_id" doc:"Organization ID (UUID)"`
 	LedgerID       string `path:"ledger_id" doc:"Ledger ID (UUID)"`
 	Alias          string `path:"alias" doc:"Account alias (e.g. @person1)"`
 }
 
-// GetAccountByAliasHuma delegates to the shared getAccountByAlias core.
-func (handler *AccountHandler) GetAccountByAliasHuma(ctx context.Context, in *GetAccountByAliasInputHuma) (*GetAccountOutputHuma, error) {
+// GetAccountByAlias delegates to the shared getAccountByAlias core.
+func (handler *AccountHandler) GetAccountByAlias(ctx context.Context, in *GetAccountByAliasRequest) (*GetAccountResponse, error) {
 	orgID, ledgerID, err := parseOrgLedger(in.OrganizationID, in.LedgerID)
 	if err != nil {
 		return nil, pkgHTTP.HumaProblem(err)
@@ -219,22 +217,22 @@ func (handler *AccountHandler) GetAccountByAliasHuma(ctx context.Context, in *Ge
 		return nil, pkgHTTP.HumaProblem(err)
 	}
 
-	return &GetAccountOutputHuma{Status: http.StatusOK, Body: account}, nil
+	return &GetAccountResponse{Status: http.StatusOK, Body: account}, nil
 }
 
 // --- GET /accounts/external/{code} --------------------------------------------
 
-// GetAccountExternalByCodeInputHuma is the external-by-code request envelope. code
+// GetAccountExternalByCodeRequest is the external-by-code request envelope. code
 // is NOT a UUID (see the alias envelope note).
-type GetAccountExternalByCodeInputHuma struct {
+type GetAccountExternalByCodeRequest struct {
 	OrganizationID string `path:"organization_id" doc:"Organization ID (UUID)"`
 	LedgerID       string `path:"ledger_id" doc:"Ledger ID (UUID)"`
 	Code           string `path:"code" doc:"Account external code (e.g. BRL)"`
 }
 
-// GetAccountExternalByCodeHuma resolves the external alias then delegates to the
-// shared getAccountByAlias core, mirroring the Fiber wrapper.
-func (handler *AccountHandler) GetAccountExternalByCodeHuma(ctx context.Context, in *GetAccountExternalByCodeInputHuma) (*GetAccountOutputHuma, error) {
+// GetAccountExternalByCode resolves the external alias then delegates to the
+// shared getAccountByAlias core.
+func (handler *AccountHandler) GetAccountExternalByCode(ctx context.Context, in *GetAccountExternalByCodeRequest) (*GetAccountResponse, error) {
 	orgID, ledgerID, err := parseOrgLedger(in.OrganizationID, in.LedgerID)
 	if err != nil {
 		return nil, pkgHTTP.HumaProblem(err)
@@ -247,28 +245,28 @@ func (handler *AccountHandler) GetAccountExternalByCodeHuma(ctx context.Context,
 		return nil, pkgHTTP.HumaProblem(err)
 	}
 
-	return &GetAccountOutputHuma{Status: http.StatusOK, Body: account}, nil
+	return &GetAccountResponse{Status: http.StatusOK, Body: account}, nil
 }
 
 // --- PATCH /accounts/{id} -----------------------------------------------------
 
-// UpdateAccountInputHuma is the update request envelope (RawBody, see Create).
-type UpdateAccountInputHuma struct {
+// UpdateAccountRequest is the update request envelope (RawBody, see Create).
+type UpdateAccountRequest struct {
 	OrganizationID string `path:"organization_id" doc:"Organization ID (UUID)"`
 	LedgerID       string `path:"ledger_id" doc:"Ledger ID (UUID)"`
 	ID             string `path:"id" doc:"Account ID (UUID)"`
 	RawBody        []byte `contentType:"application/json"`
 }
 
-// UpdateAccountOutputHuma carries the updated account (200, matching http.OK).
-type UpdateAccountOutputHuma struct {
+// UpdateAccountResponse carries the updated account (200, matching http.OK).
+type UpdateAccountResponse struct {
 	Status int
 	Body   *mmodel.Account
 }
 
-// UpdateAccountHuma decodes+validates the raw body imperatively then delegates to
+// UpdateAccount decodes+validates the raw body imperatively then delegates to
 // the shared updateAccount core.
-func (handler *AccountHandler) UpdateAccountHuma(ctx context.Context, in *UpdateAccountInputHuma) (*UpdateAccountOutputHuma, error) {
+func (handler *AccountHandler) UpdateAccount(ctx context.Context, in *UpdateAccountRequest) (*UpdateAccountResponse, error) {
 	orgID, ledgerID, err := parseOrgLedger(in.OrganizationID, in.LedgerID)
 	if err != nil {
 		return nil, pkgHTTP.HumaProblem(err)
@@ -289,26 +287,26 @@ func (handler *AccountHandler) UpdateAccountHuma(ctx context.Context, in *Update
 		return nil, pkgHTTP.HumaProblem(err)
 	}
 
-	return &UpdateAccountOutputHuma{Status: http.StatusOK, Body: account}, nil
+	return &UpdateAccountResponse{Status: http.StatusOK, Body: account}, nil
 }
 
 // --- DELETE /accounts/{id} ----------------------------------------------------
 
-// DeleteAccountInputHuma is the delete request envelope. Authorization is forwarded
-// to the service (the Fiber path passes c.Get("Authorization")).
-type DeleteAccountInputHuma struct {
+// DeleteAccountRequest is the delete request envelope. Authorization is forwarded
+// to the service.
+type DeleteAccountRequest struct {
 	OrganizationID string `path:"organization_id" doc:"Organization ID (UUID)"`
 	LedgerID       string `path:"ledger_id" doc:"Ledger ID (UUID)"`
 	ID             string `path:"id" doc:"Account ID (UUID)"`
 	Authorization  string `header:"Authorization" doc:"Bearer token (forwarded to the service)"`
 }
 
-// DeleteAccountOutputHuma has NO Body field: paired with DefaultStatus 204 it makes
-// Huma emit a bodiless 204, matching the Fiber http.NoContent path.
-type DeleteAccountOutputHuma struct{}
+// DeleteAccountResponse has NO Body field: paired with DefaultStatus 204 it makes
+// Huma emit a bodiless 204.
+type DeleteAccountResponse struct{}
 
-// DeleteAccountByIDHuma delegates to deleteAccount; returns a bodiless 204.
-func (handler *AccountHandler) DeleteAccountByIDHuma(ctx context.Context, in *DeleteAccountInputHuma) (*DeleteAccountOutputHuma, error) {
+// DeleteAccountByID delegates to deleteAccount; returns a bodiless 204.
+func (handler *AccountHandler) DeleteAccountByID(ctx context.Context, in *DeleteAccountRequest) (*DeleteAccountResponse, error) {
 	orgID, ledgerID, err := parseOrgLedger(in.OrganizationID, in.LedgerID)
 	if err != nil {
 		return nil, pkgHTTP.HumaProblem(err)
@@ -323,27 +321,27 @@ func (handler *AccountHandler) DeleteAccountByIDHuma(ctx context.Context, in *De
 		return nil, pkgHTTP.HumaProblem(err)
 	}
 
-	return &DeleteAccountOutputHuma{}, nil
+	return &DeleteAccountResponse{}, nil
 }
 
 // --- HEAD /accounts/metrics/count ---------------------------------------------
 
-// CountAccountsInputHuma is the HEAD-count request envelope (org+ledger only).
-type CountAccountsInputHuma struct {
+// CountAccountsRequest is the HEAD-count request envelope (org+ledger only).
+type CountAccountsRequest struct {
 	OrganizationID string `path:"organization_id" doc:"Organization ID (UUID)"`
 	LedgerID       string `path:"ledger_id" doc:"Ledger ID (UUID)"`
 }
 
-// CountAccountsOutputHuma replicates the Fiber HEAD-count response manually: the
+// CountAccountsResponse replicates the Fiber HEAD-count response manually: the
 // X-Total-Count header carries the count, Content-Length is pinned to 0, and the
 // body is empty at status 204.
-type CountAccountsOutputHuma struct {
+type CountAccountsResponse struct {
 	TotalCount    string `header:"X-Total-Count"`
 	ContentLength string `header:"Content-Length"`
 }
 
-// CountAccountsHuma delegates to countAccounts and sets the count headers.
-func (handler *AccountHandler) CountAccountsHuma(ctx context.Context, in *CountAccountsInputHuma) (*CountAccountsOutputHuma, error) {
+// CountAccounts delegates to countAccounts and sets the count headers.
+func (handler *AccountHandler) CountAccounts(ctx context.Context, in *CountAccountsRequest) (*CountAccountsResponse, error) {
 	orgID, ledgerID, err := parseOrgLedger(in.OrganizationID, in.LedgerID)
 	if err != nil {
 		return nil, pkgHTTP.HumaProblem(err)
@@ -354,13 +352,13 @@ func (handler *AccountHandler) CountAccountsHuma(ctx context.Context, in *CountA
 		return nil, pkgHTTP.HumaProblem(err)
 	}
 
-	return &CountAccountsOutputHuma{
+	return &CountAccountsResponse{
 		TotalCount:    strconv.FormatInt(count, 10),
 		ContentLength: "0",
 	}, nil
 }
 
-// RegisterAccountRoutes registers the eight migrated account operations on the
+// RegisterAccountRoutes registers the eight account operations on the
 // shared Huma API. Paths are GROUP-RELATIVE (the Huma API is bound to a versioned Fiber
 // group, so the humafiber adapter registers on that group and Fiber prepends the version
 // prefix). The auth + tenant + ParseUUIDPathParameters chain is attached in
@@ -388,7 +386,7 @@ func RegisterAccountRoutes(api huma.API, h *AccountHandler, opSuffix string) {
 		Security:         secAccountBearerOrAPIKey,
 		SkipValidateBody: true, // body validated imperatively (http.DecodeAndValidate).
 		DefaultStatus:    http.StatusCreated,
-	}, h.CreateAccountHuma)
+	}, h.CreateAccount)
 	attachTypedRequestBody[mmodel.CreateAccountInput](api, "createAccount"+opSuffix)
 
 	huma.Register(api, huma.Operation{
@@ -398,7 +396,7 @@ func RegisterAccountRoutes(api huma.API, h *AccountHandler, opSuffix string) {
 		Summary:     "List all accounts",
 		Tags:        []string{tag},
 		Security:    secAccountBearerOrAPIKey,
-	}, h.ListAccountsHuma)
+	}, h.ListAccounts)
 
 	huma.Register(api, huma.Operation{
 		OperationID: "getAccountByID" + opSuffix,
@@ -407,7 +405,7 @@ func RegisterAccountRoutes(api huma.API, h *AccountHandler, opSuffix string) {
 		Summary:     "Retrieve a specific account",
 		Tags:        []string{tag},
 		Security:    secAccountBearerOrAPIKey,
-	}, h.GetAccountByIDHuma)
+	}, h.GetAccountByID)
 
 	huma.Register(api, huma.Operation{
 		OperationID: "getAccountByAlias" + opSuffix,
@@ -416,7 +414,7 @@ func RegisterAccountRoutes(api huma.API, h *AccountHandler, opSuffix string) {
 		Summary:     "Retrieve an account by alias",
 		Tags:        []string{tag},
 		Security:    secAccountBearerOrAPIKey,
-	}, h.GetAccountByAliasHuma)
+	}, h.GetAccountByAlias)
 
 	huma.Register(api, huma.Operation{
 		OperationID: "getAccountExternalByCode" + opSuffix,
@@ -425,7 +423,7 @@ func RegisterAccountRoutes(api huma.API, h *AccountHandler, opSuffix string) {
 		Summary:     "Retrieve an account by external code",
 		Tags:        []string{tag},
 		Security:    secAccountBearerOrAPIKey,
-	}, h.GetAccountExternalByCodeHuma)
+	}, h.GetAccountExternalByCode)
 
 	huma.Register(api, huma.Operation{
 		OperationID:      "updateAccount" + opSuffix,
@@ -435,7 +433,7 @@ func RegisterAccountRoutes(api huma.API, h *AccountHandler, opSuffix string) {
 		Tags:             []string{tag},
 		Security:         secAccountBearerOrAPIKey,
 		SkipValidateBody: true, // body validated imperatively.
-	}, h.UpdateAccountHuma)
+	}, h.UpdateAccount)
 	attachTypedRequestBody[mmodel.UpdateAccountInput](api, "updateAccount"+opSuffix)
 
 	huma.Register(api, huma.Operation{
@@ -446,7 +444,7 @@ func RegisterAccountRoutes(api huma.API, h *AccountHandler, opSuffix string) {
 		Tags:          []string{tag},
 		Security:      secAccountBearerOrAPIKey,
 		DefaultStatus: http.StatusNoContent, // bodiless 204.
-	}, h.DeleteAccountByIDHuma)
+	}, h.DeleteAccountByID)
 
 	huma.Register(api, huma.Operation{
 		OperationID:   "countAccounts" + opSuffix,
@@ -456,10 +454,10 @@ func RegisterAccountRoutes(api huma.API, h *AccountHandler, opSuffix string) {
 		Tags:          []string{tag},
 		Security:      secAccountBearerOrAPIKey,
 		DefaultStatus: http.StatusNoContent, // X-Total-Count header + empty 204 body.
-	}, h.CountAccountsHuma)
+	}, h.CountAccounts)
 }
 
-// RegisterAccountRoutesToApp wires the Huma-migrated account surface onto the /v1
+// RegisterAccountRoutesToApp wires the account surface onto the /v1
 // contract. See registerAccountRoutesToApp for what it attaches.
 func RegisterAccountRoutesToApp(group fiber.Router, api huma.API, auth *middleware.AuthClient, h *AccountHandler, routeOptions *pkgHTTP.ProtectedRouteOptions) {
 	registerAccountRoutesToApp(group, api, auth, h, routeOptions, routeOpSuffixV1)
@@ -479,9 +477,9 @@ func RegisterAccountV2RoutesToApp(group fiber.Router, api huma.API, auth *middle
 // protectedMidaz(auth,"accounts",verb) (= auth.Authorize("midaz","accounts",verb) + tenant
 // PostAuthMiddlewares) + ParseUUIDPathParameters("account") — as MIDDLEWARE ONLY (no
 // terminal) on the VERSIONED GROUP with GROUP-RELATIVE paths, then registers the Huma
-// terminals via RegisterAccountRoutes on the SAME group's Huma API. This preserves the
-// pre-Huma (accounts, verb) authz tuples and tenant resolution BYTE-FOR-BYTE on whichever
-// version group it is mounted on — no account route becomes public.
+// terminals via RegisterAccountRoutes on the SAME group's Huma API. The (accounts, verb)
+// authz tuples and tenant resolution therefore apply on whichever version group it is
+// mounted on — no account route becomes public.
 //
 // opSuffix distinguishes the operation IDs one version group publishes from another's —
 // see routeOpSuffixV1. Nothing else varies between contracts, so a change to the surface
