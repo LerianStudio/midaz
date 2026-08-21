@@ -7,8 +7,11 @@ package http
 import (
 	"reflect"
 	"strings"
+	"time"
 
 	"github.com/danielgtaylor/huma/v2"
+
+	"github.com/LerianStudio/midaz/v4/pkg/mtransaction"
 )
 
 // Huma's DefaultSchemaNamer keys the shared schema registry by the BARE Go type
@@ -66,7 +69,37 @@ func installSchemaNamer(api huma.API, namer func(reflect.Type, string) string) {
 		return
 	}
 
-	oapi.Components.Schemas = huma.NewMapRegistry("#/components/schemas/", namer)
+	registry := huma.NewMapRegistry("#/components/schemas/", namer)
+	registerDomainSchemaAliases(registry)
+
+	oapi.Components.Schemas = registry
+}
+
+// registerDomainSchemaAliases teaches a registry how to schema the domain types Huma
+// cannot infer on its own. mtransaction.TransactionDate is a named type over
+// time.Time, so Huma sees a struct whose fields are all unexported: it schemas the
+// type as an OBJECT and then cannot parse the `format:"date-time"` / `example:` tags
+// declared on fields of that type. Aliasing it to time.Time routes it through Huma's
+// own time.Time case, which emits exactly {"type":"string","format":"date-time"}.
+//
+// This lives on the ADAPTER side rather than as a huma.SchemaProvider method on the
+// domain type, so pkg/mtransaction — the shared transaction model that the ledger,
+// the tracer and the fee engine all compile against — carries no dependency on an
+// OpenAPI generator. It affects OpenAPI generation only; JSON decoding stays governed
+// by TransactionDate.UnmarshalJSON.
+//
+// Aliases MUST be seeded before the first huma.Register on the registry, because
+// mapRegistry.Schema consults its alias map on every lookup and caches the resulting
+// schema under the resolved name. installSchemaNamer satisfies that by seeding the
+// registry it is about to install, which is why a harness registering an operation
+// whose body carries one of these types must go through an Install*SchemaNamer before
+// its first huma.Register, exactly as AssembleHumaContract does.
+func registerDomainSchemaAliases(registry huma.Registry) {
+	if registry == nil {
+		return
+	}
+
+	registry.RegisterTypeAlias(reflect.TypeFor[mtransaction.TransactionDate](), reflect.TypeFor[time.Time]())
 }
 
 // problemDetailPkgPath is the import path of the lib-commons RFC 9457 problem

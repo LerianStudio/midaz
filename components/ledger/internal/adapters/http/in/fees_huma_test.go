@@ -106,6 +106,7 @@ func buildHumaFeeEstimateApp(t *testing.T, handler *FeeHandler, authOK bool) *fi
 	apiV2.Post("/organizations/:organization_id/ledgers/:ledger_id/estimates", pkgHTTP.ParseUUIDPathParameters("estimates"))
 
 	hAPI := openapi.New(f, apiV2, openapi.Config{Title: "ledger-test", Version: "test", Servers: []string{"/v2"}})
+	pkgHTTP.InstallLedgerSchemaNamer(hAPI)
 
 	registerFeeEstimateV2Routes(hAPI, handler)
 
