@@ -174,7 +174,7 @@ func setupFeeHarness(t *testing.T) *feeHarness {
 
 	resolver, err := feesservices.NewQueryResolver(h.queryUC)
 	require.NoError(t, err, "fee resolver")
-	h.feeUC, err = feesservices.NewUseCase(packageRepo, resolver, "USD")
+	h.feeUC, err = feesservices.NewUseCase(packageRepo, resolver)
 	require.NoError(t, err, "fee use case")
 
 	h.handler = &TransactionHandler{Query: h.queryUC, Command: h.commandUC, FeeApplier: h.feeUC}
