@@ -187,23 +187,23 @@ type ListAuditEventsInput struct {
 // Validate validates the ListAuditEventsInput struct.
 func (l *ListAuditEventsInput) Validate() error {
 	// Validate pagination limit with specific error codes (TRC-0040, TRC-0041)
-	if err := ValidatePaginationLimit(l.Limit, MaxAuditEventLimit); err != nil {
+	if err := ValidatePaginationLimit(l.Limit, MaxAuditEventLimit, constant.EntityAuditEvent); err != nil {
 		return err
 	}
 
 	// Validate cursor consistency (TRC-0045)
-	if err := ValidateCursorConsistency(l.Cursor, l.SortBy, l.SortOrder); err != nil {
+	if err := ValidateCursorConsistency(l.Cursor, l.SortBy, l.SortOrder, constant.EntityAuditEvent); err != nil {
 		return err
 	}
 
 	// Validate sortBy whitelist (TRC-0043)
 	allowedSortFields := []string{"created_at", "event_type"}
-	if err := ValidateSortBy(l.SortBy, allowedSortFields); err != nil {
+	if err := ValidateSortBy(l.SortBy, allowedSortFields, constant.EntityAuditEvent); err != nil {
 		return err
 	}
 
 	// Validate sortOrder enum (TRC-0042)
-	if err := ValidateSortOrder(l.SortOrder); err != nil {
+	if err := ValidateSortOrder(l.SortOrder, constant.EntityAuditEvent); err != nil {
 		return err
 	}
 
