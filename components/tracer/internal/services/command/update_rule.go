@@ -171,16 +171,13 @@ func (c *UpdateRuleCommand) Execute(ctx context.Context, id uuid.UUID, input *Up
 		}
 	}
 
-	// Prepare normalized name if provided
-	// Name uniqueness is enforced at the database level with a partial unique index
-	// on (context_id, name) WHERE status != 'DELETED'. The repository will return
-	// ErrRuleNameAlreadyExistsInCtx if a duplicate name is detected within the same context.
-	var normalizedName *string
-
-	if input.Name != nil {
-		normalized := NormalizeName(*input.Name)
-		normalizedName = &normalized
-	}
+	// The name is stored verbatim: rule.Update trims surrounding whitespace but
+	// preserves the submitted casing and internal spacing, mirroring create.
+	// Passing input.Name straight through keeps PATCH semantics intact (nil means
+	// "leave unchanged"). Name uniqueness is enforced at the database level by a
+	// case-sensitive partial unique index on (context_id, name) WHERE status !=
+	// 'DELETED'; the repository returns ErrRuleNameAlreadyExistsInCtx on a
+	// duplicate within the same context.
 
 	// Hoist a single Now() call so SetAction and Update share one timestamp.
 	// With clock.Real this also keeps the persisted UpdatedAt aligned with the
@@ -196,8 +193,8 @@ func (c *UpdateRuleCommand) Execute(ctx context.Context, id uuid.UUID, input *Up
 		}
 	}
 
-	// Use domain model Update method with normalized name (validates all before mutating any)
-	if err := rule.Update(normalizedName, input.Expression, input.Description, input.Scopes, now); err != nil {
+	// Use domain model Update method (validates all before mutating any).
+	if err := rule.Update(input.Name, input.Expression, input.Description, input.Scopes, now); err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to update rule", err)
 		return nil, err
 	}
