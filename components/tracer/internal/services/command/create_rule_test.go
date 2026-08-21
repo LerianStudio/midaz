@@ -21,32 +21,6 @@ import (
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
 )
 
-func TestNormalizeName(t *testing.T) {
-	tests := []struct {
-		input    string
-		expected string
-	}{
-		{"MiNhA REGRA", "minha regra"},
-		{"  spaces around  ", "spaces around"},
-		{"UPPERCASE", "uppercase"},
-		{"lowercase", "lowercase"},
-		{"  Mixed CASE with Spaces  ", "mixed case with spaces"},
-		{"", ""},
-		{"   ", ""},
-		{"  mInha    regra  xpto ", "minha regra xpto"},
-		{"minha reGra xpto", "minha regra xpto"},
-		{"a   b    c     d", "a b c d"},
-		{"tab\there", "tab here"},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.input, func(t *testing.T) {
-			result := NormalizeName(tt.input)
-			assert.Equal(t, tt.expected, result)
-		})
-	}
-}
-
 // TestNewCreateRuleCommand_NilRepository asserts the constructor rejects a nil
 // repository. After the atomicity fix, NewCreateRuleCommand returns
 // (*CreateRuleCommand, error) following the same pattern as the limit
@@ -114,9 +88,77 @@ func TestCreateRule_Success_Atomic(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, result)
 	assert.NotEqual(t, uuid.Nil, result.ID)
-	assert.Equal(t, NormalizeName(input.Name), result.Name)
+	assert.Equal(t, input.Name, result.Name, "name is stored verbatim (trim only)")
 	assert.Equal(t, input.Action, result.Action)
 	assert.Equal(t, model.RuleStatusDraft, result.Status)
+}
+
+// TestCreateRule_StoresNameVerbatim asserts that rule creation persists the
+// submitted name with its original casing and internal spacing preserved
+// (leading/trailing whitespace trimmed only), matching how limit creation
+// stores its name. The rule name is a display/storage value: it must reach the
+// repository — and therefore GET/LIST — exactly as submitted, never lowercased
+// or space-collapsed.
+func TestCreateRule_StoresNameVerbatim(t *testing.T) {
+	ctrl := gomock.NewController(t)
+
+	mockRepo := NewMockRuleRepository(ctrl)
+	mockCEL := NewMockExpressionCompiler(ctrl)
+	auditWriter := NewMockAuditWriter(ctrl)
+	txBeginner := pgdbMocks.NewMockTxBeginner(ctrl)
+	mockTx := pgdbMocks.NewMockTx(ctrl)
+
+	// Original casing AND internal double spacing must survive; only the
+	// surrounding whitespace is trimmed.
+	const wantName = "My  Rule  XPTO"
+
+	mockCEL.EXPECT().
+		Compile(gomock.Any(), "amount > 100").
+		Return(nil, nil)
+
+	var capturedName string
+
+	gomock.InOrder(
+		txBeginner.EXPECT().BeginTx(gomock.Any(), nil).Return(mockTx, nil),
+		mockRepo.EXPECT().
+			CreateWithTx(gomock.Any(), mockTx, gomock.Any()).
+			DoAndReturn(func(_ context.Context, _ pgdb.DB, r *model.Rule) (*model.Rule, error) {
+				capturedName = r.Name
+				return r, nil
+			}),
+		auditWriter.EXPECT().
+			RecordRuleEventWithTx(
+				gomock.Any(),
+				mockTx,
+				model.AuditEventRuleCreated,
+				model.AuditActionCreate,
+				gomock.Any(),
+				gomock.Nil(),
+				gomock.Not(gomock.Nil()),
+				"Rule created via API",
+			).
+			Return(nil),
+		mockTx.EXPECT().Commit().Return(nil),
+	)
+	mockTx.EXPECT().Rollback().Times(0)
+
+	cmd, err := NewCreateRuleCommand(mockRepo, mockCEL, testutil.NewDefaultMockClock(), auditWriter, txBeginner)
+	require.NoError(t, err)
+
+	input := &CreateRuleInput{
+		Name:       "  My  Rule  XPTO  ",
+		Expression: "amount > 100",
+		Action:     model.DecisionAllow,
+	}
+
+	result, err := cmd.Execute(context.Background(), input)
+
+	require.NoError(t, err)
+	require.NotNil(t, result)
+	assert.Equal(t, wantName, capturedName,
+		"name reaching the repository must be verbatim (trim only): original casing and internal spacing preserved")
+	assert.Equal(t, wantName, result.Name,
+		"returned rule must carry the verbatim name so GET/LIST reflect the submitted value")
 }
 
 // TestCreateRule_Success_NoScopes drives the happy path with an empty scopes
@@ -163,7 +205,7 @@ func TestCreateRule_Success_NoScopes(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, result)
 	assert.NotEqual(t, uuid.Nil, result.ID)
-	assert.Equal(t, "global rule", result.Name)
+	assert.Equal(t, "Global Rule", result.Name, "name is stored verbatim (trim only)")
 	assert.Empty(t, result.Scopes,
 		"global rule must have an empty (non-nil) Scopes slice after normalization")
 }
@@ -515,8 +557,6 @@ func TestCreateRuleCommand_Execute_SetsCorrectFields(t *testing.T) {
 		},
 	}
 
-	normalizedName := NormalizeName(input.Name)
-
 	mockCEL.EXPECT().
 		Compile(gomock.Any(), input.Expression).
 		Return(nil, nil)
@@ -527,7 +567,7 @@ func TestCreateRuleCommand_Execute_SetsCorrectFields(t *testing.T) {
 			CreateWithTx(gomock.Any(), mockTx, gomock.Any()).
 			DoAndReturn(func(_ context.Context, _ pgdb.DB, rule *model.Rule) (*model.Rule, error) {
 				assert.NotEqual(t, uuid.Nil, rule.ID)
-				assert.Equal(t, normalizedName, rule.Name)
+				assert.Equal(t, input.Name, rule.Name, "name is stored verbatim (trim only)")
 				assert.Equal(t, input.Description, *rule.Description)
 				assert.Equal(t, input.Expression, rule.Expression)
 				assert.Equal(t, input.Action, rule.Action)

@@ -246,23 +246,23 @@ func (i *ListTransactionValidationsInput) SetDefaults() {
 // Validates before defaults are applied to ensure fail-fast behavior.
 func (i *ListTransactionValidationsInput) Validate() error {
 	// Validate pagination limit (ErrPaginationLimitExceeded, ErrPaginationLimitInvalid)
-	if err := ValidatePaginationLimit(i.Limit, model.MaxTransactionValidationFilterLimit); err != nil {
+	if err := ValidatePaginationLimit(i.Limit, model.MaxTransactionValidationFilterLimit, constant.EntityTransactionValidation); err != nil {
 		return err
 	}
 
 	// Validate cursor consistency (ErrCursorWithSortParams)
-	if err := ValidateCursorConsistency(i.Cursor, i.SortBy, i.SortOrder); err != nil {
+	if err := ValidateCursorConsistency(i.Cursor, i.SortBy, i.SortOrder, constant.EntityTransactionValidation); err != nil {
 		return err
 	}
 
 	// Validate sortBy whitelist (ErrInvalidSortColumn)
 	allowedSortFields := []string{"created_at", "processing_time_ms"}
-	if err := ValidateSortBy(i.SortBy, allowedSortFields); err != nil {
+	if err := ValidateSortBy(i.SortBy, allowedSortFields, constant.EntityTransactionValidation); err != nil {
 		return err
 	}
 
 	// Validate sortOrder enum (ErrInvalidSortOrder)
-	if err := ValidateSortOrder(i.SortOrder); err != nil {
+	if err := ValidateSortOrder(i.SortOrder, constant.EntityTransactionValidation); err != nil {
 		return err
 	}
 

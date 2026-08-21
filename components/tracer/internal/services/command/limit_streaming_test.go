@@ -20,6 +20,7 @@ import (
 	pgdbMocks "github.com/LerianStudio/midaz/v4/components/tracer/internal/adapters/postgres/db/mocks"
 	"github.com/LerianStudio/midaz/v4/components/tracer/internal/testutil"
 	"github.com/LerianStudio/midaz/v4/components/tracer/pkg/model"
+	"github.com/LerianStudio/midaz/v4/pkg/constant"
 	pkgStreaming "github.com/LerianStudio/midaz/v4/pkg/streaming"
 	"github.com/LerianStudio/midaz/v4/pkg/streaming/events"
 )
@@ -657,18 +658,21 @@ func TestDeleteLimit_EmitsLimitDeleted(t *testing.T) {
 	assert.Equal(t, testutil.FixedTime().Format("2006-01-02T15:04:05Z07:00"), payload.DeletedAt)
 }
 
-func TestDeleteLimit_Idempotent_EmitsNothing(t *testing.T) {
+// TestDeleteLimit_SoftDeletedNotFound_EmitsNothing pins that a repeat delete of
+// an already-soft-deleted limit emits no event: the repository read excludes
+// deleted_at IS NOT NULL rows, so GetByID reports not found and Execute returns
+// before opening a transaction or reaching the post-commit emit.
+func TestDeleteLimit_SoftDeletedNotFound_EmitsNothing(t *testing.T) {
 	ctrl := gomock.NewController(t)
 
 	limitID := testutil.MustDeterministicUUID(50)
-	inputLimit := limitFixture(50, 51, model.LimitStatusDeleted)
 
 	mockRepo := NewMockLimitRepository(ctrl)
 	auditWriter := NewMockAuditWriter(ctrl)
 	txBeginner := pgdbMocks.NewMockTxBeginner(ctrl)
 	emitter := pkgStreaming.NewMockEmitter()
 
-	mockRepo.EXPECT().GetByID(gomock.Any(), limitID).Return(inputLimit, nil)
+	mockRepo.EXPECT().GetByID(gomock.Any(), limitID).Return(nil, constant.ErrLimitNotFound)
 	txBeginner.EXPECT().BeginTx(gomock.Any(), gomock.Any()).Times(0)
 
 	cmd, err := NewDeleteLimitCommand(mockRepo, testutil.NewDefaultMockClock(), auditWriter, txBeginner)
@@ -676,7 +680,8 @@ func TestDeleteLimit_Idempotent_EmitsNothing(t *testing.T) {
 	cmd.Streaming = emitter
 
 	err = cmd.Execute(context.Background(), limitID)
-	require.NoError(t, err)
+	require.Error(t, err)
+	assert.ErrorIs(t, err, constant.ErrLimitNotFound)
 	assert.Empty(t, emitter.Events())
 }
 

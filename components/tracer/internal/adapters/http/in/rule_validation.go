@@ -195,23 +195,23 @@ type ListRulesInput struct {
 // Validates before defaults are applied to ensure fail-fast behavior.
 func (l *ListRulesInput) Validate() error {
 	// Validate pagination limit (ErrPaginationLimitExceeded, ErrPaginationLimitInvalid)
-	if err := ValidatePaginationLimit(l.Limit, 100); err != nil {
+	if err := ValidatePaginationLimit(l.Limit, 100, constant.EntityRule); err != nil {
 		return err
 	}
 
 	// Validate cursor consistency (ErrCursorWithSortParams)
-	if err := ValidateCursorConsistency(l.Cursor, l.SortBy, l.SortOrder); err != nil {
+	if err := ValidateCursorConsistency(l.Cursor, l.SortBy, l.SortOrder, constant.EntityRule); err != nil {
 		return err
 	}
 
 	// Validate sortBy whitelist (ErrInvalidSortColumn)
 	allowedSortFields := []string{"created_at", "updated_at", "name", "status"}
-	if err := ValidateSortBy(l.SortBy, allowedSortFields); err != nil {
+	if err := ValidateSortBy(l.SortBy, allowedSortFields, constant.EntityRule); err != nil {
 		return err
 	}
 
 	// Validate sortOrder enum (ErrInvalidSortOrder)
-	if err := ValidateSortOrder(l.SortOrder); err != nil {
+	if err := ValidateSortOrder(l.SortOrder, constant.EntityRule); err != nil {
 		return err
 	}
 
