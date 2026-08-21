@@ -50,9 +50,6 @@ type SegmentContext struct {
 	ResolverCache map[string]*feeshared.Account
 }
 
-// DefaultCurrencyBRL is the fallback currency when no default is configured.
-const DefaultCurrencyBRL = "BRL"
-
 // segmentPrefix is the prefix used to identify segment references in waivedAccounts entries.
 const segmentPrefix = "segment:"
 
@@ -90,7 +87,7 @@ func isSegmentReference(entry string) (bool, uuid.UUID, error) {
 // The segCtx parameter is optional: when non-nil, segment-based waivedAccounts resolution
 // is enabled (entries like "segment:<uuid>" trigger a Midaz API call to check account membership).
 // When segCtx is nil, only exact alias matching is used for waivedAccounts.
-func CalculateFee(logger libLog.Logger, f *model.FeeCalculate, p *pack.Package, resp *transaction.Responses, defaultCurrency string, segCtx *SegmentContext) error {
+func CalculateFee(logger libLog.Logger, f *model.FeeCalculate, p *pack.Package, resp *transaction.Responses, segCtx *SegmentContext) error {
 	if f.Transaction.Send.Asset == "" {
 		return pkg.ValidateBusinessError(constant.ErrMissingFieldsInRequest, constant.EntityFeeCalculation, "send.asset")
 	}

@@ -107,7 +107,7 @@ func (uc *UseCase) EstimateFeeCalculation(ctx context.Context, cf *model.FeeEsti
 		LedgerID:       cf.LedgerID,
 	}
 
-	errCalculateFee := feeUtils.CalculateFee(logger, feeModel, packModel, validationResult, uc.defaultCurrency, segCtx)
+	errCalculateFee := feeUtils.CalculateFee(logger, feeModel, packModel, validationResult, segCtx)
 	if errCalculateFee != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to calculate fee", errCalculateFee)
 

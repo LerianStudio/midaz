@@ -85,7 +85,7 @@ func FuzzConservation_LegSumEqualsFeeTotal_TableDeleted(f *testing.F) {
 
 		feeCalc, p, resp := cf.build()
 
-		err := CalculateFee(logger, feeCalc, p, resp, asset, nil)
+		err := CalculateFee(logger, feeCalc, p, resp, nil)
 		require.NoError(t, err)
 
 		want := expectedFeeTotal(t, fee, sendValue, asset)

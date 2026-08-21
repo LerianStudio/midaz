@@ -91,7 +91,7 @@ func FuzzCalculateFee_Amount(f *testing.F) {
 		}
 
 		// The function must not panic regardless of input
-		_ = CalculateFee(logger, feeCalc, p, resp, "BRL", nil)
+		_ = CalculateFee(logger, feeCalc, p, resp, nil)
 	})
 }
 
@@ -165,6 +165,6 @@ func FuzzCalculateFee_Percentage(f *testing.F) {
 		}
 
 		// The function must not panic regardless of input
-		_ = CalculateFee(logger, feeCalc, p, resp, "BRL", nil)
+		_ = CalculateFee(logger, feeCalc, p, resp, nil)
 	})
 }

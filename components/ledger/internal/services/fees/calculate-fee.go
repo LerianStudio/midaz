@@ -195,7 +195,7 @@ func (uc *UseCase) calculateFeeForSinglePackage(
 		ResolverCache:  make(map[string]*feeshared.Account),
 	}
 
-	errCalculateFee := feeUtils.CalculateFee(logger, cf, packFilter, validationResult, uc.defaultCurrency, segCtx)
+	errCalculateFee := feeUtils.CalculateFee(logger, cf, packFilter, validationResult, segCtx)
 	if errCalculateFee != nil {
 		return errCalculateFee
 	}
@@ -236,7 +236,7 @@ func (uc *UseCase) calculateFeeForMultiplePackages(
 		ResolverCache:  make(map[string]*feeshared.Account),
 	}
 
-	errCalculateFee := feeUtils.CalculateFee(logger, cf, packFilter, validationResult, uc.defaultCurrency, segCtx)
+	errCalculateFee := feeUtils.CalculateFee(logger, cf, packFilter, validationResult, segCtx)
 	if errCalculateFee != nil {
 		return errCalculateFee
 	}

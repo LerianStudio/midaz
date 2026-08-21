@@ -91,9 +91,12 @@ func denominationFixture(asset string, deductible bool) (*model.FeeCalculate, *p
 	return feeCalc, p, resp
 }
 
-// TestCalculateFee_LegsDenominatedInSendAsset_NotDefaultCurrency proves a USD
-// transaction produces USD-denominated fee legs even when the configured
-// default currency is BRL — non-deductible and deductible paths.
+// TestCalculateFee_LegsDenominatedInSendAsset_NotDefaultCurrency asserts every
+// fee leg — plus the mutated Send and the rebuilt From/To legs — is denominated
+// in the transaction's Send.Asset (P4-T24), on both the non-deductible and the
+// deductible path. The fixture deliberately uses USD rather than BRL so that a
+// leg picking up an ambient or hardcoded currency instead of Send.Asset fails
+// the assertion rather than passing by coincidence.
 func TestCalculateFee_LegsDenominatedInSendAsset_NotDefaultCurrency(t *testing.T) {
 	t.Parallel()
 
@@ -112,8 +115,7 @@ func TestCalculateFee_LegsDenominatedInSendAsset_NotDefaultCurrency(t *testing.T
 
 			feeCalc, p, resp := denominationFixture("USD", deductible)
 
-			// defaultCurrency deliberately differs from Send.Asset (USD).
-			err := CalculateFee(logger, feeCalc, p, resp, DefaultCurrencyBRL, nil)
+			err := CalculateFee(logger, feeCalc, p, resp, nil)
 			require.NoError(t, err)
 
 			assertAllFeeLegsUseAsset(t, resp, "USD")
@@ -151,7 +153,7 @@ func TestCalculateFee_EmptySendAssetRejected(t *testing.T) {
 	fromBefore := maps.Clone(resp.From)
 	toBefore := maps.Clone(resp.To)
 
-	err := CalculateFee(logger, feeCalc, p, resp, DefaultCurrencyBRL, nil)
+	err := CalculateFee(logger, feeCalc, p, resp, nil)
 	require.Error(t, err)
 
 	var validationErr pkg.ValidationError
