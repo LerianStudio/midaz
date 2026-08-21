@@ -18,7 +18,7 @@ import (
 
 // This file is the ledger's Huma adoption of the CRM holder resource (holders +
 // the holder-scoped account listing). It mirrors the asset exemplar
-// (asset_handler_huma.go); see that file's header for the full conventions.
+// (asset_handler.go); see that file's header for the full conventions.
 // Holder-specific notes:
 //
 //  1. AUTH is appName "midaz" (crm_routes.go ApplicationName), resource "holders".
@@ -339,7 +339,7 @@ func (handler *HolderAccountsHandler) GetAccountsByHolderHuma(ctx context.Contex
 // Huma API. It is the per-file seam the unified server calls; the auth
 // ("midaz","holders",verb) + tenant + ParseUUIDPathParameters("holder") middleware
 // chain is attached on the versioned Fiber group BEFORE the Huma terminal, not here.
-// Paths are GROUP-RELATIVE (see asset_handler_huma.go's RegisterAssetRoutes header
+// Paths are GROUP-RELATIVE (see asset_handler.go's RegisterAssetRoutes header
 // for the rationale).
 //
 // opSuffix is appended to every operation ID — see crmOpSuffixV2.

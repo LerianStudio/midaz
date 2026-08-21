@@ -19,10 +19,10 @@ import (
 )
 
 // This file is the ledger's Huma adoption of the segment resource, cloned from the
-// asset DE-RISK exemplar (asset_handler_huma.go). It reuses the package-shared
+// asset DE-RISK exemplar (asset_handler.go). It reuses the package-shared
 // helpers parseOrgLedger / parsePathUUID (org+ledger+id path resolution) and the
 // secAssetBearerOrAPIKey spec-only Security metadata (the same Bearer-OR-ApiKey OR
-// applies to every resource). Conventions (see asset_handler_huma.go header for the
+// applies to every resource). Conventions (see asset_handler.go header for the
 // full rationale):
 //
 //  1. Path params are plain strings with ONLY `doc:` (no `format:"uuid"`): the

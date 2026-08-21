@@ -22,7 +22,7 @@ import (
 )
 
 // This file is the ledger's Huma adoption of the ledger resource, mirroring the
-// proven asset exemplar (asset_handler_huma.go) adapted to the ledger's two-level
+// proven asset exemplar (asset_handler.go) adapted to the ledger's two-level
 // path (org/ledger), its status/name-filtered offset pagination, its HEAD-count +
 // DELETE-204 shapes, and its two /settings sub-resources. Conventions (identical to
 // the asset exemplar — see its header for the full rationale):

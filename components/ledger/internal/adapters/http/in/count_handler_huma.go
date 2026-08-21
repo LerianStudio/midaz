@@ -17,7 +17,7 @@ import (
 
 // This file is the ledger's Huma adoption of the transaction-count HEAD operation
 // (Wave 2, money-read + routing). It mirrors the asset exemplar's HEAD-count shape
-// (asset_handler_huma.go, CountAssets*) and the balance/operation siblings; see
+// (asset_handler.go, CountAssets*) and the balance/operation siblings; see
 // those headers for the full conventions. Count-specific notes:
 //
 //  1. Only the single HEAD count op migrates here. org+ledger are UUID-validated by

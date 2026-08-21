@@ -16,7 +16,7 @@ import (
 
 // This file is the ledger's Huma adoption of the CRM envelope-encryption
 // provisioning resource (provision + status). It mirrors the asset exemplar
-// (asset_handler_huma.go); see that file's header for the full conventions.
+// (asset_handler.go); see that file's header for the full conventions.
 // Encryption-specific notes:
 //
 //  1. AUTH is appName "midaz" (crm_routes.go ApplicationName), resource
@@ -114,7 +114,7 @@ func (handler *EncryptionHandler) GetProvisioningStatusHuma(ctx context.Context,
 // crm_routes.go); the auth ("midaz","encryption",verb) + tenant +
 // ParseUUIDPathParameters("organization") middleware chain is attached on the
 // versioned Fiber group BEFORE the Huma terminal, not here. Paths are GROUP-RELATIVE
-// (see asset_handler_huma.go's RegisterAssetRoutes header for the rationale).
+// (see asset_handler.go's RegisterAssetRoutes header for the rationale).
 //
 // opSuffix is appended to every operation ID — see crmOpSuffixV2.
 func RegisterEncryptionRoutes(api huma.API, h *EncryptionHandler, opSuffix string) {

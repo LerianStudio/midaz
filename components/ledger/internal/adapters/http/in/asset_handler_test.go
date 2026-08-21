@@ -27,6 +27,7 @@ import (
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/balance"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services/command"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services/query"
+	"github.com/LerianStudio/midaz/v4/pkg"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
 	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
 	pkgHTTP "github.com/LerianStudio/midaz/v4/pkg/net/http"
@@ -90,7 +91,7 @@ func buildHumaAssetApp(t *testing.T, handler *AssetHandler, orgID, ledgerID uuid
 	return f
 }
 
-func TestHuma_CreateAsset_Success(t *testing.T) {
+func TestCreateAsset_Success(t *testing.T) {
 	// NOT parallel: buildHumaAssetApp mutates process-global huma state.
 	ctrl := gomock.NewController(t)
 	t.Cleanup(ctrl.Finish)
@@ -113,8 +114,7 @@ func TestHuma_CreateAsset_Success(t *testing.T) {
 		}).Times(1)
 	// The shared body pipeline (DecodeAndValidate -> parseMetadata) initializes
 	// Metadata to a non-nil empty map when the body carries no "metadata" key, so
-	// CreateOnboardingMetadata persists it — faithful to the production Fiber
-	// WithBody path (the legacy unit test bypassed WithBody, so it never saw this).
+	// CreateOnboardingMetadata persists it.
 	metadataRepo.EXPECT().Create(gomock.Any(), constant.EntityAsset, gomock.Any()).Return(nil).Times(1)
 	accountRepo.EXPECT().ListAccountsByAlias(gomock.Any(), orgID, ledgerID, []string{"@external/TST"}).Return([]*mmodel.Account{}, nil).Times(1)
 	accountRepo.EXPECT().Create(gomock.Any(), gomock.Any()).
@@ -153,7 +153,7 @@ func TestHuma_CreateAsset_Success(t *testing.T) {
 	assert.Equal(t, ledgerID.String(), got["ledgerId"])
 }
 
-func TestHuma_CreateAsset_AuthPreserved(t *testing.T) {
+func TestCreateAsset_AuthPreserved(t *testing.T) {
 	// NOT parallel: process-global huma state.
 	ctrl := gomock.NewController(t)
 	t.Cleanup(ctrl.Finish)
@@ -182,7 +182,7 @@ func TestHuma_CreateAsset_AuthPreserved(t *testing.T) {
 	assert.Equal(t, http.StatusUnauthorized, resp.StatusCode, "auth middleware must reject before Huma; no public route")
 }
 
-func TestHuma_CreateAsset_ValidationError_Canonical400(t *testing.T) {
+func TestCreateAsset_ValidationError_Canonical400(t *testing.T) {
 	// NOT parallel: process-global huma state.
 	ctrl := gomock.NewController(t)
 	t.Cleanup(ctrl.Finish)
@@ -219,7 +219,7 @@ func TestHuma_CreateAsset_ValidationError_Canonical400(t *testing.T) {
 	assert.Equal(t, float64(http.StatusBadRequest), got["status"])
 }
 
-func TestHuma_CreateAsset_MalformedBody_Canonical400(t *testing.T) {
+func TestCreateAsset_MalformedBody_Canonical400(t *testing.T) {
 	// NOT parallel: process-global huma state.
 	ctrl := gomock.NewController(t)
 	t.Cleanup(ctrl.Finish)
@@ -227,9 +227,9 @@ func TestHuma_CreateAsset_MalformedBody_Canonical400(t *testing.T) {
 	orgID := uuid.New()
 	ledgerID := uuid.New()
 
-	// Malformed JSON -> DecodeAndValidate returns a pkg.ResponseError (0094). The
-	// Fiber path writes it flat at 400; HumaProblem must project it to problem+json
-	// at 400 (NOT the 500 fallback and NOT a native Huma 422). Service never reached.
+	// Malformed JSON -> DecodeAndValidate returns a pkg.ResponseError (0094).
+	// HumaProblem must project it to problem+json at 400 (NOT the 500 fallback and
+	// NOT a native Huma 422). Service never reached.
 	handler := &AssetHandler{Command: &command.UseCase{
 		AssetRepo:              asset.NewMockRepository(ctrl),
 		OnboardingMetadataRepo: mongodb.NewMockRepository(ctrl),
@@ -257,7 +257,7 @@ func TestHuma_CreateAsset_MalformedBody_Canonical400(t *testing.T) {
 	assert.Equal(t, float64(http.StatusBadRequest), got["status"])
 }
 
-func TestHuma_GetAssetByID_Success(t *testing.T) {
+func TestGetAssetByID_Success(t *testing.T) {
 	// NOT parallel: process-global huma state.
 	ctrl := gomock.NewController(t)
 	t.Cleanup(ctrl.Finish)
@@ -292,7 +292,7 @@ func TestHuma_GetAssetByID_Success(t *testing.T) {
 	assert.Equal(t, assetID.String(), got["id"])
 }
 
-func TestHuma_GetAssetByID_BadUUID_Canonical400(t *testing.T) {
+func TestGetAssetByID_BadUUID_Canonical400(t *testing.T) {
 	// NOT parallel: process-global huma state.
 	ctrl := gomock.NewController(t)
 	t.Cleanup(ctrl.Finish)
@@ -322,7 +322,7 @@ func TestHuma_GetAssetByID_BadUUID_Canonical400(t *testing.T) {
 	assert.Equal(t, constant.ErrInvalidPathParameter.Error(), got["code"])
 }
 
-func TestHuma_GetAllAssets_Success(t *testing.T) {
+func TestGetAllAssets_Success(t *testing.T) {
 	// NOT parallel: process-global huma state.
 	ctrl := gomock.NewController(t)
 	t.Cleanup(ctrl.Finish)
@@ -352,7 +352,7 @@ func TestHuma_GetAllAssets_Success(t *testing.T) {
 	assert.EqualValues(t, 10, got["limit"])
 }
 
-func TestHuma_GetAllAssets_BadQuery_Canonical400(t *testing.T) {
+func TestGetAllAssets_BadQuery_Canonical400(t *testing.T) {
 	// NOT parallel: process-global huma state.
 	ctrl := gomock.NewController(t)
 	t.Cleanup(ctrl.Finish)
@@ -379,7 +379,7 @@ func TestHuma_GetAllAssets_BadQuery_Canonical400(t *testing.T) {
 	assert.Equal(t, constant.ErrInvalidQueryParameter.Error(), got["code"])
 }
 
-func TestHuma_DeleteAsset_204Empty(t *testing.T) {
+func TestDeleteAsset_204Empty(t *testing.T) {
 	// NOT parallel: process-global huma state.
 	ctrl := gomock.NewController(t)
 	t.Cleanup(ctrl.Finish)
@@ -415,7 +415,7 @@ func TestHuma_DeleteAsset_204Empty(t *testing.T) {
 	assert.Empty(t, respBody, "DELETE 204 must have an empty body")
 }
 
-func TestHuma_CountAssets_204WithHeader(t *testing.T) {
+func TestCountAssets_204WithHeader(t *testing.T) {
 	// NOT parallel: process-global huma state.
 	ctrl := gomock.NewController(t)
 	t.Cleanup(ctrl.Finish)
@@ -440,6 +440,309 @@ func TestHuma_CountAssets_204WithHeader(t *testing.T) {
 	assert.Equal(t, "42", resp.Header.Get(constant.XTotalCount), "X-Total-Count header must carry the count")
 	assert.Empty(t, respBody, "HEAD count must have an empty body")
 	assert.Equal(t, "0", resp.Header.Get("Content-Length"), "HEAD 204 must set Content-Length: 0 (parity with the Fiber NoContent path)")
+}
 
-	_ = libProblem.BaseURI
+// --- ported from the retired Fiber-wrapper tests (asset_test.go) ---------------
+//
+// The six exported fiber.Ctx terminals on AssetHandler were deleted with the Huma
+// migration; the branches their tests covered in the shared cores are exercised
+// here through the live Huma transport instead.
+
+func TestUpdateAsset_Success(t *testing.T) {
+	// NOT parallel: process-global huma state.
+	ctrl := gomock.NewController(t)
+	t.Cleanup(ctrl.Finish)
+
+	orgID := uuid.New()
+	ledgerID := uuid.New()
+	assetID := uuid.New()
+
+	assetRepo := asset.NewMockRepository(ctrl)
+	metadataRepo := mongodb.NewMockRepository(ctrl)
+
+	assetRepo.EXPECT().Update(gomock.Any(), orgID, ledgerID, assetID, gomock.Any()).
+		Return(&mmodel.Asset{
+			ID:             assetID.String(),
+			OrganizationID: orgID.String(),
+			LedgerID:       ledgerID.String(),
+			Name:           "Updated Asset Name",
+			Code:           "TST",
+			Type:           "commodity",
+			Status:         mmodel.Status{Code: "ACTIVE"},
+		}, nil).Times(1)
+	metadataRepo.EXPECT().Update(gomock.Any(), constant.EntityAsset, assetID.String(), gomock.Any()).Return(nil).AnyTimes()
+	metadataRepo.EXPECT().FindByEntity(gomock.Any(), constant.EntityAsset, assetID.String()).Return(nil, nil).AnyTimes()
+
+	handler := &AssetHandler{Command: &command.UseCase{AssetRepo: assetRepo, OnboardingMetadataRepo: metadataRepo}}
+
+	app := buildHumaAssetApp(t, handler, orgID, ledgerID, true)
+
+	body, _ := json.Marshal(map[string]any{"name": "Updated Asset Name"})
+	req := httptest.NewRequest(http.MethodPatch, "/v1/organizations/"+orgID.String()+"/ledgers/"+ledgerID.String()+"/assets/"+assetID.String(), bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
+	require.NoError(t, err)
+	defer func() { _ = resp.Body.Close() }()
+
+	respBody, _ := io.ReadAll(resp.Body)
+	assert.Equal(t, http.StatusOK, resp.StatusCode)
+	assert.NotContains(t, string(respBody), "$schema", "SchemaLinkTransformer must be zeroed")
+
+	var got map[string]any
+	require.NoError(t, json.Unmarshal(respBody, &got), "body: %s", string(respBody))
+	assert.Equal(t, "Updated Asset Name", got["name"])
+	assert.Equal(t, assetID.String(), got["id"])
+}
+
+func TestUpdateAsset_NotFound_Canonical404(t *testing.T) {
+	// NOT parallel: process-global huma state. updateAsset's command-error branch.
+	ctrl := gomock.NewController(t)
+	t.Cleanup(ctrl.Finish)
+
+	orgID := uuid.New()
+	ledgerID := uuid.New()
+	assetID := uuid.New()
+
+	assetRepo := asset.NewMockRepository(ctrl)
+	assetRepo.EXPECT().Update(gomock.Any(), orgID, ledgerID, assetID, gomock.Any()).
+		Return(nil, pkg.ValidateBusinessError(constant.ErrAssetIDNotFound, constant.EntityAsset)).Times(1)
+
+	handler := &AssetHandler{Command: &command.UseCase{AssetRepo: assetRepo}}
+
+	app := buildHumaAssetApp(t, handler, orgID, ledgerID, true)
+
+	body, _ := json.Marshal(map[string]any{"name": "Updated Asset Name"})
+	req := httptest.NewRequest(http.MethodPatch, "/v1/organizations/"+orgID.String()+"/ledgers/"+ledgerID.String()+"/assets/"+assetID.String(), bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
+	require.NoError(t, err)
+	defer func() { _ = resp.Body.Close() }()
+
+	respBody, _ := io.ReadAll(resp.Body)
+	assert.Equal(t, http.StatusNotFound, resp.StatusCode)
+
+	var got map[string]any
+	require.NoError(t, json.Unmarshal(respBody, &got), "body: %s", string(respBody))
+	assert.Equal(t, constant.ErrAssetIDNotFound.Error(), got["code"])
+}
+
+func TestCreateAsset_ServiceError_Canonical4xx(t *testing.T) {
+	// NOT parallel: process-global huma state. createAsset's command-error branch: a
+	// duplicate name/code is a canonical business error, not a 5xx.
+	ctrl := gomock.NewController(t)
+	t.Cleanup(ctrl.Finish)
+
+	orgID := uuid.New()
+	ledgerID := uuid.New()
+
+	assetRepo := asset.NewMockRepository(ctrl)
+	assetRepo.EXPECT().FindByNameOrCode(gomock.Any(), orgID, ledgerID, "Test Asset", "TST").Return(false, nil).Times(1)
+	assetRepo.EXPECT().Create(gomock.Any(), gomock.Any()).
+		Return(nil, pkg.ValidateBusinessError(constant.ErrAssetNameOrCodeDuplicate, constant.EntityAsset)).Times(1)
+
+	handler := &AssetHandler{Command: &command.UseCase{AssetRepo: assetRepo}}
+
+	app := buildHumaAssetApp(t, handler, orgID, ledgerID, true)
+
+	body, _ := json.Marshal(map[string]any{"name": "Test Asset", "type": "commodity", "code": "TST"})
+	req := httptest.NewRequest(http.MethodPost, "/v1/organizations/"+orgID.String()+"/ledgers/"+ledgerID.String()+"/assets", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
+	require.NoError(t, err)
+	defer func() { _ = resp.Body.Close() }()
+
+	respBody, _ := io.ReadAll(resp.Body)
+	assert.GreaterOrEqual(t, resp.StatusCode, http.StatusBadRequest)
+	assert.Less(t, resp.StatusCode, http.StatusInternalServerError, "a duplicate asset is a client error, never a 5xx")
+
+	var got map[string]any
+	require.NoError(t, json.Unmarshal(respBody, &got), "body: %s", string(respBody))
+	assert.Contains(t, got, "code")
+}
+
+func TestGetAllAssets_MetadataFilter(t *testing.T) {
+	// NOT parallel: process-global huma state. Exercises getAllAssets' metadata
+	// branch (GetAllMetadataAssets), not the plain FindAll path.
+	ctrl := gomock.NewController(t)
+	t.Cleanup(ctrl.Finish)
+
+	orgID := uuid.New()
+	ledgerID := uuid.New()
+	asset1 := uuid.New().String()
+
+	assetRepo := asset.NewMockRepository(ctrl)
+	metadataRepo := mongodb.NewMockRepository(ctrl)
+
+	metadataRepo.EXPECT().FindList(gomock.Any(), constant.EntityAsset, gomock.Any()).
+		Return([]*mongodb.Metadata{{EntityID: asset1, Data: map[string]any{"tier": "premium"}}}, nil).Times(1)
+	assetRepo.EXPECT().ListByIDs(gomock.Any(), orgID, ledgerID, gomock.Any()).
+		Return([]*mmodel.Asset{{ID: asset1, Name: "Premium One", Code: "PRM", Type: "commodity"}}, nil).Times(1)
+
+	handler := &AssetHandler{Query: &query.UseCase{AssetRepo: assetRepo, OnboardingMetadataRepo: metadataRepo}}
+
+	app := buildHumaAssetApp(t, handler, orgID, ledgerID, true)
+
+	req := httptest.NewRequest(http.MethodGet, "/v1/organizations/"+orgID.String()+"/ledgers/"+ledgerID.String()+"/assets?metadata.tier=premium", nil)
+	resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
+	require.NoError(t, err)
+	defer func() { _ = resp.Body.Close() }()
+
+	respBody, _ := io.ReadAll(resp.Body)
+	assert.Equal(t, http.StatusOK, resp.StatusCode)
+
+	var got map[string]any
+	require.NoError(t, json.Unmarshal(respBody, &got), "body: %s", string(respBody))
+	items, ok := got["items"].([]any)
+	require.True(t, ok, "items should be an array")
+	assert.Len(t, items, 1)
+}
+
+func TestGetAllAssets_MetadataFilter_NoMatch_Canonical404(t *testing.T) {
+	// NOT parallel: process-global huma state. The metadata branch's error path:
+	// no matching metadata is a canonical 404.
+	ctrl := gomock.NewController(t)
+	t.Cleanup(ctrl.Finish)
+
+	orgID := uuid.New()
+	ledgerID := uuid.New()
+
+	metadataRepo := mongodb.NewMockRepository(ctrl)
+	metadataRepo.EXPECT().FindList(gomock.Any(), constant.EntityAsset, gomock.Any()).Return(nil, nil).Times(1)
+
+	handler := &AssetHandler{Query: &query.UseCase{
+		AssetRepo:              asset.NewMockRepository(ctrl),
+		OnboardingMetadataRepo: metadataRepo,
+	}}
+
+	app := buildHumaAssetApp(t, handler, orgID, ledgerID, true)
+
+	req := httptest.NewRequest(http.MethodGet, "/v1/organizations/"+orgID.String()+"/ledgers/"+ledgerID.String()+"/assets?metadata.tier=nonexistent", nil)
+	resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
+	require.NoError(t, err)
+	defer func() { _ = resp.Body.Close() }()
+
+	respBody, _ := io.ReadAll(resp.Body)
+	assert.Equal(t, http.StatusNotFound, resp.StatusCode)
+
+	var got map[string]any
+	require.NoError(t, json.Unmarshal(respBody, &got), "body: %s", string(respBody))
+	assert.Contains(t, got, "code")
+}
+
+func TestGetAllAssets_ServiceError_Canonical404(t *testing.T) {
+	// NOT parallel: process-global huma state. getAllAssets' plain query-error branch.
+	ctrl := gomock.NewController(t)
+	t.Cleanup(ctrl.Finish)
+
+	orgID := uuid.New()
+	ledgerID := uuid.New()
+
+	assetRepo := asset.NewMockRepository(ctrl)
+	assetRepo.EXPECT().FindAll(gomock.Any(), orgID, ledgerID, gomock.Any()).
+		Return(nil, pkg.ValidateBusinessError(constant.ErrNoAssetsFound, constant.EntityAsset)).Times(1)
+
+	handler := &AssetHandler{Query: &query.UseCase{AssetRepo: assetRepo}}
+
+	app := buildHumaAssetApp(t, handler, orgID, ledgerID, true)
+
+	req := httptest.NewRequest(http.MethodGet, "/v1/organizations/"+orgID.String()+"/ledgers/"+ledgerID.String()+"/assets", nil)
+	resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
+	require.NoError(t, err)
+	defer func() { _ = resp.Body.Close() }()
+
+	respBody, _ := io.ReadAll(resp.Body)
+	assert.Equal(t, http.StatusNotFound, resp.StatusCode)
+
+	var got map[string]any
+	require.NoError(t, json.Unmarshal(respBody, &got), "body: %s", string(respBody))
+	assert.Equal(t, constant.ErrNoAssetsFound.Error(), got["code"])
+}
+
+func TestGetAssetByID_ServiceError_Canonical404(t *testing.T) {
+	// NOT parallel: process-global huma state. getAssetByID's query-error branch.
+	ctrl := gomock.NewController(t)
+	t.Cleanup(ctrl.Finish)
+
+	orgID := uuid.New()
+	ledgerID := uuid.New()
+	assetID := uuid.New()
+
+	assetRepo := asset.NewMockRepository(ctrl)
+	assetRepo.EXPECT().Find(gomock.Any(), orgID, ledgerID, assetID).
+		Return(nil, pkg.ValidateBusinessError(constant.ErrAssetIDNotFound, constant.EntityAsset)).Times(1)
+
+	handler := &AssetHandler{Query: &query.UseCase{AssetRepo: assetRepo}}
+
+	app := buildHumaAssetApp(t, handler, orgID, ledgerID, true)
+
+	req := httptest.NewRequest(http.MethodGet, "/v1/organizations/"+orgID.String()+"/ledgers/"+ledgerID.String()+"/assets/"+assetID.String(), nil)
+	resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
+	require.NoError(t, err)
+	defer func() { _ = resp.Body.Close() }()
+
+	respBody, _ := io.ReadAll(resp.Body)
+	assert.Equal(t, http.StatusNotFound, resp.StatusCode)
+
+	var got map[string]any
+	require.NoError(t, json.Unmarshal(respBody, &got), "body: %s", string(respBody))
+	assert.Equal(t, constant.ErrAssetIDNotFound.Error(), got["code"])
+}
+
+func TestDeleteAsset_ServiceError_Canonical404(t *testing.T) {
+	// NOT parallel: process-global huma state. deleteAsset's command-error branch.
+	ctrl := gomock.NewController(t)
+	t.Cleanup(ctrl.Finish)
+
+	orgID := uuid.New()
+	ledgerID := uuid.New()
+	assetID := uuid.New()
+
+	assetRepo := asset.NewMockRepository(ctrl)
+	assetRepo.EXPECT().Find(gomock.Any(), orgID, ledgerID, assetID).
+		Return(nil, pkg.ValidateBusinessError(constant.ErrAssetIDNotFound, constant.EntityAsset)).Times(1)
+
+	handler := &AssetHandler{Command: &command.UseCase{AssetRepo: assetRepo}}
+
+	app := buildHumaAssetApp(t, handler, orgID, ledgerID, true)
+
+	req := httptest.NewRequest(http.MethodDelete, "/v1/organizations/"+orgID.String()+"/ledgers/"+ledgerID.String()+"/assets/"+assetID.String(), nil)
+	resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
+	require.NoError(t, err)
+	defer func() { _ = resp.Body.Close() }()
+
+	respBody, _ := io.ReadAll(resp.Body)
+	assert.Equal(t, http.StatusNotFound, resp.StatusCode)
+
+	var got map[string]any
+	require.NoError(t, json.Unmarshal(respBody, &got), "body: %s", string(respBody))
+	assert.Equal(t, constant.ErrAssetIDNotFound.Error(), got["code"])
+}
+
+func TestCountAssets_ServiceError(t *testing.T) {
+	// NOT parallel: process-global huma state. countAssets' query-error branch: the
+	// HEAD op must surface the canonical status with no body.
+	ctrl := gomock.NewController(t)
+	t.Cleanup(ctrl.Finish)
+
+	orgID := uuid.New()
+	ledgerID := uuid.New()
+
+	assetRepo := asset.NewMockRepository(ctrl)
+	assetRepo.EXPECT().Count(gomock.Any(), orgID, ledgerID).
+		Return(int64(0), pkg.ValidateBusinessError(constant.ErrNoAssetsFound, constant.EntityAsset)).Times(1)
+
+	handler := &AssetHandler{Query: &query.UseCase{AssetRepo: assetRepo}}
+
+	app := buildHumaAssetApp(t, handler, orgID, ledgerID, true)
+
+	req := httptest.NewRequest(http.MethodHead, "/v1/organizations/"+orgID.String()+"/ledgers/"+ledgerID.String()+"/assets/metrics/count", nil)
+	resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
+	require.NoError(t, err)
+	defer func() { _ = resp.Body.Close() }()
+
+	assert.Equal(t, http.StatusNotFound, resp.StatusCode)
+	assert.Empty(t, resp.Header.Get(constant.XTotalCount), "a failed count must not advertise a total")
 }

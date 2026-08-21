@@ -18,7 +18,7 @@ import (
 )
 
 // This file is the ledger's Huma adoption of the metadata-index (settings) resource,
-// following the asset exemplar (asset_handler_huma.go). Metadata differs from asset
+// following the asset exemplar (asset_handler.go). Metadata differs from asset
 // in two ways: it lives under /v1/settings (no org/ledger path, no UUID path params,
 // so NO ParseUUIDPathParameters middleware), and its path params are plain strings
 // (entity_name enum, index_key). The proven conventions still hold:

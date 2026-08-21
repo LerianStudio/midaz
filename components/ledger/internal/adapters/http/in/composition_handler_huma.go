@@ -16,7 +16,7 @@ import (
 
 // This file is the ledger's Huma adoption of the composition resource (the single
 // holder-account orchestration route). It mirrors the asset exemplar
-// (asset_handler_huma.go); see that file's header for the full conventions.
+// (asset_handler.go); see that file's header for the full conventions.
 // Composition-specific notes:
 //
 //  1. AUTH is appName "midaz" (composition_routes.go midazName, resource "accounts",
@@ -96,7 +96,7 @@ func (handler *CompositionHandler) CreateHolderAccountHuma(ctx context.Context, 
 // the shared Huma API. It is the per-file seam the unified server calls; the auth
 // ("midaz","accounts","post") + tenant + ParseUUIDPathParameters("holder") middleware
 // chain is attached on the versioned group (Fiber-level) BEFORE the Huma terminal, not
-// here. Path is GROUP-RELATIVE (see asset_handler_huma.go's RegisterAssetRoutes
+// here. Path is GROUP-RELATIVE (see asset_handler.go's RegisterAssetRoutes
 // header for the version-prefix rationale).
 //
 // opSuffix distinguishes the operation ID one version group publishes from another's —

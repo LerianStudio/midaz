@@ -19,14 +19,14 @@ import (
 )
 
 // This file is the ledger's Huma adoption of the organization resource, mirroring
-// the asset exemplar (asset_handler_huma.go) adapted to organization's FIRST-LEVEL
+// the asset exemplar (asset_handler.go) adapted to organization's FIRST-LEVEL
 // path (no org/ledger prefix — only the top-level /organizations collection and a
 // single {id} path param). The conventions are identical to the asset exemplar:
 //
 //  1. Path params carry ONLY `doc:` (no `format:"uuid"`) so Huma never emits a
 //     native 422; ParseUUIDPathParameters (wired as a Fiber middleware BEFORE the
 //     Huma terminal) is the sole UUID validator, yielding the canonical 400 / 0065.
-//     parsePathUUID (shared, defined in asset_handler_huma.go) re-parses defensively.
+//     parsePathUUID (shared, defined in asset_handler.go) re-parses defensively.
 //  2. Body ops carry RawBody []byte + SkipValidateBody so http.DecodeAndValidate
 //     stays the sole body validator — never a native Huma 422.
 //  3. List captures the raw query (via Resolve) and rebuilds the map[string]string

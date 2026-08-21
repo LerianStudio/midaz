@@ -16,7 +16,7 @@ import (
 )
 
 // This file is the ledger's Huma adoption of the balance resource (Wave 2,
-// money-read + routing). It mirrors the asset exemplar (asset_handler_huma.go);
+// money-read + routing). It mirrors the asset exemplar (asset_handler.go);
 // see that file's header for the full conventions. Balance-specific notes:
 //
 //  1. balance_id / account_id are UUID-validated by ParseUUIDPathParameters

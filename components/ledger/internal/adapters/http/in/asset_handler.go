@@ -79,7 +79,7 @@ func parseOrgLedger(orgStr, ledgerStr string) (orgID, ledgerID uuid.UUID, err er
 }
 
 // parsePathUUID mirrors GetUUIDFromLocals' failure envelope (ErrInvalidPathParameter
-// / 0065) so a bad path param yields the canonical 400 identical to the Fiber path.
+// / 0065) so a bad path param yields the canonical 400.
 func parsePathUUID(value, key string) (uuid.UUID, error) {
 	id, err := uuid.Parse(value)
 	if err != nil {
@@ -91,25 +91,25 @@ func parsePathUUID(value, key string) (uuid.UUID, error) {
 
 // --- POST /assets -------------------------------------------------------------
 
-// CreateAssetInputHuma is the Huma request envelope for POST. RawBody keeps the
+// CreateAssetRequest is the Huma request envelope for POST. RawBody keeps the
 // body out of Huma's validator (see file header); the org+ledger path params are
 // validated by the Fiber middleware, not by a format tag.
-type CreateAssetInputHuma struct {
+type CreateAssetRequest struct {
 	OrganizationID string `path:"organization_id" doc:"Organization ID (UUID)"`
 	LedgerID       string `path:"ledger_id" doc:"Ledger ID (UUID)"`
 	Authorization  string `header:"Authorization" doc:"Bearer token (forwarded to the service)"`
 	RawBody        []byte `contentType:"application/json"`
 }
 
-// CreateAssetOutputHuma pins 201 (matching http.Created).
-type CreateAssetOutputHuma struct {
+// CreateAssetResponse pins 201 (matching http.Created).
+type CreateAssetResponse struct {
 	Status int
 	Body   *mmodel.Asset
 }
 
-// CreateAssetHuma decodes+validates the raw body imperatively then delegates to the
+// CreateAsset decodes+validates the raw body imperatively then delegates to the
 // shared createAsset core.
-func (handler *AssetHandler) CreateAssetHuma(ctx context.Context, in *CreateAssetInputHuma) (*CreateAssetOutputHuma, error) {
+func (handler *AssetHandler) CreateAsset(ctx context.Context, in *CreateAssetRequest) (*CreateAssetResponse, error) {
 	orgID, ledgerID, err := parseOrgLedger(in.OrganizationID, in.LedgerID)
 	if err != nil {
 		return nil, pkgHTTP.HumaProblem(err)
@@ -125,15 +125,15 @@ func (handler *AssetHandler) CreateAssetHuma(ctx context.Context, in *CreateAsse
 		return nil, pkgHTTP.HumaProblem(err)
 	}
 
-	return &CreateAssetOutputHuma{Status: http.StatusCreated, Body: asset}, nil
+	return &CreateAssetResponse{Status: http.StatusCreated, Body: asset}, nil
 }
 
 // --- GET /assets (list) -------------------------------------------------------
 
-// ListAssetsInputHuma advertises the list query params in the spec (doc-only, no
+// ListAssetsRequest advertises the list query params in the spec (doc-only, no
 // validation tags) and captures the raw query via Resolve for the imperative
 // http.ValidateParameters binder.
-type ListAssetsInputHuma struct {
+type ListAssetsRequest struct {
 	OrganizationID string `path:"organization_id" doc:"Organization ID (UUID)"`
 	LedgerID       string `path:"ledger_id" doc:"Ledger ID (UUID)"`
 	Metadata       string `query:"metadata" doc:"JSON string to filter assets by metadata fields"`
@@ -150,7 +150,7 @@ type ListAssetsInputHuma struct {
 
 // Resolve captures the raw query before the handler. It performs NO validation and
 // NEVER returns an error — canonical rejection stays in http.ValidateParameters.
-func (in *ListAssetsInputHuma) Resolve(ctx huma.Context) []error {
+func (in *ListAssetsRequest) Resolve(ctx huma.Context) []error {
 	u := ctx.URL()
 	in.rawQuery = u.Query()
 
@@ -160,7 +160,7 @@ func (in *ListAssetsInputHuma) Resolve(ctx huma.Context) []error {
 // queries rebuilds the map[string]string that http.ValidateParameters consumes,
 // matching Fiber's c.Queries() (last value wins for a repeated key, present-but-
 // empty keys included).
-func (in *ListAssetsInputHuma) queries() map[string]string {
+func (in *ListAssetsRequest) queries() map[string]string {
 	out := make(map[string]string, len(in.rawQuery))
 	for k, vs := range in.rawQuery {
 		if len(vs) == 0 {
@@ -174,14 +174,14 @@ func (in *ListAssetsInputHuma) queries() map[string]string {
 	return out
 }
 
-// ListAssetsOutputHuma carries the pagination envelope verbatim.
-type ListAssetsOutputHuma struct {
+// ListAssetsResponse carries the pagination envelope verbatim.
+type ListAssetsResponse struct {
 	Status int
 	Body   pkgHTTP.Pagination
 }
 
-// ListAssetsHuma binds the query imperatively then delegates to getAllAssets.
-func (handler *AssetHandler) ListAssetsHuma(ctx context.Context, in *ListAssetsInputHuma) (*ListAssetsOutputHuma, error) {
+// ListAssets binds the query imperatively then delegates to getAllAssets.
+func (handler *AssetHandler) ListAssets(ctx context.Context, in *ListAssetsRequest) (*ListAssetsResponse, error) {
 	orgID, ledgerID, err := parseOrgLedger(in.OrganizationID, in.LedgerID)
 	if err != nil {
 		return nil, pkgHTTP.HumaProblem(err)
@@ -192,27 +192,27 @@ func (handler *AssetHandler) ListAssetsHuma(ctx context.Context, in *ListAssetsI
 		return nil, pkgHTTP.HumaProblem(err)
 	}
 
-	return &ListAssetsOutputHuma{Status: http.StatusOK, Body: pagination}, nil
+	return &ListAssetsResponse{Status: http.StatusOK, Body: pagination}, nil
 }
 
 // --- GET /assets/{id} ---------------------------------------------------------
 
-// GetAssetInputHuma is the by-id request envelope. The id path param carries no
+// GetAssetRequest is the by-id request envelope. The id path param carries no
 // format tag (ParseUUIDPathParameters is the sole validator).
-type GetAssetInputHuma struct {
+type GetAssetRequest struct {
 	OrganizationID string `path:"organization_id" doc:"Organization ID (UUID)"`
 	LedgerID       string `path:"ledger_id" doc:"Ledger ID (UUID)"`
 	ID             string `path:"id" doc:"Asset ID (UUID)"`
 }
 
-// GetAssetOutputHuma carries the asset verbatim.
-type GetAssetOutputHuma struct {
+// GetAssetResponse carries the asset verbatim.
+type GetAssetResponse struct {
 	Status int
 	Body   *mmodel.Asset
 }
 
-// GetAssetByIDHuma delegates to getAssetByID.
-func (handler *AssetHandler) GetAssetByIDHuma(ctx context.Context, in *GetAssetInputHuma) (*GetAssetOutputHuma, error) {
+// GetAssetByID delegates to getAssetByID.
+func (handler *AssetHandler) GetAssetByID(ctx context.Context, in *GetAssetRequest) (*GetAssetResponse, error) {
 	orgID, ledgerID, err := parseOrgLedger(in.OrganizationID, in.LedgerID)
 	if err != nil {
 		return nil, pkgHTTP.HumaProblem(err)
@@ -228,28 +228,28 @@ func (handler *AssetHandler) GetAssetByIDHuma(ctx context.Context, in *GetAssetI
 		return nil, pkgHTTP.HumaProblem(err)
 	}
 
-	return &GetAssetOutputHuma{Status: http.StatusOK, Body: asset}, nil
+	return &GetAssetResponse{Status: http.StatusOK, Body: asset}, nil
 }
 
 // --- PATCH /assets/{id} -------------------------------------------------------
 
-// UpdateAssetInputHuma is the update request envelope (RawBody, see Create).
-type UpdateAssetInputHuma struct {
+// UpdateAssetRequest is the update request envelope (RawBody, see Create).
+type UpdateAssetRequest struct {
 	OrganizationID string `path:"organization_id" doc:"Organization ID (UUID)"`
 	LedgerID       string `path:"ledger_id" doc:"Ledger ID (UUID)"`
 	ID             string `path:"id" doc:"Asset ID (UUID)"`
 	RawBody        []byte `contentType:"application/json"`
 }
 
-// UpdateAssetOutputHuma carries the updated asset (200, matching http.OK).
-type UpdateAssetOutputHuma struct {
+// UpdateAssetResponse carries the updated asset (200, matching http.OK).
+type UpdateAssetResponse struct {
 	Status int
 	Body   *mmodel.Asset
 }
 
-// UpdateAssetHuma decodes+validates the raw body imperatively then delegates to the
+// UpdateAsset decodes+validates the raw body imperatively then delegates to the
 // shared updateAsset core.
-func (handler *AssetHandler) UpdateAssetHuma(ctx context.Context, in *UpdateAssetInputHuma) (*UpdateAssetOutputHuma, error) {
+func (handler *AssetHandler) UpdateAsset(ctx context.Context, in *UpdateAssetRequest) (*UpdateAssetResponse, error) {
 	orgID, ledgerID, err := parseOrgLedger(in.OrganizationID, in.LedgerID)
 	if err != nil {
 		return nil, pkgHTTP.HumaProblem(err)
@@ -270,17 +270,17 @@ func (handler *AssetHandler) UpdateAssetHuma(ctx context.Context, in *UpdateAsse
 		return nil, pkgHTTP.HumaProblem(err)
 	}
 
-	return &UpdateAssetOutputHuma{Status: http.StatusOK, Body: asset}, nil
+	return &UpdateAssetResponse{Status: http.StatusOK, Body: asset}, nil
 }
 
 // --- DELETE /assets/{id} ------------------------------------------------------
 
-// DeleteAssetOutputHuma has NO Body field: paired with DefaultStatus 204 it makes
+// DeleteAssetResponse has NO Body field: paired with DefaultStatus 204 it makes
 // Huma emit a bodiless 204, matching the Fiber http.NoContent path.
-type DeleteAssetOutputHuma struct{}
+type DeleteAssetResponse struct{}
 
-// DeleteAssetByIDHuma delegates to deleteAsset; returns a bodiless 204 on success.
-func (handler *AssetHandler) DeleteAssetByIDHuma(ctx context.Context, in *GetAssetInputHuma) (*DeleteAssetOutputHuma, error) {
+// DeleteAssetByID delegates to deleteAsset; returns a bodiless 204 on success.
+func (handler *AssetHandler) DeleteAssetByID(ctx context.Context, in *GetAssetRequest) (*DeleteAssetResponse, error) {
 	orgID, ledgerID, err := parseOrgLedger(in.OrganizationID, in.LedgerID)
 	if err != nil {
 		return nil, pkgHTTP.HumaProblem(err)
@@ -295,28 +295,28 @@ func (handler *AssetHandler) DeleteAssetByIDHuma(ctx context.Context, in *GetAss
 		return nil, pkgHTTP.HumaProblem(err)
 	}
 
-	return &DeleteAssetOutputHuma{}, nil
+	return &DeleteAssetResponse{}, nil
 }
 
 // --- HEAD /assets/metrics/count -----------------------------------------------
 
-// CountAssetsInputHuma is the HEAD-count request envelope (org+ledger only).
-type CountAssetsInputHuma struct {
+// CountAssetsRequest is the HEAD-count request envelope (org+ledger only).
+type CountAssetsRequest struct {
 	OrganizationID string `path:"organization_id" doc:"Organization ID (UUID)"`
 	LedgerID       string `path:"ledger_id" doc:"Ledger ID (UUID)"`
 }
 
-// CountAssetsOutputHuma replicates the Fiber HEAD-count response manually: the
+// CountAssetsResponse replicates the Fiber HEAD-count response manually: the
 // X-Total-Count header carries the count, Content-Length is pinned to 0, and the
 // body is empty at status 204. Huma serializes the header from the struct tag; the
 // DefaultStatus 204 + no Body field yields the bodiless response.
-type CountAssetsOutputHuma struct {
+type CountAssetsResponse struct {
 	TotalCount    string `header:"X-Total-Count"`
 	ContentLength string `header:"Content-Length"`
 }
 
-// CountAssetsHuma delegates to countAssets and sets the count headers.
-func (handler *AssetHandler) CountAssetsHuma(ctx context.Context, in *CountAssetsInputHuma) (*CountAssetsOutputHuma, error) {
+// CountAssets delegates to countAssets and sets the count headers.
+func (handler *AssetHandler) CountAssets(ctx context.Context, in *CountAssetsRequest) (*CountAssetsResponse, error) {
 	orgID, ledgerID, err := parseOrgLedger(in.OrganizationID, in.LedgerID)
 	if err != nil {
 		return nil, pkgHTTP.HumaProblem(err)
@@ -327,13 +327,13 @@ func (handler *AssetHandler) CountAssetsHuma(ctx context.Context, in *CountAsset
 		return nil, pkgHTTP.HumaProblem(err)
 	}
 
-	return &CountAssetsOutputHuma{
+	return &CountAssetsResponse{
 		TotalCount:    strconv.FormatInt(count, 10),
 		ContentLength: "0",
 	}, nil
 }
 
-// RegisterAssetRoutes registers the six migrated asset operations on the shared
+// RegisterAssetRoutes registers the six asset operations on the shared
 // Huma API. It is the per-file seam registerAssetRoutesToApp calls; the auth + tenant +
 // ParseUUIDPathParameters middleware chain for these routes is attached in
 // registerAssetRoutesToApp (Fiber-level) BEFORE the Huma terminal, not here.
@@ -362,7 +362,7 @@ func RegisterAssetRoutes(api huma.API, h *AssetHandler, opSuffix string) {
 		// Body validated imperatively (http.DecodeAndValidate) — see file header.
 		SkipValidateBody: true,
 		DefaultStatus:    http.StatusCreated,
-	}, h.CreateAssetHuma)
+	}, h.CreateAsset)
 	attachTypedRequestBody[mmodel.CreateAssetInput](api, "createAsset"+opSuffix)
 
 	huma.Register(api, huma.Operation{
@@ -372,7 +372,7 @@ func RegisterAssetRoutes(api huma.API, h *AssetHandler, opSuffix string) {
 		Summary:     "List all assets",
 		Tags:        []string{tag},
 		Security:    secAssetBearerOrAPIKey,
-	}, h.ListAssetsHuma)
+	}, h.ListAssets)
 
 	huma.Register(api, huma.Operation{
 		OperationID: "getAssetByID" + opSuffix,
@@ -381,7 +381,7 @@ func RegisterAssetRoutes(api huma.API, h *AssetHandler, opSuffix string) {
 		Summary:     "Retrieve a specific asset",
 		Tags:        []string{tag},
 		Security:    secAssetBearerOrAPIKey,
-	}, h.GetAssetByIDHuma)
+	}, h.GetAssetByID)
 
 	huma.Register(api, huma.Operation{
 		OperationID:      "updateAsset" + opSuffix,
@@ -391,7 +391,7 @@ func RegisterAssetRoutes(api huma.API, h *AssetHandler, opSuffix string) {
 		Tags:             []string{tag},
 		Security:         secAssetBearerOrAPIKey,
 		SkipValidateBody: true, // body validated imperatively — see createAsset.
-	}, h.UpdateAssetHuma)
+	}, h.UpdateAsset)
 	attachTypedRequestBody[mmodel.UpdateAssetInput](api, "updateAsset"+opSuffix)
 
 	huma.Register(api, huma.Operation{
@@ -403,7 +403,7 @@ func RegisterAssetRoutes(api huma.API, h *AssetHandler, opSuffix string) {
 		Security:    secAssetBearerOrAPIKey,
 		// DefaultStatus 204 + an Out struct with no Body field => bodiless 204.
 		DefaultStatus: http.StatusNoContent,
-	}, h.DeleteAssetByIDHuma)
+	}, h.DeleteAssetByID)
 
 	huma.Register(api, huma.Operation{
 		OperationID: "countAssets" + opSuffix,
@@ -415,5 +415,5 @@ func RegisterAssetRoutes(api huma.API, h *AssetHandler, opSuffix string) {
 		// HEAD count: X-Total-Count header + empty 204 body (Content-Length 0 set
 		// on the Out struct), matching the Fiber http.NoContent + header path.
 		DefaultStatus: http.StatusNoContent,
-	}, h.CountAssetsHuma)
+	}, h.CountAssets)
 }

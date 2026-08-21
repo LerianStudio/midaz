@@ -17,7 +17,7 @@ import (
 )
 
 // This file is the ledger's Huma adoption of the CRM instrument resource. It mirrors
-// the asset exemplar (asset_handler_huma.go) and the holder sibling
+// the asset exemplar (asset_handler.go) and the holder sibling
 // (holder_handler_huma.go); see those headers for the full conventions. Instrument-
 // specific notes:
 //
@@ -341,7 +341,7 @@ func (handler *InstrumentHandler) GetAllInstrumentsHuma(ctx context.Context, in 
 // attached on the versioned Fiber group BEFORE the Huma terminal, not here. The
 // related-party delete uses ParseUUIDPathParameters("related-parties"); all others use
 // "instruments" (see crm_routes.go). Paths are GROUP-RELATIVE (see
-// asset_handler_huma.go's RegisterAssetRoutes header for the rationale).
+// asset_handler.go's RegisterAssetRoutes header for the rationale).
 //
 // opSuffix is appended to every operation ID — see crmOpSuffixV2.
 func RegisterInstrumentRoutes(api huma.API, h *InstrumentHandler, opSuffix string) {

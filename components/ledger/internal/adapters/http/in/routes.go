@@ -17,7 +17,7 @@ const midazName = "midaz"
 // SettingsMaxPayloadSize defines the maximum payload size for settings endpoints (64KB).
 const SettingsMaxPayloadSize = 64 * 1024
 
-// RegisterAssetRoutesToApp wires the Huma-migrated asset surface onto the /v1
+// RegisterAssetRoutesToApp wires the asset surface onto the /v1
 // contract. See registerAssetRoutesToApp for what it attaches.
 func RegisterAssetRoutesToApp(group fiber.Router, api huma.API, auth *middleware.AuthClient, ih *AssetHandler, routeOptions *http.ProtectedRouteOptions) {
 	registerAssetRoutesToApp(group, api, auth, ih, routeOptions, routeOpSuffixV1)
@@ -36,9 +36,9 @@ func RegisterAssetV2RoutesToApp(group fiber.Router, api huma.API, auth *middlewa
 // chain — auth.Authorize("midaz","assets",verb) + tenant PostAuthMiddlewares +
 // ParseUUIDPathParameters("asset") — as MIDDLEWARE ONLY (no terminal) on the VERSIONED GROUP
 // with GROUP-RELATIVE paths, then registers the Huma terminals via RegisterAssetRoutes on the
-// SAME group's Huma API. This preserves the pre-Huma ("midaz","assets",verb) authz tuples and
-// tenant resolution BYTE-FOR-BYTE on whichever version group it is mounted on; no asset route
-// becomes public.
+// SAME group's Huma API. The ("midaz","assets",verb) authz tuples and tenant resolution
+// therefore apply on whichever version group it is mounted on; no asset route becomes
+// public.
 //
 // opSuffix distinguishes the operation IDs one version group publishes from another's — see
 // routeOpSuffixV1. Nothing else varies between contracts, so a change to the surface reaches

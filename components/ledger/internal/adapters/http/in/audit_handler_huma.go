@@ -15,7 +15,7 @@ import (
 )
 
 // This file is the ledger's Huma adoption of the CRM protection-audit listing.
-// It mirrors the asset exemplar (asset_handler_huma.go); see that file's header
+// It mirrors the asset exemplar (asset_handler.go); see that file's header
 // for the full conventions. Audit-specific notes:
 //
 //  1. AUTH is appName "midaz" (crm_routes.go ApplicationName), resource
@@ -98,7 +98,7 @@ func (handler *AuditHandler) GetAuditEventsHuma(ctx context.Context, in *GetAudi
 // guard in crm_routes.go); the auth ("midaz","protection","get") + tenant +
 // ParseUUIDPathParameters("organization") middleware chain is attached on the
 // versioned Fiber group BEFORE the Huma terminal, not here. Paths are GROUP-RELATIVE
-// (see asset_handler_huma.go's RegisterAssetRoutes header for the rationale).
+// (see asset_handler.go's RegisterAssetRoutes header for the rationale).
 //
 // opSuffix is appended to the operation ID — see crmOpSuffixV2.
 func RegisterAuditRoutes(api huma.API, h *AuditHandler, opSuffix string) {

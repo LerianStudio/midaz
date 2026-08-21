@@ -28,7 +28,7 @@ import (
 // → WriteTransaction, with its 9 cleanup points) is NOT touched: the only extraction is
 // the thin transport boundary that reads path params + idempotency headers and writes
 // the response — the exact split account/holder/instrument already use. Conventions
-// (see asset_handler_huma.go's header for the full rationale):
+// (see asset_handler.go's header for the full rationale):
 //
 //  1. Path params are plain strings with only `doc:` (no format tag) so the sole UUID
 //     validator stays the ParseUUIDPathParameters Fiber middleware attached BEFORE the

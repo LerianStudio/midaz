@@ -18,7 +18,7 @@ import (
 )
 
 // This file is the ledger's Huma adoption of the asset-rate resource. It mirrors
-// the proven asset exemplar (asset_handler_huma.go), adapted to asset-rate's three
+// the proven asset exemplar (asset_handler.go), adapted to asset-rate's three
 // operations: a PUT create-or-upsert, a GET by external id, and a cursor-paginated
 // GET list keyed by a free-form asset code. assetrate is MONEY-adjacent (exchange
 // rates), so every op stays code+status byte-identical to the pre-migration Fiber
@@ -39,7 +39,7 @@ import (
 //     metadata below is SPEC-ONLY.
 //
 // parseOrgLedger / parsePathUUID are the shared helpers defined in
-// asset_handler_huma.go (same package) — reused here, not redefined.
+// asset_handler.go (same package) — reused here, not redefined.
 
 // secAssetRateBearerOrAPIKey advertises that each asset-rate operation accepts EITHER
 // a JWT bearer token OR an X-API-Key (two entries = OR). SPEC metadata only; runtime

@@ -19,7 +19,7 @@ import (
 )
 
 // This file is the ledger's Huma adoption of the portfolio resource, following the
-// asset exemplar (asset_handler_huma.go) verbatim: shared parseOrgLedger /
+// asset exemplar (asset_handler.go) verbatim: shared parseOrgLedger /
 // parsePathUUID / HumaProblem / DecodeAndValidate helpers, path params as plain
 // strings (ParseUUIDPathParameters is the sole UUID validator — no format tag), raw
 // body bytes decoded imperatively (no native Huma 422), and the query bound via the

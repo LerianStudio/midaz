@@ -255,7 +255,7 @@ func (handler *TransactionRouteHandler) DeleteTransactionRouteByIDHuma(ctx conte
 // calls; the auth ("midaz","transaction-routes",verb) + tenant +
 // ParseUUIDPathParameters("transaction_route") middleware chain is attached on the
 // /v1 group (Fiber-level) BEFORE the Huma terminal, not here. Paths are
-// GROUP-RELATIVE (see asset_handler_huma.go's RegisterAssetRoutes header for the
+// GROUP-RELATIVE (see asset_handler.go's RegisterAssetRoutes header for the
 // /v1 rationale).
 //
 // opSuffix distinguishes the operation IDs one version group publishes from another's (empty

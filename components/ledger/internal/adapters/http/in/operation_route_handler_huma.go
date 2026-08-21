@@ -16,7 +16,7 @@ import (
 )
 
 // This file is the ledger's Huma adoption of the operation-route resource (Wave 2,
-// money-read + routing). It mirrors the asset exemplar (asset_handler_huma.go); see
+// money-read + routing). It mirrors the asset exemplar (asset_handler.go); see
 // that file's header for the full conventions. Operation-route-specific notes:
 //
 //  1. AUTH is the "midaz" appName, resource "operation-routes". The Fiber guard
@@ -259,7 +259,7 @@ func (handler *OperationRouteHandler) DeleteOperationRouteByIDHuma(ctx context.C
 // calls; the auth ("midaz","operation-routes",verb) + tenant +
 // ParseUUIDPathParameters("operation_route") middleware chain is attached on the
 // version group (Fiber-level) BEFORE the Huma terminal, not here. Paths are
-// GROUP-RELATIVE (see asset_handler_huma.go's RegisterAssetRoutes header for the
+// GROUP-RELATIVE (see asset_handler.go's RegisterAssetRoutes header for the
 // rationale).
 //
 // opSuffix is appended to every operation ID so the same surface can be published on

@@ -18,10 +18,10 @@ import (
 )
 
 // This file is the ledger's Huma adoption of the account-type resource. It mirrors
-// the asset exemplar (asset_handler_huma.go) — the DE-RISK proof for the ledger
+// the asset exemplar (asset_handler.go) — the DE-RISK proof for the ledger
 // fan-out — adapted to account-type's five ops (no HEAD-count) and its CURSOR
 // pagination (GetAllAccountType returns a cursor the envelope carries via SetCursor).
-// See asset_handler_huma.go's header for the full convention rationale; the shared
+// See asset_handler.go's header for the full convention rationale; the shared
 // helpers (parseOrgLedger, parsePathUUID) and the shared error projection
 // (pkgHTTP.HumaProblem) are reused verbatim.
 //
