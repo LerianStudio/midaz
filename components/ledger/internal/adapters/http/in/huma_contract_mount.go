@@ -31,7 +31,7 @@ import (
 type HumaMountDeps struct {
 	Auth *middleware.AuthClient
 
-	// Onboarding + Wave-1 handlers.
+	// Handlers on the onboarding policy group (see registerOnboardingRoutes).
 	Organization  *OrganizationHandler
 	Ledger        *LedgerHandler
 	Portfolio     *PortfolioHandler
@@ -42,7 +42,7 @@ type HumaMountDeps struct {
 	Asset         *AssetHandler
 	AssetRate     *AssetRateHandler
 
-	// Wave-2 money-read + routing handlers.
+	// Handlers on the money-read + routing policy group (see registerMoneyReadRoutes).
 	Balance          *BalanceHandler
 	Operation        *OperationHandler
 	OperationRoute   *OperationRouteHandler
@@ -93,8 +93,8 @@ type HumaMountDeps struct {
 //     Passing OnboardingOptions here would inject tenant-DB middleware the inline
 //     route never had, so LedgerOptions is load-bearing.
 func (d HumaMountDeps) MountV1(group fiber.Router, api huma.API) {
-	d.registerWave1(group, api)
-	d.registerWave2(group, api)
+	d.registerOnboardingRoutes(group, api)
+	d.registerMoneyReadRoutes(group, api)
 
 	// Wave-4 (MONEY-WRITE): the twelve transaction ops (json/inflow/outflow/annotation/
 	// block/unblock CREATE, commit/cancel/revert STATE, PATCH update, GET-by-id + list).
@@ -103,10 +103,19 @@ func (d HumaMountDeps) MountV1(group fiber.Router, api huma.API) {
 	RegisterTransactionHumaRoutesToApp(group, api, d.Auth, d.Transaction, d.TransactionOptions)
 }
 
-// registerWave1 mounts organization, ledger, portfolio, segment, account,
-// account-type, metadata-index, asset and asset-rate. See MountV1 for the
-// per-registrar options rationale.
-func (d HumaMountDeps) registerWave1(group fiber.Router, api huma.API) {
+// registerOnboardingRoutes mounts the /v1 resources whose guard chain is the
+// onboarding one — organization, ledger, portfolio, segment, account, account-type
+// and asset all carry OnboardingOptions ([authAssertion, WithTenantDB]) — plus the
+// two members whose policy deviates and is therefore load-bearing at the call site:
+//
+//   - metadata-index carries LedgerOptions ([authAssertion] ONLY, no WithTenantDB).
+//     Passing OnboardingOptions here would inject tenant-DB middleware the route
+//     never had.
+//   - asset-rate carries TransactionOptions because it is MONEY-adjacent (exchange
+//     rates), so it shares the transaction tenant chain.
+//
+// account-type authorizes against the "midaz" appName (protectedMidaz).
+func (d HumaMountDeps) registerOnboardingRoutes(group fiber.Router, api huma.API) {
 	RegisterOrganizationRoutesToApp(group, api, d.Auth, d.Organization, d.OnboardingOptions)
 	RegisterLedgerRoutesToApp(group, api, d.Auth, d.Ledger, d.OnboardingOptions)
 	RegisterPortfolioRoutesToApp(group, api, d.Auth, d.Portfolio, d.OnboardingOptions)
@@ -118,10 +127,12 @@ func (d HumaMountDeps) registerWave1(group fiber.Router, api huma.API) {
 	RegisterAssetRateRoutesToApp(group, api, d.Auth, d.AssetRate, d.TransactionOptions)
 }
 
-// registerWave2 mounts balance, operation-read, transaction-count, operation-route
-// and transaction-route. All carry TransactionOptions ([authAssertion,
-// WithTenantDB]) and authorize against the "midaz" appName (protectedMidaz).
-func (d HumaMountDeps) registerWave2(group fiber.Router, api huma.API) {
+// registerMoneyReadRoutes mounts the /v1 resources that share the money-read guard
+// chain: balance, operation-read, transaction-count, operation-route and
+// transaction-route. Every member carries TransactionOptions ([authAssertion,
+// WithTenantDB]) and authorizes against the "midaz" appName (protectedMidaz) — a
+// uniform policy, unlike the onboarding group above.
+func (d HumaMountDeps) registerMoneyReadRoutes(group fiber.Router, api huma.API) {
 	RegisterBalanceRoutesToApp(group, api, d.Auth, d.Balance, d.TransactionOptions)
 	RegisterOperationRoutesToApp(group, api, d.Auth, d.Operation, d.TransactionOptions)
 	RegisterCountTransactionRoutesToApp(group, api, d.Auth, d.Transaction, d.TransactionOptions)
@@ -139,11 +150,11 @@ func (d HumaMountDeps) registerWave2(group fiber.Router, api huma.API) {
 // accounts, account-types, assets — carry OnboardingOptions and reuse the same authz
 // tuples and tenant chain as their v1 twins; they are straight mirrors, additive over v1,
 // with no new policy surface. account-types authorizes against the "midaz" appName
-// (protectedMidaz), exactly as on v1 (see registerWave1 / registerAccountTypeRoutesToApp).
+// (protectedMidaz), exactly as on v1 (see registerOnboardingRoutes / registerAccountTypeRoutesToApp).
 //
 // metadata-index is the LEDGER-AGNOSTIC settings resource: it carries LedgerOptions
 // ([authAssertion] ONLY, no WithTenantDB) and authorizes against the "midaz" appName under
-// the "settings" resource, exactly as on v1 (see registerWave1 / registerMetadataIndexRoutesToApp).
+// the "settings" resource, exactly as on v1 (see registerOnboardingRoutes / registerMetadataIndexRoutesToApp).
 // Passing OnboardingOptions here would inject tenant-DB middleware the route never had, so
 // LedgerOptions is load-bearing.
 //
@@ -160,7 +171,7 @@ func (d HumaMountDeps) registerWave2(group fiber.Router, api huma.API) {
 // TransactionOptions and authorize against the "midaz" appName, matching their v1 twins.
 // The transaction-count HEAD op (RegisterCountTransactionV2RoutesToApp) is a straight mirror:
 // it carries TransactionOptions and authorizes against the "midaz" appName under the
-// "transactions" resource with the "head" verb, exactly as on v1 (see registerWave2 /
+// "transactions" resource with the "head" verb, exactly as on v1 (see registerMoneyReadRoutes /
 // RegisterCountTransactionRoutesToApp).
 //
 // CRM carries its OWN CRMOptions and authorizes against the "midaz" holders/instruments/
@@ -173,10 +184,10 @@ func (d HumaMountDeps) registerWave2(group fiber.Router, api huma.API) {
 // resource; it is served ONLY on this /v2 contract (see RegisterCompositionV2RoutesToApp).
 //
 // operation-routes carry TransactionOptions ([authAssertion, WithTenantDB]) and authorize
-// against the "midaz" appName (protectedMidaz), exactly as on v1 (see registerWave2 /
+// against the "midaz" appName (protectedMidaz), exactly as on v1 (see registerMoneyReadRoutes /
 // RegisterOperationRouteRoutesToApp). transaction-routes likewise carry TransactionOptions
 // and authorize against the "midaz" appName (protectedMidaz), exactly as on v1 (see
-// registerWave2 / RegisterTransactionRouteRoutesToApp).
+// registerMoneyReadRoutes / RegisterTransactionRouteRoutesToApp).
 func (d HumaMountDeps) MountV2(group fiber.Router, api huma.API) {
 	RegisterOrganizationV2RoutesToApp(group, api, d.Auth, d.Organization, d.OnboardingOptions)
 	RegisterLedgerV2RoutesToApp(group, api, d.Auth, d.Ledger, d.OnboardingOptions)

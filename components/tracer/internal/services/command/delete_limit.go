@@ -65,8 +65,7 @@ func NewDeleteLimitCommand(repo LimitRepository, clk clock.Clock, auditWriter Au
 
 // Execute soft-deletes a limit by setting status to DELETED.
 // DELETED is a terminal state - the limit cannot be reactivated.
-// Idempotent: if already DELETED, returns success without error.
-// Returns error if limit is not found.
+// Returns constant.ErrLimitNotFound when the limit does not exist.
 //
 // The status update and the audit event are persisted atomically inside a single
 // database transaction via executeInTx: either both land or neither does.
@@ -142,25 +141,15 @@ func (c *DeleteLimitCommand) Execute(ctx context.Context, id uuid.UUID) (retErr 
 		return constant.ErrLimitNotFound
 	}
 
-	// Idempotency: if already deleted, return success (no-op)
-	if limit.Status == model.LimitStatusDeleted {
-		logger.With(
-			libLog.String("operation", "service.limit.delete"),
-			libLog.String("limit.id", id.String()),
-		).Log(ctx, libLog.LevelDebug, "Limit already deleted (idempotent no-op)")
-
-		return nil
-	}
-
-	// Capture "before" state for audit (after idempotency check, before mutation)
+	// Capture "before" state for audit (before mutation)
 	beforeState := LimitToMap(limit)
 
 	// Capture original status before mutation for accurate logging
 	originalStatus := limit.Status
 
 	// Validate transition via model.Limit.SetStatus which enforces allowed transitions:
-	// ACTIVE → DELETED and INACTIVE → DELETED are valid; DELETED → DELETED is handled
-	// above as idempotent. See model.LimitStatus and model.Limit.SetStatus for rules.
+	// ACTIVE → DELETED and INACTIVE → DELETED are valid. See model.LimitStatus and
+	// model.Limit.SetStatus for rules.
 	if err := limit.SetStatus(model.LimitStatusDeleted, c.clock.Now()); err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Invalid state transition", err)
 		logger.With(
@@ -222,8 +211,7 @@ func (c *DeleteLimitCommand) Execute(ctx context.Context, id uuid.UUID) (retErr 
 	return nil
 }
 
-// emitLimitDeletedEvent publishes the limit.deleted event post-commit. It is
-// not called on the idempotent already-deleted no-op (which skips the tx).
+// emitLimitDeletedEvent publishes the limit.deleted event post-commit.
 // IMPORTANT posture: emit failures never fail the request.
 func (c *DeleteLimitCommand) emitLimitDeletedEvent(ctx context.Context, span trace.Span, logger libLog.Logger, limit *model.Limit) {
 	pkgStreaming.EmitImportant(ctx, span, logger, c.Streaming, events.LimitDeletedDefinition.Key(),

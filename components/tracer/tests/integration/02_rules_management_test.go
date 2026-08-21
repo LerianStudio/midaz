@@ -81,8 +81,8 @@ func TestCreateRule_2_1_1_WithCompletePayload(t *testing.T) {
 	assert.Len(t, ruleID, 36, "ruleId should be a valid UUID (36 chars)")
 	assert.Regexp(t, `^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$`, ruleID)
 
-	// Validate fields (name is normalized to lowercase by server)
-	assert.Equal(t, "high value transaction rule", result["name"])
+	// Validate fields (name is stored verbatim: trim-only, casing preserved)
+	assert.Equal(t, "High value transaction rule", result["name"])
 	assert.Equal(t, "Deny transactions over $10,000", result["description"])
 	assert.Equal(t, "amount > 1000000", result["expression"])
 	assert.Equal(t, "DENY", result["action"])
@@ -142,7 +142,7 @@ func TestCreateRule_2_1_2_WithMinimalPayload(t *testing.T) {
 
 	ruleID := getStringField(t, result, "ruleId")
 	assert.Regexp(t, `^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$`, ruleID)
-	assert.Equal(t, "minimal rule", result["name"]) // normalized to lowercase
+	assert.Equal(t, "Minimal rule", result["name"]) // stored verbatim (casing preserved)
 	assert.Nil(t, result["description"])
 	assert.Equal(t, "true", result["expression"])
 	assert.Equal(t, "ALLOW", result["action"])
@@ -1602,8 +1602,8 @@ func TestGetRule_2_2_1_RetrievesRuleByValidID(t *testing.T) {
 	require.NoError(t, err)
 
 	assert.Equal(t, ruleID, result["ruleId"])
-	// API normalizes name to lowercase
-	assert.Equal(t, "retrievable rule", result["name"])
+	// Name is stored verbatim (casing preserved)
+	assert.Equal(t, "Retrievable rule", result["name"])
 	assert.Equal(t, "Test description", result["description"])
 	assert.Equal(t, "amount > 500000", result["expression"])
 	assert.Equal(t, "REVIEW", result["action"])
@@ -1652,8 +1652,8 @@ func TestGetRule_2_2_2_RetrievesRuleWithMinimalFields(t *testing.T) {
 	require.NoError(t, err)
 
 	assert.Equal(t, ruleID, result["ruleId"])
-	// API normalizes name to lowercase
-	assert.Equal(t, "minimal retrieval rule", result["name"])
+	// Name is stored verbatim (casing preserved)
+	assert.Equal(t, "Minimal retrieval rule", result["name"])
 	assert.Nil(t, result["description"])
 	assert.Equal(t, "DENY", result["action"])
 	assert.Equal(t, "DRAFT", result["status"])
@@ -2713,7 +2713,7 @@ func TestUpdateRule_2_4_1_UpdatesRuleName(t *testing.T) {
 	err = json.Unmarshal(respBody, &result)
 	require.NoError(t, err)
 
-	assert.Equal(t, "updated name", result["name"]) // normalized to lowercase
+	assert.Equal(t, "Updated name", result["name"]) // stored verbatim (casing preserved)
 	assert.Equal(t, "true", result["expression"])
 	assert.Equal(t, "ALLOW", result["action"])
 }
@@ -2960,7 +2960,7 @@ func TestUpdateRule_2_4_6_UpdatesMultipleFieldsSimultaneously(t *testing.T) {
 	err = json.Unmarshal(respBody, &result)
 	require.NoError(t, err)
 
-	assert.Equal(t, "multi-field update", result["name"]) // normalized to lowercase
+	assert.Equal(t, "Multi-field update", result["name"]) // stored verbatim (casing preserved)
 	assert.Equal(t, "Updated description", result["description"])
 	assert.Equal(t, "amount < 100000", result["expression"])
 	assert.Equal(t, "REVIEW", result["action"])
@@ -3125,7 +3125,7 @@ func TestUpdateRule_2_4_9_AllowsNonExpressionUpdatesOnActiveRule(t *testing.T) {
 	err = json.Unmarshal(respBody, &result)
 	require.NoError(t, err)
 
-	assert.Equal(t, "updated active rule name", result["name"]) // normalized to lowercase
+	assert.Equal(t, "Updated active rule name", result["name"]) // stored verbatim (casing preserved)
 	assert.Equal(t, "Updated while active", result["description"])
 	assert.Equal(t, "DENY", result["action"])
 	assert.Equal(t, "true", result["expression"])
@@ -3184,7 +3184,7 @@ func TestUpdateRule_2_4_10_RejectsEmptyUpdate(t *testing.T) {
 	err = json.Unmarshal(getRespBody, &rule)
 	require.NoError(t, err)
 
-	assert.Equal(t, "empty update rule", rule["name"], "Name should remain unchanged after rejected update")
+	assert.Equal(t, "Empty update rule", rule["name"], "Name should remain unchanged after rejected update")
 	assert.Equal(t, "true", rule["expression"], "Expression should remain unchanged after rejected update")
 	assert.Equal(t, "ALLOW", rule["action"], "Action should remain unchanged after rejected update")
 	assert.Equal(t, "DRAFT", rule["status"], "Status should remain DRAFT")
@@ -3270,7 +3270,7 @@ func TestUpdateRule_2_4_12_AllowsSameName(t *testing.T) {
 	err = json.Unmarshal(respBody, &result)
 	require.NoError(t, err)
 
-	assert.Equal(t, "idempotent name", result["name"]) // normalized to lowercase
+	assert.Equal(t, "Idempotent name", result["name"]) // stored verbatim (casing preserved)
 }
 
 // TestUpdateRule_2_4_13_RejectsInvalidUUIDInPath verifies path parameter validation.

@@ -429,7 +429,6 @@ func allSentinels() map[string]error {
 		"ErrLimitInvalidScope":                        constant.ErrLimitInvalidScope,
 		"ErrLimitNameRequired":                        constant.ErrLimitNameRequired,
 		"ErrLimitNameTooLong":                         constant.ErrLimitNameTooLong,
-		"ErrLimitAlreadyDeleted":                      constant.ErrLimitAlreadyDeleted,
 		"ErrLimitNameInvalidChars":                    constant.ErrLimitNameInvalidChars,
 		"ErrLimitDescriptionInvalidChars":             constant.ErrLimitDescriptionInvalidChars,
 		"ErrLimitInvalidID":                           constant.ErrLimitInvalidID,

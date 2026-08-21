@@ -497,9 +497,6 @@ func classifyLimitServiceError(span trace.Span, err error) error {
 	case errors.Is(err, constant.ErrLimitNotFound):
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Limit not found", err)
 		return pkg.ValidateBusinessError(constant.ErrLimitNotFound, constant.EntityLimit)
-	case errors.Is(err, constant.ErrLimitAlreadyDeleted):
-		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Limit already deleted", err)
-		return pkg.ValidateBusinessError(constant.ErrLimitAlreadyDeleted, constant.EntityLimit)
 	case errors.Is(err, constant.ErrLimitInvalidStatusChange):
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Invalid status transition", err)
 		return pkg.ValidateBusinessError(constant.ErrLimitInvalidStatusChange, constant.EntityLimit)

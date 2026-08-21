@@ -349,7 +349,6 @@ var (
 	ErrLimitInvalidScope                      = errors.New("0367")
 	ErrLimitNameRequired                      = errors.New("0368")
 	ErrLimitNameTooLong                       = errors.New("0369")
-	ErrLimitAlreadyDeleted                    = errors.New("0370")
 	ErrLimitNameInvalidChars                  = errors.New("0371")
 	ErrLimitDescriptionInvalidChars           = errors.New("0372")
 	ErrLimitInvalidID                         = errors.New("0373")
