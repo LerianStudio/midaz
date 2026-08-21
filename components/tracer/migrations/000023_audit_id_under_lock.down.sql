@@ -45,9 +45,3 @@ BEGIN
     RETURN NEW;
 END;
 $$ LANGUAGE plpgsql;
-
--- 3. Restore the hash-chain trigger to its prior ORIGIN firing mode. Once the
---    BIGSERIAL DEFAULT is back (step 1) the trigger is no longer the sole id
---    producer, so the ENABLE ALWAYS override the up added is dropped, leaving
---    the default origin-mode firing 000004 installed. Keeps up/down symmetric.
-ALTER TABLE audit_events ENABLE TRIGGER audit_events_hash_chain;
