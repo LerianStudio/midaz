@@ -1181,6 +1181,18 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 		PollIntervalMs: 1000,
 	})
 
+	// SaaS TLS gate for the RI declaration publisher's IdP dial. Placed before the
+	// success log so an explicit http:// IDP_HOST under DEPLOYMENT_MODE=saas refuses
+	// boot rather than claiming a successful start. Mirrors the streaming TLS gate:
+	// no-op unless DEPLOYMENT_MODE=saas AND RI declaration is enabled AND IDP_HOST is
+	// an explicit cleartext http:// URL. It is a synchronous boot validation — it
+	// opens no connection and starts no goroutine.
+	if err := ValidateSaaSDeclarationTLS(cfg.DeploymentMode, cfg.DeclarationEnabled, cfg.IDPHost); err != nil {
+		doCleanup()
+
+		return nil, fmt.Errorf("failed to validate RI declaration IdP TLS: %w", err)
+	}
+
 	logger.Log(
 		context.Background(), libLog.LevelInfo, "Unified ledger component started successfully with single-port mode",
 		libLog.String("version", cfg.Version),

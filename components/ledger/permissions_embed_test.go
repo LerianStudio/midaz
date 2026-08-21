@@ -40,19 +40,55 @@ func newConfig(slug string) declaration.Config {
 }
 
 func TestMidazManifest_IsNonEmpty(t *testing.T) {
+	t.Parallel()
+
 	require.NotEmpty(t, ledger.MidazManifest, "embedded midaz manifest must not be empty")
 }
 
-func TestMidazManifest_ParsesAsValidMidazDeclaration(t *testing.T) {
-	pub, err := declaration.New(newConfig(midazSlug))
+// TestMidazManifest_SlugMatchesEmbeddedManifest self-verifies the embedded
+// permissions.yaml in THIS package: declaration.New parses it, runs
+// manifest.Validate, and enforces slug == manifest.service. The accept case proves
+// the manifest declares "midaz"; the reject case proves New rejects a mismatched
+// slug against this exact manifest. declaration.New performs no I/O and starts no
+// goroutine, so the subtests are parallel-safe.
+func TestMidazManifest_SlugMatchesEmbeddedManifest(t *testing.T) {
+	t.Parallel()
 
-	require.NoError(t, err, "embedded manifest must parse, validate, and declare service %q", midazSlug)
-	require.NotNil(t, pub)
-}
+	tests := []struct {
+		name            string
+		slug            string
+		wantErr         bool
+		wantErrContains string
+	}{
+		{
+			name: "wired midaz slug accepted",
+			slug: midazSlug,
+		},
+		{
+			name:            "mismatched slug rejected",
+			slug:            "not-a-match",
+			wantErr:         true,
+			wantErrContains: `manifest.service "midaz"`,
+		},
+	}
 
-func TestMidazManifest_SlugIsMidaz(t *testing.T) {
-	_, err := declaration.New(newConfig("not-a-match"))
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 
-	require.Error(t, err, "New must reject a slug that does not equal manifest.service")
-	require.ErrorContains(t, err, `manifest.service "midaz"`, "manifest must declare service midaz")
+			pub, err := declaration.New(newConfig(tt.slug))
+
+			if tt.wantErr {
+				require.Error(t, err, "New must reject a slug that does not equal manifest.service")
+				require.ErrorContains(t, err, tt.wantErrContains, "manifest must declare service midaz")
+				require.Nil(t, pub)
+
+				return
+			}
+
+			require.NoError(t, err, "embedded manifest must parse, validate, and declare service %q", tt.slug)
+			require.NotNil(t, pub)
+		})
+	}
 }

@@ -202,3 +202,77 @@ func TestBuildDeclarationPublishers_RealManifestsMatchWiredSlugs(t *testing.T) {
 		})
 	}
 }
+
+// TestValidateSaaSDeclarationTLS covers the SaaS TLS gate for the RI declaration
+// publisher's IdP dial. The publisher ships the M2M client_credentials grant and
+// the resulting bearer token to IDP_HOST, so a Lerian-hosted deployment must not
+// reach the IdP in cleartext — the same rule Postgres, Mongo, Redis and RabbitMQ
+// answer to. The gate is a no-op unless RI is enabled AND IDP_HOST carries an
+// explicit http:// scheme (the one case where the publisher actually dials in
+// cleartext); an https:// host is secure, and a scheme-less/malformed host is
+// rejected fail-open by the publisher's own config validation, so it never trips
+// this gate. It does NOT call t.Parallel(): exception #5 of the t.Parallel() hard
+// gate (this package runs goleak.VerifyTestMain).
+func TestValidateSaaSDeclarationTLS(t *testing.T) {
+	tests := []struct {
+		name           string
+		deploymentMode string
+		enabled        bool
+		idpHost        string
+		wantErr        bool
+	}{
+		{name: "saas_enabled_http_refused", deploymentMode: "saas", enabled: true, idpHost: "http://identity:4001", wantErr: true},
+		{name: "saas_enabled_https_allowed", deploymentMode: "saas", enabled: true, idpHost: "https://identity:4001"},
+		{name: "saas_disabled_http_is_noop", deploymentMode: "saas", enabled: false, idpHost: "http://identity:4001"},
+		{name: "byoc_enabled_http_allowed", deploymentMode: "byoc", enabled: true, idpHost: "http://identity:4001"},
+		{name: "local_enabled_http_allowed", deploymentMode: "local", enabled: true, idpHost: "http://identity:4001"},
+		{name: "unset_mode_enabled_http_allowed", deploymentMode: "", enabled: true, idpHost: "http://identity:4001"},
+		{name: "saas_enabled_empty_host_is_noop", deploymentMode: "saas", enabled: true, idpHost: ""},
+		{name: "saas_enabled_schemeless_host_is_noop", deploymentMode: "saas", enabled: true, idpHost: "identity.invalid"},
+		{name: "saas_enabled_uppercase_scheme_refused", deploymentMode: "saas", enabled: true, idpHost: "HTTP://identity:4001", wantErr: true},
+		{name: "saas_uppercase_mode_http_refused", deploymentMode: "SAAS", enabled: true, idpHost: "http://identity:4001", wantErr: true},
+		{name: "saas_whitespace_padded_mode_http_refused", deploymentMode: "  saas  ", enabled: true, idpHost: "http://identity:4001", wantErr: true},
+	}
+
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			err := ValidateSaaSDeclarationTLS(tt.deploymentMode, tt.enabled, tt.idpHost)
+
+			if tt.wantErr {
+				require.Error(t, err)
+				assert.Contains(t, err.Error(), "DEPLOYMENT_MODE=saas")
+				assert.Contains(t, err.Error(), "idp_declaration")
+				assert.Contains(t, err.Error(), "IDP_HOST")
+				// The gate never receives the M2M secret, so it cannot leak it; assert
+				// the guidance names only the host env var, never a credential token.
+				assert.NotContains(t, err.Error(), "client_secret")
+				assert.NotContains(t, err.Error(), "dummy-client-secret")
+
+				return
+			}
+
+			require.NoError(t, err)
+		})
+	}
+}
+
+// TestBuildDeclarationPublishers_EnabledIncompleteConfigFailsOpen exercises the
+// enabled-but-incomplete-config branch: RI is ON but IDP_HOST and both M2M
+// credentials are empty. The pre-flight warnIncompleteDeclarationConfig names the
+// empty env vars, then declaration.New rejects the empty IdentityAddr/credentials
+// for BOTH slugs (lib-auth's validateConfig), so each publisher is Warn-skipped and
+// the returned stops slice is empty. No goroutine is started (New fails before
+// Start), so the package goleak check stays clean, and the helper must not panic.
+func TestBuildDeclarationPublishers_EnabledIncompleteConfigFailsOpen(t *testing.T) {
+	cfg := &Config{
+		DeclarationEnabled: true,
+		IDPHost:            "",
+		IDPM2MClientID:     "",
+		IDPM2MClientSecret: "",
+	}
+
+	stops := buildDeclarationPublishers(cfg, stubTokenMinter{}, libLog.NewNop())
+
+	assert.Empty(t, stops, "enabled RI with empty IdP host/credentials must skip both publishers fail-open")
+}
