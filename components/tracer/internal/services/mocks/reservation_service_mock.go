@@ -86,6 +86,20 @@ func (m *MockReservationRepository) EXPECT() *MockReservationRepositoryMockRecor
 	return m.recorder
 }
 
+// AcquireReserveScopeLock mocks base method.
+func (m *MockReservationRepository) AcquireReserveScopeLock(ctx context.Context, arg1 db.DB, key int64) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "AcquireReserveScopeLock", ctx, arg1, key)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// AcquireReserveScopeLock indicates an expected call of AcquireReserveScopeLock.
+func (mr *MockReservationRepositoryMockRecorder) AcquireReserveScopeLock(ctx, arg1, key any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AcquireReserveScopeLock", reflect.TypeOf((*MockReservationRepository)(nil).AcquireReserveScopeLock), ctx, arg1, key)
+}
+
 // ConfirmByTransactionWithTx mocks base method.
 func (m *MockReservationRepository) ConfirmByTransactionWithTx(ctx context.Context, arg1 db.DB, transactionID uuid.UUID) ([]*model.Reservation, error) {
 	m.ctrl.T.Helper()
