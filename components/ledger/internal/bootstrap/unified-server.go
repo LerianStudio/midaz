@@ -24,8 +24,10 @@ import (
 	midazhttp "github.com/LerianStudio/midaz/v4/pkg/net/http"
 )
 
-// RouteRegistrar is a function that registers routes to an existing Fiber router.
-// Each module (onboarding, transaction) implements this to register its routes.
+// RouteRegistrar mounts routes on the Fiber app root, outside the version-prefixed
+// Huma groups. It is the seam for a surface that carries no OAS contract and so cannot
+// be a Huma terminal — currently only the streaming manifest. Every surface in the
+// OAS contract mounts through HumaRouteRegistrar instead.
 type RouteRegistrar func(router fiber.Router)
 
 // HumaRouteRegistrar registers one API version's Huma-migrated operations on a
@@ -106,7 +108,7 @@ func NewUnifiedServer(
 		app.Get("/readyz", readyzHandler.HandleReadyz)
 	}
 
-	// Register routes from each module
+	// Mount app-root routes, which sit outside the versioned Huma groups.
 	for _, registrar := range routeRegistrars {
 		if registrar != nil {
 			registrar(app)

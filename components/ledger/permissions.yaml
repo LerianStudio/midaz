@@ -22,8 +22,8 @@
 # data (Authorize takes only subject/resource/action), so the editor/viewer split
 # below is an INFERRED convention, mirroring the plugin-fees manifest: read verbs
 # (get, head) are granted to editor + viewer; every mutating verb (post/put/patch/
-# delete) to editor only. The granted_to group bindings under `roles:` are likewise
-# inferred and each carries a confirm marker.
+# delete) to editor only. The granted_to group bindings under `roles:` are NOT
+# inferred — they are confirmed against the central Access Manager seed (see below).
 service: midaz
 version: 1
 permissions:
@@ -135,16 +135,19 @@ permissions:
   - { resource: transactions, action: head,  effect: allow, roles: [editor, viewer] }
 
 roles:
-  # ### TEAM: please confirm ### — role -> group bindings are INFERRED (no group
-  # data in code). The manifest only references pre-existing groups; it never
-  # creates them. Confirm the real group names, or drop granted_to to leave the
-  # roles unbound (still valid).
+  # Group bindings are CONFIRMED against the central Access Manager seed
+  # (plugin-access-manager, components/auth/init/casdoor/init_data.json): the real
+  # groups are midaz-{editor,contributor,viewer}-group. The manifest only
+  # REFERENCES pre-existing groups, it never creates them — a name absent from the
+  # seed reconciles into a role with zero members. The seed also carries
+  # midaz-contributor-group, but this manifest declares no `contributor` role, so
+  # that group stays unbound here.
   - name: editor
     granted_to:
-      - group: midaz-admins   ### TEAM: please confirm ###
+      - group: midaz-editor-group
   - name: viewer
     granted_to:
-      - group: midaz-viewers  ### TEAM: please confirm ###
+      - group: midaz-viewer-group
 
 m2m:
   # EXPORT: midaz is the target of plugin-fees' `needs: [midaz]` (fees calls the
