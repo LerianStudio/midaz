@@ -401,6 +401,13 @@ func TestValidateSortBy(t *testing.T) {
 func TestListInputsThreadEntityType(t *testing.T) {
 	zeroLimit := 0
 	invalidSortOrder := "not-a-direction"
+	invalidSortColumn := "not_a_column"
+	// A cursor paired with a valid sort field trips ValidateCursorConsistency
+	// while leaving every other validator green, so the error comes only from
+	// the cursor-consistency call site. "created_at" is in every route's
+	// allowed-sort whitelist.
+	conflictingCursor := "cursor-abc"
+	validSortField := "created_at"
 
 	tests := []struct {
 		name       string
@@ -418,6 +425,16 @@ func TestListInputsThreadEntityType(t *testing.T) {
 			wantEntity: constant.EntityLimit,
 		},
 		{
+			name:       "limits: cursor-consistency error carries Limit entity",
+			input:      &ListLimitsInput{Cursor: conflictingCursor, SortBy: validSortField},
+			wantEntity: constant.EntityLimit,
+		},
+		{
+			name:       "limits: sort-by error carries Limit entity",
+			input:      &ListLimitsInput{SortBy: invalidSortColumn},
+			wantEntity: constant.EntityLimit,
+		},
+		{
 			name:       "transaction validations: pagination error carries TransactionValidation entity",
 			input:      &ListTransactionValidationsInput{Limit: &zeroLimit},
 			wantEntity: constant.EntityTransactionValidation,
@@ -425,6 +442,16 @@ func TestListInputsThreadEntityType(t *testing.T) {
 		{
 			name:       "transaction validations: sort error carries TransactionValidation entity",
 			input:      &ListTransactionValidationsInput{SortOrder: invalidSortOrder},
+			wantEntity: constant.EntityTransactionValidation,
+		},
+		{
+			name:       "transaction validations: cursor-consistency error carries TransactionValidation entity",
+			input:      &ListTransactionValidationsInput{Cursor: conflictingCursor, SortBy: validSortField},
+			wantEntity: constant.EntityTransactionValidation,
+		},
+		{
+			name:       "transaction validations: sort-by error carries TransactionValidation entity",
+			input:      &ListTransactionValidationsInput{SortBy: invalidSortColumn},
 			wantEntity: constant.EntityTransactionValidation,
 		},
 		{
@@ -438,6 +465,16 @@ func TestListInputsThreadEntityType(t *testing.T) {
 			wantEntity: constant.EntityAuditEvent,
 		},
 		{
+			name:       "audit events: cursor-consistency error carries AuditEvent entity",
+			input:      &ListAuditEventsInput{Cursor: conflictingCursor, SortBy: validSortField},
+			wantEntity: constant.EntityAuditEvent,
+		},
+		{
+			name:       "audit events: sort-by error carries AuditEvent entity",
+			input:      &ListAuditEventsInput{SortBy: invalidSortColumn},
+			wantEntity: constant.EntityAuditEvent,
+		},
+		{
 			name:       "rules: pagination error carries Rule entity",
 			input:      &ListRulesInput{Limit: &zeroLimit},
 			wantEntity: constant.EntityRule,
@@ -445,6 +482,16 @@ func TestListInputsThreadEntityType(t *testing.T) {
 		{
 			name:       "rules: sort error carries Rule entity",
 			input:      &ListRulesInput{SortOrder: invalidSortOrder},
+			wantEntity: constant.EntityRule,
+		},
+		{
+			name:       "rules: cursor-consistency error carries Rule entity",
+			input:      &ListRulesInput{Cursor: conflictingCursor, SortBy: validSortField},
+			wantEntity: constant.EntityRule,
+		},
+		{
+			name:       "rules: sort-by error carries Rule entity",
+			input:      &ListRulesInput{SortBy: invalidSortColumn},
 			wantEntity: constant.EntityRule,
 		},
 	}
