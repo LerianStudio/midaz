@@ -1,9 +1,9 @@
 name: Fork PR Notice
 
-# Posts a one-time explanatory comment when a PR is opened from a fork,
-# pointing contributors and reviewers at the trusted-promotion flow
-# (fork-pr-promote.yml). Metadata-only: no checkout, no code execution,
-# safe under pull_request_target despite the elevated token it carries.
+# Comments when a PR is opened from a fork, explaining the trusted-promotion
+# flow (fork-pr-promote.yml) and redirecting PRs opened against the wrong
+# base branch. Metadata-only: no checkout, no code execution, safe under
+# pull_request_target despite the elevated token it carries.
 
 on:
   pull_request_target:
@@ -21,10 +21,12 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
+          BASE_REF: ${{ github.event.pull_request.base.ref }}
         run: |
-          gh pr comment "$PR_NUMBER" --body "$(cat <<'EOF'
-          Thanks for the contribution! This PR comes from a fork, so CI runs without write access to secrets by default — that's a GitHub security restriction, not something we've disabled here.
-
-          A maintainer will review the diff, and if it looks good, comment `/promote` to copy this PR's commit onto an internal branch and open a follow-up PR that runs the full pipeline. No action needed from you.
-          EOF
-          )"
+          set -euo pipefail
+          if [[ "$BASE_REF" == "fork" ]]; then
+            body='Thanks for the contribution! Since this targets `fork`, a maintainer will review the diff and merge it normally when ready. That merge automatically opens a follow-up PR into `develop` with full CI (this repo does not grant secrets to PRs opened directly from a fork — a GitHub security restriction, not something disabled here). No action needed from you.'
+          else
+            body="Thanks for the contribution! This PR targets \`$BASE_REF\`, but PRs from forks need to target \`fork\` instead — CI for forked PRs against other branches runs without secrets and some checks will fail. Please retarget this PR's base branch to \`fork\` (Edit button, top of the PR) and a maintainer will pick it up from there."
+          fi
+          gh pr comment "$PR_NUMBER" --body "$body"
