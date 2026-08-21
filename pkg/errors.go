@@ -2178,12 +2178,6 @@ func ValidateBusinessError(err error, entityType string, args ...any) error {
 			Title:      "Limit Name Too Long",
 			Message:    "Limit name exceeds max length.",
 		},
-		constant.ErrLimitAlreadyDeleted: UnprocessableOperationError{
-			EntityType: entityType,
-			Code:       constant.ErrLimitAlreadyDeleted.Error(),
-			Title:      "Limit Already Deleted",
-			Message:    "Limit is already in DELETED state.",
-		},
 		constant.ErrLimitNameInvalidChars: ValidationError{
 			EntityType: entityType,
 			Code:       constant.ErrLimitNameInvalidChars.Error(),

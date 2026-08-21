@@ -302,27 +302,19 @@ func TestUpdateLimitCommand_Execute(t *testing.T) {
 			expectError: true,
 		},
 		{
-			name:    "Failure - update deleted limit",
+			// A soft-deleted limit is excluded by the repository read
+			// (deleted_at IS NULL), so an update targeting one surfaces as
+			// not found rather than a distinct already-deleted result.
+			name:    "Failure - soft-deleted limit surfaces as not found",
 			limitID: limitID,
 			input: &UpdateLimitInput{
 				Name: testutil.StringPtr("New Name"),
 			},
 			setupMock: func(t *testing.T, m *MockLimitRepository, aw *MockAuditWriter, tb *pgdbMocks.MockTxBeginner, tx *pgdbMocks.MockTx) {
-				deletedLimit := &model.Limit{
-					ID:        limitID,
-					Name:      "Deleted Limit",
-					LimitType: model.LimitTypeDaily,
-					MaxAmount: decimal.RequireFromString("1000"),
-					Asset:     "USD",
-					Scopes:    []model.Scope{{AccountID: testutil.UUIDPtr(testutil.MustDeterministicUUID(30))}},
-					Status:    model.LimitStatusDeleted,
-					CreatedAt: now,
-					UpdatedAt: now,
-				}
-				m.EXPECT().GetByID(gomock.Any(), limitID).Return(deletedLimit, nil)
+				m.EXPECT().GetByID(gomock.Any(), limitID).Return(nil, constant.ErrLimitNotFound)
 			},
 			expectError: true,
-			errorIs:     constant.ErrLimitAlreadyDeleted,
+			errorIs:     constant.ErrLimitNotFound,
 		},
 		{
 			name:    "Failure - description with XSS content",

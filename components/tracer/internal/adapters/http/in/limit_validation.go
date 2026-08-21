@@ -196,23 +196,23 @@ func (i *ListLimitsInput) SetDefaults() {
 // Validate validates the ListLimitsInput struct.
 func (i *ListLimitsInput) Validate() error {
 	// Validate pagination limit with specific error codes (TRC-0040, TRC-0041)
-	if err := ValidatePaginationLimit(i.Limit, 100); err != nil {
+	if err := ValidatePaginationLimit(i.Limit, 100, constant.EntityLimit); err != nil {
 		return err
 	}
 
 	// Validate cursor consistency (TRC-0045)
-	if err := ValidateCursorConsistency(i.Cursor, i.SortBy, i.SortOrder); err != nil {
+	if err := ValidateCursorConsistency(i.Cursor, i.SortBy, i.SortOrder, constant.EntityLimit); err != nil {
 		return err
 	}
 
 	// Validate sortBy whitelist (TRC-0043)
 	allowedSortFields := []string{"created_at", "updated_at", "name", "max_amount"}
-	if err := ValidateSortBy(i.SortBy, allowedSortFields); err != nil {
+	if err := ValidateSortBy(i.SortBy, allowedSortFields, constant.EntityLimit); err != nil {
 		return err
 	}
 
 	// Validate sortOrder enum (TRC-0042)
-	if err := ValidateSortOrder(i.SortOrder); err != nil {
+	if err := ValidateSortOrder(i.SortOrder, constant.EntityLimit); err != nil {
 		return err
 	}
 

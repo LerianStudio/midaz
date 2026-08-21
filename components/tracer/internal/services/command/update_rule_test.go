@@ -76,7 +76,84 @@ func TestUpdateRule_Success_Atomic(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, result)
 	assert.Equal(t, ruleID, result.ID)
-	assert.Equal(t, "updated rule name", result.Name)
+	assert.Equal(t, "Updated Rule Name", result.Name, "name is stored verbatim (trim only)")
+}
+
+// TestUpdateRule_StoresNameVerbatim asserts that updating a rule name persists
+// it with original casing and internal spacing preserved (surrounding
+// whitespace trimmed only), mirroring create. The name reaching the repository
+// — and therefore GET/LIST — must equal the submitted value, never lowercased
+// or space-collapsed.
+func TestUpdateRule_StoresNameVerbatim(t *testing.T) {
+	ctrl := gomock.NewController(t)
+
+	ruleID := testutil.MustDeterministicUUID(1)
+	baseTime := time.Date(2024, 1, 15, 9, 0, 0, 0, time.UTC)
+	existingRule := &model.Rule{
+		ID:         ruleID,
+		Name:       "existing rule",
+		Expression: "amount > 1000",
+		Action:     model.DecisionDeny,
+		Status:     model.RuleStatusDraft,
+		CreatedAt:  baseTime,
+		UpdatedAt:  baseTime,
+	}
+
+	mockRepo := NewMockRuleRepository(ctrl)
+	mockCEL := NewMockExpressionCompiler(ctrl)
+	auditWriter := NewMockAuditWriter(ctrl)
+	txBeginner := pgdbMocks.NewMockTxBeginner(ctrl)
+	mockTx := pgdbMocks.NewMockTx(ctrl)
+
+	// Original casing AND internal double spacing must survive; only the
+	// surrounding whitespace is trimmed.
+	const wantName = "My  Rule  XPTO"
+
+	var capturedName string
+
+	mockRepo.EXPECT().
+		GetByID(gomock.Any(), ruleID).
+		Return(copyRule(existingRule), nil)
+
+	gomock.InOrder(
+		txBeginner.EXPECT().BeginTx(gomock.Any(), nil).Return(mockTx, nil),
+		mockRepo.EXPECT().
+			UpdateWithTx(gomock.Any(), mockTx, gomock.Not(gomock.Nil())).
+			DoAndReturn(func(_ context.Context, _ pgdb.DB, r *model.Rule) error {
+				capturedName = r.Name
+				return nil
+			}),
+		auditWriter.EXPECT().
+			RecordRuleEventWithTx(
+				gomock.Any(),
+				mockTx,
+				model.AuditEventRuleUpdated,
+				model.AuditActionUpdate,
+				ruleID,
+				gomock.Not(gomock.Nil()),
+				gomock.Any(),
+				"Rule updated via API",
+			).
+			Return(nil),
+		mockTx.EXPECT().Commit().Return(nil),
+	)
+	mockTx.EXPECT().Rollback().Times(0)
+
+	cmd, err := NewUpdateRuleCommand(mockRepo, mockCEL, testutil.NewDefaultMockClock(), auditWriter, txBeginner)
+	require.NoError(t, err)
+
+	input := &UpdateRuleInput{
+		Name: testutil.StringPtr("  My  Rule  XPTO  "),
+	}
+
+	result, err := cmd.Execute(context.Background(), ruleID, input)
+
+	require.NoError(t, err)
+	require.NotNil(t, result)
+	assert.Equal(t, wantName, capturedName,
+		"name reaching the repository must be verbatim (trim only): original casing and internal spacing preserved")
+	assert.Equal(t, wantName, result.Name,
+		"returned rule must carry the verbatim name so GET/LIST reflect the submitted value")
 }
 
 // TestUpdateRule_Success_UpdateScopes verifies that the Scopes field can be
