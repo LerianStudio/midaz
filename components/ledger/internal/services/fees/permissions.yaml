@@ -41,13 +41,19 @@ permissions:
   - { resource: billing-calculate, action: post, effect: allow, roles: [editor] }
 
 roles:
-  # ### TEAM: please confirm ### — role -> group bindings are INFERRED.
+  # Group bindings are CONFIRMED against the central Access Manager seed
+  # (plugin-access-manager, components/auth/init/casdoor/init_data.json): the real
+  # groups are plugin-fees-{editor,contributor,viewer}-group. The manifest only
+  # REFERENCES pre-existing groups, it never creates them — a name absent from the
+  # seed reconciles into a role with zero members. The seed also carries
+  # plugin-fees-contributor-group, but this manifest declares no `contributor`
+  # role, so that group stays unbound here.
   - name: editor
     granted_to:
-      - group: fees-admins   ### TEAM: please confirm ###
+      - group: plugin-fees-editor-group
   - name: viewer
     granted_to:
-      - group: fees-viewers  ### TEAM: please confirm ###
+      - group: plugin-fees-viewer-group
 
 m2m:
   # EXPORT: fees exposes its M2M editor surface. IMPORT: it calls midaz (the
