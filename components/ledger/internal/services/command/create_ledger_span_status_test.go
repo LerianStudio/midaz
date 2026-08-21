@@ -5,6 +5,7 @@
 package command
 
 import (
+	"context"
 	"errors"
 	"testing"
 
@@ -63,9 +64,11 @@ func TestCreateLedger_SpanClassContract(t *testing.T) {
 	tests := []struct {
 		name             string
 		input            *mmodel.CreateLedgerInput
-		mockSetup        func(*ledger.MockRepository, uuid.UUID)
-		wantErrCode      string                         // "" = not a typed business error
-		wantErrCodeFrom  func(*testing.T, error) string // extracts wantErrCode, asserting the concrete typed error first
+		mockSetup        func(*ledger.MockRepository, uuid.UUID) // nil = the row must reach no repository call
+		cancelCtx        bool                                    // cancel the context before calling CreateLedger
+		wantErrCode      string                                  // "" = not a typed business error
+		wantErrCodeFrom  func(*testing.T, error) string          // extracts wantErrCode, asserting the concrete typed error first
+		wantErrIs        error                                   // sentinel the returned error must wrap; nil = no sentinel assertion
 		wantSpanStatus   codes.Code
 		wantSpanEvent    string // event NAME: the message for a business event, "exception" for a technical one
 		wantEventDetail  string // substring the event must carry; only technical events need it
@@ -81,12 +84,9 @@ func TestCreateLedger_SpanClassContract(t *testing.T) {
 					Tracer: &mmodel.TracerSettingsInput{Mode: testutils.Ptr("enfroce")},
 				},
 			},
-			mockSetup: func(repo *ledger.MockRepository, orgID uuid.UUID) {
-				repo.EXPECT().
-					FindByName(gomock.Any(), orgID, gomock.Any()).
-					Return(false, nil).
-					Times(1)
-			},
+			// No mockSetup: settings validation precedes the uniqueness lookup, so this row
+			// must reach no repository at all. A nil mockSetup is the assertion — ctrl.Finish()
+			// with zero expectations fails the moment CreateLedger touches the repo.
 			wantErrCode:      constant.ErrInvalidSettingsFieldValue.Error(),
 			wantErrCodeFrom:  validationErrorCode,
 			wantSpanStatus:   codes.Unset,
@@ -99,6 +99,22 @@ func TestCreateLedger_SpanClassContract(t *testing.T) {
 				"app.request.settings.has_tracer":     true,
 				"app.request.settings.has_overrides":  false,
 			},
+		},
+		{
+			// The ctx.Err() guard between settings validation and the uniqueness lookup: a
+			// caller that already hung up must not cost a round-trip. A bare context.Canceled
+			// is not a business error, so recordCommandError takes the technical branch and
+			// the span flips red.
+			name:      "cancelled caller short-circuits before the uniqueness lookup",
+			input:     &mmodel.CreateLedgerInput{Name: "Ledger Cancelled Caller"},
+			cancelCtx: true,
+			// No mockSetup: the guard returns before FindByName, so ctrl.Finish() with zero
+			// expectations is what proves the round-trip never happened.
+			wantErrIs:        context.Canceled,
+			wantSpanStatus:   codes.Error,
+			wantSpanEvent:    "exception",
+			wantEventDetail:  "Context cancelled before ledger creation",
+			wantMetricResult: "technical_error",
 		},
 		{
 			// Business half of recordCommandError at the FindByName site.
@@ -193,10 +209,23 @@ func TestCreateLedger_SpanClassContract(t *testing.T) {
 			ctx, recorder := recordingContext()
 			organizationID := uuid.New()
 
-			tt.mockSetup(mockLedgerRepo, organizationID)
+			if tt.cancelCtx {
+				var cancel context.CancelFunc
+
+				ctx, cancel = context.WithCancel(ctx)
+				cancel()
+			}
+
+			if tt.mockSetup != nil {
+				tt.mockSetup(mockLedgerRepo, organizationID)
+			}
 
 			_, err := uc.CreateLedger(ctx, organizationID, tt.input)
 			require.Error(t, err)
+
+			if tt.wantErrIs != nil {
+				require.ErrorIs(t, err, tt.wantErrIs)
+			}
 
 			if tt.wantErrCode != "" {
 				require.NotNil(t, tt.wantErrCodeFrom,

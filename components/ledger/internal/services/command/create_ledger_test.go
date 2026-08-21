@@ -285,14 +285,17 @@ func TestCreateLedger_PartialSettings(t *testing.T) {
 			_, err := pkgHTTP.DecodeAndValidate([]byte(tt.body), payload)
 			require.NoError(t, err, "body must clear the decode boundary; the error under test must originate in the use case")
 
-			mockLedgerRepo.EXPECT().
-				FindByName(gomock.Any(), organizationID, gomock.Any()).
-				Return(false, nil).
-				Times(1)
-
 			var gotSettings *mmodel.LedgerSettings
 
+			// Settings validation runs before the uniqueness lookup, so every error row here
+			// returns without reaching FindByName. Registering it unconditionally would leave
+			// an unmet expectation that ctrl.Finish() reports on those rows.
 			if tt.wantErrCode == "" {
+				mockLedgerRepo.EXPECT().
+					FindByName(gomock.Any(), organizationID, gomock.Any()).
+					Return(false, nil).
+					Times(1)
+
 				mockLedgerRepo.EXPECT().
 					Create(gomock.Any(), gomock.Any()).
 					DoAndReturn(func(_ context.Context, led *mmodel.Ledger) (*mmodel.Ledger, error) {
