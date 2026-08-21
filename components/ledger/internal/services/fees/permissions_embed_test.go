@@ -40,19 +40,55 @@ func newConfig(slug string) declaration.Config {
 }
 
 func TestFeesManifest_IsNonEmpty(t *testing.T) {
+	t.Parallel()
+
 	require.NotEmpty(t, services.FeesManifest, "embedded plugin-fees manifest must not be empty")
 }
 
-func TestFeesManifest_ParsesAsValidFeesDeclaration(t *testing.T) {
-	pub, err := declaration.New(newConfig(feesSlug))
+// TestFeesManifest_SlugMatchesEmbeddedManifest self-verifies the embedded
+// permissions.yaml in THIS package: declaration.New parses it, runs
+// manifest.Validate, and enforces slug == manifest.service. The accept case proves
+// the manifest declares "plugin-fees"; the reject case proves New rejects a
+// mismatched slug against this exact manifest. declaration.New performs no I/O and
+// starts no goroutine, so the subtests are parallel-safe.
+func TestFeesManifest_SlugMatchesEmbeddedManifest(t *testing.T) {
+	t.Parallel()
 
-	require.NoError(t, err, "embedded manifest must parse, validate, and declare service %q", feesSlug)
-	require.NotNil(t, pub)
-}
+	tests := []struct {
+		name            string
+		slug            string
+		wantErr         bool
+		wantErrContains string
+	}{
+		{
+			name: "wired plugin-fees slug accepted",
+			slug: feesSlug,
+		},
+		{
+			name:            "mismatched slug rejected",
+			slug:            "not-a-match",
+			wantErr:         true,
+			wantErrContains: `manifest.service "plugin-fees"`,
+		},
+	}
 
-func TestFeesManifest_SlugIsPluginFees(t *testing.T) {
-	_, err := declaration.New(newConfig("not-a-match"))
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 
-	require.Error(t, err, "New must reject a slug that does not equal manifest.service")
-	require.ErrorContains(t, err, `manifest.service "plugin-fees"`, "manifest must declare service plugin-fees")
+			pub, err := declaration.New(newConfig(tt.slug))
+
+			if tt.wantErr {
+				require.Error(t, err, "New must reject a slug that does not equal manifest.service")
+				require.ErrorContains(t, err, tt.wantErrContains, "manifest must declare service plugin-fees")
+				require.Nil(t, pub)
+
+				return
+			}
+
+			require.NoError(t, err, "embedded manifest must parse, validate, and declare service %q", tt.slug)
+			require.NotNil(t, pub)
+		})
+	}
 }
