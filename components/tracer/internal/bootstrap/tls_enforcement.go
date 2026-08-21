@@ -92,6 +92,38 @@ func ValidateSaaSStreamingTLS(cfg *Config, streamingTLSEnabled bool) error {
 	)
 }
 
+// ValidateSaaSDeclarationTLS extends the SaaS TLS gate to the Responsibility-
+// Inversion (RI) permission-declaration publisher's IdP dial. The publisher sends
+// the M2M client_credentials grant and the resulting bearer token to IDP_HOST, so a
+// Lerian-hosted deployment must not reach the IdP in cleartext — the same rule
+// Postgres and the streaming broker already answer to.
+//
+// It is a no-op unless RI declaration is ENABLED: a disabled publisher opens no IdP
+// connection at all. An empty or scheme-less IDP_HOST is likewise not this gate's
+// concern — the publisher's own pre-flight and lib-auth's config validation already
+// cover incomplete/malformed config and fail open (no dial happens); a missing host
+// is not an insecure dial. Only an explicit http:// scheme trips the gate. BYOC and
+// local deployments keep their plaintext IdP.
+//
+// Like the Postgres and streaming SaaS TLS gates, this does NOT honor the
+// ALLOW_INSECURE_TLS escape hatch — that escape lives in the connection
+// constructors, not in the SaaS TLS gate. IDP_HOST is a plain host URL, never a
+// credential: the M2M secret is not part of this value and is never referenced here,
+// so nothing sensitive can reach the error message.
+func ValidateSaaSDeclarationTLS(cfg *Config) error {
+	if cfg == nil {
+		return fmt.Errorf("validate SaaS declaration TLS: nil config")
+	}
+
+	if !cfg.DeclarationEnabled || !isSaaSMode(cfg.DeploymentMode) || !idpSchemeIsCleartext(cfg.IDPHost) {
+		return nil
+	}
+
+	return fmt.Errorf(
+		"DEPLOYMENT_MODE=saas: TLS required for IdP declaration but not configured (set IDP_HOST to an https:// URL)",
+	)
+}
+
 // isSaaSMode normalizes the deployment mode (case + whitespace) so values like
 // "SaaS" or " saas " cannot bypass a gate by string-equality alone. Shared by
 // both SaaS gates in this file so the normalization can never drift between them.

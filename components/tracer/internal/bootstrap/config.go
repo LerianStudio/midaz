@@ -1686,6 +1686,13 @@ func initCoreInfra(ctx context.Context, cfg *Config) (libLog.Logger, *libOtel.Te
 		return nil, nil, nil, nil, fmt.Errorf("TLS enforcement: %w", err)
 	}
 
+	// Scheme gate (fatal), orthogonal to the RI publisher's fail-open wiring: in
+	// SaaS mode a cleartext http:// IDP_HOST refuses boot before any IdP dial, so
+	// the M2M grant and bearer token cannot travel unencrypted.
+	if err := ValidateSaaSDeclarationTLS(cfg); err != nil {
+		return nil, nil, nil, nil, fmt.Errorf("TLS enforcement: %w", err)
+	}
+
 	// Init OpenTelemetry via lib-commons helper (per Ring standards)
 	telemetry, err := libOtel.NewTelemetry(libOtel.TelemetryConfig{
 		LibraryName:               cfg.OtelLibraryName,
