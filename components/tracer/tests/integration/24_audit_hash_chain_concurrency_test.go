@@ -142,6 +142,43 @@ func TestIntegration_AuditHashChain(t *testing.T) {
 				valid, firstInvalid, _, detail := auditChainVerify(ctx, t, db)
 				require.True(t, valid,
 					"serialized inserts must verify (firstInvalidId=%v, detail=%q)", firstInvalid, detail.String)
+
+				// Discriminating link assertion for the ordering property this case
+				// names: with id assigned INSIDE the lock the three rows form one
+				// contiguous chain — genesis <- lower <- higher — regardless of which
+				// goroutine started first. The verifier walking id ASC already accepts
+				// the chain, but assert the two racing rows' links directly so the case
+				// fails loudly if id-order ever diverged from chain-order.
+				genesisHash := auditChainSingleHash(ctx, t, db, "rule-genesis")
+
+				rows, err := db.QueryContext(ctx,
+					`SELECT hash, previous_hash FROM audit_events
+					 WHERE resource_id IN ('rule-order-first', 'rule-order-second')
+					 ORDER BY id ASC`)
+				require.NoError(t, err, "read the two racing rows in id order")
+				defer rows.Close()
+
+				type racingRow struct {
+					hash     string
+					prevHash sql.NullString
+				}
+
+				var racing []racingRow
+				for rows.Next() {
+					var r racingRow
+					require.NoError(t, rows.Scan(&r.hash, &r.prevHash), "scan racing row")
+					racing = append(racing, r)
+				}
+				require.NoError(t, rows.Err(), "iterate racing rows")
+				require.Len(t, racing, 2, "both racing rows must have committed")
+
+				lower, higher := racing[0], racing[1]
+				require.True(t, lower.prevHash.Valid, "lower-id racing row must carry a previous_hash")
+				require.Equal(t, genesisHash, lower.prevHash.String,
+					"the lower-id racing row must link to the genesis row's hash")
+				require.True(t, higher.prevHash.Valid, "higher-id racing row must carry a previous_hash")
+				require.Equal(t, lower.hash, higher.prevHash.String,
+					"the higher-id racing row must link to the lower-id racing row's hash")
 			},
 		},
 		{
@@ -422,23 +459,28 @@ func waitForBlockedAdvisoryLocks(ctx context.Context, t *testing.T, db *sql.DB, 
 	classID := int64(uint64(key) >> 32)
 	objID := int64(uint64(key) & 0xFFFFFFFF)
 
-	deadline := time.Now().Add(30 * time.Second)
+	waitCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
+	defer cancel()
+
 	for {
 		var blocked int
 
-		err := db.QueryRowContext(ctx,
+		err := db.QueryRowContext(waitCtx,
 			`SELECT count(*) FROM pg_locks
 			 WHERE locktype = 'advisory' AND NOT granted
 			   AND classid = $1 AND objid = $2 AND objsubid = 1`,
 			classID, objID).Scan(&blocked)
-		require.NoError(t, err, "poll pg_locks for advisory key %d", key)
-
-		if blocked >= want {
+		if err == nil && blocked >= want {
 			return
 		}
 
-		require.False(t, time.Now().After(deadline),
+		// Check the deadline before the query error so a timeout reports the
+		// waiting-for message (with the last count seen) rather than a bare
+		// context-cancelled scan error.
+		require.NoError(t, waitCtx.Err(),
 			"timed out waiting for %d backend(s) blocked on advisory key %d (saw %d)", want, key, blocked)
+		require.NoError(t, err, "poll pg_locks for advisory key %d", key)
+
 		time.Sleep(25 * time.Millisecond)
 	}
 }

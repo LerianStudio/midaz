@@ -28,6 +28,7 @@ import (
 )
 
 type reservationDeps struct {
+	ctrl        *gomock.Controller
 	conn        *pgdbMocks.MockTxBeginner
 	tx          *pgdbMocks.MockTx
 	resolver    *servicesMocks.MockLimitResolver
@@ -44,6 +45,7 @@ func newReservationServiceDeps(t *testing.T) (*ReservationService, *reservationD
 	ctrl := gomock.NewController(t)
 
 	deps := &reservationDeps{
+		ctrl:        ctrl,
 		conn:        pgdbMocks.NewMockTxBeginner(ctrl),
 		tx:          pgdbMocks.NewMockTx(ctrl),
 		resolver:    servicesMocks.NewMockLimitResolver(ctrl),
@@ -455,39 +457,61 @@ func TestReservationService_Reserve_TransientRetry_NoDuplicateHandles(t *testing
 		Return(specs, false, nil).
 		Times(1)
 
-	// Fresh transaction per attempt: attempt 1 rolls back on the transient abort,
-	// attempt 2 commits.
-	deps.conn.EXPECT().BeginTx(gomock.Any(), gomock.Any()).Return(deps.tx, nil).Times(2)
-	deps.tx.EXPECT().Rollback().Return(nil).Times(1)
-	deps.tx.EXPECT().Commit().Return(nil).Times(1)
+	// DISTINCT transaction handles per attempt. tx1 is the attempt-1 handle that
+	// trips the transient abort and is rolled back; tx2 is the fresh attempt-2
+	// handle that commits. Wiring the whole lifecycle onto attempt-specific mocks
+	// is what proves the rolled-back tx1 is never reused on attempt 2: every
+	// attempt-2 expectation matches tx2 exactly, so any reuse of tx1 would trip a
+	// gomock "unexpected call" (tx1 has no attempt-2 expectations and no Commit).
+	tx1 := pgdbMocks.NewMockTx(deps.ctrl)
+	tx2 := pgdbMocks.NewMockTx(deps.ctrl)
 
-	// The scope lock succeeds on both attempts.
+	// BeginTx hands out tx1 first, then tx2. Declaration order + Times(1) makes the
+	// sequence deterministic: the first call exhausts the tx1 expectation.
+	gomock.InOrder(
+		deps.conn.EXPECT().BeginTx(gomock.Any(), gomock.Any()).Return(tx1, nil).Times(1),
+		deps.conn.EXPECT().BeginTx(gomock.Any(), gomock.Any()).Return(tx2, nil).Times(1),
+	)
+
+	// Attempt 1 (tx1): scope lock, then reserve spec0 ok + one audit row, then
+	// reserve spec1 trips 40P01 and the whole tx1 rolls back. No Commit on tx1.
+	tx1.EXPECT().Rollback().Return(nil).Times(1)
 	deps.repo.EXPECT().
-		AcquireReserveScopeLock(gomock.Any(), deps.tx, gomock.Any()).
+		AcquireReserveScopeLock(gomock.Any(), tx1, gomock.Any()).
 		Return(nil).
-		Times(2)
+		Times(1)
 
-	// Four ReserveWithTx calls: (a1,spec0) ok, (a1,spec1) 40P01, (a2,spec0) ok,
-	// (a2,spec1) ok. The transient abort lands on the SECOND spec so attempt 1 has
-	// already appended one handle — that is what a missing reset would duplicate.
-	reserveCalls := 0
+	tx1ReserveCalls := 0
 	deps.repo.EXPECT().
-		ReserveWithTx(gomock.Any(), deps.tx, gomock.AssignableToTypeOf(&model.Reservation{}), gomock.Any()).
+		ReserveWithTx(gomock.Any(), tx1, gomock.AssignableToTypeOf(&model.Reservation{}), gomock.Any()).
 		DoAndReturn(func(_ context.Context, _ pgdb.DB, _ *model.Reservation, _ decimal.Decimal) error {
-			reserveCalls++
-			if reserveCalls == 2 {
+			tx1ReserveCalls++
+			if tx1ReserveCalls == 2 {
 				return &pgconn.PgError{Code: "40P01"} // deadlock_detected, transient
 			}
 
 			return nil
 		}).
-		Times(4)
-
-	// One audit row per successful reserve: one in attempt 1, two in attempt 2.
+		Times(2)
 	deps.auditWriter.EXPECT().
-		RecordReservationEventWithTx(gomock.Any(), deps.tx, model.AuditEventReservationReserved, model.AuditActionReserve, gomock.Any(), gomock.Any()).
+		RecordReservationEventWithTx(gomock.Any(), tx1, model.AuditEventReservationReserved, model.AuditActionReserve, gomock.Any(), gomock.Any()).
 		Return(nil).
-		Times(3)
+		Times(1)
+
+	// Attempt 2 (tx2): fresh begin, scope lock, both specs reserve + audit, commit.
+	tx2.EXPECT().Commit().Return(nil).Times(1)
+	deps.repo.EXPECT().
+		AcquireReserveScopeLock(gomock.Any(), tx2, gomock.Any()).
+		Return(nil).
+		Times(1)
+	deps.repo.EXPECT().
+		ReserveWithTx(gomock.Any(), tx2, gomock.AssignableToTypeOf(&model.Reservation{}), gomock.Any()).
+		Return(nil).
+		Times(2)
+	deps.auditWriter.EXPECT().
+		RecordReservationEventWithTx(gomock.Any(), tx2, model.AuditEventReservationReserved, model.AuditActionReserve, gomock.Any(), gomock.Any()).
+		Return(nil).
+		Times(2)
 
 	// Deterministic retry: no wall-clock backoff.
 	svc.retrySleep = func(context.Context, time.Duration) error { return nil }

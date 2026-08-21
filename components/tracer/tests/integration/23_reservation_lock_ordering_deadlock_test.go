@@ -177,6 +177,14 @@ func TestIntegration_ReservationConcurrentSameAccount_NoDeadlock(t *testing.T) {
 		resSpec(limitA, scopeA, periodKey, amount, capacity),
 	}
 
+	// Build the services and the shared input on the TEST goroutine: both helpers
+	// call require.NoError internally, and require's FailNow (runtime.Goexit) is
+	// only valid on the goroutine running the test. Only two spec orders exist, so
+	// two services cover every worker.
+	svcAB := resWireServiceRealAudit(t, db, resStubResolver{specs: orderAB})
+	svcBA := resWireServiceRealAudit(t, db, resStubResolver{specs: orderBA})
+	input := resCheckInputForAccount(t, accountID)
+
 	before := resReadDeadlockCount(t, db)
 
 	var (
@@ -192,19 +200,17 @@ func TestIntegration_ReservationConcurrentSameAccount_NoDeadlock(t *testing.T) {
 		go func(idx int) {
 			defer wg.Done()
 
-			specs := orderAB
+			svc := svcAB
 			if idx%2 == 1 {
-				specs = orderBA
+				svc = svcBA
 			}
-
-			svc := resWireServiceRealAudit(t, db, resStubResolver{specs: specs})
 
 			ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
 			defer cancel()
 
 			txID := testutil.MustDeterministicUUID(int64(93100 + idx))
 
-			res, err := svc.Reserve(ctx, txID, resCheckInputForAccount(t, accountID), false)
+			res, err := svc.Reserve(ctx, txID, input, false)
 			switch {
 			case err != nil:
 				hardError.Add(1)
@@ -219,7 +225,20 @@ func TestIntegration_ReservationConcurrentSameAccount_NoDeadlock(t *testing.T) {
 
 	wg.Wait()
 
+	// pg_stat_database.deadlocks is maintained by the stats collector and can lag
+	// the racing window by the reporting interval. Poll with fresh autocommit reads
+	// so a late-surfacing deadlock cannot slip past a single immediate read and turn
+	// a real cycle into a false pass; a genuinely deadlock-free run simply exhausts
+	// the bounded deadline at the pre-race value. The deadline is derived from the
+	// test context, not a wall-clock read.
+	settleCtx, settleCancel := context.WithTimeout(t.Context(), 5*time.Second)
+	defer settleCancel()
+
 	after := resReadDeadlockCount(t, db)
+	for after == before && settleCtx.Err() == nil {
+		time.Sleep(25 * time.Millisecond)
+		after = resReadDeadlockCount(t, db)
+	}
 
 	// The pg_stat_database.deadlocks delta is a probabilistic signal: it only
 	// advances if the racing goroutines happen to interleave into a cycle within the
@@ -269,27 +288,34 @@ func TestIntegration_ReservationConcurrentDistinctAccounts_Parallelizes(t *testi
 	)
 
 	scopes := make([]string, goroutines)
+	// Build each worker's service and input on the TEST goroutine: both helpers
+	// call require.NoError, whose FailNow (runtime.Goexit) must run on the test
+	// goroutine. Each worker has its own account/scope, so one per index.
+	svcs := make([]*services.ReservationService, goroutines)
+	inputs := make([]*model.CheckLimitsInput, goroutines)
 
 	for i := range goroutines {
 		// Full UUID, not a prefix: MustDeterministicUUID encodes the seed in the
 		// TRAILING bytes, so a [:8] slice collapses every scope onto one counter.
 		scopes[i] = "acct:distinct-" + testutil.MustDeterministicUUID(int64(93400+i)).String()
 
+		specs := []query.ReservationSpec{resSpec(limitID, scopes[i], periodKey, amount, capacity)}
+		svcs[i] = resWireServiceRealAudit(t, db, resStubResolver{specs: specs})
+		inputs[i] = resCheckInputForAccount(t, testutil.MustDeterministicUUID(int64(93500+i)))
+
 		wg.Add(1)
 
 		go func(idx int) {
 			defer wg.Done()
 
-			specs := []query.ReservationSpec{resSpec(limitID, scopes[idx], periodKey, amount, capacity)}
-			svc := resWireServiceRealAudit(t, db, resStubResolver{specs: specs})
+			svc := svcs[idx]
 
 			ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
 			defer cancel()
 
-			accountID := testutil.MustDeterministicUUID(int64(93500 + idx))
 			txID := testutil.MustDeterministicUUID(int64(93600 + idx))
 
-			res, err := svc.Reserve(ctx, txID, resCheckInputForAccount(t, accountID), false)
+			res, err := svc.Reserve(ctx, txID, inputs[idx], false)
 			switch {
 			case err != nil:
 				hardError.Add(1)
@@ -343,6 +369,18 @@ func TestIntegration_ReservationConcurrentSameAccount_OverLimitStillDenies(t *te
 	scopeB := "global-overlimit-" + testutil.MustDeterministicUUID(9342).String()[:8]
 	periodKey := "2026-06"
 
+	// Build the two spec-order services and the shared input on the TEST goroutine:
+	// resWireServiceRealAudit / resCheckInputForAccount call require.NoError, whose
+	// FailNow (runtime.Goexit) is only valid on the test goroutine.
+	specsAB := []query.ReservationSpec{
+		resSpec(limitA, scopeA, periodKey, 1, capacity),
+		resSpec(limitB, scopeB, periodKey, 1, 1_000_000),
+	}
+	specsBA := []query.ReservationSpec{specsAB[1], specsAB[0]}
+	svcAB := resWireServiceRealAudit(t, db, resStubResolver{specs: specsAB})
+	svcBA := resWireServiceRealAudit(t, db, resStubResolver{specs: specsBA})
+	input := resCheckInputForAccount(t, accountID)
+
 	before := resReadDeadlockCount(t, db)
 
 	var (
@@ -358,22 +396,17 @@ func TestIntegration_ReservationConcurrentSameAccount_OverLimitStillDenies(t *te
 		go func(idx int) {
 			defer wg.Done()
 
-			specs := []query.ReservationSpec{
-				resSpec(limitA, scopeA, periodKey, 1, capacity),
-				resSpec(limitB, scopeB, periodKey, 1, 1_000_000),
-			}
+			svc := svcAB
 			if idx%2 == 1 {
-				specs = []query.ReservationSpec{specs[1], specs[0]}
+				svc = svcBA
 			}
-
-			svc := resWireServiceRealAudit(t, db, resStubResolver{specs: specs})
 
 			ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
 			defer cancel()
 
 			txID := testutil.MustDeterministicUUID(int64(93700 + idx))
 
-			res, err := svc.Reserve(ctx, txID, resCheckInputForAccount(t, accountID), false)
+			res, err := svc.Reserve(ctx, txID, input, false)
 			switch {
 			case err != nil:
 				hardError.Add(1)
