@@ -83,24 +83,19 @@ func isSegmentReference(entry string) (bool, uuid.UUID, error) {
 // ledger validator aggregates per-asset and requires sum == 0 under exact
 // decimal.Equal, so a fee leg in any asset other than Send.Asset would either
 // trip ErrTransactionValueMismatch or silently create a multi-asset imbalance.
-// The defaultCurrency parameter is accepted for the value-only fallback when the
-// transaction carries no Send.Asset; it NEVER denominates a leg in a different
-// asset than the transaction. Send.Asset is the single source of truth.
+// Send.Asset is the single source of truth, so a transaction that carries no
+// Send.Asset is rejected with a missing-required-field validation error rather
+// than denominated in any substitute asset.
 //
 // The segCtx parameter is optional: when non-nil, segment-based waivedAccounts resolution
 // is enabled (entries like "segment:<uuid>" trigger a Midaz API call to check account membership).
 // When segCtx is nil, only exact alias matching is used for waivedAccounts.
 func CalculateFee(logger libLog.Logger, f *model.FeeCalculate, p *pack.Package, resp *transaction.Responses, defaultCurrency string, segCtx *SegmentContext) error {
-	if defaultCurrency == "" {
-		defaultCurrency = DefaultCurrencyBRL
+	if f.Transaction.Send.Asset == "" {
+		return pkg.ValidateBusinessError(constant.ErrMissingFieldsInRequest, constant.EntityFeeCalculation, "send.asset")
 	}
 
-	// Fee legs are denominated in the transaction's Send.Asset. The configured
-	// default currency only acts as a fallback when the transaction omits one.
 	feeAsset := f.Transaction.Send.Asset
-	if feeAsset == "" {
-		feeAsset = defaultCurrency
-	}
 
 	originalTransactionValue := f.Transaction.Send.Value
 

@@ -133,9 +133,9 @@ func TestCalculateFee_LegsDenominatedInSendAsset_NotDefaultCurrency(t *testing.T
 	}
 }
 
-// TestCalculateFee_EmptySendAssetFallsBackToDefault documents the only path
-// where the default currency denominates a leg: when the transaction omits a
-// Send.Asset entirely. This is the value-only fallback, not a cross-asset emit.
+// TestCalculateFee_EmptySendAssetFallsBackToDefault asserts that a transaction
+// with no Send.Asset is rejected instead of having its fee legs denominated in
+// some other asset the transaction never named.
 func TestCalculateFee_EmptySendAssetFallsBackToDefault(t *testing.T) {
 	t.Parallel()
 
@@ -144,9 +144,5 @@ func TestCalculateFee_EmptySendAssetFallsBackToDefault(t *testing.T) {
 	feeCalc, p, resp := denominationFixture("", false)
 
 	err := CalculateFee(logger, feeCalc, p, resp, DefaultCurrencyBRL, nil)
-	require.NoError(t, err)
-
-	// With no Send.Asset, legs fall back to the default currency — they are all
-	// in ONE asset (BRL), so the transaction still balances single-asset.
-	assertAllFeeLegsUseAsset(t, resp, DefaultCurrencyBRL)
+	require.Error(t, err)
 }
