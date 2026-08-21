@@ -1,0 +1,30 @@
+name: Fork PR Notice
+
+# Posts a one-time explanatory comment when a PR is opened from a fork,
+# pointing contributors and reviewers at the trusted-promotion flow
+# (fork-pr-promote.yml). Metadata-only: no checkout, no code execution,
+# safe under pull_request_target despite the elevated token it carries.
+
+on:
+  pull_request_target:
+    types: [opened]
+
+permissions:
+  pull-requests: write
+
+jobs:
+  notice:
+    if: github.event.pull_request.head.repo.full_name != github.repository
+    runs-on: blacksmith-4vcpu-ubuntu-2404
+    steps:
+      - name: Comment with the promotion flow explanation
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          gh pr comment "$PR_NUMBER" --body "$(cat <<'EOF'
+          Thanks for the contribution! This PR comes from a fork, so CI runs without write access to secrets by default — that's a GitHub security restriction, not something we've disabled here.
+
+          A maintainer will review the diff, and if it looks good, comment `/promote` to copy this PR's commit onto an internal branch and open a follow-up PR that runs the full pipeline. No action needed from you.
+          EOF
+          )"

@@ -1,0 +1,132 @@
+name: Promote Fork PR (trusted promotion)
+
+# Fork PRs run pull_request with a read-only GITHUB_TOKEN and no custom
+# secrets — a hard GitHub platform restriction, not something any workflow
+# permissions block can lift. This workflow is the trusted-promotion escape
+# hatch: after a maintainer has manually reviewed the diff, they comment
+# "/promote" on the fork PR. That copies the fork PR's exact head commit onto
+# an internal fork/<pr-number> branch and opens a follow-up PR
+# (fork/<pr-number> -> develop). That follow-up PR is same-repo, not
+# cross-repository, so it gets normal pull_request treatment: full
+# GITHUB_TOKEN and secrets, no workarounds needed anywhere else in CI.
+#
+# Security invariants — do not weaken these when editing this file:
+#   1. Never checkout or execute the fork's code in this job. It only copies
+#      git objects (fetch a ref, push a ref) and calls the GitHub API — both
+#      side-effect-free with respect to running anything the fork controls.
+#      refs/pull/<n>/head is exposed by GitHub on THIS (base) repository for
+#      every PR, fork or not, so the fetch never talks to the fork remote.
+#   2. Promotion is never automatic. issue_comment is not a fork-restricted
+#      event (it always runs in the base repo's context), so this job would
+#      otherwise be gated by nothing but comment text — the author_association
+#      check on the COMMENTER (not the PR author) is the actual security
+#      boundary. Only OWNER/MEMBER/COLLABORATOR can trigger it.
+#   3. fork/<pr-number> branches are per-PR and disposable. Re-running
+#      "/promote" force-updates the same branch to the PR's latest head — that
+#      still requires a fresh, explicit maintainer comment each time; nothing
+#      here auto-promotes on new pushes.
+
+on:
+  issue_comment:
+    types: [created]
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  promote:
+    if: github.event.issue.pull_request != null
+    runs-on: blacksmith-4vcpu-ubuntu-2404
+    steps:
+      - name: Check trigger and authorization
+        id: gate
+        env:
+          COMMENT_BODY: ${{ github.event.comment.body }}
+          AUTHOR_ASSOCIATION: ${{ github.event.comment.author_association }}
+          COMMENTER: ${{ github.event.comment.user.login }}
+        run: |
+          set -euo pipefail
+          if ! grep -qE '^/promote\b' <<<"$COMMENT_BODY"; then
+            echo "proceed=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          case "$AUTHOR_ASSOCIATION" in
+            OWNER|MEMBER|COLLABORATOR) ;;
+            *)
+              echo "::warning::Ignoring /promote from @$COMMENTER (author_association=$AUTHOR_ASSOCIATION, not a collaborator)."
+              echo "proceed=false" >> "$GITHUB_OUTPUT"
+              exit 0
+              ;;
+          esac
+          echo "proceed=true" >> "$GITHUB_OUTPUT"
+
+      - name: Checkout base repository
+        if: steps.gate.outputs.proceed == 'true'
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+
+      - name: Resolve PR metadata
+        if: steps.gate.outputs.proceed == 'true'
+        id: pr
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.issue.number }}
+        run: |
+          set -euo pipefail
+          data=$(gh pr view "$PR_NUMBER" --json isCrossRepository,state,title)
+          if [[ "$(jq -r '.isCrossRepository' <<<"$data")" != "true" ]]; then
+            echo "::error::PR #$PR_NUMBER is not a fork PR; nothing to promote."
+            exit 1
+          fi
+          if [[ "$(jq -r '.state' <<<"$data")" != "OPEN" ]]; then
+            echo "::error::PR #$PR_NUMBER is not open."
+            exit 1
+          fi
+          {
+            echo "title<<EOF"
+            jq -r '.title' <<<"$data"
+            echo "EOF"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Copy the fork PR's head commit onto fork/<n>
+        if: steps.gate.outputs.proceed == 'true'
+        env:
+          PR_NUMBER: ${{ github.event.issue.number }}
+        run: |
+          set -euo pipefail
+          git fetch origin "refs/pull/${PR_NUMBER}/head"
+          git push origin FETCH_HEAD:"refs/heads/fork/${PR_NUMBER}" --force
+
+      - name: Open or update the internal promotion PR
+        if: steps.gate.outputs.proceed == 'true'
+        id: promo_pr
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.issue.number }}
+          PR_TITLE: ${{ steps.pr.outputs.title }}
+          APPROVER: ${{ github.event.comment.user.login }}
+        run: |
+          set -euo pipefail
+          branch="fork/${PR_NUMBER}"
+          existing=$(gh pr list --head "$branch" --base develop --json number --jq '.[0].number // empty')
+          if [[ -n "$existing" ]]; then
+            echo "number=$existing" >> "$GITHUB_OUTPUT"
+          else
+            url=$(gh pr create \
+              --base develop \
+              --head "$branch" \
+              --title "Promote #$PR_NUMBER: $PR_TITLE" \
+              --body "Trusted promotion of #$PR_NUMBER, requested by @$APPROVER after manual review of the diff. This branch is same-repo, so it runs full CI with secrets — no fork workarounds needed.")
+            echo "number=${url##*/}" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Comment back on the original fork PR
+        if: steps.gate.outputs.proceed == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.issue.number }}
+        run: |
+          gh pr comment "$PR_NUMBER" \
+            --body "Promoted to \`fork/$PR_NUMBER\`, tracked in #${{ steps.promo_pr.outputs.number }}."
