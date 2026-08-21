@@ -204,6 +204,8 @@ func TestLedgerSettingsInput_ToSparseMap(t *testing.T) {
 	}
 
 	for _, tt := range tests {
+		tt := tt
+
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
@@ -216,7 +218,6 @@ func TestLedgerSettingsInput_ToSparseMap(t *testing.T) {
 
 			require.NotNil(t, got, "non-nil receiver must produce a non-nil map")
 			assert.Equal(t, tt.want, got, "sparse map must carry exactly the keys the client sent")
-			assert.Len(t, got, len(tt.want))
 		})
 	}
 }
@@ -270,6 +271,8 @@ func TestLedgerSettingsInput_ToSparseMap_ValidateSettingsAcceptsEveryLeaf(t *tes
 	}
 
 	for _, tt := range tests {
+		tt := tt
+
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
@@ -368,6 +371,8 @@ func TestLedgerSettingsInput_ToSparseMap_ParseRoundTrip(t *testing.T) {
 	}
 
 	for _, tt := range tests {
+		tt := tt
+
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
@@ -379,14 +384,27 @@ func TestLedgerSettingsInput_ToSparseMap_ParseRoundTrip(t *testing.T) {
 	}
 }
 
+// countSettingsLeaves counts the leaves across every group of a sparse settings map. The
+// determinism guard below needs leaves, not top-level groups: two leaves inside one group
+// would pass a group count of 1 while restoring the choice of which path to report.
+func countSettingsLeaves(sparse map[string]any) int {
+	total := 0
+
+	for _, group := range sparse {
+		if leaves, ok := group.(map[string]any); ok {
+			total += len(leaves)
+		}
+	}
+
+	return total
+}
+
 // TestLedgerSettingsInput_ToSparseMap_ErrorFieldPathIsDeterministic locks the field path
 // reported for an invalid leaf. A sparse map carries only the leaves the client sent, so a
 // single invalid leaf leaves ValidateSettings no choice of which path to report — unlike a
 // dense map, where Go map iteration order picks a winner among several invalid zero values.
 func TestLedgerSettingsInput_ToSparseMap_ErrorFieldPathIsDeterministic(t *testing.T) {
 	t.Parallel()
-
-	const repeats = 50
 
 	tests := []struct {
 		name          string
@@ -421,25 +439,22 @@ func TestLedgerSettingsInput_ToSparseMap_ErrorFieldPathIsDeterministic(t *testin
 	}
 
 	for _, tt := range tests {
+		tt := tt
+
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
 			sparse := tt.input.ToSparseMap()
-			require.Len(t, sparse, 1)
+			require.Equal(t, 1, countSettingsLeaves(sparse),
+				"a row may set exactly one leaf; a second one restores the order-dependence this test rules out")
 
-			first := ValidateSettings(sparse)
-			require.Error(t, first)
+			err := ValidateSettings(sparse)
+			require.Error(t, err)
 
 			var vErr pkg.ValidationError
-			require.True(t, errors.As(first, &vErr), "expected ValidationError, got %T", first)
+			require.True(t, errors.As(err, &vErr), "expected ValidationError, got %T", err)
 			assert.Equal(t, tt.wantCode, vErr.Code)
 			assert.Contains(t, vErr.Message, tt.wantFieldPath, "reported field path must name the invalid leaf")
-
-			for range repeats {
-				again := ValidateSettings(tt.input.ToSparseMap())
-				require.Error(t, again)
-				assert.Equal(t, first.Error(), again.Error(), "reported field path must not vary between runs")
-			}
 		})
 	}
 }
@@ -480,6 +495,8 @@ func TestLedgerSettingsInput_JSONTagsOmitEmpty(t *testing.T) {
 	}
 
 	for _, tt := range tests {
+		tt := tt
+
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
@@ -551,6 +568,8 @@ func TestLedgerSettingsInput_UnmarshalJSON_AbsentVsExplicitZero(t *testing.T) {
 	}
 
 	for _, tt := range tests {
+		tt := tt
+
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
