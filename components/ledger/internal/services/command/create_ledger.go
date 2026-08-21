@@ -48,21 +48,25 @@ func (uc *UseCase) CreateLedger(ctx context.Context, organizationID uuid.UUID, c
 		return nil, err
 	}
 
-	// Validate settings early when provided, same as UpdateLedgerSettings (fail before creating the ledger).
+	// Only the keys the client actually sent are validated, then defaults fill the rest, so a
+	// partial settings object is accepted. Validation runs before the ledger is created.
+	//
+	// ParseLedgerSettings always yields a complete struct, so the all-defaults case is only
+	// detectable on its output: a nil settingsToPersist is what leaves the settings column unset.
 	var settingsToPersist *mmodel.LedgerSettings
 
-	if !mmodel.LedgerSettingsIsDefault(cli.Settings) {
-		settingsMap := mmodel.LedgerSettingsToMap(*cli.Settings)
-
-		if err := mmodel.ValidateSettings(settingsMap); err != nil {
+	if sparseSettings := cli.Settings.ToSparseMap(); sparseSettings != nil {
+		if err := mmodel.ValidateSettings(sparseSettings); err != nil {
 			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Settings validation failed", err)
-			logger.Log(ctx, libLog.LevelError, "Settings validation failed", libLog.Err(err))
+			logger.Log(ctx, libLog.LevelWarn, "Settings validation failed", libLog.Err(err))
 
 			return nil, err
 		}
 
-		parsed := mmodel.ParseLedgerSettings(settingsMap)
-		settingsToPersist = &parsed
+		parsed := mmodel.ParseLedgerSettings(sparseSettings)
+		if !mmodel.LedgerSettingsIsDefault(&parsed) {
+			settingsToPersist = &parsed
+		}
 	}
 
 	now := time.Now()
