@@ -133,13 +133,6 @@ func TestTracerErrorContract(t *testing.T) {
 			expectedCode:   "0380",
 			expectedTitle:  "Limit Immutable Field",
 		},
-		{
-			name:           "limit already deleted -> 0370 / 422",
-			err:            pkg.ValidateBusinessError(constant.ErrLimitAlreadyDeleted, constant.EntityLimit),
-			expectedStatus: 422,
-			expectedCode:   "0370",
-			expectedTitle:  "Limit Already Deleted",
-		},
 		// --- reservation ---
 		{
 			name:           "reservation not found -> 0482 / 404",

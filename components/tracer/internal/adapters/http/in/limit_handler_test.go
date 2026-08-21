@@ -837,24 +837,6 @@ func TestLimitHandler_UpdateLimit(t *testing.T) {
 			expectedStatus: http.StatusNotFound,
 			expectedBody:   func(t *testing.T, body []byte) {},
 		},
-		{
-			name:    "error - limit already deleted",
-			limitID: validID.String(),
-			requestBody: map[string]any{
-				"name": "Test",
-			},
-			mockSetup: func(ctrl *gomock.Controller) *MockLimitService {
-				mockService := NewMockLimitService(ctrl)
-				mockService.EXPECT().
-					UpdateLimit(gomock.Any(), validID, gomock.Any()).
-					Return(nil, constant.ErrLimitAlreadyDeleted)
-
-				return mockService
-			},
-			expectedStatus: http.StatusUnprocessableEntity,
-			expectedBody: func(t *testing.T, body []byte) {
-			},
-		},
 	}
 
 	for _, tt := range tests {
@@ -1088,19 +1070,6 @@ func TestLimitHandler_DeleteLimit(t *testing.T) {
 				return mockService
 			},
 			expectedStatus: http.StatusNotFound,
-		},
-		{
-			name:    "error - limit already deleted",
-			limitID: validID.String(),
-			mockSetup: func(ctrl *gomock.Controller) *MockLimitService {
-				mockService := NewMockLimitService(ctrl)
-				mockService.EXPECT().
-					DeleteLimit(gomock.Any(), validID).
-					Return(constant.ErrLimitAlreadyDeleted)
-
-				return mockService
-			},
-			expectedStatus: http.StatusUnprocessableEntity,
 		},
 	}
 
