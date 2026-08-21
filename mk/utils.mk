@@ -63,3 +63,13 @@ define check_env_files
 		fi; \
 	done
 endef
+
+# golangci-lint caches analysis results keyed by package content, not by
+# checkout path. Sibling git worktrees of this repo hold byte-identical
+# packages, so the OS-default shared cache replays another worktree's
+# diagnostics — carrying that worktree's file paths — into this run, including
+# paths of worktrees that no longer exist. Keying the cache to the checkout
+# keeps each worktree's results to itself and makes the cache die with the
+# worktree that produced it.
+GOLANGCI_LINT_CACHE ?= $(MIDAZ_ROOT)/.cache/golangci-lint
+export GOLANGCI_LINT_CACHE
