@@ -50,3 +50,6 @@ cert/
 
 # Security scan reports
 *.sarif
+
+# Checkout-scoped tool caches (see GOLANGCI_LINT_CACHE in mk/utils.mk)
+.cache/
