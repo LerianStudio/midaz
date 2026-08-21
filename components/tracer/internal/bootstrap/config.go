@@ -113,6 +113,16 @@ type Config struct {
 	PluginAuthAddress string `env:"PLUGIN_AUTH_ADDRESS"`
 	PluginAuthEnabled bool   `env:"PLUGIN_AUTH_ENABLED"`
 
+	// Resource-inventory (RI) permission declaration against the IdP (identity, :4001),
+	// distinct from PLUGIN_AUTH_ADDRESS (auth, :4000). RI is OPTIONAL and fail-open: an unset
+	// or invalid IDP_DECLARATION_ENABLED decodes to false (safe), and empty host/credentials
+	// never block boot — the publisher handles incomplete config fail-open. IDPM2MClientSecret
+	// MUST NOT be logged, span-attached, or serialized.
+	DeclarationEnabled bool   `env:"IDP_DECLARATION_ENABLED"`
+	IDPHost            string `env:"IDP_HOST"`
+	IDPM2MClientID     string `env:"IDP_M2M_CLIENT_ID"`
+	IDPM2MClientSecret string `env:"IDP_M2M_CLIENT_SECRET"`
+
 	// Application identity
 	// ApplicationName is the module identifier used when registering with the
 	// multi-tenant Tenant Manager. Default: "tracer" (applied in ApplyMultiTenantDefaults).
