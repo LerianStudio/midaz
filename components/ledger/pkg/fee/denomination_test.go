@@ -5,6 +5,7 @@
 package fee
 
 import (
+	"maps"
 	"strings"
 	"testing"
 
@@ -17,6 +18,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/LerianStudio/midaz/v4/pkg"
+	"github.com/LerianStudio/midaz/v4/pkg/constant"
 	transaction "github.com/LerianStudio/midaz/v4/pkg/mtransaction"
 )
 
@@ -133,16 +136,36 @@ func TestCalculateFee_LegsDenominatedInSendAsset_NotDefaultCurrency(t *testing.T
 	}
 }
 
-// TestCalculateFee_EmptySendAssetFallsBackToDefault asserts that a transaction
-// with no Send.Asset is rejected instead of having its fee legs denominated in
-// some other asset the transaction never named.
-func TestCalculateFee_EmptySendAssetFallsBackToDefault(t *testing.T) {
+// TestCalculateFee_EmptySendAssetRejected records the decision that an empty
+// Send.Asset is a hard 0009 rejection. No code path denominates a fee leg in a
+// currency the transaction did not name: the engine refuses the calculation
+// instead of substituting a configured default, so the caller must name the
+// asset rather than have one chosen for it.
+func TestCalculateFee_EmptySendAssetRejected(t *testing.T) {
 	t.Parallel()
 
 	logger, _ := libZap.New(libZap.Config{Environment: libZap.EnvironmentLocal, OTelLibraryName: "test"})
 
 	feeCalc, p, resp := denominationFixture("", false)
 
+	fromBefore := maps.Clone(resp.From)
+	toBefore := maps.Clone(resp.To)
+
 	err := CalculateFee(logger, feeCalc, p, resp, DefaultCurrencyBRL, nil)
 	require.Error(t, err)
+
+	var validationErr pkg.ValidationError
+	require.ErrorAs(t, err, &validationErr)
+
+	assert.Equal(t, constant.ErrMissingFieldsInRequest.Error(), validationErr.Code)
+	// Wire-code lock: 0009 is an external API surface, not an internal label.
+	assert.Equal(t, "0009", validationErr.Code)
+	assert.Equal(t, constant.EntityFeeCalculation, validationErr.EntityType)
+	assert.Contains(t, validationErr.Message, "send.asset",
+		"the rejection must name the missing field so the caller can fix the request")
+
+	// The rejection short-circuits before any leg emission: no fee leg was
+	// appended and the pre-existing legs are untouched.
+	assert.Equal(t, fromBefore, resp.From)
+	assert.Equal(t, toBefore, resp.To)
 }
