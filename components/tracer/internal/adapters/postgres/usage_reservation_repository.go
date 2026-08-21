@@ -30,6 +30,29 @@ import (
 // Using a constant prevents SQL injection via table name interpolation.
 const usageReservationsTable = "usage_reservations"
 
+// reserveScopeLockSQL takes a transaction-scoped advisory lock. pg_advisory_xact_lock
+// blocks until the key is free and releases it automatically at commit or rollback,
+// so no explicit unlock is needed and a crashed transaction never leaks the lock.
+const reserveScopeLockSQL = `SELECT pg_advisory_xact_lock($1)`
+
+// reserveLockTimeout bounds how long the reserve transaction may wait on the
+// per-account advisory lock. Without it a reserve blocked by same-account contention
+// parks its pooled connection until the lock frees, so sustained contention on one
+// hot account can drain the per-tenant pool (default 25) into an indefinite queue.
+// When the wait exceeds this budget PostgreSQL aborts the statement with SQLSTATE
+// 55P03 (lock_not_available); the service rolls the transaction back, releasing the
+// connection, and its jittered transient-retry re-attempts. 3s sits well above the
+// time a legitimate same-account reserve queue drains (each reserve touches a handful
+// of rows in single-digit milliseconds) yet far below the point a stuck waiter would
+// starve the pool.
+const reserveLockTimeout = 3 * time.Second
+
+// reserveLockTimeoutSQL bounds the reserve transaction's lock wait. set_config with
+// is_local=true is the SET LOCAL equivalent that accepts a bind parameter, so the
+// timeout applies only within the current transaction and reverts at commit/rollback,
+// and no value is interpolated into the statement text.
+const reserveLockTimeoutSQL = `SELECT set_config('lock_timeout', $1, true)`
+
 // UsageReservationRepository implements the two-phase reservation lifecycle over
 // usage_reservations, keeping each transition atomic with the matching
 // usage_counters bucket move. Every method takes the caller's db handle (a *sql.Tx
@@ -61,6 +84,36 @@ type UsageReservationRepository struct {
 // insert run on the same transaction handle.
 func NewUsageReservationRepositoryWithConnection(counterRepo *UsageCounterRepository) *UsageReservationRepository {
 	return &UsageReservationRepository{counterRepo: counterRepo}
+}
+
+// AcquireReserveScopeLock sets a transaction-scoped lock_timeout FIRST, then takes
+// the advisory lock, so a wait that exceeds reserveLockTimeout surfaces as SQLSTATE
+// 55P03 (and the service retries) rather than parking the pooled connection
+// indefinitely under same-account contention.
+func (r *UsageReservationRepository) AcquireReserveScopeLock(ctx context.Context, db pgdb.DB, key int64) error {
+	if db == nil {
+		return pgdb.ErrNilConnection
+	}
+
+	//nolint:dogsled // NewTrackingFromContext returns four values; this lock-only path needs just the tracer.
+	_, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
+
+	ctx, span := tracer.Start(ctx, "repository.usage_reservation.acquire_scope_lock")
+	defer span.End()
+
+	span.SetAttributes(attribute.Int64("app.request.reserve_scope_lock_key", key))
+
+	if _, err := db.ExecContext(ctx, reserveLockTimeoutSQL, reserveLockTimeout.String()); err != nil {
+		libOtel.HandleSpanError(span, "Failed to set reserve lock_timeout", err)
+		return fmt.Errorf("failed to set reserve lock_timeout: %w", err)
+	}
+
+	if _, err := db.ExecContext(ctx, reserveScopeLockSQL, key); err != nil {
+		libOtel.HandleSpanError(span, "Failed to acquire reserve scope advisory lock", err)
+		return fmt.Errorf("failed to acquire reserve scope advisory lock: %w", err)
+	}
+
+	return nil
 }
 
 // ReserveWithTx inserts the reservation row idempotently on the (transaction_id,
