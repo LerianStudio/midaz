@@ -1960,6 +1960,16 @@ func InitServers(ctx context.Context) (*Service, error) {
 	svc.ServiceDescriptor = sd.descriptor
 	svc.ServiceDiscoveryMetrics = sd.recorder
 
+	// RI permission-declaration publisher (Option A): build a dedicated stateless
+	// TokenMinter over sd.authHost — the same plugin-auth host initHTTPServer wires
+	// — so this leaves the initHTTPServer/finalizeStartup return signatures
+	// untouched. AuthClient is a stateless minter over an HTTP address, so a second
+	// instance shares no state and costs nothing. buildDeclarationPublisher is
+	// fail-open: a build/publish failure yields no stops and never blocks boot, and
+	// the disabled flag returns before the minter is dereferenced.
+	declarationAuth := authMiddleware.NewAuthClient(sd.authHost, cfg.PluginAuthEnabled, &logger)
+	svc.DeclarationStops = buildDeclarationPublisher(cfg, declarationAuth, logger)
+
 	// The launcher Runnable now owns the manager's graceful close; disarm the
 	// boot-failure closer so it does not double-close on the success path.
 	sdBootCloser.Disarm()
