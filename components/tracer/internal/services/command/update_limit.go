@@ -92,7 +92,7 @@ func NewUpdateLimitCommand(repo LimitRepository, clk clock.Clock, auditWriter Au
 // Execute updates an existing limit.
 // Returns constant.ErrLimitNilInput for nil input.
 // Returns constant.ErrLimitInvalidID for nil UUID.
-// Returns constant.ErrLimitAlreadyDeleted if attempting to update a deleted limit.
+// Returns constant.ErrLimitNotFound when the limit does not exist.
 // Only fields with non-nil values in input are updated.
 //
 // The persistence of the update and the audit event happens atomically inside a
@@ -140,17 +140,6 @@ func (c *UpdateLimitCommand) Execute(ctx context.Context, id uuid.UUID, input *U
 		return nil, err
 	}
 
-	if limit.Status == model.LimitStatusDeleted {
-		err := constant.ErrLimitAlreadyDeleted
-		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Cannot update deleted limit", err)
-		logger.With(
-			libLog.String("operation", "service.limit.update"),
-			libLog.String("limit.id", id.String()),
-		).Log(ctx, libLog.LevelWarn, "Attempted to update deleted limit")
-
-		return nil, err
-	}
-
 	if !c.hasChanges(normalizedInput) {
 		logger.With(
 			libLog.String("operation", "service.limit.update"),
@@ -160,7 +149,7 @@ func (c *UpdateLimitCommand) Execute(ctx context.Context, id uuid.UUID, input *U
 		return limit, nil
 	}
 
-	// Capture "before" state for audit (after terminal-state guard and no-op check, before mutation)
+	// Capture "before" state for audit (after no-op check, before mutation)
 	beforeState := LimitToMap(limit)
 
 	// Parse custom period dates if provided

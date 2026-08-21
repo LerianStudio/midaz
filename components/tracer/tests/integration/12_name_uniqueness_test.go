@@ -11,6 +11,7 @@ import (
 	"encoding/json"
 	"io"
 	"net/http"
+	"strings"
 	"testing"
 
 	"github.com/shopspring/decimal"
@@ -531,4 +532,119 @@ func TestCreateLimit_DeletedNameReuse_Returns201(t *testing.T) {
 		// Verify the new limit was created with the reused name
 		assert.NotEmpty(t, secondLimitID, "New limit ID should not be empty")
 	}
+}
+
+// =============================================================================
+// Test 6: CreateRule_CaseSensitiveName_Returns201
+// Same context, two names differing ONLY by case -> BOTH 201, two distinct rules.
+//
+// Rule-name uniqueness is case-sensitive (parity with limits): "Foo Rule" and
+// "FOO RULE" are DISTINCT names and must both persist in the same context. This
+// pins the contract so a future LOWER()/citext regression that collapses case
+// into a single name is caught.
+// =============================================================================
+
+func TestCreateRule_CaseSensitiveName_Returns201(t *testing.T) {
+	baseURL := testutil.GetBaseURL()
+	apiKey := testutil.GetAPIKey()
+
+	// Use deterministic UUIDs for test reproducibility (12000+ range to avoid
+	// conflicts with the other tests in this suite).
+	contextID := testutil.MustDeterministicUUID(12012).String()
+
+	// Two names identical up to letter case. ToUpper guarantees they differ ONLY
+	// by case; NotEqual guards against a suffix with no letters collapsing them.
+	lowerName := "Foo Rule " + testutil.RandomSuffix()
+	upperName := strings.ToUpper(lowerName)
+	require.NotEqual(t, lowerName, upperName, "the two names must differ only by case")
+
+	// createRule posts a rule in the shared context and returns (status, id, name).
+	createRule := func(name, expression, action string) (int, string, string) {
+		reqBody := nameUniquenessRuleRequest{
+			Name:       name,
+			Expression: expression,
+			Action:     action,
+			Scopes: []testutil.ScopeInput{
+				{SegmentID: testutil.StringPtr(contextID)},
+			},
+		}
+
+		body, err := json.Marshal(reqBody)
+		require.NoError(t, err)
+
+		req, err := http.NewRequest(http.MethodPost, baseURL+"/v1/rules", bytes.NewReader(body))
+		require.NoError(t, err)
+		req.Header.Set("X-API-Key", apiKey)
+		req.Header.Set("Content-Type", "application/json")
+
+		resp, err := testutil.HTTPClient.Do(req)
+		require.NoError(t, err)
+		defer resp.Body.Close()
+
+		respBody, err := io.ReadAll(resp.Body)
+		require.NoError(t, err)
+
+		var result map[string]any
+		require.NoError(t, json.Unmarshal(respBody, &result))
+
+		id, _ := result["ruleId"].(string)
+		gotName, _ := result["name"].(string)
+
+		return resp.StatusCode, id, gotName
+	}
+
+	// getRuleName fetches a rule by ID and returns (status, name) so we can assert
+	// both rules are retrievable with their verbatim (case-preserved) names.
+	getRuleName := func(ruleID string) (int, string) {
+		req, err := http.NewRequest(http.MethodGet, baseURL+"/v1/rules/"+ruleID, nil)
+		require.NoError(t, err)
+		req.Header.Set("X-API-Key", apiKey)
+
+		resp, err := testutil.HTTPClient.Do(req)
+		require.NoError(t, err)
+		defer resp.Body.Close()
+
+		respBody, err := io.ReadAll(resp.Body)
+		require.NoError(t, err)
+
+		var result map[string]any
+		require.NoError(t, json.Unmarshal(respBody, &result))
+
+		gotName, _ := result["name"].(string)
+
+		return resp.StatusCode, gotName
+	}
+
+	// Create the first rule (mixed-case name).
+	status1, firstRuleID, createdName1 := createRule(lowerName, "amount > 100", "DENY")
+	require.Equal(t, http.StatusCreated, status1, "First rule creation should succeed")
+	require.NotEmpty(t, firstRuleID, "expected ruleId to be a non-empty string")
+	t.Cleanup(func() {
+		testutil.CleanupRule(t, firstRuleID)
+	})
+
+	// Create the second rule differing ONLY by case, in the SAME context. Because
+	// uniqueness is case-sensitive, this must succeed (201) rather than collide (409).
+	status2, secondRuleID, createdName2 := createRule(upperName, "amount > 200", "ALLOW")
+	require.Equal(t, http.StatusCreated, status2, "Case-only-different rule name in same context should be allowed (201); a 409 means case-sensitive uniqueness regressed")
+	require.NotEmpty(t, secondRuleID, "expected ruleId to be a non-empty string")
+	t.Cleanup(func() {
+		testutil.CleanupRule(t, secondRuleID)
+	})
+
+	// Two distinct rules exist with case-only-different names.
+	assert.NotEqual(t, firstRuleID, secondRuleID, "case-only-different names must produce two distinct rules")
+
+	// Names are stored verbatim (case preserved) on the way in.
+	assert.Equal(t, lowerName, createdName1, "first rule must keep its submitted casing")
+	assert.Equal(t, upperName, createdName2, "second rule must keep its submitted casing")
+
+	// Both rules are retrievable with their verbatim names.
+	getStatus1, fetchedName1 := getRuleName(firstRuleID)
+	assert.Equal(t, http.StatusOK, getStatus1, "first rule should be retrievable")
+	assert.Equal(t, lowerName, fetchedName1, "GET must return the first rule's verbatim name")
+
+	getStatus2, fetchedName2 := getRuleName(secondRuleID)
+	assert.Equal(t, http.StatusOK, getStatus2, "second rule should be retrievable")
+	assert.Equal(t, upperName, fetchedName2, "GET must return the second rule's verbatim name")
 }
