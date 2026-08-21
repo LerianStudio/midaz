@@ -8,6 +8,7 @@ import (
 	"context"
 	"testing"
 
+	libObservability "github.com/LerianStudio/lib-observability/v2"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/mongodb/fees/pack"
 	mongoPack "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/mongodb/fees/pack"
 	"github.com/LerianStudio/midaz/v4/components/ledger/pkg/feeshared/model"
@@ -18,6 +19,10 @@ import (
 	"github.com/google/uuid"
 	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"go.opentelemetry.io/otel/codes"
+	sdktrace "go.opentelemetry.io/otel/sdk/trace"
+	"go.opentelemetry.io/otel/sdk/trace/tracetest"
 	"go.uber.org/mock/gomock"
 )
 
@@ -1730,7 +1735,13 @@ func TestCalculateFee_TechnicalError_MalformedSegmentWaiver(t *testing.T) {
 				FindByOrganizationIDAndLedgerID(gomock.Any(), orgID, ledgerID).
 				Return(tt.packages, nil)
 
-			ctx := context.Background()
+			// A real SDK tracer injected through the lib-observability context
+			// seam, so the span CalculateFee opens is recorded and its final
+			// status can be read back instead of only the branch predicate.
+			recorder := tracetest.NewSpanRecorder()
+			provider := sdktrace.NewTracerProvider(sdktrace.WithSpanProcessor(recorder))
+
+			ctx := libObservability.ContextWithTracer(context.Background(), provider.Tracer("fees_test"))
 			err := feeSvc.CalculateFee(ctx, feeInput, orgID)
 
 			assert.Error(t, err)
@@ -1739,6 +1750,20 @@ func TestCalculateFee_TechnicalError_MalformedSegmentWaiver(t *testing.T) {
 				"malformed segment waiver must stay technical so recordSpanError flips the span red")
 			assert.True(t, feeInput.Transaction.Send.Value.Equal(decimal.NewFromInt(1000)),
 				"a failed calculation must leave the send value untouched")
+
+			var recorded sdktrace.ReadOnlySpan
+
+			for _, s := range recorder.Ended() {
+				if s.Name() == "service.calculate_fee" {
+					recorded = s
+
+					break
+				}
+			}
+
+			require.NotNil(t, recorded, "the injected tracer must receive the service.calculate_fee span")
+			assert.Equal(t, codes.Error, recorded.Status().Code,
+				"a technical fee failure must leave the span status Error")
 		})
 	}
 }
