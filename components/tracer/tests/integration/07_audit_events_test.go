@@ -15,7 +15,6 @@ import (
 	"io"
 	"net/http"
 	"net/url"
-	"strings"
 	"testing"
 	"time"
 
@@ -1335,7 +1334,7 @@ func TestAuditEvents_11_4_3_GeneratesAuditForRuleUpdate(t *testing.T) {
 
 	time.Sleep(100 * time.Millisecond)
 
-	// Update rule (note: names are normalized to lowercase)
+	// Update rule (names are stored verbatim: trim-only, casing preserved)
 	newName := "Updated Name"
 	updateReq := map[string]any{
 		"name": newName,
@@ -1385,8 +1384,8 @@ func TestAuditEvents_11_4_3_GeneratesAuditForRuleUpdate(t *testing.T) {
 	after := context["after"].(map[string]any)
 
 	assert.Equal(t, ruleName, before["name"], "Before should contain old name")
-	// Names are normalized to lowercase in the system
-	assert.Equal(t, strings.ToLower(newName), after["name"], "After should contain new name (normalized to lowercase)")
+	// Names are stored verbatim (casing preserved)
+	assert.Equal(t, newName, after["name"], "After should contain new name verbatim")
 }
 
 // TestAuditEvents_11_4_4_GeneratesAuditForRuleDelete tests RULE_DELETED event generation.

@@ -227,6 +227,33 @@ func TestLimitRepository_GetByID(t *testing.T) {
 	}
 }
 
+// TestLimitRepository_GetByID_ExcludesSoftDeleted pins the root-cause invariant
+// behind the delete/update not-found contract: GetByID filters on
+// deleted_at IS NULL, so a soft-deleted row is never returned. The sqlmock
+// expectation matches only if the generated SQL carries that predicate; a
+// GetByID that dropped the filter would leave the expectation unmet.
+func TestLimitRepository_GetByID_ExcludesSoftDeleted(t *testing.T) {
+	t.Parallel()
+	testutil.SetupTestTracing(t)
+
+	repo, sqlMock, cleanup := setupLimitRepositoryMockDB(t)
+	defer cleanup()
+
+	limitID := uuid.MustParse("550e8400-e29b-41d4-a716-446655440077")
+
+	sqlMock.ExpectQuery(`deleted_at IS NULL`).
+		WithArgs(limitID).
+		WillReturnError(sql.ErrNoRows)
+
+	ctx := context.Background()
+	result, err := repo.GetByID(ctx, limitID)
+
+	require.Error(t, err)
+	assert.ErrorIs(t, err, constant.ErrLimitNotFound)
+	assert.Nil(t, result)
+	require.NoError(t, sqlMock.ExpectationsWereMet())
+}
+
 func TestLimitRepository_List_ConnectionError(t *testing.T) {
 	t.Parallel()
 	testutil.SetupTestTracing(t)

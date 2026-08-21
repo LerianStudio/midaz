@@ -45,15 +45,9 @@ var transformedCRMCodeRegex = regexp.MustCompile(`^CRM-00(01|02|03|04|05|07|09|1
 //   - missing required field   CRM-0003 -> 0009 (ErrMissingFieldsInRequest)
 //   - malformed request body    CRM-0004 -> 0094 (ErrInvalidRequestBody, the
 //     non-1:1 mapping the shim performed)
+//   - invalid holder type       CRM-0015 -> 0047 (ErrBadRequest)
 //   - internal/repository error CRM-0014 -> 0046 (passed through unchanged)
 //   - unexpected fields         CRM-0007 -> 0053 (ErrUnexpectedFieldsInTheRequest)
-//
-// Note: the shim's CRM-0015 -> 0047 (ErrBadRequest) mapping is intentionally not
-// pinned here. 0047 is not reachable through the CRM holder/instrument handlers
-// (it is absent from pkg.ValidateBusinessError and no struct-validator path on
-// the CRM inputs emits it), so asserting it would be a fabricated expectation.
-// The four pinned paths above are the genuinely-thrown formerly-transformed
-// canonical codes and satisfy the "at least 4 formerly-mapped paths" contract.
 func TestErrorContract_CanonicalCodes(t *testing.T) {
 	tests := []struct {
 		name           string
@@ -61,6 +55,7 @@ func TestErrorContract_CanonicalCodes(t *testing.T) {
 		setupMocks     func(holderRepo *holder.MockRepository, orgID string)
 		expectedStatus int
 		expectedCode   string
+		expectedField  string
 	}{
 		{
 			name:     "missing required fields emits canonical 0009 not CRM-0003",
@@ -79,6 +74,26 @@ func TestErrorContract_CanonicalCodes(t *testing.T) {
 			},
 			expectedStatus: 400,
 			expectedCode:   "0094",
+		},
+		{
+			name:     "invalid holder type emits canonical 0047 not CRM-0015",
+			jsonBody: `{"type":"INVALID","name":"John Doe","document":"91315026015"}`,
+			setupMocks: func(holderRepo *holder.MockRepository, orgID string) {
+				// Validation fails before the repository is reached.
+			},
+			expectedStatus: 400,
+			expectedCode:   "0047",
+			expectedField:  "type",
+		},
+		{
+			name:     "lowercase holder type emits canonical 0047 not CRM-0015",
+			jsonBody: `{"type":"natural_person","name":"John Doe","document":"91315026015"}`,
+			setupMocks: func(holderRepo *holder.MockRepository, orgID string) {
+				// Validation fails before the repository is reached.
+			},
+			expectedStatus: 400,
+			expectedCode:   "0047",
+			expectedField:  "type",
 		},
 		{
 			name:     "internal server error emits canonical 0046 not CRM-0014",
@@ -156,6 +171,14 @@ func TestErrorContract_CanonicalCodes(t *testing.T) {
 				"path must emit the exact canonical midaz code (no CRM-00xx shim rewrite)")
 			assert.NotRegexp(t, transformedCRMCodeRegex, code,
 				"response code must NOT be a formerly-transformed CRM-00xx code")
+
+			if tt.expectedField != "" {
+				fields, ok := errResp["fields"].(map[string]any)
+				require.True(t, ok, "validation error response must carry a fields object, got: %s", string(body))
+				fieldDetail, ok := fields[tt.expectedField].(string)
+				require.True(t, ok, "validation error response must identify %q with a string detail", tt.expectedField)
+				assert.NotEmpty(t, fieldDetail, "validation error response must explain the invalid field")
+			}
 		})
 	}
 }

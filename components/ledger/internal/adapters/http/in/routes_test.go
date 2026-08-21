@@ -12,7 +12,6 @@ import (
 	libProblem "github.com/LerianStudio/lib-commons/v6/commons/net/http/problem"
 	"github.com/gofiber/fiber/v3"
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 
 	pkgHTTP "github.com/LerianStudio/midaz/v4/pkg/net/http"
 )
@@ -34,10 +33,10 @@ func mountMetadataIndexRoutes(app *fiber.App, auth *middleware.AuthClient, handl
 	RegisterMetadataIndexRoutesToApp(apiV1, hAPI, auth, handler, opts)
 }
 
-// TestRegisterRoutesToApp_RegistersRoutes asserts the metadata-index routes are
+// TestRegisterMetadataIndexRoutesToApp_RegistersRoutes asserts the metadata-index routes are
 // served on the /v1 group after the Wave-1 Huma migration. The three ops keep their
 // exact paths and methods; only the transport (Fiber inline -> Huma terminal) changed.
-func TestRegisterRoutesToApp_RegistersRoutes(t *testing.T) {
+func TestRegisterMetadataIndexRoutesToApp_RegistersRoutes(t *testing.T) {
 	app := fiber.New()
 	auth := &middleware.AuthClient{Enabled: false}
 
@@ -53,10 +52,10 @@ func TestRegisterRoutesToApp_RegistersRoutes(t *testing.T) {
 	assert.True(t, routeSet["DELETE:/v1/settings/metadata-indexes/entities/:entity_name/key/:index_key"])
 }
 
-// TestRegisterRoutesToApp_WithRouteOptions asserts the auth chain honors the
+// TestRegisterMetadataIndexRoutesToApp_WithRouteOptions asserts the auth chain honors the
 // PostAuthMiddlewares carried by ProtectedRouteOptions when the metadata-index routes
 // are mounted through the Huma wrapper.
-func TestRegisterRoutesToApp_WithRouteOptions(t *testing.T) {
+func TestRegisterMetadataIndexRoutesToApp_WithRouteOptions(t *testing.T) {
 	app := fiber.New()
 	auth := &middleware.AuthClient{Enabled: false}
 
@@ -78,25 +77,4 @@ func TestRegisterRoutesToApp_WithRouteOptions(t *testing.T) {
 	// Actual middleware invocation requires a full request cycle with auth,
 	// but we confirm routes are registered with the options chain.
 	_ = middlewareCalled
-}
-
-// TestCreateRouteRegistrar_ReturnsFunctionThatRegistersRoutes asserts the legacy
-// CreateRouteRegistrar seam is still constructible and callable. Post-migration it no
-// longer registers inline metadata Fiber routes (those moved to the Huma seam), so it
-// registers no /v1 metadata paths — the assertion is on its safe, no-op invocation.
-func TestCreateRouteRegistrar_ReturnsFunctionThatRegistersRoutes(t *testing.T) {
-	t.Parallel()
-
-	auth := &middleware.AuthClient{Enabled: false}
-	handler := &MetadataIndexHandler{}
-
-	registrar := CreateRouteRegistrar(auth, handler, nil)
-	require.NotNil(t, registrar)
-
-	app := fiber.New()
-	require.NotPanics(t, func() { registrar(app) })
-
-	// Metadata is now Huma-served (RegisterMetadataIndexRoutesToApp); the legacy
-	// Fiber registrar intentionally registers nothing.
-	assert.Empty(t, app.GetRoutes())
 }

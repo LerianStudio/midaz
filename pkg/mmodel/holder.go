@@ -22,7 +22,7 @@ type CreateHolderInput struct {
 	// required: true
 	// example: NATURAL_PERSON
 	// maxLength: 100
-	Type *string `json:"type" validate:"required" example:"NATURAL_PERSON" enums:"NATURAL_PERSON,LEGAL_PERSON" maxLength:"100"`
+	Type *string `json:"type" validate:"required,oneof=NATURAL_PERSON LEGAL_PERSON" example:"NATURAL_PERSON" enums:"NATURAL_PERSON,LEGAL_PERSON" maxLength:"100"`
 
 	// Full legal name of the holder. For LEGAL_PERSON this must be the registered company name.
 	// required: true

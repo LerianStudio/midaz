@@ -38,7 +38,7 @@ type feesComponents struct {
 //
 // The resolver is constructed ONCE here and shared by every fee service so all
 // fee reads route through the same in-process query.UseCase.
-func initFees(feeMongo *feesMongoComponents, queryUC *query.UseCase, cfg *Config, logger libLog.Logger, streamingEmitter libStreaming.Emitter) (*feesComponents, error) {
+func initFees(feeMongo *feesMongoComponents, queryUC *query.UseCase, logger libLog.Logger, streamingEmitter libStreaming.Emitter) (*feesComponents, error) {
 	if feeMongo == nil {
 		return nil, fmt.Errorf("fee Mongo components are required for fee initialization")
 	}
@@ -52,7 +52,7 @@ func initFees(feeMongo *feesMongoComponents, queryUC *query.UseCase, cfg *Config
 		return nil, fmt.Errorf("failed to build fee Midaz resolver: %w", err)
 	}
 
-	useCase, err := feesservices.NewUseCase(feeMongo.packageRepo, resolver, cfg.FeesDefaultCurrency)
+	useCase, err := feesservices.NewUseCase(feeMongo.packageRepo, resolver)
 	if err != nil {
 		return nil, fmt.Errorf("failed to build fee use case: %w", err)
 	}

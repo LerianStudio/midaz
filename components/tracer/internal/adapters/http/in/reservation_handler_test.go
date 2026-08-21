@@ -379,6 +379,62 @@ func TestReservationHandler_ConfirmRelease(t *testing.T) {
 	}
 }
 
+// TestReservationHandler_AlreadyTerminalIsNotClientFacing422 locks the contract
+// that an already-terminal reservation is NEVER surfaced to a client as a 422 /
+// code 0483. By design the service maps ErrReservationAlreadyTerminal to an
+// idempotent success (200), so it never reaches the handler. Should it ever leak
+// out of the service, classifyReservationServiceError has no business-error case
+// for it: it is an unexpected technical failure (500 / 0046), not a client-facing
+// 0483 / 422. This guards against a future change promoting the internal
+// idempotency sentinel into an advertised business 422.
+func TestReservationHandler_AlreadyTerminalIsNotClientFacing422(t *testing.T) {
+	validID := testutil.MustDeterministicUUID(21)
+
+	for _, path := range []string{"confirm", "release"} {
+		t.Run(path+" leaked terminal sentinel is not a 422", func(t *testing.T) {
+			ctrl := gomock.NewController(t)
+			mockService := mocks.NewMockReservationService(ctrl)
+
+			if path == "confirm" {
+				mockService.EXPECT().Confirm(gomock.Any(), validID).Return(constant.ErrReservationAlreadyTerminal)
+			} else {
+				mockService.EXPECT().Release(gomock.Any(), validID).Return(constant.ErrReservationAlreadyTerminal)
+			}
+
+			handler, err := NewReservationHandler(mockService, clock.New())
+			require.NoError(t, err)
+
+			app := fiber.New()
+			app.Post("/v1/reservations/:id/confirm", handler.Confirm)
+			app.Post("/v1/reservations/:id/release", handler.Release)
+
+			url := "/v1/reservations/" + validID.String() + "/" + path
+			req := httptest.NewRequest(http.MethodPost, url, nil)
+
+			resp, err := app.Test(req)
+			require.NoError(t, err)
+			defer resp.Body.Close()
+
+			assert.NotEqual(t, http.StatusUnprocessableEntity, resp.StatusCode,
+				"the already-terminal sentinel must never surface as a client-facing 422")
+			assert.Equal(t, http.StatusInternalServerError, resp.StatusCode,
+				"a leaked terminal sentinel is an unexpected technical failure, not a business error")
+
+			respBody, err := io.ReadAll(resp.Body)
+			require.NoError(t, err)
+
+			var body struct {
+				Code string `json:"code"`
+			}
+			require.NoError(t, json.Unmarshal(respBody, &body))
+
+			assert.NotEqual(t, constant.ErrReservationAlreadyTerminal.Error(), body.Code,
+				"the wire envelope must not advertise the internal 0483 sentinel to clients")
+			assert.Equal(t, constant.ErrInternalServer.Error(), body.Code)
+		})
+	}
+}
+
 func TestNewReservationHandler_NilDeps(t *testing.T) {
 	_, err := NewReservationHandler(nil, clock.New())
 	require.Error(t, err)

@@ -92,7 +92,7 @@ func TestCalculateFee_Basic(t *testing.T) {
 		},
 	}
 
-	err := CalculateFee(logger, feeCalc, pkg, resp, "BRL", nil)
+	err := CalculateFee(logger, feeCalc, pkg, resp, nil)
 	assert.NoError(t, err)
 
 	expectedValue := decimal.NewFromInt(1100)
@@ -149,7 +149,7 @@ func TestCalculateFee_Percentage(t *testing.T) {
 		From: map[string]transaction.Amount{"@from_account": {Asset: "BRL", Value: decimal.NewFromInt(1000)}},
 		To:   map[string]transaction.Amount{"@to_account": {Asset: "BRL", Value: decimal.NewFromInt(1000)}},
 	}
-	err := CalculateFee(logger, feeCalc, pkg, resp, "BRL", nil)
+	err := CalculateFee(logger, feeCalc, pkg, resp, nil)
 	assert.NoError(t, err)
 	expectedValue := decimal.NewFromInt(1100) // 1000 + 10% = 1100
 	// Compare using .Equal to avoid scale mismatch
@@ -203,7 +203,7 @@ func TestCalculateFee_InvalidApplicationRule(t *testing.T) {
 		From: map[string]transaction.Amount{"@from_account": {Asset: "BRL", Value: decimal.NewFromInt(1000)}},
 		To:   map[string]transaction.Amount{"@to_account": {Asset: "BRL", Value: decimal.NewFromInt(1000)}},
 	}
-	err := CalculateFee(logger, feeCalc, pkg, resp, "BRL", nil)
+	err := CalculateFee(logger, feeCalc, pkg, resp, nil)
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "0206")
 }
@@ -255,7 +255,7 @@ func TestCalculateFee_InvalidFeeValue(t *testing.T) {
 		From: map[string]transaction.Amount{"@from_account": {Asset: "BRL", Value: decimal.NewFromInt(1000)}},
 		To:   map[string]transaction.Amount{"@to_account": {Asset: "BRL", Value: decimal.NewFromInt(1000)}},
 	}
-	err := CalculateFee(logger, feeCalc, pkg, resp, "BRL", nil)
+	err := CalculateFee(logger, feeCalc, pkg, resp, nil)
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "0206")
 }
@@ -441,7 +441,7 @@ func TestCalculateFee_MaxBetweenTypes(t *testing.T) {
 		To:   map[string]transaction.Amount{"@to_account": {Asset: "BRL", Value: decimal.NewFromInt(1000)}},
 	}
 
-	err := CalculateFee(logger, feeCalc, pkg, resp, "BRL", nil)
+	err := CalculateFee(logger, feeCalc, pkg, resp, nil)
 	assert.NoError(t, err)
 
 	expectedValue := decimal.NewFromInt(1050)
@@ -498,7 +498,7 @@ func TestCalculateFee_AfterFeesAmount(t *testing.T) {
 		To:   map[string]transaction.Amount{"@to_account": {Asset: "BRL", Value: decimal.NewFromInt(1000)}},
 	}
 
-	err := CalculateFee(logger, feeCalc, pkg, resp, "BRL", nil)
+	err := CalculateFee(logger, feeCalc, pkg, resp, nil)
 	assert.NoError(t, err)
 	assert.Greater(t, feeCalc.Transaction.Send.Value.IntPart(), int64(1000))
 }
@@ -553,7 +553,7 @@ func TestCalculateFee_IsDeductibleFrom(t *testing.T) {
 		To:   map[string]transaction.Amount{"@to_account": {Asset: "BRL", Value: decimal.NewFromInt(1000)}},
 	}
 
-	err := CalculateFee(logger, feeCalc, pkg, resp, "BRL", nil)
+	err := CalculateFee(logger, feeCalc, pkg, resp, nil)
 	assert.NoError(t, err)
 	assert.True(t, feeCalc.Transaction.Send.Value.Equal(decimal.NewFromInt(1000)),
 		"expected Send.Value=1000, got %s", feeCalc.Transaction.Send.Value.String())
@@ -616,7 +616,7 @@ func TestCalculateFee_IsDeductibleFrom_ExemptSourceSkipsFee(t *testing.T) {
 		To:   map[string]transaction.Amount{"regular_bob": {Asset: "BRL", Value: amount}},
 	}
 
-	err := CalculateFee(logger, feeCalc, pkg, resp, "BRL", nil)
+	err := CalculateFee(logger, feeCalc, pkg, resp, nil)
 	assert.NoError(t, err)
 
 	// send.value should NOT be increased (deductible fees don't increase send.value)
@@ -691,7 +691,7 @@ func TestCalculateFee_IsDeductibleFrom_NonExemptSourceAppliesFee(t *testing.T) {
 		To:   map[string]transaction.Amount{"regular_bob": {Asset: "BRL", Value: amount}},
 	}
 
-	err := CalculateFee(logger, feeCalc, pkg, resp, "BRL", nil)
+	err := CalculateFee(logger, feeCalc, pkg, resp, nil)
 	assert.NoError(t, err)
 
 	// send.value should NOT increase for deductible fees
@@ -765,7 +765,7 @@ func TestCalculateFee_NonDeductible_ExemptSourceSkipsFee(t *testing.T) {
 		To:   map[string]transaction.Amount{"regular_bob": {Asset: "BRL", Value: amount}},
 	}
 
-	err := CalculateFee(logger, feeCalc, pkg, resp, "BRL", nil)
+	err := CalculateFee(logger, feeCalc, pkg, resp, nil)
 	assert.NoError(t, err)
 
 	// send.value should NOT be increased (fee was skipped)
@@ -854,7 +854,7 @@ func TestCalculateFee_CombinedExemption_AllAccountsExempt(t *testing.T) {
 		To:   map[string]transaction.Amount{"premium_bob": {Asset: "BRL", Value: amount}},
 	}
 
-	err := CalculateFee(logger, feeCalc, pkg, resp, "BRL", nil)
+	err := CalculateFee(logger, feeCalc, pkg, resp, nil)
 	assert.NoError(t, err)
 
 	// No fees applied — value unchanged
@@ -940,7 +940,7 @@ func TestCalculateFee_IsDeductibleFrom_RoundingDistribution(t *testing.T) {
 		},
 	}
 
-	err := CalculateFee(logger, feeCalc, pkg, resp, "BRL", nil)
+	err := CalculateFee(logger, feeCalc, pkg, resp, nil)
 	assert.NoError(t, err)
 
 	// Verify fee entries were created in resp.To
@@ -1023,7 +1023,7 @@ func TestCalculateFee_MultipleFees(t *testing.T) {
 		To:   map[string]transaction.Amount{"@to_account": {Asset: "BRL", Value: decimal.NewFromInt(1000)}},
 	}
 
-	err := CalculateFee(logger, feeCalc, pkg, resp, "BRL", nil)
+	err := CalculateFee(logger, feeCalc, pkg, resp, nil)
 	assert.NoError(t, err)
 
 	expectedValue := decimal.NewFromInt(1100)
@@ -1080,7 +1080,7 @@ func TestCalculateFee_WaivedAccountsNil(t *testing.T) {
 		To:   map[string]transaction.Amount{"@to_account": {Asset: "BRL", Value: decimal.NewFromInt(1000)}},
 	}
 
-	err := CalculateFee(logger, feeCalc, pkg, resp, "BRL", nil)
+	err := CalculateFee(logger, feeCalc, pkg, resp, nil)
 	assert.NoError(t, err)
 	// Package should NOT be mutated - WaivedAccounts remains nil
 	// This ensures cached packages are not modified
@@ -1139,7 +1139,7 @@ func TestCalculateFee_MaxBetweenTypes_InvalidValue(t *testing.T) {
 		To:   map[string]transaction.Amount{"@to_account": {Asset: "BRL", Value: decimal.NewFromInt(1000)}},
 	}
 
-	err := CalculateFee(logger, feeCalc, pkg, resp, "BRL", nil)
+	err := CalculateFee(logger, feeCalc, pkg, resp, nil)
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "0206")
 }
@@ -1193,7 +1193,7 @@ func TestCalculateFee_MaxBetweenTypes_UnknownType(t *testing.T) {
 		To:   map[string]transaction.Amount{"@to_account": {Asset: "BRL", Value: decimal.NewFromInt(1000)}},
 	}
 
-	err := CalculateFee(logger, feeCalc, pkg, resp, "BRL", nil)
+	err := CalculateFee(logger, feeCalc, pkg, resp, nil)
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "0206")
 }
@@ -1846,7 +1846,7 @@ func TestCalculateFee_WithRouteFromAndRouteTo(t *testing.T) {
 		To:   map[string]transaction.Amount{"@to_account": {Asset: "BRL", Value: decimal.NewFromInt(1000)}},
 	}
 
-	err := CalculateFee(logger, feeCalc, pkg, resp, "BRL", nil)
+	err := CalculateFee(logger, feeCalc, pkg, resp, nil)
 	assert.NoError(t, err)
 	expectedValue := decimal.NewFromInt(1100)
 	assert.True(t, feeCalc.Transaction.Send.Value.Equal(expectedValue), "expected %s, got %s", expectedValue.String(), feeCalc.Transaction.Send.Value.String())
@@ -1912,7 +1912,7 @@ func TestCalculateFee_ProportionalFeeWithRepeatingDecimal(t *testing.T) {
 		},
 	}
 
-	err := CalculateFee(logger, feeCalc, pkg, resp, "BRL", nil)
+	err := CalculateFee(logger, feeCalc, pkg, resp, nil)
 	assert.NoError(t, err)
 	assert.Greater(t, feeCalc.Transaction.Send.Value.IntPart(), int64(1000))
 }
@@ -1975,7 +1975,7 @@ func TestCalculateFee_WithExemptAccounts(t *testing.T) {
 		},
 	}
 
-	err := CalculateFee(logger, feeCalc, pkg, resp, "BRL", nil)
+	err := CalculateFee(logger, feeCalc, pkg, resp, nil)
 	assert.NoError(t, err)
 	assert.Greater(t, feeCalc.Transaction.Send.Value.IntPart(), int64(1000))
 }
@@ -2030,7 +2030,7 @@ func TestCalculateFee_MaxBetweenTypes_FlatGreaterThanPercentage(t *testing.T) {
 		To:   map[string]transaction.Amount{"@to_account": {Asset: "BRL", Value: decimal.NewFromInt(1000)}},
 	}
 
-	err := CalculateFee(logger, feeCalc, pkg, resp, "BRL", nil)
+	err := CalculateFee(logger, feeCalc, pkg, resp, nil)
 	assert.NoError(t, err)
 	expectedValue := decimal.NewFromInt(1100)
 	assert.True(t, feeCalc.Transaction.Send.Value.Equal(expectedValue), "expected %s, got %s", expectedValue.String(), feeCalc.Transaction.Send.Value.String())
@@ -2086,7 +2086,7 @@ func TestCalculateFee_MaxBetweenTypes_PercentageGreaterThanFlat(t *testing.T) {
 		To:   map[string]transaction.Amount{"@to_account": {Asset: "BRL", Value: decimal.NewFromInt(1000)}},
 	}
 
-	err := CalculateFee(logger, feeCalc, pkg, resp, "BRL", nil)
+	err := CalculateFee(logger, feeCalc, pkg, resp, nil)
 	assert.NoError(t, err)
 	expectedValue := decimal.NewFromInt(1100)
 	assert.True(t, feeCalc.Transaction.Send.Value.Equal(expectedValue), "expected %s, got %s", expectedValue.String(), feeCalc.Transaction.Send.Value.String())
@@ -2240,7 +2240,7 @@ func TestCalculateFee_Unrounded(t *testing.T) {
 				},
 			}
 
-			err = CalculateFee(logger, feeCalc, testPkg, resp, tt.asset, nil)
+			err = CalculateFee(logger, feeCalc, testPkg, resp, nil)
 			assert.NoError(t, err, "CalculateFee should not return error")
 
 			// Extract the fee amount from the response (fee entry in resp.From)
@@ -2556,7 +2556,7 @@ func TestCalculateFee_DeductibleExceedsAmount_Rejected(t *testing.T) {
 
 	feeCalc, pkg, resp := newDeductibleFlatFeeCalc("5", "10")
 
-	err := CalculateFee(logger, feeCalc, pkg, resp, "BRL", nil)
+	err := CalculateFee(logger, feeCalc, pkg, resp, nil)
 	assert.Error(t, err)
 	assert.Equal(t, constant.ErrDeductibleFeeExceedsAmount.Error(), err.Error()[:4],
 		"over-large deductible fee should return the 0233 business error, got: %v", err)
@@ -2577,7 +2577,7 @@ func TestCalculateFee_DeductibleEqualsAmount_Rejected(t *testing.T) {
 
 	feeCalc, pkg, resp := newDeductibleFlatFeeCalc("10", "10")
 
-	err := CalculateFee(logger, feeCalc, pkg, resp, "BRL", nil)
+	err := CalculateFee(logger, feeCalc, pkg, resp, nil)
 	assert.Error(t, err)
 	assert.Equal(t, constant.ErrDeductibleFeeExceedsAmount.Error(), err.Error()[:4],
 		"deductible fee equal to the amount should return the 0233 business error, got: %v", err)
@@ -2594,7 +2594,7 @@ func TestCalculateFee_DeductibleFitsAmount_Applied(t *testing.T) {
 
 	feeCalc, pkg, resp := newDeductibleFlatFeeCalc("100", "10")
 
-	err := CalculateFee(logger, feeCalc, pkg, resp, "BRL", nil)
+	err := CalculateFee(logger, feeCalc, pkg, resp, nil)
 	assert.NoError(t, err)
 
 	assert.True(t, resp.To["dst"].Value.Equal(decimal.NewFromInt(90)),
