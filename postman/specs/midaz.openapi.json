@@ -18387,6 +18387,30 @@
         ],
         "type": "object"
       },
+      "AccountingValidationInput": {
+        "additionalProperties": false,
+        "properties": {
+          "requireHolder": {
+            "examples": [
+              false
+            ],
+            "type": "boolean"
+          },
+          "validateAccountType": {
+            "examples": [
+              false
+            ],
+            "type": "boolean"
+          },
+          "validateRoutes": {
+            "examples": [
+              false
+            ],
+            "type": "boolean"
+          }
+        },
+        "type": "object"
+      },
       "Address": {
         "additionalProperties": false,
         "properties": {
@@ -19721,7 +19745,7 @@
             "type": "string"
           },
           "settings": {
-            "$ref": "#/components/schemas/LedgerSettings"
+            "$ref": "#/components/schemas/LedgerSettingsInput"
           },
           "status": {
             "$ref": "#/components/schemas/Status"
@@ -21634,6 +21658,21 @@
         ],
         "type": "object"
       },
+      "LedgerSettingsInput": {
+        "additionalProperties": false,
+        "properties": {
+          "accounting": {
+            "$ref": "#/components/schemas/AccountingValidationInput"
+          },
+          "overrides": {
+            "$ref": "#/components/schemas/OverridePolicyInput"
+          },
+          "tracer": {
+            "$ref": "#/components/schemas/TracerSettingsInput"
+          }
+        },
+        "type": "object"
+      },
       "LegalPerson": {
         "additionalProperties": false,
         "properties": {
@@ -22501,6 +22540,30 @@
         ],
         "type": "object"
       },
+      "OverridePolicyInput": {
+        "additionalProperties": false,
+        "properties": {
+          "allowFeeSkip": {
+            "examples": [
+              false
+            ],
+            "type": "boolean"
+          },
+          "allowHolderSkip": {
+            "examples": [
+              false
+            ],
+            "type": "boolean"
+          },
+          "allowTracerSkip": {
+            "examples": [
+              false
+            ],
+            "type": "boolean"
+          }
+        },
+        "type": "object"
+      },
       "Pagination": {
         "additionalProperties": false,
         "properties": {
@@ -23092,6 +23155,31 @@
           "failPosture",
           "timeoutMs"
         ],
+        "type": "object"
+      },
+      "TracerSettingsInput": {
+        "additionalProperties": false,
+        "properties": {
+          "failPosture": {
+            "examples": [
+              "open"
+            ],
+            "type": "string"
+          },
+          "mode": {
+            "examples": [
+              "off"
+            ],
+            "type": "string"
+          },
+          "timeoutMs": {
+            "examples": [
+              250
+            ],
+            "format": "int64",
+            "type": "integer"
+          }
+        },
         "type": "object"
       },
       "Transaction": {
