@@ -50,13 +50,19 @@ permissions:
   - { resource: streaming-manifest, action: get, effect: allow, roles: [editor, viewer] }
 
 roles:
-  # ### TEAM: please confirm ### — role -> group bindings are INFERRED.
+  # Group bindings are CONFIRMED against the central Access Manager seed
+  # (plugin-access-manager, components/auth/init/casdoor/init_data.json): the real
+  # groups are tracer-{editor,contributor,viewer}-group. The manifest only
+  # REFERENCES pre-existing groups, it never creates them — a name absent from the
+  # seed reconciles into a role with zero members. The seed also carries
+  # tracer-contributor-group, tracer-validator-group and tracer-audit-viewer-group;
+  # this manifest declares no matching role, so those groups stay unbound here.
   - name: editor
     granted_to:
-      - group: tracer-admins   ### TEAM: please confirm ###
+      - group: tracer-editor-group
   - name: viewer
     granted_to:
-      - group: tracer-viewers  ### TEAM: please confirm ###
+      - group: tracer-viewer-group
 
 m2m:
   # EXPORT: the ledger (midaz) calls tracer's reservation API via an M2M token, so
