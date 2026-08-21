@@ -1204,6 +1204,7 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 		metricsFactory:           rmq.metricsFactory,
 		StreamingClose:           streamingClose,
 		StreamingEnabled:         cfg.StreamingEnabled,
+		DeclarationStops:         buildDeclarationPublishers(cfg, auth, logger),
 		TracerClose:              tracerClose,
 		ServiceDiscovery:         sd.manager,
 		ServiceDiscoveryEnabled:  sd.enabled,

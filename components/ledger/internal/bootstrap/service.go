@@ -45,6 +45,13 @@ type Service struct {
 	// to register the producer-shutdown Launcher app.
 	StreamingEnabled bool
 
+	// DeclarationStops holds the stop() hook of each RI permission-declaration
+	// publisher that started successfully. It is empty when declaration is
+	// disabled or every publisher was fail-open skipped, so the shutdown runnable
+	// is registered only when there is something to drain. Each stop() cancels its
+	// publisher's context and waits for its goroutine, preventing a leak on SIGTERM.
+	DeclarationStops []func()
+
 	// TracerClose is the close hook for the tracer reservation client's
 	// persistent connection (the gRPC client holds a grpc.ClientConn).
 	// It is nil when the active transport needs no teardown (the REST
@@ -165,6 +172,16 @@ func (s *Service) launcherApps() []launcherApp {
 		apps = append(apps, launcherApp{
 			"Streaming Producer",
 			&streamingProducerRunnable{close: s.StreamingClose, logger: s.Logger},
+		})
+	}
+
+	// RI declaration publishers: register only when at least one publisher
+	// started. Empty means declaration is off or every publisher was fail-open
+	// skipped, so no runnable / goroutine is added.
+	if len(s.DeclarationStops) > 0 {
+		apps = append(apps, launcherApp{
+			"RI Declaration Publishers",
+			&declarationPublisherRunnable{stops: s.DeclarationStops},
 		})
 	}
 
