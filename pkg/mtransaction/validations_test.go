@@ -15,6 +15,7 @@ import (
 	"github.com/LerianStudio/lib-observability/v2/log"
 	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/otel"
 
 	"github.com/LerianStudio/midaz/v4/pkg"
@@ -1971,4 +1972,63 @@ func TestSplitDoubleEntryOps(t *testing.T) {
 		assert.True(t, op1.Value.Equal(amt.Value))
 		assert.True(t, op2.Value.Equal(amt.Value))
 	})
+}
+
+// TestValidateSendSourceAndDistribute_DoesNotRejectEmptyAsset is a documented negative: it
+// records that ValidateSendSourceAndDistribute performs NO asset-emptiness check. It copies
+// transaction.Send.Asset straight into Responses.Asset and validates only alias ambiguity and
+// the three-way source/destination/total balance.
+//
+// That gap is why the fee engine carries its own empty-asset guard, in
+// pkg/fee.CalculateFee, which returns 0009 for an empty send.asset. Both HTTP entry points
+// reject an empty send.asset at body validation (see
+// TestDecodeAndValidate_TransactionRejectsEmptySendAsset and
+// TestDecodeValidateBody_EstimateRejectsEmptySendAsset), and this validator is the last thing
+// between those entry points and the engine — so if the `required` struct tag on Send.Asset
+// were ever dropped, nothing on this path would stop an empty asset and the engine guard
+// becomes the live defense.
+//
+// The fixture is deliberately balanced (100 in, 100 out, Send.Value 100) so the only thing the
+// nil error can be attributed to is the absence of an asset check, not an unrelated pass.
+//
+// If asset validation is ever added here, this test fails — and this is the place to record
+// the change, since the engine guard's justification moves with it.
+func TestValidateSendSourceAndDistribute_DoesNotRejectEmptyAsset(t *testing.T) {
+	t.Parallel()
+
+	tx := Transaction{
+		Send: Send{
+			Asset: "",
+			Value: decimal.NewFromInt(100),
+			Source: Source{
+				From: []FromTo{
+					{
+						AccountAlias: "@account1",
+						Amount: &Amount{
+							Asset: "USD",
+							Value: decimal.NewFromInt(100),
+						},
+					},
+				},
+			},
+			Distribute: Distribute{
+				To: []FromTo{
+					{
+						AccountAlias: "@account2",
+						Amount: &Amount{
+							Asset: "USD",
+							Value: decimal.NewFromInt(100),
+						},
+					},
+				},
+			},
+		},
+	}
+
+	resp, err := ValidateSendSourceAndDistribute(context.Background(), tx, constant.CREATED)
+
+	require.NoError(t, err, "this validator does not check asset emptiness; a balanced transaction passes without one")
+	require.NotNil(t, resp, "a passing validation must return a response to inspect")
+	assert.Empty(t, resp.Asset, "the empty asset is copied through to the response unchanged")
+	assert.True(t, resp.Total.Equal(decimal.NewFromInt(100)), "the balance check passed on its own terms")
 }
