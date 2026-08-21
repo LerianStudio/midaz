@@ -9,21 +9,10 @@ import (
 	"fmt"
 	"strings"
 	"time"
-
-	"github.com/danielgtaylor/huma/v2"
 )
 
 // TransactionDate is a custom time type that supports multiple ISO 8601 formats including milliseconds
 type TransactionDate time.Time
-
-// Schema implements huma.SchemaProvider so the OpenAPI generator represents
-// TransactionDate as a date-time string. Without it Huma treats this named type over
-// time.Time as an object (time.Time has unexported fields) and cannot parse the
-// date-time example tag on fields of this type. It affects OpenAPI generation only; JSON
-// decoding stays governed by UnmarshalJSON.
-func (TransactionDate) Schema(_ huma.Registry) *huma.Schema {
-	return &huma.Schema{Type: huma.TypeString, Format: "date-time"}
-}
 
 var transactionDateFormats = []string{
 	time.RFC3339Nano,
