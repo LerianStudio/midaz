@@ -65,9 +65,7 @@ func NewDeleteLimitCommand(repo LimitRepository, clk clock.Clock, auditWriter Au
 
 // Execute soft-deletes a limit by setting status to DELETED.
 // DELETED is a terminal state - the limit cannot be reactivated.
-// Returns constant.ErrLimitNotFound when the limit does not exist. Soft-deleted
-// limits are excluded by the repository read, so a repeat delete surfaces as
-// not found rather than a no-op.
+// Returns constant.ErrLimitNotFound when the limit does not exist.
 //
 // The status update and the audit event are persisted atomically inside a single
 // database transaction via executeInTx: either both land or neither does.
@@ -213,8 +211,7 @@ func (c *DeleteLimitCommand) Execute(ctx context.Context, id uuid.UUID) (retErr 
 	return nil
 }
 
-// emitLimitDeletedEvent publishes the limit.deleted event post-commit. It is
-// not called on the idempotent already-deleted no-op (which skips the tx).
+// emitLimitDeletedEvent publishes the limit.deleted event post-commit.
 // IMPORTANT posture: emit failures never fail the request.
 func (c *DeleteLimitCommand) emitLimitDeletedEvent(ctx context.Context, span trace.Span, logger libLog.Logger, limit *model.Limit) {
 	pkgStreaming.EmitImportant(ctx, span, logger, c.Streaming, events.LimitDeletedDefinition.Key(),

@@ -162,11 +162,9 @@ func (c *CreateRuleCommand) Execute(ctx context.Context, input *CreateRuleInput)
 		return nil, err
 	}
 
-	// 2. Build rule entity using the validating constructor. The name is stored
-	// verbatim — model.NewRule trims surrounding whitespace but preserves the
-	// submitted casing and internal spacing, mirroring limit creation so GET/LIST
-	// return the name exactly as submitted. model.NewRule also normalizes nil
-	// scopes to an empty slice for proper JSON serialization.
+	// 2. Build rule entity using the validating constructor. Name is stored as
+	// submitted — casing and internal spacing are preserved (parity with limits)
+	// so GET/LIST return the name exactly as submitted.
 	var description *string
 	if input.Description != "" {
 		description = &input.Description

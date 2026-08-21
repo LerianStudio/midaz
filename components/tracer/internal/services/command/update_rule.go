@@ -171,13 +171,10 @@ func (c *UpdateRuleCommand) Execute(ctx context.Context, id uuid.UUID, input *Up
 		}
 	}
 
-	// The name is stored verbatim: rule.Update trims surrounding whitespace but
-	// preserves the submitted casing and internal spacing, mirroring create.
-	// Passing input.Name straight through keeps PATCH semantics intact (nil means
-	// "leave unchanged"). Name uniqueness is enforced at the database level by a
-	// case-sensitive partial unique index on (context_id, name) WHERE status !=
-	// 'DELETED'; the repository returns ErrRuleNameAlreadyExistsInCtx on a
-	// duplicate within the same context.
+	// Name is stored as submitted — casing and internal spacing are preserved
+	// (parity with limits). input.Name is passed straight through to keep PATCH
+	// semantics intact (nil means "leave unchanged"). Name uniqueness is
+	// case-sensitive and enforced at the database level.
 
 	// Hoist a single Now() call so SetAction and Update share one timestamp.
 	// With clock.Real this also keeps the persisted UpdatedAt aligned with the
