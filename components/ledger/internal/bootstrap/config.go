@@ -1041,12 +1041,6 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 		return nil, err
 	}
 
-	// === Route registrars ===
-
-	onboardingRouteRegistrar := func(router fiber.Router) {
-		httpin.RegisterOnboardingRoutesToApp(router, auth, accountHandler, portfolioHandler, ledgerHandler, organizationHandler, segmentHandler, accountTypeHandler, routeSetup.onboardingRouteOptions)
-	}
-
 	// Wave-3 (additive) handlers are constructed here, BEFORE the HumaMountDeps that
 	// carries them, because MountV1/MountV2 wire their Huma terminals + Fiber auth
 	// chain on the shared contract.
@@ -1099,8 +1093,6 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 		routeSetup,
 	)
 
-	ledgerRouteRegistrar := httpin.CreateRouteRegistrar(auth, metadataIndexHandler, routeSetup.ledgerRouteOptions)
-
 	// Streaming manifest route (catalog-only lib-streaming manifest). Built
 	// DEGRADED-SAFE and INDEPENDENT of STREAMING_ENABLED: the manifest advertises
 	// the event taxonomy even with publication off. A build error logs at Warn and
@@ -1138,8 +1130,6 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 		readyzHandler,
 		humaMountDeps.MountV1,
 		humaMountDeps.MountV2,
-		onboardingRouteRegistrar,
-		ledgerRouteRegistrar,
 		streamingManifestRegistrar,
 	)
 
@@ -1627,8 +1617,7 @@ func buildUnifiedRouteSetup(
 		PostAuthMiddlewares: []fiber.Handler{authAssertion, crmTenantMiddleware.WithTenantDB},
 	}
 
-	// Fee routes get the fees-only tenant middleware instance. The next chunk
-	// (P4-T10) consumes feesRouteOptions when it mounts the fee RouteRegistrar.
+	// Fee routes get the fees-only tenant middleware instance.
 	setup.feesRouteOptions = &midazhttp.ProtectedRouteOptions{
 		PostAuthMiddlewares: []fiber.Handler{authAssertion, feesTenantMiddleware.WithTenantDB},
 	}

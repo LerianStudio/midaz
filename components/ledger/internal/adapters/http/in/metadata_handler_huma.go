@@ -162,9 +162,8 @@ func (handler *MetadataIndexHandler) DeleteMetadataIndexHuma(ctx context.Context
 }
 
 // RegisterMetadataIndexRoutes registers the three migrated metadata-index operations
-// on the shared Huma API. It is the per-file seam the RegisterMetadataRoutesToApp
-// wiring calls; the auth + tenant middleware chain for these routes is attached at
-// the Fiber level BEFORE the Huma terminal, not here.
+// on the shared Huma API. The auth + tenant middleware chain for these routes is
+// attached at the Fiber level BEFORE the Huma terminal, not here.
 //
 // Paths are GROUP-RELATIVE: the Huma API is bound to a versioned Fiber group, so the
 // humafiber adapter registers on that group and Fiber prepends the version prefix. The

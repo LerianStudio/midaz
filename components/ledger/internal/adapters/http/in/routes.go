@@ -17,47 +17,6 @@ const midazName = "midaz"
 // SettingsMaxPayloadSize defines the maximum payload size for settings endpoints (64KB).
 const SettingsMaxPayloadSize = 64 * 1024
 
-// RegisterMetadataRoutesToApp registers ledger routes (metadata indexes) to an existing Fiber app.
-// This is used by the unified ledger server to consolidate all routes in a single port.
-//
-// Wave-1 MIGRATED TO HUMA: the metadata-index routes no longer register inline here.
-// Their terminal handlers live on the shared Huma API and their auth + tenant
-// middleware chain (authz resource "settings", NOT "metadata-indexes") is attached on
-// the /v1 group by RegisterMetadataIndexRoutesToApp, called from the unified server's
-// humaMount. The (resource, verb) authz tuples are preserved byte-for-byte there.
-//
-// The parameters are retained on this signature (blanked for now) because
-// CreateRouteRegistrar and the contract-spec test still construct and pass them.
-func RegisterMetadataRoutesToApp(_ fiber.Router, _ *middleware.AuthClient, _ *MetadataIndexHandler, _ *http.ProtectedRouteOptions) {
-}
-
-// CreateRouteRegistrar returns a function that registers ledger routes to an existing Fiber app.
-// This is used by the unified ledger server to consolidate all routes in a single port.
-func CreateRouteRegistrar(auth *middleware.AuthClient, mdi *MetadataIndexHandler, routeOptions *http.ProtectedRouteOptions) func(fiber.Router) {
-	return func(fiberRouter fiber.Router) {
-		RegisterMetadataRoutesToApp(fiberRouter, auth, mdi, routeOptions)
-	}
-}
-
-// RegisterOnboardingRoutesToApp registers onboarding routes to an existing Fiber app.
-// This is used by the unified ledger server to consolidate all routes in a single port.
-// The app should already have middleware configured (telemetry, cors, logging).
-//
-// Wave-1 MIGRATED TO HUMA: organizations, ledgers, portfolios, segments, accounts,
-// and account-types no longer register inline here. Their terminal handlers live on
-// the shared Huma API and their auth + tenant + ParseUUIDPathParameters middleware
-// chains are attached on the /v1 group by the per-resource RegisterXxxRoutesToApp
-// wrappers (RegisterOrganizationRoutesToApp, RegisterLedgerRoutesToApp,
-// RegisterPortfolioRoutesToApp, RegisterSegmentRoutesToApp, RegisterAccountRoutesToApp,
-// RegisterAccountTypeRoutesToApp), all called from the unified server's humaMount.
-// The (resource, verb) authz tuples are preserved byte-for-byte in those wrappers.
-//
-// The handler parameters are retained on this signature (blanked for now) because the
-// unified server and contract-spec test still construct and pass them, and the
-// non-migrated Wave 3/4 onboarding routes will re-attach here as they land.
-func RegisterOnboardingRoutesToApp(_ fiber.Router, _ *middleware.AuthClient, _ *AccountHandler, _ *PortfolioHandler, _ *LedgerHandler, _ *OrganizationHandler, _ *SegmentHandler, _ *AccountTypeHandler, _ *http.ProtectedRouteOptions) {
-}
-
 // RegisterAssetRoutesToApp wires the Huma-migrated asset surface onto the /v1
 // contract. See registerAssetRoutesToApp for what it attaches.
 func RegisterAssetRoutesToApp(group fiber.Router, api huma.API, auth *middleware.AuthClient, ih *AssetHandler, routeOptions *http.ProtectedRouteOptions) {
