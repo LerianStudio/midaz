@@ -25,6 +25,15 @@
 --      predecessor P is then guaranteed the next id after P: id-order ==
 --      hash-chain order. The actor-in-hash formula and previous_hash linkage
 --      are byte-for-byte identical to 000017.
+--   3. ENABLE ALWAYS the BEFORE-INSERT trigger audit_events_hash_chain. With the
+--      BIGSERIAL DEFAULT gone, that trigger is now the ONLY producer of
+--      audit_events.id (and of the hash chain). Under the default ORIGIN firing
+--      mode a session with session_replication_role='replica' — logical
+--      replication apply, and pg_restore / pg_dump --disable-triggers style
+--      restores — would skip it, so inserts would violate the id NOT NULL
+--      constraint AND, worse, any row that did slip in would bypass the
+--      tamper-evident chain. ENABLE ALWAYS forces it to fire in every session
+--      mode.
 --
 --   verify_audit_hash_chain() is intentionally NOT touched (the ascending-id
 --   verifier is preserved as-is), and neither are the anti-tamper protections
@@ -89,3 +98,8 @@ BEGIN
     RETURN NEW;
 END;
 $$ LANGUAGE plpgsql;
+
+-- 3. Force the hash-chain trigger to fire in EVERY session_replication_role.
+--    It is now the sole source of audit_events.id and of the hash chain, so it
+--    must never be skipped under 'replica' apply or a trigger-disabled restore.
+ALTER TABLE audit_events ENABLE ALWAYS TRIGGER audit_events_hash_chain;
