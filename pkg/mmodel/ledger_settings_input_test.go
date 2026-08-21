@@ -11,10 +11,11 @@ import (
 	"strings"
 	"testing"
 
-	pkg "github.com/LerianStudio/midaz/v4/pkg"
-	testutils "github.com/LerianStudio/midaz/v4/tests/utils"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	pkg "github.com/LerianStudio/midaz/v4/pkg"
+	testutils "github.com/LerianStudio/midaz/v4/tests/utils"
 )
 
 func TestLedgerSettingsInput_ToSparseMap(t *testing.T) {

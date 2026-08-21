@@ -41,14 +41,6 @@ func (uc *UseCase) CreateLedger(ctx context.Context, organizationID uuid.UUID, c
 		status.Code = "ACTIVE"
 	}
 
-	// Dual-class: span helper and log level are picked by error class.
-	_, err = uc.LedgerRepo.FindByName(ctx, organizationID, cli.Name)
-	if err != nil {
-		recordCommandError(ctx, span, logger, "Failed to find ledger by name", err)
-
-		return nil, err
-	}
-
 	// Validate before creating the ledger. Persist only when the result differs from the
 	// defaults, so an all-defaults request leaves the settings column at its '{}' default.
 	var settingsToPersist *mmodel.LedgerSettings
@@ -74,6 +66,21 @@ func (uc *UseCase) CreateLedger(ctx context.Context, organizationID uuid.UUID, c
 		if !mmodel.LedgerSettingsIsDefault(&parsed) {
 			settingsToPersist = &parsed
 		}
+	}
+
+	// Bail out before the uniqueness round-trip when the caller is already gone.
+	if err = ctx.Err(); err != nil {
+		recordCommandError(ctx, span, logger, "Context cancelled before ledger creation", err)
+
+		return nil, err
+	}
+
+	// Dual-class: span helper and log level are picked by error class.
+	_, err = uc.LedgerRepo.FindByName(ctx, organizationID, cli.Name)
+	if err != nil {
+		recordCommandError(ctx, span, logger, "Failed to find ledger by name", err)
+
+		return nil, err
 	}
 
 	now := time.Now()
