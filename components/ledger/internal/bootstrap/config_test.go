@@ -654,3 +654,26 @@ func TestProperty_Config_CBFieldsNonNegative(t *testing.T) {
 	require.NoError(t, quick.Check(property, &quick.Config{MaxCount: 100}),
 		"property TestProperty_Config_CBFieldsNonNegative must hold for all uint8-derived inputs")
 }
+
+// TestIDPConfig_Defaults verifies the safe defaults for the optional RI
+// (permission-declaration) IDP fields when the IDP_* env vars are absent.
+// RI is opt-in and fail-open: with nothing configured, declaration stays off
+// and the identity-provider coordinates stay empty, so boot must not require them.
+func TestIDPConfig_Defaults(t *testing.T) {
+	// Note: t.Parallel() removed because t.Setenv is incompatible with parallel tests.
+	// Force the IDP_* vars to empty so a polluted environment cannot mask the
+	// safe defaults under test (empty string is indistinguishable from unset here).
+	t.Setenv("IDP_DECLARATION_ENABLED", "")
+	t.Setenv("IDP_HOST", "")
+	t.Setenv("IDP_M2M_CLIENT_ID", "")
+	t.Setenv("IDP_M2M_CLIENT_SECRET", "")
+
+	cfg := &Config{}
+	err := libCommons.SetConfigFromEnvVars(cfg)
+	require.NoError(t, err, "SetConfigFromEnvVars should not fail with IDP_* absent")
+
+	assert.False(t, cfg.DeclarationEnabled, "DeclarationEnabled should default to false (RI is opt-in, fail-open)")
+	assert.Empty(t, cfg.IDPHost, "IDPHost should default to empty")
+	assert.Empty(t, cfg.IDPM2MClientID, "IDPM2MClientID should default to empty")
+	assert.Empty(t, cfg.IDPM2MClientSecret, "IDPM2MClientSecret should default to empty")
+}

@@ -78,6 +78,16 @@ type Config struct {
 	AuthHost    string `env:"PLUGIN_AUTH_HOST"`
 	JWKAddress  string `env:"CASDOOR_JWK_ADDRESS"`
 
+	// Resource-inventory (RI) permission declaration against the IdP (identity, :4001),
+	// distinct from PLUGIN_AUTH_HOST (auth, :4000). RI is OPTIONAL and fail-open: an unset
+	// or invalid IDP_DECLARATION_ENABLED decodes to false (safe), and empty host/credentials
+	// never block boot — the publisher handles incomplete config fail-open. IDPM2MClientSecret
+	// MUST NOT be logged, span-attached, or serialized.
+	DeclarationEnabled bool   `env:"IDP_DECLARATION_ENABLED"`
+	IDPHost            string `env:"IDP_HOST"`
+	IDPM2MClientID     string `env:"IDP_M2M_CLIENT_ID"`
+	IDPM2MClientSecret string `env:"IDP_M2M_CLIENT_SECRET"`
+
 	// Redis configuration (shared across domains)
 	// Defaults are applied programmatically by applyConfigDefaults after env loading.
 	RedisHost                    string `env:"REDIS_HOST"`
