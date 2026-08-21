@@ -210,13 +210,6 @@ func buildFullSurfaceServer(t *testing.T) *UnifiedServer {
 		CompositionOptions: routeOptions,
 	}
 
-	onboardingRouteRegistrar := func(router fiber.Router) {
-		httpin.RegisterOnboardingRoutesToApp(router, auth,
-			&httpin.AccountHandler{}, &httpin.PortfolioHandler{}, &httpin.LedgerHandler{},
-			&httpin.OrganizationHandler{}, &httpin.SegmentHandler{}, &httpin.AccountTypeHandler{}, routeOptions)
-	}
-	ledgerRouteRegistrar := httpin.CreateRouteRegistrar(auth, metadataIndexHandler, routeOptions)
-
 	// The streaming manifest route is mounted on the full-surface harness through
 	// the SAME registrar production uses, so the golden pins its guarded row. The
 	// handler is the real catalog-only lib-streaming handler (net/http, adapted via
@@ -233,7 +226,7 @@ func buildFullSurfaceServer(t *testing.T) *UnifiedServer {
 	readyzHandler := NewReadyzHandler(ReadyzHandlerConfig{Logger: logger, Version: "test-version"})
 
 	server := NewUnifiedServer(":0", "test-version", logger, telemetry, readyzHandler,
-		humaDeps.MountV1, humaDeps.MountV2, onboardingRouteRegistrar, ledgerRouteRegistrar, streamingManifestRegistrar)
+		humaDeps.MountV1, humaDeps.MountV2, streamingManifestRegistrar)
 	require.NotNil(t, server, "NewUnifiedServer should return a non-nil server")
 	require.NotNil(t, server.app, "server should hold a Fiber app")
 

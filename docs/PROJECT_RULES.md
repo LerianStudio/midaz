@@ -66,19 +66,24 @@ There is no standalone "microservices" deployment of onboarding, transaction, CR
 
 ### Component Communication
 
-The `ledger` component composes all four surfaces in-process — there is no gRPC anywhere in the ledger binary. Onboarding and transaction share a single `command.UseCase` and a single `query.UseCase` constructed over the same repo set; all handlers receive the same use-case pointers. `NewUnifiedServer` mounts route registrars (onboarding, transaction, ledger metadata, CRM, fees) onto one Fiber app:
+The `ledger` component composes all four surfaces in-process — there is no gRPC anywhere in the ledger binary. Onboarding and transaction share a single `command.UseCase` and a single `query.UseCase` constructed over the same repo set; all handlers receive the same use-case pointers. Every one of the six route-scoped mount groups (onboarding, transaction, ledger metadata, CRM, fees, composition) mounts onto one Fiber app through the two `HumaRouteRegistrar` mounts that `buildHumaMountDeps` assembles; the variadic `RouteRegistrar` takes app-root routes that sit outside the versioned groups:
 
 ```go
-// All route surfaces register onto one Fiber app via the registrar pattern.
-// Onboarding and transaction share the same command.UseCase / query.UseCase
-// instances — direct in-process calls, no gRPC, no network hop.
+// buildHumaMountDeps threads every handler and its route-scoped
+// ProtectedRouteOptions into the single mount list both contract versions
+// build from. Onboarding and transaction share the same command.UseCase /
+// query.UseCase instances — direct in-process calls, no gRPC, no network hop.
+humaMountDeps := buildHumaMountDeps(auth, /* handlers... */, routeSetup)
+
 server := bootstrap.NewUnifiedServer(
-    cfg, logger, telemetry,
-    onboardingRouteRegistrar,
-    transactionRouteRegistrar,
-    ledgerRouteRegistrar,
-    crmRouteRegistrar,
-    feesRouteRegistrar,
+    cfg.ServerAddress,
+    cfg.Version,
+    logger,
+    telemetry,
+    readyzHandler,
+    humaMountDeps.MountV1,
+    humaMountDeps.MountV2,
+    streamingManifestRegistrar, // variadic RouteRegistrar: app-root routes
 )
 ```
 
