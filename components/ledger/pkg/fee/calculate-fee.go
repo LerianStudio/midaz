@@ -82,13 +82,18 @@ func isSegmentReference(entry string) (bool, uuid.UUID, error) {
 // trip ErrTransactionValueMismatch or silently create a multi-asset imbalance.
 // Send.Asset is the single source of truth, so a transaction that carries no
 // Send.Asset is rejected with a missing-required-field validation error rather
-// than denominated in any substitute asset.
+// than denominated in any substitute asset. An asset that is absent or blank
+// (whitespace only) names nothing, so both are rejected alike. The accepted
+// value is then carried into every fee leg verbatim, never trimmed or otherwise
+// normalized, because a fee leg must be byte-identical to Send.Asset for the
+// ledger's per-asset aggregation to keep it in the same bucket. Normalization
+// belongs at the input layer, applied to the transaction itself.
 //
 // The segCtx parameter is optional: when non-nil, segment-based waivedAccounts resolution
 // is enabled (entries like "segment:<uuid>" trigger a Midaz API call to check account membership).
 // When segCtx is nil, only exact alias matching is used for waivedAccounts.
 func CalculateFee(logger libLog.Logger, f *model.FeeCalculate, p *pack.Package, resp *transaction.Responses, segCtx *SegmentContext) error {
-	if f.Transaction.Send.Asset == "" {
+	if strings.TrimSpace(f.Transaction.Send.Asset) == "" {
 		return pkg.ValidateBusinessError(constant.ErrMissingFieldsInRequest, constant.EntityFeeCalculation, "send.asset")
 	}
 

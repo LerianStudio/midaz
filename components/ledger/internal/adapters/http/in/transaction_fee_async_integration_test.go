@@ -147,7 +147,7 @@ func TestFeeProof_T25_AsyncFeeInclusive(t *testing.T) {
 	require.NoError(t, err)
 	resolver, err := feesservices.NewQueryResolver(queryUC)
 	require.NoError(t, err)
-	feeUC, err := feesservices.NewUseCase(packageRepo, resolver, "USD")
+	feeUC, err := feesservices.NewUseCase(packageRepo, resolver)
 	require.NoError(t, err)
 
 	h := &feeHarness{

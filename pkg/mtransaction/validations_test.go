@@ -1974,25 +1974,10 @@ func TestSplitDoubleEntryOps(t *testing.T) {
 	})
 }
 
-// TestValidateSendSourceAndDistribute_DoesNotRejectEmptyAsset is a documented negative: it
-// records that ValidateSendSourceAndDistribute performs NO asset-emptiness check. It copies
-// transaction.Send.Asset straight into Responses.Asset and validates only alias ambiguity and
-// the three-way source/destination/total balance.
-//
-// That gap is why the fee engine carries its own empty-asset guard, in
-// pkg/fee.CalculateFee, which returns 0009 for an empty send.asset. Both HTTP entry points
-// reject an empty send.asset at body validation (see
-// TestDecodeAndValidate_TransactionRejectsEmptySendAsset and
-// TestDecodeValidateBody_EstimateRejectsEmptySendAsset), and this validator is the last thing
-// between those entry points and the engine — so if the `required` struct tag on Send.Asset
-// were ever dropped, nothing on this path would stop an empty asset and the engine guard
-// becomes the live defense.
-//
-// The fixture is deliberately balanced (100 in, 100 out, Send.Value 100) so the only thing the
-// nil error can be attributed to is the absence of an asset check, not an unrelated pass.
-//
-// If asset validation is ever added here, this test fails — and this is the place to record
-// the change, since the engine guard's justification moves with it.
+// TestValidateSendSourceAndDistribute_DoesNotRejectEmptyAsset is a documented negative: this
+// validator performs no asset-emptiness check, so an empty send.asset has to be stopped by the
+// `required` struct tags at body validation and by the fee engine's own guard. If asset
+// validation is ever added here, this test fails.
 func TestValidateSendSourceAndDistribute_DoesNotRejectEmptyAsset(t *testing.T) {
 	t.Parallel()
 

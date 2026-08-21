@@ -282,16 +282,16 @@ func TestFeeProof_T16_C4_SegmentAndAliasExemption(t *testing.T) {
 	})
 }
 
-// TestFeeProof_T16_C7_FeeAssetDenomination is proof class 7: a fee default
-// currency different from the transaction's Send.Asset must NOT silently produce
-// a multi-asset imbalance — the fee legs are denominated in Send.Asset (P4-T24).
+// TestFeeProof_T16_C7_FeeAssetDenomination is proof class 7: every fee leg is
+// denominated in the transaction's Send.Asset, so fee application cannot
+// introduce a second asset and a silent multi-asset imbalance (P4-T24).
 func TestFeeProof_T16_C7_FeeAssetDenomination(t *testing.T) {
 	h := setupFeeHarness(t)
 	app := h.newApp()
 
-	// The harness fee use case defaults to USD; run a EUR transaction. Per P4-T24
-	// the fee legs must carry EUR (Send.Asset), not the default — so the tx still
-	// balances single-asset under exact equality.
+	// Run a EUR transaction. Per P4-T24 the fee legs must carry EUR (Send.Asset),
+	// not the payer account's asset — so the tx stays single-asset and balances
+	// under exact equality.
 	h.seedBalance(t, "@payer", "EUR", decimal.NewFromInt(100000), "deposit")
 	h.seedBalance(t, "@receiver", "EUR", decimal.Zero, "deposit")
 	h.seedBalance(t, "@fee_rev", "EUR", decimal.Zero, "deposit")
@@ -299,7 +299,7 @@ func TestFeeProof_T16_C7_FeeAssetDenomination(t *testing.T) {
 	h.seedPackage(t, packageSpec{label: "eur_pkg", fees: []feeSpec{flatFee("eur_fee", "@fee_rev", "10", false)}})
 
 	body := `{
-		"description": "EUR tx with USD-default fee engine",
+		"description": "EUR tx fee leg denomination",
 		"pending": false,
 		"send": {
 			"asset": "EUR",
@@ -316,7 +316,7 @@ func TestFeeProof_T16_C7_FeeAssetDenomination(t *testing.T) {
 	legs := loadLegs(t, h.db, txID)
 	requireBalanced(t, legs, "EUR fee denomination")
 
-	// Every persisted operation must be EUR — no leg escaped into the USD default.
+	// Every persisted operation must be EUR — no fee leg escaped Send.Asset.
 	var assets []string
 	rows, err := h.db.Query(`SELECT DISTINCT asset_code FROM operation WHERE transaction_id=$1`, txID)
 	require.NoError(t, err)
@@ -326,7 +326,7 @@ func TestFeeProof_T16_C7_FeeAssetDenomination(t *testing.T) {
 		assets = append(assets, a)
 	}
 	_ = rows.Close()
-	assert.Equal(t, []string{"EUR"}, assets, "all fee legs must be denominated in Send.Asset (EUR), not the default")
+	assert.Equal(t, []string{"EUR"}, assets, "all fee legs must be denominated in Send.Asset (EUR), not the payer account's asset")
 }
 
 // TestFeeProof_T16_C10_FeeLegOpShapeReversible is proof class 10: persisted fee

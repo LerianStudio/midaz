@@ -85,10 +85,31 @@ func (uc *UseCase) CalculateFee(ctx context.Context, cf *model.FeeCalculate, org
 	}
 
 	if len(packages) == 1 {
-		return uc.calculateFeeForSinglePackage(ctx, logger, cf, packages[0], sendModel, validationResult, validationResultFromSize, validationResultToSize, organizationID)
+		if err = uc.calculateFeeForSinglePackage(ctx, logger, cf, packages[0], sendModel, validationResult, validationResultFromSize, validationResultToSize, organizationID); err != nil {
+			recordSpanError(span, "Failed to calculate fee for single package", err)
+		}
+
+		return err
 	}
 
-	return uc.calculateFeeForMultiplePackages(ctx, logger, cf, packages, sendModel, validationResult, validationResultFromSize, validationResultToSize, organizationID)
+	if err = uc.calculateFeeForMultiplePackages(ctx, logger, cf, packages, sendModel, validationResult, validationResultFromSize, validationResultToSize, organizationID); err != nil {
+		recordSpanError(span, "Failed to calculate fee for multiple packages", err)
+	}
+
+	return err
+}
+
+// recordSpanError records err onto the span using the class-appropriate helper:
+// business/4xx errors keep the span status UNSET via HandleSpanBusinessErrorEvent,
+// technical/5xx errors flip it red via HandleSpanError (telemetry rule T5).
+func recordSpanError(span trace.Span, message string, err error) {
+	if pkg.IsBusinessError(err) {
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, message, err)
+
+		return
+	}
+
+	libOpentelemetry.HandleSpanError(span, message, err)
 }
 
 // resolveSourceSegment resolves the segment shared by the transaction's real

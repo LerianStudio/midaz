@@ -29,17 +29,14 @@ func estimateBody(sendAsset string) string {
 }
 
 // TestDecodeValidateBody_EstimateRejectsEmptySendAsset pins the estimate entry point's
-// rejection of a fee-estimate body that names no send asset. model.FeeEstimate.Transaction
-// carries no validation tag of its own, so the only thing that reaches Send.Asset is
-// validator/v10 diving into the nested struct and finding the `required` tag on the field.
-// Nothing else in the repo pins that tag; without this test, dropping it would silently move
-// the whole defense onto the fee engine's own empty-asset guard.
+// rejection of a fee-estimate body that names no send asset: the `required` tag on the
+// estimate's own Send.Asset field must reject it, so such a request never reaches the fee
+// engine. Nothing else in the repo pins that tag.
 //
 // Both spellings of "no asset" are asserted because they are rejected by different rules and
-// a caller can send either. An absent key fails `required` (0009). An explicit empty string
-// fails the decoder's unknown-field round-trip first (0053): Send.Asset is `omitempty`, so an
-// empty value does not survive the re-marshal and the field looks unrecognized. Both are
-// 400-class rejections that stop the request before the fee engine runs.
+// a caller can send either. An absent key fails `required` (0009); an explicit empty string is
+// rejected as an unknown field (0053). Both are 400-class rejections that stop the request
+// before the fee engine runs.
 func TestDecodeValidateBody_EstimateRejectsEmptySendAsset(t *testing.T) {
 	t.Parallel()
 
@@ -84,6 +81,8 @@ func TestDecodeValidateBody_EstimateRejectsEmptySendAsset(t *testing.T) {
 				assert.Equal(t, tt.wantCode, unknown.Code)
 				assert.Equal(t, pkg.UnknownFields{"transaction": map[string]any{"send": map[string]any{"asset": ""}}},
 					unknown.Fields, "the rejection must point the caller at the empty asset")
+			default:
+				t.Fatalf("unhandled wantCode %q — add an assertion arm for it", tt.wantCode)
 			}
 		})
 	}
