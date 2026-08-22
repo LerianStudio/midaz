@@ -130,17 +130,7 @@ func (in *ListLedgersRequest) Resolve(ctx huma.Context) []error {
 // http.ValidateParameters, matching Fiber's c.Queries() (last value wins for a
 // repeated key, present-but-empty keys included).
 func (in *ListLedgersRequest) queries() map[string]string {
-	out := make(map[string]string, len(in.rawQuery))
-	for k, vs := range in.rawQuery {
-		if len(vs) == 0 {
-			out[k] = ""
-			continue
-		}
-
-		out[k] = vs[len(vs)-1]
-	}
-
-	return out
+	return queriesFromValues(in.rawQuery)
 }
 
 // ListLedgersResponse carries the pagination envelope verbatim.
@@ -364,8 +354,10 @@ func (handler *LedgerHandler) UpdateLedgerSettings(ctx context.Context, in *Upda
 		return nil, pkgHTTP.HumaProblem(err)
 	}
 
-	// Mirror WithBodyLimit(SettingsMaxPayloadSize): reject oversized settings bodies
-	// with the same canonical 0143 the Fiber middleware raised (400).
+	// Preserves the canonical 0143 (400) the Fiber WithBodyLimit middleware raised
+	// for oversized settings bodies. This is response-contract parity only, NOT
+	// pre-buffering protection: NewUnifiedServer leaves Fiber's default body limit
+	// in place and Huma has already buffered RawBody by the time this runs.
 	if len(in.RawBody) > SettingsMaxPayloadSize {
 		return nil, pkgHTTP.HumaProblem(pkg.ValidateBusinessError(constant.ErrPayloadTooLarge, "request"))
 	}

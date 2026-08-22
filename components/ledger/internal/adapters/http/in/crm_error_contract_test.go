@@ -13,6 +13,8 @@ import (
 	"regexp"
 	"testing"
 
+	libCommons "github.com/LerianStudio/lib-commons/v6/commons"
+
 	"github.com/gofiber/fiber/v3"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
@@ -124,7 +126,7 @@ func TestErrorContract_CanonicalCodes(t *testing.T) {
 			ctrl := gomock.NewController(t)
 			t.Cleanup(ctrl.Finish)
 
-			orgID := uuid.New().String()
+			orgID := uuid.Must(libCommons.GenerateUUIDv7()).String()
 
 			handler, mockHolderRepo := newHolderHandler(t, ctrl)
 			tt.setupMocks(mockHolderRepo, orgID)
@@ -190,8 +192,8 @@ func TestErrorContract_SurvivingDomainCodeUnchanged(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	t.Cleanup(ctrl.Finish)
 
-	orgID := uuid.New().String()
-	holderID := uuid.New()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7()).String()
+	holderID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	handler, mockHolderRepo := newHolderHandler(t, ctrl)
 	mockHolderRepo.EXPECT().

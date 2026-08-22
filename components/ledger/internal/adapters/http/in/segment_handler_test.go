@@ -11,7 +11,8 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
-	"time"
+
+	libCommons "github.com/LerianStudio/lib-commons/v6/commons"
 
 	openapi "github.com/LerianStudio/lib-commons/v6/commons/net/http/openapi"
 	libProblem "github.com/LerianStudio/lib-commons/v6/commons/net/http/problem"
@@ -52,6 +53,7 @@ func buildHumaSegmentApp(t *testing.T, handler *SegmentHandler, authOK bool) *fi
 	})
 
 	libProblem.Install()
+	pkgHTTP.InstallHumaFrameworkErrors()
 
 	apiV1 := f.Group("/v1")
 
@@ -87,8 +89,8 @@ func TestCreateSegment_Success(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	t.Cleanup(ctrl.Finish)
 
-	orgID := uuid.New()
-	ledgerID := uuid.New()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	segmentRepo := segment.NewMockRepository(ctrl)
 	metadataRepo := mongodb.NewMockRepository(ctrl)
@@ -96,8 +98,8 @@ func TestCreateSegment_Success(t *testing.T) {
 	segmentRepo.EXPECT().ExistsByName(gomock.Any(), orgID, ledgerID, "Retail").Return(false, nil).Times(1)
 	segmentRepo.EXPECT().Create(gomock.Any(), gomock.Any()).
 		DoAndReturn(func(_ any, s *mmodel.Segment) (*mmodel.Segment, error) {
-			s.CreatedAt = time.Now()
-			s.UpdatedAt = time.Now()
+			s.CreatedAt = fixedTestTime
+			s.UpdatedAt = fixedTestTime
 			return s, nil
 		}).Times(1)
 	// The shared body pipeline (DecodeAndValidate -> parseMetadata) initializes
@@ -139,8 +141,8 @@ func TestCreateSegment_AuthPreserved(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	t.Cleanup(ctrl.Finish)
 
-	orgID := uuid.New()
-	ledgerID := uuid.New()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	// No repo expectations: a rejected auth must never reach the service.
 	handler := &SegmentHandler{Command: &command.UseCase{
@@ -166,8 +168,8 @@ func TestCreateSegment_ValidationError_Canonical400(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	t.Cleanup(ctrl.Finish)
 
-	orgID := uuid.New()
-	ledgerID := uuid.New()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	// Missing required "name" -> imperative ValidateStruct -> canonical 400, service
 	// never reached (no repo expectations).
@@ -202,8 +204,8 @@ func TestCreateSegment_MalformedBody_Canonical400(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	t.Cleanup(ctrl.Finish)
 
-	orgID := uuid.New()
-	ledgerID := uuid.New()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	// Malformed JSON -> DecodeAndValidate returns a 0094; HumaProblem must project it
 	// to problem+json at 400 (NOT the 500 fallback, NOT a native Huma 422). Service
@@ -238,9 +240,9 @@ func TestGetSegmentByID_Success(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	t.Cleanup(ctrl.Finish)
 
-	orgID := uuid.New()
-	ledgerID := uuid.New()
-	segmentID := uuid.New()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
+	segmentID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	segmentRepo := segment.NewMockRepository(ctrl)
 	metadataRepo := mongodb.NewMockRepository(ctrl)
@@ -273,8 +275,8 @@ func TestGetSegmentByID_BadUUID_Canonical400(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	t.Cleanup(ctrl.Finish)
 
-	orgID := uuid.New()
-	ledgerID := uuid.New()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	// ParseUUIDPathParameters rejects the bad id with 0065 / 400 before Huma; service
 	// never reached.
@@ -303,8 +305,8 @@ func TestGetAllSegments_Success(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	t.Cleanup(ctrl.Finish)
 
-	orgID := uuid.New()
-	ledgerID := uuid.New()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	segmentRepo := segment.NewMockRepository(ctrl)
 	segmentRepo.EXPECT().FindAll(gomock.Any(), orgID, ledgerID, gomock.Any()).Return([]*mmodel.Segment{}, nil).Times(1)
@@ -333,8 +335,8 @@ func TestGetAllSegments_BadQuery_Canonical400(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	t.Cleanup(ctrl.Finish)
 
-	orgID := uuid.New()
-	ledgerID := uuid.New()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	// ValidateParameters rejects limit=abc with the canonical 400, NOT a native 422.
 	handler := &SegmentHandler{Query: &query.UseCase{SegmentRepo: segment.NewMockRepository(ctrl)}}
@@ -359,9 +361,9 @@ func TestDeleteSegment_204Empty(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	t.Cleanup(ctrl.Finish)
 
-	orgID := uuid.New()
-	ledgerID := uuid.New()
-	segmentID := uuid.New()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
+	segmentID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	segmentRepo := segment.NewMockRepository(ctrl)
 	segmentRepo.EXPECT().Delete(gomock.Any(), orgID, ledgerID, segmentID).Return(nil).Times(1)
@@ -385,8 +387,8 @@ func TestCountSegments_204WithHeader(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	t.Cleanup(ctrl.Finish)
 
-	orgID := uuid.New()
-	ledgerID := uuid.New()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	segmentRepo := segment.NewMockRepository(ctrl)
 	segmentRepo.EXPECT().Count(gomock.Any(), orgID, ledgerID).Return(int64(7), nil).Times(1)
@@ -407,7 +409,6 @@ func TestCountSegments_204WithHeader(t *testing.T) {
 	assert.Equal(t, "0", resp.Header.Get("Content-Length"), "HEAD 204 must set Content-Length: 0 (parity with the Fiber NoContent path)")
 }
 
-// --- ported from the retired Fiber-wrapper tests (segment_test.go) -------------
 //
 // The six exported fiber.Ctx terminals on SegmentHandler were deleted with the Huma
 // migration; the branches their tests covered in the shared cores are exercised
@@ -422,8 +423,8 @@ func TestCreateSegment_ServiceError_Canonical4xx(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	t.Cleanup(ctrl.Finish)
 
-	orgID := uuid.New()
-	ledgerID := uuid.New()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	segmentRepo := segment.NewMockRepository(ctrl)
 	segmentRepo.EXPECT().ExistsByName(gomock.Any(), orgID, ledgerID, "Test Segment").Return(false, nil).Times(1)
@@ -456,9 +457,9 @@ func TestGetSegmentByID_ServiceError_Canonical404(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	t.Cleanup(ctrl.Finish)
 
-	orgID := uuid.New()
-	ledgerID := uuid.New()
-	segmentID := uuid.New()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
+	segmentID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	segmentRepo := segment.NewMockRepository(ctrl)
 	segmentRepo.EXPECT().Find(gomock.Any(), orgID, ledgerID, segmentID).
@@ -487,9 +488,9 @@ func TestGetAllSegments_MetadataFilter(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	t.Cleanup(ctrl.Finish)
 
-	orgID := uuid.New()
-	ledgerID := uuid.New()
-	seg1 := uuid.New().String()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
+	seg1 := uuid.Must(libCommons.GenerateUUIDv7()).String()
 
 	segmentRepo := segment.NewMockRepository(ctrl)
 	metadataRepo := mongodb.NewMockRepository(ctrl)
@@ -523,8 +524,8 @@ func TestGetAllSegments_MetadataFilter_NoMatch_Canonical404(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	t.Cleanup(ctrl.Finish)
 
-	orgID := uuid.New()
-	ledgerID := uuid.New()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	metadataRepo := mongodb.NewMockRepository(ctrl)
 	metadataRepo.EXPECT().FindList(gomock.Any(), constant.EntitySegment, gomock.Any()).Return(nil, nil).Times(1)
@@ -549,8 +550,8 @@ func TestGetAllSegments_ServiceError_Canonical404(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	t.Cleanup(ctrl.Finish)
 
-	orgID := uuid.New()
-	ledgerID := uuid.New()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	segmentRepo := segment.NewMockRepository(ctrl)
 	segmentRepo.EXPECT().FindAll(gomock.Any(), orgID, ledgerID, gomock.Any()).
@@ -573,9 +574,9 @@ func TestUpdateSegment_Success(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	t.Cleanup(ctrl.Finish)
 
-	orgID := uuid.New()
-	ledgerID := uuid.New()
-	segmentID := uuid.New()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
+	segmentID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	segmentRepo := segment.NewMockRepository(ctrl)
 	metadataRepo := mongodb.NewMockRepository(ctrl)
@@ -621,9 +622,9 @@ func TestUpdateSegment_NotFound_Canonical404(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	t.Cleanup(ctrl.Finish)
 
-	orgID := uuid.New()
-	ledgerID := uuid.New()
-	segmentID := uuid.New()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
+	segmentID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	segmentRepo := segment.NewMockRepository(ctrl)
 	segmentRepo.EXPECT().Find(gomock.Any(), orgID, ledgerID, segmentID).
@@ -654,9 +655,9 @@ func TestDeleteSegment_ServiceError_Canonical404(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	t.Cleanup(ctrl.Finish)
 
-	orgID := uuid.New()
-	ledgerID := uuid.New()
-	segmentID := uuid.New()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
+	segmentID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	segmentRepo := segment.NewMockRepository(ctrl)
 	segmentRepo.EXPECT().Delete(gomock.Any(), orgID, ledgerID, segmentID).
@@ -684,8 +685,8 @@ func TestCountSegments_ServiceError(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	t.Cleanup(ctrl.Finish)
 
-	orgID := uuid.New()
-	ledgerID := uuid.New()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	segmentRepo := segment.NewMockRepository(ctrl)
 	segmentRepo.EXPECT().Count(gomock.Any(), orgID, ledgerID).

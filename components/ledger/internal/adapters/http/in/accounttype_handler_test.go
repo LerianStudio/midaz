@@ -11,7 +11,8 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
-	"time"
+
+	libCommons "github.com/LerianStudio/lib-commons/v6/commons"
 
 	libHTTP "github.com/LerianStudio/lib-commons/v6/commons/net/http"
 	openapi "github.com/LerianStudio/lib-commons/v6/commons/net/http/openapi"
@@ -95,17 +96,17 @@ func TestCreateAccountType_Success(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	t.Cleanup(ctrl.Finish)
 
-	orgID := uuid.New()
-	ledgerID := uuid.New()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	accountTypeRepo := accounttype.NewMockRepository(ctrl)
 	metadataRepo := mongodb.NewMockRepository(ctrl)
 
 	accountTypeRepo.EXPECT().Create(gomock.Any(), orgID, ledgerID, gomock.Any()).
 		DoAndReturn(func(_ any, _, _ uuid.UUID, at *mmodel.AccountType) (*mmodel.AccountType, error) {
-			at.ID = uuid.New()
-			at.CreatedAt = time.Now()
-			at.UpdatedAt = time.Now()
+			at.ID = uuid.Must(libCommons.GenerateUUIDv7())
+			at.CreatedAt = fixedTestTime
+			at.UpdatedAt = fixedTestTime
 			return at, nil
 		}).Times(1)
 	// The shared body pipeline (DecodeAndValidate -> parseMetadata) initializes
@@ -147,8 +148,8 @@ func TestCreateAccountType_AuthPreserved(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	t.Cleanup(ctrl.Finish)
 
-	orgID := uuid.New()
-	ledgerID := uuid.New()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	// No repo expectations: a rejected auth must never reach the service.
 	handler := &AccountTypeHandler{Command: &command.UseCase{
@@ -174,8 +175,8 @@ func TestCreateAccountType_ValidationError_Canonical400(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	t.Cleanup(ctrl.Finish)
 
-	orgID := uuid.New()
-	ledgerID := uuid.New()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	// Missing required "name"/"keyValue" -> imperative ValidateStruct -> canonical
 	// 400, service never reached.
@@ -210,8 +211,8 @@ func TestCreateAccountType_MalformedBody_Canonical400(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	t.Cleanup(ctrl.Finish)
 
-	orgID := uuid.New()
-	ledgerID := uuid.New()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	// Malformed JSON -> DecodeAndValidate returns a pkg.ResponseError (0094), which
 	// HumaProblem projects to problem+json at 400 (NOT the 500 fallback and NOT a
@@ -246,9 +247,9 @@ func TestGetAccountTypeByID_Success(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	t.Cleanup(ctrl.Finish)
 
-	orgID := uuid.New()
-	ledgerID := uuid.New()
-	accountTypeID := uuid.New()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
+	accountTypeID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	accountTypeRepo := accounttype.NewMockRepository(ctrl)
 	metadataRepo := mongodb.NewMockRepository(ctrl)
@@ -281,8 +282,8 @@ func TestGetAccountTypeByID_BadUUID_Canonical400(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	t.Cleanup(ctrl.Finish)
 
-	orgID := uuid.New()
-	ledgerID := uuid.New()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	// Service must never be reached: ParseUUIDPathParameters rejects the bad id with
 	// the canonical 0065 / 400 before Huma.
@@ -311,8 +312,8 @@ func TestGetAllAccountTypes_Success(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	t.Cleanup(ctrl.Finish)
 
-	orgID := uuid.New()
-	ledgerID := uuid.New()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	accountTypeRepo := accounttype.NewMockRepository(ctrl)
 	metadataRepo := mongodb.NewMockRepository(ctrl)
@@ -345,8 +346,8 @@ func TestGetAllAccountTypes_BadQuery_Canonical400(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	t.Cleanup(ctrl.Finish)
 
-	orgID := uuid.New()
-	ledgerID := uuid.New()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	// Service must never be reached: ValidateParameters rejects limit=abc with the
 	// canonical 400 (ErrInvalidQueryParameter), NOT a native Huma 422.
@@ -372,9 +373,9 @@ func TestUpdateAccountType_Success(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	t.Cleanup(ctrl.Finish)
 
-	orgID := uuid.New()
-	ledgerID := uuid.New()
-	accountTypeID := uuid.New()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
+	accountTypeID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	accountTypeRepo := accounttype.NewMockRepository(ctrl)
 	metadataRepo := mongodb.NewMockRepository(ctrl)
@@ -416,9 +417,9 @@ func TestDeleteAccountType_204Empty(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	t.Cleanup(ctrl.Finish)
 
-	orgID := uuid.New()
-	ledgerID := uuid.New()
-	accountTypeID := uuid.New()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
+	accountTypeID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	accountTypeRepo := accounttype.NewMockRepository(ctrl)
 	accountTypeRepo.EXPECT().Delete(gomock.Any(), orgID, ledgerID, accountTypeID).Return(nil).Times(1)
@@ -442,8 +443,8 @@ func TestCreateAccountType_DuplicateKeyValue_409(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	t.Cleanup(ctrl.Finish)
 
-	orgID := uuid.New()
-	ledgerID := uuid.New()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	accountTypeRepo := accounttype.NewMockRepository(ctrl)
 	// The command rejects the duplicate key value, so metadata is never written.
@@ -478,9 +479,9 @@ func TestGetAccountTypeByID_NotFound_404(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	t.Cleanup(ctrl.Finish)
 
-	orgID := uuid.New()
-	ledgerID := uuid.New()
-	accountTypeID := uuid.New()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
+	accountTypeID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	accountTypeRepo := accounttype.NewMockRepository(ctrl)
 	accountTypeRepo.EXPECT().FindByID(gomock.Any(), orgID, ledgerID, accountTypeID).
@@ -511,9 +512,9 @@ func TestUpdateAccountType_NotFound_404(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	t.Cleanup(ctrl.Finish)
 
-	orgID := uuid.New()
-	ledgerID := uuid.New()
-	accountTypeID := uuid.New()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
+	accountTypeID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	accountTypeRepo := accounttype.NewMockRepository(ctrl)
 	// Update fails, so the metadata upsert that follows it never runs.
@@ -548,9 +549,9 @@ func TestDeleteAccountType_NotFound_404(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	t.Cleanup(ctrl.Finish)
 
-	orgID := uuid.New()
-	ledgerID := uuid.New()
-	accountTypeID := uuid.New()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
+	accountTypeID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	accountTypeRepo := accounttype.NewMockRepository(ctrl)
 	accountTypeRepo.EXPECT().Delete(gomock.Any(), orgID, ledgerID, accountTypeID).
@@ -578,9 +579,9 @@ func TestGetAllAccountTypes_MetadataFilter_Success(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	t.Cleanup(ctrl.Finish)
 
-	orgID := uuid.New()
-	ledgerID := uuid.New()
-	accountTypeID := uuid.New()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
+	accountTypeID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	accountTypeRepo := accounttype.NewMockRepository(ctrl)
 	metadataRepo := mongodb.NewMockRepository(ctrl)
@@ -629,8 +630,8 @@ func TestGetAllAccountTypes_MetadataFilter_NoMatch_404(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	t.Cleanup(ctrl.Finish)
 
-	orgID := uuid.New()
-	ledgerID := uuid.New()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	metadataRepo := mongodb.NewMockRepository(ctrl)
 	// No metadata matches, so FindAll is never reached.
@@ -661,8 +662,8 @@ func TestGetAllAccountTypes_NotFound_404(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	t.Cleanup(ctrl.Finish)
 
-	orgID := uuid.New()
-	ledgerID := uuid.New()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	accountTypeRepo := accounttype.NewMockRepository(ctrl)
 	accountTypeRepo.EXPECT().FindAll(gomock.Any(), orgID, ledgerID, gomock.Any()).

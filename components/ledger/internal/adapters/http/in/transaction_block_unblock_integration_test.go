@@ -149,21 +149,7 @@ func (infra *blockUnblockInfra) setupRoutes() {
 	// Must run after openapi.New and BEFORE any huma.Register.
 	http.InstallLedgerSchemaNamer(hAPI)
 
-	txBase := "/organizations/:organization_id/ledgers/:ledger_id/transactions"
-	txParse := http.ParseUUIDPathParameters("transaction")
-
-	apiV1.Post(txBase+"/json", txParse)
-	apiV1.Post(txBase+"/inflow", txParse)
-	apiV1.Post(txBase+"/outflow", txParse)
-	apiV1.Post(txBase+"/annotation", txParse)
-	apiV1.Post(txBase+"/block", txParse)
-	apiV1.Post(txBase+"/unblock", txParse)
-	apiV1.Post(txBase+"/:transaction_id/commit", txParse)
-	apiV1.Post(txBase+"/:transaction_id/cancel", txParse)
-	apiV1.Post(txBase+"/:transaction_id/revert", txParse)
-	apiV1.Patch(txBase+"/:transaction_id", txParse)
-	apiV1.Get(txBase+"/:transaction_id", txParse)
-	apiV1.Get(txBase, txParse)
+	mountTransactionRoutes(apiV1)
 
 	RegisterTransactionRoutes(hAPI, infra.txHandler)
 

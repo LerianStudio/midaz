@@ -14,6 +14,8 @@ import (
 	"testing"
 	"time"
 
+	libCommons "github.com/LerianStudio/lib-commons/v6/commons"
+
 	openapi "github.com/LerianStudio/lib-commons/v6/commons/net/http/openapi"
 	libProblem "github.com/LerianStudio/lib-commons/v6/commons/net/http/problem"
 	"github.com/gofiber/fiber/v3"
@@ -87,8 +89,8 @@ func TestGetBalancesByAlias_EmptyItems(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	t.Cleanup(ctrl.Finish)
 
-	orgID := uuid.New()
-	ledgerID := uuid.New()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	// Empty result returns BEFORE the Redis overlay, so no TransactionRedisRepo mock
 	// is needed. GetBalancesByAlias must still emit the 200 Pagination envelope with
@@ -120,8 +122,8 @@ func TestGetBalancesByAlias_AuthPreserved(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	t.Cleanup(ctrl.Finish)
 
-	orgID := uuid.New()
-	ledgerID := uuid.New()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	// No repo expectations: a rejected auth must never reach the service.
 	handler := &BalanceHandler{Query: &query.UseCase{BalanceRepo: balance.NewMockRepository(ctrl)}}
@@ -142,9 +144,9 @@ func TestDeleteBalance_204Empty(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	t.Cleanup(ctrl.Finish)
 
-	orgID := uuid.New()
-	ledgerID := uuid.New()
-	balanceID := uuid.New()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
+	balanceID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	balanceRepo := balance.NewMockRepository(ctrl)
 	balanceRepo.EXPECT().Find(gomock.Any(), orgID, ledgerID, balanceID).
@@ -177,8 +179,8 @@ func TestDeleteBalance_BadUUID_Canonical400(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	t.Cleanup(ctrl.Finish)
 
-	orgID := uuid.New()
-	ledgerID := uuid.New()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	handler := &BalanceHandler{Command: &command.UseCase{BalanceRepo: balance.NewMockRepository(ctrl)}}
 
@@ -205,9 +207,9 @@ func TestGetBalanceAtTimestamp_MissingDate_Canonical400(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	t.Cleanup(ctrl.Finish)
 
-	orgID := uuid.New()
-	ledgerID := uuid.New()
-	balanceID := uuid.New()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
+	balanceID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	handler := &BalanceHandler{Query: &query.UseCase{BalanceRepo: balance.NewMockRepository(ctrl)}}
 
@@ -227,7 +229,6 @@ func TestGetBalanceAtTimestamp_MissingDate_Canonical400(t *testing.T) {
 	assert.Equal(t, constant.ErrMissingRequiredQueryParameter.Error(), got["code"])
 }
 
-// --- ported from the retired Fiber-wrapper tests (balance_test.go) -------------
 //
 // The ten exported fiber.Ctx terminals on BalanceHandler were deleted with the
 // Huma migration; the branches their tests covered in the shared cores are
@@ -246,8 +247,8 @@ func TestGetAllBalances_Success(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	t.Cleanup(ctrl.Finish)
 
-	orgID := uuid.New()
-	ledgerID := uuid.New()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	// An empty page returns before the Redis overlay, so no redis mock is needed.
 	balanceRepo := balance.NewMockRepository(ctrl)
@@ -279,8 +280,8 @@ func TestGetAllBalances_BadQuery_Canonical400(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	t.Cleanup(ctrl.Finish)
 
-	orgID := uuid.New()
-	ledgerID := uuid.New()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	handler := &BalanceHandler{Query: &query.UseCase{BalanceRepo: balance.NewMockRepository(ctrl)}}
 
@@ -304,8 +305,8 @@ func TestGetAllBalances_ServiceError_Canonical404(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	t.Cleanup(ctrl.Finish)
 
-	orgID := uuid.New()
-	ledgerID := uuid.New()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	balanceRepo := balance.NewMockRepository(ctrl)
 	balanceRepo.EXPECT().ListAll(gomock.Any(), orgID, ledgerID, gomock.Any()).
@@ -333,9 +334,9 @@ func TestGetAllBalancesByAccountID_Success(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	t.Cleanup(ctrl.Finish)
 
-	orgID := uuid.New()
-	ledgerID := uuid.New()
-	accountID := uuid.New()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
+	accountID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	balanceRepo := balance.NewMockRepository(ctrl)
 	balanceRepo.EXPECT().ListAllByAccountID(gomock.Any(), orgID, ledgerID, accountID, gomock.Any()).
@@ -363,9 +364,9 @@ func TestGetAllBalancesByAccountID_BadQuery_Canonical400(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	t.Cleanup(ctrl.Finish)
 
-	orgID := uuid.New()
-	ledgerID := uuid.New()
-	accountID := uuid.New()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
+	accountID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	handler := &BalanceHandler{Query: &query.UseCase{BalanceRepo: balance.NewMockRepository(ctrl)}}
 
@@ -389,9 +390,9 @@ func TestGetAllBalancesByAccountID_ServiceError_Canonical404(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	t.Cleanup(ctrl.Finish)
 
-	orgID := uuid.New()
-	ledgerID := uuid.New()
-	accountID := uuid.New()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
+	accountID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	balanceRepo := balance.NewMockRepository(ctrl)
 	balanceRepo.EXPECT().ListAllByAccountID(gomock.Any(), orgID, ledgerID, accountID, gomock.Any()).
@@ -414,9 +415,9 @@ func TestGetBalanceByID_Success(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	t.Cleanup(ctrl.Finish)
 
-	orgID := uuid.New()
-	ledgerID := uuid.New()
-	balanceID := uuid.New()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
+	balanceID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	balanceRepo := balance.NewMockRepository(ctrl)
 	redisRepo := redis.NewMockRedisRepository(ctrl)
@@ -426,7 +427,7 @@ func TestGetBalanceByID_Success(t *testing.T) {
 			ID:             balanceID.String(),
 			OrganizationID: orgID.String(),
 			LedgerID:       ledgerID.String(),
-			AccountID:      uuid.New().String(),
+			AccountID:      uuid.Must(libCommons.GenerateUUIDv7()).String(),
 			Alias:          "@user1",
 			Key:            "default",
 			AssetCode:      "USD",
@@ -459,9 +460,9 @@ func TestGetBalanceByID_ServiceError_Canonical404(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	t.Cleanup(ctrl.Finish)
 
-	orgID := uuid.New()
-	ledgerID := uuid.New()
-	balanceID := uuid.New()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
+	balanceID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	balanceRepo := balance.NewMockRepository(ctrl)
 	balanceRepo.EXPECT().Find(gomock.Any(), orgID, ledgerID, balanceID).
@@ -489,9 +490,9 @@ func TestUpdateBalance_Success(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	t.Cleanup(ctrl.Finish)
 
-	orgID := uuid.New()
-	ledgerID := uuid.New()
-	balanceID := uuid.New()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
+	balanceID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	balanceRepo := balance.NewMockRepository(ctrl)
 	redisRepo := redis.NewMockRedisRepository(ctrl)
@@ -542,9 +543,9 @@ func TestUpdateBalance_ServiceError_Canonical404(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	t.Cleanup(ctrl.Finish)
 
-	orgID := uuid.New()
-	ledgerID := uuid.New()
-	balanceID := uuid.New()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
+	balanceID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	balanceRepo := balance.NewMockRepository(ctrl)
 	balanceRepo.EXPECT().Find(gomock.Any(), orgID, ledgerID, balanceID).
@@ -575,9 +576,9 @@ func TestCreateAdditionalBalance_Success(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	t.Cleanup(ctrl.Finish)
 
-	orgID := uuid.New()
-	ledgerID := uuid.New()
-	accountID := uuid.New()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
+	accountID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	balanceRepo := balance.NewMockRepository(ctrl)
 	// The key must be free, then the default balance is copied for its properties.
@@ -585,7 +586,7 @@ func TestCreateAdditionalBalance_Success(t *testing.T) {
 		Return(nil, pkg.ValidateBusinessError(constant.ErrEntityNotFound, constant.EntityBalance)).Times(1)
 	balanceRepo.EXPECT().FindByAccountIDAndKey(gomock.Any(), orgID, ledgerID, accountID, "default").
 		Return(&mmodel.Balance{
-			ID:             uuid.New().String(),
+			ID:             uuid.Must(libCommons.GenerateUUIDv7()).String(),
 			OrganizationID: orgID.String(),
 			LedgerID:       ledgerID.String(),
 			AccountID:      accountID.String(),
@@ -626,13 +627,13 @@ func TestCreateAdditionalBalance_ServiceError_Canonical4xx(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	t.Cleanup(ctrl.Finish)
 
-	orgID := uuid.New()
-	ledgerID := uuid.New()
-	accountID := uuid.New()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
+	accountID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	balanceRepo := balance.NewMockRepository(ctrl)
 	balanceRepo.EXPECT().FindByAccountIDAndKey(gomock.Any(), orgID, ledgerID, accountID, "freeze-assets").
-		Return(&mmodel.Balance{ID: uuid.New().String(), Key: "freeze-assets"}, nil).Times(1)
+		Return(&mmodel.Balance{ID: uuid.Must(libCommons.GenerateUUIDv7()).String(), Key: "freeze-assets"}, nil).Times(1)
 
 	handler := &BalanceHandler{Command: &command.UseCase{BalanceRepo: balanceRepo}}
 
@@ -660,8 +661,8 @@ func TestGetBalancesByAlias_ServiceError_Canonical404(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	t.Cleanup(ctrl.Finish)
 
-	orgID := uuid.New()
-	ledgerID := uuid.New()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	balanceRepo := balance.NewMockRepository(ctrl)
 	balanceRepo.EXPECT().ListByAliases(gomock.Any(), orgID, ledgerID, []string{"@person1"}).
@@ -685,8 +686,8 @@ func TestGetBalancesExternalByCode_EmptyItems(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	t.Cleanup(ctrl.Finish)
 
-	orgID := uuid.New()
-	ledgerID := uuid.New()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	balanceRepo := balance.NewMockRepository(ctrl)
 	balanceRepo.EXPECT().
@@ -716,8 +717,8 @@ func TestGetBalancesExternalByCode_ServiceError_Canonical404(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	t.Cleanup(ctrl.Finish)
 
-	orgID := uuid.New()
-	ledgerID := uuid.New()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	balanceRepo := balance.NewMockRepository(ctrl)
 	balanceRepo.EXPECT().
@@ -741,10 +742,10 @@ func TestGetBalanceAtTimestamp_Success(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	t.Cleanup(ctrl.Finish)
 
-	orgID := uuid.New()
-	ledgerID := uuid.New()
-	balanceID := uuid.New()
-	accountID := uuid.New()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
+	balanceID := uuid.Must(libCommons.GenerateUUIDv7())
+	accountID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	date := time.Date(2024, 1, 15, 10, 30, 0, 0, time.UTC)
 	available := decimal.NewFromInt(5000)
@@ -769,7 +770,7 @@ func TestGetBalanceAtTimestamp_Success(t *testing.T) {
 	operationRepo.EXPECT().
 		FindLastOperationBeforeTimestamp(gomock.Any(), orgID, ledgerID, accountID, balanceID, gomock.Any()).
 		Return(&operation.Operation{
-			ID:         uuid.New().String(),
+			ID:         uuid.Must(libCommons.GenerateUUIDv7()).String(),
 			AccountID:  accountID.String(),
 			BalanceKey: "default",
 			AssetCode:  "USD",
@@ -805,9 +806,9 @@ func TestGetBalanceAtTimestamp_BadDateFormat_Canonical400(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	t.Cleanup(ctrl.Finish)
 
-	orgID := uuid.New()
-	ledgerID := uuid.New()
-	balanceID := uuid.New()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
+	balanceID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	handler := &BalanceHandler{Query: &query.UseCase{BalanceRepo: balance.NewMockRepository(ctrl)}}
 
@@ -832,9 +833,9 @@ func TestGetBalanceAtTimestamp_UnparseableDate_Canonical400(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	t.Cleanup(ctrl.Finish)
 
-	orgID := uuid.New()
-	ledgerID := uuid.New()
-	balanceID := uuid.New()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
+	balanceID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	handler := &BalanceHandler{Query: &query.UseCase{BalanceRepo: balance.NewMockRepository(ctrl)}}
 
@@ -859,9 +860,9 @@ func TestGetBalanceAtTimestamp_ServiceError(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	t.Cleanup(ctrl.Finish)
 
-	orgID := uuid.New()
-	ledgerID := uuid.New()
-	balanceID := uuid.New()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
+	balanceID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	balanceRepo := balance.NewMockRepository(ctrl)
 	balanceRepo.EXPECT().Find(gomock.Any(), orgID, ledgerID, balanceID).
@@ -884,10 +885,10 @@ func TestGetAccountBalancesAtTimestamp_Success(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	t.Cleanup(ctrl.Finish)
 
-	orgID := uuid.New()
-	ledgerID := uuid.New()
-	accountID := uuid.New()
-	balanceID := uuid.New()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
+	accountID := uuid.Must(libCommons.GenerateUUIDv7())
+	balanceID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	date := time.Date(2024, 1, 15, 10, 30, 0, 0, time.UTC)
 
@@ -931,9 +932,9 @@ func TestGetAccountBalancesAtTimestamp_NoData_Canonical4xx(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	t.Cleanup(ctrl.Finish)
 
-	orgID := uuid.New()
-	ledgerID := uuid.New()
-	accountID := uuid.New()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
+	accountID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	date := time.Date(2024, 1, 15, 10, 30, 0, 0, time.UTC)
 
@@ -963,9 +964,9 @@ func TestGetAccountBalancesAtTimestamp_ServiceError(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	t.Cleanup(ctrl.Finish)
 
-	orgID := uuid.New()
-	ledgerID := uuid.New()
-	accountID := uuid.New()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
+	accountID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	date := time.Date(2024, 1, 15, 10, 30, 0, 0, time.UTC)
 
@@ -990,9 +991,9 @@ func TestDeleteBalance_ServiceError_Canonical404(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	t.Cleanup(ctrl.Finish)
 
-	orgID := uuid.New()
-	ledgerID := uuid.New()
-	balanceID := uuid.New()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
+	balanceID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	balanceRepo := balance.NewMockRepository(ctrl)
 	balanceRepo.EXPECT().Find(gomock.Any(), orgID, ledgerID, balanceID).
@@ -1026,9 +1027,9 @@ func TestGetAccountBalancesAtTimestamp_MissingDate_Canonical400(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	t.Cleanup(ctrl.Finish)
 
-	orgID := uuid.New()
-	ledgerID := uuid.New()
-	accountID := uuid.New()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
+	accountID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	handler := &BalanceHandler{Query: &query.UseCase{BalanceRepo: balance.NewMockRepository(ctrl)}}
 

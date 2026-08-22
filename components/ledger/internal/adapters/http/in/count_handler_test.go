@@ -13,6 +13,8 @@ import (
 	"testing"
 	"time"
 
+	libCommons "github.com/LerianStudio/lib-commons/v6/commons"
+
 	openapi "github.com/LerianStudio/lib-commons/v6/commons/net/http/openapi"
 	libProblem "github.com/LerianStudio/lib-commons/v6/commons/net/http/problem"
 	"github.com/gofiber/fiber/v3"
@@ -76,8 +78,8 @@ func TestCountTransactions_204WithHeader(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	t.Cleanup(ctrl.Finish)
 
-	orgID := uuid.New()
-	ledgerID := uuid.New()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	repo := transaction.NewMockRepository(ctrl)
 	repo.EXPECT().CountByFilters(gomock.Any(), orgID, ledgerID, gomock.Any()).Return(int64(7), nil).Times(1)
@@ -103,8 +105,8 @@ func TestCountTransactions_AuthPreserved(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	t.Cleanup(ctrl.Finish)
 
-	orgID := uuid.New()
-	ledgerID := uuid.New()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	// No repo expectations: a rejected auth must never reach the service.
 	handler := &TransactionHandler{Query: &query.UseCase{TransactionRepo: transaction.NewMockRepository(ctrl)}}
@@ -124,8 +126,8 @@ func TestCountTransactions_BadStatus_Canonical400(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	t.Cleanup(ctrl.Finish)
 
-	orgID := uuid.New()
-	ledgerID := uuid.New()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	// Service must never be reached: buildCountFilter rejects an out-of-allowlist
 	// status with the canonical 400 (ErrInvalidQueryParameter), NOT a native Huma 422.
@@ -149,8 +151,8 @@ func TestCountTransactions_BadUUID_Canonical400(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	t.Cleanup(ctrl.Finish)
 
-	orgID := uuid.New()
-	ledgerID := uuid.New()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	// Service must never be reached: ParseUUIDPathParameters rejects the bad
 	// ledger id with the canonical 0065 / 400 before Huma.
@@ -175,8 +177,8 @@ func TestCountTransactions_ValidStatusNormalized_204(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	t.Cleanup(ctrl.Finish)
 
-	orgID := uuid.New()
-	ledgerID := uuid.New()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	repo := transaction.NewMockRepository(ctrl)
 	repo.EXPECT().CountByFilters(gomock.Any(), orgID, ledgerID, gomock.Any()).
@@ -205,8 +207,8 @@ func TestCountTransactions_ExplicitDateRange_204(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	t.Cleanup(ctrl.Finish)
 
-	orgID := uuid.New()
-	ledgerID := uuid.New()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	wantStart := time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC)
 	wantEnd := time.Date(2025, 1, 31, 23, 59, 59, 0, time.UTC)
@@ -254,8 +256,8 @@ func TestCountTransactions_InvalidFilters_Canonical400(t *testing.T) {
 			ctrl := gomock.NewController(t)
 			t.Cleanup(ctrl.Finish)
 
-			orgID := uuid.New()
-			ledgerID := uuid.New()
+			orgID := uuid.Must(libCommons.GenerateUUIDv7())
+			ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
 
 			handler := &TransactionHandler{Query: &query.UseCase{TransactionRepo: transaction.NewMockRepository(ctrl)}}
 
@@ -278,8 +280,8 @@ func TestCountTransactions_QueryError_500(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	t.Cleanup(ctrl.Finish)
 
-	orgID := uuid.New()
-	ledgerID := uuid.New()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	repo := transaction.NewMockRepository(ctrl)
 	repo.EXPECT().CountByFilters(gomock.Any(), orgID, ledgerID, gomock.Any()).
@@ -308,7 +310,7 @@ func TestCountTransactions_BadPathUUID_Direct(t *testing.T) {
 
 	_, err := handler.CountTransactionsByFilters(context.Background(), &CountTransactionsRequest{
 		OrganizationID: "not-a-uuid",
-		LedgerID:       uuid.New().String(),
+		LedgerID:       uuid.Must(libCommons.GenerateUUIDv7()).String(),
 	})
 
 	var detail *pkgHTTP.Detail

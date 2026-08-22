@@ -2177,7 +2177,7 @@ func TestIntegration_TransactionHandler_IdempotencyReplay(t *testing.T) {
 		}
 	}`, sourceAlias, destAlias)
 
-	idempotencyKey := "test-idempotency-" + uuid.New().String()
+	idempotencyKey := "test-idempotency-" + uuid.Must(libCommons.GenerateUUIDv7()).String()
 
 	// First request with idempotency key
 	req1 := httptest.NewRequest("POST",
@@ -2333,7 +2333,7 @@ func TestIntegration_TransactionHandler_IdempotencyReplay_IgnoresReplayerSkip(t 
 		}
 	}`, sourceAlias, destAlias)
 
-	idempotencyKey := "idem-skip-" + uuid.New().String()
+	idempotencyKey := "idem-skip-" + uuid.Must(libCommons.GenerateUUIDv7()).String()
 
 	// First POST.
 	req1 := httptest.NewRequest("POST",
@@ -2630,7 +2630,7 @@ func TestIntegration_Property_Protocol_Idempotency(t *testing.T) {
 		}
 	}`
 
-	idempotencyKey := "idem-fuzz-" + uuid.New().String()
+	idempotencyKey := "idem-fuzz-" + uuid.Must(libCommons.GenerateUUIDv7()).String()
 
 	// Send same request 5 times with same idempotency key
 	var results []int

@@ -100,17 +100,7 @@ func (in *ListPortfoliosRequest) Resolve(ctx huma.Context) []error {
 // queries rebuilds the map[string]string that ValidateParameters consumes, matching
 // Fiber's c.Queries() (last value wins for a repeated key, empty keys included).
 func (in *ListPortfoliosRequest) queries() map[string]string {
-	out := make(map[string]string, len(in.rawQuery))
-	for k, vs := range in.rawQuery {
-		if len(vs) == 0 {
-			out[k] = ""
-			continue
-		}
-
-		out[k] = vs[len(vs)-1]
-	}
-
-	return out
+	return queriesFromValues(in.rawQuery)
 }
 
 // ListPortfoliosResponse carries the pagination envelope verbatim.

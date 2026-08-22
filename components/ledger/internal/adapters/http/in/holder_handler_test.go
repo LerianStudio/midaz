@@ -14,6 +14,8 @@ import (
 	"testing"
 	"time"
 
+	libCommons "github.com/LerianStudio/lib-commons/v6/commons"
+
 	libConstants "github.com/LerianStudio/lib-commons/v6/commons/constants"
 	openapi "github.com/LerianStudio/lib-commons/v6/commons/net/http/openapi"
 	libProblem "github.com/LerianStudio/lib-commons/v6/commons/net/http/problem"
@@ -91,14 +93,14 @@ func TestCreateHolder_Success(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	t.Cleanup(ctrl.Finish)
 
-	orgID := uuid.New()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	handler, repo := newHolderHandler(t, ctrl)
 	repo.EXPECT().
 		Create(gomock.Any(), orgID.String(), gomock.Any()).
 		DoAndReturn(func(_ context.Context, _ string, h *mmodel.Holder) (*mmodel.Holder, error) {
-			h.CreatedAt = time.Now()
-			h.UpdatedAt = time.Now()
+			h.CreatedAt = fixedTestTime
+			h.UpdatedAt = fixedTestTime
 			return h, nil
 		}).Times(1)
 
@@ -129,7 +131,7 @@ func TestCreateHolder_AuthPreserved(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	t.Cleanup(ctrl.Finish)
 
-	orgID := uuid.New()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	// No repo expectations: a rejected auth must never reach the service.
 	handler, _ := newHolderHandler(t, ctrl)
@@ -152,7 +154,7 @@ func TestCreateHolder_MalformedBody_Canonical400(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	t.Cleanup(ctrl.Finish)
 
-	orgID := uuid.New()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	// Malformed JSON -> DecodeAndValidate returns 0094; HumaProblem projects it to
 	// problem+json at 400 (not a native Huma 422). Service never reached.
@@ -183,8 +185,8 @@ func TestGetHolderByID_Success(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	t.Cleanup(ctrl.Finish)
 
-	orgID := uuid.New()
-	holderID := uuid.New()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	holderID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	name := "John Doe"
 	htype := "NATURAL_PERSON"
@@ -216,7 +218,7 @@ func TestGetHolderByID_BadUUID_Canonical400(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	t.Cleanup(ctrl.Finish)
 
-	orgID := uuid.New()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	// Service must never be reached: ParseUUIDPathParameters rejects the bad id
 	// with the canonical 0065 / 400 before Huma.
@@ -242,8 +244,8 @@ func TestUpdateHolder_MergePatch_NullFieldRemoved(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	t.Cleanup(ctrl.Finish)
 
-	orgID := uuid.New()
-	holderID := uuid.New()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	holderID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	// The PATCH sends "externalId": null. The Huma shell must derive
 	// fieldsToRemove=["externalId"] via FindNilFields and pass it to Update, exactly
@@ -286,8 +288,8 @@ func TestDeleteHolder_204Empty(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	t.Cleanup(ctrl.Finish)
 
-	orgID := uuid.New()
-	holderID := uuid.New()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	holderID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	// The delete flow guards on linked instruments (InstrumentRepo.Count) and owned
 	// accounts (LedgerAccounts.CountAccountsByHolder) before deleting; the stubs report
@@ -320,7 +322,7 @@ func TestGetAllHolders_Success(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	t.Cleanup(ctrl.Finish)
 
-	orgID := uuid.New()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	handler, repo := newHolderHandler(t, ctrl)
 	repo.EXPECT().
@@ -369,10 +371,10 @@ func buildHumaHolderAccountsApp(t *testing.T, handler *HolderAccountsHandler) *f
 
 func TestGetAccountsByHolder_Success(t *testing.T) {
 	// NOT parallel: process-global huma state.
-	orgID := uuid.New()
-	holderID := uuid.New()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	holderID := uuid.Must(libCommons.GenerateUUIDv7())
 
-	reader := &stubHolderAccountsReader{accounts: []*mmodel.Account{{ID: uuid.New().String(), Name: "Wallet"}}}
+	reader := &stubHolderAccountsReader{accounts: []*mmodel.Account{{ID: uuid.Must(libCommons.GenerateUUIDv7()).String(), Name: "Wallet"}}}
 	handler := &HolderAccountsHandler{Reader: reader}
 
 	app := buildHumaHolderAccountsApp(t, handler)
@@ -402,7 +404,7 @@ func TestGetAllHolders_BadQuery_Canonical400(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	t.Cleanup(ctrl.Finish)
 
-	orgID := uuid.New()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	// Service must never be reached: ValidateParameters rejects limit=abc with the
 	// canonical 400 (ErrInvalidQueryParameter), NOT a native Huma 422.
@@ -438,7 +440,7 @@ func TestCreateHolder_MissingRequiredField_Canonical400(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	t.Cleanup(ctrl.Finish)
 
-	orgID := uuid.New()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	// "document" is required: DecodeAndValidate rejects before the service.
 	handler, _ := newHolderHandler(t, ctrl)
@@ -467,7 +469,7 @@ func TestCreateHolder_ServiceError_500(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	t.Cleanup(ctrl.Finish)
 
-	orgID := uuid.New()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	handler, repo := newHolderHandler(t, ctrl)
 	repo.EXPECT().
@@ -499,8 +501,8 @@ func TestCreateHolder_IdempotentReplay(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	t.Cleanup(ctrl.Finish)
 
-	orgID := uuid.New()
-	holderID := uuid.New()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	holderID := uuid.Must(libCommons.GenerateUUIDv7())
 	name := "John Doe"
 	document := "91315026015"
 	holderType := "NATURAL_PERSON"
@@ -561,8 +563,8 @@ func TestGetHolderByID_IncludeDeleted(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	t.Cleanup(ctrl.Finish)
 
-	orgID := uuid.New()
-	holderID := uuid.New()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	holderID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	name := "John Doe"
 	htype := "NATURAL_PERSON"
@@ -594,8 +596,8 @@ func TestGetHolderByID_NotFound_404(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	t.Cleanup(ctrl.Finish)
 
-	orgID := uuid.New()
-	holderID := uuid.New()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	holderID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	handler, repo := newHolderHandler(t, ctrl)
 	repo.EXPECT().
@@ -622,8 +624,8 @@ func TestGetHolderByID_ServiceError_500(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	t.Cleanup(ctrl.Finish)
 
-	orgID := uuid.New()
-	holderID := uuid.New()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	holderID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	handler, repo := newHolderHandler(t, ctrl)
 	repo.EXPECT().
@@ -651,8 +653,8 @@ func TestUpdateHolder_NotFound_404(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	t.Cleanup(ctrl.Finish)
 
-	orgID := uuid.New()
-	holderID := uuid.New()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	holderID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	handler, repo := newHolderHandler(t, ctrl)
 	repo.EXPECT().
@@ -681,8 +683,8 @@ func TestUpdateHolder_ServiceError_500(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	t.Cleanup(ctrl.Finish)
 
-	orgID := uuid.New()
-	holderID := uuid.New()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	holderID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	handler, repo := newHolderHandler(t, ctrl)
 	repo.EXPECT().
@@ -730,8 +732,8 @@ func TestDeleteHolder_HardDelete_204(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	t.Cleanup(ctrl.Finish)
 
-	orgID := uuid.New()
-	holderID := uuid.New()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	holderID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	// hard_delete=true must reach the repository as the boolean flag.
 	handler, holderRepo, instrumentRepo := newHolderDeleteHandler(t, ctrl)
@@ -755,8 +757,8 @@ func TestDeleteHolder_HasInstruments_422(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	t.Cleanup(ctrl.Finish)
 
-	orgID := uuid.New()
-	holderID := uuid.New()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	holderID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	// A linked instrument blocks the delete before the Mongo delete is reached.
 	handler, _, instrumentRepo := newHolderDeleteHandler(t, ctrl)
@@ -782,8 +784,8 @@ func TestDeleteHolder_NotFound_404(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	t.Cleanup(ctrl.Finish)
 
-	orgID := uuid.New()
-	holderID := uuid.New()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	holderID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	handler, holderRepo, instrumentRepo := newHolderDeleteHandler(t, ctrl)
 	instrumentRepo.EXPECT().Count(gomock.Any(), orgID.String(), holderID).Return(int64(0), nil).Times(1)
@@ -811,8 +813,8 @@ func TestDeleteHolder_ServiceError_500(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	t.Cleanup(ctrl.Finish)
 
-	orgID := uuid.New()
-	holderID := uuid.New()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	holderID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	handler, holderRepo, instrumentRepo := newHolderDeleteHandler(t, ctrl)
 	instrumentRepo.EXPECT().Count(gomock.Any(), orgID.String(), holderID).Return(int64(0), nil).Times(1)
@@ -841,8 +843,8 @@ func TestGetAllHolders_IncludeDeleted(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	t.Cleanup(ctrl.Finish)
 
-	orgID := uuid.New()
-	holderID := uuid.New()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	holderID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	name := "John Doe"
 	htype := "NATURAL_PERSON"
@@ -881,7 +883,7 @@ func TestGetAllHolders_ServiceError_500(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	t.Cleanup(ctrl.Finish)
 
-	orgID := uuid.New()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	handler, repo := newHolderHandler(t, ctrl)
 	repo.EXPECT().
@@ -906,8 +908,8 @@ func TestGetAllHolders_ServiceError_500(t *testing.T) {
 
 func TestGetAccountsByHolder_EmptyList(t *testing.T) {
 	// NOT parallel: process-global huma state.
-	orgID := uuid.New()
-	holderID := uuid.New()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	holderID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	reader := &stubHolderAccountsReader{accounts: []*mmodel.Account{}}
 	handler := &HolderAccountsHandler{Reader: reader}
@@ -932,8 +934,8 @@ func TestGetAccountsByHolder_EmptyList(t *testing.T) {
 
 func TestGetAccountsByHolder_NotFound_404(t *testing.T) {
 	// NOT parallel: process-global huma state.
-	orgID := uuid.New()
-	holderID := uuid.New()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	holderID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	reader := &stubHolderAccountsReader{err: pkg.ValidateBusinessError(constant.ErrNoAccountsFound, constant.EntityAccount)}
 	handler := &HolderAccountsHandler{Reader: reader}
@@ -955,8 +957,8 @@ func TestGetAccountsByHolder_NotFound_404(t *testing.T) {
 
 func TestGetAccountsByHolder_ReaderError_500(t *testing.T) {
 	// NOT parallel: process-global huma state.
-	orgID := uuid.New()
-	holderID := uuid.New()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	holderID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	reader := &stubHolderAccountsReader{err: holderInternalServerError()}
 	handler := &HolderAccountsHandler{Reader: reader}
@@ -979,8 +981,8 @@ func TestGetAccountsByHolder_ReaderError_500(t *testing.T) {
 
 func TestGetAccountsByHolder_BadQuery_Canonical400(t *testing.T) {
 	// NOT parallel: process-global huma state.
-	orgID := uuid.New()
-	holderID := uuid.New()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	holderID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	// Reader must never be reached: ValidateParameters rejects limit=abc.
 	reader := &stubHolderAccountsReader{}

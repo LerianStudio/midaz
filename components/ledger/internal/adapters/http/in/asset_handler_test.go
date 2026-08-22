@@ -11,7 +11,8 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
-	"time"
+
+	libCommons "github.com/LerianStudio/lib-commons/v6/commons"
 
 	openapi "github.com/LerianStudio/lib-commons/v6/commons/net/http/openapi"
 	libProblem "github.com/LerianStudio/lib-commons/v6/commons/net/http/problem"
@@ -96,8 +97,8 @@ func TestCreateAsset_Success(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	t.Cleanup(ctrl.Finish)
 
-	orgID := uuid.New()
-	ledgerID := uuid.New()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	assetRepo := asset.NewMockRepository(ctrl)
 	metadataRepo := mongodb.NewMockRepository(ctrl)
@@ -107,9 +108,9 @@ func TestCreateAsset_Success(t *testing.T) {
 	assetRepo.EXPECT().FindByNameOrCode(gomock.Any(), orgID, ledgerID, "Test Asset", "TST").Return(false, nil).Times(1)
 	assetRepo.EXPECT().Create(gomock.Any(), gomock.Any()).
 		DoAndReturn(func(_ any, a *mmodel.Asset) (*mmodel.Asset, error) {
-			a.ID = uuid.New().String()
-			a.CreatedAt = time.Now()
-			a.UpdatedAt = time.Now()
+			a.ID = uuid.Must(libCommons.GenerateUUIDv7()).String()
+			a.CreatedAt = fixedTestTime
+			a.UpdatedAt = fixedTestTime
 			return a, nil
 		}).Times(1)
 	// The shared body pipeline (DecodeAndValidate -> parseMetadata) initializes
@@ -158,8 +159,8 @@ func TestCreateAsset_AuthPreserved(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	t.Cleanup(ctrl.Finish)
 
-	orgID := uuid.New()
-	ledgerID := uuid.New()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	// No repo expectations: a rejected auth must never reach the service.
 	handler := &AssetHandler{Command: &command.UseCase{
@@ -187,8 +188,8 @@ func TestCreateAsset_ValidationError_Canonical400(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	t.Cleanup(ctrl.Finish)
 
-	orgID := uuid.New()
-	ledgerID := uuid.New()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	// Missing required "name" -> imperative ValidateStruct -> canonical 400, service never reached.
 	handler := &AssetHandler{Command: &command.UseCase{
@@ -224,8 +225,8 @@ func TestCreateAsset_MalformedBody_Canonical400(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	t.Cleanup(ctrl.Finish)
 
-	orgID := uuid.New()
-	ledgerID := uuid.New()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	// Malformed JSON -> DecodeAndValidate returns a pkg.ResponseError (0094).
 	// HumaProblem must project it to problem+json at 400 (NOT the 500 fallback and
@@ -262,9 +263,9 @@ func TestGetAssetByID_Success(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	t.Cleanup(ctrl.Finish)
 
-	orgID := uuid.New()
-	ledgerID := uuid.New()
-	assetID := uuid.New()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
+	assetID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	assetRepo := asset.NewMockRepository(ctrl)
 	metadataRepo := mongodb.NewMockRepository(ctrl)
@@ -297,8 +298,8 @@ func TestGetAssetByID_BadUUID_Canonical400(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	t.Cleanup(ctrl.Finish)
 
-	orgID := uuid.New()
-	ledgerID := uuid.New()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	// Service must never be reached: ParseUUIDPathParameters rejects the bad id
 	// with the canonical 0065 / 400 before Huma.
@@ -327,8 +328,8 @@ func TestGetAllAssets_Success(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	t.Cleanup(ctrl.Finish)
 
-	orgID := uuid.New()
-	ledgerID := uuid.New()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	assetRepo := asset.NewMockRepository(ctrl)
 	assetRepo.EXPECT().FindAll(gomock.Any(), orgID, ledgerID, gomock.Any()).Return([]*mmodel.Asset{}, nil).Times(1)
@@ -357,8 +358,8 @@ func TestGetAllAssets_BadQuery_Canonical400(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	t.Cleanup(ctrl.Finish)
 
-	orgID := uuid.New()
-	ledgerID := uuid.New()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	// Service must never be reached: ValidateParameters rejects limit=abc with
 	// the canonical 400 (ErrInvalidQueryParameter), NOT a native Huma 422.
@@ -384,9 +385,9 @@ func TestDeleteAsset_204Empty(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	t.Cleanup(ctrl.Finish)
 
-	orgID := uuid.New()
-	ledgerID := uuid.New()
-	assetID := uuid.New()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
+	assetID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	assetRepo := asset.NewMockRepository(ctrl)
 	accountRepo := account.NewMockRepository(ctrl)
@@ -420,8 +421,8 @@ func TestCountAssets_204WithHeader(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	t.Cleanup(ctrl.Finish)
 
-	orgID := uuid.New()
-	ledgerID := uuid.New()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	assetRepo := asset.NewMockRepository(ctrl)
 	assetRepo.EXPECT().Count(gomock.Any(), orgID, ledgerID).Return(int64(42), nil).Times(1)
@@ -442,7 +443,6 @@ func TestCountAssets_204WithHeader(t *testing.T) {
 	assert.Equal(t, "0", resp.Header.Get("Content-Length"), "HEAD 204 must set Content-Length: 0 (parity with the Fiber NoContent path)")
 }
 
-// --- ported from the retired Fiber-wrapper tests (asset_test.go) ---------------
 //
 // The six exported fiber.Ctx terminals on AssetHandler were deleted with the Huma
 // migration; the branches their tests covered in the shared cores are exercised
@@ -453,9 +453,9 @@ func TestUpdateAsset_Success(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	t.Cleanup(ctrl.Finish)
 
-	orgID := uuid.New()
-	ledgerID := uuid.New()
-	assetID := uuid.New()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
+	assetID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	assetRepo := asset.NewMockRepository(ctrl)
 	metadataRepo := mongodb.NewMockRepository(ctrl)
@@ -500,9 +500,9 @@ func TestUpdateAsset_NotFound_Canonical404(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	t.Cleanup(ctrl.Finish)
 
-	orgID := uuid.New()
-	ledgerID := uuid.New()
-	assetID := uuid.New()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
+	assetID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	assetRepo := asset.NewMockRepository(ctrl)
 	assetRepo.EXPECT().Update(gomock.Any(), orgID, ledgerID, assetID, gomock.Any()).
@@ -534,8 +534,8 @@ func TestCreateAsset_ServiceError_Canonical4xx(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	t.Cleanup(ctrl.Finish)
 
-	orgID := uuid.New()
-	ledgerID := uuid.New()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	assetRepo := asset.NewMockRepository(ctrl)
 	assetRepo.EXPECT().FindByNameOrCode(gomock.Any(), orgID, ledgerID, "Test Asset", "TST").Return(false, nil).Times(1)
@@ -569,9 +569,9 @@ func TestGetAllAssets_MetadataFilter(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	t.Cleanup(ctrl.Finish)
 
-	orgID := uuid.New()
-	ledgerID := uuid.New()
-	asset1 := uuid.New().String()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
+	asset1 := uuid.Must(libCommons.GenerateUUIDv7()).String()
 
 	assetRepo := asset.NewMockRepository(ctrl)
 	metadataRepo := mongodb.NewMockRepository(ctrl)
@@ -606,8 +606,8 @@ func TestGetAllAssets_MetadataFilter_NoMatch_Canonical404(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	t.Cleanup(ctrl.Finish)
 
-	orgID := uuid.New()
-	ledgerID := uuid.New()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	metadataRepo := mongodb.NewMockRepository(ctrl)
 	metadataRepo.EXPECT().FindList(gomock.Any(), constant.EntityAsset, gomock.Any()).Return(nil, nil).Times(1)
@@ -637,8 +637,8 @@ func TestGetAllAssets_ServiceError_Canonical404(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	t.Cleanup(ctrl.Finish)
 
-	orgID := uuid.New()
-	ledgerID := uuid.New()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	assetRepo := asset.NewMockRepository(ctrl)
 	assetRepo.EXPECT().FindAll(gomock.Any(), orgID, ledgerID, gomock.Any()).
@@ -666,9 +666,9 @@ func TestGetAssetByID_ServiceError_Canonical404(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	t.Cleanup(ctrl.Finish)
 
-	orgID := uuid.New()
-	ledgerID := uuid.New()
-	assetID := uuid.New()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
+	assetID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	assetRepo := asset.NewMockRepository(ctrl)
 	assetRepo.EXPECT().Find(gomock.Any(), orgID, ledgerID, assetID).
@@ -696,9 +696,9 @@ func TestDeleteAsset_ServiceError_Canonical404(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	t.Cleanup(ctrl.Finish)
 
-	orgID := uuid.New()
-	ledgerID := uuid.New()
-	assetID := uuid.New()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
+	assetID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	assetRepo := asset.NewMockRepository(ctrl)
 	assetRepo.EXPECT().Find(gomock.Any(), orgID, ledgerID, assetID).
@@ -727,8 +727,8 @@ func TestCountAssets_ServiceError(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	t.Cleanup(ctrl.Finish)
 
-	orgID := uuid.New()
-	ledgerID := uuid.New()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	assetRepo := asset.NewMockRepository(ctrl)
 	assetRepo.EXPECT().Count(gomock.Any(), orgID, ledgerID).

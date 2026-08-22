@@ -100,6 +100,8 @@ func DefaultProvisioningConfig() ProvisioningConfig {
 // Convenience operations (for admin tooling and conditional logic):
 //   - IsProvisioned: quick check if organization has been provisioned
 //   - IsActive: quick check if organization uses envelope encryption
+//
+//go:generate mockgen --destination=./provisioning_mock.go --package=encryption . ProvisioningService
 type ProvisioningService interface {
 	Provision(ctx context.Context, req ProvisionInput) (ProvisionResult, error)
 	GetProvisioningStatus(ctx context.Context, organizationID string) (*mmodel.RegistryStatus, error)

@@ -14,6 +14,8 @@ import (
 	"testing"
 	"time"
 
+	libCommons "github.com/LerianStudio/lib-commons/v6/commons"
+
 	libHTTP "github.com/LerianStudio/lib-commons/v6/commons/net/http"
 	openapi "github.com/LerianStudio/lib-commons/v6/commons/net/http/openapi"
 	libProblem "github.com/LerianStudio/lib-commons/v6/commons/net/http/problem"
@@ -69,7 +71,7 @@ func buildHumaAuditApp(t *testing.T, handler *AuditHandler, authOK bool) *fiber.
 
 func TestGetAuditEvents_Success(t *testing.T) {
 	// NOT parallel: buildHumaAuditApp mutates process-global huma state.
-	orgID := uuid.New()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
 	ts := time.Date(2026, 1, 2, 3, 4, 5, 0, time.UTC)
 	eventID := uuid.MustParse("11111111-2222-3333-4444-555555555555")
 
@@ -118,9 +120,12 @@ func TestGetAuditEvents_Success(t *testing.T) {
 	assert.Equal(t, "next-token", env["next_cursor"])
 	assert.Equal(t, "prev-token", env["prev_cursor"])
 
-	items := env["items"].([]any)
+	items, ok := env["items"].([]any)
+	require.True(t, ok, "items should be an array, body: %s", string(respBody))
 	require.Len(t, items, 1)
-	item := items[0].(map[string]any)
+
+	item, ok := items[0].(map[string]any)
+	require.True(t, ok, "item should be an object, body: %s", string(respBody))
 	assert.Equal(t, "provision", item["action"])
 	assert.Equal(t, "PENDING", item["from_status"])
 	assert.Equal(t, "ACTIVE", item["to_status"])
@@ -139,7 +144,7 @@ func TestGetAuditEvents_Success(t *testing.T) {
 func TestGetAuditEvents_UnsupportedOutcomeRejectedByCore(t *testing.T) {
 	// NOT parallel: process-global huma state. An unsupported outcome filter must be
 	// rejected by the core (canonical 400), NOT bound/accepted by Huma.
-	orgID := uuid.New()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	stub := &auditServiceStub{}
 	handler := &AuditHandler{Service: stub}
@@ -157,7 +162,7 @@ func TestGetAuditEvents_UnsupportedOutcomeRejectedByCore(t *testing.T) {
 
 func TestGetAuditEvents_AuthPreserved(t *testing.T) {
 	// NOT parallel: process-global huma state.
-	orgID := uuid.New()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	stub := &auditServiceStub{}
 	handler := &AuditHandler{Service: stub}
@@ -179,7 +184,7 @@ func TestGetAuditEvents_AuthPreserved(t *testing.T) {
 // service error branches.
 func TestGetAuditEvents_QueryContract(t *testing.T) {
 	// NOT parallel: buildHumaAuditApp mutates process-global huma state.
-	orgID := uuid.New()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
 	ts := time.Date(2026, 1, 2, 3, 4, 5, 0, time.UTC)
 
 	tests := []struct {
@@ -401,7 +406,7 @@ func TestGetAuditEvents_QueryContract(t *testing.T) {
 			stub: &auditServiceStub{
 				events: []*mmodel.ProtectionAuditEvent{
 					{
-						ID:             uuid.New(),
+						ID:             uuid.Must(libCommons.GenerateUUIDv7()),
 						OrganizationID: orgID.String(),
 						Action:         mmodel.AuditActionProvision,
 						Outcome:        mmodel.AuditOutcomeSuccess,
@@ -418,10 +423,12 @@ func TestGetAuditEvents_QueryContract(t *testing.T) {
 				var env map[string]any
 				require.NoError(t, json.Unmarshal(body, &env))
 
-				items := env["items"].([]any)
+				items, ok := env["items"].([]any)
+				require.True(t, ok, "items should be an array, body: %s", string(body))
 				require.Len(t, items, 1)
 
-				item := items[0].(map[string]any)
+				item, ok := items[0].(map[string]any)
+				require.True(t, ok, "item should be an object, body: %s", string(body))
 				assert.Equal(t, "", item["from_status"])
 				assert.Equal(t, "", item["to_status"])
 			},
@@ -466,7 +473,7 @@ func TestGetAuditEvents_QueryContract(t *testing.T) {
 // envelope carries only the public audit fields, never the internal-only ones.
 func TestGetAuditEvents_InternalFieldsExcluded(t *testing.T) {
 	// NOT parallel: process-global huma state.
-	orgID := uuid.New()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
 	ts := time.Date(2026, 1, 2, 3, 4, 5, 0, time.UTC)
 
 	stub := &auditServiceStub{
@@ -525,10 +532,12 @@ func TestGetAuditEvents_InternalFieldsExcluded(t *testing.T) {
 	var env map[string]any
 	require.NoError(t, json.Unmarshal(body, &env), "body: %s", raw)
 
-	items := env["items"].([]any)
+	items, ok := env["items"].([]any)
+	require.True(t, ok, "items should be an array, body: %s", raw)
 	require.Len(t, items, 1)
 
-	item := items[0].(map[string]any)
+	item, ok := items[0].(map[string]any)
+	require.True(t, ok, "item should be an object, body: %s", raw)
 	assert.Equal(t, "11111111-2222-3333-4444-555555555555", item["id"])
 	assert.Equal(t, "admin@example.com", item["actor"])
 	assert.Equal(t, "success", item["outcome"])

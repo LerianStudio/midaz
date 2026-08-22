@@ -12,6 +12,8 @@ import (
 	"strings"
 	"testing"
 
+	libCommons "github.com/LerianStudio/lib-commons/v6/commons"
+
 	libHTTP "github.com/LerianStudio/lib-commons/v6/commons/net/http"
 	openapi "github.com/LerianStudio/lib-commons/v6/commons/net/http/openapi"
 	libProblem "github.com/LerianStudio/lib-commons/v6/commons/net/http/problem"
@@ -76,9 +78,9 @@ func TestGetAllOperationsByAccount_Success(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	t.Cleanup(ctrl.Finish)
 
-	orgID := uuid.New()
-	ledgerID := uuid.New()
-	accountID := uuid.New()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
+	accountID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	// Default (non-metadata) path: empty operations returns BEFORE the mongodb
 	// metadata overlay, so no TransactionMetadataRepo mock is needed.
@@ -111,9 +113,9 @@ func TestGetAllOperationsByAccount_AuthPreserved(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	t.Cleanup(ctrl.Finish)
 
-	orgID := uuid.New()
-	ledgerID := uuid.New()
-	accountID := uuid.New()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
+	accountID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	// No repo expectations: a rejected auth must never reach the service.
 	handler := &OperationHandler{Query: &query.UseCase{OperationRepo: operation.NewMockRepository(ctrl)}}
@@ -133,9 +135,9 @@ func TestGetAllOperationsByAccount_BadQuery_Canonical400(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	t.Cleanup(ctrl.Finish)
 
-	orgID := uuid.New()
-	ledgerID := uuid.New()
-	accountID := uuid.New()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
+	accountID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	// Service must never be reached: ValidateParameters rejects limit=abc with
 	// the canonical 400 (ErrInvalidQueryParameter), NOT a native Huma 422.
@@ -161,8 +163,8 @@ func TestGetAllOperationsByAccount_BadAccountUUID_Canonical400(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	t.Cleanup(ctrl.Finish)
 
-	orgID := uuid.New()
-	ledgerID := uuid.New()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	// Service must never be reached: ParseUUIDPathParameters rejects the bad
 	// account_id with the canonical 0065 / 400 before Huma.
@@ -188,10 +190,10 @@ func TestGetOperationByAccount_Success(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	t.Cleanup(ctrl.Finish)
 
-	orgID := uuid.New()
-	ledgerID := uuid.New()
-	accountID := uuid.New()
-	operationID := uuid.New()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
+	accountID := uuid.Must(libCommons.GenerateUUIDv7())
+	operationID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	opRepo := operation.NewMockRepository(ctrl)
 	metaRepo := txMongodb.NewMockRepository(ctrl)
@@ -220,9 +222,9 @@ func TestGetOperationByAccount_Success(t *testing.T) {
 
 func TestUpdateOperation_BadOperationUUID_Canonical400(t *testing.T) {
 	// NOT parallel: process-global huma state.
-	orgID := uuid.New()
-	ledgerID := uuid.New()
-	txID := uuid.New()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
+	txID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	// Service must never be reached: ParseUUIDPathParameters rejects the bad
 	// operation_id with the canonical 0065 / 400 before Huma.
@@ -248,10 +250,10 @@ func TestUpdateOperation_BadOperationUUID_Canonical400(t *testing.T) {
 
 func TestUpdateOperation_MalformedBody_Canonical400(t *testing.T) {
 	// NOT parallel: process-global huma state.
-	orgID := uuid.New()
-	ledgerID := uuid.New()
-	txID := uuid.New()
-	operationID := uuid.New()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
+	txID := uuid.Must(libCommons.GenerateUUIDv7())
+	operationID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	// Service must never be reached: DecodeAndValidate rejects the malformed body
 	// with the canonical 400 BEFORE the command — no native Huma 422.
@@ -272,10 +274,10 @@ func TestUpdateOperation_MalformedBody_Canonical400(t *testing.T) {
 
 func TestUpdateOperation_AuthPreserved(t *testing.T) {
 	// NOT parallel: process-global huma state.
-	orgID := uuid.New()
-	ledgerID := uuid.New()
-	txID := uuid.New()
-	operationID := uuid.New()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
+	txID := uuid.Must(libCommons.GenerateUUIDv7())
+	operationID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	// No repo expectations: a rejected auth must never reach the service.
 	handler := &OperationHandler{}
@@ -298,9 +300,9 @@ func TestGetOperationByAccount_BadOperationUUID_Canonical400(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	t.Cleanup(ctrl.Finish)
 
-	orgID := uuid.New()
-	ledgerID := uuid.New()
-	accountID := uuid.New()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
+	accountID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	// Service must never be reached: ParseUUIDPathParameters rejects the bad
 	// operation_id with the canonical 0065 / 400 before Huma.
@@ -326,10 +328,10 @@ func TestGetAllOperationsByAccount_MetadataFilter_Success(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	t.Cleanup(ctrl.Finish)
 
-	orgID := uuid.New()
-	ledgerID := uuid.New()
-	accountID := uuid.New()
-	opID := uuid.New().String()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
+	accountID := uuid.Must(libCommons.GenerateUUIDv7())
+	opID := uuid.Must(libCommons.GenerateUUIDv7()).String()
 
 	// Metadata branch: query.GetAllMetadataOperations resolves the filter through
 	// FindList first, then overlays the matched data onto FindAllByAccount rows.
@@ -376,9 +378,9 @@ func TestGetAllOperationsByAccount_MetadataFilter_NotFound(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	t.Cleanup(ctrl.Finish)
 
-	orgID := uuid.New()
-	ledgerID := uuid.New()
-	accountID := uuid.New()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
+	accountID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	// A nil metadata list short-circuits to the canonical 0069 / 404 before the
 	// operation repository is touched.
@@ -410,9 +412,9 @@ func TestGetAllOperationsByAccount_ServiceError_500(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	t.Cleanup(ctrl.Finish)
 
-	orgID := uuid.New()
-	ledgerID := uuid.New()
-	accountID := uuid.New()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
+	accountID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	opRepo := operation.NewMockRepository(ctrl)
 	opRepo.EXPECT().FindAllByAccount(gomock.Any(), orgID, ledgerID, accountID, gomock.Any(), gomock.Any()).
@@ -445,10 +447,10 @@ func TestGetOperationByAccount_NotFound_404(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	t.Cleanup(ctrl.Finish)
 
-	orgID := uuid.New()
-	ledgerID := uuid.New()
-	accountID := uuid.New()
-	operationID := uuid.New()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
+	accountID := uuid.Must(libCommons.GenerateUUIDv7())
+	operationID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	opRepo := operation.NewMockRepository(ctrl)
 	opRepo.EXPECT().FindByAccount(gomock.Any(), orgID, ledgerID, accountID, operationID).
@@ -476,11 +478,11 @@ func TestUpdateOperation_Success(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	t.Cleanup(ctrl.Finish)
 
-	orgID := uuid.New()
-	ledgerID := uuid.New()
-	txID := uuid.New()
-	operationID := uuid.New()
-	accountID := uuid.New()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
+	txID := uuid.Must(libCommons.GenerateUUIDv7())
+	operationID := uuid.Must(libCommons.GenerateUUIDv7())
+	accountID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	opRepo := operation.NewMockRepository(ctrl)
 	metaRepo := txMongodb.NewMockRepository(ctrl)
@@ -543,10 +545,10 @@ func TestUpdateOperation_CommandNotFound_404(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	t.Cleanup(ctrl.Finish)
 
-	orgID := uuid.New()
-	ledgerID := uuid.New()
-	txID := uuid.New()
-	operationID := uuid.New()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
+	txID := uuid.Must(libCommons.GenerateUUIDv7())
+	operationID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	opRepo := operation.NewMockRepository(ctrl)
 	metaRepo := txMongodb.NewMockRepository(ctrl)
@@ -582,10 +584,10 @@ func TestUpdateOperation_QueryError_500(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	t.Cleanup(ctrl.Finish)
 
-	orgID := uuid.New()
-	ledgerID := uuid.New()
-	txID := uuid.New()
-	operationID := uuid.New()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
+	txID := uuid.Must(libCommons.GenerateUUIDv7())
+	operationID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	opRepo := operation.NewMockRepository(ctrl)
 	metaRepo := txMongodb.NewMockRepository(ctrl)

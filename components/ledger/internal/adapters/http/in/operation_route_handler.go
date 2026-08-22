@@ -112,17 +112,7 @@ func (in *ListOperationRoutesRequest) Resolve(ctx huma.Context) []error {
 // matching Fiber's c.Queries() (last value wins for a repeated key). Inlined per
 // the pattern (the query binder is copied, not a shared helper).
 func (in *ListOperationRoutesRequest) queries() map[string]string {
-	out := make(map[string]string, len(in.rawQuery))
-	for k, vs := range in.rawQuery {
-		if len(vs) == 0 {
-			out[k] = ""
-			continue
-		}
-
-		out[k] = vs[len(vs)-1]
-	}
-
-	return out
+	return queriesFromValues(in.rawQuery)
 }
 
 // ListOperationRoutesResponse carries the pagination envelope verbatim.

@@ -48,6 +48,10 @@ type PackageHandler struct {
 // validation, and the service call; the shell resolves the org id, decodes the
 // payload, and renders the returned package/error.
 func (handler *PackageHandler) createPackage(ctx context.Context, organizationID uuid.UUID, payload *model.CreatePackageInput) (*pack.Package, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+
 	var (
 		segmentID    uuid.UUID
 		ledgerID     uuid.UUID
@@ -115,6 +119,10 @@ func (handler *PackageHandler) createPackage(ctx context.Context, organizationID
 // second must not be silently answered as the first. Refusing also keeps the
 // listing away from the empty filter, which means every ledger of the organization.
 func (handler *PackageHandler) getAllPackagesInLedger(ctx context.Context, organizationID, ledgerID uuid.UUID, queries map[string]string) (model.Pagination, error) {
+	if err := ctx.Err(); err != nil {
+		return model.Pagination{}, err
+	}
+
 	if err := rejectLedgerQueryParameter(queries); err != nil {
 		return model.Pagination{}, err
 	}
@@ -132,6 +140,10 @@ func (handler *PackageHandler) getAllPackagesInLedger(ctx context.Context, organ
 // pins the listing to that ledger AFTER the query has been validated, so no query
 // the caller sends can widen or redirect it.
 func (handler *PackageHandler) listPackages(ctx context.Context, organizationID, ledgerID uuid.UUID, queries map[string]string) (model.Pagination, error) {
+	if err := ctx.Err(); err != nil {
+		return model.Pagination{}, err
+	}
+
 	logger, tracer, reqId, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "handler.get_all_package")
@@ -191,6 +203,10 @@ func (handler *PackageHandler) listPackages(ctx context.Context, organizationID,
 // renders the returned package/error. A ledgerID of uuid.Nil reads at organization
 // scope.
 func (handler *PackageHandler) getPackageByID(ctx context.Context, organizationID, ledgerID, id uuid.UUID) (*pack.Package, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+
 	logger, tracer, reqId, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "handler.get_package_by_id")
@@ -219,6 +235,10 @@ func (handler *PackageHandler) getPackageByID(ctx context.Context, organizationI
 // renders the returned package/error. A ledgerID of uuid.Nil writes at organization
 // scope.
 func (handler *PackageHandler) updatePackageByID(ctx context.Context, organizationID, ledgerID, id uuid.UUID, payload *model.UpdatePackageInput) (*pack.Package, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+
 	_, tracer, reqId, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "handler.update_package")
@@ -276,6 +296,10 @@ func (handler *PackageHandler) updatePackageByID(ctx context.Context, organizati
 // the span and the service call; the shell resolves the org+ledger+package ids and
 // renders the 204/error. A ledgerID of uuid.Nil deletes at organization scope.
 func (handler *PackageHandler) deletePackageByID(ctx context.Context, organizationID, ledgerID, id uuid.UUID) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+
 	logger, tracer, reqId, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "handler.delete_package_by_id")

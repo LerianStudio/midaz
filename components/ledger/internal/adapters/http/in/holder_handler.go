@@ -92,6 +92,10 @@ type CreateHolderResponse struct {
 // shared createHolder core, resolving the idempotency key/TTL from headers and
 // projecting the replayed flag onto the X-Idempotency-Replayed response header.
 func (handler *HolderHandler) CreateHolder(ctx context.Context, in *CreateHolderRequest) (*CreateHolderResponse, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, pkgHTTP.HumaProblem(err)
+	}
+
 	orgID, err := parsePathUUID(in.OrganizationID, "organization_id")
 	if err != nil {
 		return nil, pkgHTTP.HumaProblem(err)
@@ -135,6 +139,10 @@ type GetHolderResponse struct {
 
 // GetHolderByID delegates to getHolderByID.
 func (handler *HolderHandler) GetHolderByID(ctx context.Context, in *GetHolderRequest) (*GetHolderResponse, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, pkgHTTP.HumaProblem(err)
+	}
+
 	orgID, err := parsePathUUID(in.OrganizationID, "organization_id")
 	if err != nil {
 		return nil, pkgHTTP.HumaProblem(err)
@@ -173,6 +181,10 @@ type UpdateHolderResponse struct {
 // null-field paths via http.FindNilFields (the same derivation http.WithBody feeds the
 // Fiber patchRemove local), then delegates to the shared updateHolder core.
 func (handler *HolderHandler) UpdateHolder(ctx context.Context, in *UpdateHolderRequest) (*UpdateHolderResponse, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, pkgHTTP.HumaProblem(err)
+	}
+
 	orgID, err := parsePathUUID(in.OrganizationID, "organization_id")
 	if err != nil {
 		return nil, pkgHTTP.HumaProblem(err)
@@ -214,6 +226,10 @@ type DeleteHolderResponse struct{}
 
 // DeleteHolderByID delegates to deleteHolder; returns a bodiless 204 on success.
 func (handler *HolderHandler) DeleteHolderByID(ctx context.Context, in *DeleteHolderRequest) (*DeleteHolderResponse, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, pkgHTTP.HumaProblem(err)
+	}
+
 	orgID, err := parsePathUUID(in.OrganizationID, "organization_id")
 	if err != nil {
 		return nil, pkgHTTP.HumaProblem(err)
@@ -268,6 +284,10 @@ type ListHoldersResponse struct {
 
 // GetAllHolders binds the query imperatively then delegates to getAllHolders.
 func (handler *HolderHandler) GetAllHolders(ctx context.Context, in *ListHoldersRequest) (*ListHoldersResponse, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, pkgHTTP.HumaProblem(err)
+	}
+
 	orgID, err := parsePathUUID(in.OrganizationID, "organization_id")
 	if err != nil {
 		return nil, pkgHTTP.HumaProblem(err)

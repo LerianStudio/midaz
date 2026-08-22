@@ -34,6 +34,14 @@ import (
 //     unified server BEFORE the Huma terminal — the per-op Security metadata below is
 //     SPEC-ONLY.
 
+// secOperationBearerOrAPIKey is the spec-only Security metadata for the
+// account-scoped operation reads: Bearer OR ApiKey, matching what the Fiber
+// guard chain accepts. The transaction-path PATCH keeps secTransactionBearer.
+var secOperationBearerOrAPIKey = []map[string][]string{
+	{"BearerAuth": {}},
+	{"ApiKeyAuth": {}},
+}
+
 // --- GET /accounts/{account_id}/operations (list) -----------------------------
 
 // ListOperationsByAccountRequest advertises the list query params (doc-only) and
@@ -70,17 +78,7 @@ func (in *ListOperationsByAccountRequest) Resolve(ctx huma.Context) []error {
 // matching Fiber's c.Queries() (last value wins for a repeated key). Inlined per
 // the pattern (the query binder is copied, not a shared helper).
 func (in *ListOperationsByAccountRequest) queries() map[string]string {
-	out := make(map[string]string, len(in.rawQuery))
-	for k, vs := range in.rawQuery {
-		if len(vs) == 0 {
-			out[k] = ""
-			continue
-		}
-
-		out[k] = vs[len(vs)-1]
-	}
-
-	return out
+	return queriesFromValues(in.rawQuery)
 }
 
 // ListOperationsResponse carries the pagination envelope verbatim.
@@ -232,7 +230,7 @@ func RegisterOperationRoutes(api huma.API, h *OperationHandler, opSuffix string)
 		Path:        listPath,
 		Summary:     "Get all Operations by account",
 		Tags:        []string{tag},
-		Security:    secAssetBearerOrAPIKey,
+		Security:    secOperationBearerOrAPIKey,
 	}, h.GetAllOperationsByAccount)
 
 	huma.Register(api, huma.Operation{
@@ -241,7 +239,7 @@ func RegisterOperationRoutes(api huma.API, h *OperationHandler, opSuffix string)
 		Path:        idPath,
 		Summary:     "Get Operation",
 		Tags:        []string{tag},
-		Security:    secAssetBearerOrAPIKey,
+		Security:    secOperationBearerOrAPIKey,
 	}, h.GetOperationByAccount)
 
 	huma.Register(api, huma.Operation{

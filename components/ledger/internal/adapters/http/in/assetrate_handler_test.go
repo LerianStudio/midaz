@@ -11,7 +11,8 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
-	"time"
+
+	libCommons "github.com/LerianStudio/lib-commons/v6/commons"
 
 	libHTTP "github.com/LerianStudio/lib-commons/v6/commons/net/http"
 	openapi "github.com/LerianStudio/lib-commons/v6/commons/net/http/openapi"
@@ -92,8 +93,8 @@ func TestCreateOrUpdateAssetRate_Success(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	t.Cleanup(ctrl.Finish)
 
-	orgID := uuid.New()
-	ledgerID := uuid.New()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	assetRateRepo := assetrate.NewMockRepository(ctrl)
 	metadataRepo := txmongodb.NewMockRepository(ctrl)
@@ -105,8 +106,8 @@ func TestCreateOrUpdateAssetRate_Success(t *testing.T) {
 	assetRateRepo.EXPECT().FindByCurrencyPair(gomock.Any(), orgID, ledgerID, "USD", "BRL").Return(nil, nil).Times(1)
 	assetRateRepo.EXPECT().Create(gomock.Any(), gomock.Any()).
 		DoAndReturn(func(_ any, ar *assetrate.AssetRate) (*assetrate.AssetRate, error) {
-			ar.CreatedAt = time.Now()
-			ar.UpdatedAt = time.Now()
+			ar.CreatedAt = fixedTestTime
+			ar.UpdatedAt = fixedTestTime
 			return ar, nil
 		}).Times(1)
 	metadataRepo.EXPECT().Create(gomock.Any(), constant.EntityAssetRate, gomock.Any()).Return(nil).Times(1)
@@ -145,8 +146,8 @@ func TestCreateOrUpdateAssetRate_AuthPreserved(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	t.Cleanup(ctrl.Finish)
 
-	orgID := uuid.New()
-	ledgerID := uuid.New()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	// No repo expectations: a rejected auth must never reach the service.
 	handler := &AssetRateHandler{Command: &command.UseCase{AssetRateRepo: assetrate.NewMockRepository(ctrl)}}
@@ -169,8 +170,8 @@ func TestCreateOrUpdateAssetRate_MalformedBody_Canonical400(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	t.Cleanup(ctrl.Finish)
 
-	orgID := uuid.New()
-	ledgerID := uuid.New()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	// Malformed JSON -> DecodeAndValidate returns a pkg.ResponseError (0094). The
 	// HumaProblem must project it to problem+json at 400 (NOT the 500 fallback and
@@ -202,10 +203,10 @@ func TestGetAssetRateByExternalID_Success(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	t.Cleanup(ctrl.Finish)
 
-	orgID := uuid.New()
-	ledgerID := uuid.New()
-	externalID := uuid.New()
-	rateID := uuid.New()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
+	externalID := uuid.Must(libCommons.GenerateUUIDv7())
+	rateID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	assetRateRepo := assetrate.NewMockRepository(ctrl)
 	metadataRepo := txmongodb.NewMockRepository(ctrl)
@@ -248,8 +249,8 @@ func TestGetAssetRateByExternalID_BadUUID_Canonical400(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	t.Cleanup(ctrl.Finish)
 
-	orgID := uuid.New()
-	ledgerID := uuid.New()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	// Service must never be reached: ParseUUIDPathParameters rejects the bad
 	// external_id with the canonical 0065 / 400 before Huma (external_id IS a
@@ -276,8 +277,8 @@ func TestGetAllAssetRatesByAssetCode_Success(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	t.Cleanup(ctrl.Finish)
 
-	orgID := uuid.New()
-	ledgerID := uuid.New()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	assetRateRepo := assetrate.NewMockRepository(ctrl)
 	// Return a nil slice + empty cursor: the service's `assetRates != nil` gate then
@@ -309,8 +310,8 @@ func TestGetAllAssetRatesByAssetCode_BadQuery_Canonical400(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	t.Cleanup(ctrl.Finish)
 
-	orgID := uuid.New()
-	ledgerID := uuid.New()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	// Service must never be reached: ValidateParameters rejects limit=abc with the
 	// canonical 400 (ErrInvalidQueryParameter), NOT a native Huma 422.
@@ -329,8 +330,6 @@ func TestGetAllAssetRatesByAssetCode_BadQuery_Canonical400(t *testing.T) {
 	var got map[string]any
 	require.NoError(t, json.Unmarshal(respBody, &got), "body: %s", string(respBody))
 	assert.Equal(t, constant.ErrInvalidQueryParameter.Error(), got["code"])
-
-	_ = libProblem.BaseURI
 }
 
 func TestCreateOrUpdateAssetRate_ServiceError_500(t *testing.T) {
@@ -338,8 +337,8 @@ func TestCreateOrUpdateAssetRate_ServiceError_500(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	t.Cleanup(ctrl.Finish)
 
-	orgID := uuid.New()
-	ledgerID := uuid.New()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	// The upsert probes the currency pair first; a technical failure there aborts
 	// before any Create/Update. HumaProblem must project the InternalServerError to
@@ -380,9 +379,9 @@ func TestGetAssetRateByExternalID_NotFound_404(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	t.Cleanup(ctrl.Finish)
 
-	orgID := uuid.New()
-	ledgerID := uuid.New()
-	externalID := uuid.New()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
+	externalID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	// A business not-found stays 404 with the canonical 0007 code — HumaProblem must
 	// not collapse it into the 500 fallback.
@@ -415,8 +414,8 @@ func TestGetAllAssetRatesByAssetCode_ServiceError_500(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	t.Cleanup(ctrl.Finish)
 
-	orgID := uuid.New()
-	ledgerID := uuid.New()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	// The query binder accepts the request, then the repository fails: the list op
 	// surfaces the technical error at 500 instead of an empty page.

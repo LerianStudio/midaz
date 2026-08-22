@@ -47,7 +47,7 @@ import (
 	"github.com/LerianStudio/midaz/v4/tests/utils/stubs"
 )
 
-// mountCompositionHuma wires the Huma-migrated composition registrar on app,
+// mountCompositionRoutes wires the Huma-migrated composition registrar on app,
 // mirroring the production humaMount seam: problem.Install() before any
 // huma.Register, the shared Huma API built with openapi.New over a /v2 group, and
 // RegisterCompositionV2RoutesToApp attaching the Fiber auth+tenant middleware chain
@@ -57,7 +57,7 @@ import (
 //
 // MUST-NOT-PARALLELIZE: libProblem.Install() swaps the process-global huma.NewError
 // hook and Huma validation uses process-global sync.Pools.
-func mountCompositionHuma(app *fiber.App, auth *middleware.AuthClient, ch *CompositionHandler, routeOptions *nethttp.ProtectedRouteOptions) {
+func mountCompositionRoutes(app *fiber.App, auth *middleware.AuthClient, ch *CompositionHandler, routeOptions *nethttp.ProtectedRouteOptions) {
 	libProblem.Install()
 	apiV2 := app.Group("/v2")
 	hAPI := openapi.New(app, apiV2, openapi.Config{Title: "composition-integration", Version: "test", Servers: []string{"/v2"}})
@@ -176,7 +176,7 @@ func setupCompositionTestInfra(t *testing.T, instrumentCreator composition.Instr
 	// cases on a side app (the onboarding routes are not part of the composition
 	// surface). The composition route itself is mounted on infra.app.
 	infra.app = fiber.New(fiber.Config{})
-	mountCompositionHuma(infra.app, auth, compositionHandler, nil)
+	mountCompositionRoutes(infra.app, auth, compositionHandler, nil)
 
 	t.Cleanup(func() {
 		if err := infra.app.Shutdown(); err != nil {

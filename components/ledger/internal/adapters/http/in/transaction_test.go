@@ -258,9 +258,9 @@ func TestTransactionHandler_GetTransaction(t *testing.T) {
 			t.Cleanup(ctrl.Finish)
 
 			// Arrange
-			orgID := uuid.New()
-			ledgerID := uuid.New()
-			transactionID := uuid.New()
+			orgID := uuid.Must(libCommons.GenerateUUIDv7())
+			ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
+			transactionID := uuid.Must(libCommons.GenerateUUIDv7())
 
 			mockTransactionRepo := transaction.NewMockRepository(ctrl)
 			mockOperationRepo := operation.NewMockRepository(ctrl)
@@ -316,9 +316,9 @@ func TestCommitTransaction_InvalidStatus_ReturnsError(t *testing.T) {
 			t.Cleanup(ctrl.Finish)
 
 			// Arrange
-			orgID := uuid.New()
-			ledgerID := uuid.New()
-			transactionID := uuid.New()
+			orgID := uuid.Must(libCommons.GenerateUUIDv7())
+			ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
+			transactionID := uuid.Must(libCommons.GenerateUUIDv7())
 
 			mockTransactionRepo := transaction.NewMockRepository(ctrl)
 			mockOperationRepo := operation.NewMockRepository(ctrl)
@@ -438,9 +438,9 @@ func TestRevertTransaction_InvalidStatus_ReturnsError(t *testing.T) {
 			t.Cleanup(ctrl.Finish)
 
 			// Arrange
-			orgID := uuid.New()
-			ledgerID := uuid.New()
-			transactionID := uuid.New()
+			orgID := uuid.Must(libCommons.GenerateUUIDv7())
+			ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
+			transactionID := uuid.Must(libCommons.GenerateUUIDv7())
 
 			mockTransactionRepo := transaction.NewMockRepository(ctrl)
 			mockMetadataRepo := mongodb.NewMockRepository(ctrl)
@@ -515,10 +515,10 @@ func TestRevertTransaction_AlreadyHasRevert_ReturnsError(t *testing.T) {
 	t.Cleanup(ctrl.Finish)
 
 	// Arrange
-	orgID := uuid.New()
-	ledgerID := uuid.New()
-	transactionID := uuid.New()
-	existingRevertID := uuid.New()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
+	transactionID := uuid.Must(libCommons.GenerateUUIDv7())
+	existingRevertID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	mockTransactionRepo := transaction.NewMockRepository(ctrl)
 	mockMetadataRepo := mongodb.NewMockRepository(ctrl)
@@ -577,10 +577,10 @@ func TestRevertTransaction_IsAlreadyARevert_ReturnsError(t *testing.T) {
 	t.Cleanup(ctrl.Finish)
 
 	// Arrange
-	orgID := uuid.New()
-	ledgerID := uuid.New()
-	transactionID := uuid.New()
-	originalTransactionID := uuid.New()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
+	transactionID := uuid.Must(libCommons.GenerateUUIDv7())
+	originalTransactionID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	mockTransactionRepo := transaction.NewMockRepository(ctrl)
 	mockMetadataRepo := mongodb.NewMockRepository(ctrl)
@@ -654,9 +654,9 @@ func TestRevertTransaction_GetParentError_ReturnsError(t *testing.T) {
 	t.Cleanup(ctrl.Finish)
 
 	// Arrange
-	orgID := uuid.New()
-	ledgerID := uuid.New()
-	transactionID := uuid.New()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
+	transactionID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	mockTransactionRepo := transaction.NewMockRepository(ctrl)
 
@@ -704,9 +704,9 @@ func TestRevertTransaction_GetTransactionError_ReturnsError(t *testing.T) {
 	t.Cleanup(ctrl.Finish)
 
 	// Arrange
-	orgID := uuid.New()
-	ledgerID := uuid.New()
-	transactionID := uuid.New()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
+	transactionID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	mockTransactionRepo := transaction.NewMockRepository(ctrl)
 	mockMetadataRepo := mongodb.NewMockRepository(ctrl)
@@ -771,9 +771,9 @@ func TestRevertTransaction_EmptyRevert_ReturnsError(t *testing.T) {
 	t.Cleanup(ctrl.Finish)
 
 	// Arrange
-	orgID := uuid.New()
-	ledgerID := uuid.New()
-	transactionID := uuid.New()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
+	transactionID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	mockTransactionRepo := transaction.NewMockRepository(ctrl)
 	mockMetadataRepo := mongodb.NewMockRepository(ctrl)
@@ -849,10 +849,10 @@ func TestRevertTransaction_BidirectionalRouteAllows(t *testing.T) {
 	t.Cleanup(ctrl.Finish)
 
 	// Arrange
-	orgID := uuid.New()
-	ledgerID := uuid.New()
-	transactionID := uuid.New()
-	operationRouteID := uuid.New()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
+	transactionID := uuid.Must(libCommons.GenerateUUIDv7())
+	operationRouteID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	mockTransactionRepo := transaction.NewMockRepository(ctrl)
 	mockMetadataRepo := mongodb.NewMockRepository(ctrl)
@@ -959,10 +959,10 @@ func TestRevertTransaction_NonBidirectionalRouteRejects(t *testing.T) {
 	t.Cleanup(ctrl.Finish)
 
 	// Arrange
-	orgID := uuid.New()
-	ledgerID := uuid.New()
-	transactionID := uuid.New()
-	operationRouteID := uuid.New()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
+	transactionID := uuid.Must(libCommons.GenerateUUIDv7())
+	operationRouteID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	mockTransactionRepo := transaction.NewMockRepository(ctrl)
 	mockMetadataRepo := mongodb.NewMockRepository(ctrl)
@@ -1062,9 +1062,9 @@ func TestRevertTransaction_NoRouteRevertsNormally(t *testing.T) {
 	t.Cleanup(ctrl.Finish)
 
 	// Arrange
-	orgID := uuid.New()
-	ledgerID := uuid.New()
-	transactionID := uuid.New()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
+	transactionID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	mockTransactionRepo := transaction.NewMockRepository(ctrl)
 	mockMetadataRepo := mongodb.NewMockRepository(ctrl)
@@ -1150,10 +1150,10 @@ func TestRevertTransaction_RouteLookupError_ReturnsError(t *testing.T) {
 	t.Cleanup(ctrl.Finish)
 
 	// Arrange
-	orgID := uuid.New()
-	ledgerID := uuid.New()
-	transactionID := uuid.New()
-	operationRouteID := uuid.New()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
+	transactionID := uuid.Must(libCommons.GenerateUUIDv7())
+	operationRouteID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	mockTransactionRepo := transaction.NewMockRepository(ctrl)
 	mockMetadataRepo := mongodb.NewMockRepository(ctrl)
@@ -1237,9 +1237,9 @@ func TestCommitTransaction_GetTransactionError_ReturnsError(t *testing.T) {
 	t.Cleanup(ctrl.Finish)
 
 	// Arrange
-	orgID := uuid.New()
-	ledgerID := uuid.New()
-	transactionID := uuid.New()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
+	transactionID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	mockTransactionRepo := transaction.NewMockRepository(ctrl)
 	mockRedisRepo := redis.NewMockRedisRepository(ctrl)
@@ -1297,9 +1297,9 @@ func TestCommitTransaction_RedisLockError_ReturnsError(t *testing.T) {
 	t.Cleanup(ctrl.Finish)
 
 	// Arrange
-	orgID := uuid.New()
-	ledgerID := uuid.New()
-	transactionID := uuid.New()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
+	transactionID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	mockTransactionRepo := transaction.NewMockRepository(ctrl)
 	mockMetadataRepo := mongodb.NewMockRepository(ctrl)
@@ -1399,9 +1399,9 @@ func TestCommitTransaction_LockNotAcquired_ReturnsError(t *testing.T) {
 	t.Cleanup(ctrl.Finish)
 
 	// Arrange
-	orgID := uuid.New()
-	ledgerID := uuid.New()
-	transactionID := uuid.New()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
+	transactionID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	mockTransactionRepo := transaction.NewMockRepository(ctrl)
 	mockMetadataRepo := mongodb.NewMockRepository(ctrl)
@@ -1506,8 +1506,8 @@ func TestCreateTransactionJSON_NonPositiveValue_Returns422(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			// Arrange
-			orgID := uuid.New()
-			ledgerID := uuid.New()
+			orgID := uuid.Must(libCommons.GenerateUUIDv7())
+			ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
 
 			// No mocks needed - validation short-circuits before any repository call
 			handler := &TransactionHandler{}
@@ -1573,8 +1573,8 @@ func TestCreateTransactionInflow_NonPositiveValue_Returns422(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			// Arrange
-			orgID := uuid.New()
-			ledgerID := uuid.New()
+			orgID := uuid.Must(libCommons.GenerateUUIDv7())
+			ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
 
 			// No mocks needed - validation short-circuits before any repository call
 			handler := &TransactionHandler{}
@@ -1637,8 +1637,8 @@ func TestCreateTransactionOutflow_NonPositiveValue_Returns422(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			// Arrange
-			orgID := uuid.New()
-			ledgerID := uuid.New()
+			orgID := uuid.Must(libCommons.GenerateUUIDv7())
+			ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
 
 			// No mocks needed - validation short-circuits before any repository call
 			handler := &TransactionHandler{}
@@ -1700,7 +1700,7 @@ func TestTransactionHandler_GetAllTransactions(t *testing.T) {
 			name:        "success returns 200 with pagination (cursor-based)",
 			queryParams: "?limit=10&sort_order=desc",
 			setupMocks: func(transactionRepo *transaction.MockRepository, operationRepo *operation.MockRepository, metadataRepo *mongodb.MockRepository, orgID, ledgerID uuid.UUID) {
-				transactionID := uuid.New()
+				transactionID := uuid.Must(libCommons.GenerateUUIDv7())
 				amount := decimal.NewFromInt(1000)
 				transactionRepo.EXPECT().
 					FindOrListAllWithOperations(gomock.Any(), orgID, ledgerID, []uuid.UUID{}, gomock.Any()).
@@ -1746,7 +1746,7 @@ func TestTransactionHandler_GetAllTransactions(t *testing.T) {
 			name:        "success returns 200 with metadata filter (dual code path)",
 			queryParams: "?metadata.category=payment",
 			setupMocks: func(transactionRepo *transaction.MockRepository, operationRepo *operation.MockRepository, metadataRepo *mongodb.MockRepository, orgID, ledgerID uuid.UUID) {
-				transactionID := uuid.New()
+				transactionID := uuid.Must(libCommons.GenerateUUIDv7())
 				amount := decimal.NewFromInt(500)
 
 				// First: FindList is called for metadata filtering
@@ -1796,7 +1796,7 @@ func TestTransactionHandler_GetAllTransactions(t *testing.T) {
 			name:        "success returns 200 without metadata filter",
 			queryParams: "",
 			setupMocks: func(transactionRepo *transaction.MockRepository, operationRepo *operation.MockRepository, metadataRepo *mongodb.MockRepository, orgID, ledgerID uuid.UUID) {
-				transactionID := uuid.New()
+				transactionID := uuid.Must(libCommons.GenerateUUIDv7())
 				amount := decimal.NewFromInt(2000)
 
 				transactionRepo.EXPECT().
@@ -1876,8 +1876,8 @@ func TestTransactionHandler_GetAllTransactions(t *testing.T) {
 			t.Cleanup(ctrl.Finish)
 
 			// Arrange
-			orgID := uuid.New()
-			ledgerID := uuid.New()
+			orgID := uuid.Must(libCommons.GenerateUUIDv7())
+			ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
 
 			mockTransactionRepo := transaction.NewMockRepository(ctrl)
 			mockOperationRepo := operation.NewMockRepository(ctrl)
@@ -2097,9 +2097,9 @@ func TestTransactionHandler_UpdateTransaction(t *testing.T) {
 			t.Cleanup(ctrl.Finish)
 
 			// Arrange
-			orgID := uuid.New()
-			ledgerID := uuid.New()
-			transactionID := uuid.New()
+			orgID := uuid.Must(libCommons.GenerateUUIDv7())
+			ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
+			transactionID := uuid.Must(libCommons.GenerateUUIDv7())
 
 			mockTransactionRepo := transaction.NewMockRepository(ctrl)
 			mockMetadataRepo := mongodb.NewMockRepository(ctrl)
@@ -2155,8 +2155,8 @@ func TestCreateTransactionAnnotation_NonPositiveValue_Returns422(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			// Arrange
-			orgID := uuid.New()
-			ledgerID := uuid.New()
+			orgID := uuid.Must(libCommons.GenerateUUIDv7())
+			ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
 
 			// No mocks needed - validation short-circuits before any repository call
 			handler := &TransactionHandler{}
@@ -2469,9 +2469,9 @@ func TestCancelTransaction(t *testing.T) {
 			t.Cleanup(ctrl.Finish)
 
 			// Arrange
-			orgID := uuid.New()
-			ledgerID := uuid.New()
-			transactionID := uuid.New()
+			orgID := uuid.Must(libCommons.GenerateUUIDv7())
+			ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
+			transactionID := uuid.Must(libCommons.GenerateUUIDv7())
 
 			mockTransactionRepo := transaction.NewMockRepository(ctrl)
 			mockMetadataRepo := mongodb.NewMockRepository(ctrl)
@@ -3000,10 +3000,10 @@ func TestBuildDoubleEntryPendingOps(t *testing.T) {
 		{
 			name: "generates exactly 2 operations with correct types",
 			balance: &mmodel.Balance{
-				ID:             uuid.New().String(),
-				OrganizationID: uuid.New().String(),
-				LedgerID:       uuid.New().String(),
-				AccountID:      uuid.New().String(),
+				ID:             uuid.Must(libCommons.GenerateUUIDv7()).String(),
+				OrganizationID: uuid.Must(libCommons.GenerateUUIDv7()).String(),
+				LedgerID:       uuid.Must(libCommons.GenerateUUIDv7()).String(),
+				AccountID:      uuid.Must(libCommons.GenerateUUIDv7()).String(),
 				Alias:          "@source1",
 				Key:            "default",
 				Available:      decimal.NewFromInt(1000),
@@ -3028,9 +3028,9 @@ func TestBuildDoubleEntryPendingOps(t *testing.T) {
 				Version:   7,
 			},
 			tran: transaction.Transaction{
-				ID:             uuid.New().String(),
-				OrganizationID: uuid.New().String(),
-				LedgerID:       uuid.New().String(),
+				ID:             uuid.Must(libCommons.GenerateUUIDv7()).String(),
+				OrganizationID: uuid.Must(libCommons.GenerateUUIDv7()).String(),
+				LedgerID:       uuid.Must(libCommons.GenerateUUIDv7()).String(),
 			},
 			transactionInput: mtransaction.Transaction{
 				Pending: true,
@@ -3046,10 +3046,10 @@ func TestBuildDoubleEntryPendingOps(t *testing.T) {
 		{
 			name: "annotation mode zeroes all balance fields",
 			balance: &mmodel.Balance{
-				ID:             uuid.New().String(),
-				OrganizationID: uuid.New().String(),
-				LedgerID:       uuid.New().String(),
-				AccountID:      uuid.New().String(),
+				ID:             uuid.Must(libCommons.GenerateUUIDv7()).String(),
+				OrganizationID: uuid.Must(libCommons.GenerateUUIDv7()).String(),
+				LedgerID:       uuid.Must(libCommons.GenerateUUIDv7()).String(),
+				AccountID:      uuid.Must(libCommons.GenerateUUIDv7()).String(),
 				Alias:          "@source1",
 				Key:            "default",
 				Available:      decimal.NewFromInt(1000),
@@ -3073,9 +3073,9 @@ func TestBuildDoubleEntryPendingOps(t *testing.T) {
 				Version:   7,
 			},
 			tran: transaction.Transaction{
-				ID:             uuid.New().String(),
-				OrganizationID: uuid.New().String(),
-				LedgerID:       uuid.New().String(),
+				ID:             uuid.Must(libCommons.GenerateUUIDv7()).String(),
+				OrganizationID: uuid.Must(libCommons.GenerateUUIDv7()).String(),
+				LedgerID:       uuid.Must(libCommons.GenerateUUIDv7()).String(),
 			},
 			transactionInput: mtransaction.Transaction{
 				Pending:     true,
@@ -3090,10 +3090,10 @@ func TestBuildDoubleEntryPendingOps(t *testing.T) {
 		{
 			name: "uses transaction description when fromTo description is empty",
 			balance: &mmodel.Balance{
-				ID:             uuid.New().String(),
-				OrganizationID: uuid.New().String(),
-				LedgerID:       uuid.New().String(),
-				AccountID:      uuid.New().String(),
+				ID:             uuid.Must(libCommons.GenerateUUIDv7()).String(),
+				OrganizationID: uuid.Must(libCommons.GenerateUUIDv7()).String(),
+				LedgerID:       uuid.Must(libCommons.GenerateUUIDv7()).String(),
+				AccountID:      uuid.Must(libCommons.GenerateUUIDv7()).String(),
 				Alias:          "@source1",
 				Key:            "default",
 				Available:      decimal.NewFromInt(500),
@@ -3118,9 +3118,9 @@ func TestBuildDoubleEntryPendingOps(t *testing.T) {
 				Version:   3,
 			},
 			tran: transaction.Transaction{
-				ID:             uuid.New().String(),
-				OrganizationID: uuid.New().String(),
-				LedgerID:       uuid.New().String(),
+				ID:             uuid.Must(libCommons.GenerateUUIDv7()).String(),
+				OrganizationID: uuid.Must(libCommons.GenerateUUIDv7()).String(),
+				LedgerID:       uuid.Must(libCommons.GenerateUUIDv7()).String(),
 			},
 			transactionInput: mtransaction.Transaction{
 				Pending:     true,
@@ -3407,10 +3407,10 @@ func TestBuildDoubleEntryCanceledOps(t *testing.T) {
 		{
 			name: "generates exactly 2 operations RELEASE+CREDIT with correct types",
 			balance: &mmodel.Balance{
-				ID:             uuid.New().String(),
-				OrganizationID: uuid.New().String(),
-				LedgerID:       uuid.New().String(),
-				AccountID:      uuid.New().String(),
+				ID:             uuid.Must(libCommons.GenerateUUIDv7()).String(),
+				OrganizationID: uuid.Must(libCommons.GenerateUUIDv7()).String(),
+				LedgerID:       uuid.Must(libCommons.GenerateUUIDv7()).String(),
+				AccountID:      uuid.Must(libCommons.GenerateUUIDv7()).String(),
 				Alias:          "@source1",
 				Key:            "default",
 				Available:      decimal.NewFromInt(500),
@@ -3435,9 +3435,9 @@ func TestBuildDoubleEntryCanceledOps(t *testing.T) {
 				Version:   10,
 			},
 			tran: transaction.Transaction{
-				ID:             uuid.New().String(),
-				OrganizationID: uuid.New().String(),
-				LedgerID:       uuid.New().String(),
+				ID:             uuid.Must(libCommons.GenerateUUIDv7()).String(),
+				OrganizationID: uuid.Must(libCommons.GenerateUUIDv7()).String(),
+				LedgerID:       uuid.Must(libCommons.GenerateUUIDv7()).String(),
 			},
 			transactionInput: mtransaction.Transaction{
 				Pending: false,
@@ -3453,10 +3453,10 @@ func TestBuildDoubleEntryCanceledOps(t *testing.T) {
 		{
 			name: "annotation mode zeroes all balance fields",
 			balance: &mmodel.Balance{
-				ID:             uuid.New().String(),
-				OrganizationID: uuid.New().String(),
-				LedgerID:       uuid.New().String(),
-				AccountID:      uuid.New().String(),
+				ID:             uuid.Must(libCommons.GenerateUUIDv7()).String(),
+				OrganizationID: uuid.Must(libCommons.GenerateUUIDv7()).String(),
+				LedgerID:       uuid.Must(libCommons.GenerateUUIDv7()).String(),
+				AccountID:      uuid.Must(libCommons.GenerateUUIDv7()).String(),
 				Alias:          "@source1",
 				Key:            "default",
 				Available:      decimal.NewFromInt(500),
@@ -3480,9 +3480,9 @@ func TestBuildDoubleEntryCanceledOps(t *testing.T) {
 				Version:   10,
 			},
 			tran: transaction.Transaction{
-				ID:             uuid.New().String(),
-				OrganizationID: uuid.New().String(),
-				LedgerID:       uuid.New().String(),
+				ID:             uuid.Must(libCommons.GenerateUUIDv7()).String(),
+				OrganizationID: uuid.Must(libCommons.GenerateUUIDv7()).String(),
+				LedgerID:       uuid.Must(libCommons.GenerateUUIDv7()).String(),
 			},
 			transactionInput: mtransaction.Transaction{
 				Pending:     false,
@@ -3497,10 +3497,10 @@ func TestBuildDoubleEntryCanceledOps(t *testing.T) {
 		{
 			name: "uses transaction description when fromTo description is empty",
 			balance: &mmodel.Balance{
-				ID:             uuid.New().String(),
-				OrganizationID: uuid.New().String(),
-				LedgerID:       uuid.New().String(),
-				AccountID:      uuid.New().String(),
+				ID:             uuid.Must(libCommons.GenerateUUIDv7()).String(),
+				OrganizationID: uuid.Must(libCommons.GenerateUUIDv7()).String(),
+				LedgerID:       uuid.Must(libCommons.GenerateUUIDv7()).String(),
+				AccountID:      uuid.Must(libCommons.GenerateUUIDv7()).String(),
 				Alias:          "@source1",
 				Key:            "default",
 				Available:      decimal.NewFromInt(1000),
@@ -3525,9 +3525,9 @@ func TestBuildDoubleEntryCanceledOps(t *testing.T) {
 				Version:   4,
 			},
 			tran: transaction.Transaction{
-				ID:             uuid.New().String(),
-				OrganizationID: uuid.New().String(),
-				LedgerID:       uuid.New().String(),
+				ID:             uuid.Must(libCommons.GenerateUUIDv7()).String(),
+				OrganizationID: uuid.Must(libCommons.GenerateUUIDv7()).String(),
+				LedgerID:       uuid.Must(libCommons.GenerateUUIDv7()).String(),
 			},
 			transactionInput: mtransaction.Transaction{
 				Pending:     false,
@@ -3542,10 +3542,10 @@ func TestBuildDoubleEntryCanceledOps(t *testing.T) {
 		{
 			name: "zero amount produces 2 operations with unchanged balances",
 			balance: &mmodel.Balance{
-				ID:             uuid.New().String(),
-				OrganizationID: uuid.New().String(),
-				LedgerID:       uuid.New().String(),
-				AccountID:      uuid.New().String(),
+				ID:             uuid.Must(libCommons.GenerateUUIDv7()).String(),
+				OrganizationID: uuid.Must(libCommons.GenerateUUIDv7()).String(),
+				LedgerID:       uuid.Must(libCommons.GenerateUUIDv7()).String(),
+				AccountID:      uuid.Must(libCommons.GenerateUUIDv7()).String(),
 				Alias:          "@source1",
 				Key:            "default",
 				Available:      decimal.NewFromInt(1000),
@@ -3570,9 +3570,9 @@ func TestBuildDoubleEntryCanceledOps(t *testing.T) {
 				Version:   7,
 			},
 			tran: transaction.Transaction{
-				ID:             uuid.New().String(),
-				OrganizationID: uuid.New().String(),
-				LedgerID:       uuid.New().String(),
+				ID:             uuid.Must(libCommons.GenerateUUIDv7()).String(),
+				OrganizationID: uuid.Must(libCommons.GenerateUUIDv7()).String(),
+				LedgerID:       uuid.Must(libCommons.GenerateUUIDv7()).String(),
 			},
 			transactionInput: mtransaction.Transaction{
 				Pending: false,
@@ -3588,10 +3588,10 @@ func TestBuildDoubleEntryCanceledOps(t *testing.T) {
 		{
 			name: "version starting at 0 chains correctly",
 			balance: &mmodel.Balance{
-				ID:             uuid.New().String(),
-				OrganizationID: uuid.New().String(),
-				LedgerID:       uuid.New().String(),
-				AccountID:      uuid.New().String(),
+				ID:             uuid.Must(libCommons.GenerateUUIDv7()).String(),
+				OrganizationID: uuid.Must(libCommons.GenerateUUIDv7()).String(),
+				LedgerID:       uuid.Must(libCommons.GenerateUUIDv7()).String(),
+				AccountID:      uuid.Must(libCommons.GenerateUUIDv7()).String(),
 				Alias:          "@source1",
 				Key:            "default",
 				Available:      decimal.NewFromInt(100),
@@ -3616,9 +3616,9 @@ func TestBuildDoubleEntryCanceledOps(t *testing.T) {
 				Version:   2,
 			},
 			tran: transaction.Transaction{
-				ID:             uuid.New().String(),
-				OrganizationID: uuid.New().String(),
-				LedgerID:       uuid.New().String(),
+				ID:             uuid.Must(libCommons.GenerateUUIDv7()).String(),
+				OrganizationID: uuid.Must(libCommons.GenerateUUIDv7()).String(),
+				LedgerID:       uuid.Must(libCommons.GenerateUUIDv7()).String(),
 			},
 			transactionInput: mtransaction.Transaction{
 				Pending: false,
@@ -3751,10 +3751,10 @@ func TestTryBuildDoubleEntryOps(t *testing.T) {
 	t.Parallel()
 
 	baseBalance := &mmodel.Balance{
-		ID:             uuid.New().String(),
-		OrganizationID: uuid.New().String(),
-		LedgerID:       uuid.New().String(),
-		AccountID:      uuid.New().String(),
+		ID:             uuid.Must(libCommons.GenerateUUIDv7()).String(),
+		OrganizationID: uuid.Must(libCommons.GenerateUUIDv7()).String(),
+		LedgerID:       uuid.Must(libCommons.GenerateUUIDv7()).String(),
+		AccountID:      uuid.Must(libCommons.GenerateUUIDv7()).String(),
 		Alias:          "@source1",
 		Key:            "default",
 		Available:      decimal.NewFromInt(1000),
@@ -3763,9 +3763,9 @@ func TestTryBuildDoubleEntryOps(t *testing.T) {
 	}
 
 	baseTran := transaction.Transaction{
-		ID:             uuid.New().String(),
-		OrganizationID: uuid.New().String(),
-		LedgerID:       uuid.New().String(),
+		ID:             uuid.Must(libCommons.GenerateUUIDv7()).String(),
+		OrganizationID: uuid.Must(libCommons.GenerateUUIDv7()).String(),
+		LedgerID:       uuid.Must(libCommons.GenerateUUIDv7()).String(),
 	}
 
 	baseBalanceAfter := mtransaction.Balance{

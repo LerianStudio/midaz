@@ -64,6 +64,10 @@ var secTransactionBearer = []map[string][]string{
 // + the replayed flag onto the typed Out. The parent
 // transaction id is uuid.Nil on the create routes (no :transaction_id segment).
 func (handler *TransactionHandler) createTransactionShell(ctx context.Context, orgStr, ledgerStr string, transactionInput mtransaction.Transaction, transactionStatus, idempotencyKey, idempotencyTTL string, idempotencyHashSource ...string) (*CreateTransactionResponse, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, pkgHTTP.HumaProblem(err)
+	}
+
 	orgID, ledgerID, err := parseOrgLedger(orgStr, ledgerStr)
 	if err != nil {
 		return nil, pkgHTTP.HumaProblem(err)
@@ -257,6 +261,10 @@ type StateTransactionResponse struct {
 // commitOrCancelTransaction with APPROVED, which runs the tracer confirm-by-transaction
 // two-phase). Returns 201.
 func (handler *TransactionHandler) CommitTransaction(ctx context.Context, in *StateTransactionRequest) (*StateTransactionResponse, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, pkgHTTP.HumaProblem(err)
+	}
+
 	orgID, ledgerID, txID, err := parseOrgLedgerTx(in)
 	if err != nil {
 		return nil, pkgHTTP.HumaProblem(err)
@@ -273,6 +281,10 @@ func (handler *TransactionHandler) CommitTransaction(ctx context.Context, in *St
 // CancelTransaction delegates to the commitTransaction core with CANCELED
 // (which runs the tracer release-by-transaction two-phase). Returns 201.
 func (handler *TransactionHandler) CancelTransaction(ctx context.Context, in *StateTransactionRequest) (*StateTransactionResponse, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, pkgHTTP.HumaProblem(err)
+	}
+
 	orgID, ledgerID, txID, err := parseOrgLedgerTx(in)
 	if err != nil {
 		return nil, pkgHTTP.HumaProblem(err)
@@ -295,6 +307,10 @@ func (handler *TransactionHandler) CancelTransaction(ctx context.Context, in *St
 // so the create envelope already models the response, headers included. commit/cancel are
 // the ones that differ (pure state transitions) and keep StateTransactionResponse.
 func (handler *TransactionHandler) RevertTransaction(ctx context.Context, in *StateTransactionRequest) (*CreateTransactionResponse, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, pkgHTTP.HumaProblem(err)
+	}
+
 	orgID, ledgerID, txID, err := parseOrgLedgerTx(in)
 	if err != nil {
 		return nil, pkgHTTP.HumaProblem(err)
@@ -349,6 +365,10 @@ type UpdateTransactionResponse struct {
 // UpdateTransaction decodes+validates the raw body imperatively then delegates to the
 // shared updateTransaction core (command.UpdateTransaction + query.GetTransactionByID).
 func (handler *TransactionHandler) UpdateTransaction(ctx context.Context, in *UpdateTransactionRequest) (*UpdateTransactionResponse, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, pkgHTTP.HumaProblem(err)
+	}
+
 	orgID, ledgerID, txID, err := parseOrgLedgerTx(&StateTransactionRequest{
 		OrganizationID: in.OrganizationID, LedgerID: in.LedgerID, TransactionID: in.TransactionID,
 	})
@@ -383,6 +403,10 @@ type GetTransactionResponse struct {
 // to the shared getTransaction core, projecting the cache-hit flag onto the response
 // header.
 func (handler *TransactionHandler) GetTransaction(ctx context.Context, in *GetTransactionByIDRequest) (*GetTransactionResponse, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, pkgHTTP.HumaProblem(err)
+	}
+
 	orgID, ledgerID, txID, err := parseOrgLedgerTx(&StateTransactionRequest{
 		OrganizationID: in.OrganizationID, LedgerID: in.LedgerID, TransactionID: in.TransactionID,
 	})
@@ -464,6 +488,10 @@ type ListTransactionsResponse struct {
 // GetAllTransactions binds the query imperatively then delegates to the shared
 // getAllTransactions core.
 func (handler *TransactionHandler) GetAllTransactions(ctx context.Context, in *ListTransactionsRequest) (*ListTransactionsResponse, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, pkgHTTP.HumaProblem(err)
+	}
+
 	orgID, ledgerID, err := parseOrgLedger(in.OrganizationID, in.LedgerID)
 	if err != nil {
 		return nil, pkgHTTP.HumaProblem(err)

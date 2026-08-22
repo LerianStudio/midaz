@@ -51,8 +51,7 @@ var secOrgBearerOrAPIKey = []map[string][]string{
 // CreateOrganizationRequest is the Huma request envelope for POST. RawBody keeps
 // the body out of Huma's validator (see file header).
 type CreateOrganizationRequest struct {
-	Authorization string `header:"Authorization" doc:"Bearer token (forwarded to the service)"`
-	RawBody       []byte `contentType:"application/json"`
+	RawBody []byte `contentType:"application/json"`
 }
 
 // CreateOrganizationResponse pins 201 (matching http.Created).
@@ -113,17 +112,7 @@ func (in *ListOrganizationsRequest) Resolve(ctx huma.Context) []error {
 // Fiber's c.Queries() (last value wins for a repeated key, present-but-empty keys
 // included).
 func (in *ListOrganizationsRequest) queries() map[string]string {
-	out := make(map[string]string, len(in.rawQuery))
-	for k, vs := range in.rawQuery {
-		if len(vs) == 0 {
-			out[k] = ""
-			continue
-		}
-
-		out[k] = vs[len(vs)-1]
-	}
-
-	return out
+	return queriesFromValues(in.rawQuery)
 }
 
 // ListOrganizationsResponse carries the pagination envelope verbatim.

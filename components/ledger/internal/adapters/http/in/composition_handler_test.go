@@ -13,6 +13,8 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	libCommons "github.com/LerianStudio/lib-commons/v6/commons"
+
 	openapi "github.com/LerianStudio/lib-commons/v6/commons/net/http/openapi"
 	libProblem "github.com/LerianStudio/lib-commons/v6/commons/net/http/problem"
 	"github.com/gofiber/fiber/v3"
@@ -106,11 +108,11 @@ func validCompositionBody() []byte {
 
 func TestCreateHolderAccount_Success(t *testing.T) {
 	// NOT parallel: buildHumaCompositionApp mutates process-global huma state.
-	orgID := uuid.New()
-	ledgerID := uuid.New()
-	holderID := uuid.New()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
+	holderID := uuid.Must(libCommons.GenerateUUIDv7())
 
-	createdAccount := &mmodel.Account{ID: uuid.New().String(), AssetCode: "USD", Type: "deposit"}
+	createdAccount := &mmodel.Account{ID: uuid.Must(libCommons.GenerateUUIDv7()).String(), AssetCode: "USD", Type: "deposit"}
 
 	handler := &CompositionHandler{Service: composition.NewService(
 		stubAccountCreator{account: createdAccount},
@@ -142,9 +144,9 @@ func TestCreateHolderAccount_Success(t *testing.T) {
 
 func TestCreateHolderAccount_AuthPreserved(t *testing.T) {
 	// NOT parallel: process-global huma state.
-	orgID := uuid.New()
-	ledgerID := uuid.New()
-	holderID := uuid.New()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
+	holderID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	// Service must never be reached: a rejected auth returns the ledger 401.
 	handler := &CompositionHandler{Service: composition.NewService(stubAccountCreator{}, stubInstrumentCreator{})}
@@ -163,9 +165,9 @@ func TestCreateHolderAccount_AuthPreserved(t *testing.T) {
 
 func TestCreateHolderAccount_ValidationError_Canonical400(t *testing.T) {
 	// NOT parallel: process-global huma state.
-	orgID := uuid.New()
-	ledgerID := uuid.New()
-	holderID := uuid.New()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
+	holderID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	// Missing required assetCode/type -> imperative ValidateStruct -> canonical 400,
 	// service never reached.
@@ -194,9 +196,9 @@ func TestCreateHolderAccount_ValidationError_Canonical400(t *testing.T) {
 
 func TestCreateHolderAccount_MalformedBody_Canonical400(t *testing.T) {
 	// NOT parallel: process-global huma state.
-	orgID := uuid.New()
-	ledgerID := uuid.New()
-	holderID := uuid.New()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
+	holderID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	handler := &CompositionHandler{Service: composition.NewService(stubAccountCreator{}, stubInstrumentCreator{})}
 
@@ -222,8 +224,8 @@ func TestCreateHolderAccount_MalformedBody_Canonical400(t *testing.T) {
 
 func TestCreateHolderAccount_BadUUID_Canonical400(t *testing.T) {
 	// NOT parallel: process-global huma state.
-	orgID := uuid.New()
-	ledgerID := uuid.New()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	// Service must never be reached: ParseUUIDPathParameters rejects the bad holder
 	// id with the canonical 0065 / 400 before Huma.
@@ -251,9 +253,9 @@ func TestCreateHolderAccount_BadUUID_Canonical400(t *testing.T) {
 func TestCreateHolderAccount_BusinessError_Preserved(t *testing.T) {
 	// NOT parallel: process-global huma state. The account-create fails with a
 	// business error; HumaProblem must project the canonical envelope verbatim.
-	orgID := uuid.New()
-	ledgerID := uuid.New()
-	holderID := uuid.New()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
+	holderID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	bizErr := pkg.ValidateBusinessError(cn.ErrAssetCodeNotFound, "Account")
 
@@ -282,12 +284,12 @@ func TestCreateHolderAccount_BusinessError_Preserved(t *testing.T) {
 
 func TestCreateHolderAccount_WithInstrument_201(t *testing.T) {
 	// NOT parallel: process-global huma state.
-	orgID := uuid.New()
-	ledgerID := uuid.New()
-	holderID := uuid.New()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
+	holderID := uuid.Must(libCommons.GenerateUUIDv7())
 
-	createdAccount := &mmodel.Account{ID: uuid.New().String(), AssetCode: "USD", Type: "deposit"}
-	instrumentID := uuid.New()
+	createdAccount := &mmodel.Account{ID: uuid.Must(libCommons.GenerateUUIDv7()).String(), AssetCode: "USD", Type: "deposit"}
+	instrumentID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	handler := &CompositionHandler{Service: composition.NewService(
 		stubAccountCreator{account: createdAccount},
@@ -325,11 +327,11 @@ func TestCreateHolderAccount_WithInstrument_201(t *testing.T) {
 // returns a nil error, so the terminal renders 201 carrying the typed failure block.
 func TestCreateHolderAccount_PartialFailure_201(t *testing.T) {
 	// NOT parallel: process-global huma state.
-	orgID := uuid.New()
-	ledgerID := uuid.New()
-	holderID := uuid.New()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
+	holderID := uuid.Must(libCommons.GenerateUUIDv7())
 
-	createdAccount := &mmodel.Account{ID: uuid.New().String(), AssetCode: "USD", Type: "deposit"}
+	createdAccount := &mmodel.Account{ID: uuid.Must(libCommons.GenerateUUIDv7()).String(), AssetCode: "USD", Type: "deposit"}
 
 	handler := &CompositionHandler{Service: composition.NewService(
 		stubAccountCreator{account: createdAccount},
@@ -378,11 +380,11 @@ func TestCreateHolderAccount_BadPathUUID_Direct(t *testing.T) {
 	}{
 		{
 			name: "bad organization_id",
-			in:   &CreateHolderAccountRequest{OrganizationID: "not-a-uuid", LedgerID: uuid.New().String(), ID: uuid.New().String()},
+			in:   &CreateHolderAccountRequest{OrganizationID: "not-a-uuid", LedgerID: uuid.Must(libCommons.GenerateUUIDv7()).String(), ID: uuid.Must(libCommons.GenerateUUIDv7()).String()},
 		},
 		{
 			name: "bad holder id",
-			in:   &CreateHolderAccountRequest{OrganizationID: uuid.New().String(), LedgerID: uuid.New().String(), ID: "not-a-uuid"},
+			in:   &CreateHolderAccountRequest{OrganizationID: uuid.Must(libCommons.GenerateUUIDv7()).String(), LedgerID: uuid.Must(libCommons.GenerateUUIDv7()).String(), ID: "not-a-uuid"},
 		},
 	}
 

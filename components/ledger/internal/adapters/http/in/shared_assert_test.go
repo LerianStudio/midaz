@@ -7,12 +7,18 @@ package in
 import (
 	"encoding/json"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	cn "github.com/LerianStudio/midaz/v4/pkg/constant"
 )
+
+// fixedTestTime is the deterministic timestamp the repository mocks stamp onto
+// created entities. A wall-clock read would make any assertion over CreatedAt /
+// UpdatedAt depend on when the suite runs.
+var fixedTestTime = time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
 
 // assertInvalidQueryParameterResponse asserts the canonical 400 envelope every
 // handler returns for a rejected query parameter. Shared by the holder, instrument

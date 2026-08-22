@@ -185,13 +185,6 @@ paths:
     post:
       deprecated: true
       operationId: createOrganization
-      parameters:
-        - description: Bearer token (forwarded to the service)
-          in: header
-          name: Authorization
-          schema:
-            description: Bearer token (forwarded to the service)
-            type: string
       requestBody:
         content:
           application/json:
@@ -4757,13 +4750,6 @@ paths:
         - Midaz_Ledger_API_Organizations (v2)
     post:
       operationId: createOrganizationV2
-      parameters:
-        - description: Bearer token (forwarded to the service)
-          in: header
-          name: Authorization
-          schema:
-            description: Bearer token (forwarded to the service)
-            type: string
       requestBody:
         content:
           application/json:

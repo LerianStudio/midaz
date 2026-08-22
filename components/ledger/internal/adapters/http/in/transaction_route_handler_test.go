@@ -12,6 +12,8 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	libCommons "github.com/LerianStudio/lib-commons/v6/commons"
+
 	libHTTP "github.com/LerianStudio/lib-commons/v6/commons/net/http"
 	openapi "github.com/LerianStudio/lib-commons/v6/commons/net/http/openapi"
 	libProblem "github.com/LerianStudio/lib-commons/v6/commons/net/http/problem"
@@ -81,8 +83,8 @@ func TestCreateTransactionRoute_AuthPreserved(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	t.Cleanup(ctrl.Finish)
 
-	orgID := uuid.New()
-	ledgerID := uuid.New()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	// No repo expectations: a rejected auth must never reach the service.
 	handler := &TransactionRouteHandler{Command: &command.UseCase{
@@ -109,8 +111,8 @@ func TestCreateTransactionRoute_ValidationError_Canonical400(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	t.Cleanup(ctrl.Finish)
 
-	orgID := uuid.New()
-	ledgerID := uuid.New()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	// Missing required "title" -> imperative ValidateStruct -> canonical 400, service never reached.
 	handler := &TransactionRouteHandler{Command: &command.UseCase{
@@ -145,8 +147,8 @@ func TestCreateTransactionRoute_MalformedBody_Canonical400(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	t.Cleanup(ctrl.Finish)
 
-	orgID := uuid.New()
-	ledgerID := uuid.New()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	// Malformed JSON -> DecodeAndValidate returns 0094; HumaProblem must project it
 	// to problem+json at 400 (NOT the 500 fallback, NOT a native 422). Service never reached.
@@ -181,9 +183,9 @@ func TestGetTransactionRouteByID_Success(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	t.Cleanup(ctrl.Finish)
 
-	orgID := uuid.New()
-	ledgerID := uuid.New()
-	id := uuid.New()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
+	id := uuid.Must(libCommons.GenerateUUIDv7())
 
 	trRepo := transactionroute.NewMockRepository(ctrl)
 	metaRepo := mongodb.NewMockRepository(ctrl)
@@ -216,8 +218,8 @@ func TestGetTransactionRouteByID_BadUUID_Canonical400(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	t.Cleanup(ctrl.Finish)
 
-	orgID := uuid.New()
-	ledgerID := uuid.New()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	// Service must never be reached: ParseUUIDPathParameters rejects the bad id
 	// with the canonical 0065 / 400 before Huma.
@@ -246,8 +248,8 @@ func TestGetAllTransactionRoutes_Success(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	t.Cleanup(ctrl.Finish)
 
-	orgID := uuid.New()
-	ledgerID := uuid.New()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	trRepo := transactionroute.NewMockRepository(ctrl)
 	// nil slice -> query use case skips the metadata FindList join (empty page).
@@ -278,8 +280,8 @@ func TestGetAllTransactionRoutes_BadQuery_Canonical400(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	t.Cleanup(ctrl.Finish)
 
-	orgID := uuid.New()
-	ledgerID := uuid.New()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	// Service must never be reached: ValidateParameters rejects limit=abc with the
 	// canonical 400 (ErrInvalidQueryParameter), NOT a native Huma 422.
@@ -305,9 +307,9 @@ func TestDeleteTransactionRoute_204Empty(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	t.Cleanup(ctrl.Finish)
 
-	orgID := uuid.New()
-	ledgerID := uuid.New()
-	id := uuid.New()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
+	id := uuid.Must(libCommons.GenerateUUIDv7())
 
 	trRepo := transactionroute.NewMockRepository(ctrl)
 	redisRepo := redis.NewMockRedisRepository(ctrl)
@@ -336,7 +338,6 @@ func TestDeleteTransactionRoute_204Empty(t *testing.T) {
 	assert.Empty(t, respBody, "DELETE 204 must have an empty body")
 }
 
-// --- ported from the retired Fiber-wrapper tests (transaction_route_test.go) ---
 //
 // The five exported fiber.Ctx terminals on TransactionRouteHandler were deleted
 // with the Huma migration; the branches their tests covered in the shared cores
@@ -351,8 +352,8 @@ func TestCreateTransactionRoute_Success(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	t.Cleanup(ctrl.Finish)
 
-	orgID := uuid.New()
-	ledgerID := uuid.New()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
 	op1 := uuid.MustParse("01965ed9-7fa4-75b2-8872-fc9e8509ab0a")
 	op2 := uuid.MustParse("01965ed9-7fa4-75b2-8872-fc9e8509ab0b")
 
@@ -410,8 +411,8 @@ func TestCreateTransactionRoute_ServiceError_Canonical404(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	t.Cleanup(ctrl.Finish)
 
-	orgID := uuid.New()
-	ledgerID := uuid.New()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
 	op1 := uuid.MustParse("01965ed9-7fa4-75b2-8872-fc9e8509ab0a")
 
 	orRepo := operationroute.NewMockRepository(ctrl)
@@ -446,9 +447,9 @@ func TestGetTransactionRouteByID_ServiceError_Canonical404(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	t.Cleanup(ctrl.Finish)
 
-	orgID := uuid.New()
-	ledgerID := uuid.New()
-	id := uuid.New()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
+	id := uuid.Must(libCommons.GenerateUUIDv7())
 
 	trRepo := transactionroute.NewMockRepository(ctrl)
 	trRepo.EXPECT().FindByID(gomock.Any(), orgID, ledgerID, id).
@@ -471,9 +472,9 @@ func TestUpdateTransactionRoute_Success(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	t.Cleanup(ctrl.Finish)
 
-	orgID := uuid.New()
-	ledgerID := uuid.New()
-	id := uuid.New()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
+	id := uuid.Must(libCommons.GenerateUUIDv7())
 
 	trRepo := transactionroute.NewMockRepository(ctrl)
 	metadataRepo := mongodb.NewMockRepository(ctrl)
@@ -516,9 +517,9 @@ func TestUpdateTransactionRoute_NotFound_Canonical404(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	t.Cleanup(ctrl.Finish)
 
-	orgID := uuid.New()
-	ledgerID := uuid.New()
-	id := uuid.New()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
+	id := uuid.Must(libCommons.GenerateUUIDv7())
 
 	trRepo := transactionroute.NewMockRepository(ctrl)
 	trRepo.EXPECT().Update(gomock.Any(), orgID, ledgerID, id, gomock.Any(), gomock.Any(), gomock.Any()).
@@ -544,9 +545,9 @@ func TestDeleteTransactionRoute_ServiceError_Canonical404(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	t.Cleanup(ctrl.Finish)
 
-	orgID := uuid.New()
-	ledgerID := uuid.New()
-	id := uuid.New()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
+	id := uuid.Must(libCommons.GenerateUUIDv7())
 
 	trRepo := transactionroute.NewMockRepository(ctrl)
 	trRepo.EXPECT().FindByID(gomock.Any(), orgID, ledgerID, id).
@@ -573,9 +574,9 @@ func TestGetAllTransactionRoutes_MetadataFilter(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	t.Cleanup(ctrl.Finish)
 
-	orgID := uuid.New()
-	ledgerID := uuid.New()
-	id := uuid.New()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
+	id := uuid.Must(libCommons.GenerateUUIDv7())
 
 	trRepo := transactionroute.NewMockRepository(ctrl)
 	metadataRepo := mongodb.NewMockRepository(ctrl)
@@ -609,8 +610,8 @@ func TestGetAllTransactionRoutes_ServiceError_Canonical404(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	t.Cleanup(ctrl.Finish)
 
-	orgID := uuid.New()
-	ledgerID := uuid.New()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	trRepo := transactionroute.NewMockRepository(ctrl)
 	trRepo.EXPECT().FindAll(gomock.Any(), orgID, ledgerID, gomock.Any()).

@@ -469,19 +469,40 @@ type TransactionHandler struct {
     Query   *query.UseCase    // For read operations
 }
 
-// With body parsing
-func (h *TransactionHandler) CreateTransaction(p any, c *fiber.Ctx) error {
-    ctx := c.UserContext()
+// The transport-agnostic core lives in <resource>.go. It owns the span, the service
+// call and the log/metric branch, and takes primitive args so nothing transport-shaped
+// reaches it.
+func (handler *TransactionHandler) createTransaction(ctx context.Context, organizationID, ledgerID uuid.UUID, input *transaction.CreateTransactionInput) (*transaction.Transaction, error) {
     logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
+
     ctx, span := tracer.Start(ctx, "handler.create_transaction")
     defer span.End()
 
-    input := p.(*transaction.CreateTransactionInput)
-    result, err := h.Command.CreateTransaction(ctx, input)
+    result, err := handler.Command.CreateTransaction(ctx, organizationID, ledgerID, input)
     if err != nil {
-        return http.WithError(c, err)
+        handleSpanByErrorClass(span, "Failed to create transaction", err)
+
+        return nil, err
     }
-    return http.Created(c, result)
+
+    return result, nil
+}
+
+// The Huma transport lives in <resource>_handler.go. It resolves the path params,
+// delegates to the core, and renders the typed response; errors become RFC 9457
+// problems through pkgHTTP.HumaProblem.
+func (handler *TransactionHandler) CreateTransaction(ctx context.Context, in *CreateTransactionRequest) (*CreateTransactionResponse, error) {
+    orgID, ledgerID, err := parseOrgLedger(in.OrganizationID, in.LedgerID)
+    if err != nil {
+        return nil, pkgHTTP.HumaProblem(err)
+    }
+
+    result, err := handler.createTransaction(ctx, orgID, ledgerID, payload)
+    if err != nil {
+        return nil, pkgHTTP.HumaProblem(err)
+    }
+
+    return &CreateTransactionResponse{Status: http.StatusCreated, Body: result}, nil
 }
 ```
 
@@ -504,8 +525,13 @@ type CreateAccountRequest struct {
     RawBody        []byte `contentType:"application/json"`
 }
 
-func RegisterAccountRoutesToApp(group fiber.Router, api huma.API, auth *middleware.AuthClient, h *AccountHandler, routeOptions *pkgHTTP.ProtectedRouteOptions) {
-    huma.Register(api, huma.Operation{ /* method, path, status, security, tags */ }, h.create)
+// Register<Resource>Routes declares the operations on the Huma API. opSuffix keeps the
+// v1 and v2 mounts from colliding on OperationID (huma.AddOperation panics on duplicates).
+func RegisterAccountRoutes(api huma.API, h *AccountHandler, opSuffix string) {
+    huma.Register(api, huma.Operation{
+        OperationID: "createAccount" + opSuffix,
+        /* method, path, status, security, tags */
+    }, h.CreateAccount)
 }
 ```
 

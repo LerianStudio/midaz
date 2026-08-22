@@ -11,6 +11,8 @@ import (
 	"testing"
 	"time"
 
+	libCommons "github.com/LerianStudio/lib-commons/v6/commons"
+
 	"github.com/google/uuid"
 	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/assert"
@@ -32,7 +34,7 @@ func TestBuildOverriddenTransaction(t *testing.T) {
 
 	handler := &TransactionHandler{}
 
-	routeID := uuid.New().String()
+	routeID := uuid.Must(libCommons.GenerateUUIDv7()).String()
 	txDate := mtransaction.TransactionDate(time.Date(2026, 1, 2, 3, 4, 5, 0, time.UTC))
 
 	// newInput returns a CreateTransactionInput that populates every field
@@ -122,8 +124,8 @@ func TestCreateTransactionBlockUnblock_HTTPWiring(t *testing.T) {
 	// NOT parallel: buildHumaTransactionApp mutates process-global huma state.
 	for _, route := range []string{"block", "unblock"} {
 		t.Run(route, func(t *testing.T) {
-			orgID := uuid.New()
-			ledgerID := uuid.New()
+			orgID := uuid.Must(libCommons.GenerateUUIDv7())
+			ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
 
 			// No mocks needed: the non-positive value guard short-circuits
 			// before any repository call.

@@ -60,8 +60,6 @@ func (h *feeHarness) newApp() *fiber.App {
 	// Must run after openapi.New and BEFORE any huma.Register.
 	http.InstallLedgerSchemaNamer(hAPI)
 
-	parse := http.ParseUUIDPathParameters("transaction")
-
 	debugLogger := func(c fiber.Ctx) error {
 		if debugFunnelLogs {
 			c.SetContext(libObservability.ContextWithLogger(c.Context(), &libLog.GoLogger{Level: libLog.LevelDebug}))
@@ -70,20 +68,7 @@ func (h *feeHarness) newApp() *fiber.App {
 		return c.Next()
 	}
 
-	base := "/organizations/:organization_id/ledgers/:ledger_id/transactions"
-
-	apiV1.Post(base+"/json", debugLogger, parse)
-	apiV1.Post(base+"/inflow", debugLogger, parse)
-	apiV1.Post(base+"/outflow", debugLogger, parse)
-	apiV1.Post(base+"/annotation", debugLogger, parse)
-	apiV1.Post(base+"/block", debugLogger, parse)
-	apiV1.Post(base+"/unblock", debugLogger, parse)
-	apiV1.Post(base+"/:transaction_id/commit", debugLogger, parse)
-	apiV1.Post(base+"/:transaction_id/cancel", debugLogger, parse)
-	apiV1.Post(base+"/:transaction_id/revert", debugLogger, parse)
-	apiV1.Patch(base+"/:transaction_id", debugLogger, parse)
-	apiV1.Get(base+"/:transaction_id", debugLogger, parse)
-	apiV1.Get(base, debugLogger, parse)
+	mountTransactionRoutes(apiV1, debugLogger)
 
 	RegisterTransactionRoutes(hAPI, h.handler)
 

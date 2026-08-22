@@ -82,7 +82,7 @@ func (handler *BillingPackageHandler) createBillingPackage(ctx context.Context, 
 	}
 
 	if result == nil {
-		return nil, feeerrors.ValidateInternalError(feeconstant.ErrInternalServer, "BillingPackage")
+		return nil, feeerrors.ValidateInternalError(feeconstant.ErrInternalServer, feeconstant.EntityBillingPackage)
 	}
 
 	return result, nil
@@ -138,11 +138,11 @@ func (handler *BillingPackageHandler) listBillingPackages(ctx context.Context, o
 	if l := queries["limit"]; l != "" {
 		parsed, errParse := strconv.Atoi(l)
 		if errParse != nil || parsed < 1 {
-			return model.Pagination{}, feeerrors.ValidateBusinessError(feeconstant.ErrInvalidQueryParameter, "BillingPackage", "limit")
+			return model.Pagination{}, feeerrors.ValidateBusinessError(feeconstant.ErrInvalidQueryParameter, feeconstant.EntityBillingPackage, "limit")
 		}
 
 		if parsed > maxPaginationLimit {
-			return model.Pagination{}, feeerrors.ValidateBusinessError(feeconstant.ErrPaginationLimitExceeded, "BillingPackage", maxPaginationLimit)
+			return model.Pagination{}, feeerrors.ValidateBusinessError(feeconstant.ErrPaginationLimitExceeded, feeconstant.EntityBillingPackage, maxPaginationLimit)
 		}
 
 		limit = parsed
@@ -151,7 +151,7 @@ func (handler *BillingPackageHandler) listBillingPackages(ctx context.Context, o
 	if p := queries["page"]; p != "" {
 		parsed, errParse := strconv.Atoi(p)
 		if errParse != nil || parsed < 1 {
-			return model.Pagination{}, feeerrors.ValidateBusinessError(feeconstant.ErrInvalidQueryParameter, "BillingPackage", "page")
+			return model.Pagination{}, feeerrors.ValidateBusinessError(feeconstant.ErrInvalidQueryParameter, feeconstant.EntityBillingPackage, "page")
 		}
 
 		page = parsed
@@ -246,7 +246,7 @@ func (handler *BillingPackageHandler) updateBillingPackage(ctx context.Context, 
 
 	updates := payload.ToMap()
 	if len(updates) == 0 {
-		validationErr := feeerrors.ValidateBusinessError(feeconstant.ErrNothingToUpdate, "BillingPackage")
+		validationErr := feeerrors.ValidateBusinessError(feeconstant.ErrNothingToUpdate, feeconstant.EntityBillingPackage)
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Empty update payload", validationErr)
 
 		return nil, validationErr
@@ -257,6 +257,10 @@ func (handler *BillingPackageHandler) updateBillingPackage(ctx context.Context, 
 		handleSpanByErrorClass(span, "Failed to update billing package", errUpdate)
 
 		return nil, errUpdate
+	}
+
+	if result == nil {
+		return nil, feeerrors.ValidateInternalError(feeconstant.ErrInternalServer, feeconstant.EntityBillingPackage)
 	}
 
 	return result, nil

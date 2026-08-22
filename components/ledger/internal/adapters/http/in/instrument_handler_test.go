@@ -13,6 +13,8 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	libCommons "github.com/LerianStudio/lib-commons/v6/commons"
+
 	openapi "github.com/LerianStudio/lib-commons/v6/commons/net/http/openapi"
 	libProblem "github.com/LerianStudio/lib-commons/v6/commons/net/http/problem"
 	"github.com/gofiber/fiber/v3"
@@ -96,9 +98,9 @@ func TestCreateInstrument_IdempotentReplay(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	t.Cleanup(ctrl.Finish)
 
-	orgID := uuid.New()
-	holderID := uuid.New()
-	instrumentID := uuid.New()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	holderID := uuid.Must(libCommons.GenerateUUIDv7())
+	instrumentID := uuid.Must(libCommons.GenerateUUIDv7())
 	document := "12345678901"
 	holderType := "individual"
 
@@ -135,7 +137,7 @@ func TestCreateInstrument_IdempotentReplay(t *testing.T) {
 	doRequest := func() (int, string, []byte) {
 		req := httptest.NewRequest(http.MethodPost, "/v2/organizations/"+orgID.String()+"/holders/"+holderID.String()+"/instruments", bytes.NewBufferString(body))
 		req.Header.Set("Content-Type", "application/json")
-		req.Header.Set("X-Idempotency-Key", "instrument-key-1")
+		req.Header.Set("X-Idempotency", "instrument-key-1")
 
 		resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
 		require.NoError(t, err)
@@ -170,8 +172,8 @@ func TestCreateInstrument_AuthPreserved(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	t.Cleanup(ctrl.Finish)
 
-	orgID := uuid.New()
-	holderID := uuid.New()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	holderID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	// No repo expectations: a rejected auth must never reach the service.
 	handler, _ := newInstrumentHandler(t, ctrl)
@@ -194,8 +196,8 @@ func TestCreateInstrument_MalformedBody_Canonical400(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	t.Cleanup(ctrl.Finish)
 
-	orgID := uuid.New()
-	holderID := uuid.New()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	holderID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	// Malformed JSON -> DecodeAndValidate returns 0094; HumaProblem projects it to
 	// problem+json at 400 (not a native Huma 422). Service never reached.
@@ -226,9 +228,9 @@ func TestGetInstrumentByID_Success(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	t.Cleanup(ctrl.Finish)
 
-	orgID := uuid.New()
-	holderID := uuid.New()
-	instrumentID := uuid.New()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	holderID := uuid.Must(libCommons.GenerateUUIDv7())
+	instrumentID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	handler, repo := newInstrumentHandler(t, ctrl)
 	repo.EXPECT().
@@ -256,8 +258,8 @@ func TestGetInstrumentByID_BadUUID_Canonical400(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	t.Cleanup(ctrl.Finish)
 
-	orgID := uuid.New()
-	holderID := uuid.New()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	holderID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	// Service must never be reached: ParseUUIDPathParameters rejects the bad
 	// instrument_id with the canonical 0065 / 400 before Huma.
@@ -283,9 +285,9 @@ func TestUpdateInstrument_MergePatch_NullFieldRemoved(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	t.Cleanup(ctrl.Finish)
 
-	orgID := uuid.New()
-	holderID := uuid.New()
-	instrumentID := uuid.New()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	holderID := uuid.Must(libCommons.GenerateUUIDv7())
+	instrumentID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	// The PATCH sends "bankingDetails": null. The handler must derive
 	// fieldsToRemove=["bankingDetails"] via FindNilFields and pass it to Update —
@@ -328,9 +330,9 @@ func TestDeleteInstrument_204Empty(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	t.Cleanup(ctrl.Finish)
 
-	orgID := uuid.New()
-	holderID := uuid.New()
-	instrumentID := uuid.New()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	holderID := uuid.Must(libCommons.GenerateUUIDv7())
+	instrumentID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	handler, repo := newInstrumentHandler(t, ctrl)
 	repo.EXPECT().Delete(gomock.Any(), orgID.String(), holderID, instrumentID, false).Return(nil).Times(1)
@@ -352,10 +354,10 @@ func TestDeleteRelatedParty_204Empty(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	t.Cleanup(ctrl.Finish)
 
-	orgID := uuid.New()
-	holderID := uuid.New()
-	instrumentID := uuid.New()
-	relatedPartyID := uuid.New()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	holderID := uuid.Must(libCommons.GenerateUUIDv7())
+	instrumentID := uuid.Must(libCommons.GenerateUUIDv7())
+	relatedPartyID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	handler, repo := newInstrumentHandler(t, ctrl)
 	repo.EXPECT().
@@ -379,7 +381,7 @@ func TestGetAllInstruments_Success(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	t.Cleanup(ctrl.Finish)
 
-	orgID := uuid.New()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	// GetAllInstruments is org-scoped; with no holder_id query filter the service
 	// passes the zero-UUID holder filter through to FindAll.
@@ -410,7 +412,7 @@ func TestGetAllInstruments_BadQuery_Canonical400(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	t.Cleanup(ctrl.Finish)
 
-	orgID := uuid.New()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	// Service must never be reached: ValidateParameters rejects limit=abc with the
 	// canonical 400 (ErrInvalidQueryParameter), NOT a native Huma 422.
@@ -436,8 +438,8 @@ func TestCreateInstrument_HolderNotFound_Canonical404(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	t.Cleanup(ctrl.Finish)
 
-	orgID := uuid.New()
-	holderID := uuid.New()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	holderID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	// The holder lookup fails, so the create core returns the canonical business
 	// error; HumaProblem must project it to 404 with the sentinel code intact and
@@ -479,9 +481,9 @@ func TestGetInstrumentByID_NotFound_Canonical404(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	t.Cleanup(ctrl.Finish)
 
-	orgID := uuid.New()
-	holderID := uuid.New()
-	instrumentID := uuid.New()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	holderID := uuid.Must(libCommons.GenerateUUIDv7())
+	instrumentID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	handler, repo := newInstrumentHandler(t, ctrl)
 	repo.EXPECT().
@@ -509,9 +511,9 @@ func TestUpdateInstrument_NotFound_Canonical404(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	t.Cleanup(ctrl.Finish)
 
-	orgID := uuid.New()
-	holderID := uuid.New()
-	instrumentID := uuid.New()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	holderID := uuid.Must(libCommons.GenerateUUIDv7())
+	instrumentID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	handler, repo := newInstrumentHandler(t, ctrl)
 	repo.EXPECT().
@@ -542,9 +544,9 @@ func TestDeleteInstrument_NotFound_Canonical404(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	t.Cleanup(ctrl.Finish)
 
-	orgID := uuid.New()
-	holderID := uuid.New()
-	instrumentID := uuid.New()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	holderID := uuid.Must(libCommons.GenerateUUIDv7())
+	instrumentID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	handler, repo := newInstrumentHandler(t, ctrl)
 	repo.EXPECT().
@@ -572,10 +574,10 @@ func TestDeleteRelatedParty_NotFound_Canonical404(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	t.Cleanup(ctrl.Finish)
 
-	orgID := uuid.New()
-	holderID := uuid.New()
-	instrumentID := uuid.New()
-	relatedPartyID := uuid.New()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	holderID := uuid.Must(libCommons.GenerateUUIDv7())
+	instrumentID := uuid.Must(libCommons.GenerateUUIDv7())
+	relatedPartyID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	handler, repo := newInstrumentHandler(t, ctrl)
 	repo.EXPECT().
@@ -603,7 +605,7 @@ func TestGetAllInstruments_HolderFilter(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	t.Cleanup(ctrl.Finish)
 
-	orgID := uuid.New()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
 	filterHolderID := uuid.MustParse("11111111-1111-1111-1111-111111111111")
 
 	// holder_id and ledger_id stay query-string list filters on the org-scoped list.
@@ -642,7 +644,7 @@ func TestGetAllInstruments_ServiceError_Canonical404(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	t.Cleanup(ctrl.Finish)
 
-	orgID := uuid.New()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	handler, repo := newInstrumentHandler(t, ctrl)
 	repo.EXPECT().

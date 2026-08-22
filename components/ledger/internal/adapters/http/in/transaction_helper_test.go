@@ -8,6 +8,8 @@ import (
 	"context"
 	"testing"
 
+	libCommons "github.com/LerianStudio/lib-commons/v6/commons"
+
 	"github.com/google/uuid"
 	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/assert"
@@ -30,7 +32,7 @@ func TestBuildParentTransactionID(t *testing.T) {
 	t.Run("returns string pointer when parent id exists", func(t *testing.T) {
 		t.Parallel()
 
-		parentID := uuid.New()
+		parentID := uuid.Must(libCommons.GenerateUUIDv7())
 		result := buildParentTransactionID(parentID)
 
 		require.NotNil(t, result)
@@ -90,8 +92,8 @@ func TestBuildBalanceOperations(t *testing.T) {
 
 		balances := []*mmodel.Balance{
 			{
-				ID:             uuid.New().String(),
-				AccountID:      uuid.New().String(),
+				ID:             uuid.Must(libCommons.GenerateUUIDv7()).String(),
+				AccountID:      uuid.Must(libCommons.GenerateUUIDv7()).String(),
 				OrganizationID: organizationID.String(),
 				LedgerID:       ledgerID.String(),
 				Alias:          "alias1",
@@ -132,8 +134,8 @@ func TestBuildBalanceOperations(t *testing.T) {
 
 		balances := []*mmodel.Balance{
 			{
-				ID:             uuid.New().String(),
-				AccountID:      uuid.New().String(),
+				ID:             uuid.Must(libCommons.GenerateUUIDv7()).String(),
+				AccountID:      uuid.Must(libCommons.GenerateUUIDv7()).String(),
 				OrganizationID: organizationID.String(),
 				LedgerID:       ledgerID.String(),
 				Alias:          "alias1",
@@ -176,12 +178,12 @@ func TestBuildBalanceOperations(t *testing.T) {
 
 		balances := []*mmodel.Balance{
 			{
-				ID:    uuid.New().String(),
+				ID:    uuid.Must(libCommons.GenerateUUIDv7()).String(),
 				Alias: "zeta",
 				Key:   "default",
 			},
 			{
-				ID:    uuid.New().String(),
+				ID:    uuid.Must(libCommons.GenerateUUIDv7()).String(),
 				Alias: "alpha",
 				Key:   "default",
 			},

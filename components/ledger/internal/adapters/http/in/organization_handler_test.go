@@ -13,7 +13,8 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
-	"time"
+
+	libCommons "github.com/LerianStudio/lib-commons/v6/commons"
 
 	openapi "github.com/LerianStudio/lib-commons/v6/commons/net/http/openapi"
 	libProblem "github.com/LerianStudio/lib-commons/v6/commons/net/http/problem"
@@ -85,9 +86,10 @@ func buildHumaOrganizationApp(t *testing.T, handler *OrganizationHandler, authOK
 	// RegisterOrganizationRoutes registers on the Huma API. The static metrics/count
 	// route is registered BEFORE the :id route so it is not shadowed by the param.
 	parse := pkgHTTP.ParseUUIDPathParameters("organization")
-	apiV1.Post("/organizations", parse)
-	apiV1.Get("/organizations", parse)
-	apiV1.Head("/organizations/metrics/count", parse)
+	passthrough := func(c fiber.Ctx) error { return c.Next() }
+	apiV1.Post("/organizations", passthrough)
+	apiV1.Get("/organizations", passthrough)
+	apiV1.Head("/organizations/metrics/count", passthrough)
 	apiV1.Get("/organizations/:id", parse)
 	apiV1.Patch("/organizations/:id", parse)
 	apiV1.Delete("/organizations/:id", parse)
@@ -107,9 +109,9 @@ func TestCreateOrganization_Success(t *testing.T) {
 
 	orgRepo.EXPECT().Create(gomock.Any(), gomock.Any()).
 		DoAndReturn(func(_ any, org *mmodel.Organization) (*mmodel.Organization, error) {
-			org.ID = uuid.New().String()
-			org.CreatedAt = time.Now()
-			org.UpdatedAt = time.Now()
+			org.ID = uuid.Must(libCommons.GenerateUUIDv7()).String()
+			org.CreatedAt = fixedTestTime
+			org.UpdatedAt = fixedTestTime
 			return org, nil
 		}).Times(1)
 	// The shared body pipeline (DecodeAndValidate -> parseMetadata) initializes
@@ -270,7 +272,7 @@ func TestGetOrganizationByID_Success(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	t.Cleanup(ctrl.Finish)
 
-	orgID := uuid.New()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	orgRepo := organization.NewMockRepository(ctrl)
 	metadataRepo := mongodb.NewMockRepository(ctrl)
@@ -303,7 +305,7 @@ func TestGetOrganizationByID_NotFound_Canonical404(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	t.Cleanup(ctrl.Finish)
 
-	orgID := uuid.New()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	orgRepo := organization.NewMockRepository(ctrl)
 	orgRepo.EXPECT().Find(gomock.Any(), orgID).Return(nil, services.ErrDatabaseItemNotFound).Times(1)
@@ -434,7 +436,7 @@ func TestDeleteOrganization_204Empty(t *testing.T) {
 	// Ensure the production-environment guard is not triggered.
 	t.Setenv("ENV_NAME", "development")
 
-	orgID := uuid.New()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	orgRepo := organization.NewMockRepository(ctrl)
 	orgRepo.EXPECT().Delete(gomock.Any(), orgID).Return(nil).Times(1)
@@ -462,7 +464,7 @@ func TestDeleteOrganization_ProductionForbidden(t *testing.T) {
 	// before any repo call — service never reached.
 	t.Setenv("ENV_NAME", "production")
 
-	orgID := uuid.New()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	// No repo expectations: the guard fires before Command.DeleteOrganizationByID.
 	handler := &OrganizationHandler{Command: &command.UseCase{OrganizationRepo: organization.NewMockRepository(ctrl)}}
@@ -546,7 +548,7 @@ func TestUpdateOrganization_Success(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	t.Cleanup(ctrl.Finish)
 
-	orgID := uuid.New()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	orgRepo := organization.NewMockRepository(ctrl)
 	metadataRepo := mongodb.NewMockRepository(ctrl)
@@ -591,7 +593,7 @@ func TestUpdateOrganization_NotFound_Canonical404(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	t.Cleanup(ctrl.Finish)
 
-	orgID := uuid.New()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	orgRepo := organization.NewMockRepository(ctrl)
 	orgRepo.EXPECT().Update(gomock.Any(), orgID, gomock.Any()).Return(nil, services.ErrDatabaseItemNotFound).Times(1)
@@ -628,7 +630,7 @@ func TestUpdateOrganization_MalformedBody_Canonical400(t *testing.T) {
 
 	app := buildHumaOrganizationApp(t, handler, true)
 
-	req := httptest.NewRequest(http.MethodPatch, "/v1/organizations/"+uuid.New().String(), bytes.NewReader([]byte("{not valid json")))
+	req := httptest.NewRequest(http.MethodPatch, "/v1/organizations/"+uuid.Must(libCommons.GenerateUUIDv7()).String(), bytes.NewReader([]byte("{not valid json")))
 	req.Header.Set("Content-Type", "application/json")
 
 	resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
@@ -648,8 +650,8 @@ func TestGetAllOrganizations_MetadataFilter_Success(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	t.Cleanup(ctrl.Finish)
 
-	org1ID := uuid.New().String()
-	org2ID := uuid.New().String()
+	org1ID := uuid.Must(libCommons.GenerateUUIDv7()).String()
+	org2ID := uuid.Must(libCommons.GenerateUUIDv7()).String()
 
 	orgRepo := organization.NewMockRepository(ctrl)
 	metadataRepo := mongodb.NewMockRepository(ctrl)
@@ -776,7 +778,7 @@ func TestDeleteOrganization_RepositoryError_500(t *testing.T) {
 
 	t.Setenv("ENV_NAME", "development")
 
-	orgID := uuid.New()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	orgRepo := organization.NewMockRepository(ctrl)
 	orgRepo.EXPECT().Delete(gomock.Any(), orgID).
@@ -866,7 +868,7 @@ func TestProperty_Organization_FieldLengths(t *testing.T) {
 
 			orgRepo.EXPECT().Create(gomock.Any(), gomock.Any()).
 				DoAndReturn(func(_ any, org *mmodel.Organization) (*mmodel.Organization, error) {
-					org.ID = uuid.New().String()
+					org.ID = uuid.Must(libCommons.GenerateUUIDv7()).String()
 					return org, nil
 				}).AnyTimes()
 			metadataRepo.EXPECT().Create(gomock.Any(), gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
@@ -958,7 +960,7 @@ func TestProperty_ContentType_Variations(t *testing.T) {
 
 			orgRepo.EXPECT().Create(gomock.Any(), gomock.Any()).
 				DoAndReturn(func(_ any, org *mmodel.Organization) (*mmodel.Organization, error) {
-					org.ID = uuid.New().String()
+					org.ID = uuid.Must(libCommons.GenerateUUIDv7()).String()
 					return org, nil
 				}).AnyTimes()
 			metadataRepo.EXPECT().Create(gomock.Any(), gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
@@ -1023,7 +1025,7 @@ func TestProperty_Headers_Duplicated(t *testing.T) {
 
 			orgRepo.EXPECT().Create(gomock.Any(), gomock.Any()).
 				DoAndReturn(func(_ any, org *mmodel.Organization) (*mmodel.Organization, error) {
-					org.ID = uuid.New().String()
+					org.ID = uuid.Must(libCommons.GenerateUUIDv7()).String()
 					return org, nil
 				}).AnyTimes()
 			metadataRepo.EXPECT().Create(gomock.Any(), gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
@@ -1071,7 +1073,7 @@ func FuzzHumaCreateOrganization_LegalName(f *testing.F) {
 
 		orgRepo.EXPECT().Create(gomock.Any(), gomock.Any()).
 			DoAndReturn(func(_ any, org *mmodel.Organization) (*mmodel.Organization, error) {
-				org.ID = uuid.New().String()
+				org.ID = uuid.Must(libCommons.GenerateUUIDv7()).String()
 				return org, nil
 			}).AnyTimes()
 		metadataRepo.EXPECT().Create(gomock.Any(), gomock.Any(), gomock.Any()).Return(nil).AnyTimes()

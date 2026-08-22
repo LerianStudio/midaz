@@ -12,7 +12,8 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
-	"time"
+
+	libCommons "github.com/LerianStudio/lib-commons/v6/commons"
 
 	libHTTP "github.com/LerianStudio/lib-commons/v6/commons/net/http"
 	openapi "github.com/LerianStudio/lib-commons/v6/commons/net/http/openapi"
@@ -81,19 +82,19 @@ func TestCreateOperationRoute_Success(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	t.Cleanup(ctrl.Finish)
 
-	orgID := uuid.New()
-	ledgerID := uuid.New()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	orRepo := operationroute.NewMockRepository(ctrl)
 	metaRepo := mongodb.NewMockRepository(ctrl)
 
 	orRepo.EXPECT().Create(gomock.Any(), orgID, ledgerID, gomock.Any()).
 		DoAndReturn(func(_ any, oID, lID uuid.UUID, or *mmodel.OperationRoute) (*mmodel.OperationRoute, error) {
-			or.ID = uuid.New()
+			or.ID = uuid.Must(libCommons.GenerateUUIDv7())
 			or.OrganizationID = oID
 			or.LedgerID = lID
-			or.CreatedAt = time.Now()
-			or.UpdatedAt = time.Now()
+			or.CreatedAt = fixedTestTime
+			or.UpdatedAt = fixedTestTime
 			return or, nil
 		}).Times(1)
 	metaRepo.EXPECT().Create(gomock.Any(), constant.EntityOperationRoute, gomock.Any()).Return(nil).Times(1)
@@ -128,8 +129,8 @@ func TestCreateOperationRoute_AuthPreserved(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	t.Cleanup(ctrl.Finish)
 
-	orgID := uuid.New()
-	ledgerID := uuid.New()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	// No repo expectations: a rejected auth must never reach the service.
 	handler := &OperationRouteHandler{Command: &command.UseCase{
@@ -158,8 +159,8 @@ func TestCreateOperationRoute_UnknownAccountingEntryKey_Canonical400(t *testing.
 	ctrl := gomock.NewController(t)
 	t.Cleanup(ctrl.Finish)
 
-	orgID := uuid.New()
-	ledgerID := uuid.New()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	handler := &OperationRouteHandler{Command: &command.UseCase{
 		OperationRouteRepo:      operationroute.NewMockRepository(ctrl),
@@ -192,9 +193,9 @@ func TestGetOperationRouteByID_Success(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	t.Cleanup(ctrl.Finish)
 
-	orgID := uuid.New()
-	ledgerID := uuid.New()
-	id := uuid.New()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
+	id := uuid.Must(libCommons.GenerateUUIDv7())
 
 	orRepo := operationroute.NewMockRepository(ctrl)
 	metaRepo := mongodb.NewMockRepository(ctrl)
@@ -226,8 +227,8 @@ func TestGetOperationRouteByID_BadUUID_Canonical400(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	t.Cleanup(ctrl.Finish)
 
-	orgID := uuid.New()
-	ledgerID := uuid.New()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	handler := &OperationRouteHandler{Query: &query.UseCase{
 		OperationRouteRepo:      operationroute.NewMockRepository(ctrl),
@@ -254,9 +255,9 @@ func TestDeleteOperationRoute_204Empty(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	t.Cleanup(ctrl.Finish)
 
-	orgID := uuid.New()
-	ledgerID := uuid.New()
-	id := uuid.New()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
+	id := uuid.Must(libCommons.GenerateUUIDv7())
 
 	orRepo := operationroute.NewMockRepository(ctrl)
 	// Command.DeleteOperationRouteByID checks for transaction-route links before deleting.
@@ -282,8 +283,8 @@ func TestGetAllOperationRoutes_Success(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	t.Cleanup(ctrl.Finish)
 
-	orgID := uuid.New()
-	ledgerID := uuid.New()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	orRepo := operationroute.NewMockRepository(ctrl)
 	// nil slice -> query use case skips the metadata FindList join (empty page).
@@ -313,8 +314,8 @@ func TestGetAllOperationRoutes_BadQuery_Canonical400(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	t.Cleanup(ctrl.Finish)
 
-	orgID := uuid.New()
-	ledgerID := uuid.New()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	handler := &OperationRouteHandler{Query: &query.UseCase{OperationRouteRepo: operationroute.NewMockRepository(ctrl)}}
 
@@ -394,9 +395,9 @@ func TestUpdateOperationRoute_MergePatch(t *testing.T) {
 			ctrl := gomock.NewController(t)
 			t.Cleanup(ctrl.Finish)
 
-			orgID := uuid.New()
-			ledgerID := uuid.New()
-			id := uuid.New()
+			orgID := uuid.Must(libCommons.GenerateUUIDv7())
+			ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
+			id := uuid.Must(libCommons.GenerateUUIDv7())
 
 			orRepo := operationroute.NewMockRepository(ctrl)
 			metaRepo := mongodb.NewMockRepository(ctrl)
@@ -517,8 +518,8 @@ func TestCreateOperationRoute_InvalidAccountRule_400(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	t.Cleanup(ctrl.Finish)
 
-	orgID := uuid.New()
-	ledgerID := uuid.New()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	// No repo expectations: the account-rule guard rejects before the service.
 	handler := &OperationRouteHandler{Command: &command.UseCase{
@@ -553,8 +554,8 @@ func TestCreateOperationRoute_RepositoryError_500(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	t.Cleanup(ctrl.Finish)
 
-	orgID := uuid.New()
-	ledgerID := uuid.New()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	orRepo := operationroute.NewMockRepository(ctrl)
 	orRepo.EXPECT().Create(gomock.Any(), orgID, ledgerID, gomock.Any()).
@@ -588,9 +589,9 @@ func TestGetOperationRouteByID_NotFound_404(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	t.Cleanup(ctrl.Finish)
 
-	orgID := uuid.New()
-	ledgerID := uuid.New()
-	id := uuid.New()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
+	id := uuid.Must(libCommons.GenerateUUIDv7())
 
 	orRepo := operationroute.NewMockRepository(ctrl)
 	orRepo.EXPECT().FindByID(gomock.Any(), orgID, ledgerID, id).
@@ -621,9 +622,9 @@ func TestUpdateOperationRoute_InvalidAccountRule_400(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	t.Cleanup(ctrl.Finish)
 
-	orgID := uuid.New()
-	ledgerID := uuid.New()
-	id := uuid.New()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
+	id := uuid.Must(libCommons.GenerateUUIDv7())
 
 	// No repo expectations: the account-rule guard rejects before the service.
 	handler := &OperationRouteHandler{Command: &command.UseCase{
@@ -657,9 +658,9 @@ func TestUpdateOperationRoute_NotFound_404(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	t.Cleanup(ctrl.Finish)
 
-	orgID := uuid.New()
-	ledgerID := uuid.New()
-	id := uuid.New()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
+	id := uuid.Must(libCommons.GenerateUUIDv7())
 
 	orRepo := operationroute.NewMockRepository(ctrl)
 	metaRepo := mongodb.NewMockRepository(ctrl)
@@ -698,9 +699,9 @@ func TestUpdateOperationRoute_AccountRuleReloadsCache(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	t.Cleanup(ctrl.Finish)
 
-	orgID := uuid.New()
-	ledgerID := uuid.New()
-	id := uuid.New()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
+	id := uuid.Must(libCommons.GenerateUUIDv7())
 
 	orRepo := operationroute.NewMockRepository(ctrl)
 	metaRepo := mongodb.NewMockRepository(ctrl)
@@ -750,9 +751,9 @@ func TestDeleteOperationRoute_NotFound_404(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	t.Cleanup(ctrl.Finish)
 
-	orgID := uuid.New()
-	ledgerID := uuid.New()
-	id := uuid.New()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
+	id := uuid.Must(libCommons.GenerateUUIDv7())
 
 	orRepo := operationroute.NewMockRepository(ctrl)
 	orRepo.EXPECT().HasTransactionRouteLinks(gomock.Any(), orgID, ledgerID, id).Return(false, nil).Times(1)
@@ -783,9 +784,9 @@ func TestDeleteOperationRoute_LinkedToTransactionRoutes_422(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	t.Cleanup(ctrl.Finish)
 
-	orgID := uuid.New()
-	ledgerID := uuid.New()
-	id := uuid.New()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
+	id := uuid.Must(libCommons.GenerateUUIDv7())
 
 	orRepo := operationroute.NewMockRepository(ctrl)
 	orRepo.EXPECT().HasTransactionRouteLinks(gomock.Any(), orgID, ledgerID, id).Return(true, nil).Times(1)
@@ -815,9 +816,9 @@ func TestGetAllOperationRoutes_MetadataFilter(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	t.Cleanup(ctrl.Finish)
 
-	orgID := uuid.New()
-	ledgerID := uuid.New()
-	id := uuid.New()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
+	id := uuid.Must(libCommons.GenerateUUIDv7())
 
 	orRepo := operationroute.NewMockRepository(ctrl)
 	metaRepo := mongodb.NewMockRepository(ctrl)
@@ -863,8 +864,8 @@ func TestGetAllOperationRoutes_RepositoryError_500(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	t.Cleanup(ctrl.Finish)
 
-	orgID := uuid.New()
-	ledgerID := uuid.New()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	orRepo := operationroute.NewMockRepository(ctrl)
 	orRepo.EXPECT().FindAll(gomock.Any(), orgID, ledgerID, gomock.Any()).

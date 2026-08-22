@@ -11,7 +11,8 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
-	"time"
+
+	libCommons "github.com/LerianStudio/lib-commons/v6/commons"
 
 	openapi "github.com/LerianStudio/lib-commons/v6/commons/net/http/openapi"
 	libProblem "github.com/LerianStudio/lib-commons/v6/commons/net/http/problem"
@@ -54,6 +55,7 @@ func buildHumaPortfolioApp(t *testing.T, handler *PortfolioHandler, authOK bool)
 	})
 
 	libProblem.Install()
+	pkgHTTP.InstallHumaFrameworkErrors()
 
 	apiV1 := f.Group("/v1")
 
@@ -88,16 +90,16 @@ func TestCreatePortfolio_Success(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	t.Cleanup(ctrl.Finish)
 
-	orgID := uuid.New()
-	ledgerID := uuid.New()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	portfolioRepo := portfolio.NewMockRepository(ctrl)
 	metadataRepo := mongodb.NewMockRepository(ctrl)
 
 	portfolioRepo.EXPECT().Create(gomock.Any(), gomock.Any()).
 		DoAndReturn(func(_ any, p *mmodel.Portfolio) (*mmodel.Portfolio, error) {
-			p.CreatedAt = time.Now()
-			p.UpdatedAt = time.Now()
+			p.CreatedAt = fixedTestTime
+			p.UpdatedAt = fixedTestTime
 			return p, nil
 		}).Times(1)
 	// The shared body pipeline (DecodeAndValidate -> parseMetadata) initializes
@@ -138,8 +140,8 @@ func TestCreatePortfolio_AuthPreserved(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	t.Cleanup(ctrl.Finish)
 
-	orgID := uuid.New()
-	ledgerID := uuid.New()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	// No repo expectations: a rejected auth must never reach the service.
 	handler := &PortfolioHandler{Command: &command.UseCase{
@@ -165,8 +167,8 @@ func TestCreatePortfolio_ValidationError_Canonical400(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	t.Cleanup(ctrl.Finish)
 
-	orgID := uuid.New()
-	ledgerID := uuid.New()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	// Missing required "name" -> imperative ValidateStruct -> canonical 400.
 	handler := &PortfolioHandler{Command: &command.UseCase{
@@ -200,8 +202,8 @@ func TestCreatePortfolio_MalformedBody_Canonical400(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	t.Cleanup(ctrl.Finish)
 
-	orgID := uuid.New()
-	ledgerID := uuid.New()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	handler := &PortfolioHandler{Command: &command.UseCase{
 		PortfolioRepo:          portfolio.NewMockRepository(ctrl),
@@ -233,9 +235,9 @@ func TestGetPortfolioByID_Success(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	t.Cleanup(ctrl.Finish)
 
-	orgID := uuid.New()
-	ledgerID := uuid.New()
-	portfolioID := uuid.New()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
+	portfolioID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	portfolioRepo := portfolio.NewMockRepository(ctrl)
 	metadataRepo := mongodb.NewMockRepository(ctrl)
@@ -268,8 +270,8 @@ func TestGetPortfolioByID_BadUUID_Canonical400(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	t.Cleanup(ctrl.Finish)
 
-	orgID := uuid.New()
-	ledgerID := uuid.New()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	// ParseUUIDPathParameters rejects the bad id with 0065 / 400 before Huma.
 	handler := &PortfolioHandler{Query: &query.UseCase{
@@ -297,9 +299,9 @@ func TestGetPortfolioByID_NotFound_Canonical404(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	t.Cleanup(ctrl.Finish)
 
-	orgID := uuid.New()
-	ledgerID := uuid.New()
-	portfolioID := uuid.New()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
+	portfolioID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	portfolioRepo := portfolio.NewMockRepository(ctrl)
 	// Repo returns the sentinel not-found -> canonical 404, never a native 422.
@@ -329,8 +331,8 @@ func TestGetAllPortfolios_Success(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	t.Cleanup(ctrl.Finish)
 
-	orgID := uuid.New()
-	ledgerID := uuid.New()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	portfolioRepo := portfolio.NewMockRepository(ctrl)
 	portfolioRepo.EXPECT().FindAll(gomock.Any(), orgID, ledgerID, gomock.Any()).Return([]*mmodel.Portfolio{}, nil).Times(1)
@@ -359,8 +361,8 @@ func TestGetAllPortfolios_BadQuery_Canonical400(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	t.Cleanup(ctrl.Finish)
 
-	orgID := uuid.New()
-	ledgerID := uuid.New()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	// ValidateParameters rejects limit=abc with canonical 400, NOT a native 422.
 	handler := &PortfolioHandler{Query: &query.UseCase{PortfolioRepo: portfolio.NewMockRepository(ctrl)}}
@@ -385,9 +387,9 @@ func TestUpdatePortfolio_Success(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	t.Cleanup(ctrl.Finish)
 
-	orgID := uuid.New()
-	ledgerID := uuid.New()
-	portfolioID := uuid.New()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
+	portfolioID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	portfolioRepo := portfolio.NewMockRepository(ctrl)
 	metadataRepo := mongodb.NewMockRepository(ctrl)
@@ -430,9 +432,9 @@ func TestDeletePortfolio_204Empty(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	t.Cleanup(ctrl.Finish)
 
-	orgID := uuid.New()
-	ledgerID := uuid.New()
-	portfolioID := uuid.New()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
+	portfolioID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	portfolioRepo := portfolio.NewMockRepository(ctrl)
 	portfolioRepo.EXPECT().Delete(gomock.Any(), orgID, ledgerID, portfolioID).Return(nil).Times(1)
@@ -456,8 +458,8 @@ func TestCountPortfolios_204WithHeader(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	t.Cleanup(ctrl.Finish)
 
-	orgID := uuid.New()
-	ledgerID := uuid.New()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	portfolioRepo := portfolio.NewMockRepository(ctrl)
 	portfolioRepo.EXPECT().Count(gomock.Any(), orgID, ledgerID).Return(int64(7), nil).Times(1)
@@ -476,11 +478,8 @@ func TestCountPortfolios_204WithHeader(t *testing.T) {
 	assert.Equal(t, "7", resp.Header.Get(constant.XTotalCount), "X-Total-Count header must carry the count")
 	assert.Empty(t, respBody, "HEAD count must have an empty body")
 	assert.Equal(t, "0", resp.Header.Get("Content-Length"), "HEAD 204 must set Content-Length: 0")
-
-	_ = libProblem.BaseURI
 }
 
-// --- ported from the retired Fiber-wrapper tests (portfolio_test.go) -----------
 //
 // The six exported fiber.Ctx terminals on PortfolioHandler were deleted with the
 // Huma migration; the branches their tests covered in the shared cores are
@@ -495,8 +494,8 @@ func TestCreatePortfolio_ServiceError_Canonical4xx(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	t.Cleanup(ctrl.Finish)
 
-	orgID := uuid.New()
-	ledgerID := uuid.New()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	portfolioRepo := portfolio.NewMockRepository(ctrl)
 	portfolioRepo.EXPECT().Create(gomock.Any(), gomock.Any()).
@@ -506,7 +505,7 @@ func TestCreatePortfolio_ServiceError_Canonical4xx(t *testing.T) {
 
 	app := buildHumaPortfolioApp(t, handler, true)
 
-	body, _ := json.Marshal(map[string]any{"name": "Test Portfolio", "entityId": uuid.New().String()})
+	body, _ := json.Marshal(map[string]any{"name": "Test Portfolio", "entityId": uuid.Must(libCommons.GenerateUUIDv7()).String()})
 	req := httptest.NewRequest(http.MethodPost, portfoliosPath(orgID, ledgerID, ""), bytes.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
 
@@ -529,9 +528,9 @@ func TestGetAllPortfolios_MetadataFilter(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	t.Cleanup(ctrl.Finish)
 
-	orgID := uuid.New()
-	ledgerID := uuid.New()
-	p1 := uuid.New().String()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
+	p1 := uuid.Must(libCommons.GenerateUUIDv7()).String()
 
 	portfolioRepo := portfolio.NewMockRepository(ctrl)
 	metadataRepo := mongodb.NewMockRepository(ctrl)
@@ -563,8 +562,8 @@ func TestGetAllPortfolios_MetadataFilter_NoMatch_Canonical404(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	t.Cleanup(ctrl.Finish)
 
-	orgID := uuid.New()
-	ledgerID := uuid.New()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	metadataRepo := mongodb.NewMockRepository(ctrl)
 	metadataRepo.EXPECT().FindList(gomock.Any(), constant.EntityPortfolio, gomock.Any()).Return(nil, nil).Times(1)
@@ -589,8 +588,8 @@ func TestGetAllPortfolios_ServiceError_Canonical404(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	t.Cleanup(ctrl.Finish)
 
-	orgID := uuid.New()
-	ledgerID := uuid.New()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	portfolioRepo := portfolio.NewMockRepository(ctrl)
 	portfolioRepo.EXPECT().FindAll(gomock.Any(), orgID, ledgerID, gomock.Any()).
@@ -613,9 +612,9 @@ func TestUpdatePortfolio_NotFound_Canonical404(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	t.Cleanup(ctrl.Finish)
 
-	orgID := uuid.New()
-	ledgerID := uuid.New()
-	portfolioID := uuid.New()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
+	portfolioID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	portfolioRepo := portfolio.NewMockRepository(ctrl)
 	portfolioRepo.EXPECT().Update(gomock.Any(), orgID, ledgerID, portfolioID, gomock.Any()).
@@ -646,9 +645,9 @@ func TestDeletePortfolio_ServiceError_Canonical404(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	t.Cleanup(ctrl.Finish)
 
-	orgID := uuid.New()
-	ledgerID := uuid.New()
-	portfolioID := uuid.New()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
+	portfolioID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	portfolioRepo := portfolio.NewMockRepository(ctrl)
 	portfolioRepo.EXPECT().Delete(gomock.Any(), orgID, ledgerID, portfolioID).
@@ -676,8 +675,8 @@ func TestCountPortfolios_ServiceError(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	t.Cleanup(ctrl.Finish)
 
-	orgID := uuid.New()
-	ledgerID := uuid.New()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	portfolioRepo := portfolio.NewMockRepository(ctrl)
 	portfolioRepo.EXPECT().Count(gomock.Any(), orgID, ledgerID).

@@ -19,8 +19,8 @@
               {
                 "key": "Authorization",
                 "value": "Bearer {{authToken}}",
-                "description": "Bearer token (forwarded to the service)",
-                "disabled": true
+                "description": "Authorization Bearer Token",
+                "disabled": false
               },
               {
                 "key": "X-Request-Id",
@@ -59,8 +59,8 @@
                   {
                     "key": "Authorization",
                     "value": "Bearer {{authToken}}",
-                    "description": "Bearer token (forwarded to the service)",
-                    "disabled": true
+                    "description": "Authorization Bearer Token",
+                    "disabled": false
                   },
                   {
                     "key": "X-Request-Id",
@@ -8723,8 +8723,8 @@
               {
                 "key": "Authorization",
                 "value": "Bearer {{authToken}}",
-                "description": "Bearer token (forwarded to the service)",
-                "disabled": true
+                "description": "Authorization Bearer Token",
+                "disabled": false
               },
               {
                 "key": "X-Request-Id",
@@ -8763,8 +8763,8 @@
                   {
                     "key": "Authorization",
                     "value": "Bearer {{authToken}}",
-                    "description": "Bearer token (forwarded to the service)",
-                    "disabled": true
+                    "description": "Authorization Bearer Token",
+                    "disabled": false
                   },
                   {
                     "key": "X-Request-Id",
@@ -25421,8 +25421,8 @@
               {
                 "key": "Authorization",
                 "value": "Bearer {{authToken}}",
-                "description": "Bearer token (forwarded to the service)",
-                "disabled": true
+                "description": "Authorization Bearer Token",
+                "disabled": false
               },
               {
                 "key": "X-Request-Id",
@@ -25461,8 +25461,8 @@
                   {
                     "key": "Authorization",
                     "value": "Bearer {{authToken}}",
-                    "description": "Bearer token (forwarded to the service)",
-                    "disabled": true
+                    "description": "Authorization Bearer Token",
+                    "disabled": false
                   },
                   {
                     "key": "X-Request-Id",

@@ -11,7 +11,8 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
-	"time"
+
+	libCommons "github.com/LerianStudio/lib-commons/v6/commons"
 
 	openapi "github.com/LerianStudio/lib-commons/v6/commons/net/http/openapi"
 	libProblem "github.com/LerianStudio/lib-commons/v6/commons/net/http/problem"
@@ -57,6 +58,7 @@ func buildHumaLedgerApp(t *testing.T, handler *LedgerHandler, authOK bool) *fibe
 
 	// problem.Install must run before any huma.Register (runtime + spec-gen).
 	libProblem.Install()
+	pkgHTTP.InstallHumaFrameworkErrors()
 
 	apiV1 := f.Group("/v1")
 
@@ -97,7 +99,7 @@ func TestCreateLedger_Success(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	t.Cleanup(ctrl.Finish)
 
-	orgID := uuid.New()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	ledgerRepo := ledger.NewMockRepository(ctrl)
 	metadataRepo := mongodb.NewMockRepository(ctrl)
@@ -105,9 +107,9 @@ func TestCreateLedger_Success(t *testing.T) {
 	ledgerRepo.EXPECT().FindByName(gomock.Any(), orgID, "Test Ledger").Return(true, nil).Times(1)
 	ledgerRepo.EXPECT().Create(gomock.Any(), gomock.Any()).
 		DoAndReturn(func(_ any, l *mmodel.Ledger) (*mmodel.Ledger, error) {
-			l.ID = uuid.New().String()
-			l.CreatedAt = time.Now()
-			l.UpdatedAt = time.Now()
+			l.ID = uuid.Must(libCommons.GenerateUUIDv7()).String()
+			l.CreatedAt = fixedTestTime
+			l.UpdatedAt = fixedTestTime
 			return l, nil
 		}).Times(1)
 	metadataRepo.EXPECT().Create(gomock.Any(), constant.EntityLedger, gomock.Any()).Return(nil).Times(1)
@@ -144,7 +146,7 @@ func TestCreateLedger_AuthPreserved(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	t.Cleanup(ctrl.Finish)
 
-	orgID := uuid.New()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	// No repo expectations: a rejected auth must never reach the service.
 	handler := &LedgerHandler{Command: &command.UseCase{
@@ -170,7 +172,7 @@ func TestCreateLedger_ValidationError_Canonical400(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	t.Cleanup(ctrl.Finish)
 
-	orgID := uuid.New()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	// Missing required "name" -> imperative ValidateStruct -> canonical 400, service never reached.
 	handler := &LedgerHandler{Command: &command.UseCase{
@@ -204,7 +206,7 @@ func TestCreateLedger_MalformedBody_Canonical400(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	t.Cleanup(ctrl.Finish)
 
-	orgID := uuid.New()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	handler := &LedgerHandler{Command: &command.UseCase{
 		LedgerRepo:             ledger.NewMockRepository(ctrl),
@@ -236,8 +238,8 @@ func TestGetLedgerByID_Success(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	t.Cleanup(ctrl.Finish)
 
-	orgID := uuid.New()
-	ledgerID := uuid.New()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	ledgerRepo := ledger.NewMockRepository(ctrl)
 	metadataRepo := mongodb.NewMockRepository(ctrl)
@@ -270,7 +272,7 @@ func TestGetLedgerByID_BadUUID_Canonical400(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	t.Cleanup(ctrl.Finish)
 
-	orgID := uuid.New()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	// Service must never be reached: ParseUUIDPathParameters rejects the bad id
 	// with the canonical 0065 / 400 before Huma.
@@ -299,7 +301,7 @@ func TestGetAllLedgers_Success(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	t.Cleanup(ctrl.Finish)
 
-	orgID := uuid.New()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	ledgerRepo := ledger.NewMockRepository(ctrl)
 	ledgerRepo.EXPECT().FindAll(gomock.Any(), orgID, gomock.Any()).Return([]*mmodel.Ledger{}, nil).Times(1)
@@ -328,7 +330,7 @@ func TestGetAllLedgers_BadQuery_Canonical400(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	t.Cleanup(ctrl.Finish)
 
-	orgID := uuid.New()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	// Service must never be reached: ValidateParameters rejects limit=abc with
 	// the canonical 400, NOT a native Huma 422.
@@ -357,7 +359,7 @@ func TestGetAllLedgers_InvalidStatus_Canonical400(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	t.Cleanup(ctrl.Finish)
 
-	orgID := uuid.New()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	handler := &LedgerHandler{Query: &query.UseCase{LedgerRepo: ledger.NewMockRepository(ctrl)}}
 
@@ -381,8 +383,8 @@ func TestDeleteLedger_204Empty(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	t.Cleanup(ctrl.Finish)
 
-	orgID := uuid.New()
-	ledgerID := uuid.New()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	ledgerRepo := ledger.NewMockRepository(ctrl)
 	ledgerRepo.EXPECT().Delete(gomock.Any(), orgID, ledgerID).Return(nil).Times(1)
@@ -406,7 +408,7 @@ func TestCountLedgers_204WithHeader(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	t.Cleanup(ctrl.Finish)
 
-	orgID := uuid.New()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	ledgerRepo := ledger.NewMockRepository(ctrl)
 	ledgerRepo.EXPECT().Count(gomock.Any(), orgID).Return(int64(7), nil).Times(1)
@@ -432,8 +434,8 @@ func TestGetLedgerSettings_Success(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	t.Cleanup(ctrl.Finish)
 
-	orgID := uuid.New()
-	ledgerID := uuid.New()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	ledgerRepo := ledger.NewMockRepository(ctrl)
 	// OnboardingRedisRepo nil -> cache skipped -> GetSettings hits the repo.
@@ -466,8 +468,8 @@ func TestUpdateLedgerSettings_Success(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	t.Cleanup(ctrl.Finish)
 
-	orgID := uuid.New()
-	ledgerID := uuid.New()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	ledgerRepo := ledger.NewMockRepository(ctrl)
 	ledgerRepo.EXPECT().UpdateSettingsAtomic(gomock.Any(), orgID, ledgerID, gomock.Any()).
@@ -505,8 +507,8 @@ func TestUpdateLedgerSettings_UnknownField_Canonical400(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	t.Cleanup(ctrl.Finish)
 
-	orgID := uuid.New()
-	ledgerID := uuid.New()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	// No UpdateSettingsAtomic expectation: validation rejects before the write.
 	handler := &LedgerHandler{Command: &command.UseCase{LedgerRepo: ledger.NewMockRepository(ctrl)}}
@@ -538,8 +540,8 @@ func TestUpdateLedgerSettings_InvalidType_Canonical400(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	t.Cleanup(ctrl.Finish)
 
-	orgID := uuid.New()
-	ledgerID := uuid.New()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	handler := &LedgerHandler{Command: &command.UseCase{LedgerRepo: ledger.NewMockRepository(ctrl)}}
 
@@ -568,8 +570,8 @@ func TestUpdateLedgerSettings_AuthPreserved(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	t.Cleanup(ctrl.Finish)
 
-	orgID := uuid.New()
-	ledgerID := uuid.New()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	handler := &LedgerHandler{Command: &command.UseCase{LedgerRepo: ledger.NewMockRepository(ctrl)}}
 
@@ -584,11 +586,8 @@ func TestUpdateLedgerSettings_AuthPreserved(t *testing.T) {
 	defer func() { _ = resp.Body.Close() }()
 
 	assert.Equal(t, http.StatusUnauthorized, resp.StatusCode, "auth middleware must reject before Huma; settings is not public")
-
-	_ = libProblem.BaseURI
 }
 
-// --- ported from the retired Fiber-wrapper tests (ledger_test.go) --------------
 //
 // The eight exported fiber.Ctx terminals on LedgerHandler were deleted with the
 // Huma migration; the branches their tests covered in the shared cores are
@@ -604,7 +603,7 @@ func TestCreateLedger_ServiceError_Canonical4xx(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	t.Cleanup(ctrl.Finish)
 
-	orgID := uuid.New()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	ledgerRepo := ledger.NewMockRepository(ctrl)
 	ledgerRepo.EXPECT().FindByName(gomock.Any(), orgID, "Test Ledger").
@@ -636,8 +635,8 @@ func TestGetLedgerByID_ServiceError_Canonical404(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	t.Cleanup(ctrl.Finish)
 
-	orgID := uuid.New()
-	ledgerID := uuid.New()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	ledgerRepo := ledger.NewMockRepository(ctrl)
 	ledgerRepo.EXPECT().Find(gomock.Any(), orgID, ledgerID).
@@ -665,8 +664,8 @@ func TestGetAllLedgers_MetadataFilter(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	t.Cleanup(ctrl.Finish)
 
-	orgID := uuid.New()
-	ledger1 := uuid.New().String()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledger1 := uuid.Must(libCommons.GenerateUUIDv7()).String()
 
 	ledgerRepo := ledger.NewMockRepository(ctrl)
 	metadataRepo := mongodb.NewMockRepository(ctrl)
@@ -701,7 +700,7 @@ func TestGetAllLedgers_MetadataWithNameFilter_Canonical400(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	t.Cleanup(ctrl.Finish)
 
-	orgID := uuid.New()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	handler := &LedgerHandler{Query: &query.UseCase{
 		LedgerRepo:             ledger.NewMockRepository(ctrl),
@@ -728,7 +727,7 @@ func TestGetAllLedgers_MetadataFilter_ServiceError_Canonical404(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	t.Cleanup(ctrl.Finish)
 
-	orgID := uuid.New()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	metadataRepo := mongodb.NewMockRepository(ctrl)
 	metadataRepo.EXPECT().FindList(gomock.Any(), constant.EntityLedger, gomock.Any()).Return(nil, nil).Times(1)
@@ -758,7 +757,7 @@ func TestGetAllLedgers_ServiceError_Canonical404(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	t.Cleanup(ctrl.Finish)
 
-	orgID := uuid.New()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	ledgerRepo := ledger.NewMockRepository(ctrl)
 	ledgerRepo.EXPECT().FindAll(gomock.Any(), orgID, gomock.Any()).
@@ -781,8 +780,8 @@ func TestUpdateLedger_Success(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	t.Cleanup(ctrl.Finish)
 
-	orgID := uuid.New()
-	ledgerID := uuid.New()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	ledgerRepo := ledger.NewMockRepository(ctrl)
 	metadataRepo := mongodb.NewMockRepository(ctrl)
@@ -824,8 +823,8 @@ func TestUpdateLedger_NotFound_Canonical404(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	t.Cleanup(ctrl.Finish)
 
-	orgID := uuid.New()
-	ledgerID := uuid.New()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	ledgerRepo := ledger.NewMockRepository(ctrl)
 	ledgerRepo.EXPECT().Update(gomock.Any(), orgID, ledgerID, gomock.Any()).
@@ -859,8 +858,8 @@ func TestDeleteLedger_ProductionForbidden(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	t.Cleanup(ctrl.Finish)
 
-	orgID := uuid.New()
-	ledgerID := uuid.New()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	handler := &LedgerHandler{Command: &command.UseCase{LedgerRepo: ledger.NewMockRepository(ctrl)}}
 
@@ -885,8 +884,8 @@ func TestDeleteLedger_ServiceError_Canonical404(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	t.Cleanup(ctrl.Finish)
 
-	orgID := uuid.New()
-	ledgerID := uuid.New()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	ledgerRepo := ledger.NewMockRepository(ctrl)
 	ledgerRepo.EXPECT().Delete(gomock.Any(), orgID, ledgerID).
@@ -915,7 +914,7 @@ func TestCountLedgers_ServiceError(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	t.Cleanup(ctrl.Finish)
 
-	orgID := uuid.New()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	ledgerRepo := ledger.NewMockRepository(ctrl)
 	ledgerRepo.EXPECT().Count(gomock.Any(), orgID).
@@ -939,8 +938,8 @@ func TestGetLedgerSettings_ServiceError_Canonical404(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	t.Cleanup(ctrl.Finish)
 
-	orgID := uuid.New()
-	ledgerID := uuid.New()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	ledgerRepo := ledger.NewMockRepository(ctrl)
 	ledgerRepo.EXPECT().GetSettings(gomock.Any(), orgID, ledgerID).

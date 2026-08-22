@@ -20,10 +20,10 @@ import (
 
 // This file is the ledger's Huma adoption of the segment resource, cloned from the
 // asset DE-RISK exemplar (asset_handler.go). It reuses the package-shared
-// helpers parseOrgLedger / parsePathUUID (org+ledger+id path resolution) and the
-// secAssetBearerOrAPIKey spec-only Security metadata (the same Bearer-OR-ApiKey OR
-// applies to every resource). Conventions (see asset_handler.go header for the
-// full rationale):
+// helpers parseOrgLedger / parsePathUUID (org+ledger+id path resolution) and
+// declares its own secSegmentBearerOrAPIKey spec-only Security metadata (the same
+// Bearer-OR-ApiKey OR applies to every resource). Conventions (see asset_handler.go
+// header for the full rationale):
 //
 //  1. Path params are plain strings with ONLY `doc:` (no `format:"uuid"`): the
 //     ParseUUIDPathParameters("segment") Fiber middleware (attached in
@@ -41,6 +41,13 @@ import (
 // --- POST /segments -----------------------------------------------------------
 
 // CreateSegmentRequest is the Huma request envelope for POST.
+// secSegmentBearerOrAPIKey is the spec-only Security metadata for the segment
+// operations: Bearer OR ApiKey, matching what the Fiber guard chain accepts.
+var secSegmentBearerOrAPIKey = []map[string][]string{
+	{"BearerAuth": {}},
+	{"ApiKeyAuth": {}},
+}
+
 type CreateSegmentRequest struct {
 	OrganizationID string `path:"organization_id" doc:"Organization ID (UUID)"`
 	LedgerID       string `path:"ledger_id" doc:"Ledger ID (UUID)"`
@@ -106,17 +113,7 @@ func (in *ListSegmentsRequest) Resolve(ctx huma.Context) []error {
 // matching Fiber's c.Queries() (last value wins for a repeated key, present-but-empty
 // keys included).
 func (in *ListSegmentsRequest) queries() map[string]string {
-	out := make(map[string]string, len(in.rawQuery))
-	for k, vs := range in.rawQuery {
-		if len(vs) == 0 {
-			out[k] = ""
-			continue
-		}
-
-		out[k] = vs[len(vs)-1]
-	}
-
-	return out
+	return queriesFromValues(in.rawQuery)
 }
 
 // ListSegmentsResponse carries the pagination envelope verbatim.
@@ -297,7 +294,7 @@ func RegisterSegmentRoutes(api huma.API, h *SegmentHandler, opSuffix string) {
 		Path:             listPath,
 		Summary:          "Create a new segment",
 		Tags:             []string{tag},
-		Security:         secAssetBearerOrAPIKey,
+		Security:         secSegmentBearerOrAPIKey,
 		SkipValidateBody: true, // body validated imperatively — see file header.
 		DefaultStatus:    http.StatusCreated,
 	}, h.CreateSegment)
@@ -309,7 +306,7 @@ func RegisterSegmentRoutes(api huma.API, h *SegmentHandler, opSuffix string) {
 		Path:        listPath,
 		Summary:     "List all segments",
 		Tags:        []string{tag},
-		Security:    secAssetBearerOrAPIKey,
+		Security:    secSegmentBearerOrAPIKey,
 	}, h.ListSegments)
 
 	huma.Register(api, huma.Operation{
@@ -318,7 +315,7 @@ func RegisterSegmentRoutes(api huma.API, h *SegmentHandler, opSuffix string) {
 		Path:        idPath,
 		Summary:     "Retrieve a specific segment",
 		Tags:        []string{tag},
-		Security:    secAssetBearerOrAPIKey,
+		Security:    secSegmentBearerOrAPIKey,
 	}, h.GetSegmentByID)
 
 	huma.Register(api, huma.Operation{
@@ -327,7 +324,7 @@ func RegisterSegmentRoutes(api huma.API, h *SegmentHandler, opSuffix string) {
 		Path:             idPath,
 		Summary:          "Update a segment",
 		Tags:             []string{tag},
-		Security:         secAssetBearerOrAPIKey,
+		Security:         secSegmentBearerOrAPIKey,
 		SkipValidateBody: true, // body validated imperatively — see file header.
 	}, h.UpdateSegment)
 	attachTypedRequestBody[mmodel.UpdateSegmentInput](api, "updateSegment"+opSuffix)
@@ -338,7 +335,7 @@ func RegisterSegmentRoutes(api huma.API, h *SegmentHandler, opSuffix string) {
 		Path:          idPath,
 		Summary:       "Delete a segment",
 		Tags:          []string{tag},
-		Security:      secAssetBearerOrAPIKey,
+		Security:      secSegmentBearerOrAPIKey,
 		DefaultStatus: http.StatusNoContent, // Out struct with no Body field => bodiless 204.
 	}, h.DeleteSegmentByID)
 
@@ -348,7 +345,7 @@ func RegisterSegmentRoutes(api huma.API, h *SegmentHandler, opSuffix string) {
 		Path:          countPath,
 		Summary:       "Count total segments",
 		Tags:          []string{tag},
-		Security:      secAssetBearerOrAPIKey,
+		Security:      secSegmentBearerOrAPIKey,
 		DefaultStatus: http.StatusNoContent, // X-Total-Count header + empty 204 body.
 	}, h.CountSegments)
 }

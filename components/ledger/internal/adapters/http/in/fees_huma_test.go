@@ -13,6 +13,8 @@ import (
 	"strconv"
 	"testing"
 
+	libCommons "github.com/LerianStudio/lib-commons/v6/commons"
+
 	openapi "github.com/LerianStudio/lib-commons/v6/commons/net/http/openapi"
 	libProblem "github.com/LerianStudio/lib-commons/v6/commons/net/http/problem"
 	"github.com/gofiber/fiber/v3"
@@ -117,8 +119,8 @@ func buildHumaFeeEstimateApp(t *testing.T, handler *FeeHandler, authOK bool) *fi
 func validLedgerUUID() string { return "00000000-0000-0000-0000-000000000009" }
 
 func TestCreatePackage_Success(t *testing.T) {
-	orgID := uuid.New()
-	packID := uuid.New()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	packID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	stub := &stubPackageService{createResult: &pack.Package{ID: packID, FeeGroupLabel: "Standard"}}
 	handler := &PackageHandler{Service: stub}
@@ -149,7 +151,7 @@ func TestCreatePackage_Success(t *testing.T) {
 }
 
 func TestCreatePackage_AuthPreserved(t *testing.T) {
-	orgID := uuid.New()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	handler := &PackageHandler{Service: &stubPackageService{}}
 	app := buildHumaPackageApp(t, handler, false)
@@ -165,7 +167,7 @@ func TestCreatePackage_AuthPreserved(t *testing.T) {
 }
 
 func TestCreatePackage_MalformedBody_Canonical400(t *testing.T) {
-	orgID := uuid.New()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	handler := &PackageHandler{Service: &stubPackageService{}}
 	app := buildHumaPackageApp(t, handler, true)
@@ -187,8 +189,8 @@ func TestCreatePackage_MalformedBody_Canonical400(t *testing.T) {
 }
 
 func TestGetPackageByID_Success(t *testing.T) {
-	orgID := uuid.New()
-	packID := uuid.New()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	packID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	stub := &stubPackageService{getByIDResult: &pack.Package{ID: packID, FeeGroupLabel: "Standard"}}
 	handler := &PackageHandler{Service: stub}
@@ -210,7 +212,7 @@ func TestGetPackageByID_Success(t *testing.T) {
 }
 
 func TestGetPackageByID_BadUUID_Canonical400(t *testing.T) {
-	orgID := uuid.New()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	handler := &PackageHandler{Service: &stubPackageService{}}
 	app := buildHumaPackageApp(t, handler, true)
@@ -229,9 +231,9 @@ func TestGetPackageByID_BadUUID_Canonical400(t *testing.T) {
 }
 
 func TestGetAllPackages_Success(t *testing.T) {
-	orgID := uuid.New()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
 
-	stub := &stubPackageService{getAllResult: []*pack.Package{{ID: uuid.New()}}}
+	stub := &stubPackageService{getAllResult: []*pack.Package{{ID: uuid.Must(libCommons.GenerateUUIDv7())}}}
 	handler := &PackageHandler{Service: stub}
 
 	app := buildHumaPackageApp(t, handler, true)
@@ -255,7 +257,7 @@ func TestGetAllPackages_Success(t *testing.T) {
 }
 
 func TestGetAllPackages_BadQuery_Canonical400(t *testing.T) {
-	orgID := uuid.New()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	handler := &PackageHandler{Service: &stubPackageService{}}
 	app := buildHumaPackageApp(t, handler, true)
@@ -274,8 +276,8 @@ func TestGetAllPackages_BadQuery_Canonical400(t *testing.T) {
 }
 
 func TestUpdatePackage_Success(t *testing.T) {
-	orgID := uuid.New()
-	packID := uuid.New()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	packID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	// Update re-reads via GetPackageByID after a successful update; both are stubbed.
 	stub := &stubPackageService{getByIDResult: &pack.Package{ID: packID, FeeGroupLabel: "Updated"}}
@@ -301,8 +303,8 @@ func TestUpdatePackage_Success(t *testing.T) {
 }
 
 func TestDeletePackage_204Empty(t *testing.T) {
-	orgID := uuid.New()
-	packID := uuid.New()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	packID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	stub := &stubPackageService{}
 	handler := &PackageHandler{Service: stub}
@@ -322,7 +324,7 @@ func TestDeletePackage_204Empty(t *testing.T) {
 }
 
 func TestHuma_EstimateFee_Success(t *testing.T) {
-	orgID := uuid.New()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	// A result whose transaction carries packageAppliedID triggers the "success"
 	// message branch (non-nil FeesApplied).
@@ -353,7 +355,7 @@ func TestHuma_EstimateFee_Success(t *testing.T) {
 }
 
 func TestHuma_EstimateFee_NoRules_EmptyMessage(t *testing.T) {
-	orgID := uuid.New()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	// No packageAppliedID => "no rules found" branch, feesApplied nil.
 	result := &model.FeeEstimateResult{Transaction: model.FeeAdjustedTransaction{Metadata: map[string]any{}}}
@@ -381,7 +383,7 @@ func TestHuma_EstimateFee_NoRules_EmptyMessage(t *testing.T) {
 }
 
 func TestHuma_EstimateFee_ServiceError_Mapped(t *testing.T) {
-	orgID := uuid.New()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	stub := &stubFeeService{err: pkg.ValidateBusinessError(constant.ErrInvalidPathParameter, "", "packageId")}
 	handler := &FeeHandler{Service: stub}
@@ -488,10 +490,10 @@ func assertProblem(t *testing.T, resp *http.Response, wantStatus int, wantCode s
 }
 
 func TestCreatePackage_SegmentIDParsedAndForwarded(t *testing.T) {
-	orgID := uuid.New()
-	segmentID := uuid.New()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	segmentID := uuid.Must(libCommons.GenerateUUIDv7())
 
-	stub := &stubPackageService{createResult: &pack.Package{ID: uuid.New()}}
+	stub := &stubPackageService{createResult: &pack.Package{ID: uuid.Must(libCommons.GenerateUUIDv7())}}
 	handler := &PackageHandler{Service: stub}
 
 	body := createPackageJSON("100.00", "1000.00",
@@ -507,7 +509,7 @@ func TestCreatePackage_SegmentIDParsedAndForwarded(t *testing.T) {
 }
 
 func TestCreatePackage_MalformedSegmentID_Canonical400(t *testing.T) {
-	orgID := uuid.New()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	stub := &stubPackageService{}
 	handler := &PackageHandler{Service: stub}
@@ -524,7 +526,7 @@ func TestCreatePackage_MalformedSegmentID_Canonical400(t *testing.T) {
 }
 
 func TestCreatePackage_MinGreaterThanMax_422(t *testing.T) {
-	orgID := uuid.New()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	stub := &stubPackageService{}
 	handler := &PackageHandler{Service: stub}
@@ -540,7 +542,7 @@ func TestCreatePackage_MinGreaterThanMax_422(t *testing.T) {
 }
 
 func TestCreatePackage_PriorityOneWrongReference_Canonical400(t *testing.T) {
-	orgID := uuid.New()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	stub := &stubPackageService{}
 	handler := &PackageHandler{Service: stub}
@@ -556,7 +558,7 @@ func TestCreatePackage_PriorityOneWrongReference_Canonical400(t *testing.T) {
 }
 
 func TestCreatePackage_DuplicatePriorities_Canonical400(t *testing.T) {
-	orgID := uuid.New()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	stub := &stubPackageService{}
 	handler := &PackageHandler{Service: stub}
@@ -574,7 +576,7 @@ func TestCreatePackage_DuplicatePriorities_Canonical400(t *testing.T) {
 }
 
 func TestCreatePackage_ServiceError_Mapped(t *testing.T) {
-	orgID := uuid.New()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	stub := &stubPackageService{createErr: pkg.ValidateBusinessError(constant.ErrDuplicatePackage, constant.EntityPackage)}
 	handler := &PackageHandler{Service: stub}
@@ -586,7 +588,7 @@ func TestCreatePackage_ServiceError_Mapped(t *testing.T) {
 }
 
 func TestGetAllPackages_ServiceError_Mapped(t *testing.T) {
-	orgID := uuid.New()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	stub := &stubPackageService{getAllErr: pkg.ValidateBusinessError(constant.ErrCalculateFee, constant.EntityFeeCalculation)}
 	handler := &PackageHandler{Service: stub}
@@ -603,8 +605,8 @@ func TestGetAllPackages_ServiceError_Mapped(t *testing.T) {
 }
 
 func TestGetPackageByID_NotFound_404(t *testing.T) {
-	orgID := uuid.New()
-	packID := uuid.New()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	packID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	stub := &stubPackageService{getByIDErr: pkg.ValidateBusinessError(constant.ErrEntityNotFound, constant.EntityPackage)}
 	handler := &PackageHandler{Service: stub}
@@ -621,8 +623,8 @@ func TestGetPackageByID_NotFound_404(t *testing.T) {
 }
 
 func TestUpdatePackage_ValidFeeMapReachesService(t *testing.T) {
-	orgID := uuid.New()
-	packID := uuid.New()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	packID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	stub := &stubPackageService{getByIDResult: &pack.Package{ID: packID, FeeGroupLabel: "After"}}
 	handler := &PackageHandler{Service: stub}
@@ -638,8 +640,8 @@ func TestUpdatePackage_ValidFeeMapReachesService(t *testing.T) {
 }
 
 func TestUpdatePackage_PriorityOneWrongReference_Canonical400(t *testing.T) {
-	orgID := uuid.New()
-	packID := uuid.New()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	packID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	stub := &stubPackageService{}
 	handler := &PackageHandler{Service: stub}
@@ -654,8 +656,8 @@ func TestUpdatePackage_PriorityOneWrongReference_Canonical400(t *testing.T) {
 }
 
 func TestUpdatePackage_DuplicatePriorities_Canonical400(t *testing.T) {
-	orgID := uuid.New()
-	packID := uuid.New()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	packID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	stub := &stubPackageService{}
 	handler := &PackageHandler{Service: stub}
@@ -672,8 +674,8 @@ func TestUpdatePackage_DuplicatePriorities_Canonical400(t *testing.T) {
 }
 
 func TestUpdatePackage_MinGreaterThanMax_422(t *testing.T) {
-	orgID := uuid.New()
-	packID := uuid.New()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	packID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	stub := &stubPackageService{}
 	handler := &PackageHandler{Service: stub}
@@ -686,8 +688,8 @@ func TestUpdatePackage_MinGreaterThanMax_422(t *testing.T) {
 }
 
 func TestUpdatePackage_UpdateError_404(t *testing.T) {
-	orgID := uuid.New()
-	packID := uuid.New()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	packID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	stub := &stubPackageService{updateErr: pkg.ValidateBusinessError(constant.ErrEntityNotFound, constant.EntityPackage)}
 	handler := &PackageHandler{Service: stub}
@@ -700,8 +702,8 @@ func TestUpdatePackage_UpdateError_404(t *testing.T) {
 }
 
 func TestUpdatePackage_ReReadError_Mapped(t *testing.T) {
-	orgID := uuid.New()
-	packID := uuid.New()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	packID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	// The write succeeds and the re-read fails, so the response must carry the
 	// re-read failure rather than a 200 built from a stale package.
@@ -716,8 +718,8 @@ func TestUpdatePackage_ReReadError_Mapped(t *testing.T) {
 }
 
 func TestDeletePackage_NotFound_404(t *testing.T) {
-	orgID := uuid.New()
-	packID := uuid.New()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	packID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	stub := &stubPackageService{deleteErr: pkg.ValidateBusinessError(constant.ErrEntityNotFound, constant.EntityPackage)}
 	handler := &PackageHandler{Service: stub}
@@ -734,10 +736,10 @@ func TestDeletePackage_NotFound_404(t *testing.T) {
 }
 
 // TestHuma_EstimateFee_NilResult_500 covers estimateFeeCalculation's nil-result
-// guard, which the retired Fiber-terminal tests owned: a service returning
-// (nil, nil) must surface as a canonical internal error, not an empty 200.
+// guard: a service returning (nil, nil) must surface as a canonical internal
+// error, not an empty 200.
 func TestHuma_EstimateFee_NilResult_500(t *testing.T) {
-	orgID := uuid.New()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	stub := &stubFeeService{result: nil}
 	handler := &FeeHandler{Service: stub}

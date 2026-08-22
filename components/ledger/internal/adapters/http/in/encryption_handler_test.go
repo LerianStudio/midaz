@@ -12,8 +12,9 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
-	"reflect"
 	"testing"
+
+	libCommons "github.com/LerianStudio/lib-commons/v6/commons"
 
 	openapi "github.com/LerianStudio/lib-commons/v6/commons/net/http/openapi"
 	libProblem "github.com/LerianStudio/lib-commons/v6/commons/net/http/problem"
@@ -91,9 +92,9 @@ func TestProvisionEncryption_Success(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	t.Cleanup(ctrl.Finish)
 
-	orgID := uuid.New()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
 
-	mockService := NewMockProvisioningService(ctrl)
+	mockService := encryption.NewMockProvisioningService(ctrl)
 	// Single-tenant harness: no tenant middleware runs, so the core resolves the
 	// reserved "default" flat-base sentinel (no error) and passes it through.
 	mockService.EXPECT().
@@ -140,10 +141,10 @@ func TestProvisionEncryption_ValidationRejectedByCore(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	t.Cleanup(ctrl.Finish)
 
-	orgID := uuid.New()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	// No Provision expectation: validation must fail before the service is called.
-	mockService := NewMockProvisioningService(ctrl)
+	mockService := encryption.NewMockProvisioningService(ctrl)
 	handler := &EncryptionHandler{ProvisioningService: mockService}
 	app := buildHumaEncryptionApp(t, handler, true)
 
@@ -163,10 +164,10 @@ func TestProvisionEncryption_AuthPreserved(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	t.Cleanup(ctrl.Finish)
 
-	orgID := uuid.New()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	// No expectations: a rejected auth must never reach the service.
-	mockService := NewMockProvisioningService(ctrl)
+	mockService := encryption.NewMockProvisioningService(ctrl)
 	handler := &EncryptionHandler{ProvisioningService: mockService}
 	app := buildHumaEncryptionApp(t, handler, false)
 
@@ -186,10 +187,10 @@ func TestGetProvisioningStatus_Success(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	t.Cleanup(ctrl.Finish)
 
-	orgID := uuid.New()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	status := mmodel.RegistryStatusActive
-	mockService := NewMockProvisioningService(ctrl)
+	mockService := encryption.NewMockProvisioningService(ctrl)
 	mockService.EXPECT().
 		GetProvisioningStatus(gomock.Any(), orgID.String()).
 		Return(&status, nil).
@@ -220,10 +221,10 @@ func TestProvisionEncryption_MissingReasonRejectedByCore(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	t.Cleanup(ctrl.Finish)
 
-	orgID := uuid.New()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	// No Provision expectation: validation must fail before the service is called.
-	mockService := NewMockProvisioningService(ctrl)
+	mockService := encryption.NewMockProvisioningService(ctrl)
 	handler := &EncryptionHandler{ProvisioningService: mockService}
 	app := buildHumaEncryptionApp(t, handler, true)
 
@@ -249,9 +250,9 @@ func TestProvisionEncryption_AlreadyProvisioned(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	t.Cleanup(ctrl.Finish)
 
-	orgID := uuid.New()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
 
-	mockService := NewMockProvisioningService(ctrl)
+	mockService := encryption.NewMockProvisioningService(ctrl)
 	mockService.EXPECT().
 		Provision(gomock.Any(), gomock.Any()).
 		Return(encryption.ProvisionResult{}, pkg.ValidateBusinessError(constant.ErrRegistryAlreadyExists, encryption.EntityOrganizationEncryption)).
@@ -282,9 +283,9 @@ func TestProvisionEncryption_ServiceFailure(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	t.Cleanup(ctrl.Finish)
 
-	orgID := uuid.New()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
 
-	mockService := NewMockProvisioningService(ctrl)
+	mockService := encryption.NewMockProvisioningService(ctrl)
 	mockService.EXPECT().
 		Provision(gomock.Any(), gomock.Any()).
 		Return(encryption.ProvisionResult{}, pkg.ValidateBusinessError(constant.ErrOrganizationEncryptionFailed, encryption.EntityOrganizationEncryption)).
@@ -317,10 +318,10 @@ func TestProvisionEncryption_ReservedTenantIDRejected(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	t.Cleanup(ctrl.Finish)
 
-	orgID := uuid.New()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	// No expectations: rejection happens before the service call.
-	mockService := NewMockProvisioningService(ctrl)
+	mockService := encryption.NewMockProvisioningService(ctrl)
 	handler := &EncryptionHandler{ProvisioningService: mockService}
 	app := buildHumaEncryptionAppWithTenant(t, handler, true, "default")
 
@@ -349,9 +350,9 @@ func TestProvisionEncryption_SingleTenantSentinelForwarded(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	t.Cleanup(ctrl.Finish)
 
-	orgID := uuid.New()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
 
-	mockService := NewMockProvisioningService(ctrl)
+	mockService := encryption.NewMockProvisioningService(ctrl)
 	mockService.EXPECT().
 		Provision(gomock.Any(), gomock.Cond(func(x any) bool {
 			req, ok := x.(encryption.ProvisionInput)
@@ -395,9 +396,9 @@ func TestProvisionEncryption_ResponseCarriesNoSecretField(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	t.Cleanup(ctrl.Finish)
 
-	orgID := uuid.New()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
 
-	mockService := NewMockProvisioningService(ctrl)
+	mockService := encryption.NewMockProvisioningService(ctrl)
 	mockService.EXPECT().
 		Provision(gomock.Any(), gomock.Any()).
 		Return(encryption.ProvisionResult{
@@ -441,9 +442,9 @@ func TestGetProvisioningStatus_NotProvisioned(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	t.Cleanup(ctrl.Finish)
 
-	orgID := uuid.New()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
 
-	mockService := NewMockProvisioningService(ctrl)
+	mockService := encryption.NewMockProvisioningService(ctrl)
 	mockService.EXPECT().
 		GetProvisioningStatus(gomock.Any(), orgID.String()).
 		Return(nil, nil).
@@ -474,9 +475,9 @@ func TestGetProvisioningStatus_ServiceError(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	t.Cleanup(ctrl.Finish)
 
-	orgID := uuid.New()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
 
-	mockService := NewMockProvisioningService(ctrl)
+	mockService := encryption.NewMockProvisioningService(ctrl)
 	mockService.EXPECT().
 		GetProvisioningStatus(gomock.Any(), orgID.String()).
 		Return(nil, errors.New("database error")).
@@ -505,9 +506,9 @@ func TestGetProvisioningStatus_ContextCancelled(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	t.Cleanup(ctrl.Finish)
 
-	orgID := uuid.New()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
 
-	mockService := NewMockProvisioningService(ctrl)
+	mockService := encryption.NewMockProvisioningService(ctrl)
 	mockService.EXPECT().
 		GetProvisioningStatus(gomock.Any(), orgID.String()).
 		Return(nil, context.Canceled).
@@ -523,76 +524,4 @@ func TestGetProvisioningStatus_ContextCancelled(t *testing.T) {
 	defer func() { _ = resp.Body.Close() }()
 
 	assert.Equal(t, http.StatusInternalServerError, resp.StatusCode)
-}
-
-// MockProvisioningService is a hand-rolled gomock double for
-// encryption.ProvisioningService.
-type MockProvisioningService struct {
-	ctrl     *gomock.Controller
-	recorder *MockProvisioningServiceRecorder
-}
-
-type MockProvisioningServiceRecorder struct {
-	mock *MockProvisioningService
-}
-
-func NewMockProvisioningService(ctrl *gomock.Controller) *MockProvisioningService {
-	mock := &MockProvisioningService{ctrl: ctrl}
-	mock.recorder = &MockProvisioningServiceRecorder{mock}
-
-	return mock
-}
-
-func (m *MockProvisioningService) EXPECT() *MockProvisioningServiceRecorder {
-	return m.recorder
-}
-
-func (m *MockProvisioningService) Provision(ctx context.Context, req encryption.ProvisionInput) (encryption.ProvisionResult, error) {
-	ret := m.ctrl.Call(m, "Provision", ctx, req)
-
-	return ret[0].(encryption.ProvisionResult), errOrNil(ret[1])
-}
-
-func (mr *MockProvisioningServiceRecorder) Provision(ctx, req any) *gomock.Call {
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Provision", reflect.TypeOf((*MockProvisioningService)(nil).Provision), ctx, req)
-}
-
-func (m *MockProvisioningService) GetProvisioningStatus(ctx context.Context, organizationID string) (*mmodel.RegistryStatus, error) {
-	ret := m.ctrl.Call(m, "GetProvisioningStatus", ctx, organizationID)
-	status, _ := ret[0].(*mmodel.RegistryStatus)
-
-	return status, errOrNil(ret[1])
-}
-
-func (mr *MockProvisioningServiceRecorder) GetProvisioningStatus(ctx, organizationID any) *gomock.Call {
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetProvisioningStatus", reflect.TypeOf((*MockProvisioningService)(nil).GetProvisioningStatus), ctx, organizationID)
-}
-
-func (m *MockProvisioningService) IsProvisioned(ctx context.Context, organizationID string) (bool, error) {
-	ret := m.ctrl.Call(m, "IsProvisioned", ctx, organizationID)
-
-	return ret[0].(bool), errOrNil(ret[1])
-}
-
-func (mr *MockProvisioningServiceRecorder) IsProvisioned(ctx, organizationID any) *gomock.Call {
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "IsProvisioned", reflect.TypeOf((*MockProvisioningService)(nil).IsProvisioned), ctx, organizationID)
-}
-
-func (m *MockProvisioningService) IsActive(ctx context.Context, organizationID string) (bool, error) {
-	ret := m.ctrl.Call(m, "IsActive", ctx, organizationID)
-
-	return ret[0].(bool), errOrNil(ret[1])
-}
-
-func (mr *MockProvisioningServiceRecorder) IsActive(ctx, organizationID any) *gomock.Call {
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "IsActive", reflect.TypeOf((*MockProvisioningService)(nil).IsActive), ctx, organizationID)
-}
-
-// errOrNil converts a gomock return slot into a typed error, tolerating a nil slot.
-func errOrNil(v any) error {
-	if v == nil {
-		return nil
-	}
-
-	return v.(error)
 }

@@ -12,6 +12,8 @@ import (
 	"strings"
 	"testing"
 
+	libCommons "github.com/LerianStudio/lib-commons/v6/commons"
+
 	openapi "github.com/LerianStudio/lib-commons/v6/commons/net/http/openapi"
 	libProblem "github.com/LerianStudio/lib-commons/v6/commons/net/http/problem"
 	libLog "github.com/LerianStudio/lib-observability/v2/log"
@@ -36,6 +38,39 @@ import (
 // libProblem.Install() swaps the process-global huma.NewError hook and Huma validation
 // uses process-global sync.Pools — concurrent builds/requests cross-contaminate. These
 // tests are sub-second; keep them sequential.
+// mountTransactionRoutes mounts the twelve transaction routes on group in the order
+// production registers them, with ParseUUIDPathParameters as Fiber middleware ahead of
+// each Huma terminal. Any extra middlewares run before parse. Shared with the
+// integration harnesses so a route added to production is added in exactly one place
+// here — Fiber v3 types its handler argument as any, so a mount that drifts from the
+// registrar still compiles and only fails when the route is hit.
+func mountTransactionRoutes(group fiber.Router, extra ...fiber.Handler) {
+	parse := pkgHTTP.ParseUUIDPathParameters("transaction")
+	base := "/organizations/:organization_id/ledgers/:ledger_id/transactions"
+
+	chain := make([]any, 0, len(extra)+1)
+	for _, mw := range extra {
+		chain = append(chain, mw)
+	}
+
+	chain = append(chain, parse)
+
+	post := func(path string) { group.Post(path, chain[0], chain[1:]...) }
+
+	post(base + "/json")
+	post(base + "/inflow")
+	post(base + "/outflow")
+	post(base + "/annotation")
+	post(base + "/block")
+	post(base + "/unblock")
+	post(base + "/:transaction_id/commit")
+	post(base + "/:transaction_id/cancel")
+	post(base + "/:transaction_id/revert")
+	group.Patch(base+"/:transaction_id", chain[0], chain[1:]...)
+	group.Get(base+"/:transaction_id", chain[0], chain[1:]...)
+	group.Get(base, chain[0], chain[1:]...)
+}
+
 func buildHumaTransactionApp(t *testing.T, handler *TransactionHandler, authOK bool) *fiber.App {
 	t.Helper()
 
@@ -70,20 +105,7 @@ func buildHumaTransactionApp(t *testing.T, handler *TransactionHandler, authOK b
 
 	// Mirror the production chain: ParseUUIDPathParameters runs as a Fiber middleware
 	// (no terminal handler) before the Huma terminal on each transaction route.
-	parse := pkgHTTP.ParseUUIDPathParameters("transaction")
-	base := "/organizations/:organization_id/ledgers/:ledger_id/transactions"
-	apiV1.Post(base+"/json", parse)
-	apiV1.Post(base+"/inflow", parse)
-	apiV1.Post(base+"/outflow", parse)
-	apiV1.Post(base+"/annotation", parse)
-	apiV1.Post(base+"/block", parse)
-	apiV1.Post(base+"/unblock", parse)
-	apiV1.Post(base+"/:transaction_id/commit", parse)
-	apiV1.Post(base+"/:transaction_id/cancel", parse)
-	apiV1.Post(base+"/:transaction_id/revert", parse)
-	apiV1.Patch(base+"/:transaction_id", parse)
-	apiV1.Get(base+"/:transaction_id", parse)
-	apiV1.Get(base, parse)
+	mountTransactionRoutes(apiV1)
 
 	RegisterTransactionRoutes(hAPI, handler)
 
@@ -110,7 +132,7 @@ func humaTransactionURL(orgID, ledgerID uuid.UUID, suffix string) string {
 
 func TestCreateTransaction_BadUUID_Canonical400(t *testing.T) {
 	// NOT parallel: buildHumaTransactionApp mutates process-global huma state.
-	orgID := uuid.New()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	for _, op := range createOpPaths {
 		t.Run(op, func(t *testing.T) {
@@ -134,8 +156,8 @@ func TestCreateTransaction_BadUUID_Canonical400(t *testing.T) {
 
 func TestCreateTransaction_MalformedBody_Canonical400(t *testing.T) {
 	// NOT parallel: process-global huma state.
-	orgID := uuid.New()
-	ledgerID := uuid.New()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	for _, op := range createOpPaths {
 		t.Run(op, func(t *testing.T) {
@@ -163,8 +185,8 @@ func TestCreateTransaction_MalformedBody_Canonical400(t *testing.T) {
 
 func TestCreateTransaction_AuthPreserved(t *testing.T) {
 	// NOT parallel: process-global huma state.
-	orgID := uuid.New()
-	ledgerID := uuid.New()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	for _, op := range createOpPaths {
 		t.Run(op, func(t *testing.T) {
@@ -186,8 +208,8 @@ func TestCreateTransaction_AuthPreserved(t *testing.T) {
 
 func TestCreateTransaction_EmptyBody_Canonical400(t *testing.T) {
 	// NOT parallel: process-global huma state.
-	orgID := uuid.New()
-	ledgerID := uuid.New()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	for _, op := range createOpPaths {
 		t.Run(op, func(t *testing.T) {
@@ -225,9 +247,9 @@ var stateOpPaths = []string{"commit", "cancel", "revert"}
 
 func TestStateTransaction_EmptyBodyStaysBodiless(t *testing.T) {
 	// NOT parallel: process-global huma state.
-	orgID := uuid.New()
-	ledgerID := uuid.New()
-	txID := uuid.New()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
+	txID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	for _, op := range stateOpPaths {
 		t.Run(op, func(t *testing.T) {
@@ -267,8 +289,8 @@ func TestStateTransaction_EmptyBodyStaysBodiless(t *testing.T) {
 
 func TestStateTransaction_BadUUID_Canonical400(t *testing.T) {
 	// NOT parallel: process-global huma state.
-	orgID := uuid.New()
-	ledgerID := uuid.New()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	for _, op := range stateOpPaths {
 		t.Run(op, func(t *testing.T) {
@@ -291,9 +313,9 @@ func TestStateTransaction_BadUUID_Canonical400(t *testing.T) {
 
 func TestStateTransaction_AuthPreserved(t *testing.T) {
 	// NOT parallel: process-global huma state.
-	orgID := uuid.New()
-	ledgerID := uuid.New()
-	txID := uuid.New()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
+	txID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	for _, op := range stateOpPaths {
 		t.Run(op, func(t *testing.T) {
@@ -314,8 +336,8 @@ func TestStateTransaction_AuthPreserved(t *testing.T) {
 
 func TestUpdateTransaction_BadUUID_Canonical400(t *testing.T) {
 	// NOT parallel: process-global huma state.
-	orgID := uuid.New()
-	ledgerID := uuid.New()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	handler := bareTransactionHandler()
 	app := buildHumaTransactionApp(t, handler, true)
@@ -333,9 +355,9 @@ func TestUpdateTransaction_BadUUID_Canonical400(t *testing.T) {
 
 func TestUpdateTransaction_MalformedBody_Canonical400(t *testing.T) {
 	// NOT parallel: process-global huma state.
-	orgID := uuid.New()
-	ledgerID := uuid.New()
-	txID := uuid.New()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
+	txID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	handler := bareTransactionHandler()
 	app := buildHumaTransactionApp(t, handler, true)
@@ -353,8 +375,8 @@ func TestUpdateTransaction_MalformedBody_Canonical400(t *testing.T) {
 
 func TestGetTransaction_BadUUID_Canonical400(t *testing.T) {
 	// NOT parallel: process-global huma state.
-	orgID := uuid.New()
-	ledgerID := uuid.New()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	handler := bareTransactionHandler()
 	app := buildHumaTransactionApp(t, handler, true)
@@ -371,8 +393,8 @@ func TestGetTransaction_BadUUID_Canonical400(t *testing.T) {
 
 func TestGetAllTransactions_AuthPreserved(t *testing.T) {
 	// NOT parallel: process-global huma state.
-	orgID := uuid.New()
-	ledgerID := uuid.New()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	handler := bareTransactionHandler()
 	app := buildHumaTransactionApp(t, handler, false)
@@ -389,8 +411,8 @@ func TestGetAllTransactions_AuthPreserved(t *testing.T) {
 
 func TestGetAllTransactions_BadQueryParam_Canonical400(t *testing.T) {
 	// NOT parallel: process-global huma state.
-	orgID := uuid.New()
-	ledgerID := uuid.New()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	handler := bareTransactionHandler()
 	app := buildHumaTransactionApp(t, handler, true)
