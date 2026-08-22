@@ -26,7 +26,7 @@ import (
 //     verb) + tenant + ParseUUIDPathParameters("organization")) attached BEFORE the
 //     Huma terminal.
 //  2. These ops are ORG-SCOPED (no ledger in the path), so the shells resolve only
-//     organization_id via the shared parseOrg helper (defined in ledger_handler_huma.go).
+//     organization_id via the shared parseOrg helper (defined in ledger_handler.go).
 //  3. TENANT: the provision core reads the tenant id from ctx via
 //     encryption.ResolveProvisionTenantID. The Fiber tenant PostAuthMiddlewares run
 //     BEFORE the Huma terminal (same chain both transports), so ctx already carries

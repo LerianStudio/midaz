@@ -25,7 +25,7 @@ import (
 //     "get") + tenant + ParseUUIDPathParameters("organization")) attached BEFORE the
 //     Huma terminal.
 //  2. ORG-SCOPED (no ledger in the path): the shell resolves only organization_id
-//     via the shared parseOrg helper (defined in ledger_handler_huma.go).
+//     via the shared parseOrg helper (defined in ledger_handler.go).
 //  3. The shell captures the raw query via Resolve and rebuilds the
 //     map[string]string the getAuditEvents core consumes (via the shared
 //     queriesFromValues helper), so the binding is byte-identical to the Fiber

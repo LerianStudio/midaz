@@ -25,14 +25,15 @@ import (
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/ledger"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services/command"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services/query"
+	"github.com/LerianStudio/midaz/v4/pkg"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
 	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
 	pkgHTTP "github.com/LerianStudio/midaz/v4/pkg/net/http"
 )
 
 // buildHumaLedgerApp mounts the eight ledger Huma operations on a /v1 group,
-// faithfully mirroring the production wiring the deferred RegisterLedgerRoutesToApp
-// will install: problem.Install() runs before any huma.Register, the Huma API is
+// faithfully mirroring the production wiring RegisterLedgerRoutesToApp installs:
+// problem.Install() runs before any huma.Register, the Huma API is
 // built with openapi.New over a /v1 group, an auth-shim middleware stands in for
 // auth.Authorize("midaz","ledgers",verb) + tenant PostAuthMiddlewares (so the
 // auth-preserved contract can be probed), and ParseUUIDPathParameters("ledger") +
@@ -91,7 +92,7 @@ func buildHumaLedgerApp(t *testing.T, handler *LedgerHandler, authOK bool) *fibe
 	return f
 }
 
-func TestHuma_CreateLedger_Success(t *testing.T) {
+func TestCreateLedger_Success(t *testing.T) {
 	// NOT parallel: buildHumaLedgerApp mutates process-global huma state.
 	ctrl := gomock.NewController(t)
 	t.Cleanup(ctrl.Finish)
@@ -138,7 +139,7 @@ func TestHuma_CreateLedger_Success(t *testing.T) {
 	assert.Equal(t, orgID.String(), got["organizationId"])
 }
 
-func TestHuma_CreateLedger_AuthPreserved(t *testing.T) {
+func TestCreateLedger_AuthPreserved(t *testing.T) {
 	// NOT parallel: process-global huma state.
 	ctrl := gomock.NewController(t)
 	t.Cleanup(ctrl.Finish)
@@ -164,7 +165,7 @@ func TestHuma_CreateLedger_AuthPreserved(t *testing.T) {
 	assert.Equal(t, http.StatusUnauthorized, resp.StatusCode, "auth middleware must reject before Huma; no public route")
 }
 
-func TestHuma_CreateLedger_ValidationError_Canonical400(t *testing.T) {
+func TestCreateLedger_ValidationError_Canonical400(t *testing.T) {
 	// NOT parallel: process-global huma state.
 	ctrl := gomock.NewController(t)
 	t.Cleanup(ctrl.Finish)
@@ -198,7 +199,7 @@ func TestHuma_CreateLedger_ValidationError_Canonical400(t *testing.T) {
 	assert.Equal(t, float64(http.StatusBadRequest), got["status"])
 }
 
-func TestHuma_CreateLedger_MalformedBody_Canonical400(t *testing.T) {
+func TestCreateLedger_MalformedBody_Canonical400(t *testing.T) {
 	// NOT parallel: process-global huma state.
 	ctrl := gomock.NewController(t)
 	t.Cleanup(ctrl.Finish)
@@ -230,7 +231,7 @@ func TestHuma_CreateLedger_MalformedBody_Canonical400(t *testing.T) {
 	assert.Equal(t, float64(http.StatusBadRequest), got["status"])
 }
 
-func TestHuma_GetLedgerByID_Success(t *testing.T) {
+func TestGetLedgerByID_Success(t *testing.T) {
 	// NOT parallel: process-global huma state.
 	ctrl := gomock.NewController(t)
 	t.Cleanup(ctrl.Finish)
@@ -264,7 +265,7 @@ func TestHuma_GetLedgerByID_Success(t *testing.T) {
 	assert.Equal(t, ledgerID.String(), got["id"])
 }
 
-func TestHuma_GetLedgerByID_BadUUID_Canonical400(t *testing.T) {
+func TestGetLedgerByID_BadUUID_Canonical400(t *testing.T) {
 	// NOT parallel: process-global huma state.
 	ctrl := gomock.NewController(t)
 	t.Cleanup(ctrl.Finish)
@@ -293,7 +294,7 @@ func TestHuma_GetLedgerByID_BadUUID_Canonical400(t *testing.T) {
 	assert.Equal(t, constant.ErrInvalidPathParameter.Error(), got["code"])
 }
 
-func TestHuma_GetAllLedgers_Success(t *testing.T) {
+func TestGetAllLedgers_Success(t *testing.T) {
 	// NOT parallel: process-global huma state.
 	ctrl := gomock.NewController(t)
 	t.Cleanup(ctrl.Finish)
@@ -322,7 +323,7 @@ func TestHuma_GetAllLedgers_Success(t *testing.T) {
 	assert.EqualValues(t, 10, got["limit"])
 }
 
-func TestHuma_GetAllLedgers_BadQuery_Canonical400(t *testing.T) {
+func TestGetAllLedgers_BadQuery_Canonical400(t *testing.T) {
 	// NOT parallel: process-global huma state.
 	ctrl := gomock.NewController(t)
 	t.Cleanup(ctrl.Finish)
@@ -348,7 +349,7 @@ func TestHuma_GetAllLedgers_BadQuery_Canonical400(t *testing.T) {
 	assert.Equal(t, constant.ErrInvalidQueryParameter.Error(), got["code"])
 }
 
-func TestHuma_GetAllLedgers_InvalidStatus_Canonical400(t *testing.T) {
+func TestGetAllLedgers_InvalidStatus_Canonical400(t *testing.T) {
 	// NOT parallel: process-global huma state.
 	// Ledger's list path has a bespoke status allowlist (ACTIVE/INACTIVE). An
 	// out-of-allowlist status must yield the canonical 400 (0082), not reach the
@@ -375,7 +376,7 @@ func TestHuma_GetAllLedgers_InvalidStatus_Canonical400(t *testing.T) {
 	assert.Equal(t, constant.ErrInvalidQueryParameter.Error(), got["code"])
 }
 
-func TestHuma_DeleteLedger_204Empty(t *testing.T) {
+func TestDeleteLedger_204Empty(t *testing.T) {
 	// NOT parallel: process-global huma state.
 	ctrl := gomock.NewController(t)
 	t.Cleanup(ctrl.Finish)
@@ -400,7 +401,7 @@ func TestHuma_DeleteLedger_204Empty(t *testing.T) {
 	assert.Empty(t, respBody, "DELETE 204 must have an empty body")
 }
 
-func TestHuma_CountLedgers_204WithHeader(t *testing.T) {
+func TestCountLedgers_204WithHeader(t *testing.T) {
 	// NOT parallel: process-global huma state.
 	ctrl := gomock.NewController(t)
 	t.Cleanup(ctrl.Finish)
@@ -426,7 +427,7 @@ func TestHuma_CountLedgers_204WithHeader(t *testing.T) {
 	assert.Equal(t, "0", resp.Header.Get("Content-Length"), "HEAD 204 must set Content-Length: 0 (parity with the Fiber NoContent path)")
 }
 
-func TestHuma_GetLedgerSettings_Success(t *testing.T) {
+func TestGetLedgerSettings_Success(t *testing.T) {
 	// NOT parallel: process-global huma state.
 	ctrl := gomock.NewController(t)
 	t.Cleanup(ctrl.Finish)
@@ -460,7 +461,7 @@ func TestHuma_GetLedgerSettings_Success(t *testing.T) {
 // TestHuma_UpdateLedgerSettings_Success exercises the merge-patch happy path: a
 // known allowlisted field is validated (ValidateSettings), deep-merged atomically,
 // and the parsed settings returned at 200.
-func TestHuma_UpdateLedgerSettings_Success(t *testing.T) {
+func TestUpdateLedgerSettings_Success(t *testing.T) {
 	// NOT parallel: process-global huma state.
 	ctrl := gomock.NewController(t)
 	t.Cleanup(ctrl.Finish)
@@ -499,7 +500,7 @@ func TestHuma_UpdateLedgerSettings_Success(t *testing.T) {
 // the merge-patch allowlist (ValidateSettings) rejects an unknown field with the
 // canonical 0147 at HTTP 400 — projected to problem+json, NEVER a native Huma 422
 // and NEVER the 500 fallback. The atomic write must never be reached.
-func TestHuma_UpdateLedgerSettings_UnknownField_Canonical400(t *testing.T) {
+func TestUpdateLedgerSettings_UnknownField_Canonical400(t *testing.T) {
 	// NOT parallel: process-global huma state.
 	ctrl := gomock.NewController(t)
 	t.Cleanup(ctrl.Finish)
@@ -532,7 +533,7 @@ func TestHuma_UpdateLedgerSettings_UnknownField_Canonical400(t *testing.T) {
 
 // TestHuma_UpdateLedgerSettings_InvalidType_Canonical400 guards the sibling
 // allowlist rejection: a known field with a wrong-typed value yields 0148 at 400.
-func TestHuma_UpdateLedgerSettings_InvalidType_Canonical400(t *testing.T) {
+func TestUpdateLedgerSettings_InvalidType_Canonical400(t *testing.T) {
 	// NOT parallel: process-global huma state.
 	ctrl := gomock.NewController(t)
 	t.Cleanup(ctrl.Finish)
@@ -562,7 +563,7 @@ func TestHuma_UpdateLedgerSettings_InvalidType_Canonical400(t *testing.T) {
 	assert.Equal(t, float64(http.StatusBadRequest), got["status"])
 }
 
-func TestHuma_UpdateLedgerSettings_AuthPreserved(t *testing.T) {
+func TestUpdateLedgerSettings_AuthPreserved(t *testing.T) {
 	// NOT parallel: process-global huma state.
 	ctrl := gomock.NewController(t)
 	t.Cleanup(ctrl.Finish)
@@ -585,4 +586,379 @@ func TestHuma_UpdateLedgerSettings_AuthPreserved(t *testing.T) {
 	assert.Equal(t, http.StatusUnauthorized, resp.StatusCode, "auth middleware must reject before Huma; settings is not public")
 
 	_ = libProblem.BaseURI
+}
+
+// --- ported from the retired Fiber-wrapper tests (ledger_test.go) --------------
+//
+// The eight exported fiber.Ctx terminals on LedgerHandler were deleted with the
+// Huma migration; the branches their tests covered in the shared cores are
+// exercised here through the live Huma transport instead.
+
+func ledgersPath(orgID uuid.UUID, suffix string) string {
+	return "/v1/organizations/" + orgID.String() + "/ledgers" + suffix
+}
+
+func TestCreateLedger_ServiceError_Canonical4xx(t *testing.T) {
+	// NOT parallel: process-global huma state. createLedger's command-error branch:
+	// a duplicate ledger name is a client error, never a 5xx.
+	ctrl := gomock.NewController(t)
+	t.Cleanup(ctrl.Finish)
+
+	orgID := uuid.New()
+
+	ledgerRepo := ledger.NewMockRepository(ctrl)
+	ledgerRepo.EXPECT().FindByName(gomock.Any(), orgID, "Test Ledger").
+		Return(false, pkg.ValidateBusinessError(constant.ErrDuplicateLedger, constant.EntityLedger, "Test Ledger")).Times(1)
+
+	handler := &LedgerHandler{Command: &command.UseCase{LedgerRepo: ledgerRepo}}
+
+	app := buildHumaLedgerApp(t, handler, true)
+
+	body, _ := json.Marshal(map[string]any{"name": "Test Ledger"})
+	req := httptest.NewRequest(http.MethodPost, ledgersPath(orgID, ""), bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
+	require.NoError(t, err)
+	defer func() { _ = resp.Body.Close() }()
+
+	respBody, _ := io.ReadAll(resp.Body)
+	assert.GreaterOrEqual(t, resp.StatusCode, http.StatusBadRequest)
+	assert.Less(t, resp.StatusCode, http.StatusInternalServerError)
+
+	var got map[string]any
+	require.NoError(t, json.Unmarshal(respBody, &got), "body: %s", string(respBody))
+	assert.Contains(t, got, "code")
+}
+
+func TestGetLedgerByID_ServiceError_Canonical404(t *testing.T) {
+	// NOT parallel: process-global huma state. getLedgerByID's query-error branch.
+	ctrl := gomock.NewController(t)
+	t.Cleanup(ctrl.Finish)
+
+	orgID := uuid.New()
+	ledgerID := uuid.New()
+
+	ledgerRepo := ledger.NewMockRepository(ctrl)
+	ledgerRepo.EXPECT().Find(gomock.Any(), orgID, ledgerID).
+		Return(nil, pkg.ValidateBusinessError(constant.ErrEntityNotFound, constant.EntityLedger)).Times(1)
+
+	handler := &LedgerHandler{Query: &query.UseCase{LedgerRepo: ledgerRepo}}
+
+	app := buildHumaLedgerApp(t, handler, true)
+
+	req := httptest.NewRequest(http.MethodGet, ledgersPath(orgID, "/"+ledgerID.String()), nil)
+	resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
+	require.NoError(t, err)
+	defer func() { _ = resp.Body.Close() }()
+
+	respBody, _ := io.ReadAll(resp.Body)
+	assert.Equal(t, http.StatusNotFound, resp.StatusCode)
+
+	var got map[string]any
+	require.NoError(t, json.Unmarshal(respBody, &got), "body: %s", string(respBody))
+	assert.Contains(t, got, "code")
+}
+
+func TestGetAllLedgers_MetadataFilter(t *testing.T) {
+	// NOT parallel: process-global huma state. getAllLedgers' metadata branch.
+	ctrl := gomock.NewController(t)
+	t.Cleanup(ctrl.Finish)
+
+	orgID := uuid.New()
+	ledger1 := uuid.New().String()
+
+	ledgerRepo := ledger.NewMockRepository(ctrl)
+	metadataRepo := mongodb.NewMockRepository(ctrl)
+
+	metadataRepo.EXPECT().FindList(gomock.Any(), constant.EntityLedger, gomock.Any()).
+		Return([]*mongodb.Metadata{{EntityID: ledger1, Data: map[string]any{"tier": "premium"}}}, nil).Times(1)
+	ledgerRepo.EXPECT().FindAll(gomock.Any(), orgID, gomock.Any()).
+		Return([]*mmodel.Ledger{{ID: ledger1, OrganizationID: orgID.String(), Name: "Premium One", Status: mmodel.Status{Code: "ACTIVE"}}}, nil).Times(1)
+
+	handler := &LedgerHandler{Query: &query.UseCase{LedgerRepo: ledgerRepo, OnboardingMetadataRepo: metadataRepo}}
+
+	app := buildHumaLedgerApp(t, handler, true)
+
+	req := httptest.NewRequest(http.MethodGet, ledgersPath(orgID, "?metadata.tier=premium"), nil)
+	resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
+	require.NoError(t, err)
+	defer func() { _ = resp.Body.Close() }()
+
+	respBody, _ := io.ReadAll(resp.Body)
+	assert.Equal(t, http.StatusOK, resp.StatusCode)
+
+	var got map[string]any
+	require.NoError(t, json.Unmarshal(respBody, &got), "body: %s", string(respBody))
+	items, ok := got["items"].([]any)
+	require.True(t, ok, "items should be an array")
+	assert.Len(t, items, 1)
+}
+
+func TestGetAllLedgers_MetadataWithNameFilter_Canonical400(t *testing.T) {
+	// NOT parallel: process-global huma state. metadata and name filters are mutually
+	// exclusive; the guard rejects before any repo call.
+	ctrl := gomock.NewController(t)
+	t.Cleanup(ctrl.Finish)
+
+	orgID := uuid.New()
+
+	handler := &LedgerHandler{Query: &query.UseCase{
+		LedgerRepo:             ledger.NewMockRepository(ctrl),
+		OnboardingMetadataRepo: mongodb.NewMockRepository(ctrl),
+	}}
+
+	app := buildHumaLedgerApp(t, handler, true)
+
+	req := httptest.NewRequest(http.MethodGet, ledgersPath(orgID, "?metadata.tier=premium&name=Acme"), nil)
+	resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
+	require.NoError(t, err)
+	defer func() { _ = resp.Body.Close() }()
+
+	respBody, _ := io.ReadAll(resp.Body)
+	assert.Equal(t, http.StatusBadRequest, resp.StatusCode)
+
+	var got map[string]any
+	require.NoError(t, json.Unmarshal(respBody, &got), "body: %s", string(respBody))
+	assert.Equal(t, constant.ErrInvalidQueryParameter.Error(), got["code"])
+}
+
+func TestGetAllLedgers_MetadataFilter_ServiceError_Canonical404(t *testing.T) {
+	// NOT parallel: process-global huma state. The metadata branch's error path.
+	ctrl := gomock.NewController(t)
+	t.Cleanup(ctrl.Finish)
+
+	orgID := uuid.New()
+
+	metadataRepo := mongodb.NewMockRepository(ctrl)
+	metadataRepo.EXPECT().FindList(gomock.Any(), constant.EntityLedger, gomock.Any()).Return(nil, nil).Times(1)
+
+	handler := &LedgerHandler{Query: &query.UseCase{
+		LedgerRepo:             ledger.NewMockRepository(ctrl),
+		OnboardingMetadataRepo: metadataRepo,
+	}}
+
+	app := buildHumaLedgerApp(t, handler, true)
+
+	req := httptest.NewRequest(http.MethodGet, ledgersPath(orgID, "?metadata.tier=nonexistent"), nil)
+	resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
+	require.NoError(t, err)
+	defer func() { _ = resp.Body.Close() }()
+
+	respBody, _ := io.ReadAll(resp.Body)
+	assert.Equal(t, http.StatusNotFound, resp.StatusCode)
+
+	var got map[string]any
+	require.NoError(t, json.Unmarshal(respBody, &got), "body: %s", string(respBody))
+	assert.Contains(t, got, "code")
+}
+
+func TestGetAllLedgers_ServiceError_Canonical404(t *testing.T) {
+	// NOT parallel: process-global huma state. getAllLedgers' plain query-error branch.
+	ctrl := gomock.NewController(t)
+	t.Cleanup(ctrl.Finish)
+
+	orgID := uuid.New()
+
+	ledgerRepo := ledger.NewMockRepository(ctrl)
+	ledgerRepo.EXPECT().FindAll(gomock.Any(), orgID, gomock.Any()).
+		Return(nil, pkg.ValidateBusinessError(constant.ErrEntityNotFound, constant.EntityLedger)).Times(1)
+
+	handler := &LedgerHandler{Query: &query.UseCase{LedgerRepo: ledgerRepo}}
+
+	app := buildHumaLedgerApp(t, handler, true)
+
+	req := httptest.NewRequest(http.MethodGet, ledgersPath(orgID, ""), nil)
+	resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
+	require.NoError(t, err)
+	defer func() { _ = resp.Body.Close() }()
+
+	assert.Equal(t, http.StatusNotFound, resp.StatusCode)
+}
+
+func TestUpdateLedger_Success(t *testing.T) {
+	// NOT parallel: process-global huma state.
+	ctrl := gomock.NewController(t)
+	t.Cleanup(ctrl.Finish)
+
+	orgID := uuid.New()
+	ledgerID := uuid.New()
+
+	ledgerRepo := ledger.NewMockRepository(ctrl)
+	metadataRepo := mongodb.NewMockRepository(ctrl)
+
+	ledgerRepo.EXPECT().Update(gomock.Any(), orgID, ledgerID, gomock.Any()).
+		Return(&mmodel.Ledger{
+			ID:             ledgerID.String(),
+			OrganizationID: orgID.String(),
+			Name:           "Updated Ledger Name",
+			Status:         mmodel.Status{Code: "ACTIVE"},
+		}, nil).Times(1)
+	metadataRepo.EXPECT().Update(gomock.Any(), constant.EntityLedger, ledgerID.String(), gomock.Any()).Return(nil).AnyTimes()
+	metadataRepo.EXPECT().FindByEntity(gomock.Any(), constant.EntityLedger, ledgerID.String()).Return(nil, nil).AnyTimes()
+
+	handler := &LedgerHandler{Command: &command.UseCase{LedgerRepo: ledgerRepo, OnboardingMetadataRepo: metadataRepo}}
+
+	app := buildHumaLedgerApp(t, handler, true)
+
+	body, _ := json.Marshal(map[string]any{"name": "Updated Ledger Name"})
+	req := httptest.NewRequest(http.MethodPatch, ledgersPath(orgID, "/"+ledgerID.String()), bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
+	require.NoError(t, err)
+	defer func() { _ = resp.Body.Close() }()
+
+	respBody, _ := io.ReadAll(resp.Body)
+	assert.Equal(t, http.StatusOK, resp.StatusCode)
+	assert.NotContains(t, string(respBody), "$schema", "SchemaLinkTransformer must be zeroed")
+
+	var got map[string]any
+	require.NoError(t, json.Unmarshal(respBody, &got), "body: %s", string(respBody))
+	assert.Equal(t, "Updated Ledger Name", got["name"])
+	assert.Equal(t, ledgerID.String(), got["id"])
+}
+
+func TestUpdateLedger_NotFound_Canonical404(t *testing.T) {
+	// NOT parallel: process-global huma state. updateLedger's command-error branch.
+	ctrl := gomock.NewController(t)
+	t.Cleanup(ctrl.Finish)
+
+	orgID := uuid.New()
+	ledgerID := uuid.New()
+
+	ledgerRepo := ledger.NewMockRepository(ctrl)
+	ledgerRepo.EXPECT().Update(gomock.Any(), orgID, ledgerID, gomock.Any()).
+		Return(nil, pkg.ValidateBusinessError(constant.ErrEntityNotFound, constant.EntityLedger)).Times(1)
+
+	handler := &LedgerHandler{Command: &command.UseCase{LedgerRepo: ledgerRepo}}
+
+	app := buildHumaLedgerApp(t, handler, true)
+
+	body, _ := json.Marshal(map[string]any{"name": "Updated Ledger Name"})
+	req := httptest.NewRequest(http.MethodPatch, ledgersPath(orgID, "/"+ledgerID.String()), bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
+	require.NoError(t, err)
+	defer func() { _ = resp.Body.Close() }()
+
+	respBody, _ := io.ReadAll(resp.Body)
+	assert.Equal(t, http.StatusNotFound, resp.StatusCode)
+
+	var got map[string]any
+	require.NoError(t, json.Unmarshal(respBody, &got), "body: %s", string(respBody))
+	assert.Contains(t, got, "code")
+}
+
+func TestDeleteLedger_ProductionForbidden(t *testing.T) {
+	// NOT parallel: process-global huma state. deleteLedger refuses outright when
+	// ENV_NAME is production — the command is never reached.
+	t.Setenv("ENV_NAME", "production")
+
+	ctrl := gomock.NewController(t)
+	t.Cleanup(ctrl.Finish)
+
+	orgID := uuid.New()
+	ledgerID := uuid.New()
+
+	handler := &LedgerHandler{Command: &command.UseCase{LedgerRepo: ledger.NewMockRepository(ctrl)}}
+
+	app := buildHumaLedgerApp(t, handler, true)
+
+	req := httptest.NewRequest(http.MethodDelete, ledgersPath(orgID, "/"+ledgerID.String()), nil)
+	resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
+	require.NoError(t, err)
+	defer func() { _ = resp.Body.Close() }()
+
+	respBody, _ := io.ReadAll(resp.Body)
+	assert.GreaterOrEqual(t, resp.StatusCode, http.StatusBadRequest)
+	assert.Less(t, resp.StatusCode, http.StatusInternalServerError, "a refused production delete is a client error")
+
+	var got map[string]any
+	require.NoError(t, json.Unmarshal(respBody, &got), "body: %s", string(respBody))
+	assert.Equal(t, constant.ErrActionNotPermitted.Error(), got["code"])
+}
+
+func TestDeleteLedger_ServiceError_Canonical404(t *testing.T) {
+	// NOT parallel: process-global huma state. deleteLedger's command-error branch.
+	ctrl := gomock.NewController(t)
+	t.Cleanup(ctrl.Finish)
+
+	orgID := uuid.New()
+	ledgerID := uuid.New()
+
+	ledgerRepo := ledger.NewMockRepository(ctrl)
+	ledgerRepo.EXPECT().Delete(gomock.Any(), orgID, ledgerID).
+		Return(pkg.ValidateBusinessError(constant.ErrEntityNotFound, constant.EntityLedger)).Times(1)
+
+	handler := &LedgerHandler{Command: &command.UseCase{LedgerRepo: ledgerRepo}}
+
+	app := buildHumaLedgerApp(t, handler, true)
+
+	req := httptest.NewRequest(http.MethodDelete, ledgersPath(orgID, "/"+ledgerID.String()), nil)
+	resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
+	require.NoError(t, err)
+	defer func() { _ = resp.Body.Close() }()
+
+	respBody, _ := io.ReadAll(resp.Body)
+	assert.Equal(t, http.StatusNotFound, resp.StatusCode)
+
+	var got map[string]any
+	require.NoError(t, json.Unmarshal(respBody, &got), "body: %s", string(respBody))
+	assert.Contains(t, got, "code")
+}
+
+func TestCountLedgers_ServiceError(t *testing.T) {
+	// NOT parallel: process-global huma state. countLedgers' query-error branch: the
+	// HEAD op must surface the canonical status with no total header.
+	ctrl := gomock.NewController(t)
+	t.Cleanup(ctrl.Finish)
+
+	orgID := uuid.New()
+
+	ledgerRepo := ledger.NewMockRepository(ctrl)
+	ledgerRepo.EXPECT().Count(gomock.Any(), orgID).
+		Return(int64(0), pkg.ValidateBusinessError(constant.ErrEntityNotFound, constant.EntityLedger)).Times(1)
+
+	handler := &LedgerHandler{Query: &query.UseCase{LedgerRepo: ledgerRepo}}
+
+	app := buildHumaLedgerApp(t, handler, true)
+
+	req := httptest.NewRequest(http.MethodHead, ledgersPath(orgID, "/metrics/count"), nil)
+	resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
+	require.NoError(t, err)
+	defer func() { _ = resp.Body.Close() }()
+
+	assert.Equal(t, http.StatusNotFound, resp.StatusCode)
+	assert.Empty(t, resp.Header.Get(constant.XTotalCount), "a failed count must not advertise a total")
+}
+
+func TestGetLedgerSettings_ServiceError_Canonical404(t *testing.T) {
+	// NOT parallel: process-global huma state. getLedgerSettings' query-error branch.
+	ctrl := gomock.NewController(t)
+	t.Cleanup(ctrl.Finish)
+
+	orgID := uuid.New()
+	ledgerID := uuid.New()
+
+	ledgerRepo := ledger.NewMockRepository(ctrl)
+	ledgerRepo.EXPECT().GetSettings(gomock.Any(), orgID, ledgerID).
+		Return(nil, pkg.ValidateBusinessError(constant.ErrEntityNotFound, constant.EntityLedger)).Times(1)
+
+	handler := &LedgerHandler{Query: &query.UseCase{LedgerRepo: ledgerRepo}}
+
+	app := buildHumaLedgerApp(t, handler, true)
+
+	req := httptest.NewRequest(http.MethodGet, ledgersPath(orgID, "/"+ledgerID.String()+"/settings"), nil)
+	resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
+	require.NoError(t, err)
+	defer func() { _ = resp.Body.Close() }()
+
+	respBody, _ := io.ReadAll(resp.Body)
+	assert.Equal(t, http.StatusNotFound, resp.StatusCode)
+
+	var got map[string]any
+	require.NoError(t, json.Unmarshal(respBody, &got), "body: %s", string(respBody))
+	assert.Contains(t, got, "code")
 }

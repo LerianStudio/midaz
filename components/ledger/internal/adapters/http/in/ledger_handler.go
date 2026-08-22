@@ -61,23 +61,23 @@ func parseOrg(orgStr string) (orgID uuid.UUID, err error) {
 
 // --- POST /ledgers ------------------------------------------------------------
 
-// CreateLedgerInputHuma is the Huma request envelope for POST. RawBody keeps the
+// CreateLedgerRequest is the Huma request envelope for POST. RawBody keeps the
 // body out of Huma's validator; the org path param is validated by the Fiber
 // middleware, not by a format tag.
-type CreateLedgerInputHuma struct {
+type CreateLedgerRequest struct {
 	OrganizationID string `path:"organization_id" doc:"Organization ID (UUID)"`
 	RawBody        []byte `contentType:"application/json"`
 }
 
-// CreateLedgerOutputHuma pins 201 (matching http.Created).
-type CreateLedgerOutputHuma struct {
+// CreateLedgerResponse pins 201 (matching http.Created).
+type CreateLedgerResponse struct {
 	Status int
 	Body   *mmodel.Ledger
 }
 
-// CreateLedgerHuma decodes+validates the raw body imperatively then delegates to the
+// CreateLedger decodes+validates the raw body imperatively then delegates to the
 // shared createLedger core.
-func (handler *LedgerHandler) CreateLedgerHuma(ctx context.Context, in *CreateLedgerInputHuma) (*CreateLedgerOutputHuma, error) {
+func (handler *LedgerHandler) CreateLedger(ctx context.Context, in *CreateLedgerRequest) (*CreateLedgerResponse, error) {
 	orgID, err := parseOrg(in.OrganizationID)
 	if err != nil {
 		return nil, pkgHTTP.HumaProblem(err)
@@ -93,15 +93,15 @@ func (handler *LedgerHandler) CreateLedgerHuma(ctx context.Context, in *CreateLe
 		return nil, pkgHTTP.HumaProblem(err)
 	}
 
-	return &CreateLedgerOutputHuma{Status: http.StatusCreated, Body: ledger}, nil
+	return &CreateLedgerResponse{Status: http.StatusCreated, Body: ledger}, nil
 }
 
 // --- GET /ledgers (list) ------------------------------------------------------
 
-// ListLedgersInputHuma advertises the list query params in the spec (doc-only, no
+// ListLedgersRequest advertises the list query params in the spec (doc-only, no
 // validation tags) and captures the raw query via Resolve for the imperative binder
 // in the getAllLedgers core.
-type ListLedgersInputHuma struct {
+type ListLedgersRequest struct {
 	OrganizationID string `path:"organization_id" doc:"Organization ID (UUID)"`
 	Metadata       string `query:"metadata" doc:"JSON string to filter ledgers by metadata fields"`
 	Limit          string `query:"limit" doc:"Max items per page (1-100, default 10)"`
@@ -119,7 +119,7 @@ type ListLedgersInputHuma struct {
 
 // Resolve captures the raw query before the handler. It performs NO validation and
 // NEVER returns an error — canonical rejection stays in the getAllLedgers core.
-func (in *ListLedgersInputHuma) Resolve(ctx huma.Context) []error {
+func (in *ListLedgersRequest) Resolve(ctx huma.Context) []error {
 	u := ctx.URL()
 	in.rawQuery = u.Query()
 
@@ -129,7 +129,7 @@ func (in *ListLedgersInputHuma) Resolve(ctx huma.Context) []error {
 // queries rebuilds the map[string]string the getAllLedgers core feeds to
 // http.ValidateParameters, matching Fiber's c.Queries() (last value wins for a
 // repeated key, present-but-empty keys included).
-func (in *ListLedgersInputHuma) queries() map[string]string {
+func (in *ListLedgersRequest) queries() map[string]string {
 	out := make(map[string]string, len(in.rawQuery))
 	for k, vs := range in.rawQuery {
 		if len(vs) == 0 {
@@ -143,15 +143,15 @@ func (in *ListLedgersInputHuma) queries() map[string]string {
 	return out
 }
 
-// ListLedgersOutputHuma carries the pagination envelope verbatim.
-type ListLedgersOutputHuma struct {
+// ListLedgersResponse carries the pagination envelope verbatim.
+type ListLedgersResponse struct {
 	Status int
 	Body   pkgHTTP.Pagination
 }
 
-// ListLedgersHuma delegates to getAllLedgers (which binds+validates the query,
+// ListLedgers delegates to getAllLedgers (which binds+validates the query,
 // enforces the status allowlist and the metadata/name-filter exclusion).
-func (handler *LedgerHandler) ListLedgersHuma(ctx context.Context, in *ListLedgersInputHuma) (*ListLedgersOutputHuma, error) {
+func (handler *LedgerHandler) ListLedgers(ctx context.Context, in *ListLedgersRequest) (*ListLedgersResponse, error) {
 	orgID, err := parseOrg(in.OrganizationID)
 	if err != nil {
 		return nil, pkgHTTP.HumaProblem(err)
@@ -162,26 +162,26 @@ func (handler *LedgerHandler) ListLedgersHuma(ctx context.Context, in *ListLedge
 		return nil, pkgHTTP.HumaProblem(err)
 	}
 
-	return &ListLedgersOutputHuma{Status: http.StatusOK, Body: pagination}, nil
+	return &ListLedgersResponse{Status: http.StatusOK, Body: pagination}, nil
 }
 
 // --- GET /ledgers/{ledger_id} -------------------------------------------------
 
-// GetLedgerInputHuma is the by-id request envelope. The ledger_id path param carries
+// GetLedgerRequest is the by-id request envelope. The ledger_id path param carries
 // no format tag (ParseUUIDPathParameters is the sole validator).
-type GetLedgerInputHuma struct {
+type GetLedgerRequest struct {
 	OrganizationID string `path:"organization_id" doc:"Organization ID (UUID)"`
 	LedgerID       string `path:"ledger_id" doc:"Ledger ID (UUID)"`
 }
 
-// GetLedgerOutputHuma carries the ledger verbatim.
-type GetLedgerOutputHuma struct {
+// GetLedgerResponse carries the ledger verbatim.
+type GetLedgerResponse struct {
 	Status int
 	Body   *mmodel.Ledger
 }
 
-// GetLedgerByIDHuma delegates to getLedgerByID.
-func (handler *LedgerHandler) GetLedgerByIDHuma(ctx context.Context, in *GetLedgerInputHuma) (*GetLedgerOutputHuma, error) {
+// GetLedgerByID delegates to getLedgerByID.
+func (handler *LedgerHandler) GetLedgerByID(ctx context.Context, in *GetLedgerRequest) (*GetLedgerResponse, error) {
 	orgID, err := parseOrg(in.OrganizationID)
 	if err != nil {
 		return nil, pkgHTTP.HumaProblem(err)
@@ -197,27 +197,27 @@ func (handler *LedgerHandler) GetLedgerByIDHuma(ctx context.Context, in *GetLedg
 		return nil, pkgHTTP.HumaProblem(err)
 	}
 
-	return &GetLedgerOutputHuma{Status: http.StatusOK, Body: ledger}, nil
+	return &GetLedgerResponse{Status: http.StatusOK, Body: ledger}, nil
 }
 
 // --- PATCH /ledgers/{ledger_id} -----------------------------------------------
 
-// UpdateLedgerInputHuma is the update request envelope (RawBody, see Create).
-type UpdateLedgerInputHuma struct {
+// UpdateLedgerRequest is the update request envelope (RawBody, see Create).
+type UpdateLedgerRequest struct {
 	OrganizationID string `path:"organization_id" doc:"Organization ID (UUID)"`
 	LedgerID       string `path:"ledger_id" doc:"Ledger ID (UUID)"`
 	RawBody        []byte `contentType:"application/json"`
 }
 
-// UpdateLedgerOutputHuma carries the updated ledger (200, matching http.OK).
-type UpdateLedgerOutputHuma struct {
+// UpdateLedgerResponse carries the updated ledger (200, matching http.OK).
+type UpdateLedgerResponse struct {
 	Status int
 	Body   *mmodel.Ledger
 }
 
-// UpdateLedgerHuma decodes+validates the raw body imperatively then delegates to the
+// UpdateLedger decodes+validates the raw body imperatively then delegates to the
 // shared updateLedger core.
-func (handler *LedgerHandler) UpdateLedgerHuma(ctx context.Context, in *UpdateLedgerInputHuma) (*UpdateLedgerOutputHuma, error) {
+func (handler *LedgerHandler) UpdateLedger(ctx context.Context, in *UpdateLedgerRequest) (*UpdateLedgerResponse, error) {
 	orgID, err := parseOrg(in.OrganizationID)
 	if err != nil {
 		return nil, pkgHTTP.HumaProblem(err)
@@ -238,18 +238,18 @@ func (handler *LedgerHandler) UpdateLedgerHuma(ctx context.Context, in *UpdateLe
 		return nil, pkgHTTP.HumaProblem(err)
 	}
 
-	return &UpdateLedgerOutputHuma{Status: http.StatusOK, Body: ledger}, nil
+	return &UpdateLedgerResponse{Status: http.StatusOK, Body: ledger}, nil
 }
 
 // --- DELETE /ledgers/{ledger_id} ----------------------------------------------
 
-// DeleteLedgerOutputHuma has NO Body field: paired with DefaultStatus 204 it makes
+// DeleteLedgerResponse has NO Body field: paired with DefaultStatus 204 it makes
 // Huma emit a bodiless 204, matching the Fiber http.NoContent path.
-type DeleteLedgerOutputHuma struct{}
+type DeleteLedgerResponse struct{}
 
-// DeleteLedgerByIDHuma delegates to deleteLedger (which enforces the production-env
+// DeleteLedgerByID delegates to deleteLedger (which enforces the production-env
 // guard); returns a bodiless 204 on success.
-func (handler *LedgerHandler) DeleteLedgerByIDHuma(ctx context.Context, in *GetLedgerInputHuma) (*DeleteLedgerOutputHuma, error) {
+func (handler *LedgerHandler) DeleteLedgerByID(ctx context.Context, in *GetLedgerRequest) (*DeleteLedgerResponse, error) {
 	orgID, err := parseOrg(in.OrganizationID)
 	if err != nil {
 		return nil, pkgHTTP.HumaProblem(err)
@@ -264,26 +264,26 @@ func (handler *LedgerHandler) DeleteLedgerByIDHuma(ctx context.Context, in *GetL
 		return nil, pkgHTTP.HumaProblem(err)
 	}
 
-	return &DeleteLedgerOutputHuma{}, nil
+	return &DeleteLedgerResponse{}, nil
 }
 
 // --- HEAD /ledgers/metrics/count ----------------------------------------------
 
-// CountLedgersInputHuma is the HEAD-count request envelope (org only).
-type CountLedgersInputHuma struct {
+// CountLedgersRequest is the HEAD-count request envelope (org only).
+type CountLedgersRequest struct {
 	OrganizationID string `path:"organization_id" doc:"Organization ID (UUID)"`
 }
 
-// CountLedgersOutputHuma replicates the Fiber HEAD-count response manually: the
+// CountLedgersResponse replicates the Fiber HEAD-count response manually: the
 // X-Total-Count header carries the count, Content-Length is pinned to 0, and the
 // body is empty at status 204.
-type CountLedgersOutputHuma struct {
+type CountLedgersResponse struct {
 	TotalCount    string `header:"X-Total-Count"`
 	ContentLength string `header:"Content-Length"`
 }
 
-// CountLedgersHuma delegates to countLedgers and sets the count headers.
-func (handler *LedgerHandler) CountLedgersHuma(ctx context.Context, in *CountLedgersInputHuma) (*CountLedgersOutputHuma, error) {
+// CountLedgers delegates to countLedgers and sets the count headers.
+func (handler *LedgerHandler) CountLedgers(ctx context.Context, in *CountLedgersRequest) (*CountLedgersResponse, error) {
 	orgID, err := parseOrg(in.OrganizationID)
 	if err != nil {
 		return nil, pkgHTTP.HumaProblem(err)
@@ -294,7 +294,7 @@ func (handler *LedgerHandler) CountLedgersHuma(ctx context.Context, in *CountLed
 		return nil, pkgHTTP.HumaProblem(err)
 	}
 
-	return &CountLedgersOutputHuma{
+	return &CountLedgersResponse{
 		TotalCount:    strconv.FormatInt(count, 10),
 		ContentLength: "0",
 	}, nil
@@ -302,14 +302,14 @@ func (handler *LedgerHandler) CountLedgersHuma(ctx context.Context, in *CountLed
 
 // --- GET /ledgers/{ledger_id}/settings ----------------------------------------
 
-// GetLedgerSettingsOutputHuma carries the parsed settings (200, matching http.OK).
-type GetLedgerSettingsOutputHuma struct {
+// GetLedgerSettingsResponse carries the parsed settings (200, matching http.OK).
+type GetLedgerSettingsResponse struct {
 	Status int
 	Body   mmodel.LedgerSettings
 }
 
-// GetLedgerSettingsHuma delegates to getLedgerSettings.
-func (handler *LedgerHandler) GetLedgerSettingsHuma(ctx context.Context, in *GetLedgerInputHuma) (*GetLedgerSettingsOutputHuma, error) {
+// GetLedgerSettings delegates to getLedgerSettings.
+func (handler *LedgerHandler) GetLedgerSettings(ctx context.Context, in *GetLedgerRequest) (*GetLedgerSettingsResponse, error) {
 	orgID, err := parseOrg(in.OrganizationID)
 	if err != nil {
 		return nil, pkgHTTP.HumaProblem(err)
@@ -325,35 +325,35 @@ func (handler *LedgerHandler) GetLedgerSettingsHuma(ctx context.Context, in *Get
 		return nil, pkgHTTP.HumaProblem(err)
 	}
 
-	return &GetLedgerSettingsOutputHuma{Status: http.StatusOK, Body: settings}, nil
+	return &GetLedgerSettingsResponse{Status: http.StatusOK, Body: settings}, nil
 }
 
 // --- PATCH /ledgers/{ledger_id}/settings --------------------------------------
 
-// UpdateLedgerSettingsInputHuma is the settings merge-patch request envelope. The
+// UpdateLedgerSettingsRequest is the settings merge-patch request envelope. The
 // body is a free-form JSON object (map[string]any), NOT a validated struct — the
 // allowlist enforcement (unknown field -> 0147, wrong type -> 0148) lives in the
 // updateLedgerSettings core. RawBody keeps it out of Huma's validator; the imperative
 // pipeline preserves the null-byte/depth/key-count guards.
-type UpdateLedgerSettingsInputHuma struct {
+type UpdateLedgerSettingsRequest struct {
 	OrganizationID string `path:"organization_id" doc:"Organization ID (UUID)"`
 	LedgerID       string `path:"ledger_id" doc:"Ledger ID (UUID)"`
 	RawBody        []byte `contentType:"application/json"`
 }
 
-// UpdateLedgerSettingsOutputHuma carries the parsed merged settings (200).
-type UpdateLedgerSettingsOutputHuma struct {
+// UpdateLedgerSettingsResponse carries the parsed merged settings (200).
+type UpdateLedgerSettingsResponse struct {
 	Status int
 	Body   mmodel.LedgerSettings
 }
 
-// UpdateLedgerSettingsHuma preserves the Fiber settings landmine byte-for-byte:
+// UpdateLedgerSettings preserves the Fiber settings landmine byte-for-byte:
 // the 64KB body-limit guard (ErrPayloadTooLarge / 0143, mirroring the
 // WithBodyLimit(SettingsMaxPayloadSize) middleware), the shared imperative decode
 // pipeline into a map[string]any (null-byte/depth/key-count guards), then the
 // allowlist merge-patch in the core. Every rejection is a canonical 400 rendered by
 // HumaProblem — never a native Huma 422.
-func (handler *LedgerHandler) UpdateLedgerSettingsHuma(ctx context.Context, in *UpdateLedgerSettingsInputHuma) (*UpdateLedgerSettingsOutputHuma, error) {
+func (handler *LedgerHandler) UpdateLedgerSettings(ctx context.Context, in *UpdateLedgerSettingsRequest) (*UpdateLedgerSettingsResponse, error) {
 	orgID, err := parseOrg(in.OrganizationID)
 	if err != nil {
 		return nil, pkgHTTP.HumaProblem(err)
@@ -383,14 +383,13 @@ func (handler *LedgerHandler) UpdateLedgerSettingsHuma(ctx context.Context, in *
 		return nil, pkgHTTP.HumaProblem(err)
 	}
 
-	return &UpdateLedgerSettingsOutputHuma{Status: http.StatusOK, Body: updatedSettings}, nil
+	return &UpdateLedgerSettingsResponse{Status: http.StatusOK, Body: updatedSettings}, nil
 }
 
-// RegisterLedgerRoutes registers the eight migrated ledger operations on the shared
-// Huma API. It is the per-file seam the unified server calls (via the deferred
-// RegisterLedgerRoutesToApp integration wiring); the auth + tenant +
-// ParseUUIDPathParameters middleware chain for these routes is attached at the
-// Fiber level BEFORE the Huma terminal, not here.
+// RegisterLedgerRoutes registers the eight ledger operations on the shared Huma API.
+// It is the per-file seam registerLedgerRoutesToApp calls; the auth + tenant +
+// ParseUUIDPathParameters middleware chain for these routes is attached at the Fiber
+// level BEFORE the Huma terminal, not here.
 //
 // Paths are GROUP-RELATIVE: the Huma API is bound to a versioned Fiber group, so the
 // humafiber adapter registers on that group and Fiber prepends the version prefix.
@@ -416,7 +415,7 @@ func RegisterLedgerRoutes(api huma.API, h *LedgerHandler, opSuffix string) {
 		Security:         secLedgerBearerOrAPIKey,
 		SkipValidateBody: true, // body validated imperatively (http.DecodeAndValidate).
 		DefaultStatus:    http.StatusCreated,
-	}, h.CreateLedgerHuma)
+	}, h.CreateLedger)
 	attachTypedRequestBody[mmodel.CreateLedgerInput](api, "createLedger"+opSuffix)
 
 	huma.Register(api, huma.Operation{
@@ -426,7 +425,7 @@ func RegisterLedgerRoutes(api huma.API, h *LedgerHandler, opSuffix string) {
 		Summary:     "List all ledgers",
 		Tags:        []string{tag},
 		Security:    secLedgerBearerOrAPIKey,
-	}, h.ListLedgersHuma)
+	}, h.ListLedgers)
 
 	huma.Register(api, huma.Operation{
 		OperationID: "getLedgerByID" + opSuffix,
@@ -435,7 +434,7 @@ func RegisterLedgerRoutes(api huma.API, h *LedgerHandler, opSuffix string) {
 		Summary:     "Retrieve a specific ledger",
 		Tags:        []string{tag},
 		Security:    secLedgerBearerOrAPIKey,
-	}, h.GetLedgerByIDHuma)
+	}, h.GetLedgerByID)
 
 	huma.Register(api, huma.Operation{
 		OperationID:      "updateLedger" + opSuffix,
@@ -445,7 +444,7 @@ func RegisterLedgerRoutes(api huma.API, h *LedgerHandler, opSuffix string) {
 		Tags:             []string{tag},
 		Security:         secLedgerBearerOrAPIKey,
 		SkipValidateBody: true, // body validated imperatively — see createLedger.
-	}, h.UpdateLedgerHuma)
+	}, h.UpdateLedger)
 	attachTypedRequestBody[mmodel.UpdateLedgerInput](api, "updateLedger"+opSuffix)
 
 	huma.Register(api, huma.Operation{
@@ -456,7 +455,7 @@ func RegisterLedgerRoutes(api huma.API, h *LedgerHandler, opSuffix string) {
 		Tags:          []string{tag},
 		Security:      secLedgerBearerOrAPIKey,
 		DefaultStatus: http.StatusNoContent, // Out has no Body field => bodiless 204.
-	}, h.DeleteLedgerByIDHuma)
+	}, h.DeleteLedgerByID)
 
 	huma.Register(api, huma.Operation{
 		OperationID:   "countLedgers" + opSuffix,
@@ -466,7 +465,7 @@ func RegisterLedgerRoutes(api huma.API, h *LedgerHandler, opSuffix string) {
 		Tags:          []string{tag},
 		Security:      secLedgerBearerOrAPIKey,
 		DefaultStatus: http.StatusNoContent, // X-Total-Count header + empty 204 body.
-	}, h.CountLedgersHuma)
+	}, h.CountLedgers)
 
 	huma.Register(api, huma.Operation{
 		OperationID: "getLedgerSettings" + opSuffix,
@@ -475,7 +474,7 @@ func RegisterLedgerRoutes(api huma.API, h *LedgerHandler, opSuffix string) {
 		Summary:     "Get ledger settings",
 		Tags:        []string{tag},
 		Security:    secLedgerBearerOrAPIKey,
-	}, h.GetLedgerSettingsHuma)
+	}, h.GetLedgerSettings)
 
 	huma.Register(api, huma.Operation{
 		OperationID:      "updateLedgerSettings" + opSuffix,
@@ -485,13 +484,13 @@ func RegisterLedgerRoutes(api huma.API, h *LedgerHandler, opSuffix string) {
 		Tags:             []string{tag},
 		Security:         secLedgerBearerOrAPIKey,
 		SkipValidateBody: true, // free-form map; allowlist enforced imperatively in the core.
-	}, h.UpdateLedgerSettingsHuma)
+	}, h.UpdateLedgerSettings)
 	// updateLedgerSettings decodes into a free-form map[string]any (allowlist enforced
 	// in the core), so the published schema is a structured object, not a $ref component.
 	attachTypedRequestBody[map[string]any](api, "updateLedgerSettings"+opSuffix)
 }
 
-// RegisterLedgerRoutesToApp wires the Huma-migrated ledger surface onto the /v1
+// RegisterLedgerRoutesToApp wires the ledger surface onto the /v1
 // contract. See registerLedgerRoutesToApp for what it attaches.
 func RegisterLedgerRoutesToApp(group fiber.Router, api huma.API, auth *middleware.AuthClient, h *LedgerHandler, routeOptions *pkgHTTP.ProtectedRouteOptions) {
 	registerLedgerRoutesToApp(group, api, auth, h, routeOptions, routeOpSuffixV1)
@@ -511,11 +510,10 @@ func RegisterLedgerV2RoutesToApp(group fiber.Router, api huma.API, auth *middlew
 // auth.Authorize("midaz","ledgers",verb) + tenant PostAuthMiddlewares) +
 // ParseUUIDPathParameters("ledger") — as MIDDLEWARE ONLY (no terminal) on the VERSIONED
 // GROUP with GROUP-RELATIVE paths, then registers the Huma terminals via RegisterLedgerRoutes
-// on the SAME group's Huma API. This preserves the pre-Huma ("ledgers", verb) authz tuples
-// and tenant resolution BYTE-FOR-BYTE — no ledger route becomes public — on whichever version
-// group it is mounted on. All eight ops carried ParseUUIDPathParameters("ledger") in the
-// pre-migration routes.go, so it is attached on every op here. The settings PATCH's Fiber
-// WithBodyLimit is not reproduced: body handling is now owned by the Huma terminal, and the
+// on the SAME group's Huma API. The ("ledgers", verb) authz tuples and tenant resolution
+// therefore apply on whichever version group it is mounted on — no ledger route becomes
+// public. Every one of the eight ops carries ParseUUIDPathParameters("ledger"). Body
+// handling is owned by the Huma terminal, and the
 // body limit was never an authz concern.
 //
 // opSuffix distinguishes the operation IDs one version group publishes from another's — see
