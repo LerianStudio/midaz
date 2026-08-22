@@ -36,22 +36,22 @@ var secPortfolioBearerOrAPIKey = []map[string][]string{
 
 // --- POST /portfolios ---------------------------------------------------------
 
-// CreatePortfolioInputHuma is the Huma request envelope for POST.
-type CreatePortfolioInputHuma struct {
+// CreatePortfolioRequest is the Huma request envelope for POST.
+type CreatePortfolioRequest struct {
 	OrganizationID string `path:"organization_id" doc:"Organization ID (UUID)"`
 	LedgerID       string `path:"ledger_id" doc:"Ledger ID (UUID)"`
 	RawBody        []byte `contentType:"application/json"`
 }
 
-// CreatePortfolioOutputHuma pins 201 (matching http.Created).
-type CreatePortfolioOutputHuma struct {
+// CreatePortfolioResponse pins 201 (matching http.Created).
+type CreatePortfolioResponse struct {
 	Status int
 	Body   *mmodel.Portfolio
 }
 
-// CreatePortfolioHuma decodes+validates the raw body imperatively then delegates to
+// CreatePortfolio decodes+validates the raw body imperatively then delegates to
 // the shared createPortfolio core.
-func (handler *PortfolioHandler) CreatePortfolioHuma(ctx context.Context, in *CreatePortfolioInputHuma) (*CreatePortfolioOutputHuma, error) {
+func (handler *PortfolioHandler) CreatePortfolio(ctx context.Context, in *CreatePortfolioRequest) (*CreatePortfolioResponse, error) {
 	orgID, ledgerID, err := parseOrgLedger(in.OrganizationID, in.LedgerID)
 	if err != nil {
 		return nil, pkgHTTP.HumaProblem(err)
@@ -67,14 +67,14 @@ func (handler *PortfolioHandler) CreatePortfolioHuma(ctx context.Context, in *Cr
 		return nil, pkgHTTP.HumaProblem(err)
 	}
 
-	return &CreatePortfolioOutputHuma{Status: http.StatusCreated, Body: portfolio}, nil
+	return &CreatePortfolioResponse{Status: http.StatusCreated, Body: portfolio}, nil
 }
 
 // --- GET /portfolios (list) ---------------------------------------------------
 
-// ListPortfoliosInputHuma advertises the list query params (doc-only) and captures
+// ListPortfoliosRequest advertises the list query params (doc-only) and captures
 // the raw query via Resolve for the imperative ValidateParameters binder.
-type ListPortfoliosInputHuma struct {
+type ListPortfoliosRequest struct {
 	OrganizationID string `path:"organization_id" doc:"Organization ID (UUID)"`
 	LedgerID       string `path:"ledger_id" doc:"Ledger ID (UUID)"`
 	Metadata       string `query:"metadata" doc:"JSON string to filter portfolios by metadata fields"`
@@ -90,7 +90,7 @@ type ListPortfoliosInputHuma struct {
 }
 
 // Resolve captures the raw query before the handler (NO validation, never errors).
-func (in *ListPortfoliosInputHuma) Resolve(ctx huma.Context) []error {
+func (in *ListPortfoliosRequest) Resolve(ctx huma.Context) []error {
 	u := ctx.URL()
 	in.rawQuery = u.Query()
 
@@ -99,7 +99,7 @@ func (in *ListPortfoliosInputHuma) Resolve(ctx huma.Context) []error {
 
 // queries rebuilds the map[string]string that ValidateParameters consumes, matching
 // Fiber's c.Queries() (last value wins for a repeated key, empty keys included).
-func (in *ListPortfoliosInputHuma) queries() map[string]string {
+func (in *ListPortfoliosRequest) queries() map[string]string {
 	out := make(map[string]string, len(in.rawQuery))
 	for k, vs := range in.rawQuery {
 		if len(vs) == 0 {
@@ -113,14 +113,14 @@ func (in *ListPortfoliosInputHuma) queries() map[string]string {
 	return out
 }
 
-// ListPortfoliosOutputHuma carries the pagination envelope verbatim.
-type ListPortfoliosOutputHuma struct {
+// ListPortfoliosResponse carries the pagination envelope verbatim.
+type ListPortfoliosResponse struct {
 	Status int
 	Body   pkgHTTP.Pagination
 }
 
-// ListPortfoliosHuma binds the query imperatively then delegates to getAllPortfolios.
-func (handler *PortfolioHandler) ListPortfoliosHuma(ctx context.Context, in *ListPortfoliosInputHuma) (*ListPortfoliosOutputHuma, error) {
+// ListPortfolios binds the query imperatively then delegates to getAllPortfolios.
+func (handler *PortfolioHandler) ListPortfolios(ctx context.Context, in *ListPortfoliosRequest) (*ListPortfoliosResponse, error) {
 	orgID, ledgerID, err := parseOrgLedger(in.OrganizationID, in.LedgerID)
 	if err != nil {
 		return nil, pkgHTTP.HumaProblem(err)
@@ -131,26 +131,26 @@ func (handler *PortfolioHandler) ListPortfoliosHuma(ctx context.Context, in *Lis
 		return nil, pkgHTTP.HumaProblem(err)
 	}
 
-	return &ListPortfoliosOutputHuma{Status: http.StatusOK, Body: pagination}, nil
+	return &ListPortfoliosResponse{Status: http.StatusOK, Body: pagination}, nil
 }
 
 // --- GET /portfolios/{id} -----------------------------------------------------
 
-// GetPortfolioInputHuma is the by-id request envelope.
-type GetPortfolioInputHuma struct {
+// GetPortfolioRequest is the by-id request envelope.
+type GetPortfolioRequest struct {
 	OrganizationID string `path:"organization_id" doc:"Organization ID (UUID)"`
 	LedgerID       string `path:"ledger_id" doc:"Ledger ID (UUID)"`
 	ID             string `path:"id" doc:"Portfolio ID (UUID)"`
 }
 
-// GetPortfolioOutputHuma carries the portfolio verbatim.
-type GetPortfolioOutputHuma struct {
+// GetPortfolioResponse carries the portfolio verbatim.
+type GetPortfolioResponse struct {
 	Status int
 	Body   *mmodel.Portfolio
 }
 
-// GetPortfolioByIDHuma delegates to getPortfolioByID.
-func (handler *PortfolioHandler) GetPortfolioByIDHuma(ctx context.Context, in *GetPortfolioInputHuma) (*GetPortfolioOutputHuma, error) {
+// GetPortfolioByID delegates to getPortfolioByID.
+func (handler *PortfolioHandler) GetPortfolioByID(ctx context.Context, in *GetPortfolioRequest) (*GetPortfolioResponse, error) {
 	orgID, ledgerID, err := parseOrgLedger(in.OrganizationID, in.LedgerID)
 	if err != nil {
 		return nil, pkgHTTP.HumaProblem(err)
@@ -166,28 +166,28 @@ func (handler *PortfolioHandler) GetPortfolioByIDHuma(ctx context.Context, in *G
 		return nil, pkgHTTP.HumaProblem(err)
 	}
 
-	return &GetPortfolioOutputHuma{Status: http.StatusOK, Body: portfolio}, nil
+	return &GetPortfolioResponse{Status: http.StatusOK, Body: portfolio}, nil
 }
 
 // --- PATCH /portfolios/{id} ---------------------------------------------------
 
-// UpdatePortfolioInputHuma is the update request envelope (RawBody, see Create).
-type UpdatePortfolioInputHuma struct {
+// UpdatePortfolioRequest is the update request envelope (RawBody, see Create).
+type UpdatePortfolioRequest struct {
 	OrganizationID string `path:"organization_id" doc:"Organization ID (UUID)"`
 	LedgerID       string `path:"ledger_id" doc:"Ledger ID (UUID)"`
 	ID             string `path:"id" doc:"Portfolio ID (UUID)"`
 	RawBody        []byte `contentType:"application/json"`
 }
 
-// UpdatePortfolioOutputHuma carries the updated portfolio (200, matching http.OK).
-type UpdatePortfolioOutputHuma struct {
+// UpdatePortfolioResponse carries the updated portfolio (200, matching http.OK).
+type UpdatePortfolioResponse struct {
 	Status int
 	Body   *mmodel.Portfolio
 }
 
-// UpdatePortfolioHuma decodes+validates the raw body imperatively then delegates to
+// UpdatePortfolio decodes+validates the raw body imperatively then delegates to
 // the shared updatePortfolio core.
-func (handler *PortfolioHandler) UpdatePortfolioHuma(ctx context.Context, in *UpdatePortfolioInputHuma) (*UpdatePortfolioOutputHuma, error) {
+func (handler *PortfolioHandler) UpdatePortfolio(ctx context.Context, in *UpdatePortfolioRequest) (*UpdatePortfolioResponse, error) {
 	orgID, ledgerID, err := parseOrgLedger(in.OrganizationID, in.LedgerID)
 	if err != nil {
 		return nil, pkgHTTP.HumaProblem(err)
@@ -208,17 +208,17 @@ func (handler *PortfolioHandler) UpdatePortfolioHuma(ctx context.Context, in *Up
 		return nil, pkgHTTP.HumaProblem(err)
 	}
 
-	return &UpdatePortfolioOutputHuma{Status: http.StatusOK, Body: portfolio}, nil
+	return &UpdatePortfolioResponse{Status: http.StatusOK, Body: portfolio}, nil
 }
 
 // --- DELETE /portfolios/{id} --------------------------------------------------
 
-// DeletePortfolioOutputHuma has NO Body field: paired with DefaultStatus 204 it
+// DeletePortfolioResponse has NO Body field: paired with DefaultStatus 204 it
 // makes Huma emit a bodiless 204, matching the Fiber http.NoContent path.
-type DeletePortfolioOutputHuma struct{}
+type DeletePortfolioResponse struct{}
 
-// DeletePortfolioByIDHuma delegates to deletePortfolio; returns a bodiless 204.
-func (handler *PortfolioHandler) DeletePortfolioByIDHuma(ctx context.Context, in *GetPortfolioInputHuma) (*DeletePortfolioOutputHuma, error) {
+// DeletePortfolioByID delegates to deletePortfolio; returns a bodiless 204.
+func (handler *PortfolioHandler) DeletePortfolioByID(ctx context.Context, in *GetPortfolioRequest) (*DeletePortfolioResponse, error) {
 	orgID, ledgerID, err := parseOrgLedger(in.OrganizationID, in.LedgerID)
 	if err != nil {
 		return nil, pkgHTTP.HumaProblem(err)
@@ -233,26 +233,26 @@ func (handler *PortfolioHandler) DeletePortfolioByIDHuma(ctx context.Context, in
 		return nil, pkgHTTP.HumaProblem(err)
 	}
 
-	return &DeletePortfolioOutputHuma{}, nil
+	return &DeletePortfolioResponse{}, nil
 }
 
 // --- HEAD /portfolios/metrics/count -------------------------------------------
 
-// CountPortfoliosInputHuma is the HEAD-count request envelope (org+ledger only).
-type CountPortfoliosInputHuma struct {
+// CountPortfoliosRequest is the HEAD-count request envelope (org+ledger only).
+type CountPortfoliosRequest struct {
 	OrganizationID string `path:"organization_id" doc:"Organization ID (UUID)"`
 	LedgerID       string `path:"ledger_id" doc:"Ledger ID (UUID)"`
 }
 
-// CountPortfoliosOutputHuma replicates the Fiber HEAD-count response: X-Total-Count
+// CountPortfoliosResponse replicates the Fiber HEAD-count response: X-Total-Count
 // carries the count, Content-Length is pinned to 0, body empty at 204.
-type CountPortfoliosOutputHuma struct {
+type CountPortfoliosResponse struct {
 	TotalCount    string `header:"X-Total-Count"`
 	ContentLength string `header:"Content-Length"`
 }
 
-// CountPortfoliosHuma delegates to countPortfolios and sets the count headers.
-func (handler *PortfolioHandler) CountPortfoliosHuma(ctx context.Context, in *CountPortfoliosInputHuma) (*CountPortfoliosOutputHuma, error) {
+// CountPortfolios delegates to countPortfolios and sets the count headers.
+func (handler *PortfolioHandler) CountPortfolios(ctx context.Context, in *CountPortfoliosRequest) (*CountPortfoliosResponse, error) {
 	orgID, ledgerID, err := parseOrgLedger(in.OrganizationID, in.LedgerID)
 	if err != nil {
 		return nil, pkgHTTP.HumaProblem(err)
@@ -263,13 +263,13 @@ func (handler *PortfolioHandler) CountPortfoliosHuma(ctx context.Context, in *Co
 		return nil, pkgHTTP.HumaProblem(err)
 	}
 
-	return &CountPortfoliosOutputHuma{
+	return &CountPortfoliosResponse{
 		TotalCount:    strconv.FormatInt(count, 10),
 		ContentLength: "0",
 	}, nil
 }
 
-// RegisterPortfolioRoutes registers the six migrated portfolio operations on the
+// RegisterPortfolioRoutes registers the six portfolio operations on the
 // shared Huma API. Paths are GROUP-RELATIVE (the Huma API is bound to a versioned Fiber
 // group). The auth + tenant + ParseUUIDPathParameters chain is attached by
 // registerPortfolioRoutesToApp (Fiber-level), NOT here.
@@ -294,7 +294,7 @@ func RegisterPortfolioRoutes(api huma.API, h *PortfolioHandler, opSuffix string)
 		Security:         secPortfolioBearerOrAPIKey,
 		SkipValidateBody: true, // body validated imperatively (DecodeAndValidate).
 		DefaultStatus:    http.StatusCreated,
-	}, h.CreatePortfolioHuma)
+	}, h.CreatePortfolio)
 	attachTypedRequestBody[mmodel.CreatePortfolioInput](api, "createPortfolio"+opSuffix)
 
 	huma.Register(api, huma.Operation{
@@ -304,7 +304,7 @@ func RegisterPortfolioRoutes(api huma.API, h *PortfolioHandler, opSuffix string)
 		Summary:     "List all portfolios",
 		Tags:        []string{tag},
 		Security:    secPortfolioBearerOrAPIKey,
-	}, h.ListPortfoliosHuma)
+	}, h.ListPortfolios)
 
 	huma.Register(api, huma.Operation{
 		OperationID: "getPortfolioByID" + opSuffix,
@@ -313,7 +313,7 @@ func RegisterPortfolioRoutes(api huma.API, h *PortfolioHandler, opSuffix string)
 		Summary:     "Retrieve a specific portfolio",
 		Tags:        []string{tag},
 		Security:    secPortfolioBearerOrAPIKey,
-	}, h.GetPortfolioByIDHuma)
+	}, h.GetPortfolioByID)
 
 	huma.Register(api, huma.Operation{
 		OperationID:      "updatePortfolio" + opSuffix,
@@ -323,7 +323,7 @@ func RegisterPortfolioRoutes(api huma.API, h *PortfolioHandler, opSuffix string)
 		Tags:             []string{tag},
 		Security:         secPortfolioBearerOrAPIKey,
 		SkipValidateBody: true, // body validated imperatively.
-	}, h.UpdatePortfolioHuma)
+	}, h.UpdatePortfolio)
 	attachTypedRequestBody[mmodel.UpdatePortfolioInput](api, "updatePortfolio"+opSuffix)
 
 	huma.Register(api, huma.Operation{
@@ -334,7 +334,7 @@ func RegisterPortfolioRoutes(api huma.API, h *PortfolioHandler, opSuffix string)
 		Tags:          []string{tag},
 		Security:      secPortfolioBearerOrAPIKey,
 		DefaultStatus: http.StatusNoContent, // bodiless 204.
-	}, h.DeletePortfolioByIDHuma)
+	}, h.DeletePortfolioByID)
 
 	huma.Register(api, huma.Operation{
 		OperationID:   "countPortfolios" + opSuffix,
@@ -344,10 +344,10 @@ func RegisterPortfolioRoutes(api huma.API, h *PortfolioHandler, opSuffix string)
 		Tags:          []string{tag},
 		Security:      secPortfolioBearerOrAPIKey,
 		DefaultStatus: http.StatusNoContent, // X-Total-Count header + empty 204 body.
-	}, h.CountPortfoliosHuma)
+	}, h.CountPortfolios)
 }
 
-// RegisterPortfolioRoutesToApp wires the Huma-migrated portfolio surface onto the /v1
+// RegisterPortfolioRoutesToApp wires the portfolio surface onto the /v1
 // contract. See registerPortfolioRoutesToApp for what it attaches.
 func RegisterPortfolioRoutesToApp(group fiber.Router, api huma.API, auth *middleware.AuthClient, ph *PortfolioHandler, routeOptions *pkgHTTP.ProtectedRouteOptions) {
 	registerPortfolioRoutesToApp(group, api, auth, ph, routeOptions, routeOpSuffixV1)
@@ -367,9 +367,9 @@ func RegisterPortfolioV2RoutesToApp(group fiber.Router, api huma.API, auth *midd
 // auth.Authorize("midaz","portfolios",verb) + tenant PostAuthMiddlewares +
 // ParseUUIDPathParameters("portfolio") — as MIDDLEWARE ONLY (no terminal handler) on the
 // VERSIONED GROUP with GROUP-RELATIVE paths, then registers the Huma terminals via
-// RegisterPortfolioRoutes on the SAME group's Huma API. This preserves the pre-Huma
-// (resource, verb) authz tuples and tenant resolution BYTE-FOR-BYTE on whichever version
-// group it is mounted on — no portfolio route becomes public.
+// RegisterPortfolioRoutes on the SAME group's Huma API. The (resource, verb) authz tuples
+// and tenant resolution therefore apply on whichever version group it is mounted on — no
+// portfolio route becomes public.
 //
 // opSuffix distinguishes the operation IDs one version group publishes from another's —
 // see routeOpSuffixV1. Nothing else varies between contracts, so a change to the surface

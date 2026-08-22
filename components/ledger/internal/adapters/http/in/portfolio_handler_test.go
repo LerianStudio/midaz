@@ -26,6 +26,7 @@ import (
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services/command"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services/query"
+	"github.com/LerianStudio/midaz/v4/pkg"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
 	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
 	pkgHTTP "github.com/LerianStudio/midaz/v4/pkg/net/http"
@@ -82,7 +83,7 @@ func buildHumaPortfolioApp(t *testing.T, handler *PortfolioHandler, authOK bool)
 	return f
 }
 
-func TestHuma_CreatePortfolio_Success(t *testing.T) {
+func TestCreatePortfolio_Success(t *testing.T) {
 	// NOT parallel: buildHumaPortfolioApp mutates process-global huma state.
 	ctrl := gomock.NewController(t)
 	t.Cleanup(ctrl.Finish)
@@ -132,7 +133,7 @@ func TestHuma_CreatePortfolio_Success(t *testing.T) {
 	assert.Equal(t, ledgerID.String(), got["ledgerId"], "tenant ledger captured from path")
 }
 
-func TestHuma_CreatePortfolio_AuthPreserved(t *testing.T) {
+func TestCreatePortfolio_AuthPreserved(t *testing.T) {
 	// NOT parallel: process-global huma state.
 	ctrl := gomock.NewController(t)
 	t.Cleanup(ctrl.Finish)
@@ -159,7 +160,7 @@ func TestHuma_CreatePortfolio_AuthPreserved(t *testing.T) {
 	assert.Equal(t, http.StatusUnauthorized, resp.StatusCode, "auth middleware must reject before Huma; no public route")
 }
 
-func TestHuma_CreatePortfolio_ValidationError_Canonical400(t *testing.T) {
+func TestCreatePortfolio_ValidationError_Canonical400(t *testing.T) {
 	// NOT parallel: process-global huma state.
 	ctrl := gomock.NewController(t)
 	t.Cleanup(ctrl.Finish)
@@ -194,7 +195,7 @@ func TestHuma_CreatePortfolio_ValidationError_Canonical400(t *testing.T) {
 	assert.Equal(t, float64(http.StatusBadRequest), got["status"])
 }
 
-func TestHuma_CreatePortfolio_MalformedBody_Canonical400(t *testing.T) {
+func TestCreatePortfolio_MalformedBody_Canonical400(t *testing.T) {
 	// NOT parallel: process-global huma state.
 	ctrl := gomock.NewController(t)
 	t.Cleanup(ctrl.Finish)
@@ -227,7 +228,7 @@ func TestHuma_CreatePortfolio_MalformedBody_Canonical400(t *testing.T) {
 	assert.Equal(t, float64(http.StatusBadRequest), got["status"])
 }
 
-func TestHuma_GetPortfolioByID_Success(t *testing.T) {
+func TestGetPortfolioByID_Success(t *testing.T) {
 	// NOT parallel: process-global huma state.
 	ctrl := gomock.NewController(t)
 	t.Cleanup(ctrl.Finish)
@@ -262,7 +263,7 @@ func TestHuma_GetPortfolioByID_Success(t *testing.T) {
 	assert.Equal(t, portfolioID.String(), got["id"])
 }
 
-func TestHuma_GetPortfolioByID_BadUUID_Canonical400(t *testing.T) {
+func TestGetPortfolioByID_BadUUID_Canonical400(t *testing.T) {
 	// NOT parallel: process-global huma state.
 	ctrl := gomock.NewController(t)
 	t.Cleanup(ctrl.Finish)
@@ -291,7 +292,7 @@ func TestHuma_GetPortfolioByID_BadUUID_Canonical400(t *testing.T) {
 	assert.Equal(t, constant.ErrInvalidPathParameter.Error(), got["code"])
 }
 
-func TestHuma_GetPortfolioByID_NotFound_Canonical404(t *testing.T) {
+func TestGetPortfolioByID_NotFound_Canonical404(t *testing.T) {
 	// NOT parallel: process-global huma state.
 	ctrl := gomock.NewController(t)
 	t.Cleanup(ctrl.Finish)
@@ -323,7 +324,7 @@ func TestHuma_GetPortfolioByID_NotFound_Canonical404(t *testing.T) {
 	assert.Equal(t, float64(http.StatusNotFound), got["status"])
 }
 
-func TestHuma_GetAllPortfolios_Success(t *testing.T) {
+func TestGetAllPortfolios_Success(t *testing.T) {
 	// NOT parallel: process-global huma state.
 	ctrl := gomock.NewController(t)
 	t.Cleanup(ctrl.Finish)
@@ -353,7 +354,7 @@ func TestHuma_GetAllPortfolios_Success(t *testing.T) {
 	assert.EqualValues(t, 10, got["limit"])
 }
 
-func TestHuma_GetAllPortfolios_BadQuery_Canonical400(t *testing.T) {
+func TestGetAllPortfolios_BadQuery_Canonical400(t *testing.T) {
 	// NOT parallel: process-global huma state.
 	ctrl := gomock.NewController(t)
 	t.Cleanup(ctrl.Finish)
@@ -379,7 +380,7 @@ func TestHuma_GetAllPortfolios_BadQuery_Canonical400(t *testing.T) {
 	assert.Equal(t, constant.ErrInvalidQueryParameter.Error(), got["code"])
 }
 
-func TestHuma_UpdatePortfolio_Success(t *testing.T) {
+func TestUpdatePortfolio_Success(t *testing.T) {
 	// NOT parallel: process-global huma state.
 	ctrl := gomock.NewController(t)
 	t.Cleanup(ctrl.Finish)
@@ -424,7 +425,7 @@ func TestHuma_UpdatePortfolio_Success(t *testing.T) {
 	assert.Equal(t, portfolioID.String(), got["id"])
 }
 
-func TestHuma_DeletePortfolio_204Empty(t *testing.T) {
+func TestDeletePortfolio_204Empty(t *testing.T) {
 	// NOT parallel: process-global huma state.
 	ctrl := gomock.NewController(t)
 	t.Cleanup(ctrl.Finish)
@@ -450,7 +451,7 @@ func TestHuma_DeletePortfolio_204Empty(t *testing.T) {
 	assert.Empty(t, respBody, "DELETE 204 must have an empty body")
 }
 
-func TestHuma_CountPortfolios_204WithHeader(t *testing.T) {
+func TestCountPortfolios_204WithHeader(t *testing.T) {
 	// NOT parallel: process-global huma state.
 	ctrl := gomock.NewController(t)
 	t.Cleanup(ctrl.Finish)
@@ -477,4 +478,220 @@ func TestHuma_CountPortfolios_204WithHeader(t *testing.T) {
 	assert.Equal(t, "0", resp.Header.Get("Content-Length"), "HEAD 204 must set Content-Length: 0")
 
 	_ = libProblem.BaseURI
+}
+
+// --- ported from the retired Fiber-wrapper tests (portfolio_test.go) -----------
+//
+// The six exported fiber.Ctx terminals on PortfolioHandler were deleted with the
+// Huma migration; the branches their tests covered in the shared cores are
+// exercised here through the live Huma transport instead.
+
+func portfoliosPath(orgID, ledgerID uuid.UUID, suffix string) string {
+	return "/v1/organizations/" + orgID.String() + "/ledgers/" + ledgerID.String() + "/portfolios" + suffix
+}
+
+func TestCreatePortfolio_ServiceError_Canonical4xx(t *testing.T) {
+	// NOT parallel: process-global huma state. createPortfolio's command-error branch.
+	ctrl := gomock.NewController(t)
+	t.Cleanup(ctrl.Finish)
+
+	orgID := uuid.New()
+	ledgerID := uuid.New()
+
+	portfolioRepo := portfolio.NewMockRepository(ctrl)
+	portfolioRepo.EXPECT().Create(gomock.Any(), gomock.Any()).
+		Return(nil, pkg.ValidateBusinessError(constant.ErrEntityNotFound, constant.EntityPortfolio)).Times(1)
+
+	handler := &PortfolioHandler{Command: &command.UseCase{PortfolioRepo: portfolioRepo}}
+
+	app := buildHumaPortfolioApp(t, handler, true)
+
+	body, _ := json.Marshal(map[string]any{"name": "Test Portfolio", "entityId": uuid.New().String()})
+	req := httptest.NewRequest(http.MethodPost, portfoliosPath(orgID, ledgerID, ""), bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
+	require.NoError(t, err)
+	defer func() { _ = resp.Body.Close() }()
+
+	respBody, _ := io.ReadAll(resp.Body)
+	assert.GreaterOrEqual(t, resp.StatusCode, http.StatusBadRequest)
+	assert.Less(t, resp.StatusCode, http.StatusInternalServerError)
+
+	var got map[string]any
+	require.NoError(t, json.Unmarshal(respBody, &got), "body: %s", string(respBody))
+	assert.Contains(t, got, "code")
+}
+
+func TestGetAllPortfolios_MetadataFilter(t *testing.T) {
+	// NOT parallel: process-global huma state. getAllPortfolios' metadata branch
+	// filters in memory after a plain FindAll.
+	ctrl := gomock.NewController(t)
+	t.Cleanup(ctrl.Finish)
+
+	orgID := uuid.New()
+	ledgerID := uuid.New()
+	p1 := uuid.New().String()
+
+	portfolioRepo := portfolio.NewMockRepository(ctrl)
+	metadataRepo := mongodb.NewMockRepository(ctrl)
+
+	metadataRepo.EXPECT().FindList(gomock.Any(), constant.EntityPortfolio, gomock.Any()).
+		Return([]*mongodb.Metadata{{EntityID: p1, Data: map[string]any{"tier": "premium"}}}, nil).Times(1)
+	portfolioRepo.EXPECT().FindAll(gomock.Any(), orgID, ledgerID, gomock.Any()).
+		Return([]*mmodel.Portfolio{{ID: p1, OrganizationID: orgID.String(), LedgerID: ledgerID.String(), Name: "Premium One"}}, nil).Times(1)
+
+	handler := &PortfolioHandler{Query: &query.UseCase{PortfolioRepo: portfolioRepo, OnboardingMetadataRepo: metadataRepo}}
+
+	app := buildHumaPortfolioApp(t, handler, true)
+
+	req := httptest.NewRequest(http.MethodGet, portfoliosPath(orgID, ledgerID, "?metadata.tier=premium"), nil)
+	resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
+	require.NoError(t, err)
+	defer func() { _ = resp.Body.Close() }()
+
+	respBody, _ := io.ReadAll(resp.Body)
+	assert.Equal(t, http.StatusOK, resp.StatusCode)
+
+	var got map[string]any
+	require.NoError(t, json.Unmarshal(respBody, &got), "body: %s", string(respBody))
+	assert.Contains(t, got, "items")
+}
+
+func TestGetAllPortfolios_MetadataFilter_NoMatch_Canonical404(t *testing.T) {
+	// NOT parallel: process-global huma state. The metadata branch's error path.
+	ctrl := gomock.NewController(t)
+	t.Cleanup(ctrl.Finish)
+
+	orgID := uuid.New()
+	ledgerID := uuid.New()
+
+	metadataRepo := mongodb.NewMockRepository(ctrl)
+	metadataRepo.EXPECT().FindList(gomock.Any(), constant.EntityPortfolio, gomock.Any()).Return(nil, nil).Times(1)
+
+	handler := &PortfolioHandler{Query: &query.UseCase{
+		PortfolioRepo:          portfolio.NewMockRepository(ctrl),
+		OnboardingMetadataRepo: metadataRepo,
+	}}
+
+	app := buildHumaPortfolioApp(t, handler, true)
+
+	req := httptest.NewRequest(http.MethodGet, portfoliosPath(orgID, ledgerID, "?metadata.tier=nonexistent"), nil)
+	resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
+	require.NoError(t, err)
+	defer func() { _ = resp.Body.Close() }()
+
+	assert.Equal(t, http.StatusNotFound, resp.StatusCode)
+}
+
+func TestGetAllPortfolios_ServiceError_Canonical404(t *testing.T) {
+	// NOT parallel: process-global huma state. getAllPortfolios' plain query-error branch.
+	ctrl := gomock.NewController(t)
+	t.Cleanup(ctrl.Finish)
+
+	orgID := uuid.New()
+	ledgerID := uuid.New()
+
+	portfolioRepo := portfolio.NewMockRepository(ctrl)
+	portfolioRepo.EXPECT().FindAll(gomock.Any(), orgID, ledgerID, gomock.Any()).
+		Return(nil, pkg.ValidateBusinessError(constant.ErrEntityNotFound, constant.EntityPortfolio)).Times(1)
+
+	handler := &PortfolioHandler{Query: &query.UseCase{PortfolioRepo: portfolioRepo}}
+
+	app := buildHumaPortfolioApp(t, handler, true)
+
+	req := httptest.NewRequest(http.MethodGet, portfoliosPath(orgID, ledgerID, ""), nil)
+	resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
+	require.NoError(t, err)
+	defer func() { _ = resp.Body.Close() }()
+
+	assert.Equal(t, http.StatusNotFound, resp.StatusCode)
+}
+
+func TestUpdatePortfolio_NotFound_Canonical404(t *testing.T) {
+	// NOT parallel: process-global huma state. updatePortfolio's command-error branch.
+	ctrl := gomock.NewController(t)
+	t.Cleanup(ctrl.Finish)
+
+	orgID := uuid.New()
+	ledgerID := uuid.New()
+	portfolioID := uuid.New()
+
+	portfolioRepo := portfolio.NewMockRepository(ctrl)
+	portfolioRepo.EXPECT().Update(gomock.Any(), orgID, ledgerID, portfolioID, gomock.Any()).
+		Return(nil, pkg.ValidateBusinessError(constant.ErrEntityNotFound, constant.EntityPortfolio)).Times(1)
+
+	handler := &PortfolioHandler{Command: &command.UseCase{PortfolioRepo: portfolioRepo}}
+
+	app := buildHumaPortfolioApp(t, handler, true)
+
+	body, _ := json.Marshal(map[string]any{"name": "Updated Portfolio Name"})
+	req := httptest.NewRequest(http.MethodPatch, portfoliosPath(orgID, ledgerID, "/"+portfolioID.String()), bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
+	require.NoError(t, err)
+	defer func() { _ = resp.Body.Close() }()
+
+	respBody, _ := io.ReadAll(resp.Body)
+	assert.Equal(t, http.StatusNotFound, resp.StatusCode)
+
+	var got map[string]any
+	require.NoError(t, json.Unmarshal(respBody, &got), "body: %s", string(respBody))
+	assert.Contains(t, got, "code")
+}
+
+func TestDeletePortfolio_ServiceError_Canonical404(t *testing.T) {
+	// NOT parallel: process-global huma state. deletePortfolio's command-error branch.
+	ctrl := gomock.NewController(t)
+	t.Cleanup(ctrl.Finish)
+
+	orgID := uuid.New()
+	ledgerID := uuid.New()
+	portfolioID := uuid.New()
+
+	portfolioRepo := portfolio.NewMockRepository(ctrl)
+	portfolioRepo.EXPECT().Delete(gomock.Any(), orgID, ledgerID, portfolioID).
+		Return(pkg.ValidateBusinessError(constant.ErrEntityNotFound, constant.EntityPortfolio)).Times(1)
+
+	handler := &PortfolioHandler{Command: &command.UseCase{PortfolioRepo: portfolioRepo}}
+
+	app := buildHumaPortfolioApp(t, handler, true)
+
+	req := httptest.NewRequest(http.MethodDelete, portfoliosPath(orgID, ledgerID, "/"+portfolioID.String()), nil)
+	resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
+	require.NoError(t, err)
+	defer func() { _ = resp.Body.Close() }()
+
+	respBody, _ := io.ReadAll(resp.Body)
+	assert.Equal(t, http.StatusNotFound, resp.StatusCode)
+
+	var got map[string]any
+	require.NoError(t, json.Unmarshal(respBody, &got), "body: %s", string(respBody))
+	assert.Contains(t, got, "code")
+}
+
+func TestCountPortfolios_ServiceError(t *testing.T) {
+	// NOT parallel: process-global huma state. countPortfolios' query-error branch.
+	ctrl := gomock.NewController(t)
+	t.Cleanup(ctrl.Finish)
+
+	orgID := uuid.New()
+	ledgerID := uuid.New()
+
+	portfolioRepo := portfolio.NewMockRepository(ctrl)
+	portfolioRepo.EXPECT().Count(gomock.Any(), orgID, ledgerID).
+		Return(int64(0), pkg.ValidateBusinessError(constant.ErrEntityNotFound, constant.EntityPortfolio)).Times(1)
+
+	handler := &PortfolioHandler{Query: &query.UseCase{PortfolioRepo: portfolioRepo}}
+
+	app := buildHumaPortfolioApp(t, handler, true)
+
+	req := httptest.NewRequest(http.MethodHead, portfoliosPath(orgID, ledgerID, "/metrics/count"), nil)
+	resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
+	require.NoError(t, err)
+	defer func() { _ = resp.Body.Close() }()
+
+	assert.Equal(t, http.StatusNotFound, resp.StatusCode)
+	assert.Empty(t, resp.Header.Get(constant.XTotalCount), "a failed count must not advertise a total")
 }
