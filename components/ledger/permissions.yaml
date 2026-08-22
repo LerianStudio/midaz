@@ -27,7 +27,7 @@
 service: midaz
 version: 1
 permissions:
-  # account-types (accounttype_handler_huma.go:363)
+  # account-types (accounttype_handler.go:363)
   - { resource: account-types, action: post,   effect: allow, roles: [editor] }
   - { resource: account-types, action: patch,  effect: allow, roles: [editor] }
   - { resource: account-types, action: get,    effect: allow, roles: [editor, viewer] }

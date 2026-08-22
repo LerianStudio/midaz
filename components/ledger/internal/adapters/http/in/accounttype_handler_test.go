@@ -26,6 +26,7 @@ import (
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/accounttype"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services/command"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services/query"
+	"github.com/LerianStudio/midaz/v4/pkg"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
 	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
 	pkgHTTP "github.com/LerianStudio/midaz/v4/pkg/net/http"
@@ -89,7 +90,7 @@ func buildHumaAccountTypeApp(t *testing.T, handler *AccountTypeHandler, authOK b
 	return f
 }
 
-func TestHuma_CreateAccountType_Success(t *testing.T) {
+func TestCreateAccountType_Success(t *testing.T) {
 	// NOT parallel: buildHumaAccountTypeApp mutates process-global huma state.
 	ctrl := gomock.NewController(t)
 	t.Cleanup(ctrl.Finish)
@@ -109,8 +110,7 @@ func TestHuma_CreateAccountType_Success(t *testing.T) {
 		}).Times(1)
 	// The shared body pipeline (DecodeAndValidate -> parseMetadata) initializes
 	// Metadata to a non-nil empty map when the body carries no "metadata" key, so
-	// CreateOnboardingMetadata persists it — faithful to the production Fiber WithBody
-	// path (the legacy unit test bypassed WithBody, so it never saw this).
+	// CreateOnboardingMetadata persists it.
 	metadataRepo.EXPECT().Create(gomock.Any(), constant.EntityAccountType, gomock.Any()).Return(nil).Times(1)
 
 	handler := &AccountTypeHandler{Command: &command.UseCase{
@@ -142,7 +142,7 @@ func TestHuma_CreateAccountType_Success(t *testing.T) {
 	assert.Equal(t, ledgerID.String(), got["ledgerId"])
 }
 
-func TestHuma_CreateAccountType_AuthPreserved(t *testing.T) {
+func TestCreateAccountType_AuthPreserved(t *testing.T) {
 	// NOT parallel: process-global huma state.
 	ctrl := gomock.NewController(t)
 	t.Cleanup(ctrl.Finish)
@@ -169,7 +169,7 @@ func TestHuma_CreateAccountType_AuthPreserved(t *testing.T) {
 	assert.Equal(t, http.StatusUnauthorized, resp.StatusCode, "auth middleware must reject before Huma; no public route")
 }
 
-func TestHuma_CreateAccountType_ValidationError_Canonical400(t *testing.T) {
+func TestCreateAccountType_ValidationError_Canonical400(t *testing.T) {
 	// NOT parallel: process-global huma state.
 	ctrl := gomock.NewController(t)
 	t.Cleanup(ctrl.Finish)
@@ -205,7 +205,7 @@ func TestHuma_CreateAccountType_ValidationError_Canonical400(t *testing.T) {
 	assert.Equal(t, float64(http.StatusBadRequest), got["status"])
 }
 
-func TestHuma_CreateAccountType_MalformedBody_Canonical400(t *testing.T) {
+func TestCreateAccountType_MalformedBody_Canonical400(t *testing.T) {
 	// NOT parallel: process-global huma state.
 	ctrl := gomock.NewController(t)
 	t.Cleanup(ctrl.Finish)
@@ -213,9 +213,9 @@ func TestHuma_CreateAccountType_MalformedBody_Canonical400(t *testing.T) {
 	orgID := uuid.New()
 	ledgerID := uuid.New()
 
-	// Malformed JSON -> DecodeAndValidate returns a pkg.ResponseError (0094). The
-	// Fiber path writes it flat at 400; HumaProblem must project it to problem+json at
-	// 400 (NOT the 500 fallback and NOT a native Huma 422). Service never reached.
+	// Malformed JSON -> DecodeAndValidate returns a pkg.ResponseError (0094), which
+	// HumaProblem projects to problem+json at 400 (NOT the 500 fallback and NOT a
+	// native Huma 422). Service never reached.
 	handler := &AccountTypeHandler{Command: &command.UseCase{
 		AccountTypeRepo:        accounttype.NewMockRepository(ctrl),
 		OnboardingMetadataRepo: mongodb.NewMockRepository(ctrl),
@@ -241,7 +241,7 @@ func TestHuma_CreateAccountType_MalformedBody_Canonical400(t *testing.T) {
 	assert.Equal(t, float64(http.StatusBadRequest), got["status"])
 }
 
-func TestHuma_GetAccountTypeByID_Success(t *testing.T) {
+func TestGetAccountTypeByID_Success(t *testing.T) {
 	// NOT parallel: process-global huma state.
 	ctrl := gomock.NewController(t)
 	t.Cleanup(ctrl.Finish)
@@ -276,7 +276,7 @@ func TestHuma_GetAccountTypeByID_Success(t *testing.T) {
 	assert.Equal(t, accountTypeID.String(), got["id"])
 }
 
-func TestHuma_GetAccountTypeByID_BadUUID_Canonical400(t *testing.T) {
+func TestGetAccountTypeByID_BadUUID_Canonical400(t *testing.T) {
 	// NOT parallel: process-global huma state.
 	ctrl := gomock.NewController(t)
 	t.Cleanup(ctrl.Finish)
@@ -306,7 +306,7 @@ func TestHuma_GetAccountTypeByID_BadUUID_Canonical400(t *testing.T) {
 	assert.Equal(t, constant.ErrInvalidPathParameter.Error(), got["code"])
 }
 
-func TestHuma_GetAllAccountTypes_Success(t *testing.T) {
+func TestGetAllAccountTypes_Success(t *testing.T) {
 	// NOT parallel: process-global huma state.
 	ctrl := gomock.NewController(t)
 	t.Cleanup(ctrl.Finish)
@@ -340,7 +340,7 @@ func TestHuma_GetAllAccountTypes_Success(t *testing.T) {
 	assert.EqualValues(t, 10, got["limit"])
 }
 
-func TestHuma_GetAllAccountTypes_BadQuery_Canonical400(t *testing.T) {
+func TestGetAllAccountTypes_BadQuery_Canonical400(t *testing.T) {
 	// NOT parallel: process-global huma state.
 	ctrl := gomock.NewController(t)
 	t.Cleanup(ctrl.Finish)
@@ -367,7 +367,7 @@ func TestHuma_GetAllAccountTypes_BadQuery_Canonical400(t *testing.T) {
 	assert.Equal(t, constant.ErrInvalidQueryParameter.Error(), got["code"])
 }
 
-func TestHuma_UpdateAccountType_Success(t *testing.T) {
+func TestUpdateAccountType_Success(t *testing.T) {
 	// NOT parallel: process-global huma state.
 	ctrl := gomock.NewController(t)
 	t.Cleanup(ctrl.Finish)
@@ -382,8 +382,7 @@ func TestHuma_UpdateAccountType_Success(t *testing.T) {
 	accountTypeRepo.EXPECT().Update(gomock.Any(), orgID, ledgerID, accountTypeID, gomock.Any()).
 		Return(&mmodel.AccountType{ID: accountTypeID, Name: "Renamed", KeyValue: "current_assets"}, nil).Times(1)
 	// The shared body pipeline initializes Metadata to a non-nil empty map, so
-	// UpdateOnboardingMetadata takes the FindByEntity + Update path (see
-	// update_onboarding_metadata.go), matching the production Fiber WithBody path.
+	// UpdateOnboardingMetadata takes the FindByEntity + Update path.
 	metadataRepo.EXPECT().FindByEntity(gomock.Any(), constant.EntityAccountType, accountTypeID.String()).Return(nil, nil).Times(1)
 	metadataRepo.EXPECT().Update(gomock.Any(), constant.EntityAccountType, accountTypeID.String(), gomock.Any()).Return(nil).Times(1)
 
@@ -412,7 +411,7 @@ func TestHuma_UpdateAccountType_Success(t *testing.T) {
 	assert.Equal(t, accountTypeID.String(), got["id"])
 }
 
-func TestHuma_DeleteAccountType_204Empty(t *testing.T) {
+func TestDeleteAccountType_204Empty(t *testing.T) {
 	// NOT parallel: process-global huma state.
 	ctrl := gomock.NewController(t)
 	t.Cleanup(ctrl.Finish)
@@ -436,4 +435,255 @@ func TestHuma_DeleteAccountType_204Empty(t *testing.T) {
 	respBody, _ := io.ReadAll(resp.Body)
 	assert.Equal(t, http.StatusNoContent, resp.StatusCode)
 	assert.Empty(t, respBody, "DELETE 204 must have an empty body")
+}
+
+func TestCreateAccountType_DuplicateKeyValue_409(t *testing.T) {
+	// NOT parallel: process-global huma state.
+	ctrl := gomock.NewController(t)
+	t.Cleanup(ctrl.Finish)
+
+	orgID := uuid.New()
+	ledgerID := uuid.New()
+
+	accountTypeRepo := accounttype.NewMockRepository(ctrl)
+	// The command rejects the duplicate key value, so metadata is never written.
+	accountTypeRepo.EXPECT().Create(gomock.Any(), orgID, ledgerID, gomock.Any()).
+		Return(nil, pkg.ValidateBusinessError(constant.ErrDuplicateAccountTypeKeyValue, constant.EntityAccountType)).Times(1)
+
+	handler := &AccountTypeHandler{Command: &command.UseCase{
+		AccountTypeRepo:        accountTypeRepo,
+		OnboardingMetadataRepo: mongodb.NewMockRepository(ctrl),
+	}}
+
+	app := buildHumaAccountTypeApp(t, handler, true)
+
+	body, _ := json.Marshal(map[string]any{"name": "Existing Account Type", "keyValue": "existing_key"})
+	req := httptest.NewRequest(http.MethodPost, "/v1/organizations/"+orgID.String()+"/ledgers/"+ledgerID.String()+"/account-types", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
+	require.NoError(t, err)
+	defer func() { _ = resp.Body.Close() }()
+
+	respBody, _ := io.ReadAll(resp.Body)
+	assert.Equal(t, http.StatusConflict, resp.StatusCode)
+
+	var got map[string]any
+	require.NoError(t, json.Unmarshal(respBody, &got), "body: %s", string(respBody))
+	assert.Equal(t, constant.ErrDuplicateAccountTypeKeyValue.Error(), got["code"])
+}
+
+func TestGetAccountTypeByID_NotFound_404(t *testing.T) {
+	// NOT parallel: process-global huma state.
+	ctrl := gomock.NewController(t)
+	t.Cleanup(ctrl.Finish)
+
+	orgID := uuid.New()
+	ledgerID := uuid.New()
+	accountTypeID := uuid.New()
+
+	accountTypeRepo := accounttype.NewMockRepository(ctrl)
+	accountTypeRepo.EXPECT().FindByID(gomock.Any(), orgID, ledgerID, accountTypeID).
+		Return(nil, pkg.ValidateBusinessError(constant.ErrAccountTypeNotFound, constant.EntityAccountType)).Times(1)
+
+	handler := &AccountTypeHandler{Query: &query.UseCase{
+		AccountTypeRepo:        accountTypeRepo,
+		OnboardingMetadataRepo: mongodb.NewMockRepository(ctrl),
+	}}
+
+	app := buildHumaAccountTypeApp(t, handler, true)
+
+	req := httptest.NewRequest(http.MethodGet, "/v1/organizations/"+orgID.String()+"/ledgers/"+ledgerID.String()+"/account-types/"+accountTypeID.String(), nil)
+	resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
+	require.NoError(t, err)
+	defer func() { _ = resp.Body.Close() }()
+
+	respBody, _ := io.ReadAll(resp.Body)
+	assert.Equal(t, http.StatusNotFound, resp.StatusCode)
+
+	var got map[string]any
+	require.NoError(t, json.Unmarshal(respBody, &got), "body: %s", string(respBody))
+	assert.Equal(t, constant.ErrAccountTypeNotFound.Error(), got["code"])
+}
+
+func TestUpdateAccountType_NotFound_404(t *testing.T) {
+	// NOT parallel: process-global huma state.
+	ctrl := gomock.NewController(t)
+	t.Cleanup(ctrl.Finish)
+
+	orgID := uuid.New()
+	ledgerID := uuid.New()
+	accountTypeID := uuid.New()
+
+	accountTypeRepo := accounttype.NewMockRepository(ctrl)
+	// Update fails, so the metadata upsert that follows it never runs.
+	accountTypeRepo.EXPECT().Update(gomock.Any(), orgID, ledgerID, accountTypeID, gomock.Any()).
+		Return(nil, pkg.ValidateBusinessError(constant.ErrAccountTypeNotFound, constant.EntityAccountType)).Times(1)
+
+	handler := &AccountTypeHandler{Command: &command.UseCase{
+		AccountTypeRepo:        accountTypeRepo,
+		OnboardingMetadataRepo: mongodb.NewMockRepository(ctrl),
+	}}
+
+	app := buildHumaAccountTypeApp(t, handler, true)
+
+	body, _ := json.Marshal(map[string]any{"name": "Renamed"})
+	req := httptest.NewRequest(http.MethodPatch, "/v1/organizations/"+orgID.String()+"/ledgers/"+ledgerID.String()+"/account-types/"+accountTypeID.String(), bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
+	require.NoError(t, err)
+	defer func() { _ = resp.Body.Close() }()
+
+	respBody, _ := io.ReadAll(resp.Body)
+	assert.Equal(t, http.StatusNotFound, resp.StatusCode)
+
+	var got map[string]any
+	require.NoError(t, json.Unmarshal(respBody, &got), "body: %s", string(respBody))
+	assert.Equal(t, constant.ErrAccountTypeNotFound.Error(), got["code"])
+}
+
+func TestDeleteAccountType_NotFound_404(t *testing.T) {
+	// NOT parallel: process-global huma state.
+	ctrl := gomock.NewController(t)
+	t.Cleanup(ctrl.Finish)
+
+	orgID := uuid.New()
+	ledgerID := uuid.New()
+	accountTypeID := uuid.New()
+
+	accountTypeRepo := accounttype.NewMockRepository(ctrl)
+	accountTypeRepo.EXPECT().Delete(gomock.Any(), orgID, ledgerID, accountTypeID).
+		Return(pkg.ValidateBusinessError(constant.ErrAccountTypeNotFound, constant.EntityAccountType)).Times(1)
+
+	handler := &AccountTypeHandler{Command: &command.UseCase{AccountTypeRepo: accountTypeRepo}}
+
+	app := buildHumaAccountTypeApp(t, handler, true)
+
+	req := httptest.NewRequest(http.MethodDelete, "/v1/organizations/"+orgID.String()+"/ledgers/"+ledgerID.String()+"/account-types/"+accountTypeID.String(), nil)
+	resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
+	require.NoError(t, err)
+	defer func() { _ = resp.Body.Close() }()
+
+	respBody, _ := io.ReadAll(resp.Body)
+	assert.Equal(t, http.StatusNotFound, resp.StatusCode)
+
+	var got map[string]any
+	require.NoError(t, json.Unmarshal(respBody, &got), "body: %s", string(respBody))
+	assert.Equal(t, constant.ErrAccountTypeNotFound.Error(), got["code"])
+}
+
+func TestGetAllAccountTypes_MetadataFilter_Success(t *testing.T) {
+	// NOT parallel: process-global huma state.
+	ctrl := gomock.NewController(t)
+	t.Cleanup(ctrl.Finish)
+
+	orgID := uuid.New()
+	ledgerID := uuid.New()
+	accountTypeID := uuid.New()
+
+	accountTypeRepo := accounttype.NewMockRepository(ctrl)
+	metadataRepo := mongodb.NewMockRepository(ctrl)
+
+	// A metadata filter routes the list through GetAllMetadataAccountType: FindList
+	// resolves the matching entity IDs, then FindAll fetches those account types.
+	metadataRepo.EXPECT().FindList(gomock.Any(), constant.EntityAccountType, gomock.Any()).
+		Return([]*mongodb.Metadata{{EntityID: accountTypeID.String(), Data: map[string]any{"tier": "premium"}}}, nil).Times(1)
+	accountTypeRepo.EXPECT().FindAll(gomock.Any(), orgID, ledgerID, gomock.Any()).
+		Return([]*mmodel.AccountType{{
+			ID:             accountTypeID,
+			OrganizationID: orgID,
+			LedgerID:       ledgerID,
+			Name:           "Premium Account Type",
+			KeyValue:       "premium_key",
+		}}, libHTTP.CursorPagination{}, nil).Times(1)
+
+	handler := &AccountTypeHandler{Query: &query.UseCase{AccountTypeRepo: accountTypeRepo, OnboardingMetadataRepo: metadataRepo}}
+
+	app := buildHumaAccountTypeApp(t, handler, true)
+
+	req := httptest.NewRequest(http.MethodGet, "/v1/organizations/"+orgID.String()+"/ledgers/"+ledgerID.String()+"/account-types?metadata.tier=premium", nil)
+	resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
+	require.NoError(t, err)
+	defer func() { _ = resp.Body.Close() }()
+
+	respBody, _ := io.ReadAll(resp.Body)
+	assert.Equal(t, http.StatusOK, resp.StatusCode)
+	assert.NotContains(t, string(respBody), "$schema")
+
+	var got map[string]any
+	require.NoError(t, json.Unmarshal(respBody, &got), "body: %s", string(respBody))
+
+	items, ok := got["items"].([]any)
+	require.True(t, ok, "items should be an array; body: %s", string(respBody))
+	require.Len(t, items, 1)
+
+	first, ok := items[0].(map[string]any)
+	require.True(t, ok)
+	assert.Equal(t, accountTypeID.String(), first["id"])
+	assert.Equal(t, "Premium Account Type", first["name"])
+}
+
+func TestGetAllAccountTypes_MetadataFilter_NoMatch_404(t *testing.T) {
+	// NOT parallel: process-global huma state.
+	ctrl := gomock.NewController(t)
+	t.Cleanup(ctrl.Finish)
+
+	orgID := uuid.New()
+	ledgerID := uuid.New()
+
+	metadataRepo := mongodb.NewMockRepository(ctrl)
+	// No metadata matches, so FindAll is never reached.
+	metadataRepo.EXPECT().FindList(gomock.Any(), constant.EntityAccountType, gomock.Any()).Return(nil, nil).Times(1)
+
+	handler := &AccountTypeHandler{Query: &query.UseCase{
+		AccountTypeRepo:        accounttype.NewMockRepository(ctrl),
+		OnboardingMetadataRepo: metadataRepo,
+	}}
+
+	app := buildHumaAccountTypeApp(t, handler, true)
+
+	req := httptest.NewRequest(http.MethodGet, "/v1/organizations/"+orgID.String()+"/ledgers/"+ledgerID.String()+"/account-types?metadata.tier=nonexistent", nil)
+	resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
+	require.NoError(t, err)
+	defer func() { _ = resp.Body.Close() }()
+
+	respBody, _ := io.ReadAll(resp.Body)
+	assert.Equal(t, http.StatusNotFound, resp.StatusCode)
+
+	var got map[string]any
+	require.NoError(t, json.Unmarshal(respBody, &got), "body: %s", string(respBody))
+	assert.Equal(t, constant.ErrNoAccountTypesFound.Error(), got["code"])
+}
+
+func TestGetAllAccountTypes_NotFound_404(t *testing.T) {
+	// NOT parallel: process-global huma state.
+	ctrl := gomock.NewController(t)
+	t.Cleanup(ctrl.Finish)
+
+	orgID := uuid.New()
+	ledgerID := uuid.New()
+
+	accountTypeRepo := accounttype.NewMockRepository(ctrl)
+	accountTypeRepo.EXPECT().FindAll(gomock.Any(), orgID, ledgerID, gomock.Any()).
+		Return(nil, libHTTP.CursorPagination{}, pkg.ValidateBusinessError(constant.ErrNoAccountTypesFound, constant.EntityAccountType)).Times(1)
+
+	handler := &AccountTypeHandler{Query: &query.UseCase{
+		AccountTypeRepo:        accountTypeRepo,
+		OnboardingMetadataRepo: mongodb.NewMockRepository(ctrl),
+	}}
+
+	app := buildHumaAccountTypeApp(t, handler, true)
+
+	req := httptest.NewRequest(http.MethodGet, "/v1/organizations/"+orgID.String()+"/ledgers/"+ledgerID.String()+"/account-types", nil)
+	resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
+	require.NoError(t, err)
+	defer func() { _ = resp.Body.Close() }()
+
+	respBody, _ := io.ReadAll(resp.Body)
+	assert.Equal(t, http.StatusNotFound, resp.StatusCode)
+
+	var got map[string]any
+	require.NoError(t, json.Unmarshal(respBody, &got), "body: %s", string(respBody))
+	assert.Equal(t, constant.ErrNoAccountTypesFound.Error(), got["code"])
 }
