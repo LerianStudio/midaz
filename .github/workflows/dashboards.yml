@@ -6,6 +6,7 @@ on:
       - "docs/dashboards/**"
       - "scripts/build-dashboards.sh"
       - "scripts/verify-dashboard-primitives.sh"
+      - "Makefile"
       - ".github/workflows/dashboards.yml"
 
 permissions:
@@ -29,8 +30,7 @@ jobs:
           go install github.com/google/go-jsonnet/cmd/jsonnet@v0.22.0
           echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
 
-      - name: Compile dashboards
-        run: ./scripts/build-dashboards.sh
-
-      - name: Verify dashboards reference only documented metrics
-        run: ./scripts/verify-dashboard-primitives.sh
+      # Goes through make rather than the scripts directly so CI exercises the same
+      # entry point contributors use, and a broken target fails here instead of locally.
+      - name: Compile and verify dashboards
+        run: make dashboards-verify
