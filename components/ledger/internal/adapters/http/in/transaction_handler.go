@@ -19,45 +19,38 @@ import (
 	pkgHTTP "github.com/LerianStudio/midaz/v4/pkg/net/http"
 )
 
-// This file is the ledger's Huma adoption of the MONEY-WRITE transaction resource
-// (Wave 4 — the money path). It is transport-only: every shell decodes/validates the
-// request exactly as the Fiber wrapper does and delegates to the SAME untouched core
+// This file is the transport layer of the MONEY-WRITE transaction resource. Every shell
+// decodes/validates the request and delegates to the transport-neutral core
 // (createTransaction / commitOrCancelTransaction / UpdateTransaction command + query),
-// then projects the result onto a typed Huma Out. The ~480-line createTransaction
-// orchestration (validate → fee → reserve → ProcessBalanceOperations → BuildOperations
-// → WriteTransaction, with its 9 cleanup points) is NOT touched: the only extraction is
-// the thin transport boundary that reads path params + idempotency headers and writes
-// the response — the exact split account/holder/instrument already use. Conventions
-// (see asset_handler.go's header for the full rationale):
+// then projects the result onto a typed Huma Out. The createTransaction orchestration
+// (validate -> fee -> reserve -> ProcessBalanceOperations -> BuildOperations ->
+// WriteTransaction, with its 9 cleanup points) lives behind that boundary; this file
+// only reads path params + idempotency headers and writes the response — the same split
+// account/holder/instrument use. Conventions (see asset_handler.go's header for the full
+// rationale):
 //
 //  1. Path params are plain strings with only `doc:` (no format tag) so the sole UUID
 //     validator stays the ParseUUIDPathParameters Fiber middleware attached BEFORE the
 //     Huma terminal — never a native Huma 422. The shells re-parse via parsePathUUID
 //     (mirrors GetUUIDFromLocals' 0065 envelope).
-//  2. Body ops carry RawBody []byte + SkipValidateBody so http.DecodeAndValidate (the
-//     SAME pipeline the Fiber WithBody decorator runs, over the SAME input type) is the
-//     sole body validator. The idempotency HASH is computed by the untouched core over
-//     the SAME built mtransaction.Transaction (StructToJSONString) — byte-identical to
-//     the Fiber path.
+//  2. Body ops carry RawBody []byte + SkipValidateBody so http.DecodeAndValidate is the
+//     sole body validator. The idempotency HASH is computed by the core over the built
+//     mtransaction.Transaction (StructToJSONString).
 //  3. CREATE + commit/cancel/revert + idempotent replay all return 201 (matching
 //     http.Created); PATCH/GET return 200. The X-Idempotency-Replayed response header is
-//     driven off the `replayed` bool the transport-neutral createTransaction core returns
-//     (the transport-neutral mirror of the Fiber wrapper's c.Set).
-//  4. UpdateTransaction is NOT merge-patch: the Fiber wrapper feeds a plain
-//     BodyParser-decoded *transaction.UpdateTransactionInput into the command (no
-//     FindNilFields / RawBody null-field derivation), so the shell decodes the same type
-//     and delegates unchanged.
-//  5. GET-by-id sets X-Cache-Hit exactly as the Fiber path; the core returns the flag so
-//     the shell projects it onto the Out header.
-//  6. Errors go through the shared pkgHTTP.HumaProblem (RFC 9457, field/status/code-
-//     identical to the Fiber http.WithError path). Auth stays the Fiber guard chain
-//     (auth.Authorize("midaz","transactions",verb) + tenant + ParseUUIDPathParameters
-//     ("transaction")) attached BEFORE the Huma terminal — the per-op Security metadata
-//     is SPEC-ONLY.
+//     driven off the `replayed` bool the createTransaction core returns.
+//  4. UpdateTransaction is NOT merge-patch: the command takes a plain decoded
+//     *transaction.UpdateTransactionInput (no FindNilFields / RawBody null-field
+//     derivation), so the shell decodes that type and delegates unchanged.
+//  5. GET-by-id sets X-Cache-Hit off the flag the core returns.
+//  6. Errors go through the shared pkgHTTP.HumaProblem (RFC 9457). Auth stays the Fiber
+//     guard chain (auth.Authorize("midaz","transactions",verb) + tenant +
+//     ParseUUIDPathParameters("transaction")) attached BEFORE the Huma terminal — the
+//     per-op Security metadata is SPEC-ONLY.
 
 // secTransactionBearer advertises a JWT bearer token per operation (Bearer-only,
-// matching the Fiber guard chain on every transaction wrapper). SPEC
-// metadata only; runtime auth is the Fiber guard chain.
+// matching the Fiber guard chain on every transaction route). SPEC metadata only;
+// runtime auth is the Fiber guard chain.
 var secTransactionBearer = []map[string][]string{
 	{"BearerAuth": {}},
 }
@@ -67,10 +60,10 @@ var secTransactionBearer = []map[string][]string{
 // createTransactionShell is the common body of the four Huma CREATE shells. It
 // re-parses the org/ledger path strings (the ParseUUIDPathParameters middleware is
 // the sole UUID validator), resolves the idempotency key/TTL from headers, delegates
-// to the SAME transport-neutral createTransaction core the Fiber wrapper calls, and
-// projects the built transaction + the replayed flag onto the typed Out. The parent
+// to the transport-neutral createTransaction core, and projects the built transaction
+// + the replayed flag onto the typed Out. The parent
 // transaction id is uuid.Nil on the create routes (no :transaction_id segment).
-func (handler *TransactionHandler) createTransactionShell(ctx context.Context, orgStr, ledgerStr string, transactionInput mtransaction.Transaction, transactionStatus, idempotencyKey, idempotencyTTL string, idempotencyHashSource ...string) (*CreateTransactionOutputHuma, error) {
+func (handler *TransactionHandler) createTransactionShell(ctx context.Context, orgStr, ledgerStr string, transactionInput mtransaction.Transaction, transactionStatus, idempotencyKey, idempotencyTTL string, idempotencyHashSource ...string) (*CreateTransactionResponse, error) {
 	orgID, ledgerID, err := parseOrgLedger(orgStr, ledgerStr)
 	if err != nil {
 		return nil, pkgHTTP.HumaProblem(err)
@@ -84,14 +77,14 @@ func (handler *TransactionHandler) createTransactionShell(ctx context.Context, o
 		return nil, pkgHTTP.HumaProblem(err)
 	}
 
-	return &CreateTransactionOutputHuma{
+	return &CreateTransactionResponse{
 		Status:              http.StatusCreated,
 		IdempotencyReplayed: replayedHeader(replayed),
 		Body:                tran,
 	}, nil
 }
 
-// replayedHeader maps the core's replayed bool to the header string the Fiber path sets.
+// replayedHeader maps the core's replayed bool to the X-Idempotency-Replayed value.
 func replayedHeader(replayed bool) string {
 	if replayed {
 		return "true"
@@ -100,9 +93,9 @@ func replayedHeader(replayed bool) string {
 	return "false"
 }
 
-// CreateTransactionOutputHuma pins 201 (matching http.Created) and carries the
-// X-Idempotency-Replayed response header (parity with the Fiber c.Set).
-type CreateTransactionOutputHuma struct {
+// CreateTransactionResponse pins 201 (matching http.Created) and carries the
+// X-Idempotency-Replayed response header.
+type CreateTransactionResponse struct {
 	Status              int
 	IdempotencyReplayed string `header:"X-Idempotency-Replayed"`
 	Body                *transaction.Transaction
@@ -110,10 +103,10 @@ type CreateTransactionOutputHuma struct {
 
 // --- POST /transactions/json --------------------------------------------------
 
-// CreateTransactionJSONInputHuma is the JSON-create request envelope. RawBody keeps the
+// CreateTransactionJSONRequest is the JSON-create request envelope. RawBody keeps the
 // body out of Huma's validator; the idempotency headers are read so the shell runs the
-// same claim the Fiber wrapper does (over the core-computed hash).
-type CreateTransactionJSONInputHuma struct {
+// claim over the core-computed hash.
+type CreateTransactionJSONRequest struct {
 	OrganizationID string `path:"organization_id" doc:"Organization ID (UUID)"`
 	LedgerID       string `path:"ledger_id" doc:"Ledger ID (UUID)"`
 	IdempotencyKey string `header:"X-Idempotency" doc:"Idempotency key to safely retry the create; an identical retry returns the original transaction"`
@@ -121,10 +114,10 @@ type CreateTransactionJSONInputHuma struct {
 	RawBody        []byte `contentType:"application/json"`
 }
 
-// CreateTransactionJSONHuma decodes+validates the raw body imperatively (the SAME
-// http.DecodeAndValidate the Fiber WithBody decorator runs over CreateTransactionInput),
-// builds the transaction, and delegates to the shared createTransaction core.
-func (handler *TransactionHandler) CreateTransactionJSONHuma(ctx context.Context, in *CreateTransactionJSONInputHuma) (*CreateTransactionOutputHuma, error) {
+// CreateTransactionJSON decodes+validates the raw body imperatively via
+// http.DecodeAndValidate over CreateTransactionInput, builds the transaction, and
+// delegates to the shared createTransaction core.
+func (handler *TransactionHandler) CreateTransactionJSON(ctx context.Context, in *CreateTransactionJSONRequest) (*CreateTransactionResponse, error) {
 	payload := new(mtransaction.CreateTransactionInput)
 	if _, err := pkgHTTP.DecodeAndValidate(in.RawBody, payload); err != nil {
 		return nil, pkgHTTP.HumaProblem(err)
@@ -137,9 +130,9 @@ func (handler *TransactionHandler) CreateTransactionJSONHuma(ctx context.Context
 
 // --- POST /transactions/annotation --------------------------------------------
 
-// CreateTransactionAnnotationHuma mirrors CreateTransactionJSONHuma but forces the
-// NOTED status (annotation-only, no balance changes), matching the Fiber wrapper.
-func (handler *TransactionHandler) CreateTransactionAnnotationHuma(ctx context.Context, in *CreateTransactionJSONInputHuma) (*CreateTransactionOutputHuma, error) {
+// CreateTransactionAnnotation mirrors CreateTransactionJSON but forces the
+// NOTED status (annotation-only, no balance changes).
+func (handler *TransactionHandler) CreateTransactionAnnotation(ctx context.Context, in *CreateTransactionJSONRequest) (*CreateTransactionResponse, error) {
 	payload := new(mtransaction.CreateTransactionInput)
 	if _, err := pkgHTTP.DecodeAndValidate(in.RawBody, payload); err != nil {
 		return nil, pkgHTTP.HumaProblem(err)
@@ -152,9 +145,9 @@ func (handler *TransactionHandler) CreateTransactionAnnotationHuma(ctx context.C
 
 // --- POST /transactions/inflow ------------------------------------------------
 
-// CreateTransactionInflowInputHuma is the inflow-create request envelope (same
+// CreateTransactionInflowRequest is the inflow-create request envelope (same
 // idempotency + path shape as JSON; the body decodes into CreateTransactionInflowInput).
-type CreateTransactionInflowInputHuma struct {
+type CreateTransactionInflowRequest struct {
 	OrganizationID string `path:"organization_id" doc:"Organization ID (UUID)"`
 	LedgerID       string `path:"ledger_id" doc:"Ledger ID (UUID)"`
 	IdempotencyKey string `header:"X-Idempotency" doc:"Idempotency key to safely retry the create; an identical retry returns the original transaction"`
@@ -162,9 +155,9 @@ type CreateTransactionInflowInputHuma struct {
 	RawBody        []byte `contentType:"application/json"`
 }
 
-// CreateTransactionInflowHuma decodes CreateTransactionInflowInput, builds the inflow
+// CreateTransactionInflow decodes CreateTransactionInflowInput, builds the inflow
 // entry, and delegates to the shared createTransaction core.
-func (handler *TransactionHandler) CreateTransactionInflowHuma(ctx context.Context, in *CreateTransactionInflowInputHuma) (*CreateTransactionOutputHuma, error) {
+func (handler *TransactionHandler) CreateTransactionInflow(ctx context.Context, in *CreateTransactionInflowRequest) (*CreateTransactionResponse, error) {
 	payload := new(mtransaction.CreateTransactionInflowInput)
 	if _, err := pkgHTTP.DecodeAndValidate(in.RawBody, payload); err != nil {
 		return nil, pkgHTTP.HumaProblem(err)
@@ -177,8 +170,8 @@ func (handler *TransactionHandler) CreateTransactionInflowHuma(ctx context.Conte
 
 // --- POST /transactions/outflow -----------------------------------------------
 
-// CreateTransactionOutflowInputHuma is the outflow-create request envelope.
-type CreateTransactionOutflowInputHuma struct {
+// CreateTransactionOutflowRequest is the outflow-create request envelope.
+type CreateTransactionOutflowRequest struct {
 	OrganizationID string `path:"organization_id" doc:"Organization ID (UUID)"`
 	LedgerID       string `path:"ledger_id" doc:"Ledger ID (UUID)"`
 	IdempotencyKey string `header:"X-Idempotency" doc:"Idempotency key to safely retry the create; an identical retry returns the original transaction"`
@@ -186,9 +179,9 @@ type CreateTransactionOutflowInputHuma struct {
 	RawBody        []byte `contentType:"application/json"`
 }
 
-// CreateTransactionOutflowHuma decodes CreateTransactionOutflowInput, builds the outflow
+// CreateTransactionOutflow decodes CreateTransactionOutflowInput, builds the outflow
 // entry, and delegates to the shared createTransaction core.
-func (handler *TransactionHandler) CreateTransactionOutflowHuma(ctx context.Context, in *CreateTransactionOutflowInputHuma) (*CreateTransactionOutputHuma, error) {
+func (handler *TransactionHandler) CreateTransactionOutflow(ctx context.Context, in *CreateTransactionOutflowRequest) (*CreateTransactionResponse, error) {
 	payload := new(mtransaction.CreateTransactionOutflowInput)
 	if _, err := pkgHTTP.DecodeAndValidate(in.RawBody, payload); err != nil {
 		return nil, pkgHTTP.HumaProblem(err)
@@ -201,10 +194,10 @@ func (handler *TransactionHandler) CreateTransactionOutflowHuma(ctx context.Cont
 
 // --- POST /transactions/block -------------------------------------------------
 
-// CreateTransactionBlockInputHuma is the block-create request envelope (same
+// CreateTransactionBlockRequest is the block-create request envelope (same
 // idempotency + path shape as JSON; the body decodes into CreateTransactionInput,
-// identical to the Fiber block wrapper's http.WithBody type).
-type CreateTransactionBlockInputHuma struct {
+// identical to the JSON create body).
+type CreateTransactionBlockRequest struct {
 	OrganizationID string `path:"organization_id" doc:"Organization ID (UUID)"`
 	LedgerID       string `path:"ledger_id" doc:"Ledger ID (UUID)"`
 	IdempotencyKey string `header:"X-Idempotency" doc:"Idempotency key to safely retry the create; an identical retry returns the original transaction"`
@@ -212,10 +205,10 @@ type CreateTransactionBlockInputHuma struct {
 	RawBody        []byte `contentType:"application/json"`
 }
 
-// CreateTransactionBlockHuma decodes CreateTransactionInput, builds the transaction
+// CreateTransactionBlock decodes CreateTransactionInput, builds the transaction
 // with the BLOCK operation-type override (Pending forced false), and delegates to
-// the shared createTransaction core — mirroring the Fiber CreateTransactionBlock.
-func (handler *TransactionHandler) CreateTransactionBlockHuma(ctx context.Context, in *CreateTransactionBlockInputHuma) (*CreateTransactionOutputHuma, error) {
+// the shared createTransaction core.
+func (handler *TransactionHandler) CreateTransactionBlock(ctx context.Context, in *CreateTransactionBlockRequest) (*CreateTransactionResponse, error) {
 	payload := new(mtransaction.CreateTransactionInput)
 	if _, err := pkgHTTP.DecodeAndValidate(in.RawBody, payload); err != nil {
 		return nil, pkgHTTP.HumaProblem(err)
@@ -228,10 +221,10 @@ func (handler *TransactionHandler) CreateTransactionBlockHuma(ctx context.Contex
 
 // --- POST /transactions/unblock -----------------------------------------------
 
-// CreateTransactionUnblockHuma decodes CreateTransactionInput, builds the transaction
+// CreateTransactionUnblock decodes CreateTransactionInput, builds the transaction
 // with the UNBLOCK operation-type override (Pending forced false), and delegates to
-// the shared createTransaction core — mirroring the Fiber CreateTransactionUnblock.
-func (handler *TransactionHandler) CreateTransactionUnblockHuma(ctx context.Context, in *CreateTransactionBlockInputHuma) (*CreateTransactionOutputHuma, error) {
+// the shared createTransaction core.
+func (handler *TransactionHandler) CreateTransactionUnblock(ctx context.Context, in *CreateTransactionBlockRequest) (*CreateTransactionResponse, error) {
 	payload := new(mtransaction.CreateTransactionInput)
 	if _, err := pkgHTTP.DecodeAndValidate(in.RawBody, payload); err != nil {
 		return nil, pkgHTTP.HumaProblem(err)
@@ -244,27 +237,26 @@ func (handler *TransactionHandler) CreateTransactionUnblockHuma(ctx context.Cont
 
 // --- POST /transactions/{transaction_id}/commit|cancel|revert -----------------
 
-// StateTransactionInputHuma is the id-only, bodiless request envelope shared by the
-// commit/cancel/revert state ops. No body, no idempotency headers (the Fiber wrappers
-// read none).
-type StateTransactionInputHuma struct {
+// StateTransactionRequest is the id-only, bodiless request envelope shared by the
+// commit/cancel/revert state ops. No body, no idempotency headers.
+type StateTransactionRequest struct {
 	OrganizationID string `path:"organization_id" doc:"Organization ID (UUID)"`
 	LedgerID       string `path:"ledger_id" doc:"Ledger ID (UUID)"`
 	TransactionID  string `path:"transaction_id" doc:"Transaction ID (UUID)"`
 }
 
-// StateTransactionOutputHuma pins 201 (matching http.Created) and carries the resulting
-// transaction. Both commit and cancel return 201, matching the Fiber path. Revert answers
-// with CreateTransactionOutputHuma instead: it creates a transaction and can replay.
-type StateTransactionOutputHuma struct {
+// StateTransactionResponse pins 201 (matching http.Created) and carries the resulting
+// transaction. Both commit and cancel return 201. Revert answers
+// with CreateTransactionResponse instead: it creates a transaction and can replay.
+type StateTransactionResponse struct {
 	Status int
 	Body   *transaction.Transaction
 }
 
-// CommitTransactionHuma delegates to the SAME commitTransaction core the Fiber wrapper
-// calls (fetch write-behind/DB, then commitOrCancelTransaction with APPROVED, which runs
-// the tracer confirm-by-transaction two-phase). Returns 201.
-func (handler *TransactionHandler) CommitTransactionHuma(ctx context.Context, in *StateTransactionInputHuma) (*StateTransactionOutputHuma, error) {
+// CommitTransaction delegates to the commitTransaction core (fetch write-behind/DB, then
+// commitOrCancelTransaction with APPROVED, which runs the tracer confirm-by-transaction
+// two-phase). Returns 201.
+func (handler *TransactionHandler) CommitTransaction(ctx context.Context, in *StateTransactionRequest) (*StateTransactionResponse, error) {
 	orgID, ledgerID, txID, err := parseOrgLedgerTx(in)
 	if err != nil {
 		return nil, pkgHTTP.HumaProblem(err)
@@ -275,12 +267,12 @@ func (handler *TransactionHandler) CommitTransactionHuma(ctx context.Context, in
 		return nil, pkgHTTP.HumaProblem(err)
 	}
 
-	return &StateTransactionOutputHuma{Status: http.StatusCreated, Body: tran}, nil
+	return &StateTransactionResponse{Status: http.StatusCreated, Body: tran}, nil
 }
 
-// CancelTransactionHuma delegates to the SAME commitTransaction core with CANCELED
+// CancelTransaction delegates to the commitTransaction core with CANCELED
 // (which runs the tracer release-by-transaction two-phase). Returns 201.
-func (handler *TransactionHandler) CancelTransactionHuma(ctx context.Context, in *StateTransactionInputHuma) (*StateTransactionOutputHuma, error) {
+func (handler *TransactionHandler) CancelTransaction(ctx context.Context, in *StateTransactionRequest) (*StateTransactionResponse, error) {
 	orgID, ledgerID, txID, err := parseOrgLedgerTx(in)
 	if err != nil {
 		return nil, pkgHTTP.HumaProblem(err)
@@ -291,18 +283,18 @@ func (handler *TransactionHandler) CancelTransactionHuma(ctx context.Context, in
 		return nil, pkgHTTP.HumaProblem(err)
 	}
 
-	return &StateTransactionOutputHuma{Status: http.StatusCreated, Body: tran}, nil
+	return &StateTransactionResponse{Status: http.StatusCreated, Body: tran}, nil
 }
 
-// RevertTransactionHuma delegates to the SAME revertTransaction core (parent/revert
+// RevertTransaction delegates to the revertTransaction core (parent/revert
 // eligibility + bidirectional-route checks, then createRevertTransaction) and projects the
 // core's replayed flag onto the response header, mirroring createTransactionShell. Returns 201.
 //
-// It answers with CreateTransactionOutputHuma because a revert IS a create: it enters
+// It answers with CreateTransactionResponse because a revert IS a create: it enters
 // executeCreateTransaction, answers 201 with a freshly created reverse, and can replay —
 // so the create envelope already models the response, headers included. commit/cancel are
-// the ones that differ (pure state transitions) and keep StateTransactionOutputHuma.
-func (handler *TransactionHandler) RevertTransactionHuma(ctx context.Context, in *StateTransactionInputHuma) (*CreateTransactionOutputHuma, error) {
+// the ones that differ (pure state transitions) and keep StateTransactionResponse.
+func (handler *TransactionHandler) RevertTransaction(ctx context.Context, in *StateTransactionRequest) (*CreateTransactionResponse, error) {
 	orgID, ledgerID, txID, err := parseOrgLedgerTx(in)
 	if err != nil {
 		return nil, pkgHTTP.HumaProblem(err)
@@ -313,7 +305,7 @@ func (handler *TransactionHandler) RevertTransactionHuma(ctx context.Context, in
 		return nil, pkgHTTP.HumaProblem(err)
 	}
 
-	return &CreateTransactionOutputHuma{
+	return &CreateTransactionResponse{
 		Status:              http.StatusCreated,
 		IdempotencyReplayed: replayedHeader(replayed),
 		Body:                tran,
@@ -322,7 +314,7 @@ func (handler *TransactionHandler) RevertTransactionHuma(ctx context.Context, in
 
 // parseOrgLedgerTx resolves the three path strings the state/patch/get-by-id shells
 // carry. ParseUUIDPathParameters has already validated them on the wired path.
-func parseOrgLedgerTx(in *StateTransactionInputHuma) (orgID, ledgerID, txID uuid.UUID, err error) {
+func parseOrgLedgerTx(in *StateTransactionRequest) (orgID, ledgerID, txID uuid.UUID, err error) {
 	orgID, ledgerID, err = parseOrgLedger(in.OrganizationID, in.LedgerID)
 	if err != nil {
 		return uuid.Nil, uuid.Nil, uuid.Nil, err
@@ -338,26 +330,26 @@ func parseOrgLedgerTx(in *StateTransactionInputHuma) (orgID, ledgerID, txID uuid
 
 // --- PATCH /transactions/{transaction_id} -------------------------------------
 
-// UpdateTransactionInputHuma is the update request envelope. RawBody keeps the body out
-// of Huma's validator; the Fiber PATCH wrapper is a plain BodyParser decode (NOT merge-
-// patch), so the shell decodes the same type and passes it straight to the command.
-type UpdateTransactionInputHuma struct {
+// UpdateTransactionRequest is the update request envelope. RawBody keeps the body out
+// of Huma's validator; PATCH is a plain decode (NOT merge-patch), so the shell passes the
+// decoded input straight to the command.
+type UpdateTransactionRequest struct {
 	OrganizationID string `path:"organization_id" doc:"Organization ID (UUID)"`
 	LedgerID       string `path:"ledger_id" doc:"Ledger ID (UUID)"`
 	TransactionID  string `path:"transaction_id" doc:"Transaction ID (UUID)"`
 	RawBody        []byte `contentType:"application/json"`
 }
 
-// UpdateTransactionOutputHuma carries the updated transaction (200, matching http.OK).
-type UpdateTransactionOutputHuma struct {
+// UpdateTransactionResponse carries the updated transaction (200, matching http.OK).
+type UpdateTransactionResponse struct {
 	Status int
 	Body   *transaction.Transaction
 }
 
-// UpdateTransactionHuma decodes+validates the raw body imperatively then delegates to the
+// UpdateTransaction decodes+validates the raw body imperatively then delegates to the
 // shared updateTransaction core (command.UpdateTransaction + query.GetTransactionByID).
-func (handler *TransactionHandler) UpdateTransactionHuma(ctx context.Context, in *UpdateTransactionInputHuma) (*UpdateTransactionOutputHuma, error) {
-	orgID, ledgerID, txID, err := parseOrgLedgerTx(&StateTransactionInputHuma{
+func (handler *TransactionHandler) UpdateTransaction(ctx context.Context, in *UpdateTransactionRequest) (*UpdateTransactionResponse, error) {
+	orgID, ledgerID, txID, err := parseOrgLedgerTx(&StateTransactionRequest{
 		OrganizationID: in.OrganizationID, LedgerID: in.LedgerID, TransactionID: in.TransactionID,
 	})
 	if err != nil {
@@ -374,24 +366,24 @@ func (handler *TransactionHandler) UpdateTransactionHuma(ctx context.Context, in
 		return nil, pkgHTTP.HumaProblem(err)
 	}
 
-	return &UpdateTransactionOutputHuma{Status: http.StatusOK, Body: tran}, nil
+	return &UpdateTransactionResponse{Status: http.StatusOK, Body: tran}, nil
 }
 
 // --- GET /transactions/{transaction_id} ---------------------------------------
 
-// GetTransactionOutputHuma carries the transaction verbatim (200) plus the X-Cache-Hit
-// header the Fiber path sets ("true" on a write-behind cache hit, "false" otherwise).
-type GetTransactionOutputHuma struct {
+// GetTransactionResponse carries the transaction verbatim (200) plus the X-Cache-Hit
+// header ("true" on a write-behind cache hit, "false" otherwise).
+type GetTransactionResponse struct {
 	Status   int
 	CacheHit string `header:"X-Cache-Hit"`
 	Body     *transaction.Transaction
 }
 
-// GetTransactionHuma binds the query imperatively (the SAME http.ValidateParameters the
-// Fiber wrapper runs) then delegates to the shared getTransaction core, projecting the
-// cache-hit flag onto the response header.
-func (handler *TransactionHandler) GetTransactionHuma(ctx context.Context, in *GetTransactionByIDInputHuma) (*GetTransactionOutputHuma, error) {
-	orgID, ledgerID, txID, err := parseOrgLedgerTx(&StateTransactionInputHuma{
+// GetTransaction binds the query imperatively via http.ValidateParameters then delegates
+// to the shared getTransaction core, projecting the cache-hit flag onto the response
+// header.
+func (handler *TransactionHandler) GetTransaction(ctx context.Context, in *GetTransactionByIDRequest) (*GetTransactionResponse, error) {
+	orgID, ledgerID, txID, err := parseOrgLedgerTx(&StateTransactionRequest{
 		OrganizationID: in.OrganizationID, LedgerID: in.LedgerID, TransactionID: in.TransactionID,
 	})
 	if err != nil {
@@ -415,13 +407,12 @@ func (handler *TransactionHandler) GetTransactionHuma(ctx context.Context, in *G
 		hit = "true"
 	}
 
-	return &GetTransactionOutputHuma{Status: http.StatusOK, CacheHit: hit, Body: tran}, nil
+	return &GetTransactionResponse{Status: http.StatusOK, CacheHit: hit, Body: tran}, nil
 }
 
-// GetTransactionByIDInputHuma is the by-id request envelope. It captures the raw query
-// via Resolve for the imperative http.ValidateParameters binder (the Fiber wrapper runs
-// ValidateParameters over c.Queries()).
-type GetTransactionByIDInputHuma struct {
+// GetTransactionByIDRequest is the by-id request envelope. It captures the raw query
+// via Resolve for the imperative http.ValidateParameters binder.
+type GetTransactionByIDRequest struct {
 	OrganizationID string `path:"organization_id" doc:"Organization ID (UUID)"`
 	LedgerID       string `path:"ledger_id" doc:"Ledger ID (UUID)"`
 	TransactionID  string `path:"transaction_id" doc:"Transaction ID (UUID)"`
@@ -431,7 +422,7 @@ type GetTransactionByIDInputHuma struct {
 
 // Resolve captures the raw query before the handler (no validation; canonical rejection
 // stays in http.ValidateParameters).
-func (in *GetTransactionByIDInputHuma) Resolve(ctx huma.Context) []error {
+func (in *GetTransactionByIDRequest) Resolve(ctx huma.Context) []error {
 	u := ctx.URL()
 	in.rawQuery = u.Query()
 
@@ -440,9 +431,9 @@ func (in *GetTransactionByIDInputHuma) Resolve(ctx huma.Context) []error {
 
 // --- GET /transactions (list) -------------------------------------------------
 
-// ListTransactionsInputHuma advertises the list query params (doc-only, no validation
+// ListTransactionsRequest advertises the list query params (doc-only, no validation
 // tags) and captures the raw query via Resolve for the imperative binder.
-type ListTransactionsInputHuma struct {
+type ListTransactionsRequest struct {
 	OrganizationID string `path:"organization_id" doc:"Organization ID (UUID)"`
 	LedgerID       string `path:"ledger_id" doc:"Ledger ID (UUID)"`
 	Metadata       string `query:"metadata" doc:"JSON string to filter transactions by metadata fields"`
@@ -457,22 +448,22 @@ type ListTransactionsInputHuma struct {
 
 // Resolve captures the raw query before the handler (no validation; canonical rejection
 // stays in http.ValidateParameters).
-func (in *ListTransactionsInputHuma) Resolve(ctx huma.Context) []error {
+func (in *ListTransactionsRequest) Resolve(ctx huma.Context) []error {
 	u := ctx.URL()
 	in.rawQuery = u.Query()
 
 	return nil
 }
 
-// ListTransactionsOutputHuma carries the pagination envelope verbatim.
-type ListTransactionsOutputHuma struct {
+// ListTransactionsResponse carries the pagination envelope verbatim.
+type ListTransactionsResponse struct {
 	Status int
 	Body   pkgHTTP.Pagination
 }
 
-// GetAllTransactionsHuma binds the query imperatively then delegates to the shared
+// GetAllTransactions binds the query imperatively then delegates to the shared
 // getAllTransactions core.
-func (handler *TransactionHandler) GetAllTransactionsHuma(ctx context.Context, in *ListTransactionsInputHuma) (*ListTransactionsOutputHuma, error) {
+func (handler *TransactionHandler) GetAllTransactions(ctx context.Context, in *ListTransactionsRequest) (*ListTransactionsResponse, error) {
 	orgID, ledgerID, err := parseOrgLedger(in.OrganizationID, in.LedgerID)
 	if err != nil {
 		return nil, pkgHTTP.HumaProblem(err)
@@ -483,12 +474,12 @@ func (handler *TransactionHandler) GetAllTransactionsHuma(ctx context.Context, i
 		return nil, pkgHTTP.HumaProblem(err)
 	}
 
-	return &ListTransactionsOutputHuma{Status: http.StatusOK, Body: pagination}, nil
+	return &ListTransactionsResponse{Status: http.StatusOK, Body: pagination}, nil
 }
 
 // --- registration -------------------------------------------------------------
 
-// RegisterTransactionRoutes registers the twelve migrated transaction operations on the
+// RegisterTransactionRoutes registers the twelve transaction operations on the
 // shared Huma API. It is the per-file seam the unified server calls; the auth
 // (auth.Authorize("midaz","transactions",verb)) + tenant + ParseUUIDPathParameters
 // ("transaction") chain for these routes is attached in the unified server (Fiber level)
@@ -510,7 +501,7 @@ func RegisterTransactionRoutes(api huma.API, h *TransactionHandler) {
 		Security:         secTransactionBearer,
 		SkipValidateBody: true, // body validated imperatively (http.DecodeAndValidate) — see file header.
 		DefaultStatus:    http.StatusCreated,
-	}, h.CreateTransactionJSONHuma)
+	}, h.CreateTransactionJSON)
 	attachTypedRequestBody[mtransaction.CreateTransactionInput](api, "createTransactionJSON")
 
 	huma.Register(api, huma.Operation{
@@ -522,7 +513,7 @@ func RegisterTransactionRoutes(api huma.API, h *TransactionHandler) {
 		Security:         secTransactionBearer,
 		SkipValidateBody: true,
 		DefaultStatus:    http.StatusCreated,
-	}, h.CreateTransactionInflowHuma)
+	}, h.CreateTransactionInflow)
 	attachTypedRequestBody[mtransaction.CreateTransactionInflowInput](api, "createTransactionInflow")
 
 	huma.Register(api, huma.Operation{
@@ -534,7 +525,7 @@ func RegisterTransactionRoutes(api huma.API, h *TransactionHandler) {
 		Security:         secTransactionBearer,
 		SkipValidateBody: true,
 		DefaultStatus:    http.StatusCreated,
-	}, h.CreateTransactionOutflowHuma)
+	}, h.CreateTransactionOutflow)
 	attachTypedRequestBody[mtransaction.CreateTransactionOutflowInput](api, "createTransactionOutflow")
 
 	huma.Register(api, huma.Operation{
@@ -546,7 +537,7 @@ func RegisterTransactionRoutes(api huma.API, h *TransactionHandler) {
 		Security:         secTransactionBearer,
 		SkipValidateBody: true,
 		DefaultStatus:    http.StatusCreated,
-	}, h.CreateTransactionAnnotationHuma)
+	}, h.CreateTransactionAnnotation)
 	attachTypedRequestBody[mtransaction.CreateTransactionInput](api, "createTransactionAnnotation")
 
 	huma.Register(api, huma.Operation{
@@ -558,7 +549,7 @@ func RegisterTransactionRoutes(api huma.API, h *TransactionHandler) {
 		Security:         secTransactionBearer,
 		SkipValidateBody: true,
 		DefaultStatus:    http.StatusCreated,
-	}, h.CreateTransactionBlockHuma)
+	}, h.CreateTransactionBlock)
 	attachTypedRequestBody[mtransaction.CreateTransactionInput](api, "createTransactionBlock")
 
 	huma.Register(api, huma.Operation{
@@ -570,7 +561,7 @@ func RegisterTransactionRoutes(api huma.API, h *TransactionHandler) {
 		Security:         secTransactionBearer,
 		SkipValidateBody: true,
 		DefaultStatus:    http.StatusCreated,
-	}, h.CreateTransactionUnblockHuma)
+	}, h.CreateTransactionUnblock)
 	attachTypedRequestBody[mtransaction.CreateTransactionInput](api, "createTransactionUnblock")
 
 	huma.Register(api, huma.Operation{
@@ -582,7 +573,7 @@ func RegisterTransactionRoutes(api huma.API, h *TransactionHandler) {
 		Security:    secTransactionBearer,
 		// commit returns 201 (matching http.Created); no request body.
 		DefaultStatus: http.StatusCreated,
-	}, h.CommitTransactionHuma)
+	}, h.CommitTransaction)
 
 	huma.Register(api, huma.Operation{
 		OperationID:   "cancelTransaction",
@@ -592,7 +583,7 @@ func RegisterTransactionRoutes(api huma.API, h *TransactionHandler) {
 		Tags:          []string{tag},
 		Security:      secTransactionBearer,
 		DefaultStatus: http.StatusCreated,
-	}, h.CancelTransactionHuma)
+	}, h.CancelTransaction)
 
 	huma.Register(api, huma.Operation{
 		OperationID:   "revertTransaction",
@@ -602,7 +593,7 @@ func RegisterTransactionRoutes(api huma.API, h *TransactionHandler) {
 		Tags:          []string{tag},
 		Security:      secTransactionBearer,
 		DefaultStatus: http.StatusCreated,
-	}, h.RevertTransactionHuma)
+	}, h.RevertTransaction)
 
 	huma.Register(api, huma.Operation{
 		OperationID:      "updateTransaction",
@@ -612,7 +603,7 @@ func RegisterTransactionRoutes(api huma.API, h *TransactionHandler) {
 		Tags:             []string{tag},
 		Security:         secTransactionBearer,
 		SkipValidateBody: true, // body validated imperatively — plain decode, not merge-patch.
-	}, h.UpdateTransactionHuma)
+	}, h.UpdateTransaction)
 	attachTypedRequestBody[transaction.UpdateTransactionInput](api, "updateTransaction")
 
 	huma.Register(api, huma.Operation{
@@ -622,7 +613,7 @@ func RegisterTransactionRoutes(api huma.API, h *TransactionHandler) {
 		Summary:     "Get a Transaction by ID",
 		Tags:        []string{tag},
 		Security:    secTransactionBearer,
-	}, h.GetTransactionHuma)
+	}, h.GetTransaction)
 
 	huma.Register(api, huma.Operation{
 		OperationID: "getAllTransactions",
@@ -631,5 +622,5 @@ func RegisterTransactionRoutes(api huma.API, h *TransactionHandler) {
 		Summary:     "Get all Transactions",
 		Tags:        []string{tag},
 		Security:    secTransactionBearer,
-	}, h.GetAllTransactionsHuma)
+	}, h.GetAllTransactions)
 }

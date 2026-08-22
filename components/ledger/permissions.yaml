@@ -128,7 +128,7 @@ permissions:
   - { resource: transaction-routes, action: get,    effect: allow, roles: [editor, viewer] }
   - { resource: transaction-routes, action: delete, effect: allow, roles: [editor] }
 
-  # transactions (transaction_v2_mirror_register.go:150; head at count_handler.go)
+  # transactions (routes.go:217; v2 at transaction_v2_mirror_register.go:103; head at count_handler.go)
   - { resource: transactions, action: post,  effect: allow, roles: [editor] }
   - { resource: transactions, action: patch, effect: allow, roles: [editor] }
   - { resource: transactions, action: get,   effect: allow, roles: [editor, viewer] }

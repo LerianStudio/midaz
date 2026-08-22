@@ -11,7 +11,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gofiber/fiber/v3"
 	"github.com/google/uuid"
 	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/assert"
@@ -19,7 +18,6 @@ import (
 
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
 	"github.com/LerianStudio/midaz/v4/pkg/mtransaction"
-	"github.com/LerianStudio/midaz/v4/pkg/net/http"
 )
 
 // TestBuildOverriddenTransaction verifies the block/unblock handler builder seam:
@@ -114,39 +112,16 @@ func TestBuildOverriddenTransaction(t *testing.T) {
 	}
 }
 
-// TestCreateTransactionBlockUnblock_HTTPWiring drives each HTTP handler with a
-// non-positive send value, which short-circuits with HTTP 422 before any
-// repository call. This proves the handler is wired into the Fiber chain,
-// parses CreateTransactionInput, builds the transaction, and delegates to the
-// shared createTransaction path (mirrors TestCreateTransactionJSON_NonPositiveValue_Returns422).
+// TestCreateTransactionBlockUnblock_HTTPWiring drives each block/unblock HTTP
+// operation with a non-positive send value, which short-circuits with HTTP 422
+// before any repository call. This proves the op is wired into the route chain,
+// parses CreateTransactionInput, builds the transaction with the operation-type
+// override, and delegates to the shared createTransaction core (mirrors
+// TestCreateTransactionJSON_NonPositiveValue_Returns422).
 func TestCreateTransactionBlockUnblock_HTTPWiring(t *testing.T) {
-	t.Parallel()
-
-	tests := []struct {
-		name    string
-		route   string
-		handler func(handler *TransactionHandler) func(p any, c fiber.Ctx) error
-	}{
-		{
-			name:  "block",
-			route: "block",
-			handler: func(handler *TransactionHandler) func(p any, c fiber.Ctx) error {
-				return handler.CreateTransactionBlock
-			},
-		},
-		{
-			name:  "unblock",
-			route: "unblock",
-			handler: func(handler *TransactionHandler) func(p any, c fiber.Ctx) error {
-				return handler.CreateTransactionUnblock
-			},
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-
+	// NOT parallel: buildHumaTransactionApp mutates process-global huma state.
+	for _, route := range []string{"block", "unblock"} {
+		t.Run(route, func(t *testing.T) {
 			orgID := uuid.New()
 			ledgerID := uuid.New()
 
@@ -154,16 +129,7 @@ func TestCreateTransactionBlockUnblock_HTTPWiring(t *testing.T) {
 			// before any repository call.
 			handler := &TransactionHandler{}
 
-			app := fiber.New()
-			app.Post(
-				"/test/:organization_id/:ledger_id/transactions/"+tt.route,
-				func(c fiber.Ctx) error {
-					c.Locals("organization_id", orgID)
-					c.Locals("ledger_id", ledgerID)
-					return c.Next()
-				},
-				http.WithBody(new(mtransaction.CreateTransactionInput), tt.handler(handler)),
-			)
+			app := buildHumaTransactionApp(t, handler, true)
 
 			requestBody := `{
 				"pending": true,
@@ -180,14 +146,14 @@ func TestCreateTransactionBlockUnblock_HTTPWiring(t *testing.T) {
 			}`
 
 			req := httptest.NewRequest("POST",
-				"/test/"+orgID.String()+"/"+ledgerID.String()+"/transactions/"+tt.route,
+				humaTransactionURL(orgID, ledgerID, "/"+route),
 				strings.NewReader(requestBody))
 			req.Header.Set("Content-Type", "application/json")
 
 			resp, err := app.Test(req)
 			require.NoError(t, err)
 			assert.Equal(t, 422, resp.StatusCode,
-				"non-positive value must short-circuit with 422, proving the handler reached createTransaction")
+				"non-positive value must short-circuit with 422, proving the op reached createTransaction")
 
 			body, err := io.ReadAll(resp.Body)
 			require.NoError(t, err)

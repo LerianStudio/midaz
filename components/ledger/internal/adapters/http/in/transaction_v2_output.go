@@ -314,7 +314,7 @@ func newOperationV2(op *operation.Operation) *OperationV2 {
 }
 
 // CreateTransactionOutputV2Huma pins 201 (matching http.Created) and carries the
-// X-Idempotency-Replayed response header, mirroring CreateTransactionOutputHuma but wrapping
+// X-Idempotency-Replayed response header, mirroring CreateTransactionResponse but wrapping
 // the /v2 wire shape (TransactionV2) instead of the canonical transaction.Transaction.
 type CreateTransactionOutputV2Huma struct {
 	Status              int
@@ -323,7 +323,7 @@ type CreateTransactionOutputV2Huma struct {
 }
 
 // StateTransactionOutputV2Huma pins 201 (matching http.Created) and carries the resulting
-// transaction in the /v2 wire shape, mirroring StateTransactionOutputHuma for the v2
+// transaction in the /v2 wire shape, mirroring StateTransactionResponse for the v2
 // commit/cancel ops.
 type StateTransactionOutputV2Huma struct {
 	Status int

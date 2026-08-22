@@ -25,6 +25,8 @@ import (
 	"time"
 
 	libCommons "github.com/LerianStudio/lib-commons/v6/commons"
+	openapi "github.com/LerianStudio/lib-commons/v6/commons/net/http/openapi"
+	libProblem "github.com/LerianStudio/lib-commons/v6/commons/net/http/problem"
 	libPostgres "github.com/LerianStudio/lib-commons/v6/commons/postgres"
 	libRabbitmq "github.com/LerianStudio/lib-commons/v6/commons/rabbitmq"
 	libObservability "github.com/LerianStudio/lib-observability/v2"
@@ -49,7 +51,6 @@ import (
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services/query"
 	cn "github.com/LerianStudio/midaz/v4/pkg/constant"
 	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
-	"github.com/LerianStudio/midaz/v4/pkg/mtransaction"
 	"github.com/LerianStudio/midaz/v4/pkg/net/http"
 	"github.com/LerianStudio/midaz/v4/pkg/utils"
 	mongotestutil "github.com/LerianStudio/midaz/v4/tests/utils/mongodb"
@@ -186,39 +187,48 @@ func seedLedgerSettings(t *testing.T, db *sql.DB, orgID, ledgerID uuid.UUID) {
 	require.NoError(t, err, "failed to seed ledger settings row")
 }
 
-// setupRoutes registers handler routes on the Fiber app.
+// mountTransactionHumaRoutes wires the transaction surface onto app exactly as
+// production does: ParseUUIDPathParameters runs as Fiber middleware on the /v1
+// group and RegisterTransactionRoutes owns the Huma terminals, so body decode,
+// path-param validation and the RFC 9457 error envelope all match production.
+func mountTransactionHumaRoutes(app *fiber.App, handler *TransactionHandler) {
+	libProblem.Install()
+	http.InstallHumaFrameworkErrors()
+
+	apiV1 := app.Group("/v1")
+	hAPI := openapi.New(app, apiV1, openapi.Config{
+		Title:   "ledger-integration",
+		Version: "test",
+		Servers: []string{"/v1"},
+	})
+
+	// The transaction Out nests operation.{Status,Balance,Amount}, which collide on
+	// bare schema names with the mmodel/transaction types on the shared registry.
+	// Must run after openapi.New and BEFORE any huma.Register.
+	http.InstallLedgerSchemaNamer(hAPI)
+
+	base := "/organizations/:organization_id/ledgers/:ledger_id/transactions"
+	parse := http.ParseUUIDPathParameters("transaction")
+
+	apiV1.Post(base+"/json", parse)
+	apiV1.Post(base+"/inflow", parse)
+	apiV1.Post(base+"/outflow", parse)
+	apiV1.Post(base+"/annotation", parse)
+	apiV1.Post(base+"/block", parse)
+	apiV1.Post(base+"/unblock", parse)
+	apiV1.Post(base+"/:transaction_id/commit", parse)
+	apiV1.Post(base+"/:transaction_id/cancel", parse)
+	apiV1.Post(base+"/:transaction_id/revert", parse)
+	apiV1.Patch(base+"/:transaction_id", parse)
+	apiV1.Get(base+"/:transaction_id", parse)
+	apiV1.Get(base, parse)
+
+	RegisterTransactionRoutes(hAPI, handler)
+}
+
+// setupRoutes registers the transaction routes on the Fiber app.
 func (infra *testInfra) setupRoutes() {
-	// Middleware to inject path params as locals
-	paramMiddleware := func(c fiber.Ctx) error {
-		orgIDStr := c.Params("organization_id")
-		ledgerIDStr := c.Params("ledger_id")
-		txIDStr := c.Params("transaction_id")
-
-		if orgIDStr != "" {
-			orgID, _ := uuid.Parse(orgIDStr)
-			c.Locals("organization_id", orgID)
-		}
-		if ledgerIDStr != "" {
-			ledgerID, _ := uuid.Parse(ledgerIDStr)
-			c.Locals("ledger_id", ledgerID)
-		}
-		if txIDStr != "" {
-			txID, _ := uuid.Parse(txIDStr)
-			c.Locals("transaction_id", txID)
-		}
-		return c.Next()
-	}
-
-	infra.app.Post("/v1/organizations/:organization_id/ledgers/:ledger_id/transactions/json",
-		paramMiddleware, http.WithBody(new(mtransaction.CreateTransactionInput), infra.handler.CreateTransactionJSON))
-	infra.app.Post("/v1/organizations/:organization_id/ledgers/:ledger_id/transactions/:transaction_id/commit",
-		paramMiddleware, infra.handler.CommitTransaction)
-	infra.app.Post("/v1/organizations/:organization_id/ledgers/:ledger_id/transactions/:transaction_id/cancel",
-		paramMiddleware, infra.handler.CancelTransaction)
-	infra.app.Post("/v1/organizations/:organization_id/ledgers/:ledger_id/transactions/:transaction_id/revert",
-		paramMiddleware, infra.handler.RevertTransaction)
-	infra.app.Get("/v1/organizations/:organization_id/ledgers/:ledger_id/transactions/:transaction_id",
-		paramMiddleware, infra.handler.GetTransaction)
+	mountTransactionHumaRoutes(infra.app, infra.handler)
 }
 
 // getBalanceFromRedis retrieves a balance from Redis and unmarshals it to BalanceRedis.
@@ -761,33 +771,9 @@ func setupAsyncTestInfra(t *testing.T) *testAsyncInfra {
 	return infra
 }
 
-// setupRoutes registers handler routes on the Fiber app for async infra.
+// setupRoutes registers the transaction routes on the Fiber app for async infra.
 func (infra *testAsyncInfra) setupRoutes() {
-	// Middleware to inject path params as locals
-	paramMiddleware := func(c fiber.Ctx) error {
-		orgIDStr := c.Params("organization_id")
-		ledgerIDStr := c.Params("ledger_id")
-		txIDStr := c.Params("transaction_id")
-
-		if orgIDStr != "" {
-			orgID, _ := uuid.Parse(orgIDStr)
-			c.Locals("organization_id", orgID)
-		}
-		if ledgerIDStr != "" {
-			ledgerID, _ := uuid.Parse(ledgerIDStr)
-			c.Locals("ledger_id", ledgerID)
-		}
-		if txIDStr != "" {
-			txID, _ := uuid.Parse(txIDStr)
-			c.Locals("transaction_id", txID)
-		}
-		return c.Next()
-	}
-
-	infra.app.Post("/v1/organizations/:organization_id/ledgers/:ledger_id/transactions/json",
-		paramMiddleware, http.WithBody(new(mtransaction.CreateTransactionInput), infra.handler.CreateTransactionJSON))
-	infra.app.Get("/v1/organizations/:organization_id/ledgers/:ledger_id/transactions/:transaction_id",
-		paramMiddleware, infra.handler.GetTransaction)
+	mountTransactionHumaRoutes(infra.app, infra.handler)
 }
 
 // waitForTransactionStatus polls the database until the transaction reaches the expected status or timeout.

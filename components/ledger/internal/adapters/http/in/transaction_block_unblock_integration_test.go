@@ -32,7 +32,6 @@ import (
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services/command"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services/query"
 	cn "github.com/LerianStudio/midaz/v4/pkg/constant"
-	"github.com/LerianStudio/midaz/v4/pkg/mtransaction"
 	"github.com/LerianStudio/midaz/v4/pkg/net/http"
 	"github.com/LerianStudio/midaz/v4/pkg/utils"
 	mongotestutil "github.com/LerianStudio/midaz/v4/tests/utils/mongodb"
@@ -132,50 +131,11 @@ func setupBlockUnblockInfra(t *testing.T) *blockUnblockInfra {
 }
 
 func (infra *blockUnblockInfra) setupRoutes() {
-	// parseParam resolves a UUID path parameter into c.Locals. A malformed value
-	// surfaces as an HTTP 400 instead of silently becoming the zero UUID (which
-	// would mask a routing/derivation bug behind a confusing not-found later).
-	parseParam := func(c fiber.Ctx, name string) error {
-		v := c.Params(name)
-		if v == "" {
-			return nil
-		}
-
-		id, err := uuid.Parse(v)
-		if err != nil {
-			return c.Status(fiber.StatusBadRequest).
-				JSON(fiber.Map{"error": "invalid path parameter " + name + ": " + v})
-		}
-
-		c.Locals(name, id)
-
-		return nil
-	}
-
-	paramMiddleware := func(c fiber.Ctx) error {
-		for _, name := range []string{"organization_id", "ledger_id", "transaction_id", "account_id"} {
-			if err := parseParam(c, name); err != nil {
-				return err
-			}
-		}
-
-		return c.Next()
-	}
-
-	base := "/v1/organizations/:organization_id/ledgers/:ledger_id"
-
-	infra.app.Post(base+"/transactions/block",
-		paramMiddleware, http.WithBody(new(mtransaction.CreateTransactionInput), infra.txHandler.CreateTransactionBlock))
-	infra.app.Post(base+"/transactions/unblock",
-		paramMiddleware, http.WithBody(new(mtransaction.CreateTransactionInput), infra.txHandler.CreateTransactionUnblock))
-	infra.app.Get(base+"/transactions/:transaction_id",
-		paramMiddleware, infra.txHandler.GetTransaction)
-	infra.app.Get(base+"/transactions",
-		paramMiddleware, infra.txHandler.GetAllTransactions)
-	// The operation surface is served by Huma, so it is mounted through its own
+	// Every surface here is served by Huma, so each is mounted through its own
 	// registrar rather than by handing a terminal to Fiber: ParseUUIDPathParameters
-	// runs as middleware and RegisterOperationRoutes owns the terminal.
+	// runs as middleware on the versioned group and the registrar owns the terminal.
 	libProblem.Install()
+	http.InstallHumaFrameworkErrors()
 
 	apiV1 := infra.app.Group("/v1")
 	hAPI := openapi.New(infra.app, apiV1, openapi.Config{
@@ -183,6 +143,29 @@ func (infra *blockUnblockInfra) setupRoutes() {
 		Version: "test",
 		Servers: []string{"/v1"},
 	})
+
+	// The transaction Out nests operation.{Status,Balance,Amount}, which collide on
+	// bare schema names with the mmodel/transaction types on the shared registry.
+	// Must run after openapi.New and BEFORE any huma.Register.
+	http.InstallLedgerSchemaNamer(hAPI)
+
+	txBase := "/organizations/:organization_id/ledgers/:ledger_id/transactions"
+	txParse := http.ParseUUIDPathParameters("transaction")
+
+	apiV1.Post(txBase+"/json", txParse)
+	apiV1.Post(txBase+"/inflow", txParse)
+	apiV1.Post(txBase+"/outflow", txParse)
+	apiV1.Post(txBase+"/annotation", txParse)
+	apiV1.Post(txBase+"/block", txParse)
+	apiV1.Post(txBase+"/unblock", txParse)
+	apiV1.Post(txBase+"/:transaction_id/commit", txParse)
+	apiV1.Post(txBase+"/:transaction_id/cancel", txParse)
+	apiV1.Post(txBase+"/:transaction_id/revert", txParse)
+	apiV1.Patch(txBase+"/:transaction_id", txParse)
+	apiV1.Get(txBase+"/:transaction_id", txParse)
+	apiV1.Get(txBase, txParse)
+
+	RegisterTransactionRoutes(hAPI, infra.txHandler)
 
 	apiV1.Get(
 		"/organizations/:organization_id/ledgers/:ledger_id/accounts/:account_id/operations",

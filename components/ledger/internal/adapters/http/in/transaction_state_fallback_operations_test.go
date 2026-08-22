@@ -12,7 +12,6 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/gofiber/fiber/v3"
 	"github.com/google/uuid"
 	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/assert"
@@ -50,8 +49,6 @@ import (
 // TestAnnotateCanceledOverdraftAmounts_UsesPendingCompanionAmount and the redis Lua
 // integration tests (TestIntegration_Overdraft_PendingLegacyCancelRestoresCompanion).
 func TestCancelTransaction_WriteBehindMiss_FallbackLoadsOperations(t *testing.T) {
-	t.Parallel()
-
 	ctrl := gomock.NewController(t)
 	t.Cleanup(ctrl.Finish)
 
@@ -138,20 +135,10 @@ func TestCancelTransaction_WriteBehindMiss_FallbackLoadsOperations(t *testing.T)
 	}
 	handler := &TransactionHandler{Query: queryUC, Command: commandUC}
 
-	app := fiber.New()
-	app.Post(
-		"/test/:organization_id/:ledger_id/transactions/:transaction_id/cancel",
-		func(c fiber.Ctx) error {
-			c.Locals("organization_id", orgID)
-			c.Locals("ledger_id", ledgerID)
-			c.Locals("transaction_id", transactionID)
-			return c.Next()
-		},
-		handler.CancelTransaction,
-	)
+	app := buildHumaTransactionApp(t, handler, true)
 
 	req := httptest.NewRequest(http.MethodPost,
-		"/test/"+orgID.String()+"/"+ledgerID.String()+"/transactions/"+transactionID.String()+"/cancel",
+		humaTransactionURL(orgID, ledgerID, "/"+transactionID.String()+"/cancel"),
 		nil)
 	resp, err := app.Test(req)
 
@@ -175,8 +162,6 @@ func TestCancelTransaction_WriteBehindMiss_FallbackLoadsOperations(t *testing.T)
 // falls back to the row-only read, which reports not-found, so the response stays a
 // clean 404.
 func TestCancelTransaction_WriteBehindMiss_NonexistentTransaction_Returns404(t *testing.T) {
-	t.Parallel()
-
 	ctrl := gomock.NewController(t)
 	t.Cleanup(ctrl.Finish)
 
@@ -224,20 +209,10 @@ func TestCancelTransaction_WriteBehindMiss_NonexistentTransaction_Returns404(t *
 	}
 	handler := &TransactionHandler{Query: queryUC}
 
-	app := fiber.New()
-	app.Post(
-		"/test/:organization_id/:ledger_id/transactions/:transaction_id/cancel",
-		func(c fiber.Ctx) error {
-			c.Locals("organization_id", orgID)
-			c.Locals("ledger_id", ledgerID)
-			c.Locals("transaction_id", transactionID)
-			return c.Next()
-		},
-		handler.CancelTransaction,
-	)
+	app := buildHumaTransactionApp(t, handler, true)
 
 	req := httptest.NewRequest(http.MethodPost,
-		"/test/"+orgID.String()+"/"+ledgerID.String()+"/transactions/"+transactionID.String()+"/cancel",
+		humaTransactionURL(orgID, ledgerID, "/"+transactionID.String()+"/cancel"),
 		nil)
 	resp, err := app.Test(req)
 
@@ -260,8 +235,6 @@ func TestCancelTransaction_WriteBehindMiss_NonexistentTransaction_Returns404(t *
 // its not-pending guard and answers 409, proving the fallback carried a live transaction
 // (not a nil/empty value) into commitOrCancelTransaction.
 func TestCancelTransaction_WriteBehindMiss_RowOnlyFallbackReturnsRealTransaction(t *testing.T) {
-	t.Parallel()
-
 	ctrl := gomock.NewController(t)
 	t.Cleanup(ctrl.Finish)
 
@@ -330,20 +303,10 @@ func TestCancelTransaction_WriteBehindMiss_RowOnlyFallbackReturnsRealTransaction
 	}
 	handler := &TransactionHandler{Query: queryUC, Command: commandUC}
 
-	app := fiber.New()
-	app.Post(
-		"/test/:organization_id/:ledger_id/transactions/:transaction_id/cancel",
-		func(c fiber.Ctx) error {
-			c.Locals("organization_id", orgID)
-			c.Locals("ledger_id", ledgerID)
-			c.Locals("transaction_id", transactionID)
-			return c.Next()
-		},
-		handler.CancelTransaction,
-	)
+	app := buildHumaTransactionApp(t, handler, true)
 
 	req := httptest.NewRequest(http.MethodPost,
-		"/test/"+orgID.String()+"/"+ledgerID.String()+"/transactions/"+transactionID.String()+"/cancel",
+		humaTransactionURL(orgID, ledgerID, "/"+transactionID.String()+"/cancel"),
 		nil)
 	resp, err := app.Test(req)
 

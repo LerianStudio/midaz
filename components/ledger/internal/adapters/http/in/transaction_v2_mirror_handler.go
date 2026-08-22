@@ -22,7 +22,7 @@ import (
 // untouched, so /v1 responses stay byte-identical.
 
 // UpdateTransactionOutputV2Huma carries the updated transaction in the /v2 wire shape (200,
-// matching http.OK), mirroring UpdateTransactionOutputHuma with a TransactionV2 body.
+// matching http.OK), mirroring UpdateTransactionResponse with a TransactionV2 body.
 type UpdateTransactionOutputV2Huma struct {
 	Status int
 	Body   *TransactionV2
@@ -30,13 +30,13 @@ type UpdateTransactionOutputV2Huma struct {
 
 // UpdateTransactionV2Huma decodes+validates the raw body imperatively then delegates to the shared
 // updateTransaction core, projecting the domain result onto the /v2 wire shape. It is the v2 twin
-// of UpdateTransactionHuma, reusing the same request type (transaction.UpdateTransactionInput).
-func (handler *TransactionHandler) UpdateTransactionV2Huma(ctx context.Context, in *UpdateTransactionInputHuma) (*UpdateTransactionOutputV2Huma, error) {
+// of UpdateTransaction, reusing the same request type (transaction.UpdateTransactionInput).
+func (handler *TransactionHandler) UpdateTransactionV2Huma(ctx context.Context, in *UpdateTransactionRequest) (*UpdateTransactionOutputV2Huma, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, pkgHTTP.HumaProblem(err)
 	}
 
-	orgID, ledgerID, txID, err := parseOrgLedgerTx(&StateTransactionInputHuma{
+	orgID, ledgerID, txID, err := parseOrgLedgerTx(&StateTransactionRequest{
 		OrganizationID: in.OrganizationID, LedgerID: in.LedgerID, TransactionID: in.TransactionID,
 	})
 	if err != nil {
@@ -57,7 +57,7 @@ func (handler *TransactionHandler) UpdateTransactionV2Huma(ctx context.Context, 
 }
 
 // GetTransactionOutputV2Huma carries the transaction in the /v2 wire shape (200) plus the
-// X-Cache-Hit header the shared read core sets, mirroring GetTransactionOutputHuma with a
+// X-Cache-Hit header the shared read core sets, mirroring GetTransactionResponse with a
 // TransactionV2 body.
 type GetTransactionOutputV2Huma struct {
 	Status   int
@@ -67,13 +67,13 @@ type GetTransactionOutputV2Huma struct {
 
 // GetTransactionV2Huma binds the query imperatively then delegates to the shared getTransaction
 // core, projecting the domain result onto the /v2 wire shape and the cache-hit flag onto the
-// response header. It is the v2 twin of GetTransactionHuma.
-func (handler *TransactionHandler) GetTransactionV2Huma(ctx context.Context, in *GetTransactionByIDInputHuma) (*GetTransactionOutputV2Huma, error) {
+// response header. It is the v2 twin of GetTransaction.
+func (handler *TransactionHandler) GetTransactionV2Huma(ctx context.Context, in *GetTransactionByIDRequest) (*GetTransactionOutputV2Huma, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, pkgHTTP.HumaProblem(err)
 	}
 
-	orgID, ledgerID, txID, err := parseOrgLedgerTx(&StateTransactionInputHuma{
+	orgID, ledgerID, txID, err := parseOrgLedgerTx(&StateTransactionRequest{
 		OrganizationID: in.OrganizationID, LedgerID: in.LedgerID, TransactionID: in.TransactionID,
 	})
 	if err != nil {
@@ -126,7 +126,7 @@ type TransactionV2ListBody struct {
 }
 
 // ListTransactionsOutputV2Huma carries the /v2 pagination envelope, mirroring
-// ListTransactionsOutputHuma with TransactionV2 items.
+// ListTransactionsResponse with TransactionV2 items.
 type ListTransactionsOutputV2Huma struct {
 	Status int
 	Body   TransactionV2ListBody
@@ -134,8 +134,8 @@ type ListTransactionsOutputV2Huma struct {
 
 // GetAllTransactionsV2Huma binds the query imperatively then delegates to the shared
 // getAllTransactions core, projecting the returned page onto the /v2 list envelope. It is the v2
-// twin of GetAllTransactionsHuma.
-func (handler *TransactionHandler) GetAllTransactionsV2Huma(ctx context.Context, in *ListTransactionsInputHuma) (*ListTransactionsOutputV2Huma, error) {
+// twin of GetAllTransactions.
+func (handler *TransactionHandler) GetAllTransactionsV2Huma(ctx context.Context, in *ListTransactionsRequest) (*ListTransactionsOutputV2Huma, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, pkgHTTP.HumaProblem(err)
 	}

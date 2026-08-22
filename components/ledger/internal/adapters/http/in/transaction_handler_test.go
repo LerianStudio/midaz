@@ -24,7 +24,7 @@ import (
 	pkgHTTP "github.com/LerianStudio/midaz/v4/pkg/net/http"
 )
 
-// buildHumaTransactionApp mounts the ten migrated transaction Huma operations on a /v1
+// buildHumaTransactionApp mounts the twelve transaction Huma operations on a /v1
 // group, mirroring the production wiring in unified-server.go: problem.Install() runs
 // before any huma.Register, WithRecover is the first middleware so a panic in a handler
 // unwinds to a 500 attributed to the running subtest instead of killing the test process,
@@ -76,6 +76,8 @@ func buildHumaTransactionApp(t *testing.T, handler *TransactionHandler, authOK b
 	apiV1.Post(base+"/inflow", parse)
 	apiV1.Post(base+"/outflow", parse)
 	apiV1.Post(base+"/annotation", parse)
+	apiV1.Post(base+"/block", parse)
+	apiV1.Post(base+"/unblock", parse)
 	apiV1.Post(base+"/:transaction_id/commit", parse)
 	apiV1.Post(base+"/:transaction_id/cancel", parse)
 	apiV1.Post(base+"/:transaction_id/revert", parse)
@@ -90,17 +92,23 @@ func buildHumaTransactionApp(t *testing.T, handler *TransactionHandler, authOK b
 
 // bareTransactionHandler is a handler with no wired repos. It is enough to prove the
 // transport boundary (path-param validation, body decode/validate, auth) rejects BEFORE
-// any service call — the deep money-path behavior is covered by the existing Fiber-level
-// tests over the untouched core (transaction_state_handlers_test.go et al.).
+// any service call — the deep money-path behavior is covered by the mock-backed tests
+// over the cores (transaction_test.go, transaction_state_handlers_test.go et al.).
 func bareTransactionHandler() *TransactionHandler {
 	return &TransactionHandler{}
 }
 
-// createOpPaths enumerates the four migrated CREATE ops so the shared assertions run over
-// every create shell (all four route to the same createTransaction core).
+// createOpPaths enumerates the four body-shaped CREATE ops so the shared assertions run
+// over every create shell (all four route to the same createTransaction core).
 var createOpPaths = []string{"json", "inflow", "outflow", "annotation"}
 
-func TestHuma_CreateTransaction_BadUUID_Canonical400(t *testing.T) {
+// humaTransactionURL builds a request path against the /v1 group the harness mounts.
+// suffix is appended to ".../transactions" (e.g. "/json", "/"+id+"/commit", "?limit=5").
+func humaTransactionURL(orgID, ledgerID uuid.UUID, suffix string) string {
+	return "/v1/organizations/" + orgID.String() + "/ledgers/" + ledgerID.String() + "/transactions" + suffix
+}
+
+func TestCreateTransaction_BadUUID_Canonical400(t *testing.T) {
 	// NOT parallel: buildHumaTransactionApp mutates process-global huma state.
 	orgID := uuid.New()
 
@@ -124,7 +132,7 @@ func TestHuma_CreateTransaction_BadUUID_Canonical400(t *testing.T) {
 	}
 }
 
-func TestHuma_CreateTransaction_MalformedBody_Canonical400(t *testing.T) {
+func TestCreateTransaction_MalformedBody_Canonical400(t *testing.T) {
 	// NOT parallel: process-global huma state.
 	orgID := uuid.New()
 	ledgerID := uuid.New()
@@ -153,7 +161,7 @@ func TestHuma_CreateTransaction_MalformedBody_Canonical400(t *testing.T) {
 	}
 }
 
-func TestHuma_CreateTransaction_AuthPreserved(t *testing.T) {
+func TestCreateTransaction_AuthPreserved(t *testing.T) {
 	// NOT parallel: process-global huma state.
 	orgID := uuid.New()
 	ledgerID := uuid.New()
@@ -176,7 +184,7 @@ func TestHuma_CreateTransaction_AuthPreserved(t *testing.T) {
 	}
 }
 
-func TestHuma_CreateTransaction_EmptyBody_Canonical400(t *testing.T) {
+func TestCreateTransaction_EmptyBody_Canonical400(t *testing.T) {
 	// NOT parallel: process-global huma state.
 	orgID := uuid.New()
 	ledgerID := uuid.New()
@@ -215,7 +223,7 @@ func TestHuma_CreateTransaction_EmptyBody_Canonical400(t *testing.T) {
 // shared bad-UUID / auth assertions.
 var stateOpPaths = []string{"commit", "cancel", "revert"}
 
-func TestHuma_StateTransaction_EmptyBodyStaysBodiless(t *testing.T) {
+func TestStateTransaction_EmptyBodyStaysBodiless(t *testing.T) {
 	// NOT parallel: process-global huma state.
 	orgID := uuid.New()
 	ledgerID := uuid.New()
@@ -257,7 +265,7 @@ func TestHuma_StateTransaction_EmptyBodyStaysBodiless(t *testing.T) {
 	}
 }
 
-func TestHuma_StateTransaction_BadUUID_Canonical400(t *testing.T) {
+func TestStateTransaction_BadUUID_Canonical400(t *testing.T) {
 	// NOT parallel: process-global huma state.
 	orgID := uuid.New()
 	ledgerID := uuid.New()
@@ -281,7 +289,7 @@ func TestHuma_StateTransaction_BadUUID_Canonical400(t *testing.T) {
 	}
 }
 
-func TestHuma_StateTransaction_AuthPreserved(t *testing.T) {
+func TestStateTransaction_AuthPreserved(t *testing.T) {
 	// NOT parallel: process-global huma state.
 	orgID := uuid.New()
 	ledgerID := uuid.New()
@@ -304,7 +312,7 @@ func TestHuma_StateTransaction_AuthPreserved(t *testing.T) {
 	}
 }
 
-func TestHuma_UpdateTransaction_BadUUID_Canonical400(t *testing.T) {
+func TestUpdateTransaction_BadUUID_Canonical400(t *testing.T) {
 	// NOT parallel: process-global huma state.
 	orgID := uuid.New()
 	ledgerID := uuid.New()
@@ -323,7 +331,7 @@ func TestHuma_UpdateTransaction_BadUUID_Canonical400(t *testing.T) {
 	assert.Equal(t, http.StatusBadRequest, resp.StatusCode, "bad transaction_id stays canonical 400 on PATCH")
 }
 
-func TestHuma_UpdateTransaction_MalformedBody_Canonical400(t *testing.T) {
+func TestUpdateTransaction_MalformedBody_Canonical400(t *testing.T) {
 	// NOT parallel: process-global huma state.
 	orgID := uuid.New()
 	ledgerID := uuid.New()
@@ -343,7 +351,7 @@ func TestHuma_UpdateTransaction_MalformedBody_Canonical400(t *testing.T) {
 	assert.Equal(t, http.StatusBadRequest, resp.StatusCode, "malformed PATCH body stays canonical 400 — no native Huma 422")
 }
 
-func TestHuma_GetTransaction_BadUUID_Canonical400(t *testing.T) {
+func TestGetTransaction_BadUUID_Canonical400(t *testing.T) {
 	// NOT parallel: process-global huma state.
 	orgID := uuid.New()
 	ledgerID := uuid.New()
@@ -361,7 +369,7 @@ func TestHuma_GetTransaction_BadUUID_Canonical400(t *testing.T) {
 	assert.Equal(t, http.StatusBadRequest, resp.StatusCode, "bad transaction_id stays canonical 400 on GET-by-id")
 }
 
-func TestHuma_GetAllTransactions_AuthPreserved(t *testing.T) {
+func TestGetAllTransactions_AuthPreserved(t *testing.T) {
 	// NOT parallel: process-global huma state.
 	orgID := uuid.New()
 	ledgerID := uuid.New()
@@ -379,7 +387,7 @@ func TestHuma_GetAllTransactions_AuthPreserved(t *testing.T) {
 	assert.Equal(t, http.StatusUnauthorized, resp.StatusCode, "auth middleware must reject before Huma on list")
 }
 
-func TestHuma_GetAllTransactions_BadQueryParam_Canonical400(t *testing.T) {
+func TestGetAllTransactions_BadQueryParam_Canonical400(t *testing.T) {
 	// NOT parallel: process-global huma state.
 	orgID := uuid.New()
 	ledgerID := uuid.New()
@@ -387,8 +395,8 @@ func TestHuma_GetAllTransactions_BadQueryParam_Canonical400(t *testing.T) {
 	handler := bareTransactionHandler()
 	app := buildHumaTransactionApp(t, handler, true)
 
-	// An out-of-range limit is rejected by http.ValidateParameters (the SAME binder the
-	// Fiber path runs) with the canonical 400 — no native Huma 422 — before any service call.
+	// An out-of-range limit is rejected by http.ValidateParameters with the canonical 400
+	// — no native Huma 422 — before any service call.
 	url := "/v1/organizations/" + orgID.String() + "/ledgers/" + ledgerID.String() + "/transactions?limit=not-a-number"
 	req := httptest.NewRequest(http.MethodGet, url, nil)
 

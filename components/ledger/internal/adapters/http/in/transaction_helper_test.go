@@ -6,11 +6,8 @@ package in
 
 import (
 	"context"
-	"encoding/json"
-	"net/http/httptest"
 	"testing"
 
-	"github.com/gofiber/fiber/v3"
 	"github.com/google/uuid"
 	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/assert"
@@ -53,75 +50,6 @@ func TestGetAliasWithoutKey(t *testing.T) {
 	result := getAliasWithoutKey(input)
 
 	assert.Equal(t, []string{"origin", "destination", "third"}, result)
-}
-
-func TestReadPathParams(t *testing.T) {
-	t.Parallel()
-
-	t.Run("returns scope with transaction id when present", func(t *testing.T) {
-		t.Parallel()
-
-		organizationID := uuid.New()
-		ledgerID := uuid.New()
-		transactionID := uuid.New()
-
-		app := fiber.New()
-		app.Get("/scope", func(c fiber.Ctx) error {
-			c.SetContext(context.Background())
-			c.Locals("organization_id", organizationID)
-			c.Locals("ledger_id", ledgerID)
-			c.Locals("transaction_id", transactionID)
-
-			scope, err := readPathParams(c)
-			if err != nil {
-				return err
-			}
-
-			return c.JSON(scope)
-		})
-
-		resp, err := app.Test(httptest.NewRequest(fiber.MethodGet, "/scope", nil))
-		require.NoError(t, err)
-		defer resp.Body.Close()
-
-		var scope transactionPathParams
-		require.NoError(t, json.NewDecoder(resp.Body).Decode(&scope))
-
-		assert.Equal(t, organizationID, scope.OrganizationID)
-		assert.Equal(t, ledgerID, scope.LedgerID)
-		assert.Equal(t, transactionID, scope.TransactionID)
-	})
-
-	t.Run("returns nil transaction id when absent", func(t *testing.T) {
-		t.Parallel()
-
-		organizationID := uuid.New()
-		ledgerID := uuid.New()
-
-		app := fiber.New()
-		app.Get("/scope", func(c fiber.Ctx) error {
-			c.Locals("organization_id", organizationID)
-			c.Locals("ledger_id", ledgerID)
-
-			scope, err := readPathParams(c)
-			if err != nil {
-				return err
-			}
-
-			return c.JSON(scope)
-		})
-
-		resp, err := app.Test(httptest.NewRequest(fiber.MethodGet, "/scope", nil))
-		require.NoError(t, err)
-		defer resp.Body.Close()
-
-		var scope transactionPathParams
-		require.NoError(t, json.NewDecoder(resp.Body).Decode(&scope))
-
-		assert.Equal(t, organizationID, scope.OrganizationID)
-		assert.Equal(t, ledgerID, scope.LedgerID)
-		assert.Equal(t, uuid.Nil, scope.TransactionID)
-	})
 }
 
 func TestApplyDefaultBalanceKeys(t *testing.T) {

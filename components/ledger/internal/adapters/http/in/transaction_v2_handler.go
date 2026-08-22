@@ -168,10 +168,10 @@ func (handler *TransactionHandler) CreateTransactionUnblockV2Huma(ctx context.Co
 // --- POST /organizations/{organization_id}/ledgers/{ledger_id}/transactions/{transaction_id}/{commit,cancel,revert} ---
 
 // CommitTransactionV2Huma is the /v2 shell over the SAME commitTransaction core the v1
-// CommitTransactionHuma shell calls (fetch write-behind/DB, then commitOrCancelTransaction with
+// CommitTransaction shell calls (fetch write-behind/DB, then commitOrCancelTransaction with
 // APPROVED). It differs from the v1 shell only in the response envelope: the /v2 wire shape
 // (TransactionV2) instead of the canonical transaction.Transaction. Returns 201.
-func (handler *TransactionHandler) CommitTransactionV2Huma(ctx context.Context, in *StateTransactionInputHuma) (*StateTransactionOutputV2Huma, error) {
+func (handler *TransactionHandler) CommitTransactionV2Huma(ctx context.Context, in *StateTransactionRequest) (*StateTransactionOutputV2Huma, error) {
 	orgID, ledgerID, txID, err := parseOrgLedgerTx(in)
 	if err != nil {
 		return nil, pkgHTTP.HumaProblem(err)
@@ -186,9 +186,9 @@ func (handler *TransactionHandler) CommitTransactionV2Huma(ctx context.Context, 
 }
 
 // CancelTransactionV2Huma is the /v2 shell over the SAME commitTransaction core the v1
-// CancelTransactionHuma shell calls (CANCELED, which runs the tracer release-by-transaction
+// CancelTransaction shell calls (CANCELED, which runs the tracer release-by-transaction
 // two-phase), differing only in the /v2 response envelope. Returns 201.
-func (handler *TransactionHandler) CancelTransactionV2Huma(ctx context.Context, in *StateTransactionInputHuma) (*StateTransactionOutputV2Huma, error) {
+func (handler *TransactionHandler) CancelTransactionV2Huma(ctx context.Context, in *StateTransactionRequest) (*StateTransactionOutputV2Huma, error) {
 	orgID, ledgerID, txID, err := parseOrgLedgerTx(in)
 	if err != nil {
 		return nil, pkgHTTP.HumaProblem(err)
@@ -203,11 +203,11 @@ func (handler *TransactionHandler) CancelTransactionV2Huma(ctx context.Context, 
 }
 
 // RevertTransactionV2Huma is the /v2 shell over the SAME revertTransaction core the v1
-// RevertTransactionHuma shell calls (parent/revert eligibility + bidirectional-route checks,
+// RevertTransaction shell calls (parent/revert eligibility + bidirectional-route checks,
 // then createRevertTransaction), differing only in the /v2 response envelope
-// (CreateTransactionOutputV2Huma instead of CreateTransactionOutputHuma) — a revert IS a
+// (CreateTransactionOutputV2Huma instead of CreateTransactionResponse) — a revert IS a
 // create, so it carries the same 201 + X-Idempotency-Replayed shape as the v2 create actions.
-func (handler *TransactionHandler) RevertTransactionV2Huma(ctx context.Context, in *StateTransactionInputHuma) (*CreateTransactionOutputV2Huma, error) {
+func (handler *TransactionHandler) RevertTransactionV2Huma(ctx context.Context, in *StateTransactionRequest) (*CreateTransactionOutputV2Huma, error) {
 	orgID, ledgerID, txID, err := parseOrgLedgerTx(in)
 	if err != nil {
 		return nil, pkgHTTP.HumaProblem(err)

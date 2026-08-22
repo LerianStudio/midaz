@@ -198,13 +198,12 @@ func registerCountTransactionRoutesToApp(group fiber.Router, api huma.API, auth 
 	RegisterCountTransactionRoutes(api, th, opSuffix)
 }
 
-// RegisterTransactionHumaRoutesToApp wires the twelve Wave-4 Huma-migrated transaction
-// ops (six CREATE — json/inflow/outflow/annotation/block/unblock, three id-only STATE,
-// one PATCH, two READ). Auth is
-// auth.Authorize("midaz","transactions",verb) + tenant + ParseUUIDPathParameters
-// ("transaction"), attached as middleware-only on the /v1 group BEFORE the Huma terminals
-// — the SAME (appName, resource, verb) tuples the inline Fiber routes carried, preserved
-// byte-for-byte. Paths are relative to the /v1 group; the Huma terminals are attached by
+// RegisterTransactionHumaRoutesToApp wires the twelve transaction ops (six CREATE —
+// json/inflow/outflow/annotation/block/unblock, three id-only STATE, one PATCH, two
+// READ). Auth is auth.Authorize("midaz","transactions",verb) + tenant +
+// ParseUUIDPathParameters("transaction"), attached as middleware-only on the /v1 group
+// BEFORE the Huma terminals, so each op keeps its (appName, resource, verb) tuple. Paths
+// are relative to the /v1 group; the Huma terminals are attached by
 // RegisterTransactionRoutes.
 func RegisterTransactionHumaRoutesToApp(group fiber.Router, api huma.API, auth *middleware.AuthClient, th *TransactionHandler, routeOptions *http.ProtectedRouteOptions) {
 	const (
