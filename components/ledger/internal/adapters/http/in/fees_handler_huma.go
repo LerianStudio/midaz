@@ -60,7 +60,7 @@ func decodeFeeBodyInSpan(ctx context.Context, rawBody []byte, payload any) error
 	return nil
 }
 
-// EstimateFeeOutputHuma carries the estimate envelope at 200 (the endpoint is a
+// EstimateFeeResponse carries the estimate envelope at 200 (the endpoint is a
 // compute/RPC-style calculation that persists nothing).
 //
 // Body is a pre-serialized []byte, NOT *model.FeeEstimateResponse: the response
@@ -73,7 +73,7 @@ func decodeFeeBodyInSpan(ctx context.Context, rawBody []byte, payload any) error
 // keeps Huma from recursing into that tree (it schema-gens as an opaque string) while
 // the wire bytes stay byte-identical to the Fiber commonsHttp.Respond(JSON) path.
 // ContentType pins application/json so the response header matches Fiber.
-type EstimateFeeOutputHuma struct {
+type EstimateFeeResponse struct {
 	Status int
 	Body   []byte `contentType:"application/json"`
 }

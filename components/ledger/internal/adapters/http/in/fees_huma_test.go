@@ -10,6 +10,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"strconv"
 	"testing"
 
 	openapi "github.com/LerianStudio/lib-commons/v6/commons/net/http/openapi"
@@ -38,8 +39,8 @@ func feesAuthShim(authOK bool) fiber.Handler {
 	}
 }
 
-// The stubPackageService / stubFeeService fakes and the validCreatePackageInput
-// helper live in fees_billing_handlers_test.go; these Huma tests reuse them.
+// The stubPackageService and stubFeeService fakes live in
+// fees_billing_handlers_test.go; these tests reuse them.
 
 // feePkgV2Base is the request-URL prefix for the v2 fee surface. Each test completes it
 // by hand, appending the org, "/ledgers/"+ledger, and the resource segment (packages /
@@ -115,7 +116,7 @@ func buildHumaFeeEstimateApp(t *testing.T, handler *FeeHandler, authOK bool) *fi
 
 func validLedgerUUID() string { return "00000000-0000-0000-0000-000000000009" }
 
-func TestHuma_CreatePackage_Success(t *testing.T) {
+func TestCreatePackage_Success(t *testing.T) {
 	orgID := uuid.New()
 	packID := uuid.New()
 
@@ -147,7 +148,7 @@ func TestHuma_CreatePackage_Success(t *testing.T) {
 	assert.Equal(t, packID.String(), got["id"])
 }
 
-func TestHuma_CreatePackage_AuthPreserved(t *testing.T) {
+func TestCreatePackage_AuthPreserved(t *testing.T) {
 	orgID := uuid.New()
 
 	handler := &PackageHandler{Service: &stubPackageService{}}
@@ -163,7 +164,7 @@ func TestHuma_CreatePackage_AuthPreserved(t *testing.T) {
 	assert.Equal(t, http.StatusUnauthorized, resp.StatusCode, "auth middleware must reject before Huma")
 }
 
-func TestHuma_CreatePackage_MalformedBody_Canonical400(t *testing.T) {
+func TestCreatePackage_MalformedBody_Canonical400(t *testing.T) {
 	orgID := uuid.New()
 
 	handler := &PackageHandler{Service: &stubPackageService{}}
@@ -185,7 +186,7 @@ func TestHuma_CreatePackage_MalformedBody_Canonical400(t *testing.T) {
 	assert.Equal(t, constant.ErrInvalidRequestBody.Error(), got["code"], "malformed-body code preserved (0094)")
 }
 
-func TestHuma_GetPackageByID_Success(t *testing.T) {
+func TestGetPackageByID_Success(t *testing.T) {
 	orgID := uuid.New()
 	packID := uuid.New()
 
@@ -208,7 +209,7 @@ func TestHuma_GetPackageByID_Success(t *testing.T) {
 	assert.Equal(t, packID.String(), got["id"])
 }
 
-func TestHuma_GetPackageByID_BadUUID_Canonical400(t *testing.T) {
+func TestGetPackageByID_BadUUID_Canonical400(t *testing.T) {
 	orgID := uuid.New()
 
 	handler := &PackageHandler{Service: &stubPackageService{}}
@@ -227,7 +228,7 @@ func TestHuma_GetPackageByID_BadUUID_Canonical400(t *testing.T) {
 	assert.Equal(t, constant.ErrInvalidPathParameter.Error(), got["code"])
 }
 
-func TestHuma_GetAllPackages_Success(t *testing.T) {
+func TestGetAllPackages_Success(t *testing.T) {
 	orgID := uuid.New()
 
 	stub := &stubPackageService{getAllResult: []*pack.Package{{ID: uuid.New()}}}
@@ -253,7 +254,7 @@ func TestHuma_GetAllPackages_Success(t *testing.T) {
 	assert.EqualValues(t, 1, got["total"])
 }
 
-func TestHuma_GetAllPackages_BadQuery_Canonical400(t *testing.T) {
+func TestGetAllPackages_BadQuery_Canonical400(t *testing.T) {
 	orgID := uuid.New()
 
 	handler := &PackageHandler{Service: &stubPackageService{}}
@@ -272,7 +273,7 @@ func TestHuma_GetAllPackages_BadQuery_Canonical400(t *testing.T) {
 	assert.Equal(t, constant.ErrInvalidQueryParameter.Error(), got["code"])
 }
 
-func TestHuma_UpdatePackage_Success(t *testing.T) {
+func TestUpdatePackage_Success(t *testing.T) {
 	orgID := uuid.New()
 	packID := uuid.New()
 
@@ -299,7 +300,7 @@ func TestHuma_UpdatePackage_Success(t *testing.T) {
 	assert.Equal(t, packID.String(), got["id"])
 }
 
-func TestHuma_DeletePackage_204Empty(t *testing.T) {
+func TestDeletePackage_204Empty(t *testing.T) {
 	orgID := uuid.New()
 	packID := uuid.New()
 
@@ -427,4 +428,307 @@ func validSendJSON() string {
 // path names the same ledger.
 func validCreatePackageJSON() string {
 	return `{"feeGroupLabel":"Standard","ledgerId":"` + validLedgerUUID() + `","minimumAmount":"100.00","maximumAmount":"1000.00","enable":true,"fees":{"f1":{"feeLabel":"Admin","referenceAmount":"afterFeesAmount","priority":2,"isDeductibleFrom":false,"creditAccount":"conta_receita","calculationModel":{"applicationRule":"flatFee","calculations":[{"type":"flat","value":"50.00"}]}}}}`
+}
+
+// packageFeeJSON builds one validator-clearing fee entry: every required Fee field is
+// present and the calculation model is a single flat calculation, so only the
+// referenceAmount/priority pair under test decides whether the handler guards fire.
+func packageFeeJSON(label, referenceAmount string, priority int) string {
+	return `{"feeLabel":"` + label + `","referenceAmount":"` + referenceAmount +
+		`","priority":` + strconv.Itoa(priority) +
+		`,"isDeductibleFrom":false,"creditAccount":"conta_receita",` +
+		`"calculationModel":{"applicationRule":"flatFee","calculations":[{"type":"flat","value":"50.00"}]}}`
+}
+
+// createPackageJSON assembles a create-package body around a fee map and an amount
+// range, keeping every other required field at a validator-clearing value. extra is
+// spliced in verbatim so a test can add an optional field such as segmentId.
+func createPackageJSON(minAmount, maxAmount, fees, extra string) string {
+	return `{"feeGroupLabel":"Standard","ledgerId":"` + validLedgerUUID() + `"` + extra +
+		`,"minimumAmount":"` + minAmount + `","maximumAmount":"` + maxAmount +
+		`","enable":true,"fees":` + fees + `}`
+}
+
+// postPackage sends a create-package request at the ledger the body names.
+func postPackage(t *testing.T, app *fiber.App, orgID uuid.UUID, body string) *http.Response {
+	t.Helper()
+
+	req := httptest.NewRequest(http.MethodPost, feePkgV2Base+orgID.String()+"/ledgers/"+validLedgerUUID()+"/packages", bytes.NewBufferString(body))
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
+	require.NoError(t, err)
+
+	return resp
+}
+
+// patchPackage sends an update-package request for one package id.
+func patchPackage(t *testing.T, app *fiber.App, orgID, packID uuid.UUID, body string) *http.Response {
+	t.Helper()
+
+	req := httptest.NewRequest(http.MethodPatch, feePkgV2Base+orgID.String()+"/ledgers/"+validLedgerUUID()+"/packages/"+packID.String(), bytes.NewBufferString(body))
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
+	require.NoError(t, err)
+
+	return resp
+}
+
+// assertProblem drains a problem response and asserts the canonical error code.
+func assertProblem(t *testing.T, resp *http.Response, wantStatus int, wantCode string) {
+	t.Helper()
+
+	respBody, _ := io.ReadAll(resp.Body)
+	assert.Equal(t, wantStatus, resp.StatusCode, "body: %s", string(respBody))
+
+	var got map[string]any
+	require.NoError(t, json.Unmarshal(respBody, &got), "body: %s", string(respBody))
+	assert.Equal(t, wantCode, got["code"])
+}
+
+func TestCreatePackage_SegmentIDParsedAndForwarded(t *testing.T) {
+	orgID := uuid.New()
+	segmentID := uuid.New()
+
+	stub := &stubPackageService{createResult: &pack.Package{ID: uuid.New()}}
+	handler := &PackageHandler{Service: stub}
+
+	body := createPackageJSON("100.00", "1000.00",
+		`{"f1":`+packageFeeJSON("Admin", "afterFeesAmount", 2)+`}`,
+		`,"segmentId":"`+segmentID.String()+`"`)
+
+	resp := postPackage(t, buildHumaPackageApp(t, handler, true), orgID, body)
+	defer func() { _ = resp.Body.Close() }()
+
+	respBody, _ := io.ReadAll(resp.Body)
+	assert.Equal(t, http.StatusCreated, resp.StatusCode, "body: %s", string(respBody))
+	assert.Equal(t, segmentID, stub.gotCreateSeg, "segmentId must be parsed and forwarded")
+}
+
+func TestCreatePackage_MalformedSegmentID_Canonical400(t *testing.T) {
+	orgID := uuid.New()
+
+	stub := &stubPackageService{}
+	handler := &PackageHandler{Service: stub}
+
+	body := createPackageJSON("100.00", "1000.00",
+		`{"f1":`+packageFeeJSON("Admin", "afterFeesAmount", 2)+`}`,
+		`,"segmentId":"not-a-uuid"`)
+
+	resp := postPackage(t, buildHumaPackageApp(t, handler, true), orgID, body)
+	defer func() { _ = resp.Body.Close() }()
+
+	assertProblem(t, resp, http.StatusBadRequest, constant.ErrInvalidSegmentID.Error())
+	assert.False(t, stub.createCalled, "a malformed segment id must short-circuit before the service")
+}
+
+func TestCreatePackage_MinGreaterThanMax_422(t *testing.T) {
+	orgID := uuid.New()
+
+	stub := &stubPackageService{}
+	handler := &PackageHandler{Service: stub}
+
+	body := createPackageJSON("1000.00", "1.00",
+		`{"f1":`+packageFeeJSON("Admin", "afterFeesAmount", 2)+`}`, "")
+
+	resp := postPackage(t, buildHumaPackageApp(t, handler, true), orgID, body)
+	defer func() { _ = resp.Body.Close() }()
+
+	assertProblem(t, resp, http.StatusUnprocessableEntity, constant.ErrMinAmountGreaterThanMaxAmount.Error())
+	assert.False(t, stub.createCalled)
+}
+
+func TestCreatePackage_PriorityOneWrongReference_Canonical400(t *testing.T) {
+	orgID := uuid.New()
+
+	stub := &stubPackageService{}
+	handler := &PackageHandler{Service: stub}
+
+	body := createPackageJSON("100.00", "1000.00",
+		`{"f1":`+packageFeeJSON("Admin", "afterFeesAmount", 1)+`}`, "")
+
+	resp := postPackage(t, buildHumaPackageApp(t, handler, true), orgID, body)
+	defer func() { _ = resp.Body.Close() }()
+
+	assertProblem(t, resp, http.StatusBadRequest, constant.ErrPriorityOne.Error())
+	assert.False(t, stub.createCalled, "fee validation must short-circuit before the service")
+}
+
+func TestCreatePackage_DuplicatePriorities_Canonical400(t *testing.T) {
+	orgID := uuid.New()
+
+	stub := &stubPackageService{}
+	handler := &PackageHandler{Service: stub}
+
+	// Both fees clear ValidateFees (priority 2, non-deductible), so the request
+	// reaches the handler's duplicate-priority guard.
+	body := createPackageJSON("100.00", "1000.00",
+		`{"a":`+packageFeeJSON("F1", "afterFeesAmount", 2)+`,"b":`+packageFeeJSON("F2", "afterFeesAmount", 2)+`}`, "")
+
+	resp := postPackage(t, buildHumaPackageApp(t, handler, true), orgID, body)
+	defer func() { _ = resp.Body.Close() }()
+
+	assertProblem(t, resp, http.StatusBadRequest, constant.ErrPriorityInvalid.Error())
+	assert.False(t, stub.createCalled)
+}
+
+func TestCreatePackage_ServiceError_Mapped(t *testing.T) {
+	orgID := uuid.New()
+
+	stub := &stubPackageService{createErr: pkg.ValidateBusinessError(constant.ErrDuplicatePackage, constant.EntityPackage)}
+	handler := &PackageHandler{Service: stub}
+
+	resp := postPackage(t, buildHumaPackageApp(t, handler, true), orgID, validCreatePackageJSON())
+	defer func() { _ = resp.Body.Close() }()
+
+	assertProblem(t, resp, http.StatusConflict, constant.ErrDuplicatePackage.Error())
+}
+
+func TestGetAllPackages_ServiceError_Mapped(t *testing.T) {
+	orgID := uuid.New()
+
+	stub := &stubPackageService{getAllErr: pkg.ValidateBusinessError(constant.ErrCalculateFee, constant.EntityFeeCalculation)}
+	handler := &PackageHandler{Service: stub}
+
+	app := buildHumaPackageApp(t, handler, true)
+
+	req := httptest.NewRequest(http.MethodGet, feePkgV2Base+orgID.String()+"/ledgers/"+validLedgerUUID()+"/packages", nil)
+	resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
+	require.NoError(t, err)
+
+	defer func() { _ = resp.Body.Close() }()
+
+	assertProblem(t, resp, http.StatusInternalServerError, constant.ErrCalculateFee.Error())
+}
+
+func TestGetPackageByID_NotFound_404(t *testing.T) {
+	orgID := uuid.New()
+	packID := uuid.New()
+
+	stub := &stubPackageService{getByIDErr: pkg.ValidateBusinessError(constant.ErrEntityNotFound, constant.EntityPackage)}
+	handler := &PackageHandler{Service: stub}
+
+	app := buildHumaPackageApp(t, handler, true)
+
+	req := httptest.NewRequest(http.MethodGet, feePkgV2Base+orgID.String()+"/ledgers/"+validLedgerUUID()+"/packages/"+packID.String(), nil)
+	resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
+	require.NoError(t, err)
+
+	defer func() { _ = resp.Body.Close() }()
+
+	assertProblem(t, resp, http.StatusNotFound, constant.ErrEntityNotFound.Error())
+}
+
+func TestUpdatePackage_ValidFeeMapReachesService(t *testing.T) {
+	orgID := uuid.New()
+	packID := uuid.New()
+
+	stub := &stubPackageService{getByIDResult: &pack.Package{ID: packID, FeeGroupLabel: "After"}}
+	handler := &PackageHandler{Service: stub}
+
+	body := `{"fees":{"a":{"feeLabel":"Admin","priority":2,"referenceAmount":"originalAmount"}}}`
+
+	resp := patchPackage(t, buildHumaPackageApp(t, handler, true), orgID, packID, body)
+	defer func() { _ = resp.Body.Close() }()
+
+	respBody, _ := io.ReadAll(resp.Body)
+	assert.Equal(t, http.StatusOK, resp.StatusCode, "body: %s", string(respBody))
+	assert.True(t, stub.updateCalled, "a valid fee map must pass the fee guards and reach the service")
+}
+
+func TestUpdatePackage_PriorityOneWrongReference_Canonical400(t *testing.T) {
+	orgID := uuid.New()
+	packID := uuid.New()
+
+	stub := &stubPackageService{}
+	handler := &PackageHandler{Service: stub}
+
+	body := `{"fees":{"a":{"feeLabel":"F1","priority":1,"referenceAmount":"afterFeesAmount"}}}`
+
+	resp := patchPackage(t, buildHumaPackageApp(t, handler, true), orgID, packID, body)
+	defer func() { _ = resp.Body.Close() }()
+
+	assertProblem(t, resp, http.StatusBadRequest, constant.ErrPriorityOne.Error())
+	assert.False(t, stub.updateCalled, "fee validation must short-circuit before the service")
+}
+
+func TestUpdatePackage_DuplicatePriorities_Canonical400(t *testing.T) {
+	orgID := uuid.New()
+	packID := uuid.New()
+
+	stub := &stubPackageService{}
+	handler := &PackageHandler{Service: stub}
+
+	body := `{"fees":{` +
+		`"a":{"feeLabel":"F1","priority":3,"referenceAmount":"originalAmount"},` +
+		`"b":{"feeLabel":"F2","priority":3,"referenceAmount":"originalAmount"}}}`
+
+	resp := patchPackage(t, buildHumaPackageApp(t, handler, true), orgID, packID, body)
+	defer func() { _ = resp.Body.Close() }()
+
+	assertProblem(t, resp, http.StatusBadRequest, constant.ErrPriorityInvalid.Error())
+	assert.False(t, stub.updateCalled, "duplicate priorities must short-circuit before the service")
+}
+
+func TestUpdatePackage_MinGreaterThanMax_422(t *testing.T) {
+	orgID := uuid.New()
+	packID := uuid.New()
+
+	stub := &stubPackageService{}
+	handler := &PackageHandler{Service: stub}
+
+	resp := patchPackage(t, buildHumaPackageApp(t, handler, true), orgID, packID, `{"minimumAmount":"100","maximumAmount":"1"}`)
+	defer func() { _ = resp.Body.Close() }()
+
+	assertProblem(t, resp, http.StatusUnprocessableEntity, constant.ErrMinAmountGreaterThanMaxAmount.Error())
+	assert.False(t, stub.updateCalled)
+}
+
+func TestUpdatePackage_UpdateError_404(t *testing.T) {
+	orgID := uuid.New()
+	packID := uuid.New()
+
+	stub := &stubPackageService{updateErr: pkg.ValidateBusinessError(constant.ErrEntityNotFound, constant.EntityPackage)}
+	handler := &PackageHandler{Service: stub}
+
+	resp := patchPackage(t, buildHumaPackageApp(t, handler, true), orgID, packID, `{"feeGroupLabel":"X"}`)
+	defer func() { _ = resp.Body.Close() }()
+
+	assertProblem(t, resp, http.StatusNotFound, constant.ErrEntityNotFound.Error())
+	assert.True(t, stub.updateCalled)
+}
+
+func TestUpdatePackage_ReReadError_Mapped(t *testing.T) {
+	orgID := uuid.New()
+	packID := uuid.New()
+
+	// The write succeeds and the re-read fails, so the response must carry the
+	// re-read failure rather than a 200 built from a stale package.
+	stub := &stubPackageService{getByIDErr: pkg.ValidateBusinessError(constant.ErrCalculateFee, constant.EntityFeeCalculation)}
+	handler := &PackageHandler{Service: stub}
+
+	resp := patchPackage(t, buildHumaPackageApp(t, handler, true), orgID, packID, `{"feeGroupLabel":"X"}`)
+	defer func() { _ = resp.Body.Close() }()
+
+	assertProblem(t, resp, http.StatusInternalServerError, constant.ErrCalculateFee.Error())
+	assert.True(t, stub.updateCalled)
+}
+
+func TestDeletePackage_NotFound_404(t *testing.T) {
+	orgID := uuid.New()
+	packID := uuid.New()
+
+	stub := &stubPackageService{deleteErr: pkg.ValidateBusinessError(constant.ErrEntityNotFound, constant.EntityPackage)}
+	handler := &PackageHandler{Service: stub}
+
+	app := buildHumaPackageApp(t, handler, true)
+
+	req := httptest.NewRequest(http.MethodDelete, feePkgV2Base+orgID.String()+"/ledgers/"+validLedgerUUID()+"/packages/"+packID.String(), nil)
+	resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
+	require.NoError(t, err)
+
+	defer func() { _ = resp.Body.Close() }()
+
+	assertProblem(t, resp, http.StatusNotFound, constant.ErrEntityNotFound.Error())
 }

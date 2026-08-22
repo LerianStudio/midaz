@@ -70,7 +70,7 @@ func registerPackageV2Routes(api huma.API, h *PackageHandler) {
 		// Body validated imperatively (feehttp.DecodeValidateBody) — see fees_v2_handler.go.
 		SkipValidateBody: true,
 		DefaultStatus:    http.StatusCreated,
-	}, h.CreatePackageV2Huma)
+	}, h.CreatePackageV2)
 	attachTypedRequestBody[model.CreatePackageInput](api, "createPackage"+feeOpSuffixV2)
 
 	huma.Register(api, huma.Operation{
@@ -80,7 +80,7 @@ func registerPackageV2Routes(api huma.API, h *PackageHandler) {
 		Summary:     "Get all packages of a ledger",
 		Tags:        []string{tag},
 		Security:    secPackageBearer,
-	}, h.GetAllPackagesV2Huma)
+	}, h.GetAllPackagesV2)
 
 	huma.Register(api, huma.Operation{
 		OperationID: "getPackageByID" + feeOpSuffixV2,
@@ -89,7 +89,7 @@ func registerPackageV2Routes(api huma.API, h *PackageHandler) {
 		Summary:     "Get package",
 		Tags:        []string{tag},
 		Security:    secPackageBearer,
-	}, h.GetPackageByIDV2Huma)
+	}, h.GetPackageByIDV2)
 
 	huma.Register(api, huma.Operation{
 		OperationID:      "updatePackage" + feeOpSuffixV2,
@@ -99,7 +99,7 @@ func registerPackageV2Routes(api huma.API, h *PackageHandler) {
 		Tags:             []string{tag},
 		Security:         secPackageBearer,
 		SkipValidateBody: true, // body validated imperatively — see createPackage.
-	}, h.UpdatePackageByIDV2Huma)
+	}, h.UpdatePackageByIDV2)
 	attachTypedRequestBody[model.UpdatePackageInput](api, "updatePackage"+feeOpSuffixV2)
 
 	huma.Register(api, huma.Operation{
@@ -111,7 +111,7 @@ func registerPackageV2Routes(api huma.API, h *PackageHandler) {
 		Security:    secPackageBearer,
 		// DefaultStatus 204 + an Out struct with no Body field => bodiless 204.
 		DefaultStatus: http.StatusNoContent,
-	}, h.DeletePackageByIDV2Huma)
+	}, h.DeletePackageByIDV2)
 }
 
 // registerFeeEstimateV2Routes registers the ledger-scoped fee-estimate operation.
@@ -125,7 +125,7 @@ func registerFeeEstimateV2Routes(api huma.API, h *FeeHandler) {
 		Security:    secFeeBearer,
 		// Body validated imperatively (feehttp.DecodeValidateBody) — see fees_v2_handler.go.
 		SkipValidateBody: true,
-	}, h.EstimateFeeCalculationV2Huma)
+	}, h.EstimateFeeCalculationV2)
 	attachTypedRequestBody[model.FeeEstimate](api, "estimateFeeCalculation"+feeOpSuffixV2)
 }
 
@@ -147,7 +147,7 @@ func registerBillingPackageV2Routes(api huma.API, h *BillingPackageHandler) {
 		// Body validated imperatively (feehttp.DecodeValidateBody) — see fees_v2_handler.go.
 		SkipValidateBody: true,
 		DefaultStatus:    http.StatusCreated,
-	}, h.CreateBillingPackageV2Huma)
+	}, h.CreateBillingPackageV2)
 	attachTypedRequestBody[model.BillingPackage](api, "createBillingPackage"+feeOpSuffixV2)
 
 	huma.Register(api, huma.Operation{
@@ -157,7 +157,7 @@ func registerBillingPackageV2Routes(api huma.API, h *BillingPackageHandler) {
 		Summary:     "Get all billing packages of a ledger",
 		Tags:        []string{tag},
 		Security:    secBillingBearer,
-	}, h.GetAllBillingPackagesV2Huma)
+	}, h.GetAllBillingPackagesV2)
 
 	huma.Register(api, huma.Operation{
 		OperationID: "getBillingPackageByID" + feeOpSuffixV2,
@@ -166,7 +166,7 @@ func registerBillingPackageV2Routes(api huma.API, h *BillingPackageHandler) {
 		Summary:     "Get billing package",
 		Tags:        []string{tag},
 		Security:    secBillingBearer,
-	}, h.GetBillingPackageByIDV2Huma)
+	}, h.GetBillingPackageByIDV2)
 
 	huma.Register(api, huma.Operation{
 		OperationID:      "updateBillingPackage" + feeOpSuffixV2,
@@ -176,7 +176,7 @@ func registerBillingPackageV2Routes(api huma.API, h *BillingPackageHandler) {
 		Tags:             []string{tag},
 		Security:         secBillingBearer,
 		SkipValidateBody: true, // body validated imperatively — see createBillingPackage.
-	}, h.UpdateBillingPackageV2Huma)
+	}, h.UpdateBillingPackageV2)
 	attachTypedRequestBody[model.BillingPackageUpdate](api, "updateBillingPackage"+feeOpSuffixV2)
 
 	huma.Register(api, huma.Operation{
@@ -188,7 +188,7 @@ func registerBillingPackageV2Routes(api huma.API, h *BillingPackageHandler) {
 		Security:    secBillingBearer,
 		// DefaultStatus 204 + an Out struct with no Body field => bodiless 204.
 		DefaultStatus: http.StatusNoContent,
-	}, h.DeleteBillingPackageV2Huma)
+	}, h.DeleteBillingPackageV2)
 }
 
 // registerBillingCalculateV2Routes registers the ledger-scoped billing-calculate
@@ -203,7 +203,7 @@ func registerBillingCalculateV2Routes(api huma.API, h *BillingCalculateHandler) 
 		Security:    secBillingBearer,
 		// Body validated imperatively (feehttp.DecodeValidateBody) — see fees_v2_handler.go.
 		SkipValidateBody: true,
-	}, h.CalculateBillingV2Huma)
+	}, h.CalculateBillingV2)
 	attachTypedRequestBody[model.BillingCalculateRequest](api, "calculateBilling"+feeOpSuffixV2)
 }
 
