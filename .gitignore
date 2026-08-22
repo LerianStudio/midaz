@@ -53,3 +53,6 @@ cert/
 
 # Checkout-scoped tool caches (see GOLANGCI_LINT_CACHE in mk/utils.mk)
 .cache/
+
+# Compiled Grafana dashboards are build artifacts; the .libsonnet is the source.
+docs/dashboards/*/*/*.json
