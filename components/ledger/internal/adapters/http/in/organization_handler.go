@@ -48,22 +48,22 @@ var secOrgBearerOrAPIKey = []map[string][]string{
 
 // --- POST /organizations ------------------------------------------------------
 
-// CreateOrganizationInputHuma is the Huma request envelope for POST. RawBody keeps
+// CreateOrganizationRequest is the Huma request envelope for POST. RawBody keeps
 // the body out of Huma's validator (see file header).
-type CreateOrganizationInputHuma struct {
+type CreateOrganizationRequest struct {
 	Authorization string `header:"Authorization" doc:"Bearer token (forwarded to the service)"`
 	RawBody       []byte `contentType:"application/json"`
 }
 
-// CreateOrganizationOutputHuma pins 201 (matching http.Created).
-type CreateOrganizationOutputHuma struct {
+// CreateOrganizationResponse pins 201 (matching http.Created).
+type CreateOrganizationResponse struct {
 	Status int
 	Body   *mmodel.Organization
 }
 
-// CreateOrganizationHuma decodes+validates the raw body imperatively then delegates
+// CreateOrganization decodes+validates the raw body imperatively then delegates
 // to the shared createOrganization core.
-func (handler *OrganizationHandler) CreateOrganizationHuma(ctx context.Context, in *CreateOrganizationInputHuma) (*CreateOrganizationOutputHuma, error) {
+func (handler *OrganizationHandler) CreateOrganization(ctx context.Context, in *CreateOrganizationRequest) (*CreateOrganizationResponse, error) {
 	payload := new(mmodel.CreateOrganizationInput)
 	if _, err := pkgHTTP.DecodeAndValidate(in.RawBody, payload); err != nil {
 		return nil, pkgHTTP.HumaProblem(err)
@@ -74,15 +74,15 @@ func (handler *OrganizationHandler) CreateOrganizationHuma(ctx context.Context, 
 		return nil, pkgHTTP.HumaProblem(err)
 	}
 
-	return &CreateOrganizationOutputHuma{Status: http.StatusCreated, Body: organization}, nil
+	return &CreateOrganizationResponse{Status: http.StatusCreated, Body: organization}, nil
 }
 
 // --- GET /organizations (list) ------------------------------------------------
 
-// ListOrganizationsInputHuma advertises the list query params in the spec (doc-only,
+// ListOrganizationsRequest advertises the list query params in the spec (doc-only,
 // no validation tags) and captures the raw query via Resolve for the imperative
 // http.ValidateParameters binder.
-type ListOrganizationsInputHuma struct {
+type ListOrganizationsRequest struct {
 	Metadata        string `query:"metadata" doc:"JSON string to filter organizations by metadata fields"`
 	Limit           string `query:"limit" doc:"Max items per page (1-100, default 10)"`
 	Page            string `query:"page" doc:"Page number (default 1)"`
@@ -102,7 +102,7 @@ type ListOrganizationsInputHuma struct {
 // Resolve captures the raw query before the handler. It performs NO validation and
 // NEVER returns an error — canonical rejection stays in the core (ValidateParameters
 // + the organization status/name-filter guards).
-func (in *ListOrganizationsInputHuma) Resolve(ctx huma.Context) []error {
+func (in *ListOrganizationsRequest) Resolve(ctx huma.Context) []error {
 	u := ctx.URL()
 	in.rawQuery = u.Query()
 
@@ -112,7 +112,7 @@ func (in *ListOrganizationsInputHuma) Resolve(ctx huma.Context) []error {
 // queries rebuilds the map[string]string http.ValidateParameters consumes, matching
 // Fiber's c.Queries() (last value wins for a repeated key, present-but-empty keys
 // included).
-func (in *ListOrganizationsInputHuma) queries() map[string]string {
+func (in *ListOrganizationsRequest) queries() map[string]string {
 	out := make(map[string]string, len(in.rawQuery))
 	for k, vs := range in.rawQuery {
 		if len(vs) == 0 {
@@ -126,39 +126,39 @@ func (in *ListOrganizationsInputHuma) queries() map[string]string {
 	return out
 }
 
-// ListOrganizationsOutputHuma carries the pagination envelope verbatim.
-type ListOrganizationsOutputHuma struct {
+// ListOrganizationsResponse carries the pagination envelope verbatim.
+type ListOrganizationsResponse struct {
 	Status int
 	Body   pkgHTTP.Pagination
 }
 
-// ListOrganizationsHuma binds the query imperatively then delegates to the shared
+// ListOrganizations binds the query imperatively then delegates to the shared
 // getAllOrganizations core (which owns the status + name-filter guards).
-func (handler *OrganizationHandler) ListOrganizationsHuma(ctx context.Context, in *ListOrganizationsInputHuma) (*ListOrganizationsOutputHuma, error) {
+func (handler *OrganizationHandler) ListOrganizations(ctx context.Context, in *ListOrganizationsRequest) (*ListOrganizationsResponse, error) {
 	pagination, err := handler.getAllOrganizations(ctx, in.queries())
 	if err != nil {
 		return nil, pkgHTTP.HumaProblem(err)
 	}
 
-	return &ListOrganizationsOutputHuma{Status: http.StatusOK, Body: pagination}, nil
+	return &ListOrganizationsResponse{Status: http.StatusOK, Body: pagination}, nil
 }
 
 // --- GET /organizations/{id} --------------------------------------------------
 
-// GetOrganizationInputHuma is the by-id request envelope. The id path param carries
+// GetOrganizationRequest is the by-id request envelope. The id path param carries
 // no format tag (ParseUUIDPathParameters is the sole validator).
-type GetOrganizationInputHuma struct {
+type GetOrganizationRequest struct {
 	ID string `path:"id" doc:"Organization ID (UUID)"`
 }
 
-// GetOrganizationOutputHuma carries the organization verbatim.
-type GetOrganizationOutputHuma struct {
+// GetOrganizationResponse carries the organization verbatim.
+type GetOrganizationResponse struct {
 	Status int
 	Body   *mmodel.Organization
 }
 
-// GetOrganizationByIDHuma delegates to the shared getOrganizationByID core.
-func (handler *OrganizationHandler) GetOrganizationByIDHuma(ctx context.Context, in *GetOrganizationInputHuma) (*GetOrganizationOutputHuma, error) {
+// GetOrganizationByID delegates to the shared getOrganizationByID core.
+func (handler *OrganizationHandler) GetOrganizationByID(ctx context.Context, in *GetOrganizationRequest) (*GetOrganizationResponse, error) {
 	id, err := parsePathUUID(in.ID, "id")
 	if err != nil {
 		return nil, pkgHTTP.HumaProblem(err)
@@ -169,26 +169,26 @@ func (handler *OrganizationHandler) GetOrganizationByIDHuma(ctx context.Context,
 		return nil, pkgHTTP.HumaProblem(err)
 	}
 
-	return &GetOrganizationOutputHuma{Status: http.StatusOK, Body: organization}, nil
+	return &GetOrganizationResponse{Status: http.StatusOK, Body: organization}, nil
 }
 
 // --- PATCH /organizations/{id} ------------------------------------------------
 
-// UpdateOrganizationInputHuma is the update request envelope (RawBody, see Create).
-type UpdateOrganizationInputHuma struct {
+// UpdateOrganizationRequest is the update request envelope (RawBody, see Create).
+type UpdateOrganizationRequest struct {
 	ID      string `path:"id" doc:"Organization ID (UUID)"`
 	RawBody []byte `contentType:"application/json"`
 }
 
-// UpdateOrganizationOutputHuma carries the updated organization (200, matching http.OK).
-type UpdateOrganizationOutputHuma struct {
+// UpdateOrganizationResponse carries the updated organization (200, matching http.OK).
+type UpdateOrganizationResponse struct {
 	Status int
 	Body   *mmodel.Organization
 }
 
-// UpdateOrganizationHuma decodes+validates the raw body imperatively then delegates
+// UpdateOrganization decodes+validates the raw body imperatively then delegates
 // to the shared updateOrganization core.
-func (handler *OrganizationHandler) UpdateOrganizationHuma(ctx context.Context, in *UpdateOrganizationInputHuma) (*UpdateOrganizationOutputHuma, error) {
+func (handler *OrganizationHandler) UpdateOrganization(ctx context.Context, in *UpdateOrganizationRequest) (*UpdateOrganizationResponse, error) {
 	id, err := parsePathUUID(in.ID, "id")
 	if err != nil {
 		return nil, pkgHTTP.HumaProblem(err)
@@ -204,18 +204,18 @@ func (handler *OrganizationHandler) UpdateOrganizationHuma(ctx context.Context, 
 		return nil, pkgHTTP.HumaProblem(err)
 	}
 
-	return &UpdateOrganizationOutputHuma{Status: http.StatusOK, Body: organization}, nil
+	return &UpdateOrganizationResponse{Status: http.StatusOK, Body: organization}, nil
 }
 
 // --- DELETE /organizations/{id} -----------------------------------------------
 
-// DeleteOrganizationOutputHuma has NO Body field: paired with DefaultStatus 204 it
+// DeleteOrganizationResponse has NO Body field: paired with DefaultStatus 204 it
 // makes Huma emit a bodiless 204, matching the Fiber http.NoContent path.
-type DeleteOrganizationOutputHuma struct{}
+type DeleteOrganizationResponse struct{}
 
-// DeleteOrganizationByIDHuma delegates to the shared deleteOrganization core (which
+// DeleteOrganizationByID delegates to the shared deleteOrganization core (which
 // owns the production-environment guard); returns a bodiless 204 on success.
-func (handler *OrganizationHandler) DeleteOrganizationByIDHuma(ctx context.Context, in *GetOrganizationInputHuma) (*DeleteOrganizationOutputHuma, error) {
+func (handler *OrganizationHandler) DeleteOrganizationByID(ctx context.Context, in *GetOrganizationRequest) (*DeleteOrganizationResponse, error) {
 	id, err := parsePathUUID(in.ID, "id")
 	if err != nil {
 		return nil, pkgHTTP.HumaProblem(err)
@@ -225,37 +225,37 @@ func (handler *OrganizationHandler) DeleteOrganizationByIDHuma(ctx context.Conte
 		return nil, pkgHTTP.HumaProblem(err)
 	}
 
-	return &DeleteOrganizationOutputHuma{}, nil
+	return &DeleteOrganizationResponse{}, nil
 }
 
 // --- HEAD /organizations/metrics/count ----------------------------------------
 
-// CountOrganizationsInputHuma is the HEAD-count request envelope (no path params).
-type CountOrganizationsInputHuma struct{}
+// CountOrganizationsRequest is the HEAD-count request envelope (no path params).
+type CountOrganizationsRequest struct{}
 
-// CountOrganizationsOutputHuma replicates the Fiber HEAD-count response manually: the
+// CountOrganizationsResponse replicates the Fiber HEAD-count response manually: the
 // X-Total-Count header carries the count, Content-Length is pinned to 0, and the body
 // is empty at status 204.
-type CountOrganizationsOutputHuma struct {
+type CountOrganizationsResponse struct {
 	TotalCount    string `header:"X-Total-Count"`
 	ContentLength string `header:"Content-Length"`
 }
 
-// CountOrganizationsHuma delegates to the shared countOrganizations core and sets the
+// CountOrganizations delegates to the shared countOrganizations core and sets the
 // count headers.
-func (handler *OrganizationHandler) CountOrganizationsHuma(ctx context.Context, _ *CountOrganizationsInputHuma) (*CountOrganizationsOutputHuma, error) {
+func (handler *OrganizationHandler) CountOrganizations(ctx context.Context, _ *CountOrganizationsRequest) (*CountOrganizationsResponse, error) {
 	count, err := handler.countOrganizations(ctx)
 	if err != nil {
 		return nil, pkgHTTP.HumaProblem(err)
 	}
 
-	return &CountOrganizationsOutputHuma{
+	return &CountOrganizationsResponse{
 		TotalCount:    strconv.FormatInt(count, 10),
 		ContentLength: "0",
 	}, nil
 }
 
-// RegisterOrganizationRoutes registers the six migrated organization operations on
+// RegisterOrganizationRoutes registers the six organization operations on
 // the shared Huma API. It is the per-file seam RegisterOrganizationRoutesToApp calls;
 // the auth + tenant + ParseUUIDPathParameters middleware chain for these routes is
 // attached in RegisterOrganizationRoutesToApp (Fiber-level) BEFORE the Huma terminal,
@@ -285,7 +285,7 @@ func RegisterOrganizationRoutes(api huma.API, h *OrganizationHandler, opSuffix s
 		// Body validated imperatively (http.DecodeAndValidate) — see file header.
 		SkipValidateBody: true,
 		DefaultStatus:    http.StatusCreated,
-	}, h.CreateOrganizationHuma)
+	}, h.CreateOrganization)
 	attachTypedRequestBody[mmodel.CreateOrganizationInput](api, "createOrganization"+opSuffix)
 
 	huma.Register(api, huma.Operation{
@@ -295,7 +295,7 @@ func RegisterOrganizationRoutes(api huma.API, h *OrganizationHandler, opSuffix s
 		Summary:     "List all organizations",
 		Tags:        []string{tag},
 		Security:    secOrgBearerOrAPIKey,
-	}, h.ListOrganizationsHuma)
+	}, h.ListOrganizations)
 
 	huma.Register(api, huma.Operation{
 		OperationID: "getOrganizationByID" + opSuffix,
@@ -304,7 +304,7 @@ func RegisterOrganizationRoutes(api huma.API, h *OrganizationHandler, opSuffix s
 		Summary:     "Retrieve a specific organization",
 		Tags:        []string{tag},
 		Security:    secOrgBearerOrAPIKey,
-	}, h.GetOrganizationByIDHuma)
+	}, h.GetOrganizationByID)
 
 	huma.Register(api, huma.Operation{
 		OperationID:      "updateOrganization" + opSuffix,
@@ -314,7 +314,7 @@ func RegisterOrganizationRoutes(api huma.API, h *OrganizationHandler, opSuffix s
 		Tags:             []string{tag},
 		Security:         secOrgBearerOrAPIKey,
 		SkipValidateBody: true, // body validated imperatively — see createOrganization.
-	}, h.UpdateOrganizationHuma)
+	}, h.UpdateOrganization)
 	attachTypedRequestBody[mmodel.UpdateOrganizationInput](api, "updateOrganization"+opSuffix)
 
 	huma.Register(api, huma.Operation{
@@ -326,7 +326,7 @@ func RegisterOrganizationRoutes(api huma.API, h *OrganizationHandler, opSuffix s
 		Security:    secOrgBearerOrAPIKey,
 		// DefaultStatus 204 + an Out struct with no Body field => bodiless 204.
 		DefaultStatus: http.StatusNoContent,
-	}, h.DeleteOrganizationByIDHuma)
+	}, h.DeleteOrganizationByID)
 
 	huma.Register(api, huma.Operation{
 		OperationID: "countOrganizations" + opSuffix,
@@ -338,10 +338,10 @@ func RegisterOrganizationRoutes(api huma.API, h *OrganizationHandler, opSuffix s
 		// HEAD count: X-Total-Count header + empty 204 body (Content-Length 0 set on
 		// the Out struct), matching the Fiber http.NoContent + header path.
 		DefaultStatus: http.StatusNoContent,
-	}, h.CountOrganizationsHuma)
+	}, h.CountOrganizations)
 }
 
-// RegisterOrganizationRoutesToApp wires the Huma-migrated organization surface onto the
+// RegisterOrganizationRoutesToApp wires the organization surface onto the
 // /v1 contract. See registerOrganizationRoutesToApp for what it attaches.
 func RegisterOrganizationRoutesToApp(group fiber.Router, api huma.API, auth *middleware.AuthClient, h *OrganizationHandler, routeOptions *pkgHTTP.ProtectedRouteOptions) {
 	registerOrganizationRoutesToApp(group, api, auth, h, routeOptions, routeOpSuffixV1)
@@ -361,13 +361,12 @@ func RegisterOrganizationV2RoutesToApp(group fiber.Router, api huma.API, auth *m
 // protectedMidaz(auth,"organizations",verb) (= auth.Authorize("midaz","organizations",
 // verb) + tenant PostAuthMiddlewares) — as MIDDLEWARE ONLY (no terminal) on the VERSIONED
 // GROUP with GROUP-RELATIVE paths, then registers the Huma terminals via
-// RegisterOrganizationRoutes on the SAME group's Huma API. This preserves the pre-Huma
-// ("organizations", verb) authz tuples and tenant resolution BYTE-FOR-BYTE — no
-// organization route becomes public — on whichever version group it is mounted on.
+// RegisterOrganizationRoutes on the SAME group's Huma API. The ("organizations", verb)
+// authz tuples and tenant resolution therefore apply on whichever version group it is
+// mounted on — no organization route becomes public.
 //
-// ParseUUIDPathParameters("organization") is attached ONLY on the three ops that had it
-// pre-migration (patch/get-by-id/delete, i.e. the ":id" ops); create, list and count
-// carried no parse step in routes.go, so none is added here.
+// ParseUUIDPathParameters("organization") is attached ONLY on the three ":id" ops
+// (patch/get-by-id/delete); create, list and count carry no path UUID, so none needs it.
 //
 // opSuffix distinguishes the operation IDs one version group publishes from another's —
 // see routeOpSuffixV1. Nothing else varies between contracts, so a change to the surface

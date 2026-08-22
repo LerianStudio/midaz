@@ -33,7 +33,7 @@ permissions:
   - { resource: account-types, action: get,    effect: allow, roles: [editor, viewer] }
   - { resource: account-types, action: delete, effect: allow, roles: [editor] }
 
-  # accounts (account_handler_huma.go:500)
+  # accounts (account_handler.go:498)
   - { resource: accounts, action: post,   effect: allow, roles: [editor] }
   - { resource: accounts, action: patch,  effect: allow, roles: [editor] }
   - { resource: accounts, action: get,    effect: allow, roles: [editor, viewer] }
@@ -73,7 +73,7 @@ permissions:
   - { resource: instruments, action: patch,  effect: allow, roles: [editor] }
   - { resource: instruments, action: delete, effect: allow, roles: [editor] }
 
-  # ledgers (ledger_handler_huma.go:534)
+  # ledgers (ledger_handler.go:532)
   - { resource: ledgers, action: post,   effect: allow, roles: [editor] }
   - { resource: ledgers, action: patch,  effect: allow, roles: [editor] }
   - { resource: ledgers, action: get,    effect: allow, roles: [editor, viewer] }
@@ -90,14 +90,14 @@ permissions:
   - { resource: operations, action: get,   effect: allow, roles: [editor, viewer] }
   - { resource: operations, action: patch, effect: allow, roles: [editor] }
 
-  # organizations (organization_handler_huma.go:384)
+  # organizations (organization_handler.go:383)
   - { resource: organizations, action: post,   effect: allow, roles: [editor] }
   - { resource: organizations, action: patch,  effect: allow, roles: [editor] }
   - { resource: organizations, action: get,    effect: allow, roles: [editor, viewer] }
   - { resource: organizations, action: delete, effect: allow, roles: [editor] }
   - { resource: organizations, action: head,   effect: allow, roles: [editor, viewer] }
 
-  # portfolios (portfolio_handler_huma.go:386)
+  # portfolios (portfolio_handler.go:386)
   - { resource: portfolios, action: post,   effect: allow, roles: [editor] }
   - { resource: portfolios, action: patch,  effect: allow, roles: [editor] }
   - { resource: portfolios, action: get,    effect: allow, roles: [editor, viewer] }
@@ -107,7 +107,7 @@ permissions:
   # protection — CRM audit-trail read (crm_routes.go:113)
   - { resource: protection, action: get, effect: allow, roles: [editor, viewer] }
 
-  # segments (segment_handler_huma.go:393)
+  # segments (segment_handler.go:392)
   - { resource: segments, action: post,   effect: allow, roles: [editor] }
   - { resource: segments, action: patch,  effect: allow, roles: [editor] }
   - { resource: segments, action: get,    effect: allow, roles: [editor, viewer] }
