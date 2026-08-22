@@ -26,6 +26,7 @@ import (
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/assetrate"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services/command"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services/query"
+	"github.com/LerianStudio/midaz/v4/pkg"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
 	pkgHTTP "github.com/LerianStudio/midaz/v4/pkg/net/http"
 )
@@ -74,7 +75,7 @@ func buildHumaAssetRateApp(t *testing.T, handler *AssetRateHandler, authOK bool)
 	// (no terminal handler) before the Huma terminal on each asset-rate route.
 	// Registered group-relative on apiV1 so Fiber prepends /v1 — matching the
 	// group-relative paths RegisterAssetRateRoutes registers on the Huma API. Note the
-	// entity-name is "asset-rate" (singular) exactly as in the pre-migration routes.go.
+	// entity-name is "asset-rate" (singular), matching the production route wiring.
 	parse := pkgHTTP.ParseUUIDPathParameters("asset-rate")
 	base := "/organizations/:organization_id/ledgers/:ledger_id/asset-rates"
 	apiV1.Put(base, parse)
@@ -86,7 +87,7 @@ func buildHumaAssetRateApp(t *testing.T, handler *AssetRateHandler, authOK bool)
 	return f
 }
 
-func TestHuma_CreateOrUpdateAssetRate_Success(t *testing.T) {
+func TestCreateOrUpdateAssetRate_Success(t *testing.T) {
 	// NOT parallel: buildHumaAssetRateApp mutates process-global huma state.
 	ctrl := gomock.NewController(t)
 	t.Cleanup(ctrl.Finish)
@@ -100,7 +101,7 @@ func TestHuma_CreateOrUpdateAssetRate_Success(t *testing.T) {
 	// New-record path: no existing pair -> Create. The shared body pipeline
 	// (DecodeAndValidate -> parseMetadata) initializes Metadata to a non-nil empty
 	// map when the body carries no "metadata" key, so the service persists it via
-	// TransactionMetadataRepo.Create — faithful to the production Fiber WithBody path.
+	// TransactionMetadataRepo.Create.
 	assetRateRepo.EXPECT().FindByCurrencyPair(gomock.Any(), orgID, ledgerID, "USD", "BRL").Return(nil, nil).Times(1)
 	assetRateRepo.EXPECT().Create(gomock.Any(), gomock.Any()).
 		DoAndReturn(func(_ any, ar *assetrate.AssetRate) (*assetrate.AssetRate, error) {
@@ -125,7 +126,7 @@ func TestHuma_CreateOrUpdateAssetRate_Success(t *testing.T) {
 
 	respBody, _ := io.ReadAll(resp.Body)
 
-	assert.Equal(t, http.StatusCreated, resp.StatusCode, "upsert returns 201 (parity with the Fiber http.Created path)")
+	assert.Equal(t, http.StatusCreated, resp.StatusCode, "upsert returns 201")
 	assert.NotContains(t, string(respBody), "$schema", "SchemaLinkTransformer must be zeroed")
 	assert.NotContains(t, string(respBody), "$ref")
 
@@ -139,7 +140,7 @@ func TestHuma_CreateOrUpdateAssetRate_Success(t *testing.T) {
 	assert.Equal(t, ledgerID.String(), got["ledgerId"])
 }
 
-func TestHuma_CreateOrUpdateAssetRate_AuthPreserved(t *testing.T) {
+func TestCreateOrUpdateAssetRate_AuthPreserved(t *testing.T) {
 	// NOT parallel: process-global huma state.
 	ctrl := gomock.NewController(t)
 	t.Cleanup(ctrl.Finish)
@@ -163,7 +164,7 @@ func TestHuma_CreateOrUpdateAssetRate_AuthPreserved(t *testing.T) {
 	assert.Equal(t, http.StatusUnauthorized, resp.StatusCode, "auth middleware must reject before Huma; no public route")
 }
 
-func TestHuma_CreateOrUpdateAssetRate_MalformedBody_Canonical400(t *testing.T) {
+func TestCreateOrUpdateAssetRate_MalformedBody_Canonical400(t *testing.T) {
 	// NOT parallel: process-global huma state.
 	ctrl := gomock.NewController(t)
 	t.Cleanup(ctrl.Finish)
@@ -172,8 +173,8 @@ func TestHuma_CreateOrUpdateAssetRate_MalformedBody_Canonical400(t *testing.T) {
 	ledgerID := uuid.New()
 
 	// Malformed JSON -> DecodeAndValidate returns a pkg.ResponseError (0094). The
-	// Fiber path writes it flat at 400; HumaProblem must project it to problem+json
-	// at 400 (NOT the 500 fallback and NOT a native Huma 422). Service never reached.
+	// HumaProblem must project it to problem+json at 400 (NOT the 500 fallback and
+	// NOT a native Huma 422). Service never reached.
 	handler := &AssetRateHandler{Command: &command.UseCase{AssetRateRepo: assetrate.NewMockRepository(ctrl)}}
 
 	app := buildHumaAssetRateApp(t, handler, true)
@@ -196,7 +197,7 @@ func TestHuma_CreateOrUpdateAssetRate_MalformedBody_Canonical400(t *testing.T) {
 	assert.Equal(t, float64(http.StatusBadRequest), got["status"])
 }
 
-func TestHuma_GetAssetRateByExternalID_Success(t *testing.T) {
+func TestGetAssetRateByExternalID_Success(t *testing.T) {
 	// NOT parallel: process-global huma state.
 	ctrl := gomock.NewController(t)
 	t.Cleanup(ctrl.Finish)
@@ -242,7 +243,7 @@ func TestHuma_GetAssetRateByExternalID_Success(t *testing.T) {
 	assert.Equal(t, "BRL", got["to"])
 }
 
-func TestHuma_GetAssetRateByExternalID_BadUUID_Canonical400(t *testing.T) {
+func TestGetAssetRateByExternalID_BadUUID_Canonical400(t *testing.T) {
 	// NOT parallel: process-global huma state.
 	ctrl := gomock.NewController(t)
 	t.Cleanup(ctrl.Finish)
@@ -270,7 +271,7 @@ func TestHuma_GetAssetRateByExternalID_BadUUID_Canonical400(t *testing.T) {
 	assert.Equal(t, constant.ErrInvalidPathParameter.Error(), got["code"])
 }
 
-func TestHuma_GetAllAssetRatesByAssetCode_Success(t *testing.T) {
+func TestGetAllAssetRatesByAssetCode_Success(t *testing.T) {
 	// NOT parallel: process-global huma state.
 	ctrl := gomock.NewController(t)
 	t.Cleanup(ctrl.Finish)
@@ -303,7 +304,7 @@ func TestHuma_GetAllAssetRatesByAssetCode_Success(t *testing.T) {
 	assert.EqualValues(t, 10, got["limit"])
 }
 
-func TestHuma_GetAllAssetRatesByAssetCode_BadQuery_Canonical400(t *testing.T) {
+func TestGetAllAssetRatesByAssetCode_BadQuery_Canonical400(t *testing.T) {
 	// NOT parallel: process-global huma state.
 	ctrl := gomock.NewController(t)
 	t.Cleanup(ctrl.Finish)
@@ -330,4 +331,119 @@ func TestHuma_GetAllAssetRatesByAssetCode_BadQuery_Canonical400(t *testing.T) {
 	assert.Equal(t, constant.ErrInvalidQueryParameter.Error(), got["code"])
 
 	_ = libProblem.BaseURI
+}
+
+func TestCreateOrUpdateAssetRate_ServiceError_500(t *testing.T) {
+	// NOT parallel: process-global huma state.
+	ctrl := gomock.NewController(t)
+	t.Cleanup(ctrl.Finish)
+
+	orgID := uuid.New()
+	ledgerID := uuid.New()
+
+	// The upsert probes the currency pair first; a technical failure there aborts
+	// before any Create/Update. HumaProblem must project the InternalServerError to
+	// problem+json at 500 with its code intact.
+	assetRateRepo := assetrate.NewMockRepository(ctrl)
+	assetRateRepo.EXPECT().FindByCurrencyPair(gomock.Any(), orgID, ledgerID, "USD", "BRL").
+		Return(nil, pkg.InternalServerError{
+			Code:    "0046",
+			Title:   "Internal Server Error",
+			Message: "Database connection failed",
+		}).Times(1)
+
+	handler := &AssetRateHandler{Command: &command.UseCase{AssetRateRepo: assetRateRepo}}
+
+	app := buildHumaAssetRateApp(t, handler, true)
+
+	body, _ := json.Marshal(map[string]any{"from": "USD", "to": "BRL", "rate": 500, "scale": 2, "ttl": 3600})
+	req := httptest.NewRequest(http.MethodPut, "/v1/organizations/"+orgID.String()+"/ledgers/"+ledgerID.String()+"/asset-rates", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
+	require.NoError(t, err)
+	defer func() { _ = resp.Body.Close() }()
+
+	respBody, _ := io.ReadAll(resp.Body)
+
+	assert.Equal(t, http.StatusInternalServerError, resp.StatusCode)
+	assert.Equal(t, "application/problem+json", resp.Header.Get("Content-Type"))
+
+	var got map[string]any
+	require.NoError(t, json.Unmarshal(respBody, &got), "body: %s", string(respBody))
+	assert.Equal(t, "0046", got["code"])
+	assert.Equal(t, float64(http.StatusInternalServerError), got["status"])
+}
+
+func TestGetAssetRateByExternalID_NotFound_404(t *testing.T) {
+	// NOT parallel: process-global huma state.
+	ctrl := gomock.NewController(t)
+	t.Cleanup(ctrl.Finish)
+
+	orgID := uuid.New()
+	ledgerID := uuid.New()
+	externalID := uuid.New()
+
+	// A business not-found stays 404 with the canonical 0007 code — HumaProblem must
+	// not collapse it into the 500 fallback.
+	assetRateRepo := assetrate.NewMockRepository(ctrl)
+	assetRateRepo.EXPECT().FindByExternalID(gomock.Any(), orgID, ledgerID, externalID).
+		Return(nil, pkg.ValidateBusinessError(constant.ErrEntityNotFound, constant.EntityAssetRate)).Times(1)
+
+	handler := &AssetRateHandler{Query: &query.UseCase{AssetRateRepo: assetRateRepo}}
+
+	app := buildHumaAssetRateApp(t, handler, true)
+
+	req := httptest.NewRequest(http.MethodGet, "/v1/organizations/"+orgID.String()+"/ledgers/"+ledgerID.String()+"/asset-rates/"+externalID.String(), nil)
+	resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
+	require.NoError(t, err)
+	defer func() { _ = resp.Body.Close() }()
+
+	respBody, _ := io.ReadAll(resp.Body)
+
+	assert.Equal(t, http.StatusNotFound, resp.StatusCode)
+	assert.Equal(t, "application/problem+json", resp.Header.Get("Content-Type"))
+
+	var got map[string]any
+	require.NoError(t, json.Unmarshal(respBody, &got), "body: %s", string(respBody))
+	assert.Equal(t, constant.ErrEntityNotFound.Error(), got["code"])
+	assert.Equal(t, float64(http.StatusNotFound), got["status"])
+}
+
+func TestGetAllAssetRatesByAssetCode_ServiceError_500(t *testing.T) {
+	// NOT parallel: process-global huma state.
+	ctrl := gomock.NewController(t)
+	t.Cleanup(ctrl.Finish)
+
+	orgID := uuid.New()
+	ledgerID := uuid.New()
+
+	// The query binder accepts the request, then the repository fails: the list op
+	// surfaces the technical error at 500 instead of an empty page.
+	assetRateRepo := assetrate.NewMockRepository(ctrl)
+	assetRateRepo.EXPECT().FindAllByAssetCodes(gomock.Any(), orgID, ledgerID, "USD", gomock.Any(), gomock.Any()).
+		Return(nil, libHTTP.CursorPagination{}, pkg.InternalServerError{
+			Code:    "0046",
+			Title:   "Internal Server Error",
+			Message: "Database connection failed",
+		}).Times(1)
+
+	handler := &AssetRateHandler{Query: &query.UseCase{AssetRateRepo: assetRateRepo}}
+
+	app := buildHumaAssetRateApp(t, handler, true)
+
+	req := httptest.NewRequest(http.MethodGet, "/v1/organizations/"+orgID.String()+"/ledgers/"+ledgerID.String()+"/asset-rates/from/USD?limit=10", nil)
+	resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
+	require.NoError(t, err)
+	defer func() { _ = resp.Body.Close() }()
+
+	respBody, _ := io.ReadAll(resp.Body)
+
+	assert.Equal(t, http.StatusInternalServerError, resp.StatusCode)
+	assert.Equal(t, "application/problem+json", resp.Header.Get("Content-Type"))
+
+	var got map[string]any
+	require.NoError(t, json.Unmarshal(respBody, &got), "body: %s", string(respBody))
+	assert.Equal(t, "0046", got["code"])
+	assert.Equal(t, float64(http.StatusInternalServerError), got["status"])
 }

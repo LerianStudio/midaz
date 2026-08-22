@@ -17,12 +17,11 @@ import (
 	pkgHTTP "github.com/LerianStudio/midaz/v4/pkg/net/http"
 )
 
-// This file is the ledger's Huma adoption of the asset-rate resource. It mirrors
-// the proven asset exemplar (asset_handler.go), adapted to asset-rate's three
-// operations: a PUT create-or-upsert, a GET by external id, and a cursor-paginated
-// GET list keyed by a free-form asset code. assetrate is MONEY-adjacent (exchange
-// rates), so every op stays code+status byte-identical to the pre-migration Fiber
-// path. The same five conventions the asset exemplar documents apply here:
+// This file serves the asset-rate resource over Huma. It mirrors the asset exemplar
+// (asset_handler.go), adapted to asset-rate's three operations: a PUT
+// create-or-upsert, a GET by external id, and a cursor-paginated GET list keyed by a
+// free-form asset code. assetrate is MONEY-adjacent (exchange rates). The same five
+// conventions the asset exemplar documents apply here:
 //
 //  1. Path params carry ONLY `doc:` (no `format:"uuid"`) — the ParseUUIDPathParameters
 //     Fiber middleware is the sole UUID validator, yielding the canonical 400 / 0065.
@@ -51,24 +50,24 @@ var secAssetRateBearerOrAPIKey = []map[string][]string{
 
 // --- PUT /asset-rates ---------------------------------------------------------
 
-// CreateAssetRateInputHuma is the Huma request envelope for PUT. RawBody keeps the
+// CreateAssetRateRequest is the Huma request envelope for PUT. RawBody keeps the
 // body out of Huma's validator; org+ledger are validated by the Fiber middleware.
-type CreateAssetRateInputHuma struct {
+type CreateAssetRateRequest struct {
 	OrganizationID string `path:"organization_id" doc:"Organization ID (UUID)"`
 	LedgerID       string `path:"ledger_id" doc:"Ledger ID (UUID)"`
 	RawBody        []byte `contentType:"application/json"`
 }
 
-// CreateAssetRateOutputHuma pins 201 (matching http.Created — the Fiber path returns
-// 201 for both create and upsert).
-type CreateAssetRateOutputHuma struct {
+// CreateAssetRateResponse pins 201, which the op returns for both create and
+// upsert.
+type CreateAssetRateResponse struct {
 	Status int
 	Body   *assetrate.AssetRate
 }
 
-// CreateOrUpdateAssetRateHuma decodes+validates the raw body imperatively then
+// CreateOrUpdateAssetRate decodes+validates the raw body imperatively then
 // delegates to the shared createOrUpdateAssetRate core.
-func (handler *AssetRateHandler) CreateOrUpdateAssetRateHuma(ctx context.Context, in *CreateAssetRateInputHuma) (*CreateAssetRateOutputHuma, error) {
+func (handler *AssetRateHandler) CreateOrUpdateAssetRate(ctx context.Context, in *CreateAssetRateRequest) (*CreateAssetRateResponse, error) {
 	orgID, ledgerID, err := parseOrgLedger(in.OrganizationID, in.LedgerID)
 	if err != nil {
 		return nil, pkgHTTP.HumaProblem(err)
@@ -84,28 +83,28 @@ func (handler *AssetRateHandler) CreateOrUpdateAssetRateHuma(ctx context.Context
 		return nil, pkgHTTP.HumaProblem(err)
 	}
 
-	return &CreateAssetRateOutputHuma{Status: http.StatusCreated, Body: assetRate}, nil
+	return &CreateAssetRateResponse{Status: http.StatusCreated, Body: assetRate}, nil
 }
 
 // --- GET /asset-rates/{external_id} -------------------------------------------
 
-// GetAssetRateByExternalIDInputHuma is the by-external-id request envelope. The
+// GetAssetRateByExternalIDRequest is the by-external-id request envelope. The
 // external_id path param carries no format tag (ParseUUIDPathParameters is the sole
 // validator — external_id IS in constant.UUIDPathParameters).
-type GetAssetRateByExternalIDInputHuma struct {
+type GetAssetRateByExternalIDRequest struct {
 	OrganizationID string `path:"organization_id" doc:"Organization ID (UUID)"`
 	LedgerID       string `path:"ledger_id" doc:"Ledger ID (UUID)"`
 	ExternalID     string `path:"external_id" doc:"External ID (UUID)"`
 }
 
-// GetAssetRateByExternalIDOutputHuma carries the asset rate verbatim.
-type GetAssetRateByExternalIDOutputHuma struct {
+// GetAssetRateByExternalIDResponse carries the asset rate verbatim.
+type GetAssetRateByExternalIDResponse struct {
 	Status int
 	Body   *assetrate.AssetRate
 }
 
-// GetAssetRateByExternalIDHuma delegates to getAssetRateByExternalID.
-func (handler *AssetRateHandler) GetAssetRateByExternalIDHuma(ctx context.Context, in *GetAssetRateByExternalIDInputHuma) (*GetAssetRateByExternalIDOutputHuma, error) {
+// GetAssetRateByExternalID delegates to getAssetRateByExternalID.
+func (handler *AssetRateHandler) GetAssetRateByExternalID(ctx context.Context, in *GetAssetRateByExternalIDRequest) (*GetAssetRateByExternalIDResponse, error) {
 	orgID, ledgerID, err := parseOrgLedger(in.OrganizationID, in.LedgerID)
 	if err != nil {
 		return nil, pkgHTTP.HumaProblem(err)
@@ -121,16 +120,16 @@ func (handler *AssetRateHandler) GetAssetRateByExternalIDHuma(ctx context.Contex
 		return nil, pkgHTTP.HumaProblem(err)
 	}
 
-	return &GetAssetRateByExternalIDOutputHuma{Status: http.StatusOK, Body: assetRate}, nil
+	return &GetAssetRateByExternalIDResponse{Status: http.StatusOK, Body: assetRate}, nil
 }
 
 // --- GET /asset-rates/from/{asset_code} (list) --------------------------------
 
-// ListAssetRatesByAssetCodeInputHuma advertises the list query params in the spec
+// ListAssetRatesByAssetCodeRequest advertises the list query params in the spec
 // (doc-only, no validation tags) and captures the raw query via Resolve for the
 // imperative http.ValidateParameters binder. asset_code is a free-form string path
 // segment (NOT a UUID).
-type ListAssetRatesByAssetCodeInputHuma struct {
+type ListAssetRatesByAssetCodeRequest struct {
 	OrganizationID string   `path:"organization_id" doc:"Organization ID (UUID)"`
 	LedgerID       string   `path:"ledger_id" doc:"Ledger ID (UUID)"`
 	AssetCode      string   `path:"asset_code" doc:"Source asset code"`
@@ -148,7 +147,7 @@ type ListAssetRatesByAssetCodeInputHuma struct {
 
 // Resolve captures the raw query before the handler. It performs NO validation and
 // NEVER returns an error — canonical rejection stays in http.ValidateParameters.
-func (in *ListAssetRatesByAssetCodeInputHuma) Resolve(ctx huma.Context) []error {
+func (in *ListAssetRatesByAssetCodeRequest) Resolve(ctx huma.Context) []error {
 	u := ctx.URL()
 	in.rawQuery = u.Query()
 
@@ -158,7 +157,7 @@ func (in *ListAssetRatesByAssetCodeInputHuma) Resolve(ctx huma.Context) []error 
 // queries rebuilds the map[string]string that http.ValidateParameters consumes,
 // matching Fiber's c.Queries() (last value wins for a repeated key, present-but-
 // empty keys included).
-func (in *ListAssetRatesByAssetCodeInputHuma) queries() map[string]string {
+func (in *ListAssetRatesByAssetCodeRequest) queries() map[string]string {
 	out := make(map[string]string, len(in.rawQuery))
 	for k, vs := range in.rawQuery {
 		if len(vs) == 0 {
@@ -172,15 +171,15 @@ func (in *ListAssetRatesByAssetCodeInputHuma) queries() map[string]string {
 	return out
 }
 
-// ListAssetRatesByAssetCodeOutputHuma carries the pagination envelope verbatim.
-type ListAssetRatesByAssetCodeOutputHuma struct {
+// ListAssetRatesByAssetCodeResponse carries the pagination envelope verbatim.
+type ListAssetRatesByAssetCodeResponse struct {
 	Status int
 	Body   pkgHTTP.Pagination
 }
 
-// ListAssetRatesByAssetCodeHuma binds the query imperatively then delegates to
+// ListAssetRatesByAssetCode binds the query imperatively then delegates to
 // getAllAssetRatesByAssetCode.
-func (handler *AssetRateHandler) ListAssetRatesByAssetCodeHuma(ctx context.Context, in *ListAssetRatesByAssetCodeInputHuma) (*ListAssetRatesByAssetCodeOutputHuma, error) {
+func (handler *AssetRateHandler) ListAssetRatesByAssetCode(ctx context.Context, in *ListAssetRatesByAssetCodeRequest) (*ListAssetRatesByAssetCodeResponse, error) {
 	orgID, ledgerID, err := parseOrgLedger(in.OrganizationID, in.LedgerID)
 	if err != nil {
 		return nil, pkgHTTP.HumaProblem(err)
@@ -191,10 +190,10 @@ func (handler *AssetRateHandler) ListAssetRatesByAssetCodeHuma(ctx context.Conte
 		return nil, pkgHTTP.HumaProblem(err)
 	}
 
-	return &ListAssetRatesByAssetCodeOutputHuma{Status: http.StatusOK, Body: pagination}, nil
+	return &ListAssetRatesByAssetCodeResponse{Status: http.StatusOK, Body: pagination}, nil
 }
 
-// RegisterAssetRateRoutes registers the three migrated asset-rate operations on the
+// RegisterAssetRateRoutes registers the three asset-rate operations on the
 // shared Huma API. It is the per-file seam registerAssetRateRoutesToApp calls; the auth +
 // tenant + ParseUUIDPathParameters middleware chain for these routes is attached at
 // the Fiber level BEFORE the Huma terminal, not here.
@@ -224,7 +223,7 @@ func RegisterAssetRateRoutes(api huma.API, h *AssetRateHandler, opSuffix string)
 		// Body validated imperatively (http.DecodeAndValidate) — see file header.
 		SkipValidateBody: true,
 		DefaultStatus:    http.StatusCreated,
-	}, h.CreateOrUpdateAssetRateHuma)
+	}, h.CreateOrUpdateAssetRate)
 	attachTypedRequestBody[assetrate.CreateAssetRateInput](api, "createOrUpdateAssetRate"+opSuffix)
 
 	huma.Register(api, huma.Operation{
@@ -234,7 +233,7 @@ func RegisterAssetRateRoutes(api huma.API, h *AssetRateHandler, opSuffix string)
 		Summary:     "Get an AssetRate by External ID",
 		Tags:        []string{tag},
 		Security:    secAssetRateBearerOrAPIKey,
-	}, h.GetAssetRateByExternalIDHuma)
+	}, h.GetAssetRateByExternalID)
 
 	huma.Register(api, huma.Operation{
 		OperationID: "getAllAssetRatesByAssetCode" + opSuffix,
@@ -243,10 +242,10 @@ func RegisterAssetRateRoutes(api huma.API, h *AssetRateHandler, opSuffix string)
 		Summary:     "Get an AssetRate by the Asset Code",
 		Tags:        []string{tag},
 		Security:    secAssetRateBearerOrAPIKey,
-	}, h.ListAssetRatesByAssetCodeHuma)
+	}, h.ListAssetRatesByAssetCode)
 }
 
-// RegisterAssetRateRoutesToApp wires the Huma-migrated asset-rate surface onto the /v1
+// RegisterAssetRateRoutesToApp wires the asset-rate surface onto the /v1
 // contract. See registerAssetRateRoutesToApp for what it attaches.
 func RegisterAssetRateRoutesToApp(group fiber.Router, api huma.API, auth *middleware.AuthClient, h *AssetRateHandler, routeOptions *pkgHTTP.ProtectedRouteOptions) {
 	registerAssetRateRoutesToApp(group, api, auth, h, routeOptions, routeOpSuffixV1)
@@ -258,10 +257,9 @@ func RegisterAssetRateRoutesToApp(group fiber.Router, api huma.API, auth *middle
 // auth.Authorize("midaz","asset-rates",verb) + tenant PostAuthMiddlewares) +
 // ParseUUIDPathParameters("asset-rate") — as MIDDLEWARE ONLY (no terminal) on the VERSIONED
 // GROUP with GROUP-RELATIVE paths, then registers the Huma terminals via
-// RegisterAssetRateRoutes on the SAME group's Huma API. This preserves the pre-Huma
-// ("asset-rates", verb) authz tuples and tenant resolution BYTE-FOR-BYTE (the plural
-// resource + the "asset-rate" entity-name for ParseUUIDPathParameters) — no asset-rate route
-// becomes public on the /v1 group. asset-rate is MONEY-adjacent (exchange rates).
+// RegisterAssetRateRoutes on the SAME group's Huma API. The authz tuples are
+// ("asset-rates", verb), with the "asset-rate" entity-name for
+// ParseUUIDPathParameters — no asset-rate route is public on the /v1 group. asset-rate is MONEY-adjacent (exchange rates).
 //
 // opSuffix is appended to each operation ID (see routeOpSuffixV1). It keeps this registrar's
 // signature identical to the sibling dual-version registrars; asset-rate mounts on /v1 only,
