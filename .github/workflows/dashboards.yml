@@ -1,0 +1,36 @@
+name: dashboards
+
+on:
+  pull_request:
+    paths:
+      - "docs/dashboards/**"
+      - "scripts/build-dashboards.sh"
+      - "scripts/verify-dashboard-primitives.sh"
+      - ".github/workflows/dashboards.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  build-and-verify:
+    runs-on: blacksmith-4vcpu-ubuntu-2404
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Set up Go
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version: '1.26.4'
+
+      - name: Install jsonnet
+        run: |
+          go install github.com/google/go-jsonnet/cmd/jsonnet@v0.22.0
+          echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
+
+      - name: Compile dashboards
+        run: ./scripts/build-dashboards.sh
+
+      - name: Verify dashboards reference only documented metrics
+        run: ./scripts/verify-dashboard-primitives.sh
