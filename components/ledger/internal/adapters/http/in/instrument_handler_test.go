@@ -24,6 +24,7 @@ import (
 	holderrepo "github.com/LerianStudio/midaz/v4/components/ledger/internal/crm/adapters/mongodb/holder"
 	instrumentrepo "github.com/LerianStudio/midaz/v4/components/ledger/internal/crm/adapters/mongodb/instrument"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/crm/services"
+	"github.com/LerianStudio/midaz/v4/pkg"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
 	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
 	pkgHTTP "github.com/LerianStudio/midaz/v4/pkg/net/http"
@@ -90,7 +91,7 @@ func newInstrumentHandler(t *testing.T, ctrl *gomock.Controller) (*InstrumentHan
 	return handler, repo
 }
 
-func TestHuma_CreateInstrument_IdempotentReplay(t *testing.T) {
+func TestCreateInstrument_IdempotentReplay(t *testing.T) {
 	// NOT parallel: buildHumaInstrumentApp mutates process-global huma state.
 	ctrl := gomock.NewController(t)
 	t.Cleanup(ctrl.Finish)
@@ -164,7 +165,7 @@ func TestHuma_CreateInstrument_IdempotentReplay(t *testing.T) {
 	assert.Equal(t, first["ledgerId"], second["ledgerId"])
 }
 
-func TestHuma_CreateInstrument_AuthPreserved(t *testing.T) {
+func TestCreateInstrument_AuthPreserved(t *testing.T) {
 	// NOT parallel: process-global huma state.
 	ctrl := gomock.NewController(t)
 	t.Cleanup(ctrl.Finish)
@@ -188,7 +189,7 @@ func TestHuma_CreateInstrument_AuthPreserved(t *testing.T) {
 	assert.Equal(t, http.StatusUnauthorized, resp.StatusCode, "auth middleware must reject before Huma; no public route")
 }
 
-func TestHuma_CreateInstrument_MalformedBody_Canonical400(t *testing.T) {
+func TestCreateInstrument_MalformedBody_Canonical400(t *testing.T) {
 	// NOT parallel: process-global huma state.
 	ctrl := gomock.NewController(t)
 	t.Cleanup(ctrl.Finish)
@@ -220,7 +221,7 @@ func TestHuma_CreateInstrument_MalformedBody_Canonical400(t *testing.T) {
 	assert.Equal(t, float64(http.StatusBadRequest), got["status"])
 }
 
-func TestHuma_GetInstrumentByID_Success(t *testing.T) {
+func TestGetInstrumentByID_Success(t *testing.T) {
 	// NOT parallel: process-global huma state.
 	ctrl := gomock.NewController(t)
 	t.Cleanup(ctrl.Finish)
@@ -250,7 +251,7 @@ func TestHuma_GetInstrumentByID_Success(t *testing.T) {
 	assert.Equal(t, instrumentID.String(), got["id"])
 }
 
-func TestHuma_GetInstrumentByID_BadUUID_Canonical400(t *testing.T) {
+func TestGetInstrumentByID_BadUUID_Canonical400(t *testing.T) {
 	// NOT parallel: process-global huma state.
 	ctrl := gomock.NewController(t)
 	t.Cleanup(ctrl.Finish)
@@ -277,7 +278,7 @@ func TestHuma_GetInstrumentByID_BadUUID_Canonical400(t *testing.T) {
 	assert.Equal(t, constant.ErrInvalidPathParameter.Error(), got["code"])
 }
 
-func TestHuma_UpdateInstrument_MergePatch_NullFieldRemoved(t *testing.T) {
+func TestUpdateInstrument_MergePatch_NullFieldRemoved(t *testing.T) {
 	// NOT parallel: process-global huma state.
 	ctrl := gomock.NewController(t)
 	t.Cleanup(ctrl.Finish)
@@ -286,9 +287,9 @@ func TestHuma_UpdateInstrument_MergePatch_NullFieldRemoved(t *testing.T) {
 	holderID := uuid.New()
 	instrumentID := uuid.New()
 
-	// The PATCH sends "bankingDetails": null. The Huma shell must derive
-	// fieldsToRemove=["bankingDetails"] via FindNilFields and pass it to Update,
-	// exactly as the Fiber patchRemove local does — the merge-patch landmine.
+	// The PATCH sends "bankingDetails": null. The handler must derive
+	// fieldsToRemove=["bankingDetails"] via FindNilFields and pass it to Update —
+	// the merge-patch landmine.
 	handler, repo := newInstrumentHandler(t, ctrl)
 	repo.EXPECT().
 		Update(gomock.Any(), orgID.String(), holderID, instrumentID, gomock.Any(), gomock.Cond(func(x any) bool {
@@ -322,7 +323,7 @@ func TestHuma_UpdateInstrument_MergePatch_NullFieldRemoved(t *testing.T) {
 	assert.Equal(t, http.StatusOK, resp.StatusCode, "body: %s", string(respBody))
 }
 
-func TestHuma_DeleteInstrument_204Empty(t *testing.T) {
+func TestDeleteInstrument_204Empty(t *testing.T) {
 	// NOT parallel: process-global huma state.
 	ctrl := gomock.NewController(t)
 	t.Cleanup(ctrl.Finish)
@@ -346,7 +347,7 @@ func TestHuma_DeleteInstrument_204Empty(t *testing.T) {
 	assert.Empty(t, respBody, "DELETE 204 must have an empty body")
 }
 
-func TestHuma_DeleteRelatedParty_204Empty(t *testing.T) {
+func TestDeleteRelatedParty_204Empty(t *testing.T) {
 	// NOT parallel: process-global huma state.
 	ctrl := gomock.NewController(t)
 	t.Cleanup(ctrl.Finish)
@@ -373,7 +374,7 @@ func TestHuma_DeleteRelatedParty_204Empty(t *testing.T) {
 	assert.Empty(t, respBody, "DELETE 204 must have an empty body")
 }
 
-func TestHuma_GetAllInstruments_Success(t *testing.T) {
+func TestGetAllInstruments_Success(t *testing.T) {
 	// NOT parallel: process-global huma state.
 	ctrl := gomock.NewController(t)
 	t.Cleanup(ctrl.Finish)
@@ -404,7 +405,7 @@ func TestHuma_GetAllInstruments_Success(t *testing.T) {
 	assert.EqualValues(t, 10, got["limit"])
 }
 
-func TestHuma_GetAllInstruments_BadQuery_Canonical400(t *testing.T) {
+func TestGetAllInstruments_BadQuery_Canonical400(t *testing.T) {
 	// NOT parallel: process-global huma state.
 	ctrl := gomock.NewController(t)
 	t.Cleanup(ctrl.Finish)
@@ -428,4 +429,276 @@ func TestHuma_GetAllInstruments_BadQuery_Canonical400(t *testing.T) {
 	var got map[string]any
 	require.NoError(t, json.Unmarshal(respBody, &got), "body: %s", string(respBody))
 	assert.Equal(t, constant.ErrInvalidQueryParameter.Error(), got["code"])
+}
+
+func TestCreateInstrument_HolderNotFound_Canonical404(t *testing.T) {
+	// NOT parallel: process-global huma state.
+	ctrl := gomock.NewController(t)
+	t.Cleanup(ctrl.Finish)
+
+	orgID := uuid.New()
+	holderID := uuid.New()
+
+	// The holder lookup fails, so the create core returns the canonical business
+	// error; HumaProblem must project it to 404 with the sentinel code intact and
+	// the instrument repo must never be written to.
+	instrumentRepo := instrumentrepo.NewMockRepository(ctrl)
+	holderRepo := holderrepo.NewMockRepository(ctrl)
+	holderRepo.EXPECT().
+		Find(gomock.Any(), orgID.String(), holderID, false).
+		Return(nil, pkg.ValidateBusinessError(constant.ErrHolderNotFound, constant.EntityHolder)).
+		Times(1)
+
+	handler := &InstrumentHandler{Service: &services.UseCase{
+		InstrumentRepo: instrumentRepo,
+		HolderRepo:     holderRepo,
+		Idempotency:    newFakeCRMIdempotencyRepo(),
+		LedgerAccounts: stubInstrumentLedgerAccountReader{ledgerExists: true, accountExists: true},
+	}}
+
+	app := buildHumaInstrumentApp(t, handler, true)
+
+	body := `{"ledgerId":"00000000-0000-0000-0000-000000000001","accountId":"00000000-0000-0000-0000-000000000002"}`
+	req := httptest.NewRequest(http.MethodPost, "/v2/organizations/"+orgID.String()+"/holders/"+holderID.String()+"/instruments", bytes.NewBufferString(body))
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
+	require.NoError(t, err)
+	defer func() { _ = resp.Body.Close() }()
+
+	respBody, _ := io.ReadAll(resp.Body)
+	assert.Equal(t, http.StatusNotFound, resp.StatusCode, "body: %s", string(respBody))
+
+	var got map[string]any
+	require.NoError(t, json.Unmarshal(respBody, &got), "body: %s", string(respBody))
+	assert.Equal(t, constant.ErrHolderNotFound.Error(), got["code"])
+}
+
+func TestGetInstrumentByID_NotFound_Canonical404(t *testing.T) {
+	// NOT parallel: process-global huma state.
+	ctrl := gomock.NewController(t)
+	t.Cleanup(ctrl.Finish)
+
+	orgID := uuid.New()
+	holderID := uuid.New()
+	instrumentID := uuid.New()
+
+	handler, repo := newInstrumentHandler(t, ctrl)
+	repo.EXPECT().
+		Find(gomock.Any(), orgID.String(), holderID, instrumentID, false).
+		Return(nil, pkg.ValidateBusinessError(constant.ErrInstrumentNotFound, constant.EntityInstrument)).
+		Times(1)
+
+	app := buildHumaInstrumentApp(t, handler, true)
+
+	req := httptest.NewRequest(http.MethodGet, "/v2/organizations/"+orgID.String()+"/holders/"+holderID.String()+"/instruments/"+instrumentID.String(), nil)
+	resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
+	require.NoError(t, err)
+	defer func() { _ = resp.Body.Close() }()
+
+	respBody, _ := io.ReadAll(resp.Body)
+	assert.Equal(t, http.StatusNotFound, resp.StatusCode, "body: %s", string(respBody))
+
+	var got map[string]any
+	require.NoError(t, json.Unmarshal(respBody, &got), "body: %s", string(respBody))
+	assert.Equal(t, constant.ErrInstrumentNotFound.Error(), got["code"])
+}
+
+func TestUpdateInstrument_NotFound_Canonical404(t *testing.T) {
+	// NOT parallel: process-global huma state.
+	ctrl := gomock.NewController(t)
+	t.Cleanup(ctrl.Finish)
+
+	orgID := uuid.New()
+	holderID := uuid.New()
+	instrumentID := uuid.New()
+
+	handler, repo := newInstrumentHandler(t, ctrl)
+	repo.EXPECT().
+		Update(gomock.Any(), orgID.String(), holderID, instrumentID, gomock.Any(), gomock.Any()).
+		Return(nil, pkg.ValidateBusinessError(constant.ErrInstrumentNotFound, constant.EntityInstrument)).
+		Times(1)
+
+	app := buildHumaInstrumentApp(t, handler, true)
+
+	body := []byte(`{"metadata":{"k":"v"}}`)
+	req := httptest.NewRequest(http.MethodPatch, "/v2/organizations/"+orgID.String()+"/holders/"+holderID.String()+"/instruments/"+instrumentID.String(), bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
+	require.NoError(t, err)
+	defer func() { _ = resp.Body.Close() }()
+
+	respBody, _ := io.ReadAll(resp.Body)
+	assert.Equal(t, http.StatusNotFound, resp.StatusCode, "body: %s", string(respBody))
+
+	var got map[string]any
+	require.NoError(t, json.Unmarshal(respBody, &got), "body: %s", string(respBody))
+	assert.Equal(t, constant.ErrInstrumentNotFound.Error(), got["code"])
+}
+
+func TestDeleteInstrument_NotFound_Canonical404(t *testing.T) {
+	// NOT parallel: process-global huma state.
+	ctrl := gomock.NewController(t)
+	t.Cleanup(ctrl.Finish)
+
+	orgID := uuid.New()
+	holderID := uuid.New()
+	instrumentID := uuid.New()
+
+	handler, repo := newInstrumentHandler(t, ctrl)
+	repo.EXPECT().
+		Delete(gomock.Any(), orgID.String(), holderID, instrumentID, false).
+		Return(pkg.ValidateBusinessError(constant.ErrInstrumentNotFound, constant.EntityInstrument)).
+		Times(1)
+
+	app := buildHumaInstrumentApp(t, handler, true)
+
+	req := httptest.NewRequest(http.MethodDelete, "/v2/organizations/"+orgID.String()+"/holders/"+holderID.String()+"/instruments/"+instrumentID.String(), nil)
+	resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
+	require.NoError(t, err)
+	defer func() { _ = resp.Body.Close() }()
+
+	respBody, _ := io.ReadAll(resp.Body)
+	assert.Equal(t, http.StatusNotFound, resp.StatusCode, "body: %s", string(respBody))
+
+	var got map[string]any
+	require.NoError(t, json.Unmarshal(respBody, &got), "body: %s", string(respBody))
+	assert.Equal(t, constant.ErrInstrumentNotFound.Error(), got["code"])
+}
+
+func TestDeleteRelatedParty_NotFound_Canonical404(t *testing.T) {
+	// NOT parallel: process-global huma state.
+	ctrl := gomock.NewController(t)
+	t.Cleanup(ctrl.Finish)
+
+	orgID := uuid.New()
+	holderID := uuid.New()
+	instrumentID := uuid.New()
+	relatedPartyID := uuid.New()
+
+	handler, repo := newInstrumentHandler(t, ctrl)
+	repo.EXPECT().
+		DeleteRelatedParty(gomock.Any(), orgID.String(), holderID, instrumentID, relatedPartyID).
+		Return(pkg.ValidateBusinessError(constant.ErrInstrumentNotFound, constant.EntityInstrument)).
+		Times(1)
+
+	app := buildHumaInstrumentApp(t, handler, true)
+
+	req := httptest.NewRequest(http.MethodDelete, "/v2/organizations/"+orgID.String()+"/holders/"+holderID.String()+"/instruments/"+instrumentID.String()+"/related-parties/"+relatedPartyID.String(), nil)
+	resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
+	require.NoError(t, err)
+	defer func() { _ = resp.Body.Close() }()
+
+	respBody, _ := io.ReadAll(resp.Body)
+	assert.Equal(t, http.StatusNotFound, resp.StatusCode, "body: %s", string(respBody))
+
+	var got map[string]any
+	require.NoError(t, json.Unmarshal(respBody, &got), "body: %s", string(respBody))
+	assert.Equal(t, constant.ErrInstrumentNotFound.Error(), got["code"])
+}
+
+func TestGetAllInstruments_HolderFilter(t *testing.T) {
+	// NOT parallel: process-global huma state.
+	ctrl := gomock.NewController(t)
+	t.Cleanup(ctrl.Finish)
+
+	orgID := uuid.New()
+	filterHolderID := uuid.MustParse("11111111-1111-1111-1111-111111111111")
+
+	// holder_id and ledger_id stay query-string list filters on the org-scoped list.
+	// The parsed holder UUID must reach the service as the holder argument while the
+	// raw values stay on the bound QueryHeader.
+	handler, repo := newInstrumentHandler(t, ctrl)
+	repo.EXPECT().
+		FindAll(gomock.Any(), orgID.String(), filterHolderID, gomock.Cond(func(x any) bool {
+			filter, ok := x.(pkgHTTP.QueryHeader)
+			if !ok {
+				return false
+			}
+
+			return filter.HolderID != nil && *filter.HolderID == filterHolderID.String() &&
+				filter.LedgerID != nil && *filter.LedgerID == "22222222-2222-2222-2222-222222222222"
+		}), false).
+		Return([]*mmodel.Instrument{}, nil).Times(1)
+
+	app := buildHumaInstrumentApp(t, handler, true)
+
+	req := httptest.NewRequest(http.MethodGet, "/v2/organizations/"+orgID.String()+"/instruments?holder_id="+filterHolderID.String()+"&ledger_id=22222222-2222-2222-2222-222222222222", nil)
+	resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
+	require.NoError(t, err)
+	defer func() { _ = resp.Body.Close() }()
+
+	respBody, _ := io.ReadAll(resp.Body)
+	assert.Equal(t, http.StatusOK, resp.StatusCode, "body: %s", string(respBody))
+
+	var got map[string]any
+	require.NoError(t, json.Unmarshal(respBody, &got), "body: %s", string(respBody))
+	assert.Contains(t, got, "items")
+}
+
+func TestGetAllInstruments_ServiceError_Canonical404(t *testing.T) {
+	// NOT parallel: process-global huma state.
+	ctrl := gomock.NewController(t)
+	t.Cleanup(ctrl.Finish)
+
+	orgID := uuid.New()
+
+	handler, repo := newInstrumentHandler(t, ctrl)
+	repo.EXPECT().
+		FindAll(gomock.Any(), orgID.String(), uuid.Nil, gomock.Any(), false).
+		Return(nil, pkg.ValidateBusinessError(constant.ErrInstrumentNotFound, constant.EntityInstrument)).
+		Times(1)
+
+	app := buildHumaInstrumentApp(t, handler, true)
+
+	req := httptest.NewRequest(http.MethodGet, "/v2/organizations/"+orgID.String()+"/instruments?limit=10&page=1", nil)
+	resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
+	require.NoError(t, err)
+	defer func() { _ = resp.Body.Close() }()
+
+	respBody, _ := io.ReadAll(resp.Body)
+	assert.Equal(t, http.StatusNotFound, resp.StatusCode, "body: %s", string(respBody))
+
+	var got map[string]any
+	require.NoError(t, json.Unmarshal(respBody, &got), "body: %s", string(respBody))
+	assert.Equal(t, constant.ErrInstrumentNotFound.Error(), got["code"])
+}
+
+// TestInstrumentEntityFieldContract locks the R43 contract: the typed business
+// error built for the Instrument entity carries EntityType "Instrument" (the
+// renamed value), not the former "Alias". This is the layer where the flip is
+// observable — the CRM HTTP envelope (code/title/message) deliberately omits the
+// entity field, so the typed error is the right place to pin it.
+func TestInstrumentEntityFieldContract(t *testing.T) {
+	err := pkg.ValidateBusinessError(constant.ErrInstrumentNotFound, constant.EntityInstrument)
+
+	notFound, ok := err.(pkg.EntityNotFoundError)
+	require.True(t, ok, "ErrInstrumentNotFound must map to EntityNotFoundError")
+	assert.Equal(t, constant.EntityInstrument, notFound.EntityType,
+		"entity field must reflect the renamed Instrument entity")
+	assert.Equal(t, constant.ErrInstrumentNotFound.Error(), notFound.Code)
+}
+
+// stubInstrumentLedgerAccountReader satisfies services.LedgerAccountReader for
+// the instrument create tests. The create path treats the reader as a hard
+// dependency, so every case must inject one; the booleans drive the 422
+// referential branches at the wire layer.
+type stubInstrumentLedgerAccountReader struct {
+	ledgerExists  bool
+	accountExists bool
+}
+
+func (s stubInstrumentLedgerAccountReader) LedgerExists(_ context.Context, _, _ uuid.UUID) (bool, error) {
+	return s.ledgerExists, nil
+}
+
+func (s stubInstrumentLedgerAccountReader) AccountExists(_ context.Context, _, _, _ uuid.UUID) (bool, error) {
+	return s.accountExists, nil
+}
+
+// CountAccountsByHolder satisfies the holder-delete ownership leg of the port;
+// the instrument create tests never delete a holder, so it reports none.
+func (s stubInstrumentLedgerAccountReader) CountAccountsByHolder(_ context.Context, _, _ uuid.UUID) (int64, error) {
+	return 0, nil
 }

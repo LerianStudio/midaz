@@ -31,14 +31,12 @@ import (
 //     related-party delete adds a fourth path segment (related_party_id) and is guarded
 //     by ParseUUIDPathParameters("related-parties") in crm_routes.go — REPLICATED in the
 //     test harness so its path-UUID validation matches production exactly.
-//  3. POST carries the same idempotency dance as holder: the shell resolves the client
-//     key + TTL from headers and projects the replayed flag the shared createInstrument
-//     core returns onto the X-Idempotency-Replayed response header.
-//  4. PATCH is RFC 7396 merge-patch: the shell derives fieldsToRemove from the parsed
-//     body via http.FindNilFields (the same derivation http.WithBody feeds into the
-//     Fiber patchRemove local) and passes it to the shared updateInstrument core.
-//  5. GET-by-id, list and delete read include_deleted / hard_delete from the query,
-//     matching the Fiber http.GetBooleanParam reads.
+//  3. POST carries the same idempotency dance as holder: the handler resolves the
+//     client key + TTL from headers and projects the replayed flag the shared
+//     createInstrument core returns onto the X-Idempotency-Replayed response header.
+//  4. PATCH is RFC 7396 merge-patch: the handler derives fieldsToRemove from the parsed
+//     body via http.FindNilFields and passes it to the shared updateInstrument core.
+//  5. GET-by-id, list and delete read include_deleted / hard_delete from the query.
 //  6. Body ops carry RawBody + SkipValidateBody so http.DecodeAndValidate is the sole
 //     body validator (never a native Huma 422). Errors go through pkgHTTP.HumaProblem.
 
@@ -51,10 +49,10 @@ var secInstrumentBearer = []map[string][]string{
 
 // --- POST /holders/{holder_id}/instruments ------------------------------------
 
-// CreateInstrumentInputHuma is the Huma request envelope for POST. RawBody keeps the
-// body out of Huma's validator; the idempotency headers are read so the shell can run
-// the same claim the Fiber wrapper does.
-type CreateInstrumentInputHuma struct {
+// CreateInstrumentRequest is the Huma request envelope for POST. RawBody keeps the
+// body out of Huma's validator; the idempotency headers feed the claim the shared
+// createInstrument core runs.
+type CreateInstrumentRequest struct {
 	OrganizationID string `path:"organization_id" doc:"Organization ID (UUID)"`
 	HolderID       string `path:"holder_id" doc:"Holder ID (UUID)"`
 	IdempotencyKey string `header:"X-Idempotency" doc:"Idempotency key to safely retry the create; an identical retry returns the original instrument"`
@@ -62,18 +60,18 @@ type CreateInstrumentInputHuma struct {
 	RawBody        []byte `contentType:"application/json"`
 }
 
-// CreateInstrumentOutputHuma pins 201 (matching http.Created) and carries the
-// X-Idempotency-Replayed response header (parity with the Fiber c.Set).
-type CreateInstrumentOutputHuma struct {
+// CreateInstrumentResponse pins 201 (matching http.Created) and carries the
+// X-Idempotency-Replayed response header.
+type CreateInstrumentResponse struct {
 	Status              int
 	IdempotencyReplayed string `header:"X-Idempotency-Replayed"`
 	Body                *mmodel.Instrument
 }
 
-// CreateInstrumentHuma decodes+validates the raw body imperatively then delegates to
+// CreateInstrument decodes+validates the raw body imperatively then delegates to
 // the shared createInstrument core, resolving the idempotency key/TTL from headers and
 // projecting the replayed flag onto the X-Idempotency-Replayed response header.
-func (handler *InstrumentHandler) CreateInstrumentHuma(ctx context.Context, in *CreateInstrumentInputHuma) (*CreateInstrumentOutputHuma, error) {
+func (handler *InstrumentHandler) CreateInstrument(ctx context.Context, in *CreateInstrumentRequest) (*CreateInstrumentResponse, error) {
 	orgID, err := parsePathUUID(in.OrganizationID, "organization_id")
 	if err != nil {
 		return nil, pkgHTTP.HumaProblem(err)
@@ -101,29 +99,29 @@ func (handler *InstrumentHandler) CreateInstrumentHuma(ctx context.Context, in *
 		replayedHeader = "true"
 	}
 
-	return &CreateInstrumentOutputHuma{Status: http.StatusCreated, IdempotencyReplayed: replayedHeader, Body: instrument}, nil
+	return &CreateInstrumentResponse{Status: http.StatusCreated, IdempotencyReplayed: replayedHeader, Body: instrument}, nil
 }
 
 // --- GET /holders/{holder_id}/instruments/{instrument_id} ---------------------
 
-// GetInstrumentInputHuma is the by-id request envelope. The path params carry no
+// GetInstrumentRequest is the by-id request envelope. The path params carry no
 // format tag (ParseUUIDPathParameters is the sole validator); include_deleted is read
-// via the query, matching the Fiber http.GetBooleanParam read.
-type GetInstrumentInputHuma struct {
+// from the query.
+type GetInstrumentRequest struct {
 	OrganizationID string `path:"organization_id" doc:"Organization ID (UUID)"`
 	HolderID       string `path:"holder_id" doc:"Holder ID (UUID)"`
 	InstrumentID   string `path:"instrument_id" doc:"Instrument ID (UUID)"`
 	IncludeDeleted string `query:"include_deleted" doc:"Returns the instrument even if it was logically deleted (true,false)"`
 }
 
-// GetInstrumentOutputHuma carries the instrument verbatim.
-type GetInstrumentOutputHuma struct {
+// GetInstrumentResponse carries the instrument verbatim.
+type GetInstrumentResponse struct {
 	Status int
 	Body   *mmodel.Instrument
 }
 
-// GetInstrumentByIDHuma delegates to getInstrumentByID.
-func (handler *InstrumentHandler) GetInstrumentByIDHuma(ctx context.Context, in *GetInstrumentInputHuma) (*GetInstrumentOutputHuma, error) {
+// GetInstrumentByID delegates to getInstrumentByID.
+func (handler *InstrumentHandler) GetInstrumentByID(ctx context.Context, in *GetInstrumentRequest) (*GetInstrumentResponse, error) {
 	orgID, err := parsePathUUID(in.OrganizationID, "organization_id")
 	if err != nil {
 		return nil, pkgHTTP.HumaProblem(err)
@@ -144,31 +142,30 @@ func (handler *InstrumentHandler) GetInstrumentByIDHuma(ctx context.Context, in 
 		return nil, pkgHTTP.HumaProblem(err)
 	}
 
-	return &GetInstrumentOutputHuma{Status: http.StatusOK, Body: instrument}, nil
+	return &GetInstrumentResponse{Status: http.StatusOK, Body: instrument}, nil
 }
 
 // --- PATCH /holders/{holder_id}/instruments/{instrument_id} -------------------
 
-// UpdateInstrumentInputHuma is the update request envelope (RawBody, see Create). The
+// UpdateInstrumentRequest is the update request envelope (RawBody, see Create). The
 // raw body is the sole source of the RFC 7396 null-field paths derived below.
-type UpdateInstrumentInputHuma struct {
+type UpdateInstrumentRequest struct {
 	OrganizationID string `path:"organization_id" doc:"Organization ID (UUID)"`
 	HolderID       string `path:"holder_id" doc:"Holder ID (UUID)"`
 	InstrumentID   string `path:"instrument_id" doc:"Instrument ID (UUID)"`
 	RawBody        []byte `contentType:"application/json"`
 }
 
-// UpdateInstrumentOutputHuma carries the updated instrument (200, matching http.OK).
-type UpdateInstrumentOutputHuma struct {
+// UpdateInstrumentResponse carries the updated instrument (200, matching http.OK).
+type UpdateInstrumentResponse struct {
 	Status int
 	Body   *mmodel.Instrument
 }
 
-// UpdateInstrumentHuma decodes+validates the raw body imperatively, derives the
-// merge-patch null-field paths via http.FindNilFields (the same derivation
-// http.WithBody feeds the Fiber patchRemove local), then delegates to the shared
+// UpdateInstrument decodes+validates the raw body imperatively, derives the
+// merge-patch null-field paths via http.FindNilFields, then delegates to the shared
 // updateInstrument core.
-func (handler *InstrumentHandler) UpdateInstrumentHuma(ctx context.Context, in *UpdateInstrumentInputHuma) (*UpdateInstrumentOutputHuma, error) {
+func (handler *InstrumentHandler) UpdateInstrument(ctx context.Context, in *UpdateInstrumentRequest) (*UpdateInstrumentResponse, error) {
 	orgID, err := parsePathUUID(in.OrganizationID, "organization_id")
 	if err != nil {
 		return nil, pkgHTTP.HumaProblem(err)
@@ -196,26 +193,26 @@ func (handler *InstrumentHandler) UpdateInstrumentHuma(ctx context.Context, in *
 		return nil, pkgHTTP.HumaProblem(err)
 	}
 
-	return &UpdateInstrumentOutputHuma{Status: http.StatusOK, Body: instrument}, nil
+	return &UpdateInstrumentResponse{Status: http.StatusOK, Body: instrument}, nil
 }
 
 // --- DELETE /holders/{holder_id}/instruments/{instrument_id} ------------------
 
-// DeleteInstrumentInputHuma is the delete request envelope; hard_delete is read from
-// the query (matching the Fiber http.GetBooleanParam read).
-type DeleteInstrumentInputHuma struct {
+// DeleteInstrumentRequest is the delete request envelope; hard_delete is read from
+// the query.
+type DeleteInstrumentRequest struct {
 	OrganizationID string `path:"organization_id" doc:"Organization ID (UUID)"`
 	HolderID       string `path:"holder_id" doc:"Holder ID (UUID)"`
 	InstrumentID   string `path:"instrument_id" doc:"Instrument ID (UUID)"`
 	HardDelete     string `query:"hard_delete" doc:"Use only to perform a physical deletion of the data. This action is irreversible. (true,false)"`
 }
 
-// DeleteInstrumentOutputHuma has NO Body field: paired with DefaultStatus 204 it makes
+// DeleteInstrumentResponse has NO Body field: paired with DefaultStatus 204 it makes
 // Huma emit a bodiless 204, matching the Fiber http.NoContent path.
-type DeleteInstrumentOutputHuma struct{}
+type DeleteInstrumentResponse struct{}
 
-// DeleteInstrumentByIDHuma delegates to deleteInstrument; returns a bodiless 204 on success.
-func (handler *InstrumentHandler) DeleteInstrumentByIDHuma(ctx context.Context, in *DeleteInstrumentInputHuma) (*DeleteInstrumentOutputHuma, error) {
+// DeleteInstrumentByID delegates to deleteInstrument; returns a bodiless 204 on success.
+func (handler *InstrumentHandler) DeleteInstrumentByID(ctx context.Context, in *DeleteInstrumentRequest) (*DeleteInstrumentResponse, error) {
 	orgID, err := parsePathUUID(in.OrganizationID, "organization_id")
 	if err != nil {
 		return nil, pkgHTTP.HumaProblem(err)
@@ -235,26 +232,26 @@ func (handler *InstrumentHandler) DeleteInstrumentByIDHuma(ctx context.Context, 
 		return nil, pkgHTTP.HumaProblem(err)
 	}
 
-	return &DeleteInstrumentOutputHuma{}, nil
+	return &DeleteInstrumentResponse{}, nil
 }
 
 // --- DELETE .../{instrument_id}/related-parties/{related_party_id} ------------
 
-// DeleteRelatedPartyInputHuma is the related-party delete request envelope (four path
+// DeleteRelatedPartyRequest is the related-party delete request envelope (four path
 // params). Its path-UUID validation is ParseUUIDPathParameters("related-parties") in
 // crm_routes.go, NOT "instruments" — the sole per-op UUID validator variance.
-type DeleteRelatedPartyInputHuma struct {
+type DeleteRelatedPartyRequest struct {
 	OrganizationID string `path:"organization_id" doc:"Organization ID (UUID)"`
 	HolderID       string `path:"holder_id" doc:"Holder ID (UUID)"`
 	InstrumentID   string `path:"instrument_id" doc:"Instrument ID (UUID)"`
 	RelatedPartyID string `path:"related_party_id" doc:"Related Party ID (UUID)"`
 }
 
-// DeleteRelatedPartyOutputHuma has NO Body field: bodiless 204, matching Fiber http.NoContent.
-type DeleteRelatedPartyOutputHuma struct{}
+// DeleteRelatedPartyResponse has NO Body field: bodiless 204, matching Fiber http.NoContent.
+type DeleteRelatedPartyResponse struct{}
 
-// DeleteRelatedPartyHuma delegates to deleteRelatedParty; returns a bodiless 204 on success.
-func (handler *InstrumentHandler) DeleteRelatedPartyHuma(ctx context.Context, in *DeleteRelatedPartyInputHuma) (*DeleteRelatedPartyOutputHuma, error) {
+// DeleteRelatedParty delegates to deleteRelatedParty; returns a bodiless 204 on success.
+func (handler *InstrumentHandler) DeleteRelatedParty(ctx context.Context, in *DeleteRelatedPartyRequest) (*DeleteRelatedPartyResponse, error) {
 	orgID, err := parsePathUUID(in.OrganizationID, "organization_id")
 	if err != nil {
 		return nil, pkgHTTP.HumaProblem(err)
@@ -279,16 +276,16 @@ func (handler *InstrumentHandler) DeleteRelatedPartyHuma(ctx context.Context, in
 		return nil, pkgHTTP.HumaProblem(err)
 	}
 
-	return &DeleteRelatedPartyOutputHuma{}, nil
+	return &DeleteRelatedPartyResponse{}, nil
 }
 
 // --- GET /instruments (list, org-scoped) --------------------------------------
 
-// ListInstrumentsInputHuma advertises the list query params (doc-only, no validation
+// ListInstrumentsRequest advertises the list query params (doc-only, no validation
 // tags) and captures the raw query via Resolve for the imperative binder + the
 // include_deleted flag read. holder_id is a QUERY filter here (the list is org-scoped),
 // not a path param.
-type ListInstrumentsInputHuma struct {
+type ListInstrumentsRequest struct {
 	OrganizationID string `path:"organization_id" doc:"Organization ID (UUID)"`
 	HolderID       string `query:"holder_id" doc:"Filter instruments by holder ID (UUID)"`
 	Metadata       string `query:"metadata" doc:"JSON string to filter instruments by metadata fields"`
@@ -307,21 +304,21 @@ type ListInstrumentsInputHuma struct {
 
 // Resolve captures the raw query before the handler. It performs NO validation and
 // NEVER returns an error — canonical rejection stays in http.ValidateParameters.
-func (in *ListInstrumentsInputHuma) Resolve(ctx huma.Context) []error {
+func (in *ListInstrumentsRequest) Resolve(ctx huma.Context) []error {
 	u := ctx.URL()
 	in.rawQuery = u.Query()
 
 	return nil
 }
 
-// ListInstrumentsOutputHuma carries the pagination envelope verbatim.
-type ListInstrumentsOutputHuma struct {
+// ListInstrumentsResponse carries the pagination envelope verbatim.
+type ListInstrumentsResponse struct {
 	Status int
 	Body   pkgHTTP.Pagination
 }
 
-// GetAllInstrumentsHuma binds the query imperatively then delegates to getAllInstruments.
-func (handler *InstrumentHandler) GetAllInstrumentsHuma(ctx context.Context, in *ListInstrumentsInputHuma) (*ListInstrumentsOutputHuma, error) {
+// GetAllInstruments binds the query imperatively then delegates to getAllInstruments.
+func (handler *InstrumentHandler) GetAllInstruments(ctx context.Context, in *ListInstrumentsRequest) (*ListInstrumentsResponse, error) {
 	orgID, err := parsePathUUID(in.OrganizationID, "organization_id")
 	if err != nil {
 		return nil, pkgHTTP.HumaProblem(err)
@@ -332,10 +329,10 @@ func (handler *InstrumentHandler) GetAllInstrumentsHuma(ctx context.Context, in 
 		return nil, pkgHTTP.HumaProblem(err)
 	}
 
-	return &ListInstrumentsOutputHuma{Status: http.StatusOK, Body: pagination}, nil
+	return &ListInstrumentsResponse{Status: http.StatusOK, Body: pagination}, nil
 }
 
-// RegisterInstrumentRoutes registers the six migrated instrument operations on the
+// RegisterInstrumentRoutes registers the six instrument operations on the
 // given Huma API. It is the per-file seam the unified server calls; the auth
 // ("midaz","instruments",verb) + tenant + ParseUUIDPathParameters middleware chain is
 // attached on the versioned Fiber group BEFORE the Huma terminal, not here. The
@@ -360,7 +357,7 @@ func RegisterInstrumentRoutes(api huma.API, h *InstrumentHandler, opSuffix strin
 		Summary:     "List Instruments",
 		Tags:        []string{tag},
 		Security:    secInstrumentBearer,
-	}, h.GetAllInstrumentsHuma)
+	}, h.GetAllInstruments)
 
 	huma.Register(api, huma.Operation{
 		OperationID: "createInstrument" + opSuffix,
@@ -372,7 +369,7 @@ func RegisterInstrumentRoutes(api huma.API, h *InstrumentHandler, opSuffix strin
 		// Body validated imperatively (http.DecodeAndValidate) — see file header.
 		SkipValidateBody: true,
 		DefaultStatus:    http.StatusCreated,
-	}, h.CreateInstrumentHuma)
+	}, h.CreateInstrument)
 	attachTypedRequestBody[mmodel.CreateInstrumentInput](api, "createInstrument"+opSuffix)
 
 	huma.Register(api, huma.Operation{
@@ -382,7 +379,7 @@ func RegisterInstrumentRoutes(api huma.API, h *InstrumentHandler, opSuffix strin
 		Summary:     "Retrieve Instrument details",
 		Tags:        []string{tag},
 		Security:    secInstrumentBearer,
-	}, h.GetInstrumentByIDHuma)
+	}, h.GetInstrumentByID)
 
 	huma.Register(api, huma.Operation{
 		OperationID:      "updateInstrument" + opSuffix,
@@ -392,7 +389,7 @@ func RegisterInstrumentRoutes(api huma.API, h *InstrumentHandler, opSuffix strin
 		Tags:             []string{tag},
 		Security:         secInstrumentBearer,
 		SkipValidateBody: true, // body validated imperatively — RFC 7396 merge-patch core.
-	}, h.UpdateInstrumentHuma)
+	}, h.UpdateInstrument)
 	attachTypedRequestBody[mmodel.UpdateInstrumentInput](api, "updateInstrument"+opSuffix)
 
 	huma.Register(api, huma.Operation{
@@ -404,7 +401,7 @@ func RegisterInstrumentRoutes(api huma.API, h *InstrumentHandler, opSuffix strin
 		Security:    secInstrumentBearer,
 		// DefaultStatus 204 + an Out struct with no Body field => bodiless 204.
 		DefaultStatus: http.StatusNoContent,
-	}, h.DeleteInstrumentByIDHuma)
+	}, h.DeleteInstrumentByID)
 
 	huma.Register(api, huma.Operation{
 		OperationID:   "deleteRelatedParty" + opSuffix,
@@ -414,5 +411,5 @@ func RegisterInstrumentRoutes(api huma.API, h *InstrumentHandler, opSuffix strin
 		Tags:          []string{tag},
 		Security:      secInstrumentBearer,
 		DefaultStatus: http.StatusNoContent,
-	}, h.DeleteRelatedPartyHuma)
+	}, h.DeleteRelatedParty)
 }
