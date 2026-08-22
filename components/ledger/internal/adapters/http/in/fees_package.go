@@ -200,8 +200,7 @@ func (handler *PackageHandler) listPackages(ctx context.Context, organizationID,
 
 // getPackageByID is the transport-agnostic core of the get-package op. It owns the
 // span and the service call; the shell resolves the org+ledger+package ids and
-// renders the returned package/error. A ledgerID of uuid.Nil reads at organization
-// scope.
+// renders the returned package/error.
 func (handler *PackageHandler) getPackageByID(ctx context.Context, organizationID, ledgerID, id uuid.UUID) (*pack.Package, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
@@ -232,8 +231,7 @@ func (handler *PackageHandler) getPackageByID(ctx context.Context, organizationI
 // updatePackageByID is the transport-agnostic core of the update-package op. It owns
 // the span, the fee + duplicate-priority + min/max validation, the update, and the
 // re-read; the shell resolves the org+ledger+package ids, decodes the payload, and
-// renders the returned package/error. A ledgerID of uuid.Nil writes at organization
-// scope.
+// renders the returned package/error.
 func (handler *PackageHandler) updatePackageByID(ctx context.Context, organizationID, ledgerID, id uuid.UUID, payload *model.UpdatePackageInput) (*pack.Package, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
@@ -294,7 +292,7 @@ func (handler *PackageHandler) updatePackageByID(ctx context.Context, organizati
 
 // deletePackageByID is the transport-agnostic core of the delete-package op. It owns
 // the span and the service call; the shell resolves the org+ledger+package ids and
-// renders the 204/error. A ledgerID of uuid.Nil deletes at organization scope.
+// renders the 204/error.
 func (handler *PackageHandler) deletePackageByID(ctx context.Context, organizationID, ledgerID, id uuid.UUID) error {
 	if err := ctx.Err(); err != nil {
 		return err

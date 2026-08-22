@@ -23,9 +23,10 @@ import (
 // BillingPackageUseCase defines the billing-package business operations consumed
 // by the billing-package handler.
 //
-// The by-ID operations take the ledger the request is scoped to. uuid.Nil means
-// organization scope — the operation reaches a billing package on any ledger of the
-// organization; any other value reaches only what that ledger owns.
+// The by-ID operations take the ledger the request is scoped to and reach only what
+// that ledger owns. The repository still reads uuid.Nil as organization scope, but
+// the HTTP surface cannot express it: every v2 fee and billing path names the ledger,
+// and the guards in fees_ledger_scope.go refuse any other way of widening the scope.
 type BillingPackageUseCase interface {
 	CreateBillingPackage(ctx context.Context, bp *model.BillingPackage) (*model.BillingPackage, error)
 	GetBillingPackageByID(ctx context.Context, id, organizationID, ledgerID uuid.UUID) (*model.BillingPackage, error)
@@ -186,8 +187,7 @@ func (handler *BillingPackageHandler) listBillingPackages(ctx context.Context, o
 
 // getBillingPackageByID is the transport-agnostic core of the get-by-id op. It owns
 // the span, the service call, and the error log-level branch; the handler resolves the
-// org+ledger+package ids and renders the returned package/error. A ledgerID of
-// uuid.Nil reads at organization scope.
+// org+ledger+package ids and renders the returned package/error.
 func (handler *BillingPackageHandler) getBillingPackageByID(ctx context.Context, organizationID, ledgerID, id uuid.UUID) (*model.BillingPackage, error) {
 	logger, tracer, reqId, _ := libObservability.NewTrackingFromContext(ctx)
 
@@ -219,8 +219,7 @@ func (handler *BillingPackageHandler) getBillingPackageByID(ctx context.Context,
 // updateBillingPackage is the transport-agnostic core of the update op. It owns the
 // span, the merge-patch Validate() + ToMap() + empty-update (ErrNothingToUpdate) guard,
 // and the service call; the handler resolves the org+ledger+package ids, decodes the
-// payload, and renders the updated package/error. A ledgerID of uuid.Nil writes at
-// organization scope.
+// payload, and renders the updated package/error.
 func (handler *BillingPackageHandler) updateBillingPackage(ctx context.Context, organizationID, ledgerID, id uuid.UUID, payload *model.BillingPackageUpdate) (*model.BillingPackage, error) {
 	_, tracer, reqId, _ := libObservability.NewTrackingFromContext(ctx)
 
@@ -268,8 +267,7 @@ func (handler *BillingPackageHandler) updateBillingPackage(ctx context.Context, 
 
 // deleteBillingPackage is the transport-agnostic core of the delete op. It owns the
 // span, the service call, and the error log-level branch; the handler resolves the
-// org+ledger+package ids and renders the 204/error. A ledgerID of uuid.Nil deletes at
-// organization scope.
+// org+ledger+package ids and renders the 204/error.
 func (handler *BillingPackageHandler) deleteBillingPackage(ctx context.Context, organizationID, ledgerID, id uuid.UUID) error {
 	logger, tracer, reqId, _ := libObservability.NewTrackingFromContext(ctx)
 
