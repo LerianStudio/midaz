@@ -17,7 +17,7 @@ import (
 
 // This file is the ledger's Huma adoption of the transaction-route resource (Wave 2,
 // money-read + routing). It mirrors the operation-route exemplar
-// (operation_route_handler_huma.go); see the asset exemplar's header for the full
+// (operation_route_handler.go); see the asset exemplar's header for the full
 // conventions. Transaction-route-specific notes:
 //
 //  1. AUTH is the "midaz" appName, resource "transaction-routes". The Fiber guard

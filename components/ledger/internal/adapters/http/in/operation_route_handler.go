@@ -15,9 +15,9 @@ import (
 	pkgHTTP "github.com/LerianStudio/midaz/v4/pkg/net/http"
 )
 
-// This file is the ledger's Huma adoption of the operation-route resource (Wave 2,
-// money-read + routing). It mirrors the asset exemplar (asset_handler.go); see
-// that file's header for the full conventions. Operation-route-specific notes:
+// This file is the ledger's Huma adoption of the operation-route resource. It
+// mirrors the asset exemplar (asset_handler.go); see that file's header for the
+// full conventions. Operation-route-specific notes:
 //
 //  1. AUTH is the "midaz" appName, resource "operation-routes". The Fiber guard
 //     chain is Bearer-only (no X-API-Key), so the per-op Security metadata here is
@@ -29,11 +29,11 @@ import (
 //     operation_route.go) implements RFC 7396 JSON Merge Patch. It re-derives
 //     AccountingEntriesRaw from the raw request bytes to tell accountingEntries
 //     FIELD-ABSENT (keep existing) from accountingEntries:null (clear all) — a
-//     distinction Go's typed decode collapses. The Huma shell MUST feed in.RawBody
-//     to the core exactly as the Fiber wrapper feeds c.Body(), or the PATCH breaks
-//     silently. POST carries the same rawBody for the accountingEntries unknown-key
-//     probe. Both keep RawBody + SkipValidateBody so http.DecodeAndValidate is the
-//     sole body validator (never a native Huma 422).
+//     distinction Go's typed decode collapses. The handler MUST feed in.RawBody to
+//     the core unaltered, or the PATCH breaks silently. POST carries the same
+//     rawBody for the accountingEntries unknown-key probe. Both keep RawBody +
+//     SkipValidateBody so http.DecodeAndValidate is the sole body validator (never
+//     a native Huma 422).
 //  3. List is cursor-based (no offset page, no HEAD-count). The raw query is
 //     captured via Resolve and fed to the imperative http.ValidateParameters binder.
 //  4. Errors go through the shared pkgHTTP.HumaProblem.
@@ -47,24 +47,24 @@ var secOperationRouteBearer = []map[string][]string{
 
 // --- POST /operation-routes ---------------------------------------------------
 
-// CreateOperationRouteInputHuma is the Huma request envelope for POST. RawBody keeps
+// CreateOperationRouteRequest is the Huma request envelope for POST. RawBody keeps
 // the body out of Huma's validator and feeds the imperative decode + the
 // accountingEntries unknown-key probe in the shared core.
-type CreateOperationRouteInputHuma struct {
+type CreateOperationRouteRequest struct {
 	OrganizationID string `path:"organization_id" doc:"Organization ID (UUID)"`
 	LedgerID       string `path:"ledger_id" doc:"Ledger ID (UUID)"`
 	RawBody        []byte `contentType:"application/json"`
 }
 
-// CreateOperationRouteOutputHuma pins 201 (matching http.Created).
-type CreateOperationRouteOutputHuma struct {
+// CreateOperationRouteResponse pins 201 (matching http.Created).
+type CreateOperationRouteResponse struct {
 	Status int
 	Body   *mmodel.OperationRoute
 }
 
-// CreateOperationRouteHuma decodes+validates the raw body imperatively then delegates
+// CreateOperationRoute decodes+validates the raw body imperatively then delegates
 // to the shared createOperationRoute core (feeding in.RawBody for the unknown-key probe).
-func (handler *OperationRouteHandler) CreateOperationRouteHuma(ctx context.Context, in *CreateOperationRouteInputHuma) (*CreateOperationRouteOutputHuma, error) {
+func (handler *OperationRouteHandler) CreateOperationRoute(ctx context.Context, in *CreateOperationRouteRequest) (*CreateOperationRouteResponse, error) {
 	orgID, ledgerID, err := parseOrgLedger(in.OrganizationID, in.LedgerID)
 	if err != nil {
 		return nil, pkgHTTP.HumaProblem(err)
@@ -80,14 +80,14 @@ func (handler *OperationRouteHandler) CreateOperationRouteHuma(ctx context.Conte
 		return nil, pkgHTTP.HumaProblem(err)
 	}
 
-	return &CreateOperationRouteOutputHuma{Status: http.StatusCreated, Body: operationRoute}, nil
+	return &CreateOperationRouteResponse{Status: http.StatusCreated, Body: operationRoute}, nil
 }
 
 // --- GET /operation-routes (list) ---------------------------------------------
 
-// ListOperationRoutesInputHuma advertises the cursor-list query params (doc-only)
+// ListOperationRoutesRequest advertises the cursor-list query params (doc-only)
 // and captures the raw query via Resolve for the imperative binder.
-type ListOperationRoutesInputHuma struct {
+type ListOperationRoutesRequest struct {
 	OrganizationID string `path:"organization_id" doc:"Organization ID (UUID)"`
 	LedgerID       string `path:"ledger_id" doc:"Ledger ID (UUID)"`
 	Limit          string `query:"limit" doc:"Max items per page (default 10)"`
@@ -101,7 +101,7 @@ type ListOperationRoutesInputHuma struct {
 
 // Resolve captures the raw query before the handler (no validation; canonical
 // rejection stays in http.ValidateParameters).
-func (in *ListOperationRoutesInputHuma) Resolve(ctx huma.Context) []error {
+func (in *ListOperationRoutesRequest) Resolve(ctx huma.Context) []error {
 	u := ctx.URL()
 	in.rawQuery = u.Query()
 
@@ -111,7 +111,7 @@ func (in *ListOperationRoutesInputHuma) Resolve(ctx huma.Context) []error {
 // queries rebuilds the map[string]string that http.ValidateParameters consumes,
 // matching Fiber's c.Queries() (last value wins for a repeated key). Inlined per
 // the pattern (the query binder is copied, not a shared helper).
-func (in *ListOperationRoutesInputHuma) queries() map[string]string {
+func (in *ListOperationRoutesRequest) queries() map[string]string {
 	out := make(map[string]string, len(in.rawQuery))
 	for k, vs := range in.rawQuery {
 		if len(vs) == 0 {
@@ -125,15 +125,15 @@ func (in *ListOperationRoutesInputHuma) queries() map[string]string {
 	return out
 }
 
-// ListOperationRoutesOutputHuma carries the pagination envelope verbatim.
-type ListOperationRoutesOutputHuma struct {
+// ListOperationRoutesResponse carries the pagination envelope verbatim.
+type ListOperationRoutesResponse struct {
 	Status int
 	Body   pkgHTTP.Pagination
 }
 
-// GetAllOperationRoutesHuma binds the query imperatively then delegates to
+// GetAllOperationRoutes binds the query imperatively then delegates to
 // getAllOperationRoutes.
-func (handler *OperationRouteHandler) GetAllOperationRoutesHuma(ctx context.Context, in *ListOperationRoutesInputHuma) (*ListOperationRoutesOutputHuma, error) {
+func (handler *OperationRouteHandler) GetAllOperationRoutes(ctx context.Context, in *ListOperationRoutesRequest) (*ListOperationRoutesResponse, error) {
 	orgID, ledgerID, err := parseOrgLedger(in.OrganizationID, in.LedgerID)
 	if err != nil {
 		return nil, pkgHTTP.HumaProblem(err)
@@ -144,27 +144,27 @@ func (handler *OperationRouteHandler) GetAllOperationRoutesHuma(ctx context.Cont
 		return nil, pkgHTTP.HumaProblem(err)
 	}
 
-	return &ListOperationRoutesOutputHuma{Status: http.StatusOK, Body: pagination}, nil
+	return &ListOperationRoutesResponse{Status: http.StatusOK, Body: pagination}, nil
 }
 
 // --- GET /operation-routes/{operation_route_id} -------------------------------
 
-// GetOperationRouteInputHuma is the by-id request envelope. The id path param
+// GetOperationRouteRequest is the by-id request envelope. The id path param
 // carries no format tag (ParseUUIDPathParameters is the sole validator).
-type GetOperationRouteInputHuma struct {
+type GetOperationRouteRequest struct {
 	OrganizationID   string `path:"organization_id" doc:"Organization ID (UUID)"`
 	LedgerID         string `path:"ledger_id" doc:"Ledger ID (UUID)"`
 	OperationRouteID string `path:"operation_route_id" doc:"Operation Route ID (UUID)"`
 }
 
-// GetOperationRouteOutputHuma carries the operation route verbatim.
-type GetOperationRouteOutputHuma struct {
+// GetOperationRouteResponse carries the operation route verbatim.
+type GetOperationRouteResponse struct {
 	Status int
 	Body   *mmodel.OperationRoute
 }
 
-// GetOperationRouteByIDHuma delegates to getOperationRouteByID.
-func (handler *OperationRouteHandler) GetOperationRouteByIDHuma(ctx context.Context, in *GetOperationRouteInputHuma) (*GetOperationRouteOutputHuma, error) {
+// GetOperationRouteByID delegates to getOperationRouteByID.
+func (handler *OperationRouteHandler) GetOperationRouteByID(ctx context.Context, in *GetOperationRouteRequest) (*GetOperationRouteResponse, error) {
 	orgID, ledgerID, err := parseOrgLedger(in.OrganizationID, in.LedgerID)
 	if err != nil {
 		return nil, pkgHTTP.HumaProblem(err)
@@ -180,31 +180,31 @@ func (handler *OperationRouteHandler) GetOperationRouteByIDHuma(ctx context.Cont
 		return nil, pkgHTTP.HumaProblem(err)
 	}
 
-	return &GetOperationRouteOutputHuma{Status: http.StatusOK, Body: operationRoute}, nil
+	return &GetOperationRouteResponse{Status: http.StatusOK, Body: operationRoute}, nil
 }
 
 // --- PATCH /operation-routes/{operation_route_id} -----------------------------
 
-// UpdateOperationRouteInputHuma is the update request envelope. RawBody is the sole
+// UpdateOperationRouteRequest is the update request envelope. RawBody is the sole
 // source that preserves accountingEntries field-absent vs explicit-null for the
 // RFC 7396 merge-patch core (see file header + updateOperationRoute).
-type UpdateOperationRouteInputHuma struct {
+type UpdateOperationRouteRequest struct {
 	OrganizationID   string `path:"organization_id" doc:"Organization ID (UUID)"`
 	LedgerID         string `path:"ledger_id" doc:"Ledger ID (UUID)"`
 	OperationRouteID string `path:"operation_route_id" doc:"Operation Route ID (UUID)"`
 	RawBody          []byte `contentType:"application/json"`
 }
 
-// UpdateOperationRouteOutputHuma carries the updated route (200, matching http.OK).
-type UpdateOperationRouteOutputHuma struct {
+// UpdateOperationRouteResponse carries the updated route (200, matching http.OK).
+type UpdateOperationRouteResponse struct {
 	Status int
 	Body   *mmodel.OperationRoute
 }
 
-// UpdateOperationRouteHuma decodes+validates the raw body imperatively then delegates
+// UpdateOperationRoute decodes+validates the raw body imperatively then delegates
 // to the shared updateOperationRoute core, feeding in.RawBody so the RFC 7396 merge
 // distinguishes accountingEntries absent from accountingEntries:null.
-func (handler *OperationRouteHandler) UpdateOperationRouteHuma(ctx context.Context, in *UpdateOperationRouteInputHuma) (*UpdateOperationRouteOutputHuma, error) {
+func (handler *OperationRouteHandler) UpdateOperationRoute(ctx context.Context, in *UpdateOperationRouteRequest) (*UpdateOperationRouteResponse, error) {
 	orgID, ledgerID, err := parseOrgLedger(in.OrganizationID, in.LedgerID)
 	if err != nil {
 		return nil, pkgHTTP.HumaProblem(err)
@@ -225,18 +225,18 @@ func (handler *OperationRouteHandler) UpdateOperationRouteHuma(ctx context.Conte
 		return nil, pkgHTTP.HumaProblem(err)
 	}
 
-	return &UpdateOperationRouteOutputHuma{Status: http.StatusOK, Body: operationRoute}, nil
+	return &UpdateOperationRouteResponse{Status: http.StatusOK, Body: operationRoute}, nil
 }
 
 // --- DELETE /operation-routes/{operation_route_id} ----------------------------
 
-// DeleteOperationRouteOutputHuma has NO Body field: paired with DefaultStatus 204 it
-// makes Huma emit a bodiless 204, matching the Fiber http.NoContent path.
-type DeleteOperationRouteOutputHuma struct{}
+// DeleteOperationRouteResponse has NO Body field: paired with DefaultStatus 204 it
+// makes Huma emit a bodiless 204.
+type DeleteOperationRouteResponse struct{}
 
-// DeleteOperationRouteByIDHuma delegates to deleteOperationRouteByID; returns a
+// DeleteOperationRouteByID delegates to deleteOperationRouteByID; returns a
 // bodiless 204 on success.
-func (handler *OperationRouteHandler) DeleteOperationRouteByIDHuma(ctx context.Context, in *GetOperationRouteInputHuma) (*DeleteOperationRouteOutputHuma, error) {
+func (handler *OperationRouteHandler) DeleteOperationRouteByID(ctx context.Context, in *GetOperationRouteRequest) (*DeleteOperationRouteResponse, error) {
 	orgID, ledgerID, err := parseOrgLedger(in.OrganizationID, in.LedgerID)
 	if err != nil {
 		return nil, pkgHTTP.HumaProblem(err)
@@ -251,12 +251,12 @@ func (handler *OperationRouteHandler) DeleteOperationRouteByIDHuma(ctx context.C
 		return nil, pkgHTTP.HumaProblem(err)
 	}
 
-	return &DeleteOperationRouteOutputHuma{}, nil
+	return &DeleteOperationRouteResponse{}, nil
 }
 
-// RegisterOperationRouteRoutes registers the five migrated operation-route
-// operations on the shared Huma API. It is the per-file seam the unified server
-// calls; the auth ("midaz","operation-routes",verb) + tenant +
+// RegisterOperationRouteRoutes registers the five operation-route operations on the
+// shared Huma API. It is the per-file seam the unified server calls; the auth
+// ("midaz","operation-routes",verb) + tenant +
 // ParseUUIDPathParameters("operation_route") middleware chain is attached on the
 // version group (Fiber-level) BEFORE the Huma terminal, not here. Paths are
 // GROUP-RELATIVE (see asset_handler.go's RegisterAssetRoutes header for the
@@ -282,7 +282,7 @@ func RegisterOperationRouteRoutes(api huma.API, h *OperationRouteHandler, opSuff
 		// Body validated imperatively (http.DecodeAndValidate) — see file header.
 		SkipValidateBody: true,
 		DefaultStatus:    http.StatusCreated,
-	}, h.CreateOperationRouteHuma)
+	}, h.CreateOperationRoute)
 	attachTypedRequestBody[mmodel.CreateOperationRouteInput](api, "createOperationRoute"+opSuffix)
 
 	huma.Register(api, huma.Operation{
@@ -292,7 +292,7 @@ func RegisterOperationRouteRoutes(api huma.API, h *OperationRouteHandler, opSuff
 		Summary:     "Retrieve all operation routes",
 		Tags:        []string{tag},
 		Security:    secOperationRouteBearer,
-	}, h.GetAllOperationRoutesHuma)
+	}, h.GetAllOperationRoutes)
 
 	huma.Register(api, huma.Operation{
 		OperationID: "getOperationRouteByID" + opSuffix,
@@ -301,7 +301,7 @@ func RegisterOperationRouteRoutes(api huma.API, h *OperationRouteHandler, opSuff
 		Summary:     "Retrieve a specific operation route",
 		Tags:        []string{tag},
 		Security:    secOperationRouteBearer,
-	}, h.GetOperationRouteByIDHuma)
+	}, h.GetOperationRouteByID)
 
 	huma.Register(api, huma.Operation{
 		OperationID:      "updateOperationRoute" + opSuffix,
@@ -311,7 +311,7 @@ func RegisterOperationRouteRoutes(api huma.API, h *OperationRouteHandler, opSuff
 		Tags:             []string{tag},
 		Security:         secOperationRouteBearer,
 		SkipValidateBody: true, // body validated imperatively — RFC 7396 merge-patch core.
-	}, h.UpdateOperationRouteHuma)
+	}, h.UpdateOperationRoute)
 	attachTypedRequestBody[mmodel.UpdateOperationRouteInput](api, "updateOperationRoute"+opSuffix)
 
 	huma.Register(api, huma.Operation{
@@ -323,5 +323,5 @@ func RegisterOperationRouteRoutes(api huma.API, h *OperationRouteHandler, opSuff
 		Security:    secOperationRouteBearer,
 		// DefaultStatus 204 + an Out struct with no Body field => bodiless 204.
 		DefaultStatus: http.StatusNoContent,
-	}, h.DeleteOperationRouteByIDHuma)
+	}, h.DeleteOperationRouteByID)
 }

@@ -80,7 +80,7 @@ permissions:
   - { resource: ledgers, action: delete, effect: allow, roles: [editor] }
   - { resource: ledgers, action: head,   effect: allow, roles: [editor, viewer] }
 
-  # operation-routes (routes.go:315)
+  # operation-routes (routes.go:273)
   - { resource: operation-routes, action: post,   effect: allow, roles: [editor] }
   - { resource: operation-routes, action: patch,  effect: allow, roles: [editor] }
   - { resource: operation-routes, action: get,    effect: allow, roles: [editor, viewer] }
