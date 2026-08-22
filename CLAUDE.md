@@ -162,7 +162,7 @@ Binding standard: `docs/standards/error-handling.md` (E1–E14). One error platf
 
 ## HTTP
 
-- HTTP layer runs Huma v2 (OAS 3.1) over Fiber v3: Fiber is the runtime router / auth chain / middleware; Huma sits on top to generate the API contract and validate requests via typed input/output structs. Handlers live in `*_handler_huma.go` files.
+- HTTP layer runs Huma v2 (OAS 3.1) over Fiber v3: Fiber is the runtime router / auth chain / middleware; Huma sits on top to generate the API contract and validate requests via typed request/response structs. Each resource is split in two: `<resource>.go` holds the handler struct and its transport-agnostic cores (span, service call, log/metric), `<resource>_handler.go` holds the Huma transport — the `<Op>Request`/`<Op>Response` envelopes, the handler methods and the registrars. Cores take primitive args, so nothing transport-shaped reaches them.
 - `pkg/net/http` `WithError` serializes the RFC 9457 `application/problem+json` envelope (`type`, `title`, `status`, `detail`, `instance`, plus `code` and `entityType`). The `(code, HTTP status)` money-path tuple is preserved; only the envelope shape changed.
 - All routes use `http.ProtectedRouteChain()`.
 - Route protection includes auth, optional post-auth middlewares, body parsing, UUID path validation, and handler.

@@ -82,7 +82,7 @@ repositories. Domain models live in `pkg/mmodel`.
   top to generate the API contract and validate typed request/response structs.
 - **Errors:** RFC 9457 `application/problem+json`. Typed errors from `pkg/errors.go`, numeric
   sentinels from `pkg/constant/errors.go`. Not found → 404, business-rule violations → 422.
-- **Handlers:** `internal/adapters/http/in` (the `*_handler_huma.go` files).
+- **Handlers:** `internal/adapters/http/in`. Per resource: `<resource>.go` (transport-agnostic cores) and `<resource>_handler.go` (Huma envelopes, handler methods, registrars).
 - **Write use cases:** `internal/services/command`. **Read use cases:** `internal/services/query`.
 
 ### Stores
