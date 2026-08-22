@@ -279,7 +279,7 @@ func registerOperationRouteRoutesToApp(group fiber.Router, api huma.API, auth *m
 	RegisterOperationRouteRoutes(api, orh, opSuffix)
 }
 
-// RegisterTransactionRouteRoutesToApp wires the Huma-migrated transaction-route surface onto
+// RegisterTransactionRouteRoutesToApp wires the transaction-route surface onto
 // the /v1 contract. See registerTransactionRouteRoutesToApp for what it attaches.
 func RegisterTransactionRouteRoutesToApp(group fiber.Router, api huma.API, auth *middleware.AuthClient, trh *TransactionRouteHandler, routeOptions *http.ProtectedRouteOptions) {
 	registerTransactionRouteRoutesToApp(group, api, auth, trh, routeOptions, routeOpSuffixV1)

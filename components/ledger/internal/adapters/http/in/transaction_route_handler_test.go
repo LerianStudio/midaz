@@ -22,10 +22,12 @@ import (
 	"go.uber.org/mock/gomock"
 
 	mongodb "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/mongodb/transaction"
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/operationroute"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/transactionroute"
 	redis "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/redis/transaction"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services/command"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services/query"
+	"github.com/LerianStudio/midaz/v4/pkg"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
 	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
 	pkgHTTP "github.com/LerianStudio/midaz/v4/pkg/net/http"
@@ -74,7 +76,7 @@ func buildHumaTransactionRouteApp(t *testing.T, handler *TransactionRouteHandler
 	return f
 }
 
-func TestHuma_CreateTransactionRoute_AuthPreserved(t *testing.T) {
+func TestCreateTransactionRoute_AuthPreserved(t *testing.T) {
 	// NOT parallel: buildHumaTransactionRouteApp mutates process-global huma state.
 	ctrl := gomock.NewController(t)
 	t.Cleanup(ctrl.Finish)
@@ -102,7 +104,7 @@ func TestHuma_CreateTransactionRoute_AuthPreserved(t *testing.T) {
 	assert.Equal(t, http.StatusUnauthorized, resp.StatusCode, "auth middleware must reject before Huma; no public route")
 }
 
-func TestHuma_CreateTransactionRoute_ValidationError_Canonical400(t *testing.T) {
+func TestCreateTransactionRoute_ValidationError_Canonical400(t *testing.T) {
 	// NOT parallel: process-global huma state.
 	ctrl := gomock.NewController(t)
 	t.Cleanup(ctrl.Finish)
@@ -138,7 +140,7 @@ func TestHuma_CreateTransactionRoute_ValidationError_Canonical400(t *testing.T) 
 	assert.Equal(t, float64(http.StatusBadRequest), got["status"])
 }
 
-func TestHuma_CreateTransactionRoute_MalformedBody_Canonical400(t *testing.T) {
+func TestCreateTransactionRoute_MalformedBody_Canonical400(t *testing.T) {
 	// NOT parallel: process-global huma state.
 	ctrl := gomock.NewController(t)
 	t.Cleanup(ctrl.Finish)
@@ -174,7 +176,7 @@ func TestHuma_CreateTransactionRoute_MalformedBody_Canonical400(t *testing.T) {
 	assert.Equal(t, float64(http.StatusBadRequest), got["status"])
 }
 
-func TestHuma_GetTransactionRouteByID_Success(t *testing.T) {
+func TestGetTransactionRouteByID_Success(t *testing.T) {
 	// NOT parallel: process-global huma state.
 	ctrl := gomock.NewController(t)
 	t.Cleanup(ctrl.Finish)
@@ -209,7 +211,7 @@ func TestHuma_GetTransactionRouteByID_Success(t *testing.T) {
 	assert.Equal(t, "Settlement", got["title"])
 }
 
-func TestHuma_GetTransactionRouteByID_BadUUID_Canonical400(t *testing.T) {
+func TestGetTransactionRouteByID_BadUUID_Canonical400(t *testing.T) {
 	// NOT parallel: process-global huma state.
 	ctrl := gomock.NewController(t)
 	t.Cleanup(ctrl.Finish)
@@ -239,7 +241,7 @@ func TestHuma_GetTransactionRouteByID_BadUUID_Canonical400(t *testing.T) {
 	assert.Equal(t, constant.ErrInvalidPathParameter.Error(), got["code"])
 }
 
-func TestHuma_GetAllTransactionRoutes_Success(t *testing.T) {
+func TestGetAllTransactionRoutes_Success(t *testing.T) {
 	// NOT parallel: process-global huma state.
 	ctrl := gomock.NewController(t)
 	t.Cleanup(ctrl.Finish)
@@ -271,7 +273,7 @@ func TestHuma_GetAllTransactionRoutes_Success(t *testing.T) {
 	assert.EqualValues(t, 10, got["limit"])
 }
 
-func TestHuma_GetAllTransactionRoutes_BadQuery_Canonical400(t *testing.T) {
+func TestGetAllTransactionRoutes_BadQuery_Canonical400(t *testing.T) {
 	// NOT parallel: process-global huma state.
 	ctrl := gomock.NewController(t)
 	t.Cleanup(ctrl.Finish)
@@ -298,7 +300,7 @@ func TestHuma_GetAllTransactionRoutes_BadQuery_Canonical400(t *testing.T) {
 	assert.Equal(t, constant.ErrInvalidQueryParameter.Error(), got["code"])
 }
 
-func TestHuma_DeleteTransactionRoute_204Empty(t *testing.T) {
+func TestDeleteTransactionRoute_204Empty(t *testing.T) {
 	// NOT parallel: process-global huma state.
 	ctrl := gomock.NewController(t)
 	t.Cleanup(ctrl.Finish)
@@ -332,4 +334,296 @@ func TestHuma_DeleteTransactionRoute_204Empty(t *testing.T) {
 	respBody, _ := io.ReadAll(resp.Body)
 	assert.Equal(t, http.StatusNoContent, resp.StatusCode)
 	assert.Empty(t, respBody, "DELETE 204 must have an empty body")
+}
+
+// --- ported from the retired Fiber-wrapper tests (transaction_route_test.go) ---
+//
+// The five exported fiber.Ctx terminals on TransactionRouteHandler were deleted
+// with the Huma migration; the branches their tests covered in the shared cores
+// are exercised here through the live Huma transport instead.
+
+func trPath(orgID, ledgerID uuid.UUID, suffix string) string {
+	return "/v1/organizations/" + orgID.String() + "/ledgers/" + ledgerID.String() + "/transaction-routes" + suffix
+}
+
+func TestCreateTransactionRoute_Success(t *testing.T) {
+	// NOT parallel: process-global huma state.
+	ctrl := gomock.NewController(t)
+	t.Cleanup(ctrl.Finish)
+
+	orgID := uuid.New()
+	ledgerID := uuid.New()
+	op1 := uuid.MustParse("01965ed9-7fa4-75b2-8872-fc9e8509ab0a")
+	op2 := uuid.MustParse("01965ed9-7fa4-75b2-8872-fc9e8509ab0b")
+
+	trRepo := transactionroute.NewMockRepository(ctrl)
+	orRepo := operationroute.NewMockRepository(ctrl)
+	metadataRepo := mongodb.NewMockRepository(ctrl)
+	redisRepo := redis.NewMockRedisRepository(ctrl)
+
+	orRepo.EXPECT().FindByIDs(gomock.Any(), orgID, ledgerID, []uuid.UUID{op1, op2}).
+		Return([]*mmodel.OperationRoute{
+			{ID: op1, OperationType: "source", Title: "Source Route"},
+			{ID: op2, OperationType: "destination", Title: "Destination Route"},
+		}, nil).Times(1)
+	trRepo.EXPECT().Create(gomock.Any(), orgID, ledgerID, gomock.Any()).
+		DoAndReturn(func(_ any, oID, lID uuid.UUID, tr *mmodel.TransactionRoute) (*mmodel.TransactionRoute, error) {
+			tr.OrganizationID = oID
+			tr.LedgerID = lID
+			return tr, nil
+		}).Times(1)
+	metadataRepo.EXPECT().Create(gomock.Any(), gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
+	// The accounting-route cache write is best-effort; the core logs and continues.
+	redisRepo.EXPECT().SetBytes(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
+	redisRepo.EXPECT().SetNX(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return(true, nil).AnyTimes()
+
+	handler := &TransactionRouteHandler{Command: &command.UseCase{
+		TransactionRouteRepo:    trRepo,
+		OperationRouteRepo:      orRepo,
+		TransactionMetadataRepo: metadataRepo,
+		TransactionRedisRepo:    redisRepo,
+	}}
+
+	app := buildHumaTransactionRouteApp(t, handler, true)
+
+	body := `{"title":"Payment Settlement","description":"Route for payment settlement transactions","operationRoutes":["` +
+		op1.String() + `","` + op2.String() + `"]}`
+	req := httptest.NewRequest(http.MethodPost, trPath(orgID, ledgerID, ""), bytes.NewBufferString(body))
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
+	require.NoError(t, err)
+	defer func() { _ = resp.Body.Close() }()
+
+	respBody, _ := io.ReadAll(resp.Body)
+	assert.Equal(t, http.StatusCreated, resp.StatusCode, "body: %s", string(respBody))
+	assert.NotContains(t, string(respBody), "$schema", "SchemaLinkTransformer must be zeroed")
+
+	var got map[string]any
+	require.NoError(t, json.Unmarshal(respBody, &got), "body: %s", string(respBody))
+	assert.Equal(t, "Payment Settlement", got["title"])
+}
+
+func TestCreateTransactionRoute_ServiceError_Canonical404(t *testing.T) {
+	// NOT parallel: process-global huma state. createTransactionRoute's
+	// command-error branch, before the cache write and the metric.
+	ctrl := gomock.NewController(t)
+	t.Cleanup(ctrl.Finish)
+
+	orgID := uuid.New()
+	ledgerID := uuid.New()
+	op1 := uuid.MustParse("01965ed9-7fa4-75b2-8872-fc9e8509ab0a")
+
+	orRepo := operationroute.NewMockRepository(ctrl)
+	orRepo.EXPECT().FindByIDs(gomock.Any(), orgID, ledgerID, []uuid.UUID{op1}).
+		Return(nil, pkg.ValidateBusinessError(constant.ErrEntityNotFound, constant.EntityTransactionRoute)).Times(1)
+
+	handler := &TransactionRouteHandler{Command: &command.UseCase{
+		TransactionRouteRepo: transactionroute.NewMockRepository(ctrl),
+		OperationRouteRepo:   orRepo,
+	}}
+
+	app := buildHumaTransactionRouteApp(t, handler, true)
+
+	body := `{"title":"Payment Settlement","description":"d","operationRoutes":["` + op1.String() + `"]}`
+	req := httptest.NewRequest(http.MethodPost, trPath(orgID, ledgerID, ""), bytes.NewBufferString(body))
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
+	require.NoError(t, err)
+	defer func() { _ = resp.Body.Close() }()
+
+	respBody, _ := io.ReadAll(resp.Body)
+	assert.Equal(t, http.StatusNotFound, resp.StatusCode, "body: %s", string(respBody))
+
+	var got map[string]any
+	require.NoError(t, json.Unmarshal(respBody, &got), "body: %s", string(respBody))
+	assert.Contains(t, got, "code")
+}
+
+func TestGetTransactionRouteByID_ServiceError_Canonical404(t *testing.T) {
+	// NOT parallel: process-global huma state. getTransactionRouteByID's error branch.
+	ctrl := gomock.NewController(t)
+	t.Cleanup(ctrl.Finish)
+
+	orgID := uuid.New()
+	ledgerID := uuid.New()
+	id := uuid.New()
+
+	trRepo := transactionroute.NewMockRepository(ctrl)
+	trRepo.EXPECT().FindByID(gomock.Any(), orgID, ledgerID, id).
+		Return(nil, pkg.ValidateBusinessError(constant.ErrEntityNotFound, constant.EntityTransactionRoute)).Times(1)
+
+	handler := &TransactionRouteHandler{Query: &query.UseCase{TransactionRouteRepo: trRepo}}
+
+	app := buildHumaTransactionRouteApp(t, handler, true)
+
+	req := httptest.NewRequest(http.MethodGet, trPath(orgID, ledgerID, "/"+id.String()), nil)
+	resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
+	require.NoError(t, err)
+	defer func() { _ = resp.Body.Close() }()
+
+	assert.Equal(t, http.StatusNotFound, resp.StatusCode)
+}
+
+func TestUpdateTransactionRoute_Success(t *testing.T) {
+	// NOT parallel: process-global huma state.
+	ctrl := gomock.NewController(t)
+	t.Cleanup(ctrl.Finish)
+
+	orgID := uuid.New()
+	ledgerID := uuid.New()
+	id := uuid.New()
+
+	trRepo := transactionroute.NewMockRepository(ctrl)
+	metadataRepo := mongodb.NewMockRepository(ctrl)
+	redisRepo := redis.NewMockRedisRepository(ctrl)
+
+	trRepo.EXPECT().FindOperationRouteIDsByTransactionRouteIDs(gomock.Any(), gomock.Any()).
+		Return(map[uuid.UUID][]uuid.UUID{}, nil).AnyTimes()
+	trRepo.EXPECT().Update(gomock.Any(), orgID, ledgerID, id, gomock.Any(), gomock.Any(), gomock.Any()).
+		Return(&mmodel.TransactionRoute{ID: id, OrganizationID: orgID, LedgerID: ledgerID, Title: "Renamed Route"}, nil).Times(1)
+	metadataRepo.EXPECT().FindByEntity(gomock.Any(), gomock.Any(), gomock.Any()).Return(nil, nil).AnyTimes()
+	metadataRepo.EXPECT().Update(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
+	redisRepo.EXPECT().SetBytes(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
+	redisRepo.EXPECT().SetNX(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return(true, nil).AnyTimes()
+
+	handler := &TransactionRouteHandler{Command: &command.UseCase{
+		TransactionRouteRepo:    trRepo,
+		TransactionMetadataRepo: metadataRepo,
+		TransactionRedisRepo:    redisRepo,
+	}}
+
+	app := buildHumaTransactionRouteApp(t, handler, true)
+
+	req := httptest.NewRequest(http.MethodPatch, trPath(orgID, ledgerID, "/"+id.String()), bytes.NewBufferString(`{"title":"Renamed Route"}`))
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
+	require.NoError(t, err)
+	defer func() { _ = resp.Body.Close() }()
+
+	respBody, _ := io.ReadAll(resp.Body)
+	assert.Equal(t, http.StatusOK, resp.StatusCode, "body: %s", string(respBody))
+
+	var got map[string]any
+	require.NoError(t, json.Unmarshal(respBody, &got), "body: %s", string(respBody))
+	assert.Equal(t, "Renamed Route", got["title"])
+}
+
+func TestUpdateTransactionRoute_NotFound_Canonical404(t *testing.T) {
+	// NOT parallel: process-global huma state. updateTransactionRoute's error branch.
+	ctrl := gomock.NewController(t)
+	t.Cleanup(ctrl.Finish)
+
+	orgID := uuid.New()
+	ledgerID := uuid.New()
+	id := uuid.New()
+
+	trRepo := transactionroute.NewMockRepository(ctrl)
+	trRepo.EXPECT().Update(gomock.Any(), orgID, ledgerID, id, gomock.Any(), gomock.Any(), gomock.Any()).
+		Return(nil, pkg.ValidateBusinessError(constant.ErrEntityNotFound, constant.EntityTransactionRoute)).Times(1)
+
+	handler := &TransactionRouteHandler{Command: &command.UseCase{TransactionRouteRepo: trRepo}}
+
+	app := buildHumaTransactionRouteApp(t, handler, true)
+
+	req := httptest.NewRequest(http.MethodPatch, trPath(orgID, ledgerID, "/"+id.String()), bytes.NewBufferString(`{"title":"Renamed Route"}`))
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
+	require.NoError(t, err)
+	defer func() { _ = resp.Body.Close() }()
+
+	assert.Equal(t, http.StatusNotFound, resp.StatusCode)
+}
+
+func TestDeleteTransactionRoute_ServiceError_Canonical404(t *testing.T) {
+	// NOT parallel: process-global huma state. deleteTransactionRouteByID's
+	// command-error branch, before the cache delete.
+	ctrl := gomock.NewController(t)
+	t.Cleanup(ctrl.Finish)
+
+	orgID := uuid.New()
+	ledgerID := uuid.New()
+	id := uuid.New()
+
+	trRepo := transactionroute.NewMockRepository(ctrl)
+	trRepo.EXPECT().FindByID(gomock.Any(), orgID, ledgerID, id).
+		Return(nil, pkg.ValidateBusinessError(constant.ErrEntityNotFound, constant.EntityTransactionRoute)).Times(1)
+
+	handler := &TransactionRouteHandler{Command: &command.UseCase{
+		TransactionRouteRepo: trRepo,
+		TransactionRedisRepo: redis.NewMockRedisRepository(ctrl),
+	}}
+
+	app := buildHumaTransactionRouteApp(t, handler, true)
+
+	req := httptest.NewRequest(http.MethodDelete, trPath(orgID, ledgerID, "/"+id.String()), nil)
+	resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
+	require.NoError(t, err)
+	defer func() { _ = resp.Body.Close() }()
+
+	assert.Equal(t, http.StatusNotFound, resp.StatusCode)
+}
+
+func TestGetAllTransactionRoutes_MetadataFilter(t *testing.T) {
+	// NOT parallel: process-global huma state. getAllTransactionRoutes' metadata
+	// branch, which returns its own cursor envelope.
+	ctrl := gomock.NewController(t)
+	t.Cleanup(ctrl.Finish)
+
+	orgID := uuid.New()
+	ledgerID := uuid.New()
+	id := uuid.New()
+
+	trRepo := transactionroute.NewMockRepository(ctrl)
+	metadataRepo := mongodb.NewMockRepository(ctrl)
+
+	metadataRepo.EXPECT().FindList(gomock.Any(), gomock.Any(), gomock.Any()).
+		Return([]*mongodb.Metadata{{EntityID: id.String(), Data: map[string]any{"tier": "premium"}}}, nil).Times(1)
+	trRepo.EXPECT().FindAll(gomock.Any(), orgID, ledgerID, gomock.Any()).
+		Return([]*mmodel.TransactionRoute{{ID: id, OrganizationID: orgID, LedgerID: ledgerID, Title: "Premium"}},
+			libHTTP.CursorPagination{}, nil).Times(1)
+	trRepo.EXPECT().FindOperationRouteIDsByTransactionRouteIDs(gomock.Any(), gomock.Any()).
+		Return(map[uuid.UUID][]uuid.UUID{}, nil).AnyTimes()
+
+	handler := &TransactionRouteHandler{Query: &query.UseCase{
+		TransactionRouteRepo:    trRepo,
+		TransactionMetadataRepo: metadataRepo,
+	}}
+
+	app := buildHumaTransactionRouteApp(t, handler, true)
+
+	req := httptest.NewRequest(http.MethodGet, trPath(orgID, ledgerID, "?metadata.tier=premium"), nil)
+	resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
+	require.NoError(t, err)
+	defer func() { _ = resp.Body.Close() }()
+
+	respBody, _ := io.ReadAll(resp.Body)
+	assert.Equal(t, http.StatusOK, resp.StatusCode, "body: %s", string(respBody))
+}
+
+func TestGetAllTransactionRoutes_ServiceError_Canonical404(t *testing.T) {
+	// NOT parallel: process-global huma state. The plain query-error branch.
+	ctrl := gomock.NewController(t)
+	t.Cleanup(ctrl.Finish)
+
+	orgID := uuid.New()
+	ledgerID := uuid.New()
+
+	trRepo := transactionroute.NewMockRepository(ctrl)
+	trRepo.EXPECT().FindAll(gomock.Any(), orgID, ledgerID, gomock.Any()).
+		Return(nil, libHTTP.CursorPagination{}, pkg.ValidateBusinessError(constant.ErrEntityNotFound, constant.EntityTransactionRoute)).Times(1)
+
+	handler := &TransactionRouteHandler{Query: &query.UseCase{TransactionRouteRepo: trRepo}}
+
+	app := buildHumaTransactionRouteApp(t, handler, true)
+
+	req := httptest.NewRequest(http.MethodGet, trPath(orgID, ledgerID, ""), nil)
+	resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
+	require.NoError(t, err)
+	defer func() { _ = resp.Body.Close() }()
+
+	assert.Equal(t, http.StatusNotFound, resp.StatusCode)
 }

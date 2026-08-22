@@ -31,9 +31,8 @@ import (
 //     distinction), so the cores take the decoded *Input only — no rawBody. Both
 //     POST and PATCH keep RawBody + SkipValidateBody so http.DecodeAndValidate is
 //     the sole body validator (never a native Huma 422).
-//  3. The Create/Update/Delete cores own the side-effects the Fiber methods used to
-//     inline (accounting-route cache write on Create/Update, cache delete on Delete,
-//     the created metric) so BOTH transports behave identically.
+//  3. The Create/Update/Delete cores own the side-effects (accounting-route cache
+//     write on Create/Update, cache delete on Delete, the created metric).
 //  4. List is cursor-based (no offset page, no HEAD-count). The raw query is captured
 //     via Resolve and fed to the imperative http.ValidateParameters binder.
 //  5. Errors go through the shared pkgHTTP.HumaProblem.
@@ -47,23 +46,23 @@ var secTransactionRouteBearer = []map[string][]string{
 
 // --- POST /transaction-routes -------------------------------------------------
 
-// CreateTransactionRouteInputHuma is the Huma request envelope for POST. RawBody
+// CreateTransactionRouteRequest is the Huma request envelope for POST. RawBody
 // keeps the body out of Huma's validator and feeds the imperative decode.
-type CreateTransactionRouteInputHuma struct {
+type CreateTransactionRouteRequest struct {
 	OrganizationID string `path:"organization_id" doc:"Organization ID (UUID)"`
 	LedgerID       string `path:"ledger_id" doc:"Ledger ID (UUID)"`
 	RawBody        []byte `contentType:"application/json"`
 }
 
-// CreateTransactionRouteOutputHuma pins 201 (matching http.Created).
-type CreateTransactionRouteOutputHuma struct {
+// CreateTransactionRouteResponse pins 201 (matching http.Created).
+type CreateTransactionRouteResponse struct {
 	Status int
 	Body   *mmodel.TransactionRoute
 }
 
-// CreateTransactionRouteHuma decodes+validates the raw body imperatively then delegates
+// CreateTransactionRoute decodes+validates the raw body imperatively then delegates
 // to the shared createTransactionRoute core.
-func (handler *TransactionRouteHandler) CreateTransactionRouteHuma(ctx context.Context, in *CreateTransactionRouteInputHuma) (*CreateTransactionRouteOutputHuma, error) {
+func (handler *TransactionRouteHandler) CreateTransactionRoute(ctx context.Context, in *CreateTransactionRouteRequest) (*CreateTransactionRouteResponse, error) {
 	orgID, ledgerID, err := parseOrgLedger(in.OrganizationID, in.LedgerID)
 	if err != nil {
 		return nil, pkgHTTP.HumaProblem(err)
@@ -79,14 +78,14 @@ func (handler *TransactionRouteHandler) CreateTransactionRouteHuma(ctx context.C
 		return nil, pkgHTTP.HumaProblem(err)
 	}
 
-	return &CreateTransactionRouteOutputHuma{Status: http.StatusCreated, Body: transactionRoute}, nil
+	return &CreateTransactionRouteResponse{Status: http.StatusCreated, Body: transactionRoute}, nil
 }
 
 // --- GET /transaction-routes (list) -------------------------------------------
 
-// ListTransactionRoutesInputHuma advertises the cursor-list query params (doc-only)
+// ListTransactionRoutesRequest advertises the cursor-list query params (doc-only)
 // and captures the raw query via Resolve for the imperative binder.
-type ListTransactionRoutesInputHuma struct {
+type ListTransactionRoutesRequest struct {
 	OrganizationID string `path:"organization_id" doc:"Organization ID (UUID)"`
 	LedgerID       string `path:"ledger_id" doc:"Ledger ID (UUID)"`
 	Limit          string `query:"limit" doc:"Max items per page (default 10)"`
@@ -100,7 +99,7 @@ type ListTransactionRoutesInputHuma struct {
 
 // Resolve captures the raw query before the handler (no validation; canonical
 // rejection stays in http.ValidateParameters).
-func (in *ListTransactionRoutesInputHuma) Resolve(ctx huma.Context) []error {
+func (in *ListTransactionRoutesRequest) Resolve(ctx huma.Context) []error {
 	u := ctx.URL()
 	in.rawQuery = u.Query()
 
@@ -110,7 +109,7 @@ func (in *ListTransactionRoutesInputHuma) Resolve(ctx huma.Context) []error {
 // queries rebuilds the map[string]string that http.ValidateParameters consumes,
 // matching Fiber's c.Queries() (last value wins for a repeated key). Inlined per
 // the pattern (the query binder is copied, not a shared helper).
-func (in *ListTransactionRoutesInputHuma) queries() map[string]string {
+func (in *ListTransactionRoutesRequest) queries() map[string]string {
 	out := make(map[string]string, len(in.rawQuery))
 	for k, vs := range in.rawQuery {
 		if len(vs) == 0 {
@@ -124,15 +123,15 @@ func (in *ListTransactionRoutesInputHuma) queries() map[string]string {
 	return out
 }
 
-// ListTransactionRoutesOutputHuma carries the pagination envelope verbatim.
-type ListTransactionRoutesOutputHuma struct {
+// ListTransactionRoutesResponse carries the pagination envelope verbatim.
+type ListTransactionRoutesResponse struct {
 	Status int
 	Body   pkgHTTP.Pagination
 }
 
-// GetAllTransactionRoutesHuma binds the query imperatively then delegates to
+// GetAllTransactionRoutes binds the query imperatively then delegates to
 // getAllTransactionRoutes.
-func (handler *TransactionRouteHandler) GetAllTransactionRoutesHuma(ctx context.Context, in *ListTransactionRoutesInputHuma) (*ListTransactionRoutesOutputHuma, error) {
+func (handler *TransactionRouteHandler) GetAllTransactionRoutes(ctx context.Context, in *ListTransactionRoutesRequest) (*ListTransactionRoutesResponse, error) {
 	orgID, ledgerID, err := parseOrgLedger(in.OrganizationID, in.LedgerID)
 	if err != nil {
 		return nil, pkgHTTP.HumaProblem(err)
@@ -143,27 +142,27 @@ func (handler *TransactionRouteHandler) GetAllTransactionRoutesHuma(ctx context.
 		return nil, pkgHTTP.HumaProblem(err)
 	}
 
-	return &ListTransactionRoutesOutputHuma{Status: http.StatusOK, Body: pagination}, nil
+	return &ListTransactionRoutesResponse{Status: http.StatusOK, Body: pagination}, nil
 }
 
 // --- GET /transaction-routes/{transaction_route_id} ---------------------------
 
-// GetTransactionRouteInputHuma is the by-id request envelope. The id path param
+// GetTransactionRouteRequest is the by-id request envelope. The id path param
 // carries no format tag (ParseUUIDPathParameters is the sole validator).
-type GetTransactionRouteInputHuma struct {
+type GetTransactionRouteRequest struct {
 	OrganizationID     string `path:"organization_id" doc:"Organization ID (UUID)"`
 	LedgerID           string `path:"ledger_id" doc:"Ledger ID (UUID)"`
 	TransactionRouteID string `path:"transaction_route_id" doc:"Transaction Route ID (UUID)"`
 }
 
-// GetTransactionRouteOutputHuma carries the transaction route verbatim.
-type GetTransactionRouteOutputHuma struct {
+// GetTransactionRouteResponse carries the transaction route verbatim.
+type GetTransactionRouteResponse struct {
 	Status int
 	Body   *mmodel.TransactionRoute
 }
 
-// GetTransactionRouteByIDHuma delegates to getTransactionRouteByID.
-func (handler *TransactionRouteHandler) GetTransactionRouteByIDHuma(ctx context.Context, in *GetTransactionRouteInputHuma) (*GetTransactionRouteOutputHuma, error) {
+// GetTransactionRouteByID delegates to getTransactionRouteByID.
+func (handler *TransactionRouteHandler) GetTransactionRouteByID(ctx context.Context, in *GetTransactionRouteRequest) (*GetTransactionRouteResponse, error) {
 	orgID, ledgerID, err := parseOrgLedger(in.OrganizationID, in.LedgerID)
 	if err != nil {
 		return nil, pkgHTTP.HumaProblem(err)
@@ -179,28 +178,28 @@ func (handler *TransactionRouteHandler) GetTransactionRouteByIDHuma(ctx context.
 		return nil, pkgHTTP.HumaProblem(err)
 	}
 
-	return &GetTransactionRouteOutputHuma{Status: http.StatusOK, Body: transactionRoute}, nil
+	return &GetTransactionRouteResponse{Status: http.StatusOK, Body: transactionRoute}, nil
 }
 
 // --- PATCH /transaction-routes/{transaction_route_id} -------------------------
 
-// UpdateTransactionRouteInputHuma is the update request envelope (RawBody, see Create).
-type UpdateTransactionRouteInputHuma struct {
+// UpdateTransactionRouteRequest is the update request envelope (RawBody, see Create).
+type UpdateTransactionRouteRequest struct {
 	OrganizationID     string `path:"organization_id" doc:"Organization ID (UUID)"`
 	LedgerID           string `path:"ledger_id" doc:"Ledger ID (UUID)"`
 	TransactionRouteID string `path:"transaction_route_id" doc:"Transaction Route ID (UUID)"`
 	RawBody            []byte `contentType:"application/json"`
 }
 
-// UpdateTransactionRouteOutputHuma carries the updated route (200, matching http.OK).
-type UpdateTransactionRouteOutputHuma struct {
+// UpdateTransactionRouteResponse carries the updated route (200, matching http.OK).
+type UpdateTransactionRouteResponse struct {
 	Status int
 	Body   *mmodel.TransactionRoute
 }
 
-// UpdateTransactionRouteHuma decodes+validates the raw body imperatively then delegates
+// UpdateTransactionRoute decodes+validates the raw body imperatively then delegates
 // to the shared updateTransactionRoute core.
-func (handler *TransactionRouteHandler) UpdateTransactionRouteHuma(ctx context.Context, in *UpdateTransactionRouteInputHuma) (*UpdateTransactionRouteOutputHuma, error) {
+func (handler *TransactionRouteHandler) UpdateTransactionRoute(ctx context.Context, in *UpdateTransactionRouteRequest) (*UpdateTransactionRouteResponse, error) {
 	orgID, ledgerID, err := parseOrgLedger(in.OrganizationID, in.LedgerID)
 	if err != nil {
 		return nil, pkgHTTP.HumaProblem(err)
@@ -221,18 +220,18 @@ func (handler *TransactionRouteHandler) UpdateTransactionRouteHuma(ctx context.C
 		return nil, pkgHTTP.HumaProblem(err)
 	}
 
-	return &UpdateTransactionRouteOutputHuma{Status: http.StatusOK, Body: transactionRoute}, nil
+	return &UpdateTransactionRouteResponse{Status: http.StatusOK, Body: transactionRoute}, nil
 }
 
 // --- DELETE /transaction-routes/{transaction_route_id} ------------------------
 
-// DeleteTransactionRouteOutputHuma has NO Body field: paired with DefaultStatus 204
+// DeleteTransactionRouteResponse has NO Body field: paired with DefaultStatus 204
 // it makes Huma emit a bodiless 204, matching the Fiber http.NoContent path.
-type DeleteTransactionRouteOutputHuma struct{}
+type DeleteTransactionRouteResponse struct{}
 
-// DeleteTransactionRouteByIDHuma delegates to deleteTransactionRouteByID; returns a
+// DeleteTransactionRouteByID delegates to deleteTransactionRouteByID; returns a
 // bodiless 204 on success.
-func (handler *TransactionRouteHandler) DeleteTransactionRouteByIDHuma(ctx context.Context, in *GetTransactionRouteInputHuma) (*DeleteTransactionRouteOutputHuma, error) {
+func (handler *TransactionRouteHandler) DeleteTransactionRouteByID(ctx context.Context, in *GetTransactionRouteRequest) (*DeleteTransactionRouteResponse, error) {
 	orgID, ledgerID, err := parseOrgLedger(in.OrganizationID, in.LedgerID)
 	if err != nil {
 		return nil, pkgHTTP.HumaProblem(err)
@@ -247,10 +246,10 @@ func (handler *TransactionRouteHandler) DeleteTransactionRouteByIDHuma(ctx conte
 		return nil, pkgHTTP.HumaProblem(err)
 	}
 
-	return &DeleteTransactionRouteOutputHuma{}, nil
+	return &DeleteTransactionRouteResponse{}, nil
 }
 
-// RegisterTransactionRouteRoutes registers the five migrated transaction-route
+// RegisterTransactionRouteRoutes registers the five transaction-route
 // operations on the shared Huma API. It is the per-file seam the unified server
 // calls; the auth ("midaz","transaction-routes",verb) + tenant +
 // ParseUUIDPathParameters("transaction_route") middleware chain is attached on the
@@ -279,7 +278,7 @@ func RegisterTransactionRouteRoutes(api huma.API, h *TransactionRouteHandler, op
 		// Body validated imperatively (http.DecodeAndValidate) — see file header.
 		SkipValidateBody: true,
 		DefaultStatus:    http.StatusCreated,
-	}, h.CreateTransactionRouteHuma)
+	}, h.CreateTransactionRoute)
 	attachTypedRequestBody[mmodel.CreateTransactionRouteInput](api, "createTransactionRoute"+opSuffix)
 
 	huma.Register(api, huma.Operation{
@@ -289,7 +288,7 @@ func RegisterTransactionRouteRoutes(api huma.API, h *TransactionRouteHandler, op
 		Summary:     "Get all Transaction Routes",
 		Tags:        []string{tag},
 		Security:    secTransactionRouteBearer,
-	}, h.GetAllTransactionRoutesHuma)
+	}, h.GetAllTransactionRoutes)
 
 	huma.Register(api, huma.Operation{
 		OperationID: "getTransactionRouteByID" + opSuffix,
@@ -298,7 +297,7 @@ func RegisterTransactionRouteRoutes(api huma.API, h *TransactionRouteHandler, op
 		Summary:     "Get Transaction Route by ID",
 		Tags:        []string{tag},
 		Security:    secTransactionRouteBearer,
-	}, h.GetTransactionRouteByIDHuma)
+	}, h.GetTransactionRouteByID)
 
 	huma.Register(api, huma.Operation{
 		OperationID:      "updateTransactionRoute" + opSuffix,
@@ -308,7 +307,7 @@ func RegisterTransactionRouteRoutes(api huma.API, h *TransactionRouteHandler, op
 		Tags:             []string{tag},
 		Security:         secTransactionRouteBearer,
 		SkipValidateBody: true, // body validated imperatively — see file header.
-	}, h.UpdateTransactionRouteHuma)
+	}, h.UpdateTransactionRoute)
 	attachTypedRequestBody[mmodel.UpdateTransactionRouteInput](api, "updateTransactionRoute"+opSuffix)
 
 	huma.Register(api, huma.Operation{
@@ -320,5 +319,5 @@ func RegisterTransactionRouteRoutes(api huma.API, h *TransactionRouteHandler, op
 		Security:    secTransactionRouteBearer,
 		// DefaultStatus 204 + an Out struct with no Body field => bodiless 204.
 		DefaultStatus: http.StatusNoContent,
-	}, h.DeleteTransactionRouteByIDHuma)
+	}, h.DeleteTransactionRouteByID)
 }
