@@ -15,35 +15,34 @@ import (
 	pkgHTTP "github.com/LerianStudio/midaz/v4/pkg/net/http"
 )
 
-// This file is the ledger's Huma adoption of the transaction-count HEAD operation
-// (Wave 2, money-read + routing). It mirrors the asset exemplar's HEAD-count shape
-// (asset_handler.go, CountAssets*) and the balance/operation siblings; see
-// those headers for the full conventions. Count-specific notes:
+// This file holds the transaction-count HEAD operation. It mirrors the asset
+// exemplar's HEAD-count shape (asset_handler.go, CountAssets*) and the
+// balance/operation siblings; see those headers for the full conventions.
+// Count-specific notes:
 //
-//  1. Only the single HEAD count op migrates here. org+ledger are UUID-validated by
-//     ParseUUIDPathParameters("transaction") — the sole UUID validator across both
-//     transports — so the In struct carries them as plain strings with only `doc:`
-//     (no format tag => no native Huma 422).
+//  1. org+ledger are UUID-validated by ParseUUIDPathParameters("transaction") — the
+//     sole UUID validator on this route — so the In struct carries them as plain
+//     strings with only `doc:` (no format tag => no native Huma 422).
 //  2. Unlike the asset HEAD count (no filters), this op carries optional query
 //     filters (route, status, start_date, end_date). They are declared doc-only (NO
-//     format/enum tags) and captured via Resolve, then validated imperatively by the
-//     shared buildCountFilter core (the SAME pipeline the Fiber parseCountFilter
-//     runs) — never a native Huma 422. A bad filter yields the canonical 400.
+//     format/enum tags) and captured via Resolve, then validated imperatively by
+//     buildCountFilter — never a native Huma 422. A bad filter yields the canonical
+//     400.
 //  3. The Out struct is header-only (X-Total-Count + Content-Length, no Body field);
 //     paired with DefaultStatus 204 it emits a bodiless 204 carrying the count
-//     header, matching the Fiber http.NoContent + c.Set(XTotalCount) path.
-//  4. Errors go through the shared pkgHTTP.HumaProblem; auth stays the Fiber guard
+//     header.
+//  4. Errors go through the shared pkgHTTP.HumaProblem; auth is the Fiber guard
 //     chain (auth.Authorize("midaz","transactions","head") + tenant + ParseUUID)
 //     attached in the unified server BEFORE the Huma terminal — the per-op Security
 //     metadata below is SPEC-ONLY.
 
 // --- HEAD /transactions/metrics/count -----------------------------------------
 
-// CountTransactionsInputHuma advertises the count query filters in the spec (doc-
+// CountTransactionsRequest advertises the count query filters in the spec (doc-
 // only, no validation tags) and captures the raw query via Resolve for the
 // imperative buildCountFilter binder. org+ledger are UUID-validated by
 // ParseUUIDPathParameters (no format tag).
-type CountTransactionsInputHuma struct {
+type CountTransactionsRequest struct {
 	OrganizationID string `path:"organization_id" doc:"Organization ID (UUID)"`
 	LedgerID       string `path:"ledger_id" doc:"Ledger ID (UUID)"`
 	Route          string `query:"route" doc:"Filter by transaction route"`
@@ -58,25 +57,24 @@ type CountTransactionsInputHuma struct {
 
 // Resolve captures the raw query before the handler. It performs NO validation and
 // NEVER returns an error — canonical rejection stays in buildCountFilter.
-func (in *CountTransactionsInputHuma) Resolve(ctx huma.Context) []error {
+func (in *CountTransactionsRequest) Resolve(ctx huma.Context) []error {
 	u := ctx.URL()
 	in.rawQuery = u.Query()
 
 	return nil
 }
 
-// CountTransactionsOutputHuma replicates the Fiber HEAD-count response manually: the
-// X-Total-Count header carries the count, Content-Length is pinned to 0, and the
-// body is empty at status 204 (DefaultStatus 204 + no Body field).
-type CountTransactionsOutputHuma struct {
+// CountTransactionsResponse carries the HEAD-count response headers: X-Total-Count
+// holds the count, Content-Length is pinned to 0, and the body is empty at status
+// 204 (DefaultStatus 204 + no Body field).
+type CountTransactionsResponse struct {
 	TotalCount    string `header:"X-Total-Count"`
 	ContentLength string `header:"Content-Length"`
 }
 
-// CountTransactionsByFiltersHuma binds the query filters imperatively (shared
-// buildCountFilter) then delegates to the shared countTransactionsByFilters core,
-// setting the count headers.
-func (handler *TransactionHandler) CountTransactionsByFiltersHuma(ctx context.Context, in *CountTransactionsInputHuma) (*CountTransactionsOutputHuma, error) {
+// CountTransactionsByFilters binds the query filters imperatively (buildCountFilter)
+// then delegates to the countTransactionsByFilters core, setting the count headers.
+func (handler *TransactionHandler) CountTransactionsByFilters(ctx context.Context, in *CountTransactionsRequest) (*CountTransactionsResponse, error) {
 	organizationID, ledgerID, err := parseOrgLedger(in.OrganizationID, in.LedgerID)
 	if err != nil {
 		return nil, pkgHTTP.HumaProblem(err)
@@ -92,14 +90,14 @@ func (handler *TransactionHandler) CountTransactionsByFiltersHuma(ctx context.Co
 		return nil, pkgHTTP.HumaProblem(err)
 	}
 
-	return &CountTransactionsOutputHuma{
+	return &CountTransactionsResponse{
 		TotalCount:    strconv.FormatInt(count, 10),
 		ContentLength: "0",
 	}, nil
 }
 
-// RegisterCountTransactionRoutes registers the single migrated transaction-count
-// HEAD op on the shared Huma API. It is the per-file seam the unified server calls;
+// RegisterCountTransactionRoutes registers the transaction-count HEAD op on the
+// shared Huma API. It is the per-file seam the unified server calls;
 // the auth (auth.Authorize("midaz","transactions","head")) + tenant +
 // ParseUUIDPathParameters("transaction") chain for this route is attached in the
 // unified server (Fiber level) BEFORE the Huma terminal, not here. Paths are
@@ -117,7 +115,7 @@ func RegisterCountTransactionRoutes(api huma.API, h *TransactionHandler, opSuffi
 		Tags:        []string{"Transactions"},
 		Security:    secAssetBearerOrAPIKey,
 		// HEAD count: X-Total-Count header + empty 204 body (Content-Length 0 set on
-		// the Out struct), matching the Fiber http.NoContent + header path.
+		// the Out struct).
 		DefaultStatus: http.StatusNoContent,
-	}, h.CountTransactionsByFiltersHuma)
+	}, h.CountTransactionsByFilters)
 }

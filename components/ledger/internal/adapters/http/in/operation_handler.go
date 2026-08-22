@@ -15,34 +15,31 @@ import (
 	pkgHTTP "github.com/LerianStudio/midaz/v4/pkg/net/http"
 )
 
-// This file is the ledger's Huma adoption of the operation resource (Wave 2,
-// money-read + routing). It mirrors the asset exemplar (asset_handler.go)
-// and the balance sibling (balance_handler.go); see those headers for the
-// full conventions. Operation-specific notes:
+// This file is the ledger's Huma adoption of the operation resource. It mirrors the
+// asset exemplar (asset_handler.go) and the balance sibling (balance_handler.go); see
+// those headers for the full conventions. Operation-specific notes:
 //
-//  1. Only the two READ ops migrate here: GetAllOperationsByAccount (cursor-
-//     paginated list under an account) and GetOperationByAccount (by-id under an
-//     account). UpdateOperation (PATCH, MONEY-adjacent write on the transaction
-//     path) is NOT migrated in this wave — its Fiber wrapper is unchanged.
+//  1. Three ops: GetAllOperationsByAccount (cursor-paginated list under an account),
+//     GetOperationByAccount (by-id under an account) and UpdateOperation (PATCH, a
+//     money-write LEG of the double-entry, on the transaction path).
 //  2. All four path params (org, ledger, account_id, operation_id) are in
 //     cn.UUIDPathParameters, so ParseUUIDPathParameters("operation") is the sole
-//     UUID validator across both transports — the In structs carry them as plain
-//     strings with only `doc:` (no format tag => no native Huma 422).
+//     UUID validator — the request structs carry them as plain strings with only
+//     `doc:` (no format tag => no native Huma 422).
 //  3. The list op carries the raw query (via Resolve) and rebuilds the
-//     map[string]string that http.ValidateParameters consumes, byte-identical to
-//     the Fiber c.Queries() path. The metadata-vs-default branch stays in the
-//     transport-agnostic core (see operation.go).
-//  4. Errors go through the shared pkgHTTP.HumaProblem; auth stays the Fiber guard
-//     chain (auth.Authorize("midaz","operations","get") + tenant + ParseUUID)
-//     attached in the unified server BEFORE the Huma terminal — the per-op Security
-//     metadata below is SPEC-ONLY.
+//     map[string]string that http.ValidateParameters consumes. The
+//     metadata-vs-default branch stays in the transport-agnostic core (operation.go).
+//  4. Errors go through the shared pkgHTTP.HumaProblem; auth is the Fiber guard chain
+//     (auth.Authorize("midaz","operations",verb) + tenant + ParseUUID) attached in the
+//     unified server BEFORE the Huma terminal — the per-op Security metadata below is
+//     SPEC-ONLY.
 
 // --- GET /accounts/{account_id}/operations (list) -----------------------------
 
-// ListOperationsByAccountInputHuma advertises the list query params (doc-only) and
+// ListOperationsByAccountRequest advertises the list query params (doc-only) and
 // captures the raw query via Resolve for the imperative http.ValidateParameters
 // binder. account_id is UUID-validated by ParseUUIDPathParameters (no format tag).
-type ListOperationsByAccountInputHuma struct {
+type ListOperationsByAccountRequest struct {
 	OrganizationID string `path:"organization_id" doc:"Organization ID (UUID)"`
 	LedgerID       string `path:"ledger_id" doc:"Ledger ID (UUID)"`
 	AccountID      string `path:"account_id" doc:"Account ID (UUID)"`
@@ -62,7 +59,7 @@ type ListOperationsByAccountInputHuma struct {
 
 // Resolve captures the raw query before the handler (no validation; canonical
 // rejection stays in http.ValidateParameters).
-func (in *ListOperationsByAccountInputHuma) Resolve(ctx huma.Context) []error {
+func (in *ListOperationsByAccountRequest) Resolve(ctx huma.Context) []error {
 	u := ctx.URL()
 	in.rawQuery = u.Query()
 
@@ -72,7 +69,7 @@ func (in *ListOperationsByAccountInputHuma) Resolve(ctx huma.Context) []error {
 // queries rebuilds the map[string]string that http.ValidateParameters consumes,
 // matching Fiber's c.Queries() (last value wins for a repeated key). Inlined per
 // the pattern (the query binder is copied, not a shared helper).
-func (in *ListOperationsByAccountInputHuma) queries() map[string]string {
+func (in *ListOperationsByAccountRequest) queries() map[string]string {
 	out := make(map[string]string, len(in.rawQuery))
 	for k, vs := range in.rawQuery {
 		if len(vs) == 0 {
@@ -86,15 +83,15 @@ func (in *ListOperationsByAccountInputHuma) queries() map[string]string {
 	return out
 }
 
-// ListOperationsOutputHuma carries the pagination envelope verbatim.
-type ListOperationsOutputHuma struct {
+// ListOperationsResponse carries the pagination envelope verbatim.
+type ListOperationsResponse struct {
 	Status int
 	Body   pkgHTTP.Pagination
 }
 
-// GetAllOperationsByAccountHuma binds the query imperatively then delegates to the
+// GetAllOperationsByAccount binds the query imperatively then delegates to the
 // shared getAllOperationsByAccount core.
-func (handler *OperationHandler) GetAllOperationsByAccountHuma(ctx context.Context, in *ListOperationsByAccountInputHuma) (*ListOperationsOutputHuma, error) {
+func (handler *OperationHandler) GetAllOperationsByAccount(ctx context.Context, in *ListOperationsByAccountRequest) (*ListOperationsResponse, error) {
 	organizationID, ledgerID, err := parseOrgLedger(in.OrganizationID, in.LedgerID)
 	if err != nil {
 		return nil, pkgHTTP.HumaProblem(err)
@@ -110,28 +107,28 @@ func (handler *OperationHandler) GetAllOperationsByAccountHuma(ctx context.Conte
 		return nil, pkgHTTP.HumaProblem(err)
 	}
 
-	return &ListOperationsOutputHuma{Status: http.StatusOK, Body: pagination}, nil
+	return &ListOperationsResponse{Status: http.StatusOK, Body: pagination}, nil
 }
 
 // --- GET /accounts/{account_id}/operations/{operation_id} ---------------------
 
-// GetOperationByAccountInputHuma is the by-id request envelope (all path params
+// GetOperationByAccountRequest is the by-id request envelope (all path params
 // UUID-validated by ParseUUIDPathParameters — no format tags).
-type GetOperationByAccountInputHuma struct {
+type GetOperationByAccountRequest struct {
 	OrganizationID string `path:"organization_id" doc:"Organization ID (UUID)"`
 	LedgerID       string `path:"ledger_id" doc:"Ledger ID (UUID)"`
 	AccountID      string `path:"account_id" doc:"Account ID (UUID)"`
 	OperationID    string `path:"operation_id" doc:"Operation ID (UUID)"`
 }
 
-// GetOperationOutputHuma carries the operation verbatim.
-type GetOperationOutputHuma struct {
+// GetOperationResponse carries the operation verbatim.
+type GetOperationResponse struct {
 	Status int
 	Body   *operation.Operation
 }
 
-// GetOperationByAccountHuma delegates to the shared getOperationByAccount core.
-func (handler *OperationHandler) GetOperationByAccountHuma(ctx context.Context, in *GetOperationByAccountInputHuma) (*GetOperationOutputHuma, error) {
+// GetOperationByAccount delegates to the shared getOperationByAccount core.
+func (handler *OperationHandler) GetOperationByAccount(ctx context.Context, in *GetOperationByAccountRequest) (*GetOperationResponse, error) {
 	organizationID, ledgerID, err := parseOrgLedger(in.OrganizationID, in.LedgerID)
 	if err != nil {
 		return nil, pkgHTTP.HumaProblem(err)
@@ -152,22 +149,20 @@ func (handler *OperationHandler) GetOperationByAccountHuma(ctx context.Context, 
 		return nil, pkgHTTP.HumaProblem(err)
 	}
 
-	return &GetOperationOutputHuma{Status: http.StatusOK, Body: op}, nil
+	return &GetOperationResponse{Status: http.StatusOK, Body: op}, nil
 }
 
 // --- PATCH /transactions/{transaction_id}/operations/{operation_id} -----------
 
-// UpdateOperationInputHuma is the PATCH request envelope. The op is a LEG of the
-// double-entry (money-write) but a plain metadata/description update — the Fiber
-// wrapper is a plain BodyParser decode (NOT merge-patch: the command builds a fresh
-// operation.Operation{Description} and merges Metadata, no null-field derivation via
-// FindNilFields), so the shell decodes the same UpdateOperationInput and passes it
-// straight to the shared updateOperation core. RawBody keeps the body out of Huma's
-// validator (SkipValidateBody); http.DecodeAndValidate runs the SAME decode+Validate
-// the Fiber WithBody decorator ran, so malformed/invalid bodies stay canonical 400 (no
-// native Huma 422). The four path params are UUID-validated by
-// ParseUUIDPathParameters("operation") — plain-string doc-only fields, no format tag.
-type UpdateOperationInputHuma struct {
+// UpdateOperationRequest is the PATCH request envelope. The op is a LEG of the
+// double-entry (money-write) but a plain metadata/description update, NOT merge-patch:
+// the command builds a fresh operation.Operation{Description} and merges Metadata, with
+// no null-field derivation via FindNilFields. RawBody keeps the body out of Huma's
+// validator (SkipValidateBody); http.DecodeAndValidate runs the canonical decode+Validate
+// so malformed/invalid bodies stay canonical 400 (no native Huma 422). The four path
+// params are UUID-validated by ParseUUIDPathParameters("operation") — plain-string
+// doc-only fields, no format tag.
+type UpdateOperationRequest struct {
 	OrganizationID string `path:"organization_id" doc:"Organization ID (UUID)"`
 	LedgerID       string `path:"ledger_id" doc:"Ledger ID (UUID)"`
 	TransactionID  string `path:"transaction_id" doc:"Transaction ID (UUID)"`
@@ -175,17 +170,16 @@ type UpdateOperationInputHuma struct {
 	RawBody        []byte `contentType:"application/json"`
 }
 
-// UpdateOperationOutputHuma carries the updated operation verbatim (200, matching
-// http.OK on the Fiber path).
-type UpdateOperationOutputHuma struct {
+// UpdateOperationResponse carries the updated operation verbatim (200).
+type UpdateOperationResponse struct {
 	Status int
 	Body   *operation.Operation
 }
 
-// UpdateOperationHuma resolves the path UUIDs, decodes+validates the raw body
-// imperatively, then delegates to the shared updateOperation core (command.UpdateOperation
-// + query.GetOperationByID). Byte-identical to the Fiber wrapper's core path.
-func (handler *OperationHandler) UpdateOperationHuma(ctx context.Context, in *UpdateOperationInputHuma) (*UpdateOperationOutputHuma, error) {
+// UpdateOperation resolves the path UUIDs, decodes+validates the raw body
+// imperatively, then delegates to the shared updateOperation core
+// (command.UpdateOperation + query.GetOperationByID).
+func (handler *OperationHandler) UpdateOperation(ctx context.Context, in *UpdateOperationRequest) (*UpdateOperationResponse, error) {
 	organizationID, ledgerID, err := parseOrgLedger(in.OrganizationID, in.LedgerID)
 	if err != nil {
 		return nil, pkgHTTP.HumaProblem(err)
@@ -211,11 +205,11 @@ func (handler *OperationHandler) UpdateOperationHuma(ctx context.Context, in *Up
 		return nil, pkgHTTP.HumaProblem(err)
 	}
 
-	return &UpdateOperationOutputHuma{Status: http.StatusOK, Body: op}, nil
+	return &UpdateOperationResponse{Status: http.StatusOK, Body: op}, nil
 }
 
-// RegisterOperationRoutes registers the two migrated operation read ops plus the PATCH
-// (Wave-4 money-write leg) on the shared Huma API. It is the per-file seam the unified
+// RegisterOperationRoutes registers the two operation read ops plus the PATCH
+// (money-write leg) on the shared Huma API. It is the per-file seam the unified
 // server calls; the auth (auth.Authorize("midaz","operations",verb)) + tenant +
 // ParseUUIDPathParameters("operation") chain for these routes is attached in the unified
 // server (Fiber level) BEFORE the Huma terminal, not here. Paths are GROUP-RELATIVE (the
@@ -239,7 +233,7 @@ func RegisterOperationRoutes(api huma.API, h *OperationHandler, opSuffix string)
 		Summary:     "Get all Operations by account",
 		Tags:        []string{tag},
 		Security:    secAssetBearerOrAPIKey,
-	}, h.GetAllOperationsByAccountHuma)
+	}, h.GetAllOperationsByAccount)
 
 	huma.Register(api, huma.Operation{
 		OperationID: "getOperationByAccount" + opSuffix,
@@ -248,7 +242,7 @@ func RegisterOperationRoutes(api huma.API, h *OperationHandler, opSuffix string)
 		Summary:     "Get Operation",
 		Tags:        []string{tag},
 		Security:    secAssetBearerOrAPIKey,
-	}, h.GetOperationByAccountHuma)
+	}, h.GetOperationByAccount)
 
 	huma.Register(api, huma.Operation{
 		OperationID:      "updateOperation" + opSuffix,
@@ -258,6 +252,6 @@ func RegisterOperationRoutes(api huma.API, h *OperationHandler, opSuffix string)
 		Tags:             []string{tag},
 		Security:         secTransactionBearer, // BearerAuth (Bearer-only), matching the Fiber guard chain on the transaction-path PATCH.
 		SkipValidateBody: true,                 // body validated imperatively (http.DecodeAndValidate) — plain decode, not merge-patch.
-	}, h.UpdateOperationHuma)
+	}, h.UpdateOperation)
 	attachTypedRequestBody[operation.UpdateOperationInput](api, "updateOperation"+opSuffix)
 }

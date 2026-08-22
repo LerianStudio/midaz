@@ -86,7 +86,7 @@ permissions:
   - { resource: operation-routes, action: get,    effect: allow, roles: [editor, viewer] }
   - { resource: operation-routes, action: delete, effect: allow, roles: [editor] }
 
-  # operations (routes.go:199)
+  # operations (routes.go:157)
   - { resource: operations, action: get,   effect: allow, roles: [editor, viewer] }
   - { resource: operations, action: patch, effect: allow, roles: [editor] }
 
@@ -114,7 +114,7 @@ permissions:
   - { resource: segments, action: delete, effect: allow, roles: [editor] }
   - { resource: segments, action: head,   effect: allow, roles: [editor, viewer] }
 
-  # settings — entity metadata (metadata_handler_huma.go:258)
+  # settings — entity metadata (metadata_handler.go:253)
   - { resource: settings, action: post,   effect: allow, roles: [editor] }
   - { resource: settings, action: get,    effect: allow, roles: [editor, viewer] }
   - { resource: settings, action: delete, effect: allow, roles: [editor] }
@@ -128,7 +128,7 @@ permissions:
   - { resource: transaction-routes, action: get,    effect: allow, roles: [editor, viewer] }
   - { resource: transaction-routes, action: delete, effect: allow, roles: [editor] }
 
-  # transactions (transaction_v2_mirror_register.go:150; head at count_handler_huma.go)
+  # transactions (transaction_v2_mirror_register.go:150; head at count_handler.go)
   - { resource: transactions, action: post,  effect: allow, roles: [editor] }
   - { resource: transactions, action: patch, effect: allow, roles: [editor] }
   - { resource: transactions, action: get,   effect: allow, roles: [editor, viewer] }

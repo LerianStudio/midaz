@@ -15,6 +15,8 @@ import (
 	"testing"
 
 	libCommons "github.com/LerianStudio/lib-commons/v6/commons"
+	openapi "github.com/LerianStudio/lib-commons/v6/commons/net/http/openapi"
+	libProblem "github.com/LerianStudio/lib-commons/v6/commons/net/http/problem"
 	"github.com/gofiber/fiber/v3"
 	"github.com/google/uuid"
 	"github.com/shopspring/decimal"
@@ -170,8 +172,24 @@ func (infra *blockUnblockInfra) setupRoutes() {
 		paramMiddleware, infra.txHandler.GetTransaction)
 	infra.app.Get(base+"/transactions",
 		paramMiddleware, infra.txHandler.GetAllTransactions)
-	infra.app.Get(base+"/accounts/:account_id/operations",
-		paramMiddleware, infra.opHandler.GetAllOperationsByAccount)
+	// The operation surface is served by Huma, so it is mounted through its own
+	// registrar rather than by handing a terminal to Fiber: ParseUUIDPathParameters
+	// runs as middleware and RegisterOperationRoutes owns the terminal.
+	libProblem.Install()
+
+	apiV1 := infra.app.Group("/v1")
+	hAPI := openapi.New(infra.app, apiV1, openapi.Config{
+		Title:   "ledger-integration",
+		Version: "test",
+		Servers: []string{"/v1"},
+	})
+
+	apiV1.Get(
+		"/organizations/:organization_id/ledgers/:ledger_id/accounts/:account_id/operations",
+		http.ParseUUIDPathParameters("operation"),
+	)
+
+	RegisterOperationRoutes(hAPI, infra.opHandler, routeOpSuffixV1)
 }
 
 // seedLedgerSettings pre-populates the onboarding Redis settings cache so the

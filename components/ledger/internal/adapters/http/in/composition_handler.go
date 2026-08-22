@@ -14,10 +14,9 @@ import (
 	pkgHTTP "github.com/LerianStudio/midaz/v4/pkg/net/http"
 )
 
-// This file is the ledger's Huma adoption of the composition resource (the single
-// holder-account orchestration route). It mirrors the asset exemplar
-// (asset_handler.go); see that file's header for the full conventions.
-// Composition-specific notes:
+// This file holds the composition resource (the single holder-account
+// orchestration route). It mirrors the asset exemplar (asset_handler.go); see that
+// file's header for the full conventions. Composition-specific notes:
 //
 //  1. AUTH is appName "midaz" (composition_routes.go midazName, resource "accounts",
 //     verb "post"): a tenant that can already open accounts uses composition with no
@@ -26,8 +25,8 @@ import (
 //     runtime auth stays the Fiber guard chain (auth.Authorize("midaz","accounts",
 //     "post") + tenant + ParseUUIDPathParameters("holder")) attached BEFORE the Huma
 //     terminal, NOT a Huma Security scheme.
-//  2. Path is THREE-LEVEL with the holder as :id (org/ledger/holder). The shells
-//     resolve org+ledger via the shared parseOrgLedger and the holder via parsePathUUID.
+//  2. Path is THREE-LEVEL with the holder as :id (org/ledger/holder). The terminal
+//     resolves org+ledger via the shared parseOrgLedger and the holder via parsePathUUID.
 //     ParseUUIDPathParameters("holder") is the sole UUID validator (no format tag).
 //  3. POST carries a body validated imperatively (RawBody + SkipValidateBody ->
 //     http.DecodeAndValidate), never a native Huma 422. The Authorization header is
@@ -47,11 +46,11 @@ var secCompositionBearer = []map[string][]string{
 
 // --- POST /holders/{id}/accounts ----------------------------------------------
 
-// CreateHolderAccountInputHuma is the Huma request envelope for POST. RawBody keeps
+// CreateHolderAccountRequest is the Huma request envelope for POST. RawBody keeps
 // the body out of Huma's validator; the org/ledger/holder path params are validated
-// by the Fiber ParseUUIDPathParameters middleware, not by a format tag. The
-// Authorization header is forwarded to the composed account-create use case.
-type CreateHolderAccountInputHuma struct {
+// by the ParseUUIDPathParameters middleware, not by a format tag. The Authorization
+// header is forwarded to the composed account-create use case.
+type CreateHolderAccountRequest struct {
 	OrganizationID string `path:"organization_id" doc:"Organization ID (UUID)"`
 	LedgerID       string `path:"ledger_id" doc:"Ledger ID (UUID)"`
 	ID             string `path:"id" doc:"Holder ID (UUID)"`
@@ -59,16 +58,15 @@ type CreateHolderAccountInputHuma struct {
 	RawBody        []byte `contentType:"application/json"`
 }
 
-// CreateHolderAccountOutputHuma pins 201 (matching http.Created) and carries the
-// composite response verbatim.
-type CreateHolderAccountOutputHuma struct {
+// CreateHolderAccountResponse pins 201 and carries the composite response verbatim.
+type CreateHolderAccountResponse struct {
 	Status int
 	Body   *mmodel.HolderAccountResponse
 }
 
-// CreateHolderAccountHuma decodes+validates the raw body imperatively then delegates
-// to the shared createHolderAccount core.
-func (handler *CompositionHandler) CreateHolderAccountHuma(ctx context.Context, in *CreateHolderAccountInputHuma) (*CreateHolderAccountOutputHuma, error) {
+// CreateHolderAccount decodes and validates the raw body imperatively, then
+// delegates to the createHolderAccount core.
+func (handler *CompositionHandler) CreateHolderAccount(ctx context.Context, in *CreateHolderAccountRequest) (*CreateHolderAccountResponse, error) {
 	orgID, ledgerID, err := parseOrgLedger(in.OrganizationID, in.LedgerID)
 	if err != nil {
 		return nil, pkgHTTP.HumaProblem(err)
@@ -89,11 +87,11 @@ func (handler *CompositionHandler) CreateHolderAccountHuma(ctx context.Context, 
 		return nil, pkgHTTP.HumaProblem(err)
 	}
 
-	return &CreateHolderAccountOutputHuma{Status: http.StatusCreated, Body: out}, nil
+	return &CreateHolderAccountResponse{Status: http.StatusCreated, Body: out}, nil
 }
 
-// RegisterCompositionRoutes registers the single migrated composition operation on
-// the shared Huma API. It is the per-file seam the unified server calls; the auth
+// RegisterCompositionRoutes registers the composition operation on the shared Huma
+// API. It is the per-file seam the unified server calls; the auth
 // ("midaz","accounts","post") + tenant + ParseUUIDPathParameters("holder") middleware
 // chain is attached on the versioned group (Fiber-level) BEFORE the Huma terminal, not
 // here. Path is GROUP-RELATIVE (see asset_handler.go's RegisterAssetRoutes
@@ -113,6 +111,6 @@ func RegisterCompositionRoutes(api huma.API, h *CompositionHandler, opSuffix str
 		// Body validated imperatively (http.DecodeAndValidate) — see file header.
 		SkipValidateBody: true,
 		DefaultStatus:    http.StatusCreated,
-	}, h.CreateHolderAccountHuma)
+	}, h.CreateHolderAccount)
 	attachTypedRequestBody[mmodel.CreateHolderAccountInput](api, "createHolderAccount"+opSuffix)
 }

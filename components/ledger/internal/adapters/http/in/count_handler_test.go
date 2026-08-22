@@ -5,10 +5,13 @@
 package in
 
 import (
+	"context"
+	"errors"
 	"io"
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	openapi "github.com/LerianStudio/lib-commons/v6/commons/net/http/openapi"
 	libProblem "github.com/LerianStudio/lib-commons/v6/commons/net/http/problem"
@@ -68,7 +71,7 @@ func buildHumaCountApp(t *testing.T, handler *TransactionHandler, authOK bool) *
 	return f
 }
 
-func TestHuma_CountTransactions_204WithHeader(t *testing.T) {
+func TestCountTransactions_204WithHeader(t *testing.T) {
 	// NOT parallel: buildHumaCountApp mutates process-global huma state.
 	ctrl := gomock.NewController(t)
 	t.Cleanup(ctrl.Finish)
@@ -92,10 +95,10 @@ func TestHuma_CountTransactions_204WithHeader(t *testing.T) {
 	assert.Equal(t, http.StatusNoContent, resp.StatusCode)
 	assert.Equal(t, "7", resp.Header.Get(constant.XTotalCount), "X-Total-Count header must carry the count")
 	assert.Empty(t, respBody, "HEAD count must have an empty body")
-	assert.Equal(t, "0", resp.Header.Get("Content-Length"), "HEAD 204 must set Content-Length: 0 (parity with the Fiber NoContent path)")
+	assert.Equal(t, "0", resp.Header.Get("Content-Length"), "HEAD 204 must set Content-Length: 0")
 }
 
-func TestHuma_CountTransactions_AuthPreserved(t *testing.T) {
+func TestCountTransactions_AuthPreserved(t *testing.T) {
 	// NOT parallel: process-global huma state.
 	ctrl := gomock.NewController(t)
 	t.Cleanup(ctrl.Finish)
@@ -116,7 +119,7 @@ func TestHuma_CountTransactions_AuthPreserved(t *testing.T) {
 	assert.Equal(t, http.StatusUnauthorized, resp.StatusCode, "auth middleware must reject before Huma; no public route")
 }
 
-func TestHuma_CountTransactions_BadStatus_Canonical400(t *testing.T) {
+func TestCountTransactions_BadStatus_Canonical400(t *testing.T) {
 	// NOT parallel: process-global huma state.
 	ctrl := gomock.NewController(t)
 	t.Cleanup(ctrl.Finish)
@@ -141,7 +144,7 @@ func TestHuma_CountTransactions_BadStatus_Canonical400(t *testing.T) {
 	assert.Equal(t, http.StatusBadRequest, resp.StatusCode, "bad status stays canonical 400 — no native Huma 422")
 }
 
-func TestHuma_CountTransactions_BadUUID_Canonical400(t *testing.T) {
+func TestCountTransactions_BadUUID_Canonical400(t *testing.T) {
 	// NOT parallel: process-global huma state.
 	ctrl := gomock.NewController(t)
 	t.Cleanup(ctrl.Finish)
@@ -165,4 +168,151 @@ func TestHuma_CountTransactions_BadUUID_Canonical400(t *testing.T) {
 	// ParseUUIDPathParameters rejected the bad ledger id before Huma (no repo
 	// expectation set proves the service was unreached).
 	assert.Equal(t, http.StatusBadRequest, resp.StatusCode, "bad path UUID stays canonical 400 — no native Huma 422")
+}
+
+func TestCountTransactions_ValidStatusNormalized_204(t *testing.T) {
+	// NOT parallel: process-global huma state.
+	ctrl := gomock.NewController(t)
+	t.Cleanup(ctrl.Finish)
+
+	orgID := uuid.New()
+	ledgerID := uuid.New()
+
+	repo := transaction.NewMockRepository(ctrl)
+	repo.EXPECT().CountByFilters(gomock.Any(), orgID, ledgerID, gomock.Any()).
+		DoAndReturn(func(_ any, _, _ uuid.UUID, filter transaction.CountFilter) (int64, error) {
+			assert.Equal(t, constant.APPROVED, filter.Status, "status is upper-cased before reaching the query")
+			assert.Equal(t, "payment", filter.Route)
+
+			return int64(3), nil
+		}).Times(1)
+
+	handler := &TransactionHandler{Query: &query.UseCase{TransactionRepo: repo}}
+
+	app := buildHumaCountApp(t, handler, true)
+
+	req := httptest.NewRequest(http.MethodHead, "/v1/organizations/"+orgID.String()+"/ledgers/"+ledgerID.String()+"/transactions/metrics/count?route=payment&status=approved", nil)
+	resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
+	require.NoError(t, err)
+	defer func() { _ = resp.Body.Close() }()
+
+	assert.Equal(t, http.StatusNoContent, resp.StatusCode)
+	assert.Equal(t, "3", resp.Header.Get(constant.XTotalCount))
+}
+
+func TestCountTransactions_ExplicitDateRange_204(t *testing.T) {
+	// NOT parallel: process-global huma state.
+	ctrl := gomock.NewController(t)
+	t.Cleanup(ctrl.Finish)
+
+	orgID := uuid.New()
+	ledgerID := uuid.New()
+
+	wantStart := time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC)
+	wantEnd := time.Date(2025, 1, 31, 23, 59, 59, 0, time.UTC)
+
+	repo := transaction.NewMockRepository(ctrl)
+	repo.EXPECT().CountByFilters(gomock.Any(), orgID, ledgerID, gomock.Any()).
+		DoAndReturn(func(_ any, _, _ uuid.UUID, filter transaction.CountFilter) (int64, error) {
+			assert.True(t, wantStart.Equal(filter.StartDate), "start_date bound from the query")
+			assert.True(t, wantEnd.Equal(filter.EndDate), "end_date bound from the query")
+
+			return int64(12), nil
+		}).Times(1)
+
+	handler := &TransactionHandler{Query: &query.UseCase{TransactionRepo: repo}}
+
+	app := buildHumaCountApp(t, handler, true)
+
+	req := httptest.NewRequest(http.MethodHead, "/v1/organizations/"+orgID.String()+"/ledgers/"+ledgerID.String()+
+		"/transactions/metrics/count?start_date=2025-01-01T00:00:00Z&end_date=2025-01-31T23:59:59Z", nil)
+	resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
+	require.NoError(t, err)
+	defer func() { _ = resp.Body.Close() }()
+
+	assert.Equal(t, http.StatusNoContent, resp.StatusCode)
+	assert.Equal(t, "12", resp.Header.Get(constant.XTotalCount))
+}
+
+// TestCountTransactions_InvalidFilters_Canonical400 covers the three remaining
+// buildCountFilter rejections. HEAD strips the response body, so the canonical 400
+// status plus the ABSENT count header is the contract; no repo expectation is set,
+// which proves the query was never reached.
+func TestCountTransactions_InvalidFilters_Canonical400(t *testing.T) {
+	// NOT parallel: process-global huma state.
+	tests := []struct {
+		name  string
+		query string
+	}{
+		{name: "malformed start_date", query: "?start_date=not-a-date"},
+		{name: "malformed end_date", query: "?end_date=not-a-date"},
+		{name: "start_date after end_date", query: "?start_date=2025-12-31T00:00:00Z&end_date=2025-01-01T00:00:00Z"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ctrl := gomock.NewController(t)
+			t.Cleanup(ctrl.Finish)
+
+			orgID := uuid.New()
+			ledgerID := uuid.New()
+
+			handler := &TransactionHandler{Query: &query.UseCase{TransactionRepo: transaction.NewMockRepository(ctrl)}}
+
+			app := buildHumaCountApp(t, handler, true)
+
+			req := httptest.NewRequest(http.MethodHead, "/v1/organizations/"+orgID.String()+"/ledgers/"+ledgerID.String()+
+				"/transactions/metrics/count"+tt.query, nil)
+			resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
+			require.NoError(t, err)
+			defer func() { _ = resp.Body.Close() }()
+
+			assert.Equal(t, http.StatusBadRequest, resp.StatusCode, "invalid filter stays canonical 400 — no native Huma 422")
+			assert.Empty(t, resp.Header.Get(constant.XTotalCount), "no count header on a rejected count")
+		})
+	}
+}
+
+func TestCountTransactions_QueryError_500(t *testing.T) {
+	// NOT parallel: process-global huma state.
+	ctrl := gomock.NewController(t)
+	t.Cleanup(ctrl.Finish)
+
+	orgID := uuid.New()
+	ledgerID := uuid.New()
+
+	repo := transaction.NewMockRepository(ctrl)
+	repo.EXPECT().CountByFilters(gomock.Any(), orgID, ledgerID, gomock.Any()).
+		Return(int64(0), errors.New("database connection failed")).Times(1)
+
+	handler := &TransactionHandler{Query: &query.UseCase{TransactionRepo: repo}}
+
+	app := buildHumaCountApp(t, handler, true)
+
+	req := httptest.NewRequest(http.MethodHead, "/v1/organizations/"+orgID.String()+"/ledgers/"+ledgerID.String()+"/transactions/metrics/count", nil)
+	resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
+	require.NoError(t, err)
+	defer func() { _ = resp.Body.Close() }()
+
+	assert.Equal(t, http.StatusInternalServerError, resp.StatusCode)
+	assert.Empty(t, resp.Header.Get(constant.XTotalCount), "no count header on a failed count")
+}
+
+// TestCountTransactions_BadPathUUID_Direct drives the terminal's defensive
+// org/ledger guard, which the wired ParseUUIDPathParameters middleware makes
+// unreachable through the app.
+func TestCountTransactions_BadPathUUID_Direct(t *testing.T) {
+	t.Parallel()
+
+	handler := &TransactionHandler{}
+
+	_, err := handler.CountTransactionsByFilters(context.Background(), &CountTransactionsRequest{
+		OrganizationID: "not-a-uuid",
+		LedgerID:       uuid.New().String(),
+	})
+
+	var detail *pkgHTTP.Detail
+	require.ErrorAs(t, err, &detail, "terminal must return the canonical problem detail")
+	assert.Equal(t, http.StatusBadRequest, detail.Status)
+	assert.Equal(t, constant.ErrInvalidPathParameter.Error(), detail.Code)
 }

@@ -29,8 +29,8 @@ import (
 //     organization_id via the shared parseOrg helper (defined in ledger_handler.go).
 //  3. TENANT: the provision core reads the tenant id from ctx via
 //     encryption.ResolveProvisionTenantID. The Fiber tenant PostAuthMiddlewares run
-//     BEFORE the Huma terminal (same chain both transports), so ctx already carries
-//     the tenant id — the shell forwards ctx untouched and the core is transport-neutral.
+//     BEFORE the Huma terminal, so ctx already carries the tenant id — the shell
+//     forwards ctx untouched and the core is transport-neutral.
 //  4. POST carries RawBody + SkipValidateBody so http.DecodeAndValidate is the sole
 //     body validator (never a native Huma 422). Errors go through pkgHTTP.HumaProblem.
 
@@ -43,24 +43,24 @@ var secEncryptionBearer = []map[string][]string{
 
 // --- POST /encryption/provision -----------------------------------------------
 
-// ProvisionEncryptionInputHuma is the Huma request envelope for POST. RawBody keeps
+// ProvisionEncryptionRequest is the Huma request envelope for POST. RawBody keeps
 // the body out of Huma's validator (see file header); organization_id is validated
 // by the Fiber middleware, not by a format tag.
-type ProvisionEncryptionInputHuma struct {
+type ProvisionEncryptionRequest struct {
 	OrganizationID string `path:"organization_id" doc:"Organization ID (UUID)"`
 	Authorization  string `header:"Authorization" doc:"Bearer token; only required when the auth plugin is enabled"`
 	RawBody        []byte `contentType:"application/json"`
 }
 
-// ProvisionEncryptionOutputHuma pins 201 (matching http.Created).
-type ProvisionEncryptionOutputHuma struct {
+// ProvisionEncryptionResponse pins 201 (matching http.Created).
+type ProvisionEncryptionResponse struct {
 	Status int
 	Body   *mmodel.ProvisionEncryptionResponse
 }
 
-// ProvisionHuma decodes+validates the raw body imperatively then delegates to the
+// Provision decodes+validates the raw body imperatively then delegates to the
 // shared provision core.
-func (handler *EncryptionHandler) ProvisionHuma(ctx context.Context, in *ProvisionEncryptionInputHuma) (*ProvisionEncryptionOutputHuma, error) {
+func (handler *EncryptionHandler) Provision(ctx context.Context, in *ProvisionEncryptionRequest) (*ProvisionEncryptionResponse, error) {
 	orgID, err := parseOrg(in.OrganizationID)
 	if err != nil {
 		return nil, pkgHTTP.HumaProblem(err)
@@ -76,25 +76,25 @@ func (handler *EncryptionHandler) ProvisionHuma(ctx context.Context, in *Provisi
 		return nil, pkgHTTP.HumaProblem(err)
 	}
 
-	return &ProvisionEncryptionOutputHuma{Status: http.StatusCreated, Body: response}, nil
+	return &ProvisionEncryptionResponse{Status: http.StatusCreated, Body: response}, nil
 }
 
 // --- GET /encryption/status ---------------------------------------------------
 
-// GetProvisioningStatusInputHuma is the status request envelope (org only).
-type GetProvisioningStatusInputHuma struct {
+// GetProvisioningStatusRequest is the status request envelope (org only).
+type GetProvisioningStatusRequest struct {
 	OrganizationID string `path:"organization_id" doc:"Organization ID (UUID)"`
 	Authorization  string `header:"Authorization" doc:"Bearer token; only required when the auth plugin is enabled"`
 }
 
-// GetProvisioningStatusOutputHuma carries the status verbatim (200, matching http.OK).
-type GetProvisioningStatusOutputHuma struct {
+// GetProvisioningStatusResponse carries the status verbatim (200, matching http.OK).
+type GetProvisioningStatusResponse struct {
 	Status int
 	Body   *mmodel.ProvisioningStatusResponse
 }
 
-// GetProvisioningStatusHuma delegates to the shared getProvisioningStatus core.
-func (handler *EncryptionHandler) GetProvisioningStatusHuma(ctx context.Context, in *GetProvisioningStatusInputHuma) (*GetProvisioningStatusOutputHuma, error) {
+// GetProvisioningStatus delegates to the shared getProvisioningStatus core.
+func (handler *EncryptionHandler) GetProvisioningStatus(ctx context.Context, in *GetProvisioningStatusRequest) (*GetProvisioningStatusResponse, error) {
 	orgID, err := parseOrg(in.OrganizationID)
 	if err != nil {
 		return nil, pkgHTTP.HumaProblem(err)
@@ -105,10 +105,10 @@ func (handler *EncryptionHandler) GetProvisioningStatusHuma(ctx context.Context,
 		return nil, pkgHTTP.HumaProblem(err)
 	}
 
-	return &GetProvisioningStatusOutputHuma{Status: http.StatusOK, Body: response}, nil
+	return &GetProvisioningStatusResponse{Status: http.StatusOK, Body: response}, nil
 }
 
-// RegisterEncryptionRoutes registers the two migrated encryption operations on the
+// RegisterEncryptionRoutes registers the two encryption operations on the
 // given Huma API. It is the per-file seam the unified server calls (conditionally,
 // only in envelope encryption mode — mirroring the Fiber `if eh != nil` guard in
 // crm_routes.go); the auth ("midaz","encryption",verb) + tenant +
@@ -134,7 +134,7 @@ func RegisterEncryptionRoutes(api huma.API, h *EncryptionHandler, opSuffix strin
 		// Body validated imperatively (http.DecodeAndValidate) — see file header.
 		SkipValidateBody: true,
 		DefaultStatus:    http.StatusCreated,
-	}, h.ProvisionHuma)
+	}, h.Provision)
 	attachTypedRequestBody[mmodel.ProvisionEncryptionInput](api, "provisionEncryption"+opSuffix)
 
 	huma.Register(api, huma.Operation{
@@ -144,5 +144,5 @@ func RegisterEncryptionRoutes(api huma.API, h *EncryptionHandler, opSuffix strin
 		Summary:     "Get Provisioning Status",
 		Tags:        []string{tag},
 		Security:    secEncryptionBearer,
-	}, h.GetProvisioningStatusHuma)
+	}, h.GetProvisioningStatus)
 }

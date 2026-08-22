@@ -26,12 +26,11 @@ import (
 //     Huma terminal.
 //  2. ORG-SCOPED (no ledger in the path): the shell resolves only organization_id
 //     via the shared parseOrg helper (defined in ledger_handler.go).
-//  3. The shell captures the raw query via Resolve and rebuilds the
+//  3. The shell captures the raw query via Resolve and flattens it into the
 //     map[string]string the getAuditEvents core consumes (via the shared
-//     queriesFromValues helper), so the binding is byte-identical to the Fiber
-//     c.Queries() path — the core, not Huma, owns ALL query validation (limit/
-//     cursor/sort_order via ValidateParameters, dates via parseAuditTime, outcome
-//     via the reduced enum). No native Huma 422/400 on the query.
+//     queriesFromValues helper). The core, not Huma, owns ALL query validation
+//     (limit/cursor/sort_order via ValidateParameters, dates via parseAuditTime,
+//     outcome via allowedAuditOutcomes). No native Huma 422/400 on the query.
 //  4. Errors go through pkgHTTP.HumaProblem.
 
 // secAuditBearer advertises that the audit operation accepts a JWT bearer token
@@ -41,10 +40,10 @@ var secAuditBearer = []map[string][]string{
 	{"BearerAuth": {}},
 }
 
-// GetAuditEventsInputHuma advertises the list query params in the spec (doc-only, no
+// GetAuditEventsRequest advertises the list query params in the spec (doc-only, no
 // validation tags — the core is the sole validator) and captures the raw query via
 // Resolve for the imperative binder.
-type GetAuditEventsInputHuma struct {
+type GetAuditEventsRequest struct {
 	OrganizationID string `path:"organization_id" doc:"Organization ID (UUID)"`
 	Authorization  string `header:"Authorization" doc:"Bearer token; only required when the auth plugin is enabled"`
 	Limit          string `query:"limit" doc:"Maximum number of events to return (default 20)"`
@@ -63,22 +62,22 @@ type GetAuditEventsInputHuma struct {
 
 // Resolve captures the raw query before the handler. It performs NO validation and
 // NEVER returns an error — canonical rejection stays in the getAuditEvents core.
-func (in *GetAuditEventsInputHuma) Resolve(ctx huma.Context) []error {
+func (in *GetAuditEventsRequest) Resolve(ctx huma.Context) []error {
 	u := ctx.URL()
 	in.rawQuery = u.Query()
 
 	return nil
 }
 
-// GetAuditEventsOutputHuma carries the audit envelope verbatim.
-type GetAuditEventsOutputHuma struct {
+// GetAuditEventsResponse carries the audit envelope verbatim.
+type GetAuditEventsResponse struct {
 	Status int
 	Body   *auditEventsEnvelope
 }
 
-// GetAuditEventsHuma binds the query imperatively then delegates to the shared
+// GetAuditEvents binds the query imperatively then delegates to the shared
 // getAuditEvents core.
-func (handler *AuditHandler) GetAuditEventsHuma(ctx context.Context, in *GetAuditEventsInputHuma) (*GetAuditEventsOutputHuma, error) {
+func (handler *AuditHandler) GetAuditEvents(ctx context.Context, in *GetAuditEventsRequest) (*GetAuditEventsResponse, error) {
 	orgID, err := parseOrg(in.OrganizationID)
 	if err != nil {
 		return nil, pkgHTTP.HumaProblem(err)
@@ -89,10 +88,10 @@ func (handler *AuditHandler) GetAuditEventsHuma(ctx context.Context, in *GetAudi
 		return nil, pkgHTTP.HumaProblem(err)
 	}
 
-	return &GetAuditEventsOutputHuma{Status: http.StatusOK, Body: envelope}, nil
+	return &GetAuditEventsResponse{Status: http.StatusOK, Body: envelope}, nil
 }
 
-// RegisterAuditRoutes registers the migrated protection-audit operation on the
+// RegisterAuditRoutes registers the protection-audit operation on the
 // given Huma API. It is the per-file seam the unified server calls (conditionally,
 // only in envelope encryption mode — mirroring the Fiber `if auditHandler != nil`
 // guard in crm_routes.go); the auth ("midaz","protection","get") + tenant +
@@ -109,5 +108,5 @@ func RegisterAuditRoutes(api huma.API, h *AuditHandler, opSuffix string) {
 		Summary:     "List Protection Audit Events",
 		Tags:        []string{"Protection"},
 		Security:    secAuditBearer,
-	}, h.GetAuditEventsHuma)
+	}, h.GetAuditEvents)
 }
