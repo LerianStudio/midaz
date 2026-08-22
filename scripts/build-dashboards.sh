@@ -25,7 +25,7 @@ if ! command -v jsonnet >/dev/null 2>&1; then
 error: jsonnet not found on PATH.
 
 Install it with:
-  go install github.com/google/go-jsonnet/cmd/jsonnet@latest
+  go install github.com/google/go-jsonnet/cmd/jsonnet@v0.22.0
 
 and make sure "$(go env GOPATH)/bin" is on your PATH.
 EOF
