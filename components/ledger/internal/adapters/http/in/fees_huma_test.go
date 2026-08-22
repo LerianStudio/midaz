@@ -732,3 +732,25 @@ func TestDeletePackage_NotFound_404(t *testing.T) {
 
 	assertProblem(t, resp, http.StatusNotFound, constant.ErrEntityNotFound.Error())
 }
+
+// TestHuma_EstimateFee_NilResult_500 covers estimateFeeCalculation's nil-result
+// guard, which the retired Fiber-terminal tests owned: a service returning
+// (nil, nil) must surface as a canonical internal error, not an empty 200.
+func TestHuma_EstimateFee_NilResult_500(t *testing.T) {
+	orgID := uuid.New()
+
+	stub := &stubFeeService{result: nil}
+	handler := &FeeHandler{Service: stub}
+
+	app := buildHumaFeeEstimateApp(t, handler, true)
+
+	req := httptest.NewRequest(http.MethodPost, feePkgV2Base+orgID.String()+"/ledgers/"+validLedgerUUID()+"/estimates", bytes.NewBufferString(estimateBodyJSON()))
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
+	require.NoError(t, err)
+	defer func() { _ = resp.Body.Close() }()
+
+	respBody, _ := io.ReadAll(resp.Body)
+	assert.Equal(t, http.StatusInternalServerError, resp.StatusCode, "body: %s", string(respBody))
+}

@@ -8,20 +8,14 @@ import (
 	"context"
 	"encoding/json"
 	"io"
-	"net/http/httptest"
 	"testing"
 
-	"github.com/gofiber/fiber/v3"
 	"github.com/google/uuid"
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/mongodb/fees/pack"
 	"github.com/LerianStudio/midaz/v4/components/ledger/pkg/feeshared/model"
 	feehttp "github.com/LerianStudio/midaz/v4/components/ledger/pkg/feeshared/nethttp"
-	"github.com/LerianStudio/midaz/v4/pkg"
-	cn "github.com/LerianStudio/midaz/v4/pkg/constant"
-	transaction "github.com/LerianStudio/midaz/v4/pkg/mtransaction"
 )
 
 // decodeJSON drains and unmarshals a real *http.Response body (from app.Test).
@@ -149,131 +143,6 @@ func (s *stubBillingCalculateService) Calculate(_ context.Context, request model
 	return s.result, s.err
 }
 
-func TestBillingCalculateHandler_CalculateBilling(t *testing.T) {
-	orgUUID := uuid.New()
-	ledgerID := uuid.New()
-
-	tests := []struct {
-		name           string
-		payload        *model.BillingCalculateRequest
-		stub           *stubBillingCalculateService
-		expectedStatus int
-		validate       func(t *testing.T, body map[string]any, stub *stubBillingCalculateService)
-	}{
-		{
-			name:    "success returns 200 and stamps org id onto request",
-			payload: &model.BillingCalculateRequest{LedgerID: ledgerID.String(), Period: "2026-01", Type: "volume"},
-			stub: &stubBillingCalculateService{
-				result: &model.BillingCalculateResponse{},
-			},
-			expectedStatus: fiber.StatusOK,
-			validate: func(t *testing.T, body map[string]any, stub *stubBillingCalculateService) {
-				require.True(t, stub.called)
-				assert.Equal(t, orgUUID.String(), stub.got.OrganizationID,
-					"handler must stamp the path org onto the request")
-				assert.Equal(t, ledgerID.String(), stub.got.LedgerID)
-				assert.Equal(t, "2026-01", stub.got.Period)
-				assert.Contains(t, body, "results")
-			},
-		},
-		{
-			name:           "weekly period is accepted",
-			payload:        &model.BillingCalculateRequest{LedgerID: ledgerID.String(), Period: "2026-W13"},
-			stub:           &stubBillingCalculateService{result: &model.BillingCalculateResponse{}},
-			expectedStatus: fiber.StatusOK,
-		},
-		{
-			name:           "daily period is accepted",
-			payload:        &model.BillingCalculateRequest{LedgerID: ledgerID.String(), Period: "2026-01-15"},
-			stub:           &stubBillingCalculateService{result: &model.BillingCalculateResponse{}},
-			expectedStatus: fiber.StatusOK,
-		},
-		{
-			name:           "missing ledgerId fails validation with 400 before service call",
-			payload:        &model.BillingCalculateRequest{Period: "2026-01"},
-			stub:           &stubBillingCalculateService{},
-			expectedStatus: fiber.StatusBadRequest,
-			validate: func(t *testing.T, body map[string]any, stub *stubBillingCalculateService) {
-				assert.False(t, stub.called)
-				assert.Equal(t, cn.ErrInvalidLedgerID.Error(), body["code"])
-			},
-		},
-		{
-			name:           "non-uuid ledgerId fails validation with 400",
-			payload:        &model.BillingCalculateRequest{LedgerID: "not-a-uuid", Period: "2026-01"},
-			stub:           &stubBillingCalculateService{},
-			expectedStatus: fiber.StatusBadRequest,
-			validate: func(t *testing.T, body map[string]any, _ *stubBillingCalculateService) {
-				assert.Equal(t, cn.ErrInvalidLedgerID.Error(), body["code"])
-			},
-		},
-		{
-			name:           "missing period fails validation with 400",
-			payload:        &model.BillingCalculateRequest{LedgerID: ledgerID.String()},
-			stub:           &stubBillingCalculateService{},
-			expectedStatus: fiber.StatusBadRequest,
-			validate: func(t *testing.T, body map[string]any, stub *stubBillingCalculateService) {
-				assert.False(t, stub.called)
-				assert.Equal(t, cn.ErrInvalidBillingPeriod.Error(), body["code"])
-			},
-		},
-		{
-			name:           "malformed period fails validation with 400",
-			payload:        &model.BillingCalculateRequest{LedgerID: ledgerID.String(), Period: "January"},
-			stub:           &stubBillingCalculateService{},
-			expectedStatus: fiber.StatusBadRequest,
-			validate: func(t *testing.T, body map[string]any, _ *stubBillingCalculateService) {
-				assert.Equal(t, cn.ErrInvalidBillingPeriod.Error(), body["code"])
-			},
-		},
-		{
-			name:           "invalid type fails validation with 400",
-			payload:        &model.BillingCalculateRequest{LedgerID: ledgerID.String(), Period: "2026-01", Type: "bogus"},
-			stub:           &stubBillingCalculateService{},
-			expectedStatus: fiber.StatusBadRequest,
-			validate: func(t *testing.T, body map[string]any, stub *stubBillingCalculateService) {
-				assert.False(t, stub.called)
-				assert.Equal(t, cn.ErrInvalidBillingPackageType.Error(), body["code"])
-			},
-		},
-		{
-			name:           "service failure maps to 500",
-			payload:        &model.BillingCalculateRequest{LedgerID: ledgerID.String(), Period: "2026-01"},
-			stub:           &stubBillingCalculateService{err: pkg.ValidateBusinessError(cn.ErrBillingCalculationFailed, cn.EntityBillingPackage, "boom")},
-			expectedStatus: fiber.StatusInternalServerError,
-		},
-		{
-			name:           "nil result with nil error returns 500",
-			payload:        &model.BillingCalculateRequest{LedgerID: ledgerID.String(), Period: "2026-01"},
-			stub:           &stubBillingCalculateService{result: nil, err: nil},
-			expectedStatus: fiber.StatusInternalServerError,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			handler := &BillingCalculateHandler{Service: tt.stub}
-
-			app := fiber.New()
-			app.Post("/v1/organizations/:organization_id/billing/calculate", func(c fiber.Ctx) error {
-				c.Locals("organization_id", orgUUID)
-
-				return handler.CalculateBilling(tt.payload, c)
-			})
-
-			req := httptest.NewRequest(fiber.MethodPost, "/v1/organizations/"+orgUUID.String()+"/billing/calculate", nil)
-			resp, err := app.Test(req)
-			require.NoError(t, err)
-
-			assert.Equal(t, tt.expectedStatus, resp.StatusCode)
-
-			if tt.validate != nil {
-				tt.validate(t, decodeJSON(t, resp.Body), tt.stub)
-			}
-		})
-	}
-}
-
 // ============================================================================
 // FeeHandler — stub + tests
 // ============================================================================
@@ -293,99 +162,6 @@ func (s *stubFeeService) EstimateFeeCalculation(_ context.Context, cf *model.Fee
 	s.gotOrg = organizationID
 
 	return s.result, s.err
-}
-
-func TestFeeHandler_EstimateFeeCalculation(t *testing.T) {
-	orgUUID := uuid.New()
-	packageID := uuid.New()
-	ledgerID := uuid.New()
-
-	resultWithFees := &model.FeeEstimateResult{
-		LedgerID: ledgerID,
-		Transaction: model.FeeAdjustedTransaction{
-			Metadata: map[string]any{"packageAppliedID": packageID.String()},
-		},
-	}
-	resultNoFees := &model.FeeEstimateResult{
-		LedgerID:    ledgerID,
-		Transaction: model.FeeAdjustedTransaction{Metadata: map[string]any{}},
-	}
-
-	tests := []struct {
-		name           string
-		payload        *model.FeeEstimate
-		stub           *stubFeeService
-		expectedStatus int
-		validate       func(t *testing.T, body map[string]any, stub *stubFeeService)
-	}{
-		{
-			name:           "success with applied fees returns 200 and forwards org+payload",
-			payload:        &model.FeeEstimate{PackageID: packageID, LedgerID: ledgerID, Transaction: transaction.Transaction{}},
-			stub:           &stubFeeService{result: resultWithFees},
-			expectedStatus: fiber.StatusOK,
-			validate: func(t *testing.T, body map[string]any, stub *stubFeeService) {
-				require.True(t, stub.called)
-				assert.Equal(t, orgUUID, stub.gotOrg)
-				assert.Equal(t, packageID, stub.gotEstimate.PackageID)
-				assert.Equal(t, "Successfully estimated fee.", body["message"])
-				assert.NotNil(t, body["feesApplied"], "applied fees must be returned in the envelope")
-			},
-		},
-		{
-			name:           "no matching rules returns 200 with no-fees message and nil feesApplied",
-			payload:        &model.FeeEstimate{PackageID: packageID, LedgerID: ledgerID},
-			stub:           &stubFeeService{result: resultNoFees},
-			expectedStatus: fiber.StatusOK,
-			validate: func(t *testing.T, body map[string]any, _ *stubFeeService) {
-				assert.Equal(t, "No fee or gratuity rules were found for the given parameters.", body["message"])
-				assert.Nil(t, body["feesApplied"])
-			},
-		},
-		{
-			name:           "business error maps to 422",
-			payload:        &model.FeeEstimate{PackageID: packageID, LedgerID: ledgerID},
-			stub:           &stubFeeService{err: pkg.ValidateBusinessError(cn.ErrMinAmountGreaterThanMaxAmount, cn.EntityPackage)},
-			expectedStatus: fiber.StatusUnprocessableEntity,
-			validate: func(t *testing.T, body map[string]any, _ *stubFeeService) {
-				assert.Equal(t, cn.ErrMinAmountGreaterThanMaxAmount.Error(), body["code"])
-			},
-		},
-		{
-			name:           "calculate-fee technical error maps to 500",
-			payload:        &model.FeeEstimate{PackageID: packageID, LedgerID: ledgerID},
-			stub:           &stubFeeService{err: pkg.ValidateBusinessError(cn.ErrCalculateFee, cn.EntityFeeCalculation)},
-			expectedStatus: fiber.StatusInternalServerError,
-		},
-		{
-			name:           "nil result with nil error returns 500",
-			payload:        &model.FeeEstimate{PackageID: packageID, LedgerID: ledgerID},
-			stub:           &stubFeeService{result: nil, err: nil},
-			expectedStatus: fiber.StatusInternalServerError,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			handler := &FeeHandler{Service: tt.stub}
-
-			app := fiber.New()
-			app.Post("/v1/organizations/:organization_id/estimates", func(c fiber.Ctx) error {
-				c.Locals("organization_id", orgUUID)
-
-				return handler.EstimateFeeCalculation(tt.payload, c)
-			})
-
-			req := httptest.NewRequest(fiber.MethodPost, "/v1/organizations/"+orgUUID.String()+"/estimates", nil)
-			resp, err := app.Test(req)
-			require.NoError(t, err)
-
-			assert.Equal(t, tt.expectedStatus, resp.StatusCode)
-
-			if tt.validate != nil {
-				tt.validate(t, decodeJSON(t, resp.Body), tt.stub)
-			}
-		})
-	}
 }
 
 // ============================================================================

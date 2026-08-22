@@ -657,3 +657,132 @@ func TestHuma_CalculateBilling_ServiceError_Mapped(t *testing.T) {
 	require.NoError(t, json.Unmarshal(respBody, &got), "body: %s", string(respBody))
 	assert.Equal(t, constant.ErrInvalidPathParameter.Error(), got["code"])
 }
+
+// --- ported from the retired Fiber-wrapper tests (fees_billing_handlers_test.go) ---
+//
+// The CalculateBilling fiber.Ctx terminal was deleted with the Huma migration. Its
+// tests covered the request validators and the nil-result guard, which the Huma
+// suite did not reach.
+
+func TestValidateBillingPeriod(t *testing.T) {
+	// Pure validator: the calendar branches are cheaper and clearer exercised
+	// directly than through six HTTP round-trips.
+	tests := []struct {
+		name    string
+		period  string
+		wantErr bool
+	}{
+		{"empty is rejected", "", true},
+		{"full date is accepted", "2026-03-14", false},
+		{"month is accepted", "2026-03", false},
+		{"valid ISO week is accepted", "2026-W07", false},
+		{"nonexistent ISO week is rejected", "2026-W99", true},
+		{"free text is rejected", "last-march", true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := validateBillingPeriod(tt.period)
+			if tt.wantErr {
+				require.Error(t, err)
+				assert.Contains(t, err.Error(), constant.ErrInvalidBillingPeriod.Error())
+
+				return
+			}
+
+			assert.NoError(t, err)
+		})
+	}
+}
+
+func TestValidateBillingCalculateRequest(t *testing.T) {
+	// Pure validator. Each case isolates one guard; the period cases live in
+	// TestValidateBillingPeriod.
+	ledgerID := uuid.New().String()
+	orgID := uuid.New().String()
+
+	base := func() *model.BillingCalculateRequest {
+		return &model.BillingCalculateRequest{OrganizationID: orgID, LedgerID: ledgerID, Period: "2026-03"}
+	}
+
+	tests := []struct {
+		name    string
+		mutate  func(r *model.BillingCalculateRequest)
+		wantErr string
+	}{
+		{"valid request passes", func(*model.BillingCalculateRequest) {}, ""},
+		{"missing organization", func(r *model.BillingCalculateRequest) { r.OrganizationID = "" }, constant.ErrFeeInvalidHeaderParameter.Error()},
+		{"missing ledger", func(r *model.BillingCalculateRequest) { r.LedgerID = "" }, constant.ErrInvalidLedgerID.Error()},
+		{"malformed ledger", func(r *model.BillingCalculateRequest) { r.LedgerID = "not-a-uuid" }, constant.ErrInvalidLedgerID.Error()},
+		{"unknown package type", func(r *model.BillingCalculateRequest) { r.Type = "subscription" }, constant.ErrInvalidBillingPackageType.Error()},
+		{"volume type passes", func(r *model.BillingCalculateRequest) { r.Type = model.BillingPackageTypeVolume }, ""},
+		{"maintenance type passes", func(r *model.BillingCalculateRequest) { r.Type = model.BillingPackageTypeMaintenance }, ""},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			req := base()
+			tt.mutate(req)
+
+			err := validateBillingCalculateRequest(req)
+			if tt.wantErr == "" {
+				assert.NoError(t, err)
+
+				return
+			}
+
+			require.Error(t, err)
+			assert.Contains(t, err.Error(), tt.wantErr)
+		})
+	}
+}
+
+func TestHuma_CalculateBilling_NilResult_500(t *testing.T) {
+	// The service returning (nil, nil) must not surface as a 200 with an empty
+	// body; calculateBilling turns it into a canonical internal error.
+	orgID := uuid.New()
+	ledgerID := uuid.New()
+
+	stub := &stubBillingCalculateService{result: nil}
+	handler := &BillingCalculateHandler{Service: stub}
+
+	app := buildHumaBillingCalculateApp(t, handler, true)
+
+	req := httptest.NewRequest(http.MethodPost, billingCalcV2URL(orgID.String(), ledgerID.String()), bytes.NewBufferString(validBillingCalculateJSON(ledgerID.String())))
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
+	require.NoError(t, err)
+	defer func() { _ = resp.Body.Close() }()
+
+	respBody, _ := io.ReadAll(resp.Body)
+	assert.Equal(t, http.StatusInternalServerError, resp.StatusCode, "body: %s", string(respBody))
+	assert.True(t, stub.called)
+}
+
+func TestHuma_CalculateBilling_InvalidPeriod_Canonical400(t *testing.T) {
+	// The period guard runs inside calculateBilling, before the service call.
+	orgID := uuid.New()
+	ledgerID := uuid.New()
+
+	stub := &stubBillingCalculateService{}
+	handler := &BillingCalculateHandler{Service: stub}
+
+	app := buildHumaBillingCalculateApp(t, handler, true)
+
+	body := `{"ledgerId":"` + ledgerID.String() + `","period":"2026-W99"}`
+	req := httptest.NewRequest(http.MethodPost, billingCalcV2URL(orgID.String(), ledgerID.String()), bytes.NewBufferString(body))
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
+	require.NoError(t, err)
+	defer func() { _ = resp.Body.Close() }()
+
+	respBody, _ := io.ReadAll(resp.Body)
+	assert.Equal(t, http.StatusBadRequest, resp.StatusCode, "body: %s", string(respBody))
+	assert.False(t, stub.called, "an invalid period must never reach the service")
+
+	var got map[string]any
+	require.NoError(t, json.Unmarshal(respBody, &got), "body: %s", string(respBody))
+	assert.Equal(t, constant.ErrInvalidBillingPeriod.Error(), got["code"])
+}
