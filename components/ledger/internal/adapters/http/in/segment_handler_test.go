@@ -25,6 +25,7 @@ import (
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/segment"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services/command"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services/query"
+	"github.com/LerianStudio/midaz/v4/pkg"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
 	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
 	pkgHTTP "github.com/LerianStudio/midaz/v4/pkg/net/http"
@@ -65,8 +66,8 @@ func buildHumaSegmentApp(t *testing.T, handler *SegmentHandler, authOK bool) *fi
 	hAPI := openapi.New(f, apiV1, openapi.Config{Title: "ledger-test", Version: "test", Servers: []string{"/v1"}})
 
 	// Mirror the production chain: ParseUUIDPathParameters runs as Fiber middleware
-	// (no terminal) before the Huma terminal on each segment route. The Fiber path
-	// param is :id (matches routes.go pre-migration, NOT :segment_id).
+	// (no terminal) before the Huma terminal on each segment route. The path param is
+	// :id, NOT :segment_id.
 	parse := pkgHTTP.ParseUUIDPathParameters("segment")
 	base := "/organizations/:organization_id/ledgers/:ledger_id/segments"
 	apiV1.Post(base, parse)
@@ -81,7 +82,7 @@ func buildHumaSegmentApp(t *testing.T, handler *SegmentHandler, authOK bool) *fi
 	return f
 }
 
-func TestHuma_CreateSegment_Success(t *testing.T) {
+func TestCreateSegment_Success(t *testing.T) {
 	// NOT parallel: buildHumaSegmentApp mutates process-global huma state.
 	ctrl := gomock.NewController(t)
 	t.Cleanup(ctrl.Finish)
@@ -133,7 +134,7 @@ func TestHuma_CreateSegment_Success(t *testing.T) {
 	assert.Equal(t, ledgerID.String(), got["ledgerId"], "tenant path ledger must round-trip into the body")
 }
 
-func TestHuma_CreateSegment_AuthPreserved(t *testing.T) {
+func TestCreateSegment_AuthPreserved(t *testing.T) {
 	// NOT parallel: process-global huma state.
 	ctrl := gomock.NewController(t)
 	t.Cleanup(ctrl.Finish)
@@ -160,7 +161,7 @@ func TestHuma_CreateSegment_AuthPreserved(t *testing.T) {
 	assert.Equal(t, http.StatusUnauthorized, resp.StatusCode, "auth middleware must reject before Huma; no public route")
 }
 
-func TestHuma_CreateSegment_ValidationError_Canonical400(t *testing.T) {
+func TestCreateSegment_ValidationError_Canonical400(t *testing.T) {
 	// NOT parallel: process-global huma state.
 	ctrl := gomock.NewController(t)
 	t.Cleanup(ctrl.Finish)
@@ -196,7 +197,7 @@ func TestHuma_CreateSegment_ValidationError_Canonical400(t *testing.T) {
 	assert.Equal(t, float64(http.StatusBadRequest), got["status"])
 }
 
-func TestHuma_CreateSegment_MalformedBody_Canonical400(t *testing.T) {
+func TestCreateSegment_MalformedBody_Canonical400(t *testing.T) {
 	// NOT parallel: process-global huma state.
 	ctrl := gomock.NewController(t)
 	t.Cleanup(ctrl.Finish)
@@ -232,7 +233,7 @@ func TestHuma_CreateSegment_MalformedBody_Canonical400(t *testing.T) {
 	assert.Equal(t, float64(http.StatusBadRequest), got["status"])
 }
 
-func TestHuma_GetSegmentByID_Success(t *testing.T) {
+func TestGetSegmentByID_Success(t *testing.T) {
 	// NOT parallel: process-global huma state.
 	ctrl := gomock.NewController(t)
 	t.Cleanup(ctrl.Finish)
@@ -267,7 +268,7 @@ func TestHuma_GetSegmentByID_Success(t *testing.T) {
 	assert.Equal(t, segmentID.String(), got["id"])
 }
 
-func TestHuma_GetSegmentByID_BadUUID_Canonical400(t *testing.T) {
+func TestGetSegmentByID_BadUUID_Canonical400(t *testing.T) {
 	// NOT parallel: process-global huma state.
 	ctrl := gomock.NewController(t)
 	t.Cleanup(ctrl.Finish)
@@ -297,7 +298,7 @@ func TestHuma_GetSegmentByID_BadUUID_Canonical400(t *testing.T) {
 	assert.Equal(t, constant.ErrInvalidPathParameter.Error(), got["code"])
 }
 
-func TestHuma_GetAllSegments_Success(t *testing.T) {
+func TestGetAllSegments_Success(t *testing.T) {
 	// NOT parallel: process-global huma state.
 	ctrl := gomock.NewController(t)
 	t.Cleanup(ctrl.Finish)
@@ -327,7 +328,7 @@ func TestHuma_GetAllSegments_Success(t *testing.T) {
 	assert.EqualValues(t, 10, got["limit"])
 }
 
-func TestHuma_GetAllSegments_BadQuery_Canonical400(t *testing.T) {
+func TestGetAllSegments_BadQuery_Canonical400(t *testing.T) {
 	// NOT parallel: process-global huma state.
 	ctrl := gomock.NewController(t)
 	t.Cleanup(ctrl.Finish)
@@ -353,7 +354,7 @@ func TestHuma_GetAllSegments_BadQuery_Canonical400(t *testing.T) {
 	assert.Equal(t, constant.ErrInvalidQueryParameter.Error(), got["code"])
 }
 
-func TestHuma_DeleteSegment_204Empty(t *testing.T) {
+func TestDeleteSegment_204Empty(t *testing.T) {
 	// NOT parallel: process-global huma state.
 	ctrl := gomock.NewController(t)
 	t.Cleanup(ctrl.Finish)
@@ -379,7 +380,7 @@ func TestHuma_DeleteSegment_204Empty(t *testing.T) {
 	assert.Empty(t, respBody, "DELETE 204 must have an empty body")
 }
 
-func TestHuma_CountSegments_204WithHeader(t *testing.T) {
+func TestCountSegments_204WithHeader(t *testing.T) {
 	// NOT parallel: process-global huma state.
 	ctrl := gomock.NewController(t)
 	t.Cleanup(ctrl.Finish)
@@ -404,4 +405,301 @@ func TestHuma_CountSegments_204WithHeader(t *testing.T) {
 	assert.Equal(t, "7", resp.Header.Get(constant.XTotalCount), "X-Total-Count header must carry the count")
 	assert.Empty(t, respBody, "HEAD count must have an empty body")
 	assert.Equal(t, "0", resp.Header.Get("Content-Length"), "HEAD 204 must set Content-Length: 0 (parity with the Fiber NoContent path)")
+}
+
+// --- ported from the retired Fiber-wrapper tests (segment_test.go) -------------
+//
+// The six exported fiber.Ctx terminals on SegmentHandler were deleted with the Huma
+// migration; the branches their tests covered in the shared cores are exercised
+// here through the live Huma transport instead.
+
+func segmentsPath(orgID, ledgerID uuid.UUID, suffix string) string {
+	return "/v1/organizations/" + orgID.String() + "/ledgers/" + ledgerID.String() + "/segments" + suffix
+}
+
+func TestCreateSegment_ServiceError_Canonical4xx(t *testing.T) {
+	// NOT parallel: process-global huma state. createSegment's command-error branch.
+	ctrl := gomock.NewController(t)
+	t.Cleanup(ctrl.Finish)
+
+	orgID := uuid.New()
+	ledgerID := uuid.New()
+
+	segmentRepo := segment.NewMockRepository(ctrl)
+	segmentRepo.EXPECT().ExistsByName(gomock.Any(), orgID, ledgerID, "Test Segment").Return(false, nil).Times(1)
+	segmentRepo.EXPECT().Create(gomock.Any(), gomock.Any()).
+		Return(nil, pkg.ValidateBusinessError(constant.ErrDuplicateSegmentName, constant.EntitySegment, "Test Segment")).Times(1)
+
+	handler := &SegmentHandler{Command: &command.UseCase{SegmentRepo: segmentRepo}}
+
+	app := buildHumaSegmentApp(t, handler, true)
+
+	body, _ := json.Marshal(map[string]any{"name": "Test Segment"})
+	req := httptest.NewRequest(http.MethodPost, segmentsPath(orgID, ledgerID, ""), bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
+	require.NoError(t, err)
+	defer func() { _ = resp.Body.Close() }()
+
+	respBody, _ := io.ReadAll(resp.Body)
+	assert.GreaterOrEqual(t, resp.StatusCode, http.StatusBadRequest)
+	assert.Less(t, resp.StatusCode, http.StatusInternalServerError)
+
+	var got map[string]any
+	require.NoError(t, json.Unmarshal(respBody, &got), "body: %s", string(respBody))
+	assert.Contains(t, got, "code")
+}
+
+func TestGetSegmentByID_ServiceError_Canonical404(t *testing.T) {
+	// NOT parallel: process-global huma state. getSegmentByID's query-error branch.
+	ctrl := gomock.NewController(t)
+	t.Cleanup(ctrl.Finish)
+
+	orgID := uuid.New()
+	ledgerID := uuid.New()
+	segmentID := uuid.New()
+
+	segmentRepo := segment.NewMockRepository(ctrl)
+	segmentRepo.EXPECT().Find(gomock.Any(), orgID, ledgerID, segmentID).
+		Return(nil, pkg.ValidateBusinessError(constant.ErrEntityNotFound, constant.EntitySegment)).Times(1)
+
+	handler := &SegmentHandler{Query: &query.UseCase{SegmentRepo: segmentRepo}}
+
+	app := buildHumaSegmentApp(t, handler, true)
+
+	req := httptest.NewRequest(http.MethodGet, segmentsPath(orgID, ledgerID, "/"+segmentID.String()), nil)
+	resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
+	require.NoError(t, err)
+	defer func() { _ = resp.Body.Close() }()
+
+	respBody, _ := io.ReadAll(resp.Body)
+	assert.Equal(t, http.StatusNotFound, resp.StatusCode)
+
+	var got map[string]any
+	require.NoError(t, json.Unmarshal(respBody, &got), "body: %s", string(respBody))
+	assert.Contains(t, got, "code")
+}
+
+func TestGetAllSegments_MetadataFilter(t *testing.T) {
+	// NOT parallel: process-global huma state. getAllSegments' metadata branch
+	// resolves the matched IDs via FindByIDs, not FindAll.
+	ctrl := gomock.NewController(t)
+	t.Cleanup(ctrl.Finish)
+
+	orgID := uuid.New()
+	ledgerID := uuid.New()
+	seg1 := uuid.New().String()
+
+	segmentRepo := segment.NewMockRepository(ctrl)
+	metadataRepo := mongodb.NewMockRepository(ctrl)
+
+	metadataRepo.EXPECT().FindList(gomock.Any(), constant.EntitySegment, gomock.Any()).
+		Return([]*mongodb.Metadata{{EntityID: seg1, Data: map[string]any{"tier": "premium"}}}, nil).Times(1)
+	segmentRepo.EXPECT().FindByIDs(gomock.Any(), orgID, ledgerID, gomock.Any()).
+		Return([]*mmodel.Segment{{ID: seg1, OrganizationID: orgID.String(), LedgerID: ledgerID.String(), Name: "Premium One"}}, nil).Times(1)
+
+	handler := &SegmentHandler{Query: &query.UseCase{SegmentRepo: segmentRepo, OnboardingMetadataRepo: metadataRepo}}
+
+	app := buildHumaSegmentApp(t, handler, true)
+
+	req := httptest.NewRequest(http.MethodGet, segmentsPath(orgID, ledgerID, "?metadata.tier=premium"), nil)
+	resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
+	require.NoError(t, err)
+	defer func() { _ = resp.Body.Close() }()
+
+	respBody, _ := io.ReadAll(resp.Body)
+	assert.Equal(t, http.StatusOK, resp.StatusCode)
+
+	var got map[string]any
+	require.NoError(t, json.Unmarshal(respBody, &got), "body: %s", string(respBody))
+	items, ok := got["items"].([]any)
+	require.True(t, ok, "items should be an array")
+	assert.Len(t, items, 1)
+}
+
+func TestGetAllSegments_MetadataFilter_NoMatch_Canonical404(t *testing.T) {
+	// NOT parallel: process-global huma state. The metadata branch's error path.
+	ctrl := gomock.NewController(t)
+	t.Cleanup(ctrl.Finish)
+
+	orgID := uuid.New()
+	ledgerID := uuid.New()
+
+	metadataRepo := mongodb.NewMockRepository(ctrl)
+	metadataRepo.EXPECT().FindList(gomock.Any(), constant.EntitySegment, gomock.Any()).Return(nil, nil).Times(1)
+
+	handler := &SegmentHandler{Query: &query.UseCase{
+		SegmentRepo:            segment.NewMockRepository(ctrl),
+		OnboardingMetadataRepo: metadataRepo,
+	}}
+
+	app := buildHumaSegmentApp(t, handler, true)
+
+	req := httptest.NewRequest(http.MethodGet, segmentsPath(orgID, ledgerID, "?metadata.tier=nonexistent"), nil)
+	resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
+	require.NoError(t, err)
+	defer func() { _ = resp.Body.Close() }()
+
+	assert.Equal(t, http.StatusNotFound, resp.StatusCode)
+}
+
+func TestGetAllSegments_ServiceError_Canonical404(t *testing.T) {
+	// NOT parallel: process-global huma state. getAllSegments' plain query-error branch.
+	ctrl := gomock.NewController(t)
+	t.Cleanup(ctrl.Finish)
+
+	orgID := uuid.New()
+	ledgerID := uuid.New()
+
+	segmentRepo := segment.NewMockRepository(ctrl)
+	segmentRepo.EXPECT().FindAll(gomock.Any(), orgID, ledgerID, gomock.Any()).
+		Return(nil, pkg.ValidateBusinessError(constant.ErrEntityNotFound, constant.EntitySegment)).Times(1)
+
+	handler := &SegmentHandler{Query: &query.UseCase{SegmentRepo: segmentRepo}}
+
+	app := buildHumaSegmentApp(t, handler, true)
+
+	req := httptest.NewRequest(http.MethodGet, segmentsPath(orgID, ledgerID, ""), nil)
+	resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
+	require.NoError(t, err)
+	defer func() { _ = resp.Body.Close() }()
+
+	assert.Equal(t, http.StatusNotFound, resp.StatusCode)
+}
+
+func TestUpdateSegment_Success(t *testing.T) {
+	// NOT parallel: process-global huma state.
+	ctrl := gomock.NewController(t)
+	t.Cleanup(ctrl.Finish)
+
+	orgID := uuid.New()
+	ledgerID := uuid.New()
+	segmentID := uuid.New()
+
+	segmentRepo := segment.NewMockRepository(ctrl)
+	metadataRepo := mongodb.NewMockRepository(ctrl)
+
+	segmentRepo.EXPECT().Find(gomock.Any(), orgID, ledgerID, segmentID).
+		Return(&mmodel.Segment{ID: segmentID.String(), Name: "Original Segment Name"}, nil).Times(1)
+	segmentRepo.EXPECT().ExistsByName(gomock.Any(), orgID, ledgerID, "Updated Segment Name").Return(false, nil).Times(1)
+	segmentRepo.EXPECT().Update(gomock.Any(), orgID, ledgerID, segmentID, gomock.Any()).
+		Return(&mmodel.Segment{
+			ID:             segmentID.String(),
+			OrganizationID: orgID.String(),
+			LedgerID:       ledgerID.String(),
+			Name:           "Updated Segment Name",
+			Status:         mmodel.Status{Code: "ACTIVE"},
+		}, nil).Times(1)
+	metadataRepo.EXPECT().Update(gomock.Any(), constant.EntitySegment, segmentID.String(), gomock.Any()).Return(nil).AnyTimes()
+	metadataRepo.EXPECT().FindByEntity(gomock.Any(), constant.EntitySegment, segmentID.String()).Return(nil, nil).AnyTimes()
+
+	handler := &SegmentHandler{Command: &command.UseCase{SegmentRepo: segmentRepo, OnboardingMetadataRepo: metadataRepo}}
+
+	app := buildHumaSegmentApp(t, handler, true)
+
+	body, _ := json.Marshal(map[string]any{"name": "Updated Segment Name"})
+	req := httptest.NewRequest(http.MethodPatch, segmentsPath(orgID, ledgerID, "/"+segmentID.String()), bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
+	require.NoError(t, err)
+	defer func() { _ = resp.Body.Close() }()
+
+	respBody, _ := io.ReadAll(resp.Body)
+	assert.Equal(t, http.StatusOK, resp.StatusCode)
+	assert.NotContains(t, string(respBody), "$schema", "SchemaLinkTransformer must be zeroed")
+
+	var got map[string]any
+	require.NoError(t, json.Unmarshal(respBody, &got), "body: %s", string(respBody))
+	assert.Equal(t, "Updated Segment Name", got["name"])
+	assert.Equal(t, segmentID.String(), got["id"])
+}
+
+func TestUpdateSegment_NotFound_Canonical404(t *testing.T) {
+	// NOT parallel: process-global huma state. updateSegment's command-error branch.
+	ctrl := gomock.NewController(t)
+	t.Cleanup(ctrl.Finish)
+
+	orgID := uuid.New()
+	ledgerID := uuid.New()
+	segmentID := uuid.New()
+
+	segmentRepo := segment.NewMockRepository(ctrl)
+	segmentRepo.EXPECT().Find(gomock.Any(), orgID, ledgerID, segmentID).
+		Return(nil, pkg.ValidateBusinessError(constant.ErrEntityNotFound, constant.EntitySegment)).Times(1)
+
+	handler := &SegmentHandler{Command: &command.UseCase{SegmentRepo: segmentRepo}}
+
+	app := buildHumaSegmentApp(t, handler, true)
+
+	body, _ := json.Marshal(map[string]any{"name": "Updated Segment Name"})
+	req := httptest.NewRequest(http.MethodPatch, segmentsPath(orgID, ledgerID, "/"+segmentID.String()), bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
+	require.NoError(t, err)
+	defer func() { _ = resp.Body.Close() }()
+
+	respBody, _ := io.ReadAll(resp.Body)
+	assert.Equal(t, http.StatusNotFound, resp.StatusCode)
+
+	var got map[string]any
+	require.NoError(t, json.Unmarshal(respBody, &got), "body: %s", string(respBody))
+	assert.Contains(t, got, "code")
+}
+
+func TestDeleteSegment_ServiceError_Canonical404(t *testing.T) {
+	// NOT parallel: process-global huma state. deleteSegment's command-error branch.
+	ctrl := gomock.NewController(t)
+	t.Cleanup(ctrl.Finish)
+
+	orgID := uuid.New()
+	ledgerID := uuid.New()
+	segmentID := uuid.New()
+
+	segmentRepo := segment.NewMockRepository(ctrl)
+	segmentRepo.EXPECT().Delete(gomock.Any(), orgID, ledgerID, segmentID).
+		Return(pkg.ValidateBusinessError(constant.ErrEntityNotFound, constant.EntitySegment)).Times(1)
+
+	handler := &SegmentHandler{Command: &command.UseCase{SegmentRepo: segmentRepo}}
+
+	app := buildHumaSegmentApp(t, handler, true)
+
+	req := httptest.NewRequest(http.MethodDelete, segmentsPath(orgID, ledgerID, "/"+segmentID.String()), nil)
+	resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
+	require.NoError(t, err)
+	defer func() { _ = resp.Body.Close() }()
+
+	respBody, _ := io.ReadAll(resp.Body)
+	assert.Equal(t, http.StatusNotFound, resp.StatusCode)
+
+	var got map[string]any
+	require.NoError(t, json.Unmarshal(respBody, &got), "body: %s", string(respBody))
+	assert.Contains(t, got, "code")
+}
+
+func TestCountSegments_ServiceError(t *testing.T) {
+	// NOT parallel: process-global huma state. countSegments' query-error branch.
+	ctrl := gomock.NewController(t)
+	t.Cleanup(ctrl.Finish)
+
+	orgID := uuid.New()
+	ledgerID := uuid.New()
+
+	segmentRepo := segment.NewMockRepository(ctrl)
+	segmentRepo.EXPECT().Count(gomock.Any(), orgID, ledgerID).
+		Return(int64(0), pkg.ValidateBusinessError(constant.ErrEntityNotFound, constant.EntitySegment)).Times(1)
+
+	handler := &SegmentHandler{Query: &query.UseCase{SegmentRepo: segmentRepo}}
+
+	app := buildHumaSegmentApp(t, handler, true)
+
+	req := httptest.NewRequest(http.MethodHead, segmentsPath(orgID, ledgerID, "/metrics/count"), nil)
+	resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
+	require.NoError(t, err)
+	defer func() { _ = resp.Body.Close() }()
+
+	assert.Equal(t, http.StatusNotFound, resp.StatusCode)
+	assert.Empty(t, resp.Header.Get(constant.XTotalCount), "a failed count must not advertise a total")
 }

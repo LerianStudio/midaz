@@ -40,22 +40,22 @@ import (
 
 // --- POST /segments -----------------------------------------------------------
 
-// CreateSegmentInputHuma is the Huma request envelope for POST.
-type CreateSegmentInputHuma struct {
+// CreateSegmentRequest is the Huma request envelope for POST.
+type CreateSegmentRequest struct {
 	OrganizationID string `path:"organization_id" doc:"Organization ID (UUID)"`
 	LedgerID       string `path:"ledger_id" doc:"Ledger ID (UUID)"`
 	RawBody        []byte `contentType:"application/json"`
 }
 
-// CreateSegmentOutputHuma pins 201 (matching http.Created).
-type CreateSegmentOutputHuma struct {
+// CreateSegmentResponse pins 201 (matching http.Created).
+type CreateSegmentResponse struct {
 	Status int
 	Body   *mmodel.Segment
 }
 
-// CreateSegmentHuma decodes+validates the raw body imperatively then delegates to the
+// CreateSegment decodes+validates the raw body imperatively then delegates to the
 // shared createSegment core.
-func (handler *SegmentHandler) CreateSegmentHuma(ctx context.Context, in *CreateSegmentInputHuma) (*CreateSegmentOutputHuma, error) {
+func (handler *SegmentHandler) CreateSegment(ctx context.Context, in *CreateSegmentRequest) (*CreateSegmentResponse, error) {
 	orgID, ledgerID, err := parseOrgLedger(in.OrganizationID, in.LedgerID)
 	if err != nil {
 		return nil, pkgHTTP.HumaProblem(err)
@@ -71,14 +71,14 @@ func (handler *SegmentHandler) CreateSegmentHuma(ctx context.Context, in *Create
 		return nil, pkgHTTP.HumaProblem(err)
 	}
 
-	return &CreateSegmentOutputHuma{Status: http.StatusCreated, Body: segment}, nil
+	return &CreateSegmentResponse{Status: http.StatusCreated, Body: segment}, nil
 }
 
 // --- GET /segments (list) -----------------------------------------------------
 
-// ListSegmentsInputHuma advertises the list query params in the spec (doc-only) and
+// ListSegmentsRequest advertises the list query params in the spec (doc-only) and
 // captures the raw query via Resolve for the imperative http.ValidateParameters binder.
-type ListSegmentsInputHuma struct {
+type ListSegmentsRequest struct {
 	OrganizationID string `path:"organization_id" doc:"Organization ID (UUID)"`
 	LedgerID       string `path:"ledger_id" doc:"Ledger ID (UUID)"`
 	Metadata       string `query:"metadata" doc:"JSON string to filter segments by metadata fields"`
@@ -95,7 +95,7 @@ type ListSegmentsInputHuma struct {
 
 // Resolve captures the raw query before the handler. It performs NO validation and
 // NEVER returns an error — canonical rejection stays in http.ValidateParameters.
-func (in *ListSegmentsInputHuma) Resolve(ctx huma.Context) []error {
+func (in *ListSegmentsRequest) Resolve(ctx huma.Context) []error {
 	u := ctx.URL()
 	in.rawQuery = u.Query()
 
@@ -105,7 +105,7 @@ func (in *ListSegmentsInputHuma) Resolve(ctx huma.Context) []error {
 // queries rebuilds the map[string]string that http.ValidateParameters consumes,
 // matching Fiber's c.Queries() (last value wins for a repeated key, present-but-empty
 // keys included).
-func (in *ListSegmentsInputHuma) queries() map[string]string {
+func (in *ListSegmentsRequest) queries() map[string]string {
 	out := make(map[string]string, len(in.rawQuery))
 	for k, vs := range in.rawQuery {
 		if len(vs) == 0 {
@@ -119,14 +119,14 @@ func (in *ListSegmentsInputHuma) queries() map[string]string {
 	return out
 }
 
-// ListSegmentsOutputHuma carries the pagination envelope verbatim.
-type ListSegmentsOutputHuma struct {
+// ListSegmentsResponse carries the pagination envelope verbatim.
+type ListSegmentsResponse struct {
 	Status int
 	Body   pkgHTTP.Pagination
 }
 
-// ListSegmentsHuma binds the query imperatively then delegates to getAllSegments.
-func (handler *SegmentHandler) ListSegmentsHuma(ctx context.Context, in *ListSegmentsInputHuma) (*ListSegmentsOutputHuma, error) {
+// ListSegments binds the query imperatively then delegates to getAllSegments.
+func (handler *SegmentHandler) ListSegments(ctx context.Context, in *ListSegmentsRequest) (*ListSegmentsResponse, error) {
 	orgID, ledgerID, err := parseOrgLedger(in.OrganizationID, in.LedgerID)
 	if err != nil {
 		return nil, pkgHTTP.HumaProblem(err)
@@ -137,26 +137,26 @@ func (handler *SegmentHandler) ListSegmentsHuma(ctx context.Context, in *ListSeg
 		return nil, pkgHTTP.HumaProblem(err)
 	}
 
-	return &ListSegmentsOutputHuma{Status: http.StatusOK, Body: pagination}, nil
+	return &ListSegmentsResponse{Status: http.StatusOK, Body: pagination}, nil
 }
 
 // --- GET /segments/{id} -------------------------------------------------------
 
-// GetSegmentInputHuma is the by-id request envelope.
-type GetSegmentInputHuma struct {
+// GetSegmentRequest is the by-id request envelope.
+type GetSegmentRequest struct {
 	OrganizationID string `path:"organization_id" doc:"Organization ID (UUID)"`
 	LedgerID       string `path:"ledger_id" doc:"Ledger ID (UUID)"`
 	ID             string `path:"id" doc:"Segment ID (UUID)"`
 }
 
-// GetSegmentOutputHuma carries the segment verbatim.
-type GetSegmentOutputHuma struct {
+// GetSegmentResponse carries the segment verbatim.
+type GetSegmentResponse struct {
 	Status int
 	Body   *mmodel.Segment
 }
 
-// GetSegmentByIDHuma delegates to getSegmentByID.
-func (handler *SegmentHandler) GetSegmentByIDHuma(ctx context.Context, in *GetSegmentInputHuma) (*GetSegmentOutputHuma, error) {
+// GetSegmentByID delegates to getSegmentByID.
+func (handler *SegmentHandler) GetSegmentByID(ctx context.Context, in *GetSegmentRequest) (*GetSegmentResponse, error) {
 	orgID, ledgerID, err := parseOrgLedger(in.OrganizationID, in.LedgerID)
 	if err != nil {
 		return nil, pkgHTTP.HumaProblem(err)
@@ -172,28 +172,28 @@ func (handler *SegmentHandler) GetSegmentByIDHuma(ctx context.Context, in *GetSe
 		return nil, pkgHTTP.HumaProblem(err)
 	}
 
-	return &GetSegmentOutputHuma{Status: http.StatusOK, Body: segment}, nil
+	return &GetSegmentResponse{Status: http.StatusOK, Body: segment}, nil
 }
 
 // --- PATCH /segments/{id} -----------------------------------------------------
 
-// UpdateSegmentInputHuma is the update request envelope (RawBody, see Create).
-type UpdateSegmentInputHuma struct {
+// UpdateSegmentRequest is the update request envelope (RawBody, see Create).
+type UpdateSegmentRequest struct {
 	OrganizationID string `path:"organization_id" doc:"Organization ID (UUID)"`
 	LedgerID       string `path:"ledger_id" doc:"Ledger ID (UUID)"`
 	ID             string `path:"id" doc:"Segment ID (UUID)"`
 	RawBody        []byte `contentType:"application/json"`
 }
 
-// UpdateSegmentOutputHuma carries the updated segment (200, matching http.OK).
-type UpdateSegmentOutputHuma struct {
+// UpdateSegmentResponse carries the updated segment (200, matching http.OK).
+type UpdateSegmentResponse struct {
 	Status int
 	Body   *mmodel.Segment
 }
 
-// UpdateSegmentHuma decodes+validates the raw body imperatively then delegates to the
+// UpdateSegment decodes+validates the raw body imperatively then delegates to the
 // shared updateSegment core.
-func (handler *SegmentHandler) UpdateSegmentHuma(ctx context.Context, in *UpdateSegmentInputHuma) (*UpdateSegmentOutputHuma, error) {
+func (handler *SegmentHandler) UpdateSegment(ctx context.Context, in *UpdateSegmentRequest) (*UpdateSegmentResponse, error) {
 	orgID, ledgerID, err := parseOrgLedger(in.OrganizationID, in.LedgerID)
 	if err != nil {
 		return nil, pkgHTTP.HumaProblem(err)
@@ -214,17 +214,17 @@ func (handler *SegmentHandler) UpdateSegmentHuma(ctx context.Context, in *Update
 		return nil, pkgHTTP.HumaProblem(err)
 	}
 
-	return &UpdateSegmentOutputHuma{Status: http.StatusOK, Body: segment}, nil
+	return &UpdateSegmentResponse{Status: http.StatusOK, Body: segment}, nil
 }
 
 // --- DELETE /segments/{id} ----------------------------------------------------
 
-// DeleteSegmentOutputHuma has NO Body field: paired with DefaultStatus 204 it makes
+// DeleteSegmentResponse has NO Body field: paired with DefaultStatus 204 it makes
 // Huma emit a bodiless 204, matching the Fiber http.NoContent path.
-type DeleteSegmentOutputHuma struct{}
+type DeleteSegmentResponse struct{}
 
-// DeleteSegmentByIDHuma delegates to deleteSegment; returns a bodiless 204 on success.
-func (handler *SegmentHandler) DeleteSegmentByIDHuma(ctx context.Context, in *GetSegmentInputHuma) (*DeleteSegmentOutputHuma, error) {
+// DeleteSegmentByID delegates to deleteSegment; returns a bodiless 204 on success.
+func (handler *SegmentHandler) DeleteSegmentByID(ctx context.Context, in *GetSegmentRequest) (*DeleteSegmentResponse, error) {
 	orgID, ledgerID, err := parseOrgLedger(in.OrganizationID, in.LedgerID)
 	if err != nil {
 		return nil, pkgHTTP.HumaProblem(err)
@@ -239,26 +239,26 @@ func (handler *SegmentHandler) DeleteSegmentByIDHuma(ctx context.Context, in *Ge
 		return nil, pkgHTTP.HumaProblem(err)
 	}
 
-	return &DeleteSegmentOutputHuma{}, nil
+	return &DeleteSegmentResponse{}, nil
 }
 
 // --- HEAD /segments/metrics/count ---------------------------------------------
 
-// CountSegmentsInputHuma is the HEAD-count request envelope (org+ledger only).
-type CountSegmentsInputHuma struct {
+// CountSegmentsRequest is the HEAD-count request envelope (org+ledger only).
+type CountSegmentsRequest struct {
 	OrganizationID string `path:"organization_id" doc:"Organization ID (UUID)"`
 	LedgerID       string `path:"ledger_id" doc:"Ledger ID (UUID)"`
 }
 
-// CountSegmentsOutputHuma replicates the Fiber HEAD-count response: X-Total-Count
+// CountSegmentsResponse replicates the Fiber HEAD-count response: X-Total-Count
 // carries the count, Content-Length is pinned to 0, body empty at status 204.
-type CountSegmentsOutputHuma struct {
+type CountSegmentsResponse struct {
 	TotalCount    string `header:"X-Total-Count"`
 	ContentLength string `header:"Content-Length"`
 }
 
-// CountSegmentsHuma delegates to countSegments and sets the count headers.
-func (handler *SegmentHandler) CountSegmentsHuma(ctx context.Context, in *CountSegmentsInputHuma) (*CountSegmentsOutputHuma, error) {
+// CountSegments delegates to countSegments and sets the count headers.
+func (handler *SegmentHandler) CountSegments(ctx context.Context, in *CountSegmentsRequest) (*CountSegmentsResponse, error) {
 	orgID, ledgerID, err := parseOrgLedger(in.OrganizationID, in.LedgerID)
 	if err != nil {
 		return nil, pkgHTTP.HumaProblem(err)
@@ -269,13 +269,13 @@ func (handler *SegmentHandler) CountSegmentsHuma(ctx context.Context, in *CountS
 		return nil, pkgHTTP.HumaProblem(err)
 	}
 
-	return &CountSegmentsOutputHuma{
+	return &CountSegmentsResponse{
 		TotalCount:    strconv.FormatInt(count, 10),
 		ContentLength: "0",
 	}, nil
 }
 
-// RegisterSegmentRoutes registers the six migrated segment operations on the shared
+// RegisterSegmentRoutes registers the six segment operations on the shared
 // Huma API. Paths are GROUP-RELATIVE (the Huma API is bound to a versioned Fiber group;
 // the group's PrefixModifier writes the version into each op's op.Path, not into a servers
 // entry). Mirrors RegisterAssetRoutes.
@@ -300,7 +300,7 @@ func RegisterSegmentRoutes(api huma.API, h *SegmentHandler, opSuffix string) {
 		Security:         secAssetBearerOrAPIKey,
 		SkipValidateBody: true, // body validated imperatively — see file header.
 		DefaultStatus:    http.StatusCreated,
-	}, h.CreateSegmentHuma)
+	}, h.CreateSegment)
 	attachTypedRequestBody[mmodel.CreateSegmentInput](api, "createSegment"+opSuffix)
 
 	huma.Register(api, huma.Operation{
@@ -310,7 +310,7 @@ func RegisterSegmentRoutes(api huma.API, h *SegmentHandler, opSuffix string) {
 		Summary:     "List all segments",
 		Tags:        []string{tag},
 		Security:    secAssetBearerOrAPIKey,
-	}, h.ListSegmentsHuma)
+	}, h.ListSegments)
 
 	huma.Register(api, huma.Operation{
 		OperationID: "getSegmentByID" + opSuffix,
@@ -319,7 +319,7 @@ func RegisterSegmentRoutes(api huma.API, h *SegmentHandler, opSuffix string) {
 		Summary:     "Retrieve a specific segment",
 		Tags:        []string{tag},
 		Security:    secAssetBearerOrAPIKey,
-	}, h.GetSegmentByIDHuma)
+	}, h.GetSegmentByID)
 
 	huma.Register(api, huma.Operation{
 		OperationID:      "updateSegment" + opSuffix,
@@ -329,7 +329,7 @@ func RegisterSegmentRoutes(api huma.API, h *SegmentHandler, opSuffix string) {
 		Tags:             []string{tag},
 		Security:         secAssetBearerOrAPIKey,
 		SkipValidateBody: true, // body validated imperatively — see file header.
-	}, h.UpdateSegmentHuma)
+	}, h.UpdateSegment)
 	attachTypedRequestBody[mmodel.UpdateSegmentInput](api, "updateSegment"+opSuffix)
 
 	huma.Register(api, huma.Operation{
@@ -340,7 +340,7 @@ func RegisterSegmentRoutes(api huma.API, h *SegmentHandler, opSuffix string) {
 		Tags:          []string{tag},
 		Security:      secAssetBearerOrAPIKey,
 		DefaultStatus: http.StatusNoContent, // Out struct with no Body field => bodiless 204.
-	}, h.DeleteSegmentByIDHuma)
+	}, h.DeleteSegmentByID)
 
 	huma.Register(api, huma.Operation{
 		OperationID:   "countSegments" + opSuffix,
@@ -350,10 +350,10 @@ func RegisterSegmentRoutes(api huma.API, h *SegmentHandler, opSuffix string) {
 		Tags:          []string{tag},
 		Security:      secAssetBearerOrAPIKey,
 		DefaultStatus: http.StatusNoContent, // X-Total-Count header + empty 204 body.
-	}, h.CountSegmentsHuma)
+	}, h.CountSegments)
 }
 
-// RegisterSegmentRoutesToApp wires the Huma-migrated segment surface onto the /v1
+// RegisterSegmentRoutesToApp wires the segment surface onto the /v1
 // contract. See registerSegmentRoutesToApp for what it attaches.
 func RegisterSegmentRoutesToApp(group fiber.Router, api huma.API, auth *middleware.AuthClient, h *SegmentHandler, routeOptions *pkgHTTP.ProtectedRouteOptions) {
 	registerSegmentRoutesToApp(group, api, auth, h, routeOptions, routeOpSuffixV1)
@@ -373,10 +373,9 @@ func RegisterSegmentV2RoutesToApp(group fiber.Router, api huma.API, auth *middle
 // protectedMidaz(auth,"segments",verb) (= auth.Authorize("midaz","segments",verb) +
 // tenant PostAuthMiddlewares) + ParseUUIDPathParameters("segment") — as MIDDLEWARE ONLY
 // (no terminal handler) on the VERSIONED GROUP with GROUP-RELATIVE paths, then registers
-// the Huma terminals via RegisterSegmentRoutes on the SAME group's Huma API. This
-// preserves the pre-Huma (segments, verb) authz tuples and tenant resolution
-// BYTE-FOR-BYTE on whichever version group it is mounted on — no segment route becomes
-// public.
+// the Huma terminals via RegisterSegmentRoutes on the SAME group's Huma API. The
+// (segments, verb) authz tuples and tenant resolution therefore apply on whichever
+// version group it is mounted on — no segment route becomes public.
 //
 // opSuffix distinguishes the operation IDs one version group publishes from another's —
 // see routeOpSuffixV1. Nothing else varies between contracts, so a change to the surface
