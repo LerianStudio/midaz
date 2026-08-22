@@ -710,3 +710,22 @@ migrate-create:
 	@echo "  2. Edit the .down.sql file with the rollback"
 	@echo "  3. Run 'make migrate-lint' to validate"
 	@echo "  4. Follow the guidelines in scripts/migration_linter/docs/MIGRATION_GUIDELINES.md"
+
+#-------------------------------------------------------
+# Grafana Dashboards
+#-------------------------------------------------------
+
+# Dashboards live at docs/dashboards/<theme>/<theme>.libsonnet and compile to a sibling
+# <theme>.json build artifact. Source of truth is the libsonnet; the JSON is gitignored.
+.PHONY: dashboards
+dashboards:
+	$(call print_title,Compiling Grafana dashboards)
+	$(call check_command,jsonnet,"Install with: go install github.com/google/go-jsonnet/cmd/jsonnet@v0.22.0")
+	@./scripts/build-dashboards.sh
+	@echo "[ok] Dashboards compiled"
+
+.PHONY: dashboards-verify
+dashboards-verify: dashboards
+	$(call print_title,Verifying dashboards against telemetry dictionary)
+	@./scripts/verify-dashboard-primitives.sh
+	@echo "[ok] Every referenced metric is documented"
