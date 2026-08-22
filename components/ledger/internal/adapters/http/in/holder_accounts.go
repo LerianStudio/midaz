@@ -13,7 +13,6 @@ import (
 	libObservability "github.com/LerianStudio/lib-observability/v2"
 	libLog "github.com/LerianStudio/lib-observability/v2/log"
 	libOpentelemetry "github.com/LerianStudio/lib-observability/v2/tracing"
-	"github.com/gofiber/fiber/v3"
 	"github.com/google/uuid"
 	"go.opentelemetry.io/otel/attribute"
 )
@@ -35,10 +34,8 @@ type HolderAccountsHandler struct {
 	Reader HolderAccountsReader
 }
 
-// getAccountsByHolder is the transport-agnostic core for the holder-scoped account
-// listing. queries is the map[string]string the caller derived from its transport
-// (Fiber c.Queries() or the Huma raw-query rebuild); http.ValidateParameters stays
-// the sole query binder so the two transports validate identically.
+// getAccountsByHolder lists the accounts a holder owns. queries is the raw query
+// the handler rebuilt as a map; http.ValidateParameters is the sole query binder.
 func (handler *HolderAccountsHandler) getAccountsByHolder(ctx context.Context, organizationID, holderID uuid.UUID, queries map[string]string) (http.Pagination, error) {
 	logger, tracer, reqId, _ := libObservability.NewTrackingFromContext(ctx)
 
@@ -82,26 +79,4 @@ func (handler *HolderAccountsHandler) getAccountsByHolder(ctx context.Context, o
 	pagination.SetItems(accounts)
 
 	return pagination, nil
-}
-
-// GetAccountsByHolder lists the accounts owned by a holder.
-func (handler *HolderAccountsHandler) GetAccountsByHolder(c fiber.Ctx) error {
-	ctx := c.Context()
-
-	holderID, err := http.GetUUIDFromLocals(c, "id")
-	if err != nil {
-		return http.WithError(c, err)
-	}
-
-	organizationID, err := http.GetUUIDFromLocals(c, "organization_id")
-	if err != nil {
-		return http.WithError(c, err)
-	}
-
-	pagination, err := handler.getAccountsByHolder(ctx, organizationID, holderID, c.Queries())
-	if err != nil {
-		return http.WithError(c, err)
-	}
-
-	return http.OK(c, pagination)
 }

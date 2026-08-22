@@ -18,7 +18,7 @@ import (
 
 // This file is the ledger's Huma adoption of the CRM instrument resource. It mirrors
 // the asset exemplar (asset_handler.go) and the holder sibling
-// (holder_handler_huma.go); see those headers for the full conventions. Instrument-
+// (holder_handler.go); see those headers for the full conventions. Instrument-
 // specific notes:
 //
 //  1. AUTH is appName "midaz" (crm_routes.go ApplicationName), resource "instruments".

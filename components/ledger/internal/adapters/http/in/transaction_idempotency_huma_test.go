@@ -34,7 +34,7 @@ func createHumaEnvelopes() map[string]any {
 		"CreateTransactionJSONInputHuma":    CreateTransactionJSONInputHuma{},
 		"CreateTransactionInflowInputHuma":  CreateTransactionInflowInputHuma{},
 		"CreateTransactionOutflowInputHuma": CreateTransactionOutflowInputHuma{},
-		"CreateHolderInputHuma":             CreateHolderInputHuma{},
+		"CreateHolderRequest":               CreateHolderRequest{},
 		"CreateInstrumentRequest":           CreateInstrumentRequest{},
 	}
 }
