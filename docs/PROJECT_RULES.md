@@ -472,8 +472,12 @@ type TransactionHandler struct {
 // The transport-agnostic core lives in <resource>.go. It owns the span, the service
 // call and the log/metric branch, and takes primitive args so nothing transport-shaped
 // reaches it.
-func (handler *TransactionHandler) createTransaction(ctx context.Context, organizationID, ledgerID uuid.UUID, input *transaction.CreateTransactionInput) (*transaction.Transaction, error) {
-    logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
+func (handler *TransactionHandler) createTransaction(ctx context.Context, organizationID, ledgerID uuid.UUID, input *mtransaction.CreateTransactionInput) (*mtransaction.Transaction, error) {
+    if err := ctx.Err(); err != nil {
+        return nil, err
+    }
+
+    _, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
     ctx, span := tracer.Start(ctx, "handler.create_transaction")
     defer span.End()
@@ -494,6 +498,11 @@ func (handler *TransactionHandler) createTransaction(ctx context.Context, organi
 func (handler *TransactionHandler) CreateTransaction(ctx context.Context, in *CreateTransactionRequest) (*CreateTransactionResponse, error) {
     orgID, ledgerID, err := parseOrgLedger(in.OrganizationID, in.LedgerID)
     if err != nil {
+        return nil, pkgHTTP.HumaProblem(err)
+    }
+
+    payload := new(mtransaction.CreateTransactionInput)
+    if _, err := pkgHTTP.DecodeAndValidate(in.RawBody, payload); err != nil {
         return nil, pkgHTTP.HumaProblem(err)
     }
 

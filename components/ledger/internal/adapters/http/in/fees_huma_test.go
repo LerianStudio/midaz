@@ -753,6 +753,6 @@ func TestHuma_EstimateFee_NilResult_500(t *testing.T) {
 	require.NoError(t, err)
 	defer func() { _ = resp.Body.Close() }()
 
-	respBody, _ := io.ReadAll(resp.Body)
-	assert.Equal(t, http.StatusInternalServerError, resp.StatusCode, "body: %s", string(respBody))
+	assert.Equal(t, "application/problem+json", resp.Header.Get("Content-Type"))
+	assertProblem(t, resp, http.StatusInternalServerError, constant.ErrInternalServer.Error())
 }

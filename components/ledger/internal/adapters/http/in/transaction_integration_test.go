@@ -207,21 +207,7 @@ func mountTransactionHumaRoutes(app *fiber.App, handler *TransactionHandler) {
 	// Must run after openapi.New and BEFORE any huma.Register.
 	http.InstallLedgerSchemaNamer(hAPI)
 
-	base := "/organizations/:organization_id/ledgers/:ledger_id/transactions"
-	parse := http.ParseUUIDPathParameters("transaction")
-
-	apiV1.Post(base+"/json", parse)
-	apiV1.Post(base+"/inflow", parse)
-	apiV1.Post(base+"/outflow", parse)
-	apiV1.Post(base+"/annotation", parse)
-	apiV1.Post(base+"/block", parse)
-	apiV1.Post(base+"/unblock", parse)
-	apiV1.Post(base+"/:transaction_id/commit", parse)
-	apiV1.Post(base+"/:transaction_id/cancel", parse)
-	apiV1.Post(base+"/:transaction_id/revert", parse)
-	apiV1.Patch(base+"/:transaction_id", parse)
-	apiV1.Get(base+"/:transaction_id", parse)
-	apiV1.Get(base, parse)
+	mountTransactionRoutes(apiV1)
 
 	RegisterTransactionRoutes(hAPI, handler)
 }

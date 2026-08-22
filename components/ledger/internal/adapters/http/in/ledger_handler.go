@@ -344,6 +344,10 @@ type UpdateLedgerSettingsResponse struct {
 // allowlist merge-patch in the core. Every rejection is a canonical 400 rendered by
 // HumaProblem — never a native Huma 422.
 func (handler *LedgerHandler) UpdateLedgerSettings(ctx context.Context, in *UpdateLedgerSettingsRequest) (*UpdateLedgerSettingsResponse, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, pkgHTTP.HumaProblem(err)
+	}
+
 	orgID, err := parseOrg(in.OrganizationID)
 	if err != nil {
 		return nil, pkgHTTP.HumaProblem(err)
