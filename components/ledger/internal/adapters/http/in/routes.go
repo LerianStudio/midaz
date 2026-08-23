@@ -90,48 +90,6 @@ func RegisterTransactionHumaRoutesToApp(group fiber.Router, api huma.API, auth *
 	RegisterTransactionRoutes(api, th)
 }
 
-// RegisterOperationRouteRoutesToApp wires the operation-route surface onto
-// the /v1 contract. See registerOperationRouteRoutesToApp for what it attaches.
-func RegisterOperationRouteRoutesToApp(group fiber.Router, api huma.API, auth *middleware.AuthClient, orh *OperationRouteHandler, routeOptions *http.ProtectedRouteOptions) {
-	registerOperationRouteRoutesToApp(group, api, auth, orh, routeOptions, routeOpSuffixV1)
-}
-
-// RegisterOperationRouteV2RoutesToApp wires the same operation-route surface onto the /v2
-// contract: same paths, same handlers, same authz tuples and tenant chain, differing only in
-// the operation IDs the contract publishes. It is additive — /v1 keeps serving operation
-// routes in parallel — and introduces no new policy surface.
-func RegisterOperationRouteV2RoutesToApp(group fiber.Router, api huma.API, auth *middleware.AuthClient, orh *OperationRouteHandler, routeOptions *http.ProtectedRouteOptions) {
-	registerOperationRouteRoutesToApp(group, api, auth, orh, routeOptions, routeOpSuffixV2)
-}
-
-// registerOperationRouteRoutesToApp is the single description of the operation-route surface,
-// shared by every versioned contract that serves it. Auth is the "midaz" appName:
-// auth.Authorize("midaz","operation-routes",verb) + tenant +
-// ParseUUIDPathParameters("operation_route"), attached as MIDDLEWARE ONLY (group-relative
-// paths, no terminal) on the versioned group, then it registers the Huma terminals via
-// RegisterOperationRouteRoutes on the SAME group's Huma API. The ("midaz","operation-routes",
-// verb) authz tuples and tenant resolution hold on whichever version group it is mounted on.
-//
-// opSuffix distinguishes the operation IDs one version group publishes from another's — see
-// routeOpSuffixV1. Nothing else varies between contracts, so a change to the surface reaches
-// every version it is mounted on.
-func registerOperationRouteRoutesToApp(group fiber.Router, api huma.API, auth *middleware.AuthClient, orh *OperationRouteHandler, routeOptions *http.ProtectedRouteOptions, opSuffix string) {
-	const (
-		listPath = "/organizations/:organization_id/ledgers/:ledger_id/operation-routes"
-		idPath   = listPath + "/:operation_route_id"
-	)
-
-	parse := http.ParseUUIDPathParameters("operation_route")
-
-	routePost(group, listPath, protectedMidaz(auth, "operation-routes", "post", routeOptions, parse))
-	routeGet(group, listPath, protectedMidaz(auth, "operation-routes", "get", routeOptions, parse))
-	routeGet(group, idPath, protectedMidaz(auth, "operation-routes", "get", routeOptions, parse))
-	routePatch(group, idPath, protectedMidaz(auth, "operation-routes", "patch", routeOptions, parse))
-	routeDelete(group, idPath, protectedMidaz(auth, "operation-routes", "delete", routeOptions, parse))
-
-	RegisterOperationRouteRoutes(api, orh, opSuffix)
-}
-
 // RegisterTransactionRouteRoutesToApp wires the transaction-route surface onto
 // the /v1 contract. See registerTransactionRouteRoutesToApp for what it attaches.
 func RegisterTransactionRouteRoutesToApp(group fiber.Router, api huma.API, auth *middleware.AuthClient, trh *TransactionRouteHandler, routeOptions *http.ProtectedRouteOptions) {
