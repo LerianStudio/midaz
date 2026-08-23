@@ -288,10 +288,10 @@ func TestV2RegistrarsMountSameSurfaceAsV1(t *testing.T) {
 // Huma validation uses process-global sync.Pools; concurrent builds cross-
 // contaminate. These cases are sub-second; keep them sequential.
 func TestAuthz_RoutingResources_AuthorizeUnderMidazAppName(t *testing.T) {
-	orgID := uuid.NewString()
-	ledgerID := uuid.NewString()
-	resourceID := uuid.NewString()
-	base := "/v1/organizations/" + orgID + "/ledgers/" + ledgerID
+	orgID := uuid.New()
+	ledgerID := uuid.New()
+	resourceID := uuid.New()
+	base := "/v1/organizations/" + orgID.String() + "/ledgers/" + ledgerID.String()
 
 	cases := []struct {
 		name     string
@@ -305,7 +305,7 @@ func TestAuthz_RoutingResources_AuthorizeUnderMidazAppName(t *testing.T) {
 				registerOperationRouteRoutesToApp(group, api, auth, &OperationRouteHandler{}, nil, routeOpSuffixV1)
 			},
 			list: base + "/operation-routes",
-			byID: base + "/operation-routes/" + resourceID,
+			byID: base + "/operation-routes/" + resourceID.String(),
 		},
 		{
 			name: "transaction-routes",
@@ -313,7 +313,7 @@ func TestAuthz_RoutingResources_AuthorizeUnderMidazAppName(t *testing.T) {
 				registerTransactionRouteRoutesToApp(group, api, auth, &TransactionRouteHandler{}, nil, routeOpSuffixV1)
 			},
 			list: base + "/transaction-routes",
-			byID: base + "/transaction-routes/" + resourceID,
+			byID: base + "/transaction-routes/" + resourceID.String(),
 		},
 		{
 			name: "account-types",
@@ -321,7 +321,7 @@ func TestAuthz_RoutingResources_AuthorizeUnderMidazAppName(t *testing.T) {
 				registerAccountTypeRoutesToApp(group, api, auth, &AccountTypeHandler{}, nil, routeOpSuffixV1)
 			},
 			list: base + "/account-types",
-			byID: base + "/account-types/" + resourceID,
+			byID: base + "/account-types/" + resourceID.String(),
 		},
 	}
 
