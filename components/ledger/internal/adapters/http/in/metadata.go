@@ -15,6 +15,7 @@ import (
 	libLog "github.com/LerianStudio/lib-observability/v2/log"
 	libOpentelemetry "github.com/LerianStudio/lib-observability/v2/tracing"
 	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/trace"
 
 	"github.com/LerianStudio/midaz/v4/pkg"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
@@ -95,7 +96,7 @@ func (handler *MetadataIndexHandler) contextForEntity(ctx context.Context, entit
 
 	tenantDB, err := mongoManager.GetDatabaseForTenant(ctx, tenantID)
 	if err != nil {
-		return nil, mapTenantError(err, tenantID)
+		return nil, mapTenantError(ctx, err, tenantID)
 	}
 
 	// Store in both generic and module-specific context keys.
@@ -135,7 +136,7 @@ func (handler *MetadataIndexHandler) contextForRepoGroup(ctx context.Context, on
 
 	tenantDB, err := mongoManager.GetDatabaseForTenant(ctx, tenantID)
 	if err != nil {
-		return nil, mapTenantError(err, tenantID)
+		return nil, mapTenantError(ctx, err, tenantID)
 	}
 
 	// Store in both generic and module-specific context keys.
@@ -147,7 +148,7 @@ func (handler *MetadataIndexHandler) contextForRepoGroup(ctx context.Context, on
 
 // mapTenantError converts tenant-manager errors into Midaz-specific error types
 // so that the caller's HumaProblem can map them to the correct HTTP status codes.
-func mapTenantError(err error, tenantID string) error {
+func mapTenantError(ctx context.Context, err error, tenantID string) error {
 	var suspErr *tmcore.TenantSuspendedError
 	if errors.As(err, &suspErr) {
 		return pkg.ForbiddenError{
@@ -175,7 +176,10 @@ func mapTenantError(err error, tenantID string) error {
 
 	// err is deliberately not interpolated: this is a 503, and the ledger publishes
 	// >=500 message text to clients. The tenant ID stays because it is the caller's
-	// own; the underlying failure belongs in the span and the log.
+	// own. The cause is recorded on the span so it is not lost — without this the
+	// only record of WHY tenant resolution failed would be gone.
+	libOpentelemetry.HandleSpanError(trace.SpanFromContext(ctx), "Failed to resolve tenant database", err)
+
 	return pkg.ServiceUnavailableError{
 		Code:    constant.ErrTenantServiceUnavailable.Error(),
 		Title:   "Tenant Service Unavailable",

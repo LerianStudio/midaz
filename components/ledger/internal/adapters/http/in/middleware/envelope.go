@@ -68,6 +68,30 @@ func ErrorEnvelope() fiber.Handler {
 	}
 }
 
+// WrapErrorHandler reshapes responses written by the Fiber error handler.
+//
+// ErrorEnvelope alone is not enough. A handler that RETURNS an error rather than
+// writing one — Fiber's router on an unmatched route (404) or a rejected method
+// (405), the auth chain's 401, the body-limit 413, the header-limit 431, and
+// WithError's own fallthrough arm — leaves the response empty while the middleware
+// chain unwinds. The error handler runs afterwards, at which point ErrorEnvelope
+// has already been and gone, so those responses would keep the /v2 envelope on a
+// /v1 route.
+//
+// Wrapping the handler covers them. The two seams are safe together because a
+// reshape is idempotent: the renderer refuses any body whose status member does
+// not match the response status, and a body it already rewrote has no status
+// member at all.
+func WrapErrorHandler(next fiber.ErrorHandler) fiber.ErrorHandler {
+	return func(c fiber.Ctx, err error) error {
+		handlerErr := next(c, err)
+
+		rewriteErrorEnvelope(c)
+
+		return handlerErr
+	}
+}
+
 func rewriteErrorEnvelope(c fiber.Ctx) {
 	response := c.Response()
 

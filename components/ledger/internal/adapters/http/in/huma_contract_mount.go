@@ -283,11 +283,11 @@ func MarkV1OperationsDeprecated(api huma.API) {
 // serialized bytes. Its fields, order and omitempty set mirror the renderer's
 // output, and drift between the two is a wire lie — change both together.
 type LegacyError struct {
-	EntityType string            `json:"entityType,omitempty" doc:"The domain entity the error concerns. Present only on field-validation errors." example:"Account"`
-	Title      string            `json:"title,omitempty" doc:"Short, human-readable summary of the error." example:"Invalid Path Parameter"`
-	Message    string            `json:"message,omitempty" doc:"Human-readable explanation of this occurrence. The /v2 contract carries this as 'detail'."`
-	Code       string            `json:"code,omitempty" doc:"Stable, machine-readable midaz error code. Identical to the code /v2 returns for the same condition." example:"0065"`
-	Fields     map[string]string `json:"fields,omitempty" doc:"Per-field validation messages, keyed by field name. The /v2 contract carries these as the 'errors' array."`
+	EntityType string         `json:"entityType,omitempty" doc:"The domain entity the error concerns. Present only on field-validation errors." example:"Account"`
+	Title      string         `json:"title,omitempty" doc:"Short, human-readable summary of the error." example:"Invalid Path Parameter"`
+	Message    string         `json:"message,omitempty" doc:"Human-readable explanation of this occurrence. The /v2 contract carries this as 'detail'."`
+	Code       string         `json:"code,omitempty" doc:"Stable, machine-readable midaz error code. Identical to the code /v2 returns for the same condition." example:"0065"`
+	Fields     map[string]any `json:"fields,omitempty" doc:"Per-field validation detail, keyed by field name. The value is the violation message for a known field and the offending value for an unexpected one, so it is not always a string. The /v2 contract carries these as the 'errors' array."`
 }
 
 // RepointV1ErrorResponses rewrites every /v1 operation's default error response to

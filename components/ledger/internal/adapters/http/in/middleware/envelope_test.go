@@ -6,6 +6,7 @@ package middleware
 
 import (
 	"io"
+	"net/http"
 	"net/http/httptest"
 	"testing"
 
@@ -91,7 +92,7 @@ func driveEnvelope(t *testing.T, path string, status int, contentType, body stri
 		return c.SendString(body)
 	})
 
-	resp, err := app.Test(httptest.NewRequest(fiber.MethodGet, path, nil))
+	resp, err := app.Test(httptest.NewRequest(http.MethodGet, path, nil))
 	require.NoError(t, err)
 
 	defer func() { _ = resp.Body.Close() }()

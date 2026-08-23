@@ -7,6 +7,7 @@ package http
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -165,7 +166,7 @@ func driveWithProblemStatus(t *testing.T, status int, err error) map[string]any 
 	app := fiber.New(fiber.Config{ErrorHandler: CanonicalFiberErrorHandler})
 	app.Get("/probe", func(c fiber.Ctx) error { return withProblemStatus(c, status, err) })
 
-	resp, testErr := app.Test(httptest.NewRequest(fiber.MethodGet, "/probe", nil))
+	resp, testErr := app.Test(httptest.NewRequest(http.MethodGet, "/probe", nil))
 	require.NoError(t, testErr)
 
 	defer func() { _ = resp.Body.Close() }()
@@ -177,4 +178,58 @@ func driveWithProblemStatus(t *testing.T, status int, err error) map[string]any 
 	require.NoError(t, json.Unmarshal(raw, &body), "body must be JSON, got: %s", string(raw))
 
 	return body
+}
+
+// TestHighStatusScrub_DisabledNeverPublishesAWrappedCause is the regression guard
+// for the bound the disabled scrub depends on: a >=500 body may carry its
+// sentinel's static registry text, and NOTHING else.
+//
+// Publishing registry text is only safe while those messages stay static or
+// interpolate a caller-supplied value. Four production sites once interpolated a
+// wrapped cause into a 5xx message, which the scrub had been hiding. This asserts
+// at the BODY level that a technical cause handed to the error platform does not
+// surface, so the next one fails here rather than in a client's logs.
+func TestHighStatusScrub_DisabledNeverPublishesAWrappedCause(t *testing.T) {
+	disableScrubForTest(t)
+
+	const cause = "pq: relation \"accounts\" does not exist at 10.0.3.7:5432"
+
+	tests := []struct {
+		name string
+		err  error
+	}{
+		{
+			name: "wrapped cause on the mapped internal error",
+			err:  pkg.ValidateInternalError(errors.New(cause), ""),
+		},
+		{
+			name: "wrapped cause on an unclassified error",
+			err:  fmt.Errorf("loading balances: %w", errors.New(cause)),
+		},
+		{
+			name: "wrapped cause under a typed 503",
+			err: pkg.ServiceUnavailableError{
+				Code:    "0099",
+				Title:   "Dependency Unavailable",
+				Message: "The upstream dependency is unavailable.",
+				Err:     errors.New(cause),
+			},
+		},
+	}
+
+	for _, testCase := range tests {
+		t.Run(testCase.name, func(t *testing.T) {
+			body, ok := ProblemDetail(testCase.err)
+			require.True(t, ok)
+			require.GreaterOrEqual(t, body.Status, http.StatusInternalServerError)
+
+			encoded, err := json.Marshal(body)
+			require.NoError(t, err)
+
+			assert.NotContains(t, string(encoded), "pq:",
+				"a wrapped cause must never reach a 5xx body: %s", encoded)
+			assert.NotContains(t, string(encoded), "accounts\\\" does not exist")
+			assert.NotContains(t, string(encoded), "10.0.3.7")
+		})
+	}
 }

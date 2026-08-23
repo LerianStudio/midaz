@@ -156,8 +156,9 @@ func TestCreateTransactionRoute_MalformedBody_Canonical400(t *testing.T) {
 	orgID := uuid.Must(libCommons.GenerateUUIDv7())
 	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
 
-	// Malformed JSON -> DecodeAndValidate returns 0094; HumaProblem must project it
-	// to problem+json at 400 (NOT the 500 fallback, NOT a native 422). Service never reached.
+	// Malformed JSON -> DecodeAndValidate returns 0094 at 400 (NOT the 500 fallback,
+	// NOT a native 422). This is a /v1 route, so it reaches the client as the legacy
+	// application/json envelope. Service never reached.
 	handler := &TransactionRouteHandler{Command: &command.UseCase{
 		TransactionRouteRepo:    transactionroute.NewMockRepository(ctrl),
 		TransactionMetadataRepo: mongodb.NewMockRepository(ctrl),

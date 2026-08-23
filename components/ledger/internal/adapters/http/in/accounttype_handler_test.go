@@ -220,9 +220,9 @@ func TestCreateAccountType_MalformedBody_Canonical400(t *testing.T) {
 	orgID := uuid.Must(libCommons.GenerateUUIDv7())
 	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
 
-	// Malformed JSON -> DecodeAndValidate returns a pkg.ResponseError (0094), which
-	// HumaProblem projects to problem+json at 400 (NOT the 500 fallback and NOT a
-	// native Huma 422). Service never reached.
+	// Malformed JSON -> DecodeAndValidate returns a pkg.ResponseError (0094) at 400
+	// (NOT the 500 fallback and NOT a native Huma 422). This is a /v1 route, so it
+	// reaches the client as the legacy application/json envelope. Service never reached.
 	handler := &AccountTypeHandler{Command: &command.UseCase{
 		AccountTypeRepo:        accounttype.NewMockRepository(ctrl),
 		OnboardingMetadataRepo: mongodb.NewMockRepository(ctrl),

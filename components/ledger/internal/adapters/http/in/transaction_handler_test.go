@@ -79,15 +79,16 @@ func buildHumaTransactionApp(t *testing.T, handler *TransactionHandler, authOK b
 		ErrorHandler: pkgHTTP.CanonicalFiberErrorHandler,
 	})
 
+	// Mirror production: ErrorEnvelope is registered AHEAD of WithRecover so a
+	// recovered panic's 500 body is reshaped for its route version too. Registering
+	// it after would leave the panic path on the /v2 envelope here while production
+	// serves the /v1 one.
+	f.Use(ledgerMiddleware.ErrorEnvelope())
+
 	f.Use(pkgHTTP.WithRecover(pkgHTTP.WithRecoverLogger(&libLog.GoLogger{})))
 
 	libProblem.Install()
 	pkgHTTP.InstallHumaFrameworkErrors()
-
-	// Mirror production: the ledger registers ErrorEnvelope on the app root, so
-	// /v1 serves the v3 envelope. Without it these assertions lock a shape no
-	// deployed ledger returns.
-	f.Use(ledgerMiddleware.ErrorEnvelope())
 
 	apiV1 := f.Group("/v1")
 

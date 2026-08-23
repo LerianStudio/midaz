@@ -21294,10 +21294,8 @@
             "type": "string"
           },
           "fields": {
-            "additionalProperties": {
-              "type": "string"
-            },
-            "description": "Per-field validation messages, keyed by field name. The /v2 contract carries these as the 'errors' array.",
+            "additionalProperties": {},
+            "description": "Per-field validation detail, keyed by field name. The value is the violation message for a known field and the offending value for an unexpected one, so it is not always a string. The /v2 contract carries these as the 'errors' array.",
             "type": "object"
           },
           "message": {

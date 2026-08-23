@@ -6,10 +6,12 @@ package in
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"slices"
 	"strings"
 	"testing"
 
@@ -128,10 +130,79 @@ func TestEnvelopeVersionBoundary_StatusIsIdenticalAcrossVersions(t *testing.T) {
 	}
 }
 
+// TestEnvelopeVersionBoundary_ReturnedErrors covers the errors that never pass
+// through ErrorEnvelope: a handler that RETURNS an error leaves the response empty
+// while the middleware chain unwinds, and Fiber's error handler writes the body
+// afterwards. Route-not-found, method-not-allowed, the auth 401 and the body-limit
+// 413 all reach a client this way.
+//
+// Without WrapErrorHandler these keep the /v2 envelope on a /v1 route, which is
+// exactly the split this change exists to remove — and no assertion elsewhere in
+// the suite would notice, because every other case writes its body inside the
+// chain.
+func TestEnvelopeVersionBoundary_ReturnedErrors(t *testing.T) {
+	app := buildEnvelopeProbeApp(t, true)
+
+	cases := []struct {
+		name string
+		path string
+		want int
+	}{
+		{name: "handler returns an error without writing", path: "/v1/probe/returns-error", want: fiber.StatusNotFound},
+		{name: "router finds no route", path: "/v1/no-such-route", want: fiber.StatusNotFound},
+	}
+
+	for _, testCase := range cases {
+		t.Run(testCase.name, func(t *testing.T) {
+			status, body, contentType := driveProbe(t, app, testCase.path)
+
+			assert.Equal(t, testCase.want, status)
+			assert.Contains(t, contentType, fiber.MIMEApplicationJSON)
+			assert.NotContains(t, contentType, "problem+json")
+
+			var decoded map[string]any
+			require.NoError(t, json.Unmarshal([]byte(body), &decoded), "body: %s", body)
+
+			assert.Equal(t, []string{"code", "message", "title"}, sortedBodyKeys(decoded),
+				"the v1 envelope carries exactly these three keys")
+			assert.NotEmpty(t, decoded["code"])
+		})
+	}
+
+	t.Run("v2 keeps the problem document", func(t *testing.T) {
+		_, body, _ := driveProbe(t, app, "/v2/probe/returns-error")
+
+		// Body only. The media type is NOT asserted here: withProblem sets
+		// application/problem+json and fiber's c.JSON then overwrites it, so every
+		// error written through the Fiber path is labelled application/json
+		// regardless of version. That is a pre-existing bug in the shared
+		// serializer, not something this change introduced or should paper over.
+		assert.Contains(t, body, `"type":`)
+		assert.Contains(t, body, `"status":`)
+		assert.Contains(t, body, `"detail":`)
+	})
+}
+
+func sortedBodyKeys(m map[string]any) []string {
+	keys := make([]string, 0, len(m))
+	for key := range m {
+		keys = append(keys, key)
+	}
+
+	slices.Sort(keys)
+
+	return keys
+}
+
 func buildEnvelopeProbeApp(t *testing.T, withEnvelope bool) *fiber.App {
 	t.Helper()
 
-	app := fiber.New(fiber.Config{ErrorHandler: pkgHTTP.CanonicalFiberErrorHandler})
+	handler := pkgHTTP.CanonicalFiberErrorHandler
+	if withEnvelope {
+		handler = ledgerMiddleware.WrapErrorHandler(handler)
+	}
+
+	app := fiber.New(fiber.Config{ErrorHandler: handler})
 
 	if withEnvelope {
 		app.Use(ledgerMiddleware.ErrorEnvelope())
@@ -174,6 +245,12 @@ func buildEnvelopeProbeApp(t *testing.T, withEnvelope bool) *fiber.App {
 			return pkgHTTP.WithError(c, pkg.ValidateInternalError(errors.New("kaboom"), ""))
 		})
 
+		// Returns the error instead of writing it: the body is produced by the
+		// Fiber error handler after the middleware chain has unwound.
+		group.Get("/probe/returns-error", func(c fiber.Ctx) error {
+			return fiber.ErrNotFound
+		})
+
 		group.Get("/probe/ok", func(c fiber.Ctx) error {
 			return c.JSON(fiber.Map{"status": "ok"})
 		})
@@ -185,7 +262,7 @@ func buildEnvelopeProbeApp(t *testing.T, withEnvelope bool) *fiber.App {
 func driveProbe(t *testing.T, app *fiber.App, path string) (int, string, string) {
 	t.Helper()
 
-	resp, err := app.Test(httptest.NewRequest(fiber.MethodGet, path, nil))
+	resp, err := app.Test(httptest.NewRequest(http.MethodGet, path, nil))
 	require.NoError(t, err)
 
 	defer func() { _ = resp.Body.Close() }()

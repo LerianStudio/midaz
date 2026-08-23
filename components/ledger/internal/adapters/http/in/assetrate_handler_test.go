@@ -179,9 +179,9 @@ func TestCreateOrUpdateAssetRate_MalformedBody_Canonical400(t *testing.T) {
 	orgID := uuid.Must(libCommons.GenerateUUIDv7())
 	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
 
-	// Malformed JSON -> DecodeAndValidate returns a pkg.ResponseError (0094). The
-	// HumaProblem must project it to problem+json at 400 (NOT the 500 fallback and
-	// NOT a native Huma 422). Service never reached.
+	// Malformed JSON -> DecodeAndValidate returns a pkg.ResponseError (0094) at 400
+	// (NOT the 500 fallback and NOT a native Huma 422). This is a /v1 route, so it
+	// reaches the client as the legacy application/json envelope. Service never reached.
 	handler := &AssetRateHandler{Command: &command.UseCase{AssetRateRepo: assetrate.NewMockRepository(ctrl)}}
 
 	app := buildHumaAssetRateApp(t, handler, true)
@@ -347,8 +347,8 @@ func TestCreateOrUpdateAssetRate_ServiceError_500(t *testing.T) {
 	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	// The upsert probes the currency pair first; a technical failure there aborts
-	// before any Create/Update. HumaProblem must project the InternalServerError to
-	// problem+json at 500 with its code intact.
+	// before any Create/Update. The InternalServerError reaches the client at 500 with
+	// its code intact, in the legacy /v1 envelope.
 	assetRateRepo := assetrate.NewMockRepository(ctrl)
 	assetRateRepo.EXPECT().FindByCurrencyPair(gomock.Any(), orgID, ledgerID, "USD", "BRL").
 		Return(nil, pkg.InternalServerError{

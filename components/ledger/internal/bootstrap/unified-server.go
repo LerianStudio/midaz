@@ -70,8 +70,11 @@ func NewUnifiedServer(
 	routeRegistrars ...RouteRegistrar,
 ) *UnifiedServer {
 	app := fiber.New(fiber.Config{
-		AppName:      "Midaz Ledger API",
-		ErrorHandler: midazhttp.CanonicalFiberErrorHandler,
+		AppName: "Midaz Ledger API",
+		// Wrapped so responses this handler writes are reshaped for their route
+		// version too: it runs after the middleware chain has unwound, so
+		// ErrorEnvelope cannot see the errors that reach a client through here.
+		ErrorHandler: ledgerMiddleware.WrapErrorHandler(midazhttp.CanonicalFiberErrorHandler),
 	})
 
 	// Suppress the Fiber startup banner. The banner is gated at listen time via
