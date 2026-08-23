@@ -90,48 +90,6 @@ func RegisterTransactionHumaRoutesToApp(group fiber.Router, api huma.API, auth *
 	RegisterTransactionRoutes(api, th)
 }
 
-// RegisterTransactionRouteRoutesToApp wires the transaction-route surface onto
-// the /v1 contract. See registerTransactionRouteRoutesToApp for what it attaches.
-func RegisterTransactionRouteRoutesToApp(group fiber.Router, api huma.API, auth *middleware.AuthClient, trh *TransactionRouteHandler, routeOptions *http.ProtectedRouteOptions) {
-	registerTransactionRouteRoutesToApp(group, api, auth, trh, routeOptions, routeOpSuffixV1)
-}
-
-// RegisterTransactionRouteV2RoutesToApp wires the same transaction-route surface onto the /v2
-// contract: same paths, same handlers, same authz tuples and tenant chain, differing only in
-// the operation IDs the contract publishes. It is additive — /v1 keeps serving transaction
-// routes in parallel — and introduces no new policy surface.
-func RegisterTransactionRouteV2RoutesToApp(group fiber.Router, api huma.API, auth *middleware.AuthClient, trh *TransactionRouteHandler, routeOptions *http.ProtectedRouteOptions) {
-	registerTransactionRouteRoutesToApp(group, api, auth, trh, routeOptions, routeOpSuffixV2)
-}
-
-// registerTransactionRouteRoutesToApp is the single description of the transaction-route surface,
-// shared by every versioned contract that serves it. Auth is the "midaz" appName:
-// auth.Authorize("midaz","transaction-routes",verb) + tenant +
-// ParseUUIDPathParameters("transaction_route"), attached as MIDDLEWARE ONLY (group-relative
-// paths, no terminal) on the versioned group, then it registers the Huma terminals via
-// RegisterTransactionRouteRoutes on the SAME group's Huma API. The ("midaz","transaction-routes",
-// verb) authz tuples and tenant resolution hold on whichever version group it is mounted on.
-//
-// opSuffix distinguishes the operation IDs one version group publishes from another's — see
-// routeOpSuffixV1. Nothing else varies between contracts, so a change to the surface reaches
-// every version it is mounted on.
-func registerTransactionRouteRoutesToApp(group fiber.Router, api huma.API, auth *middleware.AuthClient, trh *TransactionRouteHandler, routeOptions *http.ProtectedRouteOptions, opSuffix string) {
-	const (
-		listPath = "/organizations/:organization_id/ledgers/:ledger_id/transaction-routes"
-		idPath   = listPath + "/:transaction_route_id"
-	)
-
-	parse := http.ParseUUIDPathParameters("transaction_route")
-
-	routePost(group, listPath, protectedMidaz(auth, "transaction-routes", "post", routeOptions, parse))
-	routeGet(group, listPath, protectedMidaz(auth, "transaction-routes", "get", routeOptions, parse))
-	routeGet(group, idPath, protectedMidaz(auth, "transaction-routes", "get", routeOptions, parse))
-	routePatch(group, idPath, protectedMidaz(auth, "transaction-routes", "patch", routeOptions, parse))
-	routeDelete(group, idPath, protectedMidaz(auth, "transaction-routes", "delete", routeOptions, parse))
-
-	RegisterTransactionRouteRoutes(api, trh, opSuffix)
-}
-
 func protectedMidaz(auth *middleware.AuthClient, resource, action string, routeOptions *http.ProtectedRouteOptions, handlers ...fiber.Handler) []fiber.Handler {
 	return http.ProtectedRouteChain(auth.Authorize(midazName, resource, action), routeOptions, handlers...)
 }
