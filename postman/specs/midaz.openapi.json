@@ -295,9 +295,9 @@
           },
           "default": {
             "content": {
-              "application/problem+json": {
+              "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Error"
+                  "$ref": "#/components/schemas/LegacyError"
                 }
               }
             },
@@ -340,9 +340,9 @@
           },
           "default": {
             "content": {
-              "application/problem+json": {
+              "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Error"
+                  "$ref": "#/components/schemas/LegacyError"
                 }
               }
             },
@@ -382,9 +382,9 @@
           },
           "default": {
             "content": {
-              "application/problem+json": {
+              "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Error"
+                  "$ref": "#/components/schemas/LegacyError"
                 }
               }
             },
@@ -424,9 +424,9 @@
           },
           "default": {
             "content": {
-              "application/problem+json": {
+              "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Error"
+                  "$ref": "#/components/schemas/LegacyError"
                 }
               }
             },
@@ -471,9 +471,9 @@
           },
           "default": {
             "content": {
-              "application/problem+json": {
+              "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Error"
+                  "$ref": "#/components/schemas/LegacyError"
                 }
               }
             },
@@ -528,9 +528,9 @@
           },
           "default": {
             "content": {
-              "application/problem+json": {
+              "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Error"
+                  "$ref": "#/components/schemas/LegacyError"
                 }
               }
             },
@@ -657,9 +657,9 @@
           },
           "default": {
             "content": {
-              "application/problem+json": {
+              "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Error"
+                  "$ref": "#/components/schemas/LegacyError"
                 }
               }
             },
@@ -714,9 +714,9 @@
           },
           "default": {
             "content": {
-              "application/problem+json": {
+              "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Error"
+                  "$ref": "#/components/schemas/LegacyError"
                 }
               }
             },
@@ -768,9 +768,9 @@
           },
           "default": {
             "content": {
-              "application/problem+json": {
+              "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Error"
+                  "$ref": "#/components/schemas/LegacyError"
                 }
               }
             },
@@ -820,9 +820,9 @@
           },
           "default": {
             "content": {
-              "application/problem+json": {
+              "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Error"
+                  "$ref": "#/components/schemas/LegacyError"
                 }
               }
             },
@@ -877,9 +877,9 @@
           },
           "default": {
             "content": {
-              "application/problem+json": {
+              "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Error"
+                  "$ref": "#/components/schemas/LegacyError"
                 }
               }
             },
@@ -944,9 +944,9 @@
           },
           "default": {
             "content": {
-              "application/problem+json": {
+              "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Error"
+                  "$ref": "#/components/schemas/LegacyError"
                 }
               }
             },
@@ -1083,9 +1083,9 @@
           },
           "default": {
             "content": {
-              "application/problem+json": {
+              "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Error"
+                  "$ref": "#/components/schemas/LegacyError"
                 }
               }
             },
@@ -1150,9 +1150,9 @@
           },
           "default": {
             "content": {
-              "application/problem+json": {
+              "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Error"
+                  "$ref": "#/components/schemas/LegacyError"
                 }
               }
             },
@@ -1212,9 +1212,9 @@
           },
           "default": {
             "content": {
-              "application/problem+json": {
+              "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Error"
+                  "$ref": "#/components/schemas/LegacyError"
                 }
               }
             },
@@ -1279,9 +1279,9 @@
           },
           "default": {
             "content": {
-              "application/problem+json": {
+              "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Error"
+                  "$ref": "#/components/schemas/LegacyError"
                 }
               }
             },
@@ -1356,9 +1356,9 @@
           },
           "default": {
             "content": {
-              "application/problem+json": {
+              "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Error"
+                  "$ref": "#/components/schemas/LegacyError"
                 }
               }
             },
@@ -1575,9 +1575,9 @@
           },
           "default": {
             "content": {
-              "application/problem+json": {
+              "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Error"
+                  "$ref": "#/components/schemas/LegacyError"
                 }
               }
             },
@@ -1651,9 +1651,9 @@
           },
           "default": {
             "content": {
-              "application/problem+json": {
+              "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Error"
+                  "$ref": "#/components/schemas/LegacyError"
                 }
               }
             },
@@ -1720,9 +1720,9 @@
           },
           "default": {
             "content": {
-              "application/problem+json": {
+              "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Error"
+                  "$ref": "#/components/schemas/LegacyError"
                 }
               }
             },
@@ -1789,9 +1789,9 @@
           },
           "default": {
             "content": {
-              "application/problem+json": {
+              "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Error"
+                  "$ref": "#/components/schemas/LegacyError"
                 }
               }
             },
@@ -1858,9 +1858,9 @@
           },
           "default": {
             "content": {
-              "application/problem+json": {
+              "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Error"
+                  "$ref": "#/components/schemas/LegacyError"
                 }
               }
             },
@@ -1927,9 +1927,9 @@
           },
           "default": {
             "content": {
-              "application/problem+json": {
+              "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Error"
+                  "$ref": "#/components/schemas/LegacyError"
                 }
               }
             },
@@ -1991,9 +1991,9 @@
           },
           "default": {
             "content": {
-              "application/problem+json": {
+              "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Error"
+                  "$ref": "#/components/schemas/LegacyError"
                 }
               }
             },
@@ -2110,9 +2110,9 @@
           },
           "default": {
             "content": {
-              "application/problem+json": {
+              "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Error"
+                  "$ref": "#/components/schemas/LegacyError"
                 }
               }
             },
@@ -2187,9 +2187,9 @@
           },
           "default": {
             "content": {
-              "application/problem+json": {
+              "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Error"
+                  "$ref": "#/components/schemas/LegacyError"
                 }
               }
             },
@@ -2272,9 +2272,9 @@
           },
           "default": {
             "content": {
-              "application/problem+json": {
+              "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Error"
+                  "$ref": "#/components/schemas/LegacyError"
                 }
               }
             },
@@ -2441,9 +2441,9 @@
           },
           "default": {
             "content": {
-              "application/problem+json": {
+              "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Error"
+                  "$ref": "#/components/schemas/LegacyError"
                 }
               }
             },
@@ -2520,9 +2520,9 @@
           },
           "default": {
             "content": {
-              "application/problem+json": {
+              "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Error"
+                  "$ref": "#/components/schemas/LegacyError"
                 }
               }
             },
@@ -2591,9 +2591,9 @@
           },
           "default": {
             "content": {
-              "application/problem+json": {
+              "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Error"
+                  "$ref": "#/components/schemas/LegacyError"
                 }
               }
             },
@@ -2658,9 +2658,9 @@
           },
           "default": {
             "content": {
-              "application/problem+json": {
+              "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Error"
+                  "$ref": "#/components/schemas/LegacyError"
                 }
               }
             },
@@ -2735,9 +2735,9 @@
           },
           "default": {
             "content": {
-              "application/problem+json": {
+              "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Error"
+                  "$ref": "#/components/schemas/LegacyError"
                 }
               }
             },
@@ -2804,9 +2804,9 @@
           },
           "default": {
             "content": {
-              "application/problem+json": {
+              "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Error"
+                  "$ref": "#/components/schemas/LegacyError"
                 }
               }
             },
@@ -2939,9 +2939,9 @@
           },
           "default": {
             "content": {
-              "application/problem+json": {
+              "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Error"
+                  "$ref": "#/components/schemas/LegacyError"
                 }
               }
             },
@@ -3008,9 +3008,9 @@
           },
           "default": {
             "content": {
-              "application/problem+json": {
+              "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Error"
+                  "$ref": "#/components/schemas/LegacyError"
                 }
               }
             },
@@ -3127,9 +3127,9 @@
           },
           "default": {
             "content": {
-              "application/problem+json": {
+              "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Error"
+                  "$ref": "#/components/schemas/LegacyError"
                 }
               }
             },
@@ -3203,9 +3203,9 @@
           },
           "default": {
             "content": {
-              "application/problem+json": {
+              "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Error"
+                  "$ref": "#/components/schemas/LegacyError"
                 }
               }
             },
@@ -3267,9 +3267,9 @@
           },
           "default": {
             "content": {
-              "application/problem+json": {
+              "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Error"
+                  "$ref": "#/components/schemas/LegacyError"
                 }
               }
             },
@@ -3329,9 +3329,9 @@
           },
           "default": {
             "content": {
-              "application/problem+json": {
+              "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Error"
+                  "$ref": "#/components/schemas/LegacyError"
                 }
               }
             },
@@ -3396,9 +3396,9 @@
           },
           "default": {
             "content": {
-              "application/problem+json": {
+              "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Error"
+                  "$ref": "#/components/schemas/LegacyError"
                 }
               }
             },
@@ -3473,9 +3473,9 @@
           },
           "default": {
             "content": {
-              "application/problem+json": {
+              "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Error"
+                  "$ref": "#/components/schemas/LegacyError"
                 }
               }
             },
@@ -3582,9 +3582,9 @@
           },
           "default": {
             "content": {
-              "application/problem+json": {
+              "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Error"
+                  "$ref": "#/components/schemas/LegacyError"
                 }
               }
             },
@@ -3644,9 +3644,9 @@
           },
           "default": {
             "content": {
-              "application/problem+json": {
+              "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Error"
+                  "$ref": "#/components/schemas/LegacyError"
                 }
               }
             },
@@ -3711,9 +3711,9 @@
           },
           "default": {
             "content": {
-              "application/problem+json": {
+              "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Error"
+                  "$ref": "#/components/schemas/LegacyError"
                 }
               }
             },
@@ -3788,9 +3788,9 @@
           },
           "default": {
             "content": {
-              "application/problem+json": {
+              "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Error"
+                  "$ref": "#/components/schemas/LegacyError"
                 }
               }
             },
@@ -3867,9 +3867,9 @@
           },
           "default": {
             "content": {
-              "application/problem+json": {
+              "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Error"
+                  "$ref": "#/components/schemas/LegacyError"
                 }
               }
             },
@@ -3976,9 +3976,9 @@
           },
           "default": {
             "content": {
-              "application/problem+json": {
+              "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Error"
+                  "$ref": "#/components/schemas/LegacyError"
                 }
               }
             },
@@ -4043,9 +4043,9 @@
           },
           "default": {
             "content": {
-              "application/problem+json": {
+              "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Error"
+                  "$ref": "#/components/schemas/LegacyError"
                 }
               }
             },
@@ -4105,9 +4105,9 @@
           },
           "default": {
             "content": {
-              "application/problem+json": {
+              "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Error"
+                  "$ref": "#/components/schemas/LegacyError"
                 }
               }
             },
@@ -4172,9 +4172,9 @@
           },
           "default": {
             "content": {
-              "application/problem+json": {
+              "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Error"
+                  "$ref": "#/components/schemas/LegacyError"
                 }
               }
             },
@@ -4249,9 +4249,9 @@
           },
           "default": {
             "content": {
-              "application/problem+json": {
+              "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Error"
+                  "$ref": "#/components/schemas/LegacyError"
                 }
               }
             },
@@ -4388,9 +4388,9 @@
           },
           "default": {
             "content": {
-              "application/problem+json": {
+              "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Error"
+                  "$ref": "#/components/schemas/LegacyError"
                 }
               }
             },
@@ -4455,9 +4455,9 @@
           },
           "default": {
             "content": {
-              "application/problem+json": {
+              "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Error"
+                  "$ref": "#/components/schemas/LegacyError"
                 }
               }
             },
@@ -4519,9 +4519,9 @@
           },
           "default": {
             "content": {
-              "application/problem+json": {
+              "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Error"
+                  "$ref": "#/components/schemas/LegacyError"
                 }
               }
             },
@@ -4581,9 +4581,9 @@
           },
           "default": {
             "content": {
-              "application/problem+json": {
+              "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Error"
+                  "$ref": "#/components/schemas/LegacyError"
                 }
               }
             },
@@ -4648,9 +4648,9 @@
           },
           "default": {
             "content": {
-              "application/problem+json": {
+              "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Error"
+                  "$ref": "#/components/schemas/LegacyError"
                 }
               }
             },
@@ -4725,9 +4725,9 @@
           },
           "default": {
             "content": {
-              "application/problem+json": {
+              "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Error"
+                  "$ref": "#/components/schemas/LegacyError"
                 }
               }
             },
@@ -4844,9 +4844,9 @@
           },
           "default": {
             "content": {
-              "application/problem+json": {
+              "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Error"
+                  "$ref": "#/components/schemas/LegacyError"
                 }
               }
             },
@@ -4911,9 +4911,9 @@
           },
           "default": {
             "content": {
-              "application/problem+json": {
+              "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Error"
+                  "$ref": "#/components/schemas/LegacyError"
                 }
               }
             },
@@ -4975,9 +4975,9 @@
           },
           "default": {
             "content": {
-              "application/problem+json": {
+              "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Error"
+                  "$ref": "#/components/schemas/LegacyError"
                 }
               }
             },
@@ -5037,9 +5037,9 @@
           },
           "default": {
             "content": {
-              "application/problem+json": {
+              "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Error"
+                  "$ref": "#/components/schemas/LegacyError"
                 }
               }
             },
@@ -5104,9 +5104,9 @@
           },
           "default": {
             "content": {
-              "application/problem+json": {
+              "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Error"
+                  "$ref": "#/components/schemas/LegacyError"
                 }
               }
             },
@@ -5181,9 +5181,9 @@
           },
           "default": {
             "content": {
-              "application/problem+json": {
+              "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Error"
+                  "$ref": "#/components/schemas/LegacyError"
                 }
               }
             },
@@ -5240,9 +5240,9 @@
           },
           "default": {
             "content": {
-              "application/problem+json": {
+              "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Error"
+                  "$ref": "#/components/schemas/LegacyError"
                 }
               }
             },
@@ -5308,9 +5308,9 @@
           },
           "default": {
             "content": {
-              "application/problem+json": {
+              "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Error"
+                  "$ref": "#/components/schemas/LegacyError"
                 }
               }
             },
@@ -5417,9 +5417,9 @@
           },
           "default": {
             "content": {
-              "application/problem+json": {
+              "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Error"
+                  "$ref": "#/components/schemas/LegacyError"
                 }
               }
             },
@@ -5484,9 +5484,9 @@
           },
           "default": {
             "content": {
-              "application/problem+json": {
+              "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Error"
+                  "$ref": "#/components/schemas/LegacyError"
                 }
               }
             },
@@ -5546,9 +5546,9 @@
           },
           "default": {
             "content": {
-              "application/problem+json": {
+              "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Error"
+                  "$ref": "#/components/schemas/LegacyError"
                 }
               }
             },
@@ -5613,9 +5613,9 @@
           },
           "default": {
             "content": {
-              "application/problem+json": {
+              "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Error"
+                  "$ref": "#/components/schemas/LegacyError"
                 }
               }
             },
@@ -5690,9 +5690,9 @@
           },
           "default": {
             "content": {
-              "application/problem+json": {
+              "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Error"
+                  "$ref": "#/components/schemas/LegacyError"
                 }
               }
             },
@@ -5809,9 +5809,9 @@
           },
           "default": {
             "content": {
-              "application/problem+json": {
+              "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Error"
+                  "$ref": "#/components/schemas/LegacyError"
                 }
               }
             },
@@ -5903,9 +5903,9 @@
           },
           "default": {
             "content": {
-              "application/problem+json": {
+              "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Error"
+                  "$ref": "#/components/schemas/LegacyError"
                 }
               }
             },
@@ -5997,9 +5997,9 @@
           },
           "default": {
             "content": {
-              "application/problem+json": {
+              "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Error"
+                  "$ref": "#/components/schemas/LegacyError"
                 }
               }
             },
@@ -6091,9 +6091,9 @@
           },
           "default": {
             "content": {
-              "application/problem+json": {
+              "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Error"
+                  "$ref": "#/components/schemas/LegacyError"
                 }
               }
             },
@@ -6185,9 +6185,9 @@
           },
           "default": {
             "content": {
-              "application/problem+json": {
+              "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Error"
+                  "$ref": "#/components/schemas/LegacyError"
                 }
               }
             },
@@ -6289,9 +6289,9 @@
           },
           "default": {
             "content": {
-              "application/problem+json": {
+              "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Error"
+                  "$ref": "#/components/schemas/LegacyError"
                 }
               }
             },
@@ -6383,9 +6383,9 @@
           },
           "default": {
             "content": {
-              "application/problem+json": {
+              "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Error"
+                  "$ref": "#/components/schemas/LegacyError"
                 }
               }
             },
@@ -6477,9 +6477,9 @@
           },
           "default": {
             "content": {
-              "application/problem+json": {
+              "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Error"
+                  "$ref": "#/components/schemas/LegacyError"
                 }
               }
             },
@@ -6553,9 +6553,9 @@
           },
           "default": {
             "content": {
-              "application/problem+json": {
+              "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Error"
+                  "$ref": "#/components/schemas/LegacyError"
                 }
               }
             },
@@ -6630,9 +6630,9 @@
           },
           "default": {
             "content": {
-              "application/problem+json": {
+              "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Error"
+                  "$ref": "#/components/schemas/LegacyError"
                 }
               }
             },
@@ -6699,9 +6699,9 @@
           },
           "default": {
             "content": {
-              "application/problem+json": {
+              "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Error"
+                  "$ref": "#/components/schemas/LegacyError"
                 }
               }
             },
@@ -6768,9 +6768,9 @@
           },
           "default": {
             "content": {
-              "application/problem+json": {
+              "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Error"
+                  "$ref": "#/components/schemas/LegacyError"
                 }
               }
             },
@@ -6857,9 +6857,9 @@
           },
           "default": {
             "content": {
-              "application/problem+json": {
+              "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Error"
+                  "$ref": "#/components/schemas/LegacyError"
                 }
               }
             },
@@ -6933,9 +6933,9 @@
           },
           "default": {
             "content": {
-              "application/problem+json": {
+              "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Error"
+                  "$ref": "#/components/schemas/LegacyError"
                 }
               }
             },
@@ -6988,9 +6988,9 @@
           },
           "default": {
             "content": {
-              "application/problem+json": {
+              "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Error"
+                  "$ref": "#/components/schemas/LegacyError"
                 }
               }
             },
@@ -7047,9 +7047,9 @@
           },
           "default": {
             "content": {
-              "application/problem+json": {
+              "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Error"
+                  "$ref": "#/components/schemas/LegacyError"
                 }
               }
             },
@@ -7099,9 +7099,9 @@
           },
           "default": {
             "content": {
-              "application/problem+json": {
+              "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Error"
+                  "$ref": "#/components/schemas/LegacyError"
                 }
               }
             },
@@ -21272,6 +21272,44 @@
           },
           "tracer": {
             "$ref": "#/components/schemas/TracerSettingsInput"
+          }
+        },
+        "type": "object"
+      },
+      "LegacyError": {
+        "additionalProperties": false,
+        "properties": {
+          "code": {
+            "description": "Stable, machine-readable midaz error code. Identical to the code /v2 returns for the same condition.",
+            "examples": [
+              "0065"
+            ],
+            "type": "string"
+          },
+          "entityType": {
+            "description": "The domain entity the error concerns. Present only on field-validation errors.",
+            "examples": [
+              "Account"
+            ],
+            "type": "string"
+          },
+          "fields": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "description": "Per-field validation messages, keyed by field name. The /v2 contract carries these as the 'errors' array.",
+            "type": "object"
+          },
+          "message": {
+            "description": "Human-readable explanation of this occurrence. The /v2 contract carries this as 'detail'.",
+            "type": "string"
+          },
+          "title": {
+            "description": "Short, human-readable summary of the error.",
+            "examples": [
+              "Invalid Path Parameter"
+            ],
+            "type": "string"
           }
         },
         "type": "object"

@@ -23,6 +23,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 
+	ledgerMiddleware "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/http/in/middleware"
 	txmongodb "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/mongodb/transaction"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/assetrate"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services/command"
@@ -57,6 +58,11 @@ func buildHumaAssetRateApp(t *testing.T, handler *AssetRateHandler, authOK bool)
 
 	// problem.Install must run before any huma.Register (runtime + spec-gen).
 	libProblem.Install()
+
+	// Mirror production: the ledger registers ErrorEnvelope on the app root, so
+	// /v1 serves the v3 envelope. Without it these assertions lock a shape no
+	// deployed ledger returns.
+	f.Use(ledgerMiddleware.ErrorEnvelope())
 
 	apiV1 := f.Group("/v1")
 
@@ -190,12 +196,12 @@ func TestCreateOrUpdateAssetRate_MalformedBody_Canonical400(t *testing.T) {
 	respBody, _ := io.ReadAll(resp.Body)
 
 	assert.Equal(t, http.StatusBadRequest, resp.StatusCode, "malformed body stays 400 — no 500, no native 422")
-	assert.Equal(t, "application/problem+json", resp.Header.Get("Content-Type"))
+	assert.Equal(t, "application/json", resp.Header.Get("Content-Type"))
 
 	var got map[string]any
 	require.NoError(t, json.Unmarshal(respBody, &got), "body: %s", string(respBody))
 	assert.Equal(t, constant.ErrInvalidRequestBody.Error(), got["code"], "malformed-body code preserved (0094)")
-	assert.Equal(t, float64(http.StatusBadRequest), got["status"])
+	assert.NotContains(t, got, "status", "the v1 envelope carries no status member")
 }
 
 func TestGetAssetRateByExternalID_Success(t *testing.T) {
@@ -366,12 +372,12 @@ func TestCreateOrUpdateAssetRate_ServiceError_500(t *testing.T) {
 	respBody, _ := io.ReadAll(resp.Body)
 
 	assert.Equal(t, http.StatusInternalServerError, resp.StatusCode)
-	assert.Equal(t, "application/problem+json", resp.Header.Get("Content-Type"))
+	assert.Equal(t, "application/json", resp.Header.Get("Content-Type"))
 
 	var got map[string]any
 	require.NoError(t, json.Unmarshal(respBody, &got), "body: %s", string(respBody))
 	assert.Equal(t, "0046", got["code"])
-	assert.Equal(t, float64(http.StatusInternalServerError), got["status"])
+	assert.NotContains(t, got, "status", "the v1 envelope carries no status member")
 }
 
 func TestGetAssetRateByExternalID_NotFound_404(t *testing.T) {
@@ -401,12 +407,12 @@ func TestGetAssetRateByExternalID_NotFound_404(t *testing.T) {
 	respBody, _ := io.ReadAll(resp.Body)
 
 	assert.Equal(t, http.StatusNotFound, resp.StatusCode)
-	assert.Equal(t, "application/problem+json", resp.Header.Get("Content-Type"))
+	assert.Equal(t, "application/json", resp.Header.Get("Content-Type"))
 
 	var got map[string]any
 	require.NoError(t, json.Unmarshal(respBody, &got), "body: %s", string(respBody))
 	assert.Equal(t, constant.ErrEntityNotFound.Error(), got["code"])
-	assert.Equal(t, float64(http.StatusNotFound), got["status"])
+	assert.NotContains(t, got, "status", "the v1 envelope carries no status member")
 }
 
 func TestGetAllAssetRatesByAssetCode_ServiceError_500(t *testing.T) {
@@ -439,10 +445,10 @@ func TestGetAllAssetRatesByAssetCode_ServiceError_500(t *testing.T) {
 	respBody, _ := io.ReadAll(resp.Body)
 
 	assert.Equal(t, http.StatusInternalServerError, resp.StatusCode)
-	assert.Equal(t, "application/problem+json", resp.Header.Get("Content-Type"))
+	assert.Equal(t, "application/json", resp.Header.Get("Content-Type"))
 
 	var got map[string]any
 	require.NoError(t, json.Unmarshal(respBody, &got), "body: %s", string(respBody))
 	assert.Equal(t, "0046", got["code"])
-	assert.Equal(t, float64(http.StatusInternalServerError), got["status"])
+	assert.NotContains(t, got, "status", "the v1 envelope carries no status member")
 }

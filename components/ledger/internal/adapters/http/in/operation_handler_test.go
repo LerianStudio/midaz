@@ -23,6 +23,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 
+	ledgerMiddleware "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/http/in/middleware"
 	txMongodb "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/mongodb/transaction"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/operation"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services/command"
@@ -48,6 +49,11 @@ func buildHumaOperationApp(t *testing.T, handler *OperationHandler, authOK bool)
 	})
 
 	libProblem.Install()
+
+	// Mirror production: the ledger registers ErrorEnvelope on the app root, so
+	// /v1 serves the v3 envelope. Without it these assertions lock a shape no
+	// deployed ledger returns.
+	f.Use(ledgerMiddleware.ErrorEnvelope())
 
 	apiV1 := f.Group("/v1")
 
@@ -439,7 +445,7 @@ func TestGetAllOperationsByAccount_ServiceError_500(t *testing.T) {
 	var got map[string]any
 	require.NoError(t, json.Unmarshal(respBody, &got), "body: %s", string(respBody))
 	assert.Equal(t, "0046", got["code"])
-	assert.Contains(t, got, "detail")
+	assert.Contains(t, got, "message")
 }
 
 func TestGetOperationByAccount_NotFound_404(t *testing.T) {
@@ -629,5 +635,5 @@ func TestUpdateOperation_QueryError_500(t *testing.T) {
 	var got map[string]any
 	require.NoError(t, json.Unmarshal(respBody, &got), "body: %s", string(respBody))
 	assert.Equal(t, "0046", got["code"])
-	assert.Contains(t, got, "detail")
+	assert.Contains(t, got, "message")
 }

@@ -23,6 +23,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 
+	ledgerMiddleware "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/http/in/middleware"
 	"github.com/LerianStudio/midaz/v4/pkg"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
 	"github.com/LerianStudio/midaz/v4/pkg/mbootstrap"
@@ -51,6 +52,11 @@ func buildHumaMetadataApp(t *testing.T, handler *MetadataIndexHandler, authOK bo
 	})
 
 	libProblem.Install()
+
+	// Mirror production: the ledger registers ErrorEnvelope on the app root, so
+	// /v1 serves the v3 envelope. Without it these assertions lock a shape no
+	// deployed ledger returns.
+	f.Use(ledgerMiddleware.ErrorEnvelope())
 
 	apiV1 := f.Group("/v1")
 
@@ -150,6 +156,11 @@ func TestCreateMetadataIndex_TenantCaptured(t *testing.T) {
 
 	f := fiber.New(fiber.Config{ErrorHandler: pkgHTTP.CanonicalFiberErrorHandler})
 	libProblem.Install()
+	// Mirror production: the ledger registers ErrorEnvelope on the app root, so
+	// /v1 serves the v3 envelope. Without it these assertions lock a shape no
+	// deployed ledger returns.
+	f.Use(ledgerMiddleware.ErrorEnvelope())
+
 	apiV1 := f.Group("/v1")
 	// Shim marks the user context, standing in for the tenant middleware.
 	apiV1.Use(func(c fiber.Ctx) error {
@@ -214,12 +225,12 @@ func TestCreateMetadataIndex_InvalidEntity_Canonical400(t *testing.T) {
 	respBody, _ := io.ReadAll(resp.Body)
 
 	assert.Equal(t, http.StatusBadRequest, resp.StatusCode, "invalid entity stays canonical 400 — no native Huma 422")
-	assert.Equal(t, "application/problem+json", resp.Header.Get("Content-Type"))
+	assert.Equal(t, "application/json", resp.Header.Get("Content-Type"))
 
 	var got map[string]any
 	require.NoError(t, json.Unmarshal(respBody, &got), "body: %s", string(respBody))
 	assert.Equal(t, constant.ErrInvalidEntityName.Error(), got["code"])
-	assert.Equal(t, float64(http.StatusBadRequest), got["status"])
+	assert.NotContains(t, got, "status", "the v1 envelope carries no status member")
 }
 
 func TestCreateMetadataIndex_ValidationError_Canonical400(t *testing.T) {
@@ -244,12 +255,12 @@ func TestCreateMetadataIndex_ValidationError_Canonical400(t *testing.T) {
 	respBody, _ := io.ReadAll(resp.Body)
 
 	assert.Equal(t, http.StatusBadRequest, resp.StatusCode, "imperative validation stays 400 — no native Huma 422")
-	assert.Equal(t, "application/problem+json", resp.Header.Get("Content-Type"))
+	assert.Equal(t, "application/json", resp.Header.Get("Content-Type"))
 
 	var got map[string]any
 	require.NoError(t, json.Unmarshal(respBody, &got), "body: %s", string(respBody))
 	assert.NotEmpty(t, got["code"], "canonical code present")
-	assert.Equal(t, float64(http.StatusBadRequest), got["status"])
+	assert.NotContains(t, got, "status", "the v1 envelope carries no status member")
 }
 
 func TestCreateMetadataIndex_MalformedBody_Canonical400(t *testing.T) {
@@ -271,12 +282,12 @@ func TestCreateMetadataIndex_MalformedBody_Canonical400(t *testing.T) {
 	respBody, _ := io.ReadAll(resp.Body)
 
 	assert.Equal(t, http.StatusBadRequest, resp.StatusCode, "malformed body stays 400 — no 500, no native 422")
-	assert.Equal(t, "application/problem+json", resp.Header.Get("Content-Type"))
+	assert.Equal(t, "application/json", resp.Header.Get("Content-Type"))
 
 	var got map[string]any
 	require.NoError(t, json.Unmarshal(respBody, &got), "body: %s", string(respBody))
 	assert.Equal(t, constant.ErrInvalidRequestBody.Error(), got["code"], "malformed-body code preserved (0094)")
-	assert.Equal(t, float64(http.StatusBadRequest), got["status"])
+	assert.NotContains(t, got, "status", "the v1 envelope carries no status member")
 }
 
 func TestGetAllMetadataIndexes_FilteredSuccess(t *testing.T) {
@@ -380,12 +391,12 @@ func TestDeleteMetadataIndex_NotFound_CanonicalMapped(t *testing.T) {
 
 	respBody, _ := io.ReadAll(resp.Body)
 	assert.Equal(t, http.StatusNotFound, resp.StatusCode, "not-found maps to 404 — no native Huma 422")
-	assert.Equal(t, "application/problem+json", resp.Header.Get("Content-Type"))
+	assert.Equal(t, "application/json", resp.Header.Get("Content-Type"))
 
 	var got map[string]any
 	require.NoError(t, json.Unmarshal(respBody, &got), "body: %s", string(respBody))
 	assert.Equal(t, constant.ErrMetadataIndexNotFound.Error(), got["code"])
-	assert.Equal(t, float64(http.StatusNotFound), got["status"])
+	assert.NotContains(t, got, "status", "the v1 envelope carries no status member")
 }
 
 // buildHumaMetadataAppWithTenant is buildHumaMetadataApp plus a shim that stamps a
@@ -400,6 +411,11 @@ func buildHumaMetadataAppWithTenant(t *testing.T, handler *MetadataIndexHandler,
 	f := fiber.New(fiber.Config{ErrorHandler: pkgHTTP.CanonicalFiberErrorHandler})
 
 	libProblem.Install()
+
+	// Mirror production: the ledger registers ErrorEnvelope on the app root, so
+	// /v1 serves the v3 envelope. Without it these assertions lock a shape no
+	// deployed ledger returns.
+	f.Use(ledgerMiddleware.ErrorEnvelope())
 
 	apiV1 := f.Group("/v1")
 	apiV1.Use(func(c fiber.Ctx) error {
@@ -474,12 +490,12 @@ func TestCreateMetadataIndex_NilRepo_Canonical500(t *testing.T) {
 
 	respBody, _ := io.ReadAll(resp.Body)
 	assert.Equal(t, http.StatusInternalServerError, resp.StatusCode)
-	assert.Equal(t, "application/problem+json", resp.Header.Get("Content-Type"))
+	assert.Equal(t, "application/json", resp.Header.Get("Content-Type"))
 
 	var got map[string]any
 	require.NoError(t, json.Unmarshal(respBody, &got), "body: %s", string(respBody))
 	assert.NotEmpty(t, got["code"])
-	assert.Equal(t, float64(http.StatusInternalServerError), got["status"])
+	assert.NotContains(t, got, "status", "the v1 envelope carries no status member")
 	assert.NotContains(t, string(respBody), "repository not configured", "internal detail must not leak")
 }
 
@@ -509,7 +525,7 @@ func TestCreateMetadataIndex_RepoFailure_Canonical500(t *testing.T) {
 
 	var got map[string]any
 	require.NoError(t, json.Unmarshal(respBody, &got), "body: %s", string(respBody))
-	assert.Equal(t, float64(http.StatusInternalServerError), got["status"])
+	assert.NotContains(t, got, "status", "the v1 envelope carries no status member")
 	assert.NotContains(t, string(respBody), "index already exists", "repo detail must not leak")
 }
 
@@ -538,7 +554,7 @@ func TestCreateMetadataIndex_MetadataKeyTooLong_Canonical400(t *testing.T) {
 	var got map[string]any
 	require.NoError(t, json.Unmarshal(respBody, &got), "body: %s", string(respBody))
 	assert.NotEmpty(t, got["code"])
-	assert.Equal(t, float64(http.StatusBadRequest), got["status"])
+	assert.NotContains(t, got, "status", "the v1 envelope carries no status member")
 }
 
 func TestCreateMetadataIndex_EmptyEntityName_Canonical400(t *testing.T) {
@@ -683,11 +699,11 @@ func TestGetAllMetadataIndexes_NilRepoForFilteredEntity_Canonical500(t *testing.
 
 	respBody, _ := io.ReadAll(resp.Body)
 	assert.Equal(t, http.StatusInternalServerError, resp.StatusCode)
-	assert.Equal(t, "application/problem+json", resp.Header.Get("Content-Type"))
+	assert.Equal(t, "application/json", resp.Header.Get("Content-Type"))
 
 	var got map[string]any
 	require.NoError(t, json.Unmarshal(respBody, &got), "body: %s", string(respBody))
-	assert.Equal(t, float64(http.StatusInternalServerError), got["status"])
+	assert.NotContains(t, got, "status", "the v1 envelope carries no status member")
 }
 
 func TestGetAllMetadataIndexes_FilteredRepoFailure_Canonical500(t *testing.T) {
@@ -797,7 +813,7 @@ func TestDeleteMetadataIndex_NilRepo_Canonical500(t *testing.T) {
 
 	var got map[string]any
 	require.NoError(t, json.Unmarshal(respBody, &got), "body: %s", string(respBody))
-	assert.Equal(t, float64(http.StatusInternalServerError), got["status"])
+	assert.NotContains(t, got, "status", "the v1 envelope carries no status member")
 }
 
 func TestDeleteMetadataIndex_RepoFailure_Canonical500(t *testing.T) {
@@ -903,12 +919,12 @@ func TestMetadataIndex_MultiTenantContextResolutionErrors(t *testing.T) {
 
 			respBody, _ := io.ReadAll(resp.Body)
 			assert.Equal(t, http.StatusInternalServerError, resp.StatusCode)
-			assert.Equal(t, "application/problem+json", resp.Header.Get("Content-Type"))
+			assert.Equal(t, "application/json", resp.Header.Get("Content-Type"))
 
 			var got map[string]any
 			require.NoError(t, json.Unmarshal(respBody, &got), "body: %s", string(respBody))
 			assert.NotEmpty(t, got["code"])
-			assert.Equal(t, float64(http.StatusInternalServerError), got["status"])
+			assert.NotContains(t, got, "status", "the v1 envelope carries no status member")
 			assert.NotContains(t, string(respBody), "mongo manager", "internal detail must not leak")
 		})
 	}

@@ -23,6 +23,7 @@ import (
 	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/require"
 
+	ledgerMiddleware "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/http/in/middleware"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/mongodb/fees/pack"
 	feemodel "github.com/LerianStudio/midaz/v4/components/ledger/pkg/feeshared/model"
 	cn "github.com/LerianStudio/midaz/v4/pkg/constant"
@@ -47,6 +48,11 @@ func (h *feeHarness) newApp() *fiber.App {
 
 	libProblem.Install()
 	http.InstallHumaFrameworkErrors()
+
+	// Mirror production: the ledger registers ErrorEnvelope on the app root, so
+	// /v1 serves the v3 envelope. Without it these assertions lock a shape no
+	// deployed ledger returns.
+	app.Use(ledgerMiddleware.ErrorEnvelope())
 
 	apiV1 := app.Group("/v1")
 	hAPI := openapi.New(app, apiV1, openapi.Config{
