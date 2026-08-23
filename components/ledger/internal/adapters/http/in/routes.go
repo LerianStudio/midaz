@@ -17,51 +17,6 @@ const midazName = "midaz"
 // SettingsMaxPayloadSize defines the maximum payload size for settings endpoints (64KB).
 const SettingsMaxPayloadSize = 64 * 1024
 
-// RegisterAssetRoutesToApp wires the asset surface onto the /v1
-// contract. See registerAssetRoutesToApp for what it attaches.
-func RegisterAssetRoutesToApp(group fiber.Router, api huma.API, auth *middleware.AuthClient, ih *AssetHandler, routeOptions *http.ProtectedRouteOptions) {
-	registerAssetRoutesToApp(group, api, auth, ih, routeOptions, routeOpSuffixV1)
-}
-
-// RegisterAssetV2RoutesToApp wires the same asset surface onto the /v2 contract: same paths,
-// same handlers, same authz tuples and tenant chain, differing only in the operation IDs the
-// contract publishes. It is additive — /v1 keeps serving assets in parallel — and introduces
-// no new policy surface.
-func RegisterAssetV2RoutesToApp(group fiber.Router, api huma.API, auth *middleware.AuthClient, ih *AssetHandler, routeOptions *http.ProtectedRouteOptions) {
-	registerAssetRoutesToApp(group, api, auth, ih, routeOptions, routeOpSuffixV2)
-}
-
-// registerAssetRoutesToApp is the single description of the asset route surface, shared by
-// every versioned contract that serves it. For each of the six ops it attaches the Fiber auth
-// chain — auth.Authorize("midaz","assets",verb) + tenant PostAuthMiddlewares +
-// ParseUUIDPathParameters("asset") — as MIDDLEWARE ONLY (no terminal) on the VERSIONED GROUP
-// with GROUP-RELATIVE paths, then registers the Huma terminals via RegisterAssetRoutes on the
-// SAME group's Huma API. The ("midaz","assets",verb) authz tuples and tenant resolution
-// therefore apply on whichever version group it is mounted on; no asset route becomes
-// public.
-//
-// opSuffix distinguishes the operation IDs one version group publishes from another's — see
-// routeOpSuffixV1. Nothing else varies between contracts, so a change to the surface reaches
-// every version it is mounted on.
-func registerAssetRoutesToApp(group fiber.Router, api huma.API, auth *middleware.AuthClient, ih *AssetHandler, routeOptions *http.ProtectedRouteOptions, opSuffix string) {
-	const (
-		listPath  = "/organizations/:organization_id/ledgers/:ledger_id/assets"
-		idPath    = listPath + "/:id"
-		countPath = listPath + "/metrics/count"
-	)
-
-	parse := http.ParseUUIDPathParameters("asset")
-
-	routePost(group, listPath, protectedMidaz(auth, "assets", "post", routeOptions, parse))
-	routePatch(group, idPath, protectedMidaz(auth, "assets", "patch", routeOptions, parse))
-	routeGet(group, listPath, protectedMidaz(auth, "assets", "get", routeOptions, parse))
-	routeGet(group, idPath, protectedMidaz(auth, "assets", "get", routeOptions, parse))
-	routeDelete(group, idPath, protectedMidaz(auth, "assets", "delete", routeOptions, parse))
-	routeHead(group, countPath, protectedMidaz(auth, "assets", "head", routeOptions, parse))
-
-	RegisterAssetRoutes(api, ih, opSuffix)
-}
-
 // RegisterBalanceRoutesToApp wires the balance surface onto the /v1
 // contract. See registerBalanceRoutesToApp for what it attaches.
 func RegisterBalanceRoutesToApp(group fiber.Router, api huma.API, auth *middleware.AuthClient, bh *BalanceHandler, routeOptions *http.ProtectedRouteOptions) {
