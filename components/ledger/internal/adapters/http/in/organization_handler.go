@@ -37,13 +37,11 @@ import (
 //     RegisterOrganizationRoutesToApp BEFORE the Huma registration — NOT a Huma
 //     Security scheme. The per-op Security metadata below is SPEC-ONLY.
 
-// secOrgBearerOrAPIKey advertises that each organization operation accepts EITHER a
-// JWT bearer token OR an X-API-Key (two entries = OR). SPEC metadata only; runtime
-// auth is the Fiber guard chain. Scheme names are declared on the shared Huma API
-// in unified-server.go.
-var secOrgBearerOrAPIKey = []map[string][]string{
+// secOrgBearer advertises that each organization operation accepts EITHER a
+// JWT bearer token. SPEC metadata only; runtime auth is the Fiber guard chain. The
+// scheme name is declared on the shared Huma API.
+var secOrgBearer = []map[string][]string{
 	{"BearerAuth": {}},
-	{"ApiKeyAuth": {}},
 }
 
 // --- POST /organizations ------------------------------------------------------
@@ -270,7 +268,7 @@ func RegisterOrganizationRoutes(api huma.API, h *OrganizationHandler, opSuffix s
 		Path:        listPath,
 		Summary:     "Create a new organization",
 		Tags:        []string{tag},
-		Security:    secOrgBearerOrAPIKey,
+		Security:    secOrgBearer,
 		// Body validated imperatively (http.DecodeAndValidate) — see file header.
 		SkipValidateBody: true,
 		DefaultStatus:    http.StatusCreated,
@@ -283,7 +281,7 @@ func RegisterOrganizationRoutes(api huma.API, h *OrganizationHandler, opSuffix s
 		Path:        listPath,
 		Summary:     "List all organizations",
 		Tags:        []string{tag},
-		Security:    secOrgBearerOrAPIKey,
+		Security:    secOrgBearer,
 	}, h.ListOrganizations)
 
 	huma.Register(api, huma.Operation{
@@ -292,7 +290,7 @@ func RegisterOrganizationRoutes(api huma.API, h *OrganizationHandler, opSuffix s
 		Path:        idPath,
 		Summary:     "Retrieve a specific organization",
 		Tags:        []string{tag},
-		Security:    secOrgBearerOrAPIKey,
+		Security:    secOrgBearer,
 	}, h.GetOrganizationByID)
 
 	huma.Register(api, huma.Operation{
@@ -301,7 +299,7 @@ func RegisterOrganizationRoutes(api huma.API, h *OrganizationHandler, opSuffix s
 		Path:             idPath,
 		Summary:          "Update an existing organization",
 		Tags:             []string{tag},
-		Security:         secOrgBearerOrAPIKey,
+		Security:         secOrgBearer,
 		SkipValidateBody: true, // body validated imperatively — see createOrganization.
 	}, h.UpdateOrganization)
 	attachTypedRequestBody[mmodel.UpdateOrganizationInput](api, "updateOrganization"+opSuffix)
@@ -312,7 +310,7 @@ func RegisterOrganizationRoutes(api huma.API, h *OrganizationHandler, opSuffix s
 		Path:        idPath,
 		Summary:     "Delete an organization",
 		Tags:        []string{tag},
-		Security:    secOrgBearerOrAPIKey,
+		Security:    secOrgBearer,
 		// DefaultStatus 204 + an Out struct with no Body field => bodiless 204.
 		DefaultStatus: http.StatusNoContent,
 	}, h.DeleteOrganizationByID)
@@ -323,7 +321,7 @@ func RegisterOrganizationRoutes(api huma.API, h *OrganizationHandler, opSuffix s
 		Path:        countPath,
 		Summary:     "Count total organizations",
 		Tags:        []string{tag},
-		Security:    secOrgBearerOrAPIKey,
+		Security:    secOrgBearer,
 		// HEAD count: X-Total-Count header + empty 204 body (Content-Length 0 set on
 		// the Out struct), matching the Fiber http.NoContent + header path.
 		DefaultStatus: http.StatusNoContent,

@@ -45,14 +45,12 @@ import (
 //     unified-server.go BEFORE the Huma registration — NOT a Huma Security scheme.
 //     The per-op Security metadata below is SPEC-ONLY (for the generated OAS/SDK).
 
-// secAssetBearerOrAPIKey advertises that each asset operation accepts EITHER a JWT
-// bearer token OR an X-API-Key (two entries = OR). SPEC metadata only; runtime auth
-// is the Fiber guard chain. The scheme names are declared once on the shared Huma
-// API in unified-server.go (BearerAuth via openapi.DeclareBearerAuth, ApiKeyAuth
-// via the local nil-guarded assignment).
-var secAssetBearerOrAPIKey = []map[string][]string{
+// secAssetBearer advertises that each asset operation accepts a JWT bearer token.
+// SPEC metadata only; runtime auth is the Fiber guard chain, which authorizes a
+// bearer token and nothing else. The scheme name is declared once on the shared
+// Huma API (BearerAuth via openapi.DeclareBearerAuth in AssembleHumaContract).
+var secAssetBearer = []map[string][]string{
 	{"BearerAuth": {}},
-	{"ApiKeyAuth": {}},
 }
 
 // Path params are declared FLAT on each Input struct (not via an embedded shared
@@ -358,7 +356,7 @@ func RegisterAssetRoutes(api huma.API, h *AssetHandler, opSuffix string) {
 		Path:        listPath,
 		Summary:     "Create a new asset",
 		Tags:        []string{tag},
-		Security:    secAssetBearerOrAPIKey,
+		Security:    secAssetBearer,
 		// Body validated imperatively (http.DecodeAndValidate) — see file header.
 		SkipValidateBody: true,
 		DefaultStatus:    http.StatusCreated,
@@ -371,7 +369,7 @@ func RegisterAssetRoutes(api huma.API, h *AssetHandler, opSuffix string) {
 		Path:        listPath,
 		Summary:     "List all assets",
 		Tags:        []string{tag},
-		Security:    secAssetBearerOrAPIKey,
+		Security:    secAssetBearer,
 	}, h.ListAssets)
 
 	huma.Register(api, huma.Operation{
@@ -380,7 +378,7 @@ func RegisterAssetRoutes(api huma.API, h *AssetHandler, opSuffix string) {
 		Path:        idPath,
 		Summary:     "Retrieve a specific asset",
 		Tags:        []string{tag},
-		Security:    secAssetBearerOrAPIKey,
+		Security:    secAssetBearer,
 	}, h.GetAssetByID)
 
 	huma.Register(api, huma.Operation{
@@ -389,7 +387,7 @@ func RegisterAssetRoutes(api huma.API, h *AssetHandler, opSuffix string) {
 		Path:             idPath,
 		Summary:          "Update an asset",
 		Tags:             []string{tag},
-		Security:         secAssetBearerOrAPIKey,
+		Security:         secAssetBearer,
 		SkipValidateBody: true, // body validated imperatively — see createAsset.
 	}, h.UpdateAsset)
 	attachTypedRequestBody[mmodel.UpdateAssetInput](api, "updateAsset"+opSuffix)
@@ -400,7 +398,7 @@ func RegisterAssetRoutes(api huma.API, h *AssetHandler, opSuffix string) {
 		Path:        idPath,
 		Summary:     "Delete an asset",
 		Tags:        []string{tag},
-		Security:    secAssetBearerOrAPIKey,
+		Security:    secAssetBearer,
 		// DefaultStatus 204 + an Out struct with no Body field => bodiless 204.
 		DefaultStatus: http.StatusNoContent,
 	}, h.DeleteAssetByID)
@@ -411,7 +409,7 @@ func RegisterAssetRoutes(api huma.API, h *AssetHandler, opSuffix string) {
 		Path:        countPath,
 		Summary:     "Count total assets",
 		Tags:        []string{tag},
-		Security:    secAssetBearerOrAPIKey,
+		Security:    secAssetBearer,
 		// HEAD count: X-Total-Count header + empty 204 body (Content-Length 0 set
 		// on the Out struct), matching the Fiber http.NoContent + header path.
 		DefaultStatus: http.StatusNoContent,

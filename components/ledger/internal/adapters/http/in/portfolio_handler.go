@@ -26,12 +26,11 @@ import (
 // same ValidateParameters path. Auth stays the Fiber middleware chain attached in
 // RegisterPortfolioRoutesToApp; the per-op Security metadata is SPEC-ONLY.
 
-// secPortfolioBearerOrAPIKey advertises that each portfolio operation accepts EITHER
-// a JWT bearer token OR an X-API-Key (SPEC metadata only; runtime auth is the Fiber
-// guard chain). Scheme names are declared once on the shared Huma API.
-var secPortfolioBearerOrAPIKey = []map[string][]string{
+// secPortfolioBearer advertises that each portfolio operation accepts a JWT bearer
+// token (SPEC metadata only; runtime auth is the Fiber guard chain). The scheme name
+// is declared once on the shared Huma API.
+var secPortfolioBearer = []map[string][]string{
 	{"BearerAuth": {}},
-	{"ApiKeyAuth": {}},
 }
 
 // --- POST /portfolios ---------------------------------------------------------
@@ -281,7 +280,7 @@ func RegisterPortfolioRoutes(api huma.API, h *PortfolioHandler, opSuffix string)
 		Path:             listPath,
 		Summary:          "Create a new portfolio",
 		Tags:             []string{tag},
-		Security:         secPortfolioBearerOrAPIKey,
+		Security:         secPortfolioBearer,
 		SkipValidateBody: true, // body validated imperatively (DecodeAndValidate).
 		DefaultStatus:    http.StatusCreated,
 	}, h.CreatePortfolio)
@@ -293,7 +292,7 @@ func RegisterPortfolioRoutes(api huma.API, h *PortfolioHandler, opSuffix string)
 		Path:        listPath,
 		Summary:     "List all portfolios",
 		Tags:        []string{tag},
-		Security:    secPortfolioBearerOrAPIKey,
+		Security:    secPortfolioBearer,
 	}, h.ListPortfolios)
 
 	huma.Register(api, huma.Operation{
@@ -302,7 +301,7 @@ func RegisterPortfolioRoutes(api huma.API, h *PortfolioHandler, opSuffix string)
 		Path:        idPath,
 		Summary:     "Retrieve a specific portfolio",
 		Tags:        []string{tag},
-		Security:    secPortfolioBearerOrAPIKey,
+		Security:    secPortfolioBearer,
 	}, h.GetPortfolioByID)
 
 	huma.Register(api, huma.Operation{
@@ -311,7 +310,7 @@ func RegisterPortfolioRoutes(api huma.API, h *PortfolioHandler, opSuffix string)
 		Path:             idPath,
 		Summary:          "Update a portfolio",
 		Tags:             []string{tag},
-		Security:         secPortfolioBearerOrAPIKey,
+		Security:         secPortfolioBearer,
 		SkipValidateBody: true, // body validated imperatively.
 	}, h.UpdatePortfolio)
 	attachTypedRequestBody[mmodel.UpdatePortfolioInput](api, "updatePortfolio"+opSuffix)
@@ -322,7 +321,7 @@ func RegisterPortfolioRoutes(api huma.API, h *PortfolioHandler, opSuffix string)
 		Path:          idPath,
 		Summary:       "Delete a portfolio",
 		Tags:          []string{tag},
-		Security:      secPortfolioBearerOrAPIKey,
+		Security:      secPortfolioBearer,
 		DefaultStatus: http.StatusNoContent, // bodiless 204.
 	}, h.DeletePortfolioByID)
 
@@ -332,7 +331,7 @@ func RegisterPortfolioRoutes(api huma.API, h *PortfolioHandler, opSuffix string)
 		Path:          countPath,
 		Summary:       "Count total portfolios",
 		Tags:          []string{tag},
-		Security:      secPortfolioBearerOrAPIKey,
+		Security:      secPortfolioBearer,
 		DefaultStatus: http.StatusNoContent, // X-Total-Count header + empty 204 body.
 	}, h.CountPortfolios)
 }

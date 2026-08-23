@@ -62,19 +62,19 @@ func declaredSecuritySchemes(doc *huma.OpenAPI) []string {
 }
 
 // TestUnifiedContractDeclaresSecuritySchemes proves the harness-produced ledger
-// contract carries the BearerAuth + ApiKeyAuth security schemes and that every
-// per-operation security reference resolves against them — the property the committed
+// contract carries BearerAuth — the only scheme the ledger accepts — and that every
+// per-operation security reference resolves against it: the property the committed
 // dump must describe. The single document carries both the /v1 and /v2 operations, so
 // one contract built through the dump seam covers the whole surface; a contract missing
-// the schemes is a dump with dangling security references.
+// the scheme is a dump with dangling security references.
 func TestUnifiedContractDeclaresSecuritySchemes(t *testing.T) {
 	t.Parallel()
 
 	_, api := buildUnifiedHumaAPI()
 	doc := api.OpenAPI()
 
-	require.Equal(t, []string{"ApiKeyAuth", "BearerAuth"}, declaredSecuritySchemes(doc),
-		"contract must declare exactly the BearerAuth + ApiKeyAuth security schemes")
+	require.Equal(t, []string{"BearerAuth"}, declaredSecuritySchemes(doc),
+		"contract must declare exactly the BearerAuth security scheme")
 
 	for _, name := range referencedSecuritySchemes(doc) {
 		require.Containsf(t, doc.Components.SecuritySchemes, name,

@@ -221,9 +221,10 @@ func (d HumaMountDeps) MountV2(group fiber.Router, api huma.API) {
 //     fresh registry, so a second call would discard every schema registered after
 //     the first. It must run after openapi.New and before any huma.Register (the
 //     mount), because the registry namer is captured lazily on first registration.
-//  5. openapi.DeclareBearerAuth + the ApiKeyAuth block — SPEC-ONLY security scheme
-//     metadata, so the per-operation Security references resolve in the generated
-//     spec. Runtime auth stays the Fiber guard chain the mount closure attaches.
+//  5. openapi.DeclareBearerAuth — SPEC-ONLY security scheme metadata, so the
+//     per-operation Security references resolve in the generated spec. BearerAuth is
+//     the only scheme the ledger accepts; runtime auth is the Fiber guard chain the
+//     mount closure attaches, which authorizes a JWT bearer token and nothing else.
 //
 // It does NOT serve the spec: openapi.ServeSpec is bootstrap exposure policy, gated
 // on openAPIDocsEnabled(), and stays with the caller. The caller creates the Fiber
@@ -237,18 +238,6 @@ func AssembleHumaContract(app *fiber.App, group fiber.Router, cfg openapi.Config
 	pkgHTTP.InstallLedgerSchemaNamer(api)
 
 	openapi.DeclareBearerAuth(api)
-
-	components := api.OpenAPI().Components
-	if components.SecuritySchemes == nil {
-		components.SecuritySchemes = map[string]*huma.SecurityScheme{}
-	}
-
-	components.SecuritySchemes["ApiKeyAuth"] = &huma.SecurityScheme{
-		Type:        "apiKey",
-		In:          "header",
-		Name:        "X-API-Key",
-		Description: "Static API key presented in the X-API-Key header.",
-	}
 
 	return api
 }

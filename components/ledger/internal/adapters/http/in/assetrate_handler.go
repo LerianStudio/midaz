@@ -40,12 +40,10 @@ import (
 // parseOrgLedger / parsePathUUID are the shared helpers defined in
 // asset_handler.go (same package) — reused here, not redefined.
 
-// secAssetRateBearerOrAPIKey advertises that each asset-rate operation accepts EITHER
-// a JWT bearer token OR an X-API-Key (two entries = OR). SPEC metadata only; runtime
-// auth is the Fiber guard chain.
-var secAssetRateBearerOrAPIKey = []map[string][]string{
+// secAssetRateBearer advertises that each asset-rate operation accepts a JWT bearer
+// token. SPEC metadata only; runtime auth is the Fiber guard chain.
+var secAssetRateBearer = []map[string][]string{
 	{"BearerAuth": {}},
-	{"ApiKeyAuth": {}},
 }
 
 // --- PUT /asset-rates ---------------------------------------------------------
@@ -219,7 +217,7 @@ func RegisterAssetRateRoutes(api huma.API, h *AssetRateHandler, opSuffix string)
 		Path:        basePath,
 		Summary:     "Create or Update an AssetRate",
 		Tags:        []string{tag},
-		Security:    secAssetRateBearerOrAPIKey,
+		Security:    secAssetRateBearer,
 		// Body validated imperatively (http.DecodeAndValidate) — see file header.
 		SkipValidateBody: true,
 		DefaultStatus:    http.StatusCreated,
@@ -232,7 +230,7 @@ func RegisterAssetRateRoutes(api huma.API, h *AssetRateHandler, opSuffix string)
 		Path:        externalPath,
 		Summary:     "Get an AssetRate by External ID",
 		Tags:        []string{tag},
-		Security:    secAssetRateBearerOrAPIKey,
+		Security:    secAssetRateBearer,
 	}, h.GetAssetRateByExternalID)
 
 	huma.Register(api, huma.Operation{
@@ -241,7 +239,7 @@ func RegisterAssetRateRoutes(api huma.API, h *AssetRateHandler, opSuffix string)
 		Path:        fromPath,
 		Summary:     "Get an AssetRate by the Asset Code",
 		Tags:        []string{tag},
-		Security:    secAssetRateBearerOrAPIKey,
+		Security:    secAssetRateBearer,
 	}, h.ListAssetRatesByAssetCode)
 }
 

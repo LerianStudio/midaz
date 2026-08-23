@@ -30,13 +30,11 @@ import (
 // RegisterAccountTypeRoutesToApp. The Security metadata below is SPEC-ONLY (bearer OR
 // api-key for the generated OAS).
 
-// secAccountTypeBearerOrAPIKey advertises that each account-type op accepts EITHER a
-// JWT bearer token OR an X-API-Key (two entries = OR). SPEC metadata only; runtime
-// auth is the Fiber guard chain. The scheme names are declared once on the shared
-// Huma API in unified-server.go.
-var secAccountTypeBearerOrAPIKey = []map[string][]string{
+// secAccountTypeBearer advertises that each account-type op accepts EITHER a
+// JWT bearer token. SPEC metadata only; runtime auth is the Fiber guard chain. The
+// scheme name is declared once on the shared Huma API.
+var secAccountTypeBearer = []map[string][]string{
 	{"BearerAuth": {}},
-	{"ApiKeyAuth": {}},
 }
 
 // --- POST /account-types ------------------------------------------------------
@@ -276,7 +274,7 @@ func RegisterAccountTypeRoutes(api huma.API, h *AccountTypeHandler, opSuffix str
 		Path:        listPath,
 		Summary:     "Create a new account type",
 		Tags:        []string{tag},
-		Security:    secAccountTypeBearerOrAPIKey,
+		Security:    secAccountTypeBearer,
 		// Body validated imperatively (http.DecodeAndValidate) — see asset header.
 		SkipValidateBody: true,
 		DefaultStatus:    http.StatusCreated,
@@ -289,7 +287,7 @@ func RegisterAccountTypeRoutes(api huma.API, h *AccountTypeHandler, opSuffix str
 		Path:        listPath,
 		Summary:     "List all account types",
 		Tags:        []string{tag},
-		Security:    secAccountTypeBearerOrAPIKey,
+		Security:    secAccountTypeBearer,
 	}, h.ListAccountTypes)
 
 	huma.Register(api, huma.Operation{
@@ -298,7 +296,7 @@ func RegisterAccountTypeRoutes(api huma.API, h *AccountTypeHandler, opSuffix str
 		Path:        idPath,
 		Summary:     "Retrieve a specific account type",
 		Tags:        []string{tag},
-		Security:    secAccountTypeBearerOrAPIKey,
+		Security:    secAccountTypeBearer,
 	}, h.GetAccountTypeByID)
 
 	huma.Register(api, huma.Operation{
@@ -307,7 +305,7 @@ func RegisterAccountTypeRoutes(api huma.API, h *AccountTypeHandler, opSuffix str
 		Path:             idPath,
 		Summary:          "Update an account type",
 		Tags:             []string{tag},
-		Security:         secAccountTypeBearerOrAPIKey,
+		Security:         secAccountTypeBearer,
 		SkipValidateBody: true, // body validated imperatively — see createAccountType.
 	}, h.UpdateAccountType)
 	attachTypedRequestBody[mmodel.UpdateAccountTypeInput](api, "updateAccountType"+opSuffix)
@@ -318,7 +316,7 @@ func RegisterAccountTypeRoutes(api huma.API, h *AccountTypeHandler, opSuffix str
 		Path:        idPath,
 		Summary:     "Delete an account type",
 		Tags:        []string{tag},
-		Security:    secAccountTypeBearerOrAPIKey,
+		Security:    secAccountTypeBearer,
 		// DefaultStatus 204 + an Out struct with no Body field => bodiless 204.
 		DefaultStatus: http.StatusNoContent,
 	}, h.DeleteAccountTypeByID)

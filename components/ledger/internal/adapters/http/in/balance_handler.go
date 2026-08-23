@@ -35,6 +35,12 @@ import (
 //     in the unified server BEFORE the Huma terminal — the per-op Security metadata
 //     below is SPEC-ONLY.
 
+// secBalanceBearer is the spec-only Security metadata for the balance operations:
+// a JWT bearer token. Runtime auth is the Fiber guard chain.
+var secBalanceBearer = []map[string][]string{
+	{"BearerAuth": {}},
+}
+
 // --- GET /balances (list) -----------------------------------------------------
 
 // ListBalancesRequest advertises the list query params (doc-only) and captures
@@ -452,7 +458,7 @@ func RegisterBalanceRoutes(api huma.API, h *BalanceHandler, opSuffix string) {
 		Path:        balancesPath,
 		Summary:     "Get all balances",
 		Tags:        []string{tag},
-		Security:    secAssetBearerOrAPIKey,
+		Security:    secBalanceBearer,
 	}, h.GetAllBalances)
 
 	huma.Register(api, huma.Operation{
@@ -461,7 +467,7 @@ func RegisterBalanceRoutes(api huma.API, h *BalanceHandler, opSuffix string) {
 		Path:        balanceIDPath,
 		Summary:     "Get Balance by id",
 		Tags:        []string{tag},
-		Security:    secAssetBearerOrAPIKey,
+		Security:    secBalanceBearer,
 	}, h.GetBalanceByID)
 
 	huma.Register(api, huma.Operation{
@@ -470,7 +476,7 @@ func RegisterBalanceRoutes(api huma.API, h *BalanceHandler, opSuffix string) {
 		Path:        balanceHistory,
 		Summary:     "Get Balance history at date",
 		Tags:        []string{tag},
-		Security:    secAssetBearerOrAPIKey,
+		Security:    secBalanceBearer,
 	}, h.GetBalanceAtTimestamp)
 
 	huma.Register(api, huma.Operation{
@@ -479,7 +485,7 @@ func RegisterBalanceRoutes(api huma.API, h *BalanceHandler, opSuffix string) {
 		Path:        acctBalances,
 		Summary:     "Get all balances by account id",
 		Tags:        []string{tag},
-		Security:    secAssetBearerOrAPIKey,
+		Security:    secBalanceBearer,
 	}, h.GetAllBalancesByAccountID)
 
 	huma.Register(api, huma.Operation{
@@ -488,7 +494,7 @@ func RegisterBalanceRoutes(api huma.API, h *BalanceHandler, opSuffix string) {
 		Path:        acctHistory,
 		Summary:     "Get Account Balances history at date",
 		Tags:        []string{tag},
-		Security:    secAssetBearerOrAPIKey,
+		Security:    secBalanceBearer,
 	}, h.GetAccountBalancesAtTimestamp)
 
 	huma.Register(api, huma.Operation{
@@ -497,7 +503,7 @@ func RegisterBalanceRoutes(api huma.API, h *BalanceHandler, opSuffix string) {
 		Path:        aliasBalances,
 		Summary:     "Get Balances using Alias",
 		Tags:        []string{tag},
-		Security:    secAssetBearerOrAPIKey,
+		Security:    secBalanceBearer,
 	}, h.GetBalancesByAlias)
 
 	huma.Register(api, huma.Operation{
@@ -506,7 +512,7 @@ func RegisterBalanceRoutes(api huma.API, h *BalanceHandler, opSuffix string) {
 		Path:        codeBalances,
 		Summary:     "Get External balances using code",
 		Tags:        []string{tag},
-		Security:    secAssetBearerOrAPIKey,
+		Security:    secBalanceBearer,
 	}, h.GetBalancesExternalByCode)
 
 	huma.Register(api, huma.Operation{
@@ -515,7 +521,7 @@ func RegisterBalanceRoutes(api huma.API, h *BalanceHandler, opSuffix string) {
 		Path:             balanceIDPath,
 		Summary:          "Update Balance",
 		Tags:             []string{tag},
-		Security:         secAssetBearerOrAPIKey,
+		Security:         secBalanceBearer,
 		SkipValidateBody: true, // body validated imperatively — see file header.
 	}, h.UpdateBalance)
 	attachTypedRequestBody[mmodel.UpdateBalance](api, "updateBalance"+opSuffix)
@@ -526,7 +532,7 @@ func RegisterBalanceRoutes(api huma.API, h *BalanceHandler, opSuffix string) {
 		Path:             acctBalances,
 		Summary:          "Create Additional Balance",
 		Tags:             []string{tag},
-		Security:         secAssetBearerOrAPIKey,
+		Security:         secBalanceBearer,
 		SkipValidateBody: true, // body validated imperatively — see file header.
 		DefaultStatus:    http.StatusCreated,
 	}, h.CreateAdditionalBalance)
@@ -538,7 +544,7 @@ func RegisterBalanceRoutes(api huma.API, h *BalanceHandler, opSuffix string) {
 		Path:        balanceIDPath,
 		Summary:     "Delete Balance by account",
 		Tags:        []string{tag},
-		Security:    secAssetBearerOrAPIKey,
+		Security:    secBalanceBearer,
 		// DefaultStatus 204 + an Out struct with no Body field => bodiless 204.
 		DefaultStatus: http.StatusNoContent,
 	}, h.DeleteBalanceByID)

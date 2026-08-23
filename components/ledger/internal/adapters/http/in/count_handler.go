@@ -36,6 +36,12 @@ import (
 //     attached in the unified server BEFORE the Huma terminal — the per-op Security
 //     metadata below is SPEC-ONLY.
 
+// secCountBearer is the spec-only Security metadata for the count operation:
+// a JWT bearer token. Runtime auth is the Fiber guard chain.
+var secCountBearer = []map[string][]string{
+	{"BearerAuth": {}},
+}
+
 // --- HEAD /transactions/metrics/count -----------------------------------------
 
 // CountTransactionsRequest advertises the count query filters in the spec (doc-
@@ -113,7 +119,7 @@ func RegisterCountTransactionRoutes(api huma.API, h *TransactionHandler, opSuffi
 		Path:        "/organizations/{organization_id}/ledgers/{ledger_id}/transactions/metrics/count",
 		Summary:     "Count Transactions by Filters",
 		Tags:        []string{"Transactions"},
-		Security:    secAssetBearerOrAPIKey,
+		Security:    secCountBearer,
 		// HEAD count: X-Total-Count header + empty 204 body (Content-Length 0 set on
 		// the Out struct).
 		DefaultStatus: http.StatusNoContent,

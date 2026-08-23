@@ -34,12 +34,11 @@ import (
 //     unified server BEFORE the Huma terminal — the per-op Security metadata below is
 //     SPEC-ONLY.
 
-// secOperationBearerOrAPIKey is the spec-only Security metadata for the
-// account-scoped operation reads: Bearer OR ApiKey, matching what the Fiber
-// guard chain accepts. The transaction-path PATCH keeps secTransactionBearer.
-var secOperationBearerOrAPIKey = []map[string][]string{
+// secOperationBearer is the spec-only Security metadata for the account-scoped
+// operation reads: a JWT bearer token, which is what the Fiber guard chain accepts.
+// The transaction-path PATCH keeps secTransactionBearer.
+var secOperationBearer = []map[string][]string{
 	{"BearerAuth": {}},
-	{"ApiKeyAuth": {}},
 }
 
 // --- GET /accounts/{account_id}/operations (list) -----------------------------
@@ -230,7 +229,7 @@ func RegisterOperationRoutes(api huma.API, h *OperationHandler, opSuffix string)
 		Path:        listPath,
 		Summary:     "Get all Operations by account",
 		Tags:        []string{tag},
-		Security:    secOperationBearerOrAPIKey,
+		Security:    secOperationBearer,
 	}, h.GetAllOperationsByAccount)
 
 	huma.Register(api, huma.Operation{
@@ -239,7 +238,7 @@ func RegisterOperationRoutes(api huma.API, h *OperationHandler, opSuffix string)
 		Path:        idPath,
 		Summary:     "Get Operation",
 		Tags:        []string{tag},
-		Security:    secOperationBearerOrAPIKey,
+		Security:    secOperationBearer,
 	}, h.GetOperationByAccount)
 
 	huma.Register(api, huma.Operation{

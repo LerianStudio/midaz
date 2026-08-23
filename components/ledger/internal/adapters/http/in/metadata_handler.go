@@ -37,12 +37,11 @@ import (
 // The transport-agnostic cores (createMetadataIndex / getAllMetadataIndexes /
 // deleteMetadataIndex) live in metadata.go.
 
-// secMetadataBearerOrAPIKey advertises that each metadata operation accepts EITHER a
-// JWT bearer token OR an X-API-Key (two entries = OR). SPEC metadata only; runtime
-// auth is the Fiber guard chain (auth.Authorize("midaz","settings",verb)).
-var secMetadataBearerOrAPIKey = []map[string][]string{
+// secMetadataBearer advertises that each metadata operation accepts a JWT bearer
+// token. SPEC metadata only; runtime auth is the Fiber guard chain
+// (auth.Authorize("midaz","settings",verb)).
+var secMetadataBearer = []map[string][]string{
 	{"BearerAuth": {}},
-	{"ApiKeyAuth": {}},
 }
 
 // --- POST /settings/metadata-indexes/entities/{entity_name} -------------------
@@ -174,7 +173,7 @@ func RegisterMetadataIndexRoutes(api huma.API, h *MetadataIndexHandler, opSuffix
 		Path:        entityPath,
 		Summary:     "Create Metadata Index",
 		Tags:        []string{tag},
-		Security:    secMetadataBearerOrAPIKey,
+		Security:    secMetadataBearer,
 		// Body validated imperatively (http.DecodeAndValidate) — see file header.
 		SkipValidateBody: true,
 		DefaultStatus:    http.StatusCreated,
@@ -187,7 +186,7 @@ func RegisterMetadataIndexRoutes(api huma.API, h *MetadataIndexHandler, opSuffix
 		Path:        listPath,
 		Summary:     "Get all Metadata Indexes",
 		Tags:        []string{tag},
-		Security:    secMetadataBearerOrAPIKey,
+		Security:    secMetadataBearer,
 	}, h.ListMetadataIndexes)
 
 	huma.Register(api, huma.Operation{
@@ -196,7 +195,7 @@ func RegisterMetadataIndexRoutes(api huma.API, h *MetadataIndexHandler, opSuffix
 		Path:        keyPath,
 		Summary:     "Delete Metadata Index",
 		Tags:        []string{tag},
-		Security:    secMetadataBearerOrAPIKey,
+		Security:    secMetadataBearer,
 		// DefaultStatus 204 + an Out struct with no Body field => bodiless 204.
 		DefaultStatus: http.StatusNoContent,
 	}, h.DeleteMetadataIndex)

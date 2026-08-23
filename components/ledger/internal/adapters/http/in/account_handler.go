@@ -34,12 +34,11 @@ import (
 // fall through as raw string locals, so no format tag is needed and no native 422 can
 // fire.
 
-// secAccountBearerOrAPIKey advertises that each account operation accepts EITHER a
-// JWT bearer token OR an X-API-Key (SPEC metadata only; runtime auth is the Fiber
-// guard chain). Scheme names are declared once on the shared Huma API.
-var secAccountBearerOrAPIKey = []map[string][]string{
+// secAccountBearer advertises that each account operation accepts a JWT bearer
+// token (SPEC metadata only; runtime auth is the Fiber guard chain). The scheme
+// name is declared once on the shared Huma API.
+var secAccountBearer = []map[string][]string{
 	{"BearerAuth": {}},
-	{"ApiKeyAuth": {}},
 }
 
 // --- POST /accounts -----------------------------------------------------------
@@ -383,7 +382,7 @@ func RegisterAccountRoutes(api huma.API, h *AccountHandler, opSuffix string) {
 		Path:             listPath,
 		Summary:          "Create a new account",
 		Tags:             []string{tag},
-		Security:         secAccountBearerOrAPIKey,
+		Security:         secAccountBearer,
 		SkipValidateBody: true, // body validated imperatively (http.DecodeAndValidate).
 		DefaultStatus:    http.StatusCreated,
 	}, h.CreateAccount)
@@ -395,7 +394,7 @@ func RegisterAccountRoutes(api huma.API, h *AccountHandler, opSuffix string) {
 		Path:        listPath,
 		Summary:     "List all accounts",
 		Tags:        []string{tag},
-		Security:    secAccountBearerOrAPIKey,
+		Security:    secAccountBearer,
 	}, h.ListAccounts)
 
 	huma.Register(api, huma.Operation{
@@ -404,7 +403,7 @@ func RegisterAccountRoutes(api huma.API, h *AccountHandler, opSuffix string) {
 		Path:        idPath,
 		Summary:     "Retrieve a specific account",
 		Tags:        []string{tag},
-		Security:    secAccountBearerOrAPIKey,
+		Security:    secAccountBearer,
 	}, h.GetAccountByID)
 
 	huma.Register(api, huma.Operation{
@@ -413,7 +412,7 @@ func RegisterAccountRoutes(api huma.API, h *AccountHandler, opSuffix string) {
 		Path:        aliasPath,
 		Summary:     "Retrieve an account by alias",
 		Tags:        []string{tag},
-		Security:    secAccountBearerOrAPIKey,
+		Security:    secAccountBearer,
 	}, h.GetAccountByAlias)
 
 	huma.Register(api, huma.Operation{
@@ -422,7 +421,7 @@ func RegisterAccountRoutes(api huma.API, h *AccountHandler, opSuffix string) {
 		Path:        externalPath,
 		Summary:     "Retrieve an account by external code",
 		Tags:        []string{tag},
-		Security:    secAccountBearerOrAPIKey,
+		Security:    secAccountBearer,
 	}, h.GetAccountExternalByCode)
 
 	huma.Register(api, huma.Operation{
@@ -431,7 +430,7 @@ func RegisterAccountRoutes(api huma.API, h *AccountHandler, opSuffix string) {
 		Path:             idPath,
 		Summary:          "Update an account",
 		Tags:             []string{tag},
-		Security:         secAccountBearerOrAPIKey,
+		Security:         secAccountBearer,
 		SkipValidateBody: true, // body validated imperatively.
 	}, h.UpdateAccount)
 	attachTypedRequestBody[mmodel.UpdateAccountInput](api, "updateAccount"+opSuffix)
@@ -442,7 +441,7 @@ func RegisterAccountRoutes(api huma.API, h *AccountHandler, opSuffix string) {
 		Path:          idPath,
 		Summary:       "Delete an account",
 		Tags:          []string{tag},
-		Security:      secAccountBearerOrAPIKey,
+		Security:      secAccountBearer,
 		DefaultStatus: http.StatusNoContent, // bodiless 204.
 	}, h.DeleteAccountByID)
 
@@ -452,7 +451,7 @@ func RegisterAccountRoutes(api huma.API, h *AccountHandler, opSuffix string) {
 		Path:          countPath,
 		Summary:       "Count accounts",
 		Tags:          []string{tag},
-		Security:      secAccountBearerOrAPIKey,
+		Security:      secAccountBearer,
 		DefaultStatus: http.StatusNoContent, // X-Total-Count header + empty 204 body.
 	}, h.CountAccounts)
 }

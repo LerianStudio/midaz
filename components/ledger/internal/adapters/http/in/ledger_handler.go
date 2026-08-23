@@ -43,12 +43,10 @@ import (
 //     BEFORE the Huma registration — NOT a Huma Security scheme. The per-op Security
 //     metadata below is SPEC-ONLY (for the generated OAS/SDK).
 
-// secLedgerBearerOrAPIKey advertises that each ledger operation accepts EITHER a JWT
-// bearer token OR an X-API-Key (two entries = OR). SPEC metadata only; runtime auth
-// is the Fiber guard chain.
-var secLedgerBearerOrAPIKey = []map[string][]string{
+// secLedgerBearer advertises that each ledger operation accepts a JWT bearer token.
+// SPEC metadata only; runtime auth is the Fiber guard chain.
+var secLedgerBearer = []map[string][]string{
 	{"BearerAuth": {}},
-	{"ApiKeyAuth": {}},
 }
 
 // parseOrg resolves the org path string to a UUID. On the wired path the
@@ -408,7 +406,7 @@ func RegisterLedgerRoutes(api huma.API, h *LedgerHandler, opSuffix string) {
 		Path:             listPath,
 		Summary:          "Create a new ledger",
 		Tags:             []string{tag},
-		Security:         secLedgerBearerOrAPIKey,
+		Security:         secLedgerBearer,
 		SkipValidateBody: true, // body validated imperatively (http.DecodeAndValidate).
 		DefaultStatus:    http.StatusCreated,
 	}, h.CreateLedger)
@@ -420,7 +418,7 @@ func RegisterLedgerRoutes(api huma.API, h *LedgerHandler, opSuffix string) {
 		Path:        listPath,
 		Summary:     "List all ledgers",
 		Tags:        []string{tag},
-		Security:    secLedgerBearerOrAPIKey,
+		Security:    secLedgerBearer,
 	}, h.ListLedgers)
 
 	huma.Register(api, huma.Operation{
@@ -429,7 +427,7 @@ func RegisterLedgerRoutes(api huma.API, h *LedgerHandler, opSuffix string) {
 		Path:        idPath,
 		Summary:     "Retrieve a specific ledger",
 		Tags:        []string{tag},
-		Security:    secLedgerBearerOrAPIKey,
+		Security:    secLedgerBearer,
 	}, h.GetLedgerByID)
 
 	huma.Register(api, huma.Operation{
@@ -438,7 +436,7 @@ func RegisterLedgerRoutes(api huma.API, h *LedgerHandler, opSuffix string) {
 		Path:             idPath,
 		Summary:          "Update an existing ledger",
 		Tags:             []string{tag},
-		Security:         secLedgerBearerOrAPIKey,
+		Security:         secLedgerBearer,
 		SkipValidateBody: true, // body validated imperatively — see createLedger.
 	}, h.UpdateLedger)
 	attachTypedRequestBody[mmodel.UpdateLedgerInput](api, "updateLedger"+opSuffix)
@@ -449,7 +447,7 @@ func RegisterLedgerRoutes(api huma.API, h *LedgerHandler, opSuffix string) {
 		Path:          idPath,
 		Summary:       "Delete a ledger",
 		Tags:          []string{tag},
-		Security:      secLedgerBearerOrAPIKey,
+		Security:      secLedgerBearer,
 		DefaultStatus: http.StatusNoContent, // Out has no Body field => bodiless 204.
 	}, h.DeleteLedgerByID)
 
@@ -459,7 +457,7 @@ func RegisterLedgerRoutes(api huma.API, h *LedgerHandler, opSuffix string) {
 		Path:          countPath,
 		Summary:       "Count total ledgers",
 		Tags:          []string{tag},
-		Security:      secLedgerBearerOrAPIKey,
+		Security:      secLedgerBearer,
 		DefaultStatus: http.StatusNoContent, // X-Total-Count header + empty 204 body.
 	}, h.CountLedgers)
 
@@ -469,7 +467,7 @@ func RegisterLedgerRoutes(api huma.API, h *LedgerHandler, opSuffix string) {
 		Path:        settingsPath,
 		Summary:     "Get ledger settings",
 		Tags:        []string{tag},
-		Security:    secLedgerBearerOrAPIKey,
+		Security:    secLedgerBearer,
 	}, h.GetLedgerSettings)
 
 	huma.Register(api, huma.Operation{
@@ -478,7 +476,7 @@ func RegisterLedgerRoutes(api huma.API, h *LedgerHandler, opSuffix string) {
 		Path:             settingsPath,
 		Summary:          "Update ledger settings",
 		Tags:             []string{tag},
-		Security:         secLedgerBearerOrAPIKey,
+		Security:         secLedgerBearer,
 		SkipValidateBody: true, // free-form map; allowlist enforced imperatively in the core.
 	}, h.UpdateLedgerSettings)
 	// updateLedgerSettings decodes into a free-form map[string]any (allowlist enforced

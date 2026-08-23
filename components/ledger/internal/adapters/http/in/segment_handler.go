@@ -21,9 +21,8 @@ import (
 // This file is the ledger's Huma adoption of the segment resource, cloned from the
 // asset DE-RISK exemplar (asset_handler.go). It reuses the package-shared
 // helpers parseOrgLedger / parsePathUUID (org+ledger+id path resolution) and
-// declares its own secSegmentBearerOrAPIKey spec-only Security metadata (the same
-// Bearer-OR-ApiKey OR applies to every resource). Conventions (see asset_handler.go
-// header for the full rationale):
+// declares its own secSegmentBearer spec-only Security metadata (bearer-only, as on
+// every resource). Conventions (see asset_handler.go header for the full rationale):
 //
 //  1. Path params are plain strings with ONLY `doc:` (no `format:"uuid"`): the
 //     ParseUUIDPathParameters("segment") Fiber middleware (attached in
@@ -38,16 +37,16 @@ import (
 //     tenant PostAuthMiddlewares + ParseUUIDPathParameters) — NOT a Huma Security
 //     scheme. The per-op Security metadata is SPEC-ONLY.
 
+// secSegmentBearer is the spec-only Security metadata for the segment operations:
+// a JWT bearer token. Runtime auth is the Fiber guard chain, which authorizes a
+// bearer token and nothing else.
+var secSegmentBearer = []map[string][]string{
+	{"BearerAuth": {}},
+}
+
 // --- POST /segments -----------------------------------------------------------
 
 // CreateSegmentRequest is the Huma request envelope for POST.
-// secSegmentBearerOrAPIKey is the spec-only Security metadata for the segment
-// operations: Bearer OR ApiKey, matching what the Fiber guard chain accepts.
-var secSegmentBearerOrAPIKey = []map[string][]string{
-	{"BearerAuth": {}},
-	{"ApiKeyAuth": {}},
-}
-
 type CreateSegmentRequest struct {
 	OrganizationID string `path:"organization_id" doc:"Organization ID (UUID)"`
 	LedgerID       string `path:"ledger_id" doc:"Ledger ID (UUID)"`
@@ -294,7 +293,7 @@ func RegisterSegmentRoutes(api huma.API, h *SegmentHandler, opSuffix string) {
 		Path:             listPath,
 		Summary:          "Create a new segment",
 		Tags:             []string{tag},
-		Security:         secSegmentBearerOrAPIKey,
+		Security:         secSegmentBearer,
 		SkipValidateBody: true, // body validated imperatively — see file header.
 		DefaultStatus:    http.StatusCreated,
 	}, h.CreateSegment)
@@ -306,7 +305,7 @@ func RegisterSegmentRoutes(api huma.API, h *SegmentHandler, opSuffix string) {
 		Path:        listPath,
 		Summary:     "List all segments",
 		Tags:        []string{tag},
-		Security:    secSegmentBearerOrAPIKey,
+		Security:    secSegmentBearer,
 	}, h.ListSegments)
 
 	huma.Register(api, huma.Operation{
@@ -315,7 +314,7 @@ func RegisterSegmentRoutes(api huma.API, h *SegmentHandler, opSuffix string) {
 		Path:        idPath,
 		Summary:     "Retrieve a specific segment",
 		Tags:        []string{tag},
-		Security:    secSegmentBearerOrAPIKey,
+		Security:    secSegmentBearer,
 	}, h.GetSegmentByID)
 
 	huma.Register(api, huma.Operation{
@@ -324,7 +323,7 @@ func RegisterSegmentRoutes(api huma.API, h *SegmentHandler, opSuffix string) {
 		Path:             idPath,
 		Summary:          "Update a segment",
 		Tags:             []string{tag},
-		Security:         secSegmentBearerOrAPIKey,
+		Security:         secSegmentBearer,
 		SkipValidateBody: true, // body validated imperatively — see file header.
 	}, h.UpdateSegment)
 	attachTypedRequestBody[mmodel.UpdateSegmentInput](api, "updateSegment"+opSuffix)
@@ -335,7 +334,7 @@ func RegisterSegmentRoutes(api huma.API, h *SegmentHandler, opSuffix string) {
 		Path:          idPath,
 		Summary:       "Delete a segment",
 		Tags:          []string{tag},
-		Security:      secSegmentBearerOrAPIKey,
+		Security:      secSegmentBearer,
 		DefaultStatus: http.StatusNoContent, // Out struct with no Body field => bodiless 204.
 	}, h.DeleteSegmentByID)
 
@@ -345,7 +344,7 @@ func RegisterSegmentRoutes(api huma.API, h *SegmentHandler, opSuffix string) {
 		Path:          countPath,
 		Summary:       "Count total segments",
 		Tags:          []string{tag},
-		Security:      secSegmentBearerOrAPIKey,
+		Security:      secSegmentBearer,
 		DefaultStatus: http.StatusNoContent, // X-Total-Count header + empty 204 body.
 	}, h.CountSegments)
 }
