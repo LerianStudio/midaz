@@ -894,10 +894,13 @@ func TestGolden_HelperPathCodeStatus(t *testing.T) {
 			wantCode:   libConstants.ErrAssetCodeNotFound.Error(), // 0034
 		},
 		{
-			// Int64 overflow -> 500. NOT 400.
-			name:       "libcommons_overflow_int64_0097_500",
+			// Int64 overflow -> 422. NOT 400, and NOT 500: the caller sent values whose
+			// sum exceeds int64, which is the same class as insufficient funds. The pkg
+			// registry entry for 0097 carries the same status, so the code answers with
+			// one status whichever layer produced it.
+			name:       "libcommons_overflow_int64_0097_422",
 			err:        libCommons.Response{Code: libConstants.ErrOverFlowInt64.Error(), Message: "overflow"},
-			wantStatus: fiber.StatusInternalServerError,
+			wantStatus: fiber.StatusUnprocessableEntity,
 			wantCode:   libConstants.ErrOverFlowInt64.Error(), // 0097
 		},
 	}
