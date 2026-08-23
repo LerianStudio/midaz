@@ -173,10 +173,13 @@ func mapTenantError(err error, tenantID string) error {
 		}
 	}
 
+	// err is deliberately not interpolated: this is a 503, and the ledger publishes
+	// >=500 message text to clients. The tenant ID stays because it is the caller's
+	// own; the underlying failure belongs in the span and the log.
 	return pkg.ServiceUnavailableError{
 		Code:    constant.ErrTenantServiceUnavailable.Error(),
 		Title:   "Tenant Service Unavailable",
-		Message: fmt.Sprintf("failed to resolve tenant %s: %s", tenantID, err.Error()),
+		Message: fmt.Sprintf("failed to resolve tenant %s", tenantID),
 	}
 }
 
