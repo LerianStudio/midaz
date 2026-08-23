@@ -17,52 +17,6 @@ const midazName = "midaz"
 // SettingsMaxPayloadSize defines the maximum payload size for settings endpoints (64KB).
 const SettingsMaxPayloadSize = 64 * 1024
 
-// RegisterOperationRoutesToApp wires the operation surface onto the /v1
-// contract. See registerOperationRoutesToApp for what it attaches.
-func RegisterOperationRoutesToApp(group fiber.Router, api huma.API, auth *middleware.AuthClient, oh *OperationHandler, routeOptions *http.ProtectedRouteOptions) {
-	registerOperationRoutesToApp(group, api, auth, oh, routeOptions, routeOpSuffixV1)
-}
-
-// RegisterOperationV2RoutesToApp wires the same operation surface onto the /v2 contract: same
-// paths, same handlers, same authz tuples and tenant chain, differing only in the operation IDs
-// the contract publishes. It is additive — /v1 keeps serving operations in parallel — and
-// introduces no new policy surface.
-func RegisterOperationV2RoutesToApp(group fiber.Router, api huma.API, auth *middleware.AuthClient, oh *OperationHandler, routeOptions *http.ProtectedRouteOptions) {
-	registerOperationRoutesToApp(group, api, auth, oh, routeOptions, routeOpSuffixV2)
-}
-
-// registerOperationRoutesToApp is the single description of the operation route surface, shared
-// by every versioned contract that serves it. It attaches the Fiber auth chain for the three
-// ops — two READ (GET, on the account path) plus the PATCH (UpdateOperation, on the transaction
-// path — a money-write LEG of the double-entry) —
-// auth.Authorize("midaz","operations",verb) + tenant PostAuthMiddlewares +
-// ParseUUIDPathParameters("operation") — as MIDDLEWARE ONLY (group-relative paths, no terminal)
-// on the VERSIONED GROUP, then registers the Huma terminals via RegisterOperationRoutes on the
-// SAME group's Huma API. The ("midaz","operations",verb) authz tuples
-// and tenant resolution BYTE-FOR-BYTE on whichever version group it is mounted on.
-//
-// opSuffix distinguishes the operation IDs one version group publishes from another's — see
-// routeOpSuffixV1. Nothing else varies between contracts, so a change to the surface reaches
-// every version it is mounted on.
-func registerOperationRoutesToApp(group fiber.Router, api huma.API, auth *middleware.AuthClient, oh *OperationHandler, routeOptions *http.ProtectedRouteOptions, opSuffix string) {
-	const (
-		listPath  = "/organizations/:organization_id/ledgers/:ledger_id/accounts/:account_id/operations"
-		idPath    = listPath + "/:operation_id"
-		patchPath = "/organizations/:organization_id/ledgers/:ledger_id/transactions/:transaction_id/operations/:operation_id"
-	)
-
-	parse := http.ParseUUIDPathParameters("operation")
-
-	// Two READ ops — ("operations","get").
-	routeGet(group, listPath, protectedMidaz(auth, "operations", "get", routeOptions, parse))
-	routeGet(group, idPath, protectedMidaz(auth, "operations", "get", routeOptions, parse))
-
-	// PATCH (money-write leg) — ("operations","patch").
-	routePatch(group, patchPath, protectedMidaz(auth, "operations", "patch", routeOptions, parse))
-
-	RegisterOperationRoutes(api, oh, opSuffix)
-}
-
 // RegisterCountTransactionRoutesToApp wires the transaction-count HEAD op onto the /v1
 // contract. See registerCountTransactionRoutesToApp for what it attaches.
 func RegisterCountTransactionRoutesToApp(group fiber.Router, api huma.API, auth *middleware.AuthClient, th *TransactionHandler, routeOptions *http.ProtectedRouteOptions) {
