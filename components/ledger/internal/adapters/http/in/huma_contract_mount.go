@@ -51,7 +51,7 @@ type HumaMountDeps struct {
 	// Transaction handler: money-write ops, transaction count, and the /v2 create.
 	Transaction *TransactionHandler
 
-	// Wave-3 CRM handlers. HolderAccounts, Encryption and Audit may be nil; the CRM
+	// CRM handlers. HolderAccounts, Encryption and Audit may be nil; the CRM
 	// registrar mounts neither the Fiber guard chain nor the Huma terminal for a nil
 	// handler, matching the pre-Huma nil-guard posture.
 	Holder         *HolderHandler
@@ -60,13 +60,13 @@ type HumaMountDeps struct {
 	Encryption     *EncryptionHandler
 	Audit          *AuditHandler
 
-	// Wave-3 fee/billing handlers.
+	// Fee/billing handlers.
 	FeePackage       *PackageHandler
 	Fee              *FeeHandler
 	BillingPackage   *BillingPackageHandler
 	BillingCalculate *BillingCalculateHandler
 
-	// Wave-3 composition handler.
+	// Composition handler.
 	Composition *CompositionHandler
 
 	// Route-scoped protected options, one instance per role. In multi-tenant mode
@@ -96,7 +96,7 @@ func (d HumaMountDeps) MountV1(group fiber.Router, api huma.API) {
 	d.registerOnboardingRoutes(group, api)
 	d.registerMoneyReadRoutes(group, api)
 
-	// Wave-4 (MONEY-WRITE): the twelve transaction ops (json/inflow/outflow/annotation/
+	// MONEY-WRITE: the twelve transaction ops (json/inflow/outflow/annotation/
 	// block/unblock CREATE, commit/cancel/revert STATE, PATCH update, GET-by-id + list).
 	// They carry TransactionOptions ([authAssertion, WithTenantDB]) and authorize
 	// against the "midaz" appName (protectedMidaz).

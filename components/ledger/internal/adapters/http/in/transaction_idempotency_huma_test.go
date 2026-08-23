@@ -12,7 +12,7 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-// Money-write idempotency parity gate (Wave 4 self-heal). One fact the pinning suite left
+// Money-write idempotency parity gate. One fact the pinning suite left
 // uncovered, a silent money-path regression: the Huma CREATE envelopes must bind the
 // idempotency headers under the SAME names the Fiber path (http.GetIdempotencyKeyAndTTL)
 // reads — the lib-commons canonical "X-Idempotency" / "X-TTL". Huma binds header params by
