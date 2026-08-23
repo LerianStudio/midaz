@@ -6,7 +6,6 @@ package in
 
 import (
 	"context"
-	"net/http"
 	"net/url"
 	"strconv"
 
@@ -100,28 +99,4 @@ func (handler *TransactionHandler) CountTransactionsByFilters(ctx context.Contex
 		TotalCount:    strconv.FormatInt(count, 10),
 		ContentLength: "0",
 	}, nil
-}
-
-// RegisterCountTransactionRoutes registers the transaction-count HEAD op on the
-// shared Huma API. It is the per-file seam the unified server calls;
-// the auth (auth.Authorize("midaz","transactions","head")) + tenant +
-// ParseUUIDPathParameters("transaction") chain for this route is attached in the
-// unified server (Fiber level) BEFORE the Huma terminal, not here. Paths are
-// GROUP-RELATIVE (the group's PrefixModifier writes the version into each op's op.Path, not into a servers entry).
-//
-// opSuffix distinguishes the operation ID one version group publishes from another's — see
-// routeOpSuffixV1. The v1 group passes the empty suffix so its ID stays exactly what published
-// SDKs bind to; the v2 group passes "V2" so its twin does not collide in the one document.
-func RegisterCountTransactionRoutes(api huma.API, h *TransactionHandler, opSuffix string) {
-	huma.Register(api, huma.Operation{
-		OperationID: "countTransactionsByFilters" + opSuffix,
-		Method:      http.MethodHead,
-		Path:        "/organizations/{organization_id}/ledgers/{ledger_id}/transactions/metrics/count",
-		Summary:     "Count Transactions by Filters",
-		Tags:        []string{"Transactions"},
-		Security:    secCountBearer,
-		// HEAD count: X-Total-Count header + empty 204 body (Content-Length 0 set on
-		// the Out struct).
-		DefaultStatus: http.StatusNoContent,
-	}, h.CountTransactionsByFilters)
 }
