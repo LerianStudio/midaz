@@ -14,6 +14,8 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	openapi "github.com/LerianStudio/lib-commons/v6/commons/net/http/openapi"
+	libProblem "github.com/LerianStudio/lib-commons/v6/commons/net/http/problem"
 	libObservability "github.com/LerianStudio/lib-observability/v2"
 	libLog "github.com/LerianStudio/lib-observability/v2/log"
 	"github.com/gofiber/fiber/v3"
@@ -24,7 +26,6 @@ import (
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/mongodb/fees/pack"
 	feemodel "github.com/LerianStudio/midaz/v4/components/ledger/pkg/feeshared/model"
 	cn "github.com/LerianStudio/midaz/v4/pkg/constant"
-	"github.com/LerianStudio/midaz/v4/pkg/mtransaction"
 	"github.com/LerianStudio/midaz/v4/pkg/net/http"
 	postgrestestutil "github.com/LerianStudio/midaz/v4/tests/utils/postgres"
 )
@@ -37,45 +38,39 @@ import (
 var debugFunnelLogs = false
 
 // newApp builds a Fiber app exposing the transaction routes the proof suite
-// drives, with path-param locals injected exactly as the production
-// ProtectedRouteChain does (UUID path params -> Locals). Modes that need a body
-// go through http.WithBody so the same decode/validate path as production runs.
+// drives, mounted through RegisterTransactionRoutes exactly as production does:
+// ParseUUIDPathParameters runs as Fiber middleware on the /v1 group and the Huma
+// registrar owns the terminals, so body decode/validate goes through the same
+// http.DecodeAndValidate pipeline as production.
 func (h *feeHarness) newApp() *fiber.App {
 	app := fiber.New()
 
-	paramMiddleware := func(c fiber.Ctx) error {
+	libProblem.Install()
+	http.InstallHumaFrameworkErrors()
+
+	apiV1 := app.Group("/v1")
+	hAPI := openapi.New(app, apiV1, openapi.Config{
+		Title:   "ledger-fee-integration",
+		Version: "test",
+		Servers: []string{"/v1"},
+	})
+
+	// The transaction Out nests operation.{Status,Balance,Amount}, which collide on
+	// bare schema names with the mmodel/transaction types on the shared registry.
+	// Must run after openapi.New and BEFORE any huma.Register.
+	http.InstallLedgerSchemaNamer(hAPI)
+
+	debugLogger := func(c fiber.Ctx) error {
 		if debugFunnelLogs {
 			c.SetContext(libObservability.ContextWithLogger(c.Context(), &libLog.GoLogger{Level: libLog.LevelDebug}))
 		}
-		if v := c.Params("organization_id"); v != "" {
-			id, _ := uuid.Parse(v)
-			c.Locals("organization_id", id)
-		}
-		if v := c.Params("ledger_id"); v != "" {
-			id, _ := uuid.Parse(v)
-			c.Locals("ledger_id", id)
-		}
-		if v := c.Params("transaction_id"); v != "" {
-			id, _ := uuid.Parse(v)
-			c.Locals("transaction_id", id)
-		}
+
 		return c.Next()
 	}
 
-	base := "/v1/organizations/:organization_id/ledgers/:ledger_id"
+	mountTransactionRoutes(apiV1, debugLogger)
 
-	app.Post(base+"/transactions/json", paramMiddleware,
-		http.WithBody(new(mtransaction.CreateTransactionInput), h.handler.CreateTransactionJSON))
-	app.Post(base+"/transactions/inflow", paramMiddleware,
-		http.WithBody(new(mtransaction.CreateTransactionInflowInput), h.handler.CreateTransactionInflow))
-	app.Post(base+"/transactions/outflow", paramMiddleware,
-		http.WithBody(new(mtransaction.CreateTransactionOutflowInput), h.handler.CreateTransactionOutflow))
-	app.Post(base+"/transactions/annotation", paramMiddleware,
-		http.WithBody(new(mtransaction.CreateTransactionInput), h.handler.CreateTransactionAnnotation))
-	app.Post(base+"/transactions/:transaction_id/commit", paramMiddleware, h.handler.CommitTransaction)
-	app.Post(base+"/transactions/:transaction_id/cancel", paramMiddleware, h.handler.CancelTransaction)
-	app.Post(base+"/transactions/:transaction_id/revert", paramMiddleware, h.handler.RevertTransaction)
-	app.Get(base+"/transactions/:transaction_id", paramMiddleware, h.handler.GetTransaction)
+	RegisterTransactionRoutes(hAPI, h.handler)
 
 	return app
 }

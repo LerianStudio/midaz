@@ -44,7 +44,7 @@ import (
 // origin reference — KNOWN DEFECT) possibly not even a reverse of the
 // origin the caller named.
 //
-// There is ONE live revert terminal, RevertTransactionHuma: both the v1 and v2 routes mount it
+// There is ONE live revert terminal, RevertTransaction: both the v1 and v2 routes mount it
 // (the Fiber wrapper RevertTransaction has no production registration). It must project the
 // core's `replayed` flag onto X-Idempotency-Replayed — as the typed output field AND as a
 // header a client can actually read — and the core must record a Warn so a replayed revert is
@@ -240,9 +240,9 @@ func TestRevertTransaction_ReplayedIdempotency_SurfacesOnTheHumaShell(t *testing
 	logger, recorder := recordingLogger(t, ctrl)
 	handler, subjects := arrangeReplayedRevert(t, ctrl)
 
-	out, err := handler.RevertTransactionHuma(
+	out, err := handler.RevertTransaction(
 		libObservability.ContextWithLogger(context.Background(), logger),
-		&StateTransactionInputHuma{
+		&StateTransactionRequest{
 			OrganizationID: subjects.orgID.String(),
 			LedgerID:       subjects.ledgerID.String(),
 			TransactionID:  subjects.originID.String(),

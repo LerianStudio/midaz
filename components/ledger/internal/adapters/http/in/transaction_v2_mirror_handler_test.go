@@ -100,7 +100,7 @@ func TestTransactionV2MirrorHandlers_RejectInvalidPathIDs(t *testing.T) {
 	t.Run("get by id", func(t *testing.T) {
 		t.Parallel()
 
-		out, err := handler.GetTransactionV2Huma(ctx, &GetTransactionByIDInputHuma{
+		out, err := handler.GetTransactionV2(ctx, &GetTransactionByIDRequest{
 			OrganizationID: badUUID, LedgerID: goodUUID, TransactionID: goodUUID,
 		})
 		require.Error(t, err)
@@ -110,7 +110,7 @@ func TestTransactionV2MirrorHandlers_RejectInvalidPathIDs(t *testing.T) {
 	t.Run("update", func(t *testing.T) {
 		t.Parallel()
 
-		out, err := handler.UpdateTransactionV2Huma(ctx, &UpdateTransactionInputHuma{
+		out, err := handler.UpdateTransactionV2(ctx, &UpdateTransactionRequest{
 			OrganizationID: goodUUID, LedgerID: badUUID, TransactionID: goodUUID,
 		})
 		require.Error(t, err)
@@ -120,7 +120,7 @@ func TestTransactionV2MirrorHandlers_RejectInvalidPathIDs(t *testing.T) {
 	t.Run("list", func(t *testing.T) {
 		t.Parallel()
 
-		out, err := handler.GetAllTransactionsV2Huma(ctx, &ListTransactionsInputHuma{
+		out, err := handler.GetAllTransactionsV2(ctx, &ListTransactionsRequest{
 			OrganizationID: goodUUID, LedgerID: badUUID,
 		})
 		require.Error(t, err)

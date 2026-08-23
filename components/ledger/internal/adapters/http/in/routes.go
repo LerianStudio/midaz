@@ -17,7 +17,7 @@ const midazName = "midaz"
 // SettingsMaxPayloadSize defines the maximum payload size for settings endpoints (64KB).
 const SettingsMaxPayloadSize = 64 * 1024
 
-// RegisterAssetRoutesToApp wires the Huma-migrated asset surface onto the /v1
+// RegisterAssetRoutesToApp wires the asset surface onto the /v1
 // contract. See registerAssetRoutesToApp for what it attaches.
 func RegisterAssetRoutesToApp(group fiber.Router, api huma.API, auth *middleware.AuthClient, ih *AssetHandler, routeOptions *http.ProtectedRouteOptions) {
 	registerAssetRoutesToApp(group, api, auth, ih, routeOptions, routeOpSuffixV1)
@@ -36,9 +36,9 @@ func RegisterAssetV2RoutesToApp(group fiber.Router, api huma.API, auth *middlewa
 // chain — auth.Authorize("midaz","assets",verb) + tenant PostAuthMiddlewares +
 // ParseUUIDPathParameters("asset") — as MIDDLEWARE ONLY (no terminal) on the VERSIONED GROUP
 // with GROUP-RELATIVE paths, then registers the Huma terminals via RegisterAssetRoutes on the
-// SAME group's Huma API. This preserves the pre-Huma ("midaz","assets",verb) authz tuples and
-// tenant resolution BYTE-FOR-BYTE on whichever version group it is mounted on; no asset route
-// becomes public.
+// SAME group's Huma API. The ("midaz","assets",verb) authz tuples and tenant resolution
+// therefore apply on whichever version group it is mounted on; no asset route becomes
+// public.
 //
 // opSuffix distinguishes the operation IDs one version group publishes from another's — see
 // routeOpSuffixV1. Nothing else varies between contracts, so a change to the surface reaches
@@ -62,7 +62,7 @@ func registerAssetRoutesToApp(group fiber.Router, api huma.API, auth *middleware
 	RegisterAssetRoutes(api, ih, opSuffix)
 }
 
-// RegisterBalanceRoutesToApp wires the Huma-migrated balance surface onto the /v1
+// RegisterBalanceRoutesToApp wires the balance surface onto the /v1
 // contract. See registerBalanceRoutesToApp for what it attaches.
 func RegisterBalanceRoutesToApp(group fiber.Router, api huma.API, auth *middleware.AuthClient, bh *BalanceHandler, routeOptions *http.ProtectedRouteOptions) {
 	registerBalanceRoutesToApp(group, api, auth, bh, routeOptions, routeOpSuffixV1)
@@ -83,9 +83,8 @@ func RegisterBalanceV2RoutesToApp(group fiber.Router, api huma.API, auth *middle
 // on the VERSIONED GROUP, then registers the Huma terminals via RegisterBalanceRoutes on the
 // SAME group's Huma API. The alias/code path segments are NOT UUIDs;
 // ParseUUIDPathParameters("balance") only validates org/ledger/balance_id/account_id, so those
-// routes pass alias/code through raw (identical to the pre-Huma Fiber path). This preserves the
-// ("midaz","balances",verb) authz tuples and tenant resolution BYTE-FOR-BYTE on whichever
-// version group it is mounted on.
+// routes pass alias/code through raw. The ("midaz","balances",verb) authz tuples and tenant
+// resolution therefore apply on whichever version group it is mounted on.
 //
 // opSuffix distinguishes the operation IDs one version group publishes from another's — see
 // routeOpSuffixV1. Nothing else varies between contracts, so a change to the surface reaches
@@ -118,7 +117,7 @@ func registerBalanceRoutesToApp(group fiber.Router, api huma.API, auth *middlewa
 	RegisterBalanceRoutes(api, bh, opSuffix)
 }
 
-// RegisterOperationRoutesToApp wires the Huma-migrated operation surface onto the /v1
+// RegisterOperationRoutesToApp wires the operation surface onto the /v1
 // contract. See registerOperationRoutesToApp for what it attaches.
 func RegisterOperationRoutesToApp(group fiber.Router, api huma.API, auth *middleware.AuthClient, oh *OperationHandler, routeOptions *http.ProtectedRouteOptions) {
 	registerOperationRoutesToApp(group, api, auth, oh, routeOptions, routeOpSuffixV1)
@@ -139,7 +138,7 @@ func RegisterOperationV2RoutesToApp(group fiber.Router, api huma.API, auth *midd
 // auth.Authorize("midaz","operations",verb) + tenant PostAuthMiddlewares +
 // ParseUUIDPathParameters("operation") — as MIDDLEWARE ONLY (group-relative paths, no terminal)
 // on the VERSIONED GROUP, then registers the Huma terminals via RegisterOperationRoutes on the
-// SAME group's Huma API. This preserves the pre-Huma ("midaz","operations",verb) authz tuples
+// SAME group's Huma API. The ("midaz","operations",verb) authz tuples
 // and tenant resolution BYTE-FOR-BYTE on whichever version group it is mounted on.
 //
 // opSuffix distinguishes the operation IDs one version group publishes from another's — see
@@ -164,8 +163,8 @@ func registerOperationRoutesToApp(group fiber.Router, api huma.API, auth *middle
 	RegisterOperationRoutes(api, oh, opSuffix)
 }
 
-// RegisterCountTransactionRoutesToApp wires the Huma-migrated transaction-count HEAD
-// op onto the /v1 contract. See registerCountTransactionRoutesToApp for what it attaches.
+// RegisterCountTransactionRoutesToApp wires the transaction-count HEAD op onto the /v1
+// contract. See registerCountTransactionRoutesToApp for what it attaches.
 func RegisterCountTransactionRoutesToApp(group fiber.Router, api huma.API, auth *middleware.AuthClient, th *TransactionHandler, routeOptions *http.ProtectedRouteOptions) {
 	registerCountTransactionRoutesToApp(group, api, auth, th, routeOptions, routeOpSuffixV1)
 }
@@ -199,13 +198,12 @@ func registerCountTransactionRoutesToApp(group fiber.Router, api huma.API, auth 
 	RegisterCountTransactionRoutes(api, th, opSuffix)
 }
 
-// RegisterTransactionHumaRoutesToApp wires the twelve Wave-4 Huma-migrated transaction
-// ops (six CREATE — json/inflow/outflow/annotation/block/unblock, three id-only STATE,
-// one PATCH, two READ). Auth is
-// auth.Authorize("midaz","transactions",verb) + tenant + ParseUUIDPathParameters
-// ("transaction"), attached as middleware-only on the /v1 group BEFORE the Huma terminals
-// — the SAME (appName, resource, verb) tuples the inline Fiber routes carried, preserved
-// byte-for-byte. Paths are relative to the /v1 group; the Huma terminals are attached by
+// RegisterTransactionHumaRoutesToApp wires the twelve transaction ops (six CREATE —
+// json/inflow/outflow/annotation/block/unblock, three id-only STATE, one PATCH, two
+// READ). Auth is auth.Authorize("midaz","transactions",verb) + tenant +
+// ParseUUIDPathParameters("transaction"), attached as middleware-only on the /v1 group
+// BEFORE the Huma terminals, so each op keeps its (appName, resource, verb) tuple. Paths
+// are relative to the /v1 group; the Huma terminals are attached by
 // RegisterTransactionRoutes.
 func RegisterTransactionHumaRoutesToApp(group fiber.Router, api huma.API, auth *middleware.AuthClient, th *TransactionHandler, routeOptions *http.ProtectedRouteOptions) {
 	const (
@@ -238,7 +236,7 @@ func RegisterTransactionHumaRoutesToApp(group fiber.Router, api huma.API, auth *
 	RegisterTransactionRoutes(api, th)
 }
 
-// RegisterOperationRouteRoutesToApp wires the Huma-migrated operation-route surface onto
+// RegisterOperationRouteRoutesToApp wires the operation-route surface onto
 // the /v1 contract. See registerOperationRouteRoutesToApp for what it attaches.
 func RegisterOperationRouteRoutesToApp(group fiber.Router, api huma.API, auth *middleware.AuthClient, orh *OperationRouteHandler, routeOptions *http.ProtectedRouteOptions) {
 	registerOperationRouteRoutesToApp(group, api, auth, orh, routeOptions, routeOpSuffixV1)
@@ -280,7 +278,7 @@ func registerOperationRouteRoutesToApp(group fiber.Router, api huma.API, auth *m
 	RegisterOperationRouteRoutes(api, orh, opSuffix)
 }
 
-// RegisterTransactionRouteRoutesToApp wires the Huma-migrated transaction-route surface onto
+// RegisterTransactionRouteRoutesToApp wires the transaction-route surface onto
 // the /v1 contract. See registerTransactionRouteRoutesToApp for what it attaches.
 func RegisterTransactionRouteRoutesToApp(group fiber.Router, api huma.API, auth *middleware.AuthClient, trh *TransactionRouteHandler, routeOptions *http.ProtectedRouteOptions) {
 	registerTransactionRouteRoutesToApp(group, api, auth, trh, routeOptions, routeOpSuffixV1)

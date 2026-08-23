@@ -14,11 +14,8 @@ import (
 	"github.com/LerianStudio/midaz/v4/components/ledger/pkg/feeshared/model"
 	feeerrors "github.com/LerianStudio/midaz/v4/pkg"
 	feeconstant "github.com/LerianStudio/midaz/v4/pkg/constant"
-	"github.com/LerianStudio/midaz/v4/pkg/net/http"
 
-	commonsHttp "github.com/LerianStudio/lib-commons/v6/commons/net/http"
 	libOpentelemetry "github.com/LerianStudio/lib-observability/v2/tracing"
-	"github.com/gofiber/fiber/v3"
 	"github.com/google/uuid"
 	"go.opentelemetry.io/otel/attribute"
 )
@@ -32,28 +29,6 @@ type BillingCalculateUseCase interface {
 // BillingCalculateHandler exposes the billing-calculation endpoint over HTTP.
 type BillingCalculateHandler struct {
 	Service BillingCalculateUseCase
-}
-
-// CalculateBilling performs a billing calculation for the given request.
-func (handler *BillingCalculateHandler) CalculateBilling(p any, c fiber.Ctx) error {
-	ctx := c.Context()
-
-	organizationID, err := http.GetUUIDFromLocals(c, "organization_id")
-	if err != nil {
-		return http.WithError(c, err)
-	}
-
-	payload, ok := p.(*model.BillingCalculateRequest)
-	if !ok || payload == nil {
-		return http.WithError(c, feeerrors.ValidateInternalError(feeconstant.ErrInternalServer, "BillingCalculation"))
-	}
-
-	result, err := handler.calculateBilling(ctx, organizationID, payload)
-	if err != nil {
-		return http.WithError(c, err)
-	}
-
-	return commonsHttp.Respond(c, fiber.StatusOK, result)
 }
 
 // calculateBilling is the transport-agnostic core of the calculate op, shared by the

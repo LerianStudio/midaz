@@ -6,13 +6,11 @@ package in
 
 import (
 	"context"
-	"fmt"
 	"os"
 
 	libObservability "github.com/LerianStudio/lib-observability/v2"
 	libLog "github.com/LerianStudio/lib-observability/v2/log"
 	libOpentelemetry "github.com/LerianStudio/lib-observability/v2/tracing"
-	"github.com/gofiber/fiber/v3"
 	"github.com/google/uuid"
 	"go.mongodb.org/mongo-driver/v2/bson"
 	"go.opentelemetry.io/otel/attribute"
@@ -36,16 +34,14 @@ type OrganizationHandler struct {
 // The createOrganization/updateOrganization/... methods below own the span, the
 // service call, the success log and every organization-specific guard (the list
 // status + name-filter checks and the delete production-environment guard). They
-// take primitive args (parsed UUIDs, raw body payload, the query map) so BOTH
-// transports feed them: the Fiber wrappers pull those from fiber.Ctx (Locals +
-// the WithBody-decoded payload) and the Huma handlers (organization_handler_huma.go)
-// pull them from the request envelope. Every canonical Midaz error the cores return
-// is rendered by the caller — http.WithError on the Fiber path, http.HumaProblem on
-// the Huma path — so the code + HTTP status are identical across both transports.
+// take primitive args — the parsed UUID, the decoded payload, the query map — so
+// nothing transport-shaped reaches them; the handlers in organization_handler.go pull
+// those out of the request envelope. Every canonical Midaz error a core returns is
+// rendered by its caller via http.HumaProblem, which fixes the code + HTTP status.
 
 // createOrganization owns the span + service call + success log for an already-decoded
-// payload. Body decode+validation happens BEFORE this core (Fiber via WithBody, Huma
-// via http.DecodeAndValidate), so create is identical across transports.
+// payload. Body decode+validation happens BEFORE this core, in the handler, via
+// http.DecodeAndValidate.
 func (handler *OrganizationHandler) createOrganization(ctx context.Context, payload *mmodel.CreateOrganizationInput) (*mmodel.Organization, error) {
 	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
@@ -69,7 +65,7 @@ func (handler *OrganizationHandler) createOrganization(ctx context.Context, payl
 }
 
 // updateOrganization owns the span + service call + success log for an already-decoded
-// payload (see createOrganization for the decode split across transports).
+// payload (see createOrganization for where the decode happens).
 func (handler *OrganizationHandler) updateOrganization(ctx context.Context, id uuid.UUID, payload *mmodel.UpdateOrganizationInput) (*mmodel.Organization, error) {
 	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
@@ -107,10 +103,10 @@ func (handler *OrganizationHandler) getOrganizationByID(ctx context.Context, id 
 	return organization, nil
 }
 
-// getAllOrganizations binds the query map imperatively (http.ValidateParameters — the
-// SAME binder the Fiber path used), applies the organization-specific status +
-// name-filter guards, then returns the assembled pagination envelope. A bad query or
-// a rejected guard yields the canonical 400.
+// getAllOrganizations binds the query map imperatively via http.ValidateParameters,
+// applies the organization-specific status + name-filter guards, then returns the
+// assembled pagination envelope. A bad query or a rejected guard yields the canonical
+// 400.
 func (handler *OrganizationHandler) getAllOrganizations(ctx context.Context, queries map[string]string) (http.Pagination, error) {
 	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
@@ -180,8 +176,8 @@ func (handler *OrganizationHandler) getAllOrganizations(ctx context.Context, que
 }
 
 // deleteOrganization removes an organization. It owns the production-environment
-// guard: DELETE is rejected with the canonical ErrActionNotPermitted (403) when
-// ENV_NAME == "production", identical across transports.
+// guard: DELETE is rejected with the canonical ErrActionNotPermitted (422) when
+// ENV_NAME == "production".
 func (handler *OrganizationHandler) deleteOrganization(ctx context.Context, id uuid.UUID) error {
 	_, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
@@ -220,90 +216,4 @@ func (handler *OrganizationHandler) countOrganizations(ctx context.Context) (int
 	}
 
 	return count, nil
-}
-
-// --- Fiber wrappers (thin) ----------------------------------------------------
-//
-// These stay so the legacy Fiber unit/integration tests keep exercising the handler
-// methods directly; each pulls the transport inputs from fiber.Ctx (Locals set by
-// ParseUUIDPathParameters, the WithBody-decoded payload) and delegates to the shared
-// core. NOTE: the LIVE organization routes are Huma now (see
-// organization_handler_huma.go + RegisterOrganizationRoutesToApp); these Fiber
-// wrappers are not mounted by the unified server.
-
-// CreateOrganization is a method that creates Organization information.
-func (handler *OrganizationHandler) CreateOrganization(p any, c fiber.Ctx) error {
-	organization, err := handler.createOrganization(c.Context(), p.(*mmodel.CreateOrganizationInput))
-	if err != nil {
-		return http.WithError(c, err)
-	}
-
-	return http.Created(c, organization)
-}
-
-// UpdateOrganization is a method that updates Organization information.
-func (handler *OrganizationHandler) UpdateOrganization(p any, c fiber.Ctx) error {
-	id, err := http.GetUUIDFromLocals(c, "id")
-	if err != nil {
-		return http.WithError(c, err)
-	}
-
-	organization, err := handler.updateOrganization(c.Context(), id, p.(*mmodel.UpdateOrganizationInput))
-	if err != nil {
-		return http.WithError(c, err)
-	}
-
-	return http.OK(c, organization)
-}
-
-// GetOrganizationByID is a method that retrieves Organization information by a given id.
-func (handler *OrganizationHandler) GetOrganizationByID(c fiber.Ctx) error {
-	id, err := http.GetUUIDFromLocals(c, "id")
-	if err != nil {
-		return http.WithError(c, err)
-	}
-
-	organization, err := handler.getOrganizationByID(c.Context(), id)
-	if err != nil {
-		return http.WithError(c, err)
-	}
-
-	return http.OK(c, organization)
-}
-
-// GetAllOrganizations is a method that retrieves all Organizations.
-func (handler *OrganizationHandler) GetAllOrganizations(c fiber.Ctx) error {
-	pagination, err := handler.getAllOrganizations(c.Context(), c.Queries())
-	if err != nil {
-		return http.WithError(c, err)
-	}
-
-	return http.OK(c, pagination)
-}
-
-// DeleteOrganizationByID is a method that removes Organization information by a given id.
-func (handler *OrganizationHandler) DeleteOrganizationByID(c fiber.Ctx) error {
-	id, err := http.GetUUIDFromLocals(c, "id")
-	if err != nil {
-		return http.WithError(c, err)
-	}
-
-	if err := handler.deleteOrganization(c.Context(), id); err != nil {
-		return http.WithError(c, err)
-	}
-
-	return http.NoContent(c)
-}
-
-// CountOrganizations is a method that returns the total count of organizations.
-func (handler *OrganizationHandler) CountOrganizations(c fiber.Ctx) error {
-	count, err := handler.countOrganizations(c.Context())
-	if err != nil {
-		return http.WithError(c, err)
-	}
-
-	c.Set(constant.XTotalCount, fmt.Sprintf("%d", count))
-	c.Set(constant.ContentLength, "0")
-
-	return http.NoContent(c)
 }

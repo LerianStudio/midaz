@@ -4454,11 +4454,6 @@ components:
         - percentage
       type: object
   securitySchemes:
-    ApiKeyAuth:
-      description: Static API key presented in the X-API-Key header.
-      in: header
-      name: X-API-Key
-      type: apiKey
     BearerAuth:
       bearerFormat: JWT
       description: JWT bearer token issued by the identity provider.
@@ -4559,20 +4554,12 @@ paths:
           description: Error
       security:
         - BearerAuth: []
-        - ApiKeyAuth: []
       summary: List all organizations
       tags:
         - Organizations (v1)
     post:
       deprecated: true
       operationId: createOrganization
-      parameters:
-        - description: Bearer token (forwarded to the service)
-          in: header
-          name: Authorization
-          schema:
-            description: Bearer token (forwarded to the service)
-            type: string
       requestBody:
         content:
           application/json:
@@ -4594,7 +4581,6 @@ paths:
           description: Error
       security:
         - BearerAuth: []
-        - ApiKeyAuth: []
       summary: Create a new organization
       tags:
         - Organizations (v1)
@@ -4620,7 +4606,6 @@ paths:
           description: Error
       security:
         - BearerAuth: []
-        - ApiKeyAuth: []
       summary: Count total organizations
       tags:
         - Organizations (v1)
@@ -4647,7 +4632,6 @@ paths:
           description: Error
       security:
         - BearerAuth: []
-        - ApiKeyAuth: []
       summary: Delete an organization
       tags:
         - Organizations (v1)
@@ -4677,7 +4661,6 @@ paths:
           description: Error
       security:
         - BearerAuth: []
-        - ApiKeyAuth: []
       summary: Retrieve a specific organization
       tags:
         - Organizations (v1)
@@ -4713,7 +4696,6 @@ paths:
           description: Error
       security:
         - BearerAuth: []
-        - ApiKeyAuth: []
       summary: Update an existing organization
       tags:
         - Organizations (v1)
@@ -4800,7 +4782,6 @@ paths:
           description: Error
       security:
         - BearerAuth: []
-        - ApiKeyAuth: []
       summary: List all ledgers
       tags:
         - Ledgers (v1)
@@ -4836,7 +4817,6 @@ paths:
           description: Error
       security:
         - BearerAuth: []
-        - ApiKeyAuth: []
       summary: Create a new ledger
       tags:
         - Ledgers (v1)
@@ -4870,7 +4850,6 @@ paths:
           description: Error
       security:
         - BearerAuth: []
-        - ApiKeyAuth: []
       summary: Count total ledgers
       tags:
         - Ledgers (v1)
@@ -4904,7 +4883,6 @@ paths:
           description: Error
       security:
         - BearerAuth: []
-        - ApiKeyAuth: []
       summary: Delete a ledger
       tags:
         - Ledgers (v1)
@@ -4941,7 +4919,6 @@ paths:
           description: Error
       security:
         - BearerAuth: []
-        - ApiKeyAuth: []
       summary: Retrieve a specific ledger
       tags:
         - Ledgers (v1)
@@ -4984,7 +4961,6 @@ paths:
           description: Error
       security:
         - BearerAuth: []
-        - ApiKeyAuth: []
       summary: Update an existing ledger
       tags:
         - Ledgers (v1)
@@ -5078,7 +5054,6 @@ paths:
           description: Error
       security:
         - BearerAuth: []
-        - ApiKeyAuth: []
       summary: List all account types
       tags:
         - Account Types (v1)
@@ -5121,7 +5096,6 @@ paths:
           description: Error
       security:
         - BearerAuth: []
-        - ApiKeyAuth: []
       summary: Create a new account type
       tags:
         - Account Types (v1)
@@ -5162,7 +5136,6 @@ paths:
           description: Error
       security:
         - BearerAuth: []
-        - ApiKeyAuth: []
       summary: Delete an account type
       tags:
         - Account Types (v1)
@@ -5206,7 +5179,6 @@ paths:
           description: Error
       security:
         - BearerAuth: []
-        - ApiKeyAuth: []
       summary: Retrieve a specific account type
       tags:
         - Account Types (v1)
@@ -5256,7 +5228,6 @@ paths:
           description: Error
       security:
         - BearerAuth: []
-        - ApiKeyAuth: []
       summary: Update an account type
       tags:
         - Account Types (v1)
@@ -5406,7 +5377,6 @@ paths:
           description: Error
       security:
         - BearerAuth: []
-        - ApiKeyAuth: []
       summary: List all accounts
       tags:
         - Accounts (v1)
@@ -5455,7 +5425,6 @@ paths:
           description: Error
       security:
         - BearerAuth: []
-        - ApiKeyAuth: []
       summary: Create a new account
       tags:
         - Accounts (v1)
@@ -5500,7 +5469,6 @@ paths:
           description: Error
       security:
         - BearerAuth: []
-        - ApiKeyAuth: []
       summary: Retrieve an account by alias
       tags:
         - Accounts (v1)
@@ -5545,7 +5513,6 @@ paths:
           description: Error
       security:
         - BearerAuth: []
-        - ApiKeyAuth: []
       summary: Get Balances using Alias
       tags:
         - Balances (v1)
@@ -5590,7 +5557,6 @@ paths:
           description: Error
       security:
         - BearerAuth: []
-        - ApiKeyAuth: []
       summary: Retrieve an account by external code
       tags:
         - Accounts (v1)
@@ -5635,7 +5601,6 @@ paths:
           description: Error
       security:
         - BearerAuth: []
-        - ApiKeyAuth: []
       summary: Get External balances using code
       tags:
         - Balances (v1)
@@ -5676,7 +5641,6 @@ paths:
           description: Error
       security:
         - BearerAuth: []
-        - ApiKeyAuth: []
       summary: Count accounts
       tags:
         - Accounts (v1)
@@ -5756,7 +5720,6 @@ paths:
           description: Error
       security:
         - BearerAuth: []
-        - ApiKeyAuth: []
       summary: Get all balances by account id
       tags:
         - Balances (v1)
@@ -5806,7 +5769,6 @@ paths:
           description: Error
       security:
         - BearerAuth: []
-        - ApiKeyAuth: []
       summary: Create Additional Balance
       tags:
         - Balances (v1)
@@ -5862,7 +5824,6 @@ paths:
           description: Error
       security:
         - BearerAuth: []
-        - ApiKeyAuth: []
       summary: Get Account Balances history at date
       tags:
         - Balances (v1)
@@ -5977,7 +5938,6 @@ paths:
           description: Error
       security:
         - BearerAuth: []
-        - ApiKeyAuth: []
       summary: Get all Operations by account
       tags:
         - Operations (v1)
@@ -6029,7 +5989,6 @@ paths:
           description: Error
       security:
         - BearerAuth: []
-        - ApiKeyAuth: []
       summary: Get Operation
       tags:
         - Operations (v1)
@@ -6076,7 +6035,6 @@ paths:
           description: Error
       security:
         - BearerAuth: []
-        - ApiKeyAuth: []
       summary: Delete an account
       tags:
         - Accounts (v1)
@@ -6120,7 +6078,6 @@ paths:
           description: Error
       security:
         - BearerAuth: []
-        - ApiKeyAuth: []
       summary: Retrieve a specific account
       tags:
         - Accounts (v1)
@@ -6170,7 +6127,6 @@ paths:
           description: Error
       security:
         - BearerAuth: []
-        - ApiKeyAuth: []
       summary: Update an account
       tags:
         - Accounts (v1)
@@ -6214,7 +6170,6 @@ paths:
           description: Error
       security:
         - BearerAuth: []
-        - ApiKeyAuth: []
       summary: Create or Update an AssetRate
       tags:
         - Asset Rates (v1)
@@ -6305,7 +6260,6 @@ paths:
           description: Error
       security:
         - BearerAuth: []
-        - ApiKeyAuth: []
       summary: Get an AssetRate by the Asset Code
       tags:
         - Asset Rates (v1)
@@ -6350,7 +6304,6 @@ paths:
           description: Error
       security:
         - BearerAuth: []
-        - ApiKeyAuth: []
       summary: Get an AssetRate by External ID
       tags:
         - Asset Rates (v1)
@@ -6430,7 +6383,6 @@ paths:
           description: Error
       security:
         - BearerAuth: []
-        - ApiKeyAuth: []
       summary: List all assets
       tags:
         - Assets (v1)
@@ -6479,7 +6431,6 @@ paths:
           description: Error
       security:
         - BearerAuth: []
-        - ApiKeyAuth: []
       summary: Create a new asset
       tags:
         - Assets (v1)
@@ -6520,7 +6471,6 @@ paths:
           description: Error
       security:
         - BearerAuth: []
-        - ApiKeyAuth: []
       summary: Count total assets
       tags:
         - Assets (v1)
@@ -6561,7 +6511,6 @@ paths:
           description: Error
       security:
         - BearerAuth: []
-        - ApiKeyAuth: []
       summary: Delete an asset
       tags:
         - Assets (v1)
@@ -6605,7 +6554,6 @@ paths:
           description: Error
       security:
         - BearerAuth: []
-        - ApiKeyAuth: []
       summary: Retrieve a specific asset
       tags:
         - Assets (v1)
@@ -6655,7 +6603,6 @@ paths:
           description: Error
       security:
         - BearerAuth: []
-        - ApiKeyAuth: []
       summary: Update an asset
       tags:
         - Assets (v1)
@@ -6728,7 +6675,6 @@ paths:
           description: Error
       security:
         - BearerAuth: []
-        - ApiKeyAuth: []
       summary: Get all balances
       tags:
         - Balances (v1)
@@ -6769,7 +6715,6 @@ paths:
           description: Error
       security:
         - BearerAuth: []
-        - ApiKeyAuth: []
       summary: Delete Balance by account
       tags:
         - Balances (v1)
@@ -6813,7 +6758,6 @@ paths:
           description: Error
       security:
         - BearerAuth: []
-        - ApiKeyAuth: []
       summary: Get Balance by id
       tags:
         - Balances (v1)
@@ -6863,7 +6807,6 @@ paths:
           description: Error
       security:
         - BearerAuth: []
-        - ApiKeyAuth: []
       summary: Update Balance
       tags:
         - Balances (v1)
@@ -6915,7 +6858,6 @@ paths:
           description: Error
       security:
         - BearerAuth: []
-        - ApiKeyAuth: []
       summary: Get Balance history at date
       tags:
         - Balances (v1)
@@ -7255,7 +7197,6 @@ paths:
           description: Error
       security:
         - BearerAuth: []
-        - ApiKeyAuth: []
       summary: List all portfolios
       tags:
         - Portfolios (v1)
@@ -7298,7 +7239,6 @@ paths:
           description: Error
       security:
         - BearerAuth: []
-        - ApiKeyAuth: []
       summary: Create a new portfolio
       tags:
         - Portfolios (v1)
@@ -7339,7 +7279,6 @@ paths:
           description: Error
       security:
         - BearerAuth: []
-        - ApiKeyAuth: []
       summary: Count total portfolios
       tags:
         - Portfolios (v1)
@@ -7380,7 +7319,6 @@ paths:
           description: Error
       security:
         - BearerAuth: []
-        - ApiKeyAuth: []
       summary: Delete a portfolio
       tags:
         - Portfolios (v1)
@@ -7424,7 +7362,6 @@ paths:
           description: Error
       security:
         - BearerAuth: []
-        - ApiKeyAuth: []
       summary: Retrieve a specific portfolio
       tags:
         - Portfolios (v1)
@@ -7474,7 +7411,6 @@ paths:
           description: Error
       security:
         - BearerAuth: []
-        - ApiKeyAuth: []
       summary: Update a portfolio
       tags:
         - Portfolios (v1)
@@ -7554,7 +7490,6 @@ paths:
           description: Error
       security:
         - BearerAuth: []
-        - ApiKeyAuth: []
       summary: List all segments
       tags:
         - Segments (v1)
@@ -7597,7 +7532,6 @@ paths:
           description: Error
       security:
         - BearerAuth: []
-        - ApiKeyAuth: []
       summary: Create a new segment
       tags:
         - Segments (v1)
@@ -7638,7 +7572,6 @@ paths:
           description: Error
       security:
         - BearerAuth: []
-        - ApiKeyAuth: []
       summary: Count total segments
       tags:
         - Segments (v1)
@@ -7679,7 +7612,6 @@ paths:
           description: Error
       security:
         - BearerAuth: []
-        - ApiKeyAuth: []
       summary: Delete a segment
       tags:
         - Segments (v1)
@@ -7723,7 +7655,6 @@ paths:
           description: Error
       security:
         - BearerAuth: []
-        - ApiKeyAuth: []
       summary: Retrieve a specific segment
       tags:
         - Segments (v1)
@@ -7773,7 +7704,6 @@ paths:
           description: Error
       security:
         - BearerAuth: []
-        - ApiKeyAuth: []
       summary: Update a segment
       tags:
         - Segments (v1)
@@ -7811,7 +7741,6 @@ paths:
           description: Error
       security:
         - BearerAuth: []
-        - ApiKeyAuth: []
       summary: Get ledger settings
       tags:
         - Ledgers (v1)
@@ -7855,7 +7784,6 @@ paths:
           description: Error
       security:
         - BearerAuth: []
-        - ApiKeyAuth: []
       summary: Update ledger settings
       tags:
         - Ledgers (v1)
@@ -8485,7 +8413,6 @@ paths:
           description: Error
       security:
         - BearerAuth: []
-        - ApiKeyAuth: []
       summary: Count Transactions by Filters
       tags:
         - Transactions (v1)
@@ -8928,7 +8855,6 @@ paths:
           description: Error
       security:
         - BearerAuth: []
-        - ApiKeyAuth: []
       summary: Get all Metadata Indexes
       tags:
         - Metadata Indexes (v1)
@@ -8965,7 +8891,6 @@ paths:
           description: Error
       security:
         - BearerAuth: []
-        - ApiKeyAuth: []
       summary: Create Metadata Index
       tags:
         - Metadata Indexes (v1)
@@ -8999,7 +8924,6 @@ paths:
           description: Error
       security:
         - BearerAuth: []
-        - ApiKeyAuth: []
       summary: Delete Metadata Index
       tags:
         - Metadata Indexes (v1)
@@ -9092,19 +9016,11 @@ paths:
           description: Error
       security:
         - BearerAuth: []
-        - ApiKeyAuth: []
       summary: List all organizations
       tags:
         - Organizations (v2)
     post:
       operationId: createOrganizationV2
-      parameters:
-        - description: Bearer token (forwarded to the service)
-          in: header
-          name: Authorization
-          schema:
-            description: Bearer token (forwarded to the service)
-            type: string
       requestBody:
         content:
           application/json:
@@ -9126,7 +9042,6 @@ paths:
           description: Error
       security:
         - BearerAuth: []
-        - ApiKeyAuth: []
       summary: Create a new organization
       tags:
         - Organizations (v2)
@@ -9151,7 +9066,6 @@ paths:
           description: Error
       security:
         - BearerAuth: []
-        - ApiKeyAuth: []
       summary: Count total organizations
       tags:
         - Organizations (v2)
@@ -9177,7 +9091,6 @@ paths:
           description: Error
       security:
         - BearerAuth: []
-        - ApiKeyAuth: []
       summary: Delete an organization
       tags:
         - Organizations (v2)
@@ -9206,7 +9119,6 @@ paths:
           description: Error
       security:
         - BearerAuth: []
-        - ApiKeyAuth: []
       summary: Retrieve a specific organization
       tags:
         - Organizations (v2)
@@ -9241,7 +9153,6 @@ paths:
           description: Error
       security:
         - BearerAuth: []
-        - ApiKeyAuth: []
       summary: Update an existing organization
       tags:
         - Organizations (v2)
@@ -10049,7 +9960,6 @@ paths:
           description: Error
       security:
         - BearerAuth: []
-        - ApiKeyAuth: []
       summary: List all ledgers
       tags:
         - Ledgers (v2)
@@ -10084,7 +9994,6 @@ paths:
           description: Error
       security:
         - BearerAuth: []
-        - ApiKeyAuth: []
       summary: Create a new ledger
       tags:
         - Ledgers (v2)
@@ -10117,7 +10026,6 @@ paths:
           description: Error
       security:
         - BearerAuth: []
-        - ApiKeyAuth: []
       summary: Count total ledgers
       tags:
         - Ledgers (v2)
@@ -10150,7 +10058,6 @@ paths:
           description: Error
       security:
         - BearerAuth: []
-        - ApiKeyAuth: []
       summary: Delete a ledger
       tags:
         - Ledgers (v2)
@@ -10186,7 +10093,6 @@ paths:
           description: Error
       security:
         - BearerAuth: []
-        - ApiKeyAuth: []
       summary: Retrieve a specific ledger
       tags:
         - Ledgers (v2)
@@ -10228,7 +10134,6 @@ paths:
           description: Error
       security:
         - BearerAuth: []
-        - ApiKeyAuth: []
       summary: Update an existing ledger
       tags:
         - Ledgers (v2)
@@ -10321,7 +10226,6 @@ paths:
           description: Error
       security:
         - BearerAuth: []
-        - ApiKeyAuth: []
       summary: List all account types
       tags:
         - Account Types (v2)
@@ -10363,7 +10267,6 @@ paths:
           description: Error
       security:
         - BearerAuth: []
-        - ApiKeyAuth: []
       summary: Create a new account type
       tags:
         - Account Types (v2)
@@ -10403,7 +10306,6 @@ paths:
           description: Error
       security:
         - BearerAuth: []
-        - ApiKeyAuth: []
       summary: Delete an account type
       tags:
         - Account Types (v2)
@@ -10446,7 +10348,6 @@ paths:
           description: Error
       security:
         - BearerAuth: []
-        - ApiKeyAuth: []
       summary: Retrieve a specific account type
       tags:
         - Account Types (v2)
@@ -10495,7 +10396,6 @@ paths:
           description: Error
       security:
         - BearerAuth: []
-        - ApiKeyAuth: []
       summary: Update an account type
       tags:
         - Account Types (v2)
@@ -10644,7 +10544,6 @@ paths:
           description: Error
       security:
         - BearerAuth: []
-        - ApiKeyAuth: []
       summary: List all accounts
       tags:
         - Accounts (v2)
@@ -10692,7 +10591,6 @@ paths:
           description: Error
       security:
         - BearerAuth: []
-        - ApiKeyAuth: []
       summary: Create a new account
       tags:
         - Accounts (v2)
@@ -10736,7 +10634,6 @@ paths:
           description: Error
       security:
         - BearerAuth: []
-        - ApiKeyAuth: []
       summary: Retrieve an account by alias
       tags:
         - Accounts (v2)
@@ -10780,7 +10677,6 @@ paths:
           description: Error
       security:
         - BearerAuth: []
-        - ApiKeyAuth: []
       summary: Get Balances using Alias
       tags:
         - Balances (v2)
@@ -10824,7 +10720,6 @@ paths:
           description: Error
       security:
         - BearerAuth: []
-        - ApiKeyAuth: []
       summary: Retrieve an account by external code
       tags:
         - Accounts (v2)
@@ -10868,7 +10763,6 @@ paths:
           description: Error
       security:
         - BearerAuth: []
-        - ApiKeyAuth: []
       summary: Get External balances using code
       tags:
         - Balances (v2)
@@ -10908,7 +10802,6 @@ paths:
           description: Error
       security:
         - BearerAuth: []
-        - ApiKeyAuth: []
       summary: Count accounts
       tags:
         - Accounts (v2)
@@ -10987,7 +10880,6 @@ paths:
           description: Error
       security:
         - BearerAuth: []
-        - ApiKeyAuth: []
       summary: Get all balances by account id
       tags:
         - Balances (v2)
@@ -11036,7 +10928,6 @@ paths:
           description: Error
       security:
         - BearerAuth: []
-        - ApiKeyAuth: []
       summary: Create Additional Balance
       tags:
         - Balances (v2)
@@ -11091,7 +10982,6 @@ paths:
           description: Error
       security:
         - BearerAuth: []
-        - ApiKeyAuth: []
       summary: Get Account Balances history at date
       tags:
         - Balances (v2)
@@ -11205,7 +11095,6 @@ paths:
           description: Error
       security:
         - BearerAuth: []
-        - ApiKeyAuth: []
       summary: Get all Operations by account
       tags:
         - Operations (v2)
@@ -11256,7 +11145,6 @@ paths:
           description: Error
       security:
         - BearerAuth: []
-        - ApiKeyAuth: []
       summary: Get Operation
       tags:
         - Operations (v2)
@@ -11302,7 +11190,6 @@ paths:
           description: Error
       security:
         - BearerAuth: []
-        - ApiKeyAuth: []
       summary: Delete an account
       tags:
         - Accounts (v2)
@@ -11345,7 +11232,6 @@ paths:
           description: Error
       security:
         - BearerAuth: []
-        - ApiKeyAuth: []
       summary: Retrieve a specific account
       tags:
         - Accounts (v2)
@@ -11394,7 +11280,6 @@ paths:
           description: Error
       security:
         - BearerAuth: []
-        - ApiKeyAuth: []
       summary: Update an account
       tags:
         - Accounts (v2)
@@ -11473,7 +11358,6 @@ paths:
           description: Error
       security:
         - BearerAuth: []
-        - ApiKeyAuth: []
       summary: List all assets
       tags:
         - Assets (v2)
@@ -11521,7 +11405,6 @@ paths:
           description: Error
       security:
         - BearerAuth: []
-        - ApiKeyAuth: []
       summary: Create a new asset
       tags:
         - Assets (v2)
@@ -11561,7 +11444,6 @@ paths:
           description: Error
       security:
         - BearerAuth: []
-        - ApiKeyAuth: []
       summary: Count total assets
       tags:
         - Assets (v2)
@@ -11601,7 +11483,6 @@ paths:
           description: Error
       security:
         - BearerAuth: []
-        - ApiKeyAuth: []
       summary: Delete an asset
       tags:
         - Assets (v2)
@@ -11644,7 +11525,6 @@ paths:
           description: Error
       security:
         - BearerAuth: []
-        - ApiKeyAuth: []
       summary: Retrieve a specific asset
       tags:
         - Assets (v2)
@@ -11693,7 +11573,6 @@ paths:
           description: Error
       security:
         - BearerAuth: []
-        - ApiKeyAuth: []
       summary: Update an asset
       tags:
         - Assets (v2)
@@ -11765,7 +11644,6 @@ paths:
           description: Error
       security:
         - BearerAuth: []
-        - ApiKeyAuth: []
       summary: Get all balances
       tags:
         - Balances (v2)
@@ -11805,7 +11683,6 @@ paths:
           description: Error
       security:
         - BearerAuth: []
-        - ApiKeyAuth: []
       summary: Delete Balance by account
       tags:
         - Balances (v2)
@@ -11848,7 +11725,6 @@ paths:
           description: Error
       security:
         - BearerAuth: []
-        - ApiKeyAuth: []
       summary: Get Balance by id
       tags:
         - Balances (v2)
@@ -11897,7 +11773,6 @@ paths:
           description: Error
       security:
         - BearerAuth: []
-        - ApiKeyAuth: []
       summary: Update Balance
       tags:
         - Balances (v2)
@@ -11948,7 +11823,6 @@ paths:
           description: Error
       security:
         - BearerAuth: []
-        - ApiKeyAuth: []
       summary: Get Balance history at date
       tags:
         - Balances (v2)
@@ -12890,7 +12764,6 @@ paths:
           description: Error
       security:
         - BearerAuth: []
-        - ApiKeyAuth: []
       summary: List all portfolios
       tags:
         - Portfolios (v2)
@@ -12932,7 +12805,6 @@ paths:
           description: Error
       security:
         - BearerAuth: []
-        - ApiKeyAuth: []
       summary: Create a new portfolio
       tags:
         - Portfolios (v2)
@@ -12972,7 +12844,6 @@ paths:
           description: Error
       security:
         - BearerAuth: []
-        - ApiKeyAuth: []
       summary: Count total portfolios
       tags:
         - Portfolios (v2)
@@ -13012,7 +12883,6 @@ paths:
           description: Error
       security:
         - BearerAuth: []
-        - ApiKeyAuth: []
       summary: Delete a portfolio
       tags:
         - Portfolios (v2)
@@ -13055,7 +12925,6 @@ paths:
           description: Error
       security:
         - BearerAuth: []
-        - ApiKeyAuth: []
       summary: Retrieve a specific portfolio
       tags:
         - Portfolios (v2)
@@ -13104,7 +12973,6 @@ paths:
           description: Error
       security:
         - BearerAuth: []
-        - ApiKeyAuth: []
       summary: Update a portfolio
       tags:
         - Portfolios (v2)
@@ -13183,7 +13051,6 @@ paths:
           description: Error
       security:
         - BearerAuth: []
-        - ApiKeyAuth: []
       summary: List all segments
       tags:
         - Segments (v2)
@@ -13225,7 +13092,6 @@ paths:
           description: Error
       security:
         - BearerAuth: []
-        - ApiKeyAuth: []
       summary: Create a new segment
       tags:
         - Segments (v2)
@@ -13265,7 +13131,6 @@ paths:
           description: Error
       security:
         - BearerAuth: []
-        - ApiKeyAuth: []
       summary: Count total segments
       tags:
         - Segments (v2)
@@ -13305,7 +13170,6 @@ paths:
           description: Error
       security:
         - BearerAuth: []
-        - ApiKeyAuth: []
       summary: Delete a segment
       tags:
         - Segments (v2)
@@ -13348,7 +13212,6 @@ paths:
           description: Error
       security:
         - BearerAuth: []
-        - ApiKeyAuth: []
       summary: Retrieve a specific segment
       tags:
         - Segments (v2)
@@ -13397,7 +13260,6 @@ paths:
           description: Error
       security:
         - BearerAuth: []
-        - ApiKeyAuth: []
       summary: Update a segment
       tags:
         - Segments (v2)
@@ -13434,7 +13296,6 @@ paths:
           description: Error
       security:
         - BearerAuth: []
-        - ApiKeyAuth: []
       summary: Get ledger settings
       tags:
         - Ledgers (v2)
@@ -13477,7 +13338,6 @@ paths:
           description: Error
       security:
         - BearerAuth: []
-        - ApiKeyAuth: []
       summary: Update ledger settings
       tags:
         - Ledgers (v2)
@@ -13864,7 +13724,6 @@ paths:
           description: Error
       security:
         - BearerAuth: []
-        - ApiKeyAuth: []
       summary: Count Transactions by Filters
       tags:
         - Transactions (v2)
@@ -14273,7 +14132,6 @@ paths:
           description: Error
       security:
         - BearerAuth: []
-        - ApiKeyAuth: []
       summary: Get all Metadata Indexes
       tags:
         - Metadata Indexes (v2)
@@ -14309,7 +14167,6 @@ paths:
           description: Error
       security:
         - BearerAuth: []
-        - ApiKeyAuth: []
       summary: Create Metadata Index
       tags:
         - Metadata Indexes (v2)
@@ -14342,7 +14199,6 @@ paths:
           description: Error
       security:
         - BearerAuth: []
-        - ApiKeyAuth: []
       summary: Delete Metadata Index
       tags:
         - Metadata Indexes (v2)

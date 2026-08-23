@@ -14,7 +14,6 @@ import (
 	libObservability "github.com/LerianStudio/lib-observability/v2"
 	libLog "github.com/LerianStudio/lib-observability/v2/log"
 	libOpentelemetry "github.com/LerianStudio/lib-observability/v2/tracing"
-	"github.com/gofiber/fiber/v3"
 	"github.com/google/uuid"
 	"go.opentelemetry.io/otel/attribute"
 
@@ -33,43 +32,10 @@ import (
 // idempotency slot answers with a cached reverse instead of a new one.
 const revertIdempotencyReplayedLogMessage = "Revert replayed a cached reverse transaction"
 
-// NOT MOUNTED — the Fiber state wrappers below (CommitTransaction, CancelTransaction,
-// RevertTransaction, UpdateTransaction) have no production registration: every v1 and v2
-// commit/cancel/revert/update route terminates at the Huma shell, so covering a wrapper
-// proves nothing about production.
-
-// CommitTransaction method that commit transaction created before
-func (handler *TransactionHandler) CommitTransaction(c fiber.Ctx) error {
-	ctx := c.Context()
-
-	organizationID, err := http.GetUUIDFromLocals(c, "organization_id")
-	if err != nil {
-		return http.WithError(c, err)
-	}
-
-	ledgerID, err := http.GetUUIDFromLocals(c, "ledger_id")
-	if err != nil {
-		return http.WithError(c, err)
-	}
-
-	transactionID, err := http.GetUUIDFromLocals(c, "transaction_id")
-	if err != nil {
-		return http.WithError(c, err)
-	}
-
-	tran, err := handler.commitTransaction(ctx, organizationID, ledgerID, transactionID, constant.APPROVED)
-	if err != nil {
-		return http.WithError(c, err)
-	}
-
-	return http.Created(c, tran)
-}
-
-// commitTransaction is the transport-neutral commit/cancel core: it opens the same
+// commitTransaction is the transport-neutral commit/cancel core: it opens the
 // per-action span (commit_transaction / cancel_transaction, derived from the target
-// status so the span names stay byte-identical to the pre-migration Fiber path),
-// fetches the transaction (write-behind cache first, DB fallback), then delegates to the
-// untouched commitOrCancelTransaction state machine.
+// status), fetches the transaction (write-behind cache first, DB fallback), then
+// delegates to the commitOrCancelTransaction state machine.
 func (handler *TransactionHandler) commitTransaction(ctx context.Context, organizationID, ledgerID, transactionID uuid.UUID, transactionStatus string) (*transaction.Transaction, error) {
 	_, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
@@ -115,61 +81,6 @@ func (handler *TransactionHandler) commitTransaction(ctx context.Context, organi
 	return handler.commitOrCancelTransaction(ctx, tran, transactionStatus)
 }
 
-// CancelTransaction method that cancel pre transaction created before
-func (handler *TransactionHandler) CancelTransaction(c fiber.Ctx) error {
-	ctx := c.Context()
-
-	organizationID, err := http.GetUUIDFromLocals(c, "organization_id")
-	if err != nil {
-		return http.WithError(c, err)
-	}
-
-	ledgerID, err := http.GetUUIDFromLocals(c, "ledger_id")
-	if err != nil {
-		return http.WithError(c, err)
-	}
-
-	transactionID, err := http.GetUUIDFromLocals(c, "transaction_id")
-	if err != nil {
-		return http.WithError(c, err)
-	}
-
-	tran, err := handler.commitTransaction(ctx, organizationID, ledgerID, transactionID, constant.CANCELED)
-	if err != nil {
-		return http.WithError(c, err)
-	}
-
-	return http.Created(c, tran)
-}
-
-// RevertTransaction method that revert transaction created before. Unlike the live Huma
-// terminal it drops the core's `replayed` flag instead of setting X-Idempotency-Replayed.
-func (handler *TransactionHandler) RevertTransaction(c fiber.Ctx) error {
-	ctx := c.Context()
-
-	organizationID, err := http.GetUUIDFromLocals(c, "organization_id")
-	if err != nil {
-		return http.WithError(c, err)
-	}
-
-	ledgerID, err := http.GetUUIDFromLocals(c, "ledger_id")
-	if err != nil {
-		return http.WithError(c, err)
-	}
-
-	transactionID, err := http.GetUUIDFromLocals(c, "transaction_id")
-	if err != nil {
-		return http.WithError(c, err)
-	}
-
-	tran, _, err := handler.revertTransaction(ctx, organizationID, ledgerID, transactionID)
-	if err != nil {
-		return http.WithError(c, err)
-	}
-
-	return http.Created(c, tran)
-}
-
 // KNOWN DEFECT — REVERT IDEMPOTENCY IS NOT SCOPED BY ORIGIN.
 //
 // Revert sends no X-Idempotency header, so CreateOrCheckTransactionIdempotency falls back to
@@ -197,12 +108,10 @@ func (handler *TransactionHandler) RevertTransaction(c fiber.Ctx) error {
 // The parent transaction id passed to createRevertTransaction is the reverted
 // transaction's id (from the route), so the reversal links back to its origin. Revert
 // sends no idempotency headers, so the key is empty (the core keys on the reversal hash)
-// and the TTL defaults to ParseIdempotencyTTL("") == 300s — byte-identical to the
-// pre-migration Fiber path, which reached executeCreateTransaction and read
-// GetIdempotencyKeyAndTTL(c) (an absent X-TTL defaults to 300, never 0). A hardcoded 0
-// would make the Redis idempotency slot permanent. It returns the idempotency `replayed`
-// flag alongside the reverse transaction so the transport sets X-Idempotency-Replayed
-// itself.
+// and the TTL defaults to ParseIdempotencyTTL("") == 300s (an absent X-TTL resolves to
+// 300, never 0; a hardcoded 0 would make the Redis idempotency slot permanent). It
+// returns the idempotency `replayed` flag alongside the reverse transaction so the
+// transport sets X-Idempotency-Replayed itself.
 func (handler *TransactionHandler) revertTransaction(ctx context.Context, organizationID, ledgerID, transactionID uuid.UUID) (*transaction.Transaction, bool, error) {
 	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
@@ -313,35 +222,6 @@ func (handler *TransactionHandler) revertTransaction(ctx context.Context, organi
 	return tranReverted, replayed, nil
 }
 
-// UpdateTransaction method that patch transaction created before
-func (handler *TransactionHandler) UpdateTransaction(p any, c fiber.Ctx) error {
-	ctx := c.Context()
-
-	organizationID, err := http.GetUUIDFromLocals(c, "organization_id")
-	if err != nil {
-		return http.WithError(c, err)
-	}
-
-	ledgerID, err := http.GetUUIDFromLocals(c, "ledger_id")
-	if err != nil {
-		return http.WithError(c, err)
-	}
-
-	transactionID, err := http.GetUUIDFromLocals(c, "transaction_id")
-	if err != nil {
-		return http.WithError(c, err)
-	}
-
-	payload := p.(*transaction.UpdateTransactionInput)
-
-	trans, err := handler.updateTransaction(ctx, organizationID, ledgerID, transactionID, payload)
-	if err != nil {
-		return http.WithError(c, err)
-	}
-
-	return http.OK(c, trans)
-}
-
 // updateTransaction is the transport-neutral update core: it logs the safe payload,
 // runs command.UpdateTransaction, then re-reads the transaction via query.GetTransactionByID
 // (mutable fields only — amounts/accounts/status are immutable).
@@ -374,10 +254,8 @@ func (handler *TransactionHandler) updateTransaction(ctx context.Context, organi
 
 // commitOrCancelTransaction is the transport-neutral state-transition core (the tracer
 // two-phase confirm/release-by-transaction, balance ProcessBalanceOperations, backup
-// seeding, and BuildOperations/WriteTransaction). It is called by BOTH the Fiber
-// wrappers and the Huma shells; the ~275-line body is untouched (no reordered side-
-// effects). It returns the updated transaction so each transport writes its own
-// response.
+// seeding, and BuildOperations/WriteTransaction). It returns the updated transaction so
+// the caller writes its own response.
 //
 //nolint:gocyclo // State machine with branches per status × action combination; refactor candidate.
 func (handler *TransactionHandler) commitOrCancelTransaction(ctx context.Context, tran *transaction.Transaction, transactionStatus string) (*transaction.Transaction, error) {

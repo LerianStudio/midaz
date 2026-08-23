@@ -11,13 +11,11 @@ import (
 
 	libObservability "github.com/LerianStudio/lib-observability/v2"
 	libLog "github.com/LerianStudio/lib-observability/v2/log"
-	"github.com/gofiber/fiber/v3"
 	"github.com/google/uuid"
 
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
 	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v4/pkg/mtransaction"
-	"github.com/LerianStudio/midaz/v4/pkg/net/http"
 	"github.com/LerianStudio/midaz/v4/pkg/utils"
 )
 
@@ -27,34 +25,6 @@ type transactionPathParams struct {
 	OrganizationID uuid.UUID
 	LedgerID       uuid.UUID
 	TransactionID  uuid.UUID
-}
-
-// readPathParams extracts organization, ledger, and (optional) transaction
-// IDs from Fiber locals populated by the UUID-parsing middleware.
-func readPathParams(c fiber.Ctx) (*transactionPathParams, error) {
-	organizationID, err := http.GetUUIDFromLocals(c, "organization_id")
-	if err != nil {
-		return nil, err
-	}
-
-	ledgerID, err := http.GetUUIDFromLocals(c, "ledger_id")
-	if err != nil {
-		return nil, err
-	}
-
-	transactionID := uuid.Nil
-	if c.Locals("transaction_id") != nil {
-		transactionID, err = http.GetUUIDFromLocals(c, "transaction_id")
-		if err != nil {
-			return nil, err
-		}
-	}
-
-	return &transactionPathParams{
-		OrganizationID: organizationID,
-		LedgerID:       ledgerID,
-		TransactionID:  transactionID,
-	}, nil
 }
 
 // buildParentTransactionID converts a parent UUID to a string pointer,

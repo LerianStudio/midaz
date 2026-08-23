@@ -20,8 +20,8 @@ import (
 // transaction_v2_register.go: that file owns the ops that have a dedicated v2 wire shape (the
 // flat-body create direct/hold/block/unblock and the commit/cancel/revert lifecycle shells). This
 // file carries the THREE remaining transaction ops — the PATCH update and the two reads (get-by-id
-// + list) — pointing each at its dedicated /v2 handler method (UpdateTransactionV2Huma,
-// GetTransactionV2Huma, GetAllTransactionsV2Huma). Those methods call the SAME query/command core
+// + list) — pointing each at its dedicated /v2 handler method (UpdateTransactionV2,
+// GetTransactionV2, GetAllTransactionsV2). Those methods call the SAME query/command core
 // their v1 twins call but answer with the /v2 wire shape (TransactionV2, and the TransactionV2 list
 // envelope), so this registrar publishes the TransactionV2 / OperationV2 response components for
 // these ops. The PATCH request body still reuses the v1 transaction.UpdateTransactionInput type.
@@ -58,7 +58,7 @@ func RegisterTransactionMirrorV2Routes(api huma.API, h *TransactionHandler) {
 		Tags:             []string{tag},
 		Security:         secTransactionBearer,
 		SkipValidateBody: true, // body validated imperatively — plain decode, not merge-patch.
-	}, h.UpdateTransactionV2Huma)
+	}, h.UpdateTransactionV2)
 	attachTypedRequestBody[transaction.UpdateTransactionInput](api, "updateTransaction"+routeOpSuffixV2)
 
 	huma.Register(api, huma.Operation{
@@ -68,7 +68,7 @@ func RegisterTransactionMirrorV2Routes(api huma.API, h *TransactionHandler) {
 		Summary:     "Get a Transaction by ID",
 		Tags:        []string{tag},
 		Security:    secTransactionBearer,
-	}, h.GetTransactionV2Huma)
+	}, h.GetTransactionV2)
 
 	huma.Register(api, huma.Operation{
 		OperationID: "getAllTransactions" + routeOpSuffixV2,
@@ -77,7 +77,7 @@ func RegisterTransactionMirrorV2Routes(api huma.API, h *TransactionHandler) {
 		Summary:     "Get all Transactions",
 		Tags:        []string{tag},
 		Security:    secTransactionBearer,
-	}, h.GetAllTransactionsV2Huma)
+	}, h.GetAllTransactionsV2)
 }
 
 // RegisterTransactionMirrorV2RoutesToApp wires the three transaction reads/update ops end-to-end

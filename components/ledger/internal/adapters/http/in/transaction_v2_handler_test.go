@@ -107,11 +107,11 @@ func postDirectV2(t *testing.T, app *fiber.App, body string) *http.Response {
 	return resp
 }
 
-// TestCreateTransactionDirectV2Huma_MalformedBody_400 proves the real handler decodes
+// TestCreateTransactionDirectV2_MalformedBody_400 proves the real handler decodes
 // the flat v2 body through http.DecodeAndValidate (the SAME validator the v1 create
 // ops run): malformed JSON is the canonical 400 RFC 9457 problem — never a native Huma
 // 422 and never the 501 stub.
-func TestCreateTransactionDirectV2Huma_MalformedBody_400(t *testing.T) {
+func TestCreateTransactionDirectV2_MalformedBody_400(t *testing.T) {
 	// NOT parallel: process-global huma state.
 	app := buildHumaV2DirectApp(t, &TransactionHandler{})
 
@@ -123,11 +123,11 @@ func TestCreateTransactionDirectV2Huma_MalformedBody_400(t *testing.T) {
 	assert.Contains(t, string(body), "status", "error body must be the RFC 9457 problem envelope")
 }
 
-// TestCreateTransactionDirectV2Huma_MalformedRouteUUID_400 pins the route-UUID hygiene
+// TestCreateTransactionDirectV2_MalformedRouteUUID_400 pins the route-UUID hygiene
 // contract: routeId is an optional *string on the flat v2 input, so a malformed route
 // UUID MUST surface as a clean 400 at the decode boundary — never fall through to a deep
 // 500 in the funnel.
-func TestCreateTransactionDirectV2Huma_MalformedRouteUUID_400(t *testing.T) {
+func TestCreateTransactionDirectV2_MalformedRouteUUID_400(t *testing.T) {
 	// NOT parallel: process-global huma state.
 	app := buildHumaV2DirectApp(t, &TransactionHandler{})
 
@@ -137,9 +137,9 @@ func TestCreateTransactionDirectV2Huma_MalformedRouteUUID_400(t *testing.T) {
 	assert.Equal(t, http.StatusBadRequest, resp.StatusCode, "malformed routeId must be a clean 400, not a deep 500")
 }
 
-// TestCreateTransactionDirectV2Huma_MalformedOperationRouteUUID_400 mirrors the routeId
+// TestCreateTransactionDirectV2_MalformedOperationRouteUUID_400 mirrors the routeId
 // hygiene for the per-leg operationRouteId.
-func TestCreateTransactionDirectV2Huma_MalformedOperationRouteUUID_400(t *testing.T) {
+func TestCreateTransactionDirectV2_MalformedOperationRouteUUID_400(t *testing.T) {
 	// NOT parallel: process-global huma state.
 	app := buildHumaV2DirectApp(t, &TransactionHandler{})
 
@@ -149,9 +149,9 @@ func TestCreateTransactionDirectV2Huma_MalformedOperationRouteUUID_400(t *testin
 	assert.Equal(t, http.StatusBadRequest, resp.StatusCode, "malformed operationRouteId must be a clean 400, not a deep 500")
 }
 
-// TestCreateTransactionDirectV2Huma_NonPositiveAmount_422 proves the Translate business
+// TestCreateTransactionDirectV2_NonPositiveAmount_422 proves the Translate business
 // branch (non-positive amount) maps to a canonical 422.
-func TestCreateTransactionDirectV2Huma_NonPositiveAmount_422(t *testing.T) {
+func TestCreateTransactionDirectV2_NonPositiveAmount_422(t *testing.T) {
 	// NOT parallel: process-global huma state.
 	app := buildHumaV2DirectApp(t, &TransactionHandler{})
 
@@ -161,14 +161,14 @@ func TestCreateTransactionDirectV2Huma_NonPositiveAmount_422(t *testing.T) {
 	assert.Equal(t, http.StatusUnprocessableEntity, resp.StatusCode, "non-positive amount is a Translate business error → 422")
 }
 
-// TestCreateTransactionDirectV2Huma_ValidBodyEntersFunnel proves the happy-path wiring
+// TestCreateTransactionDirectV2_ValidBodyEntersFunnel proves the happy-path wiring
 // up to the funnel: a fully valid flat body passes decode + Translate(false) and is
 // handed to the SAME createTransaction funnel the v1 create ops use. With a bare handler
 // the funnel's first repository call has no wired dependency, so WithRecover maps the
 // resulting panic to a 500 — proving the request progressed PAST the transport/translate
 // boundary into the funnel (never the 501 stub, never a decode/translate 4xx). The
 // committed transaction result is asserted by the integration+parity test.
-func TestCreateTransactionDirectV2Huma_ValidBodyEntersFunnel(t *testing.T) {
+func TestCreateTransactionDirectV2_ValidBodyEntersFunnel(t *testing.T) {
 	// NOT parallel: process-global huma state.
 	app := buildHumaV2DirectApp(t, &TransactionHandler{})
 
@@ -179,12 +179,12 @@ func TestCreateTransactionDirectV2Huma_ValidBodyEntersFunnel(t *testing.T) {
 		"valid body must clear the transport/translate boundary and enter the funnel (unwired repos → recovered 500; committed path is the integration+parity test)")
 }
 
-// TestCreateTransactionHoldV2Huma_MalformedBody_400 proves the hold handler decodes the
+// TestCreateTransactionHoldV2_MalformedBody_400 proves the hold handler decodes the
 // flat v2 body through the SAME http.DecodeAndValidate the direct handler runs: malformed
 // JSON is the canonical 400 RFC 9457 problem, never a native Huma 422 nor a 501 stub.
-func TestCreateTransactionHoldV2Huma_MalformedBody_400(t *testing.T) {
+func TestCreateTransactionHoldV2_MalformedBody_400(t *testing.T) {
 	// NOT parallel: process-global huma state.
-	app := buildHumaV2ActionApp(t, "hold", (&TransactionHandler{}).CreateTransactionHoldV2Huma)
+	app := buildHumaV2ActionApp(t, "hold", (&TransactionHandler{}).CreateTransactionHoldV2)
 
 	resp := postActionV2(t, app, "hold", `{not-json`)
 	defer func() { _ = resp.Body.Close() }()
@@ -194,14 +194,14 @@ func TestCreateTransactionHoldV2Huma_MalformedBody_400(t *testing.T) {
 	assert.Contains(t, string(body), "status", "error body must be the RFC 9457 problem envelope")
 }
 
-// TestCreateTransactionHoldV2Huma_ValidBodyEntersFunnel proves the hold happy-path wiring
+// TestCreateTransactionHoldV2_ValidBodyEntersFunnel proves the hold happy-path wiring
 // up to the funnel: a fully valid flat body passes decode + Translate(true) and is handed
 // to the SAME createTransaction funnel. With a bare handler the funnel's first repository
 // call has no wired dependency, so WithRecover maps the resulting panic to a 500 — proving
 // the request progressed PAST the transport/translate boundary into the funnel.
-func TestCreateTransactionHoldV2Huma_ValidBodyEntersFunnel(t *testing.T) {
+func TestCreateTransactionHoldV2_ValidBodyEntersFunnel(t *testing.T) {
 	// NOT parallel: process-global huma state.
-	app := buildHumaV2ActionApp(t, "hold", (&TransactionHandler{}).CreateTransactionHoldV2Huma)
+	app := buildHumaV2ActionApp(t, "hold", (&TransactionHandler{}).CreateTransactionHoldV2)
 
 	resp := postActionV2(t, app, "hold", `{"description":"v2 hold","asset":"BRL","amount":"100","debits":[{"alias":"@src",`+v2ScopeJSON+`,"amount":"100"}],"credits":[{"alias":"@dst",`+v2ScopeJSON+`,"amount":"100"}]}`)
 	defer func() { _ = resp.Body.Close() }()
@@ -226,7 +226,7 @@ func TestHuma_CreateTransactionHoldV2_IdempotencyKeyedByDiscriminatedRawV2Body(t
 	var gotKey string
 
 	handler := captureSetNXKey(t, ctrl, &gotKey, "{}")
-	app := buildHumaV2ActionApp(t, "hold", handler.CreateTransactionHoldV2Huma)
+	app := buildHumaV2ActionApp(t, "hold", handler.CreateTransactionHoldV2)
 
 	resp := postActionV2(t, app, "hold", v2DirectBody)
 	defer func() { _ = resp.Body.Close() }()
@@ -281,7 +281,7 @@ func TestCreateTransactionV2_StampsOperationTypeOverride(t *testing.T) {
 // SkipValidateBody Huma op the production route carries — keeps a failure attributable to the
 // handler under test rather than to any sibling op. Same MUST-NOT-PARALLELIZE rationale as
 // buildHumaV2DirectApp: libProblem.Install() and Huma validation use process-global state.
-func buildHumaV2ActionApp(t *testing.T, action string, op func(context.Context, *CreateTransactionV2InputHuma) (*CreateTransactionOutputV2Huma, error)) *fiber.App {
+func buildHumaV2ActionApp(t *testing.T, action string, op func(context.Context, *CreateTransactionInputV2) (*CreateTransactionOutputV2, error)) *fiber.App {
 	t.Helper()
 
 	app := fiber.New(fiber.Config{
@@ -351,12 +351,12 @@ func readAllForTest(t *testing.T, resp *http.Response) string {
 	return string(raw)
 }
 
-// TestCreateTransactionBlockV2Huma_MalformedBody_400 proves the block handler decodes the flat
+// TestCreateTransactionBlockV2_MalformedBody_400 proves the block handler decodes the flat
 // v2 body through the SAME http.DecodeAndValidate the direct/hold handlers run: malformed JSON
 // is the canonical 400 RFC 9457 problem, never a native Huma 422 nor a 501 stub.
-func TestCreateTransactionBlockV2Huma_MalformedBody_400(t *testing.T) {
+func TestCreateTransactionBlockV2_MalformedBody_400(t *testing.T) {
 	// NOT parallel: process-global huma state.
-	app := buildHumaV2ActionApp(t, "block", (&TransactionHandler{}).CreateTransactionBlockV2Huma)
+	app := buildHumaV2ActionApp(t, "block", (&TransactionHandler{}).CreateTransactionBlockV2)
 
 	resp := postActionV2(t, app, "block", `{not-json`)
 	defer func() { _ = resp.Body.Close() }()
@@ -366,14 +366,14 @@ func TestCreateTransactionBlockV2Huma_MalformedBody_400(t *testing.T) {
 	assert.Contains(t, string(body), "status", "error body must be the RFC 9457 problem envelope")
 }
 
-// TestCreateTransactionBlockV2Huma_ValidBodyEntersFunnel proves the block happy-path wiring up
+// TestCreateTransactionBlockV2_ValidBodyEntersFunnel proves the block happy-path wiring up
 // to the funnel: a fully valid flat body passes decode + Translate(false) and is handed to the
 // SAME createTransaction funnel. With a bare handler the funnel's first repository call has no
 // wired dependency, so WithRecover maps the resulting panic to a 500 — proving the request
 // progressed PAST the transport/translate boundary into the funnel.
-func TestCreateTransactionBlockV2Huma_ValidBodyEntersFunnel(t *testing.T) {
+func TestCreateTransactionBlockV2_ValidBodyEntersFunnel(t *testing.T) {
 	// NOT parallel: process-global huma state.
-	app := buildHumaV2ActionApp(t, "block", (&TransactionHandler{}).CreateTransactionBlockV2Huma)
+	app := buildHumaV2ActionApp(t, "block", (&TransactionHandler{}).CreateTransactionBlockV2)
 
 	resp := postActionV2(t, app, "block", `{"description":"v2 block","asset":"BRL","amount":"100","debits":[{"alias":"@src",`+v2ScopeJSON+`,"amount":"100"}],"credits":[{"alias":"@dst",`+v2ScopeJSON+`,"amount":"100"}]}`)
 	defer func() { _ = resp.Body.Close() }()
@@ -396,7 +396,7 @@ func TestHuma_CreateTransactionBlockV2_IdempotencyKeyedByBlockDiscriminatedRawV2
 	var gotKey string
 
 	handler := captureSetNXKey(t, ctrl, &gotKey, "{}")
-	app := buildHumaV2ActionApp(t, "block", handler.CreateTransactionBlockV2Huma)
+	app := buildHumaV2ActionApp(t, "block", handler.CreateTransactionBlockV2)
 
 	resp := postActionV2(t, app, "block", v2DirectBody)
 	defer func() { _ = resp.Body.Close() }()
@@ -408,11 +408,11 @@ func TestHuma_CreateTransactionBlockV2_IdempotencyKeyedByBlockDiscriminatedRawV2
 	assert.Equal(t, http.StatusCreated, resp.StatusCode, "a losing block claim with a cached canonical value replays → 201")
 }
 
-// TestCreateTransactionUnblockV2Huma_MalformedBody_400 mirrors the block malformed-body contract
+// TestCreateTransactionUnblockV2_MalformedBody_400 mirrors the block malformed-body contract
 // for the unblock action.
-func TestCreateTransactionUnblockV2Huma_MalformedBody_400(t *testing.T) {
+func TestCreateTransactionUnblockV2_MalformedBody_400(t *testing.T) {
 	// NOT parallel: process-global huma state.
-	app := buildHumaV2ActionApp(t, "unblock", (&TransactionHandler{}).CreateTransactionUnblockV2Huma)
+	app := buildHumaV2ActionApp(t, "unblock", (&TransactionHandler{}).CreateTransactionUnblockV2)
 
 	resp := postActionV2(t, app, "unblock", `{not-json`)
 	defer func() { _ = resp.Body.Close() }()
@@ -422,11 +422,11 @@ func TestCreateTransactionUnblockV2Huma_MalformedBody_400(t *testing.T) {
 	assert.Contains(t, string(body), "status", "error body must be the RFC 9457 problem envelope")
 }
 
-// TestCreateTransactionUnblockV2Huma_ValidBodyEntersFunnel mirrors the block funnel-entry contract
+// TestCreateTransactionUnblockV2_ValidBodyEntersFunnel mirrors the block funnel-entry contract
 // for the unblock action.
-func TestCreateTransactionUnblockV2Huma_ValidBodyEntersFunnel(t *testing.T) {
+func TestCreateTransactionUnblockV2_ValidBodyEntersFunnel(t *testing.T) {
 	// NOT parallel: process-global huma state.
-	app := buildHumaV2ActionApp(t, "unblock", (&TransactionHandler{}).CreateTransactionUnblockV2Huma)
+	app := buildHumaV2ActionApp(t, "unblock", (&TransactionHandler{}).CreateTransactionUnblockV2)
 
 	resp := postActionV2(t, app, "unblock", `{"description":"v2 unblock","asset":"BRL","amount":"100","debits":[{"alias":"@src",`+v2ScopeJSON+`,"amount":"100"}],"credits":[{"alias":"@dst",`+v2ScopeJSON+`,"amount":"100"}]}`)
 	defer func() { _ = resp.Body.Close() }()
@@ -446,7 +446,7 @@ func TestHuma_CreateTransactionUnblockV2_IdempotencyKeyedByUnblockDiscriminatedR
 	var gotKey string
 
 	handler := captureSetNXKey(t, ctrl, &gotKey, "{}")
-	app := buildHumaV2ActionApp(t, "unblock", handler.CreateTransactionUnblockV2Huma)
+	app := buildHumaV2ActionApp(t, "unblock", handler.CreateTransactionUnblockV2)
 
 	resp := postActionV2(t, app, "unblock", v2DirectBody)
 	defer func() { _ = resp.Body.Close() }()
@@ -575,7 +575,7 @@ const v2AdvancedBody = `{"description":"v2 advanced","asset":"BRL","amount":"100
 // humaV2CreateOp is the shape every v2 create terminal shares. All four actions carry the
 // same request envelope and the same success envelope; only the identity they pass to
 // createTransactionV2 differs.
-type humaV2CreateOp = func(context.Context, *CreateTransactionV2InputHuma) (*CreateTransactionOutputV2Huma, error)
+type humaV2CreateOp = func(context.Context, *CreateTransactionInputV2) (*CreateTransactionOutputV2, error)
 
 // v2CreateActionCase describes one v2 create action by everything that distinguishes it: the
 // route suffix, the terminal, the (pending, override) identity the terminal passes to the
@@ -599,7 +599,7 @@ func v2CreateActionCases() []v2CreateActionCase {
 		{
 			name:       "direct",
 			route:      "direct",
-			op:         func(h *TransactionHandler) humaV2CreateOp { return h.CreateTransactionDirectV2Huma },
+			op:         func(h *TransactionHandler) humaV2CreateOp { return h.CreateTransactionDirectV2 },
 			pending:    false,
 			override:   "",
 			wantStatus: cn.CREATED,
@@ -608,7 +608,7 @@ func v2CreateActionCases() []v2CreateActionCase {
 		{
 			name:       "hold",
 			route:      "hold",
-			op:         func(h *TransactionHandler) humaV2CreateOp { return h.CreateTransactionHoldV2Huma },
+			op:         func(h *TransactionHandler) humaV2CreateOp { return h.CreateTransactionHoldV2 },
 			pending:    true,
 			override:   "",
 			wantStatus: cn.PENDING,
@@ -617,7 +617,7 @@ func v2CreateActionCases() []v2CreateActionCase {
 		{
 			name:       "block",
 			route:      "block",
-			op:         func(h *TransactionHandler) humaV2CreateOp { return h.CreateTransactionBlockV2Huma },
+			op:         func(h *TransactionHandler) humaV2CreateOp { return h.CreateTransactionBlockV2 },
 			pending:    false,
 			override:   cn.BLOCK,
 			wantStatus: cn.CREATED,
@@ -626,7 +626,7 @@ func v2CreateActionCases() []v2CreateActionCase {
 		{
 			name:       "unblock",
 			route:      "unblock",
-			op:         func(h *TransactionHandler) humaV2CreateOp { return h.CreateTransactionUnblockV2Huma },
+			op:         func(h *TransactionHandler) humaV2CreateOp { return h.CreateTransactionUnblockV2 },
 			pending:    false,
 			override:   cn.UNBLOCK,
 			wantStatus: cn.CREATED,

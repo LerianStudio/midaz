@@ -52,8 +52,8 @@ type feeGuardRoute struct {
 // contract be cut from one source (see fees_v2_register.go).
 //
 // The resource doubles as the ParseUUIDPathParameters label: it is the span-attribute
-// name the pre-Huma inline routes used, and the middleware validates every UUID path
-// parameter regardless of the label.
+// name, and the middleware validates every UUID path parameter regardless of the
+// label.
 //
 // The fee calculate endpoint (POST /fees) is absent on purpose: in the unified binary
 // fees run in-process via the transaction seam, so only the dry-run estimate is

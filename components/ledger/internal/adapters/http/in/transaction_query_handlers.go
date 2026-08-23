@@ -9,40 +9,15 @@ import (
 
 	libObservability "github.com/LerianStudio/lib-observability/v2"
 	libOpentelemetry "github.com/LerianStudio/lib-observability/v2/tracing"
-	"github.com/gofiber/fiber/v3"
 	"github.com/google/uuid"
 	"go.mongodb.org/mongo-driver/v2/bson"
 
 	"github.com/LerianStudio/midaz/v4/pkg/net/http"
 )
 
-// GetAllTransactions method that get all transactions created before
-func (handler *TransactionHandler) GetAllTransactions(c fiber.Ctx) error {
-	ctx := c.Context()
-
-	organizationID, err := http.GetUUIDFromLocals(c, "organization_id")
-	if err != nil {
-		return http.WithError(c, err)
-	}
-
-	ledgerID, err := http.GetUUIDFromLocals(c, "ledger_id")
-	if err != nil {
-		return http.WithError(c, err)
-	}
-
-	pagination, err := handler.getAllTransactions(ctx, organizationID, ledgerID, c.Queries())
-	if err != nil {
-		return http.WithError(c, err)
-	}
-
-	return http.OK(c, pagination)
-}
-
-// getAllTransactions is the transport-neutral list core. It runs the SAME
-// http.ValidateParameters the Fiber wrapper ran over c.Queries() (the Huma shell passes
-// the same map rebuilt from the raw query), then branches on metadata presence exactly as
-// before and returns the pagination envelope. Called by BOTH the Fiber wrapper and the
-// Huma shell.
+// getAllTransactions is the transport-neutral list core. It runs http.ValidateParameters
+// over the query map the caller supplies, branches on metadata presence, and returns the
+// pagination envelope.
 func (handler *TransactionHandler) getAllTransactions(ctx context.Context, organizationID, ledgerID uuid.UUID, queries map[string]string) (http.Pagination, error) {
 	_, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 

@@ -1,0 +1,148 @@
+// Copyright (c) 2026 Lerian Studio. All rights reserved.
+// Use of this source code is governed by the Elastic License 2.0
+// that can be found in the LICENSE file.
+
+package in
+
+import (
+	"context"
+	"net/http"
+
+	"github.com/danielgtaylor/huma/v2"
+
+	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
+	pkgHTTP "github.com/LerianStudio/midaz/v4/pkg/net/http"
+)
+
+// This file is the ledger's Huma adoption of the CRM envelope-encryption
+// provisioning resource (provision + status). It mirrors the asset exemplar
+// (asset_handler.go); see that file's header for the full conventions.
+// Encryption-specific notes:
+//
+//  1. AUTH is appName "midaz" (crm_routes.go ApplicationName), resource
+//     "encryption". The Fiber guard chain is Bearer-only, so the per-op Security
+//     metadata here is Bearer-only too — SPEC metadata only;
+//     runtime auth stays the Fiber guard chain (auth.Authorize("midaz","encryption",
+//     verb) + tenant + ParseUUIDPathParameters("organization")) attached BEFORE the
+//     Huma terminal.
+//  2. These ops are ORG-SCOPED (no ledger in the path), so the shells resolve only
+//     organization_id via the shared parseOrg helper (defined in ledger_handler.go).
+//  3. TENANT: the provision core reads the tenant id from ctx via
+//     encryption.ResolveProvisionTenantID. The Fiber tenant PostAuthMiddlewares run
+//     BEFORE the Huma terminal, so ctx already carries the tenant id — the shell
+//     forwards ctx untouched and the core is transport-neutral.
+//  4. POST carries RawBody + SkipValidateBody so http.DecodeAndValidate is the sole
+//     body validator (never a native Huma 422). Errors go through pkgHTTP.HumaProblem.
+
+// secEncryptionBearer advertises that each encryption operation accepts a JWT
+// bearer token (Bearer-only, matching the Fiber guard chain). SPEC
+// metadata only; runtime auth is the Fiber guard chain.
+var secEncryptionBearer = []map[string][]string{
+	{"BearerAuth": {}},
+}
+
+// --- POST /encryption/provision -----------------------------------------------
+
+// ProvisionEncryptionRequest is the Huma request envelope for POST. RawBody keeps
+// the body out of Huma's validator (see file header); organization_id is validated
+// by the Fiber middleware, not by a format tag.
+type ProvisionEncryptionRequest struct {
+	OrganizationID string `path:"organization_id" doc:"Organization ID (UUID)"`
+	Authorization  string `header:"Authorization" doc:"Bearer token; only required when the auth plugin is enabled"`
+	RawBody        []byte `contentType:"application/json"`
+}
+
+// ProvisionEncryptionResponse pins 201 (matching http.Created).
+type ProvisionEncryptionResponse struct {
+	Status int
+	Body   *mmodel.ProvisionEncryptionResponse
+}
+
+// Provision decodes+validates the raw body imperatively then delegates to the
+// shared provision core.
+func (handler *EncryptionHandler) Provision(ctx context.Context, in *ProvisionEncryptionRequest) (*ProvisionEncryptionResponse, error) {
+	orgID, err := parseOrg(in.OrganizationID)
+	if err != nil {
+		return nil, pkgHTTP.HumaProblem(err)
+	}
+
+	payload := new(mmodel.ProvisionEncryptionInput)
+	if _, err := pkgHTTP.DecodeAndValidate(in.RawBody, payload); err != nil {
+		return nil, pkgHTTP.HumaProblem(err)
+	}
+
+	response, err := handler.provision(ctx, orgID, payload)
+	if err != nil {
+		return nil, pkgHTTP.HumaProblem(err)
+	}
+
+	return &ProvisionEncryptionResponse{Status: http.StatusCreated, Body: response}, nil
+}
+
+// --- GET /encryption/status ---------------------------------------------------
+
+// GetProvisioningStatusRequest is the status request envelope (org only).
+type GetProvisioningStatusRequest struct {
+	OrganizationID string `path:"organization_id" doc:"Organization ID (UUID)"`
+	Authorization  string `header:"Authorization" doc:"Bearer token; only required when the auth plugin is enabled"`
+}
+
+// GetProvisioningStatusResponse carries the status verbatim (200, matching http.OK).
+type GetProvisioningStatusResponse struct {
+	Status int
+	Body   *mmodel.ProvisioningStatusResponse
+}
+
+// GetProvisioningStatus delegates to the shared getProvisioningStatus core.
+func (handler *EncryptionHandler) GetProvisioningStatus(ctx context.Context, in *GetProvisioningStatusRequest) (*GetProvisioningStatusResponse, error) {
+	orgID, err := parseOrg(in.OrganizationID)
+	if err != nil {
+		return nil, pkgHTTP.HumaProblem(err)
+	}
+
+	response, err := handler.getProvisioningStatus(ctx, orgID)
+	if err != nil {
+		return nil, pkgHTTP.HumaProblem(err)
+	}
+
+	return &GetProvisioningStatusResponse{Status: http.StatusOK, Body: response}, nil
+}
+
+// RegisterEncryptionRoutes registers the two encryption operations on the
+// given Huma API. It is the per-file seam the unified server calls (conditionally,
+// only in envelope encryption mode — mirroring the Fiber `if eh != nil` guard in
+// crm_routes.go); the auth ("midaz","encryption",verb) + tenant +
+// ParseUUIDPathParameters("organization") middleware chain is attached on the
+// versioned Fiber group BEFORE the Huma terminal, not here. Paths are GROUP-RELATIVE
+// (see asset_handler.go's RegisterAssetRoutes header for the rationale).
+//
+// opSuffix is appended to every operation ID — see crmOpSuffixV2.
+func RegisterEncryptionRoutes(api huma.API, h *EncryptionHandler, opSuffix string) {
+	const (
+		provisionPath = "/organizations/{organization_id}/encryption/provision"
+		statusPath    = "/organizations/{organization_id}/encryption/status"
+		tag           = "Encryption"
+	)
+
+	huma.Register(api, huma.Operation{
+		OperationID: "provisionEncryption" + opSuffix,
+		Method:      http.MethodPost,
+		Path:        provisionPath,
+		Summary:     "Provision an Organization for Envelope Encryption",
+		Tags:        []string{tag},
+		Security:    secEncryptionBearer,
+		// Body validated imperatively (http.DecodeAndValidate) — see file header.
+		SkipValidateBody: true,
+		DefaultStatus:    http.StatusCreated,
+	}, h.Provision)
+	attachTypedRequestBody[mmodel.ProvisionEncryptionInput](api, "provisionEncryption"+opSuffix)
+
+	huma.Register(api, huma.Operation{
+		OperationID: "getProvisioningStatus" + opSuffix,
+		Method:      http.MethodGet,
+		Path:        statusPath,
+		Summary:     "Get Provisioning Status",
+		Tags:        []string{tag},
+		Security:    secEncryptionBearer,
+	}, h.GetProvisioningStatus)
+}

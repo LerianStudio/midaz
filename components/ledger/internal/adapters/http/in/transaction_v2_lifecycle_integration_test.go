@@ -61,7 +61,7 @@ func v1CancelURL(orgID, ledgerID, txID uuid.UUID) string {
 
 // v2RevertURL / v1RevertURL build the concrete revert paths for a transaction. The v2 op is
 // mounted by the SAME RegisterTransactionV2RoutesToApp seam as direct/hold/commit/cancel and
-// reuses the v1 RevertTransactionHuma shell verbatim, so both surfaces enter the SAME
+// reuses the v1 RevertTransaction shell verbatim, so both surfaces enter the SAME
 // revertTransaction eligibility gate and createRevertTransaction core.
 func v2RevertURL(orgID, ledgerID, txID uuid.UUID) string {
 	return "/v2/organizations/" + orgID.String() + "/ledgers/" + ledgerID.String() + "/transactions/" + txID.String() + "/revert"

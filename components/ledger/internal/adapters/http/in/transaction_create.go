@@ -13,12 +13,10 @@ import (
 	"github.com/shopspring/decimal"
 
 	libCommons "github.com/LerianStudio/lib-commons/v6/commons"
-	libConstants "github.com/LerianStudio/lib-commons/v6/commons/constants"
 	tmcore "github.com/LerianStudio/lib-commons/v6/commons/tenant-manager/core"
 	libObservability "github.com/LerianStudio/lib-observability/v2"
 	libLog "github.com/LerianStudio/lib-observability/v2/log"
 	libOpentelemetry "github.com/LerianStudio/lib-observability/v2/tracing"
-	"github.com/gofiber/fiber/v3"
 	"go.opentelemetry.io/otel/attribute"
 
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/operation"
@@ -28,7 +26,6 @@ import (
 	"github.com/LerianStudio/midaz/v4/pkg"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
 	"github.com/LerianStudio/midaz/v4/pkg/mtransaction"
-	"github.com/LerianStudio/midaz/v4/pkg/net/http"
 	"github.com/LerianStudio/midaz/v4/pkg/skip"
 
 	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
@@ -985,13 +982,11 @@ func (handler *TransactionHandler) buildStandardOp(
 	}, nil
 }
 
-// createTransaction is the transport-neutral create core. It is called by BOTH the
-// Fiber wrappers (which read the path params + idempotency headers off fiber.Ctx and
-// write the response) and the Huma shells (which read them off the request envelope and
-// project onto the typed Out). It returns the built transaction and the idempotency
-// `replayed` flag so each transport can set X-Idempotency-Replayed itself. The ~480-line
-// orchestration in executeCreateTransaction is untouched: this is the thin transport
-// boundary only.
+// createTransaction is the transport-neutral create core. The shells read the path
+// params + idempotency headers off the request envelope and project the result onto the
+// typed Out; this core returns the built transaction and the idempotency `replayed` flag
+// so the caller can set X-Idempotency-Replayed itself. The orchestration lives in
+// executeCreateTransaction — this is the thin boundary in front of it.
 func (handler *TransactionHandler) createTransaction(ctx context.Context, params *transactionPathParams, transactionInput mtransaction.Transaction, transactionStatus, idempotencyKey string, idempotencyTTL time.Duration, idempotencyHashSource ...string) (*transaction.Transaction, bool, error) {
 	return handler.executeCreateTransaction(ctx, params, transactionInput, transactionStatus, false, idempotencyKey, idempotencyTTL, idempotencyHashSource...)
 }
@@ -1017,35 +1012,6 @@ func resolveIdempotencyHashSource(transactionInput mtransaction.Transaction, ove
 // of the status-derived action. Transport-neutral, mirroring createTransaction.
 func (handler *TransactionHandler) createRevertTransaction(ctx context.Context, params *transactionPathParams, transactionInput mtransaction.Transaction, transactionStatus, idempotencyKey string, idempotencyTTL time.Duration) (*transaction.Transaction, bool, error) {
 	return handler.executeCreateTransaction(ctx, params, transactionInput, transactionStatus, true, idempotencyKey, idempotencyTTL)
-}
-
-// createTransactionFiber is the Fiber transport adapter: it reads the path params and
-// idempotency key/TTL off fiber.Ctx, delegates to the transport-neutral core, projects
-// the replayed flag onto the X-Idempotency-Replayed response header, and writes the
-// created transaction (or the canonical error). It preserves the exact Fiber-path
-// behavior the four create wrappers relied on before the Huma migration.
-func (handler *TransactionHandler) createTransactionFiber(c fiber.Ctx, transactionInput mtransaction.Transaction, transactionStatus string) error {
-	ctx := c.Context()
-
-	params, err := readPathParams(c)
-	if err != nil {
-		return http.WithError(c, err)
-	}
-
-	idempotencyKey, idempotencyTTL := http.GetIdempotencyKeyAndTTL(c)
-
-	c.Set(libConstants.IdempotencyReplayed, "false")
-
-	tran, replayed, err := handler.executeCreateTransaction(ctx, params, transactionInput, transactionStatus, false, idempotencyKey, idempotencyTTL)
-	if err != nil {
-		return http.WithError(c, err)
-	}
-
-	if replayed {
-		c.Set(libConstants.IdempotencyReplayed, "true")
-	}
-
-	return http.Created(c, tran)
 }
 
 // resolveTransactionSkips resolves the two per-call control skips (fees, tracer)

@@ -10,14 +10,11 @@ import (
 	libObservability "github.com/LerianStudio/lib-observability/v2"
 	libLog "github.com/LerianStudio/lib-observability/v2/log"
 	libOpentelemetry "github.com/LerianStudio/lib-observability/v2/tracing"
-	"github.com/gofiber/fiber/v3"
 	"github.com/google/uuid"
-	"go.mongodb.org/mongo-driver/v2/bson"
 
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/transaction"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services/command"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services/query"
-	"github.com/LerianStudio/midaz/v4/pkg/constant"
 	"github.com/LerianStudio/midaz/v4/pkg/mtransaction"
 	"github.com/LerianStudio/midaz/v4/pkg/net/http"
 )
@@ -46,26 +43,6 @@ type TransactionHandler struct {
 	MultiTenantEnabled bool
 }
 
-// CreateTransactionJSON method that create transaction using JSON
-func (handler *TransactionHandler) CreateTransactionJSON(p any, c fiber.Ctx) error {
-	ctx := c.Context()
-
-	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
-
-	ctx, span := tracer.Start(ctx, "handler.create_transaction")
-	defer span.End()
-
-	c.SetContext(ctx)
-
-	input := p.(*mtransaction.CreateTransactionInput)
-	transactionInput := input.BuildTransaction()
-
-	logSafePayload(ctx, logger, "Request to create a transaction", transactionInput)
-	recordSafePayloadAttributes(span, transactionInput)
-
-	return handler.createTransactionFiber(c, *transactionInput, transactionInput.InitialStatus())
-}
-
 // buildOverriddenTransaction builds the transaction from the input, forces
 // Pending=false (so InitialStatus resolves to non-pending), and stamps the
 // given OperationTypeOverride.
@@ -77,191 +54,11 @@ func (handler *TransactionHandler) buildOverriddenTransaction(input *mtransactio
 	return *transactionInput
 }
 
-// CreateTransactionBlock method that creates a block transaction
-//
-//	@Summary		Create a Block Transaction
-//	@Description	Create a transaction whose resulting operations are typed BLOCK. Midaz is agnostic about the business reason for blocking funds — use the metadata field to record it. This endpoint always creates an immediately-posted, non-pending transaction; the `pending` field of the request body is IGNORED (overridden to false) — block transactions are never pending. The endpoint accepts the same body as the JSON create endpoint.
-//	@Tags			Transactions
-//	@Accept			json
-//	@Produce		json
-//	@Param			Authorization	header		string						false	"Bearer token authentication. Format: Bearer {access_token}. Only required when auth plugin is enabled."
-//	@Param			X-Request-Id	header		string						false	"Request ID"
-//	@Param			X-Idempotency	header		string						false	"Idempotency key. Replays the original response for repeated requests carrying the same key."
-//	@Param			organization_id	path		string						true	"Organization ID"
-//	@Param			ledger_id		path		string						true	"Ledger ID"
-//	@Param			transaction		body		mtransaction.CreateTransactionInput	true	"Transaction Input"
-//	@Success		201				{object}	Transaction
-//	@Failure		400				{object}	mmodel.Error	"Invalid input, validation errors"
-//	@Failure		401				{object}	mmodel.Error	"Unauthorized access"
-//	@Failure		403				{object}	mmodel.Error	"Forbidden access"
-//	@Failure		404				{object}	mmodel.Error	"Resource not found"
-//	@Failure		409				{object}	mmodel.Error	"Conflict, duplicate idempotency key"
-//	@Failure		422				{object}	mmodel.Error	"Unprocessable Entity, validation errors"
-//	@Failure		500				{object}	mmodel.Error	"Internal server error"
-//	@Router			/v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions/block [post]
-func (handler *TransactionHandler) CreateTransactionBlock(p any, c fiber.Ctx) error {
-	ctx := c.Context()
-
-	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
-
-	ctx, span := tracer.Start(ctx, "handler.create_transaction_block")
-	defer span.End()
-
-	c.SetContext(ctx)
-
-	input := p.(*mtransaction.CreateTransactionInput)
-	transactionInput := handler.buildOverriddenTransaction(input, constant.BLOCK)
-
-	logSafePayload(ctx, logger, "Request to create a block transaction", &transactionInput)
-	recordSafePayloadAttributes(span, &transactionInput)
-
-	return handler.createTransactionFiber(c, transactionInput, transactionInput.InitialStatus())
-}
-
-// CreateTransactionUnblock method that creates an unblock transaction
-//
-//	@Summary		Create an Unblock Transaction
-//	@Description	Create a transaction whose resulting operations are typed UNBLOCK. Midaz is agnostic about the business reason for unblocking funds — use the metadata field to record it. This endpoint always creates an immediately-posted, non-pending transaction; the `pending` field of the request body is IGNORED (overridden to false) — unblock transactions are never pending. The endpoint accepts the same body as the JSON create endpoint.
-//	@Tags			Transactions
-//	@Accept			json
-//	@Produce		json
-//	@Param			Authorization	header		string						false	"Bearer token authentication. Format: Bearer {access_token}. Only required when auth plugin is enabled."
-//	@Param			X-Request-Id	header		string						false	"Request ID"
-//	@Param			X-Idempotency	header		string						false	"Idempotency key. Replays the original response for repeated requests carrying the same key."
-//	@Param			organization_id	path		string						true	"Organization ID"
-//	@Param			ledger_id		path		string						true	"Ledger ID"
-//	@Param			transaction		body		mtransaction.CreateTransactionInput	true	"Transaction Input"
-//	@Success		201				{object}	Transaction
-//	@Failure		400				{object}	mmodel.Error	"Invalid input, validation errors"
-//	@Failure		401				{object}	mmodel.Error	"Unauthorized access"
-//	@Failure		403				{object}	mmodel.Error	"Forbidden access"
-//	@Failure		404				{object}	mmodel.Error	"Resource not found"
-//	@Failure		409				{object}	mmodel.Error	"Conflict, duplicate idempotency key"
-//	@Failure		422				{object}	mmodel.Error	"Unprocessable Entity, validation errors"
-//	@Failure		500				{object}	mmodel.Error	"Internal server error"
-//	@Router			/v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions/unblock [post]
-func (handler *TransactionHandler) CreateTransactionUnblock(p any, c fiber.Ctx) error {
-	ctx := c.Context()
-
-	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
-
-	ctx, span := tracer.Start(ctx, "handler.create_transaction_unblock")
-	defer span.End()
-
-	c.SetContext(ctx)
-
-	input := p.(*mtransaction.CreateTransactionInput)
-	transactionInput := handler.buildOverriddenTransaction(input, constant.UNBLOCK)
-
-	logSafePayload(ctx, logger, "Request to create an unblock transaction", &transactionInput)
-	recordSafePayloadAttributes(span, &transactionInput)
-
-	return handler.createTransactionFiber(c, transactionInput, transactionInput.InitialStatus())
-}
-
-// CreateTransactionAnnotation method that create transaction using JSON
-func (handler *TransactionHandler) CreateTransactionAnnotation(p any, c fiber.Ctx) error {
-	ctx := c.Context()
-
-	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
-
-	ctx, span := tracer.Start(ctx, "handler.create_transaction_annotation")
-	defer span.End()
-
-	c.SetContext(ctx)
-
-	input := p.(*mtransaction.CreateTransactionInput)
-	transactionInput := input.BuildTransaction()
-
-	logSafePayload(ctx, logger, "Create a transaction annotation without an affected balance", transactionInput)
-	recordSafePayloadAttributes(span, transactionInput)
-
-	return handler.createTransactionFiber(c, *transactionInput, constant.NOTED)
-}
-
-// CreateTransactionInflow method that creates a transaction without specifying a source
-func (handler *TransactionHandler) CreateTransactionInflow(p any, c fiber.Ctx) error {
-	ctx := c.Context()
-
-	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
-
-	ctx, span := tracer.Start(ctx, "handler.create_transaction_inflow")
-	defer span.End()
-
-	c.SetContext(ctx)
-
-	input := p.(*mtransaction.CreateTransactionInflowInput)
-	transactionInput := input.BuildInflowEntry()
-
-	logSafePayload(ctx, logger, "Request to create a transaction inflow", transactionInput)
-	recordSafePayloadAttributes(span, transactionInput)
-
-	return handler.createTransactionFiber(c, *transactionInput, transactionInput.InitialStatus())
-}
-
-// CreateTransactionOutflow method that creates a transaction without specifying a distribution
-func (handler *TransactionHandler) CreateTransactionOutflow(p any, c fiber.Ctx) error {
-	ctx := c.Context()
-
-	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
-
-	ctx, span := tracer.Start(ctx, "handler.create_transaction_outflow")
-	defer span.End()
-
-	c.SetContext(ctx)
-
-	input := p.(*mtransaction.CreateTransactionOutflowInput)
-	transactionInput := input.BuildOutflowEntry()
-
-	logSafePayload(ctx, logger, "Request to create a transaction outflow", transactionInput)
-	recordSafePayloadAttributes(span, transactionInput)
-
-	return handler.createTransactionFiber(c, *transactionInput, transactionInput.InitialStatus())
-}
-
-// GetTransaction method that get transaction created before
-func (handler *TransactionHandler) GetTransaction(c fiber.Ctx) error {
-	ctx := c.Context()
-
-	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
-
-	ctx, span := tracer.Start(ctx, "handler.get_transaction")
-	defer span.End()
-
-	params, err := readPathParams(c)
-	if err != nil {
-		return http.WithError(c, err)
-	}
-
-	headerParams, err := http.ValidateParameters(c.Queries())
-	if err != nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to validate query parameters", err)
-		logger.Log(ctx, libLog.LevelWarn, "Failed to validate query parameters", libLog.Err(err))
-
-		return http.WithError(c, err)
-	}
-
-	headerParams.Metadata = &bson.M{}
-
-	tran, cacheHit, err := handler.getTransaction(ctx, params.OrganizationID, params.LedgerID, params.TransactionID, headerParams)
-	if err != nil {
-		return http.WithError(c, err)
-	}
-
-	if cacheHit {
-		c.Set("X-Cache-Hit", "true")
-	} else {
-		c.Set("X-Cache-Hit", "false")
-	}
-
-	return http.OK(c, tran)
-}
-
 // getTransaction is the transport-neutral read core. It reads write-behind cache first
 // (returning cacheHit=true, operations already materialized in the cached shape), and on
 // a miss falls back to the DB then materializes operations via GetOperationsByTransaction.
-// The caller sets the X-Cache-Hit response header off the returned flag. headerParams is
-// expected to already carry the Metadata reset the Fiber path applied.
+// The caller sets the X-Cache-Hit response header off the returned flag and is expected
+// to have already applied the Metadata reset to headerParams.
 func (handler *TransactionHandler) getTransaction(ctx context.Context, organizationID, ledgerID, transactionID uuid.UUID, headerParams *http.QueryHeader) (*transaction.Transaction, bool, error) {
 	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 

@@ -12,7 +12,7 @@ import (
 )
 
 // typedBodyContentType is the media type every RawBody body op files its request body
-// under (the `contentType:"application/json"` tag on each *InputHuma.RawBody field), so
+// under (the `contentType:"application/json"` tag on each request envelope's RawBody field), so
 // it is the only media type the doc-only override rewrites.
 const typedBodyContentType = "application/json"
 

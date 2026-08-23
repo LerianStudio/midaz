@@ -307,9 +307,6 @@
         "security": [
           {
             "BearerAuth": []
-          },
-          {
-            "ApiKeyAuth": []
           }
         ],
         "summary": "List all organizations",
@@ -320,17 +317,6 @@
       "post": {
         "deprecated": true,
         "operationId": "createOrganization",
-        "parameters": [
-          {
-            "description": "Bearer token (forwarded to the service)",
-            "in": "header",
-            "name": "Authorization",
-            "schema": {
-              "description": "Bearer token (forwarded to the service)",
-              "type": "string"
-            }
-          }
-        ],
         "requestBody": {
           "content": {
             "application/json": {
@@ -366,9 +352,6 @@
         "security": [
           {
             "BearerAuth": []
-          },
-          {
-            "ApiKeyAuth": []
           }
         ],
         "summary": "Create a new organization",
@@ -411,9 +394,6 @@
         "security": [
           {
             "BearerAuth": []
-          },
-          {
-            "ApiKeyAuth": []
           }
         ],
         "summary": "Count total organizations",
@@ -456,9 +436,6 @@
         "security": [
           {
             "BearerAuth": []
-          },
-          {
-            "ApiKeyAuth": []
           }
         ],
         "summary": "Delete an organization",
@@ -506,9 +483,6 @@
         "security": [
           {
             "BearerAuth": []
-          },
-          {
-            "ApiKeyAuth": []
           }
         ],
         "summary": "Retrieve a specific organization",
@@ -566,9 +540,6 @@
         "security": [
           {
             "BearerAuth": []
-          },
-          {
-            "ApiKeyAuth": []
           }
         ],
         "summary": "Update an existing organization",
@@ -698,9 +669,6 @@
         "security": [
           {
             "BearerAuth": []
-          },
-          {
-            "ApiKeyAuth": []
           }
         ],
         "summary": "List all ledgers",
@@ -758,9 +726,6 @@
         "security": [
           {
             "BearerAuth": []
-          },
-          {
-            "ApiKeyAuth": []
           }
         ],
         "summary": "Create a new ledger",
@@ -815,9 +780,6 @@
         "security": [
           {
             "BearerAuth": []
-          },
-          {
-            "ApiKeyAuth": []
           }
         ],
         "summary": "Count total ledgers",
@@ -870,9 +832,6 @@
         "security": [
           {
             "BearerAuth": []
-          },
-          {
-            "ApiKeyAuth": []
           }
         ],
         "summary": "Delete a ledger",
@@ -930,9 +889,6 @@
         "security": [
           {
             "BearerAuth": []
-          },
-          {
-            "ApiKeyAuth": []
           }
         ],
         "summary": "Retrieve a specific ledger",
@@ -1000,9 +956,6 @@
         "security": [
           {
             "BearerAuth": []
-          },
-          {
-            "ApiKeyAuth": []
           }
         ],
         "summary": "Update an existing ledger",
@@ -1142,9 +1095,6 @@
         "security": [
           {
             "BearerAuth": []
-          },
-          {
-            "ApiKeyAuth": []
           }
         ],
         "summary": "List all account types",
@@ -1212,9 +1162,6 @@
         "security": [
           {
             "BearerAuth": []
-          },
-          {
-            "ApiKeyAuth": []
           }
         ],
         "summary": "Create a new account type",
@@ -1277,9 +1224,6 @@
         "security": [
           {
             "BearerAuth": []
-          },
-          {
-            "ApiKeyAuth": []
           }
         ],
         "summary": "Delete an account type",
@@ -1347,9 +1291,6 @@
         "security": [
           {
             "BearerAuth": []
-          },
-          {
-            "ApiKeyAuth": []
           }
         ],
         "summary": "Retrieve a specific account type",
@@ -1427,9 +1368,6 @@
         "security": [
           {
             "BearerAuth": []
-          },
-          {
-            "ApiKeyAuth": []
           }
         ],
         "summary": "Update an account type",
@@ -1649,9 +1587,6 @@
         "security": [
           {
             "BearerAuth": []
-          },
-          {
-            "ApiKeyAuth": []
           }
         ],
         "summary": "List all accounts",
@@ -1728,9 +1663,6 @@
         "security": [
           {
             "BearerAuth": []
-          },
-          {
-            "ApiKeyAuth": []
           }
         ],
         "summary": "Create a new account",
@@ -1800,9 +1732,6 @@
         "security": [
           {
             "BearerAuth": []
-          },
-          {
-            "ApiKeyAuth": []
           }
         ],
         "summary": "Retrieve an account by alias",
@@ -1872,9 +1801,6 @@
         "security": [
           {
             "BearerAuth": []
-          },
-          {
-            "ApiKeyAuth": []
           }
         ],
         "summary": "Get Balances using Alias",
@@ -1944,9 +1870,6 @@
         "security": [
           {
             "BearerAuth": []
-          },
-          {
-            "ApiKeyAuth": []
           }
         ],
         "summary": "Retrieve an account by external code",
@@ -2016,9 +1939,6 @@
         "security": [
           {
             "BearerAuth": []
-          },
-          {
-            "ApiKeyAuth": []
           }
         ],
         "summary": "Get External balances using code",
@@ -2083,9 +2003,6 @@
         "security": [
           {
             "BearerAuth": []
-          },
-          {
-            "ApiKeyAuth": []
           }
         ],
         "summary": "Count accounts",
@@ -2205,9 +2122,6 @@
         "security": [
           {
             "BearerAuth": []
-          },
-          {
-            "ApiKeyAuth": []
           }
         ],
         "summary": "Get all balances by account id",
@@ -2285,9 +2199,6 @@
         "security": [
           {
             "BearerAuth": []
-          },
-          {
-            "ApiKeyAuth": []
           }
         ],
         "summary": "Create Additional Balance",
@@ -2373,9 +2284,6 @@
         "security": [
           {
             "BearerAuth": []
-          },
-          {
-            "ApiKeyAuth": []
           }
         ],
         "summary": "Get Account Balances history at date",
@@ -2545,9 +2453,6 @@
         "security": [
           {
             "BearerAuth": []
-          },
-          {
-            "ApiKeyAuth": []
           }
         ],
         "summary": "Get all Operations by account",
@@ -2627,9 +2532,6 @@
         "security": [
           {
             "BearerAuth": []
-          },
-          {
-            "ApiKeyAuth": []
           }
         ],
         "summary": "Get Operation",
@@ -2701,9 +2603,6 @@
         "security": [
           {
             "BearerAuth": []
-          },
-          {
-            "ApiKeyAuth": []
           }
         ],
         "summary": "Delete an account",
@@ -2771,9 +2670,6 @@
         "security": [
           {
             "BearerAuth": []
-          },
-          {
-            "ApiKeyAuth": []
           }
         ],
         "summary": "Retrieve a specific account",
@@ -2851,9 +2747,6 @@
         "security": [
           {
             "BearerAuth": []
-          },
-          {
-            "ApiKeyAuth": []
           }
         ],
         "summary": "Update an account",
@@ -2923,9 +2816,6 @@
         "security": [
           {
             "BearerAuth": []
-          },
-          {
-            "ApiKeyAuth": []
           }
         ],
         "summary": "Create or Update an AssetRate",
@@ -3061,9 +2951,6 @@
         "security": [
           {
             "BearerAuth": []
-          },
-          {
-            "ApiKeyAuth": []
           }
         ],
         "summary": "Get an AssetRate by the Asset Code",
@@ -3133,9 +3020,6 @@
         "security": [
           {
             "BearerAuth": []
-          },
-          {
-            "ApiKeyAuth": []
           }
         ],
         "summary": "Get an AssetRate by External ID",
@@ -3255,9 +3139,6 @@
         "security": [
           {
             "BearerAuth": []
-          },
-          {
-            "ApiKeyAuth": []
           }
         ],
         "summary": "List all assets",
@@ -3334,9 +3215,6 @@
         "security": [
           {
             "BearerAuth": []
-          },
-          {
-            "ApiKeyAuth": []
           }
         ],
         "summary": "Create a new asset",
@@ -3401,9 +3279,6 @@
         "security": [
           {
             "BearerAuth": []
-          },
-          {
-            "ApiKeyAuth": []
           }
         ],
         "summary": "Count total assets",
@@ -3466,9 +3341,6 @@
         "security": [
           {
             "BearerAuth": []
-          },
-          {
-            "ApiKeyAuth": []
           }
         ],
         "summary": "Delete an asset",
@@ -3536,9 +3408,6 @@
         "security": [
           {
             "BearerAuth": []
-          },
-          {
-            "ApiKeyAuth": []
           }
         ],
         "summary": "Retrieve a specific asset",
@@ -3616,9 +3485,6 @@
         "security": [
           {
             "BearerAuth": []
-          },
-          {
-            "ApiKeyAuth": []
           }
         ],
         "summary": "Update an asset",
@@ -3728,9 +3594,6 @@
         "security": [
           {
             "BearerAuth": []
-          },
-          {
-            "ApiKeyAuth": []
           }
         ],
         "summary": "Get all balances",
@@ -3793,9 +3656,6 @@
         "security": [
           {
             "BearerAuth": []
-          },
-          {
-            "ApiKeyAuth": []
           }
         ],
         "summary": "Delete Balance by account",
@@ -3863,9 +3723,6 @@
         "security": [
           {
             "BearerAuth": []
-          },
-          {
-            "ApiKeyAuth": []
           }
         ],
         "summary": "Get Balance by id",
@@ -3943,9 +3800,6 @@
         "security": [
           {
             "BearerAuth": []
-          },
-          {
-            "ApiKeyAuth": []
           }
         ],
         "summary": "Update Balance",
@@ -4025,9 +3879,6 @@
         "security": [
           {
             "BearerAuth": []
-          },
-          {
-            "ApiKeyAuth": []
           }
         ],
         "summary": "Get Balance history at date",
@@ -4549,9 +4400,6 @@
         "security": [
           {
             "BearerAuth": []
-          },
-          {
-            "ApiKeyAuth": []
           }
         ],
         "summary": "List all portfolios",
@@ -4619,9 +4467,6 @@
         "security": [
           {
             "BearerAuth": []
-          },
-          {
-            "ApiKeyAuth": []
           }
         ],
         "summary": "Create a new portfolio",
@@ -4686,9 +4531,6 @@
         "security": [
           {
             "BearerAuth": []
-          },
-          {
-            "ApiKeyAuth": []
           }
         ],
         "summary": "Count total portfolios",
@@ -4751,9 +4593,6 @@
         "security": [
           {
             "BearerAuth": []
-          },
-          {
-            "ApiKeyAuth": []
           }
         ],
         "summary": "Delete a portfolio",
@@ -4821,9 +4660,6 @@
         "security": [
           {
             "BearerAuth": []
-          },
-          {
-            "ApiKeyAuth": []
           }
         ],
         "summary": "Retrieve a specific portfolio",
@@ -4901,9 +4737,6 @@
         "security": [
           {
             "BearerAuth": []
-          },
-          {
-            "ApiKeyAuth": []
           }
         ],
         "summary": "Update a portfolio",
@@ -5023,9 +4856,6 @@
         "security": [
           {
             "BearerAuth": []
-          },
-          {
-            "ApiKeyAuth": []
           }
         ],
         "summary": "List all segments",
@@ -5093,9 +4923,6 @@
         "security": [
           {
             "BearerAuth": []
-          },
-          {
-            "ApiKeyAuth": []
           }
         ],
         "summary": "Create a new segment",
@@ -5160,9 +4987,6 @@
         "security": [
           {
             "BearerAuth": []
-          },
-          {
-            "ApiKeyAuth": []
           }
         ],
         "summary": "Count total segments",
@@ -5225,9 +5049,6 @@
         "security": [
           {
             "BearerAuth": []
-          },
-          {
-            "ApiKeyAuth": []
           }
         ],
         "summary": "Delete a segment",
@@ -5295,9 +5116,6 @@
         "security": [
           {
             "BearerAuth": []
-          },
-          {
-            "ApiKeyAuth": []
           }
         ],
         "summary": "Retrieve a specific segment",
@@ -5375,9 +5193,6 @@
         "security": [
           {
             "BearerAuth": []
-          },
-          {
-            "ApiKeyAuth": []
           }
         ],
         "summary": "Update a segment",
@@ -5437,9 +5252,6 @@
         "security": [
           {
             "BearerAuth": []
-          },
-          {
-            "ApiKeyAuth": []
           }
         ],
         "summary": "Get ledger settings",
@@ -5508,9 +5320,6 @@
         "security": [
           {
             "BearerAuth": []
-          },
-          {
-            "ApiKeyAuth": []
           }
         ],
         "summary": "Update ledger settings",
@@ -6492,9 +6301,6 @@
         "security": [
           {
             "BearerAuth": []
-          },
-          {
-            "ApiKeyAuth": []
           }
         ],
         "summary": "Count Transactions by Filters",
@@ -7194,9 +7000,6 @@
         "security": [
           {
             "BearerAuth": []
-          },
-          {
-            "ApiKeyAuth": []
           }
         ],
         "summary": "Get all Metadata Indexes",
@@ -7256,9 +7059,6 @@
         "security": [
           {
             "BearerAuth": []
-          },
-          {
-            "ApiKeyAuth": []
           }
         ],
         "summary": "Create Metadata Index",
@@ -7311,9 +7111,6 @@
         "security": [
           {
             "BearerAuth": []
-          },
-          {
-            "ApiKeyAuth": []
           }
         ],
         "summary": "Delete Metadata Index",
@@ -7452,9 +7249,6 @@
         "security": [
           {
             "BearerAuth": []
-          },
-          {
-            "ApiKeyAuth": []
           }
         ],
         "summary": "List all organizations",
@@ -7464,17 +7258,6 @@
       },
       "post": {
         "operationId": "createOrganizationV2",
-        "parameters": [
-          {
-            "description": "Bearer token (forwarded to the service)",
-            "in": "header",
-            "name": "Authorization",
-            "schema": {
-              "description": "Bearer token (forwarded to the service)",
-              "type": "string"
-            }
-          }
-        ],
         "requestBody": {
           "content": {
             "application/json": {
@@ -7510,9 +7293,6 @@
         "security": [
           {
             "BearerAuth": []
-          },
-          {
-            "ApiKeyAuth": []
           }
         ],
         "summary": "Create a new organization",
@@ -7554,9 +7334,6 @@
         "security": [
           {
             "BearerAuth": []
-          },
-          {
-            "ApiKeyAuth": []
           }
         ],
         "summary": "Count total organizations",
@@ -7598,9 +7375,6 @@
         "security": [
           {
             "BearerAuth": []
-          },
-          {
-            "ApiKeyAuth": []
           }
         ],
         "summary": "Delete an organization",
@@ -7647,9 +7421,6 @@
         "security": [
           {
             "BearerAuth": []
-          },
-          {
-            "ApiKeyAuth": []
           }
         ],
         "summary": "Retrieve a specific organization",
@@ -7706,9 +7477,6 @@
         "security": [
           {
             "BearerAuth": []
-          },
-          {
-            "ApiKeyAuth": []
           }
         ],
         "summary": "Update an existing organization",
@@ -8966,9 +8734,6 @@
         "security": [
           {
             "BearerAuth": []
-          },
-          {
-            "ApiKeyAuth": []
           }
         ],
         "summary": "List all ledgers",
@@ -9025,9 +8790,6 @@
         "security": [
           {
             "BearerAuth": []
-          },
-          {
-            "ApiKeyAuth": []
           }
         ],
         "summary": "Create a new ledger",
@@ -9081,9 +8843,6 @@
         "security": [
           {
             "BearerAuth": []
-          },
-          {
-            "ApiKeyAuth": []
           }
         ],
         "summary": "Count total ledgers",
@@ -9135,9 +8894,6 @@
         "security": [
           {
             "BearerAuth": []
-          },
-          {
-            "ApiKeyAuth": []
           }
         ],
         "summary": "Delete a ledger",
@@ -9194,9 +8950,6 @@
         "security": [
           {
             "BearerAuth": []
-          },
-          {
-            "ApiKeyAuth": []
           }
         ],
         "summary": "Retrieve a specific ledger",
@@ -9263,9 +9016,6 @@
         "security": [
           {
             "BearerAuth": []
-          },
-          {
-            "ApiKeyAuth": []
           }
         ],
         "summary": "Update an existing ledger",
@@ -9404,9 +9154,6 @@
         "security": [
           {
             "BearerAuth": []
-          },
-          {
-            "ApiKeyAuth": []
           }
         ],
         "summary": "List all account types",
@@ -9473,9 +9220,6 @@
         "security": [
           {
             "BearerAuth": []
-          },
-          {
-            "ApiKeyAuth": []
           }
         ],
         "summary": "Create a new account type",
@@ -9537,9 +9281,6 @@
         "security": [
           {
             "BearerAuth": []
-          },
-          {
-            "ApiKeyAuth": []
           }
         ],
         "summary": "Delete an account type",
@@ -9606,9 +9347,6 @@
         "security": [
           {
             "BearerAuth": []
-          },
-          {
-            "ApiKeyAuth": []
           }
         ],
         "summary": "Retrieve a specific account type",
@@ -9685,9 +9423,6 @@
         "security": [
           {
             "BearerAuth": []
-          },
-          {
-            "ApiKeyAuth": []
           }
         ],
         "summary": "Update an account type",
@@ -9906,9 +9641,6 @@
         "security": [
           {
             "BearerAuth": []
-          },
-          {
-            "ApiKeyAuth": []
           }
         ],
         "summary": "List all accounts",
@@ -9984,9 +9716,6 @@
         "security": [
           {
             "BearerAuth": []
-          },
-          {
-            "ApiKeyAuth": []
           }
         ],
         "summary": "Create a new account",
@@ -10055,9 +9784,6 @@
         "security": [
           {
             "BearerAuth": []
-          },
-          {
-            "ApiKeyAuth": []
           }
         ],
         "summary": "Retrieve an account by alias",
@@ -10126,9 +9852,6 @@
         "security": [
           {
             "BearerAuth": []
-          },
-          {
-            "ApiKeyAuth": []
           }
         ],
         "summary": "Get Balances using Alias",
@@ -10197,9 +9920,6 @@
         "security": [
           {
             "BearerAuth": []
-          },
-          {
-            "ApiKeyAuth": []
           }
         ],
         "summary": "Retrieve an account by external code",
@@ -10268,9 +9988,6 @@
         "security": [
           {
             "BearerAuth": []
-          },
-          {
-            "ApiKeyAuth": []
           }
         ],
         "summary": "Get External balances using code",
@@ -10334,9 +10051,6 @@
         "security": [
           {
             "BearerAuth": []
-          },
-          {
-            "ApiKeyAuth": []
           }
         ],
         "summary": "Count accounts",
@@ -10455,9 +10169,6 @@
         "security": [
           {
             "BearerAuth": []
-          },
-          {
-            "ApiKeyAuth": []
           }
         ],
         "summary": "Get all balances by account id",
@@ -10534,9 +10245,6 @@
         "security": [
           {
             "BearerAuth": []
-          },
-          {
-            "ApiKeyAuth": []
           }
         ],
         "summary": "Create Additional Balance",
@@ -10621,9 +10329,6 @@
         "security": [
           {
             "BearerAuth": []
-          },
-          {
-            "ApiKeyAuth": []
           }
         ],
         "summary": "Get Account Balances history at date",
@@ -10792,9 +10497,6 @@
         "security": [
           {
             "BearerAuth": []
-          },
-          {
-            "ApiKeyAuth": []
           }
         ],
         "summary": "Get all Operations by account",
@@ -10873,9 +10575,6 @@
         "security": [
           {
             "BearerAuth": []
-          },
-          {
-            "ApiKeyAuth": []
           }
         ],
         "summary": "Get Operation",
@@ -10946,9 +10645,6 @@
         "security": [
           {
             "BearerAuth": []
-          },
-          {
-            "ApiKeyAuth": []
           }
         ],
         "summary": "Delete an account",
@@ -11015,9 +10711,6 @@
         "security": [
           {
             "BearerAuth": []
-          },
-          {
-            "ApiKeyAuth": []
           }
         ],
         "summary": "Retrieve a specific account",
@@ -11094,9 +10787,6 @@
         "security": [
           {
             "BearerAuth": []
-          },
-          {
-            "ApiKeyAuth": []
           }
         ],
         "summary": "Update an account",
@@ -11215,9 +10905,6 @@
         "security": [
           {
             "BearerAuth": []
-          },
-          {
-            "ApiKeyAuth": []
           }
         ],
         "summary": "List all assets",
@@ -11293,9 +10980,6 @@
         "security": [
           {
             "BearerAuth": []
-          },
-          {
-            "ApiKeyAuth": []
           }
         ],
         "summary": "Create a new asset",
@@ -11359,9 +11043,6 @@
         "security": [
           {
             "BearerAuth": []
-          },
-          {
-            "ApiKeyAuth": []
           }
         ],
         "summary": "Count total assets",
@@ -11423,9 +11104,6 @@
         "security": [
           {
             "BearerAuth": []
-          },
-          {
-            "ApiKeyAuth": []
           }
         ],
         "summary": "Delete an asset",
@@ -11492,9 +11170,6 @@
         "security": [
           {
             "BearerAuth": []
-          },
-          {
-            "ApiKeyAuth": []
           }
         ],
         "summary": "Retrieve a specific asset",
@@ -11571,9 +11246,6 @@
         "security": [
           {
             "BearerAuth": []
-          },
-          {
-            "ApiKeyAuth": []
           }
         ],
         "summary": "Update an asset",
@@ -11682,9 +11354,6 @@
         "security": [
           {
             "BearerAuth": []
-          },
-          {
-            "ApiKeyAuth": []
           }
         ],
         "summary": "Get all balances",
@@ -11746,9 +11415,6 @@
         "security": [
           {
             "BearerAuth": []
-          },
-          {
-            "ApiKeyAuth": []
           }
         ],
         "summary": "Delete Balance by account",
@@ -11815,9 +11481,6 @@
         "security": [
           {
             "BearerAuth": []
-          },
-          {
-            "ApiKeyAuth": []
           }
         ],
         "summary": "Get Balance by id",
@@ -11894,9 +11557,6 @@
         "security": [
           {
             "BearerAuth": []
-          },
-          {
-            "ApiKeyAuth": []
           }
         ],
         "summary": "Update Balance",
@@ -11975,9 +11635,6 @@
         "security": [
           {
             "BearerAuth": []
-          },
-          {
-            "ApiKeyAuth": []
           }
         ],
         "summary": "Get Balance history at date",
@@ -13451,9 +13108,6 @@
         "security": [
           {
             "BearerAuth": []
-          },
-          {
-            "ApiKeyAuth": []
           }
         ],
         "summary": "List all portfolios",
@@ -13520,9 +13174,6 @@
         "security": [
           {
             "BearerAuth": []
-          },
-          {
-            "ApiKeyAuth": []
           }
         ],
         "summary": "Create a new portfolio",
@@ -13586,9 +13237,6 @@
         "security": [
           {
             "BearerAuth": []
-          },
-          {
-            "ApiKeyAuth": []
           }
         ],
         "summary": "Count total portfolios",
@@ -13650,9 +13298,6 @@
         "security": [
           {
             "BearerAuth": []
-          },
-          {
-            "ApiKeyAuth": []
           }
         ],
         "summary": "Delete a portfolio",
@@ -13719,9 +13364,6 @@
         "security": [
           {
             "BearerAuth": []
-          },
-          {
-            "ApiKeyAuth": []
           }
         ],
         "summary": "Retrieve a specific portfolio",
@@ -13798,9 +13440,6 @@
         "security": [
           {
             "BearerAuth": []
-          },
-          {
-            "ApiKeyAuth": []
           }
         ],
         "summary": "Update a portfolio",
@@ -13919,9 +13558,6 @@
         "security": [
           {
             "BearerAuth": []
-          },
-          {
-            "ApiKeyAuth": []
           }
         ],
         "summary": "List all segments",
@@ -13988,9 +13624,6 @@
         "security": [
           {
             "BearerAuth": []
-          },
-          {
-            "ApiKeyAuth": []
           }
         ],
         "summary": "Create a new segment",
@@ -14054,9 +13687,6 @@
         "security": [
           {
             "BearerAuth": []
-          },
-          {
-            "ApiKeyAuth": []
           }
         ],
         "summary": "Count total segments",
@@ -14118,9 +13748,6 @@
         "security": [
           {
             "BearerAuth": []
-          },
-          {
-            "ApiKeyAuth": []
           }
         ],
         "summary": "Delete a segment",
@@ -14187,9 +13814,6 @@
         "security": [
           {
             "BearerAuth": []
-          },
-          {
-            "ApiKeyAuth": []
           }
         ],
         "summary": "Retrieve a specific segment",
@@ -14266,9 +13890,6 @@
         "security": [
           {
             "BearerAuth": []
-          },
-          {
-            "ApiKeyAuth": []
           }
         ],
         "summary": "Update a segment",
@@ -14327,9 +13948,6 @@
         "security": [
           {
             "BearerAuth": []
-          },
-          {
-            "ApiKeyAuth": []
           }
         ],
         "summary": "Get ledger settings",
@@ -14397,9 +14015,6 @@
         "security": [
           {
             "BearerAuth": []
-          },
-          {
-            "ApiKeyAuth": []
           }
         ],
         "summary": "Update ledger settings",
@@ -14998,9 +14613,6 @@
         "security": [
           {
             "BearerAuth": []
-          },
-          {
-            "ApiKeyAuth": []
           }
         ],
         "summary": "Count Transactions by Filters",
@@ -15642,9 +15254,6 @@
         "security": [
           {
             "BearerAuth": []
-          },
-          {
-            "ApiKeyAuth": []
           }
         ],
         "summary": "Get all Metadata Indexes",
@@ -15703,9 +15312,6 @@
         "security": [
           {
             "BearerAuth": []
-          },
-          {
-            "ApiKeyAuth": []
           }
         ],
         "summary": "Create Metadata Index",
@@ -15757,9 +15363,6 @@
         "security": [
           {
             "BearerAuth": []
-          },
-          {
-            "ApiKeyAuth": []
           }
         ],
         "summary": "Delete Metadata Index",
@@ -25509,17 +25112,17 @@
       }
     },
     "securitySchemes": {
-      "ApiKeyAuth": {
-        "description": "Static API key presented in the X-API-Key header.",
-        "in": "header",
-        "name": "X-API-Key",
-        "type": "apiKey"
-      },
       "BearerAuth": {
         "bearerFormat": "JWT",
         "description": "JWT bearer token issued by the identity provider.",
         "scheme": "bearer",
         "type": "http"
+      },
+      "ApiKeyAuth": {
+        "description": "Static API key presented in the X-API-Key header.",
+        "in": "header",
+        "name": "X-API-Key",
+        "type": "apiKey"
       }
     }
   },

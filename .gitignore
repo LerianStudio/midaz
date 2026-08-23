@@ -34,6 +34,7 @@ components/onboarding/_docker-compose.yml
 
 # Environment files
 .env
+.env.bak*
 
 # Dependencies
 node_modules/

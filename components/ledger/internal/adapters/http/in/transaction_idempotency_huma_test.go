@@ -31,11 +31,11 @@ import (
 // structs; holder/instrument carry the same headers and the same drift risk.
 func createHumaEnvelopes() map[string]any {
 	return map[string]any{
-		"CreateTransactionJSONInputHuma":    CreateTransactionJSONInputHuma{},
-		"CreateTransactionInflowInputHuma":  CreateTransactionInflowInputHuma{},
-		"CreateTransactionOutflowInputHuma": CreateTransactionOutflowInputHuma{},
-		"CreateHolderInputHuma":             CreateHolderInputHuma{},
-		"CreateInstrumentInputHuma":         CreateInstrumentInputHuma{},
+		"CreateTransactionJSONRequest":    CreateTransactionJSONRequest{},
+		"CreateTransactionInflowRequest":  CreateTransactionInflowRequest{},
+		"CreateTransactionOutflowRequest": CreateTransactionOutflowRequest{},
+		"CreateHolderRequest":             CreateHolderRequest{},
+		"CreateInstrumentRequest":         CreateInstrumentRequest{},
 	}
 }
 
