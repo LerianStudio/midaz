@@ -17,61 +17,6 @@ const midazName = "midaz"
 // SettingsMaxPayloadSize defines the maximum payload size for settings endpoints (64KB).
 const SettingsMaxPayloadSize = 64 * 1024
 
-// RegisterBalanceRoutesToApp wires the balance surface onto the /v1
-// contract. See registerBalanceRoutesToApp for what it attaches.
-func RegisterBalanceRoutesToApp(group fiber.Router, api huma.API, auth *middleware.AuthClient, bh *BalanceHandler, routeOptions *http.ProtectedRouteOptions) {
-	registerBalanceRoutesToApp(group, api, auth, bh, routeOptions, routeOpSuffixV1)
-}
-
-// RegisterBalanceV2RoutesToApp wires the same balance surface onto the /v2 contract: same
-// paths, same handlers, same authz tuples and tenant chain, differing only in the operation
-// IDs the contract publishes. It is additive — /v1 keeps serving balances in parallel — and
-// introduces no new policy surface.
-func RegisterBalanceV2RoutesToApp(group fiber.Router, api huma.API, auth *middleware.AuthClient, bh *BalanceHandler, routeOptions *http.ProtectedRouteOptions) {
-	registerBalanceRoutesToApp(group, api, auth, bh, routeOptions, routeOpSuffixV2)
-}
-
-// registerBalanceRoutesToApp is the single description of the balance route surface, shared by
-// every versioned contract that serves it. It attaches the Fiber auth chain —
-// auth.Authorize("midaz","balances",verb) + tenant PostAuthMiddlewares +
-// ParseUUIDPathParameters("balance") — as MIDDLEWARE ONLY (group-relative paths, no terminal)
-// on the VERSIONED GROUP, then registers the Huma terminals via RegisterBalanceRoutes on the
-// SAME group's Huma API. The alias/code path segments are NOT UUIDs;
-// ParseUUIDPathParameters("balance") only validates org/ledger/balance_id/account_id, so those
-// routes pass alias/code through raw. The ("midaz","balances",verb) authz tuples and tenant
-// resolution therefore apply on whichever version group it is mounted on.
-//
-// opSuffix distinguishes the operation IDs one version group publishes from another's — see
-// routeOpSuffixV1. Nothing else varies between contracts, so a change to the surface reaches
-// every version it is mounted on.
-func registerBalanceRoutesToApp(group fiber.Router, api huma.API, auth *middleware.AuthClient, bh *BalanceHandler, routeOptions *http.ProtectedRouteOptions, opSuffix string) {
-	const (
-		orgLedger      = "/organizations/:organization_id/ledgers/:ledger_id"
-		balancesPath   = orgLedger + "/balances"
-		balanceIDPath  = balancesPath + "/:balance_id"
-		balanceHistory = balanceIDPath + "/history"
-		acctBalances   = orgLedger + "/accounts/:account_id/balances"
-		acctHistory    = acctBalances + "/history"
-		aliasBalances  = orgLedger + "/accounts/alias/:alias/balances"
-		codeBalances   = orgLedger + "/accounts/external/:code/balances"
-	)
-
-	parse := http.ParseUUIDPathParameters("balance")
-
-	routeGet(group, balancesPath, protectedMidaz(auth, "balances", "get", routeOptions, parse))
-	routeGet(group, balanceIDPath, protectedMidaz(auth, "balances", "get", routeOptions, parse))
-	routePatch(group, balanceIDPath, protectedMidaz(auth, "balances", "patch", routeOptions, parse))
-	routeDelete(group, balanceIDPath, protectedMidaz(auth, "balances", "delete", routeOptions, parse))
-	routeGet(group, balanceHistory, protectedMidaz(auth, "balances", "get", routeOptions, parse))
-	routeGet(group, acctBalances, protectedMidaz(auth, "balances", "get", routeOptions, parse))
-	routePost(group, acctBalances, protectedMidaz(auth, "balances", "post", routeOptions, parse))
-	routeGet(group, acctHistory, protectedMidaz(auth, "balances", "get", routeOptions, parse))
-	routeGet(group, aliasBalances, protectedMidaz(auth, "balances", "get", routeOptions, parse))
-	routeGet(group, codeBalances, protectedMidaz(auth, "balances", "get", routeOptions, parse))
-
-	RegisterBalanceRoutes(api, bh, opSuffix)
-}
-
 // RegisterOperationRoutesToApp wires the operation surface onto the /v1
 // contract. See registerOperationRoutesToApp for what it attaches.
 func RegisterOperationRoutesToApp(group fiber.Router, api huma.API, auth *middleware.AuthClient, oh *OperationHandler, routeOptions *http.ProtectedRouteOptions) {
