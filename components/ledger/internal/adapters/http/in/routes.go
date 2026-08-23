@@ -17,41 +17,6 @@ const midazName = "midaz"
 // SettingsMaxPayloadSize defines the maximum payload size for settings endpoints (64KB).
 const SettingsMaxPayloadSize = 64 * 1024
 
-// RegisterCountTransactionRoutesToApp wires the transaction-count HEAD op onto the /v1
-// contract. See registerCountTransactionRoutesToApp for what it attaches.
-func RegisterCountTransactionRoutesToApp(group fiber.Router, api huma.API, auth *middleware.AuthClient, th *TransactionHandler, routeOptions *http.ProtectedRouteOptions) {
-	registerCountTransactionRoutesToApp(group, api, auth, th, routeOptions, routeOpSuffixV1)
-}
-
-// RegisterCountTransactionV2RoutesToApp wires the same transaction-count HEAD op onto the /v2
-// contract: same path, same handler, same authz tuple and tenant chain, differing only in the
-// operation ID the contract publishes. It is additive — /v1 keeps serving the count in parallel
-// — and introduces no new policy surface.
-func RegisterCountTransactionV2RoutesToApp(group fiber.Router, api huma.API, auth *middleware.AuthClient, th *TransactionHandler, routeOptions *http.ProtectedRouteOptions) {
-	registerCountTransactionRoutesToApp(group, api, auth, th, routeOptions, routeOpSuffixV2)
-}
-
-// registerCountTransactionRoutesToApp is the single description of the transaction-count route
-// surface, shared by every versioned contract that serves it. It attaches the Fiber auth chain
-// — auth.Authorize("midaz","transactions","head") + tenant PostAuthMiddlewares +
-// ParseUUIDPathParameters("transaction") — as MIDDLEWARE ONLY (group-relative path, no terminal)
-// on the VERSIONED GROUP, then registers the Huma terminal via RegisterCountTransactionRoutes on
-// the SAME group's Huma API. This preserves the ("midaz","transactions","head") authz tuple and
-// tenant resolution BYTE-FOR-BYTE on whichever version group it is mounted on.
-//
-// opSuffix distinguishes the operation ID one version group publishes from another's — see
-// routeOpSuffixV1. Nothing else varies between contracts, so a change to the surface reaches
-// every version it is mounted on.
-func registerCountTransactionRoutesToApp(group fiber.Router, api huma.API, auth *middleware.AuthClient, th *TransactionHandler, routeOptions *http.ProtectedRouteOptions, opSuffix string) {
-	const countPath = "/organizations/:organization_id/ledgers/:ledger_id/transactions/metrics/count"
-
-	parse := http.ParseUUIDPathParameters("transaction")
-
-	routeHead(group, countPath, protectedMidaz(auth, "transactions", "head", routeOptions, parse))
-
-	RegisterCountTransactionRoutes(api, th, opSuffix)
-}
-
 // RegisterTransactionHumaRoutesToApp wires the twelve transaction ops (six CREATE —
 // json/inflow/outflow/annotation/block/unblock, three id-only STATE, one PATCH, two
 // READ). Auth is auth.Authorize("midaz","transactions",verb) + tenant +
