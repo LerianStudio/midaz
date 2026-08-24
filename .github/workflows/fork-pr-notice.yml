@@ -84,4 +84,33 @@ jobs:
           🤖 *This message was generated automatically.*
           EOF
           fi
+
+          # Both `fork` and `develop` enforce required_signatures (an org
+          # ruleset) — an unverified commit merges nowhere here, but the
+          # merge button just goes red with no context unless someone
+          # notices. Flag it up front instead of letting it surface later.
+          # --paginate --slurp: the default single-page fetch would silently
+          # under-count commits/PRs with more than 30 commits (this
+          # endpoint's own hard cap is 250 — unrealistic for this flow's
+          # PRs, so no separate fallback for that).
+          # verified == false, not reason == "unsigned": that also catches
+          # commits that ARE signed but fail verification for another
+          # reason (unknown_key, bad_email, expired_key, ...) — those are
+          # just as blocked by required_signatures as a truly unsigned one.
+          # --slurp isn't accepted together with --jq (gh api rejects the
+          # combination outright), so the flattening has to happen in a
+          # separate, standalone jq call instead of inline on the gh api call.
+          commits_json=$(gh api --paginate --slurp "repos/$GH_REPO/pulls/$PR_NUMBER/commits")
+          unverified_count=$(jq '[.[][] | select(.commit.verification.verified == false)] | length' <<<"$commits_json")
+          total_count=$(jq '[.[][]] | length' <<<"$commits_json")
+          if [[ "$unverified_count" -gt 0 ]]; then
+            cat >> /tmp/notice-body.md <<EOF
+
+          > [!CAUTION]
+          > ✍️ **$unverified_count of $total_count commit(s) in this PR could not be verified.** Both \`fork\` and \`develop\` require signed, verified commits to merge — GitHub will block the merge button until this is fixed.
+
+          Sign your commits (e.g. \`git commit -S\`, or configure SSH commit signing) and force-push this branch. See [GitHub's guide to signing commits](https://docs.github.com/en/authentication/managing-commit-signature-verification/signing-commits) and the [commit signing section of CONTRIBUTING.md](https://github.com/LerianStudio/midaz/blob/develop/CONTRIBUTING.md#commit-signing-requirement).
+          EOF
+          fi
+
           gh pr comment "$PR_NUMBER" --body-file /tmp/notice-body.md
