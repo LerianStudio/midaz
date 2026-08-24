@@ -18,13 +18,14 @@
 # MUST match what the middleware checks, so a granted role's permission lines up
 # with the runtime enforce — NOT a semantic create/read/update rename.
 #
-# ### TEAM: please confirm ### — ROLE MODEL IS INFERRED. The code carries no role
-# data (Authorize takes only subject/resource/action), so the editor/viewer split
-# below is an INFERRED convention applied across this midaz manifest (fee
-# resources are embedded here, no separate fees manifest): read verbs
-# (get, head) are granted to editor + viewer; every mutating verb (post/put/patch/
-# delete) to editor only. The granted_to group bindings under `roles:` are NOT
-# inferred — they are confirmed against the central Access Manager seed (see below).
+# ROLE MODEL IS CONFIRMED against the central Access Manager. The code carries no
+# role data (Authorize takes only subject/resource/action), but the editor/viewer
+# split below is the confirmed convention applied across this midaz manifest (fee
+# resources are embedded here, no separate fees manifest): editor gets read plus
+# every mutating verb (get/post/patch/delete/head), viewer gets read-only
+# (get/head), matching midaz-editor-permission / midaz-viewer-permission. The
+# granted_to group bindings under `roles:` are likewise confirmed against the
+# central Access Manager seed (see below).
 service: midaz
 version: 1
 permissions:
@@ -172,9 +173,7 @@ m2m:
   # EXPORT: midaz exposes its M2M editor surface so a peer service that declares a
   # `needs: [midaz]` edge can reconcile against it.
   exposed: true
-  # IMPORT: the ledger calls tracer's reservation API (TRACER_BASE_URL, gRPC/REST;
-  # .env.example:487) which is guarded by auth.Authorize("tracer","reservations",
-  # "post"). ### TEAM: please confirm ### — confirm this call rides an M2M token
-  # (not the API key) before relying on this edge.
-  needs:
-    - tracer
+  # IMPORT: the ledger calls tracer's reservation API (TRACER_BASE_URL) over the
+  # gRPC/mTLS reservation seam, authorized by tracer's own `reservations`
+  # permission (tracer-inbound authz). This is NOT an RI declaration M2M edge, so
+  # midaz declares no `needs`.
