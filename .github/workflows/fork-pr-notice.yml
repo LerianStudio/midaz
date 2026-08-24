@@ -3,13 +3,17 @@ name: Fork PR Notice
 # Comments when a PR is opened from a fork, explaining the trusted-promotion
 # flow (fork-pr-promote.yml) and redirecting PRs opened against the wrong
 # base branch. Also reacts when the base branch is later changed (edited),
-# so retargeting to `fork` gets its own confirmation instead of silence.
+# so retargeting to `fork` gets its own confirmation instead of silence, and
+# on every new push (synchronize), so the unverified-commits warning below
+# gets re-evaluated and dropped once a contributor pushes a signed fixup —
+# the comment is rebuilt from scratch and edited in place each run, so a
+# now-clean signature status just means the caution block isn't re-added.
 # Metadata-only: no checkout, no code execution, safe under
 # pull_request_target despite the elevated token it carries.
 
 on:
   pull_request_target:
-    types: [opened, edited]
+    types: [opened, edited, synchronize]
 
 permissions:
   pull-requests: write
@@ -20,7 +24,7 @@ jobs:
     # base branch itself changed, so we don't spam a comment on every edit.
     if: >
       github.event.pull_request.head.repo.full_name != github.repository &&
-      (github.event.action == 'opened' || github.event.changes.base != null)
+      (github.event.action == 'opened' || github.event.action == 'synchronize' || github.event.changes.base != null)
     runs-on: blacksmith-4vcpu-ubuntu-2404
     steps:
       - name: Comment with the promotion flow explanation
