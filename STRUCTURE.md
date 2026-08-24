@@ -118,7 +118,7 @@ own — the package tree holds only persistence and use cases:
 The entire CRM HTTP surface lives in the ledger tree under
 `components/ledger/internal/adapters/http/in/`: `holder_routes.go` / `instrument_routes.go` (holder/instrument registration,
 `midaz` namespace), `composition_routes.go` (holder↔account composition), and the
-`holder.go`, `holder_accounts.go`, and `instrument.go` handlers. CRM endpoints are folded into
+`holder_core.go`, `holder_accounts_core.go`, and `instrument_core.go` cores. CRM endpoints are folded into
 the ledger Swagger spec (`components/ledger/api`); there is no separate CRM OpenAPI spec.
 
 CRM scopes requests by the `:organization_id` URL path parameter (path-based org hierarchy; R22
