@@ -30,7 +30,7 @@ type AssetRateHandler struct {
 // methods below own the span, the service call and the success log. They take
 // primitive args — parsed UUIDs, the raw asset-code string, the decoded payload, the
 // query map — so nothing transport-shaped reaches them; the handlers in
-// assetrate_handler.go pull those out of the request envelope. Every canonical Midaz
+// asset_rate_handler.go pull those out of the request envelope. Every canonical Midaz
 // error a core returns is rendered by its caller via http.HumaProblem, which fixes
 // the code + HTTP status. assetrate is MONEY-adjacent (exchange rates).
 
