@@ -32,23 +32,22 @@ type AccountHandler struct {
 // --- Transport-agnostic cores -------------------------------------------------
 //
 // The createAccount/updateAccount/... cores below own the span, the imperative
-// query binding, the service call(s) and the success log/metric. They take
-// primitive args — parsed UUIDs, the already-decoded payload, the query map — so
+// query binding, the service call(s) and the metric. They take primitive args —
+// parsed UUIDs, the already-decoded payload, the query map — so
 // nothing transport-shaped reaches them; the handlers in account_handler.go pull
 // those out of the request envelope. Every canonical Midaz error a core returns is
 // rendered by its caller via http.HumaProblem, which fixes the code + HTTP status.
 
-// createAccount owns the span + service call + success log + created metric for an
+// createAccount owns the span + service call + created metric for an
 // already-decoded payload. Body decode+validation happens BEFORE this core, in the
 // handler, via http.DecodeAndValidate(RawBody). The RecordAccountCreated metric
 // lives here, alongside the service call it describes.
 func (handler *AccountHandler) createAccount(ctx context.Context, organizationID, ledgerID uuid.UUID, payload *mmodel.CreateAccountInput, token string) (*mmodel.Account, error) {
-	logger, tracer, _, metricFactory := libObservability.NewTrackingFromContext(ctx)
+	_, tracer, _, metricFactory := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "handler.create_account")
 	defer span.End()
 
-	logSafePayload(ctx, logger, "Request to create an account", payload)
 	recordSafePayloadAttributes(span, payload)
 
 	account, err := handler.Command.CreateAccount(ctx, organizationID, ledgerID, payload, token)
@@ -189,12 +188,11 @@ func (handler *AccountHandler) getAccountByAlias(ctx context.Context, spanName s
 // payload. It updates, then re-reads so the caller receives the freshly persisted
 // account.
 func (handler *AccountHandler) updateAccount(ctx context.Context, organizationID, ledgerID, id uuid.UUID, payload *mmodel.UpdateAccountInput) (*mmodel.Account, error) {
-	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
+	_, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "handler.update_account")
 	defer span.End()
 
-	logSafePayload(ctx, logger, "Request to update account", payload)
 	recordSafePayloadAttributes(span, payload)
 
 	if _, err := handler.Command.UpdateAccount(ctx, organizationID, ledgerID, nil, id, payload); err != nil {

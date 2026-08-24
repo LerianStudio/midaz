@@ -31,9 +31,9 @@ type BalanceHandler struct {
 
 // --- Transport-agnostic cores -------------------------------------------------
 //
-// Each core below owns the span, imperative query/date validation, the service
-// call and the success log. They take primitive args — parsed UUIDs, raw path
-// strings, the query map — so nothing transport-shaped reaches them; the handlers
+// Each core below owns the span, imperative query/date validation and the service
+// call. They take primitive args — parsed UUIDs, raw path strings, the query map —
+// so nothing transport-shaped reaches them; the handlers
 // in balance_handler.go pull those out of the request envelope. Every canonical
 // Midaz error a core returns is rendered by its caller via http.HumaProblem, which
 // fixes the code + HTTP status. The three write cores (update / create-additional /
@@ -150,16 +150,15 @@ func (handler *BalanceHandler) deleteBalance(ctx context.Context, organizationID
 	return nil
 }
 
-// updateBalance owns the span + service call + success log for an already-decoded
+// updateBalance owns the span + service call for an already-decoded
 // payload (MONEY-adjacent; command core untouched). Body decode+validation happens
 // BEFORE this core (Fiber WithBody decorator or Huma http.DecodeAndValidate).
 func (handler *BalanceHandler) updateBalance(ctx context.Context, organizationID, ledgerID, balanceID uuid.UUID, payload *mmodel.UpdateBalance) (*mmodel.Balance, error) {
-	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
+	_, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "handler.update_balance")
 	defer span.End()
 
-	logSafePayload(ctx, logger, "Request to update a Balance", payload)
 	recordSafePayloadAttributes(span, payload)
 
 	balance, err := handler.Command.Update(ctx, organizationID, ledgerID, balanceID, *payload)
@@ -172,15 +171,14 @@ func (handler *BalanceHandler) updateBalance(ctx context.Context, organizationID
 	return balance, nil
 }
 
-// createAdditionalBalance owns the span + service call + success log for an
+// createAdditionalBalance owns the span + service call for an
 // already-decoded payload (MONEY-adjacent; command core untouched).
 func (handler *BalanceHandler) createAdditionalBalance(ctx context.Context, organizationID, ledgerID, accountID uuid.UUID, payload *mmodel.CreateAdditionalBalance) (*mmodel.Balance, error) {
-	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
+	_, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "handler.create_additional_balance")
 	defer span.End()
 
-	logSafePayload(ctx, logger, "Request to create a Balance", payload)
 	recordSafePayloadAttributes(span, payload)
 
 	balance, err := handler.Command.CreateAdditionalBalance(ctx, organizationID, ledgerID, accountID, payload)

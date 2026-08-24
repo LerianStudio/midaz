@@ -25,24 +25,23 @@ type AccountTypeHandler struct {
 
 // --- Transport-agnostic cores -------------------------------------------------
 //
-// The createAccountType/updateAccountType/... methods below own the span, the
-// service call and the success log. They take primitive args — parsed UUIDs, the
-// already-decoded payload, the query map — so nothing transport-shaped reaches them;
+// The createAccountType/updateAccountType/... methods below own the span and the
+// service call. They take primitive args — parsed UUIDs, the already-decoded
+// payload, the query map — so nothing transport-shaped reaches them;
 // the handlers in account_type_handler.go pull those out of the request envelope.
 // Every canonical Midaz error a core returns is rendered by its caller via
 // http.HumaProblem, which fixes the code + HTTP status.
 
-// createAccountType owns the span + service call + success log for an already-decoded
+// createAccountType owns the span + service call for an already-decoded
 // payload. Body decode+validation happens BEFORE this core, in the handler, via
 // http.DecodeAndValidate(RawBody).
 func (handler *AccountTypeHandler) createAccountType(ctx context.Context, organizationID, ledgerID uuid.UUID, payload *mmodel.CreateAccountTypeInput) (*mmodel.AccountType, error) {
-	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
+	_, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "handler.create_account_type")
 	defer span.End()
 
 	recordSafePayloadAttributes(span, payload)
-	logSafePayload(ctx, logger, "Request to create an account type", payload)
 
 	accountType, err := handler.Command.CreateAccountType(ctx, organizationID, ledgerID, payload)
 	if err != nil {
@@ -71,16 +70,15 @@ func (handler *AccountTypeHandler) getAccountTypeByID(ctx context.Context, organ
 	return accountType, nil
 }
 
-// updateAccountType owns the span + service call + success log for an already-decoded
+// updateAccountType owns the span + service call for an already-decoded
 // payload (see createAccountType for where the decode happens).
 func (handler *AccountTypeHandler) updateAccountType(ctx context.Context, organizationID, ledgerID, id uuid.UUID, payload *mmodel.UpdateAccountTypeInput) (*mmodel.AccountType, error) {
-	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
+	_, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "handler.update_account_type")
 	defer span.End()
 
 	recordSafePayloadAttributes(span, payload)
-	logSafePayload(ctx, logger, "Request to update account type", payload)
 
 	accountType, err := handler.Command.UpdateAccountType(ctx, organizationID, ledgerID, id, payload)
 	if err != nil {

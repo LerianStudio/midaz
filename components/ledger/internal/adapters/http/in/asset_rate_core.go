@@ -27,23 +27,22 @@ type AssetRateHandler struct {
 // --- Transport-agnostic cores -------------------------------------------------
 //
 // The createOrUpdateAssetRate/getAssetRateByExternalID/getAllAssetRatesByAssetCode
-// methods below own the span, the service call and the success log. They take
-// primitive args — parsed UUIDs, the raw asset-code string, the decoded payload, the
+// methods below own the span and the service call. They take primitive args —
+// parsed UUIDs, the raw asset-code string, the decoded payload, the
 // query map — so nothing transport-shaped reaches them; the handlers in
 // asset_rate_handler.go pull those out of the request envelope. Every canonical Midaz
 // error a core returns is rendered by its caller via http.HumaProblem, which fixes
 // the code + HTTP status. assetrate is MONEY-adjacent (exchange rates).
 
-// createOrUpdateAssetRate owns the span + service call + success log for an
+// createOrUpdateAssetRate owns the span + service call for an
 // already-decoded payload. Body decode+validation happens BEFORE this core, in the
 // handler, via http.DecodeAndValidate(RawBody).
 func (handler *AssetRateHandler) createOrUpdateAssetRate(ctx context.Context, organizationID, ledgerID uuid.UUID, payload *assetrate.CreateAssetRateInput) (*assetrate.AssetRate, error) {
-	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
+	_, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "handler.create_asset_rate")
 	defer span.End()
 
-	logSafePayload(ctx, logger, "Request to create an AssetRate", payload)
 	recordSafePayloadAttributes(span, payload)
 
 	assetRate, err := handler.Command.CreateOrUpdateAssetRate(ctx, organizationID, ledgerID, payload)

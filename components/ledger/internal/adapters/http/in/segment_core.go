@@ -26,22 +26,21 @@ type SegmentHandler struct {
 
 // --- Transport-agnostic cores -------------------------------------------------
 //
-// The createSegment/updateSegment/... methods below own the span, the service call
-// and the success log. They take primitive args — parsed UUIDs, already-decoded
-// payload, the query map — so nothing transport-shaped reaches them; the handlers in
+// The createSegment/updateSegment/... methods below own the span and the service
+// call. They take primitive args — parsed UUIDs, already-decoded payload, the
+// query map — so nothing transport-shaped reaches them; the handlers in
 // segment_handler.go pull those out of the request envelope. Every canonical error a
 // core returns is rendered by its caller via http.HumaProblem, which fixes the code +
 // HTTP status. Body decode+validation happens BEFORE these cores, in the handler, via
 // http.DecodeAndValidate. Mirrors the asset exemplar (asset_core.go).
 
-// createSegment owns the span + service call + success log for an already-decoded payload.
+// createSegment owns the span + service call for an already-decoded payload.
 func (handler *SegmentHandler) createSegment(ctx context.Context, organizationID, ledgerID uuid.UUID, payload *mmodel.CreateSegmentInput) (*mmodel.Segment, error) {
-	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
+	_, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "handler.create_segment")
 	defer span.End()
 
-	logSafePayload(ctx, logger, "Request to create a segment", payload)
 	recordSafePayloadAttributes(span, payload)
 
 	segment, err := handler.Command.CreateSegment(ctx, organizationID, ledgerID, payload)
@@ -124,14 +123,13 @@ func (handler *SegmentHandler) getSegmentByID(ctx context.Context, organizationI
 	return segment, nil
 }
 
-// updateSegment owns the span + service call + success log for an already-decoded payload.
+// updateSegment owns the span + service call for an already-decoded payload.
 func (handler *SegmentHandler) updateSegment(ctx context.Context, organizationID, ledgerID, id uuid.UUID, payload *mmodel.UpdateSegmentInput) (*mmodel.Segment, error) {
-	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
+	_, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "handler.update_segment")
 	defer span.End()
 
-	logSafePayload(ctx, logger, "Request to update segment", payload)
 	recordSafePayloadAttributes(span, payload)
 
 	segment, err := handler.Command.UpdateSegmentByID(ctx, organizationID, ledgerID, id, payload)

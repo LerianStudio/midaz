@@ -27,22 +27,21 @@ type AssetHandler struct {
 // --- Transport-agnostic cores -------------------------------------------------
 //
 // The createAsset/updateAsset/... methods below own the span, imperative body
-// decode+validation, the service call and the success log. They take primitive
-// args — parsed UUIDs, raw body bytes, the query map — so nothing transport-shaped
+// decode+validation and the service call. They take primitive args — parsed
+// UUIDs, raw body bytes, the query map — so nothing transport-shaped
 // reaches them; the handlers in asset_handler.go pull those out of the request
 // envelope. Every canonical Midaz error a core returns is rendered by its caller
 // via http.HumaProblem, which fixes the code + HTTP status.
 
-// createAsset owns the span + service call + success log for an already-decoded
+// createAsset owns the span + service call for an already-decoded
 // payload. Body decode+validation happens BEFORE this core, in the handler, via
 // http.DecodeAndValidate(RawBody).
 func (handler *AssetHandler) createAsset(ctx context.Context, organizationID, ledgerID uuid.UUID, payload *mmodel.CreateAssetInput, token string) (*mmodel.Asset, error) {
-	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
+	_, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "handler.create_asset")
 	defer span.End()
 
-	logSafePayload(ctx, logger, "Request to create an asset", payload)
 	recordSafePayloadAttributes(span, payload)
 
 	asset, err := handler.Command.CreateAsset(ctx, organizationID, ledgerID, payload, token)
@@ -125,15 +124,14 @@ func (handler *AssetHandler) getAssetByID(ctx context.Context, organizationID, l
 	return asset, nil
 }
 
-// updateAsset owns the span + service call + success log for an already-decoded
+// updateAsset owns the span + service call for an already-decoded
 // payload (see createAsset for the decode split across transports).
 func (handler *AssetHandler) updateAsset(ctx context.Context, organizationID, ledgerID, id uuid.UUID, payload *mmodel.UpdateAssetInput) (*mmodel.Asset, error) {
-	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
+	_, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "handler.update_asset")
 	defer span.End()
 
-	logSafePayload(ctx, logger, "Request to update asset", payload)
 	recordSafePayloadAttributes(span, payload)
 
 	asset, err := handler.Command.UpdateAssetByID(ctx, organizationID, ledgerID, id, payload)

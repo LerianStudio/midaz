@@ -33,9 +33,9 @@ type OperationRouteHandler struct {
 
 // --- Transport-agnostic cores -------------------------------------------------
 //
-// The createOperationRoute/updateOperationRoute/... methods below own the span, the
-// service call and the success log. They take primitive args — parsed UUIDs, the
-// already-decoded payload, the raw body, the query map — so nothing transport-shaped
+// The createOperationRoute/updateOperationRoute/... methods below own the span and
+// the service call. They take primitive args — parsed UUIDs, the already-decoded
+// payload, the raw body, the query map — so nothing transport-shaped
 // reaches them; the handlers in operation_route_handler.go pull those out of the
 // request envelope. Every canonical Midaz error a core returns is rendered by its
 // caller via http.HumaProblem, which fixes the code + HTTP status.
@@ -45,13 +45,12 @@ type OperationRouteHandler struct {
 // unknown-key probe: Go's json.Unmarshal silently drops unknown keys, so the typed
 // payload alone cannot tell an unknown key from an omitted one.
 func (handler *OperationRouteHandler) createOperationRoute(ctx context.Context, organizationID, ledgerID uuid.UUID, payload *mmodel.CreateOperationRouteInput, rawBody []byte) (*mmodel.OperationRoute, error) {
-	logger, tracer, _, metricFactory := libObservability.NewTrackingFromContext(ctx)
+	_, tracer, _, metricFactory := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "handler.create_operation_route")
 	defer span.End()
 
 	recordSafePayloadAttributes(span, payload)
-	logSafePayload(ctx, logger, "Request to create an operation route", payload)
 
 	if err := handler.validateAccountRule(ctx, payload.Account); err != nil {
 		return nil, err
@@ -130,8 +129,6 @@ func (handler *OperationRouteHandler) updateOperationRoute(ctx context.Context, 
 
 	ctx, span := tracer.Start(ctx, "handler.update_operation_route")
 	defer span.End()
-
-	logSafePayload(ctx, logger, "Request to update an operation route", payload)
 
 	if err := handler.validateAccountRule(ctx, payload.Account); err != nil {
 		return nil, err

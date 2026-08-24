@@ -29,7 +29,7 @@ type TransactionRouteHandler struct {
 //
 // The create/get/update/delete/getAll methods below own the span, the service call,
 // the transaction-route side-effects (accounting-route cache write on create/update,
-// cache delete on delete, the created metric) and the success/failure logs. They take
+// cache delete on delete, the created metric) and the failure logs. They take
 // primitive args — parsed UUIDs, the decoded *Input, the query map — so nothing
 // transport-shaped reaches them; the handlers in transaction_route_handler.go pull
 // those out of the request envelope. Every canonical Midaz error a core returns is
@@ -46,7 +46,6 @@ func (handler *TransactionRouteHandler) createTransactionRoute(ctx context.Conte
 	defer span.End()
 
 	recordSafePayloadAttributes(span, payload)
-	logSafePayload(ctx, logger, "Request to create a transaction route", payload)
 
 	transactionRoute, err := handler.Command.CreateTransactionRoute(ctx, organizationID, ledgerID, payload)
 	if err != nil {
@@ -98,7 +97,6 @@ func (handler *TransactionRouteHandler) updateTransactionRoute(ctx context.Conte
 	defer span.End()
 
 	recordSafePayloadAttributes(span, payload)
-	logSafePayload(ctx, logger, "Request to update a transaction route", payload)
 
 	transactionRoute, err := handler.Command.UpdateTransactionRoute(ctx, organizationID, ledgerID, id, payload)
 	if err != nil {

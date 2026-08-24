@@ -32,14 +32,14 @@ type OrganizationHandler struct {
 // --- Transport-agnostic cores -------------------------------------------------
 //
 // The createOrganization/updateOrganization/... methods below own the span, the
-// service call, the success log and every organization-specific guard (the list
-// status + name-filter checks and the delete production-environment guard). They
+// service call and every organization-specific guard (the list status + name-filter
+// checks and the delete production-environment guard). They
 // take primitive args — the parsed UUID, the decoded payload, the query map — so
 // nothing transport-shaped reaches them; the handlers in organization_handler.go pull
 // those out of the request envelope. Every canonical Midaz error a core returns is
 // rendered by its caller via http.HumaProblem, which fixes the code + HTTP status.
 
-// createOrganization owns the span + service call + success log for an already-decoded
+// createOrganization owns the span + service call for an already-decoded
 // payload. Body decode+validation happens BEFORE this core, in the handler, via
 // http.DecodeAndValidate.
 func (handler *OrganizationHandler) createOrganization(ctx context.Context, payload *mmodel.CreateOrganizationInput) (*mmodel.Organization, error) {
@@ -48,7 +48,6 @@ func (handler *OrganizationHandler) createOrganization(ctx context.Context, payl
 	ctx, span := tracer.Start(ctx, "handler.create_organization")
 	defer span.End()
 
-	logSafePayload(ctx, logger, "Request to create an organization", payload)
 	recordSafePayloadAttributes(span, payload)
 
 	organization, err := handler.Command.CreateOrganization(ctx, payload)
@@ -64,7 +63,7 @@ func (handler *OrganizationHandler) createOrganization(ctx context.Context, payl
 	return organization, nil
 }
 
-// updateOrganization owns the span + service call + success log for an already-decoded
+// updateOrganization owns the span + service call for an already-decoded
 // payload (see createOrganization for where the decode happens).
 func (handler *OrganizationHandler) updateOrganization(ctx context.Context, id uuid.UUID, payload *mmodel.UpdateOrganizationInput) (*mmodel.Organization, error) {
 	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
@@ -72,7 +71,6 @@ func (handler *OrganizationHandler) updateOrganization(ctx context.Context, id u
 	ctx, span := tracer.Start(ctx, "handler.update_organization")
 	defer span.End()
 
-	logSafePayload(ctx, logger, "Request to update an organization", payload)
 	recordSafePayloadAttributes(span, payload)
 
 	organization, err := handler.Command.UpdateOrganizationByID(ctx, id, payload)

@@ -31,23 +31,22 @@ type LedgerHandler struct {
 
 // --- Transport-agnostic cores -------------------------------------------------
 //
-// The createLedger/updateLedger/... methods below own the span, the service call
-// and the success log. They take primitive args — parsed UUIDs, the already-decoded
-// payload, the query map — so nothing transport-shaped reaches them; the handlers in
+// The createLedger/updateLedger/... methods below own the span and the service
+// call. They take primitive args — parsed UUIDs, the already-decoded payload, the
+// query map — so nothing transport-shaped reaches them; the handlers in
 // ledger_handler.go pull those out of the request envelope. Every canonical Midaz
 // error a core returns is rendered by its caller via http.HumaProblem, which fixes
 // the code + HTTP status; none of them is a native Huma 422.
 
-// createLedger owns the span + service call + success log for an already-decoded
+// createLedger owns the span + service call for an already-decoded
 // payload. Body decode+validation happens BEFORE this core (Fiber: WithBody
 // decorator; Huma: http.DecodeAndValidate), so create is identical across transports.
 func (handler *LedgerHandler) createLedger(ctx context.Context, organizationID uuid.UUID, payload *mmodel.CreateLedgerInput) (*mmodel.Ledger, error) {
-	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
+	_, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "handler.create_ledger")
 	defer span.End()
 
-	logSafePayload(ctx, logger, "Request to create a ledger", payload)
 	recordSafePayloadAttributes(span, payload)
 
 	ledger, err := handler.Command.CreateLedger(ctx, organizationID, payload)
@@ -149,15 +148,14 @@ func (handler *LedgerHandler) getAllLedgers(ctx context.Context, organizationID 
 	return pagination, nil
 }
 
-// updateLedger owns the span + service call + success log for an already-decoded
+// updateLedger owns the span + service call for an already-decoded
 // payload (see createLedger for the decode split across transports).
 func (handler *LedgerHandler) updateLedger(ctx context.Context, organizationID, id uuid.UUID, payload *mmodel.UpdateLedgerInput) (*mmodel.Ledger, error) {
-	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
+	_, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "handler.update_ledger")
 	defer span.End()
 
-	logSafePayload(ctx, logger, "Request to update ledger", payload)
 	recordSafePayloadAttributes(span, payload)
 
 	ledger, err := handler.Command.UpdateLedgerByID(ctx, organizationID, id, payload)

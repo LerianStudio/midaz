@@ -108,14 +108,12 @@ func (handler *OperationHandler) getOperationByAccount(ctx context.Context, orga
 // Only metadata and description are mutable — amounts, accounts, direction and type
 // are immutable.
 func (handler *OperationHandler) updateOperation(ctx context.Context, organizationID, ledgerID, transactionID, operationID uuid.UUID, payload *operation.UpdateOperationInput) (*operation.Operation, error) {
-	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
+	_, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "handler.update_operation")
 	defer span.End()
 
 	recordSafePayloadAttributes(span, payload)
-
-	logSafePayload(ctx, logger, "Request to update an Operation", payload)
 
 	_, err := handler.Command.UpdateOperation(ctx, organizationID, ledgerID, transactionID, operationID, payload)
 	if err != nil {

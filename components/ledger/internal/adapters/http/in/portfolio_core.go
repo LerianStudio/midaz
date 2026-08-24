@@ -27,22 +27,21 @@ type PortfolioHandler struct {
 // --- Transport-agnostic cores -------------------------------------------------
 //
 // The createPortfolio/updatePortfolio/... methods below own the span, imperative
-// query binding, the service call and the success log. They take primitive args —
-// parsed UUIDs, the decoded payload, the query map — so nothing transport-shaped
+// query binding and the service call. They take primitive args — parsed UUIDs,
+// the decoded payload, the query map — so nothing transport-shaped
 // reaches them; the handlers in portfolio_handler.go pull those out of the request
 // envelope. Every canonical Midaz error a core returns is rendered by its caller via
 // http.HumaProblem, which fixes the code + HTTP status.
 
-// createPortfolio owns the span + service call + success log for an already-decoded
+// createPortfolio owns the span + service call for an already-decoded
 // payload. Body decode+validation happens BEFORE this core (Fiber: WithBody
 // decorator; Huma: http.DecodeAndValidate(RawBody)).
 func (handler *PortfolioHandler) createPortfolio(ctx context.Context, organizationID, ledgerID uuid.UUID, payload *mmodel.CreatePortfolioInput) (*mmodel.Portfolio, error) {
-	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
+	_, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "handler.create_portfolio")
 	defer span.End()
 
-	logSafePayload(ctx, logger, "Request to create a portfolio", payload)
 	recordSafePayloadAttributes(span, payload)
 
 	portfolio, err := handler.Command.CreatePortfolio(ctx, organizationID, ledgerID, payload)
@@ -125,15 +124,14 @@ func (handler *PortfolioHandler) getPortfolioByID(ctx context.Context, organizat
 	return portfolio, nil
 }
 
-// updatePortfolio owns the span + service call + success log for an already-decoded
+// updatePortfolio owns the span + service call for an already-decoded
 // payload (see createPortfolio for the decode split across transports).
 func (handler *PortfolioHandler) updatePortfolio(ctx context.Context, organizationID, ledgerID, id uuid.UUID, payload *mmodel.UpdatePortfolioInput) (*mmodel.Portfolio, error) {
-	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
+	_, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "handler.update_portfolio")
 	defer span.End()
 
-	logSafePayload(ctx, logger, "Request to update portfolio", payload)
 	recordSafePayloadAttributes(span, payload)
 
 	portfolio, err := handler.Command.UpdatePortfolioByID(ctx, organizationID, ledgerID, id, payload)
