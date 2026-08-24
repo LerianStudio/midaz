@@ -21,7 +21,7 @@ import (
 // entry). Mirrors RegisterAssetRoutes.
 //
 // opSuffix distinguishes the operation IDs one version group publishes from another's —
-// see routeOpSuffixV1. A straight v1/v2 mirror reuses the same handler methods and the
+// see v1OpSuffix. A straight v1/v2 mirror reuses the same handler methods and the
 // same input/output types, so only the operation IDs differ between the twins.
 func RegisterSegmentRoutes(api huma.API, h *SegmentHandler, opSuffix string) {
 	const (
@@ -96,7 +96,7 @@ func RegisterSegmentRoutes(api huma.API, h *SegmentHandler, opSuffix string) {
 // RegisterSegmentRoutesToApp wires the segment surface onto the /v1
 // contract. See registerSegmentRoutesToApp for what it attaches.
 func RegisterSegmentRoutesToApp(group fiber.Router, api huma.API, auth *middleware.AuthClient, h *SegmentHandler, routeOptions *pkgHTTP.ProtectedRouteOptions) {
-	registerSegmentRoutesToApp(group, api, auth, h, routeOptions, routeOpSuffixV1)
+	registerSegmentRoutesToApp(group, api, auth, h, routeOptions, v1OpSuffix)
 }
 
 // RegisterSegmentV2RoutesToApp wires the same segment surface onto the /v2 contract:
@@ -104,7 +104,7 @@ func RegisterSegmentRoutesToApp(group fiber.Router, api huma.API, auth *middlewa
 // operation IDs the contract publishes. It is additive — /v1 keeps serving segments in
 // parallel — and introduces no new policy surface.
 func RegisterSegmentV2RoutesToApp(group fiber.Router, api huma.API, auth *middleware.AuthClient, h *SegmentHandler, routeOptions *pkgHTTP.ProtectedRouteOptions) {
-	registerSegmentRoutesToApp(group, api, auth, h, routeOptions, routeOpSuffixV2)
+	registerSegmentRoutesToApp(group, api, auth, h, routeOptions, v2OpSuffix)
 }
 
 // registerSegmentRoutesToApp is the single description of the segment route surface,
@@ -118,7 +118,7 @@ func RegisterSegmentV2RoutesToApp(group fiber.Router, api huma.API, auth *middle
 // version group it is mounted on — no segment route becomes public.
 //
 // opSuffix distinguishes the operation IDs one version group publishes from another's —
-// see routeOpSuffixV1. Nothing else varies between contracts, so a change to the surface
+// see v1OpSuffix. Nothing else varies between contracts, so a change to the surface
 // reaches every version it is mounted on.
 func registerSegmentRoutesToApp(group fiber.Router, api huma.API, auth *middleware.AuthClient, h *SegmentHandler, routeOptions *pkgHTTP.ProtectedRouteOptions, opSuffix string) {
 	const (

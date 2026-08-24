@@ -19,7 +19,7 @@ const typedBodyContentType = "application/json"
 // attachTypedRequestBody swaps ONLY the OpenAPI documentation schema of one body op's
 // application/json request body to a $ref of T — the concrete Go type the op's handler
 // decodes the raw body into. It is the generalization of publishV2CreateBodySchema
-// (transaction_v2_register.go) applied to every RawBody + SkipValidateBody op, so the
+// (transaction_routes_v2.go) applied to every RawBody + SkipValidateBody op, so the
 // generated contract documents the accepted fields instead of an opaque byte stream.
 //
 // This is DOCUMENTATION-ONLY and never touches the request path. Huma freezes decode and

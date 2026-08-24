@@ -17,7 +17,7 @@ import (
 
 // This file publishes the organization/ledger-scoped transaction reads and the PATCH update on the
 // /v2 version group of the shared Huma contract. It is a BESPOKE registrar, distinct from
-// transaction_v2_register.go: that file owns the ops that have a dedicated v2 wire shape (the
+// transaction_routes_v2.go: that file owns the ops that have a dedicated v2 wire shape (the
 // flat-body create direct/hold/block/unblock and the commit/cancel/revert lifecycle shells). This
 // file carries the THREE remaining transaction ops — the PATCH update and the two reads (get-by-id
 // + list) — pointing each at its dedicated /v2 handler method (UpdateTransactionV2,
@@ -29,7 +29,7 @@ import (
 //
 // The legacy-create ops (json/inflow/outflow/annotation) are served on /v1 only; the /v2
 // transaction create surface is the flat-body direct/hold/block/unblock model in
-// transaction_v2_register.go. block/unblock create and commit/cancel/revert lifecycle are also
+// transaction_routes_v2.go. block/unblock create and commit/cancel/revert lifecycle are also
 // absent here: they already publish v2 operationIds via RegisterTransactionV2Routes, and
 // re-registering them with the same +V2 suffix would emit a duplicate operationId — and
 // huma.OpenAPI.AddOperation scans the whole document and panics on a duplicate, a boot panic.
@@ -39,7 +39,7 @@ import (
 // RegisterTransactionMirrorV2Routes registers the three transaction reads/update ops on the /v2
 // version group of the shared Huma API, pointing each at its /v2 handler method so the responses
 // carry the /v2 wire shape (TransactionV2). Each operationId is its v1 twin's id with
-// routeOpSuffixV2 appended; the Summary strings are copied verbatim from RegisterTransactionRoutes.
+// v2OpSuffix appended; the Summary strings are copied verbatim from RegisterTransactionRoutes.
 // Auth is the Fiber guard chain attached in RegisterTransactionMirrorV2RoutesToApp BEFORE these
 // terminals — the per-op Security metadata is SPEC-ONLY. Paths are GROUP-RELATIVE (the group's
 // prefix writes the /v2 segment into each op's path).
@@ -51,7 +51,7 @@ func RegisterTransactionMirrorV2Routes(api huma.API, h *TransactionHandler) {
 	)
 
 	huma.Register(api, huma.Operation{
-		OperationID:      "updateTransaction" + routeOpSuffixV2,
+		OperationID:      "updateTransaction" + v2OpSuffix,
 		Method:           http.MethodPatch,
 		Path:             idPath,
 		Summary:          "Update a Transaction",
@@ -59,10 +59,10 @@ func RegisterTransactionMirrorV2Routes(api huma.API, h *TransactionHandler) {
 		Security:         secTransactionBearer,
 		SkipValidateBody: true, // body validated imperatively — plain decode, not merge-patch.
 	}, h.UpdateTransactionV2)
-	attachTypedRequestBody[transaction.UpdateTransactionInput](api, "updateTransaction"+routeOpSuffixV2)
+	attachTypedRequestBody[transaction.UpdateTransactionInput](api, "updateTransaction"+v2OpSuffix)
 
 	huma.Register(api, huma.Operation{
-		OperationID: "getTransaction" + routeOpSuffixV2,
+		OperationID: "getTransaction" + v2OpSuffix,
 		Method:      http.MethodGet,
 		Path:        idPath,
 		Summary:     "Get a Transaction by ID",
@@ -71,7 +71,7 @@ func RegisterTransactionMirrorV2Routes(api huma.API, h *TransactionHandler) {
 	}, h.GetTransactionV2)
 
 	huma.Register(api, huma.Operation{
-		OperationID: "getAllTransactions" + routeOpSuffixV2,
+		OperationID: "getAllTransactions" + v2OpSuffix,
 		Method:      http.MethodGet,
 		Path:        listPath,
 		Summary:     "Get all Transactions",

@@ -25,7 +25,7 @@ import (
 //
 // opSuffix is appended to every operation ID so the same surface can be published on
 // more than one version group of the one document without colliding — see
-// routeOpSuffixV1.
+// v1OpSuffix.
 func RegisterOperationRouteRoutes(api huma.API, h *OperationRouteHandler, opSuffix string) {
 	const (
 		listPath = "/organizations/{organization_id}/ledgers/{ledger_id}/operation-routes"
@@ -90,7 +90,7 @@ func RegisterOperationRouteRoutes(api huma.API, h *OperationRouteHandler, opSuff
 // RegisterOperationRouteRoutesToApp wires the operation-route surface onto
 // the /v1 contract. See registerOperationRouteRoutesToApp for what it attaches.
 func RegisterOperationRouteRoutesToApp(group fiber.Router, api huma.API, auth *middleware.AuthClient, orh *OperationRouteHandler, routeOptions *pkgHTTP.ProtectedRouteOptions) {
-	registerOperationRouteRoutesToApp(group, api, auth, orh, routeOptions, routeOpSuffixV1)
+	registerOperationRouteRoutesToApp(group, api, auth, orh, routeOptions, v1OpSuffix)
 }
 
 // RegisterOperationRouteV2RoutesToApp wires the same operation-route surface onto the /v2
@@ -98,7 +98,7 @@ func RegisterOperationRouteRoutesToApp(group fiber.Router, api huma.API, auth *m
 // the operation IDs the contract publishes. It is additive — /v1 keeps serving operation
 // routes in parallel — and introduces no new policy surface.
 func RegisterOperationRouteV2RoutesToApp(group fiber.Router, api huma.API, auth *middleware.AuthClient, orh *OperationRouteHandler, routeOptions *pkgHTTP.ProtectedRouteOptions) {
-	registerOperationRouteRoutesToApp(group, api, auth, orh, routeOptions, routeOpSuffixV2)
+	registerOperationRouteRoutesToApp(group, api, auth, orh, routeOptions, v2OpSuffix)
 }
 
 // registerOperationRouteRoutesToApp is the single description of the operation-route surface,
@@ -110,7 +110,7 @@ func RegisterOperationRouteV2RoutesToApp(group fiber.Router, api huma.API, auth 
 // verb) authz tuples and tenant resolution hold on whichever version group it is mounted on.
 //
 // opSuffix distinguishes the operation IDs one version group publishes from another's — see
-// routeOpSuffixV1. Nothing else varies between contracts, so a change to the surface reaches
+// v1OpSuffix. Nothing else varies between contracts, so a change to the surface reaches
 // every version it is mounted on.
 func registerOperationRouteRoutesToApp(group fiber.Router, api huma.API, auth *middleware.AuthClient, orh *OperationRouteHandler, routeOptions *pkgHTTP.ProtectedRouteOptions, opSuffix string) {
 	const (

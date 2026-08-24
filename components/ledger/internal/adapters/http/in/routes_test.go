@@ -272,6 +272,18 @@ func TestV2RegistrarsMountSameSurfaceAsV1(t *testing.T) {
 	}
 }
 
+// TestMidazAppName_IsTheX1AuthzNamespace locks the single authz appName every
+// protectedMidaz chain forwards. It is the X1 RBAC contract: tenant-manager grants
+// migrate from plugin-crm:* to midaz:{holders,instruments}:* at v4 release, so the CRM
+// surface folded into this binary authorizes under the host ledger's namespace rather
+// than a standalone plugin one. Spelled literally because a rename here is a breaking
+// change to deployed policy, not an internal refactor.
+func TestMidazAppName_IsTheX1AuthzNamespace(t *testing.T) {
+	t.Parallel()
+
+	assert.Equal(t, "midaz", midazName, "the authz appName is deployed policy; a rename breaks tenant-manager grants")
+}
+
 // TestAuthz_RoutingResources_AuthorizeUnderMidazAppName locks the authorization
 // appName for the three route-management resources (operation-routes,
 // transaction-routes, account-types): every op must be guarded by
@@ -303,7 +315,7 @@ func TestAuthz_RoutingResources_AuthorizeUnderMidazAppName(t *testing.T) {
 		{
 			name: "operation-routes",
 			register: func(group fiber.Router, api huma.API, auth *middleware.AuthClient) {
-				registerOperationRouteRoutesToApp(group, api, auth, &OperationRouteHandler{}, nil, routeOpSuffixV1)
+				registerOperationRouteRoutesToApp(group, api, auth, &OperationRouteHandler{}, nil, v1OpSuffix)
 			},
 			list: base + "/operation-routes",
 			byID: base + "/operation-routes/" + resourceID.String(),
@@ -311,7 +323,7 @@ func TestAuthz_RoutingResources_AuthorizeUnderMidazAppName(t *testing.T) {
 		{
 			name: "transaction-routes",
 			register: func(group fiber.Router, api huma.API, auth *middleware.AuthClient) {
-				registerTransactionRouteRoutesToApp(group, api, auth, &TransactionRouteHandler{}, nil, routeOpSuffixV1)
+				registerTransactionRouteRoutesToApp(group, api, auth, &TransactionRouteHandler{}, nil, v1OpSuffix)
 			},
 			list: base + "/transaction-routes",
 			byID: base + "/transaction-routes/" + resourceID.String(),
@@ -319,7 +331,7 @@ func TestAuthz_RoutingResources_AuthorizeUnderMidazAppName(t *testing.T) {
 		{
 			name: "account-types",
 			register: func(group fiber.Router, api huma.API, auth *middleware.AuthClient) {
-				registerAccountTypeRoutesToApp(group, api, auth, &AccountTypeHandler{}, nil, routeOpSuffixV1)
+				registerAccountTypeRoutesToApp(group, api, auth, &AccountTypeHandler{}, nil, v1OpSuffix)
 			},
 			list: base + "/account-types",
 			byID: base + "/account-types/" + resourceID.String(),

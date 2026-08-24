@@ -24,7 +24,7 @@ import (
 // into each op's op.Path, not into a servers entry).
 //
 // opSuffix distinguishes the operation IDs one version group publishes from another's —
-// see routeOpSuffixV1. A straight v1/v2 mirror reuses the same handler methods and the
+// see v1OpSuffix. A straight v1/v2 mirror reuses the same handler methods and the
 // same input/output types, so only the operation IDs differ between the twins.
 func RegisterBalanceRoutes(api huma.API, h *BalanceHandler, opSuffix string) {
 	const (
@@ -140,7 +140,7 @@ func RegisterBalanceRoutes(api huma.API, h *BalanceHandler, opSuffix string) {
 // RegisterBalanceRoutesToApp wires the balance surface onto the /v1
 // contract. See registerBalanceRoutesToApp for what it attaches.
 func RegisterBalanceRoutesToApp(group fiber.Router, api huma.API, auth *middleware.AuthClient, bh *BalanceHandler, routeOptions *pkgHTTP.ProtectedRouteOptions) {
-	registerBalanceRoutesToApp(group, api, auth, bh, routeOptions, routeOpSuffixV1)
+	registerBalanceRoutesToApp(group, api, auth, bh, routeOptions, v1OpSuffix)
 }
 
 // RegisterBalanceV2RoutesToApp wires the same balance surface onto the /v2 contract: same
@@ -148,7 +148,7 @@ func RegisterBalanceRoutesToApp(group fiber.Router, api huma.API, auth *middlewa
 // IDs the contract publishes. It is additive — /v1 keeps serving balances in parallel — and
 // introduces no new policy surface.
 func RegisterBalanceV2RoutesToApp(group fiber.Router, api huma.API, auth *middleware.AuthClient, bh *BalanceHandler, routeOptions *pkgHTTP.ProtectedRouteOptions) {
-	registerBalanceRoutesToApp(group, api, auth, bh, routeOptions, routeOpSuffixV2)
+	registerBalanceRoutesToApp(group, api, auth, bh, routeOptions, v2OpSuffix)
 }
 
 // registerBalanceRoutesToApp is the single description of the balance route surface, shared by
@@ -162,7 +162,7 @@ func RegisterBalanceV2RoutesToApp(group fiber.Router, api huma.API, auth *middle
 // resolution therefore apply on whichever version group it is mounted on.
 //
 // opSuffix distinguishes the operation IDs one version group publishes from another's — see
-// routeOpSuffixV1. Nothing else varies between contracts, so a change to the surface reaches
+// v1OpSuffix. Nothing else varies between contracts, so a change to the surface reaches
 // every version it is mounted on.
 func registerBalanceRoutesToApp(group fiber.Router, api huma.API, auth *middleware.AuthClient, bh *BalanceHandler, routeOptions *pkgHTTP.ProtectedRouteOptions, opSuffix string) {
 	const (

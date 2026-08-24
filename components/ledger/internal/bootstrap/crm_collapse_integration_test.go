@@ -397,7 +397,7 @@ func runHTTPCrossTenantIsolation(t *testing.T, breakIsolation bool) {
 
 // mountCRMHuma wires the Huma-migrated CRM registrar on app, mirroring the
 // production humaMount seam: problem.Install() before any huma.Register, the shared
-// Huma API built with openapi.New over a /v2 group, and RegisterCRMV2RoutesToApp
+// Huma API built with openapi.New over a /v2 group, and the per-resource CRM registrars
 // attaching the Fiber auth+tenant middleware chain plus the Huma terminals on that
 // group. CRM is served only on /v2 in the unified binary. The middleware chain (auth +
 // routeOptions PostAuthMiddlewares + ParseUUIDPathParameters) runs BEFORE each Huma
@@ -412,7 +412,11 @@ func mountCRMHuma(app *fiber.App, auth *middleware.AuthClient, hh *httpin.Holder
 	hAPI := openapi.New(app, apiV2, openapi.Config{Title: "crm-integration", Version: "test", Servers: []string{"/v2"}})
 	http.InstallLedgerSchemaNamer(hAPI)
 
-	httpin.RegisterCRMV2RoutesToApp(apiV2, hAPI, auth, hh, ah, hah, eh, auditHandler, routeOptions)
+	httpin.RegisterHolderV2RoutesToApp(apiV2, hAPI, auth, hh, routeOptions)
+	httpin.RegisterHolderAccountsV2RoutesToApp(apiV2, hAPI, auth, hah, routeOptions)
+	httpin.RegisterInstrumentV2RoutesToApp(apiV2, hAPI, auth, ah, routeOptions)
+	httpin.RegisterEncryptionV2RoutesToApp(apiV2, hAPI, auth, eh, routeOptions)
+	httpin.RegisterAuditV2RoutesToApp(apiV2, hAPI, auth, auditHandler, routeOptions)
 }
 
 // newCRMTestApp mounts the CRM registrar on a bare Fiber app with auth disabled

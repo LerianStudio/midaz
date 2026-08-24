@@ -8,8 +8,6 @@ import (
 	"context"
 	"net/http"
 
-	"github.com/danielgtaylor/huma/v2"
-
 	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
 	pkgHTTP "github.com/LerianStudio/midaz/v4/pkg/net/http"
 )
@@ -19,7 +17,7 @@ import (
 // (asset_handler.go); see that file's header for the full conventions.
 // Encryption-specific notes:
 //
-//  1. AUTH is appName "midaz" (crm_routes.go ApplicationName), resource
+//  1. AUTH is appName "midaz" (routes.go midazName), resource
 //     "encryption". The Fiber guard chain is Bearer-only, so the per-op Security
 //     metadata here is Bearer-only too — SPEC metadata only;
 //     runtime auth stays the Fiber guard chain (auth.Authorize("midaz","encryption",
@@ -106,43 +104,4 @@ func (handler *EncryptionHandler) GetProvisioningStatus(ctx context.Context, in 
 	}
 
 	return &GetProvisioningStatusResponse{Status: http.StatusOK, Body: response}, nil
-}
-
-// RegisterEncryptionRoutes registers the two encryption operations on the
-// given Huma API. It is the per-file seam the unified server calls (conditionally,
-// only in envelope encryption mode — mirroring the Fiber `if eh != nil` guard in
-// crm_routes.go); the auth ("midaz","encryption",verb) + tenant +
-// ParseUUIDPathParameters("organization") middleware chain is attached on the
-// versioned Fiber group BEFORE the Huma terminal, not here. Paths are GROUP-RELATIVE
-// (see asset_handler.go's RegisterAssetRoutes header for the rationale).
-//
-// opSuffix is appended to every operation ID — see crmOpSuffixV2.
-func RegisterEncryptionRoutes(api huma.API, h *EncryptionHandler, opSuffix string) {
-	const (
-		provisionPath = "/organizations/{organization_id}/encryption/provision"
-		statusPath    = "/organizations/{organization_id}/encryption/status"
-		tag           = "Encryption"
-	)
-
-	huma.Register(api, huma.Operation{
-		OperationID: "provisionEncryption" + opSuffix,
-		Method:      http.MethodPost,
-		Path:        provisionPath,
-		Summary:     "Provision an Organization for Envelope Encryption",
-		Tags:        []string{tag},
-		Security:    secEncryptionBearer,
-		// Body validated imperatively (http.DecodeAndValidate) — see file header.
-		SkipValidateBody: true,
-		DefaultStatus:    http.StatusCreated,
-	}, h.Provision)
-	attachTypedRequestBody[mmodel.ProvisionEncryptionInput](api, "provisionEncryption"+opSuffix)
-
-	huma.Register(api, huma.Operation{
-		OperationID: "getProvisioningStatus" + opSuffix,
-		Method:      http.MethodGet,
-		Path:        statusPath,
-		Summary:     "Get Provisioning Status",
-		Tags:        []string{tag},
-		Security:    secEncryptionBearer,
-	}, h.GetProvisioningStatus)
 }

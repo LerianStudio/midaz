@@ -222,16 +222,14 @@ func (handler *TransactionHandler) revertTransaction(ctx context.Context, organi
 	return tranReverted, replayed, nil
 }
 
-// updateTransaction is the transport-neutral update core: it logs the safe payload,
-// runs command.UpdateTransaction, then re-reads the transaction via query.GetTransactionByID
+// updateTransaction is the transport-neutral update core: it records the safe payload
+// shape on the span, runs command.UpdateTransaction, then re-reads the transaction via query.GetTransactionByID
 // (mutable fields only — amounts/accounts/status are immutable).
 func (handler *TransactionHandler) updateTransaction(ctx context.Context, organizationID, ledgerID, transactionID uuid.UUID, payload *transaction.UpdateTransactionInput) (*transaction.Transaction, error) {
-	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
+	_, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "handler.update_transaction")
 	defer span.End()
-
-	logSafePayload(ctx, logger, "Request to update a transaction", payload)
 
 	recordSafePayloadAttributes(span, payload)
 

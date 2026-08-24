@@ -74,7 +74,7 @@ func buildHumaHolderApp(t *testing.T, handler *HolderHandler, authOK bool) *fibe
 	apiV2.Patch(base+"/:id", parse)
 	apiV2.Delete(base+"/:id", parse)
 
-	RegisterHolderRoutes(hAPI, handler, crmOpSuffixV2)
+	RegisterHolderRoutes(hAPI, handler, v2OpSuffix)
 
 	return f
 }
@@ -364,7 +364,7 @@ func buildHumaHolderAccountsApp(t *testing.T, handler *HolderAccountsHandler) *f
 
 	hAPI := openapi.New(f, apiV2, openapi.Config{Title: "ledger-test", Version: "test", Servers: []string{"/v2"}})
 
-	RegisterHolderAccountsRoutes(hAPI, handler, crmOpSuffixV2)
+	RegisterHolderAccountsRoutes(hAPI, handler, v2OpSuffix)
 
 	return f
 }
