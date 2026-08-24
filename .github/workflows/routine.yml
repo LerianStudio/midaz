@@ -5,10 +5,12 @@ on:
     - cron: "0 3 * * 1"
   pull_request:
     types: [closed]
+  # No per-branch paths filter: GitHub Actions doesn't support different
+  # `paths` per branch within one `on.push` block. main pushes gain a
+  # labels_sync run beyond .github/labels.yml changes (idempotent, cheap);
+  # develop pushes exist to trigger the backmerge job below.
   push:
-    branches: [main]
-    paths:
-      - .github/labels.yml
+    branches: [main, develop]
   workflow_dispatch:
     inputs:
       routine:
@@ -21,6 +23,7 @@ on:
           - stale-issue
           - labels-sync
           - workflow-runs-cleanup
+          - backmerge
         default: all
       dry_run:
         description: Preview changes without applying them
@@ -35,9 +38,31 @@ permissions:
 
 jobs:
   routine:
+    # routine.yml@v1.46.5 has no 'backmerge' routine — every child job inside
+    # it would skip, wasting the whole call for that workflow_dispatch value.
+    if: inputs.routine != 'backmerge'
     uses: LerianStudio/github-actions-shared-workflows/.github/workflows/routine.yml@v1.46.5
     with:
       routine: ${{ inputs.routine || 'all' }}
       dry_run: ${{ inputs.dry_run || false }}
       merged_branch: ${{ github.head_ref }}
+    secrets: inherit
+
+  # Keeps the persistent `fork` branch (see fork-pr-notice.yml /
+  # fork-pr-promote.yml) in sync with develop, via the shared org backmerge
+  # orchestrator rather than a bespoke merge script. direct-with-pr-fallback:
+  # merges straight to fork when clean, opens a PR instead of failing
+  # outright when develop and fork's own unpromoted commits conflict.
+  backmerge:
+    if: |
+      (github.event_name == 'push' && github.ref_name == 'develop')
+      || github.event_name == 'schedule'
+      || (github.event_name == 'workflow_dispatch' && (inputs.routine == 'all' || inputs.routine == 'backmerge'))
+    uses: LerianStudio/github-actions-shared-workflows/.github/workflows/backmerge.yml@v1.57.0
+    with:
+      rules: |
+        [
+          { "from": "develop", "to": "fork", "mode": "direct-with-pr-fallback" }
+        ]
+      dry_run: ${{ inputs.dry_run || false }}
     secrets: inherit
