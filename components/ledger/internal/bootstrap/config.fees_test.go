@@ -116,7 +116,7 @@ func TestFeesConfigFields_PresentWithCorrectTags(t *testing.T) {
 // TestModuleFeesProvisioningName locks the tenant-manager module name. The value
 // MUST match what tenant-manager provisions for the fee module, or per-tenant fee
 // DB resolution silently misses. The auth/RBAC namespace is a separate literal
-// (feeshared constant.ApplicationName) and is NOT covered by this test.
+// (the shared midaz slug) and is NOT covered by this test.
 func TestModuleFeesProvisioningName(t *testing.T) {
 	t.Parallel()
 

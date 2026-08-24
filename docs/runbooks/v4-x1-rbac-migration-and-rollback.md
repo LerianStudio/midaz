@@ -24,7 +24,7 @@
 | Policy-applying system | **`tenant-manager`** — the namespace strings ARE the policy keys it looks up. |
 | v4 code / deploy owner | Release operator (deploy + Helm/secrets). Coordinates with X1 owner on lockstep timing. |
 | Enforcement model | **FAIL-CLOSED.** Missing/mismatched grant → **HTTP 403 Forbidden**, silently (`RBAC-NAMESPACES.md:12, 51-68, 116-128`). |
-| Affected surface | CRM holder / instrument / related-parties routes only. Ledger core + fees authz unchanged. |
+| Affected surface | CRM holder / instrument / related-parties routes **and the embedded fee/billing routes** (`packages`, `estimates`, `billing-packages`, `billing-calculate`). Ledger core authz unchanged; the embedded fee routes flip `plugin-fees` → `midaz` (B2, `RBAC-NAMESPACES.md` §4/§5). The **standalone** `plugin-fees` deploy unit is unaffected. |
 
 ---
 
@@ -57,10 +57,21 @@ Namespace layout in v4 (for context — the CRM and routing rows flipped to `mid
 | `midaz` | organizations, ledgers, assets, asset-rates, portfolios, segments, accounts, balances, transactions, operations, settings | `routes.go` (`midazName`, `protectedMidaz`) |
 | `midaz` (flipped in v4) | **holders, instruments, related-parties** | `routes.go` (`midazName`), `holder_routes.go`, `instrument_routes.go` |
 | `midaz` (flipped in v4) | account-types, operation-routes, transaction-routes | `routes.go` (`midazName`, `protectedMidaz`) |
-| `plugin-fees` (**UNCHANGED**) | packages, estimates, billing-packages, billing-calculate | `fees_routes.go:18` (`feesApplicationName`), `components/ledger/pkg/feeshared/constant/app.go` |
+| `midaz` (fees folded in v4, B2) | **packages, estimates, billing-packages, billing-calculate** | `fees_routes.go` (`feeGuardRoutes` table, helper `protectedFees` → shared `midazName`), `components/ledger/permissions.yaml` (fee resources under `service: midaz`) |
 
-> **Fees do NOT migrate.** `plugin-fees:*` is intentionally preserved with no migration
-> (`RBAC-NAMESPACES.md:7-8, 15, 84-86`). Do not touch fees grants during X1.
+> **Embedded fees migrate (B2 reversal).** In the **embedded** ledger binary the fee/billing routes
+> flipped from `plugin-fees` → `midaz` (`RBAC-NAMESPACES.md` §4/§5); `protectedFees` now calls
+> `auth.Authorize(midazName, ...)` off the shared `feeGuardRoutes` table. The old per-application fees
+> authz const and the separate `feeshared` authz const were both **removed** — there is no dedicated
+> fees namespace const anymore. The
+> `plugin-fees:{packages,estimates,billing-packages,billing-calculate}:{verbs}` grants therefore **DO
+> ride the X1 migration window**, re-keyed to `midaz:{...}` — the same class of break as the CRM flip,
+> and (like it) a **release/deploy gate, NOT a merge gate**. During X1, re-key the embedded fee grants
+> alongside the CRM grants; do not leave them on `plugin-fees:*` in an auth-enabled environment.
+>
+> **The STANDALONE `plugin-fees` deploy unit keeps its own slug — unchanged.** It publishes under its
+> own identity in its own deploy unit and is NOT part of this migration. The fold is scoped to the
+> embedded ledger binary only (driver: BOLA one-identity-one-slug; see `RBAC-NAMESPACES.md` §4).
 >
 > **Routing now authorizes under `midaz`.** `account-types`, `operation-routes`, and
 > `transaction-routes` are wired via `protectedMidaz` → `auth.Authorize(midazName, ...)`; the separate
@@ -88,7 +99,15 @@ Apply in `tenant-manager` for **every tenant** that holds the old keys
 | `plugin-crm:aliases:patch` | `midaz:instruments:patch` | **resource RENAMED** |
 | `plugin-crm:aliases:delete` | `midaz:instruments:delete` | **resource RENAMED** |
 | related-parties DELETE | `midaz:instruments:delete` | sub-resource of `instruments` |
+| `plugin-fees:packages:{get,post,patch,delete}` | `midaz:packages:{...}` | embedded fees fold (B2) |
+| `plugin-fees:estimates:post` | `midaz:estimates:post` | embedded fees fold (B2); POST-only route |
+| `plugin-fees:billing-packages:{get,post,patch,delete}` | `midaz:billing-packages:{...}` | embedded fees fold (B2) |
+| `plugin-fees:billing-calculate:post` | `midaz:billing-calculate:post` | embedded fees fold (B2); POST-only route |
 
+> **Embedded fee rows apply to the embedded ledger binary only.** The standalone `plugin-fees` deploy
+> keeps its `plugin-fees:*` grants and is NOT part of this migration. See `RBAC-NAMESPACES.md` §5 for
+> the authoritative combined matrix (CRM + routing + fees).
+>
 > **Trap:** the resource name changes for instruments (`aliases` → `instruments`), not just the
 > namespace prefix. A find-and-replace of only `plugin-crm` → `midaz` will leave
 > `midaz:aliases:*` grants, which the v4 code never checks → silent 403. The grant must read
@@ -127,7 +146,9 @@ Confirm ALL of the following. If any is unchecked, do not start the forward proc
       old `plugin-crm:*` keys briefly) to avoid a hard cutover gap. **VERIFY whether tenant-manager
       supports holding both key sets simultaneously — the docs do not confirm this** (see Known Gaps).
 - [ ] Rollback plan reviewed: you know how to revert grants `midaz:*` → `plugin-crm:*` if you roll back code.
-- [ ] Fees grants left **untouched** (no `plugin-fees` changes in this release).
+- [ ] Embedded fee grants staged to re-key `plugin-fees:*` → `midaz:*` in the **same X1 window** (see
+      the matrix above and `RBAC-NAMESPACES.md` §5). The **standalone** `plugin-fees` deploy's grants
+      stay untouched.
 - [ ] Local/dev with auth disabled confirmed unaffected (no policy work needed there).
 - [ ] **KMS mode determined.** Check `KMS_VENDOR`: unset/`none` → legacy CRM crypto (no KMS, no
       rollback data door); `hashicorp-vault` → envelope encryption of CRM PII, which is a **rollback
@@ -361,5 +382,5 @@ re-check the migration matrix. The series falling to zero confirms the window cl
 - `docs/auth/RBAC-NAMESPACES.md` — X1 gate definition, migration matrix, fail-closed model (authoritative).
 - `components/ledger/internal/adapters/http/in/routes.go` (`midazName`) plus `holder_routes.go` / `instrument_routes.go` / `encryption_routes.go` / `audit_routes.go` — the flip and authz calls.
 - `components/ledger/internal/adapters/http/in/routes.go` (`midazName`, `protectedMidaz`) — namespace helper.
-- `components/ledger/internal/adapters/http/in/fees_routes.go` (`:18`), `pkg/constant/module.go` (`:24`) — fees namespace (unchanged).
+- `components/ledger/internal/adapters/http/in/fees_routes.go` (`feeGuardRoutes` table, helper `protectedFees` → shared `midazName`), `components/ledger/permissions.yaml` (fee resources under `service: midaz`) — embedded fees namespace (folded into `midaz`, B2).
 - `docs/standards/telemetry.md`, `docs/standards/error-handling.md` — logging/error conventions for triage.

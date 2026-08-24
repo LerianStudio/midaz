@@ -11,7 +11,7 @@ import (
 
 // This file holds the response envelopes and per-operation security metadata for the
 // fee-package surface. The shells that construct these envelopes live in
-// fees_v2_handler.go; the auth ("plugin-fees","packages",verb) + tenant +
+// fees_v2_handler.go; the auth ("midaz","packages",verb) + tenant +
 // ParseUUIDPathParameters("packages") middleware chain is attached on the /v2 Fiber
 // group BEFORE the Huma terminal (see fees_v2_register.go), so the Security metadata
 // here is SPEC metadata only.

@@ -35,7 +35,7 @@ import (
 // operations on a /v2 group, mirroring production
 // (fees_v2_register.go/unified-server.go): problem.Install() before any huma.Register,
 // the Huma API built with openapi.New over a /v2 group, an auth-shim standing in for
-// auth.Authorize("plugin-fees","billing-packages",verb) + tenant, and per-route
+// auth.Authorize("midaz","billing-packages",verb) + tenant, and per-route
 // ParseUUIDPathParameters("billing-packages") + registerBillingPackageV2Routes.
 //
 // MUST-NOT-PARALLELIZE (same rationale as buildHumaPackageApp): libProblem.Install()

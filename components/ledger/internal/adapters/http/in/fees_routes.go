@@ -13,11 +13,6 @@ import (
 	"github.com/gofiber/fiber/v3"
 )
 
-// feesApplicationName is the auth resource namespace for fee/billing routes. It
-// is preserved verbatim from the standalone plugin-fees service: tenant-manager
-// RBAC policies key on this string, so it MUST NOT be renamed (R9).
-const feesApplicationName = "plugin-fees"
-
 // feeSpecPathParam matches a single OpenAPI path-parameter segment, "{name}".
 var feeSpecPathParam = regexp.MustCompile(`\{([^{}/]+)\}`)
 
@@ -77,7 +72,7 @@ var feeGuardRoutes = []feeGuardRoute{
 }
 
 // attachFeeGuards mounts the guard chain of every fee and billing operation under
-// chainBase, in Fiber path syntax: auth.Authorize("plugin-fees",resource,verb) + the
+// chainBase, in Fiber path syntax: auth.Authorize("midaz",resource,verb) + the
 // fees-scoped tenant PostAuthMiddlewares (routeOptions) + ParseUUIDPathParameters, as
 // MIDDLEWARE ONLY — no terminal handler, and no body binder, because the Huma terminal
 // decodes and validates the body imperatively.
@@ -88,8 +83,12 @@ func attachFeeGuards(group fiber.Router, auth *middleware.AuthClient, routeOptio
 	}
 }
 
-// protectedFees is the plugin-fees analogue of protectedMidaz: it builds the
-// auth-attaching Fiber chain under the "plugin-fees" authz appName.
+// protectedFees groups the fee and billing routes, building their auth-attaching
+// Fiber chain under the "midaz" authz appName (midazName). Fee/billing is a product
+// embedded in the ledger V4 binary, so it authorizes under the ledger core's own slug:
+// BOLA "one identity, one slug" in the declaration receiver (plugin-identity :4001)
+// forbids one identity presenting a second slug. It stays distinct from protectedMidaz
+// only to keep the fee routes grouped; the slug is the same.
 func protectedFees(auth *middleware.AuthClient, resource, action string, routeOptions *http.ProtectedRouteOptions, handlers ...fiber.Handler) []fiber.Handler {
-	return http.ProtectedRouteChain(auth.Authorize(feesApplicationName, resource, action), routeOptions, handlers...)
+	return http.ProtectedRouteChain(auth.Authorize(midazName, resource, action), routeOptions, handlers...)
 }
