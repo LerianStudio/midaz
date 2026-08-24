@@ -4,3 +4,5 @@ reviews:
       - "develop"
       - "release-candidate"
       - "main"
+  path_filters:
+    - "!.coderabbit.yaml"
