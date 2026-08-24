@@ -28,7 +28,7 @@ type AccountTypeHandler struct {
 // The createAccountType/updateAccountType/... methods below own the span, the
 // service call and the success log. They take primitive args — parsed UUIDs, the
 // already-decoded payload, the query map — so nothing transport-shaped reaches them;
-// the handlers in accounttype_handler.go pull those out of the request envelope.
+// the handlers in account_type_handler.go pull those out of the request envelope.
 // Every canonical Midaz error a core returns is rendered by its caller via
 // http.HumaProblem, which fixes the code + HTTP status.
 
