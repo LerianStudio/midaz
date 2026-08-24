@@ -21,7 +21,7 @@ func RegisterCompositionV2RoutesToApp(group fiber.Router, api huma.API, auth *mi
 }
 
 // registerCompositionRoutesToApp is the single description of the holder-account composition
-// route surface, mirroring registerAssetRoutesToApp / registerCRMRoutesToApp. It attaches the
+// route surface, mirroring registerAssetRoutesToApp / registerHolderRoutesToApp. It attaches the
 // Fiber auth chain —
 // auth.Authorize("midaz","accounts","post") + the cross-store composition tenant
 // PostAuthMiddlewares (routeOptions) + ParseUUIDPathParameters("holder") — as MIDDLEWARE ONLY

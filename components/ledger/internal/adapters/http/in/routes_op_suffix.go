@@ -20,3 +20,15 @@ const (
 	routeOpSuffixV1 = ""
 	routeOpSuffixV2 = "V2"
 )
+
+// crmOpSuffixV2 is appended to every CRM operation ID published on the /v2 contract.
+// CRM is served only on the /v2 version group, but its operation IDs live in the same
+// OpenAPI document as the rest of the ledger surface (and, via the ledger↔tracer
+// hub-spec join, alongside the tracer's). huma.OpenAPI.AddOperation scans the whole
+// document and panics on a duplicate operation ID, so the V2 suffix keeps the CRM IDs
+// distinct within that shared document.
+//
+// CRM authorizes under the host ledger's "midaz" namespace (routes.go midazName) rather
+// than a standalone plugin namespace. That value is the X1 RBAC contract: tenant-manager
+// grants migrate from plugin-crm:* to midaz:{holders,instruments}:* at v4 release.
+const crmOpSuffixV2 = "V2"

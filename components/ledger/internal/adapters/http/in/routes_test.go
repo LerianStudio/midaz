@@ -272,6 +272,18 @@ func TestV2RegistrarsMountSameSurfaceAsV1(t *testing.T) {
 	}
 }
 
+// TestMidazAppName_IsTheX1AuthzNamespace locks the single authz appName every
+// protectedMidaz chain forwards. It is the X1 RBAC contract: tenant-manager grants
+// migrate from plugin-crm:* to midaz:{holders,instruments}:* at v4 release, so the CRM
+// surface folded into this binary authorizes under the host ledger's namespace rather
+// than a standalone plugin one. Spelled literally because a rename here is a breaking
+// change to deployed policy, not an internal refactor.
+func TestMidazAppName_IsTheX1AuthzNamespace(t *testing.T) {
+	t.Parallel()
+
+	assert.Equal(t, "midaz", midazName, "the authz appName is deployed policy; a rename breaks tenant-manager grants")
+}
+
 // TestAuthz_RoutingResources_AuthorizeUnderMidazAppName locks the authorization
 // appName for the three route-management resources (operation-routes,
 // transaction-routes, account-types): every op must be guarded by

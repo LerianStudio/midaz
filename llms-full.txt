@@ -67,7 +67,7 @@ midaz/
 │   │   ├── cmd/app/         # main.go entry point
 │   │   ├── internal/
 │   │   │   ├── adapters/
-│   │   │   │   ├── http/in/ # Fiber HTTP handlers + routes (incl. fees_routes.go, crm_routes.go, holder/instrument handlers)
+│   │   │   │   ├── http/in/ # Fiber HTTP handlers + routes (incl. fees_routes.go, holder_routes.go, instrument_routes.go, holder/instrument handlers)
 │   │   │   │   ├── http/out/# Outbound HTTP clients
 │   │   │   │   ├── postgres/# PostgreSQL repositories (onboarding + transaction)
 │   │   │   │   ├── mongodb/ # MongoDB metadata + fees repositories

@@ -51,7 +51,7 @@ components/ledger/internal/crm/         → CRM package tree (holders/instrument
   services/                       → Holder/instrument use cases
   services/encryption/            → FieldEncryptor seam + EncryptionService (encrypt/decrypt PII, search tokens)
   (CRM HTTP handlers + routes live in components/ledger/internal/adapters/http/in/:
-   crm_routes.go, composition_routes.go, holder.go, holder_accounts.go, instrument.go — midaz namespace.
+   holder_routes.go, instrument_routes.go, encryption_routes.go, audit_routes.go, composition_routes.go — midaz namespace.
    Encryption/protection routes (envelope mode only, midaz ns): POST .../encryption/provision,
    GET .../encryption/status, GET .../protection/audit)
 

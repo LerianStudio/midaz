@@ -3,7 +3,7 @@
 # Identity (service slug): "midaz" — the core ledger + embedded CRM. This is the
 # FIRST argument of every auth.Authorize("midaz", resource, verb) guard in
 # components/ledger/internal/adapters/http/in/ (const midazName, routes.go:15;
-# the CRM routes reuse it via const ApplicationName = "midaz", crm_routes.go:20).
+# the CRM routes reuse it via protectedMidaz too).
 # Keys mirror the yaml tags on lib-auth/v3 auth/declaration.DeclarationManifest
 # (auth/declaration/manifest.go).
 #
@@ -57,17 +57,17 @@ permissions:
   - { resource: balances, action: delete, effect: allow, roles: [editor] }
   - { resource: balances, action: post,   effect: allow, roles: [editor] }
 
-  # encryption (crm_routes.go:107)
+  # encryption (encryption_routes.go registerEncryptionRoutesToApp)
   - { resource: encryption, action: post, effect: allow, roles: [editor] }
   - { resource: encryption, action: get,  effect: allow, roles: [editor, viewer] }
 
-  # holders (crm_routes.go:81)
+  # holders (holder_routes.go registerHolderRoutesToApp)
   - { resource: holders, action: post,   effect: allow, roles: [editor] }
   - { resource: holders, action: get,    effect: allow, roles: [editor, viewer] }
   - { resource: holders, action: patch,  effect: allow, roles: [editor] }
   - { resource: holders, action: delete, effect: allow, roles: [editor] }
 
-  # instruments (crm_routes.go:95)
+  # instruments (instrument_routes.go registerInstrumentRoutesToApp)
   - { resource: instruments, action: get,    effect: allow, roles: [editor, viewer] }
   - { resource: instruments, action: post,   effect: allow, roles: [editor] }
   - { resource: instruments, action: patch,  effect: allow, roles: [editor] }
@@ -104,7 +104,7 @@ permissions:
   - { resource: portfolios, action: delete, effect: allow, roles: [editor] }
   - { resource: portfolios, action: head,   effect: allow, roles: [editor, viewer] }
 
-  # protection — CRM audit-trail read (crm_routes.go:112)
+  # protection — CRM audit-trail read (audit_routes.go registerAuditRoutesToApp)
   - { resource: protection, action: get, effect: allow, roles: [editor, viewer] }
 
   # segments (segment_handler.go:392)

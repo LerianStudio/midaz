@@ -44,10 +44,10 @@
 
 ## What the flip actually is
 
-- **File:** `components/ledger/internal/adapters/http/in/crm_routes.go:20`
-- **Constant:** `const ApplicationName = "midaz"` (changed from the removed `plugin-crm`).
+- **File:** `components/ledger/internal/adapters/http/in/routes.go` (`midazName`)
+- **Constant:** `const midazName = "midaz"` (changed from the removed `plugin-crm`).
 - **Routes affected:** all CRM `holders`, `instruments`, and `related-parties` routes.
-  Each is wired via `protectedMidaz(auth, resource, action, ...)` → `auth.Authorize(ApplicationName, resource, action)` (`crm_routes.go:62-79`).
+  Each is wired via `protectedMidaz(auth, resource, action, ...)` → `auth.Authorize(midazName, resource, action)` (`holder_routes.go`, `instrument_routes.go`).
 - **Net effect:** the authz namespace for these routes moves from `plugin-crm` → `midaz`.
 
 Namespace layout in v4 (for context — the CRM and routing rows flipped to `midaz` in v4):
@@ -55,7 +55,7 @@ Namespace layout in v4 (for context — the CRM and routing rows flipped to `mid
 | Namespace | Resources | Source |
 |-----------|-----------|--------|
 | `midaz` | organizations, ledgers, assets, asset-rates, portfolios, segments, accounts, balances, transactions, operations, settings | `routes.go` (`midazName`, `protectedMidaz`) |
-| `midaz` (flipped in v4) | **holders, instruments, related-parties** | `crm_routes.go:20`, `crm_routes.go:62-79` |
+| `midaz` (flipped in v4) | **holders, instruments, related-parties** | `routes.go` (`midazName`), `holder_routes.go`, `instrument_routes.go` |
 | `midaz` (flipped in v4) | account-types, operation-routes, transaction-routes | `routes.go` (`midazName`, `protectedMidaz`) |
 | `plugin-fees` (**UNCHANGED**) | packages, estimates, billing-packages, billing-calculate | `fees_routes.go:18` (`feesApplicationName`), `components/ledger/pkg/feeshared/constant/app.go` |
 
@@ -292,7 +292,7 @@ curl -i -H "Authorization: Bearer $TOKEN" \
 ```
 
 > **VERIFY the exact route paths and version prefix** against `routes.go` /
-> `crm_routes.go` for this build — the host/port `:3002` is the ledger unified binary, but the path
+> the per-resource CRM route files for this build — the host/port `:3002` is the ledger unified binary, but the path
 > shape above is illustrative. Do not rely on it verbatim.
 
 Pass criteria:
@@ -352,14 +352,14 @@ re-check the migration matrix. The series falling to zero confirms the window cl
    from v3, a ledger rollback without a down-migration can fail. This is a **ledger** concern;
    **VERIFY** with the ledger owner if ledger is rolled back in the same window.
 6. **Exact CRM route paths/version prefix.** The curl examples are illustrative. **VERIFY** against
-   `components/ledger/internal/adapters/http/in/routes.go` and `crm_routes.go` for the deployed build.
+   `components/ledger/internal/adapters/http/in/routes.go` and the per-resource CRM route files for the deployed build.
 
 ---
 
 ## References
 
 - `docs/auth/RBAC-NAMESPACES.md` — X1 gate definition, migration matrix, fail-closed model (authoritative).
-- `components/ledger/internal/adapters/http/in/crm_routes.go` (`:20`, `:62-79`) — the flip and authz calls.
+- `components/ledger/internal/adapters/http/in/routes.go` (`midazName`) plus `holder_routes.go` / `instrument_routes.go` / `encryption_routes.go` / `audit_routes.go` — the flip and authz calls.
 - `components/ledger/internal/adapters/http/in/routes.go` (`midazName`, `protectedMidaz`) — namespace helper.
 - `components/ledger/internal/adapters/http/in/fees_routes.go` (`:18`), `pkg/constant/module.go` (`:24`) — fees namespace (unchanged).
 - `docs/standards/telemetry.md`, `docs/standards/error-handling.md` — logging/error conventions for triage.
