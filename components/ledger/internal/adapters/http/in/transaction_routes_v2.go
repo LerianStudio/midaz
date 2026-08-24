@@ -34,14 +34,14 @@ import (
 //
 // The CREATE terminals (CreateTransactionDirectV2, CreateTransactionHoldV2,
 // CreateTransactionBlockV2, CreateTransactionUnblockV2) live in
-// transaction_v2_handler.go: they decode the flat v2 body, translate it, and enter
+// transaction_handler_v2.go: they decode the flat v2 body, translate it, and enter
 // the v1 createTransaction funnel (hold with pending=true) under the scope the body
 // resolved. They therefore hang off a path that names no organization and no ledger.
 // The LIFECYCLE terminals (commit/cancel/revert) address an EXISTING transaction and
 // carry no body, so their scope can only come from the URL: they stay under the
 // organization/ledger prefix. They are thin v2-specific shells
 // (CommitTransactionV2 / CancelTransactionV2 / RevertTransactionV2, also in
-// transaction_v2_handler.go) over the SAME transport-neutral core the v1 shells in
+// transaction_handler_v2.go) over the SAME transport-neutral core the v1 shells in
 // transaction_handler_huma.go call (commitTransaction / revertTransaction) — the only
 // difference is the response envelope, which answers the /v2 wire shape (TransactionV2,
 // `debit`/`credit`) instead of the canonical transaction.Transaction. Their path params
