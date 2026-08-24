@@ -21,7 +21,7 @@ import (
 // (holder_handler.go); see those headers for the full conventions. Instrument-
 // specific notes:
 //
-//  1. AUTH is appName "midaz" (crm_routes.go ApplicationName), resource "instruments".
+//  1. AUTH is appName "midaz" (routes.go midazName), resource "instruments".
 //     The Fiber guard chain is Bearer-only, so the per-op Security metadata here is
 //     Bearer-only too — SPEC metadata only; runtime auth stays the Fiber guard chain
 //     (auth.Authorize("midaz","instruments",verb) + tenant
@@ -29,7 +29,7 @@ import (
 //  2. Instruments are HOLDER-SCOPED for create/get/patch/delete (org+holder+instrument
 //     in the path); the list is ORG-SCOPED (org only, holder is a query filter). The
 //     related-party delete adds a fourth path segment (related_party_id) and is guarded
-//     by ParseUUIDPathParameters("related-parties") in crm_routes.go — REPLICATED in the
+//     by ParseUUIDPathParameters("related-parties") in registerInstrumentRoutesToApp — REPLICATED in the
 //     test harness so its path-UUID validation matches production exactly.
 //  3. POST carries the same idempotency dance as holder: the handler resolves the
 //     client key + TTL from headers and projects the replayed flag the shared
@@ -239,7 +239,7 @@ func (handler *InstrumentHandler) DeleteInstrumentByID(ctx context.Context, in *
 
 // DeleteRelatedPartyRequest is the related-party delete request envelope (four path
 // params). Its path-UUID validation is ParseUUIDPathParameters("related-parties") in
-// crm_routes.go, NOT "instruments" — the sole per-op UUID validator variance.
+// registerInstrumentRoutesToApp, NOT "instruments" — the sole per-op UUID validator variance.
 type DeleteRelatedPartyRequest struct {
 	OrganizationID string `path:"organization_id" doc:"Organization ID (UUID)"`
 	HolderID       string `path:"holder_id" doc:"Holder ID (UUID)"`
@@ -330,86 +330,4 @@ func (handler *InstrumentHandler) GetAllInstruments(ctx context.Context, in *Lis
 	}
 
 	return &ListInstrumentsResponse{Status: http.StatusOK, Body: pagination}, nil
-}
-
-// RegisterInstrumentRoutes registers the six instrument operations on the
-// given Huma API. It is the per-file seam the unified server calls; the auth
-// ("midaz","instruments",verb) + tenant + ParseUUIDPathParameters middleware chain is
-// attached on the versioned Fiber group BEFORE the Huma terminal, not here. The
-// related-party delete uses ParseUUIDPathParameters("related-parties"); all others use
-// "instruments" (see crm_routes.go). Paths are GROUP-RELATIVE (see
-// asset_handler.go's RegisterAssetRoutes header for the rationale).
-//
-// opSuffix is appended to every operation ID — see crmOpSuffixV2.
-func RegisterInstrumentRoutes(api huma.API, h *InstrumentHandler, opSuffix string) {
-	const (
-		listPath     = "/organizations/{organization_id}/instruments"
-		holderScoped = "/organizations/{organization_id}/holders/{holder_id}/instruments"
-		idPath       = holderScoped + "/{instrument_id}"
-		rpPath       = idPath + "/related-parties/{related_party_id}"
-		tag          = "Instruments"
-	)
-
-	huma.Register(api, huma.Operation{
-		OperationID: "listInstruments" + opSuffix,
-		Method:      http.MethodGet,
-		Path:        listPath,
-		Summary:     "List Instruments",
-		Tags:        []string{tag},
-		Security:    secInstrumentBearer,
-	}, h.GetAllInstruments)
-
-	huma.Register(api, huma.Operation{
-		OperationID: "createInstrument" + opSuffix,
-		Method:      http.MethodPost,
-		Path:        holderScoped,
-		Summary:     "Create an Instrument Account",
-		Tags:        []string{tag},
-		Security:    secInstrumentBearer,
-		// Body validated imperatively (http.DecodeAndValidate) — see file header.
-		SkipValidateBody: true,
-		DefaultStatus:    http.StatusCreated,
-	}, h.CreateInstrument)
-	attachTypedRequestBody[mmodel.CreateInstrumentInput](api, "createInstrument"+opSuffix)
-
-	huma.Register(api, huma.Operation{
-		OperationID: "getInstrumentByID" + opSuffix,
-		Method:      http.MethodGet,
-		Path:        idPath,
-		Summary:     "Retrieve Instrument details",
-		Tags:        []string{tag},
-		Security:    secInstrumentBearer,
-	}, h.GetInstrumentByID)
-
-	huma.Register(api, huma.Operation{
-		OperationID:      "updateInstrument" + opSuffix,
-		Method:           http.MethodPatch,
-		Path:             idPath,
-		Summary:          "Update an Instrument",
-		Tags:             []string{tag},
-		Security:         secInstrumentBearer,
-		SkipValidateBody: true, // body validated imperatively — RFC 7396 merge-patch core.
-	}, h.UpdateInstrument)
-	attachTypedRequestBody[mmodel.UpdateInstrumentInput](api, "updateInstrument"+opSuffix)
-
-	huma.Register(api, huma.Operation{
-		OperationID: "deleteInstrument" + opSuffix,
-		Method:      http.MethodDelete,
-		Path:        idPath,
-		Summary:     "Delete an Instrument",
-		Tags:        []string{tag},
-		Security:    secInstrumentBearer,
-		// DefaultStatus 204 + an Out struct with no Body field => bodiless 204.
-		DefaultStatus: http.StatusNoContent,
-	}, h.DeleteInstrumentByID)
-
-	huma.Register(api, huma.Operation{
-		OperationID:   "deleteRelatedParty" + opSuffix,
-		Method:        http.MethodDelete,
-		Path:          rpPath,
-		Summary:       "Delete a Related Party",
-		Tags:          []string{tag},
-		Security:      secInstrumentBearer,
-		DefaultStatus: http.StatusNoContent,
-	}, h.DeleteRelatedParty)
 }

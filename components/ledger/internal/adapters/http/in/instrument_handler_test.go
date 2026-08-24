@@ -33,7 +33,7 @@ import (
 )
 
 // buildHumaInstrumentApp mounts the six instrument Huma operations on a /v2 group,
-// faithfully mirroring the production wiring in crm_routes.go/unified-server.go:
+// faithfully mirroring the production wiring in instrument_routes.go/unified-server.go:
 // problem.Install() runs before any huma.Register, the Huma API is built with
 // openapi.New over a /v2 group, an auth-shim middleware stands in for
 // auth.Authorize("midaz","instruments",verb) + tenant PostAuthMiddlewares, and the
@@ -79,7 +79,7 @@ func buildHumaInstrumentApp(t *testing.T, handler *InstrumentHandler, authOK boo
 
 	hAPI := openapi.New(f, apiV2, openapi.Config{Title: "ledger-test", Version: "test", Servers: []string{"/v2"}})
 
-	RegisterInstrumentRoutes(hAPI, handler, crmOpSuffixV2)
+	RegisterInstrumentRoutes(hAPI, handler, v2OpSuffix)
 
 	return f
 }

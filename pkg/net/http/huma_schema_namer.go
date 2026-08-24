@@ -159,6 +159,14 @@ const transactionPkgPath = "github.com/LerianStudio/midaz/v4/components/ledger/i
 // same layering reason as operationPkgPath.
 const mtransactionPkgPath = "github.com/LerianStudio/midaz/v4/pkg/mtransaction"
 
+// ledgerHTTPInPkgPath is the import path of the ledger's inbound HTTP adapter, which
+// declares the per-version response projections. Its TransactionV1 publishes under the
+// canonical component name "Transaction": the Go type carries a version suffix so it
+// reads as the sibling of TransactionV2, while the published name stays what the
+// generated SDKs already bind to. Matched as a STRING for the same layering reason as
+// the adapter paths above.
+const ledgerHTTPInPkgPath = "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/http/in"
+
 // feePkgPathPrefix roots the Wave-3 fee/billing packages whose response-body types
 // register on the shared ledger Huma registry: feeshared/model (Pagination,
 // BillingPackage, BillingCalculateResponse, and their nested tiers) and
@@ -202,6 +210,10 @@ func ledgerSchemaNamer(t reflect.Type, hint string) string {
 
 	if dt.PkgPath() == mtransactionPkgPath && name == "Transaction" {
 		return "TransactionInput"
+	}
+
+	if dt.PkgPath() == ledgerHTTPInPkgPath && name == "TransactionV1" {
+		return "Transaction"
 	}
 
 	if feePkgPaths[dt.PkgPath()] {

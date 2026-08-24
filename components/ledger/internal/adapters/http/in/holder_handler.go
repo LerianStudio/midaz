@@ -21,7 +21,7 @@ import (
 // (asset_handler.go); see that file's header for the full conventions.
 // Holder-specific notes:
 //
-//  1. AUTH is appName "midaz" (crm_routes.go ApplicationName), resource "holders".
+//  1. AUTH is appName "midaz" (routes.go midazName), resource "holders".
 //     The Fiber guard chain is Bearer-only, so the per-op
 //     Security metadata here is Bearer-only too — SPEC metadata only; runtime auth
 //     stays the Fiber guard chain (auth.Authorize("midaz","holders",verb) + tenant
@@ -349,91 +349,4 @@ func (handler *HolderAccountsHandler) GetAccountsByHolder(ctx context.Context, i
 	}
 
 	return &ListHolderAccountsResponse{Status: http.StatusOK, Body: pagination}, nil
-}
-
-// RegisterHolderRoutes registers the five holder operations on the given
-// Huma API. It is the per-file seam the unified server calls; the auth
-// ("midaz","holders",verb) + tenant + ParseUUIDPathParameters("holder") middleware
-// chain is attached on the versioned Fiber group BEFORE the Huma terminal, not here.
-// Paths are GROUP-RELATIVE (see asset_handler.go's RegisterAssetRoutes header
-// for the rationale).
-//
-// opSuffix is appended to every operation ID — see crmOpSuffixV2.
-func RegisterHolderRoutes(api huma.API, h *HolderHandler, opSuffix string) {
-	const (
-		listPath = "/organizations/{organization_id}/holders"
-		idPath   = listPath + "/{id}"
-		tag      = "Holders"
-	)
-
-	huma.Register(api, huma.Operation{
-		OperationID: "createHolder" + opSuffix,
-		Method:      http.MethodPost,
-		Path:        listPath,
-		Summary:     "Create a Holder",
-		Tags:        []string{tag},
-		Security:    secHolderBearer,
-		// Body validated imperatively (http.DecodeAndValidate) — see file header.
-		SkipValidateBody: true,
-		DefaultStatus:    http.StatusCreated,
-	}, h.CreateHolder)
-	attachTypedRequestBody[mmodel.CreateHolderInput](api, "createHolder"+opSuffix)
-
-	huma.Register(api, huma.Operation{
-		OperationID: "getHolderByID" + opSuffix,
-		Method:      http.MethodGet,
-		Path:        idPath,
-		Summary:     "Retrieve Holder details",
-		Tags:        []string{tag},
-		Security:    secHolderBearer,
-	}, h.GetHolderByID)
-
-	huma.Register(api, huma.Operation{
-		OperationID:      "updateHolder" + opSuffix,
-		Method:           http.MethodPatch,
-		Path:             idPath,
-		Summary:          "Update a Holder",
-		Tags:             []string{tag},
-		Security:         secHolderBearer,
-		SkipValidateBody: true, // body validated imperatively — RFC 7396 merge-patch core.
-	}, h.UpdateHolder)
-	attachTypedRequestBody[mmodel.UpdateHolderInput](api, "updateHolder"+opSuffix)
-
-	huma.Register(api, huma.Operation{
-		OperationID: "deleteHolder" + opSuffix,
-		Method:      http.MethodDelete,
-		Path:        idPath,
-		Summary:     "Delete a Holder",
-		Tags:        []string{tag},
-		Security:    secHolderBearer,
-		// DefaultStatus 204 + an Out struct with no Body field => bodiless 204.
-		DefaultStatus: http.StatusNoContent,
-	}, h.DeleteHolderByID)
-
-	huma.Register(api, huma.Operation{
-		OperationID: "listHolders" + opSuffix,
-		Method:      http.MethodGet,
-		Path:        listPath,
-		Summary:     "List Holders",
-		Tags:        []string{tag},
-		Security:    secHolderBearer,
-	}, h.GetAllHolders)
-}
-
-// RegisterHolderAccountsRoutes registers the holder-scoped account listing on the
-// given Huma API. It is a separate seam so the unified server can mount it
-// conditionally, only when the ledger account-query backing is wired (the
-// `if hah != nil` guard in crm_routes.go). Auth is ("midaz","holders","get")
-// + ParseUUIDPathParameters("holder"), attached BEFORE the Huma terminal.
-//
-// opSuffix is appended to the operation ID — see crmOpSuffixV2.
-func RegisterHolderAccountsRoutes(api huma.API, h *HolderAccountsHandler, opSuffix string) {
-	huma.Register(api, huma.Operation{
-		OperationID: "listAccountsByHolder" + opSuffix,
-		Method:      http.MethodGet,
-		Path:        "/organizations/{organization_id}/holders/{id}/accounts",
-		Summary:     "List Accounts by Holder",
-		Tags:        []string{"Holders"},
-		Security:    secHolderBearer,
-	}, h.GetAccountsByHolder)
 }

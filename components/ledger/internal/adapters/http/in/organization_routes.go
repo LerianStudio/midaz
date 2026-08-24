@@ -25,7 +25,7 @@ import (
 // humafiber adapter registers on that group and Fiber prepends the version prefix.
 //
 // opSuffix distinguishes the operation IDs one version group publishes from another's —
-// see routeOpSuffixV1. A straight v1/v2 mirror reuses the same handler methods and the
+// see v1OpSuffix. A straight v1/v2 mirror reuses the same handler methods and the
 // same input/output types, so only the operation IDs differ between the twins.
 func RegisterOrganizationRoutes(api huma.API, h *OrganizationHandler, opSuffix string) {
 	const (
@@ -104,7 +104,7 @@ func RegisterOrganizationRoutes(api huma.API, h *OrganizationHandler, opSuffix s
 // RegisterOrganizationRoutesToApp wires the organization surface onto the
 // /v1 contract. See registerOrganizationRoutesToApp for what it attaches.
 func RegisterOrganizationRoutesToApp(group fiber.Router, api huma.API, auth *middleware.AuthClient, h *OrganizationHandler, routeOptions *pkgHTTP.ProtectedRouteOptions) {
-	registerOrganizationRoutesToApp(group, api, auth, h, routeOptions, routeOpSuffixV1)
+	registerOrganizationRoutesToApp(group, api, auth, h, routeOptions, v1OpSuffix)
 }
 
 // RegisterOrganizationV2RoutesToApp wires the same organization surface onto the /v2
@@ -112,7 +112,7 @@ func RegisterOrganizationRoutesToApp(group fiber.Router, api huma.API, auth *mid
 // in the operation IDs the contract publishes. It is additive — /v1 keeps serving
 // organizations in parallel — and introduces no new policy surface.
 func RegisterOrganizationV2RoutesToApp(group fiber.Router, api huma.API, auth *middleware.AuthClient, h *OrganizationHandler, routeOptions *pkgHTTP.ProtectedRouteOptions) {
-	registerOrganizationRoutesToApp(group, api, auth, h, routeOptions, routeOpSuffixV2)
+	registerOrganizationRoutesToApp(group, api, auth, h, routeOptions, v2OpSuffix)
 }
 
 // registerOrganizationRoutesToApp is the single description of the organization route
@@ -129,7 +129,7 @@ func RegisterOrganizationV2RoutesToApp(group fiber.Router, api huma.API, auth *m
 // (patch/get-by-id/delete); create, list and count carry no path UUID, so none needs it.
 //
 // opSuffix distinguishes the operation IDs one version group publishes from another's —
-// see routeOpSuffixV1. Nothing else varies between contracts, so a change to the surface
+// see v1OpSuffix. Nothing else varies between contracts, so a change to the surface
 // reaches every version it is mounted on.
 func registerOrganizationRoutesToApp(group fiber.Router, api huma.API, auth *middleware.AuthClient, h *OrganizationHandler, routeOptions *pkgHTTP.ProtectedRouteOptions, opSuffix string) {
 	const (

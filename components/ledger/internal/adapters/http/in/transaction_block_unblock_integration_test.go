@@ -163,7 +163,7 @@ func (infra *blockUnblockInfra) setupRoutes() {
 		http.ParseUUIDPathParameters("operation"),
 	)
 
-	RegisterOperationRoutes(hAPI, infra.opHandler, routeOpSuffixV1)
+	RegisterOperationRoutes(hAPI, infra.opHandler, v1OpSuffix)
 }
 
 // seedLedgerSettings pre-populates the onboarding Redis settings cache so the

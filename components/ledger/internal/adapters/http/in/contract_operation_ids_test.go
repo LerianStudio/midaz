@@ -53,7 +53,7 @@ func collectSpecOperationIDs(t *testing.T, path string) map[string][]string {
 // single published contract is unique — across its /v1 and /v2 operations alike, since
 // one document now carries both. Client SDK generators key methods off the operation
 // ID, so a collision either overwrites one method or silently drops it; the /v2 contract
-// suffixes its reused resource IDs (see crmOpSuffixV2) precisely so they stay distinct
+// suffixes its reused resource IDs (see v2OpSuffix) precisely so they stay distinct
 // from their /v1 twins here.
 //
 // This is NOT the primary net. The single document shares one component registry, so

@@ -31,7 +31,7 @@ const (
 //
 // The legacy-create paths (json/inflow/outflow/annotation) are NOT mirrored onto /v2: they are
 // served on /v1 only, and the /v2 transaction create surface is the flat-body direct/hold/
-// block/unblock model in transaction_v2_register.go. block/unblock create and commit/cancel/
+// block/unblock model in transaction_routes_v2.go. block/unblock create and commit/cancel/
 // revert lifecycle are likewise absent, because those already carry v2 operationIds via
 // RegisterTransactionV2Routes and mirroring them would collide as a duplicate operationId in the
 // one document. The retired legacy-create twins are pinned as absent by
@@ -62,7 +62,7 @@ var transactionMirrorV2RemovedCreateActions = []struct {
 }
 
 // transactionMirrorV2OperationSuffix is the version suffix a v2 twin appends to its v1
-// operationId. It is spelled literally rather than read from routeOpSuffixV2 so a rename of the
+// operationId. It is spelled literally rather than read from v2OpSuffix so a rename of the
 // production constant surfaces as a contract change client SDKs would feel, not a silently-
 // tracking test.
 const transactionMirrorV2OperationSuffix = "V2"

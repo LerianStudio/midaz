@@ -5,11 +5,8 @@
 package in
 
 import (
-	"context"
 	"reflect"
-	"strings"
 
-	libLog "github.com/LerianStudio/lib-observability/v2/log"
 	libOpentelemetry "github.com/LerianStudio/lib-observability/v2/tracing"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
@@ -33,11 +30,10 @@ func handleSpanByErrorClass(span trace.Span, message string, err error) {
 	libOpentelemetry.HandleSpanError(span, message, err)
 }
 
-// payloadField maps a struct field name to its observability label.
+// payloadField maps a struct field name to its span attribute key.
 type payloadField struct {
 	name      string // Go struct field name
 	attrKey   string // OTel attribute key
-	logLabel  string // log summary label
 	mergeWith string // if non-empty, this field is OR-merged with another (e.g. "AccountId" merges with "AccountID")
 }
 
@@ -45,42 +41,34 @@ type payloadField struct {
 // request payload.  Declared once at package level to avoid per-call allocation.
 var payloadFields = []payloadField{
 	// Common
-	{name: "Metadata", attrKey: "app.request.payload.has_metadata", logLabel: "hasMetadata"},
-	{name: "Alias", attrKey: "app.request.payload.has_alias", logLabel: "hasAlias"},
+	{name: "Metadata", attrKey: "app.request.payload.has_metadata"},
+	{name: "Alias", attrKey: "app.request.payload.has_alias"},
 	// Onboarding entities
-	{name: "ParentAccountID", attrKey: "app.request.payload.has_parent_account_id", logLabel: "hasParentAccountID"},
-	{name: "ParentOrganizationID", attrKey: "app.request.payload.has_parent_organization_id", logLabel: "hasParentOrganizationID"},
-	{name: "PortfolioID", attrKey: "app.request.payload.has_portfolio_id", logLabel: "hasPortfolioID"},
-	{name: "SegmentID", attrKey: "app.request.payload.has_segment_id", logLabel: "hasSegmentID"},
-	{name: "EntityID", attrKey: "app.request.payload.has_entity_id", logLabel: "hasEntityID"},
-	{name: "LegalDocument", attrKey: "app.request.payload.has_legal_document", logLabel: "hasLegalDocument"},
-	{name: "Settings", attrKey: "app.request.payload.has_settings", logLabel: "hasSettings"},
+	{name: "ParentAccountID", attrKey: "app.request.payload.has_parent_account_id"},
+	{name: "ParentOrganizationID", attrKey: "app.request.payload.has_parent_organization_id"},
+	{name: "PortfolioID", attrKey: "app.request.payload.has_portfolio_id"},
+	{name: "SegmentID", attrKey: "app.request.payload.has_segment_id"},
+	{name: "EntityID", attrKey: "app.request.payload.has_entity_id"},
+	{name: "LegalDocument", attrKey: "app.request.payload.has_legal_document"},
+	{name: "Settings", attrKey: "app.request.payload.has_settings"},
 	// Transaction entities
-	{name: "Key", attrKey: "app.request.payload.has_key", logLabel: "hasKey"},
-	{name: "AccountID", attrKey: "app.request.payload.has_account_id", logLabel: "hasAccountID"},
-	{name: "AccountId", attrKey: "", logLabel: "", mergeWith: "AccountID"},
-	{name: "LedgerID", attrKey: "app.request.payload.has_ledger_id", logLabel: "hasLedgerID"},
-	{name: "LedgerId", attrKey: "", logLabel: "", mergeWith: "LedgerID"},
-	{name: "OrganizationID", attrKey: "app.request.payload.has_organization_id", logLabel: "hasOrganizationID"},
-	{name: "OrganizationId", attrKey: "", logLabel: "", mergeWith: "OrganizationID"},
-	{name: "TransactionID", attrKey: "app.request.payload.has_transaction_id", logLabel: "hasTransactionID"},
-	{name: "TransactionId", attrKey: "", logLabel: "", mergeWith: "TransactionID"},
-	{name: "ParentTransactionID", attrKey: "app.request.payload.has_parent_transaction_id", logLabel: "hasParentTransactionID"},
-	{name: "ParentTransactionId", attrKey: "", logLabel: "", mergeWith: "ParentTransactionID"},
-	{name: "Document", attrKey: "app.request.payload.has_document", logLabel: "hasDocument"},
-	{name: "Send", attrKey: "app.request.payload.has_send", logLabel: "hasSend"},
-	{name: "Source", attrKey: "app.request.payload.has_source", logLabel: "hasSource"},
-	{name: "Distribution", attrKey: "app.request.payload.has_distribution", logLabel: "hasDistribution"},
-	{name: "Account", attrKey: "app.request.payload.has_account_rule", logLabel: "hasAccountRule"},
-	{name: "ValidIf", attrKey: "app.request.payload.has_valid_if", logLabel: "hasValidIf"},
-}
-
-func logSafePayload(ctx context.Context, logger libLog.Logger, message string, payload any) {
-	if logger == nil || !logger.Enabled(libLog.LevelDebug) {
-		return
-	}
-
-	logger.Log(ctx, libLog.LevelDebug, message+" ("+safePayloadSummary(payload)+")")
+	{name: "Key", attrKey: "app.request.payload.has_key"},
+	{name: "AccountID", attrKey: "app.request.payload.has_account_id"},
+	{name: "AccountId", attrKey: "", mergeWith: "AccountID"},
+	{name: "LedgerID", attrKey: "app.request.payload.has_ledger_id"},
+	{name: "LedgerId", attrKey: "", mergeWith: "LedgerID"},
+	{name: "OrganizationID", attrKey: "app.request.payload.has_organization_id"},
+	{name: "OrganizationId", attrKey: "", mergeWith: "OrganizationID"},
+	{name: "TransactionID", attrKey: "app.request.payload.has_transaction_id"},
+	{name: "TransactionId", attrKey: "", mergeWith: "TransactionID"},
+	{name: "ParentTransactionID", attrKey: "app.request.payload.has_parent_transaction_id"},
+	{name: "ParentTransactionId", attrKey: "", mergeWith: "ParentTransactionID"},
+	{name: "Document", attrKey: "app.request.payload.has_document"},
+	{name: "Send", attrKey: "app.request.payload.has_send"},
+	{name: "Source", attrKey: "app.request.payload.has_source"},
+	{name: "Distribution", attrKey: "app.request.payload.has_distribution"},
+	{name: "Account", attrKey: "app.request.payload.has_account_rule"},
+	{name: "ValidIf", attrKey: "app.request.payload.has_valid_if"},
 }
 
 func recordSafePayloadAttributes(span trace.Span, payload any) {
@@ -137,37 +125,6 @@ func fieldPresent(resolved reflect.Value, fieldName string) bool {
 	}
 
 	return !f.IsZero()
-}
-
-func safePayloadSummary(payload any) string {
-	resolved := resolvePayloadValue(payload)
-
-	parts := []string{"type=" + payloadTypeName(resolved)}
-
-	// presence tracks OR-merged fields so the log label appears at most once.
-	presence := make(map[string]bool, len(payloadFields))
-
-	for i := range payloadFields {
-		f := &payloadFields[i]
-		present := fieldPresent(resolved, f.name)
-
-		if f.mergeWith != "" {
-			presence[f.mergeWith] = presence[f.mergeWith] || present
-
-			continue
-		}
-
-		presence[f.name] = presence[f.name] || present
-	}
-
-	for i := range payloadFields {
-		f := &payloadFields[i]
-		if f.logLabel != "" && presence[f.name] {
-			parts = append(parts, f.logLabel+"=true")
-		}
-	}
-
-	return strings.Join(parts, ", ")
 }
 
 func safePayloadAttributes(payload any) []attribute.KeyValue {

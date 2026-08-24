@@ -22,7 +22,7 @@ import (
 // registerAccountRoutesToApp (Fiber-level) BEFORE the Huma terminals, not here.
 //
 // opSuffix distinguishes the operation IDs one version group publishes from another's —
-// see routeOpSuffixV1. A straight v1/v2 mirror reuses the same handler methods and the
+// see v1OpSuffix. A straight v1/v2 mirror reuses the same handler methods and the
 // same input/output types, so only the operation IDs differ between the twins.
 func RegisterAccountRoutes(api huma.API, h *AccountHandler, opSuffix string) {
 	const (
@@ -117,7 +117,7 @@ func RegisterAccountRoutes(api huma.API, h *AccountHandler, opSuffix string) {
 // RegisterAccountRoutesToApp wires the account surface onto the /v1
 // contract. See registerAccountRoutesToApp for what it attaches.
 func RegisterAccountRoutesToApp(group fiber.Router, api huma.API, auth *middleware.AuthClient, h *AccountHandler, routeOptions *pkgHTTP.ProtectedRouteOptions) {
-	registerAccountRoutesToApp(group, api, auth, h, routeOptions, routeOpSuffixV1)
+	registerAccountRoutesToApp(group, api, auth, h, routeOptions, v1OpSuffix)
 }
 
 // RegisterAccountV2RoutesToApp wires the same account surface onto the /v2 contract: same
@@ -125,7 +125,7 @@ func RegisterAccountRoutesToApp(group fiber.Router, api huma.API, auth *middlewa
 // IDs the contract publishes. It is additive — /v1 keeps serving accounts in parallel — and
 // introduces no new policy surface.
 func RegisterAccountV2RoutesToApp(group fiber.Router, api huma.API, auth *middleware.AuthClient, h *AccountHandler, routeOptions *pkgHTTP.ProtectedRouteOptions) {
-	registerAccountRoutesToApp(group, api, auth, h, routeOptions, routeOpSuffixV2)
+	registerAccountRoutesToApp(group, api, auth, h, routeOptions, v2OpSuffix)
 }
 
 // registerAccountRoutesToApp is the single description of the account route surface, shared
@@ -139,7 +139,7 @@ func RegisterAccountV2RoutesToApp(group fiber.Router, api huma.API, auth *middle
 // mounted on — no account route becomes public.
 //
 // opSuffix distinguishes the operation IDs one version group publishes from another's —
-// see routeOpSuffixV1. Nothing else varies between contracts, so a change to the surface
+// see v1OpSuffix. Nothing else varies between contracts, so a change to the surface
 // reaches every version it is mounted on.
 func registerAccountRoutesToApp(group fiber.Router, api huma.API, auth *middleware.AuthClient, h *AccountHandler, routeOptions *pkgHTTP.ProtectedRouteOptions, opSuffix string) {
 	const (

@@ -78,7 +78,7 @@ func buildHumaOperationRouteApp(t *testing.T, handler *OperationRouteHandler, au
 	apiV1.Patch(base+"/:operation_route_id", parse)
 	apiV1.Delete(base+"/:operation_route_id", parse)
 
-	RegisterOperationRouteRoutes(hAPI, handler, routeOpSuffixV1)
+	RegisterOperationRouteRoutes(hAPI, handler, v1OpSuffix)
 
 	return f
 }
@@ -159,7 +159,7 @@ func TestCreateOperationRoute_AuthPreserved(t *testing.T) {
 
 func TestCreateOperationRoute_UnknownAccountingEntryKey_Canonical400(t *testing.T) {
 	// NOT parallel: process-global huma state.
-	// The accountingEntries unknown-key probe (operation_route.go create path) runs
+	// The accountingEntries unknown-key probe (operation_route_core.go create path) runs
 	// against in.RawBody. "foobar" is not a valid accountingEntries key -> canonical
 	// 400, service never reached.
 	ctrl := gomock.NewController(t)

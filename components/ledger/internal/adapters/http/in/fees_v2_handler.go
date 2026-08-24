@@ -21,7 +21,7 @@ import (
 
 // This file is the shell layer over the fee and billing surface. Every operation
 // here names the ledger in its path and delegates to the transport-agnostic cores in
-// fees_package.go, fees_handler.go, billing_package.go and
+// fees_package_core.go, fees_handler.go, billing_package_core.go and
 // billing_calculate_handler.go. Two things are worth knowing, and both are about
 // which ledger the request acts within:
 //

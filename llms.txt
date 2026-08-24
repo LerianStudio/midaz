@@ -40,7 +40,7 @@ The three deploy units form one core banking platform in one monorepo:
 
 - [Ledger Component](components/ledger/): Unified deploy unit — onboarding + transaction + CRM + fees in one process (:3002)
   - [Bootstrap](components/ledger/internal/bootstrap/): Composition root — config, DI, server lifecycle, `initCRM`, fee wiring, multi-tenant middleware
-  - [HTTP Handlers](components/ledger/internal/adapters/http/in/): Fiber handlers, routes, middleware, `fees_routes.go` + `fees_v2_register.go`, CRM handlers (`crm_routes.go`, `composition_routes.go`, `holder.go`, `holder_accounts.go`, `instrument.go`)
+  - [HTTP Handlers](components/ledger/internal/adapters/http/in/): Fiber handlers, routes, middleware, `fees_routes.go` + `fees_v2_register.go`, CRM routes (`holder_routes.go`, `holder_accounts_routes.go`, `instrument_routes.go`, `encryption_routes.go`, `audit_routes.go`, `composition_routes.go`) with their `*_handler.go` transports and `*_core.go` cores
   - [PostgreSQL Repos](components/ledger/internal/adapters/postgres/): Onboarding + transaction repositories
   - [MongoDB Repos](components/ledger/internal/adapters/mongodb/): Metadata + fees storage
   - [Services](components/ledger/internal/services/): CQRS command/query use cases + embedded `fees/`
