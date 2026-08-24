@@ -85,17 +85,18 @@ Consequences:
 
 - A tenant granted `midaz:holders:post` can create holders. After the v4 flip, the CRM
   `holders`/`instruments` resources share the `midaz` namespace surface with the ledger's own
-  resources; `plugin-fees:*` remains an independent policy surface.
+  resources; after the B2 fold (§4) the fee/billing resources (`packages`, `estimates`,
+  `billing-packages`, `billing-calculate`) share it too.
 - Flipping a namespace literal in code (here `plugin-crm` → `midaz`) without a coordinated
   tenant-manager policy migration orphans every existing grant under the old key. That migration
   is X1 (below) — the in-code flip is intentional and lands at v4; the policy migration is gated
   to release, not to merge.
-- The fee/billing namespace literal is intentionally identical (`plugin-fees`) across the
-  ledger route registrar and `components/ledger/pkg/feeshared`, so the embedded fee code and its
-  authz key on the same string. Its Mongo tenant client keys on a different string:
-  `pkg/constant.ModuleFees` (`fees-api`) is the tenant-manager MODULE name, matching what
-  tenant-manager provisions for fees. Authz namespace and tenant module are independent — renaming
-  one does not move the other.
+- The fee/billing routes authorize under the `midaz` namespace in the embedded binary (shared
+  `midazName` const via `feeGuardRoutes`/`protectedFees`, B2 fold, §4) — there is no separate
+  embedded `plugin-fees` authz key and no dedicated fees authz const. The fee Mongo tenant client
+  keys on a different string: `pkg/constant.ModuleFees` (`fees-api`) is the tenant-manager MODULE
+  name, matching what tenant-manager provisions for fees. Authz namespace and tenant module are
+  independent — renaming one does not move the other.
 
 ## X1 — policy migration (`plugin-crm` → `midaz`)
 
@@ -119,38 +120,46 @@ not require the policies to be migrated first. Local/dev deployments with auth d
 unaffected. Until the migration runs, environments with auth enabled must have their
 tenant-manager policies updated in lockstep with the v4 release.
 
-The remaining namespaces (`midaz`, `plugin-fees`) are the authoritative authorization
-contract for the unified binary. Risk **R9** (the original namespace divergence) is closed for
-CRM by this flip; the fee namespace stays distinct by design.
+The `midaz` namespace is the authoritative authorization contract for the unified binary — the
+CRM (X1 flip) and the fee/billing routes (B2 fold, §4) both authorize under it. Risk **R9** (the
+original namespace divergence) is closed for CRM by this flip and for fees by the B2 fold.
 
 ---
 
 # Cross-monorepo namespace strategy (Epic 3.3 — auth-stabilization)
 
 The section above scopes R9/X1 to the **ledger binary** and the CRM flip. This section widens the
-lens to the **whole monorepo**: after consolidation, three authz namespaces ship across the two Go
-deploy units. This is a **decision document only** — it records options + a recommendation for the
+lens to the **whole monorepo**: after consolidation — and after the A1 (`routing`) and B2
+(`plugin-fees`) folds landed in code (§4) — two authz namespaces ship across the two Go deploy
+units: `midaz` from the embedded ledger binary and `tracer` from the tracer service. This is a
+**decision document only** — it records options + a recommendation for the
 owner and **defers all execution to the X1 gate**. No namespace literal is changed by this doc.
 
-## 1. Current state — three namespaces across two deploy units
+## 1. Current state — two namespaces across two deploy units
 
 `auth.Authorize(<namespace>, <resource>, <action>)` (lib-auth v3.0.0, global RBAC check) is called
-under three distinct namespace literals across the monorepo:
+under two distinct namespace literals across the monorepo (after the A1 `routing` and B2
+`plugin-fees` folds landed in code — §4):
 
 Refs below are anchored on **symbol names**, not line numbers: line numbers rot silently on the
 next edit to the file, and four of the eight that used to sit in this table had already drifted.
 
 | Namespace | Deploy unit | Resources (verified) | Source (file + symbol) |
 |-----------|-------------|----------------------|------------------------|
-| `midaz` | ledger (`:3002`) | `organizations`, `ledgers`, `assets`, `asset-rates`, `portfolios`, `segments`, `accounts`, `balances`, `transactions`, `operations`, `settings`, `account-types`, `operation-routes`, `transaction-routes`, `holders`, `instruments` | `components/ledger/internal/adapters/http/in/routes.go` (`midazName`, helper `protectedMidaz`); `crm_routes.go` (`ApplicationName`) for `holders`/`instruments` |
-| `plugin-fees` | ledger (`:3002`, same binary) | `packages`, `estimates`, `billing-packages`, `billing-calculate` | `components/ledger/internal/adapters/http/in/fees_routes.go` (`feesApplicationName`, table `feeGuardRoutes`, helpers `attachFeeGuards`/`protectedFees`); the ledger-scoped `/v2` twins in `fees_v2_register.go` (`RegisterFeesV2RoutesToApp`) attach the same table |
+| `midaz` | ledger (`:3002`) | `organizations`, `ledgers`, `assets`, `asset-rates`, `portfolios`, `segments`, `accounts`, `balances`, `transactions`, `operations`, `settings`, `account-types`, `operation-routes`, `transaction-routes`, `holders`, `instruments`, `packages`, `estimates`, `billing-packages`, `billing-calculate` | `components/ledger/internal/adapters/http/in/routes.go` (`midazName`, helper `protectedMidaz`); `crm_routes.go` (`ApplicationName`) for `holders`/`instruments`; `fees_routes.go` (table `feeGuardRoutes`, helpers `attachFeeGuards`/`protectedFees` → `midazName`) for `packages`/`estimates`/`billing-packages`/`billing-calculate` — there is no dedicated fees authz const; the ledger-scoped `/v2` twins in `fees_v2_register.go` (`RegisterFeesV2RoutesToApp`) attach the same `feeGuardRoutes` table under the same `midaz` namespace |
 | `tracer` | tracer (`:4020`) | `reservations`, `audit-events` | `components/tracer/pkg/constant/app.go` (`ApplicationName`); wired via `components/tracer/internal/bootstrap/config.go` (`AppName:`), consumed at `middleware/auth_guard.go` (`(*AuthGuard).Protect`) |
 
-> **Audit-ref check:** every symbol above resolves in the tree as written. `account-types`,
-> `operation-routes`, and `transaction-routes` authorize under `midaz` (helper `protectedMidaz`),
-> parity with `main`; the ledger binary carries no separate `routing` namespace. Two of the three
-> namespaces (`midaz`/`plugin-fees`) ship from the one ledger binary; only `tracer` is a separate
-> deploy unit. Serving fees at a second scope (`/v2`) added no namespace: the count stays three.
+> **Audit-ref check:** every symbol above resolves in the tree as written — `midazName` and
+> `protectedMidaz` (`routes.go`); `feeGuardRoutes`, `attachFeeGuards`, and `protectedFees`
+> (`fees_routes.go`, all keyed on the shared `midazName` const — no dedicated fees authz const);
+> the CRM `ApplicationName` (`crm_routes.go`); and the tracer `ApplicationName`
+> (`components/tracer/pkg/constant/app.go`). `account-types`, `operation-routes`, and
+> `transaction-routes` authorize under `midaz` (helper `protectedMidaz`), parity with `main`; the
+> ledger binary carries no separate `routing` namespace. After the A1 and B2 folds the embedded
+> ledger binary ships a **single** authz namespace — `midaz`, with the fee/billing resources folded
+> in — and `tracer` is the only separate deploy unit, so **two** namespaces span the two Go deploy
+> units. Serving fees at a second scope (`/v2`) added no namespace. The standalone `plugin-fees`
+> deploy is a separate deploy unit (NOT the `:3002` embedded binary) and keeps its own slug.
 
 ## 2. Consequence — silent 403 across the platform
 
@@ -168,6 +177,13 @@ Failure mode is the worst kind: **silent 403, no hint that the answer is "wrong 
 authorize one logical platform, an integrator must provision grants in **three namespaces** and
 discover the boundaries by hitting 403s. Two of those boundaries (`midaz`/`plugin-fees`)
 live in a single binary, which makes the split especially non-obvious.
+
+> **Post-fold reconciliation (A1 + B2, §4).** The `plugin-fees` boundary illustrated above no longer
+> exists in the embedded ledger binary: after the B2 fold the fee/billing routes authorize under
+> `midaz`, so a `midaz:*` grant reaches them and the `plugin-fees:packages:post` 403 above is the
+> **pre-fold** problem B2 removed. The only residual cross-namespace boundary in the embedded
+> topology is `tracer` (a separate deploy unit, kept per C1 and documented as a grant bundle). The
+> standalone `plugin-fees` service keeps its own slug in its own deploy unit.
 
 ## 3. Trust-model context (owner decision, 2026-06-06)
 
