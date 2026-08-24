@@ -46,6 +46,12 @@ jobs:
       routine: ${{ inputs.routine || 'all' }}
       dry_run: ${{ inputs.dry_run || false }}
       merged_branch: ${{ github.head_ref }}
+      # fork is persistent (see fork-pr-notice.yml / fork-pr-promote.yml),
+      # not disposable — without this, branch_cleanup_merged would delete
+      # it the moment the fork -> develop promotion PR (whose head IS
+      # fork) merges, and branch_cleanup_stale could delete it too if it
+      # goes quiet between fork PRs.
+      extra_protected_branches: "fork"
     secrets: inherit
 
   # Keeps the persistent `fork` branch (see fork-pr-notice.yml /
