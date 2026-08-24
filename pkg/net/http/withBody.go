@@ -26,6 +26,7 @@ import (
 
 	"github.com/LerianStudio/midaz/v4/pkg"
 	cn "github.com/LerianStudio/midaz/v4/pkg/constant"
+	"github.com/LerianStudio/midaz/v4/pkg/document"
 	"github.com/LerianStudio/midaz/v4/pkg/mtransaction"
 )
 
@@ -308,6 +309,7 @@ func newValidator() (*validator.Validate, ut.Translator, error) {
 	_ = v.RegisterValidation("accounttypedirection", validateAccountTypeDirection)
 	_ = v.RegisterValidation("nowhitespaces", validateNoWhitespaces)
 	_ = v.RegisterValidation("metadatakeyformat", validateMetadataKeyFormat)
+	_ = v.RegisterValidation("braziliantaxid", validateBrazilianTaxID)
 
 	_ = v.RegisterTranslation("required", trans, func(ut ut.Translator) error {
 		return ut.Add("required", "{0} is a required field", true)
@@ -410,6 +412,18 @@ func newValidator() (*validator.Validate, ut.Translator, error) {
 		return ut.Add("metadatakeyformat", "{0} must start with a letter and contain only alphanumeric characters and underscores", true)
 	}, func(ut ut.Translator, fe validator.FieldError) string {
 		t, _ := ut.T("metadatakeyformat", formatErrorFieldName(fe.Namespace()))
+
+		return t
+	})
+
+	// The message must not contain the word "required": fieldsRequired classifies a
+	// field as MISSING by substring-matching that word into the translated message,
+	// which would render this refusal as "Missing Fields in Request" instead of
+	// naming what is wrong with the value the caller DID send.
+	_ = v.RegisterTranslation("braziliantaxid", trans, func(ut ut.Translator) error {
+		return ut.Add("braziliantaxid", "{0} must be a valid CPF (11 digits) or CNPJ (14 digits)", true)
+	}, func(ut ut.Translator, fe validator.FieldError) string {
+		t, _ := ut.T("braziliantaxid", formatErrorFieldName(fe.Namespace()))
 
 		return t
 	})
@@ -568,6 +582,35 @@ func validateMetadataKeyFormat(fl validator.FieldLevel) bool {
 	}
 
 	return true
+}
+
+// validateBrazilianTaxID enforces the Modulo-11 check-digit rule on a document
+// field, but ONLY when the value is shaped like a Brazilian tax identifier: 11
+// digits for a CPF, 14 for a CNPJ, ignoring the conventional separators of a
+// formatted document.
+//
+// Anything else passes. A holder document is a free-form national or tax
+// identifier and is not necessarily Brazilian — a passport number, a foreign tax
+// number or an alphanumeric registry ID has no Modulo-11 rule, and refusing it
+// here would break legitimate holders rather than the malformed ones this rule
+// exists to stop. The refusal is therefore narrow by construction: it only rejects
+// a value that CLAIMS to be a CPF or a CNPJ and is not one.
+func validateBrazilianTaxID(fl validator.FieldLevel) bool {
+	f, ok := fl.Field().Interface().(string)
+	if !ok {
+		// Not a string field: there is no document shape to recognise, so there is
+		// nothing this rule can say about it.
+		return true
+	}
+
+	switch document.Classify(f) {
+	case document.ShapeCPF:
+		return document.IsValidCPF(f)
+	case document.ShapeCNPJ:
+		return document.IsValidCNPJ(f)
+	default:
+		return true
+	}
 }
 
 // formatErrorFieldName formats metadata field error names for error messages

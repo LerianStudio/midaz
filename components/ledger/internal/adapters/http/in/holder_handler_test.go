@@ -464,6 +464,61 @@ func TestCreateHolder_MissingRequiredField_Canonical400(t *testing.T) {
 	assert.Equal(t, constant.ErrMissingFieldsInRequest.Error(), got["code"])
 }
 
+// TestCreateHolder_InvalidDocument_Canonical400 is the end-to-end lock on the
+// finding this rule exists for: a holder whose document fails the Modulo-11
+// check-digit rule must be refused AT THE DOOR, with a 400 naming the field —
+// not accepted here and rejected later by a downstream component that does
+// enforce the rule, which is how a malformed document turns into an
+// unattributed 500 on a money path.
+//
+// The mock repository is deliberately given no EXPECT: gomock fails the test if
+// Create is called at all, which is the assertion that the refusal happens
+// BEFORE the write, not after it.
+func TestCreateHolder_InvalidDocument_Canonical400(t *testing.T) {
+	// NOT parallel: process-global huma state.
+	ctrl := gomock.NewController(t)
+	t.Cleanup(ctrl.Finish)
+
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+
+	handler, _ := newHolderHandler(t, ctrl)
+
+	app := buildHumaHolderApp(t, handler, true)
+
+	// 91315026015 is a valid CPF; flipping its last check digit is not.
+	body, _ := json.Marshal(map[string]any{"type": "NATURAL_PERSON", "name": "John Doe", "document": "91315026016"})
+	req := httptest.NewRequest(http.MethodPost, "/v2/organizations/"+orgID.String()+"/holders", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
+	require.NoError(t, err)
+	defer func() { _ = resp.Body.Close() }()
+
+	respBody, _ := io.ReadAll(resp.Body)
+
+	assert.Equal(t, http.StatusBadRequest, resp.StatusCode,
+		"a malformed document is a client error, never a 5xx")
+
+	var got map[string]any
+	require.NoError(t, json.Unmarshal(respBody, &got), "body: %s", string(respBody))
+
+	assert.Equal(t, constant.ErrBadRequest.Error(), got["code"],
+		"a bad document VALUE must not be reported as a MISSING field")
+
+	// RFC 9457 problem body: the offending field is named in errors[].location and
+	// what is wrong with it in errors[].message.
+	problems, ok := got["errors"].([]any)
+	require.Truef(t, ok, "response must carry an errors array naming the offender; body: %s", string(respBody))
+	require.Len(t, problems, 1)
+
+	problem, ok := problems[0].(map[string]any)
+	require.True(t, ok)
+
+	assert.Equal(t, "document", problem["location"], "the refusal must name the offending field")
+	assert.Contains(t, problem["message"], "CPF", "the refusal must say what a valid value looks like")
+	assert.Contains(t, problem["message"], "CNPJ")
+}
+
 func TestCreateHolder_ServiceError_500(t *testing.T) {
 	// NOT parallel: process-global huma state.
 	ctrl := gomock.NewController(t)

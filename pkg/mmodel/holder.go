@@ -30,11 +30,15 @@ type CreateHolderInput struct {
 	// maxLength: 256
 	Name string `json:"name" validate:"required" example:"John Doe" maxLength:"256"`
 
-	// National or tax identification document number of the holder.
+	// National or tax identification document number of the holder. When the value
+	// is shaped like a Brazilian tax identifier — 11 digits for a CPF, 14 for a
+	// CNPJ, separators ignored — its Modulo-11 check digits are verified and a
+	// mismatch is refused. Any other shape (a passport, a foreign tax number) is
+	// accepted as given.
 	// required: true
-	// example: 12345678900
+	// example: 12345678909
 	// maxLength: 100
-	Document string `json:"document" validate:"required" example:"12345678900" maxLength:"100"`
+	Document string `json:"document" validate:"required,braziliantaxid" example:"12345678909" maxLength:"100"`
 
 	// Physical addresses associated with the holder (primary + up to two additional).
 	// required: false
@@ -117,9 +121,9 @@ type Holder struct {
 	Name *string `json:"name,omitempty" example:"John Doe" maxLength:"256"`
 
 	// National or tax identification document number of the holder.
-	// example: 12345678900
+	// example: 12345678909
 	// maxLength: 100
-	Document *string `json:"document,omitempty" example:"12345678900" maxLength:"100"`
+	Document *string `json:"document,omitempty" example:"12345678909" maxLength:"100"`
 
 	// Physical addresses associated with the holder.
 	Addresses *Addresses `json:"addresses,omitempty"`
@@ -280,9 +284,9 @@ type Representative struct {
 	Name *string `json:"name,omitempty" example:"John Doe" maxLength:"256"`
 
 	// The identification document number of the legal representative.
-	// example: 12345678900
+	// example: 12345678909
 	// maxLength: 100
-	Document *string `json:"document,omitempty" example:"12345678900" maxLength:"100"`
+	Document *string `json:"document,omitempty" example:"12345678909" maxLength:"100"`
 
 	// The email address of the legal representative.
 	// example: john.doe@example.com
