@@ -21,7 +21,10 @@ import (
 
 // problemContentType is the RFC 9457 media type for the error body. huma's
 // ErrorModel.ContentType maps application/json to this; because we serialize
-// through fiber's JSON encoder (not huma's transport), we set it explicitly.
+// through fiber's JSON encoder (not huma's transport), we pass it to JSON
+// explicitly. It MUST be passed as JSON's ctype argument — setting the header
+// beforehand does not survive, because JSON overwrites Content-Type when it is
+// not given one.
 const problemContentType = "application/problem+json"
 
 // highStatusScrubDisabled stops this process replacing the registry title and
@@ -203,9 +206,10 @@ func withProblem(c fiber.Ctx, err error) error {
 			http.StatusText(http.StatusInternalServerError), "internal error")
 	}
 
-	c.Set(fiber.HeaderContentType, problemContentType)
-
-	return c.Status(body.Status).JSON(body)
+	// The media type is passed to JSON rather than Set beforehand: fiber's JSON
+	// overwrites Content-Type with application/json unless it is given one, so a
+	// prior Set is silently discarded.
+	return c.Status(body.Status).JSON(body, problemContentType)
 }
 
 // ProblemDetail builds the frozen RFC 9457 *Detail for err WITHOUT writing it
@@ -327,7 +331,5 @@ func withProblemStatus(c fiber.Ctx, status int, err error) error {
 		body.Errors = errs
 	}
 
-	c.Set(fiber.HeaderContentType, problemContentType)
-
-	return c.Status(status).JSON(body)
+	return c.Status(status).JSON(body, problemContentType)
 }

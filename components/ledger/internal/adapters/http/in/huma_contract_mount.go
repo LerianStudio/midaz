@@ -284,9 +284,9 @@ func MarkV1OperationsDeprecated(api huma.API) {
 // output, and drift between the two is a wire lie — change both together.
 type LegacyError struct {
 	EntityType string         `json:"entityType,omitempty" doc:"The domain entity the error concerns. Present only on field-validation errors." example:"Account"`
-	Title      string         `json:"title,omitempty" doc:"Short, human-readable summary of the error." example:"Invalid Path Parameter"`
-	Message    string         `json:"message,omitempty" doc:"Human-readable explanation of this occurrence. The /v2 contract carries this as 'detail'."`
-	Code       string         `json:"code,omitempty" doc:"Stable, machine-readable midaz error code. Identical to the code /v2 returns for the same condition." example:"0065"`
+	Title      string         `json:"title,omitempty" required:"true" doc:"Short, human-readable summary of the error." example:"Invalid Path Parameter"`
+	Message    string         `json:"message,omitempty" required:"true" doc:"Human-readable explanation of this occurrence. The /v2 contract carries this as 'detail'."`
+	Code       string         `json:"code,omitempty" required:"true" doc:"Stable, machine-readable midaz error code. Identical to the code /v2 returns for the same condition." example:"0065"`
 	Fields     map[string]any `json:"fields,omitempty" doc:"Per-field validation detail, keyed by field name. The value is the violation message for a known field and the offending value for an unexpected one, so it is not always a string. The /v2 contract carries these as the 'errors' array."`
 }
 

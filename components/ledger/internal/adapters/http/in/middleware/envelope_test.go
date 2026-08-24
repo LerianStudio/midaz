@@ -23,13 +23,20 @@ func TestRendererFor_ClaimsV1AndNothingElse(t *testing.T) {
 
 	assert.NotNil(t, rendererFor("/v1/organizations/x"))
 
+	// The bare version path is that version too: "/v1" matches no route, so the
+	// Fiber error handler answers it, and without this it would be a /v1 URL
+	// carrying the /v2 envelope.
+	assert.NotNil(t, rendererFor("/v1"), "the bare version path belongs to /v1")
+	assert.NotNil(t, rendererFor("/v1/"))
+
 	for _, path := range []string{
 		"/v2/organizations/x",
 		"/v3/anything",
 		"/health",
 		"/",
-		// Not a version prefix: the trailing slash is what stops /v10 matching /v1.
+		// Neither a prefix match nor the bare version path.
 		"/v10/organizations/x",
+		"/v1x",
 	} {
 		assert.Nil(t, rendererFor(path), "path %q must keep the current envelope", path)
 	}

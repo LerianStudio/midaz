@@ -2623,6 +2623,10 @@ components:
           examples:
             - Invalid Path Parameter
           type: string
+      required:
+        - title
+        - message
+        - code
       type: object
     LegalPerson:
       additionalProperties: false

@@ -21310,6 +21310,11 @@
             "type": "string"
           }
         },
+        "required": [
+          "title",
+          "message",
+          "code"
+        ],
         "type": "object"
       },
       "LegalPerson": {

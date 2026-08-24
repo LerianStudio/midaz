@@ -42,7 +42,10 @@ var versionEnvelopes = []versionEnvelope{
 // version keeps the current envelope.
 func rendererFor(path string) envelopeRenderer {
 	for _, envelope := range versionEnvelopes {
-		if strings.HasPrefix(path, envelope.prefix) {
+		// The bare version path counts as that version. A request to exactly "/v1"
+		// matches no route and is answered by the Fiber error handler, so without
+		// this it would be a /v1 URL carrying the /v2 envelope.
+		if path == strings.TrimSuffix(envelope.prefix, "/") || strings.HasPrefix(path, envelope.prefix) {
 			return envelope.render
 		}
 	}
@@ -96,11 +99,9 @@ func rewriteErrorEnvelope(c fiber.Ctx) {
 	response := c.Response()
 
 	// Only error responses carry an envelope. Gating on status rather than on the
-	// Content-Type is deliberate: fiber's c.JSON overwrites the media type
-	// withProblem sets, so a problem body written through the Fiber path arrives
-	// here labelled application/json and a media-type gate would miss it. The
-	// renderer cross-checks the body's own status member against this one, so a
-	// 4xx payload that is not a problem document is refused rather than mangled.
+	// media type keeps this independent of how any producer labels its body: the
+	// renderer cross-checks the body's own status member against this one, so a 4xx
+	// payload that is not a problem document is refused rather than mangled.
 	status := response.StatusCode()
 	if status < http.StatusBadRequest {
 		return

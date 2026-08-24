@@ -150,6 +150,7 @@ func TestEnvelopeVersionBoundary_ReturnedErrors(t *testing.T) {
 	}{
 		{name: "handler returns an error without writing", path: "/v1/probe/returns-error", want: fiber.StatusNotFound},
 		{name: "router finds no route", path: "/v1/no-such-route", want: fiber.StatusNotFound},
+		{name: "the bare version path", path: "/v1", want: fiber.StatusNotFound},
 	}
 
 	for _, testCase := range cases {
@@ -170,13 +171,10 @@ func TestEnvelopeVersionBoundary_ReturnedErrors(t *testing.T) {
 	}
 
 	t.Run("v2 keeps the problem document", func(t *testing.T) {
-		_, body, _ := driveProbe(t, app, "/v2/probe/returns-error")
+		_, body, contentType := driveProbe(t, app, "/v2/probe/returns-error")
 
-		// Body only. The media type is NOT asserted here: withProblem sets
-		// application/problem+json and fiber's c.JSON then overwrites it, so every
-		// error written through the Fiber path is labelled application/json
-		// regardless of version. That is a pre-existing bug in the shared
-		// serializer, not something this change introduced or should paper over.
+		assert.Contains(t, contentType, "application/problem+json",
+			"the Fiber path must serve the RFC 9457 media type, not just the shape")
 		assert.Contains(t, body, `"type":`)
 		assert.Contains(t, body, `"status":`)
 		assert.Contains(t, body, `"detail":`)
