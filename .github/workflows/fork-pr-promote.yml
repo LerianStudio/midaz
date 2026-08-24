@@ -12,15 +12,23 @@ name: Promote fork branch to develop
 # anywhere else in CI.
 #
 # Metadata-only: this job never checks out anything, just calls the
-# GitHub API, so it's safe under pull_request regardless of where the
-# merged PR's head came from.
+# GitHub API. It has to be pull_request_target, not pull_request: the PR
+# that merges into `fork` is itself cross-repository (opened from a fork),
+# and pull_request always gets a read-only GITHUB_TOKEN whenever the
+# triggering PR's head is a fork — regardless of `types:` filter or what
+# the job actually does. gh pr comment/create would silently 403 under
+# plain pull_request. pull_request_target is safe here specifically
+# because this job never checks out or executes anything.
 
 on:
-  pull_request:
+  pull_request_target:
     types: [closed]
 
+concurrency:
+  group: fork-promotion-pr
+
 permissions:
-  pull-requests: write
+  pull-requests: write # create/update the fork -> develop promotion PR
 
 jobs:
   open-promotion-pr:

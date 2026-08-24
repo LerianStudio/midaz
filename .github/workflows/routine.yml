@@ -38,6 +38,9 @@ permissions:
 
 jobs:
   routine:
+    # routine.yml@v1.46.5 has no 'backmerge' routine — every child job inside
+    # it would skip, wasting the whole call for that workflow_dispatch value.
+    if: inputs.routine != 'backmerge'
     uses: LerianStudio/github-actions-shared-workflows/.github/workflows/routine.yml@v1.46.5
     with:
       routine: ${{ inputs.routine || 'all' }}
