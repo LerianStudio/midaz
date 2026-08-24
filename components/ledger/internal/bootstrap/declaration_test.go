@@ -17,7 +17,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	ledgerembed "github.com/LerianStudio/midaz/v4/components/ledger"
-	feesservices "github.com/LerianStudio/midaz/v4/components/ledger/internal/services/fees"
 )
 
 // None of the tests in this file call t.Parallel(): the package runs
@@ -61,8 +60,8 @@ func TestBuildDeclarationPublishers_DisabledReturnsNoStops(t *testing.T) {
 // TestBuildDeclarationPublishers_IdentityAlways5xx_FailsOpenAndStopsDrain
 // characterizes the fail-open posture: with RI enabled and an identity that
 // ALWAYS answers 5xx, the helper still returns successfully (boot is NOT
-// blocked), builds both publishers, drives their background PUTs against the
-// failing identity, and every returned stop() drains its goroutine without
+// blocked), builds the single midaz publisher, drives its background PUT against
+// the failing identity, and every returned stop() drains its goroutine without
 // panic or deadlock. goleak.VerifyTestMain then proves no publisher goroutine
 // survives the package run.
 func TestBuildDeclarationPublishers_IdentityAlways5xx_FailsOpenAndStopsDrain(t *testing.T) {
@@ -100,13 +99,13 @@ func TestBuildDeclarationPublishers_IdentityAlways5xx_FailsOpenAndStopsDrain(t *
 	// that only 5xxs did not block or crash boot.
 	stops := buildDeclarationPublishers(cfg, fixedTokenMinter{}, libLog.NewNop())
 
-	require.Len(t, stops, 2, "both midaz and plugin-fees publishers must be constructed and started")
+	require.Len(t, stops, 1, "the single midaz publisher must be constructed and started")
 
 	for _, s := range stops {
 		require.NotNil(t, s, "each started publisher must yield a non-nil stop func")
 	}
 
-	// Prove both publishers reached the failing-identity PUT (fail-open ran the
+	// Prove the publisher reached the failing-identity PUT (fail-open ran the
 	// real publish path, not a short-circuit).
 	for i := 0; i < len(stops); i++ {
 		select {
@@ -137,11 +136,11 @@ func TestBuildDeclarationPublishers_IdentityAlways5xx_FailsOpenAndStopsDrain(t *
 }
 
 // TestBuildDeclarationPublishers_RealManifestsMatchWiredSlugs proves the exact
-// (slug, manifest) pairs the helper wires satisfy declaration.New's client-side
-// BOLA guard (slug == manifest.service): the real embedded manifests declare
-// "midaz" and "plugin-fees", and New rejects any cross-wiring. This is the
-// deterministic, I/O-free proof that the two wired slugs are correct; New starts
-// no goroutine here.
+// (slug, manifest) pair the helper wires satisfies declaration.New's client-side
+// BOLA guard (slug == manifest.service): the real embedded manifest declares
+// "midaz", and New rejects any other slug against it. This is the deterministic,
+// I/O-free proof that the single wired slug is correct; New starts no goroutine
+// here.
 func TestBuildDeclarationPublishers_RealManifestsMatchWiredSlugs(t *testing.T) {
 	tests := []struct {
 		name            string
@@ -155,19 +154,8 @@ func TestBuildDeclarationPublishers_RealManifestsMatchWiredSlugs(t *testing.T) {
 			manifest: ledgerembed.MidazManifest,
 		},
 		{
-			name:     "plugin-fees slug matches embedded fees manifest",
-			slug:     "plugin-fees",
-			manifest: feesservices.FeesManifest,
-		},
-		{
-			name:            "midaz slug rejected against fees manifest",
-			slug:            "midaz",
-			manifest:        feesservices.FeesManifest,
-			wantErrContains: `manifest.service "plugin-fees"`,
-		},
-		{
-			name:            "plugin-fees slug rejected against midaz manifest",
-			slug:            "plugin-fees",
+			name:            "mismatched slug rejected against midaz manifest",
+			slug:            "not-a-match",
 			manifest:        ledgerembed.MidazManifest,
 			wantErrContains: `manifest.service "midaz"`,
 		},

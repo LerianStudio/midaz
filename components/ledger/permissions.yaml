@@ -57,9 +57,21 @@ permissions:
   - { resource: balances, action: delete, effect: allow, roles: [editor] }
   - { resource: balances, action: post,   effect: allow, roles: [editor] }
 
+  # billing-calculate — billing calculate dry-run (fees_routes.go feeGuardRoutes)
+  - { resource: billing-calculate, action: post, effect: allow, roles: [editor] }
+
+  # billing-packages (fees_routes.go feeGuardRoutes)
+  - { resource: billing-packages, action: post,   effect: allow, roles: [editor] }
+  - { resource: billing-packages, action: get,    effect: allow, roles: [editor, viewer] }
+  - { resource: billing-packages, action: patch,  effect: allow, roles: [editor] }
+  - { resource: billing-packages, action: delete, effect: allow, roles: [editor] }
+
   # encryption (crm_routes.go:107)
   - { resource: encryption, action: post, effect: allow, roles: [editor] }
   - { resource: encryption, action: get,  effect: allow, roles: [editor, viewer] }
+
+  # estimates — fee estimate dry-run (fees_routes.go feeGuardRoutes)
+  - { resource: estimates, action: post, effect: allow, roles: [editor] }
 
   # holders (crm_routes.go:81)
   - { resource: holders, action: post,   effect: allow, roles: [editor] }
@@ -96,6 +108,12 @@ permissions:
   - { resource: organizations, action: get,    effect: allow, roles: [editor, viewer] }
   - { resource: organizations, action: delete, effect: allow, roles: [editor] }
   - { resource: organizations, action: head,   effect: allow, roles: [editor, viewer] }
+
+  # packages — fee packages (fees_routes.go feeGuardRoutes)
+  - { resource: packages, action: post,   effect: allow, roles: [editor] }
+  - { resource: packages, action: get,    effect: allow, roles: [editor, viewer] }
+  - { resource: packages, action: patch,  effect: allow, roles: [editor] }
+  - { resource: packages, action: delete, effect: allow, roles: [editor] }
 
   # portfolios (portfolio_handler.go:376)
   - { resource: portfolios, action: post,   effect: allow, roles: [editor] }
@@ -150,8 +168,8 @@ roles:
       - group: midaz-viewer-group
 
 m2m:
-  # EXPORT: midaz is the target of plugin-fees' `needs: [midaz]` (fees calls the
-  # ledger in-process/over the seam), so it must expose its M2M editor surface.
+  # EXPORT: midaz exposes its M2M editor surface so a peer service that declares a
+  # `needs: [midaz]` edge can reconcile against it.
   exposed: true
   # IMPORT: the ledger calls tracer's reservation API (TRACER_BASE_URL, gRPC/REST;
   # .env.example:487) which is guarded by auth.Authorize("tracer","reservations",

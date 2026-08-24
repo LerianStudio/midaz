@@ -16,15 +16,15 @@ import (
 	libLog "github.com/LerianStudio/lib-observability/v2/log"
 
 	ledgerembed "github.com/LerianStudio/midaz/v4/components/ledger"
-	feesservices "github.com/LerianStudio/midaz/v4/components/ledger/internal/services/fees"
 )
 
 // buildDeclarationPublishers wires the Responsibility-Inversion (RI) permission
-// declaration publishers that push each embedded permissions manifest to the IdP
-// at boot. It builds ONE publisher per service slug the ledger binary owns —
-// "midaz" (core ledger + embedded CRM) and "plugin-fees" (embedded fees/billing
-// under its own M2M identity) — and returns the stop() hooks the shutdown
-// runnable drains on SIGTERM.
+// declaration publisher that pushes the embedded permissions manifest to the IdP
+// at boot. It builds ONE publisher for the single slug the ledger binary owns —
+// "midaz" (core ledger + embedded CRM + embedded fees) — and returns the stop()
+// hooks the shutdown runnable drains on SIGTERM. The receiver (plugin-identity)
+// enforces BOLA one-identity-one-slug, so fees and CRM are resources INSIDE midaz,
+// not slugs of their own.
 //
 // It is fail-open from construction onward: RI is optional and MUST NOT block or
 // crash boot.
@@ -36,9 +36,8 @@ import (
 //     is Warn-skipped. The service still serves.
 //   - AuthEnabled=false with RI on: the M2M mint yields an empty token, so the
 //     background publish fails-open (Warn) inside the publisher; boot is unaffected.
-//   - Server-side BOLA rejection on plugin-fees arrives as a *declaration.PublishError
-//     on the async publish path; it is Warn-only and never blocks the other slug or
-//     the boot.
+//   - Server-side BOLA rejection arrives as a *declaration.PublishError on the async
+//     publish path; it is Warn-only and never blocks the boot.
 //
 // The secret VALUE is NEVER logged, span-attached, or serialized. The pre-flight
 // Warn reports only the NAMES of empty env vars (names are not secrets). Field
@@ -60,7 +59,6 @@ func buildDeclarationPublishers(cfg *Config, authClient declaration.TokenMinter,
 		manifest []byte
 	}{
 		{slug: "midaz", manifest: ledgerembed.MidazManifest},
-		{slug: "plugin-fees", manifest: feesservices.FeesManifest},
 	}
 
 	stops := make([]func(), 0, len(specs))
