@@ -217,6 +217,8 @@ func TestValidateSaaSDeclarationTLS(t *testing.T) {
 		{name: "unset_mode_enabled_http_allowed", deploymentMode: "", enabled: true, idpHost: "http://identity:4001"},
 		{name: "saas_enabled_empty_host_is_noop", deploymentMode: "saas", enabled: true, idpHost: ""},
 		{name: "saas_enabled_schemeless_host_is_noop", deploymentMode: "saas", enabled: true, idpHost: "identity.invalid"},
+		{name: "saas_enabled_opaque_http_is_noop", deploymentMode: "saas", enabled: true, idpHost: "http:identity"},
+		{name: "saas_enabled_rootless_http_is_noop", deploymentMode: "saas", enabled: true, idpHost: "http:/identity"},
 		{name: "saas_enabled_uppercase_scheme_refused", deploymentMode: "saas", enabled: true, idpHost: "HTTP://identity:4001", wantErr: true},
 		{name: "saas_uppercase_mode_http_refused", deploymentMode: "SAAS", enabled: true, idpHost: "http://identity:4001", wantErr: true},
 		{name: "saas_whitespace_padded_mode_http_refused", deploymentMode: "  saas  ", enabled: true, idpHost: "http://identity:4001", wantErr: true},

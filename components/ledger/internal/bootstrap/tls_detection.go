@@ -211,7 +211,11 @@ func idpSchemeIsCleartext(idpHost string) bool {
 		return false
 	}
 
-	return strings.EqualFold(parsed.Scheme, "http")
+	// A non-empty Host is required: opaque forms like "http:identity" or
+	// "http:/identity" parse with an http scheme but no authority. The publisher
+	// never dials those (lib-auth rejects them and fails open), so they are not a
+	// cleartext dial and must not trip the gate.
+	return strings.EqualFold(parsed.Scheme, "http") && parsed.Host != ""
 }
 
 // ValidateSaaSDeclarationTLS extends the SaaS TLS gate to the Responsibility-
