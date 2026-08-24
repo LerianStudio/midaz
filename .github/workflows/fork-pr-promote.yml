@@ -32,12 +32,20 @@ permissions:
 
 jobs:
   open-promotion-pr:
-    if: github.event.pull_request.merged == true && github.event.pull_request.base.ref == 'fork'
+    # Excludes same-repo merges into `fork` — e.g. the develop -> fork
+    # backmerge sync (routine.yml) merges its own PR into fork too, and that
+    # isn't an external contribution to promote; it would just open a
+    # redundant fork -> develop PR for content develop already has.
+    if: >
+      github.event.pull_request.merged == true &&
+      github.event.pull_request.base.ref == 'fork' &&
+      github.event.pull_request.head.repo.full_name != github.repository
     runs-on: blacksmith-4vcpu-ubuntu-2404
     steps:
       - name: Open or confirm the fork -> develop promotion PR
         env:
           GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
         run: |
           set -euo pipefail
           existing=$(gh pr list --head fork --base develop --json number --jq '.[0].number // empty')

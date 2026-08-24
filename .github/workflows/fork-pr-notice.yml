@@ -20,13 +20,45 @@ jobs:
       - name: Comment with the promotion flow explanation
         env:
           GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
           BASE_REF: ${{ github.event.pull_request.base.ref }}
         run: |
           set -euo pipefail
           if [[ "$BASE_REF" == "fork" ]]; then
-            body='Thanks for the contribution! Since this targets `fork`, a maintainer will review the diff and merge it normally when ready. That merge automatically opens a follow-up PR into `develop` with full CI (this repo does not grant secrets to PRs opened directly from a fork — a GitHub security restriction, not something disabled here). No action needed from you.'
+            cat > /tmp/notice-body.md <<'EOF'
+          > [!NOTE]
+          > ✅ **This PR is correctly targeting `fork`.**
+
+          🎉 **Thank you for contributing to Midaz — we really appreciate it, and contributions like yours are very welcome!**
+
+          A maintainer will review the diff and merge it into `fork` when ready — that's the ordinary GitHub merge button, nothing else needed from you. That merge automatically opens a follow-up PR into `develop` with full CI (this repo does not grant secrets to PRs opened directly from a fork — a GitHub security restriction, not something disabled here).
+
+          ### 📚 Related docs
+          - [CONTRIBUTING.md](https://github.com/LerianStudio/midaz/blob/develop/CONTRIBUTING.md#how-to-submit-a-pull-request) — full contribution flow
+          - [Securely using `pull_request_target`](https://docs.github.com/en/actions/reference/security/securely-using-pull_request_target) — why fork PRs don't get secrets by default
+
+          ---
+          🤖 *This message was generated automatically.*
+          EOF
           else
-            body="Thanks for the contribution! This PR targets \`$BASE_REF\`, but PRs from forks need to target \`fork\` instead — CI for forked PRs against other branches runs without secrets and some checks will fail. Please retarget this PR's base branch to \`fork\` (Edit button, top of the PR) and a maintainer will pick it up from there."
+            cat > /tmp/notice-body.md <<EOF
+          > [!WARNING]
+          > 🔀 **This PR needs to be retargeted — it's pointing at \`$BASE_REF\` instead of \`fork\`.**
+
+          🎉 **Thank you for contributing to Midaz — we really appreciate it, and contributions like yours are very welcome!** Just one small adjustment needed before CI can run fully: PRs opened from a fork against any branch other than \`fork\` run without secrets, so some CI checks will fail as a result — that's expected, not a bug on your end.
+
+          ### 🔧 What to do
+          1. Click **Edit** at the top of this PR.
+          2. Change the base branch from \`$BASE_REF\` to \`fork\`.
+          3. A maintainer will pick it up from there — no need to close and reopen this PR.
+
+          ### 📚 Related docs
+          - [CONTRIBUTING.md](https://github.com/LerianStudio/midaz/blob/develop/CONTRIBUTING.md#how-to-submit-a-pull-request) — full contribution flow, including a direct compare-link tip for targeting \`fork\`
+          - [Securely using \`pull_request_target\`](https://docs.github.com/en/actions/reference/security/securely-using-pull_request_target) — why fork PRs don't get secrets by default
+
+          ---
+          🤖 *This message was generated automatically.*
+          EOF
           fi
-          gh pr comment "$PR_NUMBER" --body "$body"
+          gh pr comment "$PR_NUMBER" --body-file /tmp/notice-body.md
