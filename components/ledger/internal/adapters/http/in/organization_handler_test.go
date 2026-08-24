@@ -24,6 +24,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 
+	ledgerMiddleware "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/http/in/middleware"
 	mongodb "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/mongodb/onboarding"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/organization"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services"
@@ -65,6 +66,11 @@ func buildHumaOrganizationApp(t *testing.T, handler *OrganizationHandler, authOK
 	// problem.Install must run before any huma.Register (runtime + spec-gen).
 	libProblem.Install()
 	pkgHTTP.InstallHumaFrameworkErrors()
+
+	// Mirror production: the ledger registers ErrorEnvelope on the app root, so
+	// /v1 serves the v3 envelope. Without it these assertions lock a shape no
+	// deployed ledger returns.
+	f.Use(ledgerMiddleware.ErrorEnvelope())
 
 	apiV1 := f.Group("/v1")
 
@@ -192,12 +198,12 @@ func TestCreateOrganization_ValidationError_Canonical400(t *testing.T) {
 	respBody, _ := io.ReadAll(resp.Body)
 
 	assert.Equal(t, http.StatusBadRequest, resp.StatusCode, "imperative validation stays 400 — no native Huma 422")
-	assert.Equal(t, "application/problem+json", resp.Header.Get("Content-Type"))
+	assert.Equal(t, "application/json", resp.Header.Get("Content-Type"))
 
 	var got map[string]any
 	require.NoError(t, json.Unmarshal(respBody, &got), "body: %s", string(respBody))
 	assert.NotEmpty(t, got["code"], "canonical code present")
-	assert.Equal(t, float64(http.StatusBadRequest), got["status"])
+	assert.NotContains(t, got, "status", "the v1 envelope carries no status member")
 }
 
 func TestCreateOrganization_MalformedBody_Canonical400(t *testing.T) {
@@ -222,12 +228,12 @@ func TestCreateOrganization_MalformedBody_Canonical400(t *testing.T) {
 	respBody, _ := io.ReadAll(resp.Body)
 
 	assert.Equal(t, http.StatusBadRequest, resp.StatusCode, "malformed body stays 400 — no 500, no native 422")
-	assert.Equal(t, "application/problem+json", resp.Header.Get("Content-Type"))
+	assert.Equal(t, "application/json", resp.Header.Get("Content-Type"))
 
 	var got map[string]any
 	require.NoError(t, json.Unmarshal(respBody, &got), "body: %s", string(respBody))
 	assert.Equal(t, constant.ErrInvalidRequestBody.Error(), got["code"], "malformed-body code preserved (0094)")
-	assert.Equal(t, float64(http.StatusBadRequest), got["status"])
+	assert.NotContains(t, got, "status", "the v1 envelope carries no status member")
 }
 
 func TestCreateOrganization_EmptyBody_Canonical400(t *testing.T) {
@@ -258,13 +264,13 @@ func TestCreateOrganization_EmptyBody_Canonical400(t *testing.T) {
 	respBody, _ := io.ReadAll(resp.Body)
 
 	assert.Equal(t, http.StatusBadRequest, resp.StatusCode, "empty body stays 400 — no 500, no native 422")
-	assert.Equal(t, "application/problem+json", resp.Header.Get("Content-Type"))
+	assert.Equal(t, "application/json", resp.Header.Get("Content-Type"))
 
 	var got map[string]any
 	require.NoError(t, json.Unmarshal(respBody, &got), "body: %s", string(respBody))
 	assert.Equal(t, constant.ErrInvalidRequestBody.Error(), got["code"], "empty-body code is 0094, not absent")
 	assert.Equal(t, "Unmarshalling error", got["title"])
-	assert.Equal(t, float64(http.StatusBadRequest), got["status"])
+	assert.NotContains(t, got, "status", "the v1 envelope carries no status member")
 }
 
 func TestGetOrganizationByID_Success(t *testing.T) {
@@ -321,12 +327,12 @@ func TestGetOrganizationByID_NotFound_Canonical404(t *testing.T) {
 
 	respBody, _ := io.ReadAll(resp.Body)
 	assert.Equal(t, http.StatusNotFound, resp.StatusCode, "not-found stays canonical 404 — no native Huma 422")
-	assert.Equal(t, "application/problem+json", resp.Header.Get("Content-Type"))
+	assert.Equal(t, "application/json", resp.Header.Get("Content-Type"))
 
 	var got map[string]any
 	require.NoError(t, json.Unmarshal(respBody, &got), "body: %s", string(respBody))
 	assert.Equal(t, constant.ErrOrganizationIDNotFound.Error(), got["code"])
-	assert.Equal(t, float64(http.StatusNotFound), got["status"])
+	assert.NotContains(t, got, "status", "the v1 envelope carries no status member")
 }
 
 func TestGetOrganizationByID_BadUUID_Canonical400(t *testing.T) {
@@ -535,12 +541,12 @@ func TestCreateOrganization_RepositoryError_500(t *testing.T) {
 
 	respBody, _ := io.ReadAll(resp.Body)
 	assert.Equal(t, http.StatusInternalServerError, resp.StatusCode)
-	assert.Equal(t, "application/problem+json", resp.Header.Get("Content-Type"))
+	assert.Equal(t, "application/json", resp.Header.Get("Content-Type"))
 
 	var got map[string]any
 	require.NoError(t, json.Unmarshal(respBody, &got), "body: %s", string(respBody))
 	assert.Equal(t, "0046", got["code"])
-	assert.Contains(t, got, "detail")
+	assert.Contains(t, got, "message")
 }
 
 func TestUpdateOrganization_Success(t *testing.T) {
@@ -612,12 +618,12 @@ func TestUpdateOrganization_NotFound_Canonical404(t *testing.T) {
 
 	respBody, _ := io.ReadAll(resp.Body)
 	assert.Equal(t, http.StatusNotFound, resp.StatusCode, "not-found stays canonical 404 — no native Huma 422")
-	assert.Equal(t, "application/problem+json", resp.Header.Get("Content-Type"))
+	assert.Equal(t, "application/json", resp.Header.Get("Content-Type"))
 
 	var got map[string]any
 	require.NoError(t, json.Unmarshal(respBody, &got), "body: %s", string(respBody))
 	assert.Equal(t, constant.ErrOrganizationIDNotFound.Error(), got["code"])
-	assert.Equal(t, float64(http.StatusNotFound), got["status"])
+	assert.NotContains(t, got, "status", "the v1 envelope carries no status member")
 }
 
 func TestUpdateOrganization_MalformedBody_Canonical400(t *testing.T) {
@@ -768,7 +774,7 @@ func TestGetAllOrganizations_RepositoryError_500(t *testing.T) {
 	var got map[string]any
 	require.NoError(t, json.Unmarshal(respBody, &got), "body: %s", string(respBody))
 	assert.Equal(t, "0046", got["code"])
-	assert.Contains(t, got, "detail")
+	assert.Contains(t, got, "message")
 }
 
 func TestDeleteOrganization_RepositoryError_500(t *testing.T) {
@@ -799,7 +805,7 @@ func TestDeleteOrganization_RepositoryError_500(t *testing.T) {
 	var got map[string]any
 	require.NoError(t, json.Unmarshal(respBody, &got), "body: %s", string(respBody))
 	assert.Equal(t, "0046", got["code"])
-	assert.Contains(t, got, "detail")
+	assert.Contains(t, got, "message")
 }
 
 func TestCountOrganizations_RepositoryError_500(t *testing.T) {
@@ -821,7 +827,7 @@ func TestCountOrganizations_RepositoryError_500(t *testing.T) {
 	defer func() { _ = resp.Body.Close() }()
 
 	assert.Equal(t, http.StatusInternalServerError, resp.StatusCode)
-	assert.Equal(t, "application/problem+json", resp.Header.Get("Content-Type"))
+	assert.Equal(t, "application/json", resp.Header.Get("Content-Type"))
 }
 
 // TestHuma_Property_Organization_FieldLengths asserts the create path never answers

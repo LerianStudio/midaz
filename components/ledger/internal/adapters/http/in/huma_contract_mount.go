@@ -5,6 +5,7 @@
 package in
 
 import (
+	"reflect"
 	"sort"
 	"strings"
 
@@ -242,6 +243,21 @@ func AssembleHumaContract(app *fiber.App, group fiber.Router, cfg openapi.Config
 	return api
 }
 
+// FinalizeContract runs every post-registration pass over the assembled document,
+// in the order they depend on, and is the ONLY supported way to apply them.
+//
+// It exists because the passes were previously listed twice — once in the unified
+// server and once in the contract-test seam that snapshots the golden spec — so a
+// new pass added to production but not to the seam produced a served contract the
+// golden gate could not see. Adding a pass here reaches both.
+//
+// Call it AFTER the last huma.Register and BEFORE the spec is snapshotted or served.
+func FinalizeContract(api huma.API) {
+	MarkV1OperationsDeprecated(api)
+	RepointV1ErrorResponses(api)
+	ApplyVersionTagGroups(api)
+}
+
 // MarkV1OperationsDeprecated flags every operation whose path key is under "/v1/"
 // as deprecated on the assembled document, leaving "/v2/" untouched. Run it AFTER
 // the last huma.Register and BEFORE the spec is snapshotted so the served spec and
@@ -254,6 +270,55 @@ func MarkV1OperationsDeprecated(api huma.API) {
 
 		for _, op := range operationsOf(item) {
 			op.Deprecated = true
+		}
+	}
+}
+
+// LegacyError is the /v1 error envelope as a client receives it: the shape midaz v3
+// served, restored on /v1 by the ErrorEnvelope middleware. It is published so the
+// contract describes what /v1 actually returns rather than the RFC 9457 document
+// /v2 serves.
+//
+// It is a CONTRACT-ONLY type. Nothing constructs it: the middleware rewrites
+// serialized bytes. Its fields, order and omitempty set mirror the renderer's
+// output, and drift between the two is a wire lie — change both together.
+type LegacyError struct {
+	EntityType string         `json:"entityType,omitempty" doc:"The domain entity the error concerns. Present only on field-validation errors." example:"Account"`
+	Title      string         `json:"title,omitempty" required:"true" doc:"Short, human-readable summary of the error." example:"Invalid Path Parameter"`
+	Message    string         `json:"message,omitempty" required:"true" doc:"Human-readable explanation of this occurrence. The /v2 contract carries this as 'detail'."`
+	Code       string         `json:"code,omitempty" required:"true" doc:"Stable, machine-readable midaz error code. Identical to the code /v2 returns for the same condition." example:"0065"`
+	Fields     map[string]any `json:"fields,omitempty" doc:"Per-field validation detail, keyed by field name. The value is the violation message for a known field and the offending value for an unexpected one, so it is not always a string. The /v2 contract carries these as the 'errors' array."`
+}
+
+// RepointV1ErrorResponses rewrites every /v1 operation's default error response to
+// the LegacyError schema at application/json, leaving /v2 on the shared RFC 9457
+// Error schema.
+//
+// Both versions share ONE document and ONE component registry, so this adds a
+// second, distinctly named schema rather than altering Error — which must stay
+// byte-identical to the tracer plane's (tests/openapi/error_schema_parity_test.go)
+// and must remain the only schema matching the Error singleton check in
+// postman/generator/check-docs.sh.
+//
+// Run it AFTER the last huma.Register and BEFORE the spec is snapshotted, like the
+// sibling passes above.
+func RepointV1ErrorResponses(api huma.API) {
+	schema := api.OpenAPI().Components.Schemas.Schema(reflect.TypeOf(LegacyError{}), true, "LegacyError")
+
+	for key, item := range api.OpenAPI().Paths {
+		if !strings.HasPrefix(key, "/v1/") {
+			continue
+		}
+
+		for _, op := range operationsOf(item) {
+			response, ok := op.Responses["default"]
+			if !ok || response == nil {
+				continue
+			}
+
+			response.Content = map[string]*huma.MediaType{
+				"application/json": {Schema: schema},
+			}
 		}
 	}
 }

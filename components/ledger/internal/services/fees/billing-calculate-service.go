@@ -342,10 +342,12 @@ func (s *BillingCalculateService) calculateVolume(
 
 	totalEvents, err := s.transactionCounter.CountByRoute(ctx, countParams)
 	if err != nil {
-		errMsg := fmt.Sprintf("billing package (id=%s, label=%s): failed to count transactions: %v", bp.ID, bp.Label, err)
+		// The cause is recorded on the span, not interpolated into the message: this
+		// sentinel is a 500, and the ledger publishes >=500 message text to clients.
+		errMsg := fmt.Sprintf("billing package (id=%s, label=%s): failed to count transactions", bp.ID, bp.Label)
 		bizErr := pkg.ValidateBusinessError(constant.ErrBillingCalculationFailed, "BillingCalculation", errMsg)
 
-		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to count transactions for volume package", bizErr)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to count transactions for volume package", err)
 
 		return nil, bizErr
 	}
@@ -374,10 +376,11 @@ func (s *BillingCalculateService) calculateVolume(
 
 		_, grossAmount, errTier = fee.CalculateTiered(billableEvents, bp.Tiers)
 		if errTier != nil {
-			errMsg := fmt.Sprintf("billing package (id=%s, label=%s): tiered calculation failed: %v", bp.ID, bp.Label, errTier)
+			// Cause on the span only — see the note on the volume-count path above.
+			errMsg := fmt.Sprintf("billing package (id=%s, label=%s): tiered calculation failed", bp.ID, bp.Label)
 			bizErr := pkg.ValidateBusinessError(constant.ErrBillingCalculationFailed, "BillingCalculation", errMsg)
 
-			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Tiered calculation failed", bizErr)
+			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Tiered calculation failed", errTier)
 
 			return nil, bizErr
 		}
@@ -493,10 +496,11 @@ func (s *BillingCalculateService) calculateMaintenance(
 
 	accounts, err := s.accountResolver.ResolveAccounts(ctx, orgUUID, ledgerUUID, *bp.AccountTarget)
 	if err != nil {
-		errMsg := fmt.Sprintf("billing package (id=%s, label=%s): failed to resolve accounts: %v", bp.ID, bp.Label, err)
+		// Cause on the span only — see the note on the volume-count path above.
+		errMsg := fmt.Sprintf("billing package (id=%s, label=%s): failed to resolve accounts", bp.ID, bp.Label)
 		bizErr := pkg.ValidateBusinessError(constant.ErrBillingCalculationFailed, "BillingCalculation", errMsg)
 
-		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to resolve accounts for maintenance package", bizErr)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to resolve accounts for maintenance package", err)
 
 		return nil, bizErr
 	}

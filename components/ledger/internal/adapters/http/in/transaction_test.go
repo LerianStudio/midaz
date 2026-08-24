@@ -151,7 +151,7 @@ func TestTransactionHandler_GetTransaction(t *testing.T) {
 				require.NoError(t, err, "error response should be valid JSON")
 
 				assert.Contains(t, errResp, "code", "error response should contain code field")
-				assert.Contains(t, errResp, "detail", "error response should contain message field")
+				assert.Contains(t, errResp, "message", "error response should contain message field")
 			},
 		},
 		{
@@ -1550,7 +1550,7 @@ func TestCreateTransactionJSON_NonPositiveValue_Returns422(t *testing.T) {
 				"expected error code 0125 (ErrInvalidTransactionNonPositiveValue)")
 
 			// Verify error message is present and descriptive
-			msg, ok := errResp["detail"].(string)
+			msg, ok := errResp["message"].(string)
 			assert.True(t, ok, "error response should contain message field")
 			assert.Contains(t, msg, "zero", "error message should mention zero values")
 		})
@@ -1614,7 +1614,7 @@ func TestCreateTransactionInflow_NonPositiveValue_Returns422(t *testing.T) {
 				"expected error code 0125 (ErrInvalidTransactionNonPositiveValue)")
 
 			// Verify error message is present and descriptive
-			msg, ok := errResp["detail"].(string)
+			msg, ok := errResp["message"].(string)
 			assert.True(t, ok, "error response should contain message field")
 			assert.Contains(t, msg, "zero", "error message should mention zero values")
 		})
@@ -1678,7 +1678,7 @@ func TestCreateTransactionOutflow_NonPositiveValue_Returns422(t *testing.T) {
 				"expected error code 0125 (ErrInvalidTransactionNonPositiveValue)")
 
 			// Verify error message is present and descriptive
-			msg, ok := errResp["detail"].(string)
+			msg, ok := errResp["message"].(string)
 			assert.True(t, ok, "error response should contain message field")
 			assert.Contains(t, msg, "zero", "error message should mention zero values")
 		})
@@ -1865,7 +1865,7 @@ func TestTransactionHandler_GetAllTransactions(t *testing.T) {
 				require.NoError(t, err, "error response should be valid JSON")
 
 				assert.Contains(t, errResp, "code", "error response should contain code field")
-				assert.Contains(t, errResp, "detail", "error response should contain message field")
+				assert.Contains(t, errResp, "message", "error response should contain message field")
 			},
 		},
 	}
@@ -2199,7 +2199,7 @@ func TestCreateTransactionAnnotation_NonPositiveValue_Returns422(t *testing.T) {
 				"expected error code 0125 (ErrInvalidTransactionNonPositiveValue)")
 
 			// Verify error message is present and descriptive
-			msg, ok := errResp["detail"].(string)
+			msg, ok := errResp["message"].(string)
 			assert.True(t, ok, "error response should contain message field")
 			assert.Contains(t, msg, "zero", "error message should mention zero values")
 		})

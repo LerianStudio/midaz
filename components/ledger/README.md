@@ -80,7 +80,7 @@ repositories. Domain models live in `pkg/mmodel`.
 - **HTTP layer:** [Huma v2](https://github.com/danielgtaylor/huma) (OAS 3.1) mounted over
   **Fiber v3**. Fiber remains the runtime router, auth chain, and middleware host; Huma sits on
   top to generate the API contract and validate typed request/response structs.
-- **Errors:** RFC 9457 `application/problem+json`. Typed errors from `pkg/errors.go`, numeric
+- **Errors:** per route version — `/v1` serves the legacy `{entityType?, title, message, code, fields?}` body at `application/json` (`entityType` and `fields` appear only on field-validation errors); `>= /v2` serves RFC 9457 `application/problem+json`. Typed errors from `pkg/errors.go`, numeric
   sentinels from `pkg/constant/errors.go`. Not found → 404, business-rule violations → 422.
 - **Handlers:** `internal/adapters/http/in`. Per resource: `<resource>.go` (transport-agnostic cores) and `<resource>_handler.go` (Huma envelopes, handler methods, registrars).
 - **Write use cases:** `internal/services/command`. **Read use cases:** `internal/services/query`.

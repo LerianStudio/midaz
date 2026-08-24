@@ -25,6 +25,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	ledgerMiddleware "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/http/in/middleware"
 	mongodb "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/mongodb/onboarding"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/account"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/asset"
@@ -162,6 +163,10 @@ func setupAssetTestInfra(t *testing.T) *assetTestInfra {
 func (infra *assetTestInfra) setupRoutes() {
 	// problem.Install must run before any huma.Register (runtime + spec-gen).
 	libProblem.Install()
+
+	// Mirror production: the ledger registers ErrorEnvelope on the app root, so
+	// /v1 serves the v3 envelope.
+	infra.app.Use(ledgerMiddleware.ErrorEnvelope())
 
 	apiV1 := infra.app.Group("/v1")
 	hAPI := openapi.New(infra.app, apiV1, openapi.Config{

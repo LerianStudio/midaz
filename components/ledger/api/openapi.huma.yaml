@@ -2598,6 +2598,36 @@ components:
         tracer:
           $ref: "#/components/schemas/TracerSettingsInput"
       type: object
+    LegacyError:
+      additionalProperties: false
+      properties:
+        code:
+          description: Stable, machine-readable midaz error code. Identical to the code /v2 returns for the same condition.
+          examples:
+            - "0065"
+          type: string
+        entityType:
+          description: The domain entity the error concerns. Present only on field-validation errors.
+          examples:
+            - Account
+          type: string
+        fields:
+          additionalProperties: {}
+          description: Per-field validation detail, keyed by field name. The value is the violation message for a known field and the offending value for an unexpected one, so it is not always a string. The /v2 contract carries these as the 'errors' array.
+          type: object
+        message:
+          description: Human-readable explanation of this occurrence. The /v2 contract carries this as 'detail'.
+          type: string
+        title:
+          description: Short, human-readable summary of the error.
+          examples:
+            - Invalid Path Parameter
+          type: string
+      required:
+        - title
+        - message
+        - code
+      type: object
     LegalPerson:
       additionalProperties: false
       properties:
@@ -4548,9 +4578,9 @@ paths:
           description: OK
         default:
           content:
-            application/problem+json:
+            application/json:
               schema:
-                $ref: "#/components/schemas/Error"
+                $ref: "#/components/schemas/LegacyError"
           description: Error
       security:
         - BearerAuth: []
@@ -4575,9 +4605,9 @@ paths:
           description: Created
         default:
           content:
-            application/problem+json:
+            application/json:
               schema:
-                $ref: "#/components/schemas/Error"
+                $ref: "#/components/schemas/LegacyError"
           description: Error
       security:
         - BearerAuth: []
@@ -4600,9 +4630,9 @@ paths:
                 type: string
         default:
           content:
-            application/problem+json:
+            application/json:
               schema:
-                $ref: "#/components/schemas/Error"
+                $ref: "#/components/schemas/LegacyError"
           description: Error
       security:
         - BearerAuth: []
@@ -4626,9 +4656,9 @@ paths:
           description: No Content
         default:
           content:
-            application/problem+json:
+            application/json:
               schema:
-                $ref: "#/components/schemas/Error"
+                $ref: "#/components/schemas/LegacyError"
           description: Error
       security:
         - BearerAuth: []
@@ -4655,9 +4685,9 @@ paths:
           description: OK
         default:
           content:
-            application/problem+json:
+            application/json:
               schema:
-                $ref: "#/components/schemas/Error"
+                $ref: "#/components/schemas/LegacyError"
           description: Error
       security:
         - BearerAuth: []
@@ -4690,9 +4720,9 @@ paths:
           description: OK
         default:
           content:
-            application/problem+json:
+            application/json:
               schema:
-                $ref: "#/components/schemas/Error"
+                $ref: "#/components/schemas/LegacyError"
           description: Error
       security:
         - BearerAuth: []
@@ -4776,9 +4806,9 @@ paths:
           description: OK
         default:
           content:
-            application/problem+json:
+            application/json:
               schema:
-                $ref: "#/components/schemas/Error"
+                $ref: "#/components/schemas/LegacyError"
           description: Error
       security:
         - BearerAuth: []
@@ -4811,9 +4841,9 @@ paths:
           description: Created
         default:
           content:
-            application/problem+json:
+            application/json:
               schema:
-                $ref: "#/components/schemas/Error"
+                $ref: "#/components/schemas/LegacyError"
           description: Error
       security:
         - BearerAuth: []
@@ -4844,9 +4874,9 @@ paths:
                 type: string
         default:
           content:
-            application/problem+json:
+            application/json:
               schema:
-                $ref: "#/components/schemas/Error"
+                $ref: "#/components/schemas/LegacyError"
           description: Error
       security:
         - BearerAuth: []
@@ -4877,9 +4907,9 @@ paths:
           description: No Content
         default:
           content:
-            application/problem+json:
+            application/json:
               schema:
-                $ref: "#/components/schemas/Error"
+                $ref: "#/components/schemas/LegacyError"
           description: Error
       security:
         - BearerAuth: []
@@ -4913,9 +4943,9 @@ paths:
           description: OK
         default:
           content:
-            application/problem+json:
+            application/json:
               schema:
-                $ref: "#/components/schemas/Error"
+                $ref: "#/components/schemas/LegacyError"
           description: Error
       security:
         - BearerAuth: []
@@ -4955,9 +4985,9 @@ paths:
           description: OK
         default:
           content:
-            application/problem+json:
+            application/json:
               schema:
-                $ref: "#/components/schemas/Error"
+                $ref: "#/components/schemas/LegacyError"
           description: Error
       security:
         - BearerAuth: []
@@ -5048,9 +5078,9 @@ paths:
           description: OK
         default:
           content:
-            application/problem+json:
+            application/json:
               schema:
-                $ref: "#/components/schemas/Error"
+                $ref: "#/components/schemas/LegacyError"
           description: Error
       security:
         - BearerAuth: []
@@ -5090,9 +5120,9 @@ paths:
           description: Created
         default:
           content:
-            application/problem+json:
+            application/json:
               schema:
-                $ref: "#/components/schemas/Error"
+                $ref: "#/components/schemas/LegacyError"
           description: Error
       security:
         - BearerAuth: []
@@ -5130,9 +5160,9 @@ paths:
           description: No Content
         default:
           content:
-            application/problem+json:
+            application/json:
               schema:
-                $ref: "#/components/schemas/Error"
+                $ref: "#/components/schemas/LegacyError"
           description: Error
       security:
         - BearerAuth: []
@@ -5173,9 +5203,9 @@ paths:
           description: OK
         default:
           content:
-            application/problem+json:
+            application/json:
               schema:
-                $ref: "#/components/schemas/Error"
+                $ref: "#/components/schemas/LegacyError"
           description: Error
       security:
         - BearerAuth: []
@@ -5222,9 +5252,9 @@ paths:
           description: OK
         default:
           content:
-            application/problem+json:
+            application/json:
               schema:
-                $ref: "#/components/schemas/Error"
+                $ref: "#/components/schemas/LegacyError"
           description: Error
       security:
         - BearerAuth: []
@@ -5371,9 +5401,9 @@ paths:
           description: OK
         default:
           content:
-            application/problem+json:
+            application/json:
               schema:
-                $ref: "#/components/schemas/Error"
+                $ref: "#/components/schemas/LegacyError"
           description: Error
       security:
         - BearerAuth: []
@@ -5419,9 +5449,9 @@ paths:
           description: Created
         default:
           content:
-            application/problem+json:
+            application/json:
               schema:
-                $ref: "#/components/schemas/Error"
+                $ref: "#/components/schemas/LegacyError"
           description: Error
       security:
         - BearerAuth: []
@@ -5463,9 +5493,9 @@ paths:
           description: OK
         default:
           content:
-            application/problem+json:
+            application/json:
               schema:
-                $ref: "#/components/schemas/Error"
+                $ref: "#/components/schemas/LegacyError"
           description: Error
       security:
         - BearerAuth: []
@@ -5507,9 +5537,9 @@ paths:
           description: OK
         default:
           content:
-            application/problem+json:
+            application/json:
               schema:
-                $ref: "#/components/schemas/Error"
+                $ref: "#/components/schemas/LegacyError"
           description: Error
       security:
         - BearerAuth: []
@@ -5551,9 +5581,9 @@ paths:
           description: OK
         default:
           content:
-            application/problem+json:
+            application/json:
               schema:
-                $ref: "#/components/schemas/Error"
+                $ref: "#/components/schemas/LegacyError"
           description: Error
       security:
         - BearerAuth: []
@@ -5595,9 +5625,9 @@ paths:
           description: OK
         default:
           content:
-            application/problem+json:
+            application/json:
               schema:
-                $ref: "#/components/schemas/Error"
+                $ref: "#/components/schemas/LegacyError"
           description: Error
       security:
         - BearerAuth: []
@@ -5635,9 +5665,9 @@ paths:
                 type: string
         default:
           content:
-            application/problem+json:
+            application/json:
               schema:
-                $ref: "#/components/schemas/Error"
+                $ref: "#/components/schemas/LegacyError"
           description: Error
       security:
         - BearerAuth: []
@@ -5714,9 +5744,9 @@ paths:
           description: OK
         default:
           content:
-            application/problem+json:
+            application/json:
               schema:
-                $ref: "#/components/schemas/Error"
+                $ref: "#/components/schemas/LegacyError"
           description: Error
       security:
         - BearerAuth: []
@@ -5763,9 +5793,9 @@ paths:
           description: Created
         default:
           content:
-            application/problem+json:
+            application/json:
               schema:
-                $ref: "#/components/schemas/Error"
+                $ref: "#/components/schemas/LegacyError"
           description: Error
       security:
         - BearerAuth: []
@@ -5818,9 +5848,9 @@ paths:
           description: OK
         default:
           content:
-            application/problem+json:
+            application/json:
               schema:
-                $ref: "#/components/schemas/Error"
+                $ref: "#/components/schemas/LegacyError"
           description: Error
       security:
         - BearerAuth: []
@@ -5932,9 +5962,9 @@ paths:
           description: OK
         default:
           content:
-            application/problem+json:
+            application/json:
               schema:
-                $ref: "#/components/schemas/Error"
+                $ref: "#/components/schemas/LegacyError"
           description: Error
       security:
         - BearerAuth: []
@@ -5983,9 +6013,9 @@ paths:
           description: OK
         default:
           content:
-            application/problem+json:
+            application/json:
               schema:
-                $ref: "#/components/schemas/Error"
+                $ref: "#/components/schemas/LegacyError"
           description: Error
       security:
         - BearerAuth: []
@@ -6029,9 +6059,9 @@ paths:
           description: No Content
         default:
           content:
-            application/problem+json:
+            application/json:
               schema:
-                $ref: "#/components/schemas/Error"
+                $ref: "#/components/schemas/LegacyError"
           description: Error
       security:
         - BearerAuth: []
@@ -6072,9 +6102,9 @@ paths:
           description: OK
         default:
           content:
-            application/problem+json:
+            application/json:
               schema:
-                $ref: "#/components/schemas/Error"
+                $ref: "#/components/schemas/LegacyError"
           description: Error
       security:
         - BearerAuth: []
@@ -6121,9 +6151,9 @@ paths:
           description: OK
         default:
           content:
-            application/problem+json:
+            application/json:
               schema:
-                $ref: "#/components/schemas/Error"
+                $ref: "#/components/schemas/LegacyError"
           description: Error
       security:
         - BearerAuth: []
@@ -6164,9 +6194,9 @@ paths:
           description: Created
         default:
           content:
-            application/problem+json:
+            application/json:
               schema:
-                $ref: "#/components/schemas/Error"
+                $ref: "#/components/schemas/LegacyError"
           description: Error
       security:
         - BearerAuth: []
@@ -6254,9 +6284,9 @@ paths:
           description: OK
         default:
           content:
-            application/problem+json:
+            application/json:
               schema:
-                $ref: "#/components/schemas/Error"
+                $ref: "#/components/schemas/LegacyError"
           description: Error
       security:
         - BearerAuth: []
@@ -6298,9 +6328,9 @@ paths:
           description: OK
         default:
           content:
-            application/problem+json:
+            application/json:
               schema:
-                $ref: "#/components/schemas/Error"
+                $ref: "#/components/schemas/LegacyError"
           description: Error
       security:
         - BearerAuth: []
@@ -6377,9 +6407,9 @@ paths:
           description: OK
         default:
           content:
-            application/problem+json:
+            application/json:
               schema:
-                $ref: "#/components/schemas/Error"
+                $ref: "#/components/schemas/LegacyError"
           description: Error
       security:
         - BearerAuth: []
@@ -6425,9 +6455,9 @@ paths:
           description: Created
         default:
           content:
-            application/problem+json:
+            application/json:
               schema:
-                $ref: "#/components/schemas/Error"
+                $ref: "#/components/schemas/LegacyError"
           description: Error
       security:
         - BearerAuth: []
@@ -6465,9 +6495,9 @@ paths:
                 type: string
         default:
           content:
-            application/problem+json:
+            application/json:
               schema:
-                $ref: "#/components/schemas/Error"
+                $ref: "#/components/schemas/LegacyError"
           description: Error
       security:
         - BearerAuth: []
@@ -6505,9 +6535,9 @@ paths:
           description: No Content
         default:
           content:
-            application/problem+json:
+            application/json:
               schema:
-                $ref: "#/components/schemas/Error"
+                $ref: "#/components/schemas/LegacyError"
           description: Error
       security:
         - BearerAuth: []
@@ -6548,9 +6578,9 @@ paths:
           description: OK
         default:
           content:
-            application/problem+json:
+            application/json:
               schema:
-                $ref: "#/components/schemas/Error"
+                $ref: "#/components/schemas/LegacyError"
           description: Error
       security:
         - BearerAuth: []
@@ -6597,9 +6627,9 @@ paths:
           description: OK
         default:
           content:
-            application/problem+json:
+            application/json:
               schema:
-                $ref: "#/components/schemas/Error"
+                $ref: "#/components/schemas/LegacyError"
           description: Error
       security:
         - BearerAuth: []
@@ -6669,9 +6699,9 @@ paths:
           description: OK
         default:
           content:
-            application/problem+json:
+            application/json:
               schema:
-                $ref: "#/components/schemas/Error"
+                $ref: "#/components/schemas/LegacyError"
           description: Error
       security:
         - BearerAuth: []
@@ -6709,9 +6739,9 @@ paths:
           description: No Content
         default:
           content:
-            application/problem+json:
+            application/json:
               schema:
-                $ref: "#/components/schemas/Error"
+                $ref: "#/components/schemas/LegacyError"
           description: Error
       security:
         - BearerAuth: []
@@ -6752,9 +6782,9 @@ paths:
           description: OK
         default:
           content:
-            application/problem+json:
+            application/json:
               schema:
-                $ref: "#/components/schemas/Error"
+                $ref: "#/components/schemas/LegacyError"
           description: Error
       security:
         - BearerAuth: []
@@ -6801,9 +6831,9 @@ paths:
           description: OK
         default:
           content:
-            application/problem+json:
+            application/json:
               schema:
-                $ref: "#/components/schemas/Error"
+                $ref: "#/components/schemas/LegacyError"
           description: Error
       security:
         - BearerAuth: []
@@ -6852,9 +6882,9 @@ paths:
           description: OK
         default:
           content:
-            application/problem+json:
+            application/json:
               schema:
-                $ref: "#/components/schemas/Error"
+                $ref: "#/components/schemas/LegacyError"
           description: Error
       security:
         - BearerAuth: []
@@ -6924,9 +6954,9 @@ paths:
           description: OK
         default:
           content:
-            application/problem+json:
+            application/json:
               schema:
-                $ref: "#/components/schemas/Error"
+                $ref: "#/components/schemas/LegacyError"
           description: Error
       security:
         - BearerAuth: []
@@ -6966,9 +6996,9 @@ paths:
           description: Created
         default:
           content:
-            application/problem+json:
+            application/json:
               schema:
-                $ref: "#/components/schemas/Error"
+                $ref: "#/components/schemas/LegacyError"
           description: Error
       security:
         - BearerAuth: []
@@ -7006,9 +7036,9 @@ paths:
           description: No Content
         default:
           content:
-            application/problem+json:
+            application/json:
               schema:
-                $ref: "#/components/schemas/Error"
+                $ref: "#/components/schemas/LegacyError"
           description: Error
       security:
         - BearerAuth: []
@@ -7049,9 +7079,9 @@ paths:
           description: OK
         default:
           content:
-            application/problem+json:
+            application/json:
               schema:
-                $ref: "#/components/schemas/Error"
+                $ref: "#/components/schemas/LegacyError"
           description: Error
       security:
         - BearerAuth: []
@@ -7098,9 +7128,9 @@ paths:
           description: OK
         default:
           content:
-            application/problem+json:
+            application/json:
               schema:
-                $ref: "#/components/schemas/Error"
+                $ref: "#/components/schemas/LegacyError"
           description: Error
       security:
         - BearerAuth: []
@@ -7191,9 +7221,9 @@ paths:
           description: OK
         default:
           content:
-            application/problem+json:
+            application/json:
               schema:
-                $ref: "#/components/schemas/Error"
+                $ref: "#/components/schemas/LegacyError"
           description: Error
       security:
         - BearerAuth: []
@@ -7233,9 +7263,9 @@ paths:
           description: Created
         default:
           content:
-            application/problem+json:
+            application/json:
               schema:
-                $ref: "#/components/schemas/Error"
+                $ref: "#/components/schemas/LegacyError"
           description: Error
       security:
         - BearerAuth: []
@@ -7273,9 +7303,9 @@ paths:
                 type: string
         default:
           content:
-            application/problem+json:
+            application/json:
               schema:
-                $ref: "#/components/schemas/Error"
+                $ref: "#/components/schemas/LegacyError"
           description: Error
       security:
         - BearerAuth: []
@@ -7313,9 +7343,9 @@ paths:
           description: No Content
         default:
           content:
-            application/problem+json:
+            application/json:
               schema:
-                $ref: "#/components/schemas/Error"
+                $ref: "#/components/schemas/LegacyError"
           description: Error
       security:
         - BearerAuth: []
@@ -7356,9 +7386,9 @@ paths:
           description: OK
         default:
           content:
-            application/problem+json:
+            application/json:
               schema:
-                $ref: "#/components/schemas/Error"
+                $ref: "#/components/schemas/LegacyError"
           description: Error
       security:
         - BearerAuth: []
@@ -7405,9 +7435,9 @@ paths:
           description: OK
         default:
           content:
-            application/problem+json:
+            application/json:
               schema:
-                $ref: "#/components/schemas/Error"
+                $ref: "#/components/schemas/LegacyError"
           description: Error
       security:
         - BearerAuth: []
@@ -7484,9 +7514,9 @@ paths:
           description: OK
         default:
           content:
-            application/problem+json:
+            application/json:
               schema:
-                $ref: "#/components/schemas/Error"
+                $ref: "#/components/schemas/LegacyError"
           description: Error
       security:
         - BearerAuth: []
@@ -7526,9 +7556,9 @@ paths:
           description: Created
         default:
           content:
-            application/problem+json:
+            application/json:
               schema:
-                $ref: "#/components/schemas/Error"
+                $ref: "#/components/schemas/LegacyError"
           description: Error
       security:
         - BearerAuth: []
@@ -7566,9 +7596,9 @@ paths:
                 type: string
         default:
           content:
-            application/problem+json:
+            application/json:
               schema:
-                $ref: "#/components/schemas/Error"
+                $ref: "#/components/schemas/LegacyError"
           description: Error
       security:
         - BearerAuth: []
@@ -7606,9 +7636,9 @@ paths:
           description: No Content
         default:
           content:
-            application/problem+json:
+            application/json:
               schema:
-                $ref: "#/components/schemas/Error"
+                $ref: "#/components/schemas/LegacyError"
           description: Error
       security:
         - BearerAuth: []
@@ -7649,9 +7679,9 @@ paths:
           description: OK
         default:
           content:
-            application/problem+json:
+            application/json:
               schema:
-                $ref: "#/components/schemas/Error"
+                $ref: "#/components/schemas/LegacyError"
           description: Error
       security:
         - BearerAuth: []
@@ -7698,9 +7728,9 @@ paths:
           description: OK
         default:
           content:
-            application/problem+json:
+            application/json:
               schema:
-                $ref: "#/components/schemas/Error"
+                $ref: "#/components/schemas/LegacyError"
           description: Error
       security:
         - BearerAuth: []
@@ -7735,9 +7765,9 @@ paths:
           description: OK
         default:
           content:
-            application/problem+json:
+            application/json:
               schema:
-                $ref: "#/components/schemas/Error"
+                $ref: "#/components/schemas/LegacyError"
           description: Error
       security:
         - BearerAuth: []
@@ -7778,9 +7808,9 @@ paths:
           description: OK
         default:
           content:
-            application/problem+json:
+            application/json:
               schema:
-                $ref: "#/components/schemas/Error"
+                $ref: "#/components/schemas/LegacyError"
           description: Error
       security:
         - BearerAuth: []
@@ -7850,9 +7880,9 @@ paths:
           description: OK
         default:
           content:
-            application/problem+json:
+            application/json:
               schema:
-                $ref: "#/components/schemas/Error"
+                $ref: "#/components/schemas/LegacyError"
           description: Error
       security:
         - BearerAuth: []
@@ -7892,9 +7922,9 @@ paths:
           description: Created
         default:
           content:
-            application/problem+json:
+            application/json:
               schema:
-                $ref: "#/components/schemas/Error"
+                $ref: "#/components/schemas/LegacyError"
           description: Error
       security:
         - BearerAuth: []
@@ -7932,9 +7962,9 @@ paths:
           description: No Content
         default:
           content:
-            application/problem+json:
+            application/json:
               schema:
-                $ref: "#/components/schemas/Error"
+                $ref: "#/components/schemas/LegacyError"
           description: Error
       security:
         - BearerAuth: []
@@ -7975,9 +8005,9 @@ paths:
           description: OK
         default:
           content:
-            application/problem+json:
+            application/json:
               schema:
-                $ref: "#/components/schemas/Error"
+                $ref: "#/components/schemas/LegacyError"
           description: Error
       security:
         - BearerAuth: []
@@ -8024,9 +8054,9 @@ paths:
           description: OK
         default:
           content:
-            application/problem+json:
+            application/json:
               schema:
-                $ref: "#/components/schemas/Error"
+                $ref: "#/components/schemas/LegacyError"
           description: Error
       security:
         - BearerAuth: []
@@ -8103,9 +8133,9 @@ paths:
           description: OK
         default:
           content:
-            application/problem+json:
+            application/json:
               schema:
-                $ref: "#/components/schemas/Error"
+                $ref: "#/components/schemas/LegacyError"
           description: Error
       security:
         - BearerAuth: []
@@ -8162,9 +8192,9 @@ paths:
                 type: string
         default:
           content:
-            application/problem+json:
+            application/json:
               schema:
-                $ref: "#/components/schemas/Error"
+                $ref: "#/components/schemas/LegacyError"
           description: Error
       security:
         - BearerAuth: []
@@ -8221,9 +8251,9 @@ paths:
                 type: string
         default:
           content:
-            application/problem+json:
+            application/json:
               schema:
-                $ref: "#/components/schemas/Error"
+                $ref: "#/components/schemas/LegacyError"
           description: Error
       security:
         - BearerAuth: []
@@ -8280,9 +8310,9 @@ paths:
                 type: string
         default:
           content:
-            application/problem+json:
+            application/json:
               schema:
-                $ref: "#/components/schemas/Error"
+                $ref: "#/components/schemas/LegacyError"
           description: Error
       security:
         - BearerAuth: []
@@ -8339,9 +8369,9 @@ paths:
                 type: string
         default:
           content:
-            application/problem+json:
+            application/json:
               schema:
-                $ref: "#/components/schemas/Error"
+                $ref: "#/components/schemas/LegacyError"
           description: Error
       security:
         - BearerAuth: []
@@ -8407,9 +8437,9 @@ paths:
                 type: string
         default:
           content:
-            application/problem+json:
+            application/json:
               schema:
-                $ref: "#/components/schemas/Error"
+                $ref: "#/components/schemas/LegacyError"
           description: Error
       security:
         - BearerAuth: []
@@ -8466,9 +8496,9 @@ paths:
                 type: string
         default:
           content:
-            application/problem+json:
+            application/json:
               schema:
-                $ref: "#/components/schemas/Error"
+                $ref: "#/components/schemas/LegacyError"
           description: Error
       security:
         - BearerAuth: []
@@ -8525,9 +8555,9 @@ paths:
                 type: string
         default:
           content:
-            application/problem+json:
+            application/json:
               schema:
-                $ref: "#/components/schemas/Error"
+                $ref: "#/components/schemas/LegacyError"
           description: Error
       security:
         - BearerAuth: []
@@ -8573,9 +8603,9 @@ paths:
                 type: string
         default:
           content:
-            application/problem+json:
+            application/json:
               schema:
-                $ref: "#/components/schemas/Error"
+                $ref: "#/components/schemas/LegacyError"
           description: Error
       security:
         - BearerAuth: []
@@ -8622,9 +8652,9 @@ paths:
           description: OK
         default:
           content:
-            application/problem+json:
+            application/json:
               schema:
-                $ref: "#/components/schemas/Error"
+                $ref: "#/components/schemas/LegacyError"
           description: Error
       security:
         - BearerAuth: []
@@ -8666,9 +8696,9 @@ paths:
           description: Created
         default:
           content:
-            application/problem+json:
+            application/json:
               schema:
-                $ref: "#/components/schemas/Error"
+                $ref: "#/components/schemas/LegacyError"
           description: Error
       security:
         - BearerAuth: []
@@ -8710,9 +8740,9 @@ paths:
           description: Created
         default:
           content:
-            application/problem+json:
+            application/json:
               schema:
-                $ref: "#/components/schemas/Error"
+                $ref: "#/components/schemas/LegacyError"
           description: Error
       security:
         - BearerAuth: []
@@ -8767,9 +8797,9 @@ paths:
           description: OK
         default:
           content:
-            application/problem+json:
+            application/json:
               schema:
-                $ref: "#/components/schemas/Error"
+                $ref: "#/components/schemas/LegacyError"
           description: Error
       security:
         - BearerAuth: []
@@ -8815,9 +8845,9 @@ paths:
                 type: string
         default:
           content:
-            application/problem+json:
+            application/json:
               schema:
-                $ref: "#/components/schemas/Error"
+                $ref: "#/components/schemas/LegacyError"
           description: Error
       security:
         - BearerAuth: []
@@ -8849,9 +8879,9 @@ paths:
           description: OK
         default:
           content:
-            application/problem+json:
+            application/json:
               schema:
-                $ref: "#/components/schemas/Error"
+                $ref: "#/components/schemas/LegacyError"
           description: Error
       security:
         - BearerAuth: []
@@ -8885,9 +8915,9 @@ paths:
           description: Created
         default:
           content:
-            application/problem+json:
+            application/json:
               schema:
-                $ref: "#/components/schemas/Error"
+                $ref: "#/components/schemas/LegacyError"
           description: Error
       security:
         - BearerAuth: []
@@ -8918,9 +8948,9 @@ paths:
           description: No Content
         default:
           content:
-            application/problem+json:
+            application/json:
               schema:
-                $ref: "#/components/schemas/Error"
+                $ref: "#/components/schemas/LegacyError"
           description: Error
       security:
         - BearerAuth: []

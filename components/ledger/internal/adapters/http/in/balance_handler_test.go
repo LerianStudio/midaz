@@ -27,6 +27,7 @@ import (
 	libHTTP "github.com/LerianStudio/lib-commons/v6/commons/net/http"
 	"github.com/shopspring/decimal"
 
+	ledgerMiddleware "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/http/in/middleware"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/balance"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/operation"
 	redis "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/redis/transaction"
@@ -53,6 +54,11 @@ func buildHumaBalanceApp(t *testing.T, handler *BalanceHandler, authOK bool) *fi
 	})
 
 	libProblem.Install()
+
+	// Mirror production: the ledger registers ErrorEnvelope on the app root, so
+	// /v1 serves the v3 envelope. Without it these assertions lock a shape no
+	// deployed ledger returns.
+	f.Use(ledgerMiddleware.ErrorEnvelope())
 
 	apiV1 := f.Group("/v1")
 
@@ -222,7 +228,7 @@ func TestGetBalanceAtTimestamp_MissingDate_Canonical400(t *testing.T) {
 
 	respBody, _ := io.ReadAll(resp.Body)
 	assert.Equal(t, http.StatusBadRequest, resp.StatusCode, "missing date query stays canonical 400")
-	assert.Equal(t, "application/problem+json", resp.Header.Get("Content-Type"))
+	assert.Equal(t, "application/json", resp.Header.Get("Content-Type"))
 
 	var got map[string]any
 	require.NoError(t, json.Unmarshal(respBody, &got), "body: %s", string(respBody))

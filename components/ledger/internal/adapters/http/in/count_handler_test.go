@@ -23,6 +23,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 
+	ledgerMiddleware "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/http/in/middleware"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/transaction"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services/query"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
@@ -48,6 +49,11 @@ func buildHumaCountApp(t *testing.T, handler *TransactionHandler, authOK bool) *
 	})
 
 	libProblem.Install()
+
+	// Mirror production: the ledger registers ErrorEnvelope on the app root, so
+	// /v1 serves the v3 envelope. Without it these assertions lock a shape no
+	// deployed ledger returns.
+	f.Use(ledgerMiddleware.ErrorEnvelope())
 
 	apiV1 := f.Group("/v1")
 

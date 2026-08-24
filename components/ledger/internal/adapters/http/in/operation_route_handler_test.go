@@ -24,6 +24,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 
+	ledgerMiddleware "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/http/in/middleware"
 	mongodb "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/mongodb/transaction"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/operationroute"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services/command"
@@ -51,6 +52,11 @@ func buildHumaOperationRouteApp(t *testing.T, handler *OperationRouteHandler, au
 	})
 
 	libProblem.Install()
+
+	// Mirror production: the ledger registers ErrorEnvelope on the app root, so
+	// /v1 serves the v3 envelope. Without it these assertions lock a shape no
+	// deployed ledger returns.
+	f.Use(ledgerMiddleware.ErrorEnvelope())
 
 	apiV1 := f.Group("/v1")
 
@@ -185,7 +191,7 @@ func TestCreateOperationRoute_UnknownAccountingEntryKey_Canonical400(t *testing.
 
 	respBody, _ := io.ReadAll(resp.Body)
 	assert.Equal(t, http.StatusBadRequest, resp.StatusCode, "unknown accountingEntries key -> canonical 400; body: %s", string(respBody))
-	assert.Equal(t, "application/problem+json", resp.Header.Get("Content-Type"))
+	assert.Equal(t, "application/json", resp.Header.Get("Content-Type"))
 }
 
 func TestGetOperationRouteByID_Success(t *testing.T) {

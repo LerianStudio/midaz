@@ -23,6 +23,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 
+	ledgerMiddleware "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/http/in/middleware"
 	mongodb "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/mongodb/onboarding"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/accounttype"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services/command"
@@ -58,6 +59,11 @@ func buildHumaAccountTypeApp(t *testing.T, handler *AccountTypeHandler, authOK b
 
 	// problem.Install must run before any huma.Register (runtime + spec-gen).
 	libProblem.Install()
+
+	// Mirror production: the ledger registers ErrorEnvelope on the app root, so
+	// /v1 serves the v3 envelope. Without it these assertions lock a shape no
+	// deployed ledger returns.
+	f.Use(ledgerMiddleware.ErrorEnvelope())
 
 	apiV1 := f.Group("/v1")
 
@@ -198,12 +204,12 @@ func TestCreateAccountType_ValidationError_Canonical400(t *testing.T) {
 	respBody, _ := io.ReadAll(resp.Body)
 
 	assert.Equal(t, http.StatusBadRequest, resp.StatusCode, "imperative validation stays 400 — no native Huma 422")
-	assert.Equal(t, "application/problem+json", resp.Header.Get("Content-Type"))
+	assert.Equal(t, "application/json", resp.Header.Get("Content-Type"))
 
 	var got map[string]any
 	require.NoError(t, json.Unmarshal(respBody, &got), "body: %s", string(respBody))
 	assert.NotEmpty(t, got["code"], "canonical code present")
-	assert.Equal(t, float64(http.StatusBadRequest), got["status"])
+	assert.NotContains(t, got, "status", "the v1 envelope carries no status member")
 }
 
 func TestCreateAccountType_MalformedBody_Canonical400(t *testing.T) {
@@ -214,9 +220,9 @@ func TestCreateAccountType_MalformedBody_Canonical400(t *testing.T) {
 	orgID := uuid.Must(libCommons.GenerateUUIDv7())
 	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
 
-	// Malformed JSON -> DecodeAndValidate returns a pkg.ResponseError (0094), which
-	// HumaProblem projects to problem+json at 400 (NOT the 500 fallback and NOT a
-	// native Huma 422). Service never reached.
+	// Malformed JSON -> DecodeAndValidate returns a pkg.ResponseError (0094) at 400
+	// (NOT the 500 fallback and NOT a native Huma 422). This is a /v1 route, so it
+	// reaches the client as the legacy application/json envelope. Service never reached.
 	handler := &AccountTypeHandler{Command: &command.UseCase{
 		AccountTypeRepo:        accounttype.NewMockRepository(ctrl),
 		OnboardingMetadataRepo: mongodb.NewMockRepository(ctrl),
@@ -234,12 +240,12 @@ func TestCreateAccountType_MalformedBody_Canonical400(t *testing.T) {
 	respBody, _ := io.ReadAll(resp.Body)
 
 	assert.Equal(t, http.StatusBadRequest, resp.StatusCode, "malformed body stays 400 — no 500, no native 422")
-	assert.Equal(t, "application/problem+json", resp.Header.Get("Content-Type"))
+	assert.Equal(t, "application/json", resp.Header.Get("Content-Type"))
 
 	var got map[string]any
 	require.NoError(t, json.Unmarshal(respBody, &got), "body: %s", string(respBody))
 	assert.Equal(t, constant.ErrInvalidRequestBody.Error(), got["code"], "malformed-body code preserved (0094)")
-	assert.Equal(t, float64(http.StatusBadRequest), got["status"])
+	assert.NotContains(t, got, "status", "the v1 envelope carries no status member")
 }
 
 func TestGetAccountTypeByID_Success(t *testing.T) {

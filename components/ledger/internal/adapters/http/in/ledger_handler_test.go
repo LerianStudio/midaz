@@ -22,6 +22,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 
+	ledgerMiddleware "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/http/in/middleware"
 	mongodb "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/mongodb/onboarding"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/ledger"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services/command"
@@ -59,6 +60,11 @@ func buildHumaLedgerApp(t *testing.T, handler *LedgerHandler, authOK bool) *fibe
 	// problem.Install must run before any huma.Register (runtime + spec-gen).
 	libProblem.Install()
 	pkgHTTP.InstallHumaFrameworkErrors()
+
+	// Mirror production: the ledger registers ErrorEnvelope on the app root, so
+	// /v1 serves the v3 envelope. Without it these assertions lock a shape no
+	// deployed ledger returns.
+	f.Use(ledgerMiddleware.ErrorEnvelope())
 
 	apiV1 := f.Group("/v1")
 
@@ -193,12 +199,12 @@ func TestCreateLedger_ValidationError_Canonical400(t *testing.T) {
 	respBody, _ := io.ReadAll(resp.Body)
 
 	assert.Equal(t, http.StatusBadRequest, resp.StatusCode, "imperative validation stays 400 — no native Huma 422")
-	assert.Equal(t, "application/problem+json", resp.Header.Get("Content-Type"))
+	assert.Equal(t, "application/json", resp.Header.Get("Content-Type"))
 
 	var got map[string]any
 	require.NoError(t, json.Unmarshal(respBody, &got), "body: %s", string(respBody))
 	assert.NotEmpty(t, got["code"], "canonical code present")
-	assert.Equal(t, float64(http.StatusBadRequest), got["status"])
+	assert.NotContains(t, got, "status", "the v1 envelope carries no status member")
 }
 
 func TestCreateLedger_MalformedBody_Canonical400(t *testing.T) {
@@ -225,12 +231,12 @@ func TestCreateLedger_MalformedBody_Canonical400(t *testing.T) {
 	respBody, _ := io.ReadAll(resp.Body)
 
 	assert.Equal(t, http.StatusBadRequest, resp.StatusCode, "malformed body stays 400 — no 500, no native 422")
-	assert.Equal(t, "application/problem+json", resp.Header.Get("Content-Type"))
+	assert.Equal(t, "application/json", resp.Header.Get("Content-Type"))
 
 	var got map[string]any
 	require.NoError(t, json.Unmarshal(respBody, &got), "body: %s", string(respBody))
 	assert.Equal(t, constant.ErrInvalidRequestBody.Error(), got["code"], "malformed-body code preserved (0094)")
-	assert.Equal(t, float64(http.StatusBadRequest), got["status"])
+	assert.NotContains(t, got, "status", "the v1 envelope carries no status member")
 }
 
 func TestGetLedgerByID_Success(t *testing.T) {
@@ -525,12 +531,12 @@ func TestUpdateLedgerSettings_UnknownField_Canonical400(t *testing.T) {
 
 	respBody, _ := io.ReadAll(resp.Body)
 	assert.Equal(t, http.StatusBadRequest, resp.StatusCode, "unknown settings field stays canonical 400 — no 500, no native 422")
-	assert.Equal(t, "application/problem+json", resp.Header.Get("Content-Type"))
+	assert.Equal(t, "application/json", resp.Header.Get("Content-Type"))
 
 	var got map[string]any
 	require.NoError(t, json.Unmarshal(respBody, &got), "body: %s", string(respBody))
 	assert.Equal(t, constant.ErrUnknownSettingsField.Error(), got["code"], "unknown-field code preserved (0147)")
-	assert.Equal(t, float64(http.StatusBadRequest), got["status"])
+	assert.NotContains(t, got, "status", "the v1 envelope carries no status member")
 }
 
 // TestHuma_UpdateLedgerSettings_InvalidType_Canonical400 guards the sibling
@@ -562,7 +568,7 @@ func TestUpdateLedgerSettings_InvalidType_Canonical400(t *testing.T) {
 	var got map[string]any
 	require.NoError(t, json.Unmarshal(respBody, &got), "body: %s", string(respBody))
 	assert.Equal(t, constant.ErrInvalidSettingsFieldType.Error(), got["code"], "invalid-type code preserved (0148)")
-	assert.Equal(t, float64(http.StatusBadRequest), got["status"])
+	assert.NotContains(t, got, "status", "the v1 envelope carries no status member")
 }
 
 func TestUpdateLedgerSettings_AuthPreserved(t *testing.T) {

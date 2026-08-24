@@ -22,6 +22,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	ledgerMiddleware "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/http/in/middleware"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
 	pkgHTTP "github.com/LerianStudio/midaz/v4/pkg/net/http"
 )
@@ -77,6 +78,12 @@ func buildHumaTransactionApp(t *testing.T, handler *TransactionHandler, authOK b
 	f := fiber.New(fiber.Config{
 		ErrorHandler: pkgHTTP.CanonicalFiberErrorHandler,
 	})
+
+	// Mirror production: ErrorEnvelope is registered AHEAD of WithRecover so a
+	// recovered panic's 500 body is reshaped for its route version too. Registering
+	// it after would leave the panic path on the /v2 envelope here while production
+	// serves the /v1 one.
+	f.Use(ledgerMiddleware.ErrorEnvelope())
 
 	f.Use(pkgHTTP.WithRecover(pkgHTTP.WithRecoverLogger(&libLog.GoLogger{})))
 
@@ -177,8 +184,10 @@ func TestCreateTransaction_MalformedBody_Canonical400(t *testing.T) {
 
 			body, _ := io.ReadAll(resp.Body)
 			assert.Equal(t, http.StatusBadRequest, resp.StatusCode, "malformed body stays canonical 400 — no native Huma 422")
-			// RFC 9457 problem+json shape from the shared HumaProblem path.
-			assert.Contains(t, string(body), "status", "error body must be the RFC 9457 problem envelope")
+			// /v1 serves the v3 envelope: the human text is "message" and there is
+			// no "status" member, the HTTP status carrying that on its own.
+			assert.Contains(t, string(body), `"message"`, "error body must be the v1 envelope")
+			assert.NotContains(t, string(body), `"status"`, "the v1 envelope carries no status member")
 		})
 	}
 }

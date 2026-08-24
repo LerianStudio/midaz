@@ -22,6 +22,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	ledgerMiddleware "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/http/in/middleware"
 	pkgHTTP "github.com/LerianStudio/midaz/v4/pkg/net/http"
 )
 
@@ -336,6 +337,10 @@ func TestAuthz_RoutingResources_AuthorizeUnderMidazAppName(t *testing.T) {
 
 			f := fiber.New(fiber.Config{ErrorHandler: pkgHTTP.CanonicalFiberErrorHandler})
 			libProblem.Install()
+
+			// Mirror production: the ledger registers ErrorEnvelope on the app root, so
+			// /v1 serves the v3 envelope.
+			f.Use(ledgerMiddleware.ErrorEnvelope())
 
 			group := f.Group("/v1")
 			api := openapi.New(f, group, openapi.Config{Title: "authz-guard", Version: "test", Servers: []string{"/v1"}})
