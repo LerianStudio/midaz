@@ -47,7 +47,7 @@ func (fixedTokenMinter) GetApplicationToken(_ context.Context, _, _ string) (str
 // zero stop funcs, and never dereferences the TokenMinter (nil is passed here).
 // So Run() registers no declaration runnable and boot is byte-identical to today.
 //
-// Epic 2.3 Task 2.3.2 adds the enabled / fail-open / drain-runnable cases; this
+// The enabled / fail-open / drain-runnable cases live in their own tests; this
 // test stays scoped to the disabled-path contract only.
 func TestBuildDeclarationPublisher_DisabledReturnsNoStops(t *testing.T) {
 	t.Parallel()
