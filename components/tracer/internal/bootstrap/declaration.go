@@ -12,11 +12,32 @@ import (
 	"syscall"
 
 	"github.com/LerianStudio/lib-auth/v3/auth/declaration"
+	authMiddleware "github.com/LerianStudio/lib-auth/v3/auth/middleware"
 	libCommons "github.com/LerianStudio/lib-commons/v6/commons"
 	libLog "github.com/LerianStudio/lib-observability/v2/log"
 
 	tracerembed "github.com/LerianStudio/midaz/v4/components/tracer"
 )
+
+// wireDeclarationPublisher builds the RI permission-declaration publisher over
+// authHost — the same plugin-auth host initHTTPServer wires — keeping the
+// initHTTPServer/finalizeStartup return signatures untouched.
+//
+// authMiddleware.NewAuthClient is NOT I/O-free: when PluginAuthEnabled is true
+// and the address is non-empty it performs a synchronous GET {address}/health at
+// construction, so the client is built ONLY when RI is enabled — otherwise the
+// default-off path would fire a redundant second health probe (the first is in
+// initHTTPServer) and then discard the client. Gating keeps the flag-off boot
+// byte-identical to today. buildDeclarationPublisher is fail-open and its disabled
+// path returns before the minter is dereferenced, so passing a nil minter is safe.
+func wireDeclarationPublisher(cfg *Config, authHost string, logger libLog.Logger) []func() {
+	var declarationAuth declaration.TokenMinter
+	if cfg.DeclarationEnabled {
+		declarationAuth = authMiddleware.NewAuthClient(authHost, cfg.PluginAuthEnabled, &logger)
+	}
+
+	return buildDeclarationPublisher(cfg, declarationAuth, logger)
+}
 
 // buildDeclarationPublisher wires the Responsibility-Inversion (RI) permission
 // declaration publisher that pushes tracer's embedded permissions manifest to the

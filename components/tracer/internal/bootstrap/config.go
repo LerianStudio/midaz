@@ -13,7 +13,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/LerianStudio/lib-auth/v3/auth/declaration"
 	authMiddleware "github.com/LerianStudio/lib-auth/v3/auth/middleware"
 	libCommons "github.com/LerianStudio/lib-commons/v6/commons"
 	libPostgres "github.com/LerianStudio/lib-commons/v6/commons/postgres"
@@ -1961,22 +1960,7 @@ func InitServers(ctx context.Context) (*Service, error) {
 	svc.ServiceDescriptor = sd.descriptor
 	svc.ServiceDiscoveryMetrics = sd.recorder
 
-	// RI permission-declaration publisher: build a dedicated TokenMinter over
-	// sd.authHost — the same plugin-auth host initHTTPServer wires — so this leaves
-	// the initHTTPServer/finalizeStartup return signatures untouched.
-	// authMiddleware.NewAuthClient is NOT I/O-free: when PluginAuthEnabled is true
-	// and the address is non-empty it performs a synchronous GET {address}/health at
-	// construction, so it is built ONLY when RI is enabled — otherwise the default-off
-	// path would fire a redundant second health probe (the first is in initHTTPServer)
-	// and then discard the client. Gating keeps the flag-off boot byte-identical to
-	// today. buildDeclarationPublisher is fail-open and its disabled path returns
-	// before the minter is dereferenced, so passing a nil minter here is safe.
-	var declarationAuth declaration.TokenMinter
-	if cfg.DeclarationEnabled {
-		declarationAuth = authMiddleware.NewAuthClient(sd.authHost, cfg.PluginAuthEnabled, &logger)
-	}
-
-	svc.DeclarationStops = buildDeclarationPublisher(cfg, declarationAuth, logger)
+	svc.DeclarationStops = wireDeclarationPublisher(cfg, sd.authHost, logger)
 
 	// The launcher Runnable now owns the manager's graceful close; disarm the
 	// boot-failure closer so it does not double-close on the success path.
