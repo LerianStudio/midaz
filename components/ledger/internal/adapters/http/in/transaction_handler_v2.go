@@ -68,10 +68,13 @@ func (handler *TransactionHandler) createTransactionV2(ctx context.Context, rawB
 		return nil, err
 	}
 
+	// out.Body is the /v1 envelope the shared shell builds; the embedded pointer is the
+	// canonical transaction this projects onto the /v2 shape. Reading it here keeps the
+	// six v1 callers able to return the shell directly.
 	return &CreateTransactionOutputV2{
 		Status:              out.Status,
 		IdempotencyReplayed: out.IdempotencyReplayed,
-		Body:                newTransactionV2(out.Body),
+		Body:                newTransactionV2(out.Body.Transaction),
 	}, nil
 }
 
