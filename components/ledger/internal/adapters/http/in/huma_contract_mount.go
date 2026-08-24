@@ -178,7 +178,7 @@ func (d HumaMountDeps) registerMoneyReadRoutes(group fiber.Router, api huma.API)
 // CRM carries its OWN CRMOptions and authorizes against the "midaz" holders/instruments/
 // encryption/protection tuples; it is served ONLY on this /v2 contract. The nil-guards
 // (holder-accounts, encryption, audit) leave a route unregistered when its handler is
-// nil. The fee/billing ops carry FeesOptions and authorize against the "plugin-fees"
+// nil. The fee/billing ops carry FeesOptions and authorize against the "midaz"
 // tuples at ledger scope: the path names the ledger, so a package another ledger owns
 // is out of reach. Fees/billing are served ONLY on this /v2 contract. composition
 // carries CompositionOptions and authorizes under the "midaz" appName's "accounts"

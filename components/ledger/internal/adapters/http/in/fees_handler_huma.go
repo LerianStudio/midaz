@@ -17,7 +17,7 @@ import (
 // This file holds the shared fee-body decode helper, the fee-estimate response envelope,
 // and the estimate operation's security metadata. The ledger-scoped estimate handler
 // that consumes them lives in fees_v2_handler.go; the auth
-// ("plugin-fees","estimates","post") + tenant + ParseUUIDPathParameters("estimates")
+// ("midaz","estimates","post") + tenant + ParseUUIDPathParameters("estimates")
 // middleware chain is attached on the /v2 Fiber group BEFORE the Huma terminal (see
 // fees_v2_register.go), so the Security metadata here is SPEC metadata only.
 //

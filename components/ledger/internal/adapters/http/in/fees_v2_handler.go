@@ -37,7 +37,7 @@ import (
 // listings bind their query imperatively, and errors go out through the
 // pkgHTTP.HumaProblem envelope.
 //
-// AUTH is unchanged: appName "plugin-fees" with the same (resource, verb) tuples the
+// AUTH: appName "midaz" with the same (resource, verb) tuples the
 // organization-scoped routes carry, attached as the Fiber guard chain in
 // RegisterFeesV2RoutesToApp BEFORE these terminals. The per-op Security metadata on
 // the registrations is spec metadata only.
