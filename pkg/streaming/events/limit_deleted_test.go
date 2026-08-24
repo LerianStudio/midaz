@@ -91,7 +91,7 @@ func TestLimitDeletedPayload_JSONShape(t *testing.T) {
 	}
 
 	for _, forbidden := range []string{
-		"status", "name", "description", "maxAmount", "limitType", "currency", "scopes",
+		"status", "name", "description", "maxAmount", "limitType", "asset", "scopes",
 	} {
 		_, present := generic[forbidden]
 		assert.Falsef(t, present, "field %q must NOT appear", forbidden)
