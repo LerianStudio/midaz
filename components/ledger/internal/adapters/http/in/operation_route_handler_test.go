@@ -159,7 +159,7 @@ func TestCreateOperationRoute_AuthPreserved(t *testing.T) {
 
 func TestCreateOperationRoute_UnknownAccountingEntryKey_Canonical400(t *testing.T) {
 	// NOT parallel: process-global huma state.
-	// The accountingEntries unknown-key probe (operation_route.go create path) runs
+	// The accountingEntries unknown-key probe (operation_route_core.go create path) runs
 	// against in.RawBody. "foobar" is not a valid accountingEntries key -> canonical
 	// 400, service never reached.
 	ctrl := gomock.NewController(t)

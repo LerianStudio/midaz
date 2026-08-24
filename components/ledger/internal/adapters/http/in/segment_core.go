@@ -32,7 +32,7 @@ type SegmentHandler struct {
 // segment_handler.go pull those out of the request envelope. Every canonical error a
 // core returns is rendered by its caller via http.HumaProblem, which fixes the code +
 // HTTP status. Body decode+validation happens BEFORE these cores, in the handler, via
-// http.DecodeAndValidate. Mirrors the asset exemplar (asset.go).
+// http.DecodeAndValidate. Mirrors the asset exemplar (asset_core.go).
 
 // createSegment owns the span + service call + success log for an already-decoded payload.
 func (handler *SegmentHandler) createSegment(ctx context.Context, organizationID, ledgerID uuid.UUID, payload *mmodel.CreateSegmentInput) (*mmodel.Segment, error) {
