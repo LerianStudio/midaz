@@ -22,8 +22,9 @@
 # role data (Authorize takes only subject/resource/action), but the editor/viewer
 # split below is the confirmed convention applied across this midaz manifest (fee
 # resources are embedded here, no separate fees manifest): editor gets read plus
-# every mutating verb (get/post/patch/delete/head), viewer gets read-only
-# (get/head), matching midaz-editor-permission / midaz-viewer-permission. The
+# every mutating verb the routes use (get/post/put/patch/delete/head — asset-rates
+# uses put), viewer gets read-only (get/head), aligned with the Access Manager
+# editor/viewer role model (midaz-editor-permission / midaz-viewer-permission). The
 # granted_to group bindings under `roles:` are likewise confirmed against the
 # central Access Manager seed (see below).
 service: midaz
