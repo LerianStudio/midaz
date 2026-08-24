@@ -273,9 +273,9 @@ routing:transaction-routes:{get,post,patch,delete} →  midaz:transaction-routes
 
 # B2 — fees fold (embedded binary; routes flipped in code, grant re-key at the gate)
 plugin-fees:packages:{get,post,patch,delete}          →  midaz:packages:{...}
-plugin-fees:estimates:{get,post,patch,delete}         →  midaz:estimates:{...}
+plugin-fees:estimates:post                            →  midaz:estimates:post
 plugin-fees:billing-packages:{get,post,patch,delete}  →  midaz:billing-packages:{...}
-plugin-fees:billing-calculate:{get,post,patch,delete} →  midaz:billing-calculate:{...}
+plugin-fees:billing-calculate:post                    →  midaz:billing-calculate:post
 
 # UNCHANGED — no migration
 tracer:*        (C1 — stays distinct; documented grant bundle)

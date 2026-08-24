@@ -100,9 +100,9 @@ Apply in `tenant-manager` for **every tenant** that holds the old keys
 | `plugin-crm:aliases:delete` | `midaz:instruments:delete` | **resource RENAMED** |
 | related-parties DELETE | `midaz:instruments:delete` | sub-resource of `instruments` |
 | `plugin-fees:packages:{get,post,patch,delete}` | `midaz:packages:{...}` | embedded fees fold (B2) |
-| `plugin-fees:estimates:{get,post,patch,delete}` | `midaz:estimates:{...}` | embedded fees fold (B2) |
+| `plugin-fees:estimates:post` | `midaz:estimates:post` | embedded fees fold (B2); POST-only route |
 | `plugin-fees:billing-packages:{get,post,patch,delete}` | `midaz:billing-packages:{...}` | embedded fees fold (B2) |
-| `plugin-fees:billing-calculate:{get,post,patch,delete}` | `midaz:billing-calculate:{...}` | embedded fees fold (B2) |
+| `plugin-fees:billing-calculate:post` | `midaz:billing-calculate:post` | embedded fees fold (B2); POST-only route |
 
 > **Embedded fee rows apply to the embedded ledger binary only.** The standalone `plugin-fees` deploy
 > keeps its `plugin-fees:*` grants and is NOT part of this migration. See `RBAC-NAMESPACES.md` §5 for
