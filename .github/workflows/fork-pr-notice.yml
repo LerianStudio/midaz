@@ -2,19 +2,25 @@ name: Fork PR Notice
 
 # Comments when a PR is opened from a fork, explaining the trusted-promotion
 # flow (fork-pr-promote.yml) and redirecting PRs opened against the wrong
-# base branch. Metadata-only: no checkout, no code execution, safe under
+# base branch. Also reacts when the base branch is later changed (edited),
+# so retargeting to `fork` gets its own confirmation instead of silence.
+# Metadata-only: no checkout, no code execution, safe under
 # pull_request_target despite the elevated token it carries.
 
 on:
   pull_request_target:
-    types: [opened]
+    types: [opened, edited]
 
 permissions:
   pull-requests: write
 
 jobs:
   notice:
-    if: github.event.pull_request.head.repo.full_name != github.repository
+    # edited fires for title/body edits too — only react to those when the
+    # base branch itself changed, so we don't spam a comment on every edit.
+    if: >
+      github.event.pull_request.head.repo.full_name != github.repository &&
+      (github.event.action == 'opened' || github.event.changes.base != null)
     runs-on: blacksmith-4vcpu-ubuntu-2404
     steps:
       - name: Comment with the promotion flow explanation
@@ -23,9 +29,26 @@ jobs:
           GH_REPO: ${{ github.repository }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
           BASE_REF: ${{ github.event.pull_request.base.ref }}
+          RETARGETED: ${{ github.event.action == 'edited' && github.event.changes.base != null }}
         run: |
           set -euo pipefail
-          if [[ "$BASE_REF" == "fork" ]]; then
+          if [[ "$BASE_REF" == "fork" && "$RETARGETED" == "true" ]]; then
+            cat > /tmp/notice-body.md <<'EOF'
+          > [!NOTE]
+          > ✅ **Retargeted to `fork` — this PR will now be evaluated and, once merged, its code enters the real promotion flow into `develop`.**
+
+          🎉 Thanks for making the change!
+
+          A maintainer will review the diff and merge it into `fork` when ready — that's the ordinary GitHub merge button, nothing else needed from you. That merge automatically opens a follow-up PR into `develop` with full CI (this repo does not grant secrets to PRs opened directly from a fork — a GitHub security restriction, not something disabled here).
+
+          ### 📚 Related docs
+          - [CONTRIBUTING.md](https://github.com/LerianStudio/midaz/blob/develop/CONTRIBUTING.md#how-to-submit-a-pull-request) — full contribution flow
+          - [Securely using `pull_request_target`](https://docs.github.com/en/actions/reference/security/securely-using-pull_request_target) — why fork PRs don't get secrets by default
+
+          ---
+          🤖 *This message was generated automatically.*
+          EOF
+          elif [[ "$BASE_REF" == "fork" ]]; then
             cat > /tmp/notice-body.md <<'EOF'
           > [!NOTE]
           > ✅ **This PR is correctly targeting `fork`.**
