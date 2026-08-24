@@ -93,7 +93,7 @@ func buildHumaAssetApp(t *testing.T, handler *AssetHandler, orgID, ledgerID uuid
 	apiV1.Delete(base+"/:id", parse)
 	apiV1.Head(base+"/metrics/count", parse)
 
-	RegisterAssetRoutes(hAPI, handler, routeOpSuffixV1)
+	RegisterAssetRoutes(hAPI, handler, v1OpSuffix)
 
 	return f
 }

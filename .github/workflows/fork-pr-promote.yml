@@ -38,6 +38,7 @@ jobs:
       - name: Open or confirm the fork -> develop promotion PR
         env:
           GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
         run: |
           set -euo pipefail
           existing=$(gh pr list --head fork --base develop --json number --jq '.[0].number // empty')

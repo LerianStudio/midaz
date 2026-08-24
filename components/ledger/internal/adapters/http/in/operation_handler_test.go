@@ -74,7 +74,7 @@ func buildHumaOperationApp(t *testing.T, handler *OperationHandler, authOK bool)
 	// PATCH is on the transaction path (money-write leg), not the account path.
 	apiV1.Patch("/organizations/:organization_id/ledgers/:ledger_id/transactions/:transaction_id/operations/:operation_id", parse)
 
-	RegisterOperationRoutes(hAPI, handler, routeOpSuffixV1)
+	RegisterOperationRoutes(hAPI, handler, v1OpSuffix)
 
 	return f
 }

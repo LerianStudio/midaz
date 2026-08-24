@@ -24,7 +24,7 @@ import (
 // /v1 rationale).
 //
 // opSuffix distinguishes the operation IDs one version group publishes from another's (empty
-// for /v1, "V2" for /v2 — see routeOpSuffixV1). The v2 twin is a straight mirror: same handler
+// for /v1, "V2" for /v2 — see v1OpSuffix). The v2 twin is a straight mirror: same handler
 // methods, same paths, same input/output types, differing only in the suffixed operation IDs so
 // the two twins do not collide as a duplicate operationId in the one shared document.
 func RegisterTransactionRouteRoutes(api huma.API, h *TransactionRouteHandler, opSuffix string) {
@@ -91,7 +91,7 @@ func RegisterTransactionRouteRoutes(api huma.API, h *TransactionRouteHandler, op
 // RegisterTransactionRouteRoutesToApp wires the transaction-route surface onto
 // the /v1 contract. See registerTransactionRouteRoutesToApp for what it attaches.
 func RegisterTransactionRouteRoutesToApp(group fiber.Router, api huma.API, auth *middleware.AuthClient, trh *TransactionRouteHandler, routeOptions *pkgHTTP.ProtectedRouteOptions) {
-	registerTransactionRouteRoutesToApp(group, api, auth, trh, routeOptions, routeOpSuffixV1)
+	registerTransactionRouteRoutesToApp(group, api, auth, trh, routeOptions, v1OpSuffix)
 }
 
 // RegisterTransactionRouteV2RoutesToApp wires the same transaction-route surface onto the /v2
@@ -99,7 +99,7 @@ func RegisterTransactionRouteRoutesToApp(group fiber.Router, api huma.API, auth 
 // the operation IDs the contract publishes. It is additive — /v1 keeps serving transaction
 // routes in parallel — and introduces no new policy surface.
 func RegisterTransactionRouteV2RoutesToApp(group fiber.Router, api huma.API, auth *middleware.AuthClient, trh *TransactionRouteHandler, routeOptions *pkgHTTP.ProtectedRouteOptions) {
-	registerTransactionRouteRoutesToApp(group, api, auth, trh, routeOptions, routeOpSuffixV2)
+	registerTransactionRouteRoutesToApp(group, api, auth, trh, routeOptions, v2OpSuffix)
 }
 
 // registerTransactionRouteRoutesToApp is the single description of the transaction-route surface,
@@ -111,7 +111,7 @@ func RegisterTransactionRouteV2RoutesToApp(group fiber.Router, api huma.API, aut
 // verb) authz tuples and tenant resolution hold on whichever version group it is mounted on.
 //
 // opSuffix distinguishes the operation IDs one version group publishes from another's — see
-// routeOpSuffixV1. Nothing else varies between contracts, so a change to the surface reaches
+// v1OpSuffix. Nothing else varies between contracts, so a change to the surface reaches
 // every version it is mounted on.
 func registerTransactionRouteRoutesToApp(group fiber.Router, api huma.API, auth *middleware.AuthClient, trh *TransactionRouteHandler, routeOptions *pkgHTTP.ProtectedRouteOptions, opSuffix string) {
 	const (

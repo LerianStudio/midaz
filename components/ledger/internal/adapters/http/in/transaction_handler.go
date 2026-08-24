@@ -84,7 +84,7 @@ func (handler *TransactionHandler) createTransactionShell(ctx context.Context, o
 	return &CreateTransactionResponse{
 		Status:              http.StatusCreated,
 		IdempotencyReplayed: replayedHeader(replayed),
-		Body:                tran,
+		Body:                newTransactionV1(tran),
 	}, nil
 }
 
@@ -102,7 +102,7 @@ func replayedHeader(replayed bool) string {
 type CreateTransactionResponse struct {
 	Status              int
 	IdempotencyReplayed string `header:"X-Idempotency-Replayed"`
-	Body                *transaction.Transaction
+	Body                *TransactionV1
 }
 
 // --- POST /transactions/json --------------------------------------------------
@@ -254,7 +254,7 @@ type StateTransactionRequest struct {
 // with CreateTransactionResponse instead: it creates a transaction and can replay.
 type StateTransactionResponse struct {
 	Status int
-	Body   *transaction.Transaction
+	Body   *TransactionV1
 }
 
 // CommitTransaction delegates to the commitTransaction core (fetch write-behind/DB, then
@@ -275,7 +275,7 @@ func (handler *TransactionHandler) CommitTransaction(ctx context.Context, in *St
 		return nil, pkgHTTP.HumaProblem(err)
 	}
 
-	return &StateTransactionResponse{Status: http.StatusCreated, Body: tran}, nil
+	return &StateTransactionResponse{Status: http.StatusCreated, Body: newTransactionV1(tran)}, nil
 }
 
 // CancelTransaction delegates to the commitTransaction core with CANCELED
@@ -295,7 +295,7 @@ func (handler *TransactionHandler) CancelTransaction(ctx context.Context, in *St
 		return nil, pkgHTTP.HumaProblem(err)
 	}
 
-	return &StateTransactionResponse{Status: http.StatusCreated, Body: tran}, nil
+	return &StateTransactionResponse{Status: http.StatusCreated, Body: newTransactionV1(tran)}, nil
 }
 
 // RevertTransaction delegates to the revertTransaction core (parent/revert
@@ -324,7 +324,7 @@ func (handler *TransactionHandler) RevertTransaction(ctx context.Context, in *St
 	return &CreateTransactionResponse{
 		Status:              http.StatusCreated,
 		IdempotencyReplayed: replayedHeader(replayed),
-		Body:                tran,
+		Body:                newTransactionV1(tran),
 	}, nil
 }
 
@@ -359,7 +359,7 @@ type UpdateTransactionRequest struct {
 // UpdateTransactionResponse carries the updated transaction (200, matching http.OK).
 type UpdateTransactionResponse struct {
 	Status int
-	Body   *transaction.Transaction
+	Body   *TransactionV1
 }
 
 // UpdateTransaction decodes+validates the raw body imperatively then delegates to the
@@ -386,7 +386,7 @@ func (handler *TransactionHandler) UpdateTransaction(ctx context.Context, in *Up
 		return nil, pkgHTTP.HumaProblem(err)
 	}
 
-	return &UpdateTransactionResponse{Status: http.StatusOK, Body: tran}, nil
+	return &UpdateTransactionResponse{Status: http.StatusOK, Body: newTransactionV1(tran)}, nil
 }
 
 // --- GET /transactions/{transaction_id} ---------------------------------------
@@ -396,7 +396,7 @@ func (handler *TransactionHandler) UpdateTransaction(ctx context.Context, in *Up
 type GetTransactionResponse struct {
 	Status   int
 	CacheHit string `header:"X-Cache-Hit"`
-	Body     *transaction.Transaction
+	Body     *TransactionV1
 }
 
 // GetTransaction binds the query imperatively via http.ValidateParameters then delegates
@@ -431,7 +431,7 @@ func (handler *TransactionHandler) GetTransaction(ctx context.Context, in *GetTr
 		hit = "true"
 	}
 
-	return &GetTransactionResponse{Status: http.StatusOK, CacheHit: hit, Body: tran}, nil
+	return &GetTransactionResponse{Status: http.StatusOK, CacheHit: hit, Body: newTransactionV1(tran)}, nil
 }
 
 // GetTransactionByIDRequest is the by-id request envelope. It captures the raw query
@@ -502,7 +502,7 @@ func (handler *TransactionHandler) GetAllTransactions(ctx context.Context, in *L
 		return nil, pkgHTTP.HumaProblem(err)
 	}
 
-	return &ListTransactionsResponse{Status: http.StatusOK, Body: pagination}, nil
+	return &ListTransactionsResponse{Status: http.StatusOK, Body: newTransactionV1Items(pagination)}, nil
 }
 
 // --- registration -------------------------------------------------------------

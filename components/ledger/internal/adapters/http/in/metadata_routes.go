@@ -25,7 +25,7 @@ import (
 // servers entry.
 //
 // opSuffix distinguishes the operation IDs one version group publishes from another's —
-// see routeOpSuffixV1. A straight v1/v2 mirror reuses the same handler methods and the
+// see v1OpSuffix. A straight v1/v2 mirror reuses the same handler methods and the
 // same input/output types, so only the operation IDs differ between the twins.
 func RegisterMetadataIndexRoutes(api huma.API, h *MetadataIndexHandler, opSuffix string) {
 	const (
@@ -72,7 +72,7 @@ func RegisterMetadataIndexRoutes(api huma.API, h *MetadataIndexHandler, opSuffix
 // RegisterMetadataIndexRoutesToApp wires the metadata-index surface onto the
 // /v1 contract. See registerMetadataIndexRoutesToApp for what it attaches.
 func RegisterMetadataIndexRoutesToApp(group fiber.Router, api huma.API, auth *middleware.AuthClient, h *MetadataIndexHandler, routeOptions *pkgHTTP.ProtectedRouteOptions) {
-	registerMetadataIndexRoutesToApp(group, api, auth, h, routeOptions, routeOpSuffixV1)
+	registerMetadataIndexRoutesToApp(group, api, auth, h, routeOptions, v1OpSuffix)
 }
 
 // RegisterMetadataIndexV2RoutesToApp wires the same metadata-index surface onto the /v2
@@ -80,7 +80,7 @@ func RegisterMetadataIndexRoutesToApp(group fiber.Router, api huma.API, auth *mi
 // in the operation IDs the contract publishes. It is additive — /v1 keeps serving
 // metadata-indexes in parallel — and introduces no new policy surface.
 func RegisterMetadataIndexV2RoutesToApp(group fiber.Router, api huma.API, auth *middleware.AuthClient, h *MetadataIndexHandler, routeOptions *pkgHTTP.ProtectedRouteOptions) {
-	registerMetadataIndexRoutesToApp(group, api, auth, h, routeOptions, routeOpSuffixV2)
+	registerMetadataIndexRoutesToApp(group, api, auth, h, routeOptions, v2OpSuffix)
 }
 
 // registerMetadataIndexRoutesToApp is the single description of the metadata-index route
@@ -98,7 +98,7 @@ func RegisterMetadataIndexV2RoutesToApp(group fiber.Router, api huma.API, auth *
 // terminal.
 //
 // opSuffix distinguishes the operation IDs one version group publishes from another's —
-// see routeOpSuffixV1. Nothing else varies between contracts, so a change to the surface
+// see v1OpSuffix. Nothing else varies between contracts, so a change to the surface
 // reaches every version it is mounted on.
 func registerMetadataIndexRoutesToApp(group fiber.Router, api huma.API, auth *middleware.AuthClient, h *MetadataIndexHandler, routeOptions *pkgHTTP.ProtectedRouteOptions, opSuffix string) {
 	const (

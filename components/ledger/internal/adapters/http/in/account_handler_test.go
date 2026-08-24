@@ -96,7 +96,7 @@ func buildHumaAccountApp(t *testing.T, handler *AccountHandler, authOK bool) *fi
 	apiV1.Delete(base+"/:id", parse)
 	apiV1.Head(base+"/metrics/count", parse)
 
-	RegisterAccountRoutes(hAPI, handler, routeOpSuffixV1)
+	RegisterAccountRoutes(hAPI, handler, v1OpSuffix)
 
 	return f
 }

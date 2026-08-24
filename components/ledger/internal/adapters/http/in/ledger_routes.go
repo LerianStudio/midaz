@@ -24,7 +24,7 @@ import (
 // humafiber adapter registers on that group and Fiber prepends the version prefix.
 //
 // opSuffix distinguishes the operation IDs one version group publishes from another's —
-// see routeOpSuffixV1. A straight v1/v2 mirror reuses the same handler methods and the
+// see v1OpSuffix. A straight v1/v2 mirror reuses the same handler methods and the
 // same input/output types, so only the operation IDs differ between the twins.
 func RegisterLedgerRoutes(api huma.API, h *LedgerHandler, opSuffix string) {
 	const (
@@ -122,7 +122,7 @@ func RegisterLedgerRoutes(api huma.API, h *LedgerHandler, opSuffix string) {
 // RegisterLedgerRoutesToApp wires the ledger surface onto the /v1
 // contract. See registerLedgerRoutesToApp for what it attaches.
 func RegisterLedgerRoutesToApp(group fiber.Router, api huma.API, auth *middleware.AuthClient, h *LedgerHandler, routeOptions *pkgHTTP.ProtectedRouteOptions) {
-	registerLedgerRoutesToApp(group, api, auth, h, routeOptions, routeOpSuffixV1)
+	registerLedgerRoutesToApp(group, api, auth, h, routeOptions, v1OpSuffix)
 }
 
 // RegisterLedgerV2RoutesToApp wires the same ledger surface onto the /v2 contract: same
@@ -130,7 +130,7 @@ func RegisterLedgerRoutesToApp(group fiber.Router, api huma.API, auth *middlewar
 // IDs the contract publishes. It is additive — /v1 keeps serving ledgers in parallel — and
 // introduces no new policy surface.
 func RegisterLedgerV2RoutesToApp(group fiber.Router, api huma.API, auth *middleware.AuthClient, h *LedgerHandler, routeOptions *pkgHTTP.ProtectedRouteOptions) {
-	registerLedgerRoutesToApp(group, api, auth, h, routeOptions, routeOpSuffixV2)
+	registerLedgerRoutesToApp(group, api, auth, h, routeOptions, v2OpSuffix)
 }
 
 // registerLedgerRoutesToApp is the single description of the ledger route surface, shared by
@@ -146,7 +146,7 @@ func RegisterLedgerV2RoutesToApp(group fiber.Router, api huma.API, auth *middlew
 // body limit was never an authz concern.
 //
 // opSuffix distinguishes the operation IDs one version group publishes from another's — see
-// routeOpSuffixV1. Nothing else varies between contracts, so a change to the surface reaches
+// v1OpSuffix. Nothing else varies between contracts, so a change to the surface reaches
 // every version it is mounted on.
 func registerLedgerRoutesToApp(group fiber.Router, api huma.API, auth *middleware.AuthClient, h *LedgerHandler, routeOptions *pkgHTTP.ProtectedRouteOptions, opSuffix string) {
 	const (

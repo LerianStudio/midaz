@@ -263,11 +263,17 @@ var volatileResponseKeys = map[string]struct{}{
 // therefore UNCOVERED by this suite. The nearest case — the revert bidirectional-route subject
 // in the lifecycle file — asserts REJECTION (422 on a non-bidirectional route), not that a
 // route-stamped origin resolves to the same routeId on both surfaces.
-// renameV2LegKeys renames a /v2 response's `debit`/`credit` keys back to the v1 `source`/
-// `destination` spelling, IN PLACE. The rename is the ONE deliberate difference the /v2 wire
-// contract introduces on the Transaction body — every other field name and value stays
-// identical — so a v1<->v2 parity deep-equal normalizes it here rather than treating it as a
-// spurious mismatch.
+// renameV2LegKeys projects a /v2 response onto the v1 body shape, IN PLACE, so a v1<->v2
+// parity deep-equal compares only what both surfaces are meant to agree on. Two deliberate
+// /v2-only differences are normalized here:
+//
+//   - `debit`/`credit` are renamed back to the v1 `source`/`destination` spelling.
+//   - `feesSkipped`/`tracerSkipped` are dropped. They are /v2-only audit flags: v1 withholds
+//     them to keep the v3 contract those clients were written against (see TransactionV1 in
+//     transaction_output_v1.go), so a v1 body has no counterpart to compare against.
+//
+// Both are applied to the /v2 side ONLY, never through stripVolatile, so a regression that
+// puts either key back on a v1 body still fails these assertions.
 func renameV2LegKeys(resp map[string]any) map[string]any {
 	if debit, ok := resp["debit"]; ok {
 		resp["source"] = debit
@@ -278,6 +284,9 @@ func renameV2LegKeys(resp map[string]any) map[string]any {
 		resp["destination"] = credit
 		delete(resp, "credit")
 	}
+
+	delete(resp, "feesSkipped")
+	delete(resp, "tracerSkipped")
 
 	return resp
 }

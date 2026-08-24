@@ -19,6 +19,24 @@ import (
 
 const midazName = "midaz"
 
+// Operation-ID version suffixes. The ledger serves every family it hosts — onboarding,
+// transaction, CRM and composition — on the /v1 and /v2 version groups of ONE OpenAPI
+// document. huma.OpenAPI.AddOperation scans the whole document and panics on a duplicate
+// operation ID, so a v1 op and its v2 twin — same handler, same path shape under a
+// different version prefix — MUST carry distinct operation IDs or the ledger panics at
+// boot. The V2 suffix makes that disjunction a boot invariant; it secondarily keeps IDs
+// unique across the ledger<->tracer hub-spec join. The v1 suffix is empty so the /v1
+// operation IDs — the ones published SDKs already bind to — stay exactly what they were.
+//
+// One pair serves every family, because every family needs the same two values. A family
+// that ever needs a different suffix declares its own rather than changing these, since
+// editing a value here moves the operation IDs of everything at once. Fees keep a separate
+// feeOpSuffixV2 in fees_v2_register.go.
+const (
+	v1OpSuffix = ""
+	v2OpSuffix = "V2"
+)
+
 // SettingsMaxPayloadSize defines the maximum payload size for settings endpoints (64KB).
 const SettingsMaxPayloadSize = 64 * 1024
 

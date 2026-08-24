@@ -283,7 +283,7 @@ best-effort and **detached** — `context.WithoutCancel(ctx)` + a 5s timeout, ru
 affects the provisioning result**. Events carry no PII and no secret material (only static reason
 phrases, outcome, actor, and primary key IDs).
 
-**HTTP surface** (envelope mode only; `RegisterCRMRoutesToApp` in `crm_routes.go` registers these solely
+**HTTP surface** (envelope mode only; `RegisterEncryptionV2RoutesToApp` in `encryption_routes.go` and `RegisterAuditV2RoutesToApp` in `audit_routes.go` register these solely
 when the handlers are non-nil, which they are only in envelope mode):
 
 | Route | Auth resource (namespace `midaz`) |

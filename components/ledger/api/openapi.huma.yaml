@@ -3753,10 +3753,6 @@ components:
           type:
             - array
             - "null"
-        feesSkipped:
-          examples:
-            - false
-          type: boolean
         id:
           examples:
             - 00000000-0000-0000-0000-000000000000
@@ -3806,10 +3802,6 @@ components:
             - "null"
         status:
           $ref: "#/components/schemas/TransactionStatus"
-        tracerSkipped:
-          examples:
-            - false
-          type: boolean
         updatedAt:
           examples:
             - "2021-01-01T00:00:00Z"
@@ -3827,8 +3819,6 @@ components:
         - ledgerId
         - organizationId
         - route
-        - feesSkipped
-        - tracerSkipped
         - createdAt
         - updatedAt
         - deletedAt
@@ -6229,12 +6219,12 @@ paths:
           schema:
             description: Source asset code
             type: string
-        - description: Filter by destination asset codes
+        - description: Filter by destination asset codes as one comma-separated list (e.g. USD,EUR) — the published serialization is explode=false. Repeated to keys are also accepted at runtime.
           explode: false
           in: query
           name: to
           schema:
-            description: Filter by destination asset codes
+            description: Filter by destination asset codes as one comma-separated list (e.g. USD,EUR) — the published serialization is explode=false. Repeated to keys are also accepted at runtime.
             items:
               type: string
             type:

@@ -1,0 +1,994 @@
+// Copyright (c) 2026 Lerian Studio. All rights reserved.
+// Use of this source code is governed by the Elastic License 2.0
+// that can be found in the LICENSE file.
+
+package in
+
+import (
+	"context"
+	"encoding/json"
+	"fmt"
+	"strings"
+
+	libObservability "github.com/LerianStudio/lib-observability/v2"
+	libLog "github.com/LerianStudio/lib-observability/v2/log"
+	libOpentelemetry "github.com/LerianStudio/lib-observability/v2/tracing"
+	"github.com/google/uuid"
+	"go.mongodb.org/mongo-driver/v2/bson"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/trace"
+
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services/command"
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services/query"
+	"github.com/LerianStudio/midaz/v4/pkg"
+	"github.com/LerianStudio/midaz/v4/pkg/constant"
+	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
+	"github.com/LerianStudio/midaz/v4/pkg/net/http"
+)
+
+type OperationRouteHandler struct {
+	Command *command.UseCase
+	Query   *query.UseCase
+}
+
+// --- Transport-agnostic cores -------------------------------------------------
+//
+// The createOperationRoute/updateOperationRoute/... methods below own the span and
+// the service call. They take primitive args — parsed UUIDs, the already-decoded
+// payload, the raw body, the query map — so nothing transport-shaped
+// reaches them; the handlers in operation_route_handler.go pull those out of the
+// request envelope. Every canonical Midaz error a core returns is rendered by its
+// caller via http.HumaProblem, which fixes the code + HTTP status.
+
+// createOperationRoute owns the span + service call for an already-decoded payload.
+// rawBody is the unparsed request body, needed only for the accountingEntries
+// unknown-key probe: Go's json.Unmarshal silently drops unknown keys, so the typed
+// payload alone cannot tell an unknown key from an omitted one.
+func (handler *OperationRouteHandler) createOperationRoute(ctx context.Context, organizationID, ledgerID uuid.UUID, payload *mmodel.CreateOperationRouteInput, rawBody []byte) (*mmodel.OperationRoute, error) {
+	_, tracer, _, metricFactory := libObservability.NewTrackingFromContext(ctx)
+
+	ctx, span := tracer.Start(ctx, "handler.create_operation_route")
+	defer span.End()
+
+	recordSafePayloadAttributes(span, payload)
+
+	if err := handler.validateAccountRule(ctx, payload.Account); err != nil {
+		return nil, err
+	}
+
+	if err := handler.validateAccountingEntries(ctx, payload.AccountingEntries); err != nil {
+		return nil, err
+	}
+
+	if err := handler.validateAccountingRulesMatrix(ctx, payload.OperationType, payload.AccountingEntries); err != nil {
+		return nil, err
+	}
+
+	// Reject unknown keys inside accountingEntries (e.g., "foobar") that Go's
+	// json.Unmarshal silently ignores but could confuse clients into thinking
+	// their data was accepted.
+	if payload.AccountingEntries != nil {
+		var raw map[string]json.RawMessage
+
+		if err := json.Unmarshal(rawBody, &raw); err == nil {
+			if entriesRaw, ok := raw["accountingEntries"]; ok {
+				if unknowns := findUnknownAccountingEntryKeys(entriesRaw); len(unknowns) > 0 {
+					return nil, pkg.ValidateBadRequestFieldsError(
+						pkg.FieldValidations{}, pkg.FieldValidations{}, "",
+						map[string]any{"accountingEntries": unknowns},
+					)
+				}
+			}
+		}
+	}
+
+	operationRoute, err := handler.Command.CreateOperationRoute(ctx, organizationID, ledgerID, payload)
+	if err != nil {
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to create operation route", err)
+
+		return nil, err
+	}
+
+	if err := metricFactory.RecordOperationRouteCreated(
+		ctx,
+		attribute.String("organization_id", organizationID.String()),
+		attribute.String("ledger_id", ledgerID.String()),
+	); err != nil {
+		libOpentelemetry.HandleSpanError(span, "Failed to record operation route created metric", err)
+	}
+
+	return operationRoute, nil
+}
+
+// getOperationRouteByID owns the span + service call for GET-by-id.
+func (handler *OperationRouteHandler) getOperationRouteByID(ctx context.Context, organizationID, ledgerID, id uuid.UUID) (*mmodel.OperationRoute, error) {
+	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
+
+	ctx, span := tracer.Start(ctx, "handler.get_operation_route_by_id")
+	defer span.End()
+
+	operationRoute, err := handler.Query.GetOperationRouteByID(ctx, organizationID, ledgerID, nil, id)
+	if err != nil {
+		handleSpanByErrorClass(span, "Failed to retrieve operation route on query", err)
+		logger.Log(ctx, libLog.LevelError, "Failed to retrieve operation route", libLog.Err(err), libLog.String("operation_route_id", id.String()))
+
+		return nil, err
+	}
+
+	return operationRoute, nil
+}
+
+// updateOperationRoute implements RFC 7396 JSON Merge Patch. rawBody is the sole
+// source that distinguishes accountingEntries FIELD-ABSENT (keep existing) from
+// accountingEntries:null (clear all): Go's typed decode collapses both to a nil
+// AccountingEntries, so the core re-derives payload.AccountingEntriesRaw from these
+// bytes. Feed anything but the unparsed request body and the PATCH breaks silently.
+// Also reproduces the accountingEntries unknown-key probe.
+func (handler *OperationRouteHandler) updateOperationRoute(ctx context.Context, organizationID, ledgerID, id uuid.UUID, payload *mmodel.UpdateOperationRouteInput, rawBody []byte) (*mmodel.OperationRoute, error) {
+	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
+
+	ctx, span := tracer.Start(ctx, "handler.update_operation_route")
+	defer span.End()
+
+	if err := handler.validateAccountRule(ctx, payload.Account); err != nil {
+		return nil, err
+	}
+
+	if err := handler.validateAccountingEntries(ctx, payload.AccountingEntries); err != nil {
+		return nil, err
+	}
+
+	// Extract the raw JSON for accountingEntries from the request body to preserve
+	// explicit null values for RFC 7396 JSON Merge Patch semantics. This allows the
+	// repository to distinguish "field absent" (keep existing) from "field: null" (remove).
+	if payload.AccountingEntries != nil {
+		var raw map[string]json.RawMessage
+
+		if err := json.Unmarshal(rawBody, &raw); err == nil {
+			if entriesRaw, ok := raw["accountingEntries"]; ok {
+				if unknowns := findUnknownAccountingEntryKeys(entriesRaw); len(unknowns) > 0 {
+					return nil, pkg.ValidateBadRequestFieldsError(
+						pkg.FieldValidations{}, pkg.FieldValidations{}, "",
+						map[string]any{"accountingEntries": unknowns},
+					)
+				}
+
+				payload.AccountingEntriesRaw = entriesRaw
+			}
+		}
+	}
+
+	// Validate accounting rules matrix for PATCH operations
+	// We need to fetch the existing route to get operation type and merge entries
+	// Validation runs when accountingEntries is present (even if removing entries via explicit null)
+	if payload.AccountingEntries != nil || len(payload.AccountingEntriesRaw) > 0 {
+		existingRoute, err := handler.Query.GetOperationRouteByID(ctx, organizationID, ledgerID, nil, id)
+		if err != nil {
+			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to retrieve existing Operation Route for validation", err)
+			return nil, err
+		}
+
+		// Handle explicit top-level null for accountingEntries (RFC 7396: clear all)
+		var mergedEntries *mmodel.AccountingEntries
+
+		rawTrimmed := strings.TrimSpace(string(payload.AccountingEntriesRaw))
+		if rawTrimmed == "null" {
+			// Explicit null at top level - clear all entries
+			mergedEntries = nil
+		} else {
+			// Merge incoming entries with existing to get final state
+			// Pass raw JSON to properly handle explicit null removals (RFC 7396)
+			mergedEntries = mergeAccountingEntries(existingRoute.AccountingEntries, payload.AccountingEntries, payload.AccountingEntriesRaw)
+		}
+
+		// Validate the merged entries against the direction×scenario matrix
+		if err := handler.validateAccountingRulesMatrix(ctx, existingRoute.OperationType, mergedEntries); err != nil {
+			return nil, err
+		}
+	}
+
+	recordSafePayloadAttributes(span, payload)
+
+	operationRoute, err := handler.Command.UpdateOperationRoute(ctx, organizationID, ledgerID, id, payload)
+	if err != nil {
+		handleSpanByErrorClass(span, "Failed to update Operation Route on command", err)
+
+		return nil, err
+	}
+
+	if payload.Account != nil {
+		if err := handler.Command.ReloadOperationRouteCache(ctx, organizationID, ledgerID, id); err != nil {
+			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to reload operation route cache", err)
+			logger.Log(ctx, libLog.LevelError, "Failed to reload operation route cache", libLog.Err(err), libLog.String("operation_route_id", id.String()))
+		}
+	}
+
+	return operationRoute, nil
+}
+
+// deleteOperationRouteByID owns the span + service call for DELETE.
+func (handler *OperationRouteHandler) deleteOperationRouteByID(ctx context.Context, organizationID, ledgerID, id uuid.UUID) error {
+	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
+
+	ctx, span := tracer.Start(ctx, "handler.delete_operation_route_by_id")
+	defer span.End()
+
+	if err := handler.Command.DeleteOperationRouteByID(ctx, organizationID, ledgerID, id); err != nil {
+		handleSpanByErrorClass(span, "Failed to delete operation route on command", err)
+		logger.Log(ctx, libLog.LevelError, "Failed to delete operation route", libLog.Err(err), libLog.String("operation_route_id", id.String()))
+
+		return err
+	}
+
+	return nil
+}
+
+// getAllOperationRoutes binds the query map imperatively via http.ValidateParameters
+// so a bad query yields the canonical 400, then returns the assembled pagination
+// envelope.
+func (handler *OperationRouteHandler) getAllOperationRoutes(ctx context.Context, organizationID, ledgerID uuid.UUID, queries map[string]string) (http.Pagination, error) {
+	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
+
+	ctx, span := tracer.Start(ctx, "handler.get_all_operation_routes")
+	defer span.End()
+
+	headerParams, err := http.ValidateParameters(queries)
+	if err != nil {
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to validate query parameters", err)
+		logger.Log(ctx, libLog.LevelError, "Failed to validate query parameters", libLog.Err(err))
+
+		return http.Pagination{}, err
+	}
+
+	recordSafeQueryAttributes(span, headerParams)
+
+	pagination := http.Pagination{
+		Limit:     headerParams.Limit,
+		SortOrder: headerParams.SortOrder,
+		StartDate: headerParams.StartDate,
+		EndDate:   headerParams.EndDate,
+	}
+
+	if headerParams.Metadata != nil {
+		operationRoutes, cur, err := handler.Query.GetAllMetadataOperationRoutes(ctx, organizationID, ledgerID, *headerParams)
+		if err != nil {
+			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to retrieve all operation routes by metadata", err)
+			logger.Log(ctx, libLog.LevelError, "Failed to retrieve all operation routes by metadata", libLog.Err(err))
+
+			return http.Pagination{}, err
+		}
+
+		pagination.SetItems(operationRoutes)
+		pagination.SetCursor(cur.Next, cur.Prev)
+
+		return pagination, nil
+	}
+
+	headerParams.Metadata = &bson.M{}
+
+	operationRoutes, cur, err := handler.Query.GetAllOperationRoutes(ctx, organizationID, ledgerID, *headerParams)
+	if err != nil {
+		handleSpanByErrorClass(span, "Failed to retrieve all operation routes on query", err)
+		logger.Log(ctx, libLog.LevelError, "Failed to retrieve all operation routes", libLog.Err(err))
+
+		return http.Pagination{}, err
+	}
+
+	pagination.SetItems(operationRoutes)
+	pagination.SetCursor(cur.Next, cur.Prev)
+
+	return pagination, nil
+}
+
+// validateAccountRule validates account rule configuration for operation routes.
+// It ensures proper pairing of ruleType and validIf, and validates data types based on rule type.
+func (handler *OperationRouteHandler) validateAccountRule(ctx context.Context, account *mmodel.AccountRule) error {
+	_, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
+
+	_, span := tracer.Start(ctx, "handler.validate_account_rule")
+	defer span.End()
+
+	recordSafePayloadAttributes(span, account)
+
+	if account == nil {
+		return nil
+	}
+
+	if account.RuleType != "" && account.ValidIf == nil {
+		err := pkg.ValidateBusinessError(constant.ErrMissingFieldsInRequest, constant.EntityOperationRoute, "account.validIf")
+
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Account rule type provided but validIf is missing", err)
+
+		return err
+	}
+
+	if account.RuleType == "" && account.ValidIf != nil {
+		err := pkg.ValidateBusinessError(constant.ErrMissingFieldsInRequest, constant.EntityOperationRoute, "account.ruleType")
+
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Account validIf provided but rule type is missing", err)
+
+		return err
+	}
+
+	if account.RuleType != "" && account.ValidIf != nil {
+		switch strings.ToLower(account.RuleType) {
+		case constant.AccountRuleTypeAlias:
+			if _, ok := account.ValidIf.(string); !ok {
+				err := pkg.ValidateBusinessError(constant.ErrInvalidAccountRuleValue, constant.EntityOperationRoute)
+
+				libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Invalid ValidIf type for alias rule", err)
+
+				return err
+			}
+		case constant.AccountRuleTypeAccountType:
+			switch v := account.ValidIf.(type) {
+			case []string:
+			case []any:
+				for _, item := range v {
+					if _, ok := item.(string); !ok {
+						err := pkg.ValidateBusinessError(constant.ErrInvalidAccountRuleValue, constant.EntityOperationRoute)
+
+						libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Invalid ValidIf array element type", err)
+
+						return err
+					}
+				}
+			default:
+				err := pkg.ValidateBusinessError(constant.ErrInvalidAccountRuleValue, constant.EntityOperationRoute)
+
+				libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Invalid ValidIf type for account_type rule", err)
+
+				return err
+			}
+		default:
+			err := pkg.ValidateBusinessError(constant.ErrInvalidAccountRuleType, constant.EntityOperationRoute)
+
+			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Invalid account rule type", err)
+
+			return err
+		}
+	}
+
+	return nil
+}
+
+// validateAccountingEntries validates the structure of accounting entries.
+// It ensures that any present rubric (debit/credit) has non-empty code and description.
+// Note: This function validates STRUCTURE only. Field REQUIREMENTS (which fields are mandatory
+// based on direction+scenario) are validated by validateAccountingRulesMatrix.
+func (handler *OperationRouteHandler) validateAccountingEntries(ctx context.Context, entries *mmodel.AccountingEntries) error {
+	_, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
+
+	_, span := tracer.Start(ctx, "handler.validate_accounting_entries")
+	defer span.End()
+
+	recordSafePayloadAttributes(span, entries)
+
+	if entries == nil {
+		return nil
+	}
+
+	entityName := constant.EntityOperationRoute
+
+	// newScenarios are validated with ErrAccountingEntryFieldRequired (0166 —
+	// UnprocessableOperationError) instead of ErrMissingFieldsInRequest (0009 —
+	// ValidationError) so HTTP callers get a 422-class response that surfaces
+	// the scenario-specific field path.
+	actions := []struct {
+		name    string
+		entry   *mmodel.AccountingEntry
+		errCode error
+	}{
+		{constant.ActionDirect, entries.Direct, constant.ErrMissingFieldsInRequest},
+		{constant.ActionHold, entries.Hold, constant.ErrMissingFieldsInRequest},
+		{constant.ActionCommit, entries.Commit, constant.ErrMissingFieldsInRequest},
+		{constant.ActionCancel, entries.Cancel, constant.ErrMissingFieldsInRequest},
+		{constant.ActionRevert, entries.Revert, constant.ErrMissingFieldsInRequest},
+		{constant.ActionOverdraft, entries.Overdraft, constant.ErrAccountingEntryFieldRequired},
+		{constant.ActionBlock, entries.Block, constant.ErrAccountingEntryFieldRequired},
+		{constant.ActionUnblock, entries.Unblock, constant.ErrAccountingEntryFieldRequired},
+	}
+
+	for _, action := range actions {
+		if action.entry == nil {
+			continue
+		}
+
+		// An entry with neither debit nor credit is invalid structure
+		if action.entry.Debit == nil && action.entry.Credit == nil {
+			fieldPath := "accountingEntries." + action.name + ".debit, accountingEntries." + action.name + ".credit"
+
+			err := pkg.ValidateBusinessError(action.errCode, entityName, fieldPath)
+
+			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Accounting entry missing both debit and credit", err)
+
+			return err
+		}
+
+		// Validate debit rubric if present
+		if action.entry.Debit != nil {
+			if err := handler.validateRubricStructure(span, entityName, action.name, "debit", action.entry.Debit, action.errCode); err != nil {
+				return err
+			}
+		}
+
+		// Validate credit rubric if present
+		if action.entry.Credit != nil {
+			if err := handler.validateRubricStructure(span, entityName, action.name, "credit", action.entry.Credit, action.errCode); err != nil {
+				return err
+			}
+		}
+	}
+
+	return nil
+}
+
+// validateRubricStructure validates that a rubric has non-empty code and description.
+// The errCode parameter controls which business error is raised on failure so callers
+// can differentiate validation classes (e.g., legacy scenarios use 0009, new overdraft
+// and refund scenarios use 0166).
+func (handler *OperationRouteHandler) validateRubricStructure(
+	span trace.Span,
+	entityName, actionName, side string,
+	rubric *mmodel.AccountingRubric,
+	errCode error,
+) error {
+	if strings.TrimSpace(rubric.Code) == "" {
+		fieldPath := "accountingEntries." + actionName + "." + side + ".code"
+
+		err := pkg.ValidateBusinessError(errCode, entityName, fieldPath)
+
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Accounting rubric code is empty", err)
+
+		return err
+	}
+
+	if strings.TrimSpace(rubric.Description) == "" {
+		fieldPath := "accountingEntries." + actionName + "." + side + ".description"
+
+		err := pkg.ValidateBusinessError(errCode, entityName, fieldPath)
+
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Accounting rubric description is empty", err)
+
+		return err
+	}
+
+	return nil
+}
+
+// validAccountingEntryKeys defines the allowed top-level keys inside accountingEntries.
+var validAccountingEntryKeys = map[string]struct{}{
+	constant.ActionDirect:    {},
+	constant.ActionHold:      {},
+	constant.ActionCommit:    {},
+	constant.ActionCancel:    {},
+	constant.ActionRevert:    {},
+	constant.ActionOverdraft: {},
+	constant.ActionBlock:     {},
+	constant.ActionUnblock:   {},
+}
+
+// findUnknownAccountingEntryKeys parses the raw JSON for accountingEntries and returns
+// a map of keys that are not in the allowed set (see validAccountingEntryKeys).
+// Returns nil when all keys are valid. The returned map is suitable for use with
+// ValidateBadRequestFieldsError to produce a standard 0053 "Unexpected Fields" error.
+func findUnknownAccountingEntryKeys(raw json.RawMessage) map[string]any {
+	var fields map[string]json.RawMessage
+	if err := json.Unmarshal(raw, &fields); err != nil {
+		return nil
+	}
+
+	unknowns := make(map[string]any)
+
+	for key := range fields {
+		if _, ok := validAccountingEntryKeys[key]; !ok {
+			unknowns[key] = string(fields[key])
+		}
+	}
+
+	if len(unknowns) == 0 {
+		return nil
+	}
+
+	return unknowns
+}
+
+// fieldRequirement defines which fields (debit/credit) are required for a direction+scenario.
+type fieldRequirement struct {
+	debitRequired  bool
+	creditRequired bool
+}
+
+// getFieldRequirements returns the field requirements based on operationType and scenario.
+// This implements the direction × scenario matrix from accounting-rules.md:
+//
+//	source:      direct[D], hold[D][C], commit[D], cancel[D][C]
+//	destination: direct[C], commit[C]
+//	bidirectional: all scenarios require [D][C]
+//	overdraft: both debit and credit are required regardless of direction.
+//
+// Note: Blocked scenarios (source/revert, destination/hold, etc.) are validated
+// separately by validateDirectionScenarioMatrix. This function assumes the
+// scenario is allowed for the direction.
+func getFieldRequirements(operationType, scenario string) fieldRequirement {
+	// Overdraft always requires both rubrics, regardless of direction.
+	// Keeping this rule explicit (rather than relying on the default fallthrough)
+	// documents the requirement next to the scenario list above and makes it
+	// harder to accidentally loosen via future edits to the source/destination
+	// switches.
+	if scenario == constant.ActionOverdraft {
+		return fieldRequirement{debitRequired: true, creditRequired: true}
+	}
+
+	// Bidirectional always requires both
+	if operationType == constant.OperationRouteTypeBidirectional {
+		return fieldRequirement{debitRequired: true, creditRequired: true}
+	}
+
+	// Source direction requirements
+	if operationType == constant.OperationRouteTypeSource {
+		switch scenario {
+		case constant.ActionDirect, constant.ActionCommit, constant.ActionBlock, constant.ActionUnblock:
+			// Unilateral operations at origin - only debit.
+			// block/unblock are direct available↔available movements and mirror direct.
+			return fieldRequirement{debitRequired: true, creditRequired: false}
+		case constant.ActionHold, constant.ActionCancel:
+			// Move between available ↔ on_hold in same account - both required
+			return fieldRequirement{debitRequired: true, creditRequired: true}
+		}
+	}
+
+	// Destination direction requirements
+	if operationType == constant.OperationRouteTypeDestination {
+		switch scenario {
+		case constant.ActionDirect, constant.ActionCommit, constant.ActionBlock, constant.ActionUnblock:
+			// Unilateral operations at destination - only credit.
+			// block/unblock are direct available↔available movements and mirror direct.
+			return fieldRequirement{debitRequired: false, creditRequired: true}
+		}
+	}
+
+	// Default: require both (safe fallback)
+	return fieldRequirement{debitRequired: true, creditRequired: true}
+}
+
+// validateAccountingRulesMatrix validates that the accounting entries comply with
+// the direction × scenario matrix defined in accounting-rules.md.
+//
+// Matrix rules:
+//   - source: direct[D], hold[D][C], commit[D], cancel[D][C], revert[✗]
+//   - destination: direct[C], hold[✗], commit[C], cancel[✗], revert[✗]
+//   - bidirectional: all scenarios allowed with [D][C]
+//   - overdraft / refund: both debit and credit are required on every
+//     operationType. They fall through to the explicit early return in
+//     getFieldRequirements, so the default debit+credit requirement applies
+//     uniformly across source / destination / bidirectional routes.
+//
+// Additional rules:
+//   - Reserve group (hold, commit, cancel) must be atomic for source/bidirectional
+//   - direct is mandatory when any other scenario is present (including
+//     overdraft and refund)
+//   - revert is only allowed for bidirectional
+func (handler *OperationRouteHandler) validateAccountingRulesMatrix(
+	ctx context.Context,
+	operationType string,
+	entries *mmodel.AccountingEntries,
+) error {
+	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
+
+	_, span := tracer.Start(ctx, "handler.validate_accounting_rules_matrix")
+	defer span.End()
+
+	// If no entries, nothing to validate
+	if entries == nil {
+		return nil
+	}
+
+	entityName := constant.EntityOperationRoute
+
+	// Check direction × scenario matrix (which scenarios are allowed)
+	if err := handler.validateDirectionScenarioMatrix(ctx, operationType, entries, entityName); err != nil {
+		return err
+	}
+
+	// Check field requirements per direction+scenario (which debit/credit are required)
+	if err := handler.validateEntryFieldRequirements(ctx, operationType, entries, entityName); err != nil {
+		return err
+	}
+
+	// Check reserve group atomicity (hold requires commit and cancel)
+	if err := handler.validateReserveGroupAtomicity(ctx, operationType, entries, entityName); err != nil {
+		return err
+	}
+
+	// Check direct is mandatory when other scenarios exist
+	if err := handler.validateDirectMandatory(ctx, entries, entityName); err != nil {
+		return err
+	}
+
+	logger.Log(ctx, libLog.LevelDebug, "Accounting rules matrix validation passed")
+
+	return nil
+}
+
+// validateDirectionScenarioMatrix checks that scenarios are valid for the given direction.
+func (handler *OperationRouteHandler) validateDirectionScenarioMatrix(
+	ctx context.Context,
+	operationType string,
+	entries *mmodel.AccountingEntries,
+	entityName string,
+) error {
+	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
+
+	_, span := tracer.Start(ctx, "handler.validate_direction_scenario_matrix")
+	defer span.End()
+
+	switch operationType {
+	case constant.OperationRouteTypeSource:
+		// source: revert is NOT allowed
+		if entries.Revert != nil {
+			err := pkg.ValidateBusinessError(
+				constant.ErrRevertOnlyBidirectional,
+				entityName,
+				"revert is only allowed for bidirectional operation routes",
+			)
+
+			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Revert not allowed for source direction", err)
+			logger.Log(ctx, libLog.LevelWarn, "Revert scenario not allowed for source direction")
+
+			return err
+		}
+
+	case constant.OperationRouteTypeDestination:
+		// destination: hold, cancel are NOT allowed (return 0162)
+		invalidScenarios := []struct {
+			name  string
+			entry *mmodel.AccountingEntry
+		}{
+			{constant.ActionHold, entries.Hold},
+			{constant.ActionCancel, entries.Cancel},
+		}
+
+		for _, scenario := range invalidScenarios {
+			if scenario.entry != nil {
+				err := pkg.ValidateBusinessError(
+					constant.ErrScenarioNotAllowedForDirection,
+					entityName,
+					fmt.Sprintf("%s scenario is not allowed for destination direction", scenario.name),
+				)
+
+				libOpentelemetry.HandleSpanBusinessErrorEvent(span, fmt.Sprintf("%s not allowed for destination", scenario.name), err)
+
+				return err
+			}
+		}
+
+		// destination: revert is NOT allowed (return 0165 - same as source)
+		if entries.Revert != nil {
+			err := pkg.ValidateBusinessError(
+				constant.ErrRevertOnlyBidirectional,
+				entityName,
+				"revert is only allowed for bidirectional operation routes",
+			)
+
+			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Revert not allowed for destination direction", err)
+			logger.Log(ctx, libLog.LevelWarn, "Revert scenario not allowed for destination direction")
+
+			return err
+		}
+
+	case constant.OperationRouteTypeBidirectional:
+		// bidirectional: all scenarios allowed - no restrictions
+
+	default:
+		// Invalid operation type - should be caught by struct validation
+	}
+
+	return nil
+}
+
+// validateReserveGroupAtomicity ensures that hold, commit, and cancel form an atomic group.
+// For source/bidirectional: if hold exists, commit AND cancel must also exist.
+// For destination: reserve group is not applicable (hold/cancel not allowed).
+func (handler *OperationRouteHandler) validateReserveGroupAtomicity(
+	ctx context.Context,
+	operationType string,
+	entries *mmodel.AccountingEntries,
+	entityName string,
+) error {
+	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
+
+	_, span := tracer.Start(ctx, "handler.validate_reserve_group_atomicity")
+	defer span.End()
+
+	// Reserve group only applies to source and bidirectional
+	if operationType == constant.OperationRouteTypeDestination {
+		return nil
+	}
+
+	hasHold := entries.Hold != nil
+	hasCommit := entries.Commit != nil
+	hasCancel := entries.Cancel != nil
+
+	// If hold exists, both commit and cancel must exist
+	if hasHold {
+		var missing []string
+
+		if !hasCommit {
+			missing = append(missing, "commit")
+		}
+
+		if !hasCancel {
+			missing = append(missing, "cancel")
+		}
+
+		if len(missing) > 0 {
+			err := pkg.ValidateBusinessError(
+				constant.ErrReserveGroupIncomplete,
+				entityName,
+				fmt.Sprintf("reserve group incomplete: hold requires %s", strings.Join(missing, " and ")),
+			)
+
+			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Reserve group incomplete", err)
+
+			return err
+		}
+	}
+
+	// If commit or cancel exists without hold, that's also incomplete
+	if (hasCommit || hasCancel) && !hasHold {
+		err := pkg.ValidateBusinessError(
+			constant.ErrReserveGroupIncomplete,
+			entityName,
+			"reserve group incomplete: commit and cancel require hold",
+		)
+
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Reserve group incomplete - missing hold", err)
+		logger.Log(ctx, libLog.LevelWarn, "Reserve group incomplete: commit/cancel without hold")
+
+		return err
+	}
+
+	return nil
+}
+
+// validateDirectMandatory ensures that direct scenario is present when other scenarios exist.
+func (handler *OperationRouteHandler) validateDirectMandatory(
+	ctx context.Context,
+	entries *mmodel.AccountingEntries,
+	entityName string,
+) error {
+	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
+
+	_, span := tracer.Start(ctx, "handler.validate_direct_mandatory")
+	defer span.End()
+
+	hasDirect := entries.Direct != nil
+	// Overdraft is a supplementary accounting scenario that still requires
+	// direct as a base. Without this, a payload setting only overdraft
+	// would bypass the direct-mandatory check and yield an incomplete
+	// accounting description.
+	hasOtherScenarios := entries.Hold != nil || entries.Commit != nil ||
+		entries.Cancel != nil || entries.Revert != nil ||
+		entries.Overdraft != nil
+
+	// If any other scenario exists, direct must also exist
+	if hasOtherScenarios && !hasDirect {
+		err := pkg.ValidateBusinessError(
+			constant.ErrDirectScenarioRequired,
+			entityName,
+			"direct scenario is required when other scenarios are present",
+		)
+
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Direct scenario required", err)
+		logger.Log(ctx, libLog.LevelWarn, "Direct scenario is required when other scenarios are present")
+
+		return err
+	}
+
+	return nil
+}
+
+// validateEntryFieldRequirements validates that required fields (debit/credit) are present
+// based on the direction × scenario matrix. This is a permissive validation:
+// - Required fields MUST be present
+// - Non-required fields MAY be present (accepted but not enforced)
+func (handler *OperationRouteHandler) validateEntryFieldRequirements(
+	ctx context.Context,
+	operationType string,
+	entries *mmodel.AccountingEntries,
+	entityName string,
+) error {
+	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
+
+	_, span := tracer.Start(ctx, "handler.validate_entry_field_requirements")
+	defer span.End()
+
+	// If no entries, nothing to validate
+	if entries == nil {
+		return nil
+	}
+
+	actions := []struct {
+		name  string
+		entry *mmodel.AccountingEntry
+	}{
+		{constant.ActionDirect, entries.Direct},
+		{constant.ActionHold, entries.Hold},
+		{constant.ActionCommit, entries.Commit},
+		{constant.ActionCancel, entries.Cancel},
+		{constant.ActionRevert, entries.Revert},
+		{constant.ActionOverdraft, entries.Overdraft},
+		{constant.ActionBlock, entries.Block},
+		{constant.ActionUnblock, entries.Unblock},
+	}
+
+	for _, action := range actions {
+		if action.entry == nil {
+			continue
+		}
+
+		req := getFieldRequirements(operationType, action.name)
+
+		// Check debit requirement
+		if req.debitRequired && action.entry.Debit == nil {
+			err := pkg.ValidateBusinessError(
+				constant.ErrAccountingEntryFieldRequired,
+				entityName,
+				fmt.Sprintf("%s is required for %s/%s", "debit", operationType, action.name),
+			)
+
+			libOpentelemetry.HandleSpanBusinessErrorEvent(span, fmt.Sprintf("Debit required for %s/%s", operationType, action.name), err)
+
+			return err
+		}
+
+		// Check credit requirement
+		if req.creditRequired && action.entry.Credit == nil {
+			err := pkg.ValidateBusinessError(
+				constant.ErrAccountingEntryFieldRequired,
+				entityName,
+				fmt.Sprintf("%s is required for %s/%s", "credit", operationType, action.name),
+			)
+
+			libOpentelemetry.HandleSpanBusinessErrorEvent(span, fmt.Sprintf("Credit required for %s/%s", operationType, action.name), err)
+
+			return err
+		}
+	}
+
+	logger.Log(ctx, libLog.LevelDebug, "Entry field requirements validation passed")
+
+	return nil
+}
+
+// mergeAccountingEntries creates a merged view of existing and incoming accounting entries.
+// Used for PATCH operations where only partial updates are provided.
+//
+// This function implements RFC 7396 JSON Merge Patch semantics:
+//   - Field absent in rawUpdates: keep existing value
+//   - Field explicitly set to null in rawUpdates: remove entry (set to nil)
+//   - Field set to a value in rawUpdates: use new value
+//
+// The rawUpdates parameter is required to distinguish between "field omitted" and
+// "field: null" since Go's json.Unmarshal sets both to nil.
+func mergeAccountingEntries(existing, incoming *mmodel.AccountingEntries, rawUpdates json.RawMessage) *mmodel.AccountingEntries {
+	if existing == nil && incoming == nil {
+		return nil
+	}
+
+	if existing == nil {
+		return incoming
+	}
+
+	// If no raw updates provided, fall back to simple merge (incoming wins if non-nil)
+	if len(rawUpdates) == 0 {
+		return mergeAccountingEntriesSimple(existing, incoming)
+	}
+
+	// Parse raw JSON to detect which fields are explicitly present
+	var rawFields map[string]json.RawMessage
+	if err := json.Unmarshal(rawUpdates, &rawFields); err != nil {
+		// If parsing fails, fall back to simple merge
+		return mergeAccountingEntriesSimple(existing, incoming)
+	}
+
+	merged := &mmodel.AccountingEntries{}
+
+	// Helper to apply merge logic for each field
+	applyMerge := func(fieldName string, existingEntry, incomingEntry *mmodel.AccountingEntry) *mmodel.AccountingEntry {
+		raw, fieldPresent := rawFields[fieldName]
+		if !fieldPresent {
+			// Field not in update - keep existing
+			return existingEntry
+		}
+
+		// Field is present in raw update
+		if string(raw) == "null" {
+			// Explicit null - remove entry
+			return nil
+		}
+
+		// Field has a value - use incoming (which was unmarshaled from the same JSON)
+		if incomingEntry != nil {
+			return incomingEntry
+		}
+
+		// Incoming is nil but raw wasn't null - keep existing as fallback
+		return existingEntry
+	}
+
+	var incomingDirect, incomingHold, incomingCommit, incomingCancel, incomingRevert, incomingOverdraft *mmodel.AccountingEntry
+	if incoming != nil {
+		incomingDirect = incoming.Direct
+		incomingHold = incoming.Hold
+		incomingCommit = incoming.Commit
+		incomingCancel = incoming.Cancel
+		incomingRevert = incoming.Revert
+		incomingOverdraft = incoming.Overdraft
+	}
+
+	merged.Direct = applyMerge(constant.ActionDirect, existing.Direct, incomingDirect)
+	merged.Hold = applyMerge(constant.ActionHold, existing.Hold, incomingHold)
+	merged.Commit = applyMerge(constant.ActionCommit, existing.Commit, incomingCommit)
+	merged.Cancel = applyMerge(constant.ActionCancel, existing.Cancel, incomingCancel)
+	merged.Revert = applyMerge(constant.ActionRevert, existing.Revert, incomingRevert)
+	merged.Overdraft = applyMerge(constant.ActionOverdraft, existing.Overdraft, incomingOverdraft)
+
+	// Check if all entries are nil - return nil instead of empty struct
+	if merged.Direct == nil && merged.Hold == nil && merged.Commit == nil &&
+		merged.Cancel == nil && merged.Revert == nil &&
+		merged.Overdraft == nil {
+		return nil
+	}
+
+	return merged
+}
+
+// mergeAccountingEntriesSimple performs a simple merge where incoming non-nil values win.
+// Used as fallback when raw JSON is not available.
+func mergeAccountingEntriesSimple(existing, incoming *mmodel.AccountingEntries) *mmodel.AccountingEntries {
+	if incoming == nil {
+		return existing
+	}
+
+	merged := &mmodel.AccountingEntries{}
+
+	if incoming.Direct != nil {
+		merged.Direct = incoming.Direct
+	} else if existing != nil {
+		merged.Direct = existing.Direct
+	}
+
+	if incoming.Hold != nil {
+		merged.Hold = incoming.Hold
+	} else if existing != nil {
+		merged.Hold = existing.Hold
+	}
+
+	if incoming.Commit != nil {
+		merged.Commit = incoming.Commit
+	} else if existing != nil {
+		merged.Commit = existing.Commit
+	}
+
+	if incoming.Cancel != nil {
+		merged.Cancel = incoming.Cancel
+	} else if existing != nil {
+		merged.Cancel = existing.Cancel
+	}
+
+	if incoming.Revert != nil {
+		merged.Revert = incoming.Revert
+	} else if existing != nil {
+		merged.Revert = existing.Revert
+	}
+
+	if incoming.Overdraft != nil {
+		merged.Overdraft = incoming.Overdraft
+	} else if existing != nil {
+		merged.Overdraft = existing.Overdraft
+	}
+
+	return merged
+}

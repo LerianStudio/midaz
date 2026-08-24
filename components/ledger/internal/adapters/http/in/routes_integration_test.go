@@ -107,7 +107,7 @@ func mountMoneyWriteSurface(app *fiber.App, auth *middleware.AuthClient) huma.AP
 // mountCRMCompositionSurface wires the two v2-only additive registrars — composition and
 // CRM (holders/instruments/holder-accounts/encryption/audit) — onto the /v2 group. Every
 // conditional CRM handler is passed NON-nil so the FULL surface mounts; the nil-guard
-// conditionality is TestCRMV2RoutesRespectNilGuards' subject (crm_routes_test.go).
+// conditionality is TestCRMV2RoutesRespectNilGuards' subject (huma_contract_mount_test.go).
 //
 // Fees/billing are v2-only too but mount through RegisterFeesV2RoutesToApp, exercised by
 // fees_v2_register_test.go rather than here.
@@ -115,9 +115,11 @@ func mountCRMCompositionSurface(app *fiber.App, auth *middleware.AuthClient) hum
 	group, hAPI := newLedgerHumaTestAPI(app, "/v2")
 
 	RegisterCompositionV2RoutesToApp(group, hAPI, auth, &CompositionHandler{}, nil)
-	RegisterCRMV2RoutesToApp(group, hAPI, auth,
-		&HolderHandler{}, &InstrumentHandler{}, &HolderAccountsHandler{},
-		&EncryptionHandler{}, &AuditHandler{}, nil)
+	RegisterHolderV2RoutesToApp(group, hAPI, auth, &HolderHandler{}, nil)
+	RegisterHolderAccountsV2RoutesToApp(group, hAPI, auth, &HolderAccountsHandler{}, nil)
+	RegisterInstrumentV2RoutesToApp(group, hAPI, auth, &InstrumentHandler{}, nil)
+	RegisterEncryptionV2RoutesToApp(group, hAPI, auth, &EncryptionHandler{}, nil)
+	RegisterAuditV2RoutesToApp(group, hAPI, auth, &AuditHandler{}, nil)
 
 	return hAPI
 }

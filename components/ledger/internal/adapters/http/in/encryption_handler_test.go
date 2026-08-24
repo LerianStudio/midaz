@@ -82,7 +82,7 @@ func buildHumaEncryptionAppWithTenant(t *testing.T, handler *EncryptionHandler, 
 	apiV2.Post("/organizations/:organization_id/encryption/provision", parse)
 	apiV2.Get("/organizations/:organization_id/encryption/status", parse)
 
-	RegisterEncryptionRoutes(hAPI, handler, crmOpSuffixV2)
+	RegisterEncryptionRoutes(hAPI, handler, v2OpSuffix)
 
 	return f
 }

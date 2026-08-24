@@ -86,7 +86,7 @@ func buildHumaPortfolioApp(t *testing.T, handler *PortfolioHandler, authOK bool)
 	apiV1.Delete(base+"/:id", parse)
 	apiV1.Head(base+"/metrics/count", parse)
 
-	RegisterPortfolioRoutes(hAPI, handler, routeOpSuffixV1)
+	RegisterPortfolioRoutes(hAPI, handler, v1OpSuffix)
 
 	return f
 }

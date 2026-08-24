@@ -85,7 +85,7 @@ func buildHumaSegmentApp(t *testing.T, handler *SegmentHandler, authOK bool) *fi
 	apiV1.Delete(base+"/:id", parse)
 	apiV1.Head(base+"/metrics/count", parse)
 
-	RegisterSegmentRoutes(hAPI, handler, routeOpSuffixV1)
+	RegisterSegmentRoutes(hAPI, handler, v1OpSuffix)
 
 	return f
 }
