@@ -72,7 +72,7 @@ func buildHumaMetadataApp(t *testing.T, handler *MetadataIndexHandler, authOK bo
 
 	hAPI := openapi.New(f, apiV1, openapi.Config{Title: "ledger-test", Version: "test", Servers: []string{"/v1"}})
 
-	RegisterMetadataIndexRoutes(hAPI, handler, routeOpSuffixV1)
+	RegisterMetadataIndexRoutes(hAPI, handler, v1OpSuffix)
 
 	return f
 }
@@ -168,7 +168,7 @@ func TestCreateMetadataIndex_TenantCaptured(t *testing.T) {
 		return c.Next()
 	})
 	hAPI := openapi.New(f, apiV1, openapi.Config{Title: "ledger-test", Version: "test", Servers: []string{"/v1"}})
-	RegisterMetadataIndexRoutes(hAPI, handler, routeOpSuffixV1)
+	RegisterMetadataIndexRoutes(hAPI, handler, v1OpSuffix)
 
 	body, _ := json.Marshal(map[string]any{"metadataKey": "tier"})
 	req := httptest.NewRequest(http.MethodPost, "/v1/settings/metadata-indexes/entities/transaction", bytes.NewReader(body))
@@ -426,7 +426,7 @@ func buildHumaMetadataAppWithTenant(t *testing.T, handler *MetadataIndexHandler,
 
 	hAPI := openapi.New(f, apiV1, openapi.Config{Title: "ledger-test", Version: "test", Servers: []string{"/v1"}})
 
-	RegisterMetadataIndexRoutes(hAPI, handler, routeOpSuffixV1)
+	RegisterMetadataIndexRoutes(hAPI, handler, v1OpSuffix)
 
 	return f
 }

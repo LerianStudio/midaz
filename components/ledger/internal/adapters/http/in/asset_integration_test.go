@@ -197,10 +197,10 @@ func (infra *assetTestInfra) setupRoutes() {
 	apiV1.Delete(assetsPath+"/:id", assetParse)
 	apiV1.Post(accountPath, accountParse)
 
-	RegisterOrganizationRoutes(hAPI, infra.orgHandler, routeOpSuffixV1)
-	RegisterLedgerRoutes(hAPI, infra.ledgerHandler, routeOpSuffixV1)
-	RegisterAssetRoutes(hAPI, infra.assetHandler, routeOpSuffixV1)
-	RegisterAccountRoutes(hAPI, infra.accountHandler, routeOpSuffixV1)
+	RegisterOrganizationRoutes(hAPI, infra.orgHandler, v1OpSuffix)
+	RegisterLedgerRoutes(hAPI, infra.ledgerHandler, v1OpSuffix)
+	RegisterAssetRoutes(hAPI, infra.assetHandler, v1OpSuffix)
+	RegisterAccountRoutes(hAPI, infra.accountHandler, v1OpSuffix)
 }
 
 // createOrganization creates an organization via HTTP and returns its ID.

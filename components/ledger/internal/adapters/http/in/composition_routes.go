@@ -17,7 +17,7 @@ import (
 // resource, and introduces no new policy surface. See registerCompositionRoutesToApp for
 // what it attaches.
 func RegisterCompositionV2RoutesToApp(group fiber.Router, api huma.API, auth *middleware.AuthClient, ch *CompositionHandler, routeOptions *http.ProtectedRouteOptions) {
-	registerCompositionRoutesToApp(group, api, auth, ch, routeOptions, routeOpSuffixV2)
+	registerCompositionRoutesToApp(group, api, auth, ch, routeOptions, v2OpSuffix)
 }
 
 // registerCompositionRoutesToApp is the single description of the holder-account composition
@@ -34,7 +34,7 @@ func RegisterCompositionV2RoutesToApp(group fiber.Router, api huma.API, auth *mi
 // ParseUUIDPathParameters("holder") validates it (and org/ledger).
 //
 // opSuffix distinguishes the operation ID one version group publishes from another's — see
-// routeOpSuffixV2. Nothing else varies between contracts, so a change to the surface reaches
+// v2OpSuffix. Nothing else varies between contracts, so a change to the surface reaches
 // every version it is mounted on.
 func registerCompositionRoutesToApp(group fiber.Router, api huma.API, auth *middleware.AuthClient, ch *CompositionHandler, routeOptions *http.ProtectedRouteOptions, opSuffix string) {
 	const path = "/organizations/:organization_id/ledgers/:ledger_id/holders/:id/accounts"

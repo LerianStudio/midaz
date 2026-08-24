@@ -22,7 +22,7 @@ import (
 // versioned Fiber group BEFORE the Huma terminal, not here. Paths are GROUP-RELATIVE
 // (see asset_handler.go's RegisterAssetRoutes header for the rationale).
 //
-// opSuffix is appended to the operation ID — see crmOpSuffixV2.
+// opSuffix is appended to the operation ID — see v2OpSuffix.
 func RegisterAuditRoutes(api huma.API, h *AuditHandler, opSuffix string) {
 	huma.Register(api, huma.Operation{
 		OperationID: "getAuditEvents" + opSuffix,
@@ -45,7 +45,7 @@ func RegisterAuditV2RoutesToApp(group fiber.Router, api huma.API, auth *middlewa
 		return
 	}
 
-	registerAuditRoutesToApp(group, api, auth, h, routeOptions, crmOpSuffixV2)
+	registerAuditRoutesToApp(group, api, auth, h, routeOptions, v2OpSuffix)
 }
 
 // registerAuditRoutesToApp is the single description of the protection-audit route

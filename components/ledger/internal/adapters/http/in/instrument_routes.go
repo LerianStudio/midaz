@@ -23,7 +23,7 @@ import (
 // "instruments" (see registerInstrumentRoutesToApp). Paths are GROUP-RELATIVE (see
 // asset_handler.go's RegisterAssetRoutes header for the rationale).
 //
-// opSuffix is appended to every operation ID — see crmOpSuffixV2.
+// opSuffix is appended to every operation ID — see v2OpSuffix.
 func RegisterInstrumentRoutes(api huma.API, h *InstrumentHandler, opSuffix string) {
 	const (
 		listPath     = "/organizations/{organization_id}/instruments"
@@ -101,7 +101,7 @@ func RegisterInstrumentRoutes(api huma.API, h *InstrumentHandler, opSuffix strin
 // which is the ONLY version group that serves it. See registerInstrumentRoutesToApp for
 // the auth chain and tenant options it attaches.
 func RegisterInstrumentV2RoutesToApp(group fiber.Router, api huma.API, auth *middleware.AuthClient, h *InstrumentHandler, routeOptions *pkgHTTP.ProtectedRouteOptions) {
-	registerInstrumentRoutesToApp(group, api, auth, h, routeOptions, crmOpSuffixV2)
+	registerInstrumentRoutesToApp(group, api, auth, h, routeOptions, v2OpSuffix)
 }
 
 // registerInstrumentRoutesToApp is the single description of the instrument route

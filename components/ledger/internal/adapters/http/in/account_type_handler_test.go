@@ -92,7 +92,7 @@ func buildHumaAccountTypeApp(t *testing.T, handler *AccountTypeHandler, authOK b
 	apiV1.Patch(base+"/:id", parse)
 	apiV1.Delete(base+"/:id", parse)
 
-	RegisterAccountTypeRoutes(hAPI, handler, routeOpSuffixV1)
+	RegisterAccountTypeRoutes(hAPI, handler, v1OpSuffix)
 
 	return f
 }

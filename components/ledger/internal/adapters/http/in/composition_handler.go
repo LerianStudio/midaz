@@ -98,7 +98,7 @@ func (handler *CompositionHandler) CreateHolderAccount(ctx context.Context, in *
 // header for the version-prefix rationale).
 //
 // opSuffix distinguishes the operation ID one version group publishes from another's —
-// see routeOpSuffixV1. Both version groups share one document, so the v1 op and its v2
+// see v1OpSuffix. Both version groups share one document, so the v1 op and its v2
 // twin MUST carry distinct IDs or huma.OpenAPI.AddOperation panics at boot.
 func RegisterCompositionRoutes(api huma.API, h *CompositionHandler, opSuffix string) {
 	huma.Register(api, huma.Operation{

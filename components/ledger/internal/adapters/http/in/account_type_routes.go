@@ -24,7 +24,7 @@ import (
 // humafiber adapter registers on that group and Fiber prepends the version prefix.
 //
 // opSuffix distinguishes the operation IDs one version group publishes from another's —
-// see routeOpSuffixV1. A straight v1/v2 mirror reuses the same handler methods and the
+// see v1OpSuffix. A straight v1/v2 mirror reuses the same handler methods and the
 // same input/output types, so only the operation IDs differ between the twins.
 func RegisterAccountTypeRoutes(api huma.API, h *AccountTypeHandler, opSuffix string) {
 	const (
@@ -90,7 +90,7 @@ func RegisterAccountTypeRoutes(api huma.API, h *AccountTypeHandler, opSuffix str
 // RegisterAccountTypeRoutesToApp wires the account-type surface onto the
 // /v1 contract. See registerAccountTypeRoutesToApp for what it attaches.
 func RegisterAccountTypeRoutesToApp(group fiber.Router, api huma.API, auth *middleware.AuthClient, h *AccountTypeHandler, routeOptions *pkgHTTP.ProtectedRouteOptions) {
-	registerAccountTypeRoutesToApp(group, api, auth, h, routeOptions, routeOpSuffixV1)
+	registerAccountTypeRoutesToApp(group, api, auth, h, routeOptions, v1OpSuffix)
 }
 
 // RegisterAccountTypeV2RoutesToApp wires the same account-type surface onto the /v2
@@ -98,7 +98,7 @@ func RegisterAccountTypeRoutesToApp(group fiber.Router, api huma.API, auth *midd
 // in the operation IDs the contract publishes. It is additive — /v1 keeps serving
 // account-types in parallel — and introduces no new policy surface.
 func RegisterAccountTypeV2RoutesToApp(group fiber.Router, api huma.API, auth *middleware.AuthClient, h *AccountTypeHandler, routeOptions *pkgHTTP.ProtectedRouteOptions) {
-	registerAccountTypeRoutesToApp(group, api, auth, h, routeOptions, routeOpSuffixV2)
+	registerAccountTypeRoutesToApp(group, api, auth, h, routeOptions, v2OpSuffix)
 }
 
 // registerAccountTypeRoutesToApp is the single description of the account-type route
@@ -113,7 +113,7 @@ func RegisterAccountTypeV2RoutesToApp(group fiber.Router, api huma.API, auth *mi
 // (post, patch, get-by-id, list, delete) matches routes.go.
 //
 // opSuffix distinguishes the operation IDs one version group publishes from another's —
-// see routeOpSuffixV1. Nothing else varies between contracts, so a change to the surface
+// see v1OpSuffix. Nothing else varies between contracts, so a change to the surface
 // reaches every version it is mounted on.
 func registerAccountTypeRoutesToApp(group fiber.Router, api huma.API, auth *middleware.AuthClient, h *AccountTypeHandler, routeOptions *pkgHTTP.ProtectedRouteOptions, opSuffix string) {
 	const (

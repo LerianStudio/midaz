@@ -21,7 +21,7 @@ import (
 // registerPortfolioRoutesToApp (Fiber-level), NOT here.
 //
 // opSuffix distinguishes the operation IDs one version group publishes from another's —
-// see routeOpSuffixV1. A straight v1/v2 mirror reuses the same handler methods and the
+// see v1OpSuffix. A straight v1/v2 mirror reuses the same handler methods and the
 // same input/output types, so only the operation IDs differ between the twins.
 func RegisterPortfolioRoutes(api huma.API, h *PortfolioHandler, opSuffix string) {
 	const (
@@ -96,7 +96,7 @@ func RegisterPortfolioRoutes(api huma.API, h *PortfolioHandler, opSuffix string)
 // RegisterPortfolioRoutesToApp wires the portfolio surface onto the /v1
 // contract. See registerPortfolioRoutesToApp for what it attaches.
 func RegisterPortfolioRoutesToApp(group fiber.Router, api huma.API, auth *middleware.AuthClient, ph *PortfolioHandler, routeOptions *pkgHTTP.ProtectedRouteOptions) {
-	registerPortfolioRoutesToApp(group, api, auth, ph, routeOptions, routeOpSuffixV1)
+	registerPortfolioRoutesToApp(group, api, auth, ph, routeOptions, v1OpSuffix)
 }
 
 // RegisterPortfolioV2RoutesToApp wires the same portfolio surface onto the /v2 contract:
@@ -104,7 +104,7 @@ func RegisterPortfolioRoutesToApp(group fiber.Router, api huma.API, auth *middle
 // operation IDs the contract publishes. It is additive — /v1 keeps serving portfolios in
 // parallel — and introduces no new policy surface.
 func RegisterPortfolioV2RoutesToApp(group fiber.Router, api huma.API, auth *middleware.AuthClient, ph *PortfolioHandler, routeOptions *pkgHTTP.ProtectedRouteOptions) {
-	registerPortfolioRoutesToApp(group, api, auth, ph, routeOptions, routeOpSuffixV2)
+	registerPortfolioRoutesToApp(group, api, auth, ph, routeOptions, v2OpSuffix)
 }
 
 // registerPortfolioRoutesToApp is the single description of the portfolio route surface,
@@ -118,7 +118,7 @@ func RegisterPortfolioV2RoutesToApp(group fiber.Router, api huma.API, auth *midd
 // portfolio route becomes public.
 //
 // opSuffix distinguishes the operation IDs one version group publishes from another's —
-// see routeOpSuffixV1. Nothing else varies between contracts, so a change to the surface
+// see v1OpSuffix. Nothing else varies between contracts, so a change to the surface
 // reaches every version it is mounted on.
 func registerPortfolioRoutesToApp(group fiber.Router, api huma.API, auth *middleware.AuthClient, ph *PortfolioHandler, routeOptions *pkgHTTP.ProtectedRouteOptions, opSuffix string) {
 	const (

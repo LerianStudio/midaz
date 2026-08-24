@@ -62,7 +62,7 @@ var transactionMirrorV2RemovedCreateActions = []struct {
 }
 
 // transactionMirrorV2OperationSuffix is the version suffix a v2 twin appends to its v1
-// operationId. It is spelled literally rather than read from routeOpSuffixV2 so a rename of the
+// operationId. It is spelled literally rather than read from v2OpSuffix so a rename of the
 // production constant surfaces as a contract change client SDKs would feel, not a silently-
 // tracking test.
 const transactionMirrorV2OperationSuffix = "V2"

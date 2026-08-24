@@ -24,7 +24,7 @@ import (
 // humafiber adapter registers on that group and Fiber prepends the version prefix.
 //
 // opSuffix distinguishes the operation IDs one version group publishes from another's —
-// see routeOpSuffixV1. A straight v1/v2 mirror reuses the same handler methods and the
+// see v1OpSuffix. A straight v1/v2 mirror reuses the same handler methods and the
 // same input/output types, so only the operation IDs differ between the twins.
 func RegisterAssetRoutes(api huma.API, h *AssetHandler, opSuffix string) {
 	const (
@@ -103,7 +103,7 @@ func RegisterAssetRoutes(api huma.API, h *AssetHandler, opSuffix string) {
 // RegisterAssetRoutesToApp wires the asset surface onto the /v1
 // contract. See registerAssetRoutesToApp for what it attaches.
 func RegisterAssetRoutesToApp(group fiber.Router, api huma.API, auth *middleware.AuthClient, ih *AssetHandler, routeOptions *pkgHTTP.ProtectedRouteOptions) {
-	registerAssetRoutesToApp(group, api, auth, ih, routeOptions, routeOpSuffixV1)
+	registerAssetRoutesToApp(group, api, auth, ih, routeOptions, v1OpSuffix)
 }
 
 // RegisterAssetV2RoutesToApp wires the same asset surface onto the /v2 contract: same paths,
@@ -111,7 +111,7 @@ func RegisterAssetRoutesToApp(group fiber.Router, api huma.API, auth *middleware
 // contract publishes. It is additive — /v1 keeps serving assets in parallel — and introduces
 // no new policy surface.
 func RegisterAssetV2RoutesToApp(group fiber.Router, api huma.API, auth *middleware.AuthClient, ih *AssetHandler, routeOptions *pkgHTTP.ProtectedRouteOptions) {
-	registerAssetRoutesToApp(group, api, auth, ih, routeOptions, routeOpSuffixV2)
+	registerAssetRoutesToApp(group, api, auth, ih, routeOptions, v2OpSuffix)
 }
 
 // registerAssetRoutesToApp is the single description of the asset route surface, shared by
@@ -124,7 +124,7 @@ func RegisterAssetV2RoutesToApp(group fiber.Router, api huma.API, auth *middlewa
 // public.
 //
 // opSuffix distinguishes the operation IDs one version group publishes from another's — see
-// routeOpSuffixV1. Nothing else varies between contracts, so a change to the surface reaches
+// v1OpSuffix. Nothing else varies between contracts, so a change to the surface reaches
 // every version it is mounted on.
 func registerAssetRoutesToApp(group fiber.Router, api huma.API, auth *middleware.AuthClient, ih *AssetHandler, routeOptions *pkgHTTP.ProtectedRouteOptions, opSuffix string) {
 	const (

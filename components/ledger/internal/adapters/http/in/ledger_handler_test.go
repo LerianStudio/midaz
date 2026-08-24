@@ -95,7 +95,7 @@ func buildHumaLedgerApp(t *testing.T, handler *LedgerHandler, authOK bool) *fibe
 	apiV1.Get(id+"/settings", parse)
 	apiV1.Patch(id+"/settings", parse)
 
-	RegisterLedgerRoutes(hAPI, handler, routeOpSuffixV1)
+	RegisterLedgerRoutes(hAPI, handler, v1OpSuffix)
 
 	return f
 }

@@ -22,7 +22,7 @@ import (
 // Paths are GROUP-RELATIVE (see asset_handler.go's RegisterAssetRoutes header
 // for the rationale).
 //
-// opSuffix is appended to every operation ID — see crmOpSuffixV2.
+// opSuffix is appended to every operation ID — see v2OpSuffix.
 func RegisterHolderRoutes(api huma.API, h *HolderHandler, opSuffix string) {
 	const (
 		listPath = "/organizations/{organization_id}/holders"
@@ -88,7 +88,7 @@ func RegisterHolderRoutes(api huma.API, h *HolderHandler, opSuffix string) {
 // the ONLY version group that serves it. See registerHolderRoutesToApp for the auth
 // chain and tenant options it attaches.
 func RegisterHolderV2RoutesToApp(group fiber.Router, api huma.API, auth *middleware.AuthClient, h *HolderHandler, routeOptions *pkgHTTP.ProtectedRouteOptions) {
-	registerHolderRoutesToApp(group, api, auth, h, routeOptions, crmOpSuffixV2)
+	registerHolderRoutesToApp(group, api, auth, h, routeOptions, v2OpSuffix)
 }
 
 // registerHolderRoutesToApp is the single description of the holder route surface,

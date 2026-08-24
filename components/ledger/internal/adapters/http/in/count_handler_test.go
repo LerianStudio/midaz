@@ -74,7 +74,7 @@ func buildHumaCountApp(t *testing.T, handler *TransactionHandler, authOK bool) *
 	parse := pkgHTTP.ParseUUIDPathParameters("transaction")
 	apiV1.Head("/organizations/:organization_id/ledgers/:ledger_id/transactions/metrics/count", parse)
 
-	RegisterCountTransactionRoutes(hAPI, handler, routeOpSuffixV1)
+	RegisterCountTransactionRoutes(hAPI, handler, v1OpSuffix)
 
 	return f
 }

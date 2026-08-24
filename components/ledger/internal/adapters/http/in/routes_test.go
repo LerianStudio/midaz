@@ -315,7 +315,7 @@ func TestAuthz_RoutingResources_AuthorizeUnderMidazAppName(t *testing.T) {
 		{
 			name: "operation-routes",
 			register: func(group fiber.Router, api huma.API, auth *middleware.AuthClient) {
-				registerOperationRouteRoutesToApp(group, api, auth, &OperationRouteHandler{}, nil, routeOpSuffixV1)
+				registerOperationRouteRoutesToApp(group, api, auth, &OperationRouteHandler{}, nil, v1OpSuffix)
 			},
 			list: base + "/operation-routes",
 			byID: base + "/operation-routes/" + resourceID.String(),
@@ -323,7 +323,7 @@ func TestAuthz_RoutingResources_AuthorizeUnderMidazAppName(t *testing.T) {
 		{
 			name: "transaction-routes",
 			register: func(group fiber.Router, api huma.API, auth *middleware.AuthClient) {
-				registerTransactionRouteRoutesToApp(group, api, auth, &TransactionRouteHandler{}, nil, routeOpSuffixV1)
+				registerTransactionRouteRoutesToApp(group, api, auth, &TransactionRouteHandler{}, nil, v1OpSuffix)
 			},
 			list: base + "/transaction-routes",
 			byID: base + "/transaction-routes/" + resourceID.String(),
@@ -331,7 +331,7 @@ func TestAuthz_RoutingResources_AuthorizeUnderMidazAppName(t *testing.T) {
 		{
 			name: "account-types",
 			register: func(group fiber.Router, api huma.API, auth *middleware.AuthClient) {
-				registerAccountTypeRoutesToApp(group, api, auth, &AccountTypeHandler{}, nil, routeOpSuffixV1)
+				registerAccountTypeRoutesToApp(group, api, auth, &AccountTypeHandler{}, nil, v1OpSuffix)
 			},
 			list: base + "/account-types",
 			byID: base + "/account-types/" + resourceID.String(),

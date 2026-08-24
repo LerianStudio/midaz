@@ -23,7 +23,7 @@ import (
 // Paths are GROUP-RELATIVE: the Huma API is bound to a versioned Fiber group, so the
 // humafiber adapter registers on that group and Fiber prepends the version prefix.
 //
-// opSuffix is appended to each operation ID (see routeOpSuffixV1), keeping the parameter
+// opSuffix is appended to each operation ID (see v1OpSuffix), keeping the parameter
 // shape identical to the sibling dual-version registrars. Asset-rate is served on /v1 only
 // and has no v2 twin, so a single suffix is in play; the PUT upsert carries it exactly like
 // the two GETs.
@@ -70,7 +70,7 @@ func RegisterAssetRateRoutes(api huma.API, h *AssetRateHandler, opSuffix string)
 // RegisterAssetRateRoutesToApp wires the asset-rate surface onto the /v1
 // contract. See registerAssetRateRoutesToApp for what it attaches.
 func RegisterAssetRateRoutesToApp(group fiber.Router, api huma.API, auth *middleware.AuthClient, h *AssetRateHandler, routeOptions *pkgHTTP.ProtectedRouteOptions) {
-	registerAssetRateRoutesToApp(group, api, auth, h, routeOptions, routeOpSuffixV1)
+	registerAssetRateRoutesToApp(group, api, auth, h, routeOptions, v1OpSuffix)
 }
 
 // registerAssetRateRoutesToApp is the single description of the asset-rate route surface,
@@ -83,7 +83,7 @@ func RegisterAssetRateRoutesToApp(group fiber.Router, api huma.API, auth *middle
 // ("asset-rates", verb), with the "asset-rate" entity-name for
 // ParseUUIDPathParameters — no asset-rate route is public on the /v1 group. asset-rate is MONEY-adjacent (exchange rates).
 //
-// opSuffix is appended to each operation ID (see routeOpSuffixV1). It keeps this registrar's
+// opSuffix is appended to each operation ID (see v1OpSuffix). It keeps this registrar's
 // signature identical to the sibling dual-version registrars; asset-rate mounts on /v1 only,
 // so a single suffix is in play.
 func registerAssetRateRoutesToApp(group fiber.Router, api huma.API, auth *middleware.AuthClient, h *AssetRateHandler, routeOptions *pkgHTTP.ProtectedRouteOptions, opSuffix string) {

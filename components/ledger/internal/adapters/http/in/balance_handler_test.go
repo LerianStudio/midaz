@@ -85,7 +85,7 @@ func buildHumaBalanceApp(t *testing.T, handler *BalanceHandler, authOK bool) *fi
 	apiV1.Get(orgLedger+"/accounts/alias/:alias/balances", parse)
 	apiV1.Get(orgLedger+"/accounts/external/:code/balances", parse)
 
-	RegisterBalanceRoutes(hAPI, handler, routeOpSuffixV1)
+	RegisterBalanceRoutes(hAPI, handler, v1OpSuffix)
 
 	return f
 }

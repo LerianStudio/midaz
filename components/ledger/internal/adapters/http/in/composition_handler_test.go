@@ -87,7 +87,7 @@ func buildHumaCompositionApp(t *testing.T, handler *CompositionHandler, authOK b
 	parse := pkgHTTP.ParseUUIDPathParameters("holder")
 	apiV2.Post("/organizations/:organization_id/ledgers/:ledger_id/holders/:id/accounts", parse)
 
-	RegisterCompositionRoutes(hAPI, handler, routeOpSuffixV2)
+	RegisterCompositionRoutes(hAPI, handler, v2OpSuffix)
 
 	return f
 }

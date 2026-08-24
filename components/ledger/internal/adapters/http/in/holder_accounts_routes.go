@@ -20,7 +20,7 @@ import (
 // `if hah != nil` guard in routes_op_suffix.go). Auth is ("midaz","holders","get")
 // + ParseUUIDPathParameters("holder"), attached BEFORE the Huma terminal.
 //
-// opSuffix is appended to the operation ID — see crmOpSuffixV2.
+// opSuffix is appended to the operation ID — see v2OpSuffix.
 func RegisterHolderAccountsRoutes(api huma.API, h *HolderAccountsHandler, opSuffix string) {
 	huma.Register(api, huma.Operation{
 		OperationID: "listAccountsByHolder" + opSuffix,
@@ -44,7 +44,7 @@ func RegisterHolderAccountsV2RoutesToApp(group fiber.Router, api huma.API, auth 
 		return
 	}
 
-	registerHolderAccountsRoutesToApp(group, api, auth, h, routeOptions, crmOpSuffixV2)
+	registerHolderAccountsRoutesToApp(group, api, auth, h, routeOptions, v2OpSuffix)
 }
 
 // registerHolderAccountsRoutesToApp is the single description of the holder-accounts

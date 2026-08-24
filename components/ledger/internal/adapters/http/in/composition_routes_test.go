@@ -30,7 +30,7 @@ var compositionV2Ops = []struct {
 }
 
 // compositionV2OperationSuffix is the version suffix the v2 op appends to its base operationId.
-// It is spelled literally here rather than read from routeOpSuffixV2 so a rename of the
+// It is spelled literally here rather than read from v2OpSuffix so a rename of the
 // production constant surfaces as a contract change the client SDKs would feel, not a
 // silently-tracking test.
 const compositionV2OperationSuffix = "V2"

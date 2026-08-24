@@ -39,7 +39,7 @@ var accountV2Ops = []struct {
 }
 
 // accountV2OperationSuffix is the version suffix a v2 twin appends to its v1 operationId.
-// It is spelled literally here rather than read from routeOpSuffixV2 so a rename of the
+// It is spelled literally here rather than read from v2OpSuffix so a rename of the
 // production constant surfaces as a contract change the client SDKs would feel, not a
 // silently-tracking test.
 const accountV2OperationSuffix = "V2"

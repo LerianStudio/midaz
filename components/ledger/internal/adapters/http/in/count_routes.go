@@ -22,7 +22,7 @@ import (
 // GROUP-RELATIVE (the group's PrefixModifier writes the version into each op's op.Path, not into a servers entry).
 //
 // opSuffix distinguishes the operation ID one version group publishes from another's — see
-// routeOpSuffixV1. The v1 group passes the empty suffix so its ID stays exactly what published
+// v1OpSuffix. The v1 group passes the empty suffix so its ID stays exactly what published
 // SDKs bind to; the v2 group passes "V2" so its twin does not collide in the one document.
 func RegisterCountTransactionRoutes(api huma.API, h *TransactionHandler, opSuffix string) {
 	huma.Register(api, huma.Operation{
@@ -41,7 +41,7 @@ func RegisterCountTransactionRoutes(api huma.API, h *TransactionHandler, opSuffi
 // RegisterCountTransactionRoutesToApp wires the transaction-count HEAD op onto the /v1
 // contract. See registerCountTransactionRoutesToApp for what it attaches.
 func RegisterCountTransactionRoutesToApp(group fiber.Router, api huma.API, auth *middleware.AuthClient, th *TransactionHandler, routeOptions *pkgHTTP.ProtectedRouteOptions) {
-	registerCountTransactionRoutesToApp(group, api, auth, th, routeOptions, routeOpSuffixV1)
+	registerCountTransactionRoutesToApp(group, api, auth, th, routeOptions, v1OpSuffix)
 }
 
 // RegisterCountTransactionV2RoutesToApp wires the same transaction-count HEAD op onto the /v2
@@ -49,7 +49,7 @@ func RegisterCountTransactionRoutesToApp(group fiber.Router, api huma.API, auth 
 // operation ID the contract publishes. It is additive — /v1 keeps serving the count in parallel
 // — and introduces no new policy surface.
 func RegisterCountTransactionV2RoutesToApp(group fiber.Router, api huma.API, auth *middleware.AuthClient, th *TransactionHandler, routeOptions *pkgHTTP.ProtectedRouteOptions) {
-	registerCountTransactionRoutesToApp(group, api, auth, th, routeOptions, routeOpSuffixV2)
+	registerCountTransactionRoutesToApp(group, api, auth, th, routeOptions, v2OpSuffix)
 }
 
 // registerCountTransactionRoutesToApp is the single description of the transaction-count route
@@ -61,7 +61,7 @@ func RegisterCountTransactionV2RoutesToApp(group fiber.Router, api huma.API, aut
 // tenant resolution BYTE-FOR-BYTE on whichever version group it is mounted on.
 //
 // opSuffix distinguishes the operation ID one version group publishes from another's — see
-// routeOpSuffixV1. Nothing else varies between contracts, so a change to the surface reaches
+// v1OpSuffix. Nothing else varies between contracts, so a change to the surface reaches
 // every version it is mounted on.
 func registerCountTransactionRoutesToApp(group fiber.Router, api huma.API, auth *middleware.AuthClient, th *TransactionHandler, routeOptions *pkgHTTP.ProtectedRouteOptions, opSuffix string) {
 	const countPath = "/organizations/:organization_id/ledgers/:ledger_id/transactions/metrics/count"

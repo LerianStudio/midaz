@@ -23,7 +23,7 @@ import (
 // versioned Fiber group BEFORE the Huma terminal, not here. Paths are GROUP-RELATIVE
 // (see asset_handler.go's RegisterAssetRoutes header for the rationale).
 //
-// opSuffix is appended to every operation ID — see crmOpSuffixV2.
+// opSuffix is appended to every operation ID — see v2OpSuffix.
 func RegisterEncryptionRoutes(api huma.API, h *EncryptionHandler, opSuffix string) {
 	const (
 		provisionPath = "/organizations/{organization_id}/encryption/provision"
@@ -65,7 +65,7 @@ func RegisterEncryptionV2RoutesToApp(group fiber.Router, api huma.API, auth *mid
 		return
 	}
 
-	registerEncryptionRoutesToApp(group, api, auth, h, routeOptions, crmOpSuffixV2)
+	registerEncryptionRoutesToApp(group, api, auth, h, routeOptions, v2OpSuffix)
 }
 
 // registerEncryptionRoutesToApp is the single description of the encryption route

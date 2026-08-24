@@ -79,7 +79,7 @@ func buildHumaInstrumentApp(t *testing.T, handler *InstrumentHandler, authOK boo
 
 	hAPI := openapi.New(f, apiV2, openapi.Config{Title: "ledger-test", Version: "test", Servers: []string{"/v2"}})
 
-	RegisterInstrumentRoutes(hAPI, handler, crmOpSuffixV2)
+	RegisterInstrumentRoutes(hAPI, handler, v2OpSuffix)
 
 	return f
 }
