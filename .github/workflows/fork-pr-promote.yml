@@ -55,6 +55,6 @@ jobs:
             gh pr create \
               --base develop \
               --head fork \
-              --title "Promote fork -> develop" \
+              --title "chore(release): promote fork -> develop" \
               --body "Opened automatically after #${{ github.event.pull_request.number }} merged into \`fork\`. Same-repo branch — runs full CI with secrets."
           fi
