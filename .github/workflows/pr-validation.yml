@@ -51,6 +51,9 @@ jobs:
         components/tracer
       go_private_modules: "github.com/LerianStudio/*"
       ignore_file: ".trivyignore"
+      # Default plus .coderabbit.yaml: it's a CodeRabbit-only config file,
+      # not something the Go analysis/security pipelines need to react to.
+      ignore_globs: "*.md docs/* .github/* LICENSE* .gitignore .coderabbit.yaml"
       shared_paths: |
         go.mod
         go.sum
