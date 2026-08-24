@@ -1,0 +1,26 @@
+name: Backmerge
+
+# Keeps develop -> fork in sync using the shared backmerge orchestrator
+# (rather than a bespoke merge script), so the persistent `fork` branch
+# (see fork-pr-notice.yml / fork-pr-promote.yml) doesn't drift stale for
+# external contributors. direct-with-pr-fallback: merges straight to fork
+# when possible, opens a PR instead of failing when develop and fork's own
+# unpromoted commits conflict.
+
+on:
+  push:
+    branches: [develop]
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  backmerge:
+    uses: LerianStudio/github-actions-shared-workflows/.github/workflows/backmerge.yml@v1.57.0
+    with:
+      rules: |
+        [
+          { "from": "develop", "to": "fork", "mode": "direct-with-pr-fallback" }
+        ]
+    secrets: inherit
