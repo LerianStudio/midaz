@@ -113,4 +113,8 @@ jobs:
           EOF
           fi
 
-          gh pr comment "$PR_NUMBER" --body-file /tmp/notice-body.md
+          # --edit-last updates this workflow's own previous comment on the
+          # PR (e.g. the initial wrong-branch warning) instead of piling up
+          # a new one on every retarget/edit; --create-if-none covers the
+          # first run, when there's nothing yet to edit.
+          gh pr comment "$PR_NUMBER" --edit-last --create-if-none --body-file /tmp/notice-body.md
