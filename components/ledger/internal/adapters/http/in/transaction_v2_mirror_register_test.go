@@ -31,7 +31,7 @@ const (
 //
 // The legacy-create paths (json/inflow/outflow/annotation) are NOT mirrored onto /v2: they are
 // served on /v1 only, and the /v2 transaction create surface is the flat-body direct/hold/
-// block/unblock model in transaction_v2_register.go. block/unblock create and commit/cancel/
+// block/unblock model in transaction_routes_v2.go. block/unblock create and commit/cancel/
 // revert lifecycle are likewise absent, because those already carry v2 operationIds via
 // RegisterTransactionV2Routes and mirroring them would collide as a duplicate operationId in the
 // one document. The retired legacy-create twins are pinned as absent by

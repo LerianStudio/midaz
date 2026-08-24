@@ -17,7 +17,7 @@ import (
 
 // This file publishes the organization/ledger-scoped transaction reads and the PATCH update on the
 // /v2 version group of the shared Huma contract. It is a BESPOKE registrar, distinct from
-// transaction_v2_register.go: that file owns the ops that have a dedicated v2 wire shape (the
+// transaction_routes_v2.go: that file owns the ops that have a dedicated v2 wire shape (the
 // flat-body create direct/hold/block/unblock and the commit/cancel/revert lifecycle shells). This
 // file carries the THREE remaining transaction ops — the PATCH update and the two reads (get-by-id
 // + list) — pointing each at its dedicated /v2 handler method (UpdateTransactionV2,
@@ -29,7 +29,7 @@ import (
 //
 // The legacy-create ops (json/inflow/outflow/annotation) are served on /v1 only; the /v2
 // transaction create surface is the flat-body direct/hold/block/unblock model in
-// transaction_v2_register.go. block/unblock create and commit/cancel/revert lifecycle are also
+// transaction_routes_v2.go. block/unblock create and commit/cancel/revert lifecycle are also
 // absent here: they already publish v2 operationIds via RegisterTransactionV2Routes, and
 // re-registering them with the same +V2 suffix would emit a duplicate operationId — and
 // huma.OpenAPI.AddOperation scans the whole document and panics on a duplicate, a boot panic.

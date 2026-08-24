@@ -96,7 +96,7 @@ func assertNoDedupSuffixCollision(t *testing.T, doc *huma.OpenAPI) {
 // request and leg components.
 //
 // The expected refs are resolved off the registry by type, exactly as
-// transaction_v2_register.go resolves them, so a schema-namer change surfaces here as a
+// transaction_routes_v2.go resolves them, so a schema-namer change surfaces here as a
 // mismatch rather than being baked in as a literal ref string.
 func assertV2CreateBodiesTyped(t *testing.T, doc *huma.OpenAPI) {
 	require.NotNil(t, doc.Components, "document must carry components")
