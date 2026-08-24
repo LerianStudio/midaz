@@ -40,6 +40,7 @@ jobs:
         ci
         docs
         tests
+        release
       go_version: "1.26.6"
       golangci_lint_version: "v2.12.2"
       app_name_prefix: "midaz"
