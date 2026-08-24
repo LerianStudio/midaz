@@ -19,6 +19,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"go.mongodb.org/mongo-driver/v2/mongo"
 	"go.uber.org/mock/gomock"
 )
@@ -424,8 +425,11 @@ func TestEstimateFeeCalculation_PackageNotFound_OtherError(t *testing.T) {
 	assert.Equal(t, otherError, err)
 }
 
-// TestEstimateFeeCalculation_ValidationError tests error in transaction validation
-func TestEstimateFeeCalculation_ValidationError(t *testing.T) {
+// TestEstimateFeeCalculation_PropagatesValidatorTypedError asserts that the typed
+// error from ValidateSendSourceAndDistribute reaches the caller unchanged: an
+// unbalanced send is a semantic 422 (UnprocessableOperationError), never a
+// syntactic missing-field 400.
+func TestEstimateFeeCalculation_PropagatesValidatorTypedError(t *testing.T) {
 	t.Parallel()
 
 	ctrl := gomock.NewController(t)
@@ -470,9 +474,14 @@ func TestEstimateFeeCalculation_ValidationError(t *testing.T) {
 
 	ctx := context.Background()
 	result, err := feeSvc.EstimateFeeCalculation(ctx, feeEstimate, orgID)
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Nil(t, result)
-	assert.Contains(t, err.Error(), constant.ErrMissingFieldsInRequest.Error())
+
+	var unprocessable pkg.UnprocessableOperationError
+	require.ErrorAs(t, err, &unprocessable, "the validator's typed 422 must propagate, not be re-wrapped as a 400")
+	assert.Equal(t, constant.ErrTransactionValueMismatch.Error(), unprocessable.Code)
+	assert.Equal(t, "ValidateSendSourceAndDistribute", unprocessable.EntityType)
+	assert.NotContains(t, err.Error(), constant.ErrMissingFieldsInRequest.Error())
 }
 
 // TestEstimateFeeCalculation_ValueBelowMinimum tests when value is below minimum

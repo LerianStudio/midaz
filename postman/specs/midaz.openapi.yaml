@@ -172,26 +172,18 @@ paths:
           description: OK
         default:
           content:
-            application/problem+json:
+            application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: '#/components/schemas/LegacyError'
           description: Error
       security:
         - BearerAuth: []
-        - ApiKeyAuth: []
       summary: List all organizations
       tags:
         - Midaz_Ledger_API_Organizations (v1)
     post:
       deprecated: true
       operationId: createOrganization
-      parameters:
-        - description: Bearer token (forwarded to the service)
-          in: header
-          name: Authorization
-          schema:
-            description: Bearer token (forwarded to the service)
-            type: string
       requestBody:
         content:
           application/json:
@@ -207,13 +199,12 @@ paths:
           description: Created
         default:
           content:
-            application/problem+json:
+            application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: '#/components/schemas/LegacyError'
           description: Error
       security:
         - BearerAuth: []
-        - ApiKeyAuth: []
       summary: Create a new organization
       tags:
         - Midaz_Ledger_API_Organizations (v1)
@@ -233,13 +224,12 @@ paths:
                 type: string
         default:
           content:
-            application/problem+json:
+            application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: '#/components/schemas/LegacyError'
           description: Error
       security:
         - BearerAuth: []
-        - ApiKeyAuth: []
       summary: Count total organizations
       tags:
         - Midaz_Ledger_API_Organizations (v1)
@@ -260,13 +250,12 @@ paths:
           description: No Content
         default:
           content:
-            application/problem+json:
+            application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: '#/components/schemas/LegacyError'
           description: Error
       security:
         - BearerAuth: []
-        - ApiKeyAuth: []
       summary: Delete an organization
       tags:
         - Midaz_Ledger_API_Organizations (v1)
@@ -290,13 +279,12 @@ paths:
           description: OK
         default:
           content:
-            application/problem+json:
+            application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: '#/components/schemas/LegacyError'
           description: Error
       security:
         - BearerAuth: []
-        - ApiKeyAuth: []
       summary: Retrieve a specific organization
       tags:
         - Midaz_Ledger_API_Organizations (v1)
@@ -326,13 +314,12 @@ paths:
           description: OK
         default:
           content:
-            application/problem+json:
+            application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: '#/components/schemas/LegacyError'
           description: Error
       security:
         - BearerAuth: []
-        - ApiKeyAuth: []
       summary: Update an existing organization
       tags:
         - Midaz_Ledger_API_Organizations (v1)
@@ -413,13 +400,12 @@ paths:
           description: OK
         default:
           content:
-            application/problem+json:
+            application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: '#/components/schemas/LegacyError'
           description: Error
       security:
         - BearerAuth: []
-        - ApiKeyAuth: []
       summary: List all ledgers
       tags:
         - Midaz_Ledger_API_Ledgers (v1)
@@ -449,13 +435,12 @@ paths:
           description: Created
         default:
           content:
-            application/problem+json:
+            application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: '#/components/schemas/LegacyError'
           description: Error
       security:
         - BearerAuth: []
-        - ApiKeyAuth: []
       summary: Create a new ledger
       tags:
         - Midaz_Ledger_API_Ledgers (v1)
@@ -483,13 +468,12 @@ paths:
                 type: string
         default:
           content:
-            application/problem+json:
+            application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: '#/components/schemas/LegacyError'
           description: Error
       security:
         - BearerAuth: []
-        - ApiKeyAuth: []
       summary: Count total ledgers
       tags:
         - Midaz_Ledger_API_Ledgers (v1)
@@ -517,13 +501,12 @@ paths:
           description: No Content
         default:
           content:
-            application/problem+json:
+            application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: '#/components/schemas/LegacyError'
           description: Error
       security:
         - BearerAuth: []
-        - ApiKeyAuth: []
       summary: Delete a ledger
       tags:
         - Midaz_Ledger_API_Ledgers (v1)
@@ -554,13 +537,12 @@ paths:
           description: OK
         default:
           content:
-            application/problem+json:
+            application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: '#/components/schemas/LegacyError'
           description: Error
       security:
         - BearerAuth: []
-        - ApiKeyAuth: []
       summary: Retrieve a specific ledger
       tags:
         - Midaz_Ledger_API_Ledgers (v1)
@@ -597,13 +579,12 @@ paths:
           description: OK
         default:
           content:
-            application/problem+json:
+            application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: '#/components/schemas/LegacyError'
           description: Error
       security:
         - BearerAuth: []
-        - ApiKeyAuth: []
       summary: Update an existing ledger
       tags:
         - Midaz_Ledger_API_Ledgers (v1)
@@ -691,13 +672,12 @@ paths:
           description: OK
         default:
           content:
-            application/problem+json:
+            application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: '#/components/schemas/LegacyError'
           description: Error
       security:
         - BearerAuth: []
-        - ApiKeyAuth: []
       summary: List all account types
       tags:
         - Midaz_Ledger_API_Account Types (v1)
@@ -734,13 +714,12 @@ paths:
           description: Created
         default:
           content:
-            application/problem+json:
+            application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: '#/components/schemas/LegacyError'
           description: Error
       security:
         - BearerAuth: []
-        - ApiKeyAuth: []
       summary: Create a new account type
       tags:
         - Midaz_Ledger_API_Account Types (v1)
@@ -775,13 +754,12 @@ paths:
           description: No Content
         default:
           content:
-            application/problem+json:
+            application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: '#/components/schemas/LegacyError'
           description: Error
       security:
         - BearerAuth: []
-        - ApiKeyAuth: []
       summary: Delete an account type
       tags:
         - Midaz_Ledger_API_Account Types (v1)
@@ -819,13 +797,12 @@ paths:
           description: OK
         default:
           content:
-            application/problem+json:
+            application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: '#/components/schemas/LegacyError'
           description: Error
       security:
         - BearerAuth: []
-        - ApiKeyAuth: []
       summary: Retrieve a specific account type
       tags:
         - Midaz_Ledger_API_Account Types (v1)
@@ -869,13 +846,12 @@ paths:
           description: OK
         default:
           content:
-            application/problem+json:
+            application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: '#/components/schemas/LegacyError'
           description: Error
       security:
         - BearerAuth: []
-        - ApiKeyAuth: []
       summary: Update an account type
       tags:
         - Midaz_Ledger_API_Account Types (v1)
@@ -1019,13 +995,12 @@ paths:
           description: OK
         default:
           content:
-            application/problem+json:
+            application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: '#/components/schemas/LegacyError'
           description: Error
       security:
         - BearerAuth: []
-        - ApiKeyAuth: []
       summary: List all accounts
       tags:
         - Midaz_Ledger_API_Accounts (v1)
@@ -1068,13 +1043,12 @@ paths:
           description: Created
         default:
           content:
-            application/problem+json:
+            application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: '#/components/schemas/LegacyError'
           description: Error
       security:
         - BearerAuth: []
-        - ApiKeyAuth: []
       summary: Create a new account
       tags:
         - Midaz_Ledger_API_Accounts (v1)
@@ -1113,13 +1087,12 @@ paths:
           description: OK
         default:
           content:
-            application/problem+json:
+            application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: '#/components/schemas/LegacyError'
           description: Error
       security:
         - BearerAuth: []
-        - ApiKeyAuth: []
       summary: Retrieve an account by alias
       tags:
         - Midaz_Ledger_API_Accounts (v1)
@@ -1158,13 +1131,12 @@ paths:
           description: OK
         default:
           content:
-            application/problem+json:
+            application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: '#/components/schemas/LegacyError'
           description: Error
       security:
         - BearerAuth: []
-        - ApiKeyAuth: []
       summary: Get Balances using Alias
       tags:
         - Midaz_Ledger_API_Balances (v1)
@@ -1203,13 +1175,12 @@ paths:
           description: OK
         default:
           content:
-            application/problem+json:
+            application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: '#/components/schemas/LegacyError'
           description: Error
       security:
         - BearerAuth: []
-        - ApiKeyAuth: []
       summary: Retrieve an account by external code
       tags:
         - Midaz_Ledger_API_Accounts (v1)
@@ -1248,13 +1219,12 @@ paths:
           description: OK
         default:
           content:
-            application/problem+json:
+            application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: '#/components/schemas/LegacyError'
           description: Error
       security:
         - BearerAuth: []
-        - ApiKeyAuth: []
       summary: Get External balances using code
       tags:
         - Midaz_Ledger_API_Balances (v1)
@@ -1289,13 +1259,12 @@ paths:
                 type: string
         default:
           content:
-            application/problem+json:
+            application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: '#/components/schemas/LegacyError'
           description: Error
       security:
         - BearerAuth: []
-        - ApiKeyAuth: []
       summary: Count accounts
       tags:
         - Midaz_Ledger_API_Accounts (v1)
@@ -1369,13 +1338,12 @@ paths:
           description: OK
         default:
           content:
-            application/problem+json:
+            application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: '#/components/schemas/LegacyError'
           description: Error
       security:
         - BearerAuth: []
-        - ApiKeyAuth: []
       summary: Get all balances by account id
       tags:
         - Midaz_Ledger_API_Balances (v1)
@@ -1419,13 +1387,12 @@ paths:
           description: Created
         default:
           content:
-            application/problem+json:
+            application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: '#/components/schemas/LegacyError'
           description: Error
       security:
         - BearerAuth: []
-        - ApiKeyAuth: []
       summary: Create Additional Balance
       tags:
         - Midaz_Ledger_API_Balances (v1)
@@ -1475,13 +1442,12 @@ paths:
           description: OK
         default:
           content:
-            application/problem+json:
+            application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: '#/components/schemas/LegacyError'
           description: Error
       security:
         - BearerAuth: []
-        - ApiKeyAuth: []
       summary: Get Account Balances history at date
       tags:
         - Midaz_Ledger_API_Balances (v1)
@@ -1590,13 +1556,12 @@ paths:
           description: OK
         default:
           content:
-            application/problem+json:
+            application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: '#/components/schemas/LegacyError'
           description: Error
       security:
         - BearerAuth: []
-        - ApiKeyAuth: []
       summary: Get all Operations by account
       tags:
         - Midaz_Ledger_API_Operations (v1)
@@ -1642,13 +1607,12 @@ paths:
           description: OK
         default:
           content:
-            application/problem+json:
+            application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: '#/components/schemas/LegacyError'
           description: Error
       security:
         - BearerAuth: []
-        - ApiKeyAuth: []
       summary: Get Operation
       tags:
         - Midaz_Ledger_API_Operations (v1)
@@ -1689,13 +1653,12 @@ paths:
           description: No Content
         default:
           content:
-            application/problem+json:
+            application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: '#/components/schemas/LegacyError'
           description: Error
       security:
         - BearerAuth: []
-        - ApiKeyAuth: []
       summary: Delete an account
       tags:
         - Midaz_Ledger_API_Accounts (v1)
@@ -1733,13 +1696,12 @@ paths:
           description: OK
         default:
           content:
-            application/problem+json:
+            application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: '#/components/schemas/LegacyError'
           description: Error
       security:
         - BearerAuth: []
-        - ApiKeyAuth: []
       summary: Retrieve a specific account
       tags:
         - Midaz_Ledger_API_Accounts (v1)
@@ -1783,13 +1745,12 @@ paths:
           description: OK
         default:
           content:
-            application/problem+json:
+            application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: '#/components/schemas/LegacyError'
           description: Error
       security:
         - BearerAuth: []
-        - ApiKeyAuth: []
       summary: Update an account
       tags:
         - Midaz_Ledger_API_Accounts (v1)
@@ -1827,13 +1788,12 @@ paths:
           description: Created
         default:
           content:
-            application/problem+json:
+            application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: '#/components/schemas/LegacyError'
           description: Error
       security:
         - BearerAuth: []
-        - ApiKeyAuth: []
       summary: Create or Update an AssetRate
       tags:
         - Midaz_Ledger_API_Asset Rates (v1)
@@ -1918,13 +1878,12 @@ paths:
           description: OK
         default:
           content:
-            application/problem+json:
+            application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: '#/components/schemas/LegacyError'
           description: Error
       security:
         - BearerAuth: []
-        - ApiKeyAuth: []
       summary: Get an AssetRate by the Asset Code
       tags:
         - Midaz_Ledger_API_Asset Rates (v1)
@@ -1963,13 +1922,12 @@ paths:
           description: OK
         default:
           content:
-            application/problem+json:
+            application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: '#/components/schemas/LegacyError'
           description: Error
       security:
         - BearerAuth: []
-        - ApiKeyAuth: []
       summary: Get an AssetRate by External ID
       tags:
         - Midaz_Ledger_API_Asset Rates (v1)
@@ -2043,13 +2001,12 @@ paths:
           description: OK
         default:
           content:
-            application/problem+json:
+            application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: '#/components/schemas/LegacyError'
           description: Error
       security:
         - BearerAuth: []
-        - ApiKeyAuth: []
       summary: List all assets
       tags:
         - Midaz_Ledger_API_Assets (v1)
@@ -2092,13 +2049,12 @@ paths:
           description: Created
         default:
           content:
-            application/problem+json:
+            application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: '#/components/schemas/LegacyError'
           description: Error
       security:
         - BearerAuth: []
-        - ApiKeyAuth: []
       summary: Create a new asset
       tags:
         - Midaz_Ledger_API_Assets (v1)
@@ -2133,13 +2089,12 @@ paths:
                 type: string
         default:
           content:
-            application/problem+json:
+            application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: '#/components/schemas/LegacyError'
           description: Error
       security:
         - BearerAuth: []
-        - ApiKeyAuth: []
       summary: Count total assets
       tags:
         - Midaz_Ledger_API_Assets (v1)
@@ -2174,13 +2129,12 @@ paths:
           description: No Content
         default:
           content:
-            application/problem+json:
+            application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: '#/components/schemas/LegacyError'
           description: Error
       security:
         - BearerAuth: []
-        - ApiKeyAuth: []
       summary: Delete an asset
       tags:
         - Midaz_Ledger_API_Assets (v1)
@@ -2218,13 +2172,12 @@ paths:
           description: OK
         default:
           content:
-            application/problem+json:
+            application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: '#/components/schemas/LegacyError'
           description: Error
       security:
         - BearerAuth: []
-        - ApiKeyAuth: []
       summary: Retrieve a specific asset
       tags:
         - Midaz_Ledger_API_Assets (v1)
@@ -2268,13 +2221,12 @@ paths:
           description: OK
         default:
           content:
-            application/problem+json:
+            application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: '#/components/schemas/LegacyError'
           description: Error
       security:
         - BearerAuth: []
-        - ApiKeyAuth: []
       summary: Update an asset
       tags:
         - Midaz_Ledger_API_Assets (v1)
@@ -2341,13 +2293,12 @@ paths:
           description: OK
         default:
           content:
-            application/problem+json:
+            application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: '#/components/schemas/LegacyError'
           description: Error
       security:
         - BearerAuth: []
-        - ApiKeyAuth: []
       summary: Get all balances
       tags:
         - Midaz_Ledger_API_Balances (v1)
@@ -2382,13 +2333,12 @@ paths:
           description: No Content
         default:
           content:
-            application/problem+json:
+            application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: '#/components/schemas/LegacyError'
           description: Error
       security:
         - BearerAuth: []
-        - ApiKeyAuth: []
       summary: Delete Balance by account
       tags:
         - Midaz_Ledger_API_Balances (v1)
@@ -2426,13 +2376,12 @@ paths:
           description: OK
         default:
           content:
-            application/problem+json:
+            application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: '#/components/schemas/LegacyError'
           description: Error
       security:
         - BearerAuth: []
-        - ApiKeyAuth: []
       summary: Get Balance by id
       tags:
         - Midaz_Ledger_API_Balances (v1)
@@ -2476,13 +2425,12 @@ paths:
           description: OK
         default:
           content:
-            application/problem+json:
+            application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: '#/components/schemas/LegacyError'
           description: Error
       security:
         - BearerAuth: []
-        - ApiKeyAuth: []
       summary: Update Balance
       tags:
         - Midaz_Ledger_API_Balances (v1)
@@ -2528,13 +2476,12 @@ paths:
           description: OK
         default:
           content:
-            application/problem+json:
+            application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: '#/components/schemas/LegacyError'
           description: Error
       security:
         - BearerAuth: []
-        - ApiKeyAuth: []
       summary: Get Balance history at date
       tags:
         - Midaz_Ledger_API_Balances (v1)
@@ -2601,9 +2548,9 @@ paths:
           description: OK
         default:
           content:
-            application/problem+json:
+            application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: '#/components/schemas/LegacyError'
           description: Error
       security:
         - BearerAuth: []
@@ -2643,9 +2590,9 @@ paths:
           description: Created
         default:
           content:
-            application/problem+json:
+            application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: '#/components/schemas/LegacyError'
           description: Error
       security:
         - BearerAuth: []
@@ -2683,9 +2630,9 @@ paths:
           description: No Content
         default:
           content:
-            application/problem+json:
+            application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: '#/components/schemas/LegacyError'
           description: Error
       security:
         - BearerAuth: []
@@ -2726,9 +2673,9 @@ paths:
           description: OK
         default:
           content:
-            application/problem+json:
+            application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: '#/components/schemas/LegacyError'
           description: Error
       security:
         - BearerAuth: []
@@ -2775,9 +2722,9 @@ paths:
           description: OK
         default:
           content:
-            application/problem+json:
+            application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: '#/components/schemas/LegacyError'
           description: Error
       security:
         - BearerAuth: []
@@ -2868,13 +2815,12 @@ paths:
           description: OK
         default:
           content:
-            application/problem+json:
+            application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: '#/components/schemas/LegacyError'
           description: Error
       security:
         - BearerAuth: []
-        - ApiKeyAuth: []
       summary: List all portfolios
       tags:
         - Midaz_Ledger_API_Portfolios (v1)
@@ -2911,13 +2857,12 @@ paths:
           description: Created
         default:
           content:
-            application/problem+json:
+            application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: '#/components/schemas/LegacyError'
           description: Error
       security:
         - BearerAuth: []
-        - ApiKeyAuth: []
       summary: Create a new portfolio
       tags:
         - Midaz_Ledger_API_Portfolios (v1)
@@ -2952,13 +2897,12 @@ paths:
                 type: string
         default:
           content:
-            application/problem+json:
+            application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: '#/components/schemas/LegacyError'
           description: Error
       security:
         - BearerAuth: []
-        - ApiKeyAuth: []
       summary: Count total portfolios
       tags:
         - Midaz_Ledger_API_Portfolios (v1)
@@ -2993,13 +2937,12 @@ paths:
           description: No Content
         default:
           content:
-            application/problem+json:
+            application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: '#/components/schemas/LegacyError'
           description: Error
       security:
         - BearerAuth: []
-        - ApiKeyAuth: []
       summary: Delete a portfolio
       tags:
         - Midaz_Ledger_API_Portfolios (v1)
@@ -3037,13 +2980,12 @@ paths:
           description: OK
         default:
           content:
-            application/problem+json:
+            application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: '#/components/schemas/LegacyError'
           description: Error
       security:
         - BearerAuth: []
-        - ApiKeyAuth: []
       summary: Retrieve a specific portfolio
       tags:
         - Midaz_Ledger_API_Portfolios (v1)
@@ -3087,13 +3029,12 @@ paths:
           description: OK
         default:
           content:
-            application/problem+json:
+            application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: '#/components/schemas/LegacyError'
           description: Error
       security:
         - BearerAuth: []
-        - ApiKeyAuth: []
       summary: Update a portfolio
       tags:
         - Midaz_Ledger_API_Portfolios (v1)
@@ -3167,13 +3108,12 @@ paths:
           description: OK
         default:
           content:
-            application/problem+json:
+            application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: '#/components/schemas/LegacyError'
           description: Error
       security:
         - BearerAuth: []
-        - ApiKeyAuth: []
       summary: List all segments
       tags:
         - Midaz_Ledger_API_Segments (v1)
@@ -3210,13 +3150,12 @@ paths:
           description: Created
         default:
           content:
-            application/problem+json:
+            application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: '#/components/schemas/LegacyError'
           description: Error
       security:
         - BearerAuth: []
-        - ApiKeyAuth: []
       summary: Create a new segment
       tags:
         - Midaz_Ledger_API_Segments (v1)
@@ -3251,13 +3190,12 @@ paths:
                 type: string
         default:
           content:
-            application/problem+json:
+            application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: '#/components/schemas/LegacyError'
           description: Error
       security:
         - BearerAuth: []
-        - ApiKeyAuth: []
       summary: Count total segments
       tags:
         - Midaz_Ledger_API_Segments (v1)
@@ -3292,13 +3230,12 @@ paths:
           description: No Content
         default:
           content:
-            application/problem+json:
+            application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: '#/components/schemas/LegacyError'
           description: Error
       security:
         - BearerAuth: []
-        - ApiKeyAuth: []
       summary: Delete a segment
       tags:
         - Midaz_Ledger_API_Segments (v1)
@@ -3336,13 +3273,12 @@ paths:
           description: OK
         default:
           content:
-            application/problem+json:
+            application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: '#/components/schemas/LegacyError'
           description: Error
       security:
         - BearerAuth: []
-        - ApiKeyAuth: []
       summary: Retrieve a specific segment
       tags:
         - Midaz_Ledger_API_Segments (v1)
@@ -3386,13 +3322,12 @@ paths:
           description: OK
         default:
           content:
-            application/problem+json:
+            application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: '#/components/schemas/LegacyError'
           description: Error
       security:
         - BearerAuth: []
-        - ApiKeyAuth: []
       summary: Update a segment
       tags:
         - Midaz_Ledger_API_Segments (v1)
@@ -3424,13 +3359,12 @@ paths:
           description: OK
         default:
           content:
-            application/problem+json:
+            application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: '#/components/schemas/LegacyError'
           description: Error
       security:
         - BearerAuth: []
-        - ApiKeyAuth: []
       summary: Get ledger settings
       tags:
         - Midaz_Ledger_API_Ledgers (v1)
@@ -3468,13 +3402,12 @@ paths:
           description: OK
         default:
           content:
-            application/problem+json:
+            application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: '#/components/schemas/LegacyError'
           description: Error
       security:
         - BearerAuth: []
-        - ApiKeyAuth: []
       summary: Update ledger settings
       tags:
         - Midaz_Ledger_API_Ledgers (v1)
@@ -3541,9 +3474,9 @@ paths:
           description: OK
         default:
           content:
-            application/problem+json:
+            application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: '#/components/schemas/LegacyError'
           description: Error
       security:
         - BearerAuth: []
@@ -3583,9 +3516,9 @@ paths:
           description: Created
         default:
           content:
-            application/problem+json:
+            application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: '#/components/schemas/LegacyError'
           description: Error
       security:
         - BearerAuth: []
@@ -3623,9 +3556,9 @@ paths:
           description: No Content
         default:
           content:
-            application/problem+json:
+            application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: '#/components/schemas/LegacyError'
           description: Error
       security:
         - BearerAuth: []
@@ -3666,9 +3599,9 @@ paths:
           description: OK
         default:
           content:
-            application/problem+json:
+            application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: '#/components/schemas/LegacyError'
           description: Error
       security:
         - BearerAuth: []
@@ -3715,9 +3648,9 @@ paths:
           description: OK
         default:
           content:
-            application/problem+json:
+            application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: '#/components/schemas/LegacyError'
           description: Error
       security:
         - BearerAuth: []
@@ -3794,9 +3727,9 @@ paths:
           description: OK
         default:
           content:
-            application/problem+json:
+            application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: '#/components/schemas/LegacyError'
           description: Error
       security:
         - BearerAuth: []
@@ -3857,9 +3790,9 @@ paths:
                 type: string
         default:
           content:
-            application/problem+json:
+            application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: '#/components/schemas/LegacyError'
           description: Error
       security:
         - BearerAuth: []
@@ -3920,9 +3853,9 @@ paths:
                 type: string
         default:
           content:
-            application/problem+json:
+            application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: '#/components/schemas/LegacyError'
           description: Error
       security:
         - BearerAuth: []
@@ -3983,9 +3916,9 @@ paths:
                 type: string
         default:
           content:
-            application/problem+json:
+            application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: '#/components/schemas/LegacyError'
           description: Error
       security:
         - BearerAuth: []
@@ -4046,9 +3979,9 @@ paths:
                 type: string
         default:
           content:
-            application/problem+json:
+            application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: '#/components/schemas/LegacyError'
           description: Error
       security:
         - BearerAuth: []
@@ -4118,13 +4051,12 @@ paths:
                 type: string
         default:
           content:
-            application/problem+json:
+            application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: '#/components/schemas/LegacyError'
           description: Error
       security:
         - BearerAuth: []
-        - ApiKeyAuth: []
       summary: Count Transactions by Filters
       tags:
         - Midaz_Ledger_API_Transactions (v1)
@@ -4182,9 +4114,9 @@ paths:
                 type: string
         default:
           content:
-            application/problem+json:
+            application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: '#/components/schemas/LegacyError'
           description: Error
       security:
         - BearerAuth: []
@@ -4245,9 +4177,9 @@ paths:
                 type: string
         default:
           content:
-            application/problem+json:
+            application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: '#/components/schemas/LegacyError'
           description: Error
       security:
         - BearerAuth: []
@@ -4293,9 +4225,9 @@ paths:
                 type: string
         default:
           content:
-            application/problem+json:
+            application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: '#/components/schemas/LegacyError'
           description: Error
       security:
         - BearerAuth: []
@@ -4342,9 +4274,9 @@ paths:
           description: OK
         default:
           content:
-            application/problem+json:
+            application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: '#/components/schemas/LegacyError'
           description: Error
       security:
         - BearerAuth: []
@@ -4386,9 +4318,9 @@ paths:
           description: Created
         default:
           content:
-            application/problem+json:
+            application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: '#/components/schemas/LegacyError'
           description: Error
       security:
         - BearerAuth: []
@@ -4430,9 +4362,9 @@ paths:
           description: Created
         default:
           content:
-            application/problem+json:
+            application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: '#/components/schemas/LegacyError'
           description: Error
       security:
         - BearerAuth: []
@@ -4487,9 +4419,9 @@ paths:
           description: OK
         default:
           content:
-            application/problem+json:
+            application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: '#/components/schemas/LegacyError'
           description: Error
       security:
         - BearerAuth: []
@@ -4535,9 +4467,9 @@ paths:
                 type: string
         default:
           content:
-            application/problem+json:
+            application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: '#/components/schemas/LegacyError'
           description: Error
       security:
         - BearerAuth: []
@@ -4569,13 +4501,12 @@ paths:
           description: OK
         default:
           content:
-            application/problem+json:
+            application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: '#/components/schemas/LegacyError'
           description: Error
       security:
         - BearerAuth: []
-        - ApiKeyAuth: []
       summary: Get all Metadata Indexes
       tags:
         - Midaz_Ledger_API_Metadata Indexes (v1)
@@ -4612,13 +4543,12 @@ paths:
           description: Created
         default:
           content:
-            application/problem+json:
+            application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: '#/components/schemas/LegacyError'
           description: Error
       security:
         - BearerAuth: []
-        - ApiKeyAuth: []
       summary: Create Metadata Index
       tags:
         - Midaz_Ledger_API_Metadata Indexes (v1)
@@ -4652,13 +4582,12 @@ paths:
           description: No Content
         default:
           content:
-            application/problem+json:
+            application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: '#/components/schemas/LegacyError'
           description: Error
       security:
         - BearerAuth: []
-        - ApiKeyAuth: []
       summary: Delete Metadata Index
       tags:
         - Midaz_Ledger_API_Metadata Indexes (v1)
@@ -4751,19 +4680,11 @@ paths:
           description: Error
       security:
         - BearerAuth: []
-        - ApiKeyAuth: []
       summary: List all organizations
       tags:
         - Midaz_Ledger_API_Organizations (v2)
     post:
       operationId: createOrganizationV2
-      parameters:
-        - description: Bearer token (forwarded to the service)
-          in: header
-          name: Authorization
-          schema:
-            description: Bearer token (forwarded to the service)
-            type: string
       requestBody:
         content:
           application/json:
@@ -4785,7 +4706,6 @@ paths:
           description: Error
       security:
         - BearerAuth: []
-        - ApiKeyAuth: []
       summary: Create a new organization
       tags:
         - Midaz_Ledger_API_Organizations (v2)
@@ -4810,7 +4730,6 @@ paths:
           description: Error
       security:
         - BearerAuth: []
-        - ApiKeyAuth: []
       summary: Count total organizations
       tags:
         - Midaz_Ledger_API_Organizations (v2)
@@ -4836,7 +4755,6 @@ paths:
           description: Error
       security:
         - BearerAuth: []
-        - ApiKeyAuth: []
       summary: Delete an organization
       tags:
         - Midaz_Ledger_API_Organizations (v2)
@@ -4865,7 +4783,6 @@ paths:
           description: Error
       security:
         - BearerAuth: []
-        - ApiKeyAuth: []
       summary: Retrieve a specific organization
       tags:
         - Midaz_Ledger_API_Organizations (v2)
@@ -4900,7 +4817,6 @@ paths:
           description: Error
       security:
         - BearerAuth: []
-        - ApiKeyAuth: []
       summary: Update an existing organization
       tags:
         - Midaz_Ledger_API_Organizations (v2)
@@ -5726,7 +5642,6 @@ paths:
           description: Error
       security:
         - BearerAuth: []
-        - ApiKeyAuth: []
       summary: List all ledgers
       tags:
         - Midaz_Ledger_API_Ledgers (v2)
@@ -5761,7 +5676,6 @@ paths:
           description: Error
       security:
         - BearerAuth: []
-        - ApiKeyAuth: []
       summary: Create a new ledger
       tags:
         - Midaz_Ledger_API_Ledgers (v2)
@@ -5794,7 +5708,6 @@ paths:
           description: Error
       security:
         - BearerAuth: []
-        - ApiKeyAuth: []
       summary: Count total ledgers
       tags:
         - Midaz_Ledger_API_Ledgers (v2)
@@ -5827,7 +5740,6 @@ paths:
           description: Error
       security:
         - BearerAuth: []
-        - ApiKeyAuth: []
       summary: Delete a ledger
       tags:
         - Midaz_Ledger_API_Ledgers (v2)
@@ -5863,7 +5775,6 @@ paths:
           description: Error
       security:
         - BearerAuth: []
-        - ApiKeyAuth: []
       summary: Retrieve a specific ledger
       tags:
         - Midaz_Ledger_API_Ledgers (v2)
@@ -5905,7 +5816,6 @@ paths:
           description: Error
       security:
         - BearerAuth: []
-        - ApiKeyAuth: []
       summary: Update an existing ledger
       tags:
         - Midaz_Ledger_API_Ledgers (v2)
@@ -5998,7 +5908,6 @@ paths:
           description: Error
       security:
         - BearerAuth: []
-        - ApiKeyAuth: []
       summary: List all account types
       tags:
         - Midaz_Ledger_API_Account Types (v2)
@@ -6040,7 +5949,6 @@ paths:
           description: Error
       security:
         - BearerAuth: []
-        - ApiKeyAuth: []
       summary: Create a new account type
       tags:
         - Midaz_Ledger_API_Account Types (v2)
@@ -6080,7 +5988,6 @@ paths:
           description: Error
       security:
         - BearerAuth: []
-        - ApiKeyAuth: []
       summary: Delete an account type
       tags:
         - Midaz_Ledger_API_Account Types (v2)
@@ -6123,7 +6030,6 @@ paths:
           description: Error
       security:
         - BearerAuth: []
-        - ApiKeyAuth: []
       summary: Retrieve a specific account type
       tags:
         - Midaz_Ledger_API_Account Types (v2)
@@ -6172,7 +6078,6 @@ paths:
           description: Error
       security:
         - BearerAuth: []
-        - ApiKeyAuth: []
       summary: Update an account type
       tags:
         - Midaz_Ledger_API_Account Types (v2)
@@ -6321,7 +6226,6 @@ paths:
           description: Error
       security:
         - BearerAuth: []
-        - ApiKeyAuth: []
       summary: List all accounts
       tags:
         - Midaz_Ledger_API_Accounts (v2)
@@ -6369,7 +6273,6 @@ paths:
           description: Error
       security:
         - BearerAuth: []
-        - ApiKeyAuth: []
       summary: Create a new account
       tags:
         - Midaz_Ledger_API_Accounts (v2)
@@ -6413,7 +6316,6 @@ paths:
           description: Error
       security:
         - BearerAuth: []
-        - ApiKeyAuth: []
       summary: Retrieve an account by alias
       tags:
         - Midaz_Ledger_API_Accounts (v2)
@@ -6457,7 +6359,6 @@ paths:
           description: Error
       security:
         - BearerAuth: []
-        - ApiKeyAuth: []
       summary: Get Balances using Alias
       tags:
         - Midaz_Ledger_API_Balances (v2)
@@ -6501,7 +6402,6 @@ paths:
           description: Error
       security:
         - BearerAuth: []
-        - ApiKeyAuth: []
       summary: Retrieve an account by external code
       tags:
         - Midaz_Ledger_API_Accounts (v2)
@@ -6545,7 +6445,6 @@ paths:
           description: Error
       security:
         - BearerAuth: []
-        - ApiKeyAuth: []
       summary: Get External balances using code
       tags:
         - Midaz_Ledger_API_Balances (v2)
@@ -6585,7 +6484,6 @@ paths:
           description: Error
       security:
         - BearerAuth: []
-        - ApiKeyAuth: []
       summary: Count accounts
       tags:
         - Midaz_Ledger_API_Accounts (v2)
@@ -6664,7 +6562,6 @@ paths:
           description: Error
       security:
         - BearerAuth: []
-        - ApiKeyAuth: []
       summary: Get all balances by account id
       tags:
         - Midaz_Ledger_API_Balances (v2)
@@ -6713,7 +6610,6 @@ paths:
           description: Error
       security:
         - BearerAuth: []
-        - ApiKeyAuth: []
       summary: Create Additional Balance
       tags:
         - Midaz_Ledger_API_Balances (v2)
@@ -6768,7 +6664,6 @@ paths:
           description: Error
       security:
         - BearerAuth: []
-        - ApiKeyAuth: []
       summary: Get Account Balances history at date
       tags:
         - Midaz_Ledger_API_Balances (v2)
@@ -6882,7 +6777,6 @@ paths:
           description: Error
       security:
         - BearerAuth: []
-        - ApiKeyAuth: []
       summary: Get all Operations by account
       tags:
         - Midaz_Ledger_API_Operations (v2)
@@ -6933,7 +6827,6 @@ paths:
           description: Error
       security:
         - BearerAuth: []
-        - ApiKeyAuth: []
       summary: Get Operation
       tags:
         - Midaz_Ledger_API_Operations (v2)
@@ -6979,7 +6872,6 @@ paths:
           description: Error
       security:
         - BearerAuth: []
-        - ApiKeyAuth: []
       summary: Delete an account
       tags:
         - Midaz_Ledger_API_Accounts (v2)
@@ -7022,7 +6914,6 @@ paths:
           description: Error
       security:
         - BearerAuth: []
-        - ApiKeyAuth: []
       summary: Retrieve a specific account
       tags:
         - Midaz_Ledger_API_Accounts (v2)
@@ -7071,7 +6962,6 @@ paths:
           description: Error
       security:
         - BearerAuth: []
-        - ApiKeyAuth: []
       summary: Update an account
       tags:
         - Midaz_Ledger_API_Accounts (v2)
@@ -7150,7 +7040,6 @@ paths:
           description: Error
       security:
         - BearerAuth: []
-        - ApiKeyAuth: []
       summary: List all assets
       tags:
         - Midaz_Ledger_API_Assets (v2)
@@ -7198,7 +7087,6 @@ paths:
           description: Error
       security:
         - BearerAuth: []
-        - ApiKeyAuth: []
       summary: Create a new asset
       tags:
         - Midaz_Ledger_API_Assets (v2)
@@ -7238,7 +7126,6 @@ paths:
           description: Error
       security:
         - BearerAuth: []
-        - ApiKeyAuth: []
       summary: Count total assets
       tags:
         - Midaz_Ledger_API_Assets (v2)
@@ -7278,7 +7165,6 @@ paths:
           description: Error
       security:
         - BearerAuth: []
-        - ApiKeyAuth: []
       summary: Delete an asset
       tags:
         - Midaz_Ledger_API_Assets (v2)
@@ -7321,7 +7207,6 @@ paths:
           description: Error
       security:
         - BearerAuth: []
-        - ApiKeyAuth: []
       summary: Retrieve a specific asset
       tags:
         - Midaz_Ledger_API_Assets (v2)
@@ -7370,7 +7255,6 @@ paths:
           description: Error
       security:
         - BearerAuth: []
-        - ApiKeyAuth: []
       summary: Update an asset
       tags:
         - Midaz_Ledger_API_Assets (v2)
@@ -7442,7 +7326,6 @@ paths:
           description: Error
       security:
         - BearerAuth: []
-        - ApiKeyAuth: []
       summary: Get all balances
       tags:
         - Midaz_Ledger_API_Balances (v2)
@@ -7482,7 +7365,6 @@ paths:
           description: Error
       security:
         - BearerAuth: []
-        - ApiKeyAuth: []
       summary: Delete Balance by account
       tags:
         - Midaz_Ledger_API_Balances (v2)
@@ -7525,7 +7407,6 @@ paths:
           description: Error
       security:
         - BearerAuth: []
-        - ApiKeyAuth: []
       summary: Get Balance by id
       tags:
         - Midaz_Ledger_API_Balances (v2)
@@ -7574,7 +7455,6 @@ paths:
           description: Error
       security:
         - BearerAuth: []
-        - ApiKeyAuth: []
       summary: Update Balance
       tags:
         - Midaz_Ledger_API_Balances (v2)
@@ -7625,7 +7505,6 @@ paths:
           description: Error
       security:
         - BearerAuth: []
-        - ApiKeyAuth: []
       summary: Get Balance history at date
       tags:
         - Midaz_Ledger_API_Balances (v2)
@@ -8567,7 +8446,6 @@ paths:
           description: Error
       security:
         - BearerAuth: []
-        - ApiKeyAuth: []
       summary: List all portfolios
       tags:
         - Midaz_Ledger_API_Portfolios (v2)
@@ -8609,7 +8487,6 @@ paths:
           description: Error
       security:
         - BearerAuth: []
-        - ApiKeyAuth: []
       summary: Create a new portfolio
       tags:
         - Midaz_Ledger_API_Portfolios (v2)
@@ -8649,7 +8526,6 @@ paths:
           description: Error
       security:
         - BearerAuth: []
-        - ApiKeyAuth: []
       summary: Count total portfolios
       tags:
         - Midaz_Ledger_API_Portfolios (v2)
@@ -8689,7 +8565,6 @@ paths:
           description: Error
       security:
         - BearerAuth: []
-        - ApiKeyAuth: []
       summary: Delete a portfolio
       tags:
         - Midaz_Ledger_API_Portfolios (v2)
@@ -8732,7 +8607,6 @@ paths:
           description: Error
       security:
         - BearerAuth: []
-        - ApiKeyAuth: []
       summary: Retrieve a specific portfolio
       tags:
         - Midaz_Ledger_API_Portfolios (v2)
@@ -8781,7 +8655,6 @@ paths:
           description: Error
       security:
         - BearerAuth: []
-        - ApiKeyAuth: []
       summary: Update a portfolio
       tags:
         - Midaz_Ledger_API_Portfolios (v2)
@@ -8860,7 +8733,6 @@ paths:
           description: Error
       security:
         - BearerAuth: []
-        - ApiKeyAuth: []
       summary: List all segments
       tags:
         - Midaz_Ledger_API_Segments (v2)
@@ -8902,7 +8774,6 @@ paths:
           description: Error
       security:
         - BearerAuth: []
-        - ApiKeyAuth: []
       summary: Create a new segment
       tags:
         - Midaz_Ledger_API_Segments (v2)
@@ -8942,7 +8813,6 @@ paths:
           description: Error
       security:
         - BearerAuth: []
-        - ApiKeyAuth: []
       summary: Count total segments
       tags:
         - Midaz_Ledger_API_Segments (v2)
@@ -8982,7 +8852,6 @@ paths:
           description: Error
       security:
         - BearerAuth: []
-        - ApiKeyAuth: []
       summary: Delete a segment
       tags:
         - Midaz_Ledger_API_Segments (v2)
@@ -9025,7 +8894,6 @@ paths:
           description: Error
       security:
         - BearerAuth: []
-        - ApiKeyAuth: []
       summary: Retrieve a specific segment
       tags:
         - Midaz_Ledger_API_Segments (v2)
@@ -9074,7 +8942,6 @@ paths:
           description: Error
       security:
         - BearerAuth: []
-        - ApiKeyAuth: []
       summary: Update a segment
       tags:
         - Midaz_Ledger_API_Segments (v2)
@@ -9111,7 +8978,6 @@ paths:
           description: Error
       security:
         - BearerAuth: []
-        - ApiKeyAuth: []
       summary: Get ledger settings
       tags:
         - Midaz_Ledger_API_Ledgers (v2)
@@ -9154,7 +9020,6 @@ paths:
           description: Error
       security:
         - BearerAuth: []
-        - ApiKeyAuth: []
       summary: Update ledger settings
       tags:
         - Midaz_Ledger_API_Ledgers (v2)
@@ -9545,7 +9410,6 @@ paths:
           description: Error
       security:
         - BearerAuth: []
-        - ApiKeyAuth: []
       summary: Count Transactions by Filters
       tags:
         - Midaz_Ledger_API_Transactions (v2)
@@ -9954,7 +9818,6 @@ paths:
           description: Error
       security:
         - BearerAuth: []
-        - ApiKeyAuth: []
       summary: Get all Metadata Indexes
       tags:
         - Midaz_Ledger_API_Metadata Indexes (v2)
@@ -9996,7 +9859,6 @@ paths:
           description: Error
       security:
         - BearerAuth: []
-        - ApiKeyAuth: []
       summary: Create Metadata Index
       tags:
         - Midaz_Ledger_API_Metadata Indexes (v2)
@@ -10035,7 +9897,6 @@ paths:
           description: Error
       security:
         - BearerAuth: []
-        - ApiKeyAuth: []
       summary: Delete Metadata Index
       tags:
         - Midaz_Ledger_API_Metadata Indexes (v2)
@@ -11719,6 +11580,22 @@ components:
         - validateRoutes
         - requireHolder
       type: object
+    AccountingValidationInput:
+      additionalProperties: false
+      properties:
+        requireHolder:
+          examples:
+            - false
+          type: boolean
+        validateAccountType:
+          examples:
+            - false
+          type: boolean
+        validateRoutes:
+          examples:
+            - false
+          type: boolean
+      type: object
     Address:
       additionalProperties: false
       properties:
@@ -12686,7 +12563,7 @@ components:
           maxLength: 256
           type: string
         settings:
-          $ref: '#/components/schemas/LedgerSettings'
+          $ref: '#/components/schemas/LedgerSettingsInput'
         status:
           $ref: '#/components/schemas/Status'
       required:
@@ -14050,6 +13927,56 @@ components:
         - tracer
         - overrides
       type: object
+    LedgerSettingsInput:
+      additionalProperties: false
+      properties:
+        accounting:
+          $ref: '#/components/schemas/AccountingValidationInput'
+        overrides:
+          $ref: '#/components/schemas/OverridePolicyInput'
+        tracer:
+          $ref: '#/components/schemas/TracerSettingsInput'
+      type: object
+    LegacyError:
+      additionalProperties: false
+      properties:
+        code:
+          description: >-
+            Stable, machine-readable midaz error code. Identical to the code /v2
+            returns for the same condition.
+          examples:
+            - '0065'
+          type: string
+        entityType:
+          description: >-
+            The domain entity the error concerns. Present only on
+            field-validation errors.
+          examples:
+            - Account
+          type: string
+        fields:
+          additionalProperties: {}
+          description: >-
+            Per-field validation detail, keyed by field name. The value is the
+            violation message for a known field and the offending value for an
+            unexpected one, so it is not always a string. The /v2 contract
+            carries these as the 'errors' array.
+          type: object
+        message:
+          description: >-
+            Human-readable explanation of this occurrence. The /v2 contract
+            carries this as 'detail'.
+          type: string
+        title:
+          description: Short, human-readable summary of the error.
+          examples:
+            - Invalid Path Parameter
+          type: string
+      required:
+        - title
+        - message
+        - code
+      type: object
     LegalPerson:
       additionalProperties: false
       properties:
@@ -14678,6 +14605,22 @@ components:
         - allowTracerSkip
         - allowHolderSkip
       type: object
+    OverridePolicyInput:
+      additionalProperties: false
+      properties:
+        allowFeeSkip:
+          examples:
+            - false
+          type: boolean
+        allowHolderSkip:
+          examples:
+            - false
+          type: boolean
+        allowTracerSkip:
+          examples:
+            - false
+          type: boolean
+      type: object
     Pagination:
       additionalProperties: false
       properties:
@@ -15097,6 +15040,23 @@ components:
         - mode
         - failPosture
         - timeoutMs
+      type: object
+    TracerSettingsInput:
+      additionalProperties: false
+      properties:
+        failPosture:
+          examples:
+            - open
+          type: string
+        mode:
+          examples:
+            - 'off'
+          type: string
+        timeoutMs:
+          examples:
+            - 250
+          format: int64
+          type: integer
       type: object
     Transaction:
       additionalProperties: false
@@ -16753,16 +16713,16 @@ components:
         - createdAt
       type: object
   securitySchemes:
-    ApiKeyAuth:
-      description: Static API key presented in the X-API-Key header.
-      in: header
-      name: X-API-Key
-      type: apiKey
     BearerAuth:
       bearerFormat: JWT
       description: JWT bearer token issued by the identity provider.
       scheme: bearer
       type: http
+    ApiKeyAuth:
+      description: Static API key presented in the X-API-Key header.
+      in: header
+      name: X-API-Key
+      type: apiKey
 x-tagGroups:
   - name: Midaz Ledger API
     tags:

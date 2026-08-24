@@ -8,10 +8,12 @@ import (
 	"bytes"
 	"encoding/json"
 	"io"
+	"net/http"
 	"net/http/httptest"
-	"reflect"
 	"regexp"
 	"testing"
+
+	libCommons "github.com/LerianStudio/lib-commons/v6/commons"
 
 	"github.com/gofiber/fiber/v3"
 	"github.com/google/uuid"
@@ -20,11 +22,8 @@ import (
 	"go.uber.org/mock/gomock"
 
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/crm/adapters/mongodb/holder"
-	"github.com/LerianStudio/midaz/v4/components/ledger/internal/crm/services"
 	"github.com/LerianStudio/midaz/v4/pkg"
 	cn "github.com/LerianStudio/midaz/v4/pkg/constant"
-	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
-	"github.com/LerianStudio/midaz/v4/pkg/net/http"
 )
 
 // transformedCRMCodeRegex matches the CRM-00xx codes that the deleted
@@ -127,35 +126,21 @@ func TestErrorContract_CanonicalCodes(t *testing.T) {
 			ctrl := gomock.NewController(t)
 			t.Cleanup(ctrl.Finish)
 
-			orgUUID := uuid.New()
-			orgID := orgUUID.String()
+			orgID := uuid.Must(libCommons.GenerateUUIDv7()).String()
 
-			mockHolderRepo := holder.NewMockRepository(ctrl)
+			handler, mockHolderRepo := newHolderHandler(t, ctrl)
 			tt.setupMocks(mockHolderRepo, orgID)
 
-			uc := &services.UseCase{HolderRepo: mockHolderRepo}
-			handler := &HolderHandler{Service: uc}
+			app := buildHumaHolderApp(t, handler, true)
 
-			// Org is now path-scoped: the handler reads it from the
-			// "organization_id" local (seeded here as the validated UUID the real
-			// ParseUUIDPathParameters chain would store), not from a header. The
-			// canonical-error-code assertions below are unaffected by this source
-			// change — they exercise body/validation paths that fail before org is used.
-			app := fiber.New()
-			app.Post(
-				"/v2/organizations/:organization_id/holders",
-				func(c fiber.Ctx) error {
-					c.Locals("organization_id", orgUUID)
-					return c.Next()
-				},
-				http.WithBody(new(mmodel.CreateHolderInput), handler.CreateHolder),
-			)
-
-			req := httptest.NewRequest(fiber.MethodPost, "/v2/organizations/"+orgID+"/holders", bytes.NewBufferString(tt.jsonBody))
+			req := httptest.NewRequest(http.MethodPost, "/v2/organizations/"+orgID+"/holders", bytes.NewBufferString(tt.jsonBody))
 			req.Header.Set("Content-Type", "application/json")
 
-			resp, err := app.Test(req)
+			resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
 			require.NoError(t, err)
+
+			defer func() { _ = resp.Body.Close() }()
+
 			assert.Equal(t, tt.expectedStatus, resp.StatusCode)
 
 			body, err := io.ReadAll(resp.Body)
@@ -173,11 +158,26 @@ func TestErrorContract_CanonicalCodes(t *testing.T) {
 				"response code must NOT be a formerly-transformed CRM-00xx code")
 
 			if tt.expectedField != "" {
-				fields, ok := errResp["fields"].(map[string]any)
-				require.True(t, ok, "validation error response must carry a fields object, got: %s", string(body))
-				fieldDetail, ok := fields[tt.expectedField].(string)
-				require.True(t, ok, "validation error response must identify %q with a string detail", tt.expectedField)
-				assert.NotEmpty(t, fieldDetail, "validation error response must explain the invalid field")
+				// RFC 9457 carries per-field detail in the "errors" array, each entry
+				// naming the offending field in "location".
+				errs, ok := errResp["errors"].([]any)
+				require.True(t, ok, "validation error response must carry an errors array, got: %s", string(body))
+
+				var message string
+
+				for _, e := range errs {
+					entry, ok := e.(map[string]any)
+					if !ok {
+						continue
+					}
+
+					if entry["location"] == tt.expectedField {
+						message, _ = entry["message"].(string)
+						break
+					}
+				}
+
+				assert.NotEmpty(t, message, "validation error response must explain the invalid field %q", tt.expectedField)
 			}
 		})
 	}
@@ -192,36 +192,24 @@ func TestErrorContract_SurvivingDomainCodeUnchanged(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	t.Cleanup(ctrl.Finish)
 
-	orgUUID := uuid.New()
-	orgID := orgUUID.String()
-	holderID := uuid.New()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7()).String()
+	holderID := uuid.Must(libCommons.GenerateUUIDv7())
 
-	mockHolderRepo := holder.NewMockRepository(ctrl)
+	handler, mockHolderRepo := newHolderHandler(t, ctrl)
 	mockHolderRepo.EXPECT().
 		Find(gomock.Any(), orgID, holderID, false).
-		Return(nil, pkg.ValidateBusinessError(cn.ErrHolderNotFound, reflect.TypeOf(mmodel.Holder{}).Name())).
+		Return(nil, pkg.ValidateBusinessError(cn.ErrHolderNotFound, cn.EntityHolder)).
 		Times(1)
 
-	uc := &services.UseCase{HolderRepo: mockHolderRepo}
-	handler := &HolderHandler{Service: uc}
+	app := buildHumaHolderApp(t, handler, true)
 
-	// Org and holder both arrive as path-validated UUID locals (seeded here as the
-	// real ParseUUIDPathParameters chain would store them); the header scope is gone.
-	app := fiber.New()
-	app.Get(
-		"/v2/organizations/:organization_id/holders/:id",
-		func(c fiber.Ctx) error {
-			c.Locals("organization_id", orgUUID)
-			c.Locals("id", holderID)
-			return c.Next()
-		},
-		handler.GetHolderByID,
-	)
-
-	req := httptest.NewRequest(fiber.MethodGet, "/v2/organizations/"+orgID+"/holders/"+holderID.String(), nil)
-	resp, err := app.Test(req)
+	req := httptest.NewRequest(http.MethodGet, "/v2/organizations/"+orgID+"/holders/"+holderID.String(), nil)
+	resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
 	require.NoError(t, err)
-	assert.Equal(t, 404, resp.StatusCode)
+
+	defer func() { _ = resp.Body.Close() }()
+
+	assert.Equal(t, http.StatusNotFound, resp.StatusCode)
 
 	body, err := io.ReadAll(resp.Body)
 	require.NoError(t, err)

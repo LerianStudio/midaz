@@ -219,13 +219,6 @@ type Config struct {
 	FeesPrefixedMaxPoolSize       int    `env:"MONGO_FEES_MAX_POOL_SIZE"`
 	FeesPrefixedMongoTLSCACert    string `env:"MONGO_FEES_TLS_CA_CERT"`
 
-	// --- Fee engine config (FEES_* / DEFAULT_CURRENCY) ---
-	// DEFAULT_CURRENCY keeps its bare env name (carried verbatim from the
-	// standalone fees service) so existing deployments need no rename. It is the
-	// fallback currency used by the fee calculation engine when a fee leg does
-	// not specify one. Defaults to "USD" in applyConfigDefaults when unset.
-	FeesDefaultCurrency string `env:"DEFAULT_CURRENCY"`
-
 	// --- RabbitMQ (transaction domain only) ---
 	RabbitURI                                string `env:"RABBITMQ_URI"`
 	RabbitMQHost                             string `env:"RABBITMQ_HOST"`
@@ -930,7 +923,7 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 	// account/segment/count reads run in-process. HTTP route mounting is
 	// deferred to the next chunk (P4-T10/T17); here the fee use cases are only
 	// constructed + held so they are not dead code.
-	fees, err := initFees(feeMgo, queryUseCase, cfg, logger, streamingEmitter)
+	fees, err := initFees(feeMgo, queryUseCase, logger, streamingEmitter)
 	if err != nil {
 		doCleanup()
 		return nil, fmt.Errorf("failed to initialize fee use cases: %w", err)
@@ -1071,10 +1064,7 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 	compositionService := composition.NewService(commandUseCase, crmMgo.instrumentHandler.Service)
 	compositionHandler := &httpin.CompositionHandler{Service: compositionService}
 
-	logger.Log(
-		context.Background(), libLog.LevelInfo, "Fee routes mounted on unified server",
-		libLog.String("default_currency", fees.useCase.DefaultCurrency()),
-	)
+	logger.Log(context.Background(), libLog.LevelInfo, "Fee routes mounted on unified server")
 
 	// humaMountDeps is the single mount list both contract versions build from. The
 	// per-registrar options rationale (why metadata-index takes ledgerRouteOptions
@@ -1814,13 +1804,6 @@ func applyConfigDefaults(cfg *Config) {
 	intDefault(&cfg.BalanceSyncBatchSize, 50)
 	intDefault(&cfg.BalanceSyncFlushTimeoutMs, 500)
 	intDefault(&cfg.BalanceSyncPollIntervalMs, 50)
-
-	// Fee engine default currency. The standalone fees service shipped with no
-	// hard default (DEFAULT_CURRENCY was required env); the unified binary must
-	// not fail fee construction when the var is unset, so fall back to "USD".
-	if strings.TrimSpace(cfg.FeesDefaultCurrency) == "" {
-		cfg.FeesDefaultCurrency = "USD"
-	}
 }
 
 // buildTracerReserver constructs the tracer reservation HTTP client when the

@@ -12,10 +12,7 @@ import (
 	"github.com/LerianStudio/midaz/v4/components/ledger/pkg/feeshared/model"
 	feeerrors "github.com/LerianStudio/midaz/v4/pkg"
 	feeconstant "github.com/LerianStudio/midaz/v4/pkg/constant"
-	"github.com/LerianStudio/midaz/v4/pkg/net/http"
 
-	commonsHttp "github.com/LerianStudio/lib-commons/v6/commons/net/http"
-	"github.com/gofiber/fiber/v3"
 	"github.com/google/uuid"
 	"go.opentelemetry.io/otel/attribute"
 )
@@ -30,27 +27,6 @@ type FeeService interface {
 // FeeHandler exposes the fee-estimate (dry-run) endpoint over HTTP.
 type FeeHandler struct {
 	Service FeeService
-}
-
-// EstimateFeeCalculation is a method that creates a Fee estimate calculation.
-func (handler *FeeHandler) EstimateFeeCalculation(p any, c fiber.Ctx) error {
-	ctx := c.Context()
-
-	organizationID, err := http.GetUUIDFromLocals(c, "organization_id")
-	if err != nil {
-		return http.WithError(c, err)
-	}
-
-	payload := p.(*model.FeeEstimate)
-
-	response, err := handler.estimateFeeCalculation(ctx, organizationID, payload)
-	if err != nil {
-		return http.WithError(c, err)
-	}
-
-	// 200 OK is intentional: this is a compute/RPC-style endpoint that performs
-	// a calculation without creating a persistent resource.
-	return commonsHttp.Respond(c, fiber.StatusOK, response)
 }
 
 // estimateFeeCalculation is the transport-agnostic core of the fee-estimate op,

@@ -26,8 +26,8 @@ import (
 )
 
 // This file is the happy-path behavioral proof for the three /v2 transaction mirror ops that carry
-// no dedicated create/lifecycle wire shape — GetTransactionV2Huma, GetAllTransactionsV2Huma, and
-// UpdateTransactionV2Huma (transaction_v2_mirror_handler.go). The unit suite only reaches these on
+// no dedicated create/lifecycle wire shape — GetTransactionV2, GetAllTransactionsV2, and
+// UpdateTransactionV2 (transaction_v2_mirror_handler.go). The unit suite only reaches these on
 // the invalid-path-ID guard branch; here they run against a LIVE app backed by testcontainers, over
 // a transaction seeded through a v1 create so the seed path is unaffected by the v2 field removals.
 //

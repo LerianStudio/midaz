@@ -182,9 +182,11 @@ All models live in `pkg/mmodel/`. Key entities:
 
 The HTTP layer is **Huma v2 (OAS 3.1) over Fiber v3**: Fiber remains the runtime router, auth
 chain, and middleware stack, while Huma sits on top to generate the OpenAPI contract and validate
-typed request/response structs. API errors serialize as **RFC 9457 `application/problem+json`** — a
-`type`/`title`/`status`/`detail`/`instance` document extended with `code` and `entityType`; the
-`(code, status)` tuple per business error is preserved (HTTP status codes are unchanged). The native
+typed request/response structs. The API error envelope is chosen by ROUTE VERSION: `>= /v2`
+serializes **RFC 9457 `application/problem+json`** — a `type`/`title`/`status`/`detail`/`instance`
+document extended with `code` and `entityType` — while `/v1` keeps the midaz v3
+`{entityType?, title, message, code, fields?}` body at `application/json` for clients already in
+production. The `(code, status)` tuple per business error is identical on both. The native
 OpenAPI 3.1 spec and Scalar docs UI are served differently per component. The ledger serves one spec
 and docs UI at the root — `/openapi.{json,yaml}` and `/docs` — from a single contract that carries
 both its `/v1` and `/v2` paths. The tracer serves its own spec and docs UI under `/v1` —
@@ -475,9 +477,9 @@ only when the reservation service is wired (non-nil); they are live in the defau
 
 Numeric ledger codes starting at 0001 (non-contiguous; gap at 0130). 28 CRM domain codes prefixed
 with `CRM-` (CRM-0006..CRM-0041, non-contiguous). The registry is numeric-only for the core; the
-`FEE-` / `TRC-` / `TPL-` / `REP-` prefixed families are retired (0 survivors). API errors are
-emitted as RFC 9457 `application/problem+json` (§4), preserving each sentinel's `(code, status)`
-tuple.
+`FEE-` / `TRC-` / `TPL-` / `REP-` prefixed families are retired (0 survivors). API errors are emitted
+in the envelope the route version serves (§4) — RFC 9457 `application/problem+json` on `>= /v2`, the
+midaz v3 body on `/v1` — preserving each sentinel's `(code, status)` tuple on both.
 
 #### Ledger Error Codes (selected key codes)
 - `0007` ErrEntityNotFound — entity not found
@@ -847,11 +849,6 @@ enabling discovery with an empty advertise address aborts boot
 | TRACER_TLS_CA_FILE | — | CA used to verify the tracer's server cert under `mtls` |
 
 Seam topology and TLS posture: [docs/architecture/ledger-tracer-topology.md](docs/architecture/ledger-tracer-topology.md).
-
-#### Fee Engine
-| Variable | Default | Description |
-|----------|---------|-------------|
-| DEFAULT_CURRENCY | USD | Default currency for fee calculation |
 
 ### 6.2 CRM + Fees (folded into the ledger binary)
 

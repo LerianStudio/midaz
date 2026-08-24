@@ -747,5 +747,5 @@ func reserveScopeLockKey(accountID uuid.UUID) int64 {
 	h := fnv.New64a()
 	_, _ = h.Write(accountID[:])
 
-	return int64(h.Sum64())
+	return int64(h.Sum64()) // #nosec G115 -- intentional truncation: any 64 bits work as a lock key
 }

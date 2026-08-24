@@ -12,7 +12,6 @@ import (
 	libObservability "github.com/LerianStudio/lib-observability/v2"
 	libLog "github.com/LerianStudio/lib-observability/v2/log"
 	libOpentelemetry "github.com/LerianStudio/lib-observability/v2/tracing"
-	"github.com/gofiber/fiber/v3"
 	"github.com/google/uuid"
 	"go.mongodb.org/mongo-driver/v2/bson"
 	"go.opentelemetry.io/otel/trace"
@@ -33,18 +32,16 @@ type BalanceHandler struct {
 // --- Transport-agnostic cores -------------------------------------------------
 //
 // Each core below owns the span, imperative query/date validation, the service
-// call and the success log. They take primitive args (parsed UUIDs, raw path
-// strings, the query map) so BOTH transports feed them: the Fiber wrappers pull
-// those from fiber.Ctx (Locals + c.Queries + c.Params) and the Huma handlers
-// (balance_handler_huma.go) pull them from the request envelope. Every canonical
-// Midaz error the cores return is rendered by the caller — http.WithError on the
-// Fiber path, http.HumaProblem on the Huma path — so the code + HTTP status are
-// identical across both transports. The three write cores (update / create-
-// additional / delete) are MONEY-adjacent: the migration is transport-only, the
-// command use cases they call are untouched.
+// call and the success log. They take primitive args — parsed UUIDs, raw path
+// strings, the query map — so nothing transport-shaped reaches them; the handlers
+// in balance_handler.go pull those out of the request envelope. Every canonical
+// Midaz error a core returns is rendered by its caller via http.HumaProblem, which
+// fixes the code + HTTP status. The three write cores (update / create-additional /
+// delete) are MONEY-adjacent: they own no money logic of their own, the command use
+// cases they call do.
 
-// getAllBalances binds the query imperatively (http.ValidateParameters — the SAME
-// binder the Fiber path used) then returns the cursor-paginated envelope.
+// getAllBalances binds the query imperatively via http.ValidateParameters then
+// returns the cursor-paginated envelope.
 func (handler *BalanceHandler) getAllBalances(ctx context.Context, organizationID, ledgerID uuid.UUID, queries map[string]string) (http.Pagination, error) {
 	_, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
@@ -242,8 +239,8 @@ func (handler *BalanceHandler) getBalancesExternalByCode(ctx context.Context, or
 }
 
 // getBalanceAtTimestamp validates the date query imperatively then returns the
-// historical balance. The date param has no native validation (see the Huma
-// handler); this core is the sole date validator across both transports.
+// historical balance. The date param carries no native validation (see the Huma
+// handler); this core is its sole validator.
 func (handler *BalanceHandler) getBalanceAtTimestamp(ctx context.Context, organizationID, ledgerID, balanceID uuid.UUID, dateStr string) (*mmodel.BalanceHistory, error) {
 	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
@@ -303,8 +300,7 @@ func (handler *BalanceHandler) getAccountBalancesAtTimestamp(ctx context.Context
 
 // parseBalanceHistoryDate is the shared imperative validator for the `date` query
 // param the two history cores use: present, parseable, and carrying a time
-// component (yyyy-mm-dd hh:mm:ss). It yields the canonical business errors the
-// Fiber path produced, so both transports emit an identical 400.
+// component (yyyy-mm-dd hh:mm:ss). Every rejection is a canonical 400.
 func parseBalanceHistoryDate(ctx context.Context, span trace.Span, logger libLog.Logger, dateStr string) (time.Time, error) {
 	if dateStr == "" {
 		err := pkg.ValidateBusinessError(cn.ErrMissingRequiredQueryParameter, "Balance", "date")
@@ -330,266 +326,4 @@ func parseBalanceHistoryDate(ctx context.Context, span trace.Span, logger libLog
 	}
 
 	return date, nil
-}
-
-// --- Fiber wrappers (thin) ----------------------------------------------------
-//
-// These stay so the legacy Fiber unit/integration tests keep exercising the
-// handler methods directly; each pulls the transport inputs from fiber.Ctx and
-// delegates to the shared core. NOTE: the LIVE balance routes are Huma now (see
-// balance_handler_huma.go + RegisterBalanceRoutes); these Fiber wrappers are
-// not mounted by the unified server.
-
-// GetAllBalances retrieves all balances.
-func (handler *BalanceHandler) GetAllBalances(c fiber.Ctx) error {
-	ctx := c.Context()
-
-	organizationID, err := http.GetUUIDFromLocals(c, "organization_id")
-	if err != nil {
-		return http.WithError(c, err)
-	}
-
-	ledgerID, err := http.GetUUIDFromLocals(c, "ledger_id")
-	if err != nil {
-		return http.WithError(c, err)
-	}
-
-	pagination, err := handler.getAllBalances(ctx, organizationID, ledgerID, c.Queries())
-	if err != nil {
-		return http.WithError(c, err)
-	}
-
-	return http.OK(c, pagination)
-}
-
-// GetAllBalancesByAccountID retrieves all balances.
-func (handler *BalanceHandler) GetAllBalancesByAccountID(c fiber.Ctx) error {
-	ctx := c.Context()
-
-	organizationID, err := http.GetUUIDFromLocals(c, "organization_id")
-	if err != nil {
-		return http.WithError(c, err)
-	}
-
-	ledgerID, err := http.GetUUIDFromLocals(c, "ledger_id")
-	if err != nil {
-		return http.WithError(c, err)
-	}
-
-	accountID, err := http.GetUUIDFromLocals(c, "account_id")
-	if err != nil {
-		return http.WithError(c, err)
-	}
-
-	pagination, err := handler.getAllBalancesByAccountID(ctx, organizationID, ledgerID, accountID, c.Queries())
-	if err != nil {
-		return http.WithError(c, err)
-	}
-
-	return http.OK(c, pagination)
-}
-
-// GetBalanceByID retrieves a balance by ID.
-func (handler *BalanceHandler) GetBalanceByID(c fiber.Ctx) error {
-	ctx := c.Context()
-
-	organizationID, err := http.GetUUIDFromLocals(c, "organization_id")
-	if err != nil {
-		return http.WithError(c, err)
-	}
-
-	ledgerID, err := http.GetUUIDFromLocals(c, "ledger_id")
-	if err != nil {
-		return http.WithError(c, err)
-	}
-
-	balanceID, err := http.GetUUIDFromLocals(c, "balance_id")
-	if err != nil {
-		return http.WithError(c, err)
-	}
-
-	op, err := handler.getBalanceByID(ctx, organizationID, ledgerID, balanceID)
-	if err != nil {
-		return http.WithError(c, err)
-	}
-
-	return http.OK(c, op)
-}
-
-// DeleteBalanceByID delete a balance by ID.
-func (handler *BalanceHandler) DeleteBalanceByID(c fiber.Ctx) error {
-	ctx := c.Context()
-
-	organizationID, err := http.GetUUIDFromLocals(c, "organization_id")
-	if err != nil {
-		return http.WithError(c, err)
-	}
-
-	ledgerID, err := http.GetUUIDFromLocals(c, "ledger_id")
-	if err != nil {
-		return http.WithError(c, err)
-	}
-
-	balanceID, err := http.GetUUIDFromLocals(c, "balance_id")
-	if err != nil {
-		return http.WithError(c, err)
-	}
-
-	if err := handler.deleteBalance(ctx, organizationID, ledgerID, balanceID); err != nil {
-		return http.WithError(c, err)
-	}
-
-	return http.NoContent(c)
-}
-
-// UpdateBalance method that patch balance created before
-func (handler *BalanceHandler) UpdateBalance(p any, c fiber.Ctx) error {
-	ctx := c.Context()
-
-	organizationID, err := http.GetUUIDFromLocals(c, "organization_id")
-	if err != nil {
-		return http.WithError(c, err)
-	}
-
-	ledgerID, err := http.GetUUIDFromLocals(c, "ledger_id")
-	if err != nil {
-		return http.WithError(c, err)
-	}
-
-	balanceID, err := http.GetUUIDFromLocals(c, "balance_id")
-	if err != nil {
-		return http.WithError(c, err)
-	}
-
-	balance, err := handler.updateBalance(ctx, organizationID, ledgerID, balanceID, p.(*mmodel.UpdateBalance))
-	if err != nil {
-		return http.WithError(c, err)
-	}
-
-	return http.OK(c, balance)
-}
-
-// GetBalancesByAlias retrieves balances by Alias.
-func (handler *BalanceHandler) GetBalancesByAlias(c fiber.Ctx) error {
-	ctx := c.Context()
-
-	organizationID, err := http.GetUUIDFromLocals(c, "organization_id")
-	if err != nil {
-		return http.WithError(c, err)
-	}
-
-	ledgerID, err := http.GetUUIDFromLocals(c, "ledger_id")
-	if err != nil {
-		return http.WithError(c, err)
-	}
-
-	pagination, err := handler.getBalancesByAlias(ctx, organizationID, ledgerID, c.Params("alias"))
-	if err != nil {
-		return http.WithError(c, err)
-	}
-
-	return http.OK(c, pagination)
-}
-
-// GetBalancesExternalByCode retrieves external balances by code.
-func (handler *BalanceHandler) GetBalancesExternalByCode(c fiber.Ctx) error {
-	ctx := c.Context()
-
-	organizationID, err := http.GetUUIDFromLocals(c, "organization_id")
-	if err != nil {
-		return http.WithError(c, err)
-	}
-
-	ledgerID, err := http.GetUUIDFromLocals(c, "ledger_id")
-	if err != nil {
-		return http.WithError(c, err)
-	}
-
-	pagination, err := handler.getBalancesExternalByCode(ctx, organizationID, ledgerID, c.Params("code"))
-	if err != nil {
-		return http.WithError(c, err)
-	}
-
-	return http.OK(c, pagination)
-}
-
-// CreateAdditionalBalance handles the creation of a new balance using the provided payload and context.
-func (handler *BalanceHandler) CreateAdditionalBalance(p any, c fiber.Ctx) error {
-	ctx := c.Context()
-
-	organizationID, err := http.GetUUIDFromLocals(c, "organization_id")
-	if err != nil {
-		return http.WithError(c, err)
-	}
-
-	ledgerID, err := http.GetUUIDFromLocals(c, "ledger_id")
-	if err != nil {
-		return http.WithError(c, err)
-	}
-
-	accountID, err := http.GetUUIDFromLocals(c, "account_id")
-	if err != nil {
-		return http.WithError(c, err)
-	}
-
-	balance, err := handler.createAdditionalBalance(ctx, organizationID, ledgerID, accountID, p.(*mmodel.CreateAdditionalBalance))
-	if err != nil {
-		return http.WithError(c, err)
-	}
-
-	return http.Created(c, balance)
-}
-
-// GetBalanceAtTimestamp retrieves a balance at a specific point in time.
-func (handler *BalanceHandler) GetBalanceAtTimestamp(c fiber.Ctx) error {
-	ctx := c.Context()
-
-	organizationID, err := http.GetUUIDFromLocals(c, "organization_id")
-	if err != nil {
-		return http.WithError(c, err)
-	}
-
-	ledgerID, err := http.GetUUIDFromLocals(c, "ledger_id")
-	if err != nil {
-		return http.WithError(c, err)
-	}
-
-	balanceID, err := http.GetUUIDFromLocals(c, "balance_id")
-	if err != nil {
-		return http.WithError(c, err)
-	}
-
-	history, err := handler.getBalanceAtTimestamp(ctx, organizationID, ledgerID, balanceID, c.Query("date"))
-	if err != nil {
-		return http.WithError(c, err)
-	}
-
-	return http.OK(c, history)
-}
-
-// GetAccountBalancesAtTimestamp retrieves all balances for an account at a specific point in time.
-func (handler *BalanceHandler) GetAccountBalancesAtTimestamp(c fiber.Ctx) error {
-	ctx := c.Context()
-
-	organizationID, err := http.GetUUIDFromLocals(c, "organization_id")
-	if err != nil {
-		return http.WithError(c, err)
-	}
-
-	ledgerID, err := http.GetUUIDFromLocals(c, "ledger_id")
-	if err != nil {
-		return http.WithError(c, err)
-	}
-
-	accountID, err := http.GetUUIDFromLocals(c, "account_id")
-	if err != nil {
-		return http.WithError(c, err)
-	}
-
-	history, err := handler.getAccountBalancesAtTimestamp(ctx, organizationID, ledgerID, accountID, c.Query("date"))
-	if err != nil {
-		return http.WithError(c, err)
-	}
-
-	return http.OK(c, history)
 }

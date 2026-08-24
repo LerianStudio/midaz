@@ -9,7 +9,6 @@ import (
 
 	libObservability "github.com/LerianStudio/lib-observability/v2"
 	libOpentelemetry "github.com/LerianStudio/lib-observability/v2/tracing"
-	"github.com/gofiber/fiber/v3"
 	"github.com/google/uuid"
 	"go.mongodb.org/mongo-driver/v2/bson"
 
@@ -27,17 +26,15 @@ type AccountTypeHandler struct {
 // --- Transport-agnostic cores -------------------------------------------------
 //
 // The createAccountType/updateAccountType/... methods below own the span, the
-// service call and the success log. They take primitive args (parsed UUIDs, the
-// already-decoded payload, the query map) so BOTH transports feed them: the Fiber
-// wrappers pull those from fiber.Ctx (Locals + the WithBody-decoded payload +
-// c.Queries) and the Huma handlers (accounttype_handler_huma.go) pull them from the
-// request envelope. Every canonical Midaz error the cores return is rendered by the
-// caller — http.WithError on the Fiber path, http.HumaProblem on the Huma path — so
-// the code + HTTP status are identical across both transports.
+// service call and the success log. They take primitive args — parsed UUIDs, the
+// already-decoded payload, the query map — so nothing transport-shaped reaches them;
+// the handlers in accounttype_handler.go pull those out of the request envelope.
+// Every canonical Midaz error a core returns is rendered by its caller via
+// http.HumaProblem, which fixes the code + HTTP status.
 
 // createAccountType owns the span + service call + success log for an already-decoded
-// payload. Body decode+validation happens BEFORE this core: the Fiber path decodes via
-// the WithBody decorator, the Huma path decodes via http.DecodeAndValidate(RawBody).
+// payload. Body decode+validation happens BEFORE this core, in the handler, via
+// http.DecodeAndValidate(RawBody).
 func (handler *AccountTypeHandler) createAccountType(ctx context.Context, organizationID, ledgerID uuid.UUID, payload *mmodel.CreateAccountTypeInput) (*mmodel.AccountType, error) {
 	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
@@ -75,7 +72,7 @@ func (handler *AccountTypeHandler) getAccountTypeByID(ctx context.Context, organ
 }
 
 // updateAccountType owns the span + service call + success log for an already-decoded
-// payload (see createAccountType for the decode split across transports).
+// payload (see createAccountType for where the decode happens).
 func (handler *AccountTypeHandler) updateAccountType(ctx context.Context, organizationID, ledgerID, id uuid.UUID, payload *mmodel.UpdateAccountTypeInput) (*mmodel.AccountType, error) {
 	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
@@ -111,9 +108,9 @@ func (handler *AccountTypeHandler) deleteAccountType(ctx context.Context, organi
 	return nil
 }
 
-// getAllAccountTypes binds the query map imperatively (http.ValidateParameters — the
-// SAME binder the Fiber path used) so a bad query yields the canonical 400, then
-// returns the assembled cursor-paginated envelope.
+// getAllAccountTypes binds the query map imperatively via http.ValidateParameters so a
+// bad query yields the canonical 400, then returns the assembled cursor-paginated
+// envelope.
 func (handler *AccountTypeHandler) getAllAccountTypes(ctx context.Context, organizationID, ledgerID uuid.UUID, queries map[string]string) (http.Pagination, error) {
 	_, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
@@ -165,128 +162,4 @@ func (handler *AccountTypeHandler) getAllAccountTypes(ctx context.Context, organ
 	pagination.SetCursor(cur.Next, cur.Prev)
 
 	return pagination, nil
-}
-
-// Create an Account Type.
-func (handler *AccountTypeHandler) CreateAccountType(i any, c fiber.Ctx) error {
-	ctx := c.Context()
-
-	organizationID, err := http.GetUUIDFromLocals(c, "organization_id")
-	if err != nil {
-		return http.WithError(c, err)
-	}
-
-	ledgerID, err := http.GetUUIDFromLocals(c, "ledger_id")
-	if err != nil {
-		return http.WithError(c, err)
-	}
-
-	accountType, err := handler.createAccountType(ctx, organizationID, ledgerID, i.(*mmodel.CreateAccountTypeInput))
-	if err != nil {
-		return http.WithError(c, err)
-	}
-
-	return http.Created(c, accountType)
-}
-
-// GetAccountTypeByID is a method that retrieves Account Type information by a given account type id.
-func (handler *AccountTypeHandler) GetAccountTypeByID(c fiber.Ctx) error {
-	ctx := c.Context()
-
-	organizationID, err := http.GetUUIDFromLocals(c, "organization_id")
-	if err != nil {
-		return http.WithError(c, err)
-	}
-
-	ledgerID, err := http.GetUUIDFromLocals(c, "ledger_id")
-	if err != nil {
-		return http.WithError(c, err)
-	}
-
-	id, err := http.GetUUIDFromLocals(c, "id")
-	if err != nil {
-		return http.WithError(c, err)
-	}
-
-	accountType, err := handler.getAccountTypeByID(ctx, organizationID, ledgerID, id)
-	if err != nil {
-		return http.WithError(c, err)
-	}
-
-	return http.OK(c, accountType)
-}
-
-// Update an Account Type.
-func (handler *AccountTypeHandler) UpdateAccountType(i any, c fiber.Ctx) error {
-	ctx := c.Context()
-
-	organizationID, err := http.GetUUIDFromLocals(c, "organization_id")
-	if err != nil {
-		return http.WithError(c, err)
-	}
-
-	ledgerID, err := http.GetUUIDFromLocals(c, "ledger_id")
-	if err != nil {
-		return http.WithError(c, err)
-	}
-
-	id, err := http.GetUUIDFromLocals(c, "id")
-	if err != nil {
-		return http.WithError(c, err)
-	}
-
-	accountType, err := handler.updateAccountType(ctx, organizationID, ledgerID, id, i.(*mmodel.UpdateAccountTypeInput))
-	if err != nil {
-		return http.WithError(c, err)
-	}
-
-	return http.OK(c, accountType)
-}
-
-// DeleteAccountTypeByID is a method that deletes Account Type information.
-func (handler *AccountTypeHandler) DeleteAccountTypeByID(c fiber.Ctx) error {
-	ctx := c.Context()
-
-	organizationID, err := http.GetUUIDFromLocals(c, "organization_id")
-	if err != nil {
-		return http.WithError(c, err)
-	}
-
-	ledgerID, err := http.GetUUIDFromLocals(c, "ledger_id")
-	if err != nil {
-		return http.WithError(c, err)
-	}
-
-	id, err := http.GetUUIDFromLocals(c, "id")
-	if err != nil {
-		return http.WithError(c, err)
-	}
-
-	if err := handler.deleteAccountType(ctx, organizationID, ledgerID, id); err != nil {
-		return http.WithError(c, err)
-	}
-
-	return http.NoContent(c)
-}
-
-// GetAllAccountTypes is a method that retrieves all Account Types.
-func (handler *AccountTypeHandler) GetAllAccountTypes(c fiber.Ctx) error {
-	ctx := c.Context()
-
-	organizationID, err := http.GetUUIDFromLocals(c, "organization_id")
-	if err != nil {
-		return http.WithError(c, err)
-	}
-
-	ledgerID, err := http.GetUUIDFromLocals(c, "ledger_id")
-	if err != nil {
-		return http.WithError(c, err)
-	}
-
-	pagination, err := handler.getAllAccountTypes(ctx, organizationID, ledgerID, c.Queries())
-	if err != nil {
-		return http.WithError(c, err)
-	}
-
-	return http.OK(c, pagination)
 }

@@ -13,7 +13,6 @@ import (
 	libObservability "github.com/LerianStudio/lib-observability/v2"
 	libLog "github.com/LerianStudio/lib-observability/v2/log"
 	libOpentelemetry "github.com/LerianStudio/lib-observability/v2/tracing"
-	"github.com/gofiber/fiber/v3"
 	"github.com/google/uuid"
 	"go.mongodb.org/mongo-driver/v2/bson"
 	"go.opentelemetry.io/otel/attribute"
@@ -32,34 +31,19 @@ type OperationRouteHandler struct {
 	Query   *query.UseCase
 }
 
-// Create an Operation Route.
-func (handler *OperationRouteHandler) CreateOperationRoute(i any, c fiber.Ctx) error {
-	ctx := c.Context()
+// --- Transport-agnostic cores -------------------------------------------------
+//
+// The createOperationRoute/updateOperationRoute/... methods below own the span, the
+// service call and the success log. They take primitive args — parsed UUIDs, the
+// already-decoded payload, the raw body, the query map — so nothing transport-shaped
+// reaches them; the handlers in operation_route_handler.go pull those out of the
+// request envelope. Every canonical Midaz error a core returns is rendered by its
+// caller via http.HumaProblem, which fixes the code + HTTP status.
 
-	organizationID, err := http.GetUUIDFromLocals(c, "organization_id")
-	if err != nil {
-		return http.WithError(c, err)
-	}
-
-	ledgerID, err := http.GetUUIDFromLocals(c, "ledger_id")
-	if err != nil {
-		return http.WithError(c, err)
-	}
-
-	payload := i.(*mmodel.CreateOperationRouteInput)
-
-	operationRoute, err := handler.createOperationRoute(ctx, organizationID, ledgerID, payload, c.Body())
-	if err != nil {
-		return http.WithError(c, err)
-	}
-
-	return http.Created(c, operationRoute)
-}
-
-// createOperationRoute is the transport-agnostic core for POST. rawBody is the
-// unparsed request body used only to reproduce the accountingEntries unknown-key
-// probe (Go's json.Unmarshal silently drops unknown keys). Both the Fiber wrapper
-// (c.Body()) and the Huma shell (in.RawBody) feed the same bytes here.
+// createOperationRoute owns the span + service call for an already-decoded payload.
+// rawBody is the unparsed request body, needed only for the accountingEntries
+// unknown-key probe: Go's json.Unmarshal silently drops unknown keys, so the typed
+// payload alone cannot tell an unknown key from an omitted one.
 func (handler *OperationRouteHandler) createOperationRoute(ctx context.Context, organizationID, ledgerID uuid.UUID, payload *mmodel.CreateOperationRouteInput, rawBody []byte) (*mmodel.OperationRoute, error) {
 	logger, tracer, _, metricFactory := libObservability.NewTrackingFromContext(ctx)
 
@@ -117,34 +101,7 @@ func (handler *OperationRouteHandler) createOperationRoute(ctx context.Context, 
 	return operationRoute, nil
 }
 
-// GetOperationRouteByID is a method that retrieves Operation Route information by a given operation route id.
-func (handler *OperationRouteHandler) GetOperationRouteByID(c fiber.Ctx) error {
-	ctx := c.Context()
-
-	organizationID, err := http.GetUUIDFromLocals(c, "organization_id")
-	if err != nil {
-		return http.WithError(c, err)
-	}
-
-	ledgerID, err := http.GetUUIDFromLocals(c, "ledger_id")
-	if err != nil {
-		return http.WithError(c, err)
-	}
-
-	id, err := http.GetUUIDFromLocals(c, "operation_route_id")
-	if err != nil {
-		return http.WithError(c, err)
-	}
-
-	operationRoute, err := handler.getOperationRouteByID(ctx, organizationID, ledgerID, id)
-	if err != nil {
-		return http.WithError(c, err)
-	}
-
-	return http.OK(c, operationRoute)
-}
-
-// getOperationRouteByID is the transport-agnostic core for GET-by-id.
+// getOperationRouteByID owns the span + service call for GET-by-id.
 func (handler *OperationRouteHandler) getOperationRouteByID(ctx context.Context, organizationID, ledgerID, id uuid.UUID) (*mmodel.OperationRoute, error) {
 	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
@@ -162,42 +119,12 @@ func (handler *OperationRouteHandler) getOperationRouteByID(ctx context.Context,
 	return operationRoute, nil
 }
 
-// UpdateOperationRoute is a method that updates Operation Route information.
-func (handler *OperationRouteHandler) UpdateOperationRoute(i any, c fiber.Ctx) error {
-	ctx := c.Context()
-
-	organizationID, err := http.GetUUIDFromLocals(c, "organization_id")
-	if err != nil {
-		return http.WithError(c, err)
-	}
-
-	ledgerID, err := http.GetUUIDFromLocals(c, "ledger_id")
-	if err != nil {
-		return http.WithError(c, err)
-	}
-
-	id, err := http.GetUUIDFromLocals(c, "operation_route_id")
-	if err != nil {
-		return http.WithError(c, err)
-	}
-
-	payload := i.(*mmodel.UpdateOperationRouteInput)
-
-	operationRoute, err := handler.updateOperationRoute(ctx, organizationID, ledgerID, id, payload, c.Body())
-	if err != nil {
-		return http.WithError(c, err)
-	}
-
-	return http.OK(c, operationRoute)
-}
-
-// updateOperationRoute is the transport-agnostic core for PATCH. It implements the
-// RFC 7396 JSON Merge Patch landmine: rawBody is the sole source that distinguishes
-// accountingEntries FIELD-ABSENT (keep existing) from accountingEntries:null (clear
-// all). Go's typed decode collapses both to a nil AccountingEntries, so the core
-// re-derives payload.AccountingEntriesRaw from these bytes exactly like the Fiber
-// path did from c.Body() — feed the same bytes from both transports or the PATCH
-// breaks silently. Also reproduces the accountingEntries unknown-key probe.
+// updateOperationRoute implements RFC 7396 JSON Merge Patch. rawBody is the sole
+// source that distinguishes accountingEntries FIELD-ABSENT (keep existing) from
+// accountingEntries:null (clear all): Go's typed decode collapses both to a nil
+// AccountingEntries, so the core re-derives payload.AccountingEntriesRaw from these
+// bytes. Feed anything but the unparsed request body and the PATCH breaks silently.
+// Also reproduces the accountingEntries unknown-key probe.
 func (handler *OperationRouteHandler) updateOperationRoute(ctx context.Context, organizationID, ledgerID, id uuid.UUID, payload *mmodel.UpdateOperationRouteInput, rawBody []byte) (*mmodel.OperationRoute, error) {
 	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
@@ -282,33 +209,7 @@ func (handler *OperationRouteHandler) updateOperationRoute(ctx context.Context, 
 	return operationRoute, nil
 }
 
-// DeleteOperationRouteByID is a method that deletes Operation Route information.
-func (handler *OperationRouteHandler) DeleteOperationRouteByID(c fiber.Ctx) error {
-	ctx := c.Context()
-
-	organizationID, err := http.GetUUIDFromLocals(c, "organization_id")
-	if err != nil {
-		return http.WithError(c, err)
-	}
-
-	ledgerID, err := http.GetUUIDFromLocals(c, "ledger_id")
-	if err != nil {
-		return http.WithError(c, err)
-	}
-
-	id, err := http.GetUUIDFromLocals(c, "operation_route_id")
-	if err != nil {
-		return http.WithError(c, err)
-	}
-
-	if err := handler.deleteOperationRouteByID(ctx, organizationID, ledgerID, id); err != nil {
-		return http.WithError(c, err)
-	}
-
-	return http.NoContent(c)
-}
-
-// deleteOperationRouteByID is the transport-agnostic core for DELETE.
+// deleteOperationRouteByID owns the span + service call for DELETE.
 func (handler *OperationRouteHandler) deleteOperationRouteByID(ctx context.Context, organizationID, ledgerID, id uuid.UUID) error {
 	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
@@ -325,31 +226,9 @@ func (handler *OperationRouteHandler) deleteOperationRouteByID(ctx context.Conte
 	return nil
 }
 
-// GetAllOperationRoutes is a method that retrieves all Operation Routes information.
-func (handler *OperationRouteHandler) GetAllOperationRoutes(c fiber.Ctx) error {
-	ctx := c.Context()
-
-	organizationID, err := http.GetUUIDFromLocals(c, "organization_id")
-	if err != nil {
-		return http.WithError(c, err)
-	}
-
-	ledgerID, err := http.GetUUIDFromLocals(c, "ledger_id")
-	if err != nil {
-		return http.WithError(c, err)
-	}
-
-	pagination, err := handler.getAllOperationRoutes(ctx, organizationID, ledgerID, c.Queries())
-	if err != nil {
-		return http.WithError(c, err)
-	}
-
-	return http.OK(c, pagination)
-}
-
-// getAllOperationRoutes is the transport-agnostic core for GET-list. queries is the
-// map[string]string that http.ValidateParameters consumes (Fiber's c.Queries() or
-// the Huma binder's rebuilt map).
+// getAllOperationRoutes binds the query map imperatively via http.ValidateParameters
+// so a bad query yields the canonical 400, then returns the assembled pagination
+// envelope.
 func (handler *OperationRouteHandler) getAllOperationRoutes(ctx context.Context, organizationID, ledgerID uuid.UUID, queries map[string]string) (http.Pagination, error) {
 	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 

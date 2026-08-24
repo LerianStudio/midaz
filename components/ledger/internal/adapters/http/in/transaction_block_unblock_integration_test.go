@@ -15,12 +15,15 @@ import (
 	"testing"
 
 	libCommons "github.com/LerianStudio/lib-commons/v6/commons"
+	openapi "github.com/LerianStudio/lib-commons/v6/commons/net/http/openapi"
+	libProblem "github.com/LerianStudio/lib-commons/v6/commons/net/http/problem"
 	"github.com/gofiber/fiber/v3"
 	"github.com/google/uuid"
 	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	ledgerMiddleware "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/http/in/middleware"
 	mongodb "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/mongodb/transaction"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/balance"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/operation"
@@ -30,7 +33,6 @@ import (
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services/command"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services/query"
 	cn "github.com/LerianStudio/midaz/v4/pkg/constant"
-	"github.com/LerianStudio/midaz/v4/pkg/mtransaction"
 	"github.com/LerianStudio/midaz/v4/pkg/net/http"
 	"github.com/LerianStudio/midaz/v4/pkg/utils"
 	mongotestutil "github.com/LerianStudio/midaz/v4/tests/utils/mongodb"
@@ -130,48 +132,38 @@ func setupBlockUnblockInfra(t *testing.T) *blockUnblockInfra {
 }
 
 func (infra *blockUnblockInfra) setupRoutes() {
-	// parseParam resolves a UUID path parameter into c.Locals. A malformed value
-	// surfaces as an HTTP 400 instead of silently becoming the zero UUID (which
-	// would mask a routing/derivation bug behind a confusing not-found later).
-	parseParam := func(c fiber.Ctx, name string) error {
-		v := c.Params(name)
-		if v == "" {
-			return nil
-		}
+	// Every surface here is served by Huma, so each is mounted through its own
+	// registrar rather than by handing a terminal to Fiber: ParseUUIDPathParameters
+	// runs as middleware on the versioned group and the registrar owns the terminal.
+	libProblem.Install()
+	http.InstallHumaFrameworkErrors()
 
-		id, err := uuid.Parse(v)
-		if err != nil {
-			return c.Status(fiber.StatusBadRequest).
-				JSON(fiber.Map{"error": "invalid path parameter " + name + ": " + v})
-		}
+	// Mirror production: the ledger registers ErrorEnvelope on the app root, so
+	// /v1 serves the v3 envelope.
+	infra.app.Use(ledgerMiddleware.ErrorEnvelope())
 
-		c.Locals(name, id)
+	apiV1 := infra.app.Group("/v1")
+	hAPI := openapi.New(infra.app, apiV1, openapi.Config{
+		Title:   "ledger-integration",
+		Version: "test",
+		Servers: []string{"/v1"},
+	})
 
-		return nil
-	}
+	// The transaction Out nests operation.{Status,Balance,Amount}, which collide on
+	// bare schema names with the mmodel/transaction types on the shared registry.
+	// Must run after openapi.New and BEFORE any huma.Register.
+	http.InstallLedgerSchemaNamer(hAPI)
 
-	paramMiddleware := func(c fiber.Ctx) error {
-		for _, name := range []string{"organization_id", "ledger_id", "transaction_id", "account_id"} {
-			if err := parseParam(c, name); err != nil {
-				return err
-			}
-		}
+	mountTransactionRoutes(apiV1)
 
-		return c.Next()
-	}
+	RegisterTransactionRoutes(hAPI, infra.txHandler)
 
-	base := "/v1/organizations/:organization_id/ledgers/:ledger_id"
+	apiV1.Get(
+		"/organizations/:organization_id/ledgers/:ledger_id/accounts/:account_id/operations",
+		http.ParseUUIDPathParameters("operation"),
+	)
 
-	infra.app.Post(base+"/transactions/block",
-		paramMiddleware, http.WithBody(new(mtransaction.CreateTransactionInput), infra.txHandler.CreateTransactionBlock))
-	infra.app.Post(base+"/transactions/unblock",
-		paramMiddleware, http.WithBody(new(mtransaction.CreateTransactionInput), infra.txHandler.CreateTransactionUnblock))
-	infra.app.Get(base+"/transactions/:transaction_id",
-		paramMiddleware, infra.txHandler.GetTransaction)
-	infra.app.Get(base+"/transactions",
-		paramMiddleware, infra.txHandler.GetAllTransactions)
-	infra.app.Get(base+"/accounts/:account_id/operations",
-		paramMiddleware, infra.opHandler.GetAllOperationsByAccount)
+	RegisterOperationRoutes(hAPI, infra.opHandler, routeOpSuffixV1)
 }
 
 // seedLedgerSettings pre-populates the onboarding Redis settings cache so the

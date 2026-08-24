@@ -14,8 +14,8 @@ import (
 	libObservability "github.com/LerianStudio/lib-observability/v2"
 	libLog "github.com/LerianStudio/lib-observability/v2/log"
 	libOpentelemetry "github.com/LerianStudio/lib-observability/v2/tracing"
-	"github.com/gofiber/fiber/v3"
 	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/trace"
 
 	"github.com/LerianStudio/midaz/v4/pkg"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
@@ -96,7 +96,7 @@ func (handler *MetadataIndexHandler) contextForEntity(ctx context.Context, entit
 
 	tenantDB, err := mongoManager.GetDatabaseForTenant(ctx, tenantID)
 	if err != nil {
-		return nil, mapTenantError(err, tenantID)
+		return nil, mapTenantError(ctx, err, tenantID)
 	}
 
 	// Store in both generic and module-specific context keys.
@@ -136,7 +136,7 @@ func (handler *MetadataIndexHandler) contextForRepoGroup(ctx context.Context, on
 
 	tenantDB, err := mongoManager.GetDatabaseForTenant(ctx, tenantID)
 	if err != nil {
-		return nil, mapTenantError(err, tenantID)
+		return nil, mapTenantError(ctx, err, tenantID)
 	}
 
 	// Store in both generic and module-specific context keys.
@@ -147,8 +147,8 @@ func (handler *MetadataIndexHandler) contextForRepoGroup(ctx context.Context, on
 }
 
 // mapTenantError converts tenant-manager errors into Midaz-specific error types
-// so that the caller's http.WithError can map them to the correct HTTP status codes.
-func mapTenantError(err error, tenantID string) error {
+// so that the caller's HumaProblem can map them to the correct HTTP status codes.
+func mapTenantError(ctx context.Context, err error, tenantID string) error {
 	var suspErr *tmcore.TenantSuspendedError
 	if errors.As(err, &suspErr) {
 		return pkg.ForbiddenError{
@@ -174,10 +174,16 @@ func mapTenantError(err error, tenantID string) error {
 		}
 	}
 
+	// err is deliberately not interpolated: this is a 503, and the ledger publishes
+	// >=500 message text to clients. The tenant ID stays because it is the caller's
+	// own. The cause is recorded on the span so it is not lost — without this the
+	// only record of WHY tenant resolution failed would be gone.
+	libOpentelemetry.HandleSpanError(trace.SpanFromContext(ctx), "Failed to resolve tenant database", err)
+
 	return pkg.ServiceUnavailableError{
 		Code:    constant.ErrTenantServiceUnavailable.Error(),
 		Title:   "Tenant Service Unavailable",
-		Message: fmt.Sprintf("failed to resolve tenant %s: %s", tenantID, err.Error()),
+		Message: fmt.Sprintf("failed to resolve tenant %s", tenantID),
 	}
 }
 
@@ -189,28 +195,11 @@ func isValidEntity(entityName string) bool {
 	return onboarding || transaction
 }
 
-// CreateMetadataIndex creates a new metadata index.
-func (handler *MetadataIndexHandler) CreateMetadataIndex(p any, c fiber.Ctx) error {
-	payload, ok := p.(*mmodel.CreateMetadataIndexInput)
-	if !ok {
-		return http.WithError(c, pkg.ValidateBusinessError(constant.ErrInvalidType, constant.EntityMetadataIndex))
-	}
-
-	metadataIndex, err := handler.createMetadataIndex(c.Context(), c.Params("entity_name"), c.Queries(), payload)
-	if err != nil {
-		return http.WithError(c, err)
-	}
-
-	return http.Created(c, metadataIndex)
-}
-
-// createMetadataIndex is the transport-agnostic core for CreateMetadataIndex,
-// shared by the Fiber wrapper above and the Huma handler (metadata_handler_huma.go).
-// ctx must already carry the tenant id (the auth+tenant middleware chain populated
-// it); this core resolves the tenant db, validates the entity name and query
-// params, and creates the index — every error is the SAME canonical Midaz error
-// the pre-Huma Fiber path returned, so WithError and HumaProblem project identical
-// code/status envelopes.
+// createMetadataIndex is the transport-agnostic core behind the create terminal in
+// metadata_handler.go. ctx must already carry the tenant id (the auth+tenant
+// middleware chain populated it); this core resolves the tenant db, validates the
+// entity name and query params, and creates the index. Every error it returns is a
+// canonical Midaz error, which HumaProblem renders at a fixed code and HTTP status.
 func (handler *MetadataIndexHandler) createMetadataIndex(ctx context.Context, entityName string, queries map[string]string, payload *mmodel.CreateMetadataIndexInput) (*mmodel.MetadataIndex, error) {
 	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
@@ -279,20 +268,10 @@ func (handler *MetadataIndexHandler) createMetadataIndex(ctx context.Context, en
 	return metadataIndex, nil
 }
 
-// GetAllMetadataIndexes retrieves all metadata indexes.
-func (handler *MetadataIndexHandler) GetAllMetadataIndexes(c fiber.Ctx) error {
-	indexes, err := handler.getAllMetadataIndexes(c.Context(), c.Queries())
-	if err != nil {
-		return http.WithError(c, err)
-	}
-
-	return http.OK(c, indexes)
-}
-
-// getAllMetadataIndexes is the transport-agnostic core for GetAllMetadataIndexes.
-// It validates the query params, optionally filters by entity_name, and returns
-// the flat index slice verbatim (matching the Fiber http.OK body). Every error is
-// the SAME canonical Midaz error the pre-Huma Fiber path returned.
+// getAllMetadataIndexes is the transport-agnostic core behind the list terminal in
+// metadata_handler.go. It validates the query params, optionally filters by
+// entity_name, and returns the flat index slice verbatim — a JSON array, not a
+// pagination envelope. Every error it returns is a canonical Midaz error.
 func (handler *MetadataIndexHandler) getAllMetadataIndexes(ctx context.Context, queries map[string]string) ([]*mmodel.MetadataIndex, error) {
 	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
@@ -414,19 +393,10 @@ func (handler *MetadataIndexHandler) getAllMetadataIndexes(ctx context.Context, 
 	return allIndexes, nil
 }
 
-// DeleteMetadataIndex deletes a metadata index.
-func (handler *MetadataIndexHandler) DeleteMetadataIndex(c fiber.Ctx) error {
-	if err := handler.deleteMetadataIndex(c.Context(), c.Params("entity_name"), c.Params("index_key")); err != nil {
-		return http.WithError(c, err)
-	}
-
-	return http.NoContent(c)
-}
-
-// deleteMetadataIndex is the transport-agnostic core for DeleteMetadataIndex.
-// ctx must already carry the tenant id. Every error is the SAME canonical Midaz
-// error the pre-Huma Fiber path returned, so WithError and HumaProblem project
-// identical code/status envelopes.
+// deleteMetadataIndex is the transport-agnostic core behind the delete terminal in
+// metadata_handler.go. ctx must already carry the tenant id. Every error it returns
+// is a canonical Midaz error, which HumaProblem renders at a fixed code and HTTP
+// status.
 func (handler *MetadataIndexHandler) deleteMetadataIndex(ctx context.Context, entityName, indexKey string) error {
 	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 

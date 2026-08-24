@@ -14,7 +14,6 @@ import (
 	libObservability "github.com/LerianStudio/lib-observability/v2"
 	libLog "github.com/LerianStudio/lib-observability/v2/log"
 	libOpenTelemetry "github.com/LerianStudio/lib-observability/v2/tracing"
-	"github.com/gofiber/fiber/v3"
 	"github.com/google/uuid"
 	"go.opentelemetry.io/otel/attribute"
 
@@ -61,35 +60,19 @@ type auditEventsEnvelope struct {
 	PrevCursor     string               `json:"prev_cursor,omitempty"`
 }
 
-// allowedAuditOutcomes is the reduced Phase-1 outcome enum accepted as a filter.
-// conflict and not_found are deferred and intentionally rejected.
+// allowedAuditOutcomes is the outcome enum accepted as a filter. Any other value,
+// including conflict and not_found, is rejected as an invalid query parameter.
 var allowedAuditOutcomes = map[string]struct{}{
 	string(mmodel.AuditOutcomeSuccess):       {},
 	string(mmodel.AuditOutcomeFailure):       {},
 	string(mmodel.AuditOutcomeAlreadyExists): {},
 }
 
-// GetAuditEvents handles the retrieval of protection audit events for an organization.
-func (handler *AuditHandler) GetAuditEvents(c fiber.Ctx) error {
-	organizationID, err := http.GetUUIDFromLocals(c, "organization_id")
-	if err != nil {
-		return http.WithError(c, err)
-	}
-
-	envelope, err := handler.getAuditEvents(c.Context(), organizationID, c.Queries())
-	if err != nil {
-		return http.WithError(c, err)
-	}
-
-	return http.OK(c, *envelope)
-}
-
 // getAuditEvents is the transport-agnostic core for the protection audit listing.
-// Both the Fiber wrapper (GetAuditEvents) and the Huma shell (GetAuditEventsHuma)
-// delegate here after resolving the org id and the raw query map (c.Queries() /
-// the Huma query binder), so neither touches the other's request/response object.
-// queries is the map[string]string equivalent of Fiber's c.Queries(): last value
-// wins for a repeated key, present-but-empty keys included.
+// The GetAuditEvents shell delegates here after resolving the org id and flattening
+// the raw query, so the core never touches a request/response object. queries holds
+// one entry per query key: last value wins for a repeated key, and present-but-empty
+// keys are included so the core can tell absent from empty.
 func (handler *AuditHandler) getAuditEvents(ctx context.Context, organizationID uuid.UUID, queries map[string]string) (*auditEventsEnvelope, error) {
 	logger, tracer, reqId, _ := libObservability.NewTrackingFromContext(ctx)
 
@@ -234,7 +217,7 @@ func (handler *AuditHandler) getAuditEvents(ctx context.Context, organizationID 
 
 // parseAuditTime is the SOLE date validator for this endpoint. ValidateParameters
 // is intentionally bypassed for start_date/end_date (the keys are filtered out of
-// its input in GetAuditEvents) because its validateDates injects a default range
+// its input in getAuditEvents) because its validateDates injects a default range
 // when both bounds are absent, rejects single-sided bounds, and enforces a
 // max-range window — semantics this endpoint does not want. parseAuditTime instead
 // treats each bound independently and unbounded-on-absent.

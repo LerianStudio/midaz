@@ -10,7 +10,6 @@ import (
 	libObservability "github.com/LerianStudio/lib-observability/v2"
 	libLog "github.com/LerianStudio/lib-observability/v2/log"
 	libOpentelemetry "github.com/LerianStudio/lib-observability/v2/tracing"
-	"github.com/gofiber/fiber/v3"
 	"github.com/google/uuid"
 	"go.mongodb.org/mongo-driver/v2/bson"
 	"go.opentelemetry.io/otel/attribute"
@@ -31,12 +30,10 @@ type TransactionRouteHandler struct {
 // The create/get/update/delete/getAll methods below own the span, the service call,
 // the transaction-route side-effects (accounting-route cache write on create/update,
 // cache delete on delete, the created metric) and the success/failure logs. They take
-// primitive args (parsed UUIDs, the decoded *Input, the query map) so BOTH transports
-// feed them: the Fiber wrappers pull those from fiber.Ctx (Locals + the WithBody-
-// decoded payload + c.Queries()) and the Huma handlers (transaction_route_handler_huma.go)
-// pull them from the request envelope. Every canonical Midaz error the cores return is
-// rendered by the caller — http.WithError on the Fiber path, http.HumaProblem on the
-// Huma path — so code + HTTP status are identical across both transports. Unlike
+// primitive args — parsed UUIDs, the decoded *Input, the query map — so nothing
+// transport-shaped reaches them; the handlers in transaction_route_handler.go pull
+// those out of the request envelope. Every canonical Midaz error a core returns is
+// rendered by its caller via http.HumaProblem, which fixes the code + HTTP status. Unlike
 // operation-route there is NO merge-patch landmine: the body is a normal typed decode,
 // so the cores take the decoded *Input, no rawBody.
 
@@ -141,9 +138,9 @@ func (handler *TransactionRouteHandler) deleteTransactionRouteByID(ctx context.C
 	return nil
 }
 
-// getAllTransactionRoutes binds the query map imperatively (http.ValidateParameters
-// — the SAME binder the Fiber path used) so a bad query yields the canonical 400,
-// then returns the assembled cursor-pagination envelope.
+// getAllTransactionRoutes binds the query map imperatively via http.ValidateParameters
+// so a bad query yields the canonical 400, then returns the assembled
+// cursor-pagination envelope.
 func (handler *TransactionRouteHandler) getAllTransactionRoutes(ctx context.Context, organizationID, ledgerID uuid.UUID, queries map[string]string) (http.Pagination, error) {
 	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
@@ -198,135 +195,4 @@ func (handler *TransactionRouteHandler) getAllTransactionRoutes(ctx context.Cont
 	pagination.SetCursor(cur.Next, cur.Prev)
 
 	return pagination, nil
-}
-
-// --- Fiber wrappers (thin) ----------------------------------------------------
-//
-// These stay so the legacy Fiber unit/integration tests keep exercising the handler
-// methods directly; each pulls the transport inputs from fiber.Ctx (Locals set by
-// ParseUUIDPathParameters, the WithBody-decoded payload as `i`) and delegates to the
-// shared core.
-
-// Create a Transaction Route.
-func (handler *TransactionRouteHandler) CreateTransactionRoute(i any, c fiber.Ctx) error {
-	ctx := c.Context()
-
-	organizationID, err := http.GetUUIDFromLocals(c, "organization_id")
-	if err != nil {
-		return http.WithError(c, err)
-	}
-
-	ledgerID, err := http.GetUUIDFromLocals(c, "ledger_id")
-	if err != nil {
-		return http.WithError(c, err)
-	}
-
-	transactionRoute, err := handler.createTransactionRoute(ctx, organizationID, ledgerID, i.(*mmodel.CreateTransactionRouteInput))
-	if err != nil {
-		return http.WithError(c, err)
-	}
-
-	return http.Created(c, transactionRoute)
-}
-
-// Get a Transaction Route by ID.
-func (handler *TransactionRouteHandler) GetTransactionRouteByID(c fiber.Ctx) error {
-	ctx := c.Context()
-
-	organizationID, err := http.GetUUIDFromLocals(c, "organization_id")
-	if err != nil {
-		return http.WithError(c, err)
-	}
-
-	ledgerID, err := http.GetUUIDFromLocals(c, "ledger_id")
-	if err != nil {
-		return http.WithError(c, err)
-	}
-
-	id, err := http.GetUUIDFromLocals(c, "transaction_route_id")
-	if err != nil {
-		return http.WithError(c, err)
-	}
-
-	transactionRoute, err := handler.getTransactionRouteByID(ctx, organizationID, ledgerID, id)
-	if err != nil {
-		return http.WithError(c, err)
-	}
-
-	return http.OK(c, transactionRoute)
-}
-
-// Update a Transaction Route.
-func (handler *TransactionRouteHandler) UpdateTransactionRoute(i any, c fiber.Ctx) error {
-	ctx := c.Context()
-
-	organizationID, err := http.GetUUIDFromLocals(c, "organization_id")
-	if err != nil {
-		return http.WithError(c, err)
-	}
-
-	ledgerID, err := http.GetUUIDFromLocals(c, "ledger_id")
-	if err != nil {
-		return http.WithError(c, err)
-	}
-
-	id, err := http.GetUUIDFromLocals(c, "transaction_route_id")
-	if err != nil {
-		return http.WithError(c, err)
-	}
-
-	transactionRoute, err := handler.updateTransactionRoute(ctx, organizationID, ledgerID, id, i.(*mmodel.UpdateTransactionRouteInput))
-	if err != nil {
-		return http.WithError(c, err)
-	}
-
-	return http.OK(c, transactionRoute)
-}
-
-// Delete a Transaction Route by ID.
-func (handler *TransactionRouteHandler) DeleteTransactionRouteByID(c fiber.Ctx) error {
-	ctx := c.Context()
-
-	organizationID, err := http.GetUUIDFromLocals(c, "organization_id")
-	if err != nil {
-		return http.WithError(c, err)
-	}
-
-	ledgerID, err := http.GetUUIDFromLocals(c, "ledger_id")
-	if err != nil {
-		return http.WithError(c, err)
-	}
-
-	id, err := http.GetUUIDFromLocals(c, "transaction_route_id")
-	if err != nil {
-		return http.WithError(c, err)
-	}
-
-	if err := handler.deleteTransactionRouteByID(ctx, organizationID, ledgerID, id); err != nil {
-		return http.WithError(c, err)
-	}
-
-	return http.NoContent(c)
-}
-
-// Get all Transaction Routes.
-func (handler *TransactionRouteHandler) GetAllTransactionRoutes(c fiber.Ctx) error {
-	ctx := c.Context()
-
-	organizationID, err := http.GetUUIDFromLocals(c, "organization_id")
-	if err != nil {
-		return http.WithError(c, err)
-	}
-
-	ledgerID, err := http.GetUUIDFromLocals(c, "ledger_id")
-	if err != nil {
-		return http.WithError(c, err)
-	}
-
-	pagination, err := handler.getAllTransactionRoutes(ctx, organizationID, ledgerID, c.Queries())
-	if err != nil {
-		return http.WithError(c, err)
-	}
-
-	return http.OK(c, pagination)
 }

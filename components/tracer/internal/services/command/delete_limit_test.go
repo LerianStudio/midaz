@@ -149,24 +149,16 @@ func TestDeleteLimitCommand_Execute_Success_FromInactive(t *testing.T) {
 	require.NoError(t, err)
 }
 
-func TestDeleteLimitCommand_Execute_AlreadyDeleted_Idempotent(t *testing.T) {
+// TestDeleteLimitCommand_Execute_SecondDelete_ReturnsNotFound pins the contract
+// for deleting an already-soft-deleted limit: the repository read excludes
+// deleted_at IS NOT NULL rows, so GetByID reports not found and the command
+// returns ErrLimitNotFound (HTTP 404 / code 0362) without opening a
+// transaction or writing an audit event.
+func TestDeleteLimitCommand_Execute_SecondDelete_ReturnsNotFound(t *testing.T) {
 	ctrl := gomock.NewController(t)
 
 	ctx := context.Background()
 	limitID := testutil.MustDeterministicUUID(20)
-	now := testutil.FixedTime()
-
-	deletedLimit := &model.Limit{
-		ID:        limitID,
-		Name:      "Test Limit",
-		LimitType: model.LimitTypeDaily,
-		MaxAmount: decimal.RequireFromString("1000"),
-		Asset:     "USD",
-		Scopes:    []model.Scope{{AccountID: testutil.UUIDPtr(testutil.MustDeterministicUUID(21))}},
-		Status:    model.LimitStatusDeleted,
-		CreatedAt: now,
-		UpdatedAt: now,
-	}
 
 	mockRepo := NewMockLimitRepository(ctrl)
 	auditWriter := NewMockAuditWriter(ctrl)
@@ -174,7 +166,7 @@ func TestDeleteLimitCommand_Execute_AlreadyDeleted_Idempotent(t *testing.T) {
 
 	mockRepo.EXPECT().
 		GetByID(gomock.Any(), limitID).
-		Return(deletedLimit, nil)
+		Return(nil, constant.ErrLimitNotFound)
 
 	txBeginner.EXPECT().BeginTx(gomock.Any(), gomock.Any()).Times(0)
 	auditWriter.EXPECT().
@@ -186,7 +178,8 @@ func TestDeleteLimitCommand_Execute_AlreadyDeleted_Idempotent(t *testing.T) {
 
 	err := cmd.Execute(ctx, limitID)
 
-	require.NoError(t, err)
+	require.Error(t, err)
+	assert.ErrorIs(t, err, constant.ErrLimitNotFound)
 }
 
 func TestDeleteLimitCommand_Execute_LimitNotFound(t *testing.T) {

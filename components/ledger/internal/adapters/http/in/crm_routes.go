@@ -40,8 +40,8 @@ func RegisterCRMV2RoutesToApp(group fiber.Router, api huma.API, auth *middleware
 // PostAuthMiddlewares (routeOptions) + ParseUUIDPathParameters — as MIDDLEWARE ONLY
 // (no terminal handler, no body binder) on the VERSIONED GROUP with GROUP-RELATIVE
 // paths, then registers the Huma terminals via RegisterHolderRoutes/
-// RegisterInstrumentRoutes on the SAME group's Huma API. This preserves the pre-Huma
-// (resource, verb) authz tuples and tenant resolution BYTE-FOR-BYTE — no CRM route
+// RegisterInstrumentRoutes on the SAME group's Huma API. The (resource, verb) authz
+// tuples and tenant resolution apply on whichever group it is mounted on — no CRM route
 // becomes public — while the Huma terminal owns request/response shaping. The
 // ParseUUIDPathParameters labels (holder/instruments/related-parties) are the
 // span-attribute names the inline routes used; the middleware validates every UUID
@@ -51,9 +51,8 @@ func RegisterCRMV2RoutesToApp(group fiber.Router, api huma.API, auth *middleware
 // passes crmOpSuffixV2 so the CRM IDs stay distinct within the shared OpenAPI document.
 //
 // hah may be nil (no ledger account-query backing); when nil the holder-accounts route
-// is neither auth-attached nor Huma-registered, matching the pre-Huma `if hah != nil`
-// guard.
-//
+// is neither auth-attached nor Huma-registered: the `if hah != nil` guard gates both.
+
 // eh and auditHandler are non-nil only in envelope encryption mode
 // (KMS_VENDOR=hashicorp-vault); when nil the encryption/audit routes stay unregistered,
 // matching the legacy-mode posture where no KMS provisioning surface exists.

@@ -1,0 +1,32 @@
+name: Fork PR Notice
+
+# Comments when a PR is opened from a fork, explaining the trusted-promotion
+# flow (fork-pr-promote.yml) and redirecting PRs opened against the wrong
+# base branch. Metadata-only: no checkout, no code execution, safe under
+# pull_request_target despite the elevated token it carries.
+
+on:
+  pull_request_target:
+    types: [opened]
+
+permissions:
+  pull-requests: write
+
+jobs:
+  notice:
+    if: github.event.pull_request.head.repo.full_name != github.repository
+    runs-on: blacksmith-4vcpu-ubuntu-2404
+    steps:
+      - name: Comment with the promotion flow explanation
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          BASE_REF: ${{ github.event.pull_request.base.ref }}
+        run: |
+          set -euo pipefail
+          if [[ "$BASE_REF" == "fork" ]]; then
+            body='Thanks for the contribution! Since this targets `fork`, a maintainer will review the diff and merge it normally when ready. That merge automatically opens a follow-up PR into `develop` with full CI (this repo does not grant secrets to PRs opened directly from a fork — a GitHub security restriction, not something disabled here). No action needed from you.'
+          else
+            body="Thanks for the contribution! This PR targets \`$BASE_REF\`, but PRs from forks need to target \`fork\` instead — CI for forked PRs against other branches runs without secrets and some checks will fail. Please retarget this PR's base branch to \`fork\` (Edit button, top of the PR) and a maintainer will pick it up from there."
+          fi
+          gh pr comment "$PR_NUMBER" --body "$body"

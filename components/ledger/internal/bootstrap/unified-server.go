@@ -20,6 +20,7 @@ import (
 	"github.com/gofiber/fiber/v3/middleware/cors"
 
 	httpin "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/http/in"
+	ledgerMiddleware "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/http/in/middleware"
 	"github.com/LerianStudio/midaz/v4/pkg/buildinfo"
 	midazhttp "github.com/LerianStudio/midaz/v4/pkg/net/http"
 )
@@ -69,8 +70,11 @@ func NewUnifiedServer(
 	routeRegistrars ...RouteRegistrar,
 ) *UnifiedServer {
 	app := fiber.New(fiber.Config{
-		AppName:      "Midaz Ledger API",
-		ErrorHandler: midazhttp.CanonicalFiberErrorHandler,
+		AppName: "Midaz Ledger API",
+		// Wrapped so responses this handler writes are reshaped for their route
+		// version too: it runs after the middleware chain has unwound, so
+		// ErrorEnvelope cannot see the errors that reach a client through here.
+		ErrorHandler: ledgerMiddleware.WrapErrorHandler(midazhttp.CanonicalFiberErrorHandler),
 	})
 
 	// Suppress the Fiber startup banner. The banner is gated at listen time via
@@ -84,6 +88,24 @@ func NewUnifiedServer(
 	})
 
 	// Add common middleware (only once for all routes).
+	//
+	// The ledger publishes its >=500 registry text instead of replacing it with
+	// "internal error". Several 5xx sentinels describe a CALLER mistake — 0181
+	// "Account not found on Midaz" asks the client to check the alias it sent — and
+	// collapsing those into one opaque body turns an integration bug into a storm of
+	// apparent server faults, with nothing in the response to tell them apart. The
+	// text published is static catalog text, never a raw cause. Tracer does not call
+	// this and keeps the scrub.
+	midazhttp.DisableHighStatusScrub()
+
+	// ErrorEnvelope is registered ahead of WithRecover — the one exception to the
+	// "WithRecover first" rule below — because it rewrites the response on the way
+	// OUT. Sitting outside the recovery boundary is what lets it reach the 500 body
+	// that WithRecover writes while unwinding a panic; from inside, that body would
+	// escape unrewritten. The inversion is safe only because ErrorEnvelope cannot
+	// panic: every path either replaces the body wholesale or leaves it untouched.
+	app.Use(ledgerMiddleware.ErrorEnvelope())
+
 	// WithRecover MUST be first so it wraps every handler and downstream middleware:
 	// a panic anywhere unwinds back through this defer and returns a 500 via the
 	// Fiber error handler instead of dropping the connection. Previously only CRM's
@@ -239,8 +261,7 @@ func mountHumaContracts(app *fiber.App, logger libLog.Logger, version string, co
 		c.mount(fiberGroup, humaGroup)
 	}
 
-	httpin.MarkV1OperationsDeprecated(api)
-	httpin.ApplyVersionTagGroups(api)
+	httpin.FinalizeContract(api)
 
 	if openAPIDocsEnabled() {
 		serveVersionedDocs(app, api, logger, title)

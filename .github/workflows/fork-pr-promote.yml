@@ -1,0 +1,52 @@
+name: Promote fork branch to develop
+
+# Fork PRs run pull_request with a read-only GITHUB_TOKEN and no custom
+# secrets — a hard GitHub platform restriction, not something any workflow
+# permissions block can lift. Trusted-promotion flow: external contributors
+# open PRs against the persistent `fork` branch (see fork-pr-notice.yml).
+# A maintainer reviews and merges that PR normally — the ordinary GitHub
+# merge button is the trust boundary here, nothing custom. This workflow's
+# only job is what happens right after: open (or reuse) a follow-up PR
+# `fork` -> `develop`. That PR is same-repo, so it gets full pull_request
+# treatment — normal GITHUB_TOKEN and secrets, no workarounds needed
+# anywhere else in CI.
+#
+# Metadata-only: this job never checks out anything, just calls the
+# GitHub API. It has to be pull_request_target, not pull_request: the PR
+# that merges into `fork` is itself cross-repository (opened from a fork),
+# and pull_request always gets a read-only GITHUB_TOKEN whenever the
+# triggering PR's head is a fork — regardless of `types:` filter or what
+# the job actually does. gh pr comment/create would silently 403 under
+# plain pull_request. pull_request_target is safe here specifically
+# because this job never checks out or executes anything.
+
+on:
+  pull_request_target:
+    types: [closed]
+
+concurrency:
+  group: fork-promotion-pr
+
+permissions:
+  pull-requests: write # create/update the fork -> develop promotion PR
+
+jobs:
+  open-promotion-pr:
+    if: github.event.pull_request.merged == true && github.event.pull_request.base.ref == 'fork'
+    runs-on: blacksmith-4vcpu-ubuntu-2404
+    steps:
+      - name: Open or confirm the fork -> develop promotion PR
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          existing=$(gh pr list --head fork --base develop --json number --jq '.[0].number // empty')
+          if [[ -n "$existing" ]]; then
+            gh pr comment "$existing" --body "Fork PR #${{ github.event.pull_request.number }} merged into \`fork\` — included in this promotion."
+          else
+            gh pr create \
+              --base develop \
+              --head fork \
+              --title "Promote fork -> develop" \
+              --body "Opened automatically after #${{ github.event.pull_request.number }} merged into \`fork\`. Same-repo branch — runs full CI with secrets."
+          fi

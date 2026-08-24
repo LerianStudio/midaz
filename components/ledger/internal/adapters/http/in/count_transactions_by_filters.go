@@ -6,19 +6,14 @@ package in
 
 import (
 	"context"
-	"fmt"
 	"strings"
 	"time"
 
-	libObservability "github.com/LerianStudio/lib-observability/v2"
-	libOpentelemetry "github.com/LerianStudio/lib-observability/v2/tracing"
-	"github.com/gofiber/fiber/v3"
 	"github.com/google/uuid"
 
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/transaction"
 	"github.com/LerianStudio/midaz/v4/pkg"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
-	"github.com/LerianStudio/midaz/v4/pkg/net/http"
 )
 
 // validTransactionStatuses contains the allowlist of valid transaction statuses for filtering.
@@ -30,62 +25,16 @@ var validTransactionStatuses = map[string]bool{
 	constant.NOTED:    true,
 }
 
-// CountTransactionsByFilters counts transactions matching optional filters.
-func (handler *TransactionHandler) CountTransactionsByFilters(c fiber.Ctx) error {
-	ctx := c.Context()
-
-	_, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
-
-	ctx, span := tracer.Start(ctx, "handler.count_transactions_by_filters")
-	defer span.End()
-
-	organizationID, err := http.GetUUIDFromLocals(c, "organization_id")
-	if err != nil {
-		return http.WithError(c, err)
-	}
-
-	ledgerID, err := http.GetUUIDFromLocals(c, "ledger_id")
-	if err != nil {
-		return http.WithError(c, err)
-	}
-
-	filter, err := parseCountFilter(c)
-	if err != nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Invalid query parameters", err)
-
-		return http.WithError(c, err)
-	}
-
-	count, err := handler.countTransactionsByFilters(ctx, organizationID, ledgerID, filter)
-	if err != nil {
-		handleSpanByErrorClass(span, "Failed to count transactions by filters", err)
-
-		return http.WithError(c, err)
-	}
-
-	c.Set(constant.XTotalCount, fmt.Sprintf("%d", count))
-	c.Set(constant.ContentLength, "0")
-
-	return http.NoContent(c)
-}
-
-// countTransactionsByFilters is the transport-agnostic count core shared by the
-// Fiber wrapper above and the Huma shell (count_handler_huma.go). It carries no
-// Fiber/Huma types so both transports delegate to identical query behavior.
+// countTransactionsByFilters counts the transactions matching filter within the
+// org+ledger scope.
 func (handler *TransactionHandler) countTransactionsByFilters(ctx context.Context, organizationID, ledgerID uuid.UUID, filter transaction.CountFilter) (int64, error) {
 	return handler.Query.CountTransactionsByFilters(ctx, organizationID, ledgerID, filter)
 }
 
-// parseCountFilter extracts optional query parameters from the Fiber context and
-// delegates validation to the transport-agnostic buildCountFilter core.
-func parseCountFilter(c fiber.Ctx) (transaction.CountFilter, error) {
-	return buildCountFilter(c.Query("route"), c.Query("status"), c.Query("start_date"), c.Query("end_date"))
-}
-
 // buildCountFilter validates and assembles a CountFilter from raw query values. It
-// is transport-agnostic (plain strings) so the Fiber wrapper and the Huma shell
-// share one validation pipeline — the sole validator of the count query filters,
-// keeping both paths byte-identical (no native Huma 422).
+// is the sole validator of the count query filters: an out-of-allowlist status, a
+// non-RFC-3339 date, or an inverted range yields a canonical business error rather
+// than a native Huma 422. Missing dates default to today's UTC day.
 func buildCountFilter(routeStr, statusStr, startDateStr, endDateStr string) (transaction.CountFilter, error) {
 	var filter transaction.CountFilter
 
