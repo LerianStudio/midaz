@@ -39,6 +39,10 @@ jobs:
       enable_changelog: ${{ github.ref == 'refs/heads/main' }}
       release_single_app: true
       app_name_prefix: "midaz"
+      # Default plus .coderabbit.yaml: it's a CodeRabbit-only config file,
+      # not something that should trigger a release or contact Ungoliant.
+      ignore_globs: "*.md docs/* .github/* LICENSE* .gitignore .coderabbit.yaml"
+      ungoliant_skip_globs: ".releaserc.yml .github/* .coderabbit.yaml"
       # Image/release filter: the two app image-bearing components. CRM rolls up under
       # components/ledger (a ledger package tree, not a standalone image); reporter
       # was extracted out of this repo entirely. The dedicated migration-runner images
