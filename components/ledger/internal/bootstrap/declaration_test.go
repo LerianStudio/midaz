@@ -68,8 +68,8 @@ func TestBuildDeclarationPublishers_IdentityAlways5xx_FailsOpenAndStopsDrain(t *
 	const stopDrainTimeout = 10 * time.Second
 
 	// reqCh signals each PUT the identity stub receives, so the test can prove
-	// both publishers actually exercised the failing-identity PUT path before
-	// draining them. Buffered + non-blocking send so the handler never blocks on
+	// the publisher actually exercised the failing-identity PUT path before
+	// draining it. Buffered + non-blocking send so the handler never blocks on
 	// retry traffic the test has stopped reading.
 	reqCh := make(chan struct{}, 64)
 
@@ -249,7 +249,7 @@ func TestValidateSaaSDeclarationTLS(t *testing.T) {
 // enabled-but-incomplete-config branch: RI is ON but IDP_HOST and both M2M
 // credentials are empty. The pre-flight warnIncompleteDeclarationConfig names the
 // empty env vars, then declaration.New rejects the empty IdentityAddr/credentials
-// for BOTH slugs (lib-auth's validateConfig), so each publisher is Warn-skipped and
+// (lib-auth's validateConfig), so the publisher is Warn-skipped and
 // the returned stops slice is empty. No goroutine is started (New fails before
 // Start), so the package goleak check stays clean, and the helper must not panic.
 func TestBuildDeclarationPublishers_EnabledIncompleteConfigFailsOpen(t *testing.T) {
@@ -262,5 +262,5 @@ func TestBuildDeclarationPublishers_EnabledIncompleteConfigFailsOpen(t *testing.
 
 	stops := buildDeclarationPublishers(cfg, stubTokenMinter{}, libLog.NewNop())
 
-	assert.Empty(t, stops, "enabled RI with empty IdP host/credentials must skip both publishers fail-open")
+	assert.Empty(t, stops, "enabled RI with empty IdP host/credentials must skip the publisher fail-open")
 }
