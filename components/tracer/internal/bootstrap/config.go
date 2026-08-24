@@ -113,6 +113,16 @@ type Config struct {
 	PluginAuthAddress string `env:"PLUGIN_AUTH_ADDRESS"`
 	PluginAuthEnabled bool   `env:"PLUGIN_AUTH_ENABLED"`
 
+	// Resource-inventory (RI) permission declaration against the IdP (identity, :4001),
+	// distinct from PLUGIN_AUTH_ADDRESS (auth, :4000). RI is OPTIONAL and fail-open: an unset
+	// or invalid IDP_DECLARATION_ENABLED decodes to false (safe), and empty host/credentials
+	// never block boot — the publisher handles incomplete config fail-open. IDPM2MClientSecret
+	// MUST NOT be logged, span-attached, or serialized.
+	DeclarationEnabled bool   `env:"IDP_DECLARATION_ENABLED"`
+	IDPHost            string `env:"IDP_HOST"`
+	IDPM2MClientID     string `env:"IDP_M2M_CLIENT_ID"`
+	IDPM2MClientSecret string `env:"IDP_M2M_CLIENT_SECRET"`
+
 	// Application identity
 	// ApplicationName is the module identifier used when registering with the
 	// multi-tenant Tenant Manager. Default: "tracer" (applied in ApplyMultiTenantDefaults).
@@ -1676,6 +1686,13 @@ func initCoreInfra(ctx context.Context, cfg *Config) (libLog.Logger, *libOtel.Te
 		return nil, nil, nil, nil, fmt.Errorf("TLS enforcement: %w", err)
 	}
 
+	// Scheme gate (fatal), orthogonal to the RI publisher's fail-open wiring: in
+	// SaaS mode a cleartext http:// IDP_HOST refuses boot before any IdP dial, so
+	// the M2M grant and bearer token cannot travel unencrypted.
+	if err := ValidateSaaSDeclarationTLS(cfg); err != nil {
+		return nil, nil, nil, nil, fmt.Errorf("TLS enforcement: %w", err)
+	}
+
 	// Init OpenTelemetry via lib-commons helper (per Ring standards)
 	telemetry, err := libOtel.NewTelemetry(libOtel.TelemetryConfig{
 		LibraryName:               cfg.OtelLibraryName,
@@ -1942,6 +1959,8 @@ func InitServers(ctx context.Context) (*Service, error) {
 	svc.ServiceDiscoveryEnabled = sd.enabled
 	svc.ServiceDescriptor = sd.descriptor
 	svc.ServiceDiscoveryMetrics = sd.recorder
+
+	svc.DeclarationStops = wireDeclarationPublisher(cfg, sd.authHost, logger)
 
 	// The launcher Runnable now owns the manager's graceful close; disarm the
 	// boot-failure closer so it does not double-close on the success path.

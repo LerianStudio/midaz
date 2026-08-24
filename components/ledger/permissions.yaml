@@ -18,12 +18,15 @@
 # MUST match what the middleware checks, so a granted role's permission lines up
 # with the runtime enforce — NOT a semantic create/read/update rename.
 #
-# ### TEAM: please confirm ### — ROLE MODEL IS INFERRED. The code carries no role
-# data (Authorize takes only subject/resource/action), so the editor/viewer split
-# below is an INFERRED convention, mirroring the plugin-fees manifest: read verbs
-# (get, head) are granted to editor + viewer; every mutating verb (post/put/patch/
-# delete) to editor only. The granted_to group bindings under `roles:` are NOT
-# inferred — they are confirmed against the central Access Manager seed (see below).
+# ROLE MODEL IS CONFIRMED against the central Access Manager. The code carries no
+# role data (Authorize takes only subject/resource/action), but the editor/viewer
+# split below is the confirmed convention applied across this midaz manifest (fee
+# resources are embedded here, no separate fees manifest): editor gets read plus
+# every mutating verb the routes use (get/post/put/patch/delete/head — asset-rates
+# uses put), viewer gets read-only (get/head), aligned with the Access Manager
+# editor/viewer role model (midaz-editor-permission / midaz-viewer-permission). The
+# granted_to group bindings under `roles:` are likewise confirmed against the
+# central Access Manager seed (see below).
 service: midaz
 version: 1
 permissions:
@@ -57,9 +60,21 @@ permissions:
   - { resource: balances, action: delete, effect: allow, roles: [editor] }
   - { resource: balances, action: post,   effect: allow, roles: [editor] }
 
+  # billing-calculate — billing calculate dry-run (fees_routes.go feeGuardRoutes)
+  - { resource: billing-calculate, action: post, effect: allow, roles: [editor] }
+
+  # billing-packages (fees_routes.go feeGuardRoutes)
+  - { resource: billing-packages, action: post,   effect: allow, roles: [editor] }
+  - { resource: billing-packages, action: get,    effect: allow, roles: [editor, viewer] }
+  - { resource: billing-packages, action: patch,  effect: allow, roles: [editor] }
+  - { resource: billing-packages, action: delete, effect: allow, roles: [editor] }
+
   # encryption (encryption_routes.go registerEncryptionRoutesToApp)
   - { resource: encryption, action: post, effect: allow, roles: [editor] }
   - { resource: encryption, action: get,  effect: allow, roles: [editor, viewer] }
+
+  # estimates — fee estimate dry-run (fees_routes.go feeGuardRoutes)
+  - { resource: estimates, action: post, effect: allow, roles: [editor] }
 
   # holders (holder_routes.go registerHolderRoutesToApp)
   - { resource: holders, action: post,   effect: allow, roles: [editor] }
@@ -96,6 +111,12 @@ permissions:
   - { resource: organizations, action: get,    effect: allow, roles: [editor, viewer] }
   - { resource: organizations, action: delete, effect: allow, roles: [editor] }
   - { resource: organizations, action: head,   effect: allow, roles: [editor, viewer] }
+
+  # packages — fee packages (fees_routes.go feeGuardRoutes)
+  - { resource: packages, action: post,   effect: allow, roles: [editor] }
+  - { resource: packages, action: get,    effect: allow, roles: [editor, viewer] }
+  - { resource: packages, action: patch,  effect: allow, roles: [editor] }
+  - { resource: packages, action: delete, effect: allow, roles: [editor] }
 
   # portfolios (portfolio_routes.go registerPortfolioRoutesToApp)
   - { resource: portfolios, action: post,   effect: allow, roles: [editor] }
@@ -152,12 +173,10 @@ roles:
       - group: midaz-viewer-group
 
 m2m:
-  # EXPORT: midaz is the target of plugin-fees' `needs: [midaz]` (fees calls the
-  # ledger in-process/over the seam), so it must expose its M2M editor surface.
+  # EXPORT: midaz exposes its M2M editor surface so a peer service that declares a
+  # `needs: [midaz]` edge can reconcile against it.
   exposed: true
-  # IMPORT: the ledger calls tracer's reservation API (TRACER_BASE_URL, gRPC/REST;
-  # .env.example:487) which is guarded by auth.Authorize("tracer","reservations",
-  # "post"). ### TEAM: please confirm ### — confirm this call rides an M2M token
-  # (not the API key) before relying on this edge.
-  needs:
-    - tracer
+  # IMPORT: the ledger calls tracer's reservation API (TRACER_BASE_URL) over the
+  # gRPC/mTLS reservation seam, authorized by tracer's own `reservations`
+  # permission (tracer-inbound authz). This is NOT an RI declaration M2M edge, so
+  # midaz declares no `needs`.

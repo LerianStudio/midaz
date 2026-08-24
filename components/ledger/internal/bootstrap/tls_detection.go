@@ -198,6 +198,63 @@ func IsTLSRecommended(deploymentMode string) bool {
 	return ResolveDeploymentMode(deploymentMode) == DeploymentModeBYOC
 }
 
+// idpSchemeIsCleartext reports whether idpHost carries an explicit http:// scheme —
+// the one case where the RI declaration publisher would dial the IdP in cleartext
+// and ship the M2M client_credentials grant plus the resulting bearer token
+// unencrypted. An https:// host is secure. A scheme-less or otherwise malformed
+// host is rejected by the publisher's own config validation (lib-auth requires an
+// absolute http(s):// URL) and fails open with no dial, so it is deliberately NOT
+// treated as a cleartext dial here. Scheme comparison is case-insensitive.
+func idpSchemeIsCleartext(idpHost string) bool {
+	parsed, err := url.Parse(strings.TrimSpace(idpHost))
+	if err != nil {
+		return false
+	}
+
+	// A non-empty Host is required: opaque forms like "http:identity" or
+	// "http:/identity" parse with an http scheme but no authority. The publisher
+	// never dials those (lib-auth rejects them and fails open), so they are not a
+	// cleartext dial and must not trip the gate.
+	return strings.EqualFold(parsed.Scheme, "http") && parsed.Host != ""
+}
+
+// ValidateSaaSDeclarationTLS extends the SaaS TLS gate to the Responsibility-
+// Inversion (RI) permission-declaration publisher's IdP dial. The publisher sends
+// the M2M client_credentials grant and the resulting bearer token to IDP_HOST, so
+// a Lerian-hosted deployment must not reach the IdP in cleartext — the same rule
+// Postgres, Mongo, Redis and RabbitMQ already answer to.
+//
+// It is a no-op unless RI declaration is ENABLED: a disabled publisher opens no IdP
+// connection at all. An empty or scheme-less IDP_HOST is likewise not this gate's
+// concern — the publisher's own pre-flight Warn and lib-auth's config validation
+// already cover incomplete/malformed config and fail open (no dial happens); a
+// missing host is not an insecure dial. Only an explicit http:// scheme trips the
+// gate. BYOC and local deployments keep their plaintext IdP.
+//
+// Like the Postgres/Mongo/Redis/RabbitMQ and streaming SaaS TLS gates, this does
+// NOT honor the ALLOW_INSECURE_TLS escape hatch: that escape lives in the
+// connection constructors, not in the SaaS TLS gate, so mirroring the existing
+// gate means no escape here.
+//
+// Delegating to ValidateSaaSTLS keeps the error sentence byte-identical to its
+// siblings; the suffix names the knob that fixes it. IDP_HOST is a plain host URL,
+// never a credential — the M2M secret is not part of this value and is never
+// referenced here, so nothing sensitive can reach the error message.
+func ValidateSaaSDeclarationTLS(deploymentMode string, declarationEnabled bool, idpHost string) error {
+	if !declarationEnabled || !idpSchemeIsCleartext(idpHost) {
+		return nil
+	}
+
+	if err := ValidateSaaSTLS(deploymentMode, []TLSValidationResult{{
+		Name:       "idp_declaration",
+		TLSEnabled: false,
+	}}); err != nil {
+		return fmt.Errorf("%w (set IDP_HOST to an https:// URL)", err)
+	}
+
+	return nil
+}
+
 // ValidateSaaSStreamingTLS extends the SaaS TLS gate to the lib-streaming Kafka
 // broker dial. It is separate from ValidateSaaSTLS because STREAMING_TLS_* is
 // lib-streaming's own env contract and never lands on the midaz Config (binding

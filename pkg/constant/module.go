@@ -14,6 +14,7 @@ const (
 	ModuleCRM = "crm-api"
 	// ModuleFees is the tenant-manager module name for fee/billing-package database
 	// schemas. The value MUST be "fees-api" to match tenant-manager provisioning.
-	// The fee auth/RBAC namespace is a separate literal (feeshared ApplicationName).
+	// This Mongo module name is a separate literal from the fee auth/RBAC slug,
+	// which is the shared "midaz" namespace (fees fold).
 	ModuleFees = "fees-api"
 )

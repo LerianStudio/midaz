@@ -10,7 +10,7 @@ import (
 
 // This file holds the shared response envelope for the billing-calculate (compute) op.
 // The ledger-scoped handler that constructs it lives in fees_v2_handler.go; the auth
-// ("plugin-fees","billing-calculate","post") + tenant +
+// ("midaz","billing-calculate","post") + tenant +
 // ParseUUIDPathParameters("billing-calculate") middleware chain is attached on the /v2
 // Fiber group BEFORE the Huma terminal (see fees_v2_register.go).
 //

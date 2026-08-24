@@ -10,7 +10,7 @@ import (
 
 // This file holds the shared response envelopes and per-operation security metadata for
 // the billing-package surface. The ledger-scoped handlers that construct these envelopes
-// live in fees_v2_handler.go; the auth ("plugin-fees","billing-packages",verb) + tenant +
+// live in fees_v2_handler.go; the auth ("midaz","billing-packages",verb) + tenant +
 // ParseUUIDPathParameters("billing-packages") middleware chain is attached on the /v2
 // Fiber group BEFORE the Huma terminal (see fees_v2_register.go), so the Security
 // metadata here is SPEC metadata only.

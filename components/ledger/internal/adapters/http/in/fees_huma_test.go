@@ -56,7 +56,7 @@ const feePkgV2Base = "/v2/organizations/"
 // buildHumaPackageApp mounts the five ledger-scoped package Huma operations on a /v2
 // group, mirroring production (fees_v2_register.go/unified-server.go): problem.Install()
 // before any huma.Register, the Huma API built with openapi.New over a /v2 group, an
-// auth-shim standing in for auth.Authorize("plugin-fees","packages",verb) + tenant, and
+// auth-shim standing in for auth.Authorize("midaz","packages",verb) + tenant, and
 // per-route ParseUUIDPathParameters("packages") + registerPackageV2Routes.
 //
 // MUST-NOT-PARALLELIZE (same rationale as buildHumaInstrumentApp): libProblem.Install()

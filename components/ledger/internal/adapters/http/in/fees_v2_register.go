@@ -17,8 +17,8 @@ import (
 
 // This file is the fee/billing contract seam. It mounts the twelve fee and billing
 // operations at ledger scope on the /v2 version group of the shared Huma contract, and
-// attaches the shared feeGuardRoutes table under the "plugin-fees" namespace:
-// auth.Authorize("plugin-fees", resource, verb) tuples, the fees-scoped tenant
+// attaches the shared feeGuardRoutes table under the "midaz" namespace:
+// auth.Authorize("midaz", resource, verb) tuples, the fees-scoped tenant
 // PostAuthMiddlewares, and the ParseUUIDPathParameters labels.
 //
 // Each operation is registered directly here off the ledger-scoped base path. That path

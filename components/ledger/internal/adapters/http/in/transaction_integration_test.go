@@ -2345,8 +2345,8 @@ func TestIntegration_TransactionHandler_IdempotencyReplay_IgnoresReplayerSkip(t 
 
 	var result1 map[string]any
 	require.NoError(t, json.Unmarshal(body1, &result1), "first response should be valid JSON")
-	assert.Equal(t, false, result1["feesSkipped"],
-		"first transaction should persist feesSkipped=false (no skip requested)")
+	// feesSkipped is withheld from the /v1 body (v2-only audit flag); the persisted
+	// audit state is asserted against the DB columns below.
 
 	// Wait for the async goroutine to write the idempotency outcome to Redis.
 	time.Sleep(200 * time.Millisecond)
@@ -2382,8 +2382,6 @@ func TestIntegration_TransactionHandler_IdempotencyReplay_IgnoresReplayerSkip(t 
 
 	assert.Equal(t, result1["id"], result2["id"],
 		"replay must return the same transaction id as the first request")
-	assert.Equal(t, false, result2["feesSkipped"],
-		"replay must return the FIRST transaction's audit state (feesSkipped=false); the replayer's skip.fees=true is ignored")
 
 	// Confirm the persisted audit state is the first outcome (fees_skipped=false).
 	txID, err := uuid.Parse(result1["id"].(string))

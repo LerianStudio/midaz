@@ -78,6 +78,16 @@ type Config struct {
 	AuthHost    string `env:"PLUGIN_AUTH_HOST"`
 	JWKAddress  string `env:"CASDOOR_JWK_ADDRESS"`
 
+	// Resource-inventory (RI) permission declaration against the IdP (identity, :4001),
+	// distinct from PLUGIN_AUTH_HOST (auth, :4000). RI is OPTIONAL and fail-open: an unset
+	// or invalid IDP_DECLARATION_ENABLED decodes to false (safe), and empty host/credentials
+	// never block boot — the publisher handles incomplete config fail-open. IDPM2MClientSecret
+	// MUST NOT be logged, span-attached, or serialized.
+	DeclarationEnabled bool   `env:"IDP_DECLARATION_ENABLED"`
+	IDPHost            string `env:"IDP_HOST"`
+	IDPM2MClientID     string `env:"IDP_M2M_CLIENT_ID"`
+	IDPM2MClientSecret string `env:"IDP_M2M_CLIENT_SECRET"`
+
 	// Redis configuration (shared across domains)
 	// Defaults are applied programmatically by applyConfigDefaults after env loading.
 	RedisHost                    string `env:"REDIS_HOST"`
@@ -1049,7 +1059,7 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 
 	// Fee/billing handlers wire directly to the in-process fee use cases built by
 	// initFees (no reconstruction). The fee UseCase satisfies both the package CRUD and
-	// fee-estimate handler interfaces. Fees authorizes under the plugin-fees namespace
+	// fee-estimate handler interfaces. Fees authorizes under the midaz namespace
 	// (encoded in the route definitions); its tenant middleware travels via
 	// routeSetup.feesRouteOptions.
 	feePackageHandler := &httpin.PackageHandler{Service: fees.useCase}
@@ -1151,6 +1161,18 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 		PollIntervalMs: 1000,
 	})
 
+	// SaaS TLS gate for the RI declaration publisher's IdP dial. Placed before the
+	// success log so an explicit http:// IDP_HOST under DEPLOYMENT_MODE=saas refuses
+	// boot rather than claiming a successful start. Mirrors the streaming TLS gate:
+	// no-op unless DEPLOYMENT_MODE=saas AND RI declaration is enabled AND IDP_HOST is
+	// an explicit cleartext http:// URL. It is a synchronous boot validation — it
+	// opens no connection and starts no goroutine.
+	if err := ValidateSaaSDeclarationTLS(cfg.DeploymentMode, cfg.DeclarationEnabled, cfg.IDPHost); err != nil {
+		doCleanup()
+
+		return nil, fmt.Errorf("failed to validate RI declaration IdP TLS: %w", err)
+	}
+
 	logger.Log(
 		context.Background(), libLog.LevelInfo, "Unified ledger component started successfully with single-port mode",
 		libLog.String("version", cfg.Version),
@@ -1174,6 +1196,7 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 		metricsFactory:           rmq.metricsFactory,
 		StreamingClose:           streamingClose,
 		StreamingEnabled:         cfg.StreamingEnabled,
+		DeclarationStops:         buildDeclarationPublishers(cfg, auth, logger),
 		TracerClose:              tracerClose,
 		ServiceDiscovery:         sd.manager,
 		ServiceDiscoveryEnabled:  sd.enabled,
