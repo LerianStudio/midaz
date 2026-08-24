@@ -74,9 +74,12 @@ jobs:
           # commits that ARE signed but fail verification for another
           # reason (unknown_key, bad_email, expired_key, ...) — those are
           # just as blocked by required_signatures as a truly unsigned one.
-          commits_json=$(gh api --paginate --slurp "repos/$GH_REPO/pulls/$PR_NUMBER/commits" --jq '[.[][]]')
-          unverified_count=$(jq '[.[] | select(.commit.verification.verified == false)] | length' <<<"$commits_json")
-          total_count=$(jq 'length' <<<"$commits_json")
+          # --slurp isn't accepted together with --jq (gh api rejects the
+          # combination outright), so the flattening has to happen in a
+          # separate, standalone jq call instead of inline on the gh api call.
+          commits_json=$(gh api --paginate --slurp "repos/$GH_REPO/pulls/$PR_NUMBER/commits")
+          unverified_count=$(jq '[.[][] | select(.commit.verification.verified == false)] | length' <<<"$commits_json")
+          total_count=$(jq '[.[][]] | length' <<<"$commits_json")
           if [[ "$unverified_count" -gt 0 ]]; then
             cat >> /tmp/notice-body.md <<EOF
 
