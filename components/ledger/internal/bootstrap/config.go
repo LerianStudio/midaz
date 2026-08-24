@@ -1059,7 +1059,7 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 
 	// Fee/billing handlers wire directly to the in-process fee use cases built by
 	// initFees (no reconstruction). The fee UseCase satisfies both the package CRUD and
-	// fee-estimate handler interfaces. Fees authorizes under the plugin-fees namespace
+	// fee-estimate handler interfaces. Fees authorizes under the midaz namespace
 	// (encoded in the route definitions); its tenant middleware travels via
 	// routeSetup.feesRouteOptions.
 	feePackageHandler := &httpin.PackageHandler{Service: fees.useCase}
