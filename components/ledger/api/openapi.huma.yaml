@@ -6219,12 +6219,12 @@ paths:
           schema:
             description: Source asset code
             type: string
-        - description: Filter by destination asset codes; repeat the parameter or pass one comma-separated list
+        - description: Filter by destination asset codes as one comma-separated list (e.g. USD,EUR) — the published serialization is explode=false. Repeated to keys are also accepted at runtime.
           explode: false
           in: query
           name: to
           schema:
-            description: Filter by destination asset codes; repeat the parameter or pass one comma-separated list
+            description: Filter by destination asset codes as one comma-separated list (e.g. USD,EUR) — the published serialization is explode=false. Repeated to keys are also accepted at runtime.
             items:
               type: string
             type:

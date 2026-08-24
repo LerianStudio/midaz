@@ -130,7 +130,7 @@ type ListAssetRatesByAssetCodeRequest struct {
 	OrganizationID string   `path:"organization_id" doc:"Organization ID (UUID)"`
 	LedgerID       string   `path:"ledger_id" doc:"Ledger ID (UUID)"`
 	AssetCode      string   `path:"asset_code" doc:"Source asset code"`
-	To             []string `query:"to" doc:"Filter by destination asset codes; repeat the parameter or pass one comma-separated list"`
+	To             []string `query:"to" doc:"Filter by destination asset codes as one comma-separated list (e.g. USD,EUR) — the published serialization is explode=false. Repeated to keys are also accepted at runtime."`
 	Limit          string   `query:"limit" doc:"Max items per page (1-100, default 10)"`
 	StartDate      string   `query:"start_date" doc:"Filter asset rates created on/after this date (YYYY-MM-DD)"`
 	EndDate        string   `query:"end_date" doc:"Filter asset rates created on/before this date (YYYY-MM-DD)"`

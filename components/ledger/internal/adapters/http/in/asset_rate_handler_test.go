@@ -10,6 +10,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"testing"
 
 	libCommons "github.com/LerianStudio/lib-commons/v6/commons"
@@ -451,4 +452,85 @@ func TestGetAllAssetRatesByAssetCode_ServiceError_500(t *testing.T) {
 	require.NoError(t, json.Unmarshal(respBody, &got), "body: %s", string(respBody))
 	assert.Equal(t, "0046", got["code"])
 	assert.NotContains(t, got, "status", "the v1 envelope carries no status member")
+}
+
+// TestListAssetRatesQueries_ToParameterSpellings pins both accepted spellings of the `to`
+// filter against what ValidateParameters consumes. The published parameter is an array with
+// explode=false, so the canonical wire form is ONE comma-separated key; repeated keys are
+// tolerated at runtime. queriesFromValues keeps only the last value per key, so without the
+// join in queries() a repeated spelling would silently filter on the final code alone —
+// which is the regression these cases exist to catch.
+func TestListAssetRatesQueries_ToParameterSpellings(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name  string
+		query url.Values
+		want  string
+		// absent asserts the key does not reach the binder at all.
+		absent bool
+	}{
+		{
+			name:  "comma_separated_single_key_passes_through",
+			query: url.Values{"to": {"USD,EUR,BRL"}},
+			want:  "USD,EUR,BRL",
+		},
+		{
+			name:  "repeated_keys_are_joined_not_dropped",
+			query: url.Values{"to": {"USD", "EUR", "BRL"}},
+			want:  "USD,EUR,BRL",
+		},
+		{
+			name:  "mixed_spellings_preserve_every_code",
+			query: url.Values{"to": {"USD,EUR", "BRL"}},
+			want:  "USD,EUR,BRL",
+		},
+		{
+			name:  "single_value_is_unchanged",
+			query: url.Values{"to": {"USD"}},
+			want:  "USD",
+		},
+		{
+			name:   "absent_stays_absent",
+			query:  url.Values{"limit": {"10"}},
+			absent: true,
+		},
+		{
+			name:  "present_but_empty_stays_empty",
+			query: url.Values{"to": {""}},
+			want:  "",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			in := &ListAssetRatesByAssetCodeRequest{rawQuery: tt.query}
+			got := in.queries()
+
+			if tt.absent {
+				assert.NotContains(t, got, "to", "an unsupplied filter must not reach the binder")
+
+				return
+			}
+
+			assert.Equal(t, tt.want, got["to"])
+		})
+	}
+}
+
+// TestListAssetRatesQueries_ToJoinSurvivesValidateParameters asserts the joined value is what
+// ValidateParameters actually splits back into the filter, so the two halves of the contract —
+// the join here and the comma-split there — are pinned against each other rather than
+// separately.
+func TestListAssetRatesQueries_ToJoinSurvivesValidateParameters(t *testing.T) {
+	t.Parallel()
+
+	in := &ListAssetRatesByAssetCodeRequest{rawQuery: url.Values{"to": {"USD", "EUR", "BRL"}}}
+
+	headerParams, err := pkgHTTP.ValidateParameters(in.queries())
+	require.NoError(t, err)
+	assert.Equal(t, []string{"USD", "EUR", "BRL"}, headerParams.ToAssetCodes,
+		"every destination code the caller supplied must reach the filter")
 }

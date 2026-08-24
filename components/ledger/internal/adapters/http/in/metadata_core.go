@@ -121,6 +121,13 @@ func tenantContext(ctx context.Context, mongoManager *tmmongo.Manager, module, s
 		return nil, fmt.Errorf("multi-tenant mongo manager not configured for %s", subject)
 	}
 
+	// Guarded here rather than at the entry points: all five funnel through this helper,
+	// and the index reads resolve BOTH module databases per request, so an abandoned
+	// request would otherwise spend two Mongo round-trips on a result nobody reads.
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+
 	tenantDB, err := mongoManager.GetDatabaseForTenant(ctx, tenantID)
 	if err != nil {
 		return nil, mapTenantError(ctx, err, tenantID)
