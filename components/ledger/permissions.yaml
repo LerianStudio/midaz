@@ -22,36 +22,36 @@
 # data (Authorize takes only subject/resource/action), so the editor/viewer split
 # below is an INFERRED convention, mirroring the plugin-fees manifest: read verbs
 # (get, head) are granted to editor + viewer; every mutating verb (post/put/patch/
-# delete) to editor only. The granted_to group bindings under `roles:` are likewise
-# inferred and each carries a confirm marker.
+# delete) to editor only. The granted_to group bindings under `roles:` are NOT
+# inferred — they are confirmed against the central Access Manager seed (see below).
 service: midaz
 version: 1
 permissions:
-  # account-types (accounttype_handler_huma.go:363)
+  # account-types (accounttype_handler.go:363)
   - { resource: account-types, action: post,   effect: allow, roles: [editor] }
   - { resource: account-types, action: patch,  effect: allow, roles: [editor] }
   - { resource: account-types, action: get,    effect: allow, roles: [editor, viewer] }
   - { resource: account-types, action: delete, effect: allow, roles: [editor] }
 
-  # accounts (account_handler_huma.go:500)
+  # accounts (account_handler.go:498)
   - { resource: accounts, action: post,   effect: allow, roles: [editor] }
   - { resource: accounts, action: patch,  effect: allow, roles: [editor] }
   - { resource: accounts, action: get,    effect: allow, roles: [editor, viewer] }
   - { resource: accounts, action: delete, effect: allow, roles: [editor] }
   - { resource: accounts, action: head,   effect: allow, roles: [editor, viewer] }
 
-  # asset-rates (assetrate_handler_huma.go:287)
+  # asset-rates (assetrate_handler.go:276)
   - { resource: asset-rates, action: put, effect: allow, roles: [editor] }
   - { resource: asset-rates, action: get, effect: allow, roles: [editor, viewer] }
 
-  # assets (routes.go:96)
+  # assets (routes.go:55)
   - { resource: assets, action: post,   effect: allow, roles: [editor] }
   - { resource: assets, action: patch,  effect: allow, roles: [editor] }
   - { resource: assets, action: get,    effect: allow, roles: [editor, viewer] }
   - { resource: assets, action: delete, effect: allow, roles: [editor] }
   - { resource: assets, action: head,   effect: allow, roles: [editor, viewer] }
 
-  # balances (routes.go:148)
+  # balances (routes.go:106)
   - { resource: balances, action: get,    effect: allow, roles: [editor, viewer] }
   - { resource: balances, action: patch,  effect: allow, roles: [editor] }
   - { resource: balances, action: delete, effect: allow, roles: [editor] }
@@ -73,48 +73,48 @@ permissions:
   - { resource: instruments, action: patch,  effect: allow, roles: [editor] }
   - { resource: instruments, action: delete, effect: allow, roles: [editor] }
 
-  # ledgers (ledger_handler_huma.go:534)
+  # ledgers (ledger_handler.go:524)
   - { resource: ledgers, action: post,   effect: allow, roles: [editor] }
   - { resource: ledgers, action: patch,  effect: allow, roles: [editor] }
   - { resource: ledgers, action: get,    effect: allow, roles: [editor, viewer] }
   - { resource: ledgers, action: delete, effect: allow, roles: [editor] }
   - { resource: ledgers, action: head,   effect: allow, roles: [editor, viewer] }
 
-  # operation-routes (routes.go:315)
+  # operation-routes (routes.go:273)
   - { resource: operation-routes, action: post,   effect: allow, roles: [editor] }
   - { resource: operation-routes, action: patch,  effect: allow, roles: [editor] }
   - { resource: operation-routes, action: get,    effect: allow, roles: [editor, viewer] }
   - { resource: operation-routes, action: delete, effect: allow, roles: [editor] }
 
-  # operations (routes.go:199)
+  # operations (routes.go:157)
   - { resource: operations, action: get,   effect: allow, roles: [editor, viewer] }
   - { resource: operations, action: patch, effect: allow, roles: [editor] }
 
-  # organizations (organization_handler_huma.go:384)
+  # organizations (organization_handler.go:372)
   - { resource: organizations, action: post,   effect: allow, roles: [editor] }
   - { resource: organizations, action: patch,  effect: allow, roles: [editor] }
   - { resource: organizations, action: get,    effect: allow, roles: [editor, viewer] }
   - { resource: organizations, action: delete, effect: allow, roles: [editor] }
   - { resource: organizations, action: head,   effect: allow, roles: [editor, viewer] }
 
-  # portfolios (portfolio_handler_huma.go:386)
+  # portfolios (portfolio_handler.go:376)
   - { resource: portfolios, action: post,   effect: allow, roles: [editor] }
   - { resource: portfolios, action: patch,  effect: allow, roles: [editor] }
   - { resource: portfolios, action: get,    effect: allow, roles: [editor, viewer] }
   - { resource: portfolios, action: delete, effect: allow, roles: [editor] }
   - { resource: portfolios, action: head,   effect: allow, roles: [editor, viewer] }
 
-  # protection — CRM audit-trail read (crm_routes.go:113)
+  # protection — CRM audit-trail read (crm_routes.go:112)
   - { resource: protection, action: get, effect: allow, roles: [editor, viewer] }
 
-  # segments (segment_handler_huma.go:393)
+  # segments (segment_handler.go:392)
   - { resource: segments, action: post,   effect: allow, roles: [editor] }
   - { resource: segments, action: patch,  effect: allow, roles: [editor] }
   - { resource: segments, action: get,    effect: allow, roles: [editor, viewer] }
   - { resource: segments, action: delete, effect: allow, roles: [editor] }
   - { resource: segments, action: head,   effect: allow, roles: [editor, viewer] }
 
-  # settings — entity metadata (metadata_handler_huma.go:258)
+  # settings — entity metadata (metadata_handler.go:243)
   - { resource: settings, action: post,   effect: allow, roles: [editor] }
   - { resource: settings, action: get,    effect: allow, roles: [editor, viewer] }
   - { resource: settings, action: delete, effect: allow, roles: [editor] }
@@ -122,29 +122,32 @@ permissions:
   # streaming-manifest — event catalog (streaming_manifest_route.go:35)
   - { resource: streaming-manifest, action: get, effect: allow, roles: [editor, viewer] }
 
-  # transaction-routes (routes.go:357)
+  # transaction-routes (routes.go:315)
   - { resource: transaction-routes, action: post,   effect: allow, roles: [editor] }
   - { resource: transaction-routes, action: patch,  effect: allow, roles: [editor] }
   - { resource: transaction-routes, action: get,    effect: allow, roles: [editor, viewer] }
   - { resource: transaction-routes, action: delete, effect: allow, roles: [editor] }
 
-  # transactions (transaction_v2_mirror_register.go:150; head at count_handler_huma.go)
+  # transactions (routes.go:217; v2 at transaction_v2_mirror_register.go:103; head at routes.go:196)
   - { resource: transactions, action: post,  effect: allow, roles: [editor] }
   - { resource: transactions, action: patch, effect: allow, roles: [editor] }
   - { resource: transactions, action: get,   effect: allow, roles: [editor, viewer] }
   - { resource: transactions, action: head,  effect: allow, roles: [editor, viewer] }
 
 roles:
-  # ### TEAM: please confirm ### — role -> group bindings are INFERRED (no group
-  # data in code). The manifest only references pre-existing groups; it never
-  # creates them. Confirm the real group names, or drop granted_to to leave the
-  # roles unbound (still valid).
+  # Group bindings are CONFIRMED against the central Access Manager seed
+  # (plugin-access-manager, components/auth/init/casdoor/init_data.json): the real
+  # groups are midaz-{editor,contributor,viewer}-group. The manifest only
+  # REFERENCES pre-existing groups, it never creates them — a name absent from the
+  # seed reconciles into a role with zero members. The seed also carries
+  # midaz-contributor-group, but this manifest declares no `contributor` role, so
+  # that group stays unbound here.
   - name: editor
     granted_to:
-      - group: midaz-admins   ### TEAM: please confirm ###
+      - group: midaz-editor-group
   - name: viewer
     granted_to:
-      - group: midaz-viewers  ### TEAM: please confirm ###
+      - group: midaz-viewer-group
 
 m2m:
   # EXPORT: midaz is the target of plugin-fees' `needs: [midaz]` (fees calls the

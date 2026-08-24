@@ -19,38 +19,34 @@ import (
 	pkgHTTP "github.com/LerianStudio/midaz/v4/pkg/net/http"
 )
 
-// This file is the ledger-scoped (v2) shell layer over the fee and billing surface.
-// Every operation here is the ledger-scoped twin of an organization-scoped shell in
-// fees_package_handler_huma.go, fees_handler_huma.go, billing_package_handler_huma.go
-// or billing_calculate_handler_huma.go, and it delegates to the SAME transport-
-// agnostic core. Only two things differ, and both are about which ledger the request
-// acts within:
+// This file is the shell layer over the fee and billing surface. Every operation
+// here names the ledger in its path and delegates to the transport-agnostic cores in
+// fees_package.go, fees_handler.go, billing_package.go and
+// billing_calculate_handler.go. Two things are worth knowing, and both are about
+// which ledger the request acts within:
 //
 //  1. The path names the ledger, so the shells resolve it via parseFeeV2Path and hand
 //     it to the core, which passes it to the by-ID scope filters and pins the listings.
-//     The organization-scoped shells pass uuid.Nil there and keep their old query.
 //  2. The bodies that carry a ledger still carry it — the field is required on models
-//     shared with the organization-scoped surface and with the in-process fee seam, so
-//     it cannot be dropped for one caller — and the shells refuse a value that names a
-//     different ledger than the path. See requireBodyLedgerMatchesPath.
+//     shared with the in-process fee seam, so it cannot be dropped for one caller — and
+//     the shells refuse a value that names a different ledger than the path. See
+//     requireBodyLedgerMatchesPath.
 //
-// Everything else is preserved verbatim from the organization-scoped shells: the fee
-// body validator inside the replicated body-parsing span (decodeFeeBodyInSpan, NOT
-// pkgHTTP.DecodeAndValidate), the imperative query binder on the two listings, the
-// pkgHTTP.HumaProblem error envelope, and the response types — the two contracts name
-// the same component schemas because they are generated from the same Go types into
-// separate documents.
+// The rest of the shell mechanics: the fee body validator runs inside the replicated
+// body-parsing span (decodeFeeBodyInSpan, NOT pkgHTTP.DecodeAndValidate), the two
+// listings bind their query imperatively, and errors go out through the
+// pkgHTTP.HumaProblem envelope.
 //
 // AUTH is unchanged: appName "plugin-fees" with the same (resource, verb) tuples the
 // organization-scoped routes carry, attached as the Fiber guard chain in
 // RegisterFeesV2RoutesToApp BEFORE these terminals. The per-op Security metadata on
 // the registrations is spec metadata only.
 
-// FeeV2PathHuma is the ledger-scoped path prefix every v2 fee and billing operation
+// FeeV2Path is the ledger-scoped path prefix every v2 fee and billing operation
 // carries. The parameters have no format tag: ParseUUIDPathParameters on the Fiber
 // guard chain stays the sole path-UUID validator, as it is on every other migrated
 // resource.
-type FeeV2PathHuma struct {
+type FeeV2Path struct {
 	OrganizationID string `path:"organization_id" doc:"Organization ID (UUID)"`
 	LedgerID       string `path:"ledger_id" doc:"Ledger ID (UUID)"`
 }
@@ -63,7 +59,7 @@ type FeeV2PathHuma struct {
 // as "no ledger requested" — a by-ID read would then match a package on any ledger of
 // the organization and a listing would return every ledger's. No ledger is created
 // with it, so nothing legitimate is turned away.
-func parseFeeV2Path(p FeeV2PathHuma) (organizationID, ledgerID uuid.UUID, err error) {
+func parseFeeV2Path(p FeeV2Path) (organizationID, ledgerID uuid.UUID, err error) {
 	organizationID, ledgerID, err = parseOrgLedger(p.OrganizationID, p.LedgerID)
 	if err != nil {
 		return uuid.Nil, uuid.Nil, err
@@ -78,18 +74,18 @@ func parseFeeV2Path(p FeeV2PathHuma) (organizationID, ledgerID uuid.UUID, err er
 
 // --- POST /ledgers/{ledger_id}/packages -----------------------------------------
 
-// CreatePackageV2InputHuma is the ledger-scoped create envelope. RawBody keeps the
+// CreatePackageV2Request is the ledger-scoped create envelope. RawBody keeps the
 // body out of Huma's validator (see file header).
-type CreatePackageV2InputHuma struct {
-	FeeV2PathHuma
+type CreatePackageV2Request struct {
+	FeeV2Path
 	RawBody []byte `contentType:"application/json"`
 }
 
-// CreatePackageV2Huma decodes+validates the raw body imperatively, refuses a body
+// CreatePackageV2 decodes+validates the raw body imperatively, refuses a body
 // ledger that disagrees with the path, then delegates to the shared createPackage
 // core.
-func (handler *PackageHandler) CreatePackageV2Huma(ctx context.Context, in *CreatePackageV2InputHuma) (*CreatePackageOutputHuma, error) {
-	orgID, ledgerID, err := parseFeeV2Path(in.FeeV2PathHuma)
+func (handler *PackageHandler) CreatePackageV2(ctx context.Context, in *CreatePackageV2Request) (*CreatePackageResponse, error) {
+	orgID, ledgerID, err := parseFeeV2Path(in.FeeV2Path)
 	if err != nil {
 		return nil, pkgHTTP.HumaProblem(err)
 	}
@@ -108,18 +104,18 @@ func (handler *PackageHandler) CreatePackageV2Huma(ctx context.Context, in *Crea
 		return nil, pkgHTTP.HumaProblem(err)
 	}
 
-	return &CreatePackageOutputHuma{Status: http.StatusCreated, Body: packOut}, nil
+	return &CreatePackageResponse{Status: http.StatusCreated, Body: packOut}, nil
 }
 
 // --- GET /ledgers/{ledger_id}/packages (list) -----------------------------------
 
-// ListPackagesV2InputHuma advertises the ledger-scoped list query params in the spec
+// ListPackagesV2Request advertises the ledger-scoped list query params in the spec
 // (doc-only, no validation tags — the fee core is the sole validator) and captures the
 // raw query via Resolve for the imperative binder.
 //
 // There is no ledgerId param: the path names the ledger and the core refuses the key.
-type ListPackagesV2InputHuma struct {
-	FeeV2PathHuma
+type ListPackagesV2Request struct {
+	FeeV2Path
 
 	SegmentID        string `query:"segmentId" doc:"Filter by segment ID (UUID)"`
 	TransactionRoute string `query:"transactionRoute" doc:"Filter by transaction route"`
@@ -134,17 +130,17 @@ type ListPackagesV2InputHuma struct {
 
 // Resolve captures the raw query before the handler. It performs NO validation and
 // NEVER returns an error — canonical rejection stays in the core.
-func (in *ListPackagesV2InputHuma) Resolve(ctx huma.Context) []error {
+func (in *ListPackagesV2Request) Resolve(ctx huma.Context) []error {
 	u := ctx.URL()
 	in.rawQuery = u.Query()
 
 	return nil
 }
 
-// GetAllPackagesV2Huma binds the query imperatively then delegates to the
+// GetAllPackagesV2 binds the query imperatively then delegates to the
 // ledger-scoped listing.
-func (handler *PackageHandler) GetAllPackagesV2Huma(ctx context.Context, in *ListPackagesV2InputHuma) (*ListPackagesOutputHuma, error) {
-	orgID, ledgerID, err := parseFeeV2Path(in.FeeV2PathHuma)
+func (handler *PackageHandler) GetAllPackagesV2(ctx context.Context, in *ListPackagesV2Request) (*ListPackagesResponse, error) {
+	orgID, ledgerID, err := parseFeeV2Path(in.FeeV2Path)
 	if err != nil {
 		return nil, pkgHTTP.HumaProblem(err)
 	}
@@ -154,24 +150,24 @@ func (handler *PackageHandler) GetAllPackagesV2Huma(ctx context.Context, in *Lis
 		return nil, pkgHTTP.HumaProblem(err)
 	}
 
-	return &ListPackagesOutputHuma{Status: http.StatusOK, Body: pagination}, nil
+	return &ListPackagesResponse{Status: http.StatusOK, Body: pagination}, nil
 }
 
 // --- GET/DELETE /ledgers/{ledger_id}/packages/{id} -------------------------------
 
-// PackageIDV2InputHuma is the ledger-scoped by-id envelope, shared by the read and the
+// PackageIDV2Request is the ledger-scoped by-id envelope, shared by the read and the
 // delete. The id path param carries no format tag (ParseUUIDPathParameters is the sole
 // validator).
-type PackageIDV2InputHuma struct {
-	FeeV2PathHuma
+type PackageIDV2Request struct {
+	FeeV2Path
 
 	ID string `path:"id" doc:"Package ID (UUID)"`
 }
 
-// GetPackageByIDV2Huma delegates to the shared getPackageByID core with the path
+// GetPackageByIDV2 delegates to the shared getPackageByID core with the path
 // ledger, so a package another ledger of the organization owns reads as absent.
-func (handler *PackageHandler) GetPackageByIDV2Huma(ctx context.Context, in *PackageIDV2InputHuma) (*GetPackageOutputHuma, error) {
-	orgID, ledgerID, err := parseFeeV2Path(in.FeeV2PathHuma)
+func (handler *PackageHandler) GetPackageByIDV2(ctx context.Context, in *PackageIDV2Request) (*GetPackageResponse, error) {
+	orgID, ledgerID, err := parseFeeV2Path(in.FeeV2Path)
 	if err != nil {
 		return nil, pkgHTTP.HumaProblem(err)
 	}
@@ -186,13 +182,13 @@ func (handler *PackageHandler) GetPackageByIDV2Huma(ctx context.Context, in *Pac
 		return nil, pkgHTTP.HumaProblem(err)
 	}
 
-	return &GetPackageOutputHuma{Status: http.StatusOK, Body: packModel}, nil
+	return &GetPackageResponse{Status: http.StatusOK, Body: packModel}, nil
 }
 
-// DeletePackageByIDV2Huma delegates to deletePackageByID with the path ledger; returns
+// DeletePackageByIDV2 delegates to deletePackageByID with the path ledger; returns
 // a bodiless 204 on success.
-func (handler *PackageHandler) DeletePackageByIDV2Huma(ctx context.Context, in *PackageIDV2InputHuma) (*DeletePackageOutputHuma, error) {
-	orgID, ledgerID, err := parseFeeV2Path(in.FeeV2PathHuma)
+func (handler *PackageHandler) DeletePackageByIDV2(ctx context.Context, in *PackageIDV2Request) (*DeletePackageResponse, error) {
+	orgID, ledgerID, err := parseFeeV2Path(in.FeeV2Path)
 	if err != nil {
 		return nil, pkgHTTP.HumaProblem(err)
 	}
@@ -206,24 +202,24 @@ func (handler *PackageHandler) DeletePackageByIDV2Huma(ctx context.Context, in *
 		return nil, pkgHTTP.HumaProblem(err)
 	}
 
-	return &DeletePackageOutputHuma{}, nil
+	return &DeletePackageResponse{}, nil
 }
 
 // --- PATCH /ledgers/{ledger_id}/packages/{id} ------------------------------------
 
-// UpdatePackageV2InputHuma is the ledger-scoped update envelope (RawBody, see Create).
-type UpdatePackageV2InputHuma struct {
-	FeeV2PathHuma
+// UpdatePackageV2Request is the ledger-scoped update envelope (RawBody, see Create).
+type UpdatePackageV2Request struct {
+	FeeV2Path
 
 	ID      string `path:"id" doc:"Package ID (UUID)"`
 	RawBody []byte `contentType:"application/json"`
 }
 
-// UpdatePackageByIDV2Huma decodes+validates the raw body imperatively then delegates
+// UpdatePackageByIDV2 decodes+validates the raw body imperatively then delegates
 // to the shared updatePackageByID core with the path ledger. The update body carries
 // no ledger, so there is nothing to reconcile against the path.
-func (handler *PackageHandler) UpdatePackageByIDV2Huma(ctx context.Context, in *UpdatePackageV2InputHuma) (*UpdatePackageOutputHuma, error) {
-	orgID, ledgerID, err := parseFeeV2Path(in.FeeV2PathHuma)
+func (handler *PackageHandler) UpdatePackageByIDV2(ctx context.Context, in *UpdatePackageV2Request) (*UpdatePackageResponse, error) {
+	orgID, ledgerID, err := parseFeeV2Path(in.FeeV2Path)
 	if err != nil {
 		return nil, pkgHTTP.HumaProblem(err)
 	}
@@ -243,27 +239,27 @@ func (handler *PackageHandler) UpdatePackageByIDV2Huma(ctx context.Context, in *
 		return nil, pkgHTTP.HumaProblem(err)
 	}
 
-	return &UpdatePackageOutputHuma{Status: http.StatusOK, Body: packUpdated}, nil
+	return &UpdatePackageResponse{Status: http.StatusOK, Body: packUpdated}, nil
 }
 
 // --- POST /ledgers/{ledger_id}/estimates -----------------------------------------
 
-// EstimateFeeV2InputHuma is the ledger-scoped estimate envelope (RawBody, see Create).
-type EstimateFeeV2InputHuma struct {
-	FeeV2PathHuma
+// EstimateFeeV2Request is the ledger-scoped estimate envelope (RawBody, see Create).
+type EstimateFeeV2Request struct {
+	FeeV2Path
 	RawBody []byte `contentType:"application/json"`
 }
 
-// EstimateFeeCalculationV2Huma decodes+validates the raw body imperatively, refuses a
+// EstimateFeeCalculationV2 decodes+validates the raw body imperatively, refuses a
 // body ledger that disagrees with the path, then delegates to the shared
 // estimateFeeCalculation core and serializes the envelope verbatim.
 //
 // The response Body stays a pre-serialized []byte for the reason
-// EstimateFeeOutputHuma documents: the estimate embeds the projected transaction tree,
+// EstimateFeeResponse documents: the estimate embeds the projected transaction tree,
 // whose time alias makes Huma's schema generator panic. The escape hatch is a property
 // of the response type, so it holds identically on both contracts.
-func (handler *FeeHandler) EstimateFeeCalculationV2Huma(ctx context.Context, in *EstimateFeeV2InputHuma) (*EstimateFeeOutputHuma, error) {
-	orgID, ledgerID, err := parseFeeV2Path(in.FeeV2PathHuma)
+func (handler *FeeHandler) EstimateFeeCalculationV2(ctx context.Context, in *EstimateFeeV2Request) (*EstimateFeeResponse, error) {
+	orgID, ledgerID, err := parseFeeV2Path(in.FeeV2Path)
 	if err != nil {
 		return nil, pkgHTTP.HumaProblem(err)
 	}
@@ -287,23 +283,23 @@ func (handler *FeeHandler) EstimateFeeCalculationV2Huma(ctx context.Context, in 
 		return nil, pkgHTTP.HumaProblem(feeerrors.ValidateInternalError(feeconstant.ErrInternalServer, "Fee"))
 	}
 
-	return &EstimateFeeOutputHuma{Status: http.StatusOK, Body: body}, nil
+	return &EstimateFeeResponse{Status: http.StatusOK, Body: body}, nil
 }
 
 // --- POST /ledgers/{ledger_id}/billing-packages ----------------------------------
 
-// CreateBillingPackageV2InputHuma is the ledger-scoped create envelope (RawBody, see
-// CreatePackageV2InputHuma).
-type CreateBillingPackageV2InputHuma struct {
-	FeeV2PathHuma
+// CreateBillingPackageV2Request is the ledger-scoped create envelope (RawBody, see
+// CreatePackageV2Request).
+type CreateBillingPackageV2Request struct {
+	FeeV2Path
 	RawBody []byte `contentType:"application/json"`
 }
 
-// CreateBillingPackageV2Huma decodes+validates the raw body imperatively, refuses a
+// CreateBillingPackageV2 decodes+validates the raw body imperatively, refuses a
 // body ledger that disagrees with the path, then delegates to the shared
 // createBillingPackage core.
-func (handler *BillingPackageHandler) CreateBillingPackageV2Huma(ctx context.Context, in *CreateBillingPackageV2InputHuma) (*CreateBillingPackageOutputHuma, error) {
-	orgID, ledgerID, err := parseFeeV2Path(in.FeeV2PathHuma)
+func (handler *BillingPackageHandler) CreateBillingPackageV2(ctx context.Context, in *CreateBillingPackageV2Request) (*CreateBillingPackageResponse, error) {
+	orgID, ledgerID, err := parseFeeV2Path(in.FeeV2Path)
 	if err != nil {
 		return nil, pkgHTTP.HumaProblem(err)
 	}
@@ -322,18 +318,18 @@ func (handler *BillingPackageHandler) CreateBillingPackageV2Huma(ctx context.Con
 		return nil, pkgHTTP.HumaProblem(err)
 	}
 
-	return &CreateBillingPackageOutputHuma{Status: http.StatusCreated, Body: result}, nil
+	return &CreateBillingPackageResponse{Status: http.StatusCreated, Body: result}, nil
 }
 
 // --- GET /ledgers/{ledger_id}/billing-packages (list) ----------------------------
 
-// ListBillingPackagesV2InputHuma advertises the ledger-scoped list query params in the
+// ListBillingPackagesV2Request advertises the ledger-scoped list query params in the
 // spec (doc-only, no validation tags — the core is the sole validator) and captures the
 // raw query via Resolve for the imperative binder.
 //
 // There is no ledgerId param: the path names the ledger and the core refuses the key.
-type ListBillingPackagesV2InputHuma struct {
-	FeeV2PathHuma
+type ListBillingPackagesV2Request struct {
+	FeeV2Path
 
 	Type  string `query:"type" doc:"Filter by billing package type (volume, maintenance)"`
 	Limit string `query:"limit" doc:"Number of items per page (default 10)"`
@@ -346,17 +342,17 @@ type ListBillingPackagesV2InputHuma struct {
 
 // Resolve captures the raw query before the handler. It performs NO validation and
 // NEVER returns an error — canonical rejection stays in the core.
-func (in *ListBillingPackagesV2InputHuma) Resolve(ctx huma.Context) []error {
+func (in *ListBillingPackagesV2Request) Resolve(ctx huma.Context) []error {
 	u := ctx.URL()
 	in.rawQuery = u.Query()
 
 	return nil
 }
 
-// GetAllBillingPackagesV2Huma binds the query imperatively then delegates to the
+// GetAllBillingPackagesV2 binds the query imperatively then delegates to the
 // ledger-scoped listing.
-func (handler *BillingPackageHandler) GetAllBillingPackagesV2Huma(ctx context.Context, in *ListBillingPackagesV2InputHuma) (*ListBillingPackagesOutputHuma, error) {
-	orgID, ledgerID, err := parseFeeV2Path(in.FeeV2PathHuma)
+func (handler *BillingPackageHandler) GetAllBillingPackagesV2(ctx context.Context, in *ListBillingPackagesV2Request) (*ListBillingPackagesResponse, error) {
+	orgID, ledgerID, err := parseFeeV2Path(in.FeeV2Path)
 	if err != nil {
 		return nil, pkgHTTP.HumaProblem(err)
 	}
@@ -366,24 +362,24 @@ func (handler *BillingPackageHandler) GetAllBillingPackagesV2Huma(ctx context.Co
 		return nil, pkgHTTP.HumaProblem(err)
 	}
 
-	return &ListBillingPackagesOutputHuma{Status: http.StatusOK, Body: pagination}, nil
+	return &ListBillingPackagesResponse{Status: http.StatusOK, Body: pagination}, nil
 }
 
 // --- GET/DELETE /ledgers/{ledger_id}/billing-packages/{id} -----------------------
 
-// BillingPackageIDV2InputHuma is the ledger-scoped by-id envelope, shared by the read
+// BillingPackageIDV2Request is the ledger-scoped by-id envelope, shared by the read
 // and the delete.
-type BillingPackageIDV2InputHuma struct {
-	FeeV2PathHuma
+type BillingPackageIDV2Request struct {
+	FeeV2Path
 
 	ID string `path:"id" doc:"BillingPackage ID (UUID)"`
 }
 
-// GetBillingPackageByIDV2Huma delegates to the shared getBillingPackageByID core with
+// GetBillingPackageByIDV2 delegates to the shared getBillingPackageByID core with
 // the path ledger, so a package another ledger of the organization owns reads as
 // absent.
-func (handler *BillingPackageHandler) GetBillingPackageByIDV2Huma(ctx context.Context, in *BillingPackageIDV2InputHuma) (*GetBillingPackageOutputHuma, error) {
-	orgID, ledgerID, err := parseFeeV2Path(in.FeeV2PathHuma)
+func (handler *BillingPackageHandler) GetBillingPackageByIDV2(ctx context.Context, in *BillingPackageIDV2Request) (*GetBillingPackageResponse, error) {
+	orgID, ledgerID, err := parseFeeV2Path(in.FeeV2Path)
 	if err != nil {
 		return nil, pkgHTTP.HumaProblem(err)
 	}
@@ -398,13 +394,13 @@ func (handler *BillingPackageHandler) GetBillingPackageByIDV2Huma(ctx context.Co
 		return nil, pkgHTTP.HumaProblem(err)
 	}
 
-	return &GetBillingPackageOutputHuma{Status: http.StatusOK, Body: result}, nil
+	return &GetBillingPackageResponse{Status: http.StatusOK, Body: result}, nil
 }
 
-// DeleteBillingPackageV2Huma delegates to deleteBillingPackage with the path ledger;
+// DeleteBillingPackageV2 delegates to deleteBillingPackage with the path ledger;
 // returns a bodiless 204 on success.
-func (handler *BillingPackageHandler) DeleteBillingPackageV2Huma(ctx context.Context, in *BillingPackageIDV2InputHuma) (*DeleteBillingPackageOutputHuma, error) {
-	orgID, ledgerID, err := parseFeeV2Path(in.FeeV2PathHuma)
+func (handler *BillingPackageHandler) DeleteBillingPackageV2(ctx context.Context, in *BillingPackageIDV2Request) (*DeleteBillingPackageResponse, error) {
+	orgID, ledgerID, err := parseFeeV2Path(in.FeeV2Path)
 	if err != nil {
 		return nil, pkgHTTP.HumaProblem(err)
 	}
@@ -418,25 +414,25 @@ func (handler *BillingPackageHandler) DeleteBillingPackageV2Huma(ctx context.Con
 		return nil, pkgHTTP.HumaProblem(err)
 	}
 
-	return &DeleteBillingPackageOutputHuma{}, nil
+	return &DeleteBillingPackageResponse{}, nil
 }
 
 // --- PATCH /ledgers/{ledger_id}/billing-packages/{id} ----------------------------
 
-// UpdateBillingPackageV2InputHuma is the ledger-scoped update envelope (RawBody, see
-// CreatePackageV2InputHuma).
-type UpdateBillingPackageV2InputHuma struct {
-	FeeV2PathHuma
+// UpdateBillingPackageV2Request is the ledger-scoped update envelope (RawBody, see
+// CreatePackageV2Request).
+type UpdateBillingPackageV2Request struct {
+	FeeV2Path
 
 	ID      string `path:"id" doc:"BillingPackage ID (UUID)"`
 	RawBody []byte `contentType:"application/json"`
 }
 
-// UpdateBillingPackageV2Huma decodes+validates the raw body imperatively then
+// UpdateBillingPackageV2 decodes+validates the raw body imperatively then
 // delegates to the shared updateBillingPackage core with the path ledger. The update
 // body carries no ledger, so there is nothing to reconcile against the path.
-func (handler *BillingPackageHandler) UpdateBillingPackageV2Huma(ctx context.Context, in *UpdateBillingPackageV2InputHuma) (*UpdateBillingPackageOutputHuma, error) {
-	orgID, ledgerID, err := parseFeeV2Path(in.FeeV2PathHuma)
+func (handler *BillingPackageHandler) UpdateBillingPackageV2(ctx context.Context, in *UpdateBillingPackageV2Request) (*UpdateBillingPackageResponse, error) {
+	orgID, ledgerID, err := parseFeeV2Path(in.FeeV2Path)
 	if err != nil {
 		return nil, pkgHTTP.HumaProblem(err)
 	}
@@ -456,23 +452,23 @@ func (handler *BillingPackageHandler) UpdateBillingPackageV2Huma(ctx context.Con
 		return nil, pkgHTTP.HumaProblem(err)
 	}
 
-	return &UpdateBillingPackageOutputHuma{Status: http.StatusOK, Body: result}, nil
+	return &UpdateBillingPackageResponse{Status: http.StatusOK, Body: result}, nil
 }
 
 // --- POST /ledgers/{ledger_id}/billing/calculate ---------------------------------
 
-// CalculateBillingV2InputHuma is the ledger-scoped calculate envelope (RawBody, see
-// CreatePackageV2InputHuma).
-type CalculateBillingV2InputHuma struct {
-	FeeV2PathHuma
+// CalculateBillingV2Request is the ledger-scoped calculate envelope (RawBody, see
+// CreatePackageV2Request).
+type CalculateBillingV2Request struct {
+	FeeV2Path
 	RawBody []byte `contentType:"application/json"`
 }
 
-// CalculateBillingV2Huma decodes+validates the raw body imperatively, refuses a body
+// CalculateBillingV2 decodes+validates the raw body imperatively, refuses a body
 // ledger that disagrees with the path, then delegates to the shared calculateBilling
 // core.
-func (handler *BillingCalculateHandler) CalculateBillingV2Huma(ctx context.Context, in *CalculateBillingV2InputHuma) (*CalculateBillingOutputHuma, error) {
-	orgID, ledgerID, err := parseFeeV2Path(in.FeeV2PathHuma)
+func (handler *BillingCalculateHandler) CalculateBillingV2(ctx context.Context, in *CalculateBillingV2Request) (*CalculateBillingResponse, error) {
+	orgID, ledgerID, err := parseFeeV2Path(in.FeeV2Path)
 	if err != nil {
 		return nil, pkgHTTP.HumaProblem(err)
 	}
@@ -491,5 +487,5 @@ func (handler *BillingCalculateHandler) CalculateBillingV2Huma(ctx context.Conte
 		return nil, pkgHTTP.HumaProblem(err)
 	}
 
-	return &CalculateBillingOutputHuma{Status: http.StatusOK, Body: result}, nil
+	return &CalculateBillingResponse{Status: http.StatusOK, Body: result}, nil
 }

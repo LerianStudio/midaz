@@ -61,7 +61,7 @@ func v1CancelURL(orgID, ledgerID, txID uuid.UUID) string {
 
 // v2RevertURL / v1RevertURL build the concrete revert paths for a transaction. The v2 op is
 // mounted by the SAME RegisterTransactionV2RoutesToApp seam as direct/hold/commit/cancel and
-// reuses the v1 RevertTransactionHuma shell verbatim, so both surfaces enter the SAME
+// reuses the v1 RevertTransaction shell verbatim, so both surfaces enter the SAME
 // revertTransaction eligibility gate and createRevertTransaction core.
 func v2RevertURL(orgID, ledgerID, txID uuid.UUID) string {
 	return "/v2/organizations/" + orgID.String() + "/ledgers/" + ledgerID.String() + "/transactions/" + txID.String() + "/revert"
@@ -748,8 +748,14 @@ func TestIntegration_TransactionV2Revert_IneligibilityAndIDErrors(t *testing.T) 
 	}
 
 	// v1↔v2 ineligibility parity, sampled on the two gates whose contract is easiest to get
-	// wrong: the same subjects rejected through the EXISTING v1 revert endpoint return the
-	// byte-identical problem envelope, so the v2 surface adds no divergent error behavior.
+	// wrong: the same subjects rejected through the EXISTING v1 revert endpoint reject for
+	// the same REASON, so the v2 surface adds no divergent error behavior.
+	//
+	// Parity is (status, code), not the body. The two versions deliberately serve different
+	// envelopes — /v1 the midaz v3 {title, message, code} body, /v2 the RFC 9457 document —
+	// so a byte-identical comparison would now assert the opposite of the contract. What must
+	// never diverge is which gate fired and what the client branches on, and that is asserted
+	// here on both sides along with each version's own shape.
 	for _, tc := range []struct {
 		name string
 		txID uuid.UUID
@@ -764,7 +770,20 @@ func TestIntegration_TransactionV2Revert_IneligibilityAndIDErrors(t *testing.T) 
 		v2Body := drainBody(t, v2Resp)
 
 		assert.Equal(t, v1Resp.StatusCode, v2Resp.StatusCode, "%s: v1 and v2 revert must reject with the same status", tc.name)
-		assert.JSONEq(t, string(v1Body), string(v2Body), "%s: v1 and v2 revert must reject with the same problem envelope", tc.name)
+
+		var v1Decoded, v2Decoded map[string]any
+		require.NoError(t, json.Unmarshal(v1Body, &v1Decoded), "%s: v1 body %s", tc.name, v1Body)
+		require.NoError(t, json.Unmarshal(v2Body, &v2Decoded), "%s: v2 body %s", tc.name, v2Body)
+
+		assert.Equal(t, v1Decoded["code"], v2Decoded["code"], "%s: v1 and v2 revert must reject with the same code", tc.name)
+		assert.NotEmpty(t, v1Decoded["code"], "%s: the code is the money-path carrier on both surfaces", tc.name)
+
+		// Each version's own envelope, so a regression that collapsed them back onto one
+		// shape fails here rather than passing quietly.
+		assert.Contains(t, v1Decoded, "message", "%s: /v1 carries the v3 human text", tc.name)
+		assert.NotContains(t, v1Decoded, "status", "%s: /v1 carries no status member", tc.name)
+		assert.Contains(t, v2Decoded, "detail", "%s: /v2 carries the RFC 9457 human text", tc.name)
+		assert.Contains(t, v2Decoded, "status", "%s: /v2 restates the status in the body", tc.name)
 	}
 
 	// Every rejected revert left its subject exactly as it was and persisted nothing: the five

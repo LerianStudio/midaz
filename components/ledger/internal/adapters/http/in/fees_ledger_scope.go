@@ -14,12 +14,9 @@ import (
 	"go.opentelemetry.io/otel/attribute"
 )
 
-// The fee and billing surface is served at two scopes. The organization-scoped
-// surface carries no ledger in its path and reaches a resource on whichever ledger
-// of the organization owns it; the ledger-scoped surface names the ledger in the
-// path and reaches only what that ledger owns. This file holds what the second
-// scope needs and the first does not: the guards that keep the path the sole
-// authority on which ledger a request acts within.
+// The fee and billing surface is served at ledger scope: the path names the ledger
+// and a request reaches only what that ledger owns. This file holds the guards that
+// keep the path the sole authority on which ledger a request acts within.
 //
 // Both repositories express "no ledger requested" as a zero value — uuid.Nil for
 // packages, the empty string for billing packages — and both read it as

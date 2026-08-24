@@ -37,7 +37,6 @@ import (
 	cn "github.com/LerianStudio/midaz/v4/pkg/constant"
 	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v4/pkg/mtransaction"
-	"github.com/LerianStudio/midaz/v4/pkg/net/http"
 )
 
 func TestTransactionHandler_GetTransaction(t *testing.T) {
@@ -152,7 +151,7 @@ func TestTransactionHandler_GetTransaction(t *testing.T) {
 				require.NoError(t, err, "error response should be valid JSON")
 
 				assert.Contains(t, errResp, "code", "error response should contain code field")
-				assert.Contains(t, errResp, "detail", "error response should contain message field")
+				assert.Contains(t, errResp, "message", "error response should contain message field")
 			},
 		},
 		{
@@ -259,9 +258,9 @@ func TestTransactionHandler_GetTransaction(t *testing.T) {
 			t.Cleanup(ctrl.Finish)
 
 			// Arrange
-			orgID := uuid.New()
-			ledgerID := uuid.New()
-			transactionID := uuid.New()
+			orgID := uuid.Must(libCommons.GenerateUUIDv7())
+			ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
+			transactionID := uuid.Must(libCommons.GenerateUUIDv7())
 
 			mockTransactionRepo := transaction.NewMockRepository(ctrl)
 			mockOperationRepo := operation.NewMockRepository(ctrl)
@@ -277,21 +276,11 @@ func TestTransactionHandler_GetTransaction(t *testing.T) {
 			}
 			handler := &TransactionHandler{Query: uc}
 
-			app := fiber.New()
-			app.Get(
-				"/test/:organization_id/:ledger_id/transactions/:transaction_id",
-				func(c fiber.Ctx) error {
-					c.Locals("organization_id", orgID)
-					c.Locals("ledger_id", ledgerID)
-					c.Locals("transaction_id", transactionID)
-					return c.Next()
-				},
-				handler.GetTransaction,
-			)
+			app := buildHumaTransactionApp(t, handler, true)
 
 			// Act
 			req := httptest.NewRequest("GET",
-				"/test/"+orgID.String()+"/"+ledgerID.String()+"/transactions/"+transactionID.String()+tt.queryParams,
+				"/v1/organizations/"+orgID.String()+"/ledgers/"+ledgerID.String()+"/transactions/"+transactionID.String()+tt.queryParams,
 				nil)
 			resp, err := app.Test(req)
 
@@ -311,8 +300,6 @@ func TestTransactionHandler_GetTransaction(t *testing.T) {
 // TestCommitTransaction_InvalidStatus_ReturnsError validates that committing a transaction
 // with a status other than PENDING returns HTTP 422 with error code 0099.
 func TestCommitTransaction_InvalidStatus_ReturnsError(t *testing.T) {
-	t.Parallel()
-
 	tests := []struct {
 		name          string
 		currentStatus string
@@ -325,15 +312,13 @@ func TestCommitTransaction_InvalidStatus_ReturnsError(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-
 			ctrl := gomock.NewController(t)
 			t.Cleanup(ctrl.Finish)
 
 			// Arrange
-			orgID := uuid.New()
-			ledgerID := uuid.New()
-			transactionID := uuid.New()
+			orgID := uuid.Must(libCommons.GenerateUUIDv7())
+			ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
+			transactionID := uuid.Must(libCommons.GenerateUUIDv7())
 
 			mockTransactionRepo := transaction.NewMockRepository(ctrl)
 			mockOperationRepo := operation.NewMockRepository(ctrl)
@@ -409,21 +394,11 @@ func TestCommitTransaction_InvalidStatus_ReturnsError(t *testing.T) {
 			}
 			handler := &TransactionHandler{Query: queryUC, Command: commandUC}
 
-			app := fiber.New()
-			app.Post(
-				"/test/:organization_id/:ledger_id/transactions/:transaction_id/commit",
-				func(c fiber.Ctx) error {
-					c.Locals("organization_id", orgID)
-					c.Locals("ledger_id", ledgerID)
-					c.Locals("transaction_id", transactionID)
-					return c.Next()
-				},
-				handler.CommitTransaction,
-			)
+			app := buildHumaTransactionApp(t, handler, true)
 
 			// Act
 			req := httptest.NewRequest("POST",
-				"/test/"+orgID.String()+"/"+ledgerID.String()+"/transactions/"+transactionID.String()+"/commit",
+				"/v1/organizations/"+orgID.String()+"/ledgers/"+ledgerID.String()+"/transactions/"+transactionID.String()+"/commit",
 				nil)
 			resp, err := app.Test(req)
 
@@ -447,8 +422,6 @@ func TestCommitTransaction_InvalidStatus_ReturnsError(t *testing.T) {
 // TestRevertTransaction_InvalidStatus_ReturnsError validates that reverting a transaction
 // with a status other than APPROVED returns HTTP 422 with error code 0099.
 func TestRevertTransaction_InvalidStatus_ReturnsError(t *testing.T) {
-	t.Parallel()
-
 	tests := []struct {
 		name          string
 		currentStatus string
@@ -461,15 +434,13 @@ func TestRevertTransaction_InvalidStatus_ReturnsError(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-
 			ctrl := gomock.NewController(t)
 			t.Cleanup(ctrl.Finish)
 
 			// Arrange
-			orgID := uuid.New()
-			ledgerID := uuid.New()
-			transactionID := uuid.New()
+			orgID := uuid.Must(libCommons.GenerateUUIDv7())
+			ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
+			transactionID := uuid.Must(libCommons.GenerateUUIDv7())
 
 			mockTransactionRepo := transaction.NewMockRepository(ctrl)
 			mockMetadataRepo := mongodb.NewMockRepository(ctrl)
@@ -512,21 +483,11 @@ func TestRevertTransaction_InvalidStatus_ReturnsError(t *testing.T) {
 			}
 			handler := &TransactionHandler{Query: queryUC}
 
-			app := fiber.New()
-			app.Post(
-				"/test/:organization_id/:ledger_id/transactions/:transaction_id/revert",
-				func(c fiber.Ctx) error {
-					c.Locals("organization_id", orgID)
-					c.Locals("ledger_id", ledgerID)
-					c.Locals("transaction_id", transactionID)
-					return c.Next()
-				},
-				handler.RevertTransaction,
-			)
+			app := buildHumaTransactionApp(t, handler, true)
 
 			// Act
 			req := httptest.NewRequest("POST",
-				"/test/"+orgID.String()+"/"+ledgerID.String()+"/transactions/"+transactionID.String()+"/revert",
+				"/v1/organizations/"+orgID.String()+"/ledgers/"+ledgerID.String()+"/transactions/"+transactionID.String()+"/revert",
 				nil)
 			resp, err := app.Test(req)
 
@@ -550,16 +511,14 @@ func TestRevertTransaction_InvalidStatus_ReturnsError(t *testing.T) {
 // TestRevertTransaction_AlreadyHasRevert_ReturnsError validates that reverting a transaction
 // that already has a revert returns HTTP 422 with error code 0087.
 func TestRevertTransaction_AlreadyHasRevert_ReturnsError(t *testing.T) {
-	t.Parallel()
-
 	ctrl := gomock.NewController(t)
 	t.Cleanup(ctrl.Finish)
 
 	// Arrange
-	orgID := uuid.New()
-	ledgerID := uuid.New()
-	transactionID := uuid.New()
-	existingRevertID := uuid.New()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
+	transactionID := uuid.Must(libCommons.GenerateUUIDv7())
+	existingRevertID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	mockTransactionRepo := transaction.NewMockRepository(ctrl)
 	mockMetadataRepo := mongodb.NewMockRepository(ctrl)
@@ -588,21 +547,11 @@ func TestRevertTransaction_AlreadyHasRevert_ReturnsError(t *testing.T) {
 	}
 	handler := &TransactionHandler{Query: queryUC}
 
-	app := fiber.New()
-	app.Post(
-		"/test/:organization_id/:ledger_id/transactions/:transaction_id/revert",
-		func(c fiber.Ctx) error {
-			c.Locals("organization_id", orgID)
-			c.Locals("ledger_id", ledgerID)
-			c.Locals("transaction_id", transactionID)
-			return c.Next()
-		},
-		handler.RevertTransaction,
-	)
+	app := buildHumaTransactionApp(t, handler, true)
 
 	// Act
 	req := httptest.NewRequest("POST",
-		"/test/"+orgID.String()+"/"+ledgerID.String()+"/transactions/"+transactionID.String()+"/revert",
+		"/v1/organizations/"+orgID.String()+"/ledgers/"+ledgerID.String()+"/transactions/"+transactionID.String()+"/revert",
 		nil)
 	resp, err := app.Test(req)
 
@@ -624,16 +573,14 @@ func TestRevertTransaction_AlreadyHasRevert_ReturnsError(t *testing.T) {
 // TestRevertTransaction_IsAlreadyARevert_ReturnsError validates that reverting a transaction
 // that is itself a revert returns HTTP 422 with error code 0088.
 func TestRevertTransaction_IsAlreadyARevert_ReturnsError(t *testing.T) {
-	t.Parallel()
-
 	ctrl := gomock.NewController(t)
 	t.Cleanup(ctrl.Finish)
 
 	// Arrange
-	orgID := uuid.New()
-	ledgerID := uuid.New()
-	transactionID := uuid.New()
-	originalTransactionID := uuid.New()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
+	transactionID := uuid.Must(libCommons.GenerateUUIDv7())
+	originalTransactionID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	mockTransactionRepo := transaction.NewMockRepository(ctrl)
 	mockMetadataRepo := mongodb.NewMockRepository(ctrl)
@@ -677,21 +624,11 @@ func TestRevertTransaction_IsAlreadyARevert_ReturnsError(t *testing.T) {
 	}
 	handler := &TransactionHandler{Query: queryUC}
 
-	app := fiber.New()
-	app.Post(
-		"/test/:organization_id/:ledger_id/transactions/:transaction_id/revert",
-		func(c fiber.Ctx) error {
-			c.Locals("organization_id", orgID)
-			c.Locals("ledger_id", ledgerID)
-			c.Locals("transaction_id", transactionID)
-			return c.Next()
-		},
-		handler.RevertTransaction,
-	)
+	app := buildHumaTransactionApp(t, handler, true)
 
 	// Act
 	req := httptest.NewRequest("POST",
-		"/test/"+orgID.String()+"/"+ledgerID.String()+"/transactions/"+transactionID.String()+"/revert",
+		"/v1/organizations/"+orgID.String()+"/ledgers/"+ledgerID.String()+"/transactions/"+transactionID.String()+"/revert",
 		nil)
 	resp, err := app.Test(req)
 
@@ -713,15 +650,13 @@ func TestRevertTransaction_IsAlreadyARevert_ReturnsError(t *testing.T) {
 // TestRevertTransaction_GetParentError_ReturnsError validates that errors from
 // GetParentByTransactionID are properly propagated.
 func TestRevertTransaction_GetParentError_ReturnsError(t *testing.T) {
-	t.Parallel()
-
 	ctrl := gomock.NewController(t)
 	t.Cleanup(ctrl.Finish)
 
 	// Arrange
-	orgID := uuid.New()
-	ledgerID := uuid.New()
-	transactionID := uuid.New()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
+	transactionID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	mockTransactionRepo := transaction.NewMockRepository(ctrl)
 
@@ -740,21 +675,11 @@ func TestRevertTransaction_GetParentError_ReturnsError(t *testing.T) {
 	}
 	handler := &TransactionHandler{Query: queryUC}
 
-	app := fiber.New()
-	app.Post(
-		"/test/:organization_id/:ledger_id/transactions/:transaction_id/revert",
-		func(c fiber.Ctx) error {
-			c.Locals("organization_id", orgID)
-			c.Locals("ledger_id", ledgerID)
-			c.Locals("transaction_id", transactionID)
-			return c.Next()
-		},
-		handler.RevertTransaction,
-	)
+	app := buildHumaTransactionApp(t, handler, true)
 
 	// Act
 	req := httptest.NewRequest("POST",
-		"/test/"+orgID.String()+"/"+ledgerID.String()+"/transactions/"+transactionID.String()+"/revert",
+		"/v1/organizations/"+orgID.String()+"/ledgers/"+ledgerID.String()+"/transactions/"+transactionID.String()+"/revert",
 		nil)
 	resp, err := app.Test(req)
 
@@ -775,15 +700,13 @@ func TestRevertTransaction_GetParentError_ReturnsError(t *testing.T) {
 // TestRevertTransaction_GetTransactionError_ReturnsError validates that errors from
 // GetTransactionWithOperationsByID are properly propagated.
 func TestRevertTransaction_GetTransactionError_ReturnsError(t *testing.T) {
-	t.Parallel()
-
 	ctrl := gomock.NewController(t)
 	t.Cleanup(ctrl.Finish)
 
 	// Arrange
-	orgID := uuid.New()
-	ledgerID := uuid.New()
-	transactionID := uuid.New()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
+	transactionID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	mockTransactionRepo := transaction.NewMockRepository(ctrl)
 	mockMetadataRepo := mongodb.NewMockRepository(ctrl)
@@ -817,21 +740,11 @@ func TestRevertTransaction_GetTransactionError_ReturnsError(t *testing.T) {
 	}
 	handler := &TransactionHandler{Query: queryUC}
 
-	app := fiber.New()
-	app.Post(
-		"/test/:organization_id/:ledger_id/transactions/:transaction_id/revert",
-		func(c fiber.Ctx) error {
-			c.Locals("organization_id", orgID)
-			c.Locals("ledger_id", ledgerID)
-			c.Locals("transaction_id", transactionID)
-			return c.Next()
-		},
-		handler.RevertTransaction,
-	)
+	app := buildHumaTransactionApp(t, handler, true)
 
 	// Act
 	req := httptest.NewRequest("POST",
-		"/test/"+orgID.String()+"/"+ledgerID.String()+"/transactions/"+transactionID.String()+"/revert",
+		"/v1/organizations/"+orgID.String()+"/ledgers/"+ledgerID.String()+"/transactions/"+transactionID.String()+"/revert",
 		nil)
 	resp, err := app.Test(req)
 
@@ -854,15 +767,13 @@ func TestRevertTransaction_GetTransactionError_ReturnsError(t *testing.T) {
 // returns an empty result (transaction can't be reverted), HTTP 422 is returned.
 // TransactionRevert.IsEmpty() returns true when AssetCode is empty and Amount is zero.
 func TestRevertTransaction_EmptyRevert_ReturnsError(t *testing.T) {
-	t.Parallel()
-
 	ctrl := gomock.NewController(t)
 	t.Cleanup(ctrl.Finish)
 
 	// Arrange
-	orgID := uuid.New()
-	ledgerID := uuid.New()
-	transactionID := uuid.New()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
+	transactionID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	mockTransactionRepo := transaction.NewMockRepository(ctrl)
 	mockMetadataRepo := mongodb.NewMockRepository(ctrl)
@@ -908,21 +819,11 @@ func TestRevertTransaction_EmptyRevert_ReturnsError(t *testing.T) {
 	}
 	handler := &TransactionHandler{Query: queryUC}
 
-	app := fiber.New()
-	app.Post(
-		"/test/:organization_id/:ledger_id/transactions/:transaction_id/revert",
-		func(c fiber.Ctx) error {
-			c.Locals("organization_id", orgID)
-			c.Locals("ledger_id", ledgerID)
-			c.Locals("transaction_id", transactionID)
-			return c.Next()
-		},
-		handler.RevertTransaction,
-	)
+	app := buildHumaTransactionApp(t, handler, true)
 
 	// Act
 	req := httptest.NewRequest("POST",
-		"/test/"+orgID.String()+"/"+ledgerID.String()+"/transactions/"+transactionID.String()+"/revert",
+		"/v1/organizations/"+orgID.String()+"/ledgers/"+ledgerID.String()+"/transactions/"+transactionID.String()+"/revert",
 		nil)
 	resp, err := app.Test(req)
 
@@ -944,16 +845,14 @@ func TestRevertTransaction_EmptyRevert_ReturnsError(t *testing.T) {
 // TestRevertTransaction_BidirectionalRouteAllows validates that a revert is allowed
 // when the operation route has OperationType "bidirectional".
 func TestRevertTransaction_BidirectionalRouteAllows(t *testing.T) {
-	t.Parallel()
-
 	ctrl := gomock.NewController(t)
 	t.Cleanup(ctrl.Finish)
 
 	// Arrange
-	orgID := uuid.New()
-	ledgerID := uuid.New()
-	transactionID := uuid.New()
-	operationRouteID := uuid.New()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
+	transactionID := uuid.Must(libCommons.GenerateUUIDv7())
+	operationRouteID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	mockTransactionRepo := transaction.NewMockRepository(ctrl)
 	mockMetadataRepo := mongodb.NewMockRepository(ctrl)
@@ -1027,33 +926,11 @@ func TestRevertTransaction_BidirectionalRouteAllows(t *testing.T) {
 	// the bidirectional error was not returned.
 	handler := &TransactionHandler{Query: queryUC}
 
-	app := fiber.New(fiber.Config{
-		ErrorHandler: func(c fiber.Ctx, err error) error {
-			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "internal"})
-		},
-	})
-	app.Use(func(c fiber.Ctx) error {
-		defer func() {
-			if r := recover(); r != nil {
-				_ = c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "recovered"})
-			}
-		}()
-		return c.Next()
-	})
-	app.Post(
-		"/test/:organization_id/:ledger_id/transactions/:transaction_id/revert",
-		func(c fiber.Ctx) error {
-			c.Locals("organization_id", orgID)
-			c.Locals("ledger_id", ledgerID)
-			c.Locals("transaction_id", transactionID)
-			return c.Next()
-		},
-		handler.RevertTransaction,
-	)
+	app := buildHumaTransactionApp(t, handler, true)
 
 	// Act
 	req := httptest.NewRequest("POST",
-		"/test/"+orgID.String()+"/"+ledgerID.String()+"/transactions/"+transactionID.String()+"/revert",
+		"/v1/organizations/"+orgID.String()+"/ledgers/"+ledgerID.String()+"/transactions/"+transactionID.String()+"/revert",
 		nil)
 	resp, err := app.Test(req)
 
@@ -1078,16 +955,14 @@ func TestRevertTransaction_BidirectionalRouteAllows(t *testing.T) {
 // TestRevertTransaction_NonBidirectionalRouteRejects validates that a revert is rejected
 // when the operation route has OperationType other than "bidirectional" (e.g., "source").
 func TestRevertTransaction_NonBidirectionalRouteRejects(t *testing.T) {
-	t.Parallel()
-
 	ctrl := gomock.NewController(t)
 	t.Cleanup(ctrl.Finish)
 
 	// Arrange
-	orgID := uuid.New()
-	ledgerID := uuid.New()
-	transactionID := uuid.New()
-	operationRouteID := uuid.New()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
+	transactionID := uuid.Must(libCommons.GenerateUUIDv7())
+	operationRouteID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	mockTransactionRepo := transaction.NewMockRepository(ctrl)
 	mockMetadataRepo := mongodb.NewMockRepository(ctrl)
@@ -1157,21 +1032,11 @@ func TestRevertTransaction_NonBidirectionalRouteRejects(t *testing.T) {
 	}
 	handler := &TransactionHandler{Query: queryUC}
 
-	app := fiber.New()
-	app.Post(
-		"/test/:organization_id/:ledger_id/transactions/:transaction_id/revert",
-		func(c fiber.Ctx) error {
-			c.Locals("organization_id", orgID)
-			c.Locals("ledger_id", ledgerID)
-			c.Locals("transaction_id", transactionID)
-			return c.Next()
-		},
-		handler.RevertTransaction,
-	)
+	app := buildHumaTransactionApp(t, handler, true)
 
 	// Act
 	req := httptest.NewRequest("POST",
-		"/test/"+orgID.String()+"/"+ledgerID.String()+"/transactions/"+transactionID.String()+"/revert",
+		"/v1/organizations/"+orgID.String()+"/ledgers/"+ledgerID.String()+"/transactions/"+transactionID.String()+"/revert",
 		nil)
 	resp, err := app.Test(req)
 
@@ -1193,15 +1058,13 @@ func TestRevertTransaction_NonBidirectionalRouteRejects(t *testing.T) {
 // TestRevertTransaction_NoRouteRevertsNormally validates that operations without
 // a route_id skip the bidirectional check and revert normally.
 func TestRevertTransaction_NoRouteRevertsNormally(t *testing.T) {
-	t.Parallel()
-
 	ctrl := gomock.NewController(t)
 	t.Cleanup(ctrl.Finish)
 
 	// Arrange
-	orgID := uuid.New()
-	ledgerID := uuid.New()
-	transactionID := uuid.New()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
+	transactionID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	mockTransactionRepo := transaction.NewMockRepository(ctrl)
 	mockMetadataRepo := mongodb.NewMockRepository(ctrl)
@@ -1255,33 +1118,11 @@ func TestRevertTransaction_NoRouteRevertsNormally(t *testing.T) {
 	}
 	handler := &TransactionHandler{Query: queryUC}
 
-	app := fiber.New(fiber.Config{
-		ErrorHandler: func(c fiber.Ctx, err error) error {
-			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "internal"})
-		},
-	})
-	app.Use(func(c fiber.Ctx) error {
-		defer func() {
-			if r := recover(); r != nil {
-				_ = c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "recovered"})
-			}
-		}()
-		return c.Next()
-	})
-	app.Post(
-		"/test/:organization_id/:ledger_id/transactions/:transaction_id/revert",
-		func(c fiber.Ctx) error {
-			c.Locals("organization_id", orgID)
-			c.Locals("ledger_id", ledgerID)
-			c.Locals("transaction_id", transactionID)
-			return c.Next()
-		},
-		handler.RevertTransaction,
-	)
+	app := buildHumaTransactionApp(t, handler, true)
 
 	// Act
 	req := httptest.NewRequest("POST",
-		"/test/"+orgID.String()+"/"+ledgerID.String()+"/transactions/"+transactionID.String()+"/revert",
+		"/v1/organizations/"+orgID.String()+"/ledgers/"+ledgerID.String()+"/transactions/"+transactionID.String()+"/revert",
 		nil)
 	resp, err := app.Test(req)
 
@@ -1305,16 +1146,14 @@ func TestRevertTransaction_NoRouteRevertsNormally(t *testing.T) {
 // TestRevertTransaction_RouteLookupError_ReturnsError validates that when the
 // route lookup fails, the revert is blocked (fail-closed behavior).
 func TestRevertTransaction_RouteLookupError_ReturnsError(t *testing.T) {
-	t.Parallel()
-
 	ctrl := gomock.NewController(t)
 	t.Cleanup(ctrl.Finish)
 
 	// Arrange
-	orgID := uuid.New()
-	ledgerID := uuid.New()
-	transactionID := uuid.New()
-	operationRouteID := uuid.New()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
+	transactionID := uuid.Must(libCommons.GenerateUUIDv7())
+	operationRouteID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	mockTransactionRepo := transaction.NewMockRepository(ctrl)
 	mockMetadataRepo := mongodb.NewMockRepository(ctrl)
@@ -1377,21 +1216,11 @@ func TestRevertTransaction_RouteLookupError_ReturnsError(t *testing.T) {
 	}
 	handler := &TransactionHandler{Query: queryUC}
 
-	app := fiber.New()
-	app.Post(
-		"/test/:organization_id/:ledger_id/transactions/:transaction_id/revert",
-		func(c fiber.Ctx) error {
-			c.Locals("organization_id", orgID)
-			c.Locals("ledger_id", ledgerID)
-			c.Locals("transaction_id", transactionID)
-			return c.Next()
-		},
-		handler.RevertTransaction,
-	)
+	app := buildHumaTransactionApp(t, handler, true)
 
 	// Act
 	req := httptest.NewRequest("POST",
-		"/test/"+orgID.String()+"/"+ledgerID.String()+"/transactions/"+transactionID.String()+"/revert",
+		"/v1/organizations/"+orgID.String()+"/ledgers/"+ledgerID.String()+"/transactions/"+transactionID.String()+"/revert",
 		nil)
 	resp, err := app.Test(req)
 
@@ -1404,15 +1233,13 @@ func TestRevertTransaction_RouteLookupError_ReturnsError(t *testing.T) {
 // TestCommitTransaction_GetTransactionError_ReturnsError validates that errors from
 // GetTransactionByID are properly propagated.
 func TestCommitTransaction_GetTransactionError_ReturnsError(t *testing.T) {
-	t.Parallel()
-
 	ctrl := gomock.NewController(t)
 	t.Cleanup(ctrl.Finish)
 
 	// Arrange
-	orgID := uuid.New()
-	ledgerID := uuid.New()
-	transactionID := uuid.New()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
+	transactionID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	mockTransactionRepo := transaction.NewMockRepository(ctrl)
 	mockRedisRepo := redis.NewMockRedisRepository(ctrl)
@@ -1440,21 +1267,11 @@ func TestCommitTransaction_GetTransactionError_ReturnsError(t *testing.T) {
 	}
 	handler := &TransactionHandler{Query: queryUC}
 
-	app := fiber.New()
-	app.Post(
-		"/test/:organization_id/:ledger_id/transactions/:transaction_id/commit",
-		func(c fiber.Ctx) error {
-			c.Locals("organization_id", orgID)
-			c.Locals("ledger_id", ledgerID)
-			c.Locals("transaction_id", transactionID)
-			return c.Next()
-		},
-		handler.CommitTransaction,
-	)
+	app := buildHumaTransactionApp(t, handler, true)
 
 	// Act
 	req := httptest.NewRequest("POST",
-		"/test/"+orgID.String()+"/"+ledgerID.String()+"/transactions/"+transactionID.String()+"/commit",
+		"/v1/organizations/"+orgID.String()+"/ledgers/"+ledgerID.String()+"/transactions/"+transactionID.String()+"/commit",
 		nil)
 	resp, err := app.Test(req)
 
@@ -1476,15 +1293,13 @@ func TestCommitTransaction_GetTransactionError_ReturnsError(t *testing.T) {
 // TestCommitTransaction_RedisLockError_ReturnsError validates that errors from
 // Redis SetNX (lock acquisition) are properly propagated.
 func TestCommitTransaction_RedisLockError_ReturnsError(t *testing.T) {
-	t.Parallel()
-
 	ctrl := gomock.NewController(t)
 	t.Cleanup(ctrl.Finish)
 
 	// Arrange
-	orgID := uuid.New()
-	ledgerID := uuid.New()
-	transactionID := uuid.New()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
+	transactionID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	mockTransactionRepo := transaction.NewMockRepository(ctrl)
 	mockMetadataRepo := mongodb.NewMockRepository(ctrl)
@@ -1554,21 +1369,11 @@ func TestCommitTransaction_RedisLockError_ReturnsError(t *testing.T) {
 	}
 	handler := &TransactionHandler{Query: queryUC, Command: commandUC}
 
-	app := fiber.New()
-	app.Post(
-		"/test/:organization_id/:ledger_id/transactions/:transaction_id/commit",
-		func(c fiber.Ctx) error {
-			c.Locals("organization_id", orgID)
-			c.Locals("ledger_id", ledgerID)
-			c.Locals("transaction_id", transactionID)
-			return c.Next()
-		},
-		handler.CommitTransaction,
-	)
+	app := buildHumaTransactionApp(t, handler, true)
 
 	// Act
 	req := httptest.NewRequest("POST",
-		"/test/"+orgID.String()+"/"+ledgerID.String()+"/transactions/"+transactionID.String()+"/commit",
+		"/v1/organizations/"+orgID.String()+"/ledgers/"+ledgerID.String()+"/transactions/"+transactionID.String()+"/commit",
 		nil)
 	resp, err := app.Test(req)
 
@@ -1590,15 +1395,13 @@ func TestCommitTransaction_RedisLockError_ReturnsError(t *testing.T) {
 // lock cannot be acquired (already being processed), HTTP 409 is returned with the
 // concurrency-specific error code (distinct from the status-conflict 0099).
 func TestCommitTransaction_LockNotAcquired_ReturnsError(t *testing.T) {
-	t.Parallel()
-
 	ctrl := gomock.NewController(t)
 	t.Cleanup(ctrl.Finish)
 
 	// Arrange
-	orgID := uuid.New()
-	ledgerID := uuid.New()
-	transactionID := uuid.New()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
+	transactionID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	mockTransactionRepo := transaction.NewMockRepository(ctrl)
 	mockMetadataRepo := mongodb.NewMockRepository(ctrl)
@@ -1664,21 +1467,11 @@ func TestCommitTransaction_LockNotAcquired_ReturnsError(t *testing.T) {
 	}
 	handler := &TransactionHandler{Query: queryUC, Command: commandUC}
 
-	app := fiber.New()
-	app.Post(
-		"/test/:organization_id/:ledger_id/transactions/:transaction_id/commit",
-		func(c fiber.Ctx) error {
-			c.Locals("organization_id", orgID)
-			c.Locals("ledger_id", ledgerID)
-			c.Locals("transaction_id", transactionID)
-			return c.Next()
-		},
-		handler.CommitTransaction,
-	)
+	app := buildHumaTransactionApp(t, handler, true)
 
 	// Act
 	req := httptest.NewRequest("POST",
-		"/test/"+orgID.String()+"/"+ledgerID.String()+"/transactions/"+transactionID.String()+"/commit",
+		"/v1/organizations/"+orgID.String()+"/ledgers/"+ledgerID.String()+"/transactions/"+transactionID.String()+"/commit",
 		nil)
 	resp, err := app.Test(req)
 
@@ -1701,8 +1494,6 @@ func TestCommitTransaction_LockNotAcquired_ReturnsError(t *testing.T) {
 // with send.value <= 0 returns HTTP 422 with error code 0125.
 // Business rule: Transaction values must be greater than zero.
 func TestCreateTransactionJSON_NonPositiveValue_Returns422(t *testing.T) {
-	t.Parallel()
-
 	tests := []struct {
 		name      string
 		sendValue string
@@ -1714,25 +1505,14 @@ func TestCreateTransactionJSON_NonPositiveValue_Returns422(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-
 			// Arrange
-			orgID := uuid.New()
-			ledgerID := uuid.New()
+			orgID := uuid.Must(libCommons.GenerateUUIDv7())
+			ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
 
 			// No mocks needed - validation short-circuits before any repository call
 			handler := &TransactionHandler{}
 
-			app := fiber.New()
-			app.Post(
-				"/test/:organization_id/:ledger_id/transactions/json",
-				func(c fiber.Ctx) error {
-					c.Locals("organization_id", orgID)
-					c.Locals("ledger_id", ledgerID)
-					return c.Next()
-				},
-				http.WithBody(new(mtransaction.CreateTransactionInput), handler.CreateTransactionJSON),
-			)
+			app := buildHumaTransactionApp(t, handler, true)
 
 			// Build request body with non-positive value
 			requestBody := `{
@@ -1750,7 +1530,7 @@ func TestCreateTransactionJSON_NonPositiveValue_Returns422(t *testing.T) {
 
 			// Act
 			req := httptest.NewRequest("POST",
-				"/test/"+orgID.String()+"/"+ledgerID.String()+"/transactions/json",
+				"/v1/organizations/"+orgID.String()+"/ledgers/"+ledgerID.String()+"/transactions/json",
 				strings.NewReader(requestBody))
 			req.Header.Set("Content-Type", "application/json")
 			resp, err := app.Test(req)
@@ -1770,7 +1550,7 @@ func TestCreateTransactionJSON_NonPositiveValue_Returns422(t *testing.T) {
 				"expected error code 0125 (ErrInvalidTransactionNonPositiveValue)")
 
 			// Verify error message is present and descriptive
-			msg, ok := errResp["detail"].(string)
+			msg, ok := errResp["message"].(string)
 			assert.True(t, ok, "error response should contain message field")
 			assert.Contains(t, msg, "zero", "error message should mention zero values")
 		})
@@ -1781,8 +1561,6 @@ func TestCreateTransactionJSON_NonPositiveValue_Returns422(t *testing.T) {
 // with send.value <= 0 returns HTTP 422 with error code 0125.
 // Business rule: Transaction values must be greater than zero.
 func TestCreateTransactionInflow_NonPositiveValue_Returns422(t *testing.T) {
-	t.Parallel()
-
 	tests := []struct {
 		name      string
 		sendValue string
@@ -1794,25 +1572,14 @@ func TestCreateTransactionInflow_NonPositiveValue_Returns422(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-
 			// Arrange
-			orgID := uuid.New()
-			ledgerID := uuid.New()
+			orgID := uuid.Must(libCommons.GenerateUUIDv7())
+			ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
 
 			// No mocks needed - validation short-circuits before any repository call
 			handler := &TransactionHandler{}
 
-			app := fiber.New()
-			app.Post(
-				"/test/:organization_id/:ledger_id/transactions/inflow",
-				func(c fiber.Ctx) error {
-					c.Locals("organization_id", orgID)
-					c.Locals("ledger_id", ledgerID)
-					return c.Next()
-				},
-				http.WithBody(new(mtransaction.CreateTransactionInflowInput), handler.CreateTransactionInflow),
-			)
+			app := buildHumaTransactionApp(t, handler, true)
 
 			// Build request body with non-positive value (inflow has no source, only distribute.to)
 			requestBody := `{
@@ -1827,7 +1594,7 @@ func TestCreateTransactionInflow_NonPositiveValue_Returns422(t *testing.T) {
 
 			// Act
 			req := httptest.NewRequest("POST",
-				"/test/"+orgID.String()+"/"+ledgerID.String()+"/transactions/inflow",
+				"/v1/organizations/"+orgID.String()+"/ledgers/"+ledgerID.String()+"/transactions/inflow",
 				strings.NewReader(requestBody))
 			req.Header.Set("Content-Type", "application/json")
 			resp, err := app.Test(req)
@@ -1847,7 +1614,7 @@ func TestCreateTransactionInflow_NonPositiveValue_Returns422(t *testing.T) {
 				"expected error code 0125 (ErrInvalidTransactionNonPositiveValue)")
 
 			// Verify error message is present and descriptive
-			msg, ok := errResp["detail"].(string)
+			msg, ok := errResp["message"].(string)
 			assert.True(t, ok, "error response should contain message field")
 			assert.Contains(t, msg, "zero", "error message should mention zero values")
 		})
@@ -1858,8 +1625,6 @@ func TestCreateTransactionInflow_NonPositiveValue_Returns422(t *testing.T) {
 // with send.value <= 0 returns HTTP 422 with error code 0125.
 // Business rule: Transaction values must be greater than zero.
 func TestCreateTransactionOutflow_NonPositiveValue_Returns422(t *testing.T) {
-	t.Parallel()
-
 	tests := []struct {
 		name      string
 		sendValue string
@@ -1871,25 +1636,14 @@ func TestCreateTransactionOutflow_NonPositiveValue_Returns422(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-
 			// Arrange
-			orgID := uuid.New()
-			ledgerID := uuid.New()
+			orgID := uuid.Must(libCommons.GenerateUUIDv7())
+			ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
 
 			// No mocks needed - validation short-circuits before any repository call
 			handler := &TransactionHandler{}
 
-			app := fiber.New()
-			app.Post(
-				"/test/:organization_id/:ledger_id/transactions/outflow",
-				func(c fiber.Ctx) error {
-					c.Locals("organization_id", orgID)
-					c.Locals("ledger_id", ledgerID)
-					return c.Next()
-				},
-				http.WithBody(new(mtransaction.CreateTransactionOutflowInput), handler.CreateTransactionOutflow),
-			)
+			app := buildHumaTransactionApp(t, handler, true)
 
 			// Build request body with non-positive value (outflow has no distribute.to, only source.from)
 			requestBody := `{
@@ -1904,7 +1658,7 @@ func TestCreateTransactionOutflow_NonPositiveValue_Returns422(t *testing.T) {
 
 			// Act
 			req := httptest.NewRequest("POST",
-				"/test/"+orgID.String()+"/"+ledgerID.String()+"/transactions/outflow",
+				"/v1/organizations/"+orgID.String()+"/ledgers/"+ledgerID.String()+"/transactions/outflow",
 				strings.NewReader(requestBody))
 			req.Header.Set("Content-Type", "application/json")
 			resp, err := app.Test(req)
@@ -1924,7 +1678,7 @@ func TestCreateTransactionOutflow_NonPositiveValue_Returns422(t *testing.T) {
 				"expected error code 0125 (ErrInvalidTransactionNonPositiveValue)")
 
 			// Verify error message is present and descriptive
-			msg, ok := errResp["detail"].(string)
+			msg, ok := errResp["message"].(string)
 			assert.True(t, ok, "error response should contain message field")
 			assert.Contains(t, msg, "zero", "error message should mention zero values")
 		})
@@ -1946,7 +1700,7 @@ func TestTransactionHandler_GetAllTransactions(t *testing.T) {
 			name:        "success returns 200 with pagination (cursor-based)",
 			queryParams: "?limit=10&sort_order=desc",
 			setupMocks: func(transactionRepo *transaction.MockRepository, operationRepo *operation.MockRepository, metadataRepo *mongodb.MockRepository, orgID, ledgerID uuid.UUID) {
-				transactionID := uuid.New()
+				transactionID := uuid.Must(libCommons.GenerateUUIDv7())
 				amount := decimal.NewFromInt(1000)
 				transactionRepo.EXPECT().
 					FindOrListAllWithOperations(gomock.Any(), orgID, ledgerID, []uuid.UUID{}, gomock.Any()).
@@ -1992,7 +1746,7 @@ func TestTransactionHandler_GetAllTransactions(t *testing.T) {
 			name:        "success returns 200 with metadata filter (dual code path)",
 			queryParams: "?metadata.category=payment",
 			setupMocks: func(transactionRepo *transaction.MockRepository, operationRepo *operation.MockRepository, metadataRepo *mongodb.MockRepository, orgID, ledgerID uuid.UUID) {
-				transactionID := uuid.New()
+				transactionID := uuid.Must(libCommons.GenerateUUIDv7())
 				amount := decimal.NewFromInt(500)
 
 				// First: FindList is called for metadata filtering
@@ -2042,7 +1796,7 @@ func TestTransactionHandler_GetAllTransactions(t *testing.T) {
 			name:        "success returns 200 without metadata filter",
 			queryParams: "",
 			setupMocks: func(transactionRepo *transaction.MockRepository, operationRepo *operation.MockRepository, metadataRepo *mongodb.MockRepository, orgID, ledgerID uuid.UUID) {
-				transactionID := uuid.New()
+				transactionID := uuid.Must(libCommons.GenerateUUIDv7())
 				amount := decimal.NewFromInt(2000)
 
 				transactionRepo.EXPECT().
@@ -2111,7 +1865,7 @@ func TestTransactionHandler_GetAllTransactions(t *testing.T) {
 				require.NoError(t, err, "error response should be valid JSON")
 
 				assert.Contains(t, errResp, "code", "error response should contain code field")
-				assert.Contains(t, errResp, "detail", "error response should contain message field")
+				assert.Contains(t, errResp, "message", "error response should contain message field")
 			},
 		},
 	}
@@ -2122,8 +1876,8 @@ func TestTransactionHandler_GetAllTransactions(t *testing.T) {
 			t.Cleanup(ctrl.Finish)
 
 			// Arrange
-			orgID := uuid.New()
-			ledgerID := uuid.New()
+			orgID := uuid.Must(libCommons.GenerateUUIDv7())
+			ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
 
 			mockTransactionRepo := transaction.NewMockRepository(ctrl)
 			mockOperationRepo := operation.NewMockRepository(ctrl)
@@ -2137,20 +1891,11 @@ func TestTransactionHandler_GetAllTransactions(t *testing.T) {
 			}
 			handler := &TransactionHandler{Query: uc}
 
-			app := fiber.New()
-			app.Get(
-				"/test/:organization_id/:ledger_id/transactions",
-				func(c fiber.Ctx) error {
-					c.Locals("organization_id", orgID)
-					c.Locals("ledger_id", ledgerID)
-					return c.Next()
-				},
-				handler.GetAllTransactions,
-			)
+			app := buildHumaTransactionApp(t, handler, true)
 
 			// Act
 			req := httptest.NewRequest("GET",
-				"/test/"+orgID.String()+"/"+ledgerID.String()+"/transactions"+tt.queryParams,
+				"/v1/organizations/"+orgID.String()+"/ledgers/"+ledgerID.String()+"/transactions"+tt.queryParams,
 				nil)
 			resp, err := app.Test(req)
 
@@ -2352,9 +2097,9 @@ func TestTransactionHandler_UpdateTransaction(t *testing.T) {
 			t.Cleanup(ctrl.Finish)
 
 			// Arrange
-			orgID := uuid.New()
-			ledgerID := uuid.New()
-			transactionID := uuid.New()
+			orgID := uuid.Must(libCommons.GenerateUUIDv7())
+			ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
+			transactionID := uuid.Must(libCommons.GenerateUUIDv7())
 
 			mockTransactionRepo := transaction.NewMockRepository(ctrl)
 			mockMetadataRepo := mongodb.NewMockRepository(ctrl)
@@ -2372,21 +2117,11 @@ func TestTransactionHandler_UpdateTransaction(t *testing.T) {
 			}
 			handler := &TransactionHandler{Query: queryUC, Command: commandUC}
 
-			app := fiber.New()
-			app.Patch(
-				"/test/:organization_id/:ledger_id/transactions/:transaction_id",
-				func(c fiber.Ctx) error {
-					c.Locals("organization_id", orgID)
-					c.Locals("ledger_id", ledgerID)
-					c.Locals("transaction_id", transactionID)
-					return c.Next()
-				},
-				http.WithBody(new(transaction.UpdateTransactionInput), handler.UpdateTransaction),
-			)
+			app := buildHumaTransactionApp(t, handler, true)
 
 			// Act
 			req := httptest.NewRequest("PATCH",
-				"/test/"+orgID.String()+"/"+ledgerID.String()+"/transactions/"+transactionID.String(),
+				"/v1/organizations/"+orgID.String()+"/ledgers/"+ledgerID.String()+"/transactions/"+transactionID.String(),
 				strings.NewReader(tt.requestBody))
 			req.Header.Set("Content-Type", "application/json")
 			resp, err := app.Test(req)
@@ -2408,8 +2143,6 @@ func TestTransactionHandler_UpdateTransaction(t *testing.T) {
 // with send.value <= 0 returns HTTP 422 with error code 0125.
 // Business rule: Transaction values must be greater than zero, even for annotations.
 func TestCreateTransactionAnnotation_NonPositiveValue_Returns422(t *testing.T) {
-	t.Parallel()
-
 	tests := []struct {
 		name      string
 		sendValue string
@@ -2421,25 +2154,14 @@ func TestCreateTransactionAnnotation_NonPositiveValue_Returns422(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-
 			// Arrange
-			orgID := uuid.New()
-			ledgerID := uuid.New()
+			orgID := uuid.Must(libCommons.GenerateUUIDv7())
+			ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
 
 			// No mocks needed - validation short-circuits before any repository call
 			handler := &TransactionHandler{}
 
-			app := fiber.New()
-			app.Post(
-				"/test/:organization_id/:ledger_id/transactions/annotation",
-				func(c fiber.Ctx) error {
-					c.Locals("organization_id", orgID)
-					c.Locals("ledger_id", ledgerID)
-					return c.Next()
-				},
-				http.WithBody(new(mtransaction.CreateTransactionInput), handler.CreateTransactionAnnotation),
-			)
+			app := buildHumaTransactionApp(t, handler, true)
 
 			// Build request body with non-positive value
 			requestBody := `{
@@ -2457,7 +2179,7 @@ func TestCreateTransactionAnnotation_NonPositiveValue_Returns422(t *testing.T) {
 
 			// Act
 			req := httptest.NewRequest("POST",
-				"/test/"+orgID.String()+"/"+ledgerID.String()+"/transactions/annotation",
+				"/v1/organizations/"+orgID.String()+"/ledgers/"+ledgerID.String()+"/transactions/annotation",
 				strings.NewReader(requestBody))
 			req.Header.Set("Content-Type", "application/json")
 			resp, err := app.Test(req)
@@ -2477,7 +2199,7 @@ func TestCreateTransactionAnnotation_NonPositiveValue_Returns422(t *testing.T) {
 				"expected error code 0125 (ErrInvalidTransactionNonPositiveValue)")
 
 			// Verify error message is present and descriptive
-			msg, ok := errResp["detail"].(string)
+			msg, ok := errResp["message"].(string)
 			assert.True(t, ok, "error response should contain message field")
 			assert.Contains(t, msg, "zero", "error message should mention zero values")
 		})
@@ -2486,8 +2208,6 @@ func TestCreateTransactionAnnotation_NonPositiveValue_Returns422(t *testing.T) {
 
 // TestCancelTransaction tests the CancelTransaction handler
 func TestCancelTransaction(t *testing.T) {
-	t.Parallel()
-
 	tests := []struct {
 		name           string
 		setupMocks     func(transactionRepo *transaction.MockRepository, metadataRepo *mongodb.MockRepository, operationRepo *operation.MockRepository, redisRepo *redis.MockRedisRepository, orgID, ledgerID, transactionID uuid.UUID)
@@ -2745,15 +2465,13 @@ func TestCancelTransaction(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-
 			ctrl := gomock.NewController(t)
 			t.Cleanup(ctrl.Finish)
 
 			// Arrange
-			orgID := uuid.New()
-			ledgerID := uuid.New()
-			transactionID := uuid.New()
+			orgID := uuid.Must(libCommons.GenerateUUIDv7())
+			ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
+			transactionID := uuid.Must(libCommons.GenerateUUIDv7())
 
 			mockTransactionRepo := transaction.NewMockRepository(ctrl)
 			mockMetadataRepo := mongodb.NewMockRepository(ctrl)
@@ -2778,21 +2496,11 @@ func TestCancelTransaction(t *testing.T) {
 			}
 			handler := &TransactionHandler{Query: queryUC, Command: commandUC}
 
-			app := fiber.New()
-			app.Post(
-				"/test/:organization_id/:ledger_id/transactions/:transaction_id/cancel",
-				func(c fiber.Ctx) error {
-					c.Locals("organization_id", orgID)
-					c.Locals("ledger_id", ledgerID)
-					c.Locals("transaction_id", transactionID)
-					return c.Next()
-				},
-				handler.CancelTransaction,
-			)
+			app := buildHumaTransactionApp(t, handler, true)
 
 			// Act
 			req := httptest.NewRequest("POST",
-				"/test/"+orgID.String()+"/"+ledgerID.String()+"/transactions/"+transactionID.String()+"/cancel",
+				"/v1/organizations/"+orgID.String()+"/ledgers/"+ledgerID.String()+"/transactions/"+transactionID.String()+"/cancel",
 				nil)
 			resp, err := app.Test(req)
 
@@ -2850,15 +2558,9 @@ func TestGetTransaction_WriteBehindHit(t *testing.T) {
 
 	// No TransactionRepo mock -> proves Postgres is never called
 
-	app := fiber.New()
-	app.Get("/test", func(c fiber.Ctx) error {
-		c.Locals("organization_id", orgID)
-		c.Locals("ledger_id", ledgerID)
-		c.Locals("transaction_id", tranID)
-		return handler.GetTransaction(c)
-	})
+	app := buildHumaTransactionApp(t, handler, true)
 
-	req := httptest.NewRequest("GET", "/test", nil)
+	req := httptest.NewRequest("GET", humaTransactionURL(orgID, ledgerID, "/"+tranID.String()), nil)
 	resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
 	require.NoError(t, err)
 
@@ -2899,15 +2601,9 @@ func TestCancelTransaction_WriteBehindMiss_PostgresMiss(t *testing.T) {
 		Return(nil, errors.New("record not found")).
 		Times(1)
 
-	app := fiber.New()
-	app.Post("/test", func(c fiber.Ctx) error {
-		c.Locals("organization_id", orgID)
-		c.Locals("ledger_id", ledgerID)
-		c.Locals("transaction_id", tranID)
-		return handler.CancelTransaction(c)
-	})
+	app := buildHumaTransactionApp(t, handler, true)
 
-	req := httptest.NewRequest("POST", "/test", nil)
+	req := httptest.NewRequest("POST", humaTransactionURL(orgID, ledgerID, "/"+tranID.String()+"/cancel"), nil)
 	resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
 	require.NoError(t, err)
 
@@ -2962,15 +2658,9 @@ func TestCancelTransaction_WriteBehindMiss_PostgresHit(t *testing.T) {
 		Return(false, errors.New("lock error")).
 		Times(1)
 
-	app := fiber.New()
-	app.Post("/test", func(c fiber.Ctx) error {
-		c.Locals("organization_id", orgID)
-		c.Locals("ledger_id", ledgerID)
-		c.Locals("transaction_id", tranID)
-		return handler.CancelTransaction(c)
-	})
+	app := buildHumaTransactionApp(t, handler, true)
 
-	req := httptest.NewRequest("POST", "/test", nil)
+	req := httptest.NewRequest("POST", humaTransactionURL(orgID, ledgerID, "/"+tranID.String()+"/cancel"), nil)
 	resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
 	require.NoError(t, err)
 
@@ -3013,15 +2703,9 @@ func TestCancelTransaction_WriteBehindHit_PostgresNotCalled(t *testing.T) {
 		Return(false, errors.New("lock error")).
 		Times(1)
 
-	app := fiber.New()
-	app.Post("/test", func(c fiber.Ctx) error {
-		c.Locals("organization_id", orgID)
-		c.Locals("ledger_id", ledgerID)
-		c.Locals("transaction_id", tranID)
-		return handler.CancelTransaction(c)
-	})
+	app := buildHumaTransactionApp(t, handler, true)
 
-	req := httptest.NewRequest("POST", "/test", nil)
+	req := httptest.NewRequest("POST", humaTransactionURL(orgID, ledgerID, "/"+tranID.String()+"/cancel"), nil)
 	resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
 	require.NoError(t, err)
 
@@ -3062,15 +2746,9 @@ func TestCommitTransaction_WriteBehindMiss_PostgresMiss(t *testing.T) {
 		Return(nil, errors.New("record not found")).
 		Times(1)
 
-	app := fiber.New()
-	app.Post("/test", func(c fiber.Ctx) error {
-		c.Locals("organization_id", orgID)
-		c.Locals("ledger_id", ledgerID)
-		c.Locals("transaction_id", tranID)
-		return handler.CommitTransaction(c)
-	})
+	app := buildHumaTransactionApp(t, handler, true)
 
-	req := httptest.NewRequest("POST", "/test", nil)
+	req := httptest.NewRequest("POST", humaTransactionURL(orgID, ledgerID, "/"+tranID.String()+"/commit"), nil)
 	resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
 	require.NoError(t, err)
 
@@ -3125,15 +2803,9 @@ func TestCommitTransaction_WriteBehindMiss_PostgresHit(t *testing.T) {
 		Return(false, errors.New("lock error")).
 		Times(1)
 
-	app := fiber.New()
-	app.Post("/test", func(c fiber.Ctx) error {
-		c.Locals("organization_id", orgID)
-		c.Locals("ledger_id", ledgerID)
-		c.Locals("transaction_id", tranID)
-		return handler.CommitTransaction(c)
-	})
+	app := buildHumaTransactionApp(t, handler, true)
 
-	req := httptest.NewRequest("POST", "/test", nil)
+	req := httptest.NewRequest("POST", humaTransactionURL(orgID, ledgerID, "/"+tranID.String()+"/commit"), nil)
 	resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
 	require.NoError(t, err)
 
@@ -3176,15 +2848,9 @@ func TestCommitTransaction_WriteBehindHit_PostgresNotCalled(t *testing.T) {
 		Return(false, errors.New("lock error")).
 		Times(1)
 
-	app := fiber.New()
-	app.Post("/test", func(c fiber.Ctx) error {
-		c.Locals("organization_id", orgID)
-		c.Locals("ledger_id", ledgerID)
-		c.Locals("transaction_id", tranID)
-		return handler.CommitTransaction(c)
-	})
+	app := buildHumaTransactionApp(t, handler, true)
 
-	req := httptest.NewRequest("POST", "/test", nil)
+	req := httptest.NewRequest("POST", humaTransactionURL(orgID, ledgerID, "/"+tranID.String()+"/commit"), nil)
 	resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
 	require.NoError(t, err)
 
@@ -3334,10 +3000,10 @@ func TestBuildDoubleEntryPendingOps(t *testing.T) {
 		{
 			name: "generates exactly 2 operations with correct types",
 			balance: &mmodel.Balance{
-				ID:             uuid.New().String(),
-				OrganizationID: uuid.New().String(),
-				LedgerID:       uuid.New().String(),
-				AccountID:      uuid.New().String(),
+				ID:             uuid.Must(libCommons.GenerateUUIDv7()).String(),
+				OrganizationID: uuid.Must(libCommons.GenerateUUIDv7()).String(),
+				LedgerID:       uuid.Must(libCommons.GenerateUUIDv7()).String(),
+				AccountID:      uuid.Must(libCommons.GenerateUUIDv7()).String(),
 				Alias:          "@source1",
 				Key:            "default",
 				Available:      decimal.NewFromInt(1000),
@@ -3362,9 +3028,9 @@ func TestBuildDoubleEntryPendingOps(t *testing.T) {
 				Version:   7,
 			},
 			tran: transaction.Transaction{
-				ID:             uuid.New().String(),
-				OrganizationID: uuid.New().String(),
-				LedgerID:       uuid.New().String(),
+				ID:             uuid.Must(libCommons.GenerateUUIDv7()).String(),
+				OrganizationID: uuid.Must(libCommons.GenerateUUIDv7()).String(),
+				LedgerID:       uuid.Must(libCommons.GenerateUUIDv7()).String(),
 			},
 			transactionInput: mtransaction.Transaction{
 				Pending: true,
@@ -3380,10 +3046,10 @@ func TestBuildDoubleEntryPendingOps(t *testing.T) {
 		{
 			name: "annotation mode zeroes all balance fields",
 			balance: &mmodel.Balance{
-				ID:             uuid.New().String(),
-				OrganizationID: uuid.New().String(),
-				LedgerID:       uuid.New().String(),
-				AccountID:      uuid.New().String(),
+				ID:             uuid.Must(libCommons.GenerateUUIDv7()).String(),
+				OrganizationID: uuid.Must(libCommons.GenerateUUIDv7()).String(),
+				LedgerID:       uuid.Must(libCommons.GenerateUUIDv7()).String(),
+				AccountID:      uuid.Must(libCommons.GenerateUUIDv7()).String(),
 				Alias:          "@source1",
 				Key:            "default",
 				Available:      decimal.NewFromInt(1000),
@@ -3407,9 +3073,9 @@ func TestBuildDoubleEntryPendingOps(t *testing.T) {
 				Version:   7,
 			},
 			tran: transaction.Transaction{
-				ID:             uuid.New().String(),
-				OrganizationID: uuid.New().String(),
-				LedgerID:       uuid.New().String(),
+				ID:             uuid.Must(libCommons.GenerateUUIDv7()).String(),
+				OrganizationID: uuid.Must(libCommons.GenerateUUIDv7()).String(),
+				LedgerID:       uuid.Must(libCommons.GenerateUUIDv7()).String(),
 			},
 			transactionInput: mtransaction.Transaction{
 				Pending:     true,
@@ -3424,10 +3090,10 @@ func TestBuildDoubleEntryPendingOps(t *testing.T) {
 		{
 			name: "uses transaction description when fromTo description is empty",
 			balance: &mmodel.Balance{
-				ID:             uuid.New().String(),
-				OrganizationID: uuid.New().String(),
-				LedgerID:       uuid.New().String(),
-				AccountID:      uuid.New().String(),
+				ID:             uuid.Must(libCommons.GenerateUUIDv7()).String(),
+				OrganizationID: uuid.Must(libCommons.GenerateUUIDv7()).String(),
+				LedgerID:       uuid.Must(libCommons.GenerateUUIDv7()).String(),
+				AccountID:      uuid.Must(libCommons.GenerateUUIDv7()).String(),
 				Alias:          "@source1",
 				Key:            "default",
 				Available:      decimal.NewFromInt(500),
@@ -3452,9 +3118,9 @@ func TestBuildDoubleEntryPendingOps(t *testing.T) {
 				Version:   3,
 			},
 			tran: transaction.Transaction{
-				ID:             uuid.New().String(),
-				OrganizationID: uuid.New().String(),
-				LedgerID:       uuid.New().String(),
+				ID:             uuid.Must(libCommons.GenerateUUIDv7()).String(),
+				OrganizationID: uuid.Must(libCommons.GenerateUUIDv7()).String(),
+				LedgerID:       uuid.Must(libCommons.GenerateUUIDv7()).String(),
 			},
 			transactionInput: mtransaction.Transaction{
 				Pending:     true,
@@ -3741,10 +3407,10 @@ func TestBuildDoubleEntryCanceledOps(t *testing.T) {
 		{
 			name: "generates exactly 2 operations RELEASE+CREDIT with correct types",
 			balance: &mmodel.Balance{
-				ID:             uuid.New().String(),
-				OrganizationID: uuid.New().String(),
-				LedgerID:       uuid.New().String(),
-				AccountID:      uuid.New().String(),
+				ID:             uuid.Must(libCommons.GenerateUUIDv7()).String(),
+				OrganizationID: uuid.Must(libCommons.GenerateUUIDv7()).String(),
+				LedgerID:       uuid.Must(libCommons.GenerateUUIDv7()).String(),
+				AccountID:      uuid.Must(libCommons.GenerateUUIDv7()).String(),
 				Alias:          "@source1",
 				Key:            "default",
 				Available:      decimal.NewFromInt(500),
@@ -3769,9 +3435,9 @@ func TestBuildDoubleEntryCanceledOps(t *testing.T) {
 				Version:   10,
 			},
 			tran: transaction.Transaction{
-				ID:             uuid.New().String(),
-				OrganizationID: uuid.New().String(),
-				LedgerID:       uuid.New().String(),
+				ID:             uuid.Must(libCommons.GenerateUUIDv7()).String(),
+				OrganizationID: uuid.Must(libCommons.GenerateUUIDv7()).String(),
+				LedgerID:       uuid.Must(libCommons.GenerateUUIDv7()).String(),
 			},
 			transactionInput: mtransaction.Transaction{
 				Pending: false,
@@ -3787,10 +3453,10 @@ func TestBuildDoubleEntryCanceledOps(t *testing.T) {
 		{
 			name: "annotation mode zeroes all balance fields",
 			balance: &mmodel.Balance{
-				ID:             uuid.New().String(),
-				OrganizationID: uuid.New().String(),
-				LedgerID:       uuid.New().String(),
-				AccountID:      uuid.New().String(),
+				ID:             uuid.Must(libCommons.GenerateUUIDv7()).String(),
+				OrganizationID: uuid.Must(libCommons.GenerateUUIDv7()).String(),
+				LedgerID:       uuid.Must(libCommons.GenerateUUIDv7()).String(),
+				AccountID:      uuid.Must(libCommons.GenerateUUIDv7()).String(),
 				Alias:          "@source1",
 				Key:            "default",
 				Available:      decimal.NewFromInt(500),
@@ -3814,9 +3480,9 @@ func TestBuildDoubleEntryCanceledOps(t *testing.T) {
 				Version:   10,
 			},
 			tran: transaction.Transaction{
-				ID:             uuid.New().String(),
-				OrganizationID: uuid.New().String(),
-				LedgerID:       uuid.New().String(),
+				ID:             uuid.Must(libCommons.GenerateUUIDv7()).String(),
+				OrganizationID: uuid.Must(libCommons.GenerateUUIDv7()).String(),
+				LedgerID:       uuid.Must(libCommons.GenerateUUIDv7()).String(),
 			},
 			transactionInput: mtransaction.Transaction{
 				Pending:     false,
@@ -3831,10 +3497,10 @@ func TestBuildDoubleEntryCanceledOps(t *testing.T) {
 		{
 			name: "uses transaction description when fromTo description is empty",
 			balance: &mmodel.Balance{
-				ID:             uuid.New().String(),
-				OrganizationID: uuid.New().String(),
-				LedgerID:       uuid.New().String(),
-				AccountID:      uuid.New().String(),
+				ID:             uuid.Must(libCommons.GenerateUUIDv7()).String(),
+				OrganizationID: uuid.Must(libCommons.GenerateUUIDv7()).String(),
+				LedgerID:       uuid.Must(libCommons.GenerateUUIDv7()).String(),
+				AccountID:      uuid.Must(libCommons.GenerateUUIDv7()).String(),
 				Alias:          "@source1",
 				Key:            "default",
 				Available:      decimal.NewFromInt(1000),
@@ -3859,9 +3525,9 @@ func TestBuildDoubleEntryCanceledOps(t *testing.T) {
 				Version:   4,
 			},
 			tran: transaction.Transaction{
-				ID:             uuid.New().String(),
-				OrganizationID: uuid.New().String(),
-				LedgerID:       uuid.New().String(),
+				ID:             uuid.Must(libCommons.GenerateUUIDv7()).String(),
+				OrganizationID: uuid.Must(libCommons.GenerateUUIDv7()).String(),
+				LedgerID:       uuid.Must(libCommons.GenerateUUIDv7()).String(),
 			},
 			transactionInput: mtransaction.Transaction{
 				Pending:     false,
@@ -3876,10 +3542,10 @@ func TestBuildDoubleEntryCanceledOps(t *testing.T) {
 		{
 			name: "zero amount produces 2 operations with unchanged balances",
 			balance: &mmodel.Balance{
-				ID:             uuid.New().String(),
-				OrganizationID: uuid.New().String(),
-				LedgerID:       uuid.New().String(),
-				AccountID:      uuid.New().String(),
+				ID:             uuid.Must(libCommons.GenerateUUIDv7()).String(),
+				OrganizationID: uuid.Must(libCommons.GenerateUUIDv7()).String(),
+				LedgerID:       uuid.Must(libCommons.GenerateUUIDv7()).String(),
+				AccountID:      uuid.Must(libCommons.GenerateUUIDv7()).String(),
 				Alias:          "@source1",
 				Key:            "default",
 				Available:      decimal.NewFromInt(1000),
@@ -3904,9 +3570,9 @@ func TestBuildDoubleEntryCanceledOps(t *testing.T) {
 				Version:   7,
 			},
 			tran: transaction.Transaction{
-				ID:             uuid.New().String(),
-				OrganizationID: uuid.New().String(),
-				LedgerID:       uuid.New().String(),
+				ID:             uuid.Must(libCommons.GenerateUUIDv7()).String(),
+				OrganizationID: uuid.Must(libCommons.GenerateUUIDv7()).String(),
+				LedgerID:       uuid.Must(libCommons.GenerateUUIDv7()).String(),
 			},
 			transactionInput: mtransaction.Transaction{
 				Pending: false,
@@ -3922,10 +3588,10 @@ func TestBuildDoubleEntryCanceledOps(t *testing.T) {
 		{
 			name: "version starting at 0 chains correctly",
 			balance: &mmodel.Balance{
-				ID:             uuid.New().String(),
-				OrganizationID: uuid.New().String(),
-				LedgerID:       uuid.New().String(),
-				AccountID:      uuid.New().String(),
+				ID:             uuid.Must(libCommons.GenerateUUIDv7()).String(),
+				OrganizationID: uuid.Must(libCommons.GenerateUUIDv7()).String(),
+				LedgerID:       uuid.Must(libCommons.GenerateUUIDv7()).String(),
+				AccountID:      uuid.Must(libCommons.GenerateUUIDv7()).String(),
 				Alias:          "@source1",
 				Key:            "default",
 				Available:      decimal.NewFromInt(100),
@@ -3950,9 +3616,9 @@ func TestBuildDoubleEntryCanceledOps(t *testing.T) {
 				Version:   2,
 			},
 			tran: transaction.Transaction{
-				ID:             uuid.New().String(),
-				OrganizationID: uuid.New().String(),
-				LedgerID:       uuid.New().String(),
+				ID:             uuid.Must(libCommons.GenerateUUIDv7()).String(),
+				OrganizationID: uuid.Must(libCommons.GenerateUUIDv7()).String(),
+				LedgerID:       uuid.Must(libCommons.GenerateUUIDv7()).String(),
 			},
 			transactionInput: mtransaction.Transaction{
 				Pending: false,
@@ -4085,10 +3751,10 @@ func TestTryBuildDoubleEntryOps(t *testing.T) {
 	t.Parallel()
 
 	baseBalance := &mmodel.Balance{
-		ID:             uuid.New().String(),
-		OrganizationID: uuid.New().String(),
-		LedgerID:       uuid.New().String(),
-		AccountID:      uuid.New().String(),
+		ID:             uuid.Must(libCommons.GenerateUUIDv7()).String(),
+		OrganizationID: uuid.Must(libCommons.GenerateUUIDv7()).String(),
+		LedgerID:       uuid.Must(libCommons.GenerateUUIDv7()).String(),
+		AccountID:      uuid.Must(libCommons.GenerateUUIDv7()).String(),
 		Alias:          "@source1",
 		Key:            "default",
 		Available:      decimal.NewFromInt(1000),
@@ -4097,9 +3763,9 @@ func TestTryBuildDoubleEntryOps(t *testing.T) {
 	}
 
 	baseTran := transaction.Transaction{
-		ID:             uuid.New().String(),
-		OrganizationID: uuid.New().String(),
-		LedgerID:       uuid.New().String(),
+		ID:             uuid.Must(libCommons.GenerateUUIDv7()).String(),
+		OrganizationID: uuid.Must(libCommons.GenerateUUIDv7()).String(),
+		LedgerID:       uuid.Must(libCommons.GenerateUUIDv7()).String(),
 	}
 
 	baseBalanceAfter := mtransaction.Balance{

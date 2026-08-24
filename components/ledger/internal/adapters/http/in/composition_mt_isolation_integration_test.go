@@ -221,7 +221,7 @@ func TestIntegration_CompositionConcurrentTenantIsolation(t *testing.T) {
 			compositionTenantMiddleware.WithTenantDB,
 		},
 	}
-	mountCompositionHuma(app, auth, compositionHandler, routeOptions)
+	mountCompositionRoutes(app, auth, compositionHandler, routeOptions)
 
 	// Concurrent composition POSTs, one per tenant, each with an instrument.
 	var g errgroup.Group

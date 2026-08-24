@@ -9,15 +9,12 @@ import (
 
 	libObservability "github.com/LerianStudio/lib-observability/v2"
 	libLog "github.com/LerianStudio/lib-observability/v2/log"
-	"github.com/gofiber/fiber/v3"
 	"github.com/google/uuid"
 	"go.opentelemetry.io/otel/attribute"
 
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services/composition"
 	"github.com/LerianStudio/midaz/v4/pkg"
-	"github.com/LerianStudio/midaz/v4/pkg/constant"
 	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
-	"github.com/LerianStudio/midaz/v4/pkg/net/http"
 )
 
 // CompositionHandler exposes the holder-account composition route. It owns no
@@ -28,15 +25,11 @@ type CompositionHandler struct {
 	Service *composition.Service
 }
 
-// createHolderAccount is the transport-agnostic core for the holder-account
-// composition. It owns the handler span (attributes + business/error-class
-// recording + level-split logging) and the Service call, taking already-parsed
-// UUIDs and an already-decoded+validated payload so BOTH transports feed it: the
-// Fiber wrapper pulls those from fiber.Ctx (Locals + WithBody + c.Get), the Huma
-// shell (composition_handler_huma.go) pulls them from the request envelope. Every
-// canonical Midaz error it returns is rendered by the caller — http.WithError on
-// the Fiber path, http.HumaProblem on the Huma path — so code + status are
-// identical across transports. A partial failure (account committed, instrument
+// createHolderAccount is the core for the holder-account composition. It owns the
+// handler span (attributes + business/error-class recording + level-split logging)
+// and the Service call, taking already-parsed UUIDs and an already-decoded and
+// validated payload. Every canonical Midaz error it returns is rendered by the
+// caller (http.HumaProblem). A partial failure (account committed, instrument
 // failed) is returned as a nil-error 201 body by the Service, so it rides the
 // success return here unchanged.
 func (handler *CompositionHandler) createHolderAccount(ctx context.Context, organizationID, ledgerID, holderID uuid.UUID, payload *mmodel.CreateHolderAccountInput, token string) (*mmodel.HolderAccountResponse, error) {
@@ -71,39 +64,4 @@ func (handler *CompositionHandler) createHolderAccount(ctx context.Context, orga
 	}
 
 	return out, nil
-}
-
-// CreateHolderAccount opens a holder-owned account and, when instrument fields
-// are present, an instrument linked to it, in a single call.
-func (handler *CompositionHandler) CreateHolderAccount(p any, c fiber.Ctx) error {
-	ctx := c.Context()
-
-	payload, ok := p.(*mmodel.CreateHolderAccountInput)
-	if !ok || payload == nil {
-		return http.WithError(c, pkg.ValidateInternalError(nil, constant.EntityAccount))
-	}
-
-	// Path param is :id; ParseUUIDPathParameters("holder") parses it (it is a
-	// known UUID path param) and stores it in locals under the param name "id".
-	holderID, err := http.GetUUIDFromLocals(c, "id")
-	if err != nil {
-		return http.WithError(c, err)
-	}
-
-	organizationID, err := http.GetUUIDFromLocals(c, "organization_id")
-	if err != nil {
-		return http.WithError(c, err)
-	}
-
-	ledgerID, err := http.GetUUIDFromLocals(c, "ledger_id")
-	if err != nil {
-		return http.WithError(c, err)
-	}
-
-	out, err := handler.createHolderAccount(ctx, organizationID, ledgerID, holderID, payload, c.Get("Authorization"))
-	if err != nil {
-		return http.WithError(c, err)
-	}
-
-	return http.Created(c, out)
 }

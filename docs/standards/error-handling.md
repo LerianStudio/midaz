@@ -111,13 +111,19 @@ The decision memo (D1–D7) outcomes are baked into the rules below and recorded
 
 ## E9 — No client leakage
 
-**Rule.** Unmapped or internal errors render a generic 500 envelope with a fixed message — never the raw `err.Error()` in any client-visible field. For async/worker failures, persisted failure metadata stores a classified `error_code`, never a raw error string in a client-readable field.
+**Rule.** Never the raw `err.Error()` in any client-visible field. Unmapped errors — those no arm of the classifier recognizes — render a generic 500 envelope with a fixed message, because nothing is known about them that is safe to say. For async/worker failures, persisted failure metadata stores a classified `error_code`, never a raw error string in a client-readable field.
+
+**Bounded carve-out: the ledger publishes its `>=500` registry text.** A MAPPED 5xx carries the static `Title`/`Message` its sentinel declares in `pkg/errors.go`, instead of being replaced with `"Internal Server Error"` / `"internal error"`. The ledger opts in with `pkgHTTP.DisableHighStatusScrub()` in `NewUnifiedServer`; the tracer does not call it and keeps the scrub.
+
+The carve-out exists because the scrub was suppressing the wrong thing. What it removed was not a raw cause but CATALOG text, and several 5xx sentinels describe a CALLER mistake — `0181` "Please check the account alias passed" being the clearest. Collapsing those into one opaque body turned an integration bug into a storm of apparent server faults, with nothing in the response to tell them apart. E3's re-typing (`0181` → 404, `0204` → 400, `0097` → 422) fixes the worst offenders at the source; the carve-out covers the rest.
+
+**The carve-out's bound is load-bearing and is NOT self-enforcing.** It holds only while every `>=500` sentinel message stays static, or interpolates a CALLER-supplied value (an account alias, a field name) rather than an internal one. A message that interpolates `err.Error()`, an internal ID, or a wrapped cause leaks it straight to the client. Four such sites existed and were fixed when the carve-out landed (`metadata.go`, three in `billing-calculate-service.go`); nothing currently stops a fifth being written. Treat `fmt.Sprintf("...: %v", err)` feeding a 5xx sentinel as a defect.
 
 **Rationale.** Raw error strings leak internal structure (table names, file paths, driver internals, tenant identifiers) to clients and downstream metadata readers. A classified code is stable, safe to expose, and machine-branchable.
 
-**Canonical example.** `pkg/net/http/withRecover.go` — the panic recovery routes the recovered panic through `WithError` (via `pkg.ValidateInternalError`), rendering the scrubbed generic 500 problem+json envelope with no raw error text, panic message, or stack frames. Writing raw error text into a client-readable field is the rejected shape.
+**Canonical example.** `pkg/net/http/withRecover.go` — the panic recovery routes the recovered panic through `WithError` (via `pkg.ValidateInternalError`), which substitutes `fmt.Errorf("panic recovered")` for the panic value and carries static catalog text, keeping the cause in the non-serialized `Err` field. No raw error text, panic message, or stack frame reaches the client, with or without the scrub. Writing raw error text into a client-readable field is the rejected shape.
 
-**Enforcement.** `custom-lint` (flag `err.Error()` flowing into JSON response fields or persisted client-readable metadata); `contract-test` (assert 500 envelopes carry no raw error text).
+**Enforcement.** `contract-test` (assert 500 envelopes carry no raw error text). No automated check currently guards the carve-out's bound — see the note above; adding one is open work.
 
 ---
 
@@ -162,17 +168,26 @@ The former class-(a) violations are converted to returned errors: the `consumer.
 
 ---
 
-## E13 — One client error envelope
+## E13 — One error envelope per route version
 
-**Rule.** The client-facing error shape is the **RFC 9457 `application/problem+json`** body served by `WithError` — a `problem.Detail` superset carrying `type`, `title`, `status`, `detail`, and `instance`, plus the Midaz `code` and (omitempty) `entityType`, and an `errors[]` array for field-level validation errors. The single-field `{"error": "<text>"}` shape and ad-hoc `fiber.Map` error carriers are banned. The `(code, HTTP status)` money-path tuple is preserved byte-for-byte from the retired legacy `{code, title, message}` envelope — only the envelope SHAPE changed (`message` → `detail`, plus `type` and `errors[]`), so the E3 status mapping table stays correct. For `>=500` the `title`/`detail` are deliberately scrubbed to generic text (E9); below 500 the registry title is preserved.
+**Rule.** The client-facing error shape is a function of the **route version prefix**, resolved by a registry — never chosen at a call site.
 
-**Rationale.** A single, standards-based envelope lets every client deserialize errors with one media type (`application/problem+json`) and branch on `code`/`status`. The legacy `{"error": text}` shape carried no machine-branchable code and, when it inlined `err.Error()`, also violated E9. RFC 9457 gives the same guarantees on a wire contract clients and tooling already understand.
+- **`>= /v2` (and every future version): RFC 9457 `application/problem+json`** — a `problem.Detail` superset carrying `type`, `title`, `status`, `detail` and `instance`, plus the Midaz `code`, an omitempty `entityType`, and an `errors[]` array for field-level validation errors. This is the DEFAULT: a new `/vN` inherits it with no registry entry and no code.
+- **`/v1`: the legacy `{entityType?, title, message, code, fields?}` envelope at `application/json`** — the shape midaz v3 served, restored because `/v1` clients in production parse it. A URL that still says `/v1` still answers as `/v1` did.
 
-**Canonical example.** `pkg/net/http/problem.go` — `withProblem` (`:152`) writes the body as `application/problem+json` (`problemContentType`, `:23`), and `ProblemDetail` (`:177`) is the single source of the `Detail` envelope (`:30`, embedding `libProblem.Detail` and adding `EntityType`). Both the Fiber path and the Huma handlers serialize the identical `Detail`. A single-field `{"error": text}` envelope or a raw `fiber.Map` error carrier is the rejected shape.
+The single-field `{"error": "<text>"}` shape and ad-hoc `fiber.Map` error carriers remain banned in both. The `(code, HTTP status)` money-path tuple is identical across versions — only the envelope SHAPE differs — so the E3 status mapping table stays correct for every version at once. Below 500 the registry title is preserved; for `>=500` the ledger publishes the registry title and message (see the E9 carve-out) while the tracer scrubs them.
 
-**Single producer.** The panic-recovery middleware (`pkg/net/http/withRecover.go`) does not build its own envelope — it routes the recovered panic through `WithError` as an internal-server error (`pkg.ValidateInternalError`), so the panic path and the normal error path emit the identical problem+json shape. `WithError` is the one envelope producer; there is no second error-response shape.
+**Rationale.** "One envelope" was the right instinct aimed at the wrong axis. What must never vary is the envelope for a GIVEN version: a client that pinned `/v1` should not have its parsing broken by a platform refactor, and that is exactly what happened when the RFC 9457 swap landed behind an unchanged `/v1` prefix. Making the shape a function of the version, resolved in one registry, gives both properties at once — a stable contract per version, and a single standards-based default that every new version gets for free. The banned shapes stay banned because they carry no machine-branchable code and, when they inline `err.Error()`, also violate E9.
 
-**Enforcement.** `custom-lint` (forbid `fiber.Map{"error": ...}` and any error response not matching the problem+json envelope); `contract-test` (lock the problem+json envelope key set and the `code`/`status` tuple).
+**Canonical example.** `pkg/net/http/problem.go` — `ProblemDetail` is the single source of the RFC 9457 `Detail`, and both the Fiber path (`withProblem`) and the Huma terminals (`HumaProblem`) serialize the identical value. `components/ledger/internal/adapters/http/in/middleware/envelope.go` — the `versionEnvelopes` registry maps a version prefix to the renderer that reshapes it, and `ErrorEnvelope` applies it after the handler chain unwinds; `envelope_v1.go` is the only renderer, because `/v1` is the only diverging version. A version absent from the registry needs no file. A single-field `{"error": text}` envelope, a raw `fiber.Map` error carrier, or a per-handler reshape that bypasses the registry is the rejected shape.
+
+**Single producer, single reshaper.** The panic-recovery middleware (`pkg/net/http/withRecover.go`) does not build its own envelope — it routes the recovered panic through `WithError`, so the panic path and the normal error path produce the identical document. `WithError` (with `HumaProblem` on the Huma transport) is the one PRODUCER; `ErrorEnvelope` is the one RESHAPER. That separation is what makes the versioning cheap: producers never learn about versions, and the reshaper never learns about error classes.
+
+`ErrorEnvelope` is registered ahead of the panic-recovery middleware — the one deliberate exception to "recovery first" — because it rewrites on the way out and must be able to reach the 500 body written while unwinding a panic. That inversion is only safe because every path through it either replaces the body wholesale or leaves it untouched.
+
+**The contract must say which shape a version serves.** `/v1` operations reference a `LegacyError` schema at `application/json` in the published OAS; `/v2` operations keep `Error` at `application/problem+json`. Both live in one document and one component registry, so the `/v1` schema is a distinctly named ADDITION — `Error` itself must stay byte-identical to the tracer plane's (`tests/openapi/error_schema_parity_test.go`) and remain the only schema matching the singleton check in `postman/generator/check-docs.sh`.
+
+**Enforcement.** `contract-test` — `envelope_boundary_test.go` drives the real app and asserts `/v1` returns the legacy shape while `/v2` and unversioned routes are byte-identical to a no-middleware baseline, with the HTTP status identical across versions; `envelope_v1_test.go` locks the `/v1` key set and key ORDER as exact bytes. Every handler test that mounts a `/v1` group registers `ErrorEnvelope`, so a per-resource test cannot lock a shape production does not serve.
 
 ---
 
@@ -182,6 +197,8 @@ The former class-(a) violations are converted to returned errors: the `consumer.
 
 **Rationale.** Wire codes are an external API surface; a silent change to a code's status or message breaks client error handling. A contract test makes any such change a failing test rather than a production surprise, the same way the streaming `JSONShape` tests lock event wire contracts.
 
-**Canonical example / template.** `components/ledger/internal/adapters/http/in/crm_error_contract_test.go` — `TestErrorContract_CanonicalCodes` (`:56`) locks the post-shim CRM error codes via table-driven cases, and `TestErrorContract_SurvivingDomainCodeUnchanged` (`:166`) asserts a surviving domain code is unchanged after the namespace flip. This is the template each surface's lock follows.
+**A sweep is not a lock.** `pkg/net/http/errors_golden_test.go` walks every sentinel and looks like the strongest guard in the codebase, but `classifyStatusOf` derives the expected status from the Go TYPE — the same type the registry entry declares. Re-typing an entry moves the expectation with it and the sweep stays green, so it locks the CASCADE (that a given type still maps to a given status), not the MAPPING (that a given code still answers with a given status). Three codes were re-typed out of the 5xx band with only one test failing anywhere, and none of the three had been pinned by anything. A per-surface table naming the code and the status literally is what actually locks a code; write the code as a string.
+
+**Canonical example / template.** `components/ledger/internal/adapters/http/in/crm_error_contract_test.go` — `TestErrorContract_CanonicalCodes` locks the post-shim CRM error codes via table-driven cases, and `TestErrorContract_SurvivingDomainCodeUnchanged` asserts a surviving domain code is unchanged after the namespace flip. This is the template each surface's lock follows. `mainline_error_contract_test.go`'s `TestMainlineErrorContract_ReclassifiedCodes` is the same template applied to every code whose class was corrected, and is where a re-typed code goes so the new status is pinned rather than merely current.
 
 **Enforcement.** `contract-test` (one per surface, modeled on `crm_error_contract_test.go`).

@@ -55,10 +55,10 @@ func humaPathOperations(item *huma.PathItem) map[string]*huma.Operation {
 }
 
 // TestCRMV2RoutesRespectNilGuards asserts the conditional CRM seams stay unregistered
-// on the /v2 contract when their handler is nil — the posture
-// TestWave3RoutesRespectNilGuards pins for /v1. Absence is checked on BOTH surfaces the
-// registrar writes to: the Fiber router (nothing is served) and the Huma document
-// (nothing is published). Encryption and protection are nil outside envelope mode, and
+// on the /v2 contract when their handler is nil — the complement of the full-handler
+// surface TestCRMCompositionSurfaceMountedOnGroup pins. Absence is checked on BOTH
+// surfaces the registrar writes to: the Fiber router (nothing is served) and the Huma
+// document (nothing is published). Encryption and protection are nil outside envelope mode, and
 // holder-accounts is nil without a ledger account-query backing.
 func TestCRMV2RoutesRespectNilGuards(t *testing.T) {
 	// NOT parallel: huma registration mutates process-global state.

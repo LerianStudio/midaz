@@ -82,13 +82,6 @@ func buildUnifiedHumaAPI() (*fiber.App, huma.API) {
 
 	deps := unifiedHumaMountDeps(auth)
 
-	// Pre-Huma Fiber registrars, mounted on the app root exactly as the unified server
-	// mounts them before assembling the contract. They register no route today; mounting
-	// them keeps this harness the COMPLETE served surface, so a route that re-attaches
-	// here falls under the route-diff gate instead of escaping it.
-	RegisterMetadataRoutesToApp(app, auth, deps.MetadataIndex, deps.OnboardingOptions)
-	RegisterOnboardingRoutesToApp(app, auth, deps.Account, deps.Portfolio, deps.Ledger, deps.Organization, deps.Segment, deps.AccountType, deps.OnboardingOptions)
-
 	// The streaming manifest is a wrapped stdlib net/http handler (not a Huma
 	// operation), mounted on the app root exactly as the unified server mounts it.
 	// A stub handler is enough here: the diff gate compares paths and methods, not
@@ -105,8 +98,7 @@ func buildUnifiedHumaAPI() (*fiber.App, huma.API) {
 	deps.MountV1(app.Group("/v1"), huma.NewGroup(api, "/v1"))
 	deps.MountV2(app.Group("/v2"), huma.NewGroup(api, "/v2"))
 
-	MarkV1OperationsDeprecated(api)
-	ApplyVersionTagGroups(api)
+	FinalizeContract(api)
 
 	return app, api
 }

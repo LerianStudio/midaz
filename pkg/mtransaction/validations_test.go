@@ -15,6 +15,7 @@ import (
 	"github.com/LerianStudio/lib-observability/v2/log"
 	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/otel"
 
 	"github.com/LerianStudio/midaz/v4/pkg"
@@ -1971,4 +1972,48 @@ func TestSplitDoubleEntryOps(t *testing.T) {
 		assert.True(t, op1.Value.Equal(amt.Value))
 		assert.True(t, op2.Value.Equal(amt.Value))
 	})
+}
+
+// TestValidateSendSourceAndDistribute_DoesNotRejectEmptyAsset is a documented negative: this
+// validator performs no asset-emptiness check, so an empty send.asset has to be stopped by the
+// `required` struct tags at body validation and by the fee engine's own guard. If asset
+// validation is ever added here, this test fails.
+func TestValidateSendSourceAndDistribute_DoesNotRejectEmptyAsset(t *testing.T) {
+	t.Parallel()
+
+	tx := Transaction{
+		Send: Send{
+			Asset: "",
+			Value: decimal.NewFromInt(100),
+			Source: Source{
+				From: []FromTo{
+					{
+						AccountAlias: "@account1",
+						Amount: &Amount{
+							Asset: "USD",
+							Value: decimal.NewFromInt(100),
+						},
+					},
+				},
+			},
+			Distribute: Distribute{
+				To: []FromTo{
+					{
+						AccountAlias: "@account2",
+						Amount: &Amount{
+							Asset: "USD",
+							Value: decimal.NewFromInt(100),
+						},
+					},
+				},
+			},
+		},
+	}
+
+	resp, err := ValidateSendSourceAndDistribute(context.Background(), tx, constant.CREATED)
+
+	require.NoError(t, err, "this validator does not check asset emptiness; a balanced transaction passes without one")
+	require.NotNil(t, resp, "a passing validation must return a response to inspect")
+	assert.Empty(t, resp.Asset, "the empty asset is copied through to the response unchanged")
+	assert.True(t, resp.Total.Equal(decimal.NewFromInt(100)), "the balance check passed on its own terms")
 }

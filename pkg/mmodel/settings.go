@@ -304,7 +304,11 @@ func parseSettingsNumber(value any) (int, bool) {
 //  1. Add the field to LedgerSettings struct
 //  2. Add the corresponding entry here with the appropriate type ("bool", "string", "number")
 //  3. Update DefaultLedgerSettings() and DefaultLedgerSettingsMap()
-//  4. Add tests in settings_test.go
+//  4. Add the matching pointer field to the *Input mirror in ledger_settings_input.go and
+//     emit it from ToSparseMap; without both, the field is PATCH-able but rejected on POST
+//     as an unknown field. TestSettingsSchema_HasMatchingInputField and
+//     TestLedgerSettingsInput_HasMatchingSchemaLeaf enforce this in both directions.
+//  5. Add tests in settings_test.go
 var settingsSchema = map[string]map[string]string{
 	"accounting": {
 		"validateAccountType": "bool",

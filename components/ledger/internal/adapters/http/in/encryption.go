@@ -8,14 +8,11 @@ import (
 	"context"
 
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/crm/services/encryption"
-	cn "github.com/LerianStudio/midaz/v4/pkg/constant"
 	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
-	"github.com/LerianStudio/midaz/v4/pkg/net/http"
 
 	libObservability "github.com/LerianStudio/lib-observability/v2"
 	libLog "github.com/LerianStudio/lib-observability/v2/log"
 	libOpenTelemetry "github.com/LerianStudio/lib-observability/v2/tracing"
-	"github.com/gofiber/fiber/v3"
 	"github.com/google/uuid"
 	"go.opentelemetry.io/otel/attribute"
 )
@@ -25,34 +22,12 @@ type EncryptionHandler struct {
 	ProvisioningService encryption.ProvisioningService
 }
 
-// Provision handles the provisioning of an organization for envelope encryption.
-func (handler *EncryptionHandler) Provision(p any, c fiber.Ctx) error {
-	payload, ok := p.(*mmodel.ProvisionEncryptionInput)
-	if !ok || payload == nil {
-		return http.WithError(c, cn.ErrInternalServer)
-	}
-
-	organizationID, err := http.GetUUIDFromLocals(c, "organization_id")
-	if err != nil {
-		return http.WithError(c, err)
-	}
-
-	response, err := handler.provision(c.Context(), organizationID, payload)
-	if err != nil {
-		return http.WithError(c, err)
-	}
-
-	return http.Created(c, response)
-}
-
 // provision is the transport-agnostic core for the encryption provisioning
-// operation. Both the Fiber wrapper (Provision) and the Huma shell
-// (ProvisionHuma) delegate here after resolving the org id and decoding the
-// payload, so neither touches the other's request/response object.
+// operation. The Provision shell delegates here after resolving the org id and
+// decoding the payload, so the core never touches a request/response object.
 //
 // The tenant id is resolved from the context: the Fiber tenant
-// PostAuthMiddlewares run BEFORE this core on both transports (the Huma terminal
-// sits behind the same middleware chain), so ctx already carries the tenant id
+// PostAuthMiddlewares run BEFORE this core, so ctx already carries the tenant id
 // where one applies. In single-tenant mode the middleware does not run, the
 // context carries no tenant id (empty), and the helper substitutes the reserved
 // "default" flat-base sentinel. In multi-tenant mode the middleware always
@@ -114,24 +89,9 @@ func (handler *EncryptionHandler) provision(ctx context.Context, organizationID 
 	}, nil
 }
 
-// GetProvisioningStatus handles the retrieval of an organization's provisioning status.
-func (handler *EncryptionHandler) GetProvisioningStatus(c fiber.Ctx) error {
-	organizationID, err := http.GetUUIDFromLocals(c, "organization_id")
-	if err != nil {
-		return http.WithError(c, err)
-	}
-
-	response, err := handler.getProvisioningStatus(c.Context(), organizationID)
-	if err != nil {
-		return http.WithError(c, err)
-	}
-
-	return http.OK(c, response)
-}
-
 // getProvisioningStatus is the transport-agnostic core for the provisioning
-// status read. Both the Fiber wrapper (GetProvisioningStatus) and the Huma shell
-// (GetProvisioningStatusHuma) delegate here after resolving the org id.
+// status read. The GetProvisioningStatus shell delegates here after resolving
+// the org id.
 func (handler *EncryptionHandler) getProvisioningStatus(ctx context.Context, organizationID uuid.UUID) (*mmodel.ProvisioningStatusResponse, error) {
 	logger, tracer, reqId, _ := libObservability.NewTrackingFromContext(ctx)
 

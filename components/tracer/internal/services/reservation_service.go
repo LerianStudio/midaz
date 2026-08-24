@@ -10,13 +10,17 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"hash/fnv"
 	"time"
 
+	libBackoff "github.com/LerianStudio/lib-commons/v6/commons/backoff"
+	libPostgres "github.com/LerianStudio/lib-commons/v6/commons/postgres"
 	libObservability "github.com/LerianStudio/lib-observability/v2"
 	libLog "github.com/LerianStudio/lib-observability/v2/log"
 	libOpentelemetry "github.com/LerianStudio/lib-observability/v2/tracing"
 	"github.com/google/uuid"
 	"github.com/shopspring/decimal"
+	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
 
 	pgdb "github.com/LerianStudio/midaz/v4/components/tracer/internal/adapters/postgres/db"
@@ -44,6 +48,27 @@ const reservationTTL = 5 * time.Minute
 // holding capacity forever. Operators tune it via RESERVATION_LONG_LIVED_TTL_HOURS.
 const defaultLongLivedReservationTTL = 720 * time.Hour // 30 days
 
+// reserveMaxAttempts bounds how many times inTx re-runs the whole reservation
+// transaction when it aborts with a transient Postgres serialization/deadlock/lock
+// error. The first attempt plus two retries covers the same-account contention that
+// produces 40P01 without letting a persistent conflict spin.
+const reserveMaxAttempts = 3
+
+// reserveRetryBaseBackoff is the base of the jittered exponential backoff between
+// transient-retry attempts. Attempt n waits a random duration in
+// [0, reserveRetryBaseBackoff*2^(n-1)) so concurrent losers of a deadlock desynchronise
+// instead of colliding again in lockstep.
+const reserveRetryBaseBackoff = 10 * time.Millisecond
+
+// Transient Postgres SQLSTATEs that make a reserve transaction safe to retry as a
+// whole: the server has already rolled the aborted transaction back, so a fresh
+// BeginTx can win where the previous attempt lost the conflict.
+const (
+	sqlStateSerializationFailure = "40001" // serialization_failure
+	sqlStateDeadlockDetected     = "40P01" // deadlock_detected
+	sqlStateLockNotAvailable     = "55P03" // lock_not_available
+)
+
 // Sentinel errors for ReservationService constructor validation.
 var (
 	ErrNilReservationConn         = errors.New("reservation: database connection cannot be nil")
@@ -68,6 +93,14 @@ type LimitResolver interface {
 // counter bucket move, and the audit write commit together. Implemented by
 // postgres.UsageReservationRepository.
 type ReservationRepository interface {
+	// AcquireReserveScopeLock takes a transaction-scoped advisory lock on the given
+	// key using the supplied handle, BEFORE any counter row is touched. It is what
+	// makes the per-account serialization work: two reserves that could contend on
+	// the same account's usage_counters rows block here on the same key, so only one
+	// at a time proceeds to lock counter rows and take the audit hash-chain advisory
+	// lock — the interleaving that formed the lock-ordering deadlock cycle can no
+	// longer occur. The lock releases automatically at commit or rollback.
+	AcquireReserveScopeLock(ctx context.Context, db pgdb.DB, key int64) error
 	ReserveWithTx(ctx context.Context, db pgdb.DB, reservation *model.Reservation, maxAmount decimal.Decimal) error
 	ConfirmWithTx(ctx context.Context, db pgdb.DB, reservationID uuid.UUID) error
 	ReleaseWithTx(ctx context.Context, db pgdb.DB, reservationID uuid.UUID, status model.ReservationStatus) error
@@ -110,6 +143,9 @@ type ReservationService struct {
 	auditWriter  ReservationAuditWriter
 	clock        clock.Clock
 	longLivedTTL time.Duration
+	// retrySleep waits out the transient-retry backoff, honouring ctx cancellation.
+	// Injected so tests drive the retry loop deterministically without wall-clock sleeps.
+	retrySleep func(ctx context.Context, d time.Duration) error
 }
 
 // NewReservationService constructs a ReservationService with dependency
@@ -169,6 +205,7 @@ func NewReservationServiceWithLongLivedTTL(
 		auditWriter:  auditWriter,
 		clock:        clk,
 		longLivedTTL: longLivedTTL,
+		retrySleep:   libBackoff.WaitContext,
 	}, nil
 }
 
@@ -233,9 +270,28 @@ func (s *ReservationService) Reserve(ctx context.Context, transactionID uuid.UUI
 	expiresAt := s.clock.Now().UTC().Add(ttl)
 	reservationIDs := make([]uuid.UUID, 0, len(specs))
 
+	// Serialize reserves that could contend on the same account's counter rows on a
+	// stable per-account key, taken BEFORE any counter row is locked. Computed once,
+	// outside the closure, so every transient-retry attempt reuses the same key.
+	scopeLockKey := reserveScopeLockKey(input.AccountID)
+
 	guardDenied := false
 
 	txErr := s.inTx(ctx, span, func(db pgdb.DB) error {
+		// inTx may re-run this closure on a transient abort; reset the per-attempt
+		// accumulators so a retry holds exactly one id per spec, never a duplicate.
+		reservationIDs = reservationIDs[:0]
+		guardDenied = false
+
+		// Deterministic lock order: acquire the per-account advisory lock FIRST, so
+		// no reserve can hold a counter row while another waits on the audit
+		// hash-chain advisory lock — the cycle that produced SQLSTATE 40P01. The
+		// transient-retry remains as the safety net for the residual
+		// (e.g. cross-account contention on a shared counter).
+		if err := s.repo.AcquireReserveScopeLock(ctx, db, scopeLockKey); err != nil {
+			return err
+		}
+
 		for i := range specs {
 			spec := specs[i]
 
@@ -555,11 +611,50 @@ func (s *ReservationService) terminate(
 	return nil
 }
 
-// inTx runs fn inside a transaction owned by the service. Commits on success,
-// rolls back on error or panic. Mirrors ValidationService's transaction handling
-// and the command package's executeInTx so the reservation lifecycle keeps the
-// same atomicity and rollback-logging discipline.
-func (s *ReservationService) inTx(ctx context.Context, span trace.Span, fn func(pgdb.DB) error) (err error) {
+// inTx runs fn inside a transaction, retrying the WHOLE transaction when it aborts
+// with a transient Postgres serialization/deadlock/lock error (SQLSTATE 40001 /
+// 40P01 / 55P03). Each attempt re-runs fn against a fresh BeginTx, up to
+// reserveMaxAttempts, waiting a jittered exponential backoff between attempts.
+//
+// A non-transient error propagates on its first occurrence with no retry, so business
+// decisions surfaced as errors (e.g. the over-limit reserve guard) and infrastructure
+// faults are unaffected. Context cancellation stops the loop: it is checked before
+// each attempt and aborts the backoff wait, returning ctx.Err().
+func (s *ReservationService) inTx(ctx context.Context, span trace.Span, fn func(pgdb.DB) error) error {
+	var lastErr error
+
+	for attempt := 1; attempt <= reserveMaxAttempts; attempt++ {
+		if ctxErr := ctx.Err(); ctxErr != nil {
+			return ctxErr
+		}
+
+		lastErr = s.runTxOnce(ctx, span, fn)
+		if lastErr == nil {
+			return nil
+		}
+
+		if !isTransientDBError(lastErr) || attempt == reserveMaxAttempts {
+			return lastErr
+		}
+
+		span.AddEvent("reservation.tx.transient_retry", trace.WithAttributes(
+			attribute.Int("app.reservation.retry_attempt", attempt),
+			attribute.String("app.reservation.retry_sqlstate", pgSQLState(lastErr)),
+		))
+
+		if sleepErr := s.retrySleep(ctx, libBackoff.ExponentialWithJitter(reserveRetryBaseBackoff, attempt-1)); sleepErr != nil {
+			return sleepErr
+		}
+	}
+
+	return lastErr
+}
+
+// runTxOnce runs fn inside a single transaction owned by the service. Commits on
+// success, rolls back on error or panic. Mirrors ValidationService's transaction
+// handling and the command package's executeInTx so the reservation lifecycle keeps
+// the same atomicity and rollback-logging discipline.
+func (s *ReservationService) runTxOnce(ctx context.Context, span trace.Span, fn func(pgdb.DB) error) (err error) {
 	tx, beginErr := s.conn.BeginTx(ctx, nil)
 	if beginErr != nil {
 		libOpentelemetry.HandleSpanError(span, "Failed to begin transaction", beginErr)
@@ -611,4 +706,46 @@ func (s *ReservationService) inTx(ctx context.Context, span trace.Span, fn func(
 	committed = true
 
 	return nil
+}
+
+// isTransientDBError reports whether err is a Postgres serialization_failure,
+// deadlock_detected, or lock_not_available — the SQLSTATEs the server rolls back and
+// that a fresh transaction can retry. Any other error (business or infrastructure) is
+// not transient.
+func isTransientDBError(err error) bool {
+	state, ok := libPostgres.SQLState(err)
+	if !ok {
+		return false
+	}
+
+	switch state {
+	case sqlStateSerializationFailure, sqlStateDeadlockDetected, sqlStateLockNotAvailable:
+		return true
+	default:
+		return false
+	}
+}
+
+// pgSQLState returns the SQLSTATE carried by err, or "" when err is not a Postgres
+// error. Used only to annotate the retry span event.
+func pgSQLState(err error) string {
+	state, _ := libPostgres.SQLState(err)
+
+	return state
+}
+
+// reserveScopeLockKey derives a stable 64-bit advisory-lock key from the reserve's
+// account, so all reserves for one account serialize on the same key. FNV-1a over
+// the 16 account bytes is deterministic and collision-resistant enough for lock
+// bucketing (a collision only over-serializes two unrelated accounts; it never
+// weakens isolation). The key is stable within a database, which is all an
+// advisory lock needs — in multi-tenant mode each tenant's reserves run on that
+// tenant's own connection and its own advisory-lock namespace, so no tenant field
+// is folded in. A nil account (external-only source) maps to a fixed key, serializing
+// those rare reserves together, which is correct if slightly conservative.
+func reserveScopeLockKey(accountID uuid.UUID) int64 {
+	h := fnv.New64a()
+	_, _ = h.Write(accountID[:])
+
+	return int64(h.Sum64()) // #nosec G115 -- intentional truncation: any 64 bits work as a lock key
 }

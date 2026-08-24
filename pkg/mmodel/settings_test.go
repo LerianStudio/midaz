@@ -965,10 +965,10 @@ func TestSettingsValidateOverridePolicy(t *testing.T) {
 	}
 }
 
-// TestSettingsOverridePolicyRoundTrip guards the create path (POST /ledgers runs through
-// LedgerSettingsToMap): a typed LedgerSettings with overrides set must survive
-// LedgerSettingsToMap -> ParseLedgerSettings without losing any opt-in. A drop here would
-// silently discard CreateLedgerInput.Settings.Overrides.
+// TestSettingsOverridePolicyRoundTrip guards the persistence path (LedgerPostgreSQLModel.FromEntity
+// stores settings via LedgerSettingsToMap): a typed LedgerSettings with overrides set must survive
+// LedgerSettingsToMap -> ParseLedgerSettings without losing any opt-in. A drop here would silently
+// clear a ledger's stored override opt-ins.
 func TestSettingsOverridePolicyRoundTrip(t *testing.T) {
 	original := LedgerSettings{
 		Accounting: defaultAccountingValidation,

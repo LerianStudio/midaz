@@ -295,9 +295,9 @@
           },
           "default": {
             "content": {
-              "application/problem+json": {
+              "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Error"
+                  "$ref": "#/components/schemas/LegacyError"
                 }
               }
             },
@@ -307,9 +307,6 @@
         "security": [
           {
             "BearerAuth": []
-          },
-          {
-            "ApiKeyAuth": []
           }
         ],
         "summary": "List all organizations",
@@ -320,17 +317,6 @@
       "post": {
         "deprecated": true,
         "operationId": "createOrganization",
-        "parameters": [
-          {
-            "description": "Bearer token (forwarded to the service)",
-            "in": "header",
-            "name": "Authorization",
-            "schema": {
-              "description": "Bearer token (forwarded to the service)",
-              "type": "string"
-            }
-          }
-        ],
         "requestBody": {
           "content": {
             "application/json": {
@@ -354,9 +340,9 @@
           },
           "default": {
             "content": {
-              "application/problem+json": {
+              "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Error"
+                  "$ref": "#/components/schemas/LegacyError"
                 }
               }
             },
@@ -366,9 +352,6 @@
         "security": [
           {
             "BearerAuth": []
-          },
-          {
-            "ApiKeyAuth": []
           }
         ],
         "summary": "Create a new organization",
@@ -399,9 +382,9 @@
           },
           "default": {
             "content": {
-              "application/problem+json": {
+              "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Error"
+                  "$ref": "#/components/schemas/LegacyError"
                 }
               }
             },
@@ -411,9 +394,6 @@
         "security": [
           {
             "BearerAuth": []
-          },
-          {
-            "ApiKeyAuth": []
           }
         ],
         "summary": "Count total organizations",
@@ -444,9 +424,9 @@
           },
           "default": {
             "content": {
-              "application/problem+json": {
+              "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Error"
+                  "$ref": "#/components/schemas/LegacyError"
                 }
               }
             },
@@ -456,9 +436,6 @@
         "security": [
           {
             "BearerAuth": []
-          },
-          {
-            "ApiKeyAuth": []
           }
         ],
         "summary": "Delete an organization",
@@ -494,9 +471,9 @@
           },
           "default": {
             "content": {
-              "application/problem+json": {
+              "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Error"
+                  "$ref": "#/components/schemas/LegacyError"
                 }
               }
             },
@@ -506,9 +483,6 @@
         "security": [
           {
             "BearerAuth": []
-          },
-          {
-            "ApiKeyAuth": []
           }
         ],
         "summary": "Retrieve a specific organization",
@@ -554,9 +528,9 @@
           },
           "default": {
             "content": {
-              "application/problem+json": {
+              "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Error"
+                  "$ref": "#/components/schemas/LegacyError"
                 }
               }
             },
@@ -566,9 +540,6 @@
         "security": [
           {
             "BearerAuth": []
-          },
-          {
-            "ApiKeyAuth": []
           }
         ],
         "summary": "Update an existing organization",
@@ -686,9 +657,9 @@
           },
           "default": {
             "content": {
-              "application/problem+json": {
+              "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Error"
+                  "$ref": "#/components/schemas/LegacyError"
                 }
               }
             },
@@ -698,9 +669,6 @@
         "security": [
           {
             "BearerAuth": []
-          },
-          {
-            "ApiKeyAuth": []
           }
         ],
         "summary": "List all ledgers",
@@ -746,9 +714,9 @@
           },
           "default": {
             "content": {
-              "application/problem+json": {
+              "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Error"
+                  "$ref": "#/components/schemas/LegacyError"
                 }
               }
             },
@@ -758,9 +726,6 @@
         "security": [
           {
             "BearerAuth": []
-          },
-          {
-            "ApiKeyAuth": []
           }
         ],
         "summary": "Create a new ledger",
@@ -803,9 +768,9 @@
           },
           "default": {
             "content": {
-              "application/problem+json": {
+              "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Error"
+                  "$ref": "#/components/schemas/LegacyError"
                 }
               }
             },
@@ -815,9 +780,6 @@
         "security": [
           {
             "BearerAuth": []
-          },
-          {
-            "ApiKeyAuth": []
           }
         ],
         "summary": "Count total ledgers",
@@ -858,9 +820,9 @@
           },
           "default": {
             "content": {
-              "application/problem+json": {
+              "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Error"
+                  "$ref": "#/components/schemas/LegacyError"
                 }
               }
             },
@@ -870,9 +832,6 @@
         "security": [
           {
             "BearerAuth": []
-          },
-          {
-            "ApiKeyAuth": []
           }
         ],
         "summary": "Delete a ledger",
@@ -918,9 +877,9 @@
           },
           "default": {
             "content": {
-              "application/problem+json": {
+              "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Error"
+                  "$ref": "#/components/schemas/LegacyError"
                 }
               }
             },
@@ -930,9 +889,6 @@
         "security": [
           {
             "BearerAuth": []
-          },
-          {
-            "ApiKeyAuth": []
           }
         ],
         "summary": "Retrieve a specific ledger",
@@ -988,9 +944,9 @@
           },
           "default": {
             "content": {
-              "application/problem+json": {
+              "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Error"
+                  "$ref": "#/components/schemas/LegacyError"
                 }
               }
             },
@@ -1000,9 +956,6 @@
         "security": [
           {
             "BearerAuth": []
-          },
-          {
-            "ApiKeyAuth": []
           }
         ],
         "summary": "Update an existing ledger",
@@ -1130,9 +1083,9 @@
           },
           "default": {
             "content": {
-              "application/problem+json": {
+              "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Error"
+                  "$ref": "#/components/schemas/LegacyError"
                 }
               }
             },
@@ -1142,9 +1095,6 @@
         "security": [
           {
             "BearerAuth": []
-          },
-          {
-            "ApiKeyAuth": []
           }
         ],
         "summary": "List all account types",
@@ -1200,9 +1150,9 @@
           },
           "default": {
             "content": {
-              "application/problem+json": {
+              "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Error"
+                  "$ref": "#/components/schemas/LegacyError"
                 }
               }
             },
@@ -1212,9 +1162,6 @@
         "security": [
           {
             "BearerAuth": []
-          },
-          {
-            "ApiKeyAuth": []
           }
         ],
         "summary": "Create a new account type",
@@ -1265,9 +1212,9 @@
           },
           "default": {
             "content": {
-              "application/problem+json": {
+              "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Error"
+                  "$ref": "#/components/schemas/LegacyError"
                 }
               }
             },
@@ -1277,9 +1224,6 @@
         "security": [
           {
             "BearerAuth": []
-          },
-          {
-            "ApiKeyAuth": []
           }
         ],
         "summary": "Delete an account type",
@@ -1335,9 +1279,9 @@
           },
           "default": {
             "content": {
-              "application/problem+json": {
+              "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Error"
+                  "$ref": "#/components/schemas/LegacyError"
                 }
               }
             },
@@ -1347,9 +1291,6 @@
         "security": [
           {
             "BearerAuth": []
-          },
-          {
-            "ApiKeyAuth": []
           }
         ],
         "summary": "Retrieve a specific account type",
@@ -1415,9 +1356,9 @@
           },
           "default": {
             "content": {
-              "application/problem+json": {
+              "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Error"
+                  "$ref": "#/components/schemas/LegacyError"
                 }
               }
             },
@@ -1427,9 +1368,6 @@
         "security": [
           {
             "BearerAuth": []
-          },
-          {
-            "ApiKeyAuth": []
           }
         ],
         "summary": "Update an account type",
@@ -1637,9 +1575,9 @@
           },
           "default": {
             "content": {
-              "application/problem+json": {
+              "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Error"
+                  "$ref": "#/components/schemas/LegacyError"
                 }
               }
             },
@@ -1649,9 +1587,6 @@
         "security": [
           {
             "BearerAuth": []
-          },
-          {
-            "ApiKeyAuth": []
           }
         ],
         "summary": "List all accounts",
@@ -1716,9 +1651,9 @@
           },
           "default": {
             "content": {
-              "application/problem+json": {
+              "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Error"
+                  "$ref": "#/components/schemas/LegacyError"
                 }
               }
             },
@@ -1728,9 +1663,6 @@
         "security": [
           {
             "BearerAuth": []
-          },
-          {
-            "ApiKeyAuth": []
           }
         ],
         "summary": "Create a new account",
@@ -1788,9 +1720,9 @@
           },
           "default": {
             "content": {
-              "application/problem+json": {
+              "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Error"
+                  "$ref": "#/components/schemas/LegacyError"
                 }
               }
             },
@@ -1800,9 +1732,6 @@
         "security": [
           {
             "BearerAuth": []
-          },
-          {
-            "ApiKeyAuth": []
           }
         ],
         "summary": "Retrieve an account by alias",
@@ -1860,9 +1789,9 @@
           },
           "default": {
             "content": {
-              "application/problem+json": {
+              "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Error"
+                  "$ref": "#/components/schemas/LegacyError"
                 }
               }
             },
@@ -1872,9 +1801,6 @@
         "security": [
           {
             "BearerAuth": []
-          },
-          {
-            "ApiKeyAuth": []
           }
         ],
         "summary": "Get Balances using Alias",
@@ -1932,9 +1858,9 @@
           },
           "default": {
             "content": {
-              "application/problem+json": {
+              "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Error"
+                  "$ref": "#/components/schemas/LegacyError"
                 }
               }
             },
@@ -1944,9 +1870,6 @@
         "security": [
           {
             "BearerAuth": []
-          },
-          {
-            "ApiKeyAuth": []
           }
         ],
         "summary": "Retrieve an account by external code",
@@ -2004,9 +1927,9 @@
           },
           "default": {
             "content": {
-              "application/problem+json": {
+              "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Error"
+                  "$ref": "#/components/schemas/LegacyError"
                 }
               }
             },
@@ -2016,9 +1939,6 @@
         "security": [
           {
             "BearerAuth": []
-          },
-          {
-            "ApiKeyAuth": []
           }
         ],
         "summary": "Get External balances using code",
@@ -2071,9 +1991,9 @@
           },
           "default": {
             "content": {
-              "application/problem+json": {
+              "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Error"
+                  "$ref": "#/components/schemas/LegacyError"
                 }
               }
             },
@@ -2083,9 +2003,6 @@
         "security": [
           {
             "BearerAuth": []
-          },
-          {
-            "ApiKeyAuth": []
           }
         ],
         "summary": "Count accounts",
@@ -2193,9 +2110,9 @@
           },
           "default": {
             "content": {
-              "application/problem+json": {
+              "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Error"
+                  "$ref": "#/components/schemas/LegacyError"
                 }
               }
             },
@@ -2205,9 +2122,6 @@
         "security": [
           {
             "BearerAuth": []
-          },
-          {
-            "ApiKeyAuth": []
           }
         ],
         "summary": "Get all balances by account id",
@@ -2273,9 +2187,9 @@
           },
           "default": {
             "content": {
-              "application/problem+json": {
+              "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Error"
+                  "$ref": "#/components/schemas/LegacyError"
                 }
               }
             },
@@ -2285,9 +2199,6 @@
         "security": [
           {
             "BearerAuth": []
-          },
-          {
-            "ApiKeyAuth": []
           }
         ],
         "summary": "Create Additional Balance",
@@ -2361,9 +2272,9 @@
           },
           "default": {
             "content": {
-              "application/problem+json": {
+              "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Error"
+                  "$ref": "#/components/schemas/LegacyError"
                 }
               }
             },
@@ -2373,9 +2284,6 @@
         "security": [
           {
             "BearerAuth": []
-          },
-          {
-            "ApiKeyAuth": []
           }
         ],
         "summary": "Get Account Balances history at date",
@@ -2533,9 +2441,9 @@
           },
           "default": {
             "content": {
-              "application/problem+json": {
+              "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Error"
+                  "$ref": "#/components/schemas/LegacyError"
                 }
               }
             },
@@ -2545,9 +2453,6 @@
         "security": [
           {
             "BearerAuth": []
-          },
-          {
-            "ApiKeyAuth": []
           }
         ],
         "summary": "Get all Operations by account",
@@ -2615,9 +2520,9 @@
           },
           "default": {
             "content": {
-              "application/problem+json": {
+              "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Error"
+                  "$ref": "#/components/schemas/LegacyError"
                 }
               }
             },
@@ -2627,9 +2532,6 @@
         "security": [
           {
             "BearerAuth": []
-          },
-          {
-            "ApiKeyAuth": []
           }
         ],
         "summary": "Get Operation",
@@ -2689,9 +2591,9 @@
           },
           "default": {
             "content": {
-              "application/problem+json": {
+              "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Error"
+                  "$ref": "#/components/schemas/LegacyError"
                 }
               }
             },
@@ -2701,9 +2603,6 @@
         "security": [
           {
             "BearerAuth": []
-          },
-          {
-            "ApiKeyAuth": []
           }
         ],
         "summary": "Delete an account",
@@ -2759,9 +2658,9 @@
           },
           "default": {
             "content": {
-              "application/problem+json": {
+              "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Error"
+                  "$ref": "#/components/schemas/LegacyError"
                 }
               }
             },
@@ -2771,9 +2670,6 @@
         "security": [
           {
             "BearerAuth": []
-          },
-          {
-            "ApiKeyAuth": []
           }
         ],
         "summary": "Retrieve a specific account",
@@ -2839,9 +2735,9 @@
           },
           "default": {
             "content": {
-              "application/problem+json": {
+              "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Error"
+                  "$ref": "#/components/schemas/LegacyError"
                 }
               }
             },
@@ -2851,9 +2747,6 @@
         "security": [
           {
             "BearerAuth": []
-          },
-          {
-            "ApiKeyAuth": []
           }
         ],
         "summary": "Update an account",
@@ -2911,9 +2804,9 @@
           },
           "default": {
             "content": {
-              "application/problem+json": {
+              "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Error"
+                  "$ref": "#/components/schemas/LegacyError"
                 }
               }
             },
@@ -2923,9 +2816,6 @@
         "security": [
           {
             "BearerAuth": []
-          },
-          {
-            "ApiKeyAuth": []
           }
         ],
         "summary": "Create or Update an AssetRate",
@@ -3049,9 +2939,9 @@
           },
           "default": {
             "content": {
-              "application/problem+json": {
+              "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Error"
+                  "$ref": "#/components/schemas/LegacyError"
                 }
               }
             },
@@ -3061,9 +2951,6 @@
         "security": [
           {
             "BearerAuth": []
-          },
-          {
-            "ApiKeyAuth": []
           }
         ],
         "summary": "Get an AssetRate by the Asset Code",
@@ -3121,9 +3008,9 @@
           },
           "default": {
             "content": {
-              "application/problem+json": {
+              "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Error"
+                  "$ref": "#/components/schemas/LegacyError"
                 }
               }
             },
@@ -3133,9 +3020,6 @@
         "security": [
           {
             "BearerAuth": []
-          },
-          {
-            "ApiKeyAuth": []
           }
         ],
         "summary": "Get an AssetRate by External ID",
@@ -3243,9 +3127,9 @@
           },
           "default": {
             "content": {
-              "application/problem+json": {
+              "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Error"
+                  "$ref": "#/components/schemas/LegacyError"
                 }
               }
             },
@@ -3255,9 +3139,6 @@
         "security": [
           {
             "BearerAuth": []
-          },
-          {
-            "ApiKeyAuth": []
           }
         ],
         "summary": "List all assets",
@@ -3322,9 +3203,9 @@
           },
           "default": {
             "content": {
-              "application/problem+json": {
+              "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Error"
+                  "$ref": "#/components/schemas/LegacyError"
                 }
               }
             },
@@ -3334,9 +3215,6 @@
         "security": [
           {
             "BearerAuth": []
-          },
-          {
-            "ApiKeyAuth": []
           }
         ],
         "summary": "Create a new asset",
@@ -3389,9 +3267,9 @@
           },
           "default": {
             "content": {
-              "application/problem+json": {
+              "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Error"
+                  "$ref": "#/components/schemas/LegacyError"
                 }
               }
             },
@@ -3401,9 +3279,6 @@
         "security": [
           {
             "BearerAuth": []
-          },
-          {
-            "ApiKeyAuth": []
           }
         ],
         "summary": "Count total assets",
@@ -3454,9 +3329,9 @@
           },
           "default": {
             "content": {
-              "application/problem+json": {
+              "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Error"
+                  "$ref": "#/components/schemas/LegacyError"
                 }
               }
             },
@@ -3466,9 +3341,6 @@
         "security": [
           {
             "BearerAuth": []
-          },
-          {
-            "ApiKeyAuth": []
           }
         ],
         "summary": "Delete an asset",
@@ -3524,9 +3396,9 @@
           },
           "default": {
             "content": {
-              "application/problem+json": {
+              "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Error"
+                  "$ref": "#/components/schemas/LegacyError"
                 }
               }
             },
@@ -3536,9 +3408,6 @@
         "security": [
           {
             "BearerAuth": []
-          },
-          {
-            "ApiKeyAuth": []
           }
         ],
         "summary": "Retrieve a specific asset",
@@ -3604,9 +3473,9 @@
           },
           "default": {
             "content": {
-              "application/problem+json": {
+              "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Error"
+                  "$ref": "#/components/schemas/LegacyError"
                 }
               }
             },
@@ -3616,9 +3485,6 @@
         "security": [
           {
             "BearerAuth": []
-          },
-          {
-            "ApiKeyAuth": []
           }
         ],
         "summary": "Update an asset",
@@ -3716,9 +3582,9 @@
           },
           "default": {
             "content": {
-              "application/problem+json": {
+              "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Error"
+                  "$ref": "#/components/schemas/LegacyError"
                 }
               }
             },
@@ -3728,9 +3594,6 @@
         "security": [
           {
             "BearerAuth": []
-          },
-          {
-            "ApiKeyAuth": []
           }
         ],
         "summary": "Get all balances",
@@ -3781,9 +3644,9 @@
           },
           "default": {
             "content": {
-              "application/problem+json": {
+              "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Error"
+                  "$ref": "#/components/schemas/LegacyError"
                 }
               }
             },
@@ -3793,9 +3656,6 @@
         "security": [
           {
             "BearerAuth": []
-          },
-          {
-            "ApiKeyAuth": []
           }
         ],
         "summary": "Delete Balance by account",
@@ -3851,9 +3711,9 @@
           },
           "default": {
             "content": {
-              "application/problem+json": {
+              "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Error"
+                  "$ref": "#/components/schemas/LegacyError"
                 }
               }
             },
@@ -3863,9 +3723,6 @@
         "security": [
           {
             "BearerAuth": []
-          },
-          {
-            "ApiKeyAuth": []
           }
         ],
         "summary": "Get Balance by id",
@@ -3931,9 +3788,9 @@
           },
           "default": {
             "content": {
-              "application/problem+json": {
+              "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Error"
+                  "$ref": "#/components/schemas/LegacyError"
                 }
               }
             },
@@ -3943,9 +3800,6 @@
         "security": [
           {
             "BearerAuth": []
-          },
-          {
-            "ApiKeyAuth": []
           }
         ],
         "summary": "Update Balance",
@@ -4013,9 +3867,9 @@
           },
           "default": {
             "content": {
-              "application/problem+json": {
+              "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Error"
+                  "$ref": "#/components/schemas/LegacyError"
                 }
               }
             },
@@ -4025,9 +3879,6 @@
         "security": [
           {
             "BearerAuth": []
-          },
-          {
-            "ApiKeyAuth": []
           }
         ],
         "summary": "Get Balance history at date",
@@ -4125,9 +3976,9 @@
           },
           "default": {
             "content": {
-              "application/problem+json": {
+              "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Error"
+                  "$ref": "#/components/schemas/LegacyError"
                 }
               }
             },
@@ -4192,9 +4043,9 @@
           },
           "default": {
             "content": {
-              "application/problem+json": {
+              "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Error"
+                  "$ref": "#/components/schemas/LegacyError"
                 }
               }
             },
@@ -4254,9 +4105,9 @@
           },
           "default": {
             "content": {
-              "application/problem+json": {
+              "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Error"
+                  "$ref": "#/components/schemas/LegacyError"
                 }
               }
             },
@@ -4321,9 +4172,9 @@
           },
           "default": {
             "content": {
-              "application/problem+json": {
+              "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Error"
+                  "$ref": "#/components/schemas/LegacyError"
                 }
               }
             },
@@ -4398,9 +4249,9 @@
           },
           "default": {
             "content": {
-              "application/problem+json": {
+              "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Error"
+                  "$ref": "#/components/schemas/LegacyError"
                 }
               }
             },
@@ -4537,9 +4388,9 @@
           },
           "default": {
             "content": {
-              "application/problem+json": {
+              "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Error"
+                  "$ref": "#/components/schemas/LegacyError"
                 }
               }
             },
@@ -4549,9 +4400,6 @@
         "security": [
           {
             "BearerAuth": []
-          },
-          {
-            "ApiKeyAuth": []
           }
         ],
         "summary": "List all portfolios",
@@ -4607,9 +4455,9 @@
           },
           "default": {
             "content": {
-              "application/problem+json": {
+              "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Error"
+                  "$ref": "#/components/schemas/LegacyError"
                 }
               }
             },
@@ -4619,9 +4467,6 @@
         "security": [
           {
             "BearerAuth": []
-          },
-          {
-            "ApiKeyAuth": []
           }
         ],
         "summary": "Create a new portfolio",
@@ -4674,9 +4519,9 @@
           },
           "default": {
             "content": {
-              "application/problem+json": {
+              "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Error"
+                  "$ref": "#/components/schemas/LegacyError"
                 }
               }
             },
@@ -4686,9 +4531,6 @@
         "security": [
           {
             "BearerAuth": []
-          },
-          {
-            "ApiKeyAuth": []
           }
         ],
         "summary": "Count total portfolios",
@@ -4739,9 +4581,9 @@
           },
           "default": {
             "content": {
-              "application/problem+json": {
+              "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Error"
+                  "$ref": "#/components/schemas/LegacyError"
                 }
               }
             },
@@ -4751,9 +4593,6 @@
         "security": [
           {
             "BearerAuth": []
-          },
-          {
-            "ApiKeyAuth": []
           }
         ],
         "summary": "Delete a portfolio",
@@ -4809,9 +4648,9 @@
           },
           "default": {
             "content": {
-              "application/problem+json": {
+              "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Error"
+                  "$ref": "#/components/schemas/LegacyError"
                 }
               }
             },
@@ -4821,9 +4660,6 @@
         "security": [
           {
             "BearerAuth": []
-          },
-          {
-            "ApiKeyAuth": []
           }
         ],
         "summary": "Retrieve a specific portfolio",
@@ -4889,9 +4725,9 @@
           },
           "default": {
             "content": {
-              "application/problem+json": {
+              "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Error"
+                  "$ref": "#/components/schemas/LegacyError"
                 }
               }
             },
@@ -4901,9 +4737,6 @@
         "security": [
           {
             "BearerAuth": []
-          },
-          {
-            "ApiKeyAuth": []
           }
         ],
         "summary": "Update a portfolio",
@@ -5011,9 +4844,9 @@
           },
           "default": {
             "content": {
-              "application/problem+json": {
+              "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Error"
+                  "$ref": "#/components/schemas/LegacyError"
                 }
               }
             },
@@ -5023,9 +4856,6 @@
         "security": [
           {
             "BearerAuth": []
-          },
-          {
-            "ApiKeyAuth": []
           }
         ],
         "summary": "List all segments",
@@ -5081,9 +4911,9 @@
           },
           "default": {
             "content": {
-              "application/problem+json": {
+              "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Error"
+                  "$ref": "#/components/schemas/LegacyError"
                 }
               }
             },
@@ -5093,9 +4923,6 @@
         "security": [
           {
             "BearerAuth": []
-          },
-          {
-            "ApiKeyAuth": []
           }
         ],
         "summary": "Create a new segment",
@@ -5148,9 +4975,9 @@
           },
           "default": {
             "content": {
-              "application/problem+json": {
+              "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Error"
+                  "$ref": "#/components/schemas/LegacyError"
                 }
               }
             },
@@ -5160,9 +4987,6 @@
         "security": [
           {
             "BearerAuth": []
-          },
-          {
-            "ApiKeyAuth": []
           }
         ],
         "summary": "Count total segments",
@@ -5213,9 +5037,9 @@
           },
           "default": {
             "content": {
-              "application/problem+json": {
+              "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Error"
+                  "$ref": "#/components/schemas/LegacyError"
                 }
               }
             },
@@ -5225,9 +5049,6 @@
         "security": [
           {
             "BearerAuth": []
-          },
-          {
-            "ApiKeyAuth": []
           }
         ],
         "summary": "Delete a segment",
@@ -5283,9 +5104,9 @@
           },
           "default": {
             "content": {
-              "application/problem+json": {
+              "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Error"
+                  "$ref": "#/components/schemas/LegacyError"
                 }
               }
             },
@@ -5295,9 +5116,6 @@
         "security": [
           {
             "BearerAuth": []
-          },
-          {
-            "ApiKeyAuth": []
           }
         ],
         "summary": "Retrieve a specific segment",
@@ -5363,9 +5181,9 @@
           },
           "default": {
             "content": {
-              "application/problem+json": {
+              "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Error"
+                  "$ref": "#/components/schemas/LegacyError"
                 }
               }
             },
@@ -5375,9 +5193,6 @@
         "security": [
           {
             "BearerAuth": []
-          },
-          {
-            "ApiKeyAuth": []
           }
         ],
         "summary": "Update a segment",
@@ -5425,9 +5240,9 @@
           },
           "default": {
             "content": {
-              "application/problem+json": {
+              "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Error"
+                  "$ref": "#/components/schemas/LegacyError"
                 }
               }
             },
@@ -5437,9 +5252,6 @@
         "security": [
           {
             "BearerAuth": []
-          },
-          {
-            "ApiKeyAuth": []
           }
         ],
         "summary": "Get ledger settings",
@@ -5496,9 +5308,9 @@
           },
           "default": {
             "content": {
-              "application/problem+json": {
+              "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Error"
+                  "$ref": "#/components/schemas/LegacyError"
                 }
               }
             },
@@ -5508,9 +5320,6 @@
         "security": [
           {
             "BearerAuth": []
-          },
-          {
-            "ApiKeyAuth": []
           }
         ],
         "summary": "Update ledger settings",
@@ -5608,9 +5417,9 @@
           },
           "default": {
             "content": {
-              "application/problem+json": {
+              "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Error"
+                  "$ref": "#/components/schemas/LegacyError"
                 }
               }
             },
@@ -5675,9 +5484,9 @@
           },
           "default": {
             "content": {
-              "application/problem+json": {
+              "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Error"
+                  "$ref": "#/components/schemas/LegacyError"
                 }
               }
             },
@@ -5737,9 +5546,9 @@
           },
           "default": {
             "content": {
-              "application/problem+json": {
+              "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Error"
+                  "$ref": "#/components/schemas/LegacyError"
                 }
               }
             },
@@ -5804,9 +5613,9 @@
           },
           "default": {
             "content": {
-              "application/problem+json": {
+              "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Error"
+                  "$ref": "#/components/schemas/LegacyError"
                 }
               }
             },
@@ -5881,9 +5690,9 @@
           },
           "default": {
             "content": {
-              "application/problem+json": {
+              "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Error"
+                  "$ref": "#/components/schemas/LegacyError"
                 }
               }
             },
@@ -6000,9 +5809,9 @@
           },
           "default": {
             "content": {
-              "application/problem+json": {
+              "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Error"
+                  "$ref": "#/components/schemas/LegacyError"
                 }
               }
             },
@@ -6094,9 +5903,9 @@
           },
           "default": {
             "content": {
-              "application/problem+json": {
+              "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Error"
+                  "$ref": "#/components/schemas/LegacyError"
                 }
               }
             },
@@ -6188,9 +5997,9 @@
           },
           "default": {
             "content": {
-              "application/problem+json": {
+              "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Error"
+                  "$ref": "#/components/schemas/LegacyError"
                 }
               }
             },
@@ -6282,9 +6091,9 @@
           },
           "default": {
             "content": {
-              "application/problem+json": {
+              "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Error"
+                  "$ref": "#/components/schemas/LegacyError"
                 }
               }
             },
@@ -6376,9 +6185,9 @@
           },
           "default": {
             "content": {
-              "application/problem+json": {
+              "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Error"
+                  "$ref": "#/components/schemas/LegacyError"
                 }
               }
             },
@@ -6480,9 +6289,9 @@
           },
           "default": {
             "content": {
-              "application/problem+json": {
+              "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Error"
+                  "$ref": "#/components/schemas/LegacyError"
                 }
               }
             },
@@ -6492,9 +6301,6 @@
         "security": [
           {
             "BearerAuth": []
-          },
-          {
-            "ApiKeyAuth": []
           }
         ],
         "summary": "Count Transactions by Filters",
@@ -6577,9 +6383,9 @@
           },
           "default": {
             "content": {
-              "application/problem+json": {
+              "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Error"
+                  "$ref": "#/components/schemas/LegacyError"
                 }
               }
             },
@@ -6671,9 +6477,9 @@
           },
           "default": {
             "content": {
-              "application/problem+json": {
+              "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Error"
+                  "$ref": "#/components/schemas/LegacyError"
                 }
               }
             },
@@ -6747,9 +6553,9 @@
           },
           "default": {
             "content": {
-              "application/problem+json": {
+              "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Error"
+                  "$ref": "#/components/schemas/LegacyError"
                 }
               }
             },
@@ -6824,9 +6630,9 @@
           },
           "default": {
             "content": {
-              "application/problem+json": {
+              "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Error"
+                  "$ref": "#/components/schemas/LegacyError"
                 }
               }
             },
@@ -6893,9 +6699,9 @@
           },
           "default": {
             "content": {
-              "application/problem+json": {
+              "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Error"
+                  "$ref": "#/components/schemas/LegacyError"
                 }
               }
             },
@@ -6962,9 +6768,9 @@
           },
           "default": {
             "content": {
-              "application/problem+json": {
+              "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Error"
+                  "$ref": "#/components/schemas/LegacyError"
                 }
               }
             },
@@ -7051,9 +6857,9 @@
           },
           "default": {
             "content": {
-              "application/problem+json": {
+              "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Error"
+                  "$ref": "#/components/schemas/LegacyError"
                 }
               }
             },
@@ -7127,9 +6933,9 @@
           },
           "default": {
             "content": {
-              "application/problem+json": {
+              "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Error"
+                  "$ref": "#/components/schemas/LegacyError"
                 }
               }
             },
@@ -7182,9 +6988,9 @@
           },
           "default": {
             "content": {
-              "application/problem+json": {
+              "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Error"
+                  "$ref": "#/components/schemas/LegacyError"
                 }
               }
             },
@@ -7194,9 +7000,6 @@
         "security": [
           {
             "BearerAuth": []
-          },
-          {
-            "ApiKeyAuth": []
           }
         ],
         "summary": "Get all Metadata Indexes",
@@ -7244,9 +7047,9 @@
           },
           "default": {
             "content": {
-              "application/problem+json": {
+              "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Error"
+                  "$ref": "#/components/schemas/LegacyError"
                 }
               }
             },
@@ -7256,9 +7059,6 @@
         "security": [
           {
             "BearerAuth": []
-          },
-          {
-            "ApiKeyAuth": []
           }
         ],
         "summary": "Create Metadata Index",
@@ -7299,9 +7099,9 @@
           },
           "default": {
             "content": {
-              "application/problem+json": {
+              "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Error"
+                  "$ref": "#/components/schemas/LegacyError"
                 }
               }
             },
@@ -7311,9 +7111,6 @@
         "security": [
           {
             "BearerAuth": []
-          },
-          {
-            "ApiKeyAuth": []
           }
         ],
         "summary": "Delete Metadata Index",
@@ -7452,9 +7249,6 @@
         "security": [
           {
             "BearerAuth": []
-          },
-          {
-            "ApiKeyAuth": []
           }
         ],
         "summary": "List all organizations",
@@ -7464,17 +7258,6 @@
       },
       "post": {
         "operationId": "createOrganizationV2",
-        "parameters": [
-          {
-            "description": "Bearer token (forwarded to the service)",
-            "in": "header",
-            "name": "Authorization",
-            "schema": {
-              "description": "Bearer token (forwarded to the service)",
-              "type": "string"
-            }
-          }
-        ],
         "requestBody": {
           "content": {
             "application/json": {
@@ -7510,9 +7293,6 @@
         "security": [
           {
             "BearerAuth": []
-          },
-          {
-            "ApiKeyAuth": []
           }
         ],
         "summary": "Create a new organization",
@@ -7554,9 +7334,6 @@
         "security": [
           {
             "BearerAuth": []
-          },
-          {
-            "ApiKeyAuth": []
           }
         ],
         "summary": "Count total organizations",
@@ -7598,9 +7375,6 @@
         "security": [
           {
             "BearerAuth": []
-          },
-          {
-            "ApiKeyAuth": []
           }
         ],
         "summary": "Delete an organization",
@@ -7647,9 +7421,6 @@
         "security": [
           {
             "BearerAuth": []
-          },
-          {
-            "ApiKeyAuth": []
           }
         ],
         "summary": "Retrieve a specific organization",
@@ -7706,9 +7477,6 @@
         "security": [
           {
             "BearerAuth": []
-          },
-          {
-            "ApiKeyAuth": []
           }
         ],
         "summary": "Update an existing organization",
@@ -8966,9 +8734,6 @@
         "security": [
           {
             "BearerAuth": []
-          },
-          {
-            "ApiKeyAuth": []
           }
         ],
         "summary": "List all ledgers",
@@ -9025,9 +8790,6 @@
         "security": [
           {
             "BearerAuth": []
-          },
-          {
-            "ApiKeyAuth": []
           }
         ],
         "summary": "Create a new ledger",
@@ -9081,9 +8843,6 @@
         "security": [
           {
             "BearerAuth": []
-          },
-          {
-            "ApiKeyAuth": []
           }
         ],
         "summary": "Count total ledgers",
@@ -9135,9 +8894,6 @@
         "security": [
           {
             "BearerAuth": []
-          },
-          {
-            "ApiKeyAuth": []
           }
         ],
         "summary": "Delete a ledger",
@@ -9194,9 +8950,6 @@
         "security": [
           {
             "BearerAuth": []
-          },
-          {
-            "ApiKeyAuth": []
           }
         ],
         "summary": "Retrieve a specific ledger",
@@ -9263,9 +9016,6 @@
         "security": [
           {
             "BearerAuth": []
-          },
-          {
-            "ApiKeyAuth": []
           }
         ],
         "summary": "Update an existing ledger",
@@ -9404,9 +9154,6 @@
         "security": [
           {
             "BearerAuth": []
-          },
-          {
-            "ApiKeyAuth": []
           }
         ],
         "summary": "List all account types",
@@ -9473,9 +9220,6 @@
         "security": [
           {
             "BearerAuth": []
-          },
-          {
-            "ApiKeyAuth": []
           }
         ],
         "summary": "Create a new account type",
@@ -9537,9 +9281,6 @@
         "security": [
           {
             "BearerAuth": []
-          },
-          {
-            "ApiKeyAuth": []
           }
         ],
         "summary": "Delete an account type",
@@ -9606,9 +9347,6 @@
         "security": [
           {
             "BearerAuth": []
-          },
-          {
-            "ApiKeyAuth": []
           }
         ],
         "summary": "Retrieve a specific account type",
@@ -9685,9 +9423,6 @@
         "security": [
           {
             "BearerAuth": []
-          },
-          {
-            "ApiKeyAuth": []
           }
         ],
         "summary": "Update an account type",
@@ -9906,9 +9641,6 @@
         "security": [
           {
             "BearerAuth": []
-          },
-          {
-            "ApiKeyAuth": []
           }
         ],
         "summary": "List all accounts",
@@ -9984,9 +9716,6 @@
         "security": [
           {
             "BearerAuth": []
-          },
-          {
-            "ApiKeyAuth": []
           }
         ],
         "summary": "Create a new account",
@@ -10055,9 +9784,6 @@
         "security": [
           {
             "BearerAuth": []
-          },
-          {
-            "ApiKeyAuth": []
           }
         ],
         "summary": "Retrieve an account by alias",
@@ -10126,9 +9852,6 @@
         "security": [
           {
             "BearerAuth": []
-          },
-          {
-            "ApiKeyAuth": []
           }
         ],
         "summary": "Get Balances using Alias",
@@ -10197,9 +9920,6 @@
         "security": [
           {
             "BearerAuth": []
-          },
-          {
-            "ApiKeyAuth": []
           }
         ],
         "summary": "Retrieve an account by external code",
@@ -10268,9 +9988,6 @@
         "security": [
           {
             "BearerAuth": []
-          },
-          {
-            "ApiKeyAuth": []
           }
         ],
         "summary": "Get External balances using code",
@@ -10334,9 +10051,6 @@
         "security": [
           {
             "BearerAuth": []
-          },
-          {
-            "ApiKeyAuth": []
           }
         ],
         "summary": "Count accounts",
@@ -10455,9 +10169,6 @@
         "security": [
           {
             "BearerAuth": []
-          },
-          {
-            "ApiKeyAuth": []
           }
         ],
         "summary": "Get all balances by account id",
@@ -10534,9 +10245,6 @@
         "security": [
           {
             "BearerAuth": []
-          },
-          {
-            "ApiKeyAuth": []
           }
         ],
         "summary": "Create Additional Balance",
@@ -10621,9 +10329,6 @@
         "security": [
           {
             "BearerAuth": []
-          },
-          {
-            "ApiKeyAuth": []
           }
         ],
         "summary": "Get Account Balances history at date",
@@ -10792,9 +10497,6 @@
         "security": [
           {
             "BearerAuth": []
-          },
-          {
-            "ApiKeyAuth": []
           }
         ],
         "summary": "Get all Operations by account",
@@ -10873,9 +10575,6 @@
         "security": [
           {
             "BearerAuth": []
-          },
-          {
-            "ApiKeyAuth": []
           }
         ],
         "summary": "Get Operation",
@@ -10946,9 +10645,6 @@
         "security": [
           {
             "BearerAuth": []
-          },
-          {
-            "ApiKeyAuth": []
           }
         ],
         "summary": "Delete an account",
@@ -11015,9 +10711,6 @@
         "security": [
           {
             "BearerAuth": []
-          },
-          {
-            "ApiKeyAuth": []
           }
         ],
         "summary": "Retrieve a specific account",
@@ -11094,9 +10787,6 @@
         "security": [
           {
             "BearerAuth": []
-          },
-          {
-            "ApiKeyAuth": []
           }
         ],
         "summary": "Update an account",
@@ -11215,9 +10905,6 @@
         "security": [
           {
             "BearerAuth": []
-          },
-          {
-            "ApiKeyAuth": []
           }
         ],
         "summary": "List all assets",
@@ -11293,9 +10980,6 @@
         "security": [
           {
             "BearerAuth": []
-          },
-          {
-            "ApiKeyAuth": []
           }
         ],
         "summary": "Create a new asset",
@@ -11359,9 +11043,6 @@
         "security": [
           {
             "BearerAuth": []
-          },
-          {
-            "ApiKeyAuth": []
           }
         ],
         "summary": "Count total assets",
@@ -11423,9 +11104,6 @@
         "security": [
           {
             "BearerAuth": []
-          },
-          {
-            "ApiKeyAuth": []
           }
         ],
         "summary": "Delete an asset",
@@ -11492,9 +11170,6 @@
         "security": [
           {
             "BearerAuth": []
-          },
-          {
-            "ApiKeyAuth": []
           }
         ],
         "summary": "Retrieve a specific asset",
@@ -11571,9 +11246,6 @@
         "security": [
           {
             "BearerAuth": []
-          },
-          {
-            "ApiKeyAuth": []
           }
         ],
         "summary": "Update an asset",
@@ -11682,9 +11354,6 @@
         "security": [
           {
             "BearerAuth": []
-          },
-          {
-            "ApiKeyAuth": []
           }
         ],
         "summary": "Get all balances",
@@ -11746,9 +11415,6 @@
         "security": [
           {
             "BearerAuth": []
-          },
-          {
-            "ApiKeyAuth": []
           }
         ],
         "summary": "Delete Balance by account",
@@ -11815,9 +11481,6 @@
         "security": [
           {
             "BearerAuth": []
-          },
-          {
-            "ApiKeyAuth": []
           }
         ],
         "summary": "Get Balance by id",
@@ -11894,9 +11557,6 @@
         "security": [
           {
             "BearerAuth": []
-          },
-          {
-            "ApiKeyAuth": []
           }
         ],
         "summary": "Update Balance",
@@ -11975,9 +11635,6 @@
         "security": [
           {
             "BearerAuth": []
-          },
-          {
-            "ApiKeyAuth": []
           }
         ],
         "summary": "Get Balance history at date",
@@ -13451,9 +13108,6 @@
         "security": [
           {
             "BearerAuth": []
-          },
-          {
-            "ApiKeyAuth": []
           }
         ],
         "summary": "List all portfolios",
@@ -13520,9 +13174,6 @@
         "security": [
           {
             "BearerAuth": []
-          },
-          {
-            "ApiKeyAuth": []
           }
         ],
         "summary": "Create a new portfolio",
@@ -13586,9 +13237,6 @@
         "security": [
           {
             "BearerAuth": []
-          },
-          {
-            "ApiKeyAuth": []
           }
         ],
         "summary": "Count total portfolios",
@@ -13650,9 +13298,6 @@
         "security": [
           {
             "BearerAuth": []
-          },
-          {
-            "ApiKeyAuth": []
           }
         ],
         "summary": "Delete a portfolio",
@@ -13719,9 +13364,6 @@
         "security": [
           {
             "BearerAuth": []
-          },
-          {
-            "ApiKeyAuth": []
           }
         ],
         "summary": "Retrieve a specific portfolio",
@@ -13798,9 +13440,6 @@
         "security": [
           {
             "BearerAuth": []
-          },
-          {
-            "ApiKeyAuth": []
           }
         ],
         "summary": "Update a portfolio",
@@ -13919,9 +13558,6 @@
         "security": [
           {
             "BearerAuth": []
-          },
-          {
-            "ApiKeyAuth": []
           }
         ],
         "summary": "List all segments",
@@ -13988,9 +13624,6 @@
         "security": [
           {
             "BearerAuth": []
-          },
-          {
-            "ApiKeyAuth": []
           }
         ],
         "summary": "Create a new segment",
@@ -14054,9 +13687,6 @@
         "security": [
           {
             "BearerAuth": []
-          },
-          {
-            "ApiKeyAuth": []
           }
         ],
         "summary": "Count total segments",
@@ -14118,9 +13748,6 @@
         "security": [
           {
             "BearerAuth": []
-          },
-          {
-            "ApiKeyAuth": []
           }
         ],
         "summary": "Delete a segment",
@@ -14187,9 +13814,6 @@
         "security": [
           {
             "BearerAuth": []
-          },
-          {
-            "ApiKeyAuth": []
           }
         ],
         "summary": "Retrieve a specific segment",
@@ -14266,9 +13890,6 @@
         "security": [
           {
             "BearerAuth": []
-          },
-          {
-            "ApiKeyAuth": []
           }
         ],
         "summary": "Update a segment",
@@ -14327,9 +13948,6 @@
         "security": [
           {
             "BearerAuth": []
-          },
-          {
-            "ApiKeyAuth": []
           }
         ],
         "summary": "Get ledger settings",
@@ -14397,9 +14015,6 @@
         "security": [
           {
             "BearerAuth": []
-          },
-          {
-            "ApiKeyAuth": []
           }
         ],
         "summary": "Update ledger settings",
@@ -14998,9 +14613,6 @@
         "security": [
           {
             "BearerAuth": []
-          },
-          {
-            "ApiKeyAuth": []
           }
         ],
         "summary": "Count Transactions by Filters",
@@ -15642,9 +15254,6 @@
         "security": [
           {
             "BearerAuth": []
-          },
-          {
-            "ApiKeyAuth": []
           }
         ],
         "summary": "Get all Metadata Indexes",
@@ -15703,9 +15312,6 @@
         "security": [
           {
             "BearerAuth": []
-          },
-          {
-            "ApiKeyAuth": []
           }
         ],
         "summary": "Create Metadata Index",
@@ -15757,9 +15363,6 @@
         "security": [
           {
             "BearerAuth": []
-          },
-          {
-            "ApiKeyAuth": []
           }
         ],
         "summary": "Delete Metadata Index",
@@ -18387,6 +17990,30 @@
         ],
         "type": "object"
       },
+      "AccountingValidationInput": {
+        "additionalProperties": false,
+        "properties": {
+          "requireHolder": {
+            "examples": [
+              false
+            ],
+            "type": "boolean"
+          },
+          "validateAccountType": {
+            "examples": [
+              false
+            ],
+            "type": "boolean"
+          },
+          "validateRoutes": {
+            "examples": [
+              false
+            ],
+            "type": "boolean"
+          }
+        },
+        "type": "object"
+      },
       "Address": {
         "additionalProperties": false,
         "properties": {
@@ -19721,7 +19348,7 @@
             "type": "string"
           },
           "settings": {
-            "$ref": "#/components/schemas/LedgerSettings"
+            "$ref": "#/components/schemas/LedgerSettingsInput"
           },
           "status": {
             "$ref": "#/components/schemas/Status"
@@ -21634,6 +21261,62 @@
         ],
         "type": "object"
       },
+      "LedgerSettingsInput": {
+        "additionalProperties": false,
+        "properties": {
+          "accounting": {
+            "$ref": "#/components/schemas/AccountingValidationInput"
+          },
+          "overrides": {
+            "$ref": "#/components/schemas/OverridePolicyInput"
+          },
+          "tracer": {
+            "$ref": "#/components/schemas/TracerSettingsInput"
+          }
+        },
+        "type": "object"
+      },
+      "LegacyError": {
+        "additionalProperties": false,
+        "properties": {
+          "code": {
+            "description": "Stable, machine-readable midaz error code. Identical to the code /v2 returns for the same condition.",
+            "examples": [
+              "0065"
+            ],
+            "type": "string"
+          },
+          "entityType": {
+            "description": "The domain entity the error concerns. Present only on field-validation errors.",
+            "examples": [
+              "Account"
+            ],
+            "type": "string"
+          },
+          "fields": {
+            "additionalProperties": {},
+            "description": "Per-field validation detail, keyed by field name. The value is the violation message for a known field and the offending value for an unexpected one, so it is not always a string. The /v2 contract carries these as the 'errors' array.",
+            "type": "object"
+          },
+          "message": {
+            "description": "Human-readable explanation of this occurrence. The /v2 contract carries this as 'detail'.",
+            "type": "string"
+          },
+          "title": {
+            "description": "Short, human-readable summary of the error.",
+            "examples": [
+              "Invalid Path Parameter"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "title",
+          "message",
+          "code"
+        ],
+        "type": "object"
+      },
       "LegalPerson": {
         "additionalProperties": false,
         "properties": {
@@ -22501,6 +22184,30 @@
         ],
         "type": "object"
       },
+      "OverridePolicyInput": {
+        "additionalProperties": false,
+        "properties": {
+          "allowFeeSkip": {
+            "examples": [
+              false
+            ],
+            "type": "boolean"
+          },
+          "allowHolderSkip": {
+            "examples": [
+              false
+            ],
+            "type": "boolean"
+          },
+          "allowTracerSkip": {
+            "examples": [
+              false
+            ],
+            "type": "boolean"
+          }
+        },
+        "type": "object"
+      },
       "Pagination": {
         "additionalProperties": false,
         "properties": {
@@ -23092,6 +22799,31 @@
           "failPosture",
           "timeoutMs"
         ],
+        "type": "object"
+      },
+      "TracerSettingsInput": {
+        "additionalProperties": false,
+        "properties": {
+          "failPosture": {
+            "examples": [
+              "open"
+            ],
+            "type": "string"
+          },
+          "mode": {
+            "examples": [
+              "off"
+            ],
+            "type": "string"
+          },
+          "timeoutMs": {
+            "examples": [
+              250
+            ],
+            "format": "int64",
+            "type": "integer"
+          }
+        },
         "type": "object"
       },
       "Transaction": {
@@ -25421,17 +25153,17 @@
       }
     },
     "securitySchemes": {
-      "ApiKeyAuth": {
-        "description": "Static API key presented in the X-API-Key header.",
-        "in": "header",
-        "name": "X-API-Key",
-        "type": "apiKey"
-      },
       "BearerAuth": {
         "bearerFormat": "JWT",
         "description": "JWT bearer token issued by the identity provider.",
         "scheme": "bearer",
         "type": "http"
+      },
+      "ApiKeyAuth": {
+        "description": "Static API key presented in the X-API-Key header.",
+        "in": "header",
+        "name": "X-API-Key",
+        "type": "apiKey"
       }
     }
   },

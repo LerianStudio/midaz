@@ -179,7 +179,7 @@ func TestCreateTransactionV2_RetryReplaysTheStoredTransaction(t *testing.T) {
 
 	storedID := "11111111-1111-1111-1111-111111111111"
 	handler := captureSetNXKey(t, ctrl, &gotKey, `{"id":"`+storedID+`"}`)
-	app := buildHumaV2ActionApp(t, "direct", handler.CreateTransactionDirectV2Huma)
+	app := buildHumaV2ActionApp(t, "direct", handler.CreateTransactionDirectV2)
 
 	resp := postActionV2WithIdempotency(t, app, "direct", v2DirectBody, "replay-caller-key")
 	defer func() { _ = resp.Body.Close() }()
@@ -201,7 +201,7 @@ func TestCreateTransactionV2_RetryReplaysTheStoredTransaction(t *testing.T) {
 // ledgers.
 func TestCreateTransactionV2_ScopeMismatchInBodyIsRejected(t *testing.T) {
 	// NOT parallel: process-global huma state.
-	app := buildHumaV2ActionApp(t, "direct", (&TransactionHandler{}).CreateTransactionDirectV2Huma)
+	app := buildHumaV2ActionApp(t, "direct", (&TransactionHandler{}).CreateTransactionDirectV2)
 
 	mismatched := `{"asset":"BRL","amount":"100",` +
 		`"debits":[{"alias":"@src",` + v2ScopeJSON + `,"amount":"100"}],` +
@@ -246,7 +246,7 @@ func TestCreateTransactionV2_MalformedBodyScopeIsRejected(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			// NOT parallel: process-global huma state.
-			app := buildHumaV2ActionApp(t, "direct", (&TransactionHandler{}).CreateTransactionDirectV2Huma)
+			app := buildHumaV2ActionApp(t, "direct", (&TransactionHandler{}).CreateTransactionDirectV2)
 
 			resp := postActionV2(t, app, "direct", tt.body)
 			defer func() { _ = resp.Body.Close() }()

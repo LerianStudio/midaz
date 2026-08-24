@@ -32,15 +32,15 @@ import (
 // policy is introduced: authorization is per-tenant, identical to v1 — the tuple names
 // no organization, so it is unaffected by which paths carry one.
 //
-// The CREATE terminals (CreateTransactionDirectV2Huma, CreateTransactionHoldV2Huma,
-// CreateTransactionBlockV2Huma, CreateTransactionUnblockV2Huma) live in
+// The CREATE terminals (CreateTransactionDirectV2, CreateTransactionHoldV2,
+// CreateTransactionBlockV2, CreateTransactionUnblockV2) live in
 // transaction_v2_handler.go: they decode the flat v2 body, translate it, and enter
 // the v1 createTransaction funnel (hold with pending=true) under the scope the body
 // resolved. They therefore hang off a path that names no organization and no ledger.
 // The LIFECYCLE terminals (commit/cancel/revert) address an EXISTING transaction and
 // carry no body, so their scope can only come from the URL: they stay under the
 // organization/ledger prefix. They are thin v2-specific shells
-// (CommitTransactionV2Huma / CancelTransactionV2Huma / RevertTransactionV2Huma, also in
+// (CommitTransactionV2 / CancelTransactionV2 / RevertTransactionV2, also in
 // transaction_v2_handler.go) over the SAME transport-neutral core the v1 shells in
 // transaction_handler_huma.go call (commitTransaction / revertTransaction) — the only
 // difference is the response envelope, which answers the /v2 wire shape (TransactionV2,
@@ -88,7 +88,7 @@ func RegisterTransactionV2Routes(api huma.API, h *TransactionHandler) {
 		Tags:          []string{transactionsTag},
 		Security:      secTransactionBearer,
 		DefaultStatus: http.StatusCreated, // bodiless lifecycle op — no SkipValidateBody, mirroring v1.
-	}, h.CommitTransactionV2Huma)
+	}, h.CommitTransactionV2)
 
 	huma.Register(api, huma.Operation{
 		OperationID:   "cancelTransactionV2",
@@ -98,7 +98,7 @@ func RegisterTransactionV2Routes(api huma.API, h *TransactionHandler) {
 		Tags:          []string{transactionsTag},
 		Security:      secTransactionBearer,
 		DefaultStatus: http.StatusCreated, // bodiless lifecycle op — no SkipValidateBody, mirroring v1.
-	}, h.CancelTransactionV2Huma)
+	}, h.CancelTransactionV2)
 
 	huma.Register(api, huma.Operation{
 		OperationID:   "revertTransactionV2",
@@ -108,7 +108,7 @@ func RegisterTransactionV2Routes(api huma.API, h *TransactionHandler) {
 		Tags:          []string{transactionsTag},
 		Security:      secTransactionBearer,
 		DefaultStatus: http.StatusCreated, // bodiless lifecycle op — no SkipValidateBody, mirroring v1.
-	}, h.RevertTransactionV2Huma)
+	}, h.RevertTransactionV2)
 
 	publishV2CreateBodySchema(api)
 }
@@ -120,14 +120,14 @@ func RegisterTransactionV2Routes(api huma.API, h *TransactionHandler) {
 const v2CreateBasePath = "/transactions"
 
 // v2CreateBodyContentType is the media type the v2 create ops accept, matching the
-// `contentType` tag on CreateTransactionV2InputHuma.RawBody — the key Huma files the
+// `contentType` tag on CreateTransactionInputV2.RawBody — the key Huma files the
 // request body under.
 const v2CreateBodyContentType = "application/json"
 
 // v2CreateTerminal is the shape every v2 create terminal shares. All four actions accept the
 // same request envelope and answer with the same success envelope; only the identity they pass
 // to createTransactionV2 differs.
-type v2CreateTerminal func(context.Context, *CreateTransactionV2InputHuma) (*CreateTransactionOutputV2Huma, error)
+type v2CreateTerminal func(context.Context, *CreateTransactionInputV2) (*CreateTransactionOutputV2, error)
 
 // v2CreateAction is one v2 create action: the suffix it hangs off v2CreateBasePath plus the
 // identity the published contract gives it. It exists so BOTH sides of the create surface walk
@@ -151,25 +151,25 @@ var v2CreateActions = []v2CreateAction{
 		suffix:      "/direct",
 		operationID: "createTransactionDirectV2",
 		summary:     "Create a Transaction using the v2 direct model",
-		terminal:    func(h *TransactionHandler) v2CreateTerminal { return h.CreateTransactionDirectV2Huma },
+		terminal:    func(h *TransactionHandler) v2CreateTerminal { return h.CreateTransactionDirectV2 },
 	},
 	{
 		suffix:      "/hold",
 		operationID: "createTransactionHoldV2",
 		summary:     "Create a Transaction using the v2 hold model",
-		terminal:    func(h *TransactionHandler) v2CreateTerminal { return h.CreateTransactionHoldV2Huma },
+		terminal:    func(h *TransactionHandler) v2CreateTerminal { return h.CreateTransactionHoldV2 },
 	},
 	{
 		suffix:      "/block",
 		operationID: "createTransactionBlockV2",
 		summary:     "Create a Transaction using the v2 block model",
-		terminal:    func(h *TransactionHandler) v2CreateTerminal { return h.CreateTransactionBlockV2Huma },
+		terminal:    func(h *TransactionHandler) v2CreateTerminal { return h.CreateTransactionBlockV2 },
 	},
 	{
 		suffix:      "/unblock",
 		operationID: "createTransactionUnblockV2",
 		summary:     "Create a Transaction using the v2 unblock model",
-		terminal:    func(h *TransactionHandler) v2CreateTerminal { return h.CreateTransactionUnblockV2Huma },
+		terminal:    func(h *TransactionHandler) v2CreateTerminal { return h.CreateTransactionUnblockV2 },
 	},
 }
 

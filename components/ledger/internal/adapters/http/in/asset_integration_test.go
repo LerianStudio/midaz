@@ -17,12 +17,15 @@ import (
 	"sync"
 	"testing"
 
+	openapi "github.com/LerianStudio/lib-commons/v6/commons/net/http/openapi"
+	libProblem "github.com/LerianStudio/lib-commons/v6/commons/net/http/problem"
 	libPostgres "github.com/LerianStudio/lib-commons/v6/commons/postgres"
 	"github.com/gofiber/fiber/v3"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	ledgerMiddleware "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/http/in/middleware"
 	mongodb "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/mongodb/onboarding"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/account"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/asset"
@@ -32,7 +35,6 @@ import (
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/segment"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services/command"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services/query"
-	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
 	nethttp "github.com/LerianStudio/midaz/v4/pkg/net/http"
 	mongotestutil "github.com/LerianStudio/midaz/v4/tests/utils/mongodb"
 	postgrestestutil "github.com/LerianStudio/midaz/v4/tests/utils/postgres"
@@ -155,71 +157,50 @@ func setupAssetTestInfra(t *testing.T) *assetTestInfra {
 	return infra
 }
 
-// setupRoutes registers handler routes on the Fiber app.
+// setupRoutes mounts the organization, ledger, asset and account surfaces the way
+// the unified server does: ParseUUIDPathParameters runs as Fiber middleware on each
+// path, and the per-resource registrars own the Huma terminals.
 func (infra *assetTestInfra) setupRoutes() {
-	// Middleware to inject path params as locals
-	paramMiddleware := func(c fiber.Ctx) error {
-		orgIDStr := c.Params("organization_id")
-		ledgerIDStr := c.Params("ledger_id")
-		assetIDStr := c.Params("id")
+	// problem.Install must run before any huma.Register (runtime + spec-gen).
+	libProblem.Install()
 
-		if orgIDStr != "" {
-			if orgID, err := uuid.Parse(orgIDStr); err == nil {
-				c.Locals("organization_id", orgID)
-			}
-		}
+	// Mirror production: the ledger registers ErrorEnvelope on the app root, so
+	// /v1 serves the v3 envelope.
+	infra.app.Use(ledgerMiddleware.ErrorEnvelope())
 
-		if ledgerIDStr != "" {
-			if ledgerID, err := uuid.Parse(ledgerIDStr); err == nil {
-				c.Locals("ledger_id", ledgerID)
-			}
-		}
+	apiV1 := infra.app.Group("/v1")
+	hAPI := openapi.New(infra.app, apiV1, openapi.Config{
+		Title:   "ledger-integration",
+		Version: "test",
+		Servers: []string{"/v1"},
+	})
 
-		if assetIDStr != "" {
-			if assetID, err := uuid.Parse(assetIDStr); err == nil {
-				c.Locals("id", assetID)
-			}
-		}
+	const (
+		orgPath     = "/organizations"
+		orgIDPath   = orgPath + "/:id"
+		ledgersPath = orgPath + "/:organization_id/ledgers"
+		assetsPath  = ledgersPath + "/:ledger_id/assets"
+		accountPath = ledgersPath + "/:ledger_id/accounts"
+	)
 
-		return c.Next()
-	}
+	orgParse := nethttp.ParseUUIDPathParameters("organization")
+	ledgerParse := nethttp.ParseUUIDPathParameters("ledger")
+	assetParse := nethttp.ParseUUIDPathParameters("asset")
+	accountParse := nethttp.ParseUUIDPathParameters("account")
 
-	// Middleware to inject organization ID for organization routes
-	orgParamMiddleware := func(c fiber.Ctx) error {
-		idStr := c.Params("id")
-		if idStr != "" {
-			if id, err := uuid.Parse(idStr); err == nil {
-				c.Locals("id", id)
-			}
-		}
-		return c.Next()
-	}
+	apiV1.Post(orgPath, orgParse)
+	apiV1.Get(orgIDPath, orgParse)
+	apiV1.Post(ledgersPath, ledgerParse)
+	apiV1.Post(assetsPath, assetParse)
+	apiV1.Get(assetsPath, assetParse)
+	apiV1.Get(assetsPath+"/:id", assetParse)
+	apiV1.Delete(assetsPath+"/:id", assetParse)
+	apiV1.Post(accountPath, accountParse)
 
-	// Organization routes
-	infra.app.Post("/v1/organizations",
-		nethttp.WithBody(new(mmodel.CreateOrganizationInput), infra.orgHandler.CreateOrganization))
-
-	// Ledger routes
-	infra.app.Post("/v1/organizations/:organization_id/ledgers",
-		paramMiddleware, nethttp.WithBody(new(mmodel.CreateLedgerInput), infra.ledgerHandler.CreateLedger))
-
-	// Asset routes
-	infra.app.Post("/v1/organizations/:organization_id/ledgers/:ledger_id/assets",
-		paramMiddleware, nethttp.WithBody(new(mmodel.CreateAssetInput), infra.assetHandler.CreateAsset))
-	infra.app.Get("/v1/organizations/:organization_id/ledgers/:ledger_id/assets",
-		paramMiddleware, infra.assetHandler.GetAllAssets)
-	infra.app.Get("/v1/organizations/:organization_id/ledgers/:ledger_id/assets/:id",
-		paramMiddleware, infra.assetHandler.GetAssetByID)
-	infra.app.Delete("/v1/organizations/:organization_id/ledgers/:ledger_id/assets/:id",
-		paramMiddleware, infra.assetHandler.DeleteAssetByID)
-
-	// Account routes
-	infra.app.Post("/v1/organizations/:organization_id/ledgers/:ledger_id/accounts",
-		paramMiddleware, nethttp.WithBody(new(mmodel.CreateAccountInput), infra.accountHandler.CreateAccount))
-
-	// Organization GET (for ID-based lookup)
-	infra.app.Get("/v1/organizations/:id",
-		orgParamMiddleware, infra.orgHandler.GetOrganizationByID)
+	RegisterOrganizationRoutes(hAPI, infra.orgHandler, routeOpSuffixV1)
+	RegisterLedgerRoutes(hAPI, infra.ledgerHandler, routeOpSuffixV1)
+	RegisterAssetRoutes(hAPI, infra.assetHandler, routeOpSuffixV1)
+	RegisterAccountRoutes(hAPI, infra.accountHandler, routeOpSuffixV1)
 }
 
 // createOrganization creates an organization via HTTP and returns its ID.

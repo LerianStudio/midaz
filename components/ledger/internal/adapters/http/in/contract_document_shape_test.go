@@ -194,15 +194,14 @@ func assertPrefixesCoexist(t *testing.T, doc *huma.OpenAPI) {
 }
 
 // assertSecuritySchemesResolve reproduces in Go, over the source document, the assertion
-// that today lives only as jq over the joined hub — and that only passes because the tracer
-// lends the schemes (F9). Components.SecuritySchemes must declare both BearerAuth and
-// ApiKeyAuth, and no operation may reference a scheme the document does not declare.
+// that today lives only as jq over the joined hub. BearerAuth is the ONLY scheme the
+// ledger may declare: the Fiber guard chain authorizes a JWT bearer token and nothing
+// else, so any other scheme would advertise an auth method the runtime rejects. No
+// operation may reference a scheme the document does not declare.
 func assertSecuritySchemesResolve(t *testing.T, doc *huma.OpenAPI) {
 	require.NotNil(t, doc.Components, "document must carry components")
-	require.Contains(t, doc.Components.SecuritySchemes, "BearerAuth",
-		"AssembleHumaContract must declare the BearerAuth scheme")
-	require.Contains(t, doc.Components.SecuritySchemes, "ApiKeyAuth",
-		"AssembleHumaContract must declare the ApiKeyAuth scheme")
+	require.Equal(t, []string{"BearerAuth"}, declaredSecuritySchemes(doc),
+		"ledger contract must declare exactly BearerAuth — it accepts no other scheme")
 
 	for _, name := range referencedSecuritySchemes(doc) {
 		require.Containsf(t, doc.Components.SecuritySchemes, name,

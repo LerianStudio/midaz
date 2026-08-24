@@ -19,8 +19,8 @@ import (
 // raw-[]byte escape hatch), BillingCalculateResponse is a flat Results+Summary struct
 // with no time.Time-alias schema-gen landmine, so it serializes as a normal typed Body.
 
-// CalculateBillingOutputHuma carries the calculation envelope at 200.
-type CalculateBillingOutputHuma struct {
+// CalculateBillingResponse carries the calculation envelope at 200.
+type CalculateBillingResponse struct {
 	Status int
 	Body   *model.BillingCalculateResponse
 }

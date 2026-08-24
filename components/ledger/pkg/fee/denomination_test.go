@@ -5,6 +5,7 @@
 package fee
 
 import (
+	"maps"
 	"strings"
 	"testing"
 
@@ -17,11 +18,13 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/LerianStudio/midaz/v4/pkg"
+	"github.com/LerianStudio/midaz/v4/pkg/constant"
 	transaction "github.com/LerianStudio/midaz/v4/pkg/mtransaction"
 )
 
-// P4-T24 — fee legs MUST be denominated in the transaction's Send.Asset, never
-// the global default currency. The ledger validator aggregates per-asset and
+// P4-T24 — fee legs MUST be denominated in the transaction's Send.Asset, the
+// single source of truth. The ledger validator aggregates per-asset and
 // requires sum == 0 under exact decimal.Equal; a fee leg in any asset other
 // than Send.Asset would trip ErrTransactionValueMismatch or silently create a
 // multi-asset imbalance.
@@ -88,10 +91,13 @@ func denominationFixture(asset string, deductible bool) (*model.FeeCalculate, *p
 	return feeCalc, p, resp
 }
 
-// TestCalculateFee_LegsDenominatedInSendAsset_NotDefaultCurrency proves a USD
-// transaction produces USD-denominated fee legs even when the configured
-// default currency is BRL — non-deductible and deductible paths.
-func TestCalculateFee_LegsDenominatedInSendAsset_NotDefaultCurrency(t *testing.T) {
+// TestCalculateFee_LegsDenominatedInSendAsset_NotAmbientCurrency asserts every
+// fee leg — plus the mutated Send and the rebuilt From/To legs — is denominated
+// in the transaction's Send.Asset (P4-T24), on both the non-deductible and the
+// deductible path. The fixture deliberately uses USD rather than BRL so that a
+// leg picking up an ambient or hardcoded currency instead of Send.Asset fails
+// the assertion rather than passing by coincidence.
+func TestCalculateFee_LegsDenominatedInSendAsset_NotAmbientCurrency(t *testing.T) {
 	t.Parallel()
 
 	logger, _ := libZap.New(libZap.Config{Environment: libZap.EnvironmentLocal, OTelLibraryName: "test"})
@@ -109,8 +115,7 @@ func TestCalculateFee_LegsDenominatedInSendAsset_NotDefaultCurrency(t *testing.T
 
 			feeCalc, p, resp := denominationFixture("USD", deductible)
 
-			// defaultCurrency deliberately differs from Send.Asset (USD).
-			err := CalculateFee(logger, feeCalc, p, resp, DefaultCurrencyBRL, nil)
+			err := CalculateFee(logger, feeCalc, p, resp, nil)
 			require.NoError(t, err)
 
 			assertAllFeeLegsUseAsset(t, resp, "USD")
@@ -133,20 +138,53 @@ func TestCalculateFee_LegsDenominatedInSendAsset_NotDefaultCurrency(t *testing.T
 	}
 }
 
-// TestCalculateFee_EmptySendAssetFallsBackToDefault documents the only path
-// where the default currency denominates a leg: when the transaction omits a
-// Send.Asset entirely. This is the value-only fallback, not a cross-asset emit.
-func TestCalculateFee_EmptySendAssetFallsBackToDefault(t *testing.T) {
+// TestCalculateFee_EmptySendAssetRejected records the decision that a Send.Asset
+// that is empty or whitespace-only is a hard 0009 rejection naming send.asset:
+// the engine refuses the calculation and leaves resp.From, resp.To and
+// Send.Value untouched, so the caller must name the asset every fee leg is
+// denominated in.
+func TestCalculateFee_EmptySendAssetRejected(t *testing.T) {
 	t.Parallel()
 
 	logger, _ := libZap.New(libZap.Config{Environment: libZap.EnvironmentLocal, OTelLibraryName: "test"})
 
-	feeCalc, p, resp := denominationFixture("", false)
+	tests := []struct {
+		name  string
+		asset string
+	}{
+		{name: "empty asset", asset: ""},
+		{name: "blank asset", asset: "  "},
+	}
 
-	err := CalculateFee(logger, feeCalc, p, resp, DefaultCurrencyBRL, nil)
-	require.NoError(t, err)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 
-	// With no Send.Asset, legs fall back to the default currency — they are all
-	// in ONE asset (BRL), so the transaction still balances single-asset.
-	assertAllFeeLegsUseAsset(t, resp, DefaultCurrencyBRL)
+			feeCalc, p, resp := denominationFixture(tt.asset, false)
+
+			fromBefore := maps.Clone(resp.From)
+			toBefore := maps.Clone(resp.To)
+
+			err := CalculateFee(logger, feeCalc, p, resp, nil)
+			require.Error(t, err)
+
+			var validationErr pkg.ValidationError
+			require.ErrorAs(t, err, &validationErr)
+
+			// Wire-code lock: 0009 is an external API surface, not an internal label.
+			assert.Equal(t, "0009", validationErr.Code)
+			assert.Equal(t, constant.EntityFeeCalculation, validationErr.EntityType)
+			assert.Contains(t, validationErr.Message, "send.asset",
+				"the rejection must name the missing field so the caller can fix the request")
+
+			// The rejection short-circuits before any leg emission: no fee leg was
+			// appended, the pre-existing legs are untouched, and Send.Value — the
+			// money field CalculateFee mutates in place — still holds its fixture
+			// value.
+			assert.Equal(t, fromBefore, resp.From)
+			assert.Equal(t, toBefore, resp.To)
+			assert.Truef(t, feeCalc.Transaction.Send.Value.Equal(decimal.NewFromInt(1000)),
+				"Send.Value mutated to %s, want the untouched fixture value 1000", feeCalc.Transaction.Send.Value)
+		})
+	}
 }

@@ -12,6 +12,8 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	libCommons "github.com/LerianStudio/lib-commons/v6/commons"
+
 	openapi "github.com/LerianStudio/lib-commons/v6/commons/net/http/openapi"
 	libProblem "github.com/LerianStudio/lib-commons/v6/commons/net/http/problem"
 	"github.com/gofiber/fiber/v3"
@@ -114,8 +116,8 @@ func validBillingPackageJSON() string {
 	return `{"label":"Monthly Volume","type":"volume","ledgerId":"` + validLedgerUUID() + `"}`
 }
 
-func TestHuma_CreateBillingPackage_Success(t *testing.T) {
-	orgID := uuid.New()
+func TestCreateBillingPackage_Success(t *testing.T) {
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	stub := &stubBillingPackageService{
 		createResult: &model.BillingPackage{ID: uuid.NewString(), Label: "Monthly Volume", Type: "volume"},
@@ -142,8 +144,8 @@ func TestHuma_CreateBillingPackage_Success(t *testing.T) {
 	assert.Equal(t, "Monthly Volume", got["label"])
 }
 
-func TestHuma_CreateBillingPackage_AuthPreserved(t *testing.T) {
-	orgID := uuid.New()
+func TestCreateBillingPackage_AuthPreserved(t *testing.T) {
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	handler := &BillingPackageHandler{Service: &stubBillingPackageService{}}
 	app := buildHumaBillingPackageApp(t, handler, false)
@@ -158,8 +160,8 @@ func TestHuma_CreateBillingPackage_AuthPreserved(t *testing.T) {
 	assert.Equal(t, http.StatusUnauthorized, resp.StatusCode, "auth middleware must reject before Huma")
 }
 
-func TestHuma_CreateBillingPackage_MalformedBody_Canonical400(t *testing.T) {
-	orgID := uuid.New()
+func TestCreateBillingPackage_MalformedBody_Canonical400(t *testing.T) {
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	handler := &BillingPackageHandler{Service: &stubBillingPackageService{}}
 	app := buildHumaBillingPackageApp(t, handler, true)
@@ -180,9 +182,9 @@ func TestHuma_CreateBillingPackage_MalformedBody_Canonical400(t *testing.T) {
 	assert.Equal(t, constant.ErrInvalidRequestBody.Error(), got["code"], "malformed-body code preserved (0094)")
 }
 
-func TestHuma_GetBillingPackageByID_Success(t *testing.T) {
-	orgID := uuid.New()
-	bpID := uuid.New()
+func TestGetBillingPackageByID_Success(t *testing.T) {
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	bpID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	stub := &stubBillingPackageService{getByIDResult: &model.BillingPackage{ID: bpID.String(), Label: "Standard"}}
 	handler := &BillingPackageHandler{Service: stub}
@@ -204,8 +206,8 @@ func TestHuma_GetBillingPackageByID_Success(t *testing.T) {
 	assert.Equal(t, bpID.String(), got["id"])
 }
 
-func TestHuma_GetBillingPackageByID_BadUUID_Canonical400(t *testing.T) {
-	orgID := uuid.New()
+func TestGetBillingPackageByID_BadUUID_Canonical400(t *testing.T) {
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	handler := &BillingPackageHandler{Service: &stubBillingPackageService{}}
 	app := buildHumaBillingPackageApp(t, handler, true)
@@ -223,9 +225,9 @@ func TestHuma_GetBillingPackageByID_BadUUID_Canonical400(t *testing.T) {
 	assert.Equal(t, constant.ErrInvalidPathParameter.Error(), got["code"])
 }
 
-func TestHuma_GetAllBillingPackages_Success(t *testing.T) {
-	orgID := uuid.New()
-	ledgerID := uuid.New()
+func TestGetAllBillingPackages_Success(t *testing.T) {
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	stub := &stubBillingPackageService{
 		getAllResult: []*model.BillingPackage{{ID: uuid.NewString()}},
@@ -258,8 +260,8 @@ func TestHuma_GetAllBillingPackages_Success(t *testing.T) {
 	assert.EqualValues(t, 1, got["total"])
 }
 
-func TestHuma_GetAllBillingPackages_BadLimit_Canonical400(t *testing.T) {
-	orgID := uuid.New()
+func TestGetAllBillingPackages_BadLimit_Canonical400(t *testing.T) {
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	handler := &BillingPackageHandler{Service: &stubBillingPackageService{}}
 	app := buildHumaBillingPackageApp(t, handler, true)
@@ -277,9 +279,9 @@ func TestHuma_GetAllBillingPackages_BadLimit_Canonical400(t *testing.T) {
 	assert.Equal(t, constant.ErrInvalidQueryParameter.Error(), got["code"])
 }
 
-func TestHuma_UpdateBillingPackage_Success(t *testing.T) {
-	orgID := uuid.New()
-	bpID := uuid.New()
+func TestUpdateBillingPackage_Success(t *testing.T) {
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	bpID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	stub := &stubBillingPackageService{updateResult: &model.BillingPackage{ID: bpID.String(), Label: "Updated"}}
 	handler := &BillingPackageHandler{Service: stub}
@@ -305,9 +307,9 @@ func TestHuma_UpdateBillingPackage_Success(t *testing.T) {
 	assert.Equal(t, bpID.String(), got["id"])
 }
 
-func TestHuma_UpdateBillingPackage_Empty_NothingToUpdate(t *testing.T) {
-	orgID := uuid.New()
-	bpID := uuid.New()
+func TestUpdateBillingPackage_Empty_NothingToUpdate(t *testing.T) {
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	bpID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	stub := &stubBillingPackageService{}
 	handler := &BillingPackageHandler{Service: stub}
@@ -330,9 +332,9 @@ func TestHuma_UpdateBillingPackage_Empty_NothingToUpdate(t *testing.T) {
 	assert.Equal(t, constant.ErrNothingToUpdate.Error(), got["code"])
 }
 
-func TestHuma_DeleteBillingPackage_204Empty(t *testing.T) {
-	orgID := uuid.New()
-	bpID := uuid.New()
+func TestDeleteBillingPackage_204Empty(t *testing.T) {
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	bpID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	stub := &stubBillingPackageService{}
 	handler := &BillingPackageHandler{Service: stub}
@@ -351,13 +353,193 @@ func TestHuma_DeleteBillingPackage_204Empty(t *testing.T) {
 	assert.Equal(t, bpID, stub.gotDeleteID)
 }
 
+// doBillingPkgRequest issues one request against the ledger-scoped billing-package
+// app and returns the status, the decoded problem/resource body, and the raw bytes.
+func doBillingPkgRequest(t *testing.T, handler *BillingPackageHandler, method, url, body string) (int, map[string]any, []byte) {
+	t.Helper()
+
+	app := buildHumaBillingPackageApp(t, handler, true)
+
+	var req *http.Request
+	if body == "" {
+		req = httptest.NewRequest(method, url, nil)
+	} else {
+		req = httptest.NewRequest(method, url, bytes.NewBufferString(body))
+		req.Header.Set("Content-Type", "application/json")
+	}
+
+	resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
+	require.NoError(t, err)
+
+	defer func() { _ = resp.Body.Close() }()
+
+	raw, _ := io.ReadAll(resp.Body)
+
+	var got map[string]any
+	if len(raw) > 0 {
+		require.NoError(t, json.Unmarshal(raw, &got), "body: %s", string(raw))
+	}
+
+	return resp.StatusCode, got, raw
+}
+
+func TestCreateBillingPackage_ServiceError_Mapped(t *testing.T) {
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+
+	stub := &stubBillingPackageService{
+		createErr: pkg.ValidateBusinessError(constant.ErrBillingRouteOverlap, constant.EntityBillingPackage),
+	}
+	handler := &BillingPackageHandler{Service: stub}
+
+	status, got, raw := doBillingPkgRequest(t, handler, http.MethodPost,
+		billingPkgV2URL(orgID.String(), validLedgerUUID()), validBillingPackageJSON())
+
+	assert.Equal(t, http.StatusConflict, status, "body: %s", string(raw))
+	assert.Equal(t, constant.ErrBillingRouteOverlap.Error(), got["code"])
+	assert.True(t, stub.createCalled)
+}
+
+func TestCreateBillingPackage_NilResult_500(t *testing.T) {
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+
+	// A service that answers (nil, nil) is a contract breach, not a business
+	// outcome: the core turns it into an internal error rather than rendering a
+	// null resource body with a 201.
+	stub := &stubBillingPackageService{createResult: nil, createErr: nil}
+	handler := &BillingPackageHandler{Service: stub}
+
+	status, got, raw := doBillingPkgRequest(t, handler, http.MethodPost,
+		billingPkgV2URL(orgID.String(), validLedgerUUID()), validBillingPackageJSON())
+
+	assert.Equal(t, http.StatusInternalServerError, status, "body: %s", string(raw))
+	assert.Equal(t, constant.ErrInternalServer.Error(), got["code"])
+}
+
+func TestGetAllBillingPackages_LimitAboveMax_Canonical400(t *testing.T) {
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+
+	stub := &stubBillingPackageService{}
+	handler := &BillingPackageHandler{Service: stub}
+
+	status, got, raw := doBillingPkgRequest(t, handler, http.MethodGet,
+		billingPkgV2URL(orgID.String(), validLedgerUUID())+"?limit=101", "")
+
+	assert.Equal(t, http.StatusBadRequest, status, "body: %s", string(raw))
+	assert.Equal(t, constant.ErrPaginationLimitExceeded.Error(), got["code"])
+	assert.Equal(t, uuid.Nil, stub.gotGetAllOrg, "the limit ceiling must be enforced before the service call")
+}
+
+func TestGetAllBillingPackages_LimitBelowOne_Canonical400(t *testing.T) {
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+
+	handler := &BillingPackageHandler{Service: &stubBillingPackageService{}}
+
+	status, got, raw := doBillingPkgRequest(t, handler, http.MethodGet,
+		billingPkgV2URL(orgID.String(), validLedgerUUID())+"?limit=0", "")
+
+	assert.Equal(t, http.StatusBadRequest, status, "body: %s", string(raw))
+	assert.Equal(t, constant.ErrInvalidQueryParameter.Error(), got["code"])
+}
+
+func TestGetAllBillingPackages_BadPage_Canonical400(t *testing.T) {
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+
+	handler := &BillingPackageHandler{Service: &stubBillingPackageService{}}
+
+	status, got, raw := doBillingPkgRequest(t, handler, http.MethodGet,
+		billingPkgV2URL(orgID.String(), validLedgerUUID())+"?page=xyz", "")
+
+	assert.Equal(t, http.StatusBadRequest, status, "body: %s", string(raw))
+	assert.Equal(t, constant.ErrInvalidQueryParameter.Error(), got["code"])
+}
+
+func TestGetAllBillingPackages_ServiceError_Mapped(t *testing.T) {
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+
+	stub := &stubBillingPackageService{
+		getAllErr: pkg.ValidateBusinessError(constant.ErrBillingCalculationFailed, constant.EntityBillingPackage, "boom"),
+	}
+	handler := &BillingPackageHandler{Service: stub}
+
+	status, got, raw := doBillingPkgRequest(t, handler, http.MethodGet,
+		billingPkgV2URL(orgID.String(), validLedgerUUID()), "")
+
+	assert.Equal(t, http.StatusInternalServerError, status, "body: %s", string(raw))
+	assert.Equal(t, constant.ErrBillingCalculationFailed.Error(), got["code"])
+}
+
+func TestGetBillingPackageByID_NotFound_404(t *testing.T) {
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	bpID := uuid.Must(libCommons.GenerateUUIDv7())
+
+	stub := &stubBillingPackageService{
+		getByIDErr: pkg.ValidateBusinessError(constant.ErrBillingPackageNotFound, constant.EntityBillingPackage, bpID.String()),
+	}
+	handler := &BillingPackageHandler{Service: stub}
+
+	status, got, raw := doBillingPkgRequest(t, handler, http.MethodGet,
+		billingPkgV2URL(orgID.String(), validLedgerUUID())+"/"+bpID.String(), "")
+
+	assert.Equal(t, http.StatusNotFound, status, "body: %s", string(raw))
+	assert.Equal(t, constant.ErrBillingPackageNotFound.Error(), got["code"])
+}
+
+func TestUpdateBillingPackage_BlankLabel_Canonical400(t *testing.T) {
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	bpID := uuid.Must(libCommons.GenerateUUIDv7())
+
+	stub := &stubBillingPackageService{}
+	handler := &BillingPackageHandler{Service: stub}
+
+	status, got, raw := doBillingPkgRequest(t, handler, http.MethodPatch,
+		billingPkgV2URL(orgID.String(), validLedgerUUID())+"/"+bpID.String(), `{"label":"   "}`)
+
+	assert.Equal(t, http.StatusBadRequest, status, "body: %s", string(raw))
+	assert.Equal(t, constant.ErrMissingFieldsInRequest.Error(), got["code"])
+	assert.False(t, stub.updateCalled, "merge-patch validation must short-circuit before the service")
+}
+
+func TestUpdateBillingPackage_NotFound_404(t *testing.T) {
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	bpID := uuid.Must(libCommons.GenerateUUIDv7())
+
+	stub := &stubBillingPackageService{
+		updateErr: pkg.ValidateBusinessError(constant.ErrBillingPackageNotFound, constant.EntityBillingPackage, bpID.String()),
+	}
+	handler := &BillingPackageHandler{Service: stub}
+
+	status, got, raw := doBillingPkgRequest(t, handler, http.MethodPatch,
+		billingPkgV2URL(orgID.String(), validLedgerUUID())+"/"+bpID.String(), `{"label":"X"}`)
+
+	assert.Equal(t, http.StatusNotFound, status, "body: %s", string(raw))
+	assert.Equal(t, constant.ErrBillingPackageNotFound.Error(), got["code"])
+	assert.True(t, stub.updateCalled)
+}
+
+func TestDeleteBillingPackage_NotFound_404(t *testing.T) {
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	bpID := uuid.Must(libCommons.GenerateUUIDv7())
+
+	stub := &stubBillingPackageService{
+		deleteErr: pkg.ValidateBusinessError(constant.ErrBillingPackageNotFound, constant.EntityBillingPackage, bpID.String()),
+	}
+	handler := &BillingPackageHandler{Service: stub}
+
+	status, got, raw := doBillingPkgRequest(t, handler, http.MethodDelete,
+		billingPkgV2URL(orgID.String(), validLedgerUUID())+"/"+bpID.String(), "")
+
+	assert.Equal(t, http.StatusNotFound, status, "body: %s", string(raw))
+	assert.Equal(t, constant.ErrBillingPackageNotFound.Error(), got["code"])
+	assert.True(t, stub.deleteCalled)
+}
+
 func validBillingCalculateJSON(ledgerID string) string {
 	return `{"ledgerId":"` + ledgerID + `","period":"2026-01","type":"volume"}`
 }
 
-func TestHuma_CalculateBilling_Success(t *testing.T) {
-	orgID := uuid.New()
-	ledgerID := uuid.New()
+func TestCalculateBilling_Success(t *testing.T) {
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	stub := &stubBillingCalculateService{
 		result: &model.BillingCalculateResponse{Summary: model.BillingCalculateSummary{TotalResults: 3}},
@@ -386,8 +568,8 @@ func TestHuma_CalculateBilling_Success(t *testing.T) {
 	assert.EqualValues(t, 3, summary["totalResults"])
 }
 
-func TestHuma_CalculateBilling_AuthPreserved(t *testing.T) {
-	orgID := uuid.New()
+func TestCalculateBilling_AuthPreserved(t *testing.T) {
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	handler := &BillingCalculateHandler{Service: &stubBillingCalculateService{}}
 	app := buildHumaBillingCalculateApp(t, handler, false)
@@ -402,8 +584,8 @@ func TestHuma_CalculateBilling_AuthPreserved(t *testing.T) {
 	assert.Equal(t, http.StatusUnauthorized, resp.StatusCode, "auth middleware must reject before Huma")
 }
 
-func TestHuma_CalculateBilling_MissingLedger_Canonical400(t *testing.T) {
-	orgID := uuid.New()
+func TestCalculateBilling_MissingLedger_Canonical400(t *testing.T) {
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	handler := &BillingCalculateHandler{Service: &stubBillingCalculateService{}}
 	app := buildHumaBillingCalculateApp(t, handler, true)
@@ -429,8 +611,8 @@ func TestHuma_CalculateBilling_MissingLedger_Canonical400(t *testing.T) {
 	assert.Equal(t, constant.ErrMissingFieldsInRequest.Error(), got["code"])
 }
 
-func TestHuma_CalculateBilling_MalformedLedger_Canonical400(t *testing.T) {
-	orgID := uuid.New()
+func TestCalculateBilling_MalformedLedger_Canonical400(t *testing.T) {
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	handler := &BillingCalculateHandler{Service: &stubBillingCalculateService{}}
 	app := buildHumaBillingCalculateApp(t, handler, true)
@@ -453,9 +635,9 @@ func TestHuma_CalculateBilling_MalformedLedger_Canonical400(t *testing.T) {
 	assert.Equal(t, constant.ErrInvalidLedgerID.Error(), got["code"])
 }
 
-func TestHuma_CalculateBilling_ServiceError_Mapped(t *testing.T) {
-	orgID := uuid.New()
-	ledgerID := uuid.New()
+func TestCalculateBilling_ServiceError_Mapped(t *testing.T) {
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	stub := &stubBillingCalculateService{err: pkg.ValidateBusinessError(constant.ErrInvalidPathParameter, "", "packageId")}
 	handler := &BillingCalculateHandler{Service: stub}
@@ -476,4 +658,132 @@ func TestHuma_CalculateBilling_ServiceError_Mapped(t *testing.T) {
 	var got map[string]any
 	require.NoError(t, json.Unmarshal(respBody, &got), "body: %s", string(respBody))
 	assert.Equal(t, constant.ErrInvalidPathParameter.Error(), got["code"])
+}
+
+//
+// The CalculateBilling fiber.Ctx terminal was deleted with the Huma migration. Its
+// tests covered the request validators and the nil-result guard, which the Huma
+// suite did not reach.
+
+func TestValidateBillingPeriod(t *testing.T) {
+	// Pure validator: the calendar branches are cheaper and clearer exercised
+	// directly than through six HTTP round-trips.
+	tests := []struct {
+		name    string
+		period  string
+		wantErr bool
+	}{
+		{"empty is rejected", "", true},
+		{"full date is accepted", "2026-03-14", false},
+		{"month is accepted", "2026-03", false},
+		{"valid ISO week is accepted", "2026-W07", false},
+		{"nonexistent ISO week is rejected", "2026-W99", true},
+		{"free text is rejected", "last-march", true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := validateBillingPeriod(tt.period)
+			if tt.wantErr {
+				require.Error(t, err)
+				assert.Contains(t, err.Error(), constant.ErrInvalidBillingPeriod.Error())
+
+				return
+			}
+
+			assert.NoError(t, err)
+		})
+	}
+}
+
+func TestValidateBillingCalculateRequest(t *testing.T) {
+	// Pure validator. Each case isolates one guard; the period cases live in
+	// TestValidateBillingPeriod.
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7()).String()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7()).String()
+
+	base := func() *model.BillingCalculateRequest {
+		return &model.BillingCalculateRequest{OrganizationID: orgID, LedgerID: ledgerID, Period: "2026-03"}
+	}
+
+	tests := []struct {
+		name    string
+		mutate  func(r *model.BillingCalculateRequest)
+		wantErr string
+	}{
+		{"valid request passes", func(*model.BillingCalculateRequest) {}, ""},
+		{"missing organization", func(r *model.BillingCalculateRequest) { r.OrganizationID = "" }, constant.ErrFeeInvalidHeaderParameter.Error()},
+		{"missing ledger", func(r *model.BillingCalculateRequest) { r.LedgerID = "" }, constant.ErrInvalidLedgerID.Error()},
+		{"malformed ledger", func(r *model.BillingCalculateRequest) { r.LedgerID = "not-a-uuid" }, constant.ErrInvalidLedgerID.Error()},
+		{"unknown package type", func(r *model.BillingCalculateRequest) { r.Type = "subscription" }, constant.ErrInvalidBillingPackageType.Error()},
+		{"volume type passes", func(r *model.BillingCalculateRequest) { r.Type = model.BillingPackageTypeVolume }, ""},
+		{"maintenance type passes", func(r *model.BillingCalculateRequest) { r.Type = model.BillingPackageTypeMaintenance }, ""},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			req := base()
+			tt.mutate(req)
+
+			err := validateBillingCalculateRequest(req)
+			if tt.wantErr == "" {
+				assert.NoError(t, err)
+
+				return
+			}
+
+			require.Error(t, err)
+			assert.Contains(t, err.Error(), tt.wantErr)
+		})
+	}
+}
+
+func TestCalculateBilling_NilResult_500(t *testing.T) {
+	// The service returning (nil, nil) must not surface as a 200 with an empty
+	// body; calculateBilling turns it into a canonical internal error.
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
+
+	stub := &stubBillingCalculateService{result: nil}
+	handler := &BillingCalculateHandler{Service: stub}
+
+	app := buildHumaBillingCalculateApp(t, handler, true)
+
+	req := httptest.NewRequest(http.MethodPost, billingCalcV2URL(orgID.String(), ledgerID.String()), bytes.NewBufferString(validBillingCalculateJSON(ledgerID.String())))
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
+	require.NoError(t, err)
+	defer func() { _ = resp.Body.Close() }()
+
+	respBody, _ := io.ReadAll(resp.Body)
+	assert.Equal(t, http.StatusInternalServerError, resp.StatusCode, "body: %s", string(respBody))
+	assert.True(t, stub.called)
+}
+
+func TestCalculateBilling_InvalidPeriod_Canonical400(t *testing.T) {
+	// The period guard runs inside calculateBilling, before the service call.
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
+
+	stub := &stubBillingCalculateService{}
+	handler := &BillingCalculateHandler{Service: stub}
+
+	app := buildHumaBillingCalculateApp(t, handler, true)
+
+	body := `{"ledgerId":"` + ledgerID.String() + `","period":"2026-W99"}`
+	req := httptest.NewRequest(http.MethodPost, billingCalcV2URL(orgID.String(), ledgerID.String()), bytes.NewBufferString(body))
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
+	require.NoError(t, err)
+	defer func() { _ = resp.Body.Close() }()
+
+	respBody, _ := io.ReadAll(resp.Body)
+	assert.Equal(t, http.StatusBadRequest, resp.StatusCode, "body: %s", string(respBody))
+	assert.False(t, stub.called, "an invalid period must never reach the service")
+
+	var got map[string]any
+	require.NoError(t, json.Unmarshal(respBody, &got), "body: %s", string(respBody))
+	assert.Equal(t, constant.ErrInvalidBillingPeriod.Error(), got["code"])
 }

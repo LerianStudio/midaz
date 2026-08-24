@@ -8,15 +8,21 @@ import (
 	"context"
 	"testing"
 
+	libObservability "github.com/LerianStudio/lib-observability/v2"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/mongodb/fees/pack"
 	mongoPack "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/mongodb/fees/pack"
 	"github.com/LerianStudio/midaz/v4/components/ledger/pkg/feeshared/model"
+	"github.com/LerianStudio/midaz/v4/pkg"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
 
 	transaction "github.com/LerianStudio/midaz/v4/pkg/mtransaction"
 	"github.com/google/uuid"
 	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"go.opentelemetry.io/otel/codes"
+	sdktrace "go.opentelemetry.io/otel/sdk/trace"
+	"go.opentelemetry.io/otel/sdk/trace/tracetest"
 	"go.uber.org/mock/gomock"
 )
 
@@ -1625,4 +1631,139 @@ func TestCalculateFee_MultiplePackages_ValueOutOfRange(t *testing.T) {
 	ctx := context.Background()
 	err := feeSvc.CalculateFee(ctx, feeInput, orgID)
 	assert.NoError(t, err)
+}
+
+// TestCalculateFee_TechnicalError_MalformedSegmentWaiver drives a NON-business
+// (technical) error out of feeUtils.CalculateFee so recordSpanError takes its
+// HandleSpanError arm — the technical/5xx side of the T5 span classification.
+// A package whose waivedAccounts carries "segment:<not-a-uuid>" fails segment
+// waiver resolution with a bare error that pkg.IsBusinessError must NOT accept
+// as business: were that predicate ever inverted, every technical fee failure
+// would be reported on a green span. Both CalculateFee tails are exercised, the
+// single-package one and the multi-package one.
+func TestCalculateFee_TechnicalError_MalformedSegmentWaiver(t *testing.T) {
+	t.Parallel()
+
+	const malformedWaiver = "segment:not-a-uuid"
+
+	isDeductible := false
+
+	validFee := model.Fee{
+		FeeLabel: "TestFee",
+		CalculationModel: &model.CalculationModel{
+			ApplicationRule: "flatFee",
+			Calculations: []model.Calculation{{
+				Type:  "flat",
+				Value: "100",
+			}},
+		},
+		ReferenceAmount:  "originalAmount",
+		Priority:         1,
+		IsDeductibleFrom: &isDeductible,
+		CreditAccount:    "@fee_account",
+	}
+
+	// newPackage builds an otherwise valid flat-fee package, so the only error
+	// the calculation can produce comes from the waivedAccounts entries.
+	newPackage := func(minAmount, maxAmount int64, waived []string) *pack.Package {
+		return &pack.Package{
+			ID:             uuid.New(),
+			MinimumAmount:  decimal.NewFromInt(minAmount),
+			MaximumAmount:  decimal.NewFromInt(maxAmount),
+			Fees:           map[string]model.Fee{"test": validFee},
+			WaivedAccounts: &waived,
+		}
+	}
+
+	tests := []struct {
+		name     string
+		packages []*pack.Package
+	}{
+		{
+			name:     "single package tail",
+			packages: []*pack.Package{newPackage(100, 2000, []string{malformedWaiver})},
+		},
+		{
+			// The second package is out of the amount range, so the filter
+			// selects the malformed one while len(packages) > 1 still routes
+			// through calculateFeeForMultiplePackages.
+			name: "multiple packages tail",
+			packages: []*pack.Package{
+				newPackage(100, 2000, []string{malformedWaiver}),
+				newPackage(5000, 9000, []string{}),
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			ctrl := gomock.NewController(t)
+			defer ctrl.Finish()
+
+			mockPackRepo := pack.NewMockRepository(ctrl)
+			orgID := uuid.New()
+			ledgerID := uuid.New()
+
+			feeSvc := &UseCase{
+				packageRepo: mockPackRepo,
+			}
+
+			feeInput := &model.FeeCalculate{
+				SegmentID: nil,
+				LedgerID:  ledgerID,
+				Transaction: transaction.Transaction{
+					Send: transaction.Send{
+						Asset: "BRL",
+						Value: decimal.NewFromInt(1000),
+						Source: transaction.Source{
+							From: []transaction.FromTo{{
+								Amount: &transaction.Amount{Asset: "BRL", Value: decimal.NewFromInt(1000)},
+							}},
+						},
+						Distribute: transaction.Distribute{
+							To: []transaction.FromTo{{
+								Amount: &transaction.Amount{Asset: "BRL", Value: decimal.NewFromInt(1000)},
+							}},
+						},
+					},
+				},
+			}
+
+			mockPackRepo.EXPECT().
+				FindByOrganizationIDAndLedgerID(gomock.Any(), orgID, ledgerID).
+				Return(tt.packages, nil)
+
+			// A real SDK tracer injected through the lib-observability context
+			// seam, so the span CalculateFee opens is recorded and its final
+			// status can be read back instead of only the branch predicate.
+			recorder := tracetest.NewSpanRecorder()
+			provider := sdktrace.NewTracerProvider(sdktrace.WithSpanProcessor(recorder))
+
+			ctx := libObservability.ContextWithTracer(context.Background(), provider.Tracer("fees_test"))
+			err := feeSvc.CalculateFee(ctx, feeInput, orgID)
+
+			assert.Error(t, err)
+			assert.ErrorContains(t, err, malformedWaiver)
+			assert.False(t, pkg.IsBusinessError(err),
+				"malformed segment waiver must stay technical so recordSpanError flips the span red")
+			assert.True(t, feeInput.Transaction.Send.Value.Equal(decimal.NewFromInt(1000)),
+				"a failed calculation must leave the send value untouched")
+
+			var recorded sdktrace.ReadOnlySpan
+
+			for _, s := range recorder.Ended() {
+				if s.Name() == "service.calculate_fee" {
+					recorded = s
+
+					break
+				}
+			}
+
+			require.NotNil(t, recorded, "the injected tracer must receive the service.calculate_fee span")
+			assert.Equal(t, codes.Error, recorded.Status().Code,
+				"a technical fee failure must leave the span status Error")
+		})
+	}
 }
