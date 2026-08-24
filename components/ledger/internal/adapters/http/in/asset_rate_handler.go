@@ -8,6 +8,7 @@ import (
 	"context"
 	"net/http"
 	"net/url"
+	"strings"
 
 	"github.com/danielgtaylor/huma/v2"
 
@@ -129,7 +130,7 @@ type ListAssetRatesByAssetCodeRequest struct {
 	OrganizationID string   `path:"organization_id" doc:"Organization ID (UUID)"`
 	LedgerID       string   `path:"ledger_id" doc:"Ledger ID (UUID)"`
 	AssetCode      string   `path:"asset_code" doc:"Source asset code"`
-	To             []string `query:"to" doc:"Filter by destination asset codes"`
+	To             []string `query:"to" doc:"Filter by destination asset codes; repeat the parameter or pass one comma-separated list"`
 	Limit          string   `query:"limit" doc:"Max items per page (1-100, default 10)"`
 	StartDate      string   `query:"start_date" doc:"Filter asset rates created on/after this date (YYYY-MM-DD)"`
 	EndDate        string   `query:"end_date" doc:"Filter asset rates created on/before this date (YYYY-MM-DD)"`
@@ -154,14 +155,15 @@ func (in *ListAssetRatesByAssetCodeRequest) Resolve(ctx huma.Context) []error {
 // matching Fiber's c.Queries() (last value wins for a repeated key, present-but-
 // empty keys included).
 func (in *ListAssetRatesByAssetCodeRequest) queries() map[string]string {
-	out := make(map[string]string, len(in.rawQuery))
-	for k, vs := range in.rawQuery {
-		if len(vs) == 0 {
-			out[k] = ""
-			continue
-		}
+	out := queriesFromValues(in.rawQuery)
 
-		out[k] = vs[len(vs)-1]
+	// `to` is the one key on this request that may legitimately repeat: the published
+	// parameter is an array, while ValidateParameters reads it by splitting a single
+	// value on commas. queriesFromValues keeps only the last value per key, so a
+	// repeated ?to=USD&to=EUR would silently filter on EUR alone. Joining restores
+	// every code the caller supplied and leaves the comma-separated spelling untouched.
+	if to := in.rawQuery["to"]; len(to) > 1 {
+		out["to"] = strings.Join(to, ",")
 	}
 
 	return out

@@ -69,7 +69,7 @@ func (handler *BillingPackageHandler) createBillingPackage(ctx context.Context, 
 
 	span.SetAttributes(
 		attribute.String("app.request.payload.type", payload.Type),
-		attribute.String("app.request.payload.label", payload.Label),
+		attribute.Bool("app.request.payload.has_label", payload.Label != ""),
 		attribute.String("app.request.payload.ledger_id", payload.LedgerID),
 		attribute.Bool("app.request.payload.has_enable", payload.Enable != nil),
 		attribute.Bool("app.request.payload.enable", payload.Enable != nil && *payload.Enable),

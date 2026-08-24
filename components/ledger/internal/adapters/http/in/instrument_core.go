@@ -205,6 +205,8 @@ func (handler *InstrumentHandler) getAllInstruments(ctx context.Context, organiz
 
 			return http.Pagination{}, err
 		}
+
+		span.SetAttributes(attribute.String("app.request.holder_id", holderID.String()))
 	}
 
 	pagination := http.Pagination{
@@ -218,12 +220,6 @@ func (handler *InstrumentHandler) getAllInstruments(ctx context.Context, organiz
 		attribute.String("app.request.organization_id", organizationID.String()),
 		attribute.Bool("app.request.include_deleted", includeDeleted),
 	)
-
-	if !libCommons.IsNilOrEmpty(headerParams.HolderID) {
-		span.SetAttributes(
-			attribute.String("app.request.holder_id", holderID.String()),
-		)
-	}
 
 	recordSafeQueryAttributes(span, headerParams)
 

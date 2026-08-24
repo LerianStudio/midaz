@@ -27,31 +27,31 @@
 service: midaz
 version: 1
 permissions:
-  # account-types (account_type_handler.go:363)
+  # account-types (account_type_routes.go registerAccountTypeRoutesToApp)
   - { resource: account-types, action: post,   effect: allow, roles: [editor] }
   - { resource: account-types, action: patch,  effect: allow, roles: [editor] }
   - { resource: account-types, action: get,    effect: allow, roles: [editor, viewer] }
   - { resource: account-types, action: delete, effect: allow, roles: [editor] }
 
-  # accounts (account_handler.go:498)
+  # accounts (account_routes.go registerAccountRoutesToApp)
   - { resource: accounts, action: post,   effect: allow, roles: [editor] }
   - { resource: accounts, action: patch,  effect: allow, roles: [editor] }
   - { resource: accounts, action: get,    effect: allow, roles: [editor, viewer] }
   - { resource: accounts, action: delete, effect: allow, roles: [editor] }
   - { resource: accounts, action: head,   effect: allow, roles: [editor, viewer] }
 
-  # asset-rates (asset_rate_handler.go:276)
+  # asset-rates (asset_rate_routes.go registerAssetRateRoutesToApp)
   - { resource: asset-rates, action: put, effect: allow, roles: [editor] }
   - { resource: asset-rates, action: get, effect: allow, roles: [editor, viewer] }
 
-  # assets (routes.go:55)
+  # assets (asset_routes.go registerAssetRoutesToApp)
   - { resource: assets, action: post,   effect: allow, roles: [editor] }
   - { resource: assets, action: patch,  effect: allow, roles: [editor] }
   - { resource: assets, action: get,    effect: allow, roles: [editor, viewer] }
   - { resource: assets, action: delete, effect: allow, roles: [editor] }
   - { resource: assets, action: head,   effect: allow, roles: [editor, viewer] }
 
-  # balances (routes.go:106)
+  # balances (balance_routes.go registerBalanceRoutesToApp)
   - { resource: balances, action: get,    effect: allow, roles: [editor, viewer] }
   - { resource: balances, action: patch,  effect: allow, roles: [editor] }
   - { resource: balances, action: delete, effect: allow, roles: [editor] }
@@ -73,31 +73,31 @@ permissions:
   - { resource: instruments, action: patch,  effect: allow, roles: [editor] }
   - { resource: instruments, action: delete, effect: allow, roles: [editor] }
 
-  # ledgers (ledger_handler.go:524)
+  # ledgers (ledger_routes.go registerLedgerRoutesToApp)
   - { resource: ledgers, action: post,   effect: allow, roles: [editor] }
   - { resource: ledgers, action: patch,  effect: allow, roles: [editor] }
   - { resource: ledgers, action: get,    effect: allow, roles: [editor, viewer] }
   - { resource: ledgers, action: delete, effect: allow, roles: [editor] }
   - { resource: ledgers, action: head,   effect: allow, roles: [editor, viewer] }
 
-  # operation-routes (routes.go:273)
+  # operation-routes (operation_route_routes.go registerOperationRouteRoutesToApp)
   - { resource: operation-routes, action: post,   effect: allow, roles: [editor] }
   - { resource: operation-routes, action: patch,  effect: allow, roles: [editor] }
   - { resource: operation-routes, action: get,    effect: allow, roles: [editor, viewer] }
   - { resource: operation-routes, action: delete, effect: allow, roles: [editor] }
 
-  # operations (routes.go:157)
+  # operations (operation_routes.go registerOperationRoutesToApp)
   - { resource: operations, action: get,   effect: allow, roles: [editor, viewer] }
   - { resource: operations, action: patch, effect: allow, roles: [editor] }
 
-  # organizations (organization_handler.go:372)
+  # organizations (organization_routes.go registerOrganizationRoutesToApp)
   - { resource: organizations, action: post,   effect: allow, roles: [editor] }
   - { resource: organizations, action: patch,  effect: allow, roles: [editor] }
   - { resource: organizations, action: get,    effect: allow, roles: [editor, viewer] }
   - { resource: organizations, action: delete, effect: allow, roles: [editor] }
   - { resource: organizations, action: head,   effect: allow, roles: [editor, viewer] }
 
-  # portfolios (portfolio_handler.go:376)
+  # portfolios (portfolio_routes.go registerPortfolioRoutesToApp)
   - { resource: portfolios, action: post,   effect: allow, roles: [editor] }
   - { resource: portfolios, action: patch,  effect: allow, roles: [editor] }
   - { resource: portfolios, action: get,    effect: allow, roles: [editor, viewer] }
@@ -107,28 +107,30 @@ permissions:
   # protection — CRM audit-trail read (audit_routes.go registerAuditRoutesToApp)
   - { resource: protection, action: get, effect: allow, roles: [editor, viewer] }
 
-  # segments (segment_handler.go:392)
+  # segments (segment_routes.go registerSegmentRoutesToApp)
   - { resource: segments, action: post,   effect: allow, roles: [editor] }
   - { resource: segments, action: patch,  effect: allow, roles: [editor] }
   - { resource: segments, action: get,    effect: allow, roles: [editor, viewer] }
   - { resource: segments, action: delete, effect: allow, roles: [editor] }
   - { resource: segments, action: head,   effect: allow, roles: [editor, viewer] }
 
-  # settings — entity metadata (metadata_handler.go:243)
+  # settings — entity metadata (metadata_routes.go registerMetadataIndexRoutesToApp)
   - { resource: settings, action: post,   effect: allow, roles: [editor] }
   - { resource: settings, action: get,    effect: allow, roles: [editor, viewer] }
   - { resource: settings, action: delete, effect: allow, roles: [editor] }
 
-  # streaming-manifest — event catalog (streaming_manifest_routes.go:35)
+  # streaming-manifest — event catalog (streaming_manifest_routes.go RegisterStreamingManifestRouteToApp)
   - { resource: streaming-manifest, action: get, effect: allow, roles: [editor, viewer] }
 
-  # transaction-routes (routes.go:315)
+  # transaction-routes (transaction_route_routes.go registerTransactionRouteRoutesToApp)
   - { resource: transaction-routes, action: post,   effect: allow, roles: [editor] }
   - { resource: transaction-routes, action: patch,  effect: allow, roles: [editor] }
   - { resource: transaction-routes, action: get,    effect: allow, roles: [editor, viewer] }
   - { resource: transaction-routes, action: delete, effect: allow, roles: [editor] }
 
-  # transactions (routes.go:217; v2 at transaction_v2_mirror_register.go:103; head at routes.go:196)
+  # transactions (transaction_routes.go RegisterTransactionHumaRoutesToApp;
+  # v2 at transaction_routes_v2.go RegisterTransactionV2RoutesToApp and
+  # transaction_v2_mirror_register.go RegisterTransactionMirrorV2RoutesToApp)
   - { resource: transactions, action: post,  effect: allow, roles: [editor] }
   - { resource: transactions, action: patch, effect: allow, roles: [editor] }
   - { resource: transactions, action: get,   effect: allow, roles: [editor, viewer] }

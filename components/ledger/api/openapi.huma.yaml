@@ -6219,12 +6219,12 @@ paths:
           schema:
             description: Source asset code
             type: string
-        - description: Filter by destination asset codes
+        - description: Filter by destination asset codes; repeat the parameter or pass one comma-separated list
           explode: false
           in: query
           name: to
           schema:
-            description: Filter by destination asset codes
+            description: Filter by destination asset codes; repeat the parameter or pass one comma-separated list
             items:
               type: string
             type:

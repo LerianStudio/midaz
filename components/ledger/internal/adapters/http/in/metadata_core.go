@@ -79,41 +79,15 @@ func (handler *MetadataIndexHandler) getMongoManager(entityName string) *tmmongo
 }
 
 func (handler *MetadataIndexHandler) contextForEntity(ctx context.Context, entityName string) (context.Context, error) {
-	tenantID := tmcore.GetTenantIDContext(ctx)
-
-	mongoManager := handler.getMongoManager(entityName)
-	if tenantID == "" {
-		if mongoManager != nil {
-			return nil, fmt.Errorf("tenant id is required for entity %s", entityName)
-		}
-
-		return ctx, nil
-	}
-
-	if mongoManager == nil {
-		return nil, fmt.Errorf("multi-tenant mongo manager not configured for entity %s", entityName)
-	}
-
-	tenantDB, err := mongoManager.GetDatabaseForTenant(ctx, tenantID)
-	if err != nil {
-		return nil, mapTenantError(ctx, err, tenantID)
-	}
-
-	// Store in both generic and module-specific context keys.
-	ctx = tmcore.ContextWithMB(ctx, tenantDB)
-
-	// Determine module name based on entity type for module-specific injection.
+	module := constant.ModuleTransaction
 	if _, ok := onboardingEntities[entityName]; ok {
-		ctx = tmcore.ContextWithMB(ctx, tenantDB, constant.ModuleOnboarding)
-	} else {
-		ctx = tmcore.ContextWithMB(ctx, tenantDB, constant.ModuleTransaction)
+		module = constant.ModuleOnboarding
 	}
 
-	return ctx, nil
+	return tenantContext(ctx, handler.getMongoManager(entityName), module, "entity "+entityName)
 }
 
 func (handler *MetadataIndexHandler) contextForRepoGroup(ctx context.Context, onboardingRepo bool) (context.Context, error) {
-	tenantID := tmcore.GetTenantIDContext(ctx)
 	mongoManager := handler.TransactionMongoManager
 	groupName := constant.ModuleTransaction
 
@@ -122,16 +96,29 @@ func (handler *MetadataIndexHandler) contextForRepoGroup(ctx context.Context, on
 		groupName = constant.ModuleOnboarding
 	}
 
+	return tenantContext(ctx, mongoManager, groupName, groupName+" metadata indexes")
+}
+
+// tenantContext resolves the tenant database for the caller's mongo manager and injects
+// it under both the generic and the module-specific context key. subject names what the
+// caller is resolving for and appears verbatim in both error messages.
+//
+// A manager is the signal that this build is multi-tenant: with one configured, an absent
+// tenant ID is a caller error; with none, an absent tenant ID is single-tenant operation
+// and the context rides through untouched.
+func tenantContext(ctx context.Context, mongoManager *tmmongo.Manager, module, subject string) (context.Context, error) {
+	tenantID := tmcore.GetTenantIDContext(ctx)
+
 	if tenantID == "" {
 		if mongoManager != nil {
-			return nil, fmt.Errorf("tenant id is required for %s metadata indexes", groupName)
+			return nil, fmt.Errorf("tenant id is required for %s", subject)
 		}
 
 		return ctx, nil
 	}
 
 	if mongoManager == nil {
-		return nil, fmt.Errorf("multi-tenant mongo manager not configured for %s metadata indexes", groupName)
+		return nil, fmt.Errorf("multi-tenant mongo manager not configured for %s", subject)
 	}
 
 	tenantDB, err := mongoManager.GetDatabaseForTenant(ctx, tenantID)
@@ -139,9 +126,8 @@ func (handler *MetadataIndexHandler) contextForRepoGroup(ctx context.Context, on
 		return nil, mapTenantError(ctx, err, tenantID)
 	}
 
-	// Store in both generic and module-specific context keys.
 	ctx = tmcore.ContextWithMB(ctx, tenantDB)
-	ctx = tmcore.ContextWithMB(ctx, tenantDB, groupName)
+	ctx = tmcore.ContextWithMB(ctx, tenantDB, module)
 
 	return ctx, nil
 }

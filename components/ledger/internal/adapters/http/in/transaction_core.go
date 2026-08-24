@@ -82,10 +82,10 @@ func (handler *TransactionHandler) getTransaction(ctx context.Context, organizat
 		return nil, false, err
 	}
 
-	ctxGetTransaction, spanGetTransaction := tracer.Start(ctx, "handler.get_transaction.get_operations")
+	_, spanGetTransaction := tracer.Start(ctx, "handler.get_transaction.get_operations")
 	defer spanGetTransaction.End()
 
-	tran, err = handler.Query.GetOperationsByTransaction(ctxGetTransaction, organizationID, ledgerID, tran, *headerParams)
+	tran, err = handler.Query.GetOperationsByTransaction(ctx, organizationID, ledgerID, tran, *headerParams)
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(spanGetTransaction, "Failed to retrieve Operations", err)
 		logger.Log(ctx, libLog.LevelError, "Failed to retrieve operations",
