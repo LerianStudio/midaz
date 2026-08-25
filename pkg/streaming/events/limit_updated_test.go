@@ -27,7 +27,7 @@ func TestNewLimitUpdated_MapsMinimalLimit(t *testing.T) {
 	assert.Equal(t, fixedLimitUUID.String(), payload.ID)
 	assert.Equal(t, "DRAFT", payload.Status)
 	assert.Equal(t, "DAILY", payload.LimitType)
-	assert.Equal(t, "USD", payload.Currency)
+	assert.Equal(t, "USD", payload.Asset)
 	require.NotNil(t, payload.Scopes)
 	assert.Len(t, payload.Scopes, 0)
 	assert.Nil(t, payload.ActiveTimeStart)
@@ -74,7 +74,7 @@ func TestLimitUpdatedPayload_JSONShape(t *testing.T) {
 		"id":              {},
 		"status":          {},
 		"limitType":       {},
-		"currency":        {},
+		"asset":           {},
 		"scopes":          {},
 		"activeTimeStart": {},
 		"activeTimeEnd":   {},

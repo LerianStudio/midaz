@@ -265,7 +265,7 @@ Source: `pkg/streaming/events/limit_created.go`, `limit_updated.go`.
   "id":              "uuid",
   "status":          "DRAFT | ACTIVE | INACTIVE | DELETED",
   "limitType":       "DAILY | WEEKLY | MONTHLY | CUSTOM | PER_TRANSACTION",
-  "currency":        "ISO-4217",
+  "asset":           "asset code",
   "scopes":          [ { /* RuleScopePayload — 6 keys */ } ],
   "activeTimeStart": "HH:MM | null",
   "activeTimeEnd":   "HH:MM | null",
@@ -282,7 +282,7 @@ Source: `pkg/streaming/events/limit_created.go`, `limit_updated.go`.
 | `id` | string | Limit ID. |
 | `status` | string | `DRAFT` / `ACTIVE` / `INACTIVE` / `DELETED`. |
 | `limitType` | string | `DAILY` / `WEEKLY` / `MONTHLY` / `CUSTOM` / `PER_TRANSACTION`. |
-| `currency` | string | ISO-4217 code. |
+| `asset` | string | Asset code. |
 | `scopes` | array | Shared `RuleScopePayload` elements (6 keys each); `[]` when empty. |
 | `activeTimeStart` | string \| null | Time-of-day window start (`HH:MM`), `null` when unset. |
 | `activeTimeEnd` | string \| null | Time-of-day window end (`HH:MM`), `null` when unset. |
@@ -311,7 +311,7 @@ Source: `pkg/streaming/events/limit_activated.go`, `limit_deactivated.go`,
 Unlike Rule, the Limit domain model has no `ActivatedAt` / `DeactivatedAt`
 fields, so all three status-transition events carry the same minimal shape.
 
-**Excluded:** `limitType`, `currency`, `scopes`, all time-window fields,
+**Excluded:** `limitType`, `asset`, `scopes`, all time-window fields,
 `name`, `description`, `maxAmount`.
 
 ### `limit.deleted` — 2 fields
@@ -325,7 +325,7 @@ Source: `pkg/streaming/events/limit_deleted.go`. `ce-subject` = limit ID.
 }
 ```
 
-**Excluded:** `status`, `limitType`, `currency`, `scopes`, all time-window
+**Excluded:** `status`, `limitType`, `asset`, `scopes`, all time-window
 fields, `name`, `description`, `maxAmount`.
 
 ## What is deliberately off the wire, and why
