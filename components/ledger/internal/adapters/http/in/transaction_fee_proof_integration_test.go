@@ -11,7 +11,6 @@ import (
 
 	cn "github.com/LerianStudio/midaz/v4/pkg/constant"
 	postgrestestutil "github.com/LerianStudio/midaz/v4/tests/utils/postgres"
-	"github.com/google/uuid"
 	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -116,7 +115,7 @@ func TestFeeProof_T16_C1_FeeLegsSumToFeeTotal(t *testing.T) {
 			wantTotal, err := decimal.NewFromString(tc.wantTotal)
 			require.NoError(t, err)
 
-			feeLegs := feeCreditLegs(legs, tc.feeAcct)
+			feeLegs := legsFor(legs, tc.feeAcct, "CREDIT")
 			require.NotEmpty(t, feeLegs, "fee credit legs must be persisted for %s", tc.feeAcct)
 
 			gotTotal := sumAmounts(feeLegs)
@@ -129,16 +128,6 @@ func TestFeeProof_T16_C1_FeeLegsSumToFeeTotal(t *testing.T) {
 			}
 		})
 	}
-}
-
-// mustTxID extracts the transaction id from a successful create response.
-func mustTxID(t *testing.T, resp txResponse) uuid.UUID {
-	t.Helper()
-	idStr, ok := resp.body["id"].(string)
-	require.Truef(t, ok, "response must contain id: %s", string(resp.rawBody))
-	id, err := uuid.Parse(idStr)
-	require.NoError(t, err, "transaction id must be a valid UUID")
-	return id
 }
 
 // TestFeeProof_T16_C3_ProportionalSplitRepeatingDecimals is proof class 3:
@@ -185,7 +174,7 @@ func TestFeeProof_T16_C3_ProportionalSplitRepeatingDecimals(t *testing.T) {
 	legs := loadLegs(t, h.db, txID)
 	requireBalanced(t, legs, "proportional split")
 
-	feeLegs := feeCreditLegs(legs, "@fee_rev")
+	feeLegs := legsFor(legs, "@fee_rev", "CREDIT")
 	gotTotal := sumAmounts(feeLegs)
 	want := decimal.NewFromInt(10)
 	assert.Truef(t, gotTotal.Equal(want),
@@ -230,7 +219,7 @@ func TestFeeProof_T16_C4_SegmentAndAliasExemption(t *testing.T) {
 		txID := mustTxID(t, resp)
 		legs := loadLegs(t, h.db, txID)
 		requireBalanced(t, legs, "alias exemption")
-		assert.Empty(t, feeCreditLegs(legs, "@fee_rev"), "exempt payer must incur NO fee legs")
+		assert.Empty(t, legsFor(legs, "@fee_rev", "CREDIT"), "exempt payer must incur NO fee legs")
 	})
 
 	t.Run("segment_exemption_over_100_accounts", func(t *testing.T) {
@@ -277,7 +266,7 @@ func TestFeeProof_T16_C4_SegmentAndAliasExemption(t *testing.T) {
 		txID := mustTxID(t, resp)
 		legs := loadLegs(t, h.db, txID)
 		requireBalanced(t, legs, "segment exemption")
-		assert.Empty(t, feeCreditLegs(legs, "@fee_rev"),
+		assert.Empty(t, legsFor(legs, "@fee_rev", "CREDIT"),
 			"account in waived segment (account #150, past page 1) must be fully traversed and exempt")
 	})
 }
@@ -359,7 +348,7 @@ func TestFeeProof_T16_C10_FeeLegOpShapeReversible(t *testing.T) {
 	require.Equalf(t, 201, resp.status, "create must succeed: %s", string(resp.rawBody))
 
 	txID := mustTxID(t, resp)
-	feeLegs := feeCreditLegs(loadLegs(t, h.db, txID), "@fee_rev")
+	feeLegs := legsFor(loadLegs(t, h.db, txID), "@fee_rev", "CREDIT")
 	require.NotEmpty(t, feeLegs, "fee legs must persist")
 	for _, l := range feeLegs {
 		assert.Contains(t, []string{"CREDIT", "DEBIT"}, l.Type, "fee leg type must be CREDIT or DEBIT")
@@ -392,7 +381,7 @@ func TestFeeProof_T16_C9_PerMode(t *testing.T) {
 		require.Equalf(t, 201, resp.status, "json create must succeed: %s", string(resp.rawBody))
 		legs := loadLegs(t, h.db, mustTxID(t, resp))
 		requireBalanced(t, legs, "json mode")
-		assert.NotEmpty(t, feeCreditLegs(legs, "@fee_rev"), "json mode must charge the fee")
+		assert.NotEmpty(t, legsFor(legs, "@fee_rev", "CREDIT"), "json mode must charge the fee")
 	})
 
 	t.Run("annotation_mode_emits_no_fee", func(t *testing.T) {
@@ -412,7 +401,7 @@ func TestFeeProof_T16_C9_PerMode(t *testing.T) {
 		require.Equalf(t, 201, resp.status, "annotation create must succeed: %s", string(resp.rawBody))
 
 		legs := loadLegs(t, h.db, mustTxID(t, resp))
-		assert.Empty(t, feeCreditLegs(legs, "@fee_rev"),
+		assert.Empty(t, legsFor(legs, "@fee_rev", "CREDIT"),
 			"annotation (NOTED) must emit NO fee legs (one-sided, no balance movement)")
 	})
 
