@@ -100,7 +100,7 @@ func TestCreateLimit_EmitsLimitCreated(t *testing.T) {
 	assert.Equal(t, result.ID.String(), payload.ID)
 	assert.Equal(t, "DRAFT", payload.Status)
 	assert.Equal(t, "DAILY", payload.LimitType)
-	assert.Equal(t, "USD", payload.Currency)
+	assert.Equal(t, "USD", payload.Asset)
 	require.Len(t, payload.Scopes, 1)
 
 	assertLimitFenceClean(t, emitted[0].Payload)
