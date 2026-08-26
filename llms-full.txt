@@ -1071,9 +1071,14 @@ The resolver is `pkg/skip.ResolveSkipFor(control, requested, allowed)`.
 
 | Control | Surface | Request flag | Ledger opt-in | Audit column |
 |---|---|---|---|---|
-| Fees | transaction create (json/inflow/outflow) | `skip.fees` | `overrides.allowFeeSkip` | `transaction.fees_skipped` |
-| Tracer | transaction create (json/inflow/outflow) | `skip.tracer` | `overrides.allowTracerSkip` | `transaction.tracer_skipped` |
-| Holder | account create | `skip.holder` | `overrides.allowHolderSkip` | `account.holder_check_skipped` |
+| Fees | `/v2` transaction create (json/inflow/outflow) | `skip.fees` | `overrides.allowFeeSkip` | `transaction.fees_skipped` |
+| Tracer | `/v2` transaction create (json/inflow/outflow) | `skip.tracer` | `overrides.allowTracerSkip` | `transaction.tracer_skipped` |
+| Holder | `/v2` account create | `skip.holder` | `overrides.allowHolderSkip` | `account.holder_check_skipped` |
+
+The surface column is the route CONTRACT, not just the path: both seams the skips gate are
+`/v2` only. A `/v1` transaction create never reaches the fee engine, and a `/v1` account
+create never reaches the holder seam — so a `skip` object in a `/v1` body is inert and can
+never raise the 422. See § Account Holder Seam and `docs/api/SCOPING.md`.
 
 Honored skips are persisted to audit columns (domain fields
 `mtransaction.Transaction.FeesSkipped` / `.TracerSkipped`, `mmodel.Account.HolderCheckSkipped`)
@@ -1085,6 +1090,56 @@ and surface on the `transaction.*` and `account.created` streaming payloads.
 - **Idempotency replay returns the first outcome** and ignores a replayer's differing skip.
 - An **honored skip adds zero downstream work** — it short-circuits before the control's
   package lookup; it never replaces the control with a more expensive code path.
+
+## 10a. Holder Seam (`/v2` only)
+
+Account creation resolves a holder through the seam in
+`components/ledger/internal/services/command/create_account.go`
+(`resolveAccountHolder`): it reads the two holder gate keys
+(`accounting.requireHolder`, `overrides.allowHolderSkip`), resolves the per-call skip,
+enforces the requireHolder validation, and materialises the account's `holder_id` —
+defaulting a non-external account to the organization's deterministic self-holder.
+
+The seam is a **`/v2` contract**. `command.RouteHolderPolicy` travels from the transport
+shell into the use case (`HolderOffV1` / `HolderOnV2`, `account_holder_policy.go`), and
+`HolderOffV1` is the FIRST gate — it short-circuits before the ledger settings read. A
+`/v1` account create therefore:
+
+- links **no** holder: the row persists `holder_id = NULL` and `holder_check_skipped = false`;
+- cannot be rejected by the requireHolder gate (`ErrHolderRequired` / `ErrHolderNotFound`);
+- cannot be rejected for an unpermitted `skip.holder` (`ErrSkipNotPermitted`);
+- performs no holder settings read at all.
+
+`holderId` and `skip.holder` in a `/v1` body are inert. The `/v1` responses withhold both
+holder keys (`in.AccountV1`, published as the `Account` component), so the fields have no
+readable effect on that contract; `/v2` answers with the holder-bearing `AccountV2`
+component. `/v1` shipped before the seam existed, and a client integrated against it must
+not acquire a holder link — or a new rejection class — from a version upgrade.
+
+The holder-account composition route (`POST /v2/.../holders/{id}/accounts`) passes
+`HolderOnV2`: it exists to link a holder, and is served on `/v2` only.
+
+### Organization self-holder
+
+`CreateOrganization` takes the same `RouteHolderPolicy` and gates `provisionSelfHolder`
+on it. `POST /v1/organizations` writes **no** CRM holder record; `POST /v2/organizations`
+provisions the deterministic `LEGAL_PERSON` self-holder as before. The organization is
+persisted either way — the gate suppresses the side effect, not the resource — and the
+idempotent backfill runner is still the repair path. `mmodel.Organization` carries no
+holder field, so no response projection is involved and the two contracts share one
+schema component; only the create terminal differs
+(`CreateOrganization` / `CreateOrganizationV2`).
+
+### Outside the seam on both contracts
+
+- **The asset-created external account.** `CreateAsset` builds the implicit external
+  account as an `mmodel.Account` and hands it straight to `AccountRepo.Create`, bypassing
+  `CreateAccount`, so it reaches no holder seam and persists `holder_id = NULL`. That is
+  also what the seam resolves for an external account, so the two paths agree.
+- **Account update.** Ownership is immutable: `mmodel.UpdateAccountInput` has no
+  `holderId` (and an unknown body field is a `400`), and neither `holder_id` nor
+  `holder_check_skipped` appears in the update statement's SET list or in the
+  merge-patch nullable-field set.
 
 ## 11. Testing
 
