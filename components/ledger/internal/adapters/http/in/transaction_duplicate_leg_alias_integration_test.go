@@ -44,7 +44,7 @@ import (
 // have no defined relative order in the persisted set, so every assertion here is
 // order-independent — the per-leg values are compared as a sorted pair, not index for index.
 //
-// Conventions from transaction_v2_handler_integration_test.go apply: NOT parallel (process-global
+// Conventions from transaction_handler_v2_integration_test.go apply: NOT parallel (process-global
 // huma state), ALLOW_INSECURE_TLS set per test, no time.Now() for business values.
 
 // duplicateLegV1Body / duplicateLegV2Body spell one 1000 USD transaction whose source side names

@@ -48,16 +48,16 @@ func feesAuthShim(authOK bool) fiber.Handler {
 // by hand, appending the org, "/ledgers/"+ledger, and the resource segment (packages /
 // estimates). It is not a Fiber route template — those are the separate listPath/idPath
 // literals in buildHumaPackageApp. Create/estimate additionally require the body ledger to
-// equal the path ledger (see fees_ledger_scope.go), so the tests that carry a body use
+// equal the path ledger (see fee_ledger_scope.go), so the tests that carry a body use
 // validLedgerUUID() — the ledger validCreatePackageJSON / estimateBodyJSON stamp — as the
 // path ledger.
 const feePkgV2Base = "/v2/organizations/"
 
 // buildHumaPackageApp mounts the five ledger-scoped package Huma operations on a /v2
-// group, mirroring production (fees_v2_register.go/unified-server.go): problem.Install()
+// group, mirroring production (fee_package_routes.go/unified-server.go): problem.Install()
 // before any huma.Register, the Huma API built with openapi.New over a /v2 group, an
 // auth-shim standing in for auth.Authorize("midaz","packages",verb) + tenant, and
-// per-route ParseUUIDPathParameters("packages") + registerPackageV2Routes.
+// per-route ParseUUIDPathParameters("packages") + RegisterPackageRoutes.
 //
 // MUST-NOT-PARALLELIZE (same rationale as buildHumaInstrumentApp): libProblem.Install()
 // swaps the process-global huma.NewError hook and Huma validation uses process-global
@@ -88,7 +88,7 @@ func buildHumaPackageApp(t *testing.T, handler *PackageHandler, authOK bool) *fi
 
 	hAPI := openapi.New(f, apiV2, openapi.Config{Title: "ledger-test", Version: "test", Servers: []string{"/v2"}})
 
-	registerPackageV2Routes(hAPI, handler)
+	RegisterPackageRoutes(hAPI, handler, v2OpSuffix)
 
 	return f
 }
@@ -111,7 +111,7 @@ func buildHumaFeeEstimateApp(t *testing.T, handler *FeeHandler, authOK bool) *fi
 	hAPI := openapi.New(f, apiV2, openapi.Config{Title: "ledger-test", Version: "test", Servers: []string{"/v2"}})
 	pkgHTTP.InstallLedgerSchemaNamer(hAPI)
 
-	registerFeeEstimateV2Routes(hAPI, handler)
+	RegisterFeeEstimateRoutes(hAPI, handler, v2OpSuffix)
 
 	return f
 }

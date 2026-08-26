@@ -33,15 +33,15 @@ flipped from `plugin-fees` into `midaz`** in the embedded ledger binary, and the
 > (R22 reversed, now exception-free).
 >
 > The same holds for the **ledger-scoped fee/billing surface on `/v2`** (2026-08-01). The twelve
-> operations are served at two scopes — organization-scoped on `/v1`, ledger-scoped on `/v2` — and
-> both attach the identical guard chain from one shared table (`feeGuardRoutes` in
-> `fees_routes.go`) with the same `(resource, action)` tuples.
-> A grant that authorizes a `/v1` fee call authorizes its `/v2` twin, and vice versa.
+> operations are served on `/v2` only, ledger-scoped, split across four per-resource registrars
+> (`fee_package_routes.go`, `fee_estimate_routes.go`, `billing_package_routes.go`,
+> `billing_calculate_routes.go`) that attach the identical `protectedMidaz` guard chain every other
+> ledger resource attaches, with the `(resource, action)` tuples this document lists.
 >
-> _Superseded by B2 (§4):_ the shared guard table now keys on the `midaz` namespace (was
+> _Superseded by B2 (§4):_ the fee guard chains now key on the `midaz` namespace (was
 > `plugin-fees`). The URL-shape claim above is unchanged; what changed is the namespace literal, so
 > the fee routes now DO ride the X1 grant migration (see §5) instead of "no policy surface to
-> migrate." The `(resource, action)` tuples are still byte-identical across `/v1` and `/v2`.
+> migrate."
 
 ## The namespaces
 
@@ -51,7 +51,7 @@ alongside CRM:
 
 | Namespace | Owner / code | Resources | Source |
 |-----------|--------------|-----------|--------|
-| `midaz` | ledger — `midazName` const; CRM (collapsed package) via `protectedMidaz` → shared `midazName` const; fees (embedded) via `protectedFees` → shared `midazName` const | `organizations`, `ledgers`, `assets`, `asset-rates`, `portfolios`, `segments`, `accounts`, `balances`, `transactions`, `operations`, `settings`, `account-types`, `operation-routes`, `transaction-routes`, `holders`, `instruments`, `encryption`, `protection`, `streaming-manifest`, `packages`, `estimates`, `billing-packages`, `billing-calculate` | `components/ledger/internal/adapters/http/in/routes.go` (`midazName = "midaz"`, helper `protectedMidaz`), which the per-resource registrars call: `holder_routes.go` + `holder_accounts_routes.go` for `holders`, `instrument_routes.go` for `instruments`, `encryption_routes.go` for `encryption`, `audit_routes.go` for `protection`, `streaming_manifest_routes.go` for `streaming-manifest`; `fees_routes.go` (table `feeGuardRoutes`, helper `protectedFees`, which uses the shared `midazName` const from `routes.go`) for the `packages`/`estimates`/`billing-packages`/`billing-calculate` resources — there is no `feeshared` authz const. The ledger-scoped `/v2` fee twins in `fees_v2_register.go` (`RegisterFeesV2RoutesToApp`) attach the same `feeGuardRoutes` table through the same helper — same namespace, same tuples |
+| `midaz` | ledger — `midazName` const; CRM (collapsed package) via `protectedMidaz` → shared `midazName` const; fees (embedded) via `protectedMidaz` → shared `midazName` const | `organizations`, `ledgers`, `assets`, `asset-rates`, `portfolios`, `segments`, `accounts`, `balances`, `transactions`, `operations`, `settings`, `account-types`, `operation-routes`, `transaction-routes`, `holders`, `instruments`, `encryption`, `protection`, `streaming-manifest`, `packages`, `estimates`, `billing-packages`, `billing-calculate` | `components/ledger/internal/adapters/http/in/routes.go` (`midazName = "midaz"`, helper `protectedMidaz`), which the per-resource registrars call: `holder_routes.go` + `holder_accounts_routes.go` for `holders`, `instrument_routes.go` for `instruments`, `encryption_routes.go` for `encryption`, `audit_routes.go` for `protection`, `streaming_manifest_routes.go` for `streaming-manifest`; `fee_package_routes.go` for `packages`, `fee_estimate_routes.go` for `estimates`, `billing_package_routes.go` for `billing-packages` and `billing_calculate_routes.go` for `billing-calculate`, each calling `protectedMidaz` with the shared `midazName` const from `routes.go` — there is no `feeshared` authz const. The fee surface is served on `/v2` only |
 
 > **Mongo module ≠ authz slug.** The fee tenant-manager MODULE name is a SEPARATE literal
 > (`pkg/constant.ModuleFees = "fees-api"`) and carries no authz meaning — it did NOT move when the
@@ -92,7 +92,7 @@ Consequences:
   is X1 (below) — the in-code flip is intentional and lands at v4; the policy migration is gated
   to release, not to merge.
 - The fee/billing routes authorize under the `midaz` namespace in the embedded binary (shared
-  `midazName` const via `feeGuardRoutes`/`protectedFees`, B2 fold, §4) — there is no separate
+  `midazName` const via `protectedMidaz`, B2 fold, §4) — there is no separate
   embedded `plugin-fees` authz key and no dedicated fees authz const. The fee Mongo tenant client
   keys on a different string: `pkg/constant.ModuleFees` (`fees-api`) is the tenant-manager MODULE
   name, matching what tenant-manager provisions for fees. Authz namespace and tenant module are
@@ -146,12 +146,13 @@ next edit to the file, and four of the eight that used to sit in this table had 
 
 | Namespace | Deploy unit | Resources (verified) | Source (file + symbol) |
 |-----------|-------------|----------------------|------------------------|
-| `midaz` | ledger (`:3002`) | `organizations`, `ledgers`, `assets`, `asset-rates`, `portfolios`, `segments`, `accounts`, `balances`, `transactions`, `operations`, `settings`, `account-types`, `operation-routes`, `transaction-routes`, `holders`, `instruments`, `encryption`, `protection`, `streaming-manifest`, `packages`, `estimates`, `billing-packages`, `billing-calculate` | `components/ledger/internal/adapters/http/in/routes.go` (`midazName`, helper `protectedMidaz`); `holder_routes.go` + `holder_accounts_routes.go` for `holders`, `instrument_routes.go` for `instruments`, `encryption_routes.go` for `encryption`, `audit_routes.go` for `protection`, `streaming_manifest_routes.go` for `streaming-manifest`; `fees_routes.go` (table `feeGuardRoutes`, helpers `attachFeeGuards`/`protectedFees` → `midazName`) for `packages`/`estimates`/`billing-packages`/`billing-calculate` — there is no dedicated fees authz const; the ledger-scoped `/v2` twins in `fees_v2_register.go` (`RegisterFeesV2RoutesToApp`) attach the same `feeGuardRoutes` table under the same `midaz` namespace |
+| `midaz` | ledger (`:3002`) | `organizations`, `ledgers`, `assets`, `asset-rates`, `portfolios`, `segments`, `accounts`, `balances`, `transactions`, `operations`, `settings`, `account-types`, `operation-routes`, `transaction-routes`, `holders`, `instruments`, `encryption`, `protection`, `streaming-manifest`, `packages`, `estimates`, `billing-packages`, `billing-calculate` | `components/ledger/internal/adapters/http/in/routes.go` (`midazName`, helper `protectedMidaz`); `holder_routes.go` + `holder_accounts_routes.go` for `holders`, `instrument_routes.go` for `instruments`, `encryption_routes.go` for `encryption`, `audit_routes.go` for `protection`, `streaming_manifest_routes.go` for `streaming-manifest`; `fee_package_routes.go`, `fee_estimate_routes.go`, `billing_package_routes.go` and `billing_calculate_routes.go` (each calling `protectedMidaz` → `midazName`) for `packages`/`estimates`/`billing-packages`/`billing-calculate` — there is no dedicated fees authz const; the fee surface is served on `/v2` only |
 | `tracer` | tracer (`:4020`) | `reservations`, `audit-events` | `components/tracer/pkg/constant/app.go` (`ApplicationName`); wired via `components/tracer/internal/bootstrap/config.go` (`AppName:`), consumed at `middleware/auth_guard.go` (`(*AuthGuard).Protect`) |
 
 > **Audit-ref check:** every symbol above resolves in the tree as written — `midazName` and
-> `protectedMidaz` (`routes.go`); `feeGuardRoutes`, `attachFeeGuards`, and `protectedFees`
-> (`fees_routes.go`, all keyed on the shared `midazName` const — no dedicated fees authz const);
+> `protectedMidaz` (`routes.go`); the fee/billing registrars (`fee_package_routes.go`,
+> `fee_estimate_routes.go`, `billing_package_routes.go`, `billing_calculate_routes.go`, all keyed on
+> the shared `midazName` const via `protectedMidaz` — no dedicated fees authz const);
 > the CRM `holders`/`instruments` registrars (`holder_routes.go`, `instrument_routes.go`) keyed on
 > the shared `midazName` const via `protectedMidaz` — there is no separate CRM authz const; and the
 > tracer `ApplicationName` (`components/tracer/pkg/constant/app.go`). `account-types`, `operation-routes`, and

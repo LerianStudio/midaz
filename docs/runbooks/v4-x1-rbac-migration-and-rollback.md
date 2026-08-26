@@ -57,11 +57,11 @@ Namespace layout in v4 (for context — the CRM and routing rows flipped to `mid
 | `midaz` | organizations, ledgers, assets, asset-rates, portfolios, segments, accounts, balances, transactions, operations, settings | `routes.go` (`midazName`, `protectedMidaz`) |
 | `midaz` (flipped in v4) | **holders, instruments, related-parties** | `routes.go` (`midazName`), `holder_routes.go`, `instrument_routes.go` |
 | `midaz` (flipped in v4) | account-types, operation-routes, transaction-routes | `routes.go` (`midazName`, `protectedMidaz`) |
-| `midaz` (fees folded in v4, B2) | **packages, estimates, billing-packages, billing-calculate** | `fees_routes.go` (`feeGuardRoutes` table, helper `protectedFees` → shared `midazName`), `components/ledger/permissions.yaml` (fee resources under `service: midaz`) |
+| `midaz` (fees folded in v4, B2) | **packages, estimates, billing-packages, billing-calculate** | `fee_package_routes.go` / `fee_estimate_routes.go` / `billing_package_routes.go` / `billing_calculate_routes.go` (each calling `protectedMidaz` → shared `midazName`), `components/ledger/permissions.yaml` (fee resources under `service: midaz`) |
 
 > **Embedded fees migrate (B2 reversal).** In the **embedded** ledger binary the fee/billing routes
-> flipped from `plugin-fees` → `midaz` (`RBAC-NAMESPACES.md` §4/§5); `protectedFees` now calls
-> `auth.Authorize(midazName, ...)` off the shared `feeGuardRoutes` table. The old per-application fees
+> flipped from `plugin-fees` → `midaz` (`RBAC-NAMESPACES.md` §4/§5); each per-resource fee registrar
+> now calls `auth.Authorize(midazName, ...)` through `protectedMidaz`. The old per-application fees
 > authz const and the separate `feeshared` authz const were both **removed** — there is no dedicated
 > fees namespace const anymore. The
 > `plugin-fees:{packages,estimates,billing-packages,billing-calculate}:{verbs}` grants therefore **DO
@@ -382,5 +382,5 @@ re-check the migration matrix. The series falling to zero confirms the window cl
 - `docs/auth/RBAC-NAMESPACES.md` — X1 gate definition, migration matrix, fail-closed model (authoritative).
 - `components/ledger/internal/adapters/http/in/routes.go` (`midazName`) plus `holder_routes.go` / `instrument_routes.go` / `encryption_routes.go` / `audit_routes.go` — the flip and authz calls.
 - `components/ledger/internal/adapters/http/in/routes.go` (`midazName`, `protectedMidaz`) — namespace helper.
-- `components/ledger/internal/adapters/http/in/fees_routes.go` (`feeGuardRoutes` table, helper `protectedFees` → shared `midazName`), `components/ledger/permissions.yaml` (fee resources under `service: midaz`) — embedded fees namespace (folded into `midaz`, B2).
+- `components/ledger/internal/adapters/http/in/` `fee_package_routes.go` / `fee_estimate_routes.go` / `billing_package_routes.go` / `billing_calculate_routes.go` (each calling `protectedMidaz` → shared `midazName`), `components/ledger/permissions.yaml` (fee resources under `service: midaz`) — embedded fees namespace (folded into `midaz`, B2).
 - `docs/standards/telemetry.md`, `docs/standards/error-handling.md` — logging/error conventions for triage.

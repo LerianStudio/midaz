@@ -33,10 +33,10 @@ import (
 
 // buildHumaBillingPackageApp mounts the five ledger-scoped billing-package Huma
 // operations on a /v2 group, mirroring production
-// (fees_v2_register.go/unified-server.go): problem.Install() before any huma.Register,
+// (billing_package_routes.go/unified-server.go): problem.Install() before any huma.Register,
 // the Huma API built with openapi.New over a /v2 group, an auth-shim standing in for
 // auth.Authorize("midaz","billing-packages",verb) + tenant, and per-route
-// ParseUUIDPathParameters("billing-packages") + registerBillingPackageV2Routes.
+// ParseUUIDPathParameters("billing-packages") + RegisterBillingPackageRoutes.
 //
 // MUST-NOT-PARALLELIZE (same rationale as buildHumaPackageApp): libProblem.Install()
 // swaps the process-global huma.NewError hook and Huma validation uses process-global
@@ -67,7 +67,7 @@ func buildHumaBillingPackageApp(t *testing.T, handler *BillingPackageHandler, au
 
 	hAPI := openapi.New(f, apiV2, openapi.Config{Title: "ledger-test", Version: "test", Servers: []string{"/v2"}})
 
-	registerBillingPackageV2Routes(hAPI, handler)
+	RegisterBillingPackageRoutes(hAPI, handler, v2OpSuffix)
 
 	return f
 }
@@ -90,7 +90,7 @@ func buildHumaBillingCalculateApp(t *testing.T, handler *BillingCalculateHandler
 
 	hAPI := openapi.New(f, apiV2, openapi.Config{Title: "ledger-test", Version: "test", Servers: []string{"/v2"}})
 
-	registerBillingCalculateV2Routes(hAPI, handler)
+	RegisterBillingCalculateRoutes(hAPI, handler, v2OpSuffix)
 
 	return f
 }

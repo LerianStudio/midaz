@@ -47,15 +47,15 @@ const routeTableGoldenPath = "testdata/route_table.golden"
 // a harness that mounted almost nothing would regenerate cleanly and pass forever after.
 //
 // It sits ONE row below today's count, so it trips when two or more rows disappear and tolerates
-// exactly one. That makes it no kind of per-registrar guarantee: a registrar whose guard chain
-// and Huma terminal collapse into a single row contributes one row, two of them do today, and
-// losing either clears this floor — the golden bytes are what catch that. Pinning it at the exact
+// exactly one. That makes it no kind of per-registrar guarantee: a route whose guard chain and
+// Huma terminal collapse into a single Fiber row contributes one row rather than two — most do —
+// so losing one clears this floor and the golden bytes are what catch it. Pinning it at the exact
 // count instead would turn every legitimate route retirement into a two-line edit while adding no
 // coverage the bytes do not already give.
 //
 // It catches REMOVALS only. A registrar mounted in production but never added to this harness is
 // invisible to it, and to every other gate in this package.
-const routeTableMinRows = 302
+const routeTableMinRows = 294
 
 // routeTableGoldenHeader prefixes the golden so a reader who opens the file knows what the
 // third column means and how to regenerate. It is part of the compared bytes, so it cannot

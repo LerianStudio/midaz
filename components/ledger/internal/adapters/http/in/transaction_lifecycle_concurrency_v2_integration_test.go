@@ -24,7 +24,7 @@ import (
 
 // This file is the commit/cancel CONCURRENCY proof for the v2 pending-transaction lifecycle. It
 // is the twin of the concurrent-revert single-winner test in the sibling
-// transaction_v2_lifecycle_integration_test.go (§19) and reuses that file's container/app
+// transaction_lifecycle_v2_integration_test.go (§19) and reuses that file's container/app
 // fixtures verbatim — setupTestInfra, seedTransfer, buildHumaV2DirectApp, postV2Create,
 // decodeTxResponse, drainBalanceSync, requireDecimalEqual, countTransactionsInLedger, the
 // v2CommitURL/v2CancelURL builders, and the revertRaceResult capture struct — rather than

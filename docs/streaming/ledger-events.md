@@ -11,7 +11,7 @@ complements — does not duplicate — the producer conventions in `CLAUDE.md`
 
 ## Overview
 
-- **Producer:** [`github.com/LerianStudio/lib-streaming`](https://github.com/LerianStudio/lib-streaming) v3.0.0.
+- **Producer:** [`github.com/LerianStudio/lib-streaming`](https://github.com/LerianStudio/lib-streaming) v3.1.0.
 - **Wire format:** CloudEvents 1.0, binary mode, over Kafka.
 - **Component:** Ledger (`components/ledger`).
 - **Application name / CloudEvents source (`ce-source`):** `ledger`. It must be ONE

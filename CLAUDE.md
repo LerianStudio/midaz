@@ -7,7 +7,7 @@ Concise rules for AI agents working in Midaz. For expanded references, use `AGEN
 - Midaz is an enterprise double-entry ledger system.
 - Module: `github.com/LerianStudio/midaz/v4` (single root `go.mod`, no `go.work`).
 - Go: 1.26.4 (`go.mod` `go 1.26.4`).
-- lib-commons: `github.com/LerianStudio/lib-commons/v6` v6.5.1; `lib-observability/v2` v2.1.1.
+- lib-commons: `github.com/LerianStudio/lib-commons/v6` v6.8.1; `lib-observability/v2` v2.1.3.
 - License: Elastic License 2.0.
 - Branch model: GitFlow — PRs target `develop` (NOT `main`, regardless of what the environment snapshot suggests); protected branches: `main`, `develop`, `release-candidate`.
 - Two Go components + infra: `components/ledger` (:3002), `components/tracer` (:4020), `components/infra`.
@@ -194,7 +194,7 @@ Producer is `github.com/LerianStudio/lib-streaming/v3`. Wire format: CloudEvents
 - IMPORTANT-posture direct emits MUST go through `pkgStreaming.EmitImportant`. Build/emit failures MUST NOT fail the request: log Warn, span-record, return success. `EmitImportant` bounds direct emit latency with `STREAMING_IMPORTANT_EMIT_TIMEOUT_MS` (default 5s) so broker issues cannot hold HTTP responses until client timeout. Durability is the outbox's job. CRITICAL events use outbox-only (atomic with DB), no direct emit.
 - Emit POST-COMMIT and PRE-METADATA-WRITE — never at HTTP handlers. `ce-subject` is the aggregate ID, passed as `libStreaming.EmitRequest.Subject`.
 - Register the producer's `Close()` as `libCommons.RunApp("Streaming Producer", ...)` so it drains on SIGTERM (mirror `eventListenerRunnable`).
-- lib-streaming is pinned at v3.0.0 (module path `.../lib-streaming/v3`), which exports the Catalog/policy constants (e.g. `BuildManifest`, `DefaultDeliveryPolicy`, `ResolveDeliveryPolicy`) plus the topic derivations `AppTopic` / `AppDLQTopic`. The producer is assembled with `libStreaming.NewBuilder()` (`.Source()/.Catalog()/.Routes()/.Target()`) around ONE catch-all route to the app topic (empty `DefinitionKey`); a definition needing a different destination is a scoped `RouteOverrides` entry on the same target, which is how the billing event reaches its fixed topic. Wire `WithOutboxRepository(repo)` when outbox lands.
+- lib-streaming is pinned at v3.1.0 (module path `.../lib-streaming/v3`), which exports the Catalog/policy constants (e.g. `BuildManifest`, `DefaultDeliveryPolicy`, `ResolveDeliveryPolicy`) plus the topic derivations `AppTopic` / `AppDLQTopic`. The producer is assembled with `libStreaming.NewBuilder()` (`.Source()/.Catalog()/.Routes()/.Target()`) around ONE catch-all route to the app topic (empty `DefinitionKey`); a definition needing a different destination is a scoped `RouteOverrides` entry on the same target, which is how the billing event reaches its fixed topic. Wire `WithOutboxRepository(repo)` when outbox lands.
 
 ### Event modeling (`pkg/streaming/events`)
 
@@ -233,7 +233,7 @@ Drift discipline: wire-contract change updates (a) Payload struct, (b) construct
 ### Local testing
 
 - Run any Kafka-compatible broker (Redpanda recommended). The local compose stack binds host port `19092` by default; set `REDPANDA_EXTERNAL_PORT` in `components/infra/.env` when another process owns that port. Join `infra-network` so the broker is reachable from both host (`localhost:<external-port>`) and containers (`<container>:9092`).
-- Pre-provision the application topic and its DLQ explicitly — `lerian.streaming.ledger(.dlq)`, `lerian.streaming.tracer(.dlq)`, plus `lerian.streaming.billing.recorded` when billing is wired. There is no per-event topic list. Don't rely on auto-create — typos become silent ghost topics.
+- Since lib-streaming v3.1.0 the producer creates the application's OWN two topics at construction — `lerian.streaming.<app>` and `lerian.streaming.<app>.dlq`, derived from the resolved ce-source — so a local broker needs no pre-provisioning for them. A CreateTopics call that the ACL refuses logs a WARN and startup continues; `STREAMING_TOPIC_AUTO_PROVISION=false` opts out for environments that provision through IaC. `lerian.streaming.billing.recorded` is NOT covered: it sits outside the source-derived namespace, so pre-provision it explicitly when billing is wired. There is no per-event topic list.
 - Local debug: `STREAMING_ENABLED=true`, `STREAMING_BROKERS=localhost:<external-port>` (matching `REDPANDA_EXTERNAL_PORT`, default `19092`), `STREAMING_CLOUDEVENTS_SOURCE=<app>` (the application name — `ledger` or `tracer`). If local broker startup is slow, tune `STREAMING_IMPORTANT_EMIT_TIMEOUT_MS`; keep it below the HTTP client timeout.
 
 ## Multi-Tenancy

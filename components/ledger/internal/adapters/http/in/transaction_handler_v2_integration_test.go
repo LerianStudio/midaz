@@ -234,7 +234,7 @@ func decimalContext(msgAndArgs []any) string {
 // everything that carries economic meaning. Two kinds of keys live here: identity/timestamp
 // fields that legitimately differ per row, and the deprecated fields the /v2 wire contract
 // deliberately drops while v1 keeps emitting them (transaction-level `chartOfAccountsGroupName`
-// and `route`, operation-level `chartOfAccounts` and `route` — see transaction_v2_output.go).
+// and `route`, operation-level `chartOfAccounts` and `route` — see transaction_output_v2.go).
 // The drop itself is pinned by the field-removal and mirror-reads suites, which read the raw
 // maps on purpose; here the deprecated keys are just noise outside the economic envelope.
 var volatileResponseKeys = map[string]struct{}{

@@ -30,7 +30,7 @@ import (
 // This file is the v2 transaction LIFECYCLE integration + parity proof: it exercises the v2
 // `commit`, `cancel`, and `revert` ops end-to-end against the SAME real-repo handler backed by
 // testcontainers as the sibling create/hold/block file. The split from
-// transaction_v2_handler_integration_test.go is topical, not budgetary (this repo enforces no
+// transaction_handler_v2_integration_test.go is topical, not budgetary (this repo enforces no
 // file-size limit): that file covers the CREATE surface (direct/hold/block/unblock), this one
 // covers what happens to a transaction AFTER it exists. Both files share the same `in` package
 // and reuse the shared request/decode/DB helpers, `seedTransfer`, `setupTestInfra`, and the app

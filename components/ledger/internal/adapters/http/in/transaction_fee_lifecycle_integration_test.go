@@ -61,7 +61,7 @@ func TestFeeProof_T15_IdempotencyReplay(t *testing.T) {
 	// The fee was applied exactly once: only one transaction's worth of fee legs
 	// exists on the (single) persisted transaction.
 	txID := mustTxID(t, first)
-	feeLegs := feeCreditLegs(loadLegs(t, h.db, txID), "@fee_rev")
+	feeLegs := legsFor(loadLegs(t, h.db, txID), "@fee_rev", "CREDIT")
 	require.NotEmpty(t, feeLegs, "the original (replayed) transaction must carry fee legs")
 	assert.Truef(t, sumAmounts(feeLegs).Equal(decimal.NewFromInt(10)),
 		"fee applied exactly once: total fee legs must equal 10, got %s", sumAmounts(feeLegs).String())
@@ -130,7 +130,7 @@ func TestFeeProof_T13_CommitParity(t *testing.T) {
 	require.Truef(t, pendingHoldTotal.Equal(decimal.NewFromInt(sendValue+feeValue)),
 		"pending must reserve amount+fee exactly once on the payer: want %d, got %s",
 		sendValue+feeValue, pendingHoldTotal.String())
-	require.Empty(t, feeCreditLegs(pendingLegs, "@fee_rev"),
+	require.Empty(t, legsFor(pendingLegs, "@fee_rev", "CREDIT"),
 		"the fee CREDIT to @fee_rev is a destination leg deferred to commit; none must exist at pending")
 
 	callsAfterPending := spy.count()
@@ -157,9 +157,9 @@ func TestFeeProof_T13_CommitParity(t *testing.T) {
 	assert.Truef(t, settlementNet.Equal(decimal.Zero),
 		"commit settlement legs must net to exactly zero (ON_HOLD reservation excluded), got %s", settlementNet.String())
 
-	payerSettleDebit := sumAmounts(debitLegsForAlias(settlement, "@payer"))
-	receiverCredit := sumAmounts(feeCreditLegs(settlement, "@receiver"))
-	committedFeeTotal := sumAmounts(feeCreditLegs(settlement, "@fee_rev"))
+	payerSettleDebit := sumAmounts(legsFor(settlement, "@payer", "DEBIT"))
+	receiverCredit := sumAmounts(legsFor(settlement, "@receiver", "CREDIT"))
+	committedFeeTotal := sumAmounts(legsFor(settlement, "@fee_rev", "CREDIT"))
 	assert.Truef(t, payerSettleDebit.Equal(receiverCredit.Add(committedFeeTotal)),
 		"settlement must balance: payer DEBIT %s must equal receiver CREDIT %s + fee CREDIT %s",
 		payerSettleDebit.String(), receiverCredit.String(), committedFeeTotal.String())
@@ -206,17 +206,6 @@ func settlementLegs(legs []persistedLeg) []persistedLeg {
 	var out []persistedLeg
 	for _, l := range legs {
 		if l.Type == "DEBIT" || l.Type == "CREDIT" {
-			out = append(out, l)
-		}
-	}
-	return out
-}
-
-// debitLegsForAlias returns the DEBIT legs that debit the given account.
-func debitLegsForAlias(legs []persistedLeg, alias string) []persistedLeg {
-	var out []persistedLeg
-	for _, l := range legs {
-		if l.Alias == alias && l.Type == "DEBIT" {
 			out = append(out, l)
 		}
 	}

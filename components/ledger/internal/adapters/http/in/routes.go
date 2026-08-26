@@ -30,8 +30,7 @@ const midazName = "midaz"
 //
 // One pair serves every family, because every family needs the same two values. A family
 // that ever needs a different suffix declares its own rather than changing these, since
-// editing a value here moves the operation IDs of everything at once. Fees keep a separate
-// feeOpSuffixV2 in fees_v2_register.go.
+// editing a value here moves the operation IDs of everything at once.
 const (
 	v1OpSuffix = ""
 	v2OpSuffix = "V2"

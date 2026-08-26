@@ -26,7 +26,7 @@ MIDAZ
  |   |   |---   internal
  |   |   |   |---   adapters
  |   |   |   |   |---   http
- |   |   |   |   |   |---   in     # Fiber handlers + routes (incl. CRM holder/instrument + fees_routes.go)
+ |   |   |   |   |   |---   in     # Fiber handlers + routes (incl. CRM holder/instrument + fee/billing per-resource routes)
  |   |   |   |   |---   mongodb    # metadata + fees repositories
  |   |   |   |   |---   postgres   # onboarding + transaction repositories
  |   |   |   |   |---   rabbitmq
@@ -97,7 +97,7 @@ The unified ledger binary folds four domains into one process:
 * **Fees (embedded)**: fee engine at `components/ledger/pkg/fee`, shared types at
   `components/ledger/pkg/feeshared`, use cases at `components/ledger/internal/services/fees`,
   Mongo repos at `components/ledger/internal/adapters/mongodb/fees`, routes at
-  `components/ledger/internal/adapters/http/in/fees_routes.go`. The fee seam runs inside the
+  `components/ledger/internal/adapters/http/in/{fee_package,fee_estimate,billing_package,billing_calculate}_routes.go`. The fee seam runs inside the
   `transaction_create.go` HTTP handler (not the command layer) after
   `mtransaction.ApplyDefaultBalanceKeys(...)` and the idempotency claim, mutating the send legs
   before the post-fee re-validation; `applyFees` itself lives in `transaction_fee_application.go`.
