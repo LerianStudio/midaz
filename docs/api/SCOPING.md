@@ -223,6 +223,7 @@ ledger-scoped on `/v2` — the deeper scope is expressed by a deeper path, not b
 query parameter. The convention does not change; only how much of the hierarchy the path names.
 
 Scope and contract are separate questions. The fee admin surface answers the first (two scopes,
-both live); the transaction fee seam and the tracer reservation lifecycle answer the second (`/v2`
-only, both driven by the same `routeVersionPolicy`). A surface being reachable at a scope says
-nothing about which transaction contract applies it.
+both live); the transaction fee seam, the tracer reservation lifecycle and the account/organization
+holder seam answer the second (`/v2` only — the first two driven by `routeVersionPolicy` in the
+transaction handler, the third by `command.RouteHolderPolicy` in the use cases). A surface being
+reachable at a scope says nothing about which contract applies it.

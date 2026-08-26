@@ -8,9 +8,11 @@ package command
 // contracts the account holder seam. It is a distinct type so it cannot be
 // transposed with CreateAccount's other arguments at the call site.
 //
-// It mirrors the transaction fee seam's routeFeesPolicy: the use case is
-// transport-agnostic and cannot read the request path, so the version signal has
-// to travel as an argument.
+// It is the command-layer sibling of the transaction cores' routeVersionPolicy: the
+// use case is transport-agnostic and cannot read the request path, so the version
+// signal has to travel as an argument. They stay separate types because they sit on
+// opposite sides of the dependency direction — the fee and tracer seams live in the
+// transaction handler, the holder seam in the account and organization use cases.
 type RouteHolderPolicy bool
 
 const (
