@@ -6269,7 +6269,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Account'
+                $ref: '#/components/schemas/AccountV2'
           description: Created
         default:
           content:
@@ -6312,7 +6312,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Account'
+                $ref: '#/components/schemas/AccountV2'
           description: OK
         default:
           content:
@@ -6398,7 +6398,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Account'
+                $ref: '#/components/schemas/AccountV2'
           description: OK
         default:
           content:
@@ -6910,7 +6910,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Account'
+                $ref: '#/components/schemas/AccountV2'
           description: OK
         default:
           content:
@@ -6958,7 +6958,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Account'
+                $ref: '#/components/schemas/AccountV2'
           description: OK
         default:
           content:
@@ -11358,6 +11358,193 @@ components:
           type:
             - string
             - 'null'
+        id:
+          examples:
+            - 00000000-0000-0000-0000-000000000000
+          format: uuid
+          type: string
+        ledgerId:
+          examples:
+            - 00000000-0000-0000-0000-000000000000
+          format: uuid
+          type: string
+        metadata:
+          additionalProperties: {}
+          type: object
+        name:
+          examples:
+            - Corporate Checking Account
+          maxLength: 256
+          type: string
+        organizationId:
+          examples:
+            - 00000000-0000-0000-0000-000000000000
+          format: uuid
+          type: string
+        parentAccountId:
+          examples:
+            - 00000000-0000-0000-0000-000000000000
+          format: uuid
+          type:
+            - string
+            - 'null'
+        portfolioId:
+          examples:
+            - 00000000-0000-0000-0000-000000000000
+          format: uuid
+          type:
+            - string
+            - 'null'
+        segmentId:
+          examples:
+            - 00000000-0000-0000-0000-000000000000
+          format: uuid
+          type:
+            - string
+            - 'null'
+        status:
+          $ref: '#/components/schemas/Status'
+        type:
+          examples:
+            - deposit
+          type: string
+        updatedAt:
+          examples:
+            - '2021-01-01T00:00:00Z'
+          format: date-time
+          type: string
+      required:
+        - id
+        - name
+        - parentAccountId
+        - entityId
+        - assetCode
+        - organizationId
+        - ledgerId
+        - portfolioId
+        - segmentId
+        - status
+        - alias
+        - type
+        - blocked
+        - createdAt
+        - updatedAt
+        - deletedAt
+      type: object
+    AccountRule:
+      additionalProperties: false
+      properties:
+        ruleType:
+          enum:
+            - alias
+            - account_type
+          examples:
+            - alias
+          type: string
+        validIf: {}
+      type: object
+    AccountSkip:
+      additionalProperties: false
+      properties:
+        holder:
+          examples:
+            - false
+          type: boolean
+      type: object
+    AccountType:
+      additionalProperties: false
+      properties:
+        createdAt:
+          examples:
+            - '2021-01-01T00:00:00Z'
+          format: date-time
+          type: string
+        defaultDirection:
+          examples:
+            - credit
+          type: string
+        deletedAt:
+          examples:
+            - '2021-01-01T00:00:00Z'
+          format: date-time
+          type:
+            - string
+            - 'null'
+        description:
+          examples:
+            - Assets that are expected to be converted to cash within one year
+          type: string
+        id:
+          examples:
+            - 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
+          type: string
+        keyValue:
+          examples:
+            - current_assets
+          type: string
+        ledgerId:
+          examples:
+            - 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
+          type: string
+        metadata:
+          additionalProperties: {}
+          type: object
+        name:
+          examples:
+            - Current Assets
+          type: string
+        organizationId:
+          examples:
+            - 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
+          type: string
+        updatedAt:
+          examples:
+            - '2021-01-01T00:00:00Z'
+          format: date-time
+          type: string
+      required:
+        - createdAt
+        - updatedAt
+        - deletedAt
+      type: object
+    AccountV2:
+      additionalProperties: false
+      properties:
+        alias:
+          examples:
+            - '@treasury_checking'
+          maxLength: 100
+          type:
+            - string
+            - 'null'
+        assetCode:
+          examples:
+            - USD
+          maxLength: 100
+          type: string
+        blocked:
+          type:
+            - boolean
+            - 'null'
+        createdAt:
+          examples:
+            - '2021-01-01T00:00:00Z'
+          format: date-time
+          type: string
+        deletedAt:
+          examples:
+            - '2021-01-01T00:00:00Z'
+          format: date-time
+          type:
+            - string
+            - 'null'
+        entityId:
+          examples:
+            - EXT-ACC-12345
+          maxLength: 256
+          type:
+            - string
+            - 'null'
         holderCheckSkipped:
           examples:
             - false
@@ -11440,82 +11627,6 @@ components:
         - type
         - blocked
         - holderCheckSkipped
-        - createdAt
-        - updatedAt
-        - deletedAt
-      type: object
-    AccountRule:
-      additionalProperties: false
-      properties:
-        ruleType:
-          enum:
-            - alias
-            - account_type
-          examples:
-            - alias
-          type: string
-        validIf: {}
-      type: object
-    AccountSkip:
-      additionalProperties: false
-      properties:
-        holder:
-          examples:
-            - false
-          type: boolean
-      type: object
-    AccountType:
-      additionalProperties: false
-      properties:
-        createdAt:
-          examples:
-            - '2021-01-01T00:00:00Z'
-          format: date-time
-          type: string
-        defaultDirection:
-          examples:
-            - credit
-          type: string
-        deletedAt:
-          examples:
-            - '2021-01-01T00:00:00Z'
-          format: date-time
-          type:
-            - string
-            - 'null'
-        description:
-          examples:
-            - Assets that are expected to be converted to cash within one year
-          type: string
-        id:
-          examples:
-            - 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
-          type: string
-        keyValue:
-          examples:
-            - current_assets
-          type: string
-        ledgerId:
-          examples:
-            - 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
-          type: string
-        metadata:
-          additionalProperties: {}
-          type: object
-        name:
-          examples:
-            - Current Assets
-          type: string
-        organizationId:
-          examples:
-            - 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
-          type: string
-        updatedAt:
-          examples:
-            - '2021-01-01T00:00:00Z'
-          format: date-time
-          type: string
-      required:
         - createdAt
         - updatedAt
         - deletedAt
@@ -13753,7 +13864,7 @@ components:
       additionalProperties: false
       properties:
         account:
-          $ref: '#/components/schemas/Account'
+          $ref: '#/components/schemas/AccountV2'
         instrument:
           $ref: '#/components/schemas/Instrument'
         instrumentError:

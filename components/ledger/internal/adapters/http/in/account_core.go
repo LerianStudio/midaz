@@ -42,7 +42,11 @@ type AccountHandler struct {
 // already-decoded payload. Body decode+validation happens BEFORE this core, in the
 // handler, via http.DecodeAndValidate(RawBody). The RecordAccountCreated metric
 // lives here, alongside the service call it describes.
-func (handler *AccountHandler) createAccount(ctx context.Context, organizationID, ledgerID uuid.UUID, payload *mmodel.CreateAccountInput, token string) (*mmodel.Account, error) {
+//
+// holderPolicy is the caller's route-version holder contract, carried explicitly
+// from the transport shell down to the holder seam in the use case: the /v1 shell
+// passes command.HolderOffV1, the /v2 shell command.HolderOnV2.
+func (handler *AccountHandler) createAccount(ctx context.Context, organizationID, ledgerID uuid.UUID, payload *mmodel.CreateAccountInput, token string, holderPolicy command.RouteHolderPolicy) (*mmodel.Account, error) {
 	_, tracer, _, metricFactory := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "handler.create_account")
@@ -50,7 +54,7 @@ func (handler *AccountHandler) createAccount(ctx context.Context, organizationID
 
 	recordSafePayloadAttributes(span, payload)
 
-	account, err := handler.Command.CreateAccount(ctx, organizationID, ledgerID, payload, token)
+	account, err := handler.Command.CreateAccount(ctx, organizationID, ledgerID, payload, token, holderPolicy)
 	if err != nil {
 		handleSpanByErrorClass(span, "Failed to create Account on command", err)
 

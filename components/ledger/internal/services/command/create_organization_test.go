@@ -116,7 +116,7 @@ func TestCreateOrganization(t *testing.T) {
 			tt.mockSetup()
 
 			ctx := context.Background()
-			result, err := uc.CreateOrganization(ctx, tt.input)
+			result, err := uc.CreateOrganization(ctx, tt.input, HolderOnV2)
 
 			if tt.expectErr {
 				assert.Error(t, err)

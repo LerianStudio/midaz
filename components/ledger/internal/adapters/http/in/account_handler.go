@@ -12,6 +12,7 @@ import (
 
 	"github.com/danielgtaylor/huma/v2"
 
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services/command"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
 	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
 	pkgHTTP "github.com/LerianStudio/midaz/v4/pkg/net/http"
@@ -24,6 +25,12 @@ import (
 // native Huma 422), and the query bound via ValidateParameters. Auth is the Fiber
 // middleware chain attached in RegisterAccountRoutesToApp; the per-op Security
 // metadata is SPEC-ONLY.
+//
+// The shells in THIS file serve the /v1 contract, so every account-bearing response
+// projects onto AccountV1 (holderId + holderCheckSkipped withheld — see
+// account_output_v1.go) and the CREATE shell passes command.HolderOffV1 so the holder
+// seam never runs. The /v2 twins, which carry the canonical mmodel.Account and the
+// live holder seam, are in account_handler_v2.go.
 //
 // Account differs from the asset exemplar in one way: TWO extra by-key reads — GET
 // .../accounts/alias/{alias} and GET .../accounts/external/{code} — whose path params
@@ -51,14 +58,17 @@ type CreateAccountRequest struct {
 	RawBody        []byte `contentType:"application/json"`
 }
 
-// CreateAccountResponse pins 201 (matching http.Created).
+// CreateAccountResponse pins 201 (matching http.Created) and carries the /v1
+// account projection.
 type CreateAccountResponse struct {
 	Status int
-	Body   *mmodel.Account
+	Body   *AccountV1
 }
 
 // CreateAccount decodes+validates the raw body imperatively then delegates to
-// the shared createAccount core.
+// the shared createAccount core under command.HolderOffV1: the /v1 contract has no
+// holder seam, so the account is created with no holder link and the response
+// withholds both holder keys.
 func (handler *AccountHandler) CreateAccount(ctx context.Context, in *CreateAccountRequest) (*CreateAccountResponse, error) {
 	orgID, ledgerID, err := parseOrgLedger(in.OrganizationID, in.LedgerID)
 	if err != nil {
@@ -70,12 +80,12 @@ func (handler *AccountHandler) CreateAccount(ctx context.Context, in *CreateAcco
 		return nil, pkgHTTP.HumaProblem(err)
 	}
 
-	account, err := handler.createAccount(ctx, orgID, ledgerID, payload, in.Authorization)
+	account, err := handler.createAccount(ctx, orgID, ledgerID, payload, in.Authorization, command.HolderOffV1)
 	if err != nil {
 		return nil, pkgHTTP.HumaProblem(err)
 	}
 
-	return &CreateAccountResponse{Status: http.StatusCreated, Body: account}, nil
+	return &CreateAccountResponse{Status: http.StatusCreated, Body: newAccountV1(account)}, nil
 }
 
 // --- GET /accounts (list) -----------------------------------------------------
@@ -124,7 +134,8 @@ func (in *ListAccountsRequest) queries() map[string]string {
 	return queriesFromValues(in.rawQuery)
 }
 
-// ListAccountsResponse carries the pagination envelope verbatim.
+// ListAccountsResponse carries the pagination envelope with its items projected
+// onto the /v1 account shape.
 type ListAccountsResponse struct {
 	Status int
 	Body   pkgHTTP.Pagination
@@ -142,7 +153,7 @@ func (handler *AccountHandler) ListAccounts(ctx context.Context, in *ListAccount
 		return nil, pkgHTTP.HumaProblem(err)
 	}
 
-	return &ListAccountsResponse{Status: http.StatusOK, Body: pagination}, nil
+	return &ListAccountsResponse{Status: http.StatusOK, Body: newAccountV1Items(pagination)}, nil
 }
 
 // --- GET /accounts/{id} -------------------------------------------------------
@@ -155,10 +166,10 @@ type GetAccountRequest struct {
 	ID             string `path:"id" doc:"Account ID (UUID)"`
 }
 
-// GetAccountResponse carries the account verbatim.
+// GetAccountResponse carries the /v1 account projection.
 type GetAccountResponse struct {
 	Status int
-	Body   *mmodel.Account
+	Body   *AccountV1
 }
 
 // GetAccountByID delegates to getAccountByID.
@@ -178,7 +189,7 @@ func (handler *AccountHandler) GetAccountByID(ctx context.Context, in *GetAccoun
 		return nil, pkgHTTP.HumaProblem(err)
 	}
 
-	return &GetAccountResponse{Status: http.StatusOK, Body: account}, nil
+	return &GetAccountResponse{Status: http.StatusOK, Body: newAccountV1(account)}, nil
 }
 
 // --- GET /accounts/alias/{alias} ----------------------------------------------
@@ -204,7 +215,7 @@ func (handler *AccountHandler) GetAccountByAlias(ctx context.Context, in *GetAcc
 		return nil, pkgHTTP.HumaProblem(err)
 	}
 
-	return &GetAccountResponse{Status: http.StatusOK, Body: account}, nil
+	return &GetAccountResponse{Status: http.StatusOK, Body: newAccountV1(account)}, nil
 }
 
 // --- GET /accounts/external/{code} --------------------------------------------
@@ -232,7 +243,7 @@ func (handler *AccountHandler) GetAccountExternalByCode(ctx context.Context, in 
 		return nil, pkgHTTP.HumaProblem(err)
 	}
 
-	return &GetAccountResponse{Status: http.StatusOK, Body: account}, nil
+	return &GetAccountResponse{Status: http.StatusOK, Body: newAccountV1(account)}, nil
 }
 
 // --- PATCH /accounts/{id} -----------------------------------------------------
@@ -245,10 +256,11 @@ type UpdateAccountRequest struct {
 	RawBody        []byte `contentType:"application/json"`
 }
 
-// UpdateAccountResponse carries the updated account (200, matching http.OK).
+// UpdateAccountResponse carries the updated account as the /v1 projection
+// (200, matching http.OK).
 type UpdateAccountResponse struct {
 	Status int
-	Body   *mmodel.Account
+	Body   *AccountV1
 }
 
 // UpdateAccount decodes+validates the raw body imperatively then delegates to
@@ -274,7 +286,7 @@ func (handler *AccountHandler) UpdateAccount(ctx context.Context, in *UpdateAcco
 		return nil, pkgHTTP.HumaProblem(err)
 	}
 
-	return &UpdateAccountResponse{Status: http.StatusOK, Body: account}, nil
+	return &UpdateAccountResponse{Status: http.StatusOK, Body: newAccountV1(account)}, nil
 }
 
 // --- DELETE /accounts/{id} ----------------------------------------------------

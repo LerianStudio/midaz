@@ -58,6 +58,71 @@ func newOrgUseCaseForHolder(ctrl *gomock.Controller, prov *stubHolderProvisioner
 	}
 }
 
+// TestCreateOrganizationHolderOffV1_ProvisionsNoSelfHolder locks the /v1 half of the
+// organization holder seam: HolderOffV1 is the FIRST gate in provisionSelfHolder, so a /v1
+// organization create writes NO CRM holder record — the provisioner is never called, even
+// though it is wired.
+//
+// The /v1 contract predates the holder seam. The self-holder exists to be the default owner
+// of accounts, and a /v1 account create links no holder, so provisioning it here would leave
+// an orphan record in the org's CRM collections that nothing on /v1 can reach.
+//
+// The organization itself must still be created: the gate suppresses the holder side effect,
+// not the resource.
+func TestCreateOrganizationHolderOffV1_ProvisionsNoSelfHolder(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	orgID := uuid.New()
+	prov := &stubHolderProvisioner{}
+	uc := newOrgUseCaseForHolder(ctrl, prov, orgID.String())
+
+	org, err := uc.CreateOrganization(context.Background(), &mmodel.CreateOrganizationInput{
+		LegalName:     "Acme Ltd",
+		LegalDocument: "123456789",
+		Status:        mmodel.Status{Code: "ACTIVE"},
+	}, HolderOffV1)
+
+	require.NoError(t, err, "the gate must suppress the holder side effect, not the create")
+	require.NotNil(t, org)
+	assert.Equal(t, orgID.String(), org.ID, "the organization must still be persisted")
+	assert.Zero(t, prov.calls, "a /v1 organization create must not provision the self-holder")
+}
+
+// TestCreateOrganizationSelfHolderIsVersionGated asserts the two contracts diverge on the
+// SAME input, which is what makes this a version boundary rather than a disabled feature.
+func TestCreateOrganizationSelfHolderIsVersionGated(t *testing.T) {
+	input := func() *mmodel.CreateOrganizationInput {
+		return &mmodel.CreateOrganizationInput{
+			LegalName:     "Acme Ltd",
+			LegalDocument: "123456789",
+			Status:        mmodel.Status{Code: "ACTIVE"},
+		}
+	}
+
+	for _, tc := range []struct {
+		name      string
+		policy    RouteHolderPolicy
+		wantCalls int
+	}{
+		{name: "v1 provisions nothing", policy: HolderOffV1, wantCalls: 0},
+		{name: "v2 provisions the self-holder", policy: HolderOnV2, wantCalls: 1},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			ctrl := gomock.NewController(t)
+			defer ctrl.Finish()
+
+			orgID := uuid.New()
+			prov := &stubHolderProvisioner{}
+			uc := newOrgUseCaseForHolder(ctrl, prov, orgID.String())
+
+			_, err := uc.CreateOrganization(context.Background(), input(), tc.policy)
+			require.NoError(t, err)
+			assert.Equal(t, tc.wantCalls, prov.calls)
+		})
+	}
+}
+
 // TestCreateOrganizationProvisionsSelfHolder asserts the eager self-holder is
 // provisioned with the deterministic UUIDv5 derived from the org ID, a LEGAL_PERSON
 // type, and the org's legal name/document.
@@ -73,7 +138,7 @@ func TestCreateOrganizationProvisionsSelfHolder(t *testing.T) {
 		LegalName:     "Acme Ltd",
 		LegalDocument: "123456789",
 		Status:        mmodel.Status{Code: "ACTIVE"},
-	})
+	}, HolderOnV2)
 
 	require.NoError(t, err)
 	require.NotNil(t, org)
@@ -102,7 +167,7 @@ func TestCreateOrganizationSelfHolderNonFatal(t *testing.T) {
 		LegalName:     "Acme Ltd",
 		LegalDocument: "123456789",
 		Status:        mmodel.Status{Code: "ACTIVE"},
-	})
+	}, HolderOnV2)
 
 	require.NoError(t, err, "self-holder provisioning failure must not fail org create")
 	require.NotNil(t, org)
@@ -132,7 +197,7 @@ func TestCreateOrganizationNilProvisioner(t *testing.T) {
 		LegalName:     "Acme Ltd",
 		LegalDocument: "123456789",
 		Status:        mmodel.Status{Code: "ACTIVE"},
-	})
+	}, HolderOnV2)
 
 	require.NoError(t, err)
 	require.NotNil(t, org)

@@ -205,7 +205,7 @@ func (infra *compositionTestInfra) seedOrgLedgerAsset(t *testing.T) (uuid.UUID, 
 			State:   "NY",
 			Country: "US",
 		},
-	})
+	}, command.HolderOnV2)
 	require.NoError(t, err, "seed organization must succeed")
 
 	orgID, err := uuid.Parse(org.ID)
@@ -491,7 +491,7 @@ func TestIntegration_CompositionRejectsInvalidAssetCode(t *testing.T) {
 		Name:      "Standalone Invalid Asset",
 		AssetCode: "FAKE",
 		Type:      "deposit",
-	}, "")
+	}, "", command.HolderOnV2)
 	require.Error(t, standaloneErr, "standalone CreateAccount must reject an unknown asset code")
 
 	var standaloneNotFound pkg.EntityNotFoundError
@@ -547,7 +547,7 @@ func TestIntegration_CompositionRejectsNonexistentHolder(t *testing.T) {
 		AssetCode: "USD",
 		Type:      "deposit",
 		HolderID:  testutils.Ptr(nonexistentHolder.String()),
-	}, "")
+	}, "", command.HolderOnV2)
 	require.NoError(t, err, "account create is permissive on the holder gate by default")
 
 	_, standaloneErr := infra.crmUC.CreateInstrument(context.Background(), orgID.String(), nonexistentHolder, &mmodel.CreateInstrumentInput{

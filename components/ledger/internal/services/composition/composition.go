@@ -20,6 +20,7 @@ import (
 	"github.com/google/uuid"
 	"go.opentelemetry.io/otel/attribute"
 
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services/command"
 	"github.com/LerianStudio/midaz/v4/pkg"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
 	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
@@ -38,7 +39,7 @@ var instrumentFailureFallbackReason = constant.ErrInternalServer.Error()
 // AccountCreator is the narrow port for the onboarding account-create use case.
 // It is satisfied by *command.UseCase.
 type AccountCreator interface {
-	CreateAccount(ctx context.Context, organizationID, ledgerID uuid.UUID, in *mmodel.CreateAccountInput, token string) (*mmodel.Account, error)
+	CreateAccount(ctx context.Context, organizationID, ledgerID uuid.UUID, in *mmodel.CreateAccountInput, token string, holderPolicy command.RouteHolderPolicy) (*mmodel.Account, error)
 }
 
 // InstrumentCreator is the narrow port for the CRM instrument-create use case.
@@ -84,7 +85,9 @@ func (s *Service) CreateHolderAccount(ctx context.Context, organizationID, ledge
 		attribute.String("app.request.holder_id", holderID.String()),
 	)
 
-	account, err := s.Accounts.CreateAccount(ctx, organizationID, ledgerID, in.ToCreateAccountInput(holderID.String()), token)
+	// HolderOnV2: composition exists to link a holder, and the route is served on
+	// /v2 only, so the holder seam always applies here.
+	account, err := s.Accounts.CreateAccount(ctx, organizationID, ledgerID, in.ToCreateAccountInput(holderID.String()), token, command.HolderOnV2)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(span, "Failed to create account", err)
 		logger.Log(ctx, libLog.LevelError, "Failed to create account", libLog.Err(err))

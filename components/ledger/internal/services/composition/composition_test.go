@@ -9,6 +9,7 @@ import (
 	"errors"
 	"testing"
 
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services/command"
 	"github.com/LerianStudio/midaz/v4/pkg"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
 	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
@@ -28,7 +29,7 @@ type stubAccountCreator struct {
 	err       error
 }
 
-func (s *stubAccountCreator) CreateAccount(_ context.Context, organizationID, ledgerID uuid.UUID, in *mmodel.CreateAccountInput, token string) (*mmodel.Account, error) {
+func (s *stubAccountCreator) CreateAccount(_ context.Context, organizationID, ledgerID uuid.UUID, in *mmodel.CreateAccountInput, token string, holderPolicy command.RouteHolderPolicy) (*mmodel.Account, error) {
 	s.called = true
 	s.gotOrg = organizationID
 	s.gotLedger = ledgerID

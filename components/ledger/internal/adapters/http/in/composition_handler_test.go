@@ -22,6 +22,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services/command"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services/composition"
 	"github.com/LerianStudio/midaz/v4/pkg"
 	cn "github.com/LerianStudio/midaz/v4/pkg/constant"
@@ -35,7 +36,7 @@ type stubAccountCreator struct {
 	err     error
 }
 
-func (s stubAccountCreator) CreateAccount(_ context.Context, _, _ uuid.UUID, _ *mmodel.CreateAccountInput, _ string) (*mmodel.Account, error) {
+func (s stubAccountCreator) CreateAccount(_ context.Context, _, _ uuid.UUID, _ *mmodel.CreateAccountInput, _ string, _ command.RouteHolderPolicy) (*mmodel.Account, error) {
 	return s.account, s.err
 }
 

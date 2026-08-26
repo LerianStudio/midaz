@@ -25,7 +25,11 @@ import (
 )
 
 // CreateOrganization creates a new organization and persists it in the repository.
-func (uc *UseCase) CreateOrganization(ctx context.Context, coi *mmodel.CreateOrganizationInput) (_ *mmodel.Organization, err error) {
+//
+// holderPolicy is the caller's route-version holder contract, carried explicitly from
+// the transport shell down to the self-holder provisioning: the /v1 shell passes
+// HolderOffV1, the /v2 shell HolderOnV2.
+func (uc *UseCase) CreateOrganization(ctx context.Context, coi *mmodel.CreateOrganizationInput, holderPolicy RouteHolderPolicy) (_ *mmodel.Organization, err error) {
 	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "command.create_organization")
@@ -78,7 +82,7 @@ func (uc *UseCase) CreateOrganization(ctx context.Context, coi *mmodel.CreateOrg
 
 	uc.emitOrganizationCreatedEvent(ctx, span, logger, org)
 
-	uc.provisionSelfHolder(ctx, span, logger, org)
+	uc.provisionSelfHolder(ctx, span, logger, org, holderPolicy)
 
 	// NOTE: The organization is already persisted at this point. If metadata creation
 	// fails, the org exists in PostgreSQL without its metadata in MongoDB. This is a
@@ -113,7 +117,19 @@ func (uc *UseCase) emitOrganizationCreatedEvent(ctx context.Context, span trace.
 // after the PG commit and is non-fatal: there is no cross-store transaction, so a
 // Mongo failure is span-recorded, logged at Warn, and swallowed. The idempotent
 // backfill runner is the repair path for any miss.
-func (uc *UseCase) provisionSelfHolder(ctx context.Context, span trace.Span, logger libLog.Logger, org *mmodel.Organization) {
+//
+// On holderPolicy=HolderOffV1 this is a no-op, and it is the FIRST gate: the /v1
+// organization contract predates the holder seam, so a /v1 create writes NO CRM holder
+// record. The self-holder exists to be the default owner of accounts, and a /v1 account
+// create links no holder — so provisioning it here would leave an orphan record in the
+// org's CRM collections that nothing on the /v1 contract can reach. The idempotent
+// backfill runner remains the way an organization acquires its self-holder before it
+// starts using the /v2 surface.
+func (uc *UseCase) provisionSelfHolder(ctx context.Context, span trace.Span, logger libLog.Logger, org *mmodel.Organization, holderPolicy RouteHolderPolicy) {
+	if holderPolicy == HolderOffV1 {
+		return
+	}
+
 	if uc.HolderProvisioner == nil {
 		return
 	}
