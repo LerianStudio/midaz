@@ -73,6 +73,10 @@ func NewService(accounts AccountCreator, instruments InstrumentCreator) *Service
 // failure is logged at Warn and span-recorded, and a typed InstrumentError
 // block is surfaced for client-driven retry.
 func (s *Service) CreateHolderAccount(ctx context.Context, organizationID, ledgerID, holderID uuid.UUID, in *mmodel.CreateHolderAccountInput, token string) (*mmodel.HolderAccountResponse, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+
 	logger, tracer, requestID, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "composition.create_holder_account")

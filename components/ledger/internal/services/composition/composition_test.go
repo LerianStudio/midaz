@@ -71,6 +71,27 @@ func bankingInput() *mmodel.CreateHolderAccountInput {
 	}
 }
 
+// TestCreateHolderAccount_CanceledContext proves the ctx guard is the FIRST statement:
+// an already-canceled context returns context.Canceled and NEITHER composed use case is
+// reached. The account create is the expensive, side-effecting leg — it opens a real
+// ledger account — so entering it on a context the caller has already abandoned buys a
+// write nobody is waiting for.
+func TestCreateHolderAccount_CanceledContext(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	acc := &stubAccountCreator{account: &mmodel.Account{ID: uuid.NewString()}}
+	inst := &stubInstrumentCreator{}
+	svc := NewService(acc, inst)
+
+	resp, err := svc.CreateHolderAccount(ctx, uuid.New(), uuid.New(), uuid.New(), bankingInput(), "token")
+
+	require.ErrorIs(t, err, context.Canceled)
+	assert.Nil(t, resp)
+	assert.False(t, acc.called, "account creator must NOT be called on a canceled context")
+	assert.False(t, inst.called, "instrument creator must NOT be called on a canceled context")
+}
+
 // TestCreateHolderAccount_AccountError proves an account-create error is
 // returned verbatim and the instrument is never attempted.
 func TestCreateHolderAccount_AccountError(t *testing.T) {

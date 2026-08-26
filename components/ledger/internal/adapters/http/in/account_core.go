@@ -47,6 +47,10 @@ type AccountHandler struct {
 // from the transport shell down to the holder seam in the use case: the /v1 shell
 // passes command.HolderOffV1, the /v2 shell command.HolderOnV2.
 func (handler *AccountHandler) createAccount(ctx context.Context, organizationID, ledgerID uuid.UUID, payload *mmodel.CreateAccountInput, token string, holderPolicy command.RouteHolderPolicy) (*mmodel.Account, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+
 	_, tracer, _, metricFactory := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "handler.create_account")

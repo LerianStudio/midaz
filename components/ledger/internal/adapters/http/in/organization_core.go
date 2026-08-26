@@ -47,6 +47,10 @@ type OrganizationHandler struct {
 // the transport shell down to the self-holder provisioning in the use case: the /v1
 // shell passes command.HolderOffV1, the /v2 shell command.HolderOnV2.
 func (handler *OrganizationHandler) createOrganization(ctx context.Context, payload *mmodel.CreateOrganizationInput, holderPolicy command.RouteHolderPolicy) (*mmodel.Organization, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+
 	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "handler.create_organization")
