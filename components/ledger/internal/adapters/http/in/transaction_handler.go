@@ -63,7 +63,12 @@ var secTransactionBearer = []map[string][]string{
 // to the transport-neutral createTransaction core, and projects the built transaction
 // + the replayed flag onto the typed Out. The parent
 // transaction id is uuid.Nil on the create routes (no :transaction_id segment).
-func (handler *TransactionHandler) createTransactionShell(ctx context.Context, orgStr, ledgerStr string, transactionInput mtransaction.Transaction, transactionStatus, idempotencyKey, idempotencyTTL string, idempotencyHashSource ...string) (*CreateTransactionResponse, error) {
+//
+// feesPolicy is the caller's route-version fee contract, carried explicitly from the
+// transport shell down to the fee seam: the /v1 shells pass feesOffV1, the /v2 funnel
+// passes feesOnV2. The core is transport-agnostic and cannot read the request path,
+// so the version signal has to travel as an argument.
+func (handler *TransactionHandler) createTransactionShell(ctx context.Context, orgStr, ledgerStr string, transactionInput mtransaction.Transaction, transactionStatus, idempotencyKey, idempotencyTTL string, feesPolicy routeFeesPolicy, idempotencyHashSource ...string) (*CreateTransactionResponse, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, pkgHTTP.HumaProblem(err)
 	}
@@ -76,7 +81,7 @@ func (handler *TransactionHandler) createTransactionShell(ctx context.Context, o
 	params := &transactionPathParams{OrganizationID: orgID, LedgerID: ledgerID, TransactionID: uuid.Nil}
 	ttl := pkgHTTP.ParseIdempotencyTTL(idempotencyTTL)
 
-	tran, replayed, err := handler.createTransaction(ctx, params, transactionInput, transactionStatus, idempotencyKey, ttl, idempotencyHashSource...)
+	tran, replayed, err := handler.createTransaction(ctx, params, transactionInput, transactionStatus, idempotencyKey, ttl, feesPolicy, idempotencyHashSource...)
 	if err != nil {
 		return nil, pkgHTTP.HumaProblem(err)
 	}
@@ -129,7 +134,7 @@ func (handler *TransactionHandler) CreateTransactionJSON(ctx context.Context, in
 
 	transactionInput := payload.BuildTransaction()
 
-	return handler.createTransactionShell(ctx, in.OrganizationID, in.LedgerID, *transactionInput, transactionInput.InitialStatus(), in.IdempotencyKey, in.IdempotencyTTL)
+	return handler.createTransactionShell(ctx, in.OrganizationID, in.LedgerID, *transactionInput, transactionInput.InitialStatus(), in.IdempotencyKey, in.IdempotencyTTL, feesOffV1)
 }
 
 // --- POST /transactions/annotation --------------------------------------------
@@ -144,7 +149,7 @@ func (handler *TransactionHandler) CreateTransactionAnnotation(ctx context.Conte
 
 	transactionInput := payload.BuildTransaction()
 
-	return handler.createTransactionShell(ctx, in.OrganizationID, in.LedgerID, *transactionInput, constant.NOTED, in.IdempotencyKey, in.IdempotencyTTL)
+	return handler.createTransactionShell(ctx, in.OrganizationID, in.LedgerID, *transactionInput, constant.NOTED, in.IdempotencyKey, in.IdempotencyTTL, feesOffV1)
 }
 
 // --- POST /transactions/inflow ------------------------------------------------
@@ -169,7 +174,7 @@ func (handler *TransactionHandler) CreateTransactionInflow(ctx context.Context, 
 
 	transactionInput := payload.BuildInflowEntry()
 
-	return handler.createTransactionShell(ctx, in.OrganizationID, in.LedgerID, *transactionInput, transactionInput.InitialStatus(), in.IdempotencyKey, in.IdempotencyTTL)
+	return handler.createTransactionShell(ctx, in.OrganizationID, in.LedgerID, *transactionInput, transactionInput.InitialStatus(), in.IdempotencyKey, in.IdempotencyTTL, feesOffV1)
 }
 
 // --- POST /transactions/outflow -----------------------------------------------
@@ -193,7 +198,7 @@ func (handler *TransactionHandler) CreateTransactionOutflow(ctx context.Context,
 
 	transactionInput := payload.BuildOutflowEntry()
 
-	return handler.createTransactionShell(ctx, in.OrganizationID, in.LedgerID, *transactionInput, transactionInput.InitialStatus(), in.IdempotencyKey, in.IdempotencyTTL)
+	return handler.createTransactionShell(ctx, in.OrganizationID, in.LedgerID, *transactionInput, transactionInput.InitialStatus(), in.IdempotencyKey, in.IdempotencyTTL, feesOffV1)
 }
 
 // --- POST /transactions/block -------------------------------------------------
@@ -220,7 +225,7 @@ func (handler *TransactionHandler) CreateTransactionBlock(ctx context.Context, i
 
 	transactionInput := handler.buildOverriddenTransaction(payload, constant.BLOCK)
 
-	return handler.createTransactionShell(ctx, in.OrganizationID, in.LedgerID, transactionInput, transactionInput.InitialStatus(), in.IdempotencyKey, in.IdempotencyTTL)
+	return handler.createTransactionShell(ctx, in.OrganizationID, in.LedgerID, transactionInput, transactionInput.InitialStatus(), in.IdempotencyKey, in.IdempotencyTTL, feesOffV1)
 }
 
 // --- POST /transactions/unblock -----------------------------------------------
@@ -236,7 +241,7 @@ func (handler *TransactionHandler) CreateTransactionUnblock(ctx context.Context,
 
 	transactionInput := handler.buildOverriddenTransaction(payload, constant.UNBLOCK)
 
-	return handler.createTransactionShell(ctx, in.OrganizationID, in.LedgerID, transactionInput, transactionInput.InitialStatus(), in.IdempotencyKey, in.IdempotencyTTL)
+	return handler.createTransactionShell(ctx, in.OrganizationID, in.LedgerID, transactionInput, transactionInput.InitialStatus(), in.IdempotencyKey, in.IdempotencyTTL, feesOffV1)
 }
 
 // --- POST /transactions/{transaction_id}/commit|cancel|revert -----------------

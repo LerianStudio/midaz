@@ -54,7 +54,7 @@ func TestFeeProof_T14_DeductibleRevert(t *testing.T) {
 	spy := &countingFeeApplier{inner: h.feeUC}
 	h.handler.FeeApplier = spy
 
-	app := h.newApp()
+	app := h.newV2App()
 
 	h.seedBalance(t, "@payer", "USD", decimal.NewFromInt(100000), "deposit")
 	h.seedBalance(t, "@receiver", "USD", decimal.Zero, "deposit")
@@ -64,18 +64,11 @@ func TestFeeProof_T14_DeductibleRevert(t *testing.T) {
 	// @fee_rev; Send.Value itself moves (the deductible CG1 case).
 	h.seedPackage(t, packageSpec{label: "ded_pkg", fees: []feeSpec{flatFee("ded_fee", "@fee_rev", "10", true)}})
 
-	body := `{
-		"description": "deductible fee tx for revert",
-		"pending": false,
-		"send": {
-			"asset": "USD",
-			"value": "1000",
-			"source": { "from": [{"accountAlias": "@payer", "amount": {"asset": "USD", "value": "1000"}}] },
-			"distribute": { "to": [{"accountAlias": "@receiver", "amount": {"asset": "USD", "value": "1000"}}] }
-		}
-	}`
+	body := h.v2Body("deductible fee tx for revert", "USD", "1000",
+		[]string{h.v2Leg("@payer", "1000")},
+		[]string{h.v2Leg("@receiver", "1000")})
 
-	resp := h.createJSON(t, app, body, nil)
+	resp := h.createV2Direct(t, app, body, nil)
 	require.Equalf(t, 201, resp.status, "deductible-fee create must succeed: %s", string(resp.rawBody))
 
 	parentTxID := mustTxID(t, resp)
@@ -85,7 +78,7 @@ func TestFeeProof_T14_DeductibleRevert(t *testing.T) {
 	require.Positive(t, callsAfterCreate, "applyFees must run on the create path")
 
 	// Revert through the real machinery.
-	revertResp := h.post(t, app, h.statePath(parentTxID, "revert"), "", nil)
+	revertResp := h.post(t, app, h.v2StatePath(parentTxID, "revert"), "", nil)
 	require.Truef(t, revertResp.status == 200 || revertResp.status == 201,
 		"revert must succeed: status=%d body=%s", revertResp.status, string(revertResp.rawBody))
 
@@ -130,7 +123,7 @@ func TestFeeProof_T14_DeductibleRevert(t *testing.T) {
 // companion released, sum == 0.
 func TestFeeProof_T14_PendingCancelReleasesFees(t *testing.T) {
 	h := setupFeeHarness(t)
-	app := h.newApp()
+	app := h.newV2App()
 
 	h.seedBalance(t, "@payer", "USD", decimal.NewFromInt(100000), "deposit")
 	h.seedBalance(t, "@receiver", "USD", decimal.Zero, "deposit")
@@ -138,18 +131,11 @@ func TestFeeProof_T14_PendingCancelReleasesFees(t *testing.T) {
 
 	h.seedPackage(t, packageSpec{label: "cancel_pkg", fees: []feeSpec{flatFee("cancel_fee", "@fee_rev", "10", false)}})
 
-	body := `{
-		"description": "pending fee tx for cancel",
-		"pending": true,
-		"send": {
-			"asset": "USD",
-			"value": "1000",
-			"source": { "from": [{"accountAlias": "@payer", "amount": {"asset": "USD", "value": "1000"}}] },
-			"distribute": { "to": [{"accountAlias": "@receiver", "amount": {"asset": "USD", "value": "1000"}}] }
-		}
-	}`
+	body := h.v2Body("pending fee tx for cancel", "USD", "1000",
+		[]string{h.v2Leg("@payer", "1000")},
+		[]string{h.v2Leg("@receiver", "1000")})
 
-	resp := h.createJSON(t, app, body, nil)
+	resp := h.createV2Hold(t, app, body, nil)
 	require.Equalf(t, 201, resp.status, "pending fee create must succeed: %s", string(resp.rawBody))
 
 	txID := mustTxID(t, resp)
@@ -157,7 +143,7 @@ func TestFeeProof_T14_PendingCancelReleasesFees(t *testing.T) {
 
 	payerBefore := postgresBalanceTotal(t, h, "@payer")
 
-	cancelResp := h.post(t, app, h.statePath(txID, "cancel"), "", nil)
+	cancelResp := h.post(t, app, h.v2StatePath(txID, "cancel"), "", nil)
 	require.Truef(t, cancelResp.status == 200 || cancelResp.status == 201,
 		"cancel must succeed: status=%d body=%s", cancelResp.status, string(cancelResp.rawBody))
 

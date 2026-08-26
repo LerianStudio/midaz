@@ -24,6 +24,7 @@ import (
 	"io"
 	nethttp "net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	libObservability "github.com/LerianStudio/lib-observability/v2"
@@ -54,6 +55,7 @@ import (
 	feesservices "github.com/LerianStudio/midaz/v4/components/ledger/internal/services/fees"
 	feemodel "github.com/LerianStudio/midaz/v4/components/ledger/pkg/feeshared/model"
 
+	authMiddleware "github.com/LerianStudio/lib-auth/v3/auth/middleware"
 	openapi "github.com/LerianStudio/lib-commons/v6/commons/net/http/openapi"
 	libProblem "github.com/LerianStudio/lib-commons/v6/commons/net/http/problem"
 	libPostgres "github.com/LerianStudio/lib-commons/v6/commons/postgres"
@@ -230,11 +232,13 @@ func (h *feeHarness) ctx() context.Context { return context.Background() }
 // output. Toggled on only while diagnosing.
 var debugFunnelLogs = false
 
-// newApp builds a Fiber app exposing the transaction routes the proof suite
-// drives, mounted through RegisterTransactionRoutes exactly as production does:
-// ParseUUIDPathParameters runs as Fiber middleware on the /v1 group and the Huma
-// registrar owns the terminals, so body decode/validate goes through the same
-// http.DecodeAndValidate pipeline as production.
+// newApp builds a Fiber app exposing the /v1 transaction routes, mounted through
+// RegisterTransactionRoutes exactly as production does: ParseUUIDPathParameters runs as
+// Fiber middleware on the /v1 group and the Huma registrar owns the terminals, so body
+// decode/validate goes through the same http.DecodeAndValidate pipeline as production.
+//
+// The /v1 contract carries no fee engine, so this app serves the proofs that a create
+// posts exactly as authored. The proofs that fees ARE charged drive newV2App.
 func (h *feeHarness) newApp() *fiber.App {
 	app := fiber.New()
 
@@ -318,6 +322,94 @@ func (h *feeHarness) txPath(mode string) string {
 // statePath builds a commit/cancel/revert path for a transaction.
 func (h *feeHarness) statePath(txID uuid.UUID, action string) string {
 	return "/v1/organizations/" + h.orgID.String() + "/ledgers/" + h.ledgerID.String() + "/transactions/" + txID.String() + "/" + action
+}
+
+// ─── /v2 HTTP app wiring ─────────────────────────────────────────────────────
+
+// The fee engine is a /v2 contract: /v1 posts a transaction exactly as authored, so every
+// proof that fees ARE charged drives the /v2 app below, and newApp above stays mounted for
+// the /v1 proofs that they are NOT. Both apps share the same handler, seeding, and leg
+// assertions — only the route version and the request wire shape differ.
+
+// newV2App builds a Fiber app exposing the /v2 transaction routes, mounted through
+// RegisterTransactionV2RoutesToApp exactly as production does: the registrar owns both the
+// Fiber guard chain and the Huma terminals, so body decode/validate goes through the same
+// http.DecodeAndValidate pipeline as production.
+func (h *feeHarness) newV2App() *fiber.App {
+	app := fiber.New()
+
+	libProblem.Install()
+	http.InstallHumaFrameworkErrors()
+
+	// Mirror production: /v2 serves the RFC 9457 problem envelope through the same
+	// root-mounted ErrorEnvelope the ledger registers.
+	app.Use(ledgerMiddleware.ErrorEnvelope())
+
+	if debugFunnelLogs {
+		app.Use(func(c fiber.Ctx) error {
+			c.SetContext(libObservability.ContextWithLogger(c.Context(), &libLog.GoLogger{Level: libLog.LevelDebug}))
+
+			return c.Next()
+		})
+	}
+
+	apiV2 := app.Group("/v2")
+	hAPI := openapi.New(app, apiV2, openapi.Config{
+		Title:   "ledger-fee-integration-v2",
+		Version: "test",
+		Servers: []string{"/v2"},
+	})
+
+	// Same shared-registry collision the /v1 app avoids; must run after openapi.New and
+	// BEFORE any huma.Register.
+	http.InstallLedgerSchemaNamer(hAPI)
+
+	RegisterTransactionV2RoutesToApp(apiV2, hAPI, &authMiddleware.AuthClient{Enabled: false}, h.handler, nil)
+
+	return app
+}
+
+// v2Scope spells the harness org/ledger for a v2 leg. A /v2 create URL names neither, so
+// the scope a request is posted against travels in every leg of the body.
+func (h *feeHarness) v2Scope() string {
+	return `"organizationId":"` + h.orgID.String() + `","ledgerId":"` + h.ledgerID.String() + `"`
+}
+
+// v2Leg builds one flat v2 debit/credit leg against the harness scope.
+func (h *feeHarness) v2Leg(alias, amount string) string {
+	return `{"alias":"` + alias + `",` + h.v2Scope() + `,"amount":"` + amount + `"}`
+}
+
+// v2Body assembles a flat v2 create body from already-built legs.
+func (h *feeHarness) v2Body(description, asset, amount string, debits, credits []string) string {
+	return `{"description":"` + description + `","asset":"` + asset + `","amount":"` + amount + `"` +
+		`,"debits":[` + strings.Join(debits, ",") + `]` +
+		`,"credits":[` + strings.Join(credits, ",") + `]}`
+}
+
+// v2CreatePath builds the create path for a v2 action (direct, hold, block, unblock).
+func (h *feeHarness) v2CreatePath(action string) string {
+	return "/v2/transactions/" + action
+}
+
+// v2StatePath builds a v2 commit/cancel/revert path.
+func (h *feeHarness) v2StatePath(txID uuid.UUID, action string) string {
+	return "/v2/organizations/" + h.orgID.String() + "/ledgers/" + h.ledgerID.String() +
+		"/transactions/" + txID.String() + "/" + action
+}
+
+// createV2Direct drives the v2 direct (non-pending) create and returns the response.
+func (h *feeHarness) createV2Direct(t *testing.T, app *fiber.App, body string, headers map[string]string) txResponse {
+	t.Helper()
+
+	return h.post(t, app, h.v2CreatePath("direct"), body, headers)
+}
+
+// createV2Hold drives the v2 hold (pending) create and returns the response.
+func (h *feeHarness) createV2Hold(t *testing.T, app *fiber.App, body string, headers map[string]string) txResponse {
+	t.Helper()
+
+	return h.post(t, app, h.v2CreatePath("hold"), body, headers)
 }
 
 // ─── balance seeding ─────────────────────────────────────────────────────────
@@ -570,24 +662,18 @@ const approvedStatus = cn.APPROVED
 // not to the harness wiring.
 func TestFeeHarness_Sanity_NoPackageSucceeds(t *testing.T) {
 	h := setupFeeHarness(t)
-	app := h.newApp()
+	app := h.newV2App()
 
 	h.seedBalance(t, "@payer", "USD", decimal.NewFromInt(1000), "deposit")
 	h.seedBalance(t, "@receiver", "USD", decimal.Zero, "deposit")
 
-	// No package seeded -> fee engine finds no package -> applyFees is a no-op.
-	body := `{
-		"description": "no-fee transfer through the fee harness",
-		"pending": false,
-		"send": {
-			"asset": "USD",
-			"value": "100",
-			"source": { "from": [{"accountAlias": "@payer", "amount": {"asset": "USD", "value": "100"}}] },
-			"distribute": { "to": [{"accountAlias": "@receiver", "amount": {"asset": "USD", "value": "100"}}] }
-		}
-	}`
+	// No package seeded -> the fee engine finds no package -> applyFees is a no-op even
+	// on the /v2 contract that reaches it.
+	body := h.v2Body("no-fee transfer through the fee harness", "USD", "100",
+		[]string{h.v2Leg("@payer", "100")},
+		[]string{h.v2Leg("@receiver", "100")})
 
-	resp := h.createJSON(t, app, body, nil)
+	resp := h.createV2Direct(t, app, body, nil)
 	require.Equalf(t, 201, resp.status, "no-fee create through the harness must succeed: %s", string(resp.rawBody))
 
 	txID := mustTxID(t, resp)

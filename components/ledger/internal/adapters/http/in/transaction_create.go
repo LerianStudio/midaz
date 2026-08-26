@@ -987,8 +987,8 @@ func (handler *TransactionHandler) buildStandardOp(
 // typed Out; this core returns the built transaction and the idempotency `replayed` flag
 // so the caller can set X-Idempotency-Replayed itself. The orchestration lives in
 // executeCreateTransaction — this is the thin boundary in front of it.
-func (handler *TransactionHandler) createTransaction(ctx context.Context, params *transactionPathParams, transactionInput mtransaction.Transaction, transactionStatus, idempotencyKey string, idempotencyTTL time.Duration, idempotencyHashSource ...string) (*transaction.Transaction, bool, error) {
-	return handler.executeCreateTransaction(ctx, params, transactionInput, transactionStatus, false, idempotencyKey, idempotencyTTL, idempotencyHashSource...)
+func (handler *TransactionHandler) createTransaction(ctx context.Context, params *transactionPathParams, transactionInput mtransaction.Transaction, transactionStatus, idempotencyKey string, idempotencyTTL time.Duration, feesPolicy routeFeesPolicy, idempotencyHashSource ...string) (*transaction.Transaction, bool, error) {
+	return handler.executeCreateTransaction(ctx, params, transactionInput, transactionStatus, false, idempotencyKey, idempotencyTTL, feesPolicy, idempotencyHashSource...)
 }
 
 // idempotencyDiscriminatorSep joins an action discriminator to the rest of an idempotency
@@ -1011,7 +1011,11 @@ func resolveIdempotencyHashSource(transactionInput mtransaction.Transaction, ove
 // to "revert" so that accounting route lookups use the revert rubrics instead
 // of the status-derived action. Transport-neutral, mirroring createTransaction.
 func (handler *TransactionHandler) createRevertTransaction(ctx context.Context, params *transactionPathParams, transactionInput mtransaction.Transaction, transactionStatus, idempotencyKey string, idempotencyTTL time.Duration) (*transaction.Transaction, bool, error) {
-	return handler.executeCreateTransaction(ctx, params, transactionInput, transactionStatus, true, idempotencyKey, idempotencyTTL)
+	// feesOffV1 is inert here: applyFees already no-ops on isRevert=true, since the
+	// reverse transaction carries the reversed fee legs TransactionRevert rebuilt
+	// from the persisted parent operations. It is passed for the same reason every
+	// other create path names its policy — the argument has no default.
+	return handler.executeCreateTransaction(ctx, params, transactionInput, transactionStatus, true, idempotencyKey, idempotencyTTL, feesOffV1)
 }
 
 // resolveTransactionSkips resolves the two per-call control skips (fees, tracer)
@@ -1035,7 +1039,7 @@ func resolveTransactionSkips(input mtransaction.Transaction, settings mmodel.Led
 }
 
 //nolint:gocyclo // Orchestration step with conditional branches per transaction type; refactor candidate.
-func (handler *TransactionHandler) executeCreateTransaction(ctx context.Context, params *transactionPathParams, transactionInput mtransaction.Transaction, transactionStatus string, isRevert bool, idempotencyKey string, idempotencyTTL time.Duration, idempotencyHashSource ...string) (*transaction.Transaction, bool, error) {
+func (handler *TransactionHandler) executeCreateTransaction(ctx context.Context, params *transactionPathParams, transactionInput mtransaction.Transaction, transactionStatus string, isRevert bool, idempotencyKey string, idempotencyTTL time.Duration, feesPolicy routeFeesPolicy, idempotencyHashSource ...string) (*transaction.Transaction, bool, error) {
 	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	_, span := tracer.Start(ctx, "handler.create_transaction.orchestrate")
@@ -1160,24 +1164,30 @@ func (handler *TransactionHandler) executeCreateTransaction(ctx context.Context,
 	// Record the resolved skips as system observations (not request inputs): they
 	// reflect what the two-key gate actually honored, and they are persisted to the
 	// transaction row below for the durable audit trail.
+	// fees_route_eligible is deliberately NOT folded into fees_skipped: that flag is
+	// persisted on the transaction row as the audit trail of a skip the CLIENT asked
+	// for, so marking it true on every /v1 create would record a claim never made.
+	// The two reasons fees did not run stay distinguishable.
 	span.SetAttributes(
 		attribute.Bool("app.transaction.fees_skipped", honoredFeeSkip),
 		attribute.Bool("app.transaction.tracer_skipped", honoredTracerSkip),
+		attribute.Bool("app.transaction.fees_route_eligible", feesPolicy == feesOnV2),
 	)
 
 	// Fee seam: drive the in-process fee engine over the validated transaction,
 	// mutating transactionInput.Send.* (fee legs + moved Send.Value on
-	// deductible fees). No-op on isRevert (the reverse transaction already
-	// carries reversed fee legs from TransactionRevert) and on an honored fee
-	// skip (which bypasses the engine before its package lookup). The settings
-	// read + skip resolution above precede this seam; the seam still runs before
-	// the single validate reassignment below, which is upstream of
+	// deductible fees). No-op on feesOffV1 (the /v1 contract carries no fee
+	// engine), on isRevert (the reverse transaction already carries reversed fee
+	// legs from TransactionRevert) and on an honored fee skip (which bypasses the
+	// engine before its package lookup). The settings read + skip resolution above
+	// precede this seam; the seam still runs before the single validate
+	// reassignment below, which is upstream of
 	// PropagateRouteValidation — that mutator decorates the post-fee validate,
 	// and every downstream consumer reads the same pointer. applyFees resolves
 	// the tenant's fee DB internally, only once it has decided fees actually
 	// apply, so the MT tenant resolution rides inside the same gate as the fee
 	// computation.
-	if err = handler.applyFees(ctx, &transactionInput, params.OrganizationID, params.LedgerID, isRevert, transactionStatus == constant.NOTED, honoredFeeSkip); err != nil {
+	if err = handler.applyFees(ctx, &transactionInput, params.OrganizationID, params.LedgerID, feesPolicy, isRevert, transactionStatus == constant.NOTED, honoredFeeSkip); err != nil {
 		handleSpanByErrorClass(span, "Failed to apply fees", err)
 		logger.Log(ctx, libLog.LevelWarn, "Failed to apply fees", libLog.Err(err))
 

@@ -48,7 +48,8 @@ type CreateTransactionInputV2 struct {
 // createTransactionV2 is the shared body of the v2 create actions. It guards the request
 // context, builds the canonical Transaction and the request's scope from the flat v2 body
 // (decodeAndBuildV2Transaction), delegates to the shared createTransactionShell keyed by the
-// action-discriminated raw body (v2IdempotencyHashSource), and projects the v1 output onto the
+// action-discriminated raw body (v2IdempotencyHashSource) under feesOnV2 — the /v2 contract
+// is the one that includes the fee engine — and projects the v1 output onto the
 // /v2 wire shape (newTransactionV2). Translate business errors and the input's UUID validation
 // surface as RFC 9457 4xx via pkgHTTP.HumaProblem.
 func (handler *TransactionHandler) createTransactionV2(ctx context.Context, rawBody []byte, idempotencyKey, idempotencyTTL string, pending bool, operationTypeOverride string) (*CreateTransactionOutputV2, error) {
@@ -63,7 +64,7 @@ func (handler *TransactionHandler) createTransactionV2(ctx context.Context, rawB
 
 	hashSource := v2IdempotencyHashSource(rawBody, pending, operationTypeOverride)
 
-	out, err := handler.createTransactionShell(ctx, scope.OrganizationID, scope.LedgerID, transactionInput, transactionInput.InitialStatus(), idempotencyKey, idempotencyTTL, hashSource)
+	out, err := handler.createTransactionShell(ctx, scope.OrganizationID, scope.LedgerID, transactionInput, transactionInput.InitialStatus(), idempotencyKey, idempotencyTTL, feesOnV2, hashSource)
 	if err != nil {
 		return nil, err
 	}
