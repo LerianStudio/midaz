@@ -159,7 +159,7 @@ func TestFeeProof_T25_AsyncFeeInclusive(t *testing.T) {
 	h.orgID = postgrestestutil.CreateTestOrganization(t, h.db)
 	h.ledgerID = postgrestestutil.CreateTestLedger(t, h.db, h.orgID)
 
-	app := h.newApp()
+	app := h.newV2App()
 
 	// Consumer wiring.
 	telemetry, err := libOpentelemetry.NewTelemetry(libOpentelemetry.TelemetryConfig{
@@ -198,18 +198,11 @@ func TestFeeProof_T25_AsyncFeeInclusive(t *testing.T) {
 	h.seedBalance(t, "@fee_rev", "USD", decimal.Zero, "deposit")
 	h.seedPackage(t, packageSpec{label: "async_pkg", fees: []feeSpec{flatFee("async_fee", "@fee_rev", "10", false)}})
 
-	body := `{
-		"description": "async fee tx",
-		"pending": false,
-		"send": {
-			"asset": "USD",
-			"value": "1000",
-			"source": { "from": [{"accountAlias": "@payer", "amount": {"asset": "USD", "value": "1000"}}] },
-			"distribute": { "to": [{"accountAlias": "@receiver", "amount": {"asset": "USD", "value": "1000"}}] }
-		}
-	}`
+	body := h.v2Body("async fee tx", "USD", "1000",
+		[]string{h.v2Leg("@payer", "1000")},
+		[]string{h.v2Leg("@receiver", "1000")})
 
-	resp := h.createJSON(t, app, body, nil)
+	resp := h.createV2Direct(t, app, body, nil)
 	require.Equalf(t, 201, resp.status, "async fee create must succeed: %s", string(resp.rawBody))
 
 	txID := mustTxID(t, resp)

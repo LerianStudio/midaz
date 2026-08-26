@@ -123,6 +123,21 @@ On the ledger-scoped surface the path is the sole authority on which ledger a re
 Authz is unchanged again: the `plugin-fees` namespace and the same `(resource, verb)` tuples, so
 no new policy surface accompanies the second contract.
 
+### The admin surface is not the transaction seam
+
+Everything above describes the fee **administrative** surface — packages, estimates, billing
+packages, billing calculation — which is served at both scopes. It says nothing about where fees
+are *applied to a transaction*, and conflating the two is what makes the boundary non-obvious.
+
+The transaction fee seam is **`/v2`-only**. A `/v1` transaction create — `json`, `inflow`,
+`outflow`, `annotation`, `block`, `unblock` — never reaches the fee engine: no package lookup, no
+tenant fee-database resolution, no fee legs. It posts exactly as authored. `/v1` shipped before
+the fee engine existed, and a client integrated against it must not acquire fee legs from a
+version upgrade it never asked for.
+
+The two facts are independent: an organization can administer packages over `/v1` and still have
+those packages apply only to the transactions it posts on `/v2`.
+
 ## Summary
 
 One rule, no exceptions: **every organization-scoped surface in the unified binary — ledger,
@@ -133,3 +148,7 @@ contract. Clients integrate one convention.
 Where a surface is served at two scopes — fees and billing, organization-scoped on `/v1` and
 ledger-scoped on `/v2` — the deeper scope is expressed by a deeper path, not by a header or a
 query parameter. The convention does not change; only how much of the hierarchy the path names.
+
+Scope and contract are separate questions. The fee admin surface answers the first (two scopes,
+both live); the transaction fee seam answers the second (`/v2` only). A surface being reachable at
+a scope says nothing about which transaction contract applies it.

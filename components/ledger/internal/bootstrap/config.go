@@ -584,9 +584,9 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 	}
 
 	// 4c. Fees MongoDB → pack/billing-package repos (collapsed from the
-	// standalone plugin-fees service in P4). The constructors ensure the 11
+	// standalone fees service in P4). The constructors ensure the 11
 	// compound indexes on the static connection's DB at startup. In MT mode a
-	// fee tenant Mongo manager (module plugin-fees) is also built; per-request
+	// fee tenant Mongo manager (module constant.ModuleFees) is also built; per-request
 	// DB resolution lands on tmcore via the route-scoped middleware.
 	logger.Log(context.Background(), libLog.LevelInfo, "Initializing fees MongoDB...")
 
@@ -721,7 +721,7 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 
 				if feeMgo.mongoManager != nil {
 					if err := feeMgo.mongoManager.CloseConnection(ctx, tenantID); err != nil {
-						logger.Log(ctx, libLog.LevelWarn, "failed to close plugin-fees Mongo connection",
+						logger.Log(ctx, libLog.LevelWarn, "failed to close fees Mongo connection",
 							libLog.String("tenant_id", tenantID), libLog.String("error", err.Error()))
 					}
 				}
@@ -1557,7 +1557,7 @@ func buildUnifiedRouteSetup(
 	)
 
 	// Fees tenant middleware is its own SEPARATE instance carrying ONLY the
-	// plugin-fees Mongo manager, for the same isolation reason as CRM: mounting
+	// fees Mongo manager, for the same isolation reason as CRM: mounting
 	// the fee WithTenantDB on the onboarding/transaction middleware (or globally)
 	// would overwrite the tenant Mongo that ledger handlers resolve. It is
 	// attached only to fee routes via feesRouteOptions below.
@@ -1606,9 +1606,14 @@ func buildUnifiedRouteSetup(
 		tmmiddleware.WithTenantLoader(tenantLoader),
 	)
 
+	// Built from the module constants rather than spelled out: an operator provisions a
+	// tenant from this line, and a literal that drifts from constant.Module* hands them a
+	// database key the resolver will never look up.
 	logger.Log(
 		context.Background(), libLog.LevelInfo, "Tenant middleware configured",
-		libLog.String("modules", "onboarding,transaction,crm-api,plugin-fees"),
+		libLog.String("modules", strings.Join([]string{
+			constant.ModuleOnboarding, constant.ModuleTransaction, constant.ModuleCRM, constant.ModuleFees,
+		}, ",")),
 	)
 
 	authAssertion := midazhttp.MarkTrustedAuthAssertion()

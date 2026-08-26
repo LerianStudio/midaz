@@ -23,7 +23,7 @@ import (
 // the replay returns the first fee-inclusive transaction.
 func TestFeeProof_T15_IdempotencyReplay(t *testing.T) {
 	h := setupFeeHarness(t)
-	app := h.newApp()
+	app := h.newV2App()
 
 	h.seedBalance(t, "@payer", "USD", decimal.NewFromInt(100000), "deposit")
 	h.seedBalance(t, "@receiver", "USD", decimal.Zero, "deposit")
@@ -31,28 +31,21 @@ func TestFeeProof_T15_IdempotencyReplay(t *testing.T) {
 
 	h.seedPackage(t, packageSpec{label: "idem_pkg", fees: []feeSpec{flatFee("idem_fee", "@fee_rev", "10", false)}})
 
-	body := `{
-		"description": "idempotent fee tx",
-		"pending": false,
-		"send": {
-			"asset": "USD",
-			"value": "1000",
-			"source": { "from": [{"accountAlias": "@payer", "amount": {"asset": "USD", "value": "1000"}}] },
-			"distribute": { "to": [{"accountAlias": "@receiver", "amount": {"asset": "USD", "value": "1000"}}] }
-		}
-	}`
+	body := h.v2Body("idempotent fee tx", "USD", "1000",
+		[]string{h.v2Leg("@payer", "1000")},
+		[]string{h.v2Leg("@receiver", "1000")})
 
 	key := "fee-idem-" + uuid.New().String()
 	headers := map[string]string{"X-Idempotency": key, "X-TTL": "60"}
 
-	first := h.createJSON(t, app, body, headers)
+	first := h.createV2Direct(t, app, body, headers)
 	require.Equalf(t, 201, first.status, "first create must succeed: %s", string(first.rawBody))
 	assert.Equal(t, "false", first.replayed, "first request must not be a replay")
 
 	// Allow the async idempotency persistence to land.
 	time.Sleep(300 * time.Millisecond)
 
-	second := h.createJSON(t, app, body, headers)
+	second := h.createV2Direct(t, app, body, headers)
 	require.Equalf(t, 201, second.status, "replay must succeed: %s", string(second.rawBody))
 	assert.Equal(t, "true", second.replayed, "second identical request must set IdempotencyReplayed=true")
 
@@ -92,7 +85,7 @@ func TestFeeProof_T13_CommitParity(t *testing.T) {
 	spy := &countingFeeApplier{inner: h.feeUC}
 	h.handler.FeeApplier = spy
 
-	app := h.newApp()
+	app := h.newV2App()
 
 	h.seedBalance(t, "@payer", "USD", decimal.NewFromInt(100000), "deposit")
 	h.seedBalance(t, "@receiver", "USD", decimal.Zero, "deposit")
@@ -104,18 +97,11 @@ func TestFeeProof_T13_CommitParity(t *testing.T) {
 	)
 	h.seedPackage(t, packageSpec{label: "commit_pkg", fees: []feeSpec{flatFee("commit_fee", "@fee_rev", "10", false)}})
 
-	body := `{
-		"description": "pending fee tx for commit",
-		"pending": true,
-		"send": {
-			"asset": "USD",
-			"value": "1000",
-			"source": { "from": [{"accountAlias": "@payer", "amount": {"asset": "USD", "value": "1000"}}] },
-			"distribute": { "to": [{"accountAlias": "@receiver", "amount": {"asset": "USD", "value": "1000"}}] }
-		}
-	}`
+	body := h.v2Body("pending fee tx for commit", "USD", "1000",
+		[]string{h.v2Leg("@payer", "1000")},
+		[]string{h.v2Leg("@receiver", "1000")})
 
-	resp := h.createJSON(t, app, body, nil)
+	resp := h.createV2Hold(t, app, body, nil)
 	require.Equalf(t, 201, resp.status, "pending fee create must succeed: %s", string(resp.rawBody))
 
 	txID := mustTxID(t, resp)
@@ -136,7 +122,7 @@ func TestFeeProof_T13_CommitParity(t *testing.T) {
 	callsAfterPending := spy.count()
 	require.Positive(t, callsAfterPending, "applyFees must run on the pending-create path")
 
-	commitResp := h.post(t, app, h.statePath(txID, "commit"), "", nil)
+	commitResp := h.post(t, app, h.v2StatePath(txID, "commit"), "", nil)
 	require.Equalf(t, 201, commitResp.status, "commit must succeed: %s", string(commitResp.rawBody))
 	require.Equal(t, cn.APPROVED, dbTxStatus(t, h.db, txID))
 
