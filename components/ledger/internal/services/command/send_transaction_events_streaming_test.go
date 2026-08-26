@@ -18,7 +18,6 @@ import (
 
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/operation"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/transaction"
-	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/rabbitmq"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
 	pkgStreaming "github.com/LerianStudio/midaz/v4/pkg/streaming"
 )
@@ -61,23 +60,15 @@ func transactionLifecycleFixture(parentID *string, status string) *transaction.T
 	}
 }
 
-// newSendTransactionEventsTestUseCase wires a UseCase whose RabbitMQRepo
-// accepts the legacy publish (returning nil/nil) and whose Streaming is
-// the injected emitter.
-func newSendTransactionEventsTestUseCase(t *testing.T, ctrl *gomock.Controller, emitter libStreaming.Emitter) *UseCase {
+// newSendTransactionEventsTestUseCase wires a UseCase whose Streaming is
+// the injected emitter. The legacy transaction-events RabbitMQ publish has
+// been retired, so no producer repository is wired and no legacy publish is
+// possible by construction.
+func newSendTransactionEventsTestUseCase(t *testing.T, _ *gomock.Controller, emitter libStreaming.Emitter) *UseCase {
 	t.Helper()
 
-	t.Setenv("RABBITMQ_TRANSACTION_EVENTS_EXCHANGE", "test-transaction-exchange")
-
-	mockRabbit := rabbitmq.NewMockProducerRepository(ctrl)
-	mockRabbit.EXPECT().
-		ProducerDefault(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
-		Return((*string)(nil), nil).
-		AnyTimes()
-
 	return &UseCase{
-		RabbitMQRepo: mockRabbit,
-		Streaming:    emitter,
+		Streaming: emitter,
 	}
 }
 
@@ -209,9 +200,8 @@ func TestSendTransactionEvents_PhaseCreatedNotedSkipsLibStreaming(t *testing.T) 
 // TestSendTransactionEvents_PhaseNoopSkipsLibStreaming locks the
 // noop-phase contract: when CreateOrUpdateTransaction observed no state
 // change (e.g. ineligible unique violation), lib-streaming emits
-// nothing. The legacy rabbit publish still fires because the
-// RABBITMQ_TRANSACTION_EVENTS_ENABLED flag controls only the
-// transports, not the phase gating.
+// nothing. Phase gating alone suppresses the event; there is no legacy
+// rabbit transport left to fire.
 func TestSendTransactionEvents_PhaseNoopSkipsLibStreaming(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
@@ -227,27 +217,14 @@ func TestSendTransactionEvents_PhaseNoopSkipsLibStreaming(t *testing.T) {
 
 // TestSendTransactionEvents_AlwaysEmitsStreamingEvent locks the new
 // contract after the legacy gate + rabbit transport are removed: the
-// streaming lifecycle event fires unconditionally, and the retired
-// RABBITMQ_TRANSACTION_EVENTS_ENABLED flag no longer suppresses it.
-// The rabbit producer must never be called for the transaction-events
-// exchange (the mock carries no ProducerDefault expectation).
+// streaming lifecycle event fires unconditionally. The UseCase carries no
+// producer repository, so the legacy transaction-events exchange can never
+// be produced to.
 func TestSendTransactionEvents_AlwaysEmitsStreamingEvent(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-
-	// The retired flag is pinned to "false" on purpose: the streaming
-	// emit MUST still fire, proving the gate no longer short-circuits it.
-	t.Setenv("RABBITMQ_TRANSACTION_EVENTS_ENABLED", "false")
-
 	mockEmitter := pkgStreaming.NewMockEmitter()
 
-	// No ProducerDefault expectation: the legacy rabbit publish is gone,
-	// so the transaction-events exchange must never be produced to.
-	mockRabbit := rabbitmq.NewMockProducerRepository(ctrl)
-
 	uc := &UseCase{
-		RabbitMQRepo: mockRabbit,
-		Streaming:    mockEmitter,
+		Streaming: mockEmitter,
 	}
 
 	tran := transactionLifecycleFixture(nil, constant.APPROVED)
@@ -255,7 +232,7 @@ func TestSendTransactionEvents_AlwaysEmitsStreamingEvent(t *testing.T) {
 
 	emitted := mockEmitter.Events()
 	require.Len(t, emitted, 1,
-		"streaming lifecycle event must fire regardless of the retired RABBITMQ_TRANSACTION_EVENTS_ENABLED flag")
+		"streaming lifecycle event must fire unconditionally on the fresh-insert path")
 
 	pkgStreaming.AssertEventEmitted(t, mockEmitter, "transaction", "posted")
 
@@ -280,28 +257,18 @@ func TestSendTransactionEvents_EmitFailureDoesNotCrash(t *testing.T) {
 		TransactionLifecyclePhaseCreated)
 }
 
-// TestSendTransactionEvents_NilStreamingIsAllowed asserts that a
-// UseCase with no Streaming wired (nil emitter) completes the legacy
-// path without panicking — the IMPORTANT-posture contract treats nil
-// as "streaming disabled" and skips lib-streaming silently.
+// TestSendTransactionEvents_NilStreamingIsAllowed asserts the new
+// nil-emitter contract: a UseCase with no Streaming wired (nil emitter)
+// completes without panicking, emits nothing, and — with the legacy
+// transaction-events publish retired — never produces to rabbit either.
+// The IMPORTANT-posture contract treats nil as "streaming disabled".
 func TestSendTransactionEvents_NilStreamingIsAllowed(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-
-	t.Setenv("RABBITMQ_TRANSACTION_EVENTS_ENABLED", "")
-	t.Setenv("RABBITMQ_TRANSACTION_EVENTS_EXCHANGE", "test-transaction-exchange")
-
-	mockRabbit := rabbitmq.NewMockProducerRepository(ctrl)
-	mockRabbit.EXPECT().
-		ProducerDefault(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
-		Return((*string)(nil), nil).
-		Times(1)
-
 	uc := &UseCase{
-		RabbitMQRepo: mockRabbit,
-		Streaming:    nil,
+		Streaming: nil,
 	}
 
+	// Must not panic with a nil emitter; no emit and no legacy publish
+	// happen because nothing is wired to observe them.
 	uc.SendTransactionEvents(context.Background(),
 		transactionLifecycleFixture(nil, constant.APPROVED),
 		TransactionLifecyclePhaseCreated)

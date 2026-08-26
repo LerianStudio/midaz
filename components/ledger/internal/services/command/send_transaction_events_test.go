@@ -6,151 +6,108 @@ package command
 
 import (
 	"context"
-	"os"
 	"testing"
 	"time"
 
-	libCommons "github.com/LerianStudio/lib-commons/v6/commons"
 	"github.com/google/uuid"
-	"github.com/shopspring/decimal"
-	"go.uber.org/mock/gomock"
+	"github.com/stretchr/testify/require"
 
-	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/transaction"
-	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/rabbitmq"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
+	pkgStreaming "github.com/LerianStudio/midaz/v4/pkg/streaming"
 )
 
+// TestSendTransactionEvents locks the post-legacy contract: a persisted
+// transaction ALWAYS produces its lib-streaming lifecycle event and NEVER
+// publishes to the retired transaction-events RabbitMQ exchange. The
+// (phase, status, parent) triple selects the emitted event; the mock
+// emitter is the only asserted transport, and the UseCase carries no
+// producer repository so a legacy publish is impossible by construction.
 func TestSendTransactionEvents(t *testing.T) {
-	// Save original env vars to restore after test
-	originalExchange := os.Getenv("RABBITMQ_TRANSACTION_EVENTS_EXCHANGE")
-	originalVersion := os.Getenv("VERSION")
+	t.Parallel()
 
-	// Set test env vars
-	os.Setenv("RABBITMQ_TRANSACTION_EVENTS_EXCHANGE", "test-events-exchange")
-	os.Setenv("VERSION", "1.0.0")
-
-	// Restore env vars after test
-	defer func() {
-		os.Setenv("RABBITMQ_TRANSACTION_EVENTS_EXCHANGE", originalExchange)
-		os.Setenv("VERSION", originalVersion)
-	}()
-
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-
-	// Create mock repositories
-	mockRabbitMQRepo := rabbitmq.NewMockProducerRepository(ctrl)
-
-	// Create the UseCase instance
-	uc := &UseCase{
-		RabbitMQRepo: mockRabbitMQRepo,
+	tests := []struct {
+		name         string
+		phase        string
+		status       string
+		withParent   bool
+		wantResource string
+		wantEvent    string
+	}{
+		{
+			name:         "posted on created + approved + no parent",
+			phase:        TransactionLifecyclePhaseCreated,
+			status:       constant.APPROVED,
+			wantResource: "transaction",
+			wantEvent:    "posted",
+		},
+		{
+			name:         "reverted on created + approved + parent",
+			phase:        TransactionLifecyclePhaseCreated,
+			status:       constant.APPROVED,
+			withParent:   true,
+			wantResource: "transaction",
+			wantEvent:    "reverted",
+		},
+		{
+			name:         "committed on updated + approved",
+			phase:        TransactionLifecyclePhaseUpdated,
+			status:       constant.APPROVED,
+			wantResource: "transaction",
+			wantEvent:    "committed",
+		},
+		{
+			name:         "canceled on updated + canceled",
+			phase:        TransactionLifecyclePhaseUpdated,
+			status:       constant.CANCELED,
+			wantResource: "transaction",
+			wantEvent:    "canceled",
+		},
 	}
 
-	// Test data
-	ctx := context.Background()
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 
-	description := constant.APPROVED
-	status := transaction.Status{
-		Code:        description,
-		Description: &description,
+			mockEmitter := pkgStreaming.NewMockEmitter()
+			uc := &UseCase{Streaming: mockEmitter}
+
+			var parentID *string
+			if tt.withParent {
+				pid := uuid.New().String()
+				parentID = &pid
+			}
+
+			tran := transactionLifecycleFixture(parentID, tt.status)
+			uc.SendTransactionEvents(context.Background(), tran, tt.phase)
+
+			emitted := mockEmitter.Events()
+			require.Len(t, emitted, 1, "exactly one lifecycle streaming event must fire")
+			pkgStreaming.AssertEventEmitted(t, mockEmitter, tt.wantResource, tt.wantEvent)
+		})
+	}
+}
+
+// TestSendTransactionEvents_PostedWithFeeMetadataEmitsFeeCharge locks that a
+// posted transaction carrying charged-fee metadata emits both
+// transaction.posted and fee_charge.applied on the same fresh-insert emit,
+// and still never touches the legacy rabbit exchange.
+func TestSendTransactionEvents_PostedWithFeeMetadataEmitsFeeCharge(t *testing.T) {
+	t.Parallel()
+
+	mockEmitter := pkgStreaming.NewMockEmitter()
+	uc := &UseCase{Streaming: mockEmitter}
+
+	tran := transactionLifecycleFixture(nil, constant.APPROVED)
+	tran.CreatedAt = time.Date(2026, 7, 2, 12, 0, 0, 0, time.UTC)
+	packageID := uuid.New().String()
+	tran.Metadata = map[string]any{
+		"feeApplied":       "true",
+		"packageAppliedID": packageID,
 	}
 
-	assetCode := "BRL"
+	uc.SendTransactionEvents(context.Background(), tran, TransactionLifecyclePhaseCreated)
 
-	parentTransactionID := uuid.Must(libCommons.GenerateUUIDv7()).String()
-
-	amount := decimal.NewFromInt(100)
-
-	chartOfAccountsGroupName := "ChartOfAccountsGroupName"
-
-	tran := &transaction.Transaction{
-		ID:                       uuid.Must(libCommons.GenerateUUIDv7()).String(),
-		ParentTransactionID:      &parentTransactionID,
-		OrganizationID:           uuid.Must(libCommons.GenerateUUIDv7()).String(),
-		LedgerID:                 uuid.Must(libCommons.GenerateUUIDv7()).String(),
-		Description:              description,
-		Status:                   status,
-		Amount:                   &amount,
-		AssetCode:                assetCode,
-		ChartOfAccountsGroupName: chartOfAccountsGroupName,
-		CreatedAt:                time.Now(),
-		UpdatedAt:                time.Now(),
-	}
-
-	t.Run("success with events approved", func(t *testing.T) {
-		// Set environment variables for the test
-		os.Setenv("RABBITMQ_TRANSACTION_EVENTS_EXCHANGE", "test-events-exchange")
-		os.Setenv("VERSION", "1.0.0")
-		// Ensure we clean up after the test
-		defer func() {
-			os.Unsetenv("RABBITMQ_TRANSACTION_EVENTS_EXCHANGE")
-			os.Unsetenv("VERSION")
-		}()
-
-		// Mock RabbitMQRepo.ProducerDefault with the environment variable values
-		mockRabbitMQRepo.EXPECT().
-			ProducerDefault(gomock.Any(), "test-events-exchange", "midaz.transaction.APPROVED", gomock.Any()).
-			Return(nil, nil).
-			Times(1)
-
-		// Call the method
-		uc.SendTransactionEvents(ctx, tran, TransactionLifecyclePhaseCreated)
-
-		// No assertions needed as the function doesn't return anything
-		// The test passes if the mock expectations are met
-	})
-
-	t.Run("events enabled by default", func(t *testing.T) {
-		// Set exchange environment variable
-		os.Setenv("RABBITMQ_TRANSACTION_EVENTS_EXCHANGE", "test-events-exchange")
-		os.Setenv("VERSION", "1.0.0")
-		// Ensure we clean up after the test
-		defer func() {
-			os.Unsetenv("RABBITMQ_TRANSACTION_EVENTS_EXCHANGE")
-			os.Unsetenv("VERSION")
-		}()
-
-		// Mock RabbitMQRepo.ProducerDefault
-		mockRabbitMQRepo.EXPECT().
-			ProducerDefault(gomock.Any(), "test-events-exchange", "midaz.transaction.APPROVED", gomock.Any()).
-			Return(nil, nil).
-			Times(1)
-
-		// Call the method
-		uc.SendTransactionEvents(ctx, tran, TransactionLifecyclePhaseCreated)
-
-		// No assertions needed as the function doesn't return anything
-		// The test passes if the mock expectations are met
-	})
-
-	t.Run("with different action", func(t *testing.T) {
-		// Set environment variables for the test
-		os.Setenv("RABBITMQ_TRANSACTION_EVENTS_EXCHANGE", "test-events-exchange")
-		os.Setenv("VERSION", "1.0.0")
-		// Ensure we clean up after the test
-		defer func() {
-			os.Unsetenv("RABBITMQ_TRANSACTION_EVENTS_EXCHANGE")
-			os.Unsetenv("VERSION")
-		}()
-
-		description = constant.CANCELED
-		status = transaction.Status{
-			Code:        description,
-			Description: &description,
-		}
-
-		tran.Status = status
-
-		// Mock RabbitMQRepo.ProducerDefault with different action
-		mockRabbitMQRepo.EXPECT().
-			ProducerDefault(gomock.Any(), "test-events-exchange", "midaz.transaction.CANCELED", gomock.Any()).
-			Return(nil, nil).
-			Times(1)
-
-		// Call the method with different action
-		uc.SendTransactionEvents(ctx, tran, TransactionLifecyclePhaseUpdated)
-
-		// No assertions needed as the function doesn't return anything
-		// The test passes if the mock expectations are met
-	})
+	require.Len(t, mockEmitter.Events(), 2, "posted + fee_charge.applied only")
+	pkgStreaming.AssertEventEmitted(t, mockEmitter, "transaction", "posted")
+	pkgStreaming.AssertEventEmitted(t, mockEmitter, "fee_charge", "applied")
 }
