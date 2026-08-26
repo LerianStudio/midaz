@@ -44,13 +44,10 @@ var LimitCreatedDefinition = Definition{
 // reuse RuleScopePayload since model.Limit.Scopes is the same []model.Scope
 // type as model.Rule.Scopes.
 type LimitCreatedPayload struct {
-	ID        string `json:"id"`
-	Status    string `json:"status"`
-	LimitType string `json:"limitType"`
-	// Currency deliberately carries the renamed domain field model.Limit.Asset.
-	// The wire name/json tag stay "currency" for consumer compatibility; do not
-	// rename without a SchemaVersion bump and coordinated consumer rollout.
-	Currency        string             `json:"currency"`
+	ID              string             `json:"id"`
+	Status          string             `json:"status"`
+	LimitType       string             `json:"limitType"`
+	Asset           string             `json:"asset"`
 	Scopes          []RuleScopePayload `json:"scopes"`
 	ActiveTimeStart *string            `json:"activeTimeStart"`
 	ActiveTimeEnd   *string            `json:"activeTimeEnd"`
@@ -71,7 +68,7 @@ func NewLimitCreated(limit *model.Limit) LimitCreatedPayload {
 		ID:              limit.ID.String(),
 		Status:          string(limit.Status),
 		LimitType:       string(limit.LimitType),
-		Currency:        limit.Asset,
+		Asset:           limit.Asset,
 		Scopes:          newRuleScopePayloads(limit.Scopes),
 		ActiveTimeStart: formatOptionalTimeOfDay(limit.ActiveTimeStart),
 		ActiveTimeEnd:   formatOptionalTimeOfDay(limit.ActiveTimeEnd),
