@@ -227,6 +227,45 @@ func TestSendTransactionEvents_PhaseNoopSkipsLibStreaming(t *testing.T) {
 	assert.Empty(t, mockEmitter.Events(), "noop phase must not emit any lib-streaming event")
 }
 
+// TestSendTransactionEvents_AlwaysEmitsStreamingEvent locks the new
+// contract after the legacy gate + rabbit transport are removed: the
+// streaming lifecycle event fires unconditionally, and the retired
+// RABBITMQ_TRANSACTION_EVENTS_ENABLED flag no longer suppresses it.
+// The rabbit producer must never be called for the transaction-events
+// exchange (the mock carries no ProducerDefault expectation).
+func TestSendTransactionEvents_AlwaysEmitsStreamingEvent(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	// The retired flag is pinned to "false" on purpose: the streaming
+	// emit MUST still fire, proving the gate no longer short-circuits it.
+	t.Setenv("RABBITMQ_TRANSACTION_EVENTS_ENABLED", "false")
+
+	mockEmitter := pkgStreaming.NewMockEmitter()
+
+	// No ProducerDefault expectation: the legacy rabbit publish is gone,
+	// so the transaction-events exchange must never be produced to.
+	mockRabbit := rabbitmq.NewMockProducerRepository(ctrl)
+
+	uc := &UseCase{
+		RabbitMQRepo: mockRabbit,
+		Streaming:    mockEmitter,
+	}
+
+	tran := transactionLifecycleFixture(nil, constant.APPROVED)
+	uc.SendTransactionEvents(context.Background(), tran, TransactionLifecyclePhaseCreated)
+
+	emitted := mockEmitter.Events()
+	require.Len(t, emitted, 1,
+		"streaming lifecycle event must fire regardless of the retired RABBITMQ_TRANSACTION_EVENTS_ENABLED flag")
+
+	pkgStreaming.AssertEventEmitted(t, mockEmitter, "transaction", "posted")
+
+	var payload map[string]any
+	require.NoError(t, json.Unmarshal(emitted[0].Payload, &payload))
+	assert.Equal(t, tran.ID, payload["id"])
+}
+
 // TestSendTransactionEvents_DisabledFlagSkipsBothTransports asserts the
 // cutover-window flag short-circuits BOTH legacy rabbit AND
 // lib-streaming. This mirrors the SendOverdraftEvents contract — the

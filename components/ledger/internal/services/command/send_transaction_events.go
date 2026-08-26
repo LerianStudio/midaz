@@ -8,8 +8,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"os"
-	"strings"
 	"time"
 
 	libObservability "github.com/LerianStudio/lib-observability/v2"
@@ -43,89 +41,27 @@ const (
 
 	// TransactionLifecyclePhaseNoop marks a code path that observed no
 	// state change (e.g. a unique violation with no eligible status
-	// transition). SendTransactionEvents emits NEITHER the lib-streaming
-	// lifecycle event nor the legacy rabbit publish in this phase.
+	// transition). SendTransactionEvents emits no lifecycle event in
+	// this phase.
 	TransactionLifecyclePhaseNoop = "noop"
 )
 
-// SendTransactionEvents publishes the post-commit notifications for a
-// persisted transaction state change.
-//
-// During the lib-streaming cutover window this function emits BOTH the
-// legacy transaction.transaction_events rabbit publish AND the new
-// lib-streaming transaction.{posted,committed,canceled,reverted}
-// CloudEvent. The two transports are independent: a rabbit failure does
-// not block the lib-streaming emit and vice versa. The disabled flag
-// RABBITMQ_TRANSACTION_EVENTS_ENABLED=false short-circuits BOTH
-// transports together (per cutover discipline).
+// SendTransactionEvents emits the post-commit lib-streaming lifecycle
+// event for a persisted transaction state change.
 //
 // phase is the lifecycle phase returned by CreateOrUpdateTransaction
 // (TransactionLifecyclePhaseCreated / TransactionLifecyclePhaseUpdated /
-// TransactionLifecyclePhaseNoop). The lib-streaming emission picks
-// posted vs reverted vs committed vs canceled from phase + status +
-// parent. Callers that don't have a phase tracked (e.g. the bulk path
-// at create_bulk_transaction_operations_async.go:555 which only does
-// fresh inserts) pass TransactionLifecyclePhaseCreated explicitly.
+// TransactionLifecyclePhaseNoop). The emission picks posted vs reverted
+// vs committed vs canceled from phase + status + parent. Callers that
+// don't have a phase tracked (e.g. the bulk path at
+// create_bulk_transaction_operations_async.go:555 which only does fresh
+// inserts) pass TransactionLifecyclePhaseCreated explicitly.
 func (uc *UseCase) SendTransactionEvents(ctx context.Context, tran *transaction.Transaction, phase string) {
 	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
-
-	if !isTransactionEventEnabled() {
-		logger.Log(ctx, libLog.LevelDebug, "Transaction event not enabled",
-			libLog.String("rabbitmq_transaction_events_enabled", os.Getenv("RABBITMQ_TRANSACTION_EVENTS_ENABLED")))
-
-		return
-	}
 
 	ctxSendTransactionEvents, spanTransactionEvents := tracer.Start(ctx, "command.send_transaction_events_async")
 	defer spanTransactionEvents.End()
 
-	payload, err := json.Marshal(tran)
-	if err != nil {
-		libOpentelemetry.HandleSpanError(spanTransactionEvents, "Failed to marshal transaction to JSON string", err)
-
-		logger.Log(ctx, libLog.LevelError, "Failed to marshal transaction to JSON string", libLog.Err(err))
-	}
-
-	event := mmodel.Event{
-		Source:         Source,
-		EventType:      EventType,
-		Action:         tran.Status.Code,
-		TimeStamp:      time.Now(),
-		Version:        os.Getenv("VERSION"),
-		OrganizationID: tran.OrganizationID,
-		LedgerID:       tran.LedgerID,
-		Payload:        payload,
-	}
-
-	var key strings.Builder
-
-	key.WriteString(Source)
-	key.WriteString(".")
-	key.WriteString(EventType)
-	key.WriteString(".")
-	key.WriteString(tran.Status.Code)
-
-	message, err := json.Marshal(event)
-	if err != nil {
-		libOpentelemetry.HandleSpanError(spanTransactionEvents, "Failed to marshal exchange message struct", err)
-
-		logger.Log(ctx, libLog.LevelError, "Failed to marshal exchange message struct")
-	}
-
-	if _, err := uc.RabbitMQRepo.ProducerDefault(
-		ctxSendTransactionEvents,
-		os.Getenv("RABBITMQ_TRANSACTION_EVENTS_EXCHANGE"),
-		key.String(),
-		message,
-	); err != nil {
-		libOpentelemetry.HandleSpanError(spanTransactionEvents, "Failed to send transaction events to exchange", err)
-
-		logger.Log(ctx, libLog.LevelError, "Failed to send message", libLog.Err(err))
-	}
-
-	// lib-streaming emission runs alongside the rabbit publish during
-	// the cutover window. The phase parameter discriminates which of
-	// the four lifecycle events to fire — see emitTransactionLifecycleEvent.
 	uc.emitTransactionLifecycleEvent(ctxSendTransactionEvents, spanTransactionEvents, logger, tran, phase)
 }
 
@@ -333,9 +269,4 @@ func buildTransactionEventSource(tran *transaction.Transaction) (events.Transact
 		CreatedAt:                tran.CreatedAt,
 		UpdatedAt:                tran.UpdatedAt,
 	}, nil
-}
-
-func isTransactionEventEnabled() bool {
-	envValue := strings.ToLower(strings.TrimSpace(os.Getenv("RABBITMQ_TRANSACTION_EVENTS_ENABLED")))
-	return envValue != "false"
 }
