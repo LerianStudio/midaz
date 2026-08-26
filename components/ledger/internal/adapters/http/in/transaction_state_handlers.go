@@ -36,7 +36,7 @@ const revertIdempotencyReplayedLogMessage = "Revert replayed a cached reverse tr
 // per-action span (commit_transaction / cancel_transaction, derived from the target
 // status), fetches the transaction (write-behind cache first, DB fallback), then
 // delegates to the commitOrCancelTransaction state machine.
-func (handler *TransactionHandler) commitTransaction(ctx context.Context, organizationID, ledgerID, transactionID uuid.UUID, transactionStatus string) (*transaction.Transaction, error) {
+func (handler *TransactionHandler) commitTransaction(ctx context.Context, organizationID, ledgerID, transactionID uuid.UUID, transactionStatus string, policy routeVersionPolicy) (*transaction.Transaction, error) {
 	_, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	spanName := "handler.commit_transaction"
@@ -78,7 +78,7 @@ func (handler *TransactionHandler) commitTransaction(ctx context.Context, organi
 		}
 	}
 
-	return handler.commitOrCancelTransaction(ctx, tran, transactionStatus)
+	return handler.commitOrCancelTransaction(ctx, tran, transactionStatus, policy)
 }
 
 // KNOWN DEFECT — REVERT IDEMPOTENCY IS NOT SCOPED BY ORIGIN.
@@ -112,7 +112,7 @@ func (handler *TransactionHandler) commitTransaction(ctx context.Context, organi
 // 300, never 0; a hardcoded 0 would make the Redis idempotency slot permanent). It
 // returns the idempotency `replayed` flag alongside the reverse transaction so the
 // transport sets X-Idempotency-Replayed itself.
-func (handler *TransactionHandler) revertTransaction(ctx context.Context, organizationID, ledgerID, transactionID uuid.UUID) (*transaction.Transaction, bool, error) {
+func (handler *TransactionHandler) revertTransaction(ctx context.Context, organizationID, ledgerID, transactionID uuid.UUID, policy routeVersionPolicy) (*transaction.Transaction, bool, error) {
 	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	_, span := tracer.Start(ctx, "handler.revert_transaction")
@@ -199,7 +199,7 @@ func (handler *TransactionHandler) revertTransaction(ctx context.Context, organi
 
 	params := &transactionPathParams{OrganizationID: organizationID, LedgerID: ledgerID, TransactionID: transactionID}
 
-	tranReverted, replayed, err := handler.createRevertTransaction(ctx, params, transactionReverted, constant.CREATED, "", http.ParseIdempotencyTTL(""))
+	tranReverted, replayed, err := handler.createRevertTransaction(ctx, params, transactionReverted, constant.CREATED, "", http.ParseIdempotencyTTL(""), policy)
 	if err != nil {
 		return nil, false, err
 	}
@@ -256,7 +256,7 @@ func (handler *TransactionHandler) updateTransaction(ctx context.Context, organi
 // the caller writes its own response.
 //
 //nolint:gocyclo // State machine with branches per status × action combination; refactor candidate.
-func (handler *TransactionHandler) commitOrCancelTransaction(ctx context.Context, tran *transaction.Transaction, transactionStatus string) (*transaction.Transaction, error) {
+func (handler *TransactionHandler) commitOrCancelTransaction(ctx context.Context, tran *transaction.Transaction, transactionStatus string, policy routeVersionPolicy) (*transaction.Transaction, error) {
 	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	_, span := tracer.Start(ctx, "handler.commit_or_cancel_transaction")
@@ -460,9 +460,9 @@ func (handler *TransactionHandler) commitOrCancelTransaction(ctx context.Context
 	// at create-pending keeps these reservations alive until this transition.
 	switch transactionStatus {
 	case constant.APPROVED:
-		handler.confirmReservationsByTransaction(ctx, span, logger, ledgerSettings.Tracer, tran.IDtoUUID(), honoredTracerSkip)
+		handler.confirmReservationsByTransaction(ctx, span, logger, ledgerSettings.Tracer, tran.IDtoUUID(), policy, honoredTracerSkip)
 	case constant.CANCELED:
-		handler.releaseReservationsByTransaction(ctx, span, logger, ledgerSettings.Tracer, tran.IDtoUUID(), honoredTracerSkip)
+		handler.releaseReservationsByTransaction(ctx, span, logger, ledgerSettings.Tracer, tran.IDtoUUID(), policy, honoredTracerSkip)
 	}
 
 	balancesBefore, balancesAfter := result.Before, result.After

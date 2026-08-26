@@ -48,7 +48,7 @@ type CreateTransactionInputV2 struct {
 // createTransactionV2 is the shared body of the v2 create actions. It guards the request
 // context, builds the canonical Transaction and the request's scope from the flat v2 body
 // (decodeAndBuildV2Transaction), delegates to the shared createTransactionShell keyed by the
-// action-discriminated raw body (v2IdempotencyHashSource) under feesOnV2 — the /v2 contract
+// action-discriminated raw body (v2IdempotencyHashSource) under routeV2 — the /v2 contract
 // is the one that includes the fee engine — and projects the v1 output onto the
 // /v2 wire shape (newTransactionV2). Translate business errors and the input's UUID validation
 // surface as RFC 9457 4xx via pkgHTTP.HumaProblem.
@@ -64,7 +64,7 @@ func (handler *TransactionHandler) createTransactionV2(ctx context.Context, rawB
 
 	hashSource := v2IdempotencyHashSource(rawBody, pending, operationTypeOverride)
 
-	out, err := handler.createTransactionShell(ctx, scope.OrganizationID, scope.LedgerID, transactionInput, transactionInput.InitialStatus(), idempotencyKey, idempotencyTTL, feesOnV2, hashSource)
+	out, err := handler.createTransactionShell(ctx, scope.OrganizationID, scope.LedgerID, transactionInput, transactionInput.InitialStatus(), idempotencyKey, idempotencyTTL, routeV2, hashSource)
 	if err != nil {
 		return nil, err
 	}
@@ -185,7 +185,7 @@ func (handler *TransactionHandler) CommitTransactionV2(ctx context.Context, in *
 		return nil, pkgHTTP.HumaProblem(err)
 	}
 
-	tran, err := handler.commitTransaction(ctx, orgID, ledgerID, txID, constant.APPROVED)
+	tran, err := handler.commitTransaction(ctx, orgID, ledgerID, txID, constant.APPROVED, routeV2)
 	if err != nil {
 		return nil, pkgHTTP.HumaProblem(err)
 	}
@@ -206,7 +206,7 @@ func (handler *TransactionHandler) CancelTransactionV2(ctx context.Context, in *
 		return nil, pkgHTTP.HumaProblem(err)
 	}
 
-	tran, err := handler.commitTransaction(ctx, orgID, ledgerID, txID, constant.CANCELED)
+	tran, err := handler.commitTransaction(ctx, orgID, ledgerID, txID, constant.CANCELED, routeV2)
 	if err != nil {
 		return nil, pkgHTTP.HumaProblem(err)
 	}
@@ -229,7 +229,7 @@ func (handler *TransactionHandler) RevertTransactionV2(ctx context.Context, in *
 		return nil, pkgHTTP.HumaProblem(err)
 	}
 
-	tran, replayed, err := handler.revertTransaction(ctx, orgID, ledgerID, txID)
+	tran, replayed, err := handler.revertTransaction(ctx, orgID, ledgerID, txID, routeV2)
 	if err != nil {
 		return nil, pkgHTTP.HumaProblem(err)
 	}

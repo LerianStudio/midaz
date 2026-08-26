@@ -384,55 +384,31 @@ func readSeamSource(t *testing.T) string {
 }
 
 // Gate 4 — route-version fee policy: every createTransactionShell call in the /v1
-// transport file passes feesOffV1, and the /v2 funnel passes feesOnV2. The policy is
+// transport file passes routeV1, and the /v2 funnel passes routeV2. The policy is
 // what keeps the fee engine (and its tenant fee-DB resolution) off the /v1 contract, and
 // nothing at runtime would notice a new /v1 route wired with the wrong constant — it
 // would simply start acquiring fee legs and 503s. Asserted over the source AST so a
 // future route cannot silently opt /v1 back in.
 
-// shellFeesPolicyArgs returns the identifier passed as the feesPolicy argument of every
+// shellRouteVersionArgs returns the identifier passed as the route-version policy argument
+// of every
 // createTransactionShell call in src. The argument is the one immediately preceding the
 // variadic idempotency hash source, so it is read by name rather than by index: a
 // non-identifier or absent policy argument yields an empty entry and fails the gate.
-func shellFeesPolicyArgs(t *testing.T, src string) []string {
+func shellRouteVersionArgs(t *testing.T, src string) []string {
 	t.Helper()
 
-	fset := token.NewFileSet()
-
-	file, err := parser.ParseFile(fset, "src.go", src, 0)
-	if err != nil {
-		t.Fatalf("parse source: %v", err)
-	}
-
-	var policies []string
-
-	ast.Inspect(file, func(n ast.Node) bool {
-		call, ok := n.(*ast.CallExpr)
-		if !ok {
-			return true
-		}
-
-		sel, ok := call.Fun.(*ast.SelectorExpr)
-		if !ok || sel.Sel.Name != "createTransactionShell" {
-			return true
-		}
-
-		policies = append(policies, feesPolicyArgName(call.Args))
-
-		return true
-	})
-
-	return policies
+	return callRouteVersionArgs(t, src, "createTransactionShell")
 }
 
-// feesPolicyArgName picks the fee policy argument out of a createTransactionShell
+// routeVersionArgName picks the route-version policy argument out of a call's
 // argument list and returns its identifier name, or "" when it is absent or is not a
 // plain identifier. The policy is recognised by value, so a reordering that moved it
 // elsewhere in the list still reports it rather than silently passing.
-func feesPolicyArgName(args []ast.Expr) string {
+func routeVersionArgName(args []ast.Expr) string {
 	for _, arg := range args {
 		ident, ok := arg.(*ast.Ident)
-		if ok && (ident.Name == "feesOffV1" || ident.Name == "feesOnV2") {
+		if ok && (ident.Name == "routeV1" || ident.Name == "routeV2") {
 			return ident.Name
 		}
 	}
@@ -440,7 +416,10 @@ func feesPolicyArgName(args []ast.Expr) string {
 	return ""
 }
 
-func readTransportSource(t *testing.T, path string) string {
+// readTransportSource reads a source file for a structural gate. mustContain is the
+// sentinel the gate depends on being present: without it a renamed or moved seam would
+// make the gate pass over a file it no longer describes.
+func readTransportSource(t *testing.T, path, mustContain string) string {
 	t.Helper()
 
 	data, err := os.ReadFile(path)
@@ -449,37 +428,37 @@ func readTransportSource(t *testing.T, path string) string {
 	}
 
 	src := string(data)
-	if !strings.Contains(src, "createTransactionShell") {
-		t.Fatalf("%s contains no createTransactionShell call — the gate is pointed at the wrong file", path)
+	if !strings.Contains(src, mustContain) {
+		t.Fatalf("%s contains no %s — the gate is pointed at the wrong file", path, mustContain)
 	}
 
 	return src
 }
 
-func TestFeeSeamStructure_V1RoutesPassFeesOff(t *testing.T) {
-	policies := shellFeesPolicyArgs(t, readTransportSource(t, "transaction_handler.go"))
+func TestFeeSeamStructure_V1RoutesPassRouteV1(t *testing.T) {
+	policies := shellRouteVersionArgs(t, readTransportSource(t, "transaction_handler.go", "createTransactionShell"))
 
 	if len(policies) == 0 {
 		t.Fatal("Gate 4: no createTransactionShell call found in transaction_handler.go")
 	}
 
 	for i, got := range policies {
-		if got != "feesOffV1" {
-			t.Errorf("Gate 4: createTransactionShell call #%d in transaction_handler.go passes %q, want feesOffV1 — the /v1 contract carries no fee engine", i, got)
+		if got != "routeV1" {
+			t.Errorf("Gate 4: createTransactionShell call #%d in transaction_handler.go passes %q, want routeV1 — the /v1 contract carries no fee engine", i, got)
 		}
 	}
 }
 
-func TestFeeSeamStructure_V2FunnelPassesFeesOn(t *testing.T) {
-	policies := shellFeesPolicyArgs(t, readTransportSource(t, "transaction_handler_v2.go"))
+func TestFeeSeamStructure_V2FunnelPassesRouteV2(t *testing.T) {
+	policies := shellRouteVersionArgs(t, readTransportSource(t, "transaction_handler_v2.go", "createTransactionShell"))
 
 	if len(policies) == 0 {
 		t.Fatal("Gate 4: no createTransactionShell call found in transaction_handler_v2.go")
 	}
 
 	for i, got := range policies {
-		if got != "feesOnV2" {
-			t.Errorf("Gate 4: createTransactionShell call #%d in transaction_handler_v2.go passes %q, want feesOnV2", i, got)
+		if got != "routeV2" {
+			t.Errorf("Gate 4: createTransactionShell call #%d in transaction_handler_v2.go passes %q, want routeV2", i, got)
 		}
 	}
 }
@@ -490,11 +469,11 @@ func TestFeeSeamStructure_Gate4Bites(t *testing.T) {
 	const wrongConstant = `package in
 
 func (handler *TransactionHandler) CreateTransactionJSON(ctx context.Context, in *X) (*Y, error) {
-	return handler.createTransactionShell(ctx, in.OrganizationID, in.LedgerID, t, s, in.IdempotencyKey, in.IdempotencyTTL, feesOnV2)
+	return handler.createTransactionShell(ctx, in.OrganizationID, in.LedgerID, t, s, in.IdempotencyKey, in.IdempotencyTTL, routeV2)
 }
 `
 
-	if got := shellFeesPolicyArgs(t, wrongConstant); len(got) != 1 || got[0] != "feesOnV2" {
+	if got := shellRouteVersionArgs(t, wrongConstant); len(got) != 1 || got[0] != "routeV2" {
 		t.Fatalf("Gate 4 bite: analyzer must report the wrong constant, got %v", got)
 	}
 
@@ -505,7 +484,7 @@ func (handler *TransactionHandler) CreateTransactionJSON(ctx context.Context, in
 }
 `
 
-	if got := shellFeesPolicyArgs(t, noPolicy); len(got) != 1 || got[0] != "" {
+	if got := shellRouteVersionArgs(t, noPolicy); len(got) != 1 || got[0] != "" {
 		t.Fatalf("Gate 4 bite: analyzer must report an absent policy as empty, got %v", got)
 	}
 }
