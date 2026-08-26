@@ -77,7 +77,7 @@ func TestFeeProof_T16_C1_FeeLegsSumToFeeTotal(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			h := setupFeeHarness(t)
-			app := h.newApp()
+			app := h.newV2App()
 
 			h.seedBalance(t, "@payer", "USD", decimal.NewFromInt(100000), "deposit")
 			h.seedBalance(t, "@receiver", "USD", decimal.Zero, "deposit")
@@ -88,18 +88,11 @@ func TestFeeProof_T16_C1_FeeLegsSumToFeeTotal(t *testing.T) {
 				fees:  []feeSpec{tc.fee},
 			})
 
-			body := `{
-				"description": "` + tc.name + `",
-				"pending": false,
-				"send": {
-					"asset": "USD",
-					"value": "` + tc.txValue + `",
-					"source": { "from": [{"accountAlias": "@payer", "amount": {"asset": "USD", "value": "` + tc.txValue + `"}}] },
-					"distribute": { "to": [{"accountAlias": "@receiver", "amount": {"asset": "USD", "value": "` + tc.txValue + `"}}] }
-				}
-			}`
+			body := h.v2Body(tc.name, "USD", tc.txValue,
+				[]string{h.v2Leg("@payer", tc.txValue)},
+				[]string{h.v2Leg("@receiver", tc.txValue)})
 
-			resp := h.createJSON(t, app, body, nil)
+			resp := h.createV2Direct(t, app, body, nil)
 			require.Equalf(t, 201, resp.status, "create must succeed: %s", string(resp.rawBody))
 
 			txID := mustTxID(t, resp)
@@ -138,7 +131,7 @@ func TestFeeProof_T16_C1_FeeLegsSumToFeeTotal(t *testing.T) {
 func TestFeeProof_T16_C3_ProportionalSplitRepeatingDecimals(t *testing.T) {
 	h := setupFeeHarness(t)
 	h.assertNoPrecisionTable(t) // proof runs with the precision table absent.
-	app := h.newApp()
+	app := h.newV2App()
 
 	// Three payers, each sending 100 USD into one receiver. A 10 USD flat fee
 	// (non-deductible) split proportionally is 10/3 = 3.333... per payer; the
@@ -152,22 +145,11 @@ func TestFeeProof_T16_C3_ProportionalSplitRepeatingDecimals(t *testing.T) {
 
 	h.seedPackage(t, packageSpec{label: "prop_pkg", fees: []feeSpec{flatFee("prop_fee", "@fee_rev", "10", false)}})
 
-	body := `{
-		"description": "proportional 1/3 split",
-		"pending": false,
-		"send": {
-			"asset": "USD",
-			"value": "300",
-			"source": { "from": [
-				{"accountAlias": "@payer_a", "amount": {"asset": "USD", "value": "100"}},
-				{"accountAlias": "@payer_b", "amount": {"asset": "USD", "value": "100"}},
-				{"accountAlias": "@payer_c", "amount": {"asset": "USD", "value": "100"}}
-			] },
-			"distribute": { "to": [{"accountAlias": "@receiver", "amount": {"asset": "USD", "value": "300"}}] }
-		}
-	}`
+	body := h.v2Body("proportional 1/3 split", "USD", "300",
+		[]string{h.v2Leg("@payer_a", "100"), h.v2Leg("@payer_b", "100"), h.v2Leg("@payer_c", "100")},
+		[]string{h.v2Leg("@receiver", "300")})
 
-	resp := h.createJSON(t, app, body, nil)
+	resp := h.createV2Direct(t, app, body, nil)
 	require.Equalf(t, 201, resp.status, "create must succeed: %s", string(resp.rawBody))
 
 	txID := mustTxID(t, resp)
@@ -188,7 +170,7 @@ func TestFeeProof_T16_C3_ProportionalSplitRepeatingDecimals(t *testing.T) {
 func TestFeeProof_T16_C4_SegmentAndAliasExemption(t *testing.T) {
 	t.Run("alias_exemption", func(t *testing.T) {
 		h := setupFeeHarness(t)
-		app := h.newApp()
+		app := h.newV2App()
 
 		h.seedBalance(t, "@exempt_payer", "USD", decimal.NewFromInt(100000), "deposit")
 		h.seedBalance(t, "@receiver", "USD", decimal.Zero, "deposit")
@@ -202,18 +184,11 @@ func TestFeeProof_T16_C4_SegmentAndAliasExemption(t *testing.T) {
 			fees:           []feeSpec{flatFee("exempt_fee", "@fee_rev", "10", false)},
 		})
 
-		body := `{
-			"description": "alias exemption",
-			"pending": false,
-			"send": {
-				"asset": "USD",
-				"value": "1000",
-				"source": { "from": [{"accountAlias": "@exempt_payer", "amount": {"asset": "USD", "value": "1000"}}] },
-				"distribute": { "to": [{"accountAlias": "@receiver", "amount": {"asset": "USD", "value": "1000"}}] }
-			}
-		}`
+		body := h.v2Body("alias exemption", "USD", "1000",
+			[]string{h.v2Leg("@exempt_payer", "1000")},
+			[]string{h.v2Leg("@receiver", "1000")})
 
-		resp := h.createJSON(t, app, body, nil)
+		resp := h.createV2Direct(t, app, body, nil)
 		require.Equalf(t, 201, resp.status, "create must succeed: %s", string(resp.rawBody))
 
 		txID := mustTxID(t, resp)
@@ -224,7 +199,7 @@ func TestFeeProof_T16_C4_SegmentAndAliasExemption(t *testing.T) {
 
 	t.Run("segment_exemption_over_100_accounts", func(t *testing.T) {
 		h := setupFeeHarness(t)
-		app := h.newApp()
+		app := h.newV2App()
 
 		// One segment with 150 accounts (> the 100-account page size) so the
 		// resolver must paginate fully (P4-T06). The paying account is in the
@@ -249,18 +224,11 @@ func TestFeeProof_T16_C4_SegmentAndAliasExemption(t *testing.T) {
 			fees:           []feeSpec{flatFee("seg_fee", "@fee_rev", "10", false)},
 		})
 
-		body := `{
-			"description": "segment exemption past page 1",
-			"pending": false,
-			"send": {
-				"asset": "USD",
-				"value": "1000",
-				"source": { "from": [{"accountAlias": "` + payerAlias + `", "amount": {"asset": "USD", "value": "1000"}}] },
-				"distribute": { "to": [{"accountAlias": "@receiver", "amount": {"asset": "USD", "value": "1000"}}] }
-			}
-		}`
+		body := h.v2Body("segment exemption past page 1", "USD", "1000",
+			[]string{h.v2Leg(payerAlias, "1000")},
+			[]string{h.v2Leg("@receiver", "1000")})
 
-		resp := h.createJSON(t, app, body, nil)
+		resp := h.createV2Direct(t, app, body, nil)
 		require.Equalf(t, 201, resp.status, "create must succeed: %s", string(resp.rawBody))
 
 		txID := mustTxID(t, resp)
@@ -276,7 +244,7 @@ func TestFeeProof_T16_C4_SegmentAndAliasExemption(t *testing.T) {
 // introduce a second asset and a silent multi-asset imbalance (P4-T24).
 func TestFeeProof_T16_C7_FeeAssetDenomination(t *testing.T) {
 	h := setupFeeHarness(t)
-	app := h.newApp()
+	app := h.newV2App()
 
 	// Run a EUR transaction. Per P4-T24 the fee legs must carry EUR (Send.Asset),
 	// not the payer account's asset — so the tx stays single-asset and balances
@@ -287,18 +255,11 @@ func TestFeeProof_T16_C7_FeeAssetDenomination(t *testing.T) {
 
 	h.seedPackage(t, packageSpec{label: "eur_pkg", fees: []feeSpec{flatFee("eur_fee", "@fee_rev", "10", false)}})
 
-	body := `{
-		"description": "EUR tx fee leg denomination",
-		"pending": false,
-		"send": {
-			"asset": "EUR",
-			"value": "1000",
-			"source": { "from": [{"accountAlias": "@payer", "amount": {"asset": "EUR", "value": "1000"}}] },
-			"distribute": { "to": [{"accountAlias": "@receiver", "amount": {"asset": "EUR", "value": "1000"}}] }
-		}
-	}`
+	body := h.v2Body("EUR tx fee leg denomination", "EUR", "1000",
+		[]string{h.v2Leg("@payer", "1000")},
+		[]string{h.v2Leg("@receiver", "1000")})
 
-	resp := h.createJSON(t, app, body, nil)
+	resp := h.createV2Direct(t, app, body, nil)
 	require.Equalf(t, 201, resp.status, "create must succeed: %s", string(resp.rawBody))
 
 	txID := mustTxID(t, resp)
@@ -325,7 +286,7 @@ func TestFeeProof_T16_C7_FeeAssetDenomination(t *testing.T) {
 // revert -> under-refund -> a revert-only third-rail break.
 func TestFeeProof_T16_C10_FeeLegOpShapeReversible(t *testing.T) {
 	h := setupFeeHarness(t)
-	app := h.newApp()
+	app := h.newV2App()
 
 	h.seedBalance(t, "@payer", "USD", decimal.NewFromInt(100000), "deposit")
 	h.seedBalance(t, "@receiver", "USD", decimal.Zero, "deposit")
@@ -333,18 +294,11 @@ func TestFeeProof_T16_C10_FeeLegOpShapeReversible(t *testing.T) {
 
 	h.seedPackage(t, packageSpec{label: "shape_pkg", fees: []feeSpec{flatFee("shape_fee", "@fee_rev", "10", false)}})
 
-	body := `{
-		"description": "op shape",
-		"pending": false,
-		"send": {
-			"asset": "USD",
-			"value": "1000",
-			"source": { "from": [{"accountAlias": "@payer", "amount": {"asset": "USD", "value": "1000"}}] },
-			"distribute": { "to": [{"accountAlias": "@receiver", "amount": {"asset": "USD", "value": "1000"}}] }
-		}
-	}`
+	body := h.v2Body("op shape", "USD", "1000",
+		[]string{h.v2Leg("@payer", "1000")},
+		[]string{h.v2Leg("@receiver", "1000")})
 
-	resp := h.createJSON(t, app, body, nil)
+	resp := h.createV2Direct(t, app, body, nil)
 	require.Equalf(t, 201, resp.status, "create must succeed: %s", string(resp.rawBody))
 
 	txID := mustTxID(t, resp)
@@ -357,16 +311,16 @@ func TestFeeProof_T16_C10_FeeLegOpShapeReversible(t *testing.T) {
 	}
 }
 
-// TestFeeProof_T16_C9_PerMode is proof class 9: the fee seam is exercised through
-// the JSON, inflow, outflow, and annotation creation modes, since each builds
-// transactionInput.Send.* differently while all funnel executeCreateTransaction.
+// TestFeeProof_T16_C9_PerMode is proof class 9: the fee seam is exercised through every
+// creation mode, since each builds transactionInput.Send.* differently while all funnel
+// executeCreateTransaction. Which modes CHARGE is a function of the route version:
 //
-//   - JSON: fee legs persist and balance.
-//   - inflow/outflow: the fee charges the correct side given the asymmetric
-//     source/distribute construction (the external counter-leg is auto-built).
-//   - annotation (NOTED): emits NO fee legs (one-sided, no real balance movement).
+//   - /v1 (json, inflow, outflow, annotation): the fee engine is not part of that
+//     contract, so every mode posts exactly as authored and emits NO fee legs, even with
+//     a package configured and matching.
+//   - /v2 (direct, hold): fee legs persist and balance.
 func TestFeeProof_T16_C9_PerMode(t *testing.T) {
-	t.Run("json_mode", func(t *testing.T) {
+	t.Run("v1_json_mode_emits_no_fee", func(t *testing.T) {
 		h := setupFeeHarness(t)
 		app := h.newApp()
 		h.seedBalance(t, "@payer", "USD", decimal.NewFromInt(100000), "deposit")
@@ -380,11 +334,12 @@ func TestFeeProof_T16_C9_PerMode(t *testing.T) {
 		resp := h.createJSON(t, app, body, nil)
 		require.Equalf(t, 201, resp.status, "json create must succeed: %s", string(resp.rawBody))
 		legs := loadLegs(t, h.db, mustTxID(t, resp))
-		requireBalanced(t, legs, "json mode")
-		assert.NotEmpty(t, legsFor(legs, "@fee_rev", "CREDIT"), "json mode must charge the fee")
+		requireBalanced(t, legs, "v1 json mode")
+		assert.Empty(t, legsFor(legs, "@fee_rev", "CREDIT"),
+			"a /v1 json create must post as authored: the matching package must charge nothing")
 	})
 
-	t.Run("annotation_mode_emits_no_fee", func(t *testing.T) {
+	t.Run("v1_annotation_mode_emits_no_fee", func(t *testing.T) {
 		h := setupFeeHarness(t)
 		app := h.newApp()
 		h.seedBalance(t, "@anno_src", "USD", decimal.NewFromInt(100000), "deposit")
@@ -392,8 +347,9 @@ func TestFeeProof_T16_C9_PerMode(t *testing.T) {
 		h.seedBalance(t, "@fee_rev", "USD", decimal.Zero, "deposit")
 		h.seedPackage(t, packageSpec{label: "anno_pkg", fees: []feeSpec{flatFee("anno_fee", "@fee_rev", "10", false)}})
 
-		// Annotation (NOTED) is one-sided; charging it would violate its
-		// invariants. Assert it emits NO fee credit legs.
+		// Annotation (NOTED) is one-sided; charging it would violate its invariants. It is
+		// gated twice over now — by the route version and by isAnnotation — and either
+		// alone must be enough.
 		body := `{"description":"annotation","send":{"asset":"USD","value":"1000",
 			"source":{"from":[{"accountAlias":"@anno_src","amount":{"asset":"USD","value":"1000"}}]},
 			"distribute":{"to":[{"accountAlias":"@anno_dst","amount":{"asset":"USD","value":"1000"}}]}}}`
@@ -405,7 +361,7 @@ func TestFeeProof_T16_C9_PerMode(t *testing.T) {
 			"annotation (NOTED) must emit NO fee legs (one-sided, no balance movement)")
 	})
 
-	t.Run("inflow_outflow_modes", func(t *testing.T) {
+	t.Run("v1_inflow_outflow_modes_emit_no_fee", func(t *testing.T) {
 		h := setupFeeHarness(t)
 		app := h.newApp()
 		// inflow auto-creates @external/USD source; outflow auto-creates the
@@ -419,12 +375,58 @@ func TestFeeProof_T16_C9_PerMode(t *testing.T) {
 			"distribute":{"to":[{"accountAlias":"@wallet","amount":{"asset":"USD","value":"1000"}}]}}}`
 		inResp := h.post(t, app, h.txPath("inflow"), inflow, nil)
 		require.Equalf(t, 201, inResp.status, "inflow create must succeed: %s", string(inResp.rawBody))
-		requireBalanced(t, loadLegs(t, h.db, mustTxID(t, inResp)), "inflow mode")
+		inLegs := loadLegs(t, h.db, mustTxID(t, inResp))
+		requireBalanced(t, inLegs, "v1 inflow mode")
+		assert.Empty(t, legsFor(inLegs, "@fee_rev", "CREDIT"), "a /v1 inflow create must charge nothing")
 
 		outflow := `{"description":"outflow","send":{"asset":"USD","value":"1000",
 			"source":{"from":[{"accountAlias":"@wallet","amount":{"asset":"USD","value":"1000"}}]}}}`
 		outResp := h.post(t, app, h.txPath("outflow"), outflow, nil)
 		require.Equalf(t, 201, outResp.status, "outflow create must succeed: %s", string(outResp.rawBody))
-		requireBalanced(t, loadLegs(t, h.db, mustTxID(t, outResp)), "outflow mode")
+		outLegs := loadLegs(t, h.db, mustTxID(t, outResp))
+		requireBalanced(t, outLegs, "v1 outflow mode")
+		assert.Empty(t, legsFor(outLegs, "@fee_rev", "CREDIT"), "a /v1 outflow create must charge nothing")
+	})
+
+	t.Run("v2_direct_mode_charges_fee", func(t *testing.T) {
+		h := setupFeeHarness(t)
+		app := h.newV2App()
+		h.seedBalance(t, "@payer", "USD", decimal.NewFromInt(100000), "deposit")
+		h.seedBalance(t, "@receiver", "USD", decimal.Zero, "deposit")
+		h.seedBalance(t, "@fee_rev", "USD", decimal.Zero, "deposit")
+		h.seedPackage(t, packageSpec{label: "direct_pkg", fees: []feeSpec{flatFee("direct_fee", "@fee_rev", "10", false)}})
+
+		body := h.v2Body("v2 direct mode", "USD", "1000",
+			[]string{h.v2Leg("@payer", "1000")},
+			[]string{h.v2Leg("@receiver", "1000")})
+		resp := h.createV2Direct(t, app, body, nil)
+		require.Equalf(t, 201, resp.status, "v2 direct create must succeed: %s", string(resp.rawBody))
+
+		legs := loadLegs(t, h.db, mustTxID(t, resp))
+		requireBalanced(t, legs, "v2 direct mode")
+		assert.NotEmpty(t, legsFor(legs, "@fee_rev", "CREDIT"), "v2 direct mode must charge the fee")
+	})
+
+	t.Run("v2_hold_mode_reserves_fee", func(t *testing.T) {
+		h := setupFeeHarness(t)
+		app := h.newV2App()
+		h.seedBalance(t, "@payer", "USD", decimal.NewFromInt(100000), "deposit")
+		h.seedBalance(t, "@receiver", "USD", decimal.Zero, "deposit")
+		h.seedBalance(t, "@fee_rev", "USD", decimal.Zero, "deposit")
+		h.seedPackage(t, packageSpec{label: "hold_pkg", fees: []feeSpec{flatFee("hold_fee", "@fee_rev", "10", false)}})
+
+		body := h.v2Body("v2 hold mode", "USD", "1000",
+			[]string{h.v2Leg("@payer", "1000")},
+			[]string{h.v2Leg("@receiver", "1000")})
+		resp := h.createV2Hold(t, app, body, nil)
+		require.Equalf(t, 201, resp.status, "v2 hold create must succeed: %s", string(resp.rawBody))
+
+		txID := mustTxID(t, resp)
+		require.Equal(t, cn.PENDING, dbTxStatus(t, h.db, txID))
+
+		// At pending the fee is RESERVED with the principal: the payer holds amount+fee.
+		holdTotal := sumAmounts(reservationLegs(loadLegs(t, h.db, txID)))
+		assert.Truef(t, holdTotal.Equal(decimal.NewFromInt(1010)),
+			"v2 hold must reserve amount+fee on the payer: want 1010, got %s", holdTotal.String())
 	})
 }

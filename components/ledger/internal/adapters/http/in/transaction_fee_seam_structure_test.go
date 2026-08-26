@@ -382,3 +382,130 @@ func readSeamSource(t *testing.T) string {
 
 	return src
 }
+
+// Gate 4 — route-version fee policy: every createTransactionShell call in the /v1
+// transport file passes feesOffV1, and the /v2 funnel passes feesOnV2. The policy is
+// what keeps the fee engine (and its tenant fee-DB resolution) off the /v1 contract, and
+// nothing at runtime would notice a new /v1 route wired with the wrong constant — it
+// would simply start acquiring fee legs and 503s. Asserted over the source AST so a
+// future route cannot silently opt /v1 back in.
+
+// shellFeesPolicyArgs returns the identifier passed as the feesPolicy argument of every
+// createTransactionShell call in src. The argument is the one immediately preceding the
+// variadic idempotency hash source, so it is read by name rather than by index: a
+// non-identifier or absent policy argument yields an empty entry and fails the gate.
+func shellFeesPolicyArgs(t *testing.T, src string) []string {
+	t.Helper()
+
+	fset := token.NewFileSet()
+
+	file, err := parser.ParseFile(fset, "src.go", src, 0)
+	if err != nil {
+		t.Fatalf("parse source: %v", err)
+	}
+
+	var policies []string
+
+	ast.Inspect(file, func(n ast.Node) bool {
+		call, ok := n.(*ast.CallExpr)
+		if !ok {
+			return true
+		}
+
+		sel, ok := call.Fun.(*ast.SelectorExpr)
+		if !ok || sel.Sel.Name != "createTransactionShell" {
+			return true
+		}
+
+		policies = append(policies, feesPolicyArgName(call.Args))
+
+		return true
+	})
+
+	return policies
+}
+
+// feesPolicyArgName picks the fee policy argument out of a createTransactionShell
+// argument list and returns its identifier name, or "" when it is absent or is not a
+// plain identifier. The policy is recognised by value, so a reordering that moved it
+// elsewhere in the list still reports it rather than silently passing.
+func feesPolicyArgName(args []ast.Expr) string {
+	for _, arg := range args {
+		ident, ok := arg.(*ast.Ident)
+		if ok && (ident.Name == "feesOffV1" || ident.Name == "feesOnV2") {
+			return ident.Name
+		}
+	}
+
+	return ""
+}
+
+func readTransportSource(t *testing.T, path string) string {
+	t.Helper()
+
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("read %s: %v", path, err)
+	}
+
+	src := string(data)
+	if !strings.Contains(src, "createTransactionShell") {
+		t.Fatalf("%s contains no createTransactionShell call — the gate is pointed at the wrong file", path)
+	}
+
+	return src
+}
+
+func TestFeeSeamStructure_V1RoutesPassFeesOff(t *testing.T) {
+	policies := shellFeesPolicyArgs(t, readTransportSource(t, "transaction_handler.go"))
+
+	if len(policies) == 0 {
+		t.Fatal("Gate 4: no createTransactionShell call found in transaction_handler.go")
+	}
+
+	for i, got := range policies {
+		if got != "feesOffV1" {
+			t.Errorf("Gate 4: createTransactionShell call #%d in transaction_handler.go passes %q, want feesOffV1 — the /v1 contract carries no fee engine", i, got)
+		}
+	}
+}
+
+func TestFeeSeamStructure_V2FunnelPassesFeesOn(t *testing.T) {
+	policies := shellFeesPolicyArgs(t, readTransportSource(t, "transaction_handler_v2.go"))
+
+	if len(policies) == 0 {
+		t.Fatal("Gate 4: no createTransactionShell call found in transaction_handler_v2.go")
+	}
+
+	for i, got := range policies {
+		if got != "feesOnV2" {
+			t.Errorf("Gate 4: createTransactionShell call #%d in transaction_handler_v2.go passes %q, want feesOnV2", i, got)
+		}
+	}
+}
+
+func TestFeeSeamStructure_Gate4Bites(t *testing.T) {
+	// A /v1 route wired with the wrong constant — or with none at all — must fail the
+	// gate; a gate that cannot bite is not a guard.
+	const wrongConstant = `package in
+
+func (handler *TransactionHandler) CreateTransactionJSON(ctx context.Context, in *X) (*Y, error) {
+	return handler.createTransactionShell(ctx, in.OrganizationID, in.LedgerID, t, s, in.IdempotencyKey, in.IdempotencyTTL, feesOnV2)
+}
+`
+
+	if got := shellFeesPolicyArgs(t, wrongConstant); len(got) != 1 || got[0] != "feesOnV2" {
+		t.Fatalf("Gate 4 bite: analyzer must report the wrong constant, got %v", got)
+	}
+
+	const noPolicy = `package in
+
+func (handler *TransactionHandler) CreateTransactionJSON(ctx context.Context, in *X) (*Y, error) {
+	return handler.createTransactionShell(ctx, in.OrganizationID, in.LedgerID, t, s, in.IdempotencyKey, in.IdempotencyTTL)
+}
+`
+
+	if got := shellFeesPolicyArgs(t, noPolicy); len(got) != 1 || got[0] != "" {
+		t.Fatalf("Gate 4 bite: analyzer must report an absent policy as empty, got %v", got)
+	}
+}

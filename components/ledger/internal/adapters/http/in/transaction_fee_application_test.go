@@ -70,7 +70,7 @@ func TestApplyFees_NoOpOnRevert(t *testing.T) {
 	input := baseTransaction()
 	orgID, ledgerID := uuid.New(), uuid.New()
 
-	err := handler.applyFees(context.Background(), &input, orgID, ledgerID, true /* isRevert */, false /* isAnnotation */, false /* honoredFeeSkip */)
+	err := handler.applyFees(context.Background(), &input, orgID, ledgerID, feesOnV2, true /* isRevert */, false /* isAnnotation */, false /* honoredFeeSkip */)
 
 	require.NoError(t, err)
 	assert.Equal(t, 0, applier.calls, "fee engine must not run on the revert path (no re-charge)")
@@ -86,7 +86,7 @@ func TestApplyFees_NoOpOnAnnotation(t *testing.T) {
 	input := baseTransaction()
 	orgID, ledgerID := uuid.New(), uuid.New()
 
-	err := handler.applyFees(context.Background(), &input, orgID, ledgerID, false /* isRevert */, true /* isAnnotation */, false /* honoredFeeSkip */)
+	err := handler.applyFees(context.Background(), &input, orgID, ledgerID, feesOnV2, false /* isRevert */, true /* isAnnotation */, false /* honoredFeeSkip */)
 
 	require.NoError(t, err)
 	assert.Equal(t, 0, applier.calls, "fee engine must not run on the annotation path (NOTED is one-sided, no fee)")
@@ -98,7 +98,7 @@ func TestApplyFees_NoOpWhenApplierNil(t *testing.T) {
 
 	input := baseTransaction()
 
-	err := handler.applyFees(context.Background(), &input, uuid.New(), uuid.New(), false, false, false /* honoredFeeSkip */)
+	err := handler.applyFees(context.Background(), &input, uuid.New(), uuid.New(), feesOnV2, false, false, false /* honoredFeeSkip */)
 
 	require.NoError(t, err)
 	assert.True(t, input.Send.Value.Equal(decimal.NewFromInt(1000)))
@@ -112,7 +112,7 @@ func TestApplyFees_NoOpWhenSkipHonored(t *testing.T) {
 
 	input := baseTransaction()
 
-	err := handler.applyFees(context.Background(), &input, uuid.New(), uuid.New(), false, false, true /* honoredFeeSkip */)
+	err := handler.applyFees(context.Background(), &input, uuid.New(), uuid.New(), feesOnV2, false, false, true /* honoredFeeSkip */)
 
 	require.NoError(t, err)
 	assert.Equal(t, 0, applier.calls,
@@ -129,7 +129,7 @@ func TestApplyFees_SkipHonoredTouchesNoFeeDependency(t *testing.T) {
 
 	input := baseTransaction()
 
-	err := handler.applyFees(context.Background(), &input, uuid.New(), uuid.New(), false, false, true /* honoredFeeSkip */)
+	err := handler.applyFees(context.Background(), &input, uuid.New(), uuid.New(), feesOnV2, false, false, true /* honoredFeeSkip */)
 
 	require.NoError(t, err)
 	assert.True(t, input.Send.Value.Equal(decimal.NewFromInt(1000)), "honored fee skip must leave the transaction unmutated")
@@ -154,7 +154,7 @@ func TestApplyFees_FoldsMutatedSendBack(t *testing.T) {
 
 	input := baseTransaction()
 
-	err := handler.applyFees(context.Background(), &input, orgID, ledgerID, false, false, false /* honoredFeeSkip */)
+	err := handler.applyFees(context.Background(), &input, orgID, ledgerID, feesOnV2, false, false, false /* honoredFeeSkip */)
 
 	require.NoError(t, err)
 	assert.Equal(t, 1, applier.calls)
@@ -175,7 +175,7 @@ func TestApplyFees_PropagatesBusinessError(t *testing.T) {
 
 	input := baseTransaction()
 
-	err := handler.applyFees(context.Background(), &input, uuid.New(), uuid.New(), false, false, false /* honoredFeeSkip */)
+	err := handler.applyFees(context.Background(), &input, uuid.New(), uuid.New(), feesOnV2, false, false, false /* honoredFeeSkip */)
 
 	require.Error(t, err)
 
@@ -302,4 +302,47 @@ func TestResolveFeesTenantContext_ResolutionErrorMapped(t *testing.T) {
 
 	_, err := handler.resolveFeesTenantContext(reqCtx)
 	require.Error(t, err)
+}
+
+func TestApplyFees_NoOpOnV1RoutePolicy(t *testing.T) {
+	// The /v1 gate must fire BEFORE the tenant fee-DB resolution, not just before
+	// the engine: a tenant whose fee module is unresolvable returns
+	// ErrServiceNotConfigured from the manager, which the seam maps to a 503. With
+	// feesOffV1 the resolver must never be consulted at all, so a resolver rigged to
+	// fail proves the gate short-circuits ahead of it.
+	applier := &fakeFeeApplier{mutate: func(cf *model.FeeCalculate) {
+		cf.Transaction.Send.Value = decimal.NewFromInt(999) // would corrupt if ever run
+	}}
+	resolver := &fakeFeesDBResolver{err: tmcore.ErrServiceNotConfigured}
+	handler := &TransactionHandler{
+		FeeApplier:         applier,
+		FeesMongoManager:   resolver,
+		MultiTenantEnabled: true,
+	}
+
+	input := baseTransaction()
+	ctx := tmcore.ContextWithTenantID(context.Background(), "tenant-a")
+
+	err := handler.applyFees(ctx, &input, uuid.New(), uuid.New(), feesOffV1, false, false, false)
+
+	require.NoError(t, err, "the /v1 contract carries no fee engine, so no tenant fee-DB resolution may be attempted")
+	assert.Equal(t, 0, applier.calls, "the fee engine must not run on a /v1 route")
+	assert.True(t, input.Send.Value.Equal(decimal.NewFromInt(1000)), "a /v1 create must post exactly as authored")
+}
+
+func TestApplyFees_V2RoutePolicyRunsEngine(t *testing.T) {
+	// Counterpart to the /v1 gate: feesOnV2 must still drive the engine, proving the
+	// version gate narrowed the seam rather than disabling fees outright.
+	applier := &fakeFeeApplier{mutate: func(cf *model.FeeCalculate) {
+		cf.Transaction.Send.Value = decimal.NewFromInt(950)
+	}}
+	handler := &TransactionHandler{FeeApplier: applier}
+
+	input := baseTransaction()
+
+	err := handler.applyFees(context.Background(), &input, uuid.New(), uuid.New(), feesOnV2, false, false, false)
+
+	require.NoError(t, err)
+	assert.Equal(t, 1, applier.calls, "the /v2 contract must still reach the fee engine")
+	assert.True(t, input.Send.Value.Equal(decimal.NewFromInt(950)))
 }
