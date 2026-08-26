@@ -138,6 +138,31 @@ version upgrade it never asked for.
 The two facts are independent: an organization can administer packages over `/v1` and still have
 those packages apply only to the transactions it posts on `/v2`.
 
+### The tracer reservation is a `/v2` contract too
+
+The same boundary governs the tracer. The reservation lifecycle is **`/v2`-only** across all three
+of its seams: the reserve anchor on create and revert, and the by-transaction confirm/release on
+commit and cancel. A `/v1` route never reaches the tracer — no reserve request is built, no
+connection is dialled, and a `/v1` create can never answer `0177` (reservation denied) or `0178`
+(reservation unavailable). Like fees, `/v1` shipped before the tracer existed, and the per-ledger
+`tracer.mode` setting is an operator's choice that must not retroactively gate a contract the
+client integrated against.
+
+Both seams read one signal — `routeVersionPolicy` (`routeV1`/`routeV2`,
+`transaction_route_version.go`), threaded from the transport shell because the cores are
+transport-agnostic and cannot read the request path. Each seam decides for itself what the version
+means. Structural gates in `transaction_fee_seam_structure_test.go` and
+`transaction_route_version_structure_test.go` assert every route names its policy and that the
+route gate is the first statement of each tracer seam.
+
+**Mixing mounts across one transaction lifecycle is not supported.** A by-transaction
+confirm/release cannot tell whether the transaction holds reservations, so gating it on the route
+version means a PENDING created on `/v2` and committed through `/v1` never receives its confirm:
+the reservation stays RESERVED until the TTL reaper releases it, and the committed amount is never
+counted against the usage limit. Commit and cancel a transaction on the same contract that created
+it. Closing this needs create-time reservation state persisted on the transaction row for the gate
+to read instead of the route version.
+
 ## Summary
 
 One rule, no exceptions: **every organization-scoped surface in the unified binary — ledger,
@@ -150,5 +175,6 @@ ledger-scoped on `/v2` — the deeper scope is expressed by a deeper path, not b
 query parameter. The convention does not change; only how much of the hierarchy the path names.
 
 Scope and contract are separate questions. The fee admin surface answers the first (two scopes,
-both live); the transaction fee seam answers the second (`/v2` only). A surface being reachable at
-a scope says nothing about which transaction contract applies it.
+both live); the transaction fee seam and the tracer reservation lifecycle answer the second (`/v2`
+only, both driven by the same `routeVersionPolicy`). A surface being reachable at a scope says
+nothing about which transaction contract applies it.
