@@ -10,7 +10,6 @@ import (
 	"context"
 	"encoding/json"
 	"os"
-	"strings"
 	"testing"
 	"time"
 
@@ -259,7 +258,7 @@ func assertBackupFeeInclusive(t *testing.T, h *feeHarness, txID interface{ Strin
 		// distribute side — i.e. the post-fee, fee-inclusive payload.
 		var hasFeeLeg bool
 		for _, ft := range q.TransactionInput.Send.Distribute.To {
-			if strings.Contains(ft.AccountAlias, "@fee_rev") {
+			if ft.AccountAlias == "@fee_rev" {
 				hasFeeLeg = true
 			}
 		}

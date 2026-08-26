@@ -49,6 +49,17 @@ func (handler *BillingCalculateHandler) calculateBilling(ctx context.Context, or
 
 	payload.OrganizationID = organizationID.String()
 
+	// Same canonicalization createBillingPackage applies, for the same reason: the
+	// ledger-scoped guard admits the body ledger on parsed-UUID equality, so every
+	// spelling uuid.Parse accepts reaches here, and the billing repositories match the
+	// stored ledger string against the canonical lowercase-hyphenated form a path
+	// ledger resolves to. Any other spelling would select nothing and report an empty
+	// calculation as success. Only a value that already parses is rewritten;
+	// validateBillingCalculateRequest below is what rejects one that does not.
+	if parsedLedgerID, errParse := uuid.Parse(payload.LedgerID); errParse == nil {
+		payload.LedgerID = parsedLedgerID.String()
+	}
+
 	span.SetAttributes(
 		attribute.String("app.request.ledger_id", payload.LedgerID),
 		attribute.String("app.request.period", payload.Period),

@@ -22,13 +22,17 @@ import (
 	"github.com/LerianStudio/midaz/v4/pkg/repository"
 )
 
+// fixedBulkTestTime stamps every generated fixture. No assertion reads it, so a fixed
+// value costs nothing and keeps the fixtures reproducible.
+var fixedBulkTestTime = time.Date(2026, time.January, 15, 12, 0, 0, 0, time.UTC)
+
 // generateTestTransaction creates a test transaction with the given ID or generates a new UUID.
 func generateTestTransaction(id string) *Transaction {
 	if id == "" {
 		id = uuid.NewString()
 	}
 
-	now := time.Now().UTC()
+	now := fixedBulkTestTime
 
 	return &Transaction{
 		ID:             id,
@@ -202,6 +206,11 @@ func TestCreateBulk_SortsInputByID(t *testing.T) {
 	assert.Equal(t, tx1.ID, input[2].ID, "after CreateBulk, third element should be tx1 (highest ID)")
 }
 
+// TestCreateBulk_ChunkingBoundaryConditions drives CreateBulk at the boundaries of
+// createBulkChunkSize and counts the statements the DB actually received, so the
+// assertion is on production's chunk loop rather than on arithmetic the test repeats.
+// Input sizes are expressed relative to the constant: a change to it moves the
+// boundaries here with it instead of leaving the table describing the old value.
 func TestCreateBulk_ChunkingBoundaryConditions(t *testing.T) {
 	t.Parallel()
 
@@ -211,54 +220,81 @@ func TestCreateBulk_ChunkingBoundaryConditions(t *testing.T) {
 		expectedChunks int
 	}{
 		{"single_item", 1, 1},
-		{"exactly_999", 999, 1},
-		{"exactly_1000", 1000, 1},
-		{"exactly_1001", 1001, 2},
-		{"exactly_2000", 2000, 2},
-		{"exactly_2001", 2001, 3},
-		{"exactly_3000", 3000, 3},
+		{"one_below_chunk", createBulkChunkSize - 1, 1},
+		{"exactly_one_chunk", createBulkChunkSize, 1},
+		{"one_above_chunk", createBulkChunkSize + 1, 2},
+		{"exactly_two_chunks", createBulkChunkSize * 2, 2},
+		{"one_above_two_chunks", createBulkChunkSize*2 + 1, 3},
+		{"exactly_three_chunks", createBulkChunkSize * 3, 3},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			// Verify the chunking math
-			const chunkSize = 1000
-			chunks := (tt.inputCount + chunkSize - 1) / chunkSize
-			assert.Equal(t, tt.expectedChunks, chunks, "chunk count should match")
+			mockDB := &bulkMockDBSequence{}
+			ctx := tmcore.ContextWithPG(context.Background(), mockDB)
+
+			repo := &TransactionPostgreSQLRepository{
+				connection:    nil,
+				tableName:     "transaction",
+				requireTenant: false,
+			}
+
+			result, err := repo.CreateBulk(ctx, generateTestTransactions(tt.inputCount))
+			require.NoError(t, err)
+			require.NotNil(t, result)
+
+			assert.Equal(t, tt.expectedChunks, mockDB.callCount,
+				"CreateBulk must issue one statement per chunk")
+			assert.Equal(t, int64(tt.inputCount), result.Attempted,
+				"every input must be attempted regardless of chunking")
 		})
 	}
 }
 
+// TestBulkInsertResult_Invariant asserts Attempted == Inserted + Ignored on results
+// CreateBulk actually produced, across the outcomes that reach different arms of its
+// accounting: every row inserted, every row a duplicate, and a partial insert. The
+// identity is the caller's basis for reporting how many rows were skipped, and only
+// CreateBulk decides it — a result the test assembles itself proves nothing.
 func TestBulkInsertResult_Invariant(t *testing.T) {
 	t.Parallel()
 
+	const attempted = 100
+
 	tests := []struct {
-		name      string
-		attempted int64
-		inserted  int64
+		name         string
+		rowsReturned int64
 	}{
-		{"all_inserted", 100, 100},
-		{"all_ignored", 100, 0},
-		{"partial", 100, 75},
-		{"single_inserted", 1, 1},
-		{"single_ignored", 1, 0},
+		{"all_inserted", attempted},
+		{"all_ignored", 0},
+		{"partial", 75},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			result := &repository.BulkInsertResult{
-				Attempted: tt.attempted,
-				Inserted:  tt.inserted,
-				Ignored:   tt.attempted - tt.inserted,
+			mockDB := &bulkMockDBSequence{
+				resultsPerCall: []bulkMockCallResult{{rowsAffected: tt.rowsReturned}},
+			}
+			ctx := tmcore.ContextWithPG(context.Background(), mockDB)
+
+			repo := &TransactionPostgreSQLRepository{
+				connection:    nil,
+				tableName:     "transaction",
+				requireTenant: false,
 			}
 
-			// Verify invariant: Attempted = Inserted + Ignored
+			result, err := repo.CreateBulk(ctx, generateTestTransactions(attempted))
+			require.NoError(t, err)
+			require.NotNil(t, result)
+
+			assert.Equal(t, int64(attempted), result.Attempted)
+			assert.Equal(t, tt.rowsReturned, result.Inserted)
 			assert.Equal(t, result.Attempted, result.Inserted+result.Ignored,
-				"invariant failed: Attempted should equal Inserted + Ignored")
+				"Attempted must equal Inserted + Ignored")
 		})
 	}
 }
@@ -501,18 +537,22 @@ func TestInsertTransactionChunk_ColumnCount(t *testing.T) {
 		"transactionColumnList should have %d columns", expectedColumns)
 }
 
+// TestInsertTransactionChunk_ParameterLimitCalculation pins the headroom a full chunk
+// leaves under PostgreSQL's placeholder ceiling. Both factors come from production —
+// createBulkChunkSize and the length of transactionColumnList, the same list
+// insertTransactionChunk passes to squirrel's Columns — so adding a column or raising
+// the chunk size is what has to clear this bound, which a hardcoded 18 could not see.
 func TestInsertTransactionChunk_ParameterLimitCalculation(t *testing.T) {
 	t.Parallel()
 
-	// Verify that 1000 rows * 18 columns stays under PostgreSQL's 65,535 limit
-	const chunkSize = 1000
-	const columnCount = 18 // transactionColumnList length
-	const postgresLimit = 65535
+	// PostgreSQL's wire protocol caps bind parameters per statement at 65,535.
+	const postgresParameterLimit = 65535
 
-	parametersPerChunk := chunkSize * columnCount
-	assert.Less(t, parametersPerChunk, postgresLimit,
-		"parameters per chunk (%d) should be less than PostgreSQL limit (%d)",
-		parametersPerChunk, postgresLimit)
+	parametersPerChunk := createBulkChunkSize * len(transactionColumnList)
+
+	assert.Less(t, parametersPerChunk, postgresParameterLimit,
+		"a full chunk binds %d parameters, over PostgreSQL's %d limit: lower createBulkChunkSize",
+		parametersPerChunk, postgresParameterLimit)
 }
 
 // bulkMockDBSequence tracks call count and returns different results per call
@@ -566,7 +606,8 @@ func TestCreateBulk_ChunkFailure_PartialResult(t *testing.T) {
 	t.Parallel()
 
 	// Create 2001 transactions to trigger 3 chunks (1000 + 1000 + 1) for CreateBulk
-	// Note: CreateBulk uses chunk size 1000 (15 columns), UpdateBulk uses chunk size 500 (6 columns)
+	// Note: CreateBulk uses chunk size 1000 (18 columns, matching insertTransactionChunk),
+	// UpdateBulk uses chunk size 500 (6 columns)
 	transactions := generateTestTransactions(2001)
 
 	// Mock: chunk 1 succeeds (1000 rows), chunk 2 fails

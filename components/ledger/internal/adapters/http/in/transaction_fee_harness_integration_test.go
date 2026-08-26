@@ -22,6 +22,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"io"
+	nethttp "net/http"
 	"net/http/httptest"
 	"testing"
 
@@ -284,7 +285,7 @@ type txResponse struct {
 func (h *feeHarness) post(t *testing.T, app *fiber.App, path, body string, headers map[string]string) txResponse {
 	t.Helper()
 
-	req := httptest.NewRequest("POST", path, bytes.NewBufferString(body))
+	req := httptest.NewRequest(nethttp.MethodPost, path, bytes.NewBufferString(body))
 	req.Header.Set("Content-Type", "application/json")
 	for k, v := range headers {
 		req.Header.Set(k, v)
