@@ -785,7 +785,7 @@ are set programmatically by `applyConfigDefaults()`.
 | BALANCE_SYNC_FLUSH_TIMEOUT_MS | 500 | Max ms before flush (TIMEOUT trigger) |
 | BALANCE_SYNC_POLL_INTERVAL_MS | 50 | ZSET polling interval (ms) when draining |
 
-#### Streaming (lib-streaming/v3 v3.0.0 / Kafka)
+#### Streaming (lib-streaming/v3 v3.1.0 / Kafka)
 The master flag is `STREAMING_ENABLED`; when false, a no-op emitter is injected. The rest are
 loaded by `libStreaming.LoadConfig()` with franz-go defaults. Wire format: CloudEvents 1.0 binary
 mode on Kafka.
@@ -1023,7 +1023,7 @@ There is no standalone CRM image — CRM ships inside the ledger image.
 |------------|---------|---------|
 | github.com/LerianStudio/lib-commons/v6 | v6.2.0 | Shared library (tenant-manager, Redis, HTTP toolkit, lifecycle, outbox, Huma/OpenAPI + RFC 9457 problem wrappers) |
 | github.com/LerianStudio/lib-observability/v2 | v2.1.0 | Logging, metrics, tracing, assertions, panic recovery, redaction |
-| github.com/LerianStudio/lib-streaming/v3 | v3.0.0 | CloudEvents/Kafka streaming producer (franz-go) |
+| github.com/LerianStudio/lib-streaming/v3 | v3.1.0 | CloudEvents/Kafka streaming producer (franz-go) |
 | github.com/LerianStudio/lib-auth/v3 | v3.3.0 | Authentication middleware |
 | github.com/danielgtaylor/huma/v2 | v2.38.0 | OpenAPI 3.1 contract + request/response validation over Fiber |
 | github.com/gofiber/fiber/v3 | v3.4.0 | HTTP framework (runtime router / middleware) |

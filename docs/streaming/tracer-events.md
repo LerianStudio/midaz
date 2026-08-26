@@ -12,7 +12,7 @@ producer conventions in `CLAUDE.md` (Streaming section) and
 
 ## Overview
 
-- **Producer:** [`github.com/LerianStudio/lib-streaming`](https://github.com/LerianStudio/lib-streaming) v3.0.0.
+- **Producer:** [`github.com/LerianStudio/lib-streaming`](https://github.com/LerianStudio/lib-streaming) v3.1.0.
 - **Wire format:** CloudEvents 1.0, binary mode, over Kafka/Redpanda.
 - **Component:** tracer (`components/tracer`). Tracer is a standalone Go service
   with its own self-contained emitter bootstrap at
