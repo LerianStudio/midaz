@@ -227,7 +227,7 @@ func TestFeeProof_T25_AsyncFeeInclusive(t *testing.T) {
 	require.NotEmpty(t, legs, "async path must persist operations")
 	requireBalanced(t, legs, "async fee tx")
 
-	feeLegs := feeCreditLegs(legs, "@fee_rev")
+	feeLegs := legsFor(legs, "@fee_rev", "CREDIT")
 	require.NotEmpty(t, feeLegs, "async persisted operations must include the fee legs")
 	assert.Truef(t, sumAmounts(feeLegs).Equal(decimal.NewFromInt(10)),
 		"async fee legs must total exactly 10, got %s", sumAmounts(feeLegs).String())
@@ -258,7 +258,7 @@ func assertBackupFeeInclusive(t *testing.T, h *feeHarness, txID interface{ Strin
 		// distribute side — i.e. the post-fee, fee-inclusive payload.
 		var hasFeeLeg bool
 		for _, ft := range q.TransactionInput.Send.Distribute.To {
-			if aliasContains(ft.AccountAlias, "@fee_rev") {
+			if ft.AccountAlias == "@fee_rev" {
 				hasFeeLeg = true
 			}
 		}
@@ -266,19 +266,6 @@ func assertBackupFeeInclusive(t *testing.T, h *feeHarness, txID interface{ Strin
 			"backup seed must reconstruct to the FEE-INCLUSIVE transaction (fee leg present in TransactionInput), not the pre-fee payload")
 	}
 	require.True(t, found, "backup seed for the transaction must exist in the Redis backup queue")
-}
-
-func aliasContains(alias, want string) bool {
-	return len(alias) >= len(want) && (alias == want || containsSub(alias, want))
-}
-
-func containsSub(s, sub string) bool {
-	for i := 0; i+len(sub) <= len(s); i++ {
-		if s[i:i+len(sub)] == sub {
-			return true
-		}
-	}
-	return false
 }
 
 // waitForTxStatus polls the persisted transaction status until it matches or the

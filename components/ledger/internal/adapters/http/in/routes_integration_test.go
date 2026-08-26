@@ -109,8 +109,8 @@ func mountMoneyWriteSurface(app *fiber.App, auth *middleware.AuthClient) huma.AP
 // conditional CRM handler is passed NON-nil so the FULL surface mounts; the nil-guard
 // conditionality is TestCRMV2RoutesRespectNilGuards' subject (huma_contract_mount_test.go).
 //
-// Fees/billing are v2-only too but mount through RegisterFeesV2RoutesToApp, exercised by
-// fees_v2_register_test.go rather than here.
+// Fees/billing are v2-only too but mount through their four per-resource registrars, exercised by
+// fees_routes_test.go rather than here.
 func mountCRMCompositionSurface(app *fiber.App, auth *middleware.AuthClient) huma.API {
 	group, hAPI := newLedgerHumaTestAPI(app, "/v2")
 

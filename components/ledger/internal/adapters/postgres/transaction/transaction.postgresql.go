@@ -37,6 +37,18 @@ import (
 	"github.com/LerianStudio/midaz/v4/pkg/repository"
 )
 
+// createBulkChunkSize and updateBulkChunkSize bound how many rows one bulk statement
+// carries, so the parameter count stays under PostgreSQL's 65,535 ceiling. CreateBulk
+// writes every column in transactionColumnList (18 of them, so 18,000 parameters per
+// chunk); UpdateBulk writes six (id, organization_id, ledger_id, status,
+// status_description, updated_at), so its larger headroom is spent on shorter
+// row-locking windows instead. Declared here rather than inside the two methods so the
+// tests that pin the parameter-limit headroom read the value production uses.
+const (
+	createBulkChunkSize = 1000
+	updateBulkChunkSize = 500
+)
+
 var transactionColumnList = []string{
 	"id",
 	"parent_transaction_id",
@@ -351,11 +363,7 @@ func (r *TransactionPostgreSQLRepository) createBulkInternal(
 		InsertedIDs: make([]string, 0, len(transactions)),
 	}
 
-	// Chunk into bulks of ~1,000 rows to stay within PostgreSQL's parameter limit
-	// Transaction has 18 columns, so 1000 rows = 18,000 parameters (under 65,535 limit)
-	const chunkSize = 1000
-
-	for i := 0; i < len(transactions); i += chunkSize {
+	for i := 0; i < len(transactions); i += createBulkChunkSize {
 		// Check for context cancellation between chunks
 		select {
 		case <-ctx.Done():
@@ -365,7 +373,7 @@ func (r *TransactionPostgreSQLRepository) createBulkInternal(
 		default:
 		}
 
-		end := min(i+chunkSize, len(transactions))
+		end := min(i+createBulkChunkSize, len(transactions))
 
 		chunkResult, err := r.insertTransactionChunk(ctx, db, transactions[i:end])
 		if err != nil {
@@ -571,12 +579,7 @@ func (r *TransactionPostgreSQLRepository) updateBulkInternal(
 
 	result := &repository.BulkUpdateResult{}
 
-	// Chunk into bulks of ~500 rows to stay within PostgreSQL's parameter limit
-	// Transaction update uses 6 columns (id, organization_id, ledger_id, status, status_description, updated_at)
-	// so 500 rows = 3,000 parameters (well under PostgreSQL's 65535 limit)
-	const chunkSize = 500
-
-	for i := 0; i < len(transactions); i += chunkSize {
+	for i := 0; i < len(transactions); i += updateBulkChunkSize {
 		// Check for context cancellation between chunks
 		select {
 		case <-ctx.Done():
@@ -586,7 +589,7 @@ func (r *TransactionPostgreSQLRepository) updateBulkInternal(
 		default:
 		}
 
-		end := min(i+chunkSize, len(transactions))
+		end := min(i+updateBulkChunkSize, len(transactions))
 		chunkSize64 := int64(end - i)
 
 		// Increment Attempted before executing to accurately reflect rows submitted

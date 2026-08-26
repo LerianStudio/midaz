@@ -35,6 +35,10 @@ type FeeHandler struct {
 // selection; the caller (Fiber/Huma) resolves the org id, decodes the payload, and
 // renders the returned envelope/error.
 func (handler *FeeHandler) estimateFeeCalculation(ctx context.Context, organizationID uuid.UUID, payload *model.FeeEstimate) (model.FeeEstimateResponse, error) {
+	if err := ctx.Err(); err != nil {
+		return model.FeeEstimateResponse{}, err
+	}
+
 	_, tracer, reqId, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "handler.fee_estimate_calculation")

@@ -70,12 +70,12 @@ func buildFeesV2AppWithOptions(t *testing.T, routeOptions *pkgHTTP.ProtectedRout
 	hAPI := openapi.New(app, apiV2, openapi.Config{Title: "ledger-fees-v2-behaviour", Version: "test", Servers: []string{"/v2"}})
 	pkgHTTP.InstallLedgerSchemaNamer(hAPI)
 
-	RegisterFeesV2RoutesToApp(apiV2, hAPI, &middleware.AuthClient{Enabled: false},
-		&PackageHandler{Service: stubs.pkgSvc},
-		&FeeHandler{Service: stubs.feeSvc},
-		&BillingPackageHandler{Service: stubs.billingSvc},
-		&BillingCalculateHandler{Service: stubs.calcSvc},
-		routeOptions)
+	auth := &middleware.AuthClient{Enabled: false}
+
+	RegisterPackageV2RoutesToApp(apiV2, hAPI, auth, &PackageHandler{Service: stubs.pkgSvc}, routeOptions)
+	RegisterFeeEstimateV2RoutesToApp(apiV2, hAPI, auth, &FeeHandler{Service: stubs.feeSvc}, routeOptions)
+	RegisterBillingPackageV2RoutesToApp(apiV2, hAPI, auth, &BillingPackageHandler{Service: stubs.billingSvc}, routeOptions)
+	RegisterBillingCalculateV2RoutesToApp(apiV2, hAPI, auth, &BillingCalculateHandler{Service: stubs.calcSvc}, routeOptions)
 
 	return app, stubs
 }

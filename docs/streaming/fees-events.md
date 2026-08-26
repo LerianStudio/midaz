@@ -12,7 +12,7 @@ producer conventions in `CLAUDE.md` (Streaming section) and
 
 ## Overview
 
-- **Producer:** [`github.com/LerianStudio/lib-streaming`](https://github.com/LerianStudio/lib-streaming) v3.0.0.
+- **Producer:** [`github.com/LerianStudio/lib-streaming`](https://github.com/LerianStudio/lib-streaming) v3.1.0.
 - **Wire format:** CloudEvents 1.0, binary mode, over Kafka.
 - **Component:** ledger (`components/ledger`). Fees are embedded in the ledger
   binary; there is no standalone fees service.

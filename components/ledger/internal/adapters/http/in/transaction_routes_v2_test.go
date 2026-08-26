@@ -387,7 +387,7 @@ const (
 	v2ShareSchemaName      = "V2ShareInput"
 
 	// v1ResponseSchemaName is the component the v1 ops answer with. The v2 one is
-	// v2TransactionSchemaName, declared once in transaction_v2_output_test.go: a second
+	// v2TransactionSchemaName, declared once in transaction_output_v2_test.go: a second
 	// spelling of the same literal would let a rename be applied to one and missed in the
 	// other, which is the drift both constants exist to catch.
 	v1ResponseSchemaName = "Transaction"

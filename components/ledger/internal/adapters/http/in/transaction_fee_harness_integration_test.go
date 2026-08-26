@@ -17,12 +17,21 @@ package in
 // FeeApplier: fees.useCase}).
 
 import (
+	"bytes"
 	"context"
 	"database/sql"
+	"encoding/json"
+	"io"
+	nethttp "net/http"
+	"net/http/httptest"
 	"testing"
 
+	libObservability "github.com/LerianStudio/lib-observability/v2"
 	libLog "github.com/LerianStudio/lib-observability/v2/log"
+	"github.com/gofiber/fiber/v3"
+	"github.com/shopspring/decimal"
 
+	ledgerMiddleware "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/http/in/middleware"
 	mongoonb "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/mongodb/onboarding"
 	mongotxn "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/mongodb/transaction"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/account"
@@ -37,11 +46,16 @@ import (
 	redis "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/redis/transaction"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services/command"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services/query"
+	cn "github.com/LerianStudio/midaz/v4/pkg/constant"
+	"github.com/LerianStudio/midaz/v4/pkg/net/http"
 
 	feesmongo "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/mongodb/fees"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/mongodb/fees/pack"
 	feesservices "github.com/LerianStudio/midaz/v4/components/ledger/internal/services/fees"
+	feemodel "github.com/LerianStudio/midaz/v4/components/ledger/pkg/feeshared/model"
 
+	openapi "github.com/LerianStudio/lib-commons/v6/commons/net/http/openapi"
+	libProblem "github.com/LerianStudio/lib-commons/v6/commons/net/http/problem"
 	libPostgres "github.com/LerianStudio/lib-commons/v6/commons/postgres"
 
 	mongotestutil "github.com/LerianStudio/midaz/v4/tests/utils/mongodb"
@@ -49,6 +63,7 @@ import (
 	redistestutil "github.com/LerianStudio/midaz/v4/tests/utils/redis"
 
 	"github.com/google/uuid"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -203,3 +218,407 @@ func (h *feeHarness) assertNoPrecisionTable(t *testing.T) {
 
 // ctx returns a background context for fixture seeding outside the request path.
 func (h *feeHarness) ctx() context.Context { return context.Background() }
+
+// =============================================================================
+// App wiring, request helpers, seeding
+// =============================================================================
+
+// ─── HTTP app wiring ─────────────────────────────────────────────────────────
+
+// debugFunnelLogs, when true, injects a Debug-level logger into each request so
+// the create funnel's own Debug logs (balance-op counts, etc.) surface in test
+// output. Toggled on only while diagnosing.
+var debugFunnelLogs = false
+
+// newApp builds a Fiber app exposing the transaction routes the proof suite
+// drives, mounted through RegisterTransactionRoutes exactly as production does:
+// ParseUUIDPathParameters runs as Fiber middleware on the /v1 group and the Huma
+// registrar owns the terminals, so body decode/validate goes through the same
+// http.DecodeAndValidate pipeline as production.
+func (h *feeHarness) newApp() *fiber.App {
+	app := fiber.New()
+
+	libProblem.Install()
+	http.InstallHumaFrameworkErrors()
+
+	// Mirror production: the ledger registers ErrorEnvelope on the app root, so
+	// /v1 serves the v3 envelope. Without it these assertions lock a shape no
+	// deployed ledger returns.
+	app.Use(ledgerMiddleware.ErrorEnvelope())
+
+	apiV1 := app.Group("/v1")
+	hAPI := openapi.New(app, apiV1, openapi.Config{
+		Title:   "ledger-fee-integration",
+		Version: "test",
+		Servers: []string{"/v1"},
+	})
+
+	// The transaction Out nests operation.{Status,Balance,Amount}, which collide on
+	// bare schema names with the mmodel/transaction types on the shared registry.
+	// Must run after openapi.New and BEFORE any huma.Register.
+	http.InstallLedgerSchemaNamer(hAPI)
+
+	debugLogger := func(c fiber.Ctx) error {
+		if debugFunnelLogs {
+			c.SetContext(libObservability.ContextWithLogger(c.Context(), &libLog.GoLogger{Level: libLog.LevelDebug}))
+		}
+
+		return c.Next()
+	}
+
+	mountTransactionRoutes(apiV1, debugLogger)
+
+	RegisterTransactionRoutes(hAPI, h.handler)
+
+	return app
+}
+
+// txResponse captures the parsed HTTP response from a create/state call.
+type txResponse struct {
+	status   int
+	rawBody  []byte
+	body     map[string]any
+	replayed string
+}
+
+// post issues a JSON POST and parses the response.
+func (h *feeHarness) post(t *testing.T, app *fiber.App, path, body string, headers map[string]string) txResponse {
+	t.Helper()
+
+	req := httptest.NewRequest(nethttp.MethodPost, path, bytes.NewBufferString(body))
+	req.Header.Set("Content-Type", "application/json")
+	for k, v := range headers {
+		req.Header.Set(k, v)
+	}
+
+	resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
+	require.NoError(t, err, "HTTP request failed")
+
+	rb, err := io.ReadAll(resp.Body)
+	require.NoError(t, err, "read response body")
+	_ = resp.Body.Close()
+
+	out := txResponse{status: resp.StatusCode, rawBody: rb, replayed: resp.Header.Get("X-Idempotency-Replayed")}
+	_ = json.Unmarshal(rb, &out.body)
+
+	return out
+}
+
+// createJSON drives a transactions/json create and returns the response.
+func (h *feeHarness) createJSON(t *testing.T, app *fiber.App, body string, headers map[string]string) txResponse {
+	t.Helper()
+	return h.post(t, app, h.txPath("json"), body, headers)
+}
+
+// txPath builds the create path for a given mode.
+func (h *feeHarness) txPath(mode string) string {
+	return "/v1/organizations/" + h.orgID.String() + "/ledgers/" + h.ledgerID.String() + "/transactions/" + mode
+}
+
+// statePath builds a commit/cancel/revert path for a transaction.
+func (h *feeHarness) statePath(txID uuid.UUID, action string) string {
+	return "/v1/organizations/" + h.orgID.String() + "/ledgers/" + h.ledgerID.String() + "/transactions/" + txID.String() + "/" + action
+}
+
+// ─── balance seeding ─────────────────────────────────────────────────────────
+
+// seedBalance creates a balance row and a matching ACTIVE account so the fee
+// resolver's GetAccountByAlias finds it. Returns the balance row ID.
+func (h *feeHarness) seedBalance(t *testing.T, alias, asset string, available decimal.Decimal, accountType string) uuid.UUID {
+	t.Helper()
+
+	accParams := postgrestestutil.DefaultAccountParams()
+	accParams.Alias = alias
+	accParams.AssetCode = asset
+	accParams.Type = accountType
+	accountID := postgrestestutil.CreateTestAccountWithParams(t, h.db, h.orgID, h.ledgerID, accParams)
+
+	balParams := postgrestestutil.DefaultBalanceParams()
+	balParams.Alias = alias
+	balParams.AssetCode = asset
+	balParams.Available = available
+	balParams.OnHold = decimal.Zero
+	balParams.AccountType = accountType
+
+	return postgrestestutil.CreateTestBalance(t, h.db, h.orgID, h.ledgerID, accountID, balParams)
+}
+
+// seedBalanceWithSegment is like seedBalance but assigns the account a segment.
+func (h *feeHarness) seedBalanceWithSegment(t *testing.T, alias, asset string, available decimal.Decimal, segmentID uuid.UUID) uuid.UUID {
+	t.Helper()
+
+	accParams := postgrestestutil.DefaultAccountParams()
+	accParams.Alias = alias
+	accParams.AssetCode = asset
+	accParams.Type = "deposit"
+	accParams.SegmentID = &segmentID
+	accountID := postgrestestutil.CreateTestAccountWithParams(t, h.db, h.orgID, h.ledgerID, accParams)
+
+	balParams := postgrestestutil.DefaultBalanceParams()
+	balParams.Alias = alias
+	balParams.AssetCode = asset
+	balParams.Available = available
+	balParams.AccountType = "deposit"
+
+	return postgrestestutil.CreateTestBalance(t, h.db, h.orgID, h.ledgerID, accountID, balParams)
+}
+
+// ─── package seeding ─────────────────────────────────────────────────────────
+
+// feeSpec describes one fee inside a seeded package.
+type feeSpec struct {
+	label         string
+	rule          string // "flatFee" | "percentual" | "maxBetweenTypes"
+	calcs         []feemodel.Calculation
+	deductible    bool
+	creditAccount string
+	priority      int
+	referenceAmt  string // defaults to originalAmount
+}
+
+// packageSpec describes a fee package to seed.
+type packageSpec struct {
+	label          string
+	minAmount      decimal.Decimal
+	maxAmount      decimal.Decimal
+	segmentID      *uuid.UUID
+	waivedAccounts []string
+	fees           []feeSpec
+}
+
+// seedPackage persists a package from the spec via the real repository and
+// returns its ID.
+func (h *feeHarness) seedPackage(t *testing.T, spec packageSpec) uuid.UUID {
+	t.Helper()
+
+	enable := true
+	fees := make(map[string]feemodel.Fee, len(spec.fees))
+
+	for i, f := range spec.fees {
+		ded := f.deductible
+		ref := f.referenceAmt
+		if ref == "" {
+			ref = "originalAmount"
+		}
+		priority := f.priority
+		if priority == 0 {
+			priority = i + 1
+		}
+
+		key := f.label
+		if key == "" {
+			key = "fee_" + decimal.NewFromInt(int64(i)).String()
+		}
+
+		fees[key] = feemodel.Fee{
+			FeeLabel: f.label,
+			CalculationModel: &feemodel.CalculationModel{
+				ApplicationRule: f.rule,
+				Calculations:    f.calcs,
+			},
+			ReferenceAmount:  ref,
+			Priority:         priority,
+			IsDeductibleFrom: &ded,
+			CreditAccount:    f.creditAccount,
+		}
+	}
+
+	maxAmt := spec.maxAmount
+	if maxAmt.IsZero() {
+		maxAmt = decimal.NewFromInt(1_000_000_000)
+	}
+
+	p, err := pack.NewPackage(h.orgID, h.ledgerID, spec.label, spec.minAmount, maxAmt, fees, &enable)
+	require.NoError(t, err, "build package")
+
+	p.SegmentID = spec.segmentID
+	if len(spec.waivedAccounts) > 0 {
+		wa := spec.waivedAccounts
+		p.WaivedAccounts = &wa
+	}
+
+	created, err := h.packageRepo.Create(h.ctx(), p, h.orgID)
+	require.NoError(t, err, "persist package")
+
+	return created.ID
+}
+
+// flatFee builds a flatFee fee spec.
+func flatFee(label, creditAccount, value string, deductible bool) feeSpec {
+	return feeSpec{
+		label:         label,
+		rule:          "flatFee",
+		calcs:         []feemodel.Calculation{{Type: "flat", Value: value}},
+		deductible:    deductible,
+		creditAccount: creditAccount,
+	}
+}
+
+// percentualFee builds a percentual fee spec.
+func percentualFee(label, creditAccount, percent string, deductible bool) feeSpec {
+	return feeSpec{
+		label:         label,
+		rule:          "percentual",
+		calcs:         []feemodel.Calculation{{Type: "percentage", Value: percent}},
+		deductible:    deductible,
+		creditAccount: creditAccount,
+	}
+}
+
+// maxBetweenFee builds a maxBetweenTypes fee spec with a flat and a percentage leg.
+func maxBetweenFee(label, creditAccount, flatVal, percentVal string, deductible bool) feeSpec {
+	return feeSpec{
+		label: label,
+		rule:  "maxBetweenTypes",
+		calcs: []feemodel.Calculation{
+			{Type: "flat", Value: flatVal},
+			{Type: "percentage", Value: percentVal},
+		},
+		deductible:    deductible,
+		creditAccount: creditAccount,
+	}
+}
+
+// ─── persisted operation legs ────────────────────────────────────────────────
+
+// persistedLeg is one row of the Postgres operation table for a transaction.
+type persistedLeg struct {
+	Type   string
+	Alias  string
+	Amount decimal.Decimal
+	Key    string
+	Route  *string
+}
+
+// loadLegs reads all operations persisted for a transaction.
+func loadLegs(t *testing.T, db *sql.DB, txID uuid.UUID) []persistedLeg {
+	t.Helper()
+
+	rows, err := db.Query(`SELECT type, account_alias, amount, balance_key, route FROM operation WHERE transaction_id = $1`, txID)
+	require.NoError(t, err, "query operations")
+	defer func() { _ = rows.Close() }()
+
+	var legs []persistedLeg
+	for rows.Next() {
+		var l persistedLeg
+		require.NoError(t, rows.Scan(&l.Type, &l.Alias, &l.Amount, &l.Key, &l.Route), "scan operation")
+		legs = append(legs, l)
+	}
+	require.NoError(t, rows.Err(), "operation rows iteration")
+
+	return legs
+}
+
+// signedSum computes the signed sum of legs under the double-entry convention:
+// CREDIT is positive, DEBIT/ON_HOLD is negative. A balanced transaction nets to
+// exactly zero under decimal.Equal.
+func signedSum(legs []persistedLeg) decimal.Decimal {
+	sum := decimal.Zero
+	for _, l := range legs {
+		switch l.Type {
+		case "CREDIT":
+			sum = sum.Add(l.Amount)
+		case "DEBIT", "ON_HOLD":
+			sum = sum.Sub(l.Amount)
+		}
+	}
+	return sum
+}
+
+// requireBalanced asserts the legs net to zero under EXACT decimal equality.
+func requireBalanced(t *testing.T, legs []persistedLeg, msg string) {
+	t.Helper()
+	sum := signedSum(legs)
+	require.Truef(t, sum.Equal(decimal.Zero), "%s: legs must net to exactly zero, got %s", msg, sum.String())
+}
+
+// sumAmounts sums the absolute amounts of the given legs.
+func sumAmounts(legs []persistedLeg) decimal.Decimal {
+	sum := decimal.Zero
+	for _, l := range legs {
+		sum = sum.Add(l.Amount)
+	}
+	return sum
+}
+
+// dbTxStatus reads the persisted transaction status.
+func dbTxStatus(t *testing.T, db *sql.DB, txID uuid.UUID) string {
+	t.Helper()
+	return postgrestestutil.GetTransactionStatus(t, db, txID)
+}
+
+// dbTxAmount reads the persisted transaction amount.
+func dbTxAmount(t *testing.T, db *sql.DB, txID uuid.UUID) decimal.Decimal {
+	t.Helper()
+	var amt decimal.Decimal
+	err := db.QueryRow(`SELECT amount FROM transaction WHERE id = $1`, txID).Scan(&amt)
+	require.NoError(t, err, "read transaction amount")
+	return amt
+}
+
+// approvedStatus is a convenience alias used across proof assertions.
+const approvedStatus = cn.APPROVED
+
+// =============================================================================
+// Harness sanity
+// =============================================================================
+
+// TestFeeHarness_Sanity_NoPackageSucceeds proves the harness itself is sound:
+// with NO fee package seeded, applyFees is a no-op and a plain transfer creates
+// and balances exactly like the existing non-fee integration suite. This
+// isolates the proof-suite failures to the fee seam (when a package IS present),
+// not to the harness wiring.
+func TestFeeHarness_Sanity_NoPackageSucceeds(t *testing.T) {
+	h := setupFeeHarness(t)
+	app := h.newApp()
+
+	h.seedBalance(t, "@payer", "USD", decimal.NewFromInt(1000), "deposit")
+	h.seedBalance(t, "@receiver", "USD", decimal.Zero, "deposit")
+
+	// No package seeded -> fee engine finds no package -> applyFees is a no-op.
+	body := `{
+		"description": "no-fee transfer through the fee harness",
+		"pending": false,
+		"send": {
+			"asset": "USD",
+			"value": "100",
+			"source": { "from": [{"accountAlias": "@payer", "amount": {"asset": "USD", "value": "100"}}] },
+			"distribute": { "to": [{"accountAlias": "@receiver", "amount": {"asset": "USD", "value": "100"}}] }
+		}
+	}`
+
+	resp := h.createJSON(t, app, body, nil)
+	require.Equalf(t, 201, resp.status, "no-fee create through the harness must succeed: %s", string(resp.rawBody))
+
+	txID := mustTxID(t, resp)
+	require.Equal(t, cn.APPROVED, dbTxStatus(t, h.db, txID))
+
+	legs := loadLegs(t, h.db, txID)
+	require.Len(t, legs, 2, "a plain transfer must persist exactly 2 operations")
+	requireBalanced(t, legs, "no-fee transfer")
+	assert.True(t, dbTxAmount(t, h.db, txID).Equal(decimal.NewFromInt(100)))
+}
+
+// legsFor returns the legs booked against alias. An empty legType matches any
+// operation type; otherwise only legs of that type are returned.
+func legsFor(legs []persistedLeg, alias, legType string) []persistedLeg {
+	var out []persistedLeg
+
+	for _, l := range legs {
+		if l.Alias == alias && (legType == "" || l.Type == legType) {
+			out = append(out, l)
+		}
+	}
+
+	return out
+}
+
+// mustTxID extracts the transaction id from a successful create response.
+func mustTxID(t *testing.T, resp txResponse) uuid.UUID {
+	t.Helper()
+	idStr, ok := resp.body["id"].(string)
+	require.Truef(t, ok, "response must contain id: %s", string(resp.rawBody))
+	id, err := uuid.Parse(idStr)
+	require.NoError(t, err, "transaction id must be a valid UUID")
+	return id
+}

@@ -26,7 +26,7 @@ import (
 // The by-ID operations take the ledger the request is scoped to and reach only what
 // that ledger owns. The repository still reads uuid.Nil as organization scope, but
 // the HTTP surface cannot express it: every v2 fee and billing path names the ledger,
-// and the guards in fees_ledger_scope.go refuse any other way of widening the scope.
+// and the guards in fee_ledger_scope.go refuse any other way of widening the scope.
 type BillingPackageUseCase interface {
 	CreateBillingPackage(ctx context.Context, bp *model.BillingPackage) (*model.BillingPackage, error)
 	GetBillingPackageByID(ctx context.Context, id, organizationID, ledgerID uuid.UUID) (*model.BillingPackage, error)

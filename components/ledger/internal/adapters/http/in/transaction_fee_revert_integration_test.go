@@ -117,8 +117,8 @@ func TestFeeProof_T14_DeductibleRevert(t *testing.T) {
 
 	// (c) no doubled fee legs: the fee account appears on the reverse exactly as
 	// a single reversal (one leg per original fee leg), not twice.
-	parentFeeLegs := feeCreditLegs(loadLegs(t, h.db, parentTxID), "@fee_rev")
-	reverseFeeRefund := legsForAlias(reverseLegs, "@fee_rev")
+	parentFeeLegs := legsFor(loadLegs(t, h.db, parentTxID), "@fee_rev", "CREDIT")
+	reverseFeeRefund := legsFor(reverseLegs, "@fee_rev", "")
 	assert.Equalf(t, len(parentFeeLegs), len(reverseFeeRefund),
 		"reverse must contain exactly one refund leg per original fee leg (no double-reverse): parent=%d reverse=%d",
 		len(parentFeeLegs), len(reverseFeeRefund))
@@ -169,17 +169,6 @@ func TestFeeProof_T14_PendingCancelReleasesFees(t *testing.T) {
 	assert.Truef(t, payerAfter.Equal(payerBefore),
 		"cancel must release all held funds incl. fees: payer total before=%s after=%s",
 		payerBefore.String(), payerAfter.String())
-}
-
-// legsForAlias returns all legs touching the given account alias.
-func legsForAlias(legs []persistedLeg, alias string) []persistedLeg {
-	var out []persistedLeg
-	for _, l := range legs {
-		if l.Alias == alias {
-			out = append(out, l)
-		}
-	}
-	return out
 }
 
 // postgresGetChildTx finds the reverse (child) transaction created by a revert.

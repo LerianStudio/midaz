@@ -96,3 +96,33 @@ func feeLedgerScopeAttributes(organizationID, ledgerID uuid.UUID, resourceKey st
 
 	return attributes
 }
+
+// FeeV2Path is the ledger-scoped path prefix every v2 fee and billing operation
+// carries. The parameters have no format tag: ParseUUIDPathParameters on the Fiber
+// guard chain stays the sole path-UUID validator, as it is on every other migrated
+// resource.
+type FeeV2Path struct {
+	OrganizationID string `path:"organization_id" doc:"Organization ID (UUID)"`
+	LedgerID       string `path:"ledger_id" doc:"Ledger ID (UUID)"`
+}
+
+// parseFeeV2Path resolves the organization and the ledger a ledger-scoped fee request
+// acts within.
+//
+// The nil identifier is refused rather than carried inward. It is a syntactically
+// valid UUID, so ParseUUIDPathParameters admits it, and both fee repositories read it
+// as "no ledger requested" — a by-ID read would then match a package on any ledger of
+// the organization and a listing would return every ledger's. No ledger is created
+// with it, so nothing legitimate is turned away.
+func parseFeeV2Path(p FeeV2Path) (organizationID, ledgerID uuid.UUID, err error) {
+	organizationID, ledgerID, err = parseOrgLedger(p.OrganizationID, p.LedgerID)
+	if err != nil {
+		return uuid.Nil, uuid.Nil, err
+	}
+
+	if ledgerID == uuid.Nil {
+		return uuid.Nil, uuid.Nil, feeerrors.ValidateBusinessError(feeconstant.ErrInvalidPathParameter, "", "ledger_id")
+	}
+
+	return organizationID, ledgerID, nil
+}
