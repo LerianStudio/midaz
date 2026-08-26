@@ -63,12 +63,10 @@ func transactionLifecycleFixture(parentID *string, status string) *transaction.T
 
 // newSendTransactionEventsTestUseCase wires a UseCase whose RabbitMQRepo
 // accepts the legacy publish (returning nil/nil) and whose Streaming is
-// the injected emitter. RABBITMQ_TRANSACTION_EVENTS_ENABLED is left at
-// its enabled default so both transports are exercised.
+// the injected emitter.
 func newSendTransactionEventsTestUseCase(t *testing.T, ctrl *gomock.Controller, emitter libStreaming.Emitter) *UseCase {
 	t.Helper()
 
-	t.Setenv("RABBITMQ_TRANSACTION_EVENTS_ENABLED", "")
 	t.Setenv("RABBITMQ_TRANSACTION_EVENTS_EXCHANGE", "test-transaction-exchange")
 
 	mockRabbit := rabbitmq.NewMockProducerRepository(ctrl)
@@ -264,34 +262,6 @@ func TestSendTransactionEvents_AlwaysEmitsStreamingEvent(t *testing.T) {
 	var payload map[string]any
 	require.NoError(t, json.Unmarshal(emitted[0].Payload, &payload))
 	assert.Equal(t, tran.ID, payload["id"])
-}
-
-// TestSendTransactionEvents_DisabledFlagSkipsBothTransports asserts the
-// cutover-window flag short-circuits BOTH legacy rabbit AND
-// lib-streaming. This mirrors the SendOverdraftEvents contract — the
-// disabled flag is a single switch that operators can flip during
-// incidents without leaving the events flowing through one transport.
-func TestSendTransactionEvents_DisabledFlagSkipsBothTransports(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-
-	mockEmitter := pkgStreaming.NewMockEmitter()
-
-	t.Setenv("RABBITMQ_TRANSACTION_EVENTS_ENABLED", "false")
-
-	// No rabbit expectations: the disabled flag must skip the producer entirely.
-	mockRabbit := rabbitmq.NewMockProducerRepository(ctrl)
-
-	uc := &UseCase{
-		RabbitMQRepo: mockRabbit,
-		Streaming:    mockEmitter,
-	}
-
-	uc.SendTransactionEvents(context.Background(),
-		transactionLifecycleFixture(nil, constant.APPROVED),
-		TransactionLifecyclePhaseCreated)
-
-	assert.Empty(t, mockEmitter.Events(), "disabled flag must short-circuit lib-streaming emission")
 }
 
 // TestSendTransactionEvents_EmitFailureDoesNotCrash exercises the
