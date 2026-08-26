@@ -22,7 +22,10 @@ import (
 )
 
 // =============================================================================
-// TEST HELPERS - CreateBulk Integration Tests
+// TEST HELPERS - Bulk Integration Tests
+//
+// Shared with transaction_updatebulk_integration_test.go, which seeds through
+// CreateBulk before it has rows to update.
 // =============================================================================
 
 // bulkTestInfra holds infrastructure for bulk operation integration tests.
