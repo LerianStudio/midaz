@@ -67,7 +67,7 @@ midaz/
 │   │   ├── cmd/app/         # main.go entry point
 │   │   ├── internal/
 │   │   │   ├── adapters/
-│   │   │   │   ├── http/in/ # Fiber HTTP handlers + routes (incl. fees_routes.go, holder_routes.go, instrument_routes.go, holder/instrument handlers)
+│   │   │   │   ├── http/in/ # Fiber HTTP handlers + routes (incl. fee_package_routes.go, holder_routes.go, instrument_routes.go, holder/instrument handlers)
 │   │   │   │   ├── http/out/# Outbound HTTP clients
 │   │   │   │   ├── postgres/# PostgreSQL repositories (onboarding + transaction)
 │   │   │   │   ├── mongodb/ # MongoDB metadata + fees repositories
@@ -367,7 +367,7 @@ are still emitted on their own paths.
 
 The fee engine + billing-package surface is embedded in the ledger binary — it is **not** a
 standalone service. Routes are registered in
-`components/ledger/internal/adapters/http/in/fees_v2_register.go` (ledger-scoped, `/v2`), under the
+`components/ledger/internal/adapters/http/in/fee_package_routes.go` and its billing siblings (ledger-scoped, `/v2`), under the
 `plugin-fees` authz namespace and served on `:3002`.
 
 Scoping is **path-based**: fee endpoints read the organization and ledger from the

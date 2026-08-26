@@ -60,10 +60,10 @@ permissions:
   - { resource: balances, action: delete, effect: allow, roles: [editor] }
   - { resource: balances, action: post,   effect: allow, roles: [editor] }
 
-  # billing-calculate — billing calculate dry-run (fees_routes.go feeGuardRoutes)
+  # billing-calculate — billing calculate dry-run (billing_calculate_routes.go registerBillingCalculateRoutesToApp)
   - { resource: billing-calculate, action: post, effect: allow, roles: [editor] }
 
-  # billing-packages (fees_routes.go feeGuardRoutes)
+  # billing-packages (billing_package_routes.go registerBillingPackageRoutesToApp)
   - { resource: billing-packages, action: post,   effect: allow, roles: [editor] }
   - { resource: billing-packages, action: get,    effect: allow, roles: [editor, viewer] }
   - { resource: billing-packages, action: patch,  effect: allow, roles: [editor] }
@@ -73,7 +73,7 @@ permissions:
   - { resource: encryption, action: post, effect: allow, roles: [editor] }
   - { resource: encryption, action: get,  effect: allow, roles: [editor, viewer] }
 
-  # estimates — fee estimate dry-run (fees_routes.go feeGuardRoutes)
+  # estimates — fee estimate dry-run (fee_estimate_routes.go registerFeeEstimateRoutesToApp)
   - { resource: estimates, action: post, effect: allow, roles: [editor] }
 
   # holders (holder_routes.go registerHolderRoutesToApp)
@@ -112,7 +112,7 @@ permissions:
   - { resource: organizations, action: delete, effect: allow, roles: [editor] }
   - { resource: organizations, action: head,   effect: allow, roles: [editor, viewer] }
 
-  # packages — fee packages (fees_routes.go feeGuardRoutes)
+  # packages — fee packages (fee_package_routes.go registerPackageRoutesToApp)
   - { resource: packages, action: post,   effect: allow, roles: [editor] }
   - { resource: packages, action: get,    effect: allow, roles: [editor, viewer] }
   - { resource: packages, action: patch,  effect: allow, roles: [editor] }
@@ -151,7 +151,7 @@ permissions:
 
   # transactions (transaction_routes.go RegisterTransactionHumaRoutesToApp;
   # v2 at transaction_routes_v2.go RegisterTransactionV2RoutesToApp and
-  # transaction_v2_mirror_register.go RegisterTransactionMirrorV2RoutesToApp)
+  # transaction_mirror_register_v2.go RegisterTransactionMirrorV2RoutesToApp)
   - { resource: transactions, action: post,  effect: allow, roles: [editor] }
   - { resource: transactions, action: patch, effect: allow, roles: [editor] }
   - { resource: transactions, action: get,   effect: allow, roles: [editor, viewer] }
